@@ -44,7 +44,7 @@ func (a *App) SetUnread(ctx context.Context, cmd SetUnreadCommand) error {
 	if a.memberships == nil || a.hydrator == nil {
 		return ErrStoreRequired
 	}
-	row, head, found, err := a.membershipMutationHead(ctx, cmd.UID, cmd.ChannelID, cmd.ChannelType)
+	row, head, found, err := a.membershipMutationHead(ctx, cmd.UID, cmd.ChannelID, cmd.ChannelType, uint64(cmd.Unread))
 	if err != nil || !found {
 		return err
 	}
@@ -52,6 +52,9 @@ func (a *App) SetUnread(ctx context.Context, cmd SetUnreadCommand) error {
 	target := visibilityFloor
 	if uint64(cmd.Unread) < head.LastCommittedSeq {
 		target = maxMembershipFloor(target, head.LastCommittedSeq-uint64(cmd.Unread))
+	}
+	if head.BoundaryComputed {
+		target = maxMembershipFloor(visibilityFloor, head.UnreadBoundary)
 	}
 	if target <= row.ReadSeq {
 		return nil
@@ -95,7 +98,7 @@ func (a *App) ActivateConversation(ctx context.Context, cmd ActivateConversation
 
 // membershipMutationHead distinguishes authoritative absence from failed reads.
 // Callers decide whether a missing conversation is an idempotent success.
-func (a *App) membershipMutationHead(ctx context.Context, uid, channelID string, channelType uint8) (metadb.UserChannelMembership, HydrationResult, bool, error) {
+func (a *App) membershipMutationHead(ctx context.Context, uid, channelID string, channelType uint8, keepUnread ...uint64) (metadb.UserChannelMembership, HydrationResult, bool, error) {
 	row, ok, err := a.memberships.GetUserChannelMembership(ctx, uid, channelID, int64(channelType))
 	if err != nil {
 		return metadb.UserChannelMembership{}, HydrationResult{}, false, err
@@ -103,7 +106,7 @@ func (a *App) membershipMutationHead(ctx context.Context, uid, channelID string,
 	if !ok || row.Tombstone {
 		return metadb.UserChannelMembership{}, HydrationResult{}, false, nil
 	}
-	heads, err := a.hydrator.HydrateConversationHeads(ctx, uid, []metadb.UserChannelMembership{row})
+	heads, err := a.hydrator.HydrateConversationHeads(ctx, uid, []metadb.UserChannelMembership{row}, keepUnread...)
 	if err != nil {
 		return metadb.UserChannelMembership{}, HydrationResult{}, false, err
 	}

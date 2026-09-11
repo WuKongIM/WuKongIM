@@ -187,6 +187,7 @@ func TestMessageDBStoreAdapterPreservesConversationDisplayFields(t *testing.T) {
 		Records: []ch.Record{{
 			ID:                10,
 			Setting:           2,
+			Expire:            3600,
 			FromUID:           "u1",
 			ClientMsgNo:       "client-1",
 			Payload:           []byte("payload"),
@@ -202,6 +203,7 @@ func TestMessageDBStoreAdapterPreservesConversationDisplayFields(t *testing.T) {
 	require.Equal(t, "u1", committed.Messages[0].FromUID)
 	require.Equal(t, "client-1", committed.Messages[0].ClientMsgNo)
 	require.Equal(t, uint8(2), committed.Messages[0].Setting)
+	require.Equal(t, uint32(3600), committed.Messages[0].Expire)
 	require.Equal(t, []byte("payload"), committed.Messages[0].Payload)
 	require.Equal(t, int64(1234), committed.Messages[0].ServerTimestampMS)
 
@@ -213,8 +215,13 @@ func TestMessageDBStoreAdapterPreservesConversationDisplayFields(t *testing.T) {
 	require.Equal(t, "u1", msg.FromUID)
 	require.Equal(t, "client-1", msg.ClientMsgNo)
 	require.Equal(t, uint8(2), msg.Setting)
+	require.Equal(t, uint32(3600), msg.Expire)
 	require.Equal(t, []byte("payload"), msg.Payload)
 	require.Equal(t, int64(1234), msg.ServerTimestampMS)
+	latest, _, _, err := factory.ListLatestMessages(ctx, 0, 10)
+	require.NoError(t, err)
+	require.Len(t, latest, 1)
+	require.Equal(t, uint32(3600), latest[0].Expire)
 }
 
 func TestMessageDBStoreAdapterLookupIdempotency(t *testing.T) {

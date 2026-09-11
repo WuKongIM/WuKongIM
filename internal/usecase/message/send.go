@@ -824,7 +824,7 @@ func (a *App) resolveSendBatchPermissions(items []SendBatchItem, groups []sendBa
 			}
 		}
 	}
-	runSendBatchWorkers(goruntimeregistry.TaskMessagePermissionBatch, len(fallbackGroups), permissionWorkers, func(index int) {
+	runMessageBatchWorkers(goruntimeregistry.TaskMessagePermissionBatch, len(fallbackGroups), permissionWorkers, func(index int) {
 		groupIndex := fallbackGroups[index]
 		item := items[groups[groupIndex].representative]
 		ctx := item.Context
@@ -903,7 +903,8 @@ func permissionScopeForBatch(cmd SendCommand) (sendPermissionScope, bool) {
 	}, true
 }
 
-func runSendBatchWorkers(taskID goruntimeregistry.TaskID, workItems int, maxWorkers int, run func(int)) {
+// runMessageBatchWorkers bounds concurrent read work and joins every worker before returning.
+func runMessageBatchWorkers(taskID goruntimeregistry.TaskID, workItems int, maxWorkers int, run func(int)) {
 	workers := min(workItems, maxWorkers)
 	if workers <= 1 {
 		for index := 0; index < workItems; index++ {

@@ -87,7 +87,11 @@ func (s *Server) handleConversationSyncLegacy(c *gin.Context) {
 			if synced.FromUID == s.systemUID {
 				synced.FromUID = ""
 			}
-			row.Recents = append(row.Recents, newLegacyMessageResp(req.UID, synced))
+			recent := newLegacyMessageResp(req.UID, synced)
+			row.Recents = append(row.Recents, recent)
+			if row.LastClientMsgNo == "" && recent.MessageSeq == row.LastMessageSeq {
+				row.LastClientMsgNo = recent.ClientMsgNo
+			}
 		}
 		resp = append(resp, row)
 	}

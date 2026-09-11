@@ -251,8 +251,9 @@ func (db *MessageDB) importMessageBackupChannelStream(ctx context.Context, reade
 		return 0, err
 	}
 
-	entry := &channelEntry{key: header.key, id: header.id, appendKeyCache: newAppendKeyCache(header.key, header.id)}
+	entry := &channelEntry{db: db, key: header.key, id: header.id, appendKeyCache: newAppendKeyCache(header.key, header.id)}
 	messageBatch := db.engine.NewBatch()
+	stager := nonBusinessStager{entry: entry, batch: messageBatch, ctx: ctx}
 	defer func() { _ = messageBatch.Close() }()
 	var previousSeq uint64
 	var maxMessageID uint64
@@ -268,7 +269,7 @@ func (db *MessageDB) importMessageBackupChannelStream(ctx context.Context, reade
 		if row.MessageID > maxMessageID {
 			maxMessageID = row.MessageID
 		}
-		if err := entry.stageMessageRow(messageBatch, row, entry.appendKeyCache); err != nil {
+		if err := stager.stage(row, entry.appendKeyCache); err != nil {
 			return 0, err
 		}
 		if (index+1)%backupImportBatchMessages == 0 || index+1 == header.messageCount {
@@ -280,6 +281,7 @@ func (db *MessageDB) importMessageBackupChannelStream(ctx context.Context, reade
 					return 0, err
 				}
 				messageBatch = db.engine.NewBatch()
+				stager = nonBusinessStager{entry: entry, batch: messageBatch, ctx: ctx}
 			}
 		}
 	}

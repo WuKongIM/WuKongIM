@@ -54,7 +54,7 @@ func (l *ChannelLog) ApplyFetch(ctx context.Context, req ApplyFetchRequest) (App
 
 	batch := l.db.engine.NewBatch()
 	defer batch.Close()
-	if err := l.stageMessageRows(batch, rows); err != nil {
+	if err := l.stageMessageRows(ctx, batch, rows); err != nil {
 		return AppendResult{}, err
 	}
 	if req.Checkpoint != nil {

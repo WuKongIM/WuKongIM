@@ -3507,8 +3507,11 @@ func TestNewWiresChannelAppendIdempotencyStoreForWriteFencedRetry(t *testing.T) 
 	cluster.writeFenced = true
 	cluster.idempotencyOK = true
 	cluster.idempotencyHit = channelstore.IdempotencyHit{
-		Message:     channelruntime.Message{MessageID: 42, MessageSeq: 7},
+		Message:     channelruntime.Message{MessageID: 42, MessageSeq: 7, FromUID: "u1", ClientMsgNo: "client-1", Payload: []byte("payload")},
 		PayloadHash: appTestPayloadHash([]byte("payload")),
+	}
+	cluster.messages = map[metadb.ChannelKey][]channelruntime.Message{
+		{ChannelID: "room", ChannelType: 2}: {cluster.idempotencyHit.Message},
 	}
 	app, err := newTestApp(t,
 		Config{
@@ -5164,7 +5167,7 @@ func TestAppWiresLegacyConversationSyncRouteToDirectoryAndMessageReads(t *testin
 }
 
 func TestAppWiresMessageSyncRouteToCMDSyncUsecase(t *testing.T) {
-	cluster := newFakePresenceCluster(1, nil)
+	cluster := &fakeCMDSyncCluster{fakePresenceCluster: newFakePresenceCluster(1, nil)}
 	cluster.snapshot = readyFakeClusterSnapshot(1, 16)
 	app, err := newTestApp(t, Config{
 		API: APIConfig{ListenAddr: "127.0.0.1:0"},
@@ -6150,7 +6153,7 @@ func (f *fakeManagerCluster) ListUserChannelMembershipPage(_ context.Context, ui
 	return rows, cursor, limit >= len(items), nil
 }
 
-func (f *fakeManagerCluster) ReadChannelConversationHeads(_ context.Context, ids []channelruntime.ChannelID, uid string) ([]clusterchannels.ConversationHeadResult, error) {
+func (f *fakeManagerCluster) ReadChannelConversationHeads(_ context.Context, ids []channelruntime.ChannelID, uid string, badges ...clusterchannels.ConversationBadgeQuery) ([]clusterchannels.ConversationHeadResult, error) {
 	results := make([]clusterchannels.ConversationHeadResult, len(ids))
 	for index, id := range ids {
 		messages := f.conversationMessages[metadb.ChannelKey{ChannelID: id.ID, ChannelType: int64(id.Type)}]
@@ -6865,7 +6868,7 @@ func (f *fakePresenceCluster) CommittedChannelTail(context.Context, string, int6
 	return f.appendSeq, nil
 }
 
-func (f *fakePresenceCluster) ReadChannelConversationHeads(_ context.Context, ids []channelruntime.ChannelID, uid string) ([]clusterchannels.ConversationHeadResult, error) {
+func (f *fakePresenceCluster) ReadChannelConversationHeads(_ context.Context, ids []channelruntime.ChannelID, uid string, badges ...clusterchannels.ConversationBadgeQuery) ([]clusterchannels.ConversationHeadResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	results := make([]clusterchannels.ConversationHeadResult, len(ids))

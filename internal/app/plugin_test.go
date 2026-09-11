@@ -271,6 +271,18 @@ func TestNewWiresPluginUsecaseAsChannelOwnerReader(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.GetClusterChannelBelongNodeResps(), 1)
 	require.Equal(t, uint64(3), resp.GetClusterChannelBelongNodeResps()[0].GetNodeId())
+
+	// The old append cache can survive a leader change when plugin HTTP
+	// forwards never enter the message router's failure invalidation path.
+	cluster.channelRuntimeMetas = map[metadb.ChannelKey]metadb.ChannelRuntimeMeta{
+		{ChannelID: "g1", ChannelType: 2}: {ChannelID: "g1", ChannelType: 2, Leader: 2},
+	}
+	resp, err = app.plugins.ClusterChannelsBelongNode(context.Background(), &pluginproto.ClusterChannelBelongNodeReq{
+		Channels: []*pluginproto.Channel{{ChannelId: "g1", ChannelType: 2}},
+	}, "wk.cluster")
+	require.NoError(t, err)
+	require.Len(t, resp.GetClusterChannelBelongNodeResps(), 1)
+	require.Equal(t, uint64(2), resp.GetClusterChannelBelongNodeResps()[0].GetNodeId())
 }
 
 func TestNewWiresPluginUsecaseAsConversationReader(t *testing.T) {

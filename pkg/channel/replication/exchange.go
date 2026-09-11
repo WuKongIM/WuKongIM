@@ -7,7 +7,7 @@ import (
 )
 
 // ExchangeVersion is the only supported data-bearing peer protocol version.
-const ExchangeVersion uint16 = 4
+const ExchangeVersion uint16 = 5
 
 // ExchangePriority separates quorum-critical work from trailing convergence
 // without changing the durability or validation required at the follower.

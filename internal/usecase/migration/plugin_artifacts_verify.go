@@ -69,6 +69,10 @@ func VerifyPluginArtifacts(ctx context.Context, p Plan, w Workspace, inspector T
 			return out, errors.Join(errors.New("target inspector lacks plugin executable verification"), view.Close())
 		}
 		out.ByTarget[node.NodeID] = 0
+		searchExpected := false
+		for _, spec := range want {
+			searchExpected = searchExpected || spec.Profile == SearchPersistRouteProfile
+		}
 		err = artifacts.WalkPluginArtifacts(ctx, func(got NativePluginArtifact) error {
 			expected, found := want[got.PluginNo]
 			if !found || got.Bytes != expected.Bytes || got.SHA256 != expected.SHA256 || got.Mode != 0500 {
@@ -81,6 +85,14 @@ func VerifyPluginArtifacts(ctx context.Context, p Plan, w Workspace, inspector T
 				File   NativePluginArtifact
 			}{node.NodeID, got})
 		})
+		if err == nil && searchExpected {
+			search, ok := view.(SearchCheckpointView)
+			if !ok {
+				err = errors.New("target inspector lacks search checkpoint verification")
+			} else {
+				err = VerifySearchCheckpoints(ctx, w, search)
+			}
+		}
 		if err := errors.Join(err, view.Close()); err != nil {
 			return out, fmt.Errorf("target node %d plugin executable: %w", node.NodeID, err)
 		}

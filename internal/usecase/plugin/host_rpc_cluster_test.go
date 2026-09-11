@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
@@ -10,6 +11,37 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/stretchr/testify/require"
 )
+
+func TestClusterChannelsBelongNodeBatchesLargeConversationList(t *testing.T) {
+	owners := &batchOnlyChannelOwnerReader{}
+	app, err := NewApp(Options{Runtime: &recordingRuntime{}, Invoker: &recordingInvoker{}, ChannelOwners: owners})
+	require.NoError(t, err)
+	channels := make([]*pluginproto.Channel, 655)
+	for i := range channels {
+		channels[i] = &pluginproto.Channel{ChannelId: fmt.Sprintf("conversation-%d", i), ChannelType: 2}
+	}
+	resp, err := app.ClusterChannelsBelongNode(context.Background(), &pluginproto.ClusterChannelBelongNodeReq{Channels: channels}, "search")
+	require.NoError(t, err)
+	require.Equal(t, 1, owners.calls)
+	require.Len(t, resp.GetClusterChannelBelongNodeResps(), 1)
+	require.Equal(t, uint64(2), resp.GetClusterChannelBelongNodeResps()[0].GetNodeId())
+	require.Equal(t, channels, resp.GetClusterChannelBelongNodeResps()[0].GetChannels())
+}
+
+type batchOnlyChannelOwnerReader struct{ calls int }
+
+func (r *batchOnlyChannelOwnerReader) ChannelOwnerNode(context.Context, message.ChannelID) (uint64, error) {
+	return 0, errors.New("per-channel authority reads exceed search callback budget")
+}
+
+func (r *batchOnlyChannelOwnerReader) ChannelOwnerNodes(_ context.Context, ids []message.ChannelID) ([]uint64, error) {
+	r.calls++
+	owners := make([]uint64, len(ids))
+	for i := range owners {
+		owners[i] = 2
+	}
+	return owners, nil
+}
 
 func TestClusterConfigMapsSnapshotDeterministically(t *testing.T) {
 	reader := &recordingClusterReader{snapshot: ClusterSnapshot{

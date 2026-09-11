@@ -269,6 +269,7 @@ func (f *MessageDBFactory) ListLatestMessages(ctx context.Context, beforeMessage
 			Payload:           cloneBytes(msg.Payload),
 			ServerTimestampMS: msg.ServerTimestampMS,
 			RedDot:            msg.RedDot,
+			Expire:            msg.Expire,
 		})
 	}
 	return out, page.HasMore, page.NextBeforeMessageID, nil
@@ -751,6 +752,9 @@ func (a *messageDBChannelStoreAdapter) ReadCommitted(ctx context.Context, req Re
 	if err := ctx.Err(); err != nil {
 		return ReadCommittedResult{}, err
 	}
+	if req.MessageID != 0 || req.ClientMsgNo != "" {
+		return a.readIndexedCommitted(ctx, req)
+	}
 	readFrom := req.FromSeq
 	if !req.Reverse && req.MinSeq > 0 && readFrom < req.MinSeq {
 		readFrom = req.MinSeq
@@ -837,6 +841,15 @@ func (a *messageDBChannelStoreAdapter) LookupIdempotency(ctx context.Context, fr
 	msg.MessageSeq = entry.MessageSeq
 	msg.MessageID = entry.MessageID
 	return IdempotencyHit{Message: fromDBMessage(msg), PayloadHash: payloadHash}, true, nil
+}
+
+// CountOrdinaryMessages preserves the caller's authoritative committed range.
+func (a *messageDBChannelStoreAdapter) CountOrdinaryMessages(ctx context.Context, after, through uint64) (uint64, error) {
+	if err := a.ensureOpen(); err != nil {
+		return 0, err
+	}
+	count, err := a.store.CountOrdinaryMessages(ctx, after, through)
+	return count, a.mapError(err)
 }
 
 func (a *messageDBChannelStoreAdapter) GetLastSenderMessageSeq(ctx context.Context, fromUID string, throughSeq uint64) (uint64, bool, error) {
@@ -966,6 +979,7 @@ func encodeRecordsForMessageDB(id ch.ChannelID, records []ch.Record) []channel.R
 			MessageSeq:        record.Index,
 			Framer:            frame.Framer{SyncOnce: record.SyncOnce, RedDot: record.RedDot},
 			Setting:           frame.Setting(record.Setting),
+			Expire:            record.Expire,
 			ChannelID:         id.ID,
 			ChannelType:       id.Type,
 			FromUID:           record.FromUID,
@@ -1009,13 +1023,14 @@ func fromDBRecord(record channel.Record) ch.Record {
 			ServerTimestampMS: msg.ServerTimestampMS,
 			SyncOnce:          msg.Framer.SyncOnce,
 			RedDot:            msg.Framer.RedDot,
+			Expire:            msg.Expire,
 		}
 	}
 	return ch.Record{ID: record.ID, Index: record.Index, Epoch: record.Epoch, Payload: cloneBytes(record.Payload), SizeBytes: record.SizeBytes}
 }
 
 func fromDBMessage(msg channel.Message) ch.Message {
-	return ch.Message{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, Setting: uint8(msg.Setting), FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Payload: cloneBytes(msg.Payload), ServerTimestampMS: msg.ServerTimestampMS, SyncOnce: msg.Framer.SyncOnce, RedDot: msg.Framer.RedDot}
+	return ch.Message{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, Setting: uint8(msg.Setting), FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Payload: cloneBytes(msg.Payload), ServerTimestampMS: msg.ServerTimestampMS, SyncOnce: msg.Framer.SyncOnce, RedDot: msg.Framer.RedDot, Expire: msg.Expire}
 }
 
 const durableMessageHeaderSize = 45
@@ -1183,4 +1198,43 @@ func hashPayload(payload []byte) uint64 {
 	h := fnv.New64a()
 	_, _ = h.Write(payload)
 	return h.Sum64()
+}
+
+// readIndexedCommitted preserves the caller's committed and retention bounds.
+func (a *messageDBChannelStoreAdapter) readIndexedCommitted(ctx context.Context, req ReadCommittedRequest) (ReadCommittedResult, error) {
+	if req.MessageID != 0 && req.ClientMsgNo != "" || req.Limit <= 0 || req.Limit > 1024 || req.MaxBytes <= 0 || req.MaxBytes > 16<<20 || len(req.ClientMsgNo) > 1024 {
+		return ReadCommittedResult{}, ch.ErrInvalidConfig
+	}
+	if req.MaxSeq == 0 || req.MinSeq > req.MaxSeq {
+		return ReadCommittedResult{}, nil
+	}
+	var messages []channel.Message
+	if req.MessageID != 0 {
+		m, ok, err := a.store.GetMessageByMessageID(req.MessageID)
+		if err != nil {
+			return ReadCommittedResult{}, a.mapError(err)
+		}
+		if ok {
+			messages = []channel.Message{m}
+		}
+	} else {
+		var err error
+		messages, err = a.store.LookupMessagesByClientMsgNo(ctx, req.ClientMsgNo, req.MinSeq, req.MaxSeq, req.Limit, req.MaxBytes)
+		if err != nil {
+			return ReadCommittedResult{}, a.mapError(err)
+		}
+	}
+	out := ReadCommittedResult{}
+	used := 0
+	for _, m := range messages {
+		if m.MessageSeq < req.MinSeq || m.MessageSeq > req.MaxSeq {
+			continue
+		}
+		used += len(m.Payload)
+		if used > req.MaxBytes {
+			return ReadCommittedResult{}, ch.ErrInvalidConfig
+		}
+		out.Messages = append(out.Messages, fromDBMessage(m))
+	}
+	return out, ctx.Err()
 }

@@ -2,7 +2,7 @@ package channel
 
 import "github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 
-// ProposalManifestVersion is the only exact-append manifest format.
+// ProposalManifestVersion is the original non-expiring exact-append format.
 const ProposalManifestVersion = quorumlog.ProposalManifestVersion
 
 // CommandID is the retry-stable identity of one immutable Channel proposal.
@@ -35,7 +35,7 @@ func DeriveProposalEntries(manifest ProposalManifest, recordCount int, recordAt 
 		return quorumlog.Record{
 			ID: record.ID, Index: record.Index, Epoch: record.Epoch, Setting: record.Setting,
 			FromUID: record.FromUID, ClientMsgNo: record.ClientMsgNo,
-			ServerTimestampMS: record.ServerTimestampMS, SyncOnce: record.SyncOnce, Payload: record.Payload,
+			ServerTimestampMS: record.ServerTimestampMS, SyncOnce: record.SyncOnce, Payload: record.Payload, Expire: record.Expire,
 		}
 	})
 }
@@ -49,4 +49,19 @@ func SealProposalManifest(manifest ProposalManifest, records []Record) (Proposal
 	}
 	manifest.Digest = entries[len(entries)-1].Digest
 	return manifest, entries, true
+}
+
+// ProposalVersionForRecords selects a format only for a new business proposal.
+func ProposalVersionForRecords(records []Record) uint16 {
+	for _, record := range records {
+		if record.Expire != 0 {
+			return quorumlog.ExpirationProposalManifestVersion
+		}
+	}
+	return ProposalManifestVersion
+}
+
+// SupportedProposalVersion preserves original v1 and expiration-aware v2 reads.
+func SupportedProposalVersion(version uint16) bool {
+	return quorumlog.SupportedProposalVersion(version)
 }

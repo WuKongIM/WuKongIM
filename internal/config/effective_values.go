@@ -9,6 +9,7 @@ func effectiveConfigValues(cfg app.Config) map[string]any {
 		"WK_NODE_ID":                                                 cfg.NodeID,
 		"WK_NODE_DATA_DIR":                                           cfg.DataDir,
 		"WK_CLUSTER_LISTEN_ADDR":                                     cfg.Cluster.ListenAddr,
+		"WK_CLUSTER_START_TIMEOUT":                                   cfg.Cluster.Timeouts.Start,
 		"WK_CLUSTER_ID":                                              cfg.Cluster.Control.ClusterID,
 		"WK_CLUSTER_SEEDS":                                           cfg.Cluster.Join.Seeds,
 		"WK_CLUSTER_ADVERTISE_ADDR":                                  cfg.Cluster.Join.AdvertiseAddr,

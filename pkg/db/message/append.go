@@ -39,8 +39,9 @@ func (l *ChannelLog) Append(ctx context.Context, records []Record, opts AppendOp
 }
 
 func (l *ChannelLog) prepareAndStageAppendLocked(ctx context.Context, batch *engine.Batch, records []Record, opts AppendOptions) (AppendResult, error) {
+	stager := nonBusinessStager{entry: l.channelEntry, batch: batch, ctx: ctx}
 	return l.walkAppendRowsLocked(ctx, records, opts, func(row messageRow, cache appendKeyCache) error {
-		return l.stageMessageRow(batch, row, cache)
+		return stager.stage(row, cache)
 	})
 }
 
@@ -115,10 +116,11 @@ func (l *ChannelLog) publishAppendLocked(result AppendResult) {
 	l.clearDurableProposalTailLocked()
 }
 
-func (l *channelEntry) stageMessageRows(batch *engine.Batch, rows []messageRow) error {
+func (l *channelEntry) stageMessageRows(ctx context.Context, batch *engine.Batch, rows []messageRow) error {
 	cache := l.appendKeyCache
+	stager := nonBusinessStager{entry: l, batch: batch, ctx: ctx}
 	for _, row := range rows {
-		if err := l.stageMessageRow(batch, row, cache); err != nil {
+		if err := stager.stage(row, cache); err != nil {
 			return err
 		}
 	}

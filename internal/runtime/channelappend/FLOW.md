@@ -72,6 +72,9 @@ message ID and enter online delivery with sequence zero.
 - Command IDs use the configured per-instance suffix. Person validation and
   recipient derivation strip it before parsing UIDs; event and authority IDs
   retain it. Router and local preparation must produce the same canonical ID.
+- Group commands page current subscribers from their source Channel while retaining
+  their command Channel in delivery and persistence. They never reuse a snapshot
+  fenced only by the command Channel metadata version.
 - Persistent command messages use their command Channel; transient messages
   write neither Channel logs nor directory membership.
 - Observability is aggregate and low-cardinality: never label Channel, UID,

@@ -1,9 +1,9 @@
 ---
 title: Product HTTP API
-description: 查阅当前源码注册的全部 42 条业务 HTTP 操作。
+description: 查阅当前源码注册的全部 43 条业务 HTTP 操作。
 ---
 
-Product HTTP 提供基础接入与受信管理接口。完整 OpenAPI 与当前 `internal/access/api` 注册的 42 条操作一一对应。
+Product HTTP 提供基础接入与受信管理接口。完整 OpenAPI 与当前 `internal/access/api` 注册的 43 条操作一一对应。
 进入具体接口页可查看每个查询参数和 JSON 字段的类型、必填性、默认值、范围以及运行时兼容行为。
 
 OpenAPI：[完整合同](/contracts/product-http.openapi.json) · 窄 Profile：[基础接入](/contracts/javascript-web-quickstart.openapi.json) · [消息发送](/contracts/product-http-messaging.openapi.json) · [Channel 与 Conversation](/contracts/product-http-management.openapi.json)
@@ -22,7 +22,7 @@ OpenAPI：[完整合同](/contracts/product-http.openapi.json) · 窄 Profile：
 | 协调群成员 | `/channel`、subscriber add/remove | 保存业务期望版本；失败后核对并重放期望状态 |
 | 同步会话目录 | `/conversation/list` → `/conversation/retry` | 原样回传游标，直到 `done=true` |
 
-完整合同是 42 个运行时入口的权威参考；三个窄 Profile 是经过审阅、带可运行示例的任务投影。生成页会合并这些示例，并在“接口边界”中明确调用方、节点作用域、非原子写入和 HTTP 200 后的业务判定。
+完整合同是 43 个运行时入口的权威参考；三个窄 Profile 是经过审阅、带可运行示例的任务投影。生成页会合并这些示例，并在“接口边界”中明确调用方、节点作用域、非原子写入和 HTTP 200 后的业务判定。
 
 ## Channel 可观测性边界
 

@@ -2,6 +2,10 @@ package engine
 
 // MetricsSnapshot is a stable, Pebble-neutral view of one local storage engine.
 type MetricsSnapshot struct {
+	// BlockCacheHits counts block reads served from the engine cache.
+	BlockCacheHits int64
+	// BlockCacheMisses counts block reads that missed the engine cache.
+	BlockCacheMisses int64
 	// DiskSpaceUsageBytes is the engine's local disk usage, including live and obsolete files.
 	DiskSpaceUsageBytes uint64
 	// ReadAmplification is the current LSM read amplification estimate.
@@ -66,6 +70,8 @@ func (e *DB) MetricsSnapshot() MetricsSnapshot {
 		compactionBytesWritten += level.TableBytesCompacted
 	}
 	return MetricsSnapshot{
+		BlockCacheHits:               metrics.BlockCache.Hits,
+		BlockCacheMisses:             metrics.BlockCache.Misses,
 		DiskSpaceUsageBytes:          metrics.DiskSpaceUsage(),
 		ReadAmplification:            metrics.ReadAmp(),
 		MemTableSizeBytes:            metrics.MemTable.Size,

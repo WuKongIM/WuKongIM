@@ -73,6 +73,7 @@ async function source(path: string) {
 
 function isProductPath(path: string) {
   return (
+    path === '/messages' ||
     path === '/route' ||
     path === '/route/batch' ||
     /^\/(?:channel|tmpchannel|user|message|conversation|conversations)(?:\/|$)/.test(
@@ -177,12 +178,12 @@ function jsonFieldsForStruct(file: string, typeName: string, seen = new Set<stri
 }
 
 describe('complete Product HTTP OpenAPI contract', () => {
-  test('matches all and only the 42 runtime Product HTTP registrations', async () => {
+  test('matches all and only the 43 runtime Product HTTP registrations', async () => {
     const registered = await registeredProductOperations();
     const contracted = operationKeys().sort();
 
-    expect(registered).toHaveLength(42);
-    expect(contracted).toHaveLength(42);
+    expect(registered).toHaveLength(43);
+    expect(contracted).toHaveLength(43);
     expect(contracted).toEqual(registered);
   });
 
@@ -403,6 +404,7 @@ describe('complete Product HTTP OpenAPI contract', () => {
 
   test('matches every documented JSON request field to the runtime request DTO', async () => {
     const dtoContracts = [
+      ['MessageLookupRequest', 'message_lookup.go', 'messageLookupRequest'],
       ['UpdateTokenRequest', 'user_token.go', 'updateTokenRequest'],
       ['DeviceQuitRequest', 'user_legacy.go', 'deviceQuitRequest'],
       ['SystemUIDsRequest', 'user_legacy.go', 'systemUIDsRequest'],
@@ -600,4 +602,19 @@ describe('complete Product HTTP OpenAPI contract', () => {
       'node-local-operator-only',
     );
   });
+});
+
+
+test('plugin-defined HTTP extension route is inventoried separately from core JSON operations', async () => {
+  const server = await source('server.go');
+  expect(server).toContain('s.engine.Any("/plugins/:plugin_no/*path", s.handlePluginRoute)');
+  expect(document['x-wukongim-extension-routes']).toEqual([
+    expect.objectContaining({ method: 'ANY', path: '/plugins/:plugin_no/*path', max_body_bytes: 10485760, timeout_config: 'plugin.timeout' }),
+  ]);
+  for (const suffix of ['', '.en']) {
+    const guide = await Bun.file(new URL(`../content/docs/guide/integration/plugins${suffix}.mdx`, import.meta.url)).text();
+    expect(guide).toContain('ANY /plugins/:plugin_no/*path');
+    expect(guide).toContain('10 MiB');
+    expect(guide).toContain('plugin.timeout');
+  }
 });

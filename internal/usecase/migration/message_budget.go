@@ -44,7 +44,6 @@ func UnsupportedMessageFields(m channelcompat.Message) []string {
 	add(m.Framer.DUP, "dup")
 	add(m.Framer.HasServerVersion, "has_server_version")
 	add(m.Framer.End, "end")
-	add(m.Expire != 0, "expire")
 	add(m.ClientSeq != 0, "client_seq")
 	add(m.MsgKey != "", "msg_key")
 	add(m.StreamNo != "", "stream_no")
@@ -62,7 +61,7 @@ func encodeRecoveryMessage(m channelcompat.Message) (channelcompat.Record, quoru
 	if err != nil {
 		return row, quorumlog.Record{}, err
 	}
-	record := quorumlog.Record{ID: m.MessageID, Index: m.MessageSeq, Epoch: 1, FromUID: m.FromUID, ClientMsgNo: m.ClientMsgNo, ServerTimestampMS: m.ServerTimestampMS, Setting: uint8(m.Setting), SyncOnce: m.Framer.SyncOnce, Payload: m.Payload}
+	record := quorumlog.Record{ID: m.MessageID, Index: m.MessageSeq, Epoch: 1, FromUID: m.FromUID, ClientMsgNo: m.ClientMsgNo, ServerTimestampMS: m.ServerTimestampMS, Setting: uint8(m.Setting), SyncOnce: m.Framer.SyncOnce, Payload: m.Payload, Expire: m.Expire}
 	if len(row.Payload) > quorumlog.DefaultRecoveryPageBytes || quorumlog.RecoveryRecordBytes(record.FromUID, record.ClientMsgNo, len(record.Payload)) > quorumlog.DefaultRecoveryPageBytes {
 		return channelcompat.Record{}, quorumlog.Record{}, fmt.Errorf("source message %d exceeds the native recovery page budget of %d bytes", m.MessageSeq, quorumlog.DefaultRecoveryPageBytes)
 	}

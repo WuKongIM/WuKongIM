@@ -42,14 +42,24 @@ type TargetChannel struct {
 	Count         uint64          `json:"count"`
 }
 
+// ConversationUnreadArchive binds original ordinary conversation records whose
+// independent counters are preserved in the archive rather than native rows.
+type ConversationUnreadArchive struct {
+	Rows        uint64 `json:"rows"`
+	NonzeroRows uint64 `json:"nonzero_rows"`
+	SHA256      string `json:"sha256"`
+}
+
 type TargetRecordsReport struct {
-	Transformation  *MessageTransformReport `json:"message_transformation,omitempty"`
-	SelectionDigest string                  `json:"selection_digest"`
-	Digest          string                  `json:"digest"`
-	Metadata        map[string]uint64       `json:"metadata_rows"`
-	Messages        uint64                  `json:"messages"`
-	MessageChannels uint64                  `json:"message_channels"`
-	MaxMessageID    uint64                  `json:"max_message_id"`
+	ArchivedUnread    *ConversationUnreadArchive `json:"archived_unread,omitempty"`
+	HiddenMemberships uint64                     `json:"hidden_memberships,omitempty"`
+	Transformation    *MessageTransformReport    `json:"message_transformation,omitempty"`
+	SelectionDigest   string                     `json:"selection_digest"`
+	Digest            string                     `json:"digest"`
+	Metadata          map[string]uint64          `json:"metadata_rows"`
+	Messages          uint64                     `json:"messages"`
+	MessageChannels   uint64                     `json:"message_channels"`
+	MaxMessageID      uint64                     `json:"max_message_id"`
 }
 
 // BuildTargetRecords joins selected source business state into bounded native
@@ -89,6 +99,11 @@ func BuildTargetRecords(ctx context.Context, selection SourceSelection, w Worksp
 		record := TargetRecord{Table: table, Owner: owner, HashSlot: targetHashSlot(owner), Value: data}
 		return put(fmt.Sprintf("target/meta/%03d/%s/%s", record.HashSlot, table, key), record)
 	}
+	unreadHash := sha256.New()
+	unreadEncoder := json.NewEncoder(unreadHash)
+	if selection.Metadata != nil && selection.Metadata.Policy.DeriveUnreadFromBoundaries {
+		report.ArchivedUnread = &ConversationUnreadArchive{}
+	}
 	err = WalkSelectedSources(ctx, w, func(record SelectedRecord) error {
 		id := record.Identity
 		if id.Channel.ID != "" && (strings.HasPrefix(id.Channel.ID, "__wk_internal_memberlist__/") || id.Channel.ID == "__wk_internal_system_uids__") {
@@ -111,6 +126,18 @@ func BuildTargetRecords(ctx context.Context, selection SourceSelection, w Worksp
 		facts, err := decoder.DecodeBusiness(record.Row, id)
 		if err != nil {
 			return fmt.Errorf("convert %s: %w", record.Row.Table, err)
+		}
+		if c := facts.Conversation; c != nil && c.Type == 0 && report.ArchivedUnread != nil {
+			report.ArchivedUnread.Rows++
+			if c.UnreadCount != 0 {
+				report.ArchivedUnread.NonzeroRows++
+			}
+			if err := unreadEncoder.Encode(struct {
+				NodeID uint64
+				Row    Row
+			}{record.NodeID, record.Row}); err != nil {
+				return err
+			}
 		}
 		facts, omitted, err := transform.apply(ctx, id, facts)
 		if err != nil || omitted {
@@ -164,7 +191,7 @@ func BuildTargetRecords(ctx context.Context, selection SourceSelection, w Worksp
 			return metadata("subscriber", channel, tuple(channel, m.Channel.Type, m.UID), meta.Subscriber{ChannelID: channel, ChannelType: int64(m.Channel.Type), UID: m.UID})
 		case facts.Conversation != nil:
 			c := facts.Conversation
-			if c.UnreadCount != 0 {
+			if c.UnreadCount != 0 && (selection.Metadata == nil || !selection.Metadata.Policy.DeriveUnreadFromBoundaries || c.Type == 1) {
 				return errors.New("independent source unread count requires API equivalence validation")
 			}
 			if c.Type == 1 {
@@ -251,6 +278,9 @@ func BuildTargetRecords(ctx context.Context, selection SourceSelection, w Worksp
 	if err != nil {
 		return report, err
 	}
+	if report.ArchivedUnread != nil {
+		report.ArchivedUnread.SHA256 = hex.EncodeToString(unreadHash.Sum(nil))
+	}
 	// A subscriber is a durable member even before the first conversation.
 	// With existing history, an absent v2 conversation cannot be inferred as
 	// read, deleted or active; require an exact operator decision before import.
@@ -278,7 +308,10 @@ func BuildTargetRecords(ctx context.Context, selection SourceSelection, w Worksp
 		if err != nil {
 			return err
 		}
-		return metadata("membership", m.UID, tuple(m.UID, m.Channel.ID, m.Channel.Type), meta.UserChannelMembership{UID: m.UID, ChannelID: m.Channel.ID, ChannelType: int64(m.Channel.Type), JoinSeq: 1, ReadSeq: readSeq, SourceVersion: 1})
+		if decisions.hiddenThrough(m) > 0 {
+			report.HiddenMemberships++
+		}
+		return metadata("membership", m.UID, tuple(m.UID, m.Channel.ID, m.Channel.Type), meta.UserChannelMembership{UID: m.UID, ChannelID: m.Channel.ID, ChannelType: int64(m.Channel.Type), JoinSeq: 1, ReadSeq: readSeq, ConversationHiddenThroughSeq: decisions.hiddenThrough(m), SourceVersion: 1})
 	})
 	if err != nil {
 		return report, err

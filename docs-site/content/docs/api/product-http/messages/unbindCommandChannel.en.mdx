@@ -19,7 +19,8 @@ _openapi:
       - content: Unbind command-channel discovery
         id: unbind-command-channel-discovery
     contents:
-      - content: Tombstones durable discovery without deleting command messages.
+      - content: Tombstones bounded recipient discovery without deleting command
+          messages.
         heading: unbind-command-channel-discovery
       - content: >-
           POST /message/cmd/unbind
@@ -28,7 +29,8 @@ _openapi:
 
           Unbind command-channel discovery
 
-          Tombstones durable discovery without deleting command messages.
+          Tombstones bounded recipient discovery without deleting command
+          messages.
 
           MessageCMDBindingRequest
 
@@ -45,6 +47,15 @@ _openapi:
 
           channel_type `integer:uint8` 1–255 Numeric Channel type; 1 is a person
           Channel, 2 is a group Channel, and other values are extension types.
+
+          uids array<`string`> minItems: 1; maxItems: 1000 Source-Channel
+          recipients, at most 1000 entries; trims blanks and duplicates.
+          Exclusive with uid and subscribers.
+
+          subscribers array<`string`> minItems: 1; maxItems: 1000 Use this field
+          alone to bind the SEND temporary recipient scope; at most 1000
+          entries, in the same order as SEND. Exclusive with source-Channel
+          fields.
 
           200 Mutation accepted
 
@@ -83,6 +94,8 @@ _openapi:
 <Callout type="warn" title="Operation boundary">
 
 - **Caller**: Trusted backend only
+- **Scope**: Uses the same three exclusive forms and 1000-entry/256 KiB bounds as bind; temporary scope order must match SEND.
+- **Success**: Cross-Slot failure can be partial; retry the complete batch. Unbinding does not delete messages.
 
 </Callout>
 

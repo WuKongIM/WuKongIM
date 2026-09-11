@@ -139,6 +139,8 @@ type Message struct {
 	ChannelID   string
 	ChannelType uint8
 	// Setting carries legacy message setting bits needed by compatible readers.
+	// Expire is the original message lifetime in seconds; zero disables expiry.
+	Expire      uint32
 	Setting     uint8
 	FromUID     string
 	ClientMsgNo string
@@ -177,6 +179,8 @@ type Record struct {
 	Epoch uint64
 	// Setting carries legacy message setting bits for durable compatibility.
 	Setting uint8
+	// Expire preserves the message lifetime in seconds through durable recovery.
+	Expire uint32
 	// FromUID is the sender user id preserved for conversation display.
 	FromUID string
 	// ClientMsgNo is the client idempotency key preserved for conversation display.

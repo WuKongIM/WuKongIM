@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
@@ -179,4 +180,36 @@ func (r *recordingCMDSyncUsecase) Sync(_ context.Context, query cmdsync.SyncQuer
 func (r *recordingCMDSyncUsecase) SyncAck(_ context.Context, cmd cmdsync.SyncAckCommand) error {
 	r.acks = append(r.acks, cmd)
 	return r.ackErr
+}
+
+func TestMessageCMDBatchBindingMappingAndBodyLimit(t *testing.T) {
+	for _, endpoint := range []string{"bind", "unbind"} {
+		for _, body := range []string{`{"uids":["u1","u2"],"channel_id":"g","channel_type":2}`, `{"subscribers":["u2","u1"]}`} {
+			usecase := &recordingCMDSyncUsecase{}
+			srv := New(Options{CMDSync: usecase})
+			rec := httptest.NewRecorder()
+			srv.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/message/cmd/"+endpoint, strings.NewReader(body)))
+			if rec.Code != 200 {
+				t.Fatalf("status %d: %s", rec.Code, rec.Body)
+			}
+			var uids, subscribers []string
+			if endpoint == "bind" {
+				uids = usecase.binds[0].UIDs
+				subscribers = usecase.binds[0].Subscribers
+			} else {
+				uids = usecase.unbinds[0].UIDs
+				subscribers = usecase.unbinds[0].Subscribers
+			}
+			if len(uids)+len(subscribers) != 2 {
+				t.Fatalf("lost batch: %v %v", uids, subscribers)
+			}
+		}
+		usecase := &recordingCMDSyncUsecase{}
+		srv := New(Options{CMDSync: usecase})
+		rec := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/message/cmd/"+endpoint, strings.NewReader(`{"subscribers":["`+strings.Repeat("x", 256*1024)+`"]}`)))
+		if rec.Code != 400 || len(usecase.binds)+len(usecase.unbinds) != 0 {
+			t.Fatalf("oversized request reached usecase: %d", rec.Code)
+		}
+	}
 }

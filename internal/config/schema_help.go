@@ -21,6 +21,10 @@ var schemaHelp = map[string]fieldHelp{
 		EN: "Stable Controller cluster identity; required for seed joining. Static inventories and implicit single-node clusters derive it from node IDs when omitted.",
 		ZH: "Controller 使用的稳定集群标识；种子加入时必填。静态清单或隐式单节点集群省略时会按节点 ID 派生。",
 	},
+	"cluster.start_timeout": {
+		EN: "Maximum wait for cluster startup readiness gates, including committed Slot write probes; omitted or 0 uses 30s. Must be non-negative. Increase only when measured cold recovery needs more time; this does not skip quorum, routing, or placement checks or change steady-state request timeouts.",
+		ZH: "集群启动就绪检查（包括 Slot 提交写入探测）的最长等待时间；省略或为 0 时使用 30s，不能为负数。仅在实测冷恢复需要更多时间时调整；不会跳过多数派、路由或放置检查，也不改变运行中的请求超时。",
+	},
 	"cluster.seeds": {
 		EN: "Existing node addresses used to discover the cluster during dynamic joining; must be non-empty and cannot be combined with cluster.nodes.",
 		ZH: "动态加入时用于发现集群的现有节点地址列表；不能为空，且不能与 cluster.nodes 同时使用。",

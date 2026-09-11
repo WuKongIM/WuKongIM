@@ -14,6 +14,9 @@ const (
 // CommittedMessageQuery describes one bounded scan after page semantics have
 // been resolved. The adapter must preserve these bounds and scan ordering.
 type CommittedMessageQuery struct {
+	// MessageID and ClientMsgNo select one exact identity index, not a range.
+	MessageID   uint64
+	ClientMsgNo string
 	// ChannelID identifies the canonical Channel whose committed log is read.
 	ChannelID ChannelID
 	// FromSeq is the inclusive scan starting sequence.

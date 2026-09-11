@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -140,8 +141,8 @@ func TestSyncChannelMessagesBatchValidatesMembershipsBeforeOneGroupedRead(t *tes
 	if err != nil {
 		t.Fatalf("SyncChannelMessagesBatch() error = %v", err)
 	}
-	if memberships.calls != 2 || reader.batchCalls != 1 {
-		t.Fatalf("membership calls=%d batch calls=%d, want 2 then 1", memberships.calls, reader.batchCalls)
+	if memberships.calls.Load() != 2 || reader.batchCalls != 1 {
+		t.Fatalf("membership calls=%d batch calls=%d, want 2 then 1", memberships.calls.Load(), reader.batchCalls)
 	}
 	if got := reader.batchQueries[0].MinSeq; got != 12 {
 		t.Fatalf("first visibility min seq=%d, want delete floor 12", got)
@@ -460,11 +461,11 @@ func (r *recordingChannelMessageReader) SyncMessagesBatch(_ context.Context, que
 
 type multiSyncMembershipStore struct {
 	rows  map[ChannelID]metadb.UserChannelMembership
-	calls int
+	calls atomic.Int32
 }
 
 func (s *multiSyncMembershipStore) GetUserChannelMembership(_ context.Context, _ string, channelID string, channelType int64) (metadb.UserChannelMembership, bool, error) {
-	s.calls++
+	s.calls.Add(1)
 	row, ok := s.rows[ChannelID{ID: channelID, Type: uint8(channelType)}]
 	return row, ok, nil
 }

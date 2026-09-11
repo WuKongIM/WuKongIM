@@ -27,6 +27,11 @@ type PluginCompatibilityEvidence struct {
 // scope avoids changing old priority/tie selection semantics. Explicit uniform
 // config removes the known source/v3 execution-node-affinity difference.
 func certifyPluginProfile(ctx context.Context, p Plan, capture SourceCapture, w Workspace) (*PluginCompatibilityEvidence, error) {
+	for _, spec := range p.PluginArtifacts {
+		if spec.Profile == SearchPersistRouteProfile {
+			return certifySearchProfile(ctx, p, capture, w)
+		}
+	}
 	requested := false
 	for _, spec := range p.PluginArtifacts {
 		if spec.Profile == "" {
@@ -97,15 +102,19 @@ func (d pluginProfileDecoder) Describe(row Row, id RecordIdentity) (RecordDescri
 	if err != nil {
 		return out, err
 	}
-	if row.Table == "PluginUser" && string(row.Fields["PluginNo"]) != aiExamplePluginNo {
-		return out, errors.New("Receive profile cannot preserve another plugin binding")
+	pluginNo := aiExamplePluginNo
+	if d.profile == SearchPersistRouteProfile {
+		pluginNo = SearchPluginNo
+	}
+	if row.Table == "PluginUser" && string(row.Fields["PluginNo"]) != pluginNo {
+		return out, errors.New("plugin profile cannot preserve another plugin binding")
 	}
 	if row.Table == "Plugin" && out.Plugin != nil {
 		data, err := json.Marshal(row)
 		if err != nil {
 			return out, err
 		}
-		if d.profile == AIExampleReceiveProfile && d.rows[diagnosticSHA(data)] {
+		if knownPluginProfile(d.profile) && d.rows[diagnosticSHA(data)] {
 			out.Plugin.CompatibilityProfile = d.profile
 		}
 	}

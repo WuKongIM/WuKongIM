@@ -39,3 +39,22 @@ func clearFixtureMessageExtensions(t *testing.T, source string) {
 		return true
 	})
 }
+
+// compatibleExpiryMessageFixture changes only a private synthetic fixture.
+// The original v2 lifetime column is retained through all target operations.
+func compatibleExpiryMessageFixture(t *testing.T, expire uint32) string {
+	source := compatibleMessageFixture(t)
+	if expire == 0 {
+		return source
+	}
+	rewriteOriginalIndexFixture(t, source, func(key, value []byte, b *pebble.Batch) bool {
+		if len(key) != 22 || binary.BigEndian.Uint16(key) != 0x0101 || key[2] != 1 || binary.BigEndian.Uint16(key[20:]) != 0x0103 {
+			return false
+		}
+		encoded := make([]byte, 4)
+		binary.BigEndian.PutUint32(encoded, expire)
+		require.NoError(t, b.Set(key, encoded, nil))
+		return true
+	})
+	return source
+}

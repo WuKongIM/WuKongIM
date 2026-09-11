@@ -78,6 +78,11 @@ DTOs, and `worker` bounds blocking I/O.
   only positive sequences covered by local HW and the logical retention floor.
   Committed-read results own their payload bytes beyond store-handle closure,
   so upper layers may transfer them without another deep copy.
+- New proposals containing a nonzero message lifetime use exact proposal format 2,
+  binding Expire in the digest; legacy format-1 hashes remain unchanged.
+  Channel RPC 9 and quorum exchange 5 preserve lifetimes during replication and
+  recovery. Deploy matched runtimes before emitting format 2; binary-only rollback
+  and lossy older message encodings are unsupported.
 - Same-Channel append ordering survives batching and worker concurrency.
   Quorum success requires replicated progress; desired replicas never imply it.
 - Unloaded state is absence from the reactor map. Cold PullHint activation must

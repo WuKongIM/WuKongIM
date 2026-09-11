@@ -120,6 +120,7 @@ func appendRecordsFromMessages(messages []ch.Message, admittedAt time.Time, payl
 			ServerTimestampMS: serverTimestampMS,
 			SyncOnce:          msg.SyncOnce,
 			RedDot:            msg.RedDot,
+			Expire:            msg.Expire,
 		}
 	}
 	return records

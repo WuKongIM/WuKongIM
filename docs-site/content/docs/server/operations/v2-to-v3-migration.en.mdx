@@ -3,9 +3,9 @@ title: v2 → v3 Offline Migration
 description: "Migrate from v2 to v3 in four steps: collect cold backups, fill in the plan, migrate and verify, then deploy and test."
 ---
 
-Run the migration on one machine: **collect cold backups → fill in the plan → migrate and verify → deploy, test, and cut over**. You do not need to modify or upgrade v2: `prepare` reads stopped backups directly.
+This guide covers the general offline migration of an existing WuKongIM v2 deployment. Run the migration on one machine: **collect cold backups → fill in the plan → migrate and verify → deploy, test, and cut over**. You do not need to modify or upgrade v2: `prepare` reads stopped backups directly.
 
-This guide supports original `v2.2.5-20260422`, single-node and multi-node clusters, and changes in node count. **All v2 nodes must be stopped, and v3 must be a new, empty cluster.** Never let v3 open a v2 data directory.
+The validated source baseline is original `v2.2.5-20260422`, supporting single-node and multi-node clusters and node-count changes. Other v2 versions and custom builds require a compatibility assessment and cold-backup rehearsal; a v2 version label alone does not establish support. **All v2 nodes must be stopped, and v3 must be a new, empty cluster.** Never let v3 open a v2 data directory.
 
 <details>
 <summary>Version, capacity, and backup requirements</summary>
@@ -16,16 +16,42 @@ This guide supports original `v2.2.5-20260422`, single-node and multi-node clust
 | Migration method | Offline, after stopping writes and all source nodes; no online incremental catch-up |
 | Source and target | Single-node and multi-node clusters, including changes in node count; targets must be entirely new and empty |
 | Runtime platforms | Source file locking supports Linux and macOS; plugin programs must also match the target OS and architecture |
-| Cluster layout | Exactly 256 physical hash slots; the target plan specifies logical Slot and replica counts |
+| Cluster layout | Exactly 256 logical hash slots; the target plan specifies physical Slot and replica counts |
 | Tool and target versions | Build the tool and server from the same fixed, validated v3 source commit, or use a matching delivery package with verified digests |
 
-The migration machine needs space for full cold backups, workspaces, the archive, every target replica, and snapshots taken before acceptance testing. Rehearse with representative data and record peak space and elapsed time. The 100 GiB / four-hour performance target has not been validated and is not a downtime guarantee.
+The migration machine needs space for full cold backups, workspaces, the archive, every target replica, and snapshots taken before acceptance testing. Rehearse with representative data and record peak space and elapsed time. Use measurements from your own deployment to schedule the final outage, rather than another deployment’s backup size or timings.
+
+Budget CPU and memory per host, including every colocated node, plugin subprocess, and other service. A rehearsal may share resources with a running v2 cluster, and the first search-index rebuild has different costs from steady operation. For Docker Compose, set per-service CPU, memory, and process limits from rehearsal measurements; observe peaks, OOM events, restarts, and API latency. Go's `GOMEMLIMIT` applies to each Go process and does not replace a container-wide memory limit. Do not copy another deployment's values. The complete functional and recovery acceptance checks must still pass under the selected limits.
+
+If you set `GOMEMLIMIT`, budget for the measured live Go heap, runtime overhead, and request allocation headroom. A soft limit below the live heap can cause persistent garbage collection and API timeouts even before the container reaches its memory limit. Correlate CPU and heap profiles before adjusting caches or the soft limit, while retaining headroom for non-Go memory, plugins, and the host. See the [Go garbage collector guide](https://go.dev/doc/gc-guide).
+
+Cold startup also restores snapshots and replays committed cluster logs. If logs and diagnostics show recovery progressing when startup readiness times out, first check resources, disks, and node communication, then size the wait from measured recovery time. Versions supporting this option expose `cluster.start_timeout` (`WK_CLUSTER_START_TIMEOUT`, default `30s`); verify version support and validate the configuration first. This extends only the startup wait and never relaxes quorum, committed-write, or placement checks. It cannot make a persistently unavailable cluster ready.
 
 The migration archive preserves original business records, but not every original WAL byte. It cannot replace a full filesystem cold backup. Protect the credentials, messages, and plugin configuration it contains.
 
 </details>
 
 ## 1. Collect backups and install the tools
+
+**Check the actual binaries, storage format, and plugins before downtime.** A Docker image tag need not match its binary version: development images may contain another commit or uncommitted changes. `source_commit` selects the reader schema; omitting or changing it cannot make an unsupported database compatible.
+
+Record each source node’s actual binary version/commit, data directory, database shard count, node ID, storage format, plugins, and external interfaces. Image tags and defaults are clues; inspect the actual binary and mounted data. Read `marker.format-version.*` and `format_major_version` in `OPTIONS-*` without changing format markers.
+
+Confirm each required capability against the selected tool’s release notes before running this guide. Basic migration, storage adapters, and optional transformations can be introduced in different versions; having `wkcli` installed does not imply support for every option.
+
+| Check | Action before migration |
+| --- | --- |
+| Source version and storage format | Released `v3.0.0-beta.13` reads Pebble formats up to 14; format 19 requires a tool that explicitly supports it. Readable storage must still pass field, index, and replica validation. |
+| Message expiration | Preserve the original `Expire`, including nonzero values. `v3.0.0-beta.13` lacks complete native expiration propagation; these records require matching tools and runtimes whose release notes explicitly support preservation. Do not zero the field. |
+| Plugins | Inventory each program’s version, size, digest, configuration, and methods. Use a supported compatibility profile and validate actual behavior; see “Plugin migration” below. |
+| Webhooks | Verify the target protocol, endpoint, and connectivity. Do not place a gRPC address into HTTP configuration; verify event handling at the receiver. |
+| Person whitelist | v2 `whitelistOffOfPerson=false` corresponds to v3 `message.person_whitelist_enabled=true`; do not blindly accept the v3 default. |
+| Gateway | Check TCP, WebSocket, and HTTP forwarding. The current v3 gateway does not accept the prefix sent by `proxy_protocol on`; remove that old setting and run `nginx -t` first. |
+| External data source | There is no direct equivalent of v2 `datasource.addr`. Validate imported membership/allowlists/denylists and subsequent changes through supported target APIs. |
+
+Use the same matching version on every target node. If published packages lack a required capability, complete adaptation and release-version validation before scheduling the final outage. Do not assume an unpublished fix is present in an installed package. Once a newer runtime writes target data, follow its data-format rollback constraints instead of merely swapping in an older binary.
+
+If v2 writes resume after a brief outage to take a rehearsal backup, that backup is for rehearsal only. Before the actual cutover, stop all write entrypoints again, take a new complete cold backup, and repeat migration and independent verification with fresh workspaces and target directories. Never route production traffic to a stale rehearsal generation.
 
 Stop all business write entrypoints, let log application, topology changes, and notification queues drain, then shut down every v2 node normally and disable automatic restarts. Preserve complete node data directories, original binaries, configuration, and environment variables. **An existing complete stopped backup can be used directly; do not restart v2.**
 
@@ -69,7 +95,7 @@ Confirm that both binaries have the same version, commit, and build source. Crea
 
 Save the example below as `/srv/wkmigrate/plan.json`. Adjust source node IDs, shard counts, target nodes, addresses, and creation time. For a single-node cluster, keep one target node and set both `replicas` and `channel_replicas` to `1`; still include every source node.
 
-Omitting `source_commit` requires a `wkcli` containing this change. Before release, build the tool and target server from the same source commit containing it. For released tools, use the legacy-compatible field described below.
+The base example explicitly includes `source_commit`, including compatibility with tools that require it. This value selects supported reader rules; it cannot declare arbitrary old data compatible. Use the optional policies below only when the selected tool’s release notes explicitly support them, and omit options you do not need.
 
 **Every path in the plan is an absolute path on the migration machine.** `sources` points to collected backups; `target.nodes` points to directories that will be generated on that machine. `addr` is the final v3 cluster communication address. The tool does not access remote directories over SSH, and you must not run separate plans on individual source servers.
 
@@ -79,6 +105,7 @@ Omitting `source_commit` requires a `wkcli` containing this change. Before relea
 ```json
 {
   "version": 1,
+  "source_commit": "a888f89533d0e7d1b2030e06504ca97f1ad891d4",
   "sources": [
     {"node_id": 1001, "data_dir": "/srv/v2-snapshots/node1001/data", "shard_count": 8},
     {"node_id": 1002, "data_dir": "/srv/v2-snapshots/node1002/data", "shard_count": 8},
@@ -102,9 +129,30 @@ Omitting `source_commit` requires a `wkcli` containing this change. Before relea
 
 `source_commit` may be omitted. The tool selects its supported v2 reader schema and checks actual structures, fields, indexes, and business compatibility during reading; incompatible data still blocks completion. The `source_commit` in reports and archives identifies the reader schema revision, not an automatically detected source binary. Known different versions or custom modifications still require separate assessment.
 
-Older tools, including v3.0.0-beta.12, still require `"source_commit": "a888f89533d0e7d1b2030e06504ca97f1ad891d4"` at the plan top level. New tools continue to accept that plan with the same migration identity. Explicitly specifying a different revision is still rejected. Set `shard_count` to the actual original business DB shard count. Target node IDs are 1–1023; replica counts cannot exceed the target node count. `slot_count` sets target logical Slots. The example uses the v3 default of `12`, which must match `cluster.initial_slot_count` at startup. The migration plan still requires an explicit value; no default is filled in. `hash_slot_count` is the physical hash-slot count, fixed at `256`.
+Older tools, including v3.0.0-beta.12, still require `"source_commit": "a888f89533d0e7d1b2030e06504ca97f1ad891d4"` at the plan top level. New tools continue to accept that plan with the same migration identity. Explicitly specifying a different revision is still rejected. Set `shard_count` to the actual original business DB shard count. Target node IDs are 1–1023; replica counts cannot exceed the target node count. `slot_count` sets target physical Slots. The example uses the v3 default of `12`, which must match `cluster.initial_slot_count` at startup. The migration plan still requires an explicit value; no default is filled in. `hash_slot_count` is the logical hash-slot count, fixed at `256`.
 
 Source directories, workspaces, the archive, and target directories must not contain one another. Target `data_dir` directories must not exist yet, and must later be deployed at the same absolute paths on their respective servers.
+
+</details>
+
+<details>
+<summary>Optional: plugin migration</summary>
+
+Deployments without enabled plugins need no plugin fields. Otherwise, inventory each original program, configuration, method, and supported compatibility profile. A profile may bind an exact binary digest; do not copy another deployment’s digest/profile onto your program or remove registrations to bypass validation.
+
+- `plugin_nodes` assigns a source’s settings to every target, including expansion or contraction.
+- `plugin_configs` explicitly selects a shared configuration source for an individual plugin; other settings follow the node mapping.
+- `plugin_artifacts` records each source program’s actual path, size, SHA-256, and supported profile. Its platform and architecture must match the target.
+
+These fields extend the base plan. See [Plugin migration configuration](https://github.com/WuKongIM/WuKongIM/blob/main/cmd/wkcli/internal/migrate/README.md) for their full structure and each profile’s scope. Adapt unsupported plugins before proceeding, and retain complete original files and settings.
+
+Complete offline `verify` before plugins first start. Search plugins may rebuild indexes from migrated history, requiring additional disk, CPU, and time; do not blindly copy indexes bound to old nodes or sequences. Validate historical search, new-message indexing, cross-node queries after writing to just one node, Leader changes, and full restarts. Readiness and a running plugin process do not replace these checks.
+
+If a search index can be fully rebuilt from IM messages, you may instead omit its historical index and checkpoints, preserve the original backup, plugin program, and configuration, and use the plugin's supported empty-data-directory startup procedure. Record this choice and track historical search rebuilding separately from IM message migration acceptance. New-message indexing and plugin integration still require validation. Do not apply this option to irreplaceable plugin business data or remove plugin registrations or configuration stores to bypass checks.
+
+If callers use `/plugins/:plugin_no/*path`, confirm that the selected target release exposes that HTTP route; `v3.0.0-beta.13` does not yet provide this compatibility entry. Starting a plugin alone is insufficient.
+
+For multi-node acceptance, stop each node in turn and call plugin APIs through every surviving node, then restore the node and verify a full cluster restart. After a channel Leader changes, verify that plugin requests reach its current owner. Success through one node does not prove that other nodes have stopped forwarding to the old Leader. This check also applies when historical search indexes are excluded from migration.
 
 </details>
 
@@ -141,7 +189,62 @@ If the business owner decides to omit CMD and entire stream messages, deduplicat
 
 “Latest” means the greatest **original MessageSeq within the same channel**. Keep the newer record for duplicate MessageIDs or the same channel with matching nonempty sender and nonempty ClientMsgNo. Empty senders or ClientMsgNo values skip ClientMsgNo deduplication; MessageID deduplication remains independent. Cross-channel MessageID conflicts and contradictory retention choices still block completion. Do not add physical replica counts across nodes to calculate business deletions.
 
-After renumbering, retained messages become `1…N` in their original order, and new messages continue at `N+1`. Read and deletion positions map to the number of retained messages at or before the old position. A channel with every message excluded has tail 0 and starts new messages at 1. The tool does not create placeholders or change v3 storage to fill gaps. Gaps already present in source history still block completion.
+After renumbering, retained messages become `1…N` in their original order. Read and deletion positions map to the number of retained messages at or before the old position; a channel with every message excluded has imported tail 0. Runtime recovery barriers also consume channel positions, so use the actual returned sequence and require new messages to be strictly beyond the current durable tail. Do not assume the first message after startup or restart is exactly `N+1`. Migration does not create placeholders or change v3 storage to fill gaps. Historical gaps without original-row evidence still block completion.
+
+</details>
+
+<details>
+<summary>Optional: preserve conversations beyond the old list cap and recover conflicting states</summary>
+
+The original `conversation.userMaxCount` caps the v2 list response; storage may contain more valid conversations. Keep the actual source value in `metadata.conversation_list_limit`. After an explicit business decision to preserve those durable conversations, enable `metadata.preserve_all_conversations: true` alongside `conversation_lookup: "v2_active_slot"`. The report records `users_over_original_limit` and `max_leader_chat_rows`. This does not authorize creating missing conversations or clearing unread state.
+
+Conflicting list and unique-index states still fail by default. A reviewed `metadata.conversation_recoveries` entry binds `node_id`, `logical_key` (`IdentityKey(uid, channelID, channelType)`), `indexed_sha256` (SHA256 of `json.Marshal(Row)`), and `rows_sha256` (SHA256 of each original row's SHA256 plus a newline, ordered by physical ID). It selects one complete original indexed record, preserves its unread/read/deletion state, and then applies the approved message sequence mapping.
+
+Missing or conflicting replicas require separate exact-group decisions. Each `metadata.conversation_replicas` entry binds `logical_key` and `copies_sha256` to every formal replica's candidate, full original row, and absence. `source_node_id` selects one existing complete record. Archive-only treatment requires `archive_only: true` and `source_node_id: 0`; it does not recreate a list entry from an isolated replica. Preserving conversations beyond the list cap does not authorize recovering arbitrary single-copy conversations. Reviewed CMD archive-only policy can likewise bind exact divergent CMD conversation groups. Changed, unused, or already-agreeing groups fail; all originals remain archived. An archive-only group with a pending recovery intent also fails rather than recreating that conversation.
+
+Changed rows, mismatched evidence, and unused decisions fail. Formal replicas without an exact reviewed exception must still agree, every original row remains archived, and import and independent verification rebuild the selection. Archive the complete differences and decide the business rule before generating bindings. See the [operator reference](https://github.com/WuKongIM/WuKongIM/blob/main/cmd/wkcli/internal/migrate/README.md) for fields.
+
+</details>
+
+<details>
+<summary>Optional: duplicate chains, independent unread counters, and absent conversations</summary>
+
+Cross-rule duplicate winners fail by default. After review, `messages.resolve_duplicate_chains: true` follows strictly increasing original sequences within one channel to a unique surviving terminal. It never resurrects older messages. Multiple terminals, changed identities, excluded terminals, and cross-channel MessageID conflicts still fail. The report binds chain-root and terminal counts and a digest; `sequence_mapping.duplicate_chain_proof` references a JSONL sidecar containing direct winners and terminal proofs. The source archive retains complete original messages.
+
+With explicit approval, `metadata.derive_unread_from_boundaries: true` archives independent v2 unread counters and uses native badge calculations over retained messages and mapped read/delete positions, join/retention floors, and the user's latest send. `archived_unread` binds original conversation rows, nonzero-counter counts, and their digest. Displayed counts may differ; this is an approved projection, not proof of counter equivalence. Original read/delete positions are neither cleared nor advanced. Recovery barriers and other `SyncOnce` internal records consume sequences but do not count toward unread badges. A sequence difference is not a message count; set-unread and legacy unread pulls must retain actual ordinary-message boundaries. Include send/receive badge checks after failover. If no released package includes the required fixes, use the [source-build steps in the tools overview](/en/server/tools). The reproducible source baseline for the added migration capabilities in this guide is [`48e89136e`](https://github.com/WuKongIM/WuKongIM/commit/48e89136e5d5f23705ec678bd9ebd5c63c3837cd). Check out that full commit before building both `wkcli` and `wukongim` from the same working directory; inject matching version, commit, and `source` build identity, then compare `version --output json`. This is a source-build baseline, not a published package version. Rehearse with your own complete cold backups before cutover.
+
+This example uses a Linux build machine and target nodes with the same operating system and architecture. Install Go first and use a new directory name. For other platforms, build matching binaries while retaining the same source commit and build identity.
+
+```sh
+git clone https://github.com/WuKongIM/WuKongIM.git WuKongIM-migration
+cd WuKongIM-migration
+git checkout --detach 48e89136e5d5f23705ec678bd9ebd5c63c3837cd
+MIGRATION_COMMIT=$(git rev-parse HEAD)
+MIGRATION_VERSION=migration-48e89136e
+GOTOOLCHAIN=go1.25.11 GOWORK=off CGO_ENABLED=0 go build -trimpath -ldflags="-X main.buildVersion=$MIGRATION_VERSION -X main.buildCommit=$MIGRATION_COMMIT -X main.buildSource=source" -o ./bin/wkcli ./cmd/wkcli
+GOTOOLCHAIN=go1.25.11 GOWORK=off CGO_ENABLED=0 go build -trimpath -ldflags="-X main.buildVersion=$MIGRATION_VERSION -X main.buildCommit=$MIGRATION_COMMIT -X main.buildSource=source" -o ./bin/wukongim ./cmd/wukongim
+./bin/wkcli version --output json
+./bin/wukongim version --output json
+sha256sum ./bin/wkcli ./bin/wukongim
+export PATH="$(pwd)/bin:$PATH"
+```
+
+All target nodes must use matching versions and follow that version’s data-format rollback restrictions.
+
+For a valid member with history but no authoritative conversation, bind `metadata.missing_conversations` to `capture_digest`, `uid_sha256`, `channel_sha256` (SHA256 of `IdentityKey(channelID, channelType)`), and the transformed `retained_tail`. Set `visibility: "hidden_until_new_message"` to preserve membership and history access while suppressing the conversation list entry until a newer ordinary message exists; recovery barriers do not reveal it, while explicit activation does. This marker changes neither history access nor read/delete floors. An absent original read position is not invented; unread after a new message follows native rules. An archived replica conversation additionally requires its exact `conversation_replicas` decision. Pending intents, unapproved existing conversations, changed tails, or unused decisions fail. `hidden_memberships` reports the applied count.
+
+Omitting `visibility` retains the previous explicitly approved fully-read recovery behavior. These are different choices. Hidden membership rows and RPC responses use extended encodings: deploy matching server and CLI versions on every target node. Do not mix older binaries; rollback restores the complete pre-migration data generation and its binaries rather than opening new target directories with old programs.
+
+</details>
+
+<details>
+<summary>Optional: quarantine individually confirmed malformed source rows</summary>
+
+Tools supporting this feature accept a top-level `quarantine` array. Each entry binds `node_id`, `shard`, the Base64-encoded original aggregated primary `key`, the complete original row JSON `sha256`, and the business-approved `reason`. Bind every physical replica separately. Missing rows, changed hashes, duplicate entries, or a mismatched reason stop migration; table filters and wildcards cannot bypass validation. Check the tool version first: older tools reject this field.
+
+Only three reasons are supported: invalid message channel identity (`invalid_message_channel`), an allowlist member whose channel cannot be resolved from the complete sources (`unresolved_allowlist_channel`), and a CMD-suffixed channel with an inconsistent conversation type (`inconsistent_cmd_conversation`). Message quarantine also requires the approved sequence transformation policy; CMD conversation quarantine additionally requires `exclude_cmd`. This does not authorize clearing other permissions, unread state, or expiration fields.
+
+The original primaries, indexes pointing directly to them, and tails with no surviving source messages remain in the archive. Quarantined positions inside valid channels still receive sequence mappings: `omitted` is `quarantined_invalid_message_channel`, `target_seq` is zero, and `boundary_seq` preserves the preceding surviving-message boundary. Historical gaps without corresponding original-row evidence still stop migration. Archive import revalidates reasons, original hashes, and index dependencies before independently rebuilding mappings.
 
 </details>
 
@@ -154,16 +257,16 @@ Run this command block on the migration machine. The four stages check and prepa
   set -e
   umask 077
   wkcli migrate prepare --plan /srv/wkmigrate/plan.json \
-    --workspace /srv/wkmigrate/work/prepare > /srv/wkmigrate/reports/prepare.json
+    --workspace /srv/wkmigrate/work/prepare > /srv/wkmigrate/reports/prepare.json 2> /srv/wkmigrate/reports/prepare.stderr
   wkcli migrate export --plan /srv/wkmigrate/plan.json \
     --workspace /srv/wkmigrate/work/prepare --archive /srv/wkmigrate/source-archive \
-    > /srv/wkmigrate/reports/export.json
+    > /srv/wkmigrate/reports/export.json 2> /srv/wkmigrate/reports/export.stderr
   wkcli migrate import --plan /srv/wkmigrate/plan.json \
     --workspace /srv/wkmigrate/work/import --archive /srv/wkmigrate/source-archive \
-    > /srv/wkmigrate/reports/import.json
+    > /srv/wkmigrate/reports/import.json 2> /srv/wkmigrate/reports/import.stderr
   wkcli migrate verify --plan /srv/wkmigrate/plan.json \
     --workspace /srv/wkmigrate/work/verify --archive /srv/wkmigrate/source-archive \
-    > /srv/wkmigrate/reports/verify.json
+    > /srv/wkmigrate/reports/verify.json 2> /srv/wkmigrate/reports/verify.stderr
   cat /srv/wkmigrate/reports/verify.json
 )
 ```
@@ -175,7 +278,7 @@ Each command must exit with code 0. The preparation report must say `prepared`, 
 
 `prepare` checks original formats, indexes, and shards. It uses durable configuration, Slot logs, and applied positions to establish authoritative sources and compare official replicas. It does not choose the longest follower when replicas conflict, modify v2, or create the target cluster.
 
-`export` reuses the successful preparation workspace, rechecks unchanged sources, and produces an original archive with a manifest, checksums, and a `COMPLETE` marker. `import` and `verify` use separate workspaces and depend only on the plan and complete archive.
+Successful `prepare` records an `archive_seal` binding its report and all original, catalog, selected, and plugin-artifact rows. `export` rechecks unchanged source and plugin files and validates every exported row against that seal, without repeating catalog joins, replica selection, and conversion. It publishes `COMPLETE` only after the digest matches. Older workspaces without a seal require preparation in a fresh directory with matching tools. `import` and `verify` use separate workspaces and independently rebuild all checks from the complete original archive; the export seal never replaces independent verification.
 
 `verify` independently derives expected values from original archived records. It compares credentials, permissions, conversations, messages, native indexes, commit boundaries, and bootstrap artifacts in every target replica, field by field, not just counts. Confirm that `selection_digest` matches preparation, node counts match the plan, and `verified_message_replicas` equals retained business messages × message replica count. Keep every report, digest, import/exclusion count, and any `sequence_mapping` file and checksums.
 
@@ -183,6 +286,12 @@ Each command must exit with code 0. The preparation report must say `prepared`, 
 
 <details>
 <summary>Failures and interruptions: diagnosis and retries</summary>
+
+Preparation reports stage starts, completion or failure, and elapsed time for source capture, plugins, quarantine, the identity catalog, index validation, authoritative replica comparison, conversion, and the completion record. Use these durations to locate bottlenecks. A completed cold backup does not mean validation or import has finished, and a stage-start log is not success. Index validation uses a sorted merge, but total migration time still depends on every stage and the actual data.
+
+Migration time also depends on index counts, validation lookups, and workspace reads and writes; backup size alone is insufficient to estimate it. If stage logs remain unchanged, first check that the original process is still running, then inspect CPU, logical reads, and physical disk reads. High CPU and repeated logical reads with little physical disk traffic can indicate workspace read-cache starvation. Confirm that the tool includes the migration cache fix; do not skip index or data validation. Validate performance repairs in an isolated rehearsal, and preserve the old attempt when changing tools as described below.
+
+Before freezing writes, measure complete stage durations in an isolated rehearsal and allow sufficient task, session, and service-manager timeouts for the final run. Backup time or one stage's time does not bound the entire migration; `import` and `verify` independently rebuild validation too. For `context canceled`, also check whether an outer task timed out or sent a signal before treating it as a data conflict. Once the original process has exited, unchanged sources, plan, and tools permit rerunning `prepare` with the same workspace and separate logs. It rechecks completed data rather than continuing directly from the last logged stage.
 
 A separate `diagnose` command is not required for the first migration. To inventory issues beforehand or investigate a blocker, use a separate diagnostic directory:
 
@@ -233,13 +342,20 @@ If copying is interrupted, confirm that the receiving directory belongs only to 
 
 Prepare each node's `wukongim.toml`. Match `node.id`, `node.data_dir`, `cluster.id`, `cluster.nodes`, `cluster.initial_slot_count`, `cluster.hash_slot_count`, `cluster.slot_replica_n`, and `cluster.channel_replica_n` to the plan. Separately check TLS, listening/advertised addresses, gateway authentication, Webhook endpoints and network protections, plugins, and business backend configuration. Database import does not transfer or validate those settings. Native Webhooks do not provide signatures; if your business uses an external signing proxy, migrate and validate that configuration separately. See [Cluster Configuration](/en/server/configuration/cluster) and [Security Configuration](/en/server/configuration/security).
 
+For a three-node Docker Compose cluster, bind a separate target directory to each service and use the matching v3 image. On a bridge network, both the plan's `target.nodes[].addr` and the configuration's `cluster.nodes` must use service names or network aliases reachable between containers, such as `wk-node1:7000`; the listener may bind to `0.0.0.0:7000`. Do not use host loopback addresses or published host ports as inter-container RPC addresses. Keep the container's `node.data_dir` equal to the verified plan path, and ensure the runtime user can read and write the bind mount. For 12 physical Slots, 256 hash slots, and three replicas, set `initial_slot_count=12`, `hash_slot_count=256`, `slot_replica_n=3`, and `channel_replica_n=3`. Finalize addresses before `prepare`; a changed plan requires a fresh workspace and migration artifacts, never an edited migration identity inside an existing target. Run `docker compose config --quiet` and each node's `wukongim config validate`, then complete offline verification before starting containers.
+
+For persistent CMD recovery, adapt the sending service before cutover: a normal group subscription or a successful `sync_once=1` SEND does not create a CMD discovery binding. Call `POST /message/cmd/bind` for each authorized recipient and stable source Channel **before** the first command that must survive disconnection; maintain those bindings with membership changes, and call `/message/cmd/unbind` when access ends. Bind takes effect after the current CMD tail and does not recover commands sent before it. Request-scoped `subscribers` alone are not an offline recovery directory. On a target version supporting batch bindings, first bind `{ "subscribers": [...] }` in exactly the same order as SEND. For a stable source Channel, use `{ "uids": [...], "channel_id": "...", "channel_type": 2 }` in batches of at most 1000 entries and 256 KiB per request. Do not split a temporary recipient scope and then send to the original scope: different scopes derive different CMD Channels. Cross-Slot binding failures can be partial; retry and confirm the complete binding before sending. If the old service relies on automatic offline fanout, importing data alone does not provide that compatibility. Test an actually disconnected recipient, `/message/sync`, processing and `/message/syncack` across nodes, including removal; online CMD delivery is a separate check. The current `/message/syncack` uses process-local sync records: pin each sync/ack pair to the same server process instead of independently load-balancing them. After acknowledgement, read through other nodes to verify the durable position. Also disband one bound test source Channel and confirm global CMD sync still returns commands from other live sources. Confirmed terminal sources must be skipped without allowing one stale binding to block all synchronization; timeouts and unavailable reads must remain errors. See [recoverable commands](/en/guide/tutorials/ai-and-iot).
+
 Start all targets in isolation using the matching v3 server, without production traffic. At minimum, check:
 
-- `/readyz` succeeds on every node, and Controller, logical Slots, and channel replicas are healthy.
+- `/readyz` succeeds on every node, and Controller, physical Slots, and channel replicas are healthy.
 - Original tokens with the same `device_flag` authenticate; incorrect tokens are rejected. Do not reset tokens to “validate” old credentials.
 - First, last, and cross-page history matches payloads, IDs, sequences, ClientMsgNo, and RedDot. Permissions, conversation lists, and read state match the plan.
 - New message sequences strictly exceed the current channel tail, retrying the same idempotency key does not duplicate messages, and new unread counts are correct. For person sends, use the recipient UID, not the peer UID from history queried as the recipient.
+- Verify group add/remove system messages and CMD delivery, excluding removed members from later messages. Test exact `POST /messages` lookups and application recall notifications/display separately from full-text search. The lookup accepts `message_ids`, `message_seqs`, and `client_msg_nos` with `login_uid`, `channel_id`, and `channel_type`; at most 128 selectors, 1024 results, 16 MiB of payload and 4096 inspected client-index entries per key are allowed. Exhaustion fails explicitly. All nodes must use matching versions supporting this query.
 - History, new messages, and unread state survive full-cluster restarts. For multi-node clusters, test single-node failure recovery under the agreed plan.
+
+For three nodes with three replicas, distinguish existing channels from new channel placement. After stopping one node, existing channels may still commit through quorum while `/readyz` returns 503 because there are too few eligible nodes for new channel placement. Create a test channel while all nodes are ready, then stop each node in turn and verify that channel's history, new writes, and recovery. Preserve the readiness failure reason; passing existing-channel checks does not prove full readiness. Cut production traffic over only after all target nodes recover and pass readiness checks. See [Multi-node Deployment](/en/server/deployment/multi-node).
 - Retained event projections, plugins, Webhooks, push notifications, and actual business clients pass their own acceptance tests.
 
 Run write tests against isolated rehearsal copies. API checks do not replace SDK login, actual UI, and external integration acceptance. The [Chat Demo](/en/guide/quick-start/chat-demo) supports testing with existing tokens; do not create or overwrite original credentials.
@@ -249,7 +365,7 @@ Run write tests against isolated rehearsal copies. API checks do not replace SDK
 <details>
 <summary>Client mapping and rollback details</summary>
 
-Renumbering invalidates old message caches and sequence cursors. For a cache-reset cutover, clear client history copies and derived sync cursors by migration generation, **preserve login credentials**, then sync conversations and history from v3. Handle unsent messages and drafts separately before clearing caches to avoid deleting or resending pending work. Server import does not clear the business App's database.
+Renumbering invalidates old message caches and sequence cursors. For a cache-reset cutover, clear client history copies and derived sync cursors by migration generation, **preserve login credentials**, then sync conversations and history from v3. Handle unsent messages and drafts separately before clearing caches to avoid deleting or resending pending work. `wkcli` migrates WuKongIM data only and does not clear client caches.
 
 If clients use a mapping instead, they must handle the complete `sequence_mapping`. Excluded rows have `target_seq` 0; use `boundary_seq` for old cursors rather than treating excluded rows as existing messages. Rebuild the mapping from the archive with:
 
@@ -266,6 +382,6 @@ After all reports, runtime tests, and client acceptance pass, operators can swit
 | Before v3 accepts new production writes | Close new-cluster ingress, restore original v2 cold backups and routing using the rehearsed procedure, and restore the corresponding client migration generation |
 | After v3 accepts new production writes | Do not switch directly to old v2: new data would be lost. Preserve the new databases and use a validated v3 repair or backup recovery procedure |
 
-This version has no reverse incremental v3 → v2 migration. Rehearse rollback with backup copies without damaging original cold backups. See the [delivery package acceptance report](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-09-v2-migration-delivered-package-rehearsal.md) for a fixed-version migration and restart test. Its functional results do not certify your performance, plugins, or production cutover.
+This tool has no reverse incremental v3 → v2 migration. Before cutover, rehearse restoration of the original version, data, and routing using backup copies, and record the recovery duration. Never use the preserved original backup for write tests.
 
 </details>

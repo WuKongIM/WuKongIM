@@ -10,8 +10,9 @@ description: Message recovery, events, and command-message compatibility.
 <Card href="/en/api/product-http/messages/syncMessageEvents" title="Synchronize current message event projections" description="Reads current durable event projections after a sequence cursor, with filtering after a bounded read; not a replayable event log." />
 <Card href="/en/api/product-http/messages/syncCommandMessages" title="Synchronize command messages" description="Returns the latest durable CMD generation; message_seq is accepted but ignored." />
 <Card href="/en/api/product-http/messages/ackCommandMessages" title="Acknowledge the latest command sync" description="Requires a positive last_message_seq but acknowledges the server's latest recorded generation, not that supplied value." />
-<Card href="/en/api/product-http/messages/bindCommandChannel" title="Bind command-channel discovery" description="Starts durable offline discovery after the current command-channel tail." />
-<Card href="/en/api/product-http/messages/unbindCommandChannel" title="Unbind command-channel discovery" description="Tombstones durable discovery without deleting command messages." />
+<Card href="/en/api/product-http/messages/bindCommandChannel" title="Bind command-channel discovery" description="Starts bounded recipient discovery after one committed command tail." />
+<Card href="/en/api/product-http/messages/unbindCommandChannel" title="Unbind command-channel discovery" description="Tombstones bounded recipient discovery without deleting command messages." />
 <Card href="/en/api/product-http/messages/syncQuickstartChannelMessages" title="Synchronize one Channel's committed messages" description="Checks membership visibility and returns an ascending page; limit is 100 by default and capped at 10000." />
 <Card href="/en/api/product-http/messages/syncChannelMessagesBatch" title="Synchronize up to 200 Channels" description="Validates all memberships before one aligned batch read; item failures are embedded in the HTTP-200 response." />
+<Card href="/en/api/product-http/messages/lookupMessages" title="Look up exact committed messages" description="Looks up exact committed messages within membership visibility; selector, result and scan limits fail without partial results." />
 </Cards>

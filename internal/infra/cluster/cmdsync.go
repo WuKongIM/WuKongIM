@@ -11,6 +11,7 @@ import (
 	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
+	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 )
 
 const cmdSyncReadPageLimit = 256
@@ -22,7 +23,7 @@ type CMDSyncNode interface {
 	AdvanceUserCMDChannelMembershipAcks(context.Context, []metadb.UserCMDChannelMembership) error
 	TombstoneUserCMDChannelMemberships(context.Context, []metadb.UserCMDChannelMembership) error
 	CommittedChannelTail(context.Context, string, int64) (uint64, error)
-	GetChannelMetadataAuthoritative(context.Context, string, int64) (metadb.Channel, error)
+	ReadPermissionMetadataBatchAuthoritative(context.Context, []slotproxy.PermissionMetadataRead) []slotproxy.PermissionMetadataReadResult
 	ReadChannelCommittedBatch(context.Context, []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error)
 }
 
@@ -46,6 +47,7 @@ type CMDSyncStore struct {
 
 var _ cmdsync.StateStore = (*CMDSyncStore)(nil)
 var _ cmdsync.MessageStore = (*CMDSyncStore)(nil)
+var _ cmdsync.MessageBatchStore = (*CMDSyncStore)(nil)
 
 // NewCMDSyncStore creates a cluster-backed CMD sync store.
 func NewCMDSyncStore(node CMDSyncNode) *CMDSyncStore {
@@ -92,61 +94,103 @@ func (s *CMDSyncStore) CommandChannelTail(ctx context.Context, key cmdsync.Comma
 
 // LoadCommandMessages reads committed messages from one command-channel log.
 func (s *CMDSyncStore) LoadCommandMessages(ctx context.Context, key cmdsync.CommandChannelKey, fromSeq uint64, limit int) ([]cmdsync.SyncedMessage, error) {
+	rows, err := s.LoadCommandMessagesBatch(ctx, []cmdsync.CommandMessageRead{{Key: key, FromSeq: fromSeq, Limit: limit}})
+	if err != nil {
+		return nil, err
+	}
+	return rows[0].Messages, rows[0].Err
+}
+
+// LoadCommandMessagesBatch shares Slot metadata reads and Channel-owner RPCs
+// across a bounded directory chunk. It preserves source fences, per-channel
+// pagination, and the explicit empty-log case without hiding unavailable reads.
+func (s *CMDSyncStore) LoadCommandMessagesBatch(ctx context.Context, queries []cmdsync.CommandMessageRead) ([]cmdsync.CommandMessageReadResult, error) {
+	if len(queries) > cmdsync.MaxCommandReadBatch {
+		return nil, metadb.ErrInvalidArgument
+	}
+	out := make([]cmdsync.CommandMessageReadResult, len(queries))
+	if len(queries) == 0 {
+		return out, nil
+	}
 	if s == nil || s.node == nil {
 		return nil, metadb.ErrNotFound
 	}
-	if limit <= 0 {
-		limit = 1
-	}
-	if fromSeq == 0 {
-		fromSeq = 1
-	}
-	sourceChannelID, _ := (runtimechannelid.CommandCodec{Suffix: s.CommandChannelSuffix}).FromCommandChannel(key.ChannelID)
-	channel, err := s.node.GetChannelMetadataAuthoritative(ctx, sourceChannelID, int64(key.ChannelType))
-	if err != nil && !errors.Is(err, metadb.ErrNotFound) {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if err == nil && channel.Disband != 0 {
-		return nil, cmdsync.ErrChannelDisbanded
+	codec := runtimechannelid.CommandCodec{Suffix: s.CommandChannelSuffix}
+	facts := make([]slotproxy.PermissionMetadataRead, len(queries))
+	for i, q := range queries {
+		source, _ := codec.FromCommandChannel(q.Key.ChannelID)
+		facts[i] = slotproxy.PermissionMetadataRead{Kind: slotproxy.PermissionMetadataReadChannel, ChannelID: source, ChannelType: int64(q.Key.ChannelType)}
 	}
-	out := make([]cmdsync.SyncedMessage, 0, limit)
-	nextSeq := fromSeq
-	for len(out) < limit {
+	metadata := s.node.ReadPermissionMetadataBatchAuthoritative(ctx, facts)
+	if len(metadata) != len(facts) {
+		return nil, fmt.Errorf("CMD source batch returned %d rows for %d reads", len(metadata), len(facts))
+	}
+	for i, row := range metadata {
+		if row.Err != nil && !errors.Is(row.Err, metadb.ErrNotFound) {
+			return nil, row.Err
+		}
+		if row.Err == nil && row.Found && row.Channel.Disband != 0 {
+			out[i].Err = cmdsync.ErrChannelDisbanded
+		}
+	}
+	next := make([]uint64, len(queries))
+	limits := make([]int, len(queries))
+	pending := make([]int, 0, len(queries))
+	for i, q := range queries {
+		next[i] = max(q.FromSeq, 1)
+		limits[i] = max(q.Limit, 1)
+		if out[i].Err == nil {
+			pending = append(pending, i)
+		}
+	}
+	for len(pending) > 0 {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		reads, err := s.node.ReadChannelCommittedBatch(ctx, []clusterchannels.CommittedRead{{
-			ChannelID: channelruntime.ChannelID{ID: key.ChannelID, Type: key.ChannelType},
-			Request: channelstore.ReadCommittedRequest{
-				FromSeq:  nextSeq,
-				MaxSeq:   maxUint64(),
-				Limit:    cmdSyncReadPageLimit,
-				MaxBytes: maxInt(),
-			},
-		}})
+		requests := make([]clusterchannels.CommittedRead, len(pending))
+		for j, i := range pending {
+			q := queries[i]
+			requests[j] = clusterchannels.CommittedRead{ChannelID: channelruntime.ChannelID{ID: q.Key.ChannelID, Type: q.Key.ChannelType}, Request: channelstore.ReadCommittedRequest{FromSeq: next[i], MaxSeq: maxUint64(), Limit: cmdSyncReadPageLimit, MaxBytes: maxInt()}}
+		}
+		results, err := s.node.ReadChannelCommittedBatch(ctx, requests)
+		// A singleton not-found identifies exactly one unused log. An ambiguous
+		// batch-level absence must not erase other channels' committed commands.
+		if len(pending) == 1 && errors.Is(err, channelruntime.ErrChannelNotFound) {
+			out[pending[0]].Messages = nil
+			break
+		}
 		if err != nil {
 			return nil, mapAppendError(err)
 		}
-		if len(reads) != 1 {
-			return nil, fmt.Errorf("cmd sync: routed read result count %d, want 1", len(reads))
+		if len(results) != len(requests) {
+			return nil, fmt.Errorf("CMD read batch returned %d rows for %d reads", len(results), len(requests))
 		}
-		if reads[0].Err != nil {
-			return nil, mapAppendError(reads[0].Err)
-		}
-		read := reads[0].Read
-		if len(read.Messages) == 0 {
-			break
-		}
-		for _, msg := range read.Messages {
-			out = append(out, cmdSyncedMessageFromChannel(msg))
-			if len(out) >= limit {
-				break
+		active := make([]int, 0, len(pending))
+		for j, result := range results {
+			i := pending[j]
+			if errors.Is(result.Err, channelruntime.ErrChannelNotFound) {
+				out[i].Messages = nil
+				continue
+			}
+			if result.Err != nil {
+				return nil, mapAppendError(result.Err)
+			}
+			read := result.Read
+			for _, msg := range read.Messages {
+				out[i].Messages = append(out[i].Messages, cmdSyncedMessageFromChannel(msg))
+				if len(out[i].Messages) >= limits[i] {
+					break
+				}
+			}
+			if len(out[i].Messages) < limits[i] && len(read.Messages) > 0 && read.NextSeq > next[i] {
+				next[i] = read.NextSeq
+				active = append(active, i)
 			}
 		}
-		if read.NextSeq <= nextSeq {
-			break
-		}
-		nextSeq = read.NextSeq
+		pending = active
 	}
 	return out, nil
 }

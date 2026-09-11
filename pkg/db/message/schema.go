@@ -17,6 +17,7 @@ const (
 	messageIndexIDFromUIDClientMsgNo uint16 = 4
 	messageIndexIDGlobalMessageID    uint16 = 5
 	messageIndexIDFromUIDMessageSeq  uint16 = 6
+	messageIndexIDNonBusinessSeq     uint16 = 7
 
 	messageSystemIDCheckpoint          uint16 = 1
 	messageSystemIDHistory             uint16 = 2
@@ -28,6 +29,7 @@ const (
 	messageSystemIDProposalByLast      uint16 = 8
 	messageSystemIDProposalByCommand   uint16 = 9
 	messageSystemIDEntryIdentity       uint16 = 10
+	messageSystemIDNonBusinessIndex    uint16 = 11
 
 	messageColumnIDMessageSeq        uint16 = 1
 	messageColumnIDMessageID         uint16 = 2
@@ -112,6 +114,7 @@ var MessageTable = schema.Table{
 		Columns: []uint16{messageColumnIDMessageSeq},
 	},
 	Indexes: []schema.Index{
+		{ID: messageIndexIDNonBusinessSeq, Name: "idx_non_business_seq", Columns: []uint16{messageColumnIDMessageSeq}},
 		{ID: messageIndexIDClientMsgNo, Name: "idx_senderless_client_msg_no", Columns: []uint16{messageColumnIDClientMsgNo, messageColumnIDMessageSeq}},
 		{ID: messageIndexIDFromUIDClientMsgNo, Name: "uidx_client_msg_no_from_uid", Unique: true, Columns: []uint16{messageColumnIDClientMsgNo, messageColumnIDFromUID}},
 		{ID: messageIndexIDGlobalMessageID, Name: "uidx_global_message_id", Unique: true, Columns: []uint16{messageColumnIDMessageID}},

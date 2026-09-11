@@ -61,6 +61,14 @@ UID 到 plugin number 的绑定是 Slot-authoritative 元数据，以 UID 作为
 
 Host RPC 仍遵守 body、header、query、timeout 和目标验证。`toNodeId=-1` 的 fanout 当前明确未实现，不会偷偷执行部分节点广播。
 
+## 业务 HTTP 路由
+
+业务后端可在 Product HTTP 监听器调用 `ANY /plugins/:plugin_no/*path`，例如 `POST /plugins/wk.plugin.search/search`。服务端将 HTTP 方法、路径、请求体及每项首个 header/query 值传给该节点上已连接的插件 `Route` 方法，并返回插件的状态码、响应体和端到端响应头。具体请求与响应结构由插件定义，不属于核心 Product HTTP JSON 操作清单。
+
+入口继承 Product HTTP 的网络隔离和维护模式限制，不新增身份认证。请求体和响应体均限 10 MiB，执行超时使用 `plugin.timeout`（默认 5 秒）；超大请求返回 413，插件不可用或非法响应返回 502，未接入插件运行时返回 503。跳对跳响应头及插件提供的 `Content-Length` 不会透传。
+
+此兼容入口是 `v3.0.0-beta.13` 之后的修复；该已发布版本对此路径返回 404。旧业务依赖它时，需要包含修复的服务端，并验证真实插件调用。
+
 ## 安全与容量检查
 
 1. 只安装经过审查的插件制品，并固定版本与摘要。

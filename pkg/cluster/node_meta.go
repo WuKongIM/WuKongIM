@@ -176,6 +176,21 @@ func (n *Node) GetChannelRuntimeMeta(ctx context.Context, channelID string, chan
 	return n.defaultSlotProxy.GetChannelRuntimeMeta(ctx, channelID, channelType)
 }
 
+// BatchGetChannelRuntimeMetas groups bounded ownership reads by current Slot
+// authority. Missing rows are omitted; route and leadership errors fail the batch.
+func (n *Node) BatchGetChannelRuntimeMetas(ctx context.Context, keys []metadb.ChannelKey) (map[metadb.ChannelKey]metadb.ChannelRuntimeMeta, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return nil, err
+	}
+	if n.defaultSlotProxy == nil {
+		return nil, ErrNotStarted
+	}
+	return n.defaultSlotProxy.BatchGetChannelRuntimeMetas(ctx, keys)
+}
+
 // AdvanceChannelRetentionThroughSeq persists a fenced channel message compaction boundary through Slot ownership.
 func (n *Node) AdvanceChannelRetentionThroughSeq(ctx context.Context, req metadb.ChannelRetentionAdvance) error {
 	if err := ctxErr(ctx); err != nil {

@@ -264,8 +264,11 @@ commandLoop:
 		}
 		if err := decoded.apply(wb, hashSlot); err != nil {
 			if isStaleMetaResult(decoded, err) {
-				results[i] = []byte(ApplyResultStaleMeta)
-				continue
+				// Staging may still remember a task that an earlier command in
+				// this batch completes. Resolve against the committed prefix,
+				// discarding any operations the rejected command already staged.
+				_ = wb.Close()
+				return m.applySplitBatchAfterStaleResult(ctx, cmds)
 			}
 			return nil, fmt.Errorf("%w: apply command slot=%d hash_slot=%d command_type=%d", err, m.slot, hashSlot, commandTypeForDiagnostics(cmd.Data))
 		}
@@ -295,13 +298,10 @@ commandLoop:
 	multiraft.ObserveProposalStage(ctx, "meta_create_slot_fsm_commit", err, time.Since(started))
 	if err != nil {
 		if isStaleMetaCommitError(err) {
-			if len(cmds) == 1 {
-				if err := m.commitStaleAppliedIndex(ctx, cmds[0]); err != nil {
-					return nil, err
-				}
-				return [][]byte{[]byte(ApplyResultStaleMeta)}, nil
-			}
-			return m.applyCommandsIndividuallyAfterStaleCommit(ctx, cmds)
+			// Logical rejection occurs before physical commit. Release its staged
+			// operations before rebuilding smaller, ordered batches.
+			_ = wb.Close()
+			return m.applySplitBatchAfterStaleResult(ctx, cmds)
 		}
 		return nil, err
 	}
@@ -373,20 +373,28 @@ func (m *stateMachine) validateCommandHashSlots(hashSlots []uint16) error {
 	return nil
 }
 
-func (m *stateMachine) applyCommandsIndividuallyAfterStaleCommit(ctx context.Context, cmds []multiraft.Command) ([][]byte, error) {
-	results := make([][]byte, len(cmds))
-	for i, cmd := range cmds {
-		result, err := m.ApplyBatch(ctx, []multiraft.Command{cmd})
-		if err != nil {
-			if isStaleMetaCommitError(err) {
-				results[i] = []byte(ApplyResultStaleMeta)
-				continue
-			}
+// applySplitBatchAfterStaleResult isolates conditional conflicts while keeping
+// healthy replay ranges batched. The left half must finish durably before the
+// right half observes its state; never parallelize these Raft-ordered writes.
+// Only logical rejections before physical commit enter this path. Single-entry
+// conflicts retain their durable no-op watermark after all staged writes close.
+func (m *stateMachine) applySplitBatchAfterStaleResult(ctx context.Context, cmds []multiraft.Command) ([][]byte, error) {
+	if len(cmds) == 1 {
+		if err := m.commitStaleAppliedIndex(ctx, cmds[0]); err != nil {
 			return nil, err
 		}
-		results[i] = result[0]
+		return [][]byte{[]byte(ApplyResultStaleMeta)}, nil
 	}
-	return results, nil
+	middle := len(cmds) / 2
+	left, err := m.ApplyBatch(ctx, cmds[:middle])
+	if err != nil {
+		return nil, err
+	}
+	right, err := m.ApplyBatch(ctx, cmds[middle:])
+	if err != nil {
+		return nil, err
+	}
+	return append(left, right...), nil
 }
 
 func isStaleMetaResult(cmd command, err error) bool {

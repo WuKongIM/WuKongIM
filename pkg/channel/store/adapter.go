@@ -173,6 +173,12 @@ type IdempotencyLookup interface {
 	LookupIdempotency(ctx context.Context, fromUID string, clientMsgNo string) (IdempotencyHit, bool, error)
 }
 
+// OrdinaryMessageCounter counts non-SyncOnce positions in (after, through].
+// Callers supply committed and retention-aware bounds from the current authority.
+type OrdinaryMessageCounter interface {
+	CountOrdinaryMessages(context.Context, uint64, uint64) (uint64, error)
+}
+
 // SenderSequenceLookup finds the latest sequence sent by one user through an
 // explicit committed boundary.
 type SenderSequenceLookup interface {
@@ -338,8 +344,12 @@ type StoreCheckpointBatchResult struct {
 
 // ReadCommittedRequest reads client-visible messages up to MaxSeq.
 type ReadCommittedRequest struct {
-	FromSeq uint64
-	MaxSeq  uint64
+	// MessageID and ClientMsgNo select an indexed lookup instead of a range.
+	// At most one may be set; committed and retention bounds still apply.
+	MessageID   uint64
+	ClientMsgNo string
+	FromSeq     uint64
+	MaxSeq      uint64
 	// MinSeq is the lowest visible message sequence for logical compaction.
 	MinSeq   uint64
 	Limit    int

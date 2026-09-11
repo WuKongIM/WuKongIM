@@ -115,18 +115,19 @@ const (
 	tagSubscriberMutationVersion uint8 = 4
 
 	// User channel membership field tags.
-	tagUserChannelMembershipCommandEntry uint8 = 1
-	tagUserChannelMembershipEntryUID     uint8 = 1
-	tagUserChannelMembershipChannelID    uint8 = 2
-	tagUserChannelMembershipChannelType  uint8 = 3
-	tagUserChannelMembershipJoinSeq      uint8 = 4
-	tagUserChannelMembershipReadSeq      uint8 = 5
-	tagUserChannelMembershipDeletedSeq   uint8 = 6
-	tagUserChannelMembershipActivatedAt  uint8 = 7
-	tagUserChannelMembershipTombstone    uint8 = 8
-	tagUserChannelMembershipTombstoneAt  uint8 = 9
-	tagUserChannelMembershipSourceVer    uint8 = 10
-	tagUserChannelMembershipUpdatedAt    uint8 = 11
+	tagUserChannelMembershipCommandEntry       uint8 = 1
+	tagUserChannelMembershipEntryUID           uint8 = 1
+	tagUserChannelMembershipChannelID          uint8 = 2
+	tagUserChannelMembershipChannelType        uint8 = 3
+	tagUserChannelMembershipJoinSeq            uint8 = 4
+	tagUserChannelMembershipReadSeq            uint8 = 5
+	tagUserChannelMembershipDeletedSeq         uint8 = 6
+	tagUserChannelMembershipActivatedAt        uint8 = 7
+	tagUserChannelMembershipTombstone          uint8 = 8
+	tagUserChannelMembershipTombstoneAt        uint8 = 9
+	tagUserChannelMembershipSourceVer          uint8 = 10
+	tagUserChannelMembershipUpdatedAt          uint8 = 11
+	tagUserChannelMembershipConversationHidden uint8 = 12
 
 	// User CMD channel membership field tags.
 	tagUserCMDChannelMembershipCommandEntry uint8 = 1
@@ -1052,6 +1053,9 @@ func encodeUserChannelMembershipEntry(membership metadb.UserChannelMembership, i
 		buf = appendInt64TLVField(buf, tagUserChannelMembershipTombstoneAt, membership.TombstoneAt)
 		buf = appendUint64TLVField(buf, tagUserChannelMembershipSourceVer, membership.SourceVersion)
 		buf = appendInt64TLVField(buf, tagUserChannelMembershipUpdatedAt, membership.UpdatedAt)
+		if membership.ConversationHiddenThroughSeq != 0 {
+			buf = appendUint64TLVField(buf, tagUserChannelMembershipConversationHidden, membership.ConversationHiddenThroughSeq)
+		}
 	}
 	return buf
 }
@@ -1168,6 +1172,11 @@ func decodeUserChannelMembershipEntry(data []byte, requireState bool) (metadb.Us
 			}
 			membership.SourceVersion = binary.BigEndian.Uint64(value)
 			haveSourceVersion = true
+		case tagUserChannelMembershipConversationHidden:
+			if len(value) != 8 {
+				return metadb.UserChannelMembership{}, fmt.Errorf("%w: bad conversation hidden sequence length", metadb.ErrCorruptValue)
+			}
+			membership.ConversationHiddenThroughSeq = binary.BigEndian.Uint64(value)
 		case tagUserChannelMembershipUpdatedAt:
 			if len(value) != 8 {
 				return metadb.UserChannelMembership{}, fmt.Errorf("%w: bad user channel membership UpdatedAt length", metadb.ErrCorruptValue)

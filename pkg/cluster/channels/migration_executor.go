@@ -145,13 +145,13 @@ func (e *MigrationExecutor) RunOnce(ctx context.Context) error {
 	seen := make(map[taskIdentity]struct{}, e.taskLimit)
 	for inspected := 0; inspected < e.taskLimit; inspected++ {
 		if err := ctxErr(ctx); err != nil {
-			return err
+			return errors.Join(err, firstErr)
 		}
 		// Advance the source cursor only for work about to be attempted. A slow
 		// task cannot skip its unstarted peers, and each lookup rechecks Slot ownership.
 		tasks, err := e.source.ListRunnableMigrationTasks(ctx, e.localNode, 1)
 		if err != nil {
-			return err
+			return errors.Join(err, firstErr)
 		}
 		if len(tasks) == 0 {
 			break
@@ -178,7 +178,14 @@ func (e *MigrationExecutor) RunOnce(ctx context.Context) error {
 
 // advanceSelectedTask follows only a fresh durable version of the same identity.
 // An unchanged asynchronous phase yields; it cannot spin or consume another task.
-func (e *MigrationExecutor) advanceSelectedTask(ctx context.Context, task metadb.ChannelMigrationTask) error {
+func (e *MigrationExecutor) advanceSelectedTask(ctx context.Context, task metadb.ChannelMigrationTask) (err error) {
+	// Capture the fresh phase at failure, not the phase selected before durable
+	// progress. The node bounds the resulting diagnostic log size and frequency.
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("migration task %q channel %q/%d phase %d: %w", task.TaskID, task.ChannelID, task.ChannelType, task.Phase, err)
+		}
+	}()
 	phaseLimit := e.phaseLimit
 	// Only automatic failover has no planned catch-up boundary between these steps.
 	if task.Kind != metadb.ChannelMigrationKindLeaderFailover {

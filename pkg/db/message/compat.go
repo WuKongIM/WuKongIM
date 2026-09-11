@@ -1392,6 +1392,16 @@ func (s *ChannelStore) GetMessageByMessageID(messageID uint64) (channel.Message,
 	return channelMessageFromRow(row), true, nil
 }
 
+// CountOrdinaryMessages counts committed positions excluding SyncOnce records.
+func (s *ChannelStore) CountOrdinaryMessages(ctx context.Context, after, through uint64) (uint64, error) {
+	if err := s.beginUse(); err != nil {
+		return 0, err
+	}
+	defer s.endUse()
+	count, err := s.log.CountOrdinaryMessages(ctx, after, through)
+	return count, toChannelError(err)
+}
+
 // GetLastSenderMessageSeq returns the latest indexed sender sequence through
 // the caller's committed high-water boundary.
 func (s *ChannelStore) GetLastSenderMessageSeq(ctx context.Context, fromUID string, throughSeq uint64) (uint64, bool, error) {
@@ -3186,7 +3196,7 @@ func commitRowsPriority(lane string) commit.Priority {
 }
 
 func (e *channelEntry) stageCommitRows(batch *engine.Batch, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint, proposals []durableProposalRecord, entries []quorumlog.EntryIdentity) error {
-	if err := e.stageMessageRows(batch, rows); err != nil {
+	if err := e.stageMessageRows(context.Background(), batch, rows); err != nil {
 		return toChannelError(err)
 	}
 	if checkpoint != nil {
@@ -3703,4 +3713,33 @@ func toChannelError(err error) error {
 		return fmt.Errorf("%w: %v", channel.ErrCorruptState, err)
 	}
 	return err
+}
+
+// LookupMessagesByClientMsgNo reads a bounded identity-index result within the
+// authority-selected visibility interval. No range scan or partial success is used.
+func (s *ChannelStore) LookupMessagesByClientMsgNo(ctx context.Context, key string, minSeq, maxSeq uint64, limit, maxBytes int) ([]channel.Message, error) {
+	if err := s.beginUse(); err != nil {
+		return nil, err
+	}
+	defer s.endUse()
+	before := maxSeq + 1
+	page, err := s.log.listByClientMsgNoBounded(ctx, key, before, limit, minSeq, 4096, maxBytes)
+	if err != nil {
+		return nil, toChannelError(err)
+	}
+	if page.HasMore {
+		return nil, channel.ErrInvalidArgument
+	}
+	out := make([]channel.Message, 0, len(page.Messages))
+	for _, m := range page.Messages {
+		row, ok, err := s.log.getRowBySeq(ctx, m.MessageSeq)
+		if err != nil {
+			return nil, toChannelError(err)
+		}
+		if !ok {
+			return nil, channel.ErrCorruptState
+		}
+		out = append(out, channelMessageFromRow(row))
+	}
+	return out, nil
 }

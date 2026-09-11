@@ -178,7 +178,10 @@ func probeWKRPCSocket(socketPath string, deadline time.Time) error {
 		return err
 	}
 	defer func() { _ = conn.Close() }()
-	if err := conn.SetDeadline(time.Now().Add(probeTimeout)); err != nil {
+	// Once connected, allow the handshake to use the remaining readiness
+	// budget. Repeated short read deadlines can discard every valid connack
+	// under CPU throttling even though the listener is responsive.
+	if err := conn.SetDeadline(deadline); err != nil {
 		return err
 	}
 

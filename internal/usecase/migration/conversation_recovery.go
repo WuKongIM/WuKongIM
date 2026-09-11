@@ -13,6 +13,14 @@ import (
 // the UID authority. Conflicting absent-row intents are ambiguous after restart
 // and fail; no node order or maximum read position is allowed to choose one.
 func recoverSourceConversations(ctx context.Context, capture SourceCapture, workspace Workspace, decoder RecordDecoder, batch *captureBatch, selection *SourceSelection) error {
+	archived := map[string]bool{}
+	if selection.Metadata != nil {
+		for _, decision := range selection.Metadata.Policy.ConversationReplicas {
+			if decision.ArchiveOnly {
+				archived[decision.LogicalKey] = true
+			}
+		}
+	}
 	for _, node := range capture.Nodes {
 		err := walkSourceRows(ctx, workspace, node.NodeID, func(row Row) error {
 			if row.Table != "PendingConversation" {
@@ -25,6 +33,9 @@ func recoverSourceConversations(ctx context.Context, capture SourceCapture, work
 			description, err := decoder.Describe(row, id)
 			if err != nil {
 				return err
+			}
+			if archived[description.Key] {
+				return errors.New("archive-only conversation has a pending recovery intent requiring an explicit source decision")
 			}
 			_, exists, err := workspace.Get(ctx, selectedKey("Conversation", description.Key))
 			if err != nil {

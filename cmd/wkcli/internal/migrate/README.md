@@ -3,6 +3,10 @@
 Offline migration from unmodified WuKongIM `v2.2.5-20260422`
 (`a888f89533d0e7d1b2030e06504ca97f1ad891d4`) into a fresh native v3 cluster.
 The source server does not need an upgrade. Linux and macOS source locking is supported.
+The reader also supports Pebble format 19 through an explicit read-only engine
+adapter; all original schema, index, authority, and plugin checks still apply.
+This does not certify arbitrary older or modified server builds. Released
+`v3.0.0-beta.13` binaries do not contain this adapter.
 
 See the [operator runbook](../../../../docs/superpowers/runbooks/v2-to-v3-migration.md)
 and [final acceptance report](../../../../docs/superpowers/reports/2026-09-08-v2-migration-final-acceptance.md)
@@ -186,8 +190,9 @@ Target message data uses the existing v3 proposal version 1 and unmodified
 message keys, indexes and append validation. Original seconds map to
 ServerTimestampMS. RedDot is preserved in its existing stored bit; build the
 tool and all target nodes from the same version with the general RedDot fix
-(Channel RPC v8 / Exchange v4). Message fields those paths cannot retain
-(including nonzero sync_once/expire or a nonempty StreamNo/topic),
+(Channel RPC v9 / Exchange v5 for preserved Expire). Full uint32 Expire
+values remain unchanged through native storage and replication. Message fields those paths cannot retain
+(including nonzero sync_once or a nonempty StreamNo/topic),
 nonpositive timestamps, retained histories starting after sequence 1 and duplicate
 IDs block conversion. No fallback rewrites IDs, fills missing history or expands
 the authorized Stream/StreamMeta exclusion. An empty-ID source row also fails.
@@ -321,10 +326,17 @@ DeviceLevel，不混合字段或接受多组 Token。选中记录仍须在所属
 ```
 
 `conversation_list_limit` 必须填写原部署的 `conversation.userMaxCount`，不能
-为通过预检而调大。工具跟随原唯一索引确定已读、删除及未读状态，要求所属 Slot
+为通过预检而调大。若业务方明确决定保留列表范围之外的有效持久化会话，可显式启用
+`metadata.preserve_all_conversations=true`；原上限保持不变，报告记录超限用户数与最大物理行数。
+工具跟随原唯一索引确定已读、删除及未读状态，要求所属 Slot
 的全部正式副本一致。当前 Slot Leader 的普通会话列表按 UpdatedAt 选择原记录，
 保留旧列表 version；若同时间的不同状态无法区分，或列表与唯一索引状态不同，
-则拒绝转换。CMD 类型遵循原按物理 ID 扫描覆盖的读取规则；批准排除 CMD 后不会
+默认拒绝转换。经业务方逐组确认后，可在 `metadata.conversation_recoveries`
+绑定 `node_id`、`logical_key`（`IdentityKey(uid, channelID, channelType)`）、
+`indexed_sha256`（唯一索引原主记录的 `json.Marshal(Row)` SHA256）与 `rows_sha256`
+（组内按物理 ID 升序，逐行原记录 SHA256 后加换行，再计算 SHA256），选择完整的原索引记录。
+原行变更、绑定不符或未实际使用的决定均会拒绝；所有正式副本仍须通过状态比对。
+CMD 类型遵循原按物理 ID 扫描覆盖的读取规则；批准排除 CMD 后不会
 写入目标 CMD 会话。检查列表上限时计算去重前物理行，以及原停机缓存中实际需要
 恢复的新普通会话。其余原行无损归档，不恢复为额外会话。消息去重、CMD 排除和
 序号压紧仍由 `messages` 独立控制；已读和删除位置使用同一获准映射独立校验。
@@ -425,20 +437,78 @@ Leader 必须完全没有消息及尾记录。工具重新核对完整捕获、�
 ## 已批准的缺失会话
 
 订阅成员有保留历史但所有原副本都没有会话／待恢复意图时，默认阻断。
-业务方可以批准仅对已核验的用户和频道补齐一个已读会话。在现有 `metadata`
+业务方可以批准仅对已核验的用户和频道选择全部历史已读恢复，或保持列表隐藏。在现有 `metadata`
 配置内增加 `missing_conversations` 数组；每项包含：
 
 - `capture_digest`：完整源捕获的 SHA256。
 - `uid_sha256`：原 UID 字节的 SHA256。
 - `channel_sha256`：`migration.IdentityKey(channelID, uint8(channelType))` 的 SHA256。
 - `retained_tail`：排除和去重、压号后已核验的频道尾序号，必须大于 0。
+- `visibility`：省略为全部历史已读恢复；`hidden_until_new_message` 仅隐藏列表，
+  保留 `JoinSeq=1`、默认 `ReadSeq=0`、`DeletedToSeq=0`，不虚构原已读位置。
+  新的业务消息到来或明确激活后显示，内部恢复屏障不会使其显示，未读仍按 v3 规则计算。
 
 摘要必须为 64 位小写十六进制；最多 1024 项，同一用户／频道不能重复。
-工具重新检查所有原节点，任何原会话／待恢复意图、捕获变化、尾序号变化、未使用
+工具重新检查所有原节点，未批准原会话／待恢复意图、捕获变化、尾序号变化、未使用
 决定或其他未批准的缺失会话都阻断。该决定写入计划和选择摘要，并在归档重建时
 重新验证，不能套用到另一份源数据。
 
-目标使用原生 `JoinSeq=1`、`ReadSeq=retained_tail`、`DeletedToSeq=0`，不虚构
+省略 `visibility` 时，目标使用原生 `JoinSeq=1`、`ReadSeq=retained_tail`、`DeletedToSeq=0`，不虚构
 原会话 ID 或时间。该会话会新出现在聊天列表，全部保留历史仍可读取，初始未读
 为 0；下一条新消息按原生规则计算。独立校验从原始业务行重新推导预期值，检查
 所有目标副本的已读位置和可见边界，不依赖转换器生成的会话行。
+
+### Exact conversation replica decisions
+
+`metadata.conversation_replicas` requires the original `v2_active_slot` lookup
+policy and at most 1024 distinct logical groups. Each entry contains
+`logical_key`, `source_node_id`, `copies_sha256`, and optional `archive_only`.
+A retained group chooses one existing complete original record; an archive-only
+group requires `archive_only=true` and `source_node_id=0`. The operator must
+review the original states and whether restoring an isolated copy is appropriate.
+No implicit majority selection or single-copy union is performed.
+
+Build `copies_sha256` from the prepared metadata candidates after original
+lookup reduction. Visit every formal Slot replica in ascending node-ID order.
+For a present candidate, append `nodeID candidateSHA originalSHA\n`, with single
+spaces and a real newline. `candidateSHA` hashes the exact `MarshalState`
+bytes at `candidate/metadata/<20-digit-node>/Conversation/<logical_key>`;
+`originalSHA` hashes the exact captured original row referenced by `source_key`.
+For an absent candidate append `nodeID absent\n`. Hash the concatenated bytes.
+Changed candidate/row bytes, changed absence, an absent chosen source, an already
+agreeing group, or an unused decision fail. Original rows remain in the archive;
+import and verify independently reconstruct these decisions. An archive-only
+group with a pending recovery intent fails for a separate source decision.
+
+### Sealed preparation for export
+
+Successful preparation publishes `archive_seal` with version 1, a report SHA256,
+a length-framed digest of all `source/`, `catalog/`, `selected/`, and
+`plugin-artifacts/` rows, and their count. The source digest includes quarantined
+originals. Export rechecks the stopped source and plugin bytes, validates the
+report, and compares the exported rows against this seal before publishing
+`COMPLETE`. It does not repeat semantic preparation. This is an export integrity
+checkpoint, not independent target verification. Import and verify still rebuild
+all checks from original archive rows in separate workspaces. Old preparation
+workspaces without a seal require a fresh workspace with matching tools.
+
+
+### Reviewed conversion policies
+
+- `messages.resolve_duplicate_chains: true` requires `keep_latest_duplicates` and
+  proves strictly increasing same-channel edges to a unique retained terminal.
+  Direct winners remain unchanged. `duplicate_chain_roots`, `duplicate_chain_terminals`
+  and `duplicate_chains_sha256` bind the proof; `sequence_mapping.duplicate_chain_proof`
+  references its JSONL sidecar. Full originals remain in the source archive.
+- `metadata.derive_unread_from_boundaries: true` archives independent ordinary
+  conversation counters, then uses native unread math without advancing read/delete
+  positions. `conversion.archived_unread` binds original rows and counts. CMD counters
+  do not gain a compatibility exception.
+- Hidden missing-conversation decisions additionally permit a physical conversation
+  only when its exact `conversation_replicas` decision is archive-only; pending
+  intents remain forbidden. `conversion.hidden_memberships` counts applied markers.
+  `conversation_hidden_through_seq` affects lists only, not history or badge floors.
+  Membership storage accepts legacy rows plus an optional uint64 tail; nonzero
+  markers use membership RPC response v2. Deploy all matching binaries together;
+  old programs must not reopen marked target rows. Rollback restores the prior
+  complete data generation and its binaries.

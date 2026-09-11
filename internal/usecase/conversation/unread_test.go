@@ -113,7 +113,7 @@ func (s *conversationMutationStore) GetUserChannelMembership(_ context.Context, 
 	return s.membership, !s.missing, s.membershipErr
 }
 
-func (s *conversationMutationStore) HydrateConversationHeads(_ context.Context, _ string, _ []metadb.UserChannelMembership) ([]HydrationResult, error) {
+func (s *conversationMutationStore) HydrateConversationHeads(_ context.Context, _ string, _ []metadb.UserChannelMembership, keepUnread ...uint64) ([]HydrationResult, error) {
 	s.hydrationCalls++
 	return []HydrationResult{s.head}, s.hydrationErr
 }

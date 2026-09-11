@@ -27,6 +27,11 @@ const text = (zh: string, en: string): ProductHTTPOpenAPILocalizedText => ({
  * Schema alone. Keys are stable `METHOD path` pairs from the complete contract.
  */
 export const productHTTPOperationSemantics = {
+  'POST /messages': {
+    scope: text('按当前成员可见范围读取精确消息索引，不使用近期历史扫描代替。', 'Reads exact message indexes within current membership visibility, without a recent-history scan fallback.'),
+    success: text('选择项取并集，按序号去重排序；超限或任一读取失败不返回部分结果。', 'Selectors form a union ordered and deduplicated by sequence; exhaustion or any failed read returns no partial result.'),
+    recovery: text('全部节点须支持精确查询 RPC；旧节点会明确拒绝。', 'Every node must support the indexed-read RPC; older nodes reject it explicitly.'),
+  },
   'POST /user/token': {
     scope: text(
       'Token 持久化到集群；Master 设备的旧连接由请求处理节点在约 10 秒后发起关闭。',
@@ -230,9 +235,27 @@ export const productHTTPOperationSemantics = {
     ),
   },
   'POST /message/cmd/bind': {
+    atomicity: text(
+      '三种互斥形式：uid 加源频道、uids 加源频道、仅 subscribers。最多 1000 个原始接收者，256 KiB 请求体；subscribers 顺序须与 SEND 相同。',
+      'Choose uid plus source, uids plus source, or subscribers only. At most 1000 raw recipients and a 256 KiB body; subscribers must match SEND order.',
+    ),
+    success: text(
+      '重复绑定保留已有起始和确认位置。跨 Slot 失败可部分完成；须重试整个批次并成功后再发送 CMD。',
+      'Retry preserves live start and ack positions. Cross-Slot failure can be partial; retry the complete batch successfully before SEND.',
+    ),
     scope: text(
       '持久化用户与命令 Channel 的发现绑定；后续 /message/sync 仍依赖当前进程中的确认 generation。',
       'Persists discovery binding between a user and a command Channel; later /message/sync acknowledgement still depends on the current-process generation record.',
+    ),
+  },
+  'POST /message/cmd/unbind': {
+    scope: text(
+      '使用与 bind 相同的三种互斥形式及 1000 项、256 KiB 上限；临时范围顺序须与原 SEND 相同。',
+      'Uses the same three exclusive forms and 1000-entry/256 KiB bounds as bind; temporary scope order must match SEND.',
+    ),
+    success: text(
+      '跨 Slot 失败可能部分完成；重试整个批次。解绑不删除消息。',
+      'Cross-Slot failure can be partial; retry the complete batch. Unbinding does not delete messages.',
     ),
   },
   'POST /channel/messagesyncbatch': {

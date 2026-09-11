@@ -3,11 +3,13 @@ package api
 import (
 	"encoding/base64"
 	"net/http"
+	"strings"
 
 	"github.com/WuKongIM/WuKongIM/internal/observability/diagnostics/tracectx"
 	messageusecase "github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type sendMessageRequest struct {
@@ -37,15 +39,18 @@ type sendMessageHeaderRequest struct {
 }
 
 type sendMessageResponse struct {
-	MessageID  int64  `json:"message_id"`
-	MessageSeq uint64 `json:"message_seq"`
-	Reason     uint8  `json:"reason"`
+	// ClientMsgNo is the caller-provided or generated identifier stored with the message.
+	ClientMsgNo string `json:"client_msg_no"`
+	MessageID   int64  `json:"message_id"`
+	MessageSeq  uint64 `json:"message_seq"`
+	Reason      uint8  `json:"reason"`
 }
 
 func (s *Server) registerMessageRoutes() {
 	if s == nil || s.engine == nil {
 		return
 	}
+	s.engine.POST("/messages", s.handleMessageLookup)
 	s.engine.POST("/message/send", s.handleSendMessage)
 	s.engine.POST("/message/event", s.handleMessageEventAppend)
 	s.engine.POST("/message/eventsync", s.handleMessageEventSync)
@@ -95,6 +100,16 @@ func (s *Server) handleSendMessage(c *gin.Context) {
 		return
 	}
 
+	if strings.TrimSpace(req.ClientMsgNo) == "" {
+		// Legacy HTTP sends supply a unique client key even for system messages.
+		id, err := uuid.NewRandom()
+		if err != nil {
+			writeSendJSONError(c, http.StatusInternalServerError, "message identity unavailable")
+			return
+		}
+		req.ClientMsgNo = strings.ReplaceAll(id.String(), "-", "") + "0"
+	}
+
 	reqCtx := c.Request.Context()
 	if traceID, ok := tracectx.ValidateHeaderTraceID(c.GetHeader("X-WK-Trace-ID")); ok {
 		reqCtx = tracectx.WithContext(reqCtx, tracectx.Context{TraceID: traceID, Sampled: true})
@@ -136,9 +151,10 @@ func (s *Server) handleSendMessage(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, sendMessageResponse{
-		MessageID:  int64(result.MessageID),
-		MessageSeq: result.MessageSeq,
-		Reason:     uint8(mapMessageReason(result.Reason)),
+		ClientMsgNo: req.ClientMsgNo,
+		MessageID:   int64(result.MessageID),
+		MessageSeq:  result.MessageSeq,
+		Reason:      uint8(mapMessageReason(result.Reason)),
 	})
 }
 

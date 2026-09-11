@@ -305,6 +305,7 @@ func appendReadMessage(messages []Message, totalBytes int, msg Message, opts Rea
 func messageFromRow(row messageRow) Message {
 	return Message{
 		RedDot:            row.FramerFlags&2 != 0,
+		Expire:            uint32(row.Expire),
 		MessageSeq:        row.MessageSeq,
 		MessageID:         row.MessageID,
 		ChannelID:         row.ChannelID,

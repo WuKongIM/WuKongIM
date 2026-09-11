@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -16,8 +17,12 @@ const (
 	legacyCodecVersionV5 = uint8(5)
 	legacyCodecVersionV6 = uint8(6)
 	legacyCodecVersionV7 = uint8(7)
-	codecVersion         = uint8(8)
+	legacyCodecVersionV8 = uint8(8)
+	legacyCodecVersionV9 = uint8(9)
+	codecVersion         = uint8(10)
 )
+
+var errExpireCodecRequired = errors.New("channels: expire requires channel codec version 9")
 
 var errInvalidCodecFrame = errors.New("channels: invalid frame")
 
@@ -45,6 +50,7 @@ const (
 	kindConversationHeadsResponse
 	kindCommittedReads
 	kindCommittedReadsResponse
+	kindIndexedCommittedReads
 )
 
 // EncodePullRequest encodes a Channel pull request.
@@ -197,8 +203,8 @@ func encodeAppendRequest(req ch.AppendRequest) ([]byte, error) {
 	return encodeAppendRequestVersion(req, codecVersion)
 }
 func encodeAppendRequestVersion(req ch.AppendRequest, version uint8) ([]byte, error) {
-	if version < codecVersion {
-		if err := legacyMessageFlagError(req); err != nil {
+	if version < legacyCodecVersionV9 {
+		if err := legacyMessageFlagError(req, version); err != nil {
 			return nil, err
 		}
 	}
@@ -229,8 +235,8 @@ func encodeAppendBatchRequest(req ch.AppendBatchRequest) ([]byte, error) {
 	return encodeAppendBatchRequestVersion(req, codecVersion)
 }
 func encodeAppendBatchRequestVersion(req ch.AppendBatchRequest, version uint8) ([]byte, error) {
-	if version < codecVersion {
-		if err := legacyMessageFlagError(req); err != nil {
+	if version < legacyCodecVersionV9 {
+		if err := legacyMessageFlagError(req, version); err != nil {
 			return nil, err
 		}
 	}
@@ -290,15 +296,22 @@ func encodeConversationHeadsRequest(req ConversationHeadsRequest) ([]byte, error
 }
 
 func encodeConversationHeadsRequestVersion(req ConversationHeadsRequest, version uint8) ([]byte, error) {
-	return encodeRequestFrame(version, kindConversationHeads, appendConversationHeadsRequest(nil, req))
+	if version < codecVersion {
+		for _, item := range req.Items {
+			if item.Badge.AfterSeq != 0 || item.Badge.KeepUnread != nil {
+				return nil, errors.New("channels: badge query requires codec version 10")
+			}
+		}
+	}
+	return encodeRequestFrame(version, kindConversationHeads, appendConversationHeadsRequest(nil, req, version))
 }
 
 func decodeConversationHeadsRequest(data []byte) (ConversationHeadsRequest, error) {
-	payload, err := decodeFrame(data, kindConversationHeads)
+	version, payload, err := decodeFrameWithVersion(data, kindConversationHeads)
 	if err != nil {
 		return ConversationHeadsRequest{}, err
 	}
-	req, offset, err := readConversationHeadsRequest(payload, 0)
+	req, offset, err := readConversationHeadsRequest(payload, 0, version)
 	if err != nil {
 		return ConversationHeadsRequest{}, err
 	}
@@ -318,11 +331,23 @@ func decodeConversationHeadsResponse(data []byte) (ConversationHeadsResponse, er
 }
 
 func encodeCommittedReadsRequestVersion(req CommittedReadsRequest, version uint8) ([]byte, error) {
-	return encodeRequestFrame(version, kindCommittedReads, appendCommittedReadsRequest(nil, req))
+	kind := kindCommittedReads
+	for _, item := range req.Items {
+		if item.Request.MessageID != 0 || item.Request.ClientMsgNo != "" {
+			kind = kindIndexedCommittedReads
+			break
+		}
+	}
+	return encodeRequestFrame(version, kind, appendCommittedReadsRequest(nil, req))
 }
 
 func decodeCommittedReadsRequest(data []byte) (CommittedReadsRequest, error) {
 	payload, err := decodeFrame(data, kindCommittedReads)
+	indexed := false
+	if err != nil {
+		payload, err = decodeFrame(data, kindIndexedCommittedReads)
+		indexed = err == nil
+	}
 	if err != nil {
 		return CommittedReadsRequest{}, err
 	}
@@ -332,6 +357,13 @@ func decodeCommittedReadsRequest(data []byte) (CommittedReadsRequest, error) {
 	}
 	if offset != len(payload) {
 		return CommittedReadsRequest{}, fmt.Errorf("channels: trailing committed reads request bytes")
+	}
+	hasLookup := false
+	for _, item := range req.Items {
+		hasLookup = hasLookup || item.Request.MessageID != 0 || item.Request.ClientMsgNo != ""
+	}
+	if indexed != hasLookup {
+		return CommittedReadsRequest{}, fmt.Errorf("channels: indexed-read kind does not match selectors")
 	}
 	return req, nil
 }
@@ -370,11 +402,11 @@ func encodeRPCResult(kind uint8, payload any, err error) ([]byte, error) {
 }
 
 func encodeRPCResultVersion(version uint8, kind uint8, payload any, err error) ([]byte, error) {
-	if version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != legacyCodecVersionV7 && version != codecVersion {
+	if version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != legacyCodecVersionV7 && version != legacyCodecVersionV8 && version != legacyCodecVersionV9 && version != codecVersion {
 		return nil, errInvalidCodecFrame
 	}
-	if err == nil && version < codecVersion {
-		err = legacyMessageFlagError(payload)
+	if err == nil && version < legacyCodecVersionV9 {
+		err = legacyMessageFlagError(payload, version)
 	}
 	if err != nil {
 		dst := []byte{rpcResultErr}
@@ -442,7 +474,7 @@ func encodeFrameVersion(version uint8, kind uint8, payload []byte) []byte {
 }
 
 func encodeRequestFrame(version uint8, kind uint8, payload []byte) ([]byte, error) {
-	if version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != legacyCodecVersionV7 && version != codecVersion {
+	if version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != legacyCodecVersionV7 && version != legacyCodecVersionV8 && version != legacyCodecVersionV9 && version != codecVersion {
 		return nil, errInvalidCodecFrame
 	}
 	return encodeFrameVersion(version, kind, payload), nil
@@ -458,13 +490,16 @@ func decodeFrameWithVersion(data []byte, wantKind uint8) (uint8, []byte, error) 
 		return 0, nil, errInvalidCodecFrame
 	}
 	version := data[0]
-	if version != legacyCodecVersionV3 && version != legacyCodecVersionV4 && version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != legacyCodecVersionV7 && version != codecVersion {
+	if version != legacyCodecVersionV3 && version != legacyCodecVersionV4 && version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != legacyCodecVersionV7 && version != legacyCodecVersionV8 && version != legacyCodecVersionV9 && version != codecVersion {
 		return 0, nil, errInvalidCodecFrame
 	}
 	return version, data[2:], nil
 }
 
 func responseCodecVersion(request []byte) uint8 {
+	if len(request) > 0 && request[0] == legacyCodecVersionV9 {
+		return legacyCodecVersionV9
+	}
 	if len(request) > 0 && request[0] == legacyCodecVersionV5 {
 		return legacyCodecVersionV5
 	}
@@ -473,6 +508,9 @@ func responseCodecVersion(request []byte) uint8 {
 	}
 	if len(request) > 0 && request[0] == legacyCodecVersionV7 {
 		return legacyCodecVersionV7
+	}
+	if len(request) > 0 && request[0] == legacyCodecVersionV8 {
+		return legacyCodecVersionV8
 	}
 	return codecVersion
 }
@@ -1033,7 +1071,7 @@ func readLastVisibleRequest(body []byte, offset int, version uint8) (LastVisible
 	return req, offset, nil
 }
 
-func appendConversationHeadsRequest(dst []byte, req ConversationHeadsRequest) []byte {
+func appendConversationHeadsRequest(dst []byte, req ConversationHeadsRequest, version uint8) []byte {
 	dst = appendString(dst, req.UID)
 	dst = appendSliceHeader(dst, len(req.Items), req.Items == nil)
 	for _, item := range req.Items {
@@ -1043,11 +1081,18 @@ func appendConversationHeadsRequest(dst []byte, req ConversationHeadsRequest) []
 		dst = appendUvarint(dst, item.ExpectedChannelEpoch)
 		dst = appendUvarint(dst, item.ExpectedLeaderEpoch)
 		dst = appendUvarint(dst, uint64(item.ExpectedMinISR))
+		if version >= codecVersion {
+			dst = appendUvarint(dst, item.Badge.AfterSeq)
+			dst = appendBool(dst, item.Badge.KeepUnread != nil)
+			if item.Badge.KeepUnread != nil {
+				dst = appendUvarint(dst, *item.Badge.KeepUnread)
+			}
+		}
 	}
 	return dst
 }
 
-func readConversationHeadsRequest(body []byte, offset int) (ConversationHeadsRequest, int, error) {
+func readConversationHeadsRequest(body []byte, offset int, version uint8) (ConversationHeadsRequest, int, error) {
 	var req ConversationHeadsRequest
 	var err error
 	if req.UID, offset, err = readString(body, offset); err != nil {
@@ -1089,6 +1134,22 @@ func readConversationHeadsRequest(body []byte, offset int) (ConversationHeadsReq
 			return ConversationHeadsRequest{}, offset, fmt.Errorf("channels: conversation head min ISR overflow")
 		}
 		item.ExpectedMinISR = int(minISR)
+		if version >= codecVersion {
+			if item.Badge.AfterSeq, offset, err = readUvarint(body, offset); err != nil {
+				return ConversationHeadsRequest{}, offset, err
+			}
+			var hasLimit bool
+			if hasLimit, offset, err = readBool(body, offset, "unread limit"); err != nil {
+				return ConversationHeadsRequest{}, offset, err
+			}
+			if hasLimit {
+				var limit uint64
+				if limit, offset, err = readUvarint(body, offset); err != nil {
+					return ConversationHeadsRequest{}, offset, err
+				}
+				item.Badge.KeepUnread = &limit
+			}
+		}
 	}
 	return req, offset, nil
 }
@@ -1176,6 +1237,11 @@ func appendConversationHeadsResponse(dst []byte, resp ConversationHeadsResponse,
 	for _, item := range resp.Items {
 		dst = appendOptionalRPCApplicationError(dst, item.Err)
 		dst = appendLastVisibleResponse(dst, lastVisibleResponseFromHead(item.Head), version)
+		if version >= codecVersion {
+			dst = appendUvarint(dst, item.Head.NonBusinessUnread)
+			dst = appendUvarint(dst, item.Head.UnreadBoundary)
+			dst = appendBool(dst, item.Head.BoundaryComputed)
+		}
 	}
 	return dst
 }
@@ -1199,6 +1265,18 @@ func readConversationHeadsResponse(body []byte, offset int, version uint8) (Conv
 			return ConversationHeadsResponse{}, offset, err
 		}
 		response.Items[index].Head = conversationHeadFromResponse(lastVisible)
+		if version >= codecVersion {
+			head := &response.Items[index].Head
+			if head.NonBusinessUnread, offset, err = readUvarint(body, offset); err != nil {
+				return ConversationHeadsResponse{}, offset, err
+			}
+			if head.UnreadBoundary, offset, err = readUvarint(body, offset); err != nil {
+				return ConversationHeadsResponse{}, offset, err
+			}
+			if head.BoundaryComputed, offset, err = readBool(body, offset, "unread boundary"); err != nil {
+				return ConversationHeadsResponse{}, offset, err
+			}
+		}
 	}
 	return response, offset, nil
 }
@@ -1218,6 +1296,19 @@ func appendCommittedReadsRequest(dst []byte, req CommittedReadsRequest) []byte {
 		dst = appendUvarint(dst, item.ExpectedChannelEpoch)
 		dst = appendUvarint(dst, item.ExpectedLeaderEpoch)
 		dst = appendVarint(dst, int64(item.ExpectedMinISR))
+	}
+	// Keep range-only requests byte-for-byte compatible with older nodes.
+	// Older decoders reject the extension, never execute an unfiltered lookup.
+	hasLookup := false
+	for _, item := range req.Items {
+		hasLookup = hasLookup || item.Request.MessageID != 0 || item.Request.ClientMsgNo != ""
+	}
+	if hasLookup {
+		dst = appendUvarint(dst, 1)
+		for _, item := range req.Items {
+			dst = appendUvarint(dst, item.Request.MessageID)
+			dst = appendString(dst, item.Request.ClientMsgNo)
+		}
 	}
 	return dst
 }
@@ -1271,6 +1362,25 @@ func readCommittedReadsRequest(body []byte, offset int) (CommittedReadsRequest, 
 		}
 		if item.ExpectedMinISR, offset, err = readInt(body, offset, "committed read min ISR"); err != nil {
 			return CommittedReadsRequest{}, offset, err
+		}
+	}
+	if offset < len(body) {
+		var extension uint64
+		extension, offset, err = readUvarint(body, offset)
+		if err != nil || extension != 1 {
+			return CommittedReadsRequest{}, offset, fmt.Errorf("channels: invalid indexed-read extension")
+		}
+		for i := range request.Items {
+			r := &request.Items[i].Request
+			if r.MessageID, offset, err = readUvarint(body, offset); err != nil {
+				return CommittedReadsRequest{}, offset, err
+			}
+			if r.ClientMsgNo, offset, err = readString(body, offset); err != nil {
+				return CommittedReadsRequest{}, offset, err
+			}
+			if r.MessageID != 0 && r.ClientMsgNo != "" || len(r.ClientMsgNo) > 1024 {
+				return CommittedReadsRequest{}, offset, fmt.Errorf("channels: invalid indexed-read selector")
+			}
 		}
 	}
 	return request, offset, nil
@@ -1350,9 +1460,12 @@ func appendMessage(dst []byte, msg ch.Message, version uint8) []byte {
 	dst = appendString(dst, msg.TraceID)
 	dst = appendChannelKey(dst, ch.ChannelKey(msg.ChannelKey))
 	dst = appendOptionalBytes(dst, msg.Payload)
-	if version >= codecVersion {
+	if version >= legacyCodecVersionV8 {
 		dst = appendBool(dst, msg.RedDot)
 		dst = appendBool(dst, msg.SyncOnce)
+	}
+	if version >= legacyCodecVersionV9 {
+		dst = appendUvarint(dst, uint64(msg.Expire))
 	}
 	return dst
 }
@@ -1385,13 +1498,16 @@ func readMessage(body []byte, offset int, version uint8) (ch.Message, int, error
 		return readMessageV4Remainder(body, offset, msg)
 	case legacyCodecVersionV5, legacyCodecVersionV6, legacyCodecVersionV7:
 		return readMessageV5Remainder(body, offset, msg)
-	case codecVersion:
+	case legacyCodecVersionV8, legacyCodecVersionV9, codecVersion:
 		msg, offset, err = readMessageV5Remainder(body, offset, msg)
 		if err == nil {
 			msg.RedDot, offset, err = readBool(body, offset, "red dot")
 		}
 		if err == nil {
 			msg.SyncOnce, offset, err = readBool(body, offset, "sync once")
+		}
+		if err == nil && version >= legacyCodecVersionV9 {
+			msg.Expire, offset, err = readExpiry(body, offset)
 		}
 		return msg, offset, err
 	default:
@@ -1646,9 +1762,12 @@ func appendRecord(dst []byte, record ch.Record, version uint8) []byte {
 	dst = append(dst, record.Setting)
 	dst = appendOptionalBytes(dst, record.Payload)
 	dst = appendVarint(dst, int64(record.SizeBytes))
-	if version >= codecVersion {
+	if version >= legacyCodecVersionV8 {
 		dst = appendBool(dst, record.RedDot)
 		dst = appendBool(dst, record.SyncOnce)
+	}
+	if version >= legacyCodecVersionV9 {
+		dst = appendUvarint(dst, uint64(record.Expire))
 	}
 	return dst
 }
@@ -1672,13 +1791,16 @@ func readRecord(body []byte, offset int, version uint8) (ch.Record, int, error) 
 		return readRecordV4Remainder(body, offset, record)
 	case legacyCodecVersionV5, legacyCodecVersionV6, legacyCodecVersionV7:
 		return readRecordV5Remainder(body, offset, record)
-	case codecVersion:
+	case legacyCodecVersionV8, legacyCodecVersionV9, codecVersion:
 		record, offset, err = readRecordV5Remainder(body, offset, record)
 		if err == nil {
 			record.RedDot, offset, err = readBool(body, offset, "red dot")
 		}
 		if err == nil {
 			record.SyncOnce, offset, err = readBool(body, offset, "sync once")
+		}
+		if err == nil && version >= legacyCodecVersionV9 {
+			record.Expire, offset, err = readExpiry(body, offset)
 		}
 		return record, offset, err
 	default:
@@ -2056,4 +2178,16 @@ func readCollectionLen(count uint64, remaining int, label string) (int, error) {
 		return 0, fmt.Errorf("channels: %s count exceeds remaining bytes", label)
 	}
 	return int(count), nil
+}
+
+// readExpiry preserves the uint32 protocol lifetime and rejects truncation or overflow.
+func readExpiry(body []byte, offset int) (uint32, int, error) {
+	value, next, err := readUvarint(body, offset)
+	if err != nil {
+		return 0, next, err
+	}
+	if value > math.MaxUint32 {
+		return 0, next, errInvalidCodecFrame
+	}
+	return uint32(value), next, nil
 }

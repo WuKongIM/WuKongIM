@@ -268,7 +268,7 @@ func (d *pagedLegacyDirectory) ListUserChannelMembershipPage(_ context.Context, 
 
 type dynamicLegacyHydrator struct{}
 
-func (dynamicLegacyHydrator) HydrateConversationHeads(_ context.Context, _ string, memberships []metadb.UserChannelMembership) ([]HydrationResult, error) {
+func (dynamicLegacyHydrator) HydrateConversationHeads(_ context.Context, _ string, memberships []metadb.UserChannelMembership, keepUnread ...uint64) ([]HydrationResult, error) {
 	results := make([]HydrationResult, len(memberships))
 	for index, row := range memberships {
 		results[index] = HydrationResult{
@@ -299,7 +299,7 @@ type retryOnceLegacyHydrator struct {
 	calls int
 }
 
-func (h *retryOnceLegacyHydrator) HydrateConversationHeads(_ context.Context, _ string, memberships []metadb.UserChannelMembership) ([]HydrationResult, error) {
+func (h *retryOnceLegacyHydrator) HydrateConversationHeads(_ context.Context, _ string, memberships []metadb.UserChannelMembership, keepUnread ...uint64) ([]HydrationResult, error) {
 	h.calls++
 	result := HydrationResult{Key: ConversationKey{ChannelID: memberships[0].ChannelID, ChannelType: memberships[0].ChannelType}}
 	if h.calls == 1 {
@@ -314,7 +314,7 @@ func (h *retryOnceLegacyHydrator) HydrateConversationHeads(_ context.Context, _ 
 
 type alwaysUnresolvedLegacyHydrator struct{}
 
-func (*alwaysUnresolvedLegacyHydrator) HydrateConversationHeads(_ context.Context, _ string, memberships []metadb.UserChannelMembership) ([]HydrationResult, error) {
+func (*alwaysUnresolvedLegacyHydrator) HydrateConversationHeads(_ context.Context, _ string, memberships []metadb.UserChannelMembership, keepUnread ...uint64) ([]HydrationResult, error) {
 	return []HydrationResult{{
 		Key:     ConversationKey{ChannelID: memberships[0].ChannelID, ChannelType: memberships[0].ChannelType},
 		Outcome: HydrationRetryable,
@@ -356,4 +356,26 @@ func (r *boundedEchoLegacyMessageReader) ReadLegacyMessagesBatch(ctx context.Con
 		return nil, errors.New("legacy message batch exceeded 200 items")
 	}
 	return (&echoLegacyMessageReader{}).ReadLegacyMessagesBatch(ctx, uid, queries)
+}
+
+func TestLegacySyncRefreshesEmptyClientNumberHeadPastClientCursor(t *testing.T) {
+	for _, key := range []string{"", "real-key"} {
+		t.Run(key, func(t *testing.T) {
+			directory := &membershipDirectoryStore{rows: []metadb.UserChannelMembership{{UID: "u", ChannelID: "g", ChannelType: 2, JoinSeq: 1, ReadSeq: 9, ActivatedAt: 100}}, done: true}
+			hydrator := &membershipHeadHydrator{results: []HydrationResult{{Key: ConversationKey{ChannelID: "g", ChannelType: 2}, Outcome: HydrationOK, LastCommittedSeq: 9, LastMessage: &LastMessage{MessageID: 99, MessageSeq: 9, ClientMsgNo: key}}}}
+			messages := &recordingLegacyMessageReader{results: []LegacyMessageReadResult{{ChannelID: "g", ChannelType: 2}}}
+			app := New(Options{Directory: directory, Hydrator: hydrator, LegacyMessages: messages})
+			_, err := app.SyncLegacy(context.Background(), LegacySyncRequest{UID: "u", Version: 1, MessageCount: 20, ClientLastMessageSeqs: []LegacyConversationCursor{{ChannelID: "g", ChannelType: 2, LastMessageSeq: 9}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := uint64(9)
+			if key == "" {
+				want = 8
+			}
+			if got := messages.queries[0][0].AfterMessageSeq; got != want {
+				t.Fatalf("after seq=%d want %d; empty-key head must refresh stale preview", got, want)
+			}
+		})
+	}
 }

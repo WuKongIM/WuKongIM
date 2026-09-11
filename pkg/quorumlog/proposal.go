@@ -7,8 +7,29 @@ import (
 	"encoding/binary"
 )
 
-// ProposalManifestVersion is the only supported manifest and entry format.
+// ProposalManifestVersion preserves the original non-expiring entry format.
 const ProposalManifestVersion uint16 = 1
+
+// ExpirationProposalManifestVersion additionally binds the immutable lifetime.
+// Old v1 proposals retain their original digest, including legacy lifetimes
+// that were stored but not covered by the v1 entry digest.
+const ExpirationProposalManifestVersion uint16 = 2
+
+// SupportedProposalVersion accepts only the two fully specified digest formats.
+func SupportedProposalVersion(version uint16) bool {
+	return version == ProposalManifestVersion || version == ExpirationProposalManifestVersion
+}
+
+// VersionForRecords chooses a format for a newly created proposal, never for
+// verification of a persisted manifest supplied by another node.
+func VersionForRecords(records []Record) uint16 {
+	for _, record := range records {
+		if record.Expire != 0 {
+			return ExpirationProposalManifestVersion
+		}
+	}
+	return ProposalManifestVersion
+}
 
 // CommandID is the retry-stable identity of one immutable proposal.
 type CommandID [sha256.Size]byte
@@ -78,6 +99,8 @@ type Record struct {
 	Epoch uint64
 	// Setting carries the immutable message setting bits.
 	Setting uint8
+	// Expire is the immutable message lifetime in seconds, bound by format v2.
+	Expire uint32
 	// FromUID is the immutable sender identity.
 	FromUID string
 	// ClientMsgNo is the immutable client idempotency identity.
@@ -93,7 +116,7 @@ type Record struct {
 // StructurallyValid reports whether a manifest has a complete authority,
 // command, range, predecessor, and tail identity.
 func (m ProposalManifest) StructurallyValid() bool {
-	if m.Version != ProposalManifestVersion || m.ChannelEpoch == 0 || m.LeaderTerm == 0 || m.FenceVersion == 0 ||
+	if !SupportedProposalVersion(m.Version) || m.ChannelEpoch == 0 || m.LeaderTerm == 0 || m.FenceVersion == 0 ||
 		m.CommandID == (CommandID{}) || m.Digest == (EntryDigest{}) ||
 		m.LastOffset <= m.BaseOffset || m.PreviousIndex != m.BaseOffset {
 		return false
@@ -115,7 +138,7 @@ func (m ProposalManifest) ValidFor(expectedBase uint64, recordCount int) bool {
 // recordAt must return immutable semantic records in proposal order.
 func DeriveProposalEntries(manifest ProposalManifest, recordCount int, recordAt func(int) Record) ([]EntryIdentity, bool) {
 	if recordAt == nil || recordCount <= 0 || uint64(recordCount) > ^uint64(0)-manifest.BaseOffset ||
-		manifest.Version != ProposalManifestVersion || manifest.ChannelEpoch == 0 || manifest.LeaderTerm == 0 || manifest.FenceVersion == 0 ||
+		!SupportedProposalVersion(manifest.Version) || manifest.ChannelEpoch == 0 || manifest.LeaderTerm == 0 || manifest.FenceVersion == 0 ||
 		manifest.CommandID == (CommandID{}) || manifest.LastOffset != manifest.BaseOffset+uint64(recordCount) ||
 		manifest.PreviousIndex != manifest.BaseOffset {
 		return nil, false
@@ -138,7 +161,7 @@ func DeriveProposalEntries(manifest ProposalManifest, recordCount int, recordAt 
 			return nil, false
 		}
 		entry := EntryIdentity{
-			Version: ProposalManifestVersion, ChannelEpoch: manifest.ChannelEpoch,
+			Version: manifest.Version, ChannelEpoch: manifest.ChannelEpoch,
 			LeaderTerm: manifest.LeaderTerm, FenceVersion: manifest.FenceVersion,
 			Index: index, PreviousTerm: previousTerm, PreviousIndex: previousIndex,
 			CommandID: manifest.CommandID, PreviousDigest: previousDigest,
@@ -166,7 +189,7 @@ func SealProposalManifest(manifest ProposalManifest, records []Record) (Proposal
 // VerifyEntry reports whether record is the semantic content certified by
 // entry's authority, predecessor, command, index, and digest.
 func VerifyEntry(entry EntryIdentity, record Record) bool {
-	if entry.Version != ProposalManifestVersion || entry.ChannelEpoch == 0 || entry.LeaderTerm == 0 || entry.FenceVersion == 0 ||
+	if !SupportedProposalVersion(entry.Version) || entry.ChannelEpoch == 0 || entry.LeaderTerm == 0 || entry.FenceVersion == 0 ||
 		entry.Index == 0 || entry.CommandID == (CommandID{}) || entry.Digest == (EntryDigest{}) ||
 		entry.PreviousIndex+1 != entry.Index || record.ID == 0 || (record.Index != 0 && record.Index != entry.Index) ||
 		record.Epoch != entry.ChannelEpoch || record.ServerTimestampMS <= 0 {
@@ -184,7 +207,11 @@ func VerifyEntry(entry EntryIdentity, record Record) bool {
 
 func digestProposalEntry(entry EntryIdentity, record Record) EntryDigest {
 	hash := sha256.New()
-	_, _ = hash.Write([]byte("wukongim/channel-entry/v1\x00"))
+	if entry.Version == ExpirationProposalManifestVersion {
+		_, _ = hash.Write([]byte("wukongim/channel-entry/v2\x00"))
+	} else {
+		_, _ = hash.Write([]byte("wukongim/channel-entry/v1\x00"))
+	}
 	var encoded [8]byte
 	writeUint64 := func(value uint64) {
 		binary.BigEndian.PutUint64(encoded[:], value)
@@ -199,6 +226,9 @@ func digestProposalEntry(entry EntryIdentity, record Record) EntryDigest {
 	_, _ = hash.Write(entry.CommandID[:])
 	_, _ = hash.Write(entry.PreviousDigest[:])
 	writeUint64(record.ID)
+	if entry.Version == ExpirationProposalManifestVersion {
+		writeUint64(uint64(record.Expire))
+	}
 	_, _ = hash.Write([]byte{record.Setting})
 	if record.SyncOnce {
 		_, _ = hash.Write([]byte{1})

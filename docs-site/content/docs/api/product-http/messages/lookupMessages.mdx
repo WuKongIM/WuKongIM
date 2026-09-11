@@ -1,0 +1,207 @@
+---
+title: 精确查询已提交消息
+full: true
+_openapi:
+  preload:
+    - wukongim-product-http-complete-beta-zh
+  method: POST
+  webhook: false
+  toc:
+    - depth: 2
+      title: 请求体
+      url: '#request-body'
+    - depth: 2
+      title: 响应体
+      url: '#response-body'
+  structuredData:
+    headings:
+      - content: 精确查询已提交消息
+        id: 精确查询已提交消息
+    contents:
+      - content: 按成员可见范围精确查询已提交消息；选择项、结果或索引检查超限时明确失败，不返回部分结果。
+        heading: 精确查询已提交消息
+      - content: >-
+          POST /messages
+
+          lookupMessages
+
+          精确查询已提交消息
+
+          按成员可见范围精确查询已提交消息；选择项、结果或索引检查超限时明确失败，不返回部分结果。
+
+          MessageLookupRequest
+
+          按当前用户的频道可见范围精确选择消息。多个数组取并集，结果按序号去重排序，选择项总数为 1–128。
+
+          additionalProperties true
+
+          login_uid `string` minLength: 1; pattern: `\S`
+
+          channel_id `string` minLength: 1; pattern: `\S`
+
+          channel_type `integer:uint8` 1–255
+
+          message_ids `array | null` maxItems: 128 精确消息 ID 数组；全部数组合计 1–128 个选择项。
+
+          message_seqs `array | null` maxItems: 128 精确消息序号数组；全部数组合计 1–128 个选择项。
+
+          client_msg_nos `array | null` maxItems: 128 精确客户端消息号数组；全部数组合计 1–128
+          个选择项。
+
+          200 One committed-message page
+
+          ChannelMessageSyncResponse
+
+          单个 Channel 的消息同步页。
+
+          additionalProperties false
+
+          start_message_seq `integer:uint64` 0–∞ 本页实际读取范围的起始消息序号。
+
+          end_message_seq `integer:uint64` 0–∞ 本页实际读取范围的结束消息序号。
+
+          more `integer` enum: `0`, `1` 1 表示同方向仍可能有下一页，0 表示当前范围已取完。
+
+          messages array<`LegacyMessage`> — 无论拉取方向如何，消息都按 message_seq 升序返回。
+
+          LegacyMessage
+
+          Product HTTP 同步接口使用的旧式消息投影。
+
+          header `LegacyMessageHeader` additionalProperties: `false` 旧式消息
+          Header。
+
+          setting `integer:uint8` 0–255 WKProto Setting 位图。
+
+          message_id `integer:int64` — 服务端 int64 消息 ID。
+
+          message_idstr `string` — 仅 message_id 的十进制字符串镜像；不是 message_seq 的替代字段。
+
+          client_msg_no `string` — 原客户端编号；旧记录为空且有消息 ID 时，返回稳定的
+          wk3-legacy-<message_id> 只读兼容编号。可用于 /messages 查询，不是发送幂等键或事件写入键；原始记录不改写。
+
+          end `integer:uint8` 0–255 流消息结束兼容标志。
+
+          end_reason `integer:uint8` 0–255 流消息结束 Reason Code。
+
+          error `string` — 流消息错误说明。
+
+          stream_data `string | null` encoding: base64 Base64 编码的流数据；可能为 null。
+
+          event_meta `LegacyMessageEventMeta` additionalProperties: `false`
+          可选消息事件摘要。
+
+          event_sync_hint `LegacyMessageEventSyncHint` additionalProperties:
+          `false` 可选消息事件继续同步提示。
+
+          message_seq `integer:uint64` 0–∞ 消息在该 Channel 内的 uint64 序号。
+
+          from_uid `string` — 消息发送者 UID。
+
+          channel_id `string` — 消息所属 Channel ID。
+
+          channel_type `integer:uint8` 0–255 消息所属 Channel 类型。
+
+          topic `string` — 可选消息 Topic。
+
+          expire `integer:uint32` 0–∞ 消息过期秒数；0 表示未设置。
+
+          timestamp `integer:int32` — 服务端旧式秒级时间戳。
+
+          payload `string | null` encoding: base64 Base64 编码消息 Payload；可能为 null。
+
+          LegacyMessageHeader
+
+          旧式消息 Header。
+
+          no_persist `integer` enum: `0`, `1` 1 表示消息不持久化。
+
+          red_dot `integer` enum: `0`, `1` 1 表示客户端应显示红点。
+
+          sync_once `integer` enum: `0`, `1` 1 表示一次性命令消息。
+
+          LegacyMessageEventMeta
+
+          可选消息事件摘要。
+
+          has_events `boolean` — 是否存在事件。
+
+          completed `boolean` — 所有已知事件 lane 是否已结束。
+
+          event_version `integer:uint64` 0–∞ 事件摘要版本。
+
+          last_msg_event_seq `integer:uint64` 0–∞ 所有 lane 中最新的事件序号。
+
+          event_count `integer` 0–∞ 事件总数。
+
+          open_event_count `integer` 0–∞ 仍未结束的事件 lane 数量。
+
+          events array<`LegacyMessageEventKeyMeta`> — 按事件 lane 返回的摘要。
+
+          LegacyMessageEventKeyMeta
+
+          一条事件 lane 的摘要。
+
+          event_key `string` — 事件 lane Key。
+
+          status `string` — 该 lane 的当前状态。
+
+          last_msg_event_seq `integer:uint64` 0–∞ 该 lane 已知的最新事件序号。
+
+          snapshot `unknown` — full 摘要模式下的任意 JSON 快照。
+
+          end_reason `integer:uint8` 0–255 事件流结束 Reason Code。
+
+          error `string` — 事件流错误说明。
+
+          LegacyMessageEventSyncHint
+
+          可选消息事件继续同步提示。
+
+          client_msg_no `string` — 目标消息的客户端消息编号。
+
+          from_msg_event_seq `integer:uint64` 0–∞ 下一次事件同步的起始序号。
+
+          400 Input, validation, dependency, or downstream error
+
+          CompatibilityError
+
+          多个旧式入口共用的 HTTP 400 错误体。
+
+          msg `string` — 供人阅读且不保证稳定的错误文本；不要据此做机器分支。
+
+          status `integer` const: `400` 固定为 400 的应用层状态。
+
+          503 Controller restore maintenance is active
+
+          MaintenanceError
+
+          集群处于恢复维护期间的 503 错误体。
+
+          error `string` const: `"maintenance"` 稳定的 maintenance 错误类别。
+
+          message `string` const: `"restore maintenance is active"` 当前恢复维护说明。
+---
+
+<Callout type="warn" title="接口边界">
+
+- **调用方**：仅限受信业务后端
+- **作用域**：按当前成员可见范围读取精确消息索引，不使用近期历史扫描代替。
+- **成功判定**：选择项取并集，按序号去重排序；超限或任一读取失败不返回部分结果。
+- **恢复**：全部节点须支持精确查询 RPC；旧节点会明确拒绝。
+
+</Callout>
+
+{/* This file was generated by Fumadocs. Do not edit this file directly. Any changes should be made by running the generation command again. */}
+
+export default function Layout(props) {
+  const { APIPage, OpenAPIPage } = props.components ?? {};
+  // "APIPage" is the old name from v10, this allows both for backward compatibility
+  const Comp = OpenAPIPage ?? APIPage;
+  return (
+    <>
+      {props.children}
+      <Comp document="wukongim-product-http-complete-beta-zh" operations={[{"path":"/messages","method":"post"}]} showDescription />
+    </>
+  );
+}

@@ -11,6 +11,7 @@ import (
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 )
 
 func TestCMDSyncStoreListsCMDMemberships(t *testing.T) {
@@ -248,4 +249,42 @@ func (n *cmdSyncNodeFake) ReadChannelCommittedBatch(ctx context.Context, reads [
 		results[index] = clusterchannels.CommittedReadResult{Read: result, Err: err}
 	}
 	return results, nil
+}
+
+func TestCMDMessageReaderDistinguishesUnusedChannelFromReadFailure(t *testing.T) {
+	for _, outer := range []bool{false, true} {
+		for _, failure := range []error{channelruntime.ErrChannelNotFound, context.DeadlineExceeded} {
+			node := &cmdReadFailureNode{cmdSyncNodeFake: &cmdSyncNodeFake{}, outer: outer, failure: failure}
+			got, err := NewCMDSyncStore(node).LoadCommandMessages(context.Background(), cmdsync.CommandChannelKey{ChannelID: "unused____cmd", ChannelType: 2}, 1, 10)
+			if errors.Is(failure, channelruntime.ErrChannelNotFound) {
+				if err != nil || len(got) != 0 {
+					t.Fatalf("unused CMD channel: %v %v", got, err)
+				}
+			} else if err == nil {
+				t.Fatal("unavailable read was hidden")
+			}
+		}
+	}
+}
+
+type cmdReadFailureNode struct {
+	*cmdSyncNodeFake
+	outer   bool
+	failure error
+}
+
+func (n *cmdReadFailureNode) ReadChannelCommittedBatch(context.Context, []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {
+	if n.outer {
+		return nil, n.failure
+	}
+	return []clusterchannels.CommittedReadResult{{Err: n.failure}}, nil
+}
+
+func (n *cmdSyncNodeFake) ReadPermissionMetadataBatchAuthoritative(ctx context.Context, reads []slotproxy.PermissionMetadataRead) []slotproxy.PermissionMetadataReadResult {
+	out := make([]slotproxy.PermissionMetadataReadResult, len(reads))
+	for i, r := range reads {
+		ch, err := n.GetChannelMetadataAuthoritative(ctx, r.ChannelID, r.ChannelType)
+		out[i] = slotproxy.PermissionMetadataReadResult{Channel: ch, Found: err == nil, Err: err}
+	}
+	return out
 }

@@ -42,7 +42,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 		cfg.Role = RuntimeRoleVoter
 	}
 	if cfg.TickInterval == 0 {
-		cfg.TickInterval = 20 * time.Millisecond
+		cfg.TickInterval = controllerraft.DefaultTickInterval
 	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now

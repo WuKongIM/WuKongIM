@@ -41,17 +41,28 @@ storage core without transferring shared-engine ownership.
    natively in reverse and stop while scanning at `Limit` or `MaxBytes`; they
    must never materialize the complete Channel history before truncation.
    Catalog pages follow encoded key order; skip only the exact cursor key.
+   Remote client-number lookups additionally cap inspected index entries and
+   payload bytes, failing explicitly rather than returning partial matches.
 3. Snapshot, backup, restore, truncation, retention, and close stream or mutate
    bounded batches while keeping rows, indexes, catalog, system state, leases,
    and physical engine ownership consistent.
 
 ## Invariants and Failure Semantics
 
-- Offline helpers encode/decode existing records and independently read
-  stored columns and verify version-1 proposal chains. They add no new durable
-  format, empty-key exception, uniqueness relaxation or recovery path. The
-  importer must reject source values the native runtime cannot represent.
+- Offline helpers independently read existing columns and verify native proposal
+  formats 1 and 2. Format 2 binds message Expire; old format-1 hashes remain
+  unchanged. Matched runtimes and full-generation rollback are required after
+  format-2 writes. Import adds no empty-key exception, uniqueness relaxation,
+  or recovery path and rejects values the native runtime cannot represent.
 
+- A sparse SyncOnce ordinal index (ID 7, complete marker system ID 11) excludes
+  internal records from badge rank queries. Existing primary rows are rebuilt in
+  bounded batches before the marker is published; channel append ownership
+  serializes writers and rank reads. All append, replacement, truncate and
+  retention paths maintain the index. Portable backups omit the marker and
+  rebuild derived entries during import; raw snapshots preserve both together.
+  Matched runtimes are required after publication; older writers cannot maintain
+  this derived keyspace.
 - Sequences are contiguous and monotonic. A durable append updates its primary
   row, global message-ID index, idempotency/client index, sender index, and
   catalog as one atomic unit where applicable.

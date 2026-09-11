@@ -3,6 +3,7 @@
 package scripts_test
 
 import (
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,8 +23,14 @@ func TestNativePackageSignedRepository(t *testing.T) {
 	)
 	command.Dir = root
 	command.Env = os.Environ()
-	output, err := command.CombinedOutput()
-	if err != nil {
-		t.Fatalf("signed native package repository validation failed: %v\n%s", err, output)
+	// Forward output to the test process so the go command retains diagnostics
+	// even if the package deadline panics before this child command returns.
+	// Keep an exec-owned pipe rather than letting descendants inherit the go
+	// command's output descriptor and hold it open after the test exits.
+	output := io.MultiWriter(os.Stdout)
+	command.Stdout = output
+	command.Stderr = output
+	if err := command.Run(); err != nil {
+		t.Fatalf("signed native package repository validation failed: %v", err)
 	}
 }

@@ -565,6 +565,7 @@ func (n *Node) startChannelMigrationLoop() {
 		TickInterval:    interval,
 		Observer:        repairObserver,
 	}, n, store)
+	diagnostics := channelMigrationDiagnostics{logger: namedLogger(n.cfg.Logger, "channel_migration")}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	n.channelMigrationCancel = cancel
@@ -578,8 +579,11 @@ func (n *Node) startChannelMigrationLoop() {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				_ = executor.RunOnce(ctx)
-				_, _ = scanner.RunOnce(ctx)
+				executorErr := executor.RunOnce(ctx)
+				result, scannerErr := scanner.RunOnce(ctx)
+				if ctx.Err() == nil {
+					diagnostics.report(time.Now(), result, executorErr, scannerErr)
+				}
 			}
 		}
 	})

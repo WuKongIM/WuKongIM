@@ -17,7 +17,10 @@ import (
 // pre-existing source gap and never changes native v3 storage or replication.
 type MessagePolicy struct {
 	KeepLatestDuplicates bool `json:"keep_latest_duplicates"`
-	ExcludeCMD           bool `json:"exclude_cmd"`
+	// ResolveDuplicateChains follows strictly increasing same-channel replacement
+	// edges to one surviving terminal; every original edge remains in the archive.
+	ResolveDuplicateChains bool `json:"resolve_duplicate_chains,omitempty"`
+	ExcludeCMD             bool `json:"exclude_cmd"`
 	// ExcludeStreams omits stream-flagged messages and legacy StreamNo parents,
 	// plus their unambiguous event projections; original rows remain archived.
 	ExcludeStreams   bool `json:"exclude_streams"`
@@ -25,6 +28,9 @@ type MessagePolicy struct {
 }
 
 func validateMessagePolicy(p *MessagePolicy) error {
+	if p != nil && p.ResolveDuplicateChains && !p.KeepLatestDuplicates {
+		return errors.New("duplicate chain resolution requires keep_latest_duplicates")
+	}
 	if p != nil && (!p.CompactSequences || (!p.KeepLatestDuplicates && !p.ExcludeCMD && !p.ExcludeStreams)) {
 		return errors.New("message omissions require compact_sequences and an explicit duplicate, CMD or stream policy")
 	}
@@ -46,12 +52,16 @@ type MessageTransformReport struct {
 	DuplicateDrops     uint64        `json:"duplicate_drops"`
 	CMDDrops           uint64        `json:"cmd_drops"`
 	StreamDrops        uint64        `json:"stream_drops"`
+	QuarantineDrops    uint64        `json:"quarantine_drops,omitempty"`
 	StreamEventStates  uint64        `json:"omitted_stream_event_states"`
 	StreamEventCursors uint64        `json:"omitted_stream_event_cursors"`
 	CMDConversations   uint64        `json:"omitted_cmd_conversations"`
 	ChangedChannels    uint64        `json:"changed_channels"`
 	ChangedSequences   uint64        `json:"changed_surviving_sequences"`
 	MaxSourceMessageID uint64        `json:"max_source_message_id,string"`
+	ChainRoots         uint64        `json:"duplicate_chain_roots,omitempty"`
+	ChainTerminals     uint64        `json:"duplicate_chain_terminals,omitempty"`
+	ChainSHA256        string        `json:"duplicate_chains_sha256,omitempty"`
 	MappingSHA256      string        `json:"mapping_sha256"`
 }
 
@@ -68,6 +78,8 @@ type MessageSequenceMapping struct {
 	Omitted      string          `json:"omitted,omitempty"`
 	SourceSHA256 string          `json:"source_sha256"`
 	Winners      []DedupeMessage `json:"winners,omitempty"`
+	// TerminalWinner supplements direct Winners; it never moves BoundarySeq.
+	TerminalWinner *DedupeMessage `json:"terminal_winner,omitempty"`
 }
 
 type transformedChannel struct {
@@ -195,6 +207,9 @@ func buildMessageTransform(ctx context.Context, selection SourceSelection, w Wor
 	if err := p.b.flush(); err != nil {
 		return nil, err
 	}
+	if err := addQuarantinePositions(ctx, selection, sourceWorkspace, w, decoder, p, report); err != nil {
+		return nil, err
+	}
 	if policy.KeepLatestDuplicates {
 		for _, kind := range []string{"id", "client"} {
 			if err := p.groups(1, kind, &DedupeNode{}); err != nil {
@@ -257,7 +272,14 @@ func buildMessageTransform(ctx context.Context, selection SourceSelection, w Wor
 		}
 		current.OriginalLast = m.Sequence
 		mapping := MessageSequenceMapping{SourceNodeID: current.SourceNodeID, Channel: current.Channel, OriginalSeq: m.Sequence, MessageID: m.ID, SourceSHA256: m.SHA256}
-		if policy.ExcludeCMD && m.CMD {
+		_, quarantined, err := w.Get(ctx, []byte(dedupeMessageKey("quarantine", m)))
+		if err != nil {
+			return err
+		}
+		if quarantined {
+			mapping.Omitted = "quarantined_invalid_message_channel"
+			report.QuarantineDrops++
+		} else if policy.ExcludeCMD && m.CMD {
 			mapping.Omitted = "cmd"
 			report.CMDDrops++
 		} else if policy.ExcludeStreams && m.Stream {
@@ -322,26 +344,79 @@ func buildMessageTransform(ctx context.Context, selection SourceSelection, w Wor
 	if err := p.b.flush(); err != nil {
 		return nil, err
 	}
-	// Every winner must survive both rules after explicit exclusions.
+	// Preserve direct provenance and certify approved transitive replacements.
+	resolver, err := newDuplicateResolver(w)
+	if err != nil {
+		return nil, err
+	}
 	err = w.Walk(ctx, []byte("dedupe/drop/"), func(row transfer.SpoolRow) error {
 		var m MessageSequenceMapping
 		if err := UnmarshalState(row.Value, &m); err != nil {
 			return err
 		}
+		chained := false
 		for _, winner := range m.Winners {
-			winner.NodeID = 1 // Private dedupe namespace represents the selected logical dataset.
+			winner.NodeID = 1
 			_, dropped, err := w.Get(ctx, []byte(dedupeMessageKey("drop", winner)))
 			if err != nil {
 				return err
 			}
-			if dropped {
-				return errors.New("duplicate winner is superseded by another uniqueness rule")
-			}
+			chained = chained || dropped
 		}
-		return nil
+		if !chained {
+			return nil
+		}
+		if !policy.ResolveDuplicateChains {
+			return errors.New("duplicate winner is superseded by another uniqueness rule")
+		}
+		terminal, err := resolver.resolveDuplicateTerminal(ctx, m)
+		if err != nil {
+			return err
+		}
+		// Load the canonical mapping, whose boundary was populated after the drop row.
+		key := fmt.Sprintf("mapping/%s/%020d", channelTuple(m.Channel), m.OriginalSeq)
+		canonical, found, err := transformGet[MessageSequenceMapping](ctx, w, key)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return errors.New("missing duplicate chain source mapping")
+		}
+		canonical.TerminalWinner = &terminal
+		report.ChainRoots++
+		rootKey := "chains/" + channelTuple(m.Channel) + fmt.Sprintf("/%020d", m.OriginalSeq)
+		if err := put("chain-terminals/"+channelTuple(m.Channel)+fmt.Sprintf("/%020d/%020d", terminal.Sequence, m.OriginalSeq), rootKey); err != nil {
+			return err
+		}
+		return put(rootKey, canonical)
 	})
 	if err != nil {
 		return nil, err
+	}
+	if err := p.b.flush(); err != nil {
+		return nil, err
+	}
+	lastTerminal := ""
+	if err := w.Walk(ctx, []byte("chain-terminals/"), func(row transfer.SpoolRow) error {
+		if len(row.Key) < 21 || row.Key[len(row.Key)-21] != '/' {
+			return errors.New("invalid duplicate terminal index key")
+		}
+		key := string(row.Key[:len(row.Key)-21])
+		if key != lastTerminal {
+			report.ChainTerminals++
+			lastTerminal = key
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	if report.ChainRoots > 0 {
+		h := sha256.New()
+		enc := json.NewEncoder(h)
+		if err := w.Walk(ctx, []byte("chains/"), func(row transfer.SpoolRow) error { return enc.Encode(row) }); err != nil {
+			return nil, err
+		}
+		report.ChainSHA256 = hex.EncodeToString(h.Sum(nil))
 	}
 	h := sha256.New()
 	enc := json.NewEncoder(h)
@@ -488,4 +563,71 @@ func WalkMessageSequenceMappings(ctx context.Context, w Workspace, visit func(Me
 		}
 		return visit(m)
 	})
+}
+
+// WalkDuplicateChainMappings exports exact source, direct edges and certified
+// terminal identities. Source payloads remain in the complete original archive.
+func WalkDuplicateChainMappings(ctx context.Context, w Workspace, expected *MessageTransformReport, visit func(MessageSequenceMapping) error) error {
+	if expected == nil {
+		return errors.New("duplicate chain export requires its prepared report")
+	}
+	h := sha256.New()
+	enc := json.NewEncoder(h)
+	var rows uint64
+	var terminals uint64
+	prefix := "message-transform/convert/"
+	err := w.Walk(ctx, []byte(prefix+"chains/"), func(row transfer.SpoolRow) error {
+		row.Key = row.Key[len(prefix):]
+		if err := enc.Encode(row); err != nil {
+			return err
+		}
+		var m MessageSequenceMapping
+		if err := UnmarshalState(row.Value, &m); err != nil {
+			return err
+		}
+		if m.TerminalWinner == nil {
+			return errors.New("duplicate chain export has no terminal proof")
+		}
+		rows++
+		key := prefix + "chain-terminals/" + channelTuple(m.Channel) + fmt.Sprintf("/%020d/%020d", m.TerminalWinner.Sequence, m.OriginalSeq)
+		if _, found, err := w.Get(ctx, []byte(key)); err != nil {
+			return err
+		} else if !found {
+			return errors.New("duplicate chain terminal index is incomplete")
+		}
+		return visit(m)
+	})
+	if err != nil {
+		return err
+	}
+	// The disk-sorted references count distinct terminals without retaining the
+	// whole archive in memory. Every reference must match a digest-bound root.
+	lastTerminal := ""
+	var terminalReferences uint64
+	if err := w.Walk(ctx, []byte(prefix+"chain-terminals/"), func(row transfer.SpoolRow) error {
+		var key string
+		if err := UnmarshalState(row.Value, &key); err != nil {
+			return err
+		}
+		m, found, err := transformGet[MessageSequenceMapping](ctx, w, prefix+key)
+		if err != nil {
+			return err
+		}
+		if !found || m.TerminalWinner == nil || key != "chains/"+channelTuple(m.Channel)+fmt.Sprintf("/%020d", m.OriginalSeq) || string(row.Key) != prefix+"chain-terminals/"+channelTuple(m.Channel)+fmt.Sprintf("/%020d/%020d", m.TerminalWinner.Sequence, m.OriginalSeq) {
+			return errors.New("duplicate chain terminal index differs from proof")
+		}
+		terminalKey := string(row.Key[:len(row.Key)-21])
+		if terminalKey != lastTerminal {
+			terminals++
+			lastTerminal = terminalKey
+		}
+		terminalReferences++
+		return nil
+	}); err != nil {
+		return err
+	}
+	if rows != expected.ChainRoots || terminalReferences != rows || terminals != expected.ChainTerminals || (rows > 0 && hex.EncodeToString(h.Sum(nil)) != expected.ChainSHA256) {
+		return errors.New("duplicate chain export differs from prepared proof")
+	}
+	return nil
 }

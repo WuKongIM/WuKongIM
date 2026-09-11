@@ -14,6 +14,8 @@ type Options struct {
 	CommandChannelSuffix string
 	// Submitter owns channel-authority send routing and append admission.
 	Submitter Submitter
+	// LookupReader executes authority-fenced indexed reads for exact message queries.
+	LookupReader CommittedMessageReader
 	// Reader owns compatible channel message sync reads.
 	Reader ChannelMessageReader
 	// Memberships authorizes ordinary message pulls and supplies visibility floors.
@@ -55,6 +57,7 @@ type App struct {
 	commandChannels runtimechannelid.CommandCodec
 	submitter       Submitter
 	reader          ChannelMessageReader
+	lookupReader    CommittedMessageReader
 	memberships     SyncMembershipStore
 	channelState    SyncChannelStateStore
 	eventStore      MessageEventStore
@@ -88,6 +91,7 @@ func New(opts Options) *App {
 		commandChannels:        runtimechannelid.CommandCodec{Suffix: opts.CommandChannelSuffix},
 		submitter:              opts.Submitter,
 		reader:                 opts.Reader,
+		lookupReader:           opts.LookupReader,
 		memberships:            opts.Memberships,
 		channelState:           opts.ChannelState,
 		eventStore:             opts.EventStore,
@@ -124,11 +128,13 @@ type SendBatchObserver interface {
 }
 
 // SyncMembershipStore reads UID-owned ordinary membership state for message pulls.
+// Implementations must support concurrent reads and honor context cancellation.
 type SyncMembershipStore interface {
 	GetUserChannelMembership(ctx context.Context, uid, channelID string, channelType int64) (metadb.UserChannelMembership, bool, error)
 }
 
 // SyncChannelStateStore reads terminal channel business state for message pull.
+// Implementations must support concurrent reads and honor context cancellation.
 type SyncChannelStateStore interface {
 	GetChannelForMessagePull(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error)
 }

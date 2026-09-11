@@ -66,6 +66,7 @@ func (r *CommittedMessageReader) ReadCommittedMessages(ctx context.Context, quer
 		reads[index] = clusterchannels.CommittedRead{
 			ChannelID: channelruntime.ChannelID{ID: query.ChannelID.ID, Type: query.ChannelID.Type},
 			Request: channelstore.ReadCommittedRequest{
+				MessageID: query.MessageID, ClientMsgNo: query.ClientMsgNo,
 				FromSeq: query.FromSeq, MinSeq: query.MinSeq, MaxSeq: query.MaxSeq,
 				Limit: query.Limit, MaxBytes: query.MaxBytes, Reverse: query.Reverse,
 			},
@@ -96,7 +97,7 @@ func committedMessagesFromChannel(in []channelruntime.Message) []message.SyncedM
 			Flags:     message.MessageFlags{SyncOnce: msg.SyncOnce, RedDot: msg.RedDot},
 			MessageID: msg.MessageID, MessageSeq: msg.MessageSeq,
 			ChannelID: msg.ChannelID, ChannelType: msg.ChannelType,
-			Setting: msg.Setting, FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo,
+			Setting: msg.Setting, FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Expire: msg.Expire,
 			Timestamp: int32(msg.ServerTimestampMS / 1000),
 			Payload:   append([]byte(nil), msg.Payload...),
 		}

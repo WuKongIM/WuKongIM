@@ -290,3 +290,20 @@ func cloneBackupProposalContractEntries(entries []backupRawEntry) []backupRawEnt
 	}
 	return cloned
 }
+
+// Expire uses a uint64 column but a uint32 protocol lifetime. Verification must
+// reject high bits instead of hashing a silently truncated value.
+func TestBackupProposalExpireCannotHideOverflowBehindEntryDigest(t *testing.T) {
+	row := testMessageRow()
+	row.MessageSeq = 1
+	row.Expire = 3600
+	record := quorumlog.Record{ID: row.MessageID, Index: 1, Epoch: 1, Setting: row.Setting, FromUID: row.FromUID, ClientMsgNo: row.ClientMsgNo, ServerTimestampMS: row.ServerTimestampMS, SyncOnce: row.FramerFlags&4 != 0, Expire: 3600, Payload: row.Payload}
+	_, entries, ok := quorumlog.SealProposalManifest(quorumlog.ProposalManifest{Version: quorumlog.ExpirationProposalManifestVersion, ChannelEpoch: 1, LeaderTerm: 1, FenceVersion: 1, CommandID: quorumlog.CommandID{1}, LastOffset: 1}, []quorumlog.Record{record})
+	if !ok || !verifyBackupRowIdentity(entries[0], row) {
+		t.Fatal("valid lifetime must verify")
+	}
+	row.Expire += 1 << 32
+	if verifyBackupRowIdentity(entries[0], row) {
+		t.Fatal("overflow must not alias the original digest")
+	}
+}

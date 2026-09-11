@@ -65,6 +65,10 @@ type sourceArchiveIdentity struct {
 // manifest last. Exact objects can be resumed; no existing object is replaced.
 // The coordinator must have rebound the workspace to unchanged stopped sources.
 func ExportSourceArchive(ctx context.Context, options SourceArchiveOptions, capture SourceCapture, catalog SourceCatalog, selection SourceSelection, workspace Workspace, store artifact.ArchiveStore) (manifest SourceArchiveManifest, err error) {
+	return exportSourceArchive(ctx, options, capture, catalog, selection, workspace, store, nil)
+}
+
+func exportSourceArchive(ctx context.Context, options SourceArchiveOptions, capture SourceCapture, catalog SourceCatalog, selection SourceSelection, workspace Workspace, store artifact.ArchiveStore, seal *PreparedArchiveSeal) (manifest SourceArchiveManifest, err error) {
 	if options.ChunkBytes == 0 {
 		options.ChunkBytes = 8 << 20
 	}
@@ -81,7 +85,8 @@ func ExportSourceArchive(ctx context.Context, options SourceArchiveOptions, capt
 	}
 	var buffer bytes.Buffer
 	var rows uint64
-	for _, prefix := range []string{"source/", "catalog/", "selected/", "plugin-artifacts/"} {
+	digest := newArchiveRowDigest()
+	for _, prefix := range sourceArchivePrefixes {
 		flush := func() error {
 			if rows == 0 {
 				return nil
@@ -105,6 +110,9 @@ func ExportSourceArchive(ctx context.Context, options SourceArchiveOptions, capt
 			return nil
 		}
 		err := workspace.Walk(ctx, []byte(prefix), func(row transfer.SpoolRow) error {
+			if seal != nil {
+				digest.add(row)
+			}
 			data, err := json.Marshal(row)
 			if err != nil {
 				return err
@@ -131,6 +139,9 @@ func ExportSourceArchive(ctx context.Context, options SourceArchiveOptions, capt
 		if err := flush(); err != nil {
 			return manifest, err
 		}
+	}
+	if seal != nil && (digest.rows != seal.Rows || hex.EncodeToString(digest.h.Sum(nil)) != seal.WorkspaceSHA256) {
+		return manifest, errors.New("prepared export workspace checksum mismatch; archive remains incomplete")
 	}
 	data, err := json.Marshal(manifest)
 	if err != nil {

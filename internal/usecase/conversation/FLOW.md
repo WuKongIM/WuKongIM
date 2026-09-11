@@ -30,15 +30,20 @@ It does not subscribe users, deliver messages, or implement storage and transpor
 3. `SyncLegacy` walks at most 1,000 membership candidates, applies the v2.2
    page, unread, excluded-type, version, and per-Channel cursor semantics, then
    reads recent committed messages and their stream-event summaries in aligned
-   batches of at most 200 Channels.
+   batches of at most 200 Channels. An old empty-client-number head can be
+   reread after an advanced legacy cursor to repair a missing preview; ordinary
+   heads retain exclusive-cursor behavior and durable read/delete state is unchanged.
 4. Personal commands monotonically update `read_seq`, `deleted_to_seq`, or
    `activated_at` after exact membership and Channel-head reads.
 
 ## Invariants and Failure Semantics
 
 - `visibility_floor = max(join_seq - 1, deleted_to_seq, retention_through_seq)`;
-  unread is clamped from committed head against that floor, badge state, and
-  the current user's latest committed send.
+  unread counts ordinary messages after that floor, badge state, and the current
+  user's latest committed send. SyncOnce/recovery positions are excluded by the
+  Channel leader's rank query. SetUnread uses a leader-selected ordinary-message
+  boundary; legacy pulls retain the actual effective read sequence, never infer
+  it by subtracting an unread count from a sparse log sequence.
 - Empty results do not imply completion; only `done=true` completes a pass.
 - Disbanded channels become deletes. Temporary leader failure becomes
   unresolved and does not block cursor progress.
@@ -60,6 +65,10 @@ It does not subscribe users, deliver messages, or implement storage and transpor
 - The opaque cursor contains `(ActivatedAt, ChannelID, ChannelType)` only.
 - Hydrated payload bytes are cloned once into usecase-owned immutable data and
   may then be transferred through synchronous response adapters without another copy.
+
+- Imported list-only hidden memberships remain accessible to history reads.
+  They appear after a newer ordinary message or explicit activation, without
+  modifying read/delete floors or native unread calculations.
 
 ## Read First
 

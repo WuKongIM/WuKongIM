@@ -57,6 +57,9 @@ func (l *ChannelLog) TruncateFrom(ctx context.Context, fromSeq uint64) error {
 }
 
 func (l *ChannelLog) stageDeleteMessage(batch *engine.Batch, msg Message) error {
+	if err := batch.Delete(nonBusinessIndexKey(l.key, msg.MessageSeq)); err != nil {
+		return err
+	}
 	if err := batch.Delete(encodeMessageRowKey(l.key, msg.MessageSeq, messageHeaderFamilyID)); err != nil {
 		return err
 	}

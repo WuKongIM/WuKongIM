@@ -6,8 +6,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"path/filepath"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/transfer"
 )
@@ -25,6 +27,9 @@ type Plan struct {
 	Exclusions *Exclusions `json:"exclusions,omitempty"`
 	// Messages opts into explicitly authorized omissions and sequence mapping.
 	Messages *MessagePolicy `json:"messages,omitempty"`
+	// Quarantine binds exact malformed primary rows to an operator decision.
+	// Original bytes and dependent indexes remain in the source archive.
+	Quarantine []QuarantineRow `json:"quarantine,omitempty"`
 	// Metadata binds explicitly chosen original metadata lookup semantics.
 	Metadata *MetadataPolicy `json:"metadata,omitempty"`
 	// History binds evidence-qualified replica lag and explicit recovery. Nil keeps
@@ -70,6 +75,9 @@ func ReadPlan(reader io.Reader, sourceCommit string) (plan Plan, err error) {
 			return plan, errors.New("invalid source node identity, shard count or absolute data directory")
 		}
 	}
+	if err := validateQuarantinePolicy(plan); err != nil {
+		return plan, err
+	}
 	if err := validateMessagePolicy(plan.Messages); err != nil {
 		return plan, err
 	}
@@ -103,6 +111,7 @@ type OriginalDecoder interface {
 // Preflight is evidence of source selection and conversion only. It must never
 // be presented as evidence that the target has passed independent verification.
 type Preflight struct {
+	ArchiveSeal     *PreparedArchiveSeal   `json:"archive_seal,omitempty"`
 	Status          string                 `json:"status"`
 	CutoverReady    bool                   `json:"cutover_ready"`
 	PlanDigest      string                 `json:"plan_digest"`
@@ -133,38 +142,83 @@ func Prepare(ctx context.Context, plan Plan, w Workspace, source Source, decoder
 	if err := validateMessagePolicy(plan.Messages); err != nil {
 		return result, err
 	}
+	// Emit bounded stage boundaries so operators can attribute validation time
+	// without message-level logs or treating a quiet process as a failed job.
+	var stageName string
+	var stageStart time.Time
+	finishStage := func(stageErr error) {
+		if progress == nil || stageName == "" {
+			return
+		}
+		state := "completed"
+		if stageErr != nil {
+			state = "failed"
+		}
+		progress(0, fmt.Sprintf("%s %s after %s", stageName, state, time.Since(stageStart).Round(time.Millisecond)))
+	}
+	stage := func(name string) {
+		finishStage(nil)
+		stageName = name
+		if progress != nil {
+			stageStart = time.Now()
+			progress(0, name+" started")
+		}
+	}
+	defer func() { finishStage(err) }()
 	result.PlanDigest = plan.Digest()
 	result.SourceCommit = plan.SourceCommit
+	stage("source capture")
 	if result.Capture, err = CaptureSources(ctx, plan.Sources, source, w, progress); err != nil {
 		return result, err
 	}
+	stage("plugin settings")
 	if result.PluginSettings, err = PreparePluginSettings(ctx, plan, result.Capture, w, decoder); err != nil {
 		return result, err
 	}
 	artifactSource, _ := source.(PluginArtifactSource)
+	stage("plugin artifact capture")
 	if err := CapturePluginArtifacts(ctx, plan, w, artifactSource); err != nil {
 		return result, err
 	}
+	stage("plugin artifact validation")
 	if result.PluginArtifacts, err = PreparePluginArtifacts(ctx, plan, result.Capture, w); err != nil {
 		return result, err
 	}
+	stage("approved quarantine")
+	w, err = prepareQuarantine(ctx, plan, result.Capture, w, decoder)
+	if err != nil {
+		return result, err
+	}
+	stage("empty-channel certification")
 	decoder, err = certifyEmptyChannels(ctx, result.Capture, w, decoder, plan.Metadata)
 	if err != nil {
 		return result, err
 	}
+	stage("source identity catalog")
 	if result.Catalog, err = BuildSourceCatalog(ctx, result.Capture, w, decoder); err != nil {
 		return result, err
 	}
+	stage("quarantine catalog validation")
+	if err = validateQuarantineCatalog(ctx, w); err != nil {
+		return result, err
+	}
+	stage("source index validation")
 	if err = validateSourceIndexes(ctx, result.Capture, plan.Sources, w, decoder, plan.Metadata, plan.Messages); err != nil {
 		return result, err
 	}
+	stage("source authority and replica comparison")
 	if result.Selection, err = selectSources(ctx, result.Capture, result.Catalog, w, decoder, plan.Exclusions, plan.Metadata, result.PluginArtifacts, plan.History, plan.Messages); err != nil {
 		return result, err
 	}
+	stage("native record conversion")
 	if result.Conversion, err = BuildTargetRecords(ctx, result.Selection, w, decoder); err != nil {
 		return result, err
 	}
+	stage("prepare checkpoint")
 	result.Status = "prepared"
+	if err = sealPreparedArchive(ctx, w, &result); err != nil {
+		return result, err
+	}
 	data, err := json.Marshal(result)
 	if err != nil {
 		return result, err

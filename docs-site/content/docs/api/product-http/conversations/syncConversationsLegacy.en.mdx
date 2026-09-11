@@ -83,7 +83,8 @@ _openapi:
 
           last_msg_seq `integer:uint64` 0–∞ Current last-message sequence.
 
-          last_client_msg_no `string` — Current last client-message number.
+          last_client_msg_no `string` — Last-message client number; old
+          empty-number records use the same read-only alias as recents.
 
           offset_msg_seq `integer:int64` — Offset sequence for this
           recent-message window.
@@ -93,8 +94,10 @@ _openapi:
 
           version `integer:int64` — Legacy Conversation version.
 
-          recents array<`LegacyMessage`> — Recent messages returned according to
-          msg_count.
+          recents array<`LegacyMessage`> — Recent messages bounded by msg_count.
+          To repair old empty-key collisions, the latest empty-number message
+          may be returned again after the client cursor advances; read and
+          delete positions are unchanged.
 
           LegacyMessage
 
@@ -110,7 +113,10 @@ _openapi:
           message_idstr `string` — Decimal string mirror of message_id only; it
           is not a replacement for message_seq.
 
-          client_msg_no `string` — Client message number.
+          client_msg_no `string` — Original client number, or the stable
+          read-only alias wk3-legacy-<message_id> for an old empty-number record
+          with a message ID. The alias supports /messages lookup; it is not a
+          SEND idempotency or event mutation key. Stored records are unchanged.
 
           end `integer:uint8` 0–255 Stream-message terminal compatibility flag.
 

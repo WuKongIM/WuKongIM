@@ -19,7 +19,7 @@ _openapi:
       - content: 解绑命令 Channel 发现
         id: 解绑命令-channel-发现
     contents:
-      - content: 为持久发现写入 tombstone，但不删除命令消息。
+      - content: 为有上限的接收者批次写入发现关系墓碑，不删除 CMD 消息。
         heading: 解绑命令-channel-发现
       - content: >-
           POST /message/cmd/unbind
@@ -28,7 +28,7 @@ _openapi:
 
           解绑命令 Channel 发现
 
-          为持久发现写入 tombstone，但不删除命令消息。
+          为有上限的接收者批次写入发现关系墓碑，不删除 CMD 消息。
 
           MessageCMDBindingRequest
 
@@ -43,6 +43,12 @@ _openapi:
 
           channel_type `integer:uint8` 1–255 Channel 类型编号；1 表示个人 Channel，2 表示群组
           Channel，其他值属于扩展类型。
+
+          uids array<`string`> minItems: 1; maxItems: 1000 源频道的接收者列表，最多 1000
+          项；去空白和重复项。不能与 uid 或 subscribers 同用。
+
+          subscribers array<`string`> minItems: 1; maxItems: 1000 仅使用此字段绑定 SEND
+          的临时接收者范围；最多 1000 项，顺序必须与 SEND 一致。不能与频道字段同用。
 
           200 Mutation accepted
 
@@ -78,6 +84,8 @@ _openapi:
 <Callout type="warn" title="接口边界">
 
 - **调用方**：仅限受信业务后端
+- **作用域**：使用与 bind 相同的三种互斥形式及 1000 项、256 KiB 上限；临时范围顺序须与原 SEND 相同。
+- **成功判定**：跨 Slot 失败可能部分完成；重试整个批次。解绑不删除消息。
 
 </Callout>
 

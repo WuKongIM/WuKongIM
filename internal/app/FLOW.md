@@ -27,11 +27,12 @@ validated Config + build identity -> format guard and fresh-directory provenance
   -> construct cluster and shared runtime foundations
   -> construct use cases and infrastructure ports
   -> bind the user use case's durable device-token verifier into Gateway CONNECT authentication
-  -> compose PageReader and its committed-record adapter for ordinary sync and plugin reads
+  -> compose PageReader and its committed-record adapter for ordinary sync, exact lookup and plugin reads
   -> adapt the message use case's committed batch read into the narrow
      conversation legacy-sync message port
   -> when bearer and all real drain ports exist, bind one terminal controller
      to both the already-created gateway handler and API prepare route
+  -> wire legacy product plugin HTTP routes into the same plugin usecase
   -> register node RPC and access adapters
   -> expose optional API, Manager, metrics, diagnostics, plugins, and gateway
 

@@ -2,6 +2,39 @@
 
 ## Internal
 
+- Public `cluster.start_timeout` maps to the existing Cluster `Timeouts.Start`
+  readiness budget (30s default). Cold committed-log replay may outlast that
+  budget before traffic is admitted; increase it only from measured recovery
+  evidence. It does not relax quorum/placement checks, alter request deadlines,
+  or make a permanently unavailable cluster ready.
+
+- Snapshot row ownership checks decode the shared five-byte metadata key
+  prefix once. Building three spans for each candidate hash slot per row
+  amplifies allocations during multi-Slot startup and restore. The check still
+  accepts exactly the row/index/system namespace ranges, not global catalogs;
+  row-schema validation remains a separate contract.
+
+- Slot FSM commit-time logical conflicts reject the complete physical batch
+  before writing. Recovery subdivides that rejected range in Raft order, with
+  the left prefix durable before the right suffix executes. Healthy ranges
+  remain batched; single stale commands persist their no-op applied watermark.
+  Staging-time conditional rejections require the same ordered subdivision:
+  eager active-task bookkeeping can still remember an earlier task completed
+  in this batch, and rejected commands may already have staged guard writes.
+  Discard the batch before retrying; never skip such an entry in place.
+  Physical/ambiguous commit failures must never enter this retry path.
+
+- Plugin owner lookups reread authoritative Slot runtime metadata. Node-addressed
+  plugin HTTP forwarding does not enter append-route failure invalidation, so an
+  append authority cache can otherwise retain a stopped leader indefinitely.
+  Only missing runtime metadata falls back to normal authority initialization;
+  read failures must not fall back to cached ownership.
+  Whole-conversation-list lookups use bounded Slot-authoritative batches; one
+  authority read per conversation can exhaust the plugin callback deadline even
+  when searching one already indexed message is fast. Missing metadata must
+  enter the existing coalesced initializer with bounded concurrency, not
+  serially consume the entire callback budget.
+
 - EasySDK current tutorial selections live only in `docs-site/lib/easy-sdk-releases.json`.
   The build resolves explicit MDX tokens for both languages, while navigation
   reads the manifest directly. SDK source, vcpkg registry and tool pins are
@@ -13,6 +46,7 @@
   only the main-branch proposal job can write, and it never merges PRs.
 
 - Durable Channel replication excludes learners from quorum votes and recovery voting. Authority installation copies its quorum-proved committed frontier to non-ISR replicas through the fixed repair workers, one bounded page per turn; the repair ledger allows the configured voter count plus one replacement replica and fences cursors to exact work generations. Migration probes refresh loaded follower frontiers from consistent exact storage because quorum exchanges bypass follower reactor state. A replica-replacement target below `CutoverLEO` remains runnable; invalid runtime proofs still block promotion.
+
 
 - A migration spool path must be absent on first creation; an existing empty
   directory has no identity and is refused. Container rehearsal mounts the
@@ -1246,6 +1280,10 @@ Recovery barriers compare the complete `(ChannelEpoch, LeaderTerm, FenceVersion)
 
 ## Unified operator CLI
 
+- Migration source-index validation merges sorted expected/actual prefixes in native Spools with bounded iterator memory. Keep missing/value-conflict checks and the original unmatched sender/absent-primary rules; only derived-index scans may unwrap quarantine, while business point lookups must retain its hidden-primary view. Preparation reports bounded stage start/completion/failure timings, not message-level logs or a guessed percentage.
+
+- Pebble reserves active, iterator-pinned, and recycled memtable memory against its block-cache budget. Migration Spool must leave read-cache headroom while walking captured rows and writing join indexes: a 16 MiB cache with a 16 MiB memtable starves cached reads after growth. Its 128 MiB budget retains bounded headroom; regression coverage must use a writable grown workspace, because a read-only reopen hides these reservations.
+
 - `cmd/wkcli` is the only public operator utility entrypoint. `bench` combines lightweight `send` with distributed benchmark commands; `db` and `migrate` retain their original parsers, outputs and exit codes. `db` global flags precede its verb; import writes offline stores.
 - Official archives and the native `wukongim` package carry both `wukongim` and `wkcli` with matching version/commit identity. Repository executable overrides use `WK_CLI_BIN`; benchmark evidence schemas and systemd unit names keep existing identifiers. Cloud and Agent helpers stay independent.
 - CLI implementations remain under `cmd/wkcli/internal` to preserve existing command ownership during consolidation. Product-config redaction is registered separately from the black-box benchmark package so its dependency check excludes server internals.
@@ -1255,3 +1293,75 @@ Recovery barriers compare the complete `(ChannelEpoch, LeaderTerm, FenceVersion)
 - Migration `ReadPlan` normalizes omitted/empty `source_commit` to the pinned reader schema revision before digesting or archiving. Legacy explicit plans keep identical identity and unsupported explicit revisions fail. Report/archive source_commit identifies the decoder baseline, never discovered binary provenance; source-format, index, authority and conversion checks remain required. Pre-change released tools still require the field.
 
 - `pkg/dataformat` owns immutable `DATA-FORMAT.json` node-root identity (`wukongim-v3`, format_version 1), with initializing executable provenance separate from format compatibility. App initialization checks/registers before creating logs, so nested log directories cannot hide a fresh root. Cluster construction also registers only fresh empty roots (checking external Controller state); startup rechecks before opening runtimes. Unmarked historical directories stay unregistered. Migration creates the marker under its existing exclusive generation lock before hashing/sealing target files; retries preserve the original marker, and independent verification checks compatibility plus the immutable checkpoint. `wkcli db info` reads only this bounded regular file, including on a running node. Full directory backups preserve it; logical bundles/backups retain their own format contracts and do not copy per-node creator identity.
+
+- Migration source engine selection preserves the existing Pebble v1 reader and adds an explicitly bounded Pebble v2 format-19 reader. Both hold real source directory locks through the complete scan and reject filesystem mutations. Readability does not certify the deployed binary revision or relax business/plugin checks. A rehearsal snapshot becomes stale once source writes resume; final cutover needs a new stopped generation.
+
+- Legacy plugin HTTP compatibility uses the Product listener `ANY /plugins/:plugin_no/*path`, wired through `internal/usecase/plugin.App.Route`; plugin startup alone does not verify this business path. The entry applies maintenance, a 10 MiB body bound, configured plugin timeout, and response transport-header filtering.
+
+- The exact search plugin from `plugins@10b1795` owns a Pebble checkpoint DB and Bleve index in its sandbox. Migrated targets seed every retained message channel at zero and rebuild through Host RPC, rather than copying stale per-node indexes or old sequence cursors. Offline verification precedes any plugin start. A stronger archive-based rehearsal exposed stale original-plugin search results after leader replacement even though native history retained the new message; runtime acceptance therefore requires an upgraded plugin with query-time incremental catch-up, single-ingress writes followed by leader replacement, and full restarts.
+
+
+- Migration quarantine is a business interpretation view over the immutable raw capture, not a repaired source history. Exact node/shard/key/row-SHA approvals recognize only fixed-reader malformed-message, unresolved-allowlist, and inconsistent-CMD reasons. Dependent indexes are excluded only when their persisted pointers address an approved primary; duplicate winners retain their indexes. Quarantined positions in selected owners are reread from raw capture and included as omitted sequence boundaries during both conversion and verification. Unknown gaps, authority conflicts, and unrelated business compatibility failures remain blockers.
+
+- Message lifetimes remain uint32 seconds in the existing header column. New proposals containing nonzero Expire use quorum format 2 and bind it in the entry digest; legacy format-1 digests are never reinterpreted, including old compatibility records with stored but unbound lifetimes. Channel RPC 9 and quorum exchange 5 propagate the field, and older encodings reject lossy requests/results. This requires matched runtimes on all targets and full-generation restore for rollback after format-2 writes; root DATA-FORMAT identity alone does not certify this proposal capability. Migration must preserve original Expire and independently verify native restart and empty-replica repair.
+
+- Original v2 whitelistOffOfPerson=false maps to v3 message.person_whitelist_enabled=true; the inverse name and different default can otherwise change stranger-send permissions. Current v3 gateway listeners do not consume the old TCP PROXY preamble. There is no direct datasource.addr configuration: migrate authoritative members/allowlists/denylists and separately verify backend API synchronization of later changes.
+
+- Compose bridge-network migration plans bind target RPC identities to stable container service names or network aliases, not host loopback or published ports. Each node binds its own verified target directory at the plan's absolute data path. Finalize topology before prepare; address changes require a new workspace and artifacts. Compose/config validation does not replace offline data verification or three-node runtime acceptance.
+
+- ProbeWriteReady includes eligible new-Channel placement capacity. In a three-node/three-replica cluster, one offline node can cause readiness 503 while pre-existing channels still commit through quorum. Fault acceptance must separately check existing-channel traffic, replica recovery, and full placement readiness; an existing-channel pass is not a full-readiness pass.
+
+- Conversation migration keeps the real original userMaxCount in its plan. preserve_all_conversations explicitly preserves valid durable conversations beyond that response cap; it does not falsify source configuration. Conflicting Leader-list states require exact node/logical-key/indexed-row/group-row SHA approvals, choose one complete original indexed record, and still pass formal-replica state comparison. Changed or unused approvals fail; archive import independently rebuilds the choices and sequence mapping.
+- Exact conversation_replicas decisions can separately select an existing original copy or archive a divergent group. The digest binds all formal replicas' candidate bytes, original row bytes, and absence. Unused, changed, or agreeing groups fail; archive-only groups cannot silently reappear through pending recovery. No generic majority or single-copy union is enabled. Compute lookup namespace hashes once per selection, not once per physical row.
+- Migration export rechecks stopped source/plugin freshness and verifies a prepared report plus a length-framed digest of every exported workspace row before COMPLETE. Preparation seals include raw quarantined rows. Export avoids repeated semantic preparation; import and independent verify still rebuild all archive checks. Unsealed older workspaces require fresh preparation with matching tools.
+
+- V2 migration duplicate chains require explicit `resolve_duplicate_chains`; each
+  strictly increasing same-channel chain must have one surviving terminal. Keep
+  direct edges, terminal sidecar and all original messages; never remap read/delete
+  boundaries forward to a winner. Independent unread projection needs explicit
+  `derive_unread_from_boundaries` and preserves original counter evidence.
+- An imported absent conversation may use exact `missing_conversations` with
+  `visibility: hidden_until_new_message`. The native list-only marker must not
+  become a message visibility or read floor. All target runtimes must match;
+  rollback restores the previous complete generation, not old readers on new rows.
+
+- Conversation badge counts exclude SyncOnce recovery positions even though they
+  consume durable message sequences. Message index 7 stores sparse cumulative
+  ordinals; system marker 11 is published only after bounded primary backfill.
+  All append/recovery/import/deletion paths maintain it. Portable snapshots omit
+  the marker and rebuild the derived index. Use matching cluster codec-10
+  binaries; rollback requires the complete prior generation, not old writers
+  over a marked database. Legacy unread pulls retain effective read boundaries;
+  sequence minus unread count is invalid after an interior recovery barrier.
+
+- Public v2 migration documentation must describe reusable WuKongIM procedures with a supported reader baseline and explicit release capability requirements. Deployment-specific business applications, credentials, binary inventories, and per-record recovery decisions belong in private operator records; example plans must not depend on unpublished optional-field behavior.
+
+- Channel migration tick errors retain the exact failed task/channel and its fresh durable phase; a subsequent loop deadline or task-source failure must not discard that cause. Node logs still bound diagnostic size and frequency. Task phase alone is not evidence that the task was recently attempted; distinguish expired ownership and executor backlog during failover diagnosis.
+
+- Committed history and conversation reads can encounter a loaded runtime from an older Channel/Leader epoch even after Slot metadata names the local node as current Leader. Treat only strictly older runtime authority as requiring normal bounded activation from the freshly validated Slot metadata, then probe recovered quorum HW again. Current followers and newer authority still fail closed; a loaded runtime is not authority proof.
+
+- Controller runtime defaults must use the same canonical 100ms Raft tick as the underlying service (heartbeat tick 1, election tick 10). A separate facade default silently changes the effective election floor and quorum-check interval. Slot timing is independent. Explicit test/operator RuntimeConfig tick overrides remain supported; the default mirror refresh derived from five ticks is 500ms.
+
+- Raw Channel idempotency indexes may contain proposals left by failed or canceled quorum attempts. The channelappend infrastructure adapter must prove the exact message identity and payload with a bounded current-Leader committed point read before either preflight retry or append-error recovery returns success. A missing or unavailable proof cannot authorize SENDACK; raw storage lookup remains a durability inspection primitive.
+
+- Plugin socket readiness must distinguish a bounded connection attempt from the connected WKRPC handshake. Once connected, the full remaining readiness deadline covers the valid connack; repeatedly imposing a 100ms read deadline can reject every delayed response under CPU throttling. The overall two-second readiness bound and frame/status validation remain mandatory.
+
+- Legacy `POST /messages` supports a union of exact sequence, message-ID and client-number selectors. It uses current Channel authority, committed HW, retention and UID membership visibility; it must not be implemented by scanning only recent history. Limits fail explicitly without partial results. Group CMD delivery resolves current source-group subscribers while preserving the command Channel envelope; a command metadata version cannot fence source membership.
+
+- Explicit CMD bindings accept one UID, up to 1000 source-channel UIDs, or an exact ordered request-subscriber scope. The batch reads one committed tail and uses UID-owned Slot writes; cross-Slot failures may be partial and callers must retry before SEND. Live binding retries preserve original start/ack boundaries. Request-scoped binding must reuse the SEND codec, including configured command suffix; never reimplement or split its hash input. HTTP bodies and aggregate identities are bounded at 256 KiB.
+
+- A CMD binding can legitimately precede command-log creation. CMD reads map only routed `channel.ErrChannelNotFound` to no messages, consistently with `CommittedChannelTail`; never hide unavailable leaders, transport failures, or deadline errors as empty history.
+
+- Offline CMD sync reads UID directory entries in bounded chunks of 32, sharing authoritative source metadata and committed Channel-owner batches. Preserve aligned results and per-channel pagination; only identified missing logs are empty. A failed chunk must not replace the prior acknowledgement generation, and global ordering/limits apply across all directory pages.
+
+- Terminal source deletion retains identity and can leave existing CMD bindings. Global CMD sync skips only authoritative `ErrChannelDisbanded` items, without reading those command logs or acknowledging them. Infrastructure reports aligned per-source facts; all other read failures remain errors and preserve the previous ACK generation. Direct source reads still reject disband.
+
+- Legacy HTTP SEND without a nonblank `client_msg_no` must generate one unique key before submission and return it as `client_msg_no`, matching v2. Provided keys remain byte-exact. Legacy iOS resolves a conversation preview through `last_client_msg_no`; empty stored keys can cause both blank previews and local message-key collisions. Restoring generation prevents new corrupt associations but does not rewrite already-stored empty keys.
+
+- Batch history preparation overlaps at most eight UID membership and terminal Channel checks per request, joins all workers before message reads, and preserves input-order errors and visibility floors. Store adapters must support concurrent reads and context cancellation.
+
+- Legacy API and plugin history render empty stored client numbers as `wk3-legacy-<message_id>` only when the message ID is nonzero. Exact lookup first honors a real client-number index match, then may resolve that alias by ID only for an empty-number record under the same membership/visibility checks. Aliases are read identities, not SEND idempotency or event mutation keys; raw storage, expiration and payload are unchanged.
+
+- Legacy sync may reread only the latest visible empty-number head after an advanced client cursor, because old clients could advance local sequence bookkeeping while losing that message to an empty-key collision. This read-only replay leaves membership, unread, read and delete boundaries unchanged.
+
+Duplicate-chain resolution reuses only same-pass, randomly namespaced disk proofs; independent conversion/verification passes cannot reuse one another’s cache. Exact direct edges and terminal identities remain in the digest-bound chain sidecar. Disk-sorted terminal/root references avoid archive-wide terminal maps. The 100,000 traversal guard bounds uncached per-root work; verified suffix reuse requires no repeated traversal.

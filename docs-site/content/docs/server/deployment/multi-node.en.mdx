@@ -71,7 +71,7 @@ Copy the file to servers 2 and 3, changing only `node.id` to `2` and `3`. The `[
 `listen_addr` tells the current server where to listen, so `0.0.0.0` is valid there. The addresses in `nodes` tell the other servers how to connect, so they must be real private IP addresses—not `0.0.0.0` or `127.0.0.1`. See [Nodes & Cluster](/en/server/configuration/cluster) for other settings.
 
 <Callout type="warn" title="Three servers leave no spare node">
-  Three replicas mean that every piece of data needs all three servers. If one server stops, the other nodes may return `503` from `/readyz`. Use at least four servers if writes must continue while one server is offline.
+  A three-replica channel has three nodes in its target replica set. With one node offline, existing channels can still commit when quorum and runtime requirements are met. New channel placement still requires enough eligible nodes, and `/readyz` checks that condition, so the remaining nodes may return `503`. Test existing-channel traffic and new-channel placement separately; neither proves the other. Use at least four servers if new three-replica channels and full readiness must remain available with one server offline.
 </Callout>
 
 ## 3. Start and check the servers

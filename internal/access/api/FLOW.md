@@ -11,7 +11,7 @@ This package owns the product HTTP listener, route registration, request and
 response DTOs, CORS, entry validation, legacy-compatible envelopes, and the
 embedded chat Demo. It adapts HTTP requests to entry-independent use cases and
 runtime ports; it does not own message, membership, conversation, channel, or
-user business state.
+user business state. Legacy plugin HTTP routes invoke the existing plugin usecase.
 
 ## Boundaries
 
@@ -54,8 +54,15 @@ bench or debug request
 - A configured `bench.api_token` protects every `/bench/v1/*` and enabled
   `/debug/*` route. An empty token is controlled-environment compatibility, not
   a production authentication claim.
+- `POST /messages` maps bounded exact ID, sequence and client-number selectors
+  to the message use case; its legacy envelope preserves integer identity.
+- CMD bind/unbind accept bounded single, source-recipient batch, or exact
+  request-subscriber forms; the use case resolves the scope and shared tail.
 - `/message/eventsync` maps the original projected-event envelope to the narrow
   event-sync use case; sequence selection and visibility policy stay below HTTP.
+- `/plugins/:plugin_no/*path` preserves the business-backend plugin route with a
+  bounded body and timeout, safe response framing, and the same maintenance gate.
+  Plugin execution and eligibility remain below the HTTP adapter.
 - `/route`, legacy channel/user/message/CMD/conversation routes, and their
   response envelopes remain compatibility surfaces independent of bench mode.
 - Default external `/route` and `/route/batch` complete listener-derived wildcard
@@ -64,6 +71,8 @@ bench or debug request
   node selectors stay unchanged; proxy headers never infer hosts, ports or TLS.
 - `/message/send` resolves its sender as `from_uid`, then the legacy
   `sender_uid` alias, then the configured system UID when both are empty.
+  Omitted or blank client numbers receive one generated legacy-compatible key
+  before submission; the send result returns that same key for later retries.
 - Business rejection codes 128–255 pass through /message/send reason unchanged.
 - Person-channel IDs are normalized only at the entry boundary; durable
   membership, opaque cursors, badge floors, and Channel reads stay below it.
@@ -86,6 +95,8 @@ bench or debug request
   projection, including system-UID hiding and full stream-event fields. Its
   business pagination, filters, cursor floors, and unresolved failure policy
   remain owned by the conversation use case.
+
+- Legacy history, CMD, exact lookup and conversation previews share stable read-only aliases for old empty client numbers; serialization never rewrites committed records.
 
 ## Read First
 

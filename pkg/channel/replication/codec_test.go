@@ -13,6 +13,9 @@ func TestExchangeCodecRoundTripsEveryRequestAndResultKind(t *testing.T) {
 	first := testReplicateRequest(t, "1:codec", "codec", 7, []byte("first"))
 	first.ServerAllocatedMessageIDs = true
 	first.Records[0].RedDot = true
+	first.Records[0].Expire = 3600
+	first.Manifest.Version = ch.ProposalVersionForRecords(first.Records)
+	first.Manifest, _, _ = ch.SealProposalManifest(first.Manifest, first.Records)
 	manifest, records := first.Manifest, first.Records
 	_, firstEntries, ok := ch.SealProposalManifest(manifest, records)
 	if !ok {

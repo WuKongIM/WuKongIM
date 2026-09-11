@@ -205,7 +205,12 @@
           }
         },
         "additionalProperties": false,
-        "required": ["message_id", "message_seq", "reason"],
+        "required": [
+          "message_id",
+          "message_seq",
+          "reason",
+          "client_msg_no"
+        ],
         "properties": {
           "message_id": {
             "type": "integer",
@@ -233,11 +238,34 @@
             "format": "uint8",
             "minimum": 0,
             "maximum": 255,
-            "enum": [1, 2, 3, 4, 5, 9, 11, 13, 15, 18, 19, 24, 25],
+            "enum": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              9,
+              11,
+              13,
+              15,
+              18,
+              19,
+              24,
+              25
+            ],
             "description": "Protocol Reason Code. HTTP 200 does not mean business success; only ReasonSuccess (1) confirms acceptance.",
             "x-i18n": {
               "zh": {
                 "description": "协议 Reason Code。HTTP 200 不代表业务成功；仅 ReasonSuccess（1）确认接受。"
+              }
+            }
+          },
+          "client_msg_no": {
+            "type": "string",
+            "description": "Caller-provided client number, or a generated unique number when omitted or blank.",
+            "x-i18n": {
+              "zh": {
+                "description": "调用方提供的客户端消息编号；省略或空白时由服务端生成唯一编号。"
               }
             }
           }

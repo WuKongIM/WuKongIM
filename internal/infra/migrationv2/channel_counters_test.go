@@ -98,6 +98,7 @@ func TestOriginalChannelCountersPreservePersonalDenylistWithoutCreatingChannelBo
 	require.Equal(t, uint64(2), prepared.Selection.Preserved["unreferenced_empty_channel_administration"])
 	archive := filepath.Join(root, "archive")
 	require.Zero(t, run(append(append([]string{"export"}, base...), "--archive", archive)...), diagnostics.String())
+	require.NotContains(t, diagnostics.String(), "source index validation started", "export must reuse a sealed successful preparation instead of repeating semantic joins")
 	require.Equal(t, before, fileDigests(t, source))
 	require.NoError(t, os.Rename(source, source+"-unmounted"))
 	portable := []string{"--plan", path, "--workspace", filepath.Join(root, "portable"), "--archive", archive}

@@ -16,7 +16,11 @@ import (
 // MetadataPolicy is deliberately narrower than arbitrary duplicate removal.
 // Cold-start behavior cannot reconstruct a stopped process's former hot cache.
 type MetadataPolicy struct {
-	// MissingConversations explicitly creates only approved absent conversations as fully read.
+	// DeriveUnreadFromBoundaries archives the independent v2 unread scalar and
+	// uses native retained-message/read/delete badge math without changing floors.
+	DeriveUnreadFromBoundaries bool `json:"derive_unread_from_boundaries,omitempty"`
+	// MissingConversations binds explicit fully-read or list-hidden decisions
+	// for exact absent conversations.
 	MissingConversations []MissingConversationRecovery `json:"missing_conversations,omitempty"`
 	// ArchiveUserTimestamps retains original per-node User creation/update
 	// times in the archive only. Native v3 users have no equivalent fields.
@@ -27,9 +31,18 @@ type MetadataPolicy struct {
 	// ConversationLookup retains the active Slot Leader's persisted list view
 	// only when exact lookup states agree across every formal Slot replica.
 	ConversationLookup string `json:"conversation_lookup,omitempty"`
-	// ConversationListLimit is the original deployment's userMaxCount. The
-	// first implementation refuses users whose physical chat rows exceed it.
+	// ConversationListLimit is the original deployment's userMaxCount, even
+	// when an explicit recovery preserves conversations outside that list.
 	ConversationListLimit uint64 `json:"conversation_list_limit,omitempty"`
+	// PreserveAllConversations preserves every valid persisted conversation
+	// instead of requiring it to fit the original limited list response.
+	PreserveAllConversations bool `json:"preserve_all_conversations,omitempty"`
+	// ConversationRecoveries authorizes exact original indexed records for
+	// conflicting active-Leader list groups; it never synthesizes read state.
+	ConversationRecoveries []ConversationStateRecovery `json:"conversation_recoveries,omitempty"`
+	// ConversationReplicas binds exact replica disagreements to an operator's
+	// original-record choice or archive-only decision; it cannot synthesize state.
+	ConversationReplicas []ConversationReplicaRecovery `json:"conversation_replicas,omitempty"`
 }
 
 func validateMetadataPolicy(p *MetadataPolicy) error {
@@ -39,18 +52,25 @@ func validateMetadataPolicy(p *MetadataPolicy) error {
 	if p != nil && ((p.ConversationLookup != "" && p.ConversationLookup != "v2_active_slot") || (p.ConversationLookup == "") != (p.ConversationListLimit == 0) || p.ConversationListLimit > 1000000) {
 		return errors.New("conversation metadata requires v2_active_slot and an original conversation_list_limit in 1..1000000")
 	}
+	if err := validateConversationRecoveryPolicy(p); err != nil {
+		return err
+	}
+	if err := validateConversationReplicaPolicy(p); err != nil {
+		return err
+	}
 	return validateMissingConversations(p)
 }
 
 // MetadataSelection binds every original device candidate and chosen lookup.
 // Counts include physical source copies; all candidate rows remain archived.
 type MetadataSelection struct {
-	Policy          MetadataPolicy         `json:"policy"`
-	DeviceGroups    uint64                 `json:"device_groups"`
-	DuplicateGroups uint64                 `json:"duplicate_device_groups"`
-	ShadowedRows    uint64                 `json:"shadowed_device_rows"`
-	SHA256          string                 `json:"sha256"`
-	Conversations   *ConversationSelection `json:"conversations,omitempty"`
+	Policy          MetadataPolicy                `json:"policy"`
+	DeviceGroups    uint64                        `json:"device_groups"`
+	DuplicateGroups uint64                        `json:"duplicate_device_groups"`
+	ShadowedRows    uint64                        `json:"shadowed_device_rows"`
+	SHA256          string                        `json:"sha256"`
+	Conversations   *ConversationSelection        `json:"conversations,omitempty"`
+	ReplicaRecovery *ConversationReplicaSelection `json:"replica_recovery,omitempty"`
 }
 
 type deviceLookupRow struct {
@@ -74,12 +94,18 @@ func reduceDeviceLookups(ctx context.Context, capture SourceCapture, w Workspace
 	if policy == nil {
 		return nil, nil
 	}
-	pins := map[string]bool{}
+	pins := map[string]MissingConversationRecovery{}
+	archived := map[string]bool{}
+	for _, r := range policy.ConversationReplicas {
+		if r.ArchiveOnly {
+			archived[r.LogicalKey] = true
+		}
+	}
 	for _, r := range policy.MissingConversations {
 		if r.CaptureDigest != capture.Digest {
 			return nil, errors.New("missing conversation capture differs from approved decision")
 		}
-		pins[r.UIDSHA256+"/"+r.ChannelSHA256] = true
+		pins[r.UIDSHA256+"/"+r.ChannelSHA256] = r
 	}
 	report := &MetadataSelection{Policy: *policy}
 	base := deviceLookupBase(capture.Digest, policy)
@@ -92,8 +118,14 @@ func reduceDeviceLookups(ctx context.Context, capture SourceCapture, w Workspace
 				if err != nil {
 					return err
 				}
-				if pins[missingConversationKey(id.UID, id.Channel)] {
-					return errors.New("approved missing conversation exists in original rows or pending intents")
+				if pin, ok := pins[missingConversationKey(id.UID, id.Channel)]; ok {
+					d, err := decoder.Describe(row, id)
+					if err != nil {
+						return err
+					}
+					if row.Table == "PendingConversation" || pin.Visibility != "hidden_until_new_message" || !archived[d.Key] {
+						return errors.New("approved missing conversation exists in original rows or pending intents")
+					}
 				}
 			}
 			if row.Table != "Device" || row.Kind != Primary {
@@ -203,8 +235,8 @@ func reduceDeviceLookups(ctx context.Context, capture SourceCapture, w Workspace
 	return report, nil
 }
 
-func keepsColdDevice(ctx context.Context, w Workspace, capture string, policy *MetadataPolicy, node uint64, row Row, logicalKey string) (bool, error) {
-	key := fmt.Sprintf("%schosen/%020d/%s", deviceLookupBase(capture, policy), node, logicalKey)
+func keepsColdDevice(ctx context.Context, w Workspace, base string, node uint64, row Row, logicalKey string) (bool, error) {
+	key := fmt.Sprintf("%schosen/%020d/%s", base, node, logicalKey)
 	data, found, err := w.Get(ctx, []byte(key))
 	if err != nil {
 		return false, err

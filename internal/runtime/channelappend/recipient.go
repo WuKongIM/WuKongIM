@@ -133,7 +133,11 @@ func dispatchRecipientsForTarget(ctx context.Context, mode onlinedelivery.Mode, 
 		_, dispatchErr := dispatchRecipientSetResultForMode(ctx, mode, event, []Recipient{{UID: left}, {UID: right}}, ports)
 		return recipientDispatchResult{}, dispatchErr
 	}
-	if target.Large {
+	// Command runtime metadata has no version fence for the source group's
+	// membership. Read bounded source pages on each send instead of reusing a
+	// snapshot fenced by the command Channel's unrelated mutation version.
+	_, command := ports.commandChannels.FromCommandChannel(event.ChannelID)
+	if target.Large || command {
 		return dispatchSubscriberPages(ctx, mode, event, ports)
 	}
 	return dispatchSubscriberSnapshot(ctx, mode, target, event, cache, ports)
@@ -143,6 +147,7 @@ func dispatchSubscriberPages(ctx context.Context, mode onlinedelivery.Mode, even
 	if ports.subscribers == nil {
 		return recipientDispatchResult{}, nil
 	}
+	sourceID, _ := ports.commandChannels.FromCommandChannel(event.ChannelID)
 	pageSize := boundedPositive(ports.subscriberPageSize, defaultSubscriberScanPageSize)
 	cursor := ""
 	var result recipientDispatchResult
@@ -153,7 +158,7 @@ func dispatchSubscriberPages(ctx context.Context, mode onlinedelivery.Mode, even
 			return result, withPostCommitFailureDetail(err, PostCommitFailureDetail{Phase: "context"})
 		}
 		page, err := ports.subscribers.NextSubscriberPage(ctx, SubscriberPageRequest{
-			ChannelID: ChannelID{ID: event.ChannelID, Type: event.ChannelType},
+			ChannelID: ChannelID{ID: sourceID, Type: event.ChannelType},
 			Cursor:    cursor,
 			Limit:     pageSize,
 		})

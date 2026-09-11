@@ -37,6 +37,11 @@ const (
 
 // HydrationResult contains bounded Channel-Leader data for one membership.
 type HydrationResult struct {
+	// NonBusinessUnread excludes recovery and SyncOnce records from badge math.
+	NonBusinessUnread uint64
+	// UnreadBoundary is a leader-selected ordinary-message boundary.
+	UnreadBoundary         uint64
+	BoundaryComputed       bool
 	Key                    ConversationKey
 	Outcome                HydrationOutcome
 	LastCommittedSeq       uint64
@@ -47,7 +52,7 @@ type HydrationResult struct {
 
 // HeadHydrator returns one aligned result per live membership candidate.
 type HeadHydrator interface {
-	HydrateConversationHeads(ctx context.Context, uid string, memberships []metadb.UserChannelMembership) ([]HydrationResult, error)
+	HydrateConversationHeads(ctx context.Context, uid string, memberships []metadb.UserChannelMembership, keepUnread ...uint64) ([]HydrationResult, error)
 }
 
 // MembershipMutationStore reads and mutates UID-owned personal membership
@@ -244,7 +249,11 @@ func (a *App) Retry(ctx context.Context, req RetryRequest) (ListResult, error) {
 }
 
 func conversationFromMembership(row metadb.UserChannelMembership, head HydrationResult) (Conversation, bool) {
-	visibleMessage := head.LastCommittedSeq >= row.JoinSeq && head.LastCommittedSeq > row.DeletedToSeq
+	// Recovery barriers advance the log frontier without adding a business message.
+	if row.ConversationHiddenThroughSeq > 0 && row.ActivatedAt <= 0 && (head.LastMessage == nil || head.LastMessage.MessageSeq <= row.ConversationHiddenThroughSeq) {
+		return Conversation{}, false
+	}
+	visibleMessage := head.LastMessage != nil && head.LastMessage.MessageSeq >= row.JoinSeq && head.LastMessage.MessageSeq > row.DeletedToSeq && head.LastMessage.MessageSeq > head.RetentionThroughSeq
 	if !visibleMessage && row.ActivatedAt <= 0 {
 		return Conversation{}, false
 	}
@@ -253,6 +262,7 @@ func conversationFromMembership(row metadb.UserChannelMembership, head Hydration
 	unread := uint64(0)
 	if head.LastCommittedSeq > effectiveRead {
 		unread = head.LastCommittedSeq - effectiveRead
+		unread -= min(unread, head.NonBusinessUnread)
 	}
 	var last *LastMessage
 	if visibleMessage && head.LastMessage != nil && head.LastMessage.MessageSeq > visibilityFloor {
@@ -261,6 +271,7 @@ func conversationFromMembership(row metadb.UserChannelMembership, head Hydration
 		last = &cloned
 	}
 	return Conversation{
+		effectiveReadSeq: effectiveRead, effectiveReadKnown: true,
 		ChannelID: row.ChannelID, ChannelType: row.ChannelType, JoinSeq: row.JoinSeq,
 		ActiveAt: row.ActivatedAt, ReadSeq: row.ReadSeq, DeletedToSeq: row.DeletedToSeq,
 		UpdatedAt: row.UpdatedAt, LastMessage: last, Unread: unread,

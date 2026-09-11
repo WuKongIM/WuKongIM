@@ -81,7 +81,7 @@ func validatePluginArtifacts(p Plan) error {
 
 func validPluginArtifactSpec(f PluginArtifactSpec) bool {
 	hash, err := hex.DecodeString(f.SHA256)
-	return f.SourceNode != 0 && mappedPluginNo.MatchString(f.PluginNo) && f.PluginNo != "." && f.PluginNo != ".." && len(f.PluginNo) <= 200 && filepath.IsAbs(f.Path) && f.Bytes > 0 && f.Bytes <= 512<<20 && err == nil && len(hash) == 32 && hex.EncodeToString(hash) == f.SHA256 && (f.Profile == "" || f.Profile == AIExampleReceiveProfile)
+	return f.SourceNode != 0 && mappedPluginNo.MatchString(f.PluginNo) && f.PluginNo != "." && f.PluginNo != ".." && len(f.PluginNo) <= 200 && filepath.IsAbs(f.Path) && f.Bytes > 0 && f.Bytes <= 512<<20 && err == nil && len(hash) == 32 && hex.EncodeToString(hash) == f.SHA256 && (f.Profile == "" || knownPluginProfile(f.Profile))
 }
 
 func pluginArtifactPrefix(s PluginArtifactSpec) string {
@@ -278,7 +278,7 @@ func ValidatePluginArtifactsReport(ctx context.Context, w Workspace, report *Plu
 	if report == nil {
 		return nil
 	}
-	if report.Compatibility == nil || report.Compatibility.Profile != AIExampleReceiveProfile || len(report.Compatibility.SourceRows) != len(report.Files) {
+	if report.Compatibility == nil || !knownPluginProfile(report.Compatibility.Profile) || len(report.Compatibility.SourceRows) != len(report.Files) {
 		return errors.New("plugin executables require a verified business compatibility profile")
 	}
 	copy := *report
@@ -292,7 +292,7 @@ func ValidatePluginArtifactsReport(ctx context.Context, w Workspace, report *Plu
 	}
 	seen := map[string]bool{}
 	for _, file := range report.Files {
-		if file.Spec.Profile != AIExampleReceiveProfile || file.Spec.SHA256 != aiExampleProgramSHA256 || file.Spec.PluginNo != aiExamplePluginNo || file.Spec.Bytes != 11856443 {
+		if file.Spec.Profile != report.Compatibility.Profile || !matchesPluginProfile(file.Spec) {
 			return errors.New("plugin executable differs from its verified profile")
 		}
 		key := pluginArtifactPrefix(file.Spec)

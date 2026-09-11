@@ -46,15 +46,23 @@ type SyncAckCommand struct {
 	LastMessageSeq uint64
 }
 
-// BindCommand creates or restores durable CMD discovery for one UID and source channel.
+// BindCommand creates or restores durable CMD discovery for a bounded recipient set and source channel.
 type BindCommand struct {
+	// UIDs binds a bounded recipient batch to one explicit source Channel.
+	UIDs []string
+	// Subscribers binds the exact normalized request-scoped recipient set.
+	// It cannot be combined with UID, UIDs, ChannelID, or ChannelType.
+	Subscribers []string
 	UID         string
 	ChannelID   string
 	ChannelType uint8
 }
 
-// UnbindCommand tombstones durable CMD discovery for one UID and source channel.
+// UnbindCommand tombstones durable CMD discovery for a bounded recipient set and source channel.
 type UnbindCommand struct {
+	// UIDs and Subscribers use the same mutually exclusive forms as BindCommand.
+	UIDs        []string
+	Subscribers []string
 	UID         string
 	ChannelID   string
 	ChannelType uint8
@@ -102,6 +110,32 @@ type StateStore interface {
 	UpsertUserCMDChannelMemberships(ctx context.Context, memberships []metadb.UserCMDChannelMembership) error
 	AdvanceUserCMDChannelMembershipAcks(ctx context.Context, memberships []metadb.UserCMDChannelMembership) error
 	TombstoneUserCMDChannelMemberships(ctx context.Context, memberships []metadb.UserCMDChannelMembership) error
+}
+
+// MaxCommandReadBatch bounds one aligned multi-channel CMD read.
+const MaxCommandReadBatch = 32
+
+// CommandMessageRead carries one channel's durable recovery boundary.
+type CommandMessageRead struct {
+	Key     CommandChannelKey
+	FromSeq uint64
+	Limit   int
+}
+
+// CommandMessageReadResult preserves one source's result within an aligned batch.
+type CommandMessageReadResult struct {
+	// Messages contains this source's committed commands when Err is nil.
+	Messages []SyncedMessage
+	// Err identifies a terminal source or a read failure; global sync skips only
+	// ErrChannelDisbanded and must fail for every unavailable or unknown result.
+	Err error
+}
+
+// MessageBatchStore coalesces authoritative reads without changing ordering or
+// acknowledgement semantics. Results align exactly with at most
+// MaxCommandReadBatch inputs; an outer error invalidates the complete batch.
+type MessageBatchStore interface {
+	LoadCommandMessagesBatch(context.Context, []CommandMessageRead) ([]CommandMessageReadResult, error)
 }
 
 // MessageStore loads authoritative messages from command-channel logs.

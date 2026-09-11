@@ -14,6 +14,7 @@ import (
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	channelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -92,6 +93,74 @@ func TestPersonCommandHTTPCluster(t *testing.T) {
 				}
 				return rec
 			}
+			// Multiple preview channels exercise concurrent permission reads through real Slot authority.
+			type previewIdentity struct {
+				MessageID   uint64 `json:"message_id"`
+				ClientMsgNo string `json:"client_msg_no"`
+			}
+			expectedPreviews := make(map[string]previewIdentity)
+			for i := 0; i < 4; i++ {
+				id := fmt.Sprintf("preview-group-%d", i)
+				post(apps[0], "/channel", fmt.Sprintf(`{"channel_id":%q,"channel_type":2,"subscribers":["preview-user"]}`, id))
+				preview := post(apps[len(apps)-1], "/message/send", fmt.Sprintf(`{"channel_id":%q,"channel_type":2,"payload":"aGk="}`, id))
+				var sent previewIdentity
+				if err := json.Unmarshal(preview.Body.Bytes(), &sent); err != nil || sent.ClientMsgNo == "" {
+					t.Fatalf("HTTP send lost generated identity: %s %v", preview.Body, err)
+				}
+				expectedPreviews[id] = sent
+			}
+			for _, a := range apps {
+				response := post(a, "/conversation/sync", `{"uid":"preview-user","version":0,"msg_count":1}`)
+				var rows []struct {
+					ChannelID       string            `json:"channel_id"`
+					LastClientMsgNo string            `json:"last_client_msg_no"`
+					Recents         []previewIdentity `json:"recents"`
+				}
+				if err := json.Unmarshal(response.Body.Bytes(), &rows); err != nil || len(rows) != len(expectedPreviews) {
+					t.Fatalf("preview batch missing: %s %v", response.Body, err)
+				}
+				seen := make(map[string]bool)
+				for _, row := range rows {
+					want, ok := expectedPreviews[row.ChannelID]
+					if !ok || seen[row.ChannelID] || len(row.Recents) != 1 || row.LastClientMsgNo != want.ClientMsgNo || row.Recents[0] != want {
+						t.Fatalf("preview identity changed across nodes: %s", response.Body)
+					}
+					seen[row.ChannelID] = true
+				}
+			}
+			// Preserve an original empty-number record while exposing a stable legacy read key.
+			post(apps[0], "/channel", `{"channel_id":"legacy-empty-group","channel_type":2,"subscribers":["legacy-empty-user"]}`)
+			emptySent, err := apps[len(apps)-1].messages.Send(ctx, message.SendCommand{FromUID: "____system", ChannelID: "legacy-empty-group", ChannelType: 2, Expire: 37, Payload: []byte("legacy")})
+			if err != nil || emptySent.Reason != message.ReasonSuccess {
+				t.Fatalf("create original empty-key message: %+v %v", emptySent, err)
+			}
+			alias := message.LegacyReadClientMsgNo(emptySent.MessageID, "")
+			for _, a := range apps {
+				response := post(a, "/conversation/sync", `{"uid":"legacy-empty-user","version":0,"msg_count":1}`)
+				var rows []struct {
+					LastClientMsgNo string `json:"last_client_msg_no"`
+					Recents         []struct {
+						ClientMsgNo string `json:"client_msg_no"`
+						MessageID   uint64 `json:"message_id"`
+						Expire      uint32 `json:"expire"`
+					} `json:"recents"`
+				}
+				if err := json.Unmarshal(response.Body.Bytes(), &rows); err != nil || len(rows) != 1 || len(rows[0].Recents) != 1 || rows[0].LastClientMsgNo != alias || rows[0].Recents[0].ClientMsgNo != alias || rows[0].Recents[0].MessageID != emptySent.MessageID || rows[0].Recents[0].Expire != 37 {
+					t.Fatalf("legacy read projection: %s %v", response.Body, err)
+				}
+				incremental := post(a, "/conversation/sync", fmt.Sprintf(`{"uid":"legacy-empty-user","version":1,"last_msg_seqs":"legacy-empty-group:2:%d","msg_count":1}`, emptySent.MessageSeq))
+				if err := json.Unmarshal(incremental.Body.Bytes(), &rows); err != nil || len(rows) != 1 || rows[0].LastClientMsgNo != alias {
+					t.Fatalf("stale preview not refreshed after cursor advanced: %s %v", incremental.Body, err)
+				}
+				lookup := post(a, "/messages", fmt.Sprintf(`{"login_uid":"legacy-empty-user","channel_id":"legacy-empty-group","channel_type":2,"client_msg_nos":[%q]}`, alias))
+				if !strings.Contains(lookup.Body.String(), alias) {
+					t.Fatalf("alias lookup lost identity: %s", lookup.Body)
+				}
+				raw, err := a.messages.LookupMessages(ctx, message.LookupMessagesQuery{LoginUID: "legacy-empty-user", ChannelID: "legacy-empty-group", ChannelType: 2, MessageIDs: []uint64{emptySent.MessageID}})
+				if err != nil || len(raw.Messages) != 1 || raw.Messages[0].ClientMsgNo != "" || raw.Messages[0].Expire != 37 || string(raw.Messages[0].Payload) != "legacy" {
+					t.Fatalf("read changed original stored data: %+v %v", raw, err)
+				}
+			}
 			original := `{"header":{"no_persist":1,"red_dot":1,"sync_once":1},"from_uid":"","channel_id":"uu1","channel_type":1,"payload":"eyJ0eXBlIjo5OSwiY21kIjoiY2xlYXJVbnJlYWQiLCJwYXJhbSI6eyJjaGFubmVsSUQiOiJnZmgiLCJjaGFubmVsVHlwZSI6MX19","subscribers":[]}`
 			source := channelid.EncodePersonChannel("____system", "uu1")
 			codec := channelid.CommandCodec{Suffix: test.suffix}
@@ -119,6 +188,17 @@ func TestPersonCommandHTTPCluster(t *testing.T) {
 			}
 			binding := fmt.Sprintf(`{"uid":"uu1","channel_id":%q,"channel_type":1}`, source)
 			post(apps[0], "/message/cmd/bind", binding)
+			// More than one read chunk mixes unused logs with the live command below.
+			for i := 0; i <= cmdsync.MaxCommandReadBatch; i++ {
+				post(apps[i%len(apps)], "/message/cmd/bind", fmt.Sprintf(`{"uid":"uu1","channel_id":"unused-%03d","channel_type":2}`, i))
+			}
+			// Discovery is installed before the first persistent CMD exists.
+			if empty := post(apps[len(apps)-1], "/message/sync", `{"uid":"uu1","limit":10}`); empty.Body.String() != "[]" {
+				t.Fatalf("unused binding failed sync: %s", empty.Body)
+			}
+			// Terminal group closure must not block another source's offline CMD.
+			post(apps[0], "/channel", `{"channel_id":"unused-000","channel_type":2,"subscribers":["uu1"]}`)
+			post(apps[len(apps)-1], "/channel/delete", `{"channel_id":"unused-000","channel_type":2}`)
 			durable := strings.Replace(original, `"no_persist":1`, `"no_persist":0`, 1)
 			post(apps[len(apps)-1], "/message/send", durable)
 			rec := post(apps[0], "/message/sync", `{"uid":"uu1","limit":10}`)
@@ -136,6 +216,33 @@ func TestPersonCommandHTTPCluster(t *testing.T) {
 			}
 			if err := apps[0].cmdSync.Unbind(ctx, cmdsync.UnbindCommand{UID: "uu1", ChannelID: source, ChannelType: 1}); err != nil {
 				t.Fatal(err)
+			}
+
+			scopedBinding := `{"subscribers":["offline-b","offline-a","offline-b"]}`
+			post(apps[0], "/message/cmd/bind", scopedBinding)
+			scopedSend := `{"header":{"sync_once":1},"subscribers":["offline-b","offline-a","offline-b"],"payload":"e30="}`
+			post(apps[len(apps)-1], "/message/send", scopedSend)
+			// A retry after SEND must not move an existing recipient beyond that command.
+			post(apps[len(apps)-1], "/message/cmd/bind", scopedBinding)
+			for i, uid := range []string{"offline-a", "offline-b"} {
+				entry := apps[i%len(apps)]
+				body := fmt.Sprintf(`{"uid":%q,"limit":10}`, uid)
+				got := post(entry, "/message/sync", body)
+				var records []map[string]interface{}
+				if err := json.Unmarshal(got.Body.Bytes(), &records); err != nil || len(records) != 1 {
+					t.Fatalf("scoped offline sync: %s err=%v", got.Body, err)
+				}
+				post(entry, "/message/syncack", fmt.Sprintf(`{"uid":%q,"last_message_seq":1}`, uid))
+				for _, reader := range apps {
+					if rest := post(reader, "/message/sync", body); rest.Body.String() != "[]" {
+						t.Fatalf("ack not durable across nodes: %s", rest.Body)
+					}
+				}
+			}
+			post(apps[len(apps)-1], "/message/cmd/unbind", scopedBinding)
+			post(apps[0], "/message/send", scopedSend)
+			if got := post(apps[0], "/message/sync", `{"uid":"offline-a","limit":10}`); got.Body.String() != "[]" {
+				t.Fatalf("unbound scope recovered command: %s", got.Body)
 			}
 		})
 	}

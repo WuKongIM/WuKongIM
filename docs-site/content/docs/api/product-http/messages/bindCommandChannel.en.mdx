@@ -19,8 +19,7 @@ _openapi:
       - content: Bind command-channel discovery
         id: bind-command-channel-discovery
     contents:
-      - content: Starts durable offline discovery after the current command-channel
-          tail.
+      - content: Starts bounded recipient discovery after one committed command tail.
         heading: bind-command-channel-discovery
       - content: >-
           POST /message/cmd/bind
@@ -29,8 +28,7 @@ _openapi:
 
           Bind command-channel discovery
 
-          Starts durable offline discovery after the current command-channel
-          tail.
+          Starts bounded recipient discovery after one committed command tail.
 
           MessageCMDBindingRequest
 
@@ -47,6 +45,15 @@ _openapi:
 
           channel_type `integer:uint8` 1–255 Numeric Channel type; 1 is a person
           Channel, 2 is a group Channel, and other values are extension types.
+
+          uids array<`string`> minItems: 1; maxItems: 1000 Source-Channel
+          recipients, at most 1000 entries; trims blanks and duplicates.
+          Exclusive with uid and subscribers.
+
+          subscribers array<`string`> minItems: 1; maxItems: 1000 Use this field
+          alone to bind the SEND temporary recipient scope; at most 1000
+          entries, in the same order as SEND. Exclusive with source-Channel
+          fields.
 
           200 Mutation accepted
 
@@ -86,6 +93,8 @@ _openapi:
 
 - **Caller**: Trusted backend only
 - **Scope**: Persists discovery binding between a user and a command Channel; later /message/sync acknowledgement still depends on the current-process generation record.
+- **Atomicity**: Choose uid plus source, uids plus source, or subscribers only. At most 1000 raw recipients and a 256 KiB body; subscribers must match SEND order.
+- **Success**: Retry preserves live start and ack positions. Cross-Slot failure can be partial; retry the complete batch successfully before SEND.
 
 </Callout>
 

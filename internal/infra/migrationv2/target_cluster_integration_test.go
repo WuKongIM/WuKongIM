@@ -4,6 +4,7 @@ package migrationv2_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -25,13 +26,19 @@ import (
 )
 
 func TestCompatibleMigrationStartsAndRestartsAsNativeSingleNodeCluster(t *testing.T) {
+	for _, expire := range []uint32{0, 3600} {
+		t.Run(fmt.Sprintf("expire_%d", expire), func(t *testing.T) { testCompatibleMigrationStartsAndRestartsAsNativeSingleNodeCluster(t, expire) })
+	}
+}
+
+func testCompatibleMigrationStartsAndRestartsAsNativeSingleNodeCluster(t *testing.T, expire uint32) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	w, err := transfer.OpenSpool(filepath.Join(t.TempDir(), "spool"), "native-cluster", 128<<20)
 	require.NoError(t, err)
 	defer w.Close()
 	r := migrationv2.Reader{}
-	capture, err := migration.CaptureSources(ctx, []migration.NodeOptions{{NodeID: 1, Options: migration.Options{DataDir: compatibleMessageFixture(t), ShardCount: 2}}}, r, w, nil)
+	capture, err := migration.CaptureSources(ctx, []migration.NodeOptions{{NodeID: 1, Options: migration.Options{DataDir: compatibleExpiryMessageFixture(t, expire), ShardCount: 2}}}, r, w, nil)
 	require.NoError(t, err)
 	catalog, err := migration.BuildSourceCatalog(ctx, capture, w, r)
 	require.NoError(t, err)
@@ -46,6 +53,8 @@ func TestCompatibleMigrationStartsAndRestartsAsNativeSingleNodeCluster(t *testin
 	dir := filepath.Join(t.TempDir(), "node101")
 	plan := migration.TargetPlan{ClusterID: "migration-fixture", CreatedAt: time.Unix(1788670602, 0).UTC(), SlotCount: 4, HashSlotCount: 256, Replicas: 1, ChannelReplicas: 1, Nodes: []migration.TargetNode{{NodeID: 101, Addr: addr, DataDir: dir}}}
 	require.NoError(t, migrationv3.Install(ctx, plan, report, w))
+	_, err = migration.VerifyTargets(ctx, plan, selected, w, r, migrationv3.Inspector{})
+	require.NoError(t, err)
 	for run := 0; run < 2; run++ {
 		cfg := cluster.Config{NodeID: 101, ListenAddr: addr, DataDir: dir, Control: cluster.ControlConfig{ClusterID: "migration-fixture", Voters: []cluster.ControlVoter{{NodeID: 101, Addr: addr}}}, Slots: cluster.SlotConfig{InitialSlotCount: 4, HashSlotCount: 256, ReplicaCount: 1}, Channel: cluster.ChannelConfig{ReplicaCount: 1}}
 		node, err := cluster.New(cfg)
@@ -57,24 +66,50 @@ func TestCompatibleMigrationStartsAndRestartsAsNativeSingleNodeCluster(t *testin
 			var read store.ReadCommittedResult
 			require.Eventually(t, func() bool {
 				read, err = node.ReadChannelCommitted(ctx, id, store.ReadCommittedRequest{FromSeq: 1, Limit: 10, MaxBytes: 1 << 20})
-				return err == nil && len(read.Messages) == 3
+				expected := 3
+				if expire != 0 && run == 1 {
+					expected = 4
+				}
+				return err == nil && len(read.Messages) == expected
 			}, 15*time.Second, 50*time.Millisecond)
 			require.Equal(t, uint64(2096462572973723648), read.Messages[0].MessageID)
 			require.Equal(t, uint64(3), read.Messages[2].MessageSeq)
 			require.Equal(t, int64(1788670602000), read.Messages[0].ServerTimestampMS)
 			require.Equal(t, []byte("消息0"), read.Messages[0].Payload)
+			require.Equal(t, expire, read.Messages[0].Expire)
+			if expire != 0 {
+				if run == 0 {
+					var appended ch.AppendResult
+					require.Eventually(t, func() bool {
+						appended, err = node.AppendChannel(ctx, ch.AppendRequest{ChannelID: id, CommitMode: ch.CommitModeQuorum, Message: ch.Message{MessageID: 2100000000000000001, FromUID: "expiry-sender", ClientMsgNo: "expiry-new", ServerTimestampMS: 1788670702000, Expire: 1800, Payload: []byte("new expiring message")}})
+						return !errors.Is(err, ch.ErrNotReady)
+					}, 15*time.Second, 50*time.Millisecond)
+					require.NoError(t, err)
+					require.Greater(t, appended.MessageSeq, uint64(3))
+				} else {
+					require.Equal(t, uint32(1800), read.Messages[3].Expire)
+				}
+			}
 		}()
 	}
 }
 
 func TestCompatibleMigrationRepairsAnEmptyChannelReplicaInNativeThreeNodeCluster(t *testing.T) {
+	for _, expire := range []uint32{0, 3600} {
+		t.Run(fmt.Sprintf("expire_%d", expire), func(t *testing.T) {
+			testCompatibleMigrationRepairsAnEmptyChannelReplicaInNativeThreeNodeCluster(t, expire)
+		})
+	}
+}
+
+func testCompatibleMigrationRepairsAnEmptyChannelReplicaInNativeThreeNodeCluster(t *testing.T, expire uint32) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	w, err := transfer.OpenSpool(filepath.Join(t.TempDir(), "spool"), "three-node-target", 128<<20)
 	require.NoError(t, err)
 	defer w.Close()
 	r := migrationv2.Reader{}
-	capture, err := migration.CaptureSources(ctx, []migration.NodeOptions{{NodeID: 1, Options: migration.Options{DataDir: compatibleMessageFixture(t), ShardCount: 2}}}, r, w, nil)
+	capture, err := migration.CaptureSources(ctx, []migration.NodeOptions{{NodeID: 1, Options: migration.Options{DataDir: compatibleExpiryMessageFixture(t, expire), ShardCount: 2}}}, r, w, nil)
 	require.NoError(t, err)
 	catalog, err := migration.BuildSourceCatalog(ctx, capture, w, r)
 	require.NoError(t, err)
@@ -91,6 +126,8 @@ func TestCompatibleMigrationRepairsAnEmptyChannelReplicaInNativeThreeNodeCluster
 		plan.Nodes = append(plan.Nodes, migration.TargetNode{NodeID: uint64(201 + i), Addr: addr, DataDir: filepath.Join(t.TempDir(), fmt.Sprintf("node%d", 201+i))})
 	}
 	require.NoError(t, migrationv3.Install(ctx, plan, report, w))
+	_, err = migration.VerifyTargets(ctx, plan, selected, w, r, migrationv3.Inspector{})
+	require.NoError(t, err)
 	voters := []cluster.ControlVoter{}
 	for _, n := range plan.Nodes {
 		voters = append(voters, cluster.ControlVoter{NodeID: n.NodeID, Addr: n.Addr})
@@ -130,7 +167,7 @@ func TestCompatibleMigrationRepairsAnEmptyChannelReplicaInNativeThreeNodeCluster
 	for _, node := range nodes {
 		require.Eventually(t, func() bool {
 			read, err := node.ReadChannelCommitted(ctx, id, store.ReadCommittedRequest{FromSeq: 1, Limit: 10, MaxBytes: 1 << 20})
-			return err == nil && len(read.Messages) == 3 && read.Messages[0].MessageID == 2096462572973723648
+			return err == nil && len(read.Messages) == 3 && read.Messages[0].MessageID == 2096462572973723648 && read.Messages[0].Expire == expire
 		}, 20*time.Second, 50*time.Millisecond)
 	}
 	metadata, err := nodes[0].GetChannelRuntimeMeta(ctx, id.ID, int64(id.Type))
@@ -181,6 +218,7 @@ func TestCompatibleMigrationRepairsAnEmptyChannelReplicaInNativeThreeNodeCluster
 	}
 	require.Equal(t, int64(1788670602000), read.Messages[0].ServerTimestampMS)
 	require.Equal(t, []byte("消息0"), read.Messages[0].Payload)
+	require.Equal(t, expire, read.Messages[0].Expire)
 	require.Eventually(t, func() bool {
 		rows, _, _, err := nodes[failed].ReadLocalLatestMessages(ctx, 0, 10)
 		if err != nil {
@@ -188,7 +226,7 @@ func TestCompatibleMigrationRepairsAnEmptyChannelReplicaInNativeThreeNodeCluster
 		}
 		for _, row := range rows {
 			if row.MessageID == 2096462572973723648 {
-				return string(row.Payload) == "消息0"
+				return string(row.Payload) == "消息0" && row.Expire == expire
 			}
 		}
 		return false

@@ -19,7 +19,7 @@ _openapi:
       - content: 绑定命令 Channel 发现
         id: 绑定命令-channel-发现
     contents:
-      - content: 从当前命令 Channel tail 之后开始持久离线发现。
+      - content: 为有上限的接收者批次建立 CMD 发现关系，从同一已提交尾部之后生效。
         heading: 绑定命令-channel-发现
       - content: >-
           POST /message/cmd/bind
@@ -28,7 +28,7 @@ _openapi:
 
           绑定命令 Channel 发现
 
-          从当前命令 Channel tail 之后开始持久离线发现。
+          为有上限的接收者批次建立 CMD 发现关系，从同一已提交尾部之后生效。
 
           MessageCMDBindingRequest
 
@@ -43,6 +43,12 @@ _openapi:
 
           channel_type `integer:uint8` 1–255 Channel 类型编号；1 表示个人 Channel，2 表示群组
           Channel，其他值属于扩展类型。
+
+          uids array<`string`> minItems: 1; maxItems: 1000 源频道的接收者列表，最多 1000
+          项；去空白和重复项。不能与 uid 或 subscribers 同用。
+
+          subscribers array<`string`> minItems: 1; maxItems: 1000 仅使用此字段绑定 SEND
+          的临时接收者范围；最多 1000 项，顺序必须与 SEND 一致。不能与频道字段同用。
 
           200 Mutation accepted
 
@@ -79,6 +85,8 @@ _openapi:
 
 - **调用方**：仅限受信业务后端
 - **作用域**：持久化用户与命令 Channel 的发现绑定；后续 /message/sync 仍依赖当前进程中的确认 generation。
+- **原子性**：三种互斥形式：uid 加源频道、uids 加源频道、仅 subscribers。最多 1000 个原始接收者，256 KiB 请求体；subscribers 顺序须与 SEND 相同。
+- **成功判定**：重复绑定保留已有起始和确认位置。跨 Slot 失败可部分完成；须重试整个批次并成功后再发送 CMD。
 
 </Callout>
 

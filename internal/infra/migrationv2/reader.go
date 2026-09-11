@@ -66,7 +66,7 @@ func Scan(ctx context.Context, opts Options, visit func(Row) error) (err error) 
 	if len(entries) != opts.ShardCount {
 		return fmt.Errorf("v2 shard inventory differs: expected %d directories, found %d entries", opts.ShardCount, len(entries))
 	}
-	locks := make([]*pebble.Lock, 0, opts.ShardCount)
+	locks := make([]*sourceLock, 0, opts.ShardCount)
 	defer func() {
 		for _, lock := range locks {
 			err = errors.Join(err, lock.Close())
@@ -85,7 +85,7 @@ func Scan(ctx context.Context, opts Options, visit func(Row) error) (err error) 
 		if !info.IsDir() {
 			return fmt.Errorf("v2 shard %d is not a regular directory", shard)
 		}
-		lock, err := pebble.LockDirectory(paths[shard], sourceFS{})
+		lock, err := lockSourceDirectory(paths[shard])
 		if err != nil {
 			return fmt.Errorf("lock v2 shard %d (stop the source first): %w", shard, err)
 		}
@@ -97,7 +97,7 @@ func Scan(ctx context.Context, opts Options, visit func(Row) error) (err error) 
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		db, err := pebble.Open(path, &pebble.Options{ReadOnly: true, ErrorIfNotExists: true, Lock: locks[shard], FS: sourceFS{}, Cache: cache, MaxOpenFiles: 128})
+		db, err := openSourceDatabase(path, locks[shard], cache)
 		if err != nil {
 			return fmt.Errorf("open v2 shard %d: %w", shard, err)
 		}
@@ -109,8 +109,11 @@ func Scan(ctx context.Context, opts Options, visit func(Row) error) (err error) 
 	return nil
 }
 
-func scanShard(ctx context.Context, db *pebble.DB, shard, maxBytes int, visit func(Row) error) (err error) {
-	iter := db.NewIter(nil)
+func scanShard(ctx context.Context, db *sourceDatabase, shard, maxBytes int, visit func(Row) error) (err error) {
+	iter, err := db.NewIter()
+	if err != nil {
+		return err
+	}
 	defer func() { err = errors.Join(err, iter.Close()) }()
 	var row *Row
 	var rowBytes int

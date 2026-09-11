@@ -41,6 +41,12 @@ func (l *ChannelLog) ListByClientMsgNo(ctx context.Context, clientMsgNo string, 
 }
 
 func (l *ChannelLog) listByClientMsgNo(ctx context.Context, clientMsgNo string, beforeSeq uint64, limit int) (MessagePage, error) {
+	return l.listByClientMsgNoBounded(ctx, clientMsgNo, beforeSeq, limit, 0, 0, 0)
+}
+
+// listByClientMsgNoBounded additionally bounds inspected index entries and payload
+// materialization for remote exact lookups. Exhaustion fails without partial data.
+func (l *ChannelLog) listByClientMsgNoBounded(ctx context.Context, clientMsgNo string, beforeSeq uint64, limit int, minSeq uint64, maxEntries, maxBytes int) (MessagePage, error) {
 	if err := ctx.Err(); err != nil {
 		return MessagePage{}, err
 	}
@@ -53,6 +59,7 @@ func (l *ChannelLog) listByClientMsgNo(ctx context.Context, clientMsgNo string, 
 		allowMissingRow bool
 	}
 	seqs := make([]indexedSeq, 0, limit)
+	entries := 0
 	canonicalPrefix := encodeMessageClientLookupIndexPrefix(l.key, clientMsgNo)
 	canonicalSpan := keycodec.NewPrefixSpan(canonicalPrefix)
 	canonicalIter, err := l.db.engine.NewIter(engine.Span{Start: canonicalSpan.Start, End: canonicalSpan.End}, engine.IterOptions{})
@@ -60,6 +67,11 @@ func (l *ChannelLog) listByClientMsgNo(ctx context.Context, clientMsgNo string, 
 		return MessagePage{}, err
 	}
 	for ok := canonicalIter.First(); ok; ok = canonicalIter.Next() {
+		entries++
+		if maxEntries > 0 && entries > maxEntries {
+			_ = canonicalIter.Close()
+			return MessagePage{}, dberrors.ErrInvalidArgument
+		}
 		if err := ctx.Err(); err != nil {
 			_ = canonicalIter.Close()
 			return MessagePage{}, err
@@ -74,7 +86,7 @@ func (l *ChannelLog) listByClientMsgNo(ctx context.Context, clientMsgNo string, 
 			_ = canonicalIter.Close()
 			return MessagePage{}, err
 		}
-		if beforeSeq == 0 || hit.MessageSeq < beforeSeq {
+		if hit.MessageSeq >= minSeq && (beforeSeq == 0 || hit.MessageSeq < beforeSeq) {
 			// PutIdempotency may intentionally create a durable reservation
 			// without a corresponding message row.
 			seqs = append(seqs, indexedSeq{seq: hit.MessageSeq, allowMissingRow: true})
@@ -97,6 +109,11 @@ func (l *ChannelLog) listByClientMsgNo(ctx context.Context, clientMsgNo string, 
 		return MessagePage{}, err
 	}
 	for ok := legacyIter.First(); ok; ok = legacyIter.Next() {
+		entries++
+		if maxEntries > 0 && entries > maxEntries {
+			_ = legacyIter.Close()
+			return MessagePage{}, dberrors.ErrInvalidArgument
+		}
 		if err := ctx.Err(); err != nil {
 			_ = legacyIter.Close()
 			return MessagePage{}, err
@@ -106,7 +123,7 @@ func (l *ChannelLog) listByClientMsgNo(ctx context.Context, clientMsgNo string, 
 			_ = legacyIter.Close()
 			return MessagePage{}, fmt.Errorf("%w: corrupt client message number index", dberrors.ErrCorruptValue)
 		}
-		if beforeSeq == 0 || seq < beforeSeq {
+		if seq >= minSeq && (beforeSeq == 0 || seq < beforeSeq) {
 			seqs = append(seqs, indexedSeq{seq: seq})
 		}
 	}
@@ -120,6 +137,7 @@ func (l *ChannelLog) listByClientMsgNo(ctx context.Context, clientMsgNo string, 
 
 	sort.Slice(seqs, func(i, j int) bool { return seqs[i].seq > seqs[j].seq })
 	messages := make([]Message, 0, len(seqs))
+	usedBytes := 0
 	for _, indexed := range seqs {
 		row, ok, err := l.getRowBySeq(ctx, indexed.seq)
 		if err != nil {
@@ -130,6 +148,10 @@ func (l *ChannelLog) listByClientMsgNo(ctx context.Context, clientMsgNo string, 
 		}
 		if !ok || row.ClientMsgNo != clientMsgNo {
 			return MessagePage{}, fmt.Errorf("%w: stale client message number index", dberrors.ErrCorruptState)
+		}
+		usedBytes += len(row.Payload)
+		if maxBytes > 0 && usedBytes > maxBytes {
+			return MessagePage{}, dberrors.ErrInvalidArgument
 		}
 		messages = append(messages, messageFromRow(row))
 	}

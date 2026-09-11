@@ -83,21 +83,21 @@ func (a *App) Sync(ctx context.Context, query SyncQuery) (SyncResult, error) {
 		}
 		channels := cmdSyncCandidatesFromMemberships(memberships)
 		sortSyncChannelCandidates(channels)
-		for _, candidate := range channels {
-			key := candidate.key
-			msgs, err := a.messages.LoadCommandMessages(ctx, key, candidate.fromSeq, limit)
+		for start := 0; start < len(channels); start += MaxCommandReadBatch {
+			end := min(start+MaxCommandReadBatch, len(channels))
+			batch := channels[start:end]
+			messages, err := a.loadCommandBatch(ctx, batch, limit)
 			if err != nil {
 				return SyncResult{}, err
 			}
-			for _, msg := range msgs {
-				candidates = append(candidates, syncMessageCandidate{
-					commandChannelID: key.ChannelID,
-					channelType:      key.ChannelType,
-					message:          msg,
-				})
+			for i, candidate := range batch {
+				for _, msg := range messages[i] {
+					candidates = append(candidates, syncMessageCandidate{commandChannelID: candidate.key.ChannelID, channelType: candidate.key.ChannelType, message: msg})
+				}
 			}
+			candidates = trimSyncMessageCandidates(candidates, limit)
 		}
-		candidates = trimSyncMessageCandidates(candidates, limit)
+
 		if done {
 			break
 		}
@@ -164,55 +164,6 @@ func (a *App) SyncAck(ctx context.Context, cmd SyncAckCommand) error {
 	}
 	a.records.DeleteIfUnchanged(uid, records)
 	return nil
-}
-
-// Bind enables durable offline discovery for future messages in one command channel.
-func (a *App) Bind(ctx context.Context, cmd BindCommand) error {
-	uid, channelID, err := validateBindingIdentity(cmd.UID, cmd.ChannelID, cmd.ChannelType)
-	if err != nil {
-		return err
-	}
-	if a == nil || a.states == nil {
-		return ErrStateStoreRequired
-	}
-	if a.messages == nil {
-		return ErrMessageStoreRequired
-	}
-	key := CommandChannelKey{ChannelID: a.commandChannels.ToCommandChannel(channelID), ChannelType: cmd.ChannelType}
-	tail, err := a.messages.CommandChannelTail(ctx, key)
-	if err != nil {
-		return err
-	}
-	if tail == ^uint64(0) {
-		return ErrSequenceExhausted
-	}
-	return a.states.UpsertUserCMDChannelMemberships(ctx, []metadb.UserCMDChannelMembership{{
-		UID:              uid,
-		CommandChannelID: key.ChannelID,
-		ChannelType:      int64(key.ChannelType),
-		StartSeq:         tail + 1,
-		UpdatedAt:        a.now().UnixNano(),
-	}})
-}
-
-// Unbind disables durable offline discovery without touching command messages.
-func (a *App) Unbind(ctx context.Context, cmd UnbindCommand) error {
-	uid, channelID, err := validateBindingIdentity(cmd.UID, cmd.ChannelID, cmd.ChannelType)
-	if err != nil {
-		return err
-	}
-	if a == nil || a.states == nil {
-		return ErrStateStoreRequired
-	}
-	now := a.now().UnixNano()
-	return a.states.TombstoneUserCMDChannelMemberships(ctx, []metadb.UserCMDChannelMembership{{
-		UID:              uid,
-		CommandChannelID: a.commandChannels.ToCommandChannel(channelID),
-		ChannelType:      int64(cmd.ChannelType),
-		Tombstone:        true,
-		TombstoneAt:      now,
-		UpdatedAt:        now,
-	}})
 }
 
 func validateBindingIdentity(uid, channelID string, channelType uint8) (string, string, error) {
@@ -302,6 +253,7 @@ func trimSyncMessageCandidates(candidates []syncMessageCandidate, limit int) []s
 		return syncMessageLess(candidates[i], candidates[j])
 	})
 	if len(candidates) > limit {
+		clear(candidates[limit:])
 		return candidates[:limit]
 	}
 	return candidates
