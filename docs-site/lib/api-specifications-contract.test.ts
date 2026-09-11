@@ -87,7 +87,7 @@ describe('API specification pages', () => {
     expect(operationCount(management)).toBe(16);
 
     for (const content of [zh, en]) {
-      for (const count of ['42', '3', '1', '16']) expect(content).toContain(count);
+      for (const count of [String(operationCount(productHTTP)), '3', '1', '16']) expect(content).toContain(count);
       expect(content).toContain('OpenAPI 3.1');
       expect(content).toContain('webhooks');
       expect(content).toContain('/metrics');
