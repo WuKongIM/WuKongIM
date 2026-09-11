@@ -60,6 +60,8 @@ and bounded operations observations.
   closed as typed retryable errors, including a stopped or unreachable append
   authority transport. Context cancellation and deadlines remain
   unchanged.
+- CMD discovery may precede the first command log. Its reader treats only the
+  routed typed Channel-not-found result as empty, matching the bind tail read.
 - Batch adapters preserve cardinality and order. Missing, duplicate,
   contradictory, or unrepresentable evidence is an error, not fabricated
   success.

@@ -124,11 +124,20 @@ func (s *CMDSyncStore) LoadCommandMessages(ctx context.Context, key cmdsync.Comm
 				MaxBytes: maxInt(),
 			},
 		}})
+		// Bind is intentionally valid before the first CMD creates its log.
+		// Match CommittedChannelTail's typed absence semantics; authority and
+		// transport failures must still fail the complete sync.
+		if errors.Is(err, channelruntime.ErrChannelNotFound) {
+			return nil, nil
+		}
 		if err != nil {
 			return nil, mapAppendError(err)
 		}
 		if len(reads) != 1 {
 			return nil, fmt.Errorf("cmd sync: routed read result count %d, want 1", len(reads))
+		}
+		if errors.Is(reads[0].Err, channelruntime.ErrChannelNotFound) {
+			return nil, nil
 		}
 		if reads[0].Err != nil {
 			return nil, mapAppendError(reads[0].Err)

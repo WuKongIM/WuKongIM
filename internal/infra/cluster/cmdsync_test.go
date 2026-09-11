@@ -249,3 +249,32 @@ func (n *cmdSyncNodeFake) ReadChannelCommittedBatch(ctx context.Context, reads [
 	}
 	return results, nil
 }
+
+func TestCMDMessageReaderDistinguishesUnusedChannelFromReadFailure(t *testing.T) {
+	for _, outer := range []bool{false, true} {
+		for _, failure := range []error{channelruntime.ErrChannelNotFound, context.DeadlineExceeded} {
+			node := &cmdReadFailureNode{cmdSyncNodeFake: &cmdSyncNodeFake{}, outer: outer, failure: failure}
+			got, err := NewCMDSyncStore(node).LoadCommandMessages(context.Background(), cmdsync.CommandChannelKey{ChannelID: "unused____cmd", ChannelType: 2}, 1, 10)
+			if errors.Is(failure, channelruntime.ErrChannelNotFound) {
+				if err != nil || len(got) != 0 {
+					t.Fatalf("unused CMD channel: %v %v", got, err)
+				}
+			} else if err == nil {
+				t.Fatal("unavailable read was hidden")
+			}
+		}
+	}
+}
+
+type cmdReadFailureNode struct {
+	*cmdSyncNodeFake
+	outer   bool
+	failure error
+}
+
+func (n *cmdReadFailureNode) ReadChannelCommittedBatch(context.Context, []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {
+	if n.outer {
+		return nil, n.failure
+	}
+	return []clusterchannels.CommittedReadResult{{Err: n.failure}}, nil
+}

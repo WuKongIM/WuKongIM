@@ -119,6 +119,10 @@ func TestPersonCommandHTTPCluster(t *testing.T) {
 			}
 			binding := fmt.Sprintf(`{"uid":"uu1","channel_id":%q,"channel_type":1}`, source)
 			post(apps[0], "/message/cmd/bind", binding)
+			// Discovery is installed before the first persistent CMD exists.
+			if empty := post(apps[len(apps)-1], "/message/sync", `{"uid":"uu1","limit":10}`); empty.Body.String() != "[]" {
+				t.Fatalf("unused binding failed sync: %s", empty.Body)
+			}
 			durable := strings.Replace(original, `"no_persist":1`, `"no_persist":0`, 1)
 			post(apps[len(apps)-1], "/message/send", durable)
 			rec := post(apps[0], "/message/sync", `{"uid":"uu1","limit":10}`)
