@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Preserve committed channel migration task chains across Slot replay batch boundaries, preventing older Leader metadata from reappearing after restart. / 修复 Slot 日志重放批次边界导致后续频道迁移任务被误跳过，避免重启后恢复出旧 Leader 状态。
+
 - Preserve the canonical Controller Raft 100ms tick through the runtime facade, avoiding an unintended 200ms election floor during cold recovery. / Controller 统一使用 100ms 默认 tick，避免上层覆盖后将选举等待下限缩短为 200ms，导致冷恢复期间频繁重新选举。
 
 - Refresh older loaded channel authority during committed history and conversation reads, then require fresh quorum recovery before serving messages. / 历史和会话读取遇到旧频道运行状态时重新加载当前权威信息，完成多数派恢复后再返回数据。

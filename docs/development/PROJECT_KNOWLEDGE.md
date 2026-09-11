@@ -18,6 +18,10 @@
   before writing. Recovery subdivides that rejected range in Raft order, with
   the left prefix durable before the right suffix executes. Healthy ranges
   remain batched; single stale commands persist their no-op applied watermark.
+  Staging-time conditional rejections require the same ordered subdivision:
+  eager active-task bookkeeping can still remember an earlier task completed
+  in this batch, and rejected commands may already have staged guard writes.
+  Discard the batch before retrying; never skip such an entry in place.
   Physical/ambiguous commit failures must never enter this retry path.
 
 - Plugin owner lookups reread authoritative Slot runtime metadata. Node-addressed

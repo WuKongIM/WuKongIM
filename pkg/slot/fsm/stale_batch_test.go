@@ -102,3 +102,50 @@ func TestStaleBatchConditionalChainUsesCommittedPrefix(t *testing.T) {
 		t.Fatalf("durable index = %d, %v; want 4", index, err)
 	}
 }
+
+// A task created and completed in one replay batch must not suppress the next
+// task for the same channel merely because staging still remembers the first.
+func TestStaleBatchTaskCompletionAllowsNextCreate(t *testing.T) {
+	for _, guarded := range []bool{false, true} {
+		t.Run(fmt.Sprint(guarded), func(t *testing.T) {
+			ctx := context.Background()
+			db := openTestDB(t)
+			sm := mustNewStateMachine(t, db, 11)
+			first := fsmTestChannelMigrationTask("first", "replay-channel")
+			meta := fsmTestRuntimeMeta(first.ChannelID, first.ChannelType)
+			if result, err := sm.Apply(ctx, multiraft.Command{SlotID: 11, Index: 1, Term: 1, Data: EncodeUpsertChannelRuntimeMetaCommand(meta)}); err != nil || string(result) != ApplyResultOK {
+				t.Fatalf("initial meta: %s %v", result, err)
+			}
+			completed := fsmTestChannelMigrationAdvance(first, metadb.ChannelMigrationStatusCompleted, metadb.ChannelMigrationPhaseClearFence, first.UpdatedAtMS+1)
+			completed.CompletedAtMS = completed.UpdatedAtMS
+			next := fsmTestChannelMigrationTask("next", first.ChannelID)
+			create := func(task metadb.ChannelMigrationTask) []byte {
+				if guarded {
+					return EncodeCreateChannelMigrationTaskWithRuntimeGuardCommand(metadb.ChannelMigrationTaskCreate{Task: task, RuntimeGuard: fsmTestRuntimeGuard(meta)})
+				}
+				return EncodeCreateChannelMigrationTaskCommand(task)
+			}
+			data := [][]byte{create(first), EncodeAdvanceChannelMigrationTaskCommand(completed), create(next)}
+			cmds := make([]multiraft.Command, len(data))
+			for i := range data {
+				cmds[i] = multiraft.Command{SlotID: 11, Index: uint64(i + 2), Term: 1, Data: data[i]}
+			}
+			results, err := sm.(multiraft.BatchStateMachine).ApplyBatch(ctx, cmds)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i, result := range results {
+				if string(result) != ApplyResultOK {
+					t.Errorf("result[%d]=%s, want ok", i, result)
+				}
+			}
+			got, err := db.ForSlot(11).GetChannelMigrationTask(ctx, next.ChannelID, next.ChannelType, next.TaskID)
+			if err != nil || got != next {
+				t.Errorf("next task = %+v, %v; want durable next task", got, err)
+			}
+			if index, err := sm.(multiraft.DurableAppliedStateMachine).DurableAppliedIndex(ctx); err != nil || index != 4 {
+				t.Errorf("applied index = %d, %v", index, err)
+			}
+		})
+	}
+}
