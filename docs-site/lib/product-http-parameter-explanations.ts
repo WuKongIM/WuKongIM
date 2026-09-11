@@ -425,8 +425,6 @@ export const productHTTPParameterExplanations = {
       description: explanation('会话清未读、隐藏或激活操作共用的 Key。', 'Shared key for Conversation clear-unread, hide, or activate operations.'),
       properties: {
         uid, channel_id: channelID, channel_type: channelType,
-        uids: explanation('源频道的接收者列表，最多 1000 项；去空白和重复项。不能与 uid 或 subscribers 同用。', 'Source-Channel recipients, at most 1000 entries; trims blanks and duplicates. Exclusive with uid and subscribers.'),
-        subscribers: explanation('仅使用此字段绑定 SEND 的临时接收者范围；最多 1000 项，顺序必须与 SEND 一致。不能与频道字段同用。', 'Use this field alone to bind the SEND temporary recipient scope; at most 1000 entries, in the same order as SEND. Exclusive with source-Channel fields.'),
       },
     },
     ConversationSetUnreadRequest: {

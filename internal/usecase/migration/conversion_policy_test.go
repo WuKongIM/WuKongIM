@@ -1,8 +1,10 @@
 package migration
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -96,4 +98,34 @@ func TestDuplicateChainRejectsDistinctSurvivingTerminals(t *testing.T) {
 	s.Messages.ResolveDuplicateChains = true
 	_, err := buildMessageTransform(context.Background(), s, w, transformFixtureDecoder{}, "ambiguous/")
 	require.ErrorContains(t, err, "multiple surviving terminals")
+}
+
+// Shared replacement suffixes must not be traversed again for every old row.
+func TestDuplicateChainResolutionUsesLinearWorkspaceReads(t *testing.T) {
+	const count = 160
+	facts := make([]BusinessFacts, 0, count+1)
+	for i := 1; i <= count; i++ {
+		facts = append(facts, transformMessage(uint64(i), uint64((i+1)/2), fmt.Sprintf("client-%d", i/2), false))
+	}
+	facts = append(facts, BusinessFacts{Tail: &SourceMessageTail{Channel: ChannelIdentity{ID: "group", Type: 2}, LastSeq: count}})
+	w, s := transformFixture(t, facts)
+	s.Messages.ResolveDuplicateChains = true
+	counted := &chainReadWorkspace{Workspace: w}
+	tr, err := buildMessageTransform(context.Background(), s, counted, transformFixtureDecoder{}, "linear-chain/")
+	require.NoError(t, err)
+	require.EqualValues(t, 1, tr.report.Retained)
+	require.LessOrEqual(t, counted.mappingReads, count*10, "shared suffix lookups must grow linearly")
+	t.Logf("%d chain messages: %d mapping reads", count, counted.mappingReads)
+}
+
+type chainReadWorkspace struct {
+	Workspace
+	mappingReads int
+}
+
+func (w *chainReadWorkspace) Get(ctx context.Context, key []byte) ([]byte, bool, error) {
+	if bytes.Contains(key, []byte("/mapping/")) {
+		w.mappingReads++
+	}
+	return w.Workspace.Get(ctx, key)
 }

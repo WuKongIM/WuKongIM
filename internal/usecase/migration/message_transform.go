@@ -345,7 +345,10 @@ func buildMessageTransform(ctx context.Context, selection SourceSelection, w Wor
 		return nil, err
 	}
 	// Preserve direct provenance and certify approved transitive replacements.
-	terminals := map[string]bool{}
+	resolver, err := newDuplicateResolver(w)
+	if err != nil {
+		return nil, err
+	}
 	err = w.Walk(ctx, []byte("dedupe/drop/"), func(row transfer.SpoolRow) error {
 		var m MessageSequenceMapping
 		if err := UnmarshalState(row.Value, &m); err != nil {
@@ -366,7 +369,7 @@ func buildMessageTransform(ctx context.Context, selection SourceSelection, w Wor
 		if !policy.ResolveDuplicateChains {
 			return errors.New("duplicate winner is superseded by another uniqueness rule")
 		}
-		terminal, err := resolveDuplicateTerminal(ctx, w, m)
+		terminal, err := resolver.resolveDuplicateTerminal(ctx, m)
 		if err != nil {
 			return err
 		}
@@ -381,8 +384,11 @@ func buildMessageTransform(ctx context.Context, selection SourceSelection, w Wor
 		}
 		canonical.TerminalWinner = &terminal
 		report.ChainRoots++
-		terminals[channelTuple(m.Channel)+fmt.Sprintf("/%020d", terminal.Sequence)] = true
-		return put("chains/"+channelTuple(m.Channel)+fmt.Sprintf("/%020d", m.OriginalSeq), canonical)
+		rootKey := "chains/" + channelTuple(m.Channel) + fmt.Sprintf("/%020d", m.OriginalSeq)
+		if err := put("chain-terminals/"+channelTuple(m.Channel)+fmt.Sprintf("/%020d/%020d", terminal.Sequence, m.OriginalSeq), rootKey); err != nil {
+			return err
+		}
+		return put(rootKey, canonical)
 	})
 	if err != nil {
 		return nil, err
@@ -390,7 +396,20 @@ func buildMessageTransform(ctx context.Context, selection SourceSelection, w Wor
 	if err := p.b.flush(); err != nil {
 		return nil, err
 	}
-	report.ChainTerminals = uint64(len(terminals))
+	lastTerminal := ""
+	if err := w.Walk(ctx, []byte("chain-terminals/"), func(row transfer.SpoolRow) error {
+		if len(row.Key) < 21 || row.Key[len(row.Key)-21] != '/' {
+			return errors.New("invalid duplicate terminal index key")
+		}
+		key := string(row.Key[:len(row.Key)-21])
+		if key != lastTerminal {
+			report.ChainTerminals++
+			lastTerminal = key
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
 	if report.ChainRoots > 0 {
 		h := sha256.New()
 		enc := json.NewEncoder(h)
@@ -555,7 +574,7 @@ func WalkDuplicateChainMappings(ctx context.Context, w Workspace, expected *Mess
 	h := sha256.New()
 	enc := json.NewEncoder(h)
 	var rows uint64
-	terminals := map[string]bool{}
+	var terminals uint64
 	prefix := "message-transform/convert/"
 	err := w.Walk(ctx, []byte(prefix+"chains/"), func(row transfer.SpoolRow) error {
 		row.Key = row.Key[len(prefix):]
@@ -570,13 +589,44 @@ func WalkDuplicateChainMappings(ctx context.Context, w Workspace, expected *Mess
 			return errors.New("duplicate chain export has no terminal proof")
 		}
 		rows++
-		terminals[channelTuple(m.Channel)+fmt.Sprintf("/%020d", m.TerminalWinner.Sequence)] = true
+		key := prefix + "chain-terminals/" + channelTuple(m.Channel) + fmt.Sprintf("/%020d/%020d", m.TerminalWinner.Sequence, m.OriginalSeq)
+		if _, found, err := w.Get(ctx, []byte(key)); err != nil {
+			return err
+		} else if !found {
+			return errors.New("duplicate chain terminal index is incomplete")
+		}
 		return visit(m)
 	})
 	if err != nil {
 		return err
 	}
-	if rows != expected.ChainRoots || uint64(len(terminals)) != expected.ChainTerminals || (rows > 0 && hex.EncodeToString(h.Sum(nil)) != expected.ChainSHA256) {
+	// The disk-sorted references count distinct terminals without retaining the
+	// whole archive in memory. Every reference must match a digest-bound root.
+	lastTerminal := ""
+	var terminalReferences uint64
+	if err := w.Walk(ctx, []byte(prefix+"chain-terminals/"), func(row transfer.SpoolRow) error {
+		var key string
+		if err := UnmarshalState(row.Value, &key); err != nil {
+			return err
+		}
+		m, found, err := transformGet[MessageSequenceMapping](ctx, w, prefix+key)
+		if err != nil {
+			return err
+		}
+		if !found || m.TerminalWinner == nil || key != "chains/"+channelTuple(m.Channel)+fmt.Sprintf("/%020d", m.OriginalSeq) || string(row.Key) != prefix+"chain-terminals/"+channelTuple(m.Channel)+fmt.Sprintf("/%020d/%020d", m.TerminalWinner.Sequence, m.OriginalSeq) {
+			return errors.New("duplicate chain terminal index differs from proof")
+		}
+		terminalKey := string(row.Key[:len(row.Key)-21])
+		if terminalKey != lastTerminal {
+			terminals++
+			lastTerminal = terminalKey
+		}
+		terminalReferences++
+		return nil
+	}); err != nil {
+		return err
+	}
+	if rows != expected.ChainRoots || terminalReferences != rows || terminals != expected.ChainTerminals || (rows > 0 && hex.EncodeToString(h.Sum(nil)) != expected.ChainSHA256) {
 		return errors.New("duplicate chain export differs from prepared proof")
 	}
 	return nil
