@@ -5167,7 +5167,7 @@ func TestAppWiresLegacyConversationSyncRouteToDirectoryAndMessageReads(t *testin
 }
 
 func TestAppWiresMessageSyncRouteToCMDSyncUsecase(t *testing.T) {
-	cluster := newFakePresenceCluster(1, nil)
+	cluster := &fakeCMDSyncCluster{fakePresenceCluster: newFakePresenceCluster(1, nil)}
 	cluster.snapshot = readyFakeClusterSnapshot(1, 16)
 	app, err := newTestApp(t, Config{
 		API: APIConfig{ListenAddr: "127.0.0.1:0"},
