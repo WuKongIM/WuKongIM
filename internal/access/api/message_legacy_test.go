@@ -208,7 +208,7 @@ func TestChannelMessageSyncBatchMapsAlignedResults(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
-	if !jsonEqual(rec.Body.String(), `{"items":[{"channel_id":"g1","channel_type":2,"start_message_seq":3,"end_message_seq":0,"more":1,"messages":[{"header":{"no_persist":0,"red_dot":0,"sync_once":0},"setting":0,"message_id":7,"message_idstr":"7","client_msg_no":"","message_seq":4,"from_uid":"","channel_id":"g1","channel_type":2,"expire":0,"timestamp":0,"payload":"YQ=="}]},{"channel_id":"g2","channel_type":2,"start_message_seq":8,"end_message_seq":0,"more":0,"messages":[],"error":"temporarily unavailable"}]}`) {
+	if !jsonEqual(rec.Body.String(), `{"items":[{"channel_id":"g1","channel_type":2,"start_message_seq":3,"end_message_seq":0,"more":1,"messages":[{"header":{"no_persist":0,"red_dot":0,"sync_once":0},"setting":0,"message_id":7,"message_idstr":"7","client_msg_no":"wk3-legacy-7","message_seq":4,"from_uid":"","channel_id":"g1","channel_type":2,"expire":0,"timestamp":0,"payload":"YQ=="}]},{"channel_id":"g2","channel_type":2,"start_message_seq":8,"end_message_seq":0,"more":0,"messages":[],"error":"temporarily unavailable"}]}`) {
 		t.Fatalf("body=%s, want aligned batch response", rec.Body.String())
 	}
 	if len(messages.batchQueries) != 1 || len(messages.batchQueries[0].Items) != 2 || messages.batchQueries[0].LoginUID != "u1" {

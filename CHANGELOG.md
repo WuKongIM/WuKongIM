@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Restore legacy previews for historical messages with empty client numbers using stable read-only aliases, preserving stored records and indexed lookup support. / 历史空客户端编号消息返回稳定的只读兼容编号，恢复会话摘要并支持索引查询，原始记录不改写。
+
 - Overlap bounded authoritative permission checks during batch history and conversation synchronization to reduce reconnect latency for accounts with many conversations. / 会话及历史批量同步以有限并发检查权威权限，降低多会话账号的重连等待。
 
 - Restore generated client message numbers for HTTP sends that omit the field, and return the number with the send result so legacy clients can resolve conversation previews. / HTTP 发送省略客户端消息编号时恢复自动生成，并随发送结果返回，避免旧客户端会话摘要为空。

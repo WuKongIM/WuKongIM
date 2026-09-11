@@ -67,7 +67,10 @@ _openapi:
           message_idstr `string` — Decimal string mirror of message_id only; it
           is not a replacement for message_seq.
 
-          client_msg_no `string` — Client message number.
+          client_msg_no `string` — Original client number, or the stable
+          read-only alias wk3-legacy-<message_id> for an old empty-number record
+          with a message ID. The alias supports /messages lookup; it is not a
+          SEND idempotency or event mutation key. Stored records are unchanged.
 
           end `integer:uint8` 0–255 Stream-message terminal compatibility flag.
 

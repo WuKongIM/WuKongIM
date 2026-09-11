@@ -3760,7 +3760,8 @@
             "type": "string"
           },
           "client_msg_no": {
-            "type": "string"
+            "type": "string",
+            "description": "Original client number, or the stable read-only alias wk3-legacy-<message_id> for an old empty-number record with a message ID. The alias supports /messages lookup; it is not a SEND idempotency or event mutation key. Stored records are unchanged."
           },
           "end": {
             "type": "integer",

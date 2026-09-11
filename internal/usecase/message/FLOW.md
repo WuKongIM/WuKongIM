@@ -80,6 +80,8 @@ depending on their frames, JSON, or concrete cluster runtimes.
 - Stream-finish projection fails closed when authority movement loses required
   cache-only lanes; callers must replay deltas or provide a complete snapshot.
 
+- Legacy reads may expose `wk3-legacy-<message_id>` only for an empty stored client number. Exact lookup tries the real client-number index first, then at most one bounded Message-ID read for the alias, retaining visibility and original stored fields. It is not a SEND or event mutation key.
+
 ## Read First
 
 - [Permission policy](permission.go)

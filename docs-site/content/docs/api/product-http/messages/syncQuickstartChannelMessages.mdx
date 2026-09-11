@@ -91,7 +91,8 @@ _openapi:
 
           message_idstr `string` — 仅 message_id 的十进制字符串镜像；不是 message_seq 的替代字段。
 
-          client_msg_no `string` — 客户端消息编号。
+          client_msg_no `string` — 原客户端编号；旧记录为空且有消息 ID 时，返回稳定的
+          wk3-legacy-<message_id> 只读兼容编号。可用于 /messages 查询，不是发送幂等键或事件写入键；原始记录不改写。
 
           end `integer:uint8` 0–255 流消息结束兼容标志。
 

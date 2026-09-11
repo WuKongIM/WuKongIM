@@ -14,6 +14,7 @@ import (
 
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	channelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -125,6 +126,35 @@ func TestPersonCommandHTTPCluster(t *testing.T) {
 						t.Fatalf("preview identity changed across nodes: %s", response.Body)
 					}
 					seen[row.ChannelID] = true
+				}
+			}
+			// Preserve an original empty-number record while exposing a stable legacy read key.
+			post(apps[0], "/channel", `{"channel_id":"legacy-empty-group","channel_type":2,"subscribers":["legacy-empty-user"]}`)
+			emptySent, err := apps[len(apps)-1].messages.Send(ctx, message.SendCommand{FromUID: "____system", ChannelID: "legacy-empty-group", ChannelType: 2, Expire: 37, Payload: []byte("legacy")})
+			if err != nil || emptySent.Reason != message.ReasonSuccess {
+				t.Fatalf("create original empty-key message: %+v %v", emptySent, err)
+			}
+			alias := message.LegacyReadClientMsgNo(emptySent.MessageID, "")
+			for _, a := range apps {
+				response := post(a, "/conversation/sync", `{"uid":"legacy-empty-user","version":0,"msg_count":1}`)
+				var rows []struct {
+					LastClientMsgNo string `json:"last_client_msg_no"`
+					Recents         []struct {
+						ClientMsgNo string `json:"client_msg_no"`
+						MessageID   uint64 `json:"message_id"`
+						Expire      uint32 `json:"expire"`
+					} `json:"recents"`
+				}
+				if err := json.Unmarshal(response.Body.Bytes(), &rows); err != nil || len(rows) != 1 || len(rows[0].Recents) != 1 || rows[0].LastClientMsgNo != alias || rows[0].Recents[0].ClientMsgNo != alias || rows[0].Recents[0].MessageID != emptySent.MessageID || rows[0].Recents[0].Expire != 37 {
+					t.Fatalf("legacy read projection: %s %v", response.Body, err)
+				}
+				lookup := post(a, "/messages", fmt.Sprintf(`{"login_uid":"legacy-empty-user","channel_id":"legacy-empty-group","channel_type":2,"client_msg_nos":[%q]}`, alias))
+				if !strings.Contains(lookup.Body.String(), alias) {
+					t.Fatalf("alias lookup lost identity: %s", lookup.Body)
+				}
+				raw, err := a.messages.LookupMessages(ctx, message.LookupMessagesQuery{LoginUID: "legacy-empty-user", ChannelID: "legacy-empty-group", ChannelType: 2, MessageIDs: []uint64{emptySent.MessageID}})
+				if err != nil || len(raw.Messages) != 1 || raw.Messages[0].ClientMsgNo != "" || raw.Messages[0].Expire != 37 || string(raw.Messages[0].Payload) != "legacy" {
+					t.Fatalf("read changed original stored data: %+v %v", raw, err)
 				}
 			}
 			original := `{"header":{"no_persist":1,"red_dot":1,"sync_once":1},"from_uid":"","channel_id":"uu1","channel_type":1,"payload":"eyJ0eXBlIjo5OSwiY21kIjoiY2xlYXJVbnJlYWQiLCJwYXJhbSI6eyJjaGFubmVsSUQiOiJnZmgiLCJjaGFubmVsVHlwZSI6MX19","subscribers":[]}`

@@ -48,7 +48,7 @@ func newLegacyMessageResp(uid string, msg messageusecase.SyncedMessage) legacyMe
 		Setting:       msg.Setting,
 		MessageID:     int64(msg.MessageID),
 		MessageIDStr:  strconv.FormatUint(msg.MessageID, 10),
-		ClientMsgNo:   msg.ClientMsgNo,
+		ClientMsgNo:   messageusecase.LegacyReadClientMsgNo(msg.MessageID, msg.ClientMsgNo),
 		MessageSeq:    msg.MessageSeq,
 		FromUID:       msg.FromUID,
 		ChannelID:     legacyMessageChannelID(uid, msg.ChannelID, msg.ChannelType),

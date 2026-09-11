@@ -92,7 +92,7 @@ func pluginMessageFromSyncedMessage(msg message.SyncedMessage) *pluginproto.Mess
 	return &pluginproto.Message{
 		MessageId:   messageIDToInt64(msg.MessageID),
 		MessageSeq:  msg.MessageSeq,
-		ClientMsgNo: msg.ClientMsgNo,
+		ClientMsgNo: message.LegacyReadClientMsgNo(msg.MessageID, msg.ClientMsgNo),
 		Timestamp:   timestampToUint32(msg.Timestamp),
 		From:        msg.FromUID,
 		ChannelId:   msg.ChannelID,

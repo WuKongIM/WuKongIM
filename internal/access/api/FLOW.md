@@ -96,6 +96,8 @@ bench or debug request
   business pagination, filters, cursor floors, and unresolved failure policy
   remain owned by the conversation use case.
 
+- Legacy history, CMD, exact lookup and conversation previews share stable read-only aliases for old empty client numbers; serialization never rewrites committed records.
+
 ## Read First
 
 - [server.go](server.go)

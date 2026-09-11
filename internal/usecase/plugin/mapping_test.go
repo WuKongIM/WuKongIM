@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"math"
 	"testing"
 
@@ -105,5 +106,13 @@ func TestMessageBatchFromPersistAfterCommittedConversions(t *testing.T) {
 			require.Equal(t, uint32(2), msg.ChannelType)
 			require.Equal(t, []byte("payload"), msg.Payload)
 		})
+	}
+}
+
+func TestPluginHistoryReadUsesLegacyBlankClientNumberAlias(t *testing.T) {
+	raw := message.SyncedMessage{MessageID: 99, MessageSeq: 9}
+	got := pluginMessageFromSyncedMessage(raw)
+	if got.ClientMsgNo != "wk3-legacy-99" || raw.ClientMsgNo != "" {
+		t.Fatalf("legacy history identity=%q", got.ClientMsgNo)
 	}
 }

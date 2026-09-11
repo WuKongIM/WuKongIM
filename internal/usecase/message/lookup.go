@@ -90,19 +90,26 @@ func (a *App) LookupMessages(ctx context.Context, q LookupMessagesQuery) (SyncCh
 	// Serial bounded index reads prevent selector count from multiplying peak
 	// payload allocation. Routing stays in the same committed-read cluster seam.
 	for _, r := range reads {
-		got, err := a.lookupReader.ReadCommittedMessages(ctx, []CommittedMessageQuery{r})
+		messages, err := a.readLookupMessages(ctx, r)
 		if err != nil {
 			return SyncChannelMessagesResult{}, err
 		}
-		if len(got) != 1 {
-			return SyncChannelMessagesResult{}, ErrSyncBatchResultMismatch
+		aliasFallback := false
+		if id, alias := legacyReadMessageID(r.ClientMsgNo); alias && len(messages) == 0 {
+			// An actual client-number index entry always wins. A read alias may
+			// resolve only an empty-number record through the same visibility floor.
+			aliasFallback = true
+			fallback := r
+			fallback.ClientMsgNo = ""
+			fallback.MessageID = id
+			messages, err = a.readLookupMessages(ctx, fallback)
+			if err != nil {
+				return SyncChannelMessagesResult{}, err
+			}
 		}
-		if got[0].Err != nil {
-			return SyncChannelMessagesResult{}, got[0].Err
-		}
-		for _, m := range got[0].Messages {
-			if m.ChannelID != r.ChannelID.ID || m.ChannelType != r.ChannelID.Type || m.MessageSeq < r.MinSeq || r.MaxSeq != 0 && m.MessageSeq > r.MaxSeq || r.MessageID != 0 && m.MessageID != r.MessageID || r.ClientMsgNo != "" && m.ClientMsgNo != r.ClientMsgNo {
-				return SyncChannelMessagesResult{}, ErrSyncBatchResultMismatch
+		for _, m := range messages {
+			if aliasFallback && m.ClientMsgNo != "" {
+				continue
 			}
 			if m.Flags.SyncOnce {
 				continue
@@ -120,4 +127,24 @@ func (a *App) LookupMessages(ctx context.Context, q LookupMessagesQuery) (SyncCh
 	}
 	sort.Slice(out.Messages, func(i, j int) bool { return out.Messages[i].MessageSeq < out.Messages[j].MessageSeq })
 	return out, nil
+}
+
+// readLookupMessages validates exact routed evidence before it can enter a result.
+func (a *App) readLookupMessages(ctx context.Context, r CommittedMessageQuery) ([]SyncedMessage, error) {
+	got, err := a.lookupReader.ReadCommittedMessages(ctx, []CommittedMessageQuery{r})
+	if err != nil {
+		return nil, err
+	}
+	if len(got) != 1 {
+		return nil, ErrSyncBatchResultMismatch
+	}
+	if got[0].Err != nil {
+		return nil, got[0].Err
+	}
+	for _, m := range got[0].Messages {
+		if m.ChannelID != r.ChannelID.ID || m.ChannelType != r.ChannelID.Type || m.MessageSeq < r.MinSeq || r.MaxSeq != 0 && m.MessageSeq > r.MaxSeq || r.MessageID != 0 && m.MessageID != r.MessageID || r.ClientMsgNo != "" && m.ClientMsgNo != r.ClientMsgNo {
+			return nil, ErrSyncBatchResultMismatch
+		}
+	}
+	return got[0].Messages, nil
 }

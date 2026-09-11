@@ -58,6 +58,8 @@ behind narrow ports.
 - Secret values never reappear in Manager-facing desired-state projections or
   low-cardinality observations.
 
+- Plugin committed-history responses share the legacy read-only alias for old empty client numbers. Send and post-commit hooks retain their original identity fields.
+
 ## Read First
 
 - [App and ports](app.go)
