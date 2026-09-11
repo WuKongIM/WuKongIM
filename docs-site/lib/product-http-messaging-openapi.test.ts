@@ -227,7 +227,7 @@ describe('Product HTTP message-sending OpenAPI contract', () => {
     expect(responseSchema(document, '200')?.$ref).toBe(
       '#/components/schemas/SendChannelMessageResponse',
     );
-    expect(result?.required).toEqual(['message_id', 'message_seq', 'reason']);
+    expect(result?.required).toEqual(['message_id', 'message_seq', 'reason', 'client_msg_no']);
     expect(result?.properties?.message_id).toMatchObject({
       type: 'integer',
       format: 'int64',
@@ -290,9 +290,9 @@ describe('Product HTTP message-sending OpenAPI contract', () => {
     expect(handler).toContain('base64.StdEncoding.DecodeString(req.Payload)');
     expect(handler).toContain('X-WK-Trace-ID');
     expect(handler).toContain('http.StatusInternalServerError');
-    expect(handler).toContain('MessageID  int64');
-    expect(handler).toContain('MessageSeq uint64');
-    expect(handler).toContain('Reason     uint8');
+    expect(handler).toMatch(/MessageID\s+int64/);
+    expect(handler).toMatch(/MessageSeq\s+uint64/);
+    expect(handler).toMatch(/Reason\s+uint8/);
 
     for (const mapping of [
       'http.StatusBadRequest',

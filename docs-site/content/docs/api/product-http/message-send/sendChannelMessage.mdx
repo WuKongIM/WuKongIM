@@ -54,7 +54,7 @@ _openapi:
           channel_type `integer:uint8` 0–255 目标 Channel 类型；普通发送时必须大于 0，请求级
           subscribers 发送时使用 0。
 
-          client_msg_no `string` — 可选的客户端幂等键；空字符串会关闭幂等查找。
+          client_msg_no `string` — 可选的客户端幂等键；省略或空白时生成唯一编号并在响应返回。重试同一消息时应显式复用编号。
 
           setting `integer:uint8` 0–255 WKProto Setting 位图；应使用 SDK 常量组合，不要手写未知位。
 
@@ -103,6 +103,8 @@ _openapi:
 
           reason `integer:uint8` enum: `1`, `2`, `3`, `4`, `5`, `9`, `11`, `13`,
           `15`, `18`, `19`, `24`, `25` WKProto Reason Code；HTTP 200 不替代此成功判定。
+
+          client_msg_no `string` — 实际提交的客户端消息编号；未提供时由服务端生成。
 
           400 Invalid request or payload
 

@@ -92,6 +92,32 @@ func TestPersonCommandHTTPCluster(t *testing.T) {
 				}
 				return rec
 			}
+			// HTTP-generated client numbers must survive forwarding, storage, and conversation hydration.
+			post(apps[0], "/channel", `{"channel_id":"preview-group","channel_type":2,"subscribers":["preview-user"]}`)
+			preview := post(apps[len(apps)-1], "/message/send", `{"channel_id":"preview-group","channel_type":2,"payload":"aGk="}`)
+			var sentPreview struct {
+				MessageID   uint64 `json:"message_id"`
+				ClientMsgNo string `json:"client_msg_no"`
+			}
+			if err := json.Unmarshal(preview.Body.Bytes(), &sentPreview); err != nil || sentPreview.ClientMsgNo == "" {
+				t.Fatalf("HTTP send lost generated identity: %s %v", preview.Body, err)
+			}
+			for _, a := range apps {
+				response := post(a, "/conversation/sync", `{"uid":"preview-user","version":0,"msg_count":1}`)
+				var rows []struct {
+					LastClientMsgNo string `json:"last_client_msg_no"`
+					Recents         []struct {
+						MessageID   uint64 `json:"message_id"`
+						ClientMsgNo string `json:"client_msg_no"`
+					} `json:"recents"`
+				}
+				if err := json.Unmarshal(response.Body.Bytes(), &rows); err != nil || len(rows) != 1 || len(rows[0].Recents) != 1 {
+					t.Fatalf("preview missing: %s %v", response.Body, err)
+				}
+				if rows[0].LastClientMsgNo != sentPreview.ClientMsgNo || rows[0].Recents[0].ClientMsgNo != sentPreview.ClientMsgNo || rows[0].Recents[0].MessageID != sentPreview.MessageID {
+					t.Fatalf("preview identity changed across nodes: %s", response.Body)
+				}
+			}
 			original := `{"header":{"no_persist":1,"red_dot":1,"sync_once":1},"from_uid":"","channel_id":"uu1","channel_type":1,"payload":"eyJ0eXBlIjo5OSwiY21kIjoiY2xlYXJVbnJlYWQiLCJwYXJhbSI6eyJjaGFubmVsSUQiOiJnZmgiLCJjaGFubmVsVHlwZSI6MX19","subscribers":[]}`
 			source := channelid.EncodePersonChannel("____system", "uu1")
 			codec := channelid.CommandCodec{Suffix: test.suffix}

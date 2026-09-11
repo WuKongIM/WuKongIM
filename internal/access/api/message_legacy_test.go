@@ -28,7 +28,7 @@ func TestSendMessageMapsCompatibleRequestToMessageUsecase(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s, want 200", rec.Code, rec.Body.String())
 	}
-	if !jsonEqual(rec.Body.String(), `{"message_id":99,"message_seq":7,"reason":1}`) {
+	if !jsonEqual(rec.Body.String(), `{"message_id":99,"message_seq":7,"reason":1,"client_msg_no":"c1"}`) {
 		t.Fatalf("body = %q, want send response", rec.Body.String())
 	}
 	if len(messages.sendCalls) != 1 {

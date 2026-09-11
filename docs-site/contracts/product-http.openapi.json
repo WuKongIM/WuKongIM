@@ -2893,7 +2893,7 @@
           },
           "client_msg_no": {
             "type": "string",
-            "description": "Optional; an empty value disables idempotency lookup."
+            "description": "Optional client idempotency key. Omitted or blank values receive a new unique key, returned as client_msg_no; reuse an explicit key for retries."
           },
           "setting": {
             "type": "integer",
@@ -2952,7 +2952,8 @@
         "required": [
           "message_id",
           "message_seq",
-          "reason"
+          "reason",
+          "client_msg_no"
         ],
         "properties": {
           "message_id": {
@@ -2982,6 +2983,10 @@
               24,
               25
             ]
+          },
+          "client_msg_no": {
+            "type": "string",
+            "description": "Caller-provided client number, or a generated unique number when omitted or blank."
           }
         }
       },
