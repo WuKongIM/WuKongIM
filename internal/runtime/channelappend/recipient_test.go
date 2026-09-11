@@ -916,3 +916,56 @@ func recipientAuthorityTargetForTest(hashSlot uint16, leader uint64, epoch uint6
 		AuthorityEpoch: epoch,
 	}
 }
+
+func TestGroupCommandsReadCurrentSourceSubscribersAndKeepCommandEnvelope(t *testing.T) {
+	for _, mode := range []onlinedelivery.Mode{onlinedelivery.ModeDurable, onlinedelivery.ModeTransient} {
+		for _, suffix := range []string{"", "__custom_cmd"} {
+			t.Run(fmt.Sprintf("%v/%s", mode, suffix), func(t *testing.T) {
+				codec := runtimechannelid.CommandCodec{Suffix: suffix}
+				commandID := codec.ToCommandChannel("group")
+				source := &commandSourceSubscribers{uid: "current-member"}
+				queue := &recordingRecipientEnqueuerForRecipientTest{}
+				target := AuthorityTarget{ChannelID: ChannelID{ID: commandID, Type: 2}, SubscriberMutationVersion: 7}
+				event := CommittedEnvelope{MessageID: 1, MessageSeq: 1, ChannelID: commandID, ChannelType: 2, SyncOnce: true}
+				cache := subscriberCache{ready: true, mutationVersion: 7, recipients: []Recipient{{UID: "removed-member"}}}
+				ports := commitPorts{commandChannels: codec, subscribers: source, recipientAuthorityResolver: staticRecipientAuthorityResolverForRecipientTest{nodeID: 7}, deliveryEnqueuer: queue, subscriberPageSize: 2, recipientBatchSize: 16}
+				for _, uid := range []string{"current-member", "replacement-member"} {
+					source.uid = uid
+					result, err := dispatchRecipientsForTarget(context.Background(), mode, target, event, cache, ports)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if result.subscriberCache.ready {
+						t.Fatal("command authority cannot cache source membership version")
+					}
+				}
+				if !reflect.DeepEqual(queue.allUIDs(), []string{"current-member", "replacement-member"}) {
+					t.Fatalf("recipients: %v", queue.allUIDs())
+				}
+				if len(source.requests) != 2 {
+					t.Fatalf("source reads: %d", len(source.requests))
+				}
+				for _, req := range source.requests {
+					if req.ChannelID != (ChannelID{ID: "group", Type: 2}) || req.Limit != 2 {
+						t.Fatalf("source request: %+v", req)
+					}
+				}
+				for _, batch := range queue.batches {
+					if batch.Event.ChannelID != commandID || !batch.Event.SyncOnce {
+						t.Fatal("command envelope changed")
+					}
+				}
+			})
+		}
+	}
+}
+
+type commandSourceSubscribers struct {
+	uid      string
+	requests []SubscriberPageRequest
+}
+
+func (s *commandSourceSubscribers) NextSubscriberPage(_ context.Context, req SubscriberPageRequest) (SubscriberPage, error) {
+	s.requests = append(s.requests, req)
+	return SubscriberPage{Recipients: []Recipient{{UID: s.uid}}, Done: true}, nil
+}
