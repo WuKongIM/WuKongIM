@@ -51,6 +51,22 @@ description: 四步完成 v2 到 v3 离线迁移：汇总冷备、填写计划�
 
 尚未提供包含所需修复的发布包时，可以按[工具总览的源码构建步骤](/zh/server/tools)构建配套程序。本文新增迁移能力的可复现源码基线为 [`48e89136e`](https://github.com/WuKongIM/WuKongIM/commit/48e89136e5d5f23705ec678bd9ebd5c63c3837cd)：先检出这个完整提交，再从同一工作目录构建 `wkcli` 与 `wukongim`，给两个程序注入相同的版本、提交及 `source` 构建来源，并核对 `version --output json`。这是源码构建基线，不是已发布安装包的版本号；仍须用自己的完整冷备演练后再切换。
 
+以下以 Linux 构建机和相同操作系统、架构的目标节点为例，先安装 Go，再执行。目录名须尚不存在；其他平台分别构建匹配的程序，仍固定同一提交与构建身份。
+
+```sh
+git clone https://github.com/WuKongIM/WuKongIM.git WuKongIM-migration
+cd WuKongIM-migration
+git checkout --detach 48e89136e5d5f23705ec678bd9ebd5c63c3837cd
+MIGRATION_COMMIT=$(git rev-parse HEAD)
+MIGRATION_VERSION=migration-48e89136e
+GOTOOLCHAIN=go1.25.11 GOWORK=off CGO_ENABLED=0 go build -trimpath -ldflags="-X main.buildVersion=$MIGRATION_VERSION -X main.buildCommit=$MIGRATION_COMMIT -X main.buildSource=source" -o ./bin/wkcli ./cmd/wkcli
+GOTOOLCHAIN=go1.25.11 GOWORK=off CGO_ENABLED=0 go build -trimpath -ldflags="-X main.buildVersion=$MIGRATION_VERSION -X main.buildCommit=$MIGRATION_COMMIT -X main.buildSource=source" -o ./bin/wukongim ./cmd/wukongim
+./bin/wkcli version --output json
+./bin/wukongim version --output json
+sha256sum ./bin/wkcli ./bin/wukongim
+export PATH="$(pwd)/bin:$PATH"
+```
+
 所有目标节点使用同一配套版本。若现有发布包缺少所需能力，先完成适配和配套构建的版本验证，再安排正式停机；不能把未发布的修复假定为当前安装包已有功能。新版本写入目标数据后，回退须遵守该版本的数据格式约束，不能直接换回旧二进制。
 
 如果为演练短暂停机取冷备后恢复了 v2 写入，这份冷备只能用于演练。正式切换前必须再次停止全部写入口，重新取得最新完整冷备，从新的工作空间和目标目录重做迁移及独立校验；不能把旧演练产物直接接入生产。

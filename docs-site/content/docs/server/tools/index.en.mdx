@@ -6,7 +6,7 @@ description: Choose the correct repository tool for observation, offline storage
 WuKongIM provides one operator binary, `wkcli`, with command families for each target: `wkcli` uses live cluster APIs, `wkcli db` reads one node's offline data, `wkcli bench` generates real traffic in an isolated target, and diagnostic surfaces answer one bounded question. Tool output is evidence, not permission to bypass Manager approval or cluster safety gates.
 
 <Callout type="warn" title="Confirm the target boundary first">
-  Every deployment is a cluster, including a single-node cluster, and the physical hash-slot count remains 256. A node-local snapshot, database directory, or Top result does not automatically represent the cluster.
+  Every deployment is a cluster, including a single-node cluster, and the logical hash-slot count is 256 with 12 physical Slots by default. A node-local snapshot, database directory, or Top result does not automatically represent the cluster.
 </Callout>
 
 ## Choose a tool
