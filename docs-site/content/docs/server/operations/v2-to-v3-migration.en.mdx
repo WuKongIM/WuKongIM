@@ -271,6 +271,8 @@ Preparation reports stage starts, completion or failure, and elapsed time for so
 
 Migration time also depends on index counts, validation lookups, and workspace reads and writes; backup size alone is insufficient to estimate it. If stage logs remain unchanged, first check that the original process is still running, then inspect CPU, logical reads, and physical disk reads. High CPU and repeated logical reads with little physical disk traffic can indicate workspace read-cache starvation. Confirm that the tool includes the migration cache fix; do not skip index or data validation. Validate performance repairs in an isolated rehearsal, and preserve the old attempt when changing tools as described below.
 
+Before freezing writes, measure complete stage durations in an isolated rehearsal and allow sufficient task, session, and service-manager timeouts for the final run. Backup time or one stage's time does not bound the entire migration; `import` and `verify` independently rebuild validation too. For `context canceled`, also check whether an outer task timed out or sent a signal before treating it as a data conflict. Once the original process has exited, unchanged sources, plan, and tools permit rerunning `prepare` with the same workspace and separate logs. It rechecks completed data rather than continuing directly from the last logged stage.
+
 A separate `diagnose` command is not required for the first migration. To inventory issues beforehand or investigate a blocker, use a separate diagnostic directory:
 
 ```sh

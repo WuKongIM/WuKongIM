@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Clarify v2 migration timeout budgeting and safe preparation retries after interruption. / 补充 v2 迁移任务的超时预算与预检中断后的安全重试说明。
+
 - Allow a connected plugin readiness handshake to use the remaining startup budget, avoiding repeated premature timeouts when the node is CPU throttled. / 插件就绪握手使用剩余启动等待期限，避免 CPU 限流时反复提前超时导致启动失败。
 
 - Confirm retried sends against current Leader committed history before returning success; a local durable proposal alone no longer produces a successful send acknowledgment. / 重试发送必须由当前 Leader 的已提交历史确认，避免将仅本地落盘的提议误报为发送成功。
