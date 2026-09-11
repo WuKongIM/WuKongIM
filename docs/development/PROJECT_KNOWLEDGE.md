@@ -29,6 +29,9 @@
   append authority cache can otherwise retain a stopped leader indefinitely.
   Only missing runtime metadata falls back to normal authority initialization;
   read failures must not fall back to cached ownership.
+  Whole-conversation-list lookups use bounded Slot-authoritative batches; one
+  quorum read per conversation can exhaust the plugin callback deadline even
+  when searching one already indexed message is fast.
 
 - EasySDK current tutorial selections live only in `docs-site/lib/easy-sdk-releases.json`.
   The build resolves explicit MDX tokens for both languages, while navigation

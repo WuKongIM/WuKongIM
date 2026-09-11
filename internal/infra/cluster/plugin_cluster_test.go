@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"testing"
 
@@ -13,6 +14,53 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/stretchr/testify/require"
 )
+
+func TestPluginChannelOwnerBatchUsesCurrentAuthorityAndBoundsRequests(t *testing.T) {
+	node := &batchPluginOwnerNode{metas: make(map[metadb.ChannelKey]metadb.ChannelRuntimeMeta)}
+	ids := make([]message.ChannelID, 655)
+	for i := range ids {
+		ids[i] = message.ChannelID{ID: fmt.Sprintf("channel-%d", i), Type: 2}
+		key := metadb.ChannelKey{ChannelID: ids[i].ID, ChannelType: 2}
+		node.metas[key] = metadb.ChannelRuntimeMeta{ChannelID: key.ChannelID, ChannelType: 2, Leader: 2}
+	}
+	node.cached = channelruntime.Meta{Leader: 3}
+	reader := NewPluginChannelOwnerReader(node)
+	owners, err := reader.ChannelOwnerNodes(context.Background(), ids)
+	require.NoError(t, err)
+	require.Len(t, owners, len(ids))
+	for _, owner := range owners {
+		require.Equal(t, uint64(2), owner)
+	}
+	require.Equal(t, []int{512, 143}, node.batchSizes)
+	require.Zero(t, node.resolveCalls, "existing rows cannot use stale append cache")
+	key := metadb.ChannelKey{ChannelID: ids[0].ID, ChannelType: 2}
+	node.metas[key] = metadb.ChannelRuntimeMeta{ChannelID: key.ChannelID, ChannelType: 2, Leader: 1}
+	owners, err = reader.ChannelOwnerNodes(context.Background(), ids[:1])
+	require.NoError(t, err)
+	require.Equal(t, []uint64{1}, owners)
+	node.batchErr = context.DeadlineExceeded
+	_, err = reader.ChannelOwnerNodes(context.Background(), ids[:1])
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Zero(t, node.resolveCalls)
+	node.batchErr = nil
+	delete(node.metas, key)
+	owners, err = reader.ChannelOwnerNodes(context.Background(), ids[:1])
+	require.NoError(t, err)
+	require.Equal(t, []uint64{3}, owners)
+	require.Equal(t, 1, node.resolveCalls)
+}
+
+type batchPluginOwnerNode struct {
+	recordingPluginChannelOwnerNode
+	metas      map[metadb.ChannelKey]metadb.ChannelRuntimeMeta
+	batchSizes []int
+	batchErr   error
+}
+
+func (n *batchPluginOwnerNode) BatchGetChannelRuntimeMetas(_ context.Context, keys []metadb.ChannelKey) (map[metadb.ChannelKey]metadb.ChannelRuntimeMeta, error) {
+	n.batchSizes = append(n.batchSizes, len(keys))
+	return n.metas, n.batchErr
+}
 
 func TestPluginClusterReaderMapsControlSnapshot(t *testing.T) {
 	node := &recordingPluginClusterNode{snapshot: control.Snapshot{

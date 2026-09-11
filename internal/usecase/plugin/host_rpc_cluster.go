@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
 )
 
@@ -28,18 +29,38 @@ func (a *App) ClusterChannelsBelongNode(ctx context.Context, req *pluginproto.Cl
 	if req == nil || len(req.GetChannels()) == 0 {
 		return nil, ErrChannelRequired
 	}
-	groups := make(map[uint64][]*pluginproto.Channel)
-	for _, item := range req.GetChannels() {
+	ids := make([]message.ChannelID, len(req.GetChannels()))
+	for i, item := range req.GetChannels() {
 		id, err := channelIDFromPluginChannel(item)
 		if err != nil {
 			return nil, err
 		}
-		owner, err := a.channelOwners.ChannelOwnerNode(ctx, id)
+		ids[i] = id
+	}
+	owners := make([]uint64, len(ids))
+	if reader, ok := a.channelOwners.(ChannelOwnerBatchReader); ok {
+		var err error
+		owners, err = reader.ChannelOwnerNodes(ctx, ids)
 		if err != nil {
 			return nil, err
 		}
+		if len(owners) != len(ids) {
+			return nil, fmt.Errorf("%w: owner batch cardinality mismatch", ErrChannelOwnerUnknown)
+		}
+	} else {
+		for i, id := range ids {
+			owner, err := a.channelOwners.ChannelOwnerNode(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+			owners[i] = owner
+		}
+	}
+	groups := make(map[uint64][]*pluginproto.Channel)
+	for i, item := range req.GetChannels() {
+		owner := owners[i]
 		if owner == 0 {
-			return nil, fmt.Errorf("%w: %s/%d", ErrChannelOwnerUnknown, id.ID, id.Type)
+			return nil, fmt.Errorf("%w: %s/%d", ErrChannelOwnerUnknown, ids[i].ID, ids[i].Type)
 		}
 		groups[owner] = append(groups[owner], clonePluginChannel(item))
 	}

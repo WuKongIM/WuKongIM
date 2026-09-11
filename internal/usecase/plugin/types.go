@@ -277,6 +277,12 @@ type ChannelOwnerReader interface {
 	ChannelOwnerNode(context.Context, message.ChannelID) (uint64, error)
 }
 
+// ChannelOwnerBatchReader shares authoritative reads across a conversation list.
+type ChannelOwnerBatchReader interface {
+	// ChannelOwnerNodes returns one current owner per input, preserving input order.
+	ChannelOwnerNodes(context.Context, []message.ChannelID) ([]uint64, error)
+}
+
 // ConversationReader reads authoritative UID conversation channel lists for host RPCs.
 type ConversationReader interface {
 	// ConversationChannels returns recent conversation channels for a UID in reader-defined order.
