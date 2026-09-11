@@ -94,8 +94,10 @@ _openapi:
 
           version `integer:int64` — Legacy Conversation version.
 
-          recents array<`LegacyMessage`> — Recent messages returned according to
-          msg_count.
+          recents array<`LegacyMessage`> — Recent messages bounded by msg_count.
+          To repair old empty-key collisions, the latest empty-number message
+          may be returned again after the client cursor advances; read and
+          delete positions are unchanged.
 
           LegacyMessage
 

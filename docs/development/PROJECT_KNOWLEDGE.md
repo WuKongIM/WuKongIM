@@ -1361,3 +1361,5 @@ Recovery barriers compare the complete `(ChannelEpoch, LeaderTerm, FenceVersion)
 - Batch history preparation overlaps at most eight UID membership and terminal Channel checks per request, joins all workers before message reads, and preserves input-order errors and visibility floors. Store adapters must support concurrent reads and context cancellation.
 
 - Legacy API and plugin history render empty stored client numbers as `wk3-legacy-<message_id>` only when the message ID is nonzero. Exact lookup first honors a real client-number index match, then may resolve that alias by ID only for an empty-number record under the same membership/visibility checks. Aliases are read identities, not SEND idempotency or event mutation keys; raw storage, expiration and payload are unchanged.
+
+- Legacy sync may reread only the latest visible empty-number head after an advanced client cursor, because old clients could advance local sequence bookkeeping while losing that message to an empty-key collision. This read-only replay leaves membership, unread, read and delete boundaries unchanged.

@@ -30,7 +30,9 @@ It does not subscribe users, deliver messages, or implement storage and transpor
 3. `SyncLegacy` walks at most 1,000 membership candidates, applies the v2.2
    page, unread, excluded-type, version, and per-Channel cursor semantics, then
    reads recent committed messages and their stream-event summaries in aligned
-   batches of at most 200 Channels.
+   batches of at most 200 Channels. An old empty-client-number head can be
+   reread after an advanced legacy cursor to repair a missing preview; ordinary
+   heads retain exclusive-cursor behavior and durable read/delete state is unchanged.
 4. Personal commands monotonically update `read_seq`, `deleted_to_seq`, or
    `activated_at` after exact membership and Channel-head reads.
 

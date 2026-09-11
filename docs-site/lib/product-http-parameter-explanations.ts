@@ -669,7 +669,7 @@ export const productHTTPParameterExplanations = {
         offset_msg_seq: explanation('本次 recent 消息窗口的偏移序号。', 'Offset sequence for this recent-message window.'),
         readed_to_msg_seq: explanation('用户已读到的消息序号。', 'Message sequence read by the user.'),
         version: explanation('旧式会话版本。', 'Legacy Conversation version.'),
-        recents: explanation('按 msg_count 返回的最近消息。', 'Recent messages returned according to msg_count.'),
+        recents: explanation('按 msg_count 返回最近消息；为修复旧客户端空编号冲突，最新空编号消息可在游标已前移时再次返回，已读和删除位置不变。', 'Recent messages bounded by msg_count. To repair old empty-key collisions, the latest empty-number message may be returned again after the client cursor advances; read and delete positions are unchanged.'),
       },
     },
     ConversationSyncLegacyRequest: {

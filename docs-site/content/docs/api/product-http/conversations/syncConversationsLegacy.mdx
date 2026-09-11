@@ -83,7 +83,8 @@ _openapi:
 
           version `integer:int64` — 旧式会话版本。
 
-          recents array<`LegacyMessage`> — 按 msg_count 返回的最近消息。
+          recents array<`LegacyMessage`> — 按 msg_count
+          返回最近消息；为修复旧客户端空编号冲突，最新空编号消息可在游标已前移时再次返回，已读和删除位置不变。
 
           LegacyMessage
 

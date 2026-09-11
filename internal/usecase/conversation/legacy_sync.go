@@ -253,6 +253,13 @@ func (a *App) SyncLegacy(ctx context.Context, req LegacySyncRequest) (LegacySync
 		if (!clientKnowsChannel || clientSeq == 0) && (req.OnlyUnread || req.Version > 0) {
 			afterMessageSeq = legacyEffectiveReadSeq(item)
 		}
+		// An advanced legacy cursor does not prove that an empty-number head
+		// was stored successfully: old clients collide on that empty key.
+		// Re-read only that latest visible message so its stable read alias can
+		// repair the preview. Membership/read/delete positions remain unchanged.
+		if last := item.LastMessage; last != nil && last.MessageID != 0 && last.ClientMsgNo == "" && last.MessageSeq > 0 && afterMessageSeq >= last.MessageSeq {
+			afterMessageSeq = last.MessageSeq - 1
+		}
 		selected = append(selected, item)
 		queries = append(queries, LegacyMessageQuery{
 			ChannelID: item.ChannelID, ChannelType: uint8(item.ChannelType),

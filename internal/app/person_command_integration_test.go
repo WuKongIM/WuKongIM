@@ -148,6 +148,10 @@ func TestPersonCommandHTTPCluster(t *testing.T) {
 				if err := json.Unmarshal(response.Body.Bytes(), &rows); err != nil || len(rows) != 1 || len(rows[0].Recents) != 1 || rows[0].LastClientMsgNo != alias || rows[0].Recents[0].ClientMsgNo != alias || rows[0].Recents[0].MessageID != emptySent.MessageID || rows[0].Recents[0].Expire != 37 {
 					t.Fatalf("legacy read projection: %s %v", response.Body, err)
 				}
+				incremental := post(a, "/conversation/sync", fmt.Sprintf(`{"uid":"legacy-empty-user","version":1,"last_msg_seqs":"legacy-empty-group:2:%d","msg_count":1}`, emptySent.MessageSeq))
+				if err := json.Unmarshal(incremental.Body.Bytes(), &rows); err != nil || len(rows) != 1 || rows[0].LastClientMsgNo != alias {
+					t.Fatalf("stale preview not refreshed after cursor advanced: %s %v", incremental.Body, err)
+				}
 				lookup := post(a, "/messages", fmt.Sprintf(`{"login_uid":"legacy-empty-user","channel_id":"legacy-empty-group","channel_type":2,"client_msg_nos":[%q]}`, alias))
 				if !strings.Contains(lookup.Body.String(), alias) {
 					t.Fatalf("alias lookup lost identity: %s", lookup.Body)
