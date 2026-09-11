@@ -1147,11 +1147,11 @@
       "post": {
         "operationId": "bindCommandChannel",
         "summary": "Bind command-channel discovery",
-        "description": "Starts durable offline discovery after the current command-channel tail.",
+        "description": "Starts bounded recipient discovery after one committed command tail.",
         "x-i18n": {
           "zh": {
             "summary": "绑定命令 Channel 发现",
-            "description": "从当前命令 Channel tail 之后开始持久离线发现。"
+            "description": "为有上限的接收者批次建立 CMD 发现关系，从同一已提交尾部之后生效。"
           }
         },
         "tags": [
@@ -1180,11 +1180,11 @@
       "post": {
         "operationId": "unbindCommandChannel",
         "summary": "Unbind command-channel discovery",
-        "description": "Tombstones durable discovery without deleting command messages.",
+        "description": "Tombstones bounded recipient discovery without deleting command messages.",
         "x-i18n": {
           "zh": {
             "summary": "解绑命令 Channel 发现",
-            "description": "为持久发现写入 tombstone，但不删除命令消息。"
+            "description": "为有上限的接收者批次写入发现关系墓碑，不删除 CMD 消息。"
           }
         },
         "tags": [
@@ -3349,11 +3349,6 @@
       "MessageCMDBindingRequest": {
         "type": "object",
         "additionalProperties": true,
-        "required": [
-          "uid",
-          "channel_id",
-          "channel_type"
-        ],
         "properties": {
           "uid": {
             "type": "string",
@@ -3370,8 +3365,97 @@
             "format": "uint8",
             "minimum": 1,
             "maximum": 255
+          },
+          "uids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1000,
+            "items": {
+              "type": "string"
+            }
+          },
+          "subscribers": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1000,
+            "items": {
+              "type": "string"
+            }
           }
-        }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "uid",
+              "channel_id",
+              "channel_type"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "uids"
+                  ]
+                },
+                {
+                  "required": [
+                    "subscribers"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "required": [
+              "uids",
+              "channel_id",
+              "channel_type"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "uid"
+                  ]
+                },
+                {
+                  "required": [
+                    "subscribers"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "required": [
+              "subscribers"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "uid"
+                  ]
+                },
+                {
+                  "required": [
+                    "uids"
+                  ]
+                },
+                {
+                  "required": [
+                    "channel_id"
+                  ]
+                },
+                {
+                  "required": [
+                    "channel_type"
+                  ]
+                }
+              ]
+            }
+          }
+        ]
       },
       "ChannelMessageSyncRequest": {
         "type": "object",

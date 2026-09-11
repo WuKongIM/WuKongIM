@@ -323,7 +323,7 @@ rsync -anc --numeric-ids --delete --itemize-changes /srv/wkmigrate/targets/node1
 
 使用 Docker Compose 部署三节点集群时，每个服务绑定独立的目标目录，并使用配套 v3 镜像。桥接网络中，计划的 `target.nodes[].addr` 与配置的 `cluster.nodes` 应使用容器互通的服务名或网络别名（例如 `wk-node1:7000`），监听地址可用 `0.0.0.0:7000`；不要把宿主机的 `127.0.0.1` 或端口映射当作容器间 RPC 地址。容器内的 `node.data_dir` 应与已验证的计划路径一致，并确认运行用户可读写绑定目录。保留 12 个逻辑 Slot、256 个 hash slot 和三副本时，分别配置 `initial_slot_count=12`、`hash_slot_count=256`、`slot_replica_n=3`、`channel_replica_n=3`。应在 `prepare` 前确定这些地址；更改计划后使用新的工作空间和迁移产物，不能修改已生成库中的迁移身份来复用。先运行 `docker compose config --quiet` 与各节点的 `wukongim config validate`，完成离线校验后再启动容器。
 
-需要持久 CMD 离线恢复时，切换前须适配发送服务：普通群订阅或 `sync_once=1` 发送成功不会自动建立 CMD 发现关系。对有权限的接收者和稳定的来源频道，在第一条需要离线恢复的命令发送**之前**调用 `POST /message/cmd/bind`；随成员变化维护绑定，失去权限时调用 `/message/cmd/unbind`。绑定从当前 CMD 尾部之后生效，不会补回绑定之前的命令。请求级 `subscribers` 不构成离线恢复目录；旧发送服务若依赖自动离线扩散，单纯导入数据无法提供这项兼容性。使用真正断开的接收者，跨节点验证 `/message/sync`、处理后的 `/message/syncack` 以及移除后的权限；在线 CMD 投递通过不能替代离线验收。详见[可恢复命令](/zh/guide/tutorials/ai-and-iot)。
+需要持久 CMD 离线恢复时，切换前须适配发送服务：普通群订阅或 `sync_once=1` 发送成功不会自动建立 CMD 发现关系。对有权限的接收者和稳定的来源频道，在第一条需要离线恢复的命令发送**之前**调用 `POST /message/cmd/bind`；随成员变化维护绑定，失去权限时调用 `/message/cmd/unbind`。绑定从当前 CMD 尾部之后生效，不会补回绑定之前的命令。请求级 `subscribers` 本身不构成离线恢复目录；支持批量绑定的目标版本可先用完全相同顺序的 `{ "subscribers": [...] }` 建立发现关系，再发送 CMD。稳定源频道可使用 `{ "uids": [...], "channel_id": "...", "channel_type": 2 }` 分批绑定，每批最多 1000 项、请求体最多 256 KiB。不要拆分临时接收者范围后只发送原范围，因为范围不同会派生不同的 CMD 频道。跨 Slot 绑定失败可能已写入一部分，须重试并确认整个绑定成功后再发送；旧发送服务若依赖自动离线扩散，单纯导入数据无法提供这项兼容性。使用真正断开的接收者，跨节点验证 `/message/sync`、处理后的 `/message/syncack` 以及移除后的权限；在线 CMD 投递通过不能替代离线验收。详见[可恢复命令](/zh/guide/tutorials/ai-and-iot)。
 
 使用配套 v3 程序隔离启动全部目标节点，暂不接入生产流量。至少验证：
 

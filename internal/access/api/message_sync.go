@@ -21,9 +21,11 @@ type messageSyncAckRequest struct {
 }
 
 type messageCMDBindingRequest struct {
-	UID         string `json:"uid"`
-	ChannelID   string `json:"channel_id"`
-	ChannelType uint8  `json:"channel_type"`
+	UIDs        []string `json:"uids"`
+	Subscribers []string `json:"subscribers"`
+	UID         string   `json:"uid"`
+	ChannelID   string   `json:"channel_id"`
+	ChannelType uint8    `json:"channel_type"`
 }
 
 func (s *Server) handleMessageSync(c *gin.Context) {
@@ -96,7 +98,7 @@ func (s *Server) handleMessageCMDBind(c *gin.Context) {
 		return
 	}
 	if err := s.cmdSync.Bind(c.Request.Context(), cmdsyncusecase.BindCommand{
-		UID: req.UID, ChannelID: req.ChannelID, ChannelType: req.ChannelType,
+		UID: req.UID, UIDs: req.UIDs, Subscribers: req.Subscribers, ChannelID: req.ChannelID, ChannelType: req.ChannelType,
 	}); err != nil {
 		writeJSONError(c, err.Error())
 		return
@@ -110,7 +112,7 @@ func (s *Server) handleMessageCMDUnbind(c *gin.Context) {
 		return
 	}
 	if err := s.cmdSync.Unbind(c.Request.Context(), cmdsyncusecase.UnbindCommand{
-		UID: req.UID, ChannelID: req.ChannelID, ChannelType: req.ChannelType,
+		UID: req.UID, UIDs: req.UIDs, Subscribers: req.Subscribers, ChannelID: req.ChannelID, ChannelType: req.ChannelType,
 	}); err != nil {
 		writeJSONError(c, err.Error())
 		return
@@ -120,13 +122,14 @@ func (s *Server) handleMessageCMDUnbind(c *gin.Context) {
 
 func (s *Server) bindMessageCMDBinding(c *gin.Context) (messageCMDBindingRequest, bool) {
 	var req messageCMDBindingRequest
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 256*1024)
 	if err := c.ShouldBindJSON(&req); err != nil {
 		writeJSONError(c, "数据格式有误！")
 		return messageCMDBindingRequest{}, false
 	}
 	req.UID = strings.TrimSpace(req.UID)
 	req.ChannelID = strings.TrimSpace(req.ChannelID)
-	if req.UID == "" || req.ChannelID == "" || req.ChannelType == 0 {
+	if len(req.UIDs) == 0 && len(req.Subscribers) == 0 && (req.UID == "" || req.ChannelID == "" || req.ChannelType == 0) {
 		writeJSONError(c, "uid、channel_id和channel_type不能为空！")
 		return messageCMDBindingRequest{}, false
 	}

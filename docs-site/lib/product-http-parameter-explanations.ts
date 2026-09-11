@@ -360,7 +360,11 @@ export const productHTTPParameterExplanations = {
     },
     MessageCMDBindingRequest: {
       description: explanation('命令 Channel 离线发现绑定参数。', 'Command-Channel offline-discovery binding parameters.'),
-      properties: { uid, channel_id: channelID, channel_type: channelType },
+      properties: {
+        uid, channel_id: channelID, channel_type: channelType,
+        uids: explanation('源频道的接收者列表，最多 1000 项；去空白和重复项。不能与 uid 或 subscribers 同用。', 'Source-Channel recipients, at most 1000 entries; trims blanks and duplicates. Exclusive with uid and subscribers.'),
+        subscribers: explanation('仅使用此字段绑定 SEND 的临时接收者范围；最多 1000 项，顺序必须与 SEND 一致。不能与频道字段同用。', 'Use this field alone to bind the SEND temporary recipient scope; at most 1000 entries, in the same order as SEND. Exclusive with source-Channel fields.'),
+      },
     },
     ChannelMessageSyncRequest: {
       description: explanation('单 Channel 已提交消息同步参数。', 'Single-Channel committed-message synchronization parameters.'),
@@ -419,7 +423,11 @@ export const productHTTPParameterExplanations = {
     },
     ConversationMutationRequest: {
       description: explanation('会话清未读、隐藏或激活操作共用的 Key。', 'Shared key for Conversation clear-unread, hide, or activate operations.'),
-      properties: { uid, channel_id: channelID, channel_type: channelType },
+      properties: {
+        uid, channel_id: channelID, channel_type: channelType,
+        uids: explanation('源频道的接收者列表，最多 1000 项；去空白和重复项。不能与 uid 或 subscribers 同用。', 'Source-Channel recipients, at most 1000 entries; trims blanks and duplicates. Exclusive with uid and subscribers.'),
+        subscribers: explanation('仅使用此字段绑定 SEND 的临时接收者范围；最多 1000 项，顺序必须与 SEND 一致。不能与频道字段同用。', 'Use this field alone to bind the SEND temporary recipient scope; at most 1000 entries, in the same order as SEND. Exclusive with source-Channel fields.'),
+      },
     },
     ConversationSetUnreadRequest: {
       description: explanation('设置会话最大未读数的参数。', 'Parameters for setting a Conversation maximum unread count.'),

@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add bounded batch CMD discovery binding for stable source channels and exact request-scoped recipients, sharing one committed start boundary across the batch. / CMD 发现绑定支持有上限的源频道成员批次和精确临时接收者范围，一批共用已提交起始边界。
+
 - Document explicit CMD binding and disconnected-recipient acceptance as prerequisites for v2 migration cutover. / 补充 v2 迁移切换前的 CMD 显式绑定适配和离线接收者验收要求。
 
 - Restore legacy `POST /messages` exact lookup by message ID, sequence, and client message number, using committed indexes with membership and retention checks.

@@ -56,6 +56,8 @@ bench or debug request
   a production authentication claim.
 - `POST /messages` maps bounded exact ID, sequence and client-number selectors
   to the message use case; its legacy envelope preserves integer identity.
+- CMD bind/unbind accept bounded single, source-recipient batch, or exact
+  request-subscriber forms; the use case resolves the scope and shared tail.
 - `/message/eventsync` maps the original projected-event envelope to the narrow
   event-sync use case; sequence selection and visibility policy stay below HTTP.
 - `/plugins/:plugin_no/*path` preserves the business-backend plugin route with a

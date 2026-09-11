@@ -46,15 +46,23 @@ type SyncAckCommand struct {
 	LastMessageSeq uint64
 }
 
-// BindCommand creates or restores durable CMD discovery for one UID and source channel.
+// BindCommand creates or restores durable CMD discovery for a bounded recipient set and source channel.
 type BindCommand struct {
+	// UIDs binds a bounded recipient batch to one explicit source Channel.
+	UIDs []string
+	// Subscribers binds the exact normalized request-scoped recipient set.
+	// It cannot be combined with UID, UIDs, ChannelID, or ChannelType.
+	Subscribers []string
 	UID         string
 	ChannelID   string
 	ChannelType uint8
 }
 
-// UnbindCommand tombstones durable CMD discovery for one UID and source channel.
+// UnbindCommand tombstones durable CMD discovery for a bounded recipient set and source channel.
 type UnbindCommand struct {
+	// UIDs and Subscribers use the same mutually exclusive forms as BindCommand.
+	UIDs        []string
+	Subscribers []string
 	UID         string
 	ChannelID   string
 	ChannelType uint8

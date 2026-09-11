@@ -10,8 +10,8 @@ description: 消息恢复、事件与命令消息兼容接口。
 <Card href="/zh/api/product-http/messages/syncMessageEvents" title="同步消息事件当前投影" description="按序号游标读取当前持久化事件投影，不重放完整事件日志。在有界读取后过滤私有事件。调用方身份与 include_private 没有鉴权，必须由受信后端保护。" />
 <Card href="/zh/api/product-http/messages/syncCommandMessages" title="同步命令消息" description="返回最新持久 CMD generation；message_seq 仅兼容接收但会被忽略。" />
 <Card href="/zh/api/product-http/messages/ackCommandMessages" title="确认最新命令消息同步" description="要求 last_message_seq 为正数，但确认的是服务端最近记录的 generation，而不是该输入值。" />
-<Card href="/zh/api/product-http/messages/bindCommandChannel" title="绑定命令 Channel 发现" description="从当前命令 Channel tail 之后开始持久离线发现。" />
-<Card href="/zh/api/product-http/messages/unbindCommandChannel" title="解绑命令 Channel 发现" description="为持久发现写入 tombstone，但不删除命令消息。" />
+<Card href="/zh/api/product-http/messages/bindCommandChannel" title="绑定命令 Channel 发现" description="为有上限的接收者批次建立 CMD 发现关系，从同一已提交尾部之后生效。" />
+<Card href="/zh/api/product-http/messages/unbindCommandChannel" title="解绑命令 Channel 发现" description="为有上限的接收者批次写入发现关系墓碑，不删除 CMD 消息。" />
 <Card href="/zh/api/product-http/messages/syncQuickstartChannelMessages" title="同步一个 Channel 的已提交消息" description="校验成员可见性并返回升序分页；limit 默认 100，最大 10000。" />
 <Card href="/zh/api/product-http/messages/syncChannelMessagesBatch" title="同步最多 200 个 Channel" description="批量读取前校验全部成员关系；单项失败嵌入 HTTP 200 响应。" />
 <Card href="/zh/api/product-http/messages/lookupMessages" title="精确查询已提交消息" description="按成员可见范围精确查询已提交消息；选择项、结果或索引检查超限时明确失败，不返回部分结果。" />

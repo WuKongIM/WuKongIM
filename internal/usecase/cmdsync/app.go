@@ -166,55 +166,6 @@ func (a *App) SyncAck(ctx context.Context, cmd SyncAckCommand) error {
 	return nil
 }
 
-// Bind enables durable offline discovery for future messages in one command channel.
-func (a *App) Bind(ctx context.Context, cmd BindCommand) error {
-	uid, channelID, err := validateBindingIdentity(cmd.UID, cmd.ChannelID, cmd.ChannelType)
-	if err != nil {
-		return err
-	}
-	if a == nil || a.states == nil {
-		return ErrStateStoreRequired
-	}
-	if a.messages == nil {
-		return ErrMessageStoreRequired
-	}
-	key := CommandChannelKey{ChannelID: a.commandChannels.ToCommandChannel(channelID), ChannelType: cmd.ChannelType}
-	tail, err := a.messages.CommandChannelTail(ctx, key)
-	if err != nil {
-		return err
-	}
-	if tail == ^uint64(0) {
-		return ErrSequenceExhausted
-	}
-	return a.states.UpsertUserCMDChannelMemberships(ctx, []metadb.UserCMDChannelMembership{{
-		UID:              uid,
-		CommandChannelID: key.ChannelID,
-		ChannelType:      int64(key.ChannelType),
-		StartSeq:         tail + 1,
-		UpdatedAt:        a.now().UnixNano(),
-	}})
-}
-
-// Unbind disables durable offline discovery without touching command messages.
-func (a *App) Unbind(ctx context.Context, cmd UnbindCommand) error {
-	uid, channelID, err := validateBindingIdentity(cmd.UID, cmd.ChannelID, cmd.ChannelType)
-	if err != nil {
-		return err
-	}
-	if a == nil || a.states == nil {
-		return ErrStateStoreRequired
-	}
-	now := a.now().UnixNano()
-	return a.states.TombstoneUserCMDChannelMemberships(ctx, []metadb.UserCMDChannelMembership{{
-		UID:              uid,
-		CommandChannelID: a.commandChannels.ToCommandChannel(channelID),
-		ChannelType:      int64(cmd.ChannelType),
-		Tombstone:        true,
-		TombstoneAt:      now,
-		UpdatedAt:        now,
-	}})
-}
-
 func validateBindingIdentity(uid, channelID string, channelType uint8) (string, string, error) {
 	uid = strings.TrimSpace(uid)
 	if uid == "" {

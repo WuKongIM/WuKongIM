@@ -137,6 +137,33 @@ func TestPersonCommandHTTPCluster(t *testing.T) {
 			if err := apps[0].cmdSync.Unbind(ctx, cmdsync.UnbindCommand{UID: "uu1", ChannelID: source, ChannelType: 1}); err != nil {
 				t.Fatal(err)
 			}
+
+			scopedBinding := `{"subscribers":["offline-b","offline-a","offline-b"]}`
+			post(apps[0], "/message/cmd/bind", scopedBinding)
+			scopedSend := `{"header":{"sync_once":1},"subscribers":["offline-b","offline-a","offline-b"],"payload":"e30="}`
+			post(apps[len(apps)-1], "/message/send", scopedSend)
+			// A retry after SEND must not move an existing recipient beyond that command.
+			post(apps[len(apps)-1], "/message/cmd/bind", scopedBinding)
+			for i, uid := range []string{"offline-a", "offline-b"} {
+				entry := apps[i%len(apps)]
+				body := fmt.Sprintf(`{"uid":%q,"limit":10}`, uid)
+				got := post(entry, "/message/sync", body)
+				var records []map[string]interface{}
+				if err := json.Unmarshal(got.Body.Bytes(), &records); err != nil || len(records) != 1 {
+					t.Fatalf("scoped offline sync: %s err=%v", got.Body, err)
+				}
+				post(entry, "/message/syncack", fmt.Sprintf(`{"uid":%q,"last_message_seq":1}`, uid))
+				for _, reader := range apps {
+					if rest := post(reader, "/message/sync", body); rest.Body.String() != "[]" {
+						t.Fatalf("ack not durable across nodes: %s", rest.Body)
+					}
+				}
+			}
+			post(apps[len(apps)-1], "/message/cmd/unbind", scopedBinding)
+			post(apps[0], "/message/send", scopedSend)
+			if got := post(apps[0], "/message/sync", `{"uid":"offline-a","limit":10}`); got.Body.String() != "[]" {
+				t.Fatalf("unbound scope recovered command: %s", got.Body)
+			}
 		})
 	}
 }
