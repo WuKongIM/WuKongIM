@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Allow a connected plugin readiness handshake to use the remaining startup budget, avoiding repeated premature timeouts when the node is CPU throttled. / 插件就绪握手使用剩余启动等待期限，避免 CPU 限流时反复提前超时导致启动失败。
+
 - Confirm retried sends against current Leader committed history before returning success; a local durable proposal alone no longer produces a successful send acknowledgment. / 重试发送必须由当前 Leader 的已提交历史确认，避免将仅本地落盘的提议误报为发送成功。
 
 - Preserve committed channel migration task chains across Slot replay batch boundaries, preventing older Leader metadata from reappearing after restart. / 修复 Slot 日志重放批次边界导致后续频道迁移任务被误跳过，避免重启后恢复出旧 Leader 状态。
