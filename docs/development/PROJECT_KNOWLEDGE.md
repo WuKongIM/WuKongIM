@@ -1353,3 +1353,5 @@ Recovery barriers compare the complete `(ChannelEpoch, LeaderTerm, FenceVersion)
 - A CMD binding can legitimately precede command-log creation. CMD reads map only routed `channel.ErrChannelNotFound` to no messages, consistently with `CommittedChannelTail`; never hide unavailable leaders, transport failures, or deadline errors as empty history.
 
 - Offline CMD sync reads UID directory entries in bounded chunks of 32, sharing authoritative source metadata and committed Channel-owner batches. Preserve aligned results and per-channel pagination; only identified missing logs are empty. A failed chunk must not replace the prior acknowledgement generation, and global ordering/limits apply across all directory pages.
+
+- Terminal source deletion retains identity and can leave existing CMD bindings. Global CMD sync skips only authoritative `ErrChannelDisbanded` items, without reading those command logs or acknowledging them. Infrastructure reports aligned per-source facts; all other read failures remain errors and preserve the previous ACK generation. Direct source reads still reject disband.

@@ -127,6 +127,9 @@ func TestPersonCommandHTTPCluster(t *testing.T) {
 			if empty := post(apps[len(apps)-1], "/message/sync", `{"uid":"uu1","limit":10}`); empty.Body.String() != "[]" {
 				t.Fatalf("unused binding failed sync: %s", empty.Body)
 			}
+			// Terminal group closure must not block another source's offline CMD.
+			post(apps[0], "/channel", `{"channel_id":"unused-000","channel_type":2,"subscribers":["uu1"]}`)
+			post(apps[len(apps)-1], "/channel/delete", `{"channel_id":"unused-000","channel_type":2}`)
 			durable := strings.Replace(original, `"no_persist":1`, `"no_persist":0`, 1)
 			post(apps[len(apps)-1], "/message/send", durable)
 			rec := post(apps[0], "/message/sync", `{"uid":"uu1","limit":10}`)

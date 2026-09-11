@@ -2,6 +2,7 @@ package cmdsync
 
 import (
 	"context"
+	"errors"
 	"fmt"
 )
 
@@ -20,7 +21,17 @@ func (a *App) loadCommandBatch(ctx context.Context, candidates []syncChannelCand
 		if len(result) != len(queries) {
 			return nil, fmt.Errorf("CMD batch returned %d results for %d channels", len(result), len(queries))
 		}
-		return result, nil
+		messages := make([][]SyncedMessage, len(result))
+		for i, row := range result {
+			if errors.Is(row.Err, ErrChannelDisbanded) {
+				continue
+			}
+			if row.Err != nil {
+				return nil, row.Err
+			}
+			messages[i] = row.Messages
+		}
+		return messages, nil
 	}
 	result := make([][]SyncedMessage, len(candidates))
 	for i, c := range candidates {
@@ -28,6 +39,9 @@ func (a *App) loadCommandBatch(ctx context.Context, candidates []syncChannelCand
 			return nil, err
 		}
 		messages, err := a.messages.LoadCommandMessages(ctx, c.key, c.fromSeq, limit)
+		if errors.Is(err, ErrChannelDisbanded) {
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}

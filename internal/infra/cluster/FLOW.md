@@ -13,9 +13,8 @@ payloads, chooses local versus typed node-RPC execution, preserves aligned batch
 results, and translates infrastructure failures into the error families owned
 by the calling usecase or runtime.
 
-Major adapters cover Channel append and committed reads, Slot-owned metadata,
-UID-owned presence and membership, management operations, plugins, diagnostics,
-and bounded operations observations.
+Adapters cover Channel reads/appends, Slot metadata, UID presence/membership,
+management, plugins, diagnostics, and bounded operations observations.
 
 ## Boundaries
 
@@ -65,6 +64,9 @@ and bounded operations observations.
   CMD reads batch up to 32 directory channels through authoritative source
   metadata and committed Channel reads, preserving alignment and per-channel
   pagination. An ambiguous batch-level absence cannot clear other logs.
+  A confirmed terminal source produces an aligned `ErrChannelDisbanded` item
+  without reading its command log. The CMD usecase decides to skip that item
+  during global sync; direct source reads retain the error.
 - Batch adapters preserve cardinality and order. Missing, duplicate,
   contradictory, or unrepresentable evidence is an error, not fabricated
   success.
@@ -84,7 +86,6 @@ and bounded operations observations.
   labels.
 
 ## Read First
-
 - [Append adapter](channel_append.go)
 - [Metadata adapter](channel_metadata.go)
 - [Presence adapter](presence.go)

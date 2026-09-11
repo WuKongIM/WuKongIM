@@ -26,7 +26,7 @@ func TestCMDBatchGroupsSourceReadsAndContinuesOnlyUnfinishedLogs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 3 || len(got[0]) != 0 || len(got[1]) != 2 || len(got[2]) != 1 || got[1][1].MessageSeq != 2 || got[2][0].MessageSeq != 9 {
+	if len(got) != 3 || len(got[0].Messages) != 0 || len(got[1].Messages) != 2 || len(got[2].Messages) != 1 || got[1].Messages[1].MessageSeq != 2 || got[2].Messages[0].MessageSeq != 9 {
 		t.Fatalf("lost aligned reads: %+v", got)
 	}
 	if node.metadataCalls != 1 || !reflect.DeepEqual(node.batchSizes, []int{3, 1}) {
@@ -36,6 +36,21 @@ func TestCMDBatchGroupsSourceReadsAndContinuesOnlyUnfinishedLogs(t *testing.T) {
 		if node.facts[i].ChannelID != source || node.facts[i].ChannelType != int64(queries[i].Key.ChannelType) || node.facts[i].Kind != slotproxy.PermissionMetadataReadChannel {
 			t.Fatalf("wrong authoritative source: %+v", node.facts[i])
 		}
+	}
+}
+
+func TestCMDBatchReportsClosedSourceAndReadsOtherLogs(t *testing.T) {
+	node := &cmdBatchNode{cmdSyncNodeFake: &cmdSyncNodeFake{}, mode: "closed_first"}
+	reads := []cmdsync.CommandMessageRead{{Key: cmdsync.CommandChannelKey{ChannelID: "closed____cmd", ChannelType: 2}, Limit: 1}, {Key: cmdsync.CommandChannelKey{ChannelID: "live____cmd", ChannelType: 2}, Limit: 1}}
+	got, err := NewCMDSyncStore(node).LoadCommandMessagesBatch(context.Background(), reads)
+	if err != nil || len(got) != 2 {
+		t.Fatalf("batch failed: %+v %v", got, err)
+	}
+	if !errors.Is(got[0].Err, cmdsync.ErrChannelDisbanded) || len(got[0].Messages) != 0 || got[1].Err != nil || len(got[1].Messages) != 1 {
+		t.Fatalf("lost source results: %+v", got)
+	}
+	if !reflect.DeepEqual(node.batchSizes, []int{1}) {
+		t.Fatalf("read terminal log: %v", node.batchSizes)
 	}
 }
 
@@ -67,7 +82,12 @@ func (n *cmdBatchNode) ReadPermissionMetadataBatchAuthoritative(_ context.Contex
 	if n.mode == "metadata_shape" {
 		return nil
 	}
-	return make([]slotproxy.PermissionMetadataReadResult, len(reads))
+	rows := make([]slotproxy.PermissionMetadataReadResult, len(reads))
+	if n.mode == "closed_first" {
+		rows[0].Found = true
+		rows[0].Channel.Disband = 1
+	}
+	return rows
 }
 func (n *cmdBatchNode) ReadChannelCommittedBatch(_ context.Context, reads []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {
 	n.batchSizes = append(n.batchSizes, len(reads))
@@ -79,6 +99,9 @@ func (n *cmdBatchNode) ReadChannelCommittedBatch(_ context.Context, reads []clus
 	}
 	rows := make([]clusterchannels.CommittedReadResult, len(reads))
 	for i, r := range reads {
+		if n.mode == "closed_first" && r.ChannelID.ID == "closed____cmd" {
+			return nil, errors.New("terminal log must not be read")
+		}
 		if n.mode == "read_error" {
 			rows[i].Err = errors.New("leader unavailable")
 			continue

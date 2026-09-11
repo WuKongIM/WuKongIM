@@ -69,7 +69,7 @@ type cmdBatchStore struct {
 	badShape bool
 }
 
-func (s *cmdBatchStore) LoadCommandMessagesBatch(ctx context.Context, queries []CommandMessageRead) ([][]SyncedMessage, error) {
+func (s *cmdBatchStore) LoadCommandMessagesBatch(ctx context.Context, queries []CommandMessageRead) ([]CommandMessageReadResult, error) {
 	s.sizes = append(s.sizes, len(queries))
 	if len(s.sizes) == s.failCall {
 		if s.badShape {
@@ -77,13 +77,13 @@ func (s *cmdBatchStore) LoadCommandMessagesBatch(ctx context.Context, queries []
 		}
 		return nil, errors.New("unavailable batch")
 	}
-	out := make([][]SyncedMessage, len(queries))
+	out := make([]CommandMessageReadResult, len(queries))
 	for i, q := range queries {
 		msgs, err := s.cmdSyncStore.LoadCommandMessages(ctx, q.Key, q.FromSeq, q.Limit)
 		if err != nil {
 			return nil, err
 		}
-		out[i] = msgs
+		out[i] = CommandMessageReadResult{Messages: msgs}
 	}
 	return out, nil
 }

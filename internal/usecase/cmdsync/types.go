@@ -122,11 +122,20 @@ type CommandMessageRead struct {
 	Limit   int
 }
 
-// MessageBatchStore can coalesce authoritative reads without changing ordering
-// or acknowledgement semantics. Results must align exactly with at most
-// MaxCommandReadBatch inputs; any read failure fails the complete call.
+// CommandMessageReadResult preserves one source's result within an aligned batch.
+type CommandMessageReadResult struct {
+	// Messages contains this source's committed commands when Err is nil.
+	Messages []SyncedMessage
+	// Err identifies a terminal source or a read failure; global sync skips only
+	// ErrChannelDisbanded and must fail for every unavailable or unknown result.
+	Err error
+}
+
+// MessageBatchStore coalesces authoritative reads without changing ordering or
+// acknowledgement semantics. Results align exactly with at most
+// MaxCommandReadBatch inputs; an outer error invalidates the complete batch.
 type MessageBatchStore interface {
-	LoadCommandMessagesBatch(context.Context, []CommandMessageRead) ([][]SyncedMessage, error)
+	LoadCommandMessagesBatch(context.Context, []CommandMessageRead) ([]CommandMessageReadResult, error)
 }
 
 // MessageStore loads authoritative messages from command-channel logs.

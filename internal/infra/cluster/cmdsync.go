@@ -47,6 +47,7 @@ type CMDSyncStore struct {
 
 var _ cmdsync.StateStore = (*CMDSyncStore)(nil)
 var _ cmdsync.MessageStore = (*CMDSyncStore)(nil)
+var _ cmdsync.MessageBatchStore = (*CMDSyncStore)(nil)
 
 // NewCMDSyncStore creates a cluster-backed CMD sync store.
 func NewCMDSyncStore(node CMDSyncNode) *CMDSyncStore {
@@ -97,17 +98,17 @@ func (s *CMDSyncStore) LoadCommandMessages(ctx context.Context, key cmdsync.Comm
 	if err != nil {
 		return nil, err
 	}
-	return rows[0], nil
+	return rows[0].Messages, rows[0].Err
 }
 
 // LoadCommandMessagesBatch shares Slot metadata reads and Channel-owner RPCs
 // across a bounded directory chunk. It preserves source fences, per-channel
 // pagination, and the explicit empty-log case without hiding unavailable reads.
-func (s *CMDSyncStore) LoadCommandMessagesBatch(ctx context.Context, queries []cmdsync.CommandMessageRead) ([][]cmdsync.SyncedMessage, error) {
+func (s *CMDSyncStore) LoadCommandMessagesBatch(ctx context.Context, queries []cmdsync.CommandMessageRead) ([]cmdsync.CommandMessageReadResult, error) {
 	if len(queries) > cmdsync.MaxCommandReadBatch {
 		return nil, metadb.ErrInvalidArgument
 	}
-	out := make([][]cmdsync.SyncedMessage, len(queries))
+	out := make([]cmdsync.CommandMessageReadResult, len(queries))
 	if len(queries) == 0 {
 		return out, nil
 	}
@@ -127,21 +128,23 @@ func (s *CMDSyncStore) LoadCommandMessagesBatch(ctx context.Context, queries []c
 	if len(metadata) != len(facts) {
 		return nil, fmt.Errorf("CMD source batch returned %d rows for %d reads", len(metadata), len(facts))
 	}
-	for _, row := range metadata {
+	for i, row := range metadata {
 		if row.Err != nil && !errors.Is(row.Err, metadb.ErrNotFound) {
 			return nil, row.Err
 		}
 		if row.Err == nil && row.Found && row.Channel.Disband != 0 {
-			return nil, cmdsync.ErrChannelDisbanded
+			out[i].Err = cmdsync.ErrChannelDisbanded
 		}
 	}
 	next := make([]uint64, len(queries))
 	limits := make([]int, len(queries))
-	pending := make([]int, len(queries))
+	pending := make([]int, 0, len(queries))
 	for i, q := range queries {
 		next[i] = max(q.FromSeq, 1)
 		limits[i] = max(q.Limit, 1)
-		pending[i] = i
+		if out[i].Err == nil {
+			pending = append(pending, i)
+		}
 	}
 	for len(pending) > 0 {
 		if err := ctx.Err(); err != nil {
@@ -156,7 +159,7 @@ func (s *CMDSyncStore) LoadCommandMessagesBatch(ctx context.Context, queries []c
 		// A singleton not-found identifies exactly one unused log. An ambiguous
 		// batch-level absence must not erase other channels' committed commands.
 		if len(pending) == 1 && errors.Is(err, channelruntime.ErrChannelNotFound) {
-			out[pending[0]] = nil
+			out[pending[0]].Messages = nil
 			break
 		}
 		if err != nil {
@@ -169,7 +172,7 @@ func (s *CMDSyncStore) LoadCommandMessagesBatch(ctx context.Context, queries []c
 		for j, result := range results {
 			i := pending[j]
 			if errors.Is(result.Err, channelruntime.ErrChannelNotFound) {
-				out[i] = nil
+				out[i].Messages = nil
 				continue
 			}
 			if result.Err != nil {
@@ -177,12 +180,12 @@ func (s *CMDSyncStore) LoadCommandMessagesBatch(ctx context.Context, queries []c
 			}
 			read := result.Read
 			for _, msg := range read.Messages {
-				out[i] = append(out[i], cmdSyncedMessageFromChannel(msg))
-				if len(out[i]) >= limits[i] {
+				out[i].Messages = append(out[i].Messages, cmdSyncedMessageFromChannel(msg))
+				if len(out[i].Messages) >= limits[i] {
 					break
 				}
 			}
-			if len(out[i]) < limits[i] && len(read.Messages) > 0 && read.NextSeq > next[i] {
+			if len(out[i].Messages) < limits[i] && len(read.Messages) > 0 && read.NextSeq > next[i] {
 				next[i] = read.NextSeq
 				active = append(active, i)
 			}

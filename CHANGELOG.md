@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Keep offline CMD synchronization available after a bound source Channel is disbanded; skip only confirmed terminal sources and retain explicit failures for unavailable reads. / 已绑定源频道解散后，离线 CMD 同步继续读取其他频道；仅跳过已确认的终止源，读取不可用仍明确报错。
+
 - Correct migration terminology: 12 physical Slots own the 256 logical hash slots. / 修正迁移教程术语：12 个物理 Slot 承载 256 个逻辑 hash slot。
 
 - Batch offline CMD reads across bound channels to reduce reconnect latency for users in many groups, preserving acknowledgement boundaries and complete-result failure handling. / 离线 CMD 按频道批量读取，降低多群用户重连耗时，保持确认边界和完整结果的错误处理。
