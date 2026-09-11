@@ -83,21 +83,21 @@ func (a *App) Sync(ctx context.Context, query SyncQuery) (SyncResult, error) {
 		}
 		channels := cmdSyncCandidatesFromMemberships(memberships)
 		sortSyncChannelCandidates(channels)
-		for _, candidate := range channels {
-			key := candidate.key
-			msgs, err := a.messages.LoadCommandMessages(ctx, key, candidate.fromSeq, limit)
+		for start := 0; start < len(channels); start += MaxCommandReadBatch {
+			end := min(start+MaxCommandReadBatch, len(channels))
+			batch := channels[start:end]
+			messages, err := a.loadCommandBatch(ctx, batch, limit)
 			if err != nil {
 				return SyncResult{}, err
 			}
-			for _, msg := range msgs {
-				candidates = append(candidates, syncMessageCandidate{
-					commandChannelID: key.ChannelID,
-					channelType:      key.ChannelType,
-					message:          msg,
-				})
+			for i, candidate := range batch {
+				for _, msg := range messages[i] {
+					candidates = append(candidates, syncMessageCandidate{commandChannelID: candidate.key.ChannelID, channelType: candidate.key.ChannelType, message: msg})
+				}
 			}
+			candidates = trimSyncMessageCandidates(candidates, limit)
 		}
-		candidates = trimSyncMessageCandidates(candidates, limit)
+
 		if done {
 			break
 		}
@@ -253,6 +253,7 @@ func trimSyncMessageCandidates(candidates []syncMessageCandidate, limit int) []s
 		return syncMessageLess(candidates[i], candidates[j])
 	})
 	if len(candidates) > limit {
+		clear(candidates[limit:])
 		return candidates[:limit]
 	}
 	return candidates

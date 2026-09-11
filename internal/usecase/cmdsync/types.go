@@ -112,6 +112,23 @@ type StateStore interface {
 	TombstoneUserCMDChannelMemberships(ctx context.Context, memberships []metadb.UserCMDChannelMembership) error
 }
 
+// MaxCommandReadBatch bounds one aligned multi-channel CMD read.
+const MaxCommandReadBatch = 32
+
+// CommandMessageRead carries one channel's durable recovery boundary.
+type CommandMessageRead struct {
+	Key     CommandChannelKey
+	FromSeq uint64
+	Limit   int
+}
+
+// MessageBatchStore can coalesce authoritative reads without changing ordering
+// or acknowledgement semantics. Results must align exactly with at most
+// MaxCommandReadBatch inputs; any read failure fails the complete call.
+type MessageBatchStore interface {
+	LoadCommandMessagesBatch(context.Context, []CommandMessageRead) ([][]SyncedMessage, error)
+}
+
 // MessageStore loads authoritative messages from command-channel logs.
 type MessageStore interface {
 	CommandChannelTail(ctx context.Context, key CommandChannelKey) (uint64, error)

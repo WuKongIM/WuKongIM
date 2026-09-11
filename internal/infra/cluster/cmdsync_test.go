@@ -11,6 +11,7 @@ import (
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 )
 
 func TestCMDSyncStoreListsCMDMemberships(t *testing.T) {
@@ -277,4 +278,13 @@ func (n *cmdReadFailureNode) ReadChannelCommittedBatch(context.Context, []cluste
 		return nil, n.failure
 	}
 	return []clusterchannels.CommittedReadResult{{Err: n.failure}}, nil
+}
+
+func (n *cmdSyncNodeFake) ReadPermissionMetadataBatchAuthoritative(ctx context.Context, reads []slotproxy.PermissionMetadataRead) []slotproxy.PermissionMetadataReadResult {
+	out := make([]slotproxy.PermissionMetadataReadResult, len(reads))
+	for i, r := range reads {
+		ch, err := n.GetChannelMetadataAuthoritative(ctx, r.ChannelID, r.ChannelType)
+		out[i] = slotproxy.PermissionMetadataReadResult{Channel: ch, Found: err == nil, Err: err}
+	}
+	return out
 }

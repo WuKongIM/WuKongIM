@@ -62,6 +62,9 @@ and bounded operations observations.
   unchanged.
 - CMD discovery may precede the first command log. Its reader treats only the
   routed typed Channel-not-found result as empty, matching the bind tail read.
+  CMD reads batch up to 32 directory channels through authoritative source
+  metadata and committed Channel reads, preserving alignment and per-channel
+  pagination. An ambiguous batch-level absence cannot clear other logs.
 - Batch adapters preserve cardinality and order. Missing, duplicate,
   contradictory, or unrepresentable evidence is an error, not fabricated
   success.

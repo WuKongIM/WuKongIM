@@ -119,6 +119,10 @@ func TestPersonCommandHTTPCluster(t *testing.T) {
 			}
 			binding := fmt.Sprintf(`{"uid":"uu1","channel_id":%q,"channel_type":1}`, source)
 			post(apps[0], "/message/cmd/bind", binding)
+			// More than one read chunk mixes unused logs with the live command below.
+			for i := 0; i <= cmdsync.MaxCommandReadBatch; i++ {
+				post(apps[i%len(apps)], "/message/cmd/bind", fmt.Sprintf(`{"uid":"uu1","channel_id":"unused-%03d","channel_type":2}`, i))
+			}
 			// Discovery is installed before the first persistent CMD exists.
 			if empty := post(apps[len(apps)-1], "/message/sync", `{"uid":"uu1","limit":10}`); empty.Body.String() != "[]" {
 				t.Fatalf("unused binding failed sync: %s", empty.Body)
