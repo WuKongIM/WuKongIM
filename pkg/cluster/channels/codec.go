@@ -50,6 +50,7 @@ const (
 	kindConversationHeadsResponse
 	kindCommittedReads
 	kindCommittedReadsResponse
+	kindIndexedCommittedReads
 )
 
 // EncodePullRequest encodes a Channel pull request.
@@ -330,11 +331,23 @@ func decodeConversationHeadsResponse(data []byte) (ConversationHeadsResponse, er
 }
 
 func encodeCommittedReadsRequestVersion(req CommittedReadsRequest, version uint8) ([]byte, error) {
-	return encodeRequestFrame(version, kindCommittedReads, appendCommittedReadsRequest(nil, req))
+	kind := kindCommittedReads
+	for _, item := range req.Items {
+		if item.Request.MessageID != 0 || item.Request.ClientMsgNo != "" {
+			kind = kindIndexedCommittedReads
+			break
+		}
+	}
+	return encodeRequestFrame(version, kind, appendCommittedReadsRequest(nil, req))
 }
 
 func decodeCommittedReadsRequest(data []byte) (CommittedReadsRequest, error) {
 	payload, err := decodeFrame(data, kindCommittedReads)
+	indexed := false
+	if err != nil {
+		payload, err = decodeFrame(data, kindIndexedCommittedReads)
+		indexed = err == nil
+	}
 	if err != nil {
 		return CommittedReadsRequest{}, err
 	}
@@ -344,6 +357,13 @@ func decodeCommittedReadsRequest(data []byte) (CommittedReadsRequest, error) {
 	}
 	if offset != len(payload) {
 		return CommittedReadsRequest{}, fmt.Errorf("channels: trailing committed reads request bytes")
+	}
+	hasLookup := false
+	for _, item := range req.Items {
+		hasLookup = hasLookup || item.Request.MessageID != 0 || item.Request.ClientMsgNo != ""
+	}
+	if indexed != hasLookup {
+		return CommittedReadsRequest{}, fmt.Errorf("channels: indexed-read kind does not match selectors")
 	}
 	return req, nil
 }
@@ -1277,6 +1297,19 @@ func appendCommittedReadsRequest(dst []byte, req CommittedReadsRequest) []byte {
 		dst = appendUvarint(dst, item.ExpectedLeaderEpoch)
 		dst = appendVarint(dst, int64(item.ExpectedMinISR))
 	}
+	// Keep range-only requests byte-for-byte compatible with older nodes.
+	// Older decoders reject the extension, never execute an unfiltered lookup.
+	hasLookup := false
+	for _, item := range req.Items {
+		hasLookup = hasLookup || item.Request.MessageID != 0 || item.Request.ClientMsgNo != ""
+	}
+	if hasLookup {
+		dst = appendUvarint(dst, 1)
+		for _, item := range req.Items {
+			dst = appendUvarint(dst, item.Request.MessageID)
+			dst = appendString(dst, item.Request.ClientMsgNo)
+		}
+	}
 	return dst
 }
 
@@ -1329,6 +1362,25 @@ func readCommittedReadsRequest(body []byte, offset int) (CommittedReadsRequest, 
 		}
 		if item.ExpectedMinISR, offset, err = readInt(body, offset, "committed read min ISR"); err != nil {
 			return CommittedReadsRequest{}, offset, err
+		}
+	}
+	if offset < len(body) {
+		var extension uint64
+		extension, offset, err = readUvarint(body, offset)
+		if err != nil || extension != 1 {
+			return CommittedReadsRequest{}, offset, fmt.Errorf("channels: invalid indexed-read extension")
+		}
+		for i := range request.Items {
+			r := &request.Items[i].Request
+			if r.MessageID, offset, err = readUvarint(body, offset); err != nil {
+				return CommittedReadsRequest{}, offset, err
+			}
+			if r.ClientMsgNo, offset, err = readString(body, offset); err != nil {
+				return CommittedReadsRequest{}, offset, err
+			}
+			if r.MessageID != 0 && r.ClientMsgNo != "" || len(r.ClientMsgNo) > 1024 {
+				return CommittedReadsRequest{}, offset, fmt.Errorf("channels: invalid indexed-read selector")
+			}
 		}
 	}
 	return request, offset, nil

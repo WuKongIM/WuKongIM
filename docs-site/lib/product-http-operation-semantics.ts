@@ -27,6 +27,11 @@ const text = (zh: string, en: string): ProductHTTPOpenAPILocalizedText => ({
  * Schema alone. Keys are stable `METHOD path` pairs from the complete contract.
  */
 export const productHTTPOperationSemantics = {
+  'POST /messages': {
+    scope: text('按当前成员可见范围读取精确消息索引，不使用近期历史扫描代替。', 'Reads exact message indexes within current membership visibility, without a recent-history scan fallback.'),
+    success: text('选择项取并集，按序号去重排序；超限或任一读取失败不返回部分结果。', 'Selectors form a union ordered and deduplicated by sequence; exhaustion or any failed read returns no partial result.'),
+    recovery: text('全部节点须支持精确查询 RPC；旧节点会明确拒绝。', 'Every node must support the indexed-read RPC; older nodes reject it explicitly.'),
+  },
   'POST /user/token': {
     scope: text(
       'Token 持久化到集群；Master 设备的旧连接由请求处理节点在约 10 秒后发起关闭。',

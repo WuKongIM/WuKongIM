@@ -14,4 +14,5 @@ description: 消息恢复、事件与命令消息兼容接口。
 <Card href="/zh/api/product-http/messages/unbindCommandChannel" title="解绑命令 Channel 发现" description="为持久发现写入 tombstone，但不删除命令消息。" />
 <Card href="/zh/api/product-http/messages/syncQuickstartChannelMessages" title="同步一个 Channel 的已提交消息" description="校验成员可见性并返回升序分页；limit 默认 100，最大 10000。" />
 <Card href="/zh/api/product-http/messages/syncChannelMessagesBatch" title="同步最多 200 个 Channel" description="批量读取前校验全部成员关系；单项失败嵌入 HTTP 200 响应。" />
+<Card href="/zh/api/product-http/messages/lookupMessages" title="精确查询已提交消息" description="按成员可见范围精确查询已提交消息；选择项、结果或索引检查超限时明确失败，不返回部分结果。" />
 </Cards>

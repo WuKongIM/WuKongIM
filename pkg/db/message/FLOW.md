@@ -41,6 +41,8 @@ storage core without transferring shared-engine ownership.
    natively in reverse and stop while scanning at `Limit` or `MaxBytes`; they
    must never materialize the complete Channel history before truncation.
    Catalog pages follow encoded key order; skip only the exact cursor key.
+   Remote client-number lookups additionally cap inspected index entries and
+   payload bytes, failing explicitly rather than returning partial matches.
 3. Snapshot, backup, restore, truncation, retention, and close stream or mutate
    bounded batches while keeping rows, indexes, catalog, system state, leases,
    and physical engine ownership consistent.

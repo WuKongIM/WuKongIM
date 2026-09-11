@@ -46,6 +46,7 @@ func (s *Server) registerMessageRoutes() {
 	if s == nil || s.engine == nil {
 		return
 	}
+	s.engine.POST("/messages", s.handleMessageLookup)
 	s.engine.POST("/message/send", s.handleSendMessage)
 	s.engine.POST("/message/event", s.handleMessageEventAppend)
 	s.engine.POST("/message/eventsync", s.handleMessageEventSync)

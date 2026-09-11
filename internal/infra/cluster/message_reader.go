@@ -66,6 +66,7 @@ func (r *CommittedMessageReader) ReadCommittedMessages(ctx context.Context, quer
 		reads[index] = clusterchannels.CommittedRead{
 			ChannelID: channelruntime.ChannelID{ID: query.ChannelID.ID, Type: query.ChannelID.Type},
 			Request: channelstore.ReadCommittedRequest{
+				MessageID: query.MessageID, ClientMsgNo: query.ClientMsgNo,
 				FromSeq: query.FromSeq, MinSeq: query.MinSeq, MaxSeq: query.MaxSeq,
 				Limit: query.Limit, MaxBytes: query.MaxBytes, Reverse: query.Reverse,
 			},

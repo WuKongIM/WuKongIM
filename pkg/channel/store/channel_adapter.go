@@ -752,6 +752,9 @@ func (a *messageDBChannelStoreAdapter) ReadCommitted(ctx context.Context, req Re
 	if err := ctx.Err(); err != nil {
 		return ReadCommittedResult{}, err
 	}
+	if req.MessageID != 0 || req.ClientMsgNo != "" {
+		return a.readIndexedCommitted(ctx, req)
+	}
 	readFrom := req.FromSeq
 	if !req.Reverse && req.MinSeq > 0 && readFrom < req.MinSeq {
 		readFrom = req.MinSeq
@@ -1195,4 +1198,43 @@ func hashPayload(payload []byte) uint64 {
 	h := fnv.New64a()
 	_, _ = h.Write(payload)
 	return h.Sum64()
+}
+
+// readIndexedCommitted preserves the caller's committed and retention bounds.
+func (a *messageDBChannelStoreAdapter) readIndexedCommitted(ctx context.Context, req ReadCommittedRequest) (ReadCommittedResult, error) {
+	if req.MessageID != 0 && req.ClientMsgNo != "" || req.Limit <= 0 || req.Limit > 1024 || req.MaxBytes <= 0 || req.MaxBytes > 16<<20 || len(req.ClientMsgNo) > 1024 {
+		return ReadCommittedResult{}, ch.ErrInvalidConfig
+	}
+	if req.MaxSeq == 0 || req.MinSeq > req.MaxSeq {
+		return ReadCommittedResult{}, nil
+	}
+	var messages []channel.Message
+	if req.MessageID != 0 {
+		m, ok, err := a.store.GetMessageByMessageID(req.MessageID)
+		if err != nil {
+			return ReadCommittedResult{}, a.mapError(err)
+		}
+		if ok {
+			messages = []channel.Message{m}
+		}
+	} else {
+		var err error
+		messages, err = a.store.LookupMessagesByClientMsgNo(ctx, req.ClientMsgNo, req.MinSeq, req.MaxSeq, req.Limit, req.MaxBytes)
+		if err != nil {
+			return ReadCommittedResult{}, a.mapError(err)
+		}
+	}
+	out := ReadCommittedResult{}
+	used := 0
+	for _, m := range messages {
+		if m.MessageSeq < req.MinSeq || m.MessageSeq > req.MaxSeq {
+			continue
+		}
+		used += len(m.Payload)
+		if used > req.MaxBytes {
+			return ReadCommittedResult{}, ch.ErrInvalidConfig
+		}
+		out.Messages = append(out.Messages, fromDBMessage(m))
+	}
+	return out, ctx.Err()
 }

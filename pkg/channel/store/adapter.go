@@ -344,8 +344,12 @@ type StoreCheckpointBatchResult struct {
 
 // ReadCommittedRequest reads client-visible messages up to MaxSeq.
 type ReadCommittedRequest struct {
-	FromSeq uint64
-	MaxSeq  uint64
+	// MessageID and ClientMsgNo select an indexed lookup instead of a range.
+	// At most one may be set; committed and retention bounds still apply.
+	MessageID   uint64
+	ClientMsgNo string
+	FromSeq     uint64
+	MaxSeq      uint64
 	// MinSeq is the lowest visible message sequence for logical compaction.
 	MinSeq   uint64
 	Limit    int

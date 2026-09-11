@@ -813,7 +813,8 @@ func (a *App) wireMessages() {
 			}
 		}
 		if readNode, ok := a.cluster.(clusterinfra.ChannelMessageReadNode); ok {
-			messageOpts.Reader = message.NewPageReader(clusterinfra.NewCommittedMessageReader(readNode))
+			messageOpts.LookupReader = clusterinfra.NewCommittedMessageReader(readNode)
+			messageOpts.Reader = message.NewPageReader(messageOpts.LookupReader)
 		}
 		if membershipNode, ok := a.cluster.(clusterinfra.MessageMembershipNode); ok {
 			messageOpts.Memberships = clusterinfra.NewMessageMembershipStore(membershipNode)

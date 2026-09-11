@@ -3714,3 +3714,32 @@ func toChannelError(err error) error {
 	}
 	return err
 }
+
+// LookupMessagesByClientMsgNo reads a bounded identity-index result within the
+// authority-selected visibility interval. No range scan or partial success is used.
+func (s *ChannelStore) LookupMessagesByClientMsgNo(ctx context.Context, key string, minSeq, maxSeq uint64, limit, maxBytes int) ([]channel.Message, error) {
+	if err := s.beginUse(); err != nil {
+		return nil, err
+	}
+	defer s.endUse()
+	before := maxSeq + 1
+	page, err := s.log.listByClientMsgNoBounded(ctx, key, before, limit, minSeq, 4096, maxBytes)
+	if err != nil {
+		return nil, toChannelError(err)
+	}
+	if page.HasMore {
+		return nil, channel.ErrInvalidArgument
+	}
+	out := make([]channel.Message, 0, len(page.Messages))
+	for _, m := range page.Messages {
+		row, ok, err := s.log.getRowBySeq(ctx, m.MessageSeq)
+		if err != nil {
+			return nil, toChannelError(err)
+		}
+		if !ok {
+			return nil, channel.ErrCorruptState
+		}
+		out = append(out, channelMessageFromRow(row))
+	}
+	return out, nil
+}

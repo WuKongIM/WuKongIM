@@ -43,6 +43,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    badge floors, excluded internal-position counts, and optional set-unread
    boundaries; leader reads add retention and the latest own send. Cold quorum Leaders (even HW=LEO=0)
    recover first; loaded Leaders still installing authority cannot serve HW.
+   Indexed committed reads use a distinct RPC kind, retaining HW, retention,
+   and authority fences; older nodes reject it instead of serving a range.
 5. `LocalControlSnapshot` exposes the latest fully Node-applied control state;
    revision-fenced management adapters may use `LocalControllerSnapshot` to read
    Controller-visible state without waiting for runtime task reconciliation.

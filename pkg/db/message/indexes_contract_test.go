@@ -313,3 +313,30 @@ func setRawMessageValue(t *testing.T, log *ChannelLog, key []byte, value []byte)
 		t.Fatalf("batch.Commit(): %v", err)
 	}
 }
+
+func TestBoundedClientIndexLookupFailsOnInspectionAndPayloadBudget(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+	log := testChannelLog(store)
+	ctx := context.Background()
+	_, err := log.Append(ctx, []Record{{ID: 31, ClientMsgNo: "shared", FromUID: "a", Payload: []byte("payload")}, {ID: 32, ClientMsgNo: "shared", FromUID: "b", Payload: []byte("payload")}, {ID: 33, ClientMsgNo: "shared", Payload: []byte("legacy")}}, AppendOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = log.listByClientMsgNoBounded(ctx, "shared", 0, 10, 0, 2, 1024); err == nil {
+		t.Fatal("index inspection budget ignored")
+	}
+	if _, err = log.listByClientMsgNoBounded(ctx, "shared", 0, 10, 0, 10, 1); err == nil {
+		t.Fatal("payload budget ignored")
+	}
+	page, err := log.listByClientMsgNoBounded(ctx, "shared", 3, 10, 2, 10, 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertMessageSeqs(t, page.Messages, 2)
+	canceled, cancel := context.WithCancel(ctx)
+	cancel()
+	if _, err = log.listByClientMsgNoBounded(canceled, "shared", 0, 10, 0, 10, 1024); err == nil {
+		t.Fatal("cancellation ignored")
+	}
+}

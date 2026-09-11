@@ -508,6 +508,28 @@ func (s *MemoryChannelStore) ReadCommitted(ctx context.Context, req ReadCommitte
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if req.MessageID != 0 || req.ClientMsgNo != "" {
+		if req.MessageID != 0 && req.ClientMsgNo != "" || req.Limit <= 0 || req.MaxBytes <= 0 {
+			return ReadCommittedResult{}, ch.ErrInvalidConfig
+		}
+		out := ReadCommittedResult{}
+		used := 0
+		for _, record := range s.records {
+			m := messageFromRecord(s.id, record)
+			if m.MessageSeq < req.MinSeq || m.MessageSeq > req.MaxSeq {
+				continue
+			}
+			if req.MessageID != 0 && m.MessageID != req.MessageID || req.ClientMsgNo != "" && m.ClientMsgNo != req.ClientMsgNo {
+				continue
+			}
+			used += len(m.Payload)
+			if len(out.Messages) >= req.Limit || used > req.MaxBytes {
+				return ReadCommittedResult{}, ch.ErrInvalidConfig
+			}
+			out.Messages = append(out.Messages, m)
+		}
+		return out, nil
+	}
 	leo := s.leoLocked()
 	from := req.FromSeq
 	if from == 0 {

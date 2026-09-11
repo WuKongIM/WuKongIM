@@ -1,0 +1,230 @@
+---
+title: Look up exact committed messages
+full: true
+_openapi:
+  preload:
+    - wukongim-product-http-complete-beta-en
+  method: POST
+  webhook: false
+  toc:
+    - depth: 2
+      title: Request Body
+      url: '#request-body'
+    - depth: 2
+      title: Response Body
+      url: '#response-body'
+  structuredData:
+    headings:
+      - content: Look up exact committed messages
+        id: look-up-exact-committed-messages
+    contents:
+      - content: Looks up exact committed messages within membership visibility;
+          selector, result and scan limits fail without partial results.
+        heading: look-up-exact-committed-messages
+      - content: >-
+          POST /messages
+
+          lookupMessages
+
+          Look up exact committed messages
+
+          Looks up exact committed messages within membership visibility;
+          selector, result and scan limits fail without partial results.
+
+          MessageLookupRequest
+
+          Exact message selectors within one visible channel. Selector arrays
+          form a union; results are unique and ordered by sequence. The runtime
+          validates the combined 1–128 selector count.
+
+          additionalProperties true
+
+          login_uid `string` minLength: 1; pattern: `\S`
+
+          channel_id `string` minLength: 1; pattern: `\S`
+
+          channel_type `integer:uint8` 1–255
+
+          message_ids `array | null` maxItems: 128 Exact message IDs. Combined
+          selector count must be 1–128.
+
+          message_seqs `array | null` maxItems: 128 Exact message sequences.
+          Combined selector count must be 1–128.
+
+          client_msg_nos `array | null` maxItems: 128 Exact client message
+          numbers. Combined selector count must be 1–128.
+
+          200 One committed-message page
+
+          ChannelMessageSyncResponse
+
+          Message synchronization page for one Channel.
+
+          additionalProperties false
+
+          start_message_seq `integer:uint64` 0–∞ Starting message sequence of
+          the effective range for this page.
+
+          end_message_seq `integer:uint64` 0–∞ Ending message sequence of the
+          effective range for this page.
+
+          more `integer` enum: `0`, `1` 1 means another page may exist in the
+          same direction; 0 means the current range is exhausted.
+
+          messages array<`LegacyMessage`> — Messages are returned in ascending
+          message_seq order regardless of pull direction.
+
+          LegacyMessage
+
+          Legacy message projection used by Product HTTP synchronization.
+
+          header `LegacyMessageHeader` additionalProperties: `false` Legacy
+          message header.
+
+          setting `integer:uint8` 0–255 WKProto Setting bitset.
+
+          message_id `integer:int64` — Server int64 message ID.
+
+          message_idstr `string` — Decimal string mirror of message_id only; it
+          is not a replacement for message_seq.
+
+          client_msg_no `string` — Client message number.
+
+          end `integer:uint8` 0–255 Stream-message terminal compatibility flag.
+
+          end_reason `integer:uint8` 0–255 Stream-message terminal Reason Code.
+
+          error `string` — Stream-message error description.
+
+          stream_data `string | null` encoding: base64 Base64-encoded stream
+          data; it may be null.
+
+          event_meta `LegacyMessageEventMeta` additionalProperties: `false`
+          Optional message-event summary.
+
+          event_sync_hint `LegacyMessageEventSyncHint` additionalProperties:
+          `false` Optional message-event continuation hint.
+
+          message_seq `integer:uint64` 0–∞ uint64 sequence of the message within
+          this Channel.
+
+          from_uid `string` — Message sender UID.
+
+          channel_id `string` — Channel ID containing the message.
+
+          channel_type `integer:uint8` 0–255 Channel type containing the
+          message.
+
+          topic `string` — Optional message topic.
+
+          expire `integer:uint32` 0–∞ Message expiration in seconds; 0 means
+          unset.
+
+          timestamp `integer:int32` — Legacy server timestamp in seconds.
+
+          payload `string | null` encoding: base64 Base64-encoded message
+          payload; it may be null.
+
+          LegacyMessageHeader
+
+          Legacy message header.
+
+          no_persist `integer` enum: `0`, `1` 1 means the message is
+          non-durable.
+
+          red_dot `integer` enum: `0`, `1` 1 means the client should show a
+          red-dot indicator.
+
+          sync_once `integer` enum: `0`, `1` 1 means a one-shot command message.
+
+          LegacyMessageEventMeta
+
+          Optional message-event summary.
+
+          has_events `boolean` — Whether events exist.
+
+          completed `boolean` — Whether all known event lanes have completed.
+
+          event_version `integer:uint64` 0–∞ Event-summary version.
+
+          last_msg_event_seq `integer:uint64` 0–∞ Latest event sequence across
+          all lanes.
+
+          event_count `integer` 0–∞ Total event count.
+
+          open_event_count `integer` 0–∞ Number of event lanes still open.
+
+          events array<`LegacyMessageEventKeyMeta`> — Per-lane event summaries.
+
+          LegacyMessageEventKeyMeta
+
+          Summary of one event lane.
+
+          event_key `string` — Event lane key.
+
+          status `string` — Current state of the lane.
+
+          last_msg_event_seq `integer:uint64` 0–∞ Latest known event sequence
+          for the lane.
+
+          snapshot `unknown` — Arbitrary JSON snapshot in full summary mode.
+
+          end_reason `integer:uint8` 0–255 Event-stream terminal Reason Code.
+
+          error `string` — Event-stream error description.
+
+          LegacyMessageEventSyncHint
+
+          Optional message-event continuation hint.
+
+          client_msg_no `string` — Client message number of the target message.
+
+          from_msg_event_seq `integer:uint64` 0–∞ Starting sequence for the next
+          event synchronization.
+
+          400 Input, validation, dependency, or downstream error
+
+          CompatibilityError
+
+          HTTP 400 error body shared by multiple legacy entries.
+
+          msg `string` — Human-readable error text with no stability guarantee;
+          do not branch on it.
+
+          status `integer` const: `400` Application-level status fixed at 400.
+
+          503 Controller restore maintenance is active
+
+          MaintenanceError
+
+          503 error body returned while cluster restore maintenance is active.
+
+          error `string` const: `"maintenance"` Stable maintenance error
+          category.
+
+          message `string` const: `"restore maintenance is active"` Current
+          restore-maintenance message.
+---
+
+<Callout type="warn" title="Operation boundary">
+
+- **Caller**: Trusted backend only
+- **Scope**: Reads exact message indexes within current membership visibility, without a recent-history scan fallback.
+- **Success**: Selectors form a union ordered and deduplicated by sequence; exhaustion or any failed read returns no partial result.
+- **Recovery**: Every node must support the indexed-read RPC; older nodes reject it explicitly.
+
+</Callout>
+
+{/* This file was generated by Fumadocs. Do not edit this file directly. Any changes should be made by running the generation command again. */}
+
+export default function Layout(props) {
+  const { APIPage, OpenAPIPage } = props.components ?? {};
+  // "APIPage" is the old name from v10, this allows both for backward compatibility
+  const Comp = OpenAPIPage ?? APIPage;
+  return (
+    <>
+      {props.children}
+      <Comp document="wukongim-product-http-complete-beta-en" operations={[{"path":"/messages","method":"post"}]} showDescription />
+    </>
+  );
+}

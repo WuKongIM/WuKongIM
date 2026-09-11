@@ -54,6 +54,8 @@ bench or debug request
 - A configured `bench.api_token` protects every `/bench/v1/*` and enabled
   `/debug/*` route. An empty token is controlled-environment compatibility, not
   a production authentication claim.
+- `POST /messages` maps bounded exact ID, sequence and client-number selectors
+  to the message use case; its legacy envelope preserves integer identity.
 - `/message/eventsync` maps the original projected-event envelope to the narrow
   event-sync use case; sequence selection and visibility policy stay below HTTP.
 - `/plugins/:plugin_no/*path` preserves the business-backend plugin route with a

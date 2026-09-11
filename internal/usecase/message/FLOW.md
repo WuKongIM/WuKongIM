@@ -42,7 +42,10 @@ depending on their frames, JSON, or concrete cluster runtimes.
    and optionally enriches stream messages with bounded event metadata.
 3. Legacy event sync reads a bounded durable sequence page through Slot authority,
    preserves original cursor/filter order, and does not invent event history.
-4. Event append validates and canonicalizes its projection key, then delegates
+4. Exact message lookup reuses membership/visibility preparation and executes
+   bounded authority-routed index reads; limits or inconsistent evidence fail
+   without partial results, and overlapping selectors are deduplicated.
+5. Event append validates and canonicalizes its projection key, then delegates
    cache or durable projection behavior to `MessageEventStore`.
 
 ## Invariants and Failure Semantics
