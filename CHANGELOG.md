@@ -6,7 +6,7 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
-- Batch plugin channel-owner lookups through current Slot authority, avoiding one quorum read per conversation during global search. / 插件按当前 Slot 权威批量查询频道所属节点，避免全局搜索为每个会话分别执行多数派读取。
+- Batch plugin channel-owner lookups through current Slot authority, sharing metadata reads and bounding concurrent cold-channel initialization during global search. / 插件按当前 Slot 权威批量查询频道所属节点，合并元数据读取，并以有上限的并发处理冷频道初始化。
 
 - Clarify v2 migration timeout budgeting and safe preparation retries after interruption. / 补充 v2 迁移任务的超时预算与预检中断后的安全重试说明。
 

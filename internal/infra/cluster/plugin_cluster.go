@@ -10,6 +10,7 @@ import (
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"golang.org/x/sync/errgroup"
 )
 
 // PluginClusterNode exposes cluster control state for plugin host RPCs.
@@ -82,7 +83,7 @@ func (r *PluginChannelOwnerReader) ChannelOwnerNode(ctx context.Context, id mess
 	return meta.Leader, nil
 }
 
-// ChannelOwnerNodes avoids a separate Slot quorum read for every conversation.
+// ChannelOwnerNodes avoids a separate Slot authority read for every conversation.
 // Each bounded batch uses current Slot authority; missing metadata alone may
 // initialize append authority through the same path as a single-channel lookup.
 func (r *PluginChannelOwnerReader) ChannelOwnerNodes(ctx context.Context, ids []message.ChannelID) ([]uint64, error) {
@@ -112,17 +113,30 @@ func (r *PluginChannelOwnerReader) ChannelOwnerNodes(ctx context.Context, ids []
 		if err != nil {
 			return nil, err
 		}
+		g, callCtx := errgroup.WithContext(ctx)
+		// Cold channels enter the existing coalesced metadata initializer in
+		// parallel, bounded independently of the size of the membership list.
+		g.SetLimit(16)
 		for i, key := range keys {
 			meta, ok := metas[key]
 			if ok {
 				owners[start+i] = meta.Leader
 				continue
 			}
-			created, err := r.node.ResolveChannelAppendAuthority(ctx, channelruntime.ChannelID{ID: key.ChannelID, Type: uint8(key.ChannelType)})
-			if err != nil {
-				return nil, err
-			}
-			owners[start+i] = uint64(created.Leader)
+			g.Go(func() error {
+				if err := callCtx.Err(); err != nil {
+					return err
+				}
+				created, err := r.node.ResolveChannelAppendAuthority(callCtx, channelruntime.ChannelID{ID: key.ChannelID, Type: uint8(key.ChannelType)})
+				if err != nil {
+					return err
+				}
+				owners[start+i] = uint64(created.Leader)
+				return nil
+			})
+		}
+		if err := g.Wait(); err != nil {
+			return nil, err
 		}
 	}
 	return owners, nil

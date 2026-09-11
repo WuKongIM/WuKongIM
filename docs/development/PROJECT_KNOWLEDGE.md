@@ -30,8 +30,10 @@
   Only missing runtime metadata falls back to normal authority initialization;
   read failures must not fall back to cached ownership.
   Whole-conversation-list lookups use bounded Slot-authoritative batches; one
-  quorum read per conversation can exhaust the plugin callback deadline even
-  when searching one already indexed message is fast.
+  authority read per conversation can exhaust the plugin callback deadline even
+  when searching one already indexed message is fast. Missing metadata must
+  enter the existing coalesced initializer with bounded concurrency, not
+  serially consume the entire callback budget.
 
 - EasySDK current tutorial selections live only in `docs-site/lib/easy-sdk-releases.json`.
   The build resolves explicit MDX tokens for both languages, while navigation
