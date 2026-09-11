@@ -16,7 +16,7 @@ description: 四步完成 v2 到 v3 离线迁移：汇总冷备、填写计划�
 | 迁移方式 | 全部来源停写、停机后离线迁移；不支持在线增量追赶 |
 | 来源与目标 | 支持单节点集群和多节点集群，可以改变节点数；目标必须是全新空集群 |
 | 运行平台 | 源文件锁支持 Linux、macOS；插件程序还须与目标系统和架构匹配 |
-| 集群布局 | 固定 256 个物理哈希槽，逻辑 Slot 数和副本数由目标计划指定 |
+| 集群布局 | 固定 256 个逻辑哈希槽，物理 Slot 数和副本数由目标计划指定 |
 | 工具与目标版本 | 固定经过验证的同一 v3 源码提交构建迁移工具和服务端，或使用配套且已核对摘要的交付包 |
 
 迁移机需要同时容纳完整冷备、工作空间、归档、全部目标副本和验收前快照。先用代表性数据演练并记录峰值空间与耗时，据此安排正式停机窗口；备份体积和其他部署的耗时不能代替本部署的演练结果。
@@ -127,7 +127,7 @@ wukongim version --output json
 
 `source_commit` 可省略，工具会固定使用已支持的 v2 格式读取规则，并在读取时检查数据结构、字段、索引和业务兼容性；发现不兼容仍会阻止完成。报告及归档中的 `source_commit` 表示读取规则对应的源码提交，不是对旧二进制版本的自动鉴定。已知来源属于其他版本或有自定义修改时，仍需单独评估。
 
-旧版工具（包括 v3.0.0-beta.12）仍要求在计划顶层填写 `"source_commit": "a888f89533d0e7d1b2030e06504ca97f1ad891d4"`。新工具继续接受这份旧计划，并保持相同迁移身份；显式填写其他提交仍会被拒绝。`shard_count` 填原部署实际业务 DB 分片数；目标节点 ID 为 1–1023，副本数不能超过目标节点数。`slot_count` 是目标逻辑 Slot 数，示例采用 v3 默认的 `12`，须与启动配置 `cluster.initial_slot_count` 一致；迁移计划仍须显式填写，不会自动补默认值。`hash_slot_count` 是物理哈希槽数，固定为 `256`。
+旧版工具（包括 v3.0.0-beta.12）仍要求在计划顶层填写 `"source_commit": "a888f89533d0e7d1b2030e06504ca97f1ad891d4"`。新工具继续接受这份旧计划，并保持相同迁移身份；显式填写其他提交仍会被拒绝。`shard_count` 填原部署实际业务 DB 分片数；目标节点 ID 为 1–1023，副本数不能超过目标节点数。`slot_count` 是目标物理 Slot 数，示例采用 v3 默认的 `12`，须与启动配置 `cluster.initial_slot_count` 一致；迁移计划仍须显式填写，不会自动补默认值。`hash_slot_count` 是逻辑哈希槽数，固定为 `256`。
 
 源、工作空间、归档和各目标目录必须互不包含。目标 `data_dir` 必须尚不存在，稍后还要部署到对应服务器的相同绝对路径。
 
@@ -321,13 +321,13 @@ rsync -anc --numeric-ids --delete --itemize-changes /srv/wkmigrate/targets/node1
 
 准备各节点的 `wukongim.toml`，保持 `node.id`、`node.data_dir`、`cluster.id`、`cluster.nodes`、`cluster.initial_slot_count`、`cluster.hash_slot_count`、`cluster.slot_replica_n` 和 `cluster.channel_replica_n` 与计划一致。TLS、监听／公布地址、网关认证、Webhook 地址与网络保护、插件及业务后端配置须另行核对，数据库导入不会替你搬运或验证这些配置。原生 Webhook 不提供签名；若业务使用外部签名代理，单独迁移并验证代理配置。参考[集群配置](/zh/server/configuration/cluster)和[安全配置](/zh/server/configuration/security)。
 
-使用 Docker Compose 部署三节点集群时，每个服务绑定独立的目标目录，并使用配套 v3 镜像。桥接网络中，计划的 `target.nodes[].addr` 与配置的 `cluster.nodes` 应使用容器互通的服务名或网络别名（例如 `wk-node1:7000`），监听地址可用 `0.0.0.0:7000`；不要把宿主机的 `127.0.0.1` 或端口映射当作容器间 RPC 地址。容器内的 `node.data_dir` 应与已验证的计划路径一致，并确认运行用户可读写绑定目录。保留 12 个逻辑 Slot、256 个 hash slot 和三副本时，分别配置 `initial_slot_count=12`、`hash_slot_count=256`、`slot_replica_n=3`、`channel_replica_n=3`。应在 `prepare` 前确定这些地址；更改计划后使用新的工作空间和迁移产物，不能修改已生成库中的迁移身份来复用。先运行 `docker compose config --quiet` 与各节点的 `wukongim config validate`，完成离线校验后再启动容器。
+使用 Docker Compose 部署三节点集群时，每个服务绑定独立的目标目录，并使用配套 v3 镜像。桥接网络中，计划的 `target.nodes[].addr` 与配置的 `cluster.nodes` 应使用容器互通的服务名或网络别名（例如 `wk-node1:7000`），监听地址可用 `0.0.0.0:7000`；不要把宿主机的 `127.0.0.1` 或端口映射当作容器间 RPC 地址。容器内的 `node.data_dir` 应与已验证的计划路径一致，并确认运行用户可读写绑定目录。保留 12 个物理 Slot、256 个 hash slot 和三副本时，分别配置 `initial_slot_count=12`、`hash_slot_count=256`、`slot_replica_n=3`、`channel_replica_n=3`。应在 `prepare` 前确定这些地址；更改计划后使用新的工作空间和迁移产物，不能修改已生成库中的迁移身份来复用。先运行 `docker compose config --quiet` 与各节点的 `wukongim config validate`，完成离线校验后再启动容器。
 
 需要持久 CMD 离线恢复时，切换前须适配发送服务：普通群订阅或 `sync_once=1` 发送成功不会自动建立 CMD 发现关系。对有权限的接收者和稳定的来源频道，在第一条需要离线恢复的命令发送**之前**调用 `POST /message/cmd/bind`；随成员变化维护绑定，失去权限时调用 `/message/cmd/unbind`。绑定从当前 CMD 尾部之后生效，不会补回绑定之前的命令。请求级 `subscribers` 本身不构成离线恢复目录；支持批量绑定的目标版本可先用完全相同顺序的 `{ "subscribers": [...] }` 建立发现关系，再发送 CMD。稳定源频道可使用 `{ "uids": [...], "channel_id": "...", "channel_type": 2 }` 分批绑定，每批最多 1000 项、请求体最多 256 KiB。不要拆分临时接收者范围后只发送原范围，因为范围不同会派生不同的 CMD 频道。跨 Slot 绑定失败可能已写入一部分，须重试并确认整个绑定成功后再发送；旧发送服务若依赖自动离线扩散，单纯导入数据无法提供这项兼容性。使用真正断开的接收者，跨节点验证 `/message/sync`、处理后的 `/message/syncack` 以及移除后的权限；在线 CMD 投递通过不能替代离线验收。当前 `/message/syncack` 依赖进程内的同步记录：同一轮 sync 与 syncack 必须固定到同一服务进程，不能分别随机负载均衡；确认成功后再从其他节点检查确认位置是否持久生效。详见[可恢复命令](/zh/guide/tutorials/ai-and-iot)。
 
 使用配套 v3 程序隔离启动全部目标节点，暂不接入生产流量。至少验证：
 
-- 每个节点 `/readyz` 就绪，Controller、各逻辑 Slot 和频道副本状态正常。
+- 每个节点 `/readyz` 就绪，Controller、各物理 Slot 和频道副本状态正常。
 - 原 Token 与相同 `device_flag` 登录成功，错误 Token 被拒绝；不要通过重新设置 Token 来“验证”旧凭据。
 - 历史首尾和跨页内容、ID、序号、ClientMsgNo、RedDot 一致，权限、会话列表和已读状态符合计划。
 - 新消息序号严格大于当前频道尾部，重试相同幂等键不重复，新增未读正确。单聊发送填写接收者 UID，不复用接收者视角历史查询中的对方 UID。

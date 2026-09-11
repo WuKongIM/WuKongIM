@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Correct migration terminology: 12 physical Slots own the 256 logical hash slots. / 修正迁移教程术语：12 个物理 Slot 承载 256 个逻辑 hash slot。
+
 - Batch offline CMD reads across bound channels to reduce reconnect latency for users in many groups, preserving acknowledgement boundaries and complete-result failure handling. / 离线 CMD 按频道批量读取，降低多群用户重连耗时，保持确认边界和完整结果的错误处理。
 
 - Keep CMD synchronization working when an explicitly bound source has not produced its first persistent command; unavailable reads remain errors. / 显式绑定的频道尚未产生首条持久 CMD 时，按空记录处理，避免阻断其他命令同步；读取不可用仍返回错误。
