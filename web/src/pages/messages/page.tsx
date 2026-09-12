@@ -604,10 +604,13 @@ export function MessagesPage() {
         {!state.loading && !state.error && state.messages ? (
           state.messages.items.length > 0 ? (
             <>
+              <p className="mb-3 text-xs text-muted-foreground" id="message-history-delete-hint">
+                {intl.formatMessage({ id: "messages.deleteHistoryHint" })}
+              </p>
               <div className="overflow-x-auto rounded-md border border-border">
                 <table
                   aria-label={intl.formatMessage({ id: "nav.messages.title" })}
-                  className="w-full min-w-[100.5rem] table-fixed border-collapse text-sm"
+                  className="w-full min-w-[107.5rem] table-fixed border-collapse text-sm"
                 >
                   <colgroup>
                     <col className="w-[4.5rem]" />
@@ -617,7 +620,7 @@ export function MessagesPage() {
                     <col className="w-[9rem]" />
                     <col className="w-[10rem]" />
                     <col className="w-[20rem]" />
-                    <col className="w-[9rem]" />
+                    <col className="w-[16rem]" />
                   </colgroup>
                   <thead className="bg-muted/40 text-left text-xs uppercase tracking-[0.14em] text-muted-foreground">
                     <tr>
@@ -647,20 +650,7 @@ export function MessagesPage() {
                           <div className="truncate">{decodeManagerMessagePayload(message.payload) || "-"}</div>
                         </td>
                         <td className="px-3 py-3 text-sm text-foreground">
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              aria-label={intl.formatMessage(
-                                { id: "messages.deleteThroughSeqAction" },
-                                { seq: message.message_seq },
-                              )}
-                              onClick={() => {
-                                openRetentionDialog(message)
-                              }}
-                              size="sm"
-                              variant="destructive"
-                            >
-                              {intl.formatMessage({ id: "messages.deleteThroughSeq" })}
-                            </Button>
+                          <div className="flex flex-col items-start gap-2">
                             <Button
                               aria-label={intl.formatMessage(
                                 { id: "messages.inspectMessage" },
@@ -673,6 +663,20 @@ export function MessagesPage() {
                               variant="outline"
                             >
                               {intl.formatMessage({ id: "common.inspect" })}
+                            </Button>
+                            <Button
+                              aria-describedby="message-history-delete-hint"
+                              aria-label={intl.formatMessage(
+                                { id: "messages.deleteThroughSeqAction" },
+                                { channel: message.channel_id, type: message.channel_type, seq: message.message_seq },
+                              )}
+                              onClick={() => {
+                                openRetentionDialog(message)
+                              }}
+                              size="sm"
+                              variant="destructive"
+                            >
+                              {intl.formatMessage({ id: "messages.deleteThroughSeq" })}
                             </Button>
                           </div>
                         </td>
@@ -803,7 +807,7 @@ export function MessagesPage() {
         ) : null}
       </DetailSheet>
       <ConfirmDialog
-        confirmLabel={intl.formatMessage({ id: "common.confirm" })}
+        confirmLabel={intl.formatMessage({ id: "messages.deleteConfirmAction" })}
         description={retention.message
           ? intl.formatMessage(
               { id: "messages.deleteConfirmDescription" },
