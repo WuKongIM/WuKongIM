@@ -545,6 +545,14 @@ export async function managerFetch(path: string, init?: RequestInit) {
   return response
 }
 
+export type ManagerLoginInfo = {
+  guest?: ManagerLoginCredentials
+}
+
+export function getManagerLoginInfo(init?: RequestInit): Promise<ManagerLoginInfo> {
+  return jsonManagerFetch<ManagerLoginInfo>("/manager/login", { ...init, cache: "no-store" })
+}
+
 export async function loginManager(credentials: ManagerLoginCredentials): Promise<ManagerSession> {
   const payload = await jsonManagerFetch<ManagerLoginResponse>("/manager/login", {
     method: "POST",

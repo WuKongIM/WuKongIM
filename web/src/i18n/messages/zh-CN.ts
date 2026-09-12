@@ -106,6 +106,7 @@ export const zhCNMessages: AppMessages = {
   "auth.clusterAccess": "集群访问",
   "auth.managerCredentials": "管理账号凭据",
   "auth.staticAccountHint": "使用管理员账号登录。",
+  "auth.guestAccount": "访客账号",
   "auth.username": "用户名",
   "auth.password": "密码",
   "auth.showPassword": "显示密码",

@@ -108,6 +108,7 @@ export const enMessages: AppMessages = {
   "auth.clusterAccess": "Cluster access",
   "auth.managerCredentials": "Manager credentials",
   "auth.staticAccountHint": "Use the static manager account configured by the server.",
+  "auth.guestAccount": "Guest account",
   "auth.username": "Username",
   "auth.password": "Password",
   "auth.showPassword": "Show password",

@@ -43,9 +43,11 @@ remote node read or action
 
 ## Invariants and Failure Semantics
 
-- When Manager authentication is enabled, every route uses its declared
-  resource permission. Backup writes, restore, and MCP administration fail
-  closed when authentication is disabled.
+- With authentication enabled, `GET /manager/login` publicly returns only the
+  configured `guest` credentials with `Cache-Control: no-store`; POST performs
+  login. Protected Manager routes use their declared resource permission.
+  Backup writes, restore, and MCP administration fail closed when
+  authentication is disabled.
 - Restore requires exact `cluster.restore:w`; wildcard permission is
   insufficient. It also requires reauthentication and exact archive
   confirmation, and a successful restore invalidates prior Manager sessions.

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { RouterProvider, createMemoryRouter } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
@@ -10,10 +10,12 @@ import { resetLocale } from "@/i18n/locale-store"
 import { ManagerApiError } from "@/lib/manager-api"
 
 const loginManagerMock = vi.fn()
+const getManagerLoginInfoMock = vi.fn()
 vi.mock("@/lib/manager-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/manager-api")>()
   return {
     ...actual,
+    getManagerLoginInfo: (...args: unknown[]) => getManagerLoginInfoMock(...args),
     loginManager: (...args: unknown[]) => loginManagerMock(...args),
   }
 })
@@ -23,6 +25,7 @@ beforeEach(() => {
   resetLocale()
   useAuthStore.setState({ ...createAnonymousAuthState(), isHydrated: true })
   loginManagerMock.mockReset()
+  getManagerLoginInfoMock.mockReset().mockResolvedValue({})
 })
 
 test("submits credentials and redirects to the cluster live monitor on success", async () => {
@@ -211,4 +214,37 @@ test("toggles password visibility without clearing the field", async () => {
 
   await user.click(screen.getByRole("button", { name: "Hide password" }))
   expect(passwordInput).toHaveAttribute("type", "password")
+})
+
+
+test("shows configured guest credentials and translates the hint", async () => {
+  getManagerLoginInfoMock.mockResolvedValue({ guest: { username: "guest", password: "custom<&>password" } })
+  const router = createMemoryRouter(routes, { initialEntries: ["/login"] })
+  const user = userEvent.setup()
+  render(<AppProviders><RouterProvider router={router} /></AppProviders>)
+
+  const hint = await screen.findByRole("complementary", { name: "Guest account" })
+  expect(within(hint).getByText("guest")).toBeInTheDocument()
+  expect(within(hint).getByText("custom<&>password")).toBeInTheDocument()
+  expect(screen.getByLabelText("Username")).toHaveValue("")
+  expect(screen.getByLabelText("Password")).toHaveValue("")
+  await user.click(screen.getByRole("button", { name: "中文" }))
+  expect(screen.getByRole("complementary", { name: "访客账号" })).toBeInTheDocument()
+})
+
+test("omits the guest hint when no guest is configured", async () => {
+  const router = createMemoryRouter(routes, { initialEntries: ["/login"] })
+  render(<AppProviders><RouterProvider router={router} /></AppProviders>)
+  await waitFor(() => expect(getManagerLoginInfoMock).toHaveBeenCalled())
+  expect(screen.queryByRole("complementary")).not.toBeInTheDocument()
+})
+
+test("keeps sign-in usable when login hints cannot be loaded", async () => {
+  getManagerLoginInfoMock.mockRejectedValue(new Error("unavailable"))
+  const router = createMemoryRouter(routes, { initialEntries: ["/login"] })
+  render(<AppProviders><RouterProvider router={router} /></AppProviders>)
+  await waitFor(() => expect(getManagerLoginInfoMock).toHaveBeenCalled())
+  expect(screen.queryByRole("complementary")).not.toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled()
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument()
 })

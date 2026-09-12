@@ -69,6 +69,7 @@ import {
   getSystemUsers,
   kickUser,
   joinNode,
+  getManagerLoginInfo,
   loginManager,
   managerFetch,
   ManagerApiError,
@@ -198,6 +199,18 @@ describe("manager api client", () => {
       error: "unauthorized",
     })
     expect(onUnauthorized).toHaveBeenCalledTimes(1)
+  })
+
+  it("loads optional guest credentials without caching the response", async () => {
+    const info = { guest: { username: "guest", password: "configured-password" } }
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(info), { status: 200 }))
+    const controller = new AbortController()
+
+    await expect(getManagerLoginInfo({ signal: controller.signal })).resolves.toEqual(info)
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/manager/login",
+      expect.objectContaining({ cache: "no-store", signal: controller.signal }),
+    )
   })
 
   it("maps the login response using current backend fields", async () => {
