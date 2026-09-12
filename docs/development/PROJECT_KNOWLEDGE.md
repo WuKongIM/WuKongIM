@@ -1370,3 +1370,9 @@ Recovery barriers compare the complete `(ChannelEpoch, LeaderTerm, FenceVersion)
 - Legacy sync may reread only the latest visible empty-number head after an advanced client cursor, because old clients could advance local sequence bookkeeping while losing that message to an empty-key collision. This read-only replay leaves membership, unread, read and delete boundaries unchanged.
 
 Duplicate-chain resolution reuses only same-pass, randomly namespaced disk proofs; independent conversion/verification passes cannot reuse one another’s cache. Exact direct edges and terminal identities remain in the digest-bound chain sidecar. Disk-sorted terminal/root references avoid archive-wide terminal maps. The 100,000 traversal guard bounds uncached per-root work; verified suffix reuse requires no repeated traversal.
+
+- WebSocket HTTP handshake rejections use `transport.HandshakeRejectionError`:
+  preserve the 4xx response/connection close and redacted diagnostics, but the
+  product gateway logs at INFO at most once per ten seconds across listeners,
+  with a cumulative `rejected_total` since handler creation. Sampling uses fixed
+  state, never peer/path maps. Genuine listener failures remain unsampled ERROR.
