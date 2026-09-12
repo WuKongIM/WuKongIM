@@ -2,6 +2,8 @@
 
 ## Internal
 
+- Manager message deletion advances a channel retention boundary inclusively through the selected message sequence. It affects earlier history beyond the displayed or filtered results; UI labels and confirmations must communicate this channel-wide scope.
+
 - Slot scheduler admission results `coalesced`, `dirty`, and `requeued` represent
   normal scheduling progress, not failures. Manager error PromQL must exclude
   them only for the Slot scheduler and derive zero from observed admission

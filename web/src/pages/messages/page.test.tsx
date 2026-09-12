@@ -503,9 +503,11 @@ test("deletes message history through a selected sequence after confirmation", a
   renderMessagesPage("/messages?channel_id=room-1&channel_type=2")
 
   expect(await screen.findByText("c-101")).toBeInTheDocument()
-  await user.click(screen.getByRole("button", { name: "Delete history through seq 9" }))
+  await user.click(screen.getByRole("button", { name: "Delete this & earlier messages: channel room-1 (type 2), through seq 9 (inclusive)" }))
   const dialog = await screen.findByRole("dialog")
-  await user.click(within(dialog).getByRole("button", { name: "Confirm" }))
+  expect(dialog).toHaveAccessibleDescription("This will delete message seq 9 and all earlier messages in channel room-1 (type 2), including history not shown in this list. These messages will no longer be readable. This action cannot be undone.")
+  expect(advanceMessageRetentionMock).not.toHaveBeenCalled()
+  await user.click(within(dialog).getByRole("button", { name: "Confirm bulk deletion" }))
 
   await waitFor(() => {
     expect(advanceMessageRetentionMock).toHaveBeenCalledWith({ channelId: "room-1", channelType: 2, throughSeq: 9 })
@@ -542,9 +544,9 @@ test("keeps delete dialog open when message retention is blocked", async () => {
   renderMessagesPage("/messages?channel_id=room-1&channel_type=2")
 
   expect(await screen.findByText("c-101")).toBeInTheDocument()
-  await user.click(screen.getByRole("button", { name: "Delete history through seq 9" }))
+  await user.click(screen.getByRole("button", { name: "Delete this & earlier messages: channel room-1 (type 2), through seq 9 (inclusive)" }))
   const dialog = await screen.findByRole("dialog")
-  await user.click(within(dialog).getByRole("button", { name: "Confirm" }))
+  await user.click(within(dialog).getByRole("button", { name: "Confirm bulk deletion" }))
 
   expect(await within(dialog).findByText("History retention is blocked: replay_cursor")).toBeInTheDocument()
   expect(getMessagesMock).toHaveBeenCalledTimes(1)
