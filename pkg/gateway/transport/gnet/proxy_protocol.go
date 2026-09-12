@@ -170,9 +170,10 @@ type proxyHandshake struct {
 // startProxyHandshake checks the physical peer once and starts the fixed preface
 // deadline before any Session or HTTP Upgrade callbacks can run.
 func (s *connState) startProxyHandshake(timeout time.Duration) {
-	h := &proxyHandshake{}
+	// An omitted or empty allowlist deliberately permits any physical peer.
+	h := &proxyHandshake{trusted: len(s.runtime.trustedProxies) == 0}
 	peer, err := netip.ParseAddrPort(s.peerAddr)
-	if err == nil {
+	if !h.trusted && err == nil {
 		address := peer.Addr().Unmap().WithZone("")
 		for _, prefix := range s.runtime.trustedProxies {
 			if prefix.Contains(address) {

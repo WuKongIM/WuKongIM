@@ -198,7 +198,7 @@ description: 可搜索的 WuKongIM 配置手册，逐项说明全部公开 TOML 
 | `gateway.default_session_async_send_batch_max_wait` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT` | `duration` | 一个 SEND 分片为合并相邻帧最多等待的时间；`0` 使用默认值 `1ms`，负值会归一化为 `0` 并取消等待。 |
 | `gateway.default_session_async_send_batch_max_records` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS` | `int` | 一个 Gateway SEND 微批次最多包含的帧数；`0` 使用默认值 `128`。 |
 | `gateway.default_session_async_send_batch_max_bytes` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES` | `int` | 一个 Gateway SEND 微批次允许的最大负载字节数；`0` 使用默认值 `524288`。 |
-| `gateway.listeners` | `WK_GATEWAY_LISTENERS` | `object_list` | 客户端监听器列表；`name`、`network`、`address`、`transport`、`protocol` 必填，`path` 可选，名称与地址必须各自唯一。省略时开放 `0.0.0.0:5100` WKProto TCP 和 `0.0.0.0:5200` WSMux；显式空列表（环境变量 JSON `null` 同样）不启动 Gateway。 |
+| `gateway.listeners` | `WK_GATEWAY_LISTENERS` | `object_list` | 客户端监听器列表；`name`、`network`、`address`、`transport`、`protocol` 必填，`path` 和 `proxy_protocol_trusted_cidrs` 可选；默认识别直连与 PROXY v1/v2，可信 CIDR 省略或为空时接受任意对端声明的未验证地址；名称与地址必须各自唯一。省略时开放 `0.0.0.0:5100` WKProto TCP 和 `0.0.0.0:5200` WSMux；显式空列表（环境变量 JSON `null` 同样）不启动 Gateway。 |
 | `gateway.send_timeout` | `WK_GATEWAY_SEND_TIMEOUT` | `duration` | 一次由 Gateway 发起的消息发送允许占用的最长时间；非正数使用默认值 `5s`。 |
 
 ### 代理后的客户端地址
@@ -206,9 +206,11 @@ description: 可搜索的 WuKongIM 配置手册，逐项说明全部公开 TOML 
 该能力目前位于 **Unreleased**；目标二进制需包含
 `proxy_protocol_trusted_cidrs` 支持。旧版本需要关闭上游代理发送的 PROXY 前缀。
 
-每个 TCP 或 WebSocket 监听器都可添加 `proxy_protocol_trusted_cidrs`。
-配置可信代理出口网段后，同一个端口自动兼容普通客户端流量和 PROXY v1/v2，
-无需修改 SDK，也无需选择代理厂商。省略或空列表表示不解析 PROXY 头。例如：
+每个 TCP 或 WebSocket 监听器默认在同一端口自动兼容普通客户端流量和 PROXY v1/v2，
+无需修改 SDK，也无需选择代理厂商。`proxy_protocol_trusted_cidrs` 是可选的来源限制：
+省略或空列表时接受任意对端发送的协议头，因此连接信息和日志中的地址可由客户端声明，
+不保证其真实性。内置 Token 认证和消息权限不依赖该地址。
+需要限制协议头来源时，配置受控代理出口网段，例如：
 
 ```toml
 [[gateway.listeners]]
@@ -225,9 +227,9 @@ proxy_protocol_trusted_cidrs = ["192.0.2.10/32"]
 非法 CIDR 会使配置加载失败。`WK_GATEWAY_LISTENERS` 的 JSON 监听器对象也支持该字段，
 环境变量会替换完整监听器列表，包括所有信任规则。
 
-信任规则匹配 WuKongIM 实际看到的 TCP 对端，需要考虑 SNAT。不要信任客户端网段或所有地址。
+配置信任规则时，匹配 WuKongIM 实际看到的 TCP 对端，需要考虑 SNAT，并仅列出受控代理出口网段。
 可信代理必须在转发连接前添加自己的 PROXY 头；会原样透传任意客户端前缀的 TCP 中继不应加入信任范围。
-已配置的监听器会拒绝其他来源发送的 PROXY 头，普通直连流量仍可接入。
+配置非空 CIDR 的监听器会拒绝其他来源发送的 PROXY 头，普通直连流量仍可接入。
 
 上游代理必须支持并主动发送 PROXY 协议，WuKongIM 无法还原未收到的原始地址。
 解析先于认证执行，WebSocket 场景还先于 HTTP Upgrade。TLS/WSS 应在上游代理终止，

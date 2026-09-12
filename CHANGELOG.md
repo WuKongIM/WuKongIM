@@ -12,7 +12,7 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
-- Accept direct clients and PROXY protocol v1/v2 on the same TCP or WebSocket Gateway listener after configuring trusted proxy CIDRs; preserve the original client address before authentication, with bounded preface parsing and timeout. / Gateway 配置可信代理 CIDR 后，同一 TCP 或 WebSocket 端口自动兼容直连与 PROXY v1/v2，在认证前恢复客户端地址，并限制协议头大小与等待时间。
+- Auto-detect direct clients and PROXY protocol v1/v2 on TCP and WebSocket Gateway listeners by default, with bounded preface parsing and timeout. Optional trusted CIDRs restrict header sources; omitted or empty accepts unverified client address assertions from any peer. / Gateway TCP 和 WebSocket 默认自动识别直连与 PROXY v1/v2，并限制协议头大小与等待时间；可选可信 CIDR 限制协议头来源，省略或为空时接受任意对端声明的未验证客户端地址。
 
 - Show the configured `guest` username and password on the Manager login page. / Manager 登录页在配置 guest 账号时展示其账号和密码。
 

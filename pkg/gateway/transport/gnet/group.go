@@ -452,11 +452,7 @@ func (g *engineGroup) OnOpen(c gnetv2.Conn) (out []byte, action gnetv2.Action) {
 	}
 
 	c.SetContext(state)
-	if len(runtime.trustedProxies) > 0 {
-		state.startProxyHandshake(proxyHeaderTimeout)
-	} else if runtime.opts.Network == "tcp" {
-		state.enqueueOpen()
-	}
+	state.startProxyHandshake(proxyHeaderTimeout)
 	return nil, gnetv2.None
 }
 

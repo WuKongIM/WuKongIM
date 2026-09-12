@@ -37,7 +37,10 @@ func TestGatewayLoggerFlowsToTransportConnectionLogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
-	_ = conn.Close()
+	defer conn.Close()
+	if _, err := conn.Write([]byte("PROXY UNKNOWN\r\n")); err != nil {
+		t.Fatal(err)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

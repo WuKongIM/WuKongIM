@@ -33,7 +33,7 @@ func startProxyTestListener(t *testing.T, trusted []string, handler transport.Co
 
 func TestProxyProtocolListenerMixesDirectV1V2AndKeepsPayload(t *testing.T) {
 	handler := newTCPRecordingHandler(func(conn transport.Conn, data []byte) error { return conn.Write(data) })
-	listener := startProxyTestListener(t, []string{"127.0.0.1/32"}, handler)
+	listener := startProxyTestListener(t, nil, handler)
 	for _, wire := range [][]byte{nil, []byte("PROXY TCP4 203.0.113.1 10.0.0.2 12345 5100\r\n"), proxyV2TestHeader(1, 0x21, proxyV2TestAddress(true))} {
 		conn := mustDialTCP(t, listener.Addr())
 		if err := conn.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
@@ -112,6 +112,8 @@ func TestProxyProtocolRejectsUntrustedAndMalformedBeforeOpen(t *testing.T) {
 		trusted []string
 		wire    []byte
 	}{
+		{"default malformed", nil, []byte("PROXY TCP4 invalid 10.0.0.1 123 5100\r\n")},
+		{"default oversized", nil, append([]byte(proxyV2Signature), 0x21, 0x11, 0xff, 0xff)},
 		{"untrusted v1", []string{"192.0.2.0/24"}, []byte("PROXY UNKNOWN\r\n")},
 		{"untrusted v2", []string{"192.0.2.0/24"}, proxyV2TestHeader(0, 0, nil)},
 		{"invalid v1", []string{"127.0.0.1/32"}, []byte("PROXY TCP4 invalid 10.0.0.2 1 2\r\n")},
@@ -145,7 +147,7 @@ func TestProxyProtocolRejectsUntrustedAndMalformedBeforeOpen(t *testing.T) {
 
 func TestProxyProtocolAbsoluteTimeoutAndEarlyClose(t *testing.T) {
 	handler := newTCPRecordingHandler(nil)
-	listener := startProxyTestListener(t, []string{"127.0.0.1/32"}, handler)
+	listener := startProxyTestListener(t, nil, handler)
 	conn := mustDialTCP(t, listener.Addr())
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(proxyHeaderTimeout + 2*time.Second))

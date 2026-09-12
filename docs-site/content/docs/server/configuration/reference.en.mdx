@@ -198,7 +198,7 @@ When the corresponding `api.external_*` is omitted, default external `/route` an
 | `gateway.default_session_async_send_batch_max_wait` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_WAIT` | `duration` | Maximum wait for a SEND shard to collect adjacent frames; `0` uses `1ms`, while a negative value normalizes to `0` and disables waiting. |
 | `gateway.default_session_async_send_batch_max_records` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_RECORDS` | `int` | Maximum frames in one Gateway SEND micro-batch; `0` uses `128`. |
 | `gateway.default_session_async_send_batch_max_bytes` | `WK_GATEWAY_DEFAULT_SESSION_ASYNC_SEND_BATCH_MAX_BYTES` | `int` | Maximum payload bytes in one Gateway SEND micro-batch; `0` uses `524288`. |
-| `gateway.listeners` | `WK_GATEWAY_LISTENERS` | `object_list` | Client listener list: `name`, `network`, `address`, `transport`, and `protocol` are required; `path` is optional; names and addresses must each be unique. Omitted opens WKProto TCP on `0.0.0.0:5100` and WSMux on `0.0.0.0:5200`; an explicit empty list (including JSON `null` in the environment) disables Gateway. |
+| `gateway.listeners` | `WK_GATEWAY_LISTENERS` | `object_list` | Client listener list: `name`, `network`, `address`, `transport`, and `protocol` are required; `path` and `proxy_protocol_trusted_cidrs` are optional; direct/PROXY v1/v2 detection is enabled by default, with omitted or empty CIDRs accepting unverified address assertions from any peer; names and addresses must each be unique. Omitted opens WKProto TCP on `0.0.0.0:5100` and WSMux on `0.0.0.0:5200`; an explicit empty list (including JSON `null` in the environment) disables Gateway. |
 | `gateway.send_timeout` | `WK_GATEWAY_SEND_TIMEOUT` | `duration` | Maximum duration allowed for one message send initiated by Gateway; a non-positive value uses `5s`. |
 
 ### Client addresses behind a proxy
@@ -207,10 +207,13 @@ This capability is currently under **Unreleased**; use a target binary containin
 `proxy_protocol_trusted_cidrs`. Older binaries require disabling the PROXY preface
 at the upstream proxy.
 
-Each TCP or WebSocket listener may add `proxy_protocol_trusted_cidrs`. After
-configuring trusted proxy egress networks, the same port automatically accepts
-plain client traffic and PROXY protocol v1/v2, without SDK changes or a proxy
-vendor selector. Empty or omitted means no PROXY parsing. Example:
+Every TCP or WebSocket listener automatically accepts plain client traffic and
+PROXY protocol v1/v2 on the same port by default, without SDK changes or a proxy
+vendor selector. `proxy_protocol_trusted_cidrs` is an optional source filter.
+Omitted or empty accepts headers from any peer: connection information and logs
+can contain client-declared addresses whose authenticity has not been verified.
+Built-in token authentication and message permissions do not rely on those addresses.
+To restrict header sources to controlled proxies, configure the filter as follows:
 
 ```toml
 [[gateway.listeners]]
@@ -228,10 +231,10 @@ CIDRs are accepted; invalid CIDRs fail configuration loading. `WK_GATEWAY_LISTEN
 accepts this field inside its JSON listener objects and replaces the entire
 listener list, including all trust rules.
 
-Match the actual TCP peer as seen by WuKongIM, including any SNAT. Do not trust
-client networks or all addresses. A trusted proxy must prepend its own header
+When setting the filter, match the actual TCP peer as seen by WuKongIM, including
+any SNAT. Use controlled proxy egress networks. A trusted proxy must prepend its own header
 on forwarded connections; a transparent TCP relay that passes arbitrary client
-prefixes through is not a safe trusted source. Configured listeners reject
+prefixes through is not a safe trusted source. Listeners with nonempty CIDRs reject
 recognized PROXY headers from other peers. Direct traffic remains accepted.
 
 The upstream proxy must support and send the protocol; WuKongIM cannot recover

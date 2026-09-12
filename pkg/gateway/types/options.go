@@ -48,9 +48,10 @@ type ListenerOptions struct {
 	Transport string
 	Protocol  string
 	// ProxyProtocolTrustedCIDRs lists the TCP peers allowed to supply PROXY v1/v2
-	// source addresses. Empty disables PROXY parsing. A configured listener accepts
-	// both direct traffic and PROXY headers; untrusted peers cannot supply headers.
-	// Use only controlled proxy egress networks, never arbitrary client networks.
+	// source addresses. Direct/PROXY detection is always enabled. Empty accepts
+	// assertions from any peer, so reported client addresses are not verified.
+	// A nonempty list restricts assertions to controlled proxy egress networks;
+	// direct traffic remains accepted from any peer.
 	ProxyProtocolTrustedCIDRs []string `json:"proxy_protocol_trusted_cidrs,omitempty"`
 }
 

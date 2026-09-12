@@ -406,8 +406,8 @@ var schemaHelp = map[string]fieldHelp{
 		ZH: "一个 Gateway SEND 微批次允许的最大负载字节数；0 使用默认值 524288。",
 	},
 	"gateway.listeners": {
-		EN: "Client listener list: name, network, address, transport, and protocol are required; path and proxy_protocol_trusted_cidrs are optional; nonempty trusted CIDRs enable automatic direct/PROXY v1/v2 detection (5s, 4096-byte v2 cap), empty disables parsing; names and addresses must each be unique. Omitted opens WKProto TCP on 0.0.0.0:5100 and WSMux on 0.0.0.0:5200; an explicit empty list (including JSON null in the environment) disables Gateway.",
-		ZH: "客户端监听器列表；name、network、address、transport、protocol 必填，path 和 proxy_protocol_trusted_cidrs 可选；配置可信 CIDR 后自动识别直连与 PROXY v1/v2（5 秒期限、v2 最大 4096 字节），空列表关闭解析；名称与地址必须各自唯一。省略时开放 0.0.0.0:5100 WKProto TCP 和 0.0.0.0:5200 WSMux；显式空列表（环境变量 JSON null 同样）不启动 Gateway。",
+		EN: "Client listener list: name, network, address, transport, and protocol are required; path and proxy_protocol_trusted_cidrs are optional; direct/PROXY v1/v2 detection is enabled by default (5s, 4096-byte v2 cap); empty or omitted trusted CIDRs accept unverified address assertions from any peer, nonempty CIDRs restrict header sources; names and addresses must each be unique. Omitted opens WKProto TCP on 0.0.0.0:5100 and WSMux on 0.0.0.0:5200; an explicit empty list (including JSON null in the environment) disables Gateway.",
+		ZH: "客户端监听器列表；name、network、address、transport、protocol 必填，path 和 proxy_protocol_trusted_cidrs 可选；默认自动识别直连与 PROXY v1/v2（5 秒期限、v2 最大 4096 字节）；可信 CIDR 省略或为空时接受任意对端声明的未验证地址，非空时限制协议头来源；名称与地址必须各自唯一。省略时开放 0.0.0.0:5100 WKProto TCP 和 0.0.0.0:5200 WSMux；显式空列表（环境变量 JSON null 同样）不启动 Gateway。",
 	},
 	"gateway.send_timeout": {
 		EN: "Maximum duration allowed for one message send initiated by Gateway; a non-positive value uses 5s.",

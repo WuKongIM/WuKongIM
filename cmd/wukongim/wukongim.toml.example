@@ -120,9 +120,11 @@ format = "console"
 # controlled compatibility migration because disabling it removes this identity check.
 token_auth_on = true
 # Each listener may set proxy_protocol_trusted_cidrs = ["192.0.2.10/32"].
-# Empty/omitted disables PROXY parsing. Set only your controlled proxy egress CIDRs
-# (up to 128 IPv4/IPv6 CIDRs) to auto-detect direct traffic and PROXY v1/v2 on the
-# same port. Recognized PROXY headers from other TCP peers are rejected.
+# Direct traffic and PROXY v1/v2 are auto-detected on the same port by default.
+# Empty/omitted CIDRs accept headers from any TCP peer, so clients can assert
+# arbitrary addresses in connection information and logs. To verify the source,
+# set controlled proxy egress CIDRs (up to 128 IPv4/IPv6 CIDRs); headers from other
+# peers are then rejected. Direct traffic remains accepted from any peer.
 # Preface detection must finish within 5s of accept; v1 is capped at 107 bytes and
 # v2 at 4096 bytes including TLVs. The proxy must prepend its own PROXY header;
 # HTTP X-Forwarded-For and TLS termination are separate capabilities.

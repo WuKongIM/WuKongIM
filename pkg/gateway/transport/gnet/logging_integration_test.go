@@ -35,7 +35,10 @@ func TestTCPListenerLogsDebugOnConnectSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
-	_ = conn.Close()
+	defer conn.Close()
+	if _, err := conn.Write([]byte("hello")); err != nil {
+		t.Fatal(err)
+	}
 
 	waitUntil(t, time.Second, func() bool { return handler.OpenCount() == 1 })
 	entry := waitForTransportLogEntry(t, logger, "gateway.transport.conn.connected")
@@ -71,7 +74,10 @@ func TestTCPListenerLogsDebugOnConnectFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
-	_ = conn.Close()
+	defer conn.Close()
+	if _, err := conn.Write([]byte("hello")); err != nil {
+		t.Fatal(err)
+	}
 
 	entry := waitForTransportLogEntry(t, logger, "gateway.transport.conn.connect_failed")
 	if got := entry.errorField("error"); !errors.Is(got, wantErr) {
