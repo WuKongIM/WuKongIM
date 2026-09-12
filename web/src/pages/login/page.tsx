@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import {
   Activity,
   ArrowRight,
@@ -18,7 +18,7 @@ import { useAuthStore } from "@/auth/auth-store"
 import { LocaleSwitcher } from "@/components/i18n/locale-switcher"
 import { ThemeSwitcher } from "@/components/theme/theme-switcher"
 import { Button } from "@/components/ui/button"
-import { ManagerApiError } from "@/lib/manager-api"
+import { getManagerLoginInfo, ManagerApiError, type ManagerLoginCredentials } from "@/lib/manager-api"
 import { defaultAppPath } from "@/lib/navigation"
 
 function getLoginError(intl: ReturnType<typeof useIntl>, error: unknown) {
@@ -134,6 +134,20 @@ export function LoginPage() {
   const [errorMessage, setErrorMessage] = useState("")
   const [hasCredentialError, setHasCredentialError] = useState(false)
 
+  const [guest, setGuest] = useState<ManagerLoginCredentials>()
+
+  useEffect(() => {
+    const controller = new AbortController()
+    getManagerLoginInfo({ signal: controller.signal })
+      .then((info) => {
+        if (!controller.signal.aborted) setGuest(info.guest)
+      })
+      .catch(() => {
+        // Optional login hints must not prevent sign-in when unavailable.
+      })
+    return () => controller.abort()
+  }, [])
+
   function clearError() {
     setErrorMessage("")
     setHasCredentialError(false)
@@ -219,6 +233,18 @@ export function LoginPage() {
             <p className="mt-4 text-sm leading-6 text-muted-foreground">
               {intl.formatMessage({ id: "auth.staticAccountHint" })}
             </p>
+
+            {guest ? (
+              <aside className="mt-5 rounded-xl border border-border bg-muted/50 p-4 text-sm" aria-label={intl.formatMessage({ id: "auth.guestAccount" })}>
+                <p className="font-medium">{intl.formatMessage({ id: "auth.guestAccount" })}</p>
+                <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
+                  <dt className="text-muted-foreground">{intl.formatMessage({ id: "auth.username" })}</dt>
+                  <dd className="whitespace-pre-wrap break-all font-mono">{guest.username}</dd>
+                  <dt className="text-muted-foreground">{intl.formatMessage({ id: "auth.password" })}</dt>
+                  <dd className="whitespace-pre-wrap break-all font-mono">{guest.password}</dd>
+                </dl>
+              </aside>
+            ) : null}
 
             <form aria-busy={isSubmitting} className="mt-9 space-y-5" onSubmit={handleSubmit}>
               <div>

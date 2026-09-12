@@ -12,6 +12,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Show the configured `guest` username and password on the Manager login page. / Manager 登录页在配置 guest 账号时展示其账号和密码。
+
 - Clarify that Manager message deletion includes the selected message and all earlier messages in the same channel, with explicit bulk deletion confirmation. / 管理台消息删除明确标注“此条及更早消息”，并在批量删除确认中说明同频道、包含未展示历史消息的影响范围。
 
 - Sample rejected WebSocket handshakes as informational diagnostics instead of listener-error stack traces; genuine listener faults remain errors. / WebSocket 握手拒绝改为限频 INFO 诊断，避免扫描请求刷出 ERROR 堆栈，真实监听器故障仍完整记录。

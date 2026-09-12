@@ -82,6 +82,7 @@ auth_on = true
 jwt_secret = "wukongim-dev-manager-secret"
 jwt_issuer = "wukongim-manager"
 jwt_expire = "24h"
+# A user named exactly "guest" has its username and password publicly displayed on the Manager login page when auth is enabled.
 users = [{ username = "admin", password = "a1234567", permissions = [{ resource = "*", actions = ["*"] }] }]
 
 [bench]

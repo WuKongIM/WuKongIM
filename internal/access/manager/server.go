@@ -425,6 +425,7 @@ func (s *Server) registerRoutes() {
 		s.engine.Any("/mcp", gin.WrapH(s.opsMCPHandler))
 	}
 	if s.auth.enabled() {
+		s.engine.GET("/manager/login", s.handleLoginInfo)
 		s.engine.POST("/manager/login", s.handleLogin)
 	}
 	permissions := s.engine.Group("/manager")

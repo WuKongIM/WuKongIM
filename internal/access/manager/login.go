@@ -26,6 +26,21 @@ type loginPermissionDTO struct {
 	Actions  []string `json:"actions"`
 }
 
+type loginInfoResponse struct {
+	Guest *loginRequest `json:"guest,omitempty"`
+}
+
+// handleLoginInfo publishes only the explicitly configured guest credentials
+// for the anonymous login page. Other static accounts remain private.
+func (s *Server) handleLoginInfo(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	response := loginInfoResponse{}
+	if guest, ok := s.auth.users["guest"]; ok {
+		response.Guest = &loginRequest{Username: "guest", Password: guest.password}
+	}
+	c.JSON(http.StatusOK, response)
+}
+
 func (s *Server) handleLogin(c *gin.Context) {
 	var req loginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
