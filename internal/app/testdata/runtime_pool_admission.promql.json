@@ -1,0 +1,161 @@
+{
+  "evaluation_interval": "15s",
+  "tests": [
+    {
+      "name": "normal scheduling is not failure",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "wukongim_runtime_pool_admission_total{component=\"slot\",pool=\"scheduler\",queue=\"scheduler\",priority=\"none\",result=\"ok\"}",
+          "values": "0+150x8"
+        },
+        {
+          "series": "wukongim_runtime_pool_admission_total{component=\"slot\",pool=\"scheduler\",queue=\"scheduler\",priority=\"none\",result=\"coalesced\"}",
+          "values": "0+150x8"
+        },
+        {
+          "series": "wukongim_runtime_pool_admission_total{component=\"slot\",pool=\"scheduler\",queue=\"scheduler\",priority=\"none\",result=\"dirty\"}",
+          "values": "0+150x8"
+        },
+        {
+          "series": "wukongim_runtime_pool_admission_total{component=\"slot\",pool=\"scheduler\",queue=\"scheduler\",priority=\"none\",result=\"requeued\"}",
+          "values": "0+150x8"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "sum by (component, pool, queue, priority, result) (rate(wukongim_runtime_pool_admission_total{result!=\"ok\"}[2m]) unless rate(wukongim_runtime_pool_admission_total{component=\"slot\",pool=\"scheduler\",queue=\"scheduler\",priority=\"none\",result=~\"coalesced|dirty|requeued\"}[2m])) or on() (0 * sum(rate(wukongim_runtime_pool_admission_total[2m])))",
+          "eval_time": "2m",
+          "exp_samples": [
+            {
+              "labels": "{}",
+              "value": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "real rejection",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "wukongim_runtime_pool_admission_total{component=\"slot\",pool=\"scheduler\",queue=\"scheduler\",priority=\"none\",result=\"coalesced\"}",
+          "values": "0+150x8"
+        },
+        {
+          "series": "wukongim_runtime_pool_admission_total{component=\"slot\",pool=\"scheduler\",queue=\"scheduler\",priority=\"none\",result=\"full\"}",
+          "values": "0+30x8"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "sum by (component, pool, queue, priority, result) (rate(wukongim_runtime_pool_admission_total{result!=\"ok\"}[2m]) unless rate(wukongim_runtime_pool_admission_total{component=\"slot\",pool=\"scheduler\",queue=\"scheduler\",priority=\"none\",result=~\"coalesced|dirty|requeued\"}[2m])) or on() (0 * sum(rate(wukongim_runtime_pool_admission_total[2m])))",
+          "eval_time": "2m",
+          "exp_samples": [
+            {
+              "labels": "{component=\"slot\",pool=\"scheduler\",queue=\"scheduler\",priority=\"none\",result=\"full\"}",
+              "value": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "other components not exempt",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "wukongim_runtime_pool_admission_total{component=\"gateway\",pool=\"scheduler\",queue=\"scheduler\",priority=\"none\",result=\"coalesced\"}",
+          "values": "0+30x8"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "sum by (component, pool, queue, priority, result) (rate(wukongim_runtime_pool_admission_total{result!=\"ok\"}[2m]) unless rate(wukongim_runtime_pool_admission_total{component=\"slot\",pool=\"scheduler\",queue=\"scheduler\",priority=\"none\",result=~\"coalesced|dirty|requeued\"}[2m])) or on() (0 * sum(rate(wukongim_runtime_pool_admission_total[2m])))",
+          "eval_time": "2m",
+          "exp_samples": [
+            {
+              "labels": "{component=\"gateway\",pool=\"scheduler\",queue=\"scheduler\",priority=\"none\",result=\"coalesced\"}",
+              "value": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "other pools not exempt",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "wukongim_runtime_pool_admission_total{component=\"slot\",pool=\"other\",queue=\"scheduler\",priority=\"none\",result=\"dirty\"}",
+          "values": "0+30x8"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "sum by (component, pool, queue, priority, result) (rate(wukongim_runtime_pool_admission_total{result!=\"ok\"}[2m]) unless rate(wukongim_runtime_pool_admission_total{component=\"slot\",pool=\"scheduler\",queue=\"scheduler\",priority=\"none\",result=~\"coalesced|dirty|requeued\"}[2m])) or on() (0 * sum(rate(wukongim_runtime_pool_admission_total[2m])))",
+          "eval_time": "2m",
+          "exp_samples": [
+            {
+              "labels": "{component=\"slot\",pool=\"other\",queue=\"scheduler\",priority=\"none\",result=\"dirty\"}",
+              "value": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "missing metrics",
+      "interval": "15s",
+      "input_series": [],
+      "promql_expr_test": [
+        {
+          "expr": "sum by (component, pool, queue, priority, result) (rate(wukongim_runtime_pool_admission_total{result!=\"ok\"}[2m]) unless rate(wukongim_runtime_pool_admission_total{component=\"slot\",pool=\"scheduler\",queue=\"scheduler\",priority=\"none\",result=~\"coalesced|dirty|requeued\"}[2m])) or on() (0 * sum(rate(wukongim_runtime_pool_admission_total[2m])))",
+          "eval_time": "2m",
+          "exp_samples": []
+        }
+      ]
+    },
+    {
+      "name": "one sample insufficient",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "wukongim_runtime_pool_admission_total{component=\"slot\",pool=\"scheduler\",queue=\"scheduler\",priority=\"none\",result=\"ok\"}",
+          "values": "_ _ _ _ _ _ _ _ 1"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "sum by (component, pool, queue, priority, result) (rate(wukongim_runtime_pool_admission_total{result!=\"ok\"}[2m]) unless rate(wukongim_runtime_pool_admission_total{component=\"slot\",pool=\"scheduler\",queue=\"scheduler\",priority=\"none\",result=~\"coalesced|dirty|requeued\"}[2m])) or on() (0 * sum(rate(wukongim_runtime_pool_admission_total[2m])))",
+          "eval_time": "2m",
+          "exp_samples": []
+        }
+      ]
+    },
+    {
+      "name": "normal counter reset",
+      "interval": "15s",
+      "input_series": [
+        {
+          "series": "wukongim_runtime_pool_admission_total{component=\"slot\",pool=\"scheduler\",queue=\"scheduler\",priority=\"none\",result=\"coalesced\"}",
+          "values": "1000 1100 1200 0 100 200 300 400 500"
+        }
+      ],
+      "promql_expr_test": [
+        {
+          "expr": "sum by (component, pool, queue, priority, result) (rate(wukongim_runtime_pool_admission_total{result!=\"ok\"}[2m]) unless rate(wukongim_runtime_pool_admission_total{component=\"slot\",pool=\"scheduler\",queue=\"scheduler\",priority=\"none\",result=~\"coalesced|dirty|requeued\"}[2m])) or on() (0 * sum(rate(wukongim_runtime_pool_admission_total[2m])))",
+          "eval_time": "2m",
+          "exp_samples": [
+            {
+              "labels": "{}",
+              "value": 0
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "fuzzy_compare": true
+}

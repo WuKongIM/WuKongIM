@@ -2,6 +2,11 @@
 
 ## Internal
 
+- Slot scheduler admission results `coalesced`, `dirty`, and `requeued` represent
+  normal scheduling progress, not failures. Manager error PromQL must exclude
+  them only for the Slot scheduler and derive zero from observed admission
+  samples, never from an unconditional fallback when telemetry is missing.
+
 - Public `cluster.start_timeout` maps to the existing Cluster `Timeouts.Start`
   readiness budget (30s default). Cold committed-log replay may outlast that
   budget before traffic is admitted; increase it only from measured recovery

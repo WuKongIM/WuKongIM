@@ -260,6 +260,10 @@ func (p *managerPrometheusMonitorProvider) businessMonitorCard(ctx context.Conte
 		return managerMonitorCardResult{card: card, err: fmt.Errorf("%s: %s", def.key, card.Error)}
 	}
 	card.Value = monitorSeriesSummaryValue(queryResult.allSeries, def.summary)
+	// Only observed zero errors are healthy; unavailable cards retain their source state.
+	if def.key == "runtimePoolAdmissionErrorRate" && card.Value == 0 {
+		card.Tone = accessmanager.RealtimeMonitorToneNormal
+	}
 	card.Stats = monitorCardStats(queryResult.allSeries, step, def.unit)
 	return managerMonitorCardResult{card: card}
 }

@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Exclude normal Slot scheduling coalescing and rescheduling from Manager runtime admission errors; show observed zero errors as normal while preserving missing-data status. / Manager 运行时准入错误排除正常 Slot 调度合并及重新调度，有采集且错误为零时显示正常，无数据仍保持未知。
+
 ## [v3.0.0-beta.14] - 2026-09-12
 
 ### 🚀 New Features / 新功能
