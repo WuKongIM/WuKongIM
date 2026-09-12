@@ -46,7 +46,7 @@ description: 四步完成 v2 到 v3 离线迁移：汇总冷备、填写计划�
 | 插件 | 记录每个插件的版本、文件大小、摘要、配置和方法；按工具支持的兼容规则迁移，随后验证实际功能。详见下方“插件迁移”。 |
 | Webhook | 确认目标支持的协议、地址和网络可达性；原 gRPC 地址不能直接填入 HTTP 配置，接收端须通过对应事件验收。 |
 | 单聊白名单 | v2 `whitelistOffOfPerson=false` 对应 v3 `message.person_whitelist_enabled=true`；不可直接沿用 v3 默认值。 |
-| 网关 | 核对 TCP、WebSocket 和 HTTP 转发配置；旧 TCP 网关的 `proxy_protocol on` 须与目标支持情况匹配。当前 v3 不支持该前缀，应移除并先执行 `nginx -t`。 |
+| 网关 | 核对 TCP、WebSocket 和 HTTP 转发配置；仅在目标二进制支持 `proxy_protocol_trusted_cidrs` 且已配置信任的代理出口 CIDR 时保留 `proxy_protocol on`，否则移除。参见 [PROXY 配置](/server/configuration/reference#代理后的客户端地址)，并先执行 `nginx -t`。 |
 | 外部数据源 | v3 没有旧 `datasource.addr` 的直接替代配置；迁入的成员、黑白名单及后续更新须通过目标支持的 API 验证。 |
 
 尚未提供包含所需修复的发布包时，可以按[工具总览的源码构建步骤](/zh/server/tools)构建配套程序。本文新增迁移能力的可复现源码基线为 [`48e89136e`](https://github.com/WuKongIM/WuKongIM/commit/48e89136e5d5f23705ec678bd9ebd5c63c3837cd)：先检出这个完整提交，再从同一工作目录构建 `wkcli` 与 `wukongim`，给两个程序注入相同的版本、提交及 `source` 构建来源，并核对 `version --output json`。这是源码构建基线，不是已发布安装包的版本号；仍须用自己的完整冷备演练后再切换。

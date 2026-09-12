@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -15,8 +16,9 @@ import (
 )
 
 type listenerRuntime struct {
-	opts    transport.ListenerOptions
-	handler transport.ConnHandler
+	opts           transport.ListenerOptions
+	handler        transport.ConnHandler
+	trustedProxies []netip.Prefix // immutable CIDRs compiled when the listener is built.
 
 	mu         sync.RWMutex
 	boundAddr  string
@@ -450,7 +452,9 @@ func (g *engineGroup) OnOpen(c gnetv2.Conn) (out []byte, action gnetv2.Action) {
 	}
 
 	c.SetContext(state)
-	if runtime.opts.Network == "tcp" {
+	if len(runtime.trustedProxies) > 0 {
+		state.startProxyHandshake(proxyHeaderTimeout)
+	} else if runtime.opts.Network == "tcp" {
 		state.enqueueOpen()
 	}
 	return nil, gnetv2.None
@@ -466,25 +470,47 @@ func (g *engineGroup) OnTraffic(c gnetv2.Conn) (action gnetv2.Action) {
 		return gnetv2.None
 	}
 
-	if state.currentMode() == connModeTCP {
-		buf, err := c.Next(-1)
-		if err != nil {
-			state.enqueueClose(err)
-			_ = c.Close()
-			return gnetv2.None
-		}
-		if len(buf) == 0 {
-			return gnetv2.None
-		}
+	if state.proxy == nil && state.currentMode() != connModeTCP {
+		return g.handleWSTraffic(c, state)
+	}
 
+	buf, err := c.Next(-1)
+	if err != nil {
+		state.enqueueClose(err)
+		_ = c.Close()
+		return gnetv2.None
+	}
+	if len(buf) == 0 {
+		return gnetv2.None
+	}
+	if state.proxy != nil {
+		prefix, rest, ready := state.consumeProxyHandshake(buf)
+		if !ready {
+			return gnetv2.None
+		}
+		if len(prefix) > 0 && !g.dispatchInbound(c, state, prefix) {
+			return gnetv2.None
+		}
+		buf = rest
+	}
+	if len(buf) > 0 {
+		g.dispatchInbound(c, state, buf)
+	}
+	return gnetv2.None
+}
+
+// dispatchInbound runs only after the transport preface has completed. Copied
+// TCP events preserve borrowed gnet buffers; WS parsing retains its own bytes.
+func (g *engineGroup) dispatchInbound(c gnetv2.Conn, state *connState, buf []byte) bool {
+	if state.currentMode() == connModeTCP {
 		if !state.enqueueCopiedData(buf) {
 			state.fail(ErrPendingBytesExceeded)
 			_ = c.Close()
+			return false
 		}
-		return gnetv2.None
+		return true
 	}
-
-	return g.handleWSTraffic(c, state)
+	return g.handleWSBytes(c, state, buf)
 }
 
 func (g *engineGroup) handleWSTraffic(c gnetv2.Conn, state *connState) gnetv2.Action {
@@ -498,10 +524,15 @@ func (g *engineGroup) handleWSTraffic(c gnetv2.Conn, state *connState) gnetv2.Ac
 		return gnetv2.None
 	}
 
+	g.handleWSBytes(c, state, buf)
+	return gnetv2.None
+}
+
+func (g *engineGroup) handleWSBytes(c gnetv2.Conn, state *connState, buf []byte) bool {
 	if !state.appendWSInbound(buf) {
 		state.fail(ErrPendingBytesExceeded)
 		_ = c.Close()
-		return gnetv2.None
+		return false
 	}
 
 	for {
@@ -509,7 +540,7 @@ func (g *engineGroup) handleWSTraffic(c gnetv2.Conn, state *connState) gnetv2.Ac
 		case connModeWSHandshake:
 			result, failure, complete := state.consumeWSHandshake()
 			if !complete {
-				return gnetv2.None
+				return true
 			}
 			if failure != nil {
 				// OnError runs before a Session exists, so carry the transport peer
@@ -520,38 +551,38 @@ func (g *engineGroup) handleWSTraffic(c gnetv2.Conn, state *connState) gnetv2.Ac
 				state.runtime.reportError(&transport.HandshakeRejectionError{StatusCode: failure.statusCode, Err: err})
 				if len(failure.response) == 0 {
 					_ = c.Close()
-					return gnetv2.None
+					return false
 				}
 				if err := c.AsyncWrite(failure.response, func(conn gnetv2.Conn, err error) error {
 					return conn.Close()
 				}); err != nil {
 					_ = c.Close()
 				}
-				return gnetv2.None
+				return false
 			}
 			if err := c.AsyncWrite(result.response, nil); err != nil {
 				_ = c.Close()
-				return gnetv2.None
+				return false
 			}
 			state.enqueueOpen()
 		case connModeWSFrames:
 			result, ok := state.nextWSResult()
 			if !ok {
-				return gnetv2.None
+				return true
 			}
 
 			if len(result.write) > 0 {
 				if err := c.AsyncWrite(result.write, nil); err != nil {
 					state.enqueueClose(err)
 					_ = c.Close()
-					return gnetv2.None
+					return false
 				}
 			}
 			if len(result.payload) > 0 {
 				if !state.enqueueCopiedDataWithOpcode(result.opcode, result.payload) {
 					state.fail(ErrPendingBytesExceeded)
 					_ = c.Close()
-					return gnetv2.None
+					return false
 				}
 			}
 			if len(result.closeWrite) > 0 {
@@ -561,16 +592,16 @@ func (g *engineGroup) handleWSTraffic(c gnetv2.Conn, state *connState) gnetv2.Ac
 					state.enqueueClose(result.closeErr)
 					_ = c.Close()
 				}
-				return gnetv2.None
+				return false
 			}
 			if result.closeNow {
 				state.enqueueClose(result.closeErr)
 				_ = c.Close()
-				return gnetv2.None
+				return false
 			}
 		default:
 			_ = c.Close()
-			return gnetv2.None
+			return false
 		}
 	}
 }
@@ -578,6 +609,7 @@ func (g *engineGroup) handleWSTraffic(c gnetv2.Conn, state *connState) gnetv2.Ac
 func (g *engineGroup) OnClose(c gnetv2.Conn, err error) (action gnetv2.Action) {
 	state, _ := c.Context().(*connState)
 	if state != nil {
+		state.cancelProxyHandshake()
 		state.runtime.untrackConn(state)
 		state.enqueueClose(err)
 	}

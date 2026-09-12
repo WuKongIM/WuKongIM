@@ -201,6 +201,54 @@ When the corresponding `api.external_*` is omitted, default external `/route` an
 | `gateway.listeners` | `WK_GATEWAY_LISTENERS` | `object_list` | Client listener list: `name`, `network`, `address`, `transport`, and `protocol` are required; `path` is optional; names and addresses must each be unique. Omitted opens WKProto TCP on `0.0.0.0:5100` and WSMux on `0.0.0.0:5200`; an explicit empty list (including JSON `null` in the environment) disables Gateway. |
 | `gateway.send_timeout` | `WK_GATEWAY_SEND_TIMEOUT` | `duration` | Maximum duration allowed for one message send initiated by Gateway; a non-positive value uses `5s`. |
 
+### Client addresses behind a proxy
+
+This capability is currently under **Unreleased**; use a target binary containing
+`proxy_protocol_trusted_cidrs`. Older binaries require disabling the PROXY preface
+at the upstream proxy.
+
+Each TCP or WebSocket listener may add `proxy_protocol_trusted_cidrs`. After
+configuring trusted proxy egress networks, the same port automatically accepts
+plain client traffic and PROXY protocol v1/v2, without SDK changes or a proxy
+vendor selector. Empty or omitted means no PROXY parsing. Example:
+
+```toml
+[[gateway.listeners]]
+name = "tcp-wkproto"
+network = "tcp"
+address = "0.0.0.0:5100"
+transport = "gnet"
+protocol = "wkproto"
+# Replace with the actual controlled proxy egress IP/CIDR.
+proxy_protocol_trusted_cidrs = ["192.0.2.10/32"]
+```
+
+Use the same field on a `network = "websocket"` listener. At most 128 IPv4/IPv6
+CIDRs are accepted; invalid CIDRs fail configuration loading. `WK_GATEWAY_LISTENERS`
+accepts this field inside its JSON listener objects and replaces the entire
+listener list, including all trust rules.
+
+Match the actual TCP peer as seen by WuKongIM, including any SNAT. Do not trust
+client networks or all addresses. A trusted proxy must prepend its own header
+on forwarded connections; a transparent TCP relay that passes arbitrary client
+prefixes through is not a safe trusted source. Configured listeners reject
+recognized PROXY headers from other peers. Direct traffic remains accepted.
+
+The upstream proxy must support and send the protocol; WuKongIM cannot recover
+an address that it did not receive. Parsing occurs before authentication and,
+for WebSocket, before HTTP Upgrade. TLS/WSS termination belongs to the upstream
+proxy; `X-Forwarded-For` is not used by this feature. It does not change the HTTP
+API, Manager, cluster RPC, advertised routes, or token authentication.
+
+Detection has an absolute five-second deadline from TCP accept, including clients
+that send no data. Incomplete, malformed, or oversized headers close the connection.
+The v1 limit is 107 bytes; v2 permits 4096 bytes including the fixed header and
+optional TLVs. TLV values are ignored; supported TCP address blocks validate TLV
+framing. `UNKNOWN`, `LOCAL`, and valid unsupported v2 address transports retain
+the physical endpoints. Sessions use the asserted client source as `RemoteAddr`,
+retain the actual listener as `LocalAddr`, and expose the physical proxy through
+`gateway.peer_addr`; connection debug logs include `peerAddr` when it differs.
+
 ## Message
 
 | TOML | Environment | Type | Description |

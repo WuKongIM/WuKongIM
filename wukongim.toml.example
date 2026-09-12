@@ -148,6 +148,13 @@ format = "console"
 # for the same UID and device_flag. Enabled by default; set false only during a
 # controlled compatibility migration because disabling it removes this identity check.
 token_auth_on = true
+# Each listener may set proxy_protocol_trusted_cidrs = ["192.0.2.10/32"].
+# Empty/omitted disables PROXY parsing. Set only your controlled proxy egress CIDRs
+# (up to 128 IPv4/IPv6 CIDRs) to auto-detect direct traffic and PROXY v1/v2 on the
+# same port. Recognized PROXY headers from other TCP peers are rejected.
+# Preface detection must finish within 5s of accept; v1 is capped at 107 bytes and
+# v2 at 4096 bytes including TLVs. The proxy must prepend its own PROXY header;
+# HTTP X-Forwarded-For and TLS termination are separate capabilities.
 listeners = [{ name = "tcp-wkproto", network = "tcp", address = "0.0.0.0:5100", transport = "gnet", protocol = "wkproto" }, { name = "ws-gateway", network = "websocket", address = "0.0.0.0:5200", transport = "gnet", protocol = "wsmux" }]
 # Four multicore event loops and 1,000 bounded async SEND workers are the
 # qualified profile; the queue remains capped at 131,072 frames.

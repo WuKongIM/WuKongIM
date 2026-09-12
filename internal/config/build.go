@@ -13,6 +13,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/binding"
+	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 )
 
 const (
@@ -1327,6 +1328,11 @@ func parseListeners(raw string) ([]gateway.ListenerOptions, error) {
 	var listeners []gateway.ListenerOptions
 	if err := json.Unmarshal([]byte(raw), &listeners); err != nil {
 		return nil, fmt.Errorf("parse WK_GATEWAY_LISTENERS as JSON: %w", err)
+	}
+	for _, listener := range listeners {
+		if _, err := gatewaytypes.ParseProxyProtocolTrustedCIDRs(listener.ProxyProtocolTrustedCIDRs); err != nil {
+			return nil, fmt.Errorf("parse WK_GATEWAY_LISTENERS listener %q: %w", listener.Name, err)
+		}
 	}
 	return listeners, nil
 }

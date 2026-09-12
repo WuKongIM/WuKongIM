@@ -46,7 +46,7 @@ Confirm each required capability against the selected tool’s release notes bef
 | Plugins | Inventory each program’s version, size, digest, configuration, and methods. Use a supported compatibility profile and validate actual behavior; see “Plugin migration” below. |
 | Webhooks | Verify the target protocol, endpoint, and connectivity. Do not place a gRPC address into HTTP configuration; verify event handling at the receiver. |
 | Person whitelist | v2 `whitelistOffOfPerson=false` corresponds to v3 `message.person_whitelist_enabled=true`; do not blindly accept the v3 default. |
-| Gateway | Check TCP, WebSocket, and HTTP forwarding. The current v3 gateway does not accept the prefix sent by `proxy_protocol on`; remove that old setting and run `nginx -t` first. |
+| Gateway | Check TCP, WebSocket, and HTTP forwarding. Keep `proxy_protocol on` only when the target binary supports `proxy_protocol_trusted_cidrs` and its trusted proxy egress CIDRs are configured; otherwise remove it. See [PROXY configuration](/en/server/configuration/reference#client-addresses-behind-a-proxy) and run `nginx -t` first. |
 | External data source | There is no direct equivalent of v2 `datasource.addr`. Validate imported membership/allowlists/denylists and subsequent changes through supported target APIs. |
 
 Use the same matching version on every target node. If published packages lack a required capability, complete adaptation and release-version validation before scheduling the final outage. Do not assume an unpublished fix is present in an installed package. Once a newer runtime writes target data, follow its data-format rollback constraints instead of merely swapping in an older binary.

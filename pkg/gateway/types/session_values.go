@@ -1,6 +1,9 @@
 package types
 
 const (
+	// SessionValuePeerAddr is the physical transport peer (host:port), retained for
+	// diagnostics independently of the effective client address in RemoteAddr.
+	SessionValuePeerAddr          = "gateway.peer_addr"
 	SessionValueUID               = "gateway.uid"
 	SessionValueDeviceID          = "gateway.device_id"
 	SessionValueDeviceFlag        = "gateway.device_flag"

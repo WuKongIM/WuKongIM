@@ -2,6 +2,21 @@
 
 ## Internal
 
+- Gateway listeners can opt into automatic direct/PROXY v1/v2 detection using
+  `proxy_protocol_trusted_cidrs`. Empty trusts no proxy and preserves the existing
+  transport path. Configured listeners reject PROXY assertions from other TCP
+  peers; trust only controlled proxy egress, whose forwarded connections must
+  prepend their own header. Same-port auto detection is an intentional extension
+  to the strict dedicated-listener HAProxy specification, requested for transparent
+  client compatibility. Detection is bounded to five seconds from accept, 107
+  v1 bytes or 4096 v2 bytes, before Session creation / WebSocket Upgrade.
+  `RemoteAddr` carries the asserted source; `gateway.peer_addr` retains the TCP
+  peer and `LocalAddr` remains the actual listener. UNKNOWN/LOCAL and valid
+  unsupported v2 address transports preserve physical endpoints; TLV values are
+  ignored after framing validation for supported TCP address blocks. PROXY
+  handling is independent of authentication, forwarding product, and cluster
+  routing, and is not native TLS or HTTP forwarded-header support.
+
 - Manager message deletion advances a channel retention boundary inclusively through the selected message sequence. It affects earlier history beyond the displayed or filtered results; UI labels and confirmations must communicate this channel-wide scope.
 
 - Slot scheduler admission results `coalesced`, `dirty`, and `requeued` represent
@@ -1313,7 +1328,7 @@ Recovery barriers compare the complete `(ChannelEpoch, LeaderTerm, FenceVersion)
 
 - Message lifetimes remain uint32 seconds in the existing header column. New proposals containing nonzero Expire use quorum format 2 and bind it in the entry digest; legacy format-1 digests are never reinterpreted, including old compatibility records with stored but unbound lifetimes. Channel RPC 9 and quorum exchange 5 propagate the field, and older encodings reject lossy requests/results. This requires matched runtimes on all targets and full-generation restore for rollback after format-2 writes; root DATA-FORMAT identity alone does not certify this proposal capability. Migration must preserve original Expire and independently verify native restart and empty-replica repair.
 
-- Original v2 whitelistOffOfPerson=false maps to v3 message.person_whitelist_enabled=true; the inverse name and different default can otherwise change stranger-send permissions. Current v3 gateway listeners do not consume the old TCP PROXY preamble. There is no direct datasource.addr configuration: migrate authoritative members/allowlists/denylists and separately verify backend API synchronization of later changes.
+- Original v2 whitelistOffOfPerson=false maps to v3 message.person_whitelist_enabled=true; the inverse name and different default can otherwise change stranger-send permissions. Gateway PROXY preamble support requires a target binary with `proxy_protocol_trusted_cidrs` and correctly scoped proxy egress CIDRs; older targets require disabling the proxy preamble. There is no direct datasource.addr configuration: migrate authoritative members/allowlists/denylists and separately verify backend API synchronization of later changes.
 
 - Compose bridge-network migration plans bind target RPC identities to stable container service names or network aliases, not host loopback or published ports. Each node binds its own verified target directory at the plan's absolute data path. Finalize topology before prepare; address changes require a new workspace and artifacts. Compose/config validation does not replace offline data verification or three-node runtime acceptance.
 
