@@ -65,3 +65,16 @@ type ListenerSpec struct {
 	Options ListenerOptions
 	Handler ConnHandler
 }
+
+// HandshakeRejectionError identifies an expected client handshake rejection,
+// not a failure of the listener. Transports still return the HTTP rejection
+// and close the connection; observers may sample these diagnostics separately.
+type HandshakeRejectionError struct {
+	// StatusCode is the HTTP response sent to the rejected client.
+	StatusCode int
+	// Err is the non-nil, redacted transport diagnostic cause.
+	Err error
+}
+
+func (e *HandshakeRejectionError) Error() string { return e.Err.Error() }
+func (e *HandshakeRejectionError) Unwrap() error { return e.Err }
