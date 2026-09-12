@@ -10,7 +10,7 @@ import (
 
 func TestSparseBadgeRetainsActualLegacyReadBoundary(t *testing.T) {
 	row := metadb.UserChannelMembership{ChannelID: "room", ChannelType: 2, JoinSeq: 1, ReadSeq: 1}
-	head := HydrationResult{LastCommittedSeq: 11, NonBusinessUnread: 7, LastMessage: &LastMessage{MessageSeq: 10}}
+	head := HydrationResult{ReadThroughSeq: 11, NonBusinessUnread: 7, LastMessage: &LastMessage{MessageSeq: 10}}
 	item, ok := conversationFromMembership(row, head)
 	require.True(t, ok)
 	require.Equal(t, uint64(3), item.Unread)
@@ -19,7 +19,7 @@ func TestSparseBadgeRetainsActualLegacyReadBoundary(t *testing.T) {
 
 func TestSetUnreadUsesLeaderSelectedOrdinaryBoundary(t *testing.T) {
 	store := newConversationMutationStore()
-	store.head.LastCommittedSeq = 11
+	store.head.ReadThroughSeq = 11
 	store.head.UnreadBoundary = 4
 	store.head.BoundaryComputed = true
 	app := New(Options{Hydrator: store, MembershipMutations: store})
@@ -30,7 +30,7 @@ func TestSetUnreadUsesLeaderSelectedOrdinaryBoundary(t *testing.T) {
 
 func TestRecoveryBarrierDoesNotResurfaceDeletedConversation(t *testing.T) {
 	row := metadb.UserChannelMembership{ChannelID: "room", ChannelType: 2, JoinSeq: 1, DeletedToSeq: 10}
-	head := HydrationResult{LastCommittedSeq: 11, NonBusinessUnread: 1, LastMessage: &LastMessage{MessageSeq: 10}}
+	head := HydrationResult{ReadThroughSeq: 11, NonBusinessUnread: 1, LastMessage: &LastMessage{MessageSeq: 10}}
 	_, ok := conversationFromMembership(row, head)
 	require.False(t, ok)
 	row.ActivatedAt = 1

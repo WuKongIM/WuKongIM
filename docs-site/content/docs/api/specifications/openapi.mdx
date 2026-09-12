@@ -9,7 +9,7 @@ description: 下载完整 HTTP 合同或一个边界更窄的接入 Profile。
 
 | 合同 | 范围 | 信任边界 | 下载 |
 | --- | --- | --- | --- |
-| Product HTTP | 43 条当前业务 HTTP 操作 | 无内建业务认证；仅可信后端 | [JSON](/contracts/product-http.openapi.json) |
+| Product HTTP | 42 条当前业务 HTTP 操作 | 无内建业务认证；仅可信后端 | [JSON](/contracts/product-http.openapi.json) |
 | Operations HTTP | `/healthz`、`/readyz`、`/metrics`、`/top/v1/snapshot` | 无内建认证；仅运维网络 | [JSON](/contracts/operations-http.openapi.json) |
 | Webhooks | `msg.notify`、`msg.offline`、`user.onlinestatus` | 出站 POST JSON；无签名、best effort | [JSON](/contracts/webhooks.openapi.json) |
 
@@ -21,6 +21,6 @@ Webhook 合同使用 OpenAPI `webhooks` 对象，不把回调伪装成服务端�
 | --- | ---: | --- | --- |
 | JavaScript Web quickstart | 3 | Token、Route、断线消息同步的受控示例 | [JSON](/contracts/javascript-web-quickstart.openapi.json) |
 | Message sending | 1 | 普通持久化 `POST /message/send` | [JSON](/contracts/product-http-messaging.openapi.json) |
-| Channel & Conversation | 16 | 已复核的 10 条 Channel 与 6 条 Conversation 操作 | [JSON](/contracts/product-http-management.openapi.json) |
+| Channel & Conversation | 15 | 已复核的 10 条 Channel 与 5 条 Conversation 操作 | [JSON](/contracts/product-http-management.openapi.json) |
 
 Profile 的端到端验证状态不能外推到完整 Product HTTP。生成 SDK 前先固定合同文件、服务端修订和外层认证策略；升级时重新执行合同与业务验收。

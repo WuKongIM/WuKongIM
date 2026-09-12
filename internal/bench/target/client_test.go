@@ -621,7 +621,7 @@ func TestClientProbeChannelRuntimeFallbackDoesNotKeepStaleDecodedFields(t *testi
 	require.Equal(t, model.ChannelRuntimeProbeResult{NodeID: 2}, got)
 }
 
-func TestClientConversationSyncPagesFromZeroAndRetriesUnresolved(t *testing.T) {
+func TestClientConversationSyncPagesFromZero(t *testing.T) {
 	const benchToken = "bench-secret-not-for-product-routes"
 	requestNumber := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -637,15 +637,11 @@ func TestClientConversationSyncPagesFromZeroAndRetriesUnresolved(t *testing.T) {
 			_, _ = io.WriteString(w, `{
 				"conversations":[{"channel_id":"peer-user","channel_type":1,"active_at":1722787200,"read_seq":16,"deleted_to_seq":7,"unread":3,
 				"last_message":{"message_id":101,"message_idstr":"101","message_seq":19,"client_msg_no":"client-19","from_uid":"sender-user","server_timestamp_ms":1722787200000,"payload":"bGlmZWN5Y2xlLW1hcmtlcg=="}}],
-				"deletes":[],"unresolved":[{"channel_id":"retry-group","channel_type":2}],"next_cursor":"cursor-1","done":false,"reset_required":false}`)
+				"deletes":[],"next_cursor":"cursor-1","done":false,"reset_required":false}`)
 		case 2:
 			require.Equal(t, "/conversation/list", r.URL.Path)
 			require.JSONEq(t, `{"uid":"derived-user","cursor":"cursor-1","limit":200,"completed_coverage":0}`, string(body))
-			_, _ = io.WriteString(w, `{"conversations":[{"channel_id":"group-2","channel_type":2,"last_message":null}],"deletes":[],"unresolved":[],"done":true,"reset_required":false}`)
-		case 3:
-			require.Equal(t, "/conversation/retry", r.URL.Path)
-			require.JSONEq(t, `{"uid":"derived-user","channels":[{"channel_id":"retry-group","channel_type":2}]}`, string(body))
-			_, _ = io.WriteString(w, `{"conversations":[{"channel_id":"retry-group","channel_type":2,"last_message":null}],"deletes":[],"unresolved":[],"done":true,"reset_required":false}`)
+			_, _ = io.WriteString(w, `{"conversations":[{"channel_id":"group-2","channel_type":2,"last_message":null}],"deletes":[],"done":true,"reset_required":false}`)
 		default:
 			t.Fatalf("unexpected request %d", requestNumber)
 		}
@@ -664,19 +660,19 @@ func TestClientConversationSyncPagesFromZeroAndRetriesUnresolved(t *testing.T) {
 			MessageID: 101, MessageIDStr: "101", MessageSeq: 19, ClientMsgNo: "client-19",
 			FromUID: "sender-user", ServerTimestampMS: 1722787200000, Payload: []byte("lifecycle-marker"),
 		},
-	}, {ChannelID: "group-2", ChannelType: 2}, {ChannelID: "retry-group", ChannelType: 2}}, got)
-	require.Equal(t, 3, requestNumber)
+	}, {ChannelID: "group-2", ChannelType: 2}}, got)
+	require.Equal(t, 2, requestNumber)
 }
 
 func TestClientConversationSyncFallbackDoesNotKeepStaleDecodedRows(t *testing.T) {
 	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/conversation/list", r.URL.Path)
-		_, _ = io.WriteString(w, `{"conversations":[{"channel_id":"stale","channel_type":1},{"channel_type":"bad"}],"deletes":[],"unresolved":[],"done":true}`)
+		_, _ = io.WriteString(w, `{"conversations":[{"channel_id":"stale","channel_type":1},{"channel_type":"bad"}],"deletes":[],"done":true}`)
 	}))
 	defer first.Close()
 	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/conversation/list", r.URL.Path)
-		_, _ = io.WriteString(w, `{"conversations":[{"channel_id":"fresh","channel_type":2}],"deletes":[],"unresolved":[],"done":true}`)
+		_, _ = io.WriteString(w, `{"conversations":[{"channel_id":"fresh","channel_type":2}],"deletes":[],"done":true}`)
 	}))
 	defer second.Close()
 
@@ -699,7 +695,7 @@ func TestClientConversationSyncErrorsDoNotExposeProductIdentitiesOrBenchToken(t 
 	}))
 	defer statusServer.Close()
 	invalidBase64Server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.WriteString(w, `{"conversations":[{"channel_id":"peer","channel_type":1,"last_message":{"payload":"%%%not-base64%%%"}}],"deletes":[],"unresolved":[],"done":true}`)
+		_, _ = io.WriteString(w, `{"conversations":[{"channel_id":"peer","channel_type":1,"last_message":{"payload":"%%%not-base64%%%"}}],"deletes":[],"done":true}`)
 	}))
 	defer invalidBase64Server.Close()
 
@@ -717,7 +713,7 @@ func TestClientConversationSyncErrorsDoNotExposeProductIdentitiesOrBenchToken(t 
 
 func TestClientConversationSyncRejectsMalformedRecentJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.WriteString(w, `{"conversations":[{"channel_id":"peer","channel_type":1,"last_message":{"message_seq":1,}}],"deletes":[],"unresolved":[],"done":true}`)
+		_, _ = io.WriteString(w, `{"conversations":[{"channel_id":"peer","channel_type":1,"last_message":{"message_seq":1,}}],"deletes":[],"done":true}`)
 	}))
 	defer server.Close()
 

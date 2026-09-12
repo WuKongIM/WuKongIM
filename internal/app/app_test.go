@@ -6161,7 +6161,7 @@ func (f *fakeManagerCluster) ReadChannelConversationHeads(_ context.Context, ids
 			continue
 		}
 		last := messages[len(messages)-1]
-		results[index].Head = clusterchannels.ConversationHead{Found: true, LastCommittedSeq: last.MessageSeq, Message: last}
+		results[index].Head = clusterchannels.ConversationHead{Found: true, ReadThroughSeq: last.MessageSeq, Message: last}
 		for messageIndex := len(messages) - 1; messageIndex >= 0; messageIndex-- {
 			if messages[messageIndex].FromUID == uid {
 				results[index].Head.CurrentUserLastSendSeq = messages[messageIndex].MessageSeq
@@ -6879,7 +6879,7 @@ func (f *fakePresenceCluster) ReadChannelConversationHeads(_ context.Context, id
 		}
 		last := messages[len(messages)-1]
 		results[index].Head.Found = true
-		results[index].Head.LastCommittedSeq = last.MessageSeq
+		results[index].Head.ReadThroughSeq = last.MessageSeq
 		results[index].Head.Message = last
 		for messageIndex := len(messages) - 1; messageIndex >= 0; messageIndex-- {
 			if messages[messageIndex].FromUID == uid {
@@ -7635,4 +7635,12 @@ func (f *stateGateway) runningState() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.running
+}
+
+func (f *fakeManagerCluster) ReadChannelPersistedConversationHeads(ctx context.Context, ids []channelruntime.ChannelID, uid string, badges ...clusterchannels.ConversationBadgeQuery) ([]clusterchannels.ConversationHeadResult, error) {
+	return f.ReadChannelConversationHeads(ctx, ids, uid, badges...)
+}
+
+func (f *fakePresenceCluster) ReadChannelPersistedConversationHeads(ctx context.Context, ids []channelruntime.ChannelID, uid string, badges ...clusterchannels.ConversationBadgeQuery) ([]clusterchannels.ConversationHeadResult, error) {
+	return f.ReadChannelConversationHeads(ctx, ids, uid, badges...)
 }

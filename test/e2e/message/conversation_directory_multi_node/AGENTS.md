@@ -18,9 +18,12 @@ WK_E2E_CONVERSATION_DIRECTORY_PERF=1 GOWORK=off go test -tags=e2e ./test/e2e/mes
 
 ## Rules
 
+- Disable gateway Token authentication explicitly for the existing tokenless
+  readiness probe; this fixture exercises Product HTTP directory behavior.
+
 - Keep assertions black-box through public channel-management,
   `/message/send`, `/message/sync`, `/channel/messagesync`,
-  `/conversation/list`, `/conversation/retry`, Manager HTTP, and `/metrics`
+  `/conversation/list`, Manager HTTP, and `/metrics`
   entrypoints.
 - Enable Manager HTTP on all nodes and wait for stable actual Slot leaders
   before selecting channels.
@@ -31,8 +34,8 @@ WK_E2E_CONVERSATION_DIRECTORY_PERF=1 GOWORK=off go test -tags=e2e ./test/e2e/mes
   the ingress node, then always execute ordinary pull plus CMD bind/send/sync.
 - Select channels by their publicly reported Channel Leader; do not inspect
   internal stores or import `internal` packages.
-- Prove batching with low-cardinality public metrics and prove partial failure
-  through `unresolved` results without timing-based latency assertions.
+- Prove batching with low-cardinality public metrics and prove whole-page failure
+  followed by an unchanged-request retry without timing-based latency assertions.
 - Keep the performance gate at the public maximum of 200 candidates per page.
   It must assert exact hydration operations, zero membership mutations, bounded
   remote calls, and zero Channel mailbox-full admissions; wall time is evidence,

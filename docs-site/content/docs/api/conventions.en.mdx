@@ -47,6 +47,6 @@ The “Operation boundary” callout on each generated operation page identifies
 | `/channel/messagesync` | Retry with the same cursor and tolerate overlap with realtime delivery |
 | Channel mutation | Replay the desired state only while the product intent remains valid; `reset`, set, and remove-all may partially complete |
 | `/conversation/list` | Echo `next_cursor` unchanged and stop only at `done=true` |
-| `/conversation/retry` | Retry only the bounded unresolved keys returned by the API |
+| `/conversation/list` | Any channel read failure fails the whole page; retry the original request and cursor |
 
 These operations define no universal `Idempotency-Key`. See [Authentication & Security](/en/api/authentication) for security requirements and [Error Responses](/en/api/product-http/errors) for failure classification.

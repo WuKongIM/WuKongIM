@@ -161,7 +161,7 @@ Route: `/{lang}/api`
 
 - **接口清单与信任边界 / Interface Inventory & Trust Boundaries** `/{lang}/api/interface-inventory` — 盘点 Manager、Node transport、MCP、插件与 Agent 私有合同。 / Inventories Manager, node transport, MCP, plugin, and agent-private contracts.
 
-- **Product HTTP API / Product HTTP API** `/{lang}/api/product-http` — 浏览当前源码注册的全部 43 条 Product HTTP 操作。 / Browse all 43 Product HTTP operations registered by the current source.
+- **Product HTTP API / Product HTTP API** `/{lang}/api/product-http` — 浏览当前源码注册的全部 42 条 Product HTTP 操作。 / Browse all 42 Product HTTP operations registered by the current source.
   - **用户 / Users** `/{lang}/api/product-http/users` — 设备 Token、在线状态与系统身份。 / Device tokens, presence, and system identities.
     - **创建或更新设备 Token / Create or update a device token** **POST** `/{lang}/api/product-http/users/setQuickstartUserToken` — 创建缺失的 UID 元数据并更新一个设备 Token；Gateway Token 鉴权默认启用，后续相同 UID 与设备类别的 CONNECT 凭据必须与它匹配。 / Upserts one UID/device token; default Gateway authentication requires later CONNECT credentials for the same UID and device category to match it.
     - **退出用户设备 / Clear a user device token** **POST** `/{lang}/api/product-http/users/quitUserDevice` — 清空一个已存设备 Token 并调度 owner-local Session 关闭；device_flag=-1 选择 APP、Web 与 PC。 / Clears one stored device token and schedules owner-local Session closure; device_flag -1 selects APP, Web, and PC.
@@ -204,8 +204,7 @@ Route: `/{lang}/api`
     - **移除全部 Channel 允许列表成员 / Remove all Channel allowlist members** **POST** `/{lang}/api/product-http/channels/removeAllChannelAllowlistMembers` — 通过内部有界遍历清空派生允许列表。 / Clears the derived allowlist through bounded internal traversal.
     - **列出全部 Channel 允许列表成员 / List all Channel allowlist members** **GET** `/{lang}/api/product-http/channels/listChannelAllowlistMembers` — 返回无界完整列表；channel_type 缺失或无效时会静默视为 0。 / Returns an unbounded full list; missing or invalid channel_type is silently treated as 0.
   - **会话 / Conversations** `/{lang}/api/product-http/conversations` — 会话同步、未读、隐藏与激活状态。 / Conversation sync, unread, hide, and activation state.
-    - **同步一页会话 / Synchronize a Conversation page** **POST** `/{lang}/api/product-http/conversations/listConversations` — 返回一页有界 membership；只有 done=true 才表示本轮完成。 / Returns one bounded membership page; only done=true completes the pass.
-    - **重试未解析会话 / Retry unresolved Conversations** **POST** `/{lang}/api/product-http/conversations/retryConversations` — 重新 hydrate 最多 200 个 Key，不回退已完成 coverage；重复 Key 会合并。 / Rehydrates up to 200 keys without rewinding completed coverage; duplicate keys are merged.
+    - **同步一页会话 / Synchronize a Conversation page** **POST** `/{lang}/api/product-http/conversations/listConversations` — 读取 Leader 已落盘消息，不激活运行时；发送失败的消息也可显示。任一读取错误则整页失败，使用原请求和原游标重试。 / Reads Leader-persisted messages without runtime activation. Failed SENDs may appear. Any read error fails the page; retry the original cursor.
     - **同步旧式会话 / Synchronize legacy Conversations** **POST** `/{lang}/api/product-http/conversations/syncConversationsLegacy` — 解析分隔式逐 Channel 游标并返回没有完成标记的旧式裸数组。 / Parses delimited per-Channel cursors and returns the old bare array without a completion signal.
     - **清除会话未读 / Clear Conversation unread** **POST** `/{lang}/api/product-http/conversations/clearConversationUnread` — 把 read_seq 推进到当前已提交 head；message_seq 等未知旧字段会被忽略。 / Advances read_seq to the current committed head; unknown legacy fields such as message_seq are ignored.
     - **设置会话最大未读数 / Set maximum Conversation unread** **POST** `/{lang}/api/product-http/conversations/setConversationUnread` — 单调推进 read_seq，使剩余未读消息不超过 unread。 / Monotonically advances read_seq so no more than unread messages remain.

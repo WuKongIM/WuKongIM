@@ -16,16 +16,14 @@ func TestListBuildsConversationsFromMembershipPage(t *testing.T) {
 			{UID: "u1", ChannelID: "visible", ChannelType: 2, JoinSeq: 6, ReadSeq: 8, DeletedToSeq: 5, ActivatedAt: 400},
 			{UID: "u1", ChannelID: "active-empty", ChannelType: 2, JoinSeq: 20, ReadSeq: 19, DeletedToSeq: 19, ActivatedAt: 300},
 			{UID: "u1", ChannelID: "inactive-empty", ChannelType: 2, JoinSeq: 30, ReadSeq: 29, DeletedToSeq: 29},
-			{UID: "u1", ChannelID: "retry", ChannelType: 2, JoinSeq: 1},
 		},
-		cursor: metadb.UserChannelMembershipCursor{ActivatedAt: 0, ChannelID: "retry", ChannelType: 2},
+		cursor: metadb.UserChannelMembershipCursor{ActivatedAt: 0, ChannelID: "inactive-empty", ChannelType: 2},
 		done:   false,
 	}
 	hydrator := &membershipHeadHydrator{results: []HydrationResult{
-		{Key: ConversationKey{ChannelID: "visible", ChannelType: 2}, Outcome: HydrationOK, LastCommittedSeq: 12, RetentionThroughSeq: 7, CurrentUserLastSendSeq: 10, LastMessage: &LastMessage{MessageID: 12, MessageSeq: 12, Payload: []byte("last")}},
-		{Key: ConversationKey{ChannelID: "active-empty", ChannelType: 2}, Outcome: HydrationNoVisibleMessage, LastCommittedSeq: 19},
-		{Key: ConversationKey{ChannelID: "inactive-empty", ChannelType: 2}, Outcome: HydrationNoVisibleMessage, LastCommittedSeq: 29},
-		{Key: ConversationKey{ChannelID: "retry", ChannelType: 2}, Outcome: HydrationRetryable},
+		{Key: ConversationKey{ChannelID: "visible", ChannelType: 2}, Outcome: HydrationOK, ReadThroughSeq: 12, RetentionThroughSeq: 7, CurrentUserLastSendSeq: 10, LastMessage: &LastMessage{MessageID: 12, MessageSeq: 12, Payload: []byte("last")}},
+		{Key: ConversationKey{ChannelID: "active-empty", ChannelType: 2}, Outcome: HydrationNoVisibleMessage, ReadThroughSeq: 19},
+		{Key: ConversationKey{ChannelID: "inactive-empty", ChannelType: 2}, Outcome: HydrationNoVisibleMessage, ReadThroughSeq: 29},
 	}}
 	app := New(Options{Directory: directory, Hydrator: hydrator})
 
@@ -33,14 +31,11 @@ func TestListBuildsConversationsFromMembershipPage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List(): %v", err)
 	}
-	if result.Done || !result.HasMore || result.NextCursor.ChannelID != "retry" {
+	if result.Done || !result.HasMore || result.NextCursor.ChannelID != "inactive-empty" {
 		t.Fatalf("page state = done=%v hasMore=%v cursor=%+v", result.Done, result.HasMore, result.NextCursor)
 	}
 	if got, want := result.Deletes, []ConversationKey{{ChannelID: "gone", ChannelType: 2}}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("deletes = %#v, want %#v", got, want)
-	}
-	if got, want := result.Unresolved, []ConversationKey{{ChannelID: "retry", ChannelType: 2}}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("unresolved = %#v, want %#v", got, want)
 	}
 	if len(result.Items) != 2 || result.Items[0].ChannelID != "visible" || result.Items[0].Unread != 2 || result.Items[0].LastMessage == nil {
 		t.Fatalf("visible conversation = %#v", result.Items)
@@ -48,7 +43,7 @@ func TestListBuildsConversationsFromMembershipPage(t *testing.T) {
 	if result.Items[1].ChannelID != "active-empty" || result.Items[1].Unread != 0 || result.Items[1].LastMessage != nil {
 		t.Fatalf("active empty conversation = %#v", result.Items[1])
 	}
-	if len(hydrator.memberships) != 4 {
+	if len(hydrator.memberships) != 3 {
 		t.Fatalf("hydrated memberships = %#v, want tombstone bypassed", hydrator.memberships)
 	}
 	result.Items[0].LastMessage.Payload[0] = 'X'
@@ -100,12 +95,12 @@ func TestRetryHydratesOnlyRequestedLiveMembershipsAndReturnsDeletes(t *testing.T
 		{ChannelID: "retryable", ChannelType: 2}: {UID: "u1", ChannelID: "retryable", ChannelType: 2, JoinSeq: 1},
 	}}
 	hydrator := &membershipHeadHydrator{results: []HydrationResult{
-		{Key: ConversationKey{ChannelID: "visible", ChannelType: 2}, Outcome: HydrationOK, LastCommittedSeq: 3, LastMessage: &LastMessage{MessageSeq: 3}},
+		{Key: ConversationKey{ChannelID: "visible", ChannelType: 2}, Outcome: HydrationOK, ReadThroughSeq: 3, LastMessage: &LastMessage{MessageSeq: 3}},
 		{Key: ConversationKey{ChannelID: "retryable", ChannelType: 2}, Outcome: HydrationRetryable},
 	}}
 	app := New(Options{Hydrator: hydrator, MembershipMutations: store})
 
-	result, err := app.Retry(context.Background(), RetryRequest{UID: "u1", Keys: []ConversationKey{
+	result, err := app.retryLegacyHeads(context.Background(), legacyRetryRequest{UID: "u1", Keys: []ConversationKey{
 		{ChannelID: "visible", ChannelType: 2},
 		{ChannelID: "missing", ChannelType: 2},
 		{ChannelID: "removed", ChannelType: 2},
@@ -171,4 +166,35 @@ func (*membershipRetryStore) ActivateUserChannelMembership(context.Context, stri
 func (s *membershipHeadHydrator) HydrateConversationHeads(_ context.Context, _ string, memberships []metadb.UserChannelMembership, keepUnread ...uint64) ([]HydrationResult, error) {
 	s.memberships = append([]metadb.UserChannelMembership(nil), memberships...)
 	return append([]HydrationResult(nil), s.results...), nil
+}
+
+func (h *membershipHeadHydrator) HydratePersistedConversationHeads(ctx context.Context, uid string, rows []metadb.UserChannelMembership) ([]HydrationResult, error) {
+	return h.HydrateConversationHeads(ctx, uid, rows)
+}
+
+func TestListFailsWholePageAndRetriesOriginalCursor(t *testing.T) {
+	directory := &membershipDirectoryStore{rows: []metadb.UserChannelMembership{{UID: "u", ChannelID: "ok", ChannelType: 2, JoinSeq: 1}, {UID: "u", ChannelID: "bad", ChannelType: 2, JoinSeq: 1}}, done: true}
+	hydrator := &membershipHeadHydrator{results: []HydrationResult{{Key: ConversationKey{ChannelID: "ok", ChannelType: 2}, Outcome: HydrationOK, ReadThroughSeq: 1, LastMessage: &LastMessage{MessageSeq: 1}}, {Key: ConversationKey{ChannelID: "bad", ChannelType: 2}, Outcome: HydrationRetryable}}}
+	app := New(Options{Directory: directory, Hydrator: hydrator})
+	req := ListRequest{UID: "u", Limit: 2}
+	page, err := app.List(context.Background(), req)
+	if err == nil || !reflect.DeepEqual(page, ListResult{}) {
+		t.Fatalf("partial page escaped: %+v %v", page, err)
+	}
+	hydrator.results[1] = HydrationResult{Key: ConversationKey{ChannelID: "bad", ChannelType: 2}, Outcome: HydrationOK, ReadThroughSeq: 2, LastMessage: &LastMessage{MessageSeq: 2}}
+	page, err = app.List(context.Background(), req)
+	if err != nil || len(page.Items) != 2 || !page.Done {
+		t.Fatalf("retry: %+v %v", page, err)
+	}
+}
+
+func TestListAdmissionRejectsBeforeDirectoryRead(t *testing.T) {
+	app := New(Options{Directory: &membershipDirectoryStore{}, Hydrator: &membershipHeadHydrator{}})
+	for i := 0; i < cap(app.listAdmission); i++ {
+		app.listAdmission <- struct{}{}
+	}
+	page, err := app.List(context.Background(), ListRequest{UID: "u"})
+	if err != ErrListBusy || !reflect.DeepEqual(page, ListResult{}) {
+		t.Fatalf("page=%+v err=%v", page, err)
+	}
 }

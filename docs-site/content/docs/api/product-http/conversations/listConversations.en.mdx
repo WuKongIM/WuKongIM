@@ -18,7 +18,9 @@ _openapi:
       - content: Synchronize a Conversation page
         id: synchronize-a-conversation-page
     contents:
-      - content: Returns one bounded membership page; only done=true completes the pass.
+      - content: Reads Leader-persisted messages without runtime activation. Failed
+          SENDs may appear. Any read error fails the page; retry the original
+          cursor.
         heading: synchronize-a-conversation-page
       - content: >-
           POST /conversation/list
@@ -27,8 +29,9 @@ _openapi:
 
           Synchronize a Conversation page
 
-          Returns one bounded membership page; only done=true completes the
-          pass.
+          Reads Leader-persisted messages without runtime activation. Failed
+          SENDs may appear. Any read error fails the page; retry the original
+          cursor.
 
           ConversationListRequest
 
@@ -64,9 +67,6 @@ _openapi:
           deletes array<`ConversationKey`> — Conversation keys the client should
           delete.
 
-          unresolved array<`ConversationKey`> — Channel keys unresolved in this
-          page, suitable for bounded retry through /conversation/retry.
-
           next_cursor `string` — Opaque cursor for the next page; return it
           unchanged.
 
@@ -101,8 +101,9 @@ _openapi:
           unread `integer:uint64` 0–∞ Unread count derived from the current last
           message and read_seq.
 
-          last_message `ConversationLastMessage` | `null` — Current visible last
-          message, or null when absent.
+          last_message `ConversationLastMessage` | `null` — Latest visible
+          ordinary message persisted on the current Leader, regardless of SEND
+          success; null when absent.
 
           ConversationLastMessage
 
@@ -146,7 +147,15 @@ _openapi:
 
           status `integer` const: `400` Application-level status fixed at 400.
 
-          503 Controller restore maintenance is active
+          500 Channel or storage read failed; no partial page or cursor is
+          returned.
+
+          msg `string` —
+
+          status `integer` —
+
+          503 Maintenance, list capacity exhausted, or read deadline exceeded.
+          Retry the original request.
 
           MaintenanceError
 
@@ -162,7 +171,7 @@ _openapi:
 <Callout type="warn" title="Operation boundary">
 
 - **Caller**: Trusted backend only
-- **Scope**: limit bounds membership rows scanned, not the number of returned conversations; tombstones go to deletes and temporarily unhydrated entries go to unresolved.
+- **Scope**: limit bounds membership rows scanned, not the number of returned conversations; tombstones go to deletes. Previews use Leader-persisted data without runtime activation. Any read failure fails the whole page; retry the original request and cursor.
 - **Success**: Only done=true completes a full pass and permits saving coverage; reset_required=true requires rebuilding the local Conversation directory.
 
 </Callout>

@@ -72,8 +72,8 @@ export const productHTTPOpenAPIContracts = {
     documentId: 'wukongim-product-http-complete-beta',
     label: { zh: '完整运行时合同', en: 'complete runtime contract' },
     llmScope: {
-      zh: '此机器可读摘要与页面中的 Fumadocs 参考来自完整的 43 操作运行时合同；Product HTTP 没有内建鉴权，只能由受信后端或运维边界调用。',
-      en: 'This machine-readable summary and the Fumadocs reference on the page come from the complete 43-operation runtime contract. Product HTTP has no built-in authentication and is callable only from a trusted backend or operator boundary.',
+      zh: '此机器可读摘要与页面中的 Fumadocs 参考来自完整的 42 操作运行时合同；Product HTTP 没有内建鉴权，只能由受信后端或运维边界调用。',
+      en: 'This machine-readable summary and the Fumadocs reference on the page come from the complete 42-operation runtime contract. Product HTTP has no built-in authentication and is callable only from a trusted backend or operator boundary.',
     },
   },
   'golden-path': {

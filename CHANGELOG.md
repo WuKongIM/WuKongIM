@@ -6,6 +6,12 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### ⚠️ Breaking Changes / 破坏性变更
+
+- Read conversation-list previews from current-Leader persisted messages without activating Channel runtimes; failed SENDs may still appear. Any read error fails the whole page. Remove `/conversation/retry` and `unresolved`; retry the original list request and cursor. / 会话列表直接读取当前 Leader 已落盘消息，不激活频道运行时，发送失败的消息也可显示；任一读取错误则整页失败。删除 `/conversation/retry` 和 `unresolved`，失败后用原请求、原游标重试。
+
+### 🔧 Improvements / 改进
+
 - Align static documentation publication checks, navigation counts, and overview tests with the source-backed Product HTTP operation registry, including legacy message lookup. / 文档发布产物检查、导航数量及总览测试以源码对应的 Product HTTP 接口注册表为准，包含旧版消息查询接口。
 
 - Reuse verified duplicate-chain suffixes within each offline migration pass and count terminals on disk, avoiding quadratic history lookups while retaining original edge proofs. / 离线迁移在每次重建内复用已核实的去重链后缀，以磁盘索引统计终点，避免重复遍历，保留完整原始替代证据。

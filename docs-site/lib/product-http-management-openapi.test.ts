@@ -49,7 +49,6 @@ const publishedOperations = [
   ['post', '/channel/whitelist_remove'],
   ['post', '/channel/whitelist_remove_all'],
   ['post', '/conversation/list'],
-  ['post', '/conversation/retry'],
   ['post', '/conversations/clearUnread'],
   ['post', '/conversations/setUnread'],
   ['post', '/conversations/delete'],
@@ -138,7 +137,7 @@ describe('Product HTTP management OpenAPI integration', () => {
         label: 'Trusted backend (cURL)',
       });
       expect(operation?.['x-codeSamples']?.[0]?.source).toContain('127.0.0.1:5001');
-      expect(Object.keys(operation?.responses ?? {})).toEqual(['200', '400', '503']);
+      expect(Object.keys(operation?.responses ?? {})).toEqual(path === '/conversation/list' ? ['200', '400', '500', '503'] : ['200', '400', '503']);
     }
   });
 
@@ -153,10 +152,8 @@ describe('Product HTTP management OpenAPI integration', () => {
       maximum: 200,
       default: 50,
     });
-    expect(schemas.ConversationRetryRequest?.properties?.channels).toMatchObject({
-      minItems: 1,
-      maxItems: 200,
-    });
+    expect(schemas.ConversationRetryRequest).toBeUndefined();
+    expect(schemas.ConversationListResponse?.properties?.unresolved).toBeUndefined();
     expect(schemas.ConversationMutationRequest?.additionalProperties).toBe(false);
     expect(schemas.ConversationMutationRequest?.properties?.message_seq).toBeUndefined();
     expect(schemas.ConversationSetUnreadRequest?.required).toContain('unread');

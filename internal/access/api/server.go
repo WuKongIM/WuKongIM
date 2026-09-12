@@ -124,7 +124,6 @@ type CMDSyncUsecase interface {
 // ConversationUsecase coordinates compatible conversation list and sync routes.
 type ConversationUsecase interface {
 	List(context.Context, conversationusecase.ListRequest) (conversationusecase.ListResult, error)
-	Retry(context.Context, conversationusecase.RetryRequest) (conversationusecase.ListResult, error)
 	ClearUnread(context.Context, conversationusecase.ClearUnreadCommand) error
 	SetUnread(context.Context, conversationusecase.SetUnreadCommand) error
 	DeleteConversation(context.Context, conversationusecase.DeleteConversationCommand) error
@@ -143,7 +142,7 @@ type ConversationListObservation struct {
 	ReturnedItems int
 	// Deletes is the number of tombstone or terminal-channel keys returned.
 	Deletes int
-	// Unresolved is the number of retryable channel keys returned.
+	// Unresolved is retained for metrics compatibility; canonical lists always report zero.
 	Unresolved int
 	// Done reports whether this membership-directory pass is complete.
 	Done bool

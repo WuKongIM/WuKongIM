@@ -18,7 +18,7 @@ _openapi:
       - content: 同步一页会话
         id: 同步一页会话
     contents:
-      - content: 返回一页有界 membership；只有 done=true 才表示本轮完成。
+      - content: 读取 Leader 已落盘消息，不激活运行时；发送失败的消息也可显示。任一读取错误则整页失败，使用原请求和原游标重试。
         heading: 同步一页会话
       - content: >-
           POST /conversation/list
@@ -27,7 +27,7 @@ _openapi:
 
           同步一页会话
 
-          返回一页有界 membership；只有 done=true 才表示本轮完成。
+          读取 Leader 已落盘消息，不激活运行时；发送失败的消息也可显示。任一读取错误则整页失败，使用原请求和原游标重试。
 
           ConversationListRequest
 
@@ -57,9 +57,6 @@ _openapi:
 
           deletes array<`ConversationKey`> — 客户端应删除的会话 Key。
 
-          unresolved array<`ConversationKey`> — 本页暂未解析的 Channel Key，可交给
-          /conversation/retry 有界重试。
-
           next_cursor `string` — 下一页不透明游标；必须原样回传。
 
           done `boolean` — true 表示本轮完整扫描结束，此时才能保存 coverage。
@@ -86,7 +83,8 @@ _openapi:
 
           unread `integer:uint64` 0–∞ 基于当前末条消息和 read_seq 计算的未读数。
 
-          last_message `ConversationLastMessage` | `null` — 当前可见的末条消息；没有时为 null。
+          last_message `ConversationLastMessage` | `null` — 当前 Leader
+          已落盘的末条可见普通消息；不要求发送成功，没有时为 null。
 
           ConversationLastMessage
 
@@ -126,7 +124,15 @@ _openapi:
 
           status `integer` const: `400` 固定为 400 的应用层状态。
 
-          503 Controller restore maintenance is active
+          500 Channel or storage read failed; no partial page or cursor is
+          returned.
+
+          msg `string` —
+
+          status `integer` —
+
+          503 Maintenance, list capacity exhausted, or read deadline exceeded.
+          Retry the original request.
 
           MaintenanceError
 
@@ -140,7 +146,7 @@ _openapi:
 <Callout type="warn" title="接口边界">
 
 - **调用方**：仅限受信业务后端
-- **作用域**：limit 限制本页扫描的 membership 条目数，不保证 conversations 数组达到该数量；墓碑进入 deletes，暂时无法补水的条目进入 unresolved。
+- **作用域**：limit 限制本页扫描的 membership 条目数，不保证 conversations 数组达到该数量；墓碑进入 deletes；最新消息和未读数基于 Leader 已落盘数据，读取不激活运行时。任一读取失败则整页失败，使用原请求和原游标重试。
 - **成功判定**：只以 done=true 结束完整轮次并保存 coverage；reset_required=true 时必须重建本地会话目录。
 
 </Callout>

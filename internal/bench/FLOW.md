@@ -81,6 +81,8 @@ native local baseline
   process generations, immutable config/binary digests, and complete storage
   and host evidence. Missing, stale, contradictory, or transplanted evidence
   fails closed and never becomes a formal or capacity verdict.
+- Canonical conversation synchronization follows successful list pages only;
+  a failed page aborts the pass without key-specific retry requests.
 - Target and response parsing is bounded and redacted. Reports keep fixed
   counters, histograms, reason codes, and bounded samples without raw UIDs,
   Channel IDs, credentials, response bodies, or arbitrary error text.

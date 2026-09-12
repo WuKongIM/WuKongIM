@@ -397,7 +397,7 @@ func (n *Node) CommittedChannelTail(ctx context.Context, channelID string, chann
 	if err != nil {
 		return 0, err
 	}
-	return head.LastCommittedSeq, nil
+	return head.ReadThroughSeq, nil
 }
 
 // GetChannelLatestBatch reads existing latest message projections for channel keys.

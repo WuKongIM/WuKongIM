@@ -105,12 +105,12 @@ type LastVisibleResponse struct {
 	Message ch.Message
 	// Found reports whether a visible message exists.
 	Found bool
-	// LastCommittedSeq is the channel commit boundary used for badge math.
-	LastCommittedSeq uint64
+	// ReadThroughSeq is the channel commit boundary used for badge math.
+	ReadThroughSeq uint64
 	// RetentionThroughSeq is the effective logical compaction floor.
 	RetentionThroughSeq uint64
 	// CurrentUserLastSendSeq is the latest sender-index sequence at or below
-	// LastCommittedSeq.
+	// ReadThroughSeq.
 	CurrentUserLastSendSeq uint64
 }
 
@@ -130,11 +130,11 @@ type ConversationHead struct {
 	// UnreadBoundary is computed only when the query supplies KeepUnread.
 	UnreadBoundary   uint64
 	BoundaryComputed bool
-	// LastCommittedSeq is the authoritative badge-count upper boundary.
-	LastCommittedSeq uint64
+	// ReadThroughSeq bounds the tuple: committed HW for committed reads, disk LEO for persisted previews.
+	ReadThroughSeq uint64
 	// RetentionThroughSeq is the logical message compaction floor.
 	RetentionThroughSeq uint64
-	// CurrentUserLastSendSeq is the user's latest committed sender-index entry.
+	// CurrentUserLastSendSeq is the latest sender-index entry at or below ReadThroughSeq.
 	CurrentUserLastSendSeq uint64
 	// Message is the newest membership-visible message when Found is true.
 	Message ch.Message
@@ -167,6 +167,8 @@ type ConversationHeadRequest struct {
 // ConversationHeadsRequest reads one user's head tuple for channels that the
 // origin grouped onto the same leader.
 type ConversationHeadsRequest struct {
+	// Persisted selects the distinct disk-only RPC kind; it never authorizes committed reads.
+	Persisted bool
 	// UID selects the sender-index sequence used for every aligned item.
 	UID string
 	// Items contains channel reads already grouped to one exact leader.
@@ -291,6 +293,8 @@ type Config struct {
 
 // Service wraps Channel and exposes both client and replication surfaces.
 type Service struct {
+	// persistedReads bounds disk-only batches across all callers on this node; overflow fails immediately.
+	persistedReads chan struct{}
 	// replicaStore reads native exchange durability independently of reactor residency.
 	replicaStore replication.ReplicaStore
 	runtime      channelRuntime
@@ -358,7 +362,7 @@ func NewService(cfg Config) (*Service, error) {
 		}
 	}
 	ensurer, _ := cfg.MetaSource.(ChannelMetaEnsurer)
-	return &Service{replicaStore: replicaStore, runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, store: cfg.Store, observer: cfg.Observer, migration: cfg.MigrationStore, goroutines: cfg.Goroutines}, nil
+	return &Service{persistedReads: make(chan struct{}, persistedConversationReadBatches), replicaStore: replicaStore, runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, store: cfg.Store, observer: cfg.Observer, migration: cfg.MigrationStore, goroutines: cfg.Goroutines}, nil
 }
 
 // Runtime returns the Channel public cluster surface.
@@ -523,6 +527,21 @@ func (s *Service) ReadConversationHead(ctx context.Context, id ch.ChannelID, uid
 // ReadConversationHeads resolves the current route for every channel, groups
 // remote reads by exact leader, and returns one result aligned with every ID.
 func (s *Service) ReadConversationHeads(ctx context.Context, ids []ch.ChannelID, uid string, badges ...ConversationBadgeQuery) ([]ConversationHeadResult, error) {
+	return s.readConversationHeads(ctx, ids, uid, false, badges...)
+}
+
+// ReadPersistedConversationHeads reads disk LEO without probing or activating runtimes.
+// One call scans at most 200 channels and shares the node-wide disk admission budget.
+func (s *Service) ReadPersistedConversationHeads(ctx context.Context, ids []ch.ChannelID, uid string, badges ...ConversationBadgeQuery) ([]ConversationHeadResult, error) {
+	if len(ids) > persistedConversationMaxChannels {
+		return nil, ch.ErrInvalidConfig
+	}
+	ctx, cancel := context.WithTimeout(ctx, persistedConversationReadTimeout)
+	defer cancel()
+	return s.readConversationHeads(ctx, ids, uid, true, badges...)
+}
+
+func (s *Service) readConversationHeads(ctx context.Context, ids []ch.ChannelID, uid string, persisted bool, badges ...ConversationBadgeQuery) ([]ConversationHeadResult, error) {
 	started := time.Now()
 	resultLabel := "ok"
 	remoteCalls := 0
@@ -600,7 +619,7 @@ func (s *Service) ReadConversationHeads(ctx context.Context, ids []ch.ChannelID,
 		for index, item := range localItems {
 			requests[index] = item.request
 		}
-		localResults := s.readLocalConversationHeads(ctx, uid, requests)
+		localResults := s.readSelectedConversationHeads(ctx, uid, requests, persisted)
 		localReads += len(localItems)
 		for index, item := range localItems {
 			results[item.index] = localResults[index]
@@ -613,7 +632,7 @@ func (s *Service) ReadConversationHeads(ctx context.Context, ids []ch.ChannelID,
 			}
 			continue
 		}
-		request := ConversationHeadsRequest{UID: uid, Items: make([]ConversationHeadRequest, len(items))}
+		request := ConversationHeadsRequest{Persisted: persisted, UID: uid, Items: make([]ConversationHeadRequest, len(items))}
 		for index, item := range items {
 			request.Items[index] = item.request
 		}
@@ -651,8 +670,13 @@ func (s *Service) observeConversationHydrationBatch(result string, items, remote
 }
 
 func (s *Service) handleForwardConversationHeads(ctx context.Context, req ConversationHeadsRequest) (ConversationHeadsResponse, error) {
-	if req.UID == "" {
+	if req.UID == "" || (req.Persisted && len(req.Items) > persistedConversationMaxChannels) {
 		return ConversationHeadsResponse{}, ch.ErrInvalidConfig
+	}
+	if req.Persisted {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, persistedConversationReadTimeout)
+		defer cancel()
 	}
 	response := ConversationHeadsResponse{Items: make([]ConversationHeadResult, len(req.Items))}
 	localItems := make([]ConversationHeadRequest, 0, len(req.Items))
@@ -668,7 +692,7 @@ func (s *Service) handleForwardConversationHeads(ctx context.Context, req Conver
 	for index, item := range req.Items {
 		metaResult := metaResults[index]
 		meta, ok, err := metaResult.Meta, metaResult.Found, metaResult.Err
-		if err != nil && !canFallbackConversationHeadOnMissingMeta(s.localNode, item, err) {
+		if err != nil && (req.Persisted || !canFallbackConversationHeadOnMissingMeta(s.localNode, item, err)) {
 			response.Items[index].Err = err
 			continue
 		}
@@ -702,7 +726,7 @@ func (s *Service) handleForwardConversationHeads(ctx context.Context, req Conver
 		localItems = append(localItems, item)
 		localIndexes = append(localIndexes, index)
 	}
-	localResults := s.readLocalConversationHeads(ctx, req.UID, localItems)
+	localResults := s.readSelectedConversationHeads(ctx, req.UID, localItems, req.Persisted)
 	for index, result := range localResults {
 		response.Items[localIndexes[index]] = result
 	}
@@ -1248,6 +1272,10 @@ func (s *Service) liveRuntimeHW(ctx context.Context, requests []runtimeHWExpecta
 }
 
 func (s *Service) readLocalConversationHead(ctx context.Context, id ch.ChannelID, uid string, retentionThroughSeq uint64, minISR int, liveCommitted uint64, hasLiveCommitted bool, badges ...ConversationBadgeQuery) (ConversationHead, bool, error) {
+	return s.readStoredConversationHead(ctx, id, uid, retentionThroughSeq, minISR, liveCommitted, hasLiveCommitted, false, badges...)
+}
+
+func (s *Service) readStoredConversationHead(ctx context.Context, id ch.ChannelID, uid string, retentionThroughSeq uint64, minISR int, liveCommitted uint64, hasLiveCommitted, persisted bool, badges ...ConversationBadgeQuery) (ConversationHead, bool, error) {
 	if s == nil || s.store == nil || uid == "" {
 		return ConversationHead{}, false, ch.ErrNotReady
 	}
@@ -1261,7 +1289,7 @@ func (s *Service) readLocalConversationHead(ctx context.Context, id ch.ChannelID
 		return ConversationHead{}, false, err
 	}
 	committed := state.HW
-	if minISR <= 1 {
+	if persisted || minISR <= 1 {
 		committed = state.LEO
 	} else if hasLiveCommitted {
 		committed = maxUint64Value(committed, liveCommitted)
@@ -1274,7 +1302,7 @@ func (s *Service) readLocalConversationHead(ctx context.Context, id ch.ChannelID
 		return ConversationHead{}, false, err
 	}
 	retentionThroughSeq = maxUint64Value(retentionThroughSeq, retention.LocalRetentionThroughSeq)
-	head := ConversationHead{LastCommittedSeq: committed, RetentionThroughSeq: retentionThroughSeq}
+	head := ConversationHead{ReadThroughSeq: committed, RetentionThroughSeq: retentionThroughSeq}
 	if committed == 0 {
 		return head, false, nil
 	}
@@ -1324,7 +1352,11 @@ func (s *Service) readLocalConversationHead(ctx context.Context, id ch.ChannelID
 		}
 		head.UnreadBoundary, head.BoundaryComputed = low, true
 	}
-	message, found, err := readLastOrdinaryCommitted(ctx, store, committed, retentionThroughSeq)
+	maxReadBytes := maxInt()
+	if persisted {
+		maxReadBytes = 1 << 20
+	}
+	message, found, err := readLastOrdinaryThrough(ctx, store, committed, retentionThroughSeq, maxReadBytes)
 	if err != nil {
 		return ConversationHead{}, false, err
 	}
@@ -1333,12 +1365,12 @@ func (s *Service) readLocalConversationHead(ctx context.Context, id ch.ChannelID
 	return head, false, nil
 }
 
-func readLastOrdinaryCommitted(ctx context.Context, store channelstore.ChannelStore, committed, retentionThroughSeq uint64) (ch.Message, bool, error) {
+func readLastOrdinaryThrough(ctx context.Context, store channelstore.ChannelStore, committed, retentionThroughSeq uint64, maxReadBytes int) (ch.Message, bool, error) {
 	from := committed
 	for from > retentionThroughSeq {
 		read, err := store.ReadCommitted(ctx, channelstore.ReadCommittedRequest{
 			FromSeq: from, MaxSeq: committed, MinSeq: nextSeq(retentionThroughSeq),
-			Limit: 64, MaxBytes: maxInt(), Reverse: true,
+			Limit: 64, MaxBytes: maxReadBytes, Reverse: true,
 		})
 		if err != nil {
 			return ch.Message{}, false, err
@@ -1366,7 +1398,7 @@ func nextSeq(seq uint64) uint64 {
 func lastVisibleResponseFromHead(head ConversationHead) LastVisibleResponse {
 	return LastVisibleResponse{
 		Message: head.Message, Found: head.Found,
-		LastCommittedSeq:       head.LastCommittedSeq,
+		ReadThroughSeq:         head.ReadThroughSeq,
 		RetentionThroughSeq:    head.RetentionThroughSeq,
 		CurrentUserLastSendSeq: head.CurrentUserLastSendSeq,
 	}
@@ -1375,7 +1407,7 @@ func lastVisibleResponseFromHead(head ConversationHead) LastVisibleResponse {
 func conversationHeadFromResponse(resp LastVisibleResponse) ConversationHead {
 	return ConversationHead{
 		Message: resp.Message, Found: resp.Found,
-		LastCommittedSeq:       resp.LastCommittedSeq,
+		ReadThroughSeq:         resp.ReadThroughSeq,
 		RetentionThroughSeq:    resp.RetentionThroughSeq,
 		CurrentUserLastSendSeq: resp.CurrentUserLastSendSeq,
 	}

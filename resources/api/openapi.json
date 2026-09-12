@@ -1701,8 +1701,10 @@
     "/conversation/list": {
       "post": {
         "summary": "List Membership-Backed Conversations",
-        "description": "Scan one bounded membership directory page and construct transient conversations",
-        "tags": ["Conversation"],
+        "description": "Reads Leader-persisted messages without runtime activation. Failed SENDs may appear. Any read error fails the page; retry the original cursor.",
+        "tags": [
+          "Conversation"
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -1723,35 +1725,27 @@
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "/conversation/retry": {
-      "post": {
-        "summary": "Retry Conversation Hydration",
-        "description": "Retry a bounded set of unresolved membership-backed conversations",
-        "tags": ["Conversation"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConversationRetryRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Conversation hydration retry result",
+          },
+          "500": {
+            "description": "Channel or storage read failed; no partial page or cursor is returned.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ConversationListResponse"
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    }
+                  }
                 }
               }
             }
+          },
+          "503": {
+            "description": "Maintenance, page admission exhaustion, or deadline exceeded; retry the original page."
           }
         }
       }
@@ -3547,23 +3541,6 @@
           }
         }
       },
-      "ConversationRetryRequest": {
-        "type": "object",
-        "required": ["uid", "channels"],
-        "properties": {
-          "uid": {
-            "type": "string",
-            "example": "user123"
-          },
-          "channels": {
-            "type": "array",
-            "maxItems": 200,
-            "items": {
-              "$ref": "#/components/schemas/ConversationListKey"
-            }
-          }
-        }
-      },
       "LegacyConversationSyncRequest": {
         "type": "object",
         "required": ["uid"],
@@ -3685,17 +3662,13 @@
       },
       "ConversationListResponse": {
         "type": "object",
-        "required": ["conversations", "deletes", "unresolved", "done", "coverage", "tombstones_retained_since", "reset_required"],
+        "required": ["conversations", "deletes", "done", "coverage", "tombstones_retained_since", "reset_required"],
         "properties": {
           "conversations": {
             "type": "array",
             "items": {"$ref": "#/components/schemas/ConversationListItem"}
           },
           "deletes": {
-            "type": "array",
-            "items": {"$ref": "#/components/schemas/ConversationListKey"}
-          },
-          "unresolved": {
             "type": "array",
             "items": {"$ref": "#/components/schemas/ConversationListKey"}
           },

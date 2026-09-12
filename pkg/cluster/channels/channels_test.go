@@ -1618,7 +1618,7 @@ func TestCodecV6PreservesOriginalLastVisibleLayout(t *testing.T) {
 
 	wantResponse := LastVisibleResponse{
 		Found: true, Message: ch.Message{MessageID: 9, MessageSeq: 8, ChannelID: "room", ChannelType: 2},
-		LastCommittedSeq: 10, RetentionThroughSeq: 2, CurrentUserLastSendSeq: 6,
+		ReadThroughSeq: 10, RetentionThroughSeq: 2, CurrentUserLastSendSeq: 6,
 	}
 	v6Response, err := encodeRPCResultVersion(legacyCodecVersionV6, kindLastVisibleResponse, wantResponse, nil)
 	require.NoError(t, err)
@@ -1626,7 +1626,7 @@ func TestCodecV6PreservesOriginalLastVisibleLayout(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, gotResponse.Found)
 	require.Equal(t, wantResponse.Message, gotResponse.Message)
-	require.Zero(t, gotResponse.LastCommittedSeq)
+	require.Zero(t, gotResponse.ReadThroughSeq)
 	require.Zero(t, gotResponse.RetentionThroughSeq)
 	require.Zero(t, gotResponse.CurrentUserLastSendSeq)
 
@@ -2930,7 +2930,7 @@ func TestServiceReadConversationHeadUsesCommittedLeaderState(t *testing.T) {
 
 	head, err := svc.ReadConversationHead(context.Background(), id, "u1")
 	require.NoError(t, err)
-	require.Equal(t, uint64(3), head.LastCommittedSeq)
+	require.Equal(t, uint64(3), head.ReadThroughSeq)
 	require.Equal(t, uint64(1), head.RetentionThroughSeq)
 	require.Equal(t, uint64(2), head.CurrentUserLastSendSeq)
 	require.True(t, head.Found)
@@ -2972,7 +2972,7 @@ func TestServiceReadConversationHeadsUsesOneLiveRuntimeProbeBeforeLeaderCheckpoi
 	require.Equal(t, 1, runtime.probeCalls)
 	for _, result := range heads {
 		require.NoError(t, result.Err)
-		require.Equal(t, uint64(2), result.Head.LastCommittedSeq)
+		require.Equal(t, uint64(2), result.Head.ReadThroughSeq)
 		require.True(t, result.Head.Found)
 		require.Equal(t, uint64(2), result.Head.Message.MessageSeq)
 		require.Equal(t, []byte("tail"), result.Head.Message.Payload)
@@ -3015,7 +3015,7 @@ func TestServiceReadConversationHeadsActivatesColdQuorumLeaderBeforeUsingLagging
 	require.Equal(t, meta.Epoch, runtime.lastApplied.Epoch)
 	require.Equal(t, meta.LeaderEpoch, runtime.lastApplied.LeaderEpoch)
 	require.Equal(t, meta.RouteGeneration, runtime.lastApplied.RouteGeneration)
-	require.Equal(t, uint64(1), heads[0].Head.LastCommittedSeq)
+	require.Equal(t, uint64(1), heads[0].Head.ReadThroughSeq)
 	require.True(t, heads[0].Head.Found)
 	require.Equal(t, []byte("committed-before-restart"), heads[0].Head.Message.Payload)
 }
@@ -3052,7 +3052,7 @@ func TestServiceReadConversationHeadsRecoversColdQuorumLeaderEvenWhenCheckpointE
 	require.NoError(t, heads[0].Err)
 	require.Equal(t, 1, runtime.applyCalls)
 	require.Equal(t, 2, runtime.probeCalls)
-	require.Equal(t, uint64(1), heads[0].Head.LastCommittedSeq)
+	require.Equal(t, uint64(1), heads[0].Head.ReadThroughSeq)
 	require.True(t, heads[0].Head.Found)
 	require.Equal(t, []byte("checkpointed"), heads[0].Head.Message.Payload)
 }
@@ -3066,8 +3066,8 @@ func TestServiceReadConversationHeadsUsesAlignedBatchMetadata(t *testing.T) {
 		second: {ID: second, Epoch: 3, LeaderEpoch: 4, Leader: 2, Replicas: []ch.NodeID{2}, ISR: []ch.NodeID{2}, MinISR: 1, Status: ch.StatusActive},
 	}}
 	forward := &recordingConversationHeadsForward{response: ConversationHeadsResponse{Items: []ConversationHeadResult{
-		{Head: ConversationHead{LastCommittedSeq: 10}},
-		{Head: ConversationHead{LastCommittedSeq: 20}},
+		{Head: ConversationHead{ReadThroughSeq: 10}},
+		{Head: ConversationHead{ReadThroughSeq: 20}},
 	}}}
 	svc, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: source, Forward: forward})
 	require.NoError(t, err)
@@ -3076,10 +3076,10 @@ func TestServiceReadConversationHeadsUsesAlignedBatchMetadata(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, results, 3)
 	require.NoError(t, results[0].Err)
-	require.Equal(t, uint64(10), results[0].Head.LastCommittedSeq)
+	require.Equal(t, uint64(10), results[0].Head.ReadThroughSeq)
 	require.ErrorIs(t, results[1].Err, ch.ErrChannelNotFound)
 	require.NoError(t, results[2].Err)
-	require.Equal(t, uint64(20), results[2].Head.LastCommittedSeq)
+	require.Equal(t, uint64(20), results[2].Head.ReadThroughSeq)
 }
 
 func TestForwardConversationHeadsUsesAlignedBatchMetadata(t *testing.T) {
@@ -3103,7 +3103,7 @@ func TestForwardConversationHeadsUsesAlignedBatchMetadata(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, response.Items, 1)
 	require.NoError(t, response.Items[0].Err)
-	require.Equal(t, uint64(1), response.Items[0].Head.LastCommittedSeq)
+	require.Equal(t, uint64(1), response.Items[0].Head.ReadThroughSeq)
 	require.Equal(t, []byte("tail"), response.Items[0].Head.Message.Payload)
 }
 
@@ -3152,7 +3152,7 @@ func TestServiceReadConversationHeadsGroupsRemoteReadsByLeaderAndKeepsAlignment(
 		{ID: remoteB, Epoch: 3, LeaderEpoch: 4, Leader: 2, Replicas: []ch.NodeID{2}, ISR: []ch.NodeID{2}, MinISR: 1, Status: ch.StatusActive},
 	})
 	forward := &recordingConversationHeadsForward{response: ConversationHeadsResponse{Items: []ConversationHeadResult{
-		{Head: ConversationHead{LastCommittedSeq: 10, Found: true, Message: ch.Message{MessageSeq: 10, Payload: []byte("remote-a")}}},
+		{Head: ConversationHead{ReadThroughSeq: 10, Found: true, Message: ch.Message{MessageSeq: 10, Payload: []byte("remote-a")}}},
 		{Err: ch.ErrNotReady},
 	}}}
 	svc, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: source, Store: factory, Forward: forward})
@@ -3161,10 +3161,10 @@ func TestServiceReadConversationHeadsGroupsRemoteReadsByLeaderAndKeepsAlignment(
 	results, err := svc.ReadConversationHeads(context.Background(), []ch.ChannelID{remoteA, local, remoteB}, "u1")
 	require.NoError(t, err)
 	require.Len(t, results, 3)
-	require.Equal(t, uint64(10), results[0].Head.LastCommittedSeq)
+	require.Equal(t, uint64(10), results[0].Head.ReadThroughSeq)
 	require.Equal(t, []byte("remote-a"), results[0].Head.Message.Payload)
 	require.NoError(t, results[1].Err)
-	require.Equal(t, uint64(1), results[1].Head.LastCommittedSeq)
+	require.Equal(t, uint64(1), results[1].Head.ReadThroughSeq)
 	require.Equal(t, []byte("local"), results[1].Head.Message.Payload)
 	require.ErrorIs(t, results[2].Err, ch.ErrNotReady)
 	require.Equal(t, 1, forward.calls)

@@ -47,6 +47,6 @@ description: Product HTTP 的地址、JSON、标识、游标和重试规则。
 | `/channel/messagesync` | 使用同一游标重试，并容忍与实时投递重复 |
 | Channel 变更 | 仅在业务意图仍有效时按期望状态重放；`reset`、set 和 remove-all 可能部分完成 |
 | `/conversation/list` | 原样传递 `next_cursor`，只以 `done=true` 结束 |
-| `/conversation/retry` | 只重试返回的有界 unresolved 键 |
+| `/conversation/list` | 任一频道读取失败则整页失败；使用原请求、原游标重试 |
 
 这些接口没有通用 `Idempotency-Key`。安全要求见[认证与安全](/zh/api/authentication)，错误分类见[错误响应](/zh/api/product-http/errors)。

@@ -124,7 +124,7 @@ workers, one coordinator, 12 logical Slot Raft Groups over 256 physical hash
 slots, replicas `3/3`, 10,000 online users, and one global 2,000 SEND/s budget.
 Every login performs a fresh product `/conversation/list` pass with
 `completed_coverage=0`, an empty initial cursor, all pages through `done=true`,
-and bounded `/conversation/retry` hydration. No cursor or coverage is retained.
+with whole-page failure and unchanged-request retries. No cursor or coverage is retained.
 The independent proof leases one fixed, Slot-balanced cohort of 1,200 real
 person channels after five active minutes and follows their natural
 hot-to-cold-to-reheat transitions without a control-plane eviction.

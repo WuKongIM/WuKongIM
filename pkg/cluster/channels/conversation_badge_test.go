@@ -48,13 +48,13 @@ func TestConversationBadgeSurvivesSparseSequencesAndRemoteRouting(t *testing.T) 
 			head := result[0].Head
 			floor := max(tc.floor, head.CurrentUserLastSendSeq)
 			count := uint64(0)
-			if head.LastCommittedSeq > floor {
-				count = head.LastCommittedSeq - floor - head.NonBusinessUnread
+			if head.ReadThroughSeq > floor {
+				count = head.ReadThroughSeq - floor - head.NonBusinessUnread
 			}
 			require.Equal(t, tc.count, count)
 			require.True(t, head.BoundaryComputed)
 			require.Equal(t, tc.boundary, head.UnreadBoundary)
-			require.Equal(t, uint64(11), head.LastCommittedSeq)
+			require.Equal(t, uint64(11), head.ReadThroughSeq)
 			require.Equal(t, uint64(10), head.Message.MessageSeq)
 		}
 	}
@@ -71,7 +71,7 @@ func TestConversationBadgeCodecRequiresVersionTenAndPreservesExpire(t *testing.T
 	_, err = encodeConversationHeadsRequestVersion(req, legacyCodecVersionV9)
 	require.Error(t, err)
 	assertEveryStrictPrefixRejected(t, encoded, func(data []byte) error { _, err := decodeConversationHeadsRequest(data); return err })
-	response := ConversationHeadsResponse{Items: []ConversationHeadResult{{Head: ConversationHead{LastCommittedSeq: 11, NonBusinessUnread: 7, UnreadBoundary: 4, BoundaryComputed: true, Found: true, Message: ch.Message{MessageID: 77, MessageSeq: 10, Expire: 3600}}}}}
+	response := ConversationHeadsResponse{Items: []ConversationHeadResult{{Head: ConversationHead{ReadThroughSeq: 11, NonBusinessUnread: 7, UnreadBoundary: 4, BoundaryComputed: true, Found: true, Message: ch.Message{MessageID: 77, MessageSeq: 10, Expire: 3600}}}}}
 	encoded, err = encodeConversationHeadsResponse(response)
 	require.NoError(t, err)
 	actual, err := decodeConversationHeadsResponse(encoded)

@@ -414,13 +414,6 @@ export const productHTTPParameterExplanations = {
       description: explanation('一个会话的 Channel Key。', 'Channel key for one Conversation.'),
       properties: { channel_id: channelID, channel_type: channelType },
     },
-    ConversationRetryRequest: {
-      description: explanation('未解析会话的有界重试参数。', 'Bounded retry parameters for unresolved Conversations.'),
-      properties: {
-        uid: explanation('拥有这些会话 membership 的用户 ID。', 'User ID that owns the memberships for these Conversations.'),
-        channels: explanation('上一轮 unresolved 中要重试的 Channel Key；至少 1 个，最多 200 个，重复 Key 会合并。', 'Channel keys from a previous unresolved result to retry; between 1 and 200 are accepted and duplicates are merged.'),
-      },
-    },
     ConversationMutationRequest: {
       description: explanation('会话清未读、隐藏或激活操作共用的 Key。', 'Shared key for Conversation clear-unread, hide, or activate operations.'),
       properties: {
@@ -622,7 +615,6 @@ export const productHTTPParameterExplanations = {
       description: explanation('规范会话目录的一页及其同步控制状态。', 'One canonical Conversation-directory page and its synchronization control state.'),
       properties: {
         conversations: explanation('本页已解析的会话。', 'Resolved Conversations in this page.'),
-        unresolved: explanation('本页暂未解析的 Channel Key，可交给 /conversation/retry 有界重试。', 'Channel keys unresolved in this page, suitable for bounded retry through /conversation/retry.'),
         deletes: explanation('客户端应删除的会话 Key。', 'Conversation keys the client should delete.'),
         coverage: explanation('服务端为本轮同步观察到的覆盖版本。', 'Coverage version observed by the server for this synchronization pass.'),
         next_cursor: explanation('下一页不透明游标；必须原样回传。', 'Opaque cursor for the next page; return it unchanged.'),
@@ -640,7 +632,7 @@ export const productHTTPParameterExplanations = {
         deleted_to_seq: explanation('用户已删除到的最大消息序号。', 'Greatest message sequence deleted by the user.'),
         unread: explanation('基于当前末条消息和 read_seq 计算的未读数。', 'Unread count derived from the current last message and read_seq.'),
         active_at: explanation('会话最近激活时间。', 'Most recent Conversation activation time.'),
-        last_message: explanation('当前可见的末条消息；没有时为 null。', 'Current visible last message, or null when absent.'),
+        last_message: explanation('当前 Leader 已落盘的末条可见普通消息；不要求发送成功，没有时为 null。', 'Latest visible ordinary message persisted on the current Leader, regardless of SEND success; null when absent.'),
       },
     },
     ConversationLastMessage: {

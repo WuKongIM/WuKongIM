@@ -24,7 +24,6 @@ const (
 	defaultTimeout                         = 60 * time.Second
 	maxExplicitChannelRuntimeProbeChannels = 1200
 	conversationListPageLimit              = 200
-	conversationRetryMaxAttempts           = 4
 	maxConversationSyncPages               = 4096
 	// A valid all-missing explicit response can repeat the configured 10 MiB
 	// request identity payload in both compatibility and detailed fields.
@@ -200,15 +199,9 @@ type conversationListRequest struct {
 	CompletedCoverage int64  `json:"completed_coverage"`
 }
 
-type conversationRetryRequest struct {
-	UID      string                `json:"uid"`
-	Channels []conversationListKey `json:"channels"`
-}
-
 type conversationListResponse struct {
 	Conversations []conversationListItem `json:"conversations"`
 	Deletes       []conversationListKey  `json:"deletes"`
-	Unresolved    []conversationListKey  `json:"unresolved"`
 	NextCursor    string                 `json:"next_cursor"`
 	Done          bool                   `json:"done"`
 	ResetRequired bool                   `json:"reset_required"`
@@ -373,7 +366,7 @@ func (c *Client) CapacityTarget(ctx context.Context) (model.CapacityTarget, erro
 }
 
 // ConversationSync performs one complete stateless membership-directory pass.
-// It follows every opaque cursor, retries bounded unresolved keys, and never
+// It follows every opaque cursor, fails on unsuccessful pages, and never
 // attaches the Bench bearer token to product routes.
 func (c *Client) ConversationSync(ctx context.Context, req ConversationSyncRequest) ([]ConversationSyncConversation, error) {
 	if req.UID == "" || req.CompletedCoverage < 0 || req.MaxConversations <= 0 {
@@ -396,9 +389,6 @@ func (c *Client) ConversationSync(ctx context.Context, req ConversationSyncReque
 			return nil, errors.New("invalid conversation sync response: reset required during stateless pass")
 		}
 		if page.Done {
-			if err := c.resolveConversationSyncUnresolved(ctx, req.UID, state); err != nil {
-				return nil, err
-			}
 			return state.rows(), nil
 		}
 		if page.NextCursor == "" || page.NextCursor == cursor {
@@ -423,54 +413,10 @@ func (c *Client) conversationListPage(ctx context.Context, req conversationListR
 	); err != nil {
 		return conversationListResponse{}, err
 	}
-	if out.Conversations == nil || out.Deletes == nil || out.Unresolved == nil {
+	if out.Conversations == nil || out.Deletes == nil {
 		return conversationListResponse{}, errors.New("invalid conversation sync response: expected bounded arrays")
 	}
 	return out, nil
-}
-
-func (c *Client) conversationRetryPage(ctx context.Context, req conversationRetryRequest) (conversationListResponse, error) {
-	var out conversationListResponse
-	if err := c.postAnyOutMappedAuth(
-		ctx,
-		"/conversation/retry",
-		req,
-		&out,
-		maxConversationSyncResponseBytes,
-		safeConversationSyncError,
-		false,
-		"conversation sync response exceeds byte limit",
-	); err != nil {
-		return conversationListResponse{}, err
-	}
-	if out.Conversations == nil || out.Deletes == nil || out.Unresolved == nil {
-		return conversationListResponse{}, errors.New("invalid conversation sync response: expected bounded arrays")
-	}
-	return out, nil
-}
-
-func (c *Client) resolveConversationSyncUnresolved(ctx context.Context, uid string, state *conversationSyncState) error {
-	for attempt := 0; attempt < conversationRetryMaxAttempts && len(state.unresolved) > 0; attempt++ {
-		keys := state.unresolvedKeys()
-		state.clearUnresolved()
-		for start := 0; start < len(keys); start += conversationListPageLimit {
-			end := min(start+conversationListPageLimit, len(keys))
-			page, err := c.conversationRetryPage(ctx, conversationRetryRequest{UID: uid, Channels: keys[start:end]})
-			if err != nil {
-				return err
-			}
-			if !page.Done || page.NextCursor != "" || page.ResetRequired {
-				return errors.New("invalid conversation sync retry response")
-			}
-			if err := state.applyPage(page, end-start); err != nil {
-				return err
-			}
-		}
-	}
-	if len(state.unresolved) > 0 {
-		return errors.New("conversation sync unresolved retry limit reached")
-	}
-	return nil
 }
 
 type conversationSyncIdentity struct {
@@ -483,8 +429,6 @@ type conversationSyncState struct {
 	rowsByKey    map[conversationSyncIdentity]ConversationSyncConversation
 	rowOrder     []conversationSyncIdentity
 	rowOrdered   map[conversationSyncIdentity]struct{}
-	unresolved   map[conversationSyncIdentity]conversationListKey
-	unresolvedAt []conversationSyncIdentity
 	limitReached bool
 }
 
@@ -493,12 +437,11 @@ func newConversationSyncState(maxRows int) *conversationSyncState {
 		max: maxRows, rowsByKey: make(map[conversationSyncIdentity]ConversationSyncConversation, maxRows),
 		rowOrder:   make([]conversationSyncIdentity, 0, maxRows),
 		rowOrdered: make(map[conversationSyncIdentity]struct{}, maxRows),
-		unresolved: make(map[conversationSyncIdentity]conversationListKey),
 	}
 }
 
 func (s *conversationSyncState) applyPage(page conversationListResponse, limit int) error {
-	if limit <= 0 || len(page.Conversations)+len(page.Deletes)+len(page.Unresolved) > limit {
+	if limit <= 0 || len(page.Conversations)+len(page.Deletes) > limit {
 		return errors.New("invalid conversation sync response: page cardinality exceeded")
 	}
 	pageKeys := make(map[conversationSyncIdentity]struct{}, limit)
@@ -511,7 +454,6 @@ func (s *conversationSyncState) applyPage(page conversationListResponse, limit i
 			return errors.New("invalid conversation sync response: duplicate page identity")
 		}
 		pageKeys[key] = struct{}{}
-		delete(s.unresolved, key)
 		row := conversationSyncRow(item)
 		if _, exists := s.rowsByKey[key]; exists {
 			s.rowsByKey[key] = row
@@ -537,48 +479,8 @@ func (s *conversationSyncState) applyPage(page conversationListResponse, limit i
 		}
 		pageKeys[key] = struct{}{}
 		delete(s.rowsByKey, key)
-		delete(s.unresolved, key)
-	}
-	for _, item := range page.Unresolved {
-		key, err := conversationSyncKey(item.ChannelID, item.ChannelType)
-		if err != nil {
-			return err
-		}
-		if _, exists := pageKeys[key]; exists {
-			return errors.New("invalid conversation sync response: conflicting page identity")
-		}
-		pageKeys[key] = struct{}{}
-		if _, exists := s.unresolved[key]; exists {
-			continue
-		}
-		if len(s.unresolved) >= s.max {
-			s.limitReached = true
-			continue
-		}
-		s.unresolved[key] = item
-		s.unresolvedAt = append(s.unresolvedAt, key)
 	}
 	return nil
-}
-
-func (s *conversationSyncState) unresolvedKeys() []conversationListKey {
-	keys := make([]conversationListKey, 0, len(s.unresolved))
-	seen := make(map[conversationSyncIdentity]struct{}, len(s.unresolved))
-	for _, key := range s.unresolvedAt {
-		if item, ok := s.unresolved[key]; ok {
-			if _, duplicate := seen[key]; duplicate {
-				continue
-			}
-			seen[key] = struct{}{}
-			keys = append(keys, item)
-		}
-	}
-	return keys
-}
-
-func (s *conversationSyncState) clearUnresolved() {
-	s.unresolved = make(map[conversationSyncIdentity]conversationListKey)
-	s.unresolvedAt = s.unresolvedAt[:0]
 }
 
 func (s *conversationSyncState) rows() []ConversationSyncConversation {

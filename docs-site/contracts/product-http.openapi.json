@@ -1277,11 +1277,11 @@
       "post": {
         "operationId": "listConversations",
         "summary": "Synchronize a Conversation page",
-        "description": "Returns one bounded membership page; only done=true completes the pass.",
+        "description": "Reads Leader-persisted messages without runtime activation. Failed SENDs may appear. Any read error fails the page; retry the original cursor.",
         "x-i18n": {
           "zh": {
             "summary": "同步一页会话",
-            "description": "返回一页有界 membership；只有 done=true 才表示本轮完成。"
+            "description": "读取 Leader 已落盘消息，不激活运行时；发送失败的消息也可显示。任一读取错误则整页失败，使用原请求和原游标重试。"
           }
         },
         "tags": [
@@ -1300,39 +1300,52 @@
             "$ref": "#/components/responses/CompatibilityBadRequest"
           },
           "503": {
-            "$ref": "#/components/responses/MaintenanceUnavailable"
-          }
-        }
-      }
-    },
-    "/conversation/retry": {
-      "post": {
-        "operationId": "retryConversations",
-        "summary": "Retry unresolved Conversations",
-        "description": "Rehydrates up to 200 keys without rewinding completed coverage; duplicate keys are merged.",
-        "x-i18n": {
-          "zh": {
-            "summary": "重试未解析会话",
-            "description": "重新 hydrate 最多 200 个 Key，不回退已完成 coverage；重复 Key 会合并。"
-          }
-        },
-        "tags": [
-          "Conversations"
-        ],
-        "security": [],
-        "x-wukongim-trust": "trusted-backend-only",
-        "requestBody": {
-          "$ref": "#/components/requestBodies/ConversationRetry"
-        },
-        "responses": {
-          "200": {
-            "$ref": "#/components/responses/ConversationListOK"
+            "description": "Maintenance, list capacity exhausted, or read deadline exceeded. Retry the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/MaintenanceError"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "msg",
+                        "status"
+                      ],
+                      "properties": {
+                        "msg": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "integer",
+                          "const": 503
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
-          "400": {
-            "$ref": "#/components/responses/CompatibilityBadRequest"
-          },
-          "503": {
-            "$ref": "#/components/responses/MaintenanceUnavailable"
+          "500": {
+            "description": "Channel or storage read failed; no partial page or cursor is returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -1858,16 +1871,6 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/ConversationListRequest"
-            }
-          }
-        }
-      },
-      "ConversationRetry": {
-        "required": true,
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ConversationRetryRequest"
             }
           }
         }
@@ -3977,28 +3980,6 @@
           }
         }
       },
-      "ConversationRetryRequest": {
-        "type": "object",
-        "additionalProperties": true,
-        "required": [
-          "uid",
-          "channels"
-        ],
-        "properties": {
-          "uid": {
-            "type": "string",
-            "minLength": 1
-          },
-          "channels": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 200,
-            "items": {
-              "$ref": "#/components/schemas/ConversationKey"
-            }
-          }
-        }
-      },
       "ConversationMutationRequest": {
         "type": "object",
         "additionalProperties": true,
@@ -4060,7 +4041,6 @@
         "required": [
           "conversations",
           "deletes",
-          "unresolved",
           "done",
           "coverage",
           "tombstones_retained_since",
@@ -4074,12 +4054,6 @@
             }
           },
           "deletes": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ConversationKey"
-            }
-          },
-          "unresolved": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ConversationKey"

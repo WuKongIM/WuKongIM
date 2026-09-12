@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
@@ -19,11 +20,6 @@ type conversationListRequest struct {
 	CompletedCoverage int64  `json:"completed_coverage"`
 }
 
-type conversationRetryRequest struct {
-	UID      string                `json:"uid"`
-	Channels []conversationListKey `json:"channels"`
-}
-
 type conversationListCursor struct {
 	ActiveAt    int64  `json:"active_at"`
 	ChannelID   string `json:"channel_id"`
@@ -33,7 +29,6 @@ type conversationListCursor struct {
 type conversationListResponse struct {
 	Conversations           []conversationListItem `json:"conversations"`
 	Deletes                 []conversationListKey  `json:"deletes"`
-	Unresolved              []conversationListKey  `json:"unresolved"`
 	NextCursor              string                 `json:"next_cursor,omitempty"`
 	Done                    bool                   `json:"done"`
 	Coverage                int64                  `json:"coverage"`
@@ -71,46 +66,11 @@ func (s *Server) registerConversationRoutes() {
 		return
 	}
 	s.engine.POST("/conversation/list", s.handleConversationList)
-	s.engine.POST("/conversation/retry", s.handleConversationRetry)
 	s.engine.POST("/conversation/sync", s.handleConversationSyncLegacy)
 	s.engine.POST("/conversations/clearUnread", s.handleConversationClearUnread)
 	s.engine.POST("/conversations/setUnread", s.handleConversationSetUnread)
 	s.engine.POST("/conversations/delete", s.handleConversationDelete)
 	s.engine.POST("/conversations/activate", s.handleConversationActivate)
-}
-
-func (s *Server) handleConversationRetry(c *gin.Context) {
-	var req conversationRetryRequest
-	if !bindJSON(c, &req) {
-		return
-	}
-	if req.UID == "" || len(req.Channels) == 0 {
-		writeJSONError(c, "uid或channels不能为空！")
-		return
-	}
-	if s == nil || s.conversations == nil {
-		writeJSONError(c, "conversation usecase not configured")
-		return
-	}
-	keys := make([]conversationusecase.ConversationKey, len(req.Channels))
-	for index, key := range req.Channels {
-		if key.ChannelID == "" || key.ChannelType <= 0 || key.ChannelType > 255 {
-			writeJSONError(c, "channel_id或channel_type错误！")
-			return
-		}
-		channelID, err := normalizeLegacyConversationChannelID(req.UID, key.ChannelID, uint8(key.ChannelType))
-		if err != nil {
-			writeJSONError(c, "invalid channel_id")
-			return
-		}
-		keys[index] = conversationusecase.ConversationKey{ChannelID: channelID, ChannelType: key.ChannelType}
-	}
-	result, err := s.conversations.Retry(c.Request.Context(), conversationusecase.RetryRequest{UID: req.UID, Keys: keys})
-	if err != nil {
-		writeJSONError(c, err.Error())
-		return
-	}
-	c.JSON(http.StatusOK, newConversationListResponse(req.UID, result))
 }
 
 func (s *Server) handleConversationList(c *gin.Context) {
@@ -143,7 +103,14 @@ func (s *Server) handleConversationList(c *gin.Context) {
 		CompletedCoverage: req.CompletedCoverage,
 	})
 	if err != nil {
-		writeJSONError(c, err.Error())
+		status := http.StatusInternalServerError
+		if errors.Is(err, conversationusecase.ErrInvalidRequest) {
+			status = http.StatusBadRequest
+		}
+		if errors.Is(err, conversationusecase.ErrListBusy) || errors.Is(err, conversationusecase.ErrRouteNotReady) || errors.Is(err, context.DeadlineExceeded) {
+			status = http.StatusServiceUnavailable
+		}
+		c.JSON(status, gin.H{"msg": err.Error(), "status": status})
 		s.observeConversationList(ConversationListObservation{Result: "error", Duration: time.Since(start)})
 		return
 	}
@@ -153,7 +120,6 @@ func (s *Server) handleConversationList(c *gin.Context) {
 		ScannedCandidates: result.ScannedCandidates,
 		ReturnedItems:     len(result.Items),
 		Deletes:           len(result.Deletes),
-		Unresolved:        len(result.Unresolved),
 		Done:              result.Done,
 	})
 	c.JSON(http.StatusOK, newConversationListResponse(req.UID, result))
@@ -181,7 +147,6 @@ func newConversationListResponse(uid string, result conversationusecase.ListResu
 	resp := conversationListResponse{
 		Conversations:           make([]conversationListItem, 0, len(result.Items)),
 		Deletes:                 make([]conversationListKey, 0, len(result.Deletes)),
-		Unresolved:              make([]conversationListKey, 0, len(result.Unresolved)),
 		Done:                    result.Done,
 		Coverage:                result.Coverage,
 		TombstonesRetainedSince: result.TombstonesRetainedSince,
@@ -192,11 +157,6 @@ func newConversationListResponse(uid string, result conversationusecase.ListResu
 	}
 	for _, key := range result.Deletes {
 		resp.Deletes = append(resp.Deletes, conversationListKey{
-			ChannelID: legacyMessageChannelID(uid, key.ChannelID, uint8(key.ChannelType)), ChannelType: key.ChannelType,
-		})
-	}
-	for _, key := range result.Unresolved {
-		resp.Unresolved = append(resp.Unresolved, conversationListKey{
 			ChannelID: legacyMessageChannelID(uid, key.ChannelID, uint8(key.ChannelType)), ChannelType: key.ChannelType,
 		})
 	}

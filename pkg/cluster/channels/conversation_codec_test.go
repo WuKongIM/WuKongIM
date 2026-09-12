@@ -51,7 +51,7 @@ func TestConversationHeadsCodecPreservesAlignedRoutingFences(t *testing.T) {
 	}
 
 	response := ConversationHeadsResponse{Items: []ConversationHeadResult{
-		{Head: ConversationHead{Found: true, LastCommittedSeq: 12, RetentionThroughSeq: 4, CurrentUserLastSendSeq: 11, Message: codecContractMessage(12)}},
+		{Head: ConversationHead{Found: true, ReadThroughSeq: 12, RetentionThroughSeq: 4, CurrentUserLastSendSeq: 11, Message: codecContractMessage(12)}},
 		{Err: ch.ErrNotLeader},
 	}}
 	encoded, err := encodeConversationHeadsResponse(response)

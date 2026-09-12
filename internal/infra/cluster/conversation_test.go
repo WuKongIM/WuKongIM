@@ -24,7 +24,7 @@ func TestConversationStoreListsMembershipDirectoryAndHydratesOneAlignedBatch(t *
 		cursor: metadb.UserChannelMembershipCursor{ActivatedAt: 90, ChannelID: "g-b", ChannelType: 2},
 		heads: []clusterchannels.ConversationHeadResult{
 			{Head: clusterchannels.ConversationHead{
-				LastCommittedSeq: 12, RetentionThroughSeq: 3, CurrentUserLastSendSeq: 9,
+				ReadThroughSeq: 12, RetentionThroughSeq: 3, CurrentUserLastSendSeq: 9,
 				Found: true, Message: channelruntime.Message{MessageID: 12, MessageSeq: 12, Payload: []byte("tail")},
 			}},
 			{Err: channelruntime.ErrNotReady},
@@ -46,7 +46,7 @@ func TestConversationStoreListsMembershipDirectoryAndHydratesOneAlignedBatch(t *
 	require.NoError(t, err)
 	require.Len(t, hydrated, 2)
 	require.Equal(t, conversationusecase.HydrationOK, hydrated[0].Outcome)
-	require.Equal(t, uint64(12), hydrated[0].LastCommittedSeq)
+	require.Equal(t, uint64(12), hydrated[0].ReadThroughSeq)
 	require.Equal(t, uint64(9), hydrated[0].CurrentUserLastSendSeq)
 	require.Equal(t, []byte("tail"), hydrated[0].LastMessage.Payload)
 	require.Equal(t, conversationusecase.HydrationRetryable, hydrated[1].Outcome)
@@ -107,16 +107,17 @@ func TestConversationStoreDelegatesMembershipMutations(t *testing.T) {
 }
 
 type conversationNodeFake struct {
-	memberships  []metadb.UserChannelMembership
-	cursor       metadb.UserChannelMembershipCursor
-	done         bool
-	heads        []clusterchannels.ConversationHeadResult
-	headCalls    int
-	headIDs      []channelruntime.ChannelID
-	row          metadb.UserChannelMembership
-	readSeq      uint64
-	deletedToSeq uint64
-	activatedAt  int64
+	persistedCalls int
+	memberships    []metadb.UserChannelMembership
+	cursor         metadb.UserChannelMembershipCursor
+	done           bool
+	heads          []clusterchannels.ConversationHeadResult
+	headCalls      int
+	headIDs        []channelruntime.ChannelID
+	row            metadb.UserChannelMembership
+	readSeq        uint64
+	deletedToSeq   uint64
+	activatedAt    int64
 }
 
 func (n *conversationNodeFake) ListUserChannelMembershipPage(_ context.Context, _ string, _ metadb.UserChannelMembershipCursor, _ int) ([]metadb.UserChannelMembership, metadb.UserChannelMembershipCursor, bool, error) {
@@ -146,4 +147,31 @@ func (n *conversationNodeFake) HideUserChannelMembership(_ context.Context, _, _
 func (n *conversationNodeFake) ActivateUserChannelMembership(_ context.Context, _, _ string, _ int64, activatedAt, _ int64) error {
 	n.activatedAt = activatedAt
 	return nil
+}
+
+func (n *conversationNodeFake) ReadChannelPersistedConversationHeads(ctx context.Context, ids []channelruntime.ChannelID, uid string, badges ...clusterchannels.ConversationBadgeQuery) ([]clusterchannels.ConversationHeadResult, error) {
+	n.persistedCalls++
+	return n.ReadChannelConversationHeads(ctx, ids, uid, badges...)
+}
+
+func TestConversationStorePersistedReadsFailWholeBatch(t *testing.T) {
+	diskErr := errors.New("disk read failed")
+	node := &conversationNodeFake{heads: []clusterchannels.ConversationHeadResult{
+		{Head: clusterchannels.ConversationHead{ReadThroughSeq: 9, Found: true, Message: channelruntime.Message{MessageSeq: 9}}},
+		{Err: diskErr},
+	}}
+	store := NewConversationStore(node)
+	rows := []metadb.UserChannelMembership{{UID: "u", ChannelID: "ok", ChannelType: 2}, {UID: "u", ChannelID: "bad", ChannelType: 2}}
+	results, err := store.HydratePersistedConversationHeads(context.Background(), "u", rows)
+	require.ErrorIs(t, err, diskErr)
+	require.Nil(t, results)
+	require.Equal(t, 1, node.persistedCalls)
+	node.heads = node.heads[:1]
+	results, err = store.HydratePersistedConversationHeads(context.Background(), "u", rows[:1])
+	require.NoError(t, err)
+	require.Equal(t, uint64(9), results[0].ReadThroughSeq)
+	require.Equal(t, 2, node.persistedCalls)
+	_, err = store.HydrateConversationHeads(context.Background(), "u", rows[:1])
+	require.NoError(t, err)
+	require.Equal(t, 2, node.persistedCalls, "committed hydration must not use persisted reads")
 }

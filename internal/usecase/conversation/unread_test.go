@@ -13,7 +13,7 @@ import (
 func TestClearUnreadAdvancesReadSeqToLatestMessage(t *testing.T) {
 	now := time.Unix(0, 123)
 	store := newConversationMutationStore()
-	store.head.LastCommittedSeq = 12
+	store.head.ReadThroughSeq = 12
 	app := New(Options{Hydrator: store, MembershipMutations: store, Now: func() time.Time { return now }})
 
 	if err := app.ClearUnread(context.Background(), ClearUnreadCommand{UID: "u1", ChannelID: "g1", ChannelType: 2}); err != nil {
@@ -29,7 +29,7 @@ func TestClearUnreadAdvancesReadSeqToLatestMessage(t *testing.T) {
 func TestSetUnreadAdvancesReadSeqToKeepRequestedUnreadTail(t *testing.T) {
 	now := time.Unix(0, 456)
 	store := newConversationMutationStore()
-	store.head.LastCommittedSeq = 12
+	store.head.ReadThroughSeq = 12
 	app := New(Options{Hydrator: store, MembershipMutations: store, Now: func() time.Time { return now }})
 
 	if err := app.SetUnread(context.Background(), SetUnreadCommand{UID: "u1", ChannelID: "g1", ChannelType: 2, Unread: 3}); err != nil {
@@ -44,7 +44,7 @@ func TestSetUnreadAdvancesReadSeqToKeepRequestedUnreadTail(t *testing.T) {
 func TestDeleteConversationHidesThroughLatestMessage(t *testing.T) {
 	now := time.Unix(0, 789)
 	store := newConversationMutationStore()
-	store.head.LastCommittedSeq = 12
+	store.head.ReadThroughSeq = 12
 	app := New(Options{Hydrator: store, MembershipMutations: store, Now: func() time.Time { return now }})
 
 	if err := app.DeleteConversation(context.Background(), DeleteConversationCommand{UID: "u1", ChannelID: "g1", ChannelType: 2}); err != nil {
@@ -192,4 +192,8 @@ func TestUnreadEmptyConversationDoesNotHideFailures(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (h *conversationMutationStore) HydratePersistedConversationHeads(ctx context.Context, uid string, rows []metadb.UserChannelMembership) ([]HydrationResult, error) {
+	return h.HydrateConversationHeads(ctx, uid, rows)
 }

@@ -89,6 +89,8 @@ bench or debug request
   Channel labels.
 - The adapter never writes storage, resolves distributed authority, or performs
   post-commit effects directly.
+- `/conversation/list` exposes persisted previews with whole-page errors and
+  no unresolved array. The former `/conversation/retry` route is removed.
 - Conversation-list serialization borrows the usecase-owned immutable payload
   only for the synchronous response write; it does not retain it afterward.
 - `/conversation/sync` preserves the old raw-array envelope and person-channel

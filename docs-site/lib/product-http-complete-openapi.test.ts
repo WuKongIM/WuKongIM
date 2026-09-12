@@ -178,12 +178,12 @@ function jsonFieldsForStruct(file: string, typeName: string, seen = new Set<stri
 }
 
 describe('complete Product HTTP OpenAPI contract', () => {
-  test('matches all and only the 43 runtime Product HTTP registrations', async () => {
+  test('matches all and only the 42 runtime Product HTTP registrations', async () => {
     const registered = await registeredProductOperations();
     const contracted = operationKeys().sort();
 
-    expect(registered).toHaveLength(43);
-    expect(contracted).toHaveLength(43);
+    expect(registered).toHaveLength(42);
+    expect(contracted).toHaveLength(42);
     expect(contracted).toEqual(registered);
   });
 
@@ -215,7 +215,7 @@ describe('complete Product HTTP OpenAPI contract', () => {
       }
     }
 
-    expect(profiled.size).toBe(20);
+    expect(profiled.size).toBe(19);
     for (const [key, expected] of profiled) {
       expect(complete.get(key)).toMatchObject({
         operationId: expected.operationId,
@@ -239,7 +239,7 @@ describe('complete Product HTTP OpenAPI contract', () => {
     expect(
       [...localizedOperations.values()].filter((operation) => operation['x-codeSamples'])
         .length,
-    ).toBe(20);
+    ).toBe(19);
     expect(localizedOperations.get('POST /message/send')?.['x-wukongim-semantics']).toMatchObject({
       success: expect.stringContaining('reason'),
     });
@@ -431,7 +431,6 @@ describe('complete Product HTTP OpenAPI contract', () => {
       ['ChannelMessageSyncBatchRequest', 'channel_messagesync.go', 'syncChannelMessagesBatchRequest'],
       ['ConversationListRequest', 'conversation_list.go', 'conversationListRequest'],
       ['ConversationKey', 'conversation_list.go', 'conversationListKey'],
-      ['ConversationRetryRequest', 'conversation_list.go', 'conversationRetryRequest'],
       ['ConversationMutationRequest', 'conversation_mutation.go', 'clearConversationUnreadRequest'],
       ['ConversationSetUnreadRequest', 'conversation_mutation.go', 'setConversationUnreadRequest'],
       ['ConversationSyncLegacyRequest', 'conversation_sync_legacy.go', 'conversationSyncLegacyRequest'],

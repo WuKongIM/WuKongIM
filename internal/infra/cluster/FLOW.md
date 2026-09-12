@@ -51,6 +51,10 @@ management, plugins, diagnostics, and bounded operations observations.
    read the Controller-visible snapshot separately from the Node-applied read
    model so runtime reconciliation cannot stall their CAS convergence.
 
+- Conversation list previews use the explicit persisted-head port; personal
+  mutations and legacy sync retain committed hydration. Persisted item errors
+  fail the page instead of producing unresolved keys.
+
 ## Invariants and Failure Semantics
 
 - Route, leader, term, epoch, revision, and lease fences must be forwarded

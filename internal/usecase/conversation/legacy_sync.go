@@ -330,13 +330,13 @@ func (a *App) listLegacyConversationCandidates(ctx context.Context, uid string) 
 	consumed := 0
 	for consumed < legacyConversationSyncMaxCandidates {
 		limit := min(maxListLimit, legacyConversationSyncMaxCandidates-consumed)
-		page, err := a.List(ctx, ListRequest{UID: uid, Cursor: cursor, Limit: limit})
+		page, err := a.listMembershipDirectory(ctx, ListRequest{UID: uid, Cursor: cursor, Limit: limit}, false)
 		if err != nil {
 			return nil, err
 		}
 		items = append(items, page.Items...)
 		if len(page.Unresolved) > 0 {
-			retry, err := a.Retry(ctx, RetryRequest{UID: uid, Keys: page.Unresolved})
+			retry, err := a.retryLegacyHeads(ctx, legacyRetryRequest{UID: uid, Keys: page.Unresolved})
 			if err != nil {
 				return nil, err
 			}

@@ -18,7 +18,6 @@ const operationPages = [
   ['channels', 'removeChannelAllowlistMembers', 'post', '/channel/whitelist_remove'],
   ['channels', 'removeAllChannelAllowlistMembers', 'post', '/channel/whitelist_remove_all'],
   ['conversations', 'listConversations', 'post', '/conversation/list'],
-  ['conversations', 'retryConversations', 'post', '/conversation/retry'],
   ['conversations', 'clearConversationUnread', 'post', '/conversations/clearUnread'],
   ['conversations', 'setConversationUnread', 'post', '/conversations/setUnread'],
   ['conversations', 'hideConversation', 'post', '/conversations/delete'],

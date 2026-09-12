@@ -51,6 +51,7 @@ const (
 	kindCommittedReads
 	kindCommittedReadsResponse
 	kindIndexedCommittedReads
+	kindPersistedConversationHeads
 )
 
 // EncodePullRequest encodes a Channel pull request.
@@ -303,15 +304,24 @@ func encodeConversationHeadsRequestVersion(req ConversationHeadsRequest, version
 			}
 		}
 	}
-	return encodeRequestFrame(version, kindConversationHeads, appendConversationHeadsRequest(nil, req, version))
+	kind := kindConversationHeads
+	if req.Persisted {
+		kind = kindPersistedConversationHeads
+	}
+	return encodeRequestFrame(version, kind, appendConversationHeadsRequest(nil, req, version))
 }
 
 func decodeConversationHeadsRequest(data []byte) (ConversationHeadsRequest, error) {
-	version, payload, err := decodeFrameWithVersion(data, kindConversationHeads)
+	kind := kindConversationHeads
+	if len(data) > 1 && data[1] == kindPersistedConversationHeads {
+		kind = kindPersistedConversationHeads
+	}
+	version, payload, err := decodeFrameWithVersion(data, kind)
 	if err != nil {
 		return ConversationHeadsRequest{}, err
 	}
 	req, offset, err := readConversationHeadsRequest(payload, 0, version)
+	req.Persisted = kind == kindPersistedConversationHeads
 	if err != nil {
 		return ConversationHeadsRequest{}, err
 	}
@@ -1200,7 +1210,7 @@ func appendLastVisibleResponse(dst []byte, resp LastVisibleResponse, version uin
 	if version < legacyCodecVersionV7 {
 		return dst
 	}
-	dst = appendUvarint(dst, resp.LastCommittedSeq)
+	dst = appendUvarint(dst, resp.ReadThroughSeq)
 	dst = appendUvarint(dst, resp.RetentionThroughSeq)
 	dst = appendUvarint(dst, resp.CurrentUserLastSendSeq)
 	return dst
@@ -1220,7 +1230,7 @@ func readLastVisibleResponse(body []byte, offset int, version uint8) (LastVisibl
 	if version < legacyCodecVersionV7 {
 		return resp, offset, nil
 	}
-	if resp.LastCommittedSeq, offset, err = readUvarint(body, offset); err != nil {
+	if resp.ReadThroughSeq, offset, err = readUvarint(body, offset); err != nil {
 		return LastVisibleResponse{}, offset, err
 	}
 	if resp.RetentionThroughSeq, offset, err = readUvarint(body, offset); err != nil {

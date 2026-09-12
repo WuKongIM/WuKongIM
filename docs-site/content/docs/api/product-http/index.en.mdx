@@ -1,9 +1,9 @@
 ---
 title: Product HTTP API
-description: Reference all 43 business HTTP operations registered by the current source.
+description: Reference all 42 business HTTP operations registered by the current source.
 ---
 
-Product HTTP provides basic integration and trusted-management operations. The complete OpenAPI contract matches all 43 current `internal/access/api` registrations.
+Product HTTP provides basic integration and trusted-management operations. The complete OpenAPI contract matches all 42 current `internal/access/api` registrations.
 Each operation page explains the type, requiredness, default, range, and runtime compatibility behavior of every query parameter and JSON field.
 
 OpenAPI: [complete contract](/contracts/product-http.openapi.json) · narrow profiles: [basic integration](/contracts/javascript-web-quickstart.openapi.json) · [message sending](/contracts/product-http-messaging.openapi.json) · [Channel and Conversation](/contracts/product-http-management.openapi.json)
@@ -20,9 +20,9 @@ OpenAPI: [complete contract](/contracts/product-http.openapi.json) · narrow pro
 | Send from a backend | `/message/send` | Inspect `reason` after HTTP 200 |
 | Recover after disconnect | `/channel/messagesync` or its batch form | Advance by `message_seq`; inspect each batch-item `error` |
 | Reconcile group membership | `/channel`, subscriber add/remove | Persist the product desired version; verify and replay desired state after failure |
-| Synchronize the Conversation directory | `/conversation/list` → `/conversation/retry` | Echo the cursor until `done=true` |
+| Synchronize the Conversation directory | `/conversation/list` | Echo the cursor until `done=true` |
 
-The complete contract is authoritative for all 43 runtime entries. The three narrow profiles are reviewed task projections with runnable examples. Generated pages merge those examples and expose caller, node scope, non-atomic writes, and post-200 business checks in an “Operation boundary” callout.
+The complete contract is authoritative for all 42 runtime entries. The three narrow profiles are reviewed task projections with runnable examples. Generated pages merge those examples and expose caller, node scope, non-atomic writes, and post-200 business checks in an “Operation boundary” callout.
 
 ## Channel observability boundary
 
@@ -37,7 +37,7 @@ When Product HTTP has no symmetric readback, do not treat one 200 response as re
 
 ## What deprecated means
 
-`deprecated` marks a compatibility entry that still exists but should not be the default for a new integration: replace `/channel/info` with `/channel`, list set with remove-all plus bounded add, and `/conversation/sync` with `/conversation/list` plus `/conversation/retry`. Batch routing, online status, Channel disband/removal, full allowlist read, and command-message sync/bind compatibility entries currently have no one-to-one replacement in Product HTTP; use them only after reading their operation boundaries. Node-local system-UID cache routes are for directed operations and cannot replace durable mutations.
+`deprecated` marks a compatibility entry that still exists but should not be the default for a new integration: replace `/channel/info` with `/channel`, list set with remove-all plus bounded add, and `/conversation/sync` with `/conversation/list`. Batch routing, online status, Channel disband/removal, full allowlist read, and command-message sync/bind compatibility entries currently have no one-to-one replacement in Product HTTP; use them only after reading their operation boundaries. Node-local system-UID cache routes are for directed operations and cannot replace durable mutations.
 
 ## API directory
 

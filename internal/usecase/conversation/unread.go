@@ -23,10 +23,10 @@ func (a *App) ClearUnread(ctx context.Context, cmd ClearUnreadCommand) error {
 	if err != nil || !found {
 		return err
 	}
-	if head.LastCommittedSeq <= row.ReadSeq {
+	if head.ReadThroughSeq <= row.ReadSeq {
 		return nil
 	}
-	return a.memberships.AdvanceUserChannelMembershipReadSeq(ctx, cmd.UID, cmd.ChannelID, int64(cmd.ChannelType), head.LastCommittedSeq, a.now().UnixNano())
+	return a.memberships.AdvanceUserChannelMembershipReadSeq(ctx, cmd.UID, cmd.ChannelID, int64(cmd.ChannelType), head.ReadThroughSeq, a.now().UnixNano())
 }
 
 // SetUnread marks enough messages as read so at most cmd.Unread messages remain unread.
@@ -50,8 +50,8 @@ func (a *App) SetUnread(ctx context.Context, cmd SetUnreadCommand) error {
 	}
 	visibilityFloor := maxMembershipFloor(joinVisibilityFloor(row.JoinSeq), row.DeletedToSeq, head.RetentionThroughSeq)
 	target := visibilityFloor
-	if uint64(cmd.Unread) < head.LastCommittedSeq {
-		target = maxMembershipFloor(target, head.LastCommittedSeq-uint64(cmd.Unread))
+	if uint64(cmd.Unread) < head.ReadThroughSeq {
+		target = maxMembershipFloor(target, head.ReadThroughSeq-uint64(cmd.Unread))
 	}
 	if head.BoundaryComputed {
 		target = maxMembershipFloor(visibilityFloor, head.UnreadBoundary)
@@ -80,7 +80,7 @@ func (a *App) DeleteConversation(ctx context.Context, cmd DeleteConversationComm
 	if !found {
 		return metadb.ErrNotFound
 	}
-	return a.memberships.HideUserChannelMembership(ctx, cmd.UID, cmd.ChannelID, int64(cmd.ChannelType), head.LastCommittedSeq, a.now().UnixNano())
+	return a.memberships.HideUserChannelMembership(ctx, cmd.UID, cmd.ChannelID, int64(cmd.ChannelType), head.ReadThroughSeq, a.now().UnixNano())
 }
 
 // ActivateConversation records an explicit user navigation action. Message

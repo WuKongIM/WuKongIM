@@ -270,18 +270,12 @@ export const productHTTPOperationSemantics = {
   },
   'POST /conversation/list': {
     scope: text(
-      'limit 限制本页扫描的 membership 条目数，不保证 conversations 数组达到该数量；墓碑进入 deletes，暂时无法补水的条目进入 unresolved。',
-      'limit bounds membership rows scanned, not the number of returned conversations; tombstones go to deletes and temporarily unhydrated entries go to unresolved.',
+      'limit 限制本页扫描的 membership 条目数，不保证 conversations 数组达到该数量；墓碑进入 deletes；最新消息和未读数基于 Leader 已落盘数据，读取不激活运行时。任一读取失败则整页失败，使用原请求和原游标重试。',
+      'limit bounds membership rows scanned, not the number of returned conversations; tombstones go to deletes. Previews use Leader-persisted data without runtime activation. Any read failure fails the whole page; retry the original request and cursor.',
     ),
     success: text(
       '只以 done=true 结束完整轮次并保存 coverage；reset_required=true 时必须重建本地会话目录。',
       'Only done=true completes a full pass and permits saving coverage; reset_required=true requires rebuilding the local Conversation directory.',
-    ),
-  },
-  'POST /conversation/retry': {
-    scope: text(
-      '只重新解析上一轮 unresolved 中的最多 200 个 Channel Key，不替代 list 的完整游标扫描。',
-      'Re-resolves at most 200 Channel keys from a previous unresolved result; it does not replace the complete cursor scan performed by list.',
     ),
   },
 } as const satisfies Record<string, ProductHTTPOperationSemantics>;

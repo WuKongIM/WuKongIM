@@ -403,14 +403,16 @@
       "post": {
         "operationId": "listConversations",
         "summary": "Synchronize a Conversation page",
-        "description": "Returns one bounded Conversation page. Reuse next_cursor unchanged until done=true; an empty page is not completion.",
+        "description": "Reads Leader-persisted messages without runtime activation. Failed SENDs may appear. Any read error fails the page; retry the original cursor.",
         "x-i18n": {
           "zh": {
             "summary": "同步一页会话",
-            "description": "返回一页有界会话。原样回传 next_cursor 直到 done=true；空页不表示完成。"
+            "description": "读取 Leader 已落盘消息，不激活运行时；发送失败的消息也可显示。任一读取错误则整页失败，使用原请求和原游标重试。"
           }
         },
-        "tags": ["Conversations"],
+        "tags": [
+          "Conversations"
+        ],
         "x-wukongim-trust": "trusted-backend-only",
         "x-codeSamples": [
           {
@@ -424,50 +426,67 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/ConversationListRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/ConversationListRequest"
+              }
             }
           }
         },
         "responses": {
-          "200": { "$ref": "#/components/responses/ConversationPage" },
-          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
-          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
-        }
-      }
-    },
-    "/conversation/retry": {
-      "post": {
-        "operationId": "retryConversations",
-        "summary": "Retry unresolved Conversation keys",
-        "description": "Retries up to 200 unresolved keys without rewinding completed list coverage; duplicate keys are merged.",
-        "x-i18n": {
-          "zh": {
-            "summary": "重试未解析的会话键",
-            "description": "重试最多 200 个未解析键，不回退已完成的列表 coverage；重复键会合并。"
-          }
-        },
-        "tags": ["Conversations"],
-        "x-wukongim-trust": "trusted-backend-only",
-        "x-codeSamples": [
-          {
-            "lang": "bash",
-            "label": "Trusted backend (cURL)",
-            "source": "# Run only from the trusted backend boundary.\ncurl --fail-with-body \\\n  --request POST \\\n  --url http://127.0.0.1:5001/conversation/retry \\\n  --header 'content-type: application/json' \\\n  --data '{\"uid\":\"alice\",\"channels\":[{\"channel_id\":\"team-42\",\"channel_type\":2}]}'"
-          }
-        ],
-        "security": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/ConversationRetryRequest" }
+          "200": {
+            "$ref": "#/components/responses/ConversationPage"
+          },
+          "400": {
+            "$ref": "#/components/responses/CompatibilityBadRequest"
+          },
+          "503": {
+            "description": "Maintenance, list capacity exhausted, or read deadline exceeded. Retry the original request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/MaintenanceError"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "msg",
+                        "status"
+                      ],
+                      "properties": {
+                        "msg": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "integer",
+                          "const": 503
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Channel or storage read failed; no partial page or cursor is returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
             }
           }
-        },
-        "responses": {
-          "200": { "$ref": "#/components/responses/ConversationPage" },
-          "400": { "$ref": "#/components/responses/CompatibilityBadRequest" },
-          "503": { "$ref": "#/components/responses/MaintenanceUnavailable" }
         }
       }
     },
@@ -655,7 +674,6 @@
                 }
               ],
               "deletes": [],
-              "unresolved": [],
               "next_cursor": "AQ...",
               "done": false,
               "coverage": 1720000000000000000,
@@ -960,22 +978,6 @@
           }
         }
       },
-      "ConversationRetryRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["uid", "channels"],
-        "properties": {
-          "uid": { "$ref": "#/components/schemas/UID" },
-          "channels": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 200,
-            "description": "Unresolved keys returned by /conversation/list or a previous retry.",
-            "x-i18n": { "zh": { "description": "由 /conversation/list 或上一次重试返回的未解析键。" } },
-            "items": { "$ref": "#/components/schemas/ConversationKey" }
-          }
-        }
-      },
       "ConversationMutationRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -1027,7 +1029,7 @@
       "ConversationListResponse": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["conversations", "deletes", "unresolved", "done", "coverage", "tombstones_retained_since", "reset_required"],
+        "required": ["conversations", "deletes", "done", "coverage", "tombstones_retained_since", "reset_required"],
         "properties": {
           "conversations": {
             "type": "array",
@@ -1039,12 +1041,6 @@
             "type": "array",
             "description": "Keys the client must remove from its local Conversation projection.",
             "x-i18n": { "zh": { "description": "客户端必须从本地会话投影中移除的键。" } },
-            "items": { "$ref": "#/components/schemas/ConversationKey" }
-          },
-          "unresolved": {
-            "type": "array",
-            "description": "Keys whose Channel head was temporarily unavailable; retry them with /conversation/retry.",
-            "x-i18n": { "zh": { "description": "Channel head 暂时不可用的键；使用 /conversation/retry 重试。" } },
             "items": { "$ref": "#/components/schemas/ConversationKey" }
           },
           "next_cursor": {

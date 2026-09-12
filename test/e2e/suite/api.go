@@ -45,17 +45,10 @@ type ConversationListRequest struct {
 	CompletedCoverage int64  `json:"completed_coverage,omitempty"`
 }
 
-// ConversationRetryRequest rebuilds a bounded set of unresolved directory keys.
-type ConversationRetryRequest struct {
-	UID      string                `json:"uid"`
-	Channels []ConversationListKey `json:"channels"`
-}
-
 // ConversationListPage is the public /conversation/list response page.
 type ConversationListPage struct {
 	Conversations           []ConversationListItem `json:"conversations"`
 	Deletes                 []ConversationListKey  `json:"deletes"`
-	Unresolved              []ConversationListKey  `json:"unresolved"`
 	NextCursor              string                 `json:"next_cursor"`
 	Done                    bool                   `json:"done"`
 	Coverage                int64                  `json:"coverage"`
@@ -63,7 +56,7 @@ type ConversationListPage struct {
 	ResetRequired           bool                   `json:"reset_required"`
 }
 
-// ConversationListKey identifies one deleted or retryable channel.
+// ConversationListKey identifies one deleted channel.
 type ConversationListKey struct {
 	ChannelID   string `json:"channel_id"`
 	ChannelType int64  `json:"channel_type"`
@@ -257,13 +250,6 @@ func PostConversationList(ctx context.Context, apiAddr, uid string, limit int) (
 func PostConversationListPage(ctx context.Context, apiAddr string, req ConversationListRequest) (ConversationListPage, error) {
 	var page ConversationListPage
 	_, err := PostJSON(ctx, "http://"+apiAddr+"/conversation/list", req, &page)
-	return page, err
-}
-
-// PostConversationRetry retries one bounded set returned by /conversation/list.
-func PostConversationRetry(ctx context.Context, apiAddr string, req ConversationRetryRequest) (ConversationListPage, error) {
-	var page ConversationListPage
-	_, err := PostJSON(ctx, "http://"+apiAddr+"/conversation/retry", req, &page)
 	return page, err
 }
 

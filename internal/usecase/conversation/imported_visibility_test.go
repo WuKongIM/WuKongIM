@@ -12,7 +12,7 @@ func TestImportedHiddenMembershipAppearsOnlyAfterNewMessage(t *testing.T) {
 	row := metadb.UserChannelMembership{UID: "u1", ChannelID: "g1", ChannelType: 2, JoinSeq: 1}
 	require.NoError(t, json.Unmarshal([]byte(`{"ConversationHiddenThroughSeq":9}`), &row))
 	directory := &membershipDirectoryStore{rows: []metadb.UserChannelMembership{row}, done: true}
-	hydrator := &membershipHeadHydrator{results: []HydrationResult{{Key: ConversationKey{ChannelID: "g1", ChannelType: 2}, Outcome: HydrationOK, LastCommittedSeq: 9, LastMessage: &LastMessage{MessageSeq: 9}}}}
+	hydrator := &membershipHeadHydrator{results: []HydrationResult{{Key: ConversationKey{ChannelID: "g1", ChannelType: 2}, Outcome: HydrationOK, ReadThroughSeq: 9, LastMessage: &LastMessage{MessageSeq: 9}}}}
 	messages := &recordingLegacyMessageReader{}
 	app := New(Options{Directory: directory, Hydrator: hydrator, LegacyMessages: messages})
 	result, err := app.List(context.Background(), ListRequest{UID: "u1", Limit: 10})
@@ -27,7 +27,7 @@ func TestImportedHiddenMembershipAppearsOnlyAfterNewMessage(t *testing.T) {
 	require.Zero(t, hydrator.memberships[0].DeletedToSeq, "list hiding must not hide history")
 	require.Zero(t, hydrator.memberships[0].ReadSeq, "absence must not invent a read position")
 	// A recovery barrier advances the committed log but carries no business message.
-	hydrator.results[0].LastCommittedSeq = 10
+	hydrator.results[0].ReadThroughSeq = 10
 	barrierOnly, err := app.List(context.Background(), ListRequest{UID: "u1", Limit: 10})
 	require.NoError(t, err)
 	require.Empty(t, barrierOnly.Items, "authority recovery must not reveal imported conversations")

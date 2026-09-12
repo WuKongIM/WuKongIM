@@ -16,6 +16,7 @@ import (
 // MembershipConversationNode exposes the UID directory and Channel-leader
 // head-read surfaces used to construct transient conversations.
 type MembershipConversationNode interface {
+	ReadChannelPersistedConversationHeads(context.Context, []channelruntime.ChannelID, string, ...clusterchannels.ConversationBadgeQuery) ([]clusterchannels.ConversationHeadResult, error)
 	ListUserChannelMembershipPage(context.Context, string, metadb.UserChannelMembershipCursor, int) ([]metadb.UserChannelMembership, metadb.UserChannelMembershipCursor, bool, error)
 	ReadChannelConversationHeads(context.Context, []channelruntime.ChannelID, string, ...clusterchannels.ConversationBadgeQuery) ([]clusterchannels.ConversationHeadResult, error)
 }
@@ -69,6 +70,15 @@ func (s *ConversationStore) ListUserChannelMembershipPage(ctx context.Context, u
 // HydrateConversationHeads performs one cluster-facade batch. The cluster
 // facade groups channel reads by exact Channel Leader and preserves alignment.
 func (s *ConversationStore) HydrateConversationHeads(ctx context.Context, uid string, memberships []metadb.UserChannelMembership, keepUnread ...uint64) ([]conversationusecase.HydrationResult, error) {
+	return s.hydrateHeads(ctx, uid, memberships, false, keepUnread...)
+}
+
+// HydratePersistedConversationHeads constructs list previews without Channel activation.
+func (s *ConversationStore) HydratePersistedConversationHeads(ctx context.Context, uid string, memberships []metadb.UserChannelMembership) ([]conversationusecase.HydrationResult, error) {
+	return s.hydrateHeads(ctx, uid, memberships, true)
+}
+
+func (s *ConversationStore) hydrateHeads(ctx context.Context, uid string, memberships []metadb.UserChannelMembership, persisted bool, keepUnread ...uint64) ([]conversationusecase.HydrationResult, error) {
 	results := make([]conversationusecase.HydrationResult, len(memberships))
 	if len(memberships) == 0 {
 		return results, nil
@@ -93,7 +103,11 @@ func (s *ConversationStore) HydrateConversationHeads(ctx context.Context, uid st
 		}
 		ids[index] = channelruntime.ChannelID{ID: row.ChannelID, Type: uint8(row.ChannelType)}
 	}
-	heads, err := s.node.ReadChannelConversationHeads(ctx, ids, uid, badges...)
+	read := s.node.ReadChannelConversationHeads
+	if persisted {
+		read = s.node.ReadChannelPersistedConversationHeads
+	}
+	heads, err := read(ctx, ids, uid, badges...)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +119,9 @@ func (s *ConversationStore) HydrateConversationHeads(ctx context.Context, uid st
 			switch {
 			case errors.Is(item.Err, channelruntime.ErrChannelNotFound):
 				results[index].Outcome = conversationusecase.HydrationDelete
-			case retryableConversationHeadError(item.Err):
+			case persisted && retryableConversationHeadError(item.Err):
+				return nil, errors.Join(conversationusecase.ErrRouteNotReady, item.Err)
+			case !persisted && retryableConversationHeadError(item.Err):
 				results[index].Outcome = conversationusecase.HydrationRetryable
 			default:
 				return nil, item.Err
@@ -116,7 +132,7 @@ func (s *ConversationStore) HydrateConversationHeads(ctx context.Context, uid st
 		results[index].NonBusinessUnread = head.NonBusinessUnread
 		results[index].UnreadBoundary = head.UnreadBoundary
 		results[index].BoundaryComputed = head.BoundaryComputed
-		results[index].LastCommittedSeq = head.LastCommittedSeq
+		results[index].ReadThroughSeq = head.ReadThroughSeq
 		results[index].RetentionThroughSeq = head.RetentionThroughSeq
 		results[index].CurrentUserLastSendSeq = head.CurrentUserLastSendSeq
 		if head.Found {

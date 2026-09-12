@@ -38,13 +38,18 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    Replacement catch-up stays runnable while its valid target is lagging.
    Failover proof renewal re-probes the surviving target under the current fence;
    it never falls back to draining the unavailable source.
-4. Conversation and history reads batch Slot routes and group by exact Leader,
+4. Committed conversation and history reads batch Slot routes and group by exact Leader,
    preserving alignment and item errors. Conversation codec 10 carries UID-owned
    badge floors, excluded internal-position counts, and optional set-unread
    boundaries; leader reads add retention and the latest own send. Cold quorum Leaders (even HW=LEO=0)
    recover first; loaded Leaders still installing authority cannot serve HW.
    Indexed committed reads use a distinct RPC kind, retaining HW, retention,
    and authority fences; older nodes reject it instead of serving a range.
+   Disk-only conversation previews use a distinct RPC request kind and current
+   Leader metadata, read through persisted LEO without runtime probes/activation,
+   and share a 16-batch serving-node admission limit with no waiting queue.
+   Preview calls have a five-second deadline and at most 200 candidates. Old
+   peers reject the new kind rather than silently using committed recovery.
 5. `LocalControlSnapshot` exposes the latest fully Node-applied control state;
    revision-fenced management adapters may use `LocalControllerSnapshot` to read
    Controller-visible state without waiting for runtime task reconciliation.

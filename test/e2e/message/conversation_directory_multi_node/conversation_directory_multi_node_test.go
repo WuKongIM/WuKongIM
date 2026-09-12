@@ -93,7 +93,7 @@ func TestThreeNodeConversationDirectoryBatchesHydrationByChannelLeader(t *testin
 	channelsByLeader := createDirectoryChannelsByLeader(t, cluster, uid, senderUID, 2)
 	require.Equal(t, []uint64{1, 2, 3}, sortedDirectoryLeaderIDs(channelsByLeader), cluster.DumpDiagnostics())
 	requireDirectoryPageEventually(t, cluster, origin, uid, 6, func(page suite.ConversationListPage) error {
-		if len(page.Conversations) != 6 || len(page.Unresolved) != 0 || !page.Done {
+		if len(page.Conversations) != 6 || !page.Done {
 			return fmt.Errorf("page = %+v, want six resolved conversations and done", page)
 		}
 		return nil
@@ -110,7 +110,6 @@ func TestThreeNodeConversationDirectoryBatchesHydrationByChannelLeader(t *testin
 	require.NotEmpty(t, page.NextCursor)
 	require.Positive(t, page.Coverage)
 	require.Empty(t, page.Deletes)
-	require.Empty(t, page.Unresolved)
 	require.Len(t, page.Conversations, 6)
 	missingMessages := make([]string, 0)
 	for _, channels := range channelsByLeader {
@@ -132,7 +131,7 @@ func TestThreeNodeConversationDirectoryBatchesHydrationByChannelLeader(t *testin
 	require.Equal(t, float64(2), after.Sum-before.Sum, "four remote channels must be grouped into two Leader RPCs")
 }
 
-func TestThreeNodeConversationDirectoryIsolatesUnavailableLeaderAndRetries(t *testing.T) {
+func TestThreeNodeConversationDirectoryFailsUnavailableLeaderAndRepeatsPage(t *testing.T) {
 	cluster := startStableThreeNodeCluster(t)
 	origin := cluster.MustNode(1)
 
@@ -143,7 +142,7 @@ func TestThreeNodeConversationDirectoryIsolatesUnavailableLeaderAndRetries(t *te
 	uid := uidOwnedBySlotLeaderOtherThan(t, cluster, 1, stoppedLeader)
 	channelsByLeader := createDirectoryChannelsByLeader(t, cluster, uid, senderUID, 1)
 	requireDirectoryPageEventually(t, cluster, origin, uid, 3, func(page suite.ConversationListPage) error {
-		if len(page.Conversations) != 3 || len(page.Unresolved) != 0 || !page.Done {
+		if len(page.Conversations) != 3 || !page.Done {
 			return fmt.Errorf("baseline page = %+v, want three resolved conversations and done", page)
 		}
 		return nil
@@ -153,55 +152,32 @@ func TestThreeNodeConversationDirectoryIsolatesUnavailableLeaderAndRetries(t *te
 	require.Len(t, affected, 1)
 	require.NoError(t, cluster.MustNode(stoppedLeader).Stop(), cluster.DumpDiagnostics())
 
+	req := suite.ConversationListRequest{UID: uid, Limit: 3}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	unavailablePage, err := suite.PostConversationListPage(ctx, origin.APIAddr(), suite.ConversationListRequest{UID: uid, Limit: 3})
+	unavailablePage, err := suite.PostConversationListPage(ctx, origin.APIAddr(), req)
 	cancel()
-	require.NoError(t, err, cluster.DumpDiagnostics())
-	require.True(t, unavailablePage.Done)
-	require.NotEmpty(t, unavailablePage.NextCursor, "cursor must cover unresolved memberships")
-	require.Positive(t, unavailablePage.Coverage)
-	require.Empty(t, unavailablePage.Deletes)
-	require.Len(t, unavailablePage.Conversations, 2, cluster.DumpDiagnostics())
-	require.Len(t, unavailablePage.Unresolved, 1, cluster.DumpDiagnostics())
-	_, ok := suite.FindConversationKey(unavailablePage.Unresolved, affected[0].ID, int64(frame.ChannelTypeGroup))
-	require.True(t, ok, "unavailable Leader channel missing from unresolved: %+v", unavailablePage)
-	for leaderID, channels := range channelsByLeader {
-		if leaderID == stoppedLeader {
-			continue
-		}
-		item, found := suite.FindConversation(unavailablePage, channels[0].ID)
-		require.True(t, found, "healthy Leader %d channel missing: %+v", leaderID, unavailablePage)
-		require.NotNil(t, item.LastMessage)
-		require.Equal(t, channels[0].ClientMsgNo, item.LastMessage.ClientMsgNo)
-	}
-
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-	afterCursor, err := suite.PostConversationListPage(ctx, origin.APIAddr(), suite.ConversationListRequest{
-		UID: uid, Cursor: unavailablePage.NextCursor, Limit: 3, CompletedCoverage: unavailablePage.Coverage,
-	})
-	cancel()
-	require.NoError(t, err, cluster.DumpDiagnostics())
-	require.True(t, afterCursor.Done)
-	require.Empty(t, afterCursor.Conversations)
-	require.Empty(t, afterCursor.Unresolved)
-	require.Empty(t, afterCursor.Deletes)
+	require.Error(t, err, cluster.DumpDiagnostics())
+	require.Empty(t, unavailablePage.Conversations)
+	require.Empty(t, unavailablePage.NextCursor, "failed page must not advance coverage")
+	require.Zero(t, unavailablePage.Coverage)
 
 	require.NoError(t, cluster.StartStoppedNode(stoppedLeader), cluster.DumpDiagnostics())
 	readyCtx, readyCancel := context.WithTimeout(context.Background(), 40*time.Second)
 	require.NoError(t, cluster.WaitClusterReady(readyCtx), cluster.DumpDiagnostics())
 	readyCancel()
 
-	retryPage := requireConversationRetryEventually(t, cluster, origin, suite.ConversationRetryRequest{
-		UID: uid, Channels: unavailablePage.Unresolved,
+	retryPage := requireDirectoryPageEventually(t, cluster, origin, uid, req.Limit, func(page suite.ConversationListPage) error {
+		if len(page.Conversations) != 3 || !page.Done {
+			return fmt.Errorf("repeated original page incomplete: %+v", page)
+		}
+		return nil
 	})
-	require.True(t, retryPage.Done)
 	require.Empty(t, retryPage.Deletes)
-	require.Empty(t, retryPage.Unresolved)
-	require.Len(t, retryPage.Conversations, 1)
 	recovered, ok := suite.FindConversation(retryPage, affected[0].ID)
 	require.True(t, ok)
 	require.NotNil(t, recovered.LastMessage)
 	require.Equal(t, affected[0].ClientMsgNo, recovered.LastMessage.ClientMsgNo)
+
 }
 
 func TestFourNodeConversationDirectoryRoutesUIDMembershipReadsFromNonReplicaIngress(t *testing.T) {
@@ -226,15 +202,6 @@ func TestFourNodeConversationDirectoryRoutesUIDMembershipReadsFromNonReplicaIngr
 		return nil
 	})
 
-	retry := requireConversationRetryEventually(t, cluster, origin, suite.ConversationRetryRequest{
-		UID: uid,
-		Channels: []suite.ConversationListKey{{
-			ChannelID: channelID, ChannelType: int64(frame.ChannelTypeGroup),
-		}},
-	})
-	require.Len(t, retry.Conversations, 1)
-	require.Empty(t, retry.Unresolved)
-	require.Empty(t, retry.Deletes)
 	require.NotEmpty(t, page.NextCursor)
 
 	requireOrdinaryMessagePullEventually(t, cluster, origin, uid, channelID, ordinaryMsgNo)
@@ -439,8 +406,8 @@ func captureDirectoryPerformanceSnapshot(t *testing.T, cluster *suite.StartedClu
 }
 
 func validateDirectoryPerformancePage(page suite.ConversationListPage, pageSize, total int) error {
-	if len(page.Conversations) != pageSize || len(page.Unresolved) != 0 || len(page.Deletes) != 0 {
-		return fmt.Errorf("page shape conversations=%d unresolved=%d deletes=%d, want %d/0/0", len(page.Conversations), len(page.Unresolved), len(page.Deletes), pageSize)
+	if len(page.Conversations) != pageSize || len(page.Deletes) != 0 {
+		return fmt.Errorf("page shape conversations=%d deletes=%d, want %d/0", len(page.Conversations), len(page.Deletes), pageSize)
 	}
 	if page.Done != (pageSize == total) {
 		return fmt.Errorf("done = %v, want %v for page size %d", page.Done, pageSize == total, pageSize)
@@ -500,39 +467,12 @@ func requireDirectoryPageEventually(t *testing.T, cluster *suite.StartedCluster,
 	}
 }
 
-func requireConversationRetryEventually(t *testing.T, cluster *suite.StartedCluster, node *suite.StartedNode, req suite.ConversationRetryRequest) suite.ConversationListPage {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	var lastPage suite.ConversationListPage
-	var lastErr error
-	for {
-		requestCtx, requestCancel := context.WithTimeout(ctx, 2*time.Second)
-		page, err := suite.PostConversationRetry(requestCtx, node.APIAddr(), req)
-		requestCancel()
-		if err == nil {
-			lastPage = page
-			if len(page.Conversations) == len(req.Channels) && len(page.Unresolved) == 0 {
-				return page
-			}
-			lastErr = fmt.Errorf("retry page = %+v, want %d resolved conversations", page, len(req.Channels))
-		} else {
-			lastErr = err
-		}
-		select {
-		case <-ctx.Done():
-			t.Fatalf("conversation retry did not converge: lastPage=%+v lastErr=%v\n%s", lastPage, lastErr, cluster.DumpDiagnostics())
-		case <-ticker.C:
-		}
-	}
-}
-
 func startStableThreeNodeCluster(t *testing.T) *suite.StartedCluster {
 	t.Helper()
-	cluster := suite.New(t).StartThreeNodeCluster(suite.WithManagerHTTP())
+	cluster := suite.New(t).StartThreeNodeCluster(suite.WithManagerHTTP(),
+		suite.WithNodeConfigOverrides(1, map[string]string{"WK_GATEWAY_TOKEN_AUTH_ON": "false"}),
+		suite.WithNodeConfigOverrides(2, map[string]string{"WK_GATEWAY_TOKEN_AUTH_ON": "false"}),
+		suite.WithNodeConfigOverrides(3, map[string]string{"WK_GATEWAY_TOKEN_AUTH_ON": "false"}))
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	defer cancel()
 	require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
@@ -544,6 +484,7 @@ func startStableThreeNodeCluster(t *testing.T) *suite.StartedCluster {
 func startStableFourNodeReplicaThreeCluster(t *testing.T) *suite.StartedCluster {
 	t.Helper()
 	config := map[string]string{
+		"WK_GATEWAY_TOKEN_AUTH_ON":     "false",
 		"WK_CLUSTER_SLOT_REPLICA_N":    "3",
 		"WK_CLUSTER_CHANNEL_REPLICA_N": "1",
 	}

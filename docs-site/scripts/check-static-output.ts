@@ -396,7 +396,7 @@ export async function checkStaticOutput() {
       'non-exhaustive-trusted-product-management-beta' ||
     managementOpenAPIPaths.join('\n') !== expectedManagementOpenAPIPaths.join('\n')
   ) {
-    throw new Error('management OpenAPI artifact escaped its reviewed 16-operation boundary');
+    throw new Error('management OpenAPI artifact escaped its reviewed operation boundary');
   }
   for (const expected of expectedManagementOpenAPIOperations) {
     const operation = managementOpenAPI.paths?.[expected.path]?.[expected.method];

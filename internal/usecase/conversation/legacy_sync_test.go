@@ -19,7 +19,7 @@ func TestSyncLegacyBuildsOldConversationFromDirectoryAndRecentMessages(t *testin
 	}
 	hydrator := &membershipHeadHydrator{results: []HydrationResult{{
 		Key: ConversationKey{ChannelID: "g1", ChannelType: 2}, Outcome: HydrationOK,
-		LastCommittedSeq: 9,
+		ReadThroughSeq: 9,
 		LastMessage: &LastMessage{
 			MessageID: 99, MessageSeq: 9, FromUID: "u2", ClientMsgNo: "client-9",
 			ServerTimestampMS: 1_700_000_000_000, Payload: []byte("nine"),
@@ -70,9 +70,9 @@ func TestSyncLegacyAppliesOldPageUnreadAndExcludedTypeRules(t *testing.T) {
 		done: true,
 	}
 	hydrator := &membershipHeadHydrator{results: []HydrationResult{
-		{Key: ConversationKey{ChannelID: "first", ChannelType: 2}, Outcome: HydrationOK, LastCommittedSeq: 5, LastMessage: &LastMessage{MessageSeq: 5}},
-		{Key: ConversationKey{ChannelID: "excluded-but-known", ChannelType: 3}, Outcome: HydrationOK, LastCommittedSeq: 6, LastMessage: &LastMessage{MessageSeq: 6}},
-		{Key: ConversationKey{ChannelID: "read", ChannelType: 2}, Outcome: HydrationOK, LastCommittedSeq: 7, LastMessage: &LastMessage{MessageSeq: 7}},
+		{Key: ConversationKey{ChannelID: "first", ChannelType: 2}, Outcome: HydrationOK, ReadThroughSeq: 5, LastMessage: &LastMessage{MessageSeq: 5}},
+		{Key: ConversationKey{ChannelID: "excluded-but-known", ChannelType: 3}, Outcome: HydrationOK, ReadThroughSeq: 6, LastMessage: &LastMessage{MessageSeq: 6}},
+		{Key: ConversationKey{ChannelID: "read", ChannelType: 2}, Outcome: HydrationOK, ReadThroughSeq: 7, LastMessage: &LastMessage{MessageSeq: 7}},
 	}}
 	messages := &recordingLegacyMessageReader{results: []LegacyMessageReadResult{{
 		ChannelID: "excluded-but-known", ChannelType: 3,
@@ -203,7 +203,7 @@ func TestSyncLegacyUsesEffectiveReadFloorForUnreadAndVersionRequests(t *testing.
 			}}, done: true}
 			hydrator := &membershipHeadHydrator{results: []HydrationResult{{
 				Key: ConversationKey{ChannelID: "g1", ChannelType: 2}, Outcome: HydrationOK,
-				LastCommittedSeq: 9, CurrentUserLastSendSeq: 7,
+				ReadThroughSeq: 9, CurrentUserLastSendSeq: 7,
 				LastMessage: &LastMessage{MessageSeq: 9},
 			}}}
 			messages := &recordingLegacyMessageReader{results: []LegacyMessageReadResult{{
@@ -273,7 +273,7 @@ func (dynamicLegacyHydrator) HydrateConversationHeads(_ context.Context, _ strin
 	for index, row := range memberships {
 		results[index] = HydrationResult{
 			Key:     ConversationKey{ChannelID: row.ChannelID, ChannelType: row.ChannelType},
-			Outcome: HydrationOK, LastCommittedSeq: uint64(index + 1),
+			Outcome: HydrationOK, ReadThroughSeq: uint64(index + 1),
 			LastMessage: &LastMessage{MessageSeq: uint64(index + 1)},
 		}
 	}
@@ -306,7 +306,7 @@ func (h *retryOnceLegacyHydrator) HydrateConversationHeads(_ context.Context, _ 
 		result.Outcome = HydrationRetryable
 	} else {
 		result.Outcome = HydrationOK
-		result.LastCommittedSeq = 1
+		result.ReadThroughSeq = 1
 		result.LastMessage = &LastMessage{MessageSeq: 1}
 	}
 	return []HydrationResult{result}, nil
@@ -362,7 +362,7 @@ func TestLegacySyncRefreshesEmptyClientNumberHeadPastClientCursor(t *testing.T) 
 	for _, key := range []string{"", "real-key"} {
 		t.Run(key, func(t *testing.T) {
 			directory := &membershipDirectoryStore{rows: []metadb.UserChannelMembership{{UID: "u", ChannelID: "g", ChannelType: 2, JoinSeq: 1, ReadSeq: 9, ActivatedAt: 100}}, done: true}
-			hydrator := &membershipHeadHydrator{results: []HydrationResult{{Key: ConversationKey{ChannelID: "g", ChannelType: 2}, Outcome: HydrationOK, LastCommittedSeq: 9, LastMessage: &LastMessage{MessageID: 99, MessageSeq: 9, ClientMsgNo: key}}}}
+			hydrator := &membershipHeadHydrator{results: []HydrationResult{{Key: ConversationKey{ChannelID: "g", ChannelType: 2}, Outcome: HydrationOK, ReadThroughSeq: 9, LastMessage: &LastMessage{MessageID: 99, MessageSeq: 9, ClientMsgNo: key}}}}
 			messages := &recordingLegacyMessageReader{results: []LegacyMessageReadResult{{ChannelID: "g", ChannelType: 2}}}
 			app := New(Options{Directory: directory, Hydrator: hydrator, LegacyMessages: messages})
 			_, err := app.SyncLegacy(context.Background(), LegacySyncRequest{UID: "u", Version: 1, MessageCount: 20, ClientLastMessageSeqs: []LegacyConversationCursor{{ChannelID: "g", ChannelType: 2, LastMessageSeq: 9}}})
@@ -378,4 +378,16 @@ func TestLegacySyncRefreshesEmptyClientNumberHeadPastClientCursor(t *testing.T) 
 			}
 		})
 	}
+}
+
+func (h dynamicLegacyHydrator) HydratePersistedConversationHeads(ctx context.Context, uid string, rows []metadb.UserChannelMembership) ([]HydrationResult, error) {
+	return h.HydrateConversationHeads(ctx, uid, rows)
+}
+
+func (h *retryOnceLegacyHydrator) HydratePersistedConversationHeads(ctx context.Context, uid string, rows []metadb.UserChannelMembership) ([]HydrationResult, error) {
+	return h.HydrateConversationHeads(ctx, uid, rows)
+}
+
+func (h *alwaysUnresolvedLegacyHydrator) HydratePersistedConversationHeads(ctx context.Context, uid string, rows []metadb.UserChannelMembership) ([]HydrationResult, error) {
+	return h.HydrateConversationHeads(ctx, uid, rows)
 }

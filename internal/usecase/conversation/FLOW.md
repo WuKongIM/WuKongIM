@@ -8,7 +8,8 @@ summary: Builds transient conversations from UID membership and Channel state, a
 ## Responsibility
 
 This package constructs ordinary conversation responses from UID-owned
-membership rows and Channel-owned committed state. It owns explicit unread,
+membership rows and Channel-owned state. Canonical previews read persisted
+state; personal mutations and legacy sync read committed state. It owns explicit unread,
 delete, and activation commands but persists no conversation rows.
 It does not subscribe users, deliver messages, or implement storage and transport.
 
@@ -23,10 +24,11 @@ It does not subscribe users, deliver messages, or implement storage and transpor
 ## Main Flows
 
 1. `List` scans one bounded UID membership page, emits tombstones as deletes,
-   batch-hydrates live candidates, and returns conversations, unresolved keys,
+   reads persisted previews for live candidates, and returns conversations,
    cursor, coverage, completion, and tombstone retention metadata.
-2. `Retry` point-reads bounded keys, converts missing or tombstoned rows to
-   deletes, batch-hydrates the rest, and does not rewind directory coverage.
+2. List admission is shared by all callers: at most 16 active pages, no waiting
+   queue, and a five-second deadline. Any item failure fails the entire page;
+   clients retain their original cursor and retry the same request.
 3. `SyncLegacy` walks at most 1,000 membership candidates, applies the v2.2
    page, unread, excluded-type, version, and per-Channel cursor semantics, then
    reads recent committed messages and their stream-event summaries in aligned
@@ -40,16 +42,16 @@ It does not subscribe users, deliver messages, or implement storage and transpor
 
 - `visibility_floor = max(join_seq - 1, deleted_to_seq, retention_through_seq)`;
   unread counts ordinary messages after that floor, badge state, and the current
-  user's latest committed send. SyncOnce/recovery positions are excluded by the
+  user's latest send within the selected persisted or committed read boundary. SyncOnce/recovery positions are excluded by the
   Channel leader's rank query. SetUnread uses a leader-selected ordinary-message
   boundary; legacy pulls retain the actual effective read sequence, never infer
   it by subtracting an unread count from a sparse log sequence.
 - Empty results do not imply completion; only `done=true` completes a pass.
-- Disbanded channels become deletes. Temporary leader failure becomes
-  unresolved and does not block cursor progress.
-- The canonical `List` flow exposes temporary hydration failures as
-  `unresolved`. Because old sync clients have no equivalent response field,
-  `SyncLegacy` retries those keys once and fails the whole request if any stay
+- Disbanded channels become deletes. Temporary leader or storage failure fails the entire list page.
+- The canonical `List` reads current-Leader disk LEO without runtime activation
+  or quorum confirmation. Persisted messages may appear before SEND success.
+  Legacy sync and personal mutations retain committed reads;
+  `SyncLegacy` retries unresolved committed reads once and fails the whole request if any stay
   unresolved; it must not turn a temporary failure into silent conversation
   loss.
 - A legacy client cursor overrides excluded-type and unread filtering for that
@@ -81,4 +83,4 @@ It does not subscribe users, deliver messages, or implement storage and transpor
 ## Update Triggers
 
 Update this file when membership ordering, hydration, visibility or unread
-math, unresolved retry, personal mutations, activation, or cursor shape changes.
+math, whole-page failure, personal mutations, activation, or cursor shape changes.

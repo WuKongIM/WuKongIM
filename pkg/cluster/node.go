@@ -1110,6 +1110,18 @@ func (n *Node) ReadChannelConversationHead(ctx context.Context, id channelruntim
 // delegates one aligned batch to the Channel service, which groups remote
 // reads by exact leader.
 func (n *Node) ReadChannelConversationHeads(ctx context.Context, ids []channelruntime.ChannelID, uid string, badges ...channels.ConversationBadgeQuery) ([]channels.ConversationHeadResult, error) {
+	return n.readChannelConversationHeads(ctx, ids, uid, false, badges...)
+}
+
+// ReadChannelPersistedConversationHeads reads current-Leader disk state for list previews only.
+func (n *Node) ReadChannelPersistedConversationHeads(ctx context.Context, ids []channelruntime.ChannelID, uid string, badges ...channels.ConversationBadgeQuery) ([]channels.ConversationHeadResult, error) {
+	if len(ids) > 200 {
+		return nil, channelruntime.ErrInvalidConfig
+	}
+	return n.readChannelConversationHeads(ctx, ids, uid, true, badges...)
+}
+
+func (n *Node) readChannelConversationHeads(ctx context.Context, ids []channelruntime.ChannelID, uid string, persisted bool, badges ...channels.ConversationBadgeQuery) ([]channels.ConversationHeadResult, error) {
 	if len(badges) != 0 && len(badges) != len(ids) {
 		return nil, channelruntime.ErrInvalidConfig
 	}
@@ -1149,7 +1161,17 @@ func (n *Node) ReadChannelConversationHeads(ctx context.Context, ids []channelru
 	if len(eligibleIDs) == 0 {
 		return results, nil
 	}
-	batch, err := reader.ReadConversationHeads(ctx, eligibleIDs, uid, eligibleBadges...)
+	read := reader.ReadConversationHeads
+	if persisted {
+		persistedReader, ok := n.channels.(interface {
+			ReadPersistedConversationHeads(context.Context, []channelruntime.ChannelID, string, ...channels.ConversationBadgeQuery) ([]channels.ConversationHeadResult, error)
+		})
+		if !ok {
+			return nil, ErrNotStarted
+		}
+		read = persistedReader.ReadPersistedConversationHeads
+	}
+	batch, err := read(ctx, eligibleIDs, uid, eligibleBadges...)
 	if err != nil {
 		return nil, err
 	}

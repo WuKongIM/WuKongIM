@@ -38,11 +38,10 @@ func TestConversationListMapsRequestToUsecaseAndReturnsPage(t *testing.T) {
 				ChannelID:   "g1",
 				ChannelType: int64(frame.ChannelTypeGroup),
 			},
-			HasMore:    true,
-			Done:       false,
-			Deletes:    []conversationusecase.ConversationKey{{ChannelID: "g-deleted", ChannelType: int64(frame.ChannelTypeGroup)}},
-			Unresolved: []conversationusecase.ConversationKey{{ChannelID: "g-retry", ChannelType: int64(frame.ChannelTypeGroup)}},
-			Coverage:   2001, TombstonesRetainedSince: 1000, ResetRequired: true,
+			HasMore:  true,
+			Done:     false,
+			Deletes:  []conversationusecase.ConversationKey{{ChannelID: "g-deleted", ChannelType: int64(frame.ChannelTypeGroup)}},
+			Coverage: 2001, TombstonesRetainedSince: 1000, ResetRequired: true,
 		},
 	}
 	srv := New(Options{Conversations: conversations})
@@ -80,7 +79,6 @@ func TestConversationListMapsRequestToUsecaseAndReturnsPage(t *testing.T) {
 			}
 		}],
 		"deletes":[{"channel_id":"g-deleted","channel_type":2}],
-		"unresolved":[{"channel_id":"g-retry","channel_type":2}],
 		"next_cursor":"AQAAAAAAAATSAAAAAAAAAAIAAmcx",
 		"done":false,
 		"coverage":2001,
@@ -138,7 +136,6 @@ func TestConversationListOmitsMissingLastMessage(t *testing.T) {
 			"last_message":null
 		}],
 		"deletes":[],
-		"unresolved":[],
 		"done":true,
 		"coverage":0,
 		"tombstones_retained_since":0,
@@ -205,7 +202,6 @@ func TestConversationListReturnsPeerIDForPersonChannel(t *testing.T) {
 			}
 		}],
 		"deletes":[],
-		"unresolved":[],
 		"done":true,
 		"coverage":0,
 		"tombstones_retained_since":0,
@@ -215,37 +211,12 @@ func TestConversationListReturnsPeerIDForPersonChannel(t *testing.T) {
 	}
 }
 
-func TestConversationRetryNormalizesKeysAndReturnsPartialResults(t *testing.T) {
-	conversations := &recordingConversationUsecase{retryResult: conversationusecase.ListResult{
-		Items:      []conversationusecase.Conversation{{ChannelID: "alice@bob", ChannelType: 1}},
-		Deletes:    []conversationusecase.ConversationKey{{ChannelID: "gone", ChannelType: 2}},
-		Unresolved: []conversationusecase.ConversationKey{{ChannelID: "later", ChannelType: 2}},
-		Done:       true,
-	}}
-	srv := New(Options{Conversations: conversations})
+func TestConversationRetryRouteRemoved(t *testing.T) {
+	srv := New(Options{Conversations: &recordingConversationUsecase{}})
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/conversation/retry", bytes.NewBufferString(`{
-		"uid":"alice",
-		"channels":[
-			{"channel_id":"bob","channel_type":1},
-			{"channel_id":"group","channel_type":2}
-		]
-	}`))
-	req.Header.Set("Content-Type", "application/json")
-	srv.Handler().ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
-	}
-	if len(conversations.retryRequests) != 1 {
-		t.Fatalf("retry requests = %#v", conversations.retryRequests)
-	}
-	got := conversations.retryRequests[0]
-	if got.UID != "alice" || len(got.Keys) != 2 || got.Keys[0].ChannelID != "bob@alice" || got.Keys[1].ChannelID != "group" {
-		t.Fatalf("retry request = %#v, want normalized person and group keys", got)
-	}
-	if !jsonEqual(rec.Body.String(), `{"conversations":[{"channel_id":"bob","channel_type":1,"active_at":0,"read_seq":0,"deleted_to_seq":0,"unread":0,"last_message":null}],"deletes":[{"channel_id":"gone","channel_type":2}],"unresolved":[{"channel_id":"later","channel_type":2}],"done":true,"coverage":0,"tombstones_retained_since":0,"reset_required":false}`) {
-		t.Fatalf("body = %s", rec.Body.String())
+	srv.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/conversation/retry", bytes.NewBufferString(`{"uid":"alice"}`)))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -259,7 +230,7 @@ func TestConversationListReturnsCompatibleErrors(t *testing.T) {
 		{name: "invalid json", conversations: &recordingConversationUsecase{}, body: `{"uid":`, want: `{"msg":"数据格式有误！","status":400}`},
 		{name: "missing uid", conversations: &recordingConversationUsecase{}, body: `{"limit":10}`, want: `{"msg":"uid不能为空！","status":400}`},
 		{name: "missing usecase", body: `{"uid":"u1"}`, want: `{"msg":"conversation usecase not configured","status":400}`},
-		{name: "usecase error", conversations: &recordingConversationUsecase{err: errors.New("conversation list failed")}, body: `{"uid":"u1"}`, want: `{"msg":"conversation list failed","status":400}`},
+		{name: "usecase error", conversations: &recordingConversationUsecase{err: errors.New("conversation list failed")}, body: `{"uid":"u1"}`, want: `{"msg":"conversation list failed","status":500}`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			srv := New(Options{Conversations: tt.conversations})
@@ -270,7 +241,11 @@ func TestConversationListReturnsCompatibleErrors(t *testing.T) {
 
 			srv.Handler().ServeHTTP(rec, req)
 
-			if rec.Code != http.StatusBadRequest {
+			wantStatus := http.StatusBadRequest
+			if tt.name == "usecase error" {
+				wantStatus = http.StatusInternalServerError
+			}
+			if rec.Code != wantStatus {
 				t.Fatalf("status = %d body = %s, want 400", rec.Code, rec.Body.String())
 			}
 			if !jsonEqual(rec.Body.String(), tt.want) {
@@ -288,10 +263,9 @@ func TestConversationListObserverRecordsPageShapeAndLatency(t *testing.T) {
 				{ChannelID: "g1", ChannelType: int64(frame.ChannelTypeGroup), LastMessage: &conversationusecase.LastMessage{MessageID: 1}},
 				{ChannelID: "g2", ChannelType: int64(frame.ChannelTypeGroup)},
 			},
-			Deletes:    []conversationusecase.ConversationKey{{ChannelID: "gone", ChannelType: 2}},
-			Unresolved: []conversationusecase.ConversationKey{{ChannelID: "retry", ChannelType: 2}},
-			HasMore:    true,
-			Done:       false,
+			Deletes: []conversationusecase.ConversationKey{{ChannelID: "gone", ChannelType: 2}},
+			HasMore: true,
+			Done:    false,
 		},
 	}
 	observer := &recordingConversationListObserver{}
@@ -311,7 +285,7 @@ func TestConversationListObserverRecordsPageShapeAndLatency(t *testing.T) {
 	}
 	got := observer.events[0]
 	if got.Result != "ok" || got.ScannedCandidates != 5 || got.ReturnedItems != 2 ||
-		got.Deletes != 1 || got.Unresolved != 1 || got.Done {
+		got.Deletes != 1 || got.Unresolved != 0 || got.Done {
 		t.Fatalf("observer event = %#v, want page shape", got)
 	}
 	if got.Duration <= 0 {
@@ -357,9 +331,6 @@ type recordingConversationUsecase struct {
 	requests              []conversationusecase.ListRequest
 	result                conversationusecase.ListResult
 	err                   error
-	retryRequests         []conversationusecase.RetryRequest
-	retryResult           conversationusecase.ListResult
-	retryErr              error
 	clearUnreadCommands   []conversationusecase.ClearUnreadCommand
 	setUnreadCommands     []conversationusecase.SetUnreadCommand
 	deleteCommands        []conversationusecase.DeleteConversationCommand
@@ -372,11 +343,6 @@ type recordingConversationUsecase struct {
 func (r *recordingConversationUsecase) List(_ context.Context, req conversationusecase.ListRequest) (conversationusecase.ListResult, error) {
 	r.requests = append(r.requests, req)
 	return r.result, r.err
-}
-
-func (r *recordingConversationUsecase) Retry(_ context.Context, req conversationusecase.RetryRequest) (conversationusecase.ListResult, error) {
-	r.retryRequests = append(r.retryRequests, req)
-	return r.retryResult, r.retryErr
 }
 
 func (r *recordingConversationUsecase) ClearUnread(_ context.Context, cmd conversationusecase.ClearUnreadCommand) error {

@@ -9,8 +9,10 @@ import (
 )
 
 const (
-	defaultListLimit = 50
-	maxListLimit     = 200
+	defaultListLimit       = 50
+	maxListLimit           = 200
+	maxConcurrentListPages = 16
+	listReadTimeout        = 5 * time.Second
 )
 
 var (
@@ -18,6 +20,8 @@ var (
 	ErrStoreRequired = errors.New("internal/usecase/conversation: store required")
 	// ErrInvalidRequest indicates that a list request is malformed.
 	ErrInvalidRequest = errors.New("internal/usecase/conversation: invalid request")
+	// ErrListBusy rejects excess concurrent pages before scanning memberships.
+	ErrListBusy = errors.New("internal/usecase/conversation: list capacity exceeded")
 )
 
 // DirectoryStore pages UID-owned ordinary membership rows.
@@ -36,6 +40,7 @@ const (
 )
 
 // HydrationResult contains bounded Channel-Leader data for one membership.
+// ReadThroughSeq is disk LEO for list previews and committed HW for commands/legacy sync.
 type HydrationResult struct {
 	// NonBusinessUnread excludes recovery and SyncOnce records from badge math.
 	NonBusinessUnread uint64
@@ -44,14 +49,16 @@ type HydrationResult struct {
 	BoundaryComputed       bool
 	Key                    ConversationKey
 	Outcome                HydrationOutcome
-	LastCommittedSeq       uint64
+	ReadThroughSeq         uint64
 	RetentionThroughSeq    uint64
 	CurrentUserLastSendSeq uint64
 	LastMessage            *LastMessage
 }
 
-// HeadHydrator returns one aligned result per live membership candidate.
+// HeadHydrator separates persisted list previews from committed mutation/legacy reads.
 type HeadHydrator interface {
+	// HydratePersistedConversationHeads reads disk-only previews and fails the batch on any unavailable item.
+	HydratePersistedConversationHeads(context.Context, string, []metadb.UserChannelMembership) ([]HydrationResult, error)
 	HydrateConversationHeads(ctx context.Context, uid string, memberships []metadb.UserChannelMembership, keepUnread ...uint64) ([]HydrationResult, error)
 }
 
@@ -83,6 +90,8 @@ type Options struct {
 
 // App coordinates entry-agnostic conversation list reads.
 type App struct {
+	// listAdmission bounds all concurrent pages and rejects overflow without queuing.
+	listAdmission           chan struct{}
 	directory               DirectoryStore
 	hydrator                HeadHydrator
 	memberships             MembershipMutationStore
@@ -100,6 +109,7 @@ func New(opts Options) *App {
 		opts.TombstonesRetainedSince = func() int64 { return 0 }
 	}
 	return &App{
+		listAdmission:           make(chan struct{}, maxConcurrentListPages),
 		directory:               opts.Directory,
 		hydrator:                opts.Hydrator,
 		memberships:             opts.MembershipMutations,
@@ -114,10 +124,21 @@ func (a *App) List(ctx context.Context, req ListRequest) (ListResult, error) {
 	if a == nil || a.directory == nil || a.hydrator == nil {
 		return ListResult{}, ErrStoreRequired
 	}
-	return a.listMembershipDirectory(ctx, req)
+	if err := ctx.Err(); err != nil {
+		return ListResult{}, err
+	}
+	select {
+	case a.listAdmission <- struct{}{}:
+		defer func() { <-a.listAdmission }()
+	default:
+		return ListResult{}, ErrListBusy
+	}
+	ctx, cancel := context.WithTimeout(ctx, listReadTimeout)
+	defer cancel()
+	return a.listMembershipDirectory(ctx, req, true)
 }
 
-func (a *App) listMembershipDirectory(ctx context.Context, req ListRequest) (ListResult, error) {
+func (a *App) listMembershipDirectory(ctx context.Context, req ListRequest, persisted bool) (ListResult, error) {
 	if err := validateListRequest(req); err != nil {
 		return ListResult{}, err
 	}
@@ -151,7 +172,12 @@ func (a *App) listMembershipDirectory(ctx context.Context, req ListRequest) (Lis
 	if len(live) == 0 {
 		return result, nil
 	}
-	hydrated, err := a.hydrator.HydrateConversationHeads(ctx, req.UID, live)
+	var hydrated []HydrationResult
+	if persisted {
+		hydrated, err = a.hydrator.HydratePersistedConversationHeads(ctx, req.UID, live)
+	} else {
+		hydrated, err = a.hydrator.HydrateConversationHeads(ctx, req.UID, live)
+	}
 	if err != nil {
 		return ListResult{}, err
 	}
@@ -168,6 +194,9 @@ func (a *App) listMembershipDirectory(ctx context.Context, req ListRequest) (Lis
 		case HydrationDelete:
 			result.Deletes = append(result.Deletes, key)
 		case HydrationRetryable:
+			if persisted {
+				return ListResult{}, ErrRouteNotReady
+			}
 			result.Unresolved = append(result.Unresolved, key)
 		case HydrationOK, HydrationNoVisibleMessage:
 			if item, ok := conversationFromMembership(row, head); ok {
@@ -180,9 +209,8 @@ func (a *App) listMembershipDirectory(ctx context.Context, req ListRequest) (Lis
 	return result, nil
 }
 
-// Retry rebuilds only the requested unresolved conversations from current
-// membership and Channel-leader state.
-func (a *App) Retry(ctx context.Context, req RetryRequest) (ListResult, error) {
+// retryLegacyHeads preserves the committed-read retry used only by legacy sync.
+func (a *App) retryLegacyHeads(ctx context.Context, req legacyRetryRequest) (ListResult, error) {
 	if a == nil || a.memberships == nil || a.hydrator == nil {
 		return ListResult{}, ErrStoreRequired
 	}
@@ -260,8 +288,8 @@ func conversationFromMembership(row metadb.UserChannelMembership, head Hydration
 	visibilityFloor := maxMembershipFloor(joinVisibilityFloor(row.JoinSeq), row.DeletedToSeq, head.RetentionThroughSeq)
 	effectiveRead := maxMembershipFloor(visibilityFloor, row.ReadSeq, head.CurrentUserLastSendSeq)
 	unread := uint64(0)
-	if head.LastCommittedSeq > effectiveRead {
-		unread = head.LastCommittedSeq - effectiveRead
+	if head.ReadThroughSeq > effectiveRead {
+		unread = head.ReadThroughSeq - effectiveRead
 		unread -= min(unread, head.NonBusinessUnread)
 	}
 	var last *LastMessage
