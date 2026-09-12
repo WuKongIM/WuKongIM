@@ -12,37 +12,43 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
-- Align static documentation publication checks, navigation counts, and overview tests with the source-backed Product HTTP operation registry, including legacy message lookup. / 文档发布产物检查、导航数量及总览测试以源码对应的 Product HTTP 接口注册表为准，包含旧版消息查询接口。
+- Sample rejected WebSocket handshakes as informational diagnostics instead of listener-error stack traces; genuine listener faults remain errors. / WebSocket 握手拒绝改为限频 INFO 诊断，避免扫描请求刷出 ERROR 堆栈，真实监听器故障仍完整记录。
 
-- Reuse verified duplicate-chain suffixes within each offline migration pass and count terminals on disk, avoiding quadratic history lookups while retaining original edge proofs. / 离线迁移在每次重建内复用已核实的去重链后缀，以磁盘索引统计终点，避免重复遍历，保留完整原始替代证据。
+- Exclude normal Slot scheduling coalescing and rescheduling from Manager runtime admission errors; show observed zero errors as normal while preserving missing-data status. / Manager 运行时准入错误排除正常 Slot 调度合并及重新调度，有采集且错误为零时显示正常，无数据仍保持未知。
+
+## [v3.0.0-beta.14] - 2026-09-12
+
+### 🚀 New Features / 新功能
+
+- Add bounded batch CMD discovery binding for stable source channels and exact request-scoped recipients, sharing one committed start boundary across the batch. / CMD 发现绑定支持有上限的源频道成员批次和精确临时接收者范围，一批共用已提交起始边界。
+
+- Expose `cluster.start_timeout` / `WK_CLUSTER_START_TIMEOUT` for measured cold-recovery readiness budgets, retaining the 30s default and all write, quorum, and placement checks. / 支持配置冷恢复的启动就绪等待期限，默认仍为 30 秒，保留写入、多数派和放置检查。
+
+- Support reviewed transitive duplicate resolution, archive independent v2 unread counters, and preserve absent conversation lists without deleting history; hidden memberships require matching cluster binaries. / 支持获准的去重替代链解析、原独立未读计数归档，以及保留历史访问权限的会话列表隐藏；隐藏成员状态要求集群使用配套程序。
+
+- Support explicitly approved preservation of conversations beyond the original v2 list cap and exact, hash-bound recovery of conflicting conversation states from their original unique indexes. / 支持明确批准后保留原 v2 列表上限之外的会话，并按原行哈希绑定的唯一索引记录恢复冲突会话状态。
+
+- Add exact-row, operator-approved v2 quarantine with immutable original archives, dependent-index proofs, and independently rebuilt omitted-position mappings. / 增加按原记录精确授权的 v2 异常隔离，保留完整原始归档，验证关联索引并独立重建被排除位置的映射。
+
+- Support offline mapping of the exact original search plugin with verified history-rebuild seeds on every target; document the required runtime catch-up upgrade for leader changes. / 支持原搜索插件的精确离线映射，为全部目标生成经过验证的历史索引重建种子，并明确 Leader 变化所需的运行时增量补齐升级。
+
+- Add read-only migration access for Pebble format 19 while preserving legacy source support, source locks, and business compatibility checks; document development-build and plugin checks before downtime. / 迁移读取器增加 Pebble 格式 19 只读支持，保留旧格式读取、源文件锁与业务兼容检查，并补充停机前的开发版本和插件核对说明。
+
+### 🐛 Bug Fixes / 问题修复
 
 - Refresh old empty-number conversation previews even when a legacy client cursor has advanced, preserving unread and visibility boundaries. / 旧客户端游标已前移时仍可刷新空编号历史会话摘要，保留未读和可见范围边界。
 
 - Restore legacy previews for historical messages with empty client numbers using stable read-only aliases, preserving stored records and indexed lookup support. / 历史空客户端编号消息返回稳定的只读兼容编号，恢复会话摘要并支持索引查询，原始记录不改写。
 
-- Overlap bounded authoritative permission checks during batch history and conversation synchronization to reduce reconnect latency for accounts with many conversations. / 会话及历史批量同步以有限并发检查权威权限，降低多会话账号的重连等待。
-
 - Restore generated client message numbers for HTTP sends that omit the field, and return the number with the send result so legacy clients can resolve conversation previews. / HTTP 发送省略客户端消息编号时恢复自动生成，并随发送结果返回，避免旧客户端会话摘要为空。
 
 - Keep offline CMD synchronization available after a bound source Channel is disbanded; skip only confirmed terminal sources and retain explicit failures for unavailable reads. / 已绑定源频道解散后，离线 CMD 同步继续读取其他频道；仅跳过已确认的终止源，读取不可用仍明确报错。
 
-- Correct migration terminology: 12 physical Slots own the 256 logical hash slots. / 修正迁移教程术语：12 个物理 Slot 承载 256 个逻辑 hash slot。
-
-- Batch offline CMD reads across bound channels to reduce reconnect latency for users in many groups, preserving acknowledgement boundaries and complete-result failure handling. / 离线 CMD 按频道批量读取，降低多群用户重连耗时，保持确认边界和完整结果的错误处理。
-
 - Keep CMD synchronization working when an explicitly bound source has not produced its first persistent command; unavailable reads remain errors. / 显式绑定的频道尚未产生首条持久 CMD 时，按空记录处理，避免阻断其他命令同步；读取不可用仍返回错误。
-
-- Add bounded batch CMD discovery binding for stable source channels and exact request-scoped recipients, sharing one committed start boundary across the batch. / CMD 发现绑定支持有上限的源频道成员批次和精确临时接收者范围，一批共用已提交起始边界。
-
-- Document explicit CMD binding and disconnected-recipient acceptance as prerequisites for v2 migration cutover. / 补充 v2 迁移切换前的 CMD 显式绑定适配和离线接收者验收要求。
 
 - Restore legacy `POST /messages` exact lookup by message ID, sequence, and client message number, using committed indexes with membership and retention checks.
 
 - Fix group CMD delivery to use current source-group subscribers for persistent and transient commands, including after membership changes.
-
-- Batch plugin channel-owner lookups through current Slot authority, sharing metadata reads and bounding concurrent cold-channel initialization during global search. / 插件按当前 Slot 权威批量查询频道所属节点，合并元数据读取，并以有上限的并发处理冷频道初始化。
-
-- Clarify v2 migration timeout budgeting and safe preparation retries after interruption. / 补充 v2 迁移任务的超时预算与预检中断后的安全重试说明。
 
 - Allow a connected plugin readiness handshake to use the remaining startup budget, avoiding repeated premature timeouts when the node is CPU throttled. / 插件就绪握手使用剩余启动等待期限，避免 CPU 限流时反复提前超时导致启动失败。
 
@@ -56,51 +62,63 @@ move those entries into a version section named for that exact tag.
 
 - Preserve the failed channel migration task and phase in bounded worker diagnostics, including when a later tick deadline expires. / 频道迁移日志保留失败任务和阶段，避免后续超时覆盖原始错误。
 
-- Expose `cluster.start_timeout` / `WK_CLUSTER_START_TIMEOUT` for measured cold-recovery readiness budgets, retaining the 30s default and all write, quorum, and placement checks. / 支持配置冷恢复的启动就绪等待期限，默认仍为 30 秒，保留写入、多数派和放置检查。
-
-- Avoid per-row key-range allocations during Slot snapshot restore while retaining the same ownership and namespace checks. / Slot 快照恢复时避免逐行重复分配键范围，保持所属 hash slot 和命名空间校验不变。
-
 - Keep healthy Slot replay ranges batched when conditional metadata conflicts occur, preserving Raft order and durable stale-entry watermarks while reducing synchronous commits. / Slot 日志回放遇到条件冲突时继续批量提交无冲突区间，保留 Raft 顺序及过期操作的持久化进度，减少同步落盘次数。
 
-- Report bounded channel-repair progress, blocked examples, and worker errors instead of silently discarding failed background ticks. / 以限频日志报告频道修复进度、阻塞示例和后台任务错误，避免静默丢弃失败信息。
-
 - Resolve plugin channel ownership from current Slot metadata after leader changes, preventing requests from repeatedly forwarding to a stopped node. / 频道 Leader 变化后，插件从当前 Slot 元数据解析所属节点，避免请求持续转发到已停止的节点。
-
-- Provide reusable v2 migration steps with an explicit reader baseline, release capability checks, generic plugin guidance and optional search-index rebuilding, host resource budgets, and separately captured stage logs. / v2 迁移教程提供通用步骤，明确来源读取基线与版本能力，补充通用插件指引、可选搜索索引重建和宿主机资源预算，并分别保存阶段日志。
 
 - Exclude internal recovery and SyncOnce records from unread badges and set-unread boundaries; keep legacy unread-history pulls and deleted conversation visibility correct after failover. / 未读计数及设置未读边界排除内部恢复与 SyncOnce 记录，修复故障切换后旧客户端未读历史拉取和已删除会话的显示。
 
 - Keep imported hidden conversations absent during cluster recovery; only a newer business message or explicit activation reveals them. / 集群恢复时保持迁入的隐藏会话不可见，仅新业务消息或明确激活后显示。
 
-- Support reviewed transitive duplicate resolution, archive independent v2 unread counters, and preserve absent conversation lists without deleting history; hidden memberships require matching cluster binaries. / 支持获准的去重替代链解析、原独立未读计数归档，以及保留历史访问权限的会话列表隐藏；隐藏成员状态要求集群使用配套程序。
-
 - Bind reviewed conversation replica choices and archive-only decisions to every original copy, including absence; preserve the full source archive. / 会话副本选择及仅归档决定绑定全部原副本和缺失状态，保留完整源归档。
-
-- Reuse sealed migration preparation during export while rechecking source freshness and all exported bytes; compute invariant lookup-policy digests once per selection. Independent import and verification still rebuild original records. / 导出复用带摘要的迁移准备结果，重新核对来源和全部导出字节；会话选择仅计算一次固定策略摘要。导入和独立验证继续从原记录重建。
-
-- Support explicitly approved preservation of conversations beyond the original v2 list cap and exact, hash-bound recovery of conflicting conversation states from their original unique indexes. / 支持明确批准后保留原 v2 列表上限之外的会话，并按原行哈希绑定的唯一索引记录恢复冲突会话状态。
-
-- Merge sorted source indexes during migration validation to avoid per-index point lookups, and report preparation stage durations without weakening missing, conflicting, or orphaned-index checks. / 迁移校验采用有序索引归并，减少逐条查询，并输出准备阶段耗时，保留缺失、错指与孤立索引检查。
 
 - Prevent offline migration index joins from exhausting their read cache when write memtables grow. / 修复离线迁移写入内存表增长后耗尽读缓存、导致索引校验反复读取数据块的问题。
 
+- Preserve original message Expire values through v2 migration, native appends, reads, restart, and replica recovery; bind lifetimes in versioned quorum proposals and reject lossy older RPC encodings. / v2 迁移及原生写入、读取、重启和副本恢复保留消息 Expire 原值，以版本化提案校验有效期，并拒绝会丢失该字段的旧 RPC 编码。
+
+- Restore the legacy `/plugins/:plugin_no/*path` Product HTTP route through the existing plugin usecase, with bounded bodies/timeouts and maintenance fencing, so business backends can call search plugins after upgrading. / 恢复经现有插件用例处理的 Product HTTP 插件路由，限制请求体与调用时长并保留维护屏障，使业务后端升级后仍可调用搜索插件。
+
+### 🔧 Improvements / 改进
+
+- Reuse verified duplicate-chain suffixes within each offline migration pass and count terminals on disk, avoiding quadratic history lookups while retaining original edge proofs. / 离线迁移在每次重建内复用已核实的去重链后缀，以磁盘索引统计终点，避免重复遍历，保留完整原始替代证据。
+
+- Overlap bounded authoritative permission checks during batch history and conversation synchronization to reduce reconnect latency for accounts with many conversations. / 会话及历史批量同步以有限并发检查权威权限，降低多会话账号的重连等待。
+
+- Batch offline CMD reads across bound channels to reduce reconnect latency for users in many groups, preserving acknowledgement boundaries and complete-result failure handling. / 离线 CMD 按频道批量读取，降低多群用户重连耗时，保持确认边界和完整结果的错误处理。
+
+- Batch plugin channel-owner lookups through current Slot authority, sharing metadata reads and bounding concurrent cold-channel initialization during global search. / 插件按当前 Slot 权威批量查询频道所属节点，合并元数据读取，并以有上限的并发处理冷频道初始化。
+
+- Avoid per-row key-range allocations during Slot snapshot restore while retaining the same ownership and namespace checks. / Slot 快照恢复时避免逐行重复分配键范围，保持所属 hash slot 和命名空间校验不变。
+
+- Report bounded channel-repair progress, blocked examples, and worker errors instead of silently discarding failed background ticks. / 以限频日志报告频道修复进度、阻塞示例和后台任务错误，避免静默丢弃失败信息。
+
+- Reuse sealed migration preparation during export while rechecking source freshness and all exported bytes; compute invariant lookup-policy digests once per selection. Independent import and verification still rebuild original records. / 导出复用带摘要的迁移准备结果，重新核对来源和全部导出字节；会话选择仅计算一次固定策略摘要。导入和独立验证继续从原记录重建。
+
+- Merge sorted source indexes during migration validation to avoid per-index point lookups, and report preparation stage durations without weakening missing, conflicting, or orphaned-index checks. / 迁移校验采用有序索引归并，减少逐条查询，并输出准备阶段耗时，保留缺失、错指与孤立索引检查。
+
 - Distinguish existing-channel quorum service from new-channel placement readiness during three-node migration fault tests. / 区分三节点迁移故障演练中的已有频道多数派服务与新频道放置就绪条件。
+
+### 📚 Documentation / 文档
+
+- Align static documentation publication checks, navigation counts, and overview tests with the source-backed Product HTTP operation registry, including legacy message lookup. / 文档发布产物检查、导航数量及总览测试以源码对应的 Product HTTP 接口注册表为准，包含旧版消息查询接口。
+
+- Correct migration terminology: 12 physical Slots own the 256 logical hash slots. / 修正迁移教程术语：12 个物理 Slot 承载 256 个逻辑 hash slot。
+
+- Document explicit CMD binding and disconnected-recipient acceptance as prerequisites for v2 migration cutover. / 补充 v2 迁移切换前的 CMD 显式绑定适配和离线接收者验收要求。
+
+- Clarify v2 migration timeout budgeting and safe preparation retries after interruption. / 补充 v2 迁移任务的超时预算与预检中断后的安全重试说明。
+
+- Provide reusable v2 migration steps with an explicit reader baseline, release capability checks, generic plugin guidance and optional search-index rebuilding, host resource budgets, and separately captured stage logs. / v2 迁移教程提供通用步骤，明确来源读取基线与版本能力，补充通用插件指引、可选搜索索引重建和宿主机资源预算，并分别保存阶段日志。
 
 - Clarify three-node Compose migration addresses, independent bind mounts, Slot counts, and validation before container startup. / 明确三节点 Compose 迁移的容器通信地址、独立绑定目录、Slot 数量和启动前校验要求。
 
 - Document v2 migration configuration semantics for person whitelists, TCP PROXY protocol, and business data-source synchronization. / 补充 v2 迁移中单聊白名单、TCP PROXY 协议和业务数据源同步的配置差异。
 
-- Preserve original message Expire values through v2 migration, native appends, reads, restart, and replica recovery; bind lifetimes in versioned quorum proposals and reject lossy older RPC encodings. / v2 迁移及原生写入、读取、重启和副本恢复保留消息 Expire 原值，以版本化提案校验有效期，并拒绝会丢失该字段的旧 RPC 编码。
-
-- Add exact-row, operator-approved v2 quarantine with immutable original archives, dependent-index proofs, and independently rebuilt omitted-position mappings. / 增加按原记录精确授权的 v2 异常隔离，保留完整原始归档，验证关联索引并独立重建被排除位置的映射。
-
 - Document business-database sequence mapping during v2 migration, including deletion boundaries and message references that client cache resets cannot repair. / 补充 v2 迁移时业务数据库的序号映射要求，涵盖清理客户端缓存无法修复的删除边界与消息引用。
 
-- Support offline mapping of the exact original search plugin with verified history-rebuild seeds on every target; document the required runtime catch-up upgrade for leader changes. / 支持原搜索插件的精确离线映射，为全部目标生成经过验证的历史索引重建种子，并明确 Leader 变化所需的运行时增量补齐升级。
+### ⬆️ Upgrade Notes / 升级说明
 
-- Restore the legacy `/plugins/:plugin_no/*path` Product HTTP route through the existing plugin usecase, with bounded bodies/timeouts and maintenance fencing, so business backends can call search plugins after upgrading. / 恢复经现有插件用例处理的 Product HTTP 插件路由，限制请求体与调用时长并保留维护屏障，使业务后端升级后仍可调用搜索插件。
-
-- Add read-only migration access for Pebble format 19 while preserving legacy source support, source locks, and business compatibility checks; document development-build and plugin checks before downtime. / 迁移读取器增加 Pebble 格式 19 只读支持，保留旧格式读取、源文件锁与业务兼容检查，并补充停机前的开发版本和插件核对说明。
+- Use matching beta.14 server and wkcli binaries on every target node for the new expiration, hidden-conversation, and indexed-RPC formats. Keep a complete cold backup and rehearse v2 migration before switching; a source-build verification does not replace validation of your own data. / 新的有效期、隐藏会话和索引 RPC 格式要求各目标节点使用配套的 beta.14 服务端与 wkcli。切换前保留完整冷备并演练 v2 迁移；源码构建验证不能替代对自身数据的校验。
 
 ## [v3.0.0-beta.13] - 2026-09-09
 

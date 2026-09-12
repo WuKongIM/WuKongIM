@@ -517,7 +517,7 @@ func (g *engineGroup) handleWSTraffic(c gnetv2.Conn, state *connState) gnetv2.Ac
 				err := fmt.Errorf("websocket handshake rejected: %w (http_status=%d conn_id=%d remote_addr=%q local_addr=%q)",
 					failure.err, failure.statusCode, state.id, state.remoteAddr, state.localAddr)
 				transport.LogConnectFailure(state.runtime.opts, state.id, state.localAddr, state.remoteAddr, err)
-				state.runtime.reportError(err)
+				state.runtime.reportError(&transport.HandshakeRejectionError{StatusCode: failure.statusCode, Err: err})
 				if len(failure.response) == 0 {
 					_ = c.Close()
 					return gnetv2.None

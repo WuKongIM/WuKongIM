@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -191,6 +192,15 @@ func TestWSHandshakeRejectsInvalidRequestsAndReportsErrors(t *testing.T) {
 	}
 
 	waitUntil(t, time.Second, func() bool { return errs.Count() == len(tests) })
+	errs.mu.Lock()
+	defer errs.mu.Unlock()
+	for i, err := range errs.errs {
+		var rejected *transport.HandshakeRejectionError
+		if !errors.As(err, &rejected) || rejected.StatusCode != tests[i].status {
+			t.Fatalf("%s: rejection classification = %T %v", tests[i].name, err, err)
+		}
+	}
+
 }
 
 func TestWSHandshakeFailureReportsErrorBeforeConnectionCloses(t *testing.T) {

@@ -74,7 +74,7 @@ func TestWebSocketPathRejectionLogIncludesDiagnostics(t *testing.T) {
 				t.Fatal(err)
 			}
 			logs, err := applog.NewAppLogReader(applog.AppLogReaderOptions{Dir: dir}).Entries(
-				context.Background(), applog.AppLogEntriesRequest{Limit: 10, Levels: []string{"ERROR"}},
+				context.Background(), applog.AppLogEntriesRequest{Limit: 10, Levels: []string{"INFO", "ERROR"}},
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -83,6 +83,12 @@ func TestWebSocketPathRejectionLogIncludesDiagnostics(t *testing.T) {
 				t.Fatalf("error log count = %d, want 1", len(logs.Items))
 			}
 			entry := logs.Items[0]
+			if entry.Level != "INFO" {
+				t.Fatalf("handshake rejection level = %s, want INFO", entry.Level)
+			}
+			if strings.Contains(entry.Raw, "github.com/WuKongIM") {
+				t.Fatal("rejection includes stack trace")
+			}
 			if entry.Fields["listener"] != "ws-gateway" {
 				t.Fatalf("listener field = %v, want ws-gateway", entry.Fields["listener"])
 			}

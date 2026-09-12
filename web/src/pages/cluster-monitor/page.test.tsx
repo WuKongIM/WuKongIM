@@ -2000,3 +2000,22 @@ test("does not silently render preview fixture before the realtime API responds"
   expect(screen.queryByTestId("cluster-monitor-metric-card")).not.toBeInTheDocument()
   expect(screen.queryByText("Incident Rate")).not.toBeInTheDocument()
 })
+
+
+test.each([{ value: 0, status: "Normal" }, { value: 2, status: "Critical" }])(
+  "shows runtime admission errors at $value as $status",
+  async ({ value, status }) => {
+    const response = readyClusterMonitorResponse()
+    response.snapshot = []
+    response.cards = [{
+      ...response.cards[0], key: "runtimePoolAdmissionErrorRate", category: "node",
+      stage: "incidentClosure", tone: "critical", unit: "events/s", value,
+      series: [{ timestamp: 1781767220000, value }], stats: [],
+    }]
+    vi.mocked(getRealtimeMonitor).mockResolvedValueOnce(response)
+    renderClusterMonitorPage()
+    const card = await screen.findByTestId("cluster-monitor-metric-card")
+    expect(within(card).getByText(status)).toBeInTheDocument()
+    expect(within(card).queryByText(status === "Normal" ? "Critical" : "Normal")).not.toBeInTheDocument()
+  },
+)

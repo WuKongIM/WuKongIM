@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
+	"github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
@@ -108,6 +110,11 @@ type Handler struct {
 	traceIDGenerator TraceIDGenerator
 	logger           wklog.Logger
 	plannedShutdown  atomic.Bool
+	// One shared sampling window bounds rejection logging across all listeners;
+	// never allocate per-peer or per-path state for untrusted requests.
+	rejectionMu    sync.Mutex
+	rejectionNext  time.Time
+	rejectionTotal uint64
 }
 
 type terminalFenceBinding struct {
@@ -180,9 +187,35 @@ func (h *Handler) OnListenerError(listener string, err error) {
 	if err == nil {
 		return
 	}
+	var rejection *transport.HandshakeRejectionError
+	if errors.As(err, &rejection) && rejection != nil {
+		h.logHandshakeRejection(listener, err, rejection.StatusCode, time.Now())
+		return
+	}
 	h.connLogger().Error("gateway listener error",
 		wklog.Event("internal.access.gateway.listener_error"),
 		wklog.String("listener", listener),
+		wklog.Error(err),
+	)
+}
+
+// logHandshakeRejection retains a diagnostic sample and cumulative count at
+// most once per ten seconds. Real listener faults bypass this sampling window.
+func (h *Handler) logHandshakeRejection(listener string, err error, status int, now time.Time) {
+	h.rejectionMu.Lock()
+	h.rejectionTotal++
+	total := h.rejectionTotal
+	if now.Before(h.rejectionNext) {
+		h.rejectionMu.Unlock()
+		return
+	}
+	h.rejectionNext = now.Add(10 * time.Second)
+	h.rejectionMu.Unlock()
+	h.connLogger().Info("gateway handshake rejected",
+		wklog.Event("internal.access.gateway.handshake_rejected"),
+		wklog.String("listener", listener),
+		wklog.Int("http_status", status),
+		wklog.Uint64("rejected_total", total),
 		wklog.Error(err),
 	)
 }

@@ -3,6 +3,8 @@ package gateway
 import (
 	"context"
 	"errors"
+	"fmt"
+	"github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
 	"testing"
 	"time"
 
@@ -257,4 +259,34 @@ func requireFieldValue[T any](t *testing.T, entry recordedLogEntry, key string) 
 	var zero T
 	t.Fatalf("missing field %q in %#v", key, entry.fields)
 	return zero
+}
+
+func TestHandlerSamplesHandshakeRejectionsWithoutSuppressingListenerFaults(t *testing.T) {
+	logger := newRecordingLogger("internal.access.gateway")
+	h := New(Options{Logger: logger})
+	rejected := &transport.HandshakeRejectionError{StatusCode: 404, Err: errors.New("path mismatch")}
+	h.OnListenerError("ws", fmt.Errorf("wrapped: %w", rejected))
+	// Use a fixed timestamp inside the already opened window, without sleeps.
+	now := h.rejectionNext.Add(-time.Second)
+	for i := 0; i < 1000; i++ {
+		h.logHandshakeRejection("ws", rejected, 404, now)
+	}
+	h.OnListenerError("tcp", errors.New("accept failed"))
+	h.OnListenerError("ws", nil)
+	if got := len(logger.entries()); got != 2 {
+		t.Fatalf("log count = %d, want one sample and one fault", got)
+	}
+	entry := requireLogEntry(t, logger, "INFO", "internal.access.gateway.conn", "internal.access.gateway.handshake_rejected")
+	if got := requireFieldValue[uint64](t, entry, "rejected_total"); got != 1 {
+		t.Fatalf("total = %d", got)
+	}
+	requireLogEntry(t, logger, "ERROR", "internal.access.gateway.conn", "internal.access.gateway.listener_error")
+	h.logHandshakeRejection("ws", rejected, 404, now.Add(time.Second))
+	entries := logger.entries()
+	if len(entries) != 3 {
+		t.Fatalf("next window did not log: %d", len(entries))
+	}
+	if got := requireFieldValue[uint64](t, entries[2], "rejected_total"); got != 1002 {
+		t.Fatalf("total = %d, want 1002", got)
+	}
 }
