@@ -2,6 +2,8 @@
 
 ## Internal
 
+- Fixed mixed-load attribution builds the exact product source before checking out a separate harness, optionally requires the previous binary SHA-256, and records both identities. Three unprofiled release-load windows and bounded separate CPU/allocation profiles distinguish host, driver and server costs; rejected windows remain visible and cannot qualify publication.
+
 - Legacy conversation sync orders by membership `ActivatedAt` (then channel ID/type), with visibility filtering during candidate construction; latest-message time is not its sort key. Its selected-message preparation uses a bounded exact-key UID membership batch and existing Slot-grouped channel metadata batches, without reusing hydration authority or SEND permission cache state. Use server RPC counts plus execution traces to evaluate batch-read work; server task duration is not client RTT.
 - Conversation throughput diagnosis extends the capacity staircase with three consecutive 60-second windows per page-100 case and separate CPU/alloc/Go trace phases. Prefer Linux for process CPU and wait attribution; a completed diagnostic may contain rejected loads and is never release evidence. Preserve the fixed gate profile and zero runtime-load/membership-write checks.
 - Conversation stored-head reads probe one tail record before expanding to 64-record

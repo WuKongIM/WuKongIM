@@ -12,6 +12,7 @@ import (
 )
 
 var workflowCatalog = map[string]string{
+	"conversation-qps-diagnose.yml":            "Agent Tool - Diagnose Conversation QPS",
 	"conversation-qps-gate.yml":                "Safety Automation - Conversation QPS Release Gate",
 	"easy-sdk-web-docs-sync.yml":               "Safety Automation - Propose Web EasySDK Documentation Upgrade",
 	"binary-release-publish.yml":               "Safety Automation - Publish WuKongIM Binaries",
@@ -45,6 +46,43 @@ var workflowCatalog = map[string]string{
 	"review-agent-run.yml":                     "Agent Tool - Review Pull Request",
 	"review-agent.yml":                         "Safety Automation - Review Agent Controller",
 	"three-node-chat-lifecycle-regression.yml": "Safety Automation - Three-Node Chat Lifecycle Regression",
+}
+
+func TestConversationQPSDiagnosticWorkflowIsReadOnlyAndBindsProduct(t *testing.T) {
+	raw := readWorkflow(t, "conversation-qps-diagnose.yml")
+	var w struct {
+		On          map[string]any    `yaml:"on"`
+		Permissions map[string]string `yaml:"permissions"`
+		Jobs        map[string]struct {
+			RunsOn      string `yaml:"runs-on"`
+			Timeout     int    `yaml:"timeout-minutes"`
+			Environment any    `yaml:"environment"`
+		} `yaml:"jobs"`
+	}
+	require.NoError(t, yaml.Unmarshal(raw, &w))
+	require.Len(t, w.On, 1)
+	require.Contains(t, w.On, "workflow_dispatch")
+	require.Equal(t, map[string]string{"contents": "read"}, w.Permissions)
+	require.Len(t, w.Jobs, 1)
+	require.Equal(t, "ubuntu-24.04", w.Jobs["diagnose"].RunsOn)
+	require.Equal(t, 20, w.Jobs["diagnose"].Timeout)
+	require.Nil(t, w.Jobs["diagnose"].Environment)
+	s := string(raw)
+	require.NotContains(t, s, "secrets.")
+	require.NotContains(t, s, "continue-on-error:")
+	for _, guard := range []string{
+		`[[ "$(git rev-parse HEAD)" == "$PRODUCT_SHA" ]]`,
+		`git merge-base --is-ancestor "$PRODUCT_SHA" origin/main`,
+		`[[ "$(uname -m)" == x86_64 && "$(nproc)" == 4 ]]`,
+		`== "$EXPECTED_BINARY_SHA256" ]]`,
+		`go build -tags=e2e`,
+		`TestConversationQPSMixedAttribution`,
+		`if: always()`,
+		`retention-days: 90`,
+	} {
+		require.Contains(t, s, guard)
+	}
+	require.Less(t, strings.Index(s, "go build -tags=e2e"), strings.Index(s, "path: diagnostic-harness"))
 }
 
 func TestCloudLeaseProvisionRejectsGitHubOwnedRepairPlans(t *testing.T) {

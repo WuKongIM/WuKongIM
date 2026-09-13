@@ -14,6 +14,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Add a bounded Linux AMD64 diagnostic workflow for mixed conversation reads, retaining host counters and separate driver/server profiles without changing release gates. / 新增 Linux AMD64 会话混合读取诊断工作流，保留主机指标及独立压测端、服务端剖析，不改变发布门禁。
+
 - Extend release QPS gates with simultaneous conversation list/sync traffic and exact hidden-page checks. / 发布 QPS 门禁增加会话 list/sync 混合负载及隐藏会话准确分页校验。
 
 - Sort bounded legacy membership metadata before limiting `/conversation/sync` preview reads to the requested page prefix; preserve variable-length Channel ID ordering, visibility and post-page filters. / `/conversation/sync` 先排序有界成员元数据，再按目标页读取摘要；保留不同长度频道 ID 的排序、可见性及分页后过滤规则。

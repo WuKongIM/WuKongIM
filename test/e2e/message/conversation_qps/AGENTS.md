@@ -149,3 +149,14 @@ Publication always runs the `stress_gate` preset: mixed list 200/sync 60 QPS for
 eight workers. The v2 report binds this preset and requires all seven windows.
 Allocation ceilings apply to the whole shared window, divided by its total
 successful requests; never duplicate CPU or allocations into mixed endpoints.
+
+Mixed release-load attribution is diagnostic only:
+`WK_E2E_CONVERSATION_MIXED_ATTRIBUTION=1 WK_E2E_PRODUCT_SHA=<exact-product-commit> WK_E2E_BINARY=/absolute/product WK_E2E_CONVERSATION_MIXED_REPORT=/tmp/conversation-mixed/report.json GOWORK=off go test -tags=e2e ./test/e2e/message/conversation_qps -run '^TestConversationQPSMixedAttribution$' -count=1 -timeout=12m -p=1 -v`.
+Require four visible Linux AMD64 CPUs. Preserve three fixed 60-second windows
+using the unchanged release mixed preset and HTTP connection bounds. Record
+harness and product identities separately, retain host/driver counters around
+each window, then capture bounded server allocations and simultaneous server
+and driver CPU profiles during a separate ten-second workload. Rejected windows
+remain evidence, unexpected failures or runtime/membership mutations abort, and
+collection completion never qualifies publication. The read-only
+`conversation-qps-diagnose.yml` verifies the optional exact prior binary digest.

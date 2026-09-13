@@ -41,6 +41,7 @@ authorization and the applicable budget.
 | `cloud-sim-oidc-subject.yml` | `Agent Tool - Configure Cloud Simulation OIDC Subject` | Configures and verifies the cloud OIDC subject |
 | `cloud-sim-cleanup.yml` | `Safety Automation - Reconcile Cloud Simulation Resources` | Destroys expired cloud leases and supports exact cleanup |
 | `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Patrols retained live runs and records bounded health evidence |
+| `conversation-qps-diagnose.yml` | `Agent Tool - Diagnose Conversation QPS` | Read-only four-CPU AMD64 fixed mixed-load attribution with separate driver/server profiles; never publication evidence |
 | `conversation-qps-gate.yml` | `Safety Automation - Conversation QPS Release Gate` | Credential-free fixed HTTP load matrix; required by both publishers before release writes |
 | `docker-image-publish.yml` | `Safety Automation - Publish Docker Images` | Builds one immutable multi-platform GHCR image, mirrors its digest to Docker Hub and Alibaba Cloud, then advances eligible stable aliases |
 | `docs-pages.yml` | `Safety Automation - Publish Documentation to GitHub Pages` | Verifies and deploys the exact documentation artifact, then optionally refreshes the pre-provisioned Alibaba Cloud CDN |
@@ -231,6 +232,24 @@ Both repositories enforce immutable Releases, and the custom-domain DNS and
 certificate are provisioned. Exact unsigned source package assets still come
 only from the tag-bound binary Release described below; this credential-free
 source workflow never receives production signing or package-publisher access.
+
+## Conversation QPS diagnosis
+
+`conversation-qps-diagnose.yml` takes an exact reachable product SHA and optional
+previous binary digest. It builds that clean source with Go 1.25.11 before
+checking out the diagnostic harness separately. A supplied digest mismatch
+aborts; it must not silently substitute a different binary. The read-only
+Ubuntu 24.04 job requires four visible AMD64 CPUs and records CPU model, kernel,
+Go build identity, host pressure/throttling counters, driver counters, and
+per-node RPC/hydration metrics. Three successive 60-second windows reuse the
+unchanged release mixed preset (200/60 QPS, eight workers each). Separate
+ten-second CPU/allocation profiling does not count as performance evidence.
+Every rejected window stays in the report; unexpected errors and runtime or
+membership mutations abort. All artifacts, including the binary, are retained
+for 90 days. There are no publishing permissions, threshold controls, automatic
+triggers, retries, or production targets. Completion means evidence collection,
+not a passing gate. Dispatch once per evidence-backed comparison; do not rerun
+until green.
 
 ## Conversation QPS release gate
 

@@ -1,0 +1,86 @@
+name: Agent Tool - Diagnose Conversation QPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      product_sha:
+        description: Exact repository commit for the product binary
+        type: string
+        required: true
+      expected_binary_sha256:
+        description: Optional previously observed binary digest; mismatch aborts
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GOWORK: "off"
+      PRODUCT_SHA: ${{ inputs.product_sha }}
+      EXPECTED_BINARY_SHA256: ${{ inputs.expected_binary_sha256 }}
+    steps:
+      - name: Checkout exact product without credentials
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.product_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind clean product source and four-CPU host
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$PRODUCT_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$PRODUCT_SHA" ]]
+          [[ -z "$(git status --porcelain)" ]]
+          git merge-base --is-ancestor "$PRODUCT_SHA" origin/main
+          [[ "$(uname -m)" == x86_64 && "$(nproc)" == 4 ]]
+          mkdir -p "$RUNNER_TEMP/conversation-mixed"
+          lscpu --json > "$RUNNER_TEMP/conversation-mixed/host.json"
+          uname -a > "$RUNNER_TEMP/conversation-mixed/kernel.txt"
+      - name: Set up exact failing-run Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.25.11"
+      - name: Build product before adding diagnostic checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          go build -tags=e2e -o "$RUNNER_TEMP/conversation-mixed/wukongim-e2e" ./cmd/wukongim
+          sha256sum "$RUNNER_TEMP/conversation-mixed/wukongim-e2e" > "$RUNNER_TEMP/conversation-mixed/binary.sha256"
+          go version -m "$RUNNER_TEMP/conversation-mixed/wukongim-e2e" > "$RUNNER_TEMP/conversation-mixed/build.txt"
+          if [[ -n "$EXPECTED_BINARY_SHA256" ]]; then
+            [[ "$EXPECTED_BINARY_SHA256" =~ ^[0-9a-f]{64}$ ]]
+            [[ "$(cut -d ' ' -f 1 "$RUNNER_TEMP/conversation-mixed/binary.sha256")" == "$EXPECTED_BINARY_SHA256" ]]
+          fi
+      - name: Checkout diagnostic harness separately
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          path: diagnostic-harness
+          persist-credentials: false
+      - name: Collect three fixed windows then separate profiles
+        working-directory: diagnostic-harness
+        shell: bash
+        env:
+          WK_E2E_CONVERSATION_MIXED_ATTRIBUTION: "1"
+          WK_E2E_PRODUCT_SHA: ${{ inputs.product_sha }}
+          WK_E2E_BINARY: ${{ runner.temp }}/conversation-mixed/wukongim-e2e
+          WK_E2E_CONVERSATION_MIXED_REPORT: ${{ runner.temp }}/conversation-mixed/report.json
+        run: |
+          set -euo pipefail
+          go test ./test/e2e/message/conversation_qps -count=1
+          go test -tags=e2e ./test/e2e/message/conversation_qps -run '^TestConversationQPSMixedAttribution$' -count=1 -timeout=12m -p=1 -v 2>&1 | tee "$RUNNER_TEMP/conversation-mixed/test.log"
+          jq -e --arg product "$PRODUCT_SHA" --arg harness "$(git rev-parse HEAD)" '.complete and .product_sha == $product and .harness_sha == $harness and (.harness_dirty | not) and (.windows | length == 3)' "$WK_E2E_CONVERSATION_MIXED_REPORT"
+      - name: Retain all diagnostic evidence including rejected windows
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: conversation-mixed-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/conversation-mixed/
+          if-no-files-found: error
+          retention-days: 90
