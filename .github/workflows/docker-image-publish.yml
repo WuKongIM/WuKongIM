@@ -25,7 +25,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  conversation-qps:
+    if: github.repository == 'WuKongIM/WuKongIM'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/conversation-qps-gate.yml
+    with:
+      source_ref: ${{ inputs.version || github.ref_name }}
   publish:
+    needs: conversation-qps
     name: Publish immutable multi-platform image
     if: github.repository == 'WuKongIM/WuKongIM'
     runs-on: ubuntu-24.04
@@ -44,6 +52,15 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           persist-credentials: false
+
+      - name: Require the source that passed conversation QPS
+        shell: bash
+        env:
+          QPS_SOURCE_SHA: ${{ needs.conversation-qps.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$QPS_SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$QPS_SOURCE_SHA" ]]
 
       - name: Validate release identity and tag policy
         id: identity

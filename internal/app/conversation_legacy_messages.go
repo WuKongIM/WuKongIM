@@ -23,7 +23,7 @@ func (r conversationLegacyMessageReader) ReadLegacyMessagesBatch(ctx context.Con
 			IncludeEventMeta: true,
 		}
 	}
-	batch, err := r.messages.SyncChannelMessagesBatch(ctx, messageusecase.SyncChannelMessagesBatchQuery{
+	batch, err := r.messages.SyncPersistedChannelMessagesBatch(ctx, messageusecase.SyncChannelMessagesBatchQuery{
 		LoginUID: uid,
 		Items:    items,
 	})
@@ -37,6 +37,9 @@ func (r conversationLegacyMessageReader) ReadLegacyMessagesBatch(ctx context.Con
 		result.ChannelType = item.ChannelType
 		result.Err = item.Err
 		result.Messages = make([]conversationusecase.LegacyRecentMessage, 0, len(item.Result.Messages))
+		// Message sync already detached base/stream bytes from its reader and
+		// event store. Transfer those result-owned buffers through this synchronous
+		// adapter; the conversation port keeps its own defensive response copy.
 		for _, msg := range item.Result.Messages {
 			result.Messages = append(result.Messages, conversationusecase.LegacyRecentMessage{
 				Flags: conversationusecase.LegacyMessageFlags{
@@ -47,9 +50,9 @@ func (r conversationLegacyMessageReader) ReadLegacyMessagesBatch(ctx context.Con
 				Setting: msg.Setting, MessageID: msg.MessageID, ClientMsgNo: msg.ClientMsgNo,
 				MessageSeq: msg.MessageSeq, FromUID: msg.FromUID, ChannelID: msg.ChannelID,
 				ChannelType: msg.ChannelType, Topic: msg.Topic, Expire: msg.Expire,
-				Timestamp: msg.Timestamp, Payload: append([]byte(nil), msg.Payload...),
+				Timestamp: msg.Timestamp, Payload: msg.Payload,
 				End: msg.End, EndReason: msg.EndReason, Error: msg.Error,
-				StreamData: append([]byte(nil), msg.StreamData...),
+				StreamData: msg.StreamData,
 				EventMeta:  conversationLegacyEventMeta(msg.EventMeta),
 				EventHint:  conversationLegacyEventHint(msg.EventHint),
 			})

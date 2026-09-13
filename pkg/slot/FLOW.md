@@ -39,7 +39,9 @@ reads to the current Slot leader. Durable rows live in `pkg/db/meta`.
    ready only after every prepare group succeeds.
    Runtime-metadata read batches accept at most 4,096 keys, group them by
    physical Slot, use at most four supervised workers, and preserve item-scoped
-   missing or Slot failures.
+   missing or Slot failures. Exact ordinary-membership batches accept at most
+   200 keys for one UID and use one authoritative membership RPC; found rows
+   are identity-unique, missing keys remain absent, and read errors fail the batch.
 2. A Multi-Raft worker persists Ready state, sends messages, batches normal
    entries, flushes before configuration changes, and atomically applies an
    ownership-validated FSM batch before persisting apply and completing futures.

@@ -2518,3 +2518,14 @@ func hasMetricByLabels(family *dto.MetricFamily, want map[string]string) bool {
 	}
 	return false
 }
+
+func TestConversationMetricsExposeZeroMembershipWritesAfterRestart(t *testing.T) {
+	reg := New(11, "node-11")
+	families, err := reg.Gather()
+	require.NoError(t, err)
+	family := requireMetricFamily(t, families, "wukongim_conversation_membership_mutation_rows_total")
+	require.Len(t, family.GetMetric(), 12)
+	for _, metric := range family.GetMetric() {
+		require.Zero(t, metric.GetCounter().GetValue())
+	}
+}

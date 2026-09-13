@@ -5162,7 +5162,7 @@ func TestAppWiresLegacyConversationSyncRouteToDirectoryAndMessageReads(t *testin
 		t.Fatalf("status = %d body = %s, want 200", rec.Code, rec.Body.String())
 	}
 	if !strings.Contains(rec.Body.String(), `"channel_id":"g1"`) || !strings.Contains(rec.Body.String(), `"last_msg_seq":1`) || !strings.Contains(rec.Body.String(), `"payload":"bGVnYWN5"`) {
-		t.Fatalf("body = %s, want legacy conversation with committed message", rec.Body.String())
+		t.Fatalf("body = %s, want legacy conversation with persisted message", rec.Body.String())
 	}
 }
 
@@ -7643,4 +7643,11 @@ func (f *fakeManagerCluster) ReadChannelPersistedConversationHeads(ctx context.C
 
 func (f *fakePresenceCluster) ReadChannelPersistedConversationHeads(ctx context.Context, ids []channelruntime.ChannelID, uid string, badges ...clusterchannels.ConversationBadgeQuery) ([]clusterchannels.ConversationHeadResult, error) {
 	return f.ReadChannelConversationHeads(ctx, ids, uid, badges...)
+}
+
+func (f *fakePresenceCluster) ReadChannelPersistedBatch(ctx context.Context, reads []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {
+	return f.ReadChannelCommittedBatch(ctx, reads)
+}
+func (f *fakeManagerCluster) ReadChannelPersistedBatch(ctx context.Context, reads []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {
+	return f.ReadChannelCommittedBatch(ctx, reads)
 }

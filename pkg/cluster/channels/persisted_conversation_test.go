@@ -134,9 +134,70 @@ func TestPersistedConversationReadsManyColdChannelsWithoutLoading(t *testing.T) 
 			require.NoError(t, head.Err)
 			require.True(t, head.Head.Found)
 		}
+		reads := make([]CommittedRead, len(ids))
+		for i, id := range ids {
+			reads[i] = CommittedRead{ChannelID: id, Request: channelstore.ReadCommittedRequest{FromSeq: 99, MinSeq: 1, MaxSeq: 99, Limit: 2, MaxBytes: 1 << 20, Reverse: true}}
+		}
+		recents, err := svc.ReadPersistedBatch(context.Background(), reads)
+		require.NoError(t, err)
+		for _, result := range recents {
+			require.NoError(t, result.Err)
+			require.Len(t, result.Read.Messages, 1)
+		}
 		probe, err := svc.RuntimeProbe(context.Background(), ch.RuntimeSelector{ChannelIDs: ids})
 		require.NoError(t, err)
 		require.Empty(t, probe.Channels)
 		require.Len(t, probe.Missing, len(ids))
 	}
+}
+
+func (f *persistedCodecForward) ForwardCommittedReads(ctx context.Context, _ ch.NodeID, req CommittedReadsRequest) (CommittedReadsResponse, error) {
+	encoded, err := encodeCommittedReadsRequestVersion(req, codecVersion)
+	if err != nil {
+		return CommittedReadsResponse{}, err
+	}
+	f.kind = encoded[1]
+	decoded, err := decodeCommittedReadsRequest(encoded)
+	if err != nil {
+		return CommittedReadsResponse{}, err
+	}
+	return f.target.handleForwardCommittedReads(ctx, decoded)
+}
+
+func TestPersistedRecentMessagesReadColdRemoteLEOAndShareAdmission(t *testing.T) {
+	id := ch.ChannelID{ID: "remote-recents", Type: 2}
+	factory := channelstore.NewMemoryFactory()
+	store, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
+	require.NoError(t, err)
+	_, err = store.AppendLeader(context.Background(), channelstore.AppendLeaderRequest{Records: []ch.Record{{ID: 1, Payload: []byte("first")}, {ID: 2, Payload: []byte("uncommitted")}}})
+	require.NoError(t, err)
+	state, err := store.Load(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, state.HW)
+	require.Equal(t, uint64(2), state.LEO)
+	require.NoError(t, store.Close())
+	meta := ch.Meta{ID: id, Epoch: 1, LeaderEpoch: 1, Leader: 2, MinISR: 2, Status: ch.StatusActive}
+	runtime := &runtimeHWProbeRuntime{fakeRuntime: &fakeRuntime{}}
+	remote, err := NewService(Config{Runtime: runtime, LocalNode: 2, Store: factory, MetaSource: NewStaticMetaSource([]ch.Meta{meta})})
+	require.NoError(t, err)
+	forward := &persistedCodecForward{target: remote}
+	origin, err := NewService(Config{Runtime: &fakeRuntime{}, LocalNode: 1, MetaSource: NewStaticMetaSource([]ch.Meta{meta}), Forward: forward})
+	require.NoError(t, err)
+	reads := []CommittedRead{{ChannelID: id, Request: channelstore.ReadCommittedRequest{FromSeq: 99, MinSeq: 1, MaxSeq: 99, Limit: 3, MaxBytes: 1 << 20, Reverse: true}}}
+	results, err := origin.ReadPersistedBatch(context.Background(), reads)
+	require.NoError(t, err)
+	require.NoError(t, results[0].Err)
+	require.Len(t, results[0].Read.Messages, 2)
+	require.Equal(t, []byte("uncommitted"), results[0].Read.Messages[0].Payload)
+	require.Equal(t, uint8(kindPersistedMessageReads), forward.kind)
+	require.Zero(t, runtime.probeCalls)
+	require.Zero(t, runtime.applyCalls)
+	for i := 0; i < cap(remote.persistedReads); i++ {
+		remote.persistedReads <- struct{}{}
+	}
+	results, err = origin.ReadPersistedBatch(context.Background(), reads)
+	require.NoError(t, err)
+	require.ErrorIs(t, results[0].Err, ch.ErrBackpressured)
+	require.Empty(t, results[0].Read.Messages)
+	require.Zero(t, runtime.applyCalls)
 }

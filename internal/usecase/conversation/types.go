@@ -31,15 +31,6 @@ type ListRequest struct {
 	CompletedCoverage int64
 }
 
-// legacyRetryRequest rehydrates a bounded set of unresolved channel keys without
-// rewinding directory coverage.
-type legacyRetryRequest struct {
-	// UID owns every membership row selected for retry.
-	UID string
-	// Keys is the bounded unresolved set to hydrate without moving coverage.
-	Keys []ConversationKey
-}
-
 // ConversationKey identifies one channel conversation in usecase APIs.
 type ConversationKey struct {
 	// ChannelID identifies the normalized conversation channel.
@@ -141,8 +132,6 @@ type ListResult struct {
 	Items []Conversation
 	// Deletes contains membership tombstones or terminal channels scanned in this page.
 	Deletes []ConversationKey
-	// Unresolved contains live channels whose Leader hydration should be retried.
-	Unresolved []ConversationKey
 	// NextCursor resumes after the last returned item when HasMore is true.
 	NextCursor Cursor
 	// HasMore reports whether another sorted page is available inside the scan window.

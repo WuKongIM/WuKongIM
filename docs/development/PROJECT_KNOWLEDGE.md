@@ -2,6 +2,25 @@
 
 ## Internal
 
+- Legacy conversation sync orders by membership `ActivatedAt` (then channel ID/type), with visibility filtering during candidate construction; latest-message time is not its sort key. Its selected-message preparation uses a bounded exact-key UID membership batch and existing Slot-grouped channel metadata batches, without reusing hydration authority or SEND permission cache state. Use server RPC counts plus execution traces to evaluate batch-read work; server task duration is not client RTT.
+- Conversation throughput diagnosis extends the capacity staircase with three consecutive 60-second windows per page-100 case and separate CPU/alloc/Go trace phases. Prefer Linux for process CPU and wait attribution; a completed diagnostic may contain rejected loads and is never release evidence. Preserve the fixed gate profile and zero runtime-load/membership-write checks.
+- Conversation stored-head reads probe one tail record before expanding to 64-record
+  reverse batches for internal suffixes. Capacity diagnosis is an opt-in local
+  staircase with separate pprof phases; offered release QPS is never a measured
+  saturation claim. Keep runtime residency/load and membership mutation checks.
+- Docker and binary releases require the same-tag conversation QPS gate before
+  publisher writes. Its source-controlled profile covers both endpoints and
+  25/100/200-row pages on single-node and three-node clusters. The authenticated
+  benchmark eviction API safely unloads only generated test channels before
+  measurement; all-role residency must be zero before/after reads, with zero
+  additional loads even during warmup. Disk caches may be warm. Scheduled
+  arrivals, complete message validation, missing-metric rejection, fixed QPS/P99
+  floors, topology-specific allocated-byte ceilings per request, and all 12
+  hash-bound results prevent empty or partial test passes.
+  Arrival queues cover at most one offered-rate latency budget (at least the
+  worker count), and all scheduling/queue delay counts toward P99; zero drops
+  remains mandatory. Hosted-runner floors are not production peak guarantees.
+
 - Manager message deletion advances a channel retention boundary inclusively through the selected message sequence. It affects earlier history beyond the displayed or filtered results; UI labels and confirmations must communicate this channel-wide scope.
 
 - Slot scheduler admission results `coalesced`, `dirty`, and `requeued` represent
@@ -393,13 +412,27 @@
 - Member add captures one committed tail for the logical operation, writes subscribers first, then UID memberships. Remove deletes subscribers first, then writes membership tombstones. Failures are returned for idempotent caller retry; there is no background repair workflow in the first version.
 - `activated_at` is synchronization priority, changed only by explicit navigation or hide. The client owns pinning and final ordering. Directory pages scan candidates in `(activated_at desc, channel_id, channel_type)` order; the candidate limit may underfill conversations, and only `done=true` completes a pass.
 - Canonical `/conversation/list` batch-reads business lifecycle and route metadata by physical Slot, then reads current-Leader persisted LEO, visible ordinary tail, and user badge indexes without probing or activating Channel runtimes. Persisted messages may appear even when SEND has not succeeded, and failover can regress the preview. Any read error fails the whole page; clients retain existing data and retry the original request/cursor. There is no `/conversation/retry` route or public unresolved array. Page admission and serving-node persisted reads each have 16 active batch slots and no waiting queue; list requests have a five-second deadline and at most 200 candidates. The persisted RPC kind is distinct so older nodes reject it instead of activating runtimes.
-- `/conversation/sync` is the v2.2 client compatibility surface over the membership-backed directory. It accepts the old `version`, `last_msg_seqs`, `msg_count`, `only_unread`, `exclude_channel_types`, `page`, and `page_size` fields, scans at most 1,000 membership candidates, and reads messages plus full stream-event summaries in batches of at most 200 Channels before returning the old raw conversation array with legacy system-UID projection. Because that array cannot represent `unresolved`, the compatibility flow retries unresolved hydration once and fails the request if any key remains unresolved instead of silently dropping a conversation; canonical clients use `/conversation/list` with whole-page failure. Legacy retry remains internal to committed compatibility reads.
+- `/conversation/sync` is the v2.2 client compatibility surface over the membership-backed directory. It accepts the old `version`, `last_msg_seqs`, `msg_count`, `only_unread`, `exclude_channel_types`, `page`, and `page_size` fields, scans at most 1,000 membership candidates, and reads messages plus full stream-event summaries in batches of at most 200 Channels before returning the old raw conversation array with legacy system-UID projection. Both heads and recent messages use explicit current-Leader persisted reads without runtime activation or quorum confirmation; failed SENDs may appear. Any read failure aborts immediately and callers retry the original request. It shares List admission and a five-second deadline, bounds requested recents to 10,000 records and base/stream payloads to 32 MiB per response, and preserves byte-limited scan continuation. Personal mutations, history and exact lookup retain committed semantics.
+- Paged legacy sync hydrates only the ordered visible prefix through `page * normalized_page_size`, with the existing 1,000 raw-candidate cap. Hidden/tombstoned/deleted/inactive-empty candidates can require bounded replenishment; explicit activated-empty rows occupy page positions. Unread/excluded-type filters and empty recents never refill a selected page. Off-page head/recent reads are skipped after the complete bounded metadata set is sorted, while every attempted directory/head/recent read still fails the whole request on error. The default page size is 100, capped at 500; page arithmetic must not overflow into an earlier page. Unpaged requests retain the full bounded scan.
+- Conversation directory keys encode Channel ID length before bytes. Legacy
+  sync must collect its bounded 1,000-candidate metadata set and sort by
+  activation/string ID/type before choosing a hydration prefix; stopping in
+  native index order can select the wrong page for variable-length IDs.
+  Canonical list keeps its encoded directory cursor order. Actual attempted
+  metadata/head/recent read failures still fail the whole request.
+- Conversation release receipt v2 adds a 60-second simultaneous list-200 /
+  sync-60 workload and six hidden-page windows at 20 QPS. Shared allocation
+  budgets apply once per window. Exact ordered IDs are required in addition
+  to message identities; dirty ARM64 diagnostics cannot qualify Linux AMD64
+  exact-tag publication. Preserve overload and superseded measurements.
+- Strict missing-prefix hydration can issue one head batch per hidden candidate when only one visible item remains. Keep the sequential hidden-gap workload in the release gate; inspect hydration-batch and RPC counts before changing admission limits.
 - Durable business Channel point reads use a fixed 8,192-entry LRU rather than a process-lifetime high-cardinality map; mutations and restore still invalidate cached rows, and metadata snapshots expose both current entries and capacity.
 - UID membership and CMD-directory reads are Slot-leader authoritative even when the accepting ingress node is not a replica of that UID's logical Slot. Ordinary static nodes learn actual leaders for unassigned Slots from the Slot-status RPC; local DB presence is never treated as cluster ownership.
-- A recovered hot quorum Channel Leader's live reactor HW is authoritative for committed conversation hydration (legacy sync and personal mutations) and committed-message reads; durable HW checkpoints are intentionally coalesced. Both paths probe locally assigned channels once per Leader batch. A cold or still-recovering quorum Leader must apply serving-node authoritative metadata through the bounded native installation path before using live HW. Local HW=LEO, including 0=0, cannot prove a stale/empty replica has the quorum tail. Recovery or authority failures return item errors, never successful partial history; a write fence alone does not block recovered reads. A zero committed watermark returns an empty page before storage, whose MaxSeq=0 otherwise means an unbounded range. This changes no durable schema or quorum commit rule.
+- A recovered hot quorum Channel Leader's live reactor HW is authoritative for committed conversation hydration (personal mutations) and committed-message reads; durable HW checkpoints are intentionally coalesced. Both paths probe locally assigned channels once per Leader batch. A cold or still-recovering quorum Leader must apply serving-node authoritative metadata through the bounded native installation path before using live HW. Local HW=LEO, including 0=0, cannot prove a stale/empty replica has the quorum tail. Recovery or authority failures return item errors, never successful partial history; a write fence alone does not block recovered reads. A zero committed watermark returns an empty page before storage, whose MaxSeq=0 otherwise means an unbounded range. This changes no durable schema or quorum commit rule.
 - A valid non-tombstoned membership is sufficient for ordinary conversation construction and message pull; do not recheck the subscriber set. Pull clamps to join, delete, and retention floors and rejects terminally disbanded channels.
 - `message.PageReader` owns latest-page intent, membership-floor interaction, sequence bounds, bounded lookahead, command filtering, ascending page order, and `HasMore` for ordinary sync and plugin reads. Ordinary preparation supplies an unchanged start sequence plus `MinSeq`; the cluster adapter only translates resolved scans. Legacy conversations retain their final newest-first projection, and plugins retain their separate authorization and ordered single-read error behavior.
 - Conversation hydration and message pull that need the newest records must use storage-native reverse iteration and enforce `Limit` / `MaxBytes` while scanning. Reversing an unbounded forward materialization makes memory and decode work proportional to the complete Channel history even when the response contains one record.
+- Message storage leases may reuse immutable encoded keys only for the same key/Channel identity through the existing 32,768-entry warm cache, with a separate 16 MiB bound on retained key backing arrays. Mutable entries and closed leases never revive. Message sync detaches base/stream bytes from readers before the app's legacy-conversation adapter transfers them; the conversation usecase retains its defensive response copy. This caches no conversation response and changes no authority, visibility or read-error rule.
 - `read_seq` is a monotonic badge floor changed only by clear/set-unread. Badge calculation also uses the current user's latest committed ordinary sender sequence; it is not a message-read receipt or client message cursor.
 - Hiding advances `deleted_to_seq` and clears `activated_at` without removing membership. A newer message may make the conversation visible again. True remove/rejoin resets visibility from the newly captured tail.
 - Persistent person SEND admits the source/channel-owned projection task atomically with ordinary Channel runtime creation. It does not execute a separate directory-admission proposal and never puts the two UID-owned membership proposals in the foreground path. The projector derives both membership rows from the durable task, writes their UID hash slots concurrently within its process-wide worker bound, and only then atomically removes the task and marks the source projection ready. Projection attempts have bounded deadlines and retry durably; scans preserve fair progress across the 256 physical hash slots.
@@ -1341,6 +1374,9 @@ Recovery barriers compare the complete `(ChannelEpoch, LeaderTerm, FenceVersion)
   binaries; rollback requires the complete prior generation, not old writers
   over a marked database. Legacy unread pulls retain effective read boundaries;
   sequence minus unread count is invalid after an interior recovery barrier.
+  Range counts share one bounded index iterator under append ownership, including
+  the retained-prefix baseline; an empty index proves the range ordinary without
+  a second seek. No cross-request unread cache or runtime activation is added.
 
 - Public v2 migration documentation must describe reusable WuKongIM procedures with a supported reader baseline and explicit release capability requirements. Deployment-specific business applications, credentials, binary inventories, and per-record recovery decisions belong in private operator records; example plans must not depend on unpublished optional-field behavior.
 
@@ -1379,3 +1415,18 @@ Duplicate-chain resolution reuses only same-pass, randomly namespaced disk proof
   product gateway logs at INFO at most once per ten seconds across listeners,
   with a cumulative `rejected_total` since handler creation. Sampling uses fixed
   state, never peer/path maps. Genuine listener failures remain unsampled ERROR.
+
+- Persisted conversation heads and recents share 16 serving-node batch slots,
+  with immediate refusal and no waiting queue. The `conversation_persisted_*`
+  metric families distinguish heads/recents admission, in-flight batches, sampled
+  shared occupancy and hold time. They exclude route/RPC time before admission;
+  byte-budget failure is a separate completion result. Occupancy is a concurrent
+  sample, while the rejected admission counter is the authoritative decision.
+
+- Conversation peak-read optimization: a reverse single-record request with a
+  finite exact sequence uses a durable primary-row point read. Only absence
+  falls back to the existing bounded predecessor scan; corruption/I/O failures
+  are returned, and unresolved/maximum bounds retain range iteration. First-record byte
+  semantics, retention, selected frontier, ownership and the shared 16-batch
+  admission bound are unchanged. Validate with the opt-in 180-second peak
+  confirmation and the separate unchanged 12-case release gate.

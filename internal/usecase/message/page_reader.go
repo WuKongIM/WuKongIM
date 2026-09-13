@@ -9,15 +9,17 @@ const (
 	messagePageScanChunk   = 1024
 	messagePageScanWaves   = 64
 	messagePageScanTimeout = 5 * time.Second
+	persistedPageScanBytes = 1 << 20
+	persistedPageReadBytes = 8 << 20
 )
 
-// CommittedMessageQuery describes one bounded scan after page semantics have
+// MessageScanQuery describes one bounded scan after page semantics have
 // been resolved. The adapter must preserve these bounds and scan ordering.
-type CommittedMessageQuery struct {
+type MessageScanQuery struct {
 	// MessageID and ClientMsgNo select one exact identity index, not a range.
 	MessageID   uint64
 	ClientMsgNo string
-	// ChannelID identifies the canonical Channel whose committed log is read.
+	// ChannelID identifies the canonical Channel whose log is read.
 	ChannelID ChannelID
 	// FromSeq is the inclusive scan starting sequence.
 	FromSeq uint64
@@ -31,11 +33,13 @@ type CommittedMessageQuery struct {
 	Reverse bool
 }
 
-// CommittedMessageResult owns one scan's messages and payload bytes. The page
+// MessageScanResult owns one scan's messages and payload bytes. The page
 // reader may filter and reorder Messages; adapters must not retain mutable aliases.
 // Flags.SyncOnce is preserved until page construction excludes command records.
-type CommittedMessageResult struct {
+type MessageScanResult struct {
 	Messages []SyncedMessage
+	// HasMore means a byte-limited scan may continue even below the record limit.
+	HasMore bool
 	// Err is scoped to this scan and preserves its underlying cause.
 	Err error
 }
@@ -43,20 +47,39 @@ type CommittedMessageResult struct {
 // CommittedMessageReader reads committed records in request-aligned batches.
 // It enforces cluster authority and retention without interpreting page intent.
 type CommittedMessageReader interface {
-	ReadCommittedMessages(context.Context, []CommittedMessageQuery) ([]CommittedMessageResult, error)
+	ReadCommittedMessages(context.Context, []MessageScanQuery) ([]MessageScanResult, error)
 }
 
 // PageReader owns compatible message-page semantics for ordinary sync and
 // plugin reads. Authorization and response-specific enrichment belong to callers.
 // It is stateless and retains no requests or messages between calls.
 type PageReader struct {
-	// committed executes bounded scans and transfers ownership of their results.
-	committed CommittedMessageReader
+	// scan executes bounded scans under the constructor-selected consistency contract.
+	scan func(context.Context, []MessageScanQuery) ([]MessageScanResult, error)
+	// maxScanBytes caps persisted conversation scan payloads; zero preserves history reads.
+	maxScanBytes int
 }
 
 // NewPageReader constructs page reads over an injected committed-record adapter.
 func NewPageReader(committed CommittedMessageReader) *PageReader {
-	return &PageReader{committed: committed}
+	if committed == nil {
+		return &PageReader{}
+	}
+	return &PageReader{scan: committed.ReadCommittedMessages}
+}
+
+// PersistedMessageReader reads current-Leader disk records without quorum recovery.
+// This port is only used for conversation previews, never history or exact lookup.
+type PersistedMessageReader interface {
+	ReadPersistedMessages(context.Context, []MessageScanQuery) ([]MessageScanResult, error)
+}
+
+// NewPersistedPageReader reuses page policy with explicit persisted scan semantics.
+func NewPersistedPageReader(reader PersistedMessageReader) *PageReader {
+	if reader == nil {
+		return &PageReader{}
+	}
+	return &PageReader{scan: reader.ReadPersistedMessages, maxScanBytes: persistedPageScanBytes}
 }
 
 var _ ChannelMessageReader = (*PageReader)(nil)
@@ -77,7 +100,7 @@ func (r *PageReader) SyncMessages(ctx context.Context, query ChannelMessageQuery
 // SyncMessagesBatch fills visible pages in bounded aligned read waves. Hidden
 // records advance the raw cursor but never consume the caller's visible limit.
 func (r *PageReader) SyncMessagesBatch(ctx context.Context, queries []ChannelMessageQuery) ([]ChannelMessageReadResult, error) {
-	if r == nil || r.committed == nil {
+	if r == nil || r.scan == nil {
 		return nil, ErrMessageReaderRequired
 	}
 	ctx, cancel := context.WithTimeout(ctx, messagePageScanTimeout)
@@ -87,18 +110,22 @@ func (r *PageReader) SyncMessagesBatch(ctx context.Context, queries []ChannelMes
 	pending := make([]int, len(queries))
 	for i, q := range queries {
 		states[i].plan = planMessagePage(q)
+		if r.maxScanBytes > 0 {
+			states[i].plan.scan.MaxBytes = r.maxScanBytes
+		}
 		states[i].next = states[i].plan.scan
 		pending[i] = i
 	}
+	readBytes := 0
 	for wave := 0; len(pending) > 0 && wave < messagePageScanWaves; wave++ {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		reads := make([]CommittedMessageQuery, len(pending))
+		reads := make([]MessageScanQuery, len(pending))
 		for i, index := range pending {
 			reads[i] = states[index].next
 		}
-		got, err := r.committed.ReadCommittedMessages(ctx, reads)
+		got, err := r.scan(ctx, reads)
 		if err != nil {
 			return nil, err
 		}
@@ -108,12 +135,20 @@ func (r *PageReader) SyncMessagesBatch(ctx context.Context, queries []ChannelMes
 		remaining := pending[:0]
 		for i, index := range pending {
 			state := &states[index]
+			if r.maxScanBytes > 0 {
+				for _, msg := range got[i].Messages {
+					readBytes += len(msg.Payload)
+					if readBytes > persistedPageReadBytes {
+						return nil, ErrSyncPageScanBudget
+					}
+				}
+			}
 			if got[i].Err != nil {
 				results[index].Err = got[i].Err
 				state.kept = nil
 				continue
 			}
-			done, err := state.consume(got[i].Messages)
+			done, err := state.consume(got[i].Messages, got[i].HasMore)
 			if err != nil {
 				results[index].Err = err
 				state.kept = nil
@@ -138,11 +173,11 @@ func (r *PageReader) SyncMessagesBatch(ctx context.Context, queries []ChannelMes
 // Every continuation stays inside the original visibility and sequence bounds.
 type messagePageScan struct {
 	plan messagePagePlan
-	next CommittedMessageQuery
+	next MessageScanQuery
 	kept []SyncedMessage
 }
 
-func (s *messagePageScan) consume(rows []SyncedMessage) (bool, error) {
+func (s *messagePageScan) consume(rows []SyncedMessage, more bool) (bool, error) {
 	q := s.next
 	if len(rows) > q.Limit {
 		return false, ErrSyncPageScanInvalid
@@ -169,7 +204,7 @@ func (s *messagePageScan) consume(rows []SyncedMessage) (bool, error) {
 			return true, nil
 		}
 	}
-	if len(rows) < q.Limit {
+	if len(rows) < q.Limit && !more {
 		return true, nil
 	}
 	last := rows[len(rows)-1].MessageSeq
@@ -194,7 +229,7 @@ func (s *messagePageScan) consume(rows []SyncedMessage) (bool, error) {
 // messagePagePlan keeps scan selection and response construction together so
 // applying a visibility floor cannot change the meaning of a latest-page request.
 type messagePagePlan struct {
-	scan  CommittedMessageQuery
+	scan  MessageScanQuery
 	limit int
 	// Exclusive end bounds retain filtering after the bounded storage read.
 	excludeThroughSeq uint64
@@ -212,7 +247,7 @@ func planMessagePage(query ChannelMessageQuery) messagePagePlan {
 		limit = maxSyncMessagesLimit
 	}
 	latest := query.StartSeq == 0 && query.EndSeq == 0
-	plan := messagePagePlan{limit: limit, scan: CommittedMessageQuery{
+	plan := messagePagePlan{limit: limit, scan: MessageScanQuery{
 		ChannelID: query.ChannelID,
 		FromSeq:   query.StartSeq,
 		MinSeq:    query.MinSeq,

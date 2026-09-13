@@ -8,11 +8,11 @@ import (
 )
 
 func TestLookupUsesMembershipFloorAndRejectsIncorrectIndexEvidence(t *testing.T) {
-	var reads []CommittedMessageQuery
-	reader := scanFunction(func(_ context.Context, q []CommittedMessageQuery) ([]CommittedMessageResult, error) {
+	var reads []MessageScanQuery
+	reader := scanFunction(func(_ context.Context, q []MessageScanQuery) ([]MessageScanResult, error) {
 		reads = append(reads, q...)
 		r := q[0]
-		return []CommittedMessageResult{{Messages: []SyncedMessage{{ChannelID: r.ChannelID.ID, ChannelType: r.ChannelID.Type, MessageID: 11, MessageSeq: 8, ClientMsgNo: "key", Payload: []byte("hello")}}}}, nil
+		return []MessageScanResult{{Messages: []SyncedMessage{{ChannelID: r.ChannelID.ID, ChannelType: r.ChannelID.Type, MessageID: 11, MessageSeq: 8, ClientMsgNo: "key", Payload: []byte("hello")}}}}, nil
 	})
 	memberships := &recordingSyncMembershipStore{ok: true, row: meta.UserChannelMembership{JoinSeq: 3, DeletedToSeq: 7}}
 	a := New(Options{Reader: &recordingChannelMessageReader{}, LookupReader: reader, Memberships: memberships})

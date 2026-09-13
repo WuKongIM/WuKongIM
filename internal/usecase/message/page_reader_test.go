@@ -19,7 +19,7 @@ func TestPageReaderDoesNotInventMoreWithoutVisibleLookahead(t *testing.T) {
 
 func TestPageReaderKeepsBatchAlignmentAndErrorCauses(t *testing.T) {
 	cause := errors.New("unavailable channel")
-	fixture := &pageReadFixture{results: []CommittedMessageResult{{Messages: []SyncedMessage{{MessageSeq: 7}}}, {Err: cause}}}
+	fixture := &pageReadFixture{results: []MessageScanResult{{Messages: []SyncedMessage{{MessageSeq: 7}}}, {Err: cause}}}
 	reader := NewPageReader(fixture)
 	queries := []ChannelMessageQuery{{Limit: 1}, {Limit: 1}}
 	results, err := reader.SyncMessagesBatch(context.Background(), queries)
@@ -56,13 +56,13 @@ func TestPageReaderRequiresCommittedReader(t *testing.T) {
 }
 
 type pageReadFixture struct {
-	results []CommittedMessageResult
-	queries []CommittedMessageQuery
+	results []MessageScanResult
+	queries []MessageScanQuery
 	err     error
 	calls   int
 }
 
-func (f *pageReadFixture) ReadCommittedMessages(_ context.Context, queries []CommittedMessageQuery) ([]CommittedMessageResult, error) {
+func (f *pageReadFixture) ReadCommittedMessages(_ context.Context, queries []MessageScanQuery) ([]MessageScanResult, error) {
 	f.calls++
 	f.queries = queries
 	return f.results, f.err

@@ -20,7 +20,7 @@ type channelEntry struct {
 	id ChannelID
 
 	// appendKeyCache contains immutable encoded key prefixes for this channel.
-	appendKeyCache appendKeyCache
+	appendKeyCache *appendKeyCache
 	// appendMu serializes append frontier mutations for the canonical channel.
 	appendMu sync.Mutex
 	// idempotencyMembership is a bounded negative filter guarded by appendMu.

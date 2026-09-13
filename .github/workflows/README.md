@@ -41,6 +41,7 @@ authorization and the applicable budget.
 | `cloud-sim-oidc-subject.yml` | `Agent Tool - Configure Cloud Simulation OIDC Subject` | Configures and verifies the cloud OIDC subject |
 | `cloud-sim-cleanup.yml` | `Safety Automation - Reconcile Cloud Simulation Resources` | Destroys expired cloud leases and supports exact cleanup |
 | `cloud-sim-monitor.yml` | `Safety Automation - Patrol Cloud Simulation Runs` | Patrols retained live runs and records bounded health evidence |
+| `conversation-qps-gate.yml` | `Safety Automation - Conversation QPS Release Gate` | Credential-free fixed HTTP load matrix; required by both publishers before release writes |
 | `docker-image-publish.yml` | `Safety Automation - Publish Docker Images` | Builds one immutable multi-platform GHCR image, mirrors its digest to Docker Hub and Alibaba Cloud, then advances eligible stable aliases |
 | `docs-pages.yml` | `Safety Automation - Publish Documentation to GitHub Pages` | Verifies and deploys the exact documentation artifact, then optionally refreshes the pre-provisioned Alibaba Cloud CDN |
 | `docs-cdn-certificate.yml` | `Safety Automation - Renew Documentation CDN Certificate` | While explicitly enabled, renews and deploys the public CDN certificate through ACME DNS-01 and Alibaba Cloud OIDC |
@@ -230,6 +231,55 @@ Both repositories enforce immutable Releases, and the custom-domain DNS and
 certificate are provisioned. Exact unsigned source package assets still come
 only from the tag-bound binary Release described below; this credential-free
 source workflow never receives production signing or package-publisher access.
+
+## Conversation QPS release gate
+
+Both Docker and binary publication require `conversation-qps-gate.yml` to pass
+for the requested immutable tag. This reusable Workflow has read-only access,
+no protected Environment or inherited secrets, and a 24-minute job deadline.
+It runs on `ubuntu-24.04`, builds the tagged server, and tests real single-node
+and three-node clusters with 256 hash slots and `GOMAXPROCS=2` per node. The
+publisher compares its checkout SHA with the gate output before proceeding;
+a changed tag cannot reuse evidence for another commit.
+
+The fixed workload and acceptance thresholds live in
+[`profile.json`](../../test/e2e/message/conversation_qps/profile.json).
+Each endpoint runs pages of 25, 100 and 200 conversations against 600 persisted
+groups, 24 readers and three messages per channel. The existing authenticated
+benchmark eviction endpoint safely unloads only these generated channels on
+every node before reading, respecting busy-runtime guards. The fixture verifies
+zero active runtimes across all roles, then runs explicit cache warmup. Warmup
+and measurement must add zero loads and leave all residency at zero. This is
+cold-runtime storage access with warm disk caches, without process-recovery
+traffic mixed into the read workload. Each measured phase has 15 seconds of scheduled arrivals and eight
+bounded workers. The arrival queue is bounded by the number of requests
+offered within the P99 budget (at least the worker count); scheduler/queue delay
+counts toward P99. Reports bind both actual worker and queue limits. Every response must contain complete, correct message
+identities; measured requests never retry. Require at least 95% of offered QPS,
+P99 at most 500 ms, zero errors/drops, zero Channel loads, and zero membership
+writes. Missing metrics fail. Topology-specific allocated-byte ceilings per
+completed request additionally catch allocation regressions below saturation.
+CPU, heap and allocation totals accompany the results. These fixed regression floors are not peak-capacity claims or a
+100,000-member group throughput qualification.
+
+The three-node matrix also runs list 200 QPS and sync 60 QPS simultaneously
+for 60 seconds, with eight workers per endpoint. Six additional 15-second sync
+windows at 20 QPS and eight workers verify 50% hidden, 90% hidden, and the
+99-visible/100-hidden/one-visible layout, each on page 1 (size 100) and page 2
+(size 50). Exact ordered response IDs and recent messages are checked. Shared
+CPU/allocations belong to the window, never to both mixed endpoint results.
+The `stress_gate` profile pins window allocation ceilings. The v2 receipt filter
+in `scripts/validate-conversation-qps-report.jq` requires all seven windows,
+both simultaneous endpoints, exact settings and the same zero-error, 500-ms P99
+rules. The separate ten-minute 600/200-QPS diagnosis cannot qualify publication.
+
+Missing/skipped tests, partial matrices, dirty source, identity mismatches and
+failed performance limits block publication. The exact source/profile/binary
+hashes, all 12 base results and seven stress windows are retained with the log for 90 days, even on failure.
+There is no threshold override or bypass input. Diagnose a failing runner from
+its evidence; do not lower floors automatically or rerun until green. A tag
+that lacks this test cannot use the new gate and needs a new source release.
+The separate signed APT/RPM publication and public client checks remain required.
 
 ## Docker image publishing
 

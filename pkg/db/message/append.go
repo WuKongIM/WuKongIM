@@ -40,14 +40,14 @@ func (l *ChannelLog) Append(ctx context.Context, records []Record, opts AppendOp
 
 func (l *ChannelLog) prepareAndStageAppendLocked(ctx context.Context, batch *engine.Batch, records []Record, opts AppendOptions) (AppendResult, error) {
 	stager := nonBusinessStager{entry: l.channelEntry, batch: batch, ctx: ctx}
-	return l.walkAppendRowsLocked(ctx, records, opts, func(row messageRow, cache appendKeyCache) error {
+	return l.walkAppendRowsLocked(ctx, records, opts, func(row messageRow, cache *appendKeyCache) error {
 		return stager.stage(row, cache)
 	})
 }
 
 func (l *ChannelLog) prepareAppendRowsLocked(ctx context.Context, records []Record, opts AppendOptions) ([]messageRow, AppendResult, error) {
 	var rows []messageRow
-	result, err := l.walkAppendRowsLocked(ctx, records, opts, func(row messageRow, _ appendKeyCache) error {
+	result, err := l.walkAppendRowsLocked(ctx, records, opts, func(row messageRow, _ *appendKeyCache) error {
 		if rows == nil {
 			rows = make([]messageRow, 0, len(records))
 		}
@@ -60,7 +60,7 @@ func (l *ChannelLog) prepareAppendRowsLocked(ctx context.Context, records []Reco
 	return rows, result, nil
 }
 
-func (l *ChannelLog) walkAppendRowsLocked(ctx context.Context, records []Record, opts AppendOptions, onRow func(messageRow, appendKeyCache) error) (AppendResult, error) {
+func (l *ChannelLog) walkAppendRowsLocked(ctx context.Context, records []Record, opts AppendOptions, onRow func(messageRow, *appendKeyCache) error) (AppendResult, error) {
 	if opts.Mode != AppendStrict && opts.Mode != AppendServerAllocatedMessageID && opts.Mode != AppendTrustedContiguous {
 		return AppendResult{}, dberrors.ErrInvalidArgument
 	}
@@ -127,7 +127,7 @@ func (l *channelEntry) stageMessageRows(ctx context.Context, batch *engine.Batch
 	return nil
 }
 
-func (l *channelEntry) stageMessageRow(batch *engine.Batch, row messageRow, cache appendKeyCache) error {
+func (l *channelEntry) stageMessageRow(batch *engine.Batch, row messageRow, cache *appendKeyCache) error {
 	if err := l.stageMessageHeaderRow(batch, row, cache); err != nil {
 		return err
 	}
@@ -158,14 +158,14 @@ func (l *channelEntry) stageGlobalMessageIDIndexRow(batch *engine.Batch, row mes
 	return batch.Set(encodeGlobalMessageIDIndexKey(row.MessageID), encodeGlobalMessageIDIndexValue(l.key, row.MessageSeq))
 }
 
-func (l *channelEntry) stageMessageHeaderRow(batch *engine.Batch, row messageRow, cache appendKeyCache) error {
+func (l *channelEntry) stageMessageHeaderRow(batch *engine.Batch, row messageRow, cache *appendKeyCache) error {
 	return batch.SetDeferred(cache.messageRowKeyLen(), encodedMessageHeaderLen(row), func(key, value []byte) error {
 		cache.writeMessageRowKey(key, row.MessageSeq, messageHeaderFamilyID)
 		return encodeMessageHeaderTo(value, key, row)
 	})
 }
 
-func (l *channelEntry) stageClientMsgNoIndexRow(batch *engine.Batch, row messageRow, cache appendKeyCache) error {
+func (l *channelEntry) stageClientMsgNoIndexRow(batch *engine.Batch, row messageRow, cache *appendKeyCache) error {
 	return batch.SetDeferred(cache.clientMsgNoIndexKeyLen(row.ClientMsgNo), messageIDIndexValueLen, func(key, value []byte) error {
 		cache.writeClientMsgNoIndexKey(key, row.ClientMsgNo, row.MessageSeq)
 		writeMessageIDIndexValue(value, row.MessageSeq)
@@ -173,14 +173,14 @@ func (l *channelEntry) stageClientMsgNoIndexRow(batch *engine.Batch, row message
 	})
 }
 
-func (l *channelEntry) stageIdempotencyIndexRow(batch *engine.Batch, row messageRow, cache appendKeyCache) error {
+func (l *channelEntry) stageIdempotencyIndexRow(batch *engine.Batch, row messageRow, cache *appendKeyCache) error {
 	return batch.SetDeferred(cache.idempotencyIndexKeyLen(row.FromUID, row.ClientMsgNo), idempotencyIndexValueLen, func(key, value []byte) error {
 		cache.writeIdempotencyIndexKey(key, row.FromUID, row.ClientMsgNo)
 		return writeIdempotencyIndexValue(value, row)
 	})
 }
 
-func (l *channelEntry) stageSenderSeqIndexRow(batch *engine.Batch, row messageRow, cache appendKeyCache) error {
+func (l *channelEntry) stageSenderSeqIndexRow(batch *engine.Batch, row messageRow, cache *appendKeyCache) error {
 	return batch.SetDeferred(cache.senderSeqIndexKeyLen(row.FromUID), messageIDIndexValueLen, func(key, value []byte) error {
 		cache.writeSenderSeqIndexKey(key, row.FromUID, row.MessageSeq)
 		writeMessageIDIndexValue(value, row.MessageID)
@@ -237,7 +237,7 @@ type appendValidationScratch struct {
 	idempotencyIndexKey []byte
 }
 
-func (l *ChannelLog) validateAppendRow(ctx context.Context, row messageRow, seen *appendValidationSeen, mode AppendMode, cache appendKeyCache, scratch *appendValidationScratch) error {
+func (l *ChannelLog) validateAppendRow(ctx context.Context, row messageRow, seen *appendValidationSeen, mode AppendMode, cache *appendKeyCache, scratch *appendValidationScratch) error {
 	if err := row.validate(); err != nil {
 		return err
 	}

@@ -62,6 +62,8 @@ func TestCompositeChannelObserverPreservesEveryOptionalRuntimeSignal(t *testing.
 	observer.ObserveAppendBatch(2, 128, time.Millisecond)
 	observer.ObserveAppendLatency(ch.CommitModeQuorum, time.Millisecond)
 	observer.ObserveConversationHydrationBatch("ok", 2, 1, 1, time.Millisecond)
+	observer.ObservePersistedReadAdmission("heads", true, 1, 16)
+	observer.ObservePersistedReadCompletion("heads", "ok", 2, time.Millisecond)
 	observer.ObserveAppendWaitStage("quorum", ch.CommitModeQuorum, "ok", time.Millisecond)
 	observer.ObserveAppendWaitCanceled(reactor.AppendWaitCancelSnapshot{})
 	observer.ObserveWorkerResult(worker.TaskStoreAppend, errSentinel, time.Millisecond)
@@ -74,7 +76,7 @@ func TestCompositeChannelObserverPreservesEveryOptionalRuntimeSignal(t *testing.
 		"follower_parked", "follower_probe", "pull", "pull_hint_result",
 		"pull_hint_received", "pending_meta_count", "pending_meta", "need_meta_pull",
 		"replication_stage", "meta_cache", "append_batch", "append_latency",
-		"conversation_hydration", "append_wait", "append_cancel", "worker_result",
+		"conversation_hydration", "persisted_admission", "persisted_completion", "append_wait", "append_cancel", "worker_result",
 	}
 	for index, probe := range []*channelCompositionProbe{first, second} {
 		for _, name := range want {
@@ -663,3 +665,10 @@ var (
 	_ clusterchannels.ConversationHydrationObserver = (*channelCompositionProbe)(nil)
 	_ controller.RaftObserver                       = (*controllerCompositionProbe)(nil)
 )
+
+func (p *channelCompositionProbe) ObservePersistedReadAdmission(string, bool, int, int) {
+	p.record("persisted_admission")
+}
+func (p *channelCompositionProbe) ObservePersistedReadCompletion(string, string, int, time.Duration) {
+	p.record("persisted_completion")
+}

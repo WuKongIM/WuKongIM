@@ -1354,11 +1354,11 @@
       "post": {
         "operationId": "syncConversationsLegacy",
         "summary": "Synchronize legacy Conversations",
-        "description": "Parses delimited per-Channel cursors and returns the old bare array without a completion signal.",
+        "description": "Read persisted heads and recents without Channel activation. Failed SENDs may appear; any read error fails the request. Legacy fields and cursors are preserved.",
         "x-i18n": {
           "zh": {
             "summary": "同步旧式会话",
-            "description": "解析分隔式逐 Channel 游标并返回没有完成标记的旧式裸数组。"
+            "description": "从当前 Leader 已落盘数据读取摘要和最近消息，不激活频道。发送失败的消息也可显示；读取失败则整次失败。保留旧式字段和游标规则。"
           }
         },
         "tags": [
@@ -4233,6 +4233,12 @@
             "type": "integer",
             "default": 100,
             "description": "When page>0, values <=0 become 100 and values above 500 are capped."
+          }
+        },
+        "description": "Legacy v2.2 conversation sync. Retry the original request on failure. List and sync share 16 active requests and a five-second deadline. Sync scans at most 1,000 candidates in batches of 200 Channels; requests exceeding 10,000 recent messages or 32 MiB of base/stream payloads fail without partial data.",
+        "x-i18n": {
+          "zh": {
+            "description": "v2.2 兼容会话同步参数。失败时重试原请求。与 list 共用 16 个并发请求名额，整次请求限时 5 秒。最多扫描 1000 个候选频道，每批 200 个；请求最近消息总数超过 10000 条或基础/流式载荷超过 32 MiB 时整次失败。"
           }
         }
       },

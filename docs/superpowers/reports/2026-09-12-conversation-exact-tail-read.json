@@ -1,0 +1,2190 @@
+{
+  "schema": "wukongim/conversation-exact-tail-read/v1",
+  "identities": {
+    "source_base": "13f9687192c316d3c6fa967c0f8ae593d60005e5",
+    "source_dirty": true,
+    "sole_production_difference": "pkg/db/message/read.go",
+    "container_id": "90ceced0154656c1f05cf787d9f0a6ea2dc9558b4c79669d637d07c097d37d7a",
+    "run_order": [
+      "old-1",
+      "new-1",
+      "new-2",
+      "old-2",
+      "old-3",
+      "new-3"
+    ],
+    "variants": {
+      "old": {
+        "binary_sha256": "9b84da8e90abf13d08d2efb1f991750214c5d209003b54c31d729de8675bdf7e",
+        "read_source_sha256": "22ab9be566764fe2dd26ba627571e04c4871eea8fca6de5cdfbae952638f45f8",
+        "build_metadata": "/tmp/conversation-peak-read/old: go1.25.11\n\tpath\tgithub.com/WuKongIM/WuKongIM/cmd/wukongim\n\tmod\tgithub.com/WuKongIM/WuKongIM\tv1.2.6-0.20260912113812-d6dbbfc057f2+dirty\t\n\tdep\tgithub.com/DataDog/zstd\tv1.5.7\th1:ybO8RBeh29qrxIhCA9E8gKY6xfONU9T6G6aP9DTKfLE=\n\tdep\tgithub.com/RaduBerinde/axisds\tv0.1.0\th1:YItk/RmU5nvlsv/awo2Fjx97Mfpt4JfgtEVAGPrLdz8=\n\tdep\tgithub.com/RaduBerinde/btreemap\tv0.0.0-20250419174037-3d62b7205d54\th1:bsU8Tzxr/PNz75ayvCnxKZWEYdLMPDkUgticP4a4Bvk=\n\tdep\tgithub.com/RussellLuo/timingwheel\tv0.0.0-20220218152713-54845bda3108\th1:iPugyBI7oFtbDZXC4dnY093M1kZx6k/95sen92gafbY=\n\tdep\tgithub.com/WuKongIM/wklog\tv0.0.0-20250123094253-32484fb54d05\th1:z6Zu0VFnXA/+IcNAI/G0QgvIZZlU4aF6pf/fPP780hY=\n\tdep\tgithub.com/WuKongIM/wkrpc\tv0.0.0-20250312122115-5e44de72d2c8\th1:oybJMy0RJ5DGYiE26hT0Ud2uKUUXP50LCEXonhwrgik=\n\tdep\tgithub.com/aliyun/alibabacloud-oss-go-sdk-v2\tv1.5.1\th1:vtiFd0hhPAbyYJjztl0wYUq/PqEGkIlDmVuTIy6zw8Y=\n\tdep\tgithub.com/beorn7/perks\tv1.0.1\th1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=\n\tdep\tgithub.com/bwmarrin/snowflake\tv0.3.0\th1:xm67bEhkKh6ij1790JB83OujPR5CzNe8QuQqAgISZN0=\n\tdep\tgithub.com/cespare/xxhash/v2\tv2.3.0\th1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=\n\tdep\tgithub.com/cockroachdb/crlib\tv0.0.0-20241112164430-1264a2edc35b\th1:SHlYZ/bMx7frnmeqCu+xm0TCxXLzX3jQIVuFbnFGtFU=\n\tdep\tgithub.com/cockroachdb/errors\tv1.11.3\th1:5bA+k2Y6r+oz/6Z/RFlNeVCesGARKuC6YymtcDrbC/I=\n\tdep\tgithub.com/cockroachdb/logtags\tv0.0.0-20230118201751-21c54148d20b\th1:r6VH0faHjZeQy818SGhaone5OnYfxFR/+AzdY3sf5aE=\n\tdep\tgithub.com/cockroachdb/pebble/v2\tv2.1.4\th1:j9wPgMDbkErFdAKYFGhsoCcvzcjR+6zrJ4jhKtJ6bOk=\n\tdep\tgithub.com/cockroachdb/redact\tv1.1.5\th1:u1PMllDkdFfPWaNGMyLD1+so+aq3uUItthCFqzwPJ30=\n\tdep\tgithub.com/cockroachdb/swiss\tv0.0.0-20251224182025-b0f6560f979b\th1:VXvSNzmr8hMj8XTuY0PT9Ane9qZGul/p67vGYwl9BFI=\n\tdep\tgithub.com/cockroachdb/tokenbucket\tv0.0.0-20230807174530-cc333fc44b06\th1:zuQyyAKVxetITBuuhv3BI9cMrmStnpT18zmgmTxunpo=\n\tdep\tgithub.com/dustin/go-humanize\tv1.0.1\th1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=\n\tdep\tgithub.com/fsnotify/fsnotify\tv1.9.0\th1:2Ml+OJNzbYCTzsxtv8vKSFD9PbJjmhYF14k/jKC7S9k=\n\tdep\tgithub.com/gabriel-vasile/mimetype\tv1.4.12\th1:e9hWvmLYvtp846tLHam2o++qitpguFiYCKbn0w9jyqw=\n\tdep\tgithub.com/getsentry/sentry-go\tv0.27.0\th1:Pv98CIbtB3LkMWmXi4Joa5OOcwbmnX88sF5qbK3r3Ps=\n\tdep\tgithub.com/gin-contrib/sse\tv1.1.0\th1:n0w2GMuUpWDVp7qSpvze6fAu9iRxJY4Hmj6AmBOU05w=\n\tdep\tgithub.com/gin-gonic/gin\tv1.12.0\th1:b3YAbrZtnf8N//yjKeU2+MQsh2mY5htkZidOM7O0wG8=\n\tdep\tgithub.com/go-playground/locales\tv0.14.1\th1:EWaQ/wswjilfKLTECiXz7Rh+3BjFhfDFKv/oXslEjJA=\n\tdep\tgithub.com/go-playground/universal-translator\tv0.18.1\th1:Bcnm0ZwsGyWbCzImXv+pAJnYK9S473LQFuzCbDbfSFY=\n\tdep\tgithub.com/go-playground/validator/v10\tv10.30.1\th1:f3zDSN/zOma+w6+1Wswgd9fLkdwy06ntQJp0BBvFG0w=\n\tdep\tgithub.com/goccy/go-yaml\tv1.19.2\th1:PmFC1S6h8ljIz6gMRBopkjP1TVT7xuwrButHID66PoM=\n\tdep\tgithub.com/gogo/protobuf\tv1.3.2\th1:Ov1cvc58UF3b5XjBnZv7+opcTcQFZebYjWzi34vdm4Q=\n\tdep\tgithub.com/golang-jwt/jwt/v5\tv5.3.1\th1:kYf81DTWFe7t+1VvL7eS+jKFVWaUnK9cB1qbwn63YCY=\n\tdep\tgithub.com/golang/protobuf\tv1.5.4\th1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=\n\tdep\tgithub.com/golang/snappy\tv0.0.5-0.20231225225746-43d5d4cd4e0e\th1:4bw4WeyTYPp0smaXiJZCNnLrvVBqirQVreixayXezGc=\n\tdep\tgithub.com/google/jsonschema-go\tv0.4.3\th1:/DBOLZTfDow7pe2GmaJNhltueGTtDKICi8V8p+DQPd0=\n\tdep\tgithub.com/google/pprof\tv0.0.0-20260709232956-b9395ee17fa0\th1:du0WGc8xSKq/++e0cglxhS/mXVqsR7+c7jLEi5Vqduw=\n\tdep\tgithub.com/google/uuid\tv1.6.0\th1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=\n\tdep\tgithub.com/klauspost/compress\tv1.18.6\th1:2jupLlAwFm95+YDR+NwD2MEfFO9d4z4Prjl1XXDjuao=\n\tdep\tgithub.com/klauspost/cpuid/v2\tv2.3.0\th1:S4CRMLnYUhGeDFDqkGriYKdfoFlDnMtqTiI/sFzhA9Y=\n\tdep\tgithub.com/klauspost/crc32\tv1.3.0\th1:sSmTt3gUt81RP655XGZPElI0PelVTZ6YwCRnPSupoFM=\n\tdep\tgithub.com/kr/pretty\tv0.3.1\th1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=\n\tdep\tgithub.com/kr/text\tv0.2.0\th1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=\n\tdep\tgithub.com/leodido/go-urn\tv1.4.0\th1:WT9HwE9SGECu3lg4d/dIA+jxlljEa1/ffXKmRjqdmIQ=\n\tdep\tgithub.com/lni/goutils\tv1.4.0\th1:e1tNN+4zsbTpNvhG5cxirkH9Pdz96QAZ2j6+5tmjvqg=\n\tdep\tgithub.com/mattn/go-isatty\tv0.0.20\th1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=\n\tdep\tgithub.com/matttproud/golang_protobuf_extensions\tv1.0.4\th1:mmDVorXM7PCGKw94cs5zkfA9PSy5pEvNWRP0ET0TIVo=\n\tdep\tgithub.com/minio/crc64nvme\tv1.1.1\th1:8dwx/Pz49suywbO+auHCBpCtlW1OfpcLN7wYgVR6wAI=\n\tdep\tgithub.com/minio/md5-simd\tv1.1.2\th1:Gdi1DZK69+ZVMoNHRXJyNcxrMA4dSxoYHZSQbirFg34=\n\tdep\tgithub.com/minio/minio-go/v7\tv7.2.1\th1:PfBfwvKB/MmqyN8Vb1G9voWisaM9OrLv+WwOvMwS9Dw=\n\tdep\tgithub.com/minio/minlz\tv1.0.1-0.20250507153514-87eb42fe8882\th1:0lgqHvJWHLGW5TuObJrfyEi6+ASTKDBWikGvPqy9Yiw=\n\tdep\tgithub.com/modelcontextprotocol/go-sdk\tv1.6.1\th1:0zOSupjKUxPKSocPT1Wtago+mUHU2/uZ4xSOY0FGReU=\n\tdep\tgithub.com/panjf2000/ants/v2\tv2.11.3\th1:AfI0ngBoXJmYOpDh9m516vjqoUu2sLrIVgppI9TZVpg=\n\tdep\tgithub.com/panjf2000/gnet/v2\tv2.9.7\th1:6zW7Jl3oAfXwSuh1PxHLndoL2MQRWx0AJR6aaQjxUgA=\n\tdep\tgithub.com/pelletier/go-toml/v2\tv2.3.1\th1:MYEvvGnQjeNkRF1qUuGolNtNExTDwct51yp7olPtrEc=\n\tdep\tgithub.com/philhofer/fwd\tv1.2.0\th1:e6DnBTl7vGY+Gz322/ASL4Gyp1FspeMvx1RNDoToZuM=\n\tdep\tgithub.com/pkg/errors\tv0.9.1\th1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=\n\tdep\tgithub.com/prometheus/client_golang\tv1.16.0\th1:yk/hx9hDbrGHovbci4BY+pRMfSuuat626eFsHb7tmT8=\n\tdep\tgithub.com/prometheus/client_model\tv0.3.0\th1:UBgGFHqYdG/TPFD1B1ogZywDqEkwp3fBMvqdiQ7Xew4=\n\tdep\tgithub.com/prometheus/common\tv0.42.0\th1:EKsfXEYo4JpWMHH5cg+KOUWeuJSov1Id8zGR8eeI1YM=\n\tdep\tgithub.com/prometheus/procfs\tv0.10.1\th1:kYK1Va/YMlutzCGazswoHKo//tZVlFpKYh+PymziUAg=\n\tdep\tgithub.com/quic-go/qpack\tv0.6.0\th1:g7W+BMYynC1LbYLSqRt8PBg5Tgwxn214ZZR34VIOjz8=\n\tdep\tgithub.com/quic-go/quic-go\tv0.59.0\th1:OLJkp1Mlm/aS7dpKgTc6cnpynnD2Xg7C1pwL6vy/SAw=\n\tdep\tgithub.com/robfig/cron/v3\tv3.0.1\th1:WdRxkvbJztn8LMz/QEvLN5sBU+xKpSqwwUO1Pjr4qDs=\n\tdep\tgithub.com/rogpeppe/go-internal\tv1.14.1\th1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=\n\tdep\tgithub.com/rs/xid\tv1.6.0\th1:fV591PaemRlL6JfRxGDEPl69wICngIQ3shQtzfy2gxU=\n\tdep\tgithub.com/segmentio/asm\tv1.1.3\th1:WM03sfUOENvvKexOLp+pCqgb/WDjsi7EK8gIsICtzhc=\n\tdep\tgithub.com/segmentio/encoding\tv0.5.4\th1:OW1VRern8Nw6ITAtwSZ7Idrl3MXCFwXHPgqESYfvNt0=\n\tdep\tgithub.com/shirou/gopsutil/v4\tv4.26.5\th1:RPcBXkpz7kOj9PqGFQOlBPZHsyaPvPVQc098y9RmCNM=\n\tdep\tgithub.com/tinylib/msgp\tv1.6.1\th1:ESRv8eL3u+DNHUoSAAQRE50Hm162zqAnBoGv9PzScPY=\n\tdep\tgithub.com/tklauser/go-sysconf\tv0.3.16\th1:frioLaCQSsF5Cy1jgRBrzr6t502KIIwQ0MArYICU0nA=\n\tdep\tgithub.com/tklauser/numcpus\tv0.11.0\th1:nSTwhKH5e1dMNsCdVBukSZrURJRoHbSEQjdEbY+9RXw=\n\tdep\tgithub.com/ugorji/go/codec\tv1.3.1\th1:waO7eEiFDwidsBN6agj1vJQ4AG7lh2yqXyOXqhgQuyY=\n\tdep\tgithub.com/valyala/bytebufferpool\tv1.0.0\th1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6KllzawFIhcdPw=\n\tdep\tgithub.com/yosida95/uritemplate/v3\tv3.0.2\th1:Ed3Oyj9yrmi9087+NczuL5BwkIc4wvTb5zIM+UJPGz4=\n\tdep\tgithub.com/yuin/goldmark\tv1.8.2\th1:kEGpgqJXdgbkhcOgBxkC0X0PmoPG1ZyoZ117rDVp4zE=\n\tdep\tgithub.com/zeebo/xxh3\tv1.1.0\th1:s7DLGDK45Dyfg7++yxI0khrfwq9661w9EN78eP/UZVs=\n\tdep\tgo.etcd.io/etcd/pkg/v3\tv3.5.17\th1:1k2wZ+oDp41jrk3F9o15o8o7K3/qliBo0mXqxo1PKaE=\n\tdep\tgo.etcd.io/raft/v3\tv3.6.0\th1:5NtvbDVYpnfZWcIHgGRk9DyzkBIXOi8j+DDp1IcnUWQ=\n\tdep\tgo.mongodb.org/mongo-driver/v2\tv2.5.0\th1:yXUhImUjjAInNcpTcAlPHiT7bIXhshCTL3jVBkF3xaE=\n\tdep\tgo.uber.org/atomic\tv1.11.0\th1:ZvwS0R+56ePWxUNi+Atn9dWONBPp/AUETXlHW0DxSjE=\n\tdep\tgo.uber.org/multierr\tv1.11.0\th1:blXXJkSxSSfBVBlC76pxqeO+LN3aDfLQo+309xJstO0=\n\tdep\tgo.uber.org/zap\tv1.27.0\th1:aJMhYGrd5QSmlpLMr2MftRKl7t8J8PTZPA732ud/XR8=\n\tdep\tgo.yaml.in/yaml/v3\tv3.0.4\th1:tfq32ie2Jv2UxXFdLJdh3jXuOzWiL1fo0bu/FbuKpbc=\n\tdep\tgolang.org/x/crypto\tv0.55.0\th1:+KWHjbgOaAQ66dh/YlkZKHlz9ZUlq61AFirAR9ntP8M=\n\tdep\tgolang.org/x/exp\tv0.0.0-20230626212559-97b1e661b5df\th1:UA2aFVmmsIlefxMk29Dp2juaUSth8Pyn3Tq5Y5mJGME=\n\tdep\tgolang.org/x/net\tv0.58.0\th1:ynWG7rqYi4ccpTEuPZ2QGWHktVEM9DMCj9yzDE0Q7To=\n\tdep\tgolang.org/x/oauth2\tv0.35.0\th1:Mv2mzuHuZuY2+bkyWXIHMfhNdJAdwW3FuWeCPYN5GVQ=\n\tdep\tgolang.org/x/sync\tv0.22.0\th1:SZjpbeLmrCk4xhRSZFNZW5gFUeCeFgjekvI/+gfScek=\n\tdep\tgolang.org/x/sys\tv0.47.0\th1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs=\n\tdep\tgolang.org/x/text\tv0.41.0\th1:vz/seA0lnX87Othu2f/0L24RcgrXD9/YFTSuGjj3rH8=\n\tdep\tgolang.org/x/time\tv0.4.0\th1:Z81tqI5ddIoXDPvVQ7/7CC9TnLM7ubaFG2qXYd5BbYY=\n\tdep\tgoogle.golang.org/protobuf\tv1.36.10\th1:AYd7cD/uASjIL6Q9LiTjz8JLcrh/88q5UObnmY3aOOE=\n\tdep\tgopkg.in/ini.v1\tv1.67.2\th1:JtOSMb9OuaCZKr7h5D/h6iii14sK0hLbplTc6frx4Ss=\n\tdep\tgopkg.in/natefinch/lumberjack.v2\tv2.2.1\th1:bBRl1b0OH9s/DuPhuXpNl+VtCaJXFZ5/uEFST95x9zc=\n\tdep\tgopkg.in/yaml.v3\tv3.0.1\th1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=\n\tbuild\t-buildmode=exe\n\tbuild\t-compiler=gc\n\tbuild\tCGO_ENABLED=1\n\tbuild\tCGO_CFLAGS=\n\tbuild\tCGO_CPPFLAGS=\n\tbuild\tCGO_CXXFLAGS=\n\tbuild\tCGO_LDFLAGS=\n\tbuild\tGOARCH=arm64\n\tbuild\tGOOS=linux\n\tbuild\tGOARM64=v8.0\n\tbuild\tvcs=git\n\tbuild\tvcs.revision=d6dbbfc057f2ab6043cda0df2e6cbc1427f2aca6\n\tbuild\tvcs.time=2026-09-12T11:38:12Z\n\tbuild\tvcs.modified=true\n"
+      },
+      "new": {
+        "binary_sha256": "1c544ad696e2267423c212a3b8b45116351db28693a69bda4077d2c943372086",
+        "read_source_sha256": "2995e2b04f206a6965b8038d7a5cf42b11ff2693520ce6ea9651ab91b20cb686",
+        "build_metadata": "/tmp/conversation-peak-read/new: go1.25.11\n\tpath\tgithub.com/WuKongIM/WuKongIM/cmd/wukongim\n\tmod\tgithub.com/WuKongIM/WuKongIM\tv1.2.6-0.20260912113812-d6dbbfc057f2+dirty\t\n\tdep\tgithub.com/DataDog/zstd\tv1.5.7\th1:ybO8RBeh29qrxIhCA9E8gKY6xfONU9T6G6aP9DTKfLE=\n\tdep\tgithub.com/RaduBerinde/axisds\tv0.1.0\th1:YItk/RmU5nvlsv/awo2Fjx97Mfpt4JfgtEVAGPrLdz8=\n\tdep\tgithub.com/RaduBerinde/btreemap\tv0.0.0-20250419174037-3d62b7205d54\th1:bsU8Tzxr/PNz75ayvCnxKZWEYdLMPDkUgticP4a4Bvk=\n\tdep\tgithub.com/RussellLuo/timingwheel\tv0.0.0-20220218152713-54845bda3108\th1:iPugyBI7oFtbDZXC4dnY093M1kZx6k/95sen92gafbY=\n\tdep\tgithub.com/WuKongIM/wklog\tv0.0.0-20250123094253-32484fb54d05\th1:z6Zu0VFnXA/+IcNAI/G0QgvIZZlU4aF6pf/fPP780hY=\n\tdep\tgithub.com/WuKongIM/wkrpc\tv0.0.0-20250312122115-5e44de72d2c8\th1:oybJMy0RJ5DGYiE26hT0Ud2uKUUXP50LCEXonhwrgik=\n\tdep\tgithub.com/aliyun/alibabacloud-oss-go-sdk-v2\tv1.5.1\th1:vtiFd0hhPAbyYJjztl0wYUq/PqEGkIlDmVuTIy6zw8Y=\n\tdep\tgithub.com/beorn7/perks\tv1.0.1\th1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=\n\tdep\tgithub.com/bwmarrin/snowflake\tv0.3.0\th1:xm67bEhkKh6ij1790JB83OujPR5CzNe8QuQqAgISZN0=\n\tdep\tgithub.com/cespare/xxhash/v2\tv2.3.0\th1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=\n\tdep\tgithub.com/cockroachdb/crlib\tv0.0.0-20241112164430-1264a2edc35b\th1:SHlYZ/bMx7frnmeqCu+xm0TCxXLzX3jQIVuFbnFGtFU=\n\tdep\tgithub.com/cockroachdb/errors\tv1.11.3\th1:5bA+k2Y6r+oz/6Z/RFlNeVCesGARKuC6YymtcDrbC/I=\n\tdep\tgithub.com/cockroachdb/logtags\tv0.0.0-20230118201751-21c54148d20b\th1:r6VH0faHjZeQy818SGhaone5OnYfxFR/+AzdY3sf5aE=\n\tdep\tgithub.com/cockroachdb/pebble/v2\tv2.1.4\th1:j9wPgMDbkErFdAKYFGhsoCcvzcjR+6zrJ4jhKtJ6bOk=\n\tdep\tgithub.com/cockroachdb/redact\tv1.1.5\th1:u1PMllDkdFfPWaNGMyLD1+so+aq3uUItthCFqzwPJ30=\n\tdep\tgithub.com/cockroachdb/swiss\tv0.0.0-20251224182025-b0f6560f979b\th1:VXvSNzmr8hMj8XTuY0PT9Ane9qZGul/p67vGYwl9BFI=\n\tdep\tgithub.com/cockroachdb/tokenbucket\tv0.0.0-20230807174530-cc333fc44b06\th1:zuQyyAKVxetITBuuhv3BI9cMrmStnpT18zmgmTxunpo=\n\tdep\tgithub.com/dustin/go-humanize\tv1.0.1\th1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=\n\tdep\tgithub.com/fsnotify/fsnotify\tv1.9.0\th1:2Ml+OJNzbYCTzsxtv8vKSFD9PbJjmhYF14k/jKC7S9k=\n\tdep\tgithub.com/gabriel-vasile/mimetype\tv1.4.12\th1:e9hWvmLYvtp846tLHam2o++qitpguFiYCKbn0w9jyqw=\n\tdep\tgithub.com/getsentry/sentry-go\tv0.27.0\th1:Pv98CIbtB3LkMWmXi4Joa5OOcwbmnX88sF5qbK3r3Ps=\n\tdep\tgithub.com/gin-contrib/sse\tv1.1.0\th1:n0w2GMuUpWDVp7qSpvze6fAu9iRxJY4Hmj6AmBOU05w=\n\tdep\tgithub.com/gin-gonic/gin\tv1.12.0\th1:b3YAbrZtnf8N//yjKeU2+MQsh2mY5htkZidOM7O0wG8=\n\tdep\tgithub.com/go-playground/locales\tv0.14.1\th1:EWaQ/wswjilfKLTECiXz7Rh+3BjFhfDFKv/oXslEjJA=\n\tdep\tgithub.com/go-playground/universal-translator\tv0.18.1\th1:Bcnm0ZwsGyWbCzImXv+pAJnYK9S473LQFuzCbDbfSFY=\n\tdep\tgithub.com/go-playground/validator/v10\tv10.30.1\th1:f3zDSN/zOma+w6+1Wswgd9fLkdwy06ntQJp0BBvFG0w=\n\tdep\tgithub.com/goccy/go-yaml\tv1.19.2\th1:PmFC1S6h8ljIz6gMRBopkjP1TVT7xuwrButHID66PoM=\n\tdep\tgithub.com/gogo/protobuf\tv1.3.2\th1:Ov1cvc58UF3b5XjBnZv7+opcTcQFZebYjWzi34vdm4Q=\n\tdep\tgithub.com/golang-jwt/jwt/v5\tv5.3.1\th1:kYf81DTWFe7t+1VvL7eS+jKFVWaUnK9cB1qbwn63YCY=\n\tdep\tgithub.com/golang/protobuf\tv1.5.4\th1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=\n\tdep\tgithub.com/golang/snappy\tv0.0.5-0.20231225225746-43d5d4cd4e0e\th1:4bw4WeyTYPp0smaXiJZCNnLrvVBqirQVreixayXezGc=\n\tdep\tgithub.com/google/jsonschema-go\tv0.4.3\th1:/DBOLZTfDow7pe2GmaJNhltueGTtDKICi8V8p+DQPd0=\n\tdep\tgithub.com/google/pprof\tv0.0.0-20260709232956-b9395ee17fa0\th1:du0WGc8xSKq/++e0cglxhS/mXVqsR7+c7jLEi5Vqduw=\n\tdep\tgithub.com/google/uuid\tv1.6.0\th1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=\n\tdep\tgithub.com/klauspost/compress\tv1.18.6\th1:2jupLlAwFm95+YDR+NwD2MEfFO9d4z4Prjl1XXDjuao=\n\tdep\tgithub.com/klauspost/cpuid/v2\tv2.3.0\th1:S4CRMLnYUhGeDFDqkGriYKdfoFlDnMtqTiI/sFzhA9Y=\n\tdep\tgithub.com/klauspost/crc32\tv1.3.0\th1:sSmTt3gUt81RP655XGZPElI0PelVTZ6YwCRnPSupoFM=\n\tdep\tgithub.com/kr/pretty\tv0.3.1\th1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=\n\tdep\tgithub.com/kr/text\tv0.2.0\th1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=\n\tdep\tgithub.com/leodido/go-urn\tv1.4.0\th1:WT9HwE9SGECu3lg4d/dIA+jxlljEa1/ffXKmRjqdmIQ=\n\tdep\tgithub.com/lni/goutils\tv1.4.0\th1:e1tNN+4zsbTpNvhG5cxirkH9Pdz96QAZ2j6+5tmjvqg=\n\tdep\tgithub.com/mattn/go-isatty\tv0.0.20\th1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=\n\tdep\tgithub.com/matttproud/golang_protobuf_extensions\tv1.0.4\th1:mmDVorXM7PCGKw94cs5zkfA9PSy5pEvNWRP0ET0TIVo=\n\tdep\tgithub.com/minio/crc64nvme\tv1.1.1\th1:8dwx/Pz49suywbO+auHCBpCtlW1OfpcLN7wYgVR6wAI=\n\tdep\tgithub.com/minio/md5-simd\tv1.1.2\th1:Gdi1DZK69+ZVMoNHRXJyNcxrMA4dSxoYHZSQbirFg34=\n\tdep\tgithub.com/minio/minio-go/v7\tv7.2.1\th1:PfBfwvKB/MmqyN8Vb1G9voWisaM9OrLv+WwOvMwS9Dw=\n\tdep\tgithub.com/minio/minlz\tv1.0.1-0.20250507153514-87eb42fe8882\th1:0lgqHvJWHLGW5TuObJrfyEi6+ASTKDBWikGvPqy9Yiw=\n\tdep\tgithub.com/modelcontextprotocol/go-sdk\tv1.6.1\th1:0zOSupjKUxPKSocPT1Wtago+mUHU2/uZ4xSOY0FGReU=\n\tdep\tgithub.com/panjf2000/ants/v2\tv2.11.3\th1:AfI0ngBoXJmYOpDh9m516vjqoUu2sLrIVgppI9TZVpg=\n\tdep\tgithub.com/panjf2000/gnet/v2\tv2.9.7\th1:6zW7Jl3oAfXwSuh1PxHLndoL2MQRWx0AJR6aaQjxUgA=\n\tdep\tgithub.com/pelletier/go-toml/v2\tv2.3.1\th1:MYEvvGnQjeNkRF1qUuGolNtNExTDwct51yp7olPtrEc=\n\tdep\tgithub.com/philhofer/fwd\tv1.2.0\th1:e6DnBTl7vGY+Gz322/ASL4Gyp1FspeMvx1RNDoToZuM=\n\tdep\tgithub.com/pkg/errors\tv0.9.1\th1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=\n\tdep\tgithub.com/prometheus/client_golang\tv1.16.0\th1:yk/hx9hDbrGHovbci4BY+pRMfSuuat626eFsHb7tmT8=\n\tdep\tgithub.com/prometheus/client_model\tv0.3.0\th1:UBgGFHqYdG/TPFD1B1ogZywDqEkwp3fBMvqdiQ7Xew4=\n\tdep\tgithub.com/prometheus/common\tv0.42.0\th1:EKsfXEYo4JpWMHH5cg+KOUWeuJSov1Id8zGR8eeI1YM=\n\tdep\tgithub.com/prometheus/procfs\tv0.10.1\th1:kYK1Va/YMlutzCGazswoHKo//tZVlFpKYh+PymziUAg=\n\tdep\tgithub.com/quic-go/qpack\tv0.6.0\th1:g7W+BMYynC1LbYLSqRt8PBg5Tgwxn214ZZR34VIOjz8=\n\tdep\tgithub.com/quic-go/quic-go\tv0.59.0\th1:OLJkp1Mlm/aS7dpKgTc6cnpynnD2Xg7C1pwL6vy/SAw=\n\tdep\tgithub.com/robfig/cron/v3\tv3.0.1\th1:WdRxkvbJztn8LMz/QEvLN5sBU+xKpSqwwUO1Pjr4qDs=\n\tdep\tgithub.com/rogpeppe/go-internal\tv1.14.1\th1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=\n\tdep\tgithub.com/rs/xid\tv1.6.0\th1:fV591PaemRlL6JfRxGDEPl69wICngIQ3shQtzfy2gxU=\n\tdep\tgithub.com/segmentio/asm\tv1.1.3\th1:WM03sfUOENvvKexOLp+pCqgb/WDjsi7EK8gIsICtzhc=\n\tdep\tgithub.com/segmentio/encoding\tv0.5.4\th1:OW1VRern8Nw6ITAtwSZ7Idrl3MXCFwXHPgqESYfvNt0=\n\tdep\tgithub.com/shirou/gopsutil/v4\tv4.26.5\th1:RPcBXkpz7kOj9PqGFQOlBPZHsyaPvPVQc098y9RmCNM=\n\tdep\tgithub.com/tinylib/msgp\tv1.6.1\th1:ESRv8eL3u+DNHUoSAAQRE50Hm162zqAnBoGv9PzScPY=\n\tdep\tgithub.com/tklauser/go-sysconf\tv0.3.16\th1:frioLaCQSsF5Cy1jgRBrzr6t502KIIwQ0MArYICU0nA=\n\tdep\tgithub.com/tklauser/numcpus\tv0.11.0\th1:nSTwhKH5e1dMNsCdVBukSZrURJRoHbSEQjdEbY+9RXw=\n\tdep\tgithub.com/ugorji/go/codec\tv1.3.1\th1:waO7eEiFDwidsBN6agj1vJQ4AG7lh2yqXyOXqhgQuyY=\n\tdep\tgithub.com/valyala/bytebufferpool\tv1.0.0\th1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6KllzawFIhcdPw=\n\tdep\tgithub.com/yosida95/uritemplate/v3\tv3.0.2\th1:Ed3Oyj9yrmi9087+NczuL5BwkIc4wvTb5zIM+UJPGz4=\n\tdep\tgithub.com/yuin/goldmark\tv1.8.2\th1:kEGpgqJXdgbkhcOgBxkC0X0PmoPG1ZyoZ117rDVp4zE=\n\tdep\tgithub.com/zeebo/xxh3\tv1.1.0\th1:s7DLGDK45Dyfg7++yxI0khrfwq9661w9EN78eP/UZVs=\n\tdep\tgo.etcd.io/etcd/pkg/v3\tv3.5.17\th1:1k2wZ+oDp41jrk3F9o15o8o7K3/qliBo0mXqxo1PKaE=\n\tdep\tgo.etcd.io/raft/v3\tv3.6.0\th1:5NtvbDVYpnfZWcIHgGRk9DyzkBIXOi8j+DDp1IcnUWQ=\n\tdep\tgo.mongodb.org/mongo-driver/v2\tv2.5.0\th1:yXUhImUjjAInNcpTcAlPHiT7bIXhshCTL3jVBkF3xaE=\n\tdep\tgo.uber.org/atomic\tv1.11.0\th1:ZvwS0R+56ePWxUNi+Atn9dWONBPp/AUETXlHW0DxSjE=\n\tdep\tgo.uber.org/multierr\tv1.11.0\th1:blXXJkSxSSfBVBlC76pxqeO+LN3aDfLQo+309xJstO0=\n\tdep\tgo.uber.org/zap\tv1.27.0\th1:aJMhYGrd5QSmlpLMr2MftRKl7t8J8PTZPA732ud/XR8=\n\tdep\tgo.yaml.in/yaml/v3\tv3.0.4\th1:tfq32ie2Jv2UxXFdLJdh3jXuOzWiL1fo0bu/FbuKpbc=\n\tdep\tgolang.org/x/crypto\tv0.55.0\th1:+KWHjbgOaAQ66dh/YlkZKHlz9ZUlq61AFirAR9ntP8M=\n\tdep\tgolang.org/x/exp\tv0.0.0-20230626212559-97b1e661b5df\th1:UA2aFVmmsIlefxMk29Dp2juaUSth8Pyn3Tq5Y5mJGME=\n\tdep\tgolang.org/x/net\tv0.58.0\th1:ynWG7rqYi4ccpTEuPZ2QGWHktVEM9DMCj9yzDE0Q7To=\n\tdep\tgolang.org/x/oauth2\tv0.35.0\th1:Mv2mzuHuZuY2+bkyWXIHMfhNdJAdwW3FuWeCPYN5GVQ=\n\tdep\tgolang.org/x/sync\tv0.22.0\th1:SZjpbeLmrCk4xhRSZFNZW5gFUeCeFgjekvI/+gfScek=\n\tdep\tgolang.org/x/sys\tv0.47.0\th1:o7XGOvZQCADBQQ4Y7VNq2dRWQR7JmOUW8Kxx4ZsNgWs=\n\tdep\tgolang.org/x/text\tv0.41.0\th1:vz/seA0lnX87Othu2f/0L24RcgrXD9/YFTSuGjj3rH8=\n\tdep\tgolang.org/x/time\tv0.4.0\th1:Z81tqI5ddIoXDPvVQ7/7CC9TnLM7ubaFG2qXYd5BbYY=\n\tdep\tgoogle.golang.org/protobuf\tv1.36.10\th1:AYd7cD/uASjIL6Q9LiTjz8JLcrh/88q5UObnmY3aOOE=\n\tdep\tgopkg.in/ini.v1\tv1.67.2\th1:JtOSMb9OuaCZKr7h5D/h6iii14sK0hLbplTc6frx4Ss=\n\tdep\tgopkg.in/natefinch/lumberjack.v2\tv2.2.1\th1:bBRl1b0OH9s/DuPhuXpNl+VtCaJXFZ5/uEFST95x9zc=\n\tdep\tgopkg.in/yaml.v3\tv3.0.1\th1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=\n\tbuild\t-buildmode=exe\n\tbuild\t-compiler=gc\n\tbuild\tCGO_ENABLED=1\n\tbuild\tCGO_CFLAGS=\n\tbuild\tCGO_CPPFLAGS=\n\tbuild\tCGO_CXXFLAGS=\n\tbuild\tCGO_LDFLAGS=\n\tbuild\tGOARCH=arm64\n\tbuild\tGOOS=linux\n\tbuild\tGOARM64=v8.0\n\tbuild\tvcs=git\n\tbuild\tvcs.revision=d6dbbfc057f2ab6043cda0df2e6cbc1427f2aca6\n\tbuild\tvcs.time=2026-09-12T11:38:12Z\n\tbuild\tvcs.modified=true\n"
+      }
+    }
+  },
+  "diagnostic_only": true,
+  "comparison_complete": true,
+  "runs": [
+    {
+      "name": "old-1",
+      "variant": "old",
+      "complete": true,
+      "source_base": "13f9687192c316d3c6fa967c0f8ae593d60005e5",
+      "source_dirty": true,
+      "profile_sha256": "b29f053bd0f8dfb7437a48edba020c0bd2ff6dc788ac303e91a07abe4576cba3",
+      "started_at": "2026-09-12T14:28:28.90800826Z",
+      "windows": [
+        {
+          "phase": {
+            "driver_wait_p99_ms": 31.678412,
+            "request_p99_ms": 47.892541,
+            "driver_workers": 48,
+            "queue_capacity": 600,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 1200
+            },
+            "scheduled": 216000,
+            "completed": 215998,
+            "completed_in_window": 215959,
+            "first_error": "HTTP 503: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":503}",
+            "error_samples": {
+              "HTTP 503: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":503}": 2
+            },
+            "unexpected_errors": 0,
+            "errors": 2,
+            "dropped": 0,
+            "duration_seconds": 180,
+            "actual_qps": 1199.7722222222221,
+            "p50_ms": 15.858642,
+            "p95_ms": 37.100162,
+            "p99_ms": 72.855077,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 797.5600000000001,
+            "heap_bytes": 369734296,
+            "allocated_bytes": 463440738168,
+            "verdict": "incomplete or failed requests"
+          },
+          "nodes": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 216000,
+                  "rejected": 0,
+                  "completed": 216000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6589744378657203,
+                  "average_occupied_slots": 0.7907693254388644
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "completed": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 216000,
+                  "rejected": 0,
+                  "completed": 216000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.5929626361990703,
+                  "average_occupied_slots": 0.7115551634388843
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "completed": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 215998,
+                  "rejected": 2,
+                  "completed": 215998,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7182921019129833,
+                  "average_occupied_slots": 0.8619425412722254
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "completed": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0
+                }
+              ],
+              "inflight_after": 0
+            }
+          ]
+        },
+        {
+          "phase": {
+            "driver_wait_p99_ms": 26.303364,
+            "request_p99_ms": 123.592417,
+            "driver_workers": 48,
+            "queue_capacity": 210,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 420
+            },
+            "scheduled": 75600,
+            "completed": 75569,
+            "completed_in_window": 75551,
+            "first_error": "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}",
+            "error_samples": {
+              "HTTP 400: {\"msg\":\"internal/message: backpressured: channel: backpressured\",\"status\":400}": 12,
+              "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}": 19
+            },
+            "unexpected_errors": 0,
+            "errors": 31,
+            "dropped": 0,
+            "duration_seconds": 180,
+            "actual_qps": 419.72777777777776,
+            "p50_ms": 47.750584,
+            "p95_ms": 82.017908,
+            "p99_ms": 143.715822,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 825.44,
+            "heap_bytes": 341206760,
+            "allocated_bytes": 618470324024,
+            "verdict": "incomplete or failed requests"
+          },
+          "nodes": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75597,
+                  "rejected": 3,
+                  "completed": 75597,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.5012256953582626,
+                  "average_occupied_slots": 0.6304897716222143
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75581,
+                  "rejected": 0,
+                  "completed": 75581,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.8271569778780392,
+                  "average_occupied_slots": 0.3473186196944449
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75597,
+                  "rejected": 3,
+                  "completed": 75597,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.360612246186962,
+                  "average_occupied_slots": 0.5714344665277543
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75579,
+                  "rejected": 2,
+                  "completed": 75579,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.744018255150239,
+                  "average_occupied_slots": 0.3124008650333328
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75587,
+                  "rejected": 13,
+                  "completed": 75587,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.5932097554869338,
+                  "average_occupied_slots": 0.6690330321555048
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75571,
+                  "rejected": 10,
+                  "completed": 75571,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.858390698813033,
+                  "average_occupied_slots": 0.36038579722222064
+                }
+              ],
+              "inflight_after": 0
+            }
+          ]
+        }
+      ],
+      "raw_path": "/tmp/conversation-peak-read/old-1/report.json",
+      "raw_sha256": "04399d1b9667fac50c5a0438a7bc994d998db9db705e82c9a0561e47904b2780"
+    },
+    {
+      "name": "new-1",
+      "variant": "new",
+      "complete": true,
+      "source_base": "13f9687192c316d3c6fa967c0f8ae593d60005e5",
+      "source_dirty": true,
+      "profile_sha256": "b29f053bd0f8dfb7437a48edba020c0bd2ff6dc788ac303e91a07abe4576cba3",
+      "started_at": "2026-09-12T14:36:39.266131834Z",
+      "windows": [
+        {
+          "phase": {
+            "driver_wait_p99_ms": 2.981052,
+            "request_p99_ms": 34.401,
+            "driver_workers": 48,
+            "queue_capacity": 600,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 1200
+            },
+            "scheduled": 216000,
+            "completed": 216000,
+            "completed_in_window": 215990,
+            "unexpected_errors": 0,
+            "errors": 0,
+            "dropped": 0,
+            "duration_seconds": 180,
+            "actual_qps": 1199.9444444444443,
+            "p50_ms": 12.743476,
+            "p95_ms": 24.699873,
+            "p99_ms": 41.873525,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 748.3299999999999,
+            "heap_bytes": 390411728,
+            "allocated_bytes": 448701274464,
+            "verdict": "pass"
+          },
+          "nodes": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 216000,
+                  "rejected": 0,
+                  "completed": 216000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.5386394268564841,
+                  "average_occupied_slots": 0.646367312227781
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "completed": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 216000,
+                  "rejected": 0,
+                  "completed": 216000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.4441207613009257,
+                  "average_occupied_slots": 0.532944913561111
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "completed": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 216000,
+                  "rejected": 0,
+                  "completed": 216000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.5395988857870431,
+                  "average_occupied_slots": 0.6475186629444517
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "completed": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0
+                }
+              ],
+              "inflight_after": 0
+            }
+          ]
+        },
+        {
+          "phase": {
+            "driver_wait_p99_ms": 2.607613,
+            "request_p99_ms": 86.684333,
+            "driver_workers": 48,
+            "queue_capacity": 210,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 420
+            },
+            "scheduled": 75600,
+            "completed": 75594,
+            "completed_in_window": 75573,
+            "first_error": "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}",
+            "error_samples": {
+              "HTTP 400: {\"msg\":\"internal/message: backpressured: channel: backpressured\",\"status\":400}": 1,
+              "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}": 5
+            },
+            "unexpected_errors": 0,
+            "errors": 6,
+            "dropped": 0,
+            "duration_seconds": 180,
+            "actual_qps": 419.85,
+            "p50_ms": 39.222294,
+            "p95_ms": 58.668113,
+            "p99_ms": 89.578209,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 801.5300000000002,
+            "heap_bytes": 374982152,
+            "allocated_bytes": 607910824200,
+            "verdict": "incomplete or failed requests"
+          },
+          "nodes": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.2035330120900047,
+                  "average_occupied_slots": 0.505483865077802
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75595,
+                  "rejected": 0,
+                  "completed": 75595,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6984922437859613,
+                  "average_occupied_slots": 0.2933473398277764
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.0398740648280251,
+                  "average_occupied_slots": 0.4367471072277706
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75595,
+                  "rejected": 0,
+                  "completed": 75595,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.603533883841528,
+                  "average_occupied_slots": 0.25346746638333506
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75595,
+                  "rejected": 5,
+                  "completed": 75595,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.265766887598363,
+                  "average_occupied_slots": 0.5315869325999903
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75594,
+                  "rejected": 1,
+                  "completed": 75594,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7181476139111566,
+                  "average_occupied_slots": 0.30159805958888874
+                }
+              ],
+              "inflight_after": 0
+            }
+          ]
+        }
+      ],
+      "raw_path": "/tmp/conversation-peak-read/new-1/report.json",
+      "raw_sha256": "8a4f9c4491659e6f517068958b650a8d5680891af9944a6c690862dd6669e5c7"
+    },
+    {
+      "name": "new-2",
+      "variant": "new",
+      "complete": true,
+      "source_base": "13f9687192c316d3c6fa967c0f8ae593d60005e5",
+      "source_dirty": true,
+      "profile_sha256": "b29f053bd0f8dfb7437a48edba020c0bd2ff6dc788ac303e91a07abe4576cba3",
+      "started_at": "2026-09-12T14:44:47.341350088Z",
+      "windows": [
+        {
+          "phase": {
+            "driver_wait_p99_ms": 2.164201,
+            "request_p99_ms": 31.832791,
+            "driver_workers": 48,
+            "queue_capacity": 600,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 1200
+            },
+            "scheduled": 216000,
+            "completed": 216000,
+            "completed_in_window": 215989,
+            "unexpected_errors": 0,
+            "errors": 0,
+            "dropped": 0,
+            "duration_seconds": 180,
+            "actual_qps": 1199.9388888888889,
+            "p50_ms": 12.82619,
+            "p95_ms": 24.410986,
+            "p99_ms": 34.843608,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 749.71,
+            "heap_bytes": 331859776,
+            "allocated_bytes": 448699005184,
+            "verdict": "pass"
+          },
+          "nodes": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 216000,
+                  "rejected": 0,
+                  "completed": 216000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.5224441074814833,
+                  "average_occupied_slots": 0.62693292897778
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "completed": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 216000,
+                  "rejected": 0,
+                  "completed": 216000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.4572364920833417,
+                  "average_occupied_slots": 0.54868379050001
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "completed": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 216000,
+                  "rejected": 0,
+                  "completed": 216000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.5492629755925807,
+                  "average_occupied_slots": 0.6591155707110969
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "completed": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0
+                }
+              ],
+              "inflight_after": 0
+            }
+          ]
+        },
+        {
+          "phase": {
+            "driver_wait_p99_ms": 2.539699,
+            "request_p99_ms": 83.45875,
+            "driver_workers": 48,
+            "queue_capacity": 210,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 420
+            },
+            "scheduled": 75600,
+            "completed": 75598,
+            "completed_in_window": 75576,
+            "first_error": "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}",
+            "error_samples": {
+              "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}": 2
+            },
+            "unexpected_errors": 0,
+            "errors": 2,
+            "dropped": 0,
+            "duration_seconds": 180,
+            "actual_qps": 419.8666666666667,
+            "p50_ms": 39.879432,
+            "p95_ms": 61.7917,
+            "p99_ms": 84.910872,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 801.9,
+            "heap_bytes": 351070664,
+            "allocated_bytes": 607912710416,
+            "verdict": "incomplete or failed requests"
+          },
+          "nodes": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75599,
+                  "rejected": 1,
+                  "completed": 75599,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.2470673945157773,
+                  "average_occupied_slots": 0.5237613775444347
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75598,
+                  "rejected": 0,
+                  "completed": 75598,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7215096585888516,
+                  "average_occupied_slots": 0.30302603983333337
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75599,
+                  "rejected": 1,
+                  "completed": 75599,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.0693097009748513,
+                  "average_occupied_slots": 0.44910413379998776
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75598,
+                  "rejected": 0,
+                  "completed": 75598,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6077245221037576,
+                  "average_occupied_slots": 0.25523754678888816
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.2794298900793504,
+                  "average_occupied_slots": 0.5373605538333271
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75598,
+                  "rejected": 0,
+                  "completed": 75598,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7263304184105462,
+                  "average_occupied_slots": 0.30505070539444706
+                }
+              ],
+              "inflight_after": 0
+            }
+          ]
+        }
+      ],
+      "raw_path": "/tmp/conversation-peak-read/new-2/report.json",
+      "raw_sha256": "9218f3a0e86e445b851af254a63d0f497bbfb4f0f6e3f9528ef7ac3a7d53260b"
+    },
+    {
+      "name": "old-2",
+      "variant": "old",
+      "complete": true,
+      "source_base": "13f9687192c316d3c6fa967c0f8ae593d60005e5",
+      "source_dirty": true,
+      "profile_sha256": "b29f053bd0f8dfb7437a48edba020c0bd2ff6dc788ac303e91a07abe4576cba3",
+      "started_at": "2026-09-12T14:52:55.635933675Z",
+      "windows": [
+        {
+          "phase": {
+            "driver_wait_p99_ms": 5.57401,
+            "request_p99_ms": 36.783083,
+            "driver_workers": 48,
+            "queue_capacity": 600,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 1200
+            },
+            "scheduled": 216000,
+            "completed": 216000,
+            "completed_in_window": 215987,
+            "unexpected_errors": 0,
+            "errors": 0,
+            "dropped": 0,
+            "duration_seconds": 180,
+            "actual_qps": 1199.9277777777777,
+            "p50_ms": 14.91142,
+            "p95_ms": 27.888489,
+            "p99_ms": 45.826162,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 782.11,
+            "heap_bytes": 387708416,
+            "allocated_bytes": 463599991344,
+            "verdict": "pass"
+          },
+          "nodes": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 216000,
+                  "rejected": 0,
+                  "completed": 216000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6371330596898174,
+                  "average_occupied_slots": 0.7645596716277809
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "completed": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 216000,
+                  "rejected": 0,
+                  "completed": 216000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.5517870148472251,
+                  "average_occupied_slots": 0.6621444178166702
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "completed": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 216000,
+                  "rejected": 0,
+                  "completed": 216000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6380536469212997,
+                  "average_occupied_slots": 0.7656643763055596
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "completed": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0
+                }
+              ],
+              "inflight_after": 0
+            }
+          ]
+        },
+        {
+          "phase": {
+            "driver_wait_p99_ms": 3.258512,
+            "request_p99_ms": 102.288751,
+            "driver_workers": 48,
+            "queue_capacity": 210,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 420
+            },
+            "scheduled": 75600,
+            "completed": 75598,
+            "completed_in_window": 75575,
+            "first_error": "HTTP 400: {\"msg\":\"internal/message: backpressured: channel: backpressured\",\"status\":400}",
+            "error_samples": {
+              "HTTP 400: {\"msg\":\"internal/message: backpressured: channel: backpressured\",\"status\":400}": 2
+            },
+            "unexpected_errors": 0,
+            "errors": 2,
+            "dropped": 0,
+            "duration_seconds": 180,
+            "actual_qps": 419.8611111111111,
+            "p50_ms": 47.124249,
+            "p95_ms": 73.717854,
+            "p99_ms": 111.562904,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 820.4300000000002,
+            "heap_bytes": 411426176,
+            "allocated_bytes": 618588005888,
+            "verdict": "incomplete or failed requests"
+          },
+          "nodes": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.51731059646832,
+                  "average_occupied_slots": 0.6372704505166944
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.826422454179893,
+                  "average_occupied_slots": 0.3470974307555551
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.3038344909920514,
+                  "average_occupied_slots": 0.5476104862166615
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75598,
+                  "rejected": 2,
+                  "completed": 75598,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7078854982803884,
+                  "average_occupied_slots": 0.29730404388333775
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.5354171624603108,
+                  "average_occupied_slots": 0.6448752082333304
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.8287252901851792,
+                  "average_occupied_slots": 0.34806462187777526
+                }
+              ],
+              "inflight_after": 0
+            }
+          ]
+        }
+      ],
+      "raw_path": "/tmp/conversation-peak-read/old-2/report.json",
+      "raw_sha256": "22afad14c56647a727cc00e42b869676ce5a1ff394a0954551eef2ee63df91c5"
+    },
+    {
+      "name": "old-3",
+      "variant": "old",
+      "complete": true,
+      "source_base": "13f9687192c316d3c6fa967c0f8ae593d60005e5",
+      "source_dirty": true,
+      "profile_sha256": "b29f053bd0f8dfb7437a48edba020c0bd2ff6dc788ac303e91a07abe4576cba3",
+      "started_at": "2026-09-12T15:01:03.733156596Z",
+      "windows": [
+        {
+          "phase": {
+            "driver_wait_p99_ms": 3.262098,
+            "request_p99_ms": 35.857333,
+            "driver_workers": 48,
+            "queue_capacity": 600,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 1200
+            },
+            "scheduled": 216000,
+            "completed": 216000,
+            "completed_in_window": 215982,
+            "unexpected_errors": 0,
+            "errors": 0,
+            "dropped": 0,
+            "duration_seconds": 180,
+            "actual_qps": 1199.9,
+            "p50_ms": 14.606696,
+            "p95_ms": 27.255374,
+            "p99_ms": 42.180302,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 778.7,
+            "heap_bytes": 335986944,
+            "allocated_bytes": 463638155800,
+            "verdict": "pass"
+          },
+          "nodes": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 216000,
+                  "rejected": 0,
+                  "completed": 216000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6201407445185226,
+                  "average_occupied_slots": 0.7441688934222271
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "completed": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 216000,
+                  "rejected": 0,
+                  "completed": 216000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.5318983273518628,
+                  "average_occupied_slots": 0.6382779928222354
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "completed": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 216000,
+                  "rejected": 0,
+                  "completed": 216000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6219102911898191,
+                  "average_occupied_slots": 0.746292349427783
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "completed": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0
+                }
+              ],
+              "inflight_after": 0
+            }
+          ]
+        },
+        {
+          "phase": {
+            "driver_wait_p99_ms": 7.963115,
+            "request_p99_ms": 114.114084,
+            "driver_workers": 48,
+            "queue_capacity": 210,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 420
+            },
+            "scheduled": 75600,
+            "completed": 75595,
+            "completed_in_window": 75569,
+            "first_error": "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}",
+            "error_samples": {
+              "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}": 5
+            },
+            "unexpected_errors": 0,
+            "errors": 5,
+            "dropped": 0,
+            "duration_seconds": 180,
+            "actual_qps": 419.8277777777778,
+            "p50_ms": 49.760592,
+            "p95_ms": 80.664099,
+            "p99_ms": 124.509947,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 830.8100000000002,
+            "heap_bytes": 353902304,
+            "allocated_bytes": 618491081768,
+            "verdict": "incomplete or failed requests"
+          },
+          "nodes": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.617217536970831,
+                  "average_occupied_slots": 0.679231365527749
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75595,
+                  "rejected": 0,
+                  "completed": 75595,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.8931611882664231,
+                  "average_occupied_slots": 0.3751028890388903
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75596,
+                  "rejected": 4,
+                  "completed": 75596,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.338600466294559,
+                  "average_occupied_slots": 0.562182449166686
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75595,
+                  "rejected": 0,
+                  "completed": 75595,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7408476154507605,
+                  "average_occupied_slots": 0.3111354193888902
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75599,
+                  "rejected": 1,
+                  "completed": 75599,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.6017173457849445,
+                  "average_occupied_slots": 0.6727123867999779
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75595,
+                  "rejected": 0,
+                  "completed": 75595,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.8778372658244556,
+                  "average_occupied_slots": 0.36866726727777627
+                }
+              ],
+              "inflight_after": 0
+            }
+          ]
+        }
+      ],
+      "raw_path": "/tmp/conversation-peak-read/old-3/report.json",
+      "raw_sha256": "bf085fc302d0361948ecd0777891a59a303847eeec3eba37a4e25b5051e94c58"
+    },
+    {
+      "name": "new-3",
+      "variant": "new",
+      "complete": true,
+      "source_base": "13f9687192c316d3c6fa967c0f8ae593d60005e5",
+      "source_dirty": true,
+      "profile_sha256": "b29f053bd0f8dfb7437a48edba020c0bd2ff6dc788ac303e91a07abe4576cba3",
+      "started_at": "2026-09-12T15:09:12.053449085Z",
+      "windows": [
+        {
+          "phase": {
+            "driver_wait_p99_ms": 2.02694,
+            "request_p99_ms": 30.34425,
+            "driver_workers": 48,
+            "queue_capacity": 600,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 1200
+            },
+            "scheduled": 216000,
+            "completed": 216000,
+            "completed_in_window": 215991,
+            "unexpected_errors": 0,
+            "errors": 0,
+            "dropped": 0,
+            "duration_seconds": 180,
+            "actual_qps": 1199.95,
+            "p50_ms": 12.674849,
+            "p95_ms": 23.709248,
+            "p99_ms": 32.391015,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 748.4200000000001,
+            "heap_bytes": 363734216,
+            "allocated_bytes": 448709139976,
+            "verdict": "pass"
+          },
+          "nodes": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 216000,
+                  "rejected": 0,
+                  "completed": 216000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.5162717629398195,
+                  "average_occupied_slots": 0.6195261155277835
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "completed": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 216000,
+                  "rejected": 0,
+                  "completed": 216000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.45056188117129764,
+                  "average_occupied_slots": 0.5406742574055572
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "completed": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 216000,
+                  "rejected": 0,
+                  "completed": 216000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.5443703106805667,
+                  "average_occupied_slots": 0.6532443728166801
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "completed": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0
+                }
+              ],
+              "inflight_after": 0
+            }
+          ]
+        },
+        {
+          "phase": {
+            "driver_wait_p99_ms": 19.597971,
+            "request_p99_ms": 114.834251,
+            "driver_workers": 48,
+            "queue_capacity": 210,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 420
+            },
+            "scheduled": 75600,
+            "completed": 75587,
+            "completed_in_window": 75578,
+            "first_error": "HTTP 400: {\"msg\":\"internal/message: backpressured: channel: backpressured\",\"status\":400}",
+            "error_samples": {
+              "HTTP 400: {\"msg\":\"internal/message: backpressured: channel: backpressured\",\"status\":400}": 8,
+              "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}": 5
+            },
+            "unexpected_errors": 0,
+            "errors": 13,
+            "dropped": 0,
+            "duration_seconds": 180,
+            "actual_qps": 419.8777777777778,
+            "p50_ms": 39.295466,
+            "p95_ms": 70.502216,
+            "p99_ms": 133.74133,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 800.2199999999998,
+            "heap_bytes": 367231944,
+            "allocated_bytes": 607856869616,
+            "verdict": "incomplete or failed requests"
+          },
+          "nodes": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75599,
+                  "rejected": 1,
+                  "completed": 75599,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.2316831785340832,
+                  "average_occupied_slots": 0.5173000922999897
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75595,
+                  "rejected": 0,
+                  "completed": 75595,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7153241486209416,
+                  "average_occupied_slots": 0.300416272305556
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.0831047066269088,
+                  "average_occupied_slots": 0.4549039767833017
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75595,
+                  "rejected": 0,
+                  "completed": 75595,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6284051691117165,
+                  "average_occupied_slots": 0.26391271532777894
+                }
+              ],
+              "inflight_after": 0
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75596,
+                  "rejected": 4,
+                  "completed": 75596,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.3350516041324794,
+                  "average_occupied_slots": 0.5606920059222161
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75587,
+                  "rejected": 8,
+                  "completed": 75587,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.749884623916814,
+                  "average_occupied_slots": 0.31489738371111237
+                }
+              ],
+              "inflight_after": 0
+            }
+          ]
+        }
+      ],
+      "raw_path": "/tmp/conversation-peak-read/new-3/report.json",
+      "raw_sha256": "bf57c293f5ccfd34c6b1670d3d7cc329b5312ef211d48e2598992a059ef051e8"
+    }
+  ],
+  "summary": [
+    {
+      "variant": "old",
+      "endpoint": "/conversation/list",
+      "window_count": 3,
+      "passing_windows": 2,
+      "stable_three_windows": false,
+      "http_refusals": 2,
+      "driver_drops": 0,
+      "p99_range_ms": [
+        42.180302,
+        72.855077
+      ],
+      "cpu_ms_per_success": 3.639471109478733,
+      "allocated_bytes_per_success": 2146116.0147284404,
+      "admission_rejected": 2,
+      "byte_budget_rejected": 0
+    },
+    {
+      "variant": "old",
+      "endpoint": "/conversation/sync",
+      "window_count": 3,
+      "passing_windows": 0,
+      "stable_three_windows": false,
+      "http_refusals": 38,
+      "driver_drops": 0,
+      "p99_range_ms": [
+        111.562904,
+        143.715822
+      ],
+      "cpu_ms_per_success": 10.921935774071496,
+      "allocated_bytes_per_success": 8182805.812614107,
+      "admission_rejected": 38,
+      "byte_budget_rejected": 0
+    },
+    {
+      "variant": "new",
+      "endpoint": "/conversation/list",
+      "window_count": 3,
+      "passing_windows": 3,
+      "stable_three_windows": true,
+      "http_refusals": 0,
+      "driver_drops": 0,
+      "p99_range_ms": [
+        32.391015,
+        41.873525
+      ],
+      "cpu_ms_per_success": 3.466759259259259,
+      "allocated_bytes_per_success": 2077329.351271605,
+      "admission_rejected": 0,
+      "byte_budget_rejected": 0
+    },
+    {
+      "variant": "new",
+      "endpoint": "/conversation/sync",
+      "window_count": 3,
+      "passing_windows": 0,
+      "stable_three_windows": false,
+      "http_refusals": 21,
+      "driver_drops": 0,
+      "p99_range_ms": [
+        84.910872,
+        133.74133
+      ],
+      "cpu_ms_per_success": 10.599085453238615,
+      "allocated_bytes_per_success": 8041663.488382963,
+      "admission_rejected": 21,
+      "byte_budget_rejected": 0
+    }
+  ],
+  "validation": {
+    "related_units": "passed",
+    "targeted_race": "passed",
+    "linux_reverse_read": "passed",
+    "harness_compile": "passed",
+    "go-format": "passed",
+    "flow-doc-contracts": "passed",
+    "git_diff_check": "passed"
+  },
+  "cleanup_complete": true,
+  "release_gate": {
+    "schema": "wukongim/conversation-qps-report/v1",
+    "source_sha": "13f9687192c316d3c6fa967c0f8ae593d60005e5",
+    "source_dirty": true,
+    "profile_sha256": "b29f053bd0f8dfb7437a48edba020c0bd2ff6dc788ac303e91a07abe4576cba3",
+    "binary_sha256": "1c544ad696e2267423c212a3b8b45116351db28693a69bda4077d2c943372086",
+    "os": "linux",
+    "arch": "arm64",
+    "cpus": 10,
+    "node_gomaxprocs": 2,
+    "started_at": "2026-09-12T15:17:55.549785967Z",
+    "phases": [
+      {
+        "driver_wait_p99_ms": 1.899673,
+        "request_p99_ms": 3.036834,
+        "driver_workers": 8,
+        "queue_capacity": 200,
+        "nodes": 1,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 550000,
+            "3": 800000
+          },
+          "endpoint": "/conversation/list",
+          "page_size": 25,
+          "offered_qps": 400
+        },
+        "scheduled": 6000,
+        "completed": 6000,
+        "completed_in_window": 6000,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 400,
+        "p50_ms": 1.994713,
+        "p95_ms": 3.11042,
+        "p99_ms": 3.948292,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 6.419999999999998,
+        "heap_bytes": 140760744,
+        "allocated_bytes": 2099274632,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 1.580336,
+        "request_p99_ms": 6.947708,
+        "driver_workers": 8,
+        "queue_capacity": 100,
+        "nodes": 1,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 2000000,
+            "3": 3000000
+          },
+          "endpoint": "/conversation/list",
+          "page_size": 100,
+          "offered_qps": 200
+        },
+        "scheduled": 3000,
+        "completed": 3000,
+        "completed_in_window": 3000,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 200,
+        "p50_ms": 3.041005,
+        "p95_ms": 4.862959,
+        "p99_ms": 7.635379,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 6.969999999999999,
+        "heap_bytes": 94978408,
+        "allocated_bytes": 4022214560,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 2.195507,
+        "request_p99_ms": 10.506333,
+        "driver_workers": 8,
+        "queue_capacity": 50,
+        "nodes": 1,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 4000000,
+            "3": 6000000
+          },
+          "endpoint": "/conversation/list",
+          "page_size": 200,
+          "offered_qps": 100
+        },
+        "scheduled": 1500,
+        "completed": 1500,
+        "completed_in_window": 1500,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 100,
+        "p50_ms": 5.356549,
+        "p95_ms": 7.337961,
+        "p99_ms": 12.210381,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 6.110000000000003,
+        "heap_bytes": 111311936,
+        "allocated_bytes": 4043108528,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 2.978128,
+        "request_p99_ms": 12.0985,
+        "driver_workers": 8,
+        "queue_capacity": 40,
+        "nodes": 1,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 4800000,
+            "3": 7300000
+          },
+          "endpoint": "/conversation/sync",
+          "page_size": 25,
+          "offered_qps": 80
+        },
+        "scheduled": 1200,
+        "completed": 1200,
+        "completed_in_window": 1200,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 80,
+        "p50_ms": 5.991923,
+        "p95_ms": 8.507298,
+        "p99_ms": 13.726961,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 6.279999999999998,
+        "heap_bytes": 146917504,
+        "allocated_bytes": 3930832512,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 3.679548,
+        "request_p99_ms": 15.229292,
+        "driver_workers": 8,
+        "queue_capacity": 30,
+        "nodes": 1,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 7200000,
+            "3": 11500000
+          },
+          "endpoint": "/conversation/sync",
+          "page_size": 100,
+          "offered_qps": 60
+        },
+        "scheduled": 900,
+        "completed": 900,
+        "completed_in_window": 900,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 60,
+        "p50_ms": 8.359627,
+        "p95_ms": 11.784752,
+        "p99_ms": 16.720418,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 6.160000000000004,
+        "heap_bytes": 85658744,
+        "allocated_bytes": 4891680976,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 4.851963,
+        "request_p99_ms": 18.355542,
+        "driver_workers": 8,
+        "queue_capacity": 20,
+        "nodes": 1,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 11200000,
+            "3": 16500000
+          },
+          "endpoint": "/conversation/sync",
+          "page_size": 200,
+          "offered_qps": 40
+        },
+        "scheduled": 600,
+        "completed": 600,
+        "completed_in_window": 600,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 40,
+        "p50_ms": 11.856626,
+        "p95_ms": 17.917251,
+        "p99_ms": 21.043794,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 5.640000000000001,
+        "heap_bytes": 135657088,
+        "allocated_bytes": 4979743400,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 1.900251,
+        "request_p99_ms": 14.124792,
+        "driver_workers": 8,
+        "queue_capacity": 200,
+        "nodes": 3,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 550000,
+            "3": 800000
+          },
+          "endpoint": "/conversation/list",
+          "page_size": 25,
+          "offered_qps": 400
+        },
+        "scheduled": 6000,
+        "completed": 6000,
+        "completed_in_window": 5997,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 399.8,
+        "p50_ms": 10.607421,
+        "p95_ms": 13.659045,
+        "p99_ms": 14.931213,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 17.64,
+        "heap_bytes": 397362224,
+        "allocated_bytes": 3524187616,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 1.486833,
+        "request_p99_ms": 21.147041,
+        "driver_workers": 8,
+        "queue_capacity": 100,
+        "nodes": 3,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 2000000,
+            "3": 3000000
+          },
+          "endpoint": "/conversation/list",
+          "page_size": 100,
+          "offered_qps": 200
+        },
+        "scheduled": 3000,
+        "completed": 3000,
+        "completed_in_window": 2998,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 199.86666666666667,
+        "p50_ms": 15.211796,
+        "p95_ms": 19.141839,
+        "p99_ms": 21.905667,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 14.349999999999994,
+        "heap_bytes": 360542680,
+        "allocated_bytes": 6348448712,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 2.121875,
+        "request_p99_ms": 27.239042,
+        "driver_workers": 8,
+        "queue_capacity": 50,
+        "nodes": 3,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 4000000,
+            "3": 6000000
+          },
+          "endpoint": "/conversation/list",
+          "page_size": 200,
+          "offered_qps": 100
+        },
+        "scheduled": 1500,
+        "completed": 1500,
+        "completed_in_window": 1498,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 99.86666666666666,
+        "p50_ms": 21.89492,
+        "p95_ms": 26.21646,
+        "p99_ms": 28.469755,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 11.400000000000006,
+        "heap_bytes": 327233368,
+        "allocated_bytes": 6257852960,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 1.965795,
+        "request_p99_ms": 45.152542,
+        "driver_workers": 8,
+        "queue_capacity": 40,
+        "nodes": 3,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 4800000,
+            "3": 7300000
+          },
+          "endpoint": "/conversation/sync",
+          "page_size": 25,
+          "offered_qps": 80
+        },
+        "scheduled": 1200,
+        "completed": 1200,
+        "completed_in_window": 1198,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 79.86666666666666,
+        "p50_ms": 33.768755,
+        "p95_ms": 40.032838,
+        "p99_ms": 46.717835,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 13.779999999999987,
+        "heap_bytes": 316258144,
+        "allocated_bytes": 6135094208,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 2.11467,
+        "request_p99_ms": 48.808792,
+        "driver_workers": 8,
+        "queue_capacity": 30,
+        "nodes": 3,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 7200000,
+            "3": 11500000
+          },
+          "endpoint": "/conversation/sync",
+          "page_size": 100,
+          "offered_qps": 60
+        },
+        "scheduled": 900,
+        "completed": 900,
+        "completed_in_window": 898,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 59.86666666666667,
+        "p50_ms": 39.967505,
+        "p95_ms": 46.435046,
+        "p99_ms": 49.908292,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 13.100000000000009,
+        "heap_bytes": 386112696,
+        "allocated_bytes": 7353211120,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 1.421128,
+        "request_p99_ms": 56.537334,
+        "driver_workers": 8,
+        "queue_capacity": 20,
+        "nodes": 3,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 11200000,
+            "3": 16500000
+          },
+          "endpoint": "/conversation/sync",
+          "page_size": 200,
+          "offered_qps": 40
+        },
+        "scheduled": 600,
+        "completed": 600,
+        "completed_in_window": 598,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 39.86666666666667,
+        "p50_ms": 47.256459,
+        "p95_ms": 55.075919,
+        "p99_ms": 57.583335,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 11.029999999999973,
+        "heap_bytes": 307171936,
+        "allocated_bytes": 7392795528,
+        "verdict": "pass"
+      }
+    ],
+    "passed": true
+  },
+  "cleanup": {
+    "owned_container_removed": true,
+    "server_processes_remaining_before_stop": 0,
+    "unrelated_containers_preserved": true,
+    "cloud_resources_created": false
+  },
+  "unprofiled_invariants": {
+    "unexpected_errors": 0,
+    "driver_drops": 0,
+    "runtime_loads": 0,
+    "membership_writes": 0,
+    "active_runtimes_before_and_after": 0,
+    "admissions_completions_balanced": true,
+    "post_window_inflight": 0,
+    "byte_budget_failures": 0,
+    "http_refusals": 61
+  },
+  "result": {
+    "list_1200_local_three_window_pass": true,
+    "sync_420_local_three_window_pass": false,
+    "overall_two_endpoint_peak_goal_achieved": false,
+    "release_thresholds_changed": false,
+    "admission_limit_changed": false
+  },
+  "microbenchmark": {
+    "go": "1.25.0",
+    "os": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M4",
+    "samples": 3,
+    "benchtime": "1s",
+    "exact": {
+      "before_median_ns": 1523,
+      "after_median_ns": 1043,
+      "before_allocs": 35,
+      "after_allocs": 16
+    },
+    "missing_finite_bound": {
+      "before_median_ns": 1530,
+      "after_median_ns": 1869,
+      "before_allocs": 35,
+      "after_allocs": 41
+    }
+  },
+  "batch_hold_means_ms": {
+    "old:/conversation/list:heads": 0.6190168156978564,
+    "old:/conversation/sync:heads": 1.4854597031905639,
+    "old:/conversation/sync:recents": 0.8116044234735728,
+    "new:/conversation/list:heads": 0.5069451782103936,
+    "new:/conversation/sync:heads": 1.194978759349059,
+    "new:/conversation/sync:recents": 0.6854827777395637
+  },
+  "artifacts": [
+    {
+      "path": "/tmp/conversation-peak-read/after-bench.log",
+      "sha256": "6df583a01099e5cd788184fb1e1d9c2726bf53d3fbd89ef76b5f3d0156e98bf5",
+      "bytes": 796
+    },
+    {
+      "path": "/tmp/conversation-peak-read/before-bench.log",
+      "sha256": "42d2792b36088e1a3b006d227bdbbae638fb75f2cf1efe45fa19e8930887a7b5",
+      "bytes": 796
+    },
+    {
+      "path": "/tmp/conversation-peak-read/before-read.go",
+      "sha256": "22ab9be566764fe2dd26ba627571e04c4871eea8fca6de5cdfbae952638f45f8",
+      "bytes": 9156
+    },
+    {
+      "path": "/tmp/conversation-peak-read/before-sync-sched.pprof",
+      "sha256": "ab89b48c9d4cae8d11a5711a80c693b85c6f299a32780b4f344d6858d09b0065",
+      "bytes": 24782
+    },
+    {
+      "path": "/tmp/conversation-peak-read/before-sync-wait.pprof",
+      "sha256": "68d96f46f4e19877acd1a591a9eef6ed779171080486c76440fab2a54833be2a",
+      "bytes": 18494
+    },
+    {
+      "path": "/tmp/conversation-peak-read/build-new.log",
+      "sha256": "0599421634ee7fffb1993b937abd9c052a2d3a6fd93c8fd899ace48b36060b66",
+      "bytes": 174
+    },
+    {
+      "path": "/tmp/conversation-peak-read/build-old.log",
+      "sha256": "0e3413b85482933bda52974fc6ac68e6a136adc4562f88668e7942cbf35fe466",
+      "bytes": 174
+    },
+    {
+      "path": "/tmp/conversation-peak-read/build.log",
+      "sha256": "aeb3116f6d8746357187a2d751ccc16ebf6c22fada632ffc37f1d597ea878942",
+      "bytes": 173
+    },
+    {
+      "path": "/tmp/conversation-peak-read/cgroup-final.txt",
+      "sha256": "78d31d1519d4367af49b254b6ae6b7fb6fa732544ccfd72e09c3089d54e11465",
+      "bytes": 190
+    },
+    {
+      "path": "/tmp/conversation-peak-read/checks.log",
+      "sha256": "117bf2845a6735468976f95934ccc0bd66b49279d3ad301f794e260413bc5b46",
+      "bytes": 106
+    },
+    {
+      "path": "/tmp/conversation-peak-read/final-checks.log",
+      "sha256": "117bf2845a6735468976f95934ccc0bd66b49279d3ad301f794e260413bc5b46",
+      "bytes": 106
+    },
+    {
+      "path": "/tmp/conversation-peak-read/flow-render.log",
+      "sha256": "5ca49956b23d02062de121518c2742d33bfb3768463081d8e438c87de41d5854",
+      "bytes": 48
+    },
+    {
+      "path": "/tmp/conversation-peak-read/governing-context.json",
+      "sha256": "a456642d8ca3cb45e749d7f057d7247da9b8e50b2e6be9cce113302afaa2e30a",
+      "bytes": 1623
+    },
+    {
+      "path": "/tmp/conversation-peak-read/green.log",
+      "sha256": "ba7718fcfaa1e3ddfa18f36d0205a7a52691fe4e9a94a517f852a581705ad156",
+      "bytes": 56
+    },
+    {
+      "path": "/tmp/conversation-peak-read/harness-compile.log",
+      "sha256": "f6719575fb9f13de588f574d1094cdfc198802677b1b833cdcc27b71e5b1752e",
+      "bytes": 75
+    },
+    {
+      "path": "/tmp/conversation-peak-read/identities.json",
+      "sha256": "47a922793ec5ab7ad4dba34b1781d74fa3490785fb0c78886056f1ef013fe780",
+      "bytes": 19663
+    },
+    {
+      "path": "/tmp/conversation-peak-read/linux-units.log",
+      "sha256": "533af4396587b3568d65ac10132fa2807217d07d165f8bd93479574f51b5560d",
+      "bytes": 56
+    },
+    {
+      "path": "/tmp/conversation-peak-read/new",
+      "sha256": "1c544ad696e2267423c212a3b8b45116351db28693a69bda4077d2c943372086",
+      "bytes": 82559072
+    },
+    {
+      "path": "/tmp/conversation-peak-read/new-1/report.json",
+      "sha256": "8a4f9c4491659e6f517068958b650a8d5680891af9944a6c690862dd6669e5c7",
+      "bytes": 597791
+    },
+    {
+      "path": "/tmp/conversation-peak-read/new-1/run.log",
+      "sha256": "f589f1a671b573b413e5980cb5b8d7fea93f03975c611975e250200dd0f19f59",
+      "bytes": 742
+    },
+    {
+      "path": "/tmp/conversation-peak-read/new-2/report.json",
+      "sha256": "9218f3a0e86e445b851af254a63d0f497bbfb4f0f6e3f9528ef7ac3a7d53260b",
+      "bytes": 597639
+    },
+    {
+      "path": "/tmp/conversation-peak-read/new-2/run.log",
+      "sha256": "96483640937bc7e4ab861e8207c8ba4acf9589bbd55a69d161e411140d547d8e",
+      "bytes": 742
+    },
+    {
+      "path": "/tmp/conversation-peak-read/new-3/report.json",
+      "sha256": "bf57c293f5ccfd34c6b1670d3d7cc329b5312ef211d48e2598992a059ef051e8",
+      "bytes": 597714
+    },
+    {
+      "path": "/tmp/conversation-peak-read/new-3/run.log",
+      "sha256": "827e5b407cd16dfdb93ed887ce6111f1b892f4132fab96bca3d91cbd0d8646ef",
+      "bytes": 745
+    },
+    {
+      "path": "/tmp/conversation-peak-read/old",
+      "sha256": "9b84da8e90abf13d08d2efb1f991750214c5d209003b54c31d729de8675bdf7e",
+      "bytes": 82559424
+    },
+    {
+      "path": "/tmp/conversation-peak-read/old-1/report.json",
+      "sha256": "04399d1b9667fac50c5a0438a7bc994d998db9db705e82c9a0561e47904b2780",
+      "bytes": 602171
+    },
+    {
+      "path": "/tmp/conversation-peak-read/old-1/run.log",
+      "sha256": "0b5b24c75330e3b27ad2a0cd9648487d4c03111085968f3cd4eb4a2b288b0a31",
+      "bytes": 771
+    },
+    {
+      "path": "/tmp/conversation-peak-read/old-2/report.json",
+      "sha256": "22afad14c56647a727cc00e42b869676ce5a1ff394a0954551eef2ee63df91c5",
+      "bytes": 597689
+    },
+    {
+      "path": "/tmp/conversation-peak-read/old-2/run.log",
+      "sha256": "e4018c33feab935690f2363a6d78d406e4111332ebc5ad16a2d24225450b4097",
+      "bytes": 743
+    },
+    {
+      "path": "/tmp/conversation-peak-read/old-3/report.json",
+      "sha256": "bf085fc302d0361948ecd0777891a59a303847eeec3eba37a4e25b5051e94c58",
+      "bytes": 597719
+    },
+    {
+      "path": "/tmp/conversation-peak-read/old-3/run.log",
+      "sha256": "da0c75f824fb099796d4c1f9bdb28cbc21c2b7ed0ea0c648970f4373efdbdcab",
+      "bytes": 743
+    },
+    {
+      "path": "/tmp/conversation-peak-read/old-overlay.json",
+      "sha256": "ab1a20c7a59bfe7dd9e954f8c6cb705ea7b70accc6d6f01f5d481ca929b166d5",
+      "bytes": 149
+    },
+    {
+      "path": "/tmp/conversation-peak-read/pairs.log",
+      "sha256": "d9184db4071839853b4be48388ca23df6fdb943eb217bef2a02ab64e9f2d544b",
+      "bytes": 138
+    },
+    {
+      "path": "/tmp/conversation-peak-read/race.log",
+      "sha256": "7d7d7e167f98f59c3fa7a692517a8e155ff047bdf3f771c41658e6457df58676",
+      "bytes": 338
+    },
+    {
+      "path": "/tmp/conversation-peak-read/red.log",
+      "sha256": "10300cd05cdb6f49c64b1feb6cc9bb4f1f9c3861a17e1eb679d90f62eef37818",
+      "bytes": 520
+    },
+    {
+      "path": "/tmp/conversation-peak-read/release-gate.json",
+      "sha256": "cf2df4d3602592c96405f1659ba6b40be0143bd4e09df9208832f0fb4ce732d9",
+      "bytes": 11647
+    },
+    {
+      "path": "/tmp/conversation-peak-read/release-gate.log",
+      "sha256": "93f404fd1e17aa58192a31672d6c90ee23cd1471f72bd0561ab76ab3f07662d5",
+      "bytes": 9349
+    },
+    {
+      "path": "/tmp/conversation-peak-read/summary-final.log",
+      "sha256": "ea7442dc17629b0a5d8a99a04b3ee60b266de418ecacbe31a9b29cb6c2148104",
+      "bytes": 1396
+    },
+    {
+      "path": "/tmp/conversation-peak-read/units.log",
+      "sha256": "e481e97531364d21afd2d7354c91558b96dc5f118503ac1564bccc82694c1892",
+      "bytes": 369
+    }
+  ]
+}

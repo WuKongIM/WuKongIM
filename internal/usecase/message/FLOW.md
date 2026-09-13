@@ -37,10 +37,12 @@ depending on their frames, JSON, or concrete cluster runtimes.
 2. Single and batch sync validate membership and visibility, canonicalize
    Channel IDs, and pass page intent plus an independent visibility floor to
    `PageReader`. It owns latest-page selection, scan bounds, bounded lookahead,
-   filtering, bounded continuation, ascending order, and `HasMore` for sync and plugin reads. The
-   Batch membership and terminal-state preparation overlaps at most eight
-   authority reads; all workers join and input-order failures are resolved before
-   any message batch starts. The committed-record adapter executes routed scans; sync then clones payloads
+   filtering, bounded continuation, ascending order, and `HasMore` for sync and
+   plugin reads. Batch preparation reads exact UID memberships together, then batches terminal
+   channel state for valid memberships. Both ports are request-scoped and preserve
+   input alignment; point-only adapters retain at most eight concurrent reads.
+   All reads join and input-order failures resolve before any message batch starts.
+   The committed-record adapter executes routed scans; sync then clones payloads
    and optionally enriches stream messages with bounded event metadata.
 3. Legacy event sync reads a bounded durable sequence page through Slot authority,
    preserves original cursor/filter order, and does not invent event history.
@@ -72,7 +74,12 @@ depending on their frames, JSON, or concrete cluster runtimes.
   demand plus lookahead and at most 1,024 raw records, with a five-second
   context; exhausted budgets or invalid progress fail instead of implying end
   of history. Plugin reads retain separate authorization and response contracts.
-- Sync reads committed data only and never mutate membership. A new person
+- History sync reads committed data only. The explicit persisted-batch method
+  reuses membership, page and event policy for conversation recents, without
+  falling back to the committed reader or treating missing storage as empty.
+  Persisted scans use at most 1 MiB per Channel wave and 8 MiB per batch across
+  waves; byte-limited short reads continue instead of falsely ending history.
+  Reads never mutate membership. A new person
   conversation without membership returns an empty page without a Channel read;
   missing group membership and tombstones still fail validation. Single and batch
   reads map storage and routed Channel-not-found errors to empty pages after

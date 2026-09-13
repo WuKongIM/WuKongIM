@@ -663,7 +663,7 @@ export const productHTTPParameterExplanations = {
       },
     },
     ConversationSyncLegacyRequest: {
-      description: explanation('v2.2 兼容会话同步参数。', 'v2.2-compatible legacy Conversation synchronization parameters.'),
+      description: explanation('v2.2 兼容会话同步参数。失败时重试原请求。与 list 共用 16 个并发名额，整次请求限时 5 秒；最多 1000 个候选频道，每批 200 个。请求最近消息总数超过 10000 条或基础/流式载荷超过 32 MiB 时整次失败。', 'Legacy sync parameters. Retry the original request on failure. List and sync share 16 active requests and a five-second deadline; at most 1,000 candidates, 200 Channels per batch, 10,000 requested recents and 32 MiB of base/stream payloads. Budget exhaustion fails the whole request.'),
       properties: {
         uid: explanation('要同步旧式会话的非空白用户 ID。', 'Non-blank user ID whose legacy Conversations are synchronized.'),
         version: explanation('客户端已知的会话版本；0 表示不按版本过滤。', 'Conversation version known by the client; 0 disables version filtering.'),

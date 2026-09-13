@@ -8,15 +8,15 @@ import (
 func TestLookupLegacyReadKeyUsesBoundedIDFallbackOnlyForBlankOriginal(t *testing.T) {
 	for _, original := range []string{"", "real-key", "wk3-legacy-99"} {
 		t.Run(original, func(t *testing.T) {
-			var queries []CommittedMessageQuery
-			reader := scanFunction(func(_ context.Context, q []CommittedMessageQuery) ([]CommittedMessageResult, error) {
+			var queries []MessageScanQuery
+			reader := scanFunction(func(_ context.Context, q []MessageScanQuery) ([]MessageScanResult, error) {
 				r := q[0]
 				queries = append(queries, r)
 				rows := []SyncedMessage{}
 				if r.MessageID == 99 || r.ClientMsgNo == original {
 					rows = append(rows, SyncedMessage{ChannelID: "g", ChannelType: 2, MessageID: 99, MessageSeq: 9, ClientMsgNo: original})
 				}
-				return []CommittedMessageResult{{Messages: rows}}, nil
+				return []MessageScanResult{{Messages: rows}}, nil
 			})
 			a := New(Options{Reader: &recordingChannelMessageReader{}, LookupReader: reader, Memberships: liveSyncMembershipStore()})
 			out, err := a.LookupMessages(context.Background(), LookupMessagesQuery{LoginUID: "u", ChannelID: "g", ChannelType: 2, ClientMsgNos: []string{"wk3-legacy-99"}})

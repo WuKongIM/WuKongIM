@@ -12,6 +12,7 @@ var conversationListSizeBuckets = []float64{0, 1, 2, 4, 8, 16, 32, 64, 128, 200,
 // ConversationMetrics exposes bounded membership-directory and Channel-head
 // hydration costs. Labels deliberately exclude UID and channel identity.
 type ConversationMetrics struct {
+	persisted              *persistedReadMetrics
 	listTotal              *prometheus.CounterVec
 	listDuration           *prometheus.HistogramVec
 	listScannedCandidates  *prometheus.HistogramVec
@@ -28,6 +29,7 @@ type ConversationMetrics struct {
 
 func newConversationMetrics(registry prometheus.Registerer, labels prometheus.Labels) *ConversationMetrics {
 	m := &ConversationMetrics{
+		persisted: newPersistedReadMetrics(registry, labels),
 		listTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "wukongim_conversation_directory_list_total", Help: "Membership-backed conversation directory requests.", ConstLabels: labels,
 		}, []string{"result", "done"}),
@@ -64,6 +66,12 @@ func newConversationMetrics(registry prometheus.Registerer, labels prometheus.La
 		membershipMutationRows: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "wukongim_conversation_membership_mutation_rows_total", Help: "Successfully proposed UID-directory mutation rows by directory and operation.", ConstLabels: labels,
 		}, []string{"directory", "operation"}),
+	}
+	// Export bounded zero series so cold-process read gates can distinguish no writes from missing instrumentation.
+	for _, directory := range []string{"ordinary", "cmd"} {
+		for _, operation := range []string{"upsert", "tombstone", "read_seq", "hide", "activate", "ack"} {
+			_ = m.membershipMutationRows.WithLabelValues(directory, operation)
+		}
 	}
 	registry.MustRegister(
 		m.listTotal, m.listDuration, m.listScannedCandidates, m.listReturnedItems,

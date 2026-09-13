@@ -13,7 +13,7 @@ import (
 
 // appendBadgeRows exercises the shared atomic primary/index writer with explicit
 // SyncOnce flags. Legacy mode reproduces rows written before the derived index.
-func appendBadgeRows(t *testing.T, log *ChannelLog, base uint64, legacy bool, flags ...bool) {
+func appendBadgeRows(t testing.TB, log *ChannelLog, base uint64, legacy bool, flags ...bool) {
 	t.Helper()
 	log.appendMu.Lock()
 	defer log.appendMu.Unlock()

@@ -1753,7 +1753,7 @@
     "/conversation/sync": {
       "post": {
         "summary": "Sync Conversations (Legacy)",
-        "description": "Compatibility endpoint for v2.2.x clients. It accepts the legacy pagination, message cursor, unread, and channel-type filter fields and returns the legacy conversation array. Temporary hydration failures fail the request instead of silently omitting conversations.",
+        "description": "Legacy heads and recents read current-Leader persisted storage without runtime activation. Failed SENDs may appear. Any read failure aborts the request; retry the original request. Legacy fields, filters and cursor rules remain unchanged. List and sync share 16 active requests and a five-second deadline. Sync allows up to 1,000 candidates, 200 Channels per batch, 10,000 requested recent messages and 32 MiB of base/stream payloads; exhausted budgets fail without partial data.",
         "tags": ["Conversation"],
         "requestBody": {
           "required": true,

@@ -51,9 +51,12 @@ management, plugins, diagnostics, and bounded operations observations.
    read the Controller-visible snapshot separately from the Node-applied read
    model so runtime reconciliation cannot stall their CAS convergence.
 
-- Conversation list previews use the explicit persisted-head port; personal
-  mutations and legacy sync retain committed hydration. Persisted item errors
-  fail the page instead of producing unresolved keys.
+- Conversation list and legacy-sync previews use explicit persisted-head and
+  persisted-message ports. Byte-limited scans preserve continuation; every item
+  failure propagates. Sync metadata preparation uses one bounded UID membership
+  batch and existing Slot-grouped channel metadata reads, without the SEND cache.
+  Sparse found memberships are identity-validated and expanded to aligned results.
+  Personal mutations and history retain committed reads.
 
 ## Invariants and Failure Semantics
 

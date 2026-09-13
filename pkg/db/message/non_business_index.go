@@ -10,8 +10,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
 )
 
-// CountOrdinaryMessages counts committed log positions excluding SyncOnce entries.
-// The caller supplies its effective visibility/read floor and committed frontier.
+// CountOrdinaryMessages counts persisted log positions excluding SyncOnce entries.
+// The caller supplies its effective visibility/read floor and selected frontier.
 // A sparse cumulative index keeps steady-state reads independent of history size.
 func (l *ChannelLog) CountOrdinaryMessages(ctx context.Context, after, through uint64) (uint64, error) {
 	if err := l.beginUse(); err != nil {
@@ -29,11 +29,23 @@ func (l *ChannelLog) CountOrdinaryMessages(ctx context.Context, after, through u
 	if err := l.ensureNonBusinessIndexLocked(ctx); err != nil {
 		return 0, err
 	}
-	before, err := l.nonBusinessRank(ctx, after)
+	prefix := encodeMessageIndexPrefix(l.key, messageIndexIDNonBusinessSeq)
+	span := keycodec.NewPrefixSpan(prefix)
+	it, err := l.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
 	if err != nil {
 		return 0, err
 	}
-	last, err := l.nonBusinessRank(ctx, through)
+	defer it.Close()
+	// Both ranks use one bounded view under append ownership. An empty sparse
+	// index proves the entire range ordinary without a second seek or iterator.
+	before, empty, err := nonBusinessRankAt(ctx, it, prefix, after)
+	if err != nil {
+		return 0, err
+	}
+	if empty {
+		return through - after, nil
+	}
+	last, _, err := nonBusinessRankAt(ctx, it, prefix, through)
 	if err != nil {
 		return 0, err
 	}
@@ -141,41 +153,53 @@ func (l *channelEntry) nonBusinessRank(ctx context.Context, through uint64) (uin
 		return 0, err
 	}
 	defer it.Close()
+	rank, _, err := nonBusinessRankAt(ctx, it, prefix, through)
+	return rank, err
+}
+
+// nonBusinessRankAt positions an existing bounded iterator at one rank. If no
+// predecessor survives retention, the first surviving ordinal defines the
+// baseline. Empty is true only when both positions are absent without an error.
+func nonBusinessRankAt(ctx context.Context, it *engine.Iter, prefix []byte, through uint64) (rank uint64, empty bool, err error) {
+	if err := ctx.Err(); err != nil {
+		return 0, false, err
+	}
 	found := false
 	if through == ^uint64(0) {
 		found = it.Last()
 	} else {
-		found = it.SeekLT(nonBusinessIndexKey(l.key, through+1))
+		found = it.SeekLT(keycodec.AppendUint64(prefix, through+1))
 	}
 	baseline := false
 	if !found {
 		if err := it.Error(); err != nil {
-			return 0, err
+			return 0, false, err
 		}
 		found = it.First()
 		baseline = true
 	}
 	if !found {
-		return 0, it.Error()
+		err := it.Error()
+		return 0, err == nil, err
 	}
 	if len(it.Key()) != len(prefix)+8 {
-		return 0, dberrors.ErrCorruptValue
+		return 0, false, dberrors.ErrCorruptValue
 	}
 	value, err := it.Value()
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	if len(value) != 8 {
-		return 0, dberrors.ErrCorruptValue
+		return 0, false, dberrors.ErrCorruptValue
 	}
-	rank := binary.BigEndian.Uint64(value)
+	rank = binary.BigEndian.Uint64(value)
 	if rank == 0 {
-		return 0, dberrors.ErrCorruptValue
+		return 0, false, dberrors.ErrCorruptValue
 	}
 	if baseline {
 		rank--
 	}
-	return rank, nil
+	return rank, false, nil
 }
 
 // nonBusinessStager belongs to one channel's atomic write batch. Its ordinal
@@ -189,7 +213,7 @@ type nonBusinessStager struct {
 	lastSeq uint64
 }
 
-func (s *nonBusinessStager) stage(row messageRow, cache appendKeyCache) error {
+func (s *nonBusinessStager) stage(row messageRow, cache *appendKeyCache) error {
 	if row.FramerFlags&4 != 0 {
 		if !s.loaded {
 			if err := s.entry.ensureNonBusinessIndexLocked(s.ctx); err != nil {

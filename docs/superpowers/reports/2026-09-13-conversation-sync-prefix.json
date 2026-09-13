@@ -1,0 +1,1511 @@
+{
+  "schema": "wukongim/conversation-sync-prefix/v1",
+  "identities": {
+    "source_base": "13f9687192c316d3c6fa967c0f8ae593d60005e5",
+    "source_dirty": true,
+    "go": "1.25.11",
+    "platform": "linux/arm64",
+    "cgo_enabled": true,
+    "container_id": "b0e066cc3de071c59906030253b8f99c1dcaeefdc725a0a3f8526f7814559e4d",
+    "files": {
+      "old": "1c6c13446eb19092a8f47f38a58fd561a0fc7812e30c1fbaae4bf5cc0c3babfd",
+      "new": "5f829a57f86dcb3a954c216f51777b72e0cba09616f6009a5c3453f1a1f37c8d",
+      "old-overlay.json": "327de2fa2601e84d2aae908dc462ea317d41be9a825c02adafb84c446c07d046",
+      "before-legacy-sync.go": "1e462bf57b93b36a9136265c3ea8ac5e22fc5b7e64a10e7c6f0e8fbf54105e0f"
+    },
+    "candidate_source_sha256": "fd2fb26232620d4fd50fcf386228829def2861a07982a679d1921df5c946fa5a",
+    "profile_sha256": "b29f053bd0f8dfb7437a48edba020c0bd2ff6dc788ac303e91a07abe4576cba3",
+    "embedded_build_vcs_revision": "d6dbbfc057f2ab6043cda0df2e6cbc1427f2aca6",
+    "run_order": [
+      "old-1",
+      "new-1",
+      "new-2",
+      "old-2",
+      "old-3",
+      "new-3"
+    ],
+    "old_overlay_note": "Only legacy_sync.go is restored; DirectoryStore contract comment is shared by both builds. Embedded Go VCS metadata identifies the enclosing repository revision, not this dirty worktree or overlay contents."
+  },
+  "diagnostic_only": true,
+  "comparison_complete": true,
+  "runs": [
+    {
+      "name": "old-1",
+      "variant": "old",
+      "complete": true,
+      "source_base": "13f9687192c316d3c6fa967c0f8ae593d60005e5",
+      "source_dirty": true,
+      "profile_sha256": "b29f053bd0f8dfb7437a48edba020c0bd2ff6dc788ac303e91a07abe4576cba3",
+      "started_at": "2026-09-12T16:07:29.327374218Z",
+      "windows": [
+        {
+          "phase": {
+            "driver_wait_p99_ms": 2.376926,
+            "request_p99_ms": 78.953584,
+            "driver_workers": 48,
+            "queue_capacity": 210,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 420
+            },
+            "scheduled": 75600,
+            "completed": 75598,
+            "completed_in_window": 75583,
+            "first_error": "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}",
+            "error_samples": {
+              "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}": 2
+            },
+            "unexpected_errors": 0,
+            "errors": 2,
+            "dropped": 0,
+            "duration_seconds": 180,
+            "actual_qps": 419.90555555555557,
+            "p50_ms": 40.3684,
+            "p95_ms": 58.953397,
+            "p99_ms": 80.08556,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 798.1,
+            "heap_bytes": 395802784,
+            "allocated_bytes": 607898840160,
+            "verdict": "incomplete or failed requests"
+          },
+          "nodes": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 5140800,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.2410371886507883,
+                  "average_occupied_slots": 0.5212356192333311
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75598,
+                  "rejected": 0,
+                  "completed": 75598,
+                  "items": 2570334,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7147264754490845,
+                  "average_occupied_slots": 0.30017717828333274
+                }
+              ],
+              "rpc": {
+                "channel conversation heads": 50400,
+                "channel committed reads": 50399,
+                "slot permission metadata batch": 403196,
+                "slot runtime metadata": 403196,
+                "slot user membership": 37800
+              },
+              "inflight_after": 0
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 4636800,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.0889767922751283,
+                  "average_occupied_slots": 0.4573702527555539
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75598,
+                  "rejected": 0,
+                  "completed": 75598,
+                  "items": 2343544,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6214659039392614,
+                  "average_occupied_slots": 0.2610087744777793
+                }
+              ],
+              "rpc": {
+                "channel conversation heads": 50400,
+                "channel committed reads": 50398,
+                "slot permission metadata batch": 403192,
+                "slot runtime metadata": 403192,
+                "slot user membership": 25199
+              },
+              "inflight_after": 0
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75598,
+                  "rejected": 2,
+                  "completed": 75598,
+                  "items": 5342246,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.3092130187306692,
+                  "average_occupied_slots": 0.5498549210555619
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75598,
+                  "rejected": 0,
+                  "completed": 75598,
+                  "items": 2645922,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7309889918119581,
+                  "average_occupied_slots": 0.3070072544611134
+                }
+              ],
+              "rpc": {
+                "channel conversation heads": 50400,
+                "channel committed reads": 50399,
+                "slot permission metadata batch": 403196,
+                "slot runtime metadata": 403196,
+                "slot user membership": 37800
+              },
+              "inflight_after": 0
+            }
+          ]
+        }
+      ],
+      "raw_path": "/tmp/conversation-sync-prefix/old-1/report.json",
+      "raw_sha256": "9b640e265e66f84f450c8b0a2ae53da5690d3f9b6bd33bd0f7d0bc84db8591e7"
+    },
+    {
+      "name": "new-1",
+      "variant": "new",
+      "complete": true,
+      "source_base": "13f9687192c316d3c6fa967c0f8ae593d60005e5",
+      "source_dirty": true,
+      "profile_sha256": "b29f053bd0f8dfb7437a48edba020c0bd2ff6dc788ac303e91a07abe4576cba3",
+      "started_at": "2026-09-12T16:12:36.696034847Z",
+      "windows": [
+        {
+          "phase": {
+            "driver_wait_p99_ms": 1.943457,
+            "request_p99_ms": 30.721708,
+            "driver_workers": 48,
+            "queue_capacity": 210,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 420
+            },
+            "scheduled": 75600,
+            "completed": 75600,
+            "completed_in_window": 75593,
+            "unexpected_errors": 0,
+            "errors": 0,
+            "dropped": 0,
+            "duration_seconds": 180,
+            "actual_qps": 419.9611111111111,
+            "p50_ms": 19.888538,
+            "p95_ms": 26.732566,
+            "p99_ms": 31.262762,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 582.6400000000001,
+            "heap_bytes": 453710416,
+            "allocated_bytes": 461497379416,
+            "verdict": "pass"
+          },
+          "nodes": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2595600,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.4439456680290994,
+                  "average_occupied_slots": 0.18645718057222177
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2595600,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.39831835632274865,
+                  "average_occupied_slots": 0.16729370965555443
+                }
+              ],
+              "rpc": {
+                "channel conversation heads": 50400,
+                "channel committed reads": 50400,
+                "slot permission metadata batch": 403200,
+                "slot runtime metadata": 403200,
+                "slot user membership": 37800
+              },
+              "inflight_after": 0
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2318400,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.3734983473544959,
+                  "average_occupied_slots": 0.15686930588888826
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2318400,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.340244469470899,
+                  "average_occupied_slots": 0.14290267717777758
+                }
+              ],
+              "rpc": {
+                "channel conversation heads": 50400,
+                "channel committed reads": 50400,
+                "slot permission metadata batch": 403200,
+                "slot runtime metadata": 403200,
+                "slot user membership": 25200
+              },
+              "inflight_after": 0
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2646000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.4551793956481503,
+                  "average_occupied_slots": 0.19117534617222312
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2646000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.4093410035582026,
+                  "average_occupied_slots": 0.17192322149444508
+                }
+              ],
+              "rpc": {
+                "channel conversation heads": 50400,
+                "channel committed reads": 50400,
+                "slot permission metadata batch": 403200,
+                "slot runtime metadata": 403200,
+                "slot user membership": 37800
+              },
+              "inflight_after": 0
+            }
+          ]
+        }
+      ],
+      "raw_path": "/tmp/conversation-sync-prefix/new-1/report.json",
+      "raw_sha256": "c8d66576f1404e1a860fbab733c0682ab4a72f9afdb07babe54630a72c345123"
+    },
+    {
+      "name": "new-2",
+      "variant": "new",
+      "complete": true,
+      "source_base": "13f9687192c316d3c6fa967c0f8ae593d60005e5",
+      "source_dirty": true,
+      "profile_sha256": "b29f053bd0f8dfb7437a48edba020c0bd2ff6dc788ac303e91a07abe4576cba3",
+      "started_at": "2026-09-12T16:17:42.879496794Z",
+      "windows": [
+        {
+          "phase": {
+            "driver_wait_p99_ms": 1.959787,
+            "request_p99_ms": 32.148458,
+            "driver_workers": 48,
+            "queue_capacity": 210,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 420
+            },
+            "scheduled": 75600,
+            "completed": 75600,
+            "completed_in_window": 75593,
+            "unexpected_errors": 0,
+            "errors": 0,
+            "dropped": 0,
+            "duration_seconds": 180,
+            "actual_qps": 419.9611111111111,
+            "p50_ms": 20.079972,
+            "p95_ms": 27.37298,
+            "p99_ms": 32.814537,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 587.08,
+            "heap_bytes": 306548752,
+            "allocated_bytes": 461500937080,
+            "verdict": "pass"
+          },
+          "nodes": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2595600,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.4417537741402125,
+                  "average_occupied_slots": 0.18553658513888927
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2595600,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.39469110113756617,
+                  "average_occupied_slots": 0.1657702624777778
+                }
+              ],
+              "rpc": {
+                "channel conversation heads": 50400,
+                "channel committed reads": 50400,
+                "slot permission metadata batch": 403200,
+                "slot runtime metadata": 403200,
+                "slot user membership": 37800
+              },
+              "inflight_after": 0
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2318400,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.3912376459391499,
+                  "average_occupied_slots": 0.16431981129444295
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2318400,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.3499955346560887,
+                  "average_occupied_slots": 0.14699812455555725
+                }
+              ],
+              "rpc": {
+                "channel conversation heads": 50400,
+                "channel committed reads": 50400,
+                "slot permission metadata batch": 403200,
+                "slot runtime metadata": 403200,
+                "slot user membership": 25200
+              },
+              "inflight_after": 0
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2646000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.43622981727513305,
+                  "average_occupied_slots": 0.18321652325555587
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2646000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.3957615075529107,
+                  "average_occupied_slots": 0.1662198331722225
+                }
+              ],
+              "rpc": {
+                "channel conversation heads": 50400,
+                "channel committed reads": 50400,
+                "slot permission metadata batch": 403200,
+                "slot runtime metadata": 403200,
+                "slot user membership": 37800
+              },
+              "inflight_after": 0
+            }
+          ]
+        }
+      ],
+      "raw_path": "/tmp/conversation-sync-prefix/new-2/report.json",
+      "raw_sha256": "2194d20f26594c8793de13aa9936812ac2fff3c84ff0af4c354d41c580480b4a"
+    },
+    {
+      "name": "old-2",
+      "variant": "old",
+      "complete": true,
+      "source_base": "13f9687192c316d3c6fa967c0f8ae593d60005e5",
+      "source_dirty": true,
+      "profile_sha256": "b29f053bd0f8dfb7437a48edba020c0bd2ff6dc788ac303e91a07abe4576cba3",
+      "started_at": "2026-09-12T16:22:49.872964589Z",
+      "windows": [
+        {
+          "phase": {
+            "driver_wait_p99_ms": 2.589402,
+            "request_p99_ms": 81.049875,
+            "driver_workers": 48,
+            "queue_capacity": 210,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 420
+            },
+            "scheduled": 75600,
+            "completed": 75600,
+            "completed_in_window": 75588,
+            "unexpected_errors": 0,
+            "errors": 0,
+            "dropped": 0,
+            "duration_seconds": 180,
+            "actual_qps": 419.93333333333334,
+            "p50_ms": 39.283189,
+            "p95_ms": 58.597254,
+            "p99_ms": 83.193717,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 791.8199999999999,
+            "heap_bytes": 329239144,
+            "allocated_bytes": 607931120520,
+            "verdict": "pass"
+          },
+          "nodes": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 5140800,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.2188860987830838,
+                  "average_occupied_slots": 0.5119321614888952
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2570400,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6943381356349211,
+                  "average_occupied_slots": 0.2916220169666669
+                }
+              ],
+              "rpc": {
+                "channel conversation heads": 50400,
+                "channel committed reads": 50400,
+                "slot permission metadata batch": 403200,
+                "slot runtime metadata": 403200,
+                "slot user membership": 37800
+              },
+              "inflight_after": 0
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 4636800,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.0796741276455153,
+                  "average_occupied_slots": 0.45346313361111634
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2343600,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6115754378703722,
+                  "average_occupied_slots": 0.2568616839055563
+                }
+              ],
+              "rpc": {
+                "channel conversation heads": 50400,
+                "channel committed reads": 50400,
+                "slot permission metadata batch": 403200,
+                "slot runtime metadata": 403200,
+                "slot user membership": 25200
+              },
+              "inflight_after": 0
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 5342400,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.2447283281084653,
+                  "average_occupied_slots": 0.5227858978055554
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2646000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7069442057936494,
+                  "average_occupied_slots": 0.29691656643333275
+                }
+              ],
+              "rpc": {
+                "channel conversation heads": 50400,
+                "channel committed reads": 50400,
+                "slot permission metadata batch": 403200,
+                "slot runtime metadata": 403200,
+                "slot user membership": 37800
+              },
+              "inflight_after": 0
+            }
+          ]
+        }
+      ],
+      "raw_path": "/tmp/conversation-sync-prefix/old-2/report.json",
+      "raw_sha256": "7b5167f266569139161e10c581818c802476b4b400c31a1878a88efb84db77df"
+    },
+    {
+      "name": "old-3",
+      "variant": "old",
+      "complete": true,
+      "source_base": "13f9687192c316d3c6fa967c0f8ae593d60005e5",
+      "source_dirty": true,
+      "profile_sha256": "b29f053bd0f8dfb7437a48edba020c0bd2ff6dc788ac303e91a07abe4576cba3",
+      "started_at": "2026-09-12T16:27:56.8555483Z",
+      "windows": [
+        {
+          "phase": {
+            "driver_wait_p99_ms": 2.141197,
+            "request_p99_ms": 83.504917,
+            "driver_workers": 48,
+            "queue_capacity": 210,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 420
+            },
+            "scheduled": 75600,
+            "completed": 75595,
+            "completed_in_window": 75580,
+            "first_error": "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}",
+            "error_samples": {
+              "HTTP 400: {\"msg\":\"internal/message: backpressured: channel: backpressured\",\"status\":400}": 3,
+              "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}": 2
+            },
+            "unexpected_errors": 0,
+            "errors": 5,
+            "dropped": 0,
+            "duration_seconds": 180,
+            "actual_qps": 419.8888888888889,
+            "p50_ms": 38.011507,
+            "p95_ms": 57.675367,
+            "p99_ms": 84.895355,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 796.51,
+            "heap_bytes": 339071408,
+            "allocated_bytes": 607948642136,
+            "verdict": "incomplete or failed requests"
+          },
+          "nodes": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75598,
+                  "rejected": 2,
+                  "completed": 75598,
+                  "items": 5140660,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.2278659069949067,
+                  "average_occupied_slots": 0.5156900379833387
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75595,
+                  "rejected": 3,
+                  "completed": 75595,
+                  "items": 2570227,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7015174043256811,
+                  "average_occupied_slots": 0.29461782322222146
+                }
+              ],
+              "rpc": {
+                "channel conversation heads": 50400,
+                "channel committed reads": 50399,
+                "slot permission metadata batch": 403196,
+                "slot runtime metadata": 403196,
+                "slot user membership": 37800
+              },
+              "inflight_after": 0
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 4636800,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.0234138319179897,
+                  "average_occupied_slots": 0.42983380940555577
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75598,
+                  "rejected": 0,
+                  "completed": 75598,
+                  "items": 2343526,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.58139999947089,
+                  "average_occupied_slots": 0.2441815397777797
+                }
+              ],
+              "rpc": {
+                "channel conversation heads": 50400,
+                "channel committed reads": 50398,
+                "slot permission metadata batch": 403192,
+                "slot runtime metadata": 403192,
+                "slot user membership": 25199
+              },
+              "inflight_after": 0
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 5342400,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.2753740146825334,
+                  "average_occupied_slots": 0.5356570861666641
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75598,
+                  "rejected": 0,
+                  "completed": 75598,
+                  "items": 2645944,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7117211560755647,
+                  "average_occupied_slots": 0.2989149775388919
+                }
+              ],
+              "rpc": {
+                "channel conversation heads": 50400,
+                "channel committed reads": 50399,
+                "slot permission metadata batch": 403196,
+                "slot runtime metadata": 403196,
+                "slot user membership": 37799
+              },
+              "inflight_after": 0
+            }
+          ]
+        }
+      ],
+      "raw_path": "/tmp/conversation-sync-prefix/old-3/report.json",
+      "raw_sha256": "516aee84e92f5ec75f8a3680ca35fe1314c2ae4f18cbaad55c851e7813abdb11"
+    },
+    {
+      "name": "new-3",
+      "variant": "new",
+      "complete": true,
+      "source_base": "13f9687192c316d3c6fa967c0f8ae593d60005e5",
+      "source_dirty": true,
+      "profile_sha256": "b29f053bd0f8dfb7437a48edba020c0bd2ff6dc788ac303e91a07abe4576cba3",
+      "started_at": "2026-09-12T16:33:03.41188347Z",
+      "windows": [
+        {
+          "phase": {
+            "driver_wait_p99_ms": 1.954721,
+            "request_p99_ms": 30.907584,
+            "driver_workers": 48,
+            "queue_capacity": 210,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 420
+            },
+            "scheduled": 75600,
+            "completed": 75600,
+            "completed_in_window": 75592,
+            "unexpected_errors": 0,
+            "errors": 0,
+            "dropped": 0,
+            "duration_seconds": 180,
+            "actual_qps": 419.9555555555556,
+            "p50_ms": 19.890903,
+            "p95_ms": 26.77423,
+            "p99_ms": 31.581361,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 584.35,
+            "heap_bytes": 389497208,
+            "allocated_bytes": 461492842816,
+            "verdict": "pass"
+          },
+          "nodes": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2595600,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.4292430401719629,
+                  "average_occupied_slots": 0.18028207687222444
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2595600,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.38701364202380556,
+                  "average_occupied_slots": 0.16254572964999833
+                }
+              ],
+              "rpc": {
+                "channel conversation heads": 50400,
+                "channel committed reads": 50400,
+                "slot permission metadata batch": 403200,
+                "slot runtime metadata": 403200,
+                "slot user membership": 37800
+              },
+              "inflight_after": 0
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2318400,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.3897682144973565,
+                  "average_occupied_slots": 0.1637026500888897
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2318400,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.3515945089285696,
+                  "average_occupied_slots": 0.14766969374999925
+                }
+              ],
+              "rpc": {
+                "channel conversation heads": 50400,
+                "channel committed reads": 50400,
+                "slot permission metadata batch": 403200,
+                "slot runtime metadata": 403200,
+                "slot user membership": 25200
+              },
+              "inflight_after": 0
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2646000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.434582901838619,
+                  "average_occupied_slots": 0.18252481877221996
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 75600,
+                  "rejected": 0,
+                  "completed": 75600,
+                  "items": 2646000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.3951488338227516,
+                  "average_occupied_slots": 0.1659625102055557
+                }
+              ],
+              "rpc": {
+                "channel conversation heads": 50400,
+                "channel committed reads": 50400,
+                "slot permission metadata batch": 403200,
+                "slot runtime metadata": 403200,
+                "slot user membership": 37800
+              },
+              "inflight_after": 0
+            }
+          ]
+        }
+      ],
+      "raw_path": "/tmp/conversation-sync-prefix/new-3/report.json",
+      "raw_sha256": "6ebdf7511ff2f34f244efdca83570231c3095985b64b3d9c74513f821c00bcd0"
+    }
+  ],
+  "summary": [
+    {
+      "variant": "old",
+      "endpoint": "/conversation/sync",
+      "window_count": 3,
+      "passing_windows": 1,
+      "stable_three_windows": false,
+      "http_refusals": 7,
+      "driver_drops": 0,
+      "p99_range_ms": [
+        80.08556,
+        84.895355
+      ],
+      "cpu_ms_per_success": 10.522502899119461,
+      "allocated_bytes_per_success": 8041600.06180085,
+      "admission_rejected": 7,
+      "byte_budget_rejected": 0,
+      "p99_median_ms": 83.193717,
+      "heads_per_scheduled_request": 199.9987037037037,
+      "heads_mean_hold_ms": 1.1899072385948815,
+      "recents_per_scheduled_request": 99.99778218694885,
+      "recents_mean_hold_ms": 0.6749640375846049,
+      "rpc_per_scheduled_request": {
+        "channel conversation heads": 2.0,
+        "channel committed reads": 1.9999647266313934,
+        "slot permission metadata batch": 15.999858906525573,
+        "slot runtime metadata": 15.999858906525573,
+        "slot user membership": 1.3333201058201058
+      }
+    },
+    {
+      "variant": "new",
+      "endpoint": "/conversation/sync",
+      "window_count": 3,
+      "passing_windows": 3,
+      "stable_three_windows": true,
+      "http_refusals": 0,
+      "driver_drops": 0,
+      "p99_range_ms": [
+        31.262762,
+        32.814537
+      ],
+      "cpu_ms_per_success": 7.73399470899471,
+      "allocated_bytes_per_success": 6104458.374391534,
+      "admission_rejected": 0,
+      "byte_budget_rejected": 0,
+      "p99_median_ms": 31.581361,
+      "heads_per_scheduled_request": 100.0,
+      "heads_mean_hold_ms": 0.4217154227660199,
+      "recents_per_scheduled_request": 100.0,
+      "recents_mean_hold_ms": 0.3802343286081714,
+      "rpc_per_scheduled_request": {
+        "channel conversation heads": 2.0,
+        "channel committed reads": 2.0,
+        "slot permission metadata batch": 16.0,
+        "slot runtime metadata": 16.0,
+        "slot user membership": 1.3333333333333333
+      }
+    }
+  ],
+  "validation": {
+    "related_units": "passed",
+    "conversation_race": "passed",
+    "linux_conversation_units": "passed",
+    "harness_compile": "passed",
+    "go-format": "passed",
+    "flow-doc-contracts": "passed",
+    "diff_whitespace": "passed",
+    "candidate_page_equivalence": "12 deterministic fixtures, 20 page/size combinations each against the full bounded candidate walk"
+  },
+  "cleanup_complete": true,
+  "release_gate": {
+    "schema": "wukongim/conversation-qps-report/v1",
+    "source_sha": "13f9687192c316d3c6fa967c0f8ae593d60005e5",
+    "source_dirty": true,
+    "profile_sha256": "b29f053bd0f8dfb7437a48edba020c0bd2ff6dc788ac303e91a07abe4576cba3",
+    "binary_sha256": "5f829a57f86dcb3a954c216f51777b72e0cba09616f6009a5c3453f1a1f37c8d",
+    "os": "linux",
+    "arch": "arm64",
+    "cpus": 10,
+    "node_gomaxprocs": 2,
+    "started_at": "2026-09-12T16:38:40.368546751Z",
+    "phases": [
+      {
+        "driver_wait_p99_ms": 1.94142,
+        "request_p99_ms": 3.427584,
+        "driver_workers": 8,
+        "queue_capacity": 200,
+        "nodes": 1,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 550000,
+            "3": 800000
+          },
+          "endpoint": "/conversation/list",
+          "page_size": 25,
+          "offered_qps": 400
+        },
+        "scheduled": 6000,
+        "completed": 6000,
+        "completed_in_window": 6000,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 400,
+        "p50_ms": 2.028378,
+        "p95_ms": 3.147376,
+        "p99_ms": 4.330423,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 6.389999999999999,
+        "heap_bytes": 143477880,
+        "allocated_bytes": 2097753520,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 1.447126,
+        "request_p99_ms": 6.438208,
+        "driver_workers": 8,
+        "queue_capacity": 100,
+        "nodes": 1,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 2000000,
+            "3": 3000000
+          },
+          "endpoint": "/conversation/list",
+          "page_size": 100,
+          "offered_qps": 200
+        },
+        "scheduled": 3000,
+        "completed": 3000,
+        "completed_in_window": 3000,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 200,
+        "p50_ms": 2.989713,
+        "p95_ms": 4.112463,
+        "p99_ms": 7.274043,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 6.899999999999999,
+        "heap_bytes": 103242176,
+        "allocated_bytes": 4023062144,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 2.557548,
+        "request_p99_ms": 9.578167,
+        "driver_workers": 8,
+        "queue_capacity": 50,
+        "nodes": 1,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 4000000,
+            "3": 6000000
+          },
+          "endpoint": "/conversation/list",
+          "page_size": 200,
+          "offered_qps": 100
+        },
+        "scheduled": 1500,
+        "completed": 1500,
+        "completed_in_window": 1500,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 100,
+        "p50_ms": 5.195669,
+        "p95_ms": 7.183004,
+        "p99_ms": 11.179376,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 6.160000000000004,
+        "heap_bytes": 134306432,
+        "allocated_bytes": 4041506768,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 3.281417,
+        "request_p99_ms": 7.00225,
+        "driver_workers": 8,
+        "queue_capacity": 40,
+        "nodes": 1,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 4800000,
+            "3": 7300000
+          },
+          "endpoint": "/conversation/sync",
+          "page_size": 25,
+          "offered_qps": 80
+        },
+        "scheduled": 1200,
+        "completed": 1200,
+        "completed_in_window": 1200,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 80,
+        "p50_ms": 5.176548,
+        "p95_ms": 7.08175,
+        "p99_ms": 8.827963,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 4.07,
+        "heap_bytes": 107856616,
+        "allocated_bytes": 1290254576,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 3.895629,
+        "request_p99_ms": 11.962125,
+        "driver_workers": 8,
+        "queue_capacity": 30,
+        "nodes": 1,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 7200000,
+            "3": 11500000
+          },
+          "endpoint": "/conversation/sync",
+          "page_size": 100,
+          "offered_qps": 60
+        },
+        "scheduled": 900,
+        "completed": 900,
+        "completed_in_window": 900,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 60,
+        "p50_ms": 7.47213,
+        "p95_ms": 9.882463,
+        "p99_ms": 13.693213,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 4.8799999999999955,
+        "heap_bytes": 118867208,
+        "allocated_bytes": 3727604720,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 4.62017,
+        "request_p99_ms": 17.904958,
+        "driver_workers": 8,
+        "queue_capacity": 20,
+        "nodes": 1,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 11200000,
+            "3": 16500000
+          },
+          "endpoint": "/conversation/sync",
+          "page_size": 200,
+          "offered_qps": 40
+        },
+        "scheduled": 600,
+        "completed": 600,
+        "completed_in_window": 600,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 40,
+        "p50_ms": 11.488464,
+        "p95_ms": 16.59138,
+        "p99_ms": 19.898712,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 5.589999999999996,
+        "heap_bytes": 93291856,
+        "allocated_bytes": 4977492704,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 1.990336,
+        "request_p99_ms": 15.1615,
+        "driver_workers": 8,
+        "queue_capacity": 200,
+        "nodes": 3,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 550000,
+            "3": 800000
+          },
+          "endpoint": "/conversation/list",
+          "page_size": 25,
+          "offered_qps": 400
+        },
+        "scheduled": 6000,
+        "completed": 6000,
+        "completed_in_window": 5997,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 399.8,
+        "p50_ms": 10.709922,
+        "p95_ms": 13.887339,
+        "p99_ms": 16.49067,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 18.25,
+        "heap_bytes": 265930920,
+        "allocated_bytes": 3525468656,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 11.42317,
+        "request_p99_ms": 21.540708,
+        "driver_workers": 8,
+        "queue_capacity": 100,
+        "nodes": 3,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 2000000,
+            "3": 3000000
+          },
+          "endpoint": "/conversation/list",
+          "page_size": 100,
+          "offered_qps": 200
+        },
+        "scheduled": 3000,
+        "completed": 3000,
+        "completed_in_window": 2998,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 199.86666666666667,
+        "p50_ms": 15.52467,
+        "p95_ms": 19.681336,
+        "p99_ms": 45.564336,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 15.730000000000004,
+        "heap_bytes": 332728168,
+        "allocated_bytes": 6352340456,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 1.908458,
+        "request_p99_ms": 28.236167,
+        "driver_workers": 8,
+        "queue_capacity": 50,
+        "nodes": 3,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 4000000,
+            "3": 6000000
+          },
+          "endpoint": "/conversation/list",
+          "page_size": 200,
+          "offered_qps": 100
+        },
+        "scheduled": 1500,
+        "completed": 1500,
+        "completed_in_window": 1498,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 99.86666666666666,
+        "p50_ms": 21.372506,
+        "p95_ms": 26.413548,
+        "p99_ms": 28.569834,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 12.710000000000008,
+        "heap_bytes": 364080928,
+        "allocated_bytes": 6257353024,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 2.090795,
+        "request_p99_ms": 40.258666,
+        "driver_workers": 8,
+        "queue_capacity": 40,
+        "nodes": 3,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 4800000,
+            "3": 7300000
+          },
+          "endpoint": "/conversation/sync",
+          "page_size": 25,
+          "offered_qps": 80
+        },
+        "scheduled": 1200,
+        "completed": 1200,
+        "completed_in_window": 1198,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 79.86666666666666,
+        "p50_ms": 32.659254,
+        "p95_ms": 39.037214,
+        "p99_ms": 41.437918,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 14.36,
+        "heap_bytes": 363953168,
+        "allocated_bytes": 2053263888,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 2.074668,
+        "request_p99_ms": 47.41275,
+        "driver_workers": 8,
+        "queue_capacity": 30,
+        "nodes": 3,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 7200000,
+            "3": 11500000
+          },
+          "endpoint": "/conversation/sync",
+          "page_size": 100,
+          "offered_qps": 60
+        },
+        "scheduled": 900,
+        "completed": 900,
+        "completed_in_window": 898,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 59.86666666666667,
+        "p50_ms": 39.837337,
+        "p95_ms": 46.091585,
+        "p99_ms": 48.50967,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 11.500000000000014,
+        "heap_bytes": 385391136,
+        "allocated_bytes": 5601926016,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 1.530502,
+        "request_p99_ms": 57.640416,
+        "driver_workers": 8,
+        "queue_capacity": 20,
+        "nodes": 3,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 11200000,
+            "3": 16500000
+          },
+          "endpoint": "/conversation/sync",
+          "page_size": 200,
+          "offered_qps": 40
+        },
+        "scheduled": 600,
+        "completed": 600,
+        "completed_in_window": 599,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 39.93333333333333,
+        "p50_ms": 48.116588,
+        "p95_ms": 55.436422,
+        "p99_ms": 57.929752,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 11,
+        "heap_bytes": 350175648,
+        "allocated_bytes": 7383651344,
+        "verdict": "pass"
+      }
+    ],
+    "passed": true
+  },
+  "cleanup": {
+    "owned_container_id": "b0e066cc3de071c59906030253b8f99c1dcaeefdc725a0a3f8526f7814559e4d",
+    "owned_container_removed": true,
+    "no_server_processes_before_cleanup": true,
+    "remaining_containers": [
+      "cce5c963ee8484491af9ca550bc43769c2018c55d809f8fee7422ce938921dac tgo-pal-dev-postgres-1 Exited (0) 6 weeks ago",
+      "e65ea6caad09cf838e55bf0ca6b2bcde6d5b190159629a326b73b2354d82168d buildx_buildkit_multiarch0 Up 7 hours"
+    ],
+    "shared_cache_preserved": true,
+    "dirty_worktree_preserved": true
+  },
+  "governing_context": {
+    "base": "13f9687192c316d3c6fa967c0f8ae593d60005e5",
+    "files": {
+      "AGENTS.md": "c6eae7244b1c660be4b2a62cbdc1efa5c26c35e34972e994df7e6ae073fc9d0b",
+      "internal/usecase/conversation/FLOW.md": "aa5bbb2a91793e2d8a4185bd09df2e28c2b31b75769d0c9a530b52a8c23e5672",
+      "pkg/db/meta/FLOW.md": "497b013f95bcdd43132a939470c1a33797d5e08a143153e030e5f3f3d1bc6ba2",
+      "test/e2e/AGENTS.md": "14987f74acfa1f876b717f74756a4d33aba1e17ed93db910527e8d740b352cd5",
+      "test/e2e/message/AGENTS.md": "8b6accce4d6965530719684f5366d65734eeb962edf22cb761f8c6c4fc980f73",
+      "test/e2e/message/conversation_qps/AGENTS.md": "c68ef955a4c163a0748af26c3741e157705a9ca766ff1fe05f08de10147f202c"
+    }
+  },
+  "artifacts": {
+    "/tmp/conversation-sync-prefix/before-legacy-sync.go": "1e462bf57b93b36a9136265c3ea8ac5e22fc5b7e64a10e7c6f0e8fbf54105e0f",
+    "/tmp/conversation-sync-prefix/release-gate.log": "2548b13daba7e170cefd5d1eb6885aeda985b64b241783f65b17d56073ee58b4",
+    "/tmp/conversation-sync-prefix/memory.events": "28fe05a1d7b8467a03fb54454f7b6a130fab752864d0454f5f6c4a4b6ce307f2",
+    "/tmp/conversation-sync-prefix/release-gate.json": "dca0198cc921a2df93bb50e3afc248e5275dd0005d7f66fba395a250e8dc143f",
+    "/tmp/conversation-sync-prefix/flow-render.log": "5ca49956b23d02062de121518c2742d33bfb3768463081d8e438c87de41d5854",
+    "/tmp/conversation-sync-prefix/red.log": "264a196542d620e7c20ae0524a696517a8db8a8cbfff099e0912e7dafe8300a6",
+    "/tmp/conversation-sync-prefix/final-validate.sh": "7b54ca69d37ff84ca14f8ed4d45110465cda7846d024ad6c7a16edf28958b0de",
+    "/tmp/conversation-sync-prefix/identities.json": "3aa29319bfdf06a7c485b81463cc4df4513f08e3a1724efc40a61698b92d0cc6",
+    "/tmp/conversation-sync-prefix/checks.log": "117bf2845a6735468976f95934ccc0bd66b49279d3ad301f794e260413bc5b46",
+    "/tmp/conversation-sync-prefix/green.log": "813b1549abb8e9335ef036a21a88ae24b5fdb15ecbd3bc5743d3d70fd37fff7b",
+    "/tmp/conversation-sync-prefix/diff-check.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/tmp/conversation-sync-prefix/gate-progress.py": "3c8167b8e8177343f7e20e8124342410c8a3d3dd604e1ddfc523a6619c1f7085",
+    "/tmp/conversation-sync-prefix/final-unit.log": "3bb0ea83a60c5985c78edcdcacb978ed46a8eeecbae9bd834c9d506f869fd912",
+    "/tmp/conversation-sync-prefix/finalize.py": "1fd35e09dc555c14938dd9510470a61716d4945dcf5568de5404ff17bccd0794",
+    "/tmp/conversation-sync-prefix/linux-unit.log": "a7ed82b8b998a7a8dd32194c8ffa4b19b66561df4f63025492cc3cd3ec705448",
+    "/tmp/conversation-sync-prefix/summarize.py": "0e07c4c1c84d112cddda52b1cd6030752213497f5f2be9bbbd814eb5c8a76f53",
+    "/tmp/conversation-sync-prefix/old-build-info.txt": "6bb590679990ad7253bebf122d470fbaa85336d49ef5673ae2243a26fe458cf0",
+    "/tmp/conversation-sync-prefix/final-race.log": "88988d168a7e67463650d863a6939eff3de4eeea800a03abb003ba01744773c0",
+    "/tmp/conversation-sync-prefix/cleanup.json": "3be323525c52a5c6d9591943d9b9e5e7a672af9cba635b29a8dd2ef305b946f3",
+    "/tmp/conversation-sync-prefix/new-build-info.txt": "fb1dd29fddf0416127828684b674e0a80ee2fa3643bf7c915aa9e058c7204ed6",
+    "/tmp/conversation-sync-prefix/final-checks.log": "117bf2845a6735468976f95934ccc0bd66b49279d3ad301f794e260413bc5b46",
+    "/tmp/conversation-sync-prefix/race.log": "b6b7548f2b600b787640dddb5c0cacba8e23aaa2d3ade47cefde459e9fc73562",
+    "/tmp/conversation-sync-prefix/run-pairs.sh": "ec09240595bd026f68f0eadd4df03cb33a56aebbcdf364487dae6a51c02e3d99",
+    "/tmp/conversation-sync-prefix/cpu.stat": "d6c65ff0c860a786cb2aef9b64e70bd81fb9504d37368830ed0634de743ab2aa",
+    "/tmp/conversation-sync-prefix/unit.log": "cda8cd534665d271a71ca9520f4ad7812e7aaa598ae7f69c642be1cd169dcbf2",
+    "/tmp/conversation-sync-prefix/e2e-compile.log": "2548b5feba041c779354691ef48257d8b40f901514dfe5c4460e0e76e172ef19",
+    "/tmp/conversation-sync-prefix/container-processes-before-cleanup.txt": "0c280a6b82a27aa9724af025587e433af203cef6844bad728881167735bd4ea5",
+    "/tmp/conversation-sync-prefix/progress.py": "63038994b5335854aac2a6ecec5dc0c8639c3ff630ec79d08a2c3815811c9ad0",
+    "/tmp/conversation-sync-prefix/governing-context.json": "02ae8386659a5d9e1e3bdf1a622724a9f8f58ed7e8fb00479dad261798ffd9e5",
+    "/tmp/conversation-sync-prefix/old-overlay.json": "327de2fa2601e84d2aae908dc462ea317d41be9a825c02adafb84c446c07d046",
+    "/tmp/conversation-sync-prefix/validation.complete": "2700165975f68815c97d605c56eca8e90d497ade1264b6282401d13fee99ac27",
+    "/tmp/conversation-sync-prefix/old-1/report.json": "9b640e265e66f84f450c8b0a2ae53da5690d3f9b6bd33bd0f7d0bc84db8591e7",
+    "/tmp/conversation-sync-prefix/old-1/run.log": "4f01f656e84213f58c9d6c2d9a44cf4965831ec55d0ca81a7962f09afc400f76",
+    "/tmp/conversation-sync-prefix/new-1/report.json": "c8d66576f1404e1a860fbab733c0682ab4a72f9afdb07babe54630a72c345123",
+    "/tmp/conversation-sync-prefix/new-1/run.log": "feff8e108d7ba0c91bcad6da8a8338a700ab04de1becf1cdfa574d598833648e",
+    "/tmp/conversation-sync-prefix/old-3/report.json": "516aee84e92f5ec75f8a3680ca35fe1314c2ae4f18cbaad55c851e7813abdb11",
+    "/tmp/conversation-sync-prefix/old-3/run.log": "e2307281c02834751a41c5f4f3f6da6e8f1b8c7ce5880fac57c7459bdcfffc52",
+    "/tmp/conversation-sync-prefix/old-2/report.json": "7b5167f266569139161e10c581818c802476b4b400c31a1878a88efb84db77df",
+    "/tmp/conversation-sync-prefix/old-2/run.log": "8ccd2863d9fdbf1ca959621b25ae3fe9dac8684c7119502b6add1a7821baaeab",
+    "/tmp/conversation-sync-prefix/new-3/report.json": "6ebdf7511ff2f34f244efdca83570231c3095985b64b3d9c74513f821c00bcd0",
+    "/tmp/conversation-sync-prefix/new-3/run.log": "4cb31193a2fdea8429861d7dfd430dc8f3a7a8d4cede2a4731c95a6f44a18846",
+    "/tmp/conversation-sync-prefix/new-2/report.json": "2194d20f26594c8793de13aa9936812ac2fff3c84ff0af4c354d41c580480b4a",
+    "/tmp/conversation-sync-prefix/new-2/run.log": "b05127147d923c4f1205a078e4e716088ff0761d4570bd81ed6beda46dea0b44"
+  },
+  "release_gate_summary": {
+    "cases": 12,
+    "scheduled": 26400,
+    "errors": 0,
+    "max_p99_ms": 57.929752,
+    "profile_unchanged": true
+  },
+  "improvement_percent": {
+    "cpu_ms_per_success": 26.50042691229002,
+    "allocated_bytes_per_success": 24.089008064590423,
+    "p99_median_ms": 62.038766701576755
+  },
+  "superseded_for_correctness": true,
+  "superseded_reason": "The prefix implementation assumed directory string order, but durable keys compare string length before bytes. Variable-length IDs can select wrong pages. Original measurements are preserved; see 2026-09-13-conversation-resilience.md for the corrected implementation and exact-page validation."
+}

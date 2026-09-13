@@ -12,12 +12,12 @@ type testMessageStore struct {
 	db     *MessageDB
 }
 
-func openTestMessageStore(t *testing.T) *testMessageStore {
+func openTestMessageStore(t testing.TB) *testMessageStore {
 	t.Helper()
 	return openTestMessageStoreAt(t, t.TempDir())
 }
 
-func openTestMessageStoreAt(t *testing.T, path string) *testMessageStore {
+func openTestMessageStoreAt(t testing.TB, path string) *testMessageStore {
 	t.Helper()
 	eng, err := engine.Open(path, engine.Options{})
 	if err != nil {
@@ -30,7 +30,7 @@ func openTestMessageStoreAt(t *testing.T, path string) *testMessageStore {
 	}
 }
 
-func (s *testMessageStore) close(t *testing.T) {
+func (s *testMessageStore) close(t testing.TB) {
 	t.Helper()
 	if s == nil || s.db == nil {
 		return

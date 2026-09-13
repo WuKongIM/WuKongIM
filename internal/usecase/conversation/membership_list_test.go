@@ -88,41 +88,6 @@ func TestListReturnsCoverageAndRequiresResetWhenTombstonesExpired(t *testing.T) 
 	}
 }
 
-func TestRetryHydratesOnlyRequestedLiveMembershipsAndReturnsDeletes(t *testing.T) {
-	store := &membershipRetryStore{rows: map[ConversationKey]metadb.UserChannelMembership{
-		{ChannelID: "visible", ChannelType: 2}:   {UID: "u1", ChannelID: "visible", ChannelType: 2, JoinSeq: 1},
-		{ChannelID: "removed", ChannelType: 2}:   {UID: "u1", ChannelID: "removed", ChannelType: 2, Tombstone: true},
-		{ChannelID: "retryable", ChannelType: 2}: {UID: "u1", ChannelID: "retryable", ChannelType: 2, JoinSeq: 1},
-	}}
-	hydrator := &membershipHeadHydrator{results: []HydrationResult{
-		{Key: ConversationKey{ChannelID: "visible", ChannelType: 2}, Outcome: HydrationOK, ReadThroughSeq: 3, LastMessage: &LastMessage{MessageSeq: 3}},
-		{Key: ConversationKey{ChannelID: "retryable", ChannelType: 2}, Outcome: HydrationRetryable},
-	}}
-	app := New(Options{Hydrator: hydrator, MembershipMutations: store})
-
-	result, err := app.retryLegacyHeads(context.Background(), legacyRetryRequest{UID: "u1", Keys: []ConversationKey{
-		{ChannelID: "visible", ChannelType: 2},
-		{ChannelID: "missing", ChannelType: 2},
-		{ChannelID: "removed", ChannelType: 2},
-		{ChannelID: "retryable", ChannelType: 2},
-	}})
-	if err != nil {
-		t.Fatalf("Retry(): %v", err)
-	}
-	if len(result.Items) != 1 || result.Items[0].ChannelID != "visible" {
-		t.Fatalf("items = %#v, want visible", result.Items)
-	}
-	if got, want := result.Deletes, []ConversationKey{{ChannelID: "missing", ChannelType: 2}, {ChannelID: "removed", ChannelType: 2}}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("deletes = %#v, want %#v", got, want)
-	}
-	if got, want := result.Unresolved, []ConversationKey{{ChannelID: "retryable", ChannelType: 2}}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("unresolved = %#v, want %#v", got, want)
-	}
-	if len(hydrator.memberships) != 2 {
-		t.Fatalf("hydrated memberships = %d, want only two live rows", len(hydrator.memberships))
-	}
-}
-
 type membershipDirectoryStore struct {
 	rows   []metadb.UserChannelMembership
 	cursor metadb.UserChannelMembershipCursor
@@ -140,27 +105,6 @@ func (s *membershipDirectoryStore) ListUserChannelMembershipPage(_ context.Conte
 type membershipHeadHydrator struct {
 	results     []HydrationResult
 	memberships []metadb.UserChannelMembership
-}
-
-type membershipRetryStore struct {
-	rows map[ConversationKey]metadb.UserChannelMembership
-}
-
-func (s *membershipRetryStore) GetUserChannelMembership(_ context.Context, _ string, channelID string, channelType int64) (metadb.UserChannelMembership, bool, error) {
-	row, ok := s.rows[ConversationKey{ChannelID: channelID, ChannelType: channelType}]
-	return row, ok, nil
-}
-
-func (*membershipRetryStore) AdvanceUserChannelMembershipReadSeq(context.Context, string, string, int64, uint64, int64) error {
-	return nil
-}
-
-func (*membershipRetryStore) HideUserChannelMembership(context.Context, string, string, int64, uint64, int64) error {
-	return nil
-}
-
-func (*membershipRetryStore) ActivateUserChannelMembership(context.Context, string, string, int64, int64, int64) error {
-	return nil
 }
 
 func (s *membershipHeadHydrator) HydrateConversationHeads(_ context.Context, _ string, memberships []metadb.UserChannelMembership, keepUnread ...uint64) ([]HydrationResult, error) {

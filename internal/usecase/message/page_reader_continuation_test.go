@@ -90,15 +90,15 @@ func pageSequences(p ChannelMessagePage) []uint64 {
 // the scan limit exactly as ordinary records do in the real adapter.
 type historyScanFixture struct {
 	rows    []SyncedMessage
-	queries []CommittedMessageQuery
+	queries []MessageScanQuery
 }
 
-func (f *historyScanFixture) ReadCommittedMessages(ctx context.Context, queries []CommittedMessageQuery) ([]CommittedMessageResult, error) {
+func (f *historyScanFixture) ReadCommittedMessages(ctx context.Context, queries []MessageScanQuery) ([]MessageScanResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	f.queries = append(f.queries, queries...)
-	results := make([]CommittedMessageResult, len(queries))
+	results := make([]MessageScanResult, len(queries))
 	for i, q := range queries {
 		visit := func(m SyncedMessage) {
 			if m.MessageSeq < q.MinSeq || (q.MaxSeq > 0 && m.MessageSeq > q.MaxSeq) || (q.Reverse && m.MessageSeq > q.FromSeq) || (!q.Reverse && m.MessageSeq < q.FromSeq) || len(results[i].Messages) >= q.Limit {
@@ -141,7 +141,7 @@ func TestPageReaderStopsAtVisibilityAndExclusiveRangeBounds(t *testing.T) {
 
 func TestPageReaderBoundsAllControlWorkWithoutFalseEnd(t *testing.T) {
 	calls := 0
-	f := scanFunction(func(ctx context.Context, qs []CommittedMessageQuery) ([]CommittedMessageResult, error) {
+	f := scanFunction(func(ctx context.Context, qs []MessageScanQuery) ([]MessageScanResult, error) {
 		calls++
 		deadline, ok := ctx.Deadline()
 		require.True(t, ok)
@@ -153,7 +153,7 @@ func TestPageReaderBoundsAllControlWorkWithoutFalseEnd(t *testing.T) {
 		for i := range rows {
 			rows[i] = SyncedMessage{MessageSeq: q.FromSeq + uint64(i), Flags: MessageFlags{SyncOnce: true}}
 		}
-		return []CommittedMessageResult{{Messages: rows}}, nil
+		return []MessageScanResult{{Messages: rows}}, nil
 	})
 	_, err := NewPageReader(f).SyncMessages(context.Background(), ChannelMessageQuery{StartSeq: 1, Limit: 3, PullMode: PullModeUp})
 	require.ErrorIs(t, err, ErrSyncPageScanBudget)
@@ -163,15 +163,15 @@ func TestPageReaderBoundsAllControlWorkWithoutFalseEnd(t *testing.T) {
 func TestPageReaderContinuationPreservesBatchAlignmentAndFailures(t *testing.T) {
 	calls := 0
 	cause := errors.New("continuation read failed")
-	f := scanFunction(func(_ context.Context, qs []CommittedMessageQuery) ([]CommittedMessageResult, error) {
+	f := scanFunction(func(_ context.Context, qs []MessageScanQuery) ([]MessageScanResult, error) {
 		calls++
 		if calls == 1 {
 			require.Len(t, qs, 2)
-			return []CommittedMessageResult{{Messages: []SyncedMessage{{MessageSeq: 1}}}, {Messages: []SyncedMessage{{MessageSeq: 3, Flags: MessageFlags{SyncOnce: true}}, {MessageSeq: 2, Flags: MessageFlags{SyncOnce: true}}}}}, nil
+			return []MessageScanResult{{Messages: []SyncedMessage{{MessageSeq: 1}}}, {Messages: []SyncedMessage{{MessageSeq: 3, Flags: MessageFlags{SyncOnce: true}}, {MessageSeq: 2, Flags: MessageFlags{SyncOnce: true}}}}}, nil
 		}
 		require.Len(t, qs, 1)
 		require.Equal(t, "second", qs[0].ChannelID.ID)
-		return []CommittedMessageResult{{Err: cause}}, nil
+		return []MessageScanResult{{Err: cause}}, nil
 	})
 	got, err := NewPageReader(f).SyncMessagesBatch(context.Background(), []ChannelMessageQuery{{ChannelID: ChannelID{ID: "first"}, Limit: 1}, {ChannelID: ChannelID{ID: "second"}, Limit: 1}})
 	require.NoError(t, err)
@@ -184,24 +184,24 @@ func TestPageReaderContinuationPreservesBatchAlignmentAndFailures(t *testing.T) 
 
 func TestPageReaderRejectsRepeatedRawCursorAndHonorsCancellation(t *testing.T) {
 	rows := []SyncedMessage{{MessageSeq: 4, Flags: MessageFlags{SyncOnce: true}}, {MessageSeq: 3, Flags: MessageFlags{SyncOnce: true}}}
-	_, err := NewPageReader(scanFunction(func(context.Context, []CommittedMessageQuery) ([]CommittedMessageResult, error) {
-		return []CommittedMessageResult{{Messages: rows}}, nil
+	_, err := NewPageReader(scanFunction(func(context.Context, []MessageScanQuery) ([]MessageScanResult, error) {
+		return []MessageScanResult{{Messages: rows}}, nil
 	})).SyncMessages(context.Background(), ChannelMessageQuery{Limit: 1})
 	require.ErrorIs(t, err, ErrSyncPageScanInvalid)
 	ctx, cancel := context.WithCancel(context.Background())
 	calls := 0
-	_, err = NewPageReader(scanFunction(func(context.Context, []CommittedMessageQuery) ([]CommittedMessageResult, error) {
+	_, err = NewPageReader(scanFunction(func(context.Context, []MessageScanQuery) ([]MessageScanResult, error) {
 		calls++
 		cancel()
-		return []CommittedMessageResult{{Messages: rows}}, nil
+		return []MessageScanResult{{Messages: rows}}, nil
 	})).SyncMessages(ctx, ChannelMessageQuery{Limit: 1})
 	require.ErrorIs(t, err, context.Canceled)
 	require.Equal(t, 1, calls)
 }
 
-type scanFunction func(context.Context, []CommittedMessageQuery) ([]CommittedMessageResult, error)
+type scanFunction func(context.Context, []MessageScanQuery) ([]MessageScanResult, error)
 
-func (f scanFunction) ReadCommittedMessages(ctx context.Context, q []CommittedMessageQuery) ([]CommittedMessageResult, error) {
+func (f scanFunction) ReadCommittedMessages(ctx context.Context, q []MessageScanQuery) ([]MessageScanResult, error) {
 	return f(ctx, q)
 }
 
@@ -210,7 +210,7 @@ func (f scanFunction) ReadCommittedMessages(ctx context.Context, q []CommittedMe
 func TestPageReaderDoesNotAmplifySmallPagePastRemoteFrameBudget(t *testing.T) {
 	calls := 0
 	frameTooLarge := errors.New("remote frame body exceeds 64 MiB")
-	reader := scanFunction(func(_ context.Context, qs []CommittedMessageQuery) ([]CommittedMessageResult, error) {
+	reader := scanFunction(func(_ context.Context, qs []MessageScanQuery) ([]MessageScanResult, error) {
 		calls++
 		q := qs[0]
 		if q.Limit*(128<<10) > 64<<20 {
@@ -223,7 +223,7 @@ func TestPageReaderDoesNotAmplifySmallPagePastRemoteFrameBudget(t *testing.T) {
 		if calls == 1 {
 			rows[0].Flags.SyncOnce = true
 		}
-		return []CommittedMessageResult{{Messages: rows}}, nil
+		return []MessageScanResult{{Messages: rows}}, nil
 	})
 	page, err := NewPageReader(reader).SyncMessages(context.Background(), ChannelMessageQuery{StartSeq: 1, Limit: 15, PullMode: PullModeUp})
 	require.NoError(t, err)

@@ -1,0 +1,73 @@
+name: Safety Automation - Conversation QPS Release Gate
+
+on:
+  workflow_call:
+    inputs:
+      source_ref:
+        description: Exact release tag to validate
+        required: true
+        type: string
+    outputs:
+      source_sha:
+        description: Source commit that passed every QPS case
+        value: ${{ jobs.verify.outputs.source_sha }}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    outputs:
+      source_sha: ${{ steps.identity.outputs.source_sha }}
+    env:
+      GOWORK: "off"
+      REQUESTED_REF: ${{ inputs.source_ref }}
+      WK_E2E_CONVERSATION_QPS: "1"
+    steps:
+      - name: Checkout exact release source without credentials
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.source_ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind source and fixed profile
+        id: identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$REQUESTED_REF" == v* ]]
+          source_sha="$(git rev-parse HEAD)"
+          [[ "$(git rev-parse --verify "refs/tags/$REQUESTED_REF^{commit}")" == "$source_sha" ]]
+          git merge-base --is-ancestor "$source_sha" origin/main
+          [[ -z "$(git status --porcelain)" ]]
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+          mkdir -p "$RUNNER_TEMP/conversation-qps"
+          echo "WK_E2E_CONVERSATION_QPS_REPORT=$RUNNER_TEMP/conversation-qps/report.json" >> "$GITHUB_ENV"
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+      - name: Run fixed single-node and three-node cluster load matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          unset WK_E2E_BINARY
+          go test ./test/e2e/message/conversation_qps -count=1
+          go test -tags=e2e ./test/e2e/message/conversation_qps -run '^TestConversationQPSReleaseGate$' -count=1 -timeout=18m -p=1 -v 2>&1 | tee "$(dirname "$WK_E2E_CONVERSATION_QPS_REPORT")/test.log"
+      - name: Reject missing, partial or mismatched evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          profile=test/e2e/message/conversation_qps/profile.json
+          jq -e --arg sha "$(git rev-parse HEAD)" --arg profile_sha "$(sha256sum "$profile" | cut -d ' ' -f 1)" --slurpfile profile "$profile" -f scripts/validate-conversation-qps-report.jq "$WK_E2E_CONVERSATION_QPS_REPORT"
+          [[ -z "$(git status --porcelain)" ]]
+      - name: Retain QPS evidence on success or failure
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: conversation-qps-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/conversation-qps/
+          if-no-files-found: error
+          retention-days: 90

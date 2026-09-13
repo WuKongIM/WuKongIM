@@ -18,6 +18,8 @@ type Options struct {
 	LookupReader CommittedMessageReader
 	// Reader owns compatible channel message sync reads.
 	Reader ChannelMessageReader
+	// PersistedReader supplies disk-only conversation previews; never falls back to Reader.
+	PersistedReader ChannelMessageBatchReader
 	// Memberships authorizes ordinary message pulls and supplies visibility floors.
 	Memberships SyncMembershipStore
 	// ChannelState rejects terminally disbanded channels during ordinary pulls.
@@ -57,6 +59,7 @@ type App struct {
 	commandChannels runtimechannelid.CommandCodec
 	submitter       Submitter
 	reader          ChannelMessageReader
+	persistedReader ChannelMessageBatchReader
 	lookupReader    CommittedMessageReader
 	memberships     SyncMembershipStore
 	channelState    SyncChannelStateStore
@@ -91,6 +94,7 @@ func New(opts Options) *App {
 		commandChannels:        runtimechannelid.CommandCodec{Suffix: opts.CommandChannelSuffix},
 		submitter:              opts.Submitter,
 		reader:                 opts.Reader,
+		persistedReader:        opts.PersistedReader,
 		lookupReader:           opts.LookupReader,
 		memberships:            opts.Memberships,
 		channelState:           opts.ChannelState,
@@ -137,6 +141,30 @@ type SyncMembershipStore interface {
 // Implementations must support concurrent reads and honor context cancellation.
 type SyncChannelStateStore interface {
 	GetChannelForMessagePull(ctx context.Context, channelID string, channelType int64) (metadb.Channel, error)
+}
+
+// SyncMembershipReadResult preserves one authoritative membership lookup, including absence.
+type SyncMembershipReadResult struct {
+	Membership metadb.UserChannelMembership
+	Found      bool
+	Err        error
+}
+
+// SyncMembershipBatchStore reads a bounded UID-owned batch in input order.
+// Errors must not be represented as missing memberships.
+type SyncMembershipBatchStore interface {
+	GetUserChannelMemberships(context.Context, string, []ChannelID) ([]SyncMembershipReadResult, error)
+}
+
+// SyncChannelStateReadResult preserves authoritative terminal state or its read error.
+type SyncChannelStateReadResult struct {
+	Channel metadb.Channel
+	Err     error
+}
+
+// SyncChannelStateBatchStore reads bounded channel state without a permission cache.
+type SyncChannelStateBatchStore interface {
+	GetChannelsForMessagePull(context.Context, []ChannelID) ([]SyncChannelStateReadResult, error)
 }
 
 // ResetAfterRestore invalidates optional read-through authorization results so

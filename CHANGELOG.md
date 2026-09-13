@@ -8,9 +8,28 @@ move those entries into a version section named for that exact tag.
 
 ### ⚠️ Breaking Changes / 破坏性变更
 
+- Read `/conversation/sync` heads and recent messages from current-Leader persisted storage without activating Channel runtimes; retain legacy fields and cursor rules, and fail the entire request on read errors or response-budget exhaustion. / `/conversation/sync` 的摘要和最近消息改为读取当前 Leader 已落盘数据，不激活频道运行时；保留旧版字段和游标规则，读取失败或响应预算超限时整次请求失败。
+
 - Read conversation-list previews from current-Leader persisted messages without activating Channel runtimes; failed SENDs may still appear. Any read error fails the whole page. Remove `/conversation/retry` and `unresolved`; retry the original list request and cursor. / 会话列表直接读取当前 Leader 已落盘消息，不激活频道运行时，发送失败的消息也可显示；任一读取错误则整页失败。删除 `/conversation/retry` 和 `unresolved`，失败后用原请求、原游标重试。
 
 ### 🔧 Improvements / 改进
+
+- Extend release QPS gates with simultaneous conversation list/sync traffic and exact hidden-page checks. / 发布 QPS 门禁增加会话 list/sync 混合负载及隐藏会话准确分页校验。
+
+- Sort bounded legacy membership metadata before limiting `/conversation/sync` preview reads to the requested page prefix; preserve variable-length Channel ID ordering, visibility and post-page filters. / `/conversation/sync` 先排序有界成员元数据，再按目标页读取摘要；保留不同长度频道 ID 的排序、可见性及分页后过滤规则。
+
+- Reduce conversation preview read overhead by reading an exact persisted tail record directly, preserving missing-sequence fallback and read failures. / 会话预览按准确落盘序号直接读取尾消息，减少范围扫描开销，保留序号缺失时的回溯和读取失败语义。
+
+- Expose bounded persisted-conversation read admission, occupancy and hold-time metrics to distinguish backpressure from routing latency. / 增加会话落盘读取准入、占用量和持有时长指标，用于区分读取背压与路由延迟。
+
+- Reduce conversation unread-count CPU and allocations by sharing one bounded persisted-index iterator across both range boundaries. / 会话未读计数的两个范围边界共用一次有界落盘索引迭代，减少 CPU 和内存分配。
+
+- Batch `/conversation/sync` membership and channel-state reads through current Slot leaders to reduce cross-node RPCs while preserving visibility and whole-request failures. / `/conversation/sync` 通过当前 Slot Leader 批量读取成员关系和频道状态，减少跨节点 RPC，保持可见性规则及整次请求失败语义。
+
+- Add opt-in sustained conversation QPS diagnosis with per-node CPU/RPC metrics and separate execution traces. / 新增会话接口持续负载诊断，采集各节点 CPU、RPC 指标及独立执行跟踪。
+- Reuse immutable message-storage keys within bounded caches and remove redundant legacy-sync payload copies to reduce conversation read allocations. / 有界复用消息存储 Key，并去除旧版会话同步的重复 Payload 复制，降低会话读取的内存分配。
+- Reduce conversation preview allocations by reading only the newest record on ordinary tails while retaining bounded scans over internal records. / 会话预览优先只读取最新一条记录，减少无用消息解码和内存分配，内部消息仍采用有界回溯。
+- Gate Docker and binary releases on fixed `/conversation/list` and `/conversation/sync` QPS/P99 and per-request allocation tests in single-node and three-node clusters, including complete responses and zero Channel activation. / Docker 与二进制发布新增会话接口 QPS/P99 与每请求分配量门禁，覆盖单节点和三节点集群，并验证响应完整及零频道激活。
 
 - Show the configured `guest` username and password on the Manager login page. / Manager 登录页在配置 guest 账号时展示其账号和密码。
 
