@@ -184,3 +184,60 @@ func assertNextBytes(t *testing.T, s *rowcodec.Scanner, columnID uint16, want []
 		t.Fatalf("Bytes() = %q, %v, want %q", got, err, want)
 	}
 }
+
+func TestBorrowedDecodeKeepsChecksumAndResultOwnership(t *testing.T) {
+	var w rowcodec.Writer
+	if err := w.String(1, "owned-string"); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.RawBytes(2, []byte("owned-bytes")); err != nil {
+		t.Fatal(err)
+	}
+	key := []byte("borrowed-row")
+	raw := rowcodec.Wrap(key, 1, rowcodec.CodecColumns, rowcodec.FlagChecksum, w.Bytes())
+	env, err := rowcodec.UnwrapBorrowed(key, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := rowcodec.NewBorrowedScanner(env.Payload)
+	if !s.Next() {
+		t.Fatal(s.Err())
+	}
+	text, err := s.String()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !s.Next() {
+		t.Fatal(s.Err())
+	}
+	value, err := s.Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	value[0] = 'X'
+	again, err := s.Bytes()
+	if err != nil || string(again) != "owned-bytes" {
+		t.Fatalf("accessor aliases data: %q %v", again, err)
+	}
+	clear(raw)
+	if text != "owned-string" || string(again) != "owned-bytes" {
+		t.Fatal("decoded values alias recycled input")
+	}
+	raw = rowcodec.Wrap(key, 1, rowcodec.CodecColumns, rowcodec.FlagChecksum, w.Bytes())
+	raw[len(raw)-1] ^= 0xff
+	if _, err := rowcodec.UnwrapBorrowed(key, raw); !errors.Is(err, db.ErrChecksumMismatch) {
+		t.Fatalf("corruption accepted: %v", err)
+	}
+	if _, err := rowcodec.UnwrapBorrowed(key, raw[:3]); !errors.Is(err, db.ErrCorruptValue) {
+		t.Fatalf("truncated envelope accepted: %v", err)
+	}
+}
+
+func TestBorrowedScannerRejectsMalformedColumns(t *testing.T) {
+	for _, raw := range [][]byte{{0x11, 0x80}, {0x11, 3, 'a'}, {0x01, 0}, {0x1f}} {
+		s := rowcodec.NewBorrowedScanner(raw)
+		if s.Next() || !errors.Is(s.Err(), db.ErrCorruptValue) {
+			t.Fatalf("malformed column accepted: %x %v", raw, s.Err())
+		}
+	}
+}

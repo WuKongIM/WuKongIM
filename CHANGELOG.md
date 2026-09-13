@@ -14,6 +14,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Avoid intermediate storage-decoding copies while preserving checksum validation and independently owned decoded messages and metadata. / 存储解码减少中间复制，保留校验和验证及消息、元数据结果的独立所有权。
+
 - Reduce conversation batch allocations by sharing request-scoped authoritative metadata across local read descriptors; preserve wire formats and Leader fences. / 会话批量读取共享本次请求解析出的权威元数据，减少对象分配，保持通信格式及 Leader 校验。
 
 - Add a bounded Linux AMD64 diagnostic workflow for mixed conversation reads, retaining host counters and separate driver/server profiles without changing release gates. / 新增 Linux AMD64 会话混合读取诊断工作流，保留主机指标及独立压测端、服务端剖析，不改变发布门禁。

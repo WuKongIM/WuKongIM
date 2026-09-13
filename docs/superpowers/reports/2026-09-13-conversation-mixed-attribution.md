@@ -49,3 +49,39 @@ measured 282,595 → 152,898 bytes/op, with 331 allocations/op unchanged, and
 44.8 → 31.7 microseconds/op over three samples. This isolates descriptor cost;
 it does not establish an AMD64 endpoint throughput gain. Full fixed-load
 candidate validation remains pending until recorded below.
+
+## First candidate result: insufficient
+
+Run: https://github.com/WuKongIM/WuKongIM/actions/runs/34736402194
+Product/harness: `257ddad0e4a52f5db04e51276af80de105fdd5b2`.
+Binary: `2b3bc592ac0b0be528caac68ab8e04bbf250efa9568dd3aad741d7b3cf366f5a`.
+Same CPU model, four logical CPUs, Go version and profile.
+
+| Window | List P99 ms | List drops | Sync P99 ms | Node CPU seconds | Allocated GB |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 54.780 | 0 | 93.602 | 168.95 | 45.60 |
+| 2 | 706.033 | 106 | 132.579 | 168.06 | 45.39 |
+| 3 | 52.745 | 0 | 90.366 | 168.74 | 45.60 |
+
+No HTTP errors, runtime activation or membership writes. The second window
+still failed; this candidate is not a verified repair and cannot be released.
+
+## Second candidate: synchronous borrowed decoding
+
+The original allocation profile also identified `rowcodec.Unwrap` and
+`Scanner.readValue` as intermediate copies before owned field extraction.
+Add explicit borrowed variants for the synchronous message/runtime-metadata
+decoders. Existing copying APIs retain their contracts. Borrowed decode still
+checks envelope CRC and malformed columns, and String/Bytes accessors return
+owned results. Tests recycle source buffers after decoding to protect ownership.
+
+The same M4 256-byte message header/payload microbenchmark improves from
+1,768 bytes and 20 allocations to 552 bytes and 10 allocations, with
+approximately 542 → 339 ns/op. Full AMD64 validation remains pending.
+
+Related unit and focused race tests passed for the first candidate. Three-node
+conversation-directory E2E passed. Legacy-sync E2E first failed before reads
+with `ReasonAuthFail`: its tokenless fixture had not opted out of default Token
+authentication. Explicit per-fixture-node overrides fixed that precondition,
+and both topology flows then passed in 63.251 seconds. Product authentication
+defaults were not changed.

@@ -250,7 +250,12 @@ membership mutations abort. All artifacts, including the binary, are retained
 for 90 days. There are no publishing permissions, threshold controls, automatic
 triggers, retries, or production targets. Completion means evidence collection,
 not a passing gate. Dispatch once per evidence-backed comparison; do not rerun
-until green.
+until green. Optional `run_release_matrix=true` also runs all 20 unchanged
+release endpoint results on a fresh fixture, with the existing v2 receipt
+validator. It requires product SHA to equal harness SHA and has no publishing
+authority. The job deadline is 40 minutes; each diagnostic and gate test keeps
+its original 12/18-minute deadline. Actual publishers still require their own
+exact-tag gate.
 
 ## Conversation QPS release gate
 

@@ -2,6 +2,8 @@
 
 ## Internal
 
+- Synchronous message and runtime-metadata decoders may borrow checked envelope/column input until decode returns. Escaping strings and byte slices must remain owned; existing copying rowcodec APIs retain their behavior. Never borrow mutable iterator input across advancement or skip checksum/corruption checks.
+
 - Channel batch read descriptors borrow immutable metadata from their own aligned resolution result. The pointer is never encoded or trusted from RPC; a serving node always resolves its own metadata before committed recovery. This reduces repeated large descriptor copies without caching authority across requests.
 
 - Fixed mixed-load attribution builds the exact product source before checking out a separate harness, optionally requires the previous binary SHA-256, and records both identities. Three unprofiled release-load windows and bounded separate CPU/allocation profiles distinguish host, driver and server costs; rejected windows remain visible and cannot qualify publication.
