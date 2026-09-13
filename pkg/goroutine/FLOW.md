@@ -50,6 +50,8 @@ closure, dependency order, and restart policy.
   identities and bounded worker cohorts.
 - Cold conversation reads activate runtime metadata through one bounded Cluster
   burst identity instead of untracked request-scoped workers.
+- Plugin owner initialization uses one fixed Plugin burst identity with at most
+  16 initializers per batch; the caller owns cancellation and joins all work.
 - Manager Prometheus queries use one fixed burst identity for the bounded
   per-request fanout cohort.
 

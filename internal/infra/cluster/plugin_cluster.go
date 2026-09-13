@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"math"
+	"sync"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"golang.org/x/sync/errgroup"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 // PluginClusterNode exposes cluster control state for plugin host RPCs.
@@ -113,30 +114,52 @@ func (r *PluginChannelOwnerReader) ChannelOwnerNodes(ctx context.Context, ids []
 		if err != nil {
 			return nil, err
 		}
-		g, callCtx := errgroup.WithContext(ctx)
+		callCtx, cancel := context.WithCancel(ctx)
+		var workers sync.WaitGroup
+		var firstErr error
+		var errOnce sync.Once
+		setError := func(err error) {
+			errOnce.Do(func() {
+				firstErr = err
+				cancel()
+			})
+		}
 		// Cold channels enter the existing coalesced metadata initializer in
 		// parallel, bounded independently of the size of the membership list.
-		g.SetLimit(16)
+		limit := make(chan struct{}, 16)
+	launch:
 		for i, key := range keys {
 			meta, ok := metas[key]
 			if ok {
 				owners[start+i] = meta.Leader
 				continue
 			}
-			g.Go(func() error {
+			select {
+			case limit <- struct{}{}:
+			case <-callCtx.Done():
+				setError(callCtx.Err())
+				break launch
+			}
+			workers.Add(1)
+			goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskPluginChannelOwnerInit, func() {
+				defer workers.Done()
+				defer func() { <-limit }()
 				if err := callCtx.Err(); err != nil {
-					return err
+					setError(err)
+					return
 				}
 				created, err := r.node.ResolveChannelAppendAuthority(callCtx, channelruntime.ChannelID{ID: key.ChannelID, Type: uint8(key.ChannelType)})
 				if err != nil {
-					return err
+					setError(err)
+					return
 				}
 				owners[start+i] = uint64(created.Leader)
-				return nil
 			})
 		}
-		if err := g.Wait(); err != nil {
-			return nil, err
+		workers.Wait()
+		cancel()
+		if firstErr != nil {
+			return nil, firstErr
 		}
 	}
 	return owners, nil

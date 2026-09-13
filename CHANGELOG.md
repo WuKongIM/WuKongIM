@@ -61,6 +61,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Track plugin batch channel-owner initialization in the goroutine supervisor while preserving its 16-task concurrency bound and error cancellation. / 插件批量频道归属初始化接入 goroutine 统一托管，保留 16 并发上限和出错取消行为。
+
 - Refresh old empty-number conversation previews even when a legacy client cursor has advanced, preserving unread and visibility boundaries. / 旧客户端游标已前移时仍可刷新空编号历史会话摘要，保留未读和可见范围边界。
 
 - Restore legacy previews for historical messages with empty client numbers using stable read-only aliases, preserving stored records and indexed lookup support. / 历史空客户端编号消息返回稳定的只读兼容编号，恢复会话摘要并支持索引查询，原始记录不改写。

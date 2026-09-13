@@ -872,6 +872,7 @@
   the Agent ref under CAS, advances signed state within a three-sync budget,
   and requires a fresh Review Agent generation. Overlap or an external head
   fails closed.
+- Plugin batch owner initialization uses the managed `plugin/channel_owner_init` task, caps concurrent initializers at 16 per batch, cancels on the first error, and joins started work before returning.
 - Official `cmd/wukongim` goroutines must launch through a fixed `pkg/goroutine` task or an audited registered pool; `scripts/managed_goroutines_test.go` rejects raw `go`, `.Go`, and unregistered ants pools in production roots.
 - `internal/gateway` now ships only the `gnet` transport; connection callbacks are serialized by actor shards and there is no `stdnet` fallback or per-connection writer goroutine.
 - wk-sim performance investigations must follow the `docs/development/PERF_TRIAGE.md` runbook: collect evidence, classify, hypothesize, then run one-variable experiments.

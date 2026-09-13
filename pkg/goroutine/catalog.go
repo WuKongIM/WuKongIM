@@ -151,6 +151,7 @@ const (
 	TaskChannelAppendWorkerPool          TaskID = "channelappend/worker_pool"
 	TaskChannelAppendStopDrain           TaskID = "channelappend/stop_drain"
 	TaskChannelAppendPostCommitRetry     TaskID = "channelappend/post_commit_retry"
+	TaskPluginChannelOwnerInit           TaskID = "plugin/channel_owner_init"
 	TaskPluginHookWorker                 TaskID = "plugin/hook_worker"
 	TaskPluginHookFinalize               TaskID = "plugin/hook_finalize"
 	TaskPluginLifecycleClose             TaskID = "plugin/lifecycle_close"
@@ -249,6 +250,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskChannelAppendWorkerPool, Module: ModuleChannelAppend, Name: "worker_pool", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelAppendStopDrain, Module: ModuleChannelAppend, Name: "stop_drain", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelAppendPostCommitRetry, Module: ModuleChannelAppend, Name: "post_commit_retry", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskPluginChannelOwnerInit, Module: ModulePlugin, Name: "channel_owner_init", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskPluginHookWorker, Module: ModulePlugin, Name: "hook_worker", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskPluginHookFinalize, Module: ModulePlugin, Name: "hook_finalize", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskPluginLifecycleClose, Module: ModulePlugin, Name: "lifecycle_close", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},

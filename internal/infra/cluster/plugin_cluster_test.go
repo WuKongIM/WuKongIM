@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sync/atomic"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
@@ -12,6 +13,7 @@ import (
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/stretchr/testify/require"
 )
 
@@ -165,4 +167,79 @@ func (n *recordingPluginChannelOwnerNode) ResolveChannelAppendAuthority(_ contex
 	n.last = id
 	n.resolveCalls++
 	return n.cached, n.resolveErr
+}
+
+// The real owner initializer must run under a fixed supervisor identity.
+func TestPluginChannelOwnerBatchInitializersAreManaged(t *testing.T) {
+	node := &managedPluginOwnerNode{}
+	owners, err := NewPluginChannelOwnerReader(node).ChannelOwnerNodes(context.Background(), []message.ChannelID{{ID: "cold", Type: 2}})
+	require.NoError(t, err)
+	require.Equal(t, []uint64{3}, owners)
+	require.True(t, node.managed.Load(), "owner initialization must be visible in the goroutine registry")
+}
+
+func TestPluginChannelOwnerBatchPropagatesInitializationFailure(t *testing.T) {
+	failure := errors.New("placement unavailable")
+	node := &managedPluginOwnerNode{resolveErr: failure}
+	owners, err := NewPluginChannelOwnerReader(node).ChannelOwnerNodes(context.Background(), []message.ChannelID{{ID: "cold", Type: 2}})
+	require.ErrorIs(t, err, failure)
+	require.Nil(t, owners)
+}
+
+func TestPluginChannelOwnerBatchCanceledContextSkipsInitialization(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	node := &managedPluginOwnerNode{}
+	owners, err := NewPluginChannelOwnerReader(node).ChannelOwnerNodes(ctx, []message.ChannelID{{ID: "cold", Type: 2}})
+	require.ErrorIs(t, err, context.Canceled)
+	require.Nil(t, owners)
+	require.Zero(t, node.calls.Load())
+}
+
+type managedPluginOwnerNode struct {
+	batchPluginOwnerNode
+	managed    atomic.Bool
+	calls      atomic.Int64
+	resolveErr error
+}
+
+func (n *managedPluginOwnerNode) ResolveChannelAppendAuthority(context.Context, channelruntime.ChannelID) (channelruntime.Meta, error) {
+	n.calls.Add(1)
+	for _, module := range goruntimeregistry.Default().Snapshot().Modules {
+		for _, task := range module.Tasks {
+			if task.Task == "plugin/channel_owner_init" && task.Active > 0 {
+				n.managed.Store(true)
+			}
+		}
+	}
+	return channelruntime.Meta{Leader: 3}, n.resolveErr
+}
+
+func TestPluginChannelOwnerBatchFailureCancelsAndJoinsSibling(t *testing.T) {
+	failure := errors.New("placement unavailable")
+	node := &cancelingPluginOwnerNode{entered: make(chan struct{}), failure: failure}
+	owners, err := NewPluginChannelOwnerReader(node).ChannelOwnerNodes(context.Background(), []message.ChannelID{
+		{ID: "waiting", Type: 2}, {ID: "failing", Type: 2},
+	})
+	require.ErrorIs(t, err, failure)
+	require.Nil(t, owners)
+	require.True(t, node.exited.Load(), "return must join the canceled sibling")
+}
+
+type cancelingPluginOwnerNode struct {
+	batchPluginOwnerNode
+	entered chan struct{}
+	failure error
+	exited  atomic.Bool
+}
+
+func (n *cancelingPluginOwnerNode) ResolveChannelAppendAuthority(ctx context.Context, id channelruntime.ChannelID) (channelruntime.Meta, error) {
+	if id.ID == "waiting" {
+		close(n.entered)
+		<-ctx.Done()
+		n.exited.Store(true)
+		return channelruntime.Meta{}, ctx.Err()
+	}
+	<-n.entered
+	return channelruntime.Meta{}, n.failure
 }
