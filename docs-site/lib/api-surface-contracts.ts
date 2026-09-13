@@ -143,6 +143,7 @@ export const managerRouteGroups: readonly ManagerRouteGroup[] = [
   managerGroup('operations-mcp-endpoint', 'dedicated MCP credential', 'dedicated-bearer', [
     ['ANY', '/mcp'],
   ]),
+  managerGroup('login-info', 'public configured guest credentials', 'unavailable', [['GET', '/manager/login']]),
   managerGroup('login', 'fixed-user login', 'unavailable', [['POST', '/manager/login']]),
   managerGroup('permissions', 'cluster.permission:r', 'unguarded', [
     ['GET', '/manager/permissions'],

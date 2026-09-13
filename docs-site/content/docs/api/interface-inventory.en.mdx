@@ -5,13 +5,14 @@ description: Private Manager, node transport, MCP, Cloud View, plugin, webhook, 
 
 This page answers “what other entry surfaces exist in source?” It inventories boundaries; it does not promote internal interfaces into public compatibility promises.
 
-## Manager: 109 private routes
+## Manager: 110 private routes
 
 The authoritative registrations are `internal/access/manager/server.go`, `backups.go`, and `restore.go`.
 
 | Group | Count | Permission with `auth_on=true` | With `auth_on=false` |
 | --- | ---: | --- | --- |
 | Operations MCP endpoint | 1 | Dedicated MCP Bearer | Dedicated MCP Bearer |
+| Login info | 1 | Public configured guest credentials | Not registered |
 | Login | 1 | Fixed-user login | Not registered |
 | Permissions | 1 | `cluster.permission:r` | Unguarded |
 | MCP read / write | 2 / 5 | `cluster.mcp:r` / `cluster.mcp:w` | Fail closed |
@@ -30,7 +31,9 @@ The authoritative registrations are `internal/access/manager/server.go`, `backup
 | Backup read / write | 2 / 7 | `cluster.backup:r` / `cluster.backup:w` | Reads unguarded; writes fail closed |
 | Restore write | 2 | Exact `cluster.restore:w` | Fail closed |
 
-Total: `109`. `POST /manager/slots/leader-transfer-plan` is a planning-only route under read permission. The MCP handler behind `ANY /mcp` accepts only POST and rejects non-empty Origin; all other Manager routes use open CORS. `lib/api-surface-contracts.ts` retains the complete method/path set and a source test checks it.
+Total: `110`. `POST /manager/slots/leader-transfer-plan` is a planning-only route under read permission. The MCP handler behind `ANY /mcp` accepts only POST and rejects non-empty Origin; all other Manager routes use open CORS. `lib/api-surface-contracts.ts` retains the complete method/path set and a source test checks it.
+
+`GET /manager/login` returns only the configured `guest` credentials to the login page, with `Cache-Control: no-store`; other accounts remain private.
 
 `GET /manager/nodes/:node_id/config/toml` returns a versioned, redacted startup TOML document under the same `cluster.node:r` read permission.
 

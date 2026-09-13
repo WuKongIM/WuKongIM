@@ -5,13 +5,14 @@ description: Manager、Node transport、MCP、Cloud View、插件、Webhook 和 
 
 本页回答“源码里还有哪些入口”。它是边界清单，不把内部接口升级为公共兼容承诺。
 
-## Manager：109 条私有路由
+## Manager：110 条私有路由
 
 权威注册点是 `internal/access/manager/server.go`、`backups.go` 和 `restore.go`。
 
 | 分组 | 数量 | `auth_on=true` 权限 | `auth_on=false` |
 | --- | ---: | --- | --- |
 | Operations MCP endpoint | 1 | 独立 MCP Bearer | 独立 MCP Bearer |
+| Login info | 1 | 公开已配置的 guest 凭据 | 不注册 |
 | Login | 1 | 固定用户登录 | 不注册 |
 | Permissions | 1 | `cluster.permission:r` | 无权限门槛 |
 | MCP read / write | 2 / 5 | `cluster.mcp:r` / `cluster.mcp:w` | 失败关闭 |
@@ -30,7 +31,9 @@ description: Manager、Node transport、MCP、Cloud View、插件、Webhook 和 
 | Backup read / write | 2 / 7 | `cluster.backup:r` / `cluster.backup:w` | 读无门槛；写失败关闭 |
 | Restore write | 2 | 精确 `cluster.restore:w` | 失败关闭 |
 
-合计 `109`。`POST /manager/slots/leader-transfer-plan` 是只生成计划的读权限路由。`ANY /mcp` 的 MCP Handler 实际只接受 POST，拒绝非空 Origin；其余 Manager 路由使用开放 CORS。完整 method/path 集合由 `lib/api-surface-contracts.ts` 保存并由源码测试校验。
+合计 `110`。`POST /manager/slots/leader-transfer-plan` 是只生成计划的读权限路由。`ANY /mcp` 的 MCP Handler 实际只接受 POST，拒绝非空 Origin；其余 Manager 路由使用开放 CORS。完整 method/path 集合由 `lib/api-surface-contracts.ts` 保存并由源码测试校验。
+
+`GET /manager/login` 仅向登录页返回已配置的 `guest` 凭据，并设置 `Cache-Control: no-store`；其他账号保持私有。
 
 `GET /manager/nodes/:node_id/config/toml` 返回版本化、脱敏的启动 TOML 文档，使用相同的 `cluster.node:r` 读取权限。
 
