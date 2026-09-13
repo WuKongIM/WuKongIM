@@ -345,6 +345,9 @@ jobs:
           file: ./Dockerfile
           build-args: |
             GOPROXY=https://proxy.golang.org,direct
+            BUILD_VERSION=${{ steps.identity.outputs.image_version }}
+            BUILD_COMMIT=${{ steps.identity.outputs.source_sha }}
+            BUILD_SOURCE=release
           platforms: linux/amd64
           load: true
           pull: true
@@ -361,6 +364,9 @@ jobs:
           file: ./Dockerfile
           build-args: |
             GOPROXY=https://proxy.golang.org,direct
+            BUILD_VERSION=${{ steps.identity.outputs.image_version }}
+            BUILD_COMMIT=${{ steps.identity.outputs.source_sha }}
+            BUILD_SOURCE=release
           platforms: linux/arm64
           load: true
           pull: true
@@ -368,6 +374,24 @@ jobs:
           provenance: false
           sbom: false
           cache-from: type=gha,scope=docker-release
+
+      - name: Verify candidate build identities
+        if: steps.publication.outputs.recovery != 'true'
+        shell: bash
+        env:
+          EXPECTED_VERSION: ${{ steps.identity.outputs.image_version }}
+          EXPECTED_COMMIT: ${{ steps.identity.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          for arch in amd64 arm64; do
+            for binary in wukongim wkcli; do
+              docker run --rm --network none --platform "linux/$arch" \
+                --entrypoint "/usr/local/bin/$binary" "wukongim-release-scan:$arch" \
+                version --output json | jq -e \
+                --arg version "$EXPECTED_VERSION" --arg commit "$EXPECTED_COMMIT" \
+                '.version == $version and .commit == $commit and .build_source == "release"'
+            done
+          done
 
       - name: Verify embedded Prometheus candidates
         if: steps.publication.outputs.recovery != 'true'
@@ -437,6 +461,9 @@ jobs:
           file: ./Dockerfile
           build-args: |
             GOPROXY=https://proxy.golang.org,direct
+            BUILD_VERSION=${{ steps.identity.outputs.image_version }}
+            BUILD_COMMIT=${{ steps.identity.outputs.source_sha }}
+            BUILD_SOURCE=release
           platforms: linux/amd64,linux/arm64
           push: true
           pull: true

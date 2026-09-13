@@ -44,7 +44,12 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 		for _, step := range job.Steps {
 			if strings.HasPrefix(step.Uses, "docker/build-push-action@") {
 				buildSteps++
-				require.Equal(t, "GOPROXY=https://proxy.golang.org,direct", strings.TrimSpace(step.With["build-args"]), step.Name)
+				require.Equal(t, strings.Join([]string{
+					"GOPROXY=https://proxy.golang.org,direct",
+					"BUILD_VERSION=${{ steps.identity.outputs.image_version }}",
+					"BUILD_COMMIT=${{ steps.identity.outputs.source_sha }}",
+					"BUILD_SOURCE=release",
+				}, "\n"), strings.TrimSpace(step.With["build-args"]), step.Name)
 			}
 		}
 	}
@@ -118,6 +123,10 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 		"wukongim/docker-release-receipt/v1",
 		"retention-days: 90",
 		"scripts/verify-docker-prometheus.sh",
+		`for binary in wukongim wkcli; do`,
+		`--entrypoint "/usr/local/bin/$binary"`,
+		`version --output json | jq -e`,
+		`.version == $version and .commit == $commit and .build_source == "release"`,
 		"scripts/merge-docker-prometheus-sbom.jq",
 		"prometheus-candidates/$arch",
 		"prometheus-canonical/$arch",
@@ -147,6 +156,7 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 		"- name: Classify immutable publication state",
 		"- name: Build amd64 security scan candidate",
 		"- name: Build arm64 security scan candidate",
+		"- name: Verify candidate build identities",
 		"- name: Verify embedded Prometheus candidates",
 		"- name: Set up Trivy",
 		"- name: Scan local release candidates",
