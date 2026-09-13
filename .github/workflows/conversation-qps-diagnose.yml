@@ -37,7 +37,7 @@ jobs:
           [[ "$PRODUCT_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$(git rev-parse HEAD)" == "$PRODUCT_SHA" ]]
           [[ -z "$(git status --porcelain)" ]]
-          git merge-base --is-ancestor "$PRODUCT_SHA" origin/main
+          git merge-base --is-ancestor "$PRODUCT_SHA" origin/main || git merge-base --is-ancestor origin/main "$PRODUCT_SHA"
           [[ "$(uname -m)" == x86_64 && "$(nproc)" == 4 ]]
           mkdir -p "$RUNNER_TEMP/conversation-mixed"
           lscpu --json > "$RUNNER_TEMP/conversation-mixed/host.json"

@@ -1,0 +1,51 @@
+# Conversation mixed-load attribution
+
+## Fixed baseline
+
+Run: https://github.com/WuKongIM/WuKongIM/actions/runs/34735830445
+Artifact: `conversation-mixed-34735830445-1`, retained for 90 days.
+
+- Product: `5b32362b712fdc94ab7d30241ac2d7f39892f469` (failed beta.15).
+- Binary SHA-256: `8ade6a26623be962c443a6b88add826a64a31efd0b8cd3eb8b3a4b57c7c57438`, identical to the failed publisher gate.
+- Harness: `c944a766135a06d7e4fc1152e839f6d09e062f7a`, clean.
+- Profile SHA-256: `1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1`.
+- Ubuntu 24.04, Go 1.25.11, AMD EPYC 9V74, four logical CPUs (two cores, two threads/core).
+- Three nodes, node GOMAXPROCS=2, driver GOMAXPROCS=4, 256 hash Slots.
+- Unchanged fixture, HTTP connection bounds, list 200/s + sync 60/s, eight workers per endpoint, three fixed 60-second windows. No retries or profiling during measurement.
+
+| Window | List QPS | List P99 ms | List drops | Sync QPS | Sync P99 ms | Node CPU seconds total | Host idle |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 199.883 | 78.123 | 0 | 59.950 | 109.228 | 174.44 | 12.0% |
+| 2 | 195.483 | 800.473 | 175 | 59.950 | 143.131 | 175.64 | 10.3% |
+| 3 | 197.317 | 576.943 | 64 | 59.933 | 131.398 | 181.70 | 9.3% |
+
+All HTTP responses were correct, with zero HTTP errors, runtime loads/residency
+or membership writes. The latter two list windows failed. Driver-wait P99 was
+743.116/533.992 ms versus request P99 73.341/72.588 ms. Driver CPU was about
+40.4–40.8 seconds per window (Linux process ticks). No CPU steal or cgroup
+throttling was observed. These counters do not prove constant physical CPU
+performance or rule out every infrastructure influence. The original failure
+is reproduced, not attributable solely to an overloaded driver.
+
+Separate ten-second profiling shows storage lookups, allocations and RPC work.
+Node 1 sampled 29.46% cumulative CPU under `readStoredConversationHead`, 14.58%
+under allocation, with runtime metadata reads also significant. Cumulative
+percentages overlap and must not be added. Its allocation delta attributes
+133.37 MiB directly to `readConversationHeads` (4.95% of sampled allocated bytes).
+The driver spends substantial CPU validating complete JSON responses; validation
+must remain intact. Profiling windows are not capacity evidence.
+
+## First candidate: request metadata ownership
+
+Replace embedded full `ch.Meta` values in head/message read descriptors with
+references to the call's own aligned, immutable resolved metadata. Origin and
+serving nodes still resolve authority independently; pointers never cross the
+codec. Missing local metadata still rejects committed cold recovery. Reads,
+worker/admission/queue limits, gates, wire formats and metadata freshness do not
+change. No cache or new background owner is introduced.
+
+A focused 100-channel remote routing plus encode/decode benchmark on Apple M4
+measured 282,595 → 152,898 bytes/op, with 331 allocations/op unchanged, and
+44.8 → 31.7 microseconds/op over three samples. This isolates descriptor cost;
+it does not establish an AMD64 endpoint throughput gain. Full fixed-load
+candidate validation remains pending until recorded below.

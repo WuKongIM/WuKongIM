@@ -2,6 +2,8 @@
 
 ## Internal
 
+- Channel batch read descriptors borrow immutable metadata from their own aligned resolution result. The pointer is never encoded or trusted from RPC; a serving node always resolves its own metadata before committed recovery. This reduces repeated large descriptor copies without caching authority across requests.
+
 - Fixed mixed-load attribution builds the exact product source before checking out a separate harness, optionally requires the previous binary SHA-256, and records both identities. Three unprofiled release-load windows and bounded separate CPU/allocation profiles distinguish host, driver and server costs; rejected windows remain visible and cannot qualify publication.
 
 - Legacy conversation sync orders by membership `ActivatedAt` (then channel ID/type), with visibility filtering during candidate construction; latest-message time is not its sort key. Its selected-message preparation uses a bounded exact-key UID membership batch and existing Slot-grouped channel metadata batches, without reusing hydration authority or SEND permission cache state. Use server RPC counts plus execution traces to evaluate batch-read work; server task duration is not client RTT.

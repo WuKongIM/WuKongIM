@@ -235,7 +235,8 @@ source workflow never receives production signing or package-publisher access.
 
 ## Conversation QPS diagnosis
 
-`conversation-qps-diagnose.yml` takes an exact reachable product SHA and optional
+`conversation-qps-diagnose.yml` takes an exact product SHA on main history or a
+main-descended candidate branch, and optional
 previous binary digest. It builds that clean source with Go 1.25.11 before
 checking out the diagnostic harness separately. A supplied digest mismatch
 aborts; it must not silently substitute a different binary. The read-only

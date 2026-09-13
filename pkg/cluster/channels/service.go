@@ -160,8 +160,8 @@ type ConversationHeadRequest struct {
 	// ExpectedMinISR preserves quorum commit semantics during metadata lag.
 	ExpectedMinISR int
 	// localMeta is the authoritative metadata resolved on the serving Leader.
-	// It is intentionally excluded from the RPC codec.
-	localMeta ch.Meta
+	// It borrows this call's immutable metadata result and is excluded from RPC.
+	localMeta *ch.Meta
 }
 
 // ConversationHeadsRequest reads one user's head tuple for channels that the
@@ -212,8 +212,8 @@ type CommittedReadRequest struct {
 	ExpectedLeaderEpoch uint64
 	// ExpectedMinISR preserves quorum commit semantics during metadata lag.
 	ExpectedMinISR int
-	// localMeta is resolved on the serving Leader and is never trusted from RPC.
-	localMeta ch.Meta
+	// localMeta borrows this call's serving-Leader metadata, never RPC input.
+	localMeta *ch.Meta
 }
 
 // CommittedReadsRequest contains reads already grouped onto one exact leader.
@@ -521,7 +521,7 @@ func (s *Service) ReadConversationHead(ctx context.Context, id ch.ChannelID, uid
 		ExpectedChannelEpoch: meta.Epoch,
 		ExpectedLeaderEpoch:  meta.LeaderEpoch,
 		ExpectedMinISR:       meta.MinISR,
-		localMeta:            meta,
+		localMeta:            &meta,
 	}})[0]
 	return result.Head, result.Err
 }
@@ -602,7 +602,7 @@ func (s *Service) readConversationHeads(ctx context.Context, ids []ch.ChannelID,
 				ExpectedChannelEpoch: meta.Epoch,
 				ExpectedLeaderEpoch:  meta.LeaderEpoch,
 				ExpectedMinISR:       meta.MinISR,
-				localMeta:            meta,
+				localMeta:            &metaResults[index].Meta,
 			}})
 			continue
 		}
@@ -724,7 +724,7 @@ func (s *Service) handleForwardConversationHeads(ctx context.Context, req Conver
 		item.ExpectedChannelEpoch = meta.Epoch
 		item.ExpectedLeaderEpoch = meta.LeaderEpoch
 		item.ExpectedMinISR = meta.MinISR
-		item.localMeta = meta
+		item.localMeta = &metaResults[index].Meta
 		localItems = append(localItems, item)
 		localIndexes = append(localIndexes, index)
 	}
@@ -784,7 +784,7 @@ func (s *Service) readMessageBatch(ctx context.Context, reads []CommittedRead, p
 			ExpectedChannelEpoch: meta.Epoch,
 			ExpectedLeaderEpoch:  meta.LeaderEpoch,
 			ExpectedMinISR:       meta.MinISR,
-			localMeta:            meta,
+			localMeta:            &metas[index].Meta,
 		}}
 		if meta.Leader == s.localNode {
 			localItems = append(localItems, item)
@@ -888,7 +888,7 @@ func (s *Service) handleForwardCommittedReads(ctx context.Context, req Committed
 		item.ExpectedChannelEpoch = meta.Epoch
 		item.ExpectedLeaderEpoch = meta.LeaderEpoch
 		item.ExpectedMinISR = meta.MinISR
-		item.localMeta = meta
+		item.localMeta = &metas[index].Meta
 		localItems = append(localItems, item)
 		localIndexes = append(localIndexes, index)
 	}
@@ -925,12 +925,12 @@ func (s *Service) readLocalCommittedBatch(ctx context.Context, requests []Commit
 			continue
 		}
 		meta := request.localMeta
-		if meta.ID != request.ChannelID || meta.Leader != s.localNode || meta.Status != ch.StatusActive ||
+		if meta == nil || meta.ID != request.ChannelID || meta.Leader != s.localNode || meta.Status != ch.StatusActive ||
 			meta.Epoch != request.ExpectedChannelEpoch || meta.LeaderEpoch != request.ExpectedLeaderEpoch || meta.MinISR != request.ExpectedMinISR {
 			itemErrors[request.ChannelID] = ch.ErrNotReady
 			continue
 		}
-		activationByID[request.ChannelID] = meta
+		activationByID[request.ChannelID] = *meta
 	}
 	if len(activationByID) > 0 {
 		activationErrors := s.activateColdReadMetas(ctx, activationByID)
@@ -1085,7 +1085,7 @@ func (s *Service) handleForwardLastVisible(ctx context.Context, req LastVisibleR
 			ExpectedChannelEpoch: meta.Epoch,
 			ExpectedLeaderEpoch:  meta.LeaderEpoch,
 			ExpectedMinISR:       meta.MinISR,
-			localMeta:            meta,
+			localMeta:            &meta,
 		}})[0]
 		return lastVisibleResponseFromHead(result.Head), result.Err
 	}
@@ -1125,12 +1125,12 @@ func (s *Service) readLocalConversationHeads(ctx context.Context, uid string, re
 		if !activationRequired {
 			continue
 		}
-		if !validColdReadActivationMeta(s.localNode, request, request.localMeta) {
+		if request.localMeta == nil || !validColdReadActivationMeta(s.localNode, request, *request.localMeta) {
 			results[index].Err = ch.ErrNotReady
 			continue
 		}
 		activationIndexes = append(activationIndexes, index)
-		activationByID[request.ChannelID] = request.localMeta
+		activationByID[request.ChannelID] = *request.localMeta
 	}
 	if len(activationIndexes) == 0 {
 		return results
