@@ -6,8 +6,6 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
-## [v3.0.0-beta.15] - 2026-09-13
-
 ### ⚠️ Breaking Changes / 破坏性变更
 
 - Read `/conversation/sync` heads and recent messages from current-Leader persisted storage without activating Channel runtimes; retain legacy fields and cursor rules, and fail the entire request on read errors or response-budget exhaustion. / `/conversation/sync` 的摘要和最近消息改为读取当前 Leader 已落盘数据，不激活频道运行时；保留旧版字段和游标规则，读取失败或响应预算超限时整次请求失败。
