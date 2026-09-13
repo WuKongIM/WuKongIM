@@ -1,262 +1,111 @@
 ---
 title: v2 → v3 离线迁移
-description: 四步完成 v2 到 v3 离线迁移：汇总冷备、填写计划、迁移校验、部署验收。
+description: 跟着一个单节点集群实例，完成冷备、填写计划、执行迁移、启动验证和正式切换。
 ---
 
-本文介绍已有 WuKongIM v2 部署的通用离线迁移流程。迁移在一台迁移机上完成：**汇总冷备 → 填计划 → 迁移并校验 → 部署验收后切换**。原 v2 不需要修改或升级，`prepare` 直接读取停机备份。
+本文用一个具体例子，把原 v2 的用户、凭据、会话和消息迁入全新 v3 单节点集群。按顺序操作：**备份 → 写计划 → 跑迁移 → 启动验收 → 切换**。
 
-已验证的来源基线为原版 `v2.2.5-20260422`，支持单节点集群、多节点集群及节点数变化。其他 v2 版本和自定义构建必须先核对读取兼容性并完成冷备演练；不能仅凭版本号含 `v2` 就认为兼容。**v2 必须全部停机，v3 必须是全新空集群**；v3 不能直接打开 v2 数据目录。
+多节点集群请使用[迁移参考中的三节点计划](/zh/server/operations/v2-to-v3-migration-reference#2-填写一份-planjson)，列全所有来源节点，在一台迁移机统一执行；不要按本例只取一个节点的数据。
 
-<details>
-<summary>版本、容量与备份要求</summary>
+## 本次实战用什么环境
 
-| 项目 | 要求 |
+下面假设你有一台独立的 Linux 迁移机，迁移完成后也在这台机器上启动 v3。示例不包含插件和外部集成，先在隔离环境演练。
+
+| 项目 | 本例取值 |
 | --- | --- |
-| 来源版本 | 原版 `v2.2.5-20260422`，提交 `a888f89533d0e7d1b2030e06504ca97f1ad891d4`；自定义修改需另行确认 |
-| 迁移方式 | 全部来源停写、停机后离线迁移；不支持在线增量追赶 |
-| 来源与目标 | 支持单节点集群和多节点集群，可以改变节点数；目标必须是全新空集群 |
-| 运行平台 | 源文件锁支持 Linux、macOS；插件程序还须与目标系统和架构匹配 |
-| 集群布局 | 固定 256 个逻辑哈希槽，物理 Slot 数和副本数由目标计划指定 |
-| 工具与目标版本 | 固定经过验证的同一 v3 源码提交构建迁移工具和服务端，或使用配套且已核对摘要的交付包 |
+| 原 v2 | 原版 `v2.2.5-20260422`，单节点集群，节点 ID 为 `1001` |
+| 原业务 DB 分片数 | `8`，请按旧配置中的实际值修改 |
+| 已停机的 v2 服务器 | SSH 主机名 `v2-a`，完整数据目录 `/opt/wukongim/data` |
+| 迁移机上的冷备目录 | `/srv/v2-snapshots/node1001/data` |
+| 本次迁移工作目录 | `/srv/wkmigrate`，必须是新目录 |
+| 目标 v3 | 节点 ID 为 `1`，RPC 地址 `127.0.0.1:7001` |
+| 目标数据目录 | `/srv/wkmigrate/targets/node1`，由迁移工具创建 |
 
-迁移机需要同时容纳完整冷备、工作空间、归档、全部目标副本和验收前快照。先用代表性数据演练并记录峰值空间与耗时，据此安排正式停机窗口；备份体积和其他部署的耗时不能代替本部署的演练结果。
+你需要把 **v2 主机名、原数据目录、节点 ID、分片数**换成实际值。其余路径可以沿用本例；以下命令在迁移机有权写入 `/srv` 的 Bash 终端中执行。
 
-同时按宿主机核算 CPU 和内存预算，计入同机所有节点、插件子进程及其他服务。演练可能与仍在运行的 v2 共用资源；搜索索引首次重建的开销也不同于稳定运行。Docker Compose 部署应根据演练结果设置各服务的 CPU、内存和进程数限制，并观察实际峰值、OOM、重启和接口延迟。Go 的 `GOMEMLIMIT` 作用于单个 Go 进程，不能代替整个容器的内存限制；不要直接复制其他部署的数值。资源限制下仍须通过完整功能与故障恢复验收。
+开始前确认三件事：
 
-如果设置 `GOMEMLIMIT`，它必须容纳实测的常驻 Go 堆、运行时开销和请求分配余量。软限制低于存活堆时，程序可能持续垃圾回收并出现接口超时，即使容器尚未达到内存上限。出现这种情况先关联 CPU 与堆采样，再调整缓存或软限制，同时为非 Go 内存、插件和宿主机预留空间。 参见 [Go 垃圾回收指南](https://go.dev/doc/gc-guide)。
+- **来源已完整停机，目标是全新空集群。** v3 不能直接打开 v2 数据目录，也不支持在线增量迁移。
+- 按 [wkcli 安装说明](/zh/server/tools/wkcli)准备同一版本的 `wkcli` 和 `wukongim`，并核对交付摘要。当前文档版本为 `WK_CURRENT_RELEASE_TAG`。其他 v2 版本、自定义构建、有插件或外部集成的部署，先查[兼容性要求](/zh/server/operations/v2-to-v3-migration-reference#1-汇总冷备安装工具)。
+- 磁盘要同时容纳完整冷备、工作空间、归档、目标数据和验收前快照。先演练测量峰值空间和完整耗时，再确定正式停机窗口。
 
-冷启动还包括快照恢复与已提交集群日志回放。若日志和诊断表明恢复仍在推进，却在启动就绪检查处超时，先排查资源、磁盘和节点通信，再按实测恢复时间设置等待期限。支持该配置的版本可使用 `cluster.start_timeout`（环境变量 `WK_CLUSTER_START_TIMEOUT`，默认 `30s`）；先核对版本能力并执行配置校验。它只增加启动等待时间，不会放宽多数派、实际写入或节点放置检查，不能用来掩盖长期不可用。
+## 1. 取一份完整冷备
 
-迁移归档保留原始业务记录，但不包含全部原始 WAL 文件字节，不能代替完整文件系统冷备。保管好其中的凭据、消息和插件配置。
+先在原部署停止业务写入口，等待日志应用、拓扑变更和通知队列排空，再正常停止 v2 并关闭自动拉起。保留旧程序、配置和环境变量。**下面复制的是已经停止变化的数据目录，不能对运行中的库直接复制。**
 
-</details>
+在迁移机执行：
 
-## 1. 汇总冷备，安装工具
-
-**停机前先核对实际程序、存储格式和插件。** Docker 镜像标签不一定等于程序版本；例如开发镜像可能包含不同提交或未提交修改。`source_commit` 只选择迁移读取规则，省略或改填它不能让不支持的旧库变得兼容。
-
-记录每个来源节点的实际程序版本／提交、数据目录、业务 DB 分片数、节点 ID、存储格式、插件及外部接口。镜像标签和默认配置只能作为线索；以正在运行的程序和实际挂载目录为准。只读查看 `marker.format-version.*`、`OPTIONS-*` 中的 `format_major_version`，不要修改存储格式标记。
-
-按所选工具版本的发布说明逐项确认能力，再使用本文的命令。基础迁移、存储格式适配和可选数据转换可能在不同版本引入，安装了 `wkcli` 并不代表支持所有可选项。
-
-| 检查项 | 迁移前的处理 |
-| --- | --- |
-| 来源版本与存储格式 | 发布的 `v3.0.0-beta.13` 迁移器最高读取 Pebble 格式 14；格式 19 需要明确支持该格式的工具。底层可读后仍须通过字段、索引和副本校验。 |
-| 消息有效期 | `Expire` 按原值保留，包括非零值。`v3.0.0-beta.13` 不具备完整的原生有效期传递能力；此类数据须使用发布说明明确支持有效期保留的配套工具和运行时，不能清零后迁移。 |
-| 插件 | 记录每个插件的版本、文件大小、摘要、配置和方法；按工具支持的兼容规则迁移，随后验证实际功能。详见下方“插件迁移”。 |
-| Webhook | 确认目标支持的协议、地址和网络可达性；原 gRPC 地址不能直接填入 HTTP 配置，接收端须通过对应事件验收。 |
-| 单聊白名单 | v2 `whitelistOffOfPerson=false` 对应 v3 `message.person_whitelist_enabled=true`；不可直接沿用 v3 默认值。 |
-| 网关 | 核对 TCP、WebSocket 和 HTTP 转发配置；仅在目标二进制支持 PROXY 自动识别，且可选的 `proxy_protocol_trusted_cidrs` 非空时包含代理出口 CIDR 时保留 `proxy_protocol on`，否则移除。参见 [PROXY 配置](/zh/server/configuration/reference#代理后的客户端地址)，并先执行 `nginx -t`。 |
-| 外部数据源 | v3 没有旧 `datasource.addr` 的直接替代配置；迁入的成员、黑白名单及后续更新须通过目标支持的 API 验证。 |
-
-尚未提供包含所需修复的发布包时，可以按[工具总览的源码构建步骤](/zh/server/tools)构建配套程序。本文新增迁移能力的可复现源码基线为 [`48e89136e`](https://github.com/WuKongIM/WuKongIM/commit/48e89136e5d5f23705ec678bd9ebd5c63c3837cd)：先检出这个完整提交，再从同一工作目录构建 `wkcli` 与 `wukongim`，给两个程序注入相同的版本、提交及 `source` 构建来源，并核对 `version --output json`。这是源码构建基线，不是已发布安装包的版本号；仍须用自己的完整冷备演练后再切换。
-
-以下以 Linux 构建机和相同操作系统、架构的目标节点为例，先安装 Go，再执行。目录名须尚不存在；其他平台分别构建匹配的程序，仍固定同一提交与构建身份。
-
-```sh
-git clone https://github.com/WuKongIM/WuKongIM.git WuKongIM-migration
-cd WuKongIM-migration
-git checkout --detach 48e89136e5d5f23705ec678bd9ebd5c63c3837cd
-MIGRATION_COMMIT=$(git rev-parse HEAD)
-MIGRATION_VERSION=migration-48e89136e
-GOTOOLCHAIN=go1.25.11 GOWORK=off CGO_ENABLED=0 go build -trimpath -ldflags="-X main.buildVersion=$MIGRATION_VERSION -X main.buildCommit=$MIGRATION_COMMIT -X main.buildSource=source" -o ./bin/wkcli ./cmd/wkcli
-GOTOOLCHAIN=go1.25.11 GOWORK=off CGO_ENABLED=0 go build -trimpath -ldflags="-X main.buildVersion=$MIGRATION_VERSION -X main.buildCommit=$MIGRATION_COMMIT -X main.buildSource=source" -o ./bin/wukongim ./cmd/wukongim
-./bin/wkcli version --output json
-./bin/wukongim version --output json
-sha256sum ./bin/wkcli ./bin/wukongim
-export PATH="$(pwd)/bin:$PATH"
-```
-
-所有目标节点使用同一配套版本。若现有发布包缺少所需能力，先完成适配和配套构建的版本验证，再安排正式停机；不能把未发布的修复假定为当前安装包已有功能。新版本写入目标数据后，回退须遵守该版本的数据格式约束，不能直接换回旧二进制。
-
-如果为演练短暂停机取冷备后恢复了 v2 写入，这份冷备只能用于演练。正式切换前必须再次停止全部写入口，重新取得最新完整冷备，从新的工作空间和目标目录重做迁移及独立校验；不能把旧演练产物直接接入生产。
-
-停止全部业务写入口，等待日志应用、拓扑变更和通知队列排空，再正常停止所有 v2 节点并关闭自动拉起。保存各节点完整数据目录、原程序及配置、环境变量。**已有完整停机备份可直接使用，不必重启 v2。**
-
-选一台空间足够的迁移机，将**所有 v2 节点的冷备分别复制到这台机器**，核对文件清单与内容校验和，不合并节点目录。所有迁移命令只在这里运行一遍：
-
-| 各 v2 服务器的冷备 | 迁移机上的独立目录 |
-| --- | --- |
-| v2-a，节点 1001 | `/srv/v2-snapshots/node1001/data` |
-| v2-b，节点 1002 | `/srv/v2-snapshots/node1002/data` |
-| v2-c，节点 1003 | `/srv/v2-snapshots/node1003/data` |
-
-<details>
-<summary>多服务器：复制一个来源节点的示例</summary>
-
-在迁移机执行，替换 SSH 主机名、冷备路径和节点 ID；对其余每个来源节点重复。远端必须是完整且不再变化的冷备，接收目录必须专用于本次迁移。
-
-```sh
-mkdir -p /srv/v2-snapshots/node1001/data
-rsync -a --numeric-ids --partial root@v2-a:/srv/v2-cold-backup/data/ /srv/v2-snapshots/node1001/data/
-rsync -anc --numeric-ids --delete --itemize-changes root@v2-a:/srv/v2-cold-backup/data/ /srv/v2-snapshots/node1001/data/
-```
-
-源路径末尾的 `/` 表示复制目录内容，包含隐藏文件和完整层级。第一条 `rsync` 复制成功后再运行第二条校验；后者的 `-n` 表示只预演，`--delete` 只列出多余文件，不会删除。要求退出码 0 且无差异；否则先处理，不能开始迁移。保存核对结果，完整原冷备继续保留。
-
-传输中断可从同一份不可变冷备续传并重新校验；开始 `prepare` 后不得再向汇总目录同步文件。
-
-</details>
-
-按 [wkcli 安装](/zh/server/tools/wkcli) 获取配套的 `wkcli` 和 `wukongim`（从 v3.0.0-beta.12 起随官方包提供），核对交付摘要，再准备目录：
-
-```sh
+```bash
 umask 077
-mkdir -p /srv/wkmigrate/reports /srv/wkmigrate/work /srv/wkmigrate/targets
+mkdir -p /srv/v2-snapshots/node1001/data
+rsync -a --numeric-ids --partial \
+  root@v2-a:/opt/wukongim/data/ /srv/v2-snapshots/node1001/data/
+```
+
+复制成功后，再校验一次：
+
+```bash
+rsync -anc --numeric-ids --delete --itemize-changes \
+  root@v2-a:/opt/wukongim/data/ /srv/v2-snapshots/node1001/data/
+```
+
+**通过标准：退出码为 0，且没有文件差异输出。** 这里的 `-n` 表示只检查，不会删除文件。路径末尾的 `/` 要保留；不要只复制消息文件或漏掉隐藏文件。已有完整冷备时，直接从冷备位置复制即可，不需要重启 v2。
+
+演练取完冷备后可以恢复原 v2 业务。正式切换时必须再次停写、停机，取得最新冷备，用新的工作目录重做后续步骤；演练期间新增的数据不会自动补进旧迁移结果。
+
+## 2. 保存迁移计划
+
+先检查工具并创建本次工作目录：
+
+```bash
 wkcli version --output json
 wukongim version --output json
 ```
 
-确认两个程序的版本、提交和构建来源一致。这里只创建父目录；不要预建 `work/prepare`、`work/import`、`work/verify`、`source-archive` 或目标节点目录。
+两个程序的 `version`、`commit`、`build_source` 必须一致。确认后执行；如果 `/srv/wkmigrate` 已存在，换一个新路径并同步修改下文路径，不要覆盖上次结果。
 
-## 2. 填写一份 plan.json
+```bash
+mkdir /srv/wkmigrate && mkdir -p /srv/wkmigrate/{reports,work,targets}
+```
 
-将下方示例保存为 `/srv/wkmigrate/plan.json`，按实际部署修改来源节点 ID、分片数、目标节点、地址和创建时间。单节点集群只保留一个目标节点，并把 `replicas`、`channel_replicas` 都改为 `1`；来源仍须列全。
-
-基础示例显式填写 `source_commit`，兼容仍要求该字段的工具。此值表示受支持的来源读取规则，不是将任意旧库声明为兼容的开关。下方可选策略仅在所选工具的发布说明明确支持时使用；无相关需求时不要添加。
-
-**计划中的所有路径都是迁移机上的绝对路径**。`sources` 指向汇总后的冷备，`target.nodes` 指向将在迁移机生成的目标目录；`addr` 是最终 v3 集群通信地址。工具不会通过 SSH 自动读写远端目录，也不能在各来源服务器分别执行一份计划。
-
-<details>
-<summary>展开并复制：三节点 plan.json</summary>
+将下面内容保存为 `/srv/wkmigrate/plan.json`，修改来源节点、分片数和本次创建时间：
 
 ```json
 {
   "version": 1,
   "source_commit": "a888f89533d0e7d1b2030e06504ca97f1ad891d4",
   "sources": [
-    {"node_id": 1001, "data_dir": "/srv/v2-snapshots/node1001/data", "shard_count": 8},
-    {"node_id": 1002, "data_dir": "/srv/v2-snapshots/node1002/data", "shard_count": 8},
-    {"node_id": 1003, "data_dir": "/srv/v2-snapshots/node1003/data", "shard_count": 8}
+    {"node_id": 1001, "data_dir": "/srv/v2-snapshots/node1001/data", "shard_count": 8}
   ],
   "target": {
     "cluster_id": "migration-v3-new",
-    "created_at": "2026-09-09T00:00:00Z",
+    "created_at": "2026-09-12T00:00:00Z",
     "slot_count": 12,
     "hash_slot_count": 256,
-    "replicas": 3,
-    "channel_replicas": 3,
+    "replicas": 1,
+    "channel_replicas": 1,
     "nodes": [
-      {"node_id": 101, "addr": "10.20.0.11:7000", "data_dir": "/srv/wkmigrate/targets/node101"},
-      {"node_id": 102, "addr": "10.20.0.12:7000", "data_dir": "/srv/wkmigrate/targets/node102"},
-      {"node_id": 103, "addr": "10.20.0.13:7000", "data_dir": "/srv/wkmigrate/targets/node103"}
+      {"node_id": 1, "addr": "127.0.0.1:7001", "data_dir": "/srv/wkmigrate/targets/node1"}
     ]
   }
 }
 ```
 
-`source_commit` 可省略，工具会固定使用已支持的 v2 格式读取规则，并在读取时检查数据结构、字段、索引和业务兼容性；发现不兼容仍会阻止完成。报告及归档中的 `source_commit` 表示读取规则对应的源码提交，不是对旧二进制版本的自动鉴定。已知来源属于其他版本或有自定义修改时，仍需单独评估。
+`source_commit` 是工具支持的 v2 读取规则，保持此值，不是填你猜测的镜像版本。目标使用 12 个物理 Slot、256 个逻辑哈希槽和 1 副本。所有路径都是迁移机上的绝对路径，互不包含；**不要提前创建 `targets/node1`**。
 
-旧版工具（包括 v3.0.0-beta.12）仍要求在计划顶层填写 `"source_commit": "a888f89533d0e7d1b2030e06504ca97f1ad891d4"`。新工具继续接受这份旧计划，并保持相同迁移身份；显式填写其他提交仍会被拒绝。`shard_count` 填原部署实际业务 DB 分片数；目标节点 ID 为 1–1023，副本数不能超过目标节点数。`slot_count` 是目标物理 Slot 数，示例采用 v3 默认的 `12`，须与启动配置 `cluster.initial_slot_count` 一致；迁移计划仍须显式填写，不会自动补默认值。`hash_slot_count` 是逻辑哈希槽数，固定为 `256`。
+这份计划不启用去重、排除 CMD／流消息或重新编号。遇到兼容性阻塞，按文末说明处理，不要为了通过检查直接套用数据丢弃策略。
 
-源、工作空间、归档和各目标目录必须互不包含。目标 `data_dir` 必须尚不存在，稍后还要部署到对应服务器的相同绝对路径。
+## 3. 执行迁移，看到 offline_verified
 
-</details>
+保持 v3 停机，在迁移机一次执行下面的命令块。某一步失败会立即停止，报告保存在 `reports` 目录中。
 
-<details>
-<summary>可选：插件迁移</summary>
-
-没有启用插件的部署不需要添加插件字段。有插件时，逐个核对原程序、配置、方法和工具支持的兼容 profile；profile 可能绑定精确程序摘要，不能把其他部署的摘要或 profile 填给自己的程序，也不能通过删除注册来绕过检查。
-
-- `plugin_nodes` 指定每个目标节点采用哪个来源节点的设置；扩容或缩容时也须覆盖全部目标。
-- `plugin_configs` 仅用于明确选择某个插件的统一配置来源；未指定的配置遵循节点映射。
-- `plugin_artifacts` 为每个来源登记实际程序路径、大小、SHA-256 和受支持的 profile。程序系统／架构须与目标匹配。
-
-这些字段是对基础计划的补充，完整结构和各 profile 的适用范围见[插件迁移配置](https://github.com/WuKongIM/WuKongIM/blob/main/cmd/wkcli/internal/migrate/README.md)。未支持的插件须先完成适配；原文件和设置仍要完整备份。
-
-离线 `verify` 必须在插件首次启动前完成。搜索类插件可能需要从迁入历史重建索引，预留磁盘、CPU 和时间；不要直接复制与原节点或原序号绑定的索引。验收历史搜索、新消息索引、仅向单个节点写入后的跨节点查询、Leader 切换及整组重启。`readyz` 成功或插件进程存在不能代替这些检查。
-
-对于确认可以从 IM 消息重新构建的搜索索引，也可选择不迁移历史索引与索引进度，保留原始备份、插件程序和配置，按插件支持的空数据目录流程启动。明确记录这一选择，并将历史搜索的重建进度与 IM 消息迁移验收分开；新消息索引和插件接入仍须验证。不得将这项选择套用到插件中无法重建的业务数据，也不能直接删除插件注册或配置存储来跳过检查。
-
-如果调用方使用 `/plugins/:plugin_no/*path`，须核对目标发布版本提供该 HTTP 入口；`v3.0.0-beta.13` 尚无该兼容入口。只有插件程序能启动并不足以完成迁移。
-
-多节点验收时逐一停止节点，每次从所有存活节点调用插件接口，再恢复节点并验证整组重启。尤其要检查频道 Leader 变化后，插件请求是否转向当前所属节点；从一个节点查询成功，不能证明其他节点没有继续转发到旧 Leader。此检查同样适用于选择不迁移历史搜索索引的部署。
-
-</details>
-
-默认严格检查业务兼容性，**不会自动启用去重或丢弃 CMD、流消息**。需要这些处理时，先展开下方策略说明并修改计划，再执行迁移。
-
-<details>
-<summary>可选：去重、排除 CMD／流消息、重新编号</summary>
-
-默认行为严格检查业务等价性，下面的处理必须显式选择，不能把某次演练的例外直接套用到另一份备份。
-
-| 数据 | 处理原则 |
-| --- | --- |
-| 普通消息 | 保留未排除消息的 MessageID、ClientMsgNo、正文和原生 RedDot；不兼容字段会阻止完成 |
-| 用户、设备与权限 | 迁入原凭据、成员和权限；重复设备凭据不适用“消息保留最新”规则 |
-| 会话与读位置 | 保留可等价表达的状态；重新编号时同步映射已读和删除位置 |
-| 旧管理数据 | 可归档的记录保存在带校验和的源归档中，报告逐项列出 |
-| 插件与外部集成 | 需要明确的程序、配置和兼容映射；留档或关闭插件不等于业务兼容 |
-
-如果业务方决定不迁入 CMD、整条流消息，并按规则去重和重新编号，将以下字段合并到计划顶层：
-
-```json
-{
-  "messages": {
-    "keep_latest_duplicates": true,
-    "exclude_cmd": true,
-    "exclude_streams": true,
-    "compact_sequences": true
-  },
-  "exclusions": {"legacy_stream_storage": true}
-}
-```
-
-`legacy_stream_storage` **仅排除旧 Stream／StreamMeta 两张表**；`exclude_streams` 才排除消息表中的流主消息及其明确关联的事件投影和游标。与保留消息共享事件身份时仍会阻断。`exclude_cmd` 同时省略旧 CMD 会话和同步位置。被排除的源行完整留在归档中。
-
-“最新”按**同一频道的原 MessageSeq** 判断：MessageID 重复，或频道相同且非空发送者与非空 ClientMsgNo 均相同，保留较新记录。发送者或 ClientMsgNo 为空时不参与 ClientMsgNo 去重；MessageID 去重独立执行。跨频道 MessageID 冲突仍会阻断。交叉去重中，某条保留项又被另一规则排除时默认停止；经业务方确认，可启用 `messages.resolve_duplicate_chains: true`，沿同一频道原序号严格递增的替代链，要求每条链最终唯一指向一条实际保留消息。不会回退恢复较旧消息；多终点、身份变化或终点被其他策略排除仍拒绝。报告给出链起点数、终点数及摘要，`sequence_mapping.duplicate_chain_proof` 指向包含直接替代项和最终保留项的 JSONL 旁文件。完整原消息留在源归档中。不能按节点数累加物理副本，得到业务删除数量。
-
-重新编号后，保留消息按原顺序成为 `1…N`。已读和删除位置映射为旧位置之前（含该位置）仍保留的消息数量，全排除频道的导入尾部为 0。运行时恢复屏障也会占用频道位置，因此新消息须以实际返回的序号为准，并严格大于当前持久化尾部，不能假定启动或重启后必为 `N+1`。迁移不会创建占位消息或更改 v3 存储格式来补空号。没有原记录证据的历史缺洞仍会阻断。
-
-</details>
-
-<details>
-<summary>可选：保留超出旧列表上限的会话、恢复冲突状态</summary>
-
-原 `conversation.userMaxCount` 限制的是旧会话列表返回范围；库内可能存在更多有效会话。`metadata.conversation_list_limit` 仍须填写原配置值，不能为通过检查而调大。业务方明确决定完整保留这些持久化会话后，可在 `metadata` 中启用 `preserve_all_conversations: true`，并保留 `conversation_lookup: "v2_active_slot"`。报告的 `users_over_original_limit` 与 `max_leader_chat_rows` 记录影响范围；这不授权创建缺失会话或清空未读。
-
-旧列表状态与唯一索引指向的状态不一致时，默认仍停止。逐组确认采用原唯一索引记录后，使用 `metadata.conversation_recoveries` 绑定节点、逻辑身份和完整原行哈希，不能只填写“忽略冲突”。每项包含 `node_id`、`logical_key`（工具的 `IdentityKey(uid, channelID, channelType)`）、`indexed_sha256`（`json.Marshal(Row)` 的 SHA256）及 `rows_sha256`（按物理 ID 升序，逐个原行 SHA256 后加换行，再取 SHA256）。工具选择一条完整原记录，保留其未读、已读及删除状态，再按获准的消息序号映射转换。
-
-副本缺失或状态不同也必须逐组裁决。`metadata.conversation_replicas` 的每项用 `logical_key`、`copies_sha256` 绑定全部正式副本的候选记录、完整原行和缺失状态；`source_node_id` 选择一条实际存在的完整原记录。仅归档时须明确设置 `archive_only: true`、`source_node_id: 0`，不会从孤立副本重新创建聊天列表项。不能把“保留更多有效会话”视为恢复任意单副本会话的授权。CMD 会话若也存在副本差异，可在已批准 CMD 仅归档的范围内绑定对应的逐组仅归档决定。
-
-原行变化、决定不匹配、指向已一致的组或未被实际使用都会拒绝。未获逐组决定的正式副本继续严格比较，归档保留每条原始记录；导入与独立验证会重新推导选择。仅归档组若另有待恢复意图也会停止，避免重新生成该会话。先归档完整差异、确认业务规则，再生成这些绑定值。具体字段见[工程操作手册](https://github.com/WuKongIM/WuKongIM/blob/main/cmd/wkcli/internal/migrate/README.md)。
-
-</details>
-
-
-<details>
-<summary>可选：独立未读计数与缺失会话的列表显示</summary>
-
-v2 独立保存的 `UnreadCount` 与接口按已读位置推算的结果可能不同。经业务方确认，可启用 `metadata.derive_unread_from_boundaries: true`：完整原计数留在源归档，报告 `archived_unread` 绑定原会话行数、非零计数行数及摘要；v3 根据保留消息、映射后的已读／删除位置、加入位置、保留边界和用户最后发送位置计算未读。集群恢复屏障等 `SyncOnce` 内部记录占用序号，但不计入未读；不能直接把消息序号差作为消息条数，设置未读和旧客户端拉取也须使用实际业务消息边界。验收应包含故障切换后再次收发消息的未读数检查。显示值可能变化，不能声称旧计数与新计数等价；不会清零或前移原已读／删除边界。
-
-成员仍有效、有保留历史却没有权威会话时，不能由成员关系推断它应该重新显示。`metadata.missing_conversations` 逐组绑定 `capture_digest`、`uid_sha256`、`channel_sha256`（`IdentityKey(channelID, channelType)` 的 SHA256）和转换后的 `retained_tail`。加入 `visibility: "hidden_until_new_message"` 可保留成员及历史访问权限，在最新业务消息序号超过该值前不出现在会话列表（集群内部恢复屏障不算新消息）；明确打开会话也可显示。此标记不改动历史读取权限、已读或删除位置。此功能要求所有目标节点使用配套版本，并遵守该版本的数据格式回退限制。没有原已读记录时不虚构已读位置，新消息到来后的未读仍按 v3 规则计算。仅归档的孤立副本会话须同时有其精确 `conversation_replicas` 决定，待恢复意图、未批准原会话或已变化的尾部仍拒绝。报告 `hidden_memberships` 给出实际应用数量。
-
-省略 `visibility` 保留旧工具明确授权的“创建全部历史已读会话”行为，两种选择不同，不能混用。带隐藏标记的成员行及 RPC 使用扩展编码：目标全部节点和 `wkcli` 必须采用配套版本，不能混跑旧程序。回退使用完整的迁移前数据代和旧程序，不能让旧程序打开这些新目标目录。
-
-</details>
-
-<details>
-<summary>可选：逐条隔离已确认的异常原记录</summary>
-
-支持此功能的迁移工具可在计划顶层使用 `quarantine` 数组，逐条记录 `node_id`、`shard`、Base64 编码的原始聚合主键 `key`、完整原行 JSON 的 `sha256` 和业务方批准的 `reason`。每个物理副本都要独立绑定；原记录缺失、哈希变化、重复条目或不符合原因时会停止，不能填写表名或通配规则来跳过校验。使用前核对工具版本；旧版工具会拒绝此字段。
-
-仅支持三种原因：消息频道身份无效（`invalid_message_channel`）、无法从完整来源解析频道的白名单成员（`unresolved_allowlist_channel`）、频道带 CMD 后缀但会话类型不一致（`inconsistent_cmd_conversation`）。消息隔离需同时启用已批准的序号转换策略；CMD 会话隔离还需 `exclude_cmd`。这不授权清空其他权限、未读或过期信息。
-
-原主记录、直接指向它的原索引及没有保留消息的原尾部完整留在归档中。有效频道内部被隔离的位置仍进入序号映射，`omitted` 为 `quarantined_invalid_message_channel`、`target_seq` 为 0，`boundary_seq` 保留此前存活消息的边界。缺少对应原记录证据的历史缺口仍会停止迁移。从归档导入时重新验证隔离原因、原始哈希和索引依赖，再独立重建映射。
-
-</details>
-
-## 3. 执行迁移并独立校验
-
-在迁移机执行下面这一组命令。四个阶段依次为：检查与准备、封存源归档、生成 v3 目录、独立校验。**任一步失败即停止，先查看对应报告；目标始终保持停机。**
-
-```sh
+```bash
 (
   set -e
   umask 077
   wkcli migrate prepare --plan /srv/wkmigrate/plan.json \
-    --workspace /srv/wkmigrate/work/prepare > /srv/wkmigrate/reports/prepare.json 2> /srv/wkmigrate/reports/prepare.stderr
+    --workspace /srv/wkmigrate/work/prepare \
+    > /srv/wkmigrate/reports/prepare.json 2> /srv/wkmigrate/reports/prepare.stderr
   wkcli migrate export --plan /srv/wkmigrate/plan.json \
     --workspace /srv/wkmigrate/work/prepare --archive /srv/wkmigrate/source-archive \
     > /srv/wkmigrate/reports/export.json 2> /srv/wkmigrate/reports/export.stderr
@@ -270,117 +119,80 @@ v2 独立保存的 `UnreadCount` 与接口按已读位置推算的结果可能�
 )
 ```
 
-成功时各命令退出码为 0，准备报告为 `prepared`、导入报告为 `imported`、最终报告为 **`offline_verified`**。最终的 `cutover_ready: false` 是正常结果，表示还需完成下一步的运行及客户端验收。
+| 阶段 | 做什么 | 通过标准 |
+| --- | --- | --- |
+| `prepare` | 检查冷备并准备转换 | 退出码 0，报告为 `prepared` |
+| `export` | 将源数据封存为归档 | 退出码 0，归档生成 `COMPLETE` |
+| `import` | 生成 v3 数据目录 | 退出码 0，报告为 `imported` |
+| `verify` | 从原始归档独立核对目标数据 | 退出码 0，报告为 `offline_verified` |
 
-<details>
-<summary>校验具体检查什么</summary>
+**`cutover_ready: false` 是正常的**：离线数据已经验证，接下来还要启动服务和验证业务。保留冷备、归档、计划和所有报告。
 
-`prepare` 核对原始格式、索引和分片，结合持久化配置、Slot 日志与应用位置确定权威来源并比较正式副本；副本冲突时不会自行挑选最长 follower。它不修改 v2，也不创建目标集群。
+## 4. 启动 v3，验证真实业务
 
-`prepare` 成功时写入 `archive_seal`，绑定准备报告及待导出的完整源记录、目录、选择结果和插件程序。`export` 沿用该工作空间，重新确认来源和插件原文件未变，并在导出时核对全部记录摘要，不再重跑目录关联、副本选择和转换。只有摘要匹配才发布 `COMPLETE`；没有封印的旧工作空间需用配套新工具在全新目录重新准备。`import` 和 `verify` 各用独立工作空间，仅依赖计划和完整归档，仍分别重建完整校验，不能凭导出封印跳过独立验证。
+首次启动会改变数据库。先保存一份校验通过且从未启动过的目标快照；在本例中，确认快照路径不存在后执行：
 
-`verify` 从归档原记录重新推导预期值，逐字段比较全部目标副本的凭据、权限、会话、消息、原生索引、提交边界和启动产物，不只比较数量。确认 `selection_digest` 与准备结果一致、节点数符合计划，且 `verified_message_replicas` 等于保留业务消息数 × 消息副本数。保留所有报告、摘要、迁入／排除计数和启用转换时的 `sequence_mapping` 文件及校验和。
-
-</details>
-
-<details>
-<summary>失败或中断：诊断与重试</summary>
-
-准备流程按源捕获、插件、隔离、身份目录、索引校验、权威副本比较、转换和完成记录输出阶段开始、完成或失败及耗时。使用这些时间定位瓶颈；已完成冷备并不代表迁移校验或导入完成，阶段开始日志也不表示成功。索引校验采用有序归并，但完整迁移时间仍取决于全部阶段和实际数据。
-
-迁移耗时还取决于索引数量、校验查询和工作库读写，不能仅按备份文件大小估算。阶段日志长时间不变时，先检查原进程是否仍在运行，再观察 CPU、逻辑读取与实际磁盘读取。高 CPU、大量重复逻辑读取而实际磁盘读取很少，可能是工作库读缓存耗尽；应确认所用工具包含迁移缓存修复，不能据此跳过索引或数据校验。性能修复也需在隔离演练中验证；更换工具时按下方规则保留旧现场。
-
-停写前先用隔离演练测量各阶段完整耗时，再为最终执行设置足够的任务、会话和服务管理器超时。不能用冷备耗时或单个阶段耗时设置整个迁移的期限；`import` 和 `verify` 也会独立重建校验。若出现 `context canceled`，同时查看外层任务是否因超时或信号终止，不能直接判定为数据冲突。原进程确认退出后，来源、计划和工具均未改变时，可沿用同一 `prepare` 工作空间重新执行并另存日志；它会重新检查已完成数据，不是从最后一条阶段日志直接续跑。
-
-首次迁移不必单独运行 `diagnose`。需要提前盘点或调查阻塞时，使用独立诊断目录：
-
-```sh
-wkcli migrate diagnose --plan /srv/wkmigrate/plan.json \
-  --workspace /srv/wkmigrate/work/diagnose > /srv/wkmigrate/reports/diagnose.json
+```bash
+test ! -e /srv/wkmigrate/targets-before-start && \
+  cp -a /srv/wkmigrate/targets /srv/wkmigrate/targets-before-start && \
+wukongim config init --config /srv/wkmigrate/wukongim.toml
 ```
 
-退出码 1 可能表示业务阻塞或扫描不完整；阅读报告和完整明细。诊断成功不代表权威副本已确定，诊断工作空间不能供 `prepare` 使用。通知队列非空会阻止完成；为空也不能证明外部系统收到全部旧通知。
+确认快照复制成功，并保存初始化时显示的管理员密码。编辑生成的 `wukongim.toml`，修改以下两处，保留其余配置及生成的密钥：
 
-源权威、重复凭据、缺失会话及插件阻塞须逐项处理，见[工程操作手册](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/runbooks/v2-to-v3-migration.md)中的 `authority`、`dedupe-plan` 和捕获绑定决策。不要删源记录、清字段或改证明绕过检查。
-
-保留计划、归档、目标和原日志。目标从未启动、计划和归档不变时，可以重跑相同 `import` 命令；已完成部分会检查指纹，不会覆盖不同代的数据。未启动目标的 `verify` 可重新完整执行。另存每次日志，避免覆盖失败证据。无迁移身份的目录会被拒绝，不要删除身份或完成标记来强行重用。
-
-若需要在隔离 Docker 环境复演整个离线流程，可使用仓库的[演练脚本与示例](https://github.com/WuKongIM/WuKongIM/tree/main/scripts/migration)。它提供只读源、独立工作空间、磁盘／时间保护及 `--dry-run`；封装脚本不会自动恢复已有输出目录，恢复前仍需按上述规则检查现场。
-
-不要直接重跑整段命令覆盖旧报告。改变来源、目标、策略或工具版本时，保留旧现场，使用新的工作空间、归档和全新目标从头迁移。
-
-</details>
-
-## 4. 部署、验收，再切换
-
-1. **先保存完整目标快照和报告。** 将每个目标目录完整复制到对应 v3 服务器的**相同绝对路径**，核对文件清单、校验和及权限。所有目标保持停机；迁移机若就是某台目标服务器，该节点目录保留原位，只分发其他节点，不重复 `import`。
-2. 按计划配置 `wukongim.toml`，用配套 v3 程序隔离启动并验收：原 Token 登录、历史及会话已读状态、新消息序号与未读、重启恢复，以及插件和外部业务集成。写入测试使用隔离演练副本。具体配置和检查项见下方。
-3. 若重新编号，清除客户端旧消息缓存和同步游标，**保留登录凭据**，再从 v3 同步；未发送消息和草稿先单独处理。全部验收通过后再切换路由、逐步恢复流量，禁止新旧集群同时接收业务写入。
-
-**启动后的库不能重新作为初始导入状态校验或覆盖导入。** 回退到原 v2 仅适用于 v3 尚未接收新生产写入；接收后不能直接切回，否则会丢失新数据。本工具没有 v3 → v2 反向增量迁移。
-
-<details>
-<summary>多服务器：分发一个目标节点的示例</summary>
-
-在迁移机执行，替换目标主机与节点 ID；对其余目标重复。示例先检查远端目标路径不存在，避免覆盖已有数据。复制时目标不得启动。
-
-```sh
-ssh root@v3-a 'test ! -e /srv/wkmigrate/targets/node101 && test ! -L /srv/wkmigrate/targets/node101 && mkdir -p /srv/wkmigrate/targets' && \
-  rsync -a --numeric-ids --partial /srv/wkmigrate/targets/node101 root@v3-a:/srv/wkmigrate/targets/
-rsync -anc --numeric-ids --delete --itemize-changes /srv/wkmigrate/targets/node101/ root@v3-a:/srv/wkmigrate/targets/node101/
-```
-
-复制成功后再执行校验命令；`-n` 只预演、不删除文件。要求退出码 0 且无差异，保存结果后再为实际服务账号设置访问权限。必须复制整个目录，包含 Controller 快照、迁移标记、`DATA-FORMAT.json`（若存在）和隐藏文件。数据格式及创建工具版本可通过 [wkcli db info](/zh/server/tools/wkdb#查看数据版本) 查询；旧产物缺少标识时保持未登记。文件核对不能代替第 3 步的业务校验。
-
-若传输中断，确认接收目录仅属于本次、从未启动，且迁移产物未变，再续传该目录并完整核对；不要删除或覆盖其他迁移的数据。
-
-</details>
-
-<details>
-<summary>启动配置与验收清单</summary>
-
-准备各节点的 `wukongim.toml`，保持 `node.id`、`node.data_dir`、`cluster.id`、`cluster.nodes`、`cluster.initial_slot_count`、`cluster.hash_slot_count`、`cluster.slot_replica_n` 和 `cluster.channel_replica_n` 与计划一致。TLS、监听／公布地址、网关认证、Webhook 地址与网络保护、插件及业务后端配置须另行核对，数据库导入不会替你搬运或验证这些配置。原生 Webhook 不提供签名；若业务使用外部签名代理，单独迁移并验证代理配置。参考[集群配置](/zh/server/configuration/cluster)和[安全配置](/zh/server/configuration/security)。
-
-使用 Docker Compose 部署三节点集群时，每个服务绑定独立的目标目录，并使用配套 v3 镜像。桥接网络中，计划的 `target.nodes[].addr` 与配置的 `cluster.nodes` 应使用容器互通的服务名或网络别名（例如 `wk-node1:7000`），监听地址可用 `0.0.0.0:7000`；不要把宿主机的 `127.0.0.1` 或端口映射当作容器间 RPC 地址。容器内的 `node.data_dir` 应与已验证的计划路径一致，并确认运行用户可读写绑定目录。保留 12 个物理 Slot、256 个 hash slot 和三副本时，分别配置 `initial_slot_count=12`、`hash_slot_count=256`、`slot_replica_n=3`、`channel_replica_n=3`。应在 `prepare` 前确定这些地址；更改计划后使用新的工作空间和迁移产物，不能修改已生成库中的迁移身份来复用。先运行 `docker compose config --quiet` 与各节点的 `wukongim config validate`，完成离线校验后再启动容器。
-
-需要持久 CMD 离线恢复时，切换前须适配发送服务：普通群订阅或 `sync_once=1` 发送成功不会自动建立 CMD 发现关系。对有权限的接收者和稳定的来源频道，在第一条需要离线恢复的命令发送**之前**调用 `POST /message/cmd/bind`；随成员变化维护绑定，失去权限时调用 `/message/cmd/unbind`。绑定从当前 CMD 尾部之后生效，不会补回绑定之前的命令。请求级 `subscribers` 本身不构成离线恢复目录；支持批量绑定的目标版本可先用完全相同顺序的 `{ "subscribers": [...] }` 建立发现关系，再发送 CMD。稳定源频道可使用 `{ "uids": [...], "channel_id": "...", "channel_type": 2 }` 分批绑定，每批最多 1000 项、请求体最多 256 KiB。不要拆分临时接收者范围后只发送原范围，因为范围不同会派生不同的 CMD 频道。跨 Slot 绑定失败可能已写入一部分，须重试并确认整个绑定成功后再发送；旧发送服务若依赖自动离线扩散，单纯导入数据无法提供这项兼容性。使用真正断开的接收者，跨节点验证 `/message/sync`、处理后的 `/message/syncack` 以及移除后的权限；在线 CMD 投递通过不能替代离线验收。当前 `/message/syncack` 依赖进程内的同步记录：同一轮 sync 与 syncack 必须固定到同一服务进程，不能分别随机负载均衡；确认成功后再从其他节点检查确认位置是否持久生效。还应解散一个已绑定的测试源频道，确认全局 CMD 同步仍返回其他有效频道的命令；已确认解散的源应跳过，不能因一个旧绑定阻断全部同步，也不能把超时或不可用错误当作空记录。 详见[可恢复命令](/zh/guide/tutorials/ai-and-iot)。
-
-使用配套 v3 程序隔离启动全部目标节点，暂不接入生产流量。至少验证：
-
-- 每个节点 `/readyz` 就绪，Controller、各物理 Slot 和频道副本状态正常。
-- 原 Token 与相同 `device_flag` 登录成功，错误 Token 被拒绝；不要通过重新设置 Token 来“验证”旧凭据。
-- 历史首尾和跨页内容、ID、序号、ClientMsgNo、RedDot 一致，权限、会话列表和已读状态符合计划。
-- 新消息序号严格大于当前频道尾部，重试相同幂等键不重复，新增未读正确。单聊发送填写接收者 UID，不复用接收者视角历史查询中的对方 UID。
-- 验证群成员添加／移除的系统消息与 CMD 投递，被移除成员不得收到后续群消息。验证依赖 `POST /messages` 的精确消息查询，以及业务侧撤回后的通知和展示；全文搜索通过不能替代这些检查。精确查询支持 `message_ids`、`message_seqs`、`client_msg_nos`，需填写 `login_uid`、`channel_id`、`channel_type`，最多 128 个选择项、1024 条结果和 16 MiB 载荷，每个客户端消息号最多检查 4096 条索引，超限明确报错。所有节点须使用支持该查询的配套版本。
-- 整组重启后历史、新消息及未读正确；多节点场景按已制定的方案验证单节点故障恢复。
-
-三节点、三副本的故障演练须区分已有频道和新频道。停掉一个节点后，即使已有频道仍能通过多数派提交，`/readyz` 也可能因新频道放置候选节点不足返回 503。先在全部节点就绪时创建测试频道，再逐个停止节点验证该频道的历史、新写入和恢复；同时保留就绪失败原因，不能将已有频道测试通过报告为完整就绪。生产切流仍须在全部目标节点恢复并通过就绪检查后进行。详见[多节点部署](/zh/server/deployment/multi-node)。
-- 保留的事件投影、插件、Webhook、推送和实际业务客户端通过各自验收。
-
-写入测试使用隔离演练副本。API 检查不能代替 SDK 登录、真实界面和外部业务集成验收。[聊天 Demo](/zh/guide/quick-start/chat-demo) 支持使用已有 Token 验收，不应创建或覆盖原凭据。
-
-</details>
-
-<details>
-<summary>客户端映射与回退细节</summary>
-
-重新编号会使旧消息缓存和旧序号游标失效。采用清缓存方案时，按迁移代次清除客户端历史消息副本和派生同步游标，**保留登录凭据**，再从 v3 同步会话与历史。清理前单独处理未发送消息和草稿，避免把待发送队列误删或重复发送。`wkcli` 仅迁移 WuKongIM 数据，不会自动清理客户端缓存。
-
-若客户端采用映射方案，必须处理完整 `sequence_mapping`：被排除行的 `target_seq` 为 0，旧游标映射应使用 `boundary_seq`，不能当成仍存在的消息。可用 `export-map` 从归档重建映射：
-
-```sh
-wkcli migrate export-map --plan /srv/wkmigrate/plan.json \
-  --workspace /srv/wkmigrate/work/map \
-  --archive /srv/wkmigrate/source-archive
-```
-
-全部报告、运行测试和客户端验收通过后，运维再切换路由并逐步恢复流量。禁止新旧两套同时接受同一业务写入。
-
-| 阶段 | 回退方式 |
+| 配置位置 | 改为 |
 | --- | --- |
-| v3 尚未接收新生产写入 | 关闭新集群入口，按已演练步骤恢复原 v2 冷备及路由；恢复客户端的对应迁移代次 |
-| v3 已接收新生产写入 | 不能直接切回旧 v2，否则会丢失新增数据；保留新库，按已验证的 v3 修复或备份恢复方案处理 |
+| `[node]` 的 `data_dir` | `"/srv/wkmigrate/targets/node1"` |
+| `[cluster]` 的 `id` | `"migration-v3-new"` |
 
-本工具没有 v3 → v2 反向增量迁移。正式切换前，使用备份副本演练恢复原版本、数据和路由，并记录恢复耗时；保留的原冷备不得用于写入测试。
+同时核对生成值与计划一致：`node.id=1`，`cluster.listen_addr="127.0.0.1:7001"`，`cluster.nodes=[{id=1,addr="127.0.0.1:7001"}]`，`initial_slot_count=12`、`hash_slot_count=256`、`slot_replica_n=1`、`channel_replica_n=1`。保留 `gateway.token_auth_on=true`。若原 v2 的 `whitelistOffOfPerson=false`，还需设置 `message.person_whitelist_enabled=true`。
 
-</details>
+确认没有遗留的 `WK_` 环境变量覆盖这些值，然后校验并前台启动：
+
+```bash
+wukongim config validate --config /srv/wkmigrate/wukongim.toml && \
+  wukongim -config /srv/wkmigrate/wukongim.toml
+```
+
+保持这个终端运行，在迁移机另开一个终端检查：
+
+```bash
+curl --fail http://127.0.0.1:5001/readyz
+```
+
+`/readyz` 成功后，用你自己的客户端或 [Chat Demo](/zh/guide/quick-start/chat-demo)验证下面四项。默认仅监听回环地址；远程访问可按 [Linux 部署](/zh/server/deployment/linux)使用 SSH 转发。
+
+- **能登录：**用原 UID、原 Token 和相同 `device_flag` 登录，错误 Token 应被拒绝；不要重新注册账号覆盖原凭据。
+- **旧数据正确：**检查单聊和群聊的早期、最近及跨页消息，核对正文、消息 ID、序号、会话列表、已读和未读状态。
+- **能继续收发：**在隔离演练数据上发新消息，确认接收、未读数和重试去重正确，新序号大于原频道当前尾部。
+- **重启后还在：**正常停止并重新启动 v3，再次检查历史、新消息和未读状态。
+
+本例的写入验收用于演练。正式迁移也要完成验收，但写入测试应使用隔离副本；生产目标在切换前保持无业务写入。**已启动的目录不能再作为初始导入状态执行 `verify`，也不能再次 `import` 覆盖。**
+
+## 5. 正式切换
+
+完成演练后，在正式停机窗口使用最新完整冷备和新的工作目录重做迁移，完成离线校验及运行、客户端验收。保持原 v2 停写，将 v3 按 [Linux 部署](/zh/server/deployment/linux)交给服务管理器运行，确认它使用已校验的配置和同一数据目录，再把业务后端与客户端的连接／路由入口指向 v3，逐步恢复流量。
+
+如果使用了参考页中的重新编号策略，切换时还要处理客户端历史缓存和同步游标，保留登录凭据，并先安置未发送消息及草稿。工具不会自动清理客户端缓存。
+
+**v2 与 v3 不得同时接收同一业务的写入。** v3 接收新生产写入之前，可以关闭 v3 入口，按演练流程恢复原 v2 数据、程序及路由；之后不能直接切回旧 v2，否则会丢失新数据。工具不提供 v3 → v2 反向增量迁移。
+
+## 卡住了，先看哪里
+
+例如 `prepare` 失败，先查看这两个文件：
+
+```bash
+cat /srv/wkmigrate/reports/prepare.stderr
+cat /srv/wkmigrate/reports/prepare.json
+```
+
+其他阶段换成对应文件名。保留失败现场和日志，不要重复整段命令覆盖报告，也不要删除源数据或修改标记强行通过。
+
+| 遇到的情况 | 下一步 |
+| --- | --- |
+| 目标目录已存在 | 确认是否为上次迁移产物；首次执行改用新目录，重试按参考页处理 |
+| 插件、重复消息、会话或副本冲突 | 查看报告后按[迁移参考](/zh/server/operations/v2-to-v3-migration-reference)逐项处理 |
+| 长时间没有输出、`context canceled` | 查对应 `.stderr` 的阶段进度与进程状态，核对磁盘空间和外层超时；不要并发启动第二次迁移 |
+| 需要多节点、Docker 或迁到其他服务器 | 使用[迁移参考](/zh/server/operations/v2-to-v3-migration-reference)中的计划、目录分发和启动配置 |
+
+完整的重试条件、插件策略、数据转换和业务验收清单均在[迁移参考](/zh/server/operations/v2-to-v3-migration-reference)中，按遇到的问题查阅即可。

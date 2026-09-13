@@ -897,8 +897,15 @@ export const domains: DocumentationDomain[] = [
             'v2-to-v3-migration',
             'v2 → v3 离线迁移',
             'v2 → v3 Offline Migration',
-            '从原版 v2 冷备迁入全新 v3 集群，校验数据并完成切换。',
-            'Migrate original v2 cold backups into a new v3 cluster, verify data, and complete cutover.',
+            '跟着单节点集群实例完成备份、迁移、启动和验收。',
+            'Follow a single-node cluster example through backup, migration, startup, and acceptance.',
+          ),
+          publishedPage(
+            'v2-to-v3-migration-reference',
+            'v2 → v3 迁移参考',
+            'v2 → v3 Migration Reference',
+            '按需查阅多节点计划、插件、兼容性策略与故障处理。',
+            'Look up multi-node plans, plugins, compatibility policies, and troubleshooting.',
           ),
           publishedPage(
             'troubleshooting',
