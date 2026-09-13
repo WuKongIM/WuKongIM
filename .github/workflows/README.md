@@ -235,7 +235,8 @@ source workflow never receives production signing or package-publisher access.
 
 ## Conversation QPS diagnosis
 
-`conversation-qps-diagnose.yml` takes an exact reachable product SHA and optional
+`conversation-qps-diagnose.yml` takes an exact product SHA on main history or a
+main-descended candidate branch, and optional
 previous binary digest. It builds that clean source with Go 1.25.11 before
 checking out the diagnostic harness separately. A supplied digest mismatch
 aborts; it must not silently substitute a different binary. The read-only
@@ -249,7 +250,12 @@ membership mutations abort. All artifacts, including the binary, are retained
 for 90 days. There are no publishing permissions, threshold controls, automatic
 triggers, retries, or production targets. Completion means evidence collection,
 not a passing gate. Dispatch once per evidence-backed comparison; do not rerun
-until green.
+until green. Optional `run_release_matrix=true` also runs all 20 unchanged
+release endpoint results on a fresh fixture, with the existing v2 receipt
+validator. It requires product SHA to equal harness SHA and has no publishing
+authority. The job deadline is 40 minutes; each diagnostic and gate test keeps
+its original 12/18-minute deadline. Actual publishers still require their own
+exact-tag gate.
 
 ## Conversation QPS release gate
 

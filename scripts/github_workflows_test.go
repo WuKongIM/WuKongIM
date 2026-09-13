@@ -65,7 +65,7 @@ func TestConversationQPSDiagnosticWorkflowIsReadOnlyAndBindsProduct(t *testing.T
 	require.Equal(t, map[string]string{"contents": "read"}, w.Permissions)
 	require.Len(t, w.Jobs, 1)
 	require.Equal(t, "ubuntu-24.04", w.Jobs["diagnose"].RunsOn)
-	require.Equal(t, 20, w.Jobs["diagnose"].Timeout)
+	require.Equal(t, 40, w.Jobs["diagnose"].Timeout)
 	require.Nil(t, w.Jobs["diagnose"].Environment)
 	s := string(raw)
 	require.NotContains(t, s, "secrets.")
@@ -79,6 +79,8 @@ func TestConversationQPSDiagnosticWorkflowIsReadOnlyAndBindsProduct(t *testing.T
 		`TestConversationQPSMixedAttribution`,
 		`if: always()`,
 		`retention-days: 90`,
+		`if: ${{ inputs.run_release_matrix }}`,
+		`validate-conversation-qps-report.jq`,
 	} {
 		require.Contains(t, s, guard)
 	}

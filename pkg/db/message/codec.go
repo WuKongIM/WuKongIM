@@ -142,14 +142,14 @@ func decodeMessageHeader(key []byte, value []byte, row *messageRow) error {
 	if row == nil {
 		return dberrors.ErrInvalidArgument
 	}
-	env, err := rowcodec.Unwrap(key, value)
+	env, err := rowcodec.UnwrapBorrowed(key, value)
 	if err != nil {
 		return err
 	}
 	if env.Version != messageValueVersion || env.Codec != rowcodec.CodecColumns {
 		return fmt.Errorf("%w: invalid message header envelope", dberrors.ErrCorruptValue)
 	}
-	s := rowcodec.NewScanner(env.Payload)
+	s := rowcodec.NewBorrowedScanner(env.Payload)
 	for s.Next() {
 		if err := decodeMessageHeaderColumn(s, row); err != nil {
 			return err
@@ -369,14 +369,14 @@ func decodeMessagePayload(key []byte, value []byte, row *messageRow) error {
 	if row == nil {
 		return dberrors.ErrInvalidArgument
 	}
-	env, err := rowcodec.Unwrap(key, value)
+	env, err := rowcodec.UnwrapBorrowed(key, value)
 	if err != nil {
 		return err
 	}
 	if env.Version != messageValueVersion || env.Codec != rowcodec.CodecColumns {
 		return fmt.Errorf("%w: invalid message payload envelope", dberrors.ErrCorruptValue)
 	}
-	s := rowcodec.NewScanner(env.Payload)
+	s := rowcodec.NewBorrowedScanner(env.Payload)
 	for s.Next() {
 		if s.ColumnID() != messageColumnIDPayload {
 			continue

@@ -12,6 +12,10 @@ GOWORK=off go test -tags=e2e ./test/e2e/message/legacy_conversation_sync -count=
 
 ## Rules
 
+- Explicitly disable Gateway Token authentication on every fixture node for
+  the existing tokenless readiness and WKProto clients; this scenario tests
+  conversation projection, not authentication.
+
 - Keep assertions black-box through WKProto, public channel-management HTTP,
   legacy `/conversation/sync`, and public Manager HTTP only.
 - Keep recipients offline so this scenario isolates durable conversation sync

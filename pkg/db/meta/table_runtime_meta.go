@@ -480,7 +480,7 @@ func encodeChannelRuntimeMetaValue(key []byte, meta ChannelRuntimeMeta) []byte {
 }
 
 func decodeChannelRuntimeMetaValue(key []byte, value []byte) (ChannelRuntimeMeta, error) {
-	env, err := rowcodec.Unwrap(key, value)
+	env, err := rowcodec.UnwrapBorrowed(key, value)
 	if err != nil {
 		return ChannelRuntimeMeta{}, err
 	}
@@ -488,7 +488,7 @@ func decodeChannelRuntimeMetaValue(key []byte, value []byte) (ChannelRuntimeMeta
 		return ChannelRuntimeMeta{}, fmt.Errorf("%w: invalid runtime meta envelope", dberrors.ErrCorruptValue)
 	}
 	var meta ChannelRuntimeMeta
-	scanner := rowcodec.NewScanner(env.Payload)
+	scanner := rowcodec.NewBorrowedScanner(env.Payload)
 	for scanner.Next() {
 		if err := decodeRuntimeMetaColumn(scanner, &meta); err != nil {
 			return ChannelRuntimeMeta{}, err

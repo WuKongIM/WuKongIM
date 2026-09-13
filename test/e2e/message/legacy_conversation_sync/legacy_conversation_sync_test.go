@@ -66,7 +66,9 @@ type expectedLegacySync struct {
 }
 
 func TestLegacyConversationSyncSingleNodeCluster(t *testing.T) {
-	node := suite.New(t).StartSingleNodeCluster()
+	node := suite.New(t).StartSingleNodeCluster(
+		suite.WithNodeConfigOverrides(1, map[string]string{"WK_GATEWAY_TOKEN_AUTH_ON": "false"}),
+	)
 
 	t.Run("person full and cursor sync project both users", func(t *testing.T) {
 		runLegacyPersonSyncFlow(t, *node, node.DumpDiagnostics, legacyPersonUsers{
@@ -88,6 +90,9 @@ func TestLegacyConversationSyncSingleNodeCluster(t *testing.T) {
 func TestLegacyConversationSyncMultiNodeCluster(t *testing.T) {
 	cluster := suite.New(t).StartThreeNodeCluster(
 		suite.WithManagerHTTP(),
+		suite.WithNodeConfigOverrides(1, map[string]string{"WK_GATEWAY_TOKEN_AUTH_ON": "false"}),
+		suite.WithNodeConfigOverrides(2, map[string]string{"WK_GATEWAY_TOKEN_AUTH_ON": "false"}),
+		suite.WithNodeConfigOverrides(3, map[string]string{"WK_GATEWAY_TOKEN_AUTH_ON": "false"}),
 	)
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	defer cancel()

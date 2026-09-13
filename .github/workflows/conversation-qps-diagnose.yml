@@ -11,6 +11,10 @@ on:
         description: Optional previously observed binary digest; mismatch aborts
         type: string
         required: false
+      run_release_matrix:
+        description: Also validate the unchanged full matrix; requires product and harness to match
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -18,7 +22,7 @@ permissions:
 jobs:
   diagnose:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 40
     env:
       GOWORK: "off"
       PRODUCT_SHA: ${{ inputs.product_sha }}
@@ -37,7 +41,7 @@ jobs:
           [[ "$PRODUCT_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$(git rev-parse HEAD)" == "$PRODUCT_SHA" ]]
           [[ -z "$(git status --porcelain)" ]]
-          git merge-base --is-ancestor "$PRODUCT_SHA" origin/main
+          git merge-base --is-ancestor "$PRODUCT_SHA" origin/main || git merge-base --is-ancestor origin/main "$PRODUCT_SHA"
           [[ "$(uname -m)" == x86_64 && "$(nproc)" == 4 ]]
           mkdir -p "$RUNNER_TEMP/conversation-mixed"
           lscpu --json > "$RUNNER_TEMP/conversation-mixed/host.json"
@@ -76,6 +80,23 @@ jobs:
           go test ./test/e2e/message/conversation_qps -count=1
           go test -tags=e2e ./test/e2e/message/conversation_qps -run '^TestConversationQPSMixedAttribution$' -count=1 -timeout=12m -p=1 -v 2>&1 | tee "$RUNNER_TEMP/conversation-mixed/test.log"
           jq -e --arg product "$PRODUCT_SHA" --arg harness "$(git rev-parse HEAD)" '.complete and .product_sha == $product and .harness_sha == $harness and (.harness_dirty | not) and (.windows | length == 3)' "$WK_E2E_CONVERSATION_MIXED_REPORT"
+      - name: Validate the complete unchanged release matrix without publication
+        if: ${{ inputs.run_release_matrix }}
+        working-directory: diagnostic-harness
+        shell: bash
+        env:
+          WK_E2E_CONVERSATION_QPS: "1"
+          WK_E2E_BINARY: ${{ runner.temp }}/conversation-mixed/wukongim-e2e
+          WK_E2E_CONVERSATION_QPS_REPORT: ${{ runner.temp }}/conversation-mixed/gate/report.json
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$PRODUCT_SHA" ]]
+          [[ -z "$(git status --porcelain)" ]]
+          jq -e 'all(.windows[]; all(.phases[]; .verdict == "pass"))' "$RUNNER_TEMP/conversation-mixed/report.json"
+          mkdir -p "$RUNNER_TEMP/conversation-mixed/gate"
+          go test -tags=e2e ./test/e2e/message/conversation_qps -run '^TestConversationQPSReleaseGate$' -count=1 -timeout=18m -p=1 -v 2>&1 | tee "$RUNNER_TEMP/conversation-mixed/gate/test.log"
+          profile=test/e2e/message/conversation_qps/profile.json
+          jq -e --arg sha "$PRODUCT_SHA" --arg profile_sha "$(sha256sum "$profile" | cut -d ' ' -f 1)" --slurpfile profile "$profile" -f scripts/validate-conversation-qps-report.jq "$WK_E2E_CONVERSATION_QPS_REPORT"
       - name: Retain all diagnostic evidence including rejected windows
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -71,8 +71,20 @@ func WrapTo(dst []byte, key []byte, version byte, codec byte, flags byte, payloa
 	return nil
 }
 
-// Unwrap verifies and decodes a value envelope.
+// Unwrap verifies and decodes a value envelope with an independently owned payload.
 func Unwrap(key []byte, value []byte) (Envelope, error) {
+	env, err := UnwrapBorrowed(key, value)
+	if err != nil {
+		return Envelope{}, err
+	}
+	env.Payload = append([]byte(nil), env.Payload...)
+	return env, nil
+}
+
+// UnwrapBorrowed verifies the same envelope but borrows its payload from value.
+// The caller must keep value immutable and alive until decoding completes, and
+// copy any bytes that escape that synchronous decode.
+func UnwrapBorrowed(key []byte, value []byte) (Envelope, error) {
 	if len(value) < envelopeHeaderLen {
 		return Envelope{}, fmt.Errorf("%w: envelope too short", dberrors.ErrCorruptValue)
 	}
@@ -88,7 +100,7 @@ func Unwrap(key []byte, value []byte) (Envelope, error) {
 		Version: value[0],
 		Codec:   value[1],
 		Flags:   flags,
-		Payload: append([]byte(nil), value[envelopeHeaderLen:]...),
+		Payload: value[envelopeHeaderLen:],
 	}, nil
 }
 

@@ -24,6 +24,8 @@ cleanup_on_error() {
   local status=$?
   trap - EXIT
   if [[ ${status} -ne 0 ]]; then
+    tail -200 "${RECEIPT_ROOT}/server.log" >&2 2>/dev/null || true
+    tail -100 "${RECEIPT_ROOT}/peer.log" >&2 2>/dev/null || true
     [[ -z "${peer_pid}" ]] || kill "${peer_pid}" 2>/dev/null || true
     [[ -z "${server_pid}" ]] || kill "${server_pid}" 2>/dev/null || true
   fi
@@ -43,18 +45,7 @@ nohup "${RECEIPT_ROOT}/wukongim" \
 server_pid=$!
 popd >/dev/null
 
-for _ in $(seq 1 90); do
-  if curl -fsS http://127.0.0.1:5001/readyz >/dev/null; then
-    break
-  fi
-  if ! kill -0 "${server_pid}" 2>/dev/null; then
-    echo "WuKongIM exited before readiness" >&2
-    tail -200 "${RECEIPT_ROOT}/server.log" >&2
-    exit 1
-  fi
-  sleep 1
-done
-curl -fsS http://127.0.0.1:5001/readyz >/dev/null
+"${GITHUB_WORKSPACE}/test/easysdk-release/wait-ready.sh" "${server_pid}" "${RECEIPT_ROOT}/server.log"
 
 curl -fsS -X POST http://127.0.0.1:5001/user/token \
   -H 'Content-Type: application/json' \
