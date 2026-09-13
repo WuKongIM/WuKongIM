@@ -48,8 +48,12 @@ RUN go mod download
 
 COPY . .
 COPY --from=prometheus /out/bin/ ./internal/app/prometheus_embedded/
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -o /out/wukongim ./cmd/wukongim \
- && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -o /out/wkcli ./cmd/wkcli \
+# Source builds retain development defaults; release builds supply immutable identity.
+ARG BUILD_VERSION=dev
+ARG BUILD_COMMIT=unknown
+ARG BUILD_SOURCE=source
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -ldflags "-X main.buildVersion=$BUILD_VERSION -X main.buildCommit=$BUILD_COMMIT -X main.buildSource=$BUILD_SOURCE" -o /out/wukongim ./cmd/wukongim \
+ && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -ldflags "-X main.buildVersion=$BUILD_VERSION -X main.buildCommit=$BUILD_COMMIT -X main.buildSource=$BUILD_SOURCE" -o /out/wkcli ./cmd/wkcli \
  && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -o /out/wkanalysis ./cmd/wkanalysis \
  && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=${TARGETARCH:-$(go env GOARCH)} go build -o /out/wkcloudsim ./cmd/wkcloudsim
 

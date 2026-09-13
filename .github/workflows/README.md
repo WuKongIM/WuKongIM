@@ -320,6 +320,11 @@ notes.
 
 Hosted release builds use the official Go module proxy for both the product
 and embedded Prometheus; the Dockerfile default remains available for local builds.
+All three release image builds pass the validated version (without the Git `v`
+prefix), source commit, and `release` build source into the server and CLI.
+Both platform candidates must report that exact identity through their version
+commands before publication. Source builds default to `dev`/`unknown`/`source`
+unless `BUILD_VERSION`, `BUILD_COMMIT`, and `BUILD_SOURCE` are supplied.
 
 GHCR is the canonical build target. The Workflow builds
 `linux/amd64,linux/arm64` security candidates and blocks publication when

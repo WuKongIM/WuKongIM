@@ -118,3 +118,25 @@ func TestDockerBuildContextExcludesNonRuntimeTrees(t *testing.T) {
 		}
 	}
 }
+
+// Release metadata must reach both executables, not just the image tag.
+func TestDockerfileInjectsProductBuildIdentity(t *testing.T) {
+	dockerfile := readFile(t, filepath.Join(repoRoot(t), "Dockerfile"))
+	_, builder, ok := strings.Cut(dockerfile, " AS builder\n")
+	if !ok {
+		t.Fatal("Dockerfile is missing the product builder stage")
+	}
+	builder, _, _ = strings.Cut(builder, "\nFROM ")
+	for _, want := range []string{"ARG BUILD_VERSION=dev", "ARG BUILD_COMMIT=unknown", "ARG BUILD_SOURCE=source"} {
+		if !strings.Contains(builder, want) {
+			t.Errorf("product builder missing %q", want)
+		}
+	}
+	commands := strings.ReplaceAll(builder, "\\\n", " ")
+	for _, command := range []string{"wukongim", "wkcli"} {
+		want := `go build -ldflags "-X main.buildVersion=$BUILD_VERSION -X main.buildCommit=$BUILD_COMMIT -X main.buildSource=$BUILD_SOURCE" -o /out/` + command + ` ./cmd/` + command
+		if !strings.Contains(commands, want) {
+			t.Errorf("%s Docker build does not inject the program identity", command)
+		}
+	}
+}
