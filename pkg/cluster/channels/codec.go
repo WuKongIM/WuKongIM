@@ -52,6 +52,7 @@ const (
 	kindCommittedReadsResponse
 	kindIndexedCommittedReads
 	kindPersistedConversationHeads
+	kindPersistedMessageReads
 )
 
 // EncodePullRequest encodes a Channel pull request.
@@ -348,6 +349,12 @@ func encodeCommittedReadsRequestVersion(req CommittedReadsRequest, version uint8
 			break
 		}
 	}
+	if req.Persisted {
+		if kind == kindIndexedCommittedReads {
+			return nil, ch.ErrInvalidConfig
+		}
+		kind = kindPersistedMessageReads
+	}
 	return encodeRequestFrame(version, kind, appendCommittedReadsRequest(nil, req))
 }
 
@@ -358,10 +365,16 @@ func decodeCommittedReadsRequest(data []byte) (CommittedReadsRequest, error) {
 		payload, err = decodeFrame(data, kindIndexedCommittedReads)
 		indexed = err == nil
 	}
+	persisted := false
+	if err != nil {
+		payload, err = decodeFrame(data, kindPersistedMessageReads)
+		persisted = err == nil
+	}
 	if err != nil {
 		return CommittedReadsRequest{}, err
 	}
 	req, offset, err := readCommittedReadsRequest(payload, 0)
+	req.Persisted = persisted
 	if err != nil {
 		return CommittedReadsRequest{}, err
 	}

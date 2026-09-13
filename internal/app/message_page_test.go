@@ -14,6 +14,7 @@ import (
 	clusterchannels "github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
+	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,6 +70,8 @@ func TestMessagePageCompositionPreservesLegacyAndPluginContracts(t *testing.T) {
 	result, err := conversations.SyncLegacy(context.Background(), conversationusecase.LegacySyncRequest{UID: "u1", MessageCount: 3})
 	require.NoError(t, err)
 	require.Len(t, result.Items, 1)
+	require.Positive(t, node.persistedReads)
+	require.Zero(t, node.committedReads, "legacy recents must not fall back to committed recovery")
 	recents := result.Items[0].Recents
 	require.Len(t, recents, 3)
 	require.Equal(t, []uint64{20, 19, 18}, []uint64{recents[0].MessageSeq, recents[1].MessageSeq, recents[2].MessageSeq})
@@ -138,7 +141,7 @@ func TestMessagePageCompositionEnrichesActualLegacyStreamPage(t *testing.T) {
 	node, _, reader := newMessagePageComposition(11)
 	node.messages[metadb.ChannelKey{ChannelID: "g1", ChannelType: 2}][19].Setting = 2
 	eventKey := message.MessageEventMessageKey{ChannelID: "g1", ChannelType: 2, ClientMsgNo: "client-20"}
-	messages := message.New(message.Options{Reader: reader, Memberships: clusterinfra.NewMessageMembershipStore(node), EventStore: legacyConversationEventStore{states: map[message.MessageEventMessageKey][]message.MessageEventState{
+	messages := message.New(message.Options{Reader: reader, PersistedReader: message.NewPersistedPageReader(clusterinfra.NewPersistedMessageReader(node)), Memberships: clusterinfra.NewMessageMembershipStore(node), EventStore: legacyConversationEventStore{states: map[message.MessageEventMessageKey][]message.MessageEventState{
 		eventKey: {
 			{EventKey: message.EventKeyDefault, Status: message.EventStatusClosed, LastMsgEventSeq: 2, SnapshotPayload: []byte(`{"kind":"text","text":"done"}`), EndReason: 3},
 			{EventKey: message.EventKeyFinish, Status: message.EventStatusClosed, LastMsgEventSeq: 3},
@@ -162,6 +165,8 @@ func TestMessagePageCompositionEnrichesActualLegacyStreamPage(t *testing.T) {
 type messagePageCluster struct {
 	fakePresenceCluster
 	reads           [][]clusterchannels.CommittedRead
+	persistedReads  int
+	committedReads  int
 	membershipReads int
 	itemErrors      map[string]error
 	readErr         error
@@ -181,7 +186,7 @@ func newMessagePageComposition(floor uint64) (*messagePageCluster, *message.App,
 		})
 	}
 	reader := message.NewPageReader(clusterinfra.NewCommittedMessageReader(node))
-	app := message.New(message.Options{Reader: reader, Memberships: clusterinfra.NewMessageMembershipStore(node)})
+	app := message.New(message.Options{Reader: reader, PersistedReader: message.NewPersistedPageReader(clusterinfra.NewPersistedMessageReader(node)), Memberships: clusterinfra.NewMessageMembershipStore(node)})
 	return node, app, reader
 }
 
@@ -191,6 +196,11 @@ func (n *messagePageCluster) GetUserChannelMembership(ctx context.Context, uid, 
 }
 
 func (n *messagePageCluster) ReadChannelCommittedBatch(ctx context.Context, reads []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {
+	n.committedReads++
+	return n.readMessages(ctx, reads)
+}
+
+func (n *messagePageCluster) readMessages(ctx context.Context, reads []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {
 	n.reads = append(n.reads, append([]clusterchannels.CommittedRead(nil), reads...))
 	if n.readErr != nil {
 		return nil, n.readErr
@@ -259,4 +269,61 @@ func TestMessagePageCompositionFindsHistoryBehindRecoveryBarriers(t *testing.T) 
 	require.EqualValues(t, 2, rows[0].MessageSeq)
 	require.EqualValues(t, 3, rows[1].MessageSeq)
 	require.Zero(t, node.membershipMutationWrites)
+}
+
+func (n *messagePageCluster) ReadChannelPersistedBatch(ctx context.Context, reads []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {
+	n.persistedReads++
+	return n.readMessages(ctx, reads)
+}
+
+// metadataBatchCompositionNode verifies real adapters discover and use both batch ports.
+type metadataBatchCompositionNode struct {
+	*messagePageCluster
+	membershipBatches int
+	channelBatches    int
+}
+
+func (n *metadataBatchCompositionNode) GetUserChannelMemberships(_ context.Context, uid string, keys []metadb.ChannelKey) ([]metadb.UserChannelMembership, error) {
+	n.membershipBatches++
+	rows := make([]metadb.UserChannelMembership, 0, len(keys))
+	for _, key := range keys {
+		if row, ok := n.memberships[fakeMembershipKey{uid: uid, channelID: key.ChannelID, channelType: key.ChannelType}]; ok {
+			rows = append(rows, row)
+		}
+	}
+	return rows, nil
+}
+func (n *metadataBatchCompositionNode) ReadPermissionMetadataBatchAuthoritative(_ context.Context, reads []slotproxy.PermissionMetadataRead) []slotproxy.PermissionMetadataReadResult {
+	n.channelBatches++
+	rows := make([]slotproxy.PermissionMetadataReadResult, len(reads))
+	for i, r := range reads {
+		rows[i] = slotproxy.PermissionMetadataReadResult{Found: true, Channel: metadb.Channel{ChannelID: r.ChannelID, ChannelType: r.ChannelType}}
+	}
+	return rows
+}
+func TestConversationSyncCompositionUsesMetadataBatches(t *testing.T) {
+	source, _, reader := newMessagePageComposition(11)
+	node := &metadataBatchCompositionNode{messagePageCluster: source}
+	messages := message.New(message.Options{Reader: reader, PersistedReader: message.NewPersistedPageReader(clusterinfra.NewPersistedMessageReader(node)), Memberships: clusterinfra.NewMessageMembershipStore(node), ChannelState: clusterinfra.NewChannelMetadataStore(metadataBatchCompositionChannels{node: node}, nil, nil)})
+	store := clusterinfra.NewConversationStore(node)
+	conversations := conversationusecase.New(conversationusecase.Options{Directory: store, Hydrator: store, LegacyMessages: conversationLegacyMessageReader{messages: messages}})
+	got, err := conversations.SyncLegacy(context.Background(), conversationusecase.LegacySyncRequest{UID: "u1", MessageCount: 3})
+	require.NoError(t, err)
+	require.Len(t, got.Items, 1)
+	require.Len(t, got.Items[0].Recents, 3)
+	require.Equal(t, 1, node.membershipBatches)
+	require.Equal(t, 1, node.channelBatches)
+	require.Zero(t, node.membershipReads)
+	require.Zero(t, node.committedReads)
+	require.Positive(t, node.persistedReads)
+	require.Zero(t, node.membershipMutationWrites)
+}
+
+type metadataBatchCompositionChannels struct {
+	clusterinfra.ChannelMetadataNode
+	node *metadataBatchCompositionNode
+}
+
+func (n metadataBatchCompositionChannels) ReadPermissionMetadataBatchAuthoritative(ctx context.Context, reads []slotproxy.PermissionMetadataRead) []slotproxy.PermissionMetadataReadResult {
+	return n.node.ReadPermissionMetadataBatchAuthoritative(ctx, reads)
 }

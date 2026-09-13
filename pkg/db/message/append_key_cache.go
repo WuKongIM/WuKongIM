@@ -26,8 +26,8 @@ type appendKeyCache struct {
 	catalogValue []byte
 }
 
-func newAppendKeyCache(key ChannelKey, id ChannelID) appendKeyCache {
-	return appendKeyCache{
+func newAppendKeyCache(key ChannelKey, id ChannelID) *appendKeyCache {
+	return &appendKeyCache{
 		rowPrefix:                  encodeMessageRowPrefix(key),
 		globalMessageIDIndexPrefix: encodeGlobalMessageIDIndexPrefix(),
 		clientMsgNoIndexPrefix:     encodeMessageIndexPrefix(key, messageIndexIDClientMsgNo),
@@ -38,28 +38,37 @@ func newAppendKeyCache(key ChannelKey, id ChannelID) appendKeyCache {
 	}
 }
 
-func (c appendKeyCache) initialized() bool {
-	return len(c.rowPrefix) > 0
+func (c *appendKeyCache) initialized() bool {
+	return c != nil && len(c.rowPrefix) > 0
 }
 
-func (c appendKeyCache) messageRowKey(seq uint64, familyID uint16) []byte {
+// retainedBytes counts backing arrays; struct overhead is separately bounded
+// by the registry's entry limit. These arrays are immutable after construction.
+func (c *appendKeyCache) retainedBytes() int {
+	if c == nil {
+		return 0
+	}
+	return cap(c.rowPrefix) + cap(c.globalMessageIDIndexPrefix) + cap(c.clientMsgNoIndexPrefix) + cap(c.idempotencyIndexPrefix) + cap(c.senderSeqIndexPrefix) + cap(c.catalogKey) + cap(c.catalogValue)
+}
+
+func (c *appendKeyCache) messageRowKey(seq uint64, familyID uint16) []byte {
 	key := make([]byte, c.messageRowKeyLen())
 	c.writeMessageRowKey(key, seq, familyID)
 	return key
 }
 
-func (c appendKeyCache) messageRowKeyLen() int {
+func (c *appendKeyCache) messageRowKeyLen() int {
 	return len(c.rowPrefix) + 10
 }
 
-func (c appendKeyCache) writeMessageRowKey(dst []byte, seq uint64, familyID uint16) {
+func (c *appendKeyCache) writeMessageRowKey(dst []byte, seq uint64, familyID uint16) {
 	copy(dst, c.rowPrefix)
 	offset := len(c.rowPrefix)
 	binary.BigEndian.PutUint64(dst[offset:offset+8], seq)
 	binary.BigEndian.PutUint16(dst[offset+8:offset+10], familyID)
 }
 
-func (c appendKeyCache) globalMessageIDIndexKeyTo(dst []byte, messageID uint64) []byte {
+func (c *appendKeyCache) globalMessageIDIndexKeyTo(dst []byte, messageID uint64) []byte {
 	keyLen := len(c.globalMessageIDIndexPrefix) + 8
 	if cap(dst) < keyLen {
 		dst = make([]byte, keyLen)
@@ -71,39 +80,39 @@ func (c appendKeyCache) globalMessageIDIndexKeyTo(dst []byte, messageID uint64) 
 	return dst
 }
 
-func (c appendKeyCache) clientMsgNoIndexKey(clientMsgNo string, seq uint64) []byte {
+func (c *appendKeyCache) clientMsgNoIndexKey(clientMsgNo string, seq uint64) []byte {
 	key := make([]byte, 0, len(c.clientMsgNoIndexPrefix)+2+len(clientMsgNo)+8)
 	key = append(key, c.clientMsgNoIndexPrefix...)
 	key = keycodec.AppendString(key, clientMsgNo)
 	return keycodec.AppendUint64(key, seq)
 }
 
-func (c appendKeyCache) clientMsgNoIndexKeyLen(clientMsgNo string) int {
+func (c *appendKeyCache) clientMsgNoIndexKeyLen(clientMsgNo string) int {
 	validateAppendKeyStringLen(clientMsgNo)
 	return len(c.clientMsgNoIndexPrefix) + 2 + len(clientMsgNo) + 8
 }
 
-func (c appendKeyCache) writeClientMsgNoIndexKey(dst []byte, clientMsgNo string, seq uint64) {
+func (c *appendKeyCache) writeClientMsgNoIndexKey(dst []byte, clientMsgNo string, seq uint64) {
 	copy(dst, c.clientMsgNoIndexPrefix)
 	offset := len(c.clientMsgNoIndexPrefix)
 	offset = writeAppendKeyString(dst, offset, clientMsgNo)
 	binary.BigEndian.PutUint64(dst[offset:], seq)
 }
 
-func (c appendKeyCache) idempotencyIndexKey(fromUID string, clientMsgNo string) []byte {
+func (c *appendKeyCache) idempotencyIndexKey(fromUID string, clientMsgNo string) []byte {
 	key := make([]byte, 0, len(c.idempotencyIndexPrefix)+4+len(fromUID)+len(clientMsgNo))
 	key = append(key, c.idempotencyIndexPrefix...)
 	key = keycodec.AppendString(key, clientMsgNo)
 	return keycodec.AppendString(key, fromUID)
 }
 
-func (c appendKeyCache) idempotencyIndexKeyLen(fromUID string, clientMsgNo string) int {
+func (c *appendKeyCache) idempotencyIndexKeyLen(fromUID string, clientMsgNo string) int {
 	validateAppendKeyStringLen(fromUID)
 	validateAppendKeyStringLen(clientMsgNo)
 	return len(c.idempotencyIndexPrefix) + 4 + len(fromUID) + len(clientMsgNo)
 }
 
-func (c appendKeyCache) idempotencyIndexKeyTo(dst []byte, fromUID string, clientMsgNo string) []byte {
+func (c *appendKeyCache) idempotencyIndexKeyTo(dst []byte, fromUID string, clientMsgNo string) []byte {
 	keyLen := c.idempotencyIndexKeyLen(fromUID, clientMsgNo)
 	if cap(dst) < keyLen {
 		dst = make([]byte, keyLen)
@@ -114,19 +123,19 @@ func (c appendKeyCache) idempotencyIndexKeyTo(dst []byte, fromUID string, client
 	return dst
 }
 
-func (c appendKeyCache) writeIdempotencyIndexKey(dst []byte, fromUID string, clientMsgNo string) {
+func (c *appendKeyCache) writeIdempotencyIndexKey(dst []byte, fromUID string, clientMsgNo string) {
 	copy(dst, c.idempotencyIndexPrefix)
 	offset := len(c.idempotencyIndexPrefix)
 	offset = writeAppendKeyString(dst, offset, clientMsgNo)
 	writeAppendKeyString(dst, offset, fromUID)
 }
 
-func (c appendKeyCache) senderSeqIndexKeyLen(fromUID string) int {
+func (c *appendKeyCache) senderSeqIndexKeyLen(fromUID string) int {
 	validateAppendKeyStringLen(fromUID)
 	return len(c.senderSeqIndexPrefix) + 2 + len(fromUID) + 8
 }
 
-func (c appendKeyCache) writeSenderSeqIndexKey(dst []byte, fromUID string, seq uint64) {
+func (c *appendKeyCache) writeSenderSeqIndexKey(dst []byte, fromUID string, seq uint64) {
 	copy(dst, c.senderSeqIndexPrefix)
 	offset := writeAppendKeyString(dst, len(c.senderSeqIndexPrefix), fromUID)
 	binary.BigEndian.PutUint64(dst[offset:], seq)

@@ -61,18 +61,17 @@ func TestSyncLegacyBuildsOldConversationFromDirectoryAndRecentMessages(t *testin
 }
 
 func TestSyncLegacyAppliesOldPageUnreadAndExcludedTypeRules(t *testing.T) {
-	directory := &membershipDirectoryStore{
+	directory := &bulkLegacyDirectory{
 		rows: []metadb.UserChannelMembership{
 			{UID: "u1", ChannelID: "first", ChannelType: 2, JoinSeq: 1, ActivatedAt: 300},
 			{UID: "u1", ChannelID: "excluded-but-known", ChannelType: 3, JoinSeq: 1, ActivatedAt: 200},
 			{UID: "u1", ChannelID: "read", ChannelType: 2, JoinSeq: 1, ReadSeq: 7, ActivatedAt: 100},
 		},
-		done: true,
 	}
-	hydrator := &membershipHeadHydrator{results: []HydrationResult{
-		{Key: ConversationKey{ChannelID: "first", ChannelType: 2}, Outcome: HydrationOK, ReadThroughSeq: 5, LastMessage: &LastMessage{MessageSeq: 5}},
-		{Key: ConversationKey{ChannelID: "excluded-but-known", ChannelType: 3}, Outcome: HydrationOK, ReadThroughSeq: 6, LastMessage: &LastMessage{MessageSeq: 6}},
-		{Key: ConversationKey{ChannelID: "read", ChannelType: 2}, Outcome: HydrationOK, ReadThroughSeq: 7, LastMessage: &LastMessage{MessageSeq: 7}},
+	hydrator := &prefixHydrator{heads: map[string]HydrationResult{
+		"first":              {Key: ConversationKey{ChannelID: "first", ChannelType: 2}, Outcome: HydrationOK, ReadThroughSeq: 5, LastMessage: &LastMessage{MessageSeq: 5}},
+		"excluded-but-known": {Key: ConversationKey{ChannelID: "excluded-but-known", ChannelType: 3}, Outcome: HydrationOK, ReadThroughSeq: 6, LastMessage: &LastMessage{MessageSeq: 6}},
+		"read":               {Key: ConversationKey{ChannelID: "read", ChannelType: 2}, Outcome: HydrationOK, ReadThroughSeq: 7, LastMessage: &LastMessage{MessageSeq: 7}},
 	}}
 	messages := &recordingLegacyMessageReader{results: []LegacyMessageReadResult{{
 		ChannelID: "excluded-but-known", ChannelType: 3,
@@ -123,37 +122,18 @@ func TestSyncLegacyWalksDirectoryPagesForOldUnpagedRequest(t *testing.T) {
 	}
 }
 
-func TestSyncLegacyRetriesUnresolvedWithoutSilentlyDroppingConversation(t *testing.T) {
+func TestSyncLegacyFailsImmediatelyAndOriginalRequestCanRetry(t *testing.T) {
 	row := metadb.UserChannelMembership{UID: "u1", ChannelID: "g1", ChannelType: 2, JoinSeq: 1, ActivatedAt: 100}
-	directory := &membershipDirectoryStore{rows: []metadb.UserChannelMembership{row}, done: true}
-	memberships := &membershipRetryStore{rows: map[ConversationKey]metadb.UserChannelMembership{
-		{ChannelID: "g1", ChannelType: 2}: row,
-	}}
 	hydrator := &retryOnceLegacyHydrator{}
-	app := New(Options{
-		Directory: directory, Hydrator: hydrator, MembershipMutations: memberships,
-		LegacyMessages: &echoLegacyMessageReader{},
-	})
-
-	result, err := app.SyncLegacy(context.Background(), LegacySyncRequest{UID: "u1", MessageCount: 1})
-	if err != nil {
-		t.Fatalf("SyncLegacy(): %v", err)
+	app := New(Options{Directory: &membershipDirectoryStore{rows: []metadb.UserChannelMembership{row}, done: true}, Hydrator: hydrator, LegacyMessages: &echoLegacyMessageReader{}})
+	req := LegacySyncRequest{UID: "u1", MessageCount: 1}
+	result, err := app.SyncLegacy(context.Background(), req)
+	if !errors.Is(err, ErrRouteNotReady) || result.Items != nil || hydrator.calls != 1 {
+		t.Fatalf("first request: result=%#v err=%v calls=%d", result, err, hydrator.calls)
 	}
-	if hydrator.calls != 2 {
-		t.Fatalf("hydrator calls = %d, want list plus unresolved retry", hydrator.calls)
-	}
-	if len(result.Items) != 1 || result.Items[0].ChannelID != "g1" {
-		t.Fatalf("result = %#v, want recovered conversation", result)
-	}
-
-	persistent := &alwaysUnresolvedLegacyHydrator{}
-	app = New(Options{
-		Directory: directory, Hydrator: persistent, MembershipMutations: memberships,
-		LegacyMessages: &echoLegacyMessageReader{},
-	})
-	_, err = app.SyncLegacy(context.Background(), LegacySyncRequest{UID: "u1", MessageCount: 1})
-	if !errors.Is(err, ErrLegacySyncUnresolved) {
-		t.Fatalf("SyncLegacy() error = %v, want ErrLegacySyncUnresolved", err)
+	result, err = app.SyncLegacy(context.Background(), req)
+	if err != nil || len(result.Items) != 1 || result.Items[0].ChannelID != "g1" || hydrator.calls != 2 {
+		t.Fatalf("retry: result=%#v err=%v calls=%d", result, err, hydrator.calls)
 	}
 }
 
@@ -299,7 +279,7 @@ type retryOnceLegacyHydrator struct {
 	calls int
 }
 
-func (h *retryOnceLegacyHydrator) HydrateConversationHeads(_ context.Context, _ string, memberships []metadb.UserChannelMembership, keepUnread ...uint64) ([]HydrationResult, error) {
+func (h *retryOnceLegacyHydrator) HydratePersistedConversationHeads(_ context.Context, _ string, memberships []metadb.UserChannelMembership) ([]HydrationResult, error) {
 	h.calls++
 	result := HydrationResult{Key: ConversationKey{ChannelID: memberships[0].ChannelID, ChannelType: memberships[0].ChannelType}}
 	if h.calls == 1 {
@@ -310,15 +290,6 @@ func (h *retryOnceLegacyHydrator) HydrateConversationHeads(_ context.Context, _ 
 		result.LastMessage = &LastMessage{MessageSeq: 1}
 	}
 	return []HydrationResult{result}, nil
-}
-
-type alwaysUnresolvedLegacyHydrator struct{}
-
-func (*alwaysUnresolvedLegacyHydrator) HydrateConversationHeads(_ context.Context, _ string, memberships []metadb.UserChannelMembership, keepUnread ...uint64) ([]HydrationResult, error) {
-	return []HydrationResult{{
-		Key:     ConversationKey{ChannelID: memberships[0].ChannelID, ChannelType: memberships[0].ChannelType},
-		Outcome: HydrationRetryable,
-	}}, nil
 }
 
 type bulkLegacyDirectory struct {
@@ -384,10 +355,46 @@ func (h dynamicLegacyHydrator) HydratePersistedConversationHeads(ctx context.Con
 	return h.HydrateConversationHeads(ctx, uid, rows)
 }
 
-func (h *retryOnceLegacyHydrator) HydratePersistedConversationHeads(ctx context.Context, uid string, rows []metadb.UserChannelMembership) ([]HydrationResult, error) {
-	return h.HydrateConversationHeads(ctx, uid, rows)
+func (h *retryOnceLegacyHydrator) HydrateConversationHeads(context.Context, string, []metadb.UserChannelMembership, ...uint64) ([]HydrationResult, error) {
+	panic("legacy sync must not invoke committed hydration")
 }
 
-func (h *alwaysUnresolvedLegacyHydrator) HydratePersistedConversationHeads(ctx context.Context, uid string, rows []metadb.UserChannelMembership) ([]HydrationResult, error) {
-	return h.HydrateConversationHeads(ctx, uid, rows)
+func TestSyncLegacySharesListAdmissionAndDoesNotReadWhenBusy(t *testing.T) {
+	hydrator := &retryOnceLegacyHydrator{}
+	app := New(Options{Directory: &membershipDirectoryStore{}, Hydrator: hydrator, LegacyMessages: &echoLegacyMessageReader{}})
+	for i := 0; i < cap(app.listAdmission); i++ {
+		app.listAdmission <- struct{}{}
+	}
+	result, err := app.SyncLegacy(context.Background(), LegacySyncRequest{UID: "u", MessageCount: 1})
+	if !errors.Is(err, ErrListBusy) || result.Items != nil || hydrator.calls != 0 {
+		t.Fatalf("result=%#v err=%v calls=%d", result, err, hydrator.calls)
+	}
+}
+
+func TestSyncLegacyRejectsOversizedRecentResponseBeforeMessageRead(t *testing.T) {
+	reader := &recordingLegacyMessageReader{}
+	app := New(Options{Directory: &membershipDirectoryStore{done: true, rows: []metadb.UserChannelMembership{
+		{UID: "u", ChannelID: "g1", ChannelType: 2, JoinSeq: 1, ActivatedAt: 1},
+		{UID: "u", ChannelID: "g2", ChannelType: 2, JoinSeq: 1, ActivatedAt: 1},
+	}}, Hydrator: dynamicLegacyHydrator{}, LegacyMessages: reader})
+	got, err := app.SyncLegacy(context.Background(), LegacySyncRequest{UID: "u", MessageCount: 10000})
+	if !errors.Is(err, ErrLegacySyncBudgetExceeded) || got.Items != nil || len(reader.queries) != 0 {
+		t.Fatalf("result=%#v err=%v queries=%d", got, err, len(reader.queries))
+	}
+}
+
+func TestSyncLegacyRecentReadFailureDiscardsSuccessfulSiblings(t *testing.T) {
+	cause := errors.New("disk unavailable")
+	reader := &recordingLegacyMessageReader{results: []LegacyMessageReadResult{
+		{ChannelID: "g1", ChannelType: 2, Messages: []LegacyRecentMessage{{MessageSeq: 1}}},
+		{ChannelID: "g2", ChannelType: 2, Err: cause},
+	}}
+	app := New(Options{Directory: &membershipDirectoryStore{done: true, rows: []metadb.UserChannelMembership{
+		{UID: "u", ChannelID: "g1", ChannelType: 2, JoinSeq: 1, ActivatedAt: 1},
+		{UID: "u", ChannelID: "g2", ChannelType: 2, JoinSeq: 1, ActivatedAt: 1},
+	}}, Hydrator: dynamicLegacyHydrator{}, LegacyMessages: reader})
+	got, err := app.SyncLegacy(context.Background(), LegacySyncRequest{UID: "u", MessageCount: 1})
+	if !errors.Is(err, cause) || got.Items != nil || len(reader.queries) != 1 {
+		t.Fatalf("result=%#v err=%v reads=%d", got, err, len(reader.queries))
+	}
 }

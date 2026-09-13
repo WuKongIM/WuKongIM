@@ -63,8 +63,8 @@ func (a *App) LookupMessages(ctx context.Context, q LookupMessagesQuery) (SyncCh
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	reads := make([]CommittedMessageQuery, 0, count)
-	base := CommittedMessageQuery{ChannelID: prepared.query.ChannelID, MinSeq: prepared.query.MinSeq, Limit: maxLookupMessages, MaxBytes: maxLookupBytes}
+	reads := make([]MessageScanQuery, 0, count)
+	base := MessageScanQuery{ChannelID: prepared.query.ChannelID, MinSeq: prepared.query.MinSeq, Limit: maxLookupMessages, MaxBytes: maxLookupBytes}
 	for _, seq := range q.MessageSeqs {
 		r := base
 		r.FromSeq = seq
@@ -130,8 +130,8 @@ func (a *App) LookupMessages(ctx context.Context, q LookupMessagesQuery) (SyncCh
 }
 
 // readLookupMessages validates exact routed evidence before it can enter a result.
-func (a *App) readLookupMessages(ctx context.Context, r CommittedMessageQuery) ([]SyncedMessage, error) {
-	got, err := a.lookupReader.ReadCommittedMessages(ctx, []CommittedMessageQuery{r})
+func (a *App) readLookupMessages(ctx context.Context, r MessageScanQuery) ([]SyncedMessage, error) {
+	got, err := a.lookupReader.ReadCommittedMessages(ctx, []MessageScanQuery{r})
 	if err != nil {
 		return nil, err
 	}

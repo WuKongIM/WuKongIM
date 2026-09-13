@@ -1,0 +1,3422 @@
+{
+  "schema": "wukongim/conversation-backpressure-attribution/v1",
+  "date": "2026-09-12",
+  "source_base": "13f9687192c316d3c6fa967c0f8ae593d60005e5",
+  "source_dirty": true,
+  "release_qualification": false,
+  "identities": {
+    "schema": "wukongim/conversation-backpressure-builds/v1",
+    "sole_behavior_difference": "pkg/db/message/non_business_index.go",
+    "old_original_binary_sha256": "31fb78e75adb3c85e2230a243b02f68c6235aa61185f4cd575e9896518dc1c8d",
+    "new_original_binary_sha256": "8a7a2a806dabee28bdcd1b7b814e076c415291fe0b7615c068e75fc318c3b51d",
+    "old_instrumented_binary_sha256": "fbec4f10c4eecad19a92b7cce2f020cd8b5e2cd4b9dcb147380d706751e83737",
+    "new_instrumented_binary_sha256": "9b84da8e90abf13d08d2efb1f991750214c5d209003b54c31d729de8675bdf7e",
+    "old_count_source_sha256": "2adc43146d14547dd4f6b3d3b62554e7fa7242b1ce9a98745a8da7bdc00305c2",
+    "new_count_source_sha256": "042edaee923c5e266c39f63effeb2b392f1851b5a05039edea1961aa0b73e4e8",
+    "shared_instrumentation": {
+      "pkg/cluster/channels/persisted_read_observer.go": "74e7cc33a8e9e529691f77951a623bffac4285066a78e2240a2593f28b417da1",
+      "pkg/cluster/channels/persisted_conversation.go": "56a6edd344bde41324543ec11e7ee4c48a2ff2498199eedc9ca4426b511f7fef",
+      "pkg/cluster/channels/persisted_messages.go": "f79d84aa98b0be9383db4cdd00102df4289da1232689dd776da0464bd3f712d3",
+      "pkg/metrics/conversation.go": "5ae74fab0c0aedc677a51fac26b5b5382720bc1915fbaaf61186ed153e64ecf6",
+      "pkg/metrics/conversation_persisted.go": "16de3abcc04509edf1c7ab867d8c013f4688ebf5e0ba23450349643f3b62e55b",
+      "internal/app/observability.go": "e2d14f015ec2234b236f7240fafae2c1505376010353c012714f1bb4bfb4ebf7"
+    }
+  },
+  "protocol": {
+    "variant_order": [
+      "old",
+      "new"
+    ],
+    "nodes": 3,
+    "hash_slots": 256,
+    "initial_physical_slots": 12,
+    "driver_workers": 48,
+    "driver_gomaxprocs": 10,
+    "node_gomaxprocs": 2,
+    "os": "linux",
+    "arch": "arm64",
+    "cpu_count": 10,
+    "container_memory_bytes": 6442450944,
+    "cpu_quota": null,
+    "fixture_groups": 600,
+    "fixture_users": 24,
+    "memberships_per_user": 200,
+    "messages_per_group": 3,
+    "message_payload_bytes": 256,
+    "page_size": 100,
+    "windows_per_case": 3,
+    "window_seconds": 60,
+    "continuous_180_second_run": false,
+    "shared_persisted_batch_limit": 16,
+    "variant_instrumentation_shared": true,
+    "fixed_variant_order_limitation": true,
+    "profile_sha256": "b29f053bd0f8dfb7437a48edba020c0bd2ff6dc788ac303e91a07abe4576cba3"
+  },
+  "definitions": {
+    "cpu_ms_per_success": "Total sampled-interval server process CPU, including failed/background work, divided by successful requests.",
+    "p99_range": "Range of per-window percentiles; not pooled.",
+    "average_occupied_slots": "Observed processing hold sums / 60 seconds, excluding observer callbacks.",
+    "driver_wait": "Scheduled arrival until worker starts request: scheduler and bounded arrival queue.",
+    "request_time": "Client request start through HTTP completion and validation; includes connection wait and network.",
+    "diagnosis_complete": "All fixed windows and profiles collected; does not imply all loads accepted."
+  },
+  "cases": [
+    {
+      "variant": "old",
+      "workload": {
+        "endpoint": "/conversation/list",
+        "page_size": 100,
+        "offered_qps": 1200
+      },
+      "completed": 215873,
+      "http_refusals": 0,
+      "serving_node_admission_rejections": 0,
+      "driver_drops": 127,
+      "passing_windows": 2,
+      "p99_range_ms": [
+        55.16814,
+        567.636777
+      ],
+      "cpu_ms_per_success": 3.929810583074307,
+      "windows": [
+        {
+          "phase": {
+            "driver_wait_p99_ms": 11.276143,
+            "request_p99_ms": 48.082083,
+            "driver_workers": 48,
+            "queue_capacity": 600,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 1200
+            },
+            "scheduled": 72000,
+            "completed": 72000,
+            "completed_in_window": 71956,
+            "unexpected_errors": 0,
+            "errors": 0,
+            "dropped": 0,
+            "duration_seconds": 60,
+            "actual_qps": 1199.2666666666667,
+            "p50_ms": 21.135251,
+            "p95_ms": 39.324343,
+            "p99_ms": 55.16814,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 280.06,
+            "heap_bytes": 338228136,
+            "allocated_bytes": 157993219368,
+            "verdict": "pass"
+          },
+          "attribution": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 72000,
+                  "rejected": 0,
+                  "ended": 72000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.8830558104583391,
+                  "average_occupied_slots": 1.059666972550007,
+                  "hold_p99_ms": 4.976680161943321
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "ended": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0,
+                  "hold_p99_ms": 0
+                }
+              ]
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 72000,
+                  "rejected": 0,
+                  "ended": 72000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7514332761527885,
+                  "average_occupied_slots": 0.9017199313833462,
+                  "hold_p99_ms": 4.919503750721293
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "ended": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0,
+                  "hold_p99_ms": 0
+                }
+              ]
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 72000,
+                  "rejected": 0,
+                  "ended": 72000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.9408568114860985,
+                  "average_occupied_slots": 1.129028173783318,
+                  "hold_p99_ms": 4.995469988674972
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "ended": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0,
+                  "hold_p99_ms": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "phase": {
+            "driver_wait_p99_ms": 18.572394,
+            "request_p99_ms": 49.103125,
+            "driver_workers": 48,
+            "queue_capacity": 600,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 1200
+            },
+            "scheduled": 72000,
+            "completed": 72000,
+            "completed_in_window": 71974,
+            "unexpected_errors": 0,
+            "errors": 0,
+            "dropped": 0,
+            "duration_seconds": 60,
+            "actual_qps": 1199.5666666666666,
+            "p50_ms": 22.82498,
+            "p95_ms": 42.142095,
+            "p99_ms": 60.898758,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 282.96,
+            "heap_bytes": 299661920,
+            "allocated_bytes": 157943770992,
+            "verdict": "pass"
+          },
+          "attribution": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 72000,
+                  "rejected": 0,
+                  "ended": 72000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.9303836878611274,
+                  "average_occupied_slots": 1.1164604254333528,
+                  "hold_p99_ms": 4.99357590966123
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "ended": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0,
+                  "hold_p99_ms": 0
+                }
+              ]
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 72000,
+                  "rejected": 0,
+                  "ended": 72000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7804913229027653,
+                  "average_occupied_slots": 0.9365895874833183,
+                  "hold_p99_ms": 4.931417855468489
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "ended": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0,
+                  "hold_p99_ms": 0
+                }
+              ]
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 72000,
+                  "rejected": 0,
+                  "ended": 72000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.9860247991250038,
+                  "average_occupied_slots": 1.1832297589500047,
+                  "hold_p99_ms": 5.997286295793758
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "ended": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0,
+                  "hold_p99_ms": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "phase": {
+            "driver_wait_p99_ms": 521.277778,
+            "request_p99_ms": 61.811208,
+            "driver_workers": 48,
+            "queue_capacity": 600,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 1200
+            },
+            "scheduled": 72000,
+            "completed": 71873,
+            "completed_in_window": 71248,
+            "unexpected_errors": 0,
+            "errors": 0,
+            "dropped": 127,
+            "duration_seconds": 60,
+            "actual_qps": 1187.4666666666667,
+            "p50_ms": 22.776266,
+            "p95_ms": 62.209935,
+            "p99_ms": 567.636777,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 285.31999999999994,
+            "heap_bytes": 394215536,
+            "allocated_bytes": 157657974248,
+            "verdict": "incomplete or failed requests"
+          },
+          "attribution": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 71873,
+                  "rejected": 0,
+                  "ended": 71873,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.9560264224256563,
+                  "average_occupied_slots": 1.1452081176499864,
+                  "hold_p99_ms": 6.119220945083041
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "ended": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0,
+                  "hold_p99_ms": 0
+                }
+              ]
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 71873,
+                  "rejected": 0,
+                  "ended": 71873,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.8010158557316409,
+                  "average_occupied_slots": 0.9595235433166704,
+                  "hold_p99_ms": 4.950432042022325
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "ended": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0,
+                  "hold_p99_ms": 0
+                }
+              ]
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 71873,
+                  "rejected": 0,
+                  "ended": 71873,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.0155363970335671,
+                  "average_occupied_slots": 1.216494124399893,
+                  "hold_p99_ms": 6.77816281628165
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "ended": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0,
+                  "hold_p99_ms": 0
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "trace_load": {
+        "driver_wait_p99_ms": 46.195752,
+        "request_p99_ms": 56.48275,
+        "driver_workers": 48,
+        "queue_capacity": 600,
+        "nodes": 3,
+        "case": {
+          "endpoint": "/conversation/list",
+          "page_size": 100,
+          "offered_qps": 1200
+        },
+        "scheduled": 9600,
+        "completed": 9591,
+        "completed_in_window": 9570,
+        "first_error": "HTTP 503: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":503}",
+        "error_samples": {
+          "HTTP 503: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":503}": 9
+        },
+        "unexpected_errors": 0,
+        "errors": 9,
+        "dropped": 0,
+        "duration_seconds": 8,
+        "actual_qps": 1196.25,
+        "p50_ms": 25.197503,
+        "p95_ms": 70.572794,
+        "p99_ms": 89.948169,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": null,
+        "heap_bytes": 0,
+        "allocated_bytes": 0,
+        "verdict": ""
+      },
+      "profiles": [
+        "/out/old/list-1200/3n-list-100-node1-alloc-before.pprof",
+        "/out/old/list-1200/3n-list-100-node2-alloc-before.pprof",
+        "/out/old/list-1200/3n-list-100-node3-alloc-before.pprof",
+        "/out/old/list-1200/3n-list-100-driver-cpu.pprof",
+        "/out/old/list-1200/3n-list-100-node1-cpu.pprof",
+        "/out/old/list-1200/3n-list-100-node2-cpu.pprof",
+        "/out/old/list-1200/3n-list-100-node3-cpu.pprof",
+        "/out/old/list-1200/3n-list-100-node1-alloc-after.pprof",
+        "/out/old/list-1200/3n-list-100-node2-alloc-after.pprof",
+        "/out/old/list-1200/3n-list-100-node3-alloc-after.pprof",
+        "/out/old/list-1200/3n-list-100-node1.trace",
+        "/out/old/list-1200/3n-list-100-node2.trace",
+        "/out/old/list-1200/3n-list-100-node3.trace"
+      ]
+    },
+    {
+      "variant": "old",
+      "workload": {
+        "endpoint": "/conversation/sync",
+        "page_size": 100,
+        "offered_qps": 400
+      },
+      "completed": 71968,
+      "http_refusals": 9,
+      "serving_node_admission_rejections": 9,
+      "driver_drops": 23,
+      "passing_windows": 0,
+      "p99_range_ms": [
+        115.888584,
+        628.005609
+      ],
+      "cpu_ms_per_success": 11.621692974655401,
+      "windows": [
+        {
+          "phase": {
+            "driver_wait_p99_ms": 7.956274,
+            "request_p99_ms": 128.029041,
+            "driver_workers": 48,
+            "queue_capacity": 200,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 400
+            },
+            "scheduled": 24000,
+            "completed": 23998,
+            "completed_in_window": 23972,
+            "first_error": "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}",
+            "error_samples": {
+              "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}": 2
+            },
+            "unexpected_errors": 0,
+            "errors": 2,
+            "dropped": 0,
+            "duration_seconds": 60,
+            "actual_qps": 399.53333333333336,
+            "p50_ms": 59.31922,
+            "p95_ms": 103.647107,
+            "p99_ms": 131.564335,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 280.14999999999986,
+            "heap_bytes": 396775392,
+            "allocated_bytes": 198787462464,
+            "verdict": "incomplete or failed requests"
+          },
+          "attribution": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 23998,
+                  "rejected": 2,
+                  "ended": 23998,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 2.004040098675095,
+                  "average_occupied_slots": 0.8015492381334155,
+                  "hold_p99_ms": 9.916608084358526
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 23998,
+                  "rejected": 0,
+                  "ended": 23998,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.992252209809151,
+                  "average_occupied_slots": 0.39686780885000006,
+                  "hold_p99_ms": 8.07131979695432
+                }
+              ]
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.7431616683749689,
+                  "average_occupied_slots": 0.6972646673499876,
+                  "hold_p99_ms": 9.655367231638419
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 23998,
+                  "rejected": 0,
+                  "ended": 23998,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.8704939724143705,
+                  "average_occupied_slots": 0.3481685725000011,
+                  "hold_p99_ms": 7.507715133531163
+                }
+              ]
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 2.1284414329583194,
+                  "average_occupied_slots": 0.8513765731833279,
+                  "hold_p99_ms": 9.996234939759036
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 23998,
+                  "rejected": 0,
+                  "ended": 23998,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.0730742945245402,
+                  "average_occupied_slots": 0.42919394866666527,
+                  "hold_p99_ms": 8.752423698384206
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "phase": {
+            "driver_wait_p99_ms": 484.349318,
+            "request_p99_ms": 154.64275,
+            "driver_workers": 48,
+            "queue_capacity": 200,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 400
+            },
+            "scheduled": 24000,
+            "completed": 23974,
+            "completed_in_window": 23741,
+            "first_error": "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}",
+            "error_samples": {
+              "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}": 3
+            },
+            "unexpected_errors": 0,
+            "errors": 3,
+            "dropped": 23,
+            "duration_seconds": 60,
+            "actual_qps": 395.68333333333334,
+            "p50_ms": 54.736773,
+            "p95_ms": 110.345883,
+            "p99_ms": 628.005609,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 280.02,
+            "heap_bytes": 353979824,
+            "allocated_bytes": 198605056376,
+            "verdict": "incomplete or failed requests"
+          },
+          "attribution": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 23977,
+                  "rejected": 0,
+                  "ended": 23977,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.9587238686241428,
+                  "average_occupied_slots": 0.7827387033000178,
+                  "hold_p99_ms": 10.078510638297844
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 23974,
+                  "rejected": 0,
+                  "ended": 23974,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.9926896523316903,
+                  "average_occupied_slots": 0.3966456954166657,
+                  "hold_p99_ms": 8.36247191011234
+                }
+              ]
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 23977,
+                  "rejected": 0,
+                  "ended": 23977,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.6694142276347315,
+                  "average_occupied_slots": 0.6671257489332992,
+                  "hold_p99_ms": 9.44732484076433
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 23974,
+                  "rejected": 0,
+                  "ended": 23974,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.8270188319846558,
+                  "average_occupied_slots": 0.33044915796666896,
+                  "hold_p99_ms": 7.093092105263132
+                }
+              ]
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 23974,
+                  "rejected": 3,
+                  "ended": 23974,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 2.0427715415450045,
+                  "average_occupied_slots": 0.8162234156166657,
+                  "hold_p99_ms": 11.319762845849707
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 23974,
+                  "rejected": 0,
+                  "ended": 23974,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.0217078738216276,
+                  "average_occupied_slots": 0.40824040944999507,
+                  "hold_p99_ms": 8.52838137472282
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "phase": {
+            "driver_wait_p99_ms": 3.0105,
+            "request_p99_ms": 112.360917,
+            "driver_workers": 48,
+            "queue_capacity": 200,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 400
+            },
+            "scheduled": 24000,
+            "completed": 23996,
+            "completed_in_window": 23969,
+            "first_error": "HTTP 400: {\"msg\":\"internal/message: backpressured: channel: backpressured\",\"status\":400}",
+            "error_samples": {
+              "HTTP 400: {\"msg\":\"internal/message: backpressured: channel: backpressured\",\"status\":400}": 3,
+              "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}": 1
+            },
+            "unexpected_errors": 0,
+            "errors": 4,
+            "dropped": 0,
+            "duration_seconds": 60,
+            "actual_qps": 399.48333333333335,
+            "p50_ms": 50.970275,
+            "p95_ms": 84.121626,
+            "p99_ms": 115.888584,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 276.22,
+            "heap_bytes": 382354096,
+            "allocated_bytes": 198837347432,
+            "verdict": "incomplete or failed requests"
+          },
+          "attribution": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 23999,
+                  "rejected": 1,
+                  "ended": 23999,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.7733036036083119,
+                  "average_occupied_slots": 0.7092918863832646,
+                  "hold_p99_ms": 9.303860759493661
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 23998,
+                  "rejected": 1,
+                  "ended": 23998,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.8796199860405238,
+                  "average_occupied_slots": 0.3518186737500082,
+                  "hold_p99_ms": 6.894019933554825
+                }
+              ]
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.580228517041919,
+                  "average_occupied_slots": 0.6320914068167677,
+                  "hold_p99_ms": 8.925750394944709
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 23999,
+                  "rejected": 0,
+                  "ended": 23999,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7776419106212722,
+                  "average_occupied_slots": 0.31104380354999855,
+                  "hold_p99_ms": 5.856772908366502
+                }
+              ]
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.9084929501249732,
+                  "average_occupied_slots": 0.7633971800499892,
+                  "hold_p99_ms": 9.620390455531453
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 23997,
+                  "rejected": 2,
+                  "ended": 23997,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.9282888083927365,
+                  "average_occupied_slots": 0.371269108916675,
+                  "hold_p99_ms": 7.3645380434782455
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "trace_load": {
+        "driver_wait_p99_ms": 197.453421,
+        "request_p99_ms": 181.05525,
+        "driver_workers": 48,
+        "queue_capacity": 200,
+        "nodes": 3,
+        "case": {
+          "endpoint": "/conversation/sync",
+          "page_size": 100,
+          "offered_qps": 400
+        },
+        "scheduled": 3200,
+        "completed": 3196,
+        "completed_in_window": 3074,
+        "first_error": "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}",
+        "error_samples": {
+          "HTTP 400: {\"msg\":\"internal/message: backpressured: channel: backpressured\",\"status\":400}": 1,
+          "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}": 3
+        },
+        "unexpected_errors": 0,
+        "errors": 4,
+        "dropped": 0,
+        "duration_seconds": 8,
+        "actual_qps": 384.25,
+        "p50_ms": 63.827335,
+        "p95_ms": 304.686879,
+        "p99_ms": 334.330754,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": null,
+        "heap_bytes": 0,
+        "allocated_bytes": 0,
+        "verdict": ""
+      },
+      "profiles": [
+        "/out/old/sync-400/3n-sync-100-node1-alloc-before.pprof",
+        "/out/old/sync-400/3n-sync-100-node2-alloc-before.pprof",
+        "/out/old/sync-400/3n-sync-100-node3-alloc-before.pprof",
+        "/out/old/sync-400/3n-sync-100-driver-cpu.pprof",
+        "/out/old/sync-400/3n-sync-100-node1-cpu.pprof",
+        "/out/old/sync-400/3n-sync-100-node2-cpu.pprof",
+        "/out/old/sync-400/3n-sync-100-node3-cpu.pprof",
+        "/out/old/sync-400/3n-sync-100-node1-alloc-after.pprof",
+        "/out/old/sync-400/3n-sync-100-node2-alloc-after.pprof",
+        "/out/old/sync-400/3n-sync-100-node3-alloc-after.pprof",
+        "/out/old/sync-400/3n-sync-100-node1.trace",
+        "/out/old/sync-400/3n-sync-100-node2.trace",
+        "/out/old/sync-400/3n-sync-100-node3.trace"
+      ]
+    },
+    {
+      "variant": "old",
+      "workload": {
+        "endpoint": "/conversation/sync",
+        "page_size": 100,
+        "offered_qps": 420
+      },
+      "completed": 75576,
+      "http_refusals": 24,
+      "serving_node_admission_rejections": 24,
+      "driver_drops": 0,
+      "passing_windows": 0,
+      "p99_range_ms": [
+        132.66454,
+        187.675975
+      ],
+      "cpu_ms_per_success": 11.402164708373034,
+      "windows": [
+        {
+          "phase": {
+            "driver_wait_p99_ms": 21.385424,
+            "request_p99_ms": 141.424458,
+            "driver_workers": 48,
+            "queue_capacity": 210,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 420
+            },
+            "scheduled": 25200,
+            "completed": 25183,
+            "completed_in_window": 25153,
+            "first_error": "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}",
+            "error_samples": {
+              "HTTP 400: {\"msg\":\"internal/message: backpressured: channel: backpressured\",\"status\":400}": 10,
+              "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}": 7
+            },
+            "unexpected_errors": 0,
+            "errors": 17,
+            "dropped": 0,
+            "duration_seconds": 60,
+            "actual_qps": 419.21666666666664,
+            "p50_ms": 76.931898,
+            "p95_ms": 126.144828,
+            "p99_ms": 149.537018,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 291.6600000000003,
+            "heap_bytes": 385256384,
+            "allocated_bytes": 208522617680,
+            "verdict": "incomplete or failed requests"
+          },
+          "attribution": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 25197,
+                  "rejected": 3,
+                  "ended": 25197,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 2.2896138117235796,
+                  "average_occupied_slots": 0.9615233202333172,
+                  "hold_p99_ms": 15.830321782178174
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 25190,
+                  "rejected": 3,
+                  "ended": 25190,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.2113158755458175,
+                  "average_occupied_slots": 0.5085507817499857,
+                  "hold_p99_ms": 9.440711462450583
+                }
+              ]
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 25198,
+                  "rejected": 2,
+                  "ended": 25198,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.993668087467225,
+                  "average_occupied_slots": 0.837274141133319,
+                  "hold_p99_ms": 11.876041666666689
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 25189,
+                  "rejected": 4,
+                  "ended": 25189,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.0501554663940378,
+                  "average_occupied_slots": 0.4408727673833236,
+                  "hold_p99_ms": 8.839981273408245
+                }
+              ]
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 25198,
+                  "rejected": 2,
+                  "ended": 25198,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 2.4953521046510954,
+                  "average_occupied_slots": 1.0479647055499717,
+                  "hold_p99_ms": 17.924561403508786
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 25190,
+                  "rejected": 3,
+                  "ended": 25190,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.3149785438666317,
+                  "average_occupied_slots": 0.5520718253333409,
+                  "hold_p99_ms": 9.868993135011433
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "phase": {
+            "driver_wait_p99_ms": 66.426457,
+            "request_p99_ms": 137.914917,
+            "driver_workers": 48,
+            "queue_capacity": 210,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 420
+            },
+            "scheduled": 25200,
+            "completed": 25195,
+            "completed_in_window": 25164,
+            "first_error": "HTTP 400: {\"msg\":\"internal/message: backpressured: channel: backpressured\",\"status\":400}",
+            "error_samples": {
+              "HTTP 400: {\"msg\":\"internal/message: backpressured: channel: backpressured\",\"status\":400}": 3,
+              "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}": 2
+            },
+            "unexpected_errors": 0,
+            "errors": 5,
+            "dropped": 0,
+            "duration_seconds": 60,
+            "actual_qps": 419.4,
+            "p50_ms": 65.261825,
+            "p95_ms": 138.376689,
+            "p99_ms": 187.675975,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 286.6700000000001,
+            "heap_bytes": 416195464,
+            "allocated_bytes": 208635735480,
+            "verdict": "incomplete or failed requests"
+          },
+          "attribution": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 25200,
+                  "rejected": 0,
+                  "ended": 25200,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 2.0925396484524446,
+                  "average_occupied_slots": 0.8788666523500268,
+                  "hold_p99_ms": 12.704918032786885
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 25198,
+                  "rejected": 0,
+                  "ended": 25198,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.078839527145007,
+                  "average_occupied_slots": 0.4530766400833315,
+                  "hold_p99_ms": 8.830890052356025
+                }
+              ]
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 25200,
+                  "rejected": 0,
+                  "ended": 25200,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.832421263174702,
+                  "average_occupied_slots": 0.769616930533375,
+                  "hold_p99_ms": 9.865269461077846
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 25198,
+                  "rejected": 0,
+                  "ended": 25198,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.9470332783157753,
+                  "average_occupied_slots": 0.3977224091166818,
+                  "hold_p99_ms": 8.236179775280904
+                }
+              ]
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 25198,
+                  "rejected": 2,
+                  "ended": 25198,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 2.2619894783316417,
+                  "average_occupied_slots": 0.9499601812500117,
+                  "hold_p99_ms": 14.474561403508792
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 25195,
+                  "rejected": 3,
+                  "ended": 25195,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.1573407117681442,
+                  "average_occupied_slots": 0.4859866538833065,
+                  "hold_p99_ms": 9.175954198473278
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "phase": {
+            "driver_wait_p99_ms": 14.766403,
+            "request_p99_ms": 122.070375,
+            "driver_workers": 48,
+            "queue_capacity": 210,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 420
+            },
+            "scheduled": 25200,
+            "completed": 25198,
+            "completed_in_window": 25179,
+            "first_error": "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}",
+            "error_samples": {
+              "HTTP 400: {\"msg\":\"internal/message: backpressured: channel: backpressured\",\"status\":400}": 1,
+              "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}": 1
+            },
+            "unexpected_errors": 0,
+            "errors": 2,
+            "dropped": 0,
+            "duration_seconds": 60,
+            "actual_qps": 419.65,
+            "p50_ms": 61.133251,
+            "p95_ms": 98.722061,
+            "p99_ms": 132.66454,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 283.4000000000001,
+            "heap_bytes": 453235984,
+            "allocated_bytes": 208666457744,
+            "verdict": "incomplete or failed requests"
+          },
+          "attribution": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 25200,
+                  "rejected": 0,
+                  "ended": 25200,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.9708775447620472,
+                  "average_occupied_slots": 0.8277685688000598,
+                  "hold_p99_ms": 9.917102966841188
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 25199,
+                  "rejected": 0,
+                  "ended": 25199,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.9928576473272122,
+                  "average_occupied_slots": 0.41698366424997363,
+                  "hold_p99_ms": 8.373614457831305
+                }
+              ]
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 25200,
+                  "rejected": 0,
+                  "ended": 25200,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.668210715000028,
+                  "average_occupied_slots": 0.7006485003000118,
+                  "hold_p99_ms": 9.233766233766232
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 25199,
+                  "rejected": 0,
+                  "ended": 25199,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.8378445362911908,
+                  "average_occupied_slots": 0.3518807411666953,
+                  "hold_p99_ms": 6.715849673202588
+                }
+              ]
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 25199,
+                  "rejected": 1,
+                  "ended": 25199,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 2.1375959797609982,
+                  "average_occupied_slots": 0.8977546848999566,
+                  "hold_p99_ms": 11.87552083333325
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 25198,
+                  "rejected": 1,
+                  "ended": 25198,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.0804973031192497,
+                  "average_occupied_slots": 0.4537728507333142,
+                  "hold_p99_ms": 8.696247654784244
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "trace_load": {
+        "driver_wait_p99_ms": 25.37155,
+        "request_p99_ms": 142.013666,
+        "driver_workers": 48,
+        "queue_capacity": 210,
+        "nodes": 3,
+        "case": {
+          "endpoint": "/conversation/sync",
+          "page_size": 100,
+          "offered_qps": 420
+        },
+        "scheduled": 3360,
+        "completed": 3360,
+        "completed_in_window": 3337,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 8,
+        "actual_qps": 417.125,
+        "p50_ms": 78.021465,
+        "p95_ms": 127.8152,
+        "p99_ms": 146.952222,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": null,
+        "heap_bytes": 0,
+        "allocated_bytes": 0,
+        "verdict": ""
+      },
+      "profiles": [
+        "/out/old/sync-420/3n-sync-100-node1-alloc-before.pprof",
+        "/out/old/sync-420/3n-sync-100-node2-alloc-before.pprof",
+        "/out/old/sync-420/3n-sync-100-node3-alloc-before.pprof",
+        "/out/old/sync-420/3n-sync-100-driver-cpu.pprof",
+        "/out/old/sync-420/3n-sync-100-node1-cpu.pprof",
+        "/out/old/sync-420/3n-sync-100-node2-cpu.pprof",
+        "/out/old/sync-420/3n-sync-100-node3-cpu.pprof",
+        "/out/old/sync-420/3n-sync-100-node1-alloc-after.pprof",
+        "/out/old/sync-420/3n-sync-100-node2-alloc-after.pprof",
+        "/out/old/sync-420/3n-sync-100-node3-alloc-after.pprof",
+        "/out/old/sync-420/3n-sync-100-node1.trace",
+        "/out/old/sync-420/3n-sync-100-node2.trace",
+        "/out/old/sync-420/3n-sync-100-node3.trace"
+      ]
+    },
+    {
+      "variant": "new",
+      "workload": {
+        "endpoint": "/conversation/list",
+        "page_size": 100,
+        "offered_qps": 1200
+      },
+      "completed": 215996,
+      "http_refusals": 4,
+      "serving_node_admission_rejections": 4,
+      "driver_drops": 0,
+      "passing_windows": 2,
+      "p99_range_ms": [
+        34.743484,
+        293.312755
+      ],
+      "cpu_ms_per_success": 3.6427526435674724,
+      "windows": [
+        {
+          "phase": {
+            "driver_wait_p99_ms": 2.310267,
+            "request_p99_ms": 33.722584,
+            "driver_workers": 48,
+            "queue_capacity": 600,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 1200
+            },
+            "scheduled": 72000,
+            "completed": 72000,
+            "completed_in_window": 71984,
+            "unexpected_errors": 0,
+            "errors": 0,
+            "dropped": 0,
+            "duration_seconds": 60,
+            "actual_qps": 1199.7333333333333,
+            "p50_ms": 15.118891,
+            "p95_ms": 27.784358,
+            "p99_ms": 35.116223,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 261.43,
+            "heap_bytes": 355699288,
+            "allocated_bytes": 154529545768,
+            "verdict": "pass"
+          },
+          "attribution": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 72000,
+                  "rejected": 0,
+                  "ended": 72000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6176018034999944,
+                  "average_occupied_slots": 0.7411221641999932,
+                  "hold_p99_ms": 4.74533622559653
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "ended": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0,
+                  "hold_p99_ms": 0
+                }
+              ]
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 72000,
+                  "rejected": 0,
+                  "ended": 72000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.5502924458472209,
+                  "average_occupied_slots": 0.6603509350166651,
+                  "hold_p99_ms": 4.649142857142857
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "ended": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0,
+                  "hold_p99_ms": 0
+                }
+              ]
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 72000,
+                  "rejected": 0,
+                  "ended": 72000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6764512119166688,
+                  "average_occupied_slots": 0.8117414543000027,
+                  "hold_p99_ms": 4.836103151862465
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "ended": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0,
+                  "hold_p99_ms": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "phase": {
+            "driver_wait_p99_ms": 251.443796,
+            "request_p99_ms": 54.564333,
+            "driver_workers": 48,
+            "queue_capacity": 600,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 1200
+            },
+            "scheduled": 72000,
+            "completed": 71996,
+            "completed_in_window": 71972,
+            "first_error": "HTTP 503: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":503}",
+            "error_samples": {
+              "HTTP 503: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":503}": 4
+            },
+            "unexpected_errors": 0,
+            "errors": 4,
+            "dropped": 0,
+            "duration_seconds": 60,
+            "actual_qps": 1199.5333333333333,
+            "p50_ms": 16.059636,
+            "p95_ms": 190.322463,
+            "p99_ms": 293.312755,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 265.11999999999995,
+            "heap_bytes": 281789224,
+            "allocated_bytes": 154463779864,
+            "verdict": "incomplete or failed requests"
+          },
+          "attribution": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 72000,
+                  "rejected": 0,
+                  "ended": 72000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6792920122222302,
+                  "average_occupied_slots": 0.8151504146666764,
+                  "hold_p99_ms": 4.847388059701493
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "ended": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0,
+                  "hold_p99_ms": 0
+                }
+              ]
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 72000,
+                  "rejected": 0,
+                  "ended": 72000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.5979850278472258,
+                  "average_occupied_slots": 0.717582033416671,
+                  "hold_p99_ms": 4.766743930706356
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "ended": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0,
+                  "hold_p99_ms": 0
+                }
+              ]
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 71996,
+                  "rejected": 4,
+                  "ended": 71996,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7407077432496003,
+                  "average_occupied_slots": 0.8887999113833037,
+                  "hold_p99_ms": 4.947292517006801
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "ended": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0,
+                  "hold_p99_ms": 0
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "phase": {
+            "driver_wait_p99_ms": 2.184225,
+            "request_p99_ms": 33.55975,
+            "driver_workers": 48,
+            "queue_capacity": 600,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/list",
+              "page_size": 100,
+              "offered_qps": 1200
+            },
+            "scheduled": 72000,
+            "completed": 72000,
+            "completed_in_window": 71981,
+            "unexpected_errors": 0,
+            "errors": 0,
+            "dropped": 0,
+            "duration_seconds": 60,
+            "actual_qps": 1199.6833333333334,
+            "p50_ms": 14.861601,
+            "p95_ms": 27.759796,
+            "p99_ms": 34.743484,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 260.26999999999987,
+            "heap_bytes": 275242416,
+            "allocated_bytes": 154541213720,
+            "verdict": "pass"
+          },
+          "attribution": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 72000,
+                  "rejected": 0,
+                  "ended": 72000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6073088040138818,
+                  "average_occupied_slots": 0.7287705648166581,
+                  "hold_p99_ms": 4.720629253598125
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "ended": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0,
+                  "hold_p99_ms": 0
+                }
+              ]
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 72000,
+                  "rejected": 0,
+                  "ended": 72000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.5420980796111421,
+                  "average_occupied_slots": 0.6505176955333705,
+                  "hold_p99_ms": 4.625430067314884
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "ended": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0,
+                  "hold_p99_ms": 0
+                }
+              ]
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 72000,
+                  "rejected": 0,
+                  "ended": 72000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6652930588472454,
+                  "average_occupied_slots": 0.7983516706166945,
+                  "hold_p99_ms": 4.819244871667824
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 0,
+                  "rejected": 0,
+                  "ended": 0,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.0,
+                  "average_occupied_slots": 0.0,
+                  "hold_p99_ms": 0
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "trace_load": {
+        "driver_wait_p99_ms": 33.009,
+        "request_p99_ms": 46.82175,
+        "driver_workers": 48,
+        "queue_capacity": 600,
+        "nodes": 3,
+        "case": {
+          "endpoint": "/conversation/list",
+          "page_size": 100,
+          "offered_qps": 1200
+        },
+        "scheduled": 9600,
+        "completed": 9600,
+        "completed_in_window": 9578,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 8,
+        "actual_qps": 1197.25,
+        "p50_ms": 16.018042,
+        "p95_ms": 40.058375,
+        "p99_ms": 73.370709,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": null,
+        "heap_bytes": 0,
+        "allocated_bytes": 0,
+        "verdict": ""
+      },
+      "profiles": [
+        "/out/new/list-1200/3n-list-100-node1-alloc-before.pprof",
+        "/out/new/list-1200/3n-list-100-node2-alloc-before.pprof",
+        "/out/new/list-1200/3n-list-100-node3-alloc-before.pprof",
+        "/out/new/list-1200/3n-list-100-driver-cpu.pprof",
+        "/out/new/list-1200/3n-list-100-node1-cpu.pprof",
+        "/out/new/list-1200/3n-list-100-node2-cpu.pprof",
+        "/out/new/list-1200/3n-list-100-node3-cpu.pprof",
+        "/out/new/list-1200/3n-list-100-node1-alloc-after.pprof",
+        "/out/new/list-1200/3n-list-100-node2-alloc-after.pprof",
+        "/out/new/list-1200/3n-list-100-node3-alloc-after.pprof",
+        "/out/new/list-1200/3n-list-100-node1.trace",
+        "/out/new/list-1200/3n-list-100-node2.trace",
+        "/out/new/list-1200/3n-list-100-node3.trace"
+      ]
+    },
+    {
+      "variant": "new",
+      "workload": {
+        "endpoint": "/conversation/sync",
+        "page_size": 100,
+        "offered_qps": 400
+      },
+      "completed": 72000,
+      "http_refusals": 0,
+      "serving_node_admission_rejections": 0,
+      "driver_drops": 0,
+      "passing_windows": 3,
+      "p99_range_ms": [
+        68.1981,
+        96.483045
+      ],
+      "cpu_ms_per_success": 10.75916666666667,
+      "windows": [
+        {
+          "phase": {
+            "driver_wait_p99_ms": 2.333057,
+            "request_p99_ms": 79.361541,
+            "driver_workers": 48,
+            "queue_capacity": 200,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 400
+            },
+            "scheduled": 24000,
+            "completed": 24000,
+            "completed_in_window": 23987,
+            "unexpected_errors": 0,
+            "errors": 0,
+            "dropped": 0,
+            "duration_seconds": 60,
+            "actual_qps": 399.78333333333336,
+            "p50_ms": 37.991548,
+            "p95_ms": 57.20113,
+            "p99_ms": 80.299763,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 258.82000000000005,
+            "heap_bytes": 374130208,
+            "allocated_bytes": 196514098176,
+            "verdict": "pass"
+          },
+          "attribution": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.284977471083323,
+                  "average_occupied_slots": 0.5139909884333292,
+                  "hold_p99_ms": 7.103825136612022
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6873590172499976,
+                  "average_occupied_slots": 0.274943606899999,
+                  "hold_p99_ms": 4.923609189039579
+                }
+              ]
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.140088131583359,
+                  "average_occupied_slots": 0.45603525263334366,
+                  "hold_p99_ms": 5.194805194805195
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6013385924166688,
+                  "average_occupied_slots": 0.24053543696666752,
+                  "hold_p99_ms": 4.819781766983456
+                }
+              ]
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.352874611458342,
+                  "average_occupied_slots": 0.5411498445833369,
+                  "hold_p99_ms": 7.57177033492823
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7075646347916641,
+                  "average_occupied_slots": 0.2830258539166656,
+                  "hold_p99_ms": 4.937904269081501
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "phase": {
+            "driver_wait_p99_ms": 2.478298,
+            "request_p99_ms": 92.62075,
+            "driver_workers": 48,
+            "queue_capacity": 200,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 400
+            },
+            "scheduled": 24000,
+            "completed": 24000,
+            "completed_in_window": 23976,
+            "unexpected_errors": 0,
+            "errors": 0,
+            "dropped": 0,
+            "duration_seconds": 60,
+            "actual_qps": 399.6,
+            "p50_ms": 37.413928,
+            "p95_ms": 56.158854,
+            "p99_ms": 96.483045,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 258.27,
+            "heap_bytes": 452846784,
+            "allocated_bytes": 196513651816,
+            "verdict": "pass"
+          },
+          "attribution": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.295525276833479,
+                  "average_occupied_slots": 0.5182101107333916,
+                  "hold_p99_ms": 7.487864077669903
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6956084672500052,
+                  "average_occupied_slots": 0.2782433869000021,
+                  "hold_p99_ms": 4.949224259520451
+                }
+              ]
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.1354940509584257,
+                  "average_occupied_slots": 0.4541976203833703,
+                  "hold_p99_ms": 5.670731707317073
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.5859616173333423,
+                  "average_occupied_slots": 0.2343846469333369,
+                  "hold_p99_ms": 4.760845789281808
+                }
+              ]
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.3372198207917154,
+                  "average_occupied_slots": 0.5348879283166862,
+                  "hold_p99_ms": 7.304582210242588
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7039324340416712,
+                  "average_occupied_slots": 0.2815729736166685,
+                  "hold_p99_ms": 4.9327554504859465
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "phase": {
+            "driver_wait_p99_ms": 2.174022,
+            "request_p99_ms": 67.901292,
+            "driver_workers": 48,
+            "queue_capacity": 200,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 400
+            },
+            "scheduled": 24000,
+            "completed": 24000,
+            "completed_in_window": 23986,
+            "unexpected_errors": 0,
+            "errors": 0,
+            "dropped": 0,
+            "duration_seconds": 60,
+            "actual_qps": 399.76666666666665,
+            "p50_ms": 36.881438,
+            "p95_ms": 53.980095,
+            "p99_ms": 68.1981,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 257.57000000000016,
+            "heap_bytes": 352090728,
+            "allocated_bytes": 196520996432,
+            "verdict": "pass"
+          },
+          "attribution": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.2713210739166503,
+                  "average_occupied_slots": 0.5085284295666601,
+                  "hold_p99_ms": 7.10958904109589
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6676807670416739,
+                  "average_occupied_slots": 0.26707230681666955,
+                  "hold_p99_ms": 4.887905604719763
+                }
+              ]
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.0751443346250746,
+                  "average_occupied_slots": 0.43005773385002993,
+                  "hold_p99_ms": 4.98553170966964
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.5685641488749981,
+                  "average_occupied_slots": 0.22742565954999924,
+                  "hold_p99_ms": 4.760535643954313
+                }
+              ]
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.3149296404582838,
+                  "average_occupied_slots": 0.5259718561833134,
+                  "hold_p99_ms": 7.038123167155425
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 24000,
+                  "rejected": 0,
+                  "ended": 24000,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6950296644166709,
+                  "average_occupied_slots": 0.27801186576666836,
+                  "hold_p99_ms": 4.9391304347826095
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "trace_load": {
+        "driver_wait_p99_ms": 2.137501,
+        "request_p99_ms": 72.889375,
+        "driver_workers": 48,
+        "queue_capacity": 200,
+        "nodes": 3,
+        "case": {
+          "endpoint": "/conversation/sync",
+          "page_size": 100,
+          "offered_qps": 400
+        },
+        "scheduled": 3200,
+        "completed": 3200,
+        "completed_in_window": 3189,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 8,
+        "actual_qps": 398.625,
+        "p50_ms": 37.36046,
+        "p95_ms": 57.500417,
+        "p99_ms": 73.960376,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": null,
+        "heap_bytes": 0,
+        "allocated_bytes": 0,
+        "verdict": ""
+      },
+      "profiles": [
+        "/out/new/sync-400/3n-sync-100-node1-alloc-before.pprof",
+        "/out/new/sync-400/3n-sync-100-node2-alloc-before.pprof",
+        "/out/new/sync-400/3n-sync-100-node3-alloc-before.pprof",
+        "/out/new/sync-400/3n-sync-100-driver-cpu.pprof",
+        "/out/new/sync-400/3n-sync-100-node1-cpu.pprof",
+        "/out/new/sync-400/3n-sync-100-node2-cpu.pprof",
+        "/out/new/sync-400/3n-sync-100-node3-cpu.pprof",
+        "/out/new/sync-400/3n-sync-100-node1-alloc-after.pprof",
+        "/out/new/sync-400/3n-sync-100-node2-alloc-after.pprof",
+        "/out/new/sync-400/3n-sync-100-node3-alloc-after.pprof",
+        "/out/new/sync-400/3n-sync-100-node1.trace",
+        "/out/new/sync-400/3n-sync-100-node2.trace",
+        "/out/new/sync-400/3n-sync-100-node3.trace"
+      ]
+    },
+    {
+      "variant": "new",
+      "workload": {
+        "endpoint": "/conversation/sync",
+        "page_size": 100,
+        "offered_qps": 420
+      },
+      "completed": 75596,
+      "http_refusals": 4,
+      "serving_node_admission_rejections": 4,
+      "driver_drops": 0,
+      "passing_windows": 2,
+      "p99_range_ms": [
+        85.947433,
+        166.290538
+      ],
+      "cpu_ms_per_success": 10.733107571829201,
+      "windows": [
+        {
+          "phase": {
+            "driver_wait_p99_ms": 2.647877,
+            "request_p99_ms": 95.243917,
+            "driver_workers": 48,
+            "queue_capacity": 210,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 420
+            },
+            "scheduled": 25200,
+            "completed": 25200,
+            "completed_in_window": 25181,
+            "unexpected_errors": 0,
+            "errors": 0,
+            "dropped": 0,
+            "duration_seconds": 60,
+            "actual_qps": 419.68333333333334,
+            "p50_ms": 45.166248,
+            "p95_ms": 71.006039,
+            "p99_ms": 96.513771,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 271.74,
+            "heap_bytes": 415284536,
+            "allocated_bytes": 206217650952,
+            "verdict": "pass"
+          },
+          "attribution": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 25200,
+                  "rejected": 0,
+                  "ended": 25200,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.4747233696823636,
+                  "average_occupied_slots": 0.6193838152665928,
+                  "hold_p99_ms": 8.624161073825503
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 25200,
+                  "rejected": 0,
+                  "ended": 25200,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7943666561111709,
+                  "average_occupied_slots": 0.33363399556669177,
+                  "hold_p99_ms": 5.135135135135136
+                }
+              ]
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 25200,
+                  "rejected": 0,
+                  "ended": 25200,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.2454217296428565,
+                  "average_occupied_slots": 0.5230771264499997,
+                  "hold_p99_ms": 7.008670520231214
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 25200,
+                  "rejected": 0,
+                  "ended": 25200,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6784869793253969,
+                  "average_occupied_slots": 0.2849645313166667,
+                  "hold_p99_ms": 4.924784539044137
+                }
+              ]
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 25200,
+                  "rejected": 0,
+                  "ended": 25200,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.510834381230287,
+                  "average_occupied_slots": 0.6345504401167205,
+                  "hold_p99_ms": 8.583333333333334
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 25200,
+                  "rejected": 0,
+                  "ended": 25200,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.8111739676587437,
+                  "average_occupied_slots": 0.34069306641667235,
+                  "hold_p99_ms": 5.797665369649806
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "phase": {
+            "driver_wait_p99_ms": 53.380133,
+            "request_p99_ms": 116.995375,
+            "driver_workers": 48,
+            "queue_capacity": 210,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 420
+            },
+            "scheduled": 25200,
+            "completed": 25196,
+            "completed_in_window": 25181,
+            "first_error": "HTTP 400: {\"msg\":\"internal/message: backpressured: channel: backpressured\",\"status\":400}",
+            "error_samples": {
+              "HTTP 400: {\"msg\":\"internal/message: backpressured: channel: backpressured\",\"status\":400}": 1,
+              "HTTP 400: {\"msg\":\"internal/usecase/conversation: route not ready\\nchannel: backpressured\",\"status\":400}": 3
+            },
+            "unexpected_errors": 0,
+            "errors": 4,
+            "dropped": 0,
+            "duration_seconds": 60,
+            "actual_qps": 419.68333333333334,
+            "p50_ms": 45.49659,
+            "p95_ms": 74.31832,
+            "p99_ms": 166.290538,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 271.1500000000001,
+            "heap_bytes": 326841792,
+            "allocated_bytes": 206200084888,
+            "verdict": "incomplete or failed requests"
+          },
+          "attribution": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 25198,
+                  "rejected": 2,
+                  "ended": 25198,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.4450438112151747,
+                  "average_occupied_slots": 0.6068702325833328,
+                  "hold_p99_ms": 8.406866197183103
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 25196,
+                  "rejected": 1,
+                  "ended": 25196,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7897048914907447,
+                  "average_occupied_slots": 0.3316234074333468,
+                  "hold_p99_ms": 5.451639344262313
+                }
+              ]
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 25199,
+                  "rejected": 1,
+                  "ended": 25199,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.2675801148855557,
+                  "average_occupied_slots": 0.5323625219166852,
+                  "hold_p99_ms": 7.530240963855403
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 25197,
+                  "rejected": 0,
+                  "ended": 25197,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.679589548200173,
+                  "average_occupied_slots": 0.2853936307666627,
+                  "hold_p99_ms": 4.942920258620689
+                }
+              ]
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 25200,
+                  "rejected": 0,
+                  "ended": 25200,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.5755568013095795,
+                  "average_occupied_slots": 0.6617338565500234,
+                  "hold_p99_ms": 8.958333333333332
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 25197,
+                  "rejected": 0,
+                  "ended": 25197,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.8365856101520324,
+                  "average_occupied_slots": 0.351324126983346,
+                  "hold_p99_ms": 6.546907216494825
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "phase": {
+            "driver_wait_p99_ms": 2.477312,
+            "request_p99_ms": 84.415583,
+            "driver_workers": 48,
+            "queue_capacity": 210,
+            "nodes": 3,
+            "case": {
+              "endpoint": "/conversation/sync",
+              "page_size": 100,
+              "offered_qps": 420
+            },
+            "scheduled": 25200,
+            "completed": 25200,
+            "completed_in_window": 25181,
+            "unexpected_errors": 0,
+            "errors": 0,
+            "dropped": 0,
+            "duration_seconds": 60,
+            "actual_qps": 419.68333333333334,
+            "p50_ms": 42.354181,
+            "p95_ms": 64.09577,
+            "p99_ms": 85.947433,
+            "active_runtimes_before": 0,
+            "active_runtimes_after": 0,
+            "runtime_loads": 0,
+            "membership_writes": 0,
+            "cpu_seconds": 268.49000000000024,
+            "heap_bytes": 345547336,
+            "allocated_bytes": 206241758704,
+            "verdict": "pass"
+          },
+          "attribution": [
+            {
+              "node": 1,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 25200,
+                  "rejected": 0,
+                  "ended": 25200,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.3224383712300083,
+                  "average_occupied_slots": 0.5554241159166035,
+                  "hold_p99_ms": 7.2727272727272725
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 25200,
+                  "rejected": 0,
+                  "ended": 25200,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7245866337301705,
+                  "average_occupied_slots": 0.3043263861666716,
+                  "hold_p99_ms": 4.93847587974831
+                }
+              ]
+            },
+            {
+              "node": 2,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 25200,
+                  "rejected": 0,
+                  "ended": 25200,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.2007281134524483,
+                  "average_occupied_slots": 0.5043058076500283,
+                  "hold_p99_ms": 6.224489795918368
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 25200,
+                  "rejected": 0,
+                  "ended": 25200,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.6524053290475759,
+                  "average_occupied_slots": 0.2740102381999819,
+                  "hold_p99_ms": 4.909604519774011
+                }
+              ]
+            },
+            {
+              "node": 3,
+              "reads": [
+                {
+                  "kind": "heads",
+                  "accepted": 25200,
+                  "rejected": 0,
+                  "ended": 25200,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 1.4632502408333734,
+                  "average_occupied_slots": 0.6145651011500168,
+                  "hold_p99_ms": 8.254545454545456
+                },
+                {
+                  "kind": "recents",
+                  "accepted": 25200,
+                  "rejected": 0,
+                  "ended": 25200,
+                  "byte_budget": 0,
+                  "hold_mean_ms": 0.7713026245237944,
+                  "average_occupied_slots": 0.32394710229999363,
+                  "hold_p99_ms": 4.992377726021597
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "trace_load": {
+        "driver_wait_p99_ms": 2.286438,
+        "request_p99_ms": 94.39025,
+        "driver_workers": 48,
+        "queue_capacity": 210,
+        "nodes": 3,
+        "case": {
+          "endpoint": "/conversation/sync",
+          "page_size": 100,
+          "offered_qps": 420
+        },
+        "scheduled": 3360,
+        "completed": 3360,
+        "completed_in_window": 3335,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 8,
+        "actual_qps": 416.875,
+        "p50_ms": 48.154312,
+        "p95_ms": 78.416925,
+        "p99_ms": 94.907347,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": null,
+        "heap_bytes": 0,
+        "allocated_bytes": 0,
+        "verdict": ""
+      },
+      "profiles": [
+        "/out/new/sync-420/3n-sync-100-node1-alloc-before.pprof",
+        "/out/new/sync-420/3n-sync-100-node2-alloc-before.pprof",
+        "/out/new/sync-420/3n-sync-100-node3-alloc-before.pprof",
+        "/out/new/sync-420/3n-sync-100-driver-cpu.pprof",
+        "/out/new/sync-420/3n-sync-100-node1-cpu.pprof",
+        "/out/new/sync-420/3n-sync-100-node2-cpu.pprof",
+        "/out/new/sync-420/3n-sync-100-node3-cpu.pprof",
+        "/out/new/sync-420/3n-sync-100-node1-alloc-after.pprof",
+        "/out/new/sync-420/3n-sync-100-node2-alloc-after.pprof",
+        "/out/new/sync-420/3n-sync-100-node3-alloc-after.pprof",
+        "/out/new/sync-420/3n-sync-100-node1.trace",
+        "/out/new/sync-420/3n-sync-100-node2.trace",
+        "/out/new/sync-420/3n-sync-100-node3.trace"
+      ]
+    }
+  ],
+  "all_unprofiled_invariants": {
+    "unexpected_errors": 0,
+    "runtime_loads": 0,
+    "membership_writes": 0,
+    "active_runtimes_before": 0,
+    "active_runtimes_after": 0,
+    "byte_budget_failures": 0,
+    "total_http_refusals": 41,
+    "accepted_completed_balanced": true,
+    "post_window_inflight": 0,
+    "observed_shared_limit": 16
+  },
+  "profile_evidence": {
+    "old_sync400_node1_count_ordinary_cpu_ms": 1260,
+    "old_sync400_node1_total_sampled_cpu_ms": 12210,
+    "new_sync400_node1_count_ordinary_cpu_ms": 930,
+    "new_sync400_node1_total_sampled_cpu_ms": 11580,
+    "old_sync_storage_trace_sync_delay_ms": 89.29,
+    "old_sync_storage_trace_mutex_delay_ms": 77.47,
+    "old_sync_storage_trace_gc_start_delay_ms": 11.82,
+    "profile_phases_excluded_from_capacity": true
+  },
+  "artifacts": [
+    {
+      "path": "/tmp/conversation-backpressure/old/list-1200/3n-list-100-driver-cpu.pprof",
+      "sha256": "88f7da1bc1fdd6712622c04e0a09c25735994bb9fe75e42903e59ed9aee11a67",
+      "bytes": 32673
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/list-1200/3n-list-100-node1-alloc-after.pprof",
+      "sha256": "d0228c118a31d26666d0b1904534ae5a7cc96a48cca2a49ce2b12898c7e175d3",
+      "bytes": 106059
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/list-1200/3n-list-100-node1-alloc-before.pprof",
+      "sha256": "4bacfebfb51b68a1fb67c0e492dd7f75a0aab6a8a4aeadb0bf4cbbf2323835ab",
+      "bytes": 104427
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/list-1200/3n-list-100-node1-cpu.pprof",
+      "sha256": "01bff3bbaa76f247dedf386a130f34da194b1ffbfa6415f6fc6fd8ebee2cd742",
+      "bytes": 67676
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/list-1200/3n-list-100-node1.trace",
+      "sha256": "b214f2414b7fcc6fc8d76d38942f568da62a00f91ffe9f06c207177a98ed962b",
+      "bytes": 11908112
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/list-1200/3n-list-100-node2-alloc-after.pprof",
+      "sha256": "f9194e27faca507c6175f1c5b97bf8d6c03ea1d15b98f5b4a8d84a0af26617b2",
+      "bytes": 101128
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/list-1200/3n-list-100-node2-alloc-before.pprof",
+      "sha256": "f899f1ce388b88220fded41b675930be94439e3c8bcd079fbc294b305542d2a5",
+      "bytes": 99475
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/list-1200/3n-list-100-node2-cpu.pprof",
+      "sha256": "a61319ec79f7413ffd8b75177e4c84f8a35b1d659b24b448d13706294a227321",
+      "bytes": 65960
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/list-1200/3n-list-100-node2.trace",
+      "sha256": "6ad9360b9396225297ab003a5a05a876c02611833bab3ca0c0f52f9cea63e090",
+      "bytes": 11532126
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/list-1200/3n-list-100-node3-alloc-after.pprof",
+      "sha256": "a803f595ba8533b75b02c895245cb076b76e680b466eb6dc6004f15b2b53a04b",
+      "bytes": 99428
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/list-1200/3n-list-100-node3-alloc-before.pprof",
+      "sha256": "d8897dd1f3fcdf48ba1a3615a7dc1ef459a312cc6dfe31ab354174bb195a2352",
+      "bytes": 98249
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/list-1200/3n-list-100-node3-cpu.pprof",
+      "sha256": "46fab7e1ebed06643f9261df63bda8754158bb2298aaaa5a7b9a102d4fd02cd8",
+      "bytes": 66213
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/list-1200/3n-list-100-node3.trace",
+      "sha256": "0fff0778cf1038dd24d061300d0a3e9b95b20297f872e8245e4b1b540a1908e2",
+      "bytes": 11880803
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/report.json",
+      "sha256": "268dce3423853e9e9c1ed5d80b054db24165b8ca14649901a6a09efc6844d0e4",
+      "bytes": 2728835
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-400/3n-sync-100-driver-cpu.pprof",
+      "sha256": "1998e644aa09c612ff5bbf5612aafeca2f6e0c35d1baa065c8cf30051aaa976c",
+      "bytes": 24810
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-400/3n-sync-100-node1-alloc-after.pprof",
+      "sha256": "205eb8f902efb41ad0dc379b19ca28c9eb49b051c0b0ab359dbefd6af3a0c237",
+      "bytes": 136801
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-400/3n-sync-100-node1-alloc-before.pprof",
+      "sha256": "d1e61c9ea7738e43d29c621b8f72012f54d4c7dfd7122729563d3b8b3b7128b1",
+      "bytes": 135843
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-400/3n-sync-100-node1-cpu.pprof",
+      "sha256": "fb3364a79c6ce4e7b0af363388ecc9ba8156e36f4fe7e54594ded933b60e8fcb",
+      "bytes": 68650
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-400/3n-sync-100-node1.trace",
+      "sha256": "40c0a3bb65913e70cd253ca271997396ed3a676dbfed77fc7daee269e442f932",
+      "bytes": 11029259
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-400/3n-sync-100-node2-alloc-after.pprof",
+      "sha256": "1658a991f4a868a3ed4f9ca4da30a510b58deaf0ba9395f2ab7533bf3e140298",
+      "bytes": 131637
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-400/3n-sync-100-node2-alloc-before.pprof",
+      "sha256": "75922aaab890010ae8ecc1720b01f66bdf031785cb1f0fcb5aa23b9cbc54e1b3",
+      "bytes": 130367
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-400/3n-sync-100-node2-cpu.pprof",
+      "sha256": "ef553678aac43a1a3136200e3c2d00a86b3a501e199d366645075ff167ac87e3",
+      "bytes": 68215
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-400/3n-sync-100-node2.trace",
+      "sha256": "0e5301b493a4e19f7d586d2fccf6b118930683256cd3872aa14a404f6699d615",
+      "bytes": 10660730
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-400/3n-sync-100-node3-alloc-after.pprof",
+      "sha256": "b20c288435274e7a27b891bbafc6051a4d3fab15279bcb3eccf377d0b4c6073a",
+      "bytes": 130246
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-400/3n-sync-100-node3-alloc-before.pprof",
+      "sha256": "0af5bba577ea5fa55f9fb2c8b6c306f2856d6f9e53228d16b28cfc04994ebf01",
+      "bytes": 129305
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-400/3n-sync-100-node3-cpu.pprof",
+      "sha256": "b05a5c68239504cf0fef302e6c5213c81997d990b9501a594e06a5e931b02acf",
+      "bytes": 68641
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-400/3n-sync-100-node3.trace",
+      "sha256": "638235a078c42b3f85d04905d6d87bb8e7819ea5984e4513455e3d9f2bb70246",
+      "bytes": 11195544
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-420/3n-sync-100-driver-cpu.pprof",
+      "sha256": "b6e0f1e29dc46eeea0a6998d3eecbc9862c1ba11b3daf9bef467024115d05963",
+      "bytes": 25145
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-420/3n-sync-100-node1-alloc-after.pprof",
+      "sha256": "91c1d2b237abf840506c9a2d30af78c5ccf4f211a73714d2287d6d7e92a2b7e3",
+      "bytes": 142025
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-420/3n-sync-100-node1-alloc-before.pprof",
+      "sha256": "5314a3e6faa3b9c9caeda3013d8c3e499cb07ff855306a1928947d669ad0374e",
+      "bytes": 141371
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-420/3n-sync-100-node1-cpu.pprof",
+      "sha256": "9acff8f4c35faf40de7010f1117fdda441f9da824747f612926f306dc99adf60",
+      "bytes": 71374
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-420/3n-sync-100-node1.trace",
+      "sha256": "550aaec9a166022974cccb9fbfef275f4d4fce1b075a40f79dd977db62693c52",
+      "bytes": 11576433
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-420/3n-sync-100-node2-alloc-after.pprof",
+      "sha256": "183eb78f810f54542e83a3a48453d93a2146622ad31b7f54a9c5beb10cc1376e",
+      "bytes": 136240
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-420/3n-sync-100-node2-alloc-before.pprof",
+      "sha256": "93d53df5456d302a36166a9e3265b5ed06ad854cabf46f751986292af62a60e4",
+      "bytes": 135898
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-420/3n-sync-100-node2-cpu.pprof",
+      "sha256": "de6990c7bd476fb074daae7768292c1be78f209230845efc00b30877f7274b5e",
+      "bytes": 71431
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-420/3n-sync-100-node2.trace",
+      "sha256": "4b23dc528d3ee1c86ba5d416f9e8106553750af035a300804f520af3f72ab715",
+      "bytes": 10998466
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-420/3n-sync-100-node3-alloc-after.pprof",
+      "sha256": "86ec56593d60a321289d69fe3c203f91d1036050c9874e65b46b969d61529b37",
+      "bytes": 134846
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-420/3n-sync-100-node3-alloc-before.pprof",
+      "sha256": "8cce2a18984aae269b173097cbd6bdac5490c7b5331ef0456346d4980c86180e",
+      "bytes": 134500
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-420/3n-sync-100-node3-cpu.pprof",
+      "sha256": "6e65f78b75718297f4caedace47685ecdd48aeac1c7c994015cd9d4be9d1fb60",
+      "bytes": 70608
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old/sync-420/3n-sync-100-node3.trace",
+      "sha256": "c196a94143e2d2ab2fc7072d5df4fde183d52ebcd4a1724f3a3466c06d170932",
+      "bytes": 11546282
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/list-1200/3n-list-100-driver-cpu.pprof",
+      "sha256": "6dfd18dc3d1d569d267dc50ed65ba2bde8dc294906b3f7dde96cfd36f390a416",
+      "bytes": 29240
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/list-1200/3n-list-100-node1-alloc-after.pprof",
+      "sha256": "414365dc04adf9a6fc0d1e7b737f0be3976746da9481f5363cbcac25dbd58315",
+      "bytes": 103457
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/list-1200/3n-list-100-node1-alloc-before.pprof",
+      "sha256": "8f862b53ca7f17e6fa8e75b71ad0d4827e7365ebf41eafd1eb939931c53acd11",
+      "bytes": 102146
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/list-1200/3n-list-100-node1-cpu.pprof",
+      "sha256": "9357e86f0d57acc69f2182e59bf92dfebc484a026908b85be2c09d6d56dfa970",
+      "bytes": 63535
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/list-1200/3n-list-100-node1.trace",
+      "sha256": "4f6e74c19fc4fe19e40ab5920918d7264982ec2a36533a84bf43a45fd4ea04a3",
+      "bytes": 12309627
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/list-1200/3n-list-100-node2-alloc-after.pprof",
+      "sha256": "7c2f08a0072d3978750822f9c7df2c744c94c6d82a61ecc8f9f36bd34b816f06",
+      "bytes": 100655
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/list-1200/3n-list-100-node2-alloc-before.pprof",
+      "sha256": "55d50ef4654abf95e91dbd6435a395174acb19e48a6289e5a17e86096ce8c814",
+      "bytes": 99209
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/list-1200/3n-list-100-node2-cpu.pprof",
+      "sha256": "ce0f1d1ec1ef33cfbcdfb109a0fa5c512dada5c04850eb19b566cb8629fc2825",
+      "bytes": 63192
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/list-1200/3n-list-100-node2.trace",
+      "sha256": "05b323f40ebe3d497c2195b9d3244ffa2d2d2996239b323fe9287a286630e417",
+      "bytes": 11864227
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/list-1200/3n-list-100-node3-alloc-after.pprof",
+      "sha256": "9f4f9dc77651a658486b67bc58eb6543853bf53e870e5e19250a8fa38ee2b9fc",
+      "bytes": 101652
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/list-1200/3n-list-100-node3-alloc-before.pprof",
+      "sha256": "24482a82eb8d7e7beb9dd4fa398150e5b5256a5d0eed96363a27f0ab5d876803",
+      "bytes": 99433
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/list-1200/3n-list-100-node3-cpu.pprof",
+      "sha256": "b6690a6bf64edb7aa366cfa47ae07bb7bfbb5fcdfd99b92ce24df8419c1ec3af",
+      "bytes": 63425
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/list-1200/3n-list-100-node3.trace",
+      "sha256": "b28b88b3336fc9da7a37a537d416ef5ff6efb8325c7927825bca85e2fc71b834",
+      "bytes": 12252505
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/report.json",
+      "sha256": "afdf7e78f12aa60f1db42fd94f397d7273cdc28914bd4c7137bffab44111812a",
+      "bytes": 2734617
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-400/3n-sync-100-driver-cpu.pprof",
+      "sha256": "c45157d7f4cd22c581eaf049117482fd3972ef83d414bf766687dcf5ab166b03",
+      "bytes": 22834
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-400/3n-sync-100-node1-alloc-after.pprof",
+      "sha256": "d1113d3f05a2d5482943206866191cf5e719285ce3a50276710b1e9e1d9cc99e",
+      "bytes": 134862
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-400/3n-sync-100-node1-alloc-before.pprof",
+      "sha256": "1ee36f0c164154d302ceec88fa61b459275c4497d65cc377d77171b63430f3bc",
+      "bytes": 134275
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-400/3n-sync-100-node1-cpu.pprof",
+      "sha256": "c45e27d5a343d30daa47be4732b27ab64e1c4d2ee322f9011316e8062b62fc8c",
+      "bytes": 67454
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-400/3n-sync-100-node1.trace",
+      "sha256": "a93f64a91d67c752c1ff0088ab647b2214537fa3b52762089e877a8d2c77b1ec",
+      "bytes": 11196240
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-400/3n-sync-100-node2-alloc-after.pprof",
+      "sha256": "f467ce0f083525ea4cb095eb6c114c033398472118be2b3b267f1d9250ba4688",
+      "bytes": 129766
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-400/3n-sync-100-node2-alloc-before.pprof",
+      "sha256": "81fdec3cddfd4de09a0c7be7f783a991583aa0b95069234bc12888e88c8ae18d",
+      "bytes": 128347
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-400/3n-sync-100-node2-cpu.pprof",
+      "sha256": "1e27965b5b2f2e21d9dfffabd335af539ea617a8262091da77d699bc30c3bec9",
+      "bytes": 66839
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-400/3n-sync-100-node2.trace",
+      "sha256": "17cc662fca1edccb35eec5308e29890ff918bb866959cd02dc9ba4baa3022f2d",
+      "bytes": 10701264
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-400/3n-sync-100-node3-alloc-after.pprof",
+      "sha256": "2087047005db420ee1e732623904a6d3c94feecd9d0161aecfb488543ae687c2",
+      "bytes": 132392
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-400/3n-sync-100-node3-alloc-before.pprof",
+      "sha256": "1e3c294966fdce17accbcd52bcf88593c222a627c4bbeec02fa6b86dacc5c4c8",
+      "bytes": 132509
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-400/3n-sync-100-node3-cpu.pprof",
+      "sha256": "3211b50f7ef068d11626399db8598f3e6e35384999c7a1acc883ac560fc27269",
+      "bytes": 66204
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-400/3n-sync-100-node3.trace",
+      "sha256": "67cb17d4220003c192605ee5fc5e2ccb0e71280b6d27c57cfaf9d46be910172b",
+      "bytes": 11166891
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-420/3n-sync-100-driver-cpu.pprof",
+      "sha256": "548f8c5c771427f5e6bf50dee8a9193adb3b7c3dff1a6ac17324796672509df4",
+      "bytes": 25465
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-420/3n-sync-100-node1-alloc-after.pprof",
+      "sha256": "7e9e7d56e236aa08346d8694207632b72e2b125a6ae0bcfc2b39bad127c9f442",
+      "bytes": 140504
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-420/3n-sync-100-node1-alloc-before.pprof",
+      "sha256": "42eb16d25aa92d8dfbe057c0347b2e30d610cbddedb19dcade5ef7bb995587f8",
+      "bytes": 140470
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-420/3n-sync-100-node1-cpu.pprof",
+      "sha256": "bc6c3d820b0e6b6a683e2dd9ed401b05260d13b48052c40682162831a747df4a",
+      "bytes": 68463
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-420/3n-sync-100-node1.trace",
+      "sha256": "6c767a643ee77de6b8edfa7929e5f4d1f342e2fa9b15a6a2e5a47afcd2cc8d40",
+      "bytes": 11510993
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-420/3n-sync-100-node2-alloc-after.pprof",
+      "sha256": "ffb15d19fbddc0e7d379353035966675c669469b547671e6227b7efd5772be99",
+      "bytes": 135211
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-420/3n-sync-100-node2-alloc-before.pprof",
+      "sha256": "c9b95a5f5eb571c4f09b817cbea43f177709b85d1693fecaf8f97b6462834030",
+      "bytes": 135318
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-420/3n-sync-100-node2-cpu.pprof",
+      "sha256": "9b538504452cad11abcfc9588575cd88d3a4fc0734c20815131177d43aa2e3fa",
+      "bytes": 65775
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-420/3n-sync-100-node2.trace",
+      "sha256": "cdd2c27c234bde8fe17a917c8f008e09579a9bff1f197e9017e9e3bd63ddf833",
+      "bytes": 11183413
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-420/3n-sync-100-node3-alloc-after.pprof",
+      "sha256": "6f9d9e45a308d1f134a6bbb6f4150afdf4daffe9f728579004befacf3f30ebee",
+      "bytes": 137288
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-420/3n-sync-100-node3-alloc-before.pprof",
+      "sha256": "3ed17339c212f08434f1b83c0d6f774ce653fac0e30aad6e59605174b8a545f0",
+      "bytes": 137003
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-420/3n-sync-100-node3-cpu.pprof",
+      "sha256": "32d30265875bc1e7e68010bd688aa706f84f5e500843ca191488681f1919d1ed",
+      "bytes": 66792
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new/sync-420/3n-sync-100-node3.trace",
+      "sha256": "d262dfc64a8ae5f2f72f9d34c37a7faadd072c62d01da5fd39b48fe0f66f704f",
+      "bytes": 11611150
+    },
+    {
+      "path": "/tmp/conversation-backpressure/build-identities.json",
+      "sha256": "8efc27571d277c35aebefef188f5aaaa048c41254b8da7b8014745465ebbcfb9",
+      "bytes": 1453
+    },
+    {
+      "path": "/tmp/conversation-backpressure/governing-context.json",
+      "sha256": "37bb015d099e4efafbf3425fa4809b807df6183d4f439ef1a9a5ab1a5e1b3001",
+      "bytes": 1243
+    },
+    {
+      "path": "/tmp/conversation-backpressure/cgroup-during.txt",
+      "sha256": "31bce461043cb8c10b993df0357751529c3485a01a82db6e0b6e8323b4fa0067",
+      "bytes": 188
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old-run.log",
+      "sha256": "cbf6acd5e1d5d06981ecdb9e0cee68c265cad5ea68a98b5450f0589c4196e169",
+      "bytes": 2358
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new-run.log",
+      "sha256": "bbd61b5f8f97520160e9d9e9be909ef8570ac6df974b281c67495f687f9d25f5",
+      "bytes": 2217
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old-count-cpu.txt",
+      "sha256": "595de66d37f1e36228f6d52339a8af03f614bdcbfe368dafdd3ffe6584d9e67a",
+      "bytes": 1399
+    },
+    {
+      "path": "/tmp/conversation-backpressure/new-count-cpu.txt",
+      "sha256": "de27adc4f1e60c8e3da2002b23688da33eb5f3c106f9753259ab4a5f5ed8aeb6",
+      "bytes": 1410
+    },
+    {
+      "path": "/tmp/conversation-backpressure/old-sync-storage-wait.txt",
+      "sha256": "16606cabcf26c042b8cd131b8321798edfe685b238fb8ab9d1c6ac489e9fba1d",
+      "bytes": 1764
+    },
+    {
+      "path": "/tmp/conversation-backpressure/release-gate.json",
+      "sha256": "692617ee5341f5ed666d77193539d7d1440063e07f52b9dc03e3d90447405db0"
+    },
+    {
+      "path": "/tmp/conversation-backpressure/final-checks.log",
+      "sha256": "117bf2845a6735468976f95934ccc0bd66b49279d3ad301f794e260413bc5b46"
+    },
+    {
+      "path": "/tmp/conversation-backpressure/release-gate.log",
+      "sha256": "be131e3cc03c51c895db33aed26a3084ffc0cdaf6ce2c7345d04294d65e2c9dd"
+    }
+  ],
+  "validation": {
+    "related_units": [
+      "pkg/metrics",
+      "pkg/cluster/channels",
+      "internal/app"
+    ],
+    "targeted_observer_tests": "passed",
+    "targeted_observer_race": "passed",
+    "acceptance_policy_units": "passed",
+    "e2e_compile_opt_out": "passed",
+    "e2e_vet": "passed",
+    "go-format": "passed",
+    "flow-doc-contracts": "passed",
+    "git_diff_check": "passed"
+  },
+  "decision": "Keep iterator reuse and bounded observability. No admission increase or retry. List 1200 and sync 420 remain unqualified. No single root cause proven for all transient bursts.",
+  "owned_container": "0848a0b3f18dfd3e5e5e4967702aec7f5043cd51aca988bf9b09d01fa0950775",
+  "cleanup_complete": true,
+  "release_gate": {
+    "schema": "wukongim/conversation-qps-report/v1",
+    "source_sha": "13f9687192c316d3c6fa967c0f8ae593d60005e5",
+    "source_dirty": true,
+    "profile_sha256": "b29f053bd0f8dfb7437a48edba020c0bd2ff6dc788ac303e91a07abe4576cba3",
+    "binary_sha256": "9b84da8e90abf13d08d2efb1f991750214c5d209003b54c31d729de8675bdf7e",
+    "os": "linux",
+    "arch": "arm64",
+    "cpus": 10,
+    "node_gomaxprocs": 2,
+    "started_at": "2026-09-12T14:08:33.927837179Z",
+    "phases": [
+      {
+        "driver_wait_p99_ms": 2.483589,
+        "request_p99_ms": 3.328084,
+        "driver_workers": 8,
+        "queue_capacity": 200,
+        "nodes": 1,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 550000,
+            "3": 800000
+          },
+          "endpoint": "/conversation/list",
+          "page_size": 25,
+          "offered_qps": 400
+        },
+        "scheduled": 6000,
+        "completed": 6000,
+        "completed_in_window": 6000,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 400,
+        "p50_ms": 2.104839,
+        "p95_ms": 3.495252,
+        "p99_ms": 4.279421,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 6.610000000000001,
+        "heap_bytes": 92764824,
+        "allocated_bytes": 2203242512,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 2.303213,
+        "request_p99_ms": 7.625167,
+        "driver_workers": 8,
+        "queue_capacity": 100,
+        "nodes": 1,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 2000000,
+            "3": 3000000
+          },
+          "endpoint": "/conversation/list",
+          "page_size": 100,
+          "offered_qps": 200
+        },
+        "scheduled": 3000,
+        "completed": 3000,
+        "completed_in_window": 3000,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 200,
+        "p50_ms": 3.665172,
+        "p95_ms": 5.325169,
+        "p99_ms": 8.651836,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 7.199999999999999,
+        "heap_bytes": 100975848,
+        "allocated_bytes": 4234305512,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 3.809335,
+        "request_p99_ms": 10.379666,
+        "driver_workers": 8,
+        "queue_capacity": 50,
+        "nodes": 1,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 4000000,
+            "3": 6000000
+          },
+          "endpoint": "/conversation/list",
+          "page_size": 200,
+          "offered_qps": 100
+        },
+        "scheduled": 1500,
+        "completed": 1500,
+        "completed_in_window": 1500,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 100,
+        "p50_ms": 5.776043,
+        "p95_ms": 8.263422,
+        "p99_ms": 11.171503,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 6.309999999999999,
+        "heap_bytes": 129914304,
+        "allocated_bytes": 4257670520,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 4.907881,
+        "request_p99_ms": 12.710542,
+        "driver_workers": 8,
+        "queue_capacity": 40,
+        "nodes": 1,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 4800000,
+            "3": 7300000
+          },
+          "endpoint": "/conversation/sync",
+          "page_size": 25,
+          "offered_qps": 80
+        },
+        "scheduled": 1200,
+        "completed": 1200,
+        "completed_in_window": 1200,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 80,
+        "p50_ms": 6.885713,
+        "p95_ms": 9.614005,
+        "p99_ms": 14.554044,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 6.32,
+        "heap_bytes": 115734112,
+        "allocated_bytes": 4104490664,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 6.394877,
+        "request_p99_ms": 14.108458,
+        "driver_workers": 8,
+        "queue_capacity": 30,
+        "nodes": 1,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 7200000,
+            "3": 11500000
+          },
+          "endpoint": "/conversation/sync",
+          "page_size": 100,
+          "offered_qps": 60
+        },
+        "scheduled": 900,
+        "completed": 900,
+        "completed_in_window": 900,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 60,
+        "p50_ms": 8.83134,
+        "p95_ms": 13.122085,
+        "p99_ms": 15.936632,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 5.949999999999996,
+        "heap_bytes": 102579832,
+        "allocated_bytes": 5020760784,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 8.93588,
+        "request_p99_ms": 18.635416,
+        "driver_workers": 8,
+        "queue_capacity": 20,
+        "nodes": 1,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 11200000,
+            "3": 16500000
+          },
+          "endpoint": "/conversation/sync",
+          "page_size": 200,
+          "offered_qps": 40
+        },
+        "scheduled": 600,
+        "completed": 600,
+        "completed_in_window": 600,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 40,
+        "p50_ms": 12.080793,
+        "p95_ms": 18.881708,
+        "p99_ms": 22.809167,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 5.649999999999999,
+        "heap_bytes": 153509904,
+        "allocated_bytes": 5064454528,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 2.023007,
+        "request_p99_ms": 14.222375,
+        "driver_workers": 8,
+        "queue_capacity": 200,
+        "nodes": 3,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 550000,
+            "3": 800000
+          },
+          "endpoint": "/conversation/list",
+          "page_size": 25,
+          "offered_qps": 400
+        },
+        "scheduled": 6000,
+        "completed": 6000,
+        "completed_in_window": 5997,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 399.8,
+        "p50_ms": 10.58696,
+        "p95_ms": 13.701751,
+        "p99_ms": 14.93463,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 18.27000000000001,
+        "heap_bytes": 310033056,
+        "allocated_bytes": 3627378040,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 1.832674,
+        "request_p99_ms": 21.530833,
+        "driver_workers": 8,
+        "queue_capacity": 100,
+        "nodes": 3,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 2000000,
+            "3": 3000000
+          },
+          "endpoint": "/conversation/list",
+          "page_size": 100,
+          "offered_qps": 200
+        },
+        "scheduled": 3000,
+        "completed": 3000,
+        "completed_in_window": 2997,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 199.8,
+        "p50_ms": 15.931792,
+        "p95_ms": 19.896297,
+        "p99_ms": 22.792296,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 15.610000000000014,
+        "heap_bytes": 282666696,
+        "allocated_bytes": 6562623464,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 2.235673,
+        "request_p99_ms": 28.952416,
+        "driver_workers": 8,
+        "queue_capacity": 50,
+        "nodes": 3,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 4000000,
+            "3": 6000000
+          },
+          "endpoint": "/conversation/list",
+          "page_size": 200,
+          "offered_qps": 100
+        },
+        "scheduled": 1500,
+        "completed": 1500,
+        "completed_in_window": 1499,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 99.93333333333334,
+        "p50_ms": 22.222713,
+        "p95_ms": 27.113587,
+        "p99_ms": 30.221254,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 13.02000000000001,
+        "heap_bytes": 333816320,
+        "allocated_bytes": 6470539208,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 2.079129,
+        "request_p99_ms": 41.539375,
+        "driver_workers": 8,
+        "queue_capacity": 40,
+        "nodes": 3,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 4800000,
+            "3": 7300000
+          },
+          "endpoint": "/conversation/sync",
+          "page_size": 25,
+          "offered_qps": 80
+        },
+        "scheduled": 1200,
+        "completed": 1200,
+        "completed_in_window": 1198,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 79.86666666666666,
+        "p50_ms": 33.986547,
+        "p95_ms": 40.281257,
+        "p99_ms": 42.681587,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 14.019999999999996,
+        "heap_bytes": 397594248,
+        "allocated_bytes": 6302867680,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 2.141963,
+        "request_p99_ms": 50.577667,
+        "driver_workers": 8,
+        "queue_capacity": 30,
+        "nodes": 3,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 7200000,
+            "3": 11500000
+          },
+          "endpoint": "/conversation/sync",
+          "page_size": 100,
+          "offered_qps": 60
+        },
+        "scheduled": 900,
+        "completed": 900,
+        "completed_in_window": 898,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 59.86666666666667,
+        "p50_ms": 40.716131,
+        "p95_ms": 46.583671,
+        "p99_ms": 51.707628,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 13.029999999999987,
+        "heap_bytes": 334770344,
+        "allocated_bytes": 7484101544,
+        "verdict": "pass"
+      },
+      {
+        "driver_wait_p99_ms": 1.957548,
+        "request_p99_ms": 58.373958,
+        "driver_workers": 8,
+        "queue_capacity": 20,
+        "nodes": 3,
+        "case": {
+          "max_allocated_bytes_per_request": {
+            "1": 11200000,
+            "3": 16500000
+          },
+          "endpoint": "/conversation/sync",
+          "page_size": 200,
+          "offered_qps": 40
+        },
+        "scheduled": 600,
+        "completed": 600,
+        "completed_in_window": 599,
+        "unexpected_errors": 0,
+        "errors": 0,
+        "dropped": 0,
+        "duration_seconds": 15,
+        "actual_qps": 39.93333333333333,
+        "p50_ms": 48.528382,
+        "p95_ms": 55.913881,
+        "p99_ms": 59.18413,
+        "active_runtimes_before": 0,
+        "active_runtimes_after": 0,
+        "runtime_loads": 0,
+        "membership_writes": 0,
+        "cpu_seconds": 11.049999999999983,
+        "heap_bytes": 345217824,
+        "allocated_bytes": 7470008256,
+        "verdict": "pass"
+      }
+    ],
+    "passed": true
+  },
+  "cleanup": {
+    "server_processes_remaining_before_container_stop": 0,
+    "owned_container_removed": true,
+    "unrelated_resources_preserved": true,
+    "cloud_resources_created": false
+  }
+}

@@ -53,7 +53,7 @@ var _ message.CommittedMessageReader = (*CommittedMessageReader)(nil)
 
 // ReadCommittedMessages preserves scan parameters, aligned errors and ownership
 // while delegating exact Channel-Leader routing to the existing cluster batch.
-func (r *CommittedMessageReader) ReadCommittedMessages(ctx context.Context, queries []message.CommittedMessageQuery) ([]message.CommittedMessageResult, error) {
+func (r *CommittedMessageReader) ReadCommittedMessages(ctx context.Context, queries []message.MessageScanQuery) ([]message.MessageScanResult, error) {
 	if r == nil || r.node == nil {
 		return nil, message.ErrMessageReaderRequired
 	}
@@ -61,17 +61,7 @@ func (r *CommittedMessageReader) ReadCommittedMessages(ctx context.Context, quer
 	if !ok {
 		return nil, message.ErrSyncBatchReaderRequired
 	}
-	reads := make([]clusterchannels.CommittedRead, len(queries))
-	for index, query := range queries {
-		reads[index] = clusterchannels.CommittedRead{
-			ChannelID: channelruntime.ChannelID{ID: query.ChannelID.ID, Type: query.ChannelID.Type},
-			Request: channelstore.ReadCommittedRequest{
-				MessageID: query.MessageID, ClientMsgNo: query.ClientMsgNo,
-				FromSeq: query.FromSeq, MinSeq: query.MinSeq, MaxSeq: query.MaxSeq,
-				Limit: query.Limit, MaxBytes: query.MaxBytes, Reverse: query.Reverse,
-			},
-		}
-	}
+	reads := messageScanReads(queries)
 	readResults, err := batchNode.ReadChannelCommittedBatch(ctx, reads)
 	if err != nil {
 		return nil, mapAppendError(err)
@@ -79,7 +69,7 @@ func (r *CommittedMessageReader) ReadCommittedMessages(ctx context.Context, quer
 	if len(readResults) != len(queries) {
 		return nil, message.ErrSyncBatchResultMismatch
 	}
-	results := make([]message.CommittedMessageResult, len(readResults))
+	results := make([]message.MessageScanResult, len(readResults))
 	for index, read := range readResults {
 		if read.Err != nil {
 			results[index].Err = mapAppendError(read.Err)
@@ -111,4 +101,19 @@ func maxUint64() uint64 {
 
 func maxInt() int {
 	return int(^uint(0) >> 1)
+}
+
+func messageScanReads(queries []message.MessageScanQuery) []clusterchannels.CommittedRead {
+	reads := make([]clusterchannels.CommittedRead, len(queries))
+	for index, query := range queries {
+		reads[index] = clusterchannels.CommittedRead{
+			ChannelID: channelruntime.ChannelID{ID: query.ChannelID.ID, Type: query.ChannelID.Type},
+			Request: channelstore.ReadCommittedRequest{
+				MessageID: query.MessageID, ClientMsgNo: query.ClientMsgNo,
+				FromSeq: query.FromSeq, MinSeq: query.MinSeq, MaxSeq: query.MaxSeq,
+				Limit: query.Limit, MaxBytes: query.MaxBytes, Reverse: query.Reverse,
+			},
+		}
+	}
+	return reads
 }

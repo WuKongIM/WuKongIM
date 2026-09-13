@@ -246,11 +246,16 @@ before the first persistent append and then set directory_ready.
 Conversation list reads flow through internal/usecase/conversation. The
 ConversationStore pages one UID's user_channel_membership activation index,
 then submits one aligned hydration batch. The Channel cluster service resolves
-exact routes and groups remote items by Leader; local reads return the committed
-tail, retention floor, display message, and current user's latest committed
-ordinary sender sequence. The usecase constructs transient rows and returns
-deletes, unresolved keys, an opaque continuation cursor, and done/coverage
-metadata. Badge, hide, and activation commands mutate only ordinary membership.
+exact routes and groups remote items by Leader; disk reads return the persisted
+tail, retention floor, display message, and current user's latest ordinary sender
+sequence without activating Channel runtimes. The usecase returns transient rows,
+deletes, an opaque continuation cursor, and done/coverage metadata; any item error
+fails the whole request. Legacy conversation sync uses the same persisted heads
+and an explicit persisted-message PageReader for recents, preserving its raw-array
+format and cursor rules. Message preparation discovers the adapters' bounded
+UID membership and Slot-grouped terminal channel-state batch ports; it does not
+reuse prior hydration facts or the SEND permission cache. Badge, hide, and
+activation commands mutate only ordinary membership.
 Metrics expose bounded scanned/returned/delete/unresolved and
 hydration-local/remote costs without identity labels.
 
@@ -298,3 +303,8 @@ runs.
 
 The effective cluster node ID is also the message ID seed. `Config.Cluster.NodeID`
 wins when set; top-level `Config.NodeID` is only the fallback.
+
+The composite Channel observer forwards optional persisted-read admission and
+completion signals into the conversation metrics. Fixed heads/recents kinds
+separate immediate shared-limit refusals, in-flight batches, sampled occupancy
+and slot-hold duration without Channel/UID labels or a new serving-node queue.

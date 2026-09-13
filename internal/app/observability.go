@@ -2644,3 +2644,29 @@ var _ clusterinfra.RecipientAuthorityResolveObserver = deliveryMetricsObserver{}
 var _ clusterinfra.PresenceEndpointLookupObserver = presenceMetricsObserver{}
 var _ cluster.MembershipMutationObserver = membershipMutationMetricsObserver{}
 var _ cluster.MembershipMutationObserver = multiMembershipMutationObserver{}
+
+// ObservePersistedReadAdmission preserves bounded serving-node read pressure.
+func (o channelMetricsObserver) ObservePersistedReadAdmission(kind string, accepted bool, inUse, limit int) {
+	if o.metrics != nil {
+		o.metrics.Conversation.ObservePersistedReadAdmission(kind, accepted, inUse, limit)
+	}
+}
+func (o channelMetricsObserver) ObservePersistedReadCompletion(kind, result string, items int, duration time.Duration) {
+	if o.metrics != nil {
+		o.metrics.Conversation.ObservePersistedReadCompletion(kind, result, items, duration)
+	}
+}
+func (o multiChannelObserver) ObservePersistedReadAdmission(kind string, accepted bool, inUse, limit int) {
+	for _, observer := range o {
+		if v, ok := observer.(clusterchannels.PersistedReadObserver); ok {
+			v.ObservePersistedReadAdmission(kind, accepted, inUse, limit)
+		}
+	}
+}
+func (o multiChannelObserver) ObservePersistedReadCompletion(kind, result string, items int, duration time.Duration) {
+	for _, observer := range o {
+		if v, ok := observer.(clusterchannels.PersistedReadObserver); ok {
+			v.ObservePersistedReadCompletion(kind, result, items, duration)
+		}
+	}
+}

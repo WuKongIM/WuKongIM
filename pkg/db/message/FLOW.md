@@ -38,7 +38,10 @@ storage core without transferring shared-engine ownership.
 2. Reads scan complete primary rows or verified typed indexes, recover LEO
    lazily after reopen/reclamation, and use bounded durable verification for
    idempotency and newest-message lookup. Newest-first primary reads iterate
-   natively in reverse and stop while scanning at `Limit` or `MaxBytes`; they
+   natively in reverse and stop while scanning at `Limit` or `MaxBytes`. A
+   single-row bounded read first uses the exact durable sequence when supplied;
+   a missing row retains predecessor scanning, while corruption and I/O errors
+   fail immediately. Unresolved or maximum sequence bounds keep the range scan. Reads
    must never materialize the complete Channel history before truncation.
    Catalog pages follow encoded key order; skip only the exact cursor key.
    Remote client-number lookups additionally cap inspected index entries and
@@ -58,7 +61,9 @@ storage core without transferring shared-engine ownership.
 - A sparse SyncOnce ordinal index (ID 7, complete marker system ID 11) excludes
   internal records from badge rank queries. Existing primary rows are rebuilt in
   bounded batches before the marker is published; channel append ownership
-  serializes writers and rank reads. All append, replacement, truncate and
+  serializes writers and rank reads. A range count shares one bounded iterator
+  across both ranks and proves an empty index once, preserving the retained
+  ordinal baseline without caching unread results. All append, replacement, truncate and
   retention paths maintain the index. Portable backups omit the marker and
   rebuild derived entries during import; raw snapshots preserve both together.
   Matched runtimes are required after publication; older writers cannot maintain
@@ -68,6 +73,9 @@ storage core without transferring shared-engine ownership.
   catalog as one atomic unit where applicable.
 - A 32,768-entry bounded warm cache retains LEO, idempotency membership, and the
   last committed exact proposal/entry identity across Channel lease reclamation.
+  It also shares immutable encoded keys across matching identity generations;
+  retained key backing arrays have a separate 16 MiB LRU bound. Reacquisition
+  always creates a fresh mutable entry and independently closable lease.
   Fresh exact extensions with node-scoped message-ID allocation proof may
   validate that immutable tail in memory; restart, eviction, replay, recovery,
   suffix mutation, or an invalidated LEO falls back to durable validation.

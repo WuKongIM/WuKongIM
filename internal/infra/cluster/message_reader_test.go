@@ -38,7 +38,7 @@ func TestCommittedMessageReaderPreservesScanAndRecordOwnership(t *testing.T) {
 		}},
 	}}}
 	reader := NewCommittedMessageReader(node)
-	results, err := reader.ReadCommittedMessages(context.Background(), []message.CommittedMessageQuery{{
+	results, err := reader.ReadCommittedMessages(context.Background(), []message.MessageScanQuery{{
 		ChannelID: message.ChannelID{ID: "g1", Type: 2}, FromSeq: 5, MinSeq: 3, MaxSeq: 9, Limit: 2, MaxBytes: 71, Reverse: true,
 	}})
 	if err != nil {
@@ -62,7 +62,7 @@ func TestCommittedMessageReaderPreservesScanAndRecordOwnership(t *testing.T) {
 }
 
 func TestCommittedMessageReaderPreservesAlignedErrorsAndTransportCauses(t *testing.T) {
-	queries := []message.CommittedMessageQuery{{ChannelID: message.ChannelID{ID: "a", Type: 2}}, {ChannelID: message.ChannelID{ID: "b", Type: 2}}}
+	queries := []message.MessageScanQuery{{ChannelID: message.ChannelID{ID: "a", Type: 2}}, {ChannelID: message.ChannelID{ID: "b", Type: 2}}}
 	node := &recordingReadNode{batchResults: []clusterchannels.CommittedReadResult{{}, {Err: channelruntime.ErrNotReady}}}
 	reader := NewCommittedMessageReader(node)
 	results, err := reader.ReadCommittedMessages(context.Background(), queries)

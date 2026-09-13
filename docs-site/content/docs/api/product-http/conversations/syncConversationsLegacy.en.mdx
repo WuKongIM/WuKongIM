@@ -19,8 +19,9 @@ _openapi:
       - content: Synchronize legacy Conversations
         id: synchronize-legacy-conversations
     contents:
-      - content: Parses delimited per-Channel cursors and returns the old bare array
-          without a completion signal.
+      - content: Read persisted heads and recents without Channel activation. Failed
+          SENDs may appear; any read error fails the request. Legacy fields and
+          cursors are preserved.
         heading: synchronize-legacy-conversations
       - content: >-
           POST /conversation/sync
@@ -29,12 +30,17 @@ _openapi:
 
           Synchronize legacy Conversations
 
-          Parses delimited per-Channel cursors and returns the old bare array
-          without a completion signal.
+          Read persisted heads and recents without Channel activation. Failed
+          SENDs may appear; any read error fails the request. Legacy fields and
+          cursors are preserved.
 
           ConversationSyncLegacyRequest
 
-          v2.2-compatible legacy Conversation synchronization parameters.
+          Legacy sync parameters. Retry the original request on failure. List
+          and sync share 16 active requests and a five-second deadline; at most
+          1,000 candidates, 200 Channels per batch, 10,000 requested recents and
+          32 MiB of base/stream payloads. Budget exhaustion fails the whole
+          request.
 
           additionalProperties true
 

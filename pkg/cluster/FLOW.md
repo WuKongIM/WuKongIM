@@ -24,7 +24,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    supported markers before writable runtimes. Lifecycle starts transport and Controller, installs control routes, reconciles
    Slots/Channels and exposes readiness. Stop rejects work and reverses ownership.
 2. Slot proposals and metadata facades resolve one immutable route snapshot,
-   group Channel- or UID-owned work by physical Slot, execute locally or
+   expose bounded exact-key UID membership reads and group Channel- or UID-owned
+   work by physical Slot, execute locally or
    forward, and recheck leadership. Person-directory prepare joins UID membership/runtime metadata before publishing directory-ready.
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to
@@ -48,8 +49,16 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    Disk-only conversation previews use a distinct RPC request kind and current
    Leader metadata, read through persisted LEO without runtime probes/activation,
    and share a 16-batch serving-node admission limit with no waiting queue.
+   Bounded heads/recents metrics expose admission, occupied slots, in-flight
+   batches and slot-hold duration separately from origin routing/RPC latency.
    Preview calls have a five-second deadline and at most 200 candidates. Old
    peers reject the new kind rather than silently using committed recovery.
+   Stored conversation previews first read one tail record; only an internal
+   suffix expands into bounded reverse batches, avoiding unused payload decoding.
+   Legacy conversation recents use another distinct persisted-message RPC kind,
+   share that serving-node admission, and batch authoritative route metadata.
+   Their scans retain LEO, retention, byte-bounded continuation and item errors;
+   history keeps the committed path.
 5. `LocalControlSnapshot` exposes the latest fully Node-applied control state;
    revision-fenced management adapters may use `LocalControllerSnapshot` to read
    Controller-visible state without waiting for runtime task reconciliation.

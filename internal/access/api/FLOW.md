@@ -95,8 +95,9 @@ bench or debug request
   only for the synchronous response write; it does not retain it afterward.
 - `/conversation/sync` preserves the old raw-array envelope and person-channel
   projection, including system-UID hiding and full stream-event fields. Its
-  business pagination, filters, cursor floors, and unresolved failure policy
-  remain owned by the conversation use case.
+  business pagination, filters, cursor floors, and whole-request failure policy
+  remain owned by the conversation use case. Heads and recents read persisted
+  messages without loading Channel runtimes.
 
 - Legacy history, CMD, exact lookup and conversation previews share stable read-only aliases for old empty client numbers; serialization never rewrites committed records.
 

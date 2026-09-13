@@ -19,7 +19,7 @@ _openapi:
       - content: 同步旧式会话
         id: 同步旧式会话
     contents:
-      - content: 解析分隔式逐 Channel 游标并返回没有完成标记的旧式裸数组。
+      - content: 从当前 Leader 已落盘数据读取摘要和最近消息，不激活频道。发送失败的消息也可显示；读取失败则整次失败。保留旧式字段和游标规则。
         heading: 同步旧式会话
       - content: >-
           POST /conversation/sync
@@ -28,11 +28,12 @@ _openapi:
 
           同步旧式会话
 
-          解析分隔式逐 Channel 游标并返回没有完成标记的旧式裸数组。
+          从当前 Leader 已落盘数据读取摘要和最近消息，不激活频道。发送失败的消息也可显示；读取失败则整次失败。保留旧式字段和游标规则。
 
           ConversationSyncLegacyRequest
 
-          v2.2 兼容会话同步参数。
+          v2.2 兼容会话同步参数。失败时重试原请求。与 list 共用 16 个并发名额，整次请求限时 5 秒；最多 1000 个候选频道，每批
+          200 个。请求最近消息总数超过 10000 条或基础/流式载荷超过 32 MiB 时整次失败。
 
           additionalProperties true
 

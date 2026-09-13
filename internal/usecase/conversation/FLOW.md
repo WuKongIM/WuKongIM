@@ -9,7 +9,7 @@ summary: Builds transient conversations from UID membership and Channel state, a
 
 This package constructs ordinary conversation responses from UID-owned
 membership rows and Channel-owned state. Canonical previews read persisted
-state; personal mutations and legacy sync read committed state. It owns explicit unread,
+state; personal mutations read committed state. It owns explicit unread,
 delete, and activation commands but persists no conversation rows.
 It does not subscribe users, deliver messages, or implement storage and transport.
 
@@ -26,12 +26,18 @@ It does not subscribe users, deliver messages, or implement storage and transpor
 1. `List` scans one bounded UID membership page, emits tombstones as deletes,
    reads persisted previews for live candidates, and returns conversations,
    cursor, coverage, completion, and tombstone retention metadata.
-2. List admission is shared by all callers: at most 16 active pages, no waiting
+2. List admission is shared by all callers: at most 16 active list or legacy-sync requests, no waiting
    queue, and a five-second deadline. Any item failure fails the entire page;
    clients retain their original cursor and retry the same request.
-3. `SyncLegacy` walks at most 1,000 membership candidates, applies the v2.2
-   page, unread, excluded-type, version, and per-Channel cursor semantics, then
-   reads recent committed messages and their stream-event summaries in aligned
+3. `SyncLegacy` first collects at most 1,000 candidates from the durable
+   directory, then sorts metadata by legacy activation/string-ID/type order.
+   Encoded length-prefixed directory order is not legacy string order. It
+   hydrates only the visible prefix through the requested page.
+   It replenishes directory-invisible candidates only; unread, excluded-type
+   and empty-recents filtering occur after page selection without replenishment.
+   Unpaged requests retain the full bounded walk. It applies the v2.2
+   version and per-Channel cursor semantics, then
+   reads recent persisted messages and their stream-event summaries in aligned
    batches of at most 200 Channels. An old empty-client-number head can be
    reread after an advanced legacy cursor to repair a missing preview; ordinary
    heads retain exclusive-cursor behavior and durable read/delete state is unchanged.
@@ -50,10 +56,12 @@ It does not subscribe users, deliver messages, or implement storage and transpor
 - Disbanded channels become deletes. Temporary leader or storage failure fails the entire list page.
 - The canonical `List` reads current-Leader disk LEO without runtime activation
   or quorum confirmation. Persisted messages may appear before SEND success.
-  Legacy sync and personal mutations retain committed reads;
-  `SyncLegacy` retries unresolved committed reads once and fails the whole request if any stay
-  unresolved; it must not turn a temporary failure into silent conversation
-  loss.
+  `SyncLegacy` uses the same persisted heads and disk-only recent-message scans.
+  Off-page heads beyond the required visible prefix are not read.
+  Any attempted read failure aborts its whole response immediately; callers retry the original request.
+  The full request shares List admission and a five-second deadline, with at most
+  10,000 requested recent records and 32 MiB of base/stream payloads. Personal
+  mutations retain committed reads.
 - A legacy client cursor overrides excluded-type and unread filtering for that
   Channel. Without such a cursor, positive `version` and `only_unread` reads
   start after the effective badge floor. Recent messages are returned newest

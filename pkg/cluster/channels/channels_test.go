@@ -3326,6 +3326,7 @@ type lastVisibleTrackingFactory struct {
 	closed          atomic.Int64
 	mu              sync.Mutex
 	lastReadPayload []byte
+	readRecords     int
 }
 
 func newLastVisibleTrackingFactory(base channelstore.Factory) *lastVisibleTrackingFactory {
@@ -3361,6 +3362,7 @@ func (s *lastVisibleTrackingStore) ReadCommitted(ctx context.Context, req channe
 	if err == nil && len(result.Messages) > 0 {
 		s.parent.mu.Lock()
 		s.parent.lastReadPayload = result.Messages[0].Payload
+		s.parent.readRecords += len(result.Messages)
 		s.parent.mu.Unlock()
 	}
 	return result, err

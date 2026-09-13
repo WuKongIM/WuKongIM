@@ -12,10 +12,15 @@ import (
 // set while retaining a strict database-wide memory bound.
 const defaultChannelWarmCacheEntries = 32 * 1024
 
+// Bound retained encoded bytes as well as entry count for long channel keys.
+const defaultChannelWarmKeyBytes = 16 << 20
+
 // channelWarmState is the bounded, lease-independent append state retained
 // after a canonical entry reaches zero references. It never retains a usable
 // ChannelLog or a database operation admission.
 type channelWarmState struct {
+	// appendKeyCache is immutable and bound to this exact key/identity pair.
+	appendKeyCache              *appendKeyCache
 	key                         ChannelKey
 	id                          ChannelID
 	leo                         uint64
@@ -48,6 +53,10 @@ type channelRegistry struct {
 	warmOrder *list.List
 	// maxWarmEntries bounds retained state independently from channel count.
 	maxWarmEntries int
+	// warmKeyBytes counts encoded key backing arrays in the warm cache only.
+	warmKeyBytes int
+	// maxWarmKeyBytes bounds extra key retention independently of key length.
+	maxWarmKeyBytes int
 
 	// activeOps counts database operations admitted before close.
 	activeOps atomic.Int64
@@ -81,10 +90,11 @@ type channelRegistrySnapshot struct {
 
 func newChannelRegistry() *channelRegistry {
 	r := &channelRegistry{
-		entries:        make(map[ChannelKey]*channelEntry),
-		warmEntries:    make(map[ChannelKey]*list.Element),
-		warmOrder:      list.New(),
-		maxWarmEntries: defaultChannelWarmCacheEntries,
+		entries:         make(map[ChannelKey]*channelEntry),
+		warmEntries:     make(map[ChannelKey]*list.Element),
+		warmOrder:       list.New(),
+		maxWarmEntries:  defaultChannelWarmCacheEntries,
+		maxWarmKeyBytes: defaultChannelWarmKeyBytes,
 	}
 	r.cond = sync.NewCond(&r.mu)
 	return r
@@ -109,18 +119,17 @@ func (r *channelRegistry) acquire(db *MessageDB, key ChannelKey, id ChannelID) (
 		if err != nil {
 			return nil, err
 		}
-		entry = &channelEntry{
-			db:             db,
-			key:            key,
-			id:             id,
-			appendKeyCache: newAppendKeyCache(key, id),
-		}
+		entry = &channelEntry{db: db, key: key, id: id}
 		if warm != nil {
+			entry.appendKeyCache = warm.appendKeyCache
 			entry.leo.Store(warm.leo)
 			entry.loaded.Store(warm.loaded)
 			entry.idempotencyMembership = warm.idempotencyMembership
 			entry.idempotencyMembershipLoaded = warm.idempotencyMembershipLoaded
 			entry.durableProposalTail = warm.durableProposalTail
+		}
+		if entry.appendKeyCache == nil {
+			entry.appendKeyCache = newAppendKeyCache(key, id)
 		}
 		r.entries[key] = entry
 	}
@@ -199,12 +208,10 @@ func (r *channelRegistry) takeWarmLocked(key ChannelKey, id ChannelID) (*channel
 	if cached.state.id != id {
 		// A key reused with another durable identity must not inherit append
 		// state from the previous zero-reference generation.
-		delete(r.warmEntries, key)
-		r.warmOrder.Remove(element)
+		r.removeWarmLocked(element)
 		return nil, nil
 	}
-	delete(r.warmEntries, key)
-	r.warmOrder.Remove(element)
+	r.removeWarmLocked(element)
 	state := cached.state
 	return &state, nil
 }
@@ -214,10 +221,10 @@ func (r *channelRegistry) retainWarmLocked(entry *channelEntry) {
 		return
 	}
 	if existing := r.warmEntries[entry.key]; existing != nil {
-		delete(r.warmEntries, entry.key)
-		r.warmOrder.Remove(existing)
+		r.removeWarmLocked(existing)
 	}
 	state := channelWarmState{
+		appendKeyCache:              entry.appendKeyCache,
 		key:                         entry.key,
 		id:                          entry.id,
 		leo:                         entry.leo.Load(),
@@ -231,15 +238,23 @@ func (r *channelRegistry) retainWarmLocked(entry *channelEntry) {
 	entry.durableProposalTail = durableProposalTail{}
 	element := r.warmOrder.PushBack(channelWarmCacheEntry{key: entry.key, state: state})
 	r.warmEntries[entry.key] = element
-	for len(r.warmEntries) > r.maxWarmEntries {
+	r.warmKeyBytes += state.appendKeyCache.retainedBytes()
+	for len(r.warmEntries) > r.maxWarmEntries || r.warmKeyBytes > r.maxWarmKeyBytes {
 		oldest := r.warmOrder.Front()
 		if oldest == nil {
 			break
 		}
-		cached := oldest.Value.(channelWarmCacheEntry)
-		delete(r.warmEntries, cached.key)
-		r.warmOrder.Remove(oldest)
+		r.removeWarmLocked(oldest)
 	}
+}
+
+// removeWarmLocked keeps byte accounting aligned with identity replacement,
+// acquisition, explicit invalidation and LRU eviction under the registry lock.
+func (r *channelRegistry) removeWarmLocked(element *list.Element) {
+	cached := element.Value.(channelWarmCacheEntry)
+	r.warmKeyBytes -= cached.state.appendKeyCache.retainedBytes()
+	delete(r.warmEntries, cached.key)
+	r.warmOrder.Remove(element)
 }
 
 func (r *channelRegistry) invalidateWarm(key ChannelKey) {
@@ -252,8 +267,7 @@ func (r *channelRegistry) invalidateWarm(key ChannelKey) {
 	if element == nil {
 		return
 	}
-	delete(r.warmEntries, key)
-	r.warmOrder.Remove(element)
+	r.removeWarmLocked(element)
 }
 
 func (r *channelRegistry) beginClose() {
@@ -312,6 +326,7 @@ func (r *channelRegistry) detachEntries() {
 	r.entries = make(map[ChannelKey]*channelEntry)
 	r.warmEntries = make(map[ChannelKey]*list.Element)
 	r.warmOrder.Init()
+	r.warmKeyBytes = 0
 	r.mu.Unlock()
 }
 

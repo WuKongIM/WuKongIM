@@ -27,7 +27,9 @@ It does not own product business policy or expose engine-specific APIs.
    migration state, plus UID users, devices, memberships, plugins, and events.
 2. Ordinary conversation directory scans UID-owned
    `user_channel_membership` by `(uid, activated_at desc, channel_id,
-   channel_type)` and returns the complete cursor and `done` flag.
+   channel_type)` using encoded string order (length before bytes), and
+   returns the complete cursor and `done` flag. Legacy response string sorting
+   is a usecase concern, not this cursor index order.
 3. Snapshot and restore cover registered row, index, and system spans; restore
    installs isolated portable metadata, replays ordered Slot FSM commands, and
    verifies canonical digests.

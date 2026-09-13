@@ -25,6 +25,8 @@ var (
 )
 
 // DirectoryStore pages UID-owned ordinary membership rows.
+// Pages preserve the durable activation index and return at most the requested
+// number of candidates. Encoded string order is not Go string comparison order.
 type DirectoryStore interface {
 	ListUserChannelMembershipPage(ctx context.Context, uid string, after metadb.UserChannelMembershipCursor, limit int) ([]metadb.UserChannelMembership, metadb.UserChannelMembershipCursor, bool, error)
 }
@@ -40,7 +42,7 @@ const (
 )
 
 // HydrationResult contains bounded Channel-Leader data for one membership.
-// ReadThroughSeq is disk LEO for list previews and committed HW for commands/legacy sync.
+// ReadThroughSeq is disk LEO for list previews and committed HW for commands.
 type HydrationResult struct {
 	// NonBusinessUnread excludes recovery and SyncOnce records from badge math.
 	NonBusinessUnread uint64
@@ -55,7 +57,7 @@ type HydrationResult struct {
 	LastMessage            *LastMessage
 }
 
-// HeadHydrator separates persisted list previews from committed mutation/legacy reads.
+// HeadHydrator separates persisted list previews from committed mutation reads.
 type HeadHydrator interface {
 	// HydratePersistedConversationHeads reads disk-only previews and fails the batch on any unavailable item.
 	HydratePersistedConversationHeads(context.Context, string, []metadb.UserChannelMembership) ([]HydrationResult, error)
@@ -79,7 +81,7 @@ type Options struct {
 	Hydrator HeadHydrator
 	// MembershipMutations owns ordinary per-user badge, hide, and activation state.
 	MembershipMutations MembershipMutationStore
-	// LegacyMessages reads bounded committed message tails for /conversation/sync compatibility.
+	// LegacyMessages reads bounded persisted message tails for /conversation/sync compatibility.
 	LegacyMessages LegacyMessageReader
 	// Now returns the current time for mutation timestamps.
 	Now func() time.Time
@@ -135,10 +137,10 @@ func (a *App) List(ctx context.Context, req ListRequest) (ListResult, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, listReadTimeout)
 	defer cancel()
-	return a.listMembershipDirectory(ctx, req, true)
+	return a.listMembershipDirectory(ctx, req)
 }
 
-func (a *App) listMembershipDirectory(ctx context.Context, req ListRequest, persisted bool) (ListResult, error) {
+func (a *App) listMembershipDirectory(ctx context.Context, req ListRequest) (ListResult, error) {
 	if err := validateListRequest(req); err != nil {
 		return ListResult{}, err
 	}
@@ -151,7 +153,6 @@ func (a *App) listMembershipDirectory(ctx context.Context, req ListRequest, pers
 		ScannedCandidates: len(rows),
 		Items:             make([]Conversation, 0, len(rows)),
 		Deletes:           make([]ConversationKey, 0),
-		Unresolved:        make([]ConversationKey, 0),
 		Done:              done,
 		HasMore:           !done,
 		Coverage:          a.now().UnixNano(),
@@ -161,6 +162,12 @@ func (a *App) listMembershipDirectory(ctx context.Context, req ListRequest, pers
 	if !done || len(rows) > 0 {
 		result.NextCursor = cursorFromMembershipMeta(next)
 	}
+	return a.hydrateMembershipDirectory(ctx, req.UID, rows, result)
+}
+
+// hydrateMembershipDirectory shares aligned persisted hydration and visibility
+// rules between canonical directory pages and sorted legacy candidates.
+func (a *App) hydrateMembershipDirectory(ctx context.Context, uid string, rows []metadb.UserChannelMembership, result ListResult) (ListResult, error) {
 	live := make([]metadb.UserChannelMembership, 0, len(rows))
 	for _, row := range rows {
 		if row.Tombstone {
@@ -172,12 +179,7 @@ func (a *App) listMembershipDirectory(ctx context.Context, req ListRequest, pers
 	if len(live) == 0 {
 		return result, nil
 	}
-	var hydrated []HydrationResult
-	if persisted {
-		hydrated, err = a.hydrator.HydratePersistedConversationHeads(ctx, req.UID, live)
-	} else {
-		hydrated, err = a.hydrator.HydrateConversationHeads(ctx, req.UID, live)
-	}
+	hydrated, err := a.hydrator.HydratePersistedConversationHeads(ctx, uid, live)
 	if err != nil {
 		return ListResult{}, err
 	}
@@ -194,83 +196,13 @@ func (a *App) listMembershipDirectory(ctx context.Context, req ListRequest, pers
 		case HydrationDelete:
 			result.Deletes = append(result.Deletes, key)
 		case HydrationRetryable:
-			if persisted {
-				return ListResult{}, ErrRouteNotReady
-			}
-			result.Unresolved = append(result.Unresolved, key)
+			return ListResult{}, ErrRouteNotReady
 		case HydrationOK, HydrationNoVisibleMessage:
 			if item, ok := conversationFromMembership(row, head); ok {
 				result.Items = append(result.Items, item)
 			}
 		default:
 			return ListResult{}, errors.New("internal/usecase/conversation: invalid hydration outcome")
-		}
-	}
-	return result, nil
-}
-
-// retryLegacyHeads preserves the committed-read retry used only by legacy sync.
-func (a *App) retryLegacyHeads(ctx context.Context, req legacyRetryRequest) (ListResult, error) {
-	if a == nil || a.memberships == nil || a.hydrator == nil {
-		return ListResult{}, ErrStoreRequired
-	}
-	if req.UID == "" || len(req.Keys) == 0 || len(req.Keys) > maxListLimit {
-		return ListResult{}, ErrInvalidRequest
-	}
-	result := ListResult{
-		ScannedCandidates: len(req.Keys),
-		Items:             make([]Conversation, 0, len(req.Keys)),
-		Deletes:           make([]ConversationKey, 0),
-		Unresolved:        make([]ConversationKey, 0),
-		Done:              true,
-	}
-	live := make([]metadb.UserChannelMembership, 0, len(req.Keys))
-	seen := make(map[ConversationKey]struct{}, len(req.Keys))
-	for _, key := range req.Keys {
-		if key.ChannelID == "" || key.ChannelType <= 0 || key.ChannelType > 255 {
-			return ListResult{}, ErrInvalidRequest
-		}
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		row, ok, err := a.memberships.GetUserChannelMembership(ctx, req.UID, key.ChannelID, key.ChannelType)
-		if err != nil {
-			return ListResult{}, err
-		}
-		if !ok || row.Tombstone {
-			result.Deletes = append(result.Deletes, key)
-			continue
-		}
-		live = append(live, row)
-	}
-	if len(live) == 0 {
-		return result, nil
-	}
-	hydrated, err := a.hydrator.HydrateConversationHeads(ctx, req.UID, live)
-	if err != nil {
-		return ListResult{}, err
-	}
-	if len(hydrated) != len(live) {
-		return ListResult{}, errors.New("internal/usecase/conversation: misaligned retry hydration result")
-	}
-	for index, row := range live {
-		key := ConversationKey{ChannelID: row.ChannelID, ChannelType: row.ChannelType}
-		head := hydrated[index]
-		if head.Key != key {
-			return ListResult{}, errors.New("internal/usecase/conversation: misaligned retry hydration key")
-		}
-		switch head.Outcome {
-		case HydrationDelete:
-			result.Deletes = append(result.Deletes, key)
-		case HydrationRetryable:
-			result.Unresolved = append(result.Unresolved, key)
-		case HydrationOK, HydrationNoVisibleMessage:
-			if item, ok := conversationFromMembership(row, head); ok {
-				result.Items = append(result.Items, item)
-			}
-		default:
-			return ListResult{}, errors.New("internal/usecase/conversation: invalid retry hydration outcome")
 		}
 	}
 	return result, nil

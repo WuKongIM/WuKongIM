@@ -218,6 +218,8 @@ type CommittedReadRequest struct {
 
 // CommittedReadsRequest contains reads already grouped onto one exact leader.
 type CommittedReadsRequest struct {
+	// Persisted selects disk LEO through a distinct RPC kind; false keeps committed history.
+	Persisted bool
 	// Items contains reads already grouped to one exact Channel Leader.
 	Items []CommittedReadRequest
 }
@@ -736,6 +738,10 @@ func (s *Service) handleForwardConversationHeads(ctx context.Context, req Conver
 // ReadCommittedBatch resolves every channel route, groups remote reads by
 // exact leader, and preserves the caller's item ordering.
 func (s *Service) ReadCommittedBatch(ctx context.Context, reads []CommittedRead) ([]CommittedReadResult, error) {
+	return s.readMessageBatch(ctx, reads, false)
+}
+
+func (s *Service) readMessageBatch(ctx context.Context, reads []CommittedRead, persisted bool) ([]CommittedReadResult, error) {
 	results := make([]CommittedReadResult, len(reads))
 	if len(reads) == 0 {
 		return results, nil
@@ -746,11 +752,19 @@ func (s *Service) ReadCommittedBatch(ctx context.Context, reads []CommittedRead)
 	}
 	localItems := make([]remoteItem, 0, len(reads))
 	remoteByLeader := make(map[ch.NodeID][]remoteItem)
+	ids := make([]ch.ChannelID, len(reads))
+	for i, read := range reads {
+		ids[i] = read.ChannelID
+	}
+	metas, err := s.resolveReadMetas(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
 	for index, read := range reads {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		meta, ok, err := s.resolveReadMeta(ctx, read.ChannelID)
+		meta, ok, err := metas[index].Meta, metas[index].Found, metas[index].Err
 		if err != nil {
 			results[index].Err = err
 			continue
@@ -783,7 +797,7 @@ func (s *Service) ReadCommittedBatch(ctx context.Context, reads []CommittedRead)
 		for index, item := range localItems {
 			requests[index] = item.request
 		}
-		localResults := s.readLocalCommittedBatch(ctx, requests)
+		localResults := s.readSelectedMessageBatch(ctx, requests, persisted)
 		for index, item := range localItems {
 			results[item.index] = localResults[index]
 		}
@@ -795,7 +809,7 @@ func (s *Service) ReadCommittedBatch(ctx context.Context, reads []CommittedRead)
 			}
 			continue
 		}
-		request := CommittedReadsRequest{Items: make([]CommittedReadRequest, len(items))}
+		request := CommittedReadsRequest{Persisted: persisted, Items: make([]CommittedReadRequest, len(items))}
 		for index, item := range items {
 			request.Items[index] = item.request
 		}
@@ -822,12 +836,28 @@ func (s *Service) ReadCommittedBatch(ctx context.Context, reads []CommittedRead)
 }
 
 func (s *Service) handleForwardCommittedReads(ctx context.Context, req CommittedReadsRequest) (CommittedReadsResponse, error) {
+	if req.Persisted {
+		if len(req.Items) > persistedConversationMaxChannels {
+			return CommittedReadsResponse{}, ch.ErrInvalidConfig
+		}
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, persistedConversationReadTimeout)
+		defer cancel()
+	}
 	response := CommittedReadsResponse{Items: make([]CommittedReadResult, len(req.Items))}
 	localItems := make([]CommittedReadRequest, 0, len(req.Items))
 	localIndexes := make([]int, 0, len(req.Items))
+	ids := make([]ch.ChannelID, len(req.Items))
+	for i, item := range req.Items {
+		ids[i] = item.ChannelID
+	}
+	metas, err := s.resolveReadMetas(ctx, ids)
+	if err != nil {
+		return CommittedReadsResponse{}, err
+	}
 	for index, item := range req.Items {
-		meta, ok, err := s.resolveReadMeta(ctx, item.ChannelID)
-		if err != nil && !canFallbackCommittedReadOnMissingMeta(s.localNode, item, err) {
+		meta, ok, err := metas[index].Meta, metas[index].Found, metas[index].Err
+		if err != nil && (req.Persisted || !canFallbackCommittedReadOnMissingMeta(s.localNode, item, err)) {
 			response.Items[index].Err = err
 			continue
 		}
@@ -862,7 +892,7 @@ func (s *Service) handleForwardCommittedReads(ctx context.Context, req Committed
 		localItems = append(localItems, item)
 		localIndexes = append(localIndexes, index)
 	}
-	localResults := s.readLocalCommittedBatch(ctx, localItems)
+	localResults := s.readSelectedMessageBatch(ctx, localItems, req.Persisted)
 	for index, result := range localResults {
 		response.Items[localIndexes[index]] = result
 	}
@@ -950,6 +980,11 @@ func (s *Service) readLocalCommittedBatch(ctx context.Context, requests []Commit
 }
 
 func (s *Service) readLocalCommitted(ctx context.Context, read CommittedRead, retentionThroughSeq uint64, minISR int, liveCommitted uint64, hasLiveCommitted bool) (channelstore.ReadCommittedResult, error) {
+	return s.readStoredMessages(ctx, read, retentionThroughSeq, minISR, liveCommitted, hasLiveCommitted, false)
+}
+
+// readStoredMessages applies the selected frontier and retention directly to disk scans.
+func (s *Service) readStoredMessages(ctx context.Context, read CommittedRead, retentionThroughSeq uint64, minISR int, liveCommitted uint64, hasLiveCommitted, persisted bool) (channelstore.ReadCommittedResult, error) {
 	if s == nil || s.store == nil {
 		return channelstore.ReadCommittedResult{}, ch.ErrNotReady
 	}
@@ -963,7 +998,7 @@ func (s *Service) readLocalCommitted(ctx context.Context, read CommittedRead, re
 		return channelstore.ReadCommittedResult{}, err
 	}
 	committed := state.HW
-	if minISR <= 1 {
+	if persisted || minISR <= 1 {
 		committed = state.LEO
 	} else if hasLiveCommitted {
 		committed = maxUint64Value(committed, liveCommitted)
@@ -1367,10 +1402,13 @@ func (s *Service) readStoredConversationHead(ctx context.Context, id ch.ChannelI
 
 func readLastOrdinaryThrough(ctx context.Context, store channelstore.ChannelStore, committed, retentionThroughSeq uint64, maxReadBytes int) (ch.Message, bool, error) {
 	from := committed
+	// Ordinary tails need one payload. Expand only after an internal record so
+	// long recovery/SyncOnce suffixes still use bounded batches, not point reads.
+	limit := 1
 	for from > retentionThroughSeq {
 		read, err := store.ReadCommitted(ctx, channelstore.ReadCommittedRequest{
 			FromSeq: from, MaxSeq: committed, MinSeq: nextSeq(retentionThroughSeq),
-			Limit: 64, MaxBytes: maxReadBytes, Reverse: true,
+			Limit: limit, MaxBytes: maxReadBytes, Reverse: true,
 		})
 		if err != nil {
 			return ch.Message{}, false, err
@@ -1384,6 +1422,7 @@ func readLastOrdinaryThrough(ctx context.Context, store channelstore.ChannelStor
 			break
 		}
 		from = read.NextSeq
+		limit = 64
 	}
 	return ch.Message{}, false, nil
 }

@@ -28,7 +28,7 @@ validated Config + build identity -> format guard and fresh-directory provenance
   -> construct use cases and infrastructure ports
   -> bind the user use case's durable device-token verifier into Gateway CONNECT authentication
   -> compose PageReader and its committed-record adapter for ordinary sync, exact lookup and plugin reads
-  -> adapt the message use case's committed batch read into the narrow
+  -> adapt the message use case's explicit persisted batch read into the narrow
      conversation legacy-sync message port
   -> when bearer and all real drain ports exist, bind one terminal controller
      to both the already-created gateway handler and API prepare route
@@ -63,8 +63,10 @@ Stop or startup rollback
   privilege checks, Product HTTP compatibility, legacy conversation projection,
   and plugin-origin default sends.
 - The legacy conversation-sync adapter only translates sibling DTOs; directory
-  scanning, filtering, unresolved handling, and message ordering stay in the
-  conversation use case.
+  scanning, filtering, whole-request failure, and message ordering stay in the
+  conversation use case. It transfers the message usecase's already-detached
+  base/stream bytes without another copy; the conversation port retains its
+  defensive response ownership boundary.
 - The benchmark terminal controller is advertised only with a non-empty token,
   the real Gateway SEND drainer, Channel append group, and Online Delivery
   runtime. Partial compositions cannot mint a terminal capability.

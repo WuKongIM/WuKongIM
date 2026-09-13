@@ -71,6 +71,20 @@ func readMessageRowsReverseRaw(ctx context.Context, db *MessageDB, channelKey Ch
 	if db == nil || db.engine == nil {
 		return nil, dberrors.ErrClosed
 	}
+	// A persisted preview already knows its selected sequence. Read that exact
+	// row without a range iterator; a missing bound still needs predecessor
+	// lookup. Decode/corruption and I/O errors must never fall back to older data.
+	if opts.Limit == 1 && fromSeq > 0 && fromSeq < math.MaxUint64 {
+		row, found, err := getMessageRowBySeq(ctx, db, channelKey, fromSeq)
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			// As with range reads, the first record is returned even when its
+			// payload exceeds MaxBytes; callers enforce their response budget.
+			return []messageRow{row}, nil
+		}
+	}
 	prefix := encodeMessageRowPrefix(channelKey)
 	span := keycodec.NewPrefixSpan(prefix)
 	end := span.End

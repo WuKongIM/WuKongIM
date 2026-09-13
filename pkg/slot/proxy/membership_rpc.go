@@ -18,6 +18,7 @@ const (
 	membershipRPCListOrdinary = "list_ordinary"
 	membershipRPCGetOrdinary  = "get_ordinary"
 	membershipRPCListCMD      = "list_cmd"
+	membershipRPCGetBatch     = "get_ordinary_batch"
 )
 
 var (
@@ -31,9 +32,11 @@ const (
 	membershipRPCListOrdinaryID byte = iota + 1
 	membershipRPCGetOrdinaryID
 	membershipRPCListCMDID
+	membershipRPCGetBatchID
 )
 
 type membershipRPCRequest struct {
+	Keys           []metadb.ChannelKey
 	Op             string
 	SlotID         uint64
 	UID            string
@@ -158,6 +161,12 @@ func (s *Store) handleMembershipRPC(ctx context.Context, body []byte) ([]byte, e
 			return encodeMembershipRPCResponse(membershipRPCResponse{Status: rpcStatusNotFound})
 		}
 		return encodeMembershipRPCResponse(membershipRPCResponse{Status: rpcStatusOK, Membership: &row})
+	case membershipRPCGetBatch:
+		rows, err := s.readMembershipBatchLocal(ctx, req.UID, req.Keys)
+		if err != nil {
+			return nil, err
+		}
+		return encodeMembershipRPCResponse(membershipRPCResponse{Status: rpcStatusOK, Memberships: rows})
 	case membershipRPCListCMD:
 		rows, cursor, done, err := s.db.MetaDB().HashSlot(metadb.HashSlot(hashSlot)).ListUserCMDChannelMembershipPage(ctx, req.UID, req.CMDCursor, req.Limit)
 		if err != nil {
@@ -186,6 +195,16 @@ func encodeMembershipRPCRequest(req membershipRPCRequest) ([]byte, error) {
 	dst = appendOrdinaryMembershipCursor(dst, req.OrdinaryCursor)
 	dst = appendCMDMembershipCursor(dst, req.CMDCursor)
 	dst = runtimeMetaAppendVarint(dst, int64(req.Limit))
+	if req.Op == membershipRPCGetBatch {
+		if err := validateMembershipBatch(req.UID, req.Keys); err != nil {
+			return nil, err
+		}
+		dst = runtimeMetaAppendUvarint(dst, uint64(len(req.Keys)))
+		for _, key := range req.Keys {
+			dst = runtimeMetaAppendString(dst, key.ChannelID)
+			dst = runtimeMetaAppendVarint(dst, key.ChannelType)
+		}
+	}
 	return dst, nil
 }
 
@@ -223,6 +242,27 @@ func decodeMembershipRPCRequest(body []byte) (membershipRPCRequest, error) {
 	}
 	if req.Limit, offset, err = runtimeMetaReadInt(body, offset, "membership limit"); err != nil {
 		return membershipRPCRequest{}, err
+	}
+	if req.Op == membershipRPCGetBatch {
+		var count uint64
+		if count, offset, err = runtimeMetaReadUvarint(body, offset); err != nil {
+			return membershipRPCRequest{}, err
+		}
+		if count == 0 || count > MembershipReadBatchMaxKeys {
+			return membershipRPCRequest{}, fmt.Errorf("metastore: invalid membership batch count %d", count)
+		}
+		req.Keys = make([]metadb.ChannelKey, int(count))
+		for i := range req.Keys {
+			if req.Keys[i].ChannelID, offset, err = runtimeMetaReadString(body, offset); err != nil {
+				return membershipRPCRequest{}, err
+			}
+			if req.Keys[i].ChannelType, offset, err = runtimeMetaReadVarint(body, offset); err != nil {
+				return membershipRPCRequest{}, err
+			}
+		}
+		if err = validateMembershipBatch(req.UID, req.Keys); err != nil {
+			return membershipRPCRequest{}, err
+		}
 	}
 	if offset != len(body) {
 		return membershipRPCRequest{}, fmt.Errorf("metastore: trailing membership request bytes")
@@ -321,6 +361,8 @@ func membershipRPCOpID(op string) (byte, error) {
 		return membershipRPCGetOrdinaryID, nil
 	case membershipRPCListCMD:
 		return membershipRPCListCMDID, nil
+	case membershipRPCGetBatch:
+		return membershipRPCGetBatchID, nil
 	default:
 		return 0, fmt.Errorf("metastore: unknown membership rpc op %q", op)
 	}
@@ -334,6 +376,8 @@ func membershipRPCOpFromID(op byte) (string, error) {
 		return membershipRPCGetOrdinary, nil
 	case membershipRPCListCMDID:
 		return membershipRPCListCMD, nil
+	case membershipRPCGetBatchID:
+		return membershipRPCGetBatch, nil
 	default:
 		return "", fmt.Errorf("metastore: unknown membership rpc op id %d", op)
 	}

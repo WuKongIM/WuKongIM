@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -9,6 +10,81 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
+func TestConversationLegacyMessageReaderOwnsPayloadsAcrossReads(t *testing.T) {
+	source := legacyConversationMessageBatchReader{messages: []messageusecase.SyncedMessage{{
+		MessageID: 1, MessageSeq: 1, ChannelID: "g1", ChannelType: 2,
+		Payload: []byte("base"), StreamData: []byte("stream"),
+	}}}
+	reader := conversationLegacyMessageReader{messages: messageusecase.New(messageusecase.Options{
+		Reader: source, PersistedReader: source, Memberships: legacyConversationMembership{},
+	})}
+	query := []conversationusecase.LegacyMessageQuery{{ChannelID: "g1", ChannelType: 2, Limit: 1}}
+	first, err := reader.ReadLegacyMessagesBatch(context.Background(), "u1", query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := reader.ReadLegacyMessagesBatch(context.Background(), "u1", query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first[0].Messages[0].Payload[0] = 'X'
+	first[0].Messages[0].StreamData[0] = 'Y'
+	for _, msg := range []messageusecase.SyncedMessage{source.messages[0], {
+		Payload: second[0].Messages[0].Payload, StreamData: second[0].Messages[0].StreamData,
+	}} {
+		if string(msg.Payload) != "base" || string(msg.StreamData) != "stream" {
+			t.Fatal("one response aliased the source or a different response")
+		}
+	}
+}
+
+func TestConversationLegacyMessageReaderAllocationBudget(t *testing.T) {
+	source := legacyConversationMessageBatchReader{messages: make([]messageusecase.SyncedMessage, 10)}
+	for i := range source.messages {
+		source.messages[i] = messageusecase.SyncedMessage{MessageSeq: uint64(i + 1), ChannelID: "g1", ChannelType: 2, Payload: []byte("base"), StreamData: []byte("stream")}
+	}
+	reader := conversationLegacyMessageReader{messages: messageusecase.New(messageusecase.Options{Reader: source, PersistedReader: source, Memberships: legacyConversationMembership{}})}
+	query := []conversationusecase.LegacyMessageQuery{{ChannelID: "g1", ChannelType: 2, Limit: 10}}
+	allocs := testing.AllocsPerRun(100, func() {
+		result, err := reader.ReadLegacyMessagesBatch(context.Background(), "u1", query)
+		if err != nil || len(result) != 1 || len(result[0].Messages) != 10 {
+			t.Fatalf("read = %v, %v", result, err)
+		}
+	})
+	// Allow response bookkeeping plus one ownership copy of each base/stream
+	// payload. A second per-message copy in the adapter exceeds this budget.
+	if allocs > 35 {
+		t.Fatalf("ten-message read allocated %.0f objects, budget 35", allocs)
+	}
+}
+
+// BenchmarkConversationLegacyMessageReader includes the real message usecase
+// ownership boundary and the sibling adapter, with deterministic in-memory rows.
+func BenchmarkConversationLegacyMessageReader(b *testing.B) {
+	for _, size := range []struct {
+		name  string
+		bytes int
+	}{{"256B", 256}, {"4KiB", 4096}} {
+		b.Run(size.name, func(b *testing.B) {
+			source := legacyConversationMessageBatchReader{messages: make([]messageusecase.SyncedMessage, 10)}
+			for i := range source.messages {
+				source.messages[i] = messageusecase.SyncedMessage{MessageID: uint64(i + 1), MessageSeq: uint64(i + 1), ChannelID: "g1", ChannelType: 2,
+					Payload: bytes.Repeat([]byte{'p'}, size.bytes), StreamData: bytes.Repeat([]byte{'s'}, size.bytes)}
+			}
+			reader := conversationLegacyMessageReader{messages: messageusecase.New(messageusecase.Options{Reader: source, PersistedReader: source, Memberships: legacyConversationMembership{}})}
+			query := []conversationusecase.LegacyMessageQuery{{ChannelID: "g1", ChannelType: 2, Limit: 10}}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				result, err := reader.ReadLegacyMessagesBatch(context.Background(), "u1", query)
+				if err != nil || len(result) != 1 || len(result[0].Messages) != 10 {
+					b.Fatalf("read = %v, %v", result, err)
+				}
+			}
+		})
+	}
+}
+
 func TestConversationLegacyMessageReaderIncludesOldStreamEventFields(t *testing.T) {
 	messageReader := legacyConversationMessageBatchReader{messages: []messageusecase.SyncedMessage{{
 		Setting: 2, MessageID: 9, MessageSeq: 3, ClientMsgNo: "c1",
@@ -16,8 +92,9 @@ func TestConversationLegacyMessageReaderIncludesOldStreamEventFields(t *testing.
 	}}}
 	eventKey := messageusecase.MessageEventMessageKey{ChannelID: "g1", ChannelType: 2, ClientMsgNo: "c1"}
 	messages := messageusecase.New(messageusecase.Options{
-		Reader:      messageReader,
-		Memberships: legacyConversationMembership{},
+		Reader:          messageReader,
+		PersistedReader: messageReader,
+		Memberships:     legacyConversationMembership{},
 		EventStore: legacyConversationEventStore{states: map[messageusecase.MessageEventMessageKey][]messageusecase.MessageEventState{
 			eventKey: {
 				{EventKey: messageusecase.EventKeyDefault, Status: messageusecase.EventStatusClosed, LastMsgEventSeq: 2, SnapshotPayload: []byte(`{"kind":"text","text":"done"}`), EndReason: 3},

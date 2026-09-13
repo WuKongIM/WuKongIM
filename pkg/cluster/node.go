@@ -894,6 +894,23 @@ func (n *Node) ReadChannelCommittedBatch(ctx context.Context, reads []channels.C
 	return reader.ReadCommittedBatch(ctx, reads)
 }
 
+// ReadChannelPersistedBatch routes conversation recents to current-Leader disk state.
+func (n *Node) ReadChannelPersistedBatch(ctx context.Context, reads []channels.CommittedRead) ([]channels.CommittedReadResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return nil, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return nil, err
+	}
+	reader, ok := n.channels.(interface {
+		ReadPersistedBatch(context.Context, []channels.CommittedRead) ([]channels.CommittedReadResult, error)
+	})
+	if !ok {
+		return nil, ErrNotStarted
+	}
+	return reader.ReadPersistedBatch(ctx, reads)
+}
+
 // ReadLocalLatestMessages reads one newest-first page from this node's persisted message replicas.
 func (n *Node) ReadLocalLatestMessages(ctx context.Context, beforeMessageID uint64, limit int) ([]channelruntime.Message, bool, uint64, error) {
 	if err := ctxErr(ctx); err != nil {

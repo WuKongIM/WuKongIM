@@ -6,23 +6,26 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 var (
+	// ErrLegacySyncBudgetExceeded rejects oversized recent-message responses without partial success.
+	ErrLegacySyncBudgetExceeded = errors.New("internal/usecase/conversation: legacy sync response budget exceeded")
 	// ErrLegacyMessageReaderRequired indicates that old sync message hydration is not wired.
 	ErrLegacyMessageReaderRequired = errors.New("internal/usecase/conversation: legacy message reader required")
 	// ErrLegacyMessageResultMismatch indicates that a batch reader broke positional alignment.
 	ErrLegacyMessageResultMismatch = errors.New("internal/usecase/conversation: legacy message result mismatch")
 	// ErrLegacyDirectoryDidNotAdvance protects compatibility scans from a broken cursor.
 	ErrLegacyDirectoryDidNotAdvance = errors.New("internal/usecase/conversation: legacy directory did not advance")
-	// ErrLegacySyncUnresolved prevents old clients from mistaking a temporary
-	// Channel failure for a complete conversation response.
-	ErrLegacySyncUnresolved = errors.New("internal/usecase/conversation: legacy sync has unresolved conversations")
 )
 
 const (
 	legacyConversationSyncMaxCandidates = 1000
 	legacyMessageBatchMaxItems          = 200
+	legacyRecentMessageBudget           = 10000
+	legacyRecentPayloadBudget           = 32 << 20
 )
 
 // LegacyConversationCursor is one client-reported channel position from the
@@ -175,7 +178,7 @@ type LegacyMessageReadResult struct {
 	Err error
 }
 
-// LegacyMessageReader performs one bounded committed batch read.
+// LegacyMessageReader performs one bounded persisted batch read.
 type LegacyMessageReader interface {
 	// ReadLegacyMessagesBatch returns one aligned result for every query.
 	ReadLegacyMessagesBatch(context.Context, string, []LegacyMessageQuery) ([]LegacyMessageReadResult, error)
@@ -218,7 +221,7 @@ type LegacySyncer interface {
 }
 
 // SyncLegacy builds the legacy conversation array from the current durable
-// membership directory and committed Channel messages.
+// membership directory and current-Leader persisted Channel messages.
 func (a *App) SyncLegacy(ctx context.Context, req LegacySyncRequest) (LegacySyncResult, error) {
 	uid := strings.TrimSpace(req.UID)
 	if uid == "" {
@@ -231,7 +234,21 @@ func (a *App) SyncLegacy(ctx context.Context, req LegacySyncRequest) (LegacySync
 	if a == nil || a.legacyMessages == nil {
 		return LegacySyncResult{}, ErrLegacyMessageReaderRequired
 	}
-	items, err := a.listLegacyConversationCandidates(ctx, uid)
+	if a.directory == nil || a.hydrator == nil {
+		return LegacySyncResult{}, ErrStoreRequired
+	}
+	if err := ctx.Err(); err != nil {
+		return LegacySyncResult{}, err
+	}
+	select {
+	case a.listAdmission <- struct{}{}:
+		defer func() { <-a.listAdmission }()
+	default:
+		return LegacySyncResult{}, ErrListBusy
+	}
+	ctx, cancel := context.WithTimeout(ctx, listReadTimeout)
+	defer cancel()
+	items, err := a.listLegacyConversationCandidates(ctx, uid, legacyConversationPrefixLimit(req.Page, req.PageSize))
 	if err != nil {
 		return LegacySyncResult{}, err
 	}
@@ -270,6 +287,11 @@ func (a *App) SyncLegacy(ctx context.Context, req LegacySyncRequest) (LegacySync
 	if len(queries) == 0 {
 		return result, nil
 	}
+	// Bound both record count and retained bytes for the entire legacy response.
+	if len(queries) > legacyRecentMessageBudget/min(req.MessageCount, legacyRecentMessageBudget) {
+		return LegacySyncResult{}, ErrLegacySyncBudgetExceeded
+	}
+	responseBytes := 0
 	readResults := make([]LegacyMessageReadResult, 0, len(queries))
 	for start := 0; start < len(queries); start += legacyMessageBatchMaxItems {
 		end := min(start+legacyMessageBatchMaxItems, len(queries))
@@ -279,6 +301,17 @@ func (a *App) SyncLegacy(ctx context.Context, req LegacySyncRequest) (LegacySync
 		}
 		if len(batch) != end-start {
 			return LegacySyncResult{}, ErrLegacyMessageResultMismatch
+		}
+		for _, item := range batch {
+			if item.Err != nil {
+				return LegacySyncResult{}, item.Err
+			}
+			for _, msg := range item.Messages {
+				responseBytes += len(msg.Payload) + len(msg.StreamData)
+				if responseBytes > legacyRecentPayloadBudget {
+					return LegacySyncResult{}, ErrLegacySyncBudgetExceeded
+				}
+			}
 		}
 		readResults = append(readResults, batch...)
 	}
@@ -324,36 +357,47 @@ func legacyEffectiveReadSeq(item Conversation) uint64 {
 	return readSeq
 }
 
-func (a *App) listLegacyConversationCandidates(ctx context.Context, uid string) ([]Conversation, error) {
-	items := make([]Conversation, 0, maxListLimit)
-	cursor := Cursor{}
+// listLegacyConversationCandidates first sorts the same bounded metadata set
+// used by the legacy full walk. The durable string index is length-prefixed,
+// so a directory prefix is not necessarily the legacy string-order prefix.
+func (a *App) listLegacyConversationCandidates(ctx context.Context, uid string, target int) ([]Conversation, error) {
+	rows := make([]metadb.UserChannelMembership, 0, maxListLimit)
+	cursor := metadb.UserChannelMembershipCursor{}
 	consumed := 0
 	for consumed < legacyConversationSyncMaxCandidates {
 		limit := min(maxListLimit, legacyConversationSyncMaxCandidates-consumed)
-		page, err := a.listMembershipDirectory(ctx, ListRequest{UID: uid, Cursor: cursor, Limit: limit}, false)
+		page, next, done, err := a.directory.ListUserChannelMembershipPage(ctx, uid, cursor, limit)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, page...)
+		consumed += max(1, len(page))
+		if done {
+			break
+		}
+		if next.ChannelID == "" || next == cursor {
+			return nil, ErrLegacyDirectoryDidNotAdvance
+		}
+		cursor = next
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].ActivatedAt != rows[j].ActivatedAt {
+			return rows[i].ActivatedAt > rows[j].ActivatedAt
+		}
+		if rows[i].ChannelID != rows[j].ChannelID {
+			return rows[i].ChannelID < rows[j].ChannelID
+		}
+		return rows[i].ChannelType < rows[j].ChannelType
+	})
+	items := make([]Conversation, 0, min(maxListLimit, target))
+	for offset := 0; offset < len(rows) && len(items) < target; {
+		limit := min(maxListLimit, len(rows)-offset, target-len(items))
+		page, err := a.hydrateMembershipDirectory(ctx, uid, rows[offset:offset+limit], ListResult{})
 		if err != nil {
 			return nil, err
 		}
 		items = append(items, page.Items...)
-		if len(page.Unresolved) > 0 {
-			retry, err := a.retryLegacyHeads(ctx, legacyRetryRequest{UID: uid, Keys: page.Unresolved})
-			if err != nil {
-				return nil, err
-			}
-			if len(retry.Unresolved) > 0 {
-				return nil, ErrLegacySyncUnresolved
-			}
-			items = append(items, retry.Items...)
-		}
-		consumed += max(1, page.ScannedCandidates)
-		if page.Done {
-			sortLegacyConversations(items)
-			return items, nil
-		}
-		if page.NextCursor.ChannelID == "" || page.NextCursor == cursor {
-			return nil, ErrLegacyDirectoryDidNotAdvance
-		}
-		cursor = page.NextCursor
+		offset += limit
 	}
 	sortLegacyConversations(items)
 	return items, nil
@@ -371,24 +415,34 @@ func sortLegacyConversations(items []Conversation) {
 	})
 }
 
+// legacyConversationPrefixLimit bounds hydration before post-page filters.
+// Unpaged requests and out-of-range pages retain the 1,000-candidate scan cap.
+func legacyConversationPrefixLimit(page, pageSize int) int {
+	pageSize = normalizeLegacyPageSize(pageSize)
+	if page <= 0 || page > legacyConversationSyncMaxCandidates/pageSize {
+		return legacyConversationSyncMaxCandidates
+	}
+	return page * pageSize
+}
+
+func normalizeLegacyPageSize(pageSize int) int {
+	if pageSize <= 0 {
+		return 100
+	}
+	return min(pageSize, 500)
+}
+
 func legacyConversationPage(items []Conversation, page, pageSize int) []Conversation {
 	if page <= 0 {
 		return items
 	}
-	if pageSize <= 0 {
-		pageSize = 100
-	} else if pageSize > 500 {
-		pageSize = 500
-	}
-	start64 := int64(page-1) * int64(pageSize)
-	if start64 < 0 || start64 >= int64(len(items)) {
+	pageSize = normalizeLegacyPageSize(pageSize)
+	// Check the quotient first so a huge page cannot overflow into an earlier page.
+	if len(items) == 0 || page-1 > (len(items)-1)/pageSize {
 		return nil
 	}
-	end64 := start64 + int64(pageSize)
-	if end64 > int64(len(items)) {
-		end64 = int64(len(items))
-	}
-	return items[int(start64):int(end64)]
+	start := (page - 1) * pageSize
+	return items[start : start+min(pageSize, len(items)-start)]
 }
 
 func legacyExcludedChannelTypes(types []uint8) map[uint8]struct{} {
