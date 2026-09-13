@@ -292,13 +292,14 @@ func (s *Server) buildListeners(runtimes []*listenerRuntime) error {
 			runtime := runtime
 			specs = append(specs, transport.ListenerSpec{
 				Options: transport.ListenerOptions{
-					Name:             runtime.options.Name,
-					Network:          runtime.options.Network,
-					Address:          runtime.options.Address,
-					Path:             runtime.options.Path,
-					MaxPendingBytes:  s.options.DefaultSession.MaxInboundBytes,
-					MaxOutboundBytes: int64(s.options.DefaultSession.MaxOutboundBytes),
-					Observer:         s.transportPressureObserver(),
+					Name:                      runtime.options.Name,
+					Network:                   runtime.options.Network,
+					Address:                   runtime.options.Address,
+					Path:                      runtime.options.Path,
+					ProxyProtocolTrustedCIDRs: runtime.options.ProxyProtocolTrustedCIDRs,
+					MaxPendingBytes:           s.options.DefaultSession.MaxInboundBytes,
+					MaxOutboundBytes:          int64(s.options.DefaultSession.MaxOutboundBytes),
+					Observer:                  s.transportPressureObserver(),
 					OnError: func(err error) {
 						s.dispatcher.listenerError(runtime.options.Name, err)
 					},
@@ -453,6 +454,9 @@ func (s *Server) onOpen(listener *listenerRuntime, conn transport.Conn) error {
 		},
 	})
 
+	if peer, ok := conn.(transport.PeerAddress); ok {
+		sess.SetValue(gatewaytypes.SessionValuePeerAddr, peer.PeerAddr())
+	}
 	state.session = sess
 	if listener.options.Protocol != "wsmux" {
 		state.session.SetValue(gatewaytypes.SessionValueProtocolName, listener.options.Protocol)

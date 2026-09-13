@@ -47,6 +47,12 @@ type ListenerOptions struct {
 	Path      string
 	Transport string
 	Protocol  string
+	// ProxyProtocolTrustedCIDRs lists the TCP peers allowed to supply PROXY v1/v2
+	// source addresses. Direct/PROXY detection is always enabled. Empty accepts
+	// assertions from any peer, so reported client addresses are not verified.
+	// A nonempty list restricts assertions to controlled proxy egress networks;
+	// direct traffic remains accepted from any peer.
+	ProxyProtocolTrustedCIDRs []string `json:"proxy_protocol_trusted_cidrs,omitempty"`
 }
 
 type SessionOptions struct {
@@ -128,6 +134,10 @@ func (o *Options) Validate() error {
 		o.Listeners[i].Path = strings.TrimSpace(o.Listeners[i].Path)
 		o.Listeners[i].Transport = strings.TrimSpace(o.Listeners[i].Transport)
 		o.Listeners[i].Protocol = strings.TrimSpace(o.Listeners[i].Protocol)
+
+		if _, err := ParseProxyProtocolTrustedCIDRs(o.Listeners[i].ProxyProtocolTrustedCIDRs); err != nil {
+			return fmt.Errorf("gateway: listener %q: %w", o.Listeners[i].Name, err)
+		}
 
 		name := o.Listeners[i].Name
 		network := o.Listeners[i].Network

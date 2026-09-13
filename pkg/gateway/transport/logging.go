@@ -11,7 +11,11 @@ func LogConnectSuccess(opts ListenerOptions, conn Conn) {
 	if conn == nil {
 		return
 	}
-	loggerForListener(opts).Debug("accept client connection", connectionFields(opts, conn.ID(), conn.LocalAddr(), conn.RemoteAddr(), nil)...)
+	fields := connectionFields(opts, conn.ID(), conn.LocalAddr(), conn.RemoteAddr(), nil)
+	if peer, ok := conn.(PeerAddress); ok && peer.PeerAddr() != conn.RemoteAddr() {
+		fields = append(fields, wklog.String("peerAddr", peer.PeerAddr()))
+	}
+	loggerForListener(opts).Debug("accept client connection", fields...)
 }
 
 func LogConnectFailure(opts ListenerOptions, connID uint64, localAddr, remoteAddr string, err error) {

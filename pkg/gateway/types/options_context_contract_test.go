@@ -2,6 +2,7 @@ package types
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -91,7 +92,7 @@ func TestOptionsValidateNormalizesListenersAndRejectsAmbiguousBindings(t *testin
 	if err := valid.Validate(); err != nil {
 		t.Fatalf("valid Options.Validate(): %v", err)
 	}
-	if valid.Listeners[0] != (ListenerOptions{Name: "tcp", Network: "tcp", Address: "127.0.0.1:5100", Path: "/ignored", Transport: "gnet", Protocol: "wkproto"}) ||
+	if !reflect.DeepEqual(valid.Listeners[0], ListenerOptions{Name: "tcp", Network: "tcp", Address: "127.0.0.1:5100", Path: "/ignored", Transport: "gnet", Protocol: "wkproto"}) ||
 		valid.DefaultSession.MaxInboundBytes == 0 || valid.Runtime.AsyncSendWorkers == 0 {
 		t.Fatalf("normalized options = %+v", valid)
 	}

@@ -229,6 +229,12 @@ func TestTCPStopOneLogicalListenerKeepsOtherConnectionsAlive(t *testing.T) {
 	secondConn := mustDialTCP(t, second.Addr())
 	defer func() { _ = secondConn.Close() }()
 
+	// Finish detection without delivering application data to the handlers.
+	for _, conn := range []net.Conn{firstConn, secondConn} {
+		if _, err := conn.Write([]byte("PROXY UNKNOWN\r\n")); err != nil {
+			t.Fatal(err)
+		}
+	}
 	waitUntil(t, time.Second, func() bool {
 		return firstHandler.OpenCount() == 1 && secondHandler.OpenCount() == 1
 	})

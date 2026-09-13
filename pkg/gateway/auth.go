@@ -13,6 +13,8 @@ type AuthenticatorFunc = gatewaytypes.AuthenticatorFunc
 type AuthResult = gatewaytypes.AuthResult
 
 const (
+	// SessionValuePeerAddr identifies the physical TCP peer retained for diagnostics.
+	SessionValuePeerAddr          = gatewaytypes.SessionValuePeerAddr
 	SessionValueUID               = gatewaytypes.SessionValueUID
 	SessionValueDeviceID          = gatewaytypes.SessionValueDeviceID
 	SessionValueDeviceFlag        = gatewaytypes.SessionValueDeviceFlag

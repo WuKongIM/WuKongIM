@@ -35,6 +35,12 @@ It does not own message, presence, Channel, or Controller business policy.
 1. Startup validates and builds listeners, protocols, transports, bounded
    auth/SEND runtimes, and idle tracking; connection open applies drain
    admission, creates Session state, and decodes bounded inbound protocol data.
+   All listeners detect direct traffic or PROXY v1/v2 by default within a
+   five-second absolute preface deadline and a 4096-byte v2 header cap
+   (107 bytes for v1). Nonempty trusted CIDRs restrict header sources; an empty
+   list accepts unverified address assertions from any physical TCP peer.
+   Detection precedes TCP Session creation and WebSocket HTTP Upgrade; accepted
+   source addresses are immutable before callbacks; `gateway.peer_addr` retains physical peers.
 2. WKProto and JSON-RPC CONNECT authenticate and activate off the transport
    loop, write a protocol-correlated CONNACK, then open the callback gate;
    authenticated SEND uses bounded session-sharded batching, other frames

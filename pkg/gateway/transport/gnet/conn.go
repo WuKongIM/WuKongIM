@@ -48,6 +48,8 @@ type connState struct {
 	generation uint64
 	localAddr  string
 	remoteAddr string
+	peerAddr   string          // immutable physical peer; remoteAddr may change before OnOpen.
+	proxy      *proxyHandshake // owned by the event loop; absent after preface detection.
 
 	mu               sync.Mutex
 	queue            []connEvent
@@ -93,6 +95,7 @@ type outboundWrite struct {
 
 func newConnState(id uint64, raw gnetv2.Conn, runtime *listenerRuntime) *connState {
 	localAddr := raw.LocalAddr().String()
+	peerAddr := raw.RemoteAddr().String()
 	mode := connModeTCP
 	if runtime != nil {
 		if addr := runtime.addr(); addr != "" {
@@ -108,7 +111,8 @@ func newConnState(id uint64, raw gnetv2.Conn, runtime *listenerRuntime) *connSta
 		runtime:    runtime,
 		id:         id,
 		localAddr:  localAddr,
-		remoteAddr: raw.RemoteAddr().String(),
+		remoteAddr: peerAddr,
+		peerAddr:   peerAddr,
 		mode:       mode,
 	}
 	if runtime != nil {
@@ -1064,5 +1068,10 @@ func (c *stateConn) RemoteAddr() string {
 	return c.state.remoteAddr
 }
 
+func (c *stateConn) PeerAddr() string {
+	return c.state.peerAddr
+}
+
+var _ transport.PeerAddress = (*stateConn)(nil)
 var _ transport.Conn = (*stateConn)(nil)
 var _ transport.WebSocketMessageWriter = (*stateConn)(nil)

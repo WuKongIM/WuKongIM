@@ -267,8 +267,14 @@ func TestEngineGroupOnOpenEnforcesRouteActorAndRuntimeAdmission(t *testing.T) {
 	if !ok || state == nil {
 		t.Fatalf("connection context = %T, want *connState", raw.Context())
 	}
-	if state.id == 0 || state.owner != actors.shards[0] || len(state.queue) != 1 || state.queue[0].kind != connEventOpen {
+	t.Cleanup(func() { group.OnClose(raw, nil) })
+	if state.id == 0 || state.owner != actors.shards[0] || state.proxy == nil || len(state.queue) != 0 {
 		t.Fatalf("admitted state id=%d owner=%p queue=%+v", state.id, state.owner, state.queue)
+	}
+	raw.next = []byte("plain")
+	group.OnTraffic(raw)
+	if state.proxy != nil || len(state.queue) != 2 || state.queue[0].kind != connEventOpen || state.queue[1].kind != connEventData {
+		t.Fatalf("direct detection queue = %+v", state.queue)
 	}
 	if len(runtime.conns) != 1 {
 		t.Fatalf("tracked connections = %d, want 1", len(runtime.conns))
@@ -285,7 +291,8 @@ func TestEngineGroupOnOpenEnforcesRouteActorAndRuntimeAdmission(t *testing.T) {
 		t.Fatalf("websocket OnOpen action = %v, want none", action)
 	}
 	wsState := wsRaw.Context().(*connState)
-	if wsState.mode != connModeWSHandshake || len(wsState.queue) != 0 {
+	t.Cleanup(func() { group.OnClose(wsRaw, nil) })
+	if wsState.mode != connModeWSHandshake || wsState.proxy == nil || len(wsState.queue) != 0 {
 		t.Fatalf("websocket state mode=%v queue=%v", wsState.mode, wsState.queue)
 	}
 }

@@ -10,6 +10,10 @@ type ListenerOptions struct {
 	Network string
 	Address string
 	Path    string
+	// ProxyProtocolTrustedCIDRs optionally limits PROXY address assertions to these
+	// actual TCP peer networks. Detection is always enabled; empty accepts any peer
+	// without verifying the asserted client address. Direct traffic stays allowed.
+	ProxyProtocolTrustedCIDRs []string
 	// MaxPendingBytes bounds bytes buffered inside the transport before the gateway core consumes them.
 	MaxPendingBytes int
 	// MaxOutboundBytes bounds bytes buffered inside the transport after gateway queue dequeue.

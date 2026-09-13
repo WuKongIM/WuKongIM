@@ -26,6 +26,12 @@ type Conn interface {
 	RemoteAddr() string
 }
 
+// PeerAddress preserves the physical TCP peer when RemoteAddr is supplied by a
+// trusted proxy. It is optional so existing transport implementations remain valid.
+type PeerAddress interface {
+	PeerAddr() string
+}
+
 // ObservedWriter exposes the physical asynchronous-write completion boundary.
 // The completion callback is invoked at most once after transport ownership of
 // an accepted payload ends. A caller that does not need this evidence should

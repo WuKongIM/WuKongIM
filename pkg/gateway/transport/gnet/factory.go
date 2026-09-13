@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
+	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	gnetv2 "github.com/panjf2000/gnet/v2"
 )
@@ -53,6 +54,11 @@ func (f *Factory) Build(specs []transport.ListenerSpec) ([]transport.Listener, e
 	listeners := make([]transport.Listener, 0, len(specs))
 
 	for i, spec := range specs {
+		prefixes, err := gatewaytypes.ParseProxyProtocolTrustedCIDRs(spec.Options.ProxyProtocolTrustedCIDRs)
+		if err != nil {
+			return nil, fmt.Errorf("gateway/transport/gnet: listener %q: %w", spec.Options.Name, err)
+		}
+		group.runtimes[i].trustedProxies = prefixes
 		switch spec.Options.Network {
 		case "tcp", "websocket":
 		default:

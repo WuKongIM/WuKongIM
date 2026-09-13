@@ -31,6 +31,8 @@ move those entries into a version section named for that exact tag.
 - Reduce conversation preview allocations by reading only the newest record on ordinary tails while retaining bounded scans over internal records. / 会话预览优先只读取最新一条记录，减少无用消息解码和内存分配，内部消息仍采用有界回溯。
 - Gate Docker and binary releases on fixed `/conversation/list` and `/conversation/sync` QPS/P99 and per-request allocation tests in single-node and three-node clusters, including complete responses and zero Channel activation. / Docker 与二进制发布新增会话接口 QPS/P99 与每请求分配量门禁，覆盖单节点和三节点集群，并验证响应完整及零频道激活。
 
+- Auto-detect direct clients and PROXY protocol v1/v2 on TCP and WebSocket Gateway listeners by default, with bounded preface parsing and timeout. Optional trusted CIDRs restrict header sources; omitted or empty accepts unverified client address assertions from any peer. / Gateway TCP 和 WebSocket 默认自动识别直连与 PROXY v1/v2，并限制协议头大小与等待时间；可选可信 CIDR 限制协议头来源，省略或为空时接受任意对端声明的未验证客户端地址。
+
 - Show the configured `guest` username and password on the Manager login page. / Manager 登录页在配置 guest 账号时展示其账号和密码。
 
 - Clarify that Manager message deletion includes the selected message and all earlier messages in the same channel, with explicit bulk deletion confirmation. / 管理台消息删除明确标注“此条及更早消息”，并在批量删除确认中说明同频道、包含未展示历史消息的影响范围。

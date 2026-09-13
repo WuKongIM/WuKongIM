@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -1820,7 +1821,7 @@ func assertListeners(t *testing.T, got, want []gateway.ListenerOptions) {
 		t.Fatalf("listeners len = %d, want %d: %#v", len(got), len(want), got)
 	}
 	for i := range want {
-		if got[i] != want[i] {
+		if !reflect.DeepEqual(got[i], want[i]) {
 			t.Fatalf("listener[%d] = %#v, want %#v", i, got[i], want[i])
 		}
 	}
