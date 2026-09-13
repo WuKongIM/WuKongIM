@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+## [v3.0.0-beta.15] - 2026-09-13
+
 ### ⚠️ Breaking Changes / 破坏性变更
 
 - Read `/conversation/sync` heads and recent messages from current-Leader persisted storage without activating Channel runtimes; retain legacy fields and cursor rules, and fail the entire request on read errors or response-budget exhaustion. / `/conversation/sync` 的摘要和最近消息改为读取当前 Leader 已落盘数据，不激活频道运行时；保留旧版字段和游标规则，读取失败或响应预算超限时整次请求失败。
@@ -41,6 +43,10 @@ move those entries into a version section named for that exact tag.
 
 - Exclude normal Slot scheduling coalescing and rescheduling from Manager runtime admission errors; show observed zero errors as normal while preserving missing-data status. / Manager 运行时准入错误排除正常 Slot 调度合并及重新调度，有采集且错误为零时显示正常，无数据仍保持未知。
 
+### 🐛 Bug Fixes / 问题修复
+
+- Track plugin batch channel-owner initialization in the goroutine supervisor while preserving its 16-task concurrency bound and error cancellation. / 插件批量频道归属初始化接入 goroutine 统一托管，保留 16 并发上限和出错取消行为。
+
 ## [v3.0.0-beta.14] - 2026-09-12
 
 ### 🚀 New Features / 新功能
@@ -60,8 +66,6 @@ move those entries into a version section named for that exact tag.
 - Add read-only migration access for Pebble format 19 while preserving legacy source support, source locks, and business compatibility checks; document development-build and plugin checks before downtime. / 迁移读取器增加 Pebble 格式 19 只读支持，保留旧格式读取、源文件锁与业务兼容检查，并补充停机前的开发版本和插件核对说明。
 
 ### 🐛 Bug Fixes / 问题修复
-
-- Track plugin batch channel-owner initialization in the goroutine supervisor while preserving its 16-task concurrency bound and error cancellation. / 插件批量频道归属初始化接入 goroutine 统一托管，保留 16 并发上限和出错取消行为。
 
 - Refresh old empty-number conversation previews even when a legacy client cursor has advanced, preserving unread and visibility boundaries. / 旧客户端游标已前移时仍可刷新空编号历史会话摘要，保留未读和可见范围边界。
 
