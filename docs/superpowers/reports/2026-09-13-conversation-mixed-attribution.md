@@ -77,7 +77,7 @@ owned results. Tests recycle source buffers after decoding to protect ownership.
 
 The same M4 256-byte message header/payload microbenchmark improves from
 1,768 bytes and 20 allocations to 552 bytes and 10 allocations, with
-approximately 542 → 339 ns/op. Full AMD64 validation remains pending.
+approximately 542 → 339 ns/op. AMD64 validation is recorded below.
 
 Related unit and focused race tests passed for the first candidate. Three-node
 conversation-directory E2E passed. Legacy-sync E2E first failed before reads
@@ -85,3 +85,36 @@ with `ReasonAuthFail`: its tokenless fixture had not opted out of default Token
 authentication. Explicit per-fixture-node overrides fixed that precondition,
 and both topology flows then passed in 63.251 seconds. Product authentication
 defaults were not changed.
+
+## Second candidate result: all fixed gates passed
+
+Run: https://github.com/WuKongIM/WuKongIM/actions/runs/34736979830
+Product/harness: `c9e4c0ebf0d2f339434f4cb991f1937807471b07`.
+Binary: `f3f73da3e3fbb2fd0089e9e7b1fb2a1e629aa9d3410cd3aefe70cb720e209409`.
+Same CPU model, four logical CPUs, Go version and profile; hosted machines
+are separate allocations, not one controlled physical machine.
+
+| Window | List P99 ms | Sync P99 ms | Node CPU seconds | Allocated GB | Host idle |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 30.199 | 52.363 | 138.99 | 43.42 | 29.71% |
+| 2 | 28.724 | 51.966 | 139.04 | 43.42 | 30.03% |
+| 3 | 30.269 | 53.576 | 140.49 | 43.42 | 29.50% |
+
+Each window delivered list 199.967/s and sync 59.983/s, with zero errors,
+drops, runtime activation or membership writes. No CPU steal or cgroup
+throttling was observed. The unchanged complete v2 matrix then passed all
+20 endpoint results: 12 topology/size cases, both mixed endpoints, and six
+hidden-conversation pages. Its mixed P99 was list 30.282 ms / sync 52.497 ms.
+The 99%-hidden gap cases reached 333.729 / 335.516 ms and passed their
+unchanged limits. This diagnostic evidence does not replace the publishers'
+mandatory exact-release-tag gate.
+
+The same candidate passed the PR three-node regression, Manager browser smoke,
+iOS and Flutter SDK acceptance. Android acceptance failed during fixture
+startup with HTTP 503, before the Android client ran. The original harness did
+not retain server logs at that stage, so its exact failing operation and cause
+cannot be established. One local reproduction succeeded. The harness now
+requires three consecutive readiness samples within a bounded poll budget and
+prints bounded logs on startup failure; it does not retry fixture mutations or
+change product readiness. Integration tests cover flapping, deadlines, process
+exit and retained diagnostics. Subsequent CI must validate the revised harness.
