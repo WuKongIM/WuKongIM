@@ -91,8 +91,10 @@ type Node struct {
 	slotStatusCaller clusternet.Caller
 	// slotStatusRuntime proves current local Slot runtime availability and observed leadership for write readiness.
 	slotStatusRuntime slotStatusRuntime
-	slots             slotReconciler
-	tasks             taskExecutor
+	// writeProbe owns one in-flight noop batch and a short-lived authority-fenced write proof.
+	writeProbe writeProbeCache
+	slots      slotReconciler
+	tasks      taskExecutor
 	// preferredLeaderReconciler is an idle-only background seam and is never
 	// invoked synchronously by Start, applySnapshot, or the control watch loop.
 	preferredLeaderReconciler taskExecutor

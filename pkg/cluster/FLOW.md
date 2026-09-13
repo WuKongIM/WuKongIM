@@ -83,6 +83,13 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 - Slot Raft defaults to a 50 ms local tick, two-tick heartbeat, and 40-tick
   election floor. Heartbeats run every 100 ms and elections start after at
   least two seconds, while proposal replication remains event-driven.
+- Write readiness validates every routed Slot's live leader/term and Channel
+  placement on each call. Concurrent noop proposal batches coalesce per node;
+  successful write proof is reusable for at most two seconds from proposal start
+  under unchanged route revision, mapping and leaders/terms. Maintenance,
+  restart and observed readiness failures invalidate proof. Reuse does not renew
+  the proof window or the Channel data-plane lease; Propose-only overrides
+  without live Slot status evidence always perform their writes.
 - The data-plane lease expires when the node cannot publish healthy readiness;
   local Channel leaders then reject new writes without discarding admitted work.
 - Slot and Channel metadata are authoritative at their current owners. Caches,

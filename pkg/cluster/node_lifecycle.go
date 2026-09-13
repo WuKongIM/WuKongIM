@@ -35,6 +35,7 @@ func (n *Node) Start(ctx context.Context) error {
 			n.discardDefaultTransport()
 		}
 	}()
+	n.invalidateWriteProbeProof()
 	n.stopping.Store(false)
 	resources := n.startResources()
 	if err := n.group.Start(ctx, resources...); err != nil {
@@ -99,6 +100,7 @@ func (n *Node) Stop(ctx context.Context) error {
 	n.snapshot.SlotsReady = false
 	n.snapshot.ChannelsReady = false
 	n.mu.Unlock()
+	n.invalidateWriteProbeProof()
 	// Stop entry is the mutation fence for background preferred-leader work.
 	// An already-issued nonblocking transfer may finish, but no stale intent may
 	// cross the generation guard while the other background loops wind down.

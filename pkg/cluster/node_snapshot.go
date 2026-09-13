@@ -362,6 +362,7 @@ func (n *Node) setMaintenance(enabled bool) {
 	}
 	n.maintenanceAdmissionMu.Lock()
 	n.maintenance.Store(enabled)
+	n.invalidateWriteProbeProof()
 	n.channelDataPlaneLease.setMaintenance(enabled)
 	n.maintenanceAdmissionMu.Unlock()
 	if !enabled && n.cfg.MaintenanceObserver != nil {

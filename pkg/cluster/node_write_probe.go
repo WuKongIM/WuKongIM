@@ -16,7 +16,34 @@ import (
 const maxWriteProbePhysicalSlots = 4
 
 // ProbeWriteReady verifies that Slot metadata writes and new Channel placement can proceed.
-func (n *Node) ProbeWriteReady(ctx context.Context) error {
+// It checks live Slot status on every call and may reuse successful noop write
+// proof for at most two seconds while route authority remains unchanged.
+func (n *Node) ProbeWriteReady(ctx context.Context) (err error) {
+	if n == nil {
+		return ErrNotStarted
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	// A failed live check discards old proof even if authority later recovers
+	// to the same route. Caller cancellation alone says nothing about health.
+	defer func() {
+		if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			n.invalidateWriteProbeProof()
+		}
+	}()
+	for {
+		n.writeProbe.mu.Lock()
+		generation := n.writeProbe.generation
+		n.writeProbe.mu.Unlock()
+		err = n.probeWriteReady(ctx, generation)
+		if !errors.Is(err, errWriteProbeRecheck) {
+			return err
+		}
+	}
+}
+
+func (n *Node) probeWriteReady(ctx context.Context, generation uint64) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
@@ -65,8 +92,20 @@ func (n *Node) ProbeWriteReady(ctx context.Context) error {
 		}
 	}
 
-	slotIDs := selectWriteProbeSlotIDs(slotHashSlots, slotLeaders, n.cfg.NodeID)
+	if validateStatuses {
+		return n.probeWriteReadyWithProof(ctx, statusPlan, generation)
+	}
+	// Propose-only overrides have no live runtime evidence to fence reuse.
+	if err := n.proposeWriteProbe(ctx, slotHashSlots, slotLeaders); err != nil {
+		return err
+	}
+	n.markChannelDataPlaneLeaseVisible()
+	return nil
+}
 
+// proposeWriteProbe proves bounded representative Slot writes through normal Raft proposals.
+func (n *Node) proposeWriteProbe(ctx context.Context, slotHashSlots map[uint32]uint16, slotLeaders map[uint32]uint64) error {
+	slotIDs := selectWriteProbeSlotIDs(slotHashSlots, slotLeaders, n.cfg.NodeID)
 	command := metafsm.EncodeNoopCommand()
 	for _, slotID := range slotIDs {
 		hashSlot := slotHashSlots[slotID]
@@ -83,12 +122,6 @@ func (n *Node) ProbeWriteReady(ctx context.Context) error {
 			return fmt.Errorf("write probe slot=%d hash_slot=%d: %w", slotID, hashSlot, err)
 		}
 	}
-	if validateStatuses {
-		if err := n.ensureWriteProbeStatusPlanCurrent(statusPlan); err != nil {
-			return err
-		}
-	}
-	n.markChannelDataPlaneLeaseVisible()
 	return nil
 }
 
