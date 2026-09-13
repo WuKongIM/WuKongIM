@@ -117,4 +117,71 @@ cannot be established. One local reproduction succeeded. The harness now
 requires three consecutive readiness samples within a bounded poll budget and
 prints bounded logs on startup failure; it does not retry fixture mutations or
 change product readiness. Integration tests cover flapping, deadlines, process
-exit and retained diagnostics. Subsequent CI must validate the revised harness.
+exit and retained diagnostics. Revised CI run 34738206164 subsequently passed Android, iOS and Flutter acceptance; native package lifecycle run 34738206134 passed all four distributions.
+
+## Exact beta.16 publisher gates
+
+Tag `v3.0.0-beta.16` resolves to
+`064f14dc18fb20a04f0365d14030c025a6561786`. Both publishers passed their own
+complete 20-result gate with clean source, the same fixed profile above and
+binary SHA-256
+`cf9f0e32f5771de2faa1d9baa2306a50229b0c98bdb33c2e492f694706403647`.
+All endpoint results had zero errors, drops, active runtimes, runtime loads and
+membership writes. Linux AMD64, four CPUs and node GOMAXPROCS=2 were retained.
+
+| Publisher run | Mixed list QPS / P99 ms | Mixed sync QPS / P99 ms | Node CPU seconds |
+| --- | --- | --- | ---: |
+| [Docker 34738667806](https://github.com/WuKongIM/WuKongIM/actions/runs/34738667806) | 199.817 / 264.390 | 59.933 / 124.053 | 177.83 |
+| [Binary 34738667791](https://github.com/WuKongIM/WuKongIM/actions/runs/34738667791) | 199.883 / 108.240 | 59.950 / 116.979 | 176.36 |
+
+The fixed thresholds were not relaxed. These publisher windows have higher
+latency and CPU consumption than the earlier diagnostic allocation, so its
+approximately 30 ms list P99 must not be treated as a cross-machine guarantee.
+The Docker window's list driver-wait/request P99 was 223.598/71.604 ms; the
+binary window's was 66.330/66.940 ms. This establishes the required release
+gate on both runs, not an absence of latency variation or a maximum-capacity
+claim. Gate success alone does not establish completion of image, binary,
+documentation, signed-package publication or operator deployment.
+
+## Beta.16 source publication and operator rollout
+
+The Docker and binary publisher runs above both completed successfully.
+[Source Release 387801847](https://github.com/WuKongIM/WuKongIM/releases/tag/v3.0.0-beta.16)
+is an immutable prerelease with the complete seven-asset set. The source
+preflight in `WuKongIM/packages`, run
+[34740404508](https://github.com/WuKongIM/packages/actions/runs/34740404508),
+passed independent ID-bound asset, checksum, tag and provenance verification.
+The exact-release documentation deployment
+[34740383429](https://github.com/WuKongIM/WuKongIM/actions/runs/34740383429)
+also passed direct-origin verification and CDN refresh.
+
+GHCR, Docker Hub and Alibaba Cloud independently expose the same Linux
+AMD64/ARM64 index digest:
+`sha256:5082e71e79db67e1cff6c6aeec78df24280ed01de48320b7b9fe7a79920cbe5f`.
+Both platform labels identify version `3.0.0-beta.16` and source `064f14dc…`.
+The operator's three-node deployment was updated together after validating all
+three configurations and verifying a complete stopped-data backup. All three
+nodes subsequently reported healthy/ready with zero restarts and no OOM kill;
+configuration hashes were unchanged. The same checks passed again at six and
+fifteen minutes after rollout. This was a deployment check, not a production
+load benchmark.
+
+Signed APT/RPM publication completed in
+[34742793819](https://github.com/WuKongIM/packages/actions/runs/34742793819),
+using immutable audit
+[387802784](https://github.com/WuKongIM/packages/releases/tag/native-package-preview-r387802784)
+and control `099583b937d431f651aa66c6ff64c454c278c958`. Both required beta.9
+retirement transitions completed before this addition; the payload removal
+started after the reviewed `2026-09-13T06:10:00Z` deadline. The retained versions
+are beta.12, beta.13, beta.14 and beta.16, with unchanged earlier release and
+bootstrap identities.
+
+The public v4 receipt reports `installed_cli_verified=true` for Ubuntu 24.04,
+Debian 13, Rocky Linux 9 and AlmaLinux 9. Every client downloaded only beta.16
+and verified the installed server/CLI identity as version `3.0.0-beta.16`,
+commit `064f14dc18fb20a04f0365d14030c025a6561786`, build source `release`.
+The functional acceptance covered version/help, benchmark-plan validation,
+offline query, migration diagnosis, invalid inputs and unchanged source data.
+Independent public status and APT index downloads matched the immutable snapshot;
+APT advertised `3.0.0~beta.16`. A final operator check at 06:39 UTC found all three
+nodes healthy/ready on the verified image digest, with zero restarts or OOM kills.
