@@ -273,7 +273,10 @@ failures to 503. Parameter validation, membership/visibility denial, missing
 messages and unknown failures do not automatically become retryable. Edit
 overlay reads revalidate Slot mapping and authority; changes return a dedicated
 retryable read-route cause. Database/CAS conflicts retain their own semantics. CMD and
-batch-sync response contracts are outside this change.
+batch-sync business error contracts are outside this classification change.
+The shared epoch middleware also labels successful `/channel/messagesyncbatch`
+responses and can reject the whole batch with 503 on an unavailable epoch or
+overlapping restore; its existing per-item business errors remain unchanged.
 
 For 503 `unavailable` or a connection failure/timeout, retain the exact read
 request, cursor and cache. Retry with bounded exponential backoff and jitter;

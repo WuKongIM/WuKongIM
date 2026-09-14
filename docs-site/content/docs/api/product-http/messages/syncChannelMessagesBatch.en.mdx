@@ -245,7 +245,8 @@ _openapi:
 
           status `integer` const: `400` Application-level status fixed at 400.
 
-          503 Controller restore maintenance is active
+          503 Content epoch unavailable, restore transition, or restore
+          maintenance; existing per-item batch errors are unchanged.
 
           MaintenanceError
 
@@ -256,6 +257,17 @@ _openapi:
 
           message `string` const: `"restore maintenance is active"` Current
           restore-maintenance message.
+
+          MessageUpdateError
+
+          Edit or transient read failure; no partial results.
+
+          status `integer` — HTTP status.
+
+          code `string` — Stable rejection code; uncertain writes retain their
+          exact retry identity.
+
+          msg `string` — Optional legacy diagnostic message.
 ---
 
 <Callout type="warn" title="Operation boundary">

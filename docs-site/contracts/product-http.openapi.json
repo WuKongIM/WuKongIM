@@ -1297,13 +1297,48 @@
         },
         "responses": {
           "200": {
-            "$ref": "#/components/responses/ChannelMessageSyncBatchOK"
+            "description": "Aligned batch result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelMessageSyncBatchResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-WK-Content-Epoch": {
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "description": "Successful-restore generation. Invalidate cached comparisons when it increases; discard delayed older generations.",
+                "x-i18n": {
+                  "zh": {
+                    "description": "成功恢复代数；增加后重置缓存版本比较，丢弃延迟到达的旧代数响应。"
+                  }
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/CompatibilityBadRequest"
           },
           "503": {
-            "$ref": "#/components/responses/MaintenanceUnavailable"
+            "description": "Content epoch unavailable, restore transition, or restore maintenance; existing per-item batch errors are unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/MaintenanceError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MessageUpdateError"
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       }
