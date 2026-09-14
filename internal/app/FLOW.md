@@ -93,6 +93,7 @@ Stop or startup rollback
 - Issue/Review Agent composition keeps read, verification, signed-state, and
   publication credentials separated and never joins the product cluster.
 - Message edits wire Slot storage, online hints and one bounded repair worker. Start/stop and restore maintenance join the worker before its dependencies close; resume restarts it with fresh scan cursors. HTTP content epochs and edit cursors reuse the Controller successful-restore generation. A packed atomic maintenance-transition stamp fences response assembly across successful and failed restore cycles without an extra distributed read.
+- Successful edit commits enqueue body-free identities through a nonblocking callback into that same worker. Its bounded volatile queue accelerates authoritative dispatch; stop/restore clears it and durable pending scans remain the recovery source.
 
 ## Read First
 - [app.go](app.go)

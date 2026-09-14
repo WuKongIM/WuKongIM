@@ -9,6 +9,7 @@ import (
 	"fmt"
 	accessapi "github.com/WuKongIM/WuKongIM/internal/access/api"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"net/http"
 	"sort"
@@ -19,6 +20,8 @@ import (
 
 func TestMessageUpdateSingleNodeClusterHTTPFlow(t *testing.T) {
 	cfg := singleNodeClusterAppConfig(t)
+	cfg.Cluster.Slots.HashSlotCount = 256
+	cfg.Cluster.Slots.InitialSlotCount = 8
 	cfg.API.ListenAddr = "127.0.0.1:0"
 	app, err := New(cfg)
 	if err != nil {
@@ -85,6 +88,7 @@ func TestMessageUpdateSingleNodeClusterHTTPFlow(t *testing.T) {
 	if err = json.Unmarshal(updated, &update); err != nil || update.Data.Version != "1" || update.Data.MessageSeq != fmt.Sprint(sent.MessageSeq) {
 		t.Fatalf("update=%s %v", updated, err)
 	}
+	waitMessageUpdateHintCheckpoint(t, ctx, node, channelid.EncodePersonChannel("alice", "bob"), sent.MessageID)
 	retry := postAppJSON(t, handler, "/message/update", request, http.StatusOK)
 	if string(retry) != string(updated) {
 		t.Fatalf("retry changed result: %s %s", retry, updated)
@@ -194,4 +198,30 @@ func TestMessageUpdateSingleNodeClusterHTTPFlow(t *testing.T) {
 		t.Fatal("old message edit replaced newer tail", err)
 	}
 
+}
+
+func waitMessageUpdateHintCheckpoint(t *testing.T, parent context.Context, node *cluster.Node, channelID string, messageID uint64) {
+	t.Helper()
+	// A committed edit in a cold hash slot must complete its body-free hint
+	// checkpoint without waiting for the 256-slot background discovery sweep.
+	hintCtx, hintCancel := context.WithTimeout(parent, 2*time.Second)
+	defer hintCancel()
+	for {
+		rows, e := node.ReadMessageUpdatesBatch(hintCtx, []metadb.MessageUpdateRead{{
+			ChannelID: channelID, ChannelType: 1,
+			IDs: []uint64{messageID}, IncludePending: true,
+		}})
+		if e != nil {
+			t.Fatalf("committed hint waited for cold-slot discovery: %v", e)
+		}
+		// ACK deletes the separate pending row; latest content remains stored.
+		if len(rows) == 1 && rows[0].Head.UpdateSeq > 0 && len(rows[0].Updates) == 0 {
+			break
+		}
+		select {
+		case <-hintCtx.Done():
+			t.Fatal("committed hint exceeded the 2s integration budget")
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
 }

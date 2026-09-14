@@ -118,7 +118,9 @@ specification, runbook, report, or module documentation; link to them when neede
   legacy StreamNo is not ClientMsgNo.
 - Message edits use separate update APIs and Slot-owned CAS/idempotency with safe
   ReadIndex and durable-apply barriers. Original logs and CMD semantics remain
-  unchanged. SDKs merge content/version/cursor atomically and reset cached version
+  unchanged. Post-commit notification identities wake a bounded worker queue;
+  durable pending scans remain the recovery authority for overflow, errors and restart.
+  SDKs merge content/version/cursor atomically and reset cached version
   comparisons when restore changes `X-WK-Content-Epoch`. See the
   [message-update contract](../specs/message-update-api.md).
 
@@ -136,6 +138,9 @@ specification, runbook, report, or module documentation; link to them when neede
   routes are volatile, UID-authority-fenced projections; concrete sessions remain
   owner-local. Authority changes require bounded reconstruction before an empty
   route can be treated as offline, never a scan of every session.
+- Every online route, including advisory EVENT hints, must preserve device ID,
+  flag and level along with the exact owner/session identity. The final session
+  fence rejects a route with missing or stale device fields.
 - Post-commit handoff reserves bounded capacity before append and may reject busy
   work before durability. Once committed, SENDACK completes independently of
   best-effort terminal delivery/plugin/webhook failures. Completion and capacity

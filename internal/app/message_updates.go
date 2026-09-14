@@ -7,6 +7,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/runtime/messageupdates"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
@@ -30,6 +31,11 @@ func (a *App) wireMessageUpdateHints(opts *message.Options) {
 	hints := &deliveryinfra.MessageUpdateHints{Online: a.online, Presence: a.presence, Peers: peers, NodeID: a.cfg.NodeID}
 	opts.UpdateHints = hints
 	opts.UpdateSubscribers = subscribers
+	opts.UpdateCommitted = func(task metadb.MessageUpdate) {
+		if a.messageUpdateWorker != nil {
+			a.messageUpdateWorker.NotifyCommitted(task)
+		}
+	}
 	registrar.RegisterRPC(clusternet.RPCMessageUpdateHint, accessnode.MessageUpdateRPC{Writer: hints})
 	a.messageUpdateHintsReady = true
 }

@@ -213,6 +213,18 @@ transactional-cache and response-order tests before end-to-end feature rollout.
   hint. One supervised
   worker processes bounded pages, prefers active slots, yields under a deadline,
   and logs aggregate retry failures at most once per minute.
+- Successful update requests (including idempotent success) enqueue only the
+  returned message identity/version and wake that same worker. The volatile FIFO
+  holds at most 1,024 identities, coalesces newer versions of the same message,
+  retains no payload, and skips channel IDs above 1,024 bytes. Overflow, stopped
+  workers, failed dispatch and skipped identities rely on the unchanged durable
+  pending scan. No per-message goroutine or new synchronous delivery is added.
+  Fast waves allow eight visits, at most four subscriber pages per visit and a
+  one-second deadline; unfinished targets rejoin the FIFO. Due repair ticks take
+  priority over another fast wave. Both paths use authoritative reads and the
+  existing pending-progress CAS, including API requests on a non-leader node;
+  concurrent repair may still emit duplicate advisory hints. This is a latency
+  optimization, not a guaranteed delivery deadline or an in-memory source of truth.
 - Retention cleanup scans only bounded index keys and rechecks the durable
   retention floor before deleting latest payload, indexes, pending state and
   all idempotency rows for the target. Channel deletion removes all edit spans.

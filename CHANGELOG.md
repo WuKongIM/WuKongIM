@@ -12,11 +12,15 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Wake the existing message-edit notification worker after a successful commit through a bounded, coalescing identity queue, reducing cold-channel hint delay while retaining durable recovery scans and cluster-authoritative delivery. / 消息编辑提交成功后通过有界身份队列唤醒现有通知 worker，合并重复任务，缩短冷频道提示等待，同时保留持久化补偿扫描与集群权威投递。
+
 - Coalesce concurrent readiness write probes and reuse successful proof for up to two seconds, reducing Slot Raft noop entries while retaining live Slot, placement and authority checks. / 合并并发就绪写入探针，并在两秒内复用成功证明，减少 Slot Raft 空操作条目，同时保留实时槽位、放置能力与路由权威检查。
 
 - Turn the bilingual v2-to-v3 migration guide into a practical single-node cluster walkthrough, with advanced procedures in a separate reference. / 将中英文 v2 → v3 迁移教程改为单节点集群实战步骤，多节点、插件与异常处理独立为参考页。
 
 ### 🐛 Bug Fixes / 问题修复
+
+- Preserve device identity when routing message-edit EVENT hints so opted-in real clients pass the final session fence and receive updates. / 消息修改 EVENT 提示路由保留完整设备身份，修复真实客户端已协商能力却因会话校验而收不到提示的问题。
 
 - Return HTTP 503 with `code: unavailable` for temporary failures in ordinary history, exact message lookup and both conversation read APIs, preserving legacy error fields so clients can retry the same cursor without parsing error text. / 普通历史、消息精确查询和两个会话查询接口的临时故障统一返回 HTTP 503 与 `code: unavailable`，保留旧错误字段，客户端无需解析错误文本即可重试原游标。
 

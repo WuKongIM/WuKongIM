@@ -91,6 +91,8 @@ depending on their frames, JSON, or concrete cluster runtimes.
 
 - Ordinary payload edits validate an existing committed message and submit a lifecycle-fenced Slot CAS with idempotency and the caller's expected restore epoch. CMD/SyncOnce, nonpersistent and stream messages are excluded. Single-channel edit cursors use a fixed-size canonical identity digest, bind user visibility, channel incarnation and restore epoch, and reset valid matching format-1 cursors to format 2; bootstrap captures a baseline before visible history reload. Latest-index pages revalidate originals and never create missing messages. Body-free notification progress reads pending identity/retention without payload hydration and uses a previous-cursor CAS, and retention cleanup rechecks the durable floor. Both committed and persisted page assembly enforce a total payload budget after replacement growth.
 
+- Successful edit CAS/idempotency responses optionally schedule their returned identity/version through a nonblocking post-commit callback. Notification failures never change the committed edit result; the worker uses the same authoritative dispatcher and durable progress checkpoints.
+
 ## Read First
 
 - [Permission policy](permission.go)
