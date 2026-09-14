@@ -61,6 +61,12 @@ jobs:
           go test ./cmd/wukongim ./cmd/wkcli/... ./internal/config ./internal/app -count=1
           go test ./scripts -run 'TestNativePackage' -count=1
 
+      - name: Run single-node cluster SEND integration
+        run: >-
+          go test -tags=integration ./internal/app
+          -run '^TestSingleNodeClusterSend(ToSendack|WithChannelMetaAndSendack)$'
+          -count=1 -timeout=2m
+
       - name: Build deb and rpm preview
         uses: goreleaser/goreleaser-action@4c6ab561adb47e50c45ef534e2155934e91c40c1 # v7.2.0
         with:

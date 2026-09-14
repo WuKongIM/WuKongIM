@@ -53,6 +53,8 @@ Stop or startup rollback
 
 - Every product deployment, including one node, uses cluster semantics. Wiring
   must not introduce a local business bypass.
+  Real single-node SEND/SENDACK smoke coverage lives in the integration tier and
+  uses the production-default send deadline; native-package preview runs it explicitly.
 - Synchronous before-send Webhook admission is wired independently of asynchronous
   Webhook workers and plugin enablement; configuration errors fail startup.
 - Optional features are wired only when all required ports exist; unavailable

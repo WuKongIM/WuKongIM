@@ -175,7 +175,9 @@ for local reproduction, duplicate handling and the scope of the receipt.
 ## Native package preview
 
 `native-package-preview.yml` is a credential-free validation workflow, not a
-publisher. It builds unsigned Linux amd64 `.deb` and `.rpm` files from
+publisher. Before packaging it runs unit/CLI contracts and an explicit integration
+step for real single-node cluster SEND/SENDACK, using the production-default
+send deadline while retaining first/second-message identity and sequence checks. It builds unsigned Linux amd64 `.deb` and `.rpm` files from
 `.goreleaser.packages.yaml`. After the build, an integration test creates
 one-run, one-day `TEST ONLY` APT and RPM signing keys outside the repository,
 signs temporary repositories, and verifies both signatures and the exact APT

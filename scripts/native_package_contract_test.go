@@ -365,6 +365,8 @@ func TestNativePackageWorkflowIsCredentialFreeAndBounded(t *testing.T) {
 		"scripts/validate-native-package-repositories-container.sh",
 		"scripts/verify-native-package-metadata.py",
 		"WK_NATIVE_PACKAGE_REPOSITORY_INTEGRATION: \"1\"",
+		"go test -tags=integration ./internal/app",
+		"-run '^TestSingleNodeClusterSend(ToSendack|WithChannelMetaAndSendack)$'",
 		"go test -tags=integration ./scripts",
 		"-run '^TestNativePackageSignedRepository$'",
 		"WK_NATIVE_PACKAGE_LIFECYCLE_INTEGRATION: \"1\"",
