@@ -5330,10 +5330,10 @@
           },
           "reset_required": {
             "type": "boolean",
-            "description": "Reload visible history after saving this baseline; discard old comparisons after epoch change.",
+            "description": "Hold the returned baseline, reload visible history, then commit history and baseline in one local transaction. Reset old version comparisons after an epoch change.",
             "x-i18n": {
               "zh": {
-                "description": "先保存此基线再加载可见历史；恢复代数变化后重置旧版本比较。"
+                "description": "暂存返回的基线，重载可见历史，再将历史与基线在同一本地事务中保存。恢复代数变化后重置旧版本比较。"
               }
             }
           }

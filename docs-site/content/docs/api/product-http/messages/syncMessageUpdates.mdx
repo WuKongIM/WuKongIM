@@ -40,7 +40,7 @@ _openapi:
           updates array<`UpdatedMessage`> maxItems: 200 最新状态而非完整修改历史；more 为 true 时也可能为空。
           next_update_cursor `string` — 与合并后的消息在同一本地事务中保存。
           more `boolean` — 为 true 时继续拉取此频道。
-          reset_required `boolean` — 先保存此基线再加载可见历史；恢复代数变化后重置旧版本比较。
+          reset_required `boolean` — 暂存返回的基线，重载可见历史，再将历史与基线在同一本地事务中保存。恢复代数变化后重置旧版本比较。
           UpdatedMessage
           Product HTTP 同步接口使用的旧式消息投影。
           header `LegacyMessageHeader` additionalProperties: `false` 旧式消息 Header。

@@ -42,7 +42,7 @@ _openapi:
           updates array<`UpdatedMessage`> maxItems: 200 Latest states, not a full edit history; empty is possible while more is true.
           next_update_cursor `string` — Commit with merged rows in one local transaction.
           more `boolean` — Continue this channel until false.
-          reset_required `boolean` — Reload visible history after saving this baseline; discard old comparisons after epoch change.
+          reset_required `boolean` — Hold the returned baseline, reload visible history, then commit history and baseline in one local transaction. Reset old version comparisons after an epoch change.
           UpdatedMessage
           Legacy message projection used by Product HTTP synchronization.
           header `LegacyMessageHeader` additionalProperties: `false` Legacy message header.
