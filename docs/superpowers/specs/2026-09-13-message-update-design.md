@@ -43,26 +43,17 @@ Alice 将频道 group-A 的第 100 条消息从“明天 10 点开会”改为�
   "channel_type": 2,
   "message_id": "12345",
   "expected_version": "0",
-<<<<<<< HEAD
   "expected_content_epoch": "0",
-=======
->>>>>>> 1e0a52c43 (docs: update)
   "request_id": "f2fbe748-eefd-4c6a-b31a-5b2a657136fa",
   "payload": "aGVsbG8gd29ybGQ="
 }
 ```
 
-<<<<<<< HEAD
 payload 示例仅演示 Base64 编码，不对应上述中文。本版修改 payload 解码后上限为 1 MiB，更新 JSON 请求体上限为 2 MiB；新接口的 message_id、version 等 64 位值用十进制字符串避免 JavaScript 精度丢失。未编辑版本为 0，首次编辑为 1。单聊沿用既有 login_uid/频道规范化约定；UID 不是业务编辑授权声明。
 
 修改请求还必须携带读取正文时的 `X-WK-Content-Epoch`，作为 `expected_content_epoch`。服务端与接收转发的 Slot 节点均校验它，后者在恢复维护准入锁内检查并入队；代数不符返回 409 `content_epoch_conflict`，须重新读取并决策。
 
 服务端先检查原消息的权威 committed 状态，再由频道所属 Slot 在 apply 中校验 expected_version、生命周期和 retention。通过一次 metadata batch 原子完成：
-=======
-payload 示例仅演示 Base64 编码，不对应上述中文。沿用消息解码后大小上限；新接口的 message_id、version 等 64 位值用十进制字符串避免 JavaScript 精度丢失。未编辑版本为 0，首次编辑为 1。单聊沿用既有 login_uid/频道规范化约定；UID 不是业务编辑授权声明。
-
-服务端先检查幂等和原消息的权威 committed 状态，再由频道所属 Slot 在 apply 中校验 expected_version、生命周期和 retention。通过一次 metadata batch 原子完成：
->>>>>>> 1e0a52c43 (docs: update)
 
 1. 更新最新 payload 和 version。
 2. 递增频道 update_seq，更新该消息 last_update_seq。
@@ -86,10 +77,7 @@ Bob 正在查看 group-A，保存有上次修改游标。SDK 合并重复提示�
 {
   "channel_id": "group-A",
   "channel_type": 2,
-<<<<<<< HEAD
   "login_uid": "bob",
-=======
->>>>>>> 1e0a52c43 (docs: update)
   "update_cursor": "opaque-cursor",
   "limit": 100
 }
@@ -113,11 +101,7 @@ SDK 在同一本地事务中合并消息内容、仍指向该消息的会话摘�
 
 ### 首次进入、游标丢失或失效
 
-<<<<<<< HEAD
 初始化模式：`update_cursor` 为空时，服务端取得当前频道更新位置 H，返回 `reset_required: true`、空 updates 和初始化游标，不默认补发全部历史修改。
-=======
-建议明确初始化模式：`update_cursor` 为空时，服务端取得当前频道更新位置 H，返回 `reset_required: true`、空 updates 和初始化游标，不默认补发全部历史修改。
->>>>>>> 1e0a52c43 (docs: update)
 
 SDK 必须先取得这个初始化位置，再按已有历史接口读取当前要展示的页面。成功后在本地事务保存页面和初始化游标。读取失败不完成初始化。这样 H 之后并发发生的编辑会由下一轮增量补齐，不能先读页面、再直接跳到后来取得的最新游标。
 
@@ -147,11 +131,7 @@ Carol 翻到第 90–110 条时，仍调用 `/channel/messagesync` 的原有范�
 
 `/conversation/list` 在 last_message 中返回最新 payload 和消息 version。`/conversation/sync` 返回的 recents 同样合并最新 payload 和消息 version；此外必须能返回当前页最后消息的修改，即使该频道没有新消息、message_seq 未前进。不能只在已有 recents 上替换 payload 后就宣称支持完成。
 
-<<<<<<< HEAD
 实现保留 SyncLegacy 的原响应数组、会话 Version 和 last_msg_seqs 规则。当前尾消息的消息 version 大于 0，且客户端序号已追到尾部时，recents 从尾消息前一序号开始读取，确保这条已编辑尾消息仍返回。它可能在后续会话刷新中重复返回；SDK 必须按 message_id/version 合并，不能累加未读或当作新消息。msg_count=0 仍不请求消息正文，only_unread 等原筛选不扩大。
-=======
-当前 SyncLegacy 按 last_msg_seqs 的排他序号读取 recents，并跳过 recents 为空的会话；会话 Version 又来自原消息时间戳。这些值不会因编辑变化，因此需要补充独立于新消息筛选的摘要刷新路径，且不得修改原消息序号、时间或会话 Version 的既有含义来伪装新消息。具体兼容字段/启用方式应在实现契约中明确，保留旧响应数组形状，并验证旧 SDK；本设计尚不宣称已有透明兼容实现。
->>>>>>> 1e0a52c43 (docs: update)
 
 若第 100 条仍是 group-A 的最后消息，其编辑更新该行摘要；若第 101 条已成为最后消息，第 100 条的编辑不能覆盖第 101 条摘要。SDK 应用异步响应时核对最新消息身份和版本。
 
@@ -175,11 +155,7 @@ Carol 翻到第 90–110 条时，仍调用 `/channel/messagesync` 的原有范�
 
 所有内容查询先执行原消息存在性、权限和 Message Visibility Floor/retention 约束，再批量合并覆盖内容；覆盖读取失败不能把旧 payload 标成最新。保留原 committed-history 和 persisted-preview 的前沿语义，不能为了会话预览激活 Channel runtime。
 
-<<<<<<< HEAD
 本版覆盖读取按物理 Slot 合并，每组通过本节点 leader 的 ReadIndex 确认 quorum，等待 durable apply 追平，再读取固定引擎快照并复核路由。最大四个受管理的并行读任务；累积结果前检查总字节数。每个 Slot 最多保留 256 个尚未确认的读请求，取消或暂时失败不能释放 Raft 内仍在排队的请求计数。新 leader 尚未持久提交本任期记录时拒绝读取。生产路径不为读请求追加 noop；仅未提供 ReadIndex 的自定义嵌入端口保留保守 noop 回退。不能用 readiness 缓存代替目标读屏障。
-=======
-当前 Slot leader 路由后直接 DB Get 尚未证明为线性一致读。实现需要每个目标 Slot 的提交/应用/authority 一致读屏障；可先验证目标 Slot noop proposal 基线，再评估 ReadIndex。不能用少数代表 Slot 的 readiness 缓存代替目标读屏障，也不能每条消息单独写 noop。
->>>>>>> 1e0a52c43 (docs: update)
 
 ## 8. 性能与边界
 
@@ -204,11 +180,7 @@ Carol 翻到第 90–110 条时，仍调用 `/channel/messagesync` 的原有范�
 
 元数据 schema、命令兼容、迁移、snapshot、backup/restore 和分批清理须覆盖所有新表和索引；混合版本节点不可静默忽略新内容。分别验收 JavaScript、Android、iOS、Flutter、HarmonyOS 官方 SDK 的实际维护版本。
 
-<<<<<<< HEAD
 实施前读取目标包适用 AGENTS/FLOW，按仓库规则冻结上下文，完成相关 unit/integration/E2E 和性能检查，更新 CHANGELOG、受影响 FLOW 及用户文档。服务端已增加定向 unit/integration 和索引 benchmark；测试结果及未覆盖的生产负载边界记录在 API 契约中。未修改任何外部官方 SDK 仓库，不能将服务端验证描述为全端交付。
-=======
-实施前读取目标包适用 AGENTS/FLOW，按仓库规则冻结上下文，完成相关 unit/integration/E2E 和性能检查，更新 CHANGELOG、受影响 FLOW 及用户文档。本次仅整理设计，未执行功能或性能测试，不代表功能已交付。
->>>>>>> 1e0a52c43 (docs: update)
 
 ## 附录：调查规则快照
 
