@@ -125,6 +125,7 @@ const (
 	TaskSlotRaftTicker                   TaskID = "slot/raft_ticker"
 	TaskSlotRaftApplyWorker              TaskID = "slot/raft_apply_worker"
 	TaskSlotConditionWaiter              TaskID = "slot/condition_waiter"
+	TaskSlotMessageUpdateRead            TaskID = "slot/message_update_read"
 	TaskSlotPermissionBatch              TaskID = "slot/permission_batch"
 	TaskSlotRuntimeMetaBatch             TaskID = "slot/runtime_meta_batch"
 	TaskChannelReactor                   TaskID = "channel/reactor"
@@ -143,6 +144,7 @@ const (
 	TaskMessageDirectoryBatch            TaskID = "message/directory_batch"
 	TaskMessageDirectoryProjector        TaskID = "message/directory_projector"
 	TaskMessageDirectoryWorker           TaskID = "message/directory_worker"
+	TaskMessageUpdateWorker              TaskID = "message/update_worker"
 	TaskChannelAppendRouter              TaskID = "channelappend/router"
 	TaskChannelAppendPoolRelease         TaskID = "channelappend/pool_release"
 	TaskChannelAppendAdvanceScheduler    TaskID = "channelappend/advance_scheduler"
@@ -224,6 +226,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskSlotRaftTicker, Module: ModuleSlot, Name: "raft_ticker", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskSlotRaftApplyWorker, Module: ModuleSlot, Name: "raft_apply_worker", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskSlotConditionWaiter, Module: ModuleSlot, Name: "condition_waiter", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRecover},
+	{ID: TaskSlotMessageUpdateRead, Module: ModuleSlot, Name: "message_update_read", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskSlotPermissionBatch, Module: ModuleSlot, Name: "permission_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskSlotRuntimeMetaBatch, Module: ModuleSlot, Name: "runtime_meta_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelReactor, Module: ModuleChannel, Name: "reactor", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
@@ -241,6 +244,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskMessagePermissionBatch, Module: ModuleMessage, Name: "permission_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMessageDirectoryBatch, Module: ModuleMessage, Name: "directory_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMessageDirectoryProjector, Module: ModuleMessage, Name: "directory_projector", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskMessageUpdateWorker, Module: ModuleMessage, Name: "update_worker", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskMessageDirectoryWorker, Module: ModuleMessage, Name: "directory_worker", Kind: TaskKindFixed, PanicPolicy: PanicPolicyRepanic, Expected: 8},
 	{ID: TaskChannelAppendRouter, Module: ModuleChannelAppend, Name: "router", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskChannelAppendPoolRelease, Module: ModuleChannelAppend, Name: "pool_release", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},

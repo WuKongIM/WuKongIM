@@ -27,6 +27,9 @@ func DecodeCommandInspection(data []byte) (CommandInspection, error) {
 
 func inspectCommand(cmd command) (CommandInspection, error) {
 	switch typed := cmd.(type) {
+	case *messageUpdateCmd:
+		q := typed.mutation
+		return simpleInspection("message_update", map[string]any{"operation": q.Op, "channel_id": q.ChannelID, "channel_type": q.ChannelType, "message_id": q.MessageID, "message_seq": q.MessageSeq, "expected_version": q.ExpectedVersion, "payload_bytes": len(q.Payload)}), nil
 	case *noopCmd:
 		return simpleInspection("noop", map[string]any{"command": "noop"}), nil
 	case *upsertUserCmd:

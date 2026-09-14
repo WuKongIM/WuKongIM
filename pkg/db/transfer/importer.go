@@ -49,6 +49,7 @@ func ImportBundle(ctx context.Context, root string, store *db.NodeStore, opts Im
 		FileKindMetaUserCMDChannelMemberships,
 		FileKindMetaChannelLatest,
 		FileKindMetaPersonDirectoryTasks,
+		FileKindMetaMessageUpdates,
 	} {
 		for _, entry := range entries[kind] {
 			if err := importMetaEntry(ctx, root, entry, store, opts, &stats); err != nil {
@@ -157,6 +158,9 @@ func importMetaEntry(ctx context.Context, root string, entry FileEntry, store *d
 
 func importMetaRecord(ctx context.Context, meta *metadb.MetaDB, kind FileKind, record any) error {
 	switch kind {
+	case FileKindMetaMessageUpdates:
+		row := record.(MessageUpdateRecord)
+		return meta.ImportMessageUpdate(ctx, metadb.HashSlot(row.HashSlot), row.MessageUpdateImport)
 	case FileKindMetaUsers:
 		row := record.(UserRecord)
 		return meta.HashSlot(row.HashSlot).UpsertUser(ctx, metadb.User{

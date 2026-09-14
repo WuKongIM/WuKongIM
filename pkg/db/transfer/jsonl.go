@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"io"
 	"strconv"
 	"strings"
@@ -71,6 +72,15 @@ func readJSONL(ctx context.Context, r io.Reader, kind FileKind, visit func(any) 
 
 func decodeRecord(kind FileKind, line []byte) (any, error) {
 	switch kind {
+	case FileKindMetaMessageUpdates:
+		var record MessageUpdateRecord
+		if err := decodeStrict(line, &record); err != nil {
+			return nil, err
+		}
+		if _, err := metadb.ValidateMessageUpdateImport(record.MessageUpdateImport); err != nil {
+			return nil, err
+		}
+		return record, nil
 	case FileKindMetaUsers:
 		var record UserRecord
 		if err := decodeStrict(line, &record); err != nil {

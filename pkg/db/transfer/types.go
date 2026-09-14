@@ -1,6 +1,9 @@
 package transfer
 
-import "errors"
+import (
+	"errors"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+)
 
 const (
 	bundleFormat  = "wkdb-import-bundle"
@@ -34,6 +37,8 @@ const (
 	FileKindMetaChannelLatest FileKind = "meta.channel_latest"
 	// FileKindMetaPersonDirectoryTasks stores durable pending person-directory projections.
 	FileKindMetaPersonDirectoryTasks FileKind = "meta.person_directory_tasks"
+	// FileKindMetaMessageUpdates preserves all four exact message-edit projections.
+	FileKindMetaMessageUpdates FileKind = "meta.message_updates"
 	// FileKindMessageChannels stores message channel index rows.
 	FileKindMessageChannels FileKind = "message.channels"
 	// FileKindMessageMessages stores message log rows.
@@ -310,4 +315,10 @@ type MessageRecord struct {
 	PayloadB64 string `json:"payload_b64"`
 	// Payload is the decoded message payload.
 	Payload []byte `json:"-"`
+}
+
+// MessageUpdateRecord transfers a bounded exact edit-table row, including its Hash Slot.
+type MessageUpdateRecord struct {
+	HashSlot uint16 `json:"hash_slot"`
+	metadb.MessageUpdateImport
 }

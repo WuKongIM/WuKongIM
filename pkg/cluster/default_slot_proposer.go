@@ -32,6 +32,8 @@ type defaultSlotProposer struct {
 	// acquireAdmission linearizes ordinary Slot proposal admission against the
 	// one-way source fence. The returned release must cover the runtime enqueue.
 	acquireAdmission func() (release func(), err error)
+	// contentEpoch reads the non-restored Controller epoch while admission is held.
+	contentEpoch func(context.Context) (uint64, error)
 	// metaCreateObserver receives one result at this authoritative proposal boundary.
 	metaCreateObserver clusterchannels.MetaCreateObserver
 }
@@ -89,6 +91,23 @@ func (p defaultSlotProposer) propose(ctx context.Context, slotID uint32, payload
 		}
 		if release == nil {
 			release = func() {}
+		}
+	}
+	if expected, edit, decodeErr := metafsm.MessageUpdateCommandEpoch(command); edit {
+		if decodeErr != nil {
+			release()
+			return nil, decodeErr
+		}
+		if p.contentEpoch != nil {
+			epoch, epochErr := p.contentEpoch(ctx)
+			if epochErr != nil {
+				release()
+				return nil, epochErr
+			}
+			if expected != epoch {
+				release()
+				return []byte(`{"Status":"content_epoch_conflict"}`), nil
+			}
 		}
 	}
 	started := time.Now()

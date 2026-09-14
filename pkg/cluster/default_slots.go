@@ -122,6 +122,7 @@ func (n *Node) ensureDefaultSlots() error {
 	slotProposer := defaultSlotProposer{
 		runtime:            runtime,
 		acquireAdmission:   n.acquireWriteAdmission,
+		contentEpoch:       n.messageContentEpoch,
 		metaCreateObserver: metaCreateObserver,
 	}
 	n.defaultSlotProposer = slotProposer

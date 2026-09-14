@@ -38,6 +38,8 @@ owner-local session handles. It is not a distributed presence directory.
   so one failing route cannot be redrained indefinitely.
 - Snapshot reports only aggregate pending, active, and dirty counts.
 
+- Message-update EVENT capability is stored only on the exact active local session. Reconnecting requires negotiation again; unrelated sessions cannot enable it by UID alone.
+
 ## Read First
 
 - [Registry](registry.go)

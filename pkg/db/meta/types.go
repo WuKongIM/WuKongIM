@@ -172,6 +172,14 @@ const (
 	TableIDUserCMDChannelMembership uint32 = 16
 	// TableIDPersonDirectoryTask stores durable person-channel directory projection work.
 	TableIDPersonDirectoryTask uint32 = 17
+	// TableIDMessageUpdate stores latest payload replacements and ordered indexes.
+	TableIDMessageUpdate uint32 = 18
+	// TableIDMessageUpdateHead stores per-channel edit progress and incarnation.
+	TableIDMessageUpdateHead uint32 = 19
+	// TableIDMessageUpdateRequest stores per-target edit idempotency results.
+	TableIDMessageUpdateRequest uint32 = 20
+	// TableIDMessageUpdatePending stores body-free notification checkpoints.
+	TableIDMessageUpdatePending uint32 = 21
 )
 
 const (

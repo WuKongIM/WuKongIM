@@ -80,6 +80,10 @@ var verifyMetaSpecs = []verifyMetaSpec{
 	{name: "meta.user_cmd_channel_memberships", table: "user_cmd_channel_membership"},
 	{name: "meta.channel_latest", table: "channel_latest"},
 	{name: "meta.person_directory_tasks", table: "person_directory_task"},
+	{name: "meta.message_update", table: "message_update"},
+	{name: "meta.message_update_head", table: "message_update_head"},
+	{name: "meta.message_update_request", table: "message_update_request"},
+	{name: "meta.message_update_pending", table: "message_update_pending"},
 }
 
 // VerifyStores compares supported bundle-v1 datasets from two read-only WKDB stores.

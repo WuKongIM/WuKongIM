@@ -24,6 +24,17 @@ as a format migration and gate it behind an explicit rollout plan.
 
 ## Stable Durable IDs
 
+Message editing adds metadata tables 18–21 (latest content, channel heads,
+idempotency results, pending notification checkpoints) and Slot command 66.
+Existing message log encodings remain unchanged. These are new-code-only
+projections: before activation, current Slot peers must support the edit RPC
+format, and operators must keep matching binaries on rejoining nodes. The stored
+replica-ID proof does not authorize rolling downgrade or attest the peer build.
+Snapshots and offline inspect/export/import/compare include all four tables;
+nonempty `meta.message_updates` transfer datasets require a matching CLI.
+Rollback after activation requires a compatible pre-feature backup. See
+[the rollout and SDK contract](../../docs/specs/message-update-api.md).
+
 The following IDs are part of the stored format and must be treated as permanent:
 
 - table IDs, such as `meta.TableID*` and `message.TableIDMessage`

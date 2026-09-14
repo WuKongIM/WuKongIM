@@ -43,6 +43,10 @@ It does not own product policy or expose Pebble-specific APIs to callers.
 - Each writable engine keeps one baseline compaction slot and may open three
   more only as L0 depth or compaction debt crosses configured pressure steps.
 
+- Offline inspect/export/import/verify preserve all four message-edit tables. New
+  JSONL edit datasets are omitted when empty; populated bundles require a
+  matching CLI and import heads before their dependent projections.
+
 ## Read First
 
 - [Root store](db.go)

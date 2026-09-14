@@ -92,6 +92,8 @@ management, plugins, diagnostics, and bounded operations observations.
   bounded and must not place user, Channel, Slot, or node identities in metric
   labels.
 
+- Message-update storage maps a narrow usecase port to authoritative Slot operations. Read adapters preserve edit version/time and byte-limited continuation after content growth; committed history and persisted previews retain separate base-read semantics.
+
 ## Read First
 - [Append adapter](channel_append.go)
 - [Metadata adapter](channel_metadata.go)

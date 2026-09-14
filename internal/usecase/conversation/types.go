@@ -84,6 +84,9 @@ type ActivateConversationCommand struct {
 
 // LastMessage is the newest visible durable message for a conversation row.
 type LastMessage struct {
+	// Version and UpdatedAtMS describe the latest payload replacement, independent of conversation ordering.
+	Version     uint64
+	UpdatedAtMS int64
 	// MessageID is the durable message id.
 	MessageID uint64
 	// MessageSeq is the channel-local message sequence.

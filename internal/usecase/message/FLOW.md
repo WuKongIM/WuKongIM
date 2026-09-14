@@ -89,6 +89,8 @@ depending on their frames, JSON, or concrete cluster runtimes.
 
 - Legacy reads may expose `wk3-legacy-<message_id>` only for an empty stored client number. Exact lookup tries the real client-number index first, then at most one bounded Message-ID read for the alias, retaining visibility and original stored fields. It is not a SEND or event mutation key.
 
+- Ordinary payload edits validate an existing committed message and submit a lifecycle-fenced Slot CAS with idempotency and the caller's expected restore epoch. CMD/SyncOnce, nonpersistent and stream messages are excluded. Single-channel edit cursors use a fixed-size canonical identity digest, bind user visibility, channel incarnation and restore epoch, and reset valid matching format-1 cursors to format 2; bootstrap captures a baseline before visible history reload. Latest-index pages revalidate originals and never create missing messages. Body-free notification progress reads pending identity/retention without payload hydration and uses a previous-cursor CAS, and retention cleanup rechecks the durable floor. Both committed and persisted page assembly enforce a total payload budget after replacement growth.
+
 ## Read First
 
 - [Permission policy](permission.go)

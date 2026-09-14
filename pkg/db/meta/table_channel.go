@@ -222,6 +222,9 @@ func (b *Batch) DeleteChannel(hashSlot HashSlot, channelID string, channelType i
 		if err := engineBatch.Delete(primaryKey); err != nil {
 			return err
 		}
+		if err := deleteChannelMessageUpdates(state, engineBatch, hashSlot, channelID, channelType); err != nil {
+			return err
+		}
 		delete(state.channelPublishes, string(primaryKey))
 		state.channelDeletes[string(primaryKey)] = struct{}{}
 		if len(directoryTaskKey) != 0 {

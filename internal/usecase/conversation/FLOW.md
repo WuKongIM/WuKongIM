@@ -80,6 +80,8 @@ It does not subscribe users, deliver messages, or implement storage and transpor
   They appear after a newer ordinary message or explicit activation, without
   modifying read/delete floors or native unread calculations.
 
+- Message edits change only hydrated content and its version. Both list and legacy sync use latest overlays. A caught-up legacy sync explicitly includes an edited tail in recents without changing the original sequence, timestamp, conversation version, ordering or unread state; callers may receive the same edited tail again.
+
 ## Read First
 
 - [Conversation application](app.go)

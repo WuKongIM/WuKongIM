@@ -6,11 +6,17 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🚀 New Features / 新功能
+
+- Add ordinary durable-message payload editing with version/restore-epoch checks, idempotent retries, single-channel incremental sync, and opt-in online EVENT hints. History, exact lookup, `/conversation/list`, and `/conversation/sync` read the latest content without changing message order or unread counts; CMD and stream messages remain non-editable. New metadata requires matching server binaries; SDKs must adopt the edit/restore merge contract. / 新增普通持久化消息修改、版本与恢复代数校验、幂等重试、单频道增量同步及按连接协商的 EVENT 提示；历史、精确查询和两个会话接口均返回最新内容，不改变消息顺序或未读。CMD、流消息不允许修改；新元数据要求节点版本一致，SDK 需适配编辑与恢复合并协议。
+
 ### 🔧 Improvements / 改进
 
 - Turn the bilingual v2-to-v3 migration guide into a practical single-node cluster walkthrough, with advanced procedures in a separate reference. / 将中英文 v2 → v3 迁移教程改为单节点集群实战步骤，多节点、插件与异常处理独立为参考页。
 
 ### 🐛 Bug Fixes / 问题修复
+
+- Return HTTP 503 with `code: unavailable` for temporary failures in ordinary history, exact message lookup and both conversation read APIs, preserving legacy error fields so clients can retry the same cursor without parsing error text. / 普通历史、消息精确查询和两个会话查询接口的临时故障统一返回 HTTP 503 与 `code: unavailable`，保留旧错误字段，客户端无需解析错误文本即可重试原游标。
 
 - Inject the release version and commit into Docker server and CLI binaries so Manager node versions report the image release instead of `dev`. / Docker 服务端与 CLI 注入发布版本和提交信息，修复 Manager 节点版本始终显示 `dev` 的问题。
 

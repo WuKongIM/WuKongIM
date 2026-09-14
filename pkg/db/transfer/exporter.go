@@ -128,11 +128,23 @@ func exportMetaFiles(ctx context.Context, root string, meta *metadb.MetaDB, opts
 		{table: "person_directory_task", path: "meta/person_directory_tasks.jsonl", kind: FileKindMetaPersonDirectoryTasks, convert: exportPersonDirectoryTaskRecord},
 	}
 
+	// Parent rows precede their dependent payload/request/checkpoint projections.
+	for _, table := range []string{"message_update_head", "message_update", "message_update_request", "message_update_pending"} {
+		specs = append(specs, exportMetaSpec{table: table, path: "meta/" + table + ".jsonl", kind: FileKindMetaMessageUpdates, convert: exportMessageUpdateRecord(table)})
+	}
+
 	entries := make([]FileEntry, 0, len(specs))
 	for _, spec := range specs {
 		entry, err := exportMetaFile(ctx, root, meta, opts, spec, stats)
 		if err != nil {
 			return nil, err
+		}
+		if spec.kind == FileKindMetaMessageUpdates && entry.Rows == 0 {
+			if err = os.Remove(filepath.Join(root, spec.path)); err != nil {
+				return nil, err
+			}
+			stats.FilesWritten--
+			continue
 		}
 		entries = append(entries, entry)
 	}
@@ -919,4 +931,20 @@ func rowUint8(row map[string]any, name string) (uint8, error) {
 		return 0, fmt.Errorf("%w: field %q overflows uint8", ErrValidation, name)
 	}
 	return uint8(value), nil
+}
+
+func exportMessageUpdateRecord(table string) func(uint16, metadb.InspectRow) (any, error) {
+	return func(slot uint16, row metadb.InspectRow) (any, error) {
+		fields := make(map[string]any, len(row))
+		for key, value := range row {
+			if key != "hash_slot" {
+				fields[key] = value
+			}
+		}
+		body, err := json.Marshal(fields)
+		if err != nil {
+			return nil, err
+		}
+		return MessageUpdateRecord{HashSlot: slot, MessageUpdateImport: metadb.MessageUpdateImport{Table: table, Row: body}}, nil
+	}
 }

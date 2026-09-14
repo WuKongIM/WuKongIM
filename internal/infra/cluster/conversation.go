@@ -199,7 +199,7 @@ func retryableConversationHeadError(err error) bool {
 
 func lastMessageFromChannel(msg channelruntime.Message) conversationusecase.LastMessage {
 	return conversationusecase.LastMessage{
-		MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, FromUID: msg.FromUID,
+		MessageID: msg.MessageID, Version: msg.Version, UpdatedAtMS: msg.UpdatedAtMS, MessageSeq: msg.MessageSeq, FromUID: msg.FromUID,
 		ClientMsgNo: msg.ClientMsgNo, ServerTimestampMS: msg.ServerTimestampMS,
 		Payload: append([]byte(nil), msg.Payload...),
 	}

@@ -105,6 +105,11 @@ func (a *App) Start(ctx context.Context) error {
 			return errors.Join(err, stopErr)
 		}
 	}
+	if a.messageUpdateWorker != nil {
+		if err := a.messageUpdateWorker.Start(ctx); err != nil {
+			return errors.Join(err, a.rollbackStarted(ctx))
+		}
+	}
 	if a.personDirectoryProjector != nil {
 		if err := a.personDirectoryProjector.Start(ctx); err != nil {
 			a.logLifecycleError("person_directory", "start", err)
@@ -462,6 +467,11 @@ func (a *App) Stop(ctx context.Context) error {
 			a.channelAppendStarted = false
 		}
 	}
+	if a.messageUpdateWorker != nil {
+		if stopErr := a.messageUpdateWorker.Stop(ctx); stopErr != nil {
+			return errors.Join(err, stopErr)
+		}
+	}
 	if a.personDirectoryStarted && a.personDirectoryProjector != nil {
 		if stopErr := a.personDirectoryProjector.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("person_directory", "stop", stopErr)
@@ -656,6 +666,11 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 			return err
 		} else {
 			a.channelAppendStarted = false
+		}
+	}
+	if a.messageUpdateWorker != nil {
+		if stopErr := a.messageUpdateWorker.Stop(ctx); stopErr != nil {
+			return errors.Join(err, stopErr)
 		}
 	}
 	if a.personDirectoryStarted && a.personDirectoryProjector != nil {

@@ -42,6 +42,9 @@ type MessageFlags struct {
 
 // SyncedMessage is a channel message returned by the compatible sync usecase.
 type SyncedMessage struct {
+	// Version and UpdatedAtMS describe the latest committed payload replacement.
+	Version     uint64
+	UpdatedAtMS int64
 	// Flags contains the legacy framer flags exposed in HTTP responses.
 	Flags MessageFlags
 	// Setting is the legacy message setting bitset.

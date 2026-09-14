@@ -215,6 +215,12 @@ type BenchSubscriberMutation struct {
 
 // Options configures the minimal internal HTTP API server.
 type Options struct {
+	// ContentEpoch identifies the durable data generation after cluster restore.
+	ContentEpoch func(context.Context) (uint64, error)
+	// ContentReadFence returns an opaque transition stamp and active-restore flag.
+	// Restore-capable embeddings must supply it to detect completed failed restores.
+	// The stamp changes before data replacement and again before resuming entry.
+	ContentReadFence func() (uint64, bool)
 	// ListenAddr is the HTTP API listen address. An empty value makes Start fail.
 	ListenAddr string
 	// Readyz reports whether the node is ready for benchmark traffic.
@@ -288,6 +294,8 @@ type Options struct {
 
 // Server exposes health, readiness, and the minimum bench/v1 target surface for wukongim.
 type Server struct {
+	contentEpoch         func(context.Context) (uint64, error)
+	contentReadFence     func() (uint64, bool)
 	mu                   sync.RWMutex
 	engine               *gin.Engine
 	httpServer           *http.Server
@@ -346,6 +354,8 @@ func New(opts Options) *Server {
 		systemUID = userusecase.DefaultSystemUID
 	}
 	s := &Server{
+		contentEpoch:         opts.ContentEpoch,
+		contentReadFence:     opts.ContentReadFence,
 		engine:               engine,
 		listenAddr:           strings.TrimSpace(opts.ListenAddr),
 		readyz:               opts.Readyz,
@@ -387,6 +397,7 @@ func New(opts Options) *Server {
 	}
 	s.engine.Use(s.debugBearerMiddleware())
 	s.engine.Use(s.restoreMaintenanceMiddleware())
+	s.engine.Use(s.messageContentEpochMiddleware())
 	s.registerRoutes()
 	return s
 }

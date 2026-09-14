@@ -134,6 +134,9 @@ type Meta struct {
 
 // Message is the v0 client-visible message model.
 type Message struct {
+	// Version and UpdatedAtMS describe a transient latest-content read; they are not append or replication fields.
+	Version     uint64
+	UpdatedAtMS int64
 	MessageID   uint64
 	MessageSeq  uint64
 	ChannelID   string
