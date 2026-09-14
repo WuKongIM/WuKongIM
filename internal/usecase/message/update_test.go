@@ -17,6 +17,52 @@ type updateStoreStub struct {
 	runtime   metadb.ChannelRuntimeMeta
 }
 
+type commitResultStore struct {
+	updateStoreStub
+	status string
+	err    error
+}
+
+func (s *commitResultStore) ApplyMessageUpdate(_ context.Context, q metadb.MessageUpdateMutation) (metadb.MessageUpdateMutationResult, error) {
+	s.mutations = append(s.mutations, q)
+	return metadb.MessageUpdateMutationResult{Status: s.status, Head: s.head, Request: metadb.MessageUpdateRequest{
+		MessageID: q.MessageID, MessageSeq: q.MessageSeq, Version: 7}}, s.err
+}
+
+func TestMessageUpdateSchedulesOnlyDurableSuccess(t *testing.T) {
+	for _, status := range []string{"ok", "version_conflict", "storage_error"} {
+		t.Run(status, func(t *testing.T) {
+			store := &commitResultStore{updateStoreStub: updateStoreStub{head: metadb.MessageUpdateHead{Generation: "g", ReplicaSet: "1"}}, status: status}
+			if status == "storage_error" {
+				store.err = errors.New("unconfirmed commit")
+			}
+			var scheduled []metadb.MessageUpdate
+			a := New(Options{Updates: store, UpdateCommitted: func(task metadb.MessageUpdate) {
+				if len(store.mutations) != 1 {
+					t.Fatal("scheduled before durable mutation")
+				}
+				scheduled = append(scheduled, task)
+			}, LookupReader: scanFunction(func(context.Context, []MessageScanQuery) ([]MessageScanResult, error) {
+				return []MessageScanResult{{Messages: []SyncedMessage{{ChannelID: "g", ChannelType: 2, MessageID: 10, MessageSeq: 20}}}}, nil
+			})})
+			_, err := a.UpdateMessage(context.Background(), UpdateMessageCommand{ChannelID: "g", ChannelType: 2, MessageID: 10, RequestID: "retry", Payload: []byte("new")})
+			if status != "ok" {
+				if err == nil || len(scheduled) != 0 {
+					t.Fatal("failed commit scheduled a hint")
+				}
+				return
+			}
+			if err != nil || len(scheduled) != 1 {
+				t.Fatalf("scheduled=%v err=%v", scheduled, err)
+			}
+			task := scheduled[0]
+			if task.ChannelID != "g" || task.ChannelType != 2 || task.MessageID != 10 || task.MessageSeq != 20 || task.Version != 7 || len(task.Payload) != 0 {
+				t.Fatalf("must schedule returned idempotent version, without payload: %+v", task)
+			}
+		})
+	}
+}
+
 func (s *updateStoreStub) ApplyMessageUpdate(_ context.Context, q metadb.MessageUpdateMutation) (metadb.MessageUpdateMutationResult, error) {
 	s.mutations = append(s.mutations, q)
 	return metadb.MessageUpdateMutationResult{Status: "ok", Head: s.head, Request: metadb.MessageUpdateRequest{MessageID: q.MessageID, MessageSeq: q.MessageSeq, Version: q.ExpectedVersion + 1}}, nil

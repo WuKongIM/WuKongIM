@@ -159,6 +159,10 @@ func (a *App) UpdateMessage(ctx context.Context, q UpdateMessageCommand) (Update
 	if applied.Status != "ok" {
 		return out, UpdateError(applied.Status)
 	}
+	if a.updateCommitted != nil {
+		a.updateCommitted(metadb.MessageUpdate{ChannelID: id.ID, ChannelType: int64(id.Type),
+			MessageID: applied.Request.MessageID, MessageSeq: applied.Request.MessageSeq, Version: applied.Request.Version})
+	}
 	return UpdateMessageResult{MessageID: applied.Request.MessageID, MessageSeq: applied.Request.MessageSeq, Version: applied.Request.Version, UpdatedAtMS: applied.Request.UpdatedAtMS}, nil
 }
 

@@ -118,7 +118,9 @@ specification, runbook, report, or module documentation; link to them when neede
   legacy StreamNo is not ClientMsgNo.
 - Message edits use separate update APIs and Slot-owned CAS/idempotency with safe
   ReadIndex and durable-apply barriers. Original logs and CMD semantics remain
-  unchanged. SDKs merge content/version/cursor atomically and reset cached version
+  unchanged. Post-commit notification identities wake a bounded worker queue;
+  durable pending scans remain the recovery authority for overflow, errors and restart.
+  SDKs merge content/version/cursor atomically and reset cached version
   comparisons when restore changes `X-WK-Content-Epoch`. See the
   [message-update contract](../specs/message-update-api.md).
 

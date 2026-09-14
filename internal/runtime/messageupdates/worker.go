@@ -33,6 +33,11 @@ type Worker struct {
 	mu           sync.Mutex
 	cancel       context.CancelFunc
 	done         chan struct{}
+	// Ready identities are an acceleration hint; durable scanning owns recovery.
+	runContext context.Context
+	ready      chan updateKey
+	pending    map[updateKey]metadb.MessageUpdate
+	wake       chan struct{}
 }
 
 func New(source Source, dispatcher Dispatcher, registry *goruntimeregistry.Registry, observeError func(int)) *Worker {
@@ -51,6 +56,10 @@ func (w *Worker) Start(ctx context.Context) error {
 	}
 	run, cancel := context.WithCancel(context.Background())
 	w.cancel = cancel
+	w.runContext = run
+	w.ready = make(chan updateKey, readyCapacity)
+	w.pending = make(map[updateKey]metadb.MessageUpdate)
+	w.wake = make(chan struct{}, 1)
 	w.done = make(chan struct{})
 	done := w.done
 	goruntimeregistry.SafeGo(w.registry, goruntimeregistry.TaskMessageUpdateWorker, func() { defer close(done); w.run(run) })
@@ -75,6 +84,10 @@ func (w *Worker) Stop(ctx context.Context) error {
 	if w.done == done {
 		w.cancel = nil
 		w.done = nil
+		w.runContext = nil
+		w.ready = nil
+		w.pending = nil
+		w.wake = nil
 	}
 	w.mu.Unlock()
 	return nil
@@ -89,11 +102,16 @@ func (w *Worker) run(ctx context.Context) {
 	offset := 0
 	failureCount := 0
 	var lastError time.Time
+	afterRepair := false
 	for {
-		select {
-		case <-ctx.Done():
+		repair, ok := nextWorkerTurn(ctx, ticker.C, w.wake, afterRepair)
+		if !ok {
 			return
-		case <-ticker.C:
+		}
+		afterRepair = repair
+		if !repair {
+			failureCount += w.dispatchReady(ctx)
+			continue
 		}
 		turn, cancel := context.WithTimeout(ctx, 4*time.Second)
 		slots, err := w.source.LocalLeaderHashSlots(turn)
@@ -170,6 +188,34 @@ func (w *Worker) run(ctx context.Context) {
 			failureCount = 0
 			lastError = time.Now()
 		}
+	}
+}
+
+// nextWorkerTurn leaves the other wake pending. Due repair precedes another fast
+// wave, but each repair gives queued commits a turn even if scanning ran slowly.
+func nextWorkerTurn(ctx context.Context, ticks <-chan time.Time, wake <-chan struct{}, afterRepair bool) (bool, bool) {
+	if ctx.Err() != nil {
+		return false, false
+	}
+	if afterRepair {
+		select {
+		case <-wake:
+			return false, true
+		default:
+		}
+	}
+	select {
+	case <-ticks:
+		return true, true
+	default:
+	}
+	select {
+	case <-ctx.Done():
+		return false, false
+	case <-ticks:
+		return true, true
+	case <-wake:
+		return false, true
 	}
 }
 

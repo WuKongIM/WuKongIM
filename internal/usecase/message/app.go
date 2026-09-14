@@ -17,6 +17,8 @@ type Options struct {
 	// UpdateHints and UpdateSubscribers support bounded post-commit notification.
 	UpdateHints       UpdateHintSender
 	UpdateSubscribers UpdateSubscribers
+	// UpdateCommitted schedules body-free work after durable success; it must not block on delivery.
+	UpdateCommitted func(metadb.MessageUpdate)
 	// CommandChannelSuffix selects command IDs; empty retains the legacy default.
 	CommandChannelSuffix string
 	// Submitter owns channel-authority send routing and append admission.
@@ -66,6 +68,7 @@ type App struct {
 	contentEpoch      func(context.Context) (uint64, error)
 	updateHints       UpdateHintSender
 	updateSubscribers UpdateSubscribers
+	updateCommitted   func(metadb.MessageUpdate)
 	// commandChannels applies the deployment suffix without process-global state.
 	commandChannels runtimechannelid.CommandCodec
 	submitter       Submitter
@@ -105,6 +108,7 @@ func New(opts Options) *App {
 		updates:      opts.Updates,
 		contentEpoch: opts.ContentEpoch,
 		updateHints:  opts.UpdateHints, updateSubscribers: opts.UpdateSubscribers,
+		updateCommitted:        opts.UpdateCommitted,
 		commandChannels:        runtimechannelid.CommandCodec{Suffix: opts.CommandChannelSuffix},
 		submitter:              opts.Submitter,
 		reader:                 opts.Reader,

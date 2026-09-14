@@ -12,6 +12,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Wake the existing message-edit notification worker after a successful commit through a bounded, coalescing identity queue, reducing cold-channel hint delay while retaining durable recovery scans and cluster-authoritative delivery. / 消息编辑提交成功后通过有界身份队列唤醒现有通知 worker，合并重复任务，缩短冷频道提示等待，同时保留持久化补偿扫描与集群权威投递。
+
 - Coalesce concurrent readiness write probes and reuse successful proof for up to two seconds, reducing Slot Raft noop entries while retaining live Slot, placement and authority checks. / 合并并发就绪写入探针，并在两秒内复用成功证明，减少 Slot Raft 空操作条目，同时保留实时槽位、放置能力与路由权威检查。
 
 - Turn the bilingual v2-to-v3 migration guide into a practical single-node cluster walkthrough, with advanced procedures in a separate reference. / 将中英文 v2 → v3 迁移教程改为单节点集群实战步骤，多节点、插件与异常处理独立为参考页。
