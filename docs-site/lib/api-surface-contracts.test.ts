@@ -182,7 +182,7 @@ describe('cluster transport catalog', () => {
       }
     }
 
-    expect(nodeTransportServices).toHaveLength(58);
+    expect(nodeTransportServices).toHaveLength(60);
     expect(parsed.sort((a, b) => a.id - b.id)).toEqual(
       nodeTransportServices
         .map(({ id, symbol }) => ({ id, symbol }))

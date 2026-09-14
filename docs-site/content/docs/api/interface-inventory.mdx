@@ -37,7 +37,7 @@ description: Manager、Node transport、MCP、Cloud View、插件、Webhook 和 
 
 `GET /manager/nodes/:node_id/config/toml` 返回版本化、脱敏的启动 TOML 文档，使用相同的 `cluster.node:r` 读取权限。
 
-## Node transport：58 个共享编号
+## Node transport：60 个共享编号
 
 受众是 **cluster-internal**。共享 TCP transport 没有逐调用 Bearer 或 TLS 身份；只有加入流程检查 Join Token，其余调用信任集群路由和隔离网络。
 
@@ -48,8 +48,10 @@ description: Manager、Node transport、MCP、Cloud View、插件、Webhook 和 
 | `64–86` | `control_write`, `manager_message_retention`, `node_lifecycle`, `slot_status`, `manager_task_audit`, `channel_migration_meta`, `message_event_append`, `manager_node_config`, `manager_latest_messages`, `scheduled_backup_messages`, `scheduled_backup_slot`, `scheduled_backup_probe`, `scheduled_backup_restore`, `operations_mcp`, `manager_goroutines`, `slot_subscriber_metadata`, `slot_channel_metadata`, `channel_conversation_heads`, `channel_committed_reads`, `slot_user_membership`, `slot_runtime_metadata`, `slot_permission_metadata_batch`, `channel_quorum_exchange` |
 | `87` | `slot_identity_metadata` |
 | `88` | `manager_node_config_document` |
+| `89` | `slot_message_updates` |
+| `90` | `message_update_hint` |
 
-ID `16` 是退役保留项，ID `20` 是删除功能的保留项，均不得复用。默认 Slot proxy 使用已晋升的 `79/80/83/84/85/87`；默认身份处理器仅接受 `get_device`，不开放用户读取或扫描；身份元数据使用 `87`，避免原来的 `4` 与 `channel_pull_hint` 冲突。通用但非默认的 Slot Store 仍声明私有 `47/53`，这些仍不能视为稳定目录。这些协议只能进入“不稳定内部合同”页，不能生成伪 OpenAPI 路径。
+ID `16` 是退役保留项，ID `20` 是删除功能的保留项，均不得复用。默认 Slot proxy 使用已晋升的 `79/80/83/84/85/87/89`；默认身份处理器仅接受 `get_device`，不开放用户读取或扫描；身份元数据使用 `87`，避免原来的 `4` 与 `channel_pull_hint` 冲突。通用但非默认的 Slot Store 仍声明私有 `47/53`，这些仍不能视为稳定目录。这些协议只能进入“不稳定内部合同”页，不能生成伪 OpenAPI 路径。
 
 ## MCP
 

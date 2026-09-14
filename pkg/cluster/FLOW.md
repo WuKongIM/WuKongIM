@@ -107,6 +107,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   only explicitly allowed restore RPC available. Backup and restore retain
   cluster routing and exact authority fences.
 
+- Routed committed and persisted message batches and conversation heads hydrate latest payload replacements through Slot authority. Cross-channel record chunks preserve batching above 200 total recent records; replacement growth respects each page byte budget and retains continuation. Matching skips empty pages, scans at most eight updates directly, and indexes larger pages without copying payload-bearing structs. The Slot ReadIndex/apply barrier is request-scoped, separate from readiness proof reuse; serving edit proposals check the content epoch under restore admission, including forwarded commands; local raw log/backup reads remain immutable.
+
 ## Read First
 
 - [Public API](api.go), [Node ownership](node.go), [Lifecycle](node_lifecycle.go)

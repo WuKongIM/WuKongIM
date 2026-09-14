@@ -94,6 +94,8 @@ DTOs, and `worker` bounds blocking I/O.
   accepted work. Lifecycle eviction requires no pending work and current
   fenced checkpoint/replica evidence.
 
+- Message version and update time are transient read overlays only. Immutable stored/replicated message encodings do not include edit state; raw log/backup reads remain original records.
+
 ## Read First
 
 - [Public contracts](channel.go)

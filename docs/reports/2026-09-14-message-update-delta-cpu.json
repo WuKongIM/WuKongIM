@@ -1,0 +1,3868 @@
+{
+  "schema": "wukongim/message-update-delta-cpu/v1",
+  "complete": true,
+  "identities": {
+    "tmp/message-update-soak/candidate-final": "5ff0d550760637f8298236271696d7a853662475c128d457f4a00094ab83283c",
+    "tmp/message-update-optimization/candidate-final": "c0d08e5b3423282bbb6b56636a48c1930c9cede0ea495107b3ff93dd1ee4af66",
+    "tmp/message-update-delta-cpu/delta-profile.test": "96f55f1fd330dbbcf9eaf48ebaede2f5a1903cf1e5ccab626368064e698af40e",
+    "test/e2e/message/conversation_qps/message_update_soak_test.go": "5823e216d57668cba8371d0a7c48aa53b0b17bc1046b7a8f876c43f5bfc5c2e7",
+    "test/e2e/message/conversation_qps/profile.json": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1"
+  },
+  "execution": {
+    "order": [
+      "before-1",
+      "after-1",
+      "after-2",
+      "before-2",
+      "before-3",
+      "after-3"
+    ],
+    "runs": [
+      {
+        "name": "before-1",
+        "start": "2026-09-13T16:10:23.229341+00:00",
+        "command": [
+          "docker",
+          "run",
+          "--rm",
+          "--name",
+          "wk-delta-cpu-before-1",
+          "--cpuset-cpus",
+          "0-5",
+          "--memory",
+          "6g",
+          "-e",
+          "GOMAXPROCS=2",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_SOAK=1",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_EDITED=1",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_DELTA_PROFILE=1",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_REPORT=/out/before-1/report.json",
+          "-e",
+          "WK_E2E_BINARY=/prior/candidate-final",
+          "-e",
+          "GIT_CONFIG_COUNT=1",
+          "-e",
+          "GIT_CONFIG_KEY_0=safe.directory",
+          "-e",
+          "GIT_CONFIG_VALUE_0=*",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM:/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM:ro",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/tmp/message-update-delta-cpu:/out",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/tmp/message-update-soak:/prior:ro",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/tmp/message-update-optimization:/optimized:ro",
+          "-w",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/test/e2e/message/conversation_qps",
+          "sha256:63cacf247cfd45aa03d105a9a86e2811f978514997be98068979ba6e4c2d0534",
+          "/out/delta-profile.test",
+          "-test.run",
+          "^TestMessageUpdateThreeNodeSoak$",
+          "-test.v",
+          "-test.timeout",
+          "12m"
+        ],
+        "exit_code": 0,
+        "end": "2026-09-13T16:18:35.153378+00:00"
+      },
+      {
+        "name": "after-1",
+        "start": "2026-09-13T16:18:35.154864+00:00",
+        "command": [
+          "docker",
+          "run",
+          "--rm",
+          "--name",
+          "wk-delta-cpu-after-1",
+          "--cpuset-cpus",
+          "0-5",
+          "--memory",
+          "6g",
+          "-e",
+          "GOMAXPROCS=2",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_SOAK=1",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_EDITED=1",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_DELTA_PROFILE=1",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_REPORT=/out/after-1/report.json",
+          "-e",
+          "WK_E2E_BINARY=/optimized/candidate-final",
+          "-e",
+          "GIT_CONFIG_COUNT=1",
+          "-e",
+          "GIT_CONFIG_KEY_0=safe.directory",
+          "-e",
+          "GIT_CONFIG_VALUE_0=*",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM:/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM:ro",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/tmp/message-update-delta-cpu:/out",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/tmp/message-update-soak:/prior:ro",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/tmp/message-update-optimization:/optimized:ro",
+          "-w",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/test/e2e/message/conversation_qps",
+          "sha256:63cacf247cfd45aa03d105a9a86e2811f978514997be98068979ba6e4c2d0534",
+          "/out/delta-profile.test",
+          "-test.run",
+          "^TestMessageUpdateThreeNodeSoak$",
+          "-test.v",
+          "-test.timeout",
+          "12m"
+        ],
+        "exit_code": 0,
+        "end": "2026-09-13T16:26:48.179352+00:00"
+      },
+      {
+        "name": "after-2",
+        "start": "2026-09-13T16:26:48.181176+00:00",
+        "command": [
+          "docker",
+          "run",
+          "--rm",
+          "--name",
+          "wk-delta-cpu-after-2",
+          "--cpuset-cpus",
+          "0-5",
+          "--memory",
+          "6g",
+          "-e",
+          "GOMAXPROCS=2",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_SOAK=1",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_EDITED=1",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_DELTA_PROFILE=1",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_REPORT=/out/after-2/report.json",
+          "-e",
+          "WK_E2E_BINARY=/optimized/candidate-final",
+          "-e",
+          "GIT_CONFIG_COUNT=1",
+          "-e",
+          "GIT_CONFIG_KEY_0=safe.directory",
+          "-e",
+          "GIT_CONFIG_VALUE_0=*",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM:/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM:ro",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/tmp/message-update-delta-cpu:/out",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/tmp/message-update-soak:/prior:ro",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/tmp/message-update-optimization:/optimized:ro",
+          "-w",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/test/e2e/message/conversation_qps",
+          "sha256:63cacf247cfd45aa03d105a9a86e2811f978514997be98068979ba6e4c2d0534",
+          "/out/delta-profile.test",
+          "-test.run",
+          "^TestMessageUpdateThreeNodeSoak$",
+          "-test.v",
+          "-test.timeout",
+          "12m"
+        ],
+        "exit_code": 0,
+        "end": "2026-09-13T16:35:01.474713+00:00"
+      },
+      {
+        "name": "before-2",
+        "start": "2026-09-13T16:35:01.475831+00:00",
+        "command": [
+          "docker",
+          "run",
+          "--rm",
+          "--name",
+          "wk-delta-cpu-before-2",
+          "--cpuset-cpus",
+          "0-5",
+          "--memory",
+          "6g",
+          "-e",
+          "GOMAXPROCS=2",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_SOAK=1",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_EDITED=1",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_DELTA_PROFILE=1",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_REPORT=/out/before-2/report.json",
+          "-e",
+          "WK_E2E_BINARY=/prior/candidate-final",
+          "-e",
+          "GIT_CONFIG_COUNT=1",
+          "-e",
+          "GIT_CONFIG_KEY_0=safe.directory",
+          "-e",
+          "GIT_CONFIG_VALUE_0=*",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM:/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM:ro",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/tmp/message-update-delta-cpu:/out",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/tmp/message-update-soak:/prior:ro",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/tmp/message-update-optimization:/optimized:ro",
+          "-w",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/test/e2e/message/conversation_qps",
+          "sha256:63cacf247cfd45aa03d105a9a86e2811f978514997be98068979ba6e4c2d0534",
+          "/out/delta-profile.test",
+          "-test.run",
+          "^TestMessageUpdateThreeNodeSoak$",
+          "-test.v",
+          "-test.timeout",
+          "12m"
+        ],
+        "exit_code": 0,
+        "end": "2026-09-13T16:43:14.217225+00:00"
+      },
+      {
+        "name": "before-3",
+        "start": "2026-09-13T16:43:14.218028+00:00",
+        "command": [
+          "docker",
+          "run",
+          "--rm",
+          "--name",
+          "wk-delta-cpu-before-3",
+          "--cpuset-cpus",
+          "0-5",
+          "--memory",
+          "6g",
+          "-e",
+          "GOMAXPROCS=2",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_SOAK=1",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_EDITED=1",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_DELTA_PROFILE=1",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_REPORT=/out/before-3/report.json",
+          "-e",
+          "WK_E2E_BINARY=/prior/candidate-final",
+          "-e",
+          "GIT_CONFIG_COUNT=1",
+          "-e",
+          "GIT_CONFIG_KEY_0=safe.directory",
+          "-e",
+          "GIT_CONFIG_VALUE_0=*",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM:/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM:ro",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/tmp/message-update-delta-cpu:/out",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/tmp/message-update-soak:/prior:ro",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/tmp/message-update-optimization:/optimized:ro",
+          "-w",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/test/e2e/message/conversation_qps",
+          "sha256:63cacf247cfd45aa03d105a9a86e2811f978514997be98068979ba6e4c2d0534",
+          "/out/delta-profile.test",
+          "-test.run",
+          "^TestMessageUpdateThreeNodeSoak$",
+          "-test.v",
+          "-test.timeout",
+          "12m"
+        ],
+        "exit_code": 0,
+        "end": "2026-09-13T16:51:25.642766+00:00"
+      },
+      {
+        "name": "after-3",
+        "start": "2026-09-13T16:51:25.643740+00:00",
+        "command": [
+          "docker",
+          "run",
+          "--rm",
+          "--name",
+          "wk-delta-cpu-after-3",
+          "--cpuset-cpus",
+          "0-5",
+          "--memory",
+          "6g",
+          "-e",
+          "GOMAXPROCS=2",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_SOAK=1",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_EDITED=1",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_DELTA_PROFILE=1",
+          "-e",
+          "WK_E2E_MESSAGE_UPDATE_REPORT=/out/after-3/report.json",
+          "-e",
+          "WK_E2E_BINARY=/optimized/candidate-final",
+          "-e",
+          "GIT_CONFIG_COUNT=1",
+          "-e",
+          "GIT_CONFIG_KEY_0=safe.directory",
+          "-e",
+          "GIT_CONFIG_VALUE_0=*",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM:/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM:ro",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/tmp/message-update-delta-cpu:/out",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/tmp/message-update-soak:/prior:ro",
+          "-v",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/tmp/message-update-optimization:/optimized:ro",
+          "-w",
+          "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates/test/e2e/message/conversation_qps",
+          "sha256:63cacf247cfd45aa03d105a9a86e2811f978514997be98068979ba6e4c2d0534",
+          "/out/delta-profile.test",
+          "-test.run",
+          "^TestMessageUpdateThreeNodeSoak$",
+          "-test.v",
+          "-test.timeout",
+          "12m"
+        ],
+        "exit_code": 0,
+        "end": "2026-09-13T16:59:36.212453+00:00"
+      }
+    ],
+    "complete": true
+  },
+  "runs": {
+    "before-1": {
+      "schema": "wukongim/message-update-soak/v1",
+      "harness_base": "0160c1f7d068b555c872df79ab6ab57f2cd4bc76",
+      "binary_sha256": "5ff0d550760637f8298236271696d7a853662475c128d457f4a00094ab83283c",
+      "profile_sha256": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1",
+      "os": "linux",
+      "arch": "arm64",
+      "cpus": 6,
+      "node_gomaxprocs": 2,
+      "driver_gomaxprocs": 2,
+      "edited": true,
+      "delta_profile": true,
+      "delta_warmup": {
+        "duration_ms": 38.633417,
+        "runtime_loads": 1,
+        "active_before": 0,
+        "active_after": 1,
+        "membership_writes": 0
+      },
+      "complete": true,
+      "report_sha256": "136b5aed47c013331ae9034ecc9cd0d5d41cc1f032728a1b811efe1ef1bc8691",
+      "profile_files": {
+        "node1-alloc-after.pprof": {
+          "bytes": 140504,
+          "sha256": "17da04dc78747437e4edcdbedca3bdd2056808a140fd1eb9d60e159370679d29"
+        },
+        "node1-alloc-before.pprof": {
+          "bytes": 139397,
+          "sha256": "fe7ca923ec3b607f1ece82391f7265b17d4f3dc763a6783872291aa252c9f47a"
+        },
+        "node1-cpu.pprof": {
+          "bytes": 23199,
+          "sha256": "f8d9da0215c2aa9bb296a9635929025ca763a4ab80c9b1028c9c7bf52f0f1dbf"
+        },
+        "node2-alloc-after.pprof": {
+          "bytes": 137901,
+          "sha256": "88d1a94f2618676c8012d809ed18ee377c92736d136d798f18bec43518a2e37c"
+        },
+        "node2-alloc-before.pprof": {
+          "bytes": 136599,
+          "sha256": "b93e4ebd39b2fdd2b0ebe7ca8edca1fb9852a197a4f4ac7595fff26f0f62660c"
+        },
+        "node2-cpu.pprof": {
+          "bytes": 30054,
+          "sha256": "c9805516e00828c6c80584772b8135a9108d4451c7477678cb88d846e395df1f"
+        },
+        "node3-alloc-after.pprof": {
+          "bytes": 136972,
+          "sha256": "2eb16b895ccd6f0483e85ea6bda4c688ecad26b0bfc1621eca9cd7ccf36d80e1"
+        },
+        "node3-alloc-before.pprof": {
+          "bytes": 135695,
+          "sha256": "baaa4a669b163d98cf2e8b6ae6a06649d9d5652c68e6cb04985e4c88e1da874e"
+        },
+        "node3-cpu.pprof": {
+          "bytes": 22211,
+          "sha256": "9e388f094e4d891246440c55bfe4ff6908d026a9bf1c6ecc3bdc6a274665aaf9"
+        }
+      },
+      "windows": [
+        {
+          "name": "mixed",
+          "start": "2026-09-13T16:13:17.963544135Z",
+          "end": "2026-09-13T16:14:17.963544135Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 2.132969,
+              "request_p99_ms": 19.599791,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 199.96666666666667,
+              "p50_ms": 12.232597,
+              "p95_ms": 17.033209,
+              "p99_ms": 20.62098,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            },
+            {
+              "driver_wait_p99_ms": 2.050969,
+              "request_p99_ms": 37.119542,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 27.288184,
+              "p95_ms": 33.00814,
+              "p99_ms": 37.387394,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 116.65999999999998,
+          "allocated_bytes": 59528652672,
+          "heap_bytes": 387217192,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 0,
+          "active_runtimes_after": 0,
+          "rpc_counts": {
+            "channel committed reads": 7200,
+            "channel conversation heads": 31200,
+            "channel quorum exchange": 0,
+            "controller raft": 2696,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 41,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 0,
+            "slot message updates": 182400,
+            "slot permission metadata batch": 153600,
+            "slot propose": 0,
+            "slot raft batch": 1096601,
+            "slot runtime metadata": 153600,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 12800
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 38.72,
+              "go_gc_duration_seconds_count{}": 216,
+              "go_gc_duration_seconds_sum{}": 0.0515742,
+              "go_memstats_alloc_bytes_total{}": 20129505552
+            },
+            {
+              "process_cpu_seconds_total{}": 37.9,
+              "go_gc_duration_seconds_count{}": 204,
+              "go_gc_duration_seconds_sum{}": 0.048685582,
+              "go_memstats_alloc_bytes_total{}": 19045377888
+            },
+            {
+              "process_cpu_seconds_total{}": 40.01,
+              "go_gc_duration_seconds_count{}": 219,
+              "go_gc_duration_seconds_sum{}": 0.055181165000000004,
+              "go_memstats_alloc_bytes_total{}": 20354106784
+            }
+          ]
+        },
+        {
+          "name": "mixed",
+          "start": "2026-09-13T16:14:20.736812886Z",
+          "end": "2026-09-13T16:15:20.736812886Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 1.754109,
+              "request_p99_ms": 17.994792,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 199.96666666666667,
+              "p50_ms": 11.828189,
+              "p95_ms": 16.134433,
+              "p99_ms": 18.671334,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            },
+            {
+              "driver_wait_p99_ms": 2.109982,
+              "request_p99_ms": 34.400041,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 26.993273,
+              "p95_ms": 32.390808,
+              "p99_ms": 35.012717,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 114.31999999999996,
+          "allocated_bytes": 59533817688,
+          "heap_bytes": 445325072,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 0,
+          "active_runtimes_after": 0,
+          "rpc_counts": {
+            "channel committed reads": 7200,
+            "channel conversation heads": 31200,
+            "channel quorum exchange": 0,
+            "controller raft": 2696,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 0,
+            "slot message updates": 182400,
+            "slot permission metadata batch": 153600,
+            "slot propose": 0,
+            "slot raft batch": 1097595,
+            "slot runtime metadata": 153600,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 12800
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 37.760000000000005,
+              "go_gc_duration_seconds_count{}": 216,
+              "go_gc_duration_seconds_sum{}": 0.04477172100000001,
+              "go_memstats_alloc_bytes_total{}": 20130318112
+            },
+            {
+              "process_cpu_seconds_total{}": 37.129999999999995,
+              "go_gc_duration_seconds_count{}": 204,
+              "go_gc_duration_seconds_sum{}": 0.053640293,
+              "go_memstats_alloc_bytes_total{}": 19051147904
+            },
+            {
+              "process_cpu_seconds_total{}": 39.410000000000004,
+              "go_gc_duration_seconds_count{}": 217,
+              "go_gc_duration_seconds_sum{}": 0.048982534999999994,
+              "go_memstats_alloc_bytes_total{}": 20354714816
+            }
+          ]
+        },
+        {
+          "name": "mixed",
+          "start": "2026-09-13T16:15:23.517950263Z",
+          "end": "2026-09-13T16:16:23.517950263Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 2.238261,
+              "request_p99_ms": 18.426583,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 199.96666666666667,
+              "p50_ms": 12.097143,
+              "p95_ms": 16.638463,
+              "p99_ms": 19.350984,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            },
+            {
+              "driver_wait_p99_ms": 2.110507,
+              "request_p99_ms": 35.674959,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 27.213464,
+              "p95_ms": 32.40747,
+              "p99_ms": 36.591471,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 115.57,
+          "allocated_bytes": 59526567224,
+          "heap_bytes": 462293032,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 0,
+          "active_runtimes_after": 0,
+          "rpc_counts": {
+            "channel committed reads": 7200,
+            "channel conversation heads": 31200,
+            "channel quorum exchange": 0,
+            "controller raft": 2694,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 0,
+            "slot message updates": 182400,
+            "slot permission metadata batch": 153600,
+            "slot propose": 0,
+            "slot raft batch": 1097136,
+            "slot runtime metadata": 153600,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 12800
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 38.329999999999984,
+              "go_gc_duration_seconds_count{}": 215,
+              "go_gc_duration_seconds_sum{}": 0.04862813099999999,
+              "go_memstats_alloc_bytes_total{}": 20127667920
+            },
+            {
+              "process_cpu_seconds_total{}": 37.25,
+              "go_gc_duration_seconds_count{}": 205,
+              "go_gc_duration_seconds_sum{}": 0.04779686799999999,
+              "go_memstats_alloc_bytes_total{}": 19048129200
+            },
+            {
+              "process_cpu_seconds_total{}": 39.94999999999999,
+              "go_gc_duration_seconds_count{}": 217,
+              "go_gc_duration_seconds_sum{}": 0.048283498999999994,
+              "go_memstats_alloc_bytes_total{}": 20351603200
+            }
+          ]
+        },
+        {
+          "name": "delta_changed",
+          "start": "2026-09-13T16:16:23.767314721Z",
+          "end": "2026-09-13T16:17:23.767314721Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 2.06506,
+              "request_p99_ms": 27.472417,
+              "driver_workers": 8,
+              "queue_capacity": 50,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/channel/messageupdates",
+                "page_size": 100,
+                "offered_qps": 100
+              },
+              "scheduled": 6000,
+              "completed": 6000,
+              "completed_in_window": 5999,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 99.98333333333333,
+              "p50_ms": 21.632387,
+              "p95_ms": 26.616939,
+              "p99_ms": 28.766556,
+              "active_runtimes_before": 1,
+              "active_runtimes_after": 1,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 40.86999999999995,
+          "allocated_bytes": 1027202944,
+          "heap_bytes": 506111160,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 1,
+          "active_runtimes_after": 1,
+          "rpc_counts": {
+            "channel committed reads": 4000,
+            "channel conversation heads": 0,
+            "channel quorum exchange": 0,
+            "controller raft": 2693,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 4000,
+            "slot message updates": 12000,
+            "slot permission metadata batch": 0,
+            "slot propose": 0,
+            "slot raft batch": 98848,
+            "slot runtime metadata": 4000,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 4000
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 11.280000000000001,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.0009553320000000032,
+              "go_memstats_alloc_bytes_total{}": 286546128
+            },
+            {
+              "process_cpu_seconds_total{}": 17.669999999999987,
+              "go_gc_duration_seconds_count{}": 5,
+              "go_gc_duration_seconds_sum{}": 0.0010877930000000036,
+              "go_memstats_alloc_bytes_total{}": 465179208
+            },
+            {
+              "process_cpu_seconds_total{}": 11.930000000000007,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.00052766600000001,
+              "go_memstats_alloc_bytes_total{}": 277485080
+            }
+          ]
+        },
+        {
+          "name": "delta_empty",
+          "start": "2026-09-13T16:17:23.958508055Z",
+          "end": "2026-09-13T16:18:23.958508055Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 2.383177,
+              "request_p99_ms": 19.911541,
+              "driver_workers": 8,
+              "queue_capacity": 50,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/channel/messageupdates",
+                "page_size": 100,
+                "offered_qps": 100
+              },
+              "scheduled": 6000,
+              "completed": 6000,
+              "completed_in_window": 5999,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 99.98333333333333,
+              "p50_ms": 12.657261,
+              "p95_ms": 19.913694,
+              "p99_ms": 21.552425,
+              "active_runtimes_before": 1,
+              "active_runtimes_after": 1,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 28.799999999999955,
+          "allocated_bytes": 762343400,
+          "heap_bytes": 458961464,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 1,
+          "active_runtimes_after": 1,
+          "rpc_counts": {
+            "channel committed reads": 0,
+            "channel conversation heads": 0,
+            "channel quorum exchange": 0,
+            "controller raft": 2692,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 4000,
+            "slot message updates": 8000,
+            "slot permission metadata batch": 0,
+            "slot propose": 0,
+            "slot raft batch": 75948,
+            "slot runtime metadata": 0,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 4000
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 8.030000000000001,
+              "go_gc_duration_seconds_count{}": 2,
+              "go_gc_duration_seconds_sum{}": 0.0002157080000000089,
+              "go_memstats_alloc_bytes_total{}": 234546768
+            },
+            {
+              "process_cpu_seconds_total{}": 11.689999999999998,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.00041729100000001407,
+              "go_memstats_alloc_bytes_total{}": 301062016
+            },
+            {
+              "process_cpu_seconds_total{}": 9.090000000000003,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.0006309589999999865,
+              "go_memstats_alloc_bytes_total{}": 227267096
+            }
+          ]
+        }
+      ]
+    },
+    "after-1": {
+      "schema": "wukongim/message-update-soak/v1",
+      "harness_base": "0160c1f7d068b555c872df79ab6ab57f2cd4bc76",
+      "binary_sha256": "c0d08e5b3423282bbb6b56636a48c1930c9cede0ea495107b3ff93dd1ee4af66",
+      "profile_sha256": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1",
+      "os": "linux",
+      "arch": "arm64",
+      "cpus": 6,
+      "node_gomaxprocs": 2,
+      "driver_gomaxprocs": 2,
+      "edited": true,
+      "delta_profile": true,
+      "delta_warmup": {
+        "duration_ms": 36.378625,
+        "runtime_loads": 1,
+        "active_before": 0,
+        "active_after": 1,
+        "membership_writes": 0
+      },
+      "complete": true,
+      "report_sha256": "71fcae6a3233f0a33c4239e04290eae159ad70d066cf612d12ffafa8212aa938",
+      "profile_files": {
+        "node1-alloc-after.pprof": {
+          "bytes": 141296,
+          "sha256": "3bdede0245202084ceb8d9d6dd48e5e37b3d78bca381b4af1156ecf35e366a26"
+        },
+        "node1-alloc-before.pprof": {
+          "bytes": 139951,
+          "sha256": "bc975c2bcec85e45a967d486020a87182fb78b603a4594e216c49579050130b0"
+        },
+        "node1-cpu.pprof": {
+          "bytes": 23218,
+          "sha256": "aeba6a8a7d33c19d01a111674dcfa725cadc1f21932574852d2f8512dc425601"
+        },
+        "node2-alloc-after.pprof": {
+          "bytes": 137755,
+          "sha256": "ec7816e7bca2782da5db46d504259b7802abf9ffd0748b1b8829732aae6f8023"
+        },
+        "node2-alloc-before.pprof": {
+          "bytes": 136441,
+          "sha256": "9baafe29452bfc52e4e4bb3d7cf0c551d31bb7984f5c86078766aa50ed989afb"
+        },
+        "node2-cpu.pprof": {
+          "bytes": 33422,
+          "sha256": "2b1fb5abd3307917fd214ecd818c67c1ea1392c27ce78546fcd9a0ee91b25273"
+        },
+        "node3-alloc-after.pprof": {
+          "bytes": 136045,
+          "sha256": "756a7d1d1039f5f916163c3817fd7e7c426de50d43ae2ce615380b38380045f3"
+        },
+        "node3-alloc-before.pprof": {
+          "bytes": 134271,
+          "sha256": "6a6c6799fe422341b36432b20e9b1c7d16dbb3f4625fed3b636e2ac951ac0177"
+        },
+        "node3-cpu.pprof": {
+          "bytes": 22316,
+          "sha256": "a641f12ececc307988816e985872625f88c5586a7aee2bc6e5c3180eef2dda6b"
+        }
+      },
+      "windows": [
+        {
+          "name": "mixed",
+          "start": "2026-09-13T16:21:30.843476544Z",
+          "end": "2026-09-13T16:22:30.843476544Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 1.71044,
+              "request_p99_ms": 18.715833,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 199.96666666666667,
+              "p50_ms": 11.854754,
+              "p95_ms": 16.552726,
+              "p99_ms": 19.468507,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            },
+            {
+              "driver_wait_p99_ms": 2.159002,
+              "request_p99_ms": 36.36475,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 27.002974,
+              "p95_ms": 32.76961,
+              "p99_ms": 37.237147,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 112.63,
+          "allocated_bytes": 57174196504,
+          "heap_bytes": 416819920,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 0,
+          "active_runtimes_after": 0,
+          "rpc_counts": {
+            "channel committed reads": 7200,
+            "channel conversation heads": 31200,
+            "channel quorum exchange": 0,
+            "controller raft": 2696,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 67,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 0,
+            "slot message updates": 182400,
+            "slot permission metadata batch": 153600,
+            "slot propose": 0,
+            "slot raft batch": 1096200,
+            "slot runtime metadata": 153600,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 12800
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 37.2,
+              "go_gc_duration_seconds_count{}": 207,
+              "go_gc_duration_seconds_sum{}": 0.05415821,
+              "go_memstats_alloc_bytes_total{}": 19342375320
+            },
+            {
+              "process_cpu_seconds_total{}": 36.81,
+              "go_gc_duration_seconds_count{}": 196,
+              "go_gc_duration_seconds_sum{}": 0.044613119,
+              "go_memstats_alloc_bytes_total{}": 18261207032
+            },
+            {
+              "process_cpu_seconds_total{}": 38.62,
+              "go_gc_duration_seconds_count{}": 209,
+              "go_gc_duration_seconds_sum{}": 0.038985715000000004,
+              "go_memstats_alloc_bytes_total{}": 19570495840
+            }
+          ]
+        },
+        {
+          "name": "mixed",
+          "start": "2026-09-13T16:22:33.625828962Z",
+          "end": "2026-09-13T16:23:33.625828962Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 1.668843,
+              "request_p99_ms": 18.034958,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 199.96666666666667,
+              "p50_ms": 11.824171,
+              "p95_ms": 16.264734,
+              "p99_ms": 18.848504,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            },
+            {
+              "driver_wait_p99_ms": 2.09973,
+              "request_p99_ms": 34.479167,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 26.907843,
+              "p95_ms": 32.278609,
+              "p99_ms": 35.485647,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 112.38,
+          "allocated_bytes": 57171667216,
+          "heap_bytes": 404580920,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 0,
+          "active_runtimes_after": 0,
+          "rpc_counts": {
+            "channel committed reads": 7200,
+            "channel conversation heads": 31200,
+            "channel quorum exchange": 0,
+            "controller raft": 2696,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 0,
+            "slot message updates": 182400,
+            "slot permission metadata batch": 153600,
+            "slot propose": 0,
+            "slot raft batch": 1097504,
+            "slot runtime metadata": 153600,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 12800
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 37.17,
+              "go_gc_duration_seconds_count{}": 207,
+              "go_gc_duration_seconds_sum{}": 0.048265875,
+              "go_memstats_alloc_bytes_total{}": 19341242128
+            },
+            {
+              "process_cpu_seconds_total{}": 36.84,
+              "go_gc_duration_seconds_count{}": 195,
+              "go_gc_duration_seconds_sum{}": 0.049486041,
+              "go_memstats_alloc_bytes_total{}": 18261551024
+            },
+            {
+              "process_cpu_seconds_total{}": 38.36999999999999,
+              "go_gc_duration_seconds_count{}": 210,
+              "go_gc_duration_seconds_sum{}": 0.052348461,
+              "go_memstats_alloc_bytes_total{}": 19571697104
+            }
+          ]
+        },
+        {
+          "name": "mixed",
+          "start": "2026-09-13T16:23:36.478502255Z",
+          "end": "2026-09-13T16:24:36.478502255Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 1.863631,
+              "request_p99_ms": 18.175083,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 199.96666666666667,
+              "p50_ms": 12.067104,
+              "p95_ms": 16.42584,
+              "p99_ms": 18.880801,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            },
+            {
+              "driver_wait_p99_ms": 1.956975,
+              "request_p99_ms": 35.225125,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 27.170138,
+              "p95_ms": 32.533094,
+              "p99_ms": 35.844666,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 113.04000000000002,
+          "allocated_bytes": 57167768992,
+          "heap_bytes": 363307056,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 0,
+          "active_runtimes_after": 0,
+          "rpc_counts": {
+            "channel committed reads": 7200,
+            "channel conversation heads": 31200,
+            "channel quorum exchange": 0,
+            "controller raft": 2694,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 0,
+            "slot message updates": 182400,
+            "slot permission metadata batch": 153600,
+            "slot propose": 0,
+            "slot raft batch": 1094847,
+            "slot runtime metadata": 153600,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 12800
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 37.53999999999999,
+              "go_gc_duration_seconds_count{}": 207,
+              "go_gc_duration_seconds_sum{}": 0.04198358699999999,
+              "go_memstats_alloc_bytes_total{}": 19338774216
+            },
+            {
+              "process_cpu_seconds_total{}": 37.27000000000001,
+              "go_gc_duration_seconds_count{}": 196,
+              "go_gc_duration_seconds_sum{}": 0.043707419,
+              "go_memstats_alloc_bytes_total{}": 18259732560
+            },
+            {
+              "process_cpu_seconds_total{}": 38.19999999999999,
+              "go_gc_duration_seconds_count{}": 210,
+              "go_gc_duration_seconds_sum{}": 0.05141976000000001,
+              "go_memstats_alloc_bytes_total{}": 19574020240
+            }
+          ]
+        },
+        {
+          "name": "delta_changed",
+          "start": "2026-09-13T16:24:36.72926363Z",
+          "end": "2026-09-13T16:25:36.72926363Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 1.984442,
+              "request_p99_ms": 27.938709,
+              "driver_workers": 8,
+              "queue_capacity": 50,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/channel/messageupdates",
+                "page_size": 100,
+                "offered_qps": 100
+              },
+              "scheduled": 6000,
+              "completed": 6000,
+              "completed_in_window": 5999,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 99.98333333333333,
+              "p50_ms": 21.625852,
+              "p95_ms": 27.134849,
+              "p99_ms": 29.223603,
+              "active_runtimes_before": 1,
+              "active_runtimes_after": 1,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 38.599999999999966,
+          "allocated_bytes": 1015064264,
+          "heap_bytes": 402031544,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 1,
+          "active_runtimes_after": 1,
+          "rpc_counts": {
+            "channel committed reads": 4000,
+            "channel conversation heads": 0,
+            "channel quorum exchange": 0,
+            "controller raft": 2692,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 4000,
+            "slot message updates": 12000,
+            "slot permission metadata batch": 0,
+            "slot propose": 0,
+            "slot raft batch": 99079,
+            "slot runtime metadata": 4000,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 4000
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 10.580000000000013,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.0007000000000000062,
+              "go_memstats_alloc_bytes_total{}": 284005872
+            },
+            {
+              "process_cpu_seconds_total{}": 17.079999999999984,
+              "go_gc_duration_seconds_count{}": 5,
+              "go_gc_duration_seconds_sum{}": 0.0026403329999999947,
+              "go_memstats_alloc_bytes_total{}": 459099352
+            },
+            {
+              "process_cpu_seconds_total{}": 10.969999999999999,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.0004544989999999971,
+              "go_memstats_alloc_bytes_total{}": 274632432
+            }
+          ]
+        },
+        {
+          "name": "delta_empty",
+          "start": "2026-09-13T16:25:36.925203922Z",
+          "end": "2026-09-13T16:26:36.925203922Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 2.767477,
+              "request_p99_ms": 20.100959,
+              "driver_workers": 8,
+              "queue_capacity": 50,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/channel/messageupdates",
+                "page_size": 100,
+                "offered_qps": 100
+              },
+              "scheduled": 6000,
+              "completed": 6000,
+              "completed_in_window": 5999,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 99.98333333333333,
+              "p50_ms": 12.518918,
+              "p95_ms": 19.820271,
+              "p99_ms": 21.498352,
+              "active_runtimes_before": 1,
+              "active_runtimes_after": 1,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 30.74000000000001,
+          "allocated_bytes": 760944032,
+          "heap_bytes": 439016648,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 1,
+          "active_runtimes_after": 1,
+          "rpc_counts": {
+            "channel committed reads": 0,
+            "channel conversation heads": 0,
+            "channel quorum exchange": 0,
+            "controller raft": 2692,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 4000,
+            "slot message updates": 8000,
+            "slot permission metadata batch": 0,
+            "slot propose": 0,
+            "slot raft batch": 76017,
+            "slot runtime metadata": 0,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 4000
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 8.590000000000003,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.0008355830000000009,
+              "go_memstats_alloc_bytes_total{}": 236179296
+            },
+            {
+              "process_cpu_seconds_total{}": 12.620000000000005,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.000678291999999997,
+              "go_memstats_alloc_bytes_total{}": 298894488
+            },
+            {
+              "process_cpu_seconds_total{}": 9.580000000000013,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.00040883199999999786,
+              "go_memstats_alloc_bytes_total{}": 226484320
+            }
+          ]
+        }
+      ]
+    },
+    "after-2": {
+      "schema": "wukongim/message-update-soak/v1",
+      "harness_base": "0160c1f7d068b555c872df79ab6ab57f2cd4bc76",
+      "binary_sha256": "c0d08e5b3423282bbb6b56636a48c1930c9cede0ea495107b3ff93dd1ee4af66",
+      "profile_sha256": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1",
+      "os": "linux",
+      "arch": "arm64",
+      "cpus": 6,
+      "node_gomaxprocs": 2,
+      "driver_gomaxprocs": 2,
+      "edited": true,
+      "delta_profile": true,
+      "delta_warmup": {
+        "duration_ms": 39.508333,
+        "runtime_loads": 1,
+        "active_before": 0,
+        "active_after": 1,
+        "membership_writes": 0
+      },
+      "complete": true,
+      "report_sha256": "8ad5e60343f0c7a656d17bf2e6a5328d75a669df86790abbd19ba02718c95c88",
+      "profile_files": {
+        "node1-alloc-after.pprof": {
+          "bytes": 136227,
+          "sha256": "a52ef6ef339b6a7d3d483f285ef72879285fbff4d30171679971c74bf040d3ec"
+        },
+        "node1-alloc-before.pprof": {
+          "bytes": 134448,
+          "sha256": "6b51724245190cee8b06eec34e1f9792447e0e46d95aee2219156b1da574f885"
+        },
+        "node1-cpu.pprof": {
+          "bytes": 26258,
+          "sha256": "c6a4b1d72bb1c030af6583c9dc0799544ff61c180aeb89b53b60862bb72333ce"
+        },
+        "node2-alloc-after.pprof": {
+          "bytes": 137555,
+          "sha256": "a51d142989274ce7f5d8369b3a66f18b80697d5758068a26e9c4e3921bff5ce6"
+        },
+        "node2-alloc-before.pprof": {
+          "bytes": 136524,
+          "sha256": "027301635e11e984fd84ce95b3c8d5e00dae690c6f52c5973d5fdd6d60c56fc0"
+        },
+        "node2-cpu.pprof": {
+          "bytes": 35007,
+          "sha256": "e95fce9f1e71916914e1c61b274e3bb0b0cf99b23cb900072746a27deba7b5b2"
+        },
+        "node3-alloc-after.pprof": {
+          "bytes": 138976,
+          "sha256": "963596bd63286e734f41f1482a295b6522176f2fb79866ed58c0c544a5a35d46"
+        },
+        "node3-alloc-before.pprof": {
+          "bytes": 138303,
+          "sha256": "4d549f899c7f12dc075c963c04c866ca1f536711551b1878ae300695e3715872"
+        },
+        "node3-cpu.pprof": {
+          "bytes": 25201,
+          "sha256": "ffbc962276d7cc73f3595e11f16bedb232666aaf05df7b9320b8304044dbd789"
+        }
+      },
+      "windows": [
+        {
+          "name": "mixed",
+          "start": "2026-09-13T16:29:44.290449508Z",
+          "end": "2026-09-13T16:30:44.290449508Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 1.839255,
+              "request_p99_ms": 18.583416,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 199.96666666666667,
+              "p50_ms": 11.959012,
+              "p95_ms": 16.563184,
+              "p99_ms": 19.624765,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            },
+            {
+              "driver_wait_p99_ms": 2.058607,
+              "request_p99_ms": 35.549042,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 27.071859,
+              "p95_ms": 32.585597,
+              "p99_ms": 36.19922,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 115.14000000000001,
+          "allocated_bytes": 57181506912,
+          "heap_bytes": 358486880,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 0,
+          "active_runtimes_after": 0,
+          "rpc_counts": {
+            "channel committed reads": 7200,
+            "channel conversation heads": 31200,
+            "channel quorum exchange": 0,
+            "controller raft": 2695,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 55,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 0,
+            "slot message updates": 182400,
+            "slot permission metadata batch": 153600,
+            "slot propose": 0,
+            "slot raft batch": 1096691,
+            "slot runtime metadata": 153600,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 12800
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 38.75,
+              "go_gc_duration_seconds_count{}": 206,
+              "go_gc_duration_seconds_sum{}": 0.044801244999999996,
+              "go_memstats_alloc_bytes_total{}": 19343596416
+            },
+            {
+              "process_cpu_seconds_total{}": 37.260000000000005,
+              "go_gc_duration_seconds_count{}": 196,
+              "go_gc_duration_seconds_sum{}": 0.041576802,
+              "go_memstats_alloc_bytes_total{}": 18265388456
+            },
+            {
+              "process_cpu_seconds_total{}": 39.13,
+              "go_gc_duration_seconds_count{}": 210,
+              "go_gc_duration_seconds_sum{}": 0.04816509,
+              "go_memstats_alloc_bytes_total{}": 19574087808
+            }
+          ]
+        },
+        {
+          "name": "mixed",
+          "start": "2026-09-13T16:30:47.042902635Z",
+          "end": "2026-09-13T16:31:47.042902635Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 2.052481,
+              "request_p99_ms": 19.176167,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 199.96666666666667,
+              "p50_ms": 11.813795,
+              "p95_ms": 16.456897,
+              "p99_ms": 19.727306,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            },
+            {
+              "driver_wait_p99_ms": 2.128092,
+              "request_p99_ms": 35.437375,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 27.109191,
+              "p95_ms": 32.871351,
+              "p99_ms": 36.203401,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 115.44,
+          "allocated_bytes": 57169000944,
+          "heap_bytes": 522240968,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 0,
+          "active_runtimes_after": 0,
+          "rpc_counts": {
+            "channel committed reads": 7200,
+            "channel conversation heads": 31200,
+            "channel quorum exchange": 0,
+            "controller raft": 2696,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 0,
+            "slot message updates": 182400,
+            "slot permission metadata batch": 153600,
+            "slot propose": 0,
+            "slot raft batch": 1096267,
+            "slot runtime metadata": 153600,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 12800
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 38.85999999999999,
+              "go_gc_duration_seconds_count{}": 206,
+              "go_gc_duration_seconds_sum{}": 0.048587501,
+              "go_memstats_alloc_bytes_total{}": 19339681792
+            },
+            {
+              "process_cpu_seconds_total{}": 37.37,
+              "go_gc_duration_seconds_count{}": 195,
+              "go_gc_duration_seconds_sum{}": 0.05480216599999999,
+              "go_memstats_alloc_bytes_total{}": 18261847712
+            },
+            {
+              "process_cpu_seconds_total{}": 39.21,
+              "go_gc_duration_seconds_count{}": 209,
+              "go_gc_duration_seconds_sum{}": 0.044628202,
+              "go_memstats_alloc_bytes_total{}": 19570118712
+            }
+          ]
+        },
+        {
+          "name": "mixed",
+          "start": "2026-09-13T16:31:49.841336469Z",
+          "end": "2026-09-13T16:32:49.841336469Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 1.976016,
+              "request_p99_ms": 18.791708,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 199.96666666666667,
+              "p50_ms": 12.081836,
+              "p95_ms": 16.692175,
+              "p99_ms": 19.523561,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            },
+            {
+              "driver_wait_p99_ms": 2.020845,
+              "request_p99_ms": 35.867958,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 27.072734,
+              "p95_ms": 32.671095,
+              "p99_ms": 36.393007,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 115.68999999999994,
+          "allocated_bytes": 57175204616,
+          "heap_bytes": 386702536,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 0,
+          "active_runtimes_after": 0,
+          "rpc_counts": {
+            "channel committed reads": 7200,
+            "channel conversation heads": 31200,
+            "channel quorum exchange": 0,
+            "controller raft": 2696,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 0,
+            "slot message updates": 182400,
+            "slot permission metadata batch": 153600,
+            "slot propose": 0,
+            "slot raft batch": 1096613,
+            "slot runtime metadata": 153600,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 12800
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 38.849999999999994,
+              "go_gc_duration_seconds_count{}": 206,
+              "go_gc_duration_seconds_sum{}": 0.044070659999999984,
+              "go_memstats_alloc_bytes_total{}": 19341763072
+            },
+            {
+              "process_cpu_seconds_total{}": 37.510000000000005,
+              "go_gc_duration_seconds_count{}": 196,
+              "go_gc_duration_seconds_sum{}": 0.04342196999999999,
+              "go_memstats_alloc_bytes_total{}": 18262017072
+            },
+            {
+              "process_cpu_seconds_total{}": 39.31,
+              "go_gc_duration_seconds_count{}": 210,
+              "go_gc_duration_seconds_sum{}": 0.049971372999999986,
+              "go_memstats_alloc_bytes_total{}": 19571916680
+            }
+          ]
+        },
+        {
+          "name": "delta_changed",
+          "start": "2026-09-13T16:32:50.097675094Z",
+          "end": "2026-09-13T16:33:50.097675094Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 2.197424,
+              "request_p99_ms": 27.942292,
+              "driver_workers": 8,
+              "queue_capacity": 50,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/channel/messageupdates",
+                "page_size": 100,
+                "offered_qps": 100
+              },
+              "scheduled": 6000,
+              "completed": 6000,
+              "completed_in_window": 5999,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 99.98333333333333,
+              "p50_ms": 21.595419,
+              "p95_ms": 26.871343,
+              "p99_ms": 29.024709,
+              "active_runtimes_before": 1,
+              "active_runtimes_after": 1,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 38.719999999999914,
+          "allocated_bytes": 1014874744,
+          "heap_bytes": 407540776,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 1,
+          "active_runtimes_after": 1,
+          "rpc_counts": {
+            "channel committed reads": 4000,
+            "channel conversation heads": 0,
+            "channel quorum exchange": 0,
+            "controller raft": 2694,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 4000,
+            "slot message updates": 12000,
+            "slot permission metadata batch": 0,
+            "slot propose": 0,
+            "slot raft batch": 99092,
+            "slot runtime metadata": 4000,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 4000
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 10.840000000000003,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.001080918000000014,
+              "go_memstats_alloc_bytes_total{}": 283510408
+            },
+            {
+              "process_cpu_seconds_total{}": 17.019999999999982,
+              "go_gc_duration_seconds_count{}": 5,
+              "go_gc_duration_seconds_sum{}": 0.002632040000000002,
+              "go_memstats_alloc_bytes_total{}": 460477752
+            },
+            {
+              "process_cpu_seconds_total{}": 10.879999999999995,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.0013020420000000033,
+              "go_memstats_alloc_bytes_total{}": 273931856
+            }
+          ]
+        },
+        {
+          "name": "delta_empty",
+          "start": "2026-09-13T16:33:50.292407261Z",
+          "end": "2026-09-13T16:34:50.292407261Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 2.862632,
+              "request_p99_ms": 20.269208,
+              "driver_workers": 8,
+              "queue_capacity": 50,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/channel/messageupdates",
+                "page_size": 100,
+                "offered_qps": 100
+              },
+              "scheduled": 6000,
+              "completed": 6000,
+              "completed_in_window": 5999,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 99.98333333333333,
+              "p50_ms": 12.32134,
+              "p95_ms": 19.755667,
+              "p99_ms": 21.136688,
+              "active_runtimes_before": 1,
+              "active_runtimes_after": 1,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 29.809999999999945,
+          "allocated_bytes": 758724984,
+          "heap_bytes": 445360456,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 1,
+          "active_runtimes_after": 1,
+          "rpc_counts": {
+            "channel committed reads": 0,
+            "channel conversation heads": 0,
+            "channel quorum exchange": 0,
+            "controller raft": 2693,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 4000,
+            "slot message updates": 8000,
+            "slot permission metadata batch": 0,
+            "slot propose": 0,
+            "slot raft batch": 75985,
+            "slot runtime metadata": 0,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 4000
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 8.420000000000016,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.0004129159999999854,
+              "go_memstats_alloc_bytes_total{}": 235238856
+            },
+            {
+              "process_cpu_seconds_total{}": 12.360000000000014,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.001572917000000007,
+              "go_memstats_alloc_bytes_total{}": 299081832
+            },
+            {
+              "process_cpu_seconds_total{}": 9.059999999999974,
+              "go_gc_duration_seconds_count{}": 2,
+              "go_gc_duration_seconds_sum{}": 0.000276417000000001,
+              "go_memstats_alloc_bytes_total{}": 225374504
+            }
+          ]
+        }
+      ]
+    },
+    "before-2": {
+      "schema": "wukongim/message-update-soak/v1",
+      "harness_base": "0160c1f7d068b555c872df79ab6ab57f2cd4bc76",
+      "binary_sha256": "5ff0d550760637f8298236271696d7a853662475c128d457f4a00094ab83283c",
+      "profile_sha256": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1",
+      "os": "linux",
+      "arch": "arm64",
+      "cpus": 6,
+      "node_gomaxprocs": 2,
+      "driver_gomaxprocs": 2,
+      "edited": true,
+      "delta_profile": true,
+      "delta_warmup": {
+        "duration_ms": 37.082125,
+        "runtime_loads": 1,
+        "active_before": 0,
+        "active_after": 1,
+        "membership_writes": 0
+      },
+      "complete": true,
+      "report_sha256": "94fb8a9ac87affb3aba271ad2528dc81138834b87a462849f61861f4c1cab276",
+      "profile_files": {
+        "node1-alloc-after.pprof": {
+          "bytes": 141391,
+          "sha256": "950e31f6bca4ab6599c71bccdd1790a4d8967050749ba785a835e07e71cdb150"
+        },
+        "node1-alloc-before.pprof": {
+          "bytes": 140683,
+          "sha256": "199de12b40145046fb4d34cc609f2aeecf34f69d8a034a297f211b350def19b6"
+        },
+        "node1-cpu.pprof": {
+          "bytes": 21665,
+          "sha256": "c9d902a57b737920019a05b9617fb43eb3ee03ad849a60ef6debf80d2733e120"
+        },
+        "node2-alloc-after.pprof": {
+          "bytes": 138732,
+          "sha256": "80ec264fb7a5101c47c94e339768e208898b8f1c84e27e527830814a6a968718"
+        },
+        "node2-alloc-before.pprof": {
+          "bytes": 137374,
+          "sha256": "5ceef1c3583827352d1e068654aefde2b76acea8248514d4d8c984b5aa7222ce"
+        },
+        "node2-cpu.pprof": {
+          "bytes": 30751,
+          "sha256": "a5ca94fa06ed916ddb11b34b997362901388dffd1e5ab8a022d29b262321fe1c"
+        },
+        "node3-alloc-after.pprof": {
+          "bytes": 137538,
+          "sha256": "b077f97c00dee02d0f69596c6f190837699d663b3454579d51ebba663cb576f1"
+        },
+        "node3-alloc-before.pprof": {
+          "bytes": 136369,
+          "sha256": "3738f300b90ba6e92fabd8a08615a85715995051348cca1d4c0fd8941e260082"
+        },
+        "node3-cpu.pprof": {
+          "bytes": 22491,
+          "sha256": "9099f4e93378253c7b555aaa2c0256c474285a20a1f735e07d71c66ecfc9f868"
+        }
+      },
+      "windows": [
+        {
+          "name": "mixed",
+          "start": "2026-09-13T16:37:57.256701083Z",
+          "end": "2026-09-13T16:38:57.256701083Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 2.147794,
+              "request_p99_ms": 25.775792,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 199.96666666666667,
+              "p50_ms": 11.996355,
+              "p95_ms": 17.354228,
+              "p99_ms": 28.56865,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            },
+            {
+              "driver_wait_p99_ms": 2.151395,
+              "request_p99_ms": 55.39625,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 27.10561,
+              "p95_ms": 34.045299,
+              "p99_ms": 57.277609,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 121.07,
+          "allocated_bytes": 59524598704,
+          "heap_bytes": 385499616,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 0,
+          "active_runtimes_after": 0,
+          "rpc_counts": {
+            "channel committed reads": 7200,
+            "channel conversation heads": 31200,
+            "channel quorum exchange": 0,
+            "controller raft": 2702,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 48,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 0,
+            "slot message updates": 182400,
+            "slot permission metadata batch": 153600,
+            "slot propose": 0,
+            "slot raft batch": 1095124,
+            "slot runtime metadata": 153600,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 12800
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 41.019999999999996,
+              "go_gc_duration_seconds_count{}": 215,
+              "go_gc_duration_seconds_sum{}": 0.046800085,
+              "go_memstats_alloc_bytes_total{}": 20124111392
+            },
+            {
+              "process_cpu_seconds_total{}": 39.519999999999996,
+              "go_gc_duration_seconds_count{}": 203,
+              "go_gc_duration_seconds_sum{}": 0.040792834,
+              "go_memstats_alloc_bytes_total{}": 19045427528
+            },
+            {
+              "process_cpu_seconds_total{}": 40.51,
+              "go_gc_duration_seconds_count{}": 218,
+              "go_gc_duration_seconds_sum{}": 0.050406216000000004,
+              "go_memstats_alloc_bytes_total{}": 20355166384
+            }
+          ]
+        },
+        {
+          "name": "mixed",
+          "start": "2026-09-13T16:39:00.003213626Z",
+          "end": "2026-09-13T16:40:00.003213626Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 2.804475,
+              "request_p99_ms": 27.041083,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 199.96666666666667,
+              "p50_ms": 12.269185,
+              "p95_ms": 17.682133,
+              "p99_ms": 33.203819,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            },
+            {
+              "driver_wait_p99_ms": 2.054556,
+              "request_p99_ms": 56.259125,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 27.265046,
+              "p95_ms": 34.388263,
+              "p99_ms": 58.096687,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 120.77000000000001,
+          "allocated_bytes": 59524188544,
+          "heap_bytes": 459433208,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 0,
+          "active_runtimes_after": 0,
+          "rpc_counts": {
+            "channel committed reads": 7200,
+            "channel conversation heads": 31200,
+            "channel quorum exchange": 0,
+            "controller raft": 2700,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 0,
+            "slot message updates": 182400,
+            "slot permission metadata batch": 153600,
+            "slot propose": 0,
+            "slot raft batch": 1094717,
+            "slot runtime metadata": 153600,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 12800
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 40.599999999999994,
+              "go_gc_duration_seconds_count{}": 215,
+              "go_gc_duration_seconds_sum{}": 0.052047957000000006,
+              "go_memstats_alloc_bytes_total{}": 20126094408
+            },
+            {
+              "process_cpu_seconds_total{}": 39.620000000000005,
+              "go_gc_duration_seconds_count{}": 203,
+              "go_gc_duration_seconds_sum{}": 0.050041084,
+              "go_memstats_alloc_bytes_total{}": 19043218672
+            },
+            {
+              "process_cpu_seconds_total{}": 40.550000000000004,
+              "go_gc_duration_seconds_count{}": 218,
+              "go_gc_duration_seconds_sum{}": 0.05961145899999999,
+              "go_memstats_alloc_bytes_total{}": 20355870488
+            }
+          ]
+        },
+        {
+          "name": "mixed",
+          "start": "2026-09-13T16:40:02.669265336Z",
+          "end": "2026-09-13T16:41:02.669265336Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 72.382091,
+              "request_p99_ms": 40.369375,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 199.96666666666667,
+              "p50_ms": 12.029691,
+              "p95_ms": 19.535985,
+              "p99_ms": 111.345597,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            },
+            {
+              "driver_wait_p99_ms": 5.145716,
+              "request_p99_ms": 93.286292,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 27.30871,
+              "p95_ms": 38.539517,
+              "p99_ms": 120.028383,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 120.21999999999997,
+          "allocated_bytes": 59509288136,
+          "heap_bytes": 443703528,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 0,
+          "active_runtimes_after": 0,
+          "rpc_counts": {
+            "channel committed reads": 7200,
+            "channel conversation heads": 31200,
+            "channel quorum exchange": 0,
+            "controller raft": 2697,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 0,
+            "slot message updates": 182400,
+            "slot permission metadata batch": 153600,
+            "slot propose": 0,
+            "slot raft batch": 1091044,
+            "slot runtime metadata": 153600,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 12800
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 40.120000000000005,
+              "go_gc_duration_seconds_count{}": 215,
+              "go_gc_duration_seconds_sum{}": 0.053738411000000014,
+              "go_memstats_alloc_bytes_total{}": 20121927128
+            },
+            {
+              "process_cpu_seconds_total{}": 39.69999999999999,
+              "go_gc_duration_seconds_count{}": 204,
+              "go_gc_duration_seconds_sum{}": 0.047365033999999986,
+              "go_memstats_alloc_bytes_total{}": 19038828496
+            },
+            {
+              "process_cpu_seconds_total{}": 40.38000000000001,
+              "go_gc_duration_seconds_count{}": 217,
+              "go_gc_duration_seconds_sum{}": 0.047501167999999996,
+              "go_memstats_alloc_bytes_total{}": 20349577576
+            }
+          ]
+        },
+        {
+          "name": "delta_changed",
+          "start": "2026-09-13T16:41:02.910072795Z",
+          "end": "2026-09-13T16:42:02.910072795Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 2.154967,
+              "request_p99_ms": 26.377417,
+              "driver_workers": 8,
+              "queue_capacity": 50,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/channel/messageupdates",
+                "page_size": 100,
+                "offered_qps": 100
+              },
+              "scheduled": 6000,
+              "completed": 6000,
+              "completed_in_window": 5999,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 99.98333333333333,
+              "p50_ms": 20.181766,
+              "p95_ms": 24.802263,
+              "p99_ms": 26.793393,
+              "active_runtimes_before": 1,
+              "active_runtimes_after": 1,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 39.26999999999998,
+          "allocated_bytes": 1021720776,
+          "heap_bytes": 396728224,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 1,
+          "active_runtimes_after": 1,
+          "rpc_counts": {
+            "channel committed reads": 4000,
+            "channel conversation heads": 0,
+            "channel quorum exchange": 0,
+            "controller raft": 2698,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 4000,
+            "slot message updates": 12000,
+            "slot permission metadata batch": 0,
+            "slot propose": 0,
+            "slot raft batch": 98575,
+            "slot runtime metadata": 4000,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 4000
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 10.799999999999983,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.001051915999999986,
+              "go_memstats_alloc_bytes_total{}": 286234680
+            },
+            {
+              "process_cpu_seconds_total{}": 17.150000000000006,
+              "go_gc_duration_seconds_count{}": 5,
+              "go_gc_duration_seconds_sum{}": 0.0011173329999999981,
+              "go_memstats_alloc_bytes_total{}": 463913000
+            },
+            {
+              "process_cpu_seconds_total{}": 11.310000000000002,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.0012748760000000081,
+              "go_memstats_alloc_bytes_total{}": 274707056
+            }
+          ]
+        },
+        {
+          "name": "delta_empty",
+          "start": "2026-09-13T16:42:03.097931378Z",
+          "end": "2026-09-13T16:43:03.097931378Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 2.262471,
+              "request_p99_ms": 18.548333,
+              "driver_workers": 8,
+              "queue_capacity": 50,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/channel/messageupdates",
+                "page_size": 100,
+                "offered_qps": 100
+              },
+              "scheduled": 6000,
+              "completed": 6000,
+              "completed_in_window": 5999,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 99.98333333333333,
+              "p50_ms": 12.303883,
+              "p95_ms": 18.424309,
+              "p99_ms": 19.588718,
+              "active_runtimes_before": 1,
+              "active_runtimes_after": 1,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 31.709999999999923,
+          "allocated_bytes": 760209008,
+          "heap_bytes": 343331320,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 1,
+          "active_runtimes_after": 1,
+          "rpc_counts": {
+            "channel committed reads": 0,
+            "channel conversation heads": 0,
+            "channel quorum exchange": 0,
+            "controller raft": 2696,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 4000,
+            "slot message updates": 8000,
+            "slot permission metadata batch": 0,
+            "slot propose": 0,
+            "slot raft batch": 76133,
+            "slot runtime metadata": 0,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 4000
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 9.02000000000001,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.0004949999999999954,
+              "go_memstats_alloc_bytes_total{}": 235879248
+            },
+            {
+              "process_cpu_seconds_total{}": 13.079999999999984,
+              "go_gc_duration_seconds_count{}": 4,
+              "go_gc_duration_seconds_sum{}": 0.0006897500000000167,
+              "go_memstats_alloc_bytes_total{}": 300476480
+            },
+            {
+              "process_cpu_seconds_total{}": 9.620000000000005,
+              "go_gc_duration_seconds_count{}": 2,
+              "go_gc_duration_seconds_sum{}": 0.00045404000000001665,
+              "go_memstats_alloc_bytes_total{}": 225372512
+            }
+          ]
+        }
+      ]
+    },
+    "before-3": {
+      "schema": "wukongim/message-update-soak/v1",
+      "harness_base": "0160c1f7d068b555c872df79ab6ab57f2cd4bc76",
+      "binary_sha256": "5ff0d550760637f8298236271696d7a853662475c128d457f4a00094ab83283c",
+      "profile_sha256": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1",
+      "os": "linux",
+      "arch": "arm64",
+      "cpus": 6,
+      "node_gomaxprocs": 2,
+      "driver_gomaxprocs": 2,
+      "edited": true,
+      "delta_profile": true,
+      "delta_warmup": {
+        "duration_ms": 36.450417,
+        "runtime_loads": 1,
+        "active_before": 0,
+        "active_after": 1,
+        "membership_writes": 0
+      },
+      "complete": true,
+      "report_sha256": "e0847396d1bdd47cf98b8c64c0d15ba0e1eb9f157ae8579b565014b71f87314d",
+      "profile_files": {
+        "node1-alloc-after.pprof": {
+          "bytes": 138120,
+          "sha256": "2a364d6707c995986f29ecd29e9f23e2bcf60ff85fb582dd3ca66148e1a3a2e8"
+        },
+        "node1-alloc-before.pprof": {
+          "bytes": 137429,
+          "sha256": "ffdeeae7536b0f5b0177ac3d059e5e08b19b4e06ad824b3a4e39d8beb80cc465"
+        },
+        "node1-cpu.pprof": {
+          "bytes": 25159,
+          "sha256": "9e7f166b323b9c1719063f86adfcefadeb22eadf76b4707e2d71ee0d21cc3bb2"
+        },
+        "node2-alloc-after.pprof": {
+          "bytes": 136912,
+          "sha256": "a641861e0bb8393cc4b782fb11e5f2618e804ac9412b0092e0b508423faa0074"
+        },
+        "node2-alloc-before.pprof": {
+          "bytes": 135425,
+          "sha256": "b11d72e1840b5bca204f50e9294e36d661f7639cb454d6ef13daa73b2398d0b1"
+        },
+        "node2-cpu.pprof": {
+          "bytes": 30503,
+          "sha256": "bee62a32f0e2909fff3872a0786a5813f73fef5e73bbb4b6b3cfc26fd745da94"
+        },
+        "node3-alloc-after.pprof": {
+          "bytes": 133300,
+          "sha256": "f0cd68b8761435f86db4355ecac4823e6e81f36328ad2369f772c08f85b8e61a"
+        },
+        "node3-alloc-before.pprof": {
+          "bytes": 131735,
+          "sha256": "14035fb106ad50900392caf28e1d29276d9830d9009e3347f1810406fc0d51c4"
+        },
+        "node3-cpu.pprof": {
+          "bytes": 22357,
+          "sha256": "b41de489aa5ff061fe921b3eebd436cb5c7d090f463a1ac6afca125a37c809f3"
+        }
+      },
+      "windows": [
+        {
+          "name": "mixed",
+          "start": "2026-09-13T16:46:08.756733214Z",
+          "end": "2026-09-13T16:47:08.756733214Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 3.148461,
+              "request_p99_ms": 26.279,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 199.96666666666667,
+              "p50_ms": 12.347312,
+              "p95_ms": 17.801553,
+              "p99_ms": 32.590773,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            },
+            {
+              "driver_wait_p99_ms": 2.097898,
+              "request_p99_ms": 60.501542,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 26.978885,
+              "p95_ms": 34.294252,
+              "p99_ms": 61.005901,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 119.31,
+          "allocated_bytes": 59524381240,
+          "heap_bytes": 499800784,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 0,
+          "active_runtimes_after": 0,
+          "rpc_counts": {
+            "channel committed reads": 7200,
+            "channel conversation heads": 31200,
+            "channel quorum exchange": 0,
+            "controller raft": 2705,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 32,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 0,
+            "slot message updates": 182400,
+            "slot permission metadata batch": 153600,
+            "slot propose": 0,
+            "slot raft batch": 1094692,
+            "slot runtime metadata": 153600,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 12800
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 39.81,
+              "go_gc_duration_seconds_count{}": 216,
+              "go_gc_duration_seconds_sum{}": 0.049877159,
+              "go_memstats_alloc_bytes_total{}": 20126558936
+            },
+            {
+              "process_cpu_seconds_total{}": 38.89,
+              "go_gc_duration_seconds_count{}": 204,
+              "go_gc_duration_seconds_sum{}": 0.051434175000000006,
+              "go_memstats_alloc_bytes_total{}": 19046664304
+            },
+            {
+              "process_cpu_seconds_total{}": 40.61,
+              "go_gc_duration_seconds_count{}": 217,
+              "go_gc_duration_seconds_sum{}": 0.051332375,
+              "go_memstats_alloc_bytes_total{}": 20352220224
+            }
+          ]
+        },
+        {
+          "name": "mixed",
+          "start": "2026-09-13T16:47:11.42392459Z",
+          "end": "2026-09-13T16:48:11.42392459Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 1.90861,
+              "request_p99_ms": 19.230125,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 199.98333333333332,
+              "p50_ms": 11.965684,
+              "p95_ms": 16.60722,
+              "p99_ms": 20.160794,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            },
+            {
+              "driver_wait_p99_ms": 2.010751,
+              "request_p99_ms": 36.6425,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 26.781148,
+              "p95_ms": 32.38776,
+              "p99_ms": 37.58521,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 116.13000000000002,
+          "allocated_bytes": 59534456048,
+          "heap_bytes": 357868400,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 0,
+          "active_runtimes_after": 0,
+          "rpc_counts": {
+            "channel committed reads": 7200,
+            "channel conversation heads": 31200,
+            "channel quorum exchange": 0,
+            "controller raft": 2712,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 0,
+            "slot message updates": 182400,
+            "slot permission metadata batch": 153600,
+            "slot propose": 0,
+            "slot raft batch": 1096493,
+            "slot runtime metadata": 153600,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 12800
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 38.769999999999996,
+              "go_gc_duration_seconds_count{}": 215,
+              "go_gc_duration_seconds_sum{}": 0.04608525199999999,
+              "go_memstats_alloc_bytes_total{}": 20126806448
+            },
+            {
+              "process_cpu_seconds_total{}": 37.87,
+              "go_gc_duration_seconds_count{}": 204,
+              "go_gc_duration_seconds_sum{}": 0.042298457000000005,
+              "go_memstats_alloc_bytes_total{}": 19051405552
+            },
+            {
+              "process_cpu_seconds_total{}": 39.48,
+              "go_gc_duration_seconds_count{}": 219,
+              "go_gc_duration_seconds_sum{}": 0.04676308,
+              "go_memstats_alloc_bytes_total{}": 20358574848
+            }
+          ]
+        },
+        {
+          "name": "mixed",
+          "start": "2026-09-13T16:48:14.0843008Z",
+          "end": "2026-09-13T16:49:14.0843008Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 2.356468,
+              "request_p99_ms": 19.698833,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11999,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 199.98333333333332,
+              "p50_ms": 12.241088,
+              "p95_ms": 16.916481,
+              "p99_ms": 20.58465,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            },
+            {
+              "driver_wait_p99_ms": 2.079601,
+              "request_p99_ms": 36.524333,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 27.00181,
+              "p95_ms": 32.862475,
+              "p99_ms": 37.017192,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 116.70999999999998,
+          "allocated_bytes": 59538153288,
+          "heap_bytes": 412067904,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 0,
+          "active_runtimes_after": 0,
+          "rpc_counts": {
+            "channel committed reads": 7200,
+            "channel conversation heads": 31200,
+            "channel quorum exchange": 0,
+            "controller raft": 2712,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 0,
+            "slot message updates": 182400,
+            "slot permission metadata batch": 153600,
+            "slot propose": 0,
+            "slot raft batch": 1097687,
+            "slot runtime metadata": 153600,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 12800
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 38.93000000000001,
+              "go_gc_duration_seconds_count{}": 215,
+              "go_gc_duration_seconds_sum{}": 0.044192261999999996,
+              "go_memstats_alloc_bytes_total{}": 20128439064
+            },
+            {
+              "process_cpu_seconds_total{}": 38.06999999999999,
+              "go_gc_duration_seconds_count{}": 204,
+              "go_gc_duration_seconds_sum{}": 0.045112699000000006,
+              "go_memstats_alloc_bytes_total{}": 19051821064
+            },
+            {
+              "process_cpu_seconds_total{}": 39.68999999999998,
+              "go_gc_duration_seconds_count{}": 217,
+              "go_gc_duration_seconds_sum{}": 0.05219599799999999,
+              "go_memstats_alloc_bytes_total{}": 20358803824
+            }
+          ]
+        },
+        {
+          "name": "delta_changed",
+          "start": "2026-09-13T16:49:14.328880008Z",
+          "end": "2026-09-13T16:50:14.328880008Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 2.165719,
+              "request_p99_ms": 26.492833,
+              "driver_workers": 8,
+              "queue_capacity": 50,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/channel/messageupdates",
+                "page_size": 100,
+                "offered_qps": 100
+              },
+              "scheduled": 6000,
+              "completed": 6000,
+              "completed_in_window": 5999,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 99.98333333333333,
+              "p50_ms": 21.408554,
+              "p95_ms": 25.884756,
+              "p99_ms": 27.713052,
+              "active_runtimes_before": 1,
+              "active_runtimes_after": 1,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 41.879999999999995,
+          "allocated_bytes": 1026741720,
+          "heap_bytes": 453953592,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 1,
+          "active_runtimes_after": 1,
+          "rpc_counts": {
+            "channel committed reads": 4000,
+            "channel conversation heads": 0,
+            "channel quorum exchange": 0,
+            "controller raft": 2713,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 4000,
+            "slot message updates": 12000,
+            "slot permission metadata batch": 0,
+            "slot propose": 0,
+            "slot raft batch": 98876,
+            "slot runtime metadata": 4000,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 4000
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 11.639999999999986,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.0014611670000000132,
+              "go_memstats_alloc_bytes_total{}": 286699472
+            },
+            {
+              "process_cpu_seconds_total{}": 18.28,
+              "go_gc_duration_seconds_count{}": 5,
+              "go_gc_duration_seconds_sum{}": 0.0023406689999999897,
+              "go_memstats_alloc_bytes_total{}": 465624224
+            },
+            {
+              "process_cpu_seconds_total{}": 11.980000000000018,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.0009409150000000144,
+              "go_memstats_alloc_bytes_total{}": 277241296
+            }
+          ]
+        },
+        {
+          "name": "delta_empty",
+          "start": "2026-09-13T16:50:14.535615133Z",
+          "end": "2026-09-13T16:51:14.535615133Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 2.199774,
+              "request_p99_ms": 18.631541,
+              "driver_workers": 8,
+              "queue_capacity": 50,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/channel/messageupdates",
+                "page_size": 100,
+                "offered_qps": 100
+              },
+              "scheduled": 6000,
+              "completed": 6000,
+              "completed_in_window": 5999,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 99.98333333333333,
+              "p50_ms": 12.584468,
+              "p95_ms": 18.303017,
+              "p99_ms": 19.782085,
+              "active_runtimes_before": 1,
+              "active_runtimes_after": 1,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 31.569999999999993,
+          "allocated_bytes": 759936552,
+          "heap_bytes": 392993896,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 1,
+          "active_runtimes_after": 1,
+          "rpc_counts": {
+            "channel committed reads": 0,
+            "channel conversation heads": 0,
+            "channel quorum exchange": 0,
+            "controller raft": 2712,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 4000,
+            "slot message updates": 8000,
+            "slot permission metadata batch": 0,
+            "slot propose": 0,
+            "slot raft batch": 76076,
+            "slot runtime metadata": 0,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 4000
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 8.98999999999998,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.0007574169999999825,
+              "go_memstats_alloc_bytes_total{}": 235767280
+            },
+            {
+              "process_cpu_seconds_total{}": 13.02000000000001,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.0020108749999999953,
+              "go_memstats_alloc_bytes_total{}": 300215288
+            },
+            {
+              "process_cpu_seconds_total{}": 9.560000000000002,
+              "go_gc_duration_seconds_count{}": 2,
+              "go_gc_duration_seconds_sum{}": 0.00042837599999998033,
+              "go_memstats_alloc_bytes_total{}": 224374416
+            }
+          ]
+        }
+      ]
+    },
+    "after-3": {
+      "schema": "wukongim/message-update-soak/v1",
+      "harness_base": "0160c1f7d068b555c872df79ab6ab57f2cd4bc76",
+      "binary_sha256": "c0d08e5b3423282bbb6b56636a48c1930c9cede0ea495107b3ff93dd1ee4af66",
+      "profile_sha256": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1",
+      "os": "linux",
+      "arch": "arm64",
+      "cpus": 6,
+      "node_gomaxprocs": 2,
+      "driver_gomaxprocs": 2,
+      "edited": true,
+      "delta_profile": true,
+      "delta_warmup": {
+        "duration_ms": 36.104083,
+        "runtime_loads": 1,
+        "active_before": 0,
+        "active_after": 1,
+        "membership_writes": 0
+      },
+      "complete": true,
+      "report_sha256": "fa38be9847bdeb98d1c9a124cff009b840b7d2e2ecaec67fbc62421eea00a424",
+      "profile_files": {
+        "node1-alloc-after.pprof": {
+          "bytes": 142060,
+          "sha256": "19ebcf83c18a573216f4b44a81ae9680869a1c0483160c4654aa477fdc17334a"
+        },
+        "node1-alloc-before.pprof": {
+          "bytes": 141111,
+          "sha256": "1755d60a7703b81a72f35dc26f15dc10c59056a9e230c59f1fa57aad3acb8c69"
+        },
+        "node1-cpu.pprof": {
+          "bytes": 21742,
+          "sha256": "5ca88fab3927975ea5c7df8dcf22561d5abe8faaf3f804781ff2b0b427d17e37"
+        },
+        "node2-alloc-after.pprof": {
+          "bytes": 139141,
+          "sha256": "5079d52463f9e95705eb86dcbbb5bd8b96f0a2aae2b09bd279a0fa3d38df6a49"
+        },
+        "node2-alloc-before.pprof": {
+          "bytes": 137508,
+          "sha256": "85bdd8303ef8a8b33cfef63b4b75e07b1419e537a6b2c535e288ab23e5393b0e"
+        },
+        "node2-cpu.pprof": {
+          "bytes": 30932,
+          "sha256": "6cda9828c6e9b22860b8f49977c004bcb2e4240c8b0297ff33a94b18e2fc5b13"
+        },
+        "node3-alloc-after.pprof": {
+          "bytes": 135229,
+          "sha256": "1e6e617199f07f79698832e50ea110cab34b42b07857358fb0d90a5c2c79f15f"
+        },
+        "node3-alloc-before.pprof": {
+          "bytes": 133738,
+          "sha256": "55f6e107a7b0095ffd5ee44a9dc6c4063136e3903a37c125ba2c9e187d2b1288"
+        },
+        "node3-cpu.pprof": {
+          "bytes": 24309,
+          "sha256": "0969a1e44edc9953e725d2c467809170e45d031b3d8b3421c95d1254576562cb"
+        }
+      },
+      "windows": [
+        {
+          "name": "mixed",
+          "start": "2026-09-13T16:54:19.253742219Z",
+          "end": "2026-09-13T16:55:19.253742219Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 1.427773,
+              "request_p99_ms": 18.511041,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 199.96666666666667,
+              "p50_ms": 11.607505,
+              "p95_ms": 16.16636,
+              "p99_ms": 18.91777,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            },
+            {
+              "driver_wait_p99_ms": 2.068652,
+              "request_p99_ms": 34.936459,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 26.530266,
+              "p95_ms": 31.848309,
+              "p99_ms": 36.053589,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 112.97,
+          "allocated_bytes": 57180153496,
+          "heap_bytes": 476558952,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 0,
+          "active_runtimes_after": 0,
+          "rpc_counts": {
+            "channel committed reads": 7200,
+            "channel conversation heads": 31200,
+            "channel quorum exchange": 0,
+            "controller raft": 2698,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 39,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 0,
+            "slot message updates": 182400,
+            "slot permission metadata batch": 153600,
+            "slot propose": 0,
+            "slot raft batch": 1095433,
+            "slot runtime metadata": 153600,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 12800
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 37.56999999999999,
+              "go_gc_duration_seconds_count{}": 206,
+              "go_gc_duration_seconds_sum{}": 0.047670669,
+              "go_memstats_alloc_bytes_total{}": 19343790784
+            },
+            {
+              "process_cpu_seconds_total{}": 36.65,
+              "go_gc_duration_seconds_count{}": 196,
+              "go_gc_duration_seconds_sum{}": 0.049577494,
+              "go_memstats_alloc_bytes_total{}": 18263767864
+            },
+            {
+              "process_cpu_seconds_total{}": 38.730000000000004,
+              "go_gc_duration_seconds_count{}": 209,
+              "go_gc_duration_seconds_sum{}": 0.047715374000000005,
+              "go_memstats_alloc_bytes_total{}": 19573005608
+            }
+          ]
+        },
+        {
+          "name": "mixed",
+          "start": "2026-09-13T16:55:21.978429137Z",
+          "end": "2026-09-13T16:56:21.978429137Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 2.592935,
+              "request_p99_ms": 21.596541,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 199.96666666666667,
+              "p50_ms": 12.16681,
+              "p95_ms": 17.071767,
+              "p99_ms": 25.410095,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            },
+            {
+              "driver_wait_p99_ms": 2.055097,
+              "request_p99_ms": 47.325625,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 26.892311,
+              "p95_ms": 33.328712,
+              "p99_ms": 48.429678,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 118.02000000000004,
+          "allocated_bytes": 57182730888,
+          "heap_bytes": 404998880,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 0,
+          "active_runtimes_after": 0,
+          "rpc_counts": {
+            "channel committed reads": 7200,
+            "channel conversation heads": 31200,
+            "channel quorum exchange": 0,
+            "controller raft": 2697,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 0,
+            "slot message updates": 182400,
+            "slot permission metadata batch": 153600,
+            "slot propose": 0,
+            "slot raft batch": 1096505,
+            "slot runtime metadata": 153600,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 12800
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 39.28999999999999,
+              "go_gc_duration_seconds_count{}": 208,
+              "go_gc_duration_seconds_sum{}": 0.04839245700000001,
+              "go_memstats_alloc_bytes_total{}": 19343362984
+            },
+            {
+              "process_cpu_seconds_total{}": 38.23,
+              "go_gc_duration_seconds_count{}": 195,
+              "go_gc_duration_seconds_sum{}": 0.0481295,
+              "go_memstats_alloc_bytes_total{}": 18268166968
+            },
+            {
+              "process_cpu_seconds_total{}": 40.480000000000004,
+              "go_gc_duration_seconds_count{}": 209,
+              "go_gc_duration_seconds_sum{}": 0.051396778,
+              "go_memstats_alloc_bytes_total{}": 19574679288
+            }
+          ]
+        },
+        {
+          "name": "mixed",
+          "start": "2026-09-13T16:56:24.633684555Z",
+          "end": "2026-09-13T16:57:24.633684555Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 2.160637,
+              "request_p99_ms": 18.504583,
+              "driver_workers": 8,
+              "queue_capacity": 100,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/list",
+                "page_size": 100,
+                "offered_qps": 200
+              },
+              "scheduled": 12000,
+              "completed": 12000,
+              "completed_in_window": 11998,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 199.96666666666667,
+              "p50_ms": 12.02972,
+              "p95_ms": 16.490895,
+              "p99_ms": 19.50089,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            },
+            {
+              "driver_wait_p99_ms": 2.068101,
+              "request_p99_ms": 34.803458,
+              "driver_workers": 8,
+              "queue_capacity": 30,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/conversation/sync",
+                "page_size": 100,
+                "offered_qps": 60
+              },
+              "scheduled": 3600,
+              "completed": 3600,
+              "completed_in_window": 3599,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 59.983333333333334,
+              "p50_ms": 26.970809,
+              "p95_ms": 32.311939,
+              "p99_ms": 35.458774,
+              "active_runtimes_before": 0,
+              "active_runtimes_after": 0,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 115.95999999999998,
+          "allocated_bytes": 57186697008,
+          "heap_bytes": 468939296,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 0,
+          "active_runtimes_after": 0,
+          "rpc_counts": {
+            "channel committed reads": 7200,
+            "channel conversation heads": 31200,
+            "channel quorum exchange": 0,
+            "controller raft": 2706,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 0,
+            "slot message updates": 182400,
+            "slot permission metadata batch": 153600,
+            "slot propose": 0,
+            "slot raft batch": 1097206,
+            "slot runtime metadata": 153600,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 12800
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 38.60000000000001,
+              "go_gc_duration_seconds_count{}": 206,
+              "go_gc_duration_seconds_sum{}": 0.046298281999999996,
+              "go_memstats_alloc_bytes_total{}": 19344936752
+            },
+            {
+              "process_cpu_seconds_total{}": 37.54999999999998,
+              "go_gc_duration_seconds_count{}": 195,
+              "go_gc_duration_seconds_sum{}": 0.04801367100000001,
+              "go_memstats_alloc_bytes_total{}": 18265989448
+            },
+            {
+              "process_cpu_seconds_total{}": 39.81999999999999,
+              "go_gc_duration_seconds_count{}": 210,
+              "go_gc_duration_seconds_sum{}": 0.048177284,
+              "go_memstats_alloc_bytes_total{}": 19577927376
+            }
+          ]
+        },
+        {
+          "name": "delta_changed",
+          "start": "2026-09-13T16:57:24.883009597Z",
+          "end": "2026-09-13T16:58:24.883009597Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 1.666023,
+              "request_p99_ms": 26.678209,
+              "driver_workers": 8,
+              "queue_capacity": 50,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/channel/messageupdates",
+                "page_size": 100,
+                "offered_qps": 100
+              },
+              "scheduled": 6000,
+              "completed": 6000,
+              "completed_in_window": 5999,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 99.98333333333333,
+              "p50_ms": 20.982587,
+              "p95_ms": 25.222883,
+              "p99_ms": 27.332594,
+              "active_runtimes_before": 1,
+              "active_runtimes_after": 1,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 43.110000000000014,
+          "allocated_bytes": 1017825904,
+          "heap_bytes": 410343144,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 1,
+          "active_runtimes_after": 1,
+          "rpc_counts": {
+            "channel committed reads": 4000,
+            "channel conversation heads": 0,
+            "channel quorum exchange": 0,
+            "controller raft": 2702,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 4000,
+            "slot message updates": 12000,
+            "slot permission metadata batch": 0,
+            "slot propose": 0,
+            "slot raft batch": 99085,
+            "slot runtime metadata": 4000,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 4000
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 11.930000000000007,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.0009452080000000029,
+              "go_memstats_alloc_bytes_total{}": 282659760
+            },
+            {
+              "process_cpu_seconds_total{}": 18.569999999999993,
+              "go_gc_duration_seconds_count{}": 6,
+              "go_gc_duration_seconds_sum{}": 0.0014453729999999998,
+              "go_memstats_alloc_bytes_total{}": 462228168
+            },
+            {
+              "process_cpu_seconds_total{}": 12.659999999999997,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.0005247919999999962,
+              "go_memstats_alloc_bytes_total{}": 274594128
+            }
+          ]
+        },
+        {
+          "name": "delta_empty",
+          "start": "2026-09-13T16:58:25.072001013Z",
+          "end": "2026-09-13T16:59:25.072001013Z",
+          "phases": [
+            {
+              "driver_wait_p99_ms": 1.941941,
+              "request_p99_ms": 18.839542,
+              "driver_workers": 8,
+              "queue_capacity": 50,
+              "nodes": 3,
+              "case": {
+                "endpoint": "/channel/messageupdates",
+                "page_size": 100,
+                "offered_qps": 100
+              },
+              "scheduled": 6000,
+              "completed": 6000,
+              "completed_in_window": 5999,
+              "unexpected_errors": 0,
+              "errors": 0,
+              "dropped": 0,
+              "duration_seconds": 60,
+              "actual_qps": 99.98333333333333,
+              "p50_ms": 12.564899,
+              "p95_ms": 18.69669,
+              "p99_ms": 20.189213,
+              "active_runtimes_before": 1,
+              "active_runtimes_after": 1,
+              "runtime_loads": 0,
+              "membership_writes": 0,
+              "cpu_seconds": null,
+              "heap_bytes": 0,
+              "allocated_bytes": 0,
+              "verdict": "pass"
+            }
+          ],
+          "cpu_seconds": 32.900000000000034,
+          "allocated_bytes": 759595392,
+          "heap_bytes": 443798672,
+          "runtime_loads": 0,
+          "membership_writes": 0,
+          "active_runtimes_before": 1,
+          "active_runtimes_after": 1,
+          "rpc_counts": {
+            "channel committed reads": 0,
+            "channel conversation heads": 0,
+            "channel quorum exchange": 0,
+            "controller raft": 2697,
+            "controller task result": 0,
+            "controller write": 24,
+            "presence authority": 0,
+            "presence owner action": 0,
+            "send authority": 0,
+            "slot channel metadata": 4000,
+            "slot message updates": 8000,
+            "slot permission metadata batch": 0,
+            "slot propose": 0,
+            "slot raft batch": 76171,
+            "slot runtime metadata": 0,
+            "slot status": 0,
+            "slot subscriber metadata": 0,
+            "slot user membership": 4000
+          },
+          "per_node": [
+            {
+              "process_cpu_seconds_total{}": 9.240000000000009,
+              "go_gc_duration_seconds_count{}": 2,
+              "go_gc_duration_seconds_sum{}": 0.00034841600000001804,
+              "go_memstats_alloc_bytes_total{}": 236533840
+            },
+            {
+              "process_cpu_seconds_total{}": 13.299999999999983,
+              "go_gc_duration_seconds_count{}": 3,
+              "go_gc_duration_seconds_sum{}": 0.0013918739999999874,
+              "go_memstats_alloc_bytes_total{}": 300211376
+            },
+            {
+              "process_cpu_seconds_total{}": 10.379999999999995,
+              "go_gc_duration_seconds_count{}": 2,
+              "go_gc_duration_seconds_sum{}": 0.0004813750000000061,
+              "go_memstats_alloc_bytes_total{}": 226997416
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "limits": "Three independent deployments per binary on one host; no population confidence interval or production capacity claim.",
+  "comparison": {
+    "before": {
+      "cpu_seconds": [
+        40.86999999999995,
+        39.26999999999998,
+        41.879999999999995
+      ],
+      "mean": 40.67333333333331,
+      "median": 40.86999999999995,
+      "min": 39.26999999999998,
+      "max": 41.879999999999995,
+      "sample_stddev": 1.316067374161879
+    },
+    "after": {
+      "cpu_seconds": [
+        38.599999999999966,
+        38.719999999999914,
+        43.110000000000014
+      ],
+      "mean": 40.143333333333295,
+      "median": 38.719999999999914,
+      "min": 38.599999999999966,
+      "max": 43.110000000000014,
+      "sample_stddev": 2.569909207215996
+    },
+    "pairs": [
+      {
+        "pair": 1,
+        "before_cpu": 40.86999999999995,
+        "after_cpu": 38.599999999999966,
+        "change_percent": -5.554196231954944
+      },
+      {
+        "pair": 2,
+        "before_cpu": 39.26999999999998,
+        "after_cpu": 38.719999999999914,
+        "change_percent": -1.4005602240898085
+      },
+      {
+        "pair": 3,
+        "before_cpu": 41.879999999999995,
+        "after_cpu": 43.110000000000014,
+        "change_percent": 2.9369627507163765
+      }
+    ],
+    "mean_change_percent": -1.3030650712998249,
+    "ranges_overlap": true
+  },
+  "all_measured_phases_pass": true
+}

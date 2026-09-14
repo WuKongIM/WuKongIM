@@ -50,6 +50,8 @@ type OwnerRoute struct {
 
 // LocalSession stores the concrete gateway session separately from its route projection.
 type LocalSession struct {
+	// MessageUpdates is opt-in EVENT support for this connection only.
+	MessageUpdates bool
 	// Route is the presence-facing owner-local route projection.
 	Route OwnerRoute
 	// State records the owner-local lifecycle state.

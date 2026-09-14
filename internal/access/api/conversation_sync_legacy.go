@@ -61,6 +61,9 @@ func (s *Server) handleConversationSyncLegacy(c *gin.Context) {
 		PageSize:              req.PageSize,
 	})
 	if err != nil {
+		if writeReadUnavailable(c, err) {
+			return
+		}
 		writeJSONError(c, err.Error())
 		return
 	}
@@ -136,7 +139,7 @@ func legacyRecentMessageToSynced(msg conversationusecase.LegacyRecentMessage) me
 			RedDot:    msg.Flags.RedDot,
 			SyncOnce:  msg.Flags.SyncOnce,
 		},
-		Setting: msg.Setting, MessageID: msg.MessageID, ClientMsgNo: msg.ClientMsgNo,
+		Setting: msg.Setting, MessageID: msg.MessageID, Version: msg.Version, UpdatedAtMS: msg.UpdatedAtMS, ClientMsgNo: msg.ClientMsgNo,
 		MessageSeq: msg.MessageSeq, FromUID: msg.FromUID, ChannelID: msg.ChannelID,
 		ChannelType: msg.ChannelType, Topic: msg.Topic, Expire: msg.Expire,
 		Timestamp: msg.Timestamp, Payload: msg.Payload, End: msg.End,

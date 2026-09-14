@@ -1,0 +1,282 @@
+{
+  "manifest": {
+    "source_revision": "01189eba9bb8f7c3813f60be1cf6379397e91579",
+    "base_revision": "0fc7da51e52d6bdbebe6db81dce1851569285d89",
+    "binary_sha256": "5f07308cc4e371480a7d1882fc5efd22afd140b622109023f6fdf1ad301be8c6",
+    "harness_sha256": "16919bd344e2f2e3b4f49a4f8481c1e8ff8e4741e106ad8e328e3a28d2a69c5c",
+    "image": "golang:1.25.11-bookworm",
+    "cpu_set": "0-5",
+    "memory": "6g",
+    "gomaxprocs": 2,
+    "scope": "same-host three-node correctness and abrupt leader recovery; not a capacity comparison"
+  },
+  "recovery_duration_seconds": 257.22,
+  "recovery": {
+    "binary_sha256": "5f07308cc4e371480a7d1882fc5efd22afd140b622109023f6fdf1ad301be8c6",
+    "phases": [
+      {
+        "name": "healthy",
+        "started": "2026-09-14T01:35:12.796207503Z",
+        "finished": "2026-09-14T01:36:12.79764367Z",
+        "counts": {
+          "success": {
+            "/channel/messagesync": 299,
+            "/conversation/list": 299,
+            "/conversation/sync": 299,
+            "/messages": 299,
+            "delta": 299,
+            "edit": 897,
+            "idempotency": 299
+          },
+          "temporary": {},
+          "writers": [
+            299,
+            299,
+            299
+          ],
+          "more_pages": 231
+        }
+      },
+      {
+        "name": "channel_leader_down",
+        "started": "2026-09-14T01:36:12.826674295Z",
+        "finished": "2026-09-14T01:36:57.850991885Z",
+        "victim": 3,
+        "authority_before": 3,
+        "authority_after": 1,
+        "counts": {
+          "success": {
+            "/channel/messagesync": 498,
+            "/conversation/list": 498,
+            "/conversation/sync": 497,
+            "/messages": 496,
+            "delta": 497,
+            "edit": 1493,
+            "idempotency": 496
+          },
+          "temporary": {
+            "/channel/messagesync": 27,
+            "/conversation/list": 27,
+            "/conversation/sync": 28,
+            "/messages": 28,
+            "delta": 28,
+            "edit": 82,
+            "idempotency": 28
+          },
+          "first_error": {
+            "/channel/messagesync": "/channel/messagesync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/list": "/conversation/list HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/sync": "/conversation/sync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/messages": "transport: Post \"http://127.0.0.1:20326/messages\": EOF",
+            "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "edit": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+          },
+          "writers": [
+            497,
+            498,
+            498
+          ],
+          "more_pages": 386
+        }
+      },
+      {
+        "name": "channel_leader_restored",
+        "started": "2026-09-14T01:36:57.85361876Z",
+        "finished": "2026-09-14T01:37:44.783484296Z",
+        "victim": 3,
+        "counts": {
+          "success": {
+            "/channel/messagesync": 732,
+            "/conversation/list": 732,
+            "/conversation/sync": 731,
+            "/messages": 726,
+            "delta": 731,
+            "edit": 2195,
+            "idempotency": 731
+          },
+          "temporary": {
+            "/channel/messagesync": 27,
+            "/conversation/list": 27,
+            "/conversation/sync": 28,
+            "/messages": 29,
+            "delta": 28,
+            "edit": 82,
+            "idempotency": 28
+          },
+          "first_error": {
+            "/channel/messagesync": "/channel/messagesync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/list": "/conversation/list HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/sync": "/conversation/sync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/messages": "transport: Post \"http://127.0.0.1:20326/messages\": EOF",
+            "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "edit": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+          },
+          "writers": [
+            731,
+            732,
+            732
+          ],
+          "more_pages": 572
+        }
+      },
+      {
+        "name": "slot_leader_down",
+        "started": "2026-09-14T01:37:44.799140754Z",
+        "finished": "2026-09-14T01:38:29.824862511Z",
+        "victim": 3,
+        "authority_before": 3,
+        "authority_after": 1,
+        "counts": {
+          "success": {
+            "/channel/messagesync": 947,
+            "/conversation/list": 947,
+            "/conversation/sync": 945,
+            "/messages": 936,
+            "delta": 945,
+            "edit": 2837,
+            "idempotency": 945
+          },
+          "temporary": {
+            "/channel/messagesync": 38,
+            "/conversation/list": 38,
+            "/conversation/sync": 39,
+            "/messages": 40,
+            "delta": 39,
+            "edit": 115,
+            "idempotency": 39
+          },
+          "first_error": {
+            "/channel/messagesync": "/channel/messagesync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/list": "/conversation/list HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/sync": "/conversation/sync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/messages": "transport: Post \"http://127.0.0.1:20326/messages\": EOF",
+            "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "edit": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+          },
+          "writers": [
+            945,
+            946,
+            946
+          ],
+          "more_pages": 739
+        }
+      },
+      {
+        "name": "slot_leader_restored",
+        "started": "2026-09-14T01:38:29.827396428Z",
+        "finished": "2026-09-14T01:39:16.247484671Z",
+        "victim": 3,
+        "counts": {
+          "success": {
+            "/channel/messagesync": 1179,
+            "/conversation/list": 1179,
+            "/conversation/sync": 1177,
+            "/messages": 1167,
+            "delta": 1178,
+            "edit": 3534,
+            "idempotency": 1177
+          },
+          "temporary": {
+            "/channel/messagesync": 38,
+            "/conversation/list": 38,
+            "/conversation/sync": 39,
+            "/messages": 41,
+            "delta": 39,
+            "edit": 115,
+            "idempotency": 39
+          },
+          "first_error": {
+            "/channel/messagesync": "/channel/messagesync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/list": "/conversation/list HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/sync": "/conversation/sync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/messages": "transport: Post \"http://127.0.0.1:20326/messages\": EOF",
+            "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "edit": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+          },
+          "writers": [
+            1178,
+            1178,
+            1178
+          ],
+          "more_pages": 923
+        }
+      }
+    ],
+    "final_versions": [
+      297,
+      297,
+      297,
+      297,
+      297,
+      297,
+      296,
+      296,
+      296,
+      296,
+      296,
+      296
+    ],
+    "complete": true,
+    "final_counts": {
+      "success": {
+        "/channel/messagesync": 1179,
+        "/conversation/list": 1179,
+        "/conversation/sync": 1177,
+        "/messages": 1167,
+        "delta": 1178,
+        "edit": 3534,
+        "idempotency": 1177
+      },
+      "temporary": {
+        "/channel/messagesync": 38,
+        "/conversation/list": 38,
+        "/conversation/sync": 39,
+        "/messages": 41,
+        "delta": 39,
+        "edit": 115,
+        "idempotency": 39
+      },
+      "first_error": {
+        "/channel/messagesync": "/channel/messagesync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+        "/conversation/list": "/conversation/list HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+        "/conversation/sync": "/conversation/sync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+        "/messages": "transport: Post \"http://127.0.0.1:20326/messages\": EOF",
+        "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+        "edit": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+        "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+      },
+      "writers": [
+        1178,
+        1178,
+        1178
+      ],
+      "more_pages": 928
+    }
+  },
+  "checks": {
+    "go_unit": {
+      "passed_packages": 210,
+      "failed_test": "TestDashboardAssetsCoverAllExportedMetrics",
+      "reproduced_on_clean_base": true
+    },
+    "go_vet": "passed",
+    "go_format": "passed",
+    "go_mod_tidy": "passed",
+    "flow_doc_contracts": "passed",
+    "focused_unit": "passed",
+    "focused_integration": "passed",
+    "targeted_race": "passed; two runtime packages had no matching tests",
+    "docs_integration": {
+      "status": "passed",
+      "source_revision": "0d43eb56dd259d4fbe8a4c2925eb1b77fce22839",
+      "document_tests": 208,
+      "quickstart_e2e_seconds": 15.977,
+      "node": "22.12.0",
+      "chromium": "151.0.7922.34"
+    }
+  }
+}

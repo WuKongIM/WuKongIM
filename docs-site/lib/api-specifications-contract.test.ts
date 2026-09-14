@@ -74,7 +74,7 @@ describe('API specification pages', () => {
       expect(artifact).toBeTrue();
     }
 
-    expect(operationCount(productHTTP)).toBe(42);
+    expect(operationCount(productHTTP)).toBe(44);
     expect(operationCount(operations)).toBe(4);
     expect(Object.keys(webhooks.webhooks)).toEqual([
       'msg.notify',

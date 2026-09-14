@@ -27,7 +27,23 @@ const text = (zh: string, en: string): ProductHTTPOpenAPILocalizedText => ({
  * Schema alone. Keys are stable `METHOD path` pairs from the complete contract.
  */
 export const productHTTPOperationSemantics = {
+  'POST /message/update': {
+    scope: text('业务后端负责修改权限和时间窗口；不改变消息 ID、序号、原发送时间、未读或排序。', 'The backend owns editing permissions and time windows; message ID, sequence, original timestamp, unread and ordering stay unchanged.'),
+    success: text('200 表示修改及幂等结果已由 Slot 多数派提交并应用，不等待终端接收。', '200 means the edit and idempotency result were quorum committed and applied by the Slot; it does not wait for devices.'),
+    recovery: text('结果不确定时使用完全相同的 request_id、版本、恢复代数和 payload 重试。版本或恢复代数冲突后重新读取并作出新的修改决定。', 'Retry uncertain outcomes with identical request_id, version, content epoch and payload. After a version or epoch conflict, reload and make a new editing decision.'),
+  },
+  'POST /channel/messageupdates': {
+    scope: text('仅在进入、重连或继续查看当前频道时同步；不是所有会话的更新发现接口。', 'Synchronize the currently viewed channel on entry, reconnect or resume; this endpoint does not discover updates for all conversations.'),
+    success: text('先获得基线再读取可见历史；more=true 时继续分页，即使 updates 为空。消息与游标在同一事务合并；旧消息修改不能覆盖新末条摘要。', 'Obtain a baseline before loading visible history; continue while more=true even when updates is empty. Merge messages and cursor transactionally; an older message edit must not replace a newer tail preview.'),
+    recovery: text('reset_required=true 时按新基线重载可见历史；503 保留原游标并退避重试。忽略旧恢复代数的延迟响应。', 'On reset_required=true, reload visible history from the new baseline; on 503, preserve the cursor and retry with backoff. Discard delayed responses from older content epochs.'),
+  },
+  'POST /conversation/sync': {
+    scope: text('最近消息包含最新修改；即使 last_msg_seqs 已追平，修改过的末条消息也会重复返回，按消息 ID 和版本合并。', 'Recents contain the latest edits; an edited tail is returned again even when last_msg_seqs is caught up. Merge by message ID and version.'),
+    success: text('不改变旧数组结构、会话版本、未读、排序、only_unread 或 msg_count=0 规则。', 'The legacy array, conversation version, unread, ordering, only_unread and msg_count=0 behavior are preserved.'),
+    recovery: text('临时读取失败返回 503 unavailable；保留原请求和缓存，退避重试。恢复代数增加后重置消息版本比较。', 'Transient reads return 503 unavailable; preserve the request and cache and retry with backoff. Reset message version comparisons when the content epoch increases.'),
+  },
   'POST /messages': {
+    atomicity: text('内容包含最新修改；临时读取失败为 503 unavailable，不返回部分消息。', 'Content includes latest edits; temporary reads fail as 503 unavailable without partial messages.'),
     scope: text('按当前成员可见范围读取精确消息索引，不使用近期历史扫描代替。', 'Reads exact message indexes within current membership visibility, without a recent-history scan fallback.'),
     success: text('选择项取并集，按序号去重排序；超限或任一读取失败不返回部分结果。', 'Selectors form a union ordered and deduplicated by sequence; exhaustion or any failed read returns no partial result.'),
     recovery: text('全部节点须支持精确查询 RPC；旧节点会明确拒绝。', 'Every node must support the indexed-read RPC; older nodes reject it explicitly.'),
@@ -201,6 +217,7 @@ export const productHTTPOperationSemantics = {
     ),
   },
   'POST /channel/messagesync': {
+    recovery: text('读取页面时包含最新修改；503 unavailable 保留原查询重试。恢复代数增加后重置缓存版本比较。', 'Page reads include latest edits; retry the original query on 503 unavailable. Reset cached version comparisons after a content epoch increase.'),
     scope: text(
       '读取前必须存在 login_uid 的普通成员关系；join_seq 与 deleted_to_seq 共同形成最低可见序号。返回消息始终按 message_seq 升序排列。',
       'The login_uid must have an ordinary membership before reading; join_seq and deleted_to_seq establish the lowest visible sequence. Returned messages are always ordered by ascending message_seq.',
@@ -269,6 +286,7 @@ export const productHTTPOperationSemantics = {
     ),
   },
   'POST /conversation/list': {
+    recovery: text('摘要包含末条消息的最新修改；503 unavailable 保留游标重试。内容修改不改变会话排序或未读。', 'Previews include the latest tail edit; preserve the cursor on 503 unavailable. Content edits do not change conversation order or unread.'),
     scope: text(
       'limit 限制本页扫描的 membership 条目数，不保证 conversations 数组达到该数量；墓碑进入 deletes；最新消息和未读数基于 Leader 已落盘数据，读取不激活运行时。任一读取失败则整页失败，使用原请求和原游标重试。',
       'limit bounds membership rows scanned, not the number of returned conversations; tombstones go to deletes. Previews use Leader-persisted data without runtime activation. Any read failure fails the whole page; retry the original request and cursor.',

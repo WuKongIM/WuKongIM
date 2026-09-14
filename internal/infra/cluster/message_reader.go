@@ -76,6 +76,7 @@ func (r *CommittedMessageReader) ReadCommittedMessages(ctx context.Context, quer
 			continue
 		}
 		results[index].Messages = committedMessagesFromChannel(read.Read.Messages)
+		results[index].HasMore = read.ContentTruncated
 	}
 	return results, nil
 }
@@ -85,7 +86,7 @@ func committedMessagesFromChannel(in []channelruntime.Message) []message.SyncedM
 	for index, msg := range in {
 		out[index] = message.SyncedMessage{
 			Flags:     message.MessageFlags{SyncOnce: msg.SyncOnce, RedDot: msg.RedDot},
-			MessageID: msg.MessageID, MessageSeq: msg.MessageSeq,
+			MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, Version: msg.Version, UpdatedAtMS: msg.UpdatedAtMS,
 			ChannelID: msg.ChannelID, ChannelType: msg.ChannelType,
 			Setting: msg.Setting, FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Expire: msg.Expire,
 			Timestamp: int32(msg.ServerTimestampMS / 1000),

@@ -33,16 +33,19 @@ type slot struct {
 	cond         *sync.Cond
 	processing   bool
 	// applying counts async apply tasks that have been accepted for this Slot.
-	applying                    int
-	rawNode                     *raft.RawNode
-	requests                    []raftpb.Message
-	requestWorkBuf              []raftpb.Message
-	requestCount                int
-	controls                    []controlAction
-	controlWorkBuf              []controlAction
-	submittedProposals          []*future
-	submittedConfigs            []*future
-	pendingProposals            map[uint64]trackedFuture
+	applying           int
+	rawNode            *raft.RawNode
+	requests           []raftpb.Message
+	requestWorkBuf     []raftpb.Message
+	requestCount       int
+	controls           []controlAction
+	controlWorkBuf     []controlAction
+	submittedProposals []*future
+	submittedConfigs   []*future
+	pendingProposals   map[uint64]trackedFuture
+	// pendingReads and readSequence are guarded by mu; only the Raft worker issues requests.
+	pendingReads                map[string]*readBarrierRequest
+	readSequence                uint64
 	pendingConfigs              map[uint64]trackedFuture
 	pendingProposalCap          int
 	pendingConfigCap            int
@@ -100,6 +103,7 @@ const (
 	controlCompactLog
 	controlCaptureHashSlotSnapshot
 	controlFreshStatus
+	controlReadBarrier
 )
 
 type controlAction struct {
@@ -113,6 +117,7 @@ type controlAction struct {
 	backupSnapshot *hashSlotSnapshotRequest
 	strictTransfer *strictLeaderTransferRequest
 	freshStatus    *freshStatusRequest
+	readBarrier    *readBarrierRequest
 }
 
 // strictLeaderTransferRequest carries one exact, timeout-bounded placement
@@ -333,6 +338,7 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 		MaxSizePerMsg:   maxSizePerMsg(raftOpts.MaxSizePerMsg),
 		MaxInflightMsgs: maxInflight(raftOpts.MaxInflight),
 		CheckQuorum:     raftOpts.CheckQuorum,
+		ReadOnlyOption:  raft.ReadOnlySafe,
 		PreVote:         raftOpts.PreVote,
 		Logger:          newEtcdRaftLogger(logger, nodeID, opts.ID),
 	})
@@ -416,7 +422,7 @@ func (g *slot) enqueueControl(action controlAction) error {
 	}
 	action.proposalClass = normalizeProposalClass(action.proposalClass)
 	switch action.kind {
-	case controlPropose, controlConfigChange:
+	case controlPropose, controlConfigChange, controlReadBarrier:
 		if g.status.Role != RoleLeader {
 			event := g.proposalAdmissionEventLocked(action, "not_leader")
 			g.mu.Unlock()
@@ -461,6 +467,8 @@ func (g *slot) processControls(ctx context.Context) bool {
 
 	for _, action := range controls {
 		switch action.kind {
+		case controlReadBarrier:
+			g.issueReadBarrier(action.readBarrier)
 		case controlPropose:
 			action.future.observeStageSince("meta_create_slot_control_wait", nil, action.future.createdAt)
 			if err := g.rawNode.Propose(action.data); err != nil {
@@ -822,6 +830,7 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 		g.transportBuf = g.transportBuf[:0]
 	}
 
+	g.acceptReadStates(ready.ReadStates)
 	if requiresSyncApply {
 		return g.processReadySynchronously(ctx, ready)
 	}
@@ -1307,6 +1316,7 @@ func (g *slot) applyBasicStatusLocked(st raft.BasicStatus) (leaderChangeEvent, a
 	g.status.CommitIndex = st.Commit
 	g.status.AppliedIndex = g.durableAppliedIndex
 	g.status.Role = nextRole
+	g.completeReadBarriersLocked()
 	applyEvent := g.applyStateEventLocked(st.Commit, g.durableAppliedIndex)
 	var completions []futureCompletion
 	if prevRole == RoleLeader && g.status.Role != RoleLeader {
@@ -1588,6 +1598,7 @@ func (g *slot) setDurableAppliedIndex(index uint64) {
 		g.durableAppliedIndex = index
 	}
 	g.status.AppliedIndex = g.durableAppliedIndex
+	g.completeReadBarriersLocked()
 }
 
 func (g *slot) pendingConfigAppliedIndex(lastApplied uint64) uint64 {
@@ -2051,8 +2062,16 @@ func (g *slot) failPending(err error) {
 }
 
 func (g *slot) failPendingLocked(err error) []futureCompletion {
+	if g.closed || g.fatalErr != nil {
+		g.failReadBarriersLocked(err)
+	} else {
+		g.failUnconfirmedReadCallersLocked(err)
+	}
 	completions := make([]futureCompletion, 0, len(g.submittedProposals)+len(g.submittedConfigs)+len(g.pendingProposals)+len(g.pendingConfigs))
 	for i := range g.controls {
+		if g.controls[i].readBarrier != nil {
+			g.controls[i].readBarrier.finish(err)
+		}
 		if g.controls[i].strictTransfer != nil {
 			g.controls[i].strictTransfer.cancel(err)
 		}
@@ -2091,6 +2110,9 @@ func (g *slot) failPendingLocked(err error) []futureCompletion {
 }
 
 func (g *slot) failLeadershipDependentLocked(err error) []futureCompletion {
+	if err != nil {
+		g.failReadBarriersLocked(err)
+	}
 	if err == nil {
 		return nil
 	}

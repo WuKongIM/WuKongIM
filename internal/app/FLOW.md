@@ -53,6 +53,8 @@ Stop or startup rollback
 
 - Every product deployment, including one node, uses cluster semantics. Wiring
   must not introduce a local business bypass.
+  Real single-node SEND/SENDACK smoke coverage lives in the integration tier and
+  uses the production-default send deadline; native-package preview runs it explicitly.
 - Synchronous before-send Webhook admission is wired independently of asynchronous
   Webhook workers and plugin enablement; configuration errors fail startup.
 - Optional features are wired only when all required ports exist; unavailable
@@ -90,6 +92,8 @@ Stop or startup rollback
   its committed-entry lag is zero, not invalid or an unsigned underflow.
 - Issue/Review Agent composition keeps read, verification, signed-state, and
   publication credentials separated and never joins the product cluster.
+- Message edits wire Slot storage, online hints and one bounded repair worker. Start/stop and restore maintenance join the worker before its dependencies close; resume restarts it with fresh scan cursors. HTTP content epochs and edit cursors reuse the Controller successful-restore generation. A packed atomic maintenance-transition stamp fences response assembly across successful and failed restore cycles without an extra distributed read.
+
 ## Read First
 - [app.go](app.go)
 - [FLOW_PRODUCT_RUNTIME.md](FLOW_PRODUCT_RUNTIME.md)

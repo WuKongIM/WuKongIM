@@ -226,6 +226,8 @@ type CommittedReadsRequest struct {
 
 // CommittedReadResult is aligned with one requested channel.
 type CommittedReadResult struct {
+	// ContentTruncated preserves continuation when a replacement grows past the origin page budget.
+	ContentTruncated bool
 	// Read contains the committed message page on success.
 	Read channelstore.ReadCommittedResult
 	// Err is item-scoped so one channel failure does not discard siblings.

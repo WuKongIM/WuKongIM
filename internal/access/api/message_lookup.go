@@ -36,6 +36,9 @@ func (s *Server) handleMessageLookup(c *gin.Context) {
 	}
 	result, err := app.LookupMessages(c.Request.Context(), messageusecase.LookupMessagesQuery{LoginUID: req.LoginUID, ChannelID: req.ChannelID, ChannelType: req.ChannelType, MessageSeqs: req.MessageSeqs, MessageIDs: req.MessageIDs, ClientMsgNos: req.ClientMsgNos})
 	if err != nil {
+		if writeReadUnavailable(c, err) {
+			return
+		}
 		writeJSONError(c, err.Error())
 		return
 	}

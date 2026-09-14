@@ -1,0 +1,656 @@
+{
+  "scope": "bounded concurrent-edit correctness and abrupt leader recovery",
+  "manifest": {
+    "source_revision": "0160c1f7d068b555c872df79ab6ab57f2cd4bc76",
+    "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-updates",
+    "product_binary": "tmp/message-update-optimization/candidate-final",
+    "product_sha256": "c0d08e5b3423282bbb6b56636a48c1930c9cede0ea495107b3ff93dd1ee4af66",
+    "test_binary_sha256": "1dec8d37e2e4ae32e6bc3026b9f5646d64b62032575a62d4b8dbfe8b85677b36",
+    "files": {
+      "test/e2e/message/message_updates/message_updates_test.go": "7cb03d4e9492f58d4638cf25add8164725f03800a611d214ccf2eb730ddc4888",
+      "test/e2e/message/message_updates/AGENTS.md": "cce076f7642acb2a5dd658cd7ac4de43e105b25c412116437d11a31477bfdd28",
+      "AGENTS.md": "c6eae7244b1c660be4b2a62cbdc1efa5c26c35e34972e994df7e6ae073fc9d0b",
+      "test/e2e/AGENTS.md": "a18449c323f9a815f2922e83827b88f6087c00b5e8c47332b4bc8ee605a7eaa3",
+      "test/e2e/message/AGENTS.md": "1b0c571af26373c7b83611b0d81e16c7ef2862ce423f743a0ae502cb324ab7fc",
+      "test/e2e/suite/FLOW.md": "2f8e7bf7b3f3aab241f8674f6a4950d446c1fb2c69c9e0418fc34433720d10ce"
+    },
+    "cpu_set": "0-5",
+    "memory": "6g",
+    "gomaxprocs": 2,
+    "container_image": "golang:1.25.11-bookworm",
+    "image_id": "sha256:63cacf247cfd45aa03d105a9a86e2811f978514997be98068979ba6e4c2d0534"
+  },
+  "attempts": [
+    {
+      "attempt": 1,
+      "result": "FAIL",
+      "duration": "12.52s",
+      "failure": "message_updates_test.go:485:",
+      "receipt": {
+        "binary_sha256": "c0d08e5b3423282bbb6b56636a48c1930c9cede0ea495107b3ff93dd1ee4af66",
+        "phases": null,
+        "final_versions": null,
+        "complete": false
+      },
+      "raw_log": "tmp/message-update-stability/run-1/run.log",
+      "raw_log_sha256": "e6f2699835997ea1effb874d4518984e44c8dec8ddb9282a2e6c49d23ada1dc7"
+    },
+    {
+      "attempt": 2,
+      "result": "FAIL",
+      "duration": "72.39s",
+      "failure": "message_updates_test.go:615: /messages HTTP 400 {\"msg\":\"internal/message: append failed: EOF\",\"status\":400}",
+      "receipt": {
+        "binary_sha256": "c0d08e5b3423282bbb6b56636a48c1930c9cede0ea495107b3ff93dd1ee4af66",
+        "phases": [
+          {
+            "name": "healthy",
+            "started": "2026-09-13T17:15:17.332529926Z",
+            "finished": "2026-09-13T17:16:17.334778801Z",
+            "counts": {
+              "success": {
+                "/channel/messagesync": 299,
+                "/conversation/list": 299,
+                "/conversation/sync": 299,
+                "/messages": 299,
+                "delta": 299,
+                "edit": 897,
+                "idempotency": 299
+              },
+              "temporary": {},
+              "writers": [
+                299,
+                299,
+                299
+              ],
+              "more_pages": 235
+            }
+          }
+        ],
+        "final_versions": null,
+        "complete": false
+      },
+      "raw_log": "tmp/message-update-stability/run-2/run.log",
+      "raw_log_sha256": "0c532da977f2953dad62d5a287ce2b19ba5ccfcab291469ec88c3b878353ad9b"
+    },
+    {
+      "attempt": 3,
+      "result": "FAIL",
+      "duration": "72.71s",
+      "failure": "message_updates_test.go:632: /channel/messagesync HTTP 400 {\"msg\":\"transport: dial failed: dial tcp 127.0.0.1:20323: connect: connection refused\",\"status\":400}",
+      "receipt": {
+        "binary_sha256": "c0d08e5b3423282bbb6b56636a48c1930c9cede0ea495107b3ff93dd1ee4af66",
+        "phases": [
+          {
+            "name": "healthy",
+            "started": "2026-09-13T17:17:52.984165054Z",
+            "finished": "2026-09-13T17:18:52.986878762Z",
+            "counts": {
+              "success": {
+                "/channel/messagesync": 299,
+                "/conversation/list": 299,
+                "/conversation/sync": 299,
+                "/messages": 298,
+                "delta": 299,
+                "edit": 897,
+                "idempotency": 299
+              },
+              "temporary": {},
+              "writers": [
+                299,
+                299,
+                299
+              ],
+              "more_pages": 234
+            }
+          }
+        ],
+        "final_versions": null,
+        "complete": false,
+        "final_counts": {
+          "success": {
+            "/channel/messagesync": 300,
+            "/conversation/list": 300,
+            "/conversation/sync": 300,
+            "/messages": 299,
+            "delta": 300,
+            "edit": 898,
+            "idempotency": 300
+          },
+          "temporary": {
+            "/conversation/list": 1,
+            "/conversation/sync": 1,
+            "/messages": 2,
+            "delta": 1,
+            "edit": 5,
+            "idempotency": 1
+          },
+          "first_error": {
+            "/conversation/list": "transport: Post \"http://127.0.0.1:20321/conversation/list\": context canceled",
+            "/conversation/sync": "transport: Post \"http://127.0.0.1:20316/conversation/sync\": context canceled",
+            "/messages": "transport: Post \"http://127.0.0.1:20326/messages\": EOF",
+            "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "edit": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+          },
+          "writers": [
+            299,
+            299,
+            300
+          ],
+          "more_pages": 235
+        }
+      },
+      "raw_log": "tmp/message-update-stability/run-3/run.log",
+      "raw_log_sha256": "c95ad52bc1e02d28443269f0b0f84f0554719fdc4dc30ef83998fb2d4a924393"
+    },
+    {
+      "attempt": 4,
+      "result": "FAIL",
+      "duration": "72.70s",
+      "failure": "message_updates_test.go:645: /conversation/sync HTTP 400 {\"msg\":\"internal/usecase/conversation: route not ready\\ntransport: dial failed: dial tcp 127.0.0.1:20323: connect: connection refused\",\"status\":400}",
+      "receipt": {
+        "binary_sha256": "c0d08e5b3423282bbb6b56636a48c1930c9cede0ea495107b3ff93dd1ee4af66",
+        "phases": [
+          {
+            "name": "healthy",
+            "started": "2026-09-13T17:20:33.19031292Z",
+            "finished": "2026-09-13T17:21:33.191518128Z",
+            "counts": {
+              "success": {
+                "/channel/messagesync": 299,
+                "/conversation/list": 299,
+                "/conversation/sync": 299,
+                "/messages": 299,
+                "delta": 299,
+                "edit": 897,
+                "idempotency": 299
+              },
+              "temporary": {},
+              "writers": [
+                299,
+                299,
+                299
+              ],
+              "more_pages": 235
+            }
+          }
+        ],
+        "final_versions": null,
+        "complete": false,
+        "final_counts": {
+          "success": {
+            "/channel/messagesync": 300,
+            "/conversation/list": 300,
+            "/conversation/sync": 299,
+            "/messages": 299,
+            "delta": 299,
+            "edit": 897,
+            "idempotency": 299
+          },
+          "temporary": {
+            "/channel/messagesync": 1,
+            "/conversation/list": 1,
+            "/conversation/sync": 1,
+            "/messages": 2,
+            "delta": 2,
+            "edit": 6,
+            "idempotency": 2
+          },
+          "first_error": {
+            "/channel/messagesync": "/channel/messagesync HTTP 400 {\"msg\":\"transport: dial failed: dial tcp 127.0.0.1:20323: connect: connection refused\",\"status\":400}",
+            "/conversation/list": "/conversation/list HTTP 503 {\"msg\":\"internal/usecase/conversation: route not ready\\ntransport: dial failed: dial tcp 127.0.0.1:20323: connect: connection refused\",\"status\":503}",
+            "/conversation/sync": "transport: Post \"http://127.0.0.1:20326/conversation/sync\": EOF",
+            "/messages": "transport: Post \"http://127.0.0.1:20326/messages\": EOF",
+            "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "edit": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+          },
+          "writers": [
+            299,
+            299,
+            299
+          ],
+          "more_pages": 235
+        }
+      },
+      "raw_log": "tmp/message-update-stability/run-4/run.log",
+      "raw_log_sha256": "505679496f305db89af379663f866b172276a37c95e438588da1dd2e9777b3d5"
+    },
+    {
+      "attempt": 5,
+      "result": "FAIL",
+      "duration": "72.45s",
+      "failure": "message_updates_test.go:653: /conversation/sync HTTP 400 {\"msg\":\"internal/message: append failed: read tcp 127.0.0.1:60764-\\u003e127.0.0.1:20323: read: connection reset by peer\",\"status\":400}",
+      "receipt": {
+        "binary_sha256": "c0d08e5b3423282bbb6b56636a48c1930c9cede0ea495107b3ff93dd1ee4af66",
+        "phases": [
+          {
+            "name": "healthy",
+            "started": "2026-09-13T17:23:16.802359801Z",
+            "finished": "2026-09-13T17:24:16.805097343Z",
+            "counts": {
+              "success": {
+                "/channel/messagesync": 299,
+                "/conversation/list": 299,
+                "/conversation/sync": 299,
+                "/messages": 299,
+                "delta": 299,
+                "edit": 897,
+                "idempotency": 299
+              },
+              "temporary": {},
+              "writers": [
+                299,
+                299,
+                299
+              ],
+              "more_pages": 233
+            }
+          }
+        ],
+        "final_versions": null,
+        "complete": false,
+        "final_counts": {
+          "success": {
+            "/channel/messagesync": 300,
+            "/conversation/list": 300,
+            "/conversation/sync": 299,
+            "/messages": 299,
+            "delta": 300,
+            "edit": 898,
+            "idempotency": 299
+          },
+          "temporary": {
+            "/messages": 1,
+            "edit": 2,
+            "idempotency": 1
+          },
+          "first_error": {
+            "/messages": "transport: Post \"http://127.0.0.1:20326/messages\": EOF",
+            "edit": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+          },
+          "writers": [
+            299,
+            300,
+            299
+          ],
+          "more_pages": 234
+        }
+      },
+      "raw_log": "tmp/message-update-stability/run-5/run.log",
+      "raw_log_sha256": "83e1960029918bffb241a6b476e0d1369dfcf8b8973fb4b844abb21840cfa6d2"
+    },
+    {
+      "attempt": 6,
+      "result": "FAIL",
+      "duration": "118.94s",
+      "failure": "message_updates_test.go:678: /messages HTTP 400 {\"msg\":\"internal/message: append failed: remote_error: multiraft: not leader\",\"status\":400}",
+      "receipt": {
+        "binary_sha256": "c0d08e5b3423282bbb6b56636a48c1930c9cede0ea495107b3ff93dd1ee4af66",
+        "phases": [
+          {
+            "name": "healthy",
+            "started": "2026-09-13T17:25:49.146299677Z",
+            "finished": "2026-09-13T17:26:49.147729844Z",
+            "counts": {
+              "success": {
+                "/channel/messagesync": 299,
+                "/conversation/list": 299,
+                "/conversation/sync": 299,
+                "/messages": 299,
+                "delta": 299,
+                "edit": 897,
+                "idempotency": 299
+              },
+              "temporary": {},
+              "writers": [
+                299,
+                299,
+                299
+              ],
+              "more_pages": 234
+            }
+          },
+          {
+            "name": "channel_leader_down",
+            "started": "2026-09-13T17:26:49.177671635Z",
+            "finished": "2026-09-13T17:27:34.21456492Z",
+            "victim": 3,
+            "authority_before": 3,
+            "authority_after": 1,
+            "counts": {
+              "success": {
+                "/channel/messagesync": 499,
+                "/conversation/list": 499,
+                "/conversation/sync": 498,
+                "/messages": 497,
+                "delta": 498,
+                "edit": 1495,
+                "idempotency": 499
+              },
+              "temporary": {
+                "/channel/messagesync": 26,
+                "/conversation/list": 26,
+                "/conversation/sync": 27,
+                "/messages": 27,
+                "delta": 27,
+                "edit": 80,
+                "idempotency": 26
+              },
+              "first_error": {
+                "/channel/messagesync": "/channel/messagesync HTTP 400 {\"msg\":\"transport: dial failed: dial tcp 127.0.0.1:20323: connect: connection refused\",\"status\":400}",
+                "/conversation/list": "/conversation/list HTTP 503 {\"msg\":\"internal/usecase/conversation: route not ready\\ntransport: dial failed: dial tcp 127.0.0.1:20323: connect: connection refused\",\"status\":503}",
+                "/conversation/sync": "transport: Post \"http://127.0.0.1:20326/conversation/sync\": EOF",
+                "/messages": "/messages HTTP 400 {\"msg\":\"internal/message: append failed: EOF\",\"status\":400}",
+                "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+                "edit": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+                "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+              },
+              "writers": [
+                498,
+                499,
+                498
+              ],
+              "more_pages": 393
+            }
+          }
+        ],
+        "final_versions": null,
+        "complete": false,
+        "final_counts": {
+          "success": {
+            "/channel/messagesync": 509,
+            "/conversation/list": 509,
+            "/conversation/sync": 508,
+            "/messages": 507,
+            "delta": 508,
+            "edit": 1525,
+            "idempotency": 509
+          },
+          "temporary": {
+            "/channel/messagesync": 26,
+            "/conversation/list": 26,
+            "/conversation/sync": 27,
+            "/messages": 27,
+            "delta": 27,
+            "edit": 80,
+            "idempotency": 26
+          },
+          "first_error": {
+            "/channel/messagesync": "/channel/messagesync HTTP 400 {\"msg\":\"transport: dial failed: dial tcp 127.0.0.1:20323: connect: connection refused\",\"status\":400}",
+            "/conversation/list": "/conversation/list HTTP 503 {\"msg\":\"internal/usecase/conversation: route not ready\\ntransport: dial failed: dial tcp 127.0.0.1:20323: connect: connection refused\",\"status\":503}",
+            "/conversation/sync": "transport: Post \"http://127.0.0.1:20326/conversation/sync\": EOF",
+            "/messages": "/messages HTTP 400 {\"msg\":\"internal/message: append failed: EOF\",\"status\":400}",
+            "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "edit": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+          },
+          "writers": [
+            508,
+            509,
+            508
+          ],
+          "more_pages": 401
+        }
+      },
+      "raw_log": "tmp/message-update-stability/run-6/run.log",
+      "raw_log_sha256": "3da0db1e2d6844064b34d1db00843d70b87f2fafc9c0b0c9c7d028a466d6d87e"
+    },
+    {
+      "attempt": 7,
+      "result": "PASS",
+      "duration": "256.20s",
+      "failure": null,
+      "receipt": {
+        "binary_sha256": "c0d08e5b3423282bbb6b56636a48c1930c9cede0ea495107b3ff93dd1ee4af66",
+        "phases": [
+          {
+            "name": "healthy",
+            "started": "2026-09-13T17:28:48.105495802Z",
+            "finished": "2026-09-13T17:29:48.107057052Z",
+            "counts": {
+              "success": {
+                "/channel/messagesync": 299,
+                "/conversation/list": 299,
+                "/conversation/sync": 299,
+                "/messages": 299,
+                "delta": 299,
+                "edit": 897,
+                "idempotency": 299
+              },
+              "temporary": {},
+              "writers": [
+                299,
+                299,
+                299
+              ],
+              "more_pages": 233
+            }
+          },
+          {
+            "name": "channel_leader_down",
+            "started": "2026-09-13T17:29:48.128312968Z",
+            "finished": "2026-09-13T17:30:33.140238628Z",
+            "victim": 3,
+            "authority_before": 3,
+            "authority_after": 1,
+            "counts": {
+              "success": {
+                "/channel/messagesync": 498,
+                "/conversation/list": 498,
+                "/conversation/sync": 497,
+                "/messages": 495,
+                "delta": 496,
+                "edit": 1487,
+                "idempotency": 495
+              },
+              "temporary": {
+                "/channel/messagesync": 27,
+                "/conversation/list": 27,
+                "/conversation/sync": 28,
+                "/messages": 28,
+                "delta": 28,
+                "edit": 86,
+                "idempotency": 29
+              },
+              "first_error": {
+                "/channel/messagesync": "/channel/messagesync HTTP 400 {\"msg\":\"transport: dial failed: dial tcp 127.0.0.1:20323: connect: connection refused\",\"status\":400}",
+                "/conversation/list": "/conversation/list HTTP 503 {\"msg\":\"internal/usecase/conversation: route not ready\\ntransport: dial failed: dial tcp 127.0.0.1:20323: connect: connection refused\",\"status\":503}",
+                "/conversation/sync": "/conversation/sync HTTP 400 {\"msg\":\"internal/message: append failed: EOF\",\"status\":400}",
+                "/messages": "/messages HTTP 400 {\"msg\":\"internal/message: append failed: EOF\",\"status\":400}",
+                "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+                "edit": "transport: Post \"http://127.0.0.1:20326/message/update\": EOF",
+                "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+              },
+              "writers": [
+                496,
+                496,
+                495
+              ],
+              "more_pages": 388
+            }
+          },
+          {
+            "name": "channel_leader_restored",
+            "started": "2026-09-13T17:30:33.141376461Z",
+            "finished": "2026-09-13T17:31:19.345997177Z",
+            "victim": 3,
+            "counts": {
+              "success": {
+                "/channel/messagesync": 729,
+                "/conversation/list": 729,
+                "/conversation/sync": 728,
+                "/messages": 724,
+                "delta": 728,
+                "edit": 2181,
+                "idempotency": 726
+              },
+              "temporary": {
+                "/channel/messagesync": 27,
+                "/conversation/list": 27,
+                "/conversation/sync": 28,
+                "/messages": 29,
+                "delta": 28,
+                "edit": 86,
+                "idempotency": 29
+              },
+              "first_error": {
+                "/channel/messagesync": "/channel/messagesync HTTP 400 {\"msg\":\"transport: dial failed: dial tcp 127.0.0.1:20323: connect: connection refused\",\"status\":400}",
+                "/conversation/list": "/conversation/list HTTP 503 {\"msg\":\"internal/usecase/conversation: route not ready\\ntransport: dial failed: dial tcp 127.0.0.1:20323: connect: connection refused\",\"status\":503}",
+                "/conversation/sync": "/conversation/sync HTTP 400 {\"msg\":\"internal/message: append failed: EOF\",\"status\":400}",
+                "/messages": "/messages HTTP 400 {\"msg\":\"internal/message: append failed: EOF\",\"status\":400}",
+                "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+                "edit": "transport: Post \"http://127.0.0.1:20326/message/update\": EOF",
+                "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+              },
+              "writers": [
+                728,
+                726,
+                727
+              ],
+              "more_pages": 573
+            }
+          },
+          {
+            "name": "slot_leader_down",
+            "started": "2026-09-13T17:31:19.373232385Z",
+            "finished": "2026-09-13T17:32:04.392976253Z",
+            "victim": 3,
+            "authority_before": 3,
+            "authority_after": 2,
+            "counts": {
+              "success": {
+                "/channel/messagesync": 944,
+                "/conversation/list": 944,
+                "/conversation/sync": 943,
+                "/messages": 938,
+                "delta": 943,
+                "edit": 2826,
+                "idempotency": 942
+              },
+              "temporary": {
+                "/channel/messagesync": 37,
+                "/conversation/list": 37,
+                "/conversation/sync": 38,
+                "/messages": 40,
+                "delta": 38,
+                "edit": 117,
+                "idempotency": 39
+              },
+              "first_error": {
+                "/channel/messagesync": "/channel/messagesync HTTP 400 {\"msg\":\"transport: dial failed: dial tcp 127.0.0.1:20323: connect: connection refused\",\"status\":400}",
+                "/conversation/list": "/conversation/list HTTP 503 {\"msg\":\"internal/usecase/conversation: route not ready\\ntransport: dial failed: dial tcp 127.0.0.1:20323: connect: connection refused\",\"status\":503}",
+                "/conversation/sync": "/conversation/sync HTTP 400 {\"msg\":\"internal/message: append failed: EOF\",\"status\":400}",
+                "/messages": "/messages HTTP 400 {\"msg\":\"internal/message: append failed: EOF\",\"status\":400}",
+                "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+                "edit": "transport: Post \"http://127.0.0.1:20326/message/update\": EOF",
+                "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+              },
+              "writers": [
+                943,
+                941,
+                942
+              ],
+              "more_pages": 744
+            }
+          },
+          {
+            "name": "slot_leader_restored",
+            "started": "2026-09-13T17:32:04.394782087Z",
+            "finished": "2026-09-13T17:32:50.617394219Z",
+            "victim": 3,
+            "counts": {
+              "success": {
+                "/channel/messagesync": 1175,
+                "/conversation/list": 1175,
+                "/conversation/sync": 1174,
+                "/messages": 1168,
+                "delta": 1174,
+                "edit": 3519,
+                "idempotency": 1173
+              },
+              "temporary": {
+                "/channel/messagesync": 37,
+                "/conversation/list": 37,
+                "/conversation/sync": 38,
+                "/messages": 40,
+                "delta": 38,
+                "edit": 117,
+                "idempotency": 39
+              },
+              "first_error": {
+                "/channel/messagesync": "/channel/messagesync HTTP 400 {\"msg\":\"transport: dial failed: dial tcp 127.0.0.1:20323: connect: connection refused\",\"status\":400}",
+                "/conversation/list": "/conversation/list HTTP 503 {\"msg\":\"internal/usecase/conversation: route not ready\\ntransport: dial failed: dial tcp 127.0.0.1:20323: connect: connection refused\",\"status\":503}",
+                "/conversation/sync": "/conversation/sync HTTP 400 {\"msg\":\"internal/message: append failed: EOF\",\"status\":400}",
+                "/messages": "/messages HTTP 400 {\"msg\":\"internal/message: append failed: EOF\",\"status\":400}",
+                "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+                "edit": "transport: Post \"http://127.0.0.1:20326/message/update\": EOF",
+                "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+              },
+              "writers": [
+                1174,
+                1172,
+                1173
+              ],
+              "more_pages": 927
+            }
+          }
+        ],
+        "final_versions": [
+          296,
+          295,
+          296,
+          296,
+          295,
+          295,
+          295,
+          295,
+          295,
+          295,
+          295,
+          295
+        ],
+        "complete": true,
+        "final_counts": {
+          "success": {
+            "/channel/messagesync": 1175,
+            "/conversation/list": 1175,
+            "/conversation/sync": 1174,
+            "/messages": 1168,
+            "delta": 1174,
+            "edit": 3519,
+            "idempotency": 1173
+          },
+          "temporary": {
+            "/channel/messagesync": 37,
+            "/conversation/list": 37,
+            "/conversation/sync": 38,
+            "/messages": 40,
+            "delta": 38,
+            "edit": 117,
+            "idempotency": 39
+          },
+          "first_error": {
+            "/channel/messagesync": "/channel/messagesync HTTP 400 {\"msg\":\"transport: dial failed: dial tcp 127.0.0.1:20323: connect: connection refused\",\"status\":400}",
+            "/conversation/list": "/conversation/list HTTP 503 {\"msg\":\"internal/usecase/conversation: route not ready\\ntransport: dial failed: dial tcp 127.0.0.1:20323: connect: connection refused\",\"status\":503}",
+            "/conversation/sync": "/conversation/sync HTTP 400 {\"msg\":\"internal/message: append failed: EOF\",\"status\":400}",
+            "/messages": "/messages HTTP 400 {\"msg\":\"internal/message: append failed: EOF\",\"status\":400}",
+            "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "edit": "transport: Post \"http://127.0.0.1:20326/message/update\": EOF",
+            "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+          },
+          "writers": [
+            1174,
+            1172,
+            1173
+          ],
+          "more_pages": 932
+        }
+      },
+      "raw_log": "tmp/message-update-stability/run-7/run.log",
+      "raw_log_sha256": "ef08e94eed97774243c85d6d6663577aaa757ba2aa0169f3cdf94b51bb93c5f3"
+    }
+  ]
+}

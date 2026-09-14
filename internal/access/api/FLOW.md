@@ -101,6 +101,15 @@ bench or debug request
 
 - Legacy history, CMD, exact lookup and conversation previews share stable read-only aliases for old empty client numbers; serialization never rewrites committed records.
 
+- Message editing uses separate `/message/update` and single-channel `/channel/messageupdates` routes with bounded bodies and decimal-string edit identities/versions. Existing message and both conversation responses expose edited versions without changing their envelopes. Selected read responses include `X-WK-Content-Epoch` for SDK cache invalidation after restore. A supplied local transition fence rejects overlapping restore cycles before committing successful JSON, without a second Controller read; restore-capable embeddings must supply this port.
+
+- `/messages`, single-channel `/channel/messagesync`, `/conversation/list` and
+  `/conversation/sync` return `503` with `code: unavailable` and legacy `msg`/`status`
+  fields for known temporary read failures. Runtime classification preserves typed
+  local causes and exact RPC cause identities; unknown errors retain the prior
+  envelope/status. Errors publish no partial rows or next cursor. CMD and batch
+  responses are unchanged.
+
 ## Read First
 
 - [server.go](server.go)

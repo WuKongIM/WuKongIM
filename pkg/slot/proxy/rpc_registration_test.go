@@ -30,6 +30,7 @@ func TestNewRegistersRPCHandlersOnPromotedCluster(t *testing.T) {
 		int(channelMigrationRPCServiceID),
 		int(pluginBindingRPCServiceID),
 		int(membershipRPCServiceID),
+		int(messageUpdateRPCServiceID),
 	}
 	sort.Ints(want)
 	if !reflect.DeepEqual(got, want) {
@@ -54,6 +55,7 @@ func TestNewChannelMetadataStoreRegistersAuthoritativeReadHandlers(t *testing.T)
 		int(channelRPCServiceID),
 		int(permissionBatchRPCServiceID),
 		int(membershipRPCServiceID),
+		int(messageUpdateRPCServiceID),
 	}
 	sort.Ints(want)
 	if !reflect.DeepEqual(got, want) {

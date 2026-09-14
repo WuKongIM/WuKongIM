@@ -123,6 +123,10 @@ const (
 	RPCSlotIdentityMetadata
 	// RPCManagerNodeConfigDocument serves versioned redacted startup TOML documents.
 	RPCManagerNodeConfigDocument
+	// RPCSlotMessageUpdates serves bounded authoritative message-edit reads.
+	RPCSlotMessageUpdates
+	// RPCMessageUpdateHint delivers body-free edit hints to exact owner sessions.
+	RPCMessageUpdateHint
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -243,6 +247,10 @@ func transportServiceAlias(serviceID uint8) string {
 		return "channel migration meta"
 	case RPCMessageEventAppend:
 		return "message event append"
+	case RPCSlotMessageUpdates:
+		return "slot message updates"
+	case RPCMessageUpdateHint:
+		return "message update hint"
 	default:
 		return "unknown service"
 	}

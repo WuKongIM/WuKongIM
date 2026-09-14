@@ -38,6 +38,8 @@ It does not own plan admission, retries, ACK tracking, or offline classification
 - This adapter never creates ACK tokens or changes retry policy.
 - A failed presence dependency must not be converted into an offline result.
 
+- Edit hints resolve bounded subscriber pages through presence and use exact session owner fences. Only opted-in sessions receive the body-free EVENT; no RECVACK or offline record is created, and slow/closed sessions can drop hints for foreground sync to repair.
+
 ## Read First
 
 - [Presence adapter](online_presence.go)

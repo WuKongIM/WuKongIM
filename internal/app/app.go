@@ -20,6 +20,7 @@ import (
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	"github.com/WuKongIM/WuKongIM/internal/runtime/messageupdates"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	runtimeops "github.com/WuKongIM/WuKongIM/internal/runtime/opsmcp"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory"
@@ -140,6 +141,9 @@ type App struct {
 	// personDirectoryProjector materializes UID-owned directory rows from
 	// durable source-Slot tasks using one scanner and fixed workers.
 	personDirectoryProjector *persondirectory.Projector
+	// messageUpdateWorker repairs durable body-free edit notifications.
+	messageUpdateWorker     *messageupdates.Worker
+	messageUpdateHintsReady bool
 	// messageChannelStore owns the request-side durable directory admission
 	// batcher and must be sealed before the cluster runtime stops.
 	messageChannelStore *clusterinfra.ChannelMetadataStore
@@ -184,6 +188,9 @@ type App struct {
 	backupRuntime WorkerRuntime
 	// restoreMaintenance mirrors the Controller fence for entry quiescence.
 	restoreMaintenance atomic.Bool
+	// restoreReadFence packs a transition sequence with the active bit so HTTP
+	// content reads can reject restore overlap without a second Controller read.
+	restoreReadFence atomic.Uint64
 	// restoreSideEffectsMu serializes drain/suspend/resume around one restore.
 	restoreSideEffectsMu        sync.Mutex
 	restoreSideEffectsSuspended bool

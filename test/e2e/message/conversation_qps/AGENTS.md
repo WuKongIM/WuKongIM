@@ -160,3 +160,42 @@ and driver CPU profiles during a separate ten-second workload. Rejected windows
 remain evidence, unexpected failures or runtime/membership mutations abort, and
 collection completion never qualifies publication. The read-only
 `conversation-qps-diagnose.yml` verifies the optional exact prior binary digest.
+
+Message-update same-host Linux diagnosis is opt-in:
+`WK_E2E_MESSAGE_UPDATE_SOAK=1 WK_E2E_MESSAGE_UPDATE_REPORT=/tmp/message-update/report.json WK_E2E_BINARY=/absolute/product GOWORK=off go test -tags=e2e ./test/e2e/message/conversation_qps -run '^TestMessageUpdateThreeNodeSoak$' -count=1 -timeout=12m -p=1 -v`.
+Use the unchanged 600-group fixture, three real processes, 256 Hash Slots,
+12 physical Slots, three replicas, and node GOMAXPROCS=2. Preserve three
+60-second mixed windows at the release mixed rates (list 200, sync 60 QPS),
+with the existing bounded driver and exact response checks. Compare the same
+compiled harness and resource limits against exact baseline/candidate binaries;
+record dirty source manifests and binary hashes. Set
+`WK_E2E_MESSAGE_UPDATE_EDITED=1` only for the candidate: edit every tail once
+through public APIs before measurement, retaining 256-byte payloads and the
+original identities/order. Then measure changed-page and empty-page delta reads
+at 100 QPS for 60 seconds each, validating cursor coverage and edited contents.
+These fixed-cursor replays measure server read cost, not recommended SDK traffic.
+Collect bounded CPU and allocation profiles during a separate ten-second mixed
+load after the measured windows. Preserve rejected windows; completion is not
+acceptance. This diagnostic neither changes release thresholds nor establishes
+multi-host production capacity, online notification fanout, or sustained edit
+write capacity.
+
+The delta diagnostic separately records selected-channel cold recovery: checking
+the retained original uses committed reads and may load that channel runtime.
+Warm exactly that channel before its steady windows, record the recovery time
+and load/residency changes, then require zero additional runtime loads and
+membership writes with stable residency during each delta window. Preserve the
+original zero-residency invariant for every conversation-only window. Evict
+fixture runtimes again only after delta measurement, before separate profiles.
+
+For changed-delta CPU attribution, also set
+`WK_E2E_MESSAGE_UPDATE_DELTA_PROFILE=1` with the edited diagnostic. Preserve the
+entire fixture, three mixed windows and both 60-second delta windows. Only the
+subsequent separate ten-second profiling workload changes to changed-delta
+100 QPS with eight workers, retaining the already recovered channel. Mark this
+choice in the receipt; enforce exact edited content, zero errors/drops, no
+additional runtime loads or membership writes, and stable residency. Profiles
+remain bounded to eight CPU seconds and 32 MiB per body. Compare before/after
+binaries in counterbalanced order on fresh clusters, with at least three runs
+each and identical assigned resources; record all runs rather than selecting
+the fastest one. This is diagnostic evidence, not a release gate.

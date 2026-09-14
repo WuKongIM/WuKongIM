@@ -55,6 +55,8 @@ closure, dependency order, and restart policy.
 - Manager Prometheus queries use one fixed burst identity for the bounded
   per-request fanout cohort.
 
+- Message-update reads have a fixed Slot burst identity with at most four workers per request; durable notification/retention repair has one supervised Message singleton.
+
 ## Read First
 
 - [Registry](registry.go)

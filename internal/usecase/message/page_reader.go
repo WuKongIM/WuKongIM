@@ -135,7 +135,8 @@ func (r *PageReader) SyncMessagesBatch(ctx context.Context, queries []ChannelMes
 		remaining := pending[:0]
 		for i, index := range pending {
 			state := &states[index]
-			if r.maxScanBytes > 0 {
+			{
+				// Replacement payloads can grow after the original scan; bound both read modes.
 				for _, msg := range got[i].Messages {
 					readBytes += len(msg.Payload)
 					if readBytes > persistedPageReadBytes {

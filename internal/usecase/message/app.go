@@ -10,6 +10,13 @@ import (
 
 // Options configures the message usecase.
 type Options struct {
+	// Updates owns durable payload replacements and edit progress.
+	Updates UpdateStore
+	// ContentEpoch changes after a successful cluster restore.
+	ContentEpoch func(context.Context) (uint64, error)
+	// UpdateHints and UpdateSubscribers support bounded post-commit notification.
+	UpdateHints       UpdateHintSender
+	UpdateSubscribers UpdateSubscribers
 	// CommandChannelSuffix selects command IDs; empty retains the legacy default.
 	CommandChannelSuffix string
 	// Submitter owns channel-authority send routing and append admission.
@@ -55,6 +62,10 @@ type Options struct {
 
 // App is a thin message facade over channel append submission and sync reads.
 type App struct {
+	updates           UpdateStore
+	contentEpoch      func(context.Context) (uint64, error)
+	updateHints       UpdateHintSender
+	updateSubscribers UpdateSubscribers
 	// commandChannels applies the deployment suffix without process-global state.
 	commandChannels runtimechannelid.CommandCodec
 	submitter       Submitter
@@ -91,6 +102,9 @@ func New(opts Options) *App {
 		permissionBatch = opts.PermissionBatchStore
 	}
 	return &App{
+		updates:      opts.Updates,
+		contentEpoch: opts.ContentEpoch,
+		updateHints:  opts.UpdateHints, updateSubscribers: opts.UpdateSubscribers,
 		commandChannels:        runtimechannelid.CommandCodec{Suffix: opts.CommandChannelSuffix},
 		submitter:              opts.Submitter,
 		reader:                 opts.Reader,

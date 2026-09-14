@@ -115,6 +115,9 @@ type LegacyMessageEventSyncHint struct {
 
 // LegacyRecentMessage is one message embedded in a legacy conversation row.
 type LegacyRecentMessage struct {
+	// Version and UpdatedAtMS describe the latest payload replacement, independent of conversation ordering.
+	Version     uint64
+	UpdatedAtMS int64
 	// Flags contains legacy frame-header flags.
 	Flags LegacyMessageFlags
 	// Setting contains legacy message setting bits.
@@ -272,9 +275,11 @@ func (a *App) SyncLegacy(ctx context.Context, req LegacySyncRequest) (LegacySync
 		}
 		// An advanced legacy cursor does not prove that an empty-number head
 		// was stored successfully: old clients collide on that empty key.
+		// Edited heads also need rereading even when the ordinary sequence cursor
+		// has caught up; recents is a latest-state upsert for that same identity.
 		// Re-read only that latest visible message so its stable read alias can
 		// repair the preview. Membership/read/delete positions remain unchanged.
-		if last := item.LastMessage; last != nil && last.MessageID != 0 && last.ClientMsgNo == "" && last.MessageSeq > 0 && afterMessageSeq >= last.MessageSeq {
+		if last := item.LastMessage; last != nil && last.MessageID != 0 && (last.ClientMsgNo == "" || last.Version > 0) && last.MessageSeq > 0 && afterMessageSeq >= last.MessageSeq {
 			afterMessageSeq = last.MessageSeq - 1
 		}
 		selected = append(selected, item)

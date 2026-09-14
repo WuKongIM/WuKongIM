@@ -99,6 +99,14 @@ func InspectScan(ctx context.Context, db *MetaDB, req InspectScanRequest) (Inspe
 		return inspectScanTable(ctx, db, req, slots, personDirectoryTaskTable, inspectPersonDirectoryTaskRow)
 	case "channel_latest":
 		return inspectScanTable(ctx, db, req, slots, channelLatestTable, inspectChannelLatestRow)
+	case "message_update":
+		return inspectScanTable(ctx, db, req, slots, messageUpdateTable, inspectMessageUpdateRow)
+	case "message_update_pending":
+		return inspectScanTable(ctx, db, req, slots, messageUpdatePendingTable, inspectMessageUpdateRow)
+	case "message_update_head":
+		return inspectScanTable(ctx, db, req, slots, messageUpdateHeadTable, inspectMessageUpdateHeadRow)
+	case "message_update_request":
+		return inspectScanTable(ctx, db, req, slots, messageUpdateRequestTable, inspectMessageUpdateRequestRow)
 	case "message_event_state":
 		return inspectScanTable(ctx, db, req, slots, messageEventStateTable, inspectMessageEventStateRow)
 	case "message_event_cursor":
@@ -717,4 +725,14 @@ func inspectFloatNumeric(value float64) (inspectNumericValue, bool, bool) {
 		return inspectNumericValue{}, true, false
 	}
 	return inspectNumericValue{magnitude: uint64(value)}, true, true
+}
+
+func inspectMessageUpdateRow(r MessageUpdate) InspectRow {
+	return InspectRow{"channel_id": r.ChannelID, "channel_type": r.ChannelType, "message_id": r.MessageID, "message_seq": r.MessageSeq, "version": r.Version, "update_seq": r.UpdateSeq, "payload": r.Payload, "updated_at_ms": r.UpdatedAtMS, "pending": r.Pending, "pending_after_uid": r.PendingAfterUID}
+}
+func inspectMessageUpdateHeadRow(r MessageUpdateHead) InspectRow {
+	return InspectRow{"channel_id": r.ChannelID, "channel_type": r.ChannelType, "generation": r.Generation, "update_seq": r.UpdateSeq, "replica_set": r.ReplicaSet}
+}
+func inspectMessageUpdateRequestRow(r MessageUpdateRequest) InspectRow {
+	return InspectRow{"channel_id": r.ChannelID, "channel_type": r.ChannelType, "message_id": r.MessageID, "request_id": r.RequestID, "digest": r.Digest, "message_seq": r.MessageSeq, "version": r.Version, "update_seq": r.UpdateSeq, "updated_at_ms": r.UpdatedAtMS}
 }

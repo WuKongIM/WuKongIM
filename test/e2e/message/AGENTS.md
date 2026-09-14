@@ -11,6 +11,7 @@ This domain covers black-box message and conversation behavior for
 
 | Scenario | Purpose | Run |
 | --- | --- | --- |
+| `message_updates` | Opt-in concurrent edits and reads with abrupt Channel/physical Slot leader termination, restart, strict public retry codes, CAS/idempotency and final incremental-cache convergence in a 256-Hash-Slot three-node cluster. | `WK_E2E_MESSAGE_UPDATE_STABILITY=1 WK_E2E_MESSAGE_UPDATE_STABILITY_REPORT=/tmp/message-update-stability.json GOWORK=off go test -tags=e2e ./test/e2e/message/message_updates -count=1 -timeout=8m -v` |
 | `conversation_qps` | Fixed QPS/P99 and zero-activation release gate plus fixed four-CPU Linux AMD64 mixed attribution and opt-in mixed/hidden stress diagnosis for both conversation endpoints across single-node and three-node clusters; separate opt-in staircase/pprof capacity diagnosis and three-minute per-case CPU/RPC/trace analysis with optional frozen-baseline comparison and fixed backpressure attribution, alternating 180-second peak confirmation (including a fixed sync-only comparison)/400/420/440 QPS sync refinement (see scenario AGENTS.md, including sustained capacity confirmation). | `WK_E2E_CONVERSATION_QPS=1 WK_E2E_CONVERSATION_QPS_REPORT=/tmp/conversation-qps.json GOWORK=off go test -tags=e2e ./test/e2e/message/conversation_qps -run TestConversationQPSReleaseGate -count=1 -timeout=12m -p=1 -v`<br>Capacity: `WK_E2E_CONVERSATION_CAPACITY=1 WK_E2E_CONVERSATION_CAPACITY_REPORT=/tmp/conversation-capacity/report.json GOWORK=off go test -tags=e2e ./test/e2e/message/conversation_qps -run TestConversationQPSCapacity -count=1 -timeout=20m -p=1 -v` |
 | `no_persist` | Prove ordinary transient HTTP sends to WKProto subscribers, receive flags, permission checks, and unchanged history in 256-Hash-Slot single-node and three-node clusters. | `GOWORK=off go test -tags=e2e ./test/e2e/message/no_persist -count=1 -timeout 3m -p=1` |
 | `single_node_send` | Prove WKProto `SEND -> SENDACK`, person membership establishment, and zero repeat membership writes after `directory_ready` in a single-node cluster. | `GOWORK=off go test -tags=e2e ./test/e2e/message/single_node_send -count=1` |
@@ -36,6 +37,11 @@ This domain covers black-box message and conversation behavior for
 | `chat_lifecycle` | Prove a real three-node person Channel becomes naturally absent after five idle minutes, reheats through real traffic, preserves sequence/metadata continuity, runs a full version-zero sync after every login, and preserves person/group recipient sequence under cross-ingress bursts. | `GOWORK=off go test -tags=e2e ./test/e2e/message/chat_lifecycle -run 'Test(PersonChannel(NaturalReheat|CrossIngressBurstPreservesReceiveSequence)|GroupChannelCrossIngressBurstPreservesReceiveSequence)$' -count=1 -timeout 9m -p=1` |
 
 ## Maintenance Rules
+
+The `conversation_qps` scenario also contains the opt-in message-update
+three-node diagnostic. Its `WK_E2E_MESSAGE_UPDATE_DELTA_PROFILE=1` variant
+preserves all unprofiled windows and captures only changed-delta CPU/allocation
+profiles afterward; see the scenario instructions for the fixed comparison.
 
 - When adding a new message scenario, create
   `test/e2e/message/<scenario>/`.

@@ -311,3 +311,21 @@ func sameRoute(a, b OwnerRoute) bool {
 		a.OwnerBootID == b.OwnerBootID &&
 		a.OwnerSeq == b.OwnerSeq
 }
+
+// EnableMessageUpdates records capability only for the authenticated active
+// session. It is removed automatically when the session unregisters.
+func (r *Registry) EnableMessageUpdates(uid string, sessionID uint64, enabled bool) error {
+	if r == nil {
+		return ErrConnectionNotFound
+	}
+	shard := r.sessionShard(sessionID)
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+	session, ok := shard.bySession[sessionID]
+	if !ok || session.Route.UID != uid || session.State != RouteStateActive {
+		return ErrConnectionNotFound
+	}
+	session.MessageUpdates = enabled
+	shard.bySession[sessionID] = session
+	return nil
+}

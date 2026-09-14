@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
@@ -52,6 +51,8 @@ type conversationListItem struct {
 }
 
 type conversationLastMessage struct {
+	Version           uint64 `json:"version,string,omitempty"`
+	UpdatedAtMS       int64  `json:"updated_at_ms,omitempty"`
 	MessageID         uint64 `json:"message_id"`
 	MessageIDStr      string `json:"message_idstr"`
 	MessageSeq        uint64 `json:"message_seq"`
@@ -107,10 +108,9 @@ func (s *Server) handleConversationList(c *gin.Context) {
 		if errors.Is(err, conversationusecase.ErrInvalidRequest) {
 			status = http.StatusBadRequest
 		}
-		if errors.Is(err, conversationusecase.ErrListBusy) || errors.Is(err, conversationusecase.ErrRouteNotReady) || errors.Is(err, context.DeadlineExceeded) {
-			status = http.StatusServiceUnavailable
+		if !writeReadUnavailable(c, err) {
+			c.JSON(status, gin.H{"msg": err.Error(), "status": status})
 		}
-		c.JSON(status, gin.H{"msg": err.Error(), "status": status})
 		s.observeConversationList(ConversationListObservation{Result: "error", Duration: time.Since(start)})
 		return
 	}
@@ -219,6 +219,7 @@ func newConversationListItem(uid string, item conversationusecase.Conversation) 
 	}
 	if item.LastMessage != nil {
 		out.LastMessage = &conversationLastMessage{
+			Version: item.LastMessage.Version, UpdatedAtMS: item.LastMessage.UpdatedAtMS,
 			MessageID:         item.LastMessage.MessageID,
 			MessageIDStr:      strconv.FormatUint(item.LastMessage.MessageID, 10),
 			MessageSeq:        item.LastMessage.MessageSeq,

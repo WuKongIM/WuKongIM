@@ -15,6 +15,8 @@ type legacyMessageHeader struct {
 }
 
 type legacyMessageResp struct {
+	Version      uint64              `json:"version,string,omitempty"`
+	UpdatedAtMS  int64               `json:"updated_at_ms,omitempty"`
 	Header       legacyMessageHeader `json:"header"`
 	Setting      uint8               `json:"setting"`
 	MessageID    int64               `json:"message_id"`
@@ -40,6 +42,7 @@ type legacyMessageResp struct {
 
 func newLegacyMessageResp(uid string, msg messageusecase.SyncedMessage) legacyMessageResp {
 	return legacyMessageResp{
+		Version: msg.Version, UpdatedAtMS: msg.UpdatedAtMS,
 		Header: legacyMessageHeader{
 			NoPersist: boolToInt(msg.Flags.NoPersist),
 			RedDot:    boolToInt(msg.Flags.RedDot),

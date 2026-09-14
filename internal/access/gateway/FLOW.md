@@ -56,6 +56,8 @@ It does not own reusable message, presence, delivery, or storage policy.
   pre-submit budget timings to the existing warning. Planned shutdown fences
   suppress only identity-bearing cancellation warnings, not observations.
 
+- Authenticated connections opt into body-free edit hints with `message_updates.enable` EVENT and receive `message_updates.ready`. Capability is connection-scoped; CONNECT and CMD meanings remain unchanged.
+
 ## Read First
 
 - [Gateway handler](handler.go)

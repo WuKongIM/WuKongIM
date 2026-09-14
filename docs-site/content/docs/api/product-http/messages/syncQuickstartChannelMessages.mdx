@@ -124,6 +124,10 @@ _openapi:
 
           payload `string | null` encoding: base64 Base64 编码消息 Payload；可能为 null。
 
+          version `string` pattern: `^[0-9]+$` 内容修改版本；同一恢复代数内省略表示 0。
+
+          updated_at_ms `integer:int64` 0–∞ 服务端修改时间，Unix 毫秒；不改变原消息排序。
+
           LegacyMessageHeader
 
           旧式消息 Header。
@@ -186,7 +190,8 @@ _openapi:
 
           status `integer` const: `400` 固定为 400 的应用层状态。
 
-          503 Controller restore maintenance is active
+          503 Temporary read failure or restore maintenance; retry the same
+          query with bounded backoff.
 
           MaintenanceError
 
@@ -195,6 +200,16 @@ _openapi:
           error `string` const: `"maintenance"` 稳定的 maintenance 错误类别。
 
           message `string` const: `"restore maintenance is active"` 当前恢复维护说明。
+
+          MessageUpdateError
+
+          修改或临时读取失败；不返回部分结果。
+
+          status `integer` — HTTP 状态。
+
+          code `string` — 稳定错误码；结果不确定的写入保留完整重试身份。
+
+          msg `string` — 可选旧式诊断文本。
 ---
 
 <Callout type="warn" title="接口边界">
@@ -202,6 +217,7 @@ _openapi:
 - **调用方**：仅限受信业务后端
 - **作用域**：读取前必须存在 login_uid 的普通成员关系；join_seq 与 deleted_to_seq 共同形成最低可见序号。返回消息始终按 message_seq 升序排列。
 - **成功判定**：pull_mode=1 读取 [start_message_seq, end_message_seq)；其他值向旧消息读取 (end_message_seq, start_message_seq]。边界为 0 时使用开放端。
+- **恢复**：读取页面时包含最新修改；503 unavailable 保留原查询重试。恢复代数增加后重置缓存版本比较。
 
 </Callout>
 

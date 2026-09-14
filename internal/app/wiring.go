@@ -825,7 +825,13 @@ func (a *App) wireMessages() {
 		if eventNode, ok := a.cluster.(clusterinfra.MessageEventNode); ok {
 			messageOpts.EventStore = clusterinfra.NewMessageEventStore(eventNode)
 		}
+		if node, ok := a.cluster.(clusterinfra.MessageUpdateNode); ok {
+			messageOpts.Updates = clusterinfra.NewMessageUpdateStore(node)
+			messageOpts.ContentEpoch = a.messageContentEpoch
+		}
+		a.wireMessageUpdateHints(&messageOpts)
 		a.messages = message.New(messageOpts)
+		a.wireMessageUpdateWorker()
 	}
 }
 
@@ -852,14 +858,19 @@ func (a *App) wireAPIMessageFacade() {
 func (a *App) wireGatewayHandler(ownerNodeID uint64) {
 	if a.handler == nil {
 		handlerMessages := accessgateway.MessageUsecase(a.messages)
+		var editCapabilities accessgateway.MessageUpdateCapabilities
+		if a.messageUpdateHintsReady {
+			editCapabilities = a.online
+		}
 		a.handler = accessgateway.New(accessgateway.Options{
-			Messages:        handlerMessages,
-			Presence:        a.gatewayPresenceUsecase(),
-			Delivery:        a.delivery,
-			OwnerNodeID:     ownerNodeID,
-			SendTimeout:     a.cfg.Gateway.SendTimeout,
-			SendackObserver: a.sendackObserver(),
-			Logger:          a.logger.Named("access.gateway"),
+			MessageUpdateCapabilities: editCapabilities,
+			Messages:                  handlerMessages,
+			Presence:                  a.gatewayPresenceUsecase(),
+			Delivery:                  a.delivery,
+			OwnerNodeID:               ownerNodeID,
+			SendTimeout:               a.cfg.Gateway.SendTimeout,
+			SendackObserver:           a.sendackObserver(),
+			Logger:                    a.logger.Named("access.gateway"),
 		})
 	}
 }
@@ -873,6 +884,8 @@ func (a *App) wireAPI() {
 		legacyRouteExternal, legacyRouteIntranet := legacyRouteAddresses(a.cfg.API, a.cfg.Gateway.Listeners)
 		legacyRouteNodes := legacyRouteNodeAddresses(a.cfg.NodeID, a.cfg.Cluster.Control.Voters, legacyRouteExternal, legacyRouteIntranet)
 		a.api = accessapi.New(accessapi.Options{
+			ContentEpoch:             a.messageContentEpoch,
+			ContentReadFence:         a.messageContentReadFence,
 			ListenAddr:               a.cfg.API.ListenAddr,
 			Readyz:                   a.readyzReport,
 			Maintenance:              a.restoreMaintenance.Load,

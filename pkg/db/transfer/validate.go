@@ -81,6 +81,13 @@ func newBundleValidator(hashSlotCount uint16) *bundleValidator {
 
 func (v *bundleValidator) Visit(kind FileKind, record any) error {
 	switch kind {
+	case FileKindMetaMessageUpdates:
+		row := record.(MessageUpdateRecord)
+		key, err := metadb.ValidateMessageUpdateImport(row.MessageUpdateImport)
+		if err != nil {
+			return err
+		}
+		return v.validateHashSlot("message_updates", key.ChannelID, row.HashSlot)
 	case FileKindMetaUsers:
 		row := record.(UserRecord)
 		return v.validateHashSlot("users", row.UID, row.HashSlot)

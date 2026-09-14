@@ -395,6 +395,8 @@ export const nodeTransportServices: readonly NodeTransportService[] = [
   nodeService(86, 'RPCChannelQuorumExchange', 'channel_quorum_exchange'),
   nodeService(87, 'RPCSlotIdentityMetadata', 'slot_identity_metadata'),
   nodeService(88, 'RPCManagerNodeConfigDocument', 'manager_node_config_document'),
+  nodeService(89, 'RPCSlotMessageUpdates', 'slot_message_updates'),
+  nodeService(90, 'RPCMessageUpdateHint', 'message_update_hint'),
 ];
 
 export const nodeTransportBoundary =

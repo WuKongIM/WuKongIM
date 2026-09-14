@@ -126,6 +126,12 @@ _openapi:
           payload `string | null` encoding: base64 Base64-encoded message
           payload; it may be null.
 
+          version `string` pattern: `^[0-9]+$` Edited content version; absent
+          means zero in the same content epoch.
+
+          updated_at_ms `integer:int64` 0–∞ Server edit time in Unix
+          milliseconds; original ordering is unchanged.
+
           ConversationKey
 
           Channel key for one Conversation.
@@ -154,8 +160,8 @@ _openapi:
 
           status `integer` —
 
-          503 Maintenance, list capacity exhausted, or read deadline exceeded.
-          Retry the original request.
+          503 Temporary read failure or restore maintenance; retry the same
+          query with bounded backoff.
 
           MaintenanceError
 
@@ -166,6 +172,17 @@ _openapi:
 
           message `string` const: `"restore maintenance is active"` Current
           restore-maintenance message.
+
+          MessageUpdateError
+
+          Edit or transient read failure; no partial results.
+
+          status `integer` — HTTP status.
+
+          code `string` — Stable rejection code; uncertain writes retain their
+          exact retry identity.
+
+          msg `string` — Optional legacy diagnostic message.
 ---
 
 <Callout type="warn" title="Operation boundary">
@@ -173,6 +190,7 @@ _openapi:
 - **Caller**: Trusted backend only
 - **Scope**: limit bounds membership rows scanned, not the number of returned conversations; tombstones go to deletes. Previews use Leader-persisted data without runtime activation. Any read failure fails the whole page; retry the original request and cursor.
 - **Success**: Only done=true completes a full pass and permits saving coverage; reset_required=true requires rebuilding the local Conversation directory.
+- **Recovery**: Previews include the latest tail edit; preserve the cursor on 503 unavailable. Content edits do not change conversation order or unread.
 
 </Callout>
 

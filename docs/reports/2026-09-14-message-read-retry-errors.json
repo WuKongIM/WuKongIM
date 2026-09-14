@@ -1,0 +1,276 @@
+{
+  "manifest": {
+    "source_revision": "0160c1f7d068b555c872df79ab6ab57f2cd4bc76",
+    "product_sha256": "434e2b4e9c63f8f7c8525c893141392a4fbab5f6de1b47663430c06dc7b85577",
+    "harness_sha256": "eb72404ff79520cbed754f10b11f7e84a89c4d059a87ae5d251a7bbf7a08f386",
+    "files": {
+      "AGENTS.md": "c6eae7244b1c660be4b2a62cbdc1efa5c26c35e34972e994df7e6ae073fc9d0b",
+      "test/e2e/AGENTS.md": "59bb62e0ce12e7b25324108976cfbf5fe3a939a5ff1c93d09e2a8050e7be79b2",
+      "test/e2e/message/AGENTS.md": "57a6347ce79e5ac198683f788e63721a88d2e712efb4fd509336309b6922a203",
+      "test/e2e/message/message_updates/AGENTS.md": "909b9af4ada64dfe4334ae88009f225ef4ebdd1e203bb6d42a607875aa553597",
+      "internal/access/api/FLOW.md": "4123ca45d65b693dabe0ff5885537cedd48e62f20cce68a5d1ed82e3a0de9dc6",
+      "internal/runtime/readavailability/FLOW.md": "ea0b47dd38e1a96247874cc93f21a89d6200788ea29216cc8bbf0d2a7ea8a00a",
+      "internal/runtime/readavailability/errors.go": "199e3ef4d4481d852c218a65ffd9e20b5cf2c6a051ced6c84db169561d8fd73c",
+      "internal/access/api/message_read_error.go": "64c975cdc6183a11bd36790efad4cf7583053b821f81fdf2ac09c78213744f2c",
+      "test/e2e/message/message_updates/message_updates_test.go": "6477652494384896282dc9e8127d753ce34c42fcec7004b39ff1b154833006e4"
+    },
+    "image": "sha256:63cacf247cfd45aa03d105a9a86e2811f978514997be98068979ba6e4c2d0534",
+    "cpu_set": "0-5",
+    "memory": "6g",
+    "gomaxprocs": 2
+  },
+  "receipt": {
+    "binary_sha256": "434e2b4e9c63f8f7c8525c893141392a4fbab5f6de1b47663430c06dc7b85577",
+    "phases": [
+      {
+        "name": "healthy",
+        "started": "2026-09-13T17:42:46.874285051Z",
+        "finished": "2026-09-13T17:43:46.875617259Z",
+        "counts": {
+          "success": {
+            "/channel/messagesync": 299,
+            "/conversation/list": 299,
+            "/conversation/sync": 299,
+            "/messages": 299,
+            "delta": 299,
+            "edit": 897,
+            "idempotency": 299
+          },
+          "temporary": {},
+          "writers": [
+            299,
+            299,
+            299
+          ],
+          "more_pages": 232
+        }
+      },
+      {
+        "name": "channel_leader_down",
+        "started": "2026-09-13T17:43:46.898121718Z",
+        "finished": "2026-09-13T17:44:31.928369044Z",
+        "victim": 3,
+        "authority_before": 3,
+        "authority_after": 1,
+        "counts": {
+          "success": {
+            "/channel/messagesync": 498,
+            "/conversation/list": 498,
+            "/conversation/sync": 497,
+            "/messages": 496,
+            "delta": 497,
+            "edit": 1490,
+            "idempotency": 497
+          },
+          "temporary": {
+            "/channel/messagesync": 27,
+            "/conversation/list": 27,
+            "/conversation/sync": 28,
+            "/messages": 28,
+            "delta": 28,
+            "edit": 83,
+            "idempotency": 28
+          },
+          "first_error": {
+            "/channel/messagesync": "/channel/messagesync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/list": "/conversation/list HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/sync": "/conversation/sync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/messages": "/messages HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "edit": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+          },
+          "writers": [
+            498,
+            496,
+            496
+          ],
+          "more_pages": 390
+        }
+      },
+      {
+        "name": "channel_leader_restored",
+        "started": "2026-09-13T17:44:31.929093085Z",
+        "finished": "2026-09-13T17:45:18.218032968Z",
+        "victim": 3,
+        "counts": {
+          "success": {
+            "/channel/messagesync": 729,
+            "/conversation/list": 729,
+            "/conversation/sync": 728,
+            "/messages": 726,
+            "delta": 728,
+            "edit": 2185,
+            "idempotency": 728
+          },
+          "temporary": {
+            "/channel/messagesync": 27,
+            "/conversation/list": 27,
+            "/conversation/sync": 28,
+            "/messages": 29,
+            "delta": 28,
+            "edit": 83,
+            "idempotency": 28
+          },
+          "first_error": {
+            "/channel/messagesync": "/channel/messagesync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/list": "/conversation/list HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/sync": "/conversation/sync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/messages": "/messages HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "edit": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+          },
+          "writers": [
+            729,
+            728,
+            728
+          ],
+          "more_pages": 573
+        }
+      },
+      {
+        "name": "slot_leader_down",
+        "started": "2026-09-13T17:45:18.238402968Z",
+        "finished": "2026-09-13T17:46:03.270904169Z",
+        "victim": 3,
+        "authority_before": 3,
+        "authority_after": 2,
+        "counts": {
+          "success": {
+            "/channel/messagesync": 940,
+            "/conversation/list": 940,
+            "/conversation/sync": 939,
+            "/messages": 936,
+            "delta": 939,
+            "edit": 2818,
+            "idempotency": 939
+          },
+          "temporary": {
+            "/channel/messagesync": 41,
+            "/conversation/list": 41,
+            "/conversation/sync": 42,
+            "/messages": 44,
+            "delta": 42,
+            "edit": 125,
+            "idempotency": 42
+          },
+          "first_error": {
+            "/channel/messagesync": "/channel/messagesync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/list": "/conversation/list HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/sync": "/conversation/sync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/messages": "/messages HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "edit": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+          },
+          "writers": [
+            940,
+            939,
+            939
+          ],
+          "more_pages": 742
+        }
+      },
+      {
+        "name": "slot_leader_restored",
+        "started": "2026-09-13T17:46:03.272512378Z",
+        "finished": "2026-09-13T17:46:49.497556469Z",
+        "victim": 3,
+        "counts": {
+          "success": {
+            "/channel/messagesync": 1172,
+            "/conversation/list": 1171,
+            "/conversation/sync": 1170,
+            "/messages": 1168,
+            "delta": 1170,
+            "edit": 3511,
+            "idempotency": 1170
+          },
+          "temporary": {
+            "/channel/messagesync": 41,
+            "/conversation/list": 41,
+            "/conversation/sync": 42,
+            "/messages": 44,
+            "delta": 42,
+            "edit": 125,
+            "idempotency": 42
+          },
+          "first_error": {
+            "/channel/messagesync": "/channel/messagesync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/list": "/conversation/list HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/sync": "/conversation/sync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/messages": "/messages HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "edit": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+          },
+          "writers": [
+            1171,
+            1170,
+            1170
+          ],
+          "more_pages": 925
+        }
+      }
+    ],
+    "final_versions": [
+      295,
+      295,
+      295,
+      295,
+      295,
+      295,
+      295,
+      294,
+      294,
+      294,
+      294,
+      294
+    ],
+    "complete": true,
+    "final_counts": {
+      "success": {
+        "/channel/messagesync": 1172,
+        "/conversation/list": 1171,
+        "/conversation/sync": 1170,
+        "/messages": 1168,
+        "delta": 1170,
+        "edit": 3511,
+        "idempotency": 1170
+      },
+      "temporary": {
+        "/channel/messagesync": 41,
+        "/conversation/list": 41,
+        "/conversation/sync": 42,
+        "/messages": 44,
+        "delta": 42,
+        "edit": 125,
+        "idempotency": 42
+      },
+      "first_error": {
+        "/channel/messagesync": "/channel/messagesync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+        "/conversation/list": "/conversation/list HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+        "/conversation/sync": "/conversation/sync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+        "/messages": "/messages HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+        "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+        "edit": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+        "idempotency": "/message/update HTTP 503 {\"code\":\"unavailable\",\"status\":503}"
+      },
+      "writers": [
+        1171,
+        1170,
+        1170
+      ],
+      "more_pages": 930
+    }
+  },
+  "duration_seconds": 256.38,
+  "checks": {
+    "focused_units": "pass",
+    "go_vet": "pass",
+    "flow-doc-contracts": "pass; 81 compliant, 8 line-count warnings",
+    "git_diff_check": "pass"
+  },
+  "raw_log_sha256": "a70aa352f05ee501825e7bbc5907201aee2f253f0a732f174e76ac861ae13170"
+}

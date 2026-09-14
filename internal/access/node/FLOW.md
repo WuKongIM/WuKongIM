@@ -80,6 +80,8 @@ scheduled backup or restore
 - Reserved service IDs and existing byte layouts are compatibility contracts;
   reuse or incompatible edits require an explicit version transition.
 
+- Message-update hint RPC validates its format and bounded route page, then delegates exact owner-local writes. It never routes again or transports message payloads.
+
 ## Read First
 
 - [presence_rpc.go](presence_rpc.go)

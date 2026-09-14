@@ -77,6 +77,8 @@ type TerminalFenceUsecase interface {
 
 // Options configures the internal gateway handler.
 type Options struct {
+	// MessageUpdateCapabilities enables edit hints for opted-in sessions.
+	MessageUpdateCapabilities MessageUpdateCapabilities
 	// Messages processes gateway SEND batches.
 	Messages MessageUsecase
 	// Presence activates and deactivates authenticated gateway sessions.
@@ -100,16 +102,17 @@ type Options struct {
 
 // Handler adapts pkg/gateway frames to internal message usecases.
 type Handler struct {
-	messages         MessageUsecase
-	presence         PresenceUsecase
-	delivery         DeliveryUsecase
-	terminalFence    atomic.Pointer[terminalFenceBinding]
-	ownerNodeID      uint64
-	sendTimeout      time.Duration
-	sendackObserver  SendackObserver
-	traceIDGenerator TraceIDGenerator
-	logger           wklog.Logger
-	plannedShutdown  atomic.Bool
+	messageUpdateCapabilities MessageUpdateCapabilities
+	messages                  MessageUsecase
+	presence                  PresenceUsecase
+	delivery                  DeliveryUsecase
+	terminalFence             atomic.Pointer[terminalFenceBinding]
+	ownerNodeID               uint64
+	sendTimeout               time.Duration
+	sendackObserver           SendackObserver
+	traceIDGenerator          TraceIDGenerator
+	logger                    wklog.Logger
+	plannedShutdown           atomic.Bool
 	// One shared sampling window bounds rejection logging across all listeners;
 	// never allocate per-peer or per-path state for untrusted requests.
 	rejectionMu    sync.Mutex
@@ -133,14 +136,15 @@ func New(opts Options) *Handler {
 		opts.TraceIDGenerator = defaultTraceIDGenerator
 	}
 	h := &Handler{
-		messages:         opts.Messages,
-		presence:         opts.Presence,
-		delivery:         opts.Delivery,
-		ownerNodeID:      opts.OwnerNodeID,
-		sendTimeout:      opts.SendTimeout,
-		sendackObserver:  opts.SendackObserver,
-		traceIDGenerator: opts.TraceIDGenerator,
-		logger:           opts.Logger,
+		messageUpdateCapabilities: opts.MessageUpdateCapabilities,
+		messages:                  opts.Messages,
+		presence:                  opts.Presence,
+		delivery:                  opts.Delivery,
+		ownerNodeID:               opts.OwnerNodeID,
+		sendTimeout:               opts.SendTimeout,
+		sendackObserver:           opts.SendackObserver,
+		traceIDGenerator:          opts.TraceIDGenerator,
+		logger:                    opts.Logger,
 	}
 	h.BindBenchTerminalFence(opts.BenchTerminalFence)
 	return h
@@ -307,6 +311,9 @@ func (h *Handler) OnFrame(ctx coregateway.Context, f frame.Frame) error {
 	case *frame.RecvackPacket:
 		return h.handleRecvack(&ctx, pkt)
 	case *frame.EventPacket:
+		if pkt != nil && pkt.Type == "message_updates.enable" {
+			return h.handleMessageUpdateCapability(&ctx, pkt)
+		}
 		return h.handleTerminalFence(&ctx, pkt)
 	default:
 		return ErrUnsupportedFrame

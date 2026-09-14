@@ -8,7 +8,7 @@ import (
 
 const openCORSAllowHeaders = "Origin, Content-Type, Content-Length, Accept, Authorization, Token, X-Requested-With"
 const openCORSAllowMethods = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-const openCORSExposeHeaders = "Content-Length, Content-Type"
+const openCORSExposeHeaders = "Content-Length, Content-Type, X-WK-Content-Epoch"
 
 func openCORSMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {

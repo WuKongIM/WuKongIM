@@ -67,6 +67,9 @@ func (s *Server) handleChannelMessageSync(c *gin.Context) {
 		EventSummaryMode: req.EventSummaryMode,
 	})
 	if err != nil {
+		if writeReadUnavailable(c, err) {
+			return
+		}
 		writeJSONError(c, err.Error())
 		return
 	}

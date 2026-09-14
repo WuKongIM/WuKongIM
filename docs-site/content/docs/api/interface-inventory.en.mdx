@@ -37,7 +37,7 @@ Total: `110`. `POST /manager/slots/leader-transfer-plan` is a planning-only rout
 
 `GET /manager/nodes/:node_id/config/toml` returns a versioned, redacted startup TOML document under the same `cluster.node:r` read permission.
 
-## Node transport: 58 shared IDs
+## Node transport: 60 shared IDs
 
 The audience is **cluster-internal**. The shared TCP transport has no per-call Bearer or TLS identity. Only join validates the Join Token; other calls trust cluster routing and an isolated network.
 
@@ -48,8 +48,10 @@ The audience is **cluster-internal**. The shared TCP transport has no per-call B
 | `64–86` | `control_write`, `manager_message_retention`, `node_lifecycle`, `slot_status`, `manager_task_audit`, `channel_migration_meta`, `message_event_append`, `manager_node_config`, `manager_latest_messages`, `scheduled_backup_messages`, `scheduled_backup_slot`, `scheduled_backup_probe`, `scheduled_backup_restore`, `operations_mcp`, `manager_goroutines`, `slot_subscriber_metadata`, `slot_channel_metadata`, `channel_conversation_heads`, `channel_committed_reads`, `slot_user_membership`, `slot_runtime_metadata`, `slot_permission_metadata_batch`, `channel_quorum_exchange` |
 | `87` | `slot_identity_metadata` |
 | `88` | `manager_node_config_document` |
+| `89` | `slot_message_updates` |
+| `90` | `message_update_hint` |
 
-ID `16` is retired-reserved and ID `20` reserves a removed feature; neither may be reused. The default Slot proxy uses promoted IDs `79/80/83/84/85/87`. The default identity handler accepts only `get_device`; user reads and scans remain outside this runtime surface. Identity metadata uses ID `87`, avoiding the former collision with `channel_pull_hint` at `4`. The generic, non-default Slot Store still declares private IDs `47/53`; these remain catalog debt. Keep these protocols in an unstable internal inventory and never generate fake OpenAPI paths for them.
+ID `16` is retired-reserved and ID `20` reserves a removed feature; neither may be reused. The default Slot proxy uses promoted IDs `79/80/83/84/85/87/89`. The default identity handler accepts only `get_device`; user reads and scans remain outside this runtime surface. Identity metadata uses ID `87`, avoiding the former collision with `channel_pull_hint` at `4`. The generic, non-default Slot Store still declares private IDs `47/53`; these remain catalog debt. Keep these protocols in an unstable internal inventory and never generate fake OpenAPI paths for them.
 
 ## MCP
 

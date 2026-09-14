@@ -658,3 +658,33 @@ func requireRecordedAppendStage(t *testing.T, events []recordedAppendStage, stag
 	}
 	t.Fatalf("append stage %s/%s not observed in %#v", stage, result, events)
 }
+
+func TestDefaultSlotProposerFencesEditEpochInsideAdmission(t *testing.T) {
+	runtime := &recordingSlotRuntime{future: recordingSlotFuture{data: []byte(`{"Status":"ok"}`)}}
+	epoch := uint64(1)
+	held := false
+	p := defaultSlotProposer{runtime: runtime, acquireAdmission: func() (func(), error) { held = true; return func() { held = false }, nil }, contentEpoch: func(context.Context) (uint64, error) {
+		if !held {
+			t.Fatal("epoch checked outside restore admission")
+		}
+		return epoch, nil
+	}}
+	q := metadb.MessageUpdateMutation{Op: "init", ChannelID: "g", ChannelType: 2, Generation: "g"}
+	cmd, err := metafsm.EncodeMessageUpdateCommand(q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The queued/forwarded pre-restore command reaches the owner after epoch 1.
+	result, err := p.ProposeResult(context.Background(), 7, propose.EncodePayload(11, cmd))
+	if err != nil || string(result) != `{"Status":"content_epoch_conflict"}` || runtime.proposeCalls != 0 || held {
+		t.Fatalf("result=%s err=%v calls=%d held=%v", result, err, runtime.proposeCalls, held)
+	}
+	q.ExpectedContentEpoch = 1
+	cmd, err = metafsm.EncodeMessageUpdateCommand(q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = p.ProposeResult(context.Background(), 7, propose.EncodePayload(11, cmd)); err != nil || runtime.proposeCalls != 1 || held {
+		t.Fatalf("current generation err=%v calls=%d held=%v", err, runtime.proposeCalls, held)
+	}
+}

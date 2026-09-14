@@ -54,6 +54,17 @@ func (a *App) applyRestoreGatewayMaintenance(enabled bool) {
 	if a == nil {
 		return
 	}
+	// Publish the complete read fence before data/cache replacement or entry resume.
+	for {
+		previous := a.restoreReadFence.Load()
+		next := (previous + 2) &^ uint64(1)
+		if enabled {
+			next |= 1
+		}
+		if a.restoreReadFence.CompareAndSwap(previous, next) {
+			break
+		}
+	}
 	a.restoreMaintenance.Store(enabled)
 	gateway, ok := a.gateway.(restoreGatewayRuntime)
 	if !ok {
@@ -96,6 +107,11 @@ func (a *App) suspendRestoreSideEffects(ctx context.Context) error {
 		if err := a.channelAppends.WaitIdle(ctx); err != nil {
 			resultErr = errors.Join(resultErr, err)
 		} else if err := a.channelAppends.ResetAfterRestore(); err != nil {
+			resultErr = errors.Join(resultErr, err)
+		}
+	}
+	if a.messageUpdateWorker != nil {
+		if err := a.messageUpdateWorker.Stop(ctx); err != nil {
 			resultErr = errors.Join(resultErr, err)
 		}
 	}
@@ -147,6 +163,11 @@ func (a *App) resumeRestoreSideEffects(ctx context.Context) error {
 	}
 	if a.webhook != nil {
 		if err := a.webhook.Start(ctx); err != nil {
+			resultErr = errors.Join(resultErr, err)
+		}
+	}
+	if a.messageUpdateWorker != nil {
+		if err := a.messageUpdateWorker.Start(ctx); err != nil {
 			resultErr = errors.Join(resultErr, err)
 		}
 	}

@@ -1,0 +1,134 @@
+---
+title: Pull edits for one channel
+full: true
+_openapi:
+  preload:
+    - wukongim-product-http-complete-beta-en
+  method: POST
+  webhook: false
+  toc:
+    - depth: 2
+      title: Request Body
+      url: '#request-body'
+    - depth: 2
+      title: Response Body
+      url: '#response-body'
+  structuredData:
+    headings:
+      - content: Pull edits for one channel
+        id: pull-edits-for-one-channel
+    contents:
+      - content: Bootstrap with an empty cursor before loading history. Drain more pages
+          and merge versions with the cursor atomically; this feed returns
+          latest states.
+        heading: pull-edits-for-one-channel
+      - content: |-
+          POST /channel/messageupdates
+          syncMessageUpdates
+          Pull edits for one channel
+          Bootstrap with an empty cursor before loading history. Drain more pages and merge versions with the cursor atomically; this feed returns latest states.
+          MessageUpdatesRequest
+          Pull latest edits for one visible channel.
+          additionalProperties false
+          login_uid `string` — User identity; required for person-channel normalization and edit sync. It does not authorize editing.
+          channel_id `string` minLength: 1 Channel ID; use the peer UID for a person channel.
+          channel_type `integer` 1–255 Channel type: 1 person, 2 group.
+          update_cursor `string` maxLength: 4096 Opaque cursor, at most 4096 bytes. Empty bootstraps before loading history.
+          limit `integer` 0–200; default: `100` Maximum updates; omitted or 0 uses 100.
+          {"login_uid":"bob","channel_id":"alice","channel_type":1,"update_cursor":"","limit":100}
+          200 Success
+          MessageUpdatesResponse
+          Latest-state incremental page.
+          updates array<`UpdatedMessage`> maxItems: 200 Latest states, not a full edit history; empty is possible while more is true.
+          next_update_cursor `string` — Commit with merged rows in one local transaction.
+          more `boolean` — Continue this channel until false.
+          reset_required `boolean` — Hold the returned baseline, reload visible history, then commit history and baseline in one local transaction. Reset old version comparisons after an epoch change.
+          UpdatedMessage
+          Legacy message projection used by Product HTTP synchronization.
+          header `LegacyMessageHeader` additionalProperties: `false` Legacy message header.
+          setting `integer:uint8` 0–255 WKProto Setting bitset.
+          message_id `string` pattern: `^[0-9]+$` Server int64 message ID.
+          message_idstr `string` — Decimal string mirror of message_id only; it is not a replacement for message_seq.
+          client_msg_no `string` — Original client number, or the stable read-only alias wk3-legacy-<message_id> for an old empty-number record with a message ID. The alias supports /messages lookup; it is not a SEND idempotency or event mutation key. Stored records are unchanged.
+          end `integer:uint8` 0–255 Stream-message terminal compatibility flag.
+          end_reason `integer:uint8` 0–255 Stream-message terminal Reason Code.
+          error `string` — Stream-message error description.
+          stream_data `string | null` encoding: base64 Base64-encoded stream data; it may be null.
+          event_meta `LegacyMessageEventMeta` additionalProperties: `false` Optional message-event summary.
+          event_sync_hint `LegacyMessageEventSyncHint` additionalProperties: `false` Optional message-event continuation hint.
+          message_seq `string` pattern: `^[0-9]+$` uint64 sequence of the message within this Channel.
+          from_uid `string` — Message sender UID.
+          channel_id `string` — Channel ID containing the message.
+          channel_type `integer:uint8` 0–255 Channel type containing the message.
+          topic `string` — Optional message topic.
+          expire `integer:uint32` 0–∞ Message expiration in seconds; 0 means unset.
+          timestamp `integer:int32` — Legacy server timestamp in seconds.
+          payload `string | null` encoding: base64 Base64-encoded message payload; it may be null.
+          version `string` pattern: `^[0-9]+$` Edited content version; absent means zero in the same content epoch.
+          updated_at_ms `integer:int64` 0–∞ Server edit time in Unix milliseconds; original ordering is unchanged.
+          LegacyMessageHeader
+          Legacy message header.
+          no_persist `integer` enum: `0`, `1` 1 means the message is non-durable.
+          red_dot `integer` enum: `0`, `1` 1 means the client should show a red-dot indicator.
+          sync_once `integer` enum: `0`, `1` 1 means a one-shot command message.
+          LegacyMessageEventMeta
+          Optional message-event summary.
+          has_events `boolean` — Whether events exist.
+          completed `boolean` — Whether all known event lanes have completed.
+          event_version `integer:uint64` 0–∞ Event-summary version.
+          last_msg_event_seq `integer:uint64` 0–∞ Latest event sequence across all lanes.
+          event_count `integer` 0–∞ Total event count.
+          open_event_count `integer` 0–∞ Number of event lanes still open.
+          events array<`LegacyMessageEventKeyMeta`> — Per-lane event summaries.
+          LegacyMessageEventKeyMeta
+          Summary of one event lane.
+          event_key `string` — Event lane key.
+          status `string` — Current state of the lane.
+          last_msg_event_seq `integer:uint64` 0–∞ Latest known event sequence for the lane.
+          snapshot `unknown` — Arbitrary JSON snapshot in full summary mode.
+          end_reason `integer:uint8` 0–255 Event-stream terminal Reason Code.
+          error `string` — Event-stream error description.
+          LegacyMessageEventSyncHint
+          Optional message-event continuation hint.
+          client_msg_no `string` — Client message number of the target message.
+          from_msg_event_seq `integer:uint64` 0–∞ Starting sequence for the next event synchronization.
+          400 invalid_request
+          MessageUpdateError
+          Edit or transient read failure; no partial results.
+          status `integer` — HTTP status.
+          code `string` — Stable rejection code; uncertain writes retain their exact retry identity.
+          msg `string` — Optional legacy diagnostic message.
+          403 channel_not_accessible
+          404 message_not_found
+          409 version_conflict, content_epoch_conflict, idempotency_conflict, reset_required or stale_meta
+          422 message_not_updatable
+          429 resource_exhausted
+          503 Temporary dependency failure or restore maintenance
+          MaintenanceError
+          503 error body returned while cluster restore maintenance is active.
+          error `string` const: `"maintenance"` Stable maintenance error category.
+          message `string` const: `"restore maintenance is active"` Current restore-maintenance message.
+---
+
+<Callout type="warn" title="Operation boundary">
+
+- **Caller**: Trusted backend only
+- **Scope**: Synchronize the currently viewed channel on entry, reconnect or resume; this endpoint does not discover updates for all conversations.
+- **Success**: Obtain a baseline before loading visible history; continue while more=true even when updates is empty. Merge messages and cursor transactionally; an older message edit must not replace a newer tail preview.
+- **Recovery**: On reset_required=true, reload visible history from the new baseline; on 503, preserve the cursor and retry with backoff. Discard delayed responses from older content epochs.
+
+</Callout>
+
+{/* This file was generated by Fumadocs. Do not edit this file directly. Any changes should be made by running the generation command again. */}
+
+export default function Layout(props) {
+  const { APIPage, OpenAPIPage } = props.components ?? {};
+  // "APIPage" is the old name from v10, this allows both for backward compatibility
+  const Comp = OpenAPIPage ?? APIPage;
+  return (
+    <>
+      {props.children}
+      <Comp document="wukongim-product-http-complete-beta-en" operations={[{"path":"/channel/messageupdates","method":"post"}]} showDescription />
+    </>
+  );
+}

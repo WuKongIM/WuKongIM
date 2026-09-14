@@ -891,7 +891,14 @@ func (n *Node) ReadChannelCommittedBatch(ctx context.Context, reads []channels.C
 	if !ok {
 		return nil, ErrNotStarted
 	}
-	return reader.ReadCommittedBatch(ctx, reads)
+	results, err := reader.ReadCommittedBatch(ctx, reads)
+	if err != nil {
+		return nil, err
+	}
+	if err := n.overlayMessageReads(ctx, reads, results); err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
 // ReadChannelPersistedBatch routes conversation recents to current-Leader disk state.
@@ -908,7 +915,14 @@ func (n *Node) ReadChannelPersistedBatch(ctx context.Context, reads []channels.C
 	if !ok {
 		return nil, ErrNotStarted
 	}
-	return reader.ReadPersistedBatch(ctx, reads)
+	results, err := reader.ReadPersistedBatch(ctx, reads)
+	if err != nil {
+		return nil, err
+	}
+	if err := n.overlayMessageReads(ctx, reads, results); err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
 // ReadLocalLatestMessages reads one newest-first page from this node's persisted message replicas.
@@ -1195,6 +1209,16 @@ func (n *Node) readChannelConversationHeads(ctx context.Context, ids []channelru
 	if len(batch) != len(eligibleIDs) {
 		return nil, channelruntime.ErrInvalidConfig
 	}
+	targets := make([]*channelruntime.Message, 0, len(batch))
+	for i := range batch {
+		if batch[i].Err == nil && batch[i].Head.Found {
+			targets = append(targets, &batch[i].Head.Message)
+		}
+	}
+	if err := n.overlayMessageContent(ctx, targets); err != nil {
+		return nil, err
+	}
+
 	for index, result := range batch {
 		results[eligibleIndexes[index]] = result
 	}

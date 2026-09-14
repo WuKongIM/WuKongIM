@@ -6,6 +6,9 @@ import (
 )
 
 var (
+	// ErrReadStaleRoute rejects read results assembled across authority changes.
+	// It is distinct from database/CAS conflicts and is safe for read retries.
+	ErrReadStaleRoute = errors.New("slot/proxy: stale read route")
 	// ErrNoLeader indicates that no Slot leader is currently available.
 	ErrNoLeader = &routeError{
 		message: "slot/proxy: no leader",
