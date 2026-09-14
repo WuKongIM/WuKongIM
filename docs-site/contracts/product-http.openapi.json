@@ -1230,13 +1230,48 @@
         },
         "responses": {
           "200": {
-            "$ref": "#/components/responses/ChannelMessageSyncOK"
+            "description": "One committed-message page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelMessageSyncResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-WK-Content-Epoch": {
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "description": "Successful-restore generation. Invalidate cached comparisons when it increases; discard delayed older generations.",
+                "x-i18n": {
+                  "zh": {
+                    "description": "成功恢复代数；增加后重置缓存版本比较，丢弃延迟到达的旧代数响应。"
+                  }
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/CompatibilityBadRequest"
           },
           "503": {
-            "$ref": "#/components/responses/MaintenanceUnavailable"
+            "description": "Temporary read failure or restore maintenance; retry the same query with bounded backoff.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/MaintenanceError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MessageUpdateError"
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       }
@@ -1294,13 +1329,34 @@
         },
         "responses": {
           "200": {
-            "$ref": "#/components/responses/ConversationListOK"
+            "description": "Canonical Conversation page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationListResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-WK-Content-Epoch": {
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "description": "Successful-restore generation. Invalidate cached comparisons when it increases; discard delayed older generations.",
+                "x-i18n": {
+                  "zh": {
+                    "description": "成功恢复代数；增加后重置缓存版本比较，丢弃延迟到达的旧代数响应。"
+                  }
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/CompatibilityBadRequest"
           },
           "503": {
-            "description": "Maintenance, list capacity exhausted, or read deadline exceeded. Retry the original request.",
+            "description": "Temporary read failure or restore maintenance; retry the same query with bounded backoff.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1309,20 +1365,7 @@
                       "$ref": "#/components/schemas/MaintenanceError"
                     },
                     {
-                      "type": "object",
-                      "required": [
-                        "msg",
-                        "status"
-                      ],
-                      "properties": {
-                        "msg": {
-                          "type": "string"
-                        },
-                        "status": {
-                          "type": "integer",
-                          "const": 503
-                        }
-                      }
+                      "$ref": "#/components/schemas/MessageUpdateError"
                     }
                   ]
                 }
@@ -1372,13 +1415,51 @@
         },
         "responses": {
           "200": {
-            "$ref": "#/components/responses/ConversationSyncLegacyOK"
+            "description": "Bare legacy Conversation array",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationSyncLegacyItem"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-WK-Content-Epoch": {
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "description": "Successful-restore generation. Invalidate cached comparisons when it increases; discard delayed older generations.",
+                "x-i18n": {
+                  "zh": {
+                    "description": "成功恢复代数；增加后重置缓存版本比较，丢弃延迟到达的旧代数响应。"
+                  }
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/CompatibilityBadRequest"
           },
           "503": {
-            "$ref": "#/components/responses/MaintenanceUnavailable"
+            "description": "Temporary read failure or restore maintenance; retry the same query with bounded backoff.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/MaintenanceError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MessageUpdateError"
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       }
@@ -1532,13 +1613,296 @@
         },
         "responses": {
           "200": {
-            "$ref": "#/components/responses/ChannelMessageSyncOK"
+            "description": "One committed-message page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelMessageSyncResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-WK-Content-Epoch": {
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "description": "Successful-restore generation. Invalidate cached comparisons when it increases; discard delayed older generations.",
+                "x-i18n": {
+                  "zh": {
+                    "description": "成功恢复代数；增加后重置缓存版本比较，丢弃延迟到达的旧代数响应。"
+                  }
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/CompatibilityBadRequest"
           },
           "503": {
-            "$ref": "#/components/responses/MaintenanceUnavailable"
+            "description": "Temporary read failure or restore maintenance; retry the same query with bounded backoff.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/MaintenanceError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MessageUpdateError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/message/update": {
+      "post": {
+        "operationId": "updateMessage",
+        "summary": "Replace a message payload",
+        "description": "Replaces an ordinary retained payload with version and restore-epoch checks. CMD, stream and nonpersistent messages cannot be edited.",
+        "x-i18n": {
+          "zh": {
+            "summary": "修改消息内容",
+            "description": "按版本和恢复代数校验替换普通保留消息；CMD、流消息和非持久化消息不可修改。"
+          }
+        },
+        "tags": [
+          "Messages"
+        ],
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "requestBody": {
+          "$ref": "#/components/requestBodies/UpdateMessage"
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "X-WK-Content-Epoch": {
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "description": "Successful-restore generation. Invalidate cached comparisons when it increases; discard delayed older generations.",
+                "x-i18n": {
+                  "zh": {
+                    "description": "成功恢复代数；增加后重置缓存版本比较，丢弃延迟到达的旧代数响应。"
+                  }
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateMessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageUpdateError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "channel_not_accessible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageUpdateError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "message_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageUpdateError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "version_conflict, content_epoch_conflict, idempotency_conflict, reset_required or stale_meta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageUpdateError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "message_not_updatable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageUpdateError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "resource_exhausted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageUpdateError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Temporary dependency failure or restore maintenance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/MaintenanceError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MessageUpdateError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/channel/messageupdates": {
+      "post": {
+        "operationId": "syncMessageUpdates",
+        "summary": "Pull edits for one channel",
+        "description": "Bootstrap with an empty cursor before loading history. Drain more pages and merge versions with the cursor atomically; this feed returns latest states.",
+        "x-i18n": {
+          "zh": {
+            "summary": "拉取单频道消息修改",
+            "description": "先用空游标获取基线，再加载历史；拉完 more 分页，在同一事务中合并版本并保存游标。此接口返回最新状态。"
+          }
+        },
+        "tags": [
+          "Messages"
+        ],
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "requestBody": {
+          "$ref": "#/components/requestBodies/MessageUpdates"
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "X-WK-Content-Epoch": {
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                "description": "Successful-restore generation. Invalidate cached comparisons when it increases; discard delayed older generations.",
+                "x-i18n": {
+                  "zh": {
+                    "description": "成功恢复代数；增加后重置缓存版本比较，丢弃延迟到达的旧代数响应。"
+                  }
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageUpdatesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageUpdateError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "channel_not_accessible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageUpdateError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "message_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageUpdateError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "version_conflict, content_epoch_conflict, idempotency_conflict, reset_required or stale_meta",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageUpdateError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "message_not_updatable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageUpdateError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "resource_exhausted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageUpdateError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Temporary dependency failure or restore maintenance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/MaintenanceError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MessageUpdateError"
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       }
@@ -1912,6 +2276,55 @@
             "schema": {
               "$ref": "#/components/schemas/MessageLookupRequest"
             }
+          }
+        }
+      },
+      "UpdateMessage": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/UpdateMessageRequest"
+            },
+            "example": {
+              "login_uid": "alice",
+              "channel_id": "bob",
+              "channel_type": 1,
+              "message_id": "12345",
+              "expected_version": "0",
+              "expected_content_epoch": "0",
+              "request_id": "5893e137-1994-4377-b4ed-1f0c9e8fe4bd",
+              "payload": "bmV3"
+            }
+          }
+        },
+        "description": "Replaces an ordinary retained payload with version and restore-epoch checks. CMD, stream and nonpersistent messages cannot be edited.",
+        "x-i18n": {
+          "zh": {
+            "description": "按版本和恢复代数校验替换普通保留消息；CMD、流消息和非持久化消息不可修改。"
+          }
+        }
+      },
+      "MessageUpdates": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/MessageUpdatesRequest"
+            },
+            "example": {
+              "login_uid": "bob",
+              "channel_id": "alice",
+              "channel_type": 1,
+              "update_cursor": "",
+              "limit": 100
+            }
+          }
+        },
+        "description": "Bootstrap with an empty cursor before loading history. Drain more pages and merge versions with the cursor atomically; this feed returns latest states.",
+        "x-i18n": {
+          "zh": {
+            "description": "先用空游标获取基线，再加载历史；拉完 more 分页，在同一事务中合并版本并保存游标。此接口返回最新状态。"
           }
         }
       }
@@ -3829,6 +4242,27 @@
               "null"
             ],
             "contentEncoding": "base64"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "Edited content version; absent means zero in the same content epoch.",
+            "x-i18n": {
+              "zh": {
+                "description": "内容修改版本；同一恢复代数内省略表示 0。"
+              }
+            }
+          },
+          "updated_at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Server edit time in Unix milliseconds; original ordering is unchanged.",
+            "x-i18n": {
+              "zh": {
+                "description": "服务端修改时间，Unix 毫秒；不改变原消息排序。"
+              }
+            }
           }
         }
       },
@@ -4174,6 +4608,27 @@
               "null"
             ],
             "contentEncoding": "base64"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "Edited content version; absent means zero in the same content epoch.",
+            "x-i18n": {
+              "zh": {
+                "description": "内容修改版本；同一恢复代数内省略表示 0。"
+              }
+            }
+          },
+          "updated_at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Server edit time in Unix milliseconds; original ordering is unchanged.",
+            "x-i18n": {
+              "zh": {
+                "description": "服务端修改时间，Unix 毫秒；不改变原消息排序。"
+              }
+            }
           }
         }
       },
@@ -4425,6 +4880,511 @@
         "x-i18n": {
           "zh": {
             "description": "按当前用户的频道可见范围精确选择消息。多个数组取并集，结果按序号去重排序，选择项总数为 1–128。"
+          }
+        }
+      },
+      "UpdateMessageRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "channel_id",
+          "channel_type",
+          "message_id",
+          "expected_content_epoch",
+          "expected_version",
+          "request_id",
+          "payload"
+        ],
+        "properties": {
+          "login_uid": {
+            "type": "string",
+            "description": "User identity; required for person-channel normalization and edit sync. It does not authorize editing.",
+            "x-i18n": {
+              "zh": {
+                "description": "用户标识；个人频道规范化和增量同步必填，不代表修改权限。"
+              }
+            }
+          },
+          "channel_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Channel ID; use the peer UID for a person channel.",
+            "x-i18n": {
+              "zh": {
+                "description": "频道 ID；个人频道使用对方 UID。"
+              }
+            }
+          },
+          "channel_type": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 255,
+            "description": "Channel type: 1 person, 2 group.",
+            "x-i18n": {
+              "zh": {
+                "description": "频道类型：1 个人，2 群组。"
+              }
+            }
+          },
+          "message_id": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "Existing nonzero message ID.",
+            "x-i18n": {
+              "zh": {
+                "description": "已存在且非零的消息 ID。"
+              }
+            }
+          },
+          "expected_content_epoch": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "Epoch from the response that supplied the displayed message.",
+            "x-i18n": {
+              "zh": {
+                "description": "展示消息响应中的恢复代数。"
+              }
+            }
+          },
+          "expected_version": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "Displayed version; use 0 for an unedited original.",
+            "x-i18n": {
+              "zh": {
+                "description": "展示内容的版本；未修改原消息使用 0。"
+              }
+            }
+          },
+          "request_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Stable retry ID, at most 128 UTF-8 bytes.",
+            "x-i18n": {
+              "zh": {
+                "description": "稳定重试 ID，最多 128 个 UTF-8 字节。"
+              }
+            }
+          },
+          "payload": {
+            "type": "string",
+            "contentEncoding": "base64",
+            "minLength": 1,
+            "description": "Complete replacement; 1 to 1 MiB decoded bytes, 2 MiB request-body limit.",
+            "x-i18n": {
+              "zh": {
+                "description": "完整替换内容，解码后 1 字节至 1 MiB，请求体最多 2 MiB。"
+              }
+            }
+          }
+        },
+        "description": "Replace an ordinary retained message; the backend owns editing permission.",
+        "x-i18n": {
+          "zh": {
+            "description": "替换普通保留消息内容；业务后端负责修改权限。"
+          }
+        }
+      },
+      "MessageUpdatesRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "login_uid",
+          "channel_id",
+          "channel_type"
+        ],
+        "properties": {
+          "login_uid": {
+            "type": "string",
+            "description": "User identity; required for person-channel normalization and edit sync. It does not authorize editing.",
+            "x-i18n": {
+              "zh": {
+                "description": "用户标识；个人频道规范化和增量同步必填，不代表修改权限。"
+              }
+            }
+          },
+          "channel_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Channel ID; use the peer UID for a person channel.",
+            "x-i18n": {
+              "zh": {
+                "description": "频道 ID；个人频道使用对方 UID。"
+              }
+            }
+          },
+          "channel_type": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 255,
+            "description": "Channel type: 1 person, 2 group.",
+            "x-i18n": {
+              "zh": {
+                "description": "频道类型：1 个人，2 群组。"
+              }
+            }
+          },
+          "update_cursor": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Opaque cursor, at most 4096 bytes. Empty bootstraps before loading history.",
+            "x-i18n": {
+              "zh": {
+                "description": "不透明游标，最多 4096 字节；空值先获取基线，再加载历史。"
+              }
+            }
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 200,
+            "default": 100,
+            "description": "Maximum updates; omitted or 0 uses 100.",
+            "x-i18n": {
+              "zh": {
+                "description": "最多更新条数；省略或 0 使用 100。"
+              }
+            }
+          }
+        },
+        "description": "Pull latest edits for one visible channel.",
+        "x-i18n": {
+          "zh": {
+            "description": "拉取当前可见的单个频道的最新修改。"
+          }
+        }
+      },
+      "MessageUpdateResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "message_id",
+          "message_seq",
+          "version",
+          "updated_at_ms"
+        ],
+        "properties": {
+          "message_id": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "Original message ID.",
+            "x-i18n": {
+              "zh": {
+                "description": "原消息 ID。"
+              }
+            }
+          },
+          "message_seq": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "Original channel sequence.",
+            "x-i18n": {
+              "zh": {
+                "description": "原频道消息序号。"
+              }
+            }
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "Edited content version; absent means zero in the same content epoch.",
+            "x-i18n": {
+              "zh": {
+                "description": "内容修改版本；同一恢复代数内省略表示 0。"
+              }
+            }
+          },
+          "updated_at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Server edit time in Unix milliseconds; original ordering is unchanged.",
+            "x-i18n": {
+              "zh": {
+                "description": "服务端修改时间，Unix 毫秒；不改变原消息排序。"
+              }
+            }
+          }
+        },
+        "description": "Originally committed edit result, also returned on an identical retry.",
+        "x-i18n": {
+          "zh": {
+            "description": "首次提交的修改结果，完全相同的重试也返回此结果。"
+          }
+        }
+      },
+      "UpdateMessageResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "data"
+        ],
+        "properties": {
+          "status": {
+            "type": "integer",
+            "const": 200,
+            "description": "HTTP status.",
+            "x-i18n": {
+              "zh": {
+                "description": "HTTP 状态。"
+              }
+            }
+          },
+          "data": {
+            "$ref": "#/components/schemas/MessageUpdateResult",
+            "description": "Committed edit result.",
+            "x-i18n": {
+              "zh": {
+                "description": "已提交的修改结果。"
+              }
+            }
+          }
+        },
+        "description": "Successful edit envelope.",
+        "x-i18n": {
+          "zh": {
+            "description": "修改成功响应。"
+          }
+        }
+      },
+      "UpdatedMessage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "header",
+          "setting",
+          "message_id",
+          "message_idstr",
+          "client_msg_no",
+          "message_seq",
+          "from_uid",
+          "channel_id",
+          "channel_type",
+          "expire",
+          "timestamp",
+          "payload",
+          "version",
+          "updated_at_ms"
+        ],
+        "properties": {
+          "header": {
+            "$ref": "#/components/schemas/LegacyMessageHeader"
+          },
+          "setting": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "message_id": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "Original message identity as a decimal string.",
+            "x-i18n": {
+              "zh": {
+                "description": "以十进制字符串表示的原消息标识。"
+              }
+            }
+          },
+          "message_idstr": {
+            "type": "string"
+          },
+          "client_msg_no": {
+            "type": "string",
+            "description": "Original client number, or the stable read-only alias wk3-legacy-<message_id> for an old empty-number record with a message ID. The alias supports /messages lookup; it is not a SEND idempotency or event mutation key. Stored records are unchanged."
+          },
+          "end": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "end_reason": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "error": {
+            "type": "string"
+          },
+          "stream_data": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "contentEncoding": "base64"
+          },
+          "event_meta": {
+            "$ref": "#/components/schemas/LegacyMessageEventMeta"
+          },
+          "event_sync_hint": {
+            "$ref": "#/components/schemas/LegacyMessageEventSyncHint"
+          },
+          "message_seq": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "Original message identity as a decimal string.",
+            "x-i18n": {
+              "zh": {
+                "description": "以十进制字符串表示的原消息标识。"
+              }
+            }
+          },
+          "from_uid": {
+            "type": "string"
+          },
+          "channel_id": {
+            "type": "string"
+          },
+          "channel_type": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "topic": {
+            "type": "string"
+          },
+          "expire": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "payload": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "contentEncoding": "base64"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "Edited content version; absent means zero in the same content epoch.",
+            "x-i18n": {
+              "zh": {
+                "description": "内容修改版本；同一恢复代数内省略表示 0。"
+              }
+            }
+          },
+          "updated_at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "description": "Server edit time in Unix milliseconds; original ordering is unchanged.",
+            "x-i18n": {
+              "zh": {
+                "description": "服务端修改时间，Unix 毫秒；不改变原消息排序。"
+              }
+            }
+          }
+        }
+      },
+      "MessageUpdatesResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "updates",
+          "next_update_cursor",
+          "more",
+          "reset_required"
+        ],
+        "properties": {
+          "updates": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/UpdatedMessage"
+            },
+            "description": "Latest states, not a full edit history; empty is possible while more is true.",
+            "x-i18n": {
+              "zh": {
+                "description": "最新状态而非完整修改历史；more 为 true 时也可能为空。"
+              }
+            }
+          },
+          "next_update_cursor": {
+            "type": "string",
+            "description": "Commit with merged rows in one local transaction.",
+            "x-i18n": {
+              "zh": {
+                "description": "与合并后的消息在同一本地事务中保存。"
+              }
+            }
+          },
+          "more": {
+            "type": "boolean",
+            "description": "Continue this channel until false.",
+            "x-i18n": {
+              "zh": {
+                "description": "为 true 时继续拉取此频道。"
+              }
+            }
+          },
+          "reset_required": {
+            "type": "boolean",
+            "description": "Reload visible history after saving this baseline; discard old comparisons after epoch change.",
+            "x-i18n": {
+              "zh": {
+                "description": "先保存此基线再加载可见历史；恢复代数变化后重置旧版本比较。"
+              }
+            }
+          }
+        },
+        "description": "Latest-state incremental page.",
+        "x-i18n": {
+          "zh": {
+            "description": "最新状态增量页。"
+          }
+        }
+      },
+      "MessageUpdateError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "code"
+        ],
+        "properties": {
+          "status": {
+            "type": "integer",
+            "description": "HTTP status.",
+            "x-i18n": {
+              "zh": {
+                "description": "HTTP 状态。"
+              }
+            }
+          },
+          "code": {
+            "type": "string",
+            "description": "Stable rejection code; uncertain writes retain their exact retry identity.",
+            "x-i18n": {
+              "zh": {
+                "description": "稳定错误码；结果不确定的写入保留完整重试身份。"
+              }
+            }
+          },
+          "msg": {
+            "type": "string",
+            "description": "Optional legacy diagnostic message.",
+            "x-i18n": {
+              "zh": {
+                "description": "可选旧式诊断文本。"
+              }
+            }
+          }
+        },
+        "description": "Edit or transient read failure; no partial results.",
+        "x-i18n": {
+          "zh": {
+            "description": "修改或临时读取失败；不返回部分结果。"
           }
         }
       }

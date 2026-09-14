@@ -178,12 +178,12 @@ function jsonFieldsForStruct(file: string, typeName: string, seen = new Set<stri
 }
 
 describe('complete Product HTTP OpenAPI contract', () => {
-  test('matches all and only the 42 runtime Product HTTP registrations', async () => {
+  test('matches all and only the 44 runtime Product HTTP registrations', async () => {
     const registered = await registeredProductOperations();
     const contracted = operationKeys().sort();
 
-    expect(registered).toHaveLength(42);
-    expect(contracted).toHaveLength(42);
+    expect(registered).toHaveLength(44);
+    expect(contracted).toHaveLength(44);
     expect(contracted).toEqual(registered);
   });
 
@@ -405,6 +405,8 @@ describe('complete Product HTTP OpenAPI contract', () => {
   test('matches every documented JSON request field to the runtime request DTO', async () => {
     const dtoContracts = [
       ['MessageLookupRequest', 'message_lookup.go', 'messageLookupRequest'],
+      ['UpdateMessageRequest', 'message_update.go', 'updateMessageRequest'],
+      ['MessageUpdatesRequest', 'message_update.go', 'messageUpdatesRequest'],
       ['UpdateTokenRequest', 'user_token.go', 'updateTokenRequest'],
       ['DeviceQuitRequest', 'user_legacy.go', 'deviceQuitRequest'],
       ['SystemUIDsRequest', 'user_legacy.go', 'systemUIDsRequest'],
@@ -544,6 +546,11 @@ describe('complete Product HTTP OpenAPI contract', () => {
       'LegacyMessageEventMeta',
       'LegacyMessageEventSyncHint',
       'LegacyMessage',
+      'UpdatedMessage',
+      'MessageUpdateResult',
+      'UpdateMessageResponse',
+      'MessageUpdatesResponse',
+      'MessageUpdateError',
       'ChannelMessageSyncResponse',
       'ChannelMessageSyncBatchItemResponse',
       'ChannelMessageSyncBatchResponse',

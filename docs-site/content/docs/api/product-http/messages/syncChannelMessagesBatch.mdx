@@ -146,6 +146,10 @@ _openapi:
 
           payload `string | null` encoding: base64 Base64 编码消息 Payload；可能为 null。
 
+          version `string` pattern: `^[0-9]+$` 内容修改版本；同一恢复代数内省略表示 0。
+
+          updated_at_ms `integer:int64` 0–∞ 服务端修改时间，Unix 毫秒；不改变原消息排序。
+
           LegacyMessageHeader
 
           旧式消息 Header。

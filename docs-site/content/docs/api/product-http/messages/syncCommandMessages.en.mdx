@@ -107,6 +107,12 @@ _openapi:
           payload `string | null` encoding: base64 Base64-encoded message
           payload; it may be null.
 
+          version `string` pattern: `^[0-9]+$` Edited content version; absent
+          means zero in the same content epoch.
+
+          updated_at_ms `integer:int64` 0–∞ Server edit time in Unix
+          milliseconds; original ordering is unchanged.
+
           LegacyMessageHeader
 
           Legacy message header.

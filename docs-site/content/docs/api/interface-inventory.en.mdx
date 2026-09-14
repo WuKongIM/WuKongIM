@@ -37,7 +37,7 @@ Total: `110`. `POST /manager/slots/leader-transfer-plan` is a planning-only rout
 
 `GET /manager/nodes/:node_id/config/toml` returns a versioned, redacted startup TOML document under the same `cluster.node:r` read permission.
 
-## Node transport: 58 shared IDs
+## Node transport: 60 shared IDs
 
 The audience is **cluster-internal**. The shared TCP transport has no per-call Bearer or TLS identity. Only join validates the Join Token; other calls trust cluster routing and an isolated network.
 

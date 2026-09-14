@@ -15,4 +15,6 @@ description: Message recovery, events, and command-message compatibility.
 <Card href="/en/api/product-http/messages/syncQuickstartChannelMessages" title="Synchronize one Channel's committed messages" description="Checks membership visibility and returns an ascending page; limit is 100 by default and capped at 10000." />
 <Card href="/en/api/product-http/messages/syncChannelMessagesBatch" title="Synchronize up to 200 Channels" description="Validates all memberships before one aligned batch read; item failures are embedded in the HTTP-200 response." />
 <Card href="/en/api/product-http/messages/lookupMessages" title="Look up exact committed messages" description="Looks up exact committed messages within membership visibility; selector, result and scan limits fail without partial results." />
+<Card href="/en/api/product-http/messages/updateMessage" title="Replace a message payload" description="Replaces an ordinary retained payload with version and restore-epoch checks. CMD, stream and nonpersistent messages cannot be edited." />
+<Card href="/en/api/product-http/messages/syncMessageUpdates" title="Pull edits for one channel" description="Bootstrap with an empty cursor before loading history. Drain more pages and merge versions with the cursor atomically; this feed returns latest states." />
 </Cards>

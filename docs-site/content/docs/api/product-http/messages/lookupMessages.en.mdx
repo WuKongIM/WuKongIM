@@ -128,6 +128,12 @@ _openapi:
           payload `string | null` encoding: base64 Base64-encoded message
           payload; it may be null.
 
+          version `string` pattern: `^[0-9]+$` Edited content version; absent
+          means zero in the same content epoch.
+
+          updated_at_ms `integer:int64` 0–∞ Server edit time in Unix
+          milliseconds; original ordering is unchanged.
+
           LegacyMessageHeader
 
           Legacy message header.
@@ -196,7 +202,8 @@ _openapi:
 
           status `integer` const: `400` Application-level status fixed at 400.
 
-          503 Controller restore maintenance is active
+          503 Temporary read failure or restore maintenance; retry the same
+          query with bounded backoff.
 
           MaintenanceError
 
@@ -207,12 +214,24 @@ _openapi:
 
           message `string` const: `"restore maintenance is active"` Current
           restore-maintenance message.
+
+          MessageUpdateError
+
+          Edit or transient read failure; no partial results.
+
+          status `integer` — HTTP status.
+
+          code `string` — Stable rejection code; uncertain writes retain their
+          exact retry identity.
+
+          msg `string` — Optional legacy diagnostic message.
 ---
 
 <Callout type="warn" title="Operation boundary">
 
 - **Caller**: Trusted backend only
 - **Scope**: Reads exact message indexes within current membership visibility, without a recent-history scan fallback.
+- **Atomicity**: Content includes latest edits; temporary reads fail as 503 unavailable without partial messages.
 - **Success**: Selectors form a union ordered and deduplicated by sequence; exhaustion or any failed read returns no partial result.
 - **Recovery**: Every node must support the indexed-read RPC; older nodes reject it explicitly.
 

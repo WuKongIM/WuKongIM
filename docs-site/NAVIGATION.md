@@ -162,7 +162,7 @@ Route: `/{lang}/api`
 
 - **接口清单与信任边界 / Interface Inventory & Trust Boundaries** `/{lang}/api/interface-inventory` — 盘点 Manager、Node transport、MCP、插件与 Agent 私有合同。 / Inventories Manager, node transport, MCP, plugin, and agent-private contracts.
 
-- **Product HTTP API / Product HTTP API** `/{lang}/api/product-http` — 浏览当前源码注册的全部 42 条 Product HTTP 操作。 / Browse all 42 Product HTTP operations registered by the current source.
+- **Product HTTP API / Product HTTP API** `/{lang}/api/product-http` — 浏览当前源码注册的全部 44 条 Product HTTP 操作。 / Browse all 44 Product HTTP operations registered by the current source.
   - **用户 / Users** `/{lang}/api/product-http/users` — 设备 Token、在线状态与系统身份。 / Device tokens, presence, and system identities.
     - **创建或更新设备 Token / Create or update a device token** **POST** `/{lang}/api/product-http/users/setQuickstartUserToken` — 创建缺失的 UID 元数据并更新一个设备 Token；Gateway Token 鉴权默认启用，后续相同 UID 与设备类别的 CONNECT 凭据必须与它匹配。 / Upserts one UID/device token; default Gateway authentication requires later CONNECT credentials for the same UID and device category to match it.
     - **退出用户设备 / Clear a user device token** **POST** `/{lang}/api/product-http/users/quitUserDevice` — 清空一个已存设备 Token 并调度 owner-local Session 关闭；device_flag=-1 选择 APP、Web 与 PC。 / Clears one stored device token and schedules owner-local Session closure; device_flag -1 selects APP, Web, and PC.
@@ -185,6 +185,8 @@ Route: `/{lang}/api`
     - **同步一个 Channel 的已提交消息 / Synchronize one Channel's committed messages** **POST** `/{lang}/api/product-http/messages/syncQuickstartChannelMessages` — 校验成员可见性并返回升序分页；limit 默认 100，最大 10000。 / Checks membership visibility and returns an ascending page; limit is 100 by default and capped at 10000.
     - **同步最多 200 个 Channel / Synchronize up to 200 Channels** **POST** `/{lang}/api/product-http/messages/syncChannelMessagesBatch` — 批量读取前校验全部成员关系；单项失败嵌入 HTTP 200 响应。 / Validates all memberships before one aligned batch read; item failures are embedded in the HTTP-200 response.
     - **精确查询已提交消息 / Look up exact committed messages** **POST** `/{lang}/api/product-http/messages/lookupMessages` — 按成员可见范围精确查询已提交消息；选择项、结果或索引检查超限时明确失败，不返回部分结果。 / Looks up exact committed messages within membership visibility; selector, result and scan limits fail without partial results.
+    - **修改消息内容 / Replace a message payload** **POST** `/{lang}/api/product-http/messages/updateMessage` — 按版本和恢复代数校验替换普通保留消息；CMD、流消息和非持久化消息不可修改。 / Replaces an ordinary retained payload with version and restore-epoch checks. CMD, stream and nonpersistent messages cannot be edited.
+    - **拉取单频道消息修改 / Pull edits for one channel** **POST** `/{lang}/api/product-http/messages/syncMessageUpdates` — 先用空游标获取基线，再加载历史；拉完 more 分页，在同一事务中合并版本并保存游标。此接口返回最新状态。 / Bootstrap with an empty cursor before loading history. Drain more pages and merge versions with the cursor atomically; this feed returns latest states.
   - **消息发送 / Message Sending** `/{lang}/api/product-http/message-send` — 由受信后端提交消息。 / Submit messages from a trusted backend.
     - **提交消息 / Submit a message** **POST** `/{lang}/api/product-http/message-send/sendChannelMessage` — 接受完整兼容 parser，包括旧别名、瞬时标志与请求级订阅者；HTTP 200 时仍需检查 reason。 / Accepts the complete compatibility parser, including legacy aliases, transient flags, and request-scoped subscribers; inspect reason on HTTP 200.
   - **Channel / Channels** `/{lang}/api/product-http/channels` — Channel 元数据、订阅者与名单管理。 / Channel metadata, subscribers, and list administration.

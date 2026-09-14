@@ -78,6 +78,9 @@ summary: Owns the bilingual static v3 documentation site, shared navigation, pub
   is ahead of a package release, pages must not attribute that run to the older
   npm, Maven, CocoaPods, or Release artifact.
 - The complete Product HTTP contract must match current route registrations.
+  Message editing publishes separate update and single-channel edit-feed operations,
+  latest content on both conversation reads, decimal edit versions, and restore
+  epoch/cache reset semantics. Node transport inventory includes their private RPCs.
   Missing authentication, weak validation, legacy behavior, and unbounded
   responses stay explicit rather than being normalized away.
 - The static API reference keeps its playground disabled. Generated examples

@@ -145,6 +145,12 @@ _openapi:
           payload `string | null` encoding: base64 Base64-encoded message
           payload; it may be null.
 
+          version `string` pattern: `^[0-9]+$` Edited content version; absent
+          means zero in the same content epoch.
+
+          updated_at_ms `integer:int64` 0–∞ Server edit time in Unix
+          milliseconds; original ordering is unchanged.
+
           LegacyMessageHeader
 
           Legacy message header.
@@ -213,7 +219,8 @@ _openapi:
 
           status `integer` const: `400` Application-level status fixed at 400.
 
-          503 Controller restore maintenance is active
+          503 Temporary read failure or restore maintenance; retry the same
+          query with bounded backoff.
 
           MaintenanceError
 
@@ -224,6 +231,17 @@ _openapi:
 
           message `string` const: `"restore maintenance is active"` Current
           restore-maintenance message.
+
+          MessageUpdateError
+
+          Edit or transient read failure; no partial results.
+
+          status `integer` — HTTP status.
+
+          code `string` — Stable rejection code; uncertain writes retain their
+          exact retry identity.
+
+          msg `string` — Optional legacy diagnostic message.
 ---
 
 <Callout type="warn" title="Operation boundary">
@@ -231,6 +249,7 @@ _openapi:
 - **Caller**: Trusted backend only
 - **Scope**: The login_uid must have an ordinary membership before reading; join_seq and deleted_to_seq establish the lowest visible sequence. Returned messages are always ordered by ascending message_seq.
 - **Success**: pull_mode=1 reads [start_message_seq, end_message_seq); other values read older messages in (end_message_seq, start_message_seq]. A zero boundary selects the open end.
+- **Recovery**: Page reads include latest edits; retry the original query on 503 unavailable. Reset cached version comparisons after a content epoch increase.
 
 </Callout>
 

@@ -37,7 +37,7 @@ description: Manager、Node transport、MCP、Cloud View、插件、Webhook 和 
 
 `GET /manager/nodes/:node_id/config/toml` 返回版本化、脱敏的启动 TOML 文档，使用相同的 `cluster.node:r` 读取权限。
 
-## Node transport：58 个共享编号
+## Node transport：60 个共享编号
 
 受众是 **cluster-internal**。共享 TCP transport 没有逐调用 Bearer 或 TLS 身份；只有加入流程检查 Join Token，其余调用信任集群路由和隔离网络。
 

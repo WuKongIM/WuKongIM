@@ -85,7 +85,7 @@ _openapi:
           version `integer:int64` — 旧式会话版本。
 
           recents array<`LegacyMessage`> — 按 msg_count
-          返回最近消息；为修复旧客户端空编号冲突，最新空编号消息可在游标已前移时再次返回，已读和删除位置不变。
+          返回最近消息；为修复旧客户端空编号冲突，最新空编号消息或修改过的末条消息可在游标已前移时再次返回，已读和删除位置不变。
 
           LegacyMessage
 
@@ -132,6 +132,10 @@ _openapi:
           timestamp `integer:int32` — 服务端旧式秒级时间戳。
 
           payload `string | null` encoding: base64 Base64 编码消息 Payload；可能为 null。
+
+          version `string` pattern: `^[0-9]+$` 内容修改版本；同一恢复代数内省略表示 0。
+
+          updated_at_ms `integer:int64` 0–∞ 服务端修改时间，Unix 毫秒；不改变原消息排序。
 
           LegacyMessageHeader
 
@@ -195,7 +199,8 @@ _openapi:
 
           status `integer` const: `400` 固定为 400 的应用层状态。
 
-          503 Controller restore maintenance is active
+          503 Temporary read failure or restore maintenance; retry the same
+          query with bounded backoff.
 
           MaintenanceError
 
@@ -204,11 +209,24 @@ _openapi:
           error `string` const: `"maintenance"` 稳定的 maintenance 错误类别。
 
           message `string` const: `"restore maintenance is active"` 当前恢复维护说明。
+
+          MessageUpdateError
+
+          修改或临时读取失败；不返回部分结果。
+
+          status `integer` — HTTP 状态。
+
+          code `string` — 稳定错误码；结果不确定的写入保留完整重试身份。
+
+          msg `string` — 可选旧式诊断文本。
 ---
 
 <Callout type="warn" title="接口边界">
 
 - **调用方**：仅限受信业务后端
+- **作用域**：最近消息包含最新修改；即使 last_msg_seqs 已追平，修改过的末条消息也会重复返回，按消息 ID 和版本合并。
+- **成功判定**：不改变旧数组结构、会话版本、未读、排序、only_unread 或 msg_count=0 规则。
+- **恢复**：临时读取失败返回 503 unavailable；保留原请求和缓存，退避重试。恢复代数增加后重置消息版本比较。
 
 </Callout>
 

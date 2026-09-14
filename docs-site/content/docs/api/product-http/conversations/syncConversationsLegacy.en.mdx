@@ -101,9 +101,9 @@ _openapi:
           version `integer:int64` — Legacy Conversation version.
 
           recents array<`LegacyMessage`> — Recent messages bounded by msg_count.
-          To repair old empty-key collisions, the latest empty-number message
-          may be returned again after the client cursor advances; read and
-          delete positions are unchanged.
+          To repair old empty-key collisions, the latest empty-number message or
+          edited tail may be returned again after the client cursor advances;
+          read and delete positions are unchanged.
 
           LegacyMessage
 
@@ -158,6 +158,12 @@ _openapi:
 
           payload `string | null` encoding: base64 Base64-encoded message
           payload; it may be null.
+
+          version `string` pattern: `^[0-9]+$` Edited content version; absent
+          means zero in the same content epoch.
+
+          updated_at_ms `integer:int64` 0–∞ Server edit time in Unix
+          milliseconds; original ordering is unchanged.
 
           LegacyMessageHeader
 
@@ -227,7 +233,8 @@ _openapi:
 
           status `integer` const: `400` Application-level status fixed at 400.
 
-          503 Controller restore maintenance is active
+          503 Temporary read failure or restore maintenance; retry the same
+          query with bounded backoff.
 
           MaintenanceError
 
@@ -238,11 +245,25 @@ _openapi:
 
           message `string` const: `"restore maintenance is active"` Current
           restore-maintenance message.
+
+          MessageUpdateError
+
+          Edit or transient read failure; no partial results.
+
+          status `integer` — HTTP status.
+
+          code `string` — Stable rejection code; uncertain writes retain their
+          exact retry identity.
+
+          msg `string` — Optional legacy diagnostic message.
 ---
 
 <Callout type="warn" title="Operation boundary">
 
 - **Caller**: Trusted backend only
+- **Scope**: Recents contain the latest edits; an edited tail is returned again even when last_msg_seqs is caught up. Merge by message ID and version.
+- **Success**: The legacy array, conversation version, unread, ordering, only_unread and msg_count=0 behavior are preserved.
+- **Recovery**: Transient reads return 503 unavailable; preserve the request and cache and retry with backoff. Reset message version comparisons when the content epoch increases.
 
 </Callout>
 
