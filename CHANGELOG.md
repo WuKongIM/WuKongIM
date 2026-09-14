@@ -18,6 +18,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Preserve device identity when routing message-edit EVENT hints so opted-in real clients pass the final session fence and receive updates. / 消息修改 EVENT 提示路由保留完整设备身份，修复真实客户端已协商能力却因会话校验而收不到提示的问题。
+
 - Return HTTP 503 with `code: unavailable` for temporary failures in ordinary history, exact message lookup and both conversation read APIs, preserving legacy error fields so clients can retry the same cursor without parsing error text. / 普通历史、消息精确查询和两个会话查询接口的临时故障统一返回 HTTP 503 与 `code: unavailable`，保留旧错误字段，客户端无需解析错误文本即可重试原游标。
 
 - Inject the release version and commit into Docker server and CLI binaries so Manager node versions report the image release instead of `dev`. / Docker 服务端与 CLI 注入发布版本和提交信息，修复 Manager 节点版本始终显示 `dev` 的问题。

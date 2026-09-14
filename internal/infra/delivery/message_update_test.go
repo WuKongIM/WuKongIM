@@ -75,6 +75,66 @@ func (p hintPresenceMap) EndpointsByUIDs(context.Context, []string) (map[string]
 
 type hintFramePeer struct{ calls, routes int }
 
+type hintRelayPeer struct{ writer *MessageUpdateHints }
+
+func (p hintRelayPeer) CallRPC(ctx context.Context, nodeID uint64, _ uint8, body []byte) ([]byte, error) {
+	if nodeID != p.writer.NodeID {
+		return nil, fmt.Errorf("unexpected owner %d", nodeID)
+	}
+	var delivery accessnode.MessageUpdateDelivery
+	if err := json.Unmarshal(body, &delivery); err != nil {
+		return nil, err
+	}
+	if err := p.writer.WriteMessageUpdateHints(ctx, delivery.Routes, delivery.Hint); err != nil {
+		return nil, err
+	}
+	return []byte{1}, nil
+}
+
+// Exercise presence-to-session routing with real device identity fields, not
+// only the final writer with a preconstructed zero-device route.
+func TestMessageUpdateHintPreservesDeviceIdentity(t *testing.T) {
+	for _, ownerNodeID := range []uint64{1, 2} {
+		t.Run(fmt.Sprintf("owner_%d", ownerNodeID), func(t *testing.T) {
+			registry := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
+			session := &hintSession{}
+			route := online.OwnerRoute{UID: "alice", SessionID: 10, OwnerNodeID: ownerNodeID,
+				OwnerBootID: 7, OwnerSeq: 110, DeviceID: "browser-device", DeviceFlag: 1, DeviceLevel: 1}
+			if err := registry.RegisterPending(online.LocalSession{Route: route, Session: session}); err != nil {
+				t.Fatal(err)
+			}
+			if err := registry.MarkActive(route.SessionID); err != nil {
+				t.Fatal(err)
+			}
+			if err := registry.EnableMessageUpdates(route.UID, route.SessionID, true); err != nil {
+				t.Fatal(err)
+			}
+			presenceRoute := presenceusecase.Route{UID: route.UID, SessionID: route.SessionID,
+				OwnerNodeID: route.OwnerNodeID, OwnerBootID: route.OwnerBootID, OwnerSeq: route.OwnerSeq,
+				DeviceID: route.DeviceID, DeviceFlag: route.DeviceFlag, DeviceLevel: route.DeviceLevel}
+			presence := hintPresenceMap{route.UID: {presenceRoute}}
+			owner := &MessageUpdateHints{Online: registry, NodeID: ownerNodeID}
+			writer := &MessageUpdateHints{Online: registry, NodeID: 1, Presence: presence, Peers: hintRelayPeer{writer: owner}}
+			hint := message.MessageUpdateHint{ChannelID: channelid.EncodePersonChannel("alice", "bob"),
+				ChannelType: 1, MessageID: 1, MessageSeq: 2, Version: 3}
+			if err := writer.SendMessageUpdateHint(context.Background(), []string{route.UID}, hint); err != nil {
+				t.Fatal(err)
+			}
+			if len(session.events) != 1 {
+				t.Fatalf("opted-in browser received %d events, want 1", len(session.events))
+			}
+			presenceRoute.DeviceID = "stale-device"
+			presence[route.UID] = []presenceusecase.Route{presenceRoute}
+			if err := writer.SendMessageUpdateHint(context.Background(), []string{route.UID}, hint); err != nil {
+				t.Fatal(err)
+			}
+			if len(session.events) != 1 {
+				t.Fatal("device identity fence was bypassed")
+			}
+		})
+	}
+}
+
 func (p *hintFramePeer) CallRPC(_ context.Context, _ uint64, _ uint8, body []byte) ([]byte, error) {
 	if len(body) > 256<<10 {
 		return nil, fmt.Errorf("oversize frame: %d", len(body))

@@ -48,7 +48,12 @@ func (h *MessageUpdateHints) SendMessageUpdateHint(ctx context.Context, uids []s
 	owners := make(map[uint64][]onlinedelivery.Route)
 	for _, uid := range uids {
 		for _, r := range routes[uid] {
-			owners[r.OwnerNodeID] = append(owners[r.OwnerNodeID], onlinedelivery.Route{UID: r.UID, OwnerNodeID: r.OwnerNodeID, OwnerBootID: r.OwnerBootID, OwnerSeq: r.OwnerSeq, SessionID: r.SessionID})
+			// The final session fence includes device identity as well as owner identity.
+			owners[r.OwnerNodeID] = append(owners[r.OwnerNodeID], onlinedelivery.Route{
+				UID: r.UID, OwnerNodeID: r.OwnerNodeID, OwnerBootID: r.OwnerBootID,
+				OwnerSeq: r.OwnerSeq, SessionID: r.SessionID, DeviceID: r.DeviceID,
+				DeviceFlag: r.DeviceFlag, DeviceLevel: r.DeviceLevel,
+			})
 		}
 	}
 	ids := make([]uint64, 0, len(owners))

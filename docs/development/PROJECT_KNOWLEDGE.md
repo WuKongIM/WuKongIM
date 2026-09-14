@@ -136,6 +136,9 @@ specification, runbook, report, or module documentation; link to them when neede
   routes are volatile, UID-authority-fenced projections; concrete sessions remain
   owner-local. Authority changes require bounded reconstruction before an empty
   route can be treated as offline, never a scan of every session.
+- Every online route, including advisory EVENT hints, must preserve device ID,
+  flag and level along with the exact owner/session identity. The final session
+  fence rejects a route with missing or stale device fields.
 - Post-commit handoff reserves bounded capacity before append and may reject busy
   work before durability. Once committed, SENDACK completes independently of
   best-effort terminal delivery/plugin/webhook failures. Completion and capacity
