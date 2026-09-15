@@ -251,7 +251,13 @@ Every rejected window stays in the report; unexpected errors and runtime or
 membership mutations abort. All artifacts, including the binary, are retained
 for 90 days. There are no publishing permissions, threshold controls, automatic
 triggers, retries, or production targets. Completion means evidence collection,
-not a passing gate. Dispatch once per evidence-backed comparison; do not rerun
+not a passing gate. An optional exact `comparison_sha` builds a second clean
+binary and measures it first on the same host, using the identical harness and
+preset with a fresh cluster. Its three windows, profiles and binary identity
+remain under `comparison/`, including rejected windows. This bounds CPU-model
+variation; sequential ordering still does not remove every host/time effect.
+Both products retain the same 12-minute test deadline within the existing
+40-minute job. Dispatch once per evidence-backed comparison; do not rerun
 until green. Optional `run_release_matrix=true` also runs all 20 unchanged
 release endpoint results on a fresh fixture, with the existing v2 receipt
 validator. It requires product SHA to equal harness SHA and has no publishing

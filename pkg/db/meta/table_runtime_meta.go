@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"slices"
-	"sort"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
@@ -359,8 +358,16 @@ func validateChannelRuntimeMeta(meta ChannelRuntimeMeta) error {
 }
 
 func normalizeChannelRuntimeMeta(meta ChannelRuntimeMeta) ChannelRuntimeMeta {
-	meta.Replicas = normalizeUint64Set(meta.Replicas)
-	meta.ISR = normalizeUint64Set(meta.ISR)
+	meta.Replicas = append([]uint64(nil), meta.Replicas...)
+	meta.ISR = append([]uint64(nil), meta.ISR...)
+	return normalizeOwnedChannelRuntimeMeta(meta)
+}
+
+// normalizeOwnedChannelRuntimeMeta consumes freshly decoded or cloned replica
+// slices. Borrowed caller slices must go through normalizeChannelRuntimeMeta.
+func normalizeOwnedChannelRuntimeMeta(meta ChannelRuntimeMeta) ChannelRuntimeMeta {
+	meta.Replicas = normalizeOwnedUint64Set(meta.Replicas)
+	meta.ISR = normalizeOwnedUint64Set(meta.ISR)
 	if meta.RouteGeneration == 0 {
 		meta.RouteGeneration = maxUint64(meta.ChannelEpoch, meta.LeaderEpoch, meta.WriteFenceVersion, 1)
 	}
@@ -497,7 +504,7 @@ func decodeChannelRuntimeMetaValue(key []byte, value []byte) (ChannelRuntimeMeta
 	if err := scanner.Err(); err != nil {
 		return ChannelRuntimeMeta{}, err
 	}
-	return normalizeChannelRuntimeMeta(meta), nil
+	return normalizeOwnedChannelRuntimeMeta(meta), nil
 }
 
 func decodeRuntimeMetaColumn(scanner *rowcodec.Scanner, meta *ChannelRuntimeMeta) error {
@@ -511,14 +518,14 @@ func decodeRuntimeMetaColumn(scanner *rowcodec.Scanner, meta *ChannelRuntimeMeta
 		meta.LeaderEpoch = value
 		return err
 	case runtimeMetaColumnReplicas:
-		value, err := scanner.Bytes()
+		value, err := scanner.BorrowedBytes()
 		if err != nil {
 			return err
 		}
 		meta.Replicas, err = decodeUint64Slice(value)
 		return err
 	case runtimeMetaColumnISR:
-		value, err := scanner.Bytes()
+		value, err := scanner.BorrowedBytes()
 		if err != nil {
 			return err
 		}
@@ -631,20 +638,15 @@ func decodeUint64Slice(value []byte) ([]uint64, error) {
 }
 
 func normalizeUint64Set(values []uint64) []uint64 {
+	return normalizeOwnedUint64Set(append([]uint64(nil), values...))
+}
+
+func normalizeOwnedUint64Set(values []uint64) []uint64 {
 	if len(values) == 0 {
 		return nil
 	}
-	out := append([]uint64(nil), values...)
-	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
-	n := 1
-	for i := 1; i < len(out); i++ {
-		if out[i] == out[n-1] {
-			continue
-		}
-		out[n] = out[i]
-		n++
-	}
-	return out[:n]
+	slices.Sort(values)
+	return slices.Compact(values)
 }
 
 func containsUint64(values []uint64, target uint64) bool {
