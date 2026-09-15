@@ -1415,6 +1415,221 @@
       ],
       "title": "Before-send Webhook latency p95",
       "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "min": 0,
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 78
+      },
+      "id": 32,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (node_name, kind, result) (rate(wukongim_conversation_persisted_admission_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "{{node_name}} {{kind}} {{result}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Conversation persisted read admission rate",
+      "type": "timeseries",
+      "description": "Serving-node read batches accepted or immediately rejected, grouped by node and read kind. Rejection does not represent a waiting queue."
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "min": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 78
+      },
+      "id": 33,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (node_name) (wukongim_conversation_persisted_inflight{node_name=~\"$node_name\"})",
+          "legendFormat": "in flight {{node_name}}",
+          "refId": "A"
+        },
+        {
+          "expr": "max by (node_name) (wukongim_conversation_persisted_limit{node_name=~\"$node_name\"})",
+          "legendFormat": "limit {{node_name}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Conversation persisted reads in flight / limit",
+      "type": "timeseries",
+      "description": "Current admitted batches summed across all read kinds, compared with the shared limit on each serving node. The limit is observed at admission; zero before the first observation is not a configured zero-capacity limit."
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "min": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 78
+      },
+      "id": 34,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, node_name, kind, result) (rate(wukongim_conversation_persisted_occupancy_bucket{node_name=~\"$node_name\"}[$__rate_interval])))",
+          "legendFormat": "{{node_name}} {{kind}} {{result}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Conversation persisted read sampled occupancy p95",
+      "type": "timeseries",
+      "description": "Shared occupied batch slots sampled at admission attempts, split by node, kind and admission result. Concurrent completions can change the sample. This is a sampled distribution, not current occupancy or queue depth."
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 85
+      },
+      "id": 35,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, node_name, kind, result) (rate(wukongim_conversation_persisted_hold_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])))",
+          "legendFormat": "{{node_name}} {{kind}} {{result}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Conversation persisted read slot hold time p95",
+      "type": "timeseries",
+      "description": "Time holding a serving-node read slot, split by kind and completion result. Excludes routing and RPC before admission; byte_budget denotes a response byte-budget boundary."
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "min": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 85
+      },
+      "id": 36,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, node_name, kind) (rate(wukongim_conversation_persisted_batch_items_bucket{node_name=~\"$node_name\"}[$__rate_interval])))",
+          "legendFormat": "{{node_name}} {{kind}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Conversation persisted read batch size p95",
+      "type": "timeseries",
+      "description": "Requested items per admitted batch, observed at completion and grouped by serving node and read kind."
     }
   ],
   "refresh": "10s",

@@ -22,6 +22,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Add Grafana panels for persisted conversation-read admission, in-flight batches and shared limit, sampled occupancy, slot hold time, and batch size, restoring coverage of all six exported metrics. / Grafana 补齐会话持久化读取的准入速率、在途批次与共享上限、采样占用、执行占用时长和批次大小面板，恢复六项已导出指标的覆盖。
+
 - Retry a message-edit notification once when its ready-dispatch wave budget expires, avoiding unnecessary cold-slot rediscovery delays while preserving bounded retries and durable recovery. / 消息编辑通知因就绪派发整轮预算耗尽而失败时保留一次有界重试，减少重新扫描冷槽位造成的额外等待，并保留持久化恢复。
 
 - Preserve device identity when routing message-edit EVENT hints so opted-in real clients pass the final session fence and receive updates. / 消息修改 EVENT 提示路由保留完整设备身份，修复真实客户端已协商能力却因会话校验而收不到提示的问题。
