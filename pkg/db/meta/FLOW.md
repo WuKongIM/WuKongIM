@@ -38,10 +38,6 @@ It does not own product business policy or expose engine-specific APIs.
 5. Business Channel point reads use a fixed 8,192-entry LRU. Mutations and
    restore invalidate affected or complete cache state after durable commit.
 
-6. Runtime metadata batches seek at most 4,096 caller-resolved exact keys with
-   one request-local pinned iterator, omit missing rows, and return owned decoded
-   values. Every call opens a fresh view; no routing authority is cached.
-
 ## Invariants and Failure Semantics
 
 - Event sequence pages scan a pinned native iterator and retain a bounded heap,

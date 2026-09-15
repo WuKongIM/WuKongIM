@@ -1,10 +1,6 @@
 package engine
 
-import (
-	"bytes"
-
-	"github.com/cockroachdb/pebble/v2"
-)
+import "github.com/cockroachdb/pebble/v2"
 
 // Iter wraps a Pebble iterator and returns copied keys and values.
 type Iter struct {
@@ -47,11 +43,6 @@ func (it *Iter) Key() []byte {
 		return nil
 	}
 	return append([]byte(nil), it.iter.Key()...)
-}
-
-// KeyEquals compares the current valid key without copying or exposing its bytes.
-func (it *Iter) KeyEquals(key []byte) bool {
-	return it != nil && it.iter != nil && it.iter.Valid() && bytes.Equal(it.iter.Key(), key)
 }
 
 // Value returns a copy of the current value.

@@ -66,7 +66,13 @@ var channelRuntimeMetaTable = registerMetaTable(TableSpec[ChannelRuntimeMeta]{
 		return encodeChannelRuntimeMetaValue(primaryKey, meta), nil
 	},
 	DecodeValueWithKey: func(primaryKey []byte, primary KeyParts, value []byte) (ChannelRuntimeMeta, error) {
-		return decodeChannelRuntimeMetaRow(primaryKey, primary[0].S, primary[1].I64, value)
+		meta, err := decodeChannelRuntimeMetaValue(primaryKey, value)
+		if err != nil {
+			return ChannelRuntimeMeta{}, err
+		}
+		meta.ChannelID = primary[0].S
+		meta.ChannelType = primary[1].I64
+		return meta, nil
 	},
 })
 
@@ -478,16 +484,6 @@ func encodeChannelRuntimeMetaValue(key []byte, meta ChannelRuntimeMeta) []byte {
 	_ = w.Uint64(runtimeMetaColumnRouteGeneration, meta.RouteGeneration)
 	_ = w.Uint64(runtimeMetaColumnDirectoryGeneration, meta.DirectoryGeneration)
 	return rowcodec.Wrap(key, runtimeMetaValueVersion, rowcodec.CodecColumns, rowcodec.FlagChecksum, w.Bytes())
-}
-
-// decodeChannelRuntimeMetaRow binds a verified owned value to its exact row identity.
-func decodeChannelRuntimeMetaRow(key []byte, channelID string, channelType int64, value []byte) (ChannelRuntimeMeta, error) {
-	meta, err := decodeChannelRuntimeMetaValue(key, value)
-	if err != nil {
-		return ChannelRuntimeMeta{}, err
-	}
-	meta.ChannelID, meta.ChannelType = channelID, channelType
-	return meta, nil
 }
 
 func decodeChannelRuntimeMetaValue(key []byte, value []byte) (ChannelRuntimeMeta, error) {

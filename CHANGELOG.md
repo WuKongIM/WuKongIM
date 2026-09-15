@@ -8,8 +8,6 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
-- Share one bounded storage view for batched authoritative Channel runtime metadata reads, reducing conversation-preview query CPU and allocations while preserving fresh Slot-leader routing and row validation. / 频道运行时元数据批量权威读取共用一个有界存储视图，减少会话预览查询的 CPU 与分配开销，保留每次向 Slot Leader 查询及行校验。
-
 - Transfer retired Channel storage warm state without an extra large-struct allocation or interface copies, reducing persisted conversation-read lease churn while preserving independent leases and cache bounds. / 频道存储暖状态回收后直接转移，避免额外大结构分配和接口值复制，减少持久化会话读取的租约开销，同时保留独立租约与缓存容量限制。
 
 ### 🐛 Bug Fixes / 问题修复

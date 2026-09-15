@@ -20,7 +20,7 @@ const (
 	runtimeMetaRPCBatchGet   = "batch_get"
 	runtimeMetaRPCList       = "list"
 	runtimeMetaRPCScanPage   = "scan_page"
-	runtimeMetaBatchMaxReads = metadb.ChannelRuntimeMetaBatchMaxReads
+	runtimeMetaBatchMaxReads = 4096
 )
 
 type runtimeMetaRPCRequest struct {
@@ -274,9 +274,17 @@ func (s *Store) handleRuntimeMetaRPC(ctx context.Context, body []byte) ([]byte, 
 			Meta:   &meta,
 		})
 	case runtimeMetaRPCBatchGet:
-		out, err := s.readChannelRuntimeMetaBatchLocal(ctx, req.Keys)
-		if err != nil {
-			return nil, err
+		out := make([]metadb.ChannelRuntimeMeta, 0, len(req.Keys))
+		for _, key := range req.Keys {
+			hashSlot := hashSlotForKey(s.cluster, key.ChannelID)
+			meta, err := s.db.ForHashSlot(hashSlot).GetChannelRuntimeMeta(ctx, key.ChannelID, key.ChannelType)
+			if errors.Is(err, metadb.ErrNotFound) {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, meta)
 		}
 		return encodeRuntimeMetaRPCResponseForRequest(req, runtimeMetaRPCResponse{
 			Status: rpcStatusOK,
@@ -313,13 +321,17 @@ func (s *Store) handleRuntimeMetaRPC(ctx context.Context, body []byte) ([]byte, 
 
 func (s *Store) batchGetChannelRuntimeMetaAuthoritative(ctx context.Context, slotID multiraft.SlotID, keys []metadb.ChannelKey) (map[metadb.ChannelKey]metadb.ChannelRuntimeMeta, error) {
 	if s.shouldServeSlotLocally(slotID) {
-		metas, err := s.readChannelRuntimeMetaBatchLocal(ctx, keys)
-		if err != nil {
-			return nil, err
-		}
-		out := make(map[metadb.ChannelKey]metadb.ChannelRuntimeMeta, len(metas))
-		for _, meta := range metas {
-			out[metadb.ChannelKey{ChannelID: meta.ChannelID, ChannelType: meta.ChannelType}] = meta
+		out := make(map[metadb.ChannelKey]metadb.ChannelRuntimeMeta, len(keys))
+		for _, key := range keys {
+			hashSlot := hashSlotForKey(s.cluster, key.ChannelID)
+			meta, err := s.db.ForHashSlot(hashSlot).GetChannelRuntimeMeta(ctx, key.ChannelID, key.ChannelType)
+			if errors.Is(err, metadb.ErrNotFound) {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			out[key] = meta
 		}
 		return out, nil
 	}
@@ -477,17 +489,4 @@ func channelRuntimeMetaLess(left, right metadb.ChannelRuntimeMeta) bool {
 		return left.ChannelType < right.ChannelType
 	}
 	return left.Leader < right.Leader
-}
-
-// readChannelRuntimeMetaBatchLocal shares one storage view after Slot authority
-// has been established by the local route or the authoritative RPC handler.
-func (s *Store) readChannelRuntimeMetaBatchLocal(ctx context.Context, keys []metadb.ChannelKey) ([]metadb.ChannelRuntimeMeta, error) {
-	resolved := make([]metadb.ChannelRuntimeMetaReadKey, len(keys))
-	for i, key := range keys {
-		resolved[i] = metadb.ChannelRuntimeMetaReadKey{
-			HashSlot:  metadb.HashSlot(hashSlotForKey(s.cluster, key.ChannelID)),
-			ChannelID: key.ChannelID, ChannelType: key.ChannelType,
-		}
-	}
-	return s.db.GetChannelRuntimeMetaBatch(ctx, resolved)
 }
