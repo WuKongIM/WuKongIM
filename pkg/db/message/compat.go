@@ -1432,7 +1432,7 @@ func (s *ChannelStore) ListMessagesBySeq(ctx context.Context, fromSeq uint64, li
 	}
 	messages := make([]channel.Message, 0, len(rows))
 	for _, row := range rows {
-		messages = append(messages, channelMessageFromRow(row))
+		messages = append(messages, channelMessageFromOwnedRow(row))
 	}
 	return messages, nil
 }
@@ -3609,6 +3609,13 @@ func decodeCompatibilityServerTimestamp(payload []byte, pos int) (int64, bool) {
 }
 
 func channelMessageFromRow(row messageRow) channel.Message {
+	row.Payload = append([]byte(nil), row.Payload...)
+	return channelMessageFromOwnedRow(row)
+}
+
+// channelMessageFromOwnedRow transfers a decoded row's independent payload.
+// The caller must discard the row after conversion, never pass shared data.
+func channelMessageFromOwnedRow(row messageRow) channel.Message {
 	return channel.Message{
 		MessageID:         row.MessageID,
 		MessageSeq:        row.MessageSeq,
@@ -3627,7 +3634,7 @@ func channelMessageFromRow(row messageRow) channel.Message {
 		Topic:             row.Topic,
 		FromUID:           row.FromUID,
 		ServerTimestampMS: row.ServerTimestampMS,
-		Payload:           append([]byte(nil), row.Payload...),
+		Payload:           row.Payload,
 	}
 }
 

@@ -77,6 +77,10 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## History, conversations, and commands
 
+- MessageDB sequence reads decode independent payloads and transfer them through
+  compatibility and Channel adapters. Consuming conversions must not reuse the
+  source DTO; returned payloads remain independent across reads and store closure.
+
 - `wukongim_conversation_read_stage_duration_seconds` uses fixed scope/stage/result
   labels: list/sync `handler` includes response write but excludes outer middleware
   and client decode; `response` includes DTO/JSON work on successful usecase reads.
