@@ -20,6 +20,7 @@ type MetaDB struct {
 	shardLocks map[HashSlot]*sync.Mutex
 
 	channelCache *channelReadCache
+	runtimeCache *runtimeReadCache
 	testLocked   []HashSlot
 }
 
@@ -30,6 +31,7 @@ func NewDB(engine *engine.DB) *MetaDB {
 		shards:       make(map[HashSlot]*Shard),
 		shardLocks:   make(map[HashSlot]*sync.Mutex),
 		channelCache: newChannelReadCache(channelCacheCapacity),
+		runtimeCache: newRuntimeReadCache(),
 	}
 	if engine != nil {
 		db.committer = commit.NewCoordinator(engine, commit.Config{
@@ -78,7 +80,11 @@ func (db *MetaDB) lockHashSlots(hashSlots []HashSlot) func() {
 		db.testLocked = append(db.testLocked, hashSlot)
 		db.mu.Unlock()
 	}
+	db.runtimeCache.startMutation(ordered)
 	return func() {
+		// All typed mutations and snapshot replacement own these locks. Advance
+		// read generations even on errors, including uncertain durable outcomes.
+		db.runtimeCache.finishMutation(ordered)
 		for i := len(locks) - 1; i >= 0; i-- {
 			locks[i].Unlock()
 		}

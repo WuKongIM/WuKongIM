@@ -64,6 +64,12 @@ func (e *DB) Close() error {
 	return pdb.Close()
 }
 
+// IsClosed reports whether this handle can still serve storage reads. Like the
+// other engine methods, its caller owns the surrounding lifecycle fence.
+func (e *DB) IsClosed() bool {
+	return e == nil || e.pdb == nil
+}
+
 // Get returns a copied value for key.
 func (e *DB) Get(key []byte) ([]byte, bool, error) {
 	if e == nil || e.pdb == nil {

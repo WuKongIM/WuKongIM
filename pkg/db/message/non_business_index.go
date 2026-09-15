@@ -159,19 +159,24 @@ func (l *channelEntry) nonBusinessRank(ctx context.Context, through uint64) (uin
 
 // nonBusinessRankAt positions an existing bounded iterator at one rank. If no
 // predecessor survives retention, the first surviving ordinal defines the
-// baseline. Empty is true only when both positions are absent without an error.
+// baseline. Empty is true only when the bounded index is empty without an error.
 func nonBusinessRankAt(ctx context.Context, it *engine.Iter, prefix []byte, through uint64) (rank uint64, empty bool, err error) {
 	if err := ctx.Err(); err != nil {
 		return 0, false, err
 	}
 	found := false
-	if through == ^uint64(0) {
+	baseline := false
+	if through == 0 {
+		// Zero-floor previews need the first surviving ordinal, including its
+		// retained baseline, without first seeking below the first sequence.
+		found = it.First()
+		baseline = true
+	} else if through == ^uint64(0) {
 		found = it.Last()
 	} else {
 		found = it.SeekLT(keycodec.AppendUint64(prefix, through+1))
 	}
-	baseline := false
-	if !found {
+	if !found && !baseline {
 		if err := it.Error(); err != nil {
 			return 0, false, err
 		}
@@ -182,8 +187,23 @@ func nonBusinessRankAt(ctx context.Context, it *engine.Iter, prefix []byte, thro
 		err := it.Error()
 		return 0, err == nil, err
 	}
-	if len(it.Key()) != len(prefix)+8 {
+	key := it.Key()
+	if len(key) != len(prefix)+8 {
 		return 0, false, dberrors.ErrCorruptValue
+	}
+	if through == 0 && binary.BigEndian.Uint64(key[len(prefix):]) == 0 {
+		// A zero key may have malformed successors below sequence one. Keep
+		// the old predecessor validation for this exceptional stored state.
+		if !it.SeekLT(keycodec.AppendUint64(prefix, 1)) {
+			if err := it.Error(); err != nil {
+				return 0, false, err
+			}
+			return 0, false, dberrors.ErrCorruptState
+		}
+		if len(it.Key()) != len(prefix)+8 {
+			return 0, false, dberrors.ErrCorruptValue
+		}
+		baseline = false
 	}
 	value, err := it.Value()
 	if err != nil {

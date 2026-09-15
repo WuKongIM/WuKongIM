@@ -9,6 +9,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestMessageUpdateReadRoutesAndUsesFreshAppliedBarrier(t *testing.T) {
@@ -16,6 +17,8 @@ func TestMessageUpdateReadRoutesAndUsesFreshAppliedBarrier(t *testing.T) {
 	nodes := startTwoNodeHashSlotStores(t, 8)
 	key := findUIDForSlotWithDifferentHashSlot(t, nodes[0].cluster, 2, 2, "edit")
 	store := nodes[0].store
+	probe := &editReadStageProbe{}
+	nodes[1].store.messageUpdateObserver = probe
 	if err := store.UpsertChannel(ctx, metadb.Channel{ChannelID: key, ChannelType: 2}); err != nil {
 		t.Fatal(err)
 	}
@@ -45,6 +48,18 @@ func TestMessageUpdateReadRoutesAndUsesFreshAppliedBarrier(t *testing.T) {
 		}
 		if nodes[1].cluster.nextIndex[2] != before+1 {
 			t.Fatal("read batch did not establish exactly one fresh Slot barrier")
+		}
+	}
+	if len(probe.events) != 4 {
+		t.Fatalf("stages=%v", probe.events)
+	}
+	for i, e := range probe.events {
+		want := "barrier/ok"
+		if i%2 == 1 {
+			want = "storage/ok"
+		}
+		if e != want {
+			t.Fatalf("stages=%v", probe.events)
 		}
 	}
 	// The origin has no replacement row; serving its convenient local DB would be stale.
@@ -115,7 +130,8 @@ func TestMessageUpdateReadAuthorityChangesRemainRetryable(t *testing.T) {
 				nodes := startTwoNodeHashSlotStores(t, 8)
 				key := findUIDForSlot(t, nodes[1].cluster, 2, "edit-route")
 				c := &changingReadAuthority{proxyTestCluster: nodes[1].cluster, mapping: mapping}
-				s := New(c, nodes[1].db)
+				probe := &editReadStageProbe{}
+				s := NewChannelMetadataStore(c, nodes[1].db, probe)
 				q := messageUpdateReadRPC{Format: 1, SlotID: 2, Reads: []metadb.MessageUpdateRead{{ChannelID: key, ChannelType: 2}}}
 				var err error
 				if rpc {
@@ -124,6 +140,9 @@ func TestMessageUpdateReadAuthorityChangesRemainRetryable(t *testing.T) {
 				} else {
 					_, err = s.readMessageUpdatesLocal(context.Background(), q)
 				}
+				if len(probe.events) != 2 || probe.events[0] != "barrier/ok" || probe.events[1] != "storage/error" {
+					t.Fatalf("stages=%v", probe.events)
+				}
 				if !errors.Is(err, ErrReadStaleRoute) || errors.Is(err, metadb.ErrStaleMeta) {
 					t.Fatalf("route read lost retry identity: %v", err)
 				}
@@ -131,3 +150,36 @@ func TestMessageUpdateReadAuthorityChangesRemainRetryable(t *testing.T) {
 		}
 	}
 }
+
+type editReadStageProbe struct{ events []string }
+
+func (p *editReadStageProbe) ObserveMessageUpdateReadStage(stage, result string, d time.Duration) {
+	p.events = append(p.events, stage+"/"+result)
+}
+
+type canceledEditBarrier struct{ *proxyTestCluster }
+
+func (c canceledEditBarrier) ReadSlotBarrier(ctx context.Context, _ multiraft.SlotID) error {
+	return ctx.Err()
+}
+func TestMessageUpdateReadStagesStopAfterCanceledBarrier(t *testing.T) {
+	nodes := startTwoNodeHashSlotStores(t, 8)
+	key := findUIDForSlot(t, nodes[1].cluster, 2, "edit-cancel")
+	probe := &editReadStageProbe{}
+	store := NewChannelMetadataStore(canceledEditBarrier{nodes[1].cluster}, nodes[1].db, probe)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := store.readMessageUpdatesLocal(ctx, messageUpdateReadRPC{Format: 1, SlotID: 2, Reads: []metadb.MessageUpdateRead{{ChannelID: key, ChannelType: 2}}})
+	if !errors.Is(err, context.Canceled) || len(probe.events) != 1 || probe.events[0] != "barrier/error" {
+		t.Fatalf("err=%v stages=%v", err, probe.events)
+	}
+	disabled := &Store{}
+	if !disabled.startMessageUpdateStage().IsZero() {
+		t.Fatal("disabled observer reads clock")
+	}
+	if n := testing.AllocsPerRun(100, func() { disabled.finishMessageUpdateStage("barrier", disabled.startMessageUpdateStage(), nil) }); n != 0 {
+		t.Fatalf("allocations=%v", n)
+	}
+}
+
+func (p *editReadStageProbe) MessageUpdateReadObservationEnabled() bool { return true }

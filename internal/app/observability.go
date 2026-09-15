@@ -31,6 +31,7 @@ import (
 	accessgateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
+	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
@@ -2669,4 +2670,61 @@ func (o multiChannelObserver) ObservePersistedReadCompletion(kind, result string
 			v.ObservePersistedReadCompletion(kind, result, items, duration)
 		}
 	}
+}
+
+// ObserveConversationReadStage keeps origin and HTTP populations separate.
+func (o conversationListMetricsObserver) ObserveConversationReadStage(scope, stage, result string, duration time.Duration) {
+	if o.metrics != nil {
+		o.metrics.Conversation.ObserveReadStage(scope, stage, result, duration)
+	}
+}
+func (o channelMetricsObserver) ObserveConversationReadStage(scope, stage, result string, duration time.Duration) {
+	if o.metrics != nil {
+		o.metrics.Conversation.ObserveReadStage(scope, stage, result, duration)
+	}
+}
+func (o channelMetricsObserver) ObserveMessageUpdateReadStage(stage, result string, duration time.Duration) {
+	if o.metrics != nil {
+		o.metrics.Conversation.ObserveReadStage("edit_slot", stage, result, duration)
+	}
+}
+func (o multiChannelObserver) ObserveConversationReadStage(scope, stage, result string, duration time.Duration) {
+	for _, child := range o {
+		if observer, ok := child.(cluster.ConversationReadStageObserver); ok && observer.ConversationReadStageObservationEnabled() {
+			observer.ObserveConversationReadStage(scope, stage, result, duration)
+		}
+	}
+}
+func (o multiChannelObserver) ObserveMessageUpdateReadStage(stage, result string, duration time.Duration) {
+	for _, child := range o {
+		if observer, ok := child.(slotproxy.MessageUpdateReadObserver); ok && observer.MessageUpdateReadObservationEnabled() {
+			observer.ObserveMessageUpdateReadStage(stage, result, duration)
+		}
+	}
+}
+
+func (o conversationListMetricsObserver) ConversationReadStageObservationEnabled() bool {
+	return o.metrics != nil && o.metrics.Conversation != nil
+}
+func (o channelMetricsObserver) ConversationReadStageObservationEnabled() bool {
+	return o.metrics != nil && o.metrics.Conversation != nil
+}
+func (o channelMetricsObserver) MessageUpdateReadObservationEnabled() bool {
+	return o.metrics != nil && o.metrics.Conversation != nil
+}
+func (o multiChannelObserver) ConversationReadStageObservationEnabled() bool {
+	for _, child := range o {
+		if observer, ok := child.(cluster.ConversationReadStageObserver); ok && observer.ConversationReadStageObservationEnabled() {
+			return true
+		}
+	}
+	return false
+}
+func (o multiChannelObserver) MessageUpdateReadObservationEnabled() bool {
+	for _, child := range o {
+		if observer, ok := child.(slotproxy.MessageUpdateReadObserver); ok && observer.MessageUpdateReadObservationEnabled() {
+			return true
+		}
+	}
+	return false
 }

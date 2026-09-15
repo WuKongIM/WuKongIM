@@ -37,6 +37,11 @@ It does not own product business policy or expose engine-specific APIs.
    index, allowing fair executor scheduling without changing stored encodings.
 5. Business Channel point reads use a fixed 8,192-entry LRU. Mutations and
    restore invalidate affected or complete cache state after durable commit.
+6. Runtime metadata point reads reuse owned decoded rows in an 8,192-entry,
+   8 MiB LRU. Typed mutations/snapshots and offline restore chunks disable cache
+   hits/fills while active, advancing Hash-Slot generations on entry and exit
+   even after failure. Late misses cannot fill a newer generation. Replica slices
+   are cloned on return, and authority/routing checks remain outside storage.
 
 ## Invariants and Failure Semantics
 

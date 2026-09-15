@@ -37,6 +37,10 @@ type conversationSyncLegacyResponse struct {
 }
 
 func (s *Server) handleConversationSyncLegacy(c *gin.Context) {
+	timer := s.conversationReadTimer("sync")
+	handlerStart := timer.start()
+	succeeded := false
+	defer func() { timer.finish(c, "handler", handlerStart, succeeded) }()
 	var req conversationSyncLegacyRequest
 	if !bindJSON(c, &req) {
 		return
@@ -67,6 +71,7 @@ func (s *Server) handleConversationSyncLegacy(c *gin.Context) {
 		writeJSONError(c, err.Error())
 		return
 	}
+	responseStart := timer.start()
 	resp := make([]conversationSyncLegacyResponse, 0, len(result.Items))
 	for _, item := range result.Items {
 		channelID := legacyMessageChannelID(req.UID, item.ChannelID, item.ChannelType)
@@ -99,6 +104,8 @@ func (s *Server) handleConversationSyncLegacy(c *gin.Context) {
 		resp = append(resp, row)
 	}
 	c.JSON(http.StatusOK, resp)
+	succeeded = true
+	timer.finish(c, "response", responseStart, true)
 }
 
 func parseLegacyConversationCursors(uid, encoded string) []conversationusecase.LegacyConversationCursor {

@@ -160,6 +160,9 @@ func benchmarkThreeNodeMixedSendPathAtRate(b *testing.B, shape threeNodeMixedSha
 		}()
 	}
 
+	// Registry counters survive ResetTimer; capture after warmup, before measured traffic.
+	stagesBefore := snapshotThreeNodeMixedStages(b, apps)
+	stopDiagnostics := startMixedSendDiagnostics(b, apps, rate)
 	b.ReportAllocs()
 	b.ResetTimer()
 	started := time.Now()
@@ -171,6 +174,8 @@ func benchmarkThreeNodeMixedSendPathAtRate(b *testing.B, shape threeNodeMixedSha
 	close(jobs)
 	workers.Wait()
 	b.StopTimer()
+	stopDiagnostics()
+	stagesAfter := snapshotThreeNodeMixedStages(b, apps)
 
 	if firstErr != nil {
 		b.Fatal(firstErr)
@@ -181,8 +186,7 @@ func benchmarkThreeNodeMixedSendPathAtRate(b *testing.B, shape threeNodeMixedSha
 	projectionDrain := waitThreeNodeMixedPersonDirectoryDrain(b, nodes, 10*time.Second)
 	b.ReportMetric(float64(projectionDrain)/float64(time.Millisecond), "person-directory-drain-ms")
 	reportThreeNodeMixedSendLatencies(b, latencies, cold)
-	reportThreeNodeMixedSendStages(b, apps)
-	reportThreeNodeMixedChannelStages(b, apps)
+	reportThreeNodeMixedStageWindow(b, stagesBefore, stagesAfter)
 	batchCount, batchItems := reportThreeNodeMixedMetaCreateBatches(b, apps)
 	if failures != 0 {
 		averageBatchItems := 0.0
@@ -486,121 +490,6 @@ func newThreeNodeMixedSendApps(b *testing.B) ([]*App, []*clusterpkg.Node) {
 	}
 	b.Fatalf("three-node cluster snapshots did not converge")
 	return nil, nil
-}
-
-type threeNodeMixedHistogram struct {
-	count   uint64
-	sum     float64
-	buckets map[float64]uint64
-}
-
-func reportThreeNodeMixedSendStages(b *testing.B, apps []*App) {
-	b.Helper()
-	const familyName = "wukongim_message_send_batch_stage_item_duration_seconds"
-	byStage := make(map[string]*threeNodeMixedHistogram)
-	for _, app := range apps {
-		families, err := app.metrics.PrometheusRegistry().Gather()
-		if err != nil {
-			b.Fatalf("gather benchmark metrics: %v", err)
-		}
-		for _, family := range families {
-			if family.GetName() != familyName {
-				continue
-			}
-			for _, metric := range family.Metric {
-				stage := threeNodeMixedMetricLabel(metric, "stage")
-				if stage == "" || metric.Histogram == nil {
-					continue
-				}
-				aggregate := byStage[stage]
-				if aggregate == nil {
-					aggregate = &threeNodeMixedHistogram{buckets: make(map[float64]uint64)}
-					byStage[stage] = aggregate
-				}
-				aggregate.count += metric.Histogram.GetSampleCount()
-				aggregate.sum += metric.Histogram.GetSampleSum()
-				for _, bucket := range metric.Histogram.Bucket {
-					aggregate.buckets[bucket.GetUpperBound()] += bucket.GetCumulativeCount()
-				}
-			}
-		}
-	}
-	for stage, histogram := range byStage {
-		if histogram.count == 0 {
-			continue
-		}
-		bounds := make([]float64, 0, len(histogram.buckets))
-		for bound := range histogram.buckets {
-			bounds = append(bounds, bound)
-		}
-		sort.Float64s(bounds)
-		threshold := (histogram.count*99 + 99) / 100
-		p99 := bounds[len(bounds)-1]
-		for _, bound := range bounds {
-			if histogram.buckets[bound] >= threshold {
-				p99 = bound
-				break
-			}
-		}
-		b.ReportMetric(histogram.sum*1000/float64(histogram.count), "stage-"+stage+"-avg-ms")
-		b.ReportMetric(p99*1000, "stage-"+stage+"-p99-upper-ms")
-	}
-}
-
-func reportThreeNodeMixedChannelStages(b *testing.B, apps []*App) {
-	b.Helper()
-	const familyName = "wukongim_channelv2_append_stage_duration_seconds"
-	byStage := make(map[string]*threeNodeMixedHistogram)
-	for _, app := range apps {
-		families, err := app.metrics.PrometheusRegistry().Gather()
-		if err != nil {
-			b.Fatalf("gather benchmark channel metrics: %v", err)
-		}
-		for _, family := range families {
-			if family.GetName() != familyName {
-				continue
-			}
-			for _, metric := range family.Metric {
-				if threeNodeMixedMetricLabel(metric, "result") != "ok" || metric.Histogram == nil {
-					continue
-				}
-				stage := threeNodeMixedMetricLabel(metric, "stage")
-				if stage == "" {
-					continue
-				}
-				aggregate := byStage[stage]
-				if aggregate == nil {
-					aggregate = &threeNodeMixedHistogram{buckets: make(map[float64]uint64)}
-					byStage[stage] = aggregate
-				}
-				aggregate.count += metric.Histogram.GetSampleCount()
-				aggregate.sum += metric.Histogram.GetSampleSum()
-				for _, bucket := range metric.Histogram.Bucket {
-					aggregate.buckets[bucket.GetUpperBound()] += bucket.GetCumulativeCount()
-				}
-			}
-		}
-	}
-	for stage, histogram := range byStage {
-		if histogram.count == 0 {
-			continue
-		}
-		bounds := make([]float64, 0, len(histogram.buckets))
-		for bound := range histogram.buckets {
-			bounds = append(bounds, bound)
-		}
-		sort.Float64s(bounds)
-		threshold := (histogram.count*99 + 99) / 100
-		p99 := bounds[len(bounds)-1]
-		for _, bound := range bounds {
-			if histogram.buckets[bound] >= threshold {
-				p99 = bound
-				break
-			}
-		}
-		b.ReportMetric(histogram.sum*1000/float64(histogram.count), "channel-"+stage+"-avg-ms")
-		b.ReportMetric(p99*1000, "channel-"+stage+"-p99-upper-ms")
-	}
 }
 
 func threeNodeMixedMetricLabel(metric *dto.Metric, name string) string {

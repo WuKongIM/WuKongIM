@@ -134,7 +134,8 @@ type ConversationUsecase interface {
 type ConversationListObservation struct {
 	// Result is a low-cardinality request result label.
 	Result string
-	// Duration is the end-to-end handler latency.
+	// Duration ends before successful response DTO construction and JSON write.
+	// Error observations include the error response write for compatibility.
 	Duration time.Duration
 	// ScannedCandidates is the number of membership rows consumed by the page.
 	ScannedCandidates int

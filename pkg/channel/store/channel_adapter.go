@@ -785,7 +785,7 @@ func (a *messageDBChannelStoreAdapter) ReadCommitted(ctx context.Context, req Re
 			}
 			break
 		}
-		out = append(out, fromDBMessage(msg))
+		out = append(out, fromOwnedDBMessage(msg))
 		if req.Reverse {
 			if msg.MessageSeq == 0 {
 				next = 0
@@ -813,7 +813,7 @@ func (a *messageDBChannelStoreAdapter) LookupMessageByID(ctx context.Context, me
 	if err != nil || !ok {
 		return ch.Message{}, ok, a.mapError(err)
 	}
-	return fromDBMessage(msg), true, nil
+	return fromOwnedDBMessage(msg), true, nil
 }
 
 func (a *messageDBChannelStoreAdapter) LookupIdempotency(ctx context.Context, fromUID string, clientMsgNo string) (IdempotencyHit, bool, error) {
@@ -840,7 +840,7 @@ func (a *messageDBChannelStoreAdapter) LookupIdempotency(ctx context.Context, fr
 	}
 	msg.MessageSeq = entry.MessageSeq
 	msg.MessageID = entry.MessageID
-	return IdempotencyHit{Message: fromDBMessage(msg), PayloadHash: payloadHash}, true, nil
+	return IdempotencyHit{Message: fromOwnedDBMessage(msg), PayloadHash: payloadHash}, true, nil
 }
 
 // CountOrdinaryMessages preserves the caller's authoritative committed range.
@@ -1029,8 +1029,10 @@ func fromDBRecord(record channel.Record) ch.Record {
 	return ch.Record{ID: record.ID, Index: record.Index, Epoch: record.Epoch, Payload: cloneBytes(record.Payload), SizeBytes: record.SizeBytes}
 }
 
-func fromDBMessage(msg channel.Message) ch.Message {
-	return ch.Message{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, Setting: uint8(msg.Setting), FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Payload: cloneBytes(msg.Payload), ServerTimestampMS: msg.ServerTimestampMS, SyncOnce: msg.Framer.SyncOnce, RedDot: msg.Framer.RedDot, Expire: msg.Expire}
+// fromOwnedDBMessage transfers a MessageDB read result to the Channel caller.
+// MessageDB returns independent payloads; the source must not be reused.
+func fromOwnedDBMessage(msg channel.Message) ch.Message {
+	return ch.Message{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, Setting: uint8(msg.Setting), FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Payload: msg.Payload, ServerTimestampMS: msg.ServerTimestampMS, SyncOnce: msg.Framer.SyncOnce, RedDot: msg.Framer.RedDot, Expire: msg.Expire}
 }
 
 const durableMessageHeaderSize = 45
@@ -1234,7 +1236,7 @@ func (a *messageDBChannelStoreAdapter) readIndexedCommitted(ctx context.Context,
 		if used > req.MaxBytes {
 			return ReadCommittedResult{}, ch.ErrInvalidConfig
 		}
-		out.Messages = append(out.Messages, fromDBMessage(m))
+		out.Messages = append(out.Messages, fromOwnedDBMessage(m))
 	}
 	return out, ctx.Err()
 }

@@ -8,6 +8,11 @@ on:
   schedule:
     - cron: "17 18 * * *"
   workflow_dispatch:
+    inputs:
+      diagnose_send:
+        description: Collect one fixed same-host SEND diagnostic instead of nightly qualification
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -50,6 +55,10 @@ jobs:
           echo "EVIDENCE_ROOT=$evidence_root" >>"$GITHUB_ENV"
           install -d -m 0700 "$evidence_root"
           df -Pk "$RUNNER_TEMP" >"$evidence_root/filesystem-preflight.txt"
+          git rev-parse HEAD >"$evidence_root/source.sha"
+          lscpu --json >"$evidence_root/host.json"
+          uname -a >"$evidence_root/kernel.txt"
+          findmnt -J -T /tmp >"$evidence_root/data-filesystem.json"
       - name: Run benchmark-first 500 QPS seams
         shell: bash
         run: |
@@ -78,11 +87,11 @@ jobs:
             ' "$output_file"
           }
 
-          GOWORK=off go test -tags=integration ./pkg/channel/replication -run '^$' -bench '^BenchmarkThreeNodeChannelAppend500QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
+          WK_BENCH_APPEND_COUNTERS_DIR="$EVIDENCE_ROOT/channel-append-counters" GOWORK=off go test -tags=integration ./pkg/channel/replication -run '^$' -bench '^BenchmarkThreeNodeChannelAppend500QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
             2>&1 | tee "$EVIDENCE_ROOT/channel-append-benchmark.txt"
           assert_benchmark_metric_le_400 "$EVIDENCE_ROOT/channel-append-benchmark.txt" append-p99-ms
 
-          GOWORK=off go test -tags=integration ./internal/app -run '^$' -bench '^BenchmarkThreeNodeMixedSendPath500QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
+          WK_BENCH_SEND_COUNTERS_DIR="$EVIDENCE_ROOT/mixed-send-counters" GOWORK=off go test -tags=integration ./internal/app -run '^$' -bench '^BenchmarkThreeNodeMixedSendPath500QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
             2>&1 | tee "$EVIDENCE_ROOT/mixed-send-benchmark.txt"
           assert_benchmark_metric_le_400 "$EVIDENCE_ROOT/mixed-send-benchmark.txt" all-p99-ms
 
@@ -125,7 +134,7 @@ jobs:
     name: Nightly direct 500 QPS qualification
     if: >-
       github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && !inputs.diagnose_send)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -187,3 +196,46 @@ jobs:
           path: ${{ runner.temp }}/three-node-nightly-${{ github.run_id }}-${{ github.run_attempt }}
           if-no-files-found: warn
           retention-days: 14
+
+  send-diagnosis:
+    name: Fixed Linux SEND diagnosis
+    if: github.event_name == 'workflow_dispatch' && inputs.diagnose_send
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GOWORK: "off"
+    steps:
+      - name: Checkout exact diagnostic candidate without credentials
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind source to main history
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]]
+          [[ -z "$(git status --porcelain)" ]]
+          git merge-base --is-ancestor "$SOURCE_SHA" origin/main || git merge-base --is-ancestor origin/main "$SOURCE_SHA"
+      - name: Set up fixed Go toolchain
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.25.11"
+      - name: Collect one unprofiled and one profiled window
+        shell: bash
+        run: bash scripts/diagnose-mixed-send-linux.sh "$RUNNER_TEMP/mixed-send-diagnosis"
+      - name: Reject tracked-tree mutation
+        if: always()
+        shell: bash
+        run: git diff --exit-code HEAD --
+      - name: Upload bounded SEND diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mixed-send-diagnosis-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/mixed-send-diagnosis
+          if-no-files-found: error
+          retention-days: 90

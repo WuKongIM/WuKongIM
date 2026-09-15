@@ -59,6 +59,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    share that serving-node admission, and batch authoritative route metadata.
    Their scans retain LEO, retention, byte-bounded continuation and item errors;
    history keeps the committed path.
+   Read RPCs preserve typed temporary transport failures from nested authority
+   reads using the existing not-ready code; unknown error text stays unknown.
 5. `LocalControlSnapshot` exposes the latest fully Node-applied control state;
    revision-fenced management adapters may use `LocalControllerSnapshot` to read
    Controller-visible state without waiting for runtime task reconciliation.

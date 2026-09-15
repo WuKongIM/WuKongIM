@@ -6,7 +6,31 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🔧 Improvements / 改进
+
+- Reuse bounded decoded runtime metadata during conversation queries, with mutation/restore generation fences and independently owned replica lists. / 会话查询复用有容量限制的运行元数据解码结果，写入与恢复通过版本失效保证新鲜度，副本列表保持调用方独立所有权。
+
+- Transfer independently decoded message payloads through conversation/history read adapters, avoiding redundant copies while preserving caller ownership after storage closure. / 会话与历史读取直接转交独立解码的消息正文，减少重复复制，保持存储关闭后的调用方所有权。
+
+- Expose bounded read-stage timings for conversation list/sync responses, head hydration, and message-edit barrier/storage reads. / 增加会话列表与同步响应、摘要补齐、消息修改屏障及存储读取的固定维度耗时指标。
+
+- Read the first surviving sparse ordinal directly for zero-floor conversation counts, avoiding a redundant predecessor seek while preserving retained-history and corruption checks. / 会话计数下界为零时直接读取首条存活稀疏索引，减少一次无效前驱查找，保留历史清理基线与损坏检查。
+
+- Construct Channel message storage keys in one owned allocation, reducing repeated allocation during conversation preview reads while preserving the existing on-disk encoding. / 频道消息存储键使用一次独立分配构造，减少会话预览读取中的重复分配，保持原有存储编码兼容。
+
+- Transfer retired Channel storage warm state without an extra large-struct allocation or interface copies, reducing persisted conversation-read lease churn while preserving independent leases and cache bounds. / 频道存储暖状态回收后直接转移，避免额外大结构分配和接口值复制，减少持久化会话读取的租约开销，同时保留独立租约与缓存容量限制。
+
 ### 🐛 Bug Fixes / 问题修复
+
+- Preserve temporary dependency failures across Channel read RPC so connection loss during failover returns retryable unavailability for ordinary history, exact lookup and conversation queries. / 频道读取 RPC 保留临时依赖故障类型，故障切换中的连接中断在普通历史、精确查询和会话查询中返回可重试的不可用状态。
+
+- Capture bounded system, scheduler/GC, physical commit and sampled replication counters in the first PR append gate, preserving evidence when it fails before mixed SEND starts. / 前置 PR append 门禁保留有界系统、调度/GC、物理提交及采样复制计数，覆盖混合 SEND 开始前即失败的窗口。
+
+- Retain bounded CPU, disk, scheduler/GC, storage and replication counter snapshots from the original PR mixed SEND gate on success or failure, without profiling or changing its 400 ms limit. / PR 混合 SEND 原始门禁无论成功或失败均保留有界的 CPU、磁盘、调度/GC、存储和复制计数快照，不启用 profile，也不改变 400 ms 门槛。
+
+- Add an opt-in fixed-host Linux SEND diagnostic that retains the original 400 ms verdict and collects bounded CPU, execution-trace, storage and replication evidence during measured traffic. / 增加可手动启用的固定 Linux 主机 SEND 诊断，保留原始 400 ms 判定，并采集正式压测期间有界的 CPU、执行 trace、存储和复制证据。
+
+- Exclude setup and completed warmup from mixed SEND benchmark stage statistics, report measured sample counts, and preserve an unbounded histogram tail instead of reporting a false finite P99 upper bound. / 混合 SEND 基准的分段统计排除初始化和已完成的预热，显示正式窗口样本数，并避免将超出直方图范围的长尾误报为有限的 P99 上界。
 
 - Decode all registered Slot commands in Raft log views, including read progress, ordinary/CMD memberships, channel updates, latest-message metadata, and directory/migration tasks; omit message bodies and distinguish unsupported inspection or versions from corrupt log data. / 槽位 Raft 日志支持展示全部已注册命令，涵盖已读进度、普通/CMD 成员关系、频道更新、最新消息元数据及目录/迁移任务；隐藏消息正文，并区分暂不支持展示或版本与日志数据损坏。
 
