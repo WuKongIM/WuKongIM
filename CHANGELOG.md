@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Construct Channel message storage keys in one owned allocation, reducing repeated allocation during conversation preview reads while preserving the existing on-disk encoding. / 频道消息存储键使用一次独立分配构造，减少会话预览读取中的重复分配，保持原有存储编码兼容。
+
 - Transfer retired Channel storage warm state without an extra large-struct allocation or interface copies, reducing persisted conversation-read lease churn while preserving independent leases and cache bounds. / 频道存储暖状态回收后直接转移，避免额外大结构分配和接口值复制，减少持久化会话读取的租约开销，同时保留独立租约与缓存容量限制。
 
 ### 🐛 Bug Fixes / 问题修复
