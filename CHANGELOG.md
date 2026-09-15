@@ -6,6 +6,10 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🔧 Improvements / 改进
+
+- Encode batched conversation heads and recent-message responses in one pre-sized buffer, reducing allocation and copying while preserving all supported wire formats and read consistency. / 会话摘要和最近消息的批量响应使用预分配缓冲区编码，减少内存分配与复制，保持协议兼容和读取一致性。
+
 ## [v3.0.0-beta.17] - 2026-09-15
 
 ### 🚀 New Features / 新功能

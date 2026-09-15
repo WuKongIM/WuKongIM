@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/bits"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -432,11 +433,12 @@ func encodeRPCResultVersion(version uint8, kind uint8, payload any, err error) (
 		err = legacyMessageFlagError(payload, version)
 	}
 	if err != nil {
-		dst := []byte{rpcResultErr}
+		dst := []byte{version, kind, rpcResultErr}
 		dst = appendRPCApplicationError(dst, rpcApplicationError{Code: rpcErrorCode(err), Message: err.Error()})
-		return encodeFrameVersion(version, kind, dst), nil
+		return dst, nil
 	}
-	dst := []byte{rpcResultOK}
+	dst := make([]byte, 3, readResponseFrameSize(payload, version))
+	dst[0], dst[1], dst[2] = version, kind, rpcResultOK
 	if payload != nil {
 		var ok bool
 		dst, ok = appendRPCPayload(dst, payload, version)
@@ -444,7 +446,82 @@ func encodeRPCResultVersion(version uint8, kind uint8, payload any, err error) (
 			return nil, fmt.Errorf("channels: unsupported rpc result payload %T", payload)
 		}
 	}
-	return encodeFrameVersion(version, kind, dst), nil
+	return dst, nil
+}
+
+// readResponseFrameSize reserves one owned frame for the measured batch read
+// paths. It only examines metadata and byte lengths; payload bytes are copied
+// once by the existing encoder. Other responses keep ordinary append growth.
+// Error-bearing batches use that fallback too, avoiding a second Error() call.
+func readResponseFrameSize(payload any, version uint8) int {
+	size := 3 // version, kind, result status
+	switch response := payload.(type) {
+	case ConversationHeadsResponse:
+		size += sliceHeaderSize(len(response.Items), response.Items == nil)
+		for i := range response.Items {
+			item := &response.Items[i]
+			if item.Err != nil {
+				return 3
+			}
+			size += 2 // absent error and found flag
+			if item.Head.Found {
+				size += messageWireSize(&item.Head.Message, version)
+			}
+			if version >= legacyCodecVersionV7 {
+				size += uvarintSize(item.Head.ReadThroughSeq) + uvarintSize(item.Head.RetentionThroughSeq) + uvarintSize(item.Head.CurrentUserLastSendSeq)
+			}
+			if version >= codecVersion {
+				size += uvarintSize(item.Head.NonBusinessUnread) + uvarintSize(item.Head.UnreadBoundary) + 1
+			}
+		}
+	case CommittedReadsResponse:
+		size += sliceHeaderSize(len(response.Items), response.Items == nil)
+		for i := range response.Items {
+			item := &response.Items[i]
+			if item.Err != nil {
+				return 3
+			}
+			size += 1 + sliceHeaderSize(len(item.Read.Messages), item.Read.Messages == nil) + uvarintSize(item.Read.NextSeq)
+			for j := range item.Read.Messages {
+				size += messageWireSize(&item.Read.Messages[j], version)
+			}
+		}
+	default:
+		return 3
+	}
+	return size
+}
+
+func sliceHeaderSize(length int, nilSlice bool) int {
+	if nilSlice {
+		return 1
+	}
+	return 1 + uvarintSize(uint64(length))
+}
+
+func uvarintSize(value uint64) int { return (bits.Len64(value|1) + 6) / 7 }
+
+// messageWireSize mirrors appendMessage, including legacy field gates and the
+// distinction between nil and empty payloads. Wire-compatibility tests fence it.
+func messageWireSize(message *ch.Message, version uint8) int {
+	timestamp := uint64(message.ServerTimestampMS) << 1
+	if message.ServerTimestampMS < 0 {
+		timestamp = ^timestamp
+	}
+	size := uvarintSize(message.MessageID) + uvarintSize(message.MessageSeq) + uvarintSize(timestamp) + 3 // channel type, setting, payload presence
+	for _, value := range [...]string{message.ChannelID, message.FromUID, message.ClientMsgNo, message.TraceID, message.ChannelKey} {
+		size += uvarintSize(uint64(len(value))) + len(value)
+	}
+	if message.Payload != nil {
+		size += uvarintSize(uint64(len(message.Payload))) + len(message.Payload)
+	}
+	if version >= legacyCodecVersionV8 {
+		size += 2
+	}
+	if version >= legacyCodecVersionV9 {
+		size += uvarintSize(uint64(message.Expire))
+	}
+	return size
 }
 
 func decodeRPCResult(data []byte, kind uint8, payload any) error {
