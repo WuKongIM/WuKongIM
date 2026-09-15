@@ -247,3 +247,40 @@ func equalStrings(a, b []string) bool {
 	}
 	return true
 }
+
+func TestIteratorKeyEqualsDoesNotExposeOrRetainKey(t *testing.T) {
+	db := openTestDB(t)
+	batch := db.NewBatch()
+	defer batch.Close()
+	if err := batch.Set([]byte("key"), []byte("value")); err != nil {
+		t.Fatal(err)
+	}
+	if err := batch.Commit(false); err != nil {
+		t.Fatal(err)
+	}
+	it, err := db.NewIter(engine.Span{}, engine.IterOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer it.Close()
+	if it.KeyEquals(nil) || (*engine.Iter)(nil).KeyEquals(nil) {
+		t.Fatal("invalid iterator matched")
+	}
+	key := []byte("key")
+	if !it.First() || !it.KeyEquals(key) {
+		t.Fatal("exact key did not match")
+	}
+	key[0] = 'x'
+	if it.KeyEquals(key) || !it.KeyEquals([]byte("key")) {
+		t.Fatal("comparison retained caller bytes")
+	}
+	if it.Next() || it.KeyEquals(nil) {
+		t.Fatal("exhausted iterator matched")
+	}
+	if err := it.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if it.KeyEquals(nil) {
+		t.Fatal("closed iterator matched")
+	}
+}
