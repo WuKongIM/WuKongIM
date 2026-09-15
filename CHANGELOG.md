@@ -12,6 +12,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Batch message-edit recipient Presence lookups by authoritative node and overlap up to four independent notifications during ready dispatch and durable repair, reducing RPC amplification and backlog while retaining durable progress, bounded queues, and recovery scans. / 消息编辑接收人的在线状态按权威节点批量查询，最多并行派发四条独立通知（覆盖就绪派发及持久化补偿），减少 RPC 放大与积压，保留持久化进度、有界队列和恢复扫描。
+
 - Wake the existing message-edit notification worker after a successful commit through a bounded, coalescing identity queue, reducing cold-channel hint delay while retaining durable recovery scans and cluster-authoritative delivery. / 消息编辑提交成功后通过有界身份队列唤醒现有通知 worker，合并重复任务，缩短冷频道提示等待，同时保留持久化补偿扫描与集群权威投递。
 
 - Coalesce concurrent readiness write probes and reuse successful proof for up to two seconds, reducing Slot Raft noop entries while retaining live Slot, placement and authority checks. / 合并并发就绪写入探针，并在两秒内复用成功证明，减少 Slot Raft 空操作条目，同时保留实时槽位、放置能力与路由权威检查。

@@ -10,7 +10,7 @@ import (
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-// Drive one scheduling wave synchronously; no clocks or worker goroutines.
+// Drive one scheduling wave and join its bounded dispatch lanes.
 func readyWorker(d Dispatcher) *Worker {
 	return &Worker{dispatcher: d, runContext: context.Background(), ready: make(chan updateKey, readyCapacity),
 		pending: make(map[updateKey]metadb.MessageUpdate), wake: make(chan struct{}, 1)}
@@ -70,7 +70,11 @@ func TestReadyWaveYieldsAndFailedTargetsFallBackToRepair(t *testing.T) {
 	w.NotifyCommitted(readyTask(1))
 	w.NotifyCommitted(readyTask(2))
 	w.dispatchReady(context.Background())
-	if len(d.ids) != 32 || d.ids[3] != 1 || d.ids[4] != 2 || len(w.pending) != 2 {
+	counts := map[uint64]int{}
+	for _, id := range d.ids {
+		counts[id]++
+	}
+	if len(d.ids) != 32 || counts[1] != 16 || counts[2] != 16 || len(w.pending) != 2 {
 		t.Fatalf("unfair or unbounded wave: ids=%v pending=%d", d.ids, len(w.pending))
 	}
 	d.err = errors.New("retry through durable source")

@@ -219,25 +219,54 @@ func nextWorkerTurn(ctx context.Context, ticks <-chan time.Time, wake <-chan str
 	}
 }
 
-// dispatchRows reports only targets actually visited so exhausted budgets never
-// advance discovery past untouched work. A hot target yields after 16 pages.
+// dispatchRows joins at most four independent targets at a time. Reserve their
+// first pages before sharing the remaining budget, so the returned cursor prefix
+// contains only visited targets. Each target still yields after 16 pages.
 func (w *Worker) dispatchRows(ctx context.Context, rows []metadb.MessageUpdate, remaining *int) (int, int) {
 	processed, failures := 0, 0
-	for _, row := range rows {
-		if *remaining == 0 || ctx.Err() != nil {
-			break
+	for processed < len(rows) && *remaining > 0 && ctx.Err() == nil {
+		count := min(4, len(rows)-processed, *remaining)
+		// Reserve one actual call for each selected target, even if cancellation
+		// races with launch. Later pages acquire a shared token only while live.
+		*remaining -= count
+		budget := *remaining
+		var budgetMu sync.Mutex
+		failed := make([]bool, count)
+		var wg sync.WaitGroup
+		for i, row := range rows[processed : processed+count] {
+			wg.Add(1)
+			goruntimeregistry.SafeGo(w.registry, goruntimeregistry.TaskMessageUpdateDispatch, func() {
+				defer wg.Done()
+				for page := 0; page < 16; page++ {
+					if page > 0 {
+						budgetMu.Lock()
+						acquired := budget > 0 && ctx.Err() == nil
+						if acquired {
+							budget--
+						}
+						budgetMu.Unlock()
+						if !acquired {
+							break
+						}
+					}
+					more, err := w.dispatcher.DispatchMessageUpdate(ctx, row)
+					if err != nil {
+						failed[i] = true
+					}
+					if err != nil || !more {
+						break
+					}
+				}
+			})
 		}
-		for page := 0; page < 16 && *remaining > 0 && ctx.Err() == nil; page++ {
-			*remaining--
-			more, err := w.dispatcher.DispatchMessageUpdate(ctx, row)
-			if err != nil {
+		wg.Wait()
+		*remaining = budget
+		processed += count
+		for _, f := range failed {
+			if f {
 				failures++
 			}
-			if err != nil || !more {
-				break
-			}
 		}
-		processed++
 	}
 	return processed, failures
 }

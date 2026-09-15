@@ -73,7 +73,11 @@ specification, runbook, report, or module documentation; link to them when neede
 
 - Successful message edits acknowledge durable content/CAS and pending notification
   state, not delivery to every recipient. The bounded ready queue accelerates
-  dispatch; overflow/restart recovery uses durable pending scans. Notification
+  dispatch; overflow/restart recovery uses durable pending scans. Each worker
+  overlaps at most four independent notification targets, joins them before
+  advancing its scan cursor, and retains the shared subscriber-page budget. UID
+  endpoint lists resolve bounded pages through exact fenced target/leader batches.
+  Notification
   checkpoint latency, EVENT arrival and SDK-visible content latency are distinct
   measurements. Large offline membership tests do not qualify equivalent online
   fanout; see the [bounded pressure report](../reports/2026-09-15-message-edit-pressure.md).

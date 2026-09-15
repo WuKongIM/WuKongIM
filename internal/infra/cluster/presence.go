@@ -294,18 +294,63 @@ func (c *PresenceAuthorityClient) EndpointsByUID(ctx context.Context, uid string
 	return routes, nil
 }
 
-// EndpointsByUIDs reads active authority routes for multiple UIDs.
+// EndpointsByUIDs resolves bounded UID pages, then reuses the fenced target/leader
+// batch path. Duplicate input UIDs retain the legacy result multiplicity.
 func (c *PresenceAuthorityClient) EndpointsByUIDs(ctx context.Context, uids []string) (map[string][]presence.Route, error) {
 	out := make(map[string][]presence.Route, len(uids))
-	for _, uid := range uids {
-		if uid == "" {
+	// At most 256 distinct targets fit the existing target-batch RPC contract.
+	for offset := 0; offset < len(uids); offset += 256 {
+		page := uids[offset:min(offset+256, len(uids))]
+		unique := make([]string, 0, len(page))
+		counts := make(map[string]int, len(page))
+		for _, uid := range page {
+			if uid == "" {
+				continue
+			}
+			if counts[uid] == 0 {
+				unique = append(unique, uid)
+			}
+			counts[uid]++
+		}
+		if len(unique) == 0 {
 			continue
 		}
-		routes, err := c.EndpointsByUID(ctx, uid)
-		if err != nil {
-			return nil, err
+		targets := c.ResolveRouteTargets(ctx, unique)
+		groups := make([]presence.EndpointLookupGroup, 0, len(unique))
+		byTarget := make(map[presence.RouteTarget]int)
+		for i, result := range targets {
+			if result.Err != nil {
+				return nil, result.Err
+			}
+			index, found := byTarget[result.Target]
+			if !found {
+				index = len(groups)
+				byTarget[result.Target] = index
+				groups = append(groups, presence.EndpointLookupGroup{Target: result.Target})
+			}
+			groups[index].UIDs = append(groups[index].UIDs, unique[i])
 		}
-		out[uid] = append(out[uid], routes...)
+		results := c.EndpointsByTargets(ctx, groups)
+		for i, result := range results {
+			if result.Err != nil {
+				return nil, result.Err
+			}
+			allowed := make(map[string]bool, len(groups[i].UIDs))
+			for _, uid := range groups[i].UIDs {
+				allowed[uid] = true
+				if _, ok := out[uid]; !ok {
+					out[uid] = nil
+				}
+			}
+			for _, route := range result.Routes {
+				if !allowed[route.UID] {
+					return nil, fmt.Errorf("%w: unexpected endpoint UID", authoritypresence.ErrRouteNotReady)
+				}
+				for n := 0; n < counts[route.UID]; n++ {
+					out[route.UID] = append(out[route.UID], route)
+				}
+			}
+		}
 	}
 	return out, nil
 }

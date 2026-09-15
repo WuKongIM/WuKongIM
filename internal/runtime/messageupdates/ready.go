@@ -3,9 +3,11 @@ package messageupdates
 import (
 	"context"
 	"strings"
+	"sync"
 	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
 
 const readyCapacity = 1024
@@ -69,31 +71,58 @@ func (w *Worker) takeReady() (metadb.MessageUpdate, bool) {
 	}
 }
 
-// dispatchReady bounds each wave to eight visits and four recipient pages per
-// visit. All reads and progress writes use the same authoritative dispatcher as
-// repair, including when the submitting API node is not the Slot leader.
+// dispatchReady retains eight visits/four pages per visit, but overlaps at most
+// four independent identities. Each bounded group joins before requeueing or
+// taking more identities, so this worker never dispatches one identity twice
+// concurrently. Stop and restore join these lanes with the supervising loop.
 func (w *Worker) dispatchReady(ctx context.Context) int {
 	turn, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 	failures := 0
-	for visit := 0; visit < 8 && turn.Err() == nil; visit++ {
-		task, ok := w.takeReady()
-		if !ok {
+	for visits := 0; visits < 8 && turn.Err() == nil; {
+		// Take the group under one lock: a concurrent newer commit cannot cause
+		// the same key to be selected twice within the group.
+		w.mu.Lock()
+		tasks := make([]metadb.MessageUpdate, 0, 4)
+		for len(tasks) < min(4, 8-visits) && len(w.ready) > 0 {
+			key := <-w.ready
+			tasks = append(tasks, w.pending[key])
+			delete(w.pending, key)
+		}
+		w.mu.Unlock()
+		if len(tasks) == 0 {
 			break
 		}
-		var more bool
-		var err error
-		for page := 0; page < 4 && turn.Err() == nil; page++ {
-			more, err = w.dispatcher.DispatchMessageUpdate(turn, task)
-			if err != nil || !more {
-				break
-			}
+		visits += len(tasks)
+		type result struct {
+			more bool
+			err  error
 		}
-		if err != nil {
-			// Failed targets retry via durable recovery, never an immediate busy loop.
-			failures++
-		} else if more {
-			w.NotifyCommitted(task)
+		results := make([]result, len(tasks))
+		var wg sync.WaitGroup
+		for i, task := range tasks {
+			wg.Add(1)
+			goruntimeregistry.SafeGo(w.registry, goruntimeregistry.TaskMessageUpdateDispatch, func() {
+				defer wg.Done()
+				// If the deadline expires before this lane starts, keep its ready hint.
+				// Durable work remains authoritative even if the lane's call fails.
+				r := result{more: true}
+				for page := 0; page < 4 && turn.Err() == nil; page++ {
+					r.more, r.err = w.dispatcher.DispatchMessageUpdate(turn, task)
+					if r.err != nil || !r.more {
+						break
+					}
+				}
+				results[i] = r
+			})
+		}
+		wg.Wait()
+		for i, r := range results {
+			if r.err != nil {
+				failures++
+			} else if r.more {
+				w.NotifyCommitted(tasks[i])
+			}
 		}
 	}
 	w.mu.Lock()

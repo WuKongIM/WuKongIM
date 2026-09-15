@@ -45,6 +45,10 @@ management, plugins, diagnostics, and bounded operations observations.
    publishing a complete result. Unknown or unavailable proof remains explicit.
 3. Presence and recipient adapters resolve exact fenced targets, group work by
    owner, and choose the local authority or one typed RPC envelope per owner.
+   UID-list endpoint lookup resolves at most 256 inputs per page, groups by the
+   full fenced target, and reuses the target-batch path with at most four remote
+   leaders in flight. Duplicate UID multiplicity is retained; failed or foreign
+   endpoint evidence fails the whole UID-list lookup.
 3. Management and operations adapters receive policy-validated requests,
    select node-local or peer execution, and return bounded, redacted read
    models with partial evidence explicit. Revision-fenced management writes may

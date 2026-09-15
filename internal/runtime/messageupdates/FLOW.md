@@ -7,8 +7,10 @@ summary: Schedules bounded message-edit notification repair and retention cleanu
 
 ## Responsibility
 
-One supervised loop discovers durable work on owned hash slots and delegates
-notification and retention policy to the message usecase.
+One supervised loop drains committed-edit hints and discovers durable work on
+owned hash slots. It delegates notification and retention policy to the message
+usecase. Ready dispatch and durable repair each overlap at most four independent
+identities in joined lanes. The supervising loop runs these turns serially.
 
 ## Boundaries
 
@@ -17,16 +19,22 @@ belongs here. The composition root starts, stops and joins this worker.
 
 ## Main Flows
 
-1. Rotate bounded owned-slot scans under a four-second turn deadline.
-2. Prioritize active slots; dispatch at most 32 subscriber pages per turn and
+1. Accept body-free committed identities into a 1,024-entry coalescing ready queue.
+   A wake drains at most eight visits of four subscriber pages under a one-second
+   deadline. Join each group of at most four lanes before selecting more work.
+2. Rotate bounded owned-slot scans under a four-second turn deadline.
+3. Prioritize active slots; dispatch at most 32 subscriber pages per turn and
    16 pages per target before yielding. Progress remains durable outside the loop.
-3. Scan bounded body-free retention-index candidates and delegate guarded cleanup.
-4. Cancel/join before shutdown or restore; restart with empty process cursors.
+4. Scan bounded body-free retention-index candidates and delegate guarded cleanup.
+5. Cancel/join before shutdown or restore; restart with empty process cursors.
 
 ## Invariants and Failure Semantics
 
 - At most four slot selections per tick and eight pending/cleanup candidates per
-  selection. No per-channel or per-member goroutine is created.
+  selection. Dispatch creates up to four temporary managed lanes;
+  there is no goroutine per queued channel or member. One worker never dispatches
+  the same identity concurrently. Stop/restore joins all active lanes.
+- Queue overflow and failed ready attempts fall back to the durable scan.
 - Failed work stays durable and retries on later passes. Stale-version tasks
   cannot clear newer notification work.
 - Error counts are reported at most once per minute without message contents
@@ -38,6 +46,7 @@ are owned, so a hot Slot cannot permanently hide cold notification/cleanup work.
 ## Read First
 
 - [Worker](worker.go)
+- [Committed-edit queue](ready.go)
 
 ## Update Triggers
 

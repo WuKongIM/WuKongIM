@@ -413,6 +413,7 @@ func TestPresenceAuthorityClientPreservesExactUnregisterAndLegacyEndpointIdentit
 	if err != nil || len(routes) != 1 || routes[0].UID != "u1" {
 		t.Fatalf("EndpointsByUID() = %#v err=%v", routes, err)
 	}
+	node.routeKeyResults = []cluster.RouteKeyResult{{Route: node.route}, {Route: node.route}}
 	byUID, err := client.EndpointsByUIDs(context.Background(), []string{"u1", "", "u2", "u1"})
 	if err != nil {
 		t.Fatalf("EndpointsByUIDs() error = %v", err)
@@ -420,8 +421,8 @@ func TestPresenceAuthorityClientPreservesExactUnregisterAndLegacyEndpointIdentit
 	if len(byUID) != 2 || len(byUID["u1"]) != 2 || len(byUID["u2"]) != 1 {
 		t.Fatalf("EndpointsByUIDs() = %#v", byUID)
 	}
-	if len(local.endpointCalls) != 4 {
-		t.Fatalf("endpoint calls = %#v, want one direct plus three non-empty legacy lookups", local.endpointCalls)
+	if len(local.endpointCalls) != 1 || len(local.endpointBatchCalls) != 1 {
+		t.Fatalf("endpoint calls = %#v, want one direct plus one grouped lookup", local.endpointCalls)
 	}
 }
 
