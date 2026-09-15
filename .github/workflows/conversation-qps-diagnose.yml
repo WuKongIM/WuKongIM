@@ -7,6 +7,10 @@ on:
         description: Exact repository commit for the product binary
         type: string
         required: true
+      comparison_sha:
+        description: Optional exact baseline commit measured first on this same host
+        type: string
+        required: false
       expected_binary_sha256:
         description: Optional previously observed binary digest; mismatch aborts
         type: string
@@ -61,12 +65,49 @@ jobs:
             [[ "$EXPECTED_BINARY_SHA256" =~ ^[0-9a-f]{64}$ ]]
             [[ "$(cut -d ' ' -f 1 "$RUNNER_TEMP/conversation-mixed/binary.sha256")" == "$EXPECTED_BINARY_SHA256" ]]
           fi
+      - name: Checkout optional comparison product without credentials
+        if: ${{ inputs.comparison_sha != '' }}
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.comparison_sha }}
+          path: comparison-product
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build exact comparison product on the same host
+        if: ${{ inputs.comparison_sha != '' }}
+        working-directory: comparison-product
+        shell: bash
+        env:
+          COMPARISON_SHA: ${{ inputs.comparison_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$COMPARISON_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$COMPARISON_SHA" ]]
+          [[ -z "$(git status --porcelain)" ]]
+          git merge-base --is-ancestor "$COMPARISON_SHA" origin/main || git merge-base --is-ancestor origin/main "$COMPARISON_SHA"
+          mkdir -p "$RUNNER_TEMP/conversation-mixed/comparison"
+          go build -tags=e2e -o "$RUNNER_TEMP/conversation-mixed/comparison/wukongim-e2e" ./cmd/wukongim
+          sha256sum "$RUNNER_TEMP/conversation-mixed/comparison/wukongim-e2e" > "$RUNNER_TEMP/conversation-mixed/comparison/binary.sha256"
+          go version -m "$RUNNER_TEMP/conversation-mixed/comparison/wukongim-e2e" > "$RUNNER_TEMP/conversation-mixed/comparison/build.txt"
       - name: Checkout diagnostic harness separately
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.sha }}
           path: diagnostic-harness
           persist-credentials: false
+      - name: Collect comparison windows with the identical harness and preset
+        if: ${{ inputs.comparison_sha != '' }}
+        working-directory: diagnostic-harness
+        shell: bash
+        env:
+          WK_E2E_CONVERSATION_MIXED_ATTRIBUTION: "1"
+          WK_E2E_PRODUCT_SHA: ${{ inputs.comparison_sha }}
+          WK_E2E_BINARY: ${{ runner.temp }}/conversation-mixed/comparison/wukongim-e2e
+          WK_E2E_CONVERSATION_MIXED_REPORT: ${{ runner.temp }}/conversation-mixed/comparison/report.json
+        run: |
+          set -euo pipefail
+          go test -tags=e2e ./test/e2e/message/conversation_qps -run '^TestConversationQPSMixedAttribution$' -count=1 -timeout=12m -p=1 -v 2>&1 | tee "$RUNNER_TEMP/conversation-mixed/comparison/test.log"
+          jq -e --arg product "$WK_E2E_PRODUCT_SHA" --arg harness "$(git rev-parse HEAD)" '.complete and .product_sha == $product and .harness_sha == $harness and (.harness_dirty | not) and (.windows | length == 3)' "$WK_E2E_CONVERSATION_MIXED_REPORT"
       - name: Collect three fixed windows then separate profiles
         working-directory: diagnostic-harness
         shell: bash

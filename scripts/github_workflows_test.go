@@ -85,6 +85,19 @@ func TestConversationQPSDiagnosticWorkflowIsReadOnlyAndBindsProduct(t *testing.T
 		require.Contains(t, s, guard)
 	}
 	require.Less(t, strings.Index(s, "go build -tags=e2e"), strings.Index(s, "path: diagnostic-harness"))
+	for _, guard := range []string{
+		`if: ${{ inputs.comparison_sha != '' }}`,
+		`[[ "$(git rev-parse HEAD)" == "$COMPARISON_SHA" ]]`,
+		`git merge-base --is-ancestor "$COMPARISON_SHA" origin/main`,
+		`WK_E2E_PRODUCT_SHA: ${{ inputs.comparison_sha }}`,
+		`WK_E2E_BINARY: ${{ runner.temp }}/conversation-mixed/comparison/wukongim-e2e`,
+		`WK_E2E_CONVERSATION_MIXED_REPORT: ${{ runner.temp }}/conversation-mixed/comparison/report.json`,
+	} {
+		require.Contains(t, s, guard)
+	}
+	require.Less(t, strings.Index(s, "Collect comparison windows"), strings.Index(s, "Collect three fixed windows"))
+	require.Equal(t, 2, strings.Count(s, "-run '^TestConversationQPSMixedAttribution$' -count=1 -timeout=12m -p=1"))
+
 }
 
 func TestCloudLeaseProvisionRejectsGitHubOwnedRepairPlans(t *testing.T) {
