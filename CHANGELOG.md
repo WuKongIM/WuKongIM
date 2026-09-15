@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+## [v3.0.0-beta.17] - 2026-09-15
+
 ### 🚀 New Features / 新功能
 
 - Add ordinary durable-message payload editing with version/restore-epoch checks, idempotent retries, single-channel incremental sync, and opt-in online EVENT hints. History, exact lookup, `/conversation/list`, and `/conversation/sync` read the latest content without changing message order or unread counts; CMD and stream messages remain non-editable. New metadata requires matching server binaries; SDKs must adopt the edit/restore merge contract. / 新增普通持久化消息修改、版本与恢复代数校验、幂等重试、单频道增量同步及按连接协商的 EVENT 提示；历史、精确查询和两个会话接口均返回最新内容，不改变消息顺序或未读。CMD、流消息不允许修改；新元数据要求节点版本一致，SDK 需适配编辑与恢复合并协议。
