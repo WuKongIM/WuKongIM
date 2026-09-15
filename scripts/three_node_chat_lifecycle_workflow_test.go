@@ -81,6 +81,7 @@ func TestThreeNodeChatLifecycleRegressionSeparatesPRSmokeFromNightlyQualificatio
 	require.True(t, ok)
 	require.Contains(t, nightly.If, "github.event_name == 'schedule'")
 	require.Contains(t, nightly.If, "github.ref == 'refs/heads/main'")
+	require.Contains(t, nightly.If, "!inputs.diagnose_send")
 	require.LessOrEqual(t, nightly.TimeoutMinutes, 45)
 	nightlyRun := workflowRunCommands(nightly.Steps)
 	require.Contains(t, nightlyRun, "MINIMUM_FREE_PERCENT=15")
@@ -101,6 +102,28 @@ func TestThreeNodeChatLifecycleRegressionSeparatesPRSmokeFromNightlyQualificatio
 	assertInitializesEvidenceRootFromRunnerTemp(t, nightly.Steps)
 	assertRejectsTrackedTreeMutationAfter(t, nightly.Steps, "Run direct ten-minute 500 QPS qualification")
 	assertRegressionArtifactStep(t, nightly.Steps, 14)
+}
+
+func TestMixedSendDiagnosisIsManualBoundedAndSeparateFromGates(t *testing.T) {
+	raw := readWorkflow(t, "three-node-chat-lifecycle-regression.yml")
+	var workflow struct {
+		Jobs map[string]threeNodeRegressionWorkflowJob `yaml:"jobs"`
+	}
+	require.NoError(t, yaml.Unmarshal(raw, &workflow))
+	job := workflow.Jobs["send-diagnosis"]
+	require.Equal(t, "github.event_name == 'workflow_dispatch' && inputs.diagnose_send", job.If)
+	require.LessOrEqual(t, job.TimeoutMinutes, 20)
+	require.Contains(t, workflowRunCommands(job.Steps), "bash scripts/diagnose-mixed-send-linux.sh")
+	require.Contains(t, workflowRunCommands(job.Steps), "git merge-base --is-ancestor")
+	require.NotContains(t, workflowRunCommands(workflow.Jobs["pr-regression"].Steps), "diagnose-mixed-send-linux.sh")
+	require.NotContains(t, workflowRunCommands(workflow.Jobs["nightly-qualification"].Steps), "diagnose-mixed-send-linux.sh")
+	for _, step := range job.Steps {
+		if strings.HasPrefix(step.Uses, "actions/upload-artifact@") {
+			require.Equal(t, "always()", step.If)
+			require.Equal(t, "error", step.With.IfNoFilesFound)
+			require.Equal(t, 90, step.With.RetentionDays)
+		}
+	}
 }
 
 func workflowRunCommands(steps []threeNodeRegressionWorkflowStep) string {

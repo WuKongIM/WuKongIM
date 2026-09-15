@@ -235,6 +235,29 @@ certificate are provisioned. Exact unsigned source package assets still come
 only from the tag-bound binary Release described below; this credential-free
 source workflow never receives production signing or package-publisher access.
 
+## Fixed Linux SEND diagnosis
+
+For a bounded SEND investigation, dispatch
+`three-node-chat-lifecycle-regression.yml` with `diagnose_send=true` on the
+exact reviewed candidate ref. This manual-only job replaces neither the PR
+gates nor nightly qualification, and has no publishing or cloud permissions.
+It pins Go 1.25.11 on Ubuntu 24.04 with four visible AMD64 CPUs, builds one clean
+benchmark binary, then runs exactly one unprofiled and one profiled 500-QPS,
+3,000-operation mixed SEND benchmark on that same runner. Each run has its own
+fresh three-node cluster; ordering and host variation remain limitations.
+No failed window is retried. The first run's unchanged 400 ms verdict stays in
+the report even when profiling succeeds. Completion means collected evidence,
+never release qualification. CPU and execution trace collection is limited to
+the measured phase, capped at 8/64 MiB in tmpfs and copied to the artifact after
+sampling so profiler writes do not load the data disk; fixed storage/replication histogram and
+Linux counter snapshots exclude setup/warmup but include profiler boundary
+overhead. Trace analysis separates scheduler, synchronization, syscall and
+network waits. CPU covers all three nodes and the driver in one process;
+disk/cgroup counters are scoped as reported, missing data stays explicit.
+Artifacts include source/binary identity and remain for 90 days. The job is
+bounded to 20 minutes and is opt-in; ordinary PR/scheduled/manual qualification
+behavior stays unchanged when `diagnose_send` is false.
+
 ## Conversation QPS diagnosis
 
 `conversation-qps-diagnose.yml` takes an exact product SHA on main history or a

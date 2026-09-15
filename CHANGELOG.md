@@ -18,6 +18,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Add an opt-in fixed-host Linux SEND diagnostic that retains the original 400 ms verdict and collects bounded CPU, execution-trace, storage and replication evidence during measured traffic. / 增加可手动启用的固定 Linux 主机 SEND 诊断，保留原始 400 ms 判定，并采集正式压测期间有界的 CPU、执行 trace、存储和复制证据。
+
 - Exclude setup and completed warmup from mixed SEND benchmark stage statistics, report measured sample counts, and preserve an unbounded histogram tail instead of reporting a false finite P99 upper bound. / 混合 SEND 基准的分段统计排除初始化和已完成的预热，显示正式窗口样本数，并避免将超出直方图范围的长尾误报为有限的 P99 上界。
 
 - Decode all registered Slot commands in Raft log views, including read progress, ordinary/CMD memberships, channel updates, latest-message metadata, and directory/migration tasks; omit message bodies and distinguish unsupported inspection or versions from corrupt log data. / 槽位 Raft 日志支持展示全部已注册命令，涵盖已读进度、普通/CMD 成员关系、频道更新、最新消息元数据及目录/迁移任务；隐藏消息正文，并区分暂不支持展示或版本与日志数据损坏。
