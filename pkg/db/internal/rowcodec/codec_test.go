@@ -241,3 +241,39 @@ func TestBorrowedScannerRejectsMalformedColumns(t *testing.T) {
 		}
 	}
 }
+
+func TestBorrowedBytesAvoidsIntermediateCopyAndChecksType(t *testing.T) {
+	var w rowcodec.Writer
+	if err := w.RawBytes(1, []byte("replica-ids")); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Uint64(2, 3); err != nil {
+		t.Fatal(err)
+	}
+	raw := w.Bytes()
+	scanner := rowcodec.NewBorrowedScanner(raw)
+	if !scanner.Next() {
+		t.Fatal(scanner.Err())
+	}
+	view, err := scanner.BorrowedBytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	owned, err := scanner.Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	offset := bytes.Index(raw, []byte("replica-ids"))
+	if offset < 0 || len(view) != len("replica-ids") || &view[0] != &raw[offset] {
+		t.Fatal("borrowed bytes copied the encoded field")
+	}
+	if &owned[0] == &view[0] {
+		t.Fatal("Bytes no longer owns its result")
+	}
+	if !scanner.Next() {
+		t.Fatal(scanner.Err())
+	}
+	if _, err := scanner.BorrowedBytes(); !errors.Is(err, db.ErrCorruptValue) {
+		t.Fatalf("wrong-type accessor: %v", err)
+	}
+}

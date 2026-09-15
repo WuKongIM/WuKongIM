@@ -224,6 +224,16 @@ func (s *Scanner) Bytes() ([]byte, error) {
 	return append([]byte(nil), s.bytes...), nil
 }
 
+// BorrowedBytes exposes the current bytes only for synchronous decoding. The
+// caller must not mutate or retain the view beyond the next scanner operation
+// or reuse of the scanner input. Use Bytes when the result must own its storage.
+func (s *Scanner) BorrowedBytes() ([]byte, error) {
+	if err := s.require(TypeBytes); err != nil {
+		return nil, err
+	}
+	return s.bytes, nil
+}
+
 // Int64 returns the current value as an int64.
 func (s *Scanner) Int64() (int64, error) {
 	if err := s.require(TypeInt64); err != nil {
