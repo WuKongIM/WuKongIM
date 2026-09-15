@@ -1174,10 +1174,14 @@ func (n *Node) readChannelConversationHeads(ctx context.Context, ids []channelru
 	eligibleIDs := make([]channelruntime.ChannelID, 0, len(ids))
 	eligibleBadges := make([]channels.ConversationBadgeQuery, 0, len(ids))
 	eligibleIndexes := make([]int, 0, len(ids))
+	timer := n.conversationReadTimer(persisted)
+	metadataStart := timer.start()
+	metadataFailed := false
 	metadataResults := n.readConversationChannelMetadataBatch(ctx, ids)
 	for index, id := range ids {
 		metadata := metadataResults[index].Channel
 		err := metadataResults[index].Err
+		metadataFailed = metadataFailed || err != nil
 		switch {
 		case err == nil && metadataResults[index].Found && metadata.Disband != 0:
 			results[index].Err = channelruntime.ErrChannelNotFound
@@ -1191,6 +1195,7 @@ func (n *Node) readChannelConversationHeads(ctx context.Context, ids []channelru
 			results[index].Err = err
 		}
 	}
+	timer.finish("metadata", metadataStart, metadataFailed)
 	if len(eligibleIDs) == 0 {
 		return results, nil
 	}
@@ -1204,7 +1209,15 @@ func (n *Node) readChannelConversationHeads(ctx context.Context, ids []channelru
 		}
 		read = persistedReader.ReadPersistedConversationHeads
 	}
+	headsStart := timer.start()
 	batch, err := read(ctx, eligibleIDs, uid, eligibleBadges...)
+	headsFailed := err != nil || len(batch) != len(eligibleIDs)
+	if timer.observer != nil {
+		for i := range batch {
+			headsFailed = headsFailed || batch[i].Err != nil
+		}
+	}
+	timer.finish("heads", headsStart, headsFailed)
 	if err != nil {
 		return nil, err
 	}
@@ -1217,7 +1230,12 @@ func (n *Node) readChannelConversationHeads(ctx context.Context, ids []channelru
 			targets = append(targets, &batch[i].Head.Message)
 		}
 	}
-	if err := n.overlayMessageContent(ctx, targets); err != nil {
+	overlayStart := timer.start()
+	err = n.overlayMessageContent(ctx, targets)
+	if len(targets) != 0 && n.defaultSlotProxy != nil {
+		timer.finish("edit_overlay", overlayStart, err != nil)
+	}
+	if err != nil {
 		return nil, err
 	}
 

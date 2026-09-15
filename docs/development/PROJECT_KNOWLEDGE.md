@@ -77,6 +77,15 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## History, conversations, and commands
 
+- `wukongim_conversation_read_stage_duration_seconds` uses fixed scope/stage/result
+  labels: list/sync `handler` includes response write but excludes outer middleware
+  and client decode; `response` includes DTO/JSON work on successful usecase reads.
+  Persisted/committed heads expose metadata, heads and attempted edit overlay;
+  `edit_slot` measures serving barrier and storage/assembly/authority recheck for
+  all edit readers. Totals overlap children and parallel Slot work; do not add
+  their sums as request latency. The older directory-list timer keeps its original
+  pre-response success boundary. Disabled observers do not read the clock.
+
 - Successful message edits acknowledge durable content/CAS and pending notification
   state, not delivery to every recipient. The bounded ready queue accelerates
   dispatch; overflow/restart recovery uses durable pending scans. Each worker

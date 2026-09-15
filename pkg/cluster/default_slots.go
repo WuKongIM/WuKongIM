@@ -127,7 +127,8 @@ func (n *Node) ensureDefaultSlots() error {
 	}
 	n.defaultSlotProposer = slotProposer
 	n.slotStatusRuntime = runtime
-	n.defaultSlotProxy = slotproxy.NewChannelMetadataStore(n, metaDB)
+	editObserver, _ := n.cfg.Channel.Observer.(slotproxy.MessageUpdateReadObserver)
+	n.defaultSlotProxy = slotproxy.NewChannelMetadataStore(n, metaDB, editObserver)
 	n.registerDefaultSlotHandlers(runtime, slotProposer)
 	n.defaultSlots = true
 	return nil

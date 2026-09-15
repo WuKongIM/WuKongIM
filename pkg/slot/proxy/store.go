@@ -14,6 +14,8 @@ import (
 type Store struct {
 	cluster Cluster
 	db      *metadb.DB
+	// messageUpdateObserver observes serving edit reads; nil disables timing.
+	messageUpdateObserver MessageUpdateReadObserver
 }
 
 // New creates a Store.
@@ -25,8 +27,11 @@ func New(cluster Cluster, db *metadb.DB) *Store {
 
 // NewChannelMetadataStore creates the runtime metadata subset, including device
 // credential reads, and registers only promoted non-conflicting RPC services.
-func NewChannelMetadataStore(cluster Cluster, db *metadb.DB) *Store {
+func NewChannelMetadataStore(cluster Cluster, db *metadb.DB, observers ...MessageUpdateReadObserver) *Store {
 	store := &Store{cluster: cluster, db: db}
+	if len(observers) != 0 && observers[0] != nil && observers[0].MessageUpdateReadObservationEnabled() {
+		store.messageUpdateObserver = observers[0]
+	}
 	registerSelectedStoreRPCHandlers(cluster, []storeRPCRegistration{
 		{serviceID: identityRPCServiceID, handler: store.handleDeviceIdentityRPC},
 		{serviceID: runtimeMetaRPCServiceID, handler: store.handleRuntimeMetaRPC},

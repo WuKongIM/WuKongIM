@@ -194,7 +194,7 @@ func (s *Store) handleMessageUpdateReadRPC(ctx context.Context, body []byte) ([]
 	return json.Marshal(out)
 }
 
-func (s *Store) readMessageUpdatesLocal(ctx context.Context, req messageUpdateReadRPC) (messageUpdateReadReply, error) {
+func (s *Store) readMessageUpdatesLocal(ctx context.Context, req messageUpdateReadRPC) (_ messageUpdateReadReply, readErr error) {
 	out := messageUpdateReadReply{Format: 1}
 	if req.Format != 1 || len(req.Reads) == 0 || len(req.Reads) > metadb.MaxMessageUpdatePage {
 		return out, metadb.ErrInvalidArgument
@@ -224,6 +224,7 @@ func (s *Store) readMessageUpdatesLocal(ctx context.Context, req messageUpdateRe
 		out.LeaderID = uint64(leader)
 		return out, nil
 	}
+	barrierStart := s.startMessageUpdateStage()
 	// Production uses a local-only ReadIndex barrier. Narrow test/embedding
 	// ports without it retain the conservative fresh-noop compatibility path.
 	if reader, ok := s.cluster.(interface {
@@ -234,9 +235,12 @@ func (s *Store) readMessageUpdatesLocal(ctx context.Context, req messageUpdateRe
 		hs := hashSlotForKey(s.cluster, req.Reads[0].ChannelID)
 		err = proposeLocalWithHashSlot(ctx, s.cluster, slot, hs, metafsm.EncodeNoopCommand())
 	}
+	s.finishMessageUpdateStage("barrier", barrierStart, err)
 	if err != nil {
 		return out, err
 	}
+	storageStart := s.startMessageUpdateStage()
+	defer func() { s.finishMessageUpdateStage("storage", storageStart, readErr) }()
 	total := 0
 	for _, q := range req.Reads {
 		if s.cluster.SlotForKey(q.ChannelID) != slot {

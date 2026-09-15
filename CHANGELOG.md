@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Expose bounded read-stage timings for conversation list/sync responses, head hydration, and message-edit barrier/storage reads. / 增加会话列表与同步响应、摘要补齐、消息修改屏障及存储读取的固定维度耗时指标。
+
 - Read the first surviving sparse ordinal directly for zero-floor conversation counts, avoiding a redundant predecessor seek while preserving retained-history and corruption checks. / 会话计数下界为零时直接读取首条存活稀疏索引，减少一次无效前驱查找，保留历史清理基线与损坏检查。
 
 - Construct Channel message storage keys in one owned allocation, reducing repeated allocation during conversation preview reads while preserving the existing on-disk encoding. / 频道消息存储键使用一次独立分配构造，减少会话预览读取中的重复分配，保持原有存储编码兼容。

@@ -75,6 +75,10 @@ func (s *Server) registerConversationRoutes() {
 }
 
 func (s *Server) handleConversationList(c *gin.Context) {
+	timer := s.conversationReadTimer("list")
+	handlerStart := timer.start()
+	succeeded := false
+	defer func() { timer.finish(c, "handler", handlerStart, succeeded) }()
 	start := time.Now()
 	var req conversationListRequest
 	if !bindJSON(c, &req) {
@@ -122,7 +126,10 @@ func (s *Server) handleConversationList(c *gin.Context) {
 		Deletes:           len(result.Deletes),
 		Done:              result.Done,
 	})
+	responseStart := timer.start()
 	c.JSON(http.StatusOK, newConversationListResponse(req.UID, result))
+	succeeded = true
+	timer.finish(c, "response", responseStart, true)
 }
 
 func (s *Server) observeConversationList(event ConversationListObservation) {
