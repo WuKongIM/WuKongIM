@@ -1,0 +1,814 @@
+{
+  "server_commit": "111bdee669e402f2c6dd0c285fbea315ea77007d",
+  "sdk_commit": "a038f874230a6fe5201c2faae61b6f2b20cb9ebc",
+  "context_sha256": {
+    "AGENTS.md": "c6eae7244b1c660be4b2a62cbdc1efa5c26c35e34972e994df7e6ae073fc9d0b",
+    "internal/app/FLOW.md": "48ff55407a390faddb54f8581c4747e7c781e849221fa066f58a3598361c65d8",
+    "internal/runtime/messageupdates/FLOW.md": "2f80c8b1da5761e7d0d9b37984b43a849186b26b1d389af2cbe5406936d4ee1e",
+    "internal/usecase/message/FLOW.md": "6257d7e2b75f75019d8a3da71ea29670b33935c624fef8f377aa26d67f5a187c",
+    "test/e2e/AGENTS.md": "59bb62e0ce12e7b25324108976cfbf5fe3a939a5ff1c93d09e2a8050e7be79b2",
+    "test/e2e/message/AGENTS.md": "57a6347ce79e5ac198683f788e63721a88d2e712efb4fd509336309b6922a203",
+    "test/e2e/message/message_updates/AGENTS.md": "909b9af4ada64dfe4334ae88009f225ef4ebdd1e203bb6d42a607875aa553597",
+    "pkg/cluster/FLOW.md": "d77dee2dbbae3bdf899297111a00c5b0ec1709ad407c34ab6d8c47bd26f2d16d",
+    "pkg/db/meta/FLOW.md": "7b7710f75a136c10136b000041dad1886a46843ffdf3a1ebe33e49e76c66b06c",
+    "internal/usecase/channel/FLOW.md": "236063af07952a21973145e30077a010ab7309c2a14fc6b76af3c94a70bec556"
+  },
+  "final_fixture_sha256": {
+    "internal/app/message_update_pressure_integration_test.go": "2078b2414eb40804886601629a0c427162b3d1835267fcde9b77b4a47bbd5a0a",
+    "docs/reports/assets/message-edit-sdk-pressure.cjs": "50fb7107fd0d56a0f9477c2376164fdb69978ae8107156eee55d9582bccf5ae8"
+  },
+  "final_app_test_binary_sha256": "6fd4170d79633269a1cb40c85fe9f73dddbc98463f7b2f1ab474f98f7b3d8bfa",
+  "first_app_test_binary_sha256": "76d0419ef08e99d67476ba8e7fd79d2983dce59746f9565243213395092d4a80",
+  "recovery": {
+    "binary_sha256": "b47105463afb2bed4d52c4006b333b6361e7ff47b99103a08787fdbe52bc43dc",
+    "phases": [
+      {
+        "name": "healthy",
+        "started": "2026-09-15T02:48:45.25017Z",
+        "finished": "2026-09-15T02:49:45.251651Z",
+        "counts": {
+          "success": {
+            "/channel/messagesync": 299,
+            "/conversation/list": 299,
+            "/conversation/sync": 212,
+            "/messages": 45,
+            "delta": 201,
+            "edit": 555,
+            "idempotency": 192
+          },
+          "temporary": {},
+          "writers": [
+            185,
+            181,
+            189
+          ],
+          "more_pages": 160
+        }
+      },
+      {
+        "name": "channel_leader_down",
+        "started": "2026-09-15T02:49:45.422984Z",
+        "finished": "2026-09-15T02:50:30.477872Z",
+        "victim": 3,
+        "authority_before": 3,
+        "authority_after": 1,
+        "counts": {
+          "success": {
+            "/channel/messagesync": 492,
+            "/conversation/list": 491,
+            "/conversation/sync": 402,
+            "/messages": 117,
+            "delta": 390,
+            "edit": 1119,
+            "idempotency": 380
+          },
+          "temporary": {
+            "/channel/messagesync": 33,
+            "/conversation/list": 34,
+            "/conversation/sync": 35,
+            "/messages": 34,
+            "delta": 34,
+            "edit": 105,
+            "idempotency": 35
+          },
+          "first_error": {
+            "/channel/messagesync": "/channel/messagesync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/list": "/conversation/list HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/sync": "/conversation/sync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/messages": "/messages HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "edit": "transport: Post \"http://127.0.0.1:28126/message/update\": EOF",
+            "idempotency": "transport: Post \"http://127.0.0.1:28126/message/update\": EOF"
+          },
+          "writers": [
+            373,
+            370,
+            376
+          ],
+          "more_pages": 311
+        }
+      },
+      {
+        "name": "channel_leader_restored",
+        "started": "2026-09-15T02:50:30.478974Z",
+        "finished": "2026-09-15T02:51:17.371846Z",
+        "victim": 3,
+        "counts": {
+          "success": {
+            "/channel/messagesync": 727,
+            "/conversation/list": 725,
+            "/conversation/sync": 568,
+            "/messages": 149,
+            "delta": 542,
+            "edit": 1532,
+            "idempotency": 517
+          },
+          "temporary": {
+            "/channel/messagesync": 33,
+            "/conversation/list": 34,
+            "/conversation/sync": 37,
+            "/messages": 36,
+            "delta": 36,
+            "edit": 106,
+            "idempotency": 35
+          },
+          "first_error": {
+            "/channel/messagesync": "/channel/messagesync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/list": "/conversation/list HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/sync": "/conversation/sync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/messages": "/messages HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "edit": "transport: Post \"http://127.0.0.1:28126/message/update\": EOF",
+            "idempotency": "transport: Post \"http://127.0.0.1:28126/message/update\": EOF"
+          },
+          "writers": [
+            515,
+            507,
+            510
+          ],
+          "more_pages": 432
+        }
+      },
+      {
+        "name": "slot_leader_down",
+        "started": "2026-09-15T02:51:17.547541Z",
+        "finished": "2026-09-15T02:52:02.656651Z",
+        "victim": 3,
+        "authority_before": 3,
+        "authority_after": 1,
+        "counts": {
+          "success": {
+            "/channel/messagesync": 934,
+            "/conversation/list": 933,
+            "/conversation/sync": 773,
+            "/messages": 223,
+            "delta": 747,
+            "edit": 2140,
+            "idempotency": 721
+          },
+          "temporary": {
+            "/channel/messagesync": 52,
+            "/conversation/list": 53,
+            "/conversation/sync": 57,
+            "/messages": 56,
+            "delta": 55,
+            "edit": 166,
+            "idempotency": 55
+          },
+          "first_error": {
+            "/channel/messagesync": "/channel/messagesync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/list": "/conversation/list HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/sync": "/conversation/sync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/messages": "/messages HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "edit": "transport: Post \"http://127.0.0.1:28126/message/update\": EOF",
+            "idempotency": "transport: Post \"http://127.0.0.1:28126/message/update\": EOF"
+          },
+          "writers": [
+            718,
+            710,
+            712
+          ],
+          "more_pages": 594
+        }
+      },
+      {
+        "name": "slot_leader_restored",
+        "started": "2026-09-15T02:52:02.668774Z",
+        "finished": "2026-09-15T02:52:49.827371Z",
+        "victim": 3,
+        "counts": {
+          "success": {
+            "/channel/messagesync": 1170,
+            "/conversation/list": 1168,
+            "/conversation/sync": 945,
+            "/messages": 256,
+            "delta": 906,
+            "edit": 2575,
+            "idempotency": 864
+          },
+          "temporary": {
+            "/channel/messagesync": 52,
+            "/conversation/list": 54,
+            "/conversation/sync": 59,
+            "/messages": 58,
+            "delta": 56,
+            "edit": 167,
+            "idempotency": 56
+          },
+          "first_error": {
+            "/channel/messagesync": "/channel/messagesync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/list": "/conversation/list HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/conversation/sync": "/conversation/sync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "/messages": "/messages HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+            "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+            "edit": "transport: Post \"http://127.0.0.1:28126/message/update\": EOF",
+            "idempotency": "transport: Post \"http://127.0.0.1:28126/message/update\": EOF"
+          },
+          "writers": [
+            864,
+            856,
+            855
+          ],
+          "more_pages": 720
+        }
+      }
+    ],
+    "final_versions": [
+      218,
+      216,
+      216,
+      218,
+      216,
+      216,
+      218,
+      216,
+      216,
+      218,
+      216,
+      215
+    ],
+    "complete": true,
+    "final_counts": {
+      "success": {
+        "/channel/messagesync": 1170,
+        "/conversation/list": 1168,
+        "/conversation/sync": 945,
+        "/messages": 256,
+        "delta": 906,
+        "edit": 2575,
+        "idempotency": 864
+      },
+      "temporary": {
+        "/channel/messagesync": 52,
+        "/conversation/list": 54,
+        "/conversation/sync": 59,
+        "/messages": 58,
+        "delta": 56,
+        "edit": 167,
+        "idempotency": 56
+      },
+      "first_error": {
+        "/channel/messagesync": "/channel/messagesync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+        "/conversation/list": "/conversation/list HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+        "/conversation/sync": "/conversation/sync HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+        "/messages": "/messages HTTP 503 {\"code\":\"unavailable\",\"msg\":\"temporarily unavailable\",\"status\":503}",
+        "delta": "/channel/messageupdates HTTP 503 {\"code\":\"unavailable\",\"status\":503}",
+        "edit": "transport: Post \"http://127.0.0.1:28126/message/update\": EOF",
+        "idempotency": "transport: Post \"http://127.0.0.1:28126/message/update\": EOF"
+      },
+      "writers": [
+        864,
+        856,
+        855
+      ],
+      "more_pages": 725
+    }
+  },
+  "sdk_first": {
+    "complete": true,
+    "started_at": "2026-09-15T02:57:55.506Z",
+    "node": "v22.12.0",
+    "platform": "darwin/arm64",
+    "logical_cpus": 10,
+    "binary_sha256": "b47105463afb2bed4d52c4006b333b6361e7ff47b99103a08787fdbe52bc43dc",
+    "sdk_bundle_sha256": "df3c2d8fa30d4113ac328f5b0969a1ea26445ed3622f535d33b184e61b784599",
+    "nodes": 3,
+    "hash_slots": 256,
+    "physical_slots": 8,
+    "replicas": 3,
+    "channels": 16,
+    "online_clients": 32,
+    "rounds_per_channel": 32,
+    "resources_before": [
+      {
+        "node": 1,
+        "rss_kib": 170272,
+        "cumulative_cpu": "0:03.77"
+      },
+      {
+        "node": 2,
+        "rss_kib": 166320,
+        "cumulative_cpu": "0:03.57"
+      },
+      {
+        "node": 3,
+        "rss_kib": 154016,
+        "cumulative_cpu": "0:03.54"
+      }
+    ],
+    "measured_seconds": 20.024667665999996,
+    "resources_after": [
+      {
+        "node": 1,
+        "rss_kib": 177360,
+        "cumulative_cpu": "0:05.53"
+      },
+      {
+        "node": 2,
+        "rss_kib": 177616,
+        "cumulative_cpu": "0:05.33"
+      },
+      {
+        "node": 3,
+        "rss_kib": 178048,
+        "cumulative_cpu": "0:05.37"
+      }
+    ],
+    "peak_rss_kib": [
+      {
+        "node": 1,
+        "rss_kib": 177360
+      },
+      {
+        "node": 2,
+        "rss_kib": 177616
+      },
+      {
+        "node": 3,
+        "rss_kib": 178048
+      }
+    ],
+    "bff_edit_roundtrip": {
+      "samples": 512,
+      "p50_ms": 84.51849999999831,
+      "p95_ms": 181.95491699999548,
+      "p99_ms": 263.6842499999984,
+      "max_ms": 288.42891699999745
+    },
+    "sdk_visible_latency": {
+      "samples": 512,
+      "p50_ms": 499.85320800000045,
+      "p95_ms": 753.4081670000014,
+      "p99_ms": 850.4911670000001,
+      "max_ms": 7899.941959000003
+    }
+  },
+  "sdk_repeat": {
+    "complete": true,
+    "started_at": "2026-09-15T03:06:47.772Z",
+    "node": "v22.12.0",
+    "platform": "darwin/arm64",
+    "logical_cpus": 10,
+    "binary_sha256": "b47105463afb2bed4d52c4006b333b6361e7ff47b99103a08787fdbe52bc43dc",
+    "sdk_bundle_sha256": "df3c2d8fa30d4113ac328f5b0969a1ea26445ed3622f535d33b184e61b784599",
+    "nodes": 3,
+    "hash_slots": 256,
+    "physical_slots": 8,
+    "replicas": 3,
+    "channels": 16,
+    "online_clients": 32,
+    "rounds_per_channel": 32,
+    "resources_before": [
+      {
+        "node": 1,
+        "rss_kib": 169840,
+        "cumulative_cpu": "0:03.75"
+      },
+      {
+        "node": 2,
+        "rss_kib": 165376,
+        "cumulative_cpu": "0:03.51"
+      },
+      {
+        "node": 3,
+        "rss_kib": 160480,
+        "cumulative_cpu": "0:03.46"
+      }
+    ],
+    "measured_seconds": 18.763156000000002,
+    "resources_after": [
+      {
+        "node": 1,
+        "rss_kib": 178416,
+        "cumulative_cpu": "0:05.47"
+      },
+      {
+        "node": 2,
+        "rss_kib": 178480,
+        "cumulative_cpu": "0:05.25"
+      },
+      {
+        "node": 3,
+        "rss_kib": 177760,
+        "cumulative_cpu": "0:05.20"
+      }
+    ],
+    "peak_rss_kib": [
+      {
+        "node": 1,
+        "rss_kib": 178416
+      },
+      {
+        "node": 2,
+        "rss_kib": 178480
+      },
+      {
+        "node": 3,
+        "rss_kib": 177760
+      }
+    ],
+    "bff_edit_roundtrip": {
+      "samples": 512,
+      "p50_ms": 87.95633399999497,
+      "p95_ms": 199.8510000000024,
+      "p99_ms": 254.27608299999702,
+      "max_ms": 309.0142080000005
+    },
+    "sdk_visible_latency": {
+      "samples": 512,
+      "p50_ms": 529.2430420000019,
+      "p95_ms": 775.049417000002,
+      "p99_ms": 912.1892920000028,
+      "max_ms": 1069.8948750000054
+    },
+    "slow_samples": []
+  },
+  "app_attempt1_unprofiled_failed_90s_budget": {
+    "after_healthy": {
+      "gc_cycles": 10,
+      "goroutines": 1058,
+      "heap_alloc_bytes": 248633072,
+      "heap_inuse_bytes": 258195456,
+      "total_alloc_bytes": 907049688
+    },
+    "before_healthy": {
+      "gc_cycles": 8,
+      "goroutines": 986,
+      "heap_alloc_bytes": 203129888,
+      "heap_inuse_bytes": 219185152,
+      "total_alloc_bytes": 595225512
+    },
+    "blocked_attempts": 19,
+    "complete": false,
+    "go": "go1.25.11",
+    "gomaxprocs": 6,
+    "hash_slots": 256,
+    "healthy_api": {
+      "max_ms": 418.372541,
+      "p50_ms": 215.536459,
+      "p95_ms": 303.645416,
+      "p99_ms": 339.547583,
+      "samples": 1024
+    },
+    "healthy_seconds": 16.337871292,
+    "logical_cpus": 10,
+    "minimum_overflowed_identities": 237,
+    "overflow_api": {
+      "max_ms": 458.070084,
+      "p50_ms": 380.66075,
+      "p95_ms": 424.664708,
+      "p99_ms": 439.681334,
+      "samples": 1280
+    },
+    "overflow_commit_seconds": 28.98252825,
+    "pending_before_release": 1280,
+    "physical_slots": 8,
+    "replicas": 3
+  },
+  "app_attempt2_profiled_full_group_setup_timeout": {
+    "after_healthy": {
+      "gc_cycles": 11,
+      "goroutines": 1059,
+      "heap_alloc_bytes": 217787976,
+      "heap_inuse_bytes": 239624192,
+      "total_alloc_bytes": 881179784
+    },
+    "after_overflow": {
+      "gc_cycles": 45,
+      "goroutines": 1101,
+      "heap_alloc_bytes": 385389064,
+      "heap_inuse_bytes": 394346496,
+      "total_alloc_bytes": 7881372320
+    },
+    "before_healthy": {
+      "gc_cycles": 8,
+      "goroutines": 987,
+      "heap_alloc_bytes": 321966760,
+      "heap_inuse_bytes": 326967296,
+      "total_alloc_bytes": 582578560
+    },
+    "blocked_attempts": 26,
+    "complete": false,
+    "dispatch_stats": [
+      {
+        "calls": 2416,
+        "dispatch_seconds": 118.174706028,
+        "failures": 9,
+        "node": 1
+      },
+      {
+        "calls": 27,
+        "dispatch_seconds": 4.402886208,
+        "failures": 0,
+        "node": 2
+      },
+      {
+        "calls": 45,
+        "dispatch_seconds": 7.319426673,
+        "failures": 0,
+        "node": 3
+      }
+    ],
+    "go": "go1.25.11",
+    "gomaxprocs": 6,
+    "hash_slots": 256,
+    "healthy_api": {
+      "max_ms": 403.046875,
+      "p50_ms": 215.445,
+      "p95_ms": 303.328917,
+      "p99_ms": 337.334833,
+      "samples": 1024
+    },
+    "healthy_seconds": 16.367329375,
+    "logical_cpus": 10,
+    "minimum_overflowed_identities": 230,
+    "overflow_api": {
+      "max_ms": 499.255791,
+      "p50_ms": 385.143208,
+      "p95_ms": 454.563334,
+      "p99_ms": 473.259792,
+      "samples": 1280
+    },
+    "overflow_backlog": [
+      {
+        "pending": 1280,
+        "seconds": 0.003921125
+      },
+      {
+        "pending": 1262,
+        "seconds": 5.066758917
+      },
+      {
+        "pending": 1221,
+        "seconds": 10.146175875
+      },
+      {
+        "pending": 1156,
+        "seconds": 15.376079375
+      },
+      {
+        "pending": 1090,
+        "seconds": 20.432200084
+      },
+      {
+        "pending": 1023,
+        "seconds": 25.663799209
+      },
+      {
+        "pending": 957,
+        "seconds": 30.718952875
+      },
+      {
+        "pending": 891,
+        "seconds": 35.814253084
+      },
+      {
+        "pending": 826,
+        "seconds": 40.923418542
+      },
+      {
+        "pending": 758,
+        "seconds": 46.190192334
+      },
+      {
+        "pending": 692,
+        "seconds": 51.450297084
+      },
+      {
+        "pending": 625,
+        "seconds": 56.570126709
+      },
+      {
+        "pending": 558,
+        "seconds": 61.8609895
+      },
+      {
+        "pending": 491,
+        "seconds": 66.906258834
+      },
+      {
+        "pending": 427,
+        "seconds": 72.076897584
+      },
+      {
+        "pending": 360,
+        "seconds": 77.096865334
+      },
+      {
+        "pending": 292,
+        "seconds": 82.394930375
+      },
+      {
+        "pending": 225,
+        "seconds": 87.523037875
+      },
+      {
+        "pending": 160,
+        "seconds": 92.741165834
+      },
+      {
+        "pending": 93,
+        "seconds": 97.915445334
+      },
+      {
+        "pending": 27,
+        "seconds": 103.062616459
+      },
+      {
+        "pending": 0,
+        "seconds": 105.186673792
+      }
+    ],
+    "overflow_commit_seconds": 29.040397125,
+    "overflow_drain_seconds": 105.190434667,
+    "overflow_within_90s": false,
+    "pending_before_release": 1280,
+    "physical_slots": 8,
+    "replicas": 3
+  },
+  "app_final_unprofiled_subscriber_fanout_fixture": {
+    "after_healthy": {
+      "gc_cycles": 10,
+      "goroutines": 1056,
+      "heap_alloc_bytes": 237219632,
+      "heap_inuse_bytes": 250019840,
+      "total_alloc_bytes": 897484744
+    },
+    "after_large": {
+      "gc_cycles": 73,
+      "goroutines": 1117,
+      "heap_alloc_bytes": 231512320,
+      "heap_inuse_bytes": 271425536,
+      "total_alloc_bytes": 13752704208
+    },
+    "after_overflow": {
+      "gc_cycles": 47,
+      "goroutines": 1099,
+      "heap_alloc_bytes": 203097008,
+      "heap_inuse_bytes": 233267200,
+      "total_alloc_bytes": 8335305032
+    },
+    "before_healthy": {
+      "gc_cycles": 8,
+      "goroutines": 986,
+      "heap_alloc_bytes": 196344136,
+      "heap_inuse_bytes": 214720512,
+      "total_alloc_bytes": 590748752
+    },
+    "blocked_attempts": 17,
+    "complete": true,
+    "dispatch_stats": [
+      {
+        "calls": 2448,
+        "dispatch_seconds": 117.223490289,
+        "failures": 9,
+        "node": 1
+      },
+      {
+        "calls": 30,
+        "dispatch_seconds": 4.351416711,
+        "failures": 0,
+        "node": 2
+      },
+      {
+        "calls": 851,
+        "dispatch_seconds": 149.495324471,
+        "failures": 34,
+        "node": 3
+      }
+    ],
+    "fairness_all_small_done_ms": 2069.516417,
+    "fairness_small_api": {
+      "max_ms": 157.181459,
+      "p50_ms": 109.306583,
+      "p95_ms": 157.181459,
+      "p99_ms": 157.181459,
+      "samples": 16
+    },
+    "go": "go1.25.11",
+    "gomaxprocs": 6,
+    "hash_slots": 256,
+    "healthy_api": {
+      "max_ms": 387.518625,
+      "p50_ms": 206.489834,
+      "p95_ms": 294.564584,
+      "p99_ms": 334.513542,
+      "samples": 1024
+    },
+    "healthy_seconds": 16.02440625,
+    "large_complete_ms": 144752.051083,
+    "large_incomplete_dispatch_calls": 777,
+    "large_members": 100000,
+    "large_pending_when_small_done": 1,
+    "logical_cpus": 10,
+    "minimum_overflowed_identities": 239,
+    "online_clients": 0,
+    "overflow_api": {
+      "max_ms": 448.988583,
+      "p50_ms": 380.425291,
+      "p95_ms": 423.001375,
+      "p99_ms": 435.979709,
+      "samples": 1280
+    },
+    "overflow_backlog": [
+      {
+        "pending": 1280,
+        "seconds": 0.003740792
+      },
+      {
+        "pending": 1223,
+        "seconds": 5.226690042
+      },
+      {
+        "pending": 1154,
+        "seconds": 10.426165292
+      },
+      {
+        "pending": 1088,
+        "seconds": 15.576359125
+      },
+      {
+        "pending": 1021,
+        "seconds": 20.625219875
+      },
+      {
+        "pending": 953,
+        "seconds": 25.62606475
+      },
+      {
+        "pending": 885,
+        "seconds": 30.884054833
+      },
+      {
+        "pending": 817,
+        "seconds": 35.965658125
+      },
+      {
+        "pending": 749,
+        "seconds": 41.197000833
+      },
+      {
+        "pending": 683,
+        "seconds": 46.425571375
+      },
+      {
+        "pending": 614,
+        "seconds": 51.498508958
+      },
+      {
+        "pending": 548,
+        "seconds": 56.71788925
+      },
+      {
+        "pending": 481,
+        "seconds": 61.730011625
+      },
+      {
+        "pending": 415,
+        "seconds": 66.969887167
+      },
+      {
+        "pending": 347,
+        "seconds": 72.227520667
+      },
+      {
+        "pending": 279,
+        "seconds": 77.384665375
+      },
+      {
+        "pending": 213,
+        "seconds": 82.563955875
+      },
+      {
+        "pending": 148,
+        "seconds": 87.605754958
+      },
+      {
+        "pending": 84,
+        "seconds": 92.632601917
+      },
+      {
+        "pending": 21,
+        "seconds": 97.695841083
+      },
+      {
+        "pending": 0,
+        "seconds": 99.370325042
+      }
+    ],
+    "overflow_commit_seconds": 28.639928542,
+    "overflow_drain_seconds": 99.373002083,
+    "overflow_within_90s": false,
+    "pending_before_release": 1280,
+    "physical_slots": 8,
+    "replicas": 3,
+    "subscriber_seed_mode": "HTTP author membership plus authority-routed counted subscriber batches; offline recipient UID memberships omitted",
+    "subscriber_seed_seconds": 8.948969334000001
+  },
+  "profile_sha256": "ec61bc18df960c4f3c573e538a3021bf388c3748a8071ee5178ca2b2f5b1a3d4",
+  "profile_scope": "whole app fixture including failed full membership setup; no isolation of dispatch I/O waits",
+  "cpu_profile_top": "File: app-pressure.test\nType: cpu\nTime: 2026-09-15 11:00:12 CST\nDuration: 360.85s, Total samples = 137.26s (38.04%)\nShowing nodes accounting for 126.12s, 91.88% of 137.26s total\nDropped 1403 nodes (cum <= 0.69s)\nShowing top 20 nodes out of 148\n      flat  flat%   sum%        cum   cum%\n    48.85s 35.59% 35.59%     48.86s 35.60%  syscall.syscall\n    36.33s 26.47% 62.06%     36.33s 26.47%  runtime.kevent\n    12.21s  8.90% 70.95%     12.21s  8.90%  runtime.fcntl\n     9.87s  7.19% 78.14%      9.88s  7.20%  syscall.syscallX\n     9.24s  6.73% 84.88%      9.25s  6.74%  runtime.pthread_cond_wait\n     5.96s  4.34% 89.22%      5.96s  4.34%  runtime.pthread_cond_signal\n     1.11s  0.81% 90.03%      1.11s  0.81%  runtime.usleep\n     0.43s  0.31% 90.34%      0.80s  0.58%  runtime.mapaccess1_fast32\n     0.37s  0.27% 90.61%      1.13s  0.82%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Skiplist).findSpliceForLevel\n     0.37s  0.27% 90.88%      0.86s  0.63%  runtime.selectgo\n     0.34s  0.25% 91.13%      0.75s  0.55%  runtime.scanobject\n     0.31s  0.23% 91.35%      0.76s  0.55%  github.com/WuKongIM/WuKongIM/pkg/channel/reactor.(*Mailbox).WaitOne\n     0.22s  0.16% 91.51%      1.84s  1.34%  github.com/WuKongIM/WuKongIM/pkg/channel/reactor.(*Reactor).loop\n     0.19s  0.14% 91.65%      1.34s  0.98%  github.com/WuKongIM/WuKongIM/pkg/cluster.(*Node).routeAuthorityChangesForPublish\n     0.12s 0.087% 91.74%      1.20s  0.87%  github.com/cockroachdb/pebble/v2.(*DB).getInternal\n     0.07s 0.051% 91.79%      1.58s  1.15%  runtime.mallocgc\n     0.04s 0.029% 91.82%      0.85s  0.62%  github.com/cockroachdb/pebble/v2.(*getIter).Next\n     0.03s 0.022% 91.84%      1.19s  0.87%  github.com/WuKongIM/WuKongIM/pkg/db/meta.(*ShardStore).ReadMessageUpdates\n     0.03s 0.022% 91.86%      1.03s  0.75%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Iterator).seekForBaseSplice\n     0.03s 0.022% 91.88%     49.19s 35.84%  runtime.schedule\n",
+  "cpu_profile_dispatch_focus": "File: app-pressure.test\nType: cpu\nTime: 2026-09-15 11:00:12 CST\nDuration: 360.85s, Total samples = 137.26s (38.04%)\nActive filters:\n   focus=DispatchMessageUpdate\nShowing nodes accounting for 0.08s, 0.058% of 137.26s total\nShowing top 8 nodes out of 75\n      flat  flat%   sum%        cum   cum%\n     0.01s 0.0073% 0.0073%      0.02s 0.015%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*MessageUpdateStore).GetChannelRuntimeMeta\n     0.01s 0.0073% 0.015%      0.01s 0.0073%  github.com/WuKongIM/WuKongIM/internal/infra/cluster.(*PresenceAuthorityClient).EndpointsByUID.func1\n     0.01s 0.0073% 0.022%      0.01s 0.0073%  github.com/WuKongIM/WuKongIM/pkg/cluster.defaultSlotProposer.propose\n     0.01s 0.0073% 0.029%      0.02s 0.015%  github.com/WuKongIM/WuKongIM/pkg/cluster/propose.(*Service).proposeToLeaderInternal\n     0.01s 0.0073% 0.036%      0.01s 0.0073%  github.com/WuKongIM/WuKongIM/pkg/db/internal/rowcodec.(*Scanner).Next\n     0.01s 0.0073% 0.044%      0.01s 0.0073%  github.com/cockroachdb/pebble/v2/internal/arenaskl.(*Skiplist).findSpliceForLevel\n     0.01s 0.0073% 0.051%      0.01s 0.0073%  internal/sync.(*entry[go.shape.interface {},go.shape.interface {}]).lookup\n     0.01s 0.0073% 0.058%      0.01s 0.0073%  strconv.ParseInt\n",
+  "app_final_resource_output": "345.39 real        60.36 user        66.28 sys\n           678690816  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n               41797  page reclaims\n                 507  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n              760502  messages sent\n             1603880  messages received\n               52945  signals received\n             1253076  voluntary context switches\n             9204824  involuntary context switches\n        521095853551  instructions retired\n        283142771647  cycles elapsed\n           575177928  peak memory footprint"
+}

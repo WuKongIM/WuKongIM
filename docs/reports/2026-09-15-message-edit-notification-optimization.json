@@ -1,0 +1,1271 @@
+{
+  "base_commit": "08b5e72fa972b678bfb97cf27e0dbaa55c467b0e",
+  "baseline_server_commit": "111bdee669e402f2c6dd0c285fbea315ea77007d",
+  "sdk_commit": "a038f874230a6fe5201c2faae61b6f2b20cb9ebc",
+  "benchmark_source": {
+    "base_commit": "08b5e72fa972b678bfb97cf27e0dbaa55c467b0e",
+    "source_sha256": {
+      "internal/infra/cluster/presence.go": "13f83be1a255184af6be9a9b244c482e201f8be23ccf0e0ee24bff8011fc8f9a",
+      "internal/runtime/messageupdates/ready.go": "442e2b0538ed4d016fdb4c2ceb0c65911f4a8ba4d15fec5f28a4b5a2e9de8ce2",
+      "internal/runtime/messageupdates/worker.go": "20e41848b0f42bfba85c690bcf8d87ba861e3c6e4c3b255e113757beaaa8aefc",
+      "internal/app/message_update_pressure_integration_test.go": "2078b2414eb40804886601629a0c427162b3d1835267fcde9b77b4a47bbd5a0a",
+      "internal/app/message_update_stages_integration_test.go": "34069c59cc982c6a03770ec46fe3d40918ce35e1432a3fd2125df3bc149c1ac7",
+      "internal/infra/cluster/presence_uid_batch_test.go": "17bc77c218c2f8862d0f7fe043aab22f4693c74302b80a04393df354d247d2e3",
+      "internal/runtime/messageupdates/ready_integration_test.go": "b2e8de744616f2bac1177122bc4017dc44118eb723b43554029448b52a1e16b9",
+      "internal/runtime/messageupdates/ready_test.go": "23be623f25770484d365b9804c3562aa35995e7d7cfeefdaf583064f91fbc62d",
+      "internal/runtime/messageupdates/worker_test.go": "940e636b7bf8941b448c265394980d703f213eb076345e666545ed5ea3c73acc",
+      "docs/reports/assets/message-edit-sdk-pressure.cjs": "6c4ba75b5cba7e8874a345a45d3b0c369f8007ccaad2e4671b50b0905ca1afc2"
+    },
+    "artifacts_sha256": {
+      "wukongim-optimized": "9444f38cdb5718928abc4fea14e477583d85d294ad285f7c907af82542a11ca0",
+      "app-pressure-final.test": "a2d54a44481c50b146b5afde71497da794e28c6d269862b4ea794a8cea29cdbc"
+    },
+    "initial_sdk_driver_sha256": "50fb7107fd0d56a0f9477c2376164fdb69978ae8107156eee55d9582bccf5ae8"
+  },
+  "frozen_context": {
+    "source_revision": "08b5e72fa972b678bfb97cf27e0dbaa55c467b0e",
+    "sha256": {
+      "AGENTS.md": "c6eae7244b1c660be4b2a62cbdc1efa5c26c35e34972e994df7e6ae073fc9d0b",
+      "internal/app/FLOW.md": "48ff55407a390faddb54f8581c4747e7c781e849221fa066f58a3598361c65d8",
+      "internal/runtime/messageupdates/FLOW.md": "2f80c8b1da5761e7d0d9b37984b43a849186b26b1d389af2cbe5406936d4ee1e",
+      "internal/usecase/message/FLOW.md": "6257d7e2b75f75019d8a3da71ea29670b33935c624fef8f377aa26d67f5a187c",
+      "internal/infra/cluster/FLOW.md": "b84b328bca917aaf3bf6692856de723c3345c3e5bdad41883ed7681fb62dc97f",
+      "internal/infra/delivery/FLOW.md": "10ab203307dd4c7db19dbffa063c0db7620b4cce9b37a9580e5cdb50a0c204be",
+      "internal/usecase/presence/FLOW.md": "aab89d6a9ebf83940b575c99522bd169413276810c59f2214cdd288c8560a1b2",
+      "pkg/cluster/FLOW.md": "d77dee2dbbae3bdf899297111a00c5b0ec1709ad407c34ab6d8c47bd26f2d16d",
+      "pkg/slot/FLOW.md": "c330d150387c06b443959f3c0ee7bb4b2ba7ede03a9bbb6f99fbc82ecf1a446d",
+      "pkg/db/meta/FLOW.md": "7b7710f75a136c10136b000041dad1886a46843ffdf3a1ebe33e49e76c66b06c",
+      "test/e2e/AGENTS.md": "59bb62e0ce12e7b25324108976cfbf5fe3a939a5ff1c93d09e2a8050e7be79b2",
+      "test/e2e/message/AGENTS.md": "57a6347ce79e5ac198683f788e63721a88d2e712efb4fd509336309b6922a203",
+      "test/e2e/message/message_updates/AGENTS.md": "909b9af4ada64dfe4334ae88009f225ef4ebdd1e203bb6d42a607875aa553597",
+      "pkg/goroutine/FLOW.md": "15ce065753c6b229c0775a9e7a3a941f6ff821e7625461bc689cb72e694ed034"
+    }
+  },
+  "delivery_source_sha256": {
+    "CHANGELOG.md": "c9053164695aedcc1eede555a6a90a8ca3595dd0b3ca0d599149e3166cb46de7",
+    "docs/development/FLOW_INDEX.md": "254d0ba6e87a3f7b7947cecea139a9e4df2d2129c8ddc4b1369a3fdd7e9bef24",
+    "docs/development/PROJECT_KNOWLEDGE.md": "7654b2899d0dd690e8bbcd5db30dfea2c73566e68ee07c81a68e3e4ac9217388",
+    "docs/reports/assets/message-edit-sdk-pressure.cjs": "9ca56df7def3338a67ea8c1653bb0a42597f17876b2a324ced7056021c567b40",
+    "internal/infra/cluster/FLOW.md": "44ca466e7fd926d47d24eb24e1d368ccbce4dc20517fbea79f4dea863e92e62f",
+    "internal/infra/cluster/presence.go": "13f83be1a255184af6be9a9b244c482e201f8be23ccf0e0ee24bff8011fc8f9a",
+    "internal/infra/cluster/presence_test.go": "2cb0237d2b1b29ddd8d5fbdc0bb97981e7756c3f7214689b6e0f47209c483ad1",
+    "internal/runtime/messageupdates/FLOW.md": "b85b50afebfed6a2df14337bc2e6ee0c3fde00d65d11c7623e39aafb4ac31c98",
+    "internal/runtime/messageupdates/ready.go": "02487433f8f35837bd7c5abebda30936dd62aa1b9345afb0241389017daa66ce",
+    "internal/runtime/messageupdates/ready_integration_test.go": "1fd436ef1d5e575634a503bbb77fbdc8b87f6c26a9783ea6a80049e34392095d",
+    "internal/runtime/messageupdates/ready_test.go": "23be623f25770484d365b9804c3562aa35995e7d7cfeefdaf583064f91fbc62d",
+    "internal/runtime/messageupdates/worker.go": "f0c880ce729cf7efa2213a5dd1ef61be0afc0ed3418cb844c025f21744c7ba38",
+    "internal/runtime/messageupdates/worker_test.go": "940e636b7bf8941b448c265394980d703f213eb076345e666545ed5ea3c73acc",
+    "pkg/goroutine/FLOW.md": "5f0a454e44782554d37b6f8ed9cba1eb1662d7a1ba482320cfb9f9f975d5e36e",
+    "pkg/goroutine/catalog.go": "3757cee82d3bd914148732a7139980d5145f608ad03e423508824b6db251bc95",
+    "internal/app/message_update_stages_integration_test.go": "34069c59cc982c6a03770ec46fe3d40918ce35e1432a3fd2125df3bc149c1ac7",
+    "internal/infra/cluster/presence_uid_batch_test.go": "17bc77c218c2f8862d0f7fe043aab22f4693c74302b80a04393df354d247d2e3"
+  },
+  "delivery_binary_sha256": "06e0cb758376de28c2e8e94175666fc0a9f2e98637fea026d692630ad425a299",
+  "receipts": {
+    "stages-baseline": {
+      "messages": 33,
+      "pending_read": {
+        "count": 41,
+        "mean_ms": 5.4590801463414635,
+        "total_ms": 223.822286
+      },
+      "presence_and_hint": {
+        "count": 41,
+        "mean_ms": 19.23112412195122,
+        "total_ms": 788.476089
+      },
+      "progress_commit": {
+        "count": 41,
+        "mean_ms": 69.74350509756098,
+        "total_ms": 2859.483709
+      },
+      "runtime_read": {
+        "count": 41,
+        "mean_ms": 0.4439165853658536,
+        "total_ms": 18.20058
+      },
+      "seconds": 3.893754625,
+      "subscribers": {
+        "count": 9,
+        "mean_ms": 0.35418055555555555,
+        "total_ms": 3.187625
+      }
+    },
+    "stages-batched": {
+      "messages": 33,
+      "pending_read": {
+        "count": 41,
+        "mean_ms": 5.744770292682927,
+        "total_ms": 235.535582
+      },
+      "presence_and_hint": {
+        "count": 41,
+        "mean_ms": 0.7088160243902439,
+        "total_ms": 29.061457
+      },
+      "progress_commit": {
+        "count": 41,
+        "mean_ms": 67.17387185365854,
+        "total_ms": 2754.128746
+      },
+      "runtime_read": {
+        "count": 41,
+        "mean_ms": 0.4522011463414634,
+        "total_ms": 18.540247
+      },
+      "seconds": 3.041942375,
+      "subscribers": {
+        "count": 9,
+        "mean_ms": 0.4738752222222222,
+        "total_ms": 4.264877
+      }
+    },
+    "pressure-optimized": {
+      "after_healthy": {
+        "gc_cycles": 10,
+        "goroutines": 1062,
+        "heap_alloc_bytes": 255780824,
+        "heap_inuse_bytes": 264306688,
+        "total_alloc_bytes": 894945312
+      },
+      "after_large": {
+        "gc_cycles": 39,
+        "goroutines": 1104,
+        "heap_alloc_bytes": 343181376,
+        "heap_inuse_bytes": 355606528,
+        "total_alloc_bytes": 6751222112
+      },
+      "after_overflow": {
+        "gc_cycles": 32,
+        "goroutines": 1089,
+        "heap_alloc_bytes": 259694544,
+        "heap_inuse_bytes": 274153472,
+        "total_alloc_bytes": 5242900544
+      },
+      "before_healthy": {
+        "gc_cycles": 8,
+        "goroutines": 986,
+        "heap_alloc_bytes": 209890848,
+        "heap_inuse_bytes": 223813632,
+        "total_alloc_bytes": 582831072
+      },
+      "blocked_attempts": 27,
+      "complete": true,
+      "dispatch_stats": [
+        {
+          "calls": 2570,
+          "dispatch_seconds": 142.401060947,
+          "failures": 1,
+          "node": 1
+        },
+        {
+          "calls": 32,
+          "dispatch_seconds": 4.721227583,
+          "failures": 0,
+          "node": 2
+        },
+        {
+          "calls": 839,
+          "dispatch_seconds": 80.836656369,
+          "failures": 3,
+          "node": 3
+        }
+      ],
+      "fairness_all_small_done_ms": 1303.922291,
+      "fairness_small_api": {
+        "max_ms": 225.258083,
+        "p50_ms": 129.591542,
+        "p95_ms": 225.258083,
+        "p99_ms": 225.258083,
+        "samples": 16
+      },
+      "go": "go1.25.11",
+      "gomaxprocs": 6,
+      "hash_slots": 256,
+      "healthy_api": {
+        "max_ms": 420.090125,
+        "p50_ms": 213.287166,
+        "p95_ms": 304.013916,
+        "p99_ms": 366.005542,
+        "samples": 1024
+      },
+      "healthy_seconds": 16.381418916,
+      "large_complete_ms": 71899.378708,
+      "large_incomplete_dispatch_calls": 791,
+      "large_members": 100000,
+      "large_pending_when_small_done": 1,
+      "logical_cpus": 10,
+      "minimum_overflowed_identities": 229,
+      "online_clients": 0,
+      "overflow_api": {
+        "max_ms": 478.210333,
+        "p50_ms": 395.889333,
+        "p95_ms": 433.162042,
+        "p99_ms": 451.950292,
+        "samples": 1280
+      },
+      "overflow_backlog": [
+        {
+          "pending": 1280,
+          "seconds": 0.003949083
+        },
+        {
+          "pending": 1214,
+          "seconds": 5.038141458
+        },
+        {
+          "pending": 1147,
+          "seconds": 10.172439833
+        },
+        {
+          "pending": 1083,
+          "seconds": 15.185556958
+        },
+        {
+          "pending": 1018,
+          "seconds": 20.227803
+        },
+        {
+          "pending": 950,
+          "seconds": 25.513860041
+        },
+        {
+          "pending": 884,
+          "seconds": 30.597505333
+        },
+        {
+          "pending": 816,
+          "seconds": 35.813636875
+        },
+        {
+          "pending": 749,
+          "seconds": 41.095993
+        },
+        {
+          "pending": 685,
+          "seconds": 46.26549925
+        },
+        {
+          "pending": 618,
+          "seconds": 51.390570208
+        },
+        {
+          "pending": 550,
+          "seconds": 56.552098625
+        },
+        {
+          "pending": 484,
+          "seconds": 61.698500583
+        },
+        {
+          "pending": 419,
+          "seconds": 66.843206125
+        },
+        {
+          "pending": 353,
+          "seconds": 71.874772291
+        },
+        {
+          "pending": 284,
+          "seconds": 77.093449666
+        },
+        {
+          "pending": 220,
+          "seconds": 82.11666325
+        },
+        {
+          "pending": 153,
+          "seconds": 87.164521166
+        },
+        {
+          "pending": 85,
+          "seconds": 92.378733416
+        },
+        {
+          "pending": 16,
+          "seconds": 97.684671833
+        },
+        {
+          "pending": 0,
+          "seconds": 98.959040875
+        }
+      ],
+      "overflow_commit_seconds": 29.979635708,
+      "overflow_drain_seconds": 98.962311,
+      "overflow_within_90s": false,
+      "pending_before_release": 1280,
+      "physical_slots": 8,
+      "replicas": 3,
+      "subscriber_seed_mode": "HTTP author membership plus authority-routed counted subscriber batches; offline recipient UID memberships omitted",
+      "subscriber_seed_seconds": 9.167525917
+    },
+    "pressure-final": {
+      "after_healthy": {
+        "gc_cycles": 10,
+        "goroutines": 1060,
+        "heap_alloc_bytes": 234000792,
+        "heap_inuse_bytes": 247693312,
+        "total_alloc_bytes": 894333704
+      },
+      "after_large": {
+        "gc_cycles": 42,
+        "goroutines": 1105,
+        "heap_alloc_bytes": 319896544,
+        "heap_inuse_bytes": 336732160,
+        "total_alloc_bytes": 7525935200
+      },
+      "after_overflow": {
+        "gc_cycles": 35,
+        "goroutines": 1090,
+        "heap_alloc_bytes": 232242688,
+        "heap_inuse_bytes": 251674624,
+        "total_alloc_bytes": 6012741584
+      },
+      "before_healthy": {
+        "gc_cycles": 7,
+        "goroutines": 986,
+        "heap_alloc_bytes": 320738384,
+        "heap_inuse_bytes": 325574656,
+        "total_alloc_bytes": 579146992
+      },
+      "blocked_attempts": 89,
+      "complete": true,
+      "dispatch_stats": [
+        {
+          "calls": 2531,
+          "dispatch_seconds": 169.373607709,
+          "failures": 1,
+          "node": 1
+        },
+        {
+          "calls": 28,
+          "dispatch_seconds": 3.994747585,
+          "failures": 0,
+          "node": 2
+        },
+        {
+          "calls": 829,
+          "dispatch_seconds": 69.900892238,
+          "failures": 0,
+          "node": 3
+        }
+      ],
+      "fairness_all_small_done_ms": 1275.01075,
+      "fairness_small_api": {
+        "max_ms": 213.3695,
+        "p50_ms": 125.352333,
+        "p95_ms": 213.3695,
+        "p99_ms": 213.3695,
+        "samples": 16
+      },
+      "go": "go1.25.11",
+      "gomaxprocs": 6,
+      "hash_slots": 256,
+      "healthy_api": {
+        "max_ms": 422.460208,
+        "p50_ms": 215.853125,
+        "p95_ms": 312.902583,
+        "p99_ms": 348.959666,
+        "samples": 1024
+      },
+      "healthy_seconds": 16.641252791,
+      "large_complete_ms": 61985.551958,
+      "large_incomplete_dispatch_calls": 792,
+      "large_members": 100000,
+      "large_pending_when_small_done": 1,
+      "logical_cpus": 10,
+      "minimum_overflowed_identities": 167,
+      "online_clients": 0,
+      "overflow_api": {
+        "max_ms": 468.21225,
+        "p50_ms": 388.4975,
+        "p95_ms": 428.201875,
+        "p99_ms": 440.777792,
+        "samples": 1280
+      },
+      "overflow_backlog": [
+        {
+          "pending": 1280,
+          "seconds": 0.002938625
+        },
+        {
+          "pending": 1240,
+          "seconds": 5.312377375
+        },
+        {
+          "pending": 1056,
+          "seconds": 10.424526292
+        },
+        {
+          "pending": 872,
+          "seconds": 15.497039625
+        },
+        {
+          "pending": 676,
+          "seconds": 20.800118
+        },
+        {
+          "pending": 488,
+          "seconds": 26.024806542
+        },
+        {
+          "pending": 292,
+          "seconds": 31.449795834
+        },
+        {
+          "pending": 96,
+          "seconds": 36.662408375
+        },
+        {
+          "pending": 0,
+          "seconds": 39.508890375
+        }
+      ],
+      "overflow_commit_seconds": 29.305392167,
+      "overflow_drain_seconds": 39.509714334,
+      "overflow_within_90s": true,
+      "pending_before_release": 1280,
+      "physical_slots": 8,
+      "replicas": 3,
+      "subscriber_seed_mode": "HTTP author membership plus authority-routed counted subscriber batches; offline recipient UID memberships omitted",
+      "subscriber_seed_seconds": 9.251050125
+    },
+    "sdk-optimized": {
+      "complete": true,
+      "started_at": "2026-09-15T03:46:39.587Z",
+      "node": "v22.12.0",
+      "platform": "darwin/arm64",
+      "logical_cpus": 10,
+      "binary_sha256": "9444f38cdb5718928abc4fea14e477583d85d294ad285f7c907af82542a11ca0",
+      "sdk_bundle_sha256": "df3c2d8fa30d4113ac328f5b0969a1ea26445ed3622f535d33b184e61b784599",
+      "nodes": 3,
+      "hash_slots": 256,
+      "physical_slots": 8,
+      "replicas": 3,
+      "channels": 16,
+      "online_clients": 32,
+      "rounds_per_channel": 32,
+      "resources_before": [
+        {
+          "node": 1,
+          "rss_kib": 169632,
+          "cumulative_cpu": "0:03.86"
+        },
+        {
+          "node": 2,
+          "rss_kib": 155216,
+          "cumulative_cpu": "0:03.70"
+        },
+        {
+          "node": 3,
+          "rss_kib": 150768,
+          "cumulative_cpu": "0:03.54"
+        }
+      ],
+      "measured_seconds": 15.241354875000004,
+      "resources_after": [
+        {
+          "node": 1,
+          "rss_kib": 179792,
+          "cumulative_cpu": "0:05.41"
+        },
+        {
+          "node": 2,
+          "rss_kib": 180000,
+          "cumulative_cpu": "0:05.29"
+        },
+        {
+          "node": 3,
+          "rss_kib": 179280,
+          "cumulative_cpu": "0:05.15"
+        }
+      ],
+      "peak_rss_kib": [
+        {
+          "node": 1,
+          "rss_kib": 179792
+        },
+        {
+          "node": 2,
+          "rss_kib": 180000
+        },
+        {
+          "node": 3,
+          "rss_kib": 179280
+        }
+      ],
+      "bff_edit_roundtrip": {
+        "samples": 512,
+        "p50_ms": 139.7623750000057,
+        "p95_ms": 270.14920800000255,
+        "p99_ms": 393.2699169999978,
+        "max_ms": 505.6203749999986
+      },
+      "sdk_visible_latency": {
+        "samples": 512,
+        "p50_ms": 429.2517080000034,
+        "p95_ms": 656.4770830000052,
+        "p99_ms": 759.437125000004,
+        "max_ms": 1047.0494160000017
+      },
+      "slow_samples": []
+    },
+    "sdk-optimized-repeat": {
+      "complete": false,
+      "started_at": "2026-09-15T03:48:16.299Z",
+      "node": "v22.12.0",
+      "platform": "darwin/arm64",
+      "logical_cpus": 10,
+      "binary_sha256": "9444f38cdb5718928abc4fea14e477583d85d294ad285f7c907af82542a11ca0",
+      "sdk_bundle_sha256": "df3c2d8fa30d4113ac328f5b0969a1ea26445ed3622f535d33b184e61b784599",
+      "nodes": 3,
+      "hash_slots": 256,
+      "physical_slots": 8,
+      "replicas": 3,
+      "channels": 16,
+      "online_clients": 32,
+      "rounds_per_channel": 32,
+      "resources_before": [
+        {
+          "node": 1,
+          "rss_kib": 170256,
+          "cumulative_cpu": "0:03.25"
+        },
+        {
+          "node": 2,
+          "rss_kib": 171424,
+          "cumulative_cpu": "0:03.07"
+        },
+        {
+          "node": 3,
+          "rss_kib": 168800,
+          "cumulative_cpu": "0:03.09"
+        }
+      ],
+      "error": "MessageUpdateError: content_epoch_conflict\n    at new MessageUpdateError (evalmachine.<anonymous>:17956:32)\n    at MessageUpdateManager.<anonymous> (evalmachine.<anonymous>:18702:39)\n    at step (evalmachine.<anonymous>:70:27)\n    at Object.next (evalmachine.<anonymous>:51:57)\n    at evalmachine.<anonymous>:44:75\n    at new Promise (<anonymous>)\n    at __awaiter (evalmachine.<anonymous>:40:16)\n    at MessageUpdateManager.updateMessage (evalmachine.<anonymous>:18649:20)\n    at ChatManager.updateMessage (evalmachine.<anonymous>:16749:58)\n    at /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/message-edit-pressure/docs/reports/assets/message-edit-sdk-pressure.cjs:96:74"
+    },
+    "sdk-baseline-paced-probe": {
+      "complete": true,
+      "started_at": "2026-09-15T03:51:41.980Z",
+      "node": "v22.12.0",
+      "platform": "darwin/arm64",
+      "logical_cpus": 10,
+      "binary_sha256": "b47105463afb2bed4d52c4006b333b6361e7ff47b99103a08787fdbe52bc43dc",
+      "sdk_bundle_sha256": "df3c2d8fa30d4113ac328f5b0969a1ea26445ed3622f535d33b184e61b784599",
+      "nodes": 3,
+      "hash_slots": 256,
+      "physical_slots": 8,
+      "replicas": 3,
+      "channels": 16,
+      "online_clients": 32,
+      "rounds_per_channel": 32,
+      "closed_loop_min_interval_ms": 1000,
+      "resources_before": [
+        {
+          "node": 1,
+          "rss_kib": 166800,
+          "cumulative_cpu": "0:03.56"
+        },
+        {
+          "node": 2,
+          "rss_kib": 170384,
+          "cumulative_cpu": "0:03.42"
+        },
+        {
+          "node": 3,
+          "rss_kib": 154752,
+          "cumulative_cpu": "0:03.37"
+        }
+      ],
+      "measured_seconds": 31.621847500000012,
+      "resources_after": [
+        {
+          "node": 1,
+          "rss_kib": 178400,
+          "cumulative_cpu": "0:06.28"
+        },
+        {
+          "node": 2,
+          "rss_kib": 183664,
+          "cumulative_cpu": "0:06.12"
+        },
+        {
+          "node": 3,
+          "rss_kib": 177792,
+          "cumulative_cpu": "0:06.09"
+        }
+      ],
+      "peak_rss_kib": [
+        {
+          "node": 1,
+          "rss_kib": 178400
+        },
+        {
+          "node": 2,
+          "rss_kib": 183664
+        },
+        {
+          "node": 3,
+          "rss_kib": 177792
+        }
+      ],
+      "bff_edit_roundtrip": {
+        "samples": 512,
+        "p50_ms": 129.6007499999978,
+        "p95_ms": 232.95970900000248,
+        "p99_ms": 258.5963330000013,
+        "max_ms": 267.1934590000019
+      },
+      "sdk_visible_latency": {
+        "samples": 512,
+        "p50_ms": 418.7364170000001,
+        "p95_ms": 576.3109589999949,
+        "p99_ms": 622.7735829999947,
+        "max_ms": 660.0049999999901
+      },
+      "slow_samples": []
+    },
+    "sdk-baseline-paced-final": {
+      "complete": true,
+      "started_at": "2026-09-15T03:54:09.019Z",
+      "node": "v22.12.0",
+      "platform": "darwin/arm64",
+      "logical_cpus": 10,
+      "driver_sha256": "6c4ba75b5cba7e8874a345a45d3b0c369f8007ccaad2e4671b50b0905ca1afc2",
+      "binary_sha256": "b47105463afb2bed4d52c4006b333b6361e7ff47b99103a08787fdbe52bc43dc",
+      "sdk_bundle_sha256": "df3c2d8fa30d4113ac328f5b0969a1ea26445ed3622f535d33b184e61b784599",
+      "nodes": 3,
+      "hash_slots": 256,
+      "physical_slots": 8,
+      "replicas": 3,
+      "channels": 16,
+      "online_clients": 32,
+      "rounds_per_channel": 32,
+      "closed_loop_min_interval_ms": 1000,
+      "resources_before": [
+        {
+          "node": 1,
+          "rss_kib": 169248,
+          "cumulative_cpu": "0:03.95"
+        },
+        {
+          "node": 2,
+          "rss_kib": 157888,
+          "cumulative_cpu": "0:03.67"
+        },
+        {
+          "node": 3,
+          "rss_kib": 165184,
+          "cumulative_cpu": "0:03.66"
+        }
+      ],
+      "measured_seconds": 31.755694500000004,
+      "resources_after": [
+        {
+          "node": 1,
+          "rss_kib": 178048,
+          "cumulative_cpu": "0:06.67"
+        },
+        {
+          "node": 2,
+          "rss_kib": 176704,
+          "cumulative_cpu": "0:06.37"
+        },
+        {
+          "node": 3,
+          "rss_kib": 177760,
+          "cumulative_cpu": "0:06.34"
+        }
+      ],
+      "peak_rss_kib": [
+        {
+          "node": 1,
+          "rss_kib": 178048
+        },
+        {
+          "node": 2,
+          "rss_kib": 176704
+        },
+        {
+          "node": 3,
+          "rss_kib": 177760
+        }
+      ],
+      "bff_edit_roundtrip": {
+        "samples": 512,
+        "p50_ms": 119.69324999999662,
+        "p95_ms": 251.95287500000268,
+        "p99_ms": 295.08604200000264,
+        "max_ms": 328.64141599999857
+      },
+      "sdk_visible_latency": {
+        "samples": 512,
+        "p50_ms": 428.91579099999944,
+        "p95_ms": 631.9309999999969,
+        "p99_ms": 695.9232499999998,
+        "max_ms": 734.0392500000016
+      },
+      "sender_calibration_wait": {
+        "samples": 512,
+        "p50_ms": 0.0016250000044237822,
+        "p95_ms": 0.0044999999954598024,
+        "p99_ms": 0.007832999996026047,
+        "max_ms": 0.015417000002344139
+      },
+      "slow_samples": []
+    },
+    "sdk-candidate-paced-final": {
+      "complete": true,
+      "started_at": "2026-09-15T03:55:44.306Z",
+      "node": "v22.12.0",
+      "platform": "darwin/arm64",
+      "logical_cpus": 10,
+      "driver_sha256": "6c4ba75b5cba7e8874a345a45d3b0c369f8007ccaad2e4671b50b0905ca1afc2",
+      "binary_sha256": "9444f38cdb5718928abc4fea14e477583d85d294ad285f7c907af82542a11ca0",
+      "sdk_bundle_sha256": "df3c2d8fa30d4113ac328f5b0969a1ea26445ed3622f535d33b184e61b784599",
+      "nodes": 3,
+      "hash_slots": 256,
+      "physical_slots": 8,
+      "replicas": 3,
+      "channels": 16,
+      "online_clients": 32,
+      "rounds_per_channel": 32,
+      "closed_loop_min_interval_ms": 1000,
+      "resources_before": [
+        {
+          "node": 1,
+          "rss_kib": 169328,
+          "cumulative_cpu": "0:03.44"
+        },
+        {
+          "node": 2,
+          "rss_kib": 150480,
+          "cumulative_cpu": "0:03.30"
+        },
+        {
+          "node": 3,
+          "rss_kib": 145328,
+          "cumulative_cpu": "0:03.27"
+        }
+      ],
+      "measured_seconds": 33.337465292000005,
+      "resources_after": [
+        {
+          "node": 1,
+          "rss_kib": 178144,
+          "cumulative_cpu": "0:06.06"
+        },
+        {
+          "node": 2,
+          "rss_kib": 178464,
+          "cumulative_cpu": "0:05.98"
+        },
+        {
+          "node": 3,
+          "rss_kib": 178256,
+          "cumulative_cpu": "0:06.02"
+        }
+      ],
+      "peak_rss_kib": [
+        {
+          "node": 1,
+          "rss_kib": 178144
+        },
+        {
+          "node": 2,
+          "rss_kib": 178464
+        },
+        {
+          "node": 3,
+          "rss_kib": 178256
+        }
+      ],
+      "bff_edit_roundtrip": {
+        "samples": 512,
+        "p50_ms": 65.57245800000237,
+        "p95_ms": 239.95979200000147,
+        "p99_ms": 594.2596669999984,
+        "max_ms": 1003.5742079999982
+      },
+      "sdk_visible_latency": {
+        "samples": 512,
+        "p50_ms": 242.0034999999989,
+        "p95_ms": 497.71808299999975,
+        "p99_ms": 1519.9811670000054,
+        "max_ms": 3091.267249999997
+      },
+      "sender_calibration_wait": {
+        "samples": 512,
+        "p50_ms": 0.0022089999984018505,
+        "p95_ms": 0.00662499999452848,
+        "p99_ms": 0.012041000001772773,
+        "max_ms": 0.024791000003460795
+      },
+      "slow_samples": [
+        {
+          "sender_node": 3,
+          "receiver_node": 1,
+          "version": 7,
+          "visible_ms": 2489.709167000001,
+          "hint_ms": 2381.1895839999997,
+          "feed": [
+            {
+              "start_ms": 2484.847584000003,
+              "duration_ms": 4.706458000000566,
+              "status": 200,
+              "versions": [
+                "7"
+              ]
+            }
+          ]
+        },
+        {
+          "sender_node": 2,
+          "receiver_node": 3,
+          "version": 7,
+          "visible_ms": 2832.6515,
+          "hint_ms": 2731.1879590000026,
+          "feed": [
+            {
+              "start_ms": 2831.4068340000013,
+              "duration_ms": 1.1601660000014817,
+              "status": 200,
+              "versions": [
+                "7"
+              ]
+            }
+          ]
+        },
+        {
+          "sender_node": 3,
+          "receiver_node": 1,
+          "version": 7,
+          "visible_ms": 3090.842582999998,
+          "hint_ms": 2986.9356249999983,
+          "feed": [
+            {
+              "start_ms": 3086.9710829999967,
+              "duration_ms": 3.739957999998296,
+              "status": 200,
+              "versions": [
+                "7"
+              ]
+            }
+          ]
+        },
+        {
+          "sender_node": 3,
+          "receiver_node": 1,
+          "version": 7,
+          "visible_ms": 3091.267249999997,
+          "hint_ms": 2985.1114579999994,
+          "feed": [
+            {
+              "start_ms": 3085.4408330000006,
+              "duration_ms": 5.733667000000423,
+              "status": 200,
+              "versions": [
+                "7"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "sdk-candidate-final": {
+      "complete": true,
+      "started_at": "2026-09-15T03:57:16.537Z",
+      "node": "v22.12.0",
+      "platform": "darwin/arm64",
+      "logical_cpus": 10,
+      "driver_sha256": "6c4ba75b5cba7e8874a345a45d3b0c369f8007ccaad2e4671b50b0905ca1afc2",
+      "binary_sha256": "9444f38cdb5718928abc4fea14e477583d85d294ad285f7c907af82542a11ca0",
+      "sdk_bundle_sha256": "df3c2d8fa30d4113ac328f5b0969a1ea26445ed3622f535d33b184e61b784599",
+      "nodes": 3,
+      "hash_slots": 256,
+      "physical_slots": 8,
+      "replicas": 3,
+      "channels": 16,
+      "online_clients": 32,
+      "rounds_per_channel": 32,
+      "closed_loop_min_interval_ms": 0,
+      "resources_before": [
+        {
+          "node": 1,
+          "rss_kib": 170496,
+          "cumulative_cpu": "0:03.61"
+        },
+        {
+          "node": 2,
+          "rss_kib": 163312,
+          "cumulative_cpu": "0:03.39"
+        },
+        {
+          "node": 3,
+          "rss_kib": 152256,
+          "cumulative_cpu": "0:03.42"
+        }
+      ],
+      "measured_seconds": 15.217386791000004,
+      "resources_after": [
+        {
+          "node": 1,
+          "rss_kib": 177712,
+          "cumulative_cpu": "0:05.05"
+        },
+        {
+          "node": 2,
+          "rss_kib": 179072,
+          "cumulative_cpu": "0:04.88"
+        },
+        {
+          "node": 3,
+          "rss_kib": 178832,
+          "cumulative_cpu": "0:04.92"
+        }
+      ],
+      "peak_rss_kib": [
+        {
+          "node": 1,
+          "rss_kib": 177712
+        },
+        {
+          "node": 2,
+          "rss_kib": 179072
+        },
+        {
+          "node": 3,
+          "rss_kib": 178832
+        }
+      ],
+      "bff_edit_roundtrip": {
+        "samples": 512,
+        "p50_ms": 119.76062500000262,
+        "p95_ms": 260.3004159999982,
+        "p99_ms": 337.59604099999706,
+        "max_ms": 432.4600419999988
+      },
+      "sdk_visible_latency": {
+        "samples": 512,
+        "p50_ms": 406.4738750000033,
+        "p95_ms": 626.9175830000022,
+        "p99_ms": 783.1983749999999,
+        "max_ms": 946.1648750000022
+      },
+      "sender_calibration_wait": {
+        "samples": 512,
+        "p50_ms": 0.0012920000008307397,
+        "p95_ms": 0.002957999997306615,
+        "p99_ms": 0.004415999996126629,
+        "max_ms": 0.011082999997597653
+      },
+      "slow_samples": []
+    },
+    "sdk-tail-probe-1": {
+      "complete": true,
+      "started_at": "2026-09-15T03:59:43.311Z",
+      "node": "v22.12.0",
+      "platform": "darwin/arm64",
+      "logical_cpus": 10,
+      "driver_sha256": "9ca56df7def3338a67ea8c1653bb0a42597f17876b2a324ced7056021c567b40",
+      "binary_sha256": "9444f38cdb5718928abc4fea14e477583d85d294ad285f7c907af82542a11ca0",
+      "sdk_bundle_sha256": "df3c2d8fa30d4113ac328f5b0969a1ea26445ed3622f535d33b184e61b784599",
+      "nodes": 3,
+      "hash_slots": 256,
+      "physical_slots": 8,
+      "replicas": 3,
+      "channels": 16,
+      "online_clients": 32,
+      "rounds_per_channel": 32,
+      "closed_loop_min_interval_ms": 1000,
+      "resources_before": [
+        {
+          "node": 1,
+          "rss_kib": 164864,
+          "cumulative_cpu": "0:03.92"
+        },
+        {
+          "node": 2,
+          "rss_kib": 165904,
+          "cumulative_cpu": "0:03.70"
+        },
+        {
+          "node": 3,
+          "rss_kib": 160592,
+          "cumulative_cpu": "0:03.67"
+        }
+      ],
+      "measured_seconds": 31.509471375,
+      "event_loop_delays": [],
+      "resource_sample_ms": {
+        "samples": 63,
+        "p50_ms": 15.382874999995693,
+        "p95_ms": 19.62987499999872,
+        "p99_ms": 20.181958999994094,
+        "max_ms": 20.181958999994094
+      },
+      "resources_after": [
+        {
+          "node": 1,
+          "rss_kib": 179760,
+          "cumulative_cpu": "0:06.37"
+        },
+        {
+          "node": 2,
+          "rss_kib": 179568,
+          "cumulative_cpu": "0:06.11"
+        },
+        {
+          "node": 3,
+          "rss_kib": 178160,
+          "cumulative_cpu": "0:06.06"
+        }
+      ],
+      "peak_rss_kib": [
+        {
+          "node": 1,
+          "rss_kib": 179760
+        },
+        {
+          "node": 2,
+          "rss_kib": 179568
+        },
+        {
+          "node": 3,
+          "rss_kib": 178160
+        }
+      ],
+      "bff_edit_roundtrip": {
+        "samples": 512,
+        "p50_ms": 125.07945799999288,
+        "p95_ms": 250.1445839999942,
+        "p99_ms": 289.3125,
+        "max_ms": 337.06704100000206
+      },
+      "sdk_visible_latency": {
+        "samples": 512,
+        "p50_ms": 377.33429199999955,
+        "p95_ms": 472.9594169999982,
+        "p99_ms": 511.7091250000085,
+        "max_ms": 554.0929590000014
+      },
+      "sender_calibration_wait": {
+        "samples": 512,
+        "p50_ms": 0.0015830000047571957,
+        "p95_ms": 0.01020799999969313,
+        "p99_ms": 0.018750000002910383,
+        "max_ms": 0.027624999995168764
+      },
+      "slow_samples": []
+    },
+    "sdk-tail-probe-2": {
+      "complete": true,
+      "started_at": "2026-09-15T04:01:17.898Z",
+      "node": "v22.12.0",
+      "platform": "darwin/arm64",
+      "logical_cpus": 10,
+      "driver_sha256": "9ca56df7def3338a67ea8c1653bb0a42597f17876b2a324ced7056021c567b40",
+      "binary_sha256": "9444f38cdb5718928abc4fea14e477583d85d294ad285f7c907af82542a11ca0",
+      "sdk_bundle_sha256": "df3c2d8fa30d4113ac328f5b0969a1ea26445ed3622f535d33b184e61b784599",
+      "nodes": 3,
+      "hash_slots": 256,
+      "physical_slots": 8,
+      "replicas": 3,
+      "channels": 16,
+      "online_clients": 32,
+      "rounds_per_channel": 32,
+      "closed_loop_min_interval_ms": 1000,
+      "resources_before": [
+        {
+          "node": 1,
+          "rss_kib": 156000,
+          "cumulative_cpu": "0:03.88"
+        },
+        {
+          "node": 2,
+          "rss_kib": 156928,
+          "cumulative_cpu": "0:03.49"
+        },
+        {
+          "node": 3,
+          "rss_kib": 153536,
+          "cumulative_cpu": "0:03.53"
+        }
+      ],
+      "measured_seconds": 31.681464415999994,
+      "event_loop_delays": [],
+      "resource_sample_ms": {
+        "samples": 64,
+        "p50_ms": 16.33262499999546,
+        "p95_ms": 20.369125000004715,
+        "p99_ms": 22.649540999998862,
+        "max_ms": 22.649540999998862
+      },
+      "resources_after": [
+        {
+          "node": 1,
+          "rss_kib": 177936,
+          "cumulative_cpu": "0:06.59"
+        },
+        {
+          "node": 2,
+          "rss_kib": 177872,
+          "cumulative_cpu": "0:06.14"
+        },
+        {
+          "node": 3,
+          "rss_kib": 177760,
+          "cumulative_cpu": "0:06.17"
+        }
+      ],
+      "peak_rss_kib": [
+        {
+          "node": 1,
+          "rss_kib": 177936
+        },
+        {
+          "node": 2,
+          "rss_kib": 177872
+        },
+        {
+          "node": 3,
+          "rss_kib": 177760
+        }
+      ],
+      "bff_edit_roundtrip": {
+        "samples": 512,
+        "p50_ms": 133.31954199999745,
+        "p95_ms": 266.8666249999951,
+        "p99_ms": 322.8543750000026,
+        "max_ms": 461.74129099999845
+      },
+      "sdk_visible_latency": {
+        "samples": 512,
+        "p50_ms": 392.86937500000204,
+        "p95_ms": 577.6888329999929,
+        "p99_ms": 748.7367919999961,
+        "max_ms": 850.0135840000003
+      },
+      "sender_calibration_wait": {
+        "samples": 512,
+        "p50_ms": 0.00145899999915855,
+        "p95_ms": 0.003333000000566244,
+        "p99_ms": 0.007250000002386514,
+        "max_ms": 0.02829100000235485
+      },
+      "slow_samples": []
+    },
+    "sdk-delivery-final": {
+      "complete": true,
+      "started_at": "2026-09-15T04:05:42.260Z",
+      "node": "v22.12.0",
+      "platform": "darwin/arm64",
+      "logical_cpus": 10,
+      "driver_sha256": "9ca56df7def3338a67ea8c1653bb0a42597f17876b2a324ced7056021c567b40",
+      "binary_sha256": "06e0cb758376de28c2e8e94175666fc0a9f2e98637fea026d692630ad425a299",
+      "sdk_bundle_sha256": "df3c2d8fa30d4113ac328f5b0969a1ea26445ed3622f535d33b184e61b784599",
+      "nodes": 3,
+      "hash_slots": 256,
+      "physical_slots": 8,
+      "replicas": 3,
+      "channels": 16,
+      "online_clients": 32,
+      "rounds_per_channel": 32,
+      "closed_loop_min_interval_ms": 0,
+      "resources_before": [
+        {
+          "node": 1,
+          "rss_kib": 165136,
+          "cumulative_cpu": "0:03.41"
+        },
+        {
+          "node": 2,
+          "rss_kib": 148256,
+          "cumulative_cpu": "0:03.26"
+        },
+        {
+          "node": 3,
+          "rss_kib": 144704,
+          "cumulative_cpu": "0:03.24"
+        }
+      ],
+      "measured_seconds": 14.824949874999998,
+      "event_loop_delays": [],
+      "resource_sample_ms": {
+        "samples": 30,
+        "p50_ms": 10.822417000003043,
+        "p95_ms": 15.318583000000217,
+        "p99_ms": 15.970749999993131,
+        "max_ms": 15.970749999993131
+      },
+      "resources_after": [
+        {
+          "node": 1,
+          "rss_kib": 178960,
+          "cumulative_cpu": "0:04.87"
+        },
+        {
+          "node": 2,
+          "rss_kib": 179552,
+          "cumulative_cpu": "0:04.74"
+        },
+        {
+          "node": 3,
+          "rss_kib": 178512,
+          "cumulative_cpu": "0:04.73"
+        }
+      ],
+      "peak_rss_kib": [
+        {
+          "node": 1,
+          "rss_kib": 178960
+        },
+        {
+          "node": 2,
+          "rss_kib": 179552
+        },
+        {
+          "node": 3,
+          "rss_kib": 178512
+        }
+      ],
+      "bff_edit_roundtrip": {
+        "samples": 512,
+        "p50_ms": 128.84199999999691,
+        "p95_ms": 260.98920799999905,
+        "p99_ms": 327.4803329999995,
+        "max_ms": 421.3647920000003
+      },
+      "sdk_visible_latency": {
+        "samples": 512,
+        "p50_ms": 421.11741600000096,
+        "p95_ms": 654.3864589999939,
+        "p99_ms": 758.1753750000062,
+        "max_ms": 944.5607499999969
+      },
+      "sender_calibration_wait": {
+        "samples": 512,
+        "p50_ms": 0.001374999999825377,
+        "p95_ms": 0.003041999996639788,
+        "p99_ms": 0.004249999998137355,
+        "max_ms": 0.006334000005153939
+      },
+      "slow_samples": []
+    }
+  },
+  "focused_validation": {
+    "presence-green": "ok  \tgithub.com/WuKongIM/WuKongIM/internal/infra/cluster\t2.423s\n",
+    "repair-parallel-red": "--- FAIL: TestRepairWaveOverlapsBoundedIdentityDispatch (0.50s)\n    ready_integration_test.go:188: durable repair serialized independent progress commits\nFAIL\nFAIL\tgithub.com/WuKongIM/WuKongIM/internal/runtime/messageupdates\t1.071s\nFAIL\n",
+    "repair-parallel-green": "# github.com/WuKongIM/WuKongIM/internal/runtime/messageupdates.test\nld: warning: '/private/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/go-link-1411919123/000058.o' has malformed LC_DYSYMTAB, expected 98 undefined symbols to start at index 1626, found 95 undefined symbols starting at index 1626\nok  \tgithub.com/WuKongIM/WuKongIM/internal/runtime/messageupdates\t2.076s\n",
+    "optimization-unit": "ok  \tgithub.com/WuKongIM/WuKongIM/internal/infra/cluster\t2.278s\nok  \tgithub.com/WuKongIM/WuKongIM/internal/infra/delivery\t1.435s\nok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/presence\t1.079s\nok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/user\t1.785s\nok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/message\t0.865s\n",
+    "optimization-presence-race": "# github.com/WuKongIM/WuKongIM/internal/infra/cluster.test\nld: warning: '/private/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/go-link-1686065159/000058.o' has malformed LC_DYSYMTAB, expected 98 undefined symbols to start at index 1626, found 95 undefined symbols starting at index 1626\nok  \tgithub.com/WuKongIM/WuKongIM/internal/infra/cluster\t3.134s\n",
+    "dispatch-registry-red": "--- FAIL: TestReadyWaveOverlapsBoundedIdentityDispatch (0.00s)\n    ready_integration_test.go:169: dispatch lanes over-declared the supervising singleton\nFAIL\nFAIL\tgithub.com/WuKongIM/WuKongIM/internal/runtime/messageupdates\t0.584s\nFAIL\n",
+    "final-registry-race": "# github.com/WuKongIM/WuKongIM/internal/runtime/messageupdates.test\nld: warning: '/private/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/go-link-649324923/000058.o' has malformed LC_DYSYMTAB, expected 98 undefined symbols to start at index 1626, found 95 undefined symbols starting at index 1626\nok  \tgithub.com/WuKongIM/WuKongIM/internal/runtime/messageupdates\t1.998s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/goroutine\t2.189s\n",
+    "final-app": "ok  \tgithub.com/WuKongIM/WuKongIM/internal/app\t36.549s\n",
+    "final-managed-contract": "ok  \tgithub.com/WuKongIM/WuKongIM/scripts\t0.842s\n",
+    "final-flow-contracts": "docs-site/FLOW.md: 103 lines exceeds the 100-line target\ninternal/access/api/FLOW.md: 126 lines exceeds the 100-line target\ninternal/app/FLOW.md: 108 lines exceeds the 100-line target\ninternal/bench/FLOW.md: 102 lines exceeds the 100-line target\ninternal/infra/cluster/FLOW.md: 113 lines exceeds the 100-line target\ninternal/usecase/message/FLOW.md: 108 lines exceeds the 100-line target\npkg/channel/FLOW.md: 111 lines exceeds the 100-line target\npkg/cluster/FLOW.md: 127 lines exceeds the 100-line target\npkg/db/message/FLOW.md: 120 lines exceeds the 100-line target\nflowcheck: 81 FLOW files; 81 compliant; 0 invalid; 9 warnings\n",
+    "stale-reference-repro": "TAP version 13\n# same epoch; retained object stale; listener replacement edits successfully\n# (node:22083) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time\n# (Use `node --trace-warnings ...` to show where the warning was created)\n# Subtest: reset replaces the UI message; retaining the old object rejects the next edit\nok 1 - reset replaces the UI message; retaining the old object rejects the next edit\n  ---\n  duration_ms: 2.902042\n  ...\n1..1\n# tests 1\n# suites 0\n# pass 1\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 61.114292\n"
+  },
+  "stale_reference_reproduction": "const test = require('node:test');\nconst assert = require('node:assert/strict');\nconst sdk = require('/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIMJSSDK/lib/wukongimjssdk.cjs.js');\nconst { Channel, Message, MessageText, Conversation, SyncOptions, Provider,\n  MessageUpdateManager, WKEventManager, EventPacket, WKEvent, ConnectStatus,\n  MessageUpdateError, messageFromHTTP, installMessageEditing, compareDecimal } = sdk;\n\n// The existing SDK owns a receipt interval; it must not keep this test process alive.\nsdk.WKSDK.shared().receiptManager.timer.unref();\nconst channel = new Channel('group-with-hyphens', 2);\nconst response = (data, contentEpoch = '7') => ({ data, contentEpoch });\nfunction message(version = '0', text = 'original', seq = 100) {\n  return Object.assign(new Message(), { messageID: String(seq), messageSeq: seq,\n    channel, content: new MessageText(text), contentVersion: version, timestamp: 123,\n    fromUID: 'alice', clientMsgNo: `client-${seq}` });\n}\nfunction page(cursor, updates = [], more = false, resetRequired = false) {\n  return response({ nextUpdateCursor: cursor, updates, more, resetRequired });\n}\nfunction deferred() {\n  let resolve, reject;\n  const promise = new Promise((a, b) => { resolve = a; reject = b; });\n  return { promise, resolve, reject };\n}\nasync function settle() { for (let i = 0; i < 100; i++) await Promise.resolve(); }\nasync function tick(t, ms = 100) { t.mock.timers.tick(ms); await settle(); }\nfunction fixture(t) {\n  t.mock.timers.enable({ apis: ['setTimeout'] });\n  const calls = [], changes = [], errors = [], packets = [], notifications = [];\n  const conversations = {\n    conversations: [], openConversation: undefined,\n    findConversation(c) { return this.conversations.find(x => x.channel.isEqual(c)); },\n    notifyConversationListeners(c) { notifications.push(c); },\n    removeConversation(c) { this.conversations = this.conversations.filter(x => !x.channel.isEqual(c)); },\n  };\n  const connectManager = { status: ConnectStatus.Disconnect, listeners: [],\n    addConnectStatusListener(l) { this.listeners.push(l); },\n    removeConnectStatusListener(l) { this.listeners = this.listeners.filter(x => x !== l); },\n    sendPacket(p) { packets.push(p); },\n  };\n  const provider = new Provider();\n  provider.syncMessagesCallback = async () => { calls.push('history'); return response([message()]); };\n  provider.syncConversationsCallback = async () => { calls.push('conversations'); return response([]); };\n  provider.syncMessageUpdatesCallback = async (_, opts) => {\n    calls.push(`updates:${opts.updateCursor}`);\n    return opts.updateCursor ? page('C1') : page('C0', [], false, true);\n  };\n  provider.updateMessageCallback = async (request) => response({ messageID: request.messageID,\n    messageSeq: 100, version: '1', updatedAtMs: 1000 });\n  const owner = { config: { uid: 'alice', token: 'private', addr: 'wss://example.test', provider },\n    conversationManager: conversations, connectManager, eventManager: new WKEventManager() };\n  const manager = new MessageUpdateManager(owner);\n  owner.messageUpdateManager = manager;\n  manager.enable({ onError: e => errors.push(e) });\n  manager.addListener(m => changes.push(m));\n  manager.setActive(channel);\n  const hint = (id = '100', c = channel) => {\n    owner.eventManager.notifyEventListeners({ type: 'message_updates.ready', dataJson: { enabled: true } });\n    owner.eventManager.notifyEventListeners({ type: 'message_updated', dataJson: {\n      channel_id: c.channelID, channel_type: c.channelType, message_id: id, version: '999' } });\n  };\n  t.after(() => manager.disable());\n  return { manager, owner, provider, calls, changes, errors, packets, notifications, conversations, hint };\n}\n\n\ntest('reset replaces the UI message; retaining the old object rejects the next edit', async t => {\n const f=fixture(t);\n const [old]=await f.manager.syncMessages(channel,new SyncOptions());\n f.provider.syncMessageUpdatesCallback=async()=>page('C1',[],false,true);\n await tick(t);\n const fresh=f.changes.at(-1)[0];\n assert.equal(old.contentEpoch,fresh.contentEpoch);\n assert.equal(old.contentStale,true);\n assert.equal(fresh.contentStale,false);\n await assert.rejects(f.manager.updateMessage(old,new MessageText('draft')), {code:'content_epoch_conflict'});\n const edited=await f.manager.updateMessage(fresh,new MessageText('draft'));\n assert.equal(edited.contentVersion,'1');\n console.log('same epoch; retained object stale; listener replacement edits successfully');\n});\n",
+  "app_final_resource_output": "204.40 real        46.20 user        46.78 sys\n           670253056  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n               41326  page reclaims\n                 504  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n              132213  messages sent\n              340568  messages received\n               32790  signals received\n              811208  voluntary context switches\n             3259420  involuntary context switches\n        245131134136  instructions retired\n        160180260234  cycles elapsed\n           571180256  peak memory footprint"
+}
