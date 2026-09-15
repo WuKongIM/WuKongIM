@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Reuse bounded decoded runtime metadata during conversation queries, with mutation/restore generation fences and independently owned replica lists. / 会话查询复用有容量限制的运行元数据解码结果，写入与恢复通过版本失效保证新鲜度，副本列表保持调用方独立所有权。
+
 - Transfer independently decoded message payloads through conversation/history read adapters, avoiding redundant copies while preserving caller ownership after storage closure. / 会话与历史读取直接转交独立解码的消息正文，减少重复复制，保持存储关闭后的调用方所有权。
 
 - Expose bounded read-stage timings for conversation list/sync responses, head hydration, and message-edit barrier/storage reads. / 增加会话列表与同步响应、摘要补齐、消息修改屏障及存储读取的固定维度耗时指标。

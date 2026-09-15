@@ -197,7 +197,19 @@ func (s *Shard) GetChannelRuntimeMeta(ctx context.Context, channelID string, cha
 	if err := validateKeyString(channelID); err != nil {
 		return ChannelRuntimeMeta{}, false, err
 	}
-	return channelRuntimeMetaTable.Get(ctx, s, channelRuntimeMetaPrimaryKey(channelID, channelType))
+	if s.db.engine.IsClosed() {
+		return ChannelRuntimeMeta{}, false, dberrors.ErrClosed
+	}
+	key := runtimeReadKey{hashSlot: s.hashSlot, channelID: channelID, channelType: channelType}
+	if m, ok, generation := s.db.runtimeCache.get(key); ok {
+		return m, true, nil
+	} else {
+		m, found, err := channelRuntimeMetaTable.Get(ctx, s, channelRuntimeMetaPrimaryKey(channelID, channelType))
+		if err == nil && found {
+			s.db.runtimeCache.put(key, m, generation)
+		}
+		return m, found, err
+	}
 }
 
 // DeleteChannelRuntimeMeta removes one runtime metadata row.
