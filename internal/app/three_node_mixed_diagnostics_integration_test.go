@@ -19,11 +19,18 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
-// startMixedSendDiagnostics is opt-in, fixed-shape benchmark instrumentation.
-// Profiles cover measured traffic, not cluster setup or warmup. All three nodes
+// startMixedSendDiagnostics selects counter-only or profiled evidence for the
+// fixed benchmark. Collection excludes setup and warmup. All three nodes
 // and the driver share one process, so CPU samples are not per-node CPU usage.
 func startMixedSendDiagnostics(b *testing.B, apps []*App, rate int) func() {
 	dir := os.Getenv("WK_BENCH_SEND_DIAGNOSTICS_DIR")
+	countersDir := os.Getenv("WK_BENCH_SEND_COUNTERS_DIR")
+	if dir != "" && countersDir != "" {
+		b.Fatal("SEND counter-only and profiled diagnostics are mutually exclusive")
+	}
+	if countersDir != "" {
+		dir = countersDir
+	}
 	if dir == "" {
 		return func() {}
 	}
@@ -32,6 +39,9 @@ func startMixedSendDiagnostics(b *testing.B, apps []*App, rate int) func() {
 	}
 	if err := os.Mkdir(dir, 0700); err != nil {
 		b.Fatalf("create fresh diagnostic directory: %v", err)
+	}
+	if countersDir != "" {
+		return startMixedSendCounterWindow(b, apps, dir, b.N, rate)
 	}
 	writeSnapshot := func(name string) {
 		snapshot := mixedSendDiagnosticSnapshot(b, apps)
@@ -149,11 +159,12 @@ type mixedSendSnapshot struct {
 	System   map[string]string   `json:"system"`
 	Missing  map[string]string   `json:"missing"`
 	Families []*dto.MetricFamily `json:"families"`
+	Runtime  map[string]any      `json:"runtime"`
 }
 
 func mixedSendDiagnosticSnapshot(b testing.TB, apps []*App) mixedSendSnapshot {
 	b.Helper()
-	s := mixedSendSnapshot{At: time.Now().UTC(), System: make(map[string]string), Missing: make(map[string]string)}
+	s := mixedSendSnapshot{At: time.Now().UTC(), System: make(map[string]string), Missing: make(map[string]string), Runtime: mixedSendRuntimeCounters()}
 	for _, path := range []string{
 		"/proc/stat", "/proc/diskstats", "/proc/self/io", "/proc/self/cgroup",
 		"/proc/pressure/cpu", "/proc/pressure/io", "/proc/pressure/memory",

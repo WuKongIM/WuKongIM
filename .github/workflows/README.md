@@ -237,6 +237,21 @@ source workflow never receives production signing or package-publisher access.
 
 ## Fixed Linux SEND diagnosis
 
+The original PR mixed SEND gate also retains `mixed-send-counters/` from its
+own measured run, on both success and failure. It takes only before/after
+snapshots after warmup and after handlers complete, without enabling CPU
+profiling, tracing, sampling goroutines, or per-request instrumentation. Fixed
+Linux CPU/disk/pressure/cgroup files, Go scheduler/GC counters and bounded
+storage/replication histograms are capped at 4 MiB per snapshot and uploaded
+with the existing PR artifact. Host, source SHA and data-filesystem metadata
+identify the window. Counter deltas include boundary snapshot/timer overhead;
+they do not establish a request trace or isolate sub-window spikes. Cleanup
+marks an early exit incomplete; a hard process timeout may retain only the
+initial snapshot. An earlier append-gate failure prevents the mixed run and
+therefore produces no mixed-window counters. Missing evidence stays explicit.
+The original one-run load, deadlines, 400 ms assertion and failure exit are
+unchanged; no diagnostic rerun is automatically triggered.
+
 For a bounded SEND investigation, dispatch
 `three-node-chat-lifecycle-regression.yml` with `diagnose_send=true` on the
 exact reviewed candidate ref. This manual-only job replaces neither the PR

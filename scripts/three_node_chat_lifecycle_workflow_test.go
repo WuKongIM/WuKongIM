@@ -49,6 +49,10 @@ func TestThreeNodeChatLifecycleRegressionSeparatesPRSmokeFromNightlyQualificatio
 	require.Equal(t, "github.event_name == 'pull_request'", pr.If)
 	require.LessOrEqual(t, pr.TimeoutMinutes, 35)
 	prRun := workflowRunCommands(pr.Steps)
+	require.Contains(t, prRun, `WK_BENCH_SEND_COUNTERS_DIR="$EVIDENCE_ROOT/mixed-send-counters" GOWORK=off go test`)
+	require.NotContains(t, prRun, "WK_BENCH_SEND_DIAGNOSTICS_DIR")
+	require.Contains(t, prRun, `git rev-parse HEAD >"$evidence_root/source.sha"`)
+	require.Contains(t, prRun, `findmnt -J -T /tmp`)
 	for _, required := range []string{
 		"GOWORK=off go test ./internal/bench/chatlifecycle ./internal/bench/workload ./internal/bench/worker ./pkg/bench/model ./pkg/client ./pkg/gateway/... -count=1",
 		"GOWORK=off go test -race ./internal/bench/workload ./internal/bench/worker ./pkg/client ./pkg/gateway/transport/gnet -count=1",
