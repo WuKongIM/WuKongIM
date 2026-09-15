@@ -6,11 +6,17 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+## [v3.0.0-beta.18] - 2026-09-15
+
 ### 🔧 Improvements / 改进
 
 - Encode batched conversation heads and recent-message responses in one pre-sized buffer, reducing allocation and copying while preserving all supported wire formats and read consistency. / 会话摘要和最近消息的批量响应使用预分配缓冲区编码，减少内存分配与复制，保持协议兼容和读取一致性。
 
 - Reduce runtime metadata decoding allocations by canonicalizing owned replica sets and decoding directly from verified row bytes; preserve corruption checks and caller-owned inputs. / 运行时元数据直接从已校验行解码并原地规范化自有副本集合，减少分配，同时保留损坏校验与调用方数据所有权。
+
+### ⬆️ Upgrade Notes / 升级说明
+
+- Includes the ordinary-message editing and EVENT integration changes prepared in beta.17, whose artifact publication was blocked by the release performance gate. Deploy matching server binaries and adopt the SDK edit/restore merge contract; CMD and stream messages remain non-editable. / 包含 beta.17 中准备的普通消息编辑与 EVENT 接入功能；beta.17 的产物发布被性能门禁阻断。请部署版本一致的服务端，并使用遵循编辑与恢复合并协议的 SDK；CMD、流消息仍不可编辑。
 
 ## [v3.0.0-beta.17] - 2026-09-15
 
