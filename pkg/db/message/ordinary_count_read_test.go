@@ -167,3 +167,59 @@ func TestOrdinaryCountWarmReadFailsWhenStoreUnavailable(t *testing.T) {
 	_, err := log.CountOrdinaryMessages(context.Background(), 0, 2)
 	require.ErrorIs(t, err, dberrors.ErrClosed)
 }
+
+func TestOrdinaryCountZeroFloorRetainedOrdinal(t *testing.T) {
+	for _, seq := range []uint64{0, 1, 5, ^uint64(0)} {
+		t.Run(fmt.Sprint(seq), func(t *testing.T) {
+			s := openTestMessageStore(t)
+			defer s.close(t)
+			log := testChannelLog(s)
+			batch := s.engine.NewBatch()
+			require.NoError(t, batch.Set(nonBusinessVersionKey(log.key), []byte{1}))
+			require.NoError(t, batch.Set(nonBusinessIndexKey(log.key, seq), encodeUint64(7)))
+			require.NoError(t, batch.Commit(true))
+			require.NoError(t, batch.Close())
+			for _, through := range []uint64{1, 4, 5, ^uint64(0)} {
+				want := through
+				if seq > 0 && seq <= through {
+					want--
+				}
+				assertBadgeCount(t, log, 0, through, want)
+			}
+		})
+	}
+}
+
+func TestOrdinaryCountZeroFloorRejectsCorruptFirstOrdinal(t *testing.T) {
+	for _, value := range [][]byte{nil, {1}, encodeUint64(0)} {
+		t.Run(fmt.Sprintf("%x", value), func(t *testing.T) {
+			s := openTestMessageStore(t)
+			defer s.close(t)
+			log := testChannelLog(s)
+			batch := s.engine.NewBatch()
+			require.NoError(t, batch.Set(nonBusinessVersionKey(log.key), []byte{1}))
+			// This ordinal lies beyond the upper frontier but must still be
+			// validated because it defines the retained zero-floor baseline.
+			require.NoError(t, batch.Set(nonBusinessIndexKey(log.key, 5), value))
+			require.NoError(t, batch.Commit(true))
+			require.NoError(t, batch.Close())
+			_, err := log.CountOrdinaryMessages(context.Background(), 0, 3)
+			require.ErrorIs(t, err, dberrors.ErrCorruptValue)
+		})
+	}
+}
+
+func TestOrdinaryCountZeroFloorRejectsMalformedKeyAfterZero(t *testing.T) {
+	s := openTestMessageStore(t)
+	defer s.close(t)
+	log := testChannelLog(s)
+	batch := s.engine.NewBatch()
+	require.NoError(t, batch.Set(nonBusinessVersionKey(log.key), []byte{1}))
+	require.NoError(t, batch.Set(nonBusinessIndexKey(log.key, 0), encodeUint64(7)))
+	require.NoError(t, batch.Set(append(nonBusinessIndexKey(log.key, 0), 0), encodeUint64(7)))
+	require.NoError(t, batch.Set(nonBusinessIndexKey(log.key, 2), encodeUint64(8)))
+	require.NoError(t, batch.Commit(true))
+	require.NoError(t, batch.Close())
+	_, err := log.CountOrdinaryMessages(context.Background(), 0, 3)
+	require.ErrorIs(t, err, dberrors.ErrCorruptValue)
+}
