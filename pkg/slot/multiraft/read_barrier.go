@@ -19,6 +19,8 @@ type readBarrierRequest struct {
 	done  atomic.Bool
 	term  uint64
 	index uint64
+	// next links callers sharing one fresh proof; guarded by the owning slot mu.
+	next *readBarrierRequest
 }
 
 func (r *readBarrierRequest) finish(err error) {
@@ -60,52 +62,73 @@ func (r *Runtime) ReadBarrier(ctx context.Context, slotID SlotID) error {
 	}
 }
 
-// issueReadBarrier runs exclusively on the owning Raft worker.
+// issueReadBarrier retains the single-request seam for worker-level callers.
 func (g *slot) issueReadBarrier(request *readBarrierRequest) {
-	if request == nil || request.done.Load() {
-		return
-	}
-	if err := request.ctx.Err(); err != nil {
-		request.finish(err)
-		return
-	}
-	if err := g.currentErr(); err != nil {
-		request.finish(err)
-		return
-	}
-	st := g.rawNode.BasicStatus()
-	if st.RaftState != raft.StateLeader {
-		request.finish(ErrNotLeader)
-		return
-	}
-	// etcd queues pre-current-term reads separately and does not clear that
-	// queue on every term reset. Admit only after a durable current-term commit,
-	// so the bounded requests live exclusively in Raft's resettable readOnly queue.
-	committedTerm, termErr := g.storageView.memory.Term(st.Commit)
-	if termErr != nil || committedTerm != st.Term {
-		request.finish(ErrSlotBusy)
-		return
+	g.issueReadBarrierBatch([]controlAction{{kind: controlReadBarrier, readBarrier: request}})
+}
+
+// issueReadBarrierBatch shares a fresh proof only among consecutive read controls
+// already detached by this worker. New arrivals cannot join an issued proof.
+// The admission budget counts callers, including canceled unconfirmed callers.
+func (g *slot) issueReadBarrierBatch(actions []controlAction) {
+	batchErr := g.currentErr()
+	var st raft.BasicStatus
+	if batchErr == nil {
+		st = g.rawNode.BasicStatus()
+		if st.RaftState != raft.StateLeader {
+			batchErr = ErrNotLeader
+		} else {
+			// Keep reads out of etcd's pre-current-term queue, which does not clear on
+			// every term reset. Only the resettable readOnly queue may own our requests.
+			committedTerm, err := g.storageView.memory.Term(st.Commit)
+			if err != nil || committedTerm != st.Term {
+				batchErr = ErrSlotBusy
+			}
+		}
 	}
 	g.mu.Lock()
-	if err := g.admissionErrLocked(); err != nil {
-		g.mu.Unlock()
-		request.finish(err)
-		return
+	if batchErr == nil {
+		batchErr = g.admissionErrLocked()
 	}
-	if len(g.pendingReads) >= maxPendingReadBarriers || g.readSequence == ^uint64(0) {
+	var head, tail *readBarrierRequest
+	for _, action := range actions {
+		request := action.readBarrier
+		if request == nil || request.done.Load() {
+			continue
+		}
+		if err := request.ctx.Err(); err != nil {
+			request.finish(err)
+			continue
+		}
+		if batchErr != nil {
+			request.finish(batchErr)
+			continue
+		}
+		if g.pendingReadCount >= maxPendingReadBarriers || g.readSequence == ^uint64(0) {
+			request.finish(ErrSlotBusy)
+			continue
+		}
+		request.term = st.Term
+		if head == nil {
+			head = request
+		} else {
+			tail.next = request
+		}
+		tail = request
+		g.pendingReadCount++
+	}
+	if head == nil {
 		g.mu.Unlock()
-		request.finish(ErrSlotBusy)
 		return
 	}
 	g.readSequence++
 	var key [16]byte
 	binary.BigEndian.PutUint64(key[:8], st.Term)
 	binary.BigEndian.PutUint64(key[8:], g.readSequence)
-	request.term = st.Term
 	if g.pendingReads == nil {
 		g.pendingReads = make(map[string]*readBarrierRequest)
 	}
-	g.pendingReads[string(key[:])] = request
+	g.pendingReads[string(key[:])] = head
 	g.mu.Unlock()
 	g.rawNode.ReadIndex(key[:])
 }
@@ -113,41 +136,73 @@ func (g *slot) acceptReadStates(states []raft.ReadState) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	for _, state := range states {
-		if request := g.pendingReads[string(state.RequestCtx)]; request != nil {
+		for request := g.pendingReads[string(state.RequestCtx)]; request != nil; request = request.next {
 			request.index = state.Index
 		}
 	}
 	g.completeReadBarriersLocked()
 }
 func (g *slot) completeReadBarriersLocked() {
-	for key, request := range g.pendingReads {
-		if g.status.Role != RoleLeader || request.term != g.status.Term {
-			request.finish(ErrNotLeader)
-			delete(g.pendingReads, key)
-			continue
+	for key, head := range g.pendingReads {
+		link := &head
+		for *link != nil {
+			request := *link
+			remove := false
+			if g.status.Role != RoleLeader || request.term != g.status.Term {
+				request.finish(ErrNotLeader)
+				remove = true
+			} else {
+				if err := request.ctx.Err(); err != nil {
+					request.finish(err)
+				}
+				if request.index > 0 && (request.done.Load() || g.durableAppliedIndex >= request.index) {
+					request.finish(nil)
+					remove = true
+				}
+			}
+			if remove {
+				*link = request.next
+				request.next = nil
+				g.pendingReadCount--
+			} else {
+				link = &request.next
+			}
 		}
-		if err := request.ctx.Err(); err != nil {
-			request.finish(err)
-		}
-		if request.index > 0 && (request.done.Load() || g.durableAppliedIndex >= request.index) {
-			request.finish(nil)
+		if head == nil {
 			delete(g.pendingReads, key)
+		} else {
+			g.pendingReads[key] = head
 		}
 	}
 }
 func (g *slot) failReadBarriersLocked(err error) {
-	for key, request := range g.pendingReads {
-		request.finish(err)
+	for key, head := range g.pendingReads {
+		for request := head; request != nil; {
+			next := request.next
+			request.finish(err)
+			request.next = nil
+			request = next
+		}
 		delete(g.pendingReads, key)
 	}
+	g.pendingReadCount = 0
 }
 
 // failUnconfirmedReadCallersLocked releases callers after a transient Ready
-// failure while retaining the count of requests still owned by live RawNode.
+// failure while retaining every caller still owned by live RawNode.
 func (g *slot) failUnconfirmedReadCallersLocked(err error) {
-	for key, request := range g.pendingReads {
-		request.finish(err)
-		if request.index > 0 {
+	for key, head := range g.pendingReads {
+		confirmed := head.index > 0
+		for request := head; request != nil; {
+			next := request.next
+			request.finish(err)
+			if confirmed {
+				request.next = nil
+				g.pendingReadCount--
+			}
+			request = next
+		}
+		if confirmed {
 			delete(g.pendingReads, key)
 		}
 	}

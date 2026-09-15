@@ -4,6 +4,7 @@ package multiraft
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 )
@@ -23,6 +24,20 @@ func TestReadBarrierQuorumWithoutLogWrites(t *testing.T) {
 	defer cancel()
 	for i := 0; i < 10; i++ {
 		if err := rt.ReadBarrier(ctx, slotID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Concurrent callers exercise the same public admission and worker path.
+	var wg sync.WaitGroup
+	failures := make(chan error, 32)
+	for i := 0; i < 32; i++ {
+		wg.Add(1)
+		go func() { defer wg.Done(); failures <- rt.ReadBarrier(ctx, slotID) }()
+	}
+	wg.Wait()
+	close(failures)
+	for err := range failures {
+		if err != nil {
 			t.Fatal(err)
 		}
 	}

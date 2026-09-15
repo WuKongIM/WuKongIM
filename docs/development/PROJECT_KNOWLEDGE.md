@@ -77,6 +77,11 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## History, conversations, and commands
 
+- Slot read barriers coalesce only consecutive controls already detached by one
+  worker, before issuing a fresh ReadIndex. Later arrivals never join that proof.
+  The 256-pending limit counts callers, including unconfirmed canceled callers;
+  sharing keeps each caller's cancellation, leadership and durable-apply checks.
+
 - `wukongim_conversation_read_stage_duration_seconds` uses fixed scope/stage/result
   labels: list/sync `handler` includes response write but excludes outer middleware
   and client decode; `response` includes DTO/JSON work on successful usecase reads.
