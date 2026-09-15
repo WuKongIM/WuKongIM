@@ -231,6 +231,12 @@ specification, runbook, report, or module documentation; link to them when neede
   rejected windows, missing telemetry, OOMs, or process restarts cannot establish
   production capacity or release qualification. Keep exact source/artifact identity
   and required workload evidence; see [performance triage](PERF_TRIAGE.md).
+- Mixed SEND benchmark `stage-*` and `channel-*` diagnostics subtract registry
+  snapshots taken after warmup and after measured handlers complete, before
+  projector drain. `ResetTimer` alone never resets Prometheus counters. These
+  completion-window observations have different populations (SEND items versus
+  Channel batches); compare sample counts and never add stage percentiles.
+  Metadata-create batch counters remain lifetime diagnostics, including warmup.
 - Release completion includes signed native package publication and exact-version
   public APT/RPM verification. Server and CLI artifacts share build identity;
   required same-tag acceptance gates precede publication. Follow
