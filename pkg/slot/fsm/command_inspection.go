@@ -1,12 +1,17 @@
 package fsm
 
 import (
+	"errors"
 	"fmt"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
 const redactedSecret = "***"
+
+// ErrCommandInspectionUnsupported means a valid command has no inspection view.
+// It does not indicate corrupt log data or a failure to apply the command.
+var ErrCommandInspectionUnsupported = errors.New("unsupported command inspection")
 
 // CommandInspection is a redacted, JSON-friendly view of one Slot FSM command.
 type CommandInspection struct {
@@ -54,6 +59,51 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 			items[i]["hash_slot"] = item.HashSlot
 		}
 		return simpleInspection("create_channel_runtime_meta_batch", map[string]any{"items": items}), nil
+	case *admitPersonDirectoryTaskBatchCmd:
+		items := make([]map[string]any, len(typed.items))
+		for i, item := range typed.items {
+			items[i] = map[string]any{
+				"hash_slot":      item.HashSlot,
+				"channel_id":     item.Task.ChannelID,
+				"channel_type":   item.Task.ChannelType,
+				"committed_tail": item.Task.CommittedTail,
+				"created_at":     item.Task.CreatedAt,
+				"runtime_meta":   runtimeMetaInspection("create_channel_runtime_meta", item.RuntimeMeta).Payload,
+			}
+		}
+		return simpleInspection("admit_person_directory_task_batch", map[string]any{"items": items}), nil
+	case *ensureUserChannelMembershipBatchCmd:
+		items := make([]map[string]any, len(typed.items))
+		for i, item := range typed.items {
+			membership := item.Membership
+			items[i] = map[string]any{
+				"hash_slot":                       item.HashSlot,
+				"uid":                             membership.UID,
+				"channel_id":                      membership.ChannelID,
+				"channel_type":                    membership.ChannelType,
+				"join_seq":                        membership.JoinSeq,
+				"read_seq":                        membership.ReadSeq,
+				"deleted_to_seq":                  membership.DeletedToSeq,
+				"conversation_hidden_through_seq": membership.ConversationHiddenThroughSeq,
+				"activated_at":                    membership.ActivatedAt,
+				"tombstone":                       membership.Tombstone,
+				"tombstone_at":                    membership.TombstoneAt,
+				"source_version":                  membership.SourceVersion,
+				"updated_at":                      membership.UpdatedAt,
+			}
+		}
+		return simpleInspection("ensure_user_channel_membership_batch", map[string]any{"items": items}), nil
+	case *completePersonDirectoryTaskBatchCmd:
+		items := make([]map[string]any, len(typed.items))
+		for i, item := range typed.items {
+			items[i] = map[string]any{
+				"hash_slot":    item.HashSlot,
+				"channel_id":   item.ChannelID,
+				"channel_type": item.ChannelType,
+				"generation":   item.Generation,
+			}
+		}
+		return simpleInspection("complete_person_directory_task_batch", map[string]any{"items": items}), nil
 	case *deleteChannelRuntimeMetaCmd:
 		return simpleInspection("delete_channel_runtime_meta", map[string]any{
 			"channel_id":   typed.channelID,
@@ -122,7 +172,7 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 	case *abortChannelMigrationCmd:
 		return channelMigrationGuardInspection("abort_channel_migration", typed.req.Guard), nil
 	default:
-		return CommandInspection{}, fmt.Errorf("%w: unsupported command inspection %T", metadb.ErrInvalidArgument, cmd)
+		return CommandInspection{}, fmt.Errorf("%w %T", ErrCommandInspectionUnsupported, cmd)
 	}
 }
 

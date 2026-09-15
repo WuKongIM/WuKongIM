@@ -38,6 +38,9 @@ specification, runbook, report, or module documentation; link to them when neede
   fails. A two-replica group needs both replicas for writes.
 - Slot proxy handlers register through `pkg/cluster.Node.RegisterRPC`.
   Node RPC identities must remain distinct from Channel replication services.
+- Slot log inspection is separate from FSM decoding and application. A decoded
+  command without an inspection view reports `unsupported`, not `corrupt`;
+  inspection support must accompany new operator-visible command types.
 
 ## Message durability and recovery
 

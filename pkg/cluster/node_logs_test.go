@@ -7,11 +7,60 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/raftlog"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"go.etcd.io/raft/v3/raftpb"
 )
+
+func TestInspectSlotLogEntryPayloadDistinguishesUnsupportedFromCorrupt(t *testing.T) {
+	data, err := metafsm.EncodeEnsureUserChannelMembershipBatchCommandChecked([]metafsm.UserChannelMembershipBatchItem{{
+		HashSlot: 7, Membership: metadb.UserChannelMembership{UID: "u1", ChannelID: channelid.EncodePersonChannel("u1", "u2"), ChannelType: 1, JoinSeq: 10, SourceVersion: 3},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	unsupported := metafsm.EncodeUpsertChannelLatestCommand(metadb.ChannelLatest{ChannelID: "group-1", ChannelType: 2})
+	for _, tc := range []struct {
+		name, status, command string
+		data                  []byte
+	}{
+		{"membership", "ok", "ensure_user_channel_membership_batch", data},
+		{"migrated membership", "ok", "apply_delta", metafsm.EncodeApplyDeltaCommand(1, 2, 7, data)},
+		{"unsupported inspection", "unsupported", "unknown", unsupported},
+		{"migrated unsupported inspection", "unsupported", "unknown", metafsm.EncodeApplyDeltaCommand(1, 2, 7, unsupported)},
+		{"truncated membership", "corrupt", "unknown", data[:len(data)-1]},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			const createdAtMS = int64(1781754611123)
+			var item LogEntry
+			inspectSlotLogEntryPayload(&item, raftpb.Entry{Type: raftpb.EntryNormal, Data: multiraftPayloadWithCreatedAt(7, createdAtMS, tc.data)})
+			if item.DecodeStatus != tc.status || item.DecodedType != tc.command {
+				t.Fatalf("inspection = %#v, want status %q command %q", item, tc.status, tc.command)
+			}
+			if item.CreatedAtMS != createdAtMS {
+				t.Fatalf("created_at_ms = %d, want %d", item.CreatedAtMS, createdAtMS)
+			}
+			if tc.status == "ok" {
+				if item.Decoded["command"] != tc.command || item.Decoded["hash_slot"] != uint64(7) {
+					t.Fatalf("decoded = %#v, want command and proposal hash slot", item.Decoded)
+				}
+				payload := item.Decoded
+				if tc.command == "apply_delta" {
+					payload = payload["original"].(map[string]any)
+				}
+				items := payload["items"].([]map[string]any)
+				if len(items) != 1 || items[0]["uid"] != "u1" || items[0]["source_version"] != uint64(3) {
+					t.Fatalf("membership payload = %#v, want UID and generation", payload)
+				}
+			} else if item.Decoded["error"] == nil {
+				t.Fatalf("inspection = %#v, want error detail", item)
+			}
+		})
+	}
+}
 
 func TestLocalControllerLogEntriesUsesControlFacade(t *testing.T) {
 	controller := &controllerLogReaderStub{

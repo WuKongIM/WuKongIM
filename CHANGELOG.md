@@ -6,6 +6,10 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🐛 Bug Fixes / 问题修复
+
+- Decode person-directory admission, membership, and completion batches in Slot Raft log views, and distinguish unsupported inspection from corrupt log data. / 槽位 Raft 日志支持展示单聊目录任务接纳、成员关系补齐和任务完成的批量命令，并区分暂不支持展示与日志数据损坏。
+
 ## [v3.0.0-beta.17] - 2026-09-15
 
 ### 🚀 New Features / 新功能
