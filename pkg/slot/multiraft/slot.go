@@ -43,10 +43,8 @@ type slot struct {
 	submittedProposals []*future
 	submittedConfigs   []*future
 	pendingProposals   map[uint64]trackedFuture
-	// Pending proof groups, caller count and sequence are guarded by mu; only the Raft worker issues proofs.
-	pendingReads map[string]*readBarrierRequest
-	// pendingReadCount bounds callers rather than shared proof groups.
-	pendingReadCount            int
+	// pendingReads and readSequence are guarded by mu; only the Raft worker issues requests.
+	pendingReads                map[string]*readBarrierRequest
 	readSequence                uint64
 	pendingConfigs              map[uint64]trackedFuture
 	pendingProposalCap          int
@@ -467,16 +465,10 @@ func (g *slot) processControls(ctx context.Context) bool {
 	controls := g.takeControlBatch()
 	defer g.releaseControlBatch(controls)
 
-	for index := 0; index < len(controls); index++ {
-		action := controls[index]
+	for _, action := range controls {
 		switch action.kind {
 		case controlReadBarrier:
-			end := index + 1
-			for end < len(controls) && controls[end].kind == controlReadBarrier {
-				end++
-			}
-			g.issueReadBarrierBatch(controls[index:end])
-			index = end - 1
+			g.issueReadBarrier(action.readBarrier)
 		case controlPropose:
 			action.future.observeStageSince("meta_create_slot_control_wait", nil, action.future.createdAt)
 			if err := g.rawNode.Propose(action.data); err != nil {

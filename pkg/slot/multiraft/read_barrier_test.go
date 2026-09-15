@@ -11,7 +11,7 @@ import (
 
 func TestReadBarrierWaitsForDurableApplyAndRejectsTermChange(t *testing.T) {
 	request := &readBarrierRequest{ctx: context.Background(), resp: make(chan error, 1), term: 3}
-	g := &slot{status: Status{Role: RoleLeader, Term: 3}, durableAppliedIndex: 8, pendingReads: map[string]*readBarrierRequest{"read": request}, pendingReadCount: 1}
+	g := &slot{status: Status{Role: RoleLeader, Term: 3}, durableAppliedIndex: 8, pendingReads: map[string]*readBarrierRequest{"read": request}}
 	g.acceptReadStates([]raft.ReadState{{Index: 9, RequestCtx: []byte("read")}})
 	select {
 	case <-request.resp:
@@ -27,7 +27,6 @@ func TestReadBarrierWaitsForDurableApplyAndRejectsTermChange(t *testing.T) {
 	}
 	request = &readBarrierRequest{ctx: context.Background(), resp: make(chan error, 1), term: 3}
 	g.pendingReads["old"] = request
-	g.pendingReadCount = 1
 	g.status.Term = 4
 	g.acceptReadStates([]raft.ReadState{{Index: 9, RequestCtx: []byte("old")}})
 	if err := <-request.resp; !errors.Is(err, ErrNotLeader) {
@@ -39,7 +38,7 @@ func TestReadBarrierCanceledUnconfirmedRequestsKeepRaftBudget(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	request := &readBarrierRequest{ctx: ctx, resp: make(chan error, 1), term: 3}
-	g := &slot{status: Status{Role: RoleLeader, Term: 3}, durableAppliedIndex: 8, pendingReads: map[string]*readBarrierRequest{"read": request}, pendingReadCount: 1}
+	g := &slot{status: Status{Role: RoleLeader, Term: 3}, durableAppliedIndex: 8, pendingReads: map[string]*readBarrierRequest{"read": request}}
 	g.acceptReadStates(nil)
 	if err := <-request.resp; !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
@@ -55,7 +54,7 @@ func TestReadBarrierCanceledUnconfirmedRequestsKeepRaftBudget(t *testing.T) {
 
 func TestReadBarrierTransientFailureKeepsUnconfirmedBudget(t *testing.T) {
 	request := &readBarrierRequest{ctx: context.Background(), resp: make(chan error, 1), term: 3}
-	g := &slot{pendingReads: map[string]*readBarrierRequest{"read": request}, pendingReadCount: 1}
+	g := &slot{pendingReads: map[string]*readBarrierRequest{"read": request}}
 	failure := errors.New("transient storage failure")
 	g.failPending(failure)
 	if err := <-request.resp; !errors.Is(err, failure) {

@@ -8,8 +8,6 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
-- Coalesce already-queued consecutive Slot read barriers behind one fresh ReadIndex, retaining per-caller limits, cancellation and durable-apply checks. / 已排队的连续槽位读屏障共用一次新鲜 ReadIndex，保留逐调用者容量、取消与持久化应用检查。
-
 - Expose bounded read-stage timings for conversation list/sync responses, head hydration, and message-edit barrier/storage reads. / 增加会话列表与同步响应、摘要补齐、消息修改屏障及存储读取的固定维度耗时指标。
 
 - Read the first surviving sparse ordinal directly for zero-floor conversation counts, avoiding a redundant predecessor seek while preserving retained-history and corruption checks. / 会话计数下界为零时直接读取首条存活稀疏索引，减少一次无效前驱查找，保留历史清理基线与损坏检查。
