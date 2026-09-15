@@ -18,6 +18,11 @@ type runtimeReadKey struct {
 	channelType int64
 }
 
+type runtimeReadGeneration struct {
+	version       uint64
+	activeWriters int
+}
+
 type runtimeReadEntry struct {
 	key        runtimeReadKey
 	meta       ChannelRuntimeMeta
@@ -26,19 +31,19 @@ type runtimeReadEntry struct {
 }
 
 // runtimeReadCache retains decoded storage rows, never distributed authority.
-// Every hash-slot mutation advances its generation before releasing ownership;
-// a reader that overlaps the mutation cannot republish a stale row afterward.
+// Cache hits and fills are disabled while a hash-slot mutation is active.
+// Its generation advances on entry and exit, fencing every overlapping miss.
 // Entry and retained-byte limits also bound large channel IDs and replica sets.
 type runtimeReadCache struct {
 	mu          sync.Mutex
 	entries     map[runtimeReadKey]*list.Element
-	generations map[HashSlot]uint64
+	generations map[HashSlot]runtimeReadGeneration
 	lru         list.List
 	bytes       int
 }
 
 func newRuntimeReadCache() *runtimeReadCache {
-	return &runtimeReadCache{entries: make(map[runtimeReadKey]*list.Element), generations: make(map[HashSlot]uint64)}
+	return &runtimeReadCache{entries: make(map[runtimeReadKey]*list.Element), generations: make(map[HashSlot]runtimeReadGeneration)}
 }
 
 func cloneRuntimeReadMeta(m ChannelRuntimeMeta) ChannelRuntimeMeta {
@@ -53,7 +58,11 @@ func (c *runtimeReadCache) get(key runtimeReadKey) (ChannelRuntimeMeta, bool, ui
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	generation := c.generations[key.hashSlot]
+	state := c.generations[key.hashSlot]
+	generation := state.version
+	if state.activeWriters != 0 {
+		return ChannelRuntimeMeta{}, false, generation
+	}
 	if e := c.entries[key]; e != nil {
 		row := e.Value.(*runtimeReadEntry)
 		if row.generation == generation {
@@ -76,7 +85,8 @@ func (c *runtimeReadCache) put(key runtimeReadKey, m ChannelRuntimeMeta, generat
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if generation != c.generations[key.hashSlot] {
+	state := c.generations[key.hashSlot]
+	if state.activeWriters != 0 || generation != state.version {
 		return
 	}
 	if e := c.entries[key]; e != nil {
@@ -94,16 +104,27 @@ func (c *runtimeReadCache) put(key runtimeReadKey, m ChannelRuntimeMeta, generat
 	}
 }
 
-// invalidate also fences in-flight misses; no per-channel tombstones or scans
-// are needed. HashSlot is uint16, so generation bookkeeping is bounded.
-func (c *runtimeReadCache) invalidate(hashSlots []HashSlot) {
+// startMutation fences previous misses and disables cache hits/fills until all
+// writers exit. Counts also cover overlapping offline restore chunk ownership.
+func (c *runtimeReadCache) startMutation(hashSlots []HashSlot) {
+	c.changeWriters(hashSlots, 1)
+}
+
+func (c *runtimeReadCache) finishMutation(hashSlots []HashSlot) {
+	c.changeWriters(hashSlots, -1)
+}
+
+func (c *runtimeReadCache) changeWriters(hashSlots []HashSlot, delta int) {
 	if c == nil {
 		return
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, hs := range hashSlots {
-		c.generations[hs]++
+		state := c.generations[hs]
+		state.version++
+		state.activeWriters += delta
+		c.generations[hs] = state
 	}
 }
 

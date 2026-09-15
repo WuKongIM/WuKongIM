@@ -78,8 +78,9 @@ specification, runbook, report, or module documentation; link to them when neede
 ## History, conversations, and commands
 
 - Runtime metadata reads use an 8,192-row / 8 MiB storage cache, invalidated by
-  Hash-Slot mutation generations before ownership is released, including failed
-  writes and snapshot/restore chunks. Late misses cannot republish stale rows;
+  Hash-Slot generations on mutation entry/exit, including failed writes and
+  snapshot/restore chunks. Hits/fills are disabled while mutations are active;
+  late misses cannot republish stale rows;
   replica slices remain caller-owned. This never replaces Slot/Channel authority
   or permission checks; unrelated Hash Slots retain their cache entries.
 

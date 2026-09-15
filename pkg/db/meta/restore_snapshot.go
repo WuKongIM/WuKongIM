@@ -137,8 +137,9 @@ func (w *RestoreSnapshotWriter) flush() error {
 		return nil
 	}
 	// This offline writer does not take the typed mutation locks; fence cached
-	// rows after every attempted chunk, including a failed or partial restore.
-	defer w.db.runtimeCache.invalidate(w.hashSlots)
+	// rows throughout every attempted chunk, including failed/partial restores.
+	w.db.runtimeCache.startMutation(w.hashSlots)
+	defer w.db.runtimeCache.finishMutation(w.hashSlots)
 	if err := w.batch.Commit(true); err != nil {
 		return err
 	}
