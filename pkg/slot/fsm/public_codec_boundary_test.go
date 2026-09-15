@@ -239,7 +239,7 @@ func TestCommandInspectionCoversSensitiveAndOperationalCommands(t *testing.T) {
 	if len(keys) != 2 || keys[1]["channel_id"] != "b" || keys[1]["channel_type"] != int64(2) {
 		t.Fatalf("conversation key inspection = %#v", keys)
 	}
-	if _, err := DecodeCommandInspection(EncodeUpsertChannelLatestCommand(metadb.ChannelLatest{ChannelID: "group-1", ChannelType: 2})); !errors.Is(err, ErrCommandInspectionUnsupported) || errors.Is(err, metadb.ErrInvalidArgument) {
+	if _, err := DecodeCommandInspection([]byte{commandVersion, 255}); !errors.Is(err, ErrCommandInspectionUnsupported) || errors.Is(err, metadb.ErrInvalidArgument) {
 		t.Fatalf("unsupported inspection error = %v", err)
 	}
 }

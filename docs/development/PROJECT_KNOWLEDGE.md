@@ -39,8 +39,11 @@ specification, runbook, report, or module documentation; link to them when neede
 - Slot proxy handlers register through `pkg/cluster.Node.RegisterRPC`.
   Node RPC identities must remain distinct from Channel replication services.
 - Slot log inspection is separate from FSM decoding and application. A decoded
-  command without an inspection view reports `unsupported`, not `corrupt`;
-  inspection support must accompany new operator-visible command types.
+  command without an inspection view reports `unsupported`, not `corrupt`.
+  Unknown Slot command types and unsupported Slot/Controller envelope versions
+  also report `unsupported` without changing FSM rejection. Registered Slot
+  commands have encoded inspection fixtures that check catalog coverage and
+  message-body/token redaction; new command types need corresponding fixtures.
 
 ## Message durability and recovery
 

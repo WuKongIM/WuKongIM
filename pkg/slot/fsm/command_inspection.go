@@ -9,8 +9,8 @@ import (
 
 const redactedSecret = "***"
 
-// ErrCommandInspectionUnsupported means a valid command has no inspection view.
-// It does not indicate corrupt log data or a failure to apply the command.
+// ErrCommandInspectionUnsupported means the command version, type, or decoded
+// command has no inspection view. It does not establish whether the data is corrupt.
 var ErrCommandInspectionUnsupported = errors.New("unsupported command inspection")
 
 // CommandInspection is a redacted, JSON-friendly view of one Slot FSM command.
@@ -23,6 +23,16 @@ type CommandInspection struct {
 
 // DecodeCommandInspection decodes one Slot FSM command into a redacted summary.
 func DecodeCommandInspection(data []byte) (CommandInspection, error) {
+	// Classify unfamiliar wire formats only for inspection; the FSM decoder
+	// continues to reject them under its existing application contract.
+	if len(data) >= headerSize {
+		if data[0] != commandVersion {
+			return CommandInspection{}, fmt.Errorf("%w: command version %d", ErrCommandInspectionUnsupported, data[0])
+		}
+		if _, ok := commandDecoders[data[1]]; !ok {
+			return CommandInspection{}, fmt.Errorf("%w: command type %d", ErrCommandInspectionUnsupported, data[1])
+		}
+	}
 	cmd, err := decodeCommand(data)
 	if err != nil {
 		return CommandInspection{}, err
@@ -45,6 +55,13 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 		return deviceInspection("upsert_device", typed.device), nil
 	case *upsertChannelCmd:
 		return channelInspection("upsert_channel", typed.channel), nil
+	case *createChannelCmd:
+		return channelInspection("create_channel", typed.channel), nil
+	case *patchChannelBusinessFlagsCmd:
+		return simpleInspection("patch_channel_business_flags", map[string]any{
+			"channel_id": typed.channelID, "channel_type": typed.channelType,
+			"ban": typed.flags.Ban, "disband": typed.flags.Disband, "send_ban": typed.flags.SendBan,
+		}), nil
 	case *deleteChannelCmd:
 		return simpleInspection("delete_channel", map[string]any{
 			"channel_id":   typed.channelID,
@@ -75,22 +92,8 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 	case *ensureUserChannelMembershipBatchCmd:
 		items := make([]map[string]any, len(typed.items))
 		for i, item := range typed.items {
-			membership := item.Membership
-			items[i] = map[string]any{
-				"hash_slot":                       item.HashSlot,
-				"uid":                             membership.UID,
-				"channel_id":                      membership.ChannelID,
-				"channel_type":                    membership.ChannelType,
-				"join_seq":                        membership.JoinSeq,
-				"read_seq":                        membership.ReadSeq,
-				"deleted_to_seq":                  membership.DeletedToSeq,
-				"conversation_hidden_through_seq": membership.ConversationHiddenThroughSeq,
-				"activated_at":                    membership.ActivatedAt,
-				"tombstone":                       membership.Tombstone,
-				"tombstone_at":                    membership.TombstoneAt,
-				"source_version":                  membership.SourceVersion,
-				"updated_at":                      membership.UpdatedAt,
-			}
+			items[i] = userChannelMembershipPayload(item.Membership)
+			items[i]["hash_slot"] = item.HashSlot
 		}
 		return simpleInspection("ensure_user_channel_membership_batch", map[string]any{"items": items}), nil
 	case *completePersonDirectoryTaskBatchCmd:
@@ -115,6 +118,31 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 		return subscribersInspection("add_subscribers", typed.channelID, typed.channelType, typed.uids, typed.subscriberMutationVersion), nil
 	case *removeSubscribersCmd:
 		return subscribersInspection("remove_subscribers", typed.channelID, typed.channelType, typed.uids, typed.subscriberMutationVersion), nil
+	case *upsertUserChannelMembershipsCmd:
+		return userChannelMembershipsInspection("upsert_user_channel_memberships", typed.memberships), nil
+	case *deleteUserChannelMembershipsCmd:
+		return userChannelMembershipsInspection("delete_user_channel_memberships", typed.memberships), nil
+	case *advanceUserChannelMembershipReadSeqCmd:
+		return userChannelMembershipsInspection("advance_user_channel_membership_read_seq", typed.memberships), nil
+	case *hideUserChannelMembershipCmd:
+		return userChannelMembershipsInspection("hide_user_channel_membership", typed.memberships), nil
+	case *activateUserChannelMembershipCmd:
+		return userChannelMembershipsInspection("activate_user_channel_membership", typed.memberships), nil
+	case *upsertUserCMDChannelMembershipsCmd:
+		return userCMDChannelMembershipsInspection("upsert_user_cmd_channel_memberships", typed.memberships), nil
+	case *advanceUserCMDChannelMembershipAcksCmd:
+		return userCMDChannelMembershipsInspection("advance_user_cmd_channel_membership_acks", typed.memberships), nil
+	case *tombstoneUserCMDChannelMembershipsCmd:
+		return userCMDChannelMembershipsInspection("tombstone_user_cmd_channel_memberships", typed.memberships), nil
+	case *upsertChannelLatestCmd:
+		return simpleInspection("upsert_channel_latest", channelLatestPayload(typed.latest)), nil
+	case *upsertChannelLatestBatchCmd:
+		items := make([]map[string]any, len(typed.items))
+		for i, item := range typed.items {
+			items[i] = channelLatestPayload(item.Latest)
+			items[i]["hash_slot"] = item.HashSlot
+		}
+		return simpleInspection("upsert_channel_latest_batch", map[string]any{"items": items}), nil
 	case *appendMessageEventCmd:
 		return simpleInspection("append_message_event", messageEventAppendPayload(typed.event)), nil
 	case *appendMessageEventsBatchCmd:
@@ -171,6 +199,10 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 		return channelMigrationGuardInspection("clear_channel_write_fence", typed.req.Guard), nil
 	case *abortChannelMigrationCmd:
 		return channelMigrationGuardInspection("abort_channel_migration", typed.req.Guard), nil
+	case *garbageCollectMigrationTasksCmd:
+		return simpleInspection("garbage_collect_terminal_channel_migration_tasks", map[string]any{
+			"before_ms": typed.req.BeforeMS, "limit": typed.req.Limit,
+		}), nil
 	default:
 		return CommandInspection{}, fmt.Errorf("%w %T", ErrCommandInspectionUnsupported, cmd)
 	}

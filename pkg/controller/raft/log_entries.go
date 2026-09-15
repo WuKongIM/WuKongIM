@@ -226,6 +226,9 @@ func inspectControllerLogEntryPayload(item *LogEntry, entry raftpb.Entry) {
 	cmd, err := command.Decode(entry.Data)
 	if err != nil {
 		item.DecodeStatus = "corrupt"
+		if errors.Is(err, command.ErrUnsupportedVersion) {
+			item.DecodeStatus = "unsupported"
+		}
 		item.DecodedType = "unknown"
 		item.Decoded = map[string]any{"error": err.Error()}
 		return

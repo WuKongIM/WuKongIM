@@ -8,7 +8,7 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
-- Decode person-directory admission, membership, and completion batches in Slot Raft log views, and distinguish unsupported inspection from corrupt log data. / 槽位 Raft 日志支持展示单聊目录任务接纳、成员关系补齐和任务完成的批量命令，并区分暂不支持展示与日志数据损坏。
+- Decode all registered Slot commands in Raft log views, including read progress, ordinary/CMD memberships, channel updates, latest-message metadata, and directory/migration tasks; omit message bodies and distinguish unsupported inspection or versions from corrupt log data. / 槽位 Raft 日志支持展示全部已注册命令，涵盖已读进度、普通/CMD 成员关系、频道更新、最新消息元数据及目录/迁移任务；隐藏消息正文，并区分暂不支持展示或版本与日志数据损坏。
 
 ## [v3.0.0-beta.17] - 2026-09-15
 

@@ -54,6 +54,14 @@ func TestLogInspectionDistinguishesNoopCorruptionAndCommands(t *testing.T) {
 	}
 }
 
+func TestLogInspectionDistinguishesUnsupportedVersion(t *testing.T) {
+	var item LogEntry
+	inspectControllerLogEntryPayload(&item, raftpb.Entry{Type: raftpb.EntryNormal, Data: []byte(`{"version":2,"command":{"kind":"upsert_node"}}`)})
+	if item.DecodeStatus != "unsupported" || item.DecodedType != "unknown" || item.Decoded["error"] == nil {
+		t.Fatalf("unsupported version inspection = %+v", item)
+	}
+}
+
 func TestLogInspectionNormalizesOperatorInputsAndStableNames(t *testing.T) {
 	if got := normalizeLogEntriesOptions(LogEntriesOptions{Cursor: 9}); got.Limit != defaultLogEntryLimit || got.Cursor != 9 {
 		t.Fatalf("default options = %+v", got)

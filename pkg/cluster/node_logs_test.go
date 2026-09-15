@@ -22,13 +22,19 @@ func TestInspectSlotLogEntryPayloadDistinguishesUnsupportedFromCorrupt(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	unsupported := metafsm.EncodeUpsertChannelLatestCommand(metadb.ChannelLatest{ChannelID: "group-1", ChannelType: 2})
+	unsupported := append([]byte(nil), metafsm.EncodeNoopCommand()...)
+	unsupported[1] = 255 // An unregistered command type from a newer writer.
+	unsupportedVersion := append([]byte(nil), metafsm.EncodeNoopCommand()...)
+	unsupportedVersion[0] = 255
+	readSeq := metafsm.EncodeAdvanceUserChannelMembershipReadSeqCommand([]metadb.UserChannelMembership{{UID: "u1", ChannelID: "g1", ChannelType: 2, ReadSeq: 42, UpdatedAt: 170}})
 	for _, tc := range []struct {
 		name, status, command string
 		data                  []byte
 	}{
 		{"membership", "ok", "ensure_user_channel_membership_batch", data},
 		{"migrated membership", "ok", "apply_delta", metafsm.EncodeApplyDeltaCommand(1, 2, 7, data)},
+		{"read progress", "ok", "advance_user_channel_membership_read_seq", readSeq},
+		{"unsupported version", "unsupported", "unknown", unsupportedVersion},
 		{"unsupported inspection", "unsupported", "unknown", unsupported},
 		{"migrated unsupported inspection", "unsupported", "unknown", metafsm.EncodeApplyDeltaCommand(1, 2, 7, unsupported)},
 		{"truncated membership", "corrupt", "unknown", data[:len(data)-1]},
@@ -51,9 +57,16 @@ func TestInspectSlotLogEntryPayloadDistinguishesUnsupportedFromCorrupt(t *testin
 				if tc.command == "apply_delta" {
 					payload = payload["original"].(map[string]any)
 				}
-				items := payload["items"].([]map[string]any)
-				if len(items) != 1 || items[0]["uid"] != "u1" || items[0]["source_version"] != uint64(3) {
-					t.Fatalf("membership payload = %#v, want UID and generation", payload)
+				if tc.command == "advance_user_channel_membership_read_seq" {
+					items := payload["memberships"].([]map[string]any)
+					if len(items) != 1 || items[0]["uid"] != "u1" || items[0]["read_seq"] != uint64(42) || items[0]["updated_at"] != int64(170) {
+						t.Fatalf("read progress payload = %#v", payload)
+					}
+				} else {
+					items := payload["items"].([]map[string]any)
+					if len(items) != 1 || items[0]["uid"] != "u1" || items[0]["source_version"] != uint64(3) {
+						t.Fatalf("membership payload = %#v, want UID and generation", payload)
+					}
 				}
 			} else if item.Decoded["error"] == nil {
 				t.Fatalf("inspection = %#v, want error detail", item)
