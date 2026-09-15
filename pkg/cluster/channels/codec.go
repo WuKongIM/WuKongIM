@@ -433,6 +433,10 @@ func encodeRPCResultVersion(version uint8, kind uint8, payload any, err error) (
 		err = legacyMessageFlagError(payload, version)
 	}
 	if err != nil {
+		switch kind {
+		case kindLastVisibleResponse, kindConversationHeadsResponse, kindCommittedReadsResponse:
+			err = readRPCTransportError(err)
+		}
 		dst := []byte{version, kind, rpcResultErr}
 		dst = appendRPCApplicationError(dst, rpcApplicationError{Code: rpcErrorCode(err), Message: err.Error()})
 		return dst, nil
@@ -1335,7 +1339,7 @@ func readLastVisibleResponse(body []byte, offset int, version uint8) (LastVisibl
 func appendConversationHeadsResponse(dst []byte, resp ConversationHeadsResponse, version uint8) []byte {
 	dst = appendSliceHeader(dst, len(resp.Items), resp.Items == nil)
 	for _, item := range resp.Items {
-		dst = appendOptionalRPCApplicationError(dst, item.Err)
+		dst = appendOptionalRPCApplicationError(dst, readRPCTransportError(item.Err))
 		dst = appendLastVisibleResponse(dst, lastVisibleResponseFromHead(item.Head), version)
 		if version >= codecVersion {
 			dst = appendUvarint(dst, item.Head.NonBusinessUnread)
@@ -1489,7 +1493,7 @@ func readCommittedReadsRequest(body []byte, offset int) (CommittedReadsRequest, 
 func appendCommittedReadsResponse(dst []byte, resp CommittedReadsResponse, version uint8) []byte {
 	dst = appendSliceHeader(dst, len(resp.Items), resp.Items == nil)
 	for _, item := range resp.Items {
-		dst = appendOptionalRPCApplicationError(dst, item.Err)
+		dst = appendOptionalRPCApplicationError(dst, readRPCTransportError(item.Err))
 		dst = appendMessages(dst, item.Read.Messages, version)
 		dst = appendUvarint(dst, item.Read.NextSeq)
 	}

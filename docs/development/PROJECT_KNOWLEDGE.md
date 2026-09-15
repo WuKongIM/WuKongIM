@@ -263,6 +263,10 @@ specification, runbook, report, or module documentation; link to them when neede
   Publish bilingual routes together and derive current versions from their canonical
   manifests/Changelog. Historical SDK or benchmark receipts do not certify newer
   artifacts. Keep public contracts separate from private interface inventories.
+- Channel read RPCs classify typed temporary dependency transport failures before
+  serialization using the existing not-ready code. Nested Slot-authority connection
+  loss must not degrade into generic text and ordinary HTTP 400; unknown text,
+  storage failures and caller cancellation do not acquire retryability.
 - Read [workflow contracts](../../.github/workflows/README.md) before invoking
   Actions. Issue/Review Agent control files remain protected. Authorization, signed
   generation identity, and exact source evidence cannot be replaced by event hints
