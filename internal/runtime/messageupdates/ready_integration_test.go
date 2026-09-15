@@ -210,3 +210,86 @@ func TestRepairWaveOverlapsBoundedIdentityDispatch(t *testing.T) {
 	default:
 	}
 }
+
+// A call can inherit only the tail of the shared scheduling deadline. That
+// scheduling expiration must not force known work to wait for cold-slot discovery.
+type expiringReadyDispatcher struct {
+	calls  int
+	always bool
+}
+
+func (d *expiringReadyDispatcher) DispatchMessageUpdate(ctx context.Context, _ metadb.MessageUpdate) (bool, error) {
+	d.calls++
+	if d.always || d.calls == 1 {
+		<-ctx.Done()
+		return false, ctx.Err()
+	}
+	return false, nil
+}
+func (*expiringReadyDispatcher) PruneMessageUpdate(context.Context, metadb.MessageUpdate) error {
+	return nil
+}
+
+func TestReadyWaveDeadlinePreservesOneRetryWithoutDiscovery(t *testing.T) {
+	d := &expiringReadyDispatcher{}
+	w := readyWorker(d)
+	w.NotifyCommitted(readyTask(1))
+	if w.dispatchReady(context.Background()) != 1 || len(w.pending) != 1 {
+		t.Fatal("wave deadline discarded known work into the cold-slot scan")
+	}
+	w.dispatchReady(context.Background())
+	if d.calls != 2 || len(w.pending) != 0 {
+		t.Fatalf("calls=%d pending=%d", d.calls, len(w.pending))
+	}
+}
+
+func TestReadyWaveDeadlineRetryRemainsBounded(t *testing.T) {
+	d := &expiringReadyDispatcher{always: true}
+	w := readyWorker(d)
+	w.NotifyCommitted(readyTask(1))
+	w.dispatchReady(context.Background())
+	w.dispatchReady(context.Background())
+	w.dispatchReady(context.Background())
+	if d.calls != 2 || len(w.pending) != 0 {
+		t.Fatalf("persistent deadline did not fall back after one retry: calls=%d pending=%d", d.calls, len(w.pending))
+	}
+}
+
+func TestReadyParentDeadlineDoesNotEnqueueBudgetRetry(t *testing.T) {
+	d := &expiringReadyDispatcher{always: true}
+	w := readyWorker(d)
+	w.NotifyCommitted(readyTask(1))
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	if w.dispatchReady(ctx) != 1 || len(w.pending) != 0 || d.calls != 1 {
+		t.Fatal("parent deadline retained work for another wave")
+	}
+}
+
+// Only the second lane consumes the shared budget; joining it must not reclassify
+// the first lane's earlier dependency error as scheduling expiration.
+type mixedDeadlineDispatcher struct{}
+
+func (mixedDeadlineDispatcher) DispatchMessageUpdate(ctx context.Context, task metadb.MessageUpdate) (bool, error) {
+	if task.MessageID == 2 {
+		<-ctx.Done()
+	}
+	return false, context.DeadlineExceeded
+}
+func (mixedDeadlineDispatcher) PruneMessageUpdate(context.Context, metadb.MessageUpdate) error {
+	return nil
+}
+
+func TestReadyDeadlineClassificationPrecedesLaneJoin(t *testing.T) {
+	w := readyWorker(mixedDeadlineDispatcher{})
+	w.NotifyCommitted(readyTask(1))
+	w.NotifyCommitted(readyTask(2))
+	if w.dispatchReady(context.Background()) != 2 || len(w.pending) != 1 {
+		t.Fatal("joining a slow lane changed an earlier dependency failure into a retry")
+	}
+	for _, entry := range w.pending {
+		if entry.MessageID != 2 || !entry.budgetRetried {
+			t.Fatal("wrong lane retained a budget retry")
+		}
+	}
+}

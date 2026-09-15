@@ -2,6 +2,7 @@ package messageupdates
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"time"
@@ -18,10 +19,21 @@ type updateKey struct {
 	id      uint64
 }
 
+// readyEntry keeps one scheduling-budget retry with the queued identity/version.
+// It retains no delivery state; durable progress remains authoritative.
+type readyEntry struct {
+	metadb.MessageUpdate
+	budgetRetried bool
+}
+
 // NotifyCommitted never waits for storage or delivery. Overflow, stopped workers
 // and oversized identities fall back to the durable pending scan. The queue
 // retains no payload or subscriber list and coalesces only the same message.
 func (w *Worker) NotifyCommitted(task metadb.MessageUpdate) {
+	w.enqueueReady(task, false)
+}
+
+func (w *Worker) enqueueReady(task metadb.MessageUpdate, budgetRetried bool) {
 	if task.ChannelID == "" || len(task.ChannelID) > 1024 || task.MessageID == 0 || task.Version == 0 {
 		return
 	}
@@ -45,8 +57,8 @@ func (w *Worker) NotifyCommitted(task metadb.MessageUpdate) {
 	} else {
 		key.channel = previous.ChannelID
 	}
-	w.pending[key] = metadb.MessageUpdate{ChannelID: key.channel, ChannelType: key.kind,
-		MessageID: key.id, MessageSeq: task.MessageSeq, Version: task.Version}
+	w.pending[key] = readyEntry{MessageUpdate: metadb.MessageUpdate{ChannelID: key.channel, ChannelType: key.kind,
+		MessageID: key.id, MessageSeq: task.MessageSeq, Version: task.Version}, budgetRetried: budgetRetried}
 	w.signalReady()
 }
 
@@ -65,7 +77,7 @@ func (w *Worker) takeReady() (metadb.MessageUpdate, bool) {
 	case key := <-w.ready:
 		task := w.pending[key]
 		delete(w.pending, key)
-		return task, true
+		return task.MessageUpdate, true
 	default:
 		return metadb.MessageUpdate{}, false
 	}
@@ -83,7 +95,7 @@ func (w *Worker) dispatchReady(ctx context.Context) int {
 		// Take the group under one lock: a concurrent newer commit cannot cause
 		// the same key to be selected twice within the group.
 		w.mu.Lock()
-		tasks := make([]metadb.MessageUpdate, 0, 4)
+		tasks := make([]readyEntry, 0, 4)
 		for len(tasks) < min(4, 8-visits) && len(w.ready) > 0 {
 			key := <-w.ready
 			tasks = append(tasks, w.pending[key])
@@ -95,8 +107,9 @@ func (w *Worker) dispatchReady(ctx context.Context) int {
 		}
 		visits += len(tasks)
 		type result struct {
-			more bool
-			err  error
+			more          bool
+			err           error
+			budgetExpired bool
 		}
 		results := make([]result, len(tasks))
 		var wg sync.WaitGroup
@@ -108,7 +121,9 @@ func (w *Worker) dispatchReady(ctx context.Context) int {
 				// Durable work remains authoritative even if the lane's call fails.
 				r := result{more: true}
 				for page := 0; page < 4 && turn.Err() == nil; page++ {
-					r.more, r.err = w.dispatcher.DispatchMessageUpdate(turn, task)
+					r.more, r.err = w.dispatcher.DispatchMessageUpdate(turn, task.MessageUpdate)
+					// Capture at return: another lane may exhaust the wave while we join.
+					r.budgetExpired = errors.Is(r.err, context.DeadlineExceeded) && errors.Is(turn.Err(), context.DeadlineExceeded)
 					if r.err != nil || !r.more {
 						break
 					}
@@ -120,8 +135,13 @@ func (w *Worker) dispatchReady(ctx context.Context) int {
 		for i, r := range results {
 			if r.err != nil {
 				failures++
+				// A call inheriting the tail of a wave gets one fresh-wave chance.
+				// Dependency failures and repeated expiration use durable repair.
+				if r.budgetExpired && !tasks[i].budgetRetried && ctx.Err() == nil {
+					w.enqueueReady(tasks[i].MessageUpdate, true)
+				}
 			} else if r.more {
-				w.NotifyCommitted(tasks[i])
+				w.enqueueReady(tasks[i].MessageUpdate, tasks[i].budgetRetried)
 			}
 		}
 	}

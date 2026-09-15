@@ -34,7 +34,13 @@ belongs here. The composition root starts, stops and joins this worker.
   selection. Dispatch creates up to four temporary managed lanes;
   there is no goroutine per queued channel or member. One worker never dispatches
   the same identity concurrently. Stop/restore joins all active lanes.
-- Queue overflow and failed ready attempts fall back to the durable scan.
+- A dispatch error caused by the shared one-second wave deadline retains one
+  ready retry per queued identity/version, subject to queue capacity. Capture
+  expiration at call return;
+  a dependency deadline while the wave is live does not qualify. Partial-page
+  continuations preserve the spent retry, and newer commits retain precedence.
+- Queue overflow, dependency failures, repeated wave expiration and restart fall
+  back to the durable scan. Shutdown does not enqueue a budget retry.
 - Failed work stays durable and retries on later passes. Stale-version tasks
   cannot clear newer notification work.
 - Error counts are reported at most once per minute without message contents

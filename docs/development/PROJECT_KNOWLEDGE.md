@@ -77,7 +77,10 @@ specification, runbook, report, or module documentation; link to them when neede
   overlaps at most four independent notification targets, joins them before
   advancing its scan cursor, and retains the shared subscriber-page budget. UID
   endpoint lists resolve bounded pages through exact fenced target/leader batches.
-  Notification
+  A failed ready call that exhausts its shared wave deadline gets one bounded
+  ready retry; paging preserves that retry state. Dependency errors and repeated
+  expiration use durable scanning, so transient scheduling exhaustion does not
+  immediately force known work through cold-slot discovery. Notification
   checkpoint latency, EVENT arrival and SDK-visible content latency are distinct
   measurements. Large offline membership tests do not qualify equivalent online
   fanout; see the [bounded pressure report](../reports/2026-09-15-message-edit-pressure.md).

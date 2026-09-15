@@ -1,0 +1,1384 @@
+{
+  "date": "2026-09-15",
+  "baseline_source": {
+    "source": "c576ea7d3cb77b87d865a426b7e033638f7615ca",
+    "sha256": {
+      "AGENTS.md": "c6eae7244b1c660be4b2a62cbdc1efa5c26c35e34972e994df7e6ae073fc9d0b",
+      "internal/runtime/messageupdates/FLOW.md": "b85b50afebfed6a2df14337bc2e6ee0c3fde00d65d11c7623e39aafb4ac31c98",
+      "internal/usecase/message/FLOW.md": "6257d7e2b75f75019d8a3da71ea29670b33935c624fef8f377aa26d67f5a187c",
+      "internal/infra/delivery/FLOW.md": "10ab203307dd4c7db19dbffa063c0db7620b4cce9b37a9580e5cdb50a0c204be",
+      "internal/app/FLOW.md": "48ff55407a390faddb54f8581c4747e7c781e849221fa066f58a3598361c65d8"
+    }
+  },
+  "sdk_source": "a038f874230a6fe5201c2faae61b6f2b20cb9ebc",
+  "scope": "Local diagnosis and repair; not a release or a production SLO qualification",
+  "runs": {
+    "trace-2": {
+      "complete": true,
+      "started_at": "2026-09-15T04:14:07.422Z",
+      "node": "v22.12.0",
+      "platform": "darwin/arm64",
+      "logical_cpus": 10,
+      "driver_sha256": "0a640078c59655535095c062f5aa4cd01a559f3553aff35a3167ac403ace60eb",
+      "binary_sha256": "c21b4489b67e2525861e3a050e2cd40f936a3bcafc0e5981bae0cb9146dd05b9",
+      "sdk_bundle_sha256": "df3c2d8fa30d4113ac328f5b0969a1ea26445ed3622f535d33b184e61b784599",
+      "nodes": 3,
+      "hash_slots": 256,
+      "physical_slots": 8,
+      "replicas": 3,
+      "channels": 16,
+      "online_clients": 32,
+      "rounds_per_channel": 32,
+      "closed_loop_min_interval_ms": 1000,
+      "resources_before": [
+        {
+          "node": 1,
+          "rss_kib": 169600,
+          "cumulative_cpu": "0:03.65"
+        },
+        {
+          "node": 2,
+          "rss_kib": 157056,
+          "cumulative_cpu": "0:03.35"
+        },
+        {
+          "node": 3,
+          "rss_kib": 157312,
+          "cumulative_cpu": "0:03.40"
+        }
+      ],
+      "measured_seconds": 31.601162791999997,
+      "event_loop_delays": [],
+      "resource_sample_ms": {
+        "samples": 64,
+        "p50_ms": 12.518042000003334,
+        "p95_ms": 18.613624999998137,
+        "p99_ms": 18.829541999999492,
+        "max_ms": 18.829541999999492
+      },
+      "resources_after": [
+        {
+          "node": 1,
+          "rss_kib": 178752,
+          "cumulative_cpu": "0:06.34"
+        },
+        {
+          "node": 2,
+          "rss_kib": 178480,
+          "cumulative_cpu": "0:05.91"
+        },
+        {
+          "node": 3,
+          "rss_kib": 176800,
+          "cumulative_cpu": "0:06.01"
+        }
+      ],
+      "peak_rss_kib": [
+        {
+          "node": 1,
+          "rss_kib": 178752
+        },
+        {
+          "node": 2,
+          "rss_kib": 178480
+        },
+        {
+          "node": 3,
+          "rss_kib": 176800
+        }
+      ],
+      "bff_edit_roundtrip": {
+        "samples": 512,
+        "p50_ms": 137.40000000000873,
+        "p95_ms": 267.20416699999623,
+        "p99_ms": 314.70962500000314,
+        "max_ms": 334.893250000001
+      },
+      "sdk_visible_latency": {
+        "samples": 512,
+        "p50_ms": 427.04779199999757,
+        "p95_ms": 645.5031250000029,
+        "p99_ms": 739.385000000002,
+        "max_ms": 776.5297090000022
+      },
+      "sender_calibration_wait": {
+        "samples": 512,
+        "p50_ms": 0.0016670000040903687,
+        "p95_ms": 0.009625000006053597,
+        "p99_ms": 0.015290999996068422,
+        "max_ms": 0.050040999994962476
+      },
+      "slow_sample_count": 0,
+      "instrumentation": "bounded synchronous trace; not a performance baseline"
+    },
+    "trace-3": {
+      "complete": true,
+      "started_at": "2026-09-15T04:15:41.213Z",
+      "node": "v22.12.0",
+      "platform": "darwin/arm64",
+      "logical_cpus": 10,
+      "driver_sha256": "0a640078c59655535095c062f5aa4cd01a559f3553aff35a3167ac403ace60eb",
+      "binary_sha256": "c21b4489b67e2525861e3a050e2cd40f936a3bcafc0e5981bae0cb9146dd05b9",
+      "sdk_bundle_sha256": "df3c2d8fa30d4113ac328f5b0969a1ea26445ed3622f535d33b184e61b784599",
+      "nodes": 3,
+      "hash_slots": 256,
+      "physical_slots": 8,
+      "replicas": 3,
+      "channels": 16,
+      "online_clients": 32,
+      "rounds_per_channel": 32,
+      "closed_loop_min_interval_ms": 1000,
+      "resources_before": [
+        {
+          "node": 1,
+          "rss_kib": 169616,
+          "cumulative_cpu": "0:03.26"
+        },
+        {
+          "node": 2,
+          "rss_kib": 159088,
+          "cumulative_cpu": "0:02.99"
+        },
+        {
+          "node": 3,
+          "rss_kib": 169488,
+          "cumulative_cpu": "0:03.09"
+        }
+      ],
+      "stale_ack_replacements": [
+        {
+          "round": 1,
+          "old_epoch": "0",
+          "current_epoch": "0",
+          "current_stale": true,
+          "manager_epoch": "0",
+          "recent_resets": [
+            {
+              "content_epoch": "0",
+              "status": 200
+            }
+          ]
+        }
+      ],
+      "measured_seconds": 31.669155041999993,
+      "event_loop_delays": [],
+      "resource_sample_ms": {
+        "samples": 64,
+        "p50_ms": 11.41112499999872,
+        "p95_ms": 18.385042000001704,
+        "p99_ms": 19.765041999999085,
+        "max_ms": 19.765041999999085
+      },
+      "resources_after": [
+        {
+          "node": 1,
+          "rss_kib": 179344,
+          "cumulative_cpu": "0:05.84"
+        },
+        {
+          "node": 2,
+          "rss_kib": 178672,
+          "cumulative_cpu": "0:05.51"
+        },
+        {
+          "node": 3,
+          "rss_kib": 190496,
+          "cumulative_cpu": "0:05.60"
+        }
+      ],
+      "peak_rss_kib": [
+        {
+          "node": 1,
+          "rss_kib": 179344
+        },
+        {
+          "node": 2,
+          "rss_kib": 178672
+        },
+        {
+          "node": 3,
+          "rss_kib": 190496
+        }
+      ],
+      "bff_edit_roundtrip": {
+        "samples": 512,
+        "p50_ms": 127.47012499999255,
+        "p95_ms": 245.58516699999745,
+        "p99_ms": 290.2902499999982,
+        "max_ms": 302.3492499999993
+      },
+      "sdk_visible_latency": {
+        "samples": 512,
+        "p50_ms": 411.6458330000023,
+        "p95_ms": 554.7588329999999,
+        "p99_ms": 639.8596250000046,
+        "max_ms": 677.0529160000006
+      },
+      "sender_calibration_wait": {
+        "samples": 512,
+        "p50_ms": 0.0016670000040903687,
+        "p95_ms": 0.00991700000304263,
+        "p99_ms": 0.018542000005254522,
+        "max_ms": 7.080499999996391
+      },
+      "slow_sample_count": 0,
+      "instrumentation": "bounded synchronous trace; not a performance baseline"
+    },
+    "trace-4": {
+      "complete": true,
+      "started_at": "2026-09-15T04:17:16.525Z",
+      "node": "v22.12.0",
+      "platform": "darwin/arm64",
+      "logical_cpus": 10,
+      "driver_sha256": "0a640078c59655535095c062f5aa4cd01a559f3553aff35a3167ac403ace60eb",
+      "binary_sha256": "c21b4489b67e2525861e3a050e2cd40f936a3bcafc0e5981bae0cb9146dd05b9",
+      "sdk_bundle_sha256": "df3c2d8fa30d4113ac328f5b0969a1ea26445ed3622f535d33b184e61b784599",
+      "nodes": 3,
+      "hash_slots": 256,
+      "physical_slots": 8,
+      "replicas": 3,
+      "channels": 16,
+      "online_clients": 32,
+      "rounds_per_channel": 32,
+      "closed_loop_min_interval_ms": 1000,
+      "resources_before": [
+        {
+          "node": 1,
+          "rss_kib": 155936,
+          "cumulative_cpu": "0:03.16"
+        },
+        {
+          "node": 2,
+          "rss_kib": 166192,
+          "cumulative_cpu": "0:02.96"
+        },
+        {
+          "node": 3,
+          "rss_kib": 153568,
+          "cumulative_cpu": "0:02.96"
+        }
+      ],
+      "measured_seconds": 35.259880792,
+      "event_loop_delays": [],
+      "resource_sample_ms": {
+        "samples": 71,
+        "p50_ms": 12.69124999998894,
+        "p95_ms": 18.584500000004482,
+        "p99_ms": 19.230125000001863,
+        "max_ms": 19.230125000001863
+      },
+      "resources_after": [
+        {
+          "node": 1,
+          "rss_kib": 178672,
+          "cumulative_cpu": "0:06.04"
+        },
+        {
+          "node": 2,
+          "rss_kib": 178944,
+          "cumulative_cpu": "0:05.78"
+        },
+        {
+          "node": 3,
+          "rss_kib": 178240,
+          "cumulative_cpu": "0:05.77"
+        }
+      ],
+      "peak_rss_kib": [
+        {
+          "node": 1,
+          "rss_kib": 178672
+        },
+        {
+          "node": 2,
+          "rss_kib": 178944
+        },
+        {
+          "node": 3,
+          "rss_kib": 178240
+        }
+      ],
+      "bff_edit_roundtrip": {
+        "samples": 512,
+        "p50_ms": 107.53170900000259,
+        "p95_ms": 278.377542000002,
+        "p99_ms": 640.2682499999937,
+        "max_ms": 832.278250000003
+      },
+      "sdk_visible_latency": {
+        "samples": 512,
+        "p50_ms": 398.70691599999554,
+        "p95_ms": 667.2808329999971,
+        "p99_ms": 1378.1872909999947,
+        "max_ms": 5048.778791999997
+      },
+      "sender_calibration_wait": {
+        "samples": 512,
+        "p50_ms": 0.002166999998735264,
+        "p95_ms": 0.010750000001280569,
+        "p99_ms": 0.020917000001645647,
+        "max_ms": 0.04645900000468828
+      },
+      "slow_sample_count": 4,
+      "instrumentation": "bounded synchronous trace; not a performance baseline"
+    },
+    "fixed-plain": {
+      "complete": true,
+      "started_at": "2026-09-15T04:25:31.898Z",
+      "node": "v22.12.0",
+      "platform": "darwin/arm64",
+      "logical_cpus": 10,
+      "driver_sha256": "0a640078c59655535095c062f5aa4cd01a559f3553aff35a3167ac403ace60eb",
+      "binary_sha256": "af215f6be0c7b85750a4370f615579030f5ddd6371688c8e89d1a746c11e6720",
+      "sdk_bundle_sha256": "df3c2d8fa30d4113ac328f5b0969a1ea26445ed3622f535d33b184e61b784599",
+      "nodes": 3,
+      "hash_slots": 256,
+      "physical_slots": 8,
+      "replicas": 3,
+      "channels": 16,
+      "online_clients": 32,
+      "rounds_per_channel": 32,
+      "closed_loop_min_interval_ms": 1000,
+      "resources_before": [
+        {
+          "node": 1,
+          "rss_kib": 166000,
+          "cumulative_cpu": "0:02.90"
+        },
+        {
+          "node": 2,
+          "rss_kib": 167616,
+          "cumulative_cpu": "0:02.63"
+        },
+        {
+          "node": 3,
+          "rss_kib": 155248,
+          "cumulative_cpu": "0:02.64"
+        }
+      ],
+      "measured_seconds": 31.842441207999997,
+      "event_loop_delays": [],
+      "resource_sample_ms": {
+        "samples": 64,
+        "p50_ms": 13.462583999993512,
+        "p95_ms": 17.49474999999802,
+        "p99_ms": 18.382167000003392,
+        "max_ms": 18.382167000003392
+      },
+      "resources_after": [
+        {
+          "node": 1,
+          "rss_kib": 179712,
+          "cumulative_cpu": "0:05.31"
+        },
+        {
+          "node": 2,
+          "rss_kib": 179088,
+          "cumulative_cpu": "0:05.04"
+        },
+        {
+          "node": 3,
+          "rss_kib": 178992,
+          "cumulative_cpu": "0:05.03"
+        }
+      ],
+      "peak_rss_kib": [
+        {
+          "node": 1,
+          "rss_kib": 179712
+        },
+        {
+          "node": 2,
+          "rss_kib": 179088
+        },
+        {
+          "node": 3,
+          "rss_kib": 178992
+        }
+      ],
+      "bff_edit_roundtrip": {
+        "samples": 512,
+        "p50_ms": 134.2257499999978,
+        "p95_ms": 302.71304199999577,
+        "p99_ms": 438.9435830000002,
+        "max_ms": 820.1297500000073
+      },
+      "sdk_visible_latency": {
+        "samples": 512,
+        "p50_ms": 392.0964169999934,
+        "p95_ms": 600.6876669999983,
+        "p99_ms": 1174.537083000003,
+        "max_ms": 1374.6220829999947
+      },
+      "sender_calibration_wait": {
+        "samples": 512,
+        "p50_ms": 0.0015839999978197739,
+        "p95_ms": 0.00604199999361299,
+        "p99_ms": 0.012957999999343883,
+        "max_ms": 0.0191670000058366
+      },
+      "slow_sample_count": 0,
+      "instrumentation": "none"
+    },
+    "fixed-traced": {
+      "complete": true,
+      "started_at": "2026-09-15T04:27:36.560Z",
+      "node": "v22.12.0",
+      "platform": "darwin/arm64",
+      "logical_cpus": 10,
+      "driver_sha256": "0a640078c59655535095c062f5aa4cd01a559f3553aff35a3167ac403ace60eb",
+      "binary_sha256": "61a62f18b29c1273b1cf1468eaab578cee523385983ea1bf84899400f69ede2e",
+      "sdk_bundle_sha256": "df3c2d8fa30d4113ac328f5b0969a1ea26445ed3622f535d33b184e61b784599",
+      "nodes": 3,
+      "hash_slots": 256,
+      "physical_slots": 8,
+      "replicas": 3,
+      "channels": 16,
+      "online_clients": 32,
+      "rounds_per_channel": 32,
+      "closed_loop_min_interval_ms": 1000,
+      "resources_before": [
+        {
+          "node": 1,
+          "rss_kib": 172992,
+          "cumulative_cpu": "0:02.45"
+        },
+        {
+          "node": 2,
+          "rss_kib": 155120,
+          "cumulative_cpu": "0:02.26"
+        },
+        {
+          "node": 3,
+          "rss_kib": 152736,
+          "cumulative_cpu": "0:02.29"
+        }
+      ],
+      "measured_seconds": 31.552595749999995,
+      "event_loop_delays": [],
+      "resource_sample_ms": {
+        "samples": 63,
+        "p50_ms": 10.584042000002228,
+        "p95_ms": 12.340000000003783,
+        "p99_ms": 14.099333999998635,
+        "max_ms": 14.099333999998635
+      },
+      "resources_after": [
+        {
+          "node": 1,
+          "rss_kib": 181568,
+          "cumulative_cpu": "0:04.65"
+        },
+        {
+          "node": 2,
+          "rss_kib": 181136,
+          "cumulative_cpu": "0:04.41"
+        },
+        {
+          "node": 3,
+          "rss_kib": 181600,
+          "cumulative_cpu": "0:04.49"
+        }
+      ],
+      "peak_rss_kib": [
+        {
+          "node": 1,
+          "rss_kib": 181568
+        },
+        {
+          "node": 2,
+          "rss_kib": 181136
+        },
+        {
+          "node": 3,
+          "rss_kib": 181600
+        }
+      ],
+      "bff_edit_roundtrip": {
+        "samples": 512,
+        "p50_ms": 118.37570899999992,
+        "p95_ms": 259.9084160000057,
+        "p99_ms": 305.1710830000011,
+        "max_ms": 370.91641700000037
+      },
+      "sdk_visible_latency": {
+        "samples": 512,
+        "p50_ms": 379.5859169999894,
+        "p95_ms": 623.2805000000008,
+        "p99_ms": 714.1402919999964,
+        "max_ms": 764.0944159999926
+      },
+      "sender_calibration_wait": {
+        "samples": 512,
+        "p50_ms": 0.001915999993798323,
+        "p95_ms": 0.008916999999200925,
+        "p99_ms": 0.014458000005106442,
+        "max_ms": 0.023375000004307367
+      },
+      "slow_sample_count": 0,
+      "instrumentation": "bounded shutdown-flushed trace"
+    }
+  },
+  "receipts": [
+    {
+      "path": ".tmp/message-edit-tail/trace-2.json",
+      "sha256": "0619961067dfebce53d9fc97c06a5f44d3df6a4860c2fa79a8db9d7d451e196b",
+      "bytes": 142188
+    },
+    {
+      "path": ".tmp/message-edit-tail/trace-2.json.node1.jsonl",
+      "sha256": "b9a57c4b28445653215c96ff2aa11d62878e80356466ed7b21cd4f1f70a2a7bc",
+      "bytes": 546369
+    },
+    {
+      "path": ".tmp/message-edit-tail/trace-2.json.node2.jsonl",
+      "sha256": "6ff64f7bb85bf136ee11f5ca0cb4da6a7956f867f0c52db44ea556f47d431d9c",
+      "bytes": 480643
+    },
+    {
+      "path": ".tmp/message-edit-tail/trace-2.json.node3.jsonl",
+      "sha256": "756c1c7dbda258860203404686aba9cf86a37c165ff0f208b38631028db4bace",
+      "bytes": 472116
+    },
+    {
+      "path": ".tmp/message-edit-tail/trace-3.json",
+      "sha256": "8ace2769f88ada7c9ea2d4c3043ec654fbb54c1a7bf53523411c2ce4e8728f24",
+      "bytes": 142437
+    },
+    {
+      "path": ".tmp/message-edit-tail/trace-3.json.node1.jsonl",
+      "sha256": "e07aa3abfceadfa7682a19937fe9ed9a0ab80e434eb11e897bbd09111c08d586",
+      "bytes": 548045
+    },
+    {
+      "path": ".tmp/message-edit-tail/trace-3.json.node2.jsonl",
+      "sha256": "00763a06fd5ba4dbda3540cd1bc7b6651ae151d5bd0a98fa73c3973302be38b6",
+      "bytes": 482071
+    },
+    {
+      "path": ".tmp/message-edit-tail/trace-3.json.node3.jsonl",
+      "sha256": "244de32e4d43ff319be749074561457e96395d68d7715093131ce0086a2644de",
+      "bytes": 472640
+    },
+    {
+      "path": ".tmp/message-edit-tail/trace-4.json",
+      "sha256": "c271c53b3b45d6b9fb3b2408d99efd24360b6d46c21d011153f9ef76ff53b68c",
+      "bytes": 143651
+    },
+    {
+      "path": ".tmp/message-edit-tail/trace-4.json.node1.jsonl",
+      "sha256": "8dab6f4f51739975f1e3210b7d8608f614b614d364d9b54a3737b9a96d1a642b",
+      "bytes": 553172
+    },
+    {
+      "path": ".tmp/message-edit-tail/trace-4.json.node2.jsonl",
+      "sha256": "5e459b923a129f8ea76aada006689a48b77acfce7b5d4e6b2b8ed6ce3352d9e7",
+      "bytes": 489026
+    },
+    {
+      "path": ".tmp/message-edit-tail/trace-4.json.node3.jsonl",
+      "sha256": "2f53e2fb7b8278d0ae015a35b5feb649f1ab9e27e3b948d61abe1708f3d4e90a",
+      "bytes": 480031
+    },
+    {
+      "path": ".tmp/message-edit-tail/fixed-plain.json",
+      "sha256": "fc09d9915f0120a31d426279e41e2718e4bfe3c5a37f09abe7c14a717f73b406",
+      "bytes": 141329
+    },
+    {
+      "path": ".tmp/message-edit-tail/fixed-traced.json",
+      "sha256": "80b12060df5337339e50ff9f345354d442ed96f7408ad8f1afb097edbcac8787",
+      "bytes": 142187
+    },
+    {
+      "path": ".tmp/message-edit-tail/fixed-traced.json.node1.jsonl",
+      "sha256": "95adc24d2e75c0edc66103071b3e5b3f2e4b1b09998e3c81e893674e4d8d09b1",
+      "bytes": 547951
+    },
+    {
+      "path": ".tmp/message-edit-tail/fixed-traced.json.node2.jsonl",
+      "sha256": "ee8a7425965bf6b5ac3abadcabce3581412dc5418701ac4542fa918af4c3abe8",
+      "bytes": 477465
+    },
+    {
+      "path": ".tmp/message-edit-tail/fixed-traced.json.node3.jsonl",
+      "sha256": "0a32d08cda4536445c3a06279775be2bd6f17410a2e1bf373e5df07ebdf7869a",
+      "bytes": 472428
+    },
+    {
+      "path": ".tmp/message-edit-tail/deadline-red.log",
+      "sha256": "eb89c4c4084d1f76151ae67855adc65cd2c143bb2a93998f8134fa69c6661c28",
+      "bytes": 417
+    },
+    {
+      "path": ".tmp/message-edit-tail/runtime-final.log",
+      "sha256": "e0bbe7e0336b16496809e120fcbb4f4ea9526ec9b35f4cf3ed8571ff1cb33ed9",
+      "bytes": 427
+    },
+    {
+      "path": ".tmp/message-edit-tail/app-final.log",
+      "sha256": "a07f78cdda9f911cc6f87efb53dcc2d5ac2e44a4f8fae097da0e86f5bacedeee",
+      "bytes": 55
+    },
+    {
+      "path": ".tmp/message-edit-tail/flow-check.log",
+      "sha256": "98ddaa18514fd28aaab882786b972a65a091043d78aa3af63a32b15543c73bd1",
+      "bytes": 630
+    },
+    {
+      "path": ".tmp/message-edit-tail/fixed-pressure.log",
+      "sha256": "0377b5b566114a03e1b28f4256ad4c3b7e033cee703d941f7f3934cf94d3c0e2",
+      "bytes": 2827
+    },
+    {
+      "path": ".tmp/message-edit-tail/fixed-pressure.json",
+      "sha256": "3092c03bd167e3fd45f9ce2ec7e0f80fd531b3dc8f4d4e0eb4b544e81782b08e",
+      "bytes": 2968
+    },
+    {
+      "path": ".tmp/message-edit-tail/cleanup.json",
+      "sha256": "522462b7bc56cb4b4a5c54624e25a218c14861fed3deb99dd4d1bba65708b883",
+      "bytes": 216
+    },
+    {
+      "path": ".tmp/message-edit-tail/driver.cjs",
+      "sha256": "0a640078c59655535095c062f5aa4cd01a559f3553aff35a3167ac403ace60eb",
+      "bytes": 15356
+    },
+    {
+      "path": ".tmp/message-edit-tail/build_trace.py",
+      "sha256": "a72a037d22c2053b2e56dce55ac791dab9f33f90fe5d642914e14f9a72052ec1",
+      "bytes": 6066
+    },
+    {
+      "path": ".tmp/message-edit-tail/analyze.py",
+      "sha256": "8bffe3d22ae107572e1afc0a45871d2834bca4ebeb722f0aa11b876f3a4bb5de",
+      "bytes": 1613
+    }
+  ],
+  "confirmed_baseline_samples": [
+    {
+      "edit": {
+        "id": "2099714313550827520",
+        "version": "24",
+        "sender_node": 3,
+        "receiver_node": 1,
+        "started_ms": 1789445907234.465,
+        "ack_ms": 1789445908066.9868,
+        "hint_ms": 1789445912178.4626,
+        "visible_ms": 1789445912283.244
+      },
+      "visible_duration": 5048.77880859375,
+      "ack_duration": 832.521728515625,
+      "hint_duration": 4943.99755859375,
+      "stages": [
+        {
+          "node": 3,
+          "ms": 819.163,
+          "stage": "notify",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 832.335,
+          "stage": "queued",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 1021.77,
+          "stage": "ready.start",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 1021.802,
+          "stage": "pending.start",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 1097.855,
+          "stage": "pending.end",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 1110.955,
+          "stage": "retention.start",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 1162.176,
+          "stage": "retention.end",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 1175.2,
+          "stage": "hint.start",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 1175.213,
+          "stage": "presence.start",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 1226.416,
+          "stage": "presence.end",
+          "status": "deadline"
+        },
+        {
+          "node": 3,
+          "ms": 1226.426,
+          "stage": "dispatch.end",
+          "status": "deadline"
+        },
+        {
+          "node": 3,
+          "ms": 1226.438,
+          "stage": "ready.end",
+          "status": "deadline"
+        },
+        {
+          "node": 1,
+          "ms": 4944.102,
+          "stage": "repair.start",
+          "status": "ok"
+        },
+        {
+          "node": 1,
+          "ms": 4944.124,
+          "stage": "pending.start",
+          "status": "ok"
+        },
+        {
+          "node": 1,
+          "ms": 4944.25,
+          "stage": "pending.end",
+          "status": "ok"
+        },
+        {
+          "node": 1,
+          "ms": 4944.257,
+          "stage": "retention.start",
+          "status": "ok"
+        },
+        {
+          "node": 1,
+          "ms": 4944.277,
+          "stage": "retention.end",
+          "status": "ok"
+        },
+        {
+          "node": 1,
+          "ms": 4944.282,
+          "stage": "hint.start",
+          "status": "ok"
+        },
+        {
+          "node": 1,
+          "ms": 4944.286,
+          "stage": "presence.start",
+          "status": "ok"
+        },
+        {
+          "node": 1,
+          "ms": 4944.627,
+          "stage": "presence.end",
+          "status": "ok"
+        },
+        {
+          "node": 1,
+          "ms": 4944.639,
+          "stage": "write.start",
+          "status": "ok"
+        },
+        {
+          "node": 1,
+          "ms": 4944.654,
+          "stage": "write.end",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 4945.013,
+          "stage": "write.start",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 4945.032,
+          "stage": "write.end",
+          "status": "ok"
+        },
+        {
+          "node": 1,
+          "ms": 4945.193,
+          "stage": "hint.end",
+          "status": "ok"
+        },
+        {
+          "node": 1,
+          "ms": 4945.201,
+          "stage": "progress.start",
+          "status": "ok"
+        },
+        {
+          "node": 1,
+          "ms": 4986.948,
+          "stage": "progress.end",
+          "status": "ok"
+        },
+        {
+          "node": 1,
+          "ms": 4987.061,
+          "stage": "dispatch.end",
+          "status": "ok"
+        },
+        {
+          "node": 1,
+          "ms": 4991.096,
+          "stage": "repair.end",
+          "status": "ok"
+        }
+      ],
+      "sender_scans": [
+        {
+          "start_ms": 10.151,
+          "end_ms": 10.488,
+          "status": "ok"
+        },
+        {
+          "start_ms": 1226.454,
+          "end_ms": 1226.589,
+          "status": "ok"
+        },
+        {
+          "start_ms": 1580.275,
+          "end_ms": 1580.36,
+          "status": "ok"
+        },
+        {
+          "start_ms": 1613.164,
+          "end_ms": 1613.382,
+          "status": "ok"
+        },
+        {
+          "start_ms": 1810.192,
+          "end_ms": 1810.389,
+          "status": "ok"
+        },
+        {
+          "start_ms": 2073.532,
+          "end_ms": 2073.716,
+          "status": "ok"
+        },
+        {
+          "start_ms": 2210.043,
+          "end_ms": 2210.207,
+          "status": "ok"
+        },
+        {
+          "start_ms": 2414.945,
+          "end_ms": 2415.276,
+          "status": "ok"
+        },
+        {
+          "start_ms": 2609.724,
+          "end_ms": 2609.841,
+          "status": "ok"
+        },
+        {
+          "start_ms": 2810.204,
+          "end_ms": 2810.446,
+          "status": "ok"
+        },
+        {
+          "start_ms": 3057.224,
+          "end_ms": 3057.332,
+          "status": "ok"
+        },
+        {
+          "start_ms": 3210.246,
+          "end_ms": 3260.168,
+          "status": "ok"
+        },
+        {
+          "start_ms": 3409.65,
+          "end_ms": 3411.983,
+          "status": "ok"
+        },
+        {
+          "start_ms": 3677.844,
+          "end_ms": 3677.913,
+          "status": "ok"
+        },
+        {
+          "start_ms": 3809.996,
+          "end_ms": 3810.262,
+          "status": "ok"
+        },
+        {
+          "start_ms": 4067.199,
+          "end_ms": 4067.275,
+          "status": "ok"
+        },
+        {
+          "start_ms": 4209.932,
+          "end_ms": 4211.527,
+          "status": "ok"
+        },
+        {
+          "start_ms": 4720.098,
+          "end_ms": 4725.33,
+          "status": "ok"
+        },
+        {
+          "start_ms": 4813.535,
+          "end_ms": 4814.304,
+          "status": "ok"
+        }
+      ]
+    },
+    {
+      "edit": {
+        "id": "2099714330479042560",
+        "version": "24",
+        "sender_node": 3,
+        "receiver_node": 1,
+        "started_ms": 1789445907233.1982,
+        "ack_ms": 1789445908016.9006,
+        "hint_ms": 1789445911324.8875,
+        "visible_ms": 1789445911430.044
+      },
+      "visible_duration": 4196.845703125,
+      "ack_duration": 783.702392578125,
+      "hint_duration": 4091.689208984375,
+      "stages": [
+        {
+          "node": 3,
+          "ms": 732.832,
+          "stage": "notify",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 747.523,
+          "stage": "queued",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 1049.169,
+          "stage": "ready.start",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 1061.446,
+          "stage": "pending.start",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 1138.2,
+          "stage": "pending.end",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 1163.766,
+          "stage": "retention.start",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 1202.157,
+          "stage": "retention.end",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 1214.398,
+          "stage": "hint.start",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 1214.42,
+          "stage": "presence.start",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 1214.436,
+          "stage": "presence.end",
+          "status": "deadline"
+        },
+        {
+          "node": 3,
+          "ms": 1214.444,
+          "stage": "dispatch.end",
+          "status": "deadline"
+        },
+        {
+          "node": 3,
+          "ms": 1214.455,
+          "stage": "ready.end",
+          "status": "deadline"
+        },
+        {
+          "node": 2,
+          "ms": 4084.572,
+          "stage": "repair.start",
+          "status": "ok"
+        },
+        {
+          "node": 2,
+          "ms": 4088.622,
+          "stage": "pending.start",
+          "status": "ok"
+        },
+        {
+          "node": 2,
+          "ms": 4088.78,
+          "stage": "pending.end",
+          "status": "ok"
+        },
+        {
+          "node": 2,
+          "ms": 4088.791,
+          "stage": "retention.start",
+          "status": "ok"
+        },
+        {
+          "node": 2,
+          "ms": 4088.814,
+          "stage": "retention.end",
+          "status": "ok"
+        },
+        {
+          "node": 2,
+          "ms": 4088.822,
+          "stage": "hint.start",
+          "status": "ok"
+        },
+        {
+          "node": 2,
+          "ms": 4088.827,
+          "stage": "presence.start",
+          "status": "ok"
+        },
+        {
+          "node": 2,
+          "ms": 4089.212,
+          "stage": "presence.end",
+          "status": "ok"
+        },
+        {
+          "node": 1,
+          "ms": 4092.349,
+          "stage": "write.start",
+          "status": "ok"
+        },
+        {
+          "node": 1,
+          "ms": 4092.375,
+          "stage": "write.end",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 4092.766,
+          "stage": "write.start",
+          "status": "ok"
+        },
+        {
+          "node": 3,
+          "ms": 4092.963,
+          "stage": "write.end",
+          "status": "ok"
+        },
+        {
+          "node": 2,
+          "ms": 4093.153,
+          "stage": "hint.end",
+          "status": "ok"
+        },
+        {
+          "node": 2,
+          "ms": 4096.095,
+          "stage": "progress.start",
+          "status": "ok"
+        },
+        {
+          "node": 2,
+          "ms": 4136.22,
+          "stage": "progress.end",
+          "status": "ok"
+        },
+        {
+          "node": 2,
+          "ms": 4136.458,
+          "stage": "dispatch.end",
+          "status": "ok"
+        },
+        {
+          "node": 2,
+          "ms": 4136.468,
+          "stage": "repair.end",
+          "status": "ok"
+        }
+      ],
+      "sender_scans": [
+        {
+          "start_ms": 11.418,
+          "end_ms": 11.755,
+          "status": "ok"
+        },
+        {
+          "start_ms": 1227.721,
+          "end_ms": 1227.856,
+          "status": "ok"
+        },
+        {
+          "start_ms": 1581.542,
+          "end_ms": 1581.627,
+          "status": "ok"
+        },
+        {
+          "start_ms": 1614.431,
+          "end_ms": 1614.649,
+          "status": "ok"
+        },
+        {
+          "start_ms": 1811.459,
+          "end_ms": 1811.656,
+          "status": "ok"
+        },
+        {
+          "start_ms": 2074.799,
+          "end_ms": 2074.983,
+          "status": "ok"
+        },
+        {
+          "start_ms": 2211.31,
+          "end_ms": 2211.474,
+          "status": "ok"
+        },
+        {
+          "start_ms": 2416.212,
+          "end_ms": 2416.543,
+          "status": "ok"
+        },
+        {
+          "start_ms": 2610.991,
+          "end_ms": 2611.108,
+          "status": "ok"
+        },
+        {
+          "start_ms": 2811.471,
+          "end_ms": 2811.713,
+          "status": "ok"
+        },
+        {
+          "start_ms": 3058.491,
+          "end_ms": 3058.599,
+          "status": "ok"
+        },
+        {
+          "start_ms": 3211.513,
+          "end_ms": 3261.435,
+          "status": "ok"
+        },
+        {
+          "start_ms": 3410.917,
+          "end_ms": 3413.25,
+          "status": "ok"
+        },
+        {
+          "start_ms": 3679.111,
+          "end_ms": 3679.18,
+          "status": "ok"
+        },
+        {
+          "start_ms": 3811.263,
+          "end_ms": 3811.529,
+          "status": "ok"
+        },
+        {
+          "start_ms": 4068.466,
+          "end_ms": 4068.542,
+          "status": "ok"
+        }
+      ]
+    }
+  ],
+  "discarded_attempts": {
+    "trace-1": "Startup rejected an unknown WK_ diagnostic environment key; no messaging measurement. The probe then used a Go overlay without product config changes."
+  },
+  "pressure": {
+    "after_healthy": {
+      "gc_cycles": 10,
+      "goroutines": 1061,
+      "heap_alloc_bytes": 262884360,
+      "heap_inuse_bytes": 270524416,
+      "total_alloc_bytes": 919069248
+    },
+    "after_large": {
+      "gc_cycles": 49,
+      "goroutines": 1115,
+      "heap_alloc_bytes": 245828240,
+      "heap_inuse_bytes": 278683648,
+      "total_alloc_bytes": 8875856592
+    },
+    "after_overflow": {
+      "gc_cycles": 41,
+      "goroutines": 1108,
+      "heap_alloc_bytes": 375778696,
+      "heap_inuse_bytes": 384442368,
+      "total_alloc_bytes": 7378786680
+    },
+    "before_healthy": {
+      "gc_cycles": 8,
+      "goroutines": 986,
+      "heap_alloc_bytes": 200155064,
+      "heap_inuse_bytes": 216752128,
+      "total_alloc_bytes": 591841264
+    },
+    "blocked_attempts": 101,
+    "complete": true,
+    "dispatch_stats": [
+      {
+        "calls": 2556,
+        "dispatch_seconds": 204.383730721,
+        "failures": 2,
+        "node": 1
+      },
+      {
+        "calls": 30,
+        "dispatch_seconds": 5.016491584,
+        "failures": 0,
+        "node": 2
+      },
+      {
+        "calls": 820,
+        "dispatch_seconds": 75.77719194,
+        "failures": 0,
+        "node": 3
+      }
+    ],
+    "fairness_all_small_done_ms": 1204.763542,
+    "fairness_small_api": {
+      "max_ms": 157.190709,
+      "p50_ms": 120.086791,
+      "p95_ms": 157.190709,
+      "p99_ms": 157.190709,
+      "samples": 16
+    },
+    "go": "go1.25.11",
+    "gomaxprocs": 6,
+    "hash_slots": 256,
+    "healthy_api": {
+      "max_ms": 464.4145,
+      "p50_ms": 248.501083,
+      "p95_ms": 353.383708,
+      "p99_ms": 400.459417,
+      "samples": 1024
+    },
+    "healthy_seconds": 18.916505625,
+    "large_complete_ms": 68068.516958,
+    "large_incomplete_dispatch_calls": 790,
+    "large_members": 100000,
+    "large_pending_when_small_done": 1,
+    "logical_cpus": 10,
+    "minimum_overflowed_identities": 155,
+    "online_clients": 0,
+    "overflow_api": {
+      "max_ms": 1078.7835,
+      "p50_ms": 387.018208,
+      "p95_ms": 624.9535,
+      "p99_ms": 972.665875,
+      "samples": 1280
+    },
+    "overflow_backlog": [
+      {
+        "pending": 1280,
+        "seconds": 0.00167775
+      },
+      {
+        "pending": 1204,
+        "seconds": 5.432223875
+      },
+      {
+        "pending": 1044,
+        "seconds": 10.478651584
+      },
+      {
+        "pending": 887,
+        "seconds": 15.75785875
+      },
+      {
+        "pending": 723,
+        "seconds": 20.965339209
+      },
+      {
+        "pending": 572,
+        "seconds": 25.975642084
+      },
+      {
+        "pending": 404,
+        "seconds": 31.168237584
+      },
+      {
+        "pending": 240,
+        "seconds": 36.5257865
+      },
+      {
+        "pending": 107,
+        "seconds": 41.722727
+      },
+      {
+        "pending": 0,
+        "seconds": 45.375378
+      }
+    ],
+    "overflow_commit_seconds": 32.793269959,
+    "overflow_drain_seconds": 45.375395125,
+    "overflow_within_90s": true,
+    "pending_before_release": 1280,
+    "physical_slots": 8,
+    "replicas": 3,
+    "subscriber_seed_mode": "HTTP author membership plus authority-routed counted subscriber batches; offline recipient UID memberships omitted",
+    "subscriber_seed_seconds": 11.169556541
+  },
+  "candidate_files": {
+    "internal/runtime/messageupdates/ready.go": "ff66f40b61ccd83c383062952b632d47b3178842cda8102abd9af12d288a0e5e",
+    "internal/runtime/messageupdates/worker.go": "45012d5dfd4f443c76dd60df0c26fff8a85e344da02454d1c26c83c0bef9c378",
+    "internal/runtime/messageupdates/ready_test.go": "c138db30090936519ad5771db97ca2bf88371de1ebc5f8111d6ad5eeaaadaafc",
+    "internal/runtime/messageupdates/ready_integration_test.go": "d49fb65b930befeb8dca3e7452f9066bf2c3fe4e9f3a0ab91e20a1578e1bc0ca",
+    "internal/runtime/messageupdates/FLOW.md": "40382a1fd0ebcc3e96f8049564d8841ff619dcb553c75fe62792f701548ec46b",
+    "docs/development/PROJECT_KNOWLEDGE.md": "367d41e4487159c796f71a7491052417d22c71aa46551cef923a4a2f3b02893f",
+    "CHANGELOG.md": "f0843851aedeea9a31b37ac1e805507ad94958b5d62e17c8c0118b8f7146ea6c"
+  },
+  "validation": {
+    "regression_before_fix": "FAIL: two named wave-deadline integration tests discarded ready identities",
+    "runtime_integration_race": "PASS",
+    "app_http_and_nonleader_hint": "PASS",
+    "flow_doc_contracts": "PASS",
+    "sdk_plain": "512/512 non-stale receiver contents verified",
+    "sdk_traced": "512/512 non-stale receiver contents verified",
+    "pressure": "PASS: see pressure field",
+    "production_debug_hooks": false
+  },
+  "fixed_trace_summary": {
+    "records": 11171,
+    "dropped": 0,
+    "ready_deadline_errors": 0
+  }
+}

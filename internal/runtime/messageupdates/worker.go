@@ -36,7 +36,7 @@ type Worker struct {
 	// Ready identities are an acceleration hint; durable scanning owns recovery.
 	runContext context.Context
 	ready      chan updateKey
-	pending    map[updateKey]metadb.MessageUpdate
+	pending    map[updateKey]readyEntry
 	wake       chan struct{}
 }
 
@@ -58,7 +58,7 @@ func (w *Worker) Start(ctx context.Context) error {
 	w.cancel = cancel
 	w.runContext = run
 	w.ready = make(chan updateKey, readyCapacity)
-	w.pending = make(map[updateKey]metadb.MessageUpdate)
+	w.pending = make(map[updateKey]readyEntry)
 	w.wake = make(chan struct{}, 1)
 	w.done = make(chan struct{})
 	done := w.done
