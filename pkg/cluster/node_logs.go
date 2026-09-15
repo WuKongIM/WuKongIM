@@ -497,6 +497,9 @@ func inspectSlotLogEntryPayload(item *LogEntry, entry raftpb.Entry) {
 	inspection, err := metafsm.DecodeCommandInspection(entry.Data[slotProposalEnvelopeSize:])
 	if err != nil {
 		item.DecodeStatus = "corrupt"
+		if errors.Is(err, metafsm.ErrCommandInspectionUnsupported) {
+			item.DecodeStatus = "unsupported"
+		}
 		item.DecodedType = "unknown"
 		item.Decoded = map[string]any{"error": err.Error()}
 		return
