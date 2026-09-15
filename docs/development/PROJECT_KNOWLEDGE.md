@@ -237,6 +237,13 @@ specification, runbook, report, or module documentation; link to them when neede
   completion-window observations have different populations (SEND items versus
   Channel batches); compare sample counts and never add stage percentiles.
   Metadata-create batch counters remain lifetime diagnostics, including warmup.
+- PR append and mixed SEND gates retain their own bounded before/after counter
+  windows through `pkg/bench/counterwindow` (integration-only). Append opts into
+  physical-batch histograms and the existing 1/32 sampled replication observer;
+  all three nodes share one registry. Setup/calibration are excluded, completion
+  is not a passing verdict, and an earlier gate failure prevents later windows.
+  Preserve original order, load, assertions and failure exits; see the
+  [workflow catalog](../../.github/workflows/README.md#fixed-linux-send-diagnosis).
 - Release completion includes signed native package publication and exact-version
   public APT/RPM verification. Server and CLI artifacts share build identity;
   required same-tag acceptance gates precede publication. Follow

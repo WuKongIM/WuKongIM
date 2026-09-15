@@ -23,6 +23,7 @@ import (
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	gonruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
@@ -379,6 +380,7 @@ func benchmarkThreeNodeChannelAppendClusterWithLoadAtRate(b *testing.B, cluster 
 		}()
 	}
 
+	stopCounters := startAppendGateCounterWindow(b, cluster, rate)
 	b.ReportAllocs()
 	b.ResetTimer()
 	if load != nil {
@@ -392,6 +394,7 @@ func benchmarkThreeNodeChannelAppendClusterWithLoadAtRate(b *testing.B, cluster 
 	close(jobs)
 	workers.Wait()
 	b.StopTimer()
+	stopCounters()
 	if load != nil {
 		if err := load.Stop(); err != nil {
 			b.Errorf("background load Stop(): %v", err)
@@ -426,6 +429,9 @@ type durableQuorumBenchmarkCluster struct {
 	transportObserver *durableQuorumTransportObserver
 	exchangeObserver  *durableQuorumExchangeObserver
 	payload           func(int) []byte
+
+	// counters is benchmark-only; nil keeps the ordinary observer path unchanged.
+	counters *metrics.Registry
 
 	errMu sync.Mutex
 	err   error
@@ -646,6 +652,10 @@ func newDurableQuorumBenchmarkClusterWithOptions(b *testing.B, channelCount int,
 		transportServers:  make(map[ch.NodeID]*clusternet.TransportServer, 3),
 		payload:           options.payload,
 	}
+	cluster.counters = newAppendGateCounters(b)
+	if cluster.counters != nil {
+		cluster.commitObserver.counters = cluster.counters.Storage
+	}
 	gateways := make(map[ch.NodeID]*clusterchannels.QuorumExchangeGateway, 3)
 	links := make(map[ch.NodeID]replication.PeerLink, 3)
 	if options.useNetwork {
@@ -707,10 +717,14 @@ func newDurableQuorumBenchmarkClusterWithOptions(b *testing.B, channelCount int,
 			}
 		}
 		link = &observedDurableQuorumBenchmarkLink{base: link, observer: cluster.exchangeObserver}
+		var stageObserver replication.StageObserver
+		if cluster.counters != nil {
+			stageObserver = cluster.counters.ChannelRuntime
+		}
 		runtime, err := replication.NewRuntime(replication.RuntimeConfig{
 			LocalNode: node, Store: store, Link: link,
 			Goroutines: gonruntimeregistry.New(), ReplicaHedgeDelay: options.replicaHedgeDelay,
-			PeerTargetFlight: options.peerTargetFlight,
+			PeerTargetFlight: options.peerTargetFlight, Observer: stageObserver,
 		})
 		if err != nil {
 			cluster.close(b)
@@ -946,15 +960,27 @@ type durableQuorumCommitSnapshot struct {
 }
 
 type durableQuorumCommitObserver struct {
-	mu      sync.Mutex
-	batches int
-	records int
-	commit  time.Duration
+	// counters observes physical batch durations only when the PR gate opts in.
+	counters *metrics.StorageMetrics
+	mu       sync.Mutex
+	batches  int
+	records  int
+	commit   time.Duration
 }
 
 func (o *durableQuorumCommitObserver) SetCommitCoordinatorQueueDepth(int) {}
 
 func (o *durableQuorumCommitObserver) ObserveCommitCoordinatorBatch(event messagedb.CommitCoordinatorBatchEvent) {
+	if o.counters != nil {
+		result := "ok"
+		if event.Err != nil {
+			result = "error"
+		}
+		o.counters.ObserveCommitBatch("message", result, metrics.StorageCommitBatchObservation{
+			Requests: event.Requests, Records: event.Records, Bytes: event.Bytes, CollectDuration: event.CollectDuration,
+			BuildDuration: event.BuildDuration, CommitDuration: event.CommitDuration, PublishDuration: event.PublishDuration, TotalDuration: event.TotalDuration,
+		})
+	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.batches++

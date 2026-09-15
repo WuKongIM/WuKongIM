@@ -87,7 +87,7 @@ jobs:
             ' "$output_file"
           }
 
-          GOWORK=off go test -tags=integration ./pkg/channel/replication -run '^$' -bench '^BenchmarkThreeNodeChannelAppend500QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
+          WK_BENCH_APPEND_COUNTERS_DIR="$EVIDENCE_ROOT/channel-append-counters" GOWORK=off go test -tags=integration ./pkg/channel/replication -run '^$' -bench '^BenchmarkThreeNodeChannelAppend500QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
             2>&1 | tee "$EVIDENCE_ROOT/channel-append-benchmark.txt"
           assert_benchmark_metric_le_400 "$EVIDENCE_ROOT/channel-append-benchmark.txt" append-p99-ms
 

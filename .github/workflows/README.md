@@ -237,6 +237,23 @@ source workflow never receives production signing or package-publisher access.
 
 ## Fixed Linux SEND diagnosis
 
+The first PR append gate retains `channel-append-counters/` from its formal
+3000-operation window before that window's latency assertion, including when
+it prevents the mixed SEND gate from starting. It
+uses the same integration-only boundary collector as mixed SEND, with the
+`channel-append-counters/v1` schema. Snapshots exclude completed cluster setup
+and Go's one-iteration calibration, and finish before teardown. Failure during
+setup or calibration precedes collection and leaves no formal snapshot. Missing or
+incomplete windows remain explicit; no gate is skipped, reordered or retried.
+The append benchmark opts into the existing physical-batch histograms and
+1/32 sampled replication-stage observer; these add bounded clock/counter work
+to the benchmark, with no profile, trace or new sampling goroutine. The
+registry aggregates three nodes, and physical batches and sampled replication
+stages are different populations. Subtract the snapshots, keep background and
+foreground separate, and do not sum their percentile bounds as request latency.
+The old commit accumulator and its resets/verdict remain unchanged. Ordinary
+benchmarks without `WK_BENCH_APPEND_COUNTERS_DIR` retain their observer setup.
+
 The original PR mixed SEND gate also retains `mixed-send-counters/` from its
 own measured run, on both success and failure. It takes only before/after
 snapshots after warmup and after handlers complete, without enabling CPU

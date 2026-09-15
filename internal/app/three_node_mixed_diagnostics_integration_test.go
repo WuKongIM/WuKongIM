@@ -11,12 +11,12 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"runtime/trace"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	dto "github.com/prometheus/client_model/go"
+	"github.com/WuKongIM/WuKongIM/pkg/bench/counterwindow"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // startMixedSendDiagnostics selects counter-only or profiled evidence for the
@@ -154,76 +154,21 @@ func (f *mixedSendDiagnosticFile) Write(data []byte) (int, error) {
 	return n, err
 }
 
-type mixedSendSnapshot struct {
-	At       time.Time           `json:"at"`
-	System   map[string]string   `json:"system"`
-	Missing  map[string]string   `json:"missing"`
-	Families []*dto.MetricFamily `json:"families"`
-	Runtime  map[string]any      `json:"runtime"`
-}
+// Keep the existing mixed-SEND evidence schema while sharing boundary reads.
+type mixedSendSnapshot = counterwindow.Snapshot
 
 func mixedSendDiagnosticSnapshot(b testing.TB, apps []*App) mixedSendSnapshot {
-	b.Helper()
-	s := mixedSendSnapshot{At: time.Now().UTC(), System: make(map[string]string), Missing: make(map[string]string), Runtime: mixedSendRuntimeCounters()}
-	for _, path := range []string{
-		"/proc/stat", "/proc/diskstats", "/proc/self/io", "/proc/self/cgroup",
-		"/proc/pressure/cpu", "/proc/pressure/io", "/proc/pressure/memory",
-		"/sys/fs/cgroup/cpu.stat", "/sys/fs/cgroup/cpu.max", "/sys/fs/cgroup/io.stat",
-	} {
-		data, err := readMixedSendDiagnosticFile(path)
-		if err != nil {
-			s.Missing[path] = err.Error()
-		} else {
-			s.System[path] = string(data)
-		}
-	}
-	// On a host runner the process may live below the cgroup mount root. Retain
-	// that scope separately; root counters must not masquerade as this job's quota.
-	for _, line := range strings.Split(s.System["/proc/self/cgroup"], "\n") {
-		if !strings.HasPrefix(line, "0::/") {
-			continue
-		}
-		root := filepath.Join("/sys/fs/cgroup", strings.TrimPrefix(line, "0::/"))
-		for _, name := range []string{"cpu.stat", "cpu.max", "io.stat"} {
-			path := filepath.Join(root, name)
-			data, err := readMixedSendDiagnosticFile(path)
-			if err != nil {
-				s.Missing["process_cgroup/"+name] = err.Error()
-			} else {
-				s.System["process_cgroup/"+name] = string(data)
-			}
-		}
-	}
+	return counterwindow.Read(b, mixedSendGatherers(apps)...)
+}
+
+func mixedSendGatherers(apps []*App) []prometheus.Gatherer {
+	gatherers := make([]prometheus.Gatherer, 0, len(apps))
 	for _, app := range apps {
-		families, err := app.metrics.PrometheusRegistry().Gather()
-		if err != nil {
-			b.Fatal(err)
-		}
-		for _, family := range families {
-			// Closed metric families only; no message bodies or identities.
-			switch family.GetName() {
-			case "wukongim_channelv2_append_stage_duration_seconds",
-				"wukongim_channelv2_append_wait_stage_duration_seconds",
-				"wukongim_channelv2_replication_stage_duration_seconds",
-				"wukongim_channelv2_worker_task_duration_seconds",
-				"wukongim_storage_commit_batch_duration_seconds",
-				"wukongim_storage_commit_request_duration_seconds":
-				s.Families = append(s.Families, family)
-			}
-		}
+		gatherers = append(gatherers, app.metrics.PrometheusRegistry())
 	}
-	return s
+	return gatherers
 }
 
 func readMixedSendDiagnosticFile(path string) ([]byte, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	data, err := io.ReadAll(io.LimitReader(f, (64<<10)+1))
-	if len(data) > 64<<10 {
-		return nil, fmt.Errorf("system counter file exceeds 64 KiB")
-	}
-	return data, err
+	return counterwindow.ReadSystemFile(path)
 }

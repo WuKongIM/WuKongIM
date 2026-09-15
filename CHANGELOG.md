@@ -18,6 +18,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Capture bounded system, scheduler/GC, physical commit and sampled replication counters in the first PR append gate, preserving evidence when it fails before mixed SEND starts. / 前置 PR append 门禁保留有界系统、调度/GC、物理提交及采样复制计数，覆盖混合 SEND 开始前即失败的窗口。
+
 - Retain bounded CPU, disk, scheduler/GC, storage and replication counter snapshots from the original PR mixed SEND gate on success or failure, without profiling or changing its 400 ms limit. / PR 混合 SEND 原始门禁无论成功或失败均保留有界的 CPU、磁盘、调度/GC、存储和复制计数快照，不启用 profile，也不改变 400 ms 门槛。
 
 - Add an opt-in fixed-host Linux SEND diagnostic that retains the original 400 ms verdict and collects bounded CPU, execution-trace, storage and replication evidence during measured traffic. / 增加可手动启用的固定 Linux 主机 SEND 诊断，保留原始 400 ms 判定，并采集正式压测期间有界的 CPU、执行 trace、存储和复制证据。
