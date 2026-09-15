@@ -6,6 +6,10 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🔧 Improvements / 改进
+
+- Transfer retired Channel storage warm state without an extra large-struct allocation or interface copies, reducing persisted conversation-read lease churn while preserving independent leases and cache bounds. / 频道存储暖状态回收后直接转移，避免额外大结构分配和接口值复制，减少持久化会话读取的租约开销，同时保留独立租约与缓存容量限制。
+
 ### 🐛 Bug Fixes / 问题修复
 
 - Decode all registered Slot commands in Raft log views, including read progress, ordinary/CMD memberships, channel updates, latest-message metadata, and directory/migration tasks; omit message bodies and distinguish unsupported inspection or versions from corrupt log data. / 槽位 Raft 日志支持展示全部已注册命令，涵盖已读进度、普通/CMD 成员关系、频道更新、最新消息元数据及目录/迁移任务；隐藏消息正文，并区分暂不支持展示或版本与日志数据损坏。

@@ -204,7 +204,7 @@ func (r *channelRegistry) takeWarmLocked(key ChannelKey, id ChannelID) (*channel
 	if element == nil {
 		return nil, nil
 	}
-	cached := element.Value.(channelWarmCacheEntry)
+	cached := element.Value.(*channelWarmCacheEntry)
 	if cached.state.id != id {
 		// A key reused with another durable identity must not inherit append
 		// state from the previous zero-reference generation.
@@ -212,8 +212,9 @@ func (r *channelRegistry) takeWarmLocked(key ChannelKey, id ChannelID) (*channel
 		return nil, nil
 	}
 	r.removeWarmLocked(element)
-	state := cached.state
-	return &state, nil
+	// Removal transfers this retired state to the acquiring call. No cache
+	// entry can observe it again, so a second full-state copy is unnecessary.
+	return &cached.state, nil
 }
 
 func (r *channelRegistry) retainWarmLocked(entry *channelEntry) {
@@ -236,7 +237,7 @@ func (r *channelRegistry) retainWarmLocked(entry *channelEntry) {
 	entry.idempotencyMembership = idempotencyMembershipFilter{}
 	entry.idempotencyMembershipLoaded = false
 	entry.durableProposalTail = durableProposalTail{}
-	element := r.warmOrder.PushBack(channelWarmCacheEntry{key: entry.key, state: state})
+	element := r.warmOrder.PushBack(&channelWarmCacheEntry{key: entry.key, state: state})
 	r.warmEntries[entry.key] = element
 	r.warmKeyBytes += state.appendKeyCache.retainedBytes()
 	for len(r.warmEntries) > r.maxWarmEntries || r.warmKeyBytes > r.maxWarmKeyBytes {
@@ -251,7 +252,7 @@ func (r *channelRegistry) retainWarmLocked(entry *channelEntry) {
 // removeWarmLocked keeps byte accounting aligned with identity replacement,
 // acquisition, explicit invalidation and LRU eviction under the registry lock.
 func (r *channelRegistry) removeWarmLocked(element *list.Element) {
-	cached := element.Value.(channelWarmCacheEntry)
+	cached := element.Value.(*channelWarmCacheEntry)
 	r.warmKeyBytes -= cached.state.appendKeyCache.retainedBytes()
 	delete(r.warmEntries, cached.key)
 	r.warmOrder.Remove(element)
