@@ -306,18 +306,84 @@ func (s *ShardStore) ReadMessageUpdates(ctx context.Context, q MessageUpdateRead
 	if err := s.shard.check(ctx); err != nil {
 		return out, err
 	}
-	if err := validateChannelKey(ChannelKey{ChannelID: q.ChannelID, ChannelType: q.ChannelType}); err != nil {
+	if err := validateMessageUpdateRead(q); err != nil {
 		return out, err
-	}
-	if len(q.IDs) > MaxMessageUpdatePage || q.Limit < 0 || q.Limit > MaxMessageUpdatePage {
-		return out, ErrInvalidArgument
 	}
 	snap, err := s.shard.db.engine.NewSnapshot()
 	if err != nil {
 		return out, err
 	}
 	defer snap.Close()
-	hs := s.shard.hashSlot
+	return readMessageUpdatesSnapshot(ctx, snap, s.shard.hashSlot, q)
+}
+
+func validateMessageUpdateRead(q MessageUpdateRead) error {
+	if err := validateChannelKey(ChannelKey{ChannelID: q.ChannelID, ChannelType: q.ChannelType}); err != nil {
+		return err
+	}
+	if len(q.IDs) > MaxMessageUpdatePage || q.Limit < 0 || q.Limit > MaxMessageUpdatePage {
+		return ErrInvalidArgument
+	}
+	return nil
+}
+
+// ReadMessageUpdatesBatch pins one view for a bounded group of logical shards.
+// Hash slots align with reads. Distributed callers must establish fresh authority
+// and apply barriers before calling; the view and any empty proof end at return.
+func (db *DB) ReadMessageUpdatesBatch(ctx context.Context, hashSlots []uint16, reads []MessageUpdateRead) ([]MessageUpdatePage, error) {
+	if db == nil || db.meta == nil || db.engine == nil {
+		return nil, dberrors.ErrClosed
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if len(hashSlots) != len(reads) || len(reads) > MaxMessageUpdatePage {
+		return nil, ErrInvalidArgument
+	}
+	targets := 0
+	for _, read := range reads {
+		if err := validateMessageUpdateRead(read); err != nil {
+			return nil, err
+		}
+		targets += max(1, max(len(read.IDs), read.Limit))
+		if targets > MaxMessageUpdatePage {
+			return nil, ErrInvalidArgument
+		}
+	}
+	pages := make([]MessageUpdatePage, len(reads))
+	if len(reads) == 0 {
+		return pages, nil
+	}
+	snap, err := db.engine.NewSnapshot()
+	if err != nil {
+		return nil, err
+	}
+	defer snap.Close()
+	total := 0
+	for i, read := range reads {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		page, err := readMessageUpdatesSnapshot(ctx, snap, HashSlot(hashSlots[i]), read)
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range page.Updates {
+			total += len(row.Payload) + len(row.ChannelID) + len(row.PendingAfterUID) + 128
+		}
+		if total > MaxMessageUpdatePageBytes {
+			return nil, ErrInvalidArgument
+		}
+		pages[i] = page
+	}
+	return pages, nil
+}
+
+// readMessageUpdatesSnapshot keeps head, index and replacement rows in the
+// caller's pinned view. Both single-shard and grouped reads use this decoder.
+func readMessageUpdatesSnapshot(ctx context.Context, snap *engine.Snapshot, hs HashSlot, q MessageUpdateRead) (MessageUpdatePage, error) {
+	var out MessageUpdatePage
+	var err error
 	cpk := KeyParts{String(q.ChannelID), Int64Ordered(q.ChannelType)}
 	out.Head, _, err = snapshotUpdateRow(snap, messageUpdateHeadTable, hs, cpk)
 	if err != nil {
