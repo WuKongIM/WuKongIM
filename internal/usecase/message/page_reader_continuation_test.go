@@ -185,7 +185,7 @@ func TestPageReaderContinuationPreservesBatchAlignmentAndFailures(t *testing.T) 
 func TestPageReaderRejectsRepeatedRawCursorAndHonorsCancellation(t *testing.T) {
 	rows := []SyncedMessage{{MessageSeq: 4, Flags: MessageFlags{SyncOnce: true}}, {MessageSeq: 3, Flags: MessageFlags{SyncOnce: true}}}
 	_, err := NewPageReader(scanFunction(func(context.Context, []MessageScanQuery) ([]MessageScanResult, error) {
-		return []MessageScanResult{{Messages: rows}}, nil
+		return []MessageScanResult{{Messages: cloneSyncedMessages(rows)}}, nil
 	})).SyncMessages(context.Background(), ChannelMessageQuery{Limit: 1})
 	require.ErrorIs(t, err, ErrSyncPageScanInvalid)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -193,7 +193,7 @@ func TestPageReaderRejectsRepeatedRawCursorAndHonorsCancellation(t *testing.T) {
 	_, err = NewPageReader(scanFunction(func(context.Context, []MessageScanQuery) ([]MessageScanResult, error) {
 		calls++
 		cancel()
-		return []MessageScanResult{{Messages: rows}}, nil
+		return []MessageScanResult{{Messages: cloneSyncedMessages(rows)}}, nil
 	})).SyncMessages(ctx, ChannelMessageQuery{Limit: 1})
 	require.ErrorIs(t, err, context.Canceled)
 	require.Equal(t, 1, calls)

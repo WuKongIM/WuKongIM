@@ -33,8 +33,9 @@ type MessageScanQuery struct {
 	Reverse bool
 }
 
-// MessageScanResult owns one scan's messages and payload bytes. The page
-// reader may filter and reorder Messages; adapters must not retain mutable aliases.
+// MessageScanResult owns one scan's messages and all reachable mutable data,
+// including payload, stream and event values. The page reader may transfer,
+// filter and reorder Messages; adapters must not retain mutable aliases.
 // Flags.SyncOnce is preserved until page construction excludes command records.
 type MessageScanResult struct {
 	Messages []SyncedMessage
@@ -186,6 +187,14 @@ func (s *messagePageScan) consume(rows []SyncedMessage, more bool) (bool, error)
 	if len(rows) == 0 {
 		return true, nil
 	}
+	// Capture the raw continuation before filtering overwrites or clears rows.
+	last := rows[len(rows)-1].MessageSeq
+	if len(s.kept) == 0 {
+		// The scan transfers ownership. Filter its first nonempty wave in place,
+		// cap append capacity to that wave and release all discarded references.
+		s.kept = rows[:0:len(rows)]
+		defer func() { clear(rows[len(s.kept):]) }()
+	}
 	var previous uint64
 	for i, m := range rows {
 		seq := m.MessageSeq
@@ -208,7 +217,6 @@ func (s *messagePageScan) consume(rows []SyncedMessage, more bool) (bool, error)
 	if len(rows) < q.Limit && !more {
 		return true, nil
 	}
-	last := rows[len(rows)-1].MessageSeq
 	if q.Reverse {
 		if last <= 1 || last <= q.MinSeq || last-1 <= s.plan.excludeThroughSeq && s.plan.excludeThroughSeq > 0 {
 			return true, nil
@@ -299,6 +307,7 @@ func (p messagePagePlan) page(messages []SyncedMessage) ChannelMessagePage {
 	if hasMore {
 		kept = kept[:p.limit]
 	}
+	clear(messages[len(kept):])
 	if p.scan.Reverse {
 		for left, right := 0, len(kept)-1; left < right; left, right = left+1, right-1 {
 			kept[left], kept[right] = kept[right], kept[left]

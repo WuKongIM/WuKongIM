@@ -145,7 +145,10 @@ specification, runbook, report, or module documentation; link to them when neede
   removing membership; a newer message can make the conversation visible again.
 - `message.PageReader` owns bounded ordinary-page selection, visibility floors,
   SyncOnce filtering, and continuation. Latest reads use bounded reverse scans;
-  limits count visible records. Exact lookup must not scan only recent history.
+  limits count visible records. Scan adapters transfer all mutable message data;
+  PageReader can filter in place and transfer pages through sync. Custom readers
+  and wrappers retain defensive copying, including nested JSON event snapshots.
+  Exact lookup must not scan only recent history.
   Missing person membership before the first persistent SEND can mean an empty
   page; missing group membership, tombstones, and infrastructure failures cannot.
 - Ordinary and CMD logs have separate sequence spaces. Recoverable SyncOnce
