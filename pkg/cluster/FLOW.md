@@ -85,6 +85,9 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 - Route authority is `(HashSlot, SlotID, LeaderNodeID, LeaderTerm,
   ConfigEpoch, RouteRevision)` from one immutable publication. Local
   `AuthorityEpoch` is diagnostic only and never a distributed fence.
+- Scalar Slot mapping reads the current foreground table without copying
+  placement peers or looking up an unused diagnostic epoch; lifecycle,
+  missing-mapping and observed-Leader checks remain the same as full routing.
 - Desired or preferred ownership never substitutes for an observed leader.
   Missing, stale, incomplete, duplicate, or mismatched authority evidence
   fails readiness or the foreground operation closed.

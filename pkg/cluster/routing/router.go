@@ -61,6 +61,21 @@ func (r *Router) RouteKey(key string) (Route, error) {
 	return route, nil
 }
 
+// SlotForKey selects the current physical Slot without copying placement peers.
+// It preserves RouteKey's missing-table, mapping and observed-leader checks.
+func (r *Router) SlotForKey(key string) (uint32, error) {
+	table := r.Table()
+	if table == nil {
+		return 0, ErrRouteNotReady
+	}
+	hashSlot := HashSlotForKey(key, table.HashSlotCount)
+	route, err := table.routeAuthorityHashSlot(hashSlot)
+	if err != nil {
+		return 0, fmt.Errorf("route key=%q hashSlot=%d: %w", key, hashSlot, err)
+	}
+	return route.SlotID, nil
+}
+
 // RouteKeys routes keys through one current table snapshot and preserves input order.
 func (r *Router) RouteKeys(keys []string) ([]Route, error) {
 	if len(keys) == 0 {

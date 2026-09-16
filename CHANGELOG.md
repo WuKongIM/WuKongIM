@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Avoid copying replica lists when query metadata batches only need a Slot number, preserving foreground lifecycle and observed-Leader checks. / 查询元数据批次仅需 Slot 编号时不再复制副本列表，保留前台生命周期与已观测 Leader 校验。
+
 - Share one pinned database view within each bounded Slot message-update read batch, reducing per-channel snapshot work while preserving fresh read barriers and byte limits. / 每个有界 Slot 消息更新读取批次共用一个数据库快照，减少逐频道快照开销，保留新鲜读取屏障与字节上限。
 
 - Read conversation lifecycle and runtime routing metadata together at the Slot owner, reducing duplicate query RPCs while keeping remote Leader validation and read deadlines. / 会话查询在 Slot 所属节点合并读取频道状态与运行路由元数据，减少重复 RPC，保留远端 Leader 校验与读取时限。

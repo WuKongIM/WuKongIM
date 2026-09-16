@@ -34,11 +34,14 @@ func (n *Node) SlotIDs() []multiraft.SlotID {
 
 // SlotForKey maps key to its current physical Slot.
 func (n *Node) SlotForKey(key string) multiraft.SlotID {
-	route, err := n.RouteKey(key)
+	if err := n.ensureForeground(); err != nil {
+		return 0
+	}
+	slotID, err := n.router.SlotForKey(key)
 	if err != nil {
 		return 0
 	}
-	return multiraft.SlotID(route.SlotID)
+	return multiraft.SlotID(slotID)
 }
 
 // HashSlotForKey maps key to a logical hash slot using the installed table size.
