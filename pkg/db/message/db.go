@@ -30,6 +30,9 @@ type MessageDB struct {
 	// durablePredecessorCacheHits counts fresh exact extensions validated from
 	// the committed canonical or warm tail without durable predecessor reads.
 	durablePredecessorCacheHits atomic.Uint64
+	// ordinaryIndexEpoch fences absence proofs across backup imports, whose
+	// raw batches do not write through existing canonical channel entries.
+	ordinaryIndexEpoch atomic.Uint64
 
 	// closeOnce ensures the physical engine closes exactly once.
 	closeOnce sync.Once

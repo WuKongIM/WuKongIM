@@ -31,6 +31,9 @@ type channelEntry struct {
 	// durableProposalTail caches the committed exact-append predecessor. It is
 	// guarded by appendMu and may only be published after the physical commit.
 	durableProposalTail durableProposalTail
+	// ordinaryIndexProof records durable sparse-index absence under appendMu;
+	// SyncOnce staging, restore discard and import generations invalidate it.
+	ordinaryIndexProof ordinaryIndexProof
 	// checkpointMu serializes checkpoint reads followed by writes.
 	checkpointMu sync.Mutex
 	// leo caches the last durable message sequence after it is loaded.

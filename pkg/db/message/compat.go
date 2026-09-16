@@ -2614,6 +2614,7 @@ func (s *ChannelStore) DiscardForRestore(ctx context.Context) error {
 	s.log.appendMu.Lock()
 	defer s.log.appendMu.Unlock()
 	nextSeq := uint64(1)
+	s.log.ordinaryIndexProof = ordinaryIndexProof{}
 	for {
 		rows, err := s.log.readRows(ctx, nextSeq, 0, ReadOptions{
 			Limit: restoreDiscardBatchMessages, MaxBytes: restoreDiscardBatchBytes,

@@ -207,6 +207,9 @@ func (db *MessageDB) importMessageBackupChannelStream(ctx context.Context, reade
 		return 0, err
 	}
 	db.registry.invalidateWarm(header.key)
+	// Fence live leases as well as retired state, including partial imports.
+	db.ordinaryIndexEpoch.Add(1)
+	defer db.ordinaryIndexEpoch.Add(1)
 	entryIdentities, err := backupEntryIdentityMap(header.key, header.systemEntries)
 	if err != nil {
 		return 0, err

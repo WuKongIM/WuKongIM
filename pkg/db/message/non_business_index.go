@@ -10,6 +10,13 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
 )
 
+// ordinaryIndexProof stores no message or unread result: it proves that the
+// complete durable SyncOnce index was empty in one import generation.
+type ordinaryIndexProof struct {
+	epoch uint64
+	empty bool
+}
+
 // CountOrdinaryMessages counts persisted log positions excluding SyncOnce entries.
 // The caller supplies its effective visibility/read floor and selected frontier.
 // A sparse cumulative index keeps steady-state reads independent of history size.
@@ -26,6 +33,16 @@ func (l *ChannelLog) CountOrdinaryMessages(ctx context.Context, after, through u
 	}
 	l.appendMu.Lock()
 	defer l.appendMu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	epoch := l.db.ordinaryIndexEpoch.Load()
+	if l.ordinaryIndexProof.empty && l.ordinaryIndexProof.epoch == epoch {
+		if l.db.engine.IsClosed() {
+			return 0, dberrors.ErrClosed
+		}
+		return through - after, nil
+	}
 	if err := l.ensureNonBusinessIndexLocked(ctx); err != nil {
 		return 0, err
 	}
@@ -43,6 +60,7 @@ func (l *ChannelLog) CountOrdinaryMessages(ctx context.Context, after, through u
 		return 0, err
 	}
 	if empty {
+		l.ordinaryIndexProof = ordinaryIndexProof{epoch: epoch, empty: true}
 		return through - after, nil
 	}
 	last, _, err := nonBusinessRankAt(ctx, it, prefix, through)
@@ -235,6 +253,9 @@ type nonBusinessStager struct {
 
 func (s *nonBusinessStager) stage(row messageRow, cache *appendKeyCache) error {
 	if row.FramerFlags&4 != 0 {
+		// Invalidate before staging, including uncertain or aborted commits.
+		// Append ownership prevents a reader from republishing until terminal.
+		s.entry.ordinaryIndexProof = ordinaryIndexProof{}
 		if !s.loaded {
 			if err := s.entry.ensureNonBusinessIndexLocked(s.ctx); err != nil {
 				return err

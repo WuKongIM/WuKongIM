@@ -28,6 +28,7 @@ type channelWarmState struct {
 	idempotencyMembership       idempotencyMembershipFilter
 	idempotencyMembershipLoaded bool
 	durableProposalTail         durableProposalTail
+	ordinaryIndexProof          ordinaryIndexProof
 }
 
 type channelWarmCacheEntry struct {
@@ -127,6 +128,7 @@ func (r *channelRegistry) acquire(db *MessageDB, key ChannelKey, id ChannelID) (
 			entry.idempotencyMembership = warm.idempotencyMembership
 			entry.idempotencyMembershipLoaded = warm.idempotencyMembershipLoaded
 			entry.durableProposalTail = warm.durableProposalTail
+			entry.ordinaryIndexProof = warm.ordinaryIndexProof
 		}
 		if entry.appendKeyCache == nil {
 			entry.appendKeyCache = newAppendKeyCache(key, id)
@@ -233,6 +235,7 @@ func (r *channelRegistry) retainWarmLocked(entry *channelEntry) {
 		idempotencyMembership:       entry.idempotencyMembership,
 		idempotencyMembershipLoaded: entry.idempotencyMembershipLoaded,
 		durableProposalTail:         entry.durableProposalTail,
+		ordinaryIndexProof:          entry.ordinaryIndexProof,
 	}
 	entry.idempotencyMembership = idempotencyMembershipFilter{}
 	entry.idempotencyMembershipLoaded = false

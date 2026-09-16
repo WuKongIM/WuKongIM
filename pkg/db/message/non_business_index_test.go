@@ -130,12 +130,17 @@ func TestOrdinaryCountPortableBackupRebuildsIndex(t *testing.T) {
 			require.NoError(t, reader.Close())
 			target := openTestMessageStore(t)
 			defer target.close(t)
+			// Prime an empty sparse index before import while keeping its lease
+			// alive. Imported SyncOnce rows must invalidate that absence proof.
+			primed := testChannelLog(target)
+			assertBadgeCount(t, primed, 2, 6, 4)
 			if streaming {
 				_, err = target.db.ImportBackupSnapshotReader(context.Background(), bytes.NewReader(body), int64(len(body)))
 			} else {
 				_, err = target.db.ImportBackupSnapshot(context.Background(), body)
 			}
 			require.NoError(t, err)
+			assertBadgeCount(t, primed, 2, 6, 2)
 			restored := testChannelLog(target)
 			assertBadgeCount(t, restored, 2, 6, 2)
 			appendBadgeRows(t, restored, 7, false, true, false)

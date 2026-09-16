@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Avoid repeated sparse-index reads when a channel has no SyncOnce records, with bounded ownership, write/import invalidation and closed-storage checks. / 频道没有 SyncOnce 记录时避免重复读取稀疏索引，保留有界存储、写入与导入失效及存储关闭检查。
+
 - Reuse owned message-page storage during history and conversation sync, reducing copying and allocations while preserving custom-reader isolation and bounded pagination. / 历史与会话同步复用已独立持有的消息页存储，减少复制及内存分配，保留自定义读取器隔离与有界分页。
 
 - Avoid copying replica lists when query metadata batches only need a Slot number, preserving foreground lifecycle and observed-Leader checks. / 查询元数据批次仅需 Slot 编号时不再复制副本列表，保留前台生命周期与已观测 Leader 校验。

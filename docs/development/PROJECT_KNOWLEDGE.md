@@ -140,7 +140,9 @@ specification, runbook, report, or module documentation; link to them when neede
   pass. Clients own pinning and final display order.
 - `read_seq` is a monotonic badge boundary, not a pull cursor or read receipt.
   Badge calculation also uses the user's committed sender sequence and excludes
-  SyncOnce recovery positions. Sequence minus unread count cannot reconstruct a
+  SyncOnce recovery positions. A bounded Channel storage proof may reuse complete
+  sparse-index absence, never an unread result. SyncOnce staging invalidates it;
+  restore discard/import generations fence reuse and closed storage still fails. Sequence minus unread count cannot reconstruct a
   read boundary. Hiding advances `deleted_to_seq` and clears activation without
   removing membership; a newer message can make the conversation visible again.
 - `message.PageReader` owns bounded ordinary-page selection, visibility floors,
