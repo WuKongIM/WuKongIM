@@ -20,8 +20,9 @@ const (
 )
 
 var (
-	permissionBatchRequestMagic  = [...]byte{'W', 'K', 'P', 'Q', 1}
-	permissionBatchResponseMagic = [...]byte{'W', 'K', 'P', 'S', 1}
+	permissionBatchRequestMagic         = [...]byte{'W', 'K', 'P', 'Q', 1}
+	permissionBatchResponseMagic        = [...]byte{'W', 'K', 'P', 'S', 1}
+	permissionBatchRuntimeResponseMagic = [...]byte{'W', 'K', 'P', 'S', 2}
 )
 
 // PermissionMetadataReadKind identifies one raw permission fact.
@@ -31,6 +32,8 @@ const (
 	PermissionMetadataReadChannel PermissionMetadataReadKind = iota + 1
 	PermissionMetadataReadSubscriberContains
 	PermissionMetadataReadSubscriberHasAny
+	// PermissionMetadataReadConversation reads lifecycle and runtime routing at one owner.
+	PermissionMetadataReadConversation
 )
 
 // PermissionMetadataRead is one channel-owned authoritative lookup.
@@ -44,6 +47,8 @@ type PermissionMetadataRead struct {
 // PermissionMetadataReadResult aligns with one PermissionMetadataRead.
 type PermissionMetadataReadResult struct {
 	Channel metadb.Channel
+	// Runtime is present only for an existing runtime in a conversation metadata read.
+	Runtime *metadb.ChannelRuntimeMeta
 	Found   bool
 	Value   bool
 	Err     error
@@ -65,9 +70,11 @@ type permissionBatchRPCRequest struct {
 }
 
 type permissionBatchRPCResponse struct {
-	Status   string
-	LeaderID uint64
-	Results  []PermissionMetadataReadResult
+	// RuntimeIncluded distinguishes an explicit compound reply from a legacy reply.
+	RuntimeIncluded bool
+	Status          string
+	LeaderID        uint64
+	Results         []PermissionMetadataReadResult
 }
 
 func (r permissionBatchRPCResponse) rpcStatus() string { return r.Status }
@@ -182,6 +189,9 @@ func (s *Store) readPermissionMetadataGroup(ctx context.Context, slotID multiraf
 	if err != nil {
 		return nil, err
 	}
+	if permissionReadsIncludeRuntime(reads) && !resp.RuntimeIncluded {
+		return nil, fmt.Errorf("%w: conversation runtime metadata missing from reply", metadb.ErrCorruptValue)
+	}
 	return resp.Results, nil
 }
 
@@ -200,10 +210,26 @@ func (s *Store) handlePermissionBatchRPC(ctx context.Context, body []byte) ([]by
 	if err != nil {
 		return nil, err
 	}
-	return encodePermissionBatchRPCResponse(permissionBatchRPCResponse{Status: rpcStatusOK, Results: results})
+	return encodePermissionBatchRPCResponse(permissionBatchRPCResponse{Status: rpcStatusOK, Results: results, RuntimeIncluded: permissionReadsIncludeRuntime(req.Reads)})
 }
 
 func (s *Store) readPermissionMetadataLocal(ctx context.Context, slotID multiraft.SlotID, reads []PermissionMetadataRead) ([]PermissionMetadataReadResult, error) {
+	// Compound routing facts are usable only while their serving ownership stays
+	// unchanged. Ordinary permission-only reads retain their existing contract.
+	compound := permissionReadsIncludeRuntime(reads)
+	revision := uint64(0)
+	var leader multiraft.NodeID
+	if compound {
+		var err error
+		revision = s.cluster.HashSlotTableVersion()
+		leader, err = s.cluster.LeaderOf(slotID)
+		if err != nil {
+			return nil, err
+		}
+		if !s.cluster.IsLocal(leader) {
+			return nil, ErrReadStaleRoute
+		}
+	}
 	results := make([]PermissionMetadataReadResult, len(reads))
 	for i, read := range reads {
 		if err := ctx.Err(); err != nil {
@@ -215,16 +241,22 @@ func (s *Store) readPermissionMetadataLocal(ctx context.Context, slotID multiraf
 		hashSlot := hashSlotForKey(s.cluster, read.ChannelID)
 		shard := s.db.ForHashSlot(hashSlot)
 		switch read.Kind {
-		case PermissionMetadataReadChannel:
+		case PermissionMetadataReadChannel, PermissionMetadataReadConversation:
 			channel, err := shard.GetChannel(ctx, read.ChannelID, read.ChannelType)
-			if errors.Is(err, metadb.ErrNotFound) {
-				continue
-			}
-			if err != nil {
+			if err != nil && !errors.Is(err, metadb.ErrNotFound) {
 				return nil, err
 			}
 			results[i].Channel = channel
-			results[i].Found = true
+			results[i].Found = err == nil
+			if read.Kind == PermissionMetadataReadConversation && channel.Disband == 0 {
+				meta, metaErr := shard.GetChannelRuntimeMeta(ctx, read.ChannelID, read.ChannelType)
+				if metaErr != nil && !errors.Is(metaErr, metadb.ErrNotFound) {
+					return nil, metaErr
+				}
+				if metaErr == nil {
+					results[i].Runtime = &meta
+				}
+			}
 		case PermissionMetadataReadSubscriberContains:
 			value, err := shard.ContainsSubscriber(ctx, read.ChannelID, read.ChannelType, read.UID)
 			if err != nil {
@@ -241,7 +273,27 @@ func (s *Store) readPermissionMetadataLocal(ctx context.Context, slotID multiraf
 			return nil, fmt.Errorf("metastore: unknown permission read kind %d", read.Kind)
 		}
 	}
+	if compound {
+		current, err := s.cluster.LeaderOf(slotID)
+		if err != nil || current != leader || !s.cluster.IsLocal(current) || revision != s.cluster.HashSlotTableVersion() {
+			return nil, ErrReadStaleRoute
+		}
+		for _, read := range reads {
+			if s.cluster.SlotForKey(read.ChannelID) != slotID {
+				return nil, ErrReadStaleRoute
+			}
+		}
+	}
 	return results, nil
+}
+
+func permissionReadsIncludeRuntime(reads []PermissionMetadataRead) bool {
+	for _, read := range reads {
+		if read.Kind == PermissionMetadataReadConversation {
+			return true
+		}
+	}
+	return false
 }
 
 func encodePermissionBatchRPCRequest(req permissionBatchRPCRequest) ([]byte, error) {
@@ -308,7 +360,11 @@ func decodePermissionBatchRPCRequest(body []byte) (permissionBatchRPCRequest, er
 
 func encodePermissionBatchRPCResponse(resp permissionBatchRPCResponse) ([]byte, error) {
 	dst := make([]byte, 0, len(permissionBatchResponseMagic)+len(resp.Results)*32)
-	dst = append(dst, permissionBatchResponseMagic[:]...)
+	if resp.RuntimeIncluded {
+		dst = append(dst, permissionBatchRuntimeResponseMagic[:]...)
+	} else {
+		dst = append(dst, permissionBatchResponseMagic[:]...)
+	}
 	dst = runtimeMetaAppendString(dst, resp.Status)
 	dst = runtimeMetaAppendUvarint(dst, resp.LeaderID)
 	dst = runtimeMetaAppendUvarint(dst, uint64(len(resp.Results)))
@@ -323,16 +379,20 @@ func encodePermissionBatchRPCResponse(resp permissionBatchRPCResponse) ([]byte, 
 			dst = appendChannelPtr(dst, nil)
 		}
 		dst = runtimeMetaAppendBool(dst, result.Value)
+		if resp.RuntimeIncluded {
+			dst = runtimeMetaAppendMetaPtr(dst, result.Runtime)
+		}
 	}
 	return dst, nil
 }
 
 func decodePermissionBatchRPCResponse(body []byte) (permissionBatchRPCResponse, error) {
-	if !runtimeMetaHasMagic(body, permissionBatchResponseMagic[:]) {
+	runtimeIncluded := runtimeMetaHasMagic(body, permissionBatchRuntimeResponseMagic[:])
+	if !runtimeIncluded && !runtimeMetaHasMagic(body, permissionBatchResponseMagic[:]) {
 		return permissionBatchRPCResponse{}, fmt.Errorf("metastore: invalid permission batch response codec")
 	}
 	offset := len(permissionBatchResponseMagic)
-	var resp permissionBatchRPCResponse
+	resp := permissionBatchRPCResponse{RuntimeIncluded: runtimeIncluded}
 	var err error
 	if resp.Status, offset, err = runtimeMetaReadString(body, offset); err != nil {
 		return permissionBatchRPCResponse{}, err
@@ -365,6 +425,12 @@ func decodePermissionBatchRPCResponse(body []byte) (permissionBatchRPCResponse, 
 		}
 		if resp.Results[i].Value, offset, err = runtimeMetaReadBool(body, offset); err != nil {
 			return permissionBatchRPCResponse{}, err
+		}
+		if runtimeIncluded {
+			resp.Results[i].Runtime, offset, err = runtimeMetaReadMetaPtr(body, offset, runtimeMetaEncodeOptions{includeWriteFence: true, includeRouteGeneration: true})
+			if err != nil {
+				return permissionBatchRPCResponse{}, err
+			}
 		}
 	}
 	if offset != len(body) {

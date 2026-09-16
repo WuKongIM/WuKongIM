@@ -1177,7 +1177,20 @@ func (n *Node) readChannelConversationHeads(ctx context.Context, ids []channelru
 	timer := n.conversationReadTimer(persisted)
 	metadataStart := timer.start()
 	metadataFailed := false
-	metadataResults := n.readConversationChannelMetadataBatch(ctx, ids)
+	resolvedReader, hasResolvedReader := n.channels.(interface {
+		ReadPersistedConversationHeadsResolved(context.Context, []channelruntime.ChannelID, string, []channelruntime.Meta, ...channels.ConversationBadgeQuery) ([]channels.ConversationHeadResult, error)
+	})
+	// Injected services may resolve a different authoritative metadata source.
+	useResolved := persisted && n.defaultChannels && n.defaultSlotProxy != nil && hasResolvedReader
+	var eligibleMetas []channelruntime.Meta
+	headCtx := ctx
+	if useResolved {
+		eligibleMetas = make([]channelruntime.Meta, 0, len(ids))
+		var cancel context.CancelFunc
+		headCtx, cancel = context.WithTimeout(ctx, channels.PersistedConversationReadTimeout)
+		defer cancel()
+	}
+	metadataResults := n.readConversationChannelMetadataBatch(headCtx, ids, useResolved)
 	for index, id := range ids {
 		metadata := metadataResults[index].Channel
 		err := metadataResults[index].Err
@@ -1186,6 +1199,21 @@ func (n *Node) readChannelConversationHeads(ctx context.Context, ids []channelru
 		case err == nil && metadataResults[index].Found && metadata.Disband != 0:
 			results[index].Err = channelruntime.ErrChannelNotFound
 		case err == nil:
+			if useResolved {
+				raw := metadataResults[index].Runtime
+				if raw == nil {
+					results[index].Err = channelruntime.ErrChannelNotFound
+					metadataFailed = true
+					continue
+				}
+				if raw.ChannelID != id.ID || raw.ChannelType != int64(id.Type) ||
+					(metadataResults[index].Found && (metadata.ChannelID != id.ID || metadata.ChannelType != int64(id.Type))) {
+					results[index].Err = channelruntime.ErrStaleMeta
+					metadataFailed = true
+					continue
+				}
+				eligibleMetas = append(eligibleMetas, channels.ProjectRuntimeMeta(*raw))
+			}
 			eligibleIDs = append(eligibleIDs, id)
 			if len(badges) != 0 {
 				eligibleBadges = append(eligibleBadges, badges[index])
@@ -1200,7 +1228,11 @@ func (n *Node) readChannelConversationHeads(ctx context.Context, ids []channelru
 		return results, nil
 	}
 	read := reader.ReadConversationHeads
-	if persisted {
+	if useResolved {
+		read = func(ctx context.Context, ids []channelruntime.ChannelID, uid string, badges ...channels.ConversationBadgeQuery) ([]channels.ConversationHeadResult, error) {
+			return resolvedReader.ReadPersistedConversationHeadsResolved(ctx, ids, uid, eligibleMetas, badges...)
+		}
+	} else if persisted {
 		persistedReader, ok := n.channels.(interface {
 			ReadPersistedConversationHeads(context.Context, []channelruntime.ChannelID, string, ...channels.ConversationBadgeQuery) ([]channels.ConversationHeadResult, error)
 		})
@@ -1210,7 +1242,7 @@ func (n *Node) readChannelConversationHeads(ctx context.Context, ids []channelru
 		read = persistedReader.ReadPersistedConversationHeads
 	}
 	headsStart := timer.start()
-	batch, err := read(ctx, eligibleIDs, uid, eligibleBadges...)
+	batch, err := read(headCtx, eligibleIDs, uid, eligibleBadges...)
 	headsFailed := err != nil || len(batch) != len(eligibleIDs)
 	if timer.observer != nil {
 		for i := range batch {
@@ -1245,13 +1277,17 @@ func (n *Node) readChannelConversationHeads(ctx context.Context, ids []channelru
 	return results, nil
 }
 
-func (n *Node) readConversationChannelMetadataBatch(ctx context.Context, ids []channelruntime.ChannelID) []slotproxy.PermissionMetadataReadResult {
+func (n *Node) readConversationChannelMetadataBatch(ctx context.Context, ids []channelruntime.ChannelID, includeRuntime bool) []slotproxy.PermissionMetadataReadResult {
 	results := make([]slotproxy.PermissionMetadataReadResult, len(ids))
 	if n != nil && n.defaultSlotProxy != nil {
 		reads := make([]slotproxy.PermissionMetadataRead, len(ids))
+		kind := slotproxy.PermissionMetadataReadChannel
+		if includeRuntime {
+			kind = slotproxy.PermissionMetadataReadConversation
+		}
 		for i, id := range ids {
 			reads[i] = slotproxy.PermissionMetadataRead{
-				Kind: slotproxy.PermissionMetadataReadChannel, ChannelID: id.ID, ChannelType: int64(id.Type),
+				Kind: kind, ChannelID: id.ID, ChannelType: int64(id.Type),
 			}
 		}
 		return n.defaultSlotProxy.ReadPermissionMetadataBatch(ctx, reads)

@@ -15,7 +15,7 @@ func (s *Service) ReadPersistedBatch(ctx context.Context, reads []CommittedRead)
 	if len(reads) > persistedConversationMaxChannels {
 		return nil, ch.ErrInvalidConfig
 	}
-	ctx, cancel := context.WithTimeout(ctx, persistedConversationReadTimeout)
+	ctx, cancel := context.WithTimeout(ctx, PersistedConversationReadTimeout)
 	defer cancel()
 	return s.readMessageBatch(ctx, reads, true)
 }

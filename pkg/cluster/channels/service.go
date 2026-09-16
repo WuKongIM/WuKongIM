@@ -541,12 +541,33 @@ func (s *Service) ReadPersistedConversationHeads(ctx context.Context, ids []ch.C
 	if len(ids) > persistedConversationMaxChannels {
 		return nil, ch.ErrInvalidConfig
 	}
-	ctx, cancel := context.WithTimeout(ctx, persistedConversationReadTimeout)
+	ctx, cancel := context.WithTimeout(ctx, PersistedConversationReadTimeout)
 	defer cancel()
 	return s.readConversationHeads(ctx, ids, uid, true, badges...)
 }
 
+// ReadPersistedConversationHeadsResolved consumes invocation-scoped metadata
+// already read from the authoritative Slot owner. Callers must not reuse it
+// across requests. Remote Channel leaders still perform their own validation.
+func (s *Service) ReadPersistedConversationHeadsResolved(ctx context.Context, ids []ch.ChannelID, uid string, metas []ch.Meta, badges ...ConversationBadgeQuery) ([]ConversationHeadResult, error) {
+	if len(ids) > persistedConversationMaxChannels || len(metas) != len(ids) {
+		return nil, ch.ErrInvalidConfig
+	}
+	resolved := make([]ChannelMetaResult, len(ids))
+	for i, id := range ids {
+		meta, found, err := normalizeAppendMeta(id, metas[i])
+		resolved[i] = ChannelMetaResult{Meta: meta, Found: found, Err: err}
+	}
+	ctx, cancel := context.WithTimeout(ctx, PersistedConversationReadTimeout)
+	defer cancel()
+	return s.readConversationHeadsWithMetadata(ctx, ids, uid, true, resolved, badges...)
+}
+
 func (s *Service) readConversationHeads(ctx context.Context, ids []ch.ChannelID, uid string, persisted bool, badges ...ConversationBadgeQuery) ([]ConversationHeadResult, error) {
+	return s.readConversationHeadsWithMetadata(ctx, ids, uid, persisted, nil, badges...)
+}
+
+func (s *Service) readConversationHeadsWithMetadata(ctx context.Context, ids []ch.ChannelID, uid string, persisted bool, metaResults []ChannelMetaResult, badges ...ConversationBadgeQuery) ([]ConversationHeadResult, error) {
 	started := time.Now()
 	resultLabel := "ok"
 	remoteCalls := 0
@@ -562,10 +583,13 @@ func (s *Service) readConversationHeads(ctx context.Context, ids []ch.ChannelID,
 	if len(ids) == 0 {
 		return results, nil
 	}
-	metaResults, err := s.resolveReadMetas(ctx, ids)
-	if err != nil {
-		resultLabel = "error"
-		return nil, err
+	if metaResults == nil {
+		var err error
+		metaResults, err = s.resolveReadMetas(ctx, ids)
+		if err != nil {
+			resultLabel = "error"
+			return nil, err
+		}
 	}
 	type remoteItem struct {
 		index   int
@@ -680,7 +704,7 @@ func (s *Service) handleForwardConversationHeads(ctx context.Context, req Conver
 	}
 	if req.Persisted {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, persistedConversationReadTimeout)
+		ctx, cancel = context.WithTimeout(ctx, PersistedConversationReadTimeout)
 		defer cancel()
 	}
 	response := ConversationHeadsResponse{Items: make([]ConversationHeadResult, len(req.Items))}
@@ -844,7 +868,7 @@ func (s *Service) handleForwardCommittedReads(ctx context.Context, req Committed
 			return CommittedReadsResponse{}, ch.ErrInvalidConfig
 		}
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, persistedConversationReadTimeout)
+		ctx, cancel = context.WithTimeout(ctx, PersistedConversationReadTimeout)
 		defer cancel()
 	}
 	response := CommittedReadsResponse{Items: make([]CommittedReadResult, len(req.Items))}

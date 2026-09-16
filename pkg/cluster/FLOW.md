@@ -51,6 +51,9 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    and share a 16-batch serving-node admission limit with no waiting queue.
    Bounded heads/recents metrics expose admission, occupied slots, in-flight
    batches and slot-hold duration separately from origin routing/RPC latency.
+   Origin previews combine Channel lifecycle/runtime facts in one authoritative
+   Slot batch and pass request-scoped metadata to Channel reads. Remote Leaders
+   revalidate independently; other providers keep the original lookup path.
    Preview calls have a five-second deadline and at most 200 candidates. Old
    peers reject the new kind rather than silently using committed recovery.
    Stored conversation previews first read one tail record; only an internal

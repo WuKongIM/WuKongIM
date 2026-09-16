@@ -37,6 +37,9 @@ reads to the current Slot leader. Durable rows live in `pkg/db/meta`.
    forwarding, and follows the leader for authoritative reads. Person-directory
    commands prepare bounded UID membership/runtime metadata before publishing
    ready only after every prepare group succeeds.
+   Compound conversation metadata reads share lifecycle/runtime ownership checks
+   and four workers; response codec 2 carries full runtime fences. Legacy permission
+   reads keep codec 1. Missing compound fields and changed ownership fail closed.
    Runtime-metadata read batches accept at most 4,096 keys, group them by
    physical Slot, use at most four supervised workers, and preserve item-scoped
    missing or Slot failures. Exact ordinary-membership batches accept at most
