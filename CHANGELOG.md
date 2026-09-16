@@ -30,6 +30,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Refresh Controller state on watch notifications and reject older snapshots after newer state is applied, avoiding obsolete startup task replay and routing/maintenance rollback during concurrent readiness probes. / Controller 通知触发当前状态读取，已应用较新状态后拒绝旧快照，避免重复执行过时启动任务，以及并发就绪探测导致的路由与维护状态回退。
+
 - Preserve temporary dependency failures across Channel read RPC so connection loss during failover returns retryable unavailability for ordinary history, exact lookup and conversation queries. / 频道读取 RPC 保留临时依赖故障类型，故障切换中的连接中断在普通历史、精确查询和会话查询中返回可重试的不可用状态。
 
 - Capture bounded system, scheduler/GC, physical commit and sampled replication counters in the first PR append gate, preserving evidence when it fails before mixed SEND starts. / 前置 PR append 门禁保留有界系统、调度/GC、物理提交及采样复制计数，覆盖混合 SEND 开始前即失败的窗口。

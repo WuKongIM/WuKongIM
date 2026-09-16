@@ -35,11 +35,13 @@ func (n *Node) startWatchLoop() {
 			select {
 			case <-ctx.Done():
 				return
-			case ev, ok := <-watch:
+			case _, ok := <-watch:
 				if !ok {
 					return
 				}
-				_ = n.applySnapshot(ctx, ev.Snapshot)
+				// Watch events are wakeups: task reconciliation can outlast many
+				// Controller commits, so queued payloads may already be obsolete.
+				_ = n.refreshControlSnapshot(ctx)
 			}
 		}
 	})

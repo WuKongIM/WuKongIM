@@ -16,6 +16,12 @@ specification, runbook, report, or module documentation; link to them when neede
   reactor partitions. Shipped initialization creates 12 logical groups; omitted
   or zero `cluster.initial_slot_count` derives one. Existing clusters use the
   persisted Controller count; changing this setting does not resize them.
+- Node snapshot application serializes watches and readiness probes, rejecting
+  older logical revisions before maintenance, placement or task side effects.
+  Watch notifications trigger a current Controller read rather than replaying
+  queued task progress.
+  Equal revisions still refresh health and Controller leadership; logical revision
+  does not version every health observation.
 - Controller owns placement intent; observed Raft leadership is authoritative.
   `PreferredLeader` is not proof of the current leader, quorum, or replica health.
   Missing live evidence remains unknown. Controller planning writes use Raft proposals.

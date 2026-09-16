@@ -56,6 +56,17 @@ func emptyControlSnapshot(snapshot control.Snapshot) bool {
 func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) error {
 	n.controlApplyMu.Lock()
 	defer n.controlApplyMu.Unlock()
+	n.mu.RLock()
+	previous := n.controlSnapshot.Clone()
+	firstSnapshot := emptyControlSnapshot(previous)
+	n.mu.RUnlock()
+	// Watches and readiness probes may capture snapshots before waiting for
+	// this lock. Never replay an older generation after a newer one has been
+	// fully applied, including its maintenance fence and task progress.
+	// Equal revisions still refresh Controller leadership and node health.
+	if snapshot.Revision < previous.Revision {
+		return nil
+	}
 	// Publish restore maintenance before slower placement reconciliation so no
 	// business write races an archive installation.
 	n.setMaintenance(snapshot.Maintenance)
@@ -64,10 +75,6 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 	// as their nonblocking fence against an apply-in-progress stale intent.
 	n.beginPreferredLeaderIntentApply()
 
-	n.mu.RLock()
-	previous := n.controlSnapshot.Clone()
-	firstSnapshot := emptyControlSnapshot(previous)
-	n.mu.RUnlock()
 	changes := snapshotChanges(previous, snapshot)
 	if n.router != nil && (firstSnapshot || changes.slots || changes.hashSlots) {
 		if err := n.updateRouteAuthorityTable(func() error {
