@@ -76,8 +76,10 @@ DTOs, and `worker` bounds blocking I/O.
   verification; business Commit stays blocked until the fence is cleared.
 - LEO and HW are monotonic, HW never exceeds LEO, and committed reads expose
   only positive sequences covered by local HW and the logical retention floor.
-  Committed-read results own their payload bytes beyond store-handle closure,
-  so upper layers may transfer them without another deep copy.
+   Committed-read results own their payload bytes beyond store-handle closure,
+   so upper layers may transfer them without another deep copy.
+   The optional persisted-frontier port reads LEO without an unused checkpoint;
+   committed reads keep the full Load contract and quorum boundary.
 - New proposals containing a nonzero message lifetime use exact proposal format 2,
   binding Expire in the digest; legacy format-1 hashes remain unchanged.
   Channel RPC 9 and quorum exchange 5 preserve lifetimes during replication and

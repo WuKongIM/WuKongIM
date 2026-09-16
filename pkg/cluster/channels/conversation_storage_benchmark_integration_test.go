@@ -52,11 +52,18 @@ func BenchmarkConversationPreviewStorage(b *testing.B) {
 				}
 			}
 			svc := &Service{store: factory}
-			for _, stage := range []string{"head", "lease", "frontier", "retention", "sender", "rank", "tail"} {
+			for _, stage := range []string{"head", "recent", "lease", "frontier", "retention", "sender", "rank", "tail"} {
 				b.Run(stage, func(b *testing.B) {
 					b.ReportAllocs()
 					for n := 0; n < b.N; n++ {
 						id := ids[(n*137)%len(ids)]
+						if stage == "recent" {
+							page, err := svc.readStoredMessages(ctx, CommittedRead{ChannelID: id, Request: channelstore.ReadCommittedRequest{FromSeq: through, Limit: 100, MaxBytes: 1 << 20, Reverse: true}}, 0, 2, 0, false, true)
+							if err != nil || len(page.Messages) != min(100, int(through)) || page.Messages[0].MessageSeq != through {
+								b.Fatalf("recent=%+v err=%v", page, err)
+							}
+							continue
+						}
 						if stage == "head" {
 							head, activate, err := svc.readStoredConversationHead(ctx, id, "reader", 0, 2, 0, false, true)
 							if err != nil || activate || !head.Found || head.ReadThroughSeq != through || head.Message.MessageSeq != uint64(shape.ordinary+1) || head.NonBusinessUnread != uint64(shape.suffix+1) {

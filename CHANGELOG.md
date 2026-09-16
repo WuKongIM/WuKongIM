@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Read only the disk frontier for persisted conversation previews and transfer already-owned message pages through local/remote Channel reads, avoiding unused checkpoint reads and duplicate page copies. / 持久化会话预览仅读取落盘尾序号，本地与跨节点频道读取直接转交已有独立所有权的消息页，减少无用检查点读取及重复复制。
+
 - Reuse bounded decoded runtime metadata during conversation queries, with mutation/restore generation fences and independently owned replica lists. / 会话查询复用有容量限制的运行元数据解码结果，写入与恢复通过版本失效保证新鲜度，副本列表保持调用方独立所有权。
 
 - Transfer independently decoded message payloads through conversation/history read adapters, avoiding redundant copies while preserving caller ownership after storage closure. / 会话与历史读取直接转交独立解码的消息正文，减少重复复制，保持存储关闭后的调用方所有权。

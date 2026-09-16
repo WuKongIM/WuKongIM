@@ -542,6 +542,19 @@ func (a *messageDBChannelStoreAdapter) Load(ctx context.Context) (InitialState, 
 	return InitialState{LEO: leo, HW: hw, CheckpointHW: hw}, nil
 }
 
+// LoadPersistedFrontier avoids decoding an unused checkpoint for a disk-only
+// preview. The canonical MessageDB lease still owns LEO recovery and admission.
+func (a *messageDBChannelStoreAdapter) LoadPersistedFrontier(ctx context.Context) (uint64, error) {
+	if err := a.ensureOpen(); err != nil {
+		return 0, err
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	leo, err := a.store.LEOWithError()
+	return leo, a.mapError(err)
+}
+
 // LoadExactState returns one append/checkpoint-consistent exact durable
 // frontier from the underlying MessageDB store.
 func (a *messageDBChannelStoreAdapter) LoadExactState(ctx context.Context) (ExactState, error) {

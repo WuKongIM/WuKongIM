@@ -230,6 +230,11 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance, release, and automation
 
+- Verify build source identity separately for nested Git worktrees: Go 1.25.11
+  VCS detection recognizes `.git` directories, so a worktree's `.git` file can
+  produce the outer repository's revision stamp. For exact-source E2E evidence,
+  build a clean detached checkout with its own `.git` directory, verify revision
+  and binary digest, and supply the binary explicitly through `WK_E2E_BINARY`.
 - Bound queues, workers, retained bytes, fanout, and runtime residency at the
   expected scale. Conversation reads must not activate runtimes or mutate
   memberships. Runtime replica counts are not durable business-Channel counts;
