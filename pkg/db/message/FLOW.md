@@ -63,8 +63,12 @@ storage core without transferring shared-engine ownership.
   bounded batches before the marker is published; channel append ownership
   serializes writers and rank reads. A range count shares one bounded iterator
   across both ranks and proves an empty index once, preserving the retained
-  ordinal baseline without caching unread results. All append, replacement, truncate and
-  retention paths maintain the index. Portable backups omit the marker and
+  ordinal baseline without caching unread results. Once the complete index is
+  proven empty, a constant-size canonical/warm proof avoids repeated storage
+  reads while preserving cancellation and engine lifecycle checks. SyncOnce
+  staging invalidates it before commit; restore discard and backup-import
+  generations fence active and retired entries. All append, replacement, truncate
+  and retention paths maintain the index. Portable backups omit the marker and
   rebuild derived entries during import; raw snapshots preserve both together.
   Matched runtimes are required after publication; older writers cannot maintain
   this derived keyspace.

@@ -16,6 +16,12 @@ specification, runbook, report, or module documentation; link to them when neede
   reactor partitions. Shipped initialization creates 12 logical groups; omitted
   or zero `cluster.initial_slot_count` derives one. Existing clusters use the
   persisted Controller count; changing this setting does not resize them.
+- Node snapshot application serializes watches and readiness probes, rejecting
+  older logical revisions before maintenance, placement or task side effects.
+  Watch notifications trigger a current Controller read rather than replaying
+  queued task progress.
+  Equal revisions still refresh health and Controller leadership; logical revision
+  does not version every health observation.
 - Controller owns placement intent; observed Raft leadership is authoritative.
   `PreferredLeader` is not proof of the current leader, quorum, or replica health.
   Missing live evidence remains unknown. Controller planning writes use Raft proposals.
@@ -77,6 +83,26 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## History, conversations, and commands
 
+- Runtime metadata reads use an 8,192-row / 8 MiB storage cache, invalidated by
+  Hash-Slot generations on mutation entry/exit, including failed writes and
+  snapshot/restore chunks. Hits/fills are disabled while mutations are active;
+  late misses cannot republish stale rows;
+  replica slices remain caller-owned. This never replaces Slot/Channel authority
+  or permission checks; unrelated Hash Slots retain their cache entries.
+
+- MessageDB sequence reads decode independent payloads and transfer them through
+  compatibility and Channel adapters. Consuming conversions must not reuse the
+  source DTO; returned payloads remain independent across reads and store closure.
+
+- `wukongim_conversation_read_stage_duration_seconds` uses fixed scope/stage/result
+  labels: list/sync `handler` includes response write but excludes outer middleware
+  and client decode; `response` includes DTO/JSON work on successful usecase reads.
+  Persisted/committed heads expose metadata, heads and attempted edit overlay;
+  `edit_slot` measures serving barrier and storage/assembly/authority recheck for
+  all edit readers. Totals overlap children and parallel Slot work; do not add
+  their sums as request latency. The older directory-list timer keeps its original
+  pre-response success boundary. Disabled observers do not read the clock.
+
 - Successful message edits acknowledge durable content/CAS and pending notification
   state, not delivery to every recipient. The bounded ready queue accelerates
   dispatch; overflow/restart recovery uses durable pending scans. Each worker
@@ -114,12 +140,17 @@ specification, runbook, report, or module documentation; link to them when neede
   pass. Clients own pinning and final display order.
 - `read_seq` is a monotonic badge boundary, not a pull cursor or read receipt.
   Badge calculation also uses the user's committed sender sequence and excludes
-  SyncOnce recovery positions. Sequence minus unread count cannot reconstruct a
+  SyncOnce recovery positions. A bounded Channel storage proof may reuse complete
+  sparse-index absence, never an unread result. SyncOnce staging invalidates it;
+  restore discard/import generations fence reuse and closed storage still fails. Sequence minus unread count cannot reconstruct a
   read boundary. Hiding advances `deleted_to_seq` and clears activation without
   removing membership; a newer message can make the conversation visible again.
 - `message.PageReader` owns bounded ordinary-page selection, visibility floors,
   SyncOnce filtering, and continuation. Latest reads use bounded reverse scans;
-  limits count visible records. Exact lookup must not scan only recent history.
+  limits count visible records. Scan adapters transfer all mutable message data;
+  PageReader can filter in place and transfer pages through sync. Custom readers
+  and wrappers retain defensive copying, including nested JSON event snapshots.
+  Exact lookup must not scan only recent history.
   Missing person membership before the first persistent SEND can mean an empty
   page; missing group membership, tombstones, and infrastructure failures cannot.
 - Ordinary and CMD logs have separate sequence spaces. Recoverable SyncOnce
@@ -210,6 +241,11 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance, release, and automation
 
+- Verify build source identity separately for nested Git worktrees: Go 1.25.11
+  VCS detection recognizes `.git` directories, so a worktree's `.git` file can
+  produce the outer repository's revision stamp. For exact-source E2E evidence,
+  build a clean detached checkout with its own `.git` directory, verify revision
+  and binary digest, and supply the binary explicitly through `WK_E2E_BINARY`.
 - Bound queues, workers, retained bytes, fanout, and runtime residency at the
   expected scale. Conversation reads must not activate runtimes or mutate
   memberships. Runtime replica counts are not durable business-Channel counts;
@@ -222,6 +258,19 @@ specification, runbook, report, or module documentation; link to them when neede
   rejected windows, missing telemetry, OOMs, or process restarts cannot establish
   production capacity or release qualification. Keep exact source/artifact identity
   and required workload evidence; see [performance triage](PERF_TRIAGE.md).
+- Mixed SEND benchmark `stage-*` and `channel-*` diagnostics subtract registry
+  snapshots taken after warmup and after measured handlers complete, before
+  projector drain. `ResetTimer` alone never resets Prometheus counters. These
+  completion-window observations have different populations (SEND items versus
+  Channel batches); compare sample counts and never add stage percentiles.
+  Metadata-create batch counters remain lifetime diagnostics, including warmup.
+- PR append and mixed SEND gates retain their own bounded before/after counter
+  windows through `pkg/bench/counterwindow` (integration-only). Append opts into
+  physical-batch histograms and the existing 1/32 sampled replication observer;
+  all three nodes share one registry. Setup/calibration are excluded, completion
+  is not a passing verdict, and an earlier gate failure prevents later windows.
+  Preserve original order, load, assertions and failure exits; see the
+  [workflow catalog](../../.github/workflows/README.md#fixed-linux-send-diagnosis).
 - Release completion includes signed native package publication and exact-version
   public APT/RPM verification. Server and CLI artifacts share build identity;
   required same-tag acceptance gates precede publication. Follow
@@ -230,6 +279,10 @@ specification, runbook, report, or module documentation; link to them when neede
   Publish bilingual routes together and derive current versions from their canonical
   manifests/Changelog. Historical SDK or benchmark receipts do not certify newer
   artifacts. Keep public contracts separate from private interface inventories.
+- Channel read RPCs classify typed temporary dependency transport failures before
+  serialization using the existing not-ready code. Nested Slot-authority connection
+  loss must not degrade into generic text and ordinary HTTP 400; unknown text,
+  storage failures and caller cancellation do not acquire retryability.
 - Read [workflow contracts](../../.github/workflows/README.md) before invoking
   Actions. Issue/Review Agent control files remain protected. Authorization, signed
   generation identity, and exact source evidence cannot be replaced by event hints

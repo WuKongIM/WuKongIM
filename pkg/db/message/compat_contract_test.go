@@ -46,6 +46,7 @@ func TestDiscardForRestoreRemovesCompleteChannelState(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("StoreCheckpoint() error = %v", err)
 	}
+	assertBadgeCount(t, store.log, 0, 2, 2)
 	if err := store.DiscardForRestore(context.Background()); err != nil {
 		t.Fatalf("DiscardForRestore() error = %v", err)
 	}
@@ -69,6 +70,10 @@ func TestDiscardForRestoreRemovesCompleteChannelState(t *testing.T) {
 	if _, err := reopened.LoadCheckpoint(); err == nil {
 		t.Fatal("LoadCheckpoint() error = nil, want empty state")
 	}
+	// A reused restore target must rebuild its discarded index marker instead
+	// of inheriting the previous generation's empty-index proof.
+	appendBadgeRows(t, reopened.log, 1, true, false, true, false)
+	assertBadgeCount(t, reopened.log, 0, 3, 2)
 }
 
 func TestDiscardForRestoreDeletesMultipleBoundedPages(t *testing.T) {

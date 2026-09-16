@@ -1326,6 +1326,54 @@
       ],
       "title": "Operations MCP Latency",
       "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 104
+      },
+      "id": 26,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(wukongim_conversation_read_stage_duration_seconds_sum{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, scope, stage, result) / sum(rate(wukongim_conversation_read_stage_duration_seconds_count{node_name=~\"$node_name\"}[$__rate_interval])) by (node_name, scope, stage, result)",
+          "legendFormat": "mean {{node_name}} {{scope}} {{stage}} {{result}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(wukongim_conversation_read_stage_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])) by (le, node_name, scope, stage, result))",
+          "legendFormat": "p95 {{node_name}} {{scope}} {{stage}} {{result}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Conversation Read Stage Latency",
+      "type": "timeseries",
+      "description": "Handler includes synchronous response write but excludes outer middleware and client receive/decode. Response includes DTO/JSON construction. Head stages are shared by conversation callers; edit_slot includes all edit readers. Stages have different populations and overlap; do not add their durations as request latency."
     }
   ],
   "refresh": "10s",

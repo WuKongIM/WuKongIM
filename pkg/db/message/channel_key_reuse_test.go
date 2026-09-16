@@ -104,6 +104,31 @@ func TestChannelWarmKeyByteBudgetAndInvalidation(t *testing.T) {
 	}
 }
 
+func TestChannelWarmReacquireAllocationBudget(t *testing.T) {
+	store := openTestMessageStore(t)
+	defer store.close(t)
+	id := ChannelID{ID: "conversation-qps-cohort-0-channel-100", Type: 2}
+	key := ChannelKey(id.ID + ":2")
+	lease := mustAcquireChannel(t, store.db, key, id)
+	if err := lease.Close(); err != nil {
+		t.Fatal(err)
+	}
+	allocations := testing.AllocsPerRun(100, func() {
+		lease, err := store.db.Channel(key, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := lease.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	// Persisted conversation reads repeatedly acquire independently closable
+	// leases; transferring retired warm state must not allocate another copy.
+	if allocations > 4 {
+		t.Fatalf("warm reacquisition allocated %.0f objects, want at most 4", allocations)
+	}
+}
+
 // BenchmarkChannelWarmReacquire measures the lease churn used by persisted
 // conversation reads, independently of disk row decoding and HTTP work.
 func BenchmarkChannelWarmReacquire(b *testing.B) {

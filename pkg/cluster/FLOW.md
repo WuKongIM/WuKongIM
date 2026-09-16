@@ -51,6 +51,9 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    and share a 16-batch serving-node admission limit with no waiting queue.
    Bounded heads/recents metrics expose admission, occupied slots, in-flight
    batches and slot-hold duration separately from origin routing/RPC latency.
+   Origin previews combine Channel lifecycle/runtime facts in one authoritative
+   Slot batch and pass request-scoped metadata to Channel reads. Remote Leaders
+   revalidate independently; other providers keep the original lookup path.
    Preview calls have a five-second deadline and at most 200 candidates. Old
    peers reject the new kind rather than silently using committed recovery.
    Stored conversation previews first read one tail record; only an internal
@@ -59,8 +62,17 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    share that serving-node admission, and batch authoritative route metadata.
    Their scans retain LEO, retention, byte-bounded continuation and item errors;
    history keeps the committed path.
+   Persisted heads/recents select the optional LEO-only storage port, falling
+   back to full Load for other stores. Owned local and decoded remote message
+   pages transfer without another deep copy; caller isolation remains required.
+   Read RPCs preserve typed temporary transport failures from nested authority
+   reads using the existing not-ready code; unknown error text stays unknown.
 5. `LocalControlSnapshot` exposes the latest fully Node-applied control state;
-   revision-fenced management adapters may use `LocalControllerSnapshot` to read
+   delayed snapshots older than that applied revision are ignored before any
+   maintenance, placement or task side effects. Equal revisions still refresh
+   Controller leadership and node health. Watch events trigger a current
+   Controller read so queued task progress is not replayed. Revision-fenced
+   management adapters may use `LocalControllerSnapshot` to read
    Controller-visible state without waiting for runtime task reconciliation.
    Repair also reads this fresh health snapshot so a stalled task cannot hide failures.
 6. Controller-backed management mutations, including Slot leader-transfer task
@@ -77,6 +89,9 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 - Route authority is `(HashSlot, SlotID, LeaderNodeID, LeaderTerm,
   ConfigEpoch, RouteRevision)` from one immutable publication. Local
   `AuthorityEpoch` is diagnostic only and never a distributed fence.
+- Scalar Slot mapping reads the current foreground table without copying
+  placement peers or looking up an unused diagnostic epoch; lifecycle,
+  missing-mapping and observed-Leader checks remain the same as full routing.
 - Desired or preferred ownership never substitutes for an observed leader.
   Missing, stale, incomplete, duplicate, or mismatched authority evidence
   fails readiness or the foreground operation closed.

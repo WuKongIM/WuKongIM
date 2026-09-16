@@ -12,6 +12,7 @@ var conversationListSizeBuckets = []float64{0, 1, 2, 4, 8, 16, 32, 64, 128, 200,
 // ConversationMetrics exposes bounded membership-directory and Channel-head
 // hydration costs. Labels deliberately exclude UID and channel identity.
 type ConversationMetrics struct {
+	stages                 *conversationReadStageMetrics
 	persisted              *persistedReadMetrics
 	listTotal              *prometheus.CounterVec
 	listDuration           *prometheus.HistogramVec
@@ -29,6 +30,7 @@ type ConversationMetrics struct {
 
 func newConversationMetrics(registry prometheus.Registerer, labels prometheus.Labels) *ConversationMetrics {
 	m := &ConversationMetrics{
+		stages:    newConversationReadStageMetrics(registry, labels),
 		persisted: newPersistedReadMetrics(registry, labels),
 		listTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "wukongim_conversation_directory_list_total", Help: "Membership-backed conversation directory requests.", ConstLabels: labels,

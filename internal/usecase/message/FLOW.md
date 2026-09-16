@@ -42,8 +42,11 @@ depending on their frames, JSON, or concrete cluster runtimes.
    channel state for valid memberships. Both ports are request-scoped and preserve
    input alignment; point-only adapters retain at most eight concurrent reads.
    All reads join and input-order failures resolve before any message batch starts.
-   The committed-record adapter executes routed scans; sync then clones payloads
-   and optionally enriches stream messages with bounded event metadata.
+   The committed-record adapter executes routed scans and transfers owned records.
+   `PageReader` filters its first wave in place and clears discarded references;
+   sync transfers concrete PageReader pages directly and defensively copies custom
+   reader pages, including nested JSON event snapshots. Both paths optionally
+   enrich stream messages with bounded event metadata.
 3. Legacy event sync reads a bounded durable sequence page through Slot authority,
    preserves original cursor/filter order, and does not invent event history.
 4. Exact message lookup reuses membership/visibility preparation and executes

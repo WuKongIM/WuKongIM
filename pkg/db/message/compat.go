@@ -1432,7 +1432,7 @@ func (s *ChannelStore) ListMessagesBySeq(ctx context.Context, fromSeq uint64, li
 	}
 	messages := make([]channel.Message, 0, len(rows))
 	for _, row := range rows {
-		messages = append(messages, channelMessageFromRow(row))
+		messages = append(messages, channelMessageFromOwnedRow(row))
 	}
 	return messages, nil
 }
@@ -2614,6 +2614,7 @@ func (s *ChannelStore) DiscardForRestore(ctx context.Context) error {
 	s.log.appendMu.Lock()
 	defer s.log.appendMu.Unlock()
 	nextSeq := uint64(1)
+	s.log.ordinaryIndexProof = ordinaryIndexProof{}
 	for {
 		rows, err := s.log.readRows(ctx, nextSeq, 0, ReadOptions{
 			Limit: restoreDiscardBatchMessages, MaxBytes: restoreDiscardBatchBytes,
@@ -3609,6 +3610,13 @@ func decodeCompatibilityServerTimestamp(payload []byte, pos int) (int64, bool) {
 }
 
 func channelMessageFromRow(row messageRow) channel.Message {
+	row.Payload = append([]byte(nil), row.Payload...)
+	return channelMessageFromOwnedRow(row)
+}
+
+// channelMessageFromOwnedRow transfers a decoded row's independent payload.
+// The caller must discard the row after conversion, never pass shared data.
+func channelMessageFromOwnedRow(row messageRow) channel.Message {
 	return channel.Message{
 		MessageID:         row.MessageID,
 		MessageSeq:        row.MessageSeq,
@@ -3627,7 +3635,7 @@ func channelMessageFromRow(row messageRow) channel.Message {
 		Topic:             row.Topic,
 		FromUID:           row.FromUID,
 		ServerTimestampMS: row.ServerTimestampMS,
-		Payload:           append([]byte(nil), row.Payload...),
+		Payload:           row.Payload,
 	}
 }
 

@@ -224,6 +224,53 @@ func TestMessageDBStoreAdapterPreservesConversationDisplayFields(t *testing.T) {
 	require.Equal(t, uint32(3600), latest[0].Expire)
 }
 
+// Read results must remain independent across reads, rows, and lease closure
+// even when the adapter transfers decoded payloads without cloning them.
+func TestMessageDBReadPayloadOwnership(t *testing.T) {
+	ctx := context.Background()
+	factory := NewMessageDBFactory(t.TempDir())
+	t.Cleanup(func() { _ = factory.Close() })
+	id := ch.ChannelID{ID: "read-payload-ownership", Type: 2}
+	cs, err := factory.ChannelStore(ch.ChannelKeyForID(id), id)
+	require.NoError(t, err)
+	closeChannelStoreOnCleanup(t, cs)
+	_, err = cs.AppendLeader(ctx, AppendLeaderRequest{Records: []ch.Record{
+		{ID: 1, FromUID: "sender", ClientMsgNo: "one", Payload: []byte("payload")},
+		{ID: 2, FromUID: "sender", ClientMsgNo: "two", Payload: []byte("payload")},
+	}})
+	require.NoError(t, err)
+	for _, req := range []ReadCommittedRequest{
+		{FromSeq: 2, MaxSeq: 2, Limit: 1, MaxBytes: 1024, Reverse: true},
+		{FromSeq: 3, MaxSeq: 2, Limit: 2, MaxBytes: 1024, Reverse: true},
+		{FromSeq: 1, MaxSeq: 2, Limit: 2, MaxBytes: 1024},
+		{MessageID: 2, MinSeq: 1, MaxSeq: 2, Limit: 1, MaxBytes: 1024},
+		{ClientMsgNo: "two", MinSeq: 1, MaxSeq: 2, Limit: 1, MaxBytes: 1024},
+	} {
+		first, err := cs.ReadCommitted(ctx, req)
+		require.NoError(t, err)
+		require.NotEmpty(t, first.Messages)
+		second, err := cs.ReadCommitted(ctx, req)
+		require.NoError(t, err)
+		first.Messages[0].Payload[0] = 'X'
+		for _, msg := range second.Messages {
+			require.Equal(t, "payload", string(msg.Payload))
+		}
+		for _, msg := range first.Messages[1:] {
+			require.Equal(t, "payload", string(msg.Payload))
+		}
+		third, err := cs.ReadCommitted(ctx, req)
+		require.NoError(t, err)
+		require.Equal(t, second, third)
+	}
+	result, err := cs.ReadCommitted(ctx, ReadCommittedRequest{FromSeq: 1, MaxSeq: 2, Limit: 2, MaxBytes: 1024})
+	require.NoError(t, err)
+	require.NoError(t, cs.Close())
+	require.NoError(t, factory.Close())
+	for _, msg := range result.Messages {
+		require.Equal(t, "payload", string(msg.Payload))
+	}
+}
+
 func TestMessageDBStoreAdapterLookupIdempotency(t *testing.T) {
 	ctx := context.Background()
 	factory := NewMessageDBFactory(t.TempDir())

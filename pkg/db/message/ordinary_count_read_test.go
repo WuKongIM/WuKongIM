@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Ordinary channels are the common conversation-read workload. Keep a warm
-// count's allocation budget below the former two-independent-rank implementation.
+// Ordinary channels are the common conversation-read workload. A complete
+// empty-index proof should avoid repeated storage allocation for their counts.
 func TestOrdinaryCountWarmAllocationBudget(t *testing.T) {
 	s := openTestMessageStore(t)
 	defer s.close(t)
@@ -24,7 +24,34 @@ func TestOrdinaryCountWarmAllocationBudget(t *testing.T) {
 			t.Fatalf("count = %d, %v", got, err)
 		}
 	})
-	require.LessOrEqual(t, allocations, float64(32), "warm ordinary count allocations")
+	require.Zero(t, allocations, "a proven empty ordinary index needs no repeated storage reads")
+}
+
+func TestOrdinaryCountEmptyProofSurvivesLeaseAndInvalidatesOnSyncOnce(t *testing.T) {
+	s := openTestMessageStore(t)
+	defer s.close(t)
+	log := testChannelLog(s)
+	appendBadgeRows(t, log, 1, false, false, false, false)
+	assertBadgeCount(t, log, 0, 3, 3)
+	key, id := log.key, log.id
+	require.NoError(t, log.Close())
+	log, err := s.db.Channel(key, id)
+	require.NoError(t, err)
+	defer log.Close()
+	allocations := testing.AllocsPerRun(30, func() {
+		got, err := log.CountOrdinaryMessages(context.Background(), 1, 3)
+		if err != nil || got != 2 {
+			t.Fatalf("count = %d, %v", got, err)
+		}
+	})
+	require.Zero(t, allocations)
+	appendBadgeRows(t, log, 4, false, true, false)
+	assertBadgeCount(t, log, 0, 5, 4)
+	assertBadgeCount(t, log, 3, 5, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = log.CountOrdinaryMessages(ctx, 0, 3)
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestOrdinaryCountMatchesVisibleRowsAfterRetention(t *testing.T) {
@@ -166,4 +193,60 @@ func TestOrdinaryCountWarmReadFailsWhenStoreUnavailable(t *testing.T) {
 	require.NoError(t, s.engine.Close())
 	_, err := log.CountOrdinaryMessages(context.Background(), 0, 2)
 	require.ErrorIs(t, err, dberrors.ErrClosed)
+}
+
+func TestOrdinaryCountZeroFloorRetainedOrdinal(t *testing.T) {
+	for _, seq := range []uint64{0, 1, 5, ^uint64(0)} {
+		t.Run(fmt.Sprint(seq), func(t *testing.T) {
+			s := openTestMessageStore(t)
+			defer s.close(t)
+			log := testChannelLog(s)
+			batch := s.engine.NewBatch()
+			require.NoError(t, batch.Set(nonBusinessVersionKey(log.key), []byte{1}))
+			require.NoError(t, batch.Set(nonBusinessIndexKey(log.key, seq), encodeUint64(7)))
+			require.NoError(t, batch.Commit(true))
+			require.NoError(t, batch.Close())
+			for _, through := range []uint64{1, 4, 5, ^uint64(0)} {
+				want := through
+				if seq > 0 && seq <= through {
+					want--
+				}
+				assertBadgeCount(t, log, 0, through, want)
+			}
+		})
+	}
+}
+
+func TestOrdinaryCountZeroFloorRejectsCorruptFirstOrdinal(t *testing.T) {
+	for _, value := range [][]byte{nil, {1}, encodeUint64(0)} {
+		t.Run(fmt.Sprintf("%x", value), func(t *testing.T) {
+			s := openTestMessageStore(t)
+			defer s.close(t)
+			log := testChannelLog(s)
+			batch := s.engine.NewBatch()
+			require.NoError(t, batch.Set(nonBusinessVersionKey(log.key), []byte{1}))
+			// This ordinal lies beyond the upper frontier but must still be
+			// validated because it defines the retained zero-floor baseline.
+			require.NoError(t, batch.Set(nonBusinessIndexKey(log.key, 5), value))
+			require.NoError(t, batch.Commit(true))
+			require.NoError(t, batch.Close())
+			_, err := log.CountOrdinaryMessages(context.Background(), 0, 3)
+			require.ErrorIs(t, err, dberrors.ErrCorruptValue)
+		})
+	}
+}
+
+func TestOrdinaryCountZeroFloorRejectsMalformedKeyAfterZero(t *testing.T) {
+	s := openTestMessageStore(t)
+	defer s.close(t)
+	log := testChannelLog(s)
+	batch := s.engine.NewBatch()
+	require.NoError(t, batch.Set(nonBusinessVersionKey(log.key), []byte{1}))
+	require.NoError(t, batch.Set(nonBusinessIndexKey(log.key, 0), encodeUint64(7)))
+	require.NoError(t, batch.Set(append(nonBusinessIndexKey(log.key, 0), 0), encodeUint64(7)))
+	require.NoError(t, batch.Set(nonBusinessIndexKey(log.key, 2), encodeUint64(8)))
+	require.NoError(t, batch.Commit(true))
+	require.NoError(t, batch.Close())
+	_, err := log.CountOrdinaryMessages(context.Background(), 0, 3)
+	require.ErrorIs(t, err, dberrors.ErrCorruptValue)
 }

@@ -196,7 +196,8 @@ func (a *App) SyncChannelMessages(ctx context.Context, query SyncChannelMessages
 	if err != nil {
 		return SyncChannelMessagesResult{}, err
 	}
-	return a.finishSyncChannelMessages(ctx, prepared.eventMode, page)
+	_, ownsMessages := a.reader.(*PageReader)
+	return a.finishSyncChannelMessages(ctx, prepared.eventMode, page, ownsMessages)
 }
 
 // SyncChannelMessagesBatch validates every UID-owned membership before
@@ -257,6 +258,7 @@ func (a *App) syncChannelMessagesBatch(ctx context.Context, query SyncChannelMes
 	if len(readResults) != len(reads) {
 		return SyncChannelMessagesBatchResult{}, ErrSyncBatchResultMismatch
 	}
+	_, ownsMessages := batchReader.(*PageReader)
 	for readIndex, readResult := range readResults {
 		index := readIndexes[readIndex]
 		item := &result.Items[index]
@@ -267,7 +269,7 @@ func (a *App) syncChannelMessagesBatch(ctx context.Context, query SyncChannelMes
 			item.Err = readResult.Err
 			continue
 		}
-		item.Result, err = a.finishSyncChannelMessages(ctx, prepared[index].eventMode, readResult.Page)
+		item.Result, err = a.finishSyncChannelMessages(ctx, prepared[index].eventMode, readResult.Page, ownsMessages)
 		if err != nil {
 			return SyncChannelMessagesBatchResult{}, err
 		}
@@ -367,8 +369,13 @@ func validateSyncChannelState(channel metadb.Channel, err error) error {
 	return nil
 }
 
-func (a *App) finishSyncChannelMessages(ctx context.Context, eventMode string, page ChannelMessagePage) (SyncChannelMessagesResult, error) {
-	messages := cloneSyncedMessages(page.Messages)
+func (a *App) finishSyncChannelMessages(ctx context.Context, eventMode string, page ChannelMessagePage, ownsMessages bool) (SyncChannelMessagesResult, error) {
+	// Only the concrete PageReader transfers owned scan data. Custom readers
+	// may retain their pages, including wrappers that embed a PageReader.
+	messages := page.Messages
+	if !ownsMessages {
+		messages = cloneSyncedMessages(messages)
+	}
 	if err := a.enrichSyncedMessagesWithEvents(ctx, eventMode, messages); err != nil {
 		return SyncChannelMessagesResult{}, err
 	}
@@ -562,7 +569,41 @@ func cloneMessageEventMeta(meta *MessageEventMeta) *MessageEventMeta {
 	}
 	cp := *meta
 	cp.Events = append([]MessageEventKeyMeta(nil), meta.Events...)
+	for i := range cp.Events {
+		cp.Events[i].Snapshot = cloneMessageEventSnapshot(cp.Events[i].Snapshot)
+	}
 	return &cp
+}
+
+// cloneMessageEventSnapshot detaches decoded JSON objects/arrays and raw bytes
+// supplied by a custom reader; scalar JSON values are immutable.
+func cloneMessageEventSnapshot(value any) any {
+	switch v := value.(type) {
+	case map[string]any:
+		if v == nil {
+			return v
+		}
+		out := make(map[string]any, len(v))
+		for key, item := range v {
+			out[key] = cloneMessageEventSnapshot(item)
+		}
+		return out
+	case []any:
+		if v == nil {
+			return v
+		}
+		out := make([]any, len(v))
+		for i, item := range v {
+			out[i] = cloneMessageEventSnapshot(item)
+		}
+		return out
+	case json.RawMessage:
+		return append(json.RawMessage(nil), v...)
+	case []byte:
+		return cloneBytes(v)
+	default:
+		return value
+	}
 }
 
 func cloneMessageEventStates(states []MessageEventState) []MessageEventState {

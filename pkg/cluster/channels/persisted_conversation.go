@@ -11,7 +11,8 @@ import (
 const (
 	persistedConversationMaxChannels = 200
 	persistedConversationReadBatches = 16
-	persistedConversationReadTimeout = 5 * time.Second
+	// PersistedConversationReadTimeout bounds metadata routing and disk previews.
+	PersistedConversationReadTimeout = 5 * time.Second
 )
 
 // readSelectedConversationHeads keeps persisted previews independent of quorum recovery.

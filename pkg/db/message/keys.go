@@ -11,32 +11,38 @@ func channelPartitionID(key ChannelKey) []byte {
 	return keycodec.AppendString(nil, string(key))
 }
 
+// newMessageKey reserves the complete key once while preserving the shared
+// domain/partition encoding. The returned bytes belong exclusively to the caller.
+func newMessageKey(channelKey ChannelKey, suffixBytes int) []byte {
+	if len(channelKey) > int(^uint16(0)) {
+		// Preserve the shared codec's rejection before allocating key storage.
+		return keycodec.AppendString(nil, string(channelKey))
+	}
+	key := make([]byte, 0, 4+len(channelKey)+suffixBytes)
+	key = append(key, byte(keycodec.DomainMessage), byte(keycodec.PartitionChannel))
+	return keycodec.AppendString(key, string(channelKey))
+}
+
+// messageTableKey reserves the selected table suffix without temporary builder
+// buffers or partition copies. Callers append only the reserved key parts.
+func messageTableKey(channelKey ChannelKey, space keycodec.Space, suffixBytes int) []byte {
+	key := newMessageKey(channelKey, 5+suffixBytes)
+	key = append(key, byte(space))
+	return keycodec.AppendUint32(key, TableIDMessage)
+}
+
 func encodeMessageChannelPartitionPrefix(channelKey ChannelKey) []byte {
-	var builder keycodec.Builder
-	return builder.Reset().
-		Domain(keycodec.DomainMessage).
-		Partition(keycodec.PartitionChannel, channelPartitionID(channelKey)).
-		Key()
+	return newMessageKey(channelKey, 0)
 }
 
 func encodeMessageRowPrefix(channelKey ChannelKey) []byte {
-	var builder keycodec.Builder
-	return builder.Reset().
-		Domain(keycodec.DomainMessage).
-		Partition(keycodec.PartitionChannel, channelPartitionID(channelKey)).
-		Row(TableIDMessage).
-		Key()
+	return messageTableKey(channelKey, keycodec.SpaceRow, 0)
 }
 
 func encodeMessageRowKey(channelKey ChannelKey, seq uint64, familyID uint16) []byte {
-	var builder keycodec.Builder
-	return builder.Reset().
-		Domain(keycodec.DomainMessage).
-		Partition(keycodec.PartitionChannel, channelPartitionID(channelKey)).
-		Row(TableIDMessage).
-		Uint64(seq).
-		Family(familyID).
-		Key()
+	key := messageTableKey(channelKey, keycodec.SpaceRow, 10)
+	key = keycodec.AppendUint64(key, seq)
+	return keycodec.AppendUint16(key, familyID)
 }
 
 func decodeMessageRowKey(channelKey ChannelKey, key []byte) (seq uint64, familyID uint16, ok bool) {
@@ -52,12 +58,8 @@ func decodeMessageRowKey(channelKey ChannelKey, key []byte) (seq uint64, familyI
 }
 
 func encodeMessageIndexPrefix(channelKey ChannelKey, indexID uint16) []byte {
-	var builder keycodec.Builder
-	return builder.Reset().
-		Domain(keycodec.DomainMessage).
-		Partition(keycodec.PartitionChannel, channelPartitionID(channelKey)).
-		Index(TableIDMessage, indexID).
-		Key()
+	key := messageTableKey(channelKey, keycodec.SpaceIndex, 2)
+	return keycodec.AppendUint16(key, indexID)
 }
 
 func encodeMessageIDIndexKey(channelKey ChannelKey, messageID uint64) []byte {
@@ -162,12 +164,8 @@ func encodeGlobalLatestIndexProgressKey() []byte {
 }
 
 func encodeMessageSystemPrefix(channelKey ChannelKey, systemID uint16) []byte {
-	var builder keycodec.Builder
-	return builder.Reset().
-		Domain(keycodec.DomainMessage).
-		Partition(keycodec.PartitionChannel, channelPartitionID(channelKey)).
-		System(TableIDMessage, systemID).
-		Key()
+	key := messageTableKey(channelKey, keycodec.SpaceSystem, 2)
+	return keycodec.AppendUint16(key, systemID)
 }
 
 func encodeRetentionStateKey(channelKey ChannelKey) []byte {

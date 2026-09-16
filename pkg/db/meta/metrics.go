@@ -4,6 +4,14 @@ import "github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 
 // EngineMetricsSnapshot is a stable view of the metadata engine's local storage state.
 type EngineMetricsSnapshot struct {
+	// RuntimeCacheEntries includes resident runtime rows awaiting lazy invalidation.
+	RuntimeCacheEntries int
+	// RuntimeCacheCapacity is the runtime row cache's fixed entry limit.
+	RuntimeCacheCapacity int
+	// RuntimeCacheBytes conservatively accounts retained row and entry bytes.
+	RuntimeCacheBytes int
+	// RuntimeCacheByteLimit bounds runtime row and entry retention.
+	RuntimeCacheByteLimit int
 	// ChannelCacheEntries is the number of business-channel rows retained by the read cache.
 	ChannelCacheEntries int
 	// ChannelCacheCapacity is the hard upper bound for business-channel cache entries.
@@ -55,6 +63,9 @@ func (db *DB) MetricsSnapshot() EngineMetricsSnapshot {
 	}
 	snapshot := metaMetricsFromSnapshot(db.engine.MetricsSnapshot())
 	if db.meta != nil {
+		snapshot.RuntimeCacheEntries, snapshot.RuntimeCacheBytes = db.meta.runtimeCache.usage()
+		snapshot.RuntimeCacheCapacity = runtimeReadCacheEntries
+		snapshot.RuntimeCacheByteLimit = runtimeReadCacheBytes
 		snapshot.ChannelCacheEntries = db.meta.channelCacheSize()
 		snapshot.ChannelCacheCapacity = channelCacheCapacity
 	}

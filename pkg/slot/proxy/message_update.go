@@ -194,7 +194,7 @@ func (s *Store) handleMessageUpdateReadRPC(ctx context.Context, body []byte) ([]
 	return json.Marshal(out)
 }
 
-func (s *Store) readMessageUpdatesLocal(ctx context.Context, req messageUpdateReadRPC) (messageUpdateReadReply, error) {
+func (s *Store) readMessageUpdatesLocal(ctx context.Context, req messageUpdateReadRPC) (_ messageUpdateReadReply, readErr error) {
 	out := messageUpdateReadReply{Format: 1}
 	if req.Format != 1 || len(req.Reads) == 0 || len(req.Reads) > metadb.MaxMessageUpdatePage {
 		return out, metadb.ErrInvalidArgument
@@ -224,6 +224,7 @@ func (s *Store) readMessageUpdatesLocal(ctx context.Context, req messageUpdateRe
 		out.LeaderID = uint64(leader)
 		return out, nil
 	}
+	barrierStart := s.startMessageUpdateStage()
 	// Production uses a local-only ReadIndex barrier. Narrow test/embedding
 	// ports without it retain the conservative fresh-noop compatibility path.
 	if reader, ok := s.cluster.(interface {
@@ -234,25 +235,24 @@ func (s *Store) readMessageUpdatesLocal(ctx context.Context, req messageUpdateRe
 		hs := hashSlotForKey(s.cluster, req.Reads[0].ChannelID)
 		err = proposeLocalWithHashSlot(ctx, s.cluster, slot, hs, metafsm.EncodeNoopCommand())
 	}
+	s.finishMessageUpdateStage("barrier", barrierStart, err)
 	if err != nil {
 		return out, err
 	}
-	total := 0
-	for _, q := range req.Reads {
+	storageStart := s.startMessageUpdateStage()
+	defer func() { s.finishMessageUpdateStage("storage", storageStart, readErr) }()
+	hashSlots := make([]uint16, len(req.Reads))
+	for i, q := range req.Reads {
 		if s.cluster.SlotForKey(q.ChannelID) != slot {
 			return out, ErrReadStaleRoute
 		}
-		page, e := s.db.ForHashSlot(hashSlotForKey(s.cluster, q.ChannelID)).ReadMessageUpdates(ctx, q)
-		if e != nil {
-			return out, e
-		}
-		for _, row := range page.Updates {
-			total += len(row.Payload) + len(row.ChannelID) + len(row.PendingAfterUID) + 128
-		}
-		if total > metadb.MaxMessageUpdatePageBytes {
-			return out, fmt.Errorf("%w: edit read byte budget", metadb.ErrInvalidArgument)
-		}
-		out.Pages = append(out.Pages, page)
+		hashSlots[i] = hashSlotForKey(s.cluster, q.ChannelID)
+	}
+	// All logical shards share this DB. One pinned view after the fresh Slot
+	// barrier avoids per-channel snapshot bookkeeping without caching any proof.
+	out.Pages, err = s.db.ReadMessageUpdatesBatch(ctx, hashSlots, req.Reads)
+	if err != nil {
+		return out, err
 	}
 	now, e := s.cluster.LeaderOf(slot)
 	if e != nil || now != leader || !s.cluster.IsLocal(now) || revision != s.cluster.HashSlotTableVersion() {

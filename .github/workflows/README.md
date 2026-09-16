@@ -235,6 +235,61 @@ certificate are provisioned. Exact unsigned source package assets still come
 only from the tag-bound binary Release described below; this credential-free
 source workflow never receives production signing or package-publisher access.
 
+## Fixed Linux SEND diagnosis
+
+The first PR append gate retains `channel-append-counters/` from its formal
+3000-operation window before that window's latency assertion, including when
+it prevents the mixed SEND gate from starting. It
+uses the same integration-only boundary collector as mixed SEND, with the
+`channel-append-counters/v1` schema. Snapshots exclude completed cluster setup
+and Go's one-iteration calibration, and finish before teardown. Failure during
+setup or calibration precedes collection and leaves no formal snapshot. Missing or
+incomplete windows remain explicit; no gate is skipped, reordered or retried.
+The append benchmark opts into the existing physical-batch histograms and
+1/32 sampled replication-stage observer; these add bounded clock/counter work
+to the benchmark, with no profile, trace or new sampling goroutine. The
+registry aggregates three nodes, and physical batches and sampled replication
+stages are different populations. Subtract the snapshots, keep background and
+foreground separate, and do not sum their percentile bounds as request latency.
+The old commit accumulator and its resets/verdict remain unchanged. Ordinary
+benchmarks without `WK_BENCH_APPEND_COUNTERS_DIR` retain their observer setup.
+
+The original PR mixed SEND gate also retains `mixed-send-counters/` from its
+own measured run, on both success and failure. It takes only before/after
+snapshots after warmup and after handlers complete, without enabling CPU
+profiling, tracing, sampling goroutines, or per-request instrumentation. Fixed
+Linux CPU/disk/pressure/cgroup files, Go scheduler/GC counters and bounded
+storage/replication histograms are capped at 4 MiB per snapshot and uploaded
+with the existing PR artifact. Host, source SHA and data-filesystem metadata
+identify the window. Counter deltas include boundary snapshot/timer overhead;
+they do not establish a request trace or isolate sub-window spikes. Cleanup
+marks an early exit incomplete; a hard process timeout may retain only the
+initial snapshot. An earlier append-gate failure prevents the mixed run and
+therefore produces no mixed-window counters. Missing evidence stays explicit.
+The original one-run load, deadlines, 400 ms assertion and failure exit are
+unchanged; no diagnostic rerun is automatically triggered.
+
+For a bounded SEND investigation, dispatch
+`three-node-chat-lifecycle-regression.yml` with `diagnose_send=true` on the
+exact reviewed candidate ref. This manual-only job replaces neither the PR
+gates nor nightly qualification, and has no publishing or cloud permissions.
+It pins Go 1.25.11 on Ubuntu 24.04 with four visible AMD64 CPUs, builds one clean
+benchmark binary, then runs exactly one unprofiled and one profiled 500-QPS,
+3,000-operation mixed SEND benchmark on that same runner. Each run has its own
+fresh three-node cluster; ordering and host variation remain limitations.
+No failed window is retried. The first run's unchanged 400 ms verdict stays in
+the report even when profiling succeeds. Completion means collected evidence,
+never release qualification. CPU and execution trace collection is limited to
+the measured phase, capped at 8/64 MiB in tmpfs and copied to the artifact after
+sampling so profiler writes do not load the data disk; fixed storage/replication histogram and
+Linux counter snapshots exclude setup/warmup but include profiler boundary
+overhead. Trace analysis separates scheduler, synchronization, syscall and
+network waits. CPU covers all three nodes and the driver in one process;
+disk/cgroup counters are scoped as reported, missing data stays explicit.
+Artifacts include source/binary identity and remain for 90 days. The job is
+bounded to 20 minutes and is opt-in; ordinary PR/scheduled/manual qualification
+behavior stays unchanged when `diagnose_send` is false.
+
 ## Conversation QPS diagnosis
 
 `conversation-qps-diagnose.yml` takes an exact product SHA on main history or a

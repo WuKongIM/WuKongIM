@@ -76,6 +76,7 @@ type ForwardClient interface {
 	// node. A successful response transfers ownership of message payloads to the caller.
 	ForwardConversationHeads(context.Context, ch.NodeID, ConversationHeadsRequest) (ConversationHeadsResponse, error)
 	// ForwardCommittedReads forwards one aligned committed-message batch to node.
+	// Successful pages transfer their message slice and payload ownership to the caller.
 	ForwardCommittedReads(context.Context, ch.NodeID, CommittedReadsRequest) (CommittedReadsResponse, error)
 }
 
@@ -540,12 +541,33 @@ func (s *Service) ReadPersistedConversationHeads(ctx context.Context, ids []ch.C
 	if len(ids) > persistedConversationMaxChannels {
 		return nil, ch.ErrInvalidConfig
 	}
-	ctx, cancel := context.WithTimeout(ctx, persistedConversationReadTimeout)
+	ctx, cancel := context.WithTimeout(ctx, PersistedConversationReadTimeout)
 	defer cancel()
 	return s.readConversationHeads(ctx, ids, uid, true, badges...)
 }
 
+// ReadPersistedConversationHeadsResolved consumes invocation-scoped metadata
+// already read from the authoritative Slot owner. Callers must not reuse it
+// across requests. Remote Channel leaders still perform their own validation.
+func (s *Service) ReadPersistedConversationHeadsResolved(ctx context.Context, ids []ch.ChannelID, uid string, metas []ch.Meta, badges ...ConversationBadgeQuery) ([]ConversationHeadResult, error) {
+	if len(ids) > persistedConversationMaxChannels || len(metas) != len(ids) {
+		return nil, ch.ErrInvalidConfig
+	}
+	resolved := make([]ChannelMetaResult, len(ids))
+	for i, id := range ids {
+		meta, found, err := normalizeAppendMeta(id, metas[i])
+		resolved[i] = ChannelMetaResult{Meta: meta, Found: found, Err: err}
+	}
+	ctx, cancel := context.WithTimeout(ctx, PersistedConversationReadTimeout)
+	defer cancel()
+	return s.readConversationHeadsWithMetadata(ctx, ids, uid, true, resolved, badges...)
+}
+
 func (s *Service) readConversationHeads(ctx context.Context, ids []ch.ChannelID, uid string, persisted bool, badges ...ConversationBadgeQuery) ([]ConversationHeadResult, error) {
+	return s.readConversationHeadsWithMetadata(ctx, ids, uid, persisted, nil, badges...)
+}
+
+func (s *Service) readConversationHeadsWithMetadata(ctx context.Context, ids []ch.ChannelID, uid string, persisted bool, metaResults []ChannelMetaResult, badges ...ConversationBadgeQuery) ([]ConversationHeadResult, error) {
 	started := time.Now()
 	resultLabel := "ok"
 	remoteCalls := 0
@@ -561,10 +583,13 @@ func (s *Service) readConversationHeads(ctx context.Context, ids []ch.ChannelID,
 	if len(ids) == 0 {
 		return results, nil
 	}
-	metaResults, err := s.resolveReadMetas(ctx, ids)
-	if err != nil {
-		resultLabel = "error"
-		return nil, err
+	if metaResults == nil {
+		var err error
+		metaResults, err = s.resolveReadMetas(ctx, ids)
+		if err != nil {
+			resultLabel = "error"
+			return nil, err
+		}
 	}
 	type remoteItem struct {
 		index   int
@@ -679,7 +704,7 @@ func (s *Service) handleForwardConversationHeads(ctx context.Context, req Conver
 	}
 	if req.Persisted {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, persistedConversationReadTimeout)
+		ctx, cancel = context.WithTimeout(ctx, PersistedConversationReadTimeout)
 		defer cancel()
 	}
 	response := ConversationHeadsResponse{Items: make([]ConversationHeadResult, len(req.Items))}
@@ -830,7 +855,7 @@ func (s *Service) readMessageBatch(ctx context.Context, reads []CommittedRead, p
 		}
 		for index, item := range items {
 			result := response.Items[index]
-			result.Read.Messages = cloneMessages(result.Read.Messages)
+			result.Read.Messages = normalizeOwnedMessages(result.Read.Messages)
 			results[item.index] = result
 		}
 	}
@@ -843,7 +868,7 @@ func (s *Service) handleForwardCommittedReads(ctx context.Context, req Committed
 			return CommittedReadsResponse{}, ch.ErrInvalidConfig
 		}
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, persistedConversationReadTimeout)
+		ctx, cancel = context.WithTimeout(ctx, PersistedConversationReadTimeout)
 		defer cancel()
 	}
 	response := CommittedReadsResponse{Items: make([]CommittedReadResult, len(req.Items))}
@@ -995,7 +1020,7 @@ func (s *Service) readStoredMessages(ctx context.Context, read CommittedRead, re
 		return channelstore.ReadCommittedResult{}, err
 	}
 	defer func() { _ = store.Close() }()
-	state, err := store.Load(ctx)
+	state, err := loadMessageReadState(ctx, store, persisted)
 	if err != nil {
 		return channelstore.ReadCommittedResult{}, err
 	}
@@ -1028,22 +1053,39 @@ func (s *Service) readStoredMessages(ctx context.Context, read CommittedRead, re
 	if err != nil {
 		return channelstore.ReadCommittedResult{}, err
 	}
-	result.Messages = cloneMessages(result.Messages)
+	result.Messages = normalizeOwnedMessages(result.Messages)
 	return result, nil
+}
+
+// loadMessageReadState selects the smallest storage proof for the read mode.
+// Persisted callers use only LEO; committed reads retain the full checkpoint.
+func loadMessageReadState(ctx context.Context, store channelstore.ChannelStore, persisted bool) (channelstore.InitialState, error) {
+	if persisted {
+		if loader, ok := store.(channelstore.PersistedFrontierLoader); ok {
+			leo, err := loader.LoadPersistedFrontier(ctx)
+			return channelstore.InitialState{LEO: leo}, err
+		}
+	}
+	return store.Load(ctx)
+}
+
+// normalizeOwnedMessages preserves the read response's empty representations
+// without copying caller-owned message slices or payloads.
+func normalizeOwnedMessages(messages []ch.Message) []ch.Message {
+	if messages == nil {
+		return []ch.Message{}
+	}
+	for index := range messages {
+		if len(messages[index].Payload) == 0 {
+			messages[index].Payload = nil
+		}
+	}
+	return messages
 }
 
 func canFallbackCommittedReadOnMissingMeta(local ch.NodeID, req CommittedReadRequest, err error) bool {
 	return (channelErrorMatches(err, ch.ErrChannelNotFound) || errors.Is(err, metadb.ErrNotFound)) &&
 		req.ExpectedLeader == local && req.ExpectedChannelEpoch != 0 && req.ExpectedLeaderEpoch != 0
-}
-
-func cloneMessages(messages []ch.Message) []ch.Message {
-	cloned := make([]ch.Message, len(messages))
-	copy(cloned, messages)
-	for index := range cloned {
-		cloned[index].Payload = append([]byte(nil), cloned[index].Payload...)
-	}
-	return cloned
 }
 
 func (s *Service) handleForwardLastVisible(ctx context.Context, req LastVisibleRequest) (LastVisibleResponse, error) {
@@ -1321,7 +1363,7 @@ func (s *Service) readStoredConversationHead(ctx context.Context, id ch.ChannelI
 		return ConversationHead{}, false, err
 	}
 	defer func() { _ = store.Close() }()
-	state, err := store.Load(ctx)
+	state, err := loadMessageReadState(ctx, store, persisted)
 	if err != nil {
 		return ConversationHead{}, false, err
 	}

@@ -59,6 +59,13 @@ type ChannelStore interface {
 	Close() error
 }
 
+// PersistedFrontierLoader reads only the durable log end for disk-only previews.
+// It does not load a committed checkpoint or prove quorum visibility. Stores
+// without this capability retain the full Load fallback.
+type PersistedFrontierLoader interface {
+	LoadPersistedFrontier(ctx context.Context) (uint64, error)
+}
+
 // ExactStateLoader reads the exact proposal identity at the durable local
 // frontier. Implementations must take one consistent append/checkpoint view.
 type ExactStateLoader interface {

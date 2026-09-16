@@ -37,6 +37,9 @@ reads to the current Slot leader. Durable rows live in `pkg/db/meta`.
    forwarding, and follows the leader for authoritative reads. Person-directory
    commands prepare bounded UID membership/runtime metadata before publishing
    ready only after every prepare group succeeds.
+   Compound conversation metadata reads share lifecycle/runtime ownership checks
+   and four workers; response codec 2 carries full runtime fences. Legacy permission
+   reads keep codec 1. Missing compound fields and changed ownership fail closed.
    Runtime-metadata read batches accept at most 4,096 keys, group them by
    physical Slot, use at most four supervised workers, and preserve item-scoped
    missing or Slot failures. Exact ordinary-membership batches accept at most
@@ -79,7 +82,7 @@ reads to the current Slot leader. Durable rows live in `pkg/db/meta`.
 - Ordinary and CMD membership progress is monotonic and UID-owned. Removed
   conversation table IDs stay reserved and must not be reused.
 
-- Message edits atomically resolve CAS/idempotency and maintain latest-state indexes through the Slot FSM. Reads group at most 200 targets by physical Slot with four managed workers and a fresh local-only safe ReadIndex plus durable-apply barrier per group (noop fallback for embedding ports without ReadIndex). Replica capability activation is persisted in each channel head; later quorum writes reuse it unless the replica set changes. JSON RPC format, row counts and bytes are bounded; read DTOs omit default zero fields while preserving field names, aligned pages and legacy decoding; matched binaries remain a rollout requirement. Read assembly revalidates Slot mapping and authority with a dedicated retryable read-route cause, distinct from database/CAS conflicts. ReadIndex requires a durable current-term commit; unconfirmed/canceled reads remain counted up to 256 per Slot until confirmation or Raft reset.
+- Message edits atomically resolve CAS/idempotency and maintain latest-state indexes through the Slot FSM. Reads group at most 200 targets by physical Slot with four managed workers and a fresh local-only safe ReadIndex plus durable-apply barrier per group, followed by one shared database snapshot for that group (noop fallback for embedding ports without ReadIndex). Replica capability activation is persisted in each channel head; later quorum writes reuse it unless the replica set changes. JSON RPC format, row counts and bytes are bounded; read DTOs omit default zero fields while preserving field names, aligned pages and legacy decoding; matched binaries remain a rollout requirement. Read assembly revalidates Slot mapping and authority with a dedicated retryable read-route cause, distinct from database/CAS conflicts. ReadIndex requires a durable current-term commit; unconfirmed/canceled reads remain counted up to 256 per Slot until confirmation or Raft reset.
 
 ## Read First
 
