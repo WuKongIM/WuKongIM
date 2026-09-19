@@ -111,6 +111,9 @@ func validateStressConfig(c stressConfig) error {
 
 // stressWindow attributes shared CPU/allocations once, outside endpoint results.
 type stressWindow struct {
+	// Host counters bracket unprofiled release windows without changing the load.
+	HostBefore       map[string]string    `json:"host_before,omitempty"`
+	HostAfter        map[string]string    `json:"host_after,omitempty"`
 	Name             string               `json:"name"`
 	Page             int                  `json:"page,omitempty"`
 	Cohort           int                  `json:"cohort,omitempty"`

@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Retain bounded host and per-second arrival evidence in the original conversation release gate, including rejected windows, without changing its load or acceptance policy. / 会话发布门禁保留原始运行中有界的主机与逐秒请求证据（包括失败窗口），不改变负载和验收标准。
+
 - Overlap up to eight independent Slot message-edit read groups per query, retaining fresh quorum/apply barriers, aligned pages, cancellation and byte bounds. / 单次查询最多并行读取八组独立 Slot 消息编辑数据，保留新的多数派与应用屏障、分页对齐、取消和字节上限。
 
 ## [v3.0.0-beta.20] - 2026-09-19

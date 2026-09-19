@@ -155,7 +155,7 @@ func TestConversationQPSMixedAttribution(t *testing.T) {
 func mixedHostSnapshot(t *testing.T) map[string]string {
 	t.Helper()
 	out := map[string]string{"time": time.Now().UTC().Format(time.RFC3339Nano)}
-	for _, path := range []string{"/proc/stat", "/proc/self/stat", "/proc/self/status", "/proc/self/cgroup", "/proc/pressure/cpu", "/proc/pressure/io", "/proc/meminfo", "/sys/fs/cgroup/cpu.stat", "/sys/fs/cgroup/cpu.max"} {
+	for _, path := range []string{"/proc/cpuinfo", "/proc/stat", "/proc/self/stat", "/proc/self/status", "/proc/self/cgroup", "/proc/pressure/cpu", "/proc/pressure/io", "/proc/meminfo", "/sys/fs/cgroup/cpu.stat", "/sys/fs/cgroup/cpu.max"} {
 		data, err := os.ReadFile(path)
 		if err != nil {
 			out[path] = "unavailable: " + err.Error()

@@ -257,14 +257,21 @@ func hideStressFixture(t *testing.T, c *suite.StartedCluster, p profile) {
 // runReleaseStress retains every completed window before enforcing its verdict.
 func runReleaseStress(t *testing.T, c *suite.StartedCluster, client *http.Client, p profile, cfg stressConfig, expected expectedMessages, initial metricsSnapshot, record func(stressWindow)) {
 	t.Helper()
+	// Preserve failure attribution in the original release run. Timing buckets
+	// aggregate already-recorded arrivals after load; no profiler runs here.
+	p.captureTimeline = true
+	hostBefore := mixedHostSnapshot(t)
 	w := measureMixed(t, c, client, p, cfg, expected, initial)
+	w.HostBefore, w.HostAfter = hostBefore, mixedHostSnapshot(t)
 	record(w)
 	require.NoError(t, evaluateStressWindow(p, cfg, w))
 	hideStressFixture(t, c, p)
 	initial = evictFixtureRuntimes(t, c, client, p)
 	for cohort := 0; cohort < 3; cohort++ {
 		for _, page := range []int{1, 2} {
+			hostBefore = mixedHostSnapshot(t)
 			w = measureHidden(t, c, client, p, cfg, cohort, page, expected, initial)
+			w.HostBefore, w.HostAfter = hostBefore, mixedHostSnapshot(t)
 			record(w)
 			require.NoError(t, evaluateStressWindow(p, cfg, w))
 		}

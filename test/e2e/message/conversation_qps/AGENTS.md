@@ -26,7 +26,10 @@ Only non-Linux local diagnostics may record unavailable process CPU as null;
 Linux release runs require the CPU counter on every node.
 
 The JSON report must include all 12 base cases, seven stress windows (eight endpoint results),
-and source/profile/binary identities.
+and source/profile/binary identities. Also retain driver GOMAXPROCS, bounded host/driver
+counter snapshots around stress windows, per-scheduled-second timing/drop buckets
+and at most 16 slow samples per endpoint in the original release run. These
+observations do not change workload, workers, thresholds or enable profiling.
 Local dirty-tree reports are diagnostic only; publication requires clean exact-tag
 source evidence. Keep pure acceptance-policy tests in the default unit tier.
 

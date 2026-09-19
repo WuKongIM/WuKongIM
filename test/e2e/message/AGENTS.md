@@ -36,6 +36,11 @@ This domain covers black-box message and conversation behavior for
 | `bench_churn` | Prove immediate cross-node Bench Token creation/rotation and exact rejection, including a non-replica, then identity-swap group churn with Gateway Token auth enabled. | `GOWORK=off go test -tags=e2e ./test/e2e/message/bench_churn -count=1 -timeout 2m` |
 | `chat_lifecycle` | Prove a real three-node person Channel becomes naturally absent after five idle minutes, reheats through real traffic, preserves sequence/metadata continuity, runs a full version-zero sync after every login, and preserves person/group recipient sequence under cross-ingress bursts. | `GOWORK=off go test -tags=e2e ./test/e2e/message/chat_lifecycle -run 'Test(PersonChannel(NaturalReheat|CrossIngressBurstPreservesReceiveSequence)|GroupChannelCrossIngressBurstPreservesReceiveSequence)$' -count=1 -timeout 9m -p=1` |
 
+The conversation release gate also retains driver GOMAXPROCS, bounded host/driver
+counters around stress windows and per-second arrival/drop timing with at most
+16 slow samples per endpoint. Workload and acceptance remain unchanged; no
+profiles run in release windows.
+
 ## Maintenance Rules
 
 The `conversation_qps` scenario also contains the opt-in message-update

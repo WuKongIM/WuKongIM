@@ -189,7 +189,7 @@ transactional-cache and response-order tests before end-to-end feature rollout.
   nonempty edit datasets require the new CLI.
 - The ordered latest-state index seeks by channel and update sequence. A page
   uses one pinned storage snapshot for head/index/payload. Exact overlay reads
-  group at most 200 targets by physical Slot with at most four managed workers.
+  group at most 200 targets by physical Slot with at most eight managed workers.
 - Each production Slot group uses fresh local-leader `ReadIndex` quorum
   confirmation and waits for durable local apply. It does not write an empty
   log entry or cache readiness/negative results. At most 256 unconfirmed reads
@@ -198,7 +198,7 @@ transactional-cache and response-order tests before end-to-end feature rollout.
   their current term. Custom embedding ports without ReadIndex use the
   conservative fresh-noop fallback. Network quorum latency still applies.
 - Across Slot groups, retained reply bytes are checked before accumulation and
-  excess work is canceled. Up to four in-flight bounded RPC pages additionally
+  excess work is canceled. Up to eight in-flight bounded RPC pages additionally
   occupy temporary buffers; 8 MiB is not a process-wide memory claim.
 - Payload growth is checked after overlay. Byte-limited history scans retain
   continuation rather than silently claiming the range ended. Read waves and
