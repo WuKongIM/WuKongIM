@@ -2611,6 +2611,8 @@ func (s *ChannelStore) DiscardForRestore(ctx context.Context) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
+	finishRetention := s.log.db.beginRetentionMutation()
+	defer finishRetention()
 	s.log.appendMu.Lock()
 	defer s.log.appendMu.Unlock()
 	nextSeq := uint64(1)
@@ -2673,6 +2675,8 @@ func (s *ChannelStore) truncateLocked(ctx context.Context, to uint64, truncateHi
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
+	finishRetention := s.log.db.beginRetentionMutation()
+	defer finishRetention()
 	s.log.appendMu.Lock()
 	defer s.log.appendMu.Unlock()
 	leo, err := s.log.loadLEOLocked(ctx)
@@ -2863,6 +2867,8 @@ func (s *ChannelStore) AdoptRetentionBoundary(ctx context.Context, throughSeq ui
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
+	finishRetention := s.log.db.beginRetentionMutation()
+	defer finishRetention()
 	s.log.appendMu.Lock()
 	defer s.log.appendMu.Unlock()
 	leo, err := s.log.loadLEOLocked(ctx)

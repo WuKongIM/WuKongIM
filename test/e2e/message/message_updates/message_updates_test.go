@@ -395,6 +395,11 @@ func TestMessageUpdateConcurrentRecovery(t *testing.T) {
 		}), suite.WithNodeEnv(n, "GOMAXPROCS=2"))
 	}
 	c := suite.New(t).StartStaticCluster(3, opts...)
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Log(c.DumpDiagnostics())
+		}
+	})
 	ctx, cancel := context.WithTimeout(context.Background(), 7*time.Minute)
 	defer cancel()
 	require.NoError(t, c.WaitHTTPReady(ctx))
@@ -406,9 +411,6 @@ func TestMessageUpdateConcurrentRecovery(t *testing.T) {
 	defer w.client.CloseIdleConnections()
 	defer func() {
 		r.FinalCounts = w.snapshot()
-		if t.Failed() {
-			t.Log(c.DumpDiagnostics())
-		}
 	}()
 	for _, id := range []string{room, control} {
 		require.NoError(t, suite.PostChannel(ctx, c.Nodes[0].APIAddr(), map[string]any{"channel_id": id, "channel_type": 2, "subscribers": []string{sender, reader}}))

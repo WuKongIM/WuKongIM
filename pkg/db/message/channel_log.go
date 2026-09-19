@@ -34,6 +34,8 @@ type channelEntry struct {
 	// ordinaryIndexProof records durable sparse-index absence under appendMu;
 	// SyncOnce staging, restore discard and import generations invalidate it.
 	ordinaryIndexProof ordinaryIndexProof
+	// retentionRead holds immutable durable state under the DB mutation generation.
+	retentionRead atomic.Pointer[retentionReadState]
 	// checkpointMu serializes checkpoint reads followed by writes.
 	checkpointMu sync.Mutex
 	// leo caches the last durable message sequence after it is loaded.

@@ -6,6 +6,27 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+## [v3.0.0-beta.21] - 2026-09-19
+
+### 🔧 Improvements / 改进
+
+- Reuse unchanged durable retention state in bounded Channel storage caches, with invalidation around retention changes, truncation and restore/import. / Channel 有界存储缓存复用未变化的持久化保留状态，在保留变更、截断及恢复导入前后失效，减少会话查询的重复读取。
+
+- Retain bounded host and per-second arrival evidence in the original conversation release gate, including rejected windows, without changing its load or acceptance policy. / 会话发布门禁保留原始运行中有界的主机与逐秒请求证据（包括失败窗口），不改变负载和验收标准。
+
+- Overlap up to eight independent Slot message-edit read groups per query, retaining fresh quorum/apply barriers, aligned pages, cancellation and byte bounds. / 单次查询最多并行读取八组独立 Slot 消息编辑数据，保留新的多数派与应用屏障、分页对齐、取消和字节上限。
+
+
+### 🐛 Bug Fixes / 问题修复
+
+- Include the Controller restart recovery prepared in beta.19–20: verify legacy pruned WAL prefixes against node identity, snapshots, metadata and the complete committed suffix, then restore a newer snapshot before replay when materialized state lags. Real corruption remains fatal. / 包含 beta.19–20 中准备的 Controller 重启恢复修复：核验旧 WAL 清理前缀后的节点身份、快照、元数据及完整提交后缀；状态文件落后时先恢复较新的快照再重放。真实损坏仍拒绝启动。
+
+### ⬆️ Upgrade Notes / 升级说明
+
+- beta.17–20 did not complete publication. This release includes their message-edit functionality, query improvements and Controller recovery changes. Deploy matching server versions and follow the SDK edit/restore merge contract described below. / beta.17–20 未完成发布；本版本包含这些版本准备的消息编辑功能、查询优化和 Controller 恢复修复。各节点须部署一致版本，并遵循下文的 SDK 编辑与恢复合并协议。
+
+- Back up every node's complete data directory before upgrading. Validated legacy WAL recovery is automatic; do not delete WAL or edit checksums. Once a new-format segment is written, rollback requires restoring the pre-upgrade data backup as well as the old image. / 升级前备份各节点完整数据目录。通过核验的旧 WAL 会自动恢复，无需删除日志或修改校验和。写入新格式日志段后，回退必须同时恢复升级前数据备份和旧镜像。
+
 ## [v3.0.0-beta.20] - 2026-09-19
 
 ### 🔧 Improvements / 改进

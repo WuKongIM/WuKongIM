@@ -235,6 +235,8 @@ func (s *ChannelStore) ReplaceRecoverySuffix(ctx context.Context, req ReplaceRec
 		err = toChannelError(err)
 		return recoveryReplaceError(err), err
 	}
+	finishRetention := s.log.db.beginRetentionMutation()
+	defer finishRetention()
 	nextRetention, writeRetention, err := s.retentionStateAfterTruncate(ctx, finalOffset)
 	if err != nil {
 		return recoveryReplaceError(err), err

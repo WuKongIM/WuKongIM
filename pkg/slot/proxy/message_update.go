@@ -17,6 +17,10 @@ import (
 
 const messageUpdateRPCServiceID = clusternet.RPCSlotMessageUpdates
 
+// messageUpdateReadWorkers overlaps independent quorum waits while bounding
+// per-request goroutines and outstanding Slot RPCs, even with 256 hash slots.
+const messageUpdateReadWorkers = 8
+
 type messageUpdateReadRPC struct {
 	Probe  bool `json:"Probe,omitempty"`
 	Format int
@@ -95,7 +99,7 @@ func (s *Store) ReadMessageUpdatesBatch(ctx context.Context, reads []metadb.Mess
 	errs := make([]error, len(slots))
 	jobs := make(chan int)
 	var wg sync.WaitGroup
-	for worker := 0; worker < min(4, len(slots)); worker++ {
+	for worker := 0; worker < min(messageUpdateReadWorkers, len(slots)); worker++ {
 		wg.Add(1)
 		goruntimeregistry.SafeGo(nil, goruntimeregistry.TaskSlotMessageUpdateRead, func() {
 			defer wg.Done()

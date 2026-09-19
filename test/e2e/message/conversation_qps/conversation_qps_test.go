@@ -30,21 +30,22 @@ import (
 // report binds the complete matrix to source, profile and the actual server binary.
 // Dirty-tree runs provide local diagnostics, never publication evidence.
 type report struct {
-	Schema         string         `json:"schema"`
-	SourceSHA      string         `json:"source_sha"`
-	SourceDirty    bool           `json:"source_dirty"`
-	ProfileSHA256  string         `json:"profile_sha256"`
-	BinarySHA256   string         `json:"binary_sha256"`
-	OS             string         `json:"os"`
-	Arch           string         `json:"arch"`
-	CPUs           int            `json:"cpus"`
-	NodeGOMAXPROCS int            `json:"node_gomaxprocs"`
-	StartedAt      time.Time      `json:"started_at"`
-	StressConfig   stressConfig   `json:"stress_config"`
-	Stress         []stressWindow `json:"stress"`
-	Capacity       []capacityCase `json:"capacity,omitempty"`
-	Phases         []phaseResult  `json:"phases"`
-	Passed         bool           `json:"passed"`
+	Schema           string         `json:"schema"`
+	SourceSHA        string         `json:"source_sha"`
+	SourceDirty      bool           `json:"source_dirty"`
+	ProfileSHA256    string         `json:"profile_sha256"`
+	BinarySHA256     string         `json:"binary_sha256"`
+	OS               string         `json:"os"`
+	Arch             string         `json:"arch"`
+	CPUs             int            `json:"cpus"`
+	NodeGOMAXPROCS   int            `json:"node_gomaxprocs"`
+	DriverGOMAXPROCS int            `json:"driver_gomaxprocs"`
+	StartedAt        time.Time      `json:"started_at"`
+	StressConfig     stressConfig   `json:"stress_config"`
+	Stress           []stressWindow `json:"stress"`
+	Capacity         []capacityCase `json:"capacity,omitempty"`
+	Phases           []phaseResult  `json:"phases"`
+	Passed           bool           `json:"passed"`
 }
 
 func TestConversationQPSReleaseGate(t *testing.T) {
@@ -59,7 +60,7 @@ func TestConversationQPSReleaseGate(t *testing.T) {
 	require.NoError(t, err)
 	dirty, err := exec.Command("git", "status", "--porcelain", "--untracked-files=normal").Output()
 	require.NoError(t, err)
-	r := report{StressConfig: p.StressGate, Schema: "wukongim/conversation-qps-report/v2", SourceSHA: strings.TrimSpace(string(sha)), SourceDirty: len(dirty) > 0, ProfileSHA256: hex.EncodeToString(sum[:]), OS: runtime.GOOS, Arch: runtime.GOARCH, CPUs: runtime.NumCPU(), NodeGOMAXPROCS: 2, StartedAt: time.Now().UTC()}
+	r := report{StressConfig: p.StressGate, Schema: "wukongim/conversation-qps-report/v2", SourceSHA: strings.TrimSpace(string(sha)), SourceDirty: len(dirty) > 0, ProfileSHA256: hex.EncodeToString(sum[:]), OS: runtime.GOOS, Arch: runtime.GOARCH, CPUs: runtime.NumCPU(), DriverGOMAXPROCS: runtime.GOMAXPROCS(0), NodeGOMAXPROCS: 2, StartedAt: time.Now().UTC()}
 	output := os.Getenv("WK_E2E_CONVERSATION_QPS_REPORT")
 	require.NotEmpty(t, output, "report path is required; absence must not yield a release pass")
 	defer func() {

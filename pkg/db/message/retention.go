@@ -22,15 +22,28 @@ func (l *ChannelLog) loadRetentionState(ctx context.Context) (RetentionState, bo
 	if err := ctx.Err(); err != nil {
 		return RetentionState{}, false, err
 	}
-	value, ok, err := l.db.engine.Get(encodeRetentionStateKey(l.key))
-	if err != nil || !ok {
-		return RetentionState{}, ok, err
+	if l.db.engine.IsClosed() {
+		return RetentionState{}, false, dberrors.ErrClosed
 	}
-	state, err := decodeRetentionState(value)
+	generation, cacheable := l.db.retentionReadGeneration()
+	if cached := l.retentionRead.Load(); cacheable && cached != nil && cached.generation == generation {
+		return cached.state, cached.present, nil
+	}
+	value, ok, err := l.db.engine.Get(encodeRetentionStateKey(l.key))
 	if err != nil {
 		return RetentionState{}, false, err
 	}
-	return state, true, nil
+	var state RetentionState
+	if ok {
+		state, err = decodeRetentionState(value)
+		if err != nil {
+			return RetentionState{}, false, err
+		}
+	}
+	if current, idle := l.db.retentionReadGeneration(); cacheable && idle && current == generation {
+		l.retentionRead.Store(&retentionReadState{generation: generation, state: state, present: ok})
+	}
+	return state, ok, nil
 }
 
 // StoreRetentionState stores durable local retention progress.
@@ -45,6 +58,8 @@ func (l *ChannelLog) StoreRetentionState(ctx context.Context, state RetentionSta
 	if err := validateRetentionState(state); err != nil {
 		return err
 	}
+	finishMutation := l.db.beginRetentionMutation()
+	defer finishMutation()
 	batch := l.db.engine.NewBatch()
 	defer batch.Close()
 	if err := batch.Set(encodeRetentionStateKey(l.key), encodeRetentionState(state)); err != nil {
@@ -81,6 +96,8 @@ func (l *ChannelLog) trimPrefixThroughLimit(ctx context.Context, throughSeq uint
 	if throughSeq == 0 {
 		return RetentionTrimResult{}, nil
 	}
+	finishMutation := l.db.beginRetentionMutation()
+	defer finishMutation()
 
 	l.appendMu.Lock()
 	defer l.appendMu.Unlock()

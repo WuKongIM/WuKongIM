@@ -27,6 +27,8 @@ its original cursor and cache state.
 Other unexpected status/envelope or incorrect successful content fails immediately. Never treat a failed query as an empty page or advance its
 cursor. Preserve bounded per-endpoint error counts and phase timestamps in the
 report.
+Register bounded process diagnostics before waiting for initial HTTP readiness,
+so startup exits retain the same evidence as workload and recovery failures.
 Recovery phases also require progress from every reader and writer; final
 verification accepts no transient failures.
 

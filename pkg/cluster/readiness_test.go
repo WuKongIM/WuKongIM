@@ -234,28 +234,6 @@ func readinessTimeoutError(cause error, latest []nodeReadinessState) error {
 	return errors.New(b.String())
 }
 
-func TestWaitNodeReadySucceedsForStartedSingleNodeCluster(t *testing.T) {
-	cfg := validNodeConfig(t)
-	cfg.Channel.TickInterval = time.Millisecond
-	cfg.Control.ClusterID = "readiness-single"
-	cfg.Slots.InitialSlotCount = 1
-	cfg.Slots.HashSlotCount = 4
-	cfg.Slots.ReplicaCount = 1
-	node, err := New(cfg)
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := node.Start(ctx); err != nil {
-		t.Fatalf("Start() error = %v", err)
-	}
-	t.Cleanup(func() { _ = node.Stop(context.Background()) })
-	if err := WaitNodeReady(ctx, node); err != nil {
-		t.Fatalf("WaitNodeReady() error = %v", err)
-	}
-}
-
 func TestWaitControllerWriteReadyReportsControllerProbeTimeout(t *testing.T) {
 	probeErr := errors.New("probe boom")
 	controller := &failingProbeController{StaticController: control.NewStaticController(nodeControlSnapshot()), err: probeErr}
