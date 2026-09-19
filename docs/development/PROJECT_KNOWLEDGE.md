@@ -308,6 +308,9 @@ specification, runbook, report, or module documentation; link to them when neede
   [Cloud Simulation](../superpowers/runbooks/cloud-simulation.md) and the
   [chat-lifecycle skill](../../.agents/skills/wukongim-chat-lifecycle/SKILL.md).
 
+- Ordinary transport RPC, control and Raft frames coalesce already-ready work
+  without speculative delay; only isolated bulk frames use `WriteBatchMaxWait`.
+  This avoids timer waits accumulating across foreground request/response chains.
 - Transport observer state remains bounded to 8,192 source keys; absolute-state
   revisions survive delivery, unversioned updates follow arrival order, and
   shutdown drains admitted terminal states. Reuse state cells and delivery

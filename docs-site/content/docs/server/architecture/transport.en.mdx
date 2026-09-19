@@ -50,7 +50,7 @@ Transport limits frame body size, queued items and bytes per connection, batch f
 
 ## Priority and ordering
 
-- Raft and control messages keep low wait and do not join the short coalescing window used by ordinary RPC traffic.
+- Ordinary RPC, Raft and control frames batch already-ready work without waiting for future frames. Only isolated bulk traffic retains the bounded coalescing delay.
 - Foreground Channel append services can use higher bounded concurrency while retaining payload and queue limits.
 - Raft protocol services use an ordered handler lane so concurrent handlers cannot reorder peer messages.
 - Channel Pull and PullHint can form small same-target batches while preserving item-aligned results and channel fences.
