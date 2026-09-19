@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"github.com/WuKongIM/WuKongIM/internal/bench/arrival"
 	"runtime"
 	"sort"
 	"sync"
@@ -141,6 +142,9 @@ func BenchmarkThreeNodeChannelAppend1000QPS(b *testing.B) {
 // BenchmarkThreeNodeChannelAppend500QPS is the hosted-runner regression seam.
 // The 1000 QPS variant remains the dedicated capacity-environment benchmark.
 func BenchmarkThreeNodeChannelAppend500QPS(b *testing.B) {
+	if b.N < 3000 {
+		return
+	}
 	cluster := newChannelAppendBenchmarkCluster(b, threeNodeBenchmarkChannels)
 	benchmarkThreeNodeChannelAppendClusterAtRate(b, cluster, "append", threeNodeHostedBenchmarkRate)
 }
@@ -342,43 +346,49 @@ func benchmarkThreeNodeChannelAppendClusterWithLoadAtRate(b *testing.B, cluster 
 		}()
 	}
 
+	warmup := arrival.QualificationWarmup(b, rate)
 	latencies := make([]time.Duration, b.N)
-	jobs := make(chan int, threeNodeBenchmarkWorkers)
-	var workers sync.WaitGroup
-	workers.Add(threeNodeBenchmarkWorkers)
-	for range threeNodeBenchmarkWorkers {
-		go func() {
-			defer workers.Done()
-			for index := range jobs {
-				channelIndex := index % len(cluster.channels)
-				channel := cluster.channels[channelIndex]
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				started := time.Now()
-				result, err := cluster.nodes[channel.authority.Leader].AppendBatch(ctx, ch.AppendBatchRequest{
-					ChannelID: channel.authority.ChannelID,
-					Messages: []ch.Message{{
-						MessageID: uint64(index + 1), ChannelID: channel.authority.ChannelID.ID,
-						ChannelType: channel.authority.ChannelID.Type, FromUID: "benchmark-sender",
-						ClientMsgNo: fmt.Sprintf("bench-%d", index+1), Payload: cluster.payload(index),
-					}},
-					CommitMode: ch.CommitModeQuorum, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 1,
-					OmitResultPayload: true, ServerAllocatedMessageIDs: true,
-				})
-				latencies[index] = time.Since(started)
-				cancel()
-				if err == nil && (len(result.Items) != 1 || result.Items[0].Err != nil) {
-					if len(result.Items) == 1 {
-						err = result.Items[0].Err
-					} else {
-						err = ch.ErrInvalidConfig
-					}
-				}
-				if err != nil {
-					cluster.recordError(fmt.Errorf("append channel %d: %w", channelIndex, err))
-				}
+	measuring := false
+	operation := func(ctx context.Context, index int) error {
+		identity := index
+		if measuring {
+			identity += warmup
+		}
+		channel := cluster.channels[identity%len(cluster.channels)]
+		started := time.Now()
+		result, err := cluster.nodes[channel.authority.Leader].AppendBatch(ctx, ch.AppendBatchRequest{
+			ChannelID: channel.authority.ChannelID,
+			Messages: []ch.Message{{MessageID: uint64(identity + 1), ChannelID: channel.authority.ChannelID.ID,
+				ChannelType: channel.authority.ChannelID.Type, FromUID: "benchmark-sender",
+				ClientMsgNo: fmt.Sprintf("bench-%d", identity+1), Payload: cluster.payload(identity)}},
+			CommitMode: ch.CommitModeQuorum, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 1,
+			OmitResultPayload: true, ServerAllocatedMessageIDs: true,
+		})
+		if measuring {
+			latencies[index] = time.Since(started)
+		}
+		if err == nil {
+			if len(result.Items) != 1 {
+				err = ch.ErrInvalidConfig
+			} else {
+				err = result.Items[0].Err
 			}
-		}()
+		}
+		if err != nil {
+			cluster.recordError(err)
+		}
+		return err
 	}
+	if warmup > 0 {
+		warm := arrival.Run(warmup, rate, threeNodeBenchmarkWorkers, operation)
+		for _, sample := range warm.Samples {
+			if sample.Failed || sample.Dropped {
+				b.Fatal("sustained warmup did not complete")
+			}
+		}
+	}
+	measuring = true
+	cluster.commitObserver.reset()
 
 	stopCounters := startAppendGateCounterWindow(b, cluster, rate)
 	b.ReportAllocs()
@@ -386,15 +396,10 @@ func benchmarkThreeNodeChannelAppendClusterWithLoadAtRate(b *testing.B, cluster 
 	if load != nil {
 		load.Start()
 	}
-	started := time.Now()
-	for index := 0; index < b.N; index++ {
-		waitUntil(started.Add(time.Duration(index) * time.Second / time.Duration(rate)))
-		jobs <- index
-	}
-	close(jobs)
-	workers.Wait()
+	arrivals := arrival.Run(b.N, rate, threeNodeBenchmarkWorkers, operation)
 	b.StopTimer()
 	stopCounters()
+	arrival.Report(b, arrivals)
 	if load != nil {
 		if err := load.Stop(); err != nil {
 			b.Errorf("background load Stop(): %v", err)

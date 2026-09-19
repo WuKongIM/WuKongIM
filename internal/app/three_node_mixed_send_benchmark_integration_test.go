@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/bench/arrival"
 	clusterpkg "github.com/WuKongIM/WuKongIM/pkg/cluster"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -118,71 +119,60 @@ func benchmarkThreeNodeMixedSendPathAtRate(b *testing.B, shape threeNodeMixedSha
 	if prewarmRate != 0 {
 		warmThreeNodeMixedSendChannels(b, apps, nodes, sessions, sink, shape, prewarmRate)
 	}
+	warmup := arrival.QualificationWarmup(b, rate)
 	latencies := make([]time.Duration, b.N)
 	cold := make([]bool, b.N)
-	jobs := make(chan int, shape.workers)
-	var workers sync.WaitGroup
-	var firstErr error
-	var errMu sync.Mutex
-	recordErr := func(err error) {
-		if err == nil {
-			return
+	measuring := false
+	operation := func(ctx context.Context, index int) error {
+		identity := index
+		if measuring {
+			identity += warmup
 		}
-		errMu.Lock()
-		if firstErr == nil {
-			firstErr = err
+		input := threeNodeMixedSendInputAt(identity, shape, prewarmRate == 0)
+		appIndex := identity % len(apps)
+		started := time.Now()
+		err := apps[appIndex].Handler().OnFrame(coregateway.Context{
+			Session: sessions[appIndex][input.senderIndex], RequestContext: ctx,
+		}, &frame.SendPacket{
+			ClientSeq: uint64(1_000_000 + identity + 1), ClientMsgNo: fmt.Sprintf("mixed-%d", identity+1),
+			ChannelID: input.channelID, ChannelType: input.channelType,
+			Payload: threeNodeMixedPayload(identity),
+		})
+		if measuring {
+			latencies[index] = time.Since(started)
+			cold[index] = input.cold
 		}
-		errMu.Unlock()
+		return err
 	}
-	workers.Add(shape.workers)
-	for range shape.workers {
-		go func() {
-			defer workers.Done()
-			for index := range jobs {
-				input := threeNodeMixedSendInputAt(index, shape, prewarmRate == 0)
-				appIndex := index % len(apps)
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				started := time.Now()
-				err := apps[appIndex].Handler().OnFrame(coregateway.Context{
-					Session: sessions[appIndex][input.senderIndex], RequestContext: ctx,
-				}, &frame.SendPacket{
-					ClientSeq: uint64(1_000_000 + index + 1), ClientMsgNo: fmt.Sprintf("mixed-%d", index+1),
-					ChannelID: input.channelID, ChannelType: input.channelType,
-					Payload: threeNodeMixedPayload(index),
-				})
-				latencies[index] = time.Since(started)
-				cold[index] = input.cold
-				cancel()
-				if err != nil {
-					recordErr(fmt.Errorf("send index=%d: %w", index, err))
-				}
+	if warmup > 0 {
+		warm := arrival.Run(warmup, rate, shape.workers, operation)
+		for _, sample := range warm.Samples {
+			if sample.Failed || sample.Dropped {
+				b.Fatal("sustained warmup did not complete")
 			}
-		}()
+		}
+		if sink.failures.Load() != 0 || sink.successes.Load() != uint64(warmup) {
+			b.Fatal("sustained warmup ACK mismatch")
+		}
+		sink.successes.Store(0)
+		waitThreeNodeMixedPersonDirectoryDrain(b, nodes, 10*time.Second)
 	}
+	measuring = true
 
 	// Registry counters survive ResetTimer; capture after warmup, before measured traffic.
 	stagesBefore := snapshotThreeNodeMixedStages(b, apps)
 	stopDiagnostics := startMixedSendDiagnostics(b, apps, rate)
 	b.ReportAllocs()
 	b.ResetTimer()
-	started := time.Now()
-	for index := 0; index < b.N; index++ {
-		waitThreeNodeMixedSendUntil(started.Add(time.Duration(index) * time.Second / time.Duration(rate)))
-		jobs <- index
-	}
-	offeredDuration := time.Since(started)
-	close(jobs)
-	workers.Wait()
+	arrivals := arrival.Run(b.N, rate, shape.workers, operation)
 	b.StopTimer()
 	stopDiagnostics()
 	stagesAfter := snapshotThreeNodeMixedStages(b, apps)
 
-	if firstErr != nil {
-		b.Fatal(firstErr)
-	}
+	arrival.Report(b, arrivals)
 	failures := sink.failures.Load()
 	successes := sink.successes.Load()
-	b.ReportMetric(float64(b.N)/offeredDuration.Seconds(), "offered-msg/s")
+	b.ReportMetric(float64(b.N)/arrivals.Duration.Seconds(), "offered-msg/s")
 	projectionDrain := waitThreeNodeMixedPersonDirectoryDrain(b, nodes, 10*time.Second)
 	b.ReportMetric(float64(projectionDrain)/float64(time.Millisecond), "person-directory-drain-ms")
 	reportThreeNodeMixedSendLatencies(b, latencies, cold)

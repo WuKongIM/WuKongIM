@@ -6,6 +6,11 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🐛 Bug Fixes / 问题修复
+
+- Run messaging correctness independently of 500-QPS performance gates, and include arrival queueing, underload and dropped requests in sustained performance results. / 消息正确性与 500 QPS 性能门禁独立执行，持续压测结果包含请求排队、发压不足和丢弃。
+- Preserve confirmed chat-lifecycle failures that terminate measurement early instead of obscuring them as incomplete-duration evidence. / 聊天生命周期测试提前终止时保留已证实的失败原因，避免被测量时长不足掩盖。
+
 ## [v3.0.0-beta.21] - 2026-09-19
 
 ### 🔧 Improvements / 改进

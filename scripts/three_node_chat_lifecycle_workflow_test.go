@@ -22,9 +22,16 @@ type threeNodeRegressionWorkflowStep struct {
 }
 
 type threeNodeRegressionWorkflowJob struct {
-	If             string                            `yaml:"if"`
-	TimeoutMinutes int                               `yaml:"timeout-minutes"`
-	Steps          []threeNodeRegressionWorkflowStep `yaml:"steps"`
+	If             string `yaml:"if"`
+	TimeoutMinutes int    `yaml:"timeout-minutes"`
+	Needs          any    `yaml:"needs"`
+	Strategy       struct {
+		FailFast bool `yaml:"fail-fast"`
+		Matrix   struct {
+			Seam []string `yaml:"seam"`
+		} `yaml:"matrix"`
+	} `yaml:"strategy"`
+	Steps []threeNodeRegressionWorkflowStep `yaml:"steps"`
 }
 
 func TestThreeNodeChatLifecycleRegressionSeparatesPRSmokeFromNightlyQualification(t *testing.T) {
@@ -44,26 +51,28 @@ func TestThreeNodeChatLifecycleRegressionSeparatesPRSmokeFromNightlyQualificatio
 	}
 	require.Equal(t, map[string]string{"contents": "read"}, workflow.Permissions)
 
-	pr, ok := workflow.Jobs["pr-regression"]
+	pr, ok := workflow.Jobs["pr-correctness"]
 	require.True(t, ok)
 	require.Equal(t, "github.event_name == 'pull_request'", pr.If)
 	require.LessOrEqual(t, pr.TimeoutMinutes, 35)
 	prRun := workflowRunCommands(pr.Steps)
-	require.Contains(t, prRun, `WK_BENCH_APPEND_COUNTERS_DIR="$EVIDENCE_ROOT/channel-append-counters" GOWORK=off go test`)
-	require.Contains(t, prRun, `WK_BENCH_SEND_COUNTERS_DIR="$EVIDENCE_ROOT/mixed-send-counters" GOWORK=off go test`)
-	require.NotContains(t, prRun, "WK_BENCH_SEND_DIAGNOSTICS_DIR")
-	require.Contains(t, prRun, `git rev-parse HEAD >"$evidence_root/source.sha"`)
-	require.Contains(t, prRun, `findmnt -J -T /tmp`)
+	aggregate := workflow.Jobs["pr-regression"]
+	require.Contains(t, aggregate.If, "always()")
+	require.Equal(t, []any{"pr-unit", "pr-correctness", "pr-performance"}, aggregate.Needs)
+	require.Contains(t, workflowRunCommands(aggregate.Steps), `"$PERFORMANCE_RESULT" == success`)
+	require.Nil(t, pr.Needs, "correctness must run independently of performance")
+	require.NotContains(t, prRun, "-bench")
+	require.NotContains(t, prRun, "-race")
+	unit := workflow.Jobs["pr-unit"]
+	require.Nil(t, unit.Needs)
+	require.Contains(t, workflowRunCommands(unit.Steps), "go test -race")
+	performance := workflow.Jobs["pr-performance"]
+	require.Nil(t, performance.Needs)
+	require.False(t, performance.Strategy.FailFast)
+	require.ElementsMatch(t, []string{"channel-append", "mixed-send", "tcp-sendack"}, performance.Strategy.Matrix.Seam)
+	require.Contains(t, workflowRunCommands(performance.Steps), "scripts/run-500qps-seam.sh")
+	require.NotContains(t, string(raw), "continue-on-error")
 	for _, required := range []string{
-		"GOWORK=off go test ./internal/bench/chatlifecycle ./internal/bench/workload ./internal/bench/worker ./pkg/bench/model ./pkg/client ./pkg/gateway/... -count=1",
-		"GOWORK=off go test -race ./internal/bench/workload ./internal/bench/worker ./pkg/client ./pkg/gateway/transport/gnet -count=1",
-		"BenchmarkThreeNodeMixedSendPath500QPS",
-		"BenchmarkThreeNodeChannelAppend500QPS",
-		"BenchmarkRealTCPSendackWithSynchronousRecvackPaced500QPS",
-		"append-p99-ms",
-		"all-p99-ms",
-		"send-p99-ms",
-		"benchmark metric %s exceeded 400ms",
 		"--send-rate 500",
 		"--measure-seconds 90",
 		"--warmup-seconds 60",
@@ -87,6 +96,8 @@ func TestThreeNodeChatLifecycleRegressionSeparatesPRSmokeFromNightlyQualificatio
 	require.Contains(t, nightly.If, "github.event_name == 'schedule'")
 	require.Contains(t, nightly.If, "github.ref == 'refs/heads/main'")
 	require.Contains(t, nightly.If, "!inputs.diagnose_send")
+	require.Contains(t, nightly.If, "inputs.qualify_candidate")
+	require.Contains(t, workflowRunCommands(nightly.Steps), "git merge-base --is-ancestor")
 	require.LessOrEqual(t, nightly.TimeoutMinutes, 45)
 	nightlyRun := workflowRunCommands(nightly.Steps)
 	require.Contains(t, nightlyRun, "MINIMUM_FREE_PERCENT=15")
@@ -120,7 +131,7 @@ func TestMixedSendDiagnosisIsManualBoundedAndSeparateFromGates(t *testing.T) {
 	require.LessOrEqual(t, job.TimeoutMinutes, 20)
 	require.Contains(t, workflowRunCommands(job.Steps), "bash scripts/diagnose-mixed-send-linux.sh")
 	require.Contains(t, workflowRunCommands(job.Steps), "git merge-base --is-ancestor")
-	require.NotContains(t, workflowRunCommands(workflow.Jobs["pr-regression"].Steps), "diagnose-mixed-send-linux.sh")
+	require.NotContains(t, workflowRunCommands(workflow.Jobs["pr-correctness"].Steps), "diagnose-mixed-send-linux.sh")
 	require.NotContains(t, workflowRunCommands(workflow.Jobs["nightly-qualification"].Steps), "diagnose-mixed-send-linux.sh")
 	for _, step := range job.Steps {
 		if strings.HasPrefix(step.Uses, "actions/upload-artifact@") {

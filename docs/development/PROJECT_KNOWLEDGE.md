@@ -312,3 +312,12 @@ specification, runbook, report, or module documentation; link to them when neede
   revisions survive delivery, unversioned updates follow arrival order, and
   shutdown drains admitted terminal states. Reuse state cells and delivery
   buffers so metrics do not allocate on every RPC state transition.
+
+## Performance evidence
+
+- 500-QPS seam qualification counts latency from scheduled arrival through completion.
+  Service time alone cannot qualify a run. Each fixed window must meet throughput,
+  latency, error, drop and completion bounds; every rejected window remains evidence.
+- A closed early product-failure timeline can prove failure without satisfying a
+  full-duration performance window. Missing duration cannot downgrade that proven
+  failure or qualify an otherwise incomplete run.
