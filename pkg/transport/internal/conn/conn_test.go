@@ -246,16 +246,16 @@ func TestCollectAvailableWriteItemsAddsImmediateSchedulerBacklog(t *testing.T) {
 	}
 }
 
-func TestCollectAvailableWriteItemsWaitsForRPCBatch(t *testing.T) {
+func TestCollectAvailableWriteItemsWaitsForBulkBatch(t *testing.T) {
 	limits := testLimits()
 	limits.WriteBatchMaxWait = 100 * time.Microsecond
 	c := New(newDeadlineConn(), Config{Limits: limits}, nil)
 	batch := []sched.Item{{
-		Priority: core.PriorityRPC,
+		Priority: core.PriorityBulk,
 		Bytes:    3,
 		Value: Outbound{
 			Kind:     core.FrameKindRPCRequest,
-			Priority: core.PriorityRPC,
+			Priority: core.PriorityBulk,
 			Payload:  core.CopyOwnedBuffer([]byte("one")),
 		},
 	}}
@@ -266,11 +266,11 @@ func TestCollectAvailableWriteItemsWaitsForRPCBatch(t *testing.T) {
 			t.Fatalf("write batch wait = %s, want %s", wait, limits.WriteBatchMaxWait)
 		}
 		if err := c.scheduler.Enqueue(context.Background(), sched.Item{
-			Priority: core.PriorityRPC,
+			Priority: core.PriorityBulk,
 			Bytes:    3,
 			Value: Outbound{
 				Kind:     core.FrameKindRPCRequest,
-				Priority: core.PriorityRPC,
+				Priority: core.PriorityBulk,
 				Payload:  core.CopyOwnedBuffer([]byte("two")),
 			},
 		}); err != nil {
@@ -309,6 +309,32 @@ func TestCollectAvailableWriteItemsDoesNotWaitForControl(t *testing.T) {
 	defer releaseSchedItems(batch)
 	if waited {
 		t.Fatal("control write unexpectedly waited for batch coalescing")
+	}
+}
+
+func TestCollectAvailableWriteItemsDoesNotWaitForRPC(t *testing.T) {
+	limits := testLimits()
+	limits.WriteBatchMaxWait = 100 * time.Microsecond
+	c := New(newDeadlineConn(), Config{Limits: limits}, nil)
+	batch := []sched.Item{{
+		Priority: core.PriorityRPC,
+		Bytes:    3,
+		Value: Outbound{
+			Kind:     core.FrameKindRPCRequest,
+			Priority: core.PriorityRPC,
+			Payload:  core.CopyOwnedBuffer([]byte("rpc")),
+		},
+	}}
+
+	oldWaitForWriteBatch := waitForWriteBatch
+	waited := false
+	waitForWriteBatch = func(time.Duration) { waited = true }
+	t.Cleanup(func() { waitForWriteBatch = oldWaitForWriteBatch })
+
+	batch, _ = c.collectAvailableWriteItems(batch, nil)
+	defer releaseSchedItems(batch)
+	if waited {
+		t.Fatal("RPC write unexpectedly waited for batch coalescing")
 	}
 }
 

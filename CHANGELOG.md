@@ -10,6 +10,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Send ordinary RPC frames without a speculative batching delay, while still combining ready frames and retaining bounded bulk coalescing. / 普通 RPC 帧不再为等待潜在合批而延迟发送；仍合并已就绪帧，并保留有界的批量传输合批等待。
+
 - Retain bounded host and per-second arrival evidence in the original conversation release gate, including rejected windows, without changing its load or acceptance policy. / 会话发布门禁保留原始运行中有界的主机与逐秒请求证据（包括失败窗口），不改变负载和验收标准。
 
 - Overlap up to eight independent Slot message-edit read groups per query, retaining fresh quorum/apply barriers, aligned pages, cancellation and byte bounds. / 单次查询最多并行读取八组独立 Slot 消息编辑数据，保留新的多数派与应用屏障、分页对齐、取消和字节上限。
