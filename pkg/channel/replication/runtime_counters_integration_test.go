@@ -17,8 +17,8 @@ func newAppendGateCounters(b *testing.B) *metrics.Registry {
 	if os.Getenv("WK_BENCH_APPEND_COUNTERS_DIR") == "" {
 		return nil
 	}
-	if b.Name() != "BenchmarkThreeNodeChannelAppend500QPS" || runtime.GOOS != "linux" || runtime.GOARCH != "amd64" || runtime.GOMAXPROCS(0) != 4 || (b.N != 1 && b.N != 3000) {
-		b.Fatal("append counters require Linux amd64, GOMAXPROCS=4 and exactly 3000 operations in the 500 QPS PR seam")
+	if b.Name() != "BenchmarkThreeNodeChannelAppend500QPS" || runtime.GOOS != "linux" || runtime.GOARCH != "amd64" || runtime.GOMAXPROCS(0) != 4 || (b.N != 1 && b.N != 3000 && !(os.Getenv("WK_BENCH_QUALIFY") == "1" && b.N == 90000)) {
+		b.Fatal("append counters require Linux amd64, GOMAXPROCS=4 and 3000 diagnostic or 90000 qualification operations in the 500 QPS seam")
 	}
 	if b.N == 1 {
 		return nil

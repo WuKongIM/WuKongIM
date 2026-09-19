@@ -237,37 +237,46 @@ source workflow never receives production signing or package-publisher access.
 
 ## Fixed Linux SEND diagnosis
 
-The first PR append gate retains `channel-append-counters/` from its formal
-3000-operation window before that window's latency assertion, including when
-it prevents the mixed SEND gate from starting. It
-uses the same integration-only boundary collector as mixed SEND, with the
-`channel-append-counters/v1` schema. Snapshots exclude completed cluster setup
-and Go's one-iteration calibration, and finish before teardown. Failure during
-setup or calibration precedes collection and leaves no formal snapshot. Missing or
-incomplete windows remain explicit; no gate is skipped, reordered or retried.
-The append benchmark opts into the existing physical-batch histograms and
-1/32 sampled replication-stage observer; these add bounded clock/counter work
-to the benchmark, with no profile, trace or new sampling goroutine. The
-registry aggregates three nodes, and physical batches and sampled replication
-stages are different populations. Subtract the snapshots, keep background and
-foreground separate, and do not sum their percentile bounds as request latency.
-The old commit accumulator and its resets/verdict remain unchanged. Ordinary
-benchmarks without `WK_BENCH_APPEND_COUNTERS_DIR` retain their observer setup.
+PR messaging unit/race checks, three-node correctness, and the three 500-QPS
+seams run in independent jobs. The performance matrix uses `fail-fast: false`;
+one rejected seam cannot suppress another seam or correctness evidence. The
+existing `PR three-node regression` check remains an always-running aggregate
+that requires all unit, correctness and performance jobs to succeed.
+GitHub-hosted Ubuntu 24.04 remains the execution environment. Performance jobs
+pin Go 1.25.11 and four visible AMD64 CPUs/GOMAXPROCS, and record CPU model,
+kernel, source/binary hashes and the actual data filesystem. CPU model and disk
+performance are observations, not a claim of dedicated hardware. Load-induced
+host pressure never automatically invalidates or excuses a failed result.
 
-The original PR mixed SEND gate also retains `mixed-send-counters/` from its
-own measured run, on both success and failure. It takes only before/after
-snapshots after warmup and after handlers complete, without enabling CPU
-profiling, tracing, sampling goroutines, or per-request instrumentation. Fixed
-Linux CPU/disk/pressure/cgroup files, Go scheduler/GC counters and bounded
-storage/replication histograms are capped at 4 MiB per snapshot and uploaded
-with the existing PR artifact. Host, source SHA and data-filesystem metadata
-identify the window. Counter deltas include boundary snapshot/timer overhead;
-they do not establish a request trace or isolate sub-window spikes. Cleanup
-marks an early exit incomplete; a hard process timeout may retain only the
-initial snapshot. An earlier append-gate failure prevents the mixed run and
-therefore produces no mixed-window counters. Missing evidence stays explicit.
-The original one-run load, deadlines, 400 ms assertion and failure exit are
-unchanged; no diagnostic rerun is automatically triggered.
+`scripts/run-500qps-seam.sh` builds once before measurement and runs exactly one
+fresh fixture with 60 seconds of sustained 500-QPS warmup followed by three
+consecutive 60-second measurement windows. All windows must pass the unchanged
+400ms budget, at least 95% of scheduled start rate, zero errors/drops, and exact
+completion counts. It never selects the best window or retries a failure.
+`scheduled-arrival/v1` reports scheduled-arrival-to-completion, arrival queue,
+and service P99 separately, with each 60-second and one-second cohort retained.
+The finite open-loop driver bounds queue length to 400ms of arrivals; a full
+queue records a rejection instead of slowing arrivals invisibly. Request
+identity remains unique across warmup and measurement. The legacy service
+metrics remain visible but cannot hide scheduling or worker queue delay.
+
+The append and mixed SEND seams retain before/after counter snapshots from the
+same measured window before asserting latency, excluding setup and warmup.
+The `channel-append-counters/v1` and `mixed-send-counters/v1` schemas bind the
+actual operation count (90,000 for qualification, 3,000 for short diagnostics).
+Snapshots include fixed Linux CPU/disk/pressure/cgroup files, Go scheduler/GC
+counters and bounded storage/replication histograms. They are capped at 4 MiB
+each. Append replication observations remain sampled 1/32; physical batches
+are unsampled. Different populations' percentile bounds must not be added.
+Counter collection has no profiler, trace or sampling goroutine. Incomplete
+windows remain explicit and never pass. Each matrix artifact retains its own
+source, binary identity, arrival report, counters, host facts and exit result.
+
+Nightly keeps its ten-minute three-node workload and 400ms budget. A confirmed
+product failure may close the measured timeline early. The local step classifier
+checks exact report identity, ordered closed timeline, process continuity and
+profile evidence before retaining that product failure; it leaves full-duration
+evidence false and never invents a throughput result for the short run.
 
 For a bounded SEND investigation, dispatch
 `three-node-chat-lifecycle-regression.yml` with `diagnose_send=true` on the
