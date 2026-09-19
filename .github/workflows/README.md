@@ -272,7 +272,11 @@ Counter collection has no profiler, trace or sampling goroutine. Incomplete
 windows remain explicit and never pass. Each matrix artifact retains its own
 source, binary identity, arrival report, counters, host facts and exit result.
 
-Nightly keeps its ten-minute three-node workload and 400ms budget. A confirmed
+Nightly keeps its ten-minute three-node workload and 400ms budget. For an exact
+main-descended repair candidate, manual `qualify_candidate=true` runs that same
+bounded workload before merge; the default remains protected main. Checkout
+identity, a clean tree and main ancestry are checked before execution. This
+read-only candidate run publishes no release and acquires no cloud resources. A confirmed
 product failure may close the measured timeline early. The local step classifier
 checks exact report identity, ordered closed timeline, process continuity and
 profile evidence before retaining that product failure; it leaves full-duration

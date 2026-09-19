@@ -96,6 +96,8 @@ func TestThreeNodeChatLifecycleRegressionSeparatesPRSmokeFromNightlyQualificatio
 	require.Contains(t, nightly.If, "github.event_name == 'schedule'")
 	require.Contains(t, nightly.If, "github.ref == 'refs/heads/main'")
 	require.Contains(t, nightly.If, "!inputs.diagnose_send")
+	require.Contains(t, nightly.If, "inputs.qualify_candidate")
+	require.Contains(t, workflowRunCommands(nightly.Steps), "git merge-base --is-ancestor")
 	require.LessOrEqual(t, nightly.TimeoutMinutes, 45)
 	nightlyRun := workflowRunCommands(nightly.Steps)
 	require.Contains(t, nightlyRun, "MINIMUM_FREE_PERCENT=15")
