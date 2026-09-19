@@ -74,6 +74,16 @@ specification, runbook, report, or module documentation; link to them when neede
   committed entries after the snapshot index. A later stored applied watermark
   must not skip replay. WAL recovery may repair only an incomplete physical tail
   record in the newest segment; other corruption fails closed.
+- Controller WAL prefix deletion must preserve a durable, verifiable CRC starting
+  point for the first retained segment. Rolling CRC state crosses segment
+  boundaries in the legacy format; intact retained bytes alone cannot validate
+  from a zero seed after prefix removal. Versioned independent headers prevent
+  that dependency for new segments. Legacy prefix compatibility requires a
+  matching checked snapshot, durable metadata, and complete CRC-verified suffix;
+  the exact verified header anchor must be durable before append or prefix deletion
+  so interruption cannot invalidate recovery. It never rewrites checksums or
+  repairs arbitrary corruption. Materialized
+  JSON cannot replace Raft authority.
 - Slot FSM batch conflicts preserve Raft order: a rejected range is subdivided
   with each prefix durable before its suffix executes. Unknown physical commit
   outcomes are not automatically retried as definitely unwritten operations.

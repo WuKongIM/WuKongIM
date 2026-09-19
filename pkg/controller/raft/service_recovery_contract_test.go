@@ -229,3 +229,36 @@ func recoveryNodeName(t *testing.T, st state.ClusterState, nodeID uint64) string
 	t.Fatalf("node %d not found", nodeID)
 	return ""
 }
+
+func TestServiceStartRestoresSnapshotNewerThanMaterializedState(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	raftDir := filepath.Join(dir, "raft")
+	statePath := filepath.Join(dir, "cluster-state.json")
+	peers := []Peer{{NodeID: 1, Addr: "n1"}}
+	init := testInitCommand("snapshot-ahead", peers)
+	stale := newTestStateMachine(t, statePath)
+	_, err := stale.Apply(ctx, 2, init)
+	require.NoError(t, err)
+	snapshotMachine := newTestStateMachine(t, filepath.Join(dir, "snapshot-state.json"))
+	_, err = snapshotMachine.Apply(ctx, 2, init)
+	require.NoError(t, err)
+	rename := recoveryUpsertNodeCommand(1, 1, "snapshot-name")
+	_, err = snapshotMachine.Apply(ctx, 3, rename)
+	require.NoError(t, err)
+	data, err := state.Encode(snapshotMachine.Snapshot(ctx))
+	require.NoError(t, err)
+	store, err := raftstore.Open(ctx, raftstore.Config{Dir: raftDir, NodeID: 1})
+	require.NoError(t, err)
+	suffix := recoveryUpsertNodeCommand(2, 1, "suffix-name")
+	require.NoError(t, store.SaveReady(ctx, raftpb.HardState{Term: 1, Vote: 1, Commit: 4}, []raftpb.Entry{recoveryConfChangeEntry(t, 1, 1), recoveryCommandEntry(t, 2, init), recoveryCommandEntry(t, 3, rename), recoveryCommandEntry(t, 4, suffix)}, raftpb.Snapshot{}))
+	require.NoError(t, store.SaveSnapshot(ctx, raftpb.Snapshot{Data: data, Metadata: raftpb.SnapshotMetadata{Index: 3, Term: 1, ConfState: raftpb.ConfState{Voters: []uint64{1}}}}))
+	require.NoError(t, store.MarkAppliedBatch(ctx, 4))
+	require.NoError(t, store.Close())
+	service := newRecoveryService(t, peers, raftDir, statePath)
+	require.NoError(t, service.Start(ctx))
+	defer service.Stop()
+	recovered := service.cfg.StateMachine.Snapshot(ctx)
+	require.Equal(t, uint64(4), recovered.AppliedRaftIndex)
+	require.Equal(t, "suffix-name", recoveryNodeName(t, recovered, 1))
+}

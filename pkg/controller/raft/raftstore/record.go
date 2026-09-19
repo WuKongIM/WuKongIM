@@ -25,6 +25,8 @@ const (
 	recordHardState
 	recordSnapshot
 	recordAppliedIndex
+	// recordSegmentHeaderV2 starts an independently checksummed WAL segment.
+	recordSegmentHeaderV2
 )
 
 type walRecord struct {
@@ -35,6 +37,9 @@ type walRecord struct {
 var crcTable = crc32.MakeTable(crc32.Castagnoli)
 
 func recordCRC(prev uint32, typ recordType, payload []byte) uint32 {
+	if typ == recordSegmentHeaderV2 {
+		prev = 0
+	}
 	h := crc32.New(crcTable)
 	var seed [4]byte
 	binary.BigEndian.PutUint32(seed[:], prev)
@@ -64,6 +69,12 @@ func writeRecord(w io.Writer, rec walRecord, prevCRC uint32) error {
 }
 
 func readRecord(r io.Reader, prevCRC uint32) (walRecord, uint32, error) {
+	return readRecordMode(r, prevCRC, false)
+}
+
+// readRecordMode may anchor only a legacy prefix header during a read-only,
+// snapshot-verified recovery probe. All following records retain CRC validation.
+func readRecordMode(r io.Reader, prevCRC uint32, legacyPrefixHeader bool) (walRecord, uint32, error) {
 	var lenBuf [4]byte
 	if _, err := io.ReadFull(r, lenBuf[:]); err != nil {
 		if errors.Is(err, io.EOF) {
@@ -83,10 +94,10 @@ func readRecord(r io.Reader, prevCRC uint32) (walRecord, uint32, error) {
 	wantCRC := binary.BigEndian.Uint32(frame[1:5])
 	payload := append([]byte(nil), frame[5:]...)
 	gotCRC := recordCRC(prevCRC, typ, payload)
-	if gotCRC != wantCRC {
+	if gotCRC != wantCRC && !(legacyPrefixHeader && typ == recordSegmentHeader && len(payload) == 8) {
 		return walRecord{}, prevCRC, ErrCRCMismatch
 	}
-	return walRecord{Type: typ, Payload: payload}, gotCRC, nil
+	return walRecord{Type: typ, Payload: payload}, wantCRC, nil
 }
 
 func marshalEntryRecord(entries []raftpb.Entry) ([]byte, error) {
@@ -161,4 +172,10 @@ func unmarshalUint64(payload []byte) (uint64, error) {
 		return 0, ErrTruncatedRecord
 	}
 	return binary.BigEndian.Uint64(payload), nil
+}
+
+// segmentHeaderV2 has a distinct shape so a damaged v2 record type cannot be
+// mistaken for an old, pruned-prefix header eligible for compatibility recovery.
+func segmentHeaderV2(nodeID uint64) []byte {
+	return append([]byte("WKWAL002"), marshalUint64(nodeID)...)
 }

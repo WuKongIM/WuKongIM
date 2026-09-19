@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+## [v3.0.0-beta.19] - 2026-09-19
+
 ### 🔧 Improvements / 改进
 
 - Avoid repeated sparse-index reads when a channel has no SyncOnce records, with bounded ownership, write/import invalidation and closed-storage checks. / 频道没有 SyncOnce 记录时避免重复读取稀疏索引，保留有界存储、写入与导入失效及存储关闭检查。
@@ -34,6 +36,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Restore a newer Controller snapshot before replaying the committed suffix when the materialized state file lags compaction, avoiding restart failures after readiness probes. / 状态文件落后于快照时先恢复较新的 Controller 快照再重放提交后缀，避免就绪探测与日志清理后重启失败。
+
+- Keep Controller WAL recoverable after snapshot cleanup and restart. Upgrades recover the legacy pruned-prefix CRC defect only after snapshot, metadata, node-identity and complete committed-log verification; corrupted records still fail closed. Newly rotated WAL segments use independent checksums and require this version or newer to reopen. / 修复 Controller WAL 快照清理后重启报 CRC 错误；升级时仅在快照、元数据、节点身份及完整提交日志验证通过后兼容恢复旧格式断链，真实损坏仍拒绝启动。新轮转日志段采用独立校验，写入后须使用本版本或更新版本启动。
+
 - Refresh Controller state on watch notifications and reject older snapshots after newer state is applied, avoiding obsolete startup task replay and routing/maintenance rollback during concurrent readiness probes. / Controller 通知触发当前状态读取，已应用较新状态后拒绝旧快照，避免重复执行过时启动任务，以及并发就绪探测导致的路由与维护状态回退。
 
 - Preserve temporary dependency failures across Channel read RPC so connection loss during failover returns retryable unavailability for ordinary history, exact lookup and conversation queries. / 频道读取 RPC 保留临时依赖故障类型，故障切换中的连接中断在普通历史、精确查询和会话查询中返回可重试的不可用状态。
@@ -47,6 +53,10 @@ move those entries into a version section named for that exact tag.
 - Exclude setup and completed warmup from mixed SEND benchmark stage statistics, report measured sample counts, and preserve an unbounded histogram tail instead of reporting a false finite P99 upper bound. / 混合 SEND 基准的分段统计排除初始化和已完成的预热，显示正式窗口样本数，并避免将超出直方图范围的长尾误报为有限的 P99 上界。
 
 - Decode all registered Slot commands in Raft log views, including read progress, ordinary/CMD memberships, channel updates, latest-message metadata, and directory/migration tasks; omit message bodies and distinguish unsupported inspection or versions from corrupt log data. / 槽位 Raft 日志支持展示全部已注册命令，涵盖已读进度、普通/CMD 成员关系、频道更新、最新消息元数据及目录/迁移任务；隐藏消息正文，并区分暂不支持展示或版本与日志数据损坏。
+
+### ⬆️ Upgrade Notes / 升级说明
+
+- Back up each node’s complete data directory before upgrading. Validated legacy Controller WAL prefixes are admitted automatically and recorded durably; no WAL deletion or manual checksum edits are needed. After this version writes a new WAL segment, use this version or newer; rollback requires restoring the pre-upgrade backup. / 升级前备份各节点完整数据目录。旧版 Controller WAL 前缀通过完整验证后自动恢复并持久化验证结果，无需删除 WAL 或手工修改校验和。新版本写入新日志段后须使用本版本或更新版本；回退须恢复升级前备份。
 
 ## [v3.0.0-beta.18] - 2026-09-15
 

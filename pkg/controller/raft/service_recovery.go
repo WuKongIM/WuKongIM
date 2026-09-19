@@ -62,10 +62,13 @@ func (s *Service) recoverStartup(ctx context.Context, store *raftstore.Store) (r
 		return runStartupState{}, err
 	}
 	stateSnap := s.cfg.StateMachine.Snapshot(ctx)
-	if stateSnap.Revision == 0 && !etcdraft.IsEmptySnap(snap) && len(snap.Data) == 0 {
-		return runStartupState{}, fmt.Errorf("controller/raft: materialized state is missing and raft snapshot %d has no recoverable data", snap.Metadata.Index)
+	// A compaction snapshot may advance beyond the materialized state after empty
+	// probes. Restore that newer durable boundary before requesting the suffix.
+	restoreSnapshot := !etcdraft.IsEmptySnap(snap) && (stateSnap.Revision == 0 || stateSnap.AppliedRaftIndex < snap.Metadata.Index)
+	if restoreSnapshot && len(snap.Data) == 0 {
+		return runStartupState{}, fmt.Errorf("controller/raft: materialized state is missing or stale and raft snapshot %d has no recoverable data", snap.Metadata.Index)
 	}
-	if stateSnap.Revision == 0 && !etcdraft.IsEmptySnap(snap) && len(snap.Data) > 0 {
+	if restoreSnapshot {
 		restored, err := state.Decode(snap.Data)
 		if err != nil {
 			return runStartupState{}, err

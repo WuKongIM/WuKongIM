@@ -20,6 +20,8 @@ type walConfig struct {
 	Dir         string
 	NodeID      uint64
 	SegmentSize uint64
+	// legacyPrefix is enabled only by the read-only recovery proof in legacy.go.
+	legacyPrefix bool
 }
 
 type replayState struct {
@@ -40,6 +42,11 @@ type wal struct {
 	lastIndex uint64
 	crc       uint32
 	hardState raftpb.HardState
+	// legacyHeaderAccepted records a missing predecessor CRC, never body corruption.
+	legacyHeaderAccepted bool
+	anchors              map[string]uint32
+	// afterRelease is a test fault seam after one deletion has been synced.
+	afterRelease func(string) error
 }
 
 func openWAL(cfg walConfig) (*wal, error) {
@@ -49,7 +56,11 @@ func openWAL(cfg walConfig) (*wal, error) {
 	if err := os.MkdirAll(cfg.Dir, 0o755); err != nil {
 		return nil, err
 	}
-	w := &wal{cfg: cfg}
+	anchors, err := loadLegacyAnchors(cfg.Dir, cfg.NodeID)
+	if err != nil {
+		return nil, err
+	}
+	w := &wal{cfg: cfg, anchors: anchors}
 	files, err := walSegmentFiles(cfg.Dir)
 	if err != nil {
 		return nil, err
@@ -73,13 +84,26 @@ func (w *wal) replayMode(allowIncompleteTail bool) (replayState, error) {
 	state := replayState{}
 	var crc uint32
 	for fileIdx, path := range files {
+		if fileIdx > 0 {
+			prev, _, err := parseSegmentName(filepath.Base(files[fileIdx-1]))
+			if err != nil {
+				return replayState{}, err
+			}
+			seq, _, err := parseSegmentName(filepath.Base(path))
+			if err != nil {
+				return replayState{}, err
+			}
+			if seq != prev+1 {
+				return replayState{}, fmt.Errorf("controller/raftstore: missing WAL segment before %s", filepath.Base(path))
+			}
+		}
 		f, err := os.Open(path)
 		if err != nil {
 			return replayState{}, err
 		}
 		sawCompleteRecord := false
 		for {
-			rec, nextCRC, err := readRecord(f, crc)
+			rec, nextCRC, err := w.readWALRecord(f, crc, fileIdx, sawCompleteRecord)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					if !sawCompleteRecord {
@@ -106,6 +130,48 @@ func (w *wal) replayMode(allowIncompleteTail bool) (replayState, error) {
 		}
 	}
 	return state, nil
+}
+
+// readWALRecord validates segment structure and node identity in addition to CRC.
+func (w *wal) readWALRecord(f *os.File, crc uint32, fileIdx int, saw bool) (walRecord, uint32, error) {
+	offset, err := f.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return walRecord{}, crc, err
+	}
+	anchor, anchored := w.anchors[filepath.Base(f.Name())]
+	anchored = anchored && fileIdx == 0 && !saw
+	legacy := (w.cfg.legacyPrefix || anchored) && fileIdx == 0 && !saw
+	rec, next, err := readRecordMode(f, crc, legacy)
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return rec, next, err
+		}
+		return rec, next, fmt.Errorf("%w: segment %s offset %d", err, filepath.Base(f.Name()), offset)
+	}
+	if anchored && (rec.Type != recordSegmentHeader || next != anchor) {
+		return walRecord{}, crc, fmt.Errorf("%w: legacy anchor differs for %s", ErrCRCMismatch, filepath.Base(f.Name()))
+	}
+	header := rec.Type == recordSegmentHeader || rec.Type == recordSegmentHeaderV2
+	if header == saw {
+		return walRecord{}, crc, fmt.Errorf("controller/raftstore: invalid segment header placement: %s offset %d", filepath.Base(f.Name()), offset)
+	}
+	if header {
+		payload := rec.Payload
+		if rec.Type == recordSegmentHeaderV2 {
+			if len(payload) != 16 || string(payload[:8]) != "WKWAL002" {
+				return walRecord{}, crc, fmt.Errorf("controller/raftstore: invalid WAL v2 header: %s", filepath.Base(f.Name()))
+			}
+			payload = payload[8:]
+		}
+		node, err := unmarshalUint64(payload)
+		if err != nil || node != w.cfg.NodeID {
+			return walRecord{}, crc, fmt.Errorf("controller/raftstore: WAL segment node identity mismatch: %s", filepath.Base(f.Name()))
+		}
+		if legacy && rec.Type == recordSegmentHeader && recordCRC(crc, rec.Type, rec.Payload) != next {
+			w.legacyHeaderAccepted = true
+		}
+	}
+	return rec, next, nil
 }
 
 func (w *wal) appendReady(ctx context.Context, hardState raftpb.HardState, entries []raftpb.Entry, snapshot raftpb.SnapshotMetadata) error {
@@ -180,24 +246,91 @@ func (w *wal) appendAppliedIndex(ctx context.Context, index uint64) error {
 	return w.cutIfNeededLocked()
 }
 
+// releaseBefore removes only a complete prefix whose entries are all covered.
+// A segment's first index alone cannot prove that its last entry is disposable.
 func (w *wal) releaseBefore(index uint64) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	files, err := walSegmentFiles(w.cfg.Dir)
 	if err != nil {
 		return err
 	}
-	if len(files) <= 1 {
-		return nil
-	}
-	for _, path := range files[:len(files)-1] {
-		_, first, err := parseSegmentName(filepath.Base(path))
+	var crc uint32
+	removeCount := 0
+	legacySuccessors := make(map[string]uint32)
+	for fileIdx, path := range files {
+		if fileIdx == len(files)-1 {
+			break
+		}
+		f, err := os.Open(path)
 		if err != nil {
 			return err
 		}
-		if first >= index {
-			continue
+		var maxIndex uint64
+		saw := false
+		for {
+			rec, next, err := w.readWALRecord(f, crc, fileIdx, saw)
+			if errors.Is(err, io.EOF) && saw {
+				break
+			}
+			if err != nil {
+				_ = f.Close()
+				return err
+			}
+			saw, crc = true, next
+			if rec.Type == recordEntries {
+				entries, err := unmarshalEntryRecord(rec.Payload)
+				if err != nil {
+					_ = f.Close()
+					return err
+				}
+				for _, entry := range entries {
+					if entry.Index > maxIndex {
+						maxIndex = entry.Index
+					}
+				}
+			}
 		}
-		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		if err := f.Close(); err != nil {
 			return err
+		}
+		if maxIndex >= index {
+			break
+		}
+		// Retained legacy headers need their validated boundary persisted before
+		// deletion; new-format headers carry their own independent checksum.
+		next, err := os.Open(files[fileIdx+1])
+		if err != nil {
+			return err
+		}
+		header, headerCRC, err := readRecord(next, crc)
+		_ = next.Close()
+		if err != nil {
+			return err
+		}
+		if header.Type == recordSegmentHeader {
+			legacySuccessors[files[fileIdx+1]] = headerCRC
+		} else if header.Type != recordSegmentHeaderV2 {
+			return fmt.Errorf("controller/raftstore: invalid successor segment header")
+		}
+		removeCount = fileIdx + 1
+	}
+	for i, path := range files[:removeCount] {
+		if crc, ok := legacySuccessors[files[i+1]]; ok {
+			if err := w.rememberLegacyAnchor(files[i+1], crc); err != nil {
+				return err
+			}
+		}
+		if err := os.Remove(path); err != nil {
+			return err
+		}
+		if err := syncDir(w.cfg.Dir); err != nil {
+			return err
+		}
+		if w.afterRelease != nil {
+			if err := w.afterRelease(path); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -226,11 +359,15 @@ func (w *wal) createSegment(seq, first uint64) (*wal, error) {
 		return nil, err
 	}
 	w.file = f
-	if err := w.writeLocked(walRecord{Type: recordSegmentHeader, Payload: marshalUint64(w.cfg.NodeID)}); err != nil {
+	if err := w.writeLocked(walRecord{Type: recordSegmentHeaderV2, Payload: segmentHeaderV2(w.cfg.NodeID)}); err != nil {
 		_ = f.Close()
 		return nil, err
 	}
 	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	if err := syncDir(w.cfg.Dir); err != nil {
 		_ = f.Close()
 		return nil, err
 	}
@@ -278,7 +415,7 @@ func (w *wal) loadTailState(files []string) error {
 		}
 		lastCompleteOffset := int64(0)
 		for {
-			_, next, err := readRecord(f, crc)
+			_, next, err := w.readWALRecord(f, crc, fileIdx, lastCompleteOffset > 0)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					if lastCompleteOffset == 0 {
@@ -350,15 +487,18 @@ func (w *wal) cutIfNeededLocked() error {
 	}
 	w.file = f
 	w.first = first
-	if err := w.writeLocked(walRecord{Type: recordSegmentHeader, Payload: marshalUint64(w.cfg.NodeID)}); err != nil {
+	if err := w.writeLocked(walRecord{Type: recordSegmentHeaderV2, Payload: segmentHeaderV2(w.cfg.NodeID)}); err != nil {
 		return err
 	}
-	return w.file.Sync()
+	if err := w.file.Sync(); err != nil {
+		return err
+	}
+	return syncDir(w.cfg.Dir)
 }
 
 func applyRecord(state *replayState, rec walRecord) error {
 	switch rec.Type {
-	case recordSegmentHeader:
+	case recordSegmentHeader, recordSegmentHeaderV2:
 		return nil
 	case recordEntries:
 		entries, err := unmarshalEntryRecord(rec.Payload)
