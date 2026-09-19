@@ -19,6 +19,23 @@ export const locale = detectLocale(
 )
 
 const en = {
+  edit: "Edit",
+  edited: "Edited",
+  editingMessage: "Editing message",
+  saveEdit: "Save changes",
+  cancelEdit: "Cancel",
+  savingEdit: "Saving…",
+  retryEdit: "Retry",
+  reloadEdit: "Reload",
+  discardEdit: "Discard your unsaved changes? Choose Cancel to continue editing.",
+  editConflict: "This message changed on another device. The latest message is shown above; your draft is kept. Review it before saving again.",
+  editFailed: "Could not save. Your draft is kept. Please try again.",
+  editNotFound: "This message is no longer available. Your draft is kept.",
+  editOutcomeUnknown: "The result is not confirmed. Retry this same draft before changing it or leaving editing.",
+  editReloadFailed: "Could not load the latest message. Reload it before saving again; your draft is kept.",
+  messageSyncFailed: "Could not synchronize messages. Reopen the chat or synchronize again.",
+  staleMessage: "Message needs to be reloaded",
+
   appTitle: 'WuKongIM Demo',
   sdkVersion: 'WuKongIM Demo, SDK version: [v{version}]',
   logo: 'WuKongIM logo',
@@ -74,6 +91,23 @@ const en = {
 type MessageKey = keyof typeof en
 
 const zh: Record<MessageKey, string> = {
+  edit: "编辑",
+  edited: "已编辑",
+  editingMessage: "正在编辑消息",
+  saveEdit: "保存修改",
+  cancelEdit: "取消",
+  savingEdit: "保存中…",
+  retryEdit: "重试",
+  reloadEdit: "重新读取",
+  discardEdit: "放弃尚未保存的修改？选择“取消”可继续编辑。",
+  editConflict: "消息已在另一台设备修改，上方已展示最新正文，当前草稿已保留。请检查后再次保存。",
+  editFailed: "保存失败，编辑草稿已保留，请重试。",
+  editNotFound: "这条消息已不存在，编辑草稿已保留。",
+  editOutcomeUnknown: "尚未确认保存结果。请先重试同一份修改，再修改草稿或离开编辑。",
+  editReloadFailed: "读取最新消息失败。请先重新读取，再保存修改；草稿已保留。",
+  messageSyncFailed: "消息同步失败，请重新打开会话或重新同步。",
+  staleMessage: "消息需重新加载",
+
   appTitle: '悟空IM演示程序',
   sdkVersion: '悟空IM演示程序，当前SDK版本：[v{version}]',
   logo: '悟空IM标志',
