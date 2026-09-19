@@ -6,6 +6,10 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🔧 Improvements / 改进
+
+- Overlap up to eight independent Slot message-edit read groups per query, retaining fresh quorum/apply barriers, aligned pages, cancellation and byte bounds. / 单次查询最多并行读取八组独立 Slot 消息编辑数据，保留新的多数派与应用屏障、分页对齐、取消和字节上限。
+
 ## [v3.0.0-beta.20] - 2026-09-19
 
 ### 🔧 Improvements / 改进
