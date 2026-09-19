@@ -39,6 +39,7 @@ func TestConversationQPSMixedAttribution(t *testing.T) {
 	require.NoError(t, os.MkdirAll(dir, 0755))
 	p, raw, err := loadProfile()
 	require.NoError(t, err)
+	p.captureTimeline = true
 	sha, err := exec.Command("git", "rev-parse", "HEAD").Output()
 	require.NoError(t, err)
 	dirty, err := exec.Command("git", "status", "--porcelain").Output()

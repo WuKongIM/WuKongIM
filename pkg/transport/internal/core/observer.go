@@ -22,6 +22,14 @@ type observerStateKey struct {
 	nodeID    NodeID
 }
 
+// observerState retains a source's revision across deliveries. Pending sources
+// occur exactly once in the bounded pending slice, regardless of update rate.
+type observerState struct {
+	revision uint64
+	event    Event
+	pending  bool
+}
+
 // ObserverDrain isolates transport hot paths from observer callback latency.
 type ObserverDrain struct {
 	target     Observer
@@ -29,9 +37,12 @@ type ObserverDrain struct {
 	stateReady chan struct{}
 	done       chan struct{}
 
-	stateMu       sync.Mutex
-	latestState   map[observerStateKey]Event
-	stateRevision map[observerStateKey]uint64
+	// stateMu protects source revisions, latest values and pending membership.
+	stateMu sync.Mutex
+	states  map[observerStateKey]*observerState
+	pending []*observerState
+	// stateBatch belongs only to the drain goroutine and reuses delivery storage.
+	stateBatch []Event
 
 	stopOnce sync.Once
 	// admission stores the stopped bit and the number of in-flight ObserveTransport calls.
@@ -51,8 +62,7 @@ func NewObserverDrain(target Observer, taskID goruntimeregistry.TaskID) *Observe
 		events:            make(chan Event, defaultObserverQueueSize),
 		stateReady:        make(chan struct{}, 1),
 		done:              make(chan struct{}),
-		latestState:       make(map[observerStateKey]Event),
-		stateRevision:     make(map[observerStateKey]uint64),
+		states:            make(map[observerStateKey]*observerState),
 		admissionsDrained: make(chan struct{}, 1),
 	}
 	d.wg.Add(1)
@@ -98,21 +108,27 @@ func observerStateEventKey(event Event) (observerStateKey, bool) {
 // transport sources while the ordinary lossy event queue is saturated.
 func (d *ObserverDrain) coalesceState(key observerStateKey, event Event) bool {
 	d.stateMu.Lock()
-	lastRevision, exists := d.stateRevision[key]
-	if !exists && len(d.stateRevision) >= maxObserverCoalescedStateKeys {
-		d.stateMu.Unlock()
-		return false
+	state := d.states[key]
+	if state == nil {
+		if len(d.states) >= maxObserverCoalescedStateKeys {
+			d.stateMu.Unlock()
+			return false
+		}
+		state = &observerState{}
+		d.states[key] = state
 	}
-	if event.Revision > 0 && lastRevision > 0 && event.Revision <= lastRevision {
+	if event.Revision > 0 && state.revision > 0 && event.Revision <= state.revision {
 		d.stateMu.Unlock()
 		return true
 	}
 	if event.Revision > 0 {
-		d.stateRevision[key] = event.Revision
-	} else if !exists {
-		d.stateRevision[key] = 0
+		state.revision = event.Revision
 	}
-	d.latestState[key] = event
+	state.event = event
+	if !state.pending {
+		state.pending = true
+		d.pending = append(d.pending, state)
+	}
 	d.stateMu.Unlock()
 	select {
 	case d.stateReady <- struct{}{}:
@@ -191,19 +207,24 @@ func (d *ObserverDrain) run() {
 func (d *ObserverDrain) drainLatestState() {
 	for {
 		d.stateMu.Lock()
-		if len(d.latestState) == 0 {
+		if len(d.pending) == 0 {
 			d.stateMu.Unlock()
 			return
 		}
-		states := make([]Event, 0, len(d.latestState))
-		for key, event := range d.latestState {
-			states = append(states, event)
-			delete(d.latestState, key)
+		batch := d.stateBatch[:0]
+		for _, state := range d.pending {
+			batch = append(batch, state.event)
+			state.event = Event{}
+			state.pending = false
 		}
+		clear(d.pending)
+		d.pending = d.pending[:0]
 		d.stateMu.Unlock()
-		for _, event := range states {
+		for i, event := range batch {
 			d.target.ObserveTransport(event)
+			batch[i] = Event{}
 		}
+		d.stateBatch = batch[:0]
 	}
 }
 

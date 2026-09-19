@@ -292,6 +292,7 @@ func request(ctx context.Context, client *http.Client, addr string, p profile, c
 }
 
 type observation struct {
+	index                   int
 	driverWait, requestTime float64
 	latency                 float64
 	within                  bool
@@ -328,11 +329,14 @@ func measureRequests(p profile, w workloadCase, nodes int, start time.Time, call
 				e := call(ctx, j.index)
 				cancel()
 				now := time.Now()
-				results <- observation{latency: float64(now.Sub(j.at)) / float64(time.Millisecond), within: !now.After(end), err: e, driverWait: float64(requestStart.Sub(j.at)) / float64(time.Millisecond), requestTime: float64(now.Sub(requestStart)) / float64(time.Millisecond)}
+				results <- observation{index: j.index, latency: float64(now.Sub(j.at)) / float64(time.Millisecond), within: !now.After(end), err: e, driverWait: float64(requestStart.Sub(j.at)) / float64(time.Millisecond), requestTime: float64(now.Sub(requestStart)) / float64(time.Millisecond)}
 			}
 		}()
 	}
 	r := phaseResult{DriverWorkers: p.Workers, QueueCapacity: queuedArrivalLimit(p, w), Nodes: nodes, Case: w, Scheduled: total, DurationSeconds: p.DurationSeconds}
+	if p.captureTimeline {
+		r.Timeline = make([]arrivalSecond, p.DurationSeconds)
+	}
 	for i := 0; i < total; i++ {
 		at := start.Add(time.Duration(i) * time.Second / time.Duration(w.OfferedQPS))
 		if delay := time.Until(at); delay > 0 {
@@ -345,6 +349,9 @@ func measureRequests(p profile, w workloadCase, nodes int, start time.Time, call
 		}{at, i}:
 		default:
 			r.Dropped++
+			if p.captureTimeline {
+				r.Timeline[i/w.OfferedQPS].Dropped++
+			}
 		}
 	}
 	close(jobs)
@@ -352,6 +359,17 @@ func measureRequests(p profile, w workloadCase, nodes int, start time.Time, call
 	close(results)
 	var latencies, driverWaits, requestTimes []float64
 	for got := range results {
+		if p.captureTimeline {
+			slot := &r.Timeline[got.index/w.OfferedQPS]
+			slot.Completed++
+			slot.MaxWaitMS = max(slot.MaxWaitMS, got.driverWait)
+			slot.MaxRequestMS = max(slot.MaxRequestMS, got.requestTime)
+			slot.MaxLatencyMS = max(slot.MaxLatencyMS, got.latency)
+			if got.latency > 200 && len(r.Slow) < 16 {
+				r.Slow = append(r.Slow, slowArrival{Index: got.index, WaitMS: got.driverWait, RequestMS: got.requestTime})
+			}
+		}
+
 		if got.err != nil {
 			r.Errors++
 			if r.ErrorSamples == nil {
