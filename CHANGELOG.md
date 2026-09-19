@@ -6,11 +6,19 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+## [v3.0.0-beta.20] - 2026-09-19
+
 ### 🔧 Improvements / 改进
 
 - Reuse bounded transport-observer state and delivery buffers, reducing query-time metrics overhead while preserving latest-state revisions and shutdown draining. / 运输层指标复用有界状态与投递缓冲区，降低查询期间的指标开销，同时保留最新状态版本及关闭排空语义。
 
 - Retain bounded per-second timing and slow-arrival evidence in the fixed mixed-query diagnostic, without changing release workloads or thresholds. / 固定混合查询诊断保留有界的逐秒耗时与慢请求调度证据，不改变发布负载或门槛。
+
+### 🐛 Bug Fixes / 问题修复
+
+- Include the Controller WAL restart recovery introduced in beta.19: recover the legacy pruned-prefix CRC defect only after verifying snapshots, metadata, node identity and the complete committed suffix. Corrupted records still fail closed; new WAL segments require an upgraded runtime. / 包含 beta.19 的 Controller WAL 重启恢复修复：仅在快照、元数据、节点身份及完整提交后缀验证通过后恢复旧格式前缀清理造成的 CRC 断链；真实损坏仍拒绝启动，新日志段须由升级后的程序读取。
+
+- Restore a newer Controller snapshot before committed-log replay when the materialized state file lags compaction, preserving restart recovery after readiness probes. / 状态文件落后于快照时，先恢复较新的 Controller 快照再重放提交日志，保证就绪探测与日志清理后的重启恢复。
 
 ## [v3.0.0-beta.19] - 2026-09-19
 
