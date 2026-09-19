@@ -21,6 +21,7 @@ type blockedMessageUpdateCluster struct {
 	active  atomic.Int64
 	peak    atomic.Int64
 	calls   atomic.Int64
+	payload []byte
 }
 
 func (c *blockedMessageUpdateCluster) SlotForKey(key string) multiraft.SlotID {
@@ -57,8 +58,37 @@ func (c *blockedMessageUpdateCluster) RPCService(ctx context.Context, _ multiraf
 	for i, read := range request.Reads {
 		pages[i].Head.ChannelID = read.ChannelID
 		pages[i].Next = read.After
+		if c.payload != nil {
+			pages[i].Updates = []metadb.MessageUpdate{{ChannelID: read.ChannelID, Payload: c.payload}}
+		}
 	}
 	return json.Marshal(messageUpdateReadReply{Format: 1, Status: rpcStatusOK, Pages: pages})
+}
+
+func TestMessageUpdateReadConcurrentRepliesRetainSharedByteBudget(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		c := &blockedMessageUpdateCluster{
+			promotedRPCRegistrationCluster: &promotedRPCRegistrationCluster{leaderID: 2, localNodeID: 1},
+			release:                        make(chan struct{}),
+			payload:                        make([]byte, metadb.MaxMessageUpdatePayload),
+		}
+		store := New(c, nil)
+		reads := make([]metadb.MessageUpdateRead, 8)
+		for i := range reads {
+			reads[i] = metadb.MessageUpdateRead{ChannelID: strconv.Itoa(i + 1), ChannelType: 2, IDs: []uint64{1}}
+		}
+		var pages []metadb.MessageUpdatePage
+		var err error
+		go func() { pages, err = store.ReadMessageUpdatesBatch(context.Background(), reads) }()
+		synctest.Wait()
+		close(c.release)
+		synctest.Wait()
+		// Each individual page is legal, but eight maximum payloads plus row
+		// metadata exceed the shared limit. No partial result may escape.
+		if !errors.Is(err, metadb.ErrInvalidArgument) || pages != nil || c.active.Load() != 0 {
+			t.Fatalf("shared budget: pages=%d active=%d err=%v", len(pages), c.active.Load(), err)
+		}
+	})
 }
 
 func TestMessageUpdateReadOverlapsEightSlotsAndRetainsBounds(t *testing.T) {
