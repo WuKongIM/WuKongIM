@@ -6,6 +6,10 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🔧 Improvements / 改进
+
+- Retain bounded per-second timing and slow-arrival evidence in the fixed mixed-query diagnostic, without changing release workloads or thresholds. / 固定混合查询诊断保留有界的逐秒耗时与慢请求调度证据，不改变发布负载或门槛。
+
 ## [v3.0.0-beta.19] - 2026-09-19
 
 ### 🔧 Improvements / 改进

@@ -154,7 +154,8 @@ Mixed release-load attribution is diagnostic only:
 `WK_E2E_CONVERSATION_MIXED_ATTRIBUTION=1 WK_E2E_PRODUCT_SHA=<exact-product-commit> WK_E2E_BINARY=/absolute/product WK_E2E_CONVERSATION_MIXED_REPORT=/tmp/conversation-mixed/report.json GOWORK=off go test -tags=e2e ./test/e2e/message/conversation_qps -run '^TestConversationQPSMixedAttribution$' -count=1 -timeout=12m -p=1 -v`.
 Require four visible Linux AMD64 CPUs. Preserve three fixed 60-second windows
 using the unchanged release mixed preset and HTTP connection bounds. Record
-harness and product identities separately, retain host/driver counters around
+harness and product identities separately, retain per-scheduled-second timing/drop
+buckets and at most 16 slow arrival samples per endpoint, plus host/driver counters around
 each window, then capture bounded server allocations and simultaneous server
 and driver CPU profiles during a separate ten-second workload. Rejected windows
 remain evidence, unexpected failures or runtime/membership mutations abort, and

@@ -21,6 +21,8 @@ type workloadCase struct {
 
 // profile fixes workload shape and release floors in reviewed source.
 type profile struct {
+	// captureTimeline is diagnostic-only and never changes the release workload.
+	captureTimeline    bool
 	StressGate         stressConfig   `json:"stress_gate"`
 	StressDiagnosis    stressConfig   `json:"stress_diagnosis"`
 	Schema             string         `json:"schema"`
@@ -77,6 +79,8 @@ func loadProfile() (profile, []byte, error) {
 // phaseResult accounts for every scheduled arrival, including overload drops.
 // ActualQPS excludes completions after the measurement window.
 type phaseResult struct {
+	Timeline []arrivalSecond `json:"arrival_timeline,omitempty"`
+	Slow     []slowArrival   `json:"slow_arrivals,omitempty"`
 	// Separate component percentiles are diagnostic and are not additive.
 	DriverWaitP99MS   float64      `json:"driver_wait_p99_ms,omitempty"`
 	RequestP99MS      float64      `json:"request_p99_ms,omitempty"`
@@ -145,4 +149,19 @@ func percentile(values []float64, q float64) float64 {
 // queuedArrivalLimit bounds arrivals retained by the driver.
 func queuedArrivalLimit(p profile, w workloadCase) int {
 	return max(p.Workers, int(math.Ceil(float64(w.OfferedQPS)*p.MaxP99MS/1000)))
+}
+
+// arrivalSecond attributes bounded timing evidence to the scheduled second.
+type arrivalSecond struct {
+	Completed    int     `json:"completed"`
+	Dropped      int     `json:"dropped"`
+	MaxWaitMS    float64 `json:"max_wait_ms"`
+	MaxRequestMS float64 `json:"max_request_ms"`
+	MaxLatencyMS float64 `json:"max_latency_ms"`
+}
+
+type slowArrival struct {
+	Index     int     `json:"index"`
+	WaitMS    float64 `json:"wait_ms"`
+	RequestMS float64 `json:"request_ms"`
 }
