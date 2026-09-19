@@ -297,11 +297,9 @@ func (c *Conn) shouldWaitForWriteBatch(batch []sched.Item) bool {
 		return false
 	}
 	switch batch[0].Priority {
-	case core.PriorityBulk:
+	case core.PriorityRPC, core.PriorityBulk:
 		return true
 	default:
-		// RPC request/response chains must not wait for hypothetical future
-		// frames. Already queued frames still share the bounded write batch.
 		return false
 	}
 }

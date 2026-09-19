@@ -142,8 +142,7 @@ type Limits struct {
 	MaxBatchBytes int
 	// MaxBatchFrames is the maximum frame count written in one batch; it must be positive.
 	MaxBatchFrames int
-	// WriteBatchMaxWait is the bounded coalescing delay for isolated bulk frames; zero disables it.
-	// RPC, control and Raft frames only coalesce already queued work without this delay.
+	// WriteBatchMaxWait is the bounded coalescing delay for isolated RPC or bulk frames; zero disables it.
 	WriteBatchMaxWait time.Duration
 	// DialFailureCooldown is the peer reconnect backoff after a dial failure; zero disables cooldown.
 	DialFailureCooldown time.Duration
