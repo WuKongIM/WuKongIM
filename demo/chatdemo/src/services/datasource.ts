@@ -1,4 +1,4 @@
-import { Channel, ChannelInfo, SyncOptions, WKSDK } from "wukongimjssdk"
+import { Channel, ChannelInfo, SyncOptions, WKSDK, installMessageEditing } from "wukongimjssdk"
 import APIClient from "./APIClient"
 import { avatarURLForUID } from "./avatar"
 
@@ -42,4 +42,17 @@ export function initDataSource() {
     //  WKSDK.shared().config.provider.messageUploadTask
 
 
+}
+
+// Reuse SDK writes/feed while preserving stream history and the complete directory.
+export function enableMessageEditing(onError: (error: Error) => void) {
+    const sdk = WKSDK.shared()
+    const history = sdk.config.provider.syncMessagesCallback
+    const conversations = sdk.config.provider.syncConversationsCallback
+    const uninstall = installMessageEditing(sdk, {
+        transport: APIClient.shared.editingTransport, onError,
+    })
+    sdk.config.provider.syncMessagesCallback = history
+    sdk.config.provider.syncConversationsCallback = conversations
+    return uninstall
 }

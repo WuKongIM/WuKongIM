@@ -312,3 +312,14 @@ specification, runbook, report, or module documentation; link to them when neede
   revisions survive delivery, unversioned updates follow arrival order, and
   shutdown drains admitted terminal states. Reuse state cells and delivery
   buffers so metrics do not allocate on every RPC state transition.
+
+## Embedded Demo message editing
+
+- `demo/chatdemo` pins JS SDK `1.4.0-beta.1` and uses its edit/feed manager with
+  custom epoch-preserving history and complete conversation-directory providers.
+  Preserve stream metadata and reject mixed-epoch directory pages.
+- UI editing is limited to the sender's acknowledged ordinary text messages;
+  Product HTTP delegates business authorization to the caller's backend.
+  Unknown edit outcomes retain the same draft until an idempotent retry resolves.
+- The opt-in `demo/chatdemo` `test:integration` needs an explicitly supplied
+  freshly built server and Playwright installation.

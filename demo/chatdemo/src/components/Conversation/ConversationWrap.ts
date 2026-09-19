@@ -73,6 +73,7 @@ export class ConversationWrap {
         if(!this.lastMessage) {
             return ""
         }
+        if (this.lastMessage.contentStale) return t('staleMessage')
         // 尝试从流文本中获取摘要
         if (this.lastMessage.streamText) {
             const raw = this.lastMessage.streamText.trim()

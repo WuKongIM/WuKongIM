@@ -1,7 +1,8 @@
 import { t } from '../i18n'
 import axios, { AxiosResponse } from "axios";
-import { Channel, ChannelTypePerson, Conversation, Message, SyncOptions, WKSDK } from "wukongimjssdk";
+import { Channel, ChannelTypePerson, Message, SyncOptions, WKSDK, MessageUpdateError } from "wukongimjssdk";
 import { Convert } from "./convert";
+import { contentResponse, collectConversations, createEditingTransport } from "./messageEditingHTTP";
 import { Buffer } from "buffer";
 
 
@@ -32,6 +33,11 @@ export default class APIClient {
     public static shared = new APIClient()
     public config = new APIClientConfig()
     public logoutCallback?:()=>void
+    // Dedicated transport retains HTTP codes, restore epochs and cancellation.
+    editingTransport = createEditingTransport(() => ({
+        apiURL: this.config.apiURL, uid: WKSDK.shared().config.uid || "",
+        token: this.config.tokenCallback?.(),
+    }))
 
     initAxios() {
         const self = this
@@ -121,7 +127,7 @@ export default class APIClient {
         })
     }
     joinChannel = (channelID:string,channelType:number,uid:string) => {
-        APIClient.shared.post('/channel/subscriber_add', {
+        return APIClient.shared.post('/channel/subscriber_add', {
             channel_id: channelID,
             channel_type: channelType,
             subscribers: [uid]
@@ -129,7 +135,7 @@ export default class APIClient {
             console.log(res)
         }).catch((err) => {
             console.log(err)
-            alert(err.msg)
+            throw err
         })
     }
 
@@ -139,7 +145,7 @@ export default class APIClient {
     syncMessages = async (channel: Channel,opts: SyncOptions) => {
         let resultMessages = new Array<Message>()
         const limit = opts.limit;
-        const resp = await APIClient.shared.post('/channel/messagesync', {
+        const response = contentResponse(await this.editingTransport('/channel/messagesync', {
             login_uid: WKSDK.shared().config.uid,
             channel_id: channel.channelID,
             channel_type: channel.channelType,
@@ -148,51 +154,26 @@ export default class APIClient {
             pull_mode: opts.pullMode,
             stream_v2:1,
             limit: limit
-        })
+        }, opts.signal))
+        const resp = response.data
         const messageList = resp && resp["messages"]
+        if (!Array.isArray(messageList)) throw new MessageUpdateError("invalid_response")
         if (messageList) {
             messageList.forEach((msg: any) => {
                 const message = Convert.toMessage(msg);
                 resultMessages.push(message);
             });
         }
-        return resultMessages
+        return { contentEpoch: response.contentEpoch, data: resultMessages }
     }
 
     // 同步会话列表
     // 仅仅做演示，所以直接调用的WuKongIM的接口，实际项目中，建议调用自己的后台接口，
     // 然后后台接口再调用WuKongIM的接口，这样自己的后台可以返回一些自己的业务数据填充到Conversation.extra中
     syncConversations = async () => {
-        const conversations = new Map<string, Conversation>()
-        let cursor = ""
-        let done = false
-        do {
-            const resp = await APIClient.shared.post('/conversation/list', {
-                uid: WKSDK.shared().config.uid,
-                cursor,
-                limit: 200,
-            })
-            const page = resp && resp["conversations"]
-            if (page) {
-                page.forEach((value: any) => {
-                    const conversation = Convert.toConversation(value)
-                    conversations.set(`${value.channel_id}:${value.channel_type}`, conversation)
-                })
-            }
-            const deletes = resp && resp["deletes"]
-            if (deletes) {
-                deletes.forEach((value: any) => {
-                    conversations.delete(`${value.channel_id}:${value.channel_type}`)
-                })
-            }
-            done = resp && resp["done"] === true
-            const nextCursor = resp && resp["next_cursor"]
-            if (!done && (!nextCursor || nextCursor === cursor)) {
-                throw new Error("conversation directory did not advance")
-            }
-            cursor = nextCursor || ""
-        } while (!done)
-        return Array.from(conversations.values())
+        return collectConversations(async cursor => contentResponse(await this.editingTransport('/conversation/list', {
+            cursor, limit: 200,
+        })), row => Convert.toConversation(row))
     }
     clearUnread = async (channel:Channel) => {
        return APIClient.shared.post('/conversations/setUnread', {
