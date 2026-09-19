@@ -37,6 +37,7 @@ type ObserverDrain struct {
 	stateReady chan struct{}
 	done       chan struct{}
 
+	// stateMu protects source revisions, latest values and pending membership.
 	stateMu sync.Mutex
 	states  map[observerStateKey]*observerState
 	pending []*observerState
