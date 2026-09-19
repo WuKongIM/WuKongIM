@@ -33,6 +33,10 @@ type MessageDB struct {
 	// ordinaryIndexEpoch fences absence proofs across backup imports, whose
 	// raw batches do not write through existing canonical channel entries.
 	ordinaryIndexEpoch atomic.Uint64
+	// retentionGeneration and retentionWriters fence retention reads across all
+	// typed mutations and raw imports without blocking foreground readers.
+	retentionGeneration atomic.Uint64
+	retentionWriters    atomic.Int64
 
 	// closeOnce ensures the physical engine closes exactly once.
 	closeOnce sync.Once

@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Reuse unchanged durable retention state in bounded Channel storage caches, with invalidation around retention changes, truncation and restore/import. / Channel 有界存储缓存复用未变化的持久化保留状态，在保留变更、截断及恢复导入前后失效，减少会话查询的重复读取。
+
 ## [v3.0.0-beta.21] - 2026-09-19
 
 ### 🔧 Improvements / 改进

@@ -103,6 +103,12 @@ storage core without transferring shared-engine ownership.
   uncommitted suffix above the selected HW.
 - Checkpoint updates are serialized, initialize an explicit zero, never regress
   HW, and preserve epoch and log-start fields.
+- Retention reads reuse immutable state in the bounded canonical/warm registry.
+  A database-wide generation disables hits/fills during overlapping retention
+  mutations, truncation, recovery replacement, discard and either backup import
+  path, and invalidates before and after every attempted mutation. Ordinary
+  append does not invalidate unchanged retention state; cancellation, close and
+  durable decoding errors remain visible.
 - Close rejects new work, drains admitted operations and pins, reclaims entries,
   and closes the physical engine exactly once. One lease cannot close another.
 - Backup count and content come from one pinned view; restore is exact-retry
