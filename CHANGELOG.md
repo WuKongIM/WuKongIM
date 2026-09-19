@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Reuse bounded transport-observer state and delivery buffers, reducing query-time metrics overhead while preserving latest-state revisions and shutdown draining. / 运输层指标复用有界状态与投递缓冲区，降低查询期间的指标开销，同时保留最新状态版本及关闭排空语义。
+
 - Retain bounded per-second timing and slow-arrival evidence in the fixed mixed-query diagnostic, without changing release workloads or thresholds. / 固定混合查询诊断保留有界的逐秒耗时与慢请求调度证据，不改变发布负载或门槛。
 
 ## [v3.0.0-beta.19] - 2026-09-19

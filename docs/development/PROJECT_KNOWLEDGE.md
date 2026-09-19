@@ -307,3 +307,8 @@ specification, runbook, report, or module documentation; link to them when neede
   access, and local Codex credentials never move to GitHub or cloud hosts. See
   [Cloud Simulation](../superpowers/runbooks/cloud-simulation.md) and the
   [chat-lifecycle skill](../../.agents/skills/wukongim-chat-lifecycle/SKILL.md).
+
+- Transport observer state remains bounded to 8,192 source keys; absolute-state
+  revisions survive delivery, unversioned updates follow arrival order, and
+  shutdown drains admitted terminal states. Reuse state cells and delivery
+  buffers so metrics do not allocate on every RPC state transition.
