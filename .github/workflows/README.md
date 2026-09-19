@@ -277,6 +277,11 @@ product failure may close the measured timeline early. The local step classifier
 checks exact report identity, ordered closed timeline, process continuity and
 profile evidence before retaining that product failure; it leaves full-duration
 evidence false and never invents a throughput result for the short run.
+At terminal shutdown, `report/worker-evidence.json` retains the existing
+per-worker first/last redacted failure samples, generation and snapshot sequence.
+The separate document is capped at 1 MiB and written once after traffic joins;
+ordinary observation cuts add no new file writes. It contains no UID, Channel
+ID, message payload or raw error, and never changes the qualification verdict.
 
 For a bounded SEND investigation, dispatch
 `three-node-chat-lifecycle-regression.yml` with `diagnose_send=true` on the

@@ -118,3 +118,79 @@ func TestLiveDiagnosticRecorderBoundsFullRecentEventRing(t *testing.T) {
 		t.Fatalf("bounded ring events/bytes = %d/%d", len(document.RecentEvents), len(body))
 	}
 }
+
+func TestLiveDiagnosticRecorderRetainsTerminalFailureExamples(t *testing.T) {
+	dir := t.TempDir()
+	start := time.Unix(1_965_000_000, 0).UTC()
+	fence := WorkerFence{RunID: "terminal-evidence", AssignmentID: "assignment", Generation: 1}
+	recorder := newLiveDiagnosticRecorder(dir, fence.RunID, start, nil)
+	snapshots := coordinatorSnapshotFixture(fence, 1, time.Minute, 1)
+	for i := range snapshots {
+		snapshots[i].Phase = WorkerPhaseRunning
+		snapshots[i].Sessions.Target = 1
+		snapshots[i].Sessions.Online = 1
+		snapshots[i].Sessions.TrafficReady = 1
+	}
+	snapshots[1].Evidence = EvidenceSnapshot{Classification: SyncClassificationProductFailure, Classes: []EvidenceClassSnapshot{{
+		Class: FailureClassCorrelation, Count: 1, First: []EvidenceExample{{Stage: EvidenceStageCorrelation, Code: FailureCodeCorrelationExpired, SampleIndex: 234, Fingerprint: [16]byte{1, 2, 3}, Value: uint64(10 * time.Second)}},
+	}}}
+	if err := recorder.Observe(start.Add(time.Minute), CoordinatorCutPeriodic, snapshots); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "worker-evidence.json")); !os.IsNotExist(err) {
+		t.Fatal("failure evidence must not add periodic writes")
+	}
+	if err := recorder.Observe(start.Add(2*time.Minute), CoordinatorCutTerminal, snapshots); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join(dir, "worker-evidence.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Schema  string `json:"schema"`
+		Workers []struct {
+			WorkerID uint64           `json:"worker_id"`
+			Evidence EvidenceSnapshot `json:"evidence"`
+		} `json:"workers"`
+	}
+	if err = json.Unmarshal(body, &document); err != nil {
+		t.Fatal(err)
+	}
+	if document.Schema != "wukongim/chat-lifecycle-worker-evidence/v1" || len(document.Workers) != 3 || document.Workers[1].WorkerID != 1 || document.Workers[1].Evidence.Classes[0].First[0].SampleIndex != 234 {
+		t.Fatalf("missing terminal example: %s", body)
+	}
+	for _, forbidden := range []string{`"uid"`, `"channel_id"`, `"client_msg_no"`, `"payload"`} {
+		if bytes.Contains(body, []byte(forbidden)) {
+			t.Fatalf("unredacted field %s", forbidden)
+		}
+	}
+}
+
+func TestTerminalWorkerEvidenceRetainsMaximumBoundedSamples(t *testing.T) {
+	dir := t.TempDir()
+	start := time.Unix(1_965_000_000, 0).UTC()
+	fence := WorkerFence{RunID: "max-evidence", AssignmentID: "assignment", Generation: 1}
+	recorder := newLiveDiagnosticRecorder(dir, fence.RunID, start, nil)
+	snapshots := coordinatorSnapshotFixture(fence, 1, time.Minute, 1)
+	for i := range snapshots {
+		snapshots[i].Sessions.Target = 1
+		for class := FailureClassSend; class <= FailureClassHarness; class++ {
+			examples := make([]EvidenceExample, maxEvidenceExamplesPerSide)
+			for j := range examples {
+				examples[j] = EvidenceExample{SampleIndex: ^uint64(0), Value: ^uint64(0), Fingerprint: [16]byte{255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255}}
+			}
+			snapshots[i].Evidence.Classes = append(snapshots[i].Evidence.Classes, EvidenceClassSnapshot{Class: class, Count: 128, First: examples, Last: examples})
+		}
+	}
+	if err := recorder.Observe(start.Add(time.Minute), CoordinatorCutTerminal, snapshots); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join(dir, "worker-evidence.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(body) > 1<<20 {
+		t.Fatal("terminal evidence exceeds cap")
+	}
+}
