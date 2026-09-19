@@ -34,7 +34,7 @@ not depend on `pkg/cluster`.
 1. Raft Ready persists HardState, entries, and snapshots before message send and
    FIFO apply; the scheduler batches commands, applies FSM semantics, saves one
    final state file, publishes it, then persists the applied boundary.
-2. Startup restores materialized state or the latest snapshot, replays the
+2. Startup restores the latest snapshot when materialized state is absent or older, replays the
    committed suffix, and automatic/manual compaction snapshots only applied
    materialized state before trimming covered WAL history.
 3. Planner, lifecycle, and task APIs propose versioned fenced commands through
@@ -46,10 +46,16 @@ not depend on `pkg/cluster`.
 - The Raft WAL plus applied-boundary metadata is authoritative. The JSON file
   is its materialized state and is saved before publication and applied-index
   advancement.
-- Startup may repair only an incomplete physical record at the newest WAL
-  segment tail by truncating to the last complete record and syncing it before
-  append. Checksum mismatches, incomplete older segments, and a newest segment
-  without any complete record fail closed.
+- New WAL segments have versioned, independently checksummed headers; prefix
+  compaction deletes only fully covered segments after persisting any legacy
+  successor anchor and syncs each prefix deletion.
+  Startup can anchor a pruned legacy first header only after strict read-only
+  validation of its node identity, every remaining CRC, snapshot checksum,
+  matching durable metadata, and complete committed suffix. A checksummed, atomic
+  `legacy-anchors.json` persists that proof before append, allowing ordinary crash recovery
+  when WAL later advances beyond metadata. It rewrites no WAL.
+  All other checksum failures remain fatal. Incomplete newest physical tails
+  alone may be truncated and synced; legacy recovery probes never truncate.
 - Offline bootstrap inspection reads bounded WAL and snapshot artifacts without
   truncation or startup repair; even an incomplete newest tail fails verification.
 - `Revision` versions logical cluster state; `AppliedRaftIndex` versions Raft

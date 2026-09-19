@@ -2,6 +2,8 @@ package raftstore
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"path/filepath"
 	"sync"
 
@@ -48,7 +50,11 @@ func Open(ctx context.Context, cfg Config) (*Store, error) {
 	if meta.ConfState.Voters == nil {
 		meta.ConfState = cloneConfState(meta.ConfState)
 	}
-	w, err := openWAL(walConfig{Dir: walDir, NodeID: cfg.NodeID, SegmentSize: cfg.SegmentSize})
+	wc := walConfig{Dir: walDir, NodeID: cfg.NodeID, SegmentSize: cfg.SegmentSize}
+	w, err := openWAL(wc)
+	if errors.Is(err, ErrCRCMismatch) {
+		w, err = recoverLegacyPrefix(ctx, cfg, wc, meta, err)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -189,6 +195,9 @@ func (s *Store) Compact(ctx context.Context, compactTo uint64) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if compactTo > s.snapshot.Metadata.Index {
+		return fmt.Errorf("controller/raftstore: compaction exceeds durable snapshot")
+	}
 	s.entries = trimEntriesAfter(s.entries, compactTo)
 	return s.wal.releaseBefore(compactTo + 1)
 }
