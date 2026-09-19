@@ -50,7 +50,7 @@ Transport 限制单 frame body、单连接排队条目/字节、batch frame/字�
 
 ## 优先级与顺序
 
-- 普通 RPC、Raft 与控制帧只合并已就绪的工作，不为未来可能到达的帧主动等待。只有孤立的 bulk 流量保留有界的合批延迟。
+- Raft 与控制消息保持低等待，不参与普通 RPC 的短时 coalescing。
 - 前台 Channel append 服务可以使用更高的有界处理并发，但仍受 payload 和 queue 限制。
 - Raft protocol service 使用有序处理 lane，避免并发 handler 改变 peer 消息顺序。
 - Channel Pull/PullHint 可以按相同目标做小批量合并，但 batch 仍保留逐项结果和频道 fence。
