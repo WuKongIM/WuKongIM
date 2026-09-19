@@ -43,6 +43,9 @@ profiles run in release windows.
 
 ## Maintenance Rules
 
+The `message_updates` recovery scenario registers bounded process diagnostics
+before initial HTTP readiness, covering startup exits as well as workload failures.
+
 The `conversation_qps` scenario also contains the opt-in message-update
 three-node diagnostic. Its `WK_E2E_MESSAGE_UPDATE_DELTA_PROFILE=1` variant
 preserves all unprofiled windows and captures only changed-delta CPU/allocation
