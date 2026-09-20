@@ -23,13 +23,18 @@ export class MessageEditor {
     errorCode = ''
 
     begin(message: Message, sendingDraft: string) {
-        this.target = Object.assign(new Message(), message)
-        this.originalText = (message.content as MessageText).text || ''
+        this.acceptSnapshot(message)
         this.draft = this.originalText
         this.sendingDraft = sendingDraft
         this.errorCode = ''
         this.outcomeUnknown = false
         this.needsReload = false
+    }
+
+    /** Recalibrate CAS and discard checks against the confirmed body without changing the draft. */
+    private acceptSnapshot(message: Message) {
+        this.target = Object.assign(new Message(), message)
+        this.originalText = (message.content as MessageText).text || ''
     }
 
     get dirty() { return this.draft !== this.originalText }
@@ -53,7 +58,7 @@ export class MessageEditor {
         const target = this.target!
         try {
             if (this.needsReload) {
-                this.target = Object.assign(new Message(), await reload(target))
+                this.acceptSnapshot(await reload(target))
                 this.needsReload = false
                 this.errorCode = 'version_conflict'
                 return false
@@ -71,7 +76,7 @@ export class MessageEditor {
             if (code === 'version_conflict' || code === 'content_epoch_conflict') {
                 this.needsReload = true
                 try {
-                    this.target = Object.assign(new Message(), await reload(target))
+                    this.acceptSnapshot(await reload(target))
                     this.needsReload = false
                 } catch { this.errorCode = 'edit_reload_failed' }
             }

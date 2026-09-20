@@ -117,3 +117,28 @@ test('Demo conversion retains edit identity/version, exclusion headers and strea
     assert.equal(m.updatedAtMs, 123); assert.equal(m.header.noPersist, true); assert.equal(m.header.syncOnce, true)
     assert.equal(m.streamText, 'stream text')
 })
+
+for (const retryReload of [false, true]) {
+    test(`conflict reload recalibrates dirty state without dropping the draft (retry=${retryReload})`, async () => {
+        const editor = new MessageEditor(); editor.begin(message(), 'send draft'); editor.draft = 'mine'
+        await editor.save(async () => { throw new MessageUpdateError('version_conflict') }, async () => {
+            if (retryReload) throw new Error('offline')
+            return message('2', 'remote')
+        })
+        if (retryReload) await editor.save(async () => { assert.fail('must reload before writing') }, async () => message('2', 'remote'))
+        assert.equal(editor.draft, 'mine')
+        editor.draft = 'original'
+        assert.equal(editor.canSave, true)
+        let confirmations = 0
+        assert.equal(editor.leave(() => { confirmations++; return false }), false)
+        assert.equal(confirmations, 1)
+        editor.draft = 'remote'
+        assert.equal(editor.dirty, false)
+        assert.equal(editor.canSave, false)
+        editor.draft = 'original'
+        assert.equal(await editor.save(async (target, content) => {
+            assert.equal(target.contentVersion, '2'); assert.equal(content.text, 'original')
+            return message('3', 'original')
+        }, async () => { assert.fail('already reloaded') }), true)
+    })
+}

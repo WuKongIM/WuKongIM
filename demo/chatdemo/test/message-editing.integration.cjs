@@ -110,13 +110,18 @@ dir = "${evidence}/logs"
         await alice.getByRole('button', { name: 'Save changes', exact: true }).click();
         await alice.getByText('This message changed on another device.', { exact: false }).waitFor();
         assert.equal(await alice.getByRole('textbox', { name: 'Editing message', exact: true }).inputValue(), 'my conflict draft');
+        // Restoring the initially opened text is still an edit against the newly read remote body.
+        await alice.getByRole('textbox', { name: 'Editing message', exact: true }).fill('tail edited');
+        assert.equal(await alice.getByRole('button', { name: 'Save changes', exact: true }).isEnabled(), true);
+        alice.once('dialog', dialog => dialog.dismiss()); await open(alice, 'edit-group');
+        assert.equal(await alice.locator('.conversation-item.selected .title').innerText(), 'bob');
         await alice.screenshot({ path: path.join(evidence, 'conflict.png') });
         await alice.getByRole('button', { name: 'Save changes', exact: true }).click();
-        await hasBody(bob, 'my conflict draft');
+        await hasBody(bob, 'tail edited');
         // Lose every write acknowledgement in one bounded SDK attempt; retry must reuse the request.
         const lost = [];
         await alice.route('**/message/update', async route => { lost.push(route.request().postDataJSON()); await route.fetch(); await route.abort('failed'); });
-        await row(alice, 'my conflict draft').getByRole('button', { name: 'Edit', exact: true }).click();
+        await row(alice, 'tail edited').getByRole('button', { name: 'Edit', exact: true }).click();
         await alice.getByRole('textbox', { name: 'Editing message', exact: true }).fill('uncertain saved text');
         await alice.getByRole('button', { name: 'Save changes', exact: true }).click();
         await alice.getByText('The result is not confirmed.', { exact: false }).waitFor();
@@ -147,7 +152,7 @@ dir = "${evidence}/logs"
         await hasBody(bob, 'edited after acknowledgement\nsecond line');
         await alice.screenshot({ path: path.join(evidence, 'alice.png') }); await bob.screenshot({ path: path.join(evidence, 'bob.png') });
         assert.deepEqual(errors, []);
-        console.log(JSON.stringify({ passed: true, evidence, checks: ['person edit', 'own-only entry', 'old-message preview isolation', 'tail preview', 'CAS conflict', 'unknown outcome retry', 'draft preservation', 'discard guard', 'group edit', 'reload recovery', 'fresh SENDACK edit'], pageErrors: errors }));
+        console.log(JSON.stringify({ passed: true, evidence, checks: ['person edit', 'own-only entry', 'old-message preview isolation', 'tail preview', 'CAS conflict restoring original text', 'unknown outcome retry', 'draft preservation', 'discard guard', 'group edit', 'reload recovery', 'fresh SENDACK edit'], pageErrors: errors }));
     } catch (error) {
         if (browser) for (const [index, context] of browser.contexts().entries()) for (const page of context.pages()) await page.screenshot({ path: path.join(evidence, `failure-${index}.png`) }).catch(() => {});
         console.error('Browser evidence:', evidence); throw error;

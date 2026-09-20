@@ -18,6 +18,7 @@ import { demoLogoURL } from '../services/assets';
 import { avatarURLForUID } from '../services/avatar';
 import { enableMessageEditing } from '../services/datasource';
 import { MessageEditor, canEditMessage, sameMessage } from '../services/messageEditor';
+import { updateStreamMessage } from '../services/streamMessage';
 import type { MessageUpdateListener } from 'wukongimjssdk';
 
 const marked = new Marked(markedHighlight({
@@ -233,7 +234,7 @@ const connectIM = (addr: string) => {
     WKSDK.shared().chatManager.addMessageListener(messageListener)
 
     // 事件监听 —— 使用 dataJson 获取推送数据
-    eventListener = async (event: WKEvent) => {
+    eventListener = (event: WKEvent) => {
         if (!event.dataJson) return
 
         const pushData = event.dataJson
@@ -244,29 +245,10 @@ const connectIM = (addr: string) => {
         for (const message of messages.value) {
             if (message.clientMsgNo !== clientMsgNo) continue
 
-            if (event.type === "stream.delta") {
-                // 增量事件：从 payload 中提取文本 delta
-                const payload = pushData.payload
-                if (payload && payload.kind === "text" && payload.delta) {
-                    message.streamText = (message.streamText || "") + payload.delta
-                    const htmlText = await marked.parse(message.streamText)
-                    message.content = new MessageText(htmlText || "")
-                }
-            } else if (event.type === "stream.close" || event.type === "stream.error" || event.type === "stream.cancel") {
-                // 终态事件：可能携带最终 snapshot
-                const payload = pushData.payload
-                const snapshotText = payload?.snapshot?.kind === "text" ? (payload.snapshot.text as string) : ""
-                if (snapshotText) {
-                    message.streamText = snapshotText
-                    const htmlText = await marked.parse(message.streamText)
-                    message.content = new MessageText(htmlText || "")
-                }
-            } else if (event.type === "stream.finish") {
-                (message as any).completed = true
-            }
-
-            // 刷新 UI
-            messages.value = [...messages.value]
+            const updated = updateStreamMessage(message, event.type, pushData.payload,
+                text => marked.parse(text, { async: false }) as string)
+            if (updated === message) return
+            messages.value = messages.value.map(current => current === message ? updated : current)
             nextTick(() => {
                 scrollBottom()
             })
@@ -277,17 +259,16 @@ const connectIM = (addr: string) => {
 
     messageStatusListener = (ack: SendackPacket) => {
         console.log(ack)
-        messages.value.forEach((m) => {
-            if (m.clientSeq == ack.clientSeq) {
-                m.status = ack.reasonCode == 1 ? MessageStatus.Normal : MessageStatus.Fail
-                if (ack.reasonCode === 1) {
-                    m.messageID = ack.messageID.toString()
-                    m.messageSeq = ack.messageSeq
-                }
-                return
+        messages.value = messages.value.map(message => {
+            if (message.clientSeq !== ack.clientSeq) return message
+            const updated = Object.assign(new Message(), message)
+            updated.status = ack.reasonCode == 1 ? MessageStatus.Normal : MessageStatus.Fail
+            if (ack.reasonCode === 1) {
+                updated.messageID = ack.messageID.toString()
+                updated.messageSeq = ack.messageSeq
             }
+            return updated
         })
-        messages.value = [...messages.value]
     }
     WKSDK.shared().chatManager.addMessageStatusListener(messageStatusListener)
 
