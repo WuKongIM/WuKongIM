@@ -34,3 +34,41 @@ corepack yarn dev
 ```bash
 corepack yarn build
 ```
+
+## 消息编辑
+
+Demo 固定使用 npm `wukongimjssdk@1.4.0-beta.1`，服务端需支持消息编辑接口
+与 `X-WK-Content-Epoch`（配套服务端 `v3.0.0-beta.18` 或更新版本）。
+单聊与群聊中，本人发送成功的普通文本旁显示“编辑”；CMD、SyncOnce、
+非持久化、流消息、已撤回消息及其他内容类型不显示编辑入口。
+
+点击编辑会回填原文并保留原发送草稿。Enter 发送或保存，Shift+Enter 换行。服务端确认保存后，原气泡显示新正文与
+“已编辑”，不会新增消息或增加未读。修改最后一条消息会更新最近会话摘要；
+修改较早消息不会替换较新摘要。当前频道通过 SDK 合并更新提示并增量同步，
+重新连接、返回前台及重新打开频道会补拉，不逐个查询所有非当前频道。
+历史读取保留流消息字段，会话目录仍按每页 200 条完整分页。
+
+失败保留草稿；版本冲突会读取最新正文并据此判断未保存改动，保留当前草稿，用户检查后再次保存。
+若网络中断导致保存结果不明，输入框暂时只读，请先点击“重试”确认同一份修改，
+再改写或离开编辑。有未保存改动时取消或切换频道会提示确认；结束编辑恢复原发送草稿。
+草稿仅在当前页面内存中保存，刷新或关闭页面不会持久保存。
+
+Demo 沿用直接访问 Product HTTP API 的演示方式。“仅本人编辑”是界面限制；
+实际业务必须通过自己的后端验证身份、作者、频道权限和编辑时间窗口。
+
+### 双浏览器验证
+
+先从仓库根目录构建包含最新 Demo 产物的服务端，再显式运行集成测试：
+
+```bash
+# 仓库根目录
+GOWORK=off go build -o /tmp/wukongim-demo-edit-server ./cmd/wukongim
+cd demo/chatdemo
+WK_DEMO_SERVER_BIN=/tmp/wukongim-demo-edit-server \
+WK_DEMO_PLAYWRIGHT=/absolute/path/to/playwright \
+corepack yarn test:integration
+```
+
+需要可运行的 Chromium（由指定的 Playwright 安装）。测试创建临时单节点集群、
+测试账号和两个浏览器页面，验证单聊/群聊、冲突、丢失回执重试、草稿、摘要及刷新恢复，
+结束后关闭自己启动的进程，并输出截图和日志目录。

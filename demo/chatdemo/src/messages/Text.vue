@@ -20,6 +20,7 @@ const props = defineProps<{
     font-size: 14px;
     max-width: 250px;
     word-break: break-all;
+    white-space: pre-wrap;
 }
 
 </style>

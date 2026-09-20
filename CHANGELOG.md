@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add text-message editing to the embedded Demo for sent messages in direct and group chats, with conflict/draft handling and live message/preview updates. / 内嵌 Demo 支持编辑本人已发送的单聊、群聊文本，处理冲突与草稿，并实时更新正文及会话摘要。
+
 ### 🐛 Bug Fixes / 问题修复
 
 - Retain failed 500-QPS warmup accounting and bounded failure categories, including mixed SEND pressure counters. / 保留 500 QPS 预热失败计数、有限错误分类及 mixed SEND 压力证据。

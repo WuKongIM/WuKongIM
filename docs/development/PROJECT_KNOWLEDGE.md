@@ -333,3 +333,14 @@ specification, runbook, report, or module documentation; link to them when neede
 - Sustained 500-QPS warmup failures retain separate, non-qualifying arrival
   reports with complete counters and bounded anonymous failure categories;
   append and mixed SEND retain independent warmup pressure/storage boundaries.
+
+## Embedded Demo message editing
+
+- `demo/chatdemo` pins JS SDK `1.4.0-beta.1` and uses its edit/feed manager with
+  custom epoch-preserving history and complete conversation-directory providers.
+  Preserve stream metadata and reject mixed-epoch directory pages.
+- UI editing is limited to the sender's acknowledged ordinary text messages;
+  Product HTTP delegates business authorization to the caller's backend.
+  Unknown edit outcomes retain the same draft until an idempotent retry resolves.
+- The opt-in `demo/chatdemo` `test:integration` needs an explicitly supplied
+  freshly built server and Playwright installation.

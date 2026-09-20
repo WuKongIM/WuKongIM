@@ -10,13 +10,13 @@ const conversationWraps = ref<ConversationWrap[]>() // 本地最近会话列表
 
 const selectedChannel = ref<Channel>() // 选中的频道
 
-const onSelectChannel = defineProps<{ onSelectChannel: (channel: Channel) => void }>()
+const onSelectChannel = defineProps<{ onSelectChannel: (channel: Channel) => boolean }>()
 
 // 监听连接状态
 const connectStatusListener = async (status: ConnectStatus) => {
     console.log("connectStatusListener", status)
     if (status === ConnectStatus.Connected) {
-        const remoteConversations = await WKSDK.shared().conversationManager.sync() // 同步最近会话列表
+        const remoteConversations = await WKSDK.shared().conversationManager.sync().catch(() => []) // 同步最近会话列表
         if (remoteConversations && remoteConversations.length > 0) {
             conversationWraps.value = sortConversations(remoteConversations.map(conversation => new ConversationWrap(conversation)))
         }
@@ -45,7 +45,7 @@ const conversationListener = (conversation: Conversation, action: ConversationAc
         }
     } else if (action === ConversationAction.remove) {
         const index = conversationWraps.value?.findIndex(item => item.channel.channelID === conversation.channel.channelID && item.channel.channelType === conversation.channel.channelType)
-        if (index && index >= 0) {
+        if (index !== undefined && index >= 0) {
             conversationWraps.value?.splice(index, 1)
         }
     }
@@ -107,10 +107,8 @@ const sortConversations = (conversations?: Array<ConversationWrap>) => {
 }
 
 const onSelectChannelClick = (channel: Channel) => {
+    if (!onSelectChannel.onSelectChannel(channel)) return
     selectedChannel.value = channel
-    if (onSelectChannel) {
-        onSelectChannel.onSelectChannel(channel)
-    }
     APIClient.shared.clearUnread(channel)
     clearConversationUnread(channel)
 }
