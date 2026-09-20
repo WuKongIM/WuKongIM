@@ -380,7 +380,9 @@ func benchmarkThreeNodeChannelAppendClusterWithLoadAtRate(b *testing.B, cluster 
 		return err
 	}
 	if warmup > 0 {
+		stopWarmupCounters := startAppendWarmupCounters(b, cluster, warmup, rate)
 		warm := arrival.Run(warmup, rate, threeNodeBenchmarkWorkers, operation)
+		stopWarmupCounters()
 		if !arrival.ReportWarmup(b, warm) {
 			b.Fatal("sustained warmup did not complete; see warmup evidence")
 		}
