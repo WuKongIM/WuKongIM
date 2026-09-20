@@ -241,7 +241,19 @@ PR messaging unit/race checks, three-node correctness, and the three 500-QPS
 seams run in independent jobs. The performance matrix uses `fail-fast: false`;
 one rejected seam cannot suppress another seam or correctness evidence. The
 existing `PR three-node regression` check remains an always-running aggregate
-that requires all unit, correctness and performance jobs to succeed.
+that requires unit/correctness success and either fresh performance success or
+explicit verified baseline reuse. The bounded baseline job uses only public
+GitHub metadata, with no token or extra permission. For documentation/Demo-only
+changes it may reuse three consecutive clean, first-attempt main qualifications
+from the last seven days, all with identical tracked server/dependency/config/
+script/workflow inputs and all three performance seams plus ten-minute
+qualification successful. Every source must be an ancestor of the PR base.
+A newer matching failure, incomplete run, retry, or missing job forbids reuse;
+it never searches past one for a green result. Missing metadata, API rate
+limits, timeouts or other uncertainty fall back to fresh performance jobs.
+The allowed unrelated paths are explicit in `scripts/ci-500qps-baseline.py`.
+Correctness/unit/race always run, and scheduled/manual qualifications always
+run all performance seams to establish fresh baselines.
 GitHub-hosted Ubuntu 24.04 remains the execution environment. Performance jobs
 pin Go 1.25.11 and four visible AMD64 CPUs/GOMAXPROCS, and record CPU model,
 kernel, source/binary hashes and the actual data filesystem. CPU model and disk

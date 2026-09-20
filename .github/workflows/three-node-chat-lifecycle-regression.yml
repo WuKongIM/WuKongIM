@@ -27,6 +27,25 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  pr-baseline:
+    name: PR performance baseline evidence
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    outputs:
+      reuse: ${{ steps.baseline.outputs.reuse }}
+    steps:
+      - name: Checkout exact candidate without credentials
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check identical-input successful main baseline
+        id: baseline
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python3 scripts/ci-500qps-baseline.py
+
   pr-correctness:
     name: PR three-node correctness
     if: github.event_name == 'pull_request'
@@ -122,7 +141,13 @@ jobs:
 
   pr-performance:
     name: PR 500 QPS / ${{ matrix.seam }}
-    if: github.event_name == 'pull_request'
+    needs: [pr-baseline]
+    if: >-
+      always() && !cancelled() &&
+      ((github.event_name == 'pull_request' && needs.pr-baseline.outputs.reuse != 'true') ||
+       github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_dispatch' && !inputs.diagnose_send &&
+        (github.ref == 'refs/heads/main' || inputs.qualify_candidate)))
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     strategy:
@@ -163,7 +188,7 @@ jobs:
     # Preserve the existing aggregate check name for branch protection.
     name: PR three-node regression
     if: always() && github.event_name == 'pull_request'
-    needs: [pr-unit, pr-correctness, pr-performance]
+    needs: [pr-unit, pr-correctness, pr-performance, pr-baseline]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
@@ -172,9 +197,13 @@ jobs:
           UNIT_RESULT: ${{ needs.pr-unit.result }}
           CORRECTNESS_RESULT: ${{ needs.pr-correctness.result }}
           PERFORMANCE_RESULT: ${{ needs.pr-performance.result }}
+          BASELINE_RESULT: ${{ needs.pr-baseline.result }}
+          BASELINE_REUSED: ${{ needs.pr-baseline.outputs.reuse }}
         shell: bash
         run: |
-          [[ "$UNIT_RESULT" == success && "$CORRECTNESS_RESULT" == success && "$PERFORMANCE_RESULT" == success ]]
+          [[ "$UNIT_RESULT" == success && "$CORRECTNESS_RESULT" == success ]]
+          [[ "$PERFORMANCE_RESULT" == success ]] ||
+            [[ "$PERFORMANCE_RESULT" == skipped && "$BASELINE_RESULT" == success && "$BASELINE_REUSED" == true ]]
 
   nightly-qualification:
     name: Nightly direct 500 QPS qualification

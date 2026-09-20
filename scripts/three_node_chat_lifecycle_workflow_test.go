@@ -58,7 +58,7 @@ func TestThreeNodeChatLifecycleRegressionSeparatesPRSmokeFromNightlyQualificatio
 	prRun := workflowRunCommands(pr.Steps)
 	aggregate := workflow.Jobs["pr-regression"]
 	require.Contains(t, aggregate.If, "always()")
-	require.Equal(t, []any{"pr-unit", "pr-correctness", "pr-performance"}, aggregate.Needs)
+	require.Equal(t, []any{"pr-unit", "pr-correctness", "pr-performance", "pr-baseline"}, aggregate.Needs)
 	require.Contains(t, workflowRunCommands(aggregate.Steps), `"$PERFORMANCE_RESULT" == success`)
 	require.Nil(t, pr.Needs, "correctness must run independently of performance")
 	require.NotContains(t, prRun, "-bench")
@@ -67,7 +67,17 @@ func TestThreeNodeChatLifecycleRegressionSeparatesPRSmokeFromNightlyQualificatio
 	require.Nil(t, unit.Needs)
 	require.Contains(t, workflowRunCommands(unit.Steps), "go test -race")
 	performance := workflow.Jobs["pr-performance"]
-	require.Nil(t, performance.Needs)
+	require.Equal(t, []any{"pr-baseline"}, performance.Needs)
+	require.Contains(t, performance.If, "always()")
+	require.Contains(t, performance.If, "needs.pr-baseline.outputs.reuse != 'true'")
+	require.Contains(t, performance.If, "github.event_name == 'schedule'")
+	require.Contains(t, performance.If, "inputs.qualify_candidate")
+	require.Contains(t, workflowRunCommands(aggregate.Steps), `"$BASELINE_RESULT" == success`)
+	require.Contains(t, workflowRunCommands(aggregate.Steps), `"$BASELINE_REUSED" == true`)
+	baseline := workflow.Jobs["pr-baseline"]
+	require.Equal(t, "github.event_name == 'pull_request'", baseline.If)
+	require.LessOrEqual(t, baseline.TimeoutMinutes, 3)
+	require.Contains(t, workflowRunCommands(baseline.Steps), "scripts/ci-500qps-baseline.py")
 	require.False(t, performance.Strategy.FailFast)
 	require.ElementsMatch(t, []string{"channel-append", "mixed-send", "tcp-sendack"}, performance.Strategy.Matrix.Seam)
 	require.Contains(t, workflowRunCommands(performance.Steps), "scripts/run-500qps-seam.sh")

@@ -326,3 +326,7 @@ specification, runbook, report, or module documentation; link to them when neede
   A fixed worker pool rotates ready Channels after each plan; historical Channel
   state is removed when drained. Fixed hash-to-worker routing caused a ten-second
   person-message observation timeout behind the 100,000-member canary.
+- 500-QPS performance reuse is limited to three recent clean main qualifications
+  with identical performance inputs; failed/retried/incomplete matching runs
+  invalidate reuse. Public-metadata failure falls back to fresh tests, while
+  correctness/unit/race and scheduled/manual performance always execute.
