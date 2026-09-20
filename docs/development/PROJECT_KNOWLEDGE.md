@@ -330,3 +330,6 @@ specification, runbook, report, or module documentation; link to them when neede
   with identical performance inputs; failed/retried/incomplete matching runs
   invalidate reuse. Public-metadata failure falls back to fresh tests, while
   correctness/unit/race and scheduled/manual performance always execute.
+- Sustained 500-QPS warmup failures retain separate, non-qualifying arrival
+  reports with complete counters and bounded anonymous failure categories;
+  mixed SEND retains independent warmup pressure/storage boundaries.

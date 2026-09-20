@@ -4,6 +4,10 @@ package arrival
 
 import (
 	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -63,5 +67,31 @@ func TestRunRejectsServiceRegressionAtFull500QPS(t *testing.T) {
 		if !found {
 			t.Fatalf("accepted service regression: %+v", window)
 		}
+	}
+}
+
+func TestRunRetainsClosedFailureCategories(t *testing.T) {
+	causes := []error{context.DeadlineExceeded, context.Canceled, errors.New("private operation details")}
+	result := Run(3, 1000, 1, func(_ context.Context, index int) error { return causes[index] })
+	for i, want := range []string{"deadline", "canceled", "operation"} {
+		if result.Samples[i].FailureKind != want || !result.Samples[i].Failed {
+			t.Fatalf("sample %d: %+v", i, result.Samples[i])
+		}
+	}
+}
+
+func TestFailedWarmupPreservesEvidenceWithoutMeasurementPass(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "arrival.json")
+	t.Setenv("WK_BENCH_ARRIVAL_REPORT", path)
+	r := Result{Rate: 500, Samples: []Sample{{Started: true, Completed: true, Failed: true, FailureKind: "deadline"}}}
+	if ReportWarmup(t, r) {
+		t.Fatal("failed warmup passed")
+	}
+	data, err := os.ReadFile(strings.TrimSuffix(path, ".json") + ".warmup.json")
+	if err != nil || !strings.Contains(string(data), `"qualification": false`) || !strings.Contains(string(data), `"kind": "deadline"`) {
+		t.Fatalf("missing non-qualifying failure evidence: %s %v", data, err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("warmup created measurement evidence: %v", err)
 	}
 }

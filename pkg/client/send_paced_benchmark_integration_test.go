@@ -146,10 +146,8 @@ func benchmarkRealTCPSendackPacedAtRate(b *testing.B, synchronousRecvack bool, s
 	}
 	if warmup > 0 {
 		warm := arrival.Run(warmup, rate, pacedTCPBenchmarkWorkers, operation)
-		for _, sample := range warm.Samples {
-			if sample.Failed || sample.Dropped {
-				b.Fatal("sustained warmup did not complete")
-			}
+		if !arrival.ReportWarmup(b, warm) {
+			b.Fatal("sustained warmup did not complete; see warmup evidence")
 		}
 	}
 	measuring = true

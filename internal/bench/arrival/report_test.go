@@ -1,6 +1,9 @@
 package arrival
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -47,5 +50,34 @@ func TestWindowsCannotHideOneSlowWindow(t *testing.T) {
 	}
 	if len(summarize(samples, 500, 180*time.Second).Failures(400)) != 0 {
 		t.Fatal("fixture must expose aggregate masking")
+	}
+}
+
+func TestWarmupEvidenceRetainsFailedAndDroppedWork(t *testing.T) {
+	r := Result{Rate: 500, Samples: make([]Sample, 20)}
+	r.Samples[0] = Sample{Started: true, Completed: true, Failed: true, FailureKind: "deadline"}
+	r.Samples[1] = Sample{Dropped: true}
+	path := filepath.Join(t.TempDir(), "warmup.json")
+	if err := writeReport(path, "warmup", false, r); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report struct {
+		Phase         string
+		Qualification bool
+		Windows       []Summary
+		Failures      []struct {
+			Index int
+			Kind  string
+		}
+	}
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatal(err)
+	}
+	if report.Phase != "warmup" || report.Qualification || len(report.Windows) != 1 || report.Windows[0].Errors != 1 || report.Windows[0].Dropped != 1 || len(report.Failures) != 8 || report.Failures[0].Kind != "deadline" || report.Failures[1].Kind != "queue_drop" {
+		t.Fatalf("lost failed warmup: %s", data)
 	}
 }

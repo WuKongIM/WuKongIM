@@ -2,7 +2,9 @@
 package arrival
 
 import (
+	"encoding/json"
 	"math"
+	"os"
 	"sort"
 	"time"
 )
@@ -12,6 +14,8 @@ type Sample struct {
 	Started, Completed, Failed, Dropped bool
 	StartedAt                           time.Duration
 	Queue, Service                      time.Duration
+	// FailureKind is a closed category; arbitrary operation errors are not retained.
+	FailureKind string
 }
 
 // Result retains a bounded sample per planned arrival, including rejected work.
@@ -33,6 +37,47 @@ type Summary struct {
 	TotalP99MS       float64 `json:"scheduled_to_completion_p99_ms"`
 	QueueP99MS       float64 `json:"scheduled_to_start_p99_ms"`
 	ServiceP99MS     float64 `json:"service_p99_ms"`
+}
+
+// writeReport retains phase-specific evidence before callers reject a run.
+// At most eight anonymous failed-arrival examples accompany complete counters.
+func writeReport(path, phase string, qualification bool, r Result) error {
+	type failure struct {
+		Index   int           `json:"index"`
+		Kind    string        `json:"kind"`
+		Queue   time.Duration `json:"queue_ns"`
+		Service time.Duration `json:"service_ns"`
+	}
+	report := struct {
+		Schema        string    `json:"schema"`
+		Phase         string    `json:"phase"`
+		Qualification bool      `json:"qualification"`
+		Windows       []Summary `json:"windows"`
+		Seconds       []Summary `json:"seconds"`
+		Failures      []failure `json:"failures,omitempty"`
+	}{Schema: "scheduled-arrival/v1", Phase: phase, Qualification: qualification,
+		Windows: r.Windows(60 * time.Second), Seconds: r.Windows(time.Second)}
+	for index, sample := range r.Samples {
+		kind := sample.FailureKind
+		if sample.Dropped {
+			kind = "queue_drop"
+		} else if !sample.Started || !sample.Completed {
+			kind = "incomplete"
+		} else if sample.Failed && kind == "" {
+			kind = "operation"
+		}
+		if kind != "" {
+			report.Failures = append(report.Failures, failure{index, kind, sample.Queue, sample.Service})
+			if len(report.Failures) == 8 {
+				break
+			}
+		}
+	}
+	data, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0600)
 }
 
 func summarize(samples []Sample, rate int, duration time.Duration) Summary {

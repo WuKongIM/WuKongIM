@@ -4,9 +4,10 @@ package arrival
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -44,6 +45,14 @@ func Run(count, rate, workers int, operation func(context.Context, int) error) R
 				cancel()
 				sample.Service = time.Since(began)
 				sample.Failed = err != nil
+				switch {
+				case errors.Is(err, context.DeadlineExceeded):
+					sample.FailureKind = "deadline"
+				case errors.Is(err, context.Canceled):
+					sample.FailureKind = "canceled"
+				case err != nil:
+					sample.FailureKind = "operation"
+				}
 				sample.Completed = true
 			}
 		}()
@@ -88,18 +97,8 @@ func Report(b *testing.B, r Result) {
 	b.Helper()
 	windows := r.Windows(60 * time.Second)
 	qualification := os.Getenv("WK_BENCH_QUALIFY") == "1"
-	report := struct {
-		Schema        string    `json:"schema"`
-		Qualification bool      `json:"qualification"`
-		Windows       []Summary `json:"windows"`
-		Seconds       []Summary `json:"seconds"`
-	}{"scheduled-arrival/v1", qualification, windows, r.Windows(time.Second)}
 	if path := os.Getenv("WK_BENCH_ARRIVAL_REPORT"); path != "" {
-		data, err := json.MarshalIndent(report, "", "  ")
-		if err != nil {
-			b.Fatal(err)
-		}
-		if err = os.WriteFile(path, data, 0600); err != nil {
+		if err := writeReport(path, "measurement", qualification, r); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -126,4 +125,24 @@ func Report(b *testing.B, r Result) {
 	if len(windows) == 0 {
 		b.Error(fmt.Errorf("arrival report has no windows"))
 	}
+}
+
+// ReportWarmup preserves the whole pre-measurement phase even when it fails.
+// Warmup is never qualification and is not checked against the measured latency budget.
+func ReportWarmup(b testing.TB, r Result) bool {
+	b.Helper()
+	if path := os.Getenv("WK_BENCH_ARRIVAL_REPORT"); path != "" {
+		if err := writeReport(strings.TrimSuffix(path, ".json")+".warmup.json", "warmup", false, r); err != nil {
+			b.Fatal(err)
+		}
+	}
+	for i, w := range r.Windows(60 * time.Second) {
+		b.Logf("warmup window %d: %+v", i+1, w)
+	}
+	for _, sample := range r.Samples {
+		if sample.Failed || sample.Dropped || !sample.Started || !sample.Completed {
+			return false
+		}
+	}
+	return len(r.Samples) > 0
 }
