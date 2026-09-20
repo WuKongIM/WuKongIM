@@ -281,6 +281,12 @@ specification, runbook, report, or module documentation; link to them when neede
   is not a passing verdict, and an earlier gate failure prevents later windows.
   Preserve original order, load, assertions and failure exits; see the
   [workflow catalog](../../.github/workflows/README.md#fixed-linux-send-diagnosis).
+- The original mixed SEND qualification also arms a rolling trace and bounded
+  one-second counter ring after warmup. Six over-400 ms completions in a planned
+  500-arrival cohort trigger one export with two seconds of follow-up. The three
+  60-second gate verdicts remain authoritative; profiler overhead is explicit.
+  Go's 32 MiB/15-second retention settings are hints; exported trace bytes are
+  independently capped at 64 MiB. See the workflow catalog for collection bounds.
 - Release completion includes signed native package publication and exact-version
   public APT/RPM verification. Server and CLI artifacts share build identity;
   required same-tag acceptance gates precede publication. Follow

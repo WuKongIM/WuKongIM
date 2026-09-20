@@ -160,14 +160,16 @@ func benchmarkThreeNodeMixedSendPathAtRate(b *testing.B, shape threeNodeMixedSha
 	// Registry counters survive ResetTimer; capture after warmup, before measured traffic.
 	stagesBefore := snapshotThreeNodeMixedStages(b, apps)
 	stopDiagnostics := startMixedSendDiagnostics(b, apps, rate)
+	observe, stopFlight := startMixedSendFlight(b, apps, rate)
 	b.ReportAllocs()
 	b.ResetTimer()
-	arrivals := arrival.Run(b.N, rate, shape.workers, operation)
+	arrivals := arrival.RunObserved(b.N, rate, shape.workers, operation, observe)
 	b.StopTimer()
 	stopDiagnostics()
 	stagesAfter := snapshotThreeNodeMixedStages(b, apps)
 
 	arrival.Report(b, arrivals)
+	stopFlight()
 	failures := sink.failures.Load()
 	successes := sink.successes.Load()
 	b.ReportMetric(float64(b.N)/arrivals.Duration.Seconds(), "offered-msg/s")

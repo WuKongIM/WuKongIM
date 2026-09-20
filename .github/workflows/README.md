@@ -280,9 +280,34 @@ Snapshots include fixed Linux CPU/disk/pressure/cgroup files, Go scheduler/GC
 counters and bounded storage/replication histograms. They are capped at 4 MiB
 each. Append replication observations remain sampled 1/32; physical batches
 are unsampled. Different populations' percentile bounds must not be added.
-Counter collection has no profiler, trace or sampling goroutine. Incomplete
+Counter-only collection has no profiler, trace or sampling goroutine. Incomplete
 windows remain explicit and never pass. Each matrix artifact retains its own
 source, binary identity, arrival report, counters, host facts and exit result.
+
+The mixed SEND qualification additionally enables one measured-phase Go flight
+recorder in that same fixture and process (all three nodes plus the driver).
+Its first one-second planned cohort with six completions above 400 ms of
+scheduled-to-completion latency reserves one trace export after two more seconds.
+This early P99 signal does not replace the three 60-second qualification gates;
+drops, errors and underload still fail the original report. Trace/sampler overhead
+is part of this instrumented run, and boundary metadata marks profiles enabled.
+The recorder targets 15 seconds of history and 32 MiB retention; Go treats this
+as a hint, not a hard memory bound or a guarantee of 15 seconds under pressure.
+Export is hard-capped at 64 MiB in verified tmpfs. A single sampler retains the
+latest 16 fixed counter cuts at one-second intervals, each at most 1 MiB, with
+read start/end times and explicit missing signals. The sampler checks a 210-second
+budget between synchronous reads/exports; the existing 12-minute process timeout
+is the outer bound if a collector stalls. Normal stop consumes any last-arrival
+trigger and joins the sampler. Atomic tmpfs receipts are checkpointed on start,
+trigger and recorder stop, independently of measured-handler completion. The
+launcher retains the last receipt and trace after process exit, including fatal
+Go test timeouts that skip cleanup, before removing its exact tmpfs directory.
+No trigger, interrupted measurement, collection errors and truncated trace are
+explicit in `flight/window.json` (or missing-file retention status); only an actual complete export is marked as
+captured. The same artifact retains trace-derived scheduler, synchronization,
+syscall and network wait views with bounded extraction time; analysis failure
+never replaces the original benchmark verdict. No fresh diagnostic fixture or
+retry is used to explain away a failed qualification.
 
 Nightly keeps its ten-minute three-node workload and 400ms budget. For an exact
 main-descended repair candidate, manual `qualify_candidate=true` runs that same

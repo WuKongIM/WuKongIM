@@ -8,9 +8,37 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
+
+func TestRunObservedPreservesSealedSamplesAndArrivalClock(t *testing.T) {
+	var mu sync.Mutex
+	seen := make(map[int]Sample)
+	origins := make(map[int]time.Time)
+	r := RunObserved(20, 1000, 2, func(context.Context, int) error {
+		return context.DeadlineExceeded
+	}, func(index int, planned time.Time, sample Sample) {
+		mu.Lock()
+		defer mu.Unlock()
+		if _, duplicate := seen[index]; duplicate {
+			t.Error("duplicate observation")
+		}
+		seen[index], origins[index] = sample, planned.Add(-time.Duration(index)*time.Second/1000)
+	})
+	if len(seen) != len(r.Samples) {
+		t.Fatal("missing observation")
+	}
+	for index, sample := range r.Samples {
+		if seen[index] != sample || !origins[index].Equal(origins[0]) {
+			t.Fatalf("mutated timing/sample at %d", index)
+		}
+	}
+	if len(r.Windows(time.Second)[0].Failures(400)) == 0 {
+		t.Fatal("observation erased failures")
+	}
+}
 
 func TestRunAccountsForSaturationWithoutSlowingArrivals(t *testing.T) {
 	result := Run(100, 1000, 1, func(ctx context.Context, _ int) error {

@@ -64,6 +64,8 @@ native local baseline
 - Scheduled-arrival seams preserve warmup and measured reports separately,
   including bounded anonymous failure categories; failed warmup never grants
   qualification or discards its complete request counters.
+  Optional diagnostic observers see sealed samples and the original arrival
+  clock without changing reports, retry behavior or latency assertions.
 - Measured windows stop scheduling at their deadline and report achieved QPS;
   admitted work drains only inside the same bounded cooldown. Explicit generic
   retry uses one logical identity, fresh ClientSeq values, and only the fixed

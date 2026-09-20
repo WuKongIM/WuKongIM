@@ -12,6 +12,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Preserve a bounded rolling execution trace and aligned one-second counters from the original mixed SEND qualification when a latency cohort breaches 400 ms. / mixed SEND 原始验证出现延迟超标时，保留有限滚动执行 trace 与对齐的逐秒计数器。
+
 - Preserve cancellation during benchmark metrics/profile response reads so normal workload shutdown can retain terminal evidence. / 保留压测指标及 profile 响应读取期间的取消信号，避免正常停止丢失终止证据。
 
 - Retain an independent hot SENDACK latency profile with bounded I/O context when an earlier throughput alarm has already collected profiles. / 早期吞吐告警已采集 profile 后，仍为热点 SENDACK 延迟超标保留一次独立采集及有限 I/O 上下文。
