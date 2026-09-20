@@ -15,7 +15,7 @@ func TestLiveDiagnosticRecorderPersistsCurrentWorkersAndBoundedChangeLog(t *test
 	start := time.Unix(1_965_000_000, 0).UTC()
 	fence := WorkerFence{RunID: "live-run", AssignmentID: "live-assignment", Generation: 1}
 	var diagnosticLog bytes.Buffer
-	recorder := newLiveDiagnosticRecorder(outputDir, fence.RunID, start, &diagnosticLog)
+	recorder := newLiveDiagnosticRecorder(outputDir, fence.RunID, start, &diagnosticLog, LatencyLimit{P99: 400 * time.Millisecond, P999: time.Second})
 	snapshots := coordinatorSnapshotFixture(fence, 1, time.Minute, 1)
 	for index := range snapshots {
 		snapshots[index].Phase = WorkerPhaseRunning
@@ -81,7 +81,7 @@ func TestLiveDiagnosticRecorderBoundsFullRecentEventRing(t *testing.T) {
 	outputDir := t.TempDir()
 	start := time.Unix(1_965_100_000, 0).UTC()
 	fence := WorkerFence{RunID: "live-ring-run", AssignmentID: "live-ring-assignment", Generation: 1}
-	recorder := newLiveDiagnosticRecorder(outputDir, fence.RunID, start, nil)
+	recorder := newLiveDiagnosticRecorder(outputDir, fence.RunID, start, nil, LatencyLimit{P99: 400 * time.Millisecond, P999: time.Second})
 	snapshots := coordinatorSnapshotFixture(fence, 1, time.Minute, 1)
 	for index := range snapshots {
 		snapshots[index].Phase = WorkerPhaseRunning
@@ -123,7 +123,7 @@ func TestLiveDiagnosticRecorderRetainsTerminalFailureExamples(t *testing.T) {
 	dir := t.TempDir()
 	start := time.Unix(1_965_000_000, 0).UTC()
 	fence := WorkerFence{RunID: "terminal-evidence", AssignmentID: "assignment", Generation: 1}
-	recorder := newLiveDiagnosticRecorder(dir, fence.RunID, start, nil)
+	recorder := newLiveDiagnosticRecorder(dir, fence.RunID, start, nil, LatencyLimit{P99: 400 * time.Millisecond, P999: time.Second})
 	snapshots := coordinatorSnapshotFixture(fence, 1, time.Minute, 1)
 	for i := range snapshots {
 		snapshots[i].Phase = WorkerPhaseRunning
@@ -171,7 +171,7 @@ func TestTerminalWorkerEvidenceRetainsMaximumBoundedSamples(t *testing.T) {
 	dir := t.TempDir()
 	start := time.Unix(1_965_000_000, 0).UTC()
 	fence := WorkerFence{RunID: "max-evidence", AssignmentID: "assignment", Generation: 1}
-	recorder := newLiveDiagnosticRecorder(dir, fence.RunID, start, nil)
+	recorder := newLiveDiagnosticRecorder(dir, fence.RunID, start, nil, LatencyLimit{P99: 400 * time.Millisecond, P999: time.Second})
 	snapshots := coordinatorSnapshotFixture(fence, 1, time.Minute, 1)
 	for i := range snapshots {
 		snapshots[i].Sessions.Target = 1
@@ -192,5 +192,39 @@ func TestTerminalWorkerEvidenceRetainsMaximumBoundedSamples(t *testing.T) {
 	}
 	if len(body) > 1<<20 {
 		t.Fatal("terminal evidence exceeds cap")
+	}
+}
+
+func TestLiveDiagnosticLogRetainsHotLatencyAtEachWorkerCut(t *testing.T) {
+	start := time.Unix(1_965_000_000, 0).UTC()
+	fence := WorkerFence{RunID: "hot-latency", AssignmentID: "assignment", Generation: 1}
+	var log bytes.Buffer
+	recorder := newLiveDiagnosticRecorder(t.TempDir(), fence.RunID, start, &log, LatencyLimit{P99: 400 * time.Millisecond, P999: time.Second})
+	snapshots := coordinatorSnapshotFixture(fence, 1, time.Minute, 1)
+	for i := range snapshots {
+		snapshots[i].Phase = WorkerPhaseRunning
+		snapshots[i].Sessions.Target = 1
+		snapshots[i].Sessions.Online = 1
+		snapshots[i].Sessions.TrafficReady = 1
+		snapshots[i].Sessions.CloseReasons = SessionCloseReasonSnapshot{}
+		snapshots[i].HotSendackLatency = newWorkerHistogramSnapshot()
+		recordWorkerLatency(&snapshots[i].HotSendackLatency, 100*time.Millisecond)
+		recordWorkerLatency(&snapshots[i].HotSendackLatency, 500*time.Millisecond)
+	}
+	if err := recorder.Observe(start.Add(5*time.Second), CoordinatorCutPeriodic, snapshots); err != nil {
+		t.Fatal(err)
+	}
+	var cut struct {
+		Hot *struct {
+			LimitNanos uint64 `json:"limit_nanos"`
+			Count      uint64 `json:"count"`
+			Above      uint64 `json:"above_limit"`
+		} `json:"hot_latency"`
+	}
+	if err := json.Unmarshal(bytes.TrimSpace(log.Bytes()), &cut); err != nil {
+		t.Fatal(err)
+	}
+	if cut.Hot == nil || cut.Hot.LimitNanos != uint64(400*time.Millisecond) || cut.Hot.Count != 6 || cut.Hot.Above != 3 {
+		t.Fatalf("missing exact hot latency observation: %+v", cut.Hot)
 	}
 }

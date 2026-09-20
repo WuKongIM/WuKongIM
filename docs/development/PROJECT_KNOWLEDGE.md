@@ -315,6 +315,12 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
+- Five-second worker cuts retain configured hot SENDACK P99 threshold counts.
+  Interval counts can trigger one independent diagnostic profile after an earlier
+  throughput dip; profiles serialize per cluster and retain the original trigger
+  bracket. Missing or delayed capture stays explicit. Profiles and finite host/
+  metrics context explain failures but never relax the qualification verdict.
+
 - 500-QPS seam qualification counts latency from scheduled arrival through completion.
   Service time alone cannot qualify a run. Each fixed window must meet throughput,
   latency, error, drop and completion bounds; every rejected window remains evidence.

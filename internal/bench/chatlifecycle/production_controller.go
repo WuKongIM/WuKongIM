@@ -211,7 +211,7 @@ func (c *ProductionEvidenceController) Begin(ctx context.Context, start Coordina
 		c.lifecycleCancel, c.lifecycleDone = cancel, done
 		go func() { done <- c.lifecycle.Run(lifecycleCtx, start.Fence) }()
 	}
-	c.diagnostics = newLiveDiagnosticRecorder(c.outputDir, c.cfg.RunID, start.StartedAt, c.diagnosticLog)
+	c.diagnostics = newLiveDiagnosticRecorder(c.outputDir, c.cfg.RunID, start.StartedAt, c.diagnosticLog, c.cfg.Thresholds.Latency.HotSendACK)
 	c.begun = true
 	return nil
 }

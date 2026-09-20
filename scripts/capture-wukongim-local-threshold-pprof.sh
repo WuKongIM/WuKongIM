@@ -17,7 +17,7 @@ Usage: scripts/capture-wukongim-local-threshold-pprof.sh \
   --node http://127.0.0.1:PORT \
   [--node http://127.0.0.1:PORT \
    --node http://127.0.0.1:PORT] \
-  [--cpu-seconds N]
+  [--cpu-seconds N] [--capture-context]
 
 Captures one bounded local profile set when a measured threshold is first
 crossed. --trigger-observed-phase is the authoritative phase at the exact
@@ -45,6 +45,7 @@ TRIGGER_OBSERVED_PHASE=''
 PREVIOUS_UTC=''
 CURRENT_UTC=''
 CPU_SECONDS=10
+CAPTURE_CONTEXT=0
 NODE_URLS=()
 
 while [[ $# -gt 0 ]]; do
@@ -83,6 +84,10 @@ while [[ $# -gt 0 ]]; do
       [[ $# -ge 2 ]] || die_usage '--node requires a value'
       NODE_URLS+=("$2")
       shift 2
+      ;;
+    --capture-context)
+      CAPTURE_CONTEXT=1
+      shift
       ;;
     --cpu-seconds)
       [[ $# -ge 2 ]] || die_usage '--cpu-seconds requires a value'
@@ -224,7 +229,7 @@ if ! mkdir "$CLAIM_DIR" 2>/dev/null; then
   exit 0
 fi
 
-if [[ -e "$METADATA_FILE" || -e "$PROFILE_DIR" || -L "$PROFILE_DIR" ]]; then
+if [[ -e "$METADATA_FILE" || -e "$PROFILE_DIR" || -L "$PROFILE_DIR" || -e "$OUT_DIR/context" || -L "$OUT_DIR/context" ]]; then
   rmdir "$CLAIM_DIR" 2>/dev/null || true
   printf '[local-threshold-pprof] ERROR: unclaimed output already contains threshold profile artifacts\n' >&2
   exit 73
@@ -260,6 +265,7 @@ CAPTURE_TMP_FILES=()
 CAPTURE_FINAL_FILES=()
 CAPTURE_NODE_INDEXES=()
 CAPTURE_KINDS=()
+CAPTURE_STARTED=()
 START_PHASE="$(read_phase_state)"
 END_PHASE="$START_PHASE"
 STARTED_AT_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -375,8 +381,10 @@ write_authorization_header() {
 
 start_profile_request() {
   local node_index="$1" kind="$2" url="$3" destination="$4" max_time="$5"
-  local temporary="$destination.next.$$"
-  curl -fsS --connect-timeout "$CONNECT_TIMEOUT_SECONDS" --max-time "$max_time" \
+  local temporary="$destination.next.$$" max_bytes=8388608
+  case "$kind" in heap) max_bytes=16777216 ;; goroutine|context-*) max_bytes=4194304 ;; esac
+  CAPTURE_STARTED+=("$(date -u +%Y-%m-%dT%H:%M:%SZ)")
+  curl -fsS --connect-timeout "$CONNECT_TIMEOUT_SECONDS" --max-time "$max_time" --max-filesize "$max_bytes" \
     --header @<(write_authorization_header) \
     -H 'X-WK-Bench-Evidence: local-threshold-pprof' "$url" >"$temporary" 2>/dev/null &
   CAPTURE_PIDS+=("$!")
@@ -385,6 +393,58 @@ start_profile_request() {
   CAPTURE_NODE_INDEXES+=("$node_index")
   CAPTURE_KINDS+=("$kind")
 }
+
+# Context is opt-in, finite, and scoped separately from the profile/verdict metadata.
+# Raw counter names are fixed; missing or oversized inputs remain explicit.
+capture_context() {
+  local phase="$1" path name bytes status index node_number
+  local directory="$OUT_DIR/context/$phase"
+  mkdir -p "$directory"
+  date -u +%Y-%m-%dT%H:%M:%SZ >"$directory/observed-at-utc"
+  printf 'source\tstatus\tbytes\n' >"$directory/sources.tsv"
+  for path in /proc/stat /proc/diskstats /proc/pressure/cpu /proc/pressure/io /proc/pressure/memory /sys/fs/cgroup/cpu.stat /sys/fs/cgroup/io.stat; do
+    name="${path//\//_}"
+    status=complete
+    if ! head -c 65537 "$path" >"$directory/$name" 2>/dev/null; then status=missing; fi
+    bytes="$(wc -c <"$directory/$name")"
+    if (( bytes > 65536 )); then status=oversized; fi
+    [[ "$status" == complete ]] || rm -f "$directory/$name"
+    printf '%s\t%s\t%s\n' "$path" "$status" "$bytes" >>"$directory/sources.tsv"
+  done
+  for index in "${!NODE_URLS[@]}"; do
+    node_number=$((index + 1))
+    start_profile_request "$index" "context-$phase" "${NODE_URLS[$index]}/metrics" \
+      "$directory/node-${node_number}.prom" "$SNAPSHOT_MAX_TIME_SECONDS"
+  done
+}
+
+join_profile_requests() {
+  local capture_index capture_status node_index
+  for capture_index in "${!CAPTURE_PIDS[@]}"; do
+    [[ -n "${CAPTURE_PIDS[$capture_index]}" ]] || continue
+    capture_status=missing
+    if wait "${CAPTURE_PIDS[$capture_index]}" && [[ -s "${CAPTURE_TMP_FILES[$capture_index]}" ]]; then
+      if mv "${CAPTURE_TMP_FILES[$capture_index]}" "${CAPTURE_FINAL_FILES[$capture_index]}"; then
+        capture_status=complete
+      fi
+    fi
+    [[ "$capture_status" == complete ]] || rm -f "${CAPTURE_TMP_FILES[$capture_index]}"
+    CAPTURE_PIDS[$capture_index]=''
+    node_index="${CAPTURE_NODE_INDEXES[$capture_index]}"
+    case "${CAPTURE_KINDS[$capture_index]}" in
+      cpu) CPU_STATUS[$node_index]="$capture_status" ;;
+      heap) HEAP_STATUS[$node_index]="$capture_status" ;;
+      goroutine) GOROUTINE_STATUS[$node_index]="$capture_status" ;;
+      context-*) printf '%s\t%s\t%s\t%s\t%s\n' "${CAPTURE_KINDS[$capture_index]}" "$((node_index + 1))" "${CAPTURE_STARTED[$capture_index]}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$capture_status" >>"$OUT_DIR/context/requests.tsv" ;;
+    esac
+  done
+}
+
+if (( CAPTURE_CONTEXT == 1 )); then
+  mkdir -p "$OUT_DIR/context"
+  printf 'phase\tnode\tstarted_at_utc\tjoined_at_utc\tstatus\n' >"$OUT_DIR/context/requests.tsv"
+  capture_context before
+fi
 
 for index in "${!NODE_URLS[@]}"; do
   node_number=$((index + 1))
@@ -399,22 +459,11 @@ for index in "${!NODE_URLS[@]}"; do
     "$PROFILE_DIR/node-${node_number}-goroutine.txt" "$SNAPSHOT_MAX_TIME_SECONDS"
 done
 
-for capture_index in "${!CAPTURE_PIDS[@]}"; do
-  capture_status=missing
-  if wait "${CAPTURE_PIDS[$capture_index]}" && [[ -s "${CAPTURE_TMP_FILES[$capture_index]}" ]]; then
-    if mv "${CAPTURE_TMP_FILES[$capture_index]}" "${CAPTURE_FINAL_FILES[$capture_index]}"; then
-      capture_status=complete
-    fi
-  fi
-  [[ "$capture_status" == complete ]] || rm -f "${CAPTURE_TMP_FILES[$capture_index]}"
-  CAPTURE_PIDS[$capture_index]=''
-  node_index="${CAPTURE_NODE_INDEXES[$capture_index]}"
-  case "${CAPTURE_KINDS[$capture_index]}" in
-    cpu) CPU_STATUS[$node_index]="$capture_status" ;;
-    heap) HEAP_STATUS[$node_index]="$capture_status" ;;
-    goroutine) GOROUTINE_STATUS[$node_index]="$capture_status" ;;
-  esac
-done
+join_profile_requests
+if (( CAPTURE_CONTEXT == 1 )); then
+  capture_context after
+  join_profile_requests
+fi
 
 END_PHASE="$(read_phase_state)"
 COMPLETED_AT_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

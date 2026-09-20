@@ -1000,3 +1000,71 @@ func readTimelineTestJSON(t *testing.T, path string, destination any) {
 		t.Fatal(err)
 	}
 }
+
+func TestLocalCutQueryRetainsHotBreachAfterEarlierThroughputBreach(t *testing.T) {
+	dir := t.TempDir()
+	path, output := filepath.Join(dir, "worker.log"), filepath.Join(dir, "query.json")
+	var lines []string
+	for i, values := range [][3]uint64{{1000, 0, 1000}, {1500, 0, 1800}, {4000, 60, 5800}} {
+		kind := "periodic"
+		if i == 0 {
+			kind = "qualification"
+		}
+		var cut map[string]any
+		if err := json.Unmarshal([]byte(workerStatusCutTestLine("hot-query", fmt.Sprintf("2026-09-20T00:00:%02dZ", i*5), kind, 1000+uint64(i)*2500, values[2], 0, 0, 0)), &cut); err != nil {
+			t.Fatal(err)
+		}
+		cut["hot_latency"] = map[string]uint64{"limit_nanos": 400000000, "count": values[0], "above_limit": values[1]}
+		body, err := json.Marshal(cut)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines = append(lines, string(body))
+	}
+	writeTimelineTestFile(t, path, strings.Join(lines, "\n")+"\n")
+	var stderr bytes.Buffer
+	if code := executeRoot([]string{"report", "chat-lifecycle-cut-query", "--worker-log", path, "--run-id", "hot-query", "--offered-rate", "500", "--output", output}, &stderr); code != 0 {
+		t.Fatalf("query failed: %d %s", code, stderr.String())
+	}
+	var result struct {
+		Transitions []struct {
+			Trigger  string `json:"trigger_kind"`
+			Eligible bool   `json:"measurement_eligible"`
+			Hot      struct {
+				Available bool   `json:"available"`
+				Count     uint64 `json:"count"`
+				Above     uint64 `json:"above_limit"`
+				Breached  bool   `json:"breached"`
+			} `json:"hot_latency"`
+		} `json:"transitions"`
+	}
+	readTimelineTestJSON(t, output, &result)
+	if len(result.Transitions) != 2 || result.Transitions[0].Trigger != "actual_offered_ratio" || result.Transitions[0].Hot.Breached || !result.Transitions[1].Eligible || !result.Transitions[1].Hot.Available || !result.Transitions[1].Hot.Breached || result.Transitions[1].Hot.Count != 2500 || result.Transitions[1].Hot.Above != 60 {
+		t.Fatalf("lost independent hot breach: %+v", result)
+	}
+}
+
+func TestLocalHotLatencyDeltaBoundaries(t *testing.T) {
+	limit := uint64(400000000)
+	for _, tc := range []struct {
+		name                string
+		before, after       *localHotLatencyCounters
+		available, breached bool
+	}{
+		{"legacy", nil, &localHotLatencyCounters{limit, 100, 2}, false, false},
+		{"exact_one_percent", &localHotLatencyCounters{limit, 0, 0}, &localHotLatencyCounters{limit, 100, 1}, true, false},
+		{"above_one_percent", &localHotLatencyCounters{limit, 0, 0}, &localHotLatencyCounters{limit, 99, 1}, true, true},
+		{"empty", &localHotLatencyCounters{limit, 100, 2}, &localHotLatencyCounters{limit, 100, 2}, true, false},
+		{"regressed", &localHotLatencyCounters{limit, 100, 2}, &localHotLatencyCounters{limit, 99, 2}, false, false},
+		{"changed_limit", &localHotLatencyCounters{limit, 100, 2}, &localHotLatencyCounters{limit + 1, 200, 3}, false, false},
+		{"impossible_delta", &localHotLatencyCounters{limit, 100, 2}, &localHotLatencyCounters{limit, 101, 4}, false, false},
+		{"large_count", &localHotLatencyCounters{limit, 0, 0}, &localHotLatencyCounters{limit, ^uint64(0), ^uint64(0)/100 + 1}, true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := localHotLatencyDelta(tc.before, tc.after)
+			if got.Available != tc.available || got.Breached != tc.breached {
+				t.Fatalf("delta = %+v", got)
+			}
+		})
+	}
+}

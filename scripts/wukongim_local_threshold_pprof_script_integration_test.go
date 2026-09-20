@@ -516,3 +516,99 @@ func assertNoLocalPprofTemporaryFiles(t *testing.T, outDir string) {
 		t.Fatal(err)
 	}
 }
+
+func TestLocalThresholdPprofCapturesBoundedContext(t *testing.T) {
+	for _, missingMetrics := range []bool{false, true} {
+		t.Run(map[bool]string{false: "complete", true: "missing_metrics"}[missingMetrics], func(t *testing.T) {
+			failing := ""
+			if missingMetrics {
+				failing = "/metrics"
+			}
+			servers := []*localPprofTestServer{newLocalPprofTestServerWithToken(t, 0, failing, "context-token")}
+			phase := filepath.Join(t.TempDir(), "phase")
+			writeLocalPprofPhase(t, phase, "measurement")
+			out := filepath.Join(t.TempDir(), "capture")
+			args := append(localThresholdPprofArgs(out, phase, "sendack_p99", servers), "--capture-context")
+			if body, err := localThresholdPprofCommand(repoRoot(t), "context-token", args...).CombinedOutput(); err != nil {
+				t.Fatalf("capture: %v\n%s", err, body)
+			}
+			if servers[0].requests.Load() != 5 || servers[0].authFailures.Load() != 0 {
+				t.Fatalf("requests=%d auth=%d", servers[0].requests.Load(), servers[0].authFailures.Load())
+			}
+			metadata := decodeLocalThresholdPprofMetadata(t, readFile(t, filepath.Join(out, "metadata.json")))
+			if !metadata.Capture.Valid {
+				t.Fatalf("context changed profile validity: %+v", metadata.Capture)
+			}
+			requests := readFile(t, filepath.Join(out, "context", "requests.tsv"))
+			status := "complete"
+			if missingMetrics {
+				status = "missing"
+			}
+			if strings.Count(requests, "\t"+status+"\n") != 2 {
+				t.Fatalf("request statuses: %s", requests)
+			}
+			for _, cut := range []string{"before", "after"} {
+				if body := readFile(t, filepath.Join(out, "context", cut, "sources.tsv")); len(strings.Split(strings.TrimSpace(body), "\n")) != 8 {
+					t.Fatalf("host sources: %s", body)
+				}
+				_, err := os.Stat(filepath.Join(out, "context", cut, "node-1.prom"))
+				if missingMetrics != os.IsNotExist(err) {
+					t.Fatalf("metrics evidence missing=%v: %v", missingMetrics, err)
+				}
+			}
+			assertNoLocalPprofTemporaryFiles(t, out)
+		})
+	}
+}
+
+func TestLocalThresholdPprofRejectsExistingContextSymlink(t *testing.T) {
+	server := newLocalPprofTestServer(t, 0, "")
+	phase := filepath.Join(t.TempDir(), "phase")
+	writeLocalPprofPhase(t, phase, "measurement")
+	out := t.TempDir()
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(out, "context")); err != nil {
+		t.Fatal(err)
+	}
+	args := append(localThresholdPprofArgs(out, phase, "sendack_p99", []*localPprofTestServer{server}), "--capture-context")
+	if body, err := runLocalThresholdPprof(repoRoot(t), args...); err == nil {
+		t.Fatalf("accepted context symlink: %s", body)
+	}
+	if server.requests.Load() != 0 {
+		t.Fatal("unsafe output made network requests")
+	}
+	entries, err := os.ReadDir(outside)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("wrote through context symlink: %v %v", entries, err)
+	}
+}
+
+func TestLocalThresholdPprofDiscardsOversizedMetrics(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/metrics" {
+			// Omit Content-Length to verify the streaming response is capped too.
+			w.WriteHeader(http.StatusOK)
+			w.(http.Flusher).Flush()
+			_, _ = io.WriteString(w, strings.Repeat("x", (4<<20)+1))
+			return
+		}
+		_, _ = io.WriteString(w, "profile")
+	}))
+	defer server.Close()
+	phase := filepath.Join(t.TempDir(), "phase")
+	writeLocalPprofPhase(t, phase, "measurement")
+	out := filepath.Join(t.TempDir(), "capture")
+	args := append(localThresholdPprofArgs(out, phase, "sendack_p99", []*localPprofTestServer{{server: server}}), "--capture-context")
+	if body, err := runLocalThresholdPprof(repoRoot(t), args...); err != nil {
+		t.Fatalf("capture: %v\n%s", err, body)
+	}
+	if body := readFile(t, filepath.Join(out, "context", "requests.tsv")); strings.Count(body, "\tmissing\n") != 2 {
+		t.Fatalf("oversized request status: %s", body)
+	}
+	for _, cut := range []string{"before", "after"} {
+		if _, err := os.Stat(filepath.Join(out, "context", cut, "node-1.prom")); !os.IsNotExist(err) {
+			t.Fatalf("oversized metrics retained: %v", err)
+		}
+	}
+	assertNoLocalPprofTemporaryFiles(t, out)
+}

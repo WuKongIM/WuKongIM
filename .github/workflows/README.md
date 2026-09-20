@@ -299,6 +299,24 @@ The separate document is capped at 1 MiB and written once after traffic joins;
 ordinary observation cuts add no new file writes. It contains no UID, Channel
 ID, message payload or raw error, and never changes the qualification verdict.
 
+The five-second worker-cut log includes cumulative hot SENDACK sample and
+above-P99-threshold counts using the configured limit. A measured periodic cut
+with more than 1% above the limit reserves one independent `hot-latency-pprof`
+capture, even if an earlier throughput dip used `threshold-pprof`. Both captures
+serialize because Go allows one CPU profile per process. Required first-breach
+evidence cancels and joins an active optional hot capture before starting; the
+interrupted hot capture stays explicit. The first hot trigger bracket is
+retained, and an uncollected trigger is explicitly marked if
+measurement closes while it waits. Neither capture changes the verdict.
+The hot capture requests 10-second CPU profiles plus heap/goroutine snapshots
+from three loopback authenticated APIs. Each request has a byte cap (CPU 8 MiB,
+heap 16 MiB, goroutine 4 MiB). Opt-in `--capture-context` adds two fixed host
+counter cuts (seven CPU/disk/pressure/cgroup files, at most 64 KiB each) and two
+metrics requests per node (4 MiB and five seconds each). The first metrics
+requests start before profiles; all complete before the second context cut.
+Request start/join timestamps expose collection uncertainty. Missing or oversized
+context is explicit; diagnostic collection adds bounded measurement overhead.
+
 For a bounded SEND investigation, dispatch
 `three-node-chat-lifecycle-regression.yml` with `diagnose_send=true` on the
 exact reviewed candidate ref. This manual-only job replaces neither the PR

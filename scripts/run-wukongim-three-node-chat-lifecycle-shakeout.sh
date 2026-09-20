@@ -30,6 +30,9 @@ COORDINATOR_PID=""
 STOP_SENT=0
 GRACEFUL_STOP_DEADLINE=0
 PPROF_PID=""
+HOT_PPROF_PID=""
+HOT_PPROF_TRIGGERED=0
+HOT_PPROF_PENDING=""
 PPROF_TRIGGERED=0
 PPROF_EXIT_STATUS=0
 PPROF_TRIGGER_KIND=""
@@ -184,6 +187,7 @@ CUT_QUERY_NEXT="$EVIDENCE_DIR/worker-cut-query.json.next"
 FROZEN_WORKER_LOG="$EVIDENCE_DIR/coordinator-worker-cuts.log"
 UNIFIED_TIMELINE_JSON="$EVIDENCE_DIR/unified-timeline.json"
 UNIFIED_TIMELINE_TSV="$EVIDENCE_DIR/unified-timeline.tsv"
+HOT_PPROF_DIR="$EVIDENCE_DIR/hot-latency-pprof"
 PPROF_DIR="$EVIDENCE_DIR/threshold-pprof"
 PPROF_STATUS_FILE="$EVIDENCE_DIR/threshold-pprof-status.json"
 GRACEFUL_STOP_STATUS_FILE="$EVIDENCE_DIR/graceful-stop-status.json"
@@ -439,6 +443,11 @@ wait_child_uninterrupted() {
 
 stop_recorded_processes() {
   local pid deadline alive
+  if [[ -n "${HOT_PPROF_PID:-}" ]]; then
+    kill -TERM "$HOT_PPROF_PID" 2>/dev/null || true
+    wait_child_uninterrupted "$HOT_PPROF_PID"
+    HOT_PPROF_PID=""
+  fi
   if [[ -n "$PPROF_PID" ]]; then
     kill -TERM "$PPROF_PID" 2>/dev/null || true
     wait_child_uninterrupted "$PPROF_PID"
@@ -936,6 +945,19 @@ start_threshold_pprof_capture() {
   # with shell xtrace enabled.
   set +x
   (( PPROF_TRIGGERED == 0 )) || return 0
+  # Required first-breach evidence takes priority over optional hot diagnosis.
+  # Cancel and join that helper before starting another CPU profile.
+  if [[ -n "${HOT_PPROF_PID:-}" ]]; then
+    if kill -0 "$HOT_PPROF_PID" 2>/dev/null; then
+      kill -TERM "$HOT_PPROF_PID" 2>/dev/null || true
+      printf 'interrupted_by_primary_capture\n' >"$EVIDENCE_DIR/hot-latency-capture-status"
+    else
+      printf 'finished_see_metadata\n' >"$EVIDENCE_DIR/hot-latency-capture-status"
+    fi
+    wait_child_uninterrupted "$HOT_PPROF_PID"
+    printf '%s\n' "$WAIT_CHILD_STATUS" >"$EVIDENCE_DIR/hot-latency-helper-exit-status"
+    HOT_PPROF_PID=""
+  fi
   PPROF_TRIGGERED=1
   PPROF_TRIGGER_KIND="$trigger_kind"
   PPROF_TRIGGER_PREVIOUS_UTC="$previous_utc"
@@ -954,6 +976,44 @@ start_threshold_pprof_capture() {
     --cpu-seconds "$PPROF_CPU_SECONDS" >"$LOG_DIR/threshold-pprof.log" 2>&1 &
   PPROF_PID=$!
   log "measured $trigger_kind threshold crossed; started bounded three-node pprof capture"
+}
+
+# One independent hot-latency capture cannot be consumed by an earlier throughput dip.
+# The original first-breach profile and its qualification contract remain separate.
+observe_hot_latency_trigger() {
+  set +x
+  local phase="$1" trigger previous_utc current_utc
+  [[ "$phase" == measurement && "$HOT_PPROF_TRIGGERED" -eq 0 ]] || return 0
+  if [[ -z "$HOT_PPROF_PENDING" ]]; then
+    trigger="$(jq -cer 'first(.transitions[] | select(
+      .measurement_eligible == true and .current_cut_kind == "periodic" and
+      .hot_latency.available == true and .hot_latency.breached == true
+    )) | {previous_at,current_at,hot_latency}' "$CUT_QUERY_FILE" 2>/dev/null)" || trigger=""
+    if [[ -n "$trigger" ]]; then
+      HOT_PPROF_PENDING="$trigger"
+      printf '%s\n' "$trigger" >"$EVIDENCE_DIR/hot-latency-trigger.json"
+      printf 'pending_primary_capture\n' >"$EVIDENCE_DIR/hot-latency-capture-status"
+    fi
+  fi
+  [[ -n "$HOT_PPROF_PENDING" ]] || return 0
+  # Go permits only one CPU profile at a time per process. Retain this trigger
+  # while the earlier capture completes; do not replace it with a later bracket.
+  [[ -z "$PPROF_PID" ]] || ! kill -0 "$PPROF_PID" 2>/dev/null || return 0
+  HOT_PPROF_TRIGGERED=1
+  printf 'started\n' >"$EVIDENCE_DIR/hot-latency-capture-status"
+  previous_utc="$(jq -r .previous_at <<<"$HOT_PPROF_PENDING")"
+  current_utc="$(jq -r .current_at <<<"$HOT_PPROF_PENDING")"
+  WK_BENCH_API_TOKEN="$WK_BENCH_API_TOKEN" \
+    bash "$ROOT_DIR/scripts/capture-wukongim-local-threshold-pprof.sh" \
+    --out-dir "$HOT_PPROF_DIR" --phase-state-file "$PHASE_STATE_FILE" \
+    --trigger-kind sendack_p99 --trigger-observed-phase measurement \
+    --previous-utc "$previous_utc" --current-utc "$current_utc" \
+    --node "http://127.0.0.1:$(api_port 1)" \
+    --node "http://127.0.0.1:$(api_port 2)" \
+    --node "http://127.0.0.1:$(api_port 3)" \
+    --cpu-seconds "$PPROF_CPU_SECONDS" --capture-context >"$LOG_DIR/hot-latency-pprof.log" 2>&1 &
+  HOT_PPROF_PID=$!
+  log 'measured hot SENDACK p99 threshold crossed; started independent bounded profile and I/O context'
 }
 
 refresh_live_cut_query() {
@@ -997,6 +1057,7 @@ refresh_live_cut_query() {
       start_threshold_pprof_capture "$trigger_kind" "$previous_utc" "$current_utc"
     fi
   fi
+  observe_hot_latency_trigger "$phase"
 }
 
 close_operator_phase_if_needed() {
@@ -1022,6 +1083,14 @@ close_operator_phase_if_needed() {
 }
 
 join_threshold_pprof_capture() {
+  if [[ -n "${HOT_PPROF_PID:-}" ]]; then
+    wait_child_uninterrupted "$HOT_PPROF_PID"
+    printf '%s\n' "$WAIT_CHILD_STATUS" >"$EVIDENCE_DIR/hot-latency-helper-exit-status"
+    HOT_PPROF_PID=""
+    printf 'finished_see_metadata\n' >"$EVIDENCE_DIR/hot-latency-capture-status"
+  elif [[ -n "${HOT_PPROF_PENDING:-}" && "${HOT_PPROF_TRIGGERED:-0}" -eq 0 ]]; then
+    printf 'skipped_measurement_closed_before_capture\n' >"$EVIDENCE_DIR/hot-latency-capture-status"
+  fi
   [[ -n "$PPROF_PID" ]] || return 0
   wait_child_uninterrupted "$PPROF_PID"
   PPROF_EXIT_STATUS="$WAIT_CHILD_STATUS"
