@@ -226,7 +226,7 @@ func NewRuntime(opts RuntimeOptions) *Runtime {
 	}
 }
 
-// WorkerCapacity returns the configured plan worker and Channel-shard count.
+// WorkerCapacity returns the maximum number of concurrently executing plans.
 func (r *Runtime) WorkerCapacity() int {
 	if r == nil {
 		return 0
