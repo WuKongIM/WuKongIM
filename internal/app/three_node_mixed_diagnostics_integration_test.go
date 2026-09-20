@@ -34,8 +34,8 @@ func startMixedSendDiagnostics(b *testing.B, apps []*App, rate int) func() {
 	if dir == "" {
 		return func() {}
 	}
-	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" || runtime.GOMAXPROCS(0) != 4 || b.N != 3000 || rate != 500 || b.Name() != "BenchmarkThreeNodeMixedSendPath500QPS" {
-		b.Fatal("SEND diagnostics require Linux amd64, GOMAXPROCS=4 and exactly 3000 operations at 500 QPS")
+	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" || runtime.GOMAXPROCS(0) != 4 || (b.N != 3000 && !(countersDir != "" && os.Getenv("WK_BENCH_QUALIFY") == "1" && b.N == 90000)) || rate != 500 || b.Name() != "BenchmarkThreeNodeMixedSendPath500QPS" {
+		b.Fatal("SEND diagnostics require Linux amd64, GOMAXPROCS=4 and 3000 diagnostic operations or 90000 counter-only qualification operations at 500 QPS")
 	}
 	if err := os.Mkdir(dir, 0700); err != nil {
 		b.Fatalf("create fresh diagnostic directory: %v", err)

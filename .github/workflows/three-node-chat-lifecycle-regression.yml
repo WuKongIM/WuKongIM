@@ -13,6 +13,10 @@ on:
         description: Collect one fixed same-host SEND diagnostic instead of nightly qualification
         type: boolean
         default: false
+      qualify_candidate:
+        description: Run the fixed ten-minute qualification on this main-descended candidate
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -23,8 +27,27 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  pr-regression:
-    name: PR three-node regression
+  pr-baseline:
+    name: PR performance baseline evidence
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    outputs:
+      reuse: ${{ steps.baseline.outputs.reuse }}
+    steps:
+      - name: Checkout exact candidate without credentials
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check identical-input successful main baseline
+        id: baseline
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python3 scripts/ci-500qps-baseline.py
+
+  pr-correctness:
+    name: PR three-node correctness
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -41,12 +64,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Run focused unit and race gates
-        shell: bash
-        run: |
-          set -euo pipefail
-          GOWORK=off go test ./internal/bench/chatlifecycle ./internal/bench/workload ./internal/bench/worker ./pkg/bench/model ./pkg/client ./pkg/gateway/... -count=1
-          GOWORK=off go test -race ./internal/bench/workload ./internal/bench/worker ./pkg/client ./pkg/gateway/transport/gnet -count=1
       - name: Prepare isolated PR evidence root
         shell: bash
         run: |
@@ -59,45 +76,6 @@ jobs:
           lscpu --json >"$evidence_root/host.json"
           uname -a >"$evidence_root/kernel.txt"
           findmnt -J -T /tmp >"$evidence_root/data-filesystem.json"
-      - name: Run benchmark-first 500 QPS seams
-        shell: bash
-        run: |
-          set -euo pipefail
-          assert_benchmark_metric_le_400() {
-            local output_file="$1" metric="$2"
-            awk -v metric="$metric" '
-              {
-                for (field = 2; field <= NF; field++) {
-                  if ($field != metric) continue
-                  found = 1
-                  value = $(field - 1) + 0
-                  if (value > 400) {
-                    printf "benchmark metric %s exceeded 400ms: %s\n", metric, $(field - 1) > "/dev/stderr"
-                    failed = 1
-                  }
-                }
-              }
-              END {
-                if (!found) {
-                  printf "benchmark metric %s was missing\n", metric > "/dev/stderr"
-                  exit 2
-                }
-                if (failed) exit 1
-              }
-            ' "$output_file"
-          }
-
-          WK_BENCH_APPEND_COUNTERS_DIR="$EVIDENCE_ROOT/channel-append-counters" GOWORK=off go test -tags=integration ./pkg/channel/replication -run '^$' -bench '^BenchmarkThreeNodeChannelAppend500QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
-            2>&1 | tee "$EVIDENCE_ROOT/channel-append-benchmark.txt"
-          assert_benchmark_metric_le_400 "$EVIDENCE_ROOT/channel-append-benchmark.txt" append-p99-ms
-
-          WK_BENCH_SEND_COUNTERS_DIR="$EVIDENCE_ROOT/mixed-send-counters" GOWORK=off go test -tags=integration ./internal/app -run '^$' -bench '^BenchmarkThreeNodeMixedSendPath500QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
-            2>&1 | tee "$EVIDENCE_ROOT/mixed-send-benchmark.txt"
-          assert_benchmark_metric_le_400 "$EVIDENCE_ROOT/mixed-send-benchmark.txt" all-p99-ms
-
-          GOWORK=off go test -tags=integration ./pkg/client -run '^$' -bench '^BenchmarkRealTCPSendackWithSynchronousRecvackPaced500QPS$' -benchtime=3000x -benchmem -count=1 -timeout=5m \
-            2>&1 | tee "$EVIDENCE_ROOT/real-tcp-sendack-benchmark.txt"
-          assert_benchmark_metric_le_400 "$EVIDENCE_ROOT/real-tcp-sendack-benchmark.txt" send-p99-ms
       - name: Run bounded three-node 500 QPS correctness smoke
         shell: bash
         run: |
@@ -130,21 +108,128 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  pr-unit:
+    name: PR messaging unit and race
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GOWORK: "off"
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Run focused unit and race gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          GOWORK=off go test ./internal/bench/arrival ./internal/bench/chatlifecycle ./internal/bench/workload ./internal/bench/worker ./pkg/bench/model ./pkg/client ./pkg/gateway/... -count=1
+          GOWORK=off go test -race ./internal/bench/workload ./internal/bench/worker ./pkg/client ./pkg/gateway/transport/gnet -count=1
+      - name: Exercise bounded arrival saturation under race detection
+        shell: bash
+        run: GOWORK=off go test -race -tags=integration ./internal/bench/arrival -count=1
+      - name: Reject tracked-tree mutation
+        if: always()
+        run: git diff --exit-code HEAD --
+
+  pr-performance:
+    name: PR 500 QPS / ${{ matrix.seam }}
+    needs: [pr-baseline]
+    if: >-
+      always() && !cancelled() &&
+      ((github.event_name == 'pull_request' && needs.pr-baseline.outputs.reuse != 'true') ||
+       github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_dispatch' && !inputs.diagnose_send &&
+        (github.ref == 'refs/heads/main' || inputs.qualify_candidate)))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        seam: [channel-append, mixed-send, tcp-sendack]
+    env:
+      GOWORK: "off"
+      GOMAXPROCS: "4"
+      SEAM: ${{ matrix.seam }}
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.25.11"
+          cache: true
+      - name: Run fixed sustained 500 QPS profile
+        shell: bash
+        run: bash scripts/run-500qps-seam.sh "$SEAM" "$RUNNER_TEMP/500qps-$SEAM"
+      - name: Reject tracked-tree mutation
+        if: always()
+        run: git diff --exit-code HEAD --
+      - name: Upload every performance result
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: 500qps-${{ matrix.seam }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/500qps-${{ matrix.seam }}
+          if-no-files-found: error
+          retention-days: 14
+
+  pr-regression:
+    # Preserve the existing aggregate check name for branch protection.
+    name: PR three-node regression
+    if: always() && github.event_name == 'pull_request'
+    needs: [pr-unit, pr-correctness, pr-performance, pr-baseline]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require every independent check
+        env:
+          UNIT_RESULT: ${{ needs.pr-unit.result }}
+          CORRECTNESS_RESULT: ${{ needs.pr-correctness.result }}
+          PERFORMANCE_RESULT: ${{ needs.pr-performance.result }}
+          BASELINE_RESULT: ${{ needs.pr-baseline.result }}
+          BASELINE_REUSED: ${{ needs.pr-baseline.outputs.reuse }}
+        shell: bash
+        run: |
+          [[ "$UNIT_RESULT" == success && "$CORRECTNESS_RESULT" == success ]]
+          [[ "$PERFORMANCE_RESULT" == success ]] ||
+            [[ "$PERFORMANCE_RESULT" == skipped && "$BASELINE_RESULT" == success && "$BASELINE_REUSED" == true ]]
+
   nightly-qualification:
     name: Nightly direct 500 QPS qualification
     if: >-
       github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && !inputs.diagnose_send)
+      (github.event_name == 'workflow_dispatch' && !inputs.diagnose_send &&
+       (github.ref == 'refs/heads/main' || inputs.qualify_candidate))
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       GOWORK: "off"
     steps:
-      - name: Checkout protected main
+      - name: Checkout exact qualification source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Bind qualification source to main history
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]]
+          [[ -z "$(git status --porcelain)" ]]
+          git merge-base --is-ancestor "$SOURCE_SHA" origin/main || git merge-base --is-ancestor origin/main "$SOURCE_SHA"
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:

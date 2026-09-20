@@ -61,6 +61,9 @@ native local baseline
   Queue-to-consumer handoff leases keep dequeued work observable until the
   matching reader owns it; terminal receive proof requires two separated,
   stable zero-work cuts and complete physical RECV/RECVACK counters.
+- Scheduled-arrival seams preserve warmup and measured reports separately,
+  including bounded anonymous failure categories; failed warmup never grants
+  qualification or discards its complete request counters.
 - Measured windows stop scheduling at their deadline and report achieved QPS;
   admitted work drains only inside the same bounded cooldown. Explicit generic
   retry uses one logical identity, fresh ClientSeq values, and only the fixed

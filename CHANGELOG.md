@@ -6,6 +6,17 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🐛 Bug Fixes / 问题修复
+
+- Retain failed 500-QPS warmup accounting and bounded failure categories, including mixed SEND pressure counters. / 保留 500 QPS 预热失败计数、有限错误分类及 mixed SEND 压力证据。
+
+- Reuse 500-QPS performance results for documentation/Demo-only changes only after three matching clean main qualifications; unavailable or failed evidence keeps fresh checks mandatory. / 纯文档或 Demo 改动仅在三次 main 基线验证成功且性能输入一致时复用结果；证据缺失或失败时仍执行完整检查。
+
+- Prevent large-group delivery from blocking unrelated Channels that previously shared a worker hash shard, while preserving per-Channel FIFO and bounded queues. / 避免大群投递阻塞原先哈希到同一 worker 的无关频道，保留频道内顺序与队列边界。
+
+- Run messaging correctness independently of 500-QPS performance gates, and include arrival queueing, underload and dropped requests in sustained performance results. / 消息正确性与 500 QPS 性能门禁独立执行，持续压测结果包含请求排队、发压不足和丢弃。
+- Preserve confirmed chat-lifecycle failures that terminate measurement early instead of obscuring them as incomplete-duration evidence. / 聊天生命周期测试提前终止时保留已证实的失败原因，避免被测量时长不足掩盖。
+
 ## [v3.0.0-beta.21] - 2026-09-19
 
 ### 🔧 Improvements / 改进

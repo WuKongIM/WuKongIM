@@ -258,8 +258,8 @@ pending_ack_max_per_session = 1024
 
 event_queue_size = 1024
 
-# Number of stable Channel-order delivery shards processed concurrently by this node.
-# Plans for one Channel stay FIFO on one shard; different Channels may run in parallel.
+# Maximum number of distinct Channels with delivery plans executing concurrently on this node.
+# Plans for one Channel stay FIFO; ready Channels share workers without hash-shard blocking.
 # This is independent from channel_append.recipient_authority_dispatch_concurrency.
 recipient_worker_concurrency = 320
 

@@ -722,6 +722,12 @@ func TestLocalChatLifecycleTimelineRequiresClosedOrderedMeasuredWindows(t *testi
 	if _, complete, err := readLocalStepTimelineEvidence(timelinePath, "complete-timeline", 100, 90, 30*time.Second); err != nil || !complete {
 		t.Fatalf("complete storage-overlap timeline = %v/%v", complete, err)
 	}
+	if _, complete, err := readLocalStepTimelineEvidence(timelinePath, "complete-timeline", 100, 90, 600*time.Second); err == nil || complete {
+		t.Fatal("short window qualified as a full measurement")
+	}
+	if _, complete, err := readLocalStepTimelineEvidenceWithDuration(timelinePath, "complete-timeline", 100, 90, 600*time.Second, false); err != nil || !complete {
+		t.Fatalf("closed early terminal window rejected: %v", err)
+	}
 	timeline.SourceCompleteness.StorageOverlapComplete = false
 	body, err = json.Marshal(timeline)
 	if err != nil {
@@ -2817,5 +2823,35 @@ func requireHeader(t *testing.T, r *http.Request, key, want string) {
 	t.Helper()
 	if got := r.Header.Get(key); got != want {
 		t.Fatalf("%s = %q, want %q", key, got, want)
+	}
+}
+
+func TestLocalChatLifecycleStepPreservesEarlyMeasuredProductFailure(t *testing.T) {
+	before, after := localChatLifecycleStepReports()
+	after.Messages.Losses = 1
+	after.Verdict.Outcome = chatlifecycle.VerdictProductFailure
+	evidence := localChatLifecycleStepEvidence{
+		QualificationReportComplete: true, FinalReportComplete: true,
+		ProcessesContinuous: true, ProfileEvidenceComplete: true,
+		TerminalTimelineComplete: true,
+	}
+	result := classifyLocalChatLifecycleStep(before, after, evidence, localChatLifecycleStepOptions{
+		OfferedRatePerSecond: 100, MeasuredDuration: 600 * time.Second, MinimumThroughputPercent: 90,
+	})
+	if result.Outcome != localChatLifecycleStepProductFailure || result.Reason != "terminal_product_failure_during_measurement" || result.TimelineEvidenceComplete || result.ActualRatePerSecond != 0 {
+		t.Fatalf("early loss obscured or incomplete window qualified: %+v", result)
+	}
+	for _, mutate := range []func(){
+		func() { after.Messages.Losses = 0; after.Verdict.Outcome = chatlifecycle.VerdictOperatorStop },
+		func() { after.Fence.Generation++ },
+		func() { evidence.TerminalTimelineComplete = false },
+	} {
+		oldAfter, oldEvidence := after, evidence
+		mutate()
+		got := classifyLocalChatLifecycleStep(before, after, evidence, localChatLifecycleStepOptions{OfferedRatePerSecond: 100, MeasuredDuration: 600 * time.Second, MinimumThroughputPercent: 90})
+		if got.Outcome != localChatLifecycleStepInsufficientEvidence {
+			t.Fatalf("accepted incomplete terminal proof: %+v", got)
+		}
+		after, evidence = oldAfter, oldEvidence
 	}
 }

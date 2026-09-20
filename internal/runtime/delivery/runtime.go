@@ -69,8 +69,7 @@ type RuntimeOptions struct {
 	OfflineRecipientsObserver OfflineRecipientsObserver
 	// QueueSize bounds accepted Recipient Delivery Plans.
 	QueueSize int
-	// Workers is both the concurrent plan-processing limit and the stable
-	// Channel-order shard count.
+	// Workers bounds concurrent plans across independently ordered Channels.
 	Workers int
 	// PlanTimeout bounds one accepted plan's total processing time.
 	PlanTimeout time.Duration
@@ -112,9 +111,9 @@ type Runtime struct {
 	sessionWriter LocalSessionWriter
 	// offlineRecipientsObserver receives durable-only auxiliary effects.
 	offlineRecipientsObserver OfflineRecipientsObserver
-	// queue is the globally bounded, Channel-sharded ownership-transfer module.
+	// queue is the globally bounded, per-Channel ordered ownership-transfer module.
 	queue *orderedPlanQueue
-	// workers is both the fixed plan-processing concurrency and shard count.
+	// workers bounds simultaneous plans across distinct Channels.
 	workers int
 	// planTimeout bounds the complete processing lifetime of one accepted plan.
 	planTimeout time.Duration
@@ -208,7 +207,7 @@ func NewRuntime(opts RuntimeOptions) *Runtime {
 		remoteOwnerPusher:         opts.RemoteOwnerPusher,
 		sessionWriter:             opts.SessionWriter,
 		offlineRecipientsObserver: opts.OfflineRecipientsObserver,
-		queue:                     newOrderedPlanQueue(queueSize, workers),
+		queue:                     newOrderedPlanQueue(queueSize),
 		workers:                   workers,
 		planTimeout:               planTimeout,
 		maxPlanRecipients:         maxPlanRecipients,
@@ -227,7 +226,7 @@ func NewRuntime(opts RuntimeOptions) *Runtime {
 	}
 }
 
-// WorkerCapacity returns the configured plan worker and Channel-shard count.
+// WorkerCapacity returns the maximum number of concurrently executing plans.
 func (r *Runtime) WorkerCapacity() int {
 	if r == nil {
 		return 0
@@ -265,10 +264,9 @@ func (r *Runtime) Start(context.Context) error {
 	var workers sync.WaitGroup
 	workers.Add(r.workers)
 	for i := 0; i < r.workers; i++ {
-		shardIndex := i
 		goruntimeregistry.SafeGo(r.goroutines, goruntimeregistry.TaskOnlineDeliveryWorker, func() {
 			defer workers.Done()
-			r.runWorker(runCtx, stopReady, shardIndex)
+			r.runWorker(runCtx, stopReady)
 		})
 	}
 	goruntimeregistry.SafeGo(r.goroutines, goruntimeregistry.TaskOnlineDeliveryLifecycle, func() {
@@ -472,13 +470,14 @@ func (r *Runtime) validatePlan(plan onlinedelivery.RecipientDeliveryPlan) error 
 // runWorker drains ownership-transferred plans after admission closes. The
 // generation context is canceled only when the caller's graceful-stop budget
 // expires, so a successful Stop never discards accepted delivery work.
-func (r *Runtime) runWorker(runCtx context.Context, stopReady <-chan struct{}, shardIndex int) {
+func (r *Runtime) runWorker(runCtx context.Context, stopReady <-chan struct{}) {
 	for {
-		plan, ok := r.queue.dequeue(shardIndex, stopReady)
+		plan, ok := r.queue.dequeue(stopReady)
 		if !ok {
 			return
 		}
 		r.runPlan(runCtx, plan)
+		r.queue.complete(plan)
 	}
 }
 

@@ -286,7 +286,7 @@ func TestRuntimePreservesSameChannelPlanOrderAcrossWorkers(t *testing.T) {
 	}
 }
 
-func TestRuntimeProcessesDifferentChannelShardsConcurrently(t *testing.T) {
+func TestRuntimeProcessesCollidingChannelsConcurrently(t *testing.T) {
 	firstStarted := make(chan struct{})
 	releaseFirst := make(chan struct{})
 	var releaseOnce sync.Once
@@ -313,12 +313,11 @@ func TestRuntimeProcessesDifferentChannelShardsConcurrently(t *testing.T) {
 	startRuntimeForTest(t, runtime)
 
 	first := runtimePlanForTest(1)
-	first.Event.ChannelID, first.Event.ChannelType = "person-a@person-b", 1
+	first.Event.ChannelID, first.Event.ChannelType = "wkg-cw77dujng6zosz7j-dv", 2
 	second := runtimePlanForTest(2)
-	second.Event.ChannelID, second.Event.ChannelType = "person-c@person-e", 1
-	if runtime.queue.shardIndex(first) == runtime.queue.shardIndex(second) {
-		t.Fatal("test Channel identities must map to different worker shards")
-	}
+	second.Event.ChannelID, second.Event.ChannelType = "wku-cw77dujng6zosz7j-1le@wku-cw77dujng6zosz7j-1lh", 1
+	// These retained nightly identities both hashed to worker 19 of 320
+	// (and worker 1 of 2). A blocked group must not stall the unrelated person channel.
 	if err := runtime.EnqueueRecipientDeliveryPlan(context.Background(), first); err != nil {
 		t.Fatalf("first enqueue error = %v", err)
 	}
