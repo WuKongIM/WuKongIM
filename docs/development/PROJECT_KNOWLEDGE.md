@@ -321,3 +321,8 @@ specification, runbook, report, or module documentation; link to them when neede
 - A closed early product-failure timeline can prove failure without satisfying a
   full-duration performance window. Missing duration cannot downgrade that proven
   failure or qualify an otherwise incomplete run.
+
+- Online delivery queues are bounded globally and ordered by exact Channel ID/type.
+  A fixed worker pool rotates ready Channels after each plan; historical Channel
+  state is removed when drained. Fixed hash-to-worker routing caused a ten-second
+  person-message observation timeout behind the 100,000-member canary.

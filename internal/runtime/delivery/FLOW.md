@@ -22,8 +22,8 @@ It does not select subscribers, append messages, or build gateway packets.
 
 ## Main Flows
 
-1. Admission validates an immutable plan and places it on a bounded stable
-   Channel shard; one shard drains FIFO, preserving per-Channel message order.
+1. Admission validates an immutable plan and places it in a globally bounded
+   per-Channel FIFO; ready Channels share a fixed worker pool in round-robin order.
 2. A worker resolves aligned presence groups, emits durable-only offline
    batches, groups online routes by owner, and performs bounded owner pushes;
    retries contain only exact retryable routes.
@@ -33,8 +33,10 @@ It does not select subscribers, append messages, or build gateway packets.
 
 ## Invariants and Failure Semantics
 
-- Queue capacity is node-wide; worker count is both maximum plan concurrency
-  and the stable Channel shard count.
+- Queue capacity is node-wide; worker count bounds active Channels. At most one
+  plan per exact Channel executes, and completion rotates queued continuations
+  behind ready siblings. Drained Channel state is removed; retained identities
+  are bounded by queue capacity plus workers, never historical Channel count.
 - A failed presence group does not discard successful sibling groups.
 - Transient plans never create offline effects.
 - Duplicate recipient rows intentionally produce duplicate writes and retain

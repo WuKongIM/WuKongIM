@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Prevent large-group delivery from blocking unrelated Channels that previously shared a worker hash shard, while preserving per-Channel FIFO and bounded queues. / 避免大群投递阻塞原先哈希到同一 worker 的无关频道，保留频道内顺序与队列边界。
+
 - Run messaging correctness independently of 500-QPS performance gates, and include arrival queueing, underload and dropped requests in sustained performance results. / 消息正确性与 500 QPS 性能门禁独立执行，持续压测结果包含请求排队、发压不足和丢弃。
 - Preserve confirmed chat-lifecycle failures that terminate measurement early instead of obscuring them as incomplete-duration evidence. / 聊天生命周期测试提前终止时保留已证实的失败原因，避免被测量时长不足掩盖。
 

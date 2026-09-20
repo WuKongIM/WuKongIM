@@ -10,33 +10,36 @@ import (
 
 const noPlanQueueNode = -1
 
-// orderedPlanQueue preserves FIFO execution for one Channel shard while one
-// global semaphore keeps aggregate queued plan ownership strictly bounded.
-// Each shard has exactly one runtime worker, so unrelated Channels retain the
-// configured worker parallelism without allowing a later same-Channel plan to
-// overtake an earlier plan during presence resolution or owner push.
+// orderedPlanQueue preserves one FIFO per exact Channel, with at most one
+// executing plan per Channel. Idle workers take ready Channels in round-robin
+// order, so an unrelated Channel never waits behind a hash collision.
 type orderedPlanQueue struct {
-	// capacity is the node-wide queued-plan ownership bound.
 	capacity int
-	// shards assigns exactly one FIFO to each runtime worker.
-	shards []orderedPlanShard
-	// nodes preallocates all queue links and retained plan slots.
+	// nodes and slots bound queued ownership independently of active workers.
 	nodes []orderedPlanNode
-	// slots accounts aggregate free nodes before admission mutates a shard.
 	slots chan struct{}
+	ready chan struct{}
 
-	// mu protects every shard link and the shared free-node list.
+	// mu protects Channel ownership, the runnable FIFO, and free node links.
 	mu sync.Mutex
-	// freeHead is the first unused preallocated node.
-	freeHead int
-	// depth publishes aggregate queued plans without taking mu.
-	depth atomic.Int64
+	// channels retains only queued or executing Channels: at most capacity
+	// plus the fixed worker count, independent of historical Channel count.
+	channels             map[planChannelKey]*orderedPlanChannel
+	readyHead, readyTail *orderedPlanChannel
+	freeHead             int
+	depth                atomic.Int64
 }
 
-type orderedPlanShard struct {
-	head  int
-	tail  int
-	ready chan struct{}
+type planChannelKey struct {
+	id   string
+	kind uint8
+}
+
+type orderedPlanChannel struct {
+	key        planChannelKey
+	head, tail int
+	active     bool
+	nextReady  *orderedPlanChannel
 }
 
 type orderedPlanNode struct {
@@ -44,21 +47,23 @@ type orderedPlanNode struct {
 	next int
 }
 
-// newOrderedPlanQueue constructs a fixed-capacity queue with one FIFO per
-// worker. It performs every retained-node allocation before the runtime starts.
-func newOrderedPlanQueue(capacity, shards int) *orderedPlanQueue {
-	if capacity <= 0 || shards <= 0 {
+func planChannel(plan onlinedelivery.RecipientDeliveryPlan) planChannelKey {
+	return planChannelKey{id: plan.Event.ChannelID, kind: plan.Event.ChannelType}
+}
+
+// newOrderedPlanQueue preallocates every queued plan slot. Channel state is
+// released as soon as its final executing plan completes.
+func newOrderedPlanQueue(capacity int) *orderedPlanQueue {
+	if capacity <= 0 {
 		return nil
 	}
 	queue := &orderedPlanQueue{
 		capacity: capacity,
-		shards:   make([]orderedPlanShard, shards),
 		nodes:    make([]orderedPlanNode, capacity),
 		slots:    make(chan struct{}, capacity),
+		ready:    make(chan struct{}, 1),
+		channels: make(map[planChannelKey]*orderedPlanChannel),
 		freeHead: 0,
-	}
-	for index := range queue.shards {
-		queue.shards[index] = orderedPlanShard{head: noPlanQueueNode, tail: noPlanQueueNode, ready: make(chan struct{}, 1)}
 	}
 	for index := range queue.nodes {
 		queue.nodes[index].next = index + 1
@@ -68,13 +73,8 @@ func newOrderedPlanQueue(capacity, shards int) *orderedPlanQueue {
 	return queue
 }
 
-// enqueue waits for global capacity, then transfers immutable plan ownership
-// to its canonical Channel shard while admission remains open.
-func (q *orderedPlanQueue) enqueue(
-	ctx context.Context,
-	acceptDone <-chan struct{},
-	plan onlinedelivery.RecipientDeliveryPlan,
-) error {
+// enqueue transfers immutable plan ownership after acquiring global capacity.
+func (q *orderedPlanQueue) enqueue(ctx context.Context, acceptDone <-chan struct{}, plan onlinedelivery.RecipientDeliveryPlan) error {
 	if q == nil {
 		return ErrRuntimeClosed
 	}
@@ -85,90 +85,117 @@ func (q *orderedPlanQueue) enqueue(
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-	// Stop can close admission at the same instant a capacity token becomes
-	// ready. Rechecking after acquisition prevents that select race from
-	// retaining a plan outside the lifecycle admission wait group.
 	select {
 	case <-acceptDone:
-		q.releaseSlot()
+		q.slots <- struct{}{}
 		return ErrRuntimeClosed
 	default:
 	}
 
-	shardIndex := q.shardIndex(plan)
+	key := planChannel(plan)
 	q.mu.Lock()
 	nodeIndex := q.freeHead
-	if nodeIndex == noPlanQueueNode {
-		q.mu.Unlock()
-		q.releaseSlot()
-		return ErrRuntimeClosed
-	}
 	node := &q.nodes[nodeIndex]
 	q.freeHead = node.next
-	node.plan = plan
-	node.next = noPlanQueueNode
-	shard := &q.shards[shardIndex]
-	if shard.tail == noPlanQueueNode {
-		shard.head, shard.tail = nodeIndex, nodeIndex
+	node.plan, node.next = plan, noPlanQueueNode
+	channel := q.channels[key]
+	if channel == nil {
+		channel = &orderedPlanChannel{key: key, head: noPlanQueueNode, tail: noPlanQueueNode}
+		q.channels[key] = channel
+	}
+	wasEmpty := channel.head == noPlanQueueNode
+	if wasEmpty {
+		channel.head = nodeIndex
 	} else {
-		q.nodes[shard.tail].next = nodeIndex
-		shard.tail = nodeIndex
+		q.nodes[channel.tail].next = nodeIndex
 	}
+	channel.tail = nodeIndex
 	q.depth.Add(1)
-	q.mu.Unlock()
-	select {
-	case shard.ready <- struct{}{}:
-	default:
+	if wasEmpty && !channel.active {
+		q.appendReady(channel)
 	}
+	q.mu.Unlock()
 	return nil
 }
 
-// dequeue returns the next plan for one worker shard and drains accepted work
-// after stopReady closes.
-func (q *orderedPlanQueue) dequeue(shardIndex int, stopReady <-chan struct{}) (onlinedelivery.RecipientDeliveryPlan, bool) {
-	if q == nil || shardIndex < 0 || shardIndex >= len(q.shards) {
-		return onlinedelivery.RecipientDeliveryPlan{}, false
+// appendReady is called under mu only for a nonempty, inactive Channel that
+// is not already runnable. Completing a page rotates its Channel to the tail.
+func (q *orderedPlanQueue) appendReady(channel *orderedPlanChannel) {
+	if q.readyTail == nil {
+		q.readyHead = channel
+	} else {
+		q.readyTail.nextReady = channel
 	}
+	q.readyTail = channel
+	q.signalReady()
+}
+
+func (q *orderedPlanQueue) signalReady() {
+	select {
+	case q.ready <- struct{}{}:
+	default:
+	}
+}
+
+// dequeue drains runnable ownership after admission closes. When only active
+// Channels remain, their owning workers complete and drain their queued tails.
+func (q *orderedPlanQueue) dequeue(stopReady <-chan struct{}) (onlinedelivery.RecipientDeliveryPlan, bool) {
 	for {
-		if plan, ok := q.pop(shardIndex); ok {
+		if plan, ok := q.pop(); ok {
 			return plan, true
 		}
 		select {
-		case <-q.shards[shardIndex].ready:
+		case <-q.ready:
 		case <-stopReady:
-			if plan, ok := q.pop(shardIndex); ok {
-				return plan, true
-			}
-			return onlinedelivery.RecipientDeliveryPlan{}, false
+			return q.pop()
 		}
 	}
 }
 
-func (q *orderedPlanQueue) pop(shardIndex int) (onlinedelivery.RecipientDeliveryPlan, bool) {
+func (q *orderedPlanQueue) pop() (onlinedelivery.RecipientDeliveryPlan, bool) {
 	q.mu.Lock()
-	shard := &q.shards[shardIndex]
-	nodeIndex := shard.head
-	if nodeIndex == noPlanQueueNode {
+	channel := q.readyHead
+	if channel == nil {
 		q.mu.Unlock()
 		return onlinedelivery.RecipientDeliveryPlan{}, false
 	}
+	q.readyHead = channel.nextReady
+	channel.nextReady = nil
+	if q.readyHead == nil {
+		q.readyTail = nil
+	} else {
+		q.signalReady()
+	}
+	channel.active = true
+	nodeIndex := channel.head
 	node := &q.nodes[nodeIndex]
 	plan := node.plan
-	shard.head = node.next
-	if shard.head == noPlanQueueNode {
-		shard.tail = noPlanQueueNode
+	channel.head = node.next
+	if channel.head == noPlanQueueNode {
+		channel.tail = noPlanQueueNode
 	}
 	node.plan = onlinedelivery.RecipientDeliveryPlan{}
 	node.next = q.freeHead
 	q.freeHead = nodeIndex
 	q.depth.Add(-1)
 	q.mu.Unlock()
-	q.releaseSlot()
+	q.slots <- struct{}{}
 	return plan, true
 }
 
-func (q *orderedPlanQueue) releaseSlot() {
-	q.slots <- struct{}{}
+// complete releases exact Channel execution ownership even after a plan
+// failed or panicked, preserving FIFO without stranding its later pages.
+func (q *orderedPlanQueue) complete(plan onlinedelivery.RecipientDeliveryPlan) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	key := planChannel(plan)
+	channel := q.channels[key]
+	channel.active = false
+	if channel.head == noPlanQueueNode {
+		delete(q.channels, key)
+	} else {
+		q.appendReady(channel)
+	}
 }
 
 func (q *orderedPlanQueue) Depth() int {
@@ -183,17 +210,4 @@ func (q *orderedPlanQueue) Capacity() int {
 		return 0
 	}
 	return q.capacity
-}
-
-// shardIndex maps all plans for one canonical Channel to the same worker.
-func (q *orderedPlanQueue) shardIndex(plan onlinedelivery.RecipientDeliveryPlan) int {
-	const (
-		fnvOffset64 = uint64(14695981039346656037)
-		fnvPrime64  = uint64(1099511628211)
-	)
-	hash := (fnvOffset64 ^ uint64(plan.Event.ChannelType)) * fnvPrime64
-	for index := 0; index < len(plan.Event.ChannelID); index++ {
-		hash = (hash ^ uint64(plan.Event.ChannelID[index])) * fnvPrime64
-	}
-	return int(hash % uint64(len(q.shards)))
 }
