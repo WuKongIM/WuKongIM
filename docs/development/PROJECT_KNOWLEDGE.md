@@ -315,6 +315,11 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
+- Observation HTTP body reads must preserve causal context cancellation, as
+  header requests already do. Turning canceled reads into generic target failures
+  makes normal coordinator stop lose terminal evidence; unrelated read errors
+  must still fail even when cancellation happens concurrently.
+
 - Five-second worker cuts retain configured hot SENDACK P99 threshold counts.
   Interval counts can trigger one independent diagnostic profile after an earlier
   throughput dip; profiles serialize per cluster and retain the original trigger
