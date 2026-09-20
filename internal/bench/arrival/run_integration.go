@@ -16,6 +16,13 @@ import (
 // Run schedules a finite open-loop load. Operation must honor its deadline;
 // workers are joined before returning and no measured request retries.
 func Run(count, rate, workers int, operation func(context.Context, int) error) Result {
+	return RunObserved(count, rate, workers, operation, nil)
+}
+
+// RunObserved optionally exposes each final sample to a concurrent, nonblocking
+// diagnostic observer. Timing is sealed before observation; no sample is retried
+// or changed by the observer. Planned identifies the original arrival clock.
+func RunObserved(count, rate, workers int, operation func(context.Context, int) error, observe func(index int, planned time.Time, sample Sample)) Result {
 	if count <= 0 || count > 1_000_000 || rate <= 0 || rate > 100_000 || workers <= 0 || workers > 4096 {
 		panic("invalid bounded arrival configuration")
 	}
@@ -54,6 +61,9 @@ func Run(count, rate, workers int, operation func(context.Context, int) error) R
 					sample.FailureKind = "operation"
 				}
 				sample.Completed = true
+				if observe != nil {
+					observe(index, planned, *sample)
+				}
 			}
 		}()
 	}
@@ -68,6 +78,9 @@ func Run(count, rate, workers int, operation func(context.Context, int) error) R
 		case jobs <- index:
 		default:
 			r.Samples[index].Dropped = true
+			if observe != nil {
+				observe(index, due, r.Samples[index])
+			}
 		}
 	}
 	if delay := time.Until(start.Add(time.Duration(count) * time.Second / time.Duration(rate))); delay > 0 {

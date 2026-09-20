@@ -46,7 +46,35 @@ type localTimelineConnectionCounts struct {
 	TrafficReady int `json:"traffic_ready"`
 }
 
+// localHotLatencyCounters is optional for older worker logs. Missing data never implies healthy latency.
+type localHotLatencyCounters struct {
+	LimitNanos uint64 `json:"limit_nanos"`
+	Count      uint64 `json:"count"`
+	AboveLimit uint64 `json:"above_limit"`
+}
+
+type localHotLatencyInterval struct {
+	Available  bool   `json:"available"`
+	LimitNanos uint64 `json:"limit_nanos"`
+	Count      uint64 `json:"count"`
+	AboveLimit uint64 `json:"above_limit"`
+	Breached   bool   `json:"breached"`
+}
+
+// localHotLatencyDelta preserves the exact P99 threshold predicate without multiplying uint64 counts.
+func localHotLatencyDelta(before, after *localHotLatencyCounters) localHotLatencyInterval {
+	if before == nil || after == nil || before.LimitNanos == 0 || before.LimitNanos != after.LimitNanos || after.Count < before.Count || after.AboveLimit < before.AboveLimit {
+		return localHotLatencyInterval{}
+	}
+	count, above := after.Count-before.Count, after.AboveLimit-before.AboveLimit
+	if above > count {
+		return localHotLatencyInterval{}
+	}
+	return localHotLatencyInterval{Available: true, LimitNanos: after.LimitNanos, Count: count, AboveLimit: above, Breached: count > 0 && above > count/100}
+}
+
 type localTimelineWorkerCut struct {
+	HotLatency   *localHotLatencyCounters                 `json:"hot_latency,omitempty"`
 	Event        string                                   `json:"event"`
 	RunID        string                                   `json:"run_id"`
 	At           time.Time                                `json:"at"`
@@ -73,6 +101,7 @@ type localTimelineWindow struct {
 }
 
 type localTimelinePoint struct {
+	HotLatency          *localHotLatencyCounters                  `json:"hot_latency,omitempty"`
 	At                  time.Time                                 `json:"observed_at_utc"`
 	Phase               string                                    `json:"phase"`
 	Source              string                                    `json:"source"`
@@ -162,6 +191,7 @@ type localChatLifecycleCutQuery struct {
 }
 
 type localTimelineCutTransition struct {
+	HotLatency                  localHotLatencyInterval          `json:"hot_latency"`
 	Available                   bool                             `json:"available"`
 	PreviousAt                  *time.Time                       `json:"previous_at"`
 	CurrentAt                   *time.Time                       `json:"current_at"`
@@ -401,6 +431,7 @@ func localTimelineCutTransitionFor(
 	}
 	transition := localTimelineCutTransition{
 		Available: true, PreviousAt: &previous.At, CurrentAt: &latest.At,
+		HotLatency:      localHotLatencyDelta(previous.HotLatency, latest.HotLatency),
 		PreviousCutKind: previous.Cut, CurrentCutKind: latest.Cut,
 		SentDelta:                   latest.Messages.Sent - previous.Messages.Sent,
 		AcknowledgedDelta:           acknowledgedDelta,
@@ -548,6 +579,9 @@ func resemblesLocalTimelineWorkerCut(line []byte, runID string) bool {
 }
 
 func validateDecodedLocalTimelineWorkerCut(cut localTimelineWorkerCut, runID string) error {
+	if hot := cut.HotLatency; hot != nil && (hot.LimitNanos == 0 || hot.AboveLimit > hot.Count) {
+		return errors.New("worker hot latency counters are invalid")
+	}
 	if cut.Event != localChatLifecycleWorkerCutEvent || cut.RunID != runID || cut.At.IsZero() ||
 		(cut.Cut != chatlifecycle.CoordinatorCutPeriodic && cut.Cut != chatlifecycle.CoordinatorCutQualification &&
 			cut.Cut != chatlifecycle.CoordinatorCutTerminal) {
@@ -590,6 +624,16 @@ func validateLocalWorkerCutKeys(line []byte) error {
 	var outer map[string]json.RawMessage
 	if err := json.Unmarshal(line, &outer); err != nil {
 		return err
+	}
+	if raw, exists := outer["hot_latency"]; exists {
+		var hot map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &hot); err != nil {
+			return err
+		}
+		if err := requireExactLocalTimelineKeys(hot, "limit_nanos", "count", "above_limit"); err != nil {
+			return err
+		}
+		delete(outer, "hot_latency")
 	}
 	if err := requireExactLocalTimelineKeys(outer, "event", "run_id", "at", "cut", "totals", "close_reasons", "messages", "harness"); err != nil {
 		return err
@@ -802,7 +846,7 @@ func buildLocalChatLifecycleUnifiedTimeline(
 		connections, messages, closes := cut.Totals, cut.Messages, cut.CloseReasons
 		result.Points = append(result.Points, localTimelinePoint{
 			At: cut.At, Phase: phase, Source: "worker_status", Kind: string(cut.Cut),
-			Connections: &connections, Messages: &messages, CloseReasons: &closes,
+			Connections: &connections, Messages: &messages, CloseReasons: &closes, HotLatency: cut.HotLatency,
 			RetryDelta: retryDelta, GenerationStopDelta: generationDelta, SessionClosedDelta: sessionDelta,
 		})
 		if cut.Cut == chatlifecycle.CoordinatorCutTerminal {

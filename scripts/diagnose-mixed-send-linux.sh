@@ -13,7 +13,7 @@ output_dir="$1"
 [[ "$output_dir" == /* && ! -e "$output_dir" ]]
 mkdir -m 0700 -p "$output_dir"
 export GOWORK=off GOMAXPROCS=4
-unset WK_BENCH_SEND_DIAGNOSTICS_DIR WK_BENCH_SEND_COUNTERS_DIR
+unset WK_BENCH_SEND_DIAGNOSTICS_DIR WK_BENCH_SEND_COUNTERS_DIR WK_BENCH_SEND_FLIGHT_DIR
 git rev-parse HEAD > "$output_dir/source.sha"
 lscpu --json > "$output_dir/host.json"
 uname -a > "$output_dir/kernel.txt"

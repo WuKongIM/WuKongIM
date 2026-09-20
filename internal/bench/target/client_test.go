@@ -1277,3 +1277,79 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
+
+// observationBodyReader lets cancellation occur after HTTP headers, during the body read.
+type observationBodyReader struct {
+	read   func() error
+	closed bool
+}
+
+func (r *observationBodyReader) Read([]byte) (int, error) { return 0, r.read() }
+func (r *observationBodyReader) Close() error             { r.closed = true; return nil }
+
+func TestObservationBodyReadPreservesCausalCancellation(t *testing.T) {
+	for _, operation := range []string{"metrics", "force_gc"} {
+		t.Run(operation, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			body := &observationBodyReader{read: func() error { cancel(); return fmt.Errorf("body read: %w", ctx.Err()) }}
+			calls := 0
+			httpClient := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				calls++
+				return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: body, ContentLength: -1, Request: req}, nil
+			})}
+			client := NewClient(Config{APIAddrs: []string{"http://node1.test", "http://node2.test"}, HTTPClient: httpClient})
+			var err error
+			if operation == "metrics" {
+				_, err = client.Metrics(ctx)
+			} else {
+				err = client.ForceGC(ctx)
+			}
+			require.ErrorIs(t, err, context.Canceled)
+			require.Equal(t, 1, calls, "canceled body must not try another target")
+			require.True(t, body.closed)
+		})
+	}
+}
+
+func TestObservationBodyReadDoesNotHideIndependentFailureAtCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	body := &observationBodyReader{read: func() error { cancel(); return io.ErrUnexpectedEOF }}
+	client := NewClient(Config{APIAddrs: []string{"http://node1.test"}, HTTPClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: body, ContentLength: -1, Request: req}, nil
+	})}})
+	_, err := client.Metrics(ctx)
+	require.Error(t, err)
+	require.NotErrorIs(t, err, context.Canceled)
+	require.True(t, body.closed)
+}
+
+func TestObservationCancellationDoesNotEraseEarlierTargetFailure(t *testing.T) {
+	for _, stage := range []string{"headers", "body"} {
+		t.Run(stage, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			calls := 0
+			client := NewClient(Config{APIAddrs: []string{"http://node1.test", "http://node2.test"}, HTTPClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				calls++
+				if calls == 2 && stage == "headers" {
+					cancel()
+					return nil, ctx.Err()
+				}
+				body := &observationBodyReader{read: func() error {
+					if calls == 1 {
+						return io.ErrUnexpectedEOF
+					}
+					cancel()
+					return ctx.Err()
+				}}
+				return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: body, ContentLength: -1, Request: req}, nil
+			})}})
+			_, err := client.Metrics(ctx)
+			require.Error(t, err)
+			require.NotErrorIs(t, err, context.Canceled)
+			require.Equal(t, 2, calls)
+		})
+	}
+}

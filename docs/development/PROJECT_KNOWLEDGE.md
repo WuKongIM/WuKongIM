@@ -281,6 +281,12 @@ specification, runbook, report, or module documentation; link to them when neede
   is not a passing verdict, and an earlier gate failure prevents later windows.
   Preserve original order, load, assertions and failure exits; see the
   [workflow catalog](../../.github/workflows/README.md#fixed-linux-send-diagnosis).
+- The original mixed SEND qualification also arms a rolling trace and bounded
+  one-second counter ring after warmup. Six over-400 ms completions in a planned
+  500-arrival cohort trigger one export with two seconds of follow-up. The three
+  60-second gate verdicts remain authoritative; profiler overhead is explicit.
+  Go's 32 MiB/15-second retention settings are hints; exported trace bytes are
+  independently capped at 64 MiB. See the workflow catalog for collection bounds.
 - Release completion includes signed native package publication and exact-version
   public APT/RPM verification. Server and CLI artifacts share build identity;
   required same-tag acceptance gates precede publication. Follow
@@ -314,6 +320,17 @@ specification, runbook, report, or module documentation; link to them when neede
   buffers so metrics do not allocate on every RPC state transition.
 
 ## Performance evidence
+
+- Observation HTTP body reads must preserve causal context cancellation, as
+  header requests already do. Turning canceled reads into generic target failures
+  makes normal coordinator stop lose terminal evidence; unrelated read errors
+  must still fail even when cancellation happens concurrently.
+
+- Five-second worker cuts retain configured hot SENDACK P99 threshold counts.
+  Interval counts can trigger one independent diagnostic profile after an earlier
+  throughput dip; profiles serialize per cluster and retain the original trigger
+  bracket. Missing or delayed capture stays explicit. Profiles and finite host/
+  metrics context explain failures but never relax the qualification verdict.
 
 - 500-QPS seam qualification counts latency from scheduled arrival through completion.
   Service time alone cannot qualify a run. Each fixed window must meet throughput,

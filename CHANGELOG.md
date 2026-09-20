@@ -6,9 +6,17 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🔧 Improvements / 改进
+
 - Add text-message editing to the embedded Demo for sent messages in direct and group chats, with conflict/draft handling and live message/preview updates. / 内嵌 Demo 支持编辑本人已发送的单聊、群聊文本，处理冲突与草稿，并实时更新正文及会话摘要。
 
 ### 🐛 Bug Fixes / 问题修复
+
+- Preserve a bounded rolling execution trace and aligned one-second counters from the original mixed SEND qualification when a latency cohort breaches 400 ms. / mixed SEND 原始验证出现延迟超标时，保留有限滚动执行 trace 与对齐的逐秒计数器。
+
+- Preserve cancellation during benchmark metrics/profile response reads so normal workload shutdown can retain terminal evidence. / 保留压测指标及 profile 响应读取期间的取消信号，避免正常停止丢失终止证据。
+
+- Retain an independent hot SENDACK latency profile with bounded I/O context when an earlier throughput alarm has already collected profiles. / 早期吞吐告警已采集 profile 后，仍为热点 SENDACK 延迟超标保留一次独立采集及有限 I/O 上下文。
 
 - Retain failed 500-QPS warmup accounting and bounded failure categories, including mixed SEND pressure counters. / 保留 500 QPS 预热失败计数、有限错误分类及 mixed SEND 压力证据。
 

@@ -26,6 +26,16 @@ import (
 // sampler goroutine, profiler or per-request work. The original gate owns its
 // verdict; handlers_completed means the measurement ended, not that it passed.
 func Start(b testing.TB, dir, schema, scope string, operations, rate int, gatherers ...prometheus.Gatherer) func() {
+	return start(b, dir, schema, scope, operations, rate, false, gatherers...)
+}
+
+// StartWithProfile marks boundary evidence from a separately instrumented run.
+// The external profiler retains its own timing, completeness and byte budgets.
+func StartWithProfile(b testing.TB, dir, schema, scope string, operations, rate int, gatherers ...prometheus.Gatherer) func() {
+	return start(b, dir, schema, scope, operations, rate, true, gatherers...)
+}
+
+func start(b testing.TB, dir, schema, scope string, operations, rate int, profileEnabled bool, gatherers ...prometheus.Gatherer) func() {
 	b.Helper()
 	before := Read(b, gatherers...)
 	writeJSON(b, filepath.Join(dir, "before.json"), before)
@@ -35,7 +45,7 @@ func Start(b testing.TB, dir, schema, scope string, operations, rate int, gather
 			after := Read(b, gatherers...)
 			writeJSON(b, filepath.Join(dir, "after.json"), after)
 			writeJSON(b, filepath.Join(dir, "window.json"), map[string]any{
-				"schema": schema, "handlers_completed": completed, "profile_enabled": false,
+				"schema": schema, "handlers_completed": completed, "profile_enabled": profileEnabled,
 				"started_at": before.At, "ended_at": after.At, "counter_window_seconds": after.At.Sub(before.At).Seconds(),
 				"operations": operations, "offered_qps": rate, "go_version": runtime.Version(),
 				"gomaxprocs": runtime.GOMAXPROCS(0), "goos": runtime.GOOS, "goarch": runtime.GOARCH,
@@ -71,6 +81,16 @@ type Snapshot struct {
 // Read collects fixed system/runtime counters and selected metric families.
 func Read(b testing.TB, gatherers ...prometheus.Gatherer) Snapshot {
 	b.Helper()
+	s, err := ReadSnapshot(gatherers...)
+	if err != nil {
+		b.Fatal(err)
+	}
+	return s
+}
+
+// ReadSnapshot permits a bounded sampler to report collection errors without
+// terminating its goroutine before the caller can join it.
+func ReadSnapshot(gatherers ...prometheus.Gatherer) (Snapshot, error) {
 	s := Snapshot{At: time.Now().UTC(), System: make(map[string]string), Missing: make(map[string]string), Runtime: runtimeCounters()}
 	for _, path := range []string{
 		"/proc/stat", "/proc/diskstats", "/proc/self/io", "/proc/self/cgroup",
@@ -104,7 +124,7 @@ func Read(b testing.TB, gatherers ...prometheus.Gatherer) Snapshot {
 	for _, gatherer := range gatherers {
 		families, err := gatherer.Gather()
 		if err != nil {
-			b.Fatal(err)
+			return s, err
 		}
 		for _, family := range families {
 			// Closed metric families only; no message bodies or identities.
@@ -119,7 +139,7 @@ func Read(b testing.TB, gatherers ...prometheus.Gatherer) Snapshot {
 			}
 		}
 	}
-	return s
+	return s, nil
 }
 
 // ReadSystemFile caps one system pseudo-file at 64 KiB.

@@ -736,6 +736,12 @@ func (c *Client) getObservationBytes(ctx context.Context, path string, limit int
 	}
 	var failures int
 	for _, addr := range addrs {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			if failures == 0 {
+				return nil, ctxErr
+			}
+			break
+		}
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, joinURL(addr, path), nil)
 		if err != nil {
 			failures++
@@ -746,7 +752,7 @@ func (c *Client) getObservationBytes(ctx context.Context, path string, limit int
 		}
 		resp, err := c.http.Do(req)
 		if err != nil {
-			if ctxErr := ctx.Err(); ctxErr != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil && errors.Is(err, ctxErr) && failures == 0 {
 				return nil, ctxErr
 			}
 			failures++
@@ -769,6 +775,11 @@ func (c *Client) getObservationBytes(ctx context.Context, path string, limit int
 		encoded, readErr := io.ReadAll(io.LimitReader(resp.Body, limit+1))
 		_ = resp.Body.Close()
 		if readErr != nil {
+			// Preserve causal cancellation during body reads so a normal observer
+			// stop cannot become missing evidence. Independent read failures stay failures.
+			if ctxErr := ctx.Err(); ctxErr != nil && errors.Is(readErr, ctxErr) && failures == 0 {
+				return nil, ctxErr
+			}
 			failures++
 			continue
 		}

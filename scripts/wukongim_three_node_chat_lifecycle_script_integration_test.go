@@ -815,3 +815,93 @@ func assertChatLifecyclePIDsExited(t *testing.T, pidDir string) {
 		}
 	}
 }
+
+func TestChatLifecycleHotProfileRetainsTriggerAndSerializesCaptures(t *testing.T) {
+	root := repoRoot(t)
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "scripts"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// The real orchestration is exercised with a bounded helper stand-in; no cluster is started.
+	helper := `#!/usr/bin/env bash
+set -euo pipefail
+mkdir "$TEST_DIR/active-profile" || exit 91
+trap 'rmdir "$TEST_DIR/active-profile"' EXIT
+printf '%s\n' "$*" >>"$TEST_DIR/captures"
+sleep 0.1
+`
+	if err := os.WriteFile(filepath.Join(dir, "scripts", "capture-wukongim-local-threshold-pprof.sh"), []byte(helper), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	script := readFile(t, filepath.Join(root, "scripts", "run-wukongim-three-node-chat-lifecycle-shakeout.sh"))
+	harness := `set -Eeuo pipefail
+trap 'printf "harness failure line %s: %s\n" "$LINENO" "$BASH_COMMAND"' ERR
+ROOT_DIR="$TEST_DIR"
+EVIDENCE_DIR="$TEST_DIR"
+LOG_DIR="$TEST_DIR"
+CUT_QUERY_FILE="$TEST_DIR/query.json"
+HOT_PPROF_DIR="$TEST_DIR/hot"
+PPROF_DIR="$TEST_DIR/primary"
+PHASE_STATE_FILE="$TEST_DIR/phase"
+WK_BENCH_API_TOKEN=test-token
+PPROF_CPU_SECONDS=1
+PPROF_TRIGGERED=0
+PPROF_TRIGGER_KIND=''
+PPROF_PID=''
+HOT_PPROF_PID=''
+HOT_PPROF_TRIGGERED=0
+HOT_PPROF_PENDING=''
+log() { :; }
+api_port() { printf '2500%s' "$1"; }
+`
+	for _, name := range []string{"wait_child_uninterrupted", "start_threshold_pprof_capture", "observe_hot_latency_trigger", "join_threshold_pprof_capture"} {
+		harness += "\n" + extractBashFunction(t, script, name)
+	}
+	harness += `
+cat >"$CUT_QUERY_FILE" <<'JSON'
+{"transitions":[{"measurement_eligible":true,"current_cut_kind":"periodic","previous_at":"first-prev","current_at":"first-current","hot_latency":{"available":true,"breached":true}}]}
+JSON
+observe_hot_latency_trigger warmup
+test "$HOT_PPROF_TRIGGERED" = 0
+# An earlier throughput capture delays, but cannot consume, the hot trigger.
+start_threshold_pprof_capture actual_offered_ratio earlier-prev earlier-current
+observe_hot_latency_trigger measurement
+test "$HOT_PPROF_TRIGGERED" = 0
+test -s "$EVIDENCE_DIR/hot-latency-trigger.json"
+wait_child_uninterrupted "$PPROF_PID"
+test "$WAIT_CHILD_STATUS" = 0
+printf '{"transitions":[]}\n' >"$CUT_QUERY_FILE"
+observe_hot_latency_trigger measurement
+test "$HOT_PPROF_TRIGGERED" = 1
+observe_hot_latency_trigger measurement
+join_threshold_pprof_capture
+test "$(wc -l <"$TEST_DIR/captures")" -eq 2
+test "$(cat "$EVIDENCE_DIR/hot-latency-helper-exit-status")" = 0
+rg -q -- '--previous-utc first-prev --current-utc first-current' "$TEST_DIR/captures"
+# Required terminal evidence preempts an optional hot capture before phase closes.
+PPROF_TRIGGERED=0
+PPROF_TRIGGER_KIND=''
+sleep 30 &
+HOT_PPROF_PID=$!
+optional_pid="$HOT_PPROF_PID"
+start_threshold_pprof_capture terminal_product_failure terminal-prev terminal-current
+test "$PPROF_TRIGGERED" = 1
+! kill -0 "$optional_pid" 2>/dev/null
+test "$(cat "$EVIDENCE_DIR/hot-latency-capture-status")" = interrupted_by_primary_capture
+printf 'drain\n' >"$PHASE_STATE_FILE"
+join_threshold_pprof_capture
+test "$PPROF_EXIT_STATUS" = 0
+test "$PPROF_TRIGGER_KIND" = terminal_product_failure
+rg -q -- '--previous-utc terminal-prev --current-utc terminal-current' "$TEST_DIR/captures"
+# A trigger delayed beyond measurement remains explicitly uncollected.
+HOT_PPROF_PENDING='pending'
+HOT_PPROF_TRIGGERED=0
+join_threshold_pprof_capture
+test "$(cat "$EVIDENCE_DIR/hot-latency-capture-status")" = skipped_measurement_closed_before_capture
+`
+	command := exec.Command("bash", "-c", harness)
+	command.Env = append(os.Environ(), "TEST_DIR="+dir)
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("profile orchestration: %v\n%s", err, out)
+	}
+}

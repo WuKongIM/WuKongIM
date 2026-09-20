@@ -22,6 +22,13 @@ const (
 	maxLiveDiagnosticRecentEvents = 64
 )
 
+// hotLatencyDiagnosticCounters retains exact configured-threshold counts, not an interpolated percentile.
+type hotLatencyDiagnosticCounters struct {
+	LimitNanos uint64 `json:"limit_nanos"`
+	Count      uint64 `json:"count"`
+	AboveLimit uint64 `json:"above_limit"`
+}
+
 type liveDiagnosticState string
 type liveDiagnosticStage string
 type liveDiagnosticEventKind string
@@ -77,23 +84,24 @@ type liveDiagnosticStatus struct {
 // liveDiagnosticRecorder owns one current document and a fixed-size recent
 // change ring. It never retains a UID, channel, message, address, or raw error.
 type liveDiagnosticRecorder struct {
-	mu       sync.Mutex
-	path     string
-	runID    string
-	start    time.Time
-	seen     [coordinatorWorkerCount]bool
-	previous [coordinatorWorkerCount]liveDiagnosticWorker
-	events   []liveDiagnosticEvent
-	log      io.Writer
+	mu        sync.Mutex
+	path      string
+	runID     string
+	start     time.Time
+	seen      [coordinatorWorkerCount]bool
+	previous  [coordinatorWorkerCount]liveDiagnosticWorker
+	events    []liveDiagnosticEvent
+	log       io.Writer
+	hotLimits LatencyLimit
 }
 
-func newLiveDiagnosticRecorder(outputDir, runID string, start time.Time, log io.Writer) *liveDiagnosticRecorder {
+func newLiveDiagnosticRecorder(outputDir, runID string, start time.Time, log io.Writer, hotLimits LatencyLimit) *liveDiagnosticRecorder {
 	if log == nil {
 		log = io.Discard
 	}
 	return &liveDiagnosticRecorder{
 		path:  filepath.Join(filepath.Clean(outputDir), LiveDiagnosticStatusFile),
-		runID: runID, start: start, log: log,
+		runID: runID, start: start, log: log, hotLimits: hotLimits,
 	}
 }
 
@@ -138,14 +146,30 @@ func (r *liveDiagnosticRecorder) Observe(at time.Time, cut CoordinatorCutKind, s
 	if err := writeLiveDiagnosticStatus(r.path, document); err != nil {
 		return err
 	}
-	r.writeLog(document, messages)
+	r.writeLog(document, messages, r.hotLatencyCounters(snapshots))
 	if cut == CoordinatorCutTerminal {
 		return r.writeTerminalWorkerEvidence(at, snapshots)
 	}
 	return nil
 }
 
-func (r *liveDiagnosticRecorder) writeLog(document liveDiagnosticStatus, messages WorkerMessageSnapshot) {
+// Invalid latency input stays absent here; authoritative worker-evidence validation
+// retains responsibility for the failure stage and verdict.
+func (r *liveDiagnosticRecorder) hotLatencyCounters(snapshots []WorkerSnapshot) *hotLatencyDiagnosticCounters {
+	hot := newWorkerHistogramSnapshot()
+	for _, snapshot := range snapshots {
+		if err := addCoordinatorHistogram(&hot, snapshot.HotSendackLatency); err != nil {
+			return nil
+		}
+	}
+	counters, err := histogramThresholdCounters(hot, r.hotLimits)
+	if err != nil {
+		return nil
+	}
+	return &hotLatencyDiagnosticCounters{LimitNanos: uint64(counters.P99Limit), Count: counters.Count, AboveLimit: counters.AboveP99}
+}
+
+func (r *liveDiagnosticRecorder) writeLog(document liveDiagnosticStatus, messages WorkerMessageSnapshot, hot *hotLatencyDiagnosticCounters) {
 	record := struct {
 		Event        string                         `json:"event"`
 		RunID        string                         `json:"run_id"`
@@ -154,11 +178,12 @@ func (r *liveDiagnosticRecorder) writeLog(document liveDiagnosticStatus, message
 		Totals       liveDiagnosticConnectionCounts `json:"totals"`
 		CloseReasons SessionCloseReasonSnapshot     `json:"close_reasons"`
 		Messages     WorkerMessageSnapshot          `json:"messages"`
+		HotLatency   *hotLatencyDiagnosticCounters  `json:"hot_latency,omitempty"`
 		Harness      WorkerHarnessSnapshot          `json:"harness"`
 	}{
 		Event: "wkbench.chat_lifecycle.worker_status_cut", RunID: document.RunID,
 		At: document.UpdatedAt, Cut: document.Cut, Totals: document.Totals, CloseReasons: document.CloseReasons,
-		Messages: messages, Harness: document.Harness,
+		Messages: messages, Harness: document.Harness, HotLatency: hot,
 	}
 	body, err := json.Marshal(record)
 	if err == nil {
