@@ -5,6 +5,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"github.com/WuKongIM/WuKongIM/internal/bench/arrival"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -106,68 +107,70 @@ func benchmarkRealTCPSendackPacedAtRate(b *testing.B, synchronousRecvack bool, s
 		recvackLoad = newPacedTCPRecvackLoad(clients, sessions, handler)
 	}
 
+	warmup := arrival.QualificationWarmup(b, rate)
 	latencies := make([]time.Duration, b.N)
 	pendingWaits := make([]time.Duration, b.N)
 	wireWaits := make([]time.Duration, b.N)
-	jobs := make(chan int, pacedTCPBenchmarkWorkers)
-	var workers sync.WaitGroup
-	var errMu sync.Mutex
-	var firstErr error
-	workers.Add(pacedTCPBenchmarkWorkers)
-	for range pacedTCPBenchmarkWorkers {
-		go func() {
-			defer workers.Done()
-			for index := range jobs {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				result, sendErr := clients[clientOrder[index%len(clientOrder)]].Send(ctx, Message{
-					ClientSeq:   uint64(index + 1),
-					ClientMsgNo: fmt.Sprintf("paced-tcp-%d", index+1),
-					ChannelID:   fmt.Sprintf("person-%d", index%2000),
-					ChannelType: 1,
-					Payload:     make([]byte, 1024),
-				})
-				cancel()
-				if sendErr == nil && result.ReasonCode != frame.ReasonSuccess {
-					sendErr = fmt.Errorf("SENDACK reason %v", result.ReasonCode)
+	measuring := false
+	operation := func(ctx context.Context, index int) error {
+		identity := index
+		if measuring {
+			identity += warmup
+		}
+		result, err := clients[clientOrder[identity%len(clientOrder)]].Send(ctx, Message{
+			ClientSeq: uint64(identity + 1), ClientMsgNo: fmt.Sprintf("paced-tcp-%d", identity+1),
+			ChannelID: fmt.Sprintf("person-%d", identity%2000), ChannelType: 1, Payload: make([]byte, 1024),
+		})
+		if err != nil {
+			return err
+		}
+		if result.ReasonCode != frame.ReasonSuccess {
+			return fmt.Errorf("SENDACK reason %v", result.ReasonCode)
+		}
+		if measuring {
+			latencies[index] = result.ObservedAt.Sub(result.PendingStartedAt)
+			pendingWaits[index] = result.WriteStartedAt.Sub(result.PendingStartedAt)
+			wireWaits[index] = result.ObservedAt.Sub(result.WriteStartedAt)
+		}
+		return nil
+	}
+	if recvackLoad != nil {
+		recvackLoad.Start()
+		defer func() {
+			if recvackLoad != nil {
+				if err := recvackLoad.Stop(); err != nil {
+					b.Error(err)
 				}
-				if sendErr != nil {
-					errMu.Lock()
-					if firstErr == nil {
-						firstErr = fmt.Errorf("send %d: %w", index, sendErr)
-					}
-					errMu.Unlock()
-					continue
-				}
-				latencies[index] = result.ObservedAt.Sub(result.PendingStartedAt)
-				pendingWaits[index] = result.WriteStartedAt.Sub(result.PendingStartedAt)
-				wireWaits[index] = result.ObservedAt.Sub(result.WriteStartedAt)
 			}
 		}()
 	}
+	if warmup > 0 {
+		warm := arrival.Run(warmup, rate, pacedTCPBenchmarkWorkers, operation)
+		if !arrival.ReportWarmup(b, warm) {
+			b.Fatal("sustained warmup did not complete; see warmup evidence")
+		}
+	}
+	measuring = true
+	var writesBefore, acksBefore uint64
+	if recvackLoad != nil {
+		writesBefore = recvackLoad.writes.Load()
+		acksBefore = handler.recvAcks.Load()
+	}
+	observer.reset()
 
 	b.ReportAllocs()
 	b.ResetTimer()
-	if recvackLoad != nil {
-		recvackLoad.Start()
-	}
-	started := time.Now()
-	for index := range b.N {
-		pacedTCPBenchmarkWaitUntil(started.Add(time.Duration(index) * time.Second / time.Duration(rate)))
-		jobs <- index
-	}
-	close(jobs)
-	workers.Wait()
+	arrivals := arrival.Run(b.N, rate, pacedTCPBenchmarkWorkers, operation)
 	b.StopTimer()
 	if recvackLoad != nil {
 		if err := recvackLoad.Stop(); err != nil {
 			b.Fatal(err)
 		}
-		b.ReportMetric(float64(recvackLoad.writes.Load())/float64(b.N), "recv-writes/op")
-		b.ReportMetric(float64(handler.recvAcks.Load())/float64(b.N), "recvacks/op")
+		b.ReportMetric(float64(recvackLoad.writes.Load()-writesBefore)/float64(b.N), "recv-writes/op")
+		b.ReportMetric(float64(handler.recvAcks.Load()-acksBefore)/float64(b.N), "recvacks/op")
+		recvackLoad = nil
 	}
-	if firstErr != nil {
-		b.Fatal(firstErr)
-	}
+	arrival.Report(b, arrivals)
 
 	reportPacedTCPLatency(b, "send", latencies, rate)
 	reportPacedTCPLatency(b, "pending-to-write", pendingWaits, rate)
@@ -238,6 +241,16 @@ func (o *pacedTCPBenchmarkObserver) OnTransportWrite(event pkgateway.TransportWr
 	o.transportWrite = append(o.transportWrite, event.Duration)
 	o.mu.Unlock()
 }
+
+// reset excludes completed warmup observations from the measured phase.
+func (o *pacedTCPBenchmarkObserver) reset() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.frameHandled = nil
+	o.dispatchWait = nil
+	o.transportWrite = nil
+}
+
 func (o *pacedTCPBenchmarkObserver) snapshot() ([]time.Duration, []time.Duration, []time.Duration) {
 	o.mu.Lock()
 	defer o.mu.Unlock()

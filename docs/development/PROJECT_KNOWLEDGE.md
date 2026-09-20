@@ -313,6 +313,27 @@ specification, runbook, report, or module documentation; link to them when neede
   shutdown drains admitted terminal states. Reuse state cells and delivery
   buffers so metrics do not allocate on every RPC state transition.
 
+## Performance evidence
+
+- 500-QPS seam qualification counts latency from scheduled arrival through completion.
+  Service time alone cannot qualify a run. Each fixed window must meet throughput,
+  latency, error, drop and completion bounds; every rejected window remains evidence.
+- A closed early product-failure timeline can prove failure without satisfying a
+  full-duration performance window. Missing duration cannot downgrade that proven
+  failure or qualify an otherwise incomplete run.
+
+- Online delivery queues are bounded globally and ordered by exact Channel ID/type.
+  A fixed worker pool rotates ready Channels after each plan; historical Channel
+  state is removed when drained. Fixed hash-to-worker routing caused a ten-second
+  person-message observation timeout behind the 100,000-member canary.
+- 500-QPS performance reuse is limited to three recent clean main qualifications
+  with identical performance inputs; failed/retried/incomplete matching runs
+  invalidate reuse. Public-metadata failure falls back to fresh tests, while
+  correctness/unit/race and scheduled/manual performance always execute.
+- Sustained 500-QPS warmup failures retain separate, non-qualifying arrival
+  reports with complete counters and bounded anonymous failure categories;
+  append and mixed SEND retain independent warmup pressure/storage boundaries.
+
 ## Embedded Demo message editing
 
 - `demo/chatdemo` pins JS SDK `1.4.0-beta.1` and uses its edit/feed manager with

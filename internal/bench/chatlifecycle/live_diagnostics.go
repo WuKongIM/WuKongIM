@@ -139,6 +139,9 @@ func (r *liveDiagnosticRecorder) Observe(at time.Time, cut CoordinatorCutKind, s
 		return err
 	}
 	r.writeLog(document, messages)
+	if cut == CoordinatorCutTerminal {
+		return r.writeTerminalWorkerEvidence(at, snapshots)
+	}
 	return nil
 }
 
@@ -267,12 +270,45 @@ func addLiveDiagnosticCloseReasons(total *SessionCloseReasonSnapshot, value Sess
 }
 
 func writeLiveDiagnosticStatus(path string, document liveDiagnosticStatus) error {
+	return writeBoundedDiagnosticDocument(path, document, maxLiveDiagnosticStatusBytes)
+}
+
+// writeTerminalWorkerEvidence retains the existing redacted first/last samples
+// once traffic has joined. Aggregate counts alone cannot identify a lost SEND.
+func (r *liveDiagnosticRecorder) writeTerminalWorkerEvidence(at time.Time, snapshots []WorkerSnapshot) error {
+	type workerEvidence struct {
+		WorkerID         uint64           `json:"worker_id"`
+		Generation       uint64           `json:"generation"`
+		SnapshotSequence uint64           `json:"snapshot_sequence"`
+		Evidence         EvidenceSnapshot `json:"evidence"`
+	}
+	document := struct {
+		Schema  string                                 `json:"schema"`
+		RunID   string                                 `json:"run_id"`
+		At      time.Time                              `json:"at"`
+		Workers [coordinatorWorkerCount]workerEvidence `json:"workers"`
+	}{Schema: "wukongim/chat-lifecycle-worker-evidence/v1", RunID: r.runID, At: at}
+	for _, snapshot := range snapshots {
+		if snapshot.RunID != r.runID || !validWorkerSnapshot(snapshot) {
+			return errProductionController
+		}
+		document.Workers[snapshot.WorkerID] = workerEvidence{
+			WorkerID: snapshot.WorkerID, Generation: snapshot.Generation,
+			SnapshotSequence: snapshot.SnapshotSequence, Evidence: snapshot.Evidence,
+		}
+	}
+	return writeBoundedDiagnosticDocument(filepath.Join(filepath.Dir(r.path), "worker-evidence.json"), document, 1<<20)
+}
+
+// writeBoundedDiagnosticDocument atomically publishes a fixed-size status or
+// terminal evidence document; failed writes never replace earlier evidence.
+func writeBoundedDiagnosticDocument(path string, document any, maximumBytes int) error {
 	body, err := json.MarshalIndent(document, "", "  ")
 	if err != nil {
 		return err
 	}
 	body = append(body, '\n')
-	if len(body) > maxLiveDiagnosticStatusBytes {
+	if len(body) > maximumBytes {
 		return errProductionController
 	}
 	directory := filepath.Dir(path)

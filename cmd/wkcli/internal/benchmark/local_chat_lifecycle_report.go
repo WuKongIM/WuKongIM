@@ -102,10 +102,12 @@ type localChatLifecycleStepEvidence struct {
 	ProductQueuesConverged       bool
 	ProcessesContinuous          bool
 	TimelineComplete             bool
-	ProfileEvidenceComplete      bool
-	OperatorInterrupted          bool
-	HarnessFailureReason         localChatLifecycleHarnessFailureReason
-	HostConfounded               bool
+	// TerminalTimelineComplete proves closed boundaries without claiming the full measurement duration.
+	TerminalTimelineComplete bool
+	ProfileEvidenceComplete  bool
+	OperatorInterrupted      bool
+	HarnessFailureReason     localChatLifecycleHarnessFailureReason
+	HostConfounded           bool
 }
 
 // localChatLifecycleStepResult is the non-formal typed result consumed by the staircase.
@@ -210,6 +212,17 @@ func newLocalChatLifecycleStepReportCommand() *cobra.Command {
 				timelineComplete = false
 				timelineErr = errors.New("local timeline qualification disagrees with the report")
 			}
+			// A product failure can end a valid measured window early. Check its
+			// closure separately; a short window must still never qualify as pass.
+			terminalTimelineComplete := false
+			if !timelineComplete && beforeErr == nil && afterErr == nil &&
+				sameLocalChatLifecycleStep(before, after) && validLocalChatLifecycleTerminalReport(after) &&
+				localChatLifecycleProductFailure(after) {
+				closed, complete, err := readLocalStepTimelineEvidenceWithDuration(timelinePath, runID, offeredRate, minimumThroughput, measuredDuration, false)
+				window := closed.Windows["measured"]
+				terminalTimelineComplete = err == nil && complete && closed.QualificationCutPresent &&
+					window.EndAt != nil && window.EndAt.Equal(after.Window.End)
+			}
 			profileComplete, profileErr := readLocalStepProfileEvidence(profileStatusPath, timeline)
 			evidence := localChatLifecycleStepEvidence{
 				QualificationReportComplete: beforeErr == nil, FinalReportComplete: afterErr == nil,
@@ -218,7 +231,7 @@ func newLocalChatLifecycleStepReportCommand() *cobra.Command {
 					localChatLifecycleProductMetricsComplete(before, after),
 				ProductQueueEvidenceComplete: productQueueComplete, ProductQueuesConverged: productQueuesConverged,
 				ProcessesContinuous: processesContinuous, HostConfounded: hostConfounded,
-				TimelineComplete: timelineComplete, ProfileEvidenceComplete: profileComplete,
+				TimelineComplete: timelineComplete, TerminalTimelineComplete: terminalTimelineComplete, ProfileEvidenceComplete: profileComplete,
 				OperatorInterrupted:  operatorInterrupted,
 				HarnessFailureReason: typedHarnessFailure,
 			}
@@ -281,6 +294,10 @@ func readLocalStepTimelineEvidence(
 	minimumThroughput uint64,
 	measuredDuration time.Duration,
 ) (localChatLifecycleUnifiedTimeline, bool, error) {
+	return readLocalStepTimelineEvidenceWithDuration(path, runID, offeredRate, minimumThroughput, measuredDuration, true)
+}
+
+func readLocalStepTimelineEvidenceWithDuration(path, runID string, offeredRate, minimumThroughput uint64, measuredDuration time.Duration, requireDuration bool) (localChatLifecycleUnifiedTimeline, bool, error) {
 	file, err := os.Open(filepath.Clean(path))
 	if err != nil {
 		return localChatLifecycleUnifiedTimeline{}, false, err
@@ -302,7 +319,7 @@ func readLocalStepTimelineEvidence(
 		localChatLifecycleTimelineStorageOverlapComplete(timeline) &&
 		timeline.SourceCompleteness.TerminalCutPresent && !timeline.SourceCompleteness.PartialWorkerLogLine &&
 		timeline.SourceCompleteness.FirstBreachObservable && len(timeline.Points) > 0 &&
-		localChatLifecycleTimelineWindowsComplete(timeline, measuredDuration)
+		localChatLifecycleTimelineWindowsClosed(timeline, measuredDuration, requireDuration)
 	if !complete {
 		return timeline, false, errors.New("local timeline evidence is incomplete")
 	}
@@ -339,6 +356,10 @@ func localChatLifecycleTimelineStorageOverlapComplete(timeline localChatLifecycl
 }
 
 func localChatLifecycleTimelineWindowsComplete(timeline localChatLifecycleUnifiedTimeline, measuredDuration time.Duration) bool {
+	return localChatLifecycleTimelineWindowsClosed(timeline, measuredDuration, true)
+}
+
+func localChatLifecycleTimelineWindowsClosed(timeline localChatLifecycleUnifiedTimeline, measuredDuration time.Duration, requireDuration bool) bool {
 	if measuredDuration < time.Second || measuredDuration%time.Second != 0 {
 		return false
 	}
@@ -361,7 +382,7 @@ func localChatLifecycleTimelineWindowsComplete(timeline localChatLifecycleUnifie
 		if minimum < 0 {
 			minimum = 0
 		}
-		if window.EndAt.Sub(*window.StartAt) < minimum {
+		if requireDuration && window.EndAt.Sub(*window.StartAt) < minimum {
 			return false
 		}
 	} else if measured, ok := timeline.Windows["measured"]; ok && measured.Complete {
@@ -859,6 +880,31 @@ func classifyLocalChatLifecycleStep(
 			return result
 		}
 		result.Outcome, result.Reason = localChatLifecycleStepProductFailure, "terminal_product_failure_before_qualification"
+		return result
+	}
+	if evidence.QualificationReportComplete && evidence.FinalReportComplete &&
+		!evidence.TimelineComplete && evidence.TerminalTimelineComplete &&
+		evidence.ProcessesContinuous && evidence.ProfileEvidenceComplete &&
+		sameLocalChatLifecycleStep(before, after) && validLocalChatLifecycleTerminalReport(after) &&
+		!after.Window.End.Before(before.Window.End) && localChatLifecycleProductFailure(after) {
+		minimumFree, ok := minimumLocalChatLifecycleFilesystemFreePercent(after)
+		if !ok {
+			return result
+		}
+		result.MinimumFilesystemFreePct = minimumFree
+		if minimumFree < 10 {
+			result.Outcome, result.Reason = localChatLifecycleStepStorageConfounded, "filesystem_free_below_10_percent"
+			return result
+		}
+		sent, sentOK := localStepCounterDelta(before.Messages.Sent, after.Messages.Sent)
+		acked, ackedOK := localStepCounterDelta(before.Messages.Sent, after.Messages.SendAcknowledged)
+		if !sentOK || !ackedOK {
+			return result
+		}
+		result.Sent, result.Acknowledged = sent, acked
+		// The configured duration did not elapse. Retain counts, never invent
+		// full-window throughput from an early terminal failure.
+		result.Outcome, result.Reason = localChatLifecycleStepProductFailure, "terminal_product_failure_during_measurement"
 		return result
 	}
 	if !evidence.StorageComplete || !evidence.HostIOComplete || !evidence.ProductMetricsComplete ||

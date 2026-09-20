@@ -17,8 +17,8 @@ func newAppendGateCounters(b *testing.B) *metrics.Registry {
 	if os.Getenv("WK_BENCH_APPEND_COUNTERS_DIR") == "" {
 		return nil
 	}
-	if b.Name() != "BenchmarkThreeNodeChannelAppend500QPS" || runtime.GOOS != "linux" || runtime.GOARCH != "amd64" || runtime.GOMAXPROCS(0) != 4 || (b.N != 1 && b.N != 3000) {
-		b.Fatal("append counters require Linux amd64, GOMAXPROCS=4 and exactly 3000 operations in the 500 QPS PR seam")
+	if b.Name() != "BenchmarkThreeNodeChannelAppend500QPS" || runtime.GOOS != "linux" || runtime.GOARCH != "amd64" || runtime.GOMAXPROCS(0) != 4 || (b.N != 1 && b.N != 3000 && !(os.Getenv("WK_BENCH_QUALIFY") == "1" && b.N == 90000)) {
+		b.Fatal("append counters require Linux amd64, GOMAXPROCS=4 and 3000 diagnostic or 90000 qualification operations in the 500 QPS seam")
 	}
 	if b.N == 1 {
 		return nil
@@ -43,4 +43,19 @@ func startAppendGateCounterWindow(b *testing.B, cluster *durableQuorumBenchmarkC
 	return counterwindow.Start(b, dir, "channel-append-counters/v1",
 		"post-setup through completed handlers; includes boundary snapshot and benchmark timer overhead; three-node aggregate; replication stages sampled 1/32; physical batches unsampled",
 		b.N, rate, cluster.counters.PrometheusRegistry())
+}
+
+// startAppendWarmupCounters preserves pressure and storage boundaries before a
+// warmup failure can stop the benchmark; it never changes the measured verdict.
+func startAppendWarmupCounters(b *testing.B, cluster *durableQuorumBenchmarkCluster, operations, rate int) func() {
+	if cluster.counters == nil {
+		return func() {}
+	}
+	dir := os.Getenv("WK_BENCH_APPEND_COUNTERS_DIR") + ".warmup"
+	if err := os.Mkdir(dir, 0700); err != nil {
+		b.Fatal(err)
+	}
+	return counterwindow.Start(b, dir, "channel-append-warmup-counters/v1",
+		"sustained warmup only; includes boundary snapshots; excludes measured traffic; three-node aggregate",
+		operations, rate, cluster.counters.PrometheusRegistry())
 }
