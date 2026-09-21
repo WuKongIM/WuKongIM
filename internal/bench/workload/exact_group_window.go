@@ -551,6 +551,7 @@ func (w *exactGroupWindow) startTask(task exactGroupWindowTask, senderUID string
 	w.active++
 	if w.cfg.stats != nil {
 		w.cfg.stats.Dispatched++
+		w.cfg.stats.observeDispatchLag(w.cfg.clock.Now().Sub(w.startAt.Add(w.cfg.interval * time.Duration(task.offset))))
 	}
 	w.observeStats()
 	go func(offset int, sender string) {

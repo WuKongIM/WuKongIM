@@ -1018,6 +1018,7 @@ func summaryMarkdown(rep Report) string {
 	fmt.Fprintf(&b, "- worker_failed: %d\n", rep.Summary.WorkerFailed)
 	fmt.Fprintf(&b, "- sendack_max_worker_p99: %s\n", rep.Summary.SendackMaxWorkerP99)
 	fmt.Fprintf(&b, "- recv_max_worker_p99: %s\n", rep.Summary.RecvMaxWorkerP99)
+	writeLatencyAttribution(&b, rep.Metrics)
 	return b.String()
 }
 

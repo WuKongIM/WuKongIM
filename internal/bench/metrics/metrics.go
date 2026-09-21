@@ -64,6 +64,10 @@ var allowedLabelKeys = map[string]struct{}{
 // snapshots, but arbitrary caller-provided names never cross a worker or
 // retained-report boundary.
 var allowedMetricNames = map[string]struct{}{
+	"workload_dispatch_lag_seconds":           {},
+	"workload_send_submit_seconds":            {},
+	"workload_sendack_wait_seconds":           {},
+	"workload_operation_seconds":              {},
 	"active_connections":                      {},
 	"attempt_record_total":                    {},
 	"churn_identity_swap_total":               {},
@@ -224,6 +228,8 @@ type ErrorSample struct {
 // After worker aggregation, percentile fields are max worker-local percentiles,
 // not percentiles recomputed from globally merged samples.
 type HistogramSummary struct {
+	// PercentilesAreUpperBounds marks fixed-bucket diagnostic quantiles. Counts, sums, and extrema remain exact; merged quantiles are still max-worker values.
+	PercentilesAreUpperBounds bool `json:"percentiles_are_upper_bounds,omitempty"`
 	// Count is the number of observed samples.
 	Count uint64 `json:"count"`
 	// SumSeconds is the total observed latency in seconds.
@@ -267,17 +273,20 @@ type Registry struct {
 	counters  map[string]uint64
 	gauges    map[string]float64
 	latencies map[string][]time.Duration
-	errors    []ErrorSample
-	maxErrors int
+	// diagnosticLatencies bounds stage-timing memory independently of run duration.
+	diagnosticLatencies map[string]*diagnosticLatency
+	errors              []ErrorSample
+	maxErrors           int
 }
 
 // NewRegistry creates an empty metrics registry.
 func NewRegistry() *Registry {
 	return &Registry{
-		counters:  make(map[string]uint64),
-		gauges:    make(map[string]float64),
-		latencies: make(map[string][]time.Duration),
-		maxErrors: 32,
+		counters:            make(map[string]uint64),
+		gauges:              make(map[string]float64),
+		latencies:           make(map[string][]time.Duration),
+		diagnosticLatencies: make(map[string]*diagnosticLatency),
+		maxErrors:           32,
 	}
 }
 
@@ -363,7 +372,8 @@ func (r *Registry) GaugeValue(name string, labels Labels) float64 {
 	return r.gauges[seriesKey(name, labels)]
 }
 
-// ObserveLatency appends one latency sample for the supplied series.
+// ObserveLatency records a latency; diagnostic stage series use bounded buckets,
+// while legacy SLO series retain their existing exact samples.
 func (r *Registry) ObserveLatency(name string, labels Labels, d time.Duration) {
 	if r == nil || validateMetricSeries(name, labels) != nil {
 		return
@@ -371,10 +381,20 @@ func (r *Registry) ObserveLatency(name string, labels Labels, d time.Duration) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	key := seriesKey(name, labels)
+	if isDiagnosticLatency(name) {
+		h := r.diagnosticLatencies[key]
+		if h == nil {
+			h = &diagnosticLatency{}
+			r.diagnosticLatencies[key] = h
+		}
+		h.observe(d)
+		return
+	}
 	r.latencies[key] = append(r.latencies[key], d)
 }
 
-// LatencyValues returns a copy of the current latency samples for one series.
+// LatencyValues returns a copy of raw legacy samples. Diagnostic series retain
+// no raw samples; use Collect for their bounded histogram summaries.
 func (r *Registry) LatencyValues(name string, labels Labels) []time.Duration {
 	if r == nil || validateMetricSeries(name, labels) != nil {
 		return nil
@@ -432,6 +452,9 @@ func (r *Registry) Collect() SnapshotData {
 	histograms := make(map[string]HistogramSummary, len(r.latencies))
 	for k, values := range r.latencies {
 		histograms[k] = summarizeDurations(values)
+	}
+	for k, h := range r.diagnosticLatencies {
+		histograms[k] = h.collect()
 	}
 	errors := SanitizeErrorSamples(r.errors)
 	return SnapshotData{Counters: counters, Gauges: gauges, Histograms: histograms, Errors: errors}
@@ -642,6 +665,7 @@ func mergeHistogram(a, b HistogramSummary) HistogramSummary {
 	if b.MaxSeconds > a.MaxSeconds {
 		a.MaxSeconds = b.MaxSeconds
 	}
+	a.PercentilesAreUpperBounds = a.PercentilesAreUpperBounds || b.PercentilesAreUpperBounds
 	a.Count += b.Count
 	a.SumSeconds += b.SumSeconds
 	// Worker snapshots only expose summaries, so aggregate percentiles are the

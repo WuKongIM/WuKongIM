@@ -421,7 +421,7 @@ func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
 	labels := w.sendMetricLabels(phase)
 	recordSchedulerPlan(w.metrics, labels, uint64(totalMessages))
 	if w.cfg.MaxConcurrency > 1 {
-		stats := &scheduledMessageStats{}
+		stats := newScheduledMessageStats(w.metrics, labels)
 		if strings.EqualFold(w.cfg.SenderPick, groupSenderPickRoundRobin) {
 			err := runExactGroupWindow(ctx, exactGroupWindowConfig{
 				totalMessages:  totalMessages,
@@ -474,7 +474,9 @@ func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
 	if strings.EqualFold(strings.TrimSpace(cfg.Phase), "warmup") {
 		windowDuration = 0
 	}
-	stats := &scheduledMessageStats{Planned: uint64(totalMessages)}
+	stats := newScheduledMessageStats(w.metrics, labels)
+	stats.Planned = uint64(totalMessages)
+	startAt := time.Now()
 	stopAt := cfg.admissionDeadline
 	if stopAt.IsZero() && windowDuration > 0 {
 		stopAt = time.Now().Add(windowDuration)
@@ -482,6 +484,7 @@ func (w *GroupWorkload) runFor(ctx context.Context, cfg GroupRunConfig) error {
 	err := runSequentialMessagesUntil(ctx, stopAt, totalMessages, interval, w.cfg.sleep, func(ctx context.Context, localOffset int) error {
 		stats.Enqueued++
 		stats.Dispatched++
+		stats.observeDispatchLag(time.Since(startAt.Add(interval * time.Duration(localOffset))))
 		ch := w.channels[localOffset%len(w.channels)]
 		messageIndex := w.messageIndexForLocalOffset(ch, localOffset/len(w.channels))
 		if err := w.sendOneInPhase(ctx, phase, ch.ChannelIndex, messageIndex); err != nil {
@@ -533,6 +536,7 @@ func (w *GroupWorkload) sendChannelFromSenderInPhase(ctx context.Context, phase 
 
 	sendLabels := w.sendMetricLabels(phase)
 	sendStart := time.Now()
+	defer func() { w.metrics.ObserveLatency("workload_operation_seconds", sendLabels, time.Since(sendStart)) }()
 	unlockSendack, err := lockSendackOperation(ctx, sender)
 	if err != nil {
 		if shouldRecordPhaseOperationError(ctx, err) {

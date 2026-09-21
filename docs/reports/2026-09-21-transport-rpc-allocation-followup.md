@@ -61,4 +61,4 @@ GOWORK=off go test -race -tags=integration ./pkg/transport/internal/rpc -run Tes
 GOWORK=off go test ./cmd/... ./internal/... ./pkg/... ./scripts/... ./docker/... -count=1
 ```
 
-后续仍需使用相同跨 ECS 场景复测，并拆分压测器调度滞后、客户端锁等待和真正发包到 ACK 的时间，才能判断约 194ms 的业务 P99 与计划发送缺口。当前没有这些分段证据，因此未调整业务参数或宣称业务尾延迟恢复。
+后续仍需使用相同跨 ECS 场景复测，并拆分压测器调度滞后、客户端提交和 ACK 等待，才能判断约 194ms 的业务 P99 与计划发送缺口。后续代码核对已排除当前匹配客户端的 SENDACK 操作锁等待假说，详见 [压测延迟归因后续](2026-09-21-benchmark-latency-attribution.md)。当前没有云上分段证据，因此未调整业务参数或宣称业务尾延迟恢复。

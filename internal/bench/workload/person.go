@@ -397,7 +397,7 @@ func (w *PersonWorkload) runFor(ctx context.Context, cfg PersonRunConfig) error 
 	labels := w.sendMetricLabels(phase)
 	recordSchedulerPlan(w.metrics, labels, uint64(totalMessages))
 	if w.cfg.MaxConcurrency > 1 {
-		stats := &scheduledMessageStats{}
+		stats := newScheduledMessageStats(w.metrics, labels)
 		err := runScheduledMessagesByKeyUntilWithStats(ctx, totalMessages, interval, w.cfg.MaxConcurrency, cfg.admissionDeadline, func(messageOffset int) string {
 			pair := w.pairs[messageOffset%len(w.pairs)]
 			return pair.SenderUID
@@ -416,7 +416,9 @@ func (w *PersonWorkload) runFor(ctx context.Context, cfg PersonRunConfig) error 
 	if strings.EqualFold(strings.TrimSpace(cfg.Phase), "warmup") {
 		windowDuration = 0
 	}
-	stats := &scheduledMessageStats{Planned: uint64(totalMessages)}
+	stats := newScheduledMessageStats(w.metrics, labels)
+	stats.Planned = uint64(totalMessages)
+	startAt := time.Now()
 	stopAt := cfg.admissionDeadline
 	if stopAt.IsZero() && windowDuration > 0 {
 		stopAt = time.Now().Add(windowDuration)
@@ -424,6 +426,7 @@ func (w *PersonWorkload) runFor(ctx context.Context, cfg PersonRunConfig) error 
 	err := runSequentialMessagesUntil(ctx, stopAt, totalMessages, interval, w.cfg.sleep, func(ctx context.Context, messageOffset int) error {
 		stats.Enqueued++
 		stats.Dispatched++
+		stats.observeDispatchLag(time.Since(startAt.Add(interval * time.Duration(messageOffset))))
 		pair := w.pairs[messageOffset%len(w.pairs)]
 		if err := w.sendPairInPhase(ctx, pair, phase, messageOffset); err != nil {
 			if !shouldContinueTrafficOperationError(ctx, cfg.Phase, err) {
@@ -469,6 +472,7 @@ func (w *PersonWorkload) sendPairInPhase(ctx context.Context, pair PersonPair, p
 
 	sendLabels := w.sendMetricLabels(phase)
 	sendStart := time.Now()
+	defer func() { w.metrics.ObserveLatency("workload_operation_seconds", sendLabels, time.Since(sendStart)) }()
 	unlockSendack, err := lockSendackOperation(ctx, sender)
 	if err != nil {
 		if shouldRecordPhaseOperationError(ctx, err) {

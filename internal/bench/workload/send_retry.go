@@ -36,7 +36,7 @@ func sendPacketWithRetry(ctx context.Context, opts sendRetryOptions) (result *fr
 	if !opts.enabled {
 		pkt := *opts.packet
 		pkt.ClientSeq = nextSendClientSeq(opts.client, opts.fallbackSeq)
-		if err := opts.client.Send(ctx, &pkt); err != nil {
+		if err := opts.sendWithTiming(ctx, &pkt); err != nil {
 			return nil, &sendAttemptError{err: err}
 		}
 		return waitForExactSendack(ctx, opts, map[uint64]struct{}{pkt.ClientSeq: {}}, true)
@@ -72,7 +72,7 @@ func sendPacketWithRetry(ctx context.Context, opts sendRetryOptions) (result *fr
 		opts.metrics.IncCounter("send_attempt_total", opts.labels)
 		opts.metrics.IncCounter("attempt_record_total", opts.labels)
 		opts.metrics.SetGaugeMax("maximum_observed_attempts", opts.labels, float64(attempt+1))
-		if err := opts.client.Send(ctx, &pkt); err != nil {
+		if err := opts.sendWithTiming(ctx, &pkt); err != nil {
 			if ctx.Err() != nil || attempt == fixedSendRetryCount {
 				if ctx.Err() == nil {
 					opts.metrics.IncCounter("retry_exhausted_total", opts.labels)
@@ -145,6 +145,8 @@ func sendFailureOperation(prefix string, err error) string {
 }
 
 func waitForExactSendack(ctx context.Context, opts sendRetryOptions, expectedSeqs map[uint64]struct{}, requireClientMsgNo bool) (*frame.SendackPacket, error) {
+	started := time.Now()
+	defer func() { opts.metrics.ObserveLatency("workload_sendack_wait_seconds", opts.labels, time.Since(started)) }()
 	deadlineCtx, cancel := opts.withTimeout(ctx)
 	defer cancel()
 	f, err := readFrameMatching(deadlineCtx, opts.client, func(f frame.Frame) bool {
@@ -174,4 +176,13 @@ func retriableGenericSendackReason(reason frame.ReasonCode) bool {
 	default:
 		return false
 	}
+}
+
+// sendWithTiming measures client API submission, which may only enqueue data;
+// it is not the instant bytes reach the wire. Failed attempts are observed too.
+func (opts sendRetryOptions) sendWithTiming(ctx context.Context, pkt *frame.SendPacket) error {
+	started := time.Now()
+	err := opts.client.Send(ctx, pkt)
+	opts.metrics.ObserveLatency("workload_send_submit_seconds", opts.labels, time.Since(started))
+	return err
 }

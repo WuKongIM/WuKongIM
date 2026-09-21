@@ -353,6 +353,14 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
+- Generic benchmark stage histograms use fixed buckets with exact counts/sums
+  and explicitly marked percentile upper bounds; they do not change legacy SLO
+  histograms or verdicts. SEND submission measures a client API call, not a wire
+  timestamp; SENDACK waiting includes client frame matching. Full operation time
+  includes configured receive verification and retries. Compare scheduler
+  planned/dispatched/drop counters before interpreting a passing report as load
+  attainment. The current matching client's SENDACK operation lock is a no-op.
+
 - Observation HTTP body reads must preserve causal context cancellation, as
   header requests already do. Turning canceled reads into generic target failures
   makes normal coordinator stop lose terminal evidence; unrelated read errors

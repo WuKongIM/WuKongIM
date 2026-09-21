@@ -1,0 +1,154 @@
+{
+  "source_commit": "29a8f10d153d21c16a81450412b6dcc52ffec0be",
+  "historical_bench_commit": "7bda37db546fc577dd6fe7cc56ed3b95e6cbeeda",
+  "historical_rounds": [
+    {
+      "round": "baseline-1",
+      "source_report_sha256": "1958ac6fd7185c90938be2567ef2c4a11a20aa3124112d6099d888bf1064c16d",
+      "planned": 90000,
+      "enqueued": 90000,
+      "dispatched": 87819,
+      "pending_window_expired": 2181,
+      "unstarted_window_expired": 0,
+      "max_pending": 2181,
+      "busy_key_stalls": 121,
+      "max_active": 64,
+      "send_latency": {
+        "count": 87819,
+        "sum_seconds": 3420.113413187,
+        "min_seconds": 0.0054457,
+        "max_seconds": 0.566243205,
+        "p50_seconds": 0.026695948,
+        "p95_seconds": 0.127350223,
+        "p99_seconds": 0.192084165
+      }
+    },
+    {
+      "round": "candidate-1",
+      "source_report_sha256": "fa24483ae244412173272c2756094d2b934f6b87af4f98802727c7367977959e",
+      "planned": 90000,
+      "enqueued": 90000,
+      "dispatched": 87081,
+      "pending_window_expired": 2919,
+      "unstarted_window_expired": 0,
+      "max_pending": 2921,
+      "busy_key_stalls": 108,
+      "max_active": 64,
+      "send_latency": {
+        "count": 87081,
+        "sum_seconds": 4102.015201862,
+        "min_seconds": 0.004912713,
+        "max_seconds": 0.451405717,
+        "p50_seconds": 0.025180935,
+        "p95_seconds": 0.155846814,
+        "p99_seconds": 0.195499278
+      }
+    },
+    {
+      "round": "baseline-2",
+      "source_report_sha256": "356e31725ef054b3462a7dd8119887d694ca4fa8cb784e892b2d5a977e5207ee",
+      "planned": 90000,
+      "enqueued": 89999,
+      "dispatched": 87080,
+      "pending_window_expired": 2919,
+      "unstarted_window_expired": 1,
+      "max_pending": 2938,
+      "busy_key_stalls": 194,
+      "max_active": 64,
+      "send_latency": {
+        "count": 87080,
+        "sum_seconds": 3837.486687802,
+        "min_seconds": 0.004958545,
+        "max_seconds": 0.420097004,
+        "p50_seconds": 0.027281964,
+        "p95_seconds": 0.128363687,
+        "p99_seconds": 0.192733331
+      }
+    },
+    {
+      "round": "candidate-2",
+      "source_report_sha256": "f7c43dbbb87ea7c9032bf866d3d55190913206204cc6fb911ae1f38f8f8e9e94",
+      "planned": 90000,
+      "enqueued": 90000,
+      "dispatched": 87313,
+      "pending_window_expired": 2687,
+      "unstarted_window_expired": 0,
+      "max_pending": 2692,
+      "busy_key_stalls": 0,
+      "max_active": 64,
+      "send_latency": {
+        "count": 87313,
+        "sum_seconds": 3371.130796626,
+        "min_seconds": 0.004903714,
+        "max_seconds": 0.459738604,
+        "p50_seconds": 0.023757208,
+        "p95_seconds": 0.129694492,
+        "p99_seconds": 0.193629237
+      }
+    },
+    {
+      "round": "baseline-3",
+      "source_report_sha256": "09238903912b650e6c6309f958612b0426bc0246f9d0604b47462add5c7095a4",
+      "planned": 90000,
+      "enqueued": 90000,
+      "dispatched": 87162,
+      "pending_window_expired": 2838,
+      "unstarted_window_expired": 0,
+      "max_pending": 2838,
+      "busy_key_stalls": 159,
+      "max_active": 64,
+      "send_latency": {
+        "count": 87162,
+        "sum_seconds": 3982.475905543,
+        "min_seconds": 0.005067358,
+        "max_seconds": 0.379928667,
+        "p50_seconds": 0.027391421,
+        "p95_seconds": 0.129380267,
+        "p99_seconds": 0.19227443
+      }
+    },
+    {
+      "round": "candidate-3",
+      "source_report_sha256": "d7cf6b015fc667cfdd61e433d4503683b9e1369236dbcca1ba0df7093ca2a590",
+      "planned": 90000,
+      "enqueued": 90000,
+      "dispatched": 87155,
+      "pending_window_expired": 2845,
+      "unstarted_window_expired": 0,
+      "max_pending": 2864,
+      "busy_key_stalls": 248,
+      "max_active": 64,
+      "send_latency": {
+        "count": 87155,
+        "sum_seconds": 3822.053762646,
+        "min_seconds": 0.004926004,
+        "max_seconds": 0.492348859,
+        "p50_seconds": 0.024199345,
+        "p95_seconds": 0.130007578,
+        "p99_seconds": 0.194760663
+      }
+    }
+  ],
+  "instruction_digests": {
+    "source_commit": "29a8f10d153d21c16a81450412b6dcc52ffec0be",
+    "files": {
+      "AGENTS.md": "c6eae7244b1c660be4b2a62cbdc1efa5c26c35e34972e994df7e6ae073fc9d0b",
+      "internal/bench/FLOW.md": "9b5af4ee12bf9eb496ceb47e1208c1fb662b1671e7dbc94c01ddeda4ae91fca4",
+      "pkg/bench/model/FLOW.md": "2779ef22050c0ac91f9523c8889d8ca8095ba145504497b43fdd3c0d8ed0ccb8"
+    }
+  },
+  "validation_artifacts": {
+    "overhead.txt": "3ba3c6f570bd914596d590dad0621ca42806de539c7fc3aae87eca634aeb3649",
+    "race.txt": "45985fe720be5da1ac8916e42c106ea7dafd6c79346ebbf8fddcbf0dc3901cac",
+    "instruction-digests.json": "bfc5dc28795c260e1802f71dce13afbdf436f27b69e49017293b7494022c7398",
+    "focused-unit.txt": "a187a8e72b5fb0a429527b6363200ff4c8c228a494b22e185052289b8ba4e69d",
+    "go-version.txt": "2e13f287eba3d1fa15b1d8dc82c2b80ac9d8a6d7443acfe04422e57b5d6a9e76"
+  },
+  "limitations": [
+    "Historical runs contain no newly added timing stages.",
+    "No new cloud procurement or cross-host measurements.",
+    "Max active is a high-water mark, not sustained saturation.",
+    "Diagnostic P99 uses bucket upper bounds and max-worker aggregation; no SLO change."
+  ],
+  "local_go_version": "go version go1.25.0 darwin/arm64"
+}

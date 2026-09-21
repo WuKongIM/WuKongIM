@@ -124,6 +124,8 @@ func runScheduledMessagesByKeyLimitUntilWithStats(ctx context.Context, totalMess
 }
 
 type scheduledMessageStats struct {
+	// dispatchLag observes admission lateness against the original arrival clock.
+	dispatchLag                   func(time.Duration)
 	Planned                       uint64
 	Enqueued                      uint64
 	Dispatched                    uint64
@@ -305,10 +307,11 @@ func (s *scheduledMessageScheduler) enqueueDue(now time.Time) {
 }
 
 func (s *scheduledMessageScheduler) dispatch(ctx context.Context, doneCh chan<- scheduledMessageResult) {
-	if s.windowExpired(time.Now()) {
-		return
-	}
 	for s.active < s.maxConcurrency {
+		// Admission work can consume the remaining window within one batch.
+		if s.windowExpired(time.Now()) {
+			return
+		}
 		task, ok := s.nextDispatchableTask()
 		if !ok {
 			if s.stats != nil && s.pendingCount > 0 {
@@ -322,6 +325,7 @@ func (s *scheduledMessageScheduler) dispatch(ctx context.Context, doneCh chan<- 
 		}
 		if s.stats != nil {
 			s.stats.Dispatched++
+			s.stats.observeDispatchLag(time.Since(s.startAt.Add(s.interval * time.Duration(task.offset))))
 		}
 		s.observeStats()
 		if task.key != "" {
@@ -344,6 +348,10 @@ func (s *scheduledMessageScheduler) done(now time.Time) bool {
 }
 
 func (s *scheduledMessageScheduler) nextTimer(now time.Time) (*time.Timer, <-chan time.Time) {
+	// Closed windows only wait for admitted work or cancellation, never a past deadline.
+	if s.windowClosed {
+		return nil, nil
+	}
 	var next time.Time
 	if s.nextOffset < s.totalMessages && !s.windowExpired(now) {
 		if s.interval > 0 {

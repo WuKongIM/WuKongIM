@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Add bounded benchmark timing for scheduling, SEND submission, SENDACK waiting and full operations; expose planned/dispatched shortfalls, stop batch admission at the deadline, and avoid expired-window timer spinning during drain. / 压测增加有界分段计时并展示计划发送缺口，修复批量派发越过截止时间及排空期间过期定时器空转。
+
 - Reduce per-request RPC queue allocations by reusing caller cancellation and arming a queue timer only for an earlier deadline, preserving timeout and ownership bounds. / RPC 排队复用调用方取消信号，仅在队列截止时间更早时创建定时器，减少逐请求分配并保留超时和资源归属边界。
 
 - Preserve long backup/restore and maximum-duration remote profile operations under RPC budgets; retain typed remote timeout and admission failures for existing retry handling. / RPC 预算保留长时备份恢复和最大时长远程采样，跨节点保留超时及准入失败类型。

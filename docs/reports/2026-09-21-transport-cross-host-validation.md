@@ -41,7 +41,7 @@
 
 第二轮各版本另取约 20s 的应用及主机指标窗口。直方图估计的 channel runtime append P99：基线三节点约 22.9ms，候选约 16.6–18.4ms；storage commit P99 约 5ms，未见持续网关队列积压。这提示内部部分路径可能改善，但只是短窗口聚合，不能相减得到独立阶段耗时，也不能认定整体瓶颈已解决。
 
-压测器 `internal/bench/workload/group.go` 的发送计时始于 `lockSendackOperation` 之前，锁释放在完整接收校验之后；因此该 SENDACK 指标包含客户端锁等待。RECV 指标从收到 ACK 后等待匹配消息开始，也不是端到端投递延迟。下一轮应分别测量调度滞后、客户端锁等待、真正发包到 ACK、服务端各阶段，才能解释约 194ms 的尾延迟与计划发送缺口。尚未证明压测器就是瓶颈。
+压测器 `internal/bench/workload/group.go` 的发送计时始于 `lockSendackOperation` 之前。后续核对本次压测器精确版本发现，实际使用的 `matchingPersonClient.lockSendackOperation` 是空操作，因此先前据此推测客户端锁等待的结论不成立。RECV 指标从收到 ACK 后等待匹配消息开始，也不是端到端投递延迟。约 194ms 的尾延迟与计划发送缺口仍需分段证据；本轮旧数据不能追溯拆分。新诊断指标、已复现的调度问题及证据边界见 [压测延迟归因后续](2026-09-21-benchmark-latency-attribution.md)。尚未证明压测器就是云上瓶颈。
 
 **跨节点 RPC 与网络恢复**
 

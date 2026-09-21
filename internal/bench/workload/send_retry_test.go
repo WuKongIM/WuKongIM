@@ -35,6 +35,12 @@ func TestPersonRetryAcceptsLateSuccessFromEarlierAttemptAndReconcilesEvidence(t 
 
 	require.NoError(t, w.SendOne(context.Background(), 7))
 	require.Len(t, raw.sentFrames, 2)
+	stageHistograms := registry.Collect().Histograms
+	suffix := "{channel_type=person,phase=run,profile=profile-a,traffic=traffic-a}"
+	require.Equal(t, uint64(2), stageHistograms["workload_send_submit_seconds"+suffix].Count)
+	require.Equal(t, uint64(2), stageHistograms["workload_sendack_wait_seconds"+suffix].Count)
+	require.Equal(t, uint64(1), stageHistograms["workload_operation_seconds"+suffix].Count)
+
 	require.Equal(t, raw.sentFrames[0].ClientMsgNo, raw.sentFrames[1].ClientMsgNo)
 	require.NotEqual(t, raw.sentFrames[0].ClientSeq, raw.sentFrames[1].ClientSeq)
 	labels := personSendLabels("run", "profile-a", "traffic-a")

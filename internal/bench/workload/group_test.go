@@ -277,6 +277,12 @@ func TestGroupWorkloadSendOneBuildsGroupSendAndVerifiesFullReceivers(t *testing.
 	require.Empty(t, clients["u-0"].(*recordingPersonClient).recvAckCalls)
 	require.Len(t, clients["u-1"].(*recordingPersonClient).recvAckCalls, 1)
 	require.Len(t, clients["u-2"].(*recordingPersonClient).recvAckCalls, 1)
+	histograms := workload.Metrics().Collect().Histograms
+	for _, name := range []string{"workload_send_submit_seconds", "workload_sendack_wait_seconds", "workload_operation_seconds"} {
+		h := histograms[name+"{channel_type=group,phase=run,profile=huge-group,traffic=group-send}"]
+		require.Equal(t, uint64(1), h.Count, name)
+		require.True(t, h.PercentilesAreUpperBounds, name)
+	}
 }
 
 func TestGroupWorkloadSuccessfulSendACKRecordsExpectedFanoutWithoutRecvVerification(t *testing.T) {
