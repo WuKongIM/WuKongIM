@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Reuse internal RPC queue ownership for executor tasks, eliminating one per-request allocation while preserving cancellation and admission bounds. / 内部 RPC 执行任务复用队列所有权对象，减少每次请求一次分配，并保留取消及准入边界。
+
 - Keep benchmark status polling independent of latency-history size by reading counters and gauges directly; reports retain exact latency summaries and error evidence. / 压测状态轮询直接读取计数器和当前值，不再反复整理历史延迟样本；报告保留精确延迟统计和错误证据。
 
 - Avoid an intermediate internal RPC response copy by encoding borrowed handler bytes synchronously; asynchronous replies retain independent payloads. / 内部 RPC 同步编码借用的处理结果，省去一次中间响应复制，异步回复仍保留独立数据。

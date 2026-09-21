@@ -11,7 +11,9 @@ import (
 // requestEntry belongs to the service queue until unlinkLocked transfers it to
 // an executor or expiry owner. Link and watcher fields are protected by Service.mu.
 type requestEntry struct {
-	req        Request
+	// serviceTask shares the admitted request with the executor without a second
+	// allocation or ownership copy. It is submitted only after FIFO removal.
+	serviceTask
 	prev, next *requestEntry
 	queued     bool
 	enqueuedAt time.Time

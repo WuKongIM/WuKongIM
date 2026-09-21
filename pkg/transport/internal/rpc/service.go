@@ -191,7 +191,7 @@ func (s *Service) Enqueue(req Request) error {
 		s.observeAdmissionAndQueue(result, payloadLen, snapshot)
 		return err
 	}
-	entry := &requestEntry{req: req, queued: true, enqueuedAt: time.Now()}
+	entry := &requestEntry{serviceTask: serviceTask{service: s, req: req}, queued: true, enqueuedAt: time.Now()}
 	entry.req.entry = entry
 	s.appendLocked(entry)
 	s.retainedBytes += req.retainedBytes
@@ -254,7 +254,9 @@ func (s *Service) pump() {
 		}
 		payloadLen := req.Payload.Len()
 		s.taskWG.Add(1)
-		task := &serviceTask{service: s, req: req}
+		// The queue owner survives execution and all terminal callbacks; no
+		// pooling or reuse can race a queued-expiry callback that already started.
+		task := &req.entry.serviceTask
 		for {
 			err := s.beforeExecution(req)
 			if err == nil {

@@ -347,6 +347,11 @@ specification, runbook, report, or module documentation; link to them when neede
   probes five minutes, and Operations MCP one minute for bounded profiling.
   Explicit remote timeout/busy/stopped status preserves temporary failure types;
   arbitrary remote error text must never imply retryability.
+- RPC queue entries embed their executor task and remain reachable until terminal
+  cleanup and any racing expiry callback finish. Do not pool/recycle this owner
+  merely because dequeue stopped its watcher: an already-started callback may
+  still hold it. Co-allocation removes one object; it does not remove queue
+  cancellation, FIFO, executor bounds, or retained-byte accounting.
 - Internal service `RespondBorrowed` callbacks may use handler response bytes only
   until the callback returns. The server synchronously encodes them into an owned
   wire buffer before request release; asynchronous `Reply` delivery still copies.
