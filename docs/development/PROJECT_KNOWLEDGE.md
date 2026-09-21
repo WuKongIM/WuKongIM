@@ -217,6 +217,12 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Operations and data safety
 
+- Backup node RPC v2 carries explicit repository references, never credential
+  ciphertext. Each target resolves the complete repository identity and exact
+  credential revision from its local Controller mirror before any effect.
+  Missing, stale or rotated credentials fail closed; v1 requests are rejected,
+  so backup participants must be upgraded together.
+
 - Product HTTP is a trusted service-side boundary; application backends own caller
   identity and authorization. Manager, Debug, Bench, and MCP are separate privileged
   surfaces. Bench setup uses gated `/bench/v1/*` APIs and a bearer capability when

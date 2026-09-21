@@ -81,6 +81,8 @@ Stop or startup rollback
   recovery replies, and installs bounded UID reconstruction before lookups.
 - Gateway admission opens only after cluster write routing and required runtime
   readiness. Joining nodes remain fenced until observed membership permits it.
+- Backup RPC binds one target-local Controller repository resolver to all four
+  export, probe and restore handlers before advertising them.
 - Restore maintenance keeps Manager reachable while product traffic is fenced;
   restore-sensitive caches and side-effect runtimes are reactivated before
   Controller clears maintenance.

@@ -16,6 +16,9 @@ backup use case.
 
 - Repository providers may use files, OSS, COS, or S3; credentials stay
   encrypted outside active provider calls.
+- `ScheduledControllerStateStore` resolves exact repository references from
+  target-local Controller state; missing, stale or rotated credentials fail
+  before repository access, without remote credential lookup.
 - File repositories anchor paths under their configured root and reject
   symlinks. Object adapters stream artifacts rather than placing payloads in
   RPC messages.

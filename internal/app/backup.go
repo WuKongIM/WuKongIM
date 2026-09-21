@@ -186,8 +186,8 @@ func (a *App) wireBackup(clusterCfg cluster.Config) error {
 	}
 	adapter := accessnode.New(accessnode.Options{
 		ScheduledBackup: exporter, ScheduledBackupProbe: probe,
-		ScheduledRestore: localRestore,
-		Logger:           a.logger.Named("access.node.backup"),
+		ScheduledRestore: localRestore, ScheduledBackupStores: stateStore,
+		Logger: a.logger.Named("access.node.backup"),
 	})
 	node.RegisterRPC(
 		accessnode.ScheduledBackupSlotRPCServiceID,

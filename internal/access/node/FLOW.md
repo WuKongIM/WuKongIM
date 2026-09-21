@@ -36,8 +36,7 @@ Channel append forward
   -> aligned append results or retryable route status
 
 scheduled backup or restore
-  -> small fenced control RPC
-  -> node reads/writes shared repository directly
+  -> fenced control RPC -> node reads/writes shared repository directly
   -> counts and authenticated references only
 ```
 
@@ -73,6 +72,10 @@ scheduled backup or restore
   unsupported-operation response, never arbitrary transport failure.
 - Plugin HTTP forwarding calls the node-local route port and must not recurse
   through `HTTPForward`.
+- Scheduled backup requests use version 2 with explicit repository references.
+  Targets resolve exact repository/credential revisions from local Controller
+  state before effects; version 1 and credential fields are rejected. All
+  backup participants must run matching versions.
 - Large backup/archive data never crosses node RPC. Secrets, raw provider
   messages, credential ciphertext, and filesystem paths never cross it either.
 - Operations MCP forwarding carries credential identity/digest, never the raw

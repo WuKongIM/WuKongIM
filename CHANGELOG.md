@@ -12,6 +12,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Keep backup credentials on the receiving node: export, repository probes and restore RPCs now carry only exact repository references. Upgrade all cluster nodes together before backup operations; older backup request formats are rejected. / 备份导出、仓库探测与恢复 RPC 仅传递精确仓库引用，凭据在接收节点解析；执行备份操作前须升级所有节点，旧版备份请求将被拒绝。
+
 - Preserve a bounded rolling execution trace and aligned one-second counters from the original mixed SEND qualification when a latency cohort breaches 400 ms. / mixed SEND 原始验证出现延迟超标时，保留有限滚动执行 trace 与对齐的逐秒计数器。
 
 - Preserve cancellation during benchmark metrics/profile response reads so normal workload shutdown can retain terminal evidence. / 保留压测指标及 profile 响应读取期间的取消信号，避免正常停止丢失终止证据。

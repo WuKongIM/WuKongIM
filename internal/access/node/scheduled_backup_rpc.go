@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
@@ -11,13 +12,13 @@ import (
 )
 
 var (
-	scheduledBackupSlotRequestMagic     = [...]byte{'W', 'K', 'F', 'S', 1}
+	scheduledBackupSlotRequestMagic     = [...]byte{'W', 'K', 'F', 'S', 2}
 	scheduledBackupSlotResponseMagic    = [...]byte{'W', 'K', 'F', 's', 1}
-	scheduledBackupMessageRequestMagic  = [...]byte{'W', 'K', 'F', 'M', 1}
+	scheduledBackupMessageRequestMagic  = [...]byte{'W', 'K', 'F', 'M', 2}
 	scheduledBackupMessageResponseMagic = [...]byte{'W', 'K', 'F', 'm', 1}
-	scheduledBackupProbeRequestMagic    = [...]byte{'W', 'K', 'F', 'P', 1}
+	scheduledBackupProbeRequestMagic    = [...]byte{'W', 'K', 'F', 'P', 2}
 	scheduledBackupProbeResponseMagic   = [...]byte{'W', 'K', 'F', 'p', 1}
-	scheduledBackupRestoreRequestMagic  = [...]byte{'W', 'K', 'F', 'R', 1}
+	scheduledBackupRestoreRequestMagic  = [...]byte{'W', 'K', 'F', 'R', 2}
 	scheduledBackupRestoreResponseMagic = [...]byte{'W', 'K', 'F', 'r', 1}
 )
 
@@ -59,9 +60,9 @@ func (a *Adapter) HandleScheduledBackupSlotRPC(
 	ctx context.Context,
 	payload []byte,
 ) ([]byte, error) {
-	var command backupcontract.SlotExportCommand
+	var request scheduledBackupSlotRequest
 	if err := decodeBackupJSON(
-		payload, scheduledBackupSlotRequestMagic[:], &command,
+		payload, scheduledBackupSlotRequestMagic[:], &request,
 	); err != nil {
 		return nil, err
 	}
@@ -71,6 +72,11 @@ func (a *Adapter) HandleScheduledBackupSlotRPC(
 			scheduledBackupSlotResponse{Status: rpcStatusRejected},
 		)
 	}
+	store, err := a.resolveScheduledBackupStore(ctx, request.Plan.Store)
+	if err != nil {
+		return encodeBackupJSON(scheduledBackupSlotResponseMagic[:], scheduledBackupSlotResponse{Status: backupMessageStatusForError(err)})
+	}
+	command := request.command(store)
 	receipt, err := a.scheduledBackup.ExportSlot(ctx, command)
 	return encodeBackupJSON(
 		scheduledBackupSlotResponseMagic[:],
@@ -85,9 +91,9 @@ func (a *Adapter) HandleScheduledBackupMessageRPC(
 	ctx context.Context,
 	payload []byte,
 ) ([]byte, error) {
-	var command backupcontract.MessageExportCommand
+	var request scheduledBackupMessageRequest
 	if err := decodeBackupJSON(
-		payload, scheduledBackupMessageRequestMagic[:], &command,
+		payload, scheduledBackupMessageRequestMagic[:], &request,
 	); err != nil {
 		return nil, err
 	}
@@ -97,6 +103,11 @@ func (a *Adapter) HandleScheduledBackupMessageRPC(
 			scheduledBackupMessageResponse{Status: rpcStatusRejected},
 		)
 	}
+	store, err := a.resolveScheduledBackupStore(ctx, request.Store)
+	if err != nil {
+		return encodeBackupJSON(scheduledBackupMessageResponseMagic[:], scheduledBackupMessageResponse{Status: backupMessageStatusForError(err)})
+	}
+	command := request.command(store)
 	receipt, err := a.scheduledBackup.ExportMessages(ctx, command)
 	return encodeBackupJSON(
 		scheduledBackupMessageResponseMagic[:],
@@ -112,9 +123,9 @@ func (a *Adapter) HandleScheduledBackupRepositoryProbeRPC(
 	ctx context.Context,
 	payload []byte,
 ) ([]byte, error) {
-	var command backupcontract.RepositoryProbeCommand
+	var request scheduledBackupProbeRequest
 	if err := decodeBackupJSON(
-		payload, scheduledBackupProbeRequestMagic[:], &command,
+		payload, scheduledBackupProbeRequestMagic[:], &request,
 	); err != nil {
 		return nil, err
 	}
@@ -124,7 +135,12 @@ func (a *Adapter) HandleScheduledBackupRepositoryProbeRPC(
 			scheduledBackupProbeResponse{Status: rpcStatusRejected},
 		)
 	}
-	err := a.scheduledBackupProbe.ObserveRepositoryProbe(ctx, command)
+	store, err := a.resolveScheduledBackupStore(ctx, request.Store)
+	if err != nil {
+		return encodeBackupJSON(scheduledBackupProbeResponseMagic[:], scheduledBackupProbeResponse{Status: backupMessageStatusForError(err)})
+	}
+	command := request.command(store)
+	err = a.scheduledBackupProbe.ObserveRepositoryProbe(ctx, command)
 	return encodeBackupJSON(
 		scheduledBackupProbeResponseMagic[:],
 		scheduledBackupProbeResponse{
@@ -140,9 +156,9 @@ func (a *Adapter) HandleScheduledBackupRestoreRPC(
 	ctx context.Context,
 	payload []byte,
 ) ([]byte, error) {
-	var command backupcontract.RestoreNodeCommand
+	var request scheduledBackupRestoreRequest
 	if err := decodeBackupJSON(
-		payload, scheduledBackupRestoreRequestMagic[:], &command,
+		payload, scheduledBackupRestoreRequestMagic[:], &request,
 	); err != nil {
 		return nil, err
 	}
@@ -152,6 +168,11 @@ func (a *Adapter) HandleScheduledBackupRestoreRPC(
 			scheduledBackupRestoreResponse{Status: rpcStatusRejected},
 		)
 	}
+	store, err := a.resolveScheduledBackupStore(ctx, request.Store)
+	if err != nil {
+		return encodeBackupJSON(scheduledBackupRestoreResponseMagic[:], scheduledBackupRestoreResponse{Status: backupMessageStatusForError(err)})
+	}
+	command := request.command(store)
 	receipt, err := a.scheduledRestore.Run(ctx, command)
 	return encodeBackupJSON(
 		scheduledBackupRestoreResponseMagic[:],
@@ -172,8 +193,11 @@ func (c *Client) ExportBackupSlot(
 		return backupcontract.SlotExportReceipt{},
 			fmt.Errorf("backup full Slot RPC: invalid request")
 	}
+	if err := validateBackupStoreReference(command.Plan.Store.Reference()); err != nil {
+		return backupcontract.SlotExportReceipt{}, err
+	}
 	payload, err := encodeBackupJSON(
-		scheduledBackupSlotRequestMagic[:], command,
+		scheduledBackupSlotRequestMagic[:], newScheduledBackupSlotRequest(command),
 	)
 	if err != nil {
 		return backupcontract.SlotExportReceipt{}, err
@@ -207,8 +231,11 @@ func (c *Client) ExportBackupMessages(
 		return backupcontract.MessageExportReceipt{},
 			fmt.Errorf("backup full message RPC: invalid request")
 	}
+	if err := validateBackupStoreReference(command.Store.Reference()); err != nil {
+		return backupcontract.MessageExportReceipt{}, err
+	}
 	payload, err := encodeBackupJSON(
-		scheduledBackupMessageRequestMagic[:], command,
+		scheduledBackupMessageRequestMagic[:], newScheduledBackupMessageRequest(command),
 	)
 	if err != nil {
 		return backupcontract.MessageExportReceipt{}, err
@@ -240,8 +267,11 @@ func (c *Client) ProbeBackupRepository(
 	if c == nil || c.node == nil || nodeID == 0 {
 		return fmt.Errorf("backup repository probe RPC: invalid request")
 	}
+	if err := validateBackupStoreReference(command.Store.Reference()); err != nil {
+		return err
+	}
 	payload, err := encodeBackupJSON(
-		scheduledBackupProbeRequestMagic[:], command,
+		scheduledBackupProbeRequestMagic[:], newScheduledBackupProbeRequest(command),
 	)
 	if err != nil {
 		return err
@@ -375,8 +405,11 @@ func (c *Client) RunBackupRestoreNode(
 		return backupcontract.RestoreNodeReceipt{},
 			fmt.Errorf("backup restore RPC: invalid request")
 	}
+	if err := validateBackupStoreReference(command.Store.Reference()); err != nil {
+		return backupcontract.RestoreNodeReceipt{}, err
+	}
 	payload, err := encodeBackupJSON(
-		scheduledBackupRestoreRequestMagic[:], command,
+		scheduledBackupRestoreRequestMagic[:], newScheduledBackupRestoreRequest(command),
 	)
 	if err != nil {
 		return backupcontract.RestoreNodeReceipt{}, err
@@ -397,4 +430,38 @@ func (c *Client) RunBackupRestoreNode(
 		return backupcontract.RestoreNodeReceipt{}, err
 	}
 	return response.Receipt, nil
+}
+
+// resolveScheduledBackupStore never falls back to sender-supplied credentials.
+// Incomplete composition or a lagging Controller mirror rejects the operation.
+func (a *Adapter) resolveScheduledBackupStore(ctx context.Context, ref backupcontract.StoreReference) (backupcontract.StoreConfig, error) {
+	if err := ctx.Err(); err != nil {
+		return backupcontract.StoreConfig{}, err
+	}
+	if err := validateBackupStoreReference(ref); err != nil {
+		return backupcontract.StoreConfig{}, err
+	}
+	if a == nil || a.scheduledBackupStores == nil {
+		return backupcontract.StoreConfig{}, errors.New("scheduled backup repository unavailable")
+	}
+	store, err := a.scheduledBackupStores.ResolveBackupStore(ctx, ref)
+	if err != nil {
+		return backupcontract.StoreConfig{}, err
+	}
+	if store.Reference() != ref {
+		return backupcontract.StoreConfig{}, errors.New("scheduled backup repository mismatch")
+	}
+	return store, nil
+}
+
+// Repository endpoints cross the wire only as credential-free HTTP origins.
+func validateBackupStoreReference(ref backupcontract.StoreReference) error {
+	if ref.Endpoint == "" {
+		return nil
+	}
+	parsed, err := url.Parse(ref.Endpoint)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || (parsed.Path != "" && parsed.Path != "/") {
+		return errors.New("backup RPC repository endpoint must be a credential-free HTTP origin")
+	}
+	return nil
 }

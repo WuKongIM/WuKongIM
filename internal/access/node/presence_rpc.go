@@ -226,6 +226,12 @@ type ScheduledBackupRestore interface {
 	) (backupcontract.RestoreNodeReceipt, error)
 }
 
+// ScheduledBackupStoreResolver resolves only an exact repository reference
+// from target-local Controller state; it must never fetch credentials over RPC.
+type ScheduledBackupStoreResolver interface {
+	ResolveBackupStore(context.Context, backupcontract.StoreReference) (backupcontract.StoreConfig, error)
+}
+
 // Options configures the internal node RPC adapter.
 type Options struct {
 	// Authority handles UID route authority requests after payload decoding.
@@ -284,6 +290,8 @@ type Options struct {
 	ScheduledBackupProbe ScheduledBackupRepositoryProbe
 	// ScheduledRestore owns node-local staged restore files and storage changes.
 	ScheduledRestore ScheduledBackupRestore
+	// ScheduledBackupStores resolves exact repository credentials on this node.
+	ScheduledBackupStores ScheduledBackupStoreResolver
 	// Logger records node RPC adapter failures that are converted into statuses.
 	Logger wklog.Logger
 }
@@ -346,6 +354,8 @@ type Adapter struct {
 	scheduledBackupProbe ScheduledBackupRepositoryProbe
 	// scheduledRestore owns node-local staged restore files and storage changes.
 	scheduledRestore ScheduledBackupRestore
+	// scheduledBackupStores resolves repository references before effects execute.
+	scheduledBackupStores ScheduledBackupStoreResolver
 	// logger records adapter decode errors and rejected local operations.
 	logger wklog.Logger
 }
@@ -384,6 +394,7 @@ func New(opts Options) *Adapter {
 		scheduledBackup:          opts.ScheduledBackup,
 		scheduledBackupProbe:     opts.ScheduledBackupProbe,
 		scheduledRestore:         opts.ScheduledRestore,
+		scheduledBackupStores:    opts.ScheduledBackupStores,
 		logger:                   opts.Logger,
 	}
 }

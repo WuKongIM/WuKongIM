@@ -17,8 +17,9 @@ It does not execute backup policy, repository I/O, cluster routing, or restore.
   persistence, repository formats, and node-local storage work stay outside.
 - Manager permissions, reauthentication, confirmation, and public projections
   remain in access/usecase layers.
-- Repository credentials cross only as encrypted values; public DTOs expose at
-  most credential presence.
+- Durable repository configuration retains encrypted credentials. Node RPC uses
+  only `StoreReference`, with non-secret identity and credential revision; public
+  DTOs expose at most credential presence.
 
 ## Main Flows
 

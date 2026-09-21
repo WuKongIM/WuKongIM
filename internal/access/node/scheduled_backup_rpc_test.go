@@ -13,7 +13,7 @@ import (
 
 func TestScheduledBackupRPCForwardsOnlyBoundedReceipts(t *testing.T) {
 	exporter := &fakeScheduledBackupExporter{}
-	adapter := New(Options{ScheduledBackup: exporter})
+	adapter := New(Options{ScheduledBackup: exporter, ScheduledBackupStores: testBackupStoreResolver{}})
 	node := &fakeManagerConnectionRPCNode{
 		handler: adapter.HandleScheduledBackupSlotRPC,
 	}
@@ -89,7 +89,7 @@ func TestScheduledBackupRepositoryProbeRPCRetainsSafeFailure(t *testing.T) {
 			Cause:        errors.New("AccessKeyId=secret-access-key"),
 		},
 	}
-	adapter := New(Options{ScheduledBackupProbe: probe})
+	adapter := New(Options{ScheduledBackupProbe: probe, ScheduledBackupStores: testBackupStoreResolver{}})
 	node := &fakeManagerConnectionRPCNode{
 		handler: adapter.HandleScheduledBackupRepositoryProbeRPC,
 	}
@@ -132,7 +132,7 @@ func TestScheduledBackupRestoreRPCPreservesAdmissionFencesAndBoundedReceipt(t *t
 			CurrentBusinessBytes: 1024,
 		},
 	}
-	adapter := New(Options{ScheduledRestore: restorer})
+	adapter := New(Options{ScheduledRestore: restorer, ScheduledBackupStores: testBackupStoreResolver{}})
 	node := &fakeManagerConnectionRPCNode{
 		handler: adapter.HandleScheduledBackupRestoreRPC,
 	}
@@ -190,7 +190,7 @@ func TestScheduledBackupRestoreRPCFailsClosedAndPreservesStableErrors(t *testing
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			adapter := New(Options{ScheduledRestore: tt.restorer})
+			adapter := New(Options{ScheduledRestore: tt.restorer, ScheduledBackupStores: testBackupStoreResolver{}})
 			node := &fakeManagerConnectionRPCNode{handler: adapter.HandleScheduledBackupRestoreRPC}
 			receipt, err := NewClient(node).RunBackupRestoreNode(
 				context.Background(), 2, backupcontract.RestoreNodeCommand{},
@@ -289,4 +289,12 @@ func (n *countingRPCNode) CallRPC(
 ) ([]byte, error) {
 	n.calls++
 	return nil, errors.New("unexpected RPC call")
+}
+
+// testBackupStoreResolver supplies a target-local repository in codec tests.
+// Real Controller identity and credential rotation are tested through its adapter.
+type testBackupStoreResolver struct{}
+
+func (testBackupStoreResolver) ResolveBackupStore(_ context.Context, ref backupcontract.StoreReference) (backupcontract.StoreConfig, error) {
+	return backupcontract.StoreConfig{Kind: ref.Kind, Endpoint: ref.Endpoint, Region: ref.Region, Bucket: ref.Bucket, Prefix: ref.Prefix, PathStyle: ref.PathStyle, CredentialRevision: ref.CredentialRevision}, nil
 }
