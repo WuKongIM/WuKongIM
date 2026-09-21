@@ -261,7 +261,7 @@ func TestCollectAvailableWriteItemsWaitsForRPCBatch(t *testing.T) {
 	}}
 
 	oldWaitForWriteBatch := waitForWriteBatch
-	waitForWriteBatch = func(wait time.Duration) {
+	waitForWriteBatch = func(_ context.Context, _ <-chan struct{}, wait time.Duration) {
 		if wait != limits.WriteBatchMaxWait {
 			t.Fatalf("write batch wait = %s, want %s", wait, limits.WriteBatchMaxWait)
 		}
@@ -302,7 +302,7 @@ func TestCollectAvailableWriteItemsDoesNotWaitForControl(t *testing.T) {
 
 	oldWaitForWriteBatch := waitForWriteBatch
 	waited := false
-	waitForWriteBatch = func(time.Duration) { waited = true }
+	waitForWriteBatch = func(context.Context, <-chan struct{}, time.Duration) { waited = true }
 	t.Cleanup(func() { waitForWriteBatch = oldWaitForWriteBatch })
 
 	batch, _ = c.collectAvailableWriteItems(batch, nil)

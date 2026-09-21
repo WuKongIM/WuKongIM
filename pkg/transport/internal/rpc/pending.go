@@ -1,6 +1,9 @@
 package rpc
 
-import "sync"
+import (
+	"sync"
+	"sync/atomic"
+)
 
 const defaultPendingShards = 16
 const invalidPendingChannelPanic = "transport/rpc: pending response channel must be buffered"
@@ -15,6 +18,8 @@ type Response struct {
 
 // PendingTable tracks in-flight RPC requests using sharded maps to reduce lock contention.
 type PendingTable struct {
+	// count tracks actual insertions and removals while each owning shard is locked.
+	count atomic.Int64
 	// shards partitions pending requests so hot request ids do not share one global lock.
 	shards []pendingShard
 	// mask routes request ids to shards with id & mask.
@@ -71,6 +76,9 @@ func (p *PendingTable) Store(id uint64, ch chan Response) {
 	}
 	shard := p.shardFor(id)
 	shard.mu.Lock()
+	if _, exists := shard.entries[id]; !exists {
+		p.count.Add(1)
+	}
 	shard.entries[id] = ch
 	shard.mu.Unlock()
 	p.closeMu.RUnlock()
@@ -80,7 +88,10 @@ func (p *PendingTable) Store(id uint64, ch chan Response) {
 func (p *PendingTable) Delete(id uint64) {
 	shard := p.shardFor(id)
 	shard.mu.Lock()
-	delete(shard.entries, id)
+	if _, exists := shard.entries[id]; exists {
+		delete(shard.entries, id)
+		p.count.Add(-1)
+	}
 	shard.mu.Unlock()
 }
 
@@ -89,19 +100,26 @@ func (p *PendingTable) Delete(id uint64) {
 // The return value reports whether the id existed and was removed, not whether
 // the response was delivered. Delivery is dropped when the caller channel is full.
 func (p *PendingTable) Complete(id uint64, resp Response) bool {
-	shard := p.shardFor(id)
-	shard.mu.Lock()
-	ch, ok := shard.entries[id]
-	if ok {
-		delete(shard.entries, id)
-	}
-	shard.mu.Unlock()
-
+	ch, ok := p.Take(id)
 	if !ok {
 		return false
 	}
 	trySend(ch, resp)
 	return true
+}
+
+// Take removes a request and transfers its response channel to the response reader.
+// Missing or canceled requests need no response payload allocation.
+func (p *PendingTable) Take(id uint64) (chan Response, bool) {
+	shard := p.shardFor(id)
+	shard.mu.Lock()
+	ch, ok := shard.entries[id]
+	if ok {
+		delete(shard.entries, id)
+		p.count.Add(-1)
+	}
+	shard.mu.Unlock()
+	return ch, ok
 }
 
 // FailAll closes the table, removes all pending RPC requests, and attempts non-blocking error delivery.
@@ -118,6 +136,7 @@ func (p *PendingTable) FailAll(err error) {
 		shard := &p.shards[i]
 		shard.mu.Lock()
 		entries := shard.entries
+		p.count.Add(-int64(len(entries)))
 		shard.entries = make(map[uint64]chan Response)
 		shard.mu.Unlock()
 
@@ -128,16 +147,9 @@ func (p *PendingTable) FailAll(err error) {
 	p.closeMu.Unlock()
 }
 
-// Len returns the total number of pending RPC requests across all shards.
+// Len returns the current pending count without scanning or locking the shards.
 func (p *PendingTable) Len() int {
-	total := 0
-	for i := range p.shards {
-		shard := &p.shards[i]
-		shard.mu.Lock()
-		total += len(shard.entries)
-		shard.mu.Unlock()
-	}
-	return total
+	return int(p.count.Load())
 }
 
 func (p *PendingTable) shardFor(id uint64) *pendingShard {

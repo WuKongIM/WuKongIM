@@ -88,6 +88,9 @@ Stop or startup rollback
   Controller clears maintenance.
 - Observability is bounded and low-cardinality; runtime labels must not contain
   UIDs, Channel IDs, client message IDs, addresses, or secret material.
+  Transport publishes exact bounded-label counter batches and one-in-32 latency
+  samples, separating handler, service-queue and complete client RPC time. Its
+  retained-memory gauge includes queued and executing request owners.
   Channel-create coalescer gauges and closed delivery/post-commit terminal
   result partitions must materialize true zero series rather than imply them.
 - A Slot replica match index may exceed commit while replication is pending;

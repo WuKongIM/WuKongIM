@@ -3,6 +3,7 @@ package core
 import (
 	"sync"
 	"sync/atomic"
+	"time"
 
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
@@ -32,6 +33,9 @@ type observerState struct {
 
 // ObserverDrain isolates transport hot paths from observer callback latency.
 type ObserverDrain struct {
+	// aggregates batch counters without queueing a goroutine wakeup per event.
+	aggregates [16]observerAggregateShard
+	dropped    atomic.Uint64
 	target     Observer
 	events     chan Event
 	stateReady chan struct{}
@@ -80,18 +84,22 @@ func (d *ObserverDrain) ObserveTransport(event Event) {
 		return
 	}
 	defer d.finishObservation()
+	if d.aggregate(event) {
+		return
+	}
 	if key, ok := observerStateEventKey(event); ok && d.coalesceState(key, event) {
 		return
 	}
 	select {
 	case d.events <- event:
 	default:
+		d.dropped.Add(1)
 	}
 }
 
 func observerStateEventKey(event Event) (observerStateKey, bool) {
 	switch event.Name {
-	case "pending_rpc", "peer_pool", "scheduler_queue", "service_queue", "service_inflight", "controller_raft_queue":
+	case "pending_rpc", "peer_pool", "scheduler_queue", "service_queue", "service_retained", "service_inflight", "controller_raft_queue":
 		return observerStateKey{
 			name:      event.Name,
 			sourceID:  event.SourceID,
@@ -130,9 +138,11 @@ func (d *ObserverDrain) coalesceState(key observerStateKey, event Event) bool {
 		d.pending = append(d.pending, state)
 	}
 	d.stateMu.Unlock()
-	select {
-	case d.stateReady <- struct{}{}:
-	default:
+	if event.Result == "stopped" || event.Result == "closed" {
+		select {
+		case d.stateReady <- struct{}{}:
+		default:
+		}
 	}
 	return true
 }
@@ -190,15 +200,21 @@ func (d *ObserverDrain) Stop() {
 
 func (d *ObserverDrain) run() {
 	defer d.wg.Done()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
 	for {
 		select {
 		case event := <-d.events:
 			d.target.ObserveTransport(event)
+		case <-ticker.C:
+			d.drainAggregates()
+			d.drainLatestState()
 		case <-d.stateReady:
 			d.drainLatestState()
 		case <-d.done:
 			d.drain()
 			d.drainLatestState()
+			d.drainAggregates()
 			return
 		}
 	}
@@ -225,6 +241,7 @@ func (d *ObserverDrain) drainLatestState() {
 			batch[i] = Event{}
 		}
 		d.stateBatch = batch[:0]
+		return // Updates arriving during delivery wait for the next bounded tick.
 	}
 }
 

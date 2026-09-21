@@ -260,6 +260,8 @@ func requireMonotonicGroupReceives(
 func startLifecycleCluster(t *testing.T) *suite.StartedCluster {
 	t.Helper()
 	overrides := map[string]string{
+		// Lifecycle clients intentionally exercise tokenless protocol traffic.
+		"WK_GATEWAY_TOKEN_AUTH_ON":      "false",
 		"WK_CLUSTER_INITIAL_SLOT_COUNT": "12",
 		"WK_CLUSTER_HASH_SLOT_COUNT":    "256",
 		"WK_CLUSTER_SLOT_REPLICA_N":     "3",

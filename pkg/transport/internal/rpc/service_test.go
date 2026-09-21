@@ -163,44 +163,6 @@ func TestServiceQueueFullReturnsBusy(t *testing.T) {
 	}
 }
 
-func TestServiceAdmissionUsesChannelCapacityDuringDequeueWindow(t *testing.T) {
-	observer := &recordingObserver{}
-	opts := normalizeServiceOptions(core.ServiceOptions{
-		Concurrency: 1, QueueSize: 1, MaxQueueBytes: 1024,
-	})
-	svc := &Service{
-		ID:       1,
-		opts:     opts,
-		observer: observer,
-		queue:    make(chan Request, opts.QueueSize),
-	}
-
-	req := Request{Payload: core.CopyOwnedBuffer([]byte("queued"))}
-	svc.queue <- req
-	svc.mu.Lock()
-	svc.queuedItems = 1
-	svc.queuedBytes = int64(req.Payload.Len())
-	svc.mu.Unlock()
-	received := <-svc.queue
-	defer received.Payload.Release()
-
-	if err := svc.Enqueue(Request{Payload: core.CopyOwnedBuffer([]byte("next"))}); err != nil {
-		t.Fatalf("Enqueue() error = %v, want accepted while channel has capacity", err)
-	}
-	events := waitForEvent(t, observer, func(event core.Event) bool {
-		return event.Name == "service_queue" && event.Result == "ok"
-	})
-	queueEvent := findEvent(events, "service_queue", "ok")
-	if queueEvent == nil {
-		t.Fatalf("missing service_queue ok event: %#v", events)
-	}
-	if queueEvent.Items > queueEvent.Capacity {
-		t.Fatalf("service_queue items = %d, capacity = %d; want depth capped to capacity", queueEvent.Items, queueEvent.Capacity)
-	}
-	next := <-svc.queue
-	next.Payload.Release()
-}
-
 func TestServiceTimeout(t *testing.T) {
 	svc := NewService(1, func(ctx context.Context, _ []byte) ([]byte, error) {
 		<-ctx.Done()
@@ -594,4 +556,28 @@ func findInflight(events []core.Event, serviceID uint16, inflight int) *core.Eve
 		}
 	}
 	return nil
+}
+
+func TestServiceQueueChargesPooledCapacity(t *testing.T) {
+	svc := NewService(1, func(context.Context, []byte) ([]byte, error) { return nil, nil }, core.ServiceOptions{Concurrency: 1, QueueSize: 4, MaxQueueBytes: 7}, nil)
+	defer svc.Stop()
+	payload := core.NewOwnedBufferWithCost(make([]byte, 5), 8, func([]byte) {})
+	if err := svc.Enqueue(Request{Payload: payload}); !errors.Is(err, core.ErrBusy) {
+		t.Fatalf("pooled buffer admitted by logical length: %v", err)
+	}
+}
+
+func TestServiceRetainsMemoryAdmissionUntilHandlerReturns(t *testing.T) {
+	started := make(chan struct{}, 2)
+	release := make(chan struct{})
+	svc := NewService(1, func(context.Context, []byte) ([]byte, error) { started <- struct{}{}; <-release; return nil, nil }, core.ServiceOptions{Concurrency: 2, QueueSize: 4, MaxQueueBytes: 16, MaxRetainedBytes: 8}, nil)
+	defer func() { close(release); svc.Stop() }()
+	payload := func() core.OwnedBuffer { return core.NewOwnedBufferWithCost(make([]byte, 5), 8, func([]byte) {}) }
+	if err := svc.Enqueue(Request{Payload: payload()}); err != nil {
+		t.Fatal(err)
+	}
+	<-started
+	if err := svc.Enqueue(Request{Payload: payload()}); !errors.Is(err, core.ErrBusy) {
+		t.Fatalf("executing request released its budget early: %v", err)
+	}
 }

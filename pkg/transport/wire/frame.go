@@ -16,6 +16,11 @@ const (
 
 	// Version is the supported transport wire version.
 	Version uint8 = 1
+	// BudgetVersion is used only after a version-1 capability exchange.
+	BudgetVersion uint8 = 2
+	// CapabilityServiceID is reserved by the transport, outside cluster service IDs.
+	CapabilityServiceID      uint16 = 65535
+	CapabilityRequestBudgets        = "wukongim/request-budgets/1"
 
 	// ResponseOK marks a successful RPC response payload.
 	ResponseOK uint8 = 0
@@ -41,6 +46,9 @@ const (
 
 // Header is the fixed metadata prefix carried by every transport frame.
 type Header struct {
+	// BudgetMillis bounds remaining receiver work; zero uses receiver policy.
+	// It occupies version-1 reserved bytes only for a version-2 budget request.
+	BudgetMillis uint32
 	// Kind identifies how the receiver should interpret the frame.
 	Kind core.FrameKind
 	// Priority selects the receiver scheduling lane.
@@ -67,13 +75,16 @@ func EncodeHeader(header Header) [HeaderSize]byte {
 	var encoded [HeaderSize]byte
 	binary.BigEndian.PutUint16(encoded[headerMagicOffset:], Magic)
 	encoded[headerVersionOffset] = Version
+	if header.Kind == core.FrameKindRPCBudgetRequest || header.Kind == core.FrameKindRPCCancel {
+		encoded[headerVersionOffset] = BudgetVersion
+	}
 	encoded[headerFlagsOffset] = 0
 	encoded[headerKindOffset] = uint8(header.Kind)
 	encoded[headerPriorityOffset] = uint8(header.Priority)
 	binary.BigEndian.PutUint16(encoded[headerServiceIDOffset:], header.ServiceID)
 	binary.BigEndian.PutUint64(encoded[headerRequestIDOffset:], header.RequestID)
 	binary.BigEndian.PutUint32(encoded[headerBodyLenOffset:], header.BodyLen)
-	binary.BigEndian.PutUint32(encoded[headerReservedOffset:], 0)
+	binary.BigEndian.PutUint32(encoded[headerReservedOffset:], header.BudgetMillis)
 	return encoded
 }
 
@@ -85,22 +96,30 @@ func DecodeHeader(encoded []byte, maxBodyBytes int) (Header, error) {
 	if magic := binary.BigEndian.Uint16(encoded[headerMagicOffset:]); magic != Magic {
 		return Header{}, fmt.Errorf("%w: magic 0x%04x", core.ErrInvalidFrame, magic)
 	}
-	if version := encoded[headerVersionOffset]; version != Version {
-		return Header{}, fmt.Errorf("%w: version %d", core.ErrInvalidFrame, version)
+	version := encoded[headerVersionOffset]
+	kind := core.FrameKind(encoded[headerKindOffset])
+	budgetKind := kind == core.FrameKindRPCBudgetRequest || kind == core.FrameKindRPCCancel
+	if (version != Version && version != BudgetVersion) || (version == BudgetVersion) != budgetKind {
+		return Header{}, fmt.Errorf("%w: version %d kind %d", core.ErrInvalidFrame, version, kind)
 	}
 	if flags := encoded[headerFlagsOffset]; flags != 0 {
 		return Header{}, fmt.Errorf("%w: flags %d", core.ErrInvalidFrame, flags)
 	}
-	if reserved := binary.BigEndian.Uint32(encoded[headerReservedOffset:]); reserved != 0 {
-		return Header{}, fmt.Errorf("%w: reserved %d", core.ErrInvalidFrame, reserved)
+	budget := binary.BigEndian.Uint32(encoded[headerReservedOffset:])
+	if kind != core.FrameKindRPCBudgetRequest && budget != 0 {
+		return Header{}, fmt.Errorf("%w: unexpected budget", core.ErrInvalidFrame)
 	}
 
 	header := Header{
-		Kind:      core.FrameKind(encoded[headerKindOffset]),
-		Priority:  core.Priority(encoded[headerPriorityOffset]),
-		ServiceID: binary.BigEndian.Uint16(encoded[headerServiceIDOffset:]),
-		RequestID: binary.BigEndian.Uint64(encoded[headerRequestIDOffset:]),
-		BodyLen:   binary.BigEndian.Uint32(encoded[headerBodyLenOffset:]),
+		BudgetMillis: budget,
+		Kind:         core.FrameKind(encoded[headerKindOffset]),
+		Priority:     core.Priority(encoded[headerPriorityOffset]),
+		ServiceID:    binary.BigEndian.Uint16(encoded[headerServiceIDOffset:]),
+		RequestID:    binary.BigEndian.Uint64(encoded[headerRequestIDOffset:]),
+		BodyLen:      binary.BigEndian.Uint32(encoded[headerBodyLenOffset:]),
+	}
+	if header.Kind == core.FrameKindRPCCancel && header.BodyLen != 0 {
+		return Header{}, fmt.Errorf("%w: cancel body", core.ErrInvalidFrame)
 	}
 	if !header.Kind.Valid() {
 		return Header{}, fmt.Errorf("%w: kind %d", core.ErrInvalidFrame, header.Kind)

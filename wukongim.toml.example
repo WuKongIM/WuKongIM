@@ -3,6 +3,10 @@ id = 1
 data_dir = "./data/wukongim-single-node-data"
 
 [cluster]
+# Internal RPC batches ready frames without an idle delay. Queue wait is bounded
+# to 5s and handler execution to 30s (5m for backup stream/restore operations).
+# Negotiated caller budgets may expire queued work earlier; caller cancellation
+# never acknowledges rollback of an already-started mutation.
 # Controller Raft uses 100ms heartbeats and a 1s minimum election timeout.
 # Its timing is independent of the configurable Slot Raft timing below.
 listen_addr = "127.0.0.1:7001"
@@ -93,6 +97,8 @@ api_max_batch_size = 10000
 api_max_payload_bytes = 10485760
 
 [observability]
+# Transport counters and latest pressure state aggregate every 10ms. Duration
+# histograms sample one in 32 observations; observer overflow has its own counter.
 metrics_enable = true
 debug_api_enable = false
 

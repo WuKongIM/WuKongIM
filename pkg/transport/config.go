@@ -19,6 +19,9 @@ type Dialer func(network, addr string, timeout time.Duration) (net.Conn, error)
 
 // ClientConfig configures outbound peer connections and limits.
 type ClientConfig struct {
+	// RequestBudgets negotiates deadline/cancel support once per connection before
+	// business RPC. Unsupported older peers retain version-1 request behavior.
+	RequestBudgets bool
 	// NodeID is the local cluster node ID used for outbound transport identity.
 	NodeID NodeID
 	// Discovery resolves remote node IDs before dialing; it is required.

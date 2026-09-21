@@ -454,3 +454,32 @@ func waitCoreStopped(t *testing.T, drain *ObserverDrain) {
 	}
 	t.Fatal("timed out waiting for ObserverDrain to stop admissions")
 }
+
+func TestObserverAggregationPreservesCountersAndBoundsDurationSamples(t *testing.T) {
+	sink := &recordingBlockingObserver{entered: make(chan struct{}), release: make(chan struct{})}
+	drain := newTestObserverDrain(sink)
+	drain.ObserveTransport(Event{Name: "first"})
+	waitCoreClosed(t, sink.entered)
+	for i := 0; i < 320; i++ {
+		drain.ObserveTransport(Event{Name: "sent_bytes", Kind: FrameKindRPCRequest, Bytes: 10})
+		drain.ObserveTransport(Event{Name: "service_task", ServiceID: 1, Result: "ok", Duration: time.Duration(i) * time.Microsecond})
+	}
+	close(sink.release)
+	drain.Stop()
+	var bytes, count, samples int
+	for _, e := range sink.snapshot() {
+		if e.Name == "sent_bytes" {
+			bytes += e.Bytes
+		}
+		if e.Name == "service_task" {
+			count += int(e.Count)
+			if e.Samples == nil {
+				t.Fatal("missing explicit duration sampling")
+			}
+			samples += e.Samples.Len
+		}
+	}
+	if bytes != 3200 || count != 320 || samples != 10 {
+		t.Fatalf("totals bytes=%d calls=%d samples=%d", bytes, count, samples)
+	}
+}

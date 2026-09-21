@@ -123,3 +123,19 @@ func TestDecodeHeaderRejectsInvalidPriority(t *testing.T) {
 		t.Fatalf("DecodeHeader() error = %v, want ErrInvalidPriority", err)
 	}
 }
+
+func TestBudgetHeaderRoundTripAndVersionFence(t *testing.T) {
+	h := Header{Kind: core.FrameKindRPCBudgetRequest, Priority: core.PriorityRPC, ServiceID: 1, RequestID: 2, BodyLen: 3, BudgetMillis: 1234}
+	encoded := EncodeHeader(h)
+	if encoded[2] != BudgetVersion {
+		t.Fatal("missing explicit budget version")
+	}
+	got, err := DecodeHeader(encoded[:], 4096)
+	if err != nil || got != h {
+		t.Fatalf("decode=%+v %v", got, err)
+	}
+	encoded[2] = Version
+	if _, err := DecodeHeader(encoded[:], 4096); err == nil {
+		t.Fatal("legacy version accepted budget semantics")
+	}
+}

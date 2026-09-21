@@ -838,3 +838,21 @@ func TestStopWakesWaitBatchAndReturnsQueuedItems(t *testing.T) {
 		t.Fatalf("WaitBatch(after stop) error = %v, want ErrStopped", err)
 	}
 }
+
+func TestSchedulerChargesBackingBytesWithoutChangingWireBatchLimit(t *testing.T) {
+	s := New(Config{MaxItems: 4, MaxBytes: 16, MaxBatchFrames: 4, MaxBatchBytes: 8})
+	for i := 0; i < 2; i++ {
+		if err := s.Enqueue(context.Background(), Item{Priority: core.PriorityRPC, Bytes: 4, RetainedBytes: 8}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.Enqueue(context.Background(), Item{Priority: core.PriorityRPC, Bytes: 1, RetainedBytes: 1}); !errors.Is(err, core.ErrQueueFull) {
+		t.Fatalf("admission=%v", err)
+	}
+	if batch := s.NextBatch(); len(batch) != 2 {
+		t.Fatalf("batch contains %d frames; retained capacity must not shrink wire batches", len(batch))
+	}
+	if snapshot := s.snapshotQueue(); snapshot.bytes != 0 {
+		t.Fatalf("remaining bytes=%d", snapshot.bytes)
+	}
+}

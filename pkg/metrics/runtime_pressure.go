@@ -283,6 +283,14 @@ func (m *RuntimePressureMetrics) SetQueueBytesCapacity(component, pool, queue, p
 	series.bytesCapacity.Set(float64(clampRuntimePressureInt64(capacity)))
 }
 
+// ObserveAdmissions publishes an exact batch of admission outcomes.
+func (m *RuntimePressureMetrics) ObserveAdmissions(component, pool, queue, priority, result string, count uint64) {
+	if m == nil || m.admissionTotal == nil {
+		return
+	}
+	m.boundAdmissionCounter(component, pool, queue, priority, result).Add(float64(count))
+}
+
 func (m *RuntimePressureMetrics) ObserveAdmission(component, pool, queue, priority, result string) {
 	if m == nil || m.admissionTotal == nil {
 		return

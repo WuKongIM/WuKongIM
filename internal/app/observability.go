@@ -1065,7 +1065,7 @@ func (o *transportMetricsObserver) ObserveTransport(event transport.Event) {
 	case "received_bytes":
 		o.metrics.Transport.ObserveReceivedBytes(transportFrameKindLabel(event.Kind), event.Bytes)
 	case "write_batch":
-		o.metrics.Transport.ObserveWriteBatch(event.Items, event.Bytes, event.Capacity)
+		o.metrics.Transport.ObserveWriteBatches(transportEventCount(event), event.Items, event.Bytes, event.Capacity)
 	case "pending_rpc":
 		inflight, revision := o.transportPendingRPCInflight(event)
 		o.metrics.RuntimePressure.SetPoolInflightRevisioned(transportRuntimePressureComponent, "rpc", revision, inflight)
@@ -1079,18 +1079,33 @@ func (o *transportMetricsObserver) ObserveTransport(event transport.Event) {
 		priority := transportPriorityLabel(event.Priority)
 		queue, revision := o.transportSchedulerQueue(priority, event)
 		o.metrics.RuntimePressure.SetQueueRevisioned(transportRuntimePressureComponent, "scheduler", "scheduler", priority, revision, queue)
+	case "service_retained":
+		o.metrics.RuntimePressure.SetQueueRevisioned(transportRuntimePressureComponent, "service", transportServiceEventLabel(event)+" retained", "none", event.Revision, transportQueueObservation(event))
 	case "service_queue":
 		o.metrics.RuntimePressure.SetQueueRevisioned(transportRuntimePressureComponent, "service", transportServiceEventLabel(event), transportPriorityLabel(event.Priority), event.Revision, transportQueueObservation(event))
 	case "scheduler_admission":
-		o.metrics.RuntimePressure.ObserveAdmission(transportRuntimePressureComponent, "scheduler", "scheduler", transportPriorityLabel(event.Priority), event.Result)
+		o.metrics.RuntimePressure.ObserveAdmissions(transportRuntimePressureComponent, "scheduler", "scheduler", transportPriorityLabel(event.Priority), event.Result, transportEventCount(event))
 	case "service_admission":
-		o.metrics.RuntimePressure.ObserveAdmission(transportRuntimePressureComponent, "service", transportServiceEventLabel(event), transportPriorityLabel(event.Priority), event.Result)
+		o.metrics.RuntimePressure.ObserveAdmissions(transportRuntimePressureComponent, "service", transportServiceEventLabel(event), transportPriorityLabel(event.Priority), event.Result, transportEventCount(event))
 	case "scheduler_wait":
-		o.metrics.RuntimePressure.ObserveQueueWait(transportRuntimePressureComponent, "scheduler", "scheduler", transportPriorityLabel(event.Priority), event.Result, event.Duration)
+		for _, duration := range transportEventDurations(event) {
+			o.metrics.RuntimePressure.ObserveQueueWait(transportRuntimePressureComponent, "scheduler", "scheduler", transportPriorityLabel(event.Priority), event.Result, duration)
+		}
+	case "service_wait":
+		for _, duration := range transportEventDurations(event) {
+			o.metrics.RuntimePressure.ObserveQueueWait(transportRuntimePressureComponent, "service", transportServiceEventLabel(event), "none", event.Result, duration)
+		}
 	case "service_task":
 		queue := transportServiceEventLabel(event)
-		o.metrics.RuntimePressure.ObserveTaskDuration(transportRuntimePressureComponent, "service", queue, event.Result, event.Duration)
-		o.metrics.Transport.ObserveRPC(queue, transportRPCResultLabel(event.Result), event.Duration)
+		durations := transportEventDurations(event)
+		for _, duration := range durations {
+			o.metrics.RuntimePressure.ObserveTaskDuration(transportRuntimePressureComponent, "service", queue, event.Result, duration)
+		}
+		o.metrics.Transport.ObserveRPCBatch(queue, transportRPCResultLabel(event.Result), transportEventCount(event), durations)
+	case "client_rpc":
+		o.metrics.Transport.ObserveRPCClientBatch(strconv.FormatUint(uint64(event.NodeID), 10), transportServiceEventLabel(event), transportRPCResultLabel(event.Result), transportEventCount(event), transportEventDurations(event))
+	case "observer_dropped":
+		o.metrics.Transport.ObserveDropped(event.Count)
 	case "service_inflight":
 		pool := transportServiceEventLabel(event)
 		if event.Capacity > 0 {
@@ -1671,6 +1686,20 @@ func channelReactorPoolLabel(reactorID int) string {
 	return "reactor_" + strconv.Itoa(reactorID)
 }
 
+func transportEventCount(event transport.Event) uint64 {
+	if event.Count == 0 {
+		return 1
+	}
+	return event.Count
+}
+
+func transportEventDurations(event transport.Event) []time.Duration {
+	if event.Samples != nil {
+		return event.Samples.Values[:event.Samples.Len]
+	}
+	return []time.Duration{event.Duration}
+}
+
 func transportQueueObservation(event transport.Event) obsmetrics.RuntimePressureQueueObservation {
 	return obsmetrics.RuntimePressureQueueObservation{
 		Depth:         event.Items,
@@ -1719,11 +1748,11 @@ func transportFrameKindLabel(kind transport.FrameKind) string {
 		return "data"
 	case transport.FrameKindNotify:
 		return "notify"
-	case transport.FrameKindRPCRequest:
+	case transport.FrameKindRPCRequest, transport.FrameKindRPCBudgetRequest:
 		return "rpc_request"
 	case transport.FrameKindRPCResponse:
 		return "rpc_response"
-	case transport.FrameKindControl:
+	case transport.FrameKindControl, transport.FrameKindRPCCancel:
 		return "control"
 	default:
 		return "unknown"

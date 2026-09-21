@@ -66,6 +66,12 @@ func WriteFramesInto(w io.Writer, buffers *net.Buffers, frames []Frame, maxBodyB
 }
 
 func validateOutboundHeader(header Header, maxBodyBytes int) error {
+	if header.Kind != core.FrameKindRPCBudgetRequest && header.BudgetMillis != 0 {
+		return fmt.Errorf("%w: unexpected budget", core.ErrInvalidFrame)
+	}
+	if header.Kind == core.FrameKindRPCCancel && header.BodyLen != 0 {
+		return fmt.Errorf("%w: cancel body", core.ErrInvalidFrame)
+	}
 	if !header.Kind.Valid() {
 		return fmt.Errorf("%w: kind %d", core.ErrInvalidFrame, header.Kind)
 	}

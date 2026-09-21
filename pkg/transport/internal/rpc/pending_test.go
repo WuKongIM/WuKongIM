@@ -200,3 +200,27 @@ func mustPanic(t *testing.T, fn func()) {
 	}()
 	fn()
 }
+
+func TestPendingCountReplacementAndConcurrentRemoval(t *testing.T) {
+	table := NewPendingTable(16)
+	for id := uint64(1); id <= 256; id++ {
+		table.Store(id, make(chan Response, 1))
+		table.Store(id, make(chan Response, 1))
+	}
+	if n := table.Len(); n != 256 {
+		t.Fatalf("replacement count=%d", n)
+	}
+	var wg sync.WaitGroup
+	for id := uint64(1); id <= 256; id++ {
+		wg.Add(2)
+		go func() { defer wg.Done(); table.Delete(id) }()
+		go func() { defer wg.Done(); table.Complete(id, Response{}) }()
+	}
+	wg.Wait()
+	table.FailAll(errors.New("closed"))
+	table.Store(300, make(chan Response, 1))
+	table.Delete(300)
+	if n := table.Len(); n != 0 {
+		t.Fatalf("terminal count=%d", n)
+	}
+}

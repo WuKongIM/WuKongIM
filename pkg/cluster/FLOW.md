@@ -128,6 +128,12 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 - Maintenance closes business admission before storage replacement and keeps
   only explicitly allowed restore RPC available. Backup and restore retain
   cluster routing and exact authority fences.
+- Node RPC negotiates budget/cancel support through a reserved wire-v1 service;
+  explicit unsupported peers retain v1. Queued work expires under caller budgets
+  or the five-second service queue limit. Default execution is bounded to 30
+  seconds (five minutes for backup stream/restore services); read-only handlers
+  may follow caller cancellation, while started mutations keep independent
+  execution. Ready frames batch without an idle coalescing delay.
 
 - Routed committed and persisted message batches and conversation heads hydrate latest payload replacements through Slot authority. Cross-channel record chunks preserve batching above 200 total recent records; replacement growth respects each page byte budget and retains continuation. Matching skips empty pages, scans at most eight updates directly, and indexes larger pages without copying payload-bearing structs. The Slot ReadIndex/apply barrier is request-scoped, separate from readiness proof reuse; serving edit proposals check the content epoch under restore admission, including forwarded commands; local raw log/backup reads remain immutable.
 

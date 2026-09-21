@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn"
@@ -67,6 +68,9 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 
 // Handle registers handler as the service implementation for serviceID.
 func (s *Server) Handle(serviceID uint16, handler Handler, opts ServiceOptions) error {
+	if serviceID == wire.CapabilityServiceID {
+		return fmt.Errorf("%w: reserved transport capability service", ErrInvalidConfig)
+	}
 	if handler == nil {
 		return fmt.Errorf("%w: service handler is required", ErrInvalidConfig)
 	}
@@ -235,7 +239,10 @@ func (s *Server) dispatch(ctx context.Context, inbound conn.Inbound) {
 			return
 		}
 		_ = service.Enqueue(rpc.Request{Payload: inbound.Payload})
-	case core.FrameKindRPCRequest:
+	case core.FrameKindRPCCancel:
+		inbound.Payload.Release()
+		inbound.Conn.CancelInbound(inbound.RequestID)
+	case core.FrameKindRPCRequest, core.FrameKindRPCBudgetRequest:
 		s.dispatchRPCRequest(ctx, inbound)
 	default:
 		inbound.Payload.Release()
@@ -243,6 +250,16 @@ func (s *Server) dispatch(ctx context.Context, inbound conn.Inbound) {
 }
 
 func (s *Server) dispatchRPCRequest(ctx context.Context, inbound conn.Inbound) {
+	if inbound.ServiceID == wire.CapabilityServiceID {
+		valid := inbound.Kind == core.FrameKindRPCRequest && string(inbound.Payload.Bytes()) == wire.CapabilityRequestBudgets
+		inbound.Payload.Release()
+		if !valid {
+			s.sendRPCError(ctx, inbound, ErrInvalidFrame)
+			return
+		}
+		_ = inbound.Conn.Send(ctx, conn.Outbound{Kind: core.FrameKindRPCResponse, Priority: core.PriorityControl, ServiceID: inbound.ServiceID, RequestID: inbound.RequestID, Payload: conn.EncodeRPCResponse(wire.ResponseOK, []byte(wire.CapabilityRequestBudgets))})
+		return
+	}
 	service := s.service(inbound.ServiceID)
 	if service == nil {
 		inbound.Payload.Release()
@@ -255,8 +272,16 @@ func (s *Server) dispatchRPCRequest(ctx context.Context, inbound conn.Inbound) {
 		return
 	}
 
+	requestCtx, finish, err := inbound.Conn.TrackInbound(inbound.RequestID, time.Duration(inbound.BudgetMillis)*time.Millisecond)
+	if err != nil {
+		inbound.Payload.Release()
+		s.sendRPCError(ctx, inbound, err)
+		return
+	}
 	respond := func(resp rpc.Response) {
 		select {
+		case <-requestCtx.Done():
+			return
 		case <-inbound.Conn.Done():
 			return
 		case <-s.ctx.Done():
@@ -278,7 +303,8 @@ func (s *Server) dispatchRPCRequest(ctx context.Context, inbound conn.Inbound) {
 		})
 	}
 
-	if err := service.Enqueue(rpc.Request{Payload: inbound.Payload, Respond: respond}); err != nil {
+	if err := service.Enqueue(rpc.Request{Context: requestCtx, Finish: finish, Payload: inbound.Payload, Respond: respond}); err != nil {
+		finish()
 		s.sendRPCError(ctx, inbound, err)
 		return
 	}

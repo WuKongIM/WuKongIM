@@ -8,7 +8,7 @@ import (
 )
 
 // DefaultSlabPool provides shared payload buffers for common transport frame sizes.
-var DefaultSlabPool = NewSlabPool([]int{512, 4096, 65536, 1048576})
+var DefaultSlabPool = NewSlabPool([]int{512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576})
 
 type slabClass struct {
 	size int
@@ -70,7 +70,7 @@ func (p *SlabPool) Get(n int) core.OwnedBuffer {
 		}
 		slab := buf[:class.size]
 		payload := slab[:n:n]
-		return core.NewOwnedBuffer(payload, func([]byte) {
+		return core.NewOwnedBufferWithCost(payload, class.size, func([]byte) {
 			class.pool.Put(slab)
 		})
 	}

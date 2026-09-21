@@ -1,0 +1,491 @@
+{
+  "date": "2026-09-21",
+  "base_revision": "68662c4c8fa7a447ac2864c7352789ae4a5021b7",
+  "candidate_branch": "codex/transport-performance",
+  "environment": {
+    "darwin": "Apple M4, arm64, Go 1.25.0, GOMAXPROCS=8",
+    "linux": "Docker Desktop aarch64, golang:1.25.11-bookworm, 4 CPUs / 6 GiB, GOMAXPROCS=4; one shared host",
+    "linux_image": "sha256:63cacf247cfd45aa03d105a9a86e2811f978514997be98068979ba6e4c2d0534"
+  },
+  "rpc": {
+    "darwin_base": [
+      {
+        "case": "metrics=false/parallel=false-8",
+        "iterations": 3636,
+        "ns_per_op": 314402,
+        "bytes_per_op": 1179,
+        "allocs_per_op": 25
+      },
+      {
+        "case": "metrics=false/parallel=false-8",
+        "iterations": 3829,
+        "ns_per_op": 314509,
+        "bytes_per_op": 1173,
+        "allocs_per_op": 25
+      },
+      {
+        "case": "metrics=false/parallel=false-8",
+        "iterations": 3840,
+        "ns_per_op": 314343,
+        "bytes_per_op": 1177,
+        "allocs_per_op": 25
+      },
+      {
+        "case": "metrics=false/parallel=true-8",
+        "iterations": 32277,
+        "ns_per_op": 37117,
+        "bytes_per_op": 1164,
+        "allocs_per_op": 25
+      },
+      {
+        "case": "metrics=false/parallel=true-8",
+        "iterations": 32461,
+        "ns_per_op": 37077,
+        "bytes_per_op": 1163,
+        "allocs_per_op": 25
+      },
+      {
+        "case": "metrics=false/parallel=true-8",
+        "iterations": 32266,
+        "ns_per_op": 37119,
+        "bytes_per_op": 1163,
+        "allocs_per_op": 25
+      },
+      {
+        "case": "metrics=true/parallel=false-8",
+        "iterations": 3742,
+        "ns_per_op": 313960,
+        "bytes_per_op": 1346,
+        "allocs_per_op": 30
+      },
+      {
+        "case": "metrics=true/parallel=false-8",
+        "iterations": 3734,
+        "ns_per_op": 311338,
+        "bytes_per_op": 1347,
+        "allocs_per_op": 30
+      },
+      {
+        "case": "metrics=true/parallel=false-8",
+        "iterations": 3774,
+        "ns_per_op": 339495,
+        "bytes_per_op": 1349,
+        "allocs_per_op": 30
+      },
+      {
+        "case": "metrics=true/parallel=true-8",
+        "iterations": 32444,
+        "ns_per_op": 37015,
+        "bytes_per_op": 1356,
+        "allocs_per_op": 31
+      },
+      {
+        "case": "metrics=true/parallel=true-8",
+        "iterations": 32104,
+        "ns_per_op": 37275,
+        "bytes_per_op": 1358,
+        "allocs_per_op": 31
+      },
+      {
+        "case": "metrics=true/parallel=true-8",
+        "iterations": 32268,
+        "ns_per_op": 37071,
+        "bytes_per_op": 1359,
+        "allocs_per_op": 31
+      }
+    ],
+    "darwin_candidate": [
+      {
+        "case": "metrics=false/parallel=false-8",
+        "iterations": 45950,
+        "ns_per_op": 24923,
+        "bytes_per_op": 3142,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=false/parallel=false-8",
+        "iterations": 48040,
+        "ns_per_op": 24963,
+        "bytes_per_op": 3142,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=false/parallel=false-8",
+        "iterations": 48003,
+        "ns_per_op": 25162,
+        "bytes_per_op": 3142,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=false/parallel=true-8",
+        "iterations": 128839,
+        "ns_per_op": 9569,
+        "bytes_per_op": 3140,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=false/parallel=true-8",
+        "iterations": 128512,
+        "ns_per_op": 9775,
+        "bytes_per_op": 3140,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=false/parallel=true-8",
+        "iterations": 127290,
+        "ns_per_op": 9537,
+        "bytes_per_op": 3140,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=true/parallel=false-8",
+        "iterations": 44359,
+        "ns_per_op": 26659,
+        "bytes_per_op": 3163,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=true/parallel=false-8",
+        "iterations": 45398,
+        "ns_per_op": 26760,
+        "bytes_per_op": 3162,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=true/parallel=false-8",
+        "iterations": 45748,
+        "ns_per_op": 26645,
+        "bytes_per_op": 3162,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=true/parallel=true-8",
+        "iterations": 113832,
+        "ns_per_op": 10641,
+        "bytes_per_op": 3148,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=true/parallel=true-8",
+        "iterations": 118228,
+        "ns_per_op": 10413,
+        "bytes_per_op": 3148,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=true/parallel=true-8",
+        "iterations": 115720,
+        "ns_per_op": 10412,
+        "bytes_per_op": 3148,
+        "allocs_per_op": 48
+      }
+    ],
+    "linux_base": [
+      {
+        "case": "metrics=false/parallel=false-4",
+        "iterations": 276,
+        "ns_per_op": 4448762,
+        "bytes_per_op": 1285,
+        "allocs_per_op": 25
+      },
+      {
+        "case": "metrics=false/parallel=false-4",
+        "iterations": 273,
+        "ns_per_op": 4159599,
+        "bytes_per_op": 1286,
+        "allocs_per_op": 25
+      },
+      {
+        "case": "metrics=false/parallel=false-4",
+        "iterations": 262,
+        "ns_per_op": 4426353,
+        "bytes_per_op": 1294,
+        "allocs_per_op": 25
+      },
+      {
+        "case": "metrics=false/parallel=true-4",
+        "iterations": 1243,
+        "ns_per_op": 973396,
+        "bytes_per_op": 1195,
+        "allocs_per_op": 25
+      },
+      {
+        "case": "metrics=false/parallel=true-4",
+        "iterations": 1585,
+        "ns_per_op": 843011,
+        "bytes_per_op": 1183,
+        "allocs_per_op": 25
+      },
+      {
+        "case": "metrics=false/parallel=true-4",
+        "iterations": 1465,
+        "ns_per_op": 1009909,
+        "bytes_per_op": 1187,
+        "allocs_per_op": 25
+      },
+      {
+        "case": "metrics=true/parallel=false-4",
+        "iterations": 279,
+        "ns_per_op": 4540650,
+        "bytes_per_op": 1520,
+        "allocs_per_op": 32
+      },
+      {
+        "case": "metrics=true/parallel=false-4",
+        "iterations": 271,
+        "ns_per_op": 4310022,
+        "bytes_per_op": 1498,
+        "allocs_per_op": 32
+      },
+      {
+        "case": "metrics=true/parallel=false-4",
+        "iterations": 277,
+        "ns_per_op": 4541875,
+        "bytes_per_op": 1513,
+        "allocs_per_op": 33
+      },
+      {
+        "case": "metrics=true/parallel=true-4",
+        "iterations": 1872,
+        "ns_per_op": 779141,
+        "bytes_per_op": 1369,
+        "allocs_per_op": 30
+      },
+      {
+        "case": "metrics=true/parallel=true-4",
+        "iterations": 1255,
+        "ns_per_op": 1002216,
+        "bytes_per_op": 1383,
+        "allocs_per_op": 31
+      },
+      {
+        "case": "metrics=true/parallel=true-4",
+        "iterations": 1454,
+        "ns_per_op": 972231,
+        "bytes_per_op": 1367,
+        "allocs_per_op": 30
+      }
+    ],
+    "linux_candidate": [
+      {
+        "case": "metrics=false/parallel=false-4",
+        "iterations": 109479,
+        "ns_per_op": 11109,
+        "bytes_per_op": 3138,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=false/parallel=false-4",
+        "iterations": 108588,
+        "ns_per_op": 10867,
+        "bytes_per_op": 3138,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=false/parallel=false-4",
+        "iterations": 111344,
+        "ns_per_op": 10824,
+        "bytes_per_op": 3138,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=false/parallel=true-4",
+        "iterations": 163506,
+        "ns_per_op": 7229,
+        "bytes_per_op": 3138,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=false/parallel=true-4",
+        "iterations": 167971,
+        "ns_per_op": 7199,
+        "bytes_per_op": 3138,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=false/parallel=true-4",
+        "iterations": 169663,
+        "ns_per_op": 7330,
+        "bytes_per_op": 3138,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=true/parallel=false-4",
+        "iterations": 93277,
+        "ns_per_op": 12585,
+        "bytes_per_op": 3148,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=true/parallel=false-4",
+        "iterations": 93050,
+        "ns_per_op": 12201,
+        "bytes_per_op": 3148,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=true/parallel=false-4",
+        "iterations": 94122,
+        "ns_per_op": 12541,
+        "bytes_per_op": 3148,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=true/parallel=true-4",
+        "iterations": 148029,
+        "ns_per_op": 7782,
+        "bytes_per_op": 3144,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=true/parallel=true-4",
+        "iterations": 151270,
+        "ns_per_op": 7859,
+        "bytes_per_op": 3144,
+        "allocs_per_op": 48
+      },
+      {
+        "case": "metrics=true/parallel=true-4",
+        "iterations": 151370,
+        "ns_per_op": 7860,
+        "bytes_per_op": 3144,
+        "allocs_per_op": 48
+      }
+    ]
+  },
+  "mixed_500_qps": {
+    "base": [
+      {
+        "Planned": 3000.0,
+        "Started": 3000.0,
+        "Completed": 3000.0,
+        "Errors": 0.0,
+        "Dropped": 0.0,
+        "TargetPerSecond": 500.0,
+        "StartedPerSecond": 500.0,
+        "TotalP99MS": 20.676293,
+        "QueueP99MS": 2.653418,
+        "ServiceP99MS": 20.207875,
+        "bytes_per_op": 198159,
+        "allocs_per_op": 1296
+      },
+      {
+        "Planned": 3000.0,
+        "Started": 3000.0,
+        "Completed": 3000.0,
+        "Errors": 0.0,
+        "Dropped": 0.0,
+        "TargetPerSecond": 500.0,
+        "StartedPerSecond": 500.0,
+        "TotalP99MS": 17.276208,
+        "QueueP99MS": 2.425251,
+        "ServiceP99MS": 16.229625,
+        "bytes_per_op": 200957,
+        "allocs_per_op": 1321
+      },
+      {
+        "Planned": 3000.0,
+        "Started": 3000.0,
+        "Completed": 3000.0,
+        "Errors": 0.0,
+        "Dropped": 0.0,
+        "TargetPerSecond": 500.0,
+        "StartedPerSecond": 500.0,
+        "TotalP99MS": 49.258085,
+        "QueueP99MS": 2.603586,
+        "ServiceP99MS": 49.025709,
+        "bytes_per_op": 201287,
+        "allocs_per_op": 1332
+      }
+    ],
+    "candidate": [
+      {
+        "Planned": 3000.0,
+        "Started": 3000.0,
+        "Completed": 3000.0,
+        "Errors": 0.0,
+        "Dropped": 0.0,
+        "TargetPerSecond": 500.0,
+        "StartedPerSecond": 500.0,
+        "TotalP99MS": 19.262668,
+        "QueueP99MS": 2.5655,
+        "ServiceP99MS": 17.397875,
+        "bytes_per_op": 222582,
+        "allocs_per_op": 1450
+      },
+      {
+        "Planned": 3000.0,
+        "Started": 3000.0,
+        "Completed": 3000.0,
+        "Errors": 0.0,
+        "Dropped": 0.0,
+        "TargetPerSecond": 500.0,
+        "StartedPerSecond": 500.0,
+        "TotalP99MS": 9.793835,
+        "QueueP99MS": 2.400875,
+        "ServiceP99MS": 8.957542,
+        "bytes_per_op": 221706,
+        "allocs_per_op": 1448
+      },
+      {
+        "Planned": 3000.0,
+        "Started": 3000.0,
+        "Completed": 3000.0,
+        "Errors": 0.0,
+        "Dropped": 0.0,
+        "TargetPerSecond": 500.0,
+        "StartedPerSecond": 500.0,
+        "TotalP99MS": 11.07325,
+        "QueueP99MS": 2.354877,
+        "ServiceP99MS": 10.127042,
+        "bytes_per_op": 221171,
+        "allocs_per_op": 1433
+      }
+    ]
+  },
+  "slab_probe": "=== RUN   TestAnalysisPhysicalSlabCost\n    analysis_integration_test.go:19: payload=4096B logical_total=131072B allocated_total=136328B amplification=1.04x\n    analysis_integration_test.go:19: payload=4097B logical_total=131104B allocated_total=267400B amplification=2.04x\n    analysis_integration_test.go:19: payload=65536B logical_total=2097152B allocated_total=2102408B amplification=1.00x\n    analysis_integration_test.go:19: payload=65537B logical_total=2097184B allocated_total=4200976B amplification=2.00x\n--- PASS: TestAnalysisPhysicalSlabCost (0.00s)\nPASS\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/buffer\t0.430s\n",
+  "validation": [
+    "Full repository explicit-package unit suite: pass",
+    "transport + cluster/net integration and race: pass",
+    "app/metrics/Grafana wiring: pass",
+    "Linux transport integration: pass",
+    "Linux three-process person/group cross-ingress ordering: pass",
+    "Linux three-process channel failover (stop/pause/recovery): pass",
+    "flow-doc-contracts: pass (9 advisory existing-size warnings)"
+  ],
+  "limits": [
+    "No cross-host/WAN or 100,000-member-group capacity qualification",
+    "Linux serial observer overhead remains about 15%; parallel overhead is under 10%",
+    "Contexts and timers increase per-call allocation; cooperative deadlines cannot forcibly terminate an uncooperative handler",
+    "Old peers retain v1 without propagated caller cancellation",
+    "Started mutations may finish after caller timeout; timeout does not acknowledge rollback"
+  ],
+  "artifacts_sha256": {
+    "transport-slab-final.txt": "c4354b71fef5498e3e2ae2322cf0e7689b08b29489c2e88e570beaabf8af85dc",
+    "transport-new-bench.txt": "6a789a3b4dbc999449dd2bc89b5cf854d01abdce0ac89527d2231d6cd2b2b563",
+    "report.md": "84b3aa35849c32874443f12b4611a32d9da063554e57a6f369d06668a0207e2e",
+    "new-mixed-bench-3.txt": "d41f57ac8ed78336ef70de21fba52a10c4bc2ed286cc45c7d8b6d994e770ca87",
+    "transport-executor-budget-red.txt": "e592ae80533d8b767ff25fd98cff40ce66d5eb534211ff46debe125d1cd9b4c0",
+    "new-mixed-bench-2.txt": "f59f3cc5dbbde5d6d1a4eb55c1749a272c4f65dd96c43cb0c383e692f58edc30",
+    "final-rpc-bench.txt": "6e757ecf34aeb42632513ff0fb339f98437b6ff8f3996ddc668a873d0321cac5",
+    "burst-e2e-fixed.txt": "76139d00766b27520bdb9b7efc05def345aa1bf536d1ec5ee1340125a25e4346",
+    "transport-executor-budget-green.txt": "4cb917b454c2560ff1e6e808046ce000fd15b549cff5716132c2f0afc70933ab",
+    "transport-cpu-top.txt": "bda7760978d4072d2933ef50b458a993b2837c2cedb90221bd3b0b5139922065",
+    "base-rpc-bench.txt": "0ed2acac07504cdd79869728097bf74a42d45420dfae296d801c4f2611273901",
+    "rpc-heap.pprof": "bd217e23e6d4c4743bc63f0711873930acf7cd926d3aed522d2332d2993e9371",
+    "transport-heap-top.txt": "40869e2bd218b9924727b0e7bcd19b4c0ee657bf1d9d92249eb467629ddb196e",
+    "failover-e2e.txt": "e4e28a5f65c6cd907e77e14c1f0c10e5519fe8a68baef9c221345900825cfb28",
+    "new-mixed-bench.txt": "dbfed2c447c0d686544dd4e8b910fc954f6d88ad7407ddf19e2612d58a80102b",
+    "transport-flow-final.txt": "eddd8bb58a2d6b1cdef43c04a597adef7d1e9f62b1742099321b18dc13134c58",
+    "transport-delivery-wiring.txt": "82bb2ea47060421294e7147da1ca44e28bcd803297c46b59656a5e16ebdea768",
+    "transport-tests.txt": "a94d67ce1eabdb3c6f1b221b2e86dbc5d86c497bad791a58f1ca08d62278c741",
+    "rpc-cpu.pprof": "246f475b224f12199ea9958ab9fe6b38156e9133b48b1ebd7d89145f71edb280",
+    "transport-base-bench.txt": "862f69b0f8e35f1a6469202a7674dfae50eb02ff0cb78634118fc8e979e6a4e2",
+    "transport-delivery-race.txt": "e4afc34737e6dbbd66311d6f84365d6545a402a7a692976f6ff4a215464628cb",
+    "transport-full-unit-final.txt": "281fab3d4638a39927275d8da2c8c219f3cd769ec8c6c4930bbb56a91a7700f0",
+    "rpc-profile-run.txt": "5edd84e70ed2433554fb9fe0e3d421632f306d57d7e8ec423722a7ac1f48e5c1",
+    "base-mixed-bench.txt": "2e6b8eabdf7a5ed452797263314477463f1ed65369502d9dd427f9beabf5ff64",
+    "transport-protocol-extra.txt": "41cb670fb725269bf8c8463349c203840075cb7177123aa36d9c1d3074243efb",
+    "base-mixed-bench-23.txt": "424b75960ad2d2564d5d817748749c765651095a5f57b2cedd8642dc9bd89d09"
+  }
+}

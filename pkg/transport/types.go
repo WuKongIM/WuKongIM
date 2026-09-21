@@ -9,6 +9,7 @@ type Discovery = core.Discovery
 type Handler = core.Handler
 type Observer = core.Observer
 type Event = core.Event
+type DurationSamples = core.DurationSamples
 type Stats = core.Stats
 type Limits = core.Limits
 type ServiceOptions = core.ServiceOptions
@@ -20,11 +21,13 @@ const (
 	PriorityRPC     = core.PriorityRPC
 	PriorityBulk    = core.PriorityBulk
 
-	FrameKindData        = core.FrameKindData
-	FrameKindNotify      = core.FrameKindNotify
-	FrameKindRPCRequest  = core.FrameKindRPCRequest
-	FrameKindRPCResponse = core.FrameKindRPCResponse
-	FrameKindControl     = core.FrameKindControl
+	FrameKindData             = core.FrameKindData
+	FrameKindNotify           = core.FrameKindNotify
+	FrameKindRPCRequest       = core.FrameKindRPCRequest
+	FrameKindRPCResponse      = core.FrameKindRPCResponse
+	FrameKindControl          = core.FrameKindControl
+	FrameKindRPCBudgetRequest = core.FrameKindRPCBudgetRequest
+	FrameKindRPCCancel        = core.FrameKindRPCCancel
 )
 
 // NewOwnedBuffer wraps caller-owned bytes with an optional release callback.

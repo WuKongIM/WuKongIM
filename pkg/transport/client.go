@@ -2,7 +2,9 @@ package transport
 
 import (
 	"context"
+	"errors"
 	"net"
+	"time"
 
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn"
@@ -87,11 +89,33 @@ func (c *Client) Call(ctx context.Context, nodeID NodeID, shardKey uint64, pri P
 
 // CallOwned sends payload as an RPC request, transfers ownership on successful
 // admission, and waits for the response.
-func (c *Client) CallOwned(ctx context.Context, nodeID NodeID, shardKey uint64, pri Priority, serviceID uint16, payload OwnedBuffer) ([]byte, error) {
+func (c *Client) CallOwned(ctx context.Context, nodeID NodeID, shardKey uint64, pri Priority, serviceID uint16, payload OwnedBuffer) (_ []byte, err error) {
+	if c.cfg.Observer != nil {
+		started := time.Now()
+		defer func() {
+			result := "ok"
+			if err != nil {
+				result = "err"
+			}
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, ErrTimeout) {
+				result = "timeout"
+			}
+			if errors.Is(err, context.Canceled) || errors.Is(err, ErrCanceled) {
+				result = "canceled"
+			}
+			c.cfg.Observer.ObserveTransport(Event{Name: "client_rpc", NodeID: nodeID, ServiceID: serviceID, Result: result, Duration: time.Since(started)})
+		}()
+	}
 	peerConn, err := c.peers.Acquire(ctx, nodeID, shardKey)
 	if err != nil {
 		payload.Release()
 		return nil, err
+	}
+	if c.cfg.RequestBudgets {
+		if err := peerConn.NegotiateRequestBudgets(ctx); err != nil {
+			payload.Release()
+			return nil, err
+		}
 	}
 	return peerConn.Call(ctx, conn.Outbound{
 		Priority:  pri,

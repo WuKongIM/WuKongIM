@@ -326,7 +326,22 @@ specification, runbook, report, or module documentation; link to them when neede
 - Transport observer state remains bounded to 8,192 source keys; absolute-state
   revisions survive delivery, unversioned updates follow arrival order, and
   shutdown drains admitted terminal states. Reuse state cells and delivery
-  buffers so metrics do not allocate on every RPC state transition.
+  buffers so metrics do not allocate on every RPC state transition. State and
+  bounded-label counters publish every 10 ms; shutdown drains admitted work.
+  Transport duration histograms sample one in 32 observations independently of
+  flush timing; call/admission/byte counters remain unsampled within the bounded
+  key catalog. Observer overflow is reported separately from intentional sampling.
+- Internal RPCs negotiate the reserved transport capability service over wire v1
+  before using wire v2 budget/cancel frames. Explicit service-not-found permits
+  v1 fallback; timeout or malformed negotiation never retries business work.
+  Relative budgets start at receiver admission, avoiding wall-clock skew;
+  callers enforce their own end-to-end deadline. Queued cancellation releases
+  memory and FIFO capacity. Running cancellation is opt-in for read-only RPCs;
+  started mutations use independent bounded execution and may commit after their
+  caller times out. Timeout/cancel is never a rollback acknowledgement.
+- Transport batches ready frames without a default timer delay. Slab admission
+  counts retained backing capacity, separately from wire bytes; service retained
+  memory includes queued and executing requests until their owner releases it.
 
 ## Performance evidence
 

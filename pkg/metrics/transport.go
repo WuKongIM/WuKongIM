@@ -8,6 +8,7 @@ import (
 )
 
 type TransportMetrics struct {
+	observerDropped   prometheus.Counter
 	rpcDuration       *prometheus.HistogramVec
 	rpcTotal          *prometheus.CounterVec
 	rpcClientDuration *prometheus.HistogramVec
@@ -71,9 +72,10 @@ type transportDialResultKey struct {
 
 func newTransportMetrics(registry prometheus.Registerer, labels prometheus.Labels) *TransportMetrics {
 	m := &TransportMetrics{
+		observerDropped: prometheus.NewCounter(prometheus.CounterOpts{Name: "wukongim_transport_observer_dropped_total", Help: "Transport observation events or duration samples dropped by bounded observer storage.", ConstLabels: labels}),
 		rpcDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_transport_rpc_duration_seconds",
-			Help:        "Transport RPC latency in seconds.",
+			Help:        "Transport handler latency in seconds; transport drains sample one in 32 calls.",
 			ConstLabels: labels,
 			Buckets:     gatewayFrameDurationBuckets,
 		}, []string{"service"}),
@@ -84,7 +86,7 @@ func newTransportMetrics(registry prometheus.Registerer, labels prometheus.Label
 		}, []string{"service", "result"}),
 		rpcClientDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:        "wukongim_transport_rpc_client_duration_seconds",
-			Help:        "Transport RPC client latency in seconds grouped by target node and service.",
+			Help:        "End-to-end transport client latency in seconds; transport drains sample one in 32 calls.",
 			ConstLabels: labels,
 			Buckets:     gatewayFrameDurationBuckets,
 		}, []string{"target_node", "service"}),
@@ -163,7 +165,7 @@ func newTransportMetrics(registry prometheus.Registerer, labels prometheus.Label
 	}
 
 	registry.MustRegister(
-		m.rpcDuration,
+		m.observerDropped, m.rpcDuration,
 		m.rpcTotal,
 		m.rpcClientDuration,
 		m.rpcClientTotal,
@@ -183,6 +185,53 @@ func newTransportMetrics(registry prometheus.Registerer, labels prometheus.Label
 	)
 
 	return m
+}
+
+// ObserveRPCBatch records exact totals with explicitly sampled latency observations.
+func (m *TransportMetrics) ObserveRPCBatch(service, result string, count uint64, samples []time.Duration) {
+	if m == nil {
+		return
+	}
+	m.rpcTotalHandle(service, result).Add(float64(count))
+	observer := m.rpcDurationHandle(service)
+	for _, d := range samples {
+		observer.Observe(d.Seconds())
+	}
+}
+
+// ObserveRPCClientBatch separates end-to-end client latency samples from exact call totals.
+func (m *TransportMetrics) ObserveRPCClientBatch(node, service, result string, count uint64, samples []time.Duration) {
+	if m == nil {
+		return
+	}
+	m.rpcClientTotalHandle(node, service, result).Add(float64(count))
+	observer := m.rpcClientDurationHandle(node, service)
+	for _, d := range samples {
+		observer.Observe(d.Seconds())
+	}
+}
+
+// ObserveDropped exposes bounded observation loss independently of sampling policy.
+func (m *TransportMetrics) ObserveDropped(count uint64) {
+	if m != nil {
+		m.observerDropped.Add(float64(count))
+	}
+}
+
+// ObserveWriteBatches records identical frame-count batches with summed payload bytes.
+func (m *TransportMetrics) ObserveWriteBatches(count uint64, frames, payloadBytes, limit int) {
+	if m == nil || frames <= 0 {
+		return
+	}
+	m.writeBatches.Add(float64(count))
+	m.writeFrames.Add(float64(count) * float64(frames))
+	m.writePayloadBytes.Add(float64(max(0, payloadBytes)))
+	if frames == 1 {
+		m.writeSingleFrames.Add(float64(count))
+	}
+	if limit > 0 && frames >= limit {
+		m.writeFrameLimit.Add(float64(count))
+	}
 }
 
 func (m *TransportMetrics) ObserveRPC(service, result string, dur time.Duration) {

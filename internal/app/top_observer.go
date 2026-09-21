@@ -443,23 +443,27 @@ func (o *topTransportObserver) ObserveTransport(event transport.Event) {
 		o.top.SetQueue(transportRuntimePressureComponent, "service", transportServiceEventLabel(event), transportPriorityLabel(event.Priority), int64(event.Items), int64(event.Capacity))
 	case "scheduler_admission":
 		if event.Result != "" && event.Result != "ok" {
-			o.top.addCounter("pressure."+transportRuntimePressureComponent+".scheduler.scheduler."+safeTopLabel(transportPriorityLabel(event.Priority))+".admission_error", 1)
+			o.top.addCounter("pressure."+transportRuntimePressureComponent+".scheduler.scheduler."+safeTopLabel(transportPriorityLabel(event.Priority))+".admission_error", transportEventCount(event))
 		}
 	case "service_admission":
 		if event.Result != "" && event.Result != "ok" {
-			o.top.addCounter("pressure."+transportRuntimePressureComponent+".service."+safeTopLabel(transportServiceEventLabel(event))+"."+safeTopLabel(transportPriorityLabel(event.Priority))+".admission_error", 1)
+			o.top.addCounter("pressure."+transportRuntimePressureComponent+".service."+safeTopLabel(transportServiceEventLabel(event))+"."+safeTopLabel(transportPriorityLabel(event.Priority))+".admission_error", transportEventCount(event))
 		}
 	case "scheduler_wait":
-		o.top.observeDurationMS("pressure."+transportRuntimePressureComponent+".scheduler.scheduler."+safeTopLabel(transportPriorityLabel(event.Priority))+".wait", event.Duration)
+		for _, duration := range transportEventDurations(event) {
+			o.top.observeDurationMS("pressure."+transportRuntimePressureComponent+".scheduler.scheduler."+safeTopLabel(transportPriorityLabel(event.Priority))+".wait", duration)
+		}
 	case "service_task":
-		o.top.observeDurationMS("pressure."+transportRuntimePressureComponent+".service."+safeTopLabel(transportServiceEventLabel(event))+"."+safeTopLabel(event.Result)+".task", event.Duration)
+		for _, duration := range transportEventDurations(event) {
+			o.top.observeDurationMS("pressure."+transportRuntimePressureComponent+".service."+safeTopLabel(transportServiceEventLabel(event))+"."+safeTopLabel(event.Result)+".task", duration)
+		}
 	case "service_inflight":
 		o.top.SetInflight(transportRuntimePressureComponent, transportServiceEventLabel(event), int64(event.Inflight), int64(event.Capacity))
 	case "controller_raft_queue":
 		o.top.SetQueue(transportRuntimePressureComponent, "controller_raft", "send", transportPriorityLabel(event.Priority), int64(event.Items), int64(event.Capacity))
 	case "controller_raft_admission":
 		if event.Result != "" && event.Result != "ok" {
-			o.top.addCounter("pressure."+transportRuntimePressureComponent+".controller_raft.send."+safeTopLabel(transportPriorityLabel(event.Priority))+".admission_error", 1)
+			o.top.addCounter("pressure."+transportRuntimePressureComponent+".controller_raft.send."+safeTopLabel(transportPriorityLabel(event.Priority))+".admission_error", transportEventCount(event))
 		}
 	case "controller_raft_task":
 		o.top.observeDurationMS("pressure."+transportRuntimePressureComponent+".controller_raft.send."+safeTopLabel(event.Result)+".task", event.Duration)

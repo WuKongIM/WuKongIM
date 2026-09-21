@@ -15,6 +15,8 @@ and group Channel runtimes.
 - MUST use real WKProto SEND/SENDACK/RECV/RECVACK and a zero-coverage full
   `/conversation/list` page walk, including bounded unresolved retry, after
   every login.
+- The fixture MUST explicitly disable Token authentication for its tokenless
+  lifecycle clients. This scenario does not qualify SDK authentication.
 - The cross-ingress burst case MUST assert strictly increasing recipient
   `message_seq` while multiple users send concurrently through different nodes
   for both person and group Channels.

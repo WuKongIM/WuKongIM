@@ -36,8 +36,10 @@ type Config struct {
 type Item struct {
 	// Priority selects the weighted scheduler lane.
 	Priority core.Priority
-	// Bytes is the queue and batch byte size; negative values are treated as zero.
+	// Bytes is the logical batch byte size; negative values are treated as zero.
 	Bytes int
+	// RetainedBytes is the backing allocation cost; zero falls back to Bytes.
+	RetainedBytes int
 	// Value carries the caller-owned frame payload or metadata.
 	Value any
 	// enqueuedAt records when the item entered the queue for wait observations.
@@ -58,6 +60,8 @@ type lane struct {
 type Scheduler struct {
 	mu   sync.Mutex
 	cond *sync.Cond
+	// urgentReady interrupts optional coalescing when control or Raft work arrives.
+	urgentReady chan struct{}
 
 	maxItems       int
 	maxBytes       int64
@@ -90,6 +94,7 @@ func New(cfg Config) *Scheduler {
 	}
 
 	s := &Scheduler{
+		urgentReady:    make(chan struct{}, 1),
 		maxItems:       cfg.MaxItems,
 		maxBytes:       cfg.MaxBytes,
 		maxBatchFrames: maxBatchFrames,
@@ -146,7 +151,7 @@ func (s *Scheduler) Enqueue(ctx context.Context, item Item) error {
 		s.observeEnqueue("full", item, snapshot, laneSnapshot)
 		return core.ErrQueueFull
 	}
-	if s.maxBytes > 0 && s.queuedBytes+int64(item.Bytes) > s.maxBytes {
+	if s.maxBytes > 0 && s.queuedBytes+queueBytes(item) > s.maxBytes {
 		snapshot := s.snapshotQueueLocked()
 		laneSnapshot := s.snapshotLaneQueueLocked(item.Priority)
 		s.mu.Unlock()
@@ -162,11 +167,17 @@ func (s *Scheduler) Enqueue(ctx context.Context, item Item) error {
 			s.lanes[i].items++
 			s.lanes[i].bytes += queueBytes(item)
 			s.queuedItems++
-			s.queuedBytes += int64(item.Bytes)
+			s.queuedBytes += queueBytes(item)
 			s.queueRevision = core.NextStateRevision()
 			snapshot := s.snapshotQueueLocked()
 			laneSnapshot := s.snapshotLaneQueueLocked(item.Priority)
 			s.cond.Signal()
+			if item.Priority == core.PriorityControl || item.Priority == core.PriorityRaft {
+				select {
+				case s.urgentReady <- struct{}{}:
+				default:
+				}
+			}
 			s.mu.Unlock()
 			s.observeEnqueue("ok", item, snapshot, laneSnapshot)
 			return nil
@@ -178,6 +189,9 @@ func (s *Scheduler) Enqueue(ctx context.Context, item Item) error {
 	s.observeEnqueue("invalid", item, snapshot, laneSnapshot)
 	return core.ErrInvalidPriority
 }
+
+// UrgentReady wakes an optional writer delay; a stale signal may only shorten it.
+func (s *Scheduler) UrgentReady() <-chan struct{} { return s.urgentReady }
 
 // NextBatch returns the next weighted batch without blocking.
 func (s *Scheduler) NextBatch() []Item {
@@ -300,7 +314,7 @@ func (s *Scheduler) nextBatchLocked(dst []Item, observe bool) ([]Item, batchObse
 			s.finishLaneLocked()
 			continue
 		}
-		if batchBytes+itemBytes > s.maxBatchBytes && len(batch) > 0 {
+		if batchBytes+int64(item.Bytes) > s.maxBatchBytes && len(batch) > 0 {
 			break
 		}
 
@@ -314,7 +328,7 @@ func (s *Scheduler) nextBatchLocked(dst []Item, observe bool) ([]Item, batchObse
 		if observe {
 			observation.touchedMask |= 1 << uint(laneIndex)
 		}
-		batchBytes += itemBytes
+		batchBytes += int64(item.Bytes)
 		s.roundOutput = true
 
 		if len(batch) >= s.maxBatchFrames || batchBytes >= s.maxBatchBytes {
@@ -430,6 +444,9 @@ func (l *lane) compactQueueIfFull() {
 }
 
 func queueBytes(item Item) int64 {
+	if item.RetainedBytes > item.Bytes {
+		return int64(item.RetainedBytes)
+	}
 	if item.Bytes <= 0 {
 		return 0
 	}
