@@ -1,0 +1,198 @@
+{
+  "schema": "wukongim/project-hardening-local-evidence/v1",
+  "starting_revision": "0ca3eafafe2c404f1cae106a08bba29a28945bd9",
+  "product_binary_revision": "2de1e9e2c3db8fa12a92fe6fcdeda6188faed864",
+  "product_binary_modified": false,
+  "product_binary_sha256": "5ffeb78ba3a564f530cbe0e468f6d459ef390cab1c1ab59f3196d97dbb24e2af",
+  "unit_gate": {
+    "status": "pass",
+    "packages_passed": 212,
+    "packages_without_tests": 13,
+    "source_commit": "2de1e9e2c"
+  },
+  "migration_profiled_seconds": {
+    "before": 173.03,
+    "after": 126.192
+  },
+  "single_node_backup_restore": {
+    "status": "pass",
+    "seconds": 149.013
+  },
+  "three_node_backup_restore": {
+    "status": "pass",
+    "seconds": 414.112,
+    "scenario_commit": "d08ec51b6",
+    "binary_commit": "2de1e9e2c"
+  },
+  "performance_preflight": {
+    "schema": "wukongim/chat-lifecycle-local-baseline/v1",
+    "outcome": "storage_confounded",
+    "reason": "filesystem_free_below_10_percent",
+    "highest_clean_rate": 0,
+    "first_failing_rate": 0,
+    "online_connections": 2500,
+    "rate_staircase": "250,500,750,1000",
+    "step_measured_seconds": 300,
+    "soak_rate": 1000,
+    "soak_measured_seconds": 600,
+    "warmup_seconds": 60,
+    "drain_timeout_seconds": 90,
+    "logical_slot_groups": 12,
+    "hash_slots": 256,
+    "slot_replicas": 3,
+    "channel_replicas": 3,
+    "gateway_async_send_workers": 1000,
+    "gateway_async_send_batch_max_records": 1,
+    "commit_coordinator_flush_window": "500us",
+    "commit_coordinator_shards": 1,
+    "sync_commit": true,
+    "minimum_filesystem_free_percent": 10,
+    "observed_filesystem_free_percent": 2,
+    "source_revision": "2de1e9e2c3db8fa12a92fe6fcdeda6188faed864",
+    "source_dirty": false,
+    "source_rebuildable_from_revision": true,
+    "operator_interrupted": false,
+    "step_artifact_seals_complete": true,
+    "validated_step_artifact_seals": 0,
+    "filesystem_preflight": "filesystem-preflight.txt",
+    "steps": "steps.tsv",
+    "artifact_checksums": "checksums.sha256"
+  },
+  "formal_aged_data_qualification": {
+    "status": "not_run"
+  },
+  "logs": {
+    "/tmp/wukongim-slot-before.log": {
+      "sha256": "620e44e76ecd870286d1783a188e1d0b0a4c32d3d399e271397e15eb5b23bbfa",
+      "bytes": 196
+    },
+    "/tmp/wukongim-slot-after.log": {
+      "sha256": "4274c207236c0f7e77f9cffd1287a8faf39417fb27fff8bf57bf49a6445d0f84",
+      "bytes": 60
+    },
+    "/tmp/wukongim-slot-package-after.log": {
+      "sha256": "fe8a791412dc51b3915032b3e14420902d62b55f281c12514fa1072a7c05540b",
+      "bytes": 60
+    },
+    "/tmp/wukongim-backup-race.log": {
+      "sha256": "5dc4671b0877f0d8684ac70b21d0763166b2f67c6685074f8461c33fd6996d30",
+      "bytes": 1035
+    },
+    "/tmp/wukongim-backup-object-rpc.log": {
+      "sha256": "5741621c0f0d2f965b7ab44d545e500246b0c93a6959fc6d0cc07241a1998dbc",
+      "bytes": 54
+    },
+    "/tmp/wukongim-backup-e2e-after.log": {
+      "sha256": "f69fcdb274fc7f8bed35deac8336ad5caffddf00bfabef58e45f899290fe02c2",
+      "bytes": 7455
+    },
+    "/tmp/wukongim-migration-before.jsonl": {
+      "sha256": "bced155023a73a23692f249c75cdf05e0db624370cb96c55210137d717cce27c",
+      "bytes": 1273636
+    },
+    "/tmp/wukongim-migration-after.jsonl": {
+      "sha256": "34ef56b532a3a1aa45e0353bb0e52e63bec6ab8681d4a1f6de7b9ffd5e607aab",
+      "bytes": 1273707
+    },
+    "/tmp/wukongim-hardening-unit.log": {
+      "sha256": "87ef338560a9b1cd12ba4bcec0ce7c12c3ee3a3bd97f3e0b4410d1dd82bc6e21",
+      "bytes": 14636
+    },
+    "/tmp/wukongim-hardening-vet.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "/tmp/wukongim-hardening-suite.log": {
+      "sha256": "898b999aaf03d3121d78d2210d9e4ba9cb2c672a446d98db680ae2cefe8236b9",
+      "bytes": 56
+    },
+    "/tmp/wukongim-hardening-flow.log": {
+      "sha256": "15a0675e976993925ade9ac4999a0a5ff78d5623552bc51c443900b4f2ba10b3",
+      "bytes": 630
+    },
+    "/tmp/wukongim-backup-three-node-converged.log": {
+      "sha256": "f268ecec84c503d27d955ad7b2223d5f5f016712327348730936f8b81ddfde4f",
+      "bytes": 563
+    },
+    "/tmp/wukongim-hardening-migration-e2e.log": {
+      "sha256": "1c4cdeb84cfbdd919b65a6aef68c27e290807e4792ad87c50075e215fc2cb465",
+      "bytes": 7677
+    },
+    "/tmp/wukongim-hardening-migration-e2e-after.log": {
+      "sha256": "1a11fb64ee9fd9cb9ecb4fd36df2514338d4618db29f63181def83bce0551554",
+      "bytes": 1896
+    },
+    "/tmp/wukongim-migration-workspace-before.log": {
+      "sha256": "6d5b2b796d7d8379c8af7d429b5d29541a577b259e82e94034847095b538d5ec",
+      "bytes": 2721
+    },
+    "/tmp/wukongim-migration-workspace-after.log": {
+      "sha256": "4061c36d26924c62cce7ae099dae00ac46f7c35251e82562de0f25c2f95d4762",
+      "bytes": 68
+    },
+    "/tmp/wukongim-migration-checkpoints.log": {
+      "sha256": "59a327db4b1372161186673db0beff59d760a1c8032e421dbc5cf7e04798f03d",
+      "bytes": 155
+    },
+    "/tmp/wukongim-hardening-final-vet.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "/tmp/wukongim-hardening-e2e-vet.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "/tmp/wukongim-hardening-final-unit.log": {
+      "sha256": "7266dba3da9d1a914df39d0b15c1756e4275447f0e5a284ac96c96395e24c42a",
+      "bytes": 401120
+    },
+    "/tmp/wukongim-hardening-final-migration.log": {
+      "sha256": "cc340b6fc3a40c937fed7caea388bc18c67adafdfa54f4a9fc1eddd8e57b6fe6",
+      "bytes": 70
+    },
+    "/tmp/wukongim-hardening-context.json": {
+      "sha256": "5597b1e279446a93c65fe8bd24cbe3685fd7c53d736bb4560ca69a15f3551178",
+      "bytes": 14480
+    },
+    "/tmp/wukongim-hardening-flow-final.log": {
+      "sha256": "15a0675e976993925ade9ac4999a0a5ff78d5623552bc51c443900b4f2ba10b3",
+      "bytes": 630
+    }
+  },
+  "migration_process_matrix": {
+    "status": "pass",
+    "seconds": 161.073,
+    "topologies": [
+      "1->1",
+      "1->3",
+      "3->1",
+      "3->3",
+      "3->5"
+    ],
+    "source_commit": "3c18c52bc499c4d0bd066d697963d752ae46009b",
+    "binary_modified": false,
+    "binary_sha256": "8431d9d5fe9d8f16893d9e14df202557056db885f26d47d10487459840b50382"
+  },
+  "post_checkpoint_unit_gate": {
+    "source_commit": "3c18c52bc",
+    "status": "failed",
+    "packages_passed": 211,
+    "packages_failed": [
+      "internal/infra/migrationv2"
+    ],
+    "cause": "opaque identity regression used source checkpoint key for archive-only workspace",
+    "repair_commit": "35d0bdd5e",
+    "migration_package_rerun": {
+      "status": "pass",
+      "source_commit": "35d0bdd5e",
+      "seconds": 121.313
+    }
+  },
+  "default_package_coverage_after_repair": {
+    "status": "pass",
+    "packages": 212,
+    "method": "211 passing packages from the explicit-root run plus full migration package rerun after its test checkpoint lookup repair"
+  },
+  "acceptance_server_processes_remaining": 0,
+  "overall_plan_status": "incomplete_environment_required"
+}

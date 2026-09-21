@@ -72,10 +72,9 @@ scheduled backup or restore
   unsupported-operation response, never arbitrary transport failure.
 - Plugin HTTP forwarding calls the node-local route port and must not recurse
   through `HTTPForward`.
-- Scheduled backup requests use version 2 with explicit repository references.
-  Targets resolve exact repository/credential revisions from local Controller
-  state before effects; version 1 and credential fields are rejected. All
-  backup participants must run matching versions.
+- Scheduled backup version-2 requests carry repository references. Targets
+  resolve exact revisions from local Controller state before effects; version 1
+  and credential fields are rejected. All participants need matching versions.
 - Large backup/archive data never crosses node RPC. Secrets, raw provider
   messages, credential ciphertext, and filesystem paths never cross it either.
 - Operations MCP forwarding carries credential identity/digest, never the raw
