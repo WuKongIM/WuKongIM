@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Honor `random_online` in group benchmarks using the scenario seed and logical message indexes, instead of silently reusing the first online member. / 群聊压测的 `random_online` 按场景种子和逻辑消息索引选择发送者，修复此前始终使用首个在线成员的问题。
+
 - Add bounded benchmark timing for scheduling, SEND submission, SENDACK waiting and full operations; expose planned/dispatched shortfalls, stop batch admission at the deadline, and avoid expired-window timer spinning during drain. / 压测增加有界分段计时并展示计划发送缺口，修复批量派发越过截止时间及排空期间过期定时器空转。
 
 - Reduce per-request RPC queue allocations by reusing caller cancellation and arming a queue timer only for an earlier deadline, preserving timeout and ownership bounds. / RPC 排队复用调用方取消信号，仅在队列截止时间更早时创建定时器，减少逐请求分配并保留超时和资源归属边界。

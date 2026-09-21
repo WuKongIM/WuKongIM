@@ -74,6 +74,10 @@ native local baseline
   admission and shares sharded per-session credits. Reviewed group runs also
   prove expected, received, and acknowledged fanout with bounded anonymous
   multiset witnesses; equal totals cannot hide a duplicate and a missing peer.
+- Random-online group senders derive from the scenario seed and logical
+  channel/message indexes. Scheduler keys and sends select the same member
+  with the same ordered eligible members across traffic partitions; no shared RNG
+  state is used.
 - External terminal proof is not a TCP half-close or buffer observation. It
   requires the grant-bound marker plus Gateway, append, delivery, ACK-binding,
   and client receive convergence; a failed seal still performs ordinary stop.

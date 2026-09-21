@@ -1,0 +1,501 @@
+{
+  "base_commit": "725626f331d9438d81cca7ad36f70a36030d9628",
+  "environment": {
+    "go": "go1.25.11",
+    "os": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M4",
+    "gomaxprocs_per_process": 4,
+    "nodes": 3,
+    "hash_slots": 256,
+    "logical_slots": 12,
+    "same_host": true
+  },
+  "scenario": {
+    "online_users": 1000,
+    "groups": 100,
+    "members_per_group": 10,
+    "payload_bytes": 128,
+    "offered_send_per_second": 500,
+    "concurrency": 64,
+    "seed": 42,
+    "warmup_seconds": 10,
+    "measure_seconds": 60,
+    "cooldown_max_seconds": 30,
+    "receive_verification": "full"
+  },
+  "rounds": [
+    {
+      "round": "local-first64-clean",
+      "effective_sender_policy": "first_online",
+      "report_sha256": "bfcaea023819819e9713c85faa40df485742d81194733f445226aa05f83ab1e1",
+      "status": "passed",
+      "exit_code": 0,
+      "summary": {
+        "send_success": 30000,
+        "ingress_qps": 500,
+        "connect_attempts": 1000,
+        "connect_success": 1000,
+        "connect_errors": 0,
+        "connect_error_rate": 0,
+        "sendack_error_rate": 0,
+        "recv_verify_error_rate": 0,
+        "worker_failed": 0,
+        "sendack_max_worker_p99": 100672042,
+        "recv_max_worker_p99": 25499583
+      },
+      "measured_counters": {
+        "group_recv_success_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 270000,
+        "group_send_success_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 30000,
+        "workload_scheduler_busy_key_stall_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 0,
+        "workload_scheduler_dispatched_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 30000,
+        "workload_scheduler_enqueued_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 30000,
+        "workload_scheduler_planned_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 30000
+      },
+      "measured_histograms": {
+        "group_send_latency_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "count": 30000,
+          "sum_seconds": 1506.328702329,
+          "min_seconds": 0.010155792,
+          "max_seconds": 0.14986825,
+          "p50_seconds": 0.049283,
+          "p95_seconds": 0.08361375,
+          "p99_seconds": 0.100672042
+        },
+        "workload_dispatch_lag_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 30000,
+          "sum_seconds": 37.78835289199991,
+          "min_seconds": 5.41e-07,
+          "max_seconds": 0.036541583,
+          "p50_seconds": 0.0002,
+          "p95_seconds": 0.01,
+          "p99_seconds": 0.02
+        },
+        "workload_operation_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 30000,
+          "sum_seconds": 1952.090877429005,
+          "min_seconds": 0.011766667,
+          "max_seconds": 0.176036083,
+          "p50_seconds": 0.1,
+          "p95_seconds": 0.15,
+          "p99_seconds": 0.15
+        },
+        "workload_send_submit_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 30000,
+          "sum_seconds": 0.23949292200000089,
+          "min_seconds": 2.667e-06,
+          "max_seconds": 0.00019275,
+          "p50_seconds": 1e-05,
+          "p95_seconds": 5e-05,
+          "p99_seconds": 5e-05
+        },
+        "workload_sendack_wait_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 30000,
+          "sum_seconds": 1456.8417353049967,
+          "min_seconds": 0.000568917,
+          "max_seconds": 0.146152708,
+          "p50_seconds": 0.05,
+          "p95_seconds": 0.1,
+          "p99_seconds": 0.1
+        }
+      },
+      "cleanup": {
+        "owned_processes": [
+          {
+            "pid": 62745,
+            "exit_code": 0
+          },
+          {
+            "pid": 62746,
+            "exit_code": 0
+          },
+          {
+            "pid": 62747,
+            "exit_code": 0
+          },
+          {
+            "pid": 62764,
+            "exit_code": -15
+          },
+          {
+            "pid": 62766,
+            "exit_code": 0
+          }
+        ],
+        "all_exited": true
+      },
+      "profile_windows": [
+        {
+          "name": "node1",
+          "started": 1789989950.763586,
+          "ended": 1789989960.943108
+        },
+        {
+          "name": "node2",
+          "started": 1789989950.7636878,
+          "ended": 1789989960.9430552
+        },
+        {
+          "name": "node3",
+          "started": 1789989950.763996,
+          "ended": 1789989960.958102
+        },
+        {
+          "name": "worker",
+          "started": 1789989950.763925,
+          "ended": 1789989960.8893719
+        }
+      ],
+      "observed_run_interval": [
+        1789989944.454846,
+        1789990003.623706
+      ]
+    },
+    {
+      "round": "local-random64-a",
+      "effective_sender_policy": "random_online",
+      "report_sha256": "95db7a341c3d6ce6881df8de284adcf745d04e7d2ac3f9a9f0032234803035b9",
+      "status": "passed",
+      "exit_code": 0,
+      "summary": {
+        "send_success": 30000,
+        "ingress_qps": 500,
+        "connect_attempts": 1000,
+        "connect_success": 1000,
+        "connect_errors": 0,
+        "connect_error_rate": 0,
+        "sendack_error_rate": 0,
+        "recv_verify_error_rate": 0,
+        "worker_failed": 0,
+        "sendack_max_worker_p99": 100792708,
+        "recv_max_worker_p99": 25076584
+      },
+      "measured_counters": {
+        "group_recv_success_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 270000,
+        "group_send_success_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 30000,
+        "workload_scheduler_busy_key_stall_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 0,
+        "workload_scheduler_dispatched_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 30000,
+        "workload_scheduler_enqueued_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 30000,
+        "workload_scheduler_planned_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 30000
+      },
+      "measured_histograms": {
+        "group_send_latency_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "count": 30000,
+          "sum_seconds": 1498.055041913,
+          "min_seconds": 0.00691475,
+          "max_seconds": 0.15114,
+          "p50_seconds": 0.0490455,
+          "p95_seconds": 0.084444458,
+          "p99_seconds": 0.100792708
+        },
+        "workload_dispatch_lag_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 30000,
+          "sum_seconds": 34.90579401700008,
+          "min_seconds": 6.67e-07,
+          "max_seconds": 0.027626125,
+          "p50_seconds": 0.0002,
+          "p95_seconds": 0.01,
+          "p99_seconds": 0.02
+        },
+        "workload_operation_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 30000,
+          "sum_seconds": 1916.3846820819915,
+          "min_seconds": 0.010743875,
+          "max_seconds": 0.17479475,
+          "p50_seconds": 0.1,
+          "p95_seconds": 0.15,
+          "p99_seconds": 0.15
+        },
+        "workload_send_submit_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 30000,
+          "sum_seconds": 0.2208177359999982,
+          "min_seconds": 2.542e-06,
+          "max_seconds": 0.000329542,
+          "p50_seconds": 1e-05,
+          "p95_seconds": 2e-05,
+          "p99_seconds": 5e-05
+        },
+        "workload_sendack_wait_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 30000,
+          "sum_seconds": 1451.4553999349957,
+          "min_seconds": 0.006907125,
+          "max_seconds": 0.14904275,
+          "p50_seconds": 0.05,
+          "p95_seconds": 0.1,
+          "p99_seconds": 0.1
+        }
+      },
+      "cleanup": {
+        "owned_processes": [
+          {
+            "pid": 62389,
+            "exit_code": 0
+          },
+          {
+            "pid": 62390,
+            "exit_code": 0
+          },
+          {
+            "pid": 62391,
+            "exit_code": 0
+          },
+          {
+            "pid": 62477,
+            "exit_code": -15
+          },
+          {
+            "pid": 62479,
+            "exit_code": 0
+          }
+        ],
+        "all_exited": true
+      },
+      "profile_windows": [
+        {
+          "name": "node1",
+          "started": 1789989535.95622,
+          "ended": 1789989546.147012
+        },
+        {
+          "name": "node2",
+          "started": 1789989535.9562728,
+          "ended": 1789989546.119106
+        },
+        {
+          "name": "node3",
+          "started": 1789989535.9560251,
+          "ended": 1789989546.1230679
+        },
+        {
+          "name": "worker",
+          "started": 1789989535.956092,
+          "ended": 1789989546.087083
+        }
+      ],
+      "observed_run_interval": [
+        1789989529.7714791,
+        1789989588.5416908
+      ]
+    }
+  ],
+  "validation": {
+    "race_packages": 18,
+    "flow_doc_contracts": "passed with nine advisory length warnings",
+    "sender_selection_ns_op": [
+      21.38,
+      21.68,
+      21.91
+    ],
+    "sender_selection_bytes_op": 16,
+    "sender_selection_allocs_op": 1
+  },
+  "invalid_attempts": {
+    "local-full64-a": "startup plugin socket path length limit",
+    "local-full64-b": "prepare phase poll timeout at 90s"
+  },
+  "artifact_sha256": {
+    "build-env.txt": "4642953422d05cdd51188565ead450d177413b11bdd33db1b0c22571b7eb898c",
+    "instruction-digests.json": "7ab10d84f71bb9eeba5e4e1dbaa8a36986b1b16714e89e4e0fd93c35a66fb52a",
+    "run.py": "662ba7bafbc104210e51f73f776d5da9b7697b195ce2568508be02f4cb7db208",
+    "overlay.json": "a94babeb3ddaf04eb84c58987af82c9f537e184ccf37c2d4fcaf4a344c046b04",
+    "profile-main.go": "3cbc15b04217148feb2afcfd6fa1fff6582cc5b318191af499813fb24cd3e4a4",
+    "wukongim": "f4675a6b31de9302a3f68d0dbaff7bc0edb2419c9ebf67f5ca0c7e9af2e31025",
+    "wkcli-baseline": "80379000bf9336bb4d3a90c81aa78979f0f1fc3e62c229feebb1ac80d7c91915",
+    "wkcli-fixed": "70bdb67e5f8c3f4323235b06233b803f3c914ee90812be9f3ad182102ec127a3",
+    "random-sender-before.txt": "6fe5e33f8940310fb08beb7cc7e68609b324dd8d7527e0d6cc3a535b5b7ab043",
+    "random-sender-after.txt": "23bb77ab53b5fa9635219268c90575400d178354c0ba8f0798d33bc7bdbd9a3a",
+    "race.txt": "9675c991051bcaf653245a893bd421148bc8c8b80dc61c6f1be5fc2014056c2b",
+    "flow-doc-contracts.txt": "a76a532b5e9891ac8f21246248a6f76404101c2101911587ecda32f67cdf01ab",
+    "sender-overhead-isolated.txt": "66ed373480f61ce55fb51e480a42e4f11a5e10bc058054b74b17725ae105a8a1",
+    "local-full64-c/profiles/node1-cpu.pb.gz": "5a5ab2d1cede4f58f4eb7ed01f6975a114c845d887576c1025a32f2144d37122",
+    "local-full64-c/profiles/node3-heap-before.pb.gz": "0a70fca06bf09ee03a600ddddaeff23b0785555788955e6384f4cf1e12c67f59",
+    "local-full64-c/profiles/node3-heap-after.pb.gz": "e98b270ac667aa51b0683d0ebba18c4056769ab72f0e9727a5d6cc18e55767e8",
+    "local-full64-c/profiles/worker-heap-after.pb.gz": "f78513adecbb5116f48fa7c5686d431609bf89db3df3dbaeb3caf9c4339f2da9",
+    "local-full64-c/profiles/node2-heap-before.pb.gz": "26253f0a629b2f91d21520bfcd24f8edb7afe9bf92189c4391868f0f46de61c7",
+    "local-full64-c/profiles/node1-heap-before.pb.gz": "0ec5a596df09e8803084b618523b09cd3525792ab82e21ac2dd6e63be7c75cb6",
+    "local-full64-c/profiles/worker-heap-before.pb.gz": "3d1e72f80854ef6978e1348d4d9e8c583945b90f6f00a3203025da884a575a87",
+    "local-full64-c/profiles/node2-heap-after.pb.gz": "bd1e7f1168cd21ff2708909fbcf6f6ca8502bfdb57fbb8840519f0c920ddbbd3",
+    "local-full64-c/profiles/node3-cpu.pb.gz": "9ef5c2e42048d9c800dc87ccf595c91fb6ea4f637bce4588d365a85356f23241",
+    "local-full64-c/profiles/node1-heap-after.pb.gz": "9c0b41d81d2800a69b469985c9437c92b0c5acb996c572cf01f4da99133fd5bc",
+    "local-full64-c/profiles/node2-cpu.pb.gz": "e836acfa80dfc52e2f66b788dd001828687ff6fc2cac479a86d83304bcadfb6d",
+    "local-full64-c/profiles/worker-cpu.pb.gz": "784ad652157a2626b346d0c07c77ddf4298feb968035b89f2fc180183b2c52b0",
+    "local-random64-a/profiles/node1-cpu.pb.gz": "25fefc92c1b40c071b2e977477eed4657fa5789b21a192bbe33ca204df3ce65c",
+    "local-random64-a/profiles/node3-heap-before.pb.gz": "e1e5ed7c14b63dde6380308f04c38ec401a625208a2a85311c9cb3e90b3d8da1",
+    "local-random64-a/profiles/node3-heap-after.pb.gz": "7757d5691c23d82ef862c795d8d706f7fe33e23f4afbe0900b5290f8228a1bb6",
+    "local-random64-a/profiles/worker-heap-after.pb.gz": "c3317556de997a64db50c0bd17390d6df51b7776b54617d407093c18c4a46525",
+    "local-random64-a/profiles/node2-heap-before.pb.gz": "1a65fd7b3986c41d36c970398643d8380f27dffa5bca1a3687337d7786fd8d78",
+    "local-random64-a/profiles/node1-heap-before.pb.gz": "d862de70b00cc372714182c888d863684c76a43942ceb7a16f51f8b5c77db332",
+    "local-random64-a/profiles/worker-heap-before.pb.gz": "af784c77ad0f67443c81f6102d13a4d086f1b9b51683da46e8d70954509c3612",
+    "local-random64-a/profiles/node2-heap-after.pb.gz": "af3bc843ba154a765ef374fc0670067f876c7be95cd0cf6b86cfae977326262e",
+    "local-random64-a/profiles/node3-cpu.pb.gz": "9864c5c27239be1db03e4e87ad55dd492413c0fccf9a37bbeb6d204a940ffc57",
+    "local-random64-a/profiles/node1-heap-after.pb.gz": "b42446b4a0fa19210e0876bf9ca04bc620bb5722eecfbb77110af686a1ed05c7",
+    "local-random64-a/profiles/node2-cpu.pb.gz": "ab1c512768ef2b01f02768002acf2a872b4d0aa17a7aab22556e031351fa6937",
+    "local-random64-a/profiles/worker-cpu.pb.gz": "5c9a01072ae4bb21e25aad6123a6723b657c5a0d583280fb0c7ee0ac1b31760c",
+    "local-first64-clean/profiles/node1-cpu.pb.gz": "4b7c485910460986d22f881e7a59bafe3999e50218296d646dcaa11f89fa4047",
+    "local-first64-clean/profiles/node3-heap-before.pb.gz": "9c3eda21c60594df74bf2eccbae17751d850eab995ecbeeb03f97d0e8add5e6c",
+    "local-first64-clean/profiles/node3-heap-after.pb.gz": "1da88c67ef06437aa747dbb8c5017126a44d4f53dab7fee60ed84693f2be6241",
+    "local-first64-clean/profiles/worker-heap-after.pb.gz": "914dadaa35d2f23c89e63c15069950978c111c2e2b281de61f31fb7e0cafe4ca",
+    "local-first64-clean/profiles/node2-heap-before.pb.gz": "f53aee6fed604e8aa542140328f352ec2f26b8d469af28b7e382504f19f666d8",
+    "local-first64-clean/profiles/node1-heap-before.pb.gz": "ec760665162331aa2400239f2a429fac03d1b3b69707b3dea35630ef0bc7e1be",
+    "local-first64-clean/profiles/worker-heap-before.pb.gz": "20500211fb36cf227dc3d412ecd0e511dbe3d1d937d70f861073b50c6a80d232",
+    "local-first64-clean/profiles/node2-heap-after.pb.gz": "61080ed2702b818dbe1186e3ba624b4c9402ca08972c5bcac0d85dec4bc9d3fa",
+    "local-first64-clean/profiles/node3-cpu.pb.gz": "d3bab9efe1a858cd62afa5a61593772816a5e899c7f7f4f9023157202484bd4e",
+    "local-first64-clean/profiles/node1-heap-after.pb.gz": "19b14e388332059b7b53f595bdde3be2b6ee17c39e85c55d2c158c6be1672696",
+    "local-first64-clean/profiles/node2-cpu.pb.gz": "31268084045d8a844e404c97f23be53c155506a52e3ae94d1fb8c705d02e5b96",
+    "local-first64-clean/profiles/worker-cpu.pb.gz": "f9563ea43f3a89d9644c7b42265279bc4c6ce7044c070de502ff7a6d35dd1b03",
+    "local-data-cleanup.json": "08628ee2732131a9bd4923f74ea1b11126a1da8ff463a5faa57c64db45bc608b"
+  },
+  "limitations": [
+    "One measured round per effective sender policy; not a statistical performance comparison.",
+    "Run IDs and channel hashes differ.",
+    "Same-host macOS cannot replace independent Linux ECS testing.",
+    "Worker before/after allocation profile had no usable delta; this is not zero allocation.",
+    "No new paid cloud resources provisioned."
+  ],
+  "exploratory_rounds": [
+    {
+      "round": "local-full64-c",
+      "effective_sender_policy": "first_online",
+      "report_sha256": "c081238b3c3409aca6c1a44e32ebd3fa3be3c0ec3b0ebf22c397a26c08459d01",
+      "status": "passed",
+      "exit_code": 0,
+      "summary": {
+        "send_success": 30000,
+        "ingress_qps": 500,
+        "connect_attempts": 1000,
+        "connect_success": 1000,
+        "connect_errors": 0,
+        "connect_error_rate": 0,
+        "sendack_error_rate": 0,
+        "recv_verify_error_rate": 0,
+        "worker_failed": 0,
+        "sendack_max_worker_p99": 100655417,
+        "recv_max_worker_p99": 25070167
+      },
+      "measured_counters": {
+        "group_recv_success_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 270000,
+        "group_send_success_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 30000,
+        "workload_scheduler_busy_key_stall_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 0,
+        "workload_scheduler_dispatched_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 30000,
+        "workload_scheduler_enqueued_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 30000,
+        "workload_scheduler_planned_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 30000
+      },
+      "measured_histograms": {
+        "group_send_latency_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "count": 30000,
+          "sum_seconds": 1478.685049146,
+          "min_seconds": 0.00593525,
+          "max_seconds": 0.151190292,
+          "p50_seconds": 0.048230208,
+          "p95_seconds": 0.082353083,
+          "p99_seconds": 0.100655417
+        },
+        "workload_dispatch_lag_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 30000,
+          "sum_seconds": 36.227329333999926,
+          "min_seconds": 5e-07,
+          "max_seconds": 0.037000083,
+          "p50_seconds": 0.0002,
+          "p95_seconds": 0.01,
+          "p99_seconds": 0.02
+        },
+        "workload_operation_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 30000,
+          "sum_seconds": 1903.0673109299871,
+          "min_seconds": 0.010494584,
+          "max_seconds": 0.179325125,
+          "p50_seconds": 0.1,
+          "p95_seconds": 0.15,
+          "p99_seconds": 0.15
+        },
+        "workload_send_submit_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 30000,
+          "sum_seconds": 0.2178946079999972,
+          "min_seconds": 2.5e-06,
+          "max_seconds": 0.00020675,
+          "p50_seconds": 1e-05,
+          "p95_seconds": 2e-05,
+          "p99_seconds": 5e-05
+        },
+        "workload_sendack_wait_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 30000,
+          "sum_seconds": 1431.9066092140067,
+          "min_seconds": 0.005927542,
+          "max_seconds": 0.15118,
+          "p50_seconds": 0.05,
+          "p95_seconds": 0.1,
+          "p99_seconds": 0.1
+        }
+      },
+      "cleanup": {
+        "owned_processes": [
+          {
+            "pid": 61731,
+            "exit_code": 0
+          },
+          {
+            "pid": 61732,
+            "exit_code": 0
+          },
+          {
+            "pid": 61733,
+            "exit_code": 0
+          },
+          {
+            "pid": 61766,
+            "exit_code": -15
+          },
+          {
+            "pid": 61768,
+            "exit_code": 0
+          }
+        ],
+        "all_exited": true
+      },
+      "profile_windows": [
+        {
+          "name": "node1",
+          "started": 1789989179.616215,
+          "ended": 1789989189.764019
+        },
+        {
+          "name": "node2",
+          "started": 1789989179.616287,
+          "ended": 1789989189.771976
+        },
+        {
+          "name": "node3",
+          "started": 1789989179.6161458,
+          "ended": 1789989189.8059819
+        },
+        {
+          "name": "worker",
+          "started": 1789989179.6163468,
+          "ended": 1789989189.740062
+        }
+      ],
+      "observed_run_interval": [
+        1789989173.327188,
+        1789989232.341917
+      ],
+      "exclusion_reason": "Short race regression test overlapped approximately the first four seconds of measurement; CPU capture started after that test completed."
+    }
+  ],
+  "comparison_binary": "wkcli-fixed",
+  "comparison_run_order": [
+    "local-random64-a",
+    "local-first64-clean"
+  ]
+}

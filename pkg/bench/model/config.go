@@ -404,7 +404,9 @@ type TrafficConfig struct {
 	RecvTimeout time.Duration `json:"recv_timeout" yaml:"recv_timeout"`
 	// Retry explicitly enables the fixed bounded SEND/SENDACK retry policy.
 	Retry TrafficRetryConfig `json:"retry" yaml:"retry"`
-	// SenderPick selects how senders are chosen.
+	// SenderPick selects group senders: first_online (default), random_online,
+	// round_robin, or weighted_80_20. Random selection uses Run.RandomSeed and
+	// logical channel/message indexes so dispatch and replay choose the same member.
 	SenderPick string `json:"sender_pick" yaml:"sender_pick"`
 	// RecvAck controls whether simulated clients send receive acknowledgements.
 	RecvAck bool `json:"recv_ack" yaml:"recv_ack"`

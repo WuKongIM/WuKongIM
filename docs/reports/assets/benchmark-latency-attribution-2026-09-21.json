@@ -150,5 +150,6 @@
     "Max active is a high-water mark, not sustained saturation.",
     "Diagnostic P99 uses bucket upper bounds and max-worker aggregation; no SLO change."
   ],
-  "local_go_version": "go version go1.25.0 darwin/arm64"
+  "local_go_version": "go version go1.25.11 darwin/arm64",
+  "toolchain_correction": "The original plain go version probe reported the ambient workspace toolchain. Recorded tests and benchmarks used GOWORK=off and selected go1.25.11 from this module."
 }

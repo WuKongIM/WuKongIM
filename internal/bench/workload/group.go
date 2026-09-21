@@ -8,6 +8,7 @@ import (
 	"hash/fnv"
 	"io"
 	"math"
+	"math/rand/v2"
 	"sort"
 	"strings"
 	"time"
@@ -22,6 +23,7 @@ const (
 	groupPreparedBarrierName     = "channel_prepared"
 	verifyRecvModeSampled        = "sampled"
 	groupSenderPickFirstOnline   = "first_online"
+	groupSenderPickRandomOnline  = "random_online"
 	groupSenderPickRoundRobin    = "round_robin"
 	groupSenderPickWeighted8020  = "weighted_80_20"
 	maxGroupChannelBatchSize     = 1000
@@ -133,6 +135,9 @@ type GroupConfig struct {
 	RecvAck bool
 	// SenderPick selects the online member used as sender for each message.
 	SenderPick string
+	// RandomSeed reproduces random_online choices from logical channel/message
+	// indexes for the same ordered eligible members, independent of dispatch order.
+	RandomSeed int64
 	// GlobalRate is the configured per-channel rate before split partitioning.
 	GlobalRate model.Rate
 	// LocalRate is the worker-local effective rate.
@@ -616,6 +621,11 @@ func (w *GroupWorkload) senderUID(ch GroupChannel, messageIndex int) string {
 		return ""
 	}
 	switch strings.ToLower(strings.TrimSpace(w.cfg.SenderPick)) {
+	case groupSenderPickRandomOnline:
+		// A fresh counter-seeded source keeps scheduler key selection and actual
+		// sending identical without mutable RNG state or a shared hot-path lock.
+		rng := rand.New(rand.NewPCG(uint64(w.cfg.RandomSeed)^uint64(ch.ChannelIndex), uint64(messageIndex)))
+		return ch.OnlineMembers[rng.IntN(len(ch.OnlineMembers))]
 	case groupSenderPickRoundRobin:
 		idx := messageIndex % len(ch.OnlineMembers)
 		if idx < 0 {

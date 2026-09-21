@@ -353,6 +353,12 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
+- Generic group `random_online` sender selection must use the scenario seed
+  and logical channel/message indexes so scheduling and sending agree across
+  call order and traffic partitions. Before the September 2026 fix, this accepted
+  value silently used the first online member; historical runs using it cannot
+  be described as randomized-sender coverage.
+
 - Generic benchmark stage histograms use fixed buckets with exact counts/sums
   and explicitly marked percentile upper bounds; they do not change legacy SLO
   histograms or verdicts. SEND submission measures a client API call, not a wire
