@@ -62,3 +62,5 @@ profiles afterward; see the scenario instructions for the fixed comparison.
   to `test/e2e/suite` after real multi-scenario reuse appears.
 
 - The Channel failover fixture uses 256 Hash Slots and explicitly disables Token authentication for its existing tokenless readiness client. SDK acceptance keeps Token authentication enabled.
+- The `chat_lifecycle` fixture explicitly disables Token authentication for its
+  tokenless lifecycle clients; its ordering and reheat results do not qualify SDK authentication.

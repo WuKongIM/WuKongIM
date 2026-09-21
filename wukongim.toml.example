@@ -4,7 +4,9 @@ data_dir = "./data/wukongim-single-node-data"
 
 [cluster]
 # Internal RPC batches ready frames without an idle delay. Queue wait is bounded
-# to 5s and handler execution to 30s (5m for backup stream/restore operations).
+# to 5s and ordinary handler execution to 30s. Operations MCP allows 1m for
+# bounded profiling; repository probes allow 5m, and complete backup/restore
+# operations allow 48h to preserve the supported job-duration envelope.
 # Negotiated caller budgets may expire queued work earlier; caller cancellation
 # never acknowledges rollback of an already-started mutation.
 # Controller Raft uses 100ms heartbeats and a 1s minimum election timeout.

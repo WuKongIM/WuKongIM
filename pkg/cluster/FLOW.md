@@ -131,7 +131,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 - Node RPC negotiates budget/cancel support through a reserved wire-v1 service;
   explicit unsupported peers retain v1. Queued work expires under caller budgets
   or the five-second service queue limit. Default execution is bounded to 30
-  seconds (five minutes for backup stream/restore services); read-only handlers
+  seconds (one minute for Operations MCP, five minutes for repository probes,
+  48 hours for complete backup/restore operations); read-only handlers
   may follow caller cancellation, while started mutations keep independent
   execution. Ready frames batch without an idle coalescing delay.
 

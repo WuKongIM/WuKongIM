@@ -30,7 +30,11 @@ func TestTransportBudgetsPreserveMutationAndBackupPolicies(t *testing.T) {
 	}{
 		{RPCChannelAuthoritySend, false, 30 * time.Second},
 		{RPCChannelCommittedReads, true, 30 * time.Second},
-		{RPCScheduledBackupRestore, false, 5 * time.Minute},
+		{RPCOpsMCP, false, time.Minute},
+		{RPCScheduledBackupSlot, false, 48 * time.Hour},
+		{RPCScheduledBackupMessages, false, 48 * time.Hour},
+		{RPCScheduledBackupRestore, false, 48 * time.Hour},
+		{RPCScheduledBackupRepositoryProbe, false, 5 * time.Minute},
 	} {
 		opts := s.serviceOptions(tc.id)
 		if opts.QueueTimeout != 5*time.Second || opts.Timeout != tc.timeout || opts.CancelRunning != tc.read {

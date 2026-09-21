@@ -445,8 +445,17 @@ func (c *Conn) handleRPCResponse(frame wire.Frame) {
 		status := body[0]
 		if status != wire.ResponseOK {
 			code := core.RemoteErrorCodeGeneric
-			if status == wire.ResponseServiceNotFound {
+			switch status {
+			case wire.ResponseServiceNotFound:
 				code = core.RemoteErrorCodeServiceNotFound
+			case wire.ResponseTimeout:
+				code = core.RemoteErrorCodeTimeout
+			case wire.ResponseCanceled:
+				code = core.RemoteErrorCodeCanceled
+			case wire.ResponseBusy:
+				code = core.RemoteErrorCodeBusy
+			case wire.ResponseStopped:
+				code = core.RemoteErrorCodeStopped
 			}
 			response.Err = core.RemoteError{Code: code, Message: string(body[1:])}
 		} else {

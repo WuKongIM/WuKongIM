@@ -30,6 +30,13 @@ const (
 
 	// ResponseServiceNotFound marks an RPC service absent on the remote node.
 	ResponseServiceNotFound uint8 = 2
+
+	// Typed failures extend the v1 response status byte. Older readers preserve
+	// unknown nonzero statuses as generic remote errors, without retrying work.
+	ResponseTimeout  uint8 = 3
+	ResponseCanceled uint8 = 4
+	ResponseBusy     uint8 = 5
+	ResponseStopped  uint8 = 6
 )
 
 const (

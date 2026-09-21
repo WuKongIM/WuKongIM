@@ -125,6 +125,86 @@ func budgetWait(t *testing.T, ch <-chan struct{}) {
 	}
 }
 
+func TestServerBudgetExpiryPreservesTypedTimeout(t *testing.T) {
+	for _, queued := range []bool{false, true} {
+		t.Run(map[bool]string{false: "execution", true: "queue"}[queued], func(t *testing.T) {
+			opts := budgetOpts()
+			entered, release := make(chan struct{}), make(chan struct{})
+			if queued {
+				opts.QueueTimeout = 20 * time.Millisecond
+			} else {
+				opts.Timeout = 20 * time.Millisecond
+			}
+			client, _ := budgetPair(t, opts, func(ctx context.Context, _ []byte) ([]byte, error) {
+				if queued {
+					close(entered)
+					<-release
+				} else {
+					<-ctx.Done()
+				}
+				return nil, ctx.Err()
+			}, nil)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			if queued {
+				first := make(chan error, 1)
+				go func() { first <- budgetCall(ctx, client, nil) }()
+				defer func() { close(release); <-first }()
+				budgetWait(t, entered)
+			}
+			err := budgetCall(ctx, client, nil)
+			if !errors.Is(err, transport.ErrTimeout) {
+				t.Fatalf("server budget lost typed timeout: %v", err)
+			}
+			var remote transport.RemoteError
+			if !errors.As(err, &remote) {
+				t.Fatalf("missing remote origin: %v", err)
+			}
+		})
+	}
+}
+
+func TestRemoteTransportErrorsAreTypedWithoutGuessingText(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		cause, want error
+	}{
+		{"timeout", context.DeadlineExceeded, transport.ErrTimeout},
+		{"canceled", context.Canceled, transport.ErrCanceled},
+		{"busy", transport.ErrBusy, transport.ErrBusy},
+		{"stopped", transport.ErrStopped, transport.ErrStopped},
+		{"generic", errors.New("transport: timeout"), nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client, _ := budgetPair(t, budgetOpts(), func(context.Context, []byte) ([]byte, error) { return nil, tc.cause }, nil)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			err := budgetCall(ctx, client, nil)
+			var remote transport.RemoteError
+			if !errors.As(err, &remote) {
+				t.Fatalf("remote error origin lost: %v", err)
+			}
+			if tc.want != nil && !errors.Is(err, tc.want) {
+				t.Fatalf("%v does not retain %v", err, tc.want)
+			}
+			if tc.want == nil && (remote.Code != transport.RemoteErrorCodeGeneric || errors.Is(err, transport.ErrTimeout)) {
+				t.Fatalf("classified arbitrary error text: %v", err)
+			}
+		})
+	}
+}
+
+func TestRetainedMemoryRejectionPreservesTypedBusy(t *testing.T) {
+	opts := budgetOpts()
+	opts.MaxQueueBytes = 1
+	client, _ := budgetPair(t, opts, func(context.Context, []byte) ([]byte, error) { t.Error("rejected request executed"); return nil, nil }, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := budgetCall(ctx, client, []byte{1}); !errors.Is(err, transport.ErrBusy) {
+		t.Fatalf("admission rejection lost identity: %v", err)
+	}
+}
+
 func TestNegotiatedCancelRemovesQueuedRequestAndReleasesCapacity(t *testing.T) {
 	started := make(chan struct{})
 	unblock := make(chan struct{})

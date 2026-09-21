@@ -9,6 +9,11 @@ const (
 	RemoteErrorCodeGeneric = core.RemoteErrorCodeGeneric
 	// RemoteErrorCodeServiceNotFound identifies an RPC service absent on the remote node.
 	RemoteErrorCodeServiceNotFound = core.RemoteErrorCodeServiceNotFound
+	// Typed remote failures support errors.Is while retaining remote origin.
+	RemoteErrorCodeTimeout  = core.RemoteErrorCodeTimeout
+	RemoteErrorCodeCanceled = core.RemoteErrorCodeCanceled
+	RemoteErrorCodeBusy     = core.RemoteErrorCodeBusy
+	RemoteErrorCodeStopped  = core.RemoteErrorCodeStopped
 )
 
 var (

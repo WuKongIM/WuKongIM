@@ -24,6 +24,8 @@ func TestForwardedReadPreservesUnavailableTransport(t *testing.T) {
 	for _, cause := range []error{
 		&net.OpError{Op: "read", Net: "tcp", Err: &os.SyscallError{Syscall: "read", Err: syscall.ECONNRESET}},
 		io.EOF, context.DeadlineExceeded,
+		transport.RemoteError{Code: transport.RemoteErrorCodeTimeout, Message: "service queue budget expired"},
+		transport.RemoteError{Code: transport.RemoteErrorCodeBusy, Message: "retained memory admission full"},
 	} {
 		t.Run(cause.Error(), func(t *testing.T) {
 			network := clusternet.NewLocalNetwork()
@@ -57,7 +59,8 @@ func TestReadRPCErrorDoesNotGuessOrChangeAppendErrors(t *testing.T) {
 	for _, cause := range []error{errors.New("read tcp: connection reset by peer"), errors.New("disk corruption"), context.Canceled, errors.Join(context.Canceled, io.EOF), ch.ErrInvalidConfig,
 		&os.PathError{Op: "read", Path: "table.sst", Err: io.ErrUnexpectedEOF},
 		errors.Join(db.ErrCorruptValue, io.ErrUnexpectedEOF), errors.Join(db.ErrCorruptState, io.EOF), errors.Join(db.ErrChecksumMismatch, io.EOF),
-		transport.RemoteError{Code: transport.RemoteErrorCodeGeneric, Message: "read tcp: connection reset by peer"}} {
+		transport.RemoteError{Code: transport.RemoteErrorCodeGeneric, Message: "read tcp: connection reset by peer"},
+		transport.RemoteError{Code: transport.RemoteErrorCodeGeneric, Message: "transport: timeout"}} {
 		wire, err := encodeRPCResult(kindCommittedReadsResponse, nil, cause)
 		require.NoError(t, err)
 		_, err = decodeCommittedReadsResponse(wire)

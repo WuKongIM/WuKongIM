@@ -43,8 +43,9 @@ type TransportServiceConfig struct {
 	QueueSize int
 	// MaxQueueBytes is the queued payload byte budget for each typed RPC service. Non-positive values use the cluster default.
 	MaxQueueBytes int64
-	// Timeout bounds one handler invocation. Zero uses 30 seconds, or five
-	// minutes for backup services; it does not disable the execution budget.
+	// Timeout bounds one handler invocation. Zero selects the service default:
+	// 30s ordinarily, 1m for profiling, 5m for repository probes, and 48h for
+	// complete backup/restore operations. It does not disable the budget.
 	Timeout time.Duration
 }
 
@@ -334,9 +335,17 @@ func (s *TransportServer) serviceOptions(serviceID uint8) transport.ServiceOptio
 	if opts.Timeout == 0 {
 		opts.Timeout = 30 * time.Second
 	}
-	switch serviceID {
-	case RPCScheduledBackupMessages, RPCScheduledBackupSlot, RPCScheduledBackupRestore, RPCScheduledBackupRepositoryProbe:
-		if s.cfg.Service.Timeout == 0 {
+	if s.cfg.Service.Timeout == 0 {
+		switch serviceID {
+		case RPCOpsMCP:
+			// CPU capture permits 30s plus authorization, startup and analysis.
+			opts.Timeout = time.Minute
+		case RPCScheduledBackupMessages, RPCScheduledBackupSlot, RPCScheduledBackupRestore:
+			// These RPCs stream complete snapshots or restore stages. Backup and
+			// restore jobs permit up to 48h; rate limiting may span many minutes.
+			// Recovery keeps its independent context after the job deadline.
+			opts.Timeout = 48 * time.Hour
+		case RPCScheduledBackupRepositoryProbe:
 			opts.Timeout = 5 * time.Minute
 		}
 	}

@@ -256,11 +256,32 @@ func (e RemoteError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Code, e.Message)
 }
 
+// Unwrap preserves explicitly typed transport failures without classifying text.
+func (e RemoteError) Unwrap() error {
+	switch e.Code {
+	case RemoteErrorCodeTimeout:
+		return ErrTimeout
+	case RemoteErrorCodeCanceled:
+		return ErrCanceled
+	case RemoteErrorCodeBusy:
+		return ErrBusy
+	case RemoteErrorCodeStopped:
+		return ErrStopped
+	default:
+		return nil
+	}
+}
+
 const (
 	// RemoteErrorCodeGeneric identifies an unclassified remote handler error.
 	RemoteErrorCodeGeneric = "remote_error"
 	// RemoteErrorCodeServiceNotFound identifies an RPC service absent on the remote node.
 	RemoteErrorCodeServiceNotFound = "service_not_found"
+	// These codes preserve retry/cancellation identity across an RPC boundary.
+	RemoteErrorCodeTimeout  = "timeout"
+	RemoteErrorCodeCanceled = "canceled"
+	RemoteErrorCodeBusy     = "busy"
+	RemoteErrorCodeStopped  = "stopped"
 )
 
 var (

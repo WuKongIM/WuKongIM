@@ -2,6 +2,7 @@ package transport
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -291,7 +292,7 @@ func (s *Server) dispatchRPCRequest(ctx context.Context, inbound conn.Inbound) {
 		status := wire.ResponseOK
 		payload := resp.Payload
 		if resp.Err != nil {
-			status = wire.ResponseErr
+			status = responseErrorStatus(resp.Err)
 			payload = []byte(resp.Err.Error())
 		}
 		_ = inbound.Conn.Send(ctx, conn.Outbound{
@@ -311,7 +312,24 @@ func (s *Server) dispatchRPCRequest(ctx context.Context, inbound conn.Inbound) {
 }
 
 func (s *Server) sendRPCError(ctx context.Context, inbound conn.Inbound, err error) {
-	s.sendRPCErrorStatus(ctx, inbound, wire.ResponseErr, err)
+	s.sendRPCErrorStatus(ctx, inbound, responseErrorStatus(err), err)
+}
+
+// responseErrorStatus preserves known transport failures; arbitrary handler
+// messages remain generic even when their text resembles a timeout or overload.
+func responseErrorStatus(err error) uint8 {
+	switch {
+	case errors.Is(err, ErrTimeout), errors.Is(err, context.DeadlineExceeded):
+		return wire.ResponseTimeout
+	case errors.Is(err, ErrCanceled), errors.Is(err, context.Canceled):
+		return wire.ResponseCanceled
+	case errors.Is(err, ErrBusy), errors.Is(err, ErrQueueFull):
+		return wire.ResponseBusy
+	case errors.Is(err, ErrStopped):
+		return wire.ResponseStopped
+	default:
+		return wire.ResponseErr
+	}
 }
 
 func (s *Server) sendRPCErrorStatus(ctx context.Context, inbound conn.Inbound, status uint8, err error) {
