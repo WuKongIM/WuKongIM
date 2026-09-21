@@ -192,7 +192,7 @@ func TestPrepareRebuildsTransitionProofFromRawArchiveCommands(t *testing.T) {
 					require.NoError(t, err)
 					defer broken.Close()
 					for _, prefix := range []string{"source/", "catalog/"} {
-						require.NoError(t, w.Walk(ctx, []byte(prefix), func(row transfer.SpoolRow) error { return broken.Put(ctx, []transfer.SpoolRow{row}) }))
+						copyCapturedFixtureRows(t, ctx, w, broken, []byte(prefix))
 					}
 					capture := p.Capture
 					if mode == "no_evidence" {
@@ -279,4 +279,44 @@ func (w disruptedCommandWorkspace) Walk(ctx context.Context, prefix []byte, visi
 		}
 		return visit(row)
 	})
+}
+
+// copyCapturedFixtureRows preserves the complete private fixture with bounded
+// synchronous batches. Per-row fsync in this setup dominated the corruption
+// matrix, while the assertions exercise selection rather than copy durability.
+func copyCapturedFixtureRows(t *testing.T, ctx context.Context, source, target *transfer.Spool, prefix []byte) {
+	t.Helper()
+	const maxRows = 256
+	const maxBytes = 1 << 20
+	rows := make([]transfer.SpoolRow, 0, maxRows)
+	size := 0
+	flush := func() error {
+		if len(rows) == 0 {
+			return nil
+		}
+		if err := target.Put(ctx, rows); err != nil {
+			return err
+		}
+		clear(rows)
+		rows = rows[:0]
+		size = 0
+		return nil
+	}
+	require.NoError(t, source.Walk(ctx, prefix, func(row transfer.SpoolRow) error {
+		rowBytes := len(row.Key) + len(row.Value)
+		if len(rows) == maxRows || size+rowBytes > maxBytes {
+			if err := flush(); err != nil {
+				return err
+			}
+		}
+		// An individually large record keeps the original Spool's own byte guard
+		// without growing the fixture batch or retaining iterator-owned storage.
+		if rowBytes > maxBytes {
+			return target.Put(ctx, []transfer.SpoolRow{row})
+		}
+		rows = append(rows, transfer.SpoolRow{Key: bytes.Clone(row.Key), Value: bytes.Clone(row.Value)})
+		size += rowBytes
+		return nil
+	}))
+	require.NoError(t, flush())
 }
