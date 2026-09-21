@@ -1,0 +1,815 @@
+{
+  "source_revision": "ca276ae2480741efd97d0f15a69f1440bd3a7100",
+  "environment": {
+    "platform": "darwin/arm64",
+    "cpu": "Apple M4",
+    "gomaxprocs": 4,
+    "go_version": "go version go1.25.11 darwin/arm64"
+  },
+  "artifact_directory": "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/bench-typed-sort",
+  "instruction_digests": {
+    "source_revision": "ca276ae2480741efd97d0f15a69f1440bd3a7100",
+    "files": {
+      "AGENTS.md": "c6eae7244b1c660be4b2a62cbdc1efa5c26c35e34972e994df7e6ae073fc9d0b",
+      "internal/bench/FLOW.md": "5007881a2740762d78f97f2057c25f24ae68ef19686389caa5c030005dd11d84"
+    }
+  },
+  "before": [
+    {
+      "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples30000-4",
+      "iterations": 10,
+      "ns/op": 2044667.0,
+      "writer-max-us": 1.458,
+      "writer-mean-us": 0.3292,
+      "writer-observations": 20.0,
+      "writer-over-1ms": 0.0,
+      "B/op": 246872.0,
+      "allocs/op": 8.0
+    },
+    {
+      "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples30000-4",
+      "iterations": 10,
+      "ns/op": 1990575.0,
+      "writer-max-us": 4.083,
+      "writer-mean-us": 0.3707,
+      "writer-observations": 19.0,
+      "writer-over-1ms": 0.0,
+      "B/op": 246872.0,
+      "allocs/op": 8.0
+    },
+    {
+      "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples30000-4",
+      "iterations": 10,
+      "ns/op": 1998175.0,
+      "writer-max-us": 3.5,
+      "writer-mean-us": 0.3333,
+      "writer-observations": 19.0,
+      "writer-over-1ms": 0.0,
+      "B/op": 246872.0,
+      "allocs/op": 8.0
+    },
+    {
+      "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples270000-4",
+      "iterations": 10,
+      "ns/op": 23021783.0,
+      "writer-max-us": 176.8,
+      "writer-mean-us": 1.367,
+      "writer-observations": 230.0,
+      "writer-over-1ms": 0.0,
+      "B/op": 2163812.0,
+      "allocs/op": 8.0
+    },
+    {
+      "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples270000-4",
+      "iterations": 10,
+      "ns/op": 23023462.0,
+      "writer-max-us": 193.9,
+      "writer-mean-us": 1.826,
+      "writer-observations": 230.0,
+      "writer-over-1ms": 0.0,
+      "B/op": 2163806.0,
+      "allocs/op": 8.0
+    },
+    {
+      "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples270000-4",
+      "iterations": 10,
+      "ns/op": 23125017.0,
+      "writer-max-us": 32.46,
+      "writer-mean-us": 0.3893,
+      "writer-observations": 231.0,
+      "writer-over-1ms": 0.0,
+      "B/op": 2163809.0,
+      "allocs/op": 8.0
+    },
+    {
+      "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples810000-4",
+      "iterations": 10,
+      "ns/op": 75132808.0,
+      "writer-max-us": 512.8,
+      "writer-mean-us": 1.57,
+      "writer-observations": 751.0,
+      "writer-over-1ms": 0.0,
+      "B/op": 6489176.0,
+      "allocs/op": 8.0
+    },
+    {
+      "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples810000-4",
+      "iterations": 10,
+      "ns/op": 75278088.0,
+      "writer-max-us": 183.8,
+      "writer-mean-us": 0.3865,
+      "writer-observations": 752.0,
+      "writer-over-1ms": 0.0,
+      "B/op": 6489176.0,
+      "allocs/op": 8.0
+    },
+    {
+      "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples810000-4",
+      "iterations": 10,
+      "ns/op": 73580983.0,
+      "writer-max-us": 419.6,
+      "writer-mean-us": 1.549,
+      "writer-observations": 735.0,
+      "writer-over-1ms": 0.0,
+      "B/op": 6489176.0,
+      "allocs/op": 8.0
+    }
+  ],
+  "after": [
+    {
+      "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples30000-4",
+      "iterations": 10,
+      "ns/op": 2174892.0,
+      "writer-max-us": 15.21,
+      "writer-mean-us": 1.02,
+      "writer-observations": 21.0,
+      "writer-over-1ms": 0.0,
+      "B/op": 246816.0,
+      "allocs/op": 6.0
+    },
+    {
+      "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples30000-4",
+      "iterations": 10,
+      "ns/op": 1602329.0,
+      "writer-max-us": 6.917,
+      "writer-mean-us": 0.6667,
+      "writer-observations": 15.0,
+      "writer-over-1ms": 0.0,
+      "B/op": 246816.0,
+      "allocs/op": 6.0
+    },
+    {
+      "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples30000-4",
+      "iterations": 10,
+      "ns/op": 1316183.0,
+      "writer-max-us": 6.417,
+      "writer-mean-us": 0.6981,
+      "writer-observations": 12.0,
+      "writer-over-1ms": 0.0,
+      "B/op": 246816.0,
+      "allocs/op": 6.0
+    },
+    {
+      "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples270000-4",
+      "iterations": 10,
+      "ns/op": 13697904.0,
+      "writer-max-us": 3.041,
+      "writer-mean-us": 0.1881,
+      "writer-observations": 136.0,
+      "writer-over-1ms": 0.0,
+      "B/op": 2163745.0,
+      "allocs/op": 6.0
+    },
+    {
+      "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples270000-4",
+      "iterations": 10,
+      "ns/op": 13760050.0,
+      "writer-max-us": 51.42,
+      "writer-mean-us": 0.58,
+      "writer-observations": 137.0,
+      "writer-over-1ms": 0.0,
+      "B/op": 2163763.0,
+      "allocs/op": 6.0
+    },
+    {
+      "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples270000-4",
+      "iterations": 10,
+      "ns/op": 13846567.0,
+      "writer-max-us": 74.08,
+      "writer-mean-us": 1.266,
+      "writer-observations": 138.0,
+      "writer-over-1ms": 0.0,
+      "B/op": 2163756.0,
+      "allocs/op": 6.0
+    },
+    {
+      "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples810000-4",
+      "iterations": 10,
+      "ns/op": 45541242.0,
+      "writer-max-us": 607.4,
+      "writer-mean-us": 1.577,
+      "writer-observations": 455.0,
+      "writer-over-1ms": 0.0,
+      "B/op": 6489120.0,
+      "allocs/op": 6.0
+    },
+    {
+      "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples810000-4",
+      "iterations": 10,
+      "ns/op": 44446675.0,
+      "writer-max-us": 358.3,
+      "writer-mean-us": 1.739,
+      "writer-observations": 444.0,
+      "writer-over-1ms": 0.0,
+      "B/op": 6489148.0,
+      "allocs/op": 6.0
+    },
+    {
+      "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples810000-4",
+      "iterations": 10,
+      "ns/op": 44591592.0,
+      "writer-max-us": 255.7,
+      "writer-mean-us": 1.17,
+      "writer-observations": 445.0,
+      "writer-over-1ms": 0.0,
+      "B/op": 6489120.0,
+      "allocs/op": 6.0
+    }
+  ],
+  "medians": [
+    {
+      "samples": 30000,
+      "before_ns": 1998175.0,
+      "after_ns": 1602329.0,
+      "reduction_percent": 19.8103769689842
+    },
+    {
+      "samples": 270000,
+      "before_ns": 23023462.0,
+      "after_ns": 13760050.0,
+      "reduction_percent": 40.23466149443554
+    },
+    {
+      "samples": 810000,
+      "before_ns": 75132808.0,
+      "after_ns": 44591592.0,
+      "reduction_percent": 40.6496400347502
+    }
+  ],
+  "algorithm_probe": [
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/random/legacy-4",
+      "iterations": 5,
+      "ns/op": 3452983.0,
+      "B/op": 245816.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/random/legacy-4",
+      "iterations": 5,
+      "ns/op": 2597467.0,
+      "B/op": 245819.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/random/legacy-4",
+      "iterations": 5,
+      "ns/op": 2205383.0,
+      "B/op": 245816.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/random/typed-4",
+      "iterations": 5,
+      "ns/op": 1366008.0,
+      "B/op": 245760.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/random/typed-4",
+      "iterations": 5,
+      "ns/op": 1311767.0,
+      "B/op": 245760.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/random/typed-4",
+      "iterations": 5,
+      "ns/op": 1264883.0,
+      "B/op": 245760.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/sorted/legacy-4",
+      "iterations": 5,
+      "ns/op": 78183.0,
+      "B/op": 245816.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/sorted/legacy-4",
+      "iterations": 5,
+      "ns/op": 79725.0,
+      "B/op": 245816.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/sorted/legacy-4",
+      "iterations": 5,
+      "ns/op": 66450.0,
+      "B/op": 245816.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/sorted/typed-4",
+      "iterations": 5,
+      "ns/op": 30650.0,
+      "B/op": 245760.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/sorted/typed-4",
+      "iterations": 5,
+      "ns/op": 32483.0,
+      "B/op": 245760.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/sorted/typed-4",
+      "iterations": 5,
+      "ns/op": 28250.0,
+      "B/op": 245760.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/reverse/legacy-4",
+      "iterations": 5,
+      "ns/op": 76700.0,
+      "B/op": 245816.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/reverse/legacy-4",
+      "iterations": 5,
+      "ns/op": 84825.0,
+      "B/op": 245816.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/reverse/legacy-4",
+      "iterations": 5,
+      "ns/op": 76775.0,
+      "B/op": 245816.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/reverse/typed-4",
+      "iterations": 5,
+      "ns/op": 34375.0,
+      "B/op": 245760.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/reverse/typed-4",
+      "iterations": 5,
+      "ns/op": 35500.0,
+      "B/op": 245760.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/reverse/typed-4",
+      "iterations": 5,
+      "ns/op": 35308.0,
+      "B/op": 245763.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/equal/legacy-4",
+      "iterations": 5,
+      "ns/op": 70583.0,
+      "B/op": 245816.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/equal/legacy-4",
+      "iterations": 5,
+      "ns/op": 70275.0,
+      "B/op": 245816.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/equal/legacy-4",
+      "iterations": 5,
+      "ns/op": 72442.0,
+      "B/op": 245816.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/equal/typed-4",
+      "iterations": 5,
+      "ns/op": 31058.0,
+      "B/op": 245760.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/equal/typed-4",
+      "iterations": 5,
+      "ns/op": 29858.0,
+      "B/op": 245760.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/equal/typed-4",
+      "iterations": 5,
+      "ns/op": 29700.0,
+      "B/op": 245760.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/duplicates/legacy-4",
+      "iterations": 5,
+      "ns/op": 565292.0,
+      "B/op": 245816.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/duplicates/legacy-4",
+      "iterations": 5,
+      "ns/op": 558875.0,
+      "B/op": 245816.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/duplicates/legacy-4",
+      "iterations": 5,
+      "ns/op": 502517.0,
+      "B/op": 245816.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/duplicates/typed-4",
+      "iterations": 5,
+      "ns/op": 330725.0,
+      "B/op": 245760.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/duplicates/typed-4",
+      "iterations": 5,
+      "ns/op": 284683.0,
+      "B/op": 245760.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/duplicates/typed-4",
+      "iterations": 5,
+      "ns/op": 247117.0,
+      "B/op": 245760.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/organ-pipe/legacy-4",
+      "iterations": 5,
+      "ns/op": 848525.0,
+      "B/op": 245816.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/organ-pipe/legacy-4",
+      "iterations": 5,
+      "ns/op": 873967.0,
+      "B/op": 245816.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/organ-pipe/legacy-4",
+      "iterations": 5,
+      "ns/op": 874392.0,
+      "B/op": 245816.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/organ-pipe/typed-4",
+      "iterations": 5,
+      "ns/op": 346642.0,
+      "B/op": 245760.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/organ-pipe/typed-4",
+      "iterations": 5,
+      "ns/op": 332550.0,
+      "B/op": 245760.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples30000/organ-pipe/typed-4",
+      "iterations": 5,
+      "ns/op": 291642.0,
+      "B/op": 245760.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/random/legacy-4",
+      "iterations": 5,
+      "ns/op": 72556375.0,
+      "B/op": 6488120.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/random/legacy-4",
+      "iterations": 5,
+      "ns/op": 72460208.0,
+      "B/op": 6488120.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/random/legacy-4",
+      "iterations": 5,
+      "ns/op": 72354475.0,
+      "B/op": 6488120.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/random/typed-4",
+      "iterations": 5,
+      "ns/op": 44528558.0,
+      "B/op": 6488064.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/random/typed-4",
+      "iterations": 5,
+      "ns/op": 44668958.0,
+      "B/op": 6488064.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/random/typed-4",
+      "iterations": 5,
+      "ns/op": 44340292.0,
+      "B/op": 6488064.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/sorted/legacy-4",
+      "iterations": 5,
+      "ns/op": 1809725.0,
+      "B/op": 6488120.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/sorted/legacy-4",
+      "iterations": 5,
+      "ns/op": 1620008.0,
+      "B/op": 6488120.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/sorted/legacy-4",
+      "iterations": 5,
+      "ns/op": 1754133.0,
+      "B/op": 6488120.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/sorted/typed-4",
+      "iterations": 5,
+      "ns/op": 814925.0,
+      "B/op": 6488064.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/sorted/typed-4",
+      "iterations": 5,
+      "ns/op": 804692.0,
+      "B/op": 6488064.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/sorted/typed-4",
+      "iterations": 5,
+      "ns/op": 906442.0,
+      "B/op": 6488064.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/reverse/legacy-4",
+      "iterations": 5,
+      "ns/op": 2129558.0,
+      "B/op": 6488139.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/reverse/legacy-4",
+      "iterations": 5,
+      "ns/op": 2266408.0,
+      "B/op": 6488120.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/reverse/legacy-4",
+      "iterations": 5,
+      "ns/op": 2225383.0,
+      "B/op": 6488120.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/reverse/typed-4",
+      "iterations": 5,
+      "ns/op": 955675.0,
+      "B/op": 6488064.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/reverse/typed-4",
+      "iterations": 5,
+      "ns/op": 1061625.0,
+      "B/op": 6488064.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/reverse/typed-4",
+      "iterations": 5,
+      "ns/op": 976425.0,
+      "B/op": 6488064.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/equal/legacy-4",
+      "iterations": 5,
+      "ns/op": 1884800.0,
+      "B/op": 6488120.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/equal/legacy-4",
+      "iterations": 5,
+      "ns/op": 1664000.0,
+      "B/op": 6488120.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/equal/legacy-4",
+      "iterations": 5,
+      "ns/op": 1702608.0,
+      "B/op": 6488120.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/equal/typed-4",
+      "iterations": 5,
+      "ns/op": 814342.0,
+      "B/op": 6488064.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/equal/typed-4",
+      "iterations": 5,
+      "ns/op": 881575.0,
+      "B/op": 6488064.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/equal/typed-4",
+      "iterations": 5,
+      "ns/op": 807750.0,
+      "B/op": 6488064.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/duplicates/legacy-4",
+      "iterations": 5,
+      "ns/op": 16463408.0,
+      "B/op": 6488120.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/duplicates/legacy-4",
+      "iterations": 5,
+      "ns/op": 16254342.0,
+      "B/op": 6488120.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/duplicates/legacy-4",
+      "iterations": 5,
+      "ns/op": 16265300.0,
+      "B/op": 6488120.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/duplicates/typed-4",
+      "iterations": 5,
+      "ns/op": 9238700.0,
+      "B/op": 6488064.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/duplicates/typed-4",
+      "iterations": 5,
+      "ns/op": 9248450.0,
+      "B/op": 6488064.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/duplicates/typed-4",
+      "iterations": 5,
+      "ns/op": 9260333.0,
+      "B/op": 6488064.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/organ-pipe/legacy-4",
+      "iterations": 5,
+      "ns/op": 28391642.0,
+      "B/op": 6488120.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/organ-pipe/legacy-4",
+      "iterations": 5,
+      "ns/op": 28376500.0,
+      "B/op": 6488120.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/organ-pipe/legacy-4",
+      "iterations": 5,
+      "ns/op": 28622942.0,
+      "B/op": 6488120.0,
+      "allocs/op": 3.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/organ-pipe/typed-4",
+      "iterations": 5,
+      "ns/op": 10925183.0,
+      "B/op": 6488064.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/organ-pipe/typed-4",
+      "iterations": 5,
+      "ns/op": 10853392.0,
+      "B/op": 6488064.0,
+      "allocs/op": 1.0
+    },
+    {
+      "benchmark": "BenchmarkExactSummary/Samples810000/organ-pipe/typed-4",
+      "iterations": 5,
+      "ns/op": 10698208.0,
+      "B/op": 6488064.0,
+      "allocs/op": 1.0
+    }
+  ],
+  "profile_runs": {
+    "baseline": [
+      {
+        "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples810000-4",
+        "iterations": 100,
+        "ns/op": 74545585.0,
+        "writer-max-us": 461.5,
+        "writer-mean-us": 0.6793,
+        "writer-observations": 7448.0,
+        "writer-over-1ms": 0.0,
+        "B/op": 6490464.0,
+        "allocs/op": 8.0
+      }
+    ],
+    "candidate": [
+      {
+        "benchmark": "BenchmarkCollectWithConcurrentWriter/Samples810000-4",
+        "iterations": 100,
+        "ns/op": 44584327.0,
+        "writer-max-us": 786.2,
+        "writer-mean-us": 1.023,
+        "writer-observations": 4458.0,
+        "writer-over-1ms": 0.0,
+        "B/op": 6489971.0,
+        "allocs/op": 6.0
+      }
+    ]
+  },
+  "source_sha256": {
+    "internal/bench/metrics/metrics.go": "b1ef17ae19aa831024c7f331e9346a7dae09167e64da29de68000da9e5a9d3a9",
+    "internal/bench/metrics/summary_test.go": "2aa1af4aef2c8db45f17289afe143af4e1322498dc6a74631106ac45df5b9178",
+    "internal/bench/metrics/summary_integration_test.go": "82f405910b75a063b8af5eadbcdc4e972181dff65828d797dfeee8d0490c0c93"
+  },
+  "limitations": [
+    "Local fixed-history microbenchmarks, not a new business or cloud run.",
+    "Algorithm probe used an isolated typed-sort prototype; final Collect measurements use production summarizeDurations.",
+    "Full sorting and history-dependent sample storage remain.",
+    "Writer observations are ticker-driven and coalesced, not percentile measurements."
+  ],
+  "artifact_sha256": {
+    "candidate-profile-bench.txt": "b3a6c3389566415a0f3a16be77bcf5d9e8a8dc443fc79669709abb17d254212f",
+    "baseline.metrics.test": "216dd21d985ae6cfc364704f8eabd0b4b7ee1e151ff495e07bf4bf94c6335ee9",
+    "metrics.go": "b1ef17ae19aa831024c7f331e9346a7dae09167e64da29de68000da9e5a9d3a9",
+    "after-bench.txt": "896754e3fbe4dedfa4e4a5906c777539bdbd51f05a7d95ea04ed56e3e3290b43",
+    "candidate.cpu.pprof": "30275193e1e7686195dcc4b3adf9cd66cacd687ad933b91f358080bd6bf24a06",
+    "candidate-profile-top.txt": "59d927871128caffae582140e313736b8ff48d3e23e9c67d2fba0efc77c31d48",
+    "baseline.cpu.pprof": "5d788a450813da9f3ad9fee009b43110241d77197c4582f84369e5ede25aaa2e",
+    "before-bench.txt": "fea165a7e7a5dad89059210a61db32a192eddc6a0d431dfce9398414a26f03b7",
+    "instruction-digests.json": "880a9939129a666056cbfa258411197629226deceb3c60b407ed547290703f4b",
+    "summary_integration_test.go": "82f405910b75a063b8af5eadbcdc4e972181dff65828d797dfeee8d0490c0c93",
+    "baseline-profile-top.txt": "f961343d1674015d5a67b61e80eeff0da003752596bc3422a20c545473cee24d",
+    "candidate.metrics.test": "00f9342504e13e8b4156c5072193dce3940f4207f5447463e2dbfa22bf7aca27",
+    "algorithm-bench.txt": "564f3a6517286b8e207ab1776b399a16cd40348d381d1bd9ac2fef868904589c",
+    "summary_test.go": "2aa1af4aef2c8db45f17289afe143af4e1322498dc6a74631106ac45df5b9178",
+    "baseline-profile-bench.txt": "7123548d9089d6b02e2ef826a01b0b88555f40e26b34e4ddc02a3f5cd65e27ac",
+    "race.txt": "5394f149b65aa7b2717d34c344fa3973c9ae25a1c754cd6f750194e636f3703b"
+  },
+  "validation": {
+    "race_packages": [
+      "internal/bench/metrics",
+      "internal/bench/report",
+      "internal/bench/workload",
+      "internal/bench/worker"
+    ],
+    "race_integration_exit_code": 0,
+    "exact_summary_cases": 71,
+    "flow_changed": false,
+    "business_run_repeated": false,
+    "cloud_resources_created": false
+  }
+}

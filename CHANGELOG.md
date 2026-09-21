@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Reduce benchmark snapshot CPU cost with typed latency sorting while retaining exact percentile and SLO results. / 压测快照使用类型化时延排序，降低 CPU 开销，保留精确分位数和 SLO 判定。
+
 - Keep benchmark metric writes moving while report snapshots sort historical latency samples, preserving consistent snapshots and exact percentiles. / 压测报告在锁外排序历史时延样本，降低指标写入阻塞，并保留快照一致性及精确分位数。
 
 - Honor `random_online` in group benchmarks using the scenario seed and logical message indexes, instead of silently reusing the first online member. / 群聊压测的 `random_online` 按场景种子和逻辑消息索引选择发送者，修复此前始终使用首个在线成员的问题。

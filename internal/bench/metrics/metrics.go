@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"net"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -643,7 +644,7 @@ func summarizeDurations(values []time.Duration) HistogramSummary {
 		return HistogramSummary{}
 	}
 	sorted := values
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+	slices.Sort(sorted)
 	var sum time.Duration
 	for _, value := range sorted {
 		sum += value

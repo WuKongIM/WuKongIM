@@ -357,7 +357,10 @@ specification, runbook, report, or module documentation; link to them when neede
   instant, then aggregate owned latency samples outside the producer lock.
   A separate collector mutex serializes large working copies. Exact SLO
   quantiles and raw sample retention remain unchanged; this reduces producer
-  stalls, not the sorting CPU cost or duration-dependent legacy sample storage.
+  stalls. Exact summaries use typed standard-library sorting to reduce CPU and
+  callback allocations; full sorting and duration-dependent legacy sample
+  storage remain. Keep exact nearest-rank results distinct from diagnostic
+  bucket upper bounds.
 
 - Generic group `random_online` sender selection must use the scenario seed
   and logical channel/message indexes so scheduling and sending agree across
