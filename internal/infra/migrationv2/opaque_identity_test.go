@@ -130,7 +130,8 @@ func TestOpaqueConversationIdentitiesSurvivePortableMigrationAndNativeRecovery(t
 	require.False(t, verified.CutoverReady)
 	w, err := transfer.OpenSpool(filepath.Join(root, "portable"), plan.Digest(), 128<<20)
 	require.NoError(t, err)
-	preparedBytes, found, err := w.Get(ctx, []byte("workflow/PREPARED"))
+	// This workspace was reconstructed from the archive, without source capture.
+	preparedBytes, found, err := w.Get(ctx, []byte("workflow/ARCHIVE_PREPARED"))
 	require.NoError(t, err)
 	require.True(t, found)
 	var prepared migration.Preflight
