@@ -1,0 +1,1428 @@
+{
+  "schema": "wukongim.transport_cross_host_validation/v1",
+  "date": "2026-09-21",
+  "baseline_sha": "68662c4c8fa7a447ac2864c7352789ae4a5021b7",
+  "candidate_sha": "7bda37db546fc577dd6fe7cc56ed3b95e6cbeeda",
+  "environment": {
+    "provider": "Alibaba Cloud ECS",
+    "region": "cn-hangzhou",
+    "zone": "cn-hangzhou-b",
+    "instance_type": "ecs.u2a-c1m2.xlarge",
+    "service_nodes": 3,
+    "load_nodes": 1,
+    "vcpu_per_node": 4,
+    "ram_gib_per_node": 8,
+    "os": "Ubuntu 24.04",
+    "kernel": "6.8.0-139-generic",
+    "go": "go1.25.11",
+    "hash_slots": 256,
+    "logical_slots": 12,
+    "replicas": 3,
+    "physical_host_placement_verified": false
+  },
+  "scenario": {
+    "online_users": 1000,
+    "group_count": 100,
+    "members_per_group": 10,
+    "payload_bytes": 128,
+    "planned_send_per_second": 500,
+    "concurrency": 64,
+    "warmup_seconds": 30,
+    "run_seconds": 180,
+    "cooldown_max_seconds": 30,
+    "phase_poll_timeout_seconds": 90,
+    "seed": 42,
+    "receive_verification": "full",
+    "same_candidate_wkcli_for_both": true,
+    "fresh_process_and_data_directory_each_round": true
+  },
+  "business_rounds": [
+    {
+      "round": "transport-baseline-1-b",
+      "status": "passed",
+      "send_success": 87819,
+      "ingress_qps": 487.8833333333333,
+      "sendack_p99_ms": 192.084165,
+      "connect_errors": 0,
+      "sendack_error_rate": 0,
+      "recv_verify_error_rate": 0,
+      "not_sent_of_90000": 2181,
+      "report_sha256": "1958ac6fd7185c90938be2567ef2c4a11a20aa3124112d6099d888bf1064c16d",
+      "phase_windows": [
+        {
+          "phase": "prepare",
+          "started_at": "2026-09-21T08:21:00.62736033Z",
+          "ended_at": "2026-09-21T08:21:45.529191926Z"
+        },
+        {
+          "phase": "connect",
+          "started_at": "2026-09-21T08:21:45.529192866Z",
+          "ended_at": "2026-09-21T08:21:56.032321965Z"
+        },
+        {
+          "phase": "warmup",
+          "started_at": "2026-09-21T08:21:56.032322905Z",
+          "ended_at": "2026-09-21T08:22:26.036524655Z"
+        },
+        {
+          "phase": "run",
+          "started_at": "2026-09-21T08:22:26.036527345Z",
+          "ended_at": "2026-09-21T08:25:26.11505194Z"
+        },
+        {
+          "phase": "cooldown",
+          "started_at": "2026-09-21T08:25:26.11505256Z",
+          "ended_at": "2026-09-21T08:25:26.33035992Z"
+        }
+      ],
+      "recv_post_ack_wait_p99_ms": 1.689756
+    },
+    {
+      "round": "transport-candidate-1-b",
+      "status": "passed",
+      "send_success": 87081,
+      "ingress_qps": 483.78333333333336,
+      "sendack_p99_ms": 195.499278,
+      "connect_errors": 0,
+      "sendack_error_rate": 0,
+      "recv_verify_error_rate": 0,
+      "not_sent_of_90000": 2919,
+      "report_sha256": "fa24483ae244412173272c2756094d2b934f6b87af4f98802727c7367977959e",
+      "phase_windows": [
+        {
+          "phase": "prepare",
+          "started_at": "2026-09-21T08:26:05.022087595Z",
+          "ended_at": "2026-09-21T08:26:49.974270028Z"
+        },
+        {
+          "phase": "connect",
+          "started_at": "2026-09-21T08:26:49.974270768Z",
+          "ended_at": "2026-09-21T08:27:00.702274979Z"
+        },
+        {
+          "phase": "warmup",
+          "started_at": "2026-09-21T08:27:00.702275599Z",
+          "ended_at": "2026-09-21T08:27:30.707038179Z"
+        },
+        {
+          "phase": "run",
+          "started_at": "2026-09-21T08:27:30.707040959Z",
+          "ended_at": "2026-09-21T08:30:30.784308244Z"
+        },
+        {
+          "phase": "cooldown",
+          "started_at": "2026-09-21T08:30:30.784308694Z",
+          "ended_at": "2026-09-21T08:30:30.999317818Z"
+        }
+      ],
+      "recv_post_ack_wait_p99_ms": 0.351651
+    },
+    {
+      "round": "transport-baseline-2-b",
+      "status": "passed",
+      "send_success": 87080,
+      "ingress_qps": 483.77777777777777,
+      "sendack_p99_ms": 192.733331,
+      "connect_errors": 0,
+      "sendack_error_rate": 0,
+      "recv_verify_error_rate": 0,
+      "not_sent_of_90000": 2920,
+      "report_sha256": "356e31725ef054b3462a7dd8119887d694ca4fa8cb784e892b2d5a977e5207ee",
+      "phase_windows": [
+        {
+          "phase": "prepare",
+          "started_at": "2026-09-21T08:31:06.654053882Z",
+          "ended_at": "2026-09-21T08:31:51.481374209Z"
+        },
+        {
+          "phase": "connect",
+          "started_at": "2026-09-21T08:31:51.481374759Z",
+          "ended_at": "2026-09-21T08:32:01.984030215Z"
+        },
+        {
+          "phase": "warmup",
+          "started_at": "2026-09-21T08:32:01.984031055Z",
+          "ended_at": "2026-09-21T08:32:32.013456344Z"
+        },
+        {
+          "phase": "run",
+          "started_at": "2026-09-21T08:32:32.013458695Z",
+          "ended_at": "2026-09-21T08:35:32.13218096Z"
+        },
+        {
+          "phase": "cooldown",
+          "started_at": "2026-09-21T08:35:32.13218137Z",
+          "ended_at": "2026-09-21T08:35:32.347469619Z"
+        }
+      ],
+      "recv_post_ack_wait_p99_ms": 1.649375
+    },
+    {
+      "round": "transport-candidate-2-b",
+      "status": "passed",
+      "send_success": 87313,
+      "ingress_qps": 485.0722222222222,
+      "sendack_p99_ms": 193.629237,
+      "connect_errors": 0,
+      "sendack_error_rate": 0,
+      "recv_verify_error_rate": 0,
+      "not_sent_of_90000": 2687,
+      "report_sha256": "f7c43dbbb87ea7c9032bf866d3d55190913206204cc6fb911ae1f38f8f8e9e94",
+      "phase_windows": [
+        {
+          "phase": "prepare",
+          "started_at": "2026-09-21T08:36:11.094300552Z",
+          "ended_at": "2026-09-21T08:36:56.221827667Z"
+        },
+        {
+          "phase": "connect",
+          "started_at": "2026-09-21T08:36:56.221828527Z",
+          "ended_at": "2026-09-21T08:37:06.950662873Z"
+        },
+        {
+          "phase": "warmup",
+          "started_at": "2026-09-21T08:37:06.950663723Z",
+          "ended_at": "2026-09-21T08:37:36.95549317Z"
+        },
+        {
+          "phase": "run",
+          "started_at": "2026-09-21T08:37:36.95549548Z",
+          "ended_at": "2026-09-21T08:40:37.05194852Z"
+        },
+        {
+          "phase": "cooldown",
+          "started_at": "2026-09-21T08:40:37.05194904Z",
+          "ended_at": "2026-09-21T08:40:37.272603815Z"
+        }
+      ],
+      "recv_post_ack_wait_p99_ms": 0.389703
+    },
+    {
+      "round": "transport-baseline-3-b",
+      "status": "passed",
+      "send_success": 87162,
+      "ingress_qps": 484.23333333333335,
+      "sendack_p99_ms": 192.27443,
+      "connect_errors": 0,
+      "sendack_error_rate": 0,
+      "recv_verify_error_rate": 0,
+      "not_sent_of_90000": 2838,
+      "report_sha256": "09238903912b650e6c6309f958612b0426bc0246f9d0604b47462add5c7095a4",
+      "phase_windows": [
+        {
+          "phase": "prepare",
+          "started_at": "2026-09-21T08:41:17.346452645Z",
+          "ended_at": "2026-09-21T08:42:02.248785939Z"
+        },
+        {
+          "phase": "connect",
+          "started_at": "2026-09-21T08:42:02.248786619Z",
+          "ended_at": "2026-09-21T08:42:12.801752324Z"
+        },
+        {
+          "phase": "warmup",
+          "started_at": "2026-09-21T08:42:12.801753044Z",
+          "ended_at": "2026-09-21T08:42:42.806426147Z"
+        },
+        {
+          "phase": "run",
+          "started_at": "2026-09-21T08:42:42.806428787Z",
+          "ended_at": "2026-09-21T08:45:42.934542033Z"
+        },
+        {
+          "phase": "cooldown",
+          "started_at": "2026-09-21T08:45:42.934542773Z",
+          "ended_at": "2026-09-21T08:45:43.148765913Z"
+        }
+      ],
+      "recv_post_ack_wait_p99_ms": 1.684886
+    },
+    {
+      "round": "transport-candidate-3-b",
+      "status": "passed",
+      "send_success": 87155,
+      "ingress_qps": 484.19444444444446,
+      "sendack_p99_ms": 194.760663,
+      "connect_errors": 0,
+      "sendack_error_rate": 0,
+      "recv_verify_error_rate": 0,
+      "not_sent_of_90000": 2845,
+      "report_sha256": "d7cf6b015fc667cfdd61e433d4503683b9e1369236dbcca1ba0df7093ca2a590",
+      "phase_windows": [
+        {
+          "phase": "prepare",
+          "started_at": "2026-09-21T08:46:22.484797849Z",
+          "ended_at": "2026-09-21T08:47:07.361706321Z"
+        },
+        {
+          "phase": "connect",
+          "started_at": "2026-09-21T08:47:07.361707181Z",
+          "ended_at": "2026-09-21T08:47:18.064930565Z"
+        },
+        {
+          "phase": "warmup",
+          "started_at": "2026-09-21T08:47:18.064931445Z",
+          "ended_at": "2026-09-21T08:47:48.069213309Z"
+        },
+        {
+          "phase": "run",
+          "started_at": "2026-09-21T08:47:48.069215869Z",
+          "ended_at": "2026-09-21T08:50:48.191388672Z"
+        },
+        {
+          "phase": "cooldown",
+          "started_at": "2026-09-21T08:50:48.191389252Z",
+          "ended_at": "2026-09-21T08:50:48.404358031Z"
+        }
+      ],
+      "recv_post_ack_wait_p99_ms": 0.330511
+    }
+  ],
+  "resource_samples": [
+    {
+      "round": "transport-baseline-1-b",
+      "sample_seconds": 171.0,
+      "samples": 18,
+      "nodes": [
+        {
+          "node": 1,
+          "cpu_cores": 0.3595906432748538,
+          "rss_mean_bytes": 403562040.8888889,
+          "alloc_bytes_per_second": 44707940.30409357,
+          "mallocs_per_second": 361332.1754385965,
+          "heap_inuse_mean_bytes": 313878755.5555556,
+          "goroutines_mean": 831.3888888888889,
+          "observer_dropped_delta": null
+        },
+        {
+          "node": 2,
+          "cpu_cores": 0.7160818713450292,
+          "rss_mean_bytes": 417644999.1111111,
+          "alloc_bytes_per_second": 48448952.795321636,
+          "mallocs_per_second": 381784.22222222225,
+          "heap_inuse_mean_bytes": 324366791.1111111,
+          "goroutines_mean": 850.3333333333334,
+          "observer_dropped_delta": null
+        },
+        {
+          "node": 3,
+          "cpu_cores": 0.370701754385965,
+          "rss_mean_bytes": 423694336.0,
+          "alloc_bytes_per_second": 47929506.10526316,
+          "mallocs_per_second": 376088.4035087719,
+          "heap_inuse_mean_bytes": 313495096.8888889,
+          "goroutines_mean": 836.5555555555555,
+          "observer_dropped_delta": null
+        }
+      ]
+    },
+    {
+      "round": "transport-baseline-2-b",
+      "sample_seconds": 170.0,
+      "samples": 18,
+      "nodes": [
+        {
+          "node": 1,
+          "cpu_cores": 0.37311764705882355,
+          "rss_mean_bytes": 415756970.6666667,
+          "alloc_bytes_per_second": 50289534.4,
+          "mallocs_per_second": 391011.72352941177,
+          "heap_inuse_mean_bytes": 329790350.2222222,
+          "goroutines_mean": 844.3333333333334,
+          "observer_dropped_delta": null
+        },
+        {
+          "node": 2,
+          "cpu_cores": 0.6651764705882353,
+          "rss_mean_bytes": 439456881.7777778,
+          "alloc_bytes_per_second": 44933279.011764705,
+          "mallocs_per_second": 363574.2,
+          "heap_inuse_mean_bytes": 327770112.0,
+          "goroutines_mean": 849.4444444444445,
+          "observer_dropped_delta": null
+        },
+        {
+          "node": 3,
+          "cpu_cores": 0.3560588235294117,
+          "rss_mean_bytes": 439411598.2222222,
+          "alloc_bytes_per_second": 44265740.894117646,
+          "mallocs_per_second": 357605.81176470587,
+          "heap_inuse_mean_bytes": 311372003.5555556,
+          "goroutines_mean": 834.3888888888889,
+          "observer_dropped_delta": null
+        }
+      ]
+    },
+    {
+      "round": "transport-baseline-3-b",
+      "sample_seconds": 171.0,
+      "samples": 18,
+      "nodes": [
+        {
+          "node": 1,
+          "cpu_cores": 0.3564327485380117,
+          "rss_mean_bytes": 409067975.1111111,
+          "alloc_bytes_per_second": 42657920.0,
+          "mallocs_per_second": 347760.16959064326,
+          "heap_inuse_mean_bytes": 349878954.6666667,
+          "goroutines_mean": 839.3888888888889,
+          "observer_dropped_delta": null
+        },
+        {
+          "node": 2,
+          "cpu_cores": 0.6628654970760234,
+          "rss_mean_bytes": 422306702.2222222,
+          "alloc_bytes_per_second": 45242961.543859646,
+          "mallocs_per_second": 363292.8538011696,
+          "heap_inuse_mean_bytes": 315131676.4444444,
+          "goroutines_mean": 861.2222222222222,
+          "observer_dropped_delta": null
+        },
+        {
+          "node": 3,
+          "cpu_cores": 0.3746198830409356,
+          "rss_mean_bytes": 421876849.7777778,
+          "alloc_bytes_per_second": 50549032.0,
+          "mallocs_per_second": 390496.76608187135,
+          "heap_inuse_mean_bytes": 336402659.5555556,
+          "goroutines_mean": 858.2777777777778,
+          "observer_dropped_delta": null
+        }
+      ]
+    },
+    {
+      "round": "transport-candidate-1-b",
+      "sample_seconds": 171.0,
+      "samples": 18,
+      "nodes": [
+        {
+          "node": 1,
+          "cpu_cores": 0.3594736842105263,
+          "rss_mean_bytes": 400365795.5555556,
+          "alloc_bytes_per_second": 53677019.41520468,
+          "mallocs_per_second": 408715.1286549708,
+          "heap_inuse_mean_bytes": 300338744.8888889,
+          "goroutines_mean": 848.1111111111111,
+          "observer_dropped_delta": 0.0
+        },
+        {
+          "node": 2,
+          "cpu_cores": 0.6726900584795321,
+          "rss_mean_bytes": 412035754.6666667,
+          "alloc_bytes_per_second": 52102398.03508772,
+          "mallocs_per_second": 403439.6432748538,
+          "heap_inuse_mean_bytes": 304242232.8888889,
+          "goroutines_mean": 861.2777777777778,
+          "observer_dropped_delta": 0.0
+        },
+        {
+          "node": 3,
+          "cpu_cores": 0.3541520467836257,
+          "rss_mean_bytes": 412726613.3333333,
+          "alloc_bytes_per_second": 47716482.666666664,
+          "mallocs_per_second": 378081.5730994152,
+          "heap_inuse_mean_bytes": 300128483.5555556,
+          "goroutines_mean": 840.5555555555555,
+          "observer_dropped_delta": 0.0
+        }
+      ]
+    },
+    {
+      "round": "transport-candidate-2-b",
+      "sample_seconds": 171.0,
+      "samples": 18,
+      "nodes": [
+        {
+          "node": 1,
+          "cpu_cores": 0.3506432748538012,
+          "rss_mean_bytes": 410362311.1111111,
+          "alloc_bytes_per_second": 49252686.830409355,
+          "mallocs_per_second": 384949.8128654971,
+          "heap_inuse_mean_bytes": 291804046.2222222,
+          "goroutines_mean": 831.8333333333334,
+          "observer_dropped_delta": 0.0
+        },
+        {
+          "node": 2,
+          "cpu_cores": 0.7549122807017544,
+          "rss_mean_bytes": 413329635.5555556,
+          "alloc_bytes_per_second": 53356230.596491225,
+          "mallocs_per_second": 408450.38011695904,
+          "heap_inuse_mean_bytes": 309594339.5555556,
+          "goroutines_mean": 854.6666666666666,
+          "observer_dropped_delta": 0.0
+        },
+        {
+          "node": 3,
+          "cpu_cores": 0.37274853801169594,
+          "rss_mean_bytes": 430196963.5555556,
+          "alloc_bytes_per_second": 54227724.02339181,
+          "mallocs_per_second": 410212.69005847955,
+          "heap_inuse_mean_bytes": 302687118.2222222,
+          "goroutines_mean": 836.1666666666666,
+          "observer_dropped_delta": 0.0
+        }
+      ]
+    },
+    {
+      "round": "transport-candidate-3-b",
+      "sample_seconds": 171.0,
+      "samples": 18,
+      "nodes": [
+        {
+          "node": 1,
+          "cpu_cores": 0.38,
+          "rss_mean_bytes": 405815978.6666667,
+          "alloc_bytes_per_second": 58448109.94152047,
+          "mallocs_per_second": 432191.22222222225,
+          "heap_inuse_mean_bytes": 296399758.2222222,
+          "goroutines_mean": 851.0,
+          "observer_dropped_delta": 0.0
+        },
+        {
+          "node": 2,
+          "cpu_cores": 0.6570760233918129,
+          "rss_mean_bytes": 411799096.8888889,
+          "alloc_bytes_per_second": 49170879.064327486,
+          "mallocs_per_second": 388190.9649122807,
+          "heap_inuse_mean_bytes": 287703040.0,
+          "goroutines_mean": 854.7777777777778,
+          "observer_dropped_delta": 0.0
+        },
+        {
+          "node": 3,
+          "cpu_cores": 0.34520467836257307,
+          "rss_mean_bytes": 401551360.0,
+          "alloc_bytes_per_second": 46949499.134502925,
+          "mallocs_per_second": 374961.76023391815,
+          "heap_inuse_mean_bytes": 302656625.7777778,
+          "goroutines_mean": 834.3333333333334,
+          "observer_dropped_delta": 0.0
+        }
+      ]
+    }
+  ],
+  "medians": {
+    "baseline": {
+      "ingress_qps": 484.23333333333335,
+      "sendack_p99_ms": 192.27443,
+      "cpu_cores": 1.3943529411764706,
+      "rss_mean_bytes": 1253251527.1111112,
+      "alloc_bytes_per_second": 139488554.30588233,
+      "mallocs_per_second": 1112191.7352941176
+    },
+    "candidate": {
+      "ingress_qps": 484.19444444444446,
+      "sendack_p99_ms": 194.760663,
+      "cpu_cores": 1.3863157894736842,
+      "rss_mean_bytes": 1225128163.5555556,
+      "alloc_bytes_per_second": 154568488.14035088,
+      "mallocs_per_second": 1195343.9473684211
+    }
+  },
+  "diagnostic_20s_snapshots_round_2": [
+    {
+      "version": "baseline",
+      "node": 1,
+      "source_sha256": "ee8f2d6454865f4f35fa869e84b37c2e3755a7492a2a543bebc1ee968f6cf2f0",
+      "classification": "storage_commit",
+      "gateway_queue_ratio": 0.0,
+      "gateway_dispatch_wait_p99_seconds": 0.010762,
+      "channel_runtime_append_p99_seconds": 0.022902,
+      "channel_append_store_wait_p99_seconds": 0.02289,
+      "storage_commit_p99_seconds": 0.004962
+    },
+    {
+      "version": "baseline",
+      "node": 2,
+      "source_sha256": "92841aca672059c18e5ae0ebf06031c0ba469e888b8d0df8eb22f8dd9ad55ee4",
+      "classification": "channel_append",
+      "gateway_queue_ratio": 0.0,
+      "gateway_dispatch_wait_p99_seconds": 0.009887,
+      "channel_runtime_append_p99_seconds": 0.022892,
+      "channel_append_store_wait_p99_seconds": 0.022875,
+      "storage_commit_p99_seconds": 0.004964
+    },
+    {
+      "version": "baseline",
+      "node": 3,
+      "source_sha256": "74539b203b74afc0683deb5cdabffbb43d035916762b4ab6572236e6ced64bad",
+      "classification": "channel_append",
+      "gateway_queue_ratio": 0.0,
+      "gateway_dispatch_wait_p99_seconds": 0.013692,
+      "channel_runtime_append_p99_seconds": 0.022891,
+      "channel_append_store_wait_p99_seconds": 0.022891,
+      "storage_commit_p99_seconds": 0.004963
+    },
+    {
+      "version": "candidate",
+      "node": 1,
+      "source_sha256": "0b562b711494ca5eff59a15bca1cea3363463d2ca5657a5b346a98ef42ae6685",
+      "classification": "no_observed_queue_pressure",
+      "gateway_queue_ratio": 0.0,
+      "gateway_dispatch_wait_p99_seconds": 0.009215,
+      "channel_runtime_append_p99_seconds": 0.016627,
+      "channel_append_store_wait_p99_seconds": 0.016627,
+      "storage_commit_p99_seconds": 0.004962
+    },
+    {
+      "version": "candidate",
+      "node": 2,
+      "source_sha256": "0528d8b877ae48c091884f6fee59cbda2d8df5b5df77d98810d7344c30d2788f",
+      "classification": "no_observed_queue_pressure",
+      "gateway_queue_ratio": 0.0,
+      "gateway_dispatch_wait_p99_seconds": 0.004997,
+      "channel_runtime_append_p99_seconds": 0.01721,
+      "channel_append_store_wait_p99_seconds": 0.017212,
+      "storage_commit_p99_seconds": 0.004964
+    },
+    {
+      "version": "candidate",
+      "node": 3,
+      "source_sha256": "394f4b867b7a77336354a930a69b371a0d5631eefd7440cb72d5a635df14a233",
+      "classification": "no_observed_queue_pressure",
+      "gateway_queue_ratio": 0.0,
+      "gateway_dispatch_wait_p99_seconds": 0.009738,
+      "channel_runtime_append_p99_seconds": 0.018391,
+      "channel_append_store_wait_p99_seconds": 0.018391,
+      "storage_commit_p99_seconds": 0.004963
+    }
+  ],
+  "rpc_setup": {
+    "seconds_per_case": 3,
+    "trials": 3,
+    "pool_size": 16,
+    "server_concurrency": 64,
+    "observer_enabled": false,
+    "write_batch_max_wait_ns_both_versions": 0,
+    "candidate_request_budgets": true,
+    "baseline_request_budgets": false,
+    "allocation_scope": "client only; sample buffers preallocated; steady-state pool reuse",
+    "server_timeout_seconds": 30,
+    "queue_timeout_seconds": 5,
+    "call_timeout_seconds": 2
+  },
+  "rpc_samples": [
+    {
+      "calls": 42543,
+      "calls_per_second": 14180.972758351332,
+      "client_alloc_bytes_per_call": 928.5554850386668,
+      "elapsed_seconds": 3.000005763,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.07039768655242931,
+      "observer_enabled": false,
+      "p50_ms": 0.069112,
+      "p95_ms": 0.077973,
+      "p99_ms": 0.086273,
+      "payload_bytes": 64,
+      "request_budgets": false,
+      "version": "baseline",
+      "workers": 1,
+      "trial": 1
+    },
+    {
+      "calls": 427742,
+      "calls_per_second": 142576.91570564263,
+      "client_alloc_bytes_per_call": 928.3221381112913,
+      "elapsed_seconds": 3.000078925,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.11206015062116884,
+      "observer_enabled": false,
+      "p50_ms": 0.102214,
+      "p95_ms": 0.172087,
+      "p99_ms": 0.25349,
+      "payload_bytes": 64,
+      "request_budgets": false,
+      "version": "baseline",
+      "workers": 16,
+      "trial": 1
+    },
+    {
+      "calls": 34293,
+      "calls_per_second": 11430.788743782963,
+      "client_alloc_bytes_per_call": 10869.456273875136,
+      "elapsed_seconds": 3.000055444,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.08736013355495291,
+      "observer_enabled": false,
+      "p50_ms": 0.085163,
+      "p95_ms": 0.095443,
+      "p99_ms": 0.141565,
+      "payload_bytes": 4097,
+      "request_budgets": false,
+      "version": "baseline",
+      "workers": 1,
+      "trial": 1
+    },
+    {
+      "calls": 235451,
+      "calls_per_second": 78479.78670449178,
+      "client_alloc_bytes_per_call": 10611.282381472154,
+      "elapsed_seconds": 3.000148317,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.20368814828138337,
+      "observer_enabled": false,
+      "p50_ms": 0.165886,
+      "p95_ms": 0.491718,
+      "p99_ms": 0.861512,
+      "payload_bytes": 4097,
+      "request_budgets": false,
+      "version": "baseline",
+      "workers": 16,
+      "trial": 1
+    },
+    {
+      "calls": 11202,
+      "calls_per_second": 3733.8906156744138,
+      "client_alloc_bytes_per_call": 179918.71951437244,
+      "elapsed_seconds": 3.000087885,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.26769148687734334,
+      "observer_enabled": false,
+      "p50_ms": 0.251879,
+      "p95_ms": 0.340783,
+      "p99_ms": 0.457057,
+      "payload_bytes": 65537,
+      "request_budgets": false,
+      "version": "baseline",
+      "workers": 1,
+      "trial": 1
+    },
+    {
+      "calls": 61006,
+      "calls_per_second": 20331.359413262257,
+      "client_alloc_bytes_per_call": 159627.13818312951,
+      "elapsed_seconds": 3.000586373,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.7866405030488804,
+      "observer_enabled": false,
+      "p50_ms": 0.666704,
+      "p95_ms": 1.676952,
+      "p99_ms": 2.548172,
+      "payload_bytes": 65537,
+      "request_budgets": false,
+      "version": "baseline",
+      "workers": 16,
+      "trial": 1
+    },
+    {
+      "calls": 40712,
+      "calls_per_second": 13570.374654821388,
+      "client_alloc_bytes_per_call": 928.580664177638,
+      "elapsed_seconds": 3.000064555,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.0735706610336019,
+      "observer_enabled": false,
+      "p50_ms": 0.071892,
+      "p95_ms": 0.082453,
+      "p99_ms": 0.090943,
+      "payload_bytes": 64,
+      "request_budgets": true,
+      "version": "candidate",
+      "workers": 1,
+      "trial": 1
+    },
+    {
+      "calls": 347616,
+      "calls_per_second": 115868.12475194497,
+      "client_alloc_bytes_per_call": 928.332619902421,
+      "elapsed_seconds": 3.000100336,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.13793160869465157,
+      "observer_enabled": false,
+      "p50_ms": 0.121285,
+      "p95_ms": 0.224008,
+      "p99_ms": 0.618693,
+      "payload_bytes": 64,
+      "request_budgets": true,
+      "version": "candidate",
+      "workers": 16,
+      "trial": 1
+    },
+    {
+      "calls": 33334,
+      "calls_per_second": 11111.063501156208,
+      "client_alloc_bytes_per_call": 10573.102297954041,
+      "elapsed_seconds": 3.000072855,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.08987467153656926,
+      "observer_enabled": false,
+      "p50_ms": 0.087223,
+      "p95_ms": 0.098553,
+      "p99_ms": 0.141695,
+      "payload_bytes": 4097,
+      "request_budgets": true,
+      "version": "candidate",
+      "workers": 1,
+      "trial": 1
+    },
+    {
+      "calls": 223508,
+      "calls_per_second": 74498.58866358895,
+      "client_alloc_bytes_per_call": 10537.26520750935,
+      "elapsed_seconds": 3.000164218,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.21458824127100598,
+      "observer_enabled": false,
+      "p50_ms": 0.180006,
+      "p95_ms": 0.442776,
+      "p99_ms": 0.860171,
+      "payload_bytes": 4097,
+      "request_budgets": true,
+      "version": "candidate",
+      "workers": 16,
+      "trial": 1
+    },
+    {
+      "calls": 11295,
+      "calls_per_second": 3764.7396067654454,
+      "client_alloc_bytes_per_call": 152685.1151837096,
+      "elapsed_seconds": 3.000207499,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.2654982291279327,
+      "observer_enabled": false,
+      "p50_ms": 0.252949,
+      "p95_ms": 0.356873,
+      "p99_ms": 0.450677,
+      "payload_bytes": 65537,
+      "request_budgets": true,
+      "version": "candidate",
+      "workers": 1,
+      "trial": 1
+    },
+    {
+      "calls": 43552,
+      "calls_per_second": 14510.522514870006,
+      "client_alloc_bytes_per_call": 150974.0778839089,
+      "elapsed_seconds": 3.001408113,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 1.1022529567184054,
+      "observer_enabled": false,
+      "p50_ms": 0.937834,
+      "p95_ms": 2.299803,
+      "p99_ms": 3.091092,
+      "payload_bytes": 65537,
+      "request_budgets": true,
+      "version": "candidate",
+      "workers": 16,
+      "trial": 1
+    },
+    {
+      "calls": 42440,
+      "calls_per_second": 14146.612051313074,
+      "client_alloc_bytes_per_call": 928.3851083883129,
+      "elapsed_seconds": 3.000011582,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.07056859535815269,
+      "observer_enabled": false,
+      "p50_ms": 0.069242,
+      "p95_ms": 0.078393,
+      "p99_ms": 0.086624,
+      "payload_bytes": 64,
+      "request_budgets": false,
+      "version": "baseline",
+      "workers": 1,
+      "trial": 2
+    },
+    {
+      "calls": 429049,
+      "calls_per_second": 143011.94834864372,
+      "client_alloc_bytes_per_call": 928.3049162216903,
+      "elapsed_seconds": 3.000091985,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.11171641026549416,
+      "observer_enabled": false,
+      "p50_ms": 0.101684,
+      "p95_ms": 0.171526,
+      "p99_ms": 0.2668,
+      "payload_bytes": 64,
+      "request_budgets": false,
+      "version": "baseline",
+      "workers": 16,
+      "trial": 2
+    },
+    {
+      "calls": 34565,
+      "calls_per_second": 11521.549365772575,
+      "client_alloc_bytes_per_call": 10919.953247504702,
+      "elapsed_seconds": 3.000030543,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.08667234803992478,
+      "observer_enabled": false,
+      "p50_ms": 0.084393,
+      "p95_ms": 0.094544,
+      "p99_ms": 0.140475,
+      "payload_bytes": 4097,
+      "request_budgets": false,
+      "version": "baseline",
+      "workers": 1,
+      "trial": 2
+    },
+    {
+      "calls": 237334,
+      "calls_per_second": 79108.82492434302,
+      "client_alloc_bytes_per_call": 10610.334465352626,
+      "elapsed_seconds": 3.000095125,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.20207036737256356,
+      "observer_enabled": false,
+      "p50_ms": 0.165186,
+      "p95_ms": 0.486137,
+      "p99_ms": 0.848751,
+      "payload_bytes": 4097,
+      "request_budgets": false,
+      "version": "baseline",
+      "workers": 16,
+      "trial": 2
+    },
+    {
+      "calls": 10760,
+      "calls_per_second": 3586.349464815552,
+      "client_alloc_bytes_per_call": 176540.22899628253,
+      "elapsed_seconds": 3.000265341,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.27870857388475834,
+      "observer_enabled": false,
+      "p50_ms": 0.26435,
+      "p95_ms": 0.349343,
+      "p99_ms": 0.477217,
+      "payload_bytes": 65537,
+      "request_budgets": false,
+      "version": "baseline",
+      "workers": 1,
+      "trial": 2
+    },
+    {
+      "calls": 59833,
+      "calls_per_second": 19941.275278945483,
+      "client_alloc_bytes_per_call": 161059.1884745876,
+      "elapsed_seconds": 3.000460059,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.8020916509284175,
+      "observer_enabled": false,
+      "p50_ms": 0.684455,
+      "p95_ms": 1.67452,
+      "p99_ms": 2.551913,
+      "payload_bytes": 65537,
+      "request_budgets": false,
+      "version": "baseline",
+      "workers": 16,
+      "trial": 2
+    },
+    {
+      "calls": 40722,
+      "calls_per_second": 13573.979670703113,
+      "client_alloc_bytes_per_call": 928.5066548794264,
+      "elapsed_seconds": 3.000004493,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.07355157258975492,
+      "observer_enabled": false,
+      "p50_ms": 0.071822,
+      "p95_ms": 0.082833,
+      "p99_ms": 0.091463,
+      "payload_bytes": 64,
+      "request_budgets": true,
+      "version": "candidate",
+      "workers": 1,
+      "trial": 2
+    },
+    {
+      "calls": 348190,
+      "calls_per_second": 116059.95656889696,
+      "client_alloc_bytes_per_call": 928.325086877854,
+      "elapsed_seconds": 3.000087285,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.13770182092535685,
+      "observer_enabled": false,
+      "p50_ms": 0.121204,
+      "p95_ms": 0.223928,
+      "p99_ms": 0.610492,
+      "payload_bytes": 64,
+      "request_budgets": true,
+      "version": "candidate",
+      "workers": 16,
+      "trial": 2
+    },
+    {
+      "calls": 33324,
+      "calls_per_second": 11107.936747705513,
+      "client_alloc_bytes_per_call": 10566.71083903493,
+      "elapsed_seconds": 3.000017083,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.08990148511583243,
+      "observer_enabled": false,
+      "p50_ms": 0.087193,
+      "p95_ms": 0.098643,
+      "p99_ms": 0.141745,
+      "payload_bytes": 4097,
+      "request_budgets": true,
+      "version": "candidate",
+      "workers": 1,
+      "trial": 2
+    },
+    {
+      "calls": 219135,
+      "calls_per_second": 73041.40400125108,
+      "client_alloc_bytes_per_call": 10538.830656900996,
+      "elapsed_seconds": 3.000147697,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.21887129005863964,
+      "observer_enabled": false,
+      "p50_ms": 0.181036,
+      "p95_ms": 0.465077,
+      "p99_ms": 0.896632,
+      "payload_bytes": 4097,
+      "request_budgets": true,
+      "version": "candidate",
+      "workers": 16,
+      "trial": 2
+    },
+    {
+      "calls": 11161,
+      "calls_per_second": 3720.1245252238155,
+      "client_alloc_bytes_per_call": 152855.45739629064,
+      "elapsed_seconds": 3.000168388,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.26868607123017646,
+      "observer_enabled": false,
+      "p50_ms": 0.255299,
+      "p95_ms": 0.367363,
+      "p99_ms": 0.449077,
+      "payload_bytes": 65537,
+      "request_budgets": true,
+      "version": "candidate",
+      "workers": 1,
+      "trial": 2
+    },
+    {
+      "calls": 43250,
+      "calls_per_second": 14411.799705827343,
+      "client_alloc_bytes_per_call": 150908.13299421966,
+      "elapsed_seconds": 3.00101312,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 1.1097760781502892,
+      "observer_enabled": false,
+      "p50_ms": 0.946265,
+      "p95_ms": 2.323955,
+      "p99_ms": 3.067871,
+      "payload_bytes": 65537,
+      "request_budgets": true,
+      "version": "candidate",
+      "workers": 16,
+      "trial": 2
+    },
+    {
+      "calls": 42509,
+      "calls_per_second": 14169.6198927514,
+      "client_alloc_bytes_per_call": 928.4588204850737,
+      "elapsed_seconds": 3.000009903,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.07045438754146181,
+      "observer_enabled": false,
+      "p50_ms": 0.068982,
+      "p95_ms": 0.078953,
+      "p99_ms": 0.089574,
+      "payload_bytes": 64,
+      "request_budgets": false,
+      "version": "baseline",
+      "workers": 1,
+      "trial": 3
+    },
+    {
+      "calls": 428943,
+      "calls_per_second": 142977.05836079607,
+      "client_alloc_bytes_per_call": 928.3115005956503,
+      "elapsed_seconds": 3.000082705,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.11174449533854149,
+      "observer_enabled": false,
+      "p50_ms": 0.102004,
+      "p95_ms": 0.171286,
+      "p99_ms": 0.251669,
+      "payload_bytes": 64,
+      "request_budgets": false,
+      "version": "baseline",
+      "workers": 16,
+      "trial": 3
+    },
+    {
+      "calls": 34330,
+      "calls_per_second": 11443.131846482158,
+      "client_alloc_bytes_per_call": 10861.406816195748,
+      "elapsed_seconds": 3.000052823,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.08726509129041654,
+      "observer_enabled": false,
+      "p50_ms": 0.085194,
+      "p95_ms": 0.094963,
+      "p99_ms": 0.139416,
+      "payload_bytes": 4097,
+      "request_budgets": false,
+      "version": "baseline",
+      "workers": 1,
+      "trial": 3
+    },
+    {
+      "calls": 235587,
+      "calls_per_second": 78525.21801609977,
+      "client_alloc_bytes_per_call": 10601.734968398086,
+      "elapsed_seconds": 3.000144488,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.2035668236744812,
+      "observer_enabled": false,
+      "p50_ms": 0.165827,
+      "p95_ms": 0.494778,
+      "p99_ms": 0.849481,
+      "payload_bytes": 4097,
+      "request_budgets": false,
+      "version": "baseline",
+      "workers": 16,
+      "trial": 3
+    },
+    {
+      "calls": 10736,
+      "calls_per_second": 3578.6229084586166,
+      "client_alloc_bytes_per_call": 180412.75260804768,
+      "elapsed_seconds": 3.000036683,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.27931596739940384,
+      "observer_enabled": false,
+      "p50_ms": 0.26608,
+      "p95_ms": 0.349873,
+      "p99_ms": 0.457226,
+      "payload_bytes": 65537,
+      "request_budgets": false,
+      "version": "baseline",
+      "workers": 1,
+      "trial": 3
+    },
+    {
+      "calls": 61152,
+      "calls_per_second": 20377.758659322306,
+      "client_alloc_bytes_per_call": 159651.2861067504,
+      "elapsed_seconds": 3.000918846,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.7848377873822605,
+      "observer_enabled": false,
+      "p50_ms": 0.669124,
+      "p95_ms": 1.62545,
+      "p99_ms": 2.631825,
+      "payload_bytes": 65537,
+      "request_budgets": false,
+      "version": "baseline",
+      "workers": 16,
+      "trial": 3
+    },
+    {
+      "calls": 40699,
+      "calls_per_second": 13566.056658129808,
+      "client_alloc_bytes_per_call": 928.4715594977764,
+      "elapsed_seconds": 3.000061184,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.07359533794442123,
+      "observer_enabled": false,
+      "p50_ms": 0.071923,
+      "p95_ms": 0.082432,
+      "p99_ms": 0.090944,
+      "payload_bytes": 64,
+      "request_budgets": true,
+      "version": "candidate",
+      "workers": 1,
+      "trial": 3
+    },
+    {
+      "calls": 347609,
+      "calls_per_second": 115865.29943317866,
+      "client_alloc_bytes_per_call": 928.3425918201198,
+      "elapsed_seconds": 3.000113077,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.13793445954794034,
+      "observer_enabled": false,
+      "p50_ms": 0.121664,
+      "p95_ms": 0.224599,
+      "p99_ms": 0.607162,
+      "payload_bytes": 64,
+      "request_budgets": true,
+      "version": "candidate",
+      "workers": 16,
+      "trial": 3
+    },
+    {
+      "calls": 33386,
+      "calls_per_second": 11128.459436204532,
+      "client_alloc_bytes_per_call": 10564.790031749835,
+      "elapsed_seconds": 3.000055865,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.08973761813334931,
+      "observer_enabled": false,
+      "p50_ms": 0.087233,
+      "p95_ms": 0.097874,
+      "p99_ms": 0.140585,
+      "payload_bytes": 4097,
+      "request_budgets": true,
+      "version": "candidate",
+      "workers": 1,
+      "trial": 3
+    },
+    {
+      "calls": 223023,
+      "calls_per_second": 74335.10594467128,
+      "client_alloc_bytes_per_call": 10539.033983042107,
+      "elapsed_seconds": 3.000237871,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.21506359733749433,
+      "observer_enabled": false,
+      "p50_ms": 0.180427,
+      "p95_ms": 0.448897,
+      "p99_ms": 0.851151,
+      "payload_bytes": 4097,
+      "request_budgets": true,
+      "version": "candidate",
+      "workers": 16,
+      "trial": 3
+    },
+    {
+      "calls": 11144,
+      "calls_per_second": 3714.50309728461,
+      "client_alloc_bytes_per_call": 152921.0904522613,
+      "elapsed_seconds": 3.000132106,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 0.26909187975592247,
+      "observer_enabled": false,
+      "p50_ms": 0.255709,
+      "p95_ms": 0.365383,
+      "p99_ms": 0.453657,
+      "payload_bytes": 65537,
+      "request_budgets": true,
+      "version": "candidate",
+      "workers": 1,
+      "trial": 3
+    },
+    {
+      "calls": 43870,
+      "calls_per_second": 14621.028381819378,
+      "client_alloc_bytes_per_call": 151061.87444723045,
+      "elapsed_seconds": 3.000472939,
+      "errors": 0,
+      "go_version": "go1.25.11",
+      "mean_ms": 1.0939962634602234,
+      "observer_enabled": false,
+      "p50_ms": 0.938963,
+      "p95_ms": 2.288983,
+      "p99_ms": 3.01573,
+      "payload_bytes": 65537,
+      "request_budgets": true,
+      "version": "candidate",
+      "workers": 16,
+      "trial": 3
+    }
+  ],
+  "rpc_medians": [
+    {
+      "payload_bytes": 64,
+      "workers": 1,
+      "baseline": {
+        "calls_per_second": 14169.6198927514,
+        "mean_ms": 0.07045438754146181,
+        "p99_ms": 0.086624,
+        "client_alloc_bytes_per_call": 928.4588204850737
+      },
+      "candidate": {
+        "calls_per_second": 13570.374654821388,
+        "mean_ms": 0.0735706610336019,
+        "p99_ms": 0.090944,
+        "client_alloc_bytes_per_call": 928.5066548794264
+      },
+      "throughput_change_percent": -4.229084777613279
+    },
+    {
+      "payload_bytes": 64,
+      "workers": 16,
+      "baseline": {
+        "calls_per_second": 142977.05836079607,
+        "mean_ms": 0.11174449533854149,
+        "p99_ms": 0.25349,
+        "client_alloc_bytes_per_call": 928.3115005956503
+      },
+      "candidate": {
+        "calls_per_second": 115868.12475194497,
+        "mean_ms": 0.13793160869465157,
+        "p99_ms": 0.610492,
+        "client_alloc_bytes_per_call": 928.332619902421
+      },
+      "throughput_change_percent": -18.960338056783176
+    },
+    {
+      "payload_bytes": 4097,
+      "workers": 1,
+      "baseline": {
+        "calls_per_second": 11443.131846482158,
+        "mean_ms": 0.08726509129041654,
+        "p99_ms": 0.140475,
+        "client_alloc_bytes_per_call": 10869.456273875136
+      },
+      "candidate": {
+        "calls_per_second": 11111.063501156208,
+        "mean_ms": 0.08987467153656926,
+        "p99_ms": 0.141695,
+        "client_alloc_bytes_per_call": 10566.71083903493
+      },
+      "throughput_change_percent": -2.9019008937490653
+    },
+    {
+      "payload_bytes": 4097,
+      "workers": 16,
+      "baseline": {
+        "calls_per_second": 78525.21801609977,
+        "mean_ms": 0.2035668236744812,
+        "p99_ms": 0.849481,
+        "client_alloc_bytes_per_call": 10610.334465352626
+      },
+      "candidate": {
+        "calls_per_second": 74335.10594467128,
+        "mean_ms": 0.21506359733749433,
+        "p99_ms": 0.860171,
+        "client_alloc_bytes_per_call": 10538.830656900996
+      },
+      "throughput_change_percent": -5.336008198753939
+    },
+    {
+      "payload_bytes": 65537,
+      "workers": 1,
+      "baseline": {
+        "calls_per_second": 3586.349464815552,
+        "mean_ms": 0.27870857388475834,
+        "p99_ms": 0.457226,
+        "client_alloc_bytes_per_call": 179918.71951437244
+      },
+      "candidate": {
+        "calls_per_second": 3720.1245252238155,
+        "mean_ms": 0.26868607123017646,
+        "p99_ms": 0.450677,
+        "client_alloc_bytes_per_call": 152855.45739629064
+      },
+      "throughput_change_percent": 3.730117818151424
+    },
+    {
+      "payload_bytes": 65537,
+      "workers": 16,
+      "baseline": {
+        "calls_per_second": 20331.359413262257,
+        "mean_ms": 0.7866405030488804,
+        "p99_ms": 2.551913,
+        "client_alloc_bytes_per_call": 159651.2861067504
+      },
+      "candidate": {
+        "calls_per_second": 14510.522514870006,
+        "mean_ms": 1.1022529567184054,
+        "p99_ms": 3.067871,
+        "client_alloc_bytes_per_call": 150974.0778839089
+      },
+      "throughput_change_percent": -28.629846042637396
+    }
+  ],
+  "jitter": {
+    "calls": 4771,
+    "calls_per_second": 1585.414462885318,
+    "client_alloc_bytes_per_call": 938.9109201425277,
+    "elapsed_seconds": 3.009307731,
+    "errors": 0,
+    "go_version": "go1.25.11",
+    "mean_ms": 10.079559928736115,
+    "observer_enabled": false,
+    "p50_ms": 10.070606,
+    "p95_ms": 11.881812,
+    "p99_ms": 12.056669,
+    "payload_bytes": 64,
+    "request_budgets": true,
+    "version": "candidate",
+    "workers": 16,
+    "phase": "jitter_10ms_2ms"
+  },
+  "recovery": {
+    "calls": 349778,
+    "calls_per_second": 116588.41795153968,
+    "client_alloc_bytes_per_call": 928.3446071508214,
+    "elapsed_seconds": 3.000109326,
+    "errors": 0,
+    "go_version": "go1.25.11",
+    "mean_ms": 0.13707966692873766,
+    "observer_enabled": false,
+    "p50_ms": 0.120805,
+    "p95_ms": 0.222597,
+    "p99_ms": 0.607852,
+    "payload_bytes": 64,
+    "request_budgets": true,
+    "version": "candidate",
+    "workers": 16,
+    "phase": "recovered"
+  },
+  "netem_removed": true,
+  "lease": {
+    "request_id": "chat-20260921T080550Z-105e3755",
+    "released_at": "2026-09-21T08:58:57Z",
+    "zero_inventory_observed_at": "2026-09-21T08:58:57.043973Z",
+    "authenticated_zero_inventory": true,
+    "verified_scopes": [
+      "disk_attachments",
+      "disks",
+      "eip_associations",
+      "eips",
+      "enis",
+      "instances",
+      "nat_gateways",
+      "route_entries",
+      "security_group_rules",
+      "security_groups",
+      "vpcs",
+      "vswitches"
+    ],
+    "proof_sha256": "daa1d15890351c61c948612938eaafa38101a3774cd96c86e40da24e9baf9b4b",
+    "budget_cap_cny": 300,
+    "quoted_six_hour_plan_cny": 43.6388,
+    "actual_billed_cny": null
+  },
+  "evidence_sha256": {
+    "remote-evidence.tar.gz": "a6fa859c3affad76eeca38bb25e60ea7dcb1306a9a01defaabe4ae89c840ec85",
+    "diagnostics.tar.gz": "29c0757a053cc3f5d0939d1ba4db733d6f9bffc189be3fd71213fa67b84a8367",
+    "rpc-probe.go": "bdf7910de21627d47c1c9dd3b8e55b072b362e1570fda41f9addb12de12cdff7",
+    "rpc-run.py": "4cd956543de3120dff0f82865bbaacebda6584be59531b5d5285fa4839f6ff85",
+    "scenario-500qps.yaml": "ac73bb7331ee421f2f94a0d67486e7fff26b7e5634eca4f1be81fd76529dbe7d",
+    "context.json": "d037f2636a08bec9beae4d7f372b59116d03ff88258d7bed68b71c1cef6f75cf"
+  }
+}

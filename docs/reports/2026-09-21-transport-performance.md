@@ -109,3 +109,6 @@ canceled、busy、stopped 状态并保留 errors.Is，避免依赖任意错误�
 响应状态均被旧客户端作为 generic remote error 正常完成；`flow-doc-contracts`
 通过；修正后的 cmd/internal/pkg/scripts/docker 全量显式包路径单元测试通过。
 Standards 和 Spec 两条审查线独立复核后均无未解决发现。
+
+后续已使用独立 ECS 完成 [跨节点云上对照验证](2026-09-21-transport-cross-host-validation.md)。
+该结果未复现整体业务收益，并发现分配增加及并发 RPC 退化；请结合该报告判断适用范围。
