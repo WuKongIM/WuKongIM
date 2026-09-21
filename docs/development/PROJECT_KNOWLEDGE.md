@@ -356,6 +356,17 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
+- The 2026-09-22 native x86 cross-host RPC matrix used five interleaved trials
+  across old/current client-server pairs. At 64B/16 callers, current/current
+  throughput was 8.24% below old/old; old/current was 8.67% below, while
+  current/old differed by only -0.29%. The primary regression direction is on
+  the current server; queue/lifecycle allocation and synchronization profiles
+  support investigation but do not establish one mechanism's causal share.
+  Preserve cancellation, execution budgets, FIFO, retained-byte admission, and
+  shutdown semantics in follow-up experiments. See
+  `docs/reports/2026-09-22-rpc-cross-host-results.md`; mixed-version effects are
+  not additive and different Lease measurements must not be pooled.
+
 - Benchmark progress snapshots capture counters and gauges at one lock-protected
   instant without copying or sorting latency history or waiting for report
   aggregation. Lifecycle polling and terminal traffic projection share report
