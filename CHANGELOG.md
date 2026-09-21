@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Keep benchmark metric writes moving while report snapshots sort historical latency samples, preserving consistent snapshots and exact percentiles. / 压测报告在锁外排序历史时延样本，降低指标写入阻塞，并保留快照一致性及精确分位数。
+
 - Honor `random_online` in group benchmarks using the scenario seed and logical message indexes, instead of silently reusing the first online member. / 群聊压测的 `random_online` 按场景种子和逻辑消息索引选择发送者，修复此前始终使用首个在线成员的问题。
 
 - Add bounded benchmark timing for scheduling, SEND submission, SENDACK waiting and full operations; expose planned/dispatched shortfalls, stop batch admission at the deadline, and avoid expired-window timer spinning during drain. / 压测增加有界分段计时并展示计划发送缺口，修复批量派发越过截止时间及排空期间过期定时器空转。

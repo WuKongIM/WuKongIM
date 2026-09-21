@@ -1,0 +1,564 @@
+{
+  "base_commit": "1141eb767d9e8a8055b14e129bcb3004770add24",
+  "environment": {
+    "go": "go version go1.25.11 darwin/arm64",
+    "cpu": "Apple M4",
+    "gomaxprocs_per_process": 4,
+    "same_host": true
+  },
+  "scenario": {
+    "nodes": 3,
+    "hash_slots": 256,
+    "logical_slots": 12,
+    "online_users": 1000,
+    "groups": 100,
+    "group_size": 10,
+    "payload_bytes": 128,
+    "offered_send_per_second": 500,
+    "concurrency": 64,
+    "sender_pick": "first_online",
+    "seed": 42,
+    "warmup_seconds": 10,
+    "measure_seconds": 180,
+    "cooldown_max_seconds": 30,
+    "verification": "full"
+  },
+  "microbench": {
+    "before": [
+      {
+        "samples": 30000,
+        "snapshots": 10,
+        "ns/op": 3251138.0,
+        "writer-max-us": 7300.0,
+        "writer-mean-us": 2887.0,
+        "writer-observations": 10.0,
+        "writer-over-1ms": 5.0,
+        "B/op": 246889.0,
+        "allocs/op": 8.0
+      },
+      {
+        "samples": 30000,
+        "snapshots": 10,
+        "ns/op": 2166346.0,
+        "writer-max-us": 4136.0,
+        "writer-mean-us": 1820.0,
+        "writer-observations": 10.0,
+        "writer-over-1ms": 5.0,
+        "B/op": 246851.0,
+        "allocs/op": 7.0
+      },
+      {
+        "samples": 30000,
+        "snapshots": 10,
+        "ns/op": 1930388.0,
+        "writer-max-us": 4869.0,
+        "writer-mean-us": 1722.0,
+        "writer-observations": 10.0,
+        "writer-over-1ms": 5.0,
+        "B/op": 246859.0,
+        "allocs/op": 8.0
+      },
+      {
+        "samples": 270000,
+        "snapshots": 10,
+        "ns/op": 21832717.0,
+        "writer-max-us": 43222.0,
+        "writer-mean-us": 21408.0,
+        "writer-observations": 10.0,
+        "writer-over-1ms": 5.0,
+        "B/op": 2163779.0,
+        "allocs/op": 7.0
+      },
+      {
+        "samples": 270000,
+        "snapshots": 10,
+        "ns/op": 22093158.0,
+        "writer-max-us": 44572.0,
+        "writer-mean-us": 21720.0,
+        "writer-observations": 10.0,
+        "writer-over-1ms": 5.0,
+        "B/op": 2163782.0,
+        "allocs/op": 8.0
+      },
+      {
+        "samples": 270000,
+        "snapshots": 10,
+        "ns/op": 21941704.0,
+        "writer-max-us": 43476.0,
+        "writer-mean-us": 21612.0,
+        "writer-observations": 10.0,
+        "writer-over-1ms": 5.0,
+        "B/op": 2163779.0,
+        "allocs/op": 7.0
+      },
+      {
+        "samples": 810000,
+        "snapshots": 10,
+        "ns/op": 71424829.0,
+        "writer-max-us": 145026.0,
+        "writer-mean-us": 70979.0,
+        "writer-observations": 10.0,
+        "writer-over-1ms": 5.0,
+        "B/op": 6489164.0,
+        "allocs/op": 8.0
+      },
+      {
+        "samples": 810000,
+        "snapshots": 10,
+        "ns/op": 71615967.0,
+        "writer-max-us": 143222.0,
+        "writer-mean-us": 71284.0,
+        "writer-observations": 10.0,
+        "writer-over-1ms": 5.0,
+        "B/op": 6489164.0,
+        "allocs/op": 8.0
+      },
+      {
+        "samples": 810000,
+        "snapshots": 10,
+        "ns/op": 72455629.0,
+        "writer-max-us": 147554.0,
+        "writer-mean-us": 80243.0,
+        "writer-observations": 9.0,
+        "writer-over-1ms": 5.0,
+        "B/op": 6489155.0,
+        "allocs/op": 7.0
+      }
+    ],
+    "after": [
+      {
+        "samples": 30000,
+        "snapshots": 10,
+        "ns/op": 2942138.0,
+        "writer-max-us": 7.291,
+        "writer-mean-us": 0.9481,
+        "writer-observations": 29.0,
+        "writer-over-1ms": 0.0,
+        "B/op": 246872.0,
+        "allocs/op": 8.0
+      },
+      {
+        "samples": 30000,
+        "snapshots": 10,
+        "ns/op": 2230692.0,
+        "writer-max-us": 4.833,
+        "writer-mean-us": 0.4508,
+        "writer-observations": 22.0,
+        "writer-over-1ms": 0.0,
+        "B/op": 246872.0,
+        "allocs/op": 8.0
+      },
+      {
+        "samples": 30000,
+        "snapshots": 10,
+        "ns/op": 1915483.0,
+        "writer-max-us": 0.583,
+        "writer-mean-us": 0.1806,
+        "writer-observations": 18.0,
+        "writer-over-1ms": 0.0,
+        "B/op": 246873.0,
+        "allocs/op": 8.0
+      },
+      {
+        "samples": 270000,
+        "snapshots": 10,
+        "ns/op": 22314188.0,
+        "writer-max-us": 51.88,
+        "writer-mean-us": 0.4268,
+        "writer-observations": 222.0,
+        "writer-over-1ms": 0.0,
+        "B/op": 2163809.0,
+        "allocs/op": 8.0
+      },
+      {
+        "samples": 270000,
+        "snapshots": 10,
+        "ns/op": 24369250.0,
+        "writer-max-us": 199.4,
+        "writer-mean-us": 3.775,
+        "writer-observations": 237.0,
+        "writer-over-1ms": 0.0,
+        "B/op": 2163814.0,
+        "allocs/op": 8.0
+      },
+      {
+        "samples": 270000,
+        "snapshots": 10,
+        "ns/op": 24803304.0,
+        "writer-max-us": 70.33,
+        "writer-mean-us": 1.494,
+        "writer-observations": 246.0,
+        "writer-over-1ms": 0.0,
+        "B/op": 2163803.0,
+        "allocs/op": 8.0
+      },
+      {
+        "samples": 810000,
+        "snapshots": 10,
+        "ns/op": 80703962.0,
+        "writer-max-us": 582.0,
+        "writer-mean-us": 3.013,
+        "writer-observations": 796.0,
+        "writer-over-1ms": 0.0,
+        "B/op": 6489195.0,
+        "allocs/op": 8.0
+      },
+      {
+        "samples": 810000,
+        "snapshots": 10,
+        "ns/op": 74904179.0,
+        "writer-max-us": 301.5,
+        "writer-mean-us": 0.6546,
+        "writer-observations": 748.0,
+        "writer-over-1ms": 0.0,
+        "B/op": 6489185.0,
+        "allocs/op": 8.0
+      },
+      {
+        "samples": 810000,
+        "snapshots": 10,
+        "ns/op": 72619900.0,
+        "writer-max-us": 349.0,
+        "writer-mean-us": 1.845,
+        "writer-observations": 726.0,
+        "writer-over-1ms": 0.0,
+        "B/op": 6489195.0,
+        "allocs/op": 8.0
+      }
+    ]
+  },
+  "business_rounds": [
+    {
+      "round": "snapshot-baseline180",
+      "summary": {
+        "send_success": 90000,
+        "ingress_qps": 500,
+        "connect_attempts": 1000,
+        "connect_success": 1000,
+        "connect_errors": 0,
+        "connect_error_rate": 0,
+        "sendack_error_rate": 0,
+        "recv_verify_error_rate": 0,
+        "worker_failed": 0,
+        "sendack_max_worker_p99": 125120792,
+        "recv_max_worker_p99": 36022500
+      },
+      "report_sha256": "c6b93ac263acc64ce95a389bcc2d679f311a27e618c6bf1a9e3316ba9f6c26d8",
+      "measured_counters": {
+        "group_recv_success_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 810000,
+        "group_send_success_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 90000,
+        "workload_scheduler_busy_key_stall_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 313,
+        "workload_scheduler_dispatched_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 90000,
+        "workload_scheduler_enqueued_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 90000,
+        "workload_scheduler_planned_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 90000
+      },
+      "measured_histograms": {
+        "group_send_latency_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "count": 90000,
+          "sum_seconds": 5341.80183486,
+          "min_seconds": 0.010079417,
+          "max_seconds": 0.21073375,
+          "p50_seconds": 0.055251959,
+          "p95_seconds": 0.101426583,
+          "p99_seconds": 0.125120792
+        },
+        "workload_dispatch_lag_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 90000,
+          "sum_seconds": 841.5441405560027,
+          "min_seconds": 5.42e-07,
+          "max_seconds": 0.157765958,
+          "p50_seconds": 0.01,
+          "p95_seconds": 0.05,
+          "p99_seconds": 0.05
+        },
+        "workload_operation_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 90000,
+          "sum_seconds": 6748.883490818999,
+          "min_seconds": 0.010432709,
+          "max_seconds": 0.281513458,
+          "p50_seconds": 0.1,
+          "p95_seconds": 0.15,
+          "p99_seconds": 0.2
+        },
+        "workload_send_submit_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 90000,
+          "sum_seconds": 0.6474704030000225,
+          "min_seconds": 2.208e-06,
+          "max_seconds": 0.001146583,
+          "p50_seconds": 5e-06,
+          "p95_seconds": 2e-05,
+          "p99_seconds": 5e-05
+        },
+        "workload_sendack_wait_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 90000,
+          "sum_seconds": 4413.310552756017,
+          "min_seconds": 4.58e-07,
+          "max_seconds": 0.171878584,
+          "p50_seconds": 0.05,
+          "p95_seconds": 0.1,
+          "p99_seconds": 0.15
+        }
+      },
+      "cleanup": {
+        "owned_processes": [
+          {
+            "pid": 65864,
+            "exit_code": 0
+          },
+          {
+            "pid": 65865,
+            "exit_code": 0
+          },
+          {
+            "pid": 65866,
+            "exit_code": 0
+          },
+          {
+            "pid": 65880,
+            "exit_code": -15
+          },
+          {
+            "pid": 65882,
+            "exit_code": 0
+          }
+        ],
+        "all_exited": true
+      },
+      "observed_run_interval": [
+        1789990933.388462,
+        1789991111.737545
+      ],
+      "profile_windows": [
+        {
+          "name": "node1",
+          "started": 1789991083.9852118,
+          "ended": 1789991094.134051
+        },
+        {
+          "name": "node2",
+          "started": 1789991083.985279,
+          "ended": 1789991094.153258
+        },
+        {
+          "name": "node3",
+          "started": 1789991083.9850829,
+          "ended": 1789991094.126135
+        },
+        {
+          "name": "worker",
+          "started": 1789991083.985329,
+          "ended": 1789991094.1690738
+        }
+      ]
+    },
+    {
+      "round": "snapshot-candidate180",
+      "summary": {
+        "send_success": 90000,
+        "ingress_qps": 500,
+        "connect_attempts": 1000,
+        "connect_success": 1000,
+        "connect_errors": 0,
+        "connect_error_rate": 0,
+        "sendack_error_rate": 0,
+        "recv_verify_error_rate": 0,
+        "worker_failed": 0,
+        "sendack_max_worker_p99": 104915250,
+        "recv_max_worker_p99": 26515583
+      },
+      "report_sha256": "dd4734730b6f6c502ee8c51c33c716695307e52e1ef91fdb79cbc7bead937c02",
+      "measured_counters": {
+        "group_recv_success_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 810000,
+        "group_send_success_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 90000,
+        "workload_scheduler_busy_key_stall_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 0,
+        "workload_scheduler_dispatched_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 90000,
+        "workload_scheduler_enqueued_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 90000,
+        "workload_scheduler_planned_total{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": 90000
+      },
+      "measured_histograms": {
+        "group_send_latency_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "count": 90000,
+          "sum_seconds": 4548.576040145,
+          "min_seconds": 0.009203291,
+          "max_seconds": 0.185939583,
+          "p50_seconds": 0.047916208,
+          "p95_seconds": 0.087778834,
+          "p99_seconds": 0.10491525
+        },
+        "workload_dispatch_lag_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 90000,
+          "sum_seconds": 11.767345565000001,
+          "min_seconds": 4.58e-07,
+          "max_seconds": 0.020688666,
+          "p50_seconds": 0.0002,
+          "p95_seconds": 0.0005,
+          "p99_seconds": 0.0005
+        },
+        "workload_operation_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 90000,
+          "sum_seconds": 5921.591994719067,
+          "min_seconds": 0.011708333,
+          "max_seconds": 0.2025415,
+          "p50_seconds": 0.1,
+          "p95_seconds": 0.15,
+          "p99_seconds": 0.15
+        },
+        "workload_send_submit_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 90000,
+          "sum_seconds": 0.6626821589999943,
+          "min_seconds": 2.708e-06,
+          "max_seconds": 0.001986958,
+          "p50_seconds": 1e-05,
+          "p95_seconds": 2e-05,
+          "p99_seconds": 5e-05
+        },
+        "workload_sendack_wait_seconds{channel_type=group,phase=run,profile=distributed-group,traffic=group-send}": {
+          "percentiles_are_upper_bounds": true,
+          "count": 90000,
+          "sum_seconds": 4547.160238265976,
+          "min_seconds": 0.009175458,
+          "max_seconds": 0.18592675,
+          "p50_seconds": 0.05,
+          "p95_seconds": 0.1,
+          "p99_seconds": 0.15
+        }
+      },
+      "cleanup": {
+        "owned_processes": [
+          {
+            "pid": 66098,
+            "exit_code": 0
+          },
+          {
+            "pid": 66099,
+            "exit_code": 0
+          },
+          {
+            "pid": 66100,
+            "exit_code": 0
+          },
+          {
+            "pid": 66146,
+            "exit_code": -15
+          },
+          {
+            "pid": 66148,
+            "exit_code": 0
+          }
+        ],
+        "all_exited": true
+      },
+      "observed_run_interval": [
+        1789991485.5882208,
+        1789991663.770804
+      ],
+      "profile_windows": [
+        {
+          "name": "node1",
+          "started": 1789991637.4862301,
+          "ended": 1789991647.665117
+        },
+        {
+          "name": "node2",
+          "started": 1789991637.486542,
+          "ended": 1789991647.705226
+        },
+        {
+          "name": "node3",
+          "started": 1789991637.486885,
+          "ended": 1789991647.686508
+        },
+        {
+          "name": "worker",
+          "started": 1789991637.4867148,
+          "ended": 1789991647.649492
+        }
+      ]
+    }
+  ],
+  "validation": {
+    "regression_failed_before_fix": true,
+    "integration_race_packages": 4,
+    "flow_doc_contracts": "passed with nine advisory length warnings"
+  },
+  "worker_cpu_profiles": {
+    "baseline": {
+      "seconds": 10.15,
+      "cpu_samples_seconds": 10.32,
+      "collect_cumulative_seconds": 7.99
+    },
+    "candidate": {
+      "seconds": 10.12,
+      "cpu_samples_seconds": 10.56,
+      "collect_cumulative_seconds": 8.03,
+      "summarize_cumulative_seconds": 8.01
+    }
+  },
+  "artifact_sha256": {
+    "instruction-digests.json": "f2e985085f0173598d59818769dfc0a789d901d83a0eaeea088b52536e2abbf2",
+    "run.py": "feed9cf26d4b8dfb6927bb399868af6b02ee67bbb704007bc9ff9c6e8bec6e0d",
+    "profile-main.go": "3cbc15b04217148feb2afcfd6fa1fff6582cc5b318191af499813fb24cd3e4a4",
+    "overlay-baseline.json": "1761386453ce6b654765a5bfd2cbeeb58f2e63da6590509a6c3f417cbf18f210",
+    "overlay-candidate.json": "cc4237dffa93eaa543aadc9fd178cb853b38bffea0f23d92bff117b75a60c674",
+    "wukongim": "f4675a6b31de9302a3f68d0dbaff7bc0edb2419c9ebf67f5ca0c7e9af2e31025",
+    "wkcli-baseline": "d7a4dad0e6fdc4fd7cdf3cdb8482f6612722ae11e61bd26b2502c99a43107197",
+    "wkcli-candidate": "e18b82af0119af7a4d09cac3c7d5e2adfb627a7381a05f194d2a495e05ca42f3",
+    "before-test.txt": "555d51a03c1d76d6188fcaca6abb9daa30fcd4055868db3b6fb585d92e3e2ec2",
+    "after-test.txt": "4e10e437cd675c87dc3e96492f765185668bfa981b1b1c8a990e196d2d792456",
+    "before-bench.txt": "1cbe4a9e001d00ea3bd7767c3fb4c9f35734242d87750c07948d2649db40384f",
+    "after-bench.txt": "e9922d9a6e517b24445f9d35547720ca1b07d9a3b01b29dee5efb660b6c10c40",
+    "race.txt": "836cd7b09ada7b60eeb304032ba4b905046353b874a22e4c05103251a9162bd1",
+    "flow-doc-contracts.txt": "a9759dd638a23aca4825c0de5400dd0a84a7112f9f5ebb919d74f79d265c5144",
+    "local-data-cleanup.json": "a6d06a4b6174ac96071f3d95a1350d6ee4a6a76020a337c4ae198446a1c17640",
+    "metrics.go": "3c223448053a6e2483bb4335b59d7139900528d77caa6017af48cb9d084497d3",
+    "collect_test.go": "13f3347524f4f5588b6223b264267a89e03f3124a059d1c5605c00609aed3899",
+    "collect_integration_test.go": "912437cb1bd7644bb165954fa18acdddf779e1d6faf042b38cae6add81a1c5dc",
+    "snapshot-baseline180/profiles/node1-cpu.pb.gz": "62158c7cdcb5c1f816fa99c8022c53130117148cfe81d5919716eac7933796a6",
+    "snapshot-baseline180/profiles/node3-heap-before.pb.gz": "10e5b45f59143eb2075cf2212ec27b4589372e5bf681fb949f9cf7468128a495",
+    "snapshot-baseline180/profiles/node3-heap-after.pb.gz": "c1cab5e6af882b113b613d67ba931e65369da61a4866d6324ed98ed094106c91",
+    "snapshot-baseline180/profiles/worker-heap-after.pb.gz": "3cce0c6f37648a83cb4b67a076b63dbc0bc2a74ab5d495ceaf264506557c856b",
+    "snapshot-baseline180/profiles/node2-cpu-top.txt": "fc4230a80ddc7a2cebd5587b6bb70836ac4e39d486fd294b11ae01ce726abd50",
+    "snapshot-baseline180/profiles/node2-heap-before.pb.gz": "7e74140546d812839d4b837e498ac2cdab02e1ea538a8cc8f80661e773151d2c",
+    "snapshot-baseline180/profiles/node1-cpu-top.txt": "104e14e34872daa57f761308d8903b90e820077dcc730a156064da8f0314b081",
+    "snapshot-baseline180/profiles/node1-heap-before.pb.gz": "8d448546474b948bd5751c17ab9b801ad3c1e218a196e222a4fccd84898b7122",
+    "snapshot-baseline180/profiles/worker-heap-before.pb.gz": "4a7e5dd7c58a4202e78f6f6752ca2277f6b9e0a99ffdd1f44bc01152e7a76a46",
+    "snapshot-baseline180/profiles/node2-heap-after.pb.gz": "6cc6be4bc65773cd9d878bbe88d63517725efb9c71198b46c873f9b24931f871",
+    "snapshot-baseline180/profiles/node3-cpu.pb.gz": "58e80505ea454dd2d0655ccc7c2ed65fc14873934140ada723f25f1e97c1f8f1",
+    "snapshot-baseline180/profiles/node3-cpu-top.txt": "0d58227e69f1eecef70db76740ef22498d4f4eba2bde3130a6d5854a5fa9e803",
+    "snapshot-baseline180/profiles/node1-heap-after.pb.gz": "77efaab19356fc615035abde2bd245b43d78011a5c2e3f60b7a2e0762c8210d8",
+    "snapshot-baseline180/profiles/worker-cpu-top.txt": "25967c9218b18b46b85599d22e020edb8a0549927c1149da89c0ce0337e078fe",
+    "snapshot-baseline180/profiles/node2-cpu.pb.gz": "3e4cab02a61ab022e113e0695bd4f9dbde492ba35c7a269cba26d1960dd965fa",
+    "snapshot-baseline180/profiles/worker-cpu.pb.gz": "344dfb9f0c6610025fc13b5b1864844a319b283adf8a76b3843d867a868daace",
+    "snapshot-candidate180/profiles/node1-cpu.pb.gz": "909ff9e4549687c02446017ecd5e2ead61e2084f252f98982ebf1e0a039abcb2",
+    "snapshot-candidate180/profiles/node3-heap-before.pb.gz": "a3e9874b5310805c7a0cabfb682b0e1fb719c1d58facac7b6987d77521a2c057",
+    "snapshot-candidate180/profiles/node3-heap-after.pb.gz": "799daf6c66b9041062fa9f73af94173857d978cbd358cf53ed4f02cabefa3597",
+    "snapshot-candidate180/profiles/worker-heap-after.pb.gz": "54455a139f7bf58901cbb76c472afca5ebf2b0883daf8c0767940737f109fc76",
+    "snapshot-candidate180/profiles/node2-cpu-top.txt": "88220119753836edd0fc2ac81ce8c989dfe30720fbc927c1d1a1511acbb84cd1",
+    "snapshot-candidate180/profiles/node2-heap-before.pb.gz": "c15a26612040762ff3ab25e48f3ccc361b3cf3e67e38abbc33592637abf69679",
+    "snapshot-candidate180/profiles/node1-cpu-top.txt": "1c115afcdef5d02cd5b6132301d51320efca4f36f01468dbcffd3f5b2e2919d9",
+    "snapshot-candidate180/profiles/node1-heap-before.pb.gz": "f205d60d52a2c28cc2bcb477f358bd527bd9b282fb759e24ed63c541d3c2d901",
+    "snapshot-candidate180/profiles/worker-heap-before.pb.gz": "0ee7ba75929d252e5b59400e45a6b46c11386ebb0faf315052b00c3b9d21f469",
+    "snapshot-candidate180/profiles/node2-heap-after.pb.gz": "85e0dfc7505f63cedcbbadce24e3c70f72b627ad8c22252e89cd2d06b25c8008",
+    "snapshot-candidate180/profiles/node3-cpu.pb.gz": "347968ba6b236d6f512a4cadae2638ea7bf4f2d72e6a9845a8fa60e053c2d7f7",
+    "snapshot-candidate180/profiles/node3-cpu-top.txt": "65ff690f3b5675eec80a5e52e5dd207fd8d730e24f496be78539b92fd83e7f6d",
+    "snapshot-candidate180/profiles/node1-heap-after.pb.gz": "9ede2235cbbe424b8cd5bbd1adae8e06a4ca6b7565cbb1956a9a0568a2355b04",
+    "snapshot-candidate180/profiles/worker-cpu-top.txt": "873e1f1539bdb01f7f7324017c3fb1eb9012f30051f72a4f78af9eb74081918f",
+    "snapshot-candidate180/profiles/node2-cpu.pb.gz": "a4f39e1bd282e6967a35d1db6639ff627f6837548b1bf08bc35a6b336a659129",
+    "snapshot-candidate180/profiles/worker-cpu.pb.gz": "b3da89f64033784c57feab29a25ecdb464f0ee0af61382bb2fd25c89015c5413",
+    "final-metrics-race.txt": "77b53ce6fadf62169967aff69f5e48f3b975e7e587e337b67f57fa4dafd82761"
+  },
+  "limitations": [
+    "One measured business round per version, with different run IDs/channel hashes.",
+    "Same-host macOS does not validate Linux ECS performance.",
+    "Exact legacy sample retention and sorting CPU costs remain.",
+    "Snapshot capture still copies samples under the producer lock.",
+    "No new paid cloud resources provisioned."
+  ]
+}

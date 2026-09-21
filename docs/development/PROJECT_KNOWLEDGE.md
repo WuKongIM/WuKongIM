@@ -353,6 +353,12 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
+- Benchmark Registry snapshots copy every metric family at one lock-protected
+  instant, then aggregate owned latency samples outside the producer lock.
+  A separate collector mutex serializes large working copies. Exact SLO
+  quantiles and raw sample retention remain unchanged; this reduces producer
+  stalls, not the sorting CPU cost or duration-dependent legacy sample storage.
+
 - Generic group `random_online` sender selection must use the scenario seed
   and logical channel/message indexes so scheduling and sending agree across
   call order and traffic partitions. Before the September 2026 fix, this accepted

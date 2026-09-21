@@ -268,7 +268,10 @@ type WorkerSnapshot struct {
 
 // Registry stores lightweight counters, gauges, latency samples, and bounded errors for a benchmark run.
 type Registry struct {
-	mu sync.Mutex
+	// collectMu serializes large snapshot copies and aggregation. Aggregation
+	// releases mu; collectors acquire collectMu before mu, writers acquire only mu.
+	collectMu sync.Mutex
+	mu        sync.Mutex
 
 	counters  map[string]uint64
 	gauges    map[string]float64
@@ -436,11 +439,21 @@ func (r *Registry) ErrorSamples() []ErrorSample {
 
 // Collect returns the current registry contents in a typed JSON-friendly shape.
 func (r *Registry) Collect() SnapshotData {
+	return r.collect(summarizeDurations)
+}
+
+// collect separates snapshot capture from potentially expensive aggregation.
+// The callback is internal so tests can verify producer progress during aggregation.
+func (r *Registry) collect(summarize func([]time.Duration) HistogramSummary) SnapshotData {
 	if r == nil {
 		return emptySnapshot()
 	}
+	r.collectMu.Lock()
+	defer r.collectMu.Unlock()
+
+	// Capture every family under one lock so the returned snapshot has one cut.
+	// Raw samples must be privately owned before writers can append again.
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	counters := make(map[string]uint64, len(r.counters))
 	for k, v := range r.counters {
 		counters[k] = v
@@ -449,15 +462,21 @@ func (r *Registry) Collect() SnapshotData {
 	for k, v := range r.gauges {
 		gauges[k] = v
 	}
-	histograms := make(map[string]HistogramSummary, len(r.latencies))
+	latencies := make(map[string][]time.Duration, len(r.latencies))
 	for k, values := range r.latencies {
-		histograms[k] = summarizeDurations(values)
+		latencies[k] = append([]time.Duration(nil), values...)
 	}
+	histograms := make(map[string]HistogramSummary, len(r.latencies)+len(r.diagnosticLatencies))
 	for k, h := range r.diagnosticLatencies {
 		histograms[k] = h.collect()
 	}
-	errors := SanitizeErrorSamples(r.errors)
-	return SnapshotData{Counters: counters, Gauges: gauges, Histograms: histograms, Errors: errors}
+	errors := append([]ErrorSample(nil), r.errors...)
+	r.mu.Unlock()
+
+	for k, values := range latencies {
+		histograms[k] = summarize(values)
+	}
+	return SnapshotData{Counters: counters, Gauges: gauges, Histograms: histograms, Errors: SanitizeErrorSamples(errors)}
 }
 
 // SanitizeSnapshot copies one metrics snapshot, drops invalid or
@@ -617,11 +636,13 @@ func emptySnapshot() SnapshotData {
 	}
 }
 
+// summarizeDurations sorts an owned snapshot slice in place. It must never
+// receive a registry-owned slice while producers can append to that registry.
 func summarizeDurations(values []time.Duration) HistogramSummary {
 	if len(values) == 0 {
 		return HistogramSummary{}
 	}
-	sorted := append([]time.Duration(nil), values...)
+	sorted := values
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
 	var sum time.Duration
 	for _, value := range sorted {
