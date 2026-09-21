@@ -1,0 +1,1020 @@
+{
+  "source_sha": "ae68a044cae8a8811e6bc7fc20900b2c5226b0b6",
+  "cloud_purchase": false,
+  "instructions_sha256": "c6eae7244b1c660be4b2a62cbdc1efa5c26c35e34972e994df7e6ae073fc9d0b",
+  "source_sha256": {
+    "pkg/transport/internal/rpc/service.go": "4555aaf5ea9cedee229da109793d6ef1976b2f9beea21a0d91ae2c1b6683add2",
+    "pkg/transport/internal/rpc/service_queue.go": "e7b436941f943780f82143baa3ed829c84415b732b7398a91c76b54169f3be14",
+    "pkg/transport/internal/conn/request_budget.go": "faec425b7522eb1cbf051e73f9cd928e8602c426cd38ec9a0b141599dbd362f3"
+  },
+  "variants": [
+    "no-request-table",
+    "no-retained-accounting",
+    "empty-queue-wakeup",
+    "no-service-revisions"
+  ],
+  "local_environment": "Apple M4; native Linux ARM64 binary; reused Debian rootfs; CPUs0-3; memory6GiB; GOMAXPROCS4",
+  "schema_version": 1,
+  "runs": [
+    {
+      "trial": 1,
+      "variant": "baseline",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-admission-isolation:/e",
+        "--entrypoint",
+        "/e/baseline.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "baseline-1.txt",
+      "sha256": "7b3be0d9d0b8281a2510fc9d2436f85bed8faab4e4e3e64ffa5ae1156e0ed7d6",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  199051\t     11713 ns/op\t   5.46 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  651951\t      3541 ns/op\t  18.08 MB/s\t    2826 B/op\t      45 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "iterations": 199051,
+          "ns_op": 11713,
+          "bytes_op": 2825,
+          "allocs_op": 45
+        },
+        {
+          "workers": 16,
+          "iterations": 651951,
+          "ns_op": 3541,
+          "bytes_op": 2826,
+          "allocs_op": 45
+        }
+      ]
+    },
+    {
+      "trial": 1,
+      "variant": "no-request-table",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-admission-isolation:/e",
+        "--entrypoint",
+        "/e/no-request-table.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "no-request-table-1.txt",
+      "sha256": "96bec9c916b3547be14e796a28f6c82c4aa55bb06ac02774417d26627c504016",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  187764\t     12379 ns/op\t   5.17 MB/s\t    2793 B/op\t      44 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  629799\t      3521 ns/op\t  18.18 MB/s\t    2794 B/op\t      44 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "iterations": 187764,
+          "ns_op": 12379,
+          "bytes_op": 2793,
+          "allocs_op": 44
+        },
+        {
+          "workers": 16,
+          "iterations": 629799,
+          "ns_op": 3521,
+          "bytes_op": 2794,
+          "allocs_op": 44
+        }
+      ]
+    },
+    {
+      "trial": 1,
+      "variant": "no-retained-accounting",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-admission-isolation:/e",
+        "--entrypoint",
+        "/e/no-retained-accounting.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "no-retained-accounting-1.txt",
+      "sha256": "67c9657657d384f1692795546c76fd7a0cffb12b939648c2e9fc5e5ec1050c53",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  177835\t     12289 ns/op\t   5.21 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  644370\t      3499 ns/op\t  18.29 MB/s\t    2826 B/op\t      45 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "iterations": 177835,
+          "ns_op": 12289,
+          "bytes_op": 2825,
+          "allocs_op": 45
+        },
+        {
+          "workers": 16,
+          "iterations": 644370,
+          "ns_op": 3499,
+          "bytes_op": 2826,
+          "allocs_op": 45
+        }
+      ]
+    },
+    {
+      "trial": 1,
+      "variant": "empty-queue-wakeup",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-admission-isolation:/e",
+        "--entrypoint",
+        "/e/empty-queue-wakeup.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "empty-queue-wakeup-1.txt",
+      "sha256": "9ff4cec36217db98aeea64d69d12bdefee1543cfa987c2bff147b99d854609d2",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  203576\t     12989 ns/op\t   4.93 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  618507\t      3488 ns/op\t  18.35 MB/s\t    2826 B/op\t      45 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "iterations": 203576,
+          "ns_op": 12989,
+          "bytes_op": 2825,
+          "allocs_op": 45
+        },
+        {
+          "workers": 16,
+          "iterations": 618507,
+          "ns_op": 3488,
+          "bytes_op": 2826,
+          "allocs_op": 45
+        }
+      ]
+    },
+    {
+      "trial": 1,
+      "variant": "no-service-revisions",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-admission-isolation:/e",
+        "--entrypoint",
+        "/e/no-service-revisions.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "no-service-revisions-1.txt",
+      "sha256": "66b2d2d06374a84b0232bc4fb0dcfda01b18d9cc40e91230302a8b2acbca5a79",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  196387\t     11525 ns/op\t   5.55 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  629127\t      3650 ns/op\t  17.53 MB/s\t    2826 B/op\t      45 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "iterations": 196387,
+          "ns_op": 11525,
+          "bytes_op": 2825,
+          "allocs_op": 45
+        },
+        {
+          "workers": 16,
+          "iterations": 629127,
+          "ns_op": 3650,
+          "bytes_op": 2826,
+          "allocs_op": 45
+        }
+      ]
+    },
+    {
+      "trial": 2,
+      "variant": "no-request-table",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-admission-isolation:/e",
+        "--entrypoint",
+        "/e/no-request-table.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "no-request-table-2.txt",
+      "sha256": "028fbe1ba95ed76b6c8ce654336da025eba3795679528e858106842711e14adf",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  208111\t     11675 ns/op\t   5.48 MB/s\t    2793 B/op\t      44 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  703413\t      3516 ns/op\t  18.20 MB/s\t    2794 B/op\t      44 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "iterations": 208111,
+          "ns_op": 11675,
+          "bytes_op": 2793,
+          "allocs_op": 44
+        },
+        {
+          "workers": 16,
+          "iterations": 703413,
+          "ns_op": 3516,
+          "bytes_op": 2794,
+          "allocs_op": 44
+        }
+      ]
+    },
+    {
+      "trial": 2,
+      "variant": "no-retained-accounting",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-admission-isolation:/e",
+        "--entrypoint",
+        "/e/no-retained-accounting.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "no-retained-accounting-2.txt",
+      "sha256": "24ff0d1e606f601ac11e83439758d5631a8c34f6ba5f4fb40f86d21abfe36a5f",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  187735\t     13225 ns/op\t   4.84 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  644773\t      3624 ns/op\t  17.66 MB/s\t    2826 B/op\t      45 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "iterations": 187735,
+          "ns_op": 13225,
+          "bytes_op": 2825,
+          "allocs_op": 45
+        },
+        {
+          "workers": 16,
+          "iterations": 644773,
+          "ns_op": 3624,
+          "bytes_op": 2826,
+          "allocs_op": 45
+        }
+      ]
+    },
+    {
+      "trial": 2,
+      "variant": "empty-queue-wakeup",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-admission-isolation:/e",
+        "--entrypoint",
+        "/e/empty-queue-wakeup.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "empty-queue-wakeup-2.txt",
+      "sha256": "27a5d338a9070ac45239c49043b20af9295cc3eb5a41f64e17f3b3d6eb071763",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  184695\t     12931 ns/op\t   4.95 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  654844\t      3559 ns/op\t  17.98 MB/s\t    2826 B/op\t      45 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "iterations": 184695,
+          "ns_op": 12931,
+          "bytes_op": 2825,
+          "allocs_op": 45
+        },
+        {
+          "workers": 16,
+          "iterations": 654844,
+          "ns_op": 3559,
+          "bytes_op": 2826,
+          "allocs_op": 45
+        }
+      ]
+    },
+    {
+      "trial": 2,
+      "variant": "no-service-revisions",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-admission-isolation:/e",
+        "--entrypoint",
+        "/e/no-service-revisions.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "no-service-revisions-2.txt",
+      "sha256": "80a477a68456a3fab8025aea04afce5e7944592bf66b52f27c9beb13f2affdd3",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  213108\t     12773 ns/op\t   5.01 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  663069\t      3664 ns/op\t  17.47 MB/s\t    2826 B/op\t      45 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "iterations": 213108,
+          "ns_op": 12773,
+          "bytes_op": 2825,
+          "allocs_op": 45
+        },
+        {
+          "workers": 16,
+          "iterations": 663069,
+          "ns_op": 3664,
+          "bytes_op": 2826,
+          "allocs_op": 45
+        }
+      ]
+    },
+    {
+      "trial": 2,
+      "variant": "baseline",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-admission-isolation:/e",
+        "--entrypoint",
+        "/e/baseline.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "baseline-2.txt",
+      "sha256": "50f9cf803d50301fcbae685e25df7b8f20a3ec973d4fe5f36627f590bbb12851",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  183516\t     12540 ns/op\t   5.10 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  665649\t      3579 ns/op\t  17.88 MB/s\t    2826 B/op\t      45 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "iterations": 183516,
+          "ns_op": 12540,
+          "bytes_op": 2825,
+          "allocs_op": 45
+        },
+        {
+          "workers": 16,
+          "iterations": 665649,
+          "ns_op": 3579,
+          "bytes_op": 2826,
+          "allocs_op": 45
+        }
+      ]
+    },
+    {
+      "trial": 3,
+      "variant": "no-retained-accounting",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-admission-isolation:/e",
+        "--entrypoint",
+        "/e/no-retained-accounting.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "no-retained-accounting-3.txt",
+      "sha256": "4dca1b252653343a540da435aeb1920ab37b9d31d8da21dcecab9fd354576519",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  199082\t     12215 ns/op\t   5.24 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  659548\t      3780 ns/op\t  16.93 MB/s\t    2826 B/op\t      45 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "iterations": 199082,
+          "ns_op": 12215,
+          "bytes_op": 2825,
+          "allocs_op": 45
+        },
+        {
+          "workers": 16,
+          "iterations": 659548,
+          "ns_op": 3780,
+          "bytes_op": 2826,
+          "allocs_op": 45
+        }
+      ]
+    },
+    {
+      "trial": 3,
+      "variant": "empty-queue-wakeup",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-admission-isolation:/e",
+        "--entrypoint",
+        "/e/empty-queue-wakeup.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "empty-queue-wakeup-3.txt",
+      "sha256": "9ec67eceb8fa90909379faa52151dbd0d5ce77de3cb83dfd525b13d9bd32da78",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  190041\t     12740 ns/op\t   5.02 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  649087\t      3544 ns/op\t  18.06 MB/s\t    2826 B/op\t      45 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "iterations": 190041,
+          "ns_op": 12740,
+          "bytes_op": 2825,
+          "allocs_op": 45
+        },
+        {
+          "workers": 16,
+          "iterations": 649087,
+          "ns_op": 3544,
+          "bytes_op": 2826,
+          "allocs_op": 45
+        }
+      ]
+    },
+    {
+      "trial": 3,
+      "variant": "no-service-revisions",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-admission-isolation:/e",
+        "--entrypoint",
+        "/e/no-service-revisions.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "no-service-revisions-3.txt",
+      "sha256": "a70b9c9b37a48d8c1db0d81f95c3ce68aaeea55e74555f9b83a1b099b66ba3f1",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  177699\t     12208 ns/op\t   5.24 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  688800\t      3547 ns/op\t  18.04 MB/s\t    2826 B/op\t      45 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "iterations": 177699,
+          "ns_op": 12208,
+          "bytes_op": 2825,
+          "allocs_op": 45
+        },
+        {
+          "workers": 16,
+          "iterations": 688800,
+          "ns_op": 3547,
+          "bytes_op": 2826,
+          "allocs_op": 45
+        }
+      ]
+    },
+    {
+      "trial": 3,
+      "variant": "baseline",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-admission-isolation:/e",
+        "--entrypoint",
+        "/e/baseline.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "baseline-3.txt",
+      "sha256": "0645df6b9f266b610dcfef8034a25844af27763cb68d40332b40dfedec6e385b",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  210018\t     12356 ns/op\t   5.18 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  650146\t      3569 ns/op\t  17.93 MB/s\t    2826 B/op\t      45 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "iterations": 210018,
+          "ns_op": 12356,
+          "bytes_op": 2825,
+          "allocs_op": 45
+        },
+        {
+          "workers": 16,
+          "iterations": 650146,
+          "ns_op": 3569,
+          "bytes_op": 2826,
+          "allocs_op": 45
+        }
+      ]
+    },
+    {
+      "trial": 3,
+      "variant": "no-request-table",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-admission-isolation:/e",
+        "--entrypoint",
+        "/e/no-request-table.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "no-request-table-3.txt",
+      "sha256": "dc23924f9dd980c04ae3189420e8b95de404b365273eaf50bbdc0016304e9c08",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  188180\t     11588 ns/op\t   5.52 MB/s\t    2793 B/op\t      44 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  665672\t      3712 ns/op\t  17.24 MB/s\t    2794 B/op\t      44 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "iterations": 188180,
+          "ns_op": 11588,
+          "bytes_op": 2793,
+          "allocs_op": 44
+        },
+        {
+          "workers": 16,
+          "iterations": 665672,
+          "ns_op": 3712,
+          "bytes_op": 2794,
+          "allocs_op": 44
+        }
+      ]
+    }
+  ],
+  "total_timed_iterations": 12725553,
+  "summary": [
+    {
+      "variant": "baseline",
+      "workers": 1,
+      "ns_op_samples": [
+        11713,
+        12540,
+        12356
+      ],
+      "ns_op_median": 12356,
+      "ns_op_min": 11713,
+      "ns_op_max": 12540,
+      "throughput_change_percent": 0.0,
+      "bytes_op": 2825,
+      "allocs_op": 45
+    },
+    {
+      "variant": "no-request-table",
+      "workers": 1,
+      "ns_op_samples": [
+        12379,
+        11675,
+        11588
+      ],
+      "ns_op_median": 11675,
+      "ns_op_min": 11588,
+      "ns_op_max": 12379,
+      "throughput_change_percent": 5.832976445396154,
+      "bytes_op": 2793,
+      "allocs_op": 44
+    },
+    {
+      "variant": "no-retained-accounting",
+      "workers": 1,
+      "ns_op_samples": [
+        12289,
+        13225,
+        12215
+      ],
+      "ns_op_median": 12289,
+      "ns_op_min": 12215,
+      "ns_op_max": 13225,
+      "throughput_change_percent": 0.5452030270973962,
+      "bytes_op": 2825,
+      "allocs_op": 45
+    },
+    {
+      "variant": "empty-queue-wakeup",
+      "workers": 1,
+      "ns_op_samples": [
+        12989,
+        12931,
+        12740
+      ],
+      "ns_op_median": 12931,
+      "ns_op_min": 12740,
+      "ns_op_max": 12989,
+      "throughput_change_percent": -4.4466785244760665,
+      "bytes_op": 2825,
+      "allocs_op": 45
+    },
+    {
+      "variant": "no-service-revisions",
+      "workers": 1,
+      "ns_op_samples": [
+        11525,
+        12773,
+        12208
+      ],
+      "ns_op_median": 12208,
+      "ns_op_min": 11525,
+      "ns_op_max": 12773,
+      "throughput_change_percent": 1.2123197903014526,
+      "bytes_op": 2825,
+      "allocs_op": 45
+    },
+    {
+      "variant": "baseline",
+      "workers": 16,
+      "ns_op_samples": [
+        3541,
+        3579,
+        3569
+      ],
+      "ns_op_median": 3569,
+      "ns_op_min": 3541,
+      "ns_op_max": 3579,
+      "throughput_change_percent": 0.0,
+      "bytes_op": 2826,
+      "allocs_op": 45
+    },
+    {
+      "variant": "no-request-table",
+      "workers": 16,
+      "ns_op_samples": [
+        3521,
+        3516,
+        3712
+      ],
+      "ns_op_median": 3521,
+      "ns_op_min": 3516,
+      "ns_op_max": 3712,
+      "throughput_change_percent": 1.363249076966766,
+      "bytes_op": 2794,
+      "allocs_op": 44
+    },
+    {
+      "variant": "no-retained-accounting",
+      "workers": 16,
+      "ns_op_samples": [
+        3499,
+        3624,
+        3780
+      ],
+      "ns_op_median": 3624,
+      "ns_op_min": 3499,
+      "ns_op_max": 3780,
+      "throughput_change_percent": -1.5176600441501154,
+      "bytes_op": 2826,
+      "allocs_op": 45
+    },
+    {
+      "variant": "empty-queue-wakeup",
+      "workers": 16,
+      "ns_op_samples": [
+        3488,
+        3559,
+        3544
+      ],
+      "ns_op_median": 3544,
+      "ns_op_min": 3488,
+      "ns_op_max": 3559,
+      "throughput_change_percent": 0.7054176072234686,
+      "bytes_op": 2826,
+      "allocs_op": 45
+    },
+    {
+      "variant": "no-service-revisions",
+      "workers": 16,
+      "ns_op_samples": [
+        3650,
+        3664,
+        3547
+      ],
+      "ns_op_median": 3650,
+      "ns_op_min": 3547,
+      "ns_op_max": 3664,
+      "throughput_change_percent": -2.219178082191786,
+      "bytes_op": 2826,
+      "allocs_op": 45
+    }
+  ],
+  "diagnostic_patches": {
+    "no-request-table": [
+      "--- pkg/transport/internal/conn/request_budget.go\n+++ diagnostic/pkg/transport/internal/conn/request_budget.go\n@@ -72,24 +72,8 @@\n \t} else {\n \t\tctx, cancel = context.WithCancel(c.ctx)\n \t}\n-\tc.inboundMu.Lock()\n-\tif c.ctx.Err() != nil {\n-\t\tc.inboundMu.Unlock()\n-\t\tcancel()\n-\t\treturn nil, nil, core.ErrStopped\n-\t}\n-\tif c.inboundRequests == nil {\n-\t\tc.inboundRequests = make(map[uint64]context.CancelFunc)\n-\t}\n-\tif _, exists := c.inboundRequests[id]; exists {\n-\t\tc.inboundMu.Unlock()\n-\t\tcancel()\n-\t\treturn nil, nil, fmt.Errorf(\"%w: duplicate request id\", core.ErrInvalidFrame)\n-\t}\n-\tc.inboundRequests[id] = cancel\n-\tc.inboundMu.Unlock()\n-\tfinish := func() { c.inboundMu.Lock(); delete(c.inboundRequests, id); c.inboundMu.Unlock(); cancel() }\n-\treturn ctx, finish, nil\n+\t// DIAGNOSTIC ONLY: loses duplicate detection and explicit remote cancellation.\n+\treturn ctx, cancel, nil\n }\n \n // CancelInbound affects only a currently tracked request on this connection.\n"
+    ],
+    "no-retained-accounting": [
+      "--- pkg/transport/internal/rpc/service.go\n+++ diagnostic/pkg/transport/internal/rpc/service.go\n@@ -180,7 +180,7 @@\n \tcase req.Context.Err() != nil:\n \t\terr = requestError(req.Context.Err())\n \t\tresult = \"canceled\"\n-\tcase s.queuedItems >= s.opts.QueueSize || req.retainedBytes > s.opts.MaxQueueBytes-s.queuedBytes || req.retainedBytes > s.opts.MaxRetainedBytes-s.retainedBytes:\n+\tcase s.queuedItems >= s.opts.QueueSize || req.retainedBytes > s.opts.MaxQueueBytes-s.queuedBytes:\n \t\terr = core.ErrBusy\n \t\tresult = \"busy\"\n \t}\n@@ -194,15 +194,11 @@\n \tentry := &requestEntry{req: req, queued: true, enqueuedAt: time.Now()}\n \tentry.req.entry = entry\n \ts.appendLocked(entry)\n-\ts.retainedBytes += req.retainedBytes\n-\ts.retainedItems++\n \ts.requestWG.Add(1)\n \t// Install under the queue lock so cancellation cannot race past ownership transfer.\n \tentry.watchQueue(s)\n \tsnapshot := s.queueSnapshotLocked()\n-\tretained := s.retainedEventLocked()\n \ts.mu.Unlock()\n-\ts.observe(retained)\n \ts.observeAdmissionAndQueue(\"ok\", payloadLen, snapshot)\n \tselect {\n \tcase s.queueReady <- struct{}{}:\n@@ -372,12 +368,7 @@\n \t\tdefer req.Finish()\n \t}\n \treq.Payload.Release()\n-\ts.mu.Lock()\n-\ts.retainedBytes -= req.retainedBytes\n-\ts.retainedItems--\n-\tevent := s.retainedEventLocked()\n-\ts.mu.Unlock()\n-\ts.observe(event)\n+\t// DIAGNOSTIC ONLY: retained capacity bound disabled.\n }\n \n func (s *Service) retainedEventLocked() core.Event {\n"
+    ],
+    "empty-queue-wakeup": [
+      "--- pkg/transport/internal/rpc/service.go\n+++ diagnostic/pkg/transport/internal/rpc/service.go\n@@ -193,6 +193,7 @@\n \t}\n \tentry := &requestEntry{req: req, queued: true, enqueuedAt: time.Now()}\n \tentry.req.entry = entry\n+\twake := s.head == nil\n \ts.appendLocked(entry)\n \ts.retainedBytes += req.retainedBytes\n \ts.retainedItems++\n@@ -204,9 +205,11 @@\n \ts.mu.Unlock()\n \ts.observe(retained)\n \ts.observeAdmissionAndQueue(\"ok\", payloadLen, snapshot)\n-\tselect {\n-\tcase s.queueReady <- struct{}{}:\n-\tdefault:\n+\tif wake {\n+\t\tselect {\n+\t\tcase s.queueReady <- struct{}{}:\n+\t\tdefault:\n+\t\t}\n \t}\n \treturn nil\n }\n"
+    ],
+    "no-service-revisions": [
+      "--- pkg/transport/internal/rpc/service.go\n+++ diagnostic/pkg/transport/internal/rpc/service.go\n@@ -381,7 +381,7 @@\n }\n \n func (s *Service) retainedEventLocked() core.Event {\n-\treturn core.Event{Name: \"service_retained\", ServiceID: s.ID, ServiceAlias: s.opts.Alias, Result: \"ok\", Revision: core.NextStateRevision(), Items: s.retainedItems, Bytes: int(s.retainedBytes), BytesCapacity: s.opts.MaxRetainedBytes}\n+\treturn core.Event{Name: \"service_retained\", ServiceID: s.ID, ServiceAlias: s.opts.Alias, Result: \"ok\", Revision: uint64(0), Items: s.retainedItems, Bytes: int(s.retainedBytes), BytesCapacity: s.opts.MaxRetainedBytes}\n }\n \n type queueSnapshot struct {\n@@ -468,7 +468,7 @@\n func (s *Service) changeInflight(delta int32) {\n \ts.inflightStateMu.Lock()\n \tinflight := int(s.inflight.Add(delta))\n-\trevision := core.NextStateRevision()\n+\trevision := uint64(0)\n \ts.inflightStateMu.Unlock()\n \ts.observeInflight(inflight, revision)\n }\n",
+      "--- pkg/transport/internal/rpc/service_queue.go\n+++ diagnostic/pkg/transport/internal/rpc/service_queue.go\n@@ -55,7 +55,7 @@\n \ts.tail = e\n \ts.queuedItems++\n \ts.queuedBytes += e.req.retainedBytes\n-\ts.queueRevision = core.NextStateRevision()\n+\ts.queueRevision = uint64(0)\n }\n \n func (s *Service) unlinkLocked(e *requestEntry) {\n@@ -74,7 +74,7 @@\n \te.queued = false\n \ts.queuedItems--\n \ts.queuedBytes -= e.req.retainedBytes\n-\ts.queueRevision = core.NextStateRevision()\n+\ts.queueRevision = uint64(0)\n }\n \n // expire releases both the FIFO position and payload even while all workers are blocked.\n"
+    ]
+  },
+  "build_and_run": {
+    "builder": "from pathlib import Path\nimport json,subprocess,os,hashlib\nE=Path(__file__).resolve().parent.parent\nR=Path('/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/rpc-admission')\nservice=R/'pkg/transport/internal/rpc/service.go'; queue=R/'pkg/transport/internal/rpc/service_queue.go'; track=R/'pkg/transport/internal/conn/request_budget.go'\ns=service.read_text();q=queue.read_text();t=track.read_text()\na=t.index('\\tc.inboundMu.Lock()',t.index('func (c *Conn) TrackInbound'));b=t.index('\\n}\\n',a)\nvariants={\n'no-request-table':{track:t[:a]+'\\t// DIAGNOSTIC ONLY: loses duplicate detection and explicit remote cancellation.\\n\\treturn ctx, cancel, nil'+t[b:]},\n'no-retained-accounting':{service:s.replace(' || req.retainedBytes > s.opts.MaxRetainedBytes-s.retainedBytes','').replace('\\ts.retainedBytes += req.retainedBytes\\n\\ts.retainedItems++\\n','').replace('\\tretained := s.retainedEventLocked()\\n','').replace('\\ts.observe(retained)\\n','').replace('\\ts.mu.Lock()\\n\\ts.retainedBytes -= req.retainedBytes\\n\\ts.retainedItems--\\n\\tevent := s.retainedEventLocked()\\n\\ts.mu.Unlock()\\n\\ts.observe(event)\\n','\\t// DIAGNOSTIC ONLY: retained capacity bound disabled.\\n')},\n'empty-queue-wakeup':{service:s.replace('\\ts.appendLocked(entry)','\\twake := s.head == nil\\n\\ts.appendLocked(entry)').replace('\\tselect {\\n\\tcase s.queueReady <- struct{}{}:\\n\\tdefault:\\n\\t}', '\\tif wake {\\n\\t\\tselect {\\n\\t\\tcase s.queueReady <- struct{}{}:\\n\\t\\tdefault:\\n\\t\\t}\\n\\t}')},\n'no-service-revisions':{service:s.replace('core.NextStateRevision()', 'uint64(0)'),queue:q.replace('core.NextStateRevision()', 'uint64(0)')},\n}\nmanifest={'source_sha':subprocess.check_output(['git','rev-parse','HEAD'],cwd=R,text=True).strip(),'cloud_purchase':False,'instructions_sha256':hashlib.sha256((R/'AGENTS.md').read_bytes()).hexdigest(),'source_sha256':{str(p.relative_to(R)):hashlib.sha256(p.read_bytes()).hexdigest() for p in [service,queue,track]},'variants':list(variants),'local_environment':'Apple M4; native Linux ARM64 binary; reused Debian rootfs; CPUs0-3; memory6GiB; GOMAXPROCS4'}\n(E/'manifest.json').write_text(json.dumps(manifest,indent=2))\nfor name,replacements in [('baseline',{})]+list(variants.items()):\n replace={}\n for path,src in replacements.items():\n  dst=E/'debug'/(name+'-'+path.name);dst.write_text(src);replace[str(path)]=str(dst)\n overlay=E/'debug'/(name+'.json');overlay.write_text(json.dumps({'Replace':replace}))\n args=['go','test','-tags=integration','-c','-o',str(E/(name+'.test'))]\n if replacements:args+=['-overlay',str(overlay)]\n args+=['./pkg/transport']\n p=subprocess.run(args,cwd=R,env={**os.environ,'GOWORK':'off','CGO_ENABLED':'0','GOOS':'linux','GOARCH':'arm64'},capture_output=True,text=True)\n (E/'debug'/(name+'-build.txt')).write_text(p.stdout+p.stderr)\n print(name,p.returncode,flush=True)\n if p.returncode: print(p.stdout+p.stderr);raise SystemExit(p.returncode)\n",
+    "runner": "import pathlib,subprocess,json,hashlib,time\nE=pathlib.Path(__file__).resolve().parent\nvariants=['baseline','no-request-table','no-retained-accounting','empty-queue-wakeup','no-service-revisions']\nrows=[]\nfor trial in range(3):\n order=variants[trial:]+variants[:trial]\n for variant in order:\n  args=['docker','run','--rm','--pull','never','--platform','linux/amd64','--cpuset-cpus','0-3','--memory','6g','-v',str(E)+':/e','--entrypoint','/e/'+variant+'.test','debian:12','-test.run','^$','-test.bench','^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$','-test.benchtime','2s','-test.count','1','-test.cpu','4','-test.benchmem']\n  p=subprocess.run(args,capture_output=True,text=True,timeout=120)\n  output=p.stdout+p.stderr;name=variant+'-'+str(trial+1)+'.txt';(E/name).write_text(output)\n  row={'trial':trial+1,'variant':variant,'command':args,'exit':p.returncode,'output':name,'sha256':hashlib.sha256(output.encode()).hexdigest()};rows.append(row);(E/'isolation-runs.json').write_text(json.dumps(rows,indent=2))\n  print(json.dumps({'trial':trial+1,'variant':variant,'exit':p.returncode,'results':[x for x in output.splitlines() if x.startswith('BenchmarkTransportBudget')]}),flush=True);assert p.returncode==0\n",
+    "build_logs": {
+      "baseline": "",
+      "no-request-table": "",
+      "no-retained-accounting": "",
+      "empty-queue-wakeup": "",
+      "no-service-revisions": ""
+    }
+  },
+  "profiles": {
+    "cpu": {
+      "sha256": "73322006f1067cd5168260b55a45d211f37268c3bb484f948c61f64c6033dd0d",
+      "top": "File: baseline.test\nBuild ID: 2d8320b3e8daf36b1f1dd9759d9893b0d31484e5\nType: cpu\nTime: 2026-09-22 01:21:16 CST\nDuration: 10.53s, Total samples = 30.13s (286.17%)\nShowing nodes accounting for 18.51s, 61.43% of 30.13s total\nDropped 381 nodes (cum <= 0.15s)\nShowing top 12 nodes out of 178\n      flat  flat%   sum%        cum   cum%\n     9.30s 30.87% 30.87%      9.30s 30.87%  internal/runtime/syscall.Syscall6\n     4.85s 16.10% 46.96%      4.85s 16.10%  runtime.nanotime (inline)\n     0.96s  3.19% 50.15%      1.38s  4.58%  time.now\n     0.60s  1.99% 52.14%      0.60s  1.99%  runtime.memclrNoHeapPointers\n     0.58s  1.92% 54.07%      1.93s  6.41%  runtime.selectgo\n     0.39s  1.29% 55.36%      0.53s  1.76%  runtime.casgstatus\n     0.35s  1.16% 56.52%      0.35s  1.16%  runtime.duffcopy\n     0.35s  1.16% 57.68%      0.81s  2.69%  runtime.unlock2\n     0.33s  1.10% 58.78%      3.18s 10.55%  runtime.mallocgc\n     0.30s     1% 59.77%      0.60s  1.99%  internal/sync.(*Mutex).Lock\n     0.25s  0.83% 60.60%      0.32s  1.06%  runtime.(*mspan).writeHeapBitsSmall\n     0.25s  0.83% 61.43%      0.25s  0.83%  runtime.futex\n"
+    },
+    "mutex": {
+      "sha256": "e42faa6daee9ef45484a6499199ae9905d4c957da17ed2eb3bb2b30cb0756286",
+      "top": "File: baseline.test\nBuild ID: 2d8320b3e8daf36b1f1dd9759d9893b0d31484e5\nType: delay\nTime: 2026-09-22 01:21:26 CST\nShowing nodes accounting for 6394.69ms, 100% of 6396.70ms total\nDropped 171 nodes (cum <= 31.98ms)\nShowing top 12 nodes out of 55\n      flat  flat%   sum%        cum   cum%\n 3425.57ms 53.55% 53.55%  4223.98ms 66.03%  sync.(*Mutex).Unlock (inline)\n 2969.11ms 46.42%   100%  2969.11ms 46.42%  runtime.unlock (inline)\n         0     0%   100%  4794.53ms 74.95%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1\n         0     0%   100%  4794.53ms 74.95%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1\n         0     0%   100%  3860.06ms 60.34%  github.com/WuKongIM/WuKongIM/pkg/transport.(*Server).dispatch\n         0     0%   100%  2833.90ms 44.30%  github.com/WuKongIM/WuKongIM/pkg/transport.(*Server).dispatch-fm\n         0     0%   100%  3860.06ms 60.34%  github.com/WuKongIM/WuKongIM/pkg/transport.(*Server).dispatchRPCRequest\n         0     0%   100%  3906.14ms 61.06%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).readLoop\n         0     0%   100%  2833.95ms 44.30%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).readLoop-fm\n         0     0%   100%  3860.06ms 60.34%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.DispatchFunc.Dispatch\n         0     0%   100%  3853.99ms 60.25%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*Service).Enqueue\n         0     0%   100%   868.01ms 13.57%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*Service).nextRequest\n"
+    },
+    "block": {
+      "sha256": "49b782955e5be79943f322ceb6efb1168a54e738e8d359738273417dad300c86",
+      "top": "File: baseline.test\nBuild ID: 2d8320b3e8daf36b1f1dd9759d9893b0d31484e5\nType: delay\nTime: 2026-09-22 01:21:26 CST\nShowing nodes accounting for 863.92s, 99.66% of 866.86s total\nDropped 35 nodes (cum <= 4.33s)\nShowing top 12 nodes out of 43\n      flat  flat%   sum%        cum   cum%\n   341.31s 39.37% 39.37%    341.31s 39.37%  runtime.selectgo\n   315.54s 36.40% 75.77%    315.54s 36.40%  sync.(*Cond).Wait\n   186.39s 21.50% 97.27%    186.39s 21.50%  runtime.chanrecv1\n    20.68s  2.39% 99.66%     20.68s  2.39%  sync.(*WaitGroup).Wait\n         0     0% 99.66%    499.77s 57.65%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1\n         0     0% 99.66%    499.77s 57.65%  github.com/WuKongIM/WuKongIM/pkg/goroutine.(*Registry).Go.func1.1\n         0     0% 99.66%    159.80s 18.43%  github.com/WuKongIM/WuKongIM/pkg/transport.(*Client).Call\n         0     0% 99.66%    159.80s 18.43%  github.com/WuKongIM/WuKongIM/pkg/transport.(*Client).CallOwned\n         0     0% 99.66%    165.49s 19.09%  github.com/WuKongIM/WuKongIM/pkg/transport.(*Server).acceptLoop.func1\n         0     0% 99.66%    165.49s 19.09%  github.com/WuKongIM/WuKongIM/pkg/transport.(*Server).untrackConnWhenDone\n         0     0% 99.66%    159.80s 18.43%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).Call\n         0     0% 99.66%    315.54s 36.40%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).writeLoop\n"
+    },
+    "allocs": {
+      "sha256": "ef9fc0287bd35a642922bc52c2dd5037557aae1297dc51cbfb6ce18a36516e37",
+      "top": "File: baseline.test\nBuild ID: 2d8320b3e8daf36b1f1dd9759d9893b0d31484e5\nType: alloc_space\nTime: 2026-09-22 01:21:26 CST\nShowing nodes accounting for 5429.53MB, 85.12% of 6378.30MB total\nDropped 46 nodes (cum <= 31.89MB)\nShowing top 12 nodes out of 45\n      flat  flat%   sum%        cum   cum%\n 1114.59MB 17.47% 17.47%  1833.17MB 28.74%  context.WithDeadlineCause\n  718.08MB 11.26% 28.73%   718.08MB 11.26%  time.newTimer\n  561.60MB  8.80% 37.54%   561.60MB  8.80%  context.(*cancelCtx).propagateCancel\n  527.56MB  8.27% 45.81%   527.56MB  8.27%  context.(*cancelCtx).Done\n  385.53MB  6.04% 51.85%   815.07MB 12.78%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).Call\n  346.05MB  5.43% 57.28%  1545.71MB 24.23%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*Service).Enqueue\n  335.52MB  5.26% 62.54%   335.52MB  5.26%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/core.NewOwnedBufferWithCost (inline)\n  324.51MB  5.09% 67.63%   664.53MB 10.42%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/buffer.(*SlabPool).Get\n  302.52MB  4.74% 72.37%   302.52MB  4.74%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/conn.(*Conn).Send\n  287.52MB  4.51% 76.88%  2491.78MB 39.07%  github.com/WuKongIM/WuKongIM/pkg/transport.(*Server).dispatchRPCRequest\n  284.03MB  4.45% 81.33%   845.12MB 13.25%  context.AfterFunc\n  242.03MB  3.79% 85.12%   242.03MB  3.79%  github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc.(*Service).pump\n"
+    }
+  },
+  "profile_run": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4         \t 1380008\t      4297 ns/op\t  14.89 MB/s\t    2827 B/op\t      45 allocs/op\nPASS\n",
+  "notes": [
+    "No transport runtime change is adopted. These overlays must not be deployed.",
+    "Timed runs exclude profiling, compilation and other test suites.",
+    "Native Linux ARM64 binary on Docker Desktop; existing Debian amd64 rootfs runs no userspace executable except the static ARM64 test binary.",
+    "Profile covers both endpoints, calibration and setup, and is not comparable to cloud server-only cumulative sampling by direct percentage subtraction.",
+    "Local results do not certify recovery of the 7.71% x86 cloud small-packet throughput regression."
+  ]
+}
