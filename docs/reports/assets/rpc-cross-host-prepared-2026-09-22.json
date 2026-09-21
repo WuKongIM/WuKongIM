@@ -1,0 +1,1395 @@
+{
+  "schema_version": 1,
+  "status": "prepared_not_acquired",
+  "source_versions": {
+    "baseline": "68662c4c8fa7a447ac2864c7352789ae4a5021b7",
+    "current": "d28870ec8c19741ee0bb4bc8ce0e06ae37882c45"
+  },
+  "probe_source_sha256": "4adb919ad3fab62aa8dd0e4f70f8e4ca4bf75c83887b66e17ddf9122e6d605fb",
+  "probe_source": "package main\n\nimport (\n\t\"bytes\"\n\t\"context\"\n\t\"encoding/json\"\n\t\"flag\"\n\t\"fmt\"\n\t\"github.com/WuKongIM/WuKongIM/pkg/transport\"\n\t\"net\"\n\t\"net/http\"\n\t_ \"net/http/pprof\"\n\t\"os\"\n\t\"os/signal\"\n\t\"reflect\"\n\t\"runtime\"\n\t\"sort\"\n\t\"sync\"\n\t\"sync/atomic\"\n\t\"syscall\"\n\t\"time\"\n)\n\ntype discovery string\n\nfunc (d discovery) Resolve(transport.NodeID) (string, error) { return string(d), nil }\nfunc main() {\n\tmode := flag.String(\"mode\", \"client\", \"server or client\")\n\taddr := flag.String(\"addr\", \"127.0.0.1:7000\", \"peer/listen address\")\n\tversion := flag.String(\"version\", \"unknown\", \"revision label\")\n\tworkers := flag.Int(\"workers\", 1, \"bounded concurrency\")\n\tsize := flag.Int(\"bytes\", 64, \"payload bytes\")\n\tduration := flag.Duration(\"duration\", 3*time.Second, \"measurement duration\")\n\tbudgets := flag.String(\"budgets\", \"auto\", \"auto, on, or off; unsupported on fails\")\n\tprofile := flag.String(\"pprof\", \"\", \"optional loopback-only diagnostic profile listener\")\n\tflag.Parse()\n\tif *budgets != \"auto\" && *budgets != \"on\" && *budgets != \"off\" {\n\t\tpanic(\"invalid budgets mode\")\n\t}\n\tif *profile != \"\" {\n\t\thost, _, err := net.SplitHostPort(*profile)\n\t\tif err != nil || (host != \"127.0.0.1\" && host != \"::1\") {\n\t\t\tpanic(\"pprof must bind loopback\")\n\t\t}\n\t\tlistener, err := net.Listen(\"tcp\", *profile)\n\t\tcheck(err)\n\t\truntime.SetMutexProfileFraction(10)\n\t\truntime.SetBlockProfileRate(1000000)\n\t\tgo func() { check(http.Serve(listener, nil)) }()\n\t}\n\n\tif *workers < 1 || *workers > 16 || *size < 1 || *size > 65537 || *duration <= 0 || *duration > 60*time.Second {\n\t\tpanic(\"invalid probe bounds\")\n\t}\n\tif *mode == \"server\" {\n\t\ts, e := transport.NewServer(transport.ServerConfig{NodeID: 2})\n\t\tcheck(e)\n\t\toptions := transport.ServiceOptions{Concurrency: 64, QueueSize: 4096, MaxQueueBytes: 64 << 20}\n\t\tcheck(json.Unmarshal([]byte(`{\"Timeout\":30000000000,\"QueueTimeout\":5000000000}`), &options))\n\t\tcheck(s.Handle(1, func(_ context.Context, p []byte) ([]byte, error) { return p, nil }, options))\n\t\tcheck(s.ListenAndServe(*addr))\n\t\tdefer s.Stop()\n\t\tfmt.Println(\"RPC_PROBE_READY\")\n\t\tc := make(chan os.Signal, 1)\n\t\tsignal.Notify(c, syscall.SIGTERM, syscall.SIGINT)\n\t\t<-c\n\t\treturn\n\t}\n\tcfg := transport.ClientConfig{NodeID: 1, Discovery: discovery(*addr), PoolSize: 16}\n\tf := reflect.ValueOf(&cfg).Elem().FieldByName(\"RequestBudgets\")\n\tif *budgets == \"on\" && !f.IsValid() {\n\t\tpanic(\"request budgets unsupported\")\n\t}\n\tbudgeted := f.IsValid() && *budgets != \"off\"\n\tif f.IsValid() {\n\t\tf.SetBool(budgeted)\n\t}\n\tc, e := transport.NewClient(cfg)\n\tcheck(e)\n\tdefer c.Stop()\n\tpayload := bytes.Repeat([]byte{0x5a}, *size)\n\tcall := func(shard int) error {\n\t\tctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)\n\t\tdefer cancel()\n\t\tp, e := c.Call(ctx, 2, uint64(shard), transport.PriorityRPC, 1, payload)\n\t\tif e != nil {\n\t\t\treturn e\n\t\t}\n\t\tif !bytes.Equal(p, payload) {\n\t\t\treturn fmt.Errorf(\"payload mismatch\")\n\t\t}\n\t\treturn nil\n\t}\n\tfor i := 0; i < 16; i++ {\n\t\tcheck(call(i))\n\t}\n\tsamples := make([][]int64, *workers)\n\tfor w := range samples {\n\t\tsamples[w] = make([]int64, 0, 100000)\n\t}\n\truntime.GC()\n\tvar before, after runtime.MemStats\n\truntime.ReadMemStats(&before)\n\tvar wg sync.WaitGroup\n\tvar errors atomic.Int64\n\tstart := time.Now()\n\tstop := start.Add(*duration)\n\tfor w := 0; w < *workers; w++ {\n\t\twg.Add(1)\n\t\tgo func(w int) {\n\t\t\tdefer wg.Done()\n\t\t\ttimes := samples[w]\n\t\t\tfor time.Now().Before(stop) {\n\t\t\t\tt := time.Now()\n\t\t\t\te := call(w)\n\t\t\t\tif e != nil {\n\t\t\t\t\terrors.Add(1)\n\t\t\t\t\tcontinue\n\t\t\t\t}\n\t\t\t\ttimes = append(times, time.Since(t).Nanoseconds())\n\t\t\t\tif len(times) >= 1000000 {\n\t\t\t\t\tbreak\n\t\t\t\t}\n\t\t\t}\n\t\t\tsamples[w] = times\n\t\t}(w)\n\t}\n\twg.Wait()\n\telapsed := time.Since(start)\n\truntime.ReadMemStats(&after)\n\tall := []int64{}\n\tfor _, s := range samples {\n\t\tall = append(all, s...)\n\t}\n\tsort.Slice(all, func(i, j int) bool { return all[i] < all[j] })\n\tif len(all) == 0 {\n\t\tpanic(\"no successful calls\")\n\t}\n\tpercentile := func(p float64) float64 { return float64(all[int(float64(len(all)-1)*p)]) / 1e6 }\n\tvar total int64\n\tfor _, v := range all {\n\t\ttotal += v\n\t}\n\tjson.NewEncoder(os.Stdout).Encode(map[string]any{\"version\": *version, \"go_version\": runtime.Version(), \"workers\": *workers, \"payload_bytes\": *size, \"request_budgets\": budgeted, \"observer_enabled\": false, \"profiling_enabled\": *profile != \"\", \"calls\": len(all), \"errors\": errors.Load(), \"elapsed_seconds\": elapsed.Seconds(), \"calls_per_second\": float64(len(all)) / elapsed.Seconds(), \"mean_ms\": float64(total) / float64(len(all)) / 1e6, \"p50_ms\": percentile(.50), \"p95_ms\": percentile(.95), \"p99_ms\": percentile(.99), \"client_alloc_bytes_per_call\": float64(after.TotalAlloc-before.TotalAlloc) / float64(len(all))})\n\tif errors.Load() != 0 {\n\t\tos.Exit(1)\n\t}\n}\nfunc check(e error) {\n\tif e != nil {\n\t\tpanic(e)\n\t}\n}\n",
+  "build_flags": [
+    "GOWORK=off",
+    "GOTOOLCHAIN=go1.25.11",
+    "CGO_ENABLED=0",
+    "GOOS=linux",
+    "GOARCH=amd64",
+    "go build",
+    "-trimpath",
+    "-buildvcs=false"
+  ],
+  "binaries": {
+    "baseline": {
+      "sha256": "5a5376284c6f9f304ca7f3fd713260e2a27a922fa2db9136af6c9fca70bf6b35",
+      "bytes": 13283338
+    },
+    "current": {
+      "sha256": "eceb2bd08bf5c9430081bb12c9683a4f498f80b0c73b9aa36337ffd166f6c1df",
+      "bytes": 13343645
+    }
+  },
+  "matrix": [
+    {
+      "trial": 1,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 1,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 2,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 3,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 4,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "baseline",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "current",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "baseline",
+      "server": "current",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 64,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 4097,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    },
+    {
+      "trial": 5,
+      "client": "current",
+      "server": "baseline",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "duration_seconds": 10,
+      "budgets": "auto",
+      "profiles": false
+    }
+  ],
+  "profiles": {
+    "separate_from_timing": true,
+    "pairs": [
+      [
+        "baseline",
+        "baseline"
+      ],
+      [
+        "current",
+        "current"
+      ],
+      [
+        "baseline",
+        "current"
+      ],
+      [
+        "current",
+        "baseline"
+      ]
+    ],
+    "payloads": [
+      64,
+      65537
+    ],
+    "workers": 16,
+    "cpu_seconds": 10,
+    "trace_seconds": 3,
+    "cpu_and_trace_in_separate_runs": true,
+    "mutex_fraction": 10,
+    "block_rate_ns": 1000000,
+    "both_endpoints": true
+  },
+  "prior_released_requests": [
+    {
+      "request_id": "chat-20260921T080550Z-105e3755",
+      "state": "released",
+      "proof_sha256": "daa1d15890351c61c948612938eaafa38101a3774cd96c86e40da24e9baf9b4b",
+      "observed_at": "2026-09-21T08:58:57.043973Z"
+    },
+    {
+      "request_id": "chat-20260921T132959Z-7c4df2b1",
+      "state": "released",
+      "proof_sha256": "7202c216e65a2721eef0f3b342a6cc73ed3d8bae2d8f4663dd3515eda382e3fe",
+      "observed_at": "2026-09-21T14:34:27.670196Z"
+    },
+    {
+      "request_id": "chat-20260921T152333Z-c64792d1",
+      "state": "released",
+      "proof_sha256": "1d0b5d327da646840c1a96979068c988daa3f166a592aabbf183141882ff7793",
+      "observed_at": "2026-09-21T16:27:33.099774Z"
+    }
+  ],
+  "procurement": {
+    "paid_authority": "pending_explicit_new_purchase",
+    "proposed_cap_cny": 300,
+    "current_quote": null,
+    "temporary_credentials_present": false,
+    "provider_contacted": false,
+    "plan": "one bounded lease using existing four-node provisioning contract, native x86 matching CPU models, same region and zone, private-network RPC pair, no stability workload",
+    "max_lease_hours": 6,
+    "stop_after_testing": true,
+    "acquire_calls": 0
+  },
+  "instructions_sha256": "c6eae7244b1c660be4b2a62cbdc1efa5c26c35e34972e994df7e6ae073fc9d0b",
+  "skill_sha256": "adb340aea160f90181845b97250c5d07931747622bce5ab837bbe5b56095bff7",
+  "smoke_checks": [
+    {
+      "client": "baseline",
+      "server": "baseline",
+      "exit": 0,
+      "output": {
+        "calls": 220291,
+        "calls_per_second": 220277.1591049848,
+        "client_alloc_bytes_per_call": 928.4820169684644,
+        "elapsed_seconds": 1.000062834,
+        "errors": 0,
+        "go_version": "go1.25.11",
+        "mean_ms": 0.07244777872450532,
+        "observer_enabled": false,
+        "p50_ms": 0.057,
+        "p95_ms": 0.134667,
+        "p99_ms": 0.206459,
+        "payload_bytes": 64,
+        "profiling_enabled": false,
+        "request_budgets": false,
+        "version": "smoke-only",
+        "workers": 16
+      },
+      "method": "emulated amd64 loopback smoke; not performance evidence"
+    },
+    {
+      "client": "current",
+      "server": "current",
+      "exit": 0,
+      "output": {
+        "calls": 174243,
+        "calls_per_second": 174231.5658792576,
+        "client_alloc_bytes_per_call": 928.5353902308844,
+        "elapsed_seconds": 1.000065626,
+        "errors": 0,
+        "go_version": "go1.25.11",
+        "mean_ms": 0.09166960144740391,
+        "observer_enabled": false,
+        "p50_ms": 0.070084,
+        "p95_ms": 0.162,
+        "p99_ms": 0.626959,
+        "payload_bytes": 64,
+        "profiling_enabled": false,
+        "request_budgets": true,
+        "version": "smoke-only",
+        "workers": 16
+      },
+      "method": "emulated amd64 loopback smoke; not performance evidence"
+    },
+    {
+      "client": "baseline",
+      "server": "current",
+      "exit": 0,
+      "output": {
+        "calls": 178692,
+        "calls_per_second": 178675.50967986064,
+        "client_alloc_bytes_per_call": 928.506435654646,
+        "elapsed_seconds": 1.000092292,
+        "errors": 0,
+        "go_version": "go1.25.11",
+        "mean_ms": 0.08937180325364315,
+        "observer_enabled": false,
+        "p50_ms": 0.068875,
+        "p95_ms": 0.158333,
+        "p99_ms": 0.513625,
+        "payload_bytes": 64,
+        "profiling_enabled": false,
+        "request_budgets": false,
+        "version": "smoke-only",
+        "workers": 16
+      },
+      "method": "emulated amd64 loopback smoke; not performance evidence"
+    },
+    {
+      "client": "current",
+      "server": "baseline",
+      "exit": 0,
+      "output": {
+        "calls": 222018,
+        "calls_per_second": 221991.91572791003,
+        "client_alloc_bytes_per_call": 928.438234737724,
+        "elapsed_seconds": 1.000117501,
+        "errors": 0,
+        "go_version": "go1.25.11",
+        "mean_ms": 0.07191816364889334,
+        "observer_enabled": false,
+        "p50_ms": 0.056791,
+        "p95_ms": 0.132209,
+        "p99_ms": 0.188542,
+        "payload_bytes": 64,
+        "profiling_enabled": false,
+        "request_budgets": true,
+        "version": "smoke-only",
+        "workers": 16
+      },
+      "method": "emulated amd64 loopback smoke; not performance evidence"
+    }
+  ]
+}
