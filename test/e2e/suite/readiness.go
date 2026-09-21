@@ -10,6 +10,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	wkclient "github.com/WuKongIM/WuKongIM/pkg/client"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
 const readyPollInterval = 100 * time.Millisecond
@@ -30,22 +33,41 @@ func waitWKProtoReady(ctx context.Context, addr string, process *NodeProcess) er
 	defer ticker.Stop()
 	processDone := process.Done()
 
+	uid, deviceID, token := "e2e-ready", "e2e-ready-device", ""
+	tokenRegistered := process == nil || process.Spec.APIAddr == ""
+	if !tokenRegistered {
+		uid = fmt.Sprintf("e2e-ready-%d", process.Spec.ID)
+		deviceID = uid + "-device"
+		token = uid + "-token"
+	}
 	var lastErr error
 	for {
 		if err := processReadinessExitError(process, "WKProto readiness"); err != nil {
 			return err
 		}
-		client, err := NewWKProtoClient()
-		if err != nil {
-			return err
+		if !tokenRegistered {
+			_, err := PostJSON(ctx, "http://"+process.Spec.APIAddr+"/user/token", map[string]any{
+				"uid": uid, "token": token, "device_flag": frame.APP, "device_level": 1,
+			}, nil)
+			if err != nil {
+				// Never include registration payloads or a server echo in diagnostics.
+				lastErr = fmt.Errorf("WKProto readiness token registration failed")
+			} else {
+				tokenRegistered = true
+			}
 		}
-
-		_, err = client.ConnectContext(ctx, addr, "e2e-ready", "e2e-ready-device")
-		_ = client.Close()
-		if err == nil {
-			return nil
+		if tokenRegistered {
+			client, err := wkclient.New(wkclient.Config{Addr: addr, OperationTimeout: defaultWKProtoTimeout})
+			if err != nil {
+				return err
+			}
+			_, err = client.Connect(ctx, wkclient.ConnectOptions{UID: uid, DeviceID: deviceID, DeviceFlag: frame.APP, Token: token})
+			_ = client.Close()
+			if err == nil {
+				return nil
+			}
+			lastErr = err
 		}
-		lastErr = err
 
 		select {
 		case <-ctx.Done():
@@ -71,7 +93,8 @@ func (p *NodeProcess) WaitHTTPReady(ctx context.Context, addr, path string) (HTT
 	return waitHTTPReadyDetailedForProcess(ctx, addr, path, p)
 }
 
-// WaitWKProtoReady waits for WKProto readiness while also failing when this child exits.
+// WaitWKProtoReady registers a dedicated token through this node's public API
+// before probing its real authenticated handshake, and fails when the child exits.
 func (p *NodeProcess) WaitWKProtoReady(ctx context.Context, addr string) error {
 	return waitWKProtoReady(ctx, addr, p)
 }

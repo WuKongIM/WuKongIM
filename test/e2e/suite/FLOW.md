@@ -39,6 +39,9 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
   child exit. Restart never reuses ports/data before prior group cleanup.
 - Binary publication is atomic. Plugin runtime is disabled by default and
   enabled only by plugin scenarios.
+- Managed-process WKProto readiness registers a dedicated device token through
+  Product HTTP, then proves a real authenticated handshake. Registration errors
+  remain bounded and never echo credentials; readiness does not disable auth.
 - WebSocket gateway opt-in publishes only the allocated loopback listener;
   TCP WKProto remains the readiness authority for the started node.
 - Diagnostics expose bounded paths and tails. TOML is re-encoded only after
