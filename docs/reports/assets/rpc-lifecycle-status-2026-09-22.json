@@ -1,0 +1,1026 @@
+{
+  "source_sha": "c2e1e64f86bff97c043867725cec8466f463a4bb",
+  "cloud_purchase": false,
+  "source_service_sha256": "4555aaf5ea9cedee229da109793d6ef1976b2f9beea21a0d91ae2c1b6683add2",
+  "instructions_sha256": "c6eae7244b1c660be4b2a62cbdc1efa5c26c35e34972e994df7e6ae073fc9d0b",
+  "diagnostic_only_variants": [
+    "no-queue-watch",
+    "no-execution-timeout",
+    "goroutine-dispatch",
+    "skip-unobserved-pool-stats"
+  ],
+  "baseline_platform": "native Linux ARM64; Docker Debian rootfs reused; GOMAXPROCS4; CPUs0-3; memory6GiB",
+  "bench_flow_before_sha256": "5007881a2740762d78f97f2057c25f24ae68ef19686389caa5c030005dd11d84",
+  "rpc_runs": [
+    {
+      "trial": 1,
+      "variant": "baseline",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-lifecycle-isolation:/e",
+        "--entrypoint",
+        "/e/baseline.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "baseline-1.txt",
+      "sha256": "605b26e4c54d536cf7a12a163265dc3cdbe8d05b28321053b79d2128ed3371a6",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  186860\t     11579 ns/op\t   5.53 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  624688\t      3792 ns/op\t  16.88 MB/s\t    2826 B/op\t      45 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "ns_op": 11579,
+          "bytes_op": 2825,
+          "allocs_op": 45
+        },
+        {
+          "workers": 16,
+          "ns_op": 3792,
+          "bytes_op": 2826,
+          "allocs_op": 45
+        }
+      ]
+    },
+    {
+      "trial": 1,
+      "variant": "no-queue-watch",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-lifecycle-isolation:/e",
+        "--entrypoint",
+        "/e/no-queue-watch.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "no-queue-watch-1.txt",
+      "sha256": "752b88320d9d0f0dd1985f809c8ace1a9fa2b98f1cc85a9055d091924208a6d9",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  199069\t     11601 ns/op\t   5.52 MB/s\t    2393 B/op\t      40 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  701550\t      3925 ns/op\t  16.30 MB/s\t    2394 B/op\t      40 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "ns_op": 11601,
+          "bytes_op": 2393,
+          "allocs_op": 40
+        },
+        {
+          "workers": 16,
+          "ns_op": 3925,
+          "bytes_op": 2394,
+          "allocs_op": 40
+        }
+      ]
+    },
+    {
+      "trial": 1,
+      "variant": "no-execution-timeout",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-lifecycle-isolation:/e",
+        "--entrypoint",
+        "/e/no-execution-timeout.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "no-execution-timeout-1.txt",
+      "sha256": "b6fa3937096c5861779b7ccd85a8b5e4da31a00498c1f75008f73fcdee6bdc9f",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  189882\t     11769 ns/op\t   5.44 MB/s\t    2553 B/op\t      41 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  682324\t      3419 ns/op\t  18.72 MB/s\t    2554 B/op\t      41 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "ns_op": 11769,
+          "bytes_op": 2553,
+          "allocs_op": 41
+        },
+        {
+          "workers": 16,
+          "ns_op": 3419,
+          "bytes_op": 2554,
+          "allocs_op": 41
+        }
+      ]
+    },
+    {
+      "trial": 1,
+      "variant": "goroutine-dispatch",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-lifecycle-isolation:/e",
+        "--entrypoint",
+        "/e/goroutine-dispatch.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "goroutine-dispatch-1.txt",
+      "sha256": "df1c15a5d29888c841ff4ab214a96e49bfc1c598ef759ac8e945e6b25dc24a30",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  188196\t     12615 ns/op\t   5.07 MB/s\t    2841 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  702578\t      4081 ns/op\t  15.68 MB/s\t    2842 B/op\t      46 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "ns_op": 12615,
+          "bytes_op": 2841,
+          "allocs_op": 46
+        },
+        {
+          "workers": 16,
+          "ns_op": 4081,
+          "bytes_op": 2842,
+          "allocs_op": 46
+        }
+      ]
+    },
+    {
+      "trial": 1,
+      "variant": "skip-unobserved-pool-stats",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-lifecycle-isolation:/e",
+        "--entrypoint",
+        "/e/skip-unobserved-pool-stats.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "skip-unobserved-pool-stats-1.txt",
+      "sha256": "30f11419c4cb93fb0ccc3ba9d0c86d31def05245860a954bce5f1ad92c71b366",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  171666\t     11677 ns/op\t   5.48 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  517772\t      3912 ns/op\t  16.36 MB/s\t    2826 B/op\t      45 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "ns_op": 11677,
+          "bytes_op": 2825,
+          "allocs_op": 45
+        },
+        {
+          "workers": 16,
+          "ns_op": 3912,
+          "bytes_op": 2826,
+          "allocs_op": 45
+        }
+      ]
+    },
+    {
+      "trial": 2,
+      "variant": "no-queue-watch",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-lifecycle-isolation:/e",
+        "--entrypoint",
+        "/e/no-queue-watch.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "no-queue-watch-2.txt",
+      "sha256": "992a00e34db3a7042bb8848f4a6b74f5766549c8f5906a66c233cdb83b4c7f93",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  172657\t     11624 ns/op\t   5.51 MB/s\t    2393 B/op\t      40 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  665326\t      3888 ns/op\t  16.46 MB/s\t    2394 B/op\t      40 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "ns_op": 11624,
+          "bytes_op": 2393,
+          "allocs_op": 40
+        },
+        {
+          "workers": 16,
+          "ns_op": 3888,
+          "bytes_op": 2394,
+          "allocs_op": 40
+        }
+      ]
+    },
+    {
+      "trial": 2,
+      "variant": "no-execution-timeout",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-lifecycle-isolation:/e",
+        "--entrypoint",
+        "/e/no-execution-timeout.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "no-execution-timeout-2.txt",
+      "sha256": "be204c34f7df21a59779762cc9a197a5990a88834cc2647fe88f9ef46b061021",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  204864\t     11562 ns/op\t   5.54 MB/s\t    2553 B/op\t      41 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  676416\t      3690 ns/op\t  17.34 MB/s\t    2554 B/op\t      41 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "ns_op": 11562,
+          "bytes_op": 2553,
+          "allocs_op": 41
+        },
+        {
+          "workers": 16,
+          "ns_op": 3690,
+          "bytes_op": 2554,
+          "allocs_op": 41
+        }
+      ]
+    },
+    {
+      "trial": 2,
+      "variant": "goroutine-dispatch",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-lifecycle-isolation:/e",
+        "--entrypoint",
+        "/e/goroutine-dispatch.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "goroutine-dispatch-2.txt",
+      "sha256": "b6e97c59cc1b728336058850d050dda0944c2906fb44c42ae7d6cdbef608efc5",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  182671\t     13060 ns/op\t   4.90 MB/s\t    2841 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  653656\t      3591 ns/op\t  17.82 MB/s\t    2842 B/op\t      46 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "ns_op": 13060,
+          "bytes_op": 2841,
+          "allocs_op": 46
+        },
+        {
+          "workers": 16,
+          "ns_op": 3591,
+          "bytes_op": 2842,
+          "allocs_op": 46
+        }
+      ]
+    },
+    {
+      "trial": 2,
+      "variant": "skip-unobserved-pool-stats",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-lifecycle-isolation:/e",
+        "--entrypoint",
+        "/e/skip-unobserved-pool-stats.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "skip-unobserved-pool-stats-2.txt",
+      "sha256": "85cfe672329037ff58299b8af219f10b66d1bd5824a19f5bdcd9460baae80b05",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  200454\t     12266 ns/op\t   5.22 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  612189\t      3735 ns/op\t  17.14 MB/s\t    2826 B/op\t      45 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "ns_op": 12266,
+          "bytes_op": 2825,
+          "allocs_op": 45
+        },
+        {
+          "workers": 16,
+          "ns_op": 3735,
+          "bytes_op": 2826,
+          "allocs_op": 45
+        }
+      ]
+    },
+    {
+      "trial": 2,
+      "variant": "baseline",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-lifecycle-isolation:/e",
+        "--entrypoint",
+        "/e/baseline.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "baseline-2.txt",
+      "sha256": "f98b7337cae608f4a0f9574e89dafb42f709aa1cb210569b9b778c40f29486b2",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  198645\t     12421 ns/op\t   5.15 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  609698\t      3732 ns/op\t  17.15 MB/s\t    2826 B/op\t      45 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "ns_op": 12421,
+          "bytes_op": 2825,
+          "allocs_op": 45
+        },
+        {
+          "workers": 16,
+          "ns_op": 3732,
+          "bytes_op": 2826,
+          "allocs_op": 45
+        }
+      ]
+    },
+    {
+      "trial": 3,
+      "variant": "no-execution-timeout",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-lifecycle-isolation:/e",
+        "--entrypoint",
+        "/e/no-execution-timeout.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "no-execution-timeout-3.txt",
+      "sha256": "bc12c741bae7baa7663eeb7e1035daf0bda774427f72bf504bbfd13382eab6fc",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  167774\t     12965 ns/op\t   4.94 MB/s\t    2553 B/op\t      41 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  539559\t      3752 ns/op\t  17.06 MB/s\t    2554 B/op\t      41 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "ns_op": 12965,
+          "bytes_op": 2553,
+          "allocs_op": 41
+        },
+        {
+          "workers": 16,
+          "ns_op": 3752,
+          "bytes_op": 2554,
+          "allocs_op": 41
+        }
+      ]
+    },
+    {
+      "trial": 3,
+      "variant": "goroutine-dispatch",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-lifecycle-isolation:/e",
+        "--entrypoint",
+        "/e/goroutine-dispatch.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "goroutine-dispatch-3.txt",
+      "sha256": "71450577e7714b428e7a4e524a33c34db2f37ebfed11316e9625205c5072705a",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  188308\t     12744 ns/op\t   5.02 MB/s\t    2841 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  560512\t      3712 ns/op\t  17.24 MB/s\t    2842 B/op\t      46 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "ns_op": 12744,
+          "bytes_op": 2841,
+          "allocs_op": 46
+        },
+        {
+          "workers": 16,
+          "ns_op": 3712,
+          "bytes_op": 2842,
+          "allocs_op": 46
+        }
+      ]
+    },
+    {
+      "trial": 3,
+      "variant": "skip-unobserved-pool-stats",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-lifecycle-isolation:/e",
+        "--entrypoint",
+        "/e/skip-unobserved-pool-stats.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "skip-unobserved-pool-stats-3.txt",
+      "sha256": "26e51de7cb0c565caf42f8cc1bb0957d081ffa0866d1a2bd3c77e35c88772698",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  176094\t     12917 ns/op\t   4.95 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  646561\t      3869 ns/op\t  16.54 MB/s\t    2826 B/op\t      45 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "ns_op": 12917,
+          "bytes_op": 2825,
+          "allocs_op": 45
+        },
+        {
+          "workers": 16,
+          "ns_op": 3869,
+          "bytes_op": 2826,
+          "allocs_op": 45
+        }
+      ]
+    },
+    {
+      "trial": 3,
+      "variant": "baseline",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-lifecycle-isolation:/e",
+        "--entrypoint",
+        "/e/baseline.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "baseline-3.txt",
+      "sha256": "cf4d7dca1a2b0208d3a9a95a8d03ae7521d5357917d3842a6c0fe2bb1535593c",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  180465\t     12185 ns/op\t   5.25 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  598736\t      3793 ns/op\t  16.87 MB/s\t    2826 B/op\t      45 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "ns_op": 12185,
+          "bytes_op": 2825,
+          "allocs_op": 45
+        },
+        {
+          "workers": 16,
+          "ns_op": 3793,
+          "bytes_op": 2826,
+          "allocs_op": 45
+        }
+      ]
+    },
+    {
+      "trial": 3,
+      "variant": "no-queue-watch",
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-lifecycle-isolation:/e",
+        "--entrypoint",
+        "/e/no-queue-watch.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes64/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "2s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0,
+      "output": "no-queue-watch-3.txt",
+      "sha256": "b9d92ac89bba02becd1f6e2885dd78ef5fafd26f9c21d35636381c7fcfdafa72",
+      "raw_output": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  173637\t     13232 ns/op\t   4.84 MB/s\t    2393 B/op\t      40 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  638265\t      3850 ns/op\t  16.63 MB/s\t    2394 B/op\t      40 allocs/op\nPASS\n",
+      "samples": [
+        {
+          "workers": 1,
+          "ns_op": 13232,
+          "bytes_op": 2393,
+          "allocs_op": 40
+        },
+        {
+          "workers": 16,
+          "ns_op": 3850,
+          "bytes_op": 2394,
+          "allocs_op": 40
+        }
+      ]
+    }
+  ],
+  "rpc_summary": [
+    {
+      "variant": "baseline",
+      "workers": 1,
+      "ns_op_median": 12185,
+      "ns_op_min": 11579,
+      "ns_op_max": 12421,
+      "bytes_op": 2825,
+      "allocs_op": 45
+    },
+    {
+      "variant": "baseline",
+      "workers": 16,
+      "ns_op_median": 3792,
+      "ns_op_min": 3732,
+      "ns_op_max": 3793,
+      "bytes_op": 2826,
+      "allocs_op": 45
+    },
+    {
+      "variant": "no-queue-watch",
+      "workers": 1,
+      "ns_op_median": 11624,
+      "ns_op_min": 11601,
+      "ns_op_max": 13232,
+      "bytes_op": 2393,
+      "allocs_op": 40
+    },
+    {
+      "variant": "no-queue-watch",
+      "workers": 16,
+      "ns_op_median": 3888,
+      "ns_op_min": 3850,
+      "ns_op_max": 3925,
+      "bytes_op": 2394,
+      "allocs_op": 40
+    },
+    {
+      "variant": "no-execution-timeout",
+      "workers": 1,
+      "ns_op_median": 11769,
+      "ns_op_min": 11562,
+      "ns_op_max": 12965,
+      "bytes_op": 2553,
+      "allocs_op": 41
+    },
+    {
+      "variant": "no-execution-timeout",
+      "workers": 16,
+      "ns_op_median": 3690,
+      "ns_op_min": 3419,
+      "ns_op_max": 3752,
+      "bytes_op": 2554,
+      "allocs_op": 41
+    },
+    {
+      "variant": "goroutine-dispatch",
+      "workers": 1,
+      "ns_op_median": 12744,
+      "ns_op_min": 12615,
+      "ns_op_max": 13060,
+      "bytes_op": 2841,
+      "allocs_op": 46
+    },
+    {
+      "variant": "goroutine-dispatch",
+      "workers": 16,
+      "ns_op_median": 3712,
+      "ns_op_min": 3591,
+      "ns_op_max": 4081,
+      "bytes_op": 2842,
+      "allocs_op": 46
+    },
+    {
+      "variant": "skip-unobserved-pool-stats",
+      "workers": 1,
+      "ns_op_median": 12266,
+      "ns_op_min": 11677,
+      "ns_op_max": 12917,
+      "bytes_op": 2825,
+      "allocs_op": 45
+    },
+    {
+      "variant": "skip-unobserved-pool-stats",
+      "workers": 16,
+      "ns_op_median": 3869,
+      "ns_op_min": 3735,
+      "ns_op_max": 3912,
+      "bytes_op": 2826,
+      "allocs_op": 45
+    }
+  ],
+  "diagnostic_patches": {
+    "no-queue-watch": "--- baseline/service.go\n+++ diagnostic/no-queue-watch.go\n@@ -198,7 +198,7 @@\n \ts.retainedItems++\n \ts.requestWG.Add(1)\n \t// Install under the queue lock so cancellation cannot race past ownership transfer.\n-\tentry.watchQueue(s)\n+\t// Diagnostic only: queue expiry callbacks are deliberately disabled.\n \tsnapshot := s.queueSnapshotLocked()\n \tretained := s.retainedEventLocked()\n \ts.mu.Unlock()\n",
+    "no-execution-timeout": "--- baseline/service.go\n+++ diagnostic/no-execution-timeout.go\n@@ -331,7 +331,7 @@\n \t\tctx = req.Context\n \t}\n \tcancel := func() {}\n-\tif s.opts.Timeout > 0 {\n+\tif false && s.opts.Timeout > 0 {\n \t\tctx, cancel = context.WithTimeout(ctx, s.opts.Timeout)\n \t}\n \tdefer cancel()\n",
+    "goroutine-dispatch": "--- baseline/service.go\n+++ diagnostic/goroutine-dispatch.go\n@@ -258,7 +258,7 @@\n \t\tfor {\n \t\t\terr := s.beforeExecution(req)\n \t\t\tif err == nil {\n-\t\t\t\terr = s.executor.Submit(task)\n+\t\t\t\tgo task.run() // Diagnostic only: shared-executor admission is bypassed.\n \t\t\t}\n \t\t\tif err == nil {\n \t\t\t\tbreak\n",
+    "skip-unobserved-pool-stats": "--- baseline/service.go\n+++ diagnostic/skip-unobserved-pool-stats.go\n@@ -447,6 +447,7 @@\n }\n \n func (s *Service) observeInflight(inflight int, revision uint64) {\n+\tif s.observer == nil { return }\n \tevent := core.Event{\n \t\tName:         \"service_inflight\",\n \t\tServiceID:    s.ID,\n"
+  },
+  "status_runs": {
+    "before": {
+      "raw_output": "goos: darwin\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/internal/bench/worker\ncpu: Apple M4\nBenchmarkLifecycleStatus/Samples0-4         \t  158496\t      6437 ns/op\t    9524 B/op\t      89 allocs/op\nBenchmarkLifecycleStatus/Samples0-4         \t  201752\t      5738 ns/op\t    9524 B/op\t      89 allocs/op\nBenchmarkLifecycleStatus/Samples0-4         \t  222001\t      5471 ns/op\t    9524 B/op\t      89 allocs/op\nBenchmarkLifecycleStatus/Samples30000-4     \t    1008\t   1101397 ns/op\t  258305 B/op\t      94 allocs/op\nBenchmarkLifecycleStatus/Samples30000-4     \t    1113\t   1081639 ns/op\t  258291 B/op\t      94 allocs/op\nBenchmarkLifecycleStatus/Samples30000-4     \t    1070\t   1190260 ns/op\t  258325 B/op\t      94 allocs/op\nBenchmarkLifecycleStatus/Samples810000-4    \t      25\t  46392507 ns/op\t 6501941 B/op\t      97 allocs/op\nBenchmarkLifecycleStatus/Samples810000-4    \t      25\t  46806608 ns/op\t 6501430 B/op\t      96 allocs/op\nBenchmarkLifecycleStatus/Samples810000-4    \t      25\t  45297735 ns/op\t 6501600 B/op\t      97 allocs/op\nPASS\nok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/worker\t12.753s\n",
+      "samples": [
+        {
+          "history_size": 0,
+          "ns_op": 6437,
+          "bytes_op": 9524,
+          "allocs_op": 89
+        },
+        {
+          "history_size": 0,
+          "ns_op": 5738,
+          "bytes_op": 9524,
+          "allocs_op": 89
+        },
+        {
+          "history_size": 0,
+          "ns_op": 5471,
+          "bytes_op": 9524,
+          "allocs_op": 89
+        },
+        {
+          "history_size": 30000,
+          "ns_op": 1101397,
+          "bytes_op": 258305,
+          "allocs_op": 94
+        },
+        {
+          "history_size": 30000,
+          "ns_op": 1081639,
+          "bytes_op": 258291,
+          "allocs_op": 94
+        },
+        {
+          "history_size": 30000,
+          "ns_op": 1190260,
+          "bytes_op": 258325,
+          "allocs_op": 94
+        },
+        {
+          "history_size": 810000,
+          "ns_op": 46392507,
+          "bytes_op": 6501941,
+          "allocs_op": 97
+        },
+        {
+          "history_size": 810000,
+          "ns_op": 46806608,
+          "bytes_op": 6501430,
+          "allocs_op": 96
+        },
+        {
+          "history_size": 810000,
+          "ns_op": 45297735,
+          "bytes_op": 6501600,
+          "allocs_op": 97
+        }
+      ]
+    },
+    "after": {
+      "raw_output": "goos: darwin\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/internal/bench/worker\ncpu: Apple M4\nBenchmarkLifecycleStatus/Samples0-4         \t  226308\t      5236 ns/op\t    9476 B/op\t      88 allocs/op\nBenchmarkLifecycleStatus/Samples0-4         \t  229843\t      5247 ns/op\t    9477 B/op\t      88 allocs/op\nBenchmarkLifecycleStatus/Samples0-4         \t  227700\t      5291 ns/op\t    9476 B/op\t      88 allocs/op\nBenchmarkLifecycleStatus/Samples30000-4     \t  227138\t      5323 ns/op\t    9477 B/op\t      88 allocs/op\nBenchmarkLifecycleStatus/Samples30000-4     \t  226083\t      5300 ns/op\t    9477 B/op\t      88 allocs/op\nBenchmarkLifecycleStatus/Samples30000-4     \t  224349\t      5348 ns/op\t    9477 B/op\t      88 allocs/op\nBenchmarkLifecycleStatus/Samples810000-4    \t  222879\t      5237 ns/op\t    9469 B/op\t      88 allocs/op\nBenchmarkLifecycleStatus/Samples810000-4    \t  227109\t      5217 ns/op\t    9468 B/op\t      88 allocs/op\nBenchmarkLifecycleStatus/Samples810000-4    \t  226089\t      5234 ns/op\t    9469 B/op\t      88 allocs/op\nPASS\nok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/worker\t12.699s\n",
+      "samples": [
+        {
+          "history_size": 0,
+          "ns_op": 5236,
+          "bytes_op": 9476,
+          "allocs_op": 88
+        },
+        {
+          "history_size": 0,
+          "ns_op": 5247,
+          "bytes_op": 9477,
+          "allocs_op": 88
+        },
+        {
+          "history_size": 0,
+          "ns_op": 5291,
+          "bytes_op": 9476,
+          "allocs_op": 88
+        },
+        {
+          "history_size": 30000,
+          "ns_op": 5323,
+          "bytes_op": 9477,
+          "allocs_op": 88
+        },
+        {
+          "history_size": 30000,
+          "ns_op": 5300,
+          "bytes_op": 9477,
+          "allocs_op": 88
+        },
+        {
+          "history_size": 30000,
+          "ns_op": 5348,
+          "bytes_op": 9477,
+          "allocs_op": 88
+        },
+        {
+          "history_size": 810000,
+          "ns_op": 5237,
+          "bytes_op": 9469,
+          "allocs_op": 88
+        },
+        {
+          "history_size": 810000,
+          "ns_op": 5217,
+          "bytes_op": 9468,
+          "allocs_op": 88
+        },
+        {
+          "history_size": 810000,
+          "ns_op": 5234,
+          "bytes_op": 9469,
+          "allocs_op": 88
+        }
+      ]
+    }
+  },
+  "status_regression_old_path": "--- FAIL: TestLifecycleStatusAllocationsIgnoreLatencyHistory (0.00s)\n    status_metrics_test.go:26: \n        \tError Trace:\t/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/rpc-lifecycle/internal/bench/worker/status_metrics_test.go:26\n        \tError:      \tNot equal: \n        \t            \texpected: 89\n        \t            \tactual  : 94\n        \tTest:       \tTestLifecycleStatusAllocationsIgnoreLatencyHistory\n        \tMessages:   \tstatus must not allocate latency copies or summaries\nFAIL\nFAIL\tgithub.com/WuKongIM/WuKongIM/internal/bench/worker\t0.663s\nFAIL\n",
+  "notes": [
+    "Local ARM64 measurements do not establish x86 cloud RPC recovery.",
+    "RPC unsafe overlays are diagnostic only and are not production changes.",
+    "RPC measurements ran sequentially; three rotated trials, two seconds per case.",
+    "Status measurements used macOS ARM64 Apple M4, GOMAXPROCS=4, three one-second repetitions; no concurrent compilation, profiling or tests."
+  ],
+  "validation": {
+    "bench-unit.txt": "ok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/arrival\t0.915s\nok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/capacity\t0.406s\nok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/chatlifecycle\t10.640s\nok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/config\t1.425s\nok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/coordinator\t2.032s\nok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/devsim\t2.432s\nok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/localbaseline\t2.230s\nok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/messageevent\t3.377s\nok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/metrics\t1.790s\nok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/planner\t0.359s\nok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/report\t4.073s\nok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/target\t3.010s\nok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/wkproto\t3.982s\nok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/worker\t8.102s\nok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/workload\t3.060s\n",
+    "race-integration.txt": "ok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/metrics\t1.474s\n--- FAIL: TestLifecycleStatusAllocationsIgnoreLatencyHistory (0.01s)\n    status_metrics_test.go:26: \n        \tError Trace:\t/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/rpc-lifecycle/internal/bench/worker/status_metrics_test.go:26\n        \tError:      \tNot equal: \n        \t            \texpected: 90\n        \t            \tactual  : 92\n        \tTest:       \tTestLifecycleStatusAllocationsIgnoreLatencyHistory\n        \tMessages:   \tstatus must not allocate latency copies or summaries\nFAIL\nFAIL\tgithub.com/WuKongIM/WuKongIM/internal/bench/worker\t6.290s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport\t2.106s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/buffer\t3.124s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/conn\t4.455s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/core\t4.429s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/peer\t3.698s\n--- FAIL: TestServiceHandlerPanicRepliesAndReleasesPayload (0.00s)\n    service_test.go:207: released = 0, want 1\nFAIL\nFAIL\tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc\t2.187s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/sched\t2.349s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/testkit\t4.029s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/wire\t4.678s\nFAIL\n",
+    "race-recheck.txt": "ok  \tgithub.com/WuKongIM/WuKongIM/internal/bench/worker\t7.730s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc\t2.129s\n",
+    "flow-check.txt": "flowcheck: 81 FLOW files; 81 compliant; 0 invalid; 9 warnings\ndocs-site/FLOW.md: 103 lines exceeds the 100-line target\ninternal/access/api/FLOW.md: 126 lines exceeds the 100-line target\ninternal/app/FLOW.md: 113 lines exceeds the 100-line target\ninternal/bench/FLOW.md: 115 lines exceeds the 100-line target\ninternal/infra/cluster/FLOW.md: 113 lines exceeds the 100-line target\ninternal/usecase/message/FLOW.md: 111 lines exceeds the 100-line target\npkg/channel/FLOW.md: 113 lines exceeds the 100-line target\npkg/cluster/FLOW.md: 149 lines exceeds the 100-line target\npkg/db/message/FLOW.md: 130 lines exceeds the 100-line target\n",
+    "notes": [
+      "Initial race run exposed allocation instrumentation noise and an asynchronous panic-test assertion; the latter now joins Request.Finish.",
+      "Allocation regression passed ten non-race repetitions after moving its assertion behind !race.",
+      "The corrected panic cleanup test passed 100 repetitions under race."
+    ]
+  },
+  "status_profile": {
+    "top": "File: worker.test\nType: cpu\nTime: 2026-09-22 00:53:14 CST\nDuration: 2.52s, Total samples = 2390ms (94.95%)\nShowing nodes accounting for 1760ms, 73.64% of 2390ms total\nDropped 66 nodes (cum <= 11.95ms)\nShowing top 12 nodes out of 134\n      flat  flat%   sum%        cum   cum%\n     600ms 25.10% 25.10%      600ms 25.10%  runtime.kevent\n     310ms 12.97% 38.08%      310ms 12.97%  runtime.pthread_cond_wait\n     250ms 10.46% 48.54%      250ms 10.46%  runtime.madvise\n     140ms  5.86% 54.39%      140ms  5.86%  runtime.usleep\n     100ms  4.18% 58.58%      100ms  4.18%  runtime.pthread_kill\n      70ms  2.93% 61.51%       90ms  3.77%  internal/runtime/maps.(*Iter).Next\n      60ms  2.51% 64.02%       60ms  2.51%  runtime.pthread_cond_signal\n      50ms  2.09% 66.11%       70ms  2.93%  bytes.(*Buffer).WriteString\n      50ms  2.09% 68.20%       50ms  2.09%  crypto/internal/fips140/sha256.blockSHA2\n      50ms  2.09% 70.29%      200ms  8.37%  runtime.mallocgcSmallScanNoHeader\n      40ms  1.67% 71.97%       40ms  1.67%  internal/runtime/atomic.(*UnsafePointer).Load (inline)\n      40ms  1.67% 73.64%       40ms  1.67%  runtime.memmove\n",
+    "summary_focus": "File: worker.test\nType: cpu\nTime: 2026-09-22 00:53:14 CST\nDuration: 2.52s, Total samples = 2.39s (94.95%)\nActive filters:\n   focus=summarizeDurations\nShowing nodes accounting for 0, 0% of 2.39s total\n      flat  flat%   sum%        cum   cum%\nFocus expression matched no samples\n"
+  },
+  "changed_runtime_sources_sha256": {
+    "internal/bench/metrics/metrics.go": "88ea1acba7f754f83f5b8ecc22554708384243ae2e8ee44c7ac613439bea3e85",
+    "internal/bench/worker/person_runner.go": "73186aa7e34dcdb3364a95219c1d81f3a1f6521a4cbcb6cc25d68a5ed0bd9570"
+  },
+  "benchmark_source_sha256": "7d3b41d27995bdc75a39f890bb27182b68a4f6b936872627cff479d5914f8938"
+}

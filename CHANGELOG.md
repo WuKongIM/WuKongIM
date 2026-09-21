@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Keep benchmark status polling independent of latency-history size by reading counters and gauges directly; reports retain exact latency summaries and error evidence. / 压测状态轮询直接读取计数器和当前值，不再反复整理历史延迟样本；报告保留精确延迟统计和错误证据。
+
 - Avoid an intermediate internal RPC response copy by encoding borrowed handler bytes synchronously; asynchronous replies retain independent payloads. / 内部 RPC 同步编码借用的处理结果，省去一次中间响应复制，异步回复仍保留独立数据。
 
 - Reduce benchmark snapshot CPU cost with typed latency sorting while retaining exact percentile and SLO results. / 压测快照使用类型化时延排序，降低 CPU 开销，保留精确分位数和 SLO 判定。

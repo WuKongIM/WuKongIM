@@ -356,7 +356,12 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
-- Benchmark Registry snapshots copy every metric family at one lock-protected
+- Benchmark progress snapshots capture counters and gauges at one lock-protected
+  instant without copying or sorting latency history or waiting for report
+  aggregation. Lifecycle polling and terminal traffic projection share report
+  counter/gauge merge rules across active and archived workload generations.
+  Only report snapshots include full latency and error evidence.
+- Benchmark Registry report snapshots copy every metric family at one lock-protected
   instant, then aggregate owned latency samples outside the producer lock.
   A separate collector mutex serializes large working copies. Exact SLO
   quantiles and raw sample retention remain unchanged; this reduces producer

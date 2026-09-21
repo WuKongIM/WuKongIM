@@ -183,6 +183,7 @@ func TestServiceTimeout(t *testing.T) {
 
 func TestServiceHandlerPanicRepliesAndReleasesPayload(t *testing.T) {
 	var released atomic.Int32
+	finished := make(chan struct{})
 	svc := NewService(1, func(context.Context, []byte) ([]byte, error) {
 		panic("boom")
 	}, core.ServiceOptions{Concurrency: 1, QueueSize: 1, MaxQueueBytes: 1024}, nil)
@@ -193,7 +194,8 @@ func TestServiceHandlerPanicRepliesAndReleasesPayload(t *testing.T) {
 		Payload: core.NewOwnedBuffer([]byte("panic"), func([]byte) {
 			released.Add(1)
 		}),
-		Reply: reply,
+		Reply:  reply,
+		Finish: func() { close(finished) },
 	})
 	if err != nil {
 		t.Fatalf("Enqueue() error = %v", err)
@@ -203,6 +205,9 @@ func TestServiceHandlerPanicRepliesAndReleasesPayload(t *testing.T) {
 	if resp.Err == nil {
 		t.Fatal("reply err is nil, want panic error")
 	}
+	// Reply delivery precedes deferred request cleanup; join the ownership
+	// boundary before asserting that the payload was released exactly once.
+	waitClosed(t, finished)
 	if got := released.Load(); got != 1 {
 		t.Fatalf("released = %d, want 1", got)
 	}

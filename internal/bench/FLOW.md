@@ -84,9 +84,10 @@ native local baseline
 - Report schemas keep hot, first-create, and reheat SENDACK histograms distinct.
   Running status and retained artifacts contain closed reason vocabularies,
   fixed aggregates, and redacted credentials, never raw identities or errors.
-  Registry snapshots capture all metric families together; expensive exact
-  latency aggregation uses private samples outside the producer lock. Collectors
-  remain serialized to bound simultaneous large working copies.
+  Progress polling captures counters and gauges together without copying or
+  sorting latency history. Report snapshots capture all metric families together;
+  expensive exact latency aggregation uses private samples outside the producer
+  lock. Collectors remain serialized to bound simultaneous large working copies.
 - Observer rounds retain their source clock for resource schedules while late
   verdict samples rebase; exact-hour resource evidence is not shifted or lost.
 - Local-baseline authorization replays no-follow manifests, typed closures,

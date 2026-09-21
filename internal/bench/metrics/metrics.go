@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"net"
 	"slices"
@@ -441,6 +442,18 @@ func (r *Registry) ErrorSamples() []ErrorSample {
 // Collect returns the current registry contents in a typed JSON-friendly shape.
 func (r *Registry) Collect() SnapshotData {
 	return r.collect(summarizeDurations)
+}
+
+// CollectProgress captures counters and gauges together for status polling.
+// It owns its maps and neither copies latency history nor waits for report
+// aggregation. Reports must use Collect to retain latency and error evidence.
+func (r *Registry) CollectProgress() SnapshotData {
+	if r == nil {
+		return emptySnapshot()
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return SnapshotData{Counters: maps.Clone(r.counters), Gauges: maps.Clone(r.gauges)}
 }
 
 // collect separates snapshot capture from potentially expensive aggregation.

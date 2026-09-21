@@ -407,7 +407,7 @@ func (r *defaultWorkloadRunner) LifecycleStatus() LifecycleStatus {
 	return LifecycleStatus{
 		ActiveConnections:     active,
 		ReconnectedUsers:      reconnected,
-		Traffic:               trafficStatusFromMetrics(r.MetricsSnapshot()),
+		Traffic:               trafficStatusFromMetrics(r.metricsSnapshot((*metrics.Registry).CollectProgress)),
 		ReceiveDrain:          receiveDrain,
 		ReceiveDrainSHA256:    model.ReceiveDrainFingerprint(receiveDrain),
 		TerminalCutRequired:   terminalCut.Required,
@@ -522,7 +522,7 @@ func (r *defaultWorkloadRunner) SealTerminalReceive(ctx context.Context, assignm
 		drained.DrainComplete = false
 		drained.StableZeroObservations = 0
 	}
-	traffic := trafficStatusFromMetrics(r.MetricsSnapshot())
+	traffic := trafficStatusFromMetrics(r.metricsSnapshot((*metrics.Registry).CollectProgress))
 	r.mu.Lock()
 	if r.runID != assignment.RunID || r.autoRecvAck != handle {
 		r.mu.Unlock()
@@ -972,16 +972,23 @@ func (r *defaultWorkloadRunner) rebuildTrafficFromManager(ctx context.Context, a
 
 // MetricsSnapshot returns the merged metrics from active worker-local workloads.
 func (r *defaultWorkloadRunner) MetricsSnapshot() metrics.SnapshotData {
+	return r.metricsSnapshot((*metrics.Registry).Collect)
+}
+
+// metricsSnapshot shares spatial and temporal accounting between progress and
+// reports. Archived windows already contain bounded summaries; only active
+// registries need to choose whether to aggregate their raw latency history.
+func (r *defaultWorkloadRunner) metricsSnapshot(collect func(*metrics.Registry) metrics.SnapshotData) metrics.SnapshotData {
 	manager, personWorkloads, groupWorkloads, archived, registry := r.metricsState()
 	workloadWindows := append([]metrics.SnapshotData(nil), archived...)
-	if active, ok, err := spatialWorkloadMetrics(personWorkloads, groupWorkloads); err != nil {
+	if active, ok, err := spatialWorkloadMetrics(personWorkloads, groupWorkloads, collect); err != nil {
 		return emptyWorkerMetricsSnapshot()
 	} else if ok {
 		workloadWindows = append(workloadWindows, active)
 	}
 	workerSnapshots := make([]metrics.WorkerSnapshot, 0, 3)
 	if registry != nil {
-		workerSnapshots = append(workerSnapshots, metrics.WorkerSnapshot{Metrics: registry.Collect()})
+		workerSnapshots = append(workerSnapshots, metrics.WorkerSnapshot{Metrics: collect(registry)})
 	}
 	if manager != nil {
 		workerSnapshots = append(workerSnapshots, metrics.WorkerSnapshot{Metrics: manager.MetricsSnapshot()})
@@ -1008,16 +1015,16 @@ func emptyWorkerMetricsSnapshot() metrics.SnapshotData {
 	}
 }
 
-func spatialWorkloadMetrics(personWorkloads []*benchworkload.PersonWorkload, groupWorkloads []*benchworkload.GroupWorkload) (metrics.SnapshotData, bool, error) {
+func spatialWorkloadMetrics(personWorkloads []*benchworkload.PersonWorkload, groupWorkloads []*benchworkload.GroupWorkload, collect func(*metrics.Registry) metrics.SnapshotData) (metrics.SnapshotData, bool, error) {
 	snapshots := make([]metrics.WorkerSnapshot, 0, len(personWorkloads)+len(groupWorkloads))
 	for _, workload := range personWorkloads {
 		if workload != nil && workload.Metrics() != nil {
-			snapshots = append(snapshots, metrics.WorkerSnapshot{Metrics: workload.Metrics().Collect()})
+			snapshots = append(snapshots, metrics.WorkerSnapshot{Metrics: collect(workload.Metrics())})
 		}
 	}
 	for _, workload := range groupWorkloads {
 		if workload != nil && workload.Metrics() != nil {
-			snapshots = append(snapshots, metrics.WorkerSnapshot{Metrics: workload.Metrics().Collect()})
+			snapshots = append(snapshots, metrics.WorkerSnapshot{Metrics: collect(workload.Metrics())})
 		}
 	}
 	if len(snapshots) == 0 {
@@ -1968,7 +1975,7 @@ func (r *defaultWorkloadRunner) stopCurrentReceiveGeneration(ctx context.Context
 }
 
 func (r *defaultWorkloadRunner) archiveCurrentWorkloadMetricsLocked() error {
-	current, ok, err := spatialWorkloadMetrics(r.personWorkloads, r.groupWorkloads)
+	current, ok, err := spatialWorkloadMetrics(r.personWorkloads, r.groupWorkloads, (*metrics.Registry).Collect)
 	if err != nil {
 		return fmt.Errorf("worker runner: aggregate active workload metrics: %w", err)
 	}
