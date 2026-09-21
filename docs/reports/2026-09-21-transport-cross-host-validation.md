@@ -71,3 +71,6 @@
 精确请求 `chat-20260921T080550Z-105e3755` 的 4 台实例及关联资源已于 **2026-09-21 16:58:57（UTC+8）** 释放。认证零残留证明覆盖 instances、disks、disk attachments、EIPs、EIP associations、ENIs、NAT gateways、route entries、security group rules、security groups、VPCs、vSwitches 共 12 个范围；不是只依据删除请求返回成功。证明 SHA-256：`daa1d15890351c61c948612938eaafa38101a3774cd96c86e40da24e9baf9b4b`。
 
 预算上限 ¥300；采购前完整六小时计划估价 ¥43.6388，包含估算流量和保留风险，**不是实际账单**。本次提前销毁，实际结算费用尚未核验。临时凭据仅在内存中使用，传输文件已删除、持有凭据的进程已退出；公开报告不包含账号标识、地址或凭据。完整报告、指标及 RPC 原始结果已留在本地，提交的 JSON 保存必要摘要与文件校验值。
+
+后续本地诊断已完成 [RPC 排队分配优化及验证](2026-09-21-transport-rpc-allocation-followup.md)。
+该后续未重新采购或跨 ECS 复测，不能据此覆盖本报告的云上回归结论。

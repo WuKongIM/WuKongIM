@@ -336,7 +336,11 @@ specification, runbook, report, or module documentation; link to them when neede
   v1 fallback; timeout or malformed negotiation never retries business work.
   Relative budgets start at receiver admission, avoiding wall-clock skew;
   callers enforce their own end-to-end deadline. Queued cancellation releases
-  memory and FIFO capacity. Running cancellation is opt-in for read-only RPCs;
+  memory and FIFO capacity. Queue expiry watches the original request context;
+  only a queue deadline earlier than the caller deadline needs its own timer.
+  Dequeue and executor admission still check expiry even if a timer callback is
+  delayed; queue expiry must not cancel its parent context.
+  Running cancellation is opt-in for read-only RPCs;
   started mutations use independent bounded execution and may commit after their
   caller times out. Timeout/cancel is never a rollback acknowledgement.
   Complete backup/restore RPCs retain a 48-hour execution envelope, repository

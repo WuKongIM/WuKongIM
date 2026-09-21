@@ -192,19 +192,12 @@ func (s *Service) Enqueue(req Request) error {
 	}
 	entry := &requestEntry{req: req, queued: true, enqueuedAt: time.Now()}
 	entry.req.entry = entry
-	queueCtx := req.Context
-	if s.opts.QueueTimeout > 0 {
-		queueCtx, entry.cancelQueue = context.WithTimeout(queueCtx, s.opts.QueueTimeout)
-	}
-	entry.queueContext = queueCtx
 	s.appendLocked(entry)
 	s.retainedBytes += req.retainedBytes
 	s.retainedItems++
 	s.requestWG.Add(1)
 	// Install under the queue lock so cancellation cannot race past ownership transfer.
-	if queueCtx.Done() != nil && queueCtx != s.ctx {
-		entry.stopExpiry = context.AfterFunc(queueCtx, func() { s.expire(entry) })
-	}
+	entry.watchQueue(s)
 	snapshot := s.queueSnapshotLocked()
 	retained := s.retainedEventLocked()
 	s.mu.Unlock()

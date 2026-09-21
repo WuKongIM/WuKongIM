@@ -1,0 +1,1366 @@
+{
+  "schema": "wukongim.transport_rpc_allocation_followup/v1",
+  "baseline_sha": "de625f971cc97621ee07c129ede904f887aa7bb6",
+  "cloud_retest_performed": false,
+  "context": {
+    "base_sha": "de625f971cc97621ee07c129ede904f887aa7bb6",
+    "go_native": "/tmp/wk-rpc-regression/before.test: go1.25.11",
+    "go_linux": "/tmp/wk-rpc-regression/after-linux.test: go1.25.11",
+    "governing_agreements_sha256": "c6eae7244b1c660be4b2a62cbdc1efa5c26c35e34972e994df7e6ae073fc9d0b",
+    "applicable_flow_files": [],
+    "cloud_resources_created": false,
+    "cpu_native": "Apple M4",
+    "gomaxprocs": 4,
+    "linux_cpus": "0-3",
+    "linux_memory_gib": 6
+  },
+  "setup": {
+    "go": "1.25.11",
+    "native_cpu": "Apple M4",
+    "linux": "Docker Desktop ARM64 VM; static ARM64 binary, amd64 Debian rootfs unused by binary",
+    "gomaxprocs": 4,
+    "pool_size": 16,
+    "server_concurrency": 64,
+    "request_timeout_seconds": 2,
+    "queue_timeout_seconds": 5,
+    "handler_timeout_seconds": 30,
+    "observer_enabled": false,
+    "allocation_scope": "both endpoints",
+    "short_seconds": 1,
+    "long_seconds": 5,
+    "trials": 3
+  },
+  "samples": [
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": false,
+      "iterations": 48952,
+      "ns_per_op": 26085,
+      "bytes_per_op": 3346,
+      "allocs_per_op": 51,
+      "source": "before.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": false,
+      "iterations": 46680,
+      "ns_per_op": 25727,
+      "bytes_per_op": 3346,
+      "allocs_per_op": 51,
+      "source": "before.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": false,
+      "iterations": 46256,
+      "ns_per_op": 25892,
+      "bytes_per_op": 3346,
+      "allocs_per_op": 51,
+      "source": "before.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": true,
+      "iterations": 46609,
+      "ns_per_op": 25893,
+      "bytes_per_op": 3346,
+      "allocs_per_op": 51,
+      "source": "before.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": true,
+      "iterations": 46354,
+      "ns_per_op": 26029,
+      "bytes_per_op": 3346,
+      "allocs_per_op": 51,
+      "source": "before.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": true,
+      "iterations": 46264,
+      "ns_per_op": 25714,
+      "bytes_per_op": 3346,
+      "allocs_per_op": 51,
+      "source": "before.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": false,
+      "iterations": 235468,
+      "ns_per_op": 5076,
+      "bytes_per_op": 3347,
+      "allocs_per_op": 51,
+      "source": "before.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": false,
+      "iterations": 236518,
+      "ns_per_op": 5174,
+      "bytes_per_op": 3347,
+      "allocs_per_op": 51,
+      "source": "before.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": false,
+      "iterations": 237072,
+      "ns_per_op": 5156,
+      "bytes_per_op": 3347,
+      "allocs_per_op": 51,
+      "source": "before.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": true,
+      "iterations": 233792,
+      "ns_per_op": 5123,
+      "bytes_per_op": 3347,
+      "allocs_per_op": 51,
+      "source": "before.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": true,
+      "iterations": 237890,
+      "ns_per_op": 5096,
+      "bytes_per_op": 3347,
+      "allocs_per_op": 51,
+      "source": "before.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": true,
+      "iterations": 239173,
+      "ns_per_op": 5161,
+      "bytes_per_op": 3347,
+      "allocs_per_op": 51,
+      "source": "before.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": false,
+      "iterations": 47346,
+      "ns_per_op": 24689,
+      "bytes_per_op": 2850,
+      "allocs_per_op": 46,
+      "source": "after.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": false,
+      "iterations": 48955,
+      "ns_per_op": 24710,
+      "bytes_per_op": 2850,
+      "allocs_per_op": 46,
+      "source": "after.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": false,
+      "iterations": 48690,
+      "ns_per_op": 24575,
+      "bytes_per_op": 2849,
+      "allocs_per_op": 46,
+      "source": "after.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": true,
+      "iterations": 48267,
+      "ns_per_op": 24818,
+      "bytes_per_op": 2890,
+      "allocs_per_op": 46,
+      "source": "after.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": true,
+      "iterations": 47554,
+      "ns_per_op": 26716,
+      "bytes_per_op": 2890,
+      "allocs_per_op": 46,
+      "source": "after.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": true,
+      "iterations": 48421,
+      "ns_per_op": 24852,
+      "bytes_per_op": 2890,
+      "allocs_per_op": 46,
+      "source": "after.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": false,
+      "iterations": 244762,
+      "ns_per_op": 5025,
+      "bytes_per_op": 2851,
+      "allocs_per_op": 46,
+      "source": "after.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": false,
+      "iterations": 250044,
+      "ns_per_op": 4865,
+      "bytes_per_op": 2851,
+      "allocs_per_op": 46,
+      "source": "after.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": false,
+      "iterations": 245044,
+      "ns_per_op": 4900,
+      "bytes_per_op": 2851,
+      "allocs_per_op": 46,
+      "source": "after.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": true,
+      "iterations": 242952,
+      "ns_per_op": 4923,
+      "bytes_per_op": 2890,
+      "allocs_per_op": 46,
+      "source": "after.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": true,
+      "iterations": 241562,
+      "ns_per_op": 4955,
+      "bytes_per_op": 2890,
+      "allocs_per_op": 46,
+      "source": "after.txt"
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": true,
+      "iterations": 248025,
+      "ns_per_op": 4853,
+      "bytes_per_op": 2890,
+      "allocs_per_op": 46,
+      "source": "after.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": false,
+      "iterations": 93810,
+      "ns_per_op": 13147,
+      "bytes_per_op": 2850,
+      "allocs_per_op": 46,
+      "source": "linux-after-1.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": true,
+      "iterations": 94321,
+      "ns_per_op": 11767,
+      "bytes_per_op": 2890,
+      "allocs_per_op": 46,
+      "source": "linux-after-1.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": false,
+      "iterations": 307500,
+      "ns_per_op": 3618,
+      "bytes_per_op": 2850,
+      "allocs_per_op": 46,
+      "source": "linux-after-1.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": true,
+      "iterations": 354073,
+      "ns_per_op": 3639,
+      "bytes_per_op": 2890,
+      "allocs_per_op": 46,
+      "source": "linux-after-1.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers1/Budgetsfalse-4",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "budgets": false,
+      "iterations": 12224,
+      "ns_per_op": 106845,
+      "bytes_per_op": 233831,
+      "allocs_per_op": 46,
+      "source": "linux-after-1.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers1/Budgetstrue-4",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "budgets": true,
+      "iterations": 12459,
+      "ns_per_op": 97801,
+      "bytes_per_op": 232752,
+      "allocs_per_op": 46,
+      "source": "linux-after-1.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers16/Budgetsfalse-4",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "budgets": false,
+      "iterations": 16722,
+      "ns_per_op": 73612,
+      "bytes_per_op": 231182,
+      "allocs_per_op": 46,
+      "source": "linux-after-1.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers16/Budgetstrue-4",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "budgets": true,
+      "iterations": 15002,
+      "ns_per_op": 75406,
+      "bytes_per_op": 230930,
+      "allocs_per_op": 46,
+      "source": "linux-after-1.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": false,
+      "iterations": 93238,
+      "ns_per_op": 12433,
+      "bytes_per_op": 2849,
+      "allocs_per_op": 46,
+      "source": "linux-after-2.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": true,
+      "iterations": 91510,
+      "ns_per_op": 12414,
+      "bytes_per_op": 2889,
+      "allocs_per_op": 46,
+      "source": "linux-after-2.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": false,
+      "iterations": 299716,
+      "ns_per_op": 3757,
+      "bytes_per_op": 2850,
+      "allocs_per_op": 46,
+      "source": "linux-after-2.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": true,
+      "iterations": 336810,
+      "ns_per_op": 3574,
+      "bytes_per_op": 2890,
+      "allocs_per_op": 46,
+      "source": "linux-after-2.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers1/Budgetsfalse-4",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "budgets": false,
+      "iterations": 12762,
+      "ns_per_op": 95988,
+      "bytes_per_op": 232586,
+      "allocs_per_op": 46,
+      "source": "linux-after-2.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers1/Budgetstrue-4",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "budgets": true,
+      "iterations": 12118,
+      "ns_per_op": 97511,
+      "bytes_per_op": 232752,
+      "allocs_per_op": 46,
+      "source": "linux-after-2.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers16/Budgetsfalse-4",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "budgets": false,
+      "iterations": 16209,
+      "ns_per_op": 74474,
+      "bytes_per_op": 230976,
+      "allocs_per_op": 46,
+      "source": "linux-after-2.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers16/Budgetstrue-4",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "budgets": true,
+      "iterations": 16158,
+      "ns_per_op": 74039,
+      "bytes_per_op": 231022,
+      "allocs_per_op": 46,
+      "source": "linux-after-2.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": false,
+      "iterations": 91519,
+      "ns_per_op": 13239,
+      "bytes_per_op": 2849,
+      "allocs_per_op": 46,
+      "source": "linux-after-3.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": true,
+      "iterations": 106590,
+      "ns_per_op": 11708,
+      "bytes_per_op": 2889,
+      "allocs_per_op": 46,
+      "source": "linux-after-3.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": false,
+      "iterations": 293250,
+      "ns_per_op": 3704,
+      "bytes_per_op": 2850,
+      "allocs_per_op": 46,
+      "source": "linux-after-3.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": true,
+      "iterations": 336868,
+      "ns_per_op": 3740,
+      "bytes_per_op": 2890,
+      "allocs_per_op": 46,
+      "source": "linux-after-3.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers1/Budgetsfalse-4",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "budgets": false,
+      "iterations": 13222,
+      "ns_per_op": 92400,
+      "bytes_per_op": 232607,
+      "allocs_per_op": 46,
+      "source": "linux-after-3.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers1/Budgetstrue-4",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "budgets": true,
+      "iterations": 12674,
+      "ns_per_op": 95455,
+      "bytes_per_op": 232695,
+      "allocs_per_op": 46,
+      "source": "linux-after-3.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers16/Budgetsfalse-4",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "budgets": false,
+      "iterations": 16000,
+      "ns_per_op": 77330,
+      "bytes_per_op": 230775,
+      "allocs_per_op": 46,
+      "source": "linux-after-3.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "after",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers16/Budgetstrue-4",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "budgets": true,
+      "iterations": 15595,
+      "ns_per_op": 75322,
+      "bytes_per_op": 230909,
+      "allocs_per_op": 46,
+      "source": "linux-after-3.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": false,
+      "iterations": 87793,
+      "ns_per_op": 11965,
+      "bytes_per_op": 3346,
+      "allocs_per_op": 51,
+      "source": "linux-before-1.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": true,
+      "iterations": 111495,
+      "ns_per_op": 10715,
+      "bytes_per_op": 3346,
+      "allocs_per_op": 51,
+      "source": "linux-before-1.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": false,
+      "iterations": 267747,
+      "ns_per_op": 4417,
+      "bytes_per_op": 3347,
+      "allocs_per_op": 51,
+      "source": "linux-before-1.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": true,
+      "iterations": 269054,
+      "ns_per_op": 4097,
+      "bytes_per_op": 3347,
+      "allocs_per_op": 51,
+      "source": "linux-before-1.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers1/Budgetsfalse-4",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "budgets": false,
+      "iterations": 10000,
+      "ns_per_op": 100913,
+      "bytes_per_op": 233319,
+      "allocs_per_op": 51,
+      "source": "linux-before-1.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers1/Budgetstrue-4",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "budgets": true,
+      "iterations": 12542,
+      "ns_per_op": 100585,
+      "bytes_per_op": 233747,
+      "allocs_per_op": 51,
+      "source": "linux-before-1.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers16/Budgetsfalse-4",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "budgets": false,
+      "iterations": 16078,
+      "ns_per_op": 75872,
+      "bytes_per_op": 231775,
+      "allocs_per_op": 51,
+      "source": "linux-before-1.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers16/Budgetstrue-4",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "budgets": true,
+      "iterations": 15662,
+      "ns_per_op": 73828,
+      "bytes_per_op": 231770,
+      "allocs_per_op": 51,
+      "source": "linux-before-1.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": false,
+      "iterations": 91070,
+      "ns_per_op": 11426,
+      "bytes_per_op": 3346,
+      "allocs_per_op": 51,
+      "source": "linux-before-2.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": true,
+      "iterations": 105735,
+      "ns_per_op": 10942,
+      "bytes_per_op": 3346,
+      "allocs_per_op": 51,
+      "source": "linux-before-2.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": false,
+      "iterations": 269230,
+      "ns_per_op": 5055,
+      "bytes_per_op": 3347,
+      "allocs_per_op": 51,
+      "source": "linux-before-2.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": true,
+      "iterations": 318470,
+      "ns_per_op": 4009,
+      "bytes_per_op": 3347,
+      "allocs_per_op": 51,
+      "source": "linux-before-2.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers1/Budgetsfalse-4",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "budgets": false,
+      "iterations": 9648,
+      "ns_per_op": 103841,
+      "bytes_per_op": 232881,
+      "allocs_per_op": 51,
+      "source": "linux-before-2.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers1/Budgetstrue-4",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "budgets": true,
+      "iterations": 12886,
+      "ns_per_op": 105908,
+      "bytes_per_op": 233776,
+      "allocs_per_op": 51,
+      "source": "linux-before-2.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers16/Budgetsfalse-4",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "budgets": false,
+      "iterations": 16250,
+      "ns_per_op": 72864,
+      "bytes_per_op": 231575,
+      "allocs_per_op": 51,
+      "source": "linux-before-2.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers16/Budgetstrue-4",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "budgets": true,
+      "iterations": 15493,
+      "ns_per_op": 73194,
+      "bytes_per_op": 231580,
+      "allocs_per_op": 51,
+      "source": "linux-before-2.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": false,
+      "iterations": 103134,
+      "ns_per_op": 11980,
+      "bytes_per_op": 3346,
+      "allocs_per_op": 51,
+      "source": "linux-before-3.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 1,
+      "budgets": true,
+      "iterations": 107950,
+      "ns_per_op": 10544,
+      "bytes_per_op": 3346,
+      "allocs_per_op": 51,
+      "source": "linux-before-3.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetsfalse-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": false,
+      "iterations": 262916,
+      "ns_per_op": 4219,
+      "bytes_per_op": 3347,
+      "allocs_per_op": 51,
+      "source": "linux-before-3.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4",
+      "payload_bytes": 64,
+      "workers": 16,
+      "budgets": true,
+      "iterations": 306874,
+      "ns_per_op": 4084,
+      "bytes_per_op": 3347,
+      "allocs_per_op": 51,
+      "source": "linux-before-3.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers1/Budgetsfalse-4",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "budgets": false,
+      "iterations": 12448,
+      "ns_per_op": 92730,
+      "bytes_per_op": 232751,
+      "allocs_per_op": 51,
+      "source": "linux-before-3.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers1/Budgetstrue-4",
+      "payload_bytes": 65537,
+      "workers": 1,
+      "budgets": true,
+      "iterations": 12399,
+      "ns_per_op": 99503,
+      "bytes_per_op": 233360,
+      "allocs_per_op": 51,
+      "source": "linux-before-3.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers16/Budgetsfalse-4",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "budgets": false,
+      "iterations": 17323,
+      "ns_per_op": 74878,
+      "bytes_per_op": 231448,
+      "allocs_per_op": 51,
+      "source": "linux-before-3.txt"
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "stage": "before",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers16/Budgetstrue-4",
+      "payload_bytes": 65537,
+      "workers": 16,
+      "budgets": true,
+      "iterations": 16446,
+      "ns_per_op": 74809,
+      "bytes_per_op": 231428,
+      "allocs_per_op": 51,
+      "source": "linux-before-3.txt"
+    }
+  ],
+  "medians": [
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetsfalse-4",
+      "before": {
+        "ns_per_op": 25892,
+        "bytes_per_op": 3346,
+        "allocs_per_op": 51
+      },
+      "after": {
+        "ns_per_op": 24689,
+        "bytes_per_op": 2850,
+        "allocs_per_op": 46
+      }
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4",
+      "before": {
+        "ns_per_op": 25893,
+        "bytes_per_op": 3346,
+        "allocs_per_op": 51
+      },
+      "after": {
+        "ns_per_op": 24852,
+        "bytes_per_op": 2890,
+        "allocs_per_op": 46
+      }
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetsfalse-4",
+      "before": {
+        "ns_per_op": 5156,
+        "bytes_per_op": 3347,
+        "allocs_per_op": 51
+      },
+      "after": {
+        "ns_per_op": 4900,
+        "bytes_per_op": 2851,
+        "allocs_per_op": 46
+      }
+    },
+    {
+      "environment": "darwin-arm64-go1.25.11",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4",
+      "before": {
+        "ns_per_op": 5123,
+        "bytes_per_op": 3347,
+        "allocs_per_op": 51
+      },
+      "after": {
+        "ns_per_op": 4923,
+        "bytes_per_op": 2890,
+        "allocs_per_op": 46
+      }
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetsfalse-4",
+      "before": {
+        "ns_per_op": 11965,
+        "bytes_per_op": 3346,
+        "allocs_per_op": 51
+      },
+      "after": {
+        "ns_per_op": 13147,
+        "bytes_per_op": 2849,
+        "allocs_per_op": 46
+      }
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4",
+      "before": {
+        "ns_per_op": 10715,
+        "bytes_per_op": 3346,
+        "allocs_per_op": 51
+      },
+      "after": {
+        "ns_per_op": 11767,
+        "bytes_per_op": 2889,
+        "allocs_per_op": 46
+      }
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetsfalse-4",
+      "before": {
+        "ns_per_op": 4417,
+        "bytes_per_op": 3347,
+        "allocs_per_op": 51
+      },
+      "after": {
+        "ns_per_op": 3704,
+        "bytes_per_op": 2850,
+        "allocs_per_op": 46
+      }
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "case": "BenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4",
+      "before": {
+        "ns_per_op": 4084,
+        "bytes_per_op": 3347,
+        "allocs_per_op": 51
+      },
+      "after": {
+        "ns_per_op": 3639,
+        "bytes_per_op": 2890,
+        "allocs_per_op": 46
+      }
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers1/Budgetsfalse-4",
+      "before": {
+        "ns_per_op": 100913,
+        "bytes_per_op": 232881,
+        "allocs_per_op": 51
+      },
+      "after": {
+        "ns_per_op": 95988,
+        "bytes_per_op": 232607,
+        "allocs_per_op": 46
+      }
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers1/Budgetstrue-4",
+      "before": {
+        "ns_per_op": 100585,
+        "bytes_per_op": 233747,
+        "allocs_per_op": 51
+      },
+      "after": {
+        "ns_per_op": 97511,
+        "bytes_per_op": 232752,
+        "allocs_per_op": 46
+      }
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers16/Budgetsfalse-4",
+      "before": {
+        "ns_per_op": 74878,
+        "bytes_per_op": 231575,
+        "allocs_per_op": 51
+      },
+      "after": {
+        "ns_per_op": 74474,
+        "bytes_per_op": 230976,
+        "allocs_per_op": 46
+      }
+    },
+    {
+      "environment": "linux-arm64-go1.25.11",
+      "case": "BenchmarkTransportBudget/Bytes65537/Workers16/Budgetstrue-4",
+      "before": {
+        "ns_per_op": 73828,
+        "bytes_per_op": 231580,
+        "allocs_per_op": 51
+      },
+      "after": {
+        "ns_per_op": 75322,
+        "bytes_per_op": 230930,
+        "allocs_per_op": 46
+      }
+    }
+  ],
+  "long_samples": [
+    {
+      "stage": "after",
+      "trial": 1,
+      "workers": 1,
+      "iterations": 508285,
+      "ns_per_op": 12060,
+      "bytes_per_op": 2889,
+      "allocs_per_op": 46
+    },
+    {
+      "stage": "after",
+      "trial": 1,
+      "workers": 16,
+      "iterations": 1647886,
+      "ns_per_op": 3626,
+      "bytes_per_op": 2890,
+      "allocs_per_op": 46
+    },
+    {
+      "stage": "after",
+      "trial": 2,
+      "workers": 1,
+      "iterations": 469236,
+      "ns_per_op": 12683,
+      "bytes_per_op": 2889,
+      "allocs_per_op": 46
+    },
+    {
+      "stage": "after",
+      "trial": 2,
+      "workers": 16,
+      "iterations": 1626435,
+      "ns_per_op": 3693,
+      "bytes_per_op": 2890,
+      "allocs_per_op": 46
+    },
+    {
+      "stage": "after",
+      "trial": 3,
+      "workers": 1,
+      "iterations": 473041,
+      "ns_per_op": 10973,
+      "bytes_per_op": 2889,
+      "allocs_per_op": 46
+    },
+    {
+      "stage": "after",
+      "trial": 3,
+      "workers": 16,
+      "iterations": 1517634,
+      "ns_per_op": 3857,
+      "bytes_per_op": 2890,
+      "allocs_per_op": 46
+    },
+    {
+      "stage": "before",
+      "trial": 1,
+      "workers": 1,
+      "iterations": 494836,
+      "ns_per_op": 12299,
+      "bytes_per_op": 3346,
+      "allocs_per_op": 51
+    },
+    {
+      "stage": "before",
+      "trial": 1,
+      "workers": 16,
+      "iterations": 1454473,
+      "ns_per_op": 4169,
+      "bytes_per_op": 3347,
+      "allocs_per_op": 51
+    },
+    {
+      "stage": "before",
+      "trial": 2,
+      "workers": 1,
+      "iterations": 496789,
+      "ns_per_op": 11187,
+      "bytes_per_op": 3346,
+      "allocs_per_op": 51
+    },
+    {
+      "stage": "before",
+      "trial": 2,
+      "workers": 16,
+      "iterations": 1503720,
+      "ns_per_op": 3992,
+      "bytes_per_op": 3347,
+      "allocs_per_op": 51
+    },
+    {
+      "stage": "before",
+      "trial": 3,
+      "workers": 1,
+      "iterations": 510879,
+      "ns_per_op": 11886,
+      "bytes_per_op": 3346,
+      "allocs_per_op": 51
+    },
+    {
+      "stage": "before",
+      "trial": 3,
+      "workers": 16,
+      "iterations": 1519825,
+      "ns_per_op": 3925,
+      "bytes_per_op": 3347,
+      "allocs_per_op": 51
+    },
+    {
+      "stage": "variant",
+      "trial": 1,
+      "workers": 1,
+      "iterations": 464649,
+      "ns_per_op": 11819,
+      "bytes_per_op": 2889,
+      "allocs_per_op": 46
+    },
+    {
+      "stage": "variant",
+      "trial": 1,
+      "workers": 16,
+      "iterations": 1634722,
+      "ns_per_op": 3633,
+      "bytes_per_op": 2890,
+      "allocs_per_op": 46
+    },
+    {
+      "stage": "variant",
+      "trial": 2,
+      "workers": 1,
+      "iterations": 496027,
+      "ns_per_op": 12062,
+      "bytes_per_op": 2889,
+      "allocs_per_op": 46
+    },
+    {
+      "stage": "variant",
+      "trial": 2,
+      "workers": 16,
+      "iterations": 1632480,
+      "ns_per_op": 3748,
+      "bytes_per_op": 2890,
+      "allocs_per_op": 46
+    },
+    {
+      "stage": "variant",
+      "trial": 3,
+      "workers": 1,
+      "iterations": 475351,
+      "ns_per_op": 12498,
+      "bytes_per_op": 2889,
+      "allocs_per_op": 46
+    },
+    {
+      "stage": "variant",
+      "trial": 3,
+      "workers": 16,
+      "iterations": 1663050,
+      "ns_per_op": 3603,
+      "bytes_per_op": 2890,
+      "allocs_per_op": 46
+    }
+  ],
+  "allocation_acceptance": {
+    "scope": "64B complete RPC, both wire budget modes",
+    "ceiling_allocs_per_op": 48,
+    "before": 51,
+    "after": 46,
+    "before_verdict": "fail",
+    "after_verdict": "pass"
+  },
+  "validation": {
+    "unit_packages_passed": 212,
+    "unit_gate": "GOWORK=off go test ./cmd/... ./internal/... ./pkg/... ./scripts/... ./docker/... -count=1",
+    "race_gate": "GOWORK=off go test -race -tags=integration ./pkg/transport/... ./pkg/cluster/net -count=1",
+    "queue_repetitions": 20
+  },
+  "sha256": {
+    "before-linux.mem": "81c5bb38cae0ce09b4c9bbc830234d309e9be56398d32863b8d8f99992701983",
+    "long-after-1.txt": "c0028f04f9ad3092e3f0b69949e279ebf31fee4a7f2c21a22be96f591a52c908",
+    "long-after-3.txt": "e2884eb3f50f336b4de02166dac389ab14d678ab0e398228f41592610216eea6",
+    "alloc-before.txt": "890f4ba80c3a477a8a52626f8cb61f146f84e349fa91cdf8238c7e8f4f0d30f6",
+    "long-after-2.txt": "9ac00b9bfdcf4c7fd0e6392c9b84715885e8e8864ca70802dfb4b4ac5babc054",
+    "linux-before-cpu.txt": "10191be332e2433465d8dfca9c961e0de037f2488ed73be8132a55e602bdb337",
+    "race.txt": "db3e13cd21e20ca7b464ac9a0454974e3da4109b57eb1bf0a52009e37901356a",
+    "queue-repeat.txt": "3b45bffab46fffe12e2339d6528cc2a6f099d393595545c9437e0145446e9feb",
+    "tests.txt": "d08587e56ef309cbdabc4469b1ffbe162ee5e0a08efb3d392fd1cfff0c2725f2",
+    "unit.txt": "1fb3e01873a0b046e4fa4c18a393aec6ae71639554384347c8b46ca077b316df",
+    "linux-after-cpu.txt": "c9d57df03ca6b6c7cb23de730a2ccd9079338f688697eb4288afeeb1da68e7e8",
+    "before.txt": "02eb1aec3948cd934f8217166a00d9e9b5d0650c1182e674b1ab783784b0ce35",
+    "before.cpu": "ca0c3de812c7f698f11057c8c3538710002a5feadfabf8de90b51b3a8a3f725f",
+    "linux-after-alloc_space.txt": "cbaa999a6b00c9741bee762af1834f6d6a6113b65c385aba8b2d9fb1c0e0f031",
+    "long-before-2.txt": "c58e336c0b4acf3e95769f0bbdebc92d8613ef350157cbf51100d1932258120d",
+    "after-linux.cpu": "d710cf6661d4b4f0a0aaacedafcc912273c64b1cb4a1d66aa5281c942d755971",
+    "long-before-3.txt": "3536ac6672b8a0c3685972deebddc4f6b2ccf0afedae5dcf3b51319f694d0fc1",
+    "alloc-after.txt": "002aa1d8b93ec70a2090949fec976947d235fe1d42a475496ba5babeda932a24",
+    "after.txt": "7941ad2082f208dda48f80b112d6d820a6ce69e18f7a7786bb5d310dee5559bf",
+    "long-before-1.txt": "d03769b5615d64cb2b777e60987d4f7f77d30eb345f7a0603638c813e1d9b767",
+    "linux-profile-before.txt": "1326df5eb3e16774fa4dc20343f39a2e34c79f8f656a0c58eb220dde158dbbbf",
+    "after.cpu": "2c36bc8f909aaf108bdb7a1e0d12a404038ecd0809506308536ed727e1a149e3",
+    "profile-before.txt": "546a4feec424de4705427cb43fcd0b118f3004a6e3ecff82e4c00af17c456d22",
+    "linux-after-1.txt": "5556ddaf04d19ac48f48d282284c3d62fd4979b50ef083cc0603bce292a0ae0a",
+    "before.mem": "4e97e7758b85b27e5ad32a4a8cc03603bed7bec8b18a3985885d4080049b1ae8",
+    "profile-after.txt": "d2faf1faa4b522de63322eaa25620af8ea47e499f74b7d528ced010dc1e3b404",
+    "linux-after-2.txt": "de62745b2f77c8541647e66486d5a487b848d712ee587f9ca79346a9fc2acd6a",
+    "linux-after-3.txt": "98534ed075fac17e6f69bb88fa018e4361b0f2a1fea842e784c0ae9508de719f",
+    "after-linux.mem": "e9b1cac6e1ee933f773d8577e014aa7d18e933939ad306e87a54e115ff9c35d8",
+    "cpu-after.txt": "1da53c9a7fabfa7e5655aaed3b8137a78b79bc927a64ac4c689a798b853b25ad",
+    "linux-before-alloc_space.txt": "cd897a5a5014807e108fdaa9cf7bd7c935bda97ff84718b4296db57e6696b052",
+    "linux-profile-after.txt": "796392ecb877861d8a1a70dcbbc9ea29b9d15821818908d8e6649de402f2641d",
+    "after.mem": "f03d93d792811837393211f334158b3f1d692d4b32f97c385ddb655160e6b368",
+    "linux-before-2.txt": "54cc36dffc771b64df37deae8bf45ea2b0e6300f09ac6c8f36d4cd622630e893",
+    "long-variant-3.txt": "1d8fe616fcddfcdb48b5057cbbb4cab5be1cd792fc759e55babe132a22503521",
+    "long-variant-2.txt": "3de766f9e8a2363bca73e1a99d7e8fe3f1106e922c6f72cc81c51a2cc102d6ef",
+    "before-linux.cpu": "255aabc4450b174fe3aedd73e975c8cc015c2032c6f6412bb95256a8b6905187",
+    "linux-before-3.txt": "022ab0981a3a62152eac97ffdcf8f6ea97ad0fef4d32244ad6dfb699c26cf950",
+    "linux-before-1.txt": "ae84856ae12d6ab803794eaeff222ad60274d2195e150f179bec10889b8817bf",
+    "long-variant-1.txt": "211e6c01b6c6fec0abad432eab39a350625c76d500423e18f8d0b3fa13fea96b",
+    "cpu-before.txt": "0bbdeaea86f69dfe312963bc2bb3490e0141ccb0bb134ad122c1fd401a11e19c"
+  },
+  "product_sha256": {
+    "pkg/transport/internal/rpc/service.go": "a89e2395de00c654ff19489fc1d563fb4134fd86442ce0295918ed44a17015f1",
+    "pkg/transport/internal/rpc/service_queue.go": "e7b436941f943780f82143baa3ed829c84415b732b7398a91c76b54169f3be14"
+  }
+}

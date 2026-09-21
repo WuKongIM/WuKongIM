@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Reduce per-request RPC queue allocations by reusing caller cancellation and arming a queue timer only for an earlier deadline, preserving timeout and ownership bounds. / RPC 排队复用调用方取消信号，仅在队列截止时间更早时创建定时器，减少逐请求分配并保留超时和资源归属边界。
+
 - Preserve long backup/restore and maximum-duration remote profile operations under RPC budgets; retain typed remote timeout and admission failures for existing retry handling. / RPC 预算保留长时备份恢复和最大时长远程采样，跨节点保留超时及准入失败类型。
 - Reduce internal RPC idle latency and pooled-buffer memory overhead; keep backing-byte admissions until handlers finish, aggregate transport counters with sampled latency, and negotiate request budgets/cancellation with older-peer fallback. Started mutations preserve completion semantics. / 降低内部 RPC 空闲延迟和缓冲池内存开销，处理完成前保留实际内存准入，聚合通信计数并采样延迟；协商请求预算与取消能力并兼容旧节点，已开始的写操作保留完成语义。
 

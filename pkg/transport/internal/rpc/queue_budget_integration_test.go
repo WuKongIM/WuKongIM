@@ -64,3 +64,60 @@ func TestQueueBudgetIncludesWaitingForSharedExecutor(t *testing.T) {
 	}
 	waitClosed(t, released)
 }
+
+// Expiry must preserve the earlier deadline without canceling its parent or
+// retaining an admission behind a handler that cannot currently complete.
+func TestQueueExpiryDeadlineOrdering(t *testing.T) {
+	for _, tc := range []struct {
+		name                        string
+		queueTimeout, callerTimeout time.Duration
+		cancel                      bool
+	}{
+		{name: "queue_only", queueTimeout: 10 * time.Millisecond},
+		{name: "caller_first", queueTimeout: time.Hour, callerTimeout: 10 * time.Millisecond},
+		{name: "queue_first", queueTimeout: 10 * time.Millisecond, callerTimeout: time.Hour},
+		{name: "explicit_cancel", queueTimeout: time.Hour, callerTimeout: time.Hour, cancel: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			started, unblock := make(chan struct{}), make(chan struct{})
+			svc := NewService(1, func(context.Context, []byte) ([]byte, error) { close(started); <-unblock; return nil, nil }, core.ServiceOptions{Concurrency: 1, QueueSize: 1, MaxQueueBytes: 4096, QueueTimeout: tc.queueTimeout}, nil)
+			defer func() { close(unblock); svc.Stop() }()
+			if err := svc.Enqueue(Request{Payload: core.CopyOwnedBuffer([]byte("running"))}); err != nil {
+				t.Fatal(err)
+			}
+			waitClosed(t, started)
+			ctx := context.Background()
+			cancel := func() {}
+			if tc.callerTimeout > 0 {
+				ctx, cancel = context.WithTimeout(ctx, tc.callerTimeout)
+			}
+			defer cancel()
+			released, finished := make(chan struct{}), make(chan struct{})
+			reply := make(chan Response, 1)
+			if err := svc.Enqueue(Request{Context: ctx, Payload: core.NewOwnedBuffer([]byte("queued"), func([]byte) { close(released) }), Reply: reply, Finish: func() { close(finished) }}); err != nil {
+				t.Fatal(err)
+			}
+			if tc.cancel {
+				cancel()
+			}
+			want := core.ErrTimeout
+			if tc.cancel {
+				want = core.ErrCanceled
+			}
+			if got := waitResponse(t, reply).Err; !errors.Is(got, want) {
+				t.Fatalf("expiry=%v, want %v", got, want)
+			}
+			waitClosed(t, finished)
+			waitClosed(t, released)
+			if tc.name == "queue_first" && ctx.Err() != nil {
+				t.Fatalf("queue expiry canceled parent: %v", ctx.Err())
+			}
+			svc.mu.Lock()
+			items, retained := svc.queuedItems, svc.retainedItems
+			svc.mu.Unlock()
+			if items != 0 || retained != 1 {
+				t.Fatalf("expired admission retained: queued=%d retained=%d", items, retained)
+			}
+		})
+	}
+}
