@@ -136,7 +136,7 @@ func TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeState(
 		firstClientMsg, "before backup",
 	)
 
-	configureDailyFileBackup(t, ctx, *managerNode, token)
+	configureDailyFileBackup(t, ctx, cluster, *managerNode, token)
 	waitForActiveBackupProgress(t, ctx, cluster, *managerNode, token)
 	sendBackupMessage(
 		t, ctx, cluster, *cluster.MustNode(2), onlineChannelID,
@@ -196,6 +196,7 @@ func TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeState(
 func configureDailyFileBackup(
 	t *testing.T,
 	ctx context.Context,
+	cluster *suite.StartedCluster,
 	node suite.StartedNode,
 	token string,
 ) {
@@ -213,6 +214,7 @@ func configureDailyFileBackup(
 	var saved backupConfigureResponse
 	configureBackupPlanEventually(t, ctx, node, token, plan, &saved)
 	require.NotZero(t, saved.Plan.Revision)
+	waitForBackupPlanOnEveryNode(t, ctx, cluster, token, saved.Plan.Revision)
 
 	managerJSON(
 		t, ctx, node, token, http.MethodPost,
@@ -226,6 +228,36 @@ func configureDailyFileBackup(
 		t, ctx, node, token, http.MethodPut, "/manager/backups/plan",
 		plan, nil,
 	)
+}
+
+// A committed plan may not yet be visible in every Controller mirror. Probe
+// only after each target publicly exposes the exact revision it must resolve.
+func waitForBackupPlanOnEveryNode(t *testing.T, parent context.Context, cluster *suite.StartedCluster, token string, revision uint64) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for _, node := range cluster.Nodes {
+		observedLag := false
+		for {
+			var dashboard backupDashboard
+			err := managerJSONE(ctx, node, token, http.MethodGet, "/manager/backups", nil, &dashboard)
+			require.NoError(t, err, cluster.DumpDiagnostics())
+			if dashboard.State.Plan != nil && dashboard.State.Plan.Revision == revision {
+				break
+			}
+			if !observedLag {
+				t.Logf("node %d has not yet exposed backup plan revision %d", node.Process.Spec.ID, revision)
+				observedLag = true
+			}
+			select {
+			case <-ctx.Done():
+				t.Fatalf("backup plan revision %d did not converge: %v\n%s", revision, ctx.Err(), cluster.DumpDiagnostics())
+			case <-ticker.C:
+			}
+		}
+	}
 }
 
 func configureBackupPlanEventually(
