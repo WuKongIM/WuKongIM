@@ -248,6 +248,9 @@ specification, runbook, report, or module documentation; link to them when neede
   Original v2 migration uses complete immutable cold backups and a fresh native v3
   generation. Source capture, archive integrity, independent offline verification,
   runtime replica recovery, and API/SDK acceptance are separate proofs.
+- Migration source preparation keeps its sealed `workflow/PREPARED` checkpoint;
+  archive reconstruction uses `workflow/ARCHIVE_PREPARED`. Reusing one workspace
+  must preserve both immutable receipts and still rebuild archive proofs.
 - Migration exclusions, conflict choices, and lossy mappings require explicit,
   capture-bound decisions. Preserve original bytes and independently rebuild proofs;
   diagnostics or majority copies alone do not certify historical ACKs. Changed or

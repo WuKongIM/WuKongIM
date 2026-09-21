@@ -135,5 +135,7 @@ func PrepareArchive(ctx context.Context, plan Plan, w Workspace, decoder Origina
 	if err != nil {
 		return result, err
 	}
-	return result, w.Put(ctx, []transfer.SpoolRow{{Key: []byte("workflow/PREPARED"), Value: data}})
+	// Archive reconstruction has its own receipt: source preparation also carries
+	// an export seal, so its immutable checkpoint must remain intact on reuse.
+	return result, w.Put(ctx, []transfer.SpoolRow{{Key: []byte("workflow/ARCHIVE_PREPARED"), Value: data}})
 }

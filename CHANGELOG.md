@@ -12,6 +12,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Allow v2 archive import to reuse its preparation workspace without a checkpoint conflict, preserving independent archive verification and the original export seal. / v2 归档导入可复用准备阶段工作目录，保留独立归档校验与原始导出校验信息，避免检查点冲突。
+
 - Keep backup credentials on the receiving node: export, repository probes and restore RPCs now carry only exact repository references. Upgrade all cluster nodes together before backup operations; older backup request formats are rejected. / 备份导出、仓库探测与恢复 RPC 仅传递精确仓库引用，凭据在接收节点解析；执行备份操作前须升级所有节点，旧版备份请求将被拒绝。
 
 - Preserve a bounded rolling execution trace and aligned one-second counters from the original mixed SEND qualification when a latency cohort breaches 400 ms. / mixed SEND 原始验证出现延迟超标时，保留有限滚动执行 trace 与对齐的逐秒计数器。
