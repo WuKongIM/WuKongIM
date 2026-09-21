@@ -1332,14 +1332,16 @@ func TestCloseSlotDuringApplyEnqueueHandoffRejectsTaskAndRetiresQueue(t *testing
 		t.Fatal("apply enqueue handoff hook did not run")
 	}
 
+	// Retain the exact Slot before CloseSlot removes it from the runtime map.
+	// The apply hook holds its work in flight, but does not delay map removal.
+	g := slotFor(rt, slotID)
+	if g == nil {
+		t.Fatal("slotFor() = nil before CloseSlot")
+	}
 	closeDone := make(chan error, 1)
 	go func() {
 		closeDone <- rt.CloseSlot(context.Background(), slotID)
 	}()
-	g := slotFor(rt, slotID)
-	if g == nil {
-		t.Fatal("slotFor() = nil")
-	}
 	waitForCondition(t, func() bool {
 		rt.mu.RLock()
 		_, exists := rt.slots[slotID]
