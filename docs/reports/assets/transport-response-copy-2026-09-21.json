@@ -1,0 +1,882 @@
+{
+  "baseline_revision": "f09eb0e777a89119f15bd52cae4447b73021475d",
+  "production_sources": {
+    "pkg/transport/internal/rpc/service.go": "4555aaf5ea9cedee229da109793d6ef1976b2f9beea21a0d91ae2c1b6683add2",
+    "pkg/transport/internal/rpc/service_queue.go": "e7b436941f943780f82143baa3ed829c84415b732b7398a91c76b54169f3be14",
+    "pkg/transport/server.go": "595a6283946d6b8eb7a225f9c3fd87722c78cfdd3ed71d33e1c12d26c7edf19a"
+  },
+  "instructions": {
+    "source": "f09eb0e777a89119f15bd52cae4447b73021475d",
+    "files": {
+      "AGENTS.md": "c6eae7244b1c660be4b2a62cbdc1efa5c26c35e34972e994df7e6ae073fc9d0b"
+    },
+    "applicable_flow_files": []
+  },
+  "environment": {
+    "go": "1.25.11",
+    "native_host": "Apple M4 macOS ARM64",
+    "benchmark": "Docker Desktop Linux ARM64, native static executable",
+    "gomaxprocs": 4,
+    "cpuset": "0-3",
+    "memory_limit": "6g",
+    "rootfs": "debian:12 amd64",
+    "rootfs_image_id": "sha256:39db83443324e7ef683bd854a90c6615741fecbfe005bc10228129e03af1e950"
+  },
+  "local_evidence_directory": "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-watch-lock",
+  "cloud_resources_created": false,
+  "copy_experiment": {
+    "samples": {
+      "before": {
+        "Bytes64/Workers1/Budgetstrue-4": [
+          {
+            "n": 294669,
+            "ns_op": 12046,
+            "bytes_op": 2889,
+            "allocs_op": 46,
+            "source": "copy-before-1.txt"
+          },
+          {
+            "n": 292005,
+            "ns_op": 12363,
+            "bytes_op": 2889,
+            "allocs_op": 46,
+            "source": "copy-before-2.txt"
+          },
+          {
+            "n": 269301,
+            "ns_op": 13100,
+            "bytes_op": 2889,
+            "allocs_op": 46,
+            "source": "copy-before-3.txt"
+          }
+        ],
+        "Bytes64/Workers16/Budgetstrue-4": [
+          {
+            "n": 916059,
+            "ns_op": 3733,
+            "bytes_op": 2890,
+            "allocs_op": 46,
+            "source": "copy-before-1.txt"
+          },
+          {
+            "n": 954630,
+            "ns_op": 3714,
+            "bytes_op": 2890,
+            "allocs_op": 46,
+            "source": "copy-before-2.txt"
+          },
+          {
+            "n": 890564,
+            "ns_op": 3697,
+            "bytes_op": 2890,
+            "allocs_op": 46,
+            "source": "copy-before-3.txt"
+          }
+        ],
+        "Bytes65537/Workers1/Budgetstrue-4": [
+          {
+            "n": 34803,
+            "ns_op": 101303,
+            "bytes_op": 232538,
+            "allocs_op": 46,
+            "source": "copy-before-1.txt"
+          },
+          {
+            "n": 38220,
+            "ns_op": 95947,
+            "bytes_op": 232657,
+            "allocs_op": 46,
+            "source": "copy-before-2.txt"
+          },
+          {
+            "n": 36684,
+            "ns_op": 96765,
+            "bytes_op": 232502,
+            "allocs_op": 46,
+            "source": "copy-before-3.txt"
+          }
+        ],
+        "Bytes65537/Workers16/Budgetstrue-4": [
+          {
+            "n": 47082,
+            "ns_op": 74077,
+            "bytes_op": 231201,
+            "allocs_op": 46,
+            "source": "copy-before-1.txt"
+          },
+          {
+            "n": 48542,
+            "ns_op": 76076,
+            "bytes_op": 231408,
+            "allocs_op": 46,
+            "source": "copy-before-2.txt"
+          },
+          {
+            "n": 48800,
+            "ns_op": 75763,
+            "bytes_op": 231259,
+            "allocs_op": 46,
+            "source": "copy-before-3.txt"
+          }
+        ]
+      },
+      "borrowed": {
+        "Bytes64/Workers1/Budgetstrue-4": [
+          {
+            "n": 301599,
+            "ns_op": 11537,
+            "bytes_op": 2825,
+            "allocs_op": 45,
+            "source": "copy-borrowed-1.txt"
+          },
+          {
+            "n": 297088,
+            "ns_op": 12411,
+            "bytes_op": 2825,
+            "allocs_op": 45,
+            "source": "copy-borrowed-2.txt"
+          },
+          {
+            "n": 290281,
+            "ns_op": 12035,
+            "bytes_op": 2825,
+            "allocs_op": 45,
+            "source": "copy-borrowed-3.txt"
+          }
+        ],
+        "Bytes64/Workers16/Budgetstrue-4": [
+          {
+            "n": 919741,
+            "ns_op": 3791,
+            "bytes_op": 2826,
+            "allocs_op": 45,
+            "source": "copy-borrowed-1.txt"
+          },
+          {
+            "n": 998398,
+            "ns_op": 3737,
+            "bytes_op": 2826,
+            "allocs_op": 45,
+            "source": "copy-borrowed-2.txt"
+          },
+          {
+            "n": 975394,
+            "ns_op": 3680,
+            "bytes_op": 2826,
+            "allocs_op": 45,
+            "source": "copy-borrowed-3.txt"
+          }
+        ],
+        "Bytes65537/Workers1/Budgetstrue-4": [
+          {
+            "n": 44217,
+            "ns_op": 74113,
+            "bytes_op": 156652,
+            "allocs_op": 45,
+            "source": "copy-borrowed-1.txt"
+          },
+          {
+            "n": 50114,
+            "ns_op": 68291,
+            "bytes_op": 155716,
+            "allocs_op": 45,
+            "source": "copy-borrowed-2.txt"
+          },
+          {
+            "n": 55210,
+            "ns_op": 74921,
+            "bytes_op": 156236,
+            "allocs_op": 45,
+            "source": "copy-borrowed-3.txt"
+          }
+        ],
+        "Bytes65537/Workers16/Budgetstrue-4": [
+          {
+            "n": 81213,
+            "ns_op": 50355,
+            "bytes_op": 155128,
+            "allocs_op": 45,
+            "source": "copy-borrowed-1.txt"
+          },
+          {
+            "n": 72732,
+            "ns_op": 49168,
+            "bytes_op": 154913,
+            "allocs_op": 45,
+            "source": "copy-borrowed-2.txt"
+          },
+          {
+            "n": 72529,
+            "ns_op": 48926,
+            "bytes_op": 154887,
+            "allocs_op": 45,
+            "source": "copy-borrowed-3.txt"
+          }
+        ]
+      }
+    },
+    "summary": {
+      "Bytes64/Workers1/Budgetstrue-4": {
+        "before": {
+          "ns_op": 12363,
+          "bytes_op": 2889,
+          "allocs_op": 46
+        },
+        "after": {
+          "ns_op": 12035,
+          "bytes_op": 2825,
+          "allocs_op": 45
+        },
+        "throughput_change_percent": 2.725384295803912,
+        "allocation_bytes_change_percent": -2.215299411561089
+      },
+      "Bytes64/Workers16/Budgetstrue-4": {
+        "before": {
+          "ns_op": 3714,
+          "bytes_op": 2890,
+          "allocs_op": 46
+        },
+        "after": {
+          "ns_op": 3737,
+          "bytes_op": 2826,
+          "allocs_op": 45
+        },
+        "throughput_change_percent": -0.6154669521006184,
+        "allocation_bytes_change_percent": -2.214532871972319
+      },
+      "Bytes65537/Workers1/Budgetstrue-4": {
+        "before": {
+          "ns_op": 96765,
+          "bytes_op": 232538,
+          "allocs_op": 46
+        },
+        "after": {
+          "ns_op": 74113,
+          "bytes_op": 156236,
+          "allocs_op": 45
+        },
+        "throughput_change_percent": 30.56413854519451,
+        "allocation_bytes_change_percent": -32.81270157995683
+      },
+      "Bytes65537/Workers16/Budgetstrue-4": {
+        "before": {
+          "ns_op": 75763,
+          "bytes_op": 231259,
+          "allocs_op": 46
+        },
+        "after": {
+          "ns_op": 49168,
+          "bytes_op": 154913,
+          "allocs_op": 45
+        },
+        "throughput_change_percent": 54.09005857468272,
+        "allocation_bytes_change_percent": -33.01320164836829
+      }
+    }
+  },
+  "allocation_acceptance": {
+    "before": {
+      "samples": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "acceptance": "no intermediate response allocation",
+      "pass": false
+    },
+    "after": {
+      "samples": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "acceptance": "no intermediate response allocation",
+      "pass": true
+    }
+  },
+  "copy_commands": [
+    {
+      "variant": "before",
+      "trial": 1,
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-watch-lock:/e",
+        "--entrypoint",
+        "/e/before.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes(64|65537)/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "3s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0
+    },
+    {
+      "variant": "borrowed",
+      "trial": 1,
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-watch-lock:/e",
+        "--entrypoint",
+        "/e/borrowed.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes(64|65537)/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "3s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0
+    },
+    {
+      "variant": "borrowed",
+      "trial": 2,
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-watch-lock:/e",
+        "--entrypoint",
+        "/e/borrowed.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes(64|65537)/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "3s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0
+    },
+    {
+      "variant": "before",
+      "trial": 2,
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-watch-lock:/e",
+        "--entrypoint",
+        "/e/before.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes(64|65537)/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "3s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0
+    },
+    {
+      "variant": "before",
+      "trial": 3,
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-watch-lock:/e",
+        "--entrypoint",
+        "/e/before.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes(64|65537)/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "3s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0
+    },
+    {
+      "variant": "borrowed",
+      "trial": 3,
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-watch-lock:/e",
+        "--entrypoint",
+        "/e/borrowed.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes(64|65537)/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "3s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0
+    }
+  ],
+  "rejected_lock_commands": [
+    {
+      "variant": "before",
+      "trial": 1,
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-watch-lock:/e",
+        "--entrypoint",
+        "/e/before.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes(64|65537)/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "3s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0
+    },
+    {
+      "variant": "after",
+      "trial": 1,
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-watch-lock:/e",
+        "--entrypoint",
+        "/e/after.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes(64|65537)/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "3s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0
+    },
+    {
+      "variant": "after",
+      "trial": 2,
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-watch-lock:/e",
+        "--entrypoint",
+        "/e/after.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes(64|65537)/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "3s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0
+    },
+    {
+      "variant": "before",
+      "trial": 2,
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-watch-lock:/e",
+        "--entrypoint",
+        "/e/before.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes(64|65537)/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "3s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0
+    },
+    {
+      "variant": "before",
+      "trial": 3,
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-watch-lock:/e",
+        "--entrypoint",
+        "/e/before.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes(64|65537)/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "3s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0
+    },
+    {
+      "variant": "after",
+      "trial": 3,
+      "command": [
+        "docker",
+        "run",
+        "--rm",
+        "--pull",
+        "never",
+        "--platform",
+        "linux/amd64",
+        "--cpuset-cpus",
+        "0-3",
+        "--memory",
+        "6g",
+        "-v",
+        "/Users/tt/.codex/visualizations/2026/09/21/01a0c28e-39fb-7d73-ab5f-5e060785bdfe/rpc-watch-lock:/e",
+        "--entrypoint",
+        "/e/after.test",
+        "debian:12",
+        "-test.run",
+        "^$",
+        "-test.bench",
+        "^BenchmarkTransportBudget/Bytes(64|65537)/Workers(1|16)/Budgetstrue$",
+        "-test.benchtime",
+        "3s",
+        "-test.count",
+        "1",
+        "-test.cpu",
+        "4",
+        "-test.benchmem"
+      ],
+      "exit": 0
+    }
+  ],
+  "raw_text_outputs": {
+    "after-1.txt": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  310984\t     12009 ns/op\t   5.33 MB/s\t    2889 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t 1000000\t      3470 ns/op\t  18.44 MB/s\t    2890 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers1/Budgetstrue-4      \t   41035\t     90440 ns/op\t 724.64 MB/s\t  233157 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers16/Budgetstrue-4     \t   51913\t     69920 ns/op\t 937.31 MB/s\t  231024 B/op\t      46 allocs/op\nPASS\n",
+    "after-2.txt": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  328311\t     11211 ns/op\t   5.71 MB/s\t    2889 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  895279\t      3837 ns/op\t  16.68 MB/s\t    2890 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers1/Budgetstrue-4      \t   41437\t     93607 ns/op\t 700.13 MB/s\t  232318 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers16/Budgetstrue-4     \t   49029\t     71742 ns/op\t 913.51 MB/s\t  231265 B/op\t      46 allocs/op\nPASS\n",
+    "after-3.txt": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  301563\t     11692 ns/op\t   5.47 MB/s\t    2889 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  895522\t      3738 ns/op\t  17.12 MB/s\t    2890 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers1/Budgetstrue-4      \t   42898\t     86258 ns/op\t 759.78 MB/s\t  232153 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers16/Budgetstrue-4     \t   51020\t     70991 ns/op\t 923.18 MB/s\t  231133 B/op\t      46 allocs/op\nPASS\n",
+    "after-profile.txt": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4         \t 1682781\t      3608 ns/op\t  17.74 MB/s\t    2890 B/op\t      46 allocs/op\nPASS\n",
+    "baseline.txt": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4         \t  951409\t      3678 ns/op\t  17.40 MB/s\t    2890 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4         \t  985330\t      3594 ns/op\t  17.81 MB/s\t    2890 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4         \t  925316\t      3540 ns/op\t  18.08 MB/s\t    2890 B/op\t      46 allocs/op\nPASS\n",
+    "before-1.txt": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  301006\t     12526 ns/op\t   5.11 MB/s\t    2889 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t 1000000\t      3584 ns/op\t  17.86 MB/s\t    2890 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers1/Budgetstrue-4      \t   39135\t     96425 ns/op\t 679.67 MB/s\t  232572 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers16/Budgetstrue-4     \t   50725\t     69803 ns/op\t 938.88 MB/s\t  231142 B/op\t      46 allocs/op\nPASS\n",
+    "before-2.txt": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  268406\t     11833 ns/op\t   5.41 MB/s\t    2889 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  916100\t      3804 ns/op\t  16.82 MB/s\t    2890 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers1/Budgetstrue-4      \t   41274\t     91729 ns/op\t 714.47 MB/s\t  232711 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers16/Budgetstrue-4     \t   52484\t     70116 ns/op\t 934.70 MB/s\t  230700 B/op\t      46 allocs/op\nPASS\n",
+    "before-3.txt": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  288594\t     12324 ns/op\t   5.19 MB/s\t    2889 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t 1000000\t      3605 ns/op\t  17.75 MB/s\t    2890 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers1/Budgetstrue-4      \t   38704\t     88730 ns/op\t 738.61 MB/s\t  232742 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers16/Budgetstrue-4     \t   51254\t     70918 ns/op\t 924.12 MB/s\t  231037 B/op\t      46 allocs/op\nPASS\n",
+    "before-profile.txt": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4         \t 1586145\t      3892 ns/op\t  16.44 MB/s\t    2890 B/op\t      46 allocs/op\nPASS\n",
+    "copy-before-1.txt": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  294669\t     12046 ns/op\t   5.31 MB/s\t    2889 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  916059\t      3733 ns/op\t  17.14 MB/s\t    2890 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers1/Budgetstrue-4      \t   34803\t    101303 ns/op\t 646.94 MB/s\t  232538 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers16/Budgetstrue-4     \t   47082\t     74077 ns/op\t 884.72 MB/s\t  231201 B/op\t      46 allocs/op\nPASS\n",
+    "copy-before-2.txt": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  292005\t     12363 ns/op\t   5.18 MB/s\t    2889 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  954630\t      3714 ns/op\t  17.23 MB/s\t    2890 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers1/Budgetstrue-4      \t   38220\t     95947 ns/op\t 683.06 MB/s\t  232657 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers16/Budgetstrue-4     \t   48542\t     76076 ns/op\t 861.47 MB/s\t  231408 B/op\t      46 allocs/op\nPASS\n",
+    "copy-before-3.txt": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  269301\t     13100 ns/op\t   4.89 MB/s\t    2889 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  890564\t      3697 ns/op\t  17.31 MB/s\t    2890 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers1/Budgetstrue-4      \t   36684\t     96765 ns/op\t 677.28 MB/s\t  232502 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers16/Budgetstrue-4     \t   48800\t     75763 ns/op\t 865.03 MB/s\t  231259 B/op\t      46 allocs/op\nPASS\n",
+    "copy-borrowed-1.txt": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  301599\t     11537 ns/op\t   5.55 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  919741\t      3791 ns/op\t  16.88 MB/s\t    2826 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers1/Budgetstrue-4      \t   44217\t     74113 ns/op\t 884.28 MB/s\t  156652 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers16/Budgetstrue-4     \t   81213\t     50355 ns/op\t1301.51 MB/s\t  155128 B/op\t      45 allocs/op\nPASS\n",
+    "copy-borrowed-2.txt": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  297088\t     12411 ns/op\t   5.16 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  998398\t      3737 ns/op\t  17.13 MB/s\t    2826 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers1/Budgetstrue-4      \t   50114\t     68291 ns/op\t 959.67 MB/s\t  155716 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers16/Budgetstrue-4     \t   72732\t     49168 ns/op\t1332.92 MB/s\t  154913 B/op\t      45 allocs/op\nPASS\n",
+    "copy-borrowed-3.txt": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers1/Budgetstrue-4         \t  290281\t     12035 ns/op\t   5.32 MB/s\t    2825 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4        \t  975394\t      3680 ns/op\t  17.39 MB/s\t    2826 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers1/Budgetstrue-4      \t   55210\t     74921 ns/op\t 874.75 MB/s\t  156236 B/op\t      45 allocs/op\nBenchmarkTransportBudget/Bytes65537/Workers16/Budgetstrue-4     \t   72529\t     48926 ns/op\t1339.52 MB/s\t  154887 B/op\t      45 allocs/op\nPASS\n",
+    "initial-after.txt": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4         \t  971032\t      3615 ns/op\t  17.71 MB/s\t    2890 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4         \t 1000000\t      3676 ns/op\t  17.41 MB/s\t    2890 B/op\t      46 allocs/op\nBenchmarkTransportBudget/Bytes64/Workers16/Budgetstrue-4         \t  934525\t      3642 ns/op\t  17.57 MB/s\t    2890 B/op\t      46 allocs/op\nPASS\n",
+    "integration-race.txt": "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport\t3.490s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/buffer\t1.701s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/conn\t3.138s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/core\t5.025s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/peer\t4.591s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc\t3.321s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/sched\t4.961s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/testkit\t4.155s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/wire\t3.630s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/cluster/net\t5.165s\n",
+    "response-after.txt": "goos: darwin\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc\ncpu: Apple M4\nBenchmarkServiceSynchronousResponse/Bytes64-4         \t105308173\t        11.24 ns/op\t5694.47 MB/s\t       0 B/op\t       0 allocs/op\nBenchmarkServiceSynchronousResponse/Bytes64-4         \t100000000\t        11.11 ns/op\t5761.07 MB/s\t       0 B/op\t       0 allocs/op\nBenchmarkServiceSynchronousResponse/Bytes64-4         \t100000000\t        11.18 ns/op\t5724.37 MB/s\t       0 B/op\t       0 allocs/op\nBenchmarkServiceSynchronousResponse/Bytes65537-4      \t100000000\t        11.10 ns/op\t5902244.89 MB/s\t       0 B/op\t       0 allocs/op\nBenchmarkServiceSynchronousResponse/Bytes65537-4      \t100000000\t        11.12 ns/op\t5893759.54 MB/s\t       0 B/op\t       0 allocs/op\nBenchmarkServiceSynchronousResponse/Bytes65537-4      \t100000000\t        11.15 ns/op\t5877391.28 MB/s\t       0 B/op\t       0 allocs/op\nPASS\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc\t7.960s\n",
+    "response-before.txt": "goos: darwin\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc\ncpu: Apple M4\nBenchmarkServiceSynchronousResponse/Bytes64-4         \t48889958\t        23.52 ns/op\t2720.93 MB/s\t      64 B/op\t       1 allocs/op\nBenchmarkServiceSynchronousResponse/Bytes64-4         \t51091366\t        23.03 ns/op\t2779.14 MB/s\t      64 B/op\t       1 allocs/op\nBenchmarkServiceSynchronousResponse/Bytes64-4         \t51406264\t        23.27 ns/op\t2750.47 MB/s\t      64 B/op\t       1 allocs/op\nBenchmarkServiceSynchronousResponse/Bytes65537-4      \t  265027\t      4458 ns/op\t14700.17 MB/s\t   73728 B/op\t       1 allocs/op\nBenchmarkServiceSynchronousResponse/Bytes65537-4      \t  267772\t      4552 ns/op\t14398.06 MB/s\t   73728 B/op\t       1 allocs/op\nBenchmarkServiceSynchronousResponse/Bytes65537-4      \t  271860\t      4549 ns/op\t14407.34 MB/s\t   73728 B/op\t       1 allocs/op\nPASS\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc\t8.026s\n"
+  },
+  "files": {
+    "after-1.txt": {
+      "sha256": "4b349c6250a21e4591e62b84b1cb15276affc097dd62a9ef1a6261f4e469b32b",
+      "bytes": 627
+    },
+    "after-2.txt": {
+      "sha256": "f5533683c656356ff8efd2bee1009dfd5532309b56b97ef7a23be3978408aaf6",
+      "bytes": 627
+    },
+    "after-3.txt": {
+      "sha256": "46504916283d8e1af79b1cb125a85c9122f493fd1a6453a59e4d35573d935b3d",
+      "bytes": 627
+    },
+    "after-profile.txt": {
+      "sha256": "2143f877510f8faebb8399b56836909ec316f4870b4ad8a476d38f86cfa01262",
+      "bytes": 217
+    },
+    "after.mutex": {
+      "sha256": "59e05c8a209e46c09e32fafb1c466f28609982d7be7935d9ede4d876f2d6d63b",
+      "bytes": 13308
+    },
+    "after.test": {
+      "sha256": "a8ddcb9c1e5b75f1d83fe2a0f608e0546559eb6375f7b2ca3b00b1a98bb9e6e6",
+      "bytes": 10199633
+    },
+    "baseline.txt": {
+      "sha256": "cc4e3cc8ae3f4179b7430c787bcd1cc6cbc59bd108a14b23bdcdf881964e8007",
+      "bytes": 493
+    },
+    "before-1.txt": {
+      "sha256": "4087358a23788de35d7dce7c15d0c38ade12bc2d23a4b676a64c6a107dfaf699",
+      "bytes": 627
+    },
+    "before-2.txt": {
+      "sha256": "2f4aec015f593184b6c959b5a02e056b8c83d7da369c1ab47eb4add5c80967e3",
+      "bytes": 627
+    },
+    "before-3.txt": {
+      "sha256": "dcdb001ad8e0773090fbf4f774e45364d5dab360c64596a57ed221b569e9f71f",
+      "bytes": 627
+    },
+    "before-profile.txt": {
+      "sha256": "a295c986c9159b971075c78326796b7f1bf1fd507db7dceb0d3a6faa1618f28b",
+      "bytes": 217
+    },
+    "before.mutex": {
+      "sha256": "9c051fae3d402f866fb0fdaf0cd656c4913be601375972268edeab28b013f51e",
+      "bytes": 13844
+    },
+    "before.test": {
+      "sha256": "71d76ac5ad72d07dfe2ba40f2463a1d98d23f59690cd94d333a2268c565acad8",
+      "bytes": 10198647
+    },
+    "borrowed.test": {
+      "sha256": "67fcc3a35a7075af693bfa49dd957d808a27929c950ed3ed2fda61a5e6aca12c",
+      "bytes": 10199119
+    },
+    "compare-copy.py": {
+      "sha256": "a6ef0bfd0700f82b21971905885abefc63cbea4e5a7e698707950dcbbc11aaab",
+      "bytes": 971
+    },
+    "compare.py": {
+      "sha256": "52984e39a354525f7c7703eb855912526ef665ebfa778bf6205fb2e643925a0c",
+      "bytes": 938
+    },
+    "copy-before-1.txt": {
+      "sha256": "08bee6ab156460d8643745a027edca984e7e5ca94c782a427678ea260b55bfb9",
+      "bytes": 627
+    },
+    "copy-before-2.txt": {
+      "sha256": "43e8e1c287fcb8caca1eb287c7c50718385357cda8f86404a5b335181b25ddce",
+      "bytes": 627
+    },
+    "copy-before-3.txt": {
+      "sha256": "2e5c1c5002fea0222200fb5cb794a80f26409624590fa8d754982a077d327003",
+      "bytes": 627
+    },
+    "copy-borrowed-1.txt": {
+      "sha256": "cc4126a17287875502d5cc026576981b9c3a7309a6535412af37e656017a8681",
+      "bytes": 627
+    },
+    "copy-borrowed-2.txt": {
+      "sha256": "3319763d9a1d2064585bb838662f648b0d16c76be3a1b2f0505d33db624d2cbe",
+      "bytes": 627
+    },
+    "copy-borrowed-3.txt": {
+      "sha256": "bb4b7186a8246bb7ecf020bb97c2c0ed7ddb3519abfc59306cc157350a518108",
+      "bytes": 627
+    },
+    "copy-runs.json": {
+      "sha256": "f3a524cbfaf369d4c86d379b1fa7eead5a70fb37b6140ef74920f93d0ee4a1ed",
+      "bytes": 4244
+    },
+    "copy-summary.json": {
+      "sha256": "7d4095d3dd98908c5f6381fa34b2fa7f9e292d17e56d0e4ce00480b553bbaf8a",
+      "bytes": 5957
+    },
+    "debug-rejected-lock/experiment.patch": {
+      "sha256": "7ea939faa6adaebe69ce685f8a925a7396f8b6145420d98ef8df59e5a3fc2cf9",
+      "bytes": 3855
+    },
+    "debug-rejected-lock/queue_watch_integration_test.go": {
+      "sha256": "ce1b40c0ee70c2775f0873308552b8ae599184707b8a1939e06f64c4522164ee",
+      "bytes": 3783
+    },
+    "initial-after.txt": {
+      "sha256": "88045ee40c66b5e0ff5d3bd6d8c58d40c1bffbaeadd0df433af03f8c702e5296",
+      "bytes": 493
+    },
+    "instructions.json": {
+      "sha256": "12b48df656630b8fb71aa7b85c9615b5602cf9ee70f71e42e152c7e483ccfa21",
+      "bytes": 191
+    },
+    "integration-race.txt": {
+      "sha256": "0d18673f6140c62400b3bfb4e7edae87822be803db13a15fea4cb274e5190daf",
+      "bytes": 651
+    },
+    "response-after.txt": {
+      "sha256": "03507b14f52575810be4e7d5802c04770f0c68ab08b692ea3e9f80ee023bd345",
+      "bytes": 970
+    },
+    "response-allocation-acceptance.json": {
+      "sha256": "556b58845659fa319b5aa27a0d8f598f4250e350e6ebfaa48f52867a4cec52f4",
+      "bytes": 342
+    },
+    "response-before.txt": {
+      "sha256": "70d3950b508e2d5d61254decc033bab1436b95f83386c2a92ca8ffa2480c3f4c",
+      "bytes": 949
+    },
+    "runs.json": {
+      "sha256": "7f0140fb8c42933731701482fec5b1d79b339d64f1a5629e9e207c0b7d2b5124",
+      "bytes": 4226
+    }
+  },
+  "validation": {
+    "integration_race": {
+      "command": "GOWORK=off go test -race -tags=integration ./pkg/transport/... ./pkg/cluster/net -count=1",
+      "exit_code": 0,
+      "packages": 10
+    },
+    "rejected_lock_experiment": {
+      "original_registration_isolation_test": "failed: one request cancellation registration blocked unrelated admission",
+      "candidate_queue_race_count": 10,
+      "candidate_queue_race_exit_code": 0
+    }
+  }
+}

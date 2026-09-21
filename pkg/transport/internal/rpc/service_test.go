@@ -441,7 +441,7 @@ func TestServiceReplyPayloadIsCopied(t *testing.T) {
 	}
 }
 
-func TestServiceInvokesRespondCallback(t *testing.T) {
+func TestServiceInvokesRespondBorrowedCallback(t *testing.T) {
 	svc := NewService(7, func(ctx context.Context, payload []byte) ([]byte, error) {
 		return append([]byte("echo:"), payload...), nil
 	}, core.ServiceOptions{Concurrency: 1, QueueSize: 4, MaxQueueBytes: 1 << 20}, nil)
@@ -450,7 +450,8 @@ func TestServiceInvokesRespondCallback(t *testing.T) {
 	got := make(chan Response, 1)
 	err := svc.Enqueue(Request{
 		Payload: core.CopyOwnedBuffer([]byte("hi")),
-		Respond: func(resp Response) {
+		RespondBorrowed: func(resp Response) {
+			resp.Payload = append([]byte(nil), resp.Payload...)
 			got <- resp
 		},
 	})
@@ -460,10 +461,10 @@ func TestServiceInvokesRespondCallback(t *testing.T) {
 	select {
 	case resp := <-got:
 		if resp.Err != nil || string(resp.Payload) != "echo:hi" {
-			t.Fatalf("Respond got %+v, want echo:hi", resp)
+			t.Fatalf("RespondBorrowed got %+v, want echo:hi", resp)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("Respond callback not invoked")
+		t.Fatal("RespondBorrowed callback not invoked")
 	}
 }
 

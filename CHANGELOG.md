@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Avoid an intermediate internal RPC response copy by encoding borrowed handler bytes synchronously; asynchronous replies retain independent payloads. / 内部 RPC 同步编码借用的处理结果，省去一次中间响应复制，异步回复仍保留独立数据。
+
 - Reduce benchmark snapshot CPU cost with typed latency sorting while retaining exact percentile and SLO results. / 压测快照使用类型化时延排序，降低 CPU 开销，保留精确分位数和 SLO 判定。
 
 - Keep benchmark metric writes moving while report snapshots sort historical latency samples, preserving consistent snapshots and exact percentiles. / 压测报告在锁外排序历史时延样本，降低指标写入阻塞，并保留快照一致性及精确分位数。

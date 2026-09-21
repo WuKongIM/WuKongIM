@@ -33,9 +33,10 @@ type Request struct {
 	Payload core.OwnedBuffer
 	// Reply optionally receives a copied response payload and terminal handler error.
 	Reply chan Response
-	// Respond, when non-nil, is invoked exactly once with the terminal response in
-	// place of Reply. It runs on the executor worker goroutine; it must not block.
-	Respond func(Response)
+	// RespondBorrowed receives a response whose payload is valid only during the callback.
+	// It takes precedence over Reply and must copy or encode bytes before returning.
+	// It runs synchronously on the terminal owner goroutine and must not block.
+	RespondBorrowed func(Response)
 }
 
 // Service owns a bounded queue and executor-backed pump for a registered transport service.
@@ -349,13 +350,17 @@ func (s *Service) handle(req Request) error {
 	if ctx.Err() != nil {
 		err = requestError(ctx.Err())
 	}
-	if req.Reply == nil && req.Respond == nil {
+	if req.Reply == nil && req.RespondBorrowed == nil {
 		return err
 	}
 
-	reply := Response{Payload: append([]byte(nil), resp...), Err: err}
+	reply := Response{Payload: resp, Err: err}
+	if req.RespondBorrowed == nil {
+		// Asynchronous receivers need a copy that outlives request payload release.
+		reply.Payload = append([]byte(nil), resp...)
+	}
 	// Reply channels are required to be buffered by callers; non-blocking send keeps Stop from
-	// waiting forever when the caller has abandoned a request. Respond runs inline on the worker.
+	// waiting forever when the caller has abandoned a request. RespondBorrowed runs inline on the worker.
 	deliver(req, reply)
 	return err
 }
@@ -515,8 +520,8 @@ func trySendResponse(ch chan Response, resp Response) {
 }
 
 func deliver(req Request, resp Response) {
-	if req.Respond != nil {
-		req.Respond(resp)
+	if req.RespondBorrowed != nil {
+		req.RespondBorrowed(resp)
 		return
 	}
 	trySendResponse(req.Reply, resp)

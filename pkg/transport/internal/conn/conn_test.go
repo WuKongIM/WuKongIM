@@ -730,6 +730,11 @@ func TestEncodeRPCResponseContentAndRelease(t *testing.T) {
 	if len(got) != 1+len(payload) || got[0] != wire.ResponseOK || string(got[1:]) != "response-body" {
 		t.Fatalf("EncodeRPCResponse bytes = %v, want status+payload", got)
 	}
+	// Synchronous service callbacks lend handler bytes only until encoding returns.
+	clear(payload)
+	if string(buf.Bytes()[1:]) != "response-body" {
+		t.Fatal("encoded response aliases the borrowed handler payload")
+	}
 	buf.Release()
 	buf.Release()
 }

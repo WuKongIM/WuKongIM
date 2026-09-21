@@ -279,6 +279,7 @@ func (s *Server) dispatchRPCRequest(ctx context.Context, inbound conn.Inbound) {
 		s.sendRPCError(ctx, inbound, err)
 		return
 	}
+	// Encode borrowed handler bytes into an owned wire buffer before the callback returns.
 	respond := func(resp rpc.Response) {
 		select {
 		case <-requestCtx.Done():
@@ -304,7 +305,7 @@ func (s *Server) dispatchRPCRequest(ctx context.Context, inbound conn.Inbound) {
 		})
 	}
 
-	if err := service.Enqueue(rpc.Request{Context: requestCtx, Finish: finish, Payload: inbound.Payload, Respond: respond}); err != nil {
+	if err := service.Enqueue(rpc.Request{Context: requestCtx, Finish: finish, Payload: inbound.Payload, RespondBorrowed: respond}); err != nil {
 		finish()
 		s.sendRPCError(ctx, inbound, err)
 		return

@@ -347,6 +347,9 @@ specification, runbook, report, or module documentation; link to them when neede
   probes five minutes, and Operations MCP one minute for bounded profiling.
   Explicit remote timeout/busy/stopped status preserves temporary failure types;
   arbitrary remote error text must never imply retryability.
+- Internal service `RespondBorrowed` callbacks may use handler response bytes only
+  until the callback returns. The server synchronously encodes them into an owned
+  wire buffer before request release; asynchronous `Reply` delivery still copies.
 - Transport batches ready frames without a default timer delay. Slab admission
   counts retained backing capacity, separately from wire bytes; service retained
   memory includes queued and executing requests until their owner releases it.
