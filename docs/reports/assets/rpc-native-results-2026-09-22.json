@@ -1,0 +1,2486 @@
+{
+  "schema": "rpc-native-repeatability-evidence/v1",
+  "request_id": "chat-20260922T085319Z-abc7ebb6",
+  "source_revision": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+  "runtime_changed": false,
+  "qualification": {
+    "schema": "wkrpc-repeatability/v1",
+    "status": "unstable",
+    "windows": 6,
+    "throughput_spread_percent": 8.146062199813153,
+    "p99_spread_percent": 52.77866257450624,
+    "limits_percent": {
+      "throughput": 3,
+      "p99": 10
+    },
+    "meaning": "same-version repeatability only; no candidate or production qualification"
+  },
+  "summary": {
+    "calls": 10799412,
+    "median_calls_per_second": 91305.42750420119,
+    "median_p99_ms": 0.2841205
+  },
+  "cloud": {
+    "provider": "alibaba",
+    "region": "cn-hangzhou",
+    "zone": "cn-hangzhou-b",
+    "created_at": "2026-09-22T09:04:55.509996Z",
+    "expires_at": "2026-09-22T15:02:01Z",
+    "budget_cny": 300,
+    "estimated_full_lease_cost_cny": 43.6388,
+    "actual_billing_status": "not_verified",
+    "service_instance_type": "ecs.u2a-c1m2.xlarge",
+    "load_instance_type": "ecs.u2a-c1m2.xlarge",
+    "instances_created": 4,
+    "instances_used_for_probe": 2,
+    "raw_document_hashes": {
+      "quote.json": "6e66043e8c13e42dd4f22bfac22a71a8549106dd4a3e1616d80c376f6d84ad7b",
+      "receipt.json": "7cdca3027407ffb0eae1ba045e72f04f5577d668f923e789af42466f2e48ea71",
+      "release-selector.json": "1a0a7384bf264afeabaf54ffbbc4c9566b99038cf878fd1ab92a868120eb13a6",
+      "zero-inventory.json": "670c7004d662b9fa4849946ee121db88a303bea7f2a4c32e43a5e2230eee7171",
+      "state.json": "7878b155c8d2525c046cfd57d05699e35a888255ff86297d8650d8889cb7af3f",
+      "lease-plan.json": "3c61d59f3999332e7d9775ea3b6009373325bdf50be8e60f30bcf54924e13280"
+    },
+    "release_selector": {
+      "lease_id": "chat-20260922T085319Z-abc7ebb6-repair-1",
+      "request_id": "chat-20260922T085319Z-abc7ebb6",
+      "provider": "alibaba",
+      "region": "cn-hangzhou",
+      "repository": "WuKongIM/WuKongIM",
+      "plan_digest": "b140318d984b588e35ded83db72396abd287e2df0460df62b1b356df7c4e275d"
+    },
+    "authenticated_zero_inventory": {
+      "selector": {
+        "lease_id": "chat-20260922T085319Z-abc7ebb6-repair-1",
+        "request_id": "chat-20260922T085319Z-abc7ebb6",
+        "provider": "alibaba",
+        "region": "cn-hangzhou",
+        "repository": "WuKongIM/WuKongIM",
+        "plan_digest": "b140318d984b588e35ded83db72396abd287e2df0460df62b1b356df7c4e275d"
+      },
+      "account_id_hash": "sha256:00757c95a924e7e2e5cb4dfc23c8e5388166cfed3534dde2380dccea36bb21f2",
+      "observed_at": "2026-09-22T09:09:21.264482Z",
+      "scopes": [
+        "disk_attachments",
+        "disks",
+        "eip_associations",
+        "eips",
+        "enis",
+        "instances",
+        "nat_gateways",
+        "route_entries",
+        "security_group_rules",
+        "security_groups",
+        "vpcs",
+        "vswitches"
+      ]
+    }
+  },
+  "redaction": "Lease private/public IP addresses replaced in report and log strings. Original file SHA256 values retained. Redacted reports reproduce the identical analyzer result. No credentials or SSH keys included.",
+  "windows": [
+    {
+      "name": "aa-1.json",
+      "original_sha256": "a2c08a14838397b48ed876b63c91c515832822518602a3b104229df0b396e09d",
+      "report": {
+        "Schema": "wkrpc-process-probe/v1",
+        "StartedUTC": "2026-09-22T09:06:02.980138516Z",
+        "Client": {
+          "OS": "linux",
+          "Arch": "amd64",
+          "KernelArch": "x86_64",
+          "CPUModel": "AMD EPYC",
+          "HostID": "9687f5908df44603933d7cad5cc1719fb428b8dd54a62f331001dbf61b776e57",
+          "BinarySHA256": "48c34aa819090f18b2da41df9b6f57f564e78166c9f91b6f19c109767f5fa15d",
+          "Source": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+          "GoVersion": "go1.25.11",
+          "AllowedCPUs": "0-3",
+          "CPUCount": 4,
+          "Procs": 4,
+          "Container": false,
+          "Ineligible": null,
+          "MemoryLimit": 9223372036854775807,
+          "RuntimeDebug": ""
+        },
+        "Options": {
+          "Mode": "client",
+          "Addr": "<server-private>:7001",
+          "Duration": 20000000000,
+          "Warmup": 10000000000,
+          "Lifetime": 1800000000000,
+          "Workers": 16,
+          "Shards": 1,
+          "Bytes": 64,
+          "Samples": 1000000,
+          "GC": 400,
+          "Budgets": false,
+          "Read": false
+        },
+        "ElapsedSeconds": 20.000139556,
+        "CallsPerSecond": 89528.62528715847,
+        "Summary": {
+          "Calls": 1790585,
+          "MeanMS": 0.17856896943792114,
+          "P50MS": 0.174058,
+          "P95MS": 0.23942,
+          "P99MS": 0.296381
+        },
+        "Seconds": [
+          {
+            "Calls": 89053,
+            "MeanMS": 0.17954172354665202,
+            "P50MS": 0.174716,
+            "P95MS": 0.241189,
+            "P99MS": 0.311942
+          },
+          {
+            "Calls": 89864,
+            "MeanMS": 0.17789903401807175,
+            "P50MS": 0.173656,
+            "P95MS": 0.239629,
+            "P99MS": 0.28968
+          },
+          {
+            "Calls": 90387,
+            "MeanMS": 0.17687195940787945,
+            "P50MS": 0.173116,
+            "P95MS": 0.235009,
+            "P99MS": 0.287591
+          },
+          {
+            "Calls": 90834,
+            "MeanMS": 0.1760085337538807,
+            "P50MS": 0.172286,
+            "P95MS": 0.234338,
+            "P99MS": 0.28194
+          },
+          {
+            "Calls": 90443,
+            "MeanMS": 0.17677151047621154,
+            "P50MS": 0.172957,
+            "P95MS": 0.236868,
+            "P99MS": 0.282051
+          },
+          {
+            "Calls": 89821,
+            "MeanMS": 0.1779982832411129,
+            "P50MS": 0.174176,
+            "P95MS": 0.239029,
+            "P99MS": 0.28531
+          },
+          {
+            "Calls": 90029,
+            "MeanMS": 0.17758449236357174,
+            "P50MS": 0.173296,
+            "P95MS": 0.238029,
+            "P99MS": 0.289151
+          },
+          {
+            "Calls": 90232,
+            "MeanMS": 0.1771731460568313,
+            "P50MS": 0.172976,
+            "P95MS": 0.236818,
+            "P99MS": 0.292711
+          },
+          {
+            "Calls": 90539,
+            "MeanMS": 0.17657116173140855,
+            "P50MS": 0.172717,
+            "P95MS": 0.235619,
+            "P99MS": 0.287501
+          },
+          {
+            "Calls": 90478,
+            "MeanMS": 0.17669448313402153,
+            "P50MS": 0.172586,
+            "P95MS": 0.236139,
+            "P99MS": 0.28831
+          },
+          {
+            "Calls": 89916,
+            "MeanMS": 0.17779949906579476,
+            "P50MS": 0.173977,
+            "P95MS": 0.238079,
+            "P99MS": 0.288151
+          },
+          {
+            "Calls": 89686,
+            "MeanMS": 0.1782574987957987,
+            "P50MS": 0.174157,
+            "P95MS": 0.238569,
+            "P99MS": 0.290131
+          },
+          {
+            "Calls": 88854,
+            "MeanMS": 0.1799206783600063,
+            "P50MS": 0.174447,
+            "P95MS": 0.240189,
+            "P99MS": 0.301002
+          },
+          {
+            "Calls": 87219,
+            "MeanMS": 0.18329836337265962,
+            "P50MS": 0.178737,
+            "P95MS": 0.247739,
+            "P99MS": 0.305672
+          },
+          {
+            "Calls": 86526,
+            "MeanMS": 0.18476576749185217,
+            "P50MS": 0.179468,
+            "P95MS": 0.250739,
+            "P99MS": 0.316113
+          },
+          {
+            "Calls": 89142,
+            "MeanMS": 0.17935337715106237,
+            "P50MS": 0.174037,
+            "P95MS": 0.24032,
+            "P99MS": 0.310093
+          },
+          {
+            "Calls": 89602,
+            "MeanMS": 0.17841309298899577,
+            "P50MS": 0.173588,
+            "P95MS": 0.23918,
+            "P99MS": 0.309663
+          },
+          {
+            "Calls": 88936,
+            "MeanMS": 0.1797548142934245,
+            "P50MS": 0.174327,
+            "P95MS": 0.24169,
+            "P99MS": 0.343014
+          },
+          {
+            "Calls": 89175,
+            "MeanMS": 0.17927408885898513,
+            "P50MS": 0.173778,
+            "P95MS": 0.23927,
+            "P99MS": 0.311372
+          },
+          {
+            "Calls": 89849,
+            "MeanMS": 0.17792861456443587,
+            "P50MS": 0.173347,
+            "P95MS": 0.23794,
+            "P99MS": 0.294672
+          }
+        ],
+        "WorkerCalls": [
+          111984,
+          111932,
+          111939,
+          111894,
+          111942,
+          111915,
+          111895,
+          111968,
+          111881,
+          111872,
+          111926,
+          111831,
+          111948,
+          111886,
+          111901,
+          111871
+        ],
+        "WarmupCalls": [
+          56325,
+          56295,
+          56267,
+          56330,
+          56365,
+          56319,
+          56297,
+          56223,
+          56299,
+          56237,
+          56291,
+          56291,
+          56278,
+          56313,
+          56342,
+          56301
+        ],
+        "Errors": 0,
+        "SampleCapHit": false,
+        "FirstError": "",
+        "ClientBefore": {
+          "TotalAlloc": 970650488,
+          "Mallocs": 14234830,
+          "PauseNS": 366241,
+          "NumGC": 5,
+          "CPUSeconds": 15.538699
+        },
+        "ClientAfter": {
+          "TotalAlloc": 2623886456,
+          "Mallocs": 42532046,
+          "PauseNS": 675903,
+          "NumGC": 8,
+          "CPUSeconds": 46.502323
+        },
+        "ServerBefore": {
+          "Host": {
+            "OS": "linux",
+            "Arch": "amd64",
+            "KernelArch": "x86_64",
+            "CPUModel": "AMD EPYC",
+            "HostID": "fdfdb167686073b6a01413ee451235b857386105592b343fbade4b2dac351d93",
+            "BinarySHA256": "48c34aa819090f18b2da41df9b6f57f564e78166c9f91b6f19c109767f5fa15d",
+            "Source": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+            "GoVersion": "go1.25.11",
+            "AllowedCPUs": "0-3",
+            "CPUCount": 4,
+            "Procs": 4,
+            "Container": false,
+            "Ineligible": null,
+            "MemoryLimit": 9223372036854775807,
+            "RuntimeDebug": ""
+          },
+          "Instance": "f7b19ef39d3239088fe3d0b50344c57b",
+          "Options": {
+            "Alias": "",
+            "Concurrency": 64,
+            "QueueSize": 4096,
+            "MaxQueueBytes": 67108864,
+            "MaxRetainedBytes": 134217728,
+            "Timeout": 30000000000,
+            "QueueTimeout": 5000000000,
+            "CancelRunning": false,
+            "MaxPayload": 65537
+          },
+          "GC": 100,
+          "EchoCalls": 900774,
+          "Stats": {
+            "TotalAlloc": 1153923568,
+            "Mallocs": 22355846,
+            "PauseNS": 23151489,
+            "NumGC": 357,
+            "CPUSeconds": 15.615483
+          }
+        },
+        "ServerAfter": {
+          "Host": {
+            "OS": "linux",
+            "Arch": "amd64",
+            "KernelArch": "x86_64",
+            "CPUModel": "AMD EPYC",
+            "HostID": "fdfdb167686073b6a01413ee451235b857386105592b343fbade4b2dac351d93",
+            "BinarySHA256": "48c34aa819090f18b2da41df9b6f57f564e78166c9f91b6f19c109767f5fa15d",
+            "Source": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+            "GoVersion": "go1.25.11",
+            "AllowedCPUs": "0-3",
+            "CPUCount": 4,
+            "Procs": 4,
+            "Container": false,
+            "Ineligible": null,
+            "MemoryLimit": 9223372036854775807,
+            "RuntimeDebug": ""
+          },
+          "Instance": "f7b19ef39d3239088fe3d0b50344c57b",
+          "Options": {
+            "Alias": "",
+            "Concurrency": 64,
+            "QueueSize": 4096,
+            "MaxQueueBytes": 67108864,
+            "MaxRetainedBytes": 134217728,
+            "Timeout": 30000000000,
+            "QueueTimeout": 5000000000,
+            "CancelRunning": false,
+            "MaxPayload": 65537
+          },
+          "GC": 100,
+          "EchoCalls": 2691359,
+          "Stats": {
+            "TotalAlloc": 3425806592,
+            "Mallocs": 66790571,
+            "PauseNS": 70310217,
+            "NumGC": 1074,
+            "CPUSeconds": 46.674498
+          }
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "name": "aa-2.json",
+      "original_sha256": "5824311a62c5e316fdcffe46c5615e0cde056752b1415ba7d476f3f63bcce066",
+      "report": {
+        "Schema": "wkrpc-process-probe/v1",
+        "StartedUTC": "2026-09-22T09:06:33.8327521Z",
+        "Client": {
+          "OS": "linux",
+          "Arch": "amd64",
+          "KernelArch": "x86_64",
+          "CPUModel": "AMD EPYC",
+          "HostID": "9687f5908df44603933d7cad5cc1719fb428b8dd54a62f331001dbf61b776e57",
+          "BinarySHA256": "48c34aa819090f18b2da41df9b6f57f564e78166c9f91b6f19c109767f5fa15d",
+          "Source": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+          "GoVersion": "go1.25.11",
+          "AllowedCPUs": "0-3",
+          "CPUCount": 4,
+          "Procs": 4,
+          "Container": false,
+          "Ineligible": null,
+          "MemoryLimit": 9223372036854775807,
+          "RuntimeDebug": ""
+        },
+        "Options": {
+          "Mode": "client",
+          "Addr": "<server-private>:7001",
+          "Duration": 20000000000,
+          "Warmup": 10000000000,
+          "Lifetime": 1800000000000,
+          "Workers": 16,
+          "Shards": 1,
+          "Bytes": 64,
+          "Samples": 1000000,
+          "GC": 400,
+          "Budgets": false,
+          "Read": false
+        },
+        "ElapsedSeconds": 20.000129143,
+        "CallsPerSecond": 91227.26093189207,
+        "Summary": {
+          "Calls": 1824557,
+          "MeanMS": 0.17524669107295635,
+          "P50MS": 0.171036,
+          "P95MS": 0.233509,
+          "P99MS": 0.284591
+        },
+        "Seconds": [
+          {
+            "Calls": 90121,
+            "MeanMS": 0.17741334353813207,
+            "P50MS": 0.172236,
+            "P95MS": 0.236509,
+            "P99MS": 0.298811
+          },
+          {
+            "Calls": 89813,
+            "MeanMS": 0.17800467310968343,
+            "P50MS": 0.173336,
+            "P95MS": 0.238438,
+            "P99MS": 0.302721
+          },
+          {
+            "Calls": 91253,
+            "MeanMS": 0.17520093153101818,
+            "P50MS": 0.171026,
+            "P95MS": 0.232039,
+            "P99MS": 0.286271
+          },
+          {
+            "Calls": 91028,
+            "MeanMS": 0.17563164167069473,
+            "P50MS": 0.171517,
+            "P95MS": 0.233569,
+            "P99MS": 0.284421
+          },
+          {
+            "Calls": 91651,
+            "MeanMS": 0.17444695234094554,
+            "P50MS": 0.170396,
+            "P95MS": 0.232338,
+            "P99MS": 0.284741
+          },
+          {
+            "Calls": 90966,
+            "MeanMS": 0.17574448621462962,
+            "P50MS": 0.171296,
+            "P95MS": 0.234548,
+            "P99MS": 0.292741
+          },
+          {
+            "Calls": 91329,
+            "MeanMS": 0.1750472566983105,
+            "P50MS": 0.170566,
+            "P95MS": 0.232589,
+            "P99MS": 0.28477
+          },
+          {
+            "Calls": 91819,
+            "MeanMS": 0.17412133751184394,
+            "P50MS": 0.170216,
+            "P95MS": 0.231799,
+            "P99MS": 0.280801
+          },
+          {
+            "Calls": 90922,
+            "MeanMS": 0.1758334786740283,
+            "P50MS": 0.171276,
+            "P95MS": 0.235648,
+            "P99MS": 0.288621
+          },
+          {
+            "Calls": 91611,
+            "MeanMS": 0.17451254128870988,
+            "P50MS": 0.170666,
+            "P95MS": 0.231799,
+            "P99MS": 0.280041
+          },
+          {
+            "Calls": 91603,
+            "MeanMS": 0.17452700969400564,
+            "P50MS": 0.170746,
+            "P95MS": 0.233119,
+            "P99MS": 0.27821
+          },
+          {
+            "Calls": 91639,
+            "MeanMS": 0.17446878333460644,
+            "P50MS": 0.170706,
+            "P95MS": 0.231929,
+            "P99MS": 0.280041
+          },
+          {
+            "Calls": 91384,
+            "MeanMS": 0.17494439334019085,
+            "P50MS": 0.170676,
+            "P95MS": 0.233339,
+            "P99MS": 0.285931
+          },
+          {
+            "Calls": 91701,
+            "MeanMS": 0.17433867952366933,
+            "P50MS": 0.170516,
+            "P95MS": 0.231869,
+            "P99MS": 0.2772
+          },
+          {
+            "Calls": 92081,
+            "MeanMS": 0.17362367665425008,
+            "P50MS": 0.169756,
+            "P95MS": 0.230278,
+            "P99MS": 0.276581
+          },
+          {
+            "Calls": 91823,
+            "MeanMS": 0.174105297202226,
+            "P50MS": 0.170127,
+            "P95MS": 0.231619,
+            "P99MS": 0.27532
+          },
+          {
+            "Calls": 91755,
+            "MeanMS": 0.17423754971391203,
+            "P50MS": 0.170446,
+            "P95MS": 0.231298,
+            "P99MS": 0.276859
+          },
+          {
+            "Calls": 90887,
+            "MeanMS": 0.17605408130975828,
+            "P50MS": 0.171536,
+            "P95MS": 0.234368,
+            "P99MS": 0.28598
+          },
+          {
+            "Calls": 89626,
+            "MeanMS": 0.17822578236226094,
+            "P50MS": 0.173146,
+            "P95MS": 0.240919,
+            "P99MS": 0.300421
+          },
+          {
+            "Calls": 91545,
+            "MeanMS": 0.17463713771369274,
+            "P50MS": 0.170856,
+            "P95MS": 0.232558,
+            "P99MS": 0.27843
+          }
+        ],
+        "WorkerCalls": [
+          114070,
+          114028,
+          114076,
+          113977,
+          114127,
+          113911,
+          114043,
+          114039,
+          114028,
+          114081,
+          114019,
+          114034,
+          114018,
+          114007,
+          114048,
+          114051
+        ],
+        "WarmupCalls": [
+          56854,
+          56747,
+          56735,
+          56812,
+          56791,
+          56770,
+          56759,
+          56816,
+          56775,
+          56771,
+          56779,
+          56699,
+          56819,
+          56761,
+          56823,
+          56791
+        ],
+        "Errors": 0,
+        "SampleCapHit": false,
+        "FirstError": "",
+        "ClientBefore": {
+          "TotalAlloc": 977768856,
+          "Mallocs": 14356202,
+          "PauseNS": 340665,
+          "NumGC": 5,
+          "CPUSeconds": 15.531628
+        },
+        "ClientAfter": {
+          "TotalAlloc": 2662403176,
+          "Mallocs": 43191775,
+          "PauseNS": 498531,
+          "NumGC": 8,
+          "CPUSeconds": 46.533292
+        },
+        "ServerBefore": {
+          "Host": {
+            "OS": "linux",
+            "Arch": "amd64",
+            "KernelArch": "x86_64",
+            "CPUModel": "AMD EPYC",
+            "HostID": "fdfdb167686073b6a01413ee451235b857386105592b343fbade4b2dac351d93",
+            "BinarySHA256": "48c34aa819090f18b2da41df9b6f57f564e78166c9f91b6f19c109767f5fa15d",
+            "Source": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+            "GoVersion": "go1.25.11",
+            "AllowedCPUs": "0-3",
+            "CPUCount": 4,
+            "Procs": 4,
+            "Container": false,
+            "Ineligible": null,
+            "MemoryLimit": 9223372036854775807,
+            "RuntimeDebug": ""
+          },
+          "Instance": "f7b19ef39d3239088fe3d0b50344c57b",
+          "Options": {
+            "Alias": "",
+            "Concurrency": 64,
+            "QueueSize": 4096,
+            "MaxQueueBytes": 67108864,
+            "MaxRetainedBytes": 134217728,
+            "Timeout": 30000000000,
+            "QueueTimeout": 5000000000,
+            "CancelRunning": false,
+            "MaxPayload": 65537
+          },
+          "GC": 100,
+          "EchoCalls": 3599862,
+          "Stats": {
+            "TotalAlloc": 4578537120,
+            "Mallocs": 89335294,
+            "PauseNS": 92793443,
+            "NumGC": 1437,
+            "CPUSeconds": 62.357528
+          }
+        },
+        "ServerAfter": {
+          "Host": {
+            "OS": "linux",
+            "Arch": "amd64",
+            "KernelArch": "x86_64",
+            "CPUModel": "AMD EPYC",
+            "HostID": "fdfdb167686073b6a01413ee451235b857386105592b343fbade4b2dac351d93",
+            "BinarySHA256": "48c34aa819090f18b2da41df9b6f57f564e78166c9f91b6f19c109767f5fa15d",
+            "Source": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+            "GoVersion": "go1.25.11",
+            "AllowedCPUs": "0-3",
+            "CPUCount": 4,
+            "Procs": 4,
+            "Container": false,
+            "Ineligible": null,
+            "MemoryLimit": 9223372036854775807,
+            "RuntimeDebug": ""
+          },
+          "Instance": "f7b19ef39d3239088fe3d0b50344c57b",
+          "Options": {
+            "Alias": "",
+            "Concurrency": 64,
+            "QueueSize": 4096,
+            "MaxQueueBytes": 67108864,
+            "MaxRetainedBytes": 134217728,
+            "Timeout": 30000000000,
+            "QueueTimeout": 5000000000,
+            "CancelRunning": false,
+            "MaxPayload": 65537
+          },
+          "GC": 100,
+          "EchoCalls": 5424419,
+          "Stats": {
+            "TotalAlloc": 6893384472,
+            "Mallocs": 134609968,
+            "PauseNS": 142621801,
+            "NumGC": 2168,
+            "CPUSeconds": 93.792204
+          }
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "name": "aa-3.json",
+      "original_sha256": "8b396b535b9ac05a195c7beca7fe2327389eee1eac0f023f495d94f371f37558",
+      "report": {
+        "Schema": "wkrpc-process-probe/v1",
+        "StartedUTC": "2026-09-22T09:07:04.34472929Z",
+        "Client": {
+          "OS": "linux",
+          "Arch": "amd64",
+          "KernelArch": "x86_64",
+          "CPUModel": "AMD EPYC",
+          "HostID": "9687f5908df44603933d7cad5cc1719fb428b8dd54a62f331001dbf61b776e57",
+          "BinarySHA256": "48c34aa819090f18b2da41df9b6f57f564e78166c9f91b6f19c109767f5fa15d",
+          "Source": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+          "GoVersion": "go1.25.11",
+          "AllowedCPUs": "0-3",
+          "CPUCount": 4,
+          "Procs": 4,
+          "Container": false,
+          "Ineligible": null,
+          "MemoryLimit": 9223372036854775807,
+          "RuntimeDebug": ""
+        },
+        "Options": {
+          "Mode": "client",
+          "Addr": "<server-private>:7001",
+          "Duration": 20000000000,
+          "Warmup": 10000000000,
+          "Lifetime": 1800000000000,
+          "Workers": 16,
+          "Shards": 1,
+          "Bytes": 64,
+          "Samples": 1000000,
+          "GC": 400,
+          "Budgets": false,
+          "Read": false
+        },
+        "ElapsedSeconds": 20.000132611,
+        "CallsPerSecond": 91383.59407651029,
+        "Summary": {
+          "Calls": 1827684,
+          "MeanMS": 0.1749478510645166,
+          "P50MS": 0.170866,
+          "P95MS": 0.232638,
+          "P99MS": 0.28365
+        },
+        "Seconds": [
+          {
+            "Calls": 91787,
+            "MeanMS": 0.1741906242605162,
+            "P50MS": 0.170456,
+            "P95MS": 0.231758,
+            "P99MS": 0.27901
+          },
+          {
+            "Calls": 91460,
+            "MeanMS": 0.17480595424229173,
+            "P50MS": 0.170446,
+            "P95MS": 0.232789,
+            "P99MS": 0.28148
+          },
+          {
+            "Calls": 91045,
+            "MeanMS": 0.1755983120874293,
+            "P50MS": 0.171226,
+            "P95MS": 0.234339,
+            "P99MS": 0.29276
+          },
+          {
+            "Calls": 91426,
+            "MeanMS": 0.1748707605932667,
+            "P50MS": 0.170966,
+            "P95MS": 0.232629,
+            "P99MS": 0.28569
+          },
+          {
+            "Calls": 91637,
+            "MeanMS": 0.1744666193022469,
+            "P50MS": 0.170476,
+            "P95MS": 0.231178,
+            "P99MS": 0.28007
+          },
+          {
+            "Calls": 91156,
+            "MeanMS": 0.1753866276712449,
+            "P50MS": 0.171296,
+            "P95MS": 0.233098,
+            "P99MS": 0.28265
+          },
+          {
+            "Calls": 91432,
+            "MeanMS": 0.17485867597777582,
+            "P50MS": 0.171026,
+            "P95MS": 0.231029,
+            "P99MS": 0.27738
+          },
+          {
+            "Calls": 91642,
+            "MeanMS": 0.17445459855743,
+            "P50MS": 0.170396,
+            "P95MS": 0.231508,
+            "P99MS": 0.28604
+          },
+          {
+            "Calls": 91633,
+            "MeanMS": 0.17447192368469874,
+            "P50MS": 0.170556,
+            "P95MS": 0.232068,
+            "P99MS": 0.28195
+          },
+          {
+            "Calls": 91387,
+            "MeanMS": 0.174939938382921,
+            "P50MS": 0.170956,
+            "P95MS": 0.233218,
+            "P99MS": 0.28204
+          },
+          {
+            "Calls": 90597,
+            "MeanMS": 0.1764698080400013,
+            "P50MS": 0.171806,
+            "P95MS": 0.235969,
+            "P99MS": 0.28696
+          },
+          {
+            "Calls": 90483,
+            "MeanMS": 0.17669735215454838,
+            "P50MS": 0.171866,
+            "P95MS": 0.236189,
+            "P99MS": 0.300821
+          },
+          {
+            "Calls": 91956,
+            "MeanMS": 0.1738502911066162,
+            "P50MS": 0.170096,
+            "P95MS": 0.230978,
+            "P99MS": 0.28111
+          },
+          {
+            "Calls": 91028,
+            "MeanMS": 0.17564488253064992,
+            "P50MS": 0.171546,
+            "P95MS": 0.233789,
+            "P99MS": 0.28894
+          },
+          {
+            "Calls": 91439,
+            "MeanMS": 0.17483890350944345,
+            "P50MS": 0.170956,
+            "P95MS": 0.232498,
+            "P99MS": 0.28567
+          },
+          {
+            "Calls": 91524,
+            "MeanMS": 0.17466930042393253,
+            "P50MS": 0.170916,
+            "P95MS": 0.232058,
+            "P99MS": 0.27918
+          },
+          {
+            "Calls": 91676,
+            "MeanMS": 0.17438509536847158,
+            "P50MS": 0.170446,
+            "P95MS": 0.231539,
+            "P99MS": 0.27899
+          },
+          {
+            "Calls": 90958,
+            "MeanMS": 0.1757695494953715,
+            "P50MS": 0.171026,
+            "P95MS": 0.232398,
+            "P99MS": 0.28803
+          },
+          {
+            "Calls": 91840,
+            "MeanMS": 0.17407790192726483,
+            "P50MS": 0.170176,
+            "P95MS": 0.229977,
+            "P99MS": 0.27709
+          },
+          {
+            "Calls": 91578,
+            "MeanMS": 0.174572172355806,
+            "P50MS": 0.170786,
+            "P95MS": 0.233088,
+            "P99MS": 0.28133
+          }
+        ],
+        "WorkerCalls": [
+          114260,
+          114122,
+          114265,
+          114230,
+          114259,
+          114184,
+          114188,
+          114312,
+          114269,
+          114230,
+          114184,
+          114258,
+          114247,
+          114243,
+          114233,
+          114200
+        ],
+        "WarmupCalls": [
+          57261,
+          57224,
+          57309,
+          57187,
+          57222,
+          57169,
+          57296,
+          57286,
+          57234,
+          57235,
+          57201,
+          57156,
+          57250,
+          57250,
+          57237,
+          57215
+        ],
+        "Errors": 0,
+        "SampleCapHit": false,
+        "FirstError": "",
+        "ClientBefore": {
+          "TotalAlloc": 984473416,
+          "Mallocs": 14471621,
+          "PauseNS": 190844,
+          "NumGC": 5,
+          "CPUSeconds": 15.762886
+        },
+        "ClientAfter": {
+          "TotalAlloc": 2672016464,
+          "Mallocs": 43357661,
+          "PauseNS": 399622,
+          "NumGC": 8,
+          "CPUSeconds": 46.77871
+        },
+        "ServerBefore": {
+          "Host": {
+            "OS": "linux",
+            "Arch": "amd64",
+            "KernelArch": "x86_64",
+            "CPUModel": "AMD EPYC",
+            "HostID": "fdfdb167686073b6a01413ee451235b857386105592b343fbade4b2dac351d93",
+            "BinarySHA256": "48c34aa819090f18b2da41df9b6f57f564e78166c9f91b6f19c109767f5fa15d",
+            "Source": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+            "GoVersion": "go1.25.11",
+            "AllowedCPUs": "0-3",
+            "CPUCount": 4,
+            "Procs": 4,
+            "Container": false,
+            "Ineligible": null,
+            "MemoryLimit": 9223372036854775807,
+            "RuntimeDebug": ""
+          },
+          "Instance": "f7b19ef39d3239088fe3d0b50344c57b",
+          "Options": {
+            "Alias": "",
+            "Concurrency": 64,
+            "QueueSize": 4096,
+            "MaxQueueBytes": 67108864,
+            "MaxRetainedBytes": 134217728,
+            "Timeout": 30000000000,
+            "QueueTimeout": 5000000000,
+            "CancelRunning": false,
+            "MaxPayload": 65537
+          },
+          "GC": 100,
+          "EchoCalls": 6340152,
+          "Stats": {
+            "TotalAlloc": 8055199096,
+            "Mallocs": 157332315,
+            "PauseNS": 166451574,
+            "NumGC": 2536,
+            "CPUSeconds": 109.593708
+          }
+        },
+        "ServerAfter": {
+          "Host": {
+            "OS": "linux",
+            "Arch": "amd64",
+            "KernelArch": "x86_64",
+            "CPUModel": "AMD EPYC",
+            "HostID": "fdfdb167686073b6a01413ee451235b857386105592b343fbade4b2dac351d93",
+            "BinarySHA256": "48c34aa819090f18b2da41df9b6f57f564e78166c9f91b6f19c109767f5fa15d",
+            "Source": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+            "GoVersion": "go1.25.11",
+            "AllowedCPUs": "0-3",
+            "CPUCount": 4,
+            "Procs": 4,
+            "Container": false,
+            "Ineligible": null,
+            "MemoryLimit": 9223372036854775807,
+            "RuntimeDebug": ""
+          },
+          "Instance": "f7b19ef39d3239088fe3d0b50344c57b",
+          "Options": {
+            "Alias": "",
+            "Concurrency": 64,
+            "QueueSize": 4096,
+            "MaxQueueBytes": 67108864,
+            "MaxRetainedBytes": 134217728,
+            "Timeout": 30000000000,
+            "QueueTimeout": 5000000000,
+            "CancelRunning": false,
+            "MaxPayload": 65537
+          },
+          "GC": 100,
+          "EchoCalls": 8167836,
+          "Stats": {
+            "TotalAlloc": 10373895848,
+            "Mallocs": 202679476,
+            "PauseNS": 213967705,
+            "NumGC": 3268,
+            "CPUSeconds": 141.213469
+          }
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "name": "aa-4.json",
+      "original_sha256": "6ae15241b0d1bb1eabd999599a3f870f57f5f341abe1412f5132eabd72fceea2",
+      "report": {
+        "Schema": "wkrpc-process-probe/v1",
+        "StartedUTC": "2026-09-22T09:07:34.882345332Z",
+        "Client": {
+          "OS": "linux",
+          "Arch": "amd64",
+          "KernelArch": "x86_64",
+          "CPUModel": "AMD EPYC",
+          "HostID": "9687f5908df44603933d7cad5cc1719fb428b8dd54a62f331001dbf61b776e57",
+          "BinarySHA256": "48c34aa819090f18b2da41df9b6f57f564e78166c9f91b6f19c109767f5fa15d",
+          "Source": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+          "GoVersion": "go1.25.11",
+          "AllowedCPUs": "0-3",
+          "CPUCount": 4,
+          "Procs": 4,
+          "Container": false,
+          "Ineligible": null,
+          "MemoryLimit": 9223372036854775807,
+          "RuntimeDebug": ""
+        },
+        "Options": {
+          "Mode": "client",
+          "Addr": "<server-private>:7001",
+          "Duration": 20000000000,
+          "Warmup": 10000000000,
+          "Lifetime": 1800000000000,
+          "Workers": 16,
+          "Shards": 1,
+          "Bytes": 64,
+          "Samples": 1000000,
+          "GC": 400,
+          "Budgets": false,
+          "Read": false
+        },
+        "ElapsedSeconds": 20.000149125,
+        "CallsPerSecond": 84326.42124112161,
+        "Summary": {
+          "Calls": 1686541,
+          "MeanMS": 0.18959954546376284,
+          "P50MS": 0.170706,
+          "P95MS": 0.236058,
+          "P99MS": 0.428085
+        },
+        "Seconds": [
+          {
+            "Calls": 92009,
+            "MeanMS": 0.17376238769033464,
+            "P50MS": 0.170035,
+            "P95MS": 0.231617,
+            "P99MS": 0.281869
+          },
+          {
+            "Calls": 91666,
+            "MeanMS": 0.17440599839635196,
+            "P50MS": 0.170036,
+            "P95MS": 0.231988,
+            "P99MS": 0.28148
+          },
+          {
+            "Calls": 91926,
+            "MeanMS": 0.1739227098100646,
+            "P50MS": 0.170046,
+            "P95MS": 0.230207,
+            "P99MS": 0.27942
+          },
+          {
+            "Calls": 91620,
+            "MeanMS": 0.17449632746125301,
+            "P50MS": 0.170366,
+            "P95MS": 0.231957,
+            "P99MS": 0.286959
+          },
+          {
+            "Calls": 91593,
+            "MeanMS": 0.17454532040658127,
+            "P50MS": 0.170696,
+            "P95MS": 0.232287,
+            "P99MS": 0.277649
+          },
+          {
+            "Calls": 38919,
+            "MeanMS": 0.4114121092268558,
+            "P50MS": 0.176626,
+            "P95MS": 2.008106,
+            "P99MS": 2.023935
+          },
+          {
+            "Calls": 7984,
+            "MeanMS": 2.0038939247244487,
+            "P50MS": 2.005496,
+            "P95MS": 2.027207,
+            "P99MS": 2.034207
+          },
+          {
+            "Calls": 79165,
+            "MeanMS": 0.20176639661466558,
+            "P50MS": 0.171165,
+            "P95MS": 0.240838,
+            "P99MS": 1.997966
+          },
+          {
+            "Calls": 91799,
+            "MeanMS": 0.17415127995947666,
+            "P50MS": 0.170726,
+            "P95MS": 0.231188,
+            "P99MS": 0.276289
+          },
+          {
+            "Calls": 91980,
+            "MeanMS": 0.1738126264187867,
+            "P50MS": 0.170196,
+            "P95MS": 0.231357,
+            "P99MS": 0.276989
+          },
+          {
+            "Calls": 91770,
+            "MeanMS": 0.1742076094584287,
+            "P50MS": 0.170256,
+            "P95MS": 0.232078,
+            "P99MS": 0.280369
+          },
+          {
+            "Calls": 91708,
+            "MeanMS": 0.17432980163126444,
+            "P50MS": 0.170495,
+            "P95MS": 0.232627,
+            "P99MS": 0.28044
+          },
+          {
+            "Calls": 91960,
+            "MeanMS": 0.17384614525880818,
+            "P50MS": 0.170356,
+            "P95MS": 0.230808,
+            "P99MS": 0.275459
+          },
+          {
+            "Calls": 91702,
+            "MeanMS": 0.17434159548319555,
+            "P50MS": 0.170516,
+            "P95MS": 0.232777,
+            "P99MS": 0.279859
+          },
+          {
+            "Calls": 92036,
+            "MeanMS": 0.1737086487244122,
+            "P50MS": 0.170115,
+            "P95MS": 0.230668,
+            "P99MS": 0.275759
+          },
+          {
+            "Calls": 92081,
+            "MeanMS": 0.17361945869397596,
+            "P50MS": 0.169736,
+            "P95MS": 0.231588,
+            "P99MS": 0.275759
+          },
+          {
+            "Calls": 91861,
+            "MeanMS": 0.17403715818464854,
+            "P50MS": 0.170296,
+            "P95MS": 0.231658,
+            "P99MS": 0.27856
+          },
+          {
+            "Calls": 91321,
+            "MeanMS": 0.17506820876906737,
+            "P50MS": 0.171196,
+            "P95MS": 0.233678,
+            "P99MS": 0.28377
+          },
+          {
+            "Calls": 91929,
+            "MeanMS": 0.17390189004557866,
+            "P50MS": 0.170036,
+            "P95MS": 0.231128,
+            "P99MS": 0.2746
+          },
+          {
+            "Calls": 91512,
+            "MeanMS": 0.17470532484264356,
+            "P50MS": 0.170966,
+            "P95MS": 0.232598,
+            "P99MS": 0.28282
+          }
+        ],
+        "WorkerCalls": [
+          105363,
+          105377,
+          105363,
+          105431,
+          105316,
+          105432,
+          105391,
+          105427,
+          105406,
+          105424,
+          105441,
+          105443,
+          105387,
+          105449,
+          105410,
+          105481
+        ],
+        "WarmupCalls": [
+          57295,
+          57227,
+          57289,
+          57243,
+          57214,
+          57213,
+          57234,
+          57273,
+          57207,
+          57229,
+          57290,
+          57304,
+          57242,
+          57261,
+          57201,
+          57269
+        ],
+        "Errors": 0,
+        "SampleCapHit": false,
+        "FirstError": "",
+        "ClientBefore": {
+          "TotalAlloc": 984667168,
+          "Mallocs": 14473796,
+          "PauseNS": 203207,
+          "NumGC": 5,
+          "CPUSeconds": 15.563566
+        },
+        "ClientAfter": {
+          "TotalAlloc": 2541875608,
+          "Mallocs": 41128615,
+          "PauseNS": 409043,
+          "NumGC": 8,
+          "CPUSeconds": 44.008761
+        },
+        "ServerBefore": {
+          "Host": {
+            "OS": "linux",
+            "Arch": "amd64",
+            "KernelArch": "x86_64",
+            "CPUModel": "AMD EPYC",
+            "HostID": "fdfdb167686073b6a01413ee451235b857386105592b343fbade4b2dac351d93",
+            "BinarySHA256": "48c34aa819090f18b2da41df9b6f57f564e78166c9f91b6f19c109767f5fa15d",
+            "Source": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+            "GoVersion": "go1.25.11",
+            "AllowedCPUs": "0-3",
+            "CPUCount": 4,
+            "Procs": 4,
+            "Container": false,
+            "Ineligible": null,
+            "MemoryLimit": 9223372036854775807,
+            "RuntimeDebug": ""
+          },
+          "Instance": "f7b19ef39d3239088fe3d0b50344c57b",
+          "Options": {
+            "Alias": "",
+            "Concurrency": 64,
+            "QueueSize": 4096,
+            "MaxQueueBytes": 67108864,
+            "MaxRetainedBytes": 134217728,
+            "Timeout": 30000000000,
+            "QueueTimeout": 5000000000,
+            "CancelRunning": false,
+            "MaxPayload": 65537
+          },
+          "GC": 100,
+          "EchoCalls": 9083828,
+          "Stats": {
+            "TotalAlloc": 11535897320,
+            "Mallocs": 225403214,
+            "PauseNS": 238357243,
+            "NumGC": 3635,
+            "CPUSeconds": 157.036268
+          }
+        },
+        "ServerAfter": {
+          "Host": {
+            "OS": "linux",
+            "Arch": "amd64",
+            "KernelArch": "x86_64",
+            "CPUModel": "AMD EPYC",
+            "HostID": "fdfdb167686073b6a01413ee451235b857386105592b343fbade4b2dac351d93",
+            "BinarySHA256": "48c34aa819090f18b2da41df9b6f57f564e78166c9f91b6f19c109767f5fa15d",
+            "Source": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+            "GoVersion": "go1.25.11",
+            "AllowedCPUs": "0-3",
+            "CPUCount": 4,
+            "Procs": 4,
+            "Container": false,
+            "Ineligible": null,
+            "MemoryLimit": 9223372036854775807,
+            "RuntimeDebug": ""
+          },
+          "Instance": "f7b19ef39d3239088fe3d0b50344c57b",
+          "Options": {
+            "Alias": "",
+            "Concurrency": 64,
+            "QueueSize": 4096,
+            "MaxQueueBytes": 67108864,
+            "MaxRetainedBytes": 134217728,
+            "Timeout": 30000000000,
+            "QueueTimeout": 5000000000,
+            "CancelRunning": false,
+            "MaxPayload": 65537
+          },
+          "GC": 100,
+          "EchoCalls": 10770369,
+          "Stats": {
+            "TotalAlloc": 13675467984,
+            "Mallocs": 267245807,
+            "PauseNS": 280968658,
+            "NumGC": 4311,
+            "CPUSeconds": 186.138567
+          }
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "name": "aa-5.json",
+      "original_sha256": "eadbda73adb3c9b090b14359d2f1b713bf1da0a04f19a433a0dd5f89d8935c06",
+      "report": {
+        "Schema": "wkrpc-process-probe/v1",
+        "StartedUTC": "2026-09-22T09:08:05.360158031Z",
+        "Client": {
+          "OS": "linux",
+          "Arch": "amd64",
+          "KernelArch": "x86_64",
+          "CPUModel": "AMD EPYC",
+          "HostID": "9687f5908df44603933d7cad5cc1719fb428b8dd54a62f331001dbf61b776e57",
+          "BinarySHA256": "48c34aa819090f18b2da41df9b6f57f564e78166c9f91b6f19c109767f5fa15d",
+          "Source": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+          "GoVersion": "go1.25.11",
+          "AllowedCPUs": "0-3",
+          "CPUCount": 4,
+          "Procs": 4,
+          "Container": false,
+          "Ineligible": null,
+          "MemoryLimit": 9223372036854775807,
+          "RuntimeDebug": ""
+        },
+        "Options": {
+          "Mode": "client",
+          "Addr": "<server-private>:7001",
+          "Duration": 20000000000,
+          "Warmup": 10000000000,
+          "Lifetime": 1800000000000,
+          "Workers": 16,
+          "Shards": 1,
+          "Bytes": 64,
+          "Samples": 1000000,
+          "GC": 400,
+          "Budgets": false,
+          "Read": false
+        },
+        "ElapsedSeconds": 20.000172401,
+        "CallsPerSecond": 91736.50922670364,
+        "Summary": {
+          "Calls": 1834746,
+          "MeanMS": 0.17427365050802673,
+          "P50MS": 0.170346,
+          "P95MS": 0.231508,
+          "P99MS": 0.279049
+        },
+        "Seconds": [
+          {
+            "Calls": 91654,
+            "MeanMS": 0.1744380091539922,
+            "P50MS": 0.170725,
+            "P95MS": 0.231647,
+            "P99MS": 0.278049
+          },
+          {
+            "Calls": 91675,
+            "MeanMS": 0.17439398326697572,
+            "P50MS": 0.170496,
+            "P95MS": 0.231718,
+            "P99MS": 0.27847
+          },
+          {
+            "Calls": 91576,
+            "MeanMS": 0.17459122525552548,
+            "P50MS": 0.170745,
+            "P95MS": 0.231398,
+            "P99MS": 0.27816
+          },
+          {
+            "Calls": 91755,
+            "MeanMS": 0.1742342045774072,
+            "P50MS": 0.170706,
+            "P95MS": 0.231188,
+            "P99MS": 0.276149
+          },
+          {
+            "Calls": 91637,
+            "MeanMS": 0.17446024217292141,
+            "P50MS": 0.170636,
+            "P95MS": 0.232258,
+            "P99MS": 0.28035
+          },
+          {
+            "Calls": 91356,
+            "MeanMS": 0.1750023769320023,
+            "P50MS": 0.170256,
+            "P95MS": 0.231358,
+            "P99MS": 0.283629
+          },
+          {
+            "Calls": 92052,
+            "MeanMS": 0.17368481584321904,
+            "P50MS": 0.169705,
+            "P95MS": 0.231868,
+            "P99MS": 0.280299
+          },
+          {
+            "Calls": 91809,
+            "MeanMS": 0.1741332188674313,
+            "P50MS": 0.170435,
+            "P95MS": 0.231518,
+            "P99MS": 0.2777
+          },
+          {
+            "Calls": 92127,
+            "MeanMS": 0.17353407729547254,
+            "P50MS": 0.169976,
+            "P95MS": 0.230938,
+            "P99MS": 0.27542
+          },
+          {
+            "Calls": 91526,
+            "MeanMS": 0.17467640955575464,
+            "P50MS": 0.170776,
+            "P95MS": 0.231859,
+            "P99MS": 0.28071
+          },
+          {
+            "Calls": 91893,
+            "MeanMS": 0.1739789086002198,
+            "P50MS": 0.169976,
+            "P95MS": 0.231599,
+            "P99MS": 0.28208
+          },
+          {
+            "Calls": 91055,
+            "MeanMS": 0.17558111868650816,
+            "P50MS": 0.170466,
+            "P95MS": 0.232068,
+            "P99MS": 0.28131
+          },
+          {
+            "Calls": 91633,
+            "MeanMS": 0.17446857692097825,
+            "P50MS": 0.170366,
+            "P95MS": 0.232518,
+            "P99MS": 0.28303
+          },
+          {
+            "Calls": 91800,
+            "MeanMS": 0.1741496367429194,
+            "P50MS": 0.170245,
+            "P95MS": 0.231128,
+            "P99MS": 0.27846
+          },
+          {
+            "Calls": 91686,
+            "MeanMS": 0.17436969724930743,
+            "P50MS": 0.170706,
+            "P95MS": 0.231088,
+            "P99MS": 0.27826
+          },
+          {
+            "Calls": 91983,
+            "MeanMS": 0.17380862734418315,
+            "P50MS": 0.170136,
+            "P95MS": 0.231218,
+            "P99MS": 0.276379
+          },
+          {
+            "Calls": 92107,
+            "MeanMS": 0.17357619251522688,
+            "P50MS": 0.169716,
+            "P95MS": 0.230018,
+            "P99MS": 0.27839
+          },
+          {
+            "Calls": 91496,
+            "MeanMS": 0.17473125631721606,
+            "P50MS": 0.170646,
+            "P95MS": 0.231978,
+            "P99MS": 0.28194
+          },
+          {
+            "Calls": 91853,
+            "MeanMS": 0.17404863899927056,
+            "P50MS": 0.170155,
+            "P95MS": 0.231368,
+            "P99MS": 0.275279
+          },
+          {
+            "Calls": 92073,
+            "MeanMS": 0.17364046823715965,
+            "P50MS": 0.170066,
+            "P95MS": 0.230668,
+            "P99MS": 0.276529
+          }
+        ],
+        "WorkerCalls": [
+          114725,
+          114614,
+          114742,
+          114646,
+          114645,
+          114662,
+          114697,
+          114646,
+          114699,
+          114715,
+          114716,
+          114703,
+          114612,
+          114607,
+          114593,
+          114724
+        ],
+        "WarmupCalls": [
+          57333,
+          57315,
+          57291,
+          57298,
+          57293,
+          57296,
+          57310,
+          57316,
+          57282,
+          57359,
+          57334,
+          57342,
+          57303,
+          57292,
+          57208,
+          57269
+        ],
+        "Errors": 0,
+        "SampleCapHit": false,
+        "FirstError": "",
+        "ClientBefore": {
+          "TotalAlloc": 985476456,
+          "Mallocs": 14488403,
+          "PauseNS": 179185,
+          "NumGC": 5,
+          "CPUSeconds": 15.652249
+        },
+        "ClientAfter": {
+          "TotalAlloc": 2679603704,
+          "Mallocs": 43488471,
+          "PauseNS": 449333,
+          "NumGC": 8,
+          "CPUSeconds": 46.660383
+        },
+        "ServerBefore": {
+          "Host": {
+            "OS": "linux",
+            "Arch": "amd64",
+            "KernelArch": "x86_64",
+            "CPUModel": "AMD EPYC",
+            "HostID": "fdfdb167686073b6a01413ee451235b857386105592b343fbade4b2dac351d93",
+            "BinarySHA256": "48c34aa819090f18b2da41df9b6f57f564e78166c9f91b6f19c109767f5fa15d",
+            "Source": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+            "GoVersion": "go1.25.11",
+            "AllowedCPUs": "0-3",
+            "CPUCount": 4,
+            "Procs": 4,
+            "Container": false,
+            "Ineligible": null,
+            "MemoryLimit": 9223372036854775807,
+            "RuntimeDebug": ""
+          },
+          "Instance": "f7b19ef39d3239088fe3d0b50344c57b",
+          "Options": {
+            "Alias": "",
+            "Concurrency": 64,
+            "QueueSize": 4096,
+            "MaxQueueBytes": 67108864,
+            "MaxRetainedBytes": 134217728,
+            "Timeout": 30000000000,
+            "QueueTimeout": 5000000000,
+            "CancelRunning": false,
+            "MaxPayload": 65537
+          },
+          "GC": 100,
+          "EchoCalls": 11687211,
+          "Stats": {
+            "TotalAlloc": 14838649360,
+            "Mallocs": 289995271,
+            "PauseNS": 303924549,
+            "NumGC": 4678,
+            "CPUSeconds": 201.90445
+          }
+        },
+        "ServerAfter": {
+          "Host": {
+            "OS": "linux",
+            "Arch": "amd64",
+            "KernelArch": "x86_64",
+            "CPUModel": "AMD EPYC",
+            "HostID": "fdfdb167686073b6a01413ee451235b857386105592b343fbade4b2dac351d93",
+            "BinarySHA256": "48c34aa819090f18b2da41df9b6f57f564e78166c9f91b6f19c109767f5fa15d",
+            "Source": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+            "GoVersion": "go1.25.11",
+            "AllowedCPUs": "0-3",
+            "CPUCount": 4,
+            "Procs": 4,
+            "Container": false,
+            "Ineligible": null,
+            "MemoryLimit": 9223372036854775807,
+            "RuntimeDebug": ""
+          },
+          "Instance": "f7b19ef39d3239088fe3d0b50344c57b",
+          "Options": {
+            "Alias": "",
+            "Concurrency": 64,
+            "QueueSize": 4096,
+            "MaxQueueBytes": 67108864,
+            "MaxRetainedBytes": 134217728,
+            "Timeout": 30000000000,
+            "QueueTimeout": 5000000000,
+            "CancelRunning": false,
+            "MaxPayload": 65537
+          },
+          "GC": 100,
+          "EchoCalls": 13521957,
+          "Stats": {
+            "TotalAlloc": 17166297568,
+            "Mallocs": 335518483,
+            "PauseNS": 349500948,
+            "NumGC": 5414,
+            "CPUSeconds": 233.634688
+          }
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "name": "aa-6.json",
+      "original_sha256": "685709b64e1b77ac0f2ff6504292ac09222bc6f99de23397f54e2b03869edbce",
+      "report": {
+        "Schema": "wkrpc-process-probe/v1",
+        "StartedUTC": "2026-09-22T09:08:35.915221181Z",
+        "Client": {
+          "OS": "linux",
+          "Arch": "amd64",
+          "KernelArch": "x86_64",
+          "CPUModel": "AMD EPYC",
+          "HostID": "9687f5908df44603933d7cad5cc1719fb428b8dd54a62f331001dbf61b776e57",
+          "BinarySHA256": "48c34aa819090f18b2da41df9b6f57f564e78166c9f91b6f19c109767f5fa15d",
+          "Source": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+          "GoVersion": "go1.25.11",
+          "AllowedCPUs": "0-3",
+          "CPUCount": 4,
+          "Procs": 4,
+          "Container": false,
+          "Ineligible": null,
+          "MemoryLimit": 9223372036854775807,
+          "RuntimeDebug": ""
+        },
+        "Options": {
+          "Mode": "client",
+          "Addr": "<server-private>:7001",
+          "Duration": 20000000000,
+          "Warmup": 10000000000,
+          "Lifetime": 1800000000000,
+          "Workers": 16,
+          "Shards": 1,
+          "Bytes": 64,
+          "Samples": 1000000,
+          "GC": 400,
+          "Budgets": false,
+          "Read": false
+        },
+        "ElapsedSeconds": 20.000159505,
+        "CallsPerSecond": 91764.21815741915,
+        "Summary": {
+          "Calls": 1835299,
+          "MeanMS": 0.17422140165934813,
+          "P50MS": 0.170426,
+          "P95MS": 0.231348,
+          "P99MS": 0.27813
+        },
+        "Seconds": [
+          {
+            "Calls": 91651,
+            "MeanMS": 0.17444977199375894,
+            "P50MS": 0.170475,
+            "P95MS": 0.233108,
+            "P99MS": 0.280801
+          },
+          {
+            "Calls": 91905,
+            "MeanMS": 0.17394910469506555,
+            "P50MS": 0.170076,
+            "P95MS": 0.230938,
+            "P99MS": 0.2766
+          },
+          {
+            "Calls": 91650,
+            "MeanMS": 0.17444733297326787,
+            "P50MS": 0.170596,
+            "P95MS": 0.232278,
+            "P99MS": 0.280459
+          },
+          {
+            "Calls": 91721,
+            "MeanMS": 0.17430683439997383,
+            "P50MS": 0.170616,
+            "P95MS": 0.231478,
+            "P99MS": 0.27518
+          },
+          {
+            "Calls": 91697,
+            "MeanMS": 0.17435240638188818,
+            "P50MS": 0.170606,
+            "P95MS": 0.231168,
+            "P99MS": 0.27705
+          },
+          {
+            "Calls": 91300,
+            "MeanMS": 0.1751156640306681,
+            "P50MS": 0.171206,
+            "P95MS": 0.233588,
+            "P99MS": 0.28192
+          },
+          {
+            "Calls": 92246,
+            "MeanMS": 0.1732951628146478,
+            "P50MS": 0.169536,
+            "P95MS": 0.229928,
+            "P99MS": 0.27687
+          },
+          {
+            "Calls": 91767,
+            "MeanMS": 0.17422729902906273,
+            "P50MS": 0.170306,
+            "P95MS": 0.231808,
+            "P99MS": 0.277519
+          },
+          {
+            "Calls": 91921,
+            "MeanMS": 0.17392457709337367,
+            "P50MS": 0.170416,
+            "P95MS": 0.229128,
+            "P99MS": 0.271799
+          },
+          {
+            "Calls": 91775,
+            "MeanMS": 0.17420392568782347,
+            "P50MS": 0.170286,
+            "P95MS": 0.231428,
+            "P99MS": 0.284829
+          },
+          {
+            "Calls": 92085,
+            "MeanMS": 0.1736131547700494,
+            "P50MS": 0.169916,
+            "P95MS": 0.230288,
+            "P99MS": 0.2759
+          },
+          {
+            "Calls": 91559,
+            "MeanMS": 0.17461394646075207,
+            "P50MS": 0.170455,
+            "P95MS": 0.231958,
+            "P99MS": 0.28543
+          },
+          {
+            "Calls": 91583,
+            "MeanMS": 0.17457327067250472,
+            "P50MS": 0.171046,
+            "P95MS": 0.231138,
+            "P99MS": 0.27664
+          },
+          {
+            "Calls": 91657,
+            "MeanMS": 0.17442521189870933,
+            "P50MS": 0.170626,
+            "P95MS": 0.231939,
+            "P99MS": 0.277799
+          },
+          {
+            "Calls": 91726,
+            "MeanMS": 0.17428660870418422,
+            "P50MS": 0.170596,
+            "P95MS": 0.231557,
+            "P99MS": 0.27724
+          },
+          {
+            "Calls": 91716,
+            "MeanMS": 0.174311595981072,
+            "P50MS": 0.170575,
+            "P95MS": 0.231748,
+            "P99MS": 0.27655
+          },
+          {
+            "Calls": 91658,
+            "MeanMS": 0.17443050886992953,
+            "P50MS": 0.170526,
+            "P95MS": 0.231288,
+            "P99MS": 0.276399
+          },
+          {
+            "Calls": 91754,
+            "MeanMS": 0.17423704032521745,
+            "P50MS": 0.170716,
+            "P95MS": 0.230898,
+            "P99MS": 0.27555
+          },
+          {
+            "Calls": 91810,
+            "MeanMS": 0.174131360037033,
+            "P50MS": 0.170336,
+            "P95MS": 0.231919,
+            "P99MS": 0.27802
+          },
+          {
+            "Calls": 92118,
+            "MeanMS": 0.17355115359647408,
+            "P50MS": 0.169806,
+            "P95MS": 0.229128,
+            "P99MS": 0.277249
+          }
+        ],
+        "WorkerCalls": [
+          114728,
+          114659,
+          114703,
+          114746,
+          114650,
+          114686,
+          114683,
+          114701,
+          114756,
+          114760,
+          114694,
+          114721,
+          114665,
+          114698,
+          114742,
+          114707
+        ],
+        "WarmupCalls": [
+          57273,
+          57254,
+          57269,
+          57225,
+          57284,
+          57302,
+          57240,
+          57292,
+          57261,
+          57294,
+          57229,
+          57292,
+          57235,
+          57240,
+          57285,
+          57270
+        ],
+        "Errors": 0,
+        "SampleCapHit": false,
+        "FirstError": "",
+        "ClientBefore": {
+          "TotalAlloc": 984993744,
+          "Mallocs": 14481643,
+          "PauseNS": 211108,
+          "NumGC": 5,
+          "CPUSeconds": 15.604602
+        },
+        "ClientAfter": {
+          "TotalAlloc": 2679698184,
+          "Mallocs": 43493358,
+          "PauseNS": 424415,
+          "NumGC": 8,
+          "CPUSeconds": 46.632423
+        },
+        "ServerBefore": {
+          "Host": {
+            "OS": "linux",
+            "Arch": "amd64",
+            "KernelArch": "x86_64",
+            "CPUModel": "AMD EPYC",
+            "HostID": "fdfdb167686073b6a01413ee451235b857386105592b343fbade4b2dac351d93",
+            "BinarySHA256": "48c34aa819090f18b2da41df9b6f57f564e78166c9f91b6f19c109767f5fa15d",
+            "Source": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+            "GoVersion": "go1.25.11",
+            "AllowedCPUs": "0-3",
+            "CPUCount": 4,
+            "Procs": 4,
+            "Container": false,
+            "Ineligible": null,
+            "MemoryLimit": 9223372036854775807,
+            "RuntimeDebug": ""
+          },
+          "Instance": "f7b19ef39d3239088fe3d0b50344c57b",
+          "Options": {
+            "Alias": "",
+            "Concurrency": 64,
+            "QueueSize": 4096,
+            "MaxQueueBytes": 67108864,
+            "MaxRetainedBytes": 134217728,
+            "Timeout": 30000000000,
+            "QueueTimeout": 5000000000,
+            "CancelRunning": false,
+            "MaxPayload": 65537
+          },
+          "GC": 100,
+          "EchoCalls": 14438203,
+          "Stats": {
+            "TotalAlloc": 18328689640,
+            "Mallocs": 358253027,
+            "PauseNS": 371846985,
+            "NumGC": 5781,
+            "CPUSeconds": 249.461724
+          }
+        },
+        "ServerAfter": {
+          "Host": {
+            "OS": "linux",
+            "Arch": "amd64",
+            "KernelArch": "x86_64",
+            "CPUModel": "AMD EPYC",
+            "HostID": "fdfdb167686073b6a01413ee451235b857386105592b343fbade4b2dac351d93",
+            "BinarySHA256": "48c34aa819090f18b2da41df9b6f57f564e78166c9f91b6f19c109767f5fa15d",
+            "Source": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+            "GoVersion": "go1.25.11",
+            "AllowedCPUs": "0-3",
+            "CPUCount": 4,
+            "Procs": 4,
+            "Container": false,
+            "Ineligible": null,
+            "MemoryLimit": 9223372036854775807,
+            "RuntimeDebug": ""
+          },
+          "Instance": "f7b19ef39d3239088fe3d0b50344c57b",
+          "Options": {
+            "Alias": "",
+            "Concurrency": 64,
+            "QueueSize": 4096,
+            "MaxQueueBytes": 67108864,
+            "MaxRetainedBytes": 134217728,
+            "Timeout": 30000000000,
+            "QueueTimeout": 5000000000,
+            "CancelRunning": false,
+            "MaxPayload": 65537
+          },
+          "GC": 100,
+          "EchoCalls": 16273502,
+          "Stats": {
+            "TotalAlloc": 20657082744,
+            "Mallocs": 403789910,
+            "PauseNS": 418195915,
+            "NumGC": 6516,
+            "CPUSeconds": 281.317609
+          }
+        }
+      },
+      "stderr": ""
+    }
+  ],
+  "resource_summary": [
+    {
+      "window": 1,
+      "calls": 1790585,
+      "calls_per_second": 89528.62528715847,
+      "p99_ms": 0.296381,
+      "elapsed_seconds": 20.000139556,
+      "client": {
+        "delta": {
+          "TotalAlloc": 1653235968,
+          "Mallocs": 28297216,
+          "PauseNS": 309662,
+          "NumGC": 3,
+          "CPUSeconds": 30.963623999999996
+        },
+        "bytes_per_call": 923.2937660038478,
+        "allocations_per_call": 15.803335781322863,
+        "cpu_us_per_call": 17.29246251923254,
+        "gc_pause_ms": 0.309662
+      },
+      "server": {
+        "delta": {
+          "TotalAlloc": 2271883024,
+          "Mallocs": 44434725,
+          "PauseNS": 47158728,
+          "NumGC": 717,
+          "CPUSeconds": 31.059015000000002
+        },
+        "bytes_per_call": 1268.793731657531,
+        "allocations_per_call": 24.81575853701444,
+        "cpu_us_per_call": 17.345736170022647,
+        "gc_pause_ms": 47.158728
+      }
+    },
+    {
+      "window": 2,
+      "calls": 1824557,
+      "calls_per_second": 91227.26093189207,
+      "p99_ms": 0.284591,
+      "elapsed_seconds": 20.000129143,
+      "client": {
+        "delta": {
+          "TotalAlloc": 1684634320,
+          "Mallocs": 28835573,
+          "PauseNS": 157866,
+          "NumGC": 3,
+          "CPUSeconds": 31.001664000000005
+        },
+        "bytes_per_call": 923.311422991992,
+        "allocations_per_call": 15.804150267708819,
+        "cpu_us_per_call": 16.99133762332446,
+        "gc_pause_ms": 0.157866
+      },
+      "server": {
+        "delta": {
+          "TotalAlloc": 2314847352,
+          "Mallocs": 45274674,
+          "PauseNS": 49828358,
+          "NumGC": 731,
+          "CPUSeconds": 31.434675999999996
+        },
+        "bytes_per_call": 1268.7174760777548,
+        "allocations_per_call": 24.814063907019623,
+        "cpu_us_per_call": 17.22866208071329,
+        "gc_pause_ms": 49.828358
+      }
+    },
+    {
+      "window": 3,
+      "calls": 1827684,
+      "calls_per_second": 91383.59407651029,
+      "p99_ms": 0.28365,
+      "elapsed_seconds": 20.000132611,
+      "client": {
+        "delta": {
+          "TotalAlloc": 1687543048,
+          "Mallocs": 28886040,
+          "PauseNS": 208778,
+          "NumGC": 3,
+          "CPUSeconds": 31.015823999999995
+        },
+        "bytes_per_call": 923.3232046677654,
+        "allocations_per_call": 15.804723354803128,
+        "cpu_us_per_call": 16.970014510166962,
+        "gc_pause_ms": 0.208778
+      },
+      "server": {
+        "delta": {
+          "TotalAlloc": 2318696752,
+          "Mallocs": 45347161,
+          "PauseNS": 47516131,
+          "NumGC": 732,
+          "CPUSeconds": 31.619760999999997
+        },
+        "bytes_per_call": 1268.6529793990646,
+        "allocations_per_call": 24.811269891294117,
+        "cpu_us_per_call": 17.30045292293416,
+        "gc_pause_ms": 47.516131
+      }
+    },
+    {
+      "window": 4,
+      "calls": 1686541,
+      "calls_per_second": 84326.42124112161,
+      "p99_ms": 0.428085,
+      "elapsed_seconds": 20.000149125,
+      "client": {
+        "delta": {
+          "TotalAlloc": 1557208440,
+          "Mallocs": 26654819,
+          "PauseNS": 205836,
+          "NumGC": 3,
+          "CPUSeconds": 28.445195
+        },
+        "bytes_per_call": 923.3149031064172,
+        "allocations_per_call": 15.804429895270854,
+        "cpu_us_per_call": 16.865996735329887,
+        "gc_pause_ms": 0.205836
+      },
+      "server": {
+        "delta": {
+          "TotalAlloc": 2139570664,
+          "Mallocs": 41842593,
+          "PauseNS": 42611415,
+          "NumGC": 676,
+          "CPUSeconds": 29.102298999999988
+        },
+        "bytes_per_call": 1268.6146758365198,
+        "allocations_per_call": 24.80970993293374,
+        "cpu_us_per_call": 17.255613115838862,
+        "gc_pause_ms": 42.611415
+      }
+    },
+    {
+      "window": 5,
+      "calls": 1834746,
+      "calls_per_second": 91736.50922670364,
+      "p99_ms": 0.279049,
+      "elapsed_seconds": 20.000172401,
+      "client": {
+        "delta": {
+          "TotalAlloc": 1694127248,
+          "Mallocs": 29000068,
+          "PauseNS": 270148,
+          "NumGC": 3,
+          "CPUSeconds": 31.008134000000005
+        },
+        "bytes_per_call": 923.3579187527865,
+        "allocations_per_call": 15.80603963709418,
+        "cpu_us_per_call": 16.900505029033994,
+        "gc_pause_ms": 0.270148
+      },
+      "server": {
+        "delta": {
+          "TotalAlloc": 2327648208,
+          "Mallocs": 45523212,
+          "PauseNS": 45576399,
+          "NumGC": 736,
+          "CPUSeconds": 31.730238000000014
+        },
+        "bytes_per_call": 1268.648743749816,
+        "allocations_per_call": 24.811724347675373,
+        "cpu_us_per_call": 17.294076673283396,
+        "gc_pause_ms": 45.576399
+      }
+    },
+    {
+      "window": 6,
+      "calls": 1835299,
+      "calls_per_second": 91764.21815741915,
+      "p99_ms": 0.27813,
+      "elapsed_seconds": 20.000159505,
+      "client": {
+        "delta": {
+          "TotalAlloc": 1694704440,
+          "Mallocs": 29011715,
+          "PauseNS": 213307,
+          "NumGC": 3,
+          "CPUSeconds": 31.027821000000003
+        },
+        "bytes_per_call": 923.3941935346775,
+        "allocations_per_call": 15.8076231720281,
+        "cpu_us_per_call": 16.906139544564674,
+        "gc_pause_ms": 0.213307
+      },
+      "server": {
+        "delta": {
+          "TotalAlloc": 2328393104,
+          "Mallocs": 45536883,
+          "PauseNS": 46348930,
+          "NumGC": 735,
+          "CPUSeconds": 31.855885
+        },
+        "bytes_per_call": 1268.6723547498254,
+        "allocations_per_call": 24.811697167600485,
+        "cpu_us_per_call": 17.357327062238905,
+        "gc_pause_ms": 46.34893
+      }
+    }
+  ],
+  "whole_batch_host_diagnostics": {
+    "client": {
+      "whole_batch_cpu_jiffy_delta": {
+        "user": 9390,
+        "nice": 0,
+        "system": 13456,
+        "idle": 36266,
+        "iowait": 87,
+        "irq": 0,
+        "softirq": 4800,
+        "steal": 0,
+        "guest": 0,
+        "guest_nice": 0
+      },
+      "whole_batch_psi_before": {
+        "cpu": {
+          "some": {
+            "avg10": "0.97",
+            "avg60": "1.40",
+            "avg300": "0.43",
+            "total": "1531428"
+          },
+          "full": {
+            "avg10": "0.00",
+            "avg60": "0.00",
+            "avg300": "0.00",
+            "total": "0"
+          }
+        },
+        "memory": {
+          "some": {
+            "avg10": "0.00",
+            "avg60": "0.00",
+            "avg300": "0.00",
+            "total": "2027"
+          },
+          "full": {
+            "avg10": "0.00",
+            "avg60": "0.00",
+            "avg300": "0.00",
+            "total": "764"
+          }
+        },
+        "io": {
+          "some": {
+            "avg10": "1.32",
+            "avg60": "2.45",
+            "avg300": "0.76",
+            "total": "2584098"
+          },
+          "full": {
+            "avg10": "1.23",
+            "avg60": "2.22",
+            "avg300": "0.69",
+            "total": "2328277"
+          }
+        }
+      },
+      "whole_batch_psi_after": {
+        "cpu": {
+          "some": {
+            "avg10": "8.96",
+            "avg60": "8.76",
+            "avg300": "4.66",
+            "total": "20190490"
+          },
+          "full": {
+            "avg10": "0.00",
+            "avg60": "0.00",
+            "avg300": "0.00",
+            "total": "0"
+          }
+        },
+        "memory": {
+          "some": {
+            "avg10": "0.00",
+            "avg60": "0.00",
+            "avg300": "0.00",
+            "total": "2027"
+          },
+          "full": {
+            "avg10": "0.00",
+            "avg60": "0.00",
+            "avg300": "0.00",
+            "total": "764"
+          }
+        },
+        "io": {
+          "some": {
+            "avg10": "0.00",
+            "avg60": "0.15",
+            "avg300": "0.47",
+            "total": "3001515"
+          },
+          "full": {
+            "avg10": "0.00",
+            "avg60": "0.12",
+            "avg300": "0.38",
+            "total": "2534737"
+          }
+        }
+      },
+      "diagnostic_hashes": {
+        "before": "4de9dee2b63d6a01fbfce3aa16b2234e000471f139c13c35ec9b46f7afca6d65",
+        "after": "bc1418f2bfe16140b9f8503338a8c506e695c1c583c4f1c9eb42361f5ec891b1"
+      }
+    },
+    "server": {
+      "whole_batch_cpu_jiffy_delta": {
+        "user": 11881,
+        "nice": 0,
+        "system": 12352,
+        "idle": 37557,
+        "iowait": 94,
+        "irq": 0,
+        "softirq": 4646,
+        "steal": 0,
+        "guest": 0,
+        "guest_nice": 0
+      },
+      "whole_batch_psi_before": {
+        "cpu": {
+          "some": {
+            "avg10": "0.46",
+            "avg60": "0.98",
+            "avg300": "0.31",
+            "total": "1184164"
+          },
+          "full": {
+            "avg10": "0.00",
+            "avg60": "0.00",
+            "avg300": "0.00",
+            "total": "0"
+          }
+        },
+        "memory": {
+          "some": {
+            "avg10": "0.00",
+            "avg60": "0.00",
+            "avg300": "0.00",
+            "total": "75"
+          },
+          "full": {
+            "avg10": "0.00",
+            "avg60": "0.00",
+            "avg300": "0.00",
+            "total": "71"
+          }
+        },
+        "io": {
+          "some": {
+            "avg10": "1.36",
+            "avg60": "2.60",
+            "avg300": "0.80",
+            "total": "2815204"
+          },
+          "full": {
+            "avg10": "1.23",
+            "avg60": "2.32",
+            "avg300": "0.71",
+            "total": "2507377"
+          }
+        }
+      },
+      "whole_batch_psi_after": {
+        "cpu": {
+          "some": {
+            "avg10": "7.43",
+            "avg60": "7.65",
+            "avg300": "4.08",
+            "total": "17347848"
+          },
+          "full": {
+            "avg10": "0.00",
+            "avg60": "0.00",
+            "avg300": "0.00",
+            "total": "0"
+          }
+        },
+        "memory": {
+          "some": {
+            "avg10": "0.00",
+            "avg60": "0.00",
+            "avg300": "0.00",
+            "total": "75"
+          },
+          "full": {
+            "avg10": "0.00",
+            "avg60": "0.00",
+            "avg300": "0.00",
+            "total": "71"
+          }
+        },
+        "io": {
+          "some": {
+            "avg10": "0.00",
+            "avg60": "0.15",
+            "avg300": "0.48",
+            "total": "3250118"
+          },
+          "full": {
+            "avg10": "0.00",
+            "avg60": "0.12",
+            "avg300": "0.39",
+            "total": "2728983"
+          }
+        }
+      },
+      "diagnostic_hashes": {
+        "before": "69d25f6a989ca0939efcb74268948cdc253f1dc1ac6a17c9a36af3c725b69700",
+        "after": "f81761ba92a8bf0431c0df776d4318f32486870f81140f6cdae3e90749a00525"
+      }
+    }
+  },
+  "files": {
+    "base-linux.json": {
+      "sha256": "0dc3bdb5eb30c791a771afcdc61a384f489ec32f65b5349ce0cac150914e70c8",
+      "text": "{\n  \"schema\": \"wkrpc-probe-build/v1\",\n  \"source_revision\": \"ff37d6913164da65f852fe9af9047b497a1c9e89\",\n  \"probe_source_sha256\": \"8c2e46d5a6994653e2d4cd4fa692082c7d6f7072fccb8acbccfe00b10a28717a\",\n  \"binary_sha256\": \"48c34aa819090f18b2da41df9b6f57f564e78166c9f91b6f19c109767f5fa15d\",\n  \"binary\": \"/Users/tt/.codex/visualizations/2026/09/22/rpc-native-run/base-linux\",\n  \"goos\": \"linux\",\n  \"goarch\": \"amd64\",\n  \"toolchain\": \"go1.25.11\",\n  \"command\": [\n    \"go\",\n    \"build\",\n    \"-trimpath\",\n    \"-buildvcs=false\",\n    \"-ldflags=-X main.sourceRevision=ff37d6913164da65f852fe9af9047b497a1c9e89\",\n    \"-o\",\n    \"/Users/tt/.codex/visualizations/2026/09/22/rpc-native-run/base-linux\",\n    \"./scripts/.rpc-probe-build\"\n  ],\n  \"cgo_enabled\": false\n}\n"
+    },
+    "execution.json": {
+      "sha256": "ee98bd5ef3c4a6246b236068b21e030b0fa87969f610a745c14501fd5c4a21f0",
+      "text": "{\n  \"request_id\": \"chat-20260922T085319Z-abc7ebb6\",\n  \"source_sha\": \"ff37d6913164da65f852fe9af9047b497a1c9e89\",\n  \"budget_cny\": 300,\n  \"test\": \"six native Linux baseline windows; warmup10s measured20s, no retries\",\n  \"release\": \"immediately after completion or failure\",\n  \"authorized_reply\": \"同意授权\",\n  \"created_at\": \"2026-09-22T08:53:19.797023+00:00\",\n  \"rules\": {\n    \"AGENTS.md\": \"c6eae7244b1c660be4b2a62cbdc1efa5c26c35e34972e994df7e6ae073fc9d0b\",\n    \".agents/skills/wukongim-chat-lifecycle/SKILL.md\": \"adb340aea160f90181845b97250c5d07931747622bce5ab837bbe5b56095bff7\",\n    \".agents/skills/wukongim-chat-lifecycle/references/operator-workflow.md\": \"b675f2d97577be7ff38da3d08c7a21f7c1484158568fa65af77a8aa6d5a30e4a\"\n  },\n  \"cloud_shell_export_deleted_verified\": true,\n  \"scripts\": {\n    \"control.py\": \"7f7f5b3641e41435b5acadc7f0b2d0e6c60bd0fb5c25dcd48e7569c310ca22b1\",\n    \"run-native.py\": \"39b0bff03fd0780b1d51c453f9c11b1c91fc680492ef00af78580277fe53cdcf\"\n  }\n}\n"
+    },
+    "credential-proof.json": {
+      "sha256": "b2b439049d1a31dc6496954bbbc678a3de5caaf38e70f7a746592a3f3540b5b4",
+      "text": "{\n  \"unregistered\": true,\n  \"registered_key_count\": 2,\n  \"verified_at\": \"2026-09-22T08:51:42.305607+00:00\",\n  \"one_hour_shell_notice_verified\": true,\n  \"imported_at\": \"2026-09-22T08:58:05.345490+00:00\",\n  \"download_deleted\": true\n}\n"
+    },
+    "process-cleanup.json": {
+      "sha256": "8270e217629f3919daea1d0f954e92ca0af0960cb98ae933920b590b45baf927",
+      "text": "{\n  \"server_signaled_and_exited\": true,\n  \"client_active_probes\": \"\",\n  \"server_active_probes\": \"\",\n  \"finished_at\": \"2026-09-22T09:08:57.077416+00:00\"\n}\n"
+    },
+    "cleanup-verification.json": {
+      "sha256": "df25305a2d868c324a1ca9da9067dcae6e5b825891a97fa2f4046ad826a923f1",
+      "text": "{\n  \"request_id\": \"chat-20260922T085319Z-abc7ebb6\",\n  \"verified_at\": \"2026-09-22T09:11:19.292200+00:00\",\n  \"state\": \"released\",\n  \"exact_selector_match\": true,\n  \"account_hash_match\": true,\n  \"proof_observed_at\": \"2026-09-22T09:09:21.264482Z\",\n  \"scopes\": [\n    \"disk_attachments\",\n    \"disks\",\n    \"eip_associations\",\n    \"eips\",\n    \"enis\",\n    \"instances\",\n    \"nat_gateways\",\n    \"route_entries\",\n    \"security_group_rules\",\n    \"security_groups\",\n    \"vpcs\",\n    \"vswitches\"\n  ],\n  \"removed_private_files\": [\n    \"diagnostic_ed25519\",\n    \"deployment_ed25519\",\n    \"bootstrap-access.json\"\n  ],\n  \"local_download_absent\": true,\n  \"cloud_shell_export_absent_verified\": true,\n  \"credential_controller_exited\": true,\n  \"cloud_shell_terminal_disconnected_verified\": true\n}\n"
+    },
+    "run-status.json": {
+      "sha256": "a2ed4fb2f3f895ee3b8bd942f903f2fef5a330b3178957aae7ada1e88cef9375",
+      "text": "{\n  \"request_id\": \"chat-20260922T085319Z-abc7ebb6\",\n  \"started_at\": \"2026-09-22T08:58:05.345681+00:00\",\n  \"phase\": \"finished\",\n  \"test_exit\": 1,\n  \"release_exit\": 0,\n  \"updated_at\": \"2026-09-22T09:09:21.366157+00:00\",\n  \"start_exit\": 0,\n  \"authenticated_zero_inventory\": true,\n  \"finished_at\": \"2026-09-22T09:09:21.366135+00:00\"\n}\n"
+    },
+    "control.py": {
+      "sha256": "7f7f5b3641e41435b5acadc7f0b2d0e6c60bd0fb5c25dcd48e7569c310ca22b1",
+      "text": "import datetime,json,os,pathlib,select,signal,subprocess,sys,time\nos.umask(0o077)\nE=pathlib.Path(__file__).resolve().parent\nR=pathlib.Path('/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/rpc-native-run')\nrequest=json.loads((E/'execution.json').read_text())['request_id']\nD=pathlib.Path.home()/'wukongim-leases/chat-lifecycle-direct'/request\nnow=lambda:datetime.datetime.now(datetime.timezone.utc).isoformat()\ndef write(name,value): (E/name).write_text(json.dumps(value,indent=2,ensure_ascii=False)+'\\n')\n# Import the verified, short-lived credential only into this control process.\nf=pathlib.Path('/Users/tt/Downloads/wk-rpc-native-session.json')\nassert f.is_file() and not f.is_symlink()\nf.chmod(0o600)\nc=json.loads(f.read_text());f.unlink()\nassert c['proof']['unregistered'] is True and c['proof']['one_hour_shell_notice_verified'] is True\nassert (datetime.datetime.now(datetime.timezone.utc)-datetime.datetime.fromisoformat(c['proof']['verified_at'])).total_seconds()<900\nwrite('credential-proof.json',{**c['proof'],'imported_at':now(),'download_deleted':not f.exists()})\nenv=dict(os.environ)\nenv.update(ALIBABA_CLOUD_ACCESS_KEY_ID=c['access_key_id'],ALIBABA_CLOUD_ACCESS_KEY_SECRET=c['access_key_secret'],WK_ALIBABA_CLOUD_SHELL_EPHEMERAL_AUTHORIZATION='unregistered-one-hour-cloud-shell',WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION='create-and-delete-paid-cloud-lease',WK_CHAT_LAB_PAID_AUTHORIZATION='create-paid-cloud-lease',GOWORK='off',GOTOOLCHAIN='go1.25.11')\nif c.get('security_token'):env['ALIBABA_CLOUD_SECURITY_TOKEN']=c['security_token']\nc.clear()\ncleanenv={k:v for k,v in env.items() if not k.startswith(('ALIBABA_','ALIYUN_','WK_ALIBABA_','WK_CHAT_LAB_'))}\nstate={'request_id':request,'started_at':now(),'phase':'imported','test_exit':None,'release_exit':None}\ndef phase(value):\n state['phase']=value;state['updated_at']=now();write('run-status.json',state);print(value,flush=True)\ndef call(args,log,timeout,childenv=env):\n with (E/'private'/log).open('w') as out:\n  p=subprocess.Popen(args,cwd=R,env=childenv,stdout=out,stderr=subprocess.STDOUT,start_new_session=True)\n  try:return p.wait(timeout=timeout)\n  except BaseException:\n   os.killpg(p.pid,signal.SIGTERM)\n   try:p.wait(timeout=15)\n   except subprocess.TimeoutExpired:os.killpg(p.pid,signal.SIGKILL);p.wait()\n   raise\ntry:\n for old in D.parent.iterdir():\n  if not(old/'state.json').is_file():continue\n  s=json.loads((old/'state.json').read_text());assert s['state']=='released'\n  z=json.loads((old/'zero-inventory.json').read_text())['result']['zero_inventory']\n  selector=json.loads((old/'release-selector.json').read_text())['selector']\n  assert z['selector']==selector and z['account_id_hash'] and z['observed_at'] and z['scopes']\n assert call(['scripts/chat-lifecycle/direct-lab.sh','preflight'],'preflight.json',30)==0\n phase('ready_for_execute_download_deleted')\n ready,_,_=select.select([sys.stdin],[],[],900)\n assert ready and sys.stdin.readline().strip()=='execute','No execute command within preparation deadline'\n assert (E/'run-native.py').is_file()\n phase('building_quoting_acquiring')\n rc=call(['scripts/chat-lifecycle/direct-lab.sh','start',request,'--duration','60m','--budget-cny','300'],'start.log',1800)\n state['start_exit']=rc\n if rc:raise RuntimeError('start failed; see bounded private start.log')\n phase('native_six_window_test')\n state['test_exit']=call(['python3','-u',str(E/'run-native.py')],'native-run.log',900,cleanenv)\nexcept BaseException as ex:\n state['failure']=type(ex).__name__+': '+str(ex)\nfinally:\n if (D/'state.json').exists():\n  phase('releasing_exact_request')\n  try:state['release_exit']=call(['scripts/chat-lifecycle/direct-lab.sh','stop',request],'release.log',900)\n  except BaseException as ex:state['release_failure']=type(ex).__name__+': '+str(ex)\n  if (D/'zero-inventory.json').is_file():\n   z=json.loads((D/'zero-inventory.json').read_text())['result']['zero_inventory']\n   selector=json.loads((D/'release-selector.json').read_text())['selector'] if (D/'release-selector.json').exists() else None\n   state['authenticated_zero_inventory']=bool(isinstance(z,dict) and z.get('selector')==selector and z.get('account_id_hash') and z.get('observed_at') and z.get('scopes'))\n   if state['authenticated_zero_inventory']:write('zero-inventory.json',json.loads((D/'zero-inventory.json').read_text()))\n else:state['not_acquired']=True\n state['finished_at']=now();phase('finished')\n print(json.dumps(state,ensure_ascii=False),flush=True)\n env.clear()\n"
+    },
+    "run-native.py": {
+      "sha256": "39b0bff03fd0780b1d51c453f9c11b1c91fc680492ef00af78580277fe53cdcf",
+      "text": "import concurrent.futures,datetime,hashlib,importlib.util,ipaddress,json,os,pathlib,shlex,subprocess,time\nos.umask(0o077)\nE=pathlib.Path(__file__).resolve().parent\nR=pathlib.Path('/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/rpc-native-run')\nrequest=json.loads((E/'execution.json').read_text())['request_id']\nD=pathlib.Path.home()/'wukongim-leases/chat-lifecycle-direct'/request\nreceipt=json.loads((D/'receipt.json').read_text())['receipt']\nassert receipt['state']=='active' and receipt['request_id']==request\nservices=sorted(x['private_address'] for x in receipt['resources'] if x['kind']=='instance' and x['role']=='service')\npublic=[x['public_address'] for x in receipt['resources'] if x['kind']=='eip' and x['role']=='load']\nassert len(services)==3 and len(public)==1\nfor addr in services+public:assert str(ipaddress.IPv4Address(addr))==addr\nclient,server=services[:2]\n(E/'private/hosts.json').write_text(json.dumps({'client':client,'server':server,'services':services}))\nconfig=D/'deployment-ssh-config'\nenv=dict(os.environ,WK_CLOUD_LOAD_PUBLIC_IP=public[0],WK_CLOUD_SSH_KEY=str(D/'deployment_ed25519'),WK_CLOUD_SSH_CONFIG=str(config))\nfor i,h in enumerate(services,1):env['WK_CLOUD_SERVICE'+str(i)+'_IP']=h\nsubprocess.run(['scripts/cloud-deployment/write-ssh-config.sh'],cwd=R,env=env,check=True)\ncontrol=pathlib.Path('/tmp')/('wk-rpc-native-'+request.rsplit('-',1)[1]);control.mkdir(mode=0o700)\nconfig.write_text('Host *\\n  ControlMaster auto\\n  ControlPersist 60\\n  ControlPath '+str(control/'%C')+'\\n\\n'+config.read_text())\nSSH=['ssh','-n','-F',str(config)];SCP=['scp','-F',str(config)]\ndef run(args,timeout=60):\n p=subprocess.run(args,capture_output=True,text=True,timeout=timeout)\n if p.returncode:raise RuntimeError('remote operation exit '+str(p.returncode)+': '+p.stderr[-800:])\n return p.stdout\nremote='/home/wkdeploy/rpc-native'\nreports=[]\nserver_pid=None\ncleanup={}\ntry:\n for host in ['wukong-load']+services:\n  for attempt in range(18):\n   try:run(SSH+[host,'true'],20);break\n   except Exception:\n    if attempt==17:raise\n    time.sleep(5)\n print('All four SSH hosts ready',flush=True)\n manifest=json.loads((E/'base-linux.json').read_text())\n assert hashlib.sha256((E/'base-linux').read_bytes()).hexdigest()==manifest['binary_sha256']\n def install(item):\n  label,host=item\n  run(SSH+[host,'sudo -n cloud-init status --wait'],180)\n  run(SSH+[host,'mkdir -m 0700 '+remote])\n  run(SCP+[str(E/'base-linux'),host+':'+remote+'/base'],120)\n  run(SSH+[host,'chmod 0755 '+remote+'/base'])\n  assert run(SSH+[host,'sha256sum '+remote+'/base']).split()[0]==manifest['binary_sha256']\n  raw=run(SSH+[host,'uname -a; lscpu; free -b; timedatectl show -p NTPSynchronized; systemd-detect-virt; systemctl list-jobs --no-pager'])\n  (E/'private'/('host-'+label+'.txt')).write_text(raw)\n  assert 'x86_64' in raw and 'NTPSynchronized=yes' in raw\n  model=next(line.split(':',1)[1].strip() for line in raw.splitlines() if line.startswith('Model name:'))\n  print(label+' binary verified; bootstrap complete',flush=True)\n  return model\n with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:\n  models=list(pool.map(install,[('client',client),('server',server)]))\n assert models[0]==models[1]\n # The server port is private and accepts benchmark traffic only from this client.\n run(SSH+[server,'sudo -n iptables -I INPUT 1 -p tcp --dport 7001 ! -s '+client+'/32 -j REJECT'])\n diag='cat /proc/stat; cat /proc/pressure/cpu; cat /proc/pressure/memory; cat /proc/pressure/io; cat /proc/loadavg; ps -eo pid,comm,pcpu,pmem --sort=-pcpu | head -20; ss -s'\n for label,host in [('client',client),('server',server)]:\n  (E/'private'/('before-'+label+'.txt')).write_text(run(SSH+[host,diag]))\n # Keep the recorded PID on the exec chain, rather than the parent shell group.\n start='cd '+remote+'; nohup env -u GOMEMLIMIT -u GODEBUG GOMAXPROCS=4 taskset -c 0-3 ./base -mode=server -addr='+server+':7001 -lifetime=30m >server.log 2>&1 < /dev/null & echo $!'\n server_pid=int(run(SSH+[server,start]).strip())\n assert server_pid>1\n (E/'private/server-pid.json').write_text(json.dumps({'pid':server_pid,'host':server}))\n for attempt in range(20):\n  log=run(SSH+[server,'cat '+remote+'/server.log'])\n  if 'RPC_PROBE_READY' in log:break\n  if attempt==19:raise RuntimeError('server readiness deadline')\n  time.sleep(.5)\n spec=importlib.util.spec_from_file_location('analyze',R/'scripts/transport-perf/analyze.py')\n analyzer=importlib.util.module_from_spec(spec);spec.loader.exec_module(analyzer)\n for i in range(1,7):\n  name='aa-'+str(i)\n  command='cd '+remote+' && env -u GOMEMLIMIT -u GODEBUG GOMAXPROCS=4 taskset -c 0-3 ./base -addr='+server+':7001'\n  with (E/(name+'.json')).open('w') as out,(E/(name+'.stderr')).open('w') as err:\n   p=subprocess.run(SSH+[client,command],stdout=out,stderr=err,timeout=60)\n  if p.returncode:raise RuntimeError('window '+str(i)+' process failed: '+str(p.returncode))\n  report=json.loads((E/(name+'.json')).read_text());analyzer.validate(report)\n  assert report['Client']['AllowedCPUs']==report['ServerBefore']['Host']['AllowedCPUs']=='0-3'\n  assert report['Client']['Source']==report['ServerBefore']['Host']['Source']==manifest['source_revision']\n  assert report['Client']['BinarySHA256']==report['ServerBefore']['Host']['BinarySHA256']==manifest['binary_sha256']\n  reports.append(report)\n  print(json.dumps({'window':i,'calls':report['Summary']['Calls'],'calls_per_second':report['CallsPerSecond'],'p99_ms':report['Summary']['P99MS'],'errors':report['Errors']}),flush=True)\n result=analyzer.analyze(reports)\n (E/'repeatability.json').write_text(json.dumps(result,indent=2)+'\\n')\n print(json.dumps(result),flush=True)\n for label,host in [('client',client),('server',server)]:\n  (E/'private'/('after-'+label+'.txt')).write_text(run(SSH+[host,diag]))\n if result['status']!='passed':raise RuntimeError('same-version gate '+result['status']+'; no reruns')\nfinally:\n if server_pid:\n  try:\n   run(SSH+[server,'kill -TERM '+str(server_pid)+'; for i in $(seq 1 30); do if ! kill -0 '+str(server_pid)+' 2>/dev/null || test \"$(ps -o stat= -p '+str(server_pid)+')\" = Z; then exit 0; fi; sleep 0.1; done; exit 1'])\n   cleanup['server_signaled_and_exited']=True\n  except Exception as ex:cleanup['server_stop_error']=str(ex)\n  try:(E/'private/server.log').write_text(run(SSH+[server,'cat '+remote+'/server.log']))\n  except Exception as ex:cleanup['log_error']=str(ex)\n for label,host in [('client',client),('server',server)]:\n  try:\n   remaining=run(SSH+[host,r\"ps -eo args | awk '/[.]\\/base -/ && !/awk/ {print}'\"])\n   cleanup[label+'_active_probes']=remaining.strip()\n  except Exception as ex:cleanup[label+'_inspection_error']=str(ex)\n cleanup['finished_at']=datetime.datetime.now(datetime.timezone.utc).isoformat()\n (E/'process-cleanup.json').write_text(json.dumps(cleanup,indent=2)+'\\n')\n for host in services+['wukong-load']:\n  subprocess.run(SSH+['-O','exit',host],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=10)\n try:control.rmdir()\n except OSError:pass\n print('Native test ended; controller will release the exact Lease immediately',flush=True)\n"
+    },
+    "native-run.log": {
+      "original_sha256": "40ae5b1069f132405e70e614cedb3404b0f7da278156a1a2867dd8de06413bcb",
+      "text": "All four SSH hosts ready\nserver binary verified; bootstrap complete\nclient binary verified; bootstrap complete\n{\"window\": 1, \"calls\": 1790585, \"calls_per_second\": 89528.62528715847, \"p99_ms\": 0.296381, \"errors\": 0}\n{\"window\": 2, \"calls\": 1824557, \"calls_per_second\": 91227.26093189207, \"p99_ms\": 0.284591, \"errors\": 0}\n{\"window\": 3, \"calls\": 1827684, \"calls_per_second\": 91383.59407651029, \"p99_ms\": 0.28365, \"errors\": 0}\n{\"window\": 4, \"calls\": 1686541, \"calls_per_second\": 84326.42124112161, \"p99_ms\": 0.428085, \"errors\": 0}\n{\"window\": 5, \"calls\": 1834746, \"calls_per_second\": 91736.50922670364, \"p99_ms\": 0.279049, \"errors\": 0}\n{\"window\": 6, \"calls\": 1835299, \"calls_per_second\": 91764.21815741915, \"p99_ms\": 0.27813, \"errors\": 0}\n{\"schema\": \"wkrpc-repeatability/v1\", \"status\": \"unstable\", \"windows\": 6, \"throughput_spread_percent\": 8.146062199813153, \"p99_spread_percent\": 52.77866257450624, \"limits_percent\": {\"throughput\": 3, \"p99\": 10}, \"meaning\": \"same-version repeatability only; no candidate or production qualification\"}\nNative test ended; controller will release the exact Lease immediately\nTraceback (most recent call last):\n  File \"/Users/tt/.codex/visualizations/2026/09/22/rpc-native-run/run-native.py\", line 90, in <module>\n    if result['status']!='passed':raise RuntimeError('same-version gate '+result['status']+'; no reruns')\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nRuntimeError: same-version gate unstable; no reruns\n"
+    },
+    "preflight.json": {
+      "original_sha256": "6f7a914694e3d9bc4e7754a5195f7b13ff7fdcac06450160f72293007aaec897",
+      "text": "{\n  \"schema\": \"wukongim.chat_lifecycle.direct_lab_preflight/v1\",\n  \"ready\": true,\n  \"provider_contacted\": false,\n  \"credential_kind\": \"cloud_shell_ephemeral_unregistered\"\n}\n"
+    },
+    "analysis-context.json": {
+      "sha256": "0d4d73dbf311c3766dabfdd880a6fd7eccb913ff4343999d5f73a877654ef2b5",
+      "text": "{\n  \"source_revision\": \"ff37d6913164da65f852fe9af9047b497a1c9e89\",\n  \"phase\": \"quote_wait_read_only_navigation\",\n  \"flow_digests\": {\n    \"cmd/wkcloudlease/FLOW.md\": \"adb3ca83b4a7571d40ec40d0089a13841acb1b4ff9e05f3842c3574aef50cec1\",\n    \"internal/usecase/cloudlease/FLOW.md\": \"1d58607795cb0a700b6c0a0d23188f06f2036b82109f9a3e76368f355abf5368\",\n    \"internal/infra/cloudlease/alibaba/FLOW.md\": \"d4372bf9bda8ab65a7eb82626ede922b5b1af97dda3e2fa7c849562eeead0c28\"\n  }\n}\n"
+    }
+  }
+}

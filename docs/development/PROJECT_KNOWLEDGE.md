@@ -383,6 +383,13 @@ specification, runbook, report, or module documentation; link to them when neede
   these are engineering limits, not statistical significance. Invalid counters,
   mixed identities, containers, runtime overrides or overlapping windows fail.
   Passing qualifies only repeatability, never a candidate or production capacity.
+- The first native six-window calibration completed 10,799,412 error-free calls
+  but failed the full-batch gate: throughput spread 8.146%, P99 spread 52.779%.
+  One three-second interval accounted for the visible collapse; aggregate GC/CPU
+  counters do not identify its cause. Native hosts alone do not prove repeatability.
+  Preserve every window and collect time-aligned host/network signals before
+  attributing another small runtime change. See
+  [native results](../reports/2026-09-22-rpc-native-results.md).
 
 - The admitted-write listener followup confirmed a measurement sensitivity:
   changing only load-client GOGC from 100 to 400 reduced end-to-end P99 by
