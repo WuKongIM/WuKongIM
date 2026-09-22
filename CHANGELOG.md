@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Add bounded Linux host/network sampling and monotonic RPC timeline correlation, with explicit missing data and sampling overhead. / 新增有界 Linux 主机、网络采样与 RPC 单调时钟对齐，显式保留缺失指标和采样开销。
+
 - Add a bounded native Linux RPC diagnostic with dual-process resource accounting and an explicit same-version repeatability gate. / 新增有界原生 Linux RPC 诊断工具，记录双端资源并按同版本重复性门槛验收测试环境。
 
 - Reduce queue-listener allocations for internal RPCs without a caller time budget, while preserving cancellation, independent mutation completion, and admission limits. / 无调用方时间预算的内部 RPC 复用队列取消入口，减少监听分配，并保留取消、写操作独立完成及准入边界。

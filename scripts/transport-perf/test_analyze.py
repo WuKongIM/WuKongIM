@@ -44,7 +44,8 @@ class RepeatabilityTests(unittest.TestCase):
         self.assertEqual(analyze(rows)["status"], "unstable")
 
     def test_fail_closed_on_invalid_evidence(self):
-        mutations = [lambda r: r[0].update(SampleCapHit=True),
+        mutations = [lambda r: r[0]["Options"].update(TelemetryTail=2_000_000_000),
+                     lambda r: r[0].update(SampleCapHit=True),
                      lambda r: r[0]["Client"].update(Container=True),
                      lambda r: r[0]["Client"].update(Arch="arm64"),
                      lambda r: r[0]["Client"].update(MemoryLimit=1_000_000),

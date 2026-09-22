@@ -574,3 +574,14 @@ specification, runbook, report, or module documentation; link to them when neede
   Unknown edit outcomes retain the same draft until an idempotent retry resolves.
 - The opt-in `demo/chatdemo` `test:integration` needs an explicitly supplied
   freshly built server and Playwright installation.
+
+## RPC host diagnostics
+
+- Host-sampled RPC runs are diagnostic evidence, not repeatability qualification.
+  `scripts/transport-perf` records monotonic measurement anchors; cross-host
+  origins differ and need the existing boundary RPC brackets plus an explicit
+  drift assumption. Historical reports lacking anchors cannot be aligned later.
+- TCP/interface counters cover a network namespace; CPU/PSI/softnet cover the
+  host. Keep counter deltas on their sampled intervals, missing values explicit,
+  and surviving-thread scheduler deltas labeled as lower bounds. A correlation
+  does not establish a transport defect or infrastructure root cause.

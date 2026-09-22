@@ -18,7 +18,7 @@ func TestQuantilesPreserveHistoricalRank(t *testing.T) {
 }
 
 func TestRejectUnboundedOptions(t *testing.T) {
-	for _, args := range [][]string{{"-duration=0"}, {"-duration=61s"}, {"-workers=17"}, {"-shards=0"}, {"-warmup=-1s"}, {"-warmup=31s"}, {"-sample-cap=1000001"}, {"-gc=-1"}, {"-lifetime=3h"}, {"-mode=unknown"}, {"unexpected"}} {
+	for _, args := range [][]string{{"-duration=0"}, {"-duration=61s"}, {"-workers=17"}, {"-shards=0"}, {"-warmup=-1s"}, {"-warmup=31s"}, {"-sample-cap=1000001"}, {"-gc=-1"}, {"-lifetime=3h"}, {"-mode=unknown"}, {"unexpected"}, {"-telemetry-tail=-1s"}, {"-telemetry-tail=6s"}, {"-mode=server", "-telemetry-tail=1s"}} {
 		if _, err := parse(args, io.Discard); err == nil {
 			t.Fatalf("accepted %v", args)
 		}

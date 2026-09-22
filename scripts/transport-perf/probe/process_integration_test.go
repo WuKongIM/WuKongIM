@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -93,6 +94,19 @@ func TestProbeProcessesAndSampleCap(t *testing.T) {
 		}
 		if err != nil {
 			t.Fatalf("client: %v %s", err, errOut.String())
+		}
+		if runtime.GOOS == "linux" {
+			if r.Client.PID <= 0 || r.Client.StartTicks == 0 || r.Client.BootID == "" ||
+				r.Timeline.BeforeRPC.LowNS <= 0 || r.Timeline.BeforeRPC.HighNS > r.Timeline.Start.LowNS ||
+				r.Timeline.Start.LowNS > r.Timeline.Start.HighNS ||
+				r.Timeline.Start.HighNS+int64(r.Options.Duration) > r.Timeline.AfterRPC.LowNS ||
+				r.Timeline.AfterRPC.LowNS > r.Timeline.AfterRPC.HighNS ||
+				r.ServerBefore.MonotonicNS > r.Timeline.BeforeRPC.HighNS ||
+				r.ServerBefore.MonotonicNS < r.Timeline.BeforeRPC.LowNS ||
+				r.ServerAfter.MonotonicNS < r.Timeline.AfterRPC.LowNS ||
+				r.ServerAfter.MonotonicNS > r.Timeline.AfterRPC.HighNS {
+				t.Fatal("invalid Linux identity or same-host boundary clock anchors")
+			}
 		}
 		if r.Errors != 0 || r.Summary.Calls == 0 || r.ServerAfter.EchoCalls-r.ServerBefore.EchoCalls != uint64(r.Summary.Calls) {
 			t.Fatal("counter mismatch")

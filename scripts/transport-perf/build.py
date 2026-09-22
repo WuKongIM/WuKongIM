@@ -24,8 +24,9 @@ def main():
         parser.error("refuse to overwrite an existing binary or build manifest")
     if output.is_relative_to(root):
         parser.error("build artifacts must be outside the source worktree")
-    source = Path(__file__).resolve().parent / "probe" / "main.go"
-    raw = source.read_bytes()
+    source = Path(__file__).resolve().parent / "probe"
+    sources = {name: (source / name).read_bytes() for name in ("main.go", "clock_linux.go", "clock_darwin.go")}
+    digests = {name: hashlib.sha256(raw).hexdigest() for name, raw in sources.items()}
     revision = git("rev-parse", "HEAD")
     output.parent.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, GOOS=args.os, GOARCH=args.arch, CGO_ENABLED="0", GOWORK="off", GOTOOLCHAIN="go1.25.11")
@@ -35,7 +36,8 @@ def main():
     directory = root / "scripts" / ".rpc-probe-build"
     directory.mkdir(mode=0o700)
     try:
-        (directory / "main.go").write_bytes(raw)
+        for name, raw in sources.items():
+            (directory / name).write_bytes(raw)
         command = ["go", "build", "-trimpath", "-buildvcs=false", "-ldflags=-X main.sourceRevision=" + revision,
                    "-o", str(output), "./" + str(directory.relative_to(root))]
         try:
@@ -46,7 +48,7 @@ def main():
     finally:
         shutil.rmtree(directory)
     manifest = {"schema": "wkrpc-probe-build/v1", "source_revision": revision,
-                "probe_source_sha256": hashlib.sha256(raw).hexdigest(),
+                "probe_source_sha256": digests["main.go"], "probe_files_sha256": digests,
                 "binary_sha256": hashlib.sha256(output.read_bytes()).hexdigest(),
                 "binary": str(output), "goos": args.os, "goarch": args.arch,
                 "toolchain": "go1.25.11", "command": command, "cgo_enabled": False}

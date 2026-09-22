@@ -34,10 +34,10 @@ import (
 var sourceRevision = "unspecified"
 
 type options struct {
-	Mode, Addr                          string
-	Duration, Warmup, Lifetime          time.Duration
-	Workers, Shards, Bytes, Samples, GC int
-	Budgets, Read                       bool
+	Mode, Addr                                string
+	Duration, Warmup, Lifetime, TelemetryTail time.Duration
+	Workers, Shards, Bytes, Samples, GC       int
+	Budgets, Read                             bool
 }
 
 func parse(args []string, out io.Writer) (options, error) {
@@ -49,6 +49,7 @@ func parse(args []string, out io.Writer) (options, error) {
 	f.DurationVar(&o.Duration, "duration", 20*time.Second, "measured duration, 100ms to 60s")
 	f.DurationVar(&o.Warmup, "warmup", 10*time.Second, "concurrent warmup, 0 to 30s")
 	f.DurationVar(&o.Lifetime, "lifetime", 30*time.Minute, "server hard lifetime, 1s to 2h")
+	f.DurationVar(&o.TelemetryTail, "telemetry-tail", 0, "diagnostic-only post-report lifetime, 0 to 5s, for final host sample")
 	f.IntVar(&o.Workers, "workers", 16, "concurrent callers, 1 to 16")
 	f.IntVar(&o.Shards, "shards", 1, "active connection slots, 1 to 16")
 	f.IntVar(&o.Bytes, "bytes", 64, "echo bytes, 1 to 65537")
@@ -59,7 +60,7 @@ func parse(args []string, out io.Writer) (options, error) {
 	if err := f.Parse(args); err != nil {
 		return o, err
 	}
-	if f.NArg() != 0 || (o.Mode != "client" && o.Mode != "server") || o.Duration < 100*time.Millisecond || o.Duration > 60*time.Second || o.Warmup < 0 || o.Warmup > 30*time.Second || o.Lifetime < time.Second || o.Lifetime > 2*time.Hour || o.Workers < 1 || o.Workers > 16 || o.Shards < 1 || o.Shards > 16 || o.Bytes < 1 || o.Bytes > 65537 || o.Samples < 1 || o.Samples > 1000000 || o.GC < 25 || o.GC > 1000 {
+	if (o.Mode == "server" && o.TelemetryTail != 0) || o.TelemetryTail < 0 || o.TelemetryTail > 5*time.Second || f.NArg() != 0 || (o.Mode != "client" && o.Mode != "server") || o.Duration < 100*time.Millisecond || o.Duration > 60*time.Second || o.Warmup < 0 || o.Warmup > 30*time.Second || o.Lifetime < time.Second || o.Lifetime > 2*time.Hour || o.Workers < 1 || o.Workers > 16 || o.Shards < 1 || o.Shards > 16 || o.Bytes < 1 || o.Bytes > 65537 || o.Samples < 1 || o.Samples > 1000000 || o.GC < 25 || o.GC > 1000 {
 		return o, errors.New("invalid bounded probe options")
 	}
 	return o, nil
@@ -70,6 +71,10 @@ type host struct {
 	CPUCount, Procs                                                                      int
 	Container                                                                            bool
 	Ineligible                                                                           []string
+	// BootID, PID and StartTicks prevent joining another boot or a reused PID.
+	BootID     string
+	PID        int
+	StartTicks uint64
 	// MemoryLimit and RuntimeDebug make hidden runtime overrides visible to the gate.
 	MemoryLimit  int64
 	RuntimeDebug string
@@ -78,6 +83,10 @@ type host struct {
 // identify records process identity without exposing machine IDs or credentials.
 func identify() (host, error) {
 	h := host{OS: runtime.GOOS, Arch: runtime.GOARCH, Source: sourceRevision, GoVersion: runtime.Version(), CPUCount: runtime.NumCPU(), Procs: runtime.GOMAXPROCS(0)}
+	h.PID = os.Getpid()
+	if err := processIdentity(&h); err != nil {
+		return h, err
+	}
 	h.MemoryLimit = debug.SetMemoryLimit(-1)
 	h.RuntimeDebug = os.Getenv("GODEBUG")
 	name, err := os.Executable()
@@ -159,12 +168,13 @@ func snapshot() (processStats, error) {
 }
 
 type serverState struct {
-	Host      host
-	Instance  string
-	Options   transport.ServiceOptions
-	GC        int
-	EchoCalls uint64
-	Stats     processStats
+	Host        host
+	Instance    string
+	Options     transport.ServiceOptions
+	GC          int
+	EchoCalls   uint64
+	Stats       processStats
+	MonotonicNS int64
 }
 
 func serve(o options, out io.Writer) error {
@@ -192,7 +202,7 @@ func serve(o options, out io.Writer) error {
 		if err != nil {
 			return nil, err
 		}
-		return json.Marshal(serverState{Host: h, Instance: hex.EncodeToString(nonce), Options: opts, GC: 100, EchoCalls: calls.Load(), Stats: stats})
+		return json.Marshal(serverState{Host: h, Instance: hex.EncodeToString(nonce), Options: opts, GC: 100, EchoCalls: calls.Load(), Stats: stats, MonotonicNS: monotonicNS()})
 	}, transport.ServiceOptions{Concurrency: 1, QueueSize: 4, MaxQueueBytes: 4096, MaxPayload: 1024, Timeout: 2 * time.Second, CancelRunning: true}); err != nil {
 		return err
 	}
@@ -247,7 +257,15 @@ type worker struct {
 	Capped              bool
 	Error               string
 }
+
+// clockSpan bounds an event in the Linux CLOCK_MONOTONIC domain.
+type clockSpan struct{ LowNS, HighNS int64 }
+
+// timeline uses only existing boundary RPCs, never per-request telemetry.
+type timeline struct{ Start, BeforeRPC, AfterRPC clockSpan }
+
 type report struct {
+	Timeline                       timeline
 	Schema, StartedUTC             string
 	Client                         host
 	Options                        options
@@ -334,9 +352,11 @@ func load(o options, out io.Writer) error {
 	}
 	runtime.GC()
 	r := report{Schema: "wkrpc-process-probe/v1", Client: h, Options: o, WorkerCalls: make([]int, o.Workers), WarmupCalls: make([]int, o.Workers)}
+	r.Timeline.BeforeRPC.LowNS = monotonicNS()
 	if r.ServerBefore, err = state(); err != nil {
 		return err
 	}
+	r.Timeline.BeforeRPC.HighNS = monotonicNS()
 	if r.ClientBefore, err = snapshot(); err != nil {
 		return err
 	}
@@ -377,7 +397,7 @@ func load(o options, out io.Writer) error {
 			}
 		}(i)
 	}
-	started = time.Now()
+	started, r.Timeline.Start = measurementStart()
 	r.StartedUTC = started.UTC().Format(time.RFC3339Nano)
 	close(ready)
 	wg.Wait()
@@ -385,9 +405,11 @@ func load(o options, out io.Writer) error {
 	if r.ClientAfter, err = snapshot(); err != nil {
 		return err
 	}
+	r.Timeline.AfterRPC.LowNS = monotonicNS()
 	if r.ServerAfter, err = state(); err != nil {
 		return err
 	}
+	r.Timeline.AfterRPC.HighNS = monotonicNS()
 	// All copying and sorting occurs after both measurement boundary snapshots.
 	for sec := 0; sec < seconds; sec++ {
 		var values []int64
@@ -435,6 +457,9 @@ func run(args []string, out, errOut io.Writer) int {
 			err = serve(o, out)
 		} else {
 			err = load(o, out)
+			if err == nil && o.TelemetryTail > 0 {
+				time.Sleep(o.TelemetryTail)
+			}
 		}
 	}
 	if err != nil {

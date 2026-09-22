@@ -41,6 +41,7 @@ def validate(r):
     require(before["Instance"] == after["Instance"], "server restarted during measurement")
     require(before["Options"] == after["Options"], "server options changed")
     o = r["Options"]
+    require(o.get("TelemetryTail", 0) == 0, "diagnostic host-sampled runs cannot qualify repeatability")
     expected = {"Mode": "client", "Duration": 20_000_000_000, "Warmup": 10_000_000_000,
                 "Workers": 16, "Shards": 1, "Bytes": 64, "Samples": 1_000_000,
                 "GC": 400, "Budgets": False, "Read": False}
