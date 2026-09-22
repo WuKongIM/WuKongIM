@@ -376,6 +376,17 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
+- The 2026-09-22 old/current version × connection-topology comparison kept
+  the old client fixed: current throughput fell 19.78% with one connection and
+  17.77% with sixteen, across eight consistently negative version pairs. The old
+  single-connection executor wake-up stack already accounted for about 90% of
+  scheduling delay; that share alone is not a new regression cause. Two sixteen-
+  connection traces had mixed normalized wait changes. Separate server MemStats
+  windows found about 689 B and eight added allocations per RPC in both
+  topologies. Prioritize causal isolation of request tracking/queue cancellation
+  allocation costs while preserving lifecycle guarantees; profiles do not prove
+  they explain the entire regression. No runtime fix was made in this study. See
+  [version/topology evidence](../reports/2026-09-22-rpc-version-topology.md).
 - The 2026-09-22 queue/handoff study added a fixed-16-caller shared-connection
   benchmark. One active connection showed longer queue and executor handoff
   delays than sixteen; independent trace scheduling profiles support that
