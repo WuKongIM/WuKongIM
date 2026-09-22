@@ -1,0 +1,164 @@
+{
+  "schema": "rpc-native-preparation-evidence/v1",
+  "preparation": {
+    "schema": "rpc-native-preparation/v1",
+    "status": "prepared_not_run_on_native_hosts",
+    "tool_source": "9511a2b4138d04d738069064c1378b2b457f7ebd",
+    "runtime_changed": false,
+    "new_cloud_resources": 0,
+    "rules": {
+      "AGENTS.md": "c6eae7244b1c660be4b2a62cbdc1efa5c26c35e34972e994df7e6ae073fc9d0b",
+      "pkg/goroutine/FLOW.md": "5f0a454e44782554d37b6f8ed9cba1eb1662d7a1ba482320cfb9f9f975d5e36e",
+      ".agents/skills/wukongim-chat-lifecycle/SKILL.md": "adb340aea160f90181845b97250c5d07931747622bce5ab837bbe5b56095bff7"
+    },
+    "prior_requests": [
+      {
+        "request_id": "chat-20260921T080550Z-105e3755",
+        "state": "released",
+        "saved_zero_inventory_proof_present": true
+      },
+      {
+        "request_id": "chat-20260921T132959Z-7c4df2b1",
+        "state": "released",
+        "saved_zero_inventory_proof_present": true
+      },
+      {
+        "request_id": "chat-20260921T152333Z-c64792d1",
+        "state": "released",
+        "saved_zero_inventory_proof_present": true
+      },
+      {
+        "request_id": "chat-20260921T174316Z-960172dc",
+        "state": "released",
+        "saved_zero_inventory_proof_present": true
+      }
+    ],
+    "preflight": {
+      "provider_contacted": false,
+      "missing": [
+        "temporary Alibaba credential and proof",
+        "exact lifecycle authorization"
+      ]
+    },
+    "qualification": {
+      "baseline_windows": 6,
+      "warmup_seconds": 10,
+      "measurement_seconds": 20,
+      "client_gc": 400,
+      "server_gc": 100,
+      "throughput_spread_percent_max": 3,
+      "p99_spread_percent_max": 10,
+      "scope": "repeatability only"
+    },
+    "native_result": null
+  },
+  "files": {
+    "analyzer-tests.log": {
+      "sha256": "a73765f40c9d866280cbaebc2de694fa95c2bef76d78c9bf6c5589e298f7da6f",
+      "bytes": 401,
+      "text": "test_fail_closed_on_invalid_evidence (test_analyze.RepeatabilityTests.test_fail_closed_on_invalid_evidence) ... ok\ntest_p99_instability_is_not_a_pass (test_analyze.RepeatabilityTests.test_p99_instability_is_not_a_pass) ... ok\ntest_stable_batch (test_analyze.RepeatabilityTests.test_stable_batch) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 0.004s\n\nOK\n"
+    },
+    "base-darwin.json": {
+      "sha256": "42b06738ed03856d5f4dd2323342106cd272cadc7eb13f4c4a2f8e39a6c70ce3",
+      "bytes": 747,
+      "text": "{\n  \"schema\": \"wkrpc-probe-build/v1\",\n  \"source_revision\": \"9511a2b4138d04d738069064c1378b2b457f7ebd\",\n  \"probe_source_sha256\": \"8c2e46d5a6994653e2d4cd4fa692082c7d6f7072fccb8acbccfe00b10a28717a\",\n  \"binary_sha256\": \"666bd50ee34c08b9a73ce99a01aebecc88bccb1ed4e845d00b25ea420347a075\",\n  \"binary\": \"/Users/tt/.codex/visualizations/2026/09/22/rpc-native-gate/base-darwin\",\n  \"goos\": \"darwin\",\n  \"goarch\": \"arm64\",\n  \"toolchain\": \"go1.25.11\",\n  \"command\": [\n    \"go\",\n    \"build\",\n    \"-trimpath\",\n    \"-buildvcs=false\",\n    \"-ldflags=-X main.sourceRevision=9511a2b4138d04d738069064c1378b2b457f7ebd\",\n    \"-o\",\n    \"/Users/tt/.codex/visualizations/2026/09/22/rpc-native-gate/base-darwin\",\n    \"./scripts/.rpc-probe-build\"\n  ],\n  \"cgo_enabled\": false\n}\n"
+    },
+    "base-linux.json": {
+      "sha256": "390697678c7a3e482ded6d0c603c0b767bb5be3943ddcd631188a2c427e4cfc5",
+      "bytes": 744,
+      "text": "{\n  \"schema\": \"wkrpc-probe-build/v1\",\n  \"source_revision\": \"9511a2b4138d04d738069064c1378b2b457f7ebd\",\n  \"probe_source_sha256\": \"8c2e46d5a6994653e2d4cd4fa692082c7d6f7072fccb8acbccfe00b10a28717a\",\n  \"binary_sha256\": \"3bac444a4713bd3bb549b1a037c012d883964c675628b8db2b8c8a816366b298\",\n  \"binary\": \"/Users/tt/.codex/visualizations/2026/09/22/rpc-native-gate/base-linux\",\n  \"goos\": \"linux\",\n  \"goarch\": \"amd64\",\n  \"toolchain\": \"go1.25.11\",\n  \"command\": [\n    \"go\",\n    \"build\",\n    \"-trimpath\",\n    \"-buildvcs=false\",\n    \"-ldflags=-X main.sourceRevision=9511a2b4138d04d738069064c1378b2b457f7ebd\",\n    \"-o\",\n    \"/Users/tt/.codex/visualizations/2026/09/22/rpc-native-gate/base-linux\",\n    \"./scripts/.rpc-probe-build\"\n  ],\n  \"cgo_enabled\": false\n}\n"
+    },
+    "build-darwin.log": {
+      "sha256": "42b06738ed03856d5f4dd2323342106cd272cadc7eb13f4c4a2f8e39a6c70ce3",
+      "bytes": 747,
+      "text": "{\n  \"schema\": \"wkrpc-probe-build/v1\",\n  \"source_revision\": \"9511a2b4138d04d738069064c1378b2b457f7ebd\",\n  \"probe_source_sha256\": \"8c2e46d5a6994653e2d4cd4fa692082c7d6f7072fccb8acbccfe00b10a28717a\",\n  \"binary_sha256\": \"666bd50ee34c08b9a73ce99a01aebecc88bccb1ed4e845d00b25ea420347a075\",\n  \"binary\": \"/Users/tt/.codex/visualizations/2026/09/22/rpc-native-gate/base-darwin\",\n  \"goos\": \"darwin\",\n  \"goarch\": \"arm64\",\n  \"toolchain\": \"go1.25.11\",\n  \"command\": [\n    \"go\",\n    \"build\",\n    \"-trimpath\",\n    \"-buildvcs=false\",\n    \"-ldflags=-X main.sourceRevision=9511a2b4138d04d738069064c1378b2b457f7ebd\",\n    \"-o\",\n    \"/Users/tt/.codex/visualizations/2026/09/22/rpc-native-gate/base-darwin\",\n    \"./scripts/.rpc-probe-build\"\n  ],\n  \"cgo_enabled\": false\n}\n"
+    },
+    "build-linux.log": {
+      "sha256": "390697678c7a3e482ded6d0c603c0b767bb5be3943ddcd631188a2c427e4cfc5",
+      "bytes": 744,
+      "text": "{\n  \"schema\": \"wkrpc-probe-build/v1\",\n  \"source_revision\": \"9511a2b4138d04d738069064c1378b2b457f7ebd\",\n  \"probe_source_sha256\": \"8c2e46d5a6994653e2d4cd4fa692082c7d6f7072fccb8acbccfe00b10a28717a\",\n  \"binary_sha256\": \"3bac444a4713bd3bb549b1a037c012d883964c675628b8db2b8c8a816366b298\",\n  \"binary\": \"/Users/tt/.codex/visualizations/2026/09/22/rpc-native-gate/base-linux\",\n  \"goos\": \"linux\",\n  \"goarch\": \"amd64\",\n  \"toolchain\": \"go1.25.11\",\n  \"command\": [\n    \"go\",\n    \"build\",\n    \"-trimpath\",\n    \"-buildvcs=false\",\n    \"-ldflags=-X main.sourceRevision=9511a2b4138d04d738069064c1378b2b457f7ebd\",\n    \"-o\",\n    \"/Users/tt/.codex/visualizations/2026/09/22/rpc-native-gate/base-linux\",\n    \"./scripts/.rpc-probe-build\"\n  ],\n  \"cgo_enabled\": false\n}\n"
+    },
+    "build-negative-checks.json": {
+      "sha256": "0ed2a62a61adab4524972fea7b95b9bd023c70710d4076937408a341402ceccb",
+      "bytes": 572,
+      "text": "{\n  \"existing_binary_refused\": true,\n  \"dirty_source_refused\": true,\n  \"binary_unchanged\": true,\n  \"temporary_package_removed\": true,\n  \"existing_error\": \"usage: build.py [-h] --source SOURCE --output OUTPUT [--os {linux,darwin}]\\n                [--arch {amd64,arm64}]\\nbuild.py: error: refuse to overwrite an existing binary or build manifest\\n\",\n  \"dirty_error\": \"usage: build.py [-h] --source SOURCE --output OUTPUT [--os {linux,darwin}]\\n                [--arch {amd64,arm64}]\\nbuild.py: error: source worktree must be clean; commit the candidate and tool first\\n\"\n}\n"
+    },
+    "darwin-server.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "text": ""
+    },
+    "darwin-smoke.json": {
+      "sha256": "6e8550f78e69ff46bd774422defdfb64343a10d6b800fd73816609f1f0e4d69d",
+      "bytes": 3225,
+      "text": "{\"Schema\":\"wkrpc-process-probe/v1\",\"StartedUTC\":\"2026-09-22T08:30:30.060614Z\",\"Client\":{\"OS\":\"darwin\",\"Arch\":\"arm64\",\"KernelArch\":\"arm64\",\"CPUModel\":\"\",\"HostID\":\"7db8b7ee33425a7f424730fcb687cea0756ceb5658a8eadf13d1946383dab2f2\",\"BinarySHA256\":\"666bd50ee34c08b9a73ce99a01aebecc88bccb1ed4e845d00b25ea420347a075\",\"Source\":\"9511a2b4138d04d738069064c1378b2b457f7ebd\",\"GoVersion\":\"go1.25.11\",\"AllowedCPUs\":\"\",\"CPUCount\":10,\"Procs\":4,\"Container\":false,\"Ineligible\":[\"requires Linux\",\"requires native amd64 process and x86_64 kernel\",\"missing CPU identity\"],\"MemoryLimit\":9223372036854775807,\"RuntimeDebug\":\"\"},\"Options\":{\"Mode\":\"client\",\"Addr\":\"127.0.0.1:54992\",\"Duration\":1000000000,\"Warmup\":200000000,\"Lifetime\":1800000000000,\"Workers\":2,\"Shards\":1,\"Bytes\":64,\"Samples\":100000,\"GC\":400,\"Budgets\":false,\"Read\":false},\"ElapsedSeconds\":1.000017625,\"CallsPerSecond\":64150.86934092787,\"Summary\":{\"Calls\":64152,\"MeanMS\":0.03108527174523008,\"P50MS\":0.030125,\"P95MS\":0.041083,\"P99MS\":0.052208},\"Seconds\":[{\"Calls\":64152,\"MeanMS\":0.03108527174523008,\"P50MS\":0.030125,\"P95MS\":0.041083,\"P99MS\":0.052208}],\"WorkerCalls\":[32073,32079],\"WarmupCalls\":[6013,6003],\"Errors\":0,\"SampleCapHit\":false,\"FirstError\":\"\",\"ClientBefore\":{\"TotalAlloc\":23402736,\"Mallocs\":195309,\"PauseNS\":79834,\"NumGC\":2,\"CPUSeconds\":0.212787},\"ClientAfter\":{\"TotalAlloc\":82825272,\"Mallocs\":1216597,\"PauseNS\":187169,\"NumGC\":6,\"CPUSeconds\":1.214169},\"ServerBefore\":{\"Host\":{\"OS\":\"darwin\",\"Arch\":\"arm64\",\"KernelArch\":\"arm64\",\"CPUModel\":\"\",\"HostID\":\"7db8b7ee33425a7f424730fcb687cea0756ceb5658a8eadf13d1946383dab2f2\",\"BinarySHA256\":\"666bd50ee34c08b9a73ce99a01aebecc88bccb1ed4e845d00b25ea420347a075\",\"Source\":\"9511a2b4138d04d738069064c1378b2b457f7ebd\",\"GoVersion\":\"go1.25.11\",\"AllowedCPUs\":\"\",\"CPUCount\":10,\"Procs\":4,\"Container\":false,\"Ineligible\":[\"requires Linux\",\"requires native amd64 process and x86_64 kernel\",\"missing CPU identity\"],\"MemoryLimit\":9223372036854775807,\"RuntimeDebug\":\"\"},\"Instance\":\"fa37d5f766eee6d7b9683b792fe05620\",\"Options\":{\"Alias\":\"\",\"Concurrency\":64,\"QueueSize\":4096,\"MaxQueueBytes\":67108864,\"MaxRetainedBytes\":134217728,\"Timeout\":30000000000,\"QueueTimeout\":5000000000,\"CancelRunning\":false,\"MaxPayload\":65537},\"GC\":100,\"EchoCalls\":12017,\"Stats\":{\"TotalAlloc\":25945272,\"Mallocs\":304070,\"PauseNS\":145583,\"NumGC\":3,\"CPUSeconds\":0.223215}},\"ServerAfter\":{\"Host\":{\"OS\":\"darwin\",\"Arch\":\"arm64\",\"KernelArch\":\"arm64\",\"CPUModel\":\"\",\"HostID\":\"7db8b7ee33425a7f424730fcb687cea0756ceb5658a8eadf13d1946383dab2f2\",\"BinarySHA256\":\"666bd50ee34c08b9a73ce99a01aebecc88bccb1ed4e845d00b25ea420347a075\",\"Source\":\"9511a2b4138d04d738069064c1378b2b457f7ebd\",\"GoVersion\":\"go1.25.11\",\"AllowedCPUs\":\"\",\"CPUCount\":10,\"Procs\":4,\"Container\":false,\"Ineligible\":[\"requires Linux\",\"requires native amd64 process and x86_64 kernel\",\"missing CPU identity\"],\"MemoryLimit\":9223372036854775807,\"RuntimeDebug\":\"\"},\"Instance\":\"fa37d5f766eee6d7b9683b792fe05620\",\"Options\":{\"Alias\":\"\",\"Concurrency\":64,\"QueueSize\":4096,\"MaxQueueBytes\":67108864,\"MaxRetainedBytes\":134217728,\"Timeout\":30000000000,\"QueueTimeout\":5000000000,\"CancelRunning\":false,\"MaxPayload\":65537},\"GC\":100,\"EchoCalls\":76169,\"Stats\":{\"TotalAlloc\":107622264,\"Mallocs\":1908385,\"PauseNS\":1165288,\"NumGC\":28,\"CPUSeconds\":1.17673}}}\n"
+    },
+    "darwin-smoke.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "text": ""
+    },
+    "linux-server.log": {
+      "sha256": "27ffae651b73b0160cec6949ca0cb5da7f0bc627507a0155dd4936d1e293ce81",
+      "bytes": 16,
+      "text": "RPC_PROBE_READY\n"
+    },
+    "linux-smoke.json": {
+      "sha256": "5de0651318dd8056f9b323942554f61088cb285f129176cc103203f2ca78cb05",
+      "bytes": 3145,
+      "text": "{\"Schema\":\"wkrpc-process-probe/v1\",\"StartedUTC\":\"2026-09-22T08:30:32.074466708Z\",\"Client\":{\"OS\":\"linux\",\"Arch\":\"amd64\",\"KernelArch\":\"x86_64\",\"CPUModel\":\"\",\"HostID\":\"fb999d82c8f1d9cca780acfb34327da01aab12b429b35c0d40e9d500e26fde15\",\"BinarySHA256\":\"3bac444a4713bd3bb549b1a037c012d883964c675628b8db2b8c8a816366b298\",\"Source\":\"9511a2b4138d04d738069064c1378b2b457f7ebd\",\"GoVersion\":\"go1.25.11\",\"AllowedCPUs\":\"0-9\",\"CPUCount\":10,\"Procs\":4,\"Container\":true,\"Ineligible\":[\"container is functional-smoke only\",\"missing CPU identity\"],\"MemoryLimit\":9223372036854775807,\"RuntimeDebug\":\"\"},\"Options\":{\"Mode\":\"client\",\"Addr\":\"127.0.0.1:7001\",\"Duration\":1000000000,\"Warmup\":200000000,\"Lifetime\":1800000000000,\"Workers\":2,\"Shards\":1,\"Bytes\":64,\"Samples\":100000,\"GC\":400,\"Budgets\":false,\"Read\":false},\"ElapsedSeconds\":1.000040084,\"CallsPerSecond\":34089.63355112873,\"Summary\":{\"Calls\":34091,\"MeanMS\":0.05845894555747852,\"P50MS\":0.058708,\"P95MS\":0.068916,\"P99MS\":0.082917},\"Seconds\":[{\"Calls\":34091,\"MeanMS\":0.05845894555747852,\"P50MS\":0.058708,\"P95MS\":0.068916,\"P99MS\":0.082917}],\"WorkerCalls\":[17051,17040],\"WarmupCalls\":[3362,3369],\"Errors\":0,\"SampleCapHit\":false,\"FirstError\":\"\",\"ClientBefore\":{\"TotalAlloc\":18805616,\"Mallocs\":111560,\"PauseNS\":1333417,\"NumGC\":2,\"CPUSeconds\":0.283986},\"ClientAfter\":{\"TotalAlloc\":50446208,\"Mallocs\":657023,\"PauseNS\":1467000,\"NumGC\":4,\"CPUSeconds\":0.956747},\"ServerBefore\":{\"Host\":{\"OS\":\"linux\",\"Arch\":\"amd64\",\"KernelArch\":\"x86_64\",\"CPUModel\":\"\",\"HostID\":\"fb999d82c8f1d9cca780acfb34327da01aab12b429b35c0d40e9d500e26fde15\",\"BinarySHA256\":\"3bac444a4713bd3bb549b1a037c012d883964c675628b8db2b8c8a816366b298\",\"Source\":\"9511a2b4138d04d738069064c1378b2b457f7ebd\",\"GoVersion\":\"go1.25.11\",\"AllowedCPUs\":\"0-9\",\"CPUCount\":10,\"Procs\":4,\"Container\":true,\"Ineligible\":[\"container is functional-smoke only\",\"missing CPU identity\"],\"MemoryLimit\":9223372036854775807,\"RuntimeDebug\":\"\"},\"Instance\":\"02bfa0d5ec5ca413dbaf1e3d397d4dc3\",\"Options\":{\"Alias\":\"\",\"Concurrency\":64,\"QueueSize\":4096,\"MaxQueueBytes\":67108864,\"MaxRetainedBytes\":134217728,\"Timeout\":30000000000,\"QueueTimeout\":5000000000,\"CancelRunning\":false,\"MaxPayload\":65537},\"GC\":100,\"EchoCalls\":6732,\"Stats\":{\"TotalAlloc\":19576128,\"Mallocs\":171909,\"PauseNS\":1706208,\"NumGC\":1,\"CPUSeconds\":0.269939}},\"ServerAfter\":{\"Host\":{\"OS\":\"linux\",\"Arch\":\"amd64\",\"KernelArch\":\"x86_64\",\"CPUModel\":\"\",\"HostID\":\"fb999d82c8f1d9cca780acfb34327da01aab12b429b35c0d40e9d500e26fde15\",\"BinarySHA256\":\"3bac444a4713bd3bb549b1a037c012d883964c675628b8db2b8c8a816366b298\",\"Source\":\"9511a2b4138d04d738069064c1378b2b457f7ebd\",\"GoVersion\":\"go1.25.11\",\"AllowedCPUs\":\"0-9\",\"CPUCount\":10,\"Procs\":4,\"Container\":true,\"Ineligible\":[\"container is functional-smoke only\",\"missing CPU identity\"],\"MemoryLimit\":9223372036854775807,\"RuntimeDebug\":\"\"},\"Instance\":\"02bfa0d5ec5ca413dbaf1e3d397d4dc3\",\"Options\":{\"Alias\":\"\",\"Concurrency\":64,\"QueueSize\":4096,\"MaxQueueBytes\":67108864,\"MaxRetainedBytes\":134217728,\"Timeout\":30000000000,\"QueueTimeout\":5000000000,\"CancelRunning\":false,\"MaxPayload\":65537},\"GC\":100,\"EchoCalls\":40823,\"Stats\":{\"TotalAlloc\":63002360,\"Mallocs\":1024720,\"PauseNS\":8718832,\"NumGC\":14,\"CPUSeconds\":0.929441}}}\n"
+    },
+    "linux-smoke.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "text": ""
+    },
+    "preparation.json": {
+      "sha256": "b21cf487762679eb0ad690e86c4e18119316f8f1822d0500b5b1d9eeffbdc588",
+      "bytes": 1580,
+      "text": "{\n  \"schema\": \"rpc-native-preparation/v1\",\n  \"status\": \"prepared_not_run_on_native_hosts\",\n  \"tool_source\": \"9511a2b4138d04d738069064c1378b2b457f7ebd\",\n  \"runtime_changed\": false,\n  \"new_cloud_resources\": 0,\n  \"rules\": {\n    \"AGENTS.md\": \"c6eae7244b1c660be4b2a62cbdc1efa5c26c35e34972e994df7e6ae073fc9d0b\",\n    \"pkg/goroutine/FLOW.md\": \"5f0a454e44782554d37b6f8ed9cba1eb1662d7a1ba482320cfb9f9f975d5e36e\",\n    \".agents/skills/wukongim-chat-lifecycle/SKILL.md\": \"adb340aea160f90181845b97250c5d07931747622bce5ab837bbe5b56095bff7\"\n  },\n  \"prior_requests\": [\n    {\n      \"request_id\": \"chat-20260921T080550Z-105e3755\",\n      \"state\": \"released\",\n      \"saved_zero_inventory_proof_present\": true\n    },\n    {\n      \"request_id\": \"chat-20260921T132959Z-7c4df2b1\",\n      \"state\": \"released\",\n      \"saved_zero_inventory_proof_present\": true\n    },\n    {\n      \"request_id\": \"chat-20260921T152333Z-c64792d1\",\n      \"state\": \"released\",\n      \"saved_zero_inventory_proof_present\": true\n    },\n    {\n      \"request_id\": \"chat-20260921T174316Z-960172dc\",\n      \"state\": \"released\",\n      \"saved_zero_inventory_proof_present\": true\n    }\n  ],\n  \"preflight\": {\n    \"provider_contacted\": false,\n    \"missing\": [\n      \"temporary Alibaba credential and proof\",\n      \"exact lifecycle authorization\"\n    ]\n  },\n  \"qualification\": {\n    \"baseline_windows\": 6,\n    \"warmup_seconds\": 10,\n    \"measurement_seconds\": 20,\n    \"client_gc\": 400,\n    \"server_gc\": 100,\n    \"throughput_spread_percent_max\": 3,\n    \"p99_spread_percent_max\": 10,\n    \"scope\": \"repeatability only\"\n  },\n  \"native_result\": null\n}\n"
+    },
+    "race-integration.log": {
+      "sha256": "6afccaa796997860a08be9e1aaa30da746e5320833c110f3323b9bea5448b19e",
+      "bytes": 70,
+      "text": "ok  \tgithub.com/WuKongIM/WuKongIM/scripts/transport-perf/probe\t3.620s\n"
+    },
+    "smoke-run.log": {
+      "sha256": "03afb9d768a11a8056ae025654da063c464cdd41ccb6a8a3840836e5fced884e",
+      "bytes": 237,
+      "text": "{\n  \"darwin\": {\n    \"calls\": 64152,\n    \"qualification_rejection\": \"requires Linux amd64 without architecture emulation\"\n  },\n  \"linux\": {\n    \"calls\": 34091,\n    \"qualification_rejection\": \"host is not eligible for qualification\"\n  }\n}\n"
+    },
+    "smoke-validation.json": {
+      "sha256": "4a9d5ca491b4ce7bdd299fdc9cc2c4091d795cab3f8e25ce2334753717964087",
+      "bytes": 2050,
+      "text": "{\n  \"darwin\": {\n    \"server_command\": [\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-native-gate/base-darwin\",\n      \"-mode=server\",\n      \"-addr=127.0.0.1:54992\",\n      \"-lifetime=15s\"\n    ],\n    \"client_command\": [\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-native-gate/base-darwin\",\n      \"-addr=127.0.0.1:54992\",\n      \"-warmup=200ms\",\n      \"-duration=1s\",\n      \"-workers=2\",\n      \"-sample-cap=100000\"\n    ],\n    \"calls\": 64152,\n    \"native_qualification_rejection\": \"requires Linux amd64 without architecture emulation\"\n  },\n  \"linux\": {\n    \"server_command\": [\n      \"docker\",\n      \"run\",\n      \"-d\",\n      \"--name\",\n      \"wk-native-gate-smoke\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"--memory\",\n      \"3g\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-native-gate:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/base-linux\",\n      \"debian:12\",\n      \"-mode=server\",\n      \"-addr=127.0.0.1:7001\",\n      \"-lifetime=30s\"\n    ],\n    \"client_command\": [\n      \"docker\",\n      \"run\",\n      \"--rm\",\n      \"--name\",\n      \"wk-native-gate-smoke-client\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--network\",\n      \"container:wk-native-gate-smoke\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"--memory\",\n      \"3g\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-native-gate:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/base-linux\",\n      \"debian:12\",\n      \"-warmup=200ms\",\n      \"-duration=1s\",\n      \"-workers=2\",\n      \"-sample-cap=100000\"\n    ],\n    \"cleanup_state\": {\n      \"Status\": \"exited\",\n      \"Running\": false,\n      \"Paused\": false,\n      \"Restarting\": false,\n      \"OOMKilled\": false,\n      \"Dead\": false,\n      \"Pid\": 0,\n      \"ExitCode\": 0,\n      \"Error\": \"\",\n      \"StartedAt\": \"2026-09-22T08:30:31.148955833Z\",\n      \"FinishedAt\": \"2026-09-22T08:30:33.137387251Z\"\n    },\n    \"calls\": 34091,\n    \"native_qualification_rejection\": \"host is not eligible for qualification\"\n  }\n}\n"
+    },
+    "smoke.py": {
+      "sha256": "16cfb0d1068f00adfcab6b0b0dd366df590e676485085077d85d0fcb913c19a2",
+      "bytes": 3840,
+      "text": "from pathlib import Path\nimport subprocess,json,socket,os,select,time,importlib.util,hashlib\nE=Path(__file__).resolve().parent\nW=Path('/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/rpc-native-gate')\ndef cmd(args,**kw):return subprocess.run(args,capture_output=True,timeout=30,check=True,**kw)\nresults={}\n# Local macOS functionality is deliberately excluded from native qualification.\nsock=socket.socket();sock.bind(('127.0.0.1',0));addr='127.0.0.1:'+str(sock.getsockname()[1]);sock.close()\nserver_args=[str(E/'base-darwin'),'-mode=server','-addr='+addr,'-lifetime=15s']\nserver=subprocess.Popen(server_args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=dict(os.environ,GOMAXPROCS='4'))\ntry:\n assert select.select([server.stdout],[],[],10)[0]\n assert server.stdout.readline().strip()==b'RPC_PROBE_READY'\n client_args=[str(E/'base-darwin'),'-addr='+addr,'-warmup=200ms','-duration=1s','-workers=2','-sample-cap=100000']\n p=cmd(client_args,env=dict(os.environ,GOMAXPROCS='4'));(E/'darwin-smoke.json').write_bytes(p.stdout);(E/'darwin-smoke.stderr').write_bytes(p.stderr)\n results['darwin']={'server_command':server_args,'client_command':client_args}\nfinally:\n server.terminate();out,err=server.communicate(timeout=10);(E/'darwin-server.log').write_bytes(out+err);assert server.returncode==0\n# Linux amd64 binaries run only as a container/emulation functionality smoke here.\nname='wk-native-gate-smoke'\nargs=['docker','run','-d','--name',name,'--pull=never','--platform','linux/amd64','-e','GOMAXPROCS=4','--memory','3g','-v',str(E)+':/bench:ro','--entrypoint','/bench/base-linux','debian:12','-mode=server','-addr=127.0.0.1:7001','-lifetime=30s']\ncreated=False\ntry:\n cmd(args);created=True;deadline=time.monotonic()+15\n while b'RPC_PROBE_READY' not in cmd(['docker','logs',name]).stdout:\n  assert time.monotonic()<deadline\n  time.sleep(.1)\n c=['docker','run','--rm','--name',name+'-client','--pull=never','--platform','linux/amd64','--network','container:'+name,'-e','GOMAXPROCS=4','--memory','3g','-v',str(E)+':/bench:ro','--entrypoint','/bench/base-linux','debian:12','-warmup=200ms','-duration=1s','-workers=2','-sample-cap=100000']\n p=cmd(c);(E/'linux-smoke.json').write_bytes(p.stdout);(E/'linux-smoke.stderr').write_bytes(p.stderr);results['linux']={'server_command':args,'client_command':c}\nfinally:\n if created:\n  cmd(['docker','stop','--time','5',name]);state=json.loads(cmd(['docker','inspect',name]).stdout)[0]['State'];assert state['ExitCode']==0 and not state['OOMKilled'] and not state['Running']\n  results['linux']['cleanup_state']=state\n  (E/'linux-server.log').write_bytes(cmd(['docker','logs',name]).stdout);cmd(['docker','rm',name])\nspec=importlib.util.spec_from_file_location('gate',W/'scripts/transport-perf/analyze.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)\nfor platform in ['darwin','linux']:\n r=json.loads((E/(platform+'-smoke.json')).read_text());assert r['Errors']==0 and not r['SampleCapHit'];n=r['Summary']['Calls'];assert n>0 and sum(r['WorkerCalls'])==n and sum(q['Calls'] for q in r['Seconds'])==n and r['ServerAfter']['EchoCalls']-r['ServerBefore']['EchoCalls']==n\n binary=E/('base-'+platform)\n assert r['Client']['BinarySHA256']==hashlib.sha256(binary.read_bytes()).hexdigest()==r['ServerBefore']['Host']['BinarySHA256']\n try:module.validate(r)\n except ValueError as e:rejection=str(e)\n else:raise AssertionError('unsupported smoke accepted for qualification')\n results[platform].update(calls=n,native_qualification_rejection=rejection)\nassert 'wk-native-gate-smoke' not in cmd(['docker','ps','-a','--format','{{.Names}}']).stdout.decode()\n(E/'smoke-validation.json').write_text(json.dumps(results,indent=2)+'\\n')\nprint(json.dumps({k:{'calls':v['calls'],'qualification_rejection':v['native_qualification_rejection']} for k,v in results.items()},indent=2))\n"
+    },
+    "unit.log": {
+      "sha256": "19c3e5f8779dfababf22480cd454a61cfa070cd65f80b0482673296084b50a9d",
+      "bytes": 70,
+      "text": "ok  \tgithub.com/WuKongIM/WuKongIM/scripts/transport-perf/probe\t0.294s\n"
+    },
+    "vet.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "text": ""
+    }
+  },
+  "external_binaries": {
+    "base-darwin": {
+      "sha256": "666bd50ee34c08b9a73ce99a01aebecc88bccb1ed4e845d00b25ea420347a075",
+      "bytes": 9895154,
+      "absolute_path": "/Users/tt/.codex/visualizations/2026/09/22/rpc-native-gate/base-darwin"
+    },
+    "base-linux": {
+      "sha256": "3bac444a4713bd3bb549b1a037c012d883964c675628b8db2b8c8a816366b298",
+      "bytes": 10167180,
+      "absolute_path": "/Users/tt/.codex/visualizations/2026/09/22/rpc-native-gate/base-linux"
+    }
+  }
+}
