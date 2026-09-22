@@ -373,6 +373,16 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
+- The 2026-09-22 queue/handoff study added a fixed-16-caller shared-connection
+  benchmark. One active connection showed longer queue and executor handoff
+  delays than sixteen; independent trace scheduling profiles support that
+  direction. Use hashed rather than batch-aligned periodic lifecycle samples,
+  and keep diagnostic binaries separate from timing acceptance. A Gosched after
+  every four successful submissions had mixed paired throughput results and was
+  reverted. This does not establish the cause or recovery of the original version
+  regression. Same-process benchmarks include both endpoints and cannot replace
+  independent-process acceptance. See
+  [queue/handoff evidence](../reports/2026-09-22-rpc-queue-handoff.md).
 - The 2026-09-22 inbound-parent experiment removed duplicate connection-context
   registration while preserving the explicit request table and close cancellation.
   Isolated tracking saved 30–42 ns with unchanged allocations, but the 64 B mutation
