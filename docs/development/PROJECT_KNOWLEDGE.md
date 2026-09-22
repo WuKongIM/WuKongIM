@@ -376,6 +376,17 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
+- The 2026-09-22 admitted-write listener candidate and its empty-deadline-heap
+  timer refinement were rejected. Deferring ownership until successful mutation
+  admission removed read/rejection allocation costs and saved about 304 B/one
+  allocation per budgeted write RPC, but all four initial/followup single-connection
+  unbudgeted-write P99 pairs regressed. The later three-version batch had slower
+  baselines and no consistent refinement-over-candidate gain; retain all windows
+  and do not use that batch to erase earlier regressions. Runtime stays at the
+  baseline. Cancellation must leave the request table unlocked so unrelated
+  inbound tracking/finish can progress. See
+  [admitted-write evidence](../reports/2026-09-22-rpc-write-listener.md).
+
 - The 2026-09-22 budgeted RPC lifecycle candidate was rejected. Reusing the
   inbound cancellation hook plus a queue-bounded caller-deadline heap saved
   about 288 B/one allocation per budgeted write RPC and improved local write
