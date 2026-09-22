@@ -361,6 +361,12 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
+- The in-process large-payload RPC benchmark shares a client/server heap and is
+  sensitive to GC settings. Payload copies dominate its allocation bytes;
+  fewer queue-owner allocations alone do not establish higher throughput.
+  Keep profiling separate from timing, include same-binary controls, and compare
+  versions within an independent-process fixture before attributing small
+  regressions. See [local follow-up](../reports/2026-09-22-rpc-large-payload-local-diagnosis.md).
 - The 2026-09-22 native x86 cross-host RPC matrix used five interleaved trials
   across old/current client-server pairs. At 64B/16 callers, current/current
   throughput was 8.24% below old/old; old/current was 8.67% below, while
