@@ -71,6 +71,8 @@ func (c *Conn) TrackInbound(id uint64, budget time.Duration) (context.Context, f
 		ctx, cancel = context.WithTimeout(c.ctx, budget)
 	} else {
 		ctx, cancel = context.WithCancel(c.ctx)
+		owner := &inboundQueueContext{Context: ctx, cancelContext: cancel}
+		ctx, cancel = owner, owner.cancel
 	}
 	c.inboundMu.Lock()
 	if c.ctx.Err() != nil {

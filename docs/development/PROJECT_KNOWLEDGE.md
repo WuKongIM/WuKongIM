@@ -376,6 +376,16 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
+- The 2026-09-22 queue-cancellation experiment reuses a single inbound queue
+  listener only for requests without a caller time budget. Budgeted and generic
+  contexts keep context.AfterFunc. Final callbacks use the existing managed RPC
+  service task; owners are not pooled, and connection close must still invoke
+  each request cancellation handle after canceling its parent. Ordinary writes
+  saved about 304 B and one allocation per RPC. Single-connection throughput
+  remained noisy despite improved medians and P99; do not claim full recovery of
+  the original version regression. Failed admissions instead add about 64 B and
+  two allocations, so the benefit is workload-dependent. See
+  [queue-listener evidence](../reports/2026-09-22-rpc-cancel-listener.md).
 - The 2026-09-22 old/current version × connection-topology comparison kept
   the old client fixed: current throughput fell 19.78% with one connection and
   17.77% with sixteen, across eight consistently negative version pairs. The old

@@ -26,8 +26,15 @@ type requestEntry struct {
 func (e *requestEntry) watchQueue(s *Service) {
 	ctx := e.req.Context
 	if ctx != s.ctx && ctx.Done() != nil {
-		// The owner retains the original context and service until callbacks finish.
-		e.stopExpiry = context.AfterFunc(ctx, func() { e.service.expire(e, requestError(e.req.Context.Err())) })
+		// Unbudgeted inbound requests already have an explicit cancellation
+		// owner. Reuse its single queue hook instead of allocating a child
+		// cancellation tree. Generic contexts retain the standard path.
+		callback := func() { e.service.expire(e, requestError(e.req.Context.Err())) }
+		if owner, ok := ctx.(interface{ WatchQueueCancellation(func()) func() bool }); ok {
+			e.stopExpiry = owner.WatchQueueCancellation(callback)
+		} else {
+			e.stopExpiry = context.AfterFunc(ctx, callback)
+		}
 	}
 }
 
