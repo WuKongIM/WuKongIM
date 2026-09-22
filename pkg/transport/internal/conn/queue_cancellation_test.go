@@ -115,6 +115,7 @@ func TestInboundQueueCancellationStopRace(t *testing.T) {
 
 func TestInboundBudgetKeepsDeadlineContext(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
+		type valueKey struct{}
 		parent, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		c := &Conn{ctx: parent}
@@ -126,9 +127,20 @@ func TestInboundBudgetKeepsDeadlineContext(t *testing.T) {
 		if _, ok := ctx.(interface{ WatchQueueCancellation(func()) func() bool }); ok {
 			t.Fatal("budget context must use deadline cancellation")
 		}
-		<-ctx.Done()
-		if ctx.Err() != context.DeadlineExceeded {
-			t.Fatal(ctx.Err())
+		child, stopChild := context.WithCancel(context.WithValue(ctx, valueKey{}, "kept"))
+		defer stopChild()
+		var calls atomic.Int32
+		stop := context.AfterFunc(child, func() { calls.Add(1) })
+		defer stop()
+		<-child.Done()
+		synctest.Wait()
+		for _, current := range []context.Context{ctx, child} {
+			if current.Err() != context.DeadlineExceeded || context.Cause(current) != context.DeadlineExceeded {
+				t.Fatalf("deadline semantics: err=%v cause=%v", current.Err(), context.Cause(current))
+			}
+		}
+		if child.Value(valueKey{}) != "kept" || calls.Load() != 1 {
+			t.Fatal("standard child propagation lost")
 		}
 	})
 }

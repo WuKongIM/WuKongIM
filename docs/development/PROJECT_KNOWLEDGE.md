@@ -376,6 +376,16 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
+- The 2026-09-22 budgeted RPC lifecycle candidate was rejected. Reusing the
+  inbound cancellation hook plus a queue-bounded caller-deadline heap saved
+  about 288 B/one allocation per budgeted write RPC and improved local write
+  throughput by about 2.6%, but budgeted reads lost 1.74%/0.56% throughput at
+  one/sixteen connections. Single-connection read A/A varied only about
+  ±0.026%; do not dismiss its loss as noise. Rejected calls added about 64 B
+  and two allocations. Keep budgeted contexts on the standard watcher until
+  a narrower design avoids the read/rejected-call ownership cost. See
+  [budget lifecycle evidence](../reports/2026-09-22-rpc-budget-lifecycle.md).
+
 - The 2026-09-22 queue-cancellation experiment reuses a single inbound queue
   listener only for requests without a caller time budget. Budgeted and generic
   contexts keep context.AfterFunc. Final callbacks use the existing managed RPC
