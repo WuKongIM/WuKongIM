@@ -1,0 +1,469 @@
+{
+  "schema": "wkrpc-native-host-preparation/v1",
+  "status": "prepared_not_executed",
+  "provider_contacted": false,
+  "cloud_resources_created": 0,
+  "local_preflight": {
+    "exit": 1,
+    "output": "missing temporary credential: ALIBABA_CLOUD_ACCESS_KEY_ID\nmissing temporary credential: ALIBABA_CLOUD_ACCESS_KEY_SECRET\nmissing temporary credential proof: set ALIBABA_CLOUD_SECURITY_TOKEN for STS or WK_ALIBABA_CLOUD_SHELL_EPHEMERAL_AUTHORIZATION=unregistered-one-hour-cloud-shell for a verified one-hour Cloud Shell credential\nmissing exact lifecycle authorization: WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION=create-and-delete-paid-cloud-lease\n"
+  },
+  "prior_requests": [
+    {
+      "request_id": "chat-20260921T080550Z-105e3755",
+      "state": "released",
+      "exact_selector_match": true,
+      "account_match": true,
+      "scope_count": 12,
+      "observed_at": "2026-09-21T08:58:57.043973Z",
+      "proof_sha256": "daa1d15890351c61c948612938eaafa38101a3774cd96c86e40da24e9baf9b4b"
+    },
+    {
+      "request_id": "chat-20260921T132959Z-7c4df2b1",
+      "state": "released",
+      "exact_selector_match": true,
+      "account_match": true,
+      "scope_count": 12,
+      "observed_at": "2026-09-21T14:34:27.670196Z",
+      "proof_sha256": "7202c216e65a2721eef0f3b342a6cc73ed3d8bae2d8f4663dd3515eda382e3fe"
+    },
+    {
+      "request_id": "chat-20260921T152333Z-c64792d1",
+      "state": "released",
+      "exact_selector_match": true,
+      "account_match": true,
+      "scope_count": 12,
+      "observed_at": "2026-09-21T16:27:33.099774Z",
+      "proof_sha256": "1d0b5d327da646840c1a96979068c988daa3f166a592aabbf183141882ff7793"
+    },
+    {
+      "request_id": "chat-20260921T174316Z-960172dc",
+      "state": "released",
+      "exact_selector_match": true,
+      "account_match": true,
+      "scope_count": 12,
+      "observed_at": "2026-09-21T18:50:54.676633Z",
+      "proof_sha256": "2c1a047620931691710670c4104cd3f5ad151c3f1edc8ced6a3331653c9c9885"
+    },
+    {
+      "request_id": "chat-20260922T085319Z-abc7ebb6",
+      "state": "released",
+      "exact_selector_match": true,
+      "account_match": true,
+      "scope_count": 12,
+      "observed_at": "2026-09-22T09:09:21.264482Z",
+      "proof_sha256": "670c7004d662b9fa4849946ee121db88a303bea7f2a4c32e43a5e2230eee7171"
+    }
+  ],
+  "plan": {
+    "schema": "wkrpc-native-host-diagnostic-plan/v1",
+    "diagnostic_only": true,
+    "windows": 6,
+    "probe": {
+      "source_revision": "9c8032bb56011977ba5c5db66efcab9bd1e9c97b",
+      "binary_sha256": "2fcd670126ffa5193ed8374e8768b982a2fc656eef74f6b5942fa7c60e8f511e",
+      "toolchain": "go1.25.11",
+      "goos": "linux",
+      "goarch": "amd64"
+    },
+    "scenario": {
+      "warmup_seconds": 10,
+      "measure_seconds": 20,
+      "telemetry_tail_seconds": 2,
+      "workers": 16,
+      "shards": 1,
+      "bytes": 64,
+      "client_gc": 400,
+      "server_gc": 100,
+      "request_budgets": false,
+      "read": false,
+      "gomaxprocs": 4,
+      "allowed_cpus": "0-3"
+    },
+    "bounds": {
+      "client_sampler_seconds": 45,
+      "server_sampler_seconds": 300,
+      "server_lifetime_seconds": 480,
+      "batch_controller_seconds": 900,
+      "reruns": 0,
+      "profiles": 0
+    },
+    "hosts": {
+      "native": "linux/amd64",
+      "minimum_vcpus": 4,
+      "minimum_memory_gib": 8,
+      "same_cpu_model": true,
+      "distinct_host_ids": true,
+      "private_network": true,
+      "missing_optional_metrics": "retain explicit gaps; do not modify kernel settings"
+    },
+    "cloud": {
+      "new_purchase_authorized": false,
+      "proposed_budget_cny": 300,
+      "quote_stop_threshold_cny": 250,
+      "proposed_lease_shape": "existing 3 service + 1 load workflow; use 2 service hosts for RPC",
+      "release_policy": "on completion or any failure, immediately release exact saved selector and require authenticated zero inventory",
+      "price": "fresh provider quote required; previous quote is not current pricing"
+    },
+    "tools_sha256": {
+      "host_sample.py": "72e104978da51929c52e95db30453e19710dd53c876dd0ac63d621a3f4473357",
+      "correlate.py": "7600d136f3ace560bd5f572e46a6110e0eeb95c076a8e8179fcd52856bfc77e7",
+      "analyze.py": "8b892939c46bdce5a8d085974b45b102ffa8b02075f13640ab3bbd9a07e7813f"
+    },
+    "rules": {
+      "source_revision": "6b85f349f07cacc89a9cf7a873574dde04676366",
+      "AGENTS.md": "c6eae7244b1c660be4b2a62cbdc1efa5c26c35e34972e994df7e6ae073fc9d0b",
+      "applicable_flows": []
+    },
+    "hypotheses": [
+      {
+        "rank": 1,
+        "cause": "host scheduling pressure",
+        "prediction": "anomalous seconds overlap CPU PSI, context switches or available per-thread runqueue wait"
+      },
+      {
+        "rank": 2,
+        "cause": "network path stalls",
+        "prediction": "anomalous seconds overlap TCP retransmissions/timeouts, interface errors/drops or softnet time_squeeze"
+      },
+      {
+        "rank": 3,
+        "cause": "process-internal waiting",
+        "prediction": "host/network evidence is insufficient; test later with a separate bounded Go profile"
+      }
+    ],
+    "execution_scripts_sha256": {
+      "run_native_diag.py": "502e714b6ff67ad3f9abb4a8901042968b11018abb9a880d4f5b7e261d81ebc4",
+      "preflight_host.py": "edf7dc27036696baad2aceda7733fa6ce3baea4d2ca358f7651202d866144096",
+      "control_authorized.py": "c05763149b7dafe20af92e1c2c85a2ce0f2ed6a66aefa8444a38c8884038f148",
+      "reuse_bundle.py": "4b956b05c0de747c7a27d87f3cd36fa35ee473316d44149495d7ca12aeb16b5a"
+    },
+    "controller_source_revision": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+    "bundle": {
+      "source_revision": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+      "bundle_digest": "sha256:3d2350528d1ecb714b7a3d299b2d383b7a754b2bdee742feabe83c01e3bc18f8",
+      "archive_sha256": "0e571166ef364843a58381cec0124c873d0e4f088dba84c9dd1dea4be04427cb",
+      "reused_original_provenance": true,
+      "app_deployment_planned": false,
+      "control_and_dependency_files_match_preparation_source": true
+    }
+  },
+  "validation": {
+    "preparation-checks.json": {
+      "fixture_mutations_rejected": 15,
+      "valid_diagnostic_fixture": true,
+      "pure_gate_rejects_sampled_fixture": true,
+      "dry_run_launches_no_process": true,
+      "missing_exact_cleanup_guard_rejected": true,
+      "provider_contacted": false
+    },
+    "authorization-checks.json": {
+      "paid_marker_absence_rejected_before_repository_or_credential_access": true,
+      "optimized_python": {
+        "control_authorized.py": "refused optimized Python before any operation",
+        "run_native_diag.py": "refused optimized Python before any operation",
+        "reuse_bundle.py": "refused optimized Python before any operation"
+      },
+      "provider_contacted": false
+    },
+    "control-checks.json": {
+      "mock_only": true,
+      "provider_contacted": false,
+      "cases": {
+        "success": {
+          "exit": 0,
+          "operations": [
+            "preflight",
+            "start",
+            "workload",
+            "stop"
+          ],
+          "download_deleted": true
+        },
+        "start_failed_after_state": {
+          "exit": 1,
+          "operations": [
+            "preflight",
+            "start",
+            "stop"
+          ],
+          "download_deleted": true
+        },
+        "start_failed_before_state": {
+          "exit": 1,
+          "operations": [
+            "preflight",
+            "start"
+          ],
+          "download_deleted": true
+        },
+        "workload_failed": {
+          "exit": 1,
+          "operations": [
+            "preflight",
+            "start",
+            "workload",
+            "stop"
+          ],
+          "download_deleted": true
+        },
+        "release_failed": {
+          "exit": 1,
+          "operations": [
+            "preflight",
+            "start",
+            "workload",
+            "stop"
+          ],
+          "download_deleted": true
+        },
+        "selector_mismatch": {
+          "exit": 1,
+          "operations": [
+            "preflight",
+            "start",
+            "workload",
+            "stop"
+          ],
+          "download_deleted": true
+        },
+        "account_mismatch": {
+          "exit": 1,
+          "operations": [
+            "preflight",
+            "start",
+            "workload",
+            "stop"
+          ],
+          "download_deleted": true
+        }
+      }
+    },
+    "linux-container-preflight.json": {
+      "schema": "wkrpc-host-preflight/v1",
+      "host_id": "327cb9fe6872c1254f86ae8ea91b18c07edec6d9da9109dcefeb69b7c4257252",
+      "boot_id": "cce92e67539ce66c4339a89a9d47e8dfb389f77f0a032d4be3d4321c5a7bdc4c",
+      "kernel": "6.10.14-linuxkit",
+      "machine": "aarch64",
+      "cpu_model": "",
+      "memory_bytes": 8217968640,
+      "allowed_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "container_detected": true,
+      "tools": {
+        "python3": true,
+        "taskset": true,
+        "timeout": true,
+        "sha256sum": true
+      },
+      "schedstats_enabled": null,
+      "available_counters": [
+        "Tcp.InErrs",
+        "Tcp.InSegs",
+        "Tcp.OutRsts",
+        "Tcp.OutSegs",
+        "Tcp.RetransSegs",
+        "TcpExt.ListenDrops",
+        "TcpExt.ListenOverflows",
+        "TcpExt.TCPBacklogDrop",
+        "TcpExt.TCPLostRetransmit",
+        "TcpExt.TCPMemoryPressures",
+        "TcpExt.TCPRcvQDrop",
+        "TcpExt.TCPSynRetrans",
+        "TcpExt.TCPTimeouts",
+        "cpu.ctxt",
+        "cpu.idle",
+        "cpu.iowait",
+        "cpu.irq",
+        "cpu.nice",
+        "cpu.softirq",
+        "cpu.steal",
+        "cpu.system",
+        "cpu.user",
+        "interface.erspan0.rx_bytes",
+        "interface.erspan0.rx_dropped",
+        "interface.erspan0.rx_errors",
+        "interface.erspan0.rx_packets",
+        "interface.erspan0.tx_bytes",
+        "interface.erspan0.tx_dropped",
+        "interface.erspan0.tx_errors",
+        "interface.erspan0.tx_packets",
+        "interface.gre0.rx_bytes",
+        "interface.gre0.rx_dropped",
+        "interface.gre0.rx_errors",
+        "interface.gre0.rx_packets",
+        "interface.gre0.tx_bytes",
+        "interface.gre0.tx_dropped",
+        "interface.gre0.tx_errors",
+        "interface.gre0.tx_packets",
+        "interface.gretap0.rx_bytes",
+        "interface.gretap0.rx_dropped",
+        "interface.gretap0.rx_errors",
+        "interface.gretap0.rx_packets",
+        "interface.gretap0.tx_bytes",
+        "interface.gretap0.tx_dropped",
+        "interface.gretap0.tx_errors",
+        "interface.gretap0.tx_packets",
+        "interface.ip6_vti0.rx_bytes",
+        "interface.ip6_vti0.rx_dropped",
+        "interface.ip6_vti0.rx_errors",
+        "interface.ip6_vti0.rx_packets",
+        "interface.ip6_vti0.tx_bytes",
+        "interface.ip6_vti0.tx_dropped",
+        "interface.ip6_vti0.tx_errors",
+        "interface.ip6_vti0.tx_packets",
+        "interface.ip6gre0.rx_bytes",
+        "interface.ip6gre0.rx_dropped",
+        "interface.ip6gre0.rx_errors",
+        "interface.ip6gre0.rx_packets",
+        "interface.ip6gre0.tx_bytes",
+        "interface.ip6gre0.tx_dropped",
+        "interface.ip6gre0.tx_errors",
+        "interface.ip6gre0.tx_packets",
+        "interface.ip6tnl0.rx_bytes",
+        "interface.ip6tnl0.rx_dropped",
+        "interface.ip6tnl0.rx_errors",
+        "interface.ip6tnl0.rx_packets",
+        "interface.ip6tnl0.tx_bytes",
+        "interface.ip6tnl0.tx_dropped",
+        "interface.ip6tnl0.tx_errors",
+        "interface.ip6tnl0.tx_packets",
+        "interface.ip_vti0.rx_bytes",
+        "interface.ip_vti0.rx_dropped",
+        "interface.ip_vti0.rx_errors",
+        "interface.ip_vti0.rx_packets",
+        "interface.ip_vti0.tx_bytes",
+        "interface.ip_vti0.tx_dropped",
+        "interface.ip_vti0.tx_errors",
+        "interface.ip_vti0.tx_packets",
+        "interface.lo.rx_bytes",
+        "interface.lo.rx_dropped",
+        "interface.lo.rx_errors",
+        "interface.lo.rx_packets",
+        "interface.lo.tx_bytes",
+        "interface.lo.tx_dropped",
+        "interface.lo.tx_errors",
+        "interface.lo.tx_packets",
+        "interface.sit0.rx_bytes",
+        "interface.sit0.rx_dropped",
+        "interface.sit0.rx_errors",
+        "interface.sit0.rx_packets",
+        "interface.sit0.tx_bytes",
+        "interface.sit0.tx_dropped",
+        "interface.sit0.tx_errors",
+        "interface.sit0.tx_packets",
+        "interface.tunl0.rx_bytes",
+        "interface.tunl0.rx_dropped",
+        "interface.tunl0.rx_errors",
+        "interface.tunl0.rx_packets",
+        "interface.tunl0.tx_bytes",
+        "interface.tunl0.tx_dropped",
+        "interface.tunl0.tx_errors",
+        "interface.tunl0.tx_packets",
+        "process.majflt",
+        "process.minflt",
+        "process.stime_ticks",
+        "process.utime_ticks",
+        "psi.cpu.full_us",
+        "psi.cpu.some_us",
+        "psi.io.full_us",
+        "psi.io.some_us",
+        "psi.memory.full_us",
+        "psi.memory.some_us",
+        "softnet.0.dropped",
+        "softnet.0.processed",
+        "softnet.0.time_squeeze",
+        "softnet.1.dropped",
+        "softnet.1.processed",
+        "softnet.1.time_squeeze",
+        "softnet.2.dropped",
+        "softnet.2.processed",
+        "softnet.2.time_squeeze",
+        "softnet.3.dropped",
+        "softnet.3.processed",
+        "softnet.3.time_squeeze",
+        "softnet.4.dropped",
+        "softnet.4.processed",
+        "softnet.4.time_squeeze",
+        "softnet.5.dropped",
+        "softnet.5.processed",
+        "softnet.5.time_squeeze",
+        "softnet.6.dropped",
+        "softnet.6.processed",
+        "softnet.6.time_squeeze",
+        "softnet.7.dropped",
+        "softnet.7.processed",
+        "softnet.7.time_squeeze",
+        "softnet.8.dropped",
+        "softnet.8.processed",
+        "softnet.8.time_squeeze",
+        "softnet.9.dropped",
+        "softnet.9.processed",
+        "softnet.9.time_squeeze"
+      ],
+      "missing": {
+        "sched_enabled": "errno_2"
+      },
+      "ready": false,
+      "errors": [
+        "requires native Linux amd64; container smoke only",
+        "requires CPU affinity 0-3 and an 8-GiB-class host; verify cloud inventory separately"
+      ]
+    },
+    "bundle-reuse-check.json": {
+      "schema": "wkrpc-reused-offline-bundle/v1",
+      "source_sha": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+      "bundle_digest": "sha256:3d2350528d1ecb714b7a3d299b2d383b7a754b2bdee742feabe83c01e3bc18f8",
+      "archive_sha256": "0e571166ef364843a58381cec0124c873d0e4f088dba84c9dd1dea4be04427cb"
+    }
+  },
+  "sealed_bundle": {
+    "schema": "wukongim.cloud_deployment.bundle/v1",
+    "source_sha": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+    "control_sha": "ff37d6913164da65f852fe9af9047b497a1c9e89",
+    "intent_sha256": "sha256:24f18baa6060267aa4e23816e6f909074280677bc970b0c4a031a31a7fcabecf",
+    "bundle_digest": "sha256:3d2350528d1ecb714b7a3d299b2d383b7a754b2bdee742feabe83c01e3bc18f8"
+  },
+  "execution_scripts": {
+    "run_native_diag.py": {
+      "sha256": "502e714b6ff67ad3f9abb4a8901042968b11018abb9a880d4f5b7e261d81ebc4",
+      "text": "\"\"\"Six fixed sampled RPC windows on an ALREADY acquired exact temporary Lease.\n\nThis script cannot Quote/Acquire/Release. An authorized outer lifecycle controller\nmust release the exact Lease in finally, including when this script times out.\n\"\"\"\nimport argparse\nimport concurrent.futures\nimport datetime\nimport hashlib\nimport ipaddress\nimport json\nimport math\nimport os\nfrom pathlib import Path\nimport re\nimport shlex\nimport signal\nimport statistics\nimport subprocess\nimport sys\nimport time\nimport tempfile\n\nfrom analyze import identity as native_identity\nfrom correlate import correlate, load_samples\n\nif not __debug__:\n    raise SystemExit('optimized Python is prohibited: validation assertions are required')\n\nE = Path(__file__).resolve().parent\nR = Path(os.environ.get('WK_RPC_DIAGNOSTIC_REPO', '/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM'))\nPLAN = json.loads((E / 'plan.json').read_text())\nREMOTE = '/home/wkdeploy/rpc-host-diag'\n\n\ndef verify_inputs():\n    expected = dict(PLAN['tools_sha256'], **PLAN['execution_scripts_sha256'], **{'probe-linux-amd64': PLAN['probe']['binary_sha256']})\n    for name, digest in expected.items():\n        if hashlib.sha256((E / name).read_bytes()).hexdigest() != digest:\n            raise ValueError('frozen artifact mismatch: ' + name)\n\n\ndef validate_window(r):\n    assert r['Schema'] == 'wkrpc-process-probe/v1'\n    before, after = r['ServerBefore'], r['ServerAfter']\n    client, server = native_identity(r['Client']), native_identity(before['Host'])\n    assert server == native_identity(after['Host']) and client[0] != server[0] and client[4] == server[4]\n    assert before['Instance'] == after['Instance'] and before['Options'] == after['Options']\n    assert before['GC'] == after['GC'] == 100\n    for host in (r['Client'], before['Host'], after['Host']):\n        assert host['AllowedCPUs'] == '0-3'\n        assert host['BinarySHA256'] == PLAN['probe']['binary_sha256']\n        assert host['Source'] == PLAN['probe']['source_revision']\n    expected = {'Mode':'client', 'Duration':20_000_000_000, 'Warmup':10_000_000_000,\n                'TelemetryTail':2_000_000_000, 'Workers':16, 'Shards':1, 'Bytes':64,\n                'Samples':1_000_000, 'GC':400, 'Budgets':False, 'Read':False}\n    assert all(r['Options'][k] == v for k,v in expected.items())\n    limits = {'Concurrency':64, 'QueueSize':4096, 'MaxQueueBytes':64<<20, 'MaxRetainedBytes':128<<20,\n              'MaxPayload':65537, 'Timeout':30_000_000_000, 'QueueTimeout':5_000_000_000, 'CancelRunning':False}\n    assert all(before['Options'][k] == v for k,v in limits.items())\n    calls = r['Summary']['Calls']\n    assert r['Errors'] == 0 and r['SampleCapHit'] is False and calls > 0 and 20 <= r['ElapsedSeconds'] <= 22\n    assert math.isfinite(r['CallsPerSecond']) and math.isclose(r['CallsPerSecond'], calls/r['ElapsedSeconds'], rel_tol=1e-10)\n    assert math.isfinite(r['Summary']['P99MS']) and r['Summary']['P99MS'] > 0\n    assert all(type(v['Calls']) is int and v['Calls'] >= 0 and math.isfinite(v['P99MS']) and v['P99MS'] >= 0 for v in r['Seconds'])\n    assert len(r['Seconds']) == 20 and sum(v['Calls'] for v in r['Seconds']) == calls\n    assert len(r['WorkerCalls']) == 16 and sum(r['WorkerCalls']) == calls\n    assert all(0 < n < 1_000_000 for n in r['WorkerCalls']) and len(r['WarmupCalls']) == 16\n    assert all(n > 0 for n in r['WarmupCalls']) and after['EchoCalls'] - before['EchoCalls'] == calls\n    for a,b in ((r['ClientBefore'],r['ClientAfter']),(before['Stats'],after['Stats'])):\n        assert all(math.isfinite(b[k]) and math.isfinite(a[k]) and b[k] >= a[k] >= 0 for k in ('CPUSeconds','TotalAlloc','Mallocs','PauseNS','NumGC'))\n    return client, server, before['Instance']\n\n\ndef execute(request):\n    assert re.fullmatch(r'chat-\\d{8}T\\d{6}Z-[0-9a-f]{8}', request)\n    assert os.environ.get('WK_RPC_DIAGNOSTIC_RELEASE_GUARD') == request, 'exact outer cleanup controller required'\n    assert subprocess.check_output(['git','rev-parse','HEAD'],cwd=R,text=True).strip()==PLAN['controller_source_revision']\n    assert not subprocess.check_output(['git','status','--porcelain','--untracked-files=all'],cwd=R).strip()\n    directory = Path.home() / 'wukongim-leases/chat-lifecycle-direct' / request\n    state = json.loads((directory / 'state.json').read_text())\n    receipt = json.loads((directory / 'receipt.json').read_text())['receipt']\n    selector = json.loads((directory / 'release-selector.json').read_text())['selector']\n    assert state['state'] == receipt['state'] == 'active'\n    assert state['request_id'] == receipt['request_id'] == selector['request_id'] == request\n    assert receipt['lease_id'] == state['lease_id'] == selector['lease_id']\n    assert receipt['plan_digest'] == selector['plan_digest']\n    expires = datetime.datetime.fromisoformat(receipt['expires_at'].replace('Z', '+00:00'))\n    assert (expires - datetime.datetime.now(datetime.timezone.utc)).total_seconds() >= 1200\n    services = sorted(x['private_address'] for x in receipt['resources'] if x['kind']=='instance' and x['role']=='service')\n    public = [x['public_address'] for x in receipt['resources'] if x['kind']=='eip' and x['role']=='load']\n    assert len(services)==3 and len(set(services))==3 and len(public)==1\n    for address in services + public:\n        assert str(ipaddress.IPv4Address(address)) == address\n    client, server = services[:2]\n    result_dir = E / ('result-' + request)\n    result_dir.mkdir(mode=0o700)\n    config = directory / 'diagnostic-ssh-config'\n    assert not config.exists()\n    env = dict(os.environ, WK_CLOUD_LOAD_PUBLIC_IP=public[0], WK_CLOUD_SSH_KEY=str(directory/'deployment_ed25519'),\n               WK_CLOUD_SSH_CONFIG=str(config))\n    for i,host in enumerate(services,1): env['WK_CLOUD_SERVICE'+str(i)+'_IP']=host\n    subprocess.run([str(R/'scripts/cloud-deployment/write-ssh-config.sh')], env=env, check=True)\n    # macOS Unix-domain socket paths are short; evidence paths exceed the limit.\n    control = Path(tempfile.mkdtemp(prefix='wkrpc-diag-', dir='/tmp'))\n    config.write_text('Host *\\n  ControlMaster auto\\n  ControlPersist 30\\n  ControlPath '+str(control/'%C')+'\\n\\n'+config.read_text())\n    ssh, scp = ['ssh','-n','-F',str(config)], ['scp','-F',str(config)]\n    def command(args, timeout=60):\n        p = subprocess.run(args, capture_output=True, text=True, timeout=timeout)\n        if p.returncode:\n            raise RuntimeError('remote operation exit '+str(p.returncode))\n        return p.stdout\n    def remote(host, script, timeout=60): return command(ssh+[host,script],timeout)\n    def copy_from(host,name,local): command(scp+[host+':'+REMOTE+'/'+name,str(result_dir/local)],60)\n    def save(name,value): (result_dir/name).write_text(json.dumps(value,indent=2)+'\\n')\n    def token(pid):\n        code='import host_sample,json;print(json.dumps(host_sample.identity('+str(pid)+')))'\n        return json.loads(remote(server,'cd '+REMOTE+' && python3 -c '+shlex.quote(code)))\n    def stop(pid,expected):\n        # pidfd pins the process before rechecking its start/exec/namespace identity.\n        code=('import host_sample,os,signal,json,time; p='+str(pid)+'; expected='+repr(tuple(expected))+'; '\n              'fd=os.pidfd_open(p); assert host_sample.identity(p)==expected; '\n              'signal.pidfd_send_signal(fd,signal.SIGTERM); os.close(fd)')\n        remote(server,'cd '+REMOTE+' && python3 -c '+shlex.quote(code))\n    server_pid=collector_pid=None\n    server_token=collector_token=None\n    reports=[]; cleanup={}; failure=None\n    def stop_requested(*_):\n        raise KeyboardInterrupt('operator stop')\n    signal.signal(signal.SIGTERM,stop_requested)\n    signal.signal(signal.SIGINT,stop_requested)\n    try:\n        for host in services+['wukong-load']:\n            for attempt in range(18):\n                try: remote(host,'true',20);break\n                except Exception:\n                    if attempt==17: raise\n                    time.sleep(5)\n        def install(item):\n            role,host=item\n            remote(host,'sudo -n cloud-init status --wait',180)\n            remote(host,'mkdir -m 0700 '+REMOTE)\n            for name in ['probe-linux-amd64','host_sample.py','preflight_host.py']:\n                command(scp+[str(E/name),host+':'+REMOTE+'/'+name],120)\n                assert remote(host,'sha256sum '+REMOTE+'/'+name).split()[0] == hashlib.sha256((E/name).read_bytes()).hexdigest()\n            remote(host,'chmod 0700 '+REMOTE+'/probe-linux-amd64')\n            preflight=subprocess.run(ssh+[host,'cd '+REMOTE+' && python3 preflight_host.py'],capture_output=True,text=True,timeout=30)\n            (result_dir/('preflight-'+role+'.stderr')).write_text(preflight.stderr)\n            host_info=json.loads(preflight.stdout);save('preflight-'+role+'.json',host_info)\n            assert preflight.returncode==0 and host_info['ready']\n            return host_info\n        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:\n            a,b=list(pool.map(install,[('client',client),('server',server)]))\n        assert a['host_id'] != b['host_id'] and a['cpu_model'] == b['cpu_model']\n        remote(server,'sudo -n iptables -I INPUT 1 -p tcp --dport 7001 ! -s '+client+'/32 -j REJECT')\n        # Run a single shell exec chain so $! remains the probe PID.\n        start='cd '+REMOTE+'; nohup env -u GOMEMLIMIT -u GODEBUG GOMAXPROCS=4 taskset -c 0-3 ./probe-linux-amd64 -mode=server -addr='+server+':7001 -lifetime=480s >server.log 2>&1 < /dev/null & echo $!'\n        server_pid=int(remote(server,start).strip());assert server_pid>1\n        for attempt in range(30):\n            if 'RPC_PROBE_READY' in remote(server,'cat '+REMOTE+'/server.log'):break\n            if attempt==29:raise RuntimeError('server readiness deadline')\n            time.sleep(.5)\n        server_token=token(server_pid)\n        collector_pid=int(remote(server,'cd '+REMOTE+'; nohup python3 host_sample.py --pid '+str(server_pid)+\n            ' --duration 300 --output server-host.jsonl >server-sampler.log 2>&1 < /dev/null & echo $!').strip())\n        assert collector_pid>1;collector_token=token(collector_pid)\n        reference=None\n        for i in range(1,7):\n            name='window-'+str(i)\n            invoke=('cd '+REMOTE+' && timeout --kill-after=3s 50s env -u GOMEMLIMIT -u GODEBUG GOMAXPROCS=4 '+\n                'taskset -c 0-3 python3 host_sample.py --duration 45 --output '+name+'-host.jsonl -- '+\n                './probe-linux-amd64 -addr='+server+':7001 -telemetry-tail=2s >'+name+'.json 2>'+name+'.stderr')\n            p=subprocess.run(ssh+[client,invoke],capture_output=True,text=True,timeout=60)\n            for suffix in ('.json','.stderr','-host.jsonl'):\n                copy_from(client,name+suffix,name+suffix)\n            assert p.returncode==0, 'client window failed'\n            report=json.loads((result_dir/(name+'.json')).read_text())\n            fingerprint=validate_window(report)\n            if reference is None:reference=fingerprint\n            assert fingerprint==reference, 'identity changed between windows'\n            correlation=correlate(report,load_samples(result_dir/(name+'-host.jsonl')),'client')\n            save(name+'-client-correlated.json',correlation)\n            assert all(s['bracketed'] and s['regular_sampling'] for s in correlation['seconds']), 'missing client time coverage'\n            reports.append(report)\n            print(json.dumps({'window':i,'calls':report['Summary']['Calls'],'p99_ms':report['Summary']['P99MS'],\n                              'diagnostic_only':True,'client_issues':correlation['issues']}),flush=True)\n    except BaseException as exc:\n        failure=type(exc).__name__+': '+str(exc)\n    finally:\n        if server_pid and server_token:\n            try:stop(server_pid,server_token);cleanup['server_signal_sent']=True\n            except Exception as exc:cleanup['server_signal_error']=type(exc).__name__\n        if collector_pid:\n            # The attached sampler sees the server exit and writes a successful terminal record.\n            for attempt in range(40):\n                try:\n                    text=remote(server,'tail -c 1024 '+REMOTE+'/server-host.jsonl',10)\n                    if '\"kind\":\"end\"' in text:cleanup['collector_terminal_seen']=True;break\n                except Exception:pass\n                time.sleep(.1)\n            if not cleanup.get('collector_terminal_seen') and collector_token:\n                try:stop(collector_pid,collector_token)\n                except Exception as exc:cleanup['collector_stop_error']=type(exc).__name__\n        for name in ('server-host.jsonl','server.log','server-sampler.log'):\n            try:copy_from(server,name,name)\n            except Exception as exc:cleanup[name+'_copy_error']=type(exc).__name__\n        # Verify the exact server identity has gone, not just a successful signal call.\n        if server_pid:\n            try: token(server_pid);cleanup['server_still_active']=True\n            except Exception:cleanup['server_identity_no_longer_readable']=True\n            if cleanup.get('collector_terminal_seen'):\n                rows=load_samples(result_dir/'server-host.jsonl')\n                cleanup['server_exit_confirmed_by_sampler']=rows[-1]['outcome']=='target_exited'\n        for host in services+['wukong-load']:\n            try:subprocess.run(ssh+['-O','exit',host],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=10)\n            except Exception:pass\n        try:control.rmdir();cleanup['ssh_control_directory_removed']=True\n        except OSError:cleanup['ssh_control_directory_remaining']=str(control)\n        save('process-cleanup.json',cleanup)\n    summary={'schema':'wkrpc-native-host-diagnostic-result/v1','diagnostic_only':True,\n             'performance_qualification':False,'windows_completed':len(reports),'failure':failure,'cleanup':cleanup,\n             'root_cause':'not_assessed; inspect time-aligned intervals'}\n    if len(reports)==6 and not failure:\n        rows=load_samples(result_dir/'server-host.jsonl')\n        for i,r in enumerate(reports,1):\n            c=correlate(r,rows,'server');save('window-'+str(i)+'-server-correlated.json',c)\n            if not all(s['bracketed'] and s['regular_sampling'] for s in c['seconds']):\n                summary['failure']='missing server time coverage'\n        summary['calls']=sum(r['Summary']['Calls'] for r in reports)\n        for key,values in [('throughput',[r['CallsPerSecond'] for r in reports]),('p99_ms',[r['Summary']['P99MS'] for r in reports])]:\n            summary[key]={'values':values,'spread_percent':(max(values)-min(values))/statistics.median(values)*100}\n    save('diagnostic-summary.json',summary)\n    print('Diagnostic finished; outer controller must now release the exact Lease',flush=True)\n    return 1 if summary['failure'] or not cleanup.get('server_exit_confirmed_by_sampler') else 0\n\n\ndef main():\n    os.umask(0o077)\n    parser=argparse.ArgumentParser(description=__doc__)\n    parser.add_argument('--dry-run',action='store_true')\n    parser.add_argument('--request')\n    args=parser.parse_args()\n    verify_inputs()\n    if args.dry_run:\n        print(json.dumps({'provider_contacted':False,'ssh_contacted':False,'inputs_verified':True,'plan':PLAN},indent=2))\n        return 0\n    if not args.request:parser.error('--request is required for an existing active Lease')\n    return execute(args.request)\n\n\nif __name__=='__main__':\n    sys.exit(main())\n"
+    },
+    "preflight_host.py": {
+      "sha256": "edf7dc27036696baad2aceda7733fa6ce3baea4d2ca358f7651202d866144096",
+      "text": "\"\"\"Read-only host capability inventory before a diagnostic workload.\"\"\"\nimport json\nimport os\nfrom pathlib import Path\nimport shutil\nimport signal\nimport sys\n\nfrom host_sample import identity, metadata, read, snapshot\n\n\ndef main():\n    token = identity(os.getpid())\n    meta = metadata(os.getpid(), token)\n    signals = snapshot(os.getpid(), token)\n    cpu = read('/proc/cpuinfo').decode()\n    model = next((line.split(':', 1)[1].strip() for line in cpu.splitlines()\n                  if line.startswith('model name')), '')\n    memory = next(int(line.split()[1]) * 1024 for line in read('/proc/meminfo').decode().splitlines()\n                  if line.startswith('MemTotal:'))\n    cgroup = read('/proc/1/cgroup').decode()\n    container = any(Path(p).exists() for p in ('/.dockerenv', '/run/.containerenv')) or any(\n        word in cgroup for word in ('docker', 'kubepods', 'containerd', 'libpod'))\n    tools = {name: shutil.which(name) is not None for name in ('python3', 'taskset', 'timeout', 'sha256sum')}\n    report = {'schema': 'wkrpc-host-preflight/v1', 'host_id': meta['HostID'], 'boot_id': meta['BootID'],\n              'kernel': os.uname().release, 'machine': os.uname().machine,\n              'cpu_model': model, 'memory_bytes': memory, 'allowed_cpus': sorted(os.sched_getaffinity(0)),\n              'container_detected': container, 'tools': tools,\n              'schedstats_enabled': signals['gauges']['schedstats_enabled'],\n              'available_counters': sorted(signals['counters']), 'missing': signals['missing']}\n    errors = []\n    if sys.platform != 'linux' or os.uname().machine != 'x86_64' or container:\n        errors.append('requires native Linux amd64; container smoke only')\n    if not model or not set(range(4)).issubset(os.sched_getaffinity(0)) or memory < 7 * 1024**3:\n        errors.append('requires CPU affinity 0-3 and an 8-GiB-class host; verify cloud inventory separately')\n    if not all(tools.values()):\n        errors.append('missing required host tool')\n    if any(k not in signals['counters'] for k in ('cpu.user', 'cpu.steal', 'Tcp.OutSegs', 'Tcp.RetransSegs')):\n        errors.append('missing required CPU/TCP counters')\n    if not hasattr(os, 'pidfd_open') or not hasattr(signal, 'pidfd_send_signal'):\n        errors.append('pidfd process cleanup unavailable')\n    report.update(ready=not errors, errors=errors)\n    print(json.dumps(report, indent=2))\n    return 0 if not errors else 1\n\n\nif __name__ == '__main__':\n    sys.exit(main())\n"
+    },
+    "control_authorized.py": {
+      "sha256": "c05763149b7dafe20af92e1c2c85a2ce0f2ed6a66aefa8444a38c8884038f148",
+      "text": "\"\"\"One explicitly authorized native diagnostic Lease, always released in finally.\n\nPrepare a clean checkout of the frozen controller source before invoking. The\npaid marker is set ONLY after the user explicitly authorizes this new purchase.\nCredentials are imported once from a verified short-lived browser handoff and\nremoved from disk before any provider call. No credential values are logged.\n\"\"\"\nimport argparse\nimport datetime\nimport hashlib\nimport json\nimport os\nfrom pathlib import Path\nimport re\nimport signal\nimport subprocess\nimport sys\n\nif not __debug__:\n    raise SystemExit('optimized Python is prohibited: validation assertions are required')\n\nE=Path(__file__).resolve().parent\nNOW=lambda:datetime.datetime.now(datetime.timezone.utc)\n\n\ndef main():\n    os.umask(0o077)\n    p=argparse.ArgumentParser(description=__doc__)\n    p.add_argument('--repo',type=Path,required=True)\n    p.add_argument('--request',required=True)\n    p.add_argument('--session-file',type=Path,required=True)\n    a=p.parse_args()\n    assert os.environ.get('WK_RPC_DIAGNOSTIC_PAID_AUTHORIZATION')=='one-native-diagnostic-lease-under-300-cny'\n    assert re.fullmatch(r'chat-\\d{8}T\\d{6}Z-[0-9a-f]{8}',a.request)\n    plan=json.loads((E/'plan.json').read_text())\n    assert subprocess.check_output(['git','rev-parse','HEAD'],cwd=a.repo,text=True).strip()==plan['controller_source_revision']\n    assert not subprocess.check_output(['git','status','--porcelain','--untracked-files=all'],cwd=a.repo).strip()\n    for name,digest in plan['execution_scripts_sha256'].items():\n        assert hashlib.sha256((E/name).read_bytes()).hexdigest()==digest\n    state_root=Path.home()/'wukongim-leases/chat-lifecycle-direct'\n    request_dir=state_root/a.request\n    assert not request_dir.exists(), 'request already exists; inspect it, never retry Acquire blindly'\n    for old in state_root.glob('*/state.json'):\n        old_state=json.loads(old.read_text());assert old_state['state']=='released'\n        proof=json.loads(old.with_name('zero-inventory.json').read_text())\n        if proof['schema']=='wukongim.cloud_lease.release/v1':\n            zero=proof['result']['zero_inventory']\n            selector=json.loads(old.with_name('release-selector.json').read_text())['selector']\n            assert zero['selector']==selector and zero['account_id_hash'] and zero['observed_at'] and zero['scopes']\n        else:\n            assert proof['schema']=='wukongim.chat_lifecycle.direct_lab_not_acquired/v1'\n            assert proof['acquire_invoked'] is False and proof['residual_resources']==0\n    assert a.session_file.is_file() and not a.session_file.is_symlink()\n    a.session_file.chmod(0o600)\n    secret=json.loads(a.session_file.read_text())\n    proof={k:secret['proof'][k] for k in ('unregistered','one_hour_shell_notice_verified','verified_at')}\n    assert proof['unregistered'] is True and proof['one_hour_shell_notice_verified'] is True\n    age=(NOW()-datetime.datetime.fromisoformat(proof['verified_at'])).total_seconds()\n    assert 0 <= age < 300, 'fresh verified credential required to reserve cleanup time'\n    a.session_file.unlink()\n    env=dict(os.environ, ALIBABA_CLOUD_ACCESS_KEY_ID=secret['access_key_id'],\n             ALIBABA_CLOUD_ACCESS_KEY_SECRET=secret['access_key_secret'],\n             WK_ALIBABA_CLOUD_SHELL_EPHEMERAL_AUTHORIZATION='unregistered-one-hour-cloud-shell',\n             WK_ALIBABA_LIFECYCLE_MUTATION_AUTHORIZATION='create-and-delete-paid-cloud-lease',\n             WK_CHAT_LAB_PAID_AUTHORIZATION='create-paid-cloud-lease',\n             WK_CHAT_LAB_BUNDLE_BUILDER=str(E/'reuse_bundle.py'),GOWORK='off',GOTOOLCHAIN='go1.25.11')\n    if secret.get('security_token'):env['ALIBABA_CLOUD_SECURITY_TOKEN']=secret['security_token']\n    secret.clear()\n    output=E/('control-'+a.request);output.mkdir(mode=0o700)\n    (output/'credential-proof.json').write_text(json.dumps(dict(proof,download_deleted=True,imported_at=NOW().isoformat()),indent=2)+'\\n')\n    clean={k:v for k,v in env.items() if not k.startswith(('ALIBABA_','ALIYUN_','WK_ALIBABA_','WK_CHAT_LAB_','WK_RPC_DIAGNOSTIC_PAID_'))}\n    clean.update(WK_RPC_DIAGNOSTIC_RELEASE_GUARD=a.request,WK_RPC_DIAGNOSTIC_REPO=str(a.repo),PYTHONDONTWRITEBYTECODE='1')\n    status={'request':a.request,'started_at':NOW().isoformat(),'diagnostic_only':True}\n    def call(command,name,timeout,childenv):\n        with (output/name).open('w') as log:\n            process=subprocess.Popen(command,cwd=a.repo,env=childenv,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)\n            try:return process.wait(timeout=timeout)\n            except BaseException:\n                try:os.killpg(process.pid,signal.SIGTERM)\n                except ProcessLookupError:pass\n                try:process.wait(timeout=10)\n                except subprocess.TimeoutExpired:\n                    os.killpg(process.pid,signal.SIGKILL);process.wait(timeout=5)\n                raise\n    def stop_requested(*_):\n        raise KeyboardInterrupt('operator stop')\n    signal.signal(signal.SIGTERM,stop_requested)\n    signal.signal(signal.SIGINT,stop_requested)\n    try:\n        assert call(['scripts/chat-lifecycle/direct-lab.sh','preflight'],'preflight.log',30,env)==0\n        status['start_exit']=call(['scripts/chat-lifecycle/direct-lab.sh','start',a.request,'--duration','60m','--budget-cny','300'],\n                                  'start.log',900,env)\n        assert status['start_exit']==0,'start failed'\n        status['test_exit']=call(['python3','-u',str(E/'run_native_diag.py'),'--request',a.request],'diagnostic.log',900,clean)\n    except BaseException as exc:\n        status['failure']=type(exc).__name__+': '+str(exc)\n    finally:\n        # Complete exact cleanup even if the operator repeats the stop signal.\n        signal.signal(signal.SIGTERM,signal.SIG_IGN)\n        signal.signal(signal.SIGINT,signal.SIG_IGN)\n        if (request_dir/'state.json').exists():\n            try:\n                status['release_exit']=call(['scripts/chat-lifecycle/direct-lab.sh','stop',a.request],'release.log',900,env)\n                zero=json.loads((request_dir/'zero-inventory.json').read_text())\n                if zero['schema']=='wukongim.cloud_lease.release/v1':\n                    selector=json.loads((request_dir/'release-selector.json').read_text())['selector']\n                    z=zero['result']['zero_inventory']\n                    assert z['selector']==selector and z['account_id_hash'] and z['observed_at'] and z['scopes']\n                    if (request_dir/'receipt.json').exists():\n                        receipt=json.loads((request_dir/'receipt.json').read_text()).get('receipt',{})\n                        if receipt.get('account_id_hash'):assert z['account_id_hash']==receipt['account_id_hash']\n                    status['authenticated_zero_inventory']=True\n                else:\n                    assert zero['schema']=='wukongim.chat_lifecycle.direct_lab_not_acquired/v1'\n                    assert zero['acquire_invoked'] is False and zero['residual_resources']==0\n                    status['not_acquired']=True\n                (output/'zero-inventory.json').write_text(json.dumps(zero,indent=2)+'\\n')\n            except BaseException as exc:status['release_failure']=type(exc).__name__+': '+str(exc)\n        else:status['not_acquired']=True\n        status['finished_at']=NOW().isoformat()\n        (output/'status.json').write_text(json.dumps(status,indent=2)+'\\n')\n        env.clear()\n    print(json.dumps(status))\n    return 0 if status.get('test_exit')==0 and status.get('authenticated_zero_inventory') else 1\n\n\nif __name__=='__main__':sys.exit(main())\n"
+    },
+    "reuse_bundle.py": {
+      "sha256": "4b956b05c0de747c7a27d87f3cd36fa35ee473316d44149495d7ca12aeb16b5a",
+      "text": "#!/usr/bin/env python3\n\"\"\"Copy an independently verified immutable bundle with unchanged provenance.\"\"\"\nimport argparse\nimport hashlib\nimport json\nfrom pathlib import Path\nimport shutil\n\nif not __debug__:\n    raise SystemExit('optimized Python is prohibited: validation assertions are required')\n\nE=Path(__file__).resolve().parent\np=argparse.ArgumentParser(description=__doc__)\np.add_argument('--source-sha',required=True)\np.add_argument('--output-dir',required=True,type=Path)\na=p.parse_args()\nplan=json.loads((E/'plan.json').read_text())\nassert a.source_sha==plan['controller_source_revision']==plan['bundle']['source_revision']\nassert a.output_dir.is_absolute() and a.output_dir!=Path('/') and not a.output_dir.is_symlink()\nsource=E/'bundle'\nh=hashlib.sha256()\nwith (source/'cloud-deployment-bundle.tar.gz').open('rb') as stream:\n    for chunk in iter(lambda:stream.read(1024*1024),b''):h.update(chunk)\nassert h.hexdigest()==plan['bundle']['archive_sha256']\nm=json.loads((source/'bundle-manifest-output.json').read_text())\nassert m['source_sha']==m['control_sha']==a.source_sha and m['bundle_digest']==plan['bundle']['bundle_digest']\na.output_dir.mkdir(mode=0o700,parents=True,exist_ok=True)\nfor name in ['cloud-deployment-bundle.tar.gz','cloud-deployment-bundle.tar.gz.sha256','bundle-manifest-output.json']:\n    with (a.output_dir/name).open('xb') as target, (source/name).open('rb') as origin:\n        shutil.copyfileobj(origin,target)\n    (a.output_dir/name).chmod(0o600)\nprint(json.dumps({'schema':'wkrpc-reused-offline-bundle/v1','source_sha':a.source_sha,\n                  'bundle_digest':m['bundle_digest'],'archive_sha256':h.hexdigest()}))\n"
+    },
+    "check_preparation.py": {
+      "sha256": "cf1bc8d27ac8155a4f2bd8bda653a3b5411de02046d079021eede1640f6e4fd6",
+      "text": "\"\"\"Fast static/fixture checks; never launches SSH or contacts a provider.\"\"\"\nimport ast\nimport copy\nimport hashlib\nimport importlib.util\nimport json\nfrom pathlib import Path\nimport sys\nfrom unittest.mock import patch\n\nE=Path(__file__).resolve().parent\nsys.path.insert(0,str(E))\nR=Path('/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM')\nspec=importlib.util.spec_from_file_location('fixtures',R/'scripts/transport-perf/test_analyze.py')\nfixtures=importlib.util.module_from_spec(spec);spec.loader.exec_module(fixtures)\nimport run_native_diag as runner\n\nfor path in [E/'run_native_diag.py',E/'preflight_host.py']:\n    ast.parse(path.read_text(),filename=path.name)\nrunner.verify_inputs()\nrow=fixtures.fixtures()[0]\nrow['Options']['TelemetryTail']=2_000_000_000\nfor h in (row['Client'],row['ServerBefore']['Host'],row['ServerAfter']['Host']):\n    h.update(Source=runner.PLAN['probe']['source_revision'],BinarySHA256=runner.PLAN['probe']['binary_sha256'])\nreference=runner.validate_window(row)\nmutations=[lambda r:r['Client'].update(Container=True),lambda r:r['Client'].update(Arch='arm64'),\n           lambda r:r['Options'].update(TelemetryTail=0),lambda r:r['Options'].update(Workers=8),\n           lambda r:r.update(Errors=1),lambda r:r.update(SampleCapHit=True),\n           lambda r:r.update(CallsPerSecond=float('nan')),lambda r:r['Summary'].update(P99MS=float('inf')),\n           lambda r:r.update(WorkerCalls=[1]*16),lambda r:r['ServerAfter'].update(EchoCalls=320001),\n           lambda r:r['ServerAfter'].update(Instance='restarted'),lambda r:r['Client'].update(Source='c'*40),\n           lambda r:r['Client'].update(BinarySHA256='a'*64),lambda r:r['Client'].update(AllowedCPUs='4-7'),\n           lambda r:r['ServerBefore']['Host'].update(HostID='client')]\nfor mutation in mutations:\n    invalid=copy.deepcopy(row);mutation(invalid)\n    try:runner.validate_window(invalid)\n    except (AssertionError,ValueError):pass\n    else:raise AssertionError('invalid diagnostic accepted')\nassert fixtures.analyze([copy.deepcopy(row) for _ in range(6)])['status']=='invalid'\n# Dry-run must not launch a process, even when all frozen inputs are present.\nwith patch.object(sys,'argv',['run_native_diag.py','--dry-run']),patch.object(runner.subprocess,'run',side_effect=AssertionError('process launched')):\n    with patch('builtins.print'):\n        assert runner.main()==0\n# No active Lease/readiness state is read before exact outer-controller scope is given.\nwith patch.dict(runner.os.environ,{},clear=True):\n    try:runner.execute('chat-20990101T000000Z-12345678')\n    except AssertionError as e:assert 'cleanup controller' in str(e)\n    else:raise AssertionError('missing cleanup guard accepted')\nprint(json.dumps({'fixture_mutations_rejected':len(mutations),'valid_diagnostic_fixture':True,\n                  'pure_gate_rejects_sampled_fixture':True,'dry_run_launches_no_process':True,\n                  'missing_exact_cleanup_guard_rejected':True,'provider_contacted':False}))\n"
+    },
+    "check_control.py": {
+      "sha256": "d1e76c6753725d3557c28fb07768026da4cab2f8f7ca5db9636c2b236caba7e4",
+      "text": "\"\"\"Mock lifecycle checks: no subprocess, cloud API, credential or live Lease.\"\"\"\nimport contextlib\nimport datetime\nimport importlib.util\nimport io\nimport json\nimport os\nfrom pathlib import Path\nimport shutil\nimport sys\nimport tempfile\nfrom unittest.mock import patch\n\nE=Path(__file__).resolve().parent\nspec=importlib.util.spec_from_file_location('control',E/'control_authorized.py')\ncontrol=importlib.util.module_from_spec(spec);spec.loader.exec_module(control)\nplan=json.loads((E/'plan.json').read_text())\nresults={}\nfor index,case in enumerate(['success','start_failed_after_state','start_failed_before_state','workload_failed','release_failed','selector_mismatch','account_mismatch']):\n    with tempfile.TemporaryDirectory() as temporary:\n        root=Path(temporary);artifacts=root/'artifacts';artifacts.mkdir()\n        (artifacts/'plan.json').write_text(json.dumps(plan))\n        for name in plan['execution_scripts_sha256']:shutil.copyfile(E/name,artifacts/name)\n        request='chat-20990101T000000Z-'+format(index,'08x')\n        request_dir=root/'wukongim-leases/chat-lifecycle-direct'/request\n        session=root/'fake-session.json'\n        session.write_text(json.dumps({'access_key_id':'TEST_NOT_A_CREDENTIAL','access_key_secret':'TEST_NOT_A_CREDENTIAL',\n                                      'proof':{'unregistered':True,'one_hour_shell_notice_verified':True,\n                                               'verified_at':datetime.datetime.now(datetime.timezone.utc).isoformat()}}))\n        operations=[]\n        class Process:\n            pid=999999\n            def __init__(self,args,**kwargs):\n                self.rc=0\n                assert kwargs['start_new_session'] is True\n                if args[0]=='scripts/chat-lifecycle/direct-lab.sh':\n                    operation=args[1];operations.append(operation)\n                    if operation=='start':\n                        if case=='start_failed_before_state':self.rc=1;return\n                        request_dir.mkdir(parents=True)\n                        (request_dir/'state.json').write_text(json.dumps({'state':'active','request_id':request}))\n                        (request_dir/'release-selector.json').write_text(json.dumps({'selector':{'request_id':request}}))\n                        (request_dir/'receipt.json').write_text(json.dumps({'receipt':{'account_id_hash':'sha256:'+64*'a'}}))\n                        if case=='start_failed_after_state':self.rc=1\n                    elif operation=='stop':\n                        if case=='release_failed':self.rc=1;return\n                        proof={'schema':'wukongim.cloud_lease.release/v1','result':{'zero_inventory':{\n                            'selector':{'request_id':request if case!='selector_mismatch' else 'wrong'},\n                            'account_id_hash':'sha256:'+64*('b' if case=='account_mismatch' else 'a'),\n                            'observed_at':'2099-01-01T00:01:00Z','scopes':['instances']}}}\n                        (request_dir/'zero-inventory.json').write_text(json.dumps(proof))\n                else:\n                    operations.append('workload')\n                    assert not any(k.startswith(('ALIBABA_','ALIYUN_','WK_ALIBABA_','WK_CHAT_LAB_')) for k in kwargs['env'])\n                    assert kwargs['env']['WK_RPC_DIAGNOSTIC_RELEASE_GUARD']==request\n                    if case=='workload_failed':self.rc=1\n            def wait(self,**_):return self.rc\n        def check_output(args,**kwargs):\n            return plan['controller_source_revision']+'\\n' if args[1]=='rev-parse' else b''\n        with patch.object(control,'E',artifacts),patch.object(Path,'home',return_value=root), \\\n             patch.dict(os.environ,{'WK_RPC_DIAGNOSTIC_PAID_AUTHORIZATION':'one-native-diagnostic-lease-under-300-cny'}), \\\n             patch.object(sys,'argv',['control_authorized.py','--repo','/synthetic','--request',request,'--session-file',str(session)]), \\\n             patch.object(control.subprocess,'Popen',Process),patch.object(control.subprocess,'check_output',side_effect=check_output), \\\n             patch.object(control.signal,'signal'),contextlib.redirect_stdout(io.StringIO()):\n            rc=control.main()\n        assert not session.exists()\n        status=json.loads((artifacts/('control-'+request)/'status.json').read_text())\n        if case=='start_failed_before_state':\n            assert operations==['preflight','start'] and status['not_acquired'] is True and rc==1\n        else:\n            assert operations[-1]=='stop' and operations.count('stop')==1\n            assert rc==(0 if case=='success' else 1)\n        if case in ('release_failed','selector_mismatch','account_mismatch'):\n            assert not status.get('authenticated_zero_inventory') and status.get('release_failure')\n        elif case!='start_failed_before_state':\n            assert status['authenticated_zero_inventory'] is True\n        results[case]={'exit':rc,'operations':operations,'download_deleted':True}\n(E/'control-checks.json').write_text(json.dumps({'mock_only':True,'provider_contacted':False,'cases':results},indent=2)+'\\n')\nprint('7 mocked lifecycle cases passed, including exact cleanup on workload failure and rejection of invalid release proofs.')\n"
+    }
+  },
+  "limitations": [
+    "No new SSH target or current quote; no native diagnostic window executed.",
+    "Remote orchestration is prepared and locally checked, not cloud-validated.",
+    "Seven controller cases use mocked subprocesses and synthetic credentials only.",
+    "New bundle build failed on GitHub Release asset TLS download; verified original-provenance cached bundle is reused.",
+    "No paid approval marker or real cloud credential is set by these checks."
+  ]
+}
