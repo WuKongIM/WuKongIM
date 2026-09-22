@@ -209,8 +209,10 @@ Bounds are fixed: 1 Hz, 1–900 seconds, at most 901 snapshots, 256 threads,
 1024 softnet CPU rows, 64 interfaces, 256 KiB per proc read/JSON record, 32 MiB
 output and a 256 MiB streaming executable-hash limit. Hitting a bound fails the
 capture and retains terminal evidence when writable. Late sampling skips slots
-instead of launching catch-up bursts. Read span, lateness, per-sample CPU, total
-sidecar CPU, peak RSS and output size make observation cost visible. Measure that
+instead of launching catch-up bursts. Read span, lateness, per-sample CPU,
+capture-interval sidecar CPU, peak RSS and output size make observation cost
+visible. CPU accounting includes hashing and capture work but excludes Python
+interpreter/import startup and final exit. Measure that
 cost again on native hosts before interpreting a diagnostic run; local container
 smoke does not establish production overhead.
 
