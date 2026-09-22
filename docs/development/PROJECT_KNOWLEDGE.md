@@ -373,6 +373,15 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
+- The 2026-09-22 inbound-parent experiment removed duplicate connection-context
+  registration while preserving the explicit request table and close cancellation.
+  Isolated tracking saved 30–42 ns with unchanged allocations, but the 64 B mutation
+  network fixture changed median throughput by −0.06%, with mixed paired results
+  and A/A changes of +0.34%/−2.36%. The candidate was reverted; connection tracking
+  was only about 0.03% of sampled mutex delay. This is not recovery of the original
+  throughput regression. The fixture had one caller per connection; higher shared
+  connection concurrency remains unverified. See
+  [inbound-parent evidence](../reports/2026-09-22-rpc-inbound-parent.md).
 - The 2026-09-22 read-execution context experiment removed one redundant child
   context when CancelRunning and an execution timeout are enabled. The local
   Linux ARM64 lifecycle fixture saved 464 B and five allocations per read; the
