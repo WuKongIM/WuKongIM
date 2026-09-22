@@ -328,6 +328,8 @@ specification, runbook, report, or module documentation; link to them when neede
   shutdown drains admitted terminal states. Reuse state cells and delivery
   buffers so metrics do not allocate on every RPC state transition. State and
   bounded-label counters publish every 10 ms; shutdown drains admitted work.
+  Versioned notifications may arrive out of order because callbacks run outside
+  source locks; tests must compare physical state revisions, not arrival order.
   Transport duration histograms sample one in 32 observations independently of
   flush timing; call/admission/byte counters remain unsampled within the bounded
   key catalog. Observer overflow is reported separately from intentional sampling.
@@ -355,7 +357,9 @@ specification, runbook, report, or module documentation; link to them when neede
   cleanup and any racing expiry callback finish. Do not pool/recycle this owner
   merely because dequeue stopped its watcher: an already-started callback may
   still hold it. Co-allocation removes one object; it does not remove queue
-  cancellation, FIFO, executor bounds, or retained-byte accounting.
+  cancellation, FIFO, executor bounds, or retained-byte accounting. Queue
+  cancellation callbacks capture only this owner; its service and original
+  request context must remain immutable while callbacks can still run.
 - Internal service `RespondBorrowed` callbacks may use handler response bytes only
   until the callback returns. The server synchronously encodes them into an owned
   wire buffer before request release; asynchronous `Reply` delivery still copies.
@@ -365,6 +369,13 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
+- The 2026-09-22 cancellation-watcher experiment rejected detachment outside the
+  queue lock (four paired throughput declines). Capturing only the existing owner
+  saved 32 B per registered callback on Go 1.25.11 Linux ARM64, without removing
+  an allocation. RPC throughput remained mixed; initial large-payload declines
+  did not repeat consistently in a second batch. This is an allocation-byte
+  improvement, not recovery of the original throughput regression. See
+  [cancellation-watcher evidence](../reports/2026-09-22-rpc-cancel-watcher-local.md).
 - Moving RPC queue-owner allocation ahead of admission was rejected in the
   2026-09-22 local experiment: successful-call throughput changed only +0.30%,
   within same-binary variation, while busy/canceled/stopped admission added

@@ -26,7 +26,8 @@ type requestEntry struct {
 func (e *requestEntry) watchQueue(s *Service) {
 	ctx := e.req.Context
 	if ctx != s.ctx && ctx.Done() != nil {
-		e.stopExpiry = context.AfterFunc(ctx, func() { s.expire(e, requestError(ctx.Err())) })
+		// The owner retains the original context and service until callbacks finish.
+		e.stopExpiry = context.AfterFunc(ctx, func() { e.service.expire(e, requestError(e.req.Context.Err())) })
 	}
 }
 

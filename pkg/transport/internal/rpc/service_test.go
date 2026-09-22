@@ -85,15 +85,20 @@ func TestServiceObservesQueueAdmissionInflightAndTask(t *testing.T) {
 			queueEvents = append(queueEvents, event)
 		}
 	}
-	if len(queueEvents) < 2 {
+	if len(queueEvents) != 2 {
 		t.Fatalf("service_queue event count = %d, want enqueue and dequeue", len(queueEvents))
 	}
-	firstQueue, lastQueue := queueEvents[0], queueEvents[len(queueEvents)-1]
-	if firstQueue.Revision == 0 || lastQueue.Revision <= firstQueue.Revision {
-		t.Fatalf("service_queue revisions = %d..%d, want positive physical order", firstQueue.Revision, lastQueue.Revision)
+	// Notifications run outside the queue lock and may arrive in either order.
+	// Identify the physical transitions by state before checking their revisions.
+	enqueued, dequeued := queueEvents[0], queueEvents[1]
+	if enqueued.Items == 0 {
+		enqueued, dequeued = dequeued, enqueued
 	}
-	if lastQueue.Items != 0 {
-		t.Fatalf("last service_queue items = %d, want drained zero", lastQueue.Items)
+	if enqueued.Items != 1 || enqueued.Bytes != 4 || dequeued.Items != 0 || dequeued.Bytes != 0 {
+		t.Fatalf("service_queue states = %+v, want one queued payload then drained zero", queueEvents)
+	}
+	if enqueued.Revision == 0 || dequeued.Revision <= enqueued.Revision {
+		t.Fatalf("service_queue revisions = %d..%d, want positive physical order", enqueued.Revision, dequeued.Revision)
 	}
 
 	inflightStarted := findInflight(events, 42, 1)
