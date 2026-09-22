@@ -17,8 +17,6 @@ type requestEntry struct {
 	prev, next *requestEntry
 	queued     bool
 	enqueuedAt time.Time
-	// queueTimer is needed only when the queue deadline precedes the caller's.
-	queueTimer *time.Timer
 	// stopExpiry detaches cancellation from the original request context.
 	stopExpiry func() bool
 }
@@ -30,20 +28,11 @@ func (e *requestEntry) watchQueue(s *Service) {
 	if ctx != s.ctx && ctx.Done() != nil {
 		e.stopExpiry = context.AfterFunc(ctx, func() { s.expire(e, requestError(ctx.Err())) })
 	}
-	if s.opts.QueueTimeout > 0 {
-		deadline := e.enqueuedAt.Add(s.opts.QueueTimeout)
-		if callerDeadline, ok := ctx.Deadline(); !ok || deadline.Before(callerDeadline) {
-			e.queueTimer = time.AfterFunc(time.Until(deadline), func() { s.expire(e, core.ErrTimeout) })
-		}
-	}
 }
 
 func (e *requestEntry) stopQueueWatch() {
 	if e.stopExpiry != nil {
 		e.stopExpiry()
-	}
-	if e.queueTimer != nil {
-		e.queueTimer.Stop()
 	}
 }
 
@@ -58,9 +47,13 @@ func (s *Service) appendLocked(e *requestEntry) {
 	s.queuedItems++
 	s.queuedBytes += e.req.retainedBytes
 	s.queueRevision = core.NextStateRevision()
+	if s.head == e {
+		s.armQueueTimerLocked()
+	}
 }
 
 func (s *Service) unlinkLocked(e *requestEntry) {
+	wasHead := s.head == e
 	if e.prev != nil {
 		e.prev.next = e.next
 	} else {
@@ -77,6 +70,51 @@ func (s *Service) unlinkLocked(e *requestEntry) {
 	s.queuedItems--
 	s.queuedBytes -= e.req.retainedBytes
 	s.queueRevision = core.NextStateRevision()
+	if wasHead {
+		s.armQueueTimerLocked()
+	}
+}
+
+// armQueueTimerLocked follows FIFO admission order: one fixed queue timeout
+// makes the head's deadline no later than any following entry's queue deadline.
+// An earlier caller deadline already has its own cancellation watcher.
+func (s *Service) armQueueTimerLocked() {
+	e := s.head
+	if !s.stopped && e != nil && s.opts.QueueTimeout > 0 {
+		deadline := e.enqueuedAt.Add(s.opts.QueueTimeout)
+		callerDeadline, ok := e.req.Context.Deadline()
+		if !ok || deadline.Before(callerDeadline) {
+			delay := time.Until(deadline)
+			if s.queueTimer == nil {
+				s.queueTimer = time.AfterFunc(delay, s.expireQueueDeadline)
+			} else {
+				s.queueTimer.Reset(delay)
+			}
+			return
+		}
+	}
+	if s.queueTimer != nil {
+		s.queueTimer.Stop()
+	}
+}
+
+// expireQueueDeadline tolerates a callback that started before Stop or Reset.
+// The timer does not capture a request; the callback checks the current head.
+// expire arbitrates ownership if cancellation or dequeue changes that head.
+func (s *Service) expireQueueDeadline() {
+	s.mu.Lock()
+	e := s.head
+	if s.stopped || e == nil {
+		s.mu.Unlock()
+		return
+	}
+	if time.Since(e.enqueuedAt) < s.opts.QueueTimeout {
+		s.armQueueTimerLocked()
+		s.mu.Unlock()
+		return
+	}
+	s.mu.Unlock()
+	s.expire(e, core.ErrTimeout)
 }
 
 // expire releases both the FIFO position and payload even while all workers are blocked.

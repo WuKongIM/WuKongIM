@@ -75,6 +75,9 @@ type Service struct {
 	queueRevision uint64
 	// head and tail form an intrusive FIFO; expired entries can be removed in O(1).
 	head, tail *requestEntry
+	// queueTimer is reused for the earliest FIFO queue deadline. Service.mu
+	// protects rearming; callbacks recheck the current head before expiring it.
+	queueTimer *time.Timer
 	// queueReady wakes the pump after admission without spawning per-request workers.
 	queueReady chan struct{}
 	// requestWG joins admitted owners, including concurrent queue expiry callbacks.

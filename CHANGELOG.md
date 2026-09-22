@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Reuse one queue-deadline timer per internal RPC service while preserving per-request cancellation, FIFO deadlines, and admission bounds. / 内部 RPC 每个服务复用一个排队截止时间定时器，保留逐请求取消、FIFO 截止时间和准入边界。
+
 - Reuse internal RPC queue ownership for executor tasks, eliminating one per-request allocation while preserving cancellation and admission bounds. / 内部 RPC 执行任务复用队列所有权对象，减少每次请求一次分配，并保留取消及准入边界。
 
 - Keep benchmark status polling independent of latency-history size by reading counters and gauges directly; reports retain exact latency summaries and error evidence. / 压测状态轮询直接读取计数器和当前值，不再反复整理历史延迟样本；报告保留精确延迟统计和错误证据。

@@ -337,7 +337,11 @@ specification, runbook, report, or module documentation; link to them when neede
   Relative budgets start at receiver admission, avoiding wall-clock skew;
   callers enforce their own end-to-end deadline. Queued cancellation releases
   memory and FIFO capacity. Queue expiry watches the original request context;
-  only a queue deadline earlier than the caller deadline needs its own timer.
+  a service reuses one timer for the FIFO head's queue deadline when it is earlier
+  than the caller deadline. Fixed per-service queue timeouts preserve deadline
+  order; removing the head rearms against the next admission's original time.
+  Timer callbacks must recheck the current head because Stop/Reset may race an
+  already-started callback. Per-request cancellation watchers remain independent.
   Dequeue and executor admission still check expiry even if a timer callback is
   delayed; queue expiry must not cancel its parent context.
   Running cancellation is opt-in for read-only RPCs;
@@ -361,6 +365,11 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
+- The 2026-09-22 independent-process ARM64 small-RPC comparison reproduced a
+  consistent current-server regression with a fixed old client. Reusing a FIFO
+  deadline timer reduced allocations and local small-payload P99, but throughput
+  changes stayed within same-binary variation; the original x86 cross-host
+  regression remains unresolved. See [queue-timer evidence](../reports/2026-09-22-rpc-small-local-queue-timer.md).
 - The in-process large-payload RPC benchmark shares a client/server heap and is
   sensitive to GC settings. Payload copies dominate its allocation bytes;
   fewer queue-owner allocations alone do not establish higher throughput.

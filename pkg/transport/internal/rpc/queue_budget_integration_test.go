@@ -121,3 +121,60 @@ func TestQueueExpiryDeadlineOrdering(t *testing.T) {
 		})
 	}
 }
+
+// Canceling the head must preserve the next request's original admission
+// deadline; a late timer callback must not expire a newer admission early.
+func TestQueueDeadlineAdvancesAfterHeadCancellation(t *testing.T) {
+	started, unblock := make(chan struct{}), make(chan struct{})
+	const timeout = 80 * time.Millisecond
+	svc := NewService(1, func(context.Context, []byte) ([]byte, error) {
+		close(started)
+		<-unblock
+		return nil, nil
+	}, core.ServiceOptions{Concurrency: 1, QueueSize: 2, MaxQueueBytes: 4096, QueueTimeout: timeout}, nil)
+	defer func() { close(unblock); svc.Stop() }()
+	if err := svc.Enqueue(Request{Payload: core.CopyOwnedBuffer([]byte("running"))}); err != nil {
+		t.Fatal(err)
+	}
+	waitClosed(t, started)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	headReply := make(chan Response, 1)
+	if err := svc.Enqueue(Request{Context: ctx, Reply: headReply}); err != nil {
+		t.Fatal(err)
+	}
+	// Give the two queue deadlines a distinct ordering without relying on a
+	// scheduler-sensitive upper time bound for receiving their replies.
+	time.Sleep(20 * time.Millisecond)
+	tailReply, tailFinished := make(chan Response, 1), make(chan struct{})
+	tailStart := time.Now()
+	if err := svc.Enqueue(Request{Reply: tailReply, Finish: func() { close(tailFinished) }}); err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+	if err := waitResponse(t, headReply).Err; !errors.Is(err, core.ErrCanceled) {
+		t.Fatalf("head cancellation: %v", err)
+	}
+	if err := waitResponse(t, tailReply).Err; !errors.Is(err, core.ErrTimeout) {
+		t.Fatalf("tail deadline: %v", err)
+	}
+	if elapsed := time.Since(tailStart); elapsed < timeout {
+		t.Fatalf("tail expired early after %s", elapsed)
+	}
+	waitClosed(t, tailFinished)
+
+	freshReply, freshFinished := make(chan Response, 1), make(chan struct{})
+	freshStart := time.Now()
+	if err := svc.Enqueue(Request{Reply: freshReply, Finish: func() { close(freshFinished) }}); err != nil {
+		t.Fatal(err)
+	}
+	// Exercise the same callback body as an already-started previous timer.
+	svc.expireQueueDeadline()
+	if err := waitResponse(t, freshReply).Err; !errors.Is(err, core.ErrTimeout) {
+		t.Fatalf("new admission deadline: %v", err)
+	}
+	if elapsed := time.Since(freshStart); elapsed < timeout {
+		t.Fatalf("late callback expired a new admission after %s", elapsed)
+	}
+	waitClosed(t, freshFinished)
+}
