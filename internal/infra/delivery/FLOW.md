@@ -31,7 +31,8 @@ It does not own plan admission, retries, ACK tracking, or offline classification
 
 - Packet projection removes the configured command suffix before deriving a
   person peer UID and preserves command and non-persistence flags on the receive
-  packet. Sequence-zero envelopes are transient.
+  packet. It also preserves the complete message setting bitset, topic, and
+  expiration from the envelope. Sequence-zero envelopes are transient.
 - The writer performs the final owner fence immediately before the write.
 - Accepted writes return success; missing registry state is retryable, while
   stale identity, packet-build, closed-session, and overflow failures drop.

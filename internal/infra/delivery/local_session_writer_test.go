@@ -3,6 +3,7 @@ package delivery
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync/atomic"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 	gatewaysession "github.com/WuKongIM/WuKongIM/pkg/gateway/session"
 	gatewaytransport "github.com/WuKongIM/WuKongIM/pkg/gateway/transport"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 )
 
@@ -188,6 +190,55 @@ func TestBuildOnlineDeliveryRecvPacketPreservesNoPersist(t *testing.T) {
 		}
 		if packet.NoPersist != (seq == 0) {
 			t.Fatalf("seq=%d NoPersist=%v, want %v", seq, packet.NoPersist, seq == 0)
+		}
+	}
+}
+
+func TestLocalSessionWriterPreservesMessageSettingsOnWire(t *testing.T) {
+	for _, seq := range []uint64{0, 1} {
+		for _, setting := range []frame.Setting{0, frame.SettingReceiptEnabled, frame.SettingReceiptEnabled | frame.SettingTopic, 0xff} {
+			t.Run(fmt.Sprintf("seq=%d/setting=%d", seq, setting), func(t *testing.T) {
+				registry := online.NewRegistry(online.RegistryOptions{ShardCount: 1})
+				session := &localSessionWriterTestSession{}
+				route := registerLocalSessionWriterTestSession(t, registry, 1, "receiver", 10, session)
+				writer := NewLocalSessionWriter(LocalSessionWriterOptions{Online: registry})
+				event := channelappendcontract.CommittedEnvelope{
+					MessageID: 1, MessageSeq: seq, ChannelID: "room", ChannelType: frame.ChannelTypeGroup,
+					Setting: setting.Uint8(), Expire: 3600, Payload: []byte("receipt probe"),
+				}
+				if setting.IsSet(frame.SettingTopic) {
+					event.Topic = "topic-a"
+				}
+				result := writer.WriteSession(context.Background(), runtimedelivery.LocalSessionWrite{Event: event, Route: route})
+				if result.Disposition != runtimedelivery.SessionWriteAccepted {
+					t.Fatalf("write result = %+v", result)
+				}
+				packet := session.last.Load()
+				if packet == nil {
+					t.Fatal("no receive packet")
+				}
+				for _, version := range []uint8{3, frame.LatestVersion} {
+					protocol := codec.New()
+					wire, err := protocol.EncodeFrame(packet, version)
+					if err != nil {
+						t.Fatal(err)
+					}
+					decoded, _, err := protocol.DecodeFrame(wire, version)
+					if err != nil {
+						t.Fatal(err)
+					}
+					recv, ok := decoded.(*frame.RecvPacket)
+					if !ok {
+						t.Fatalf("decoded type = %T", decoded)
+					}
+					if recv.Setting != setting || recv.Topic != event.Topic || recv.Expire != event.Expire {
+						t.Errorf("version=%d received setting/topic/expire = %d/%q/%d, want %d/%q/%d", version, recv.Setting, recv.Topic, recv.Expire, setting, event.Topic, event.Expire)
+					}
+					if recv.NoPersist != (seq == 0) || string(recv.Payload) != string(event.Payload) {
+						t.Fatalf("unexpected receive packet = %+v", recv)
+					}
+				}
+			})
 		}
 	}
 }

@@ -167,6 +167,9 @@ specification, runbook, report, or module documentation; link to them when neede
   commands require recipient CMD binding before SEND; request-scoped recipients
   do not create discovery membership. `NoPersist` is online-only and supplies no
   durable sequence or offline recovery, including `NoPersist + SyncOnce`.
+- Online delivery preserves the sender's entire `Setting` bitset, `Topic`, and
+  `Expire` through both durable and transient envelopes into RECV. The receipt
+  bit (`1 << 7`) is message metadata, independent of transport RECVACK tracking.
 - CMD binding retries preserve existing start/ack boundaries; cross-Slot failures
   can be partial. Missing command logs alone mean empty history. Global CMD sync
   skips authoritatively disbanded sources without acknowledging them; other

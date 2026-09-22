@@ -101,7 +101,11 @@ func TestPresenceAuthorityRecoveryDeliversCommittedMessageBeforeOwnerTouch(t *te
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
-	event := channelappendcontract.CommittedEnvelope{MessageID: 113, MessageSeq: 7, ChannelID: "group", ChannelType: 2, FromUID: "carol", Payload: []byte("rejoined")}
+	event := channelappendcontract.CommittedEnvelope{
+		MessageID: 113, MessageSeq: 7, ChannelID: "group", ChannelType: 2, FromUID: "carol",
+		Setting: uint8(frame.SettingReceiptEnabled | frame.SettingTopic),
+		Topic:   "topic-a", Expire: 3600, Payload: []byte("rejoined"),
+	}
 	plan := onlinedelivery.RecipientDeliveryPlan{Mode: onlinedelivery.ModeDurable, Event: event, Targets: []onlinedelivery.RecipientTargetBatch{{Target: authoritycontract.Target{HashSlot: 101, SlotID: 5, LeaderNodeID: 1, LeaderTerm: 4, ConfigEpoch: 1}, Recipients: []channelappendcontract.Recipient{{UID: "bob"}}}}}
 	if err := runtime.EnqueueRecipientDeliveryPlan(ctx, plan); err != nil {
 		t.Fatal(err)
@@ -125,6 +129,9 @@ func TestPresenceAuthorityRecoveryDeliversCommittedMessageBeforeOwnerTouch(t *te
 		recv, ok := value.(*frame.RecvPacket)
 		if !ok || recv.MessageID != 113 || recv.MessageSeq != 7 || string(recv.Payload) != "rejoined" {
 			t.Fatalf("receive=%+v", value)
+		}
+		if recv.Setting.Uint8() != event.Setting || recv.Topic != event.Topic || recv.Expire != event.Expire {
+			t.Fatalf("delivered setting/topic/expire = %d/%q/%d, want %d/%q/%d", recv.Setting, recv.Topic, recv.Expire, event.Setting, event.Topic, event.Expire)
 		}
 	case <-ctx.Done():
 		t.Fatal("committed message was not delivered after reconstruction")

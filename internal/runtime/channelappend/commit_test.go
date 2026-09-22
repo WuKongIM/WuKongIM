@@ -919,6 +919,9 @@ func TestNoPersistNonCommandDispatchesRealtimeWithoutAppend(t *testing.T) {
 	target := localTargetForAppendTest("room")
 	item := appendSendItemForTest("u1", "room", "payload")
 	item.Command.NoPersist = true
+	item.Command.Setting = 0x88 // Receipt and topic bits must survive transient delivery.
+	item.Command.Topic = "topic-a"
+	item.Command.Expire = 3600
 
 	future, err := group.SubmitLocal(context.Background(), target, []SendBatchItem{item})
 	if err != nil {
@@ -943,6 +946,10 @@ func TestNoPersistNonCommandDispatchesRealtimeWithoutAppend(t *testing.T) {
 	if len(plans) != 1 || plans[0].Mode != onlinedelivery.ModeTransient || plans[0].Event.ChannelID != "room" || plans[0].Event.SyncOnce {
 		t.Fatalf("delivery plans = %#v, want ordinary transient delivery", plans)
 	}
+	event := plans[0].Event
+	if event.Setting != item.Command.Setting || event.Topic != item.Command.Topic || event.Expire != item.Command.Expire {
+		t.Fatalf("transient setting/topic/expire = %d/%q/%d, want %d/%q/%d", event.Setting, event.Topic, event.Expire, item.Command.Setting, item.Command.Topic, item.Command.Expire)
+	}
 	if got := enqueuer.recipientUIDs(); !reflect.DeepEqual(got, []string{"u2"}) {
 		t.Fatalf("recipients = %v, want subscriber u2", got)
 	}
@@ -966,6 +973,9 @@ func TestNoPersistSyncOnceDispatchesRealtimeWithoutAppend(t *testing.T) {
 	target := localTargetForAppendTest(commandChannelID)
 	item := appendSendItemForTest("u1", "room", "cmd-payload")
 	item.Command.NoPersist = true
+	item.Command.Setting = 0x88 // Receipt and topic bits must survive transient delivery.
+	item.Command.Topic = "topic-a"
+	item.Command.Expire = 3600
 	item.Command.SyncOnce = true
 	item.Command.SenderNodeID = 1
 	item.Command.SenderSessionID = 99
@@ -993,6 +1003,9 @@ func TestNoPersistSyncOnceDispatchesRealtimeWithoutAppend(t *testing.T) {
 		t.Fatalf("recipient delivery plans = %d, want 1", len(plans))
 	}
 	event := plans[0].Event
+	if event.Setting != item.Command.Setting || event.Topic != item.Command.Topic || event.Expire != item.Command.Expire {
+		t.Fatalf("transient setting/topic/expire = %d/%q/%d, want %d/%q/%d", event.Setting, event.Topic, event.Expire, item.Command.Setting, item.Command.Topic, item.Command.Expire)
+	}
 	if event.MessageID != 1500 || event.MessageSeq != 0 || event.ChannelID != commandChannelID || !event.SyncOnce {
 		t.Fatalf("realtime event metadata = %#v, want transient command-channel event", event)
 	}

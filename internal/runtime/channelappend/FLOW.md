@@ -16,7 +16,8 @@ side-effect runtimes.
 `NoPersist` sends use the same authority and recipient machinery but create no
 Channel log or membership state. Ordinary sends retain the source Channel;
 command-style sends retain the command Channel. Both allocate a transient
-message ID and enter online delivery with sequence zero.
+message ID and enter online delivery with sequence zero, preserving the sender's
+complete setting bitset, topic, and expiration just as durable envelopes do.
 
 ## Boundaries
 

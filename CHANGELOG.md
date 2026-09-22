@@ -37,6 +37,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Preserve message settings, including read-receipt flags, topics, and expiration during online delivery for persistent and non-persistent messages. / 修复持久化和非持久化消息在线下发时丢失 setting（含已读回执标记）、topic 和 expire 的问题。
+
 - Allow v2 archive import to reuse its preparation workspace without a checkpoint conflict, preserving independent archive verification and the original export seal. / v2 归档导入可复用准备阶段工作目录，保留独立归档校验与原始导出校验信息，避免检查点冲突。
 
 - Keep backup credentials on the receiving node: export, repository probes and restore RPCs now carry only exact repository references. Upgrade all cluster nodes together before backup operations; older backup request formats are rejected. / 备份导出、仓库探测与恢复 RPC 仅传递精确仓库引用，凭据在接收节点解析；执行备份操作前须升级所有节点，旧版备份请求将被拒绝。

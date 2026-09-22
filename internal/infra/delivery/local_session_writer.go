@@ -136,6 +136,9 @@ func (w *LocalSessionWriter) buildOnlineDeliveryRecvPacket(event channelappendco
 	return &frame.RecvPacket{
 		// Transient envelopes have no durable Channel sequence.
 		Framer:      frame.Framer{NoPersist: event.MessageSeq == 0, RedDot: event.RedDot, SyncOnce: event.SyncOnce},
+		Setting:     frame.Setting(event.Setting),
+		Topic:       event.Topic,
+		Expire:      event.Expire,
 		MessageID:   int64(event.MessageID),
 		MessageSeq:  event.MessageSeq,
 		ClientMsgNo: event.ClientMsgNo,
