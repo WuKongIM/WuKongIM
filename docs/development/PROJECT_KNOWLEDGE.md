@@ -376,6 +376,14 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
+- `scripts/transport-perf` provides a native Linux amd64, separate-host RPC
+  repeatability gate. The frozen first scenario uses 10 s concurrent warmup,
+  20 s measurement, client/server GOGC 400/100, and at least six same-version
+  windows. Full-batch `(max-min)/median` limits are 3% throughput and 10% P99;
+  these are engineering limits, not statistical significance. Invalid counters,
+  mixed identities, containers, runtime overrides or overlapping windows fail.
+  Passing qualifies only repeatability, never a candidate or production capacity.
+
 - The admitted-write listener followup confirmed a measurement sensitivity:
   changing only load-client GOGC from 100 to 400 reduced end-to-end P99 by
   38.57%/33.41% with the same server. Three-second warmup and client GC control
