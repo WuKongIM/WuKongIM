@@ -365,6 +365,12 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
+- Moving RPC queue-owner allocation ahead of admission was rejected in the
+  2026-09-22 local experiment: successful-call throughput changed only +0.30%,
+  within same-binary variation, while busy/canceled/stopped admission added
+  160 B and one allocation per rejected call. Keep rejection-path allocation
+  costs in optimization acceptance criteria. See
+  [enqueue-allocation evidence](../reports/2026-09-22-rpc-enqueue-allocation.md).
 - The 2026-09-22 independent-process ARM64 small-RPC comparison reproduced a
   consistent current-server regression with a fixed old client. Reusing a FIFO
   deadline timer reduced allocations and local small-payload P99, but throughput

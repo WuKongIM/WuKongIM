@@ -1,0 +1,1405 @@
+{
+  "decision": "reject candidate; production unchanged",
+  "source": {
+    "base": "5c293024cf0f151454c89316c876aecdba24fcdb",
+    "AGENTS_sha256": "c6eae7244b1c660be4b2a62cbdc1efa5c26c35e34972e994df7e6ae073fc9d0b",
+    "applicable_FLOW": []
+  },
+  "summary": {
+    "base": {
+      "calls_per_second": 218725.08053602467,
+      "p99_ms": 0.40037500000000004
+    },
+    "candidate": {
+      "calls_per_second": 219388.58046683698,
+      "p99_ms": 0.38558349999999997
+    },
+    "changes_percent": {
+      "calls_per_second": 0.3033488108388216,
+      "p99_ms": -3.694411489228866
+    },
+    "successful_calls": 26213913,
+    "paired": [
+      {
+        "calls_per_second": 3.841172245552671,
+        "p99_ms": -22.53969779859648
+      },
+      {
+        "calls_per_second": -1.019944131729822,
+        "p99_ms": 3.0892937040588153
+      },
+      {
+        "calls_per_second": 0.4852726270730079,
+        "p99_ms": 1.4998689897388617
+      },
+      {
+        "calls_per_second": 0.22772519058127383,
+        "p99_ms": -5.360512664021977
+      }
+    ],
+    "aa": [
+      {
+        "calls_per_second": 0.012129763283930117,
+        "p99_ms": -6.0118591723285935
+      },
+      {
+        "calls_per_second": 0.5573157799340756,
+        "p99_ms": -2.7166599992726526
+      }
+    ]
+  },
+  "rejection": {
+    "rows": [
+      {
+        "file": "rejection-1-base.log",
+        "version": "base",
+        "case": "items",
+        "mode": "serial",
+        "n": 22496396,
+        "ns": 8.931,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-1-base.log",
+        "version": "base",
+        "case": "items",
+        "mode": "parallel",
+        "n": 4605284,
+        "ns": 56.93,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-1-base.log",
+        "version": "base",
+        "case": "queue_bytes",
+        "mode": "serial",
+        "n": 26400220,
+        "ns": 9.021,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-1-base.log",
+        "version": "base",
+        "case": "queue_bytes",
+        "mode": "parallel",
+        "n": 4082493,
+        "ns": 56.15,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-1-base.log",
+        "version": "base",
+        "case": "retained_bytes",
+        "mode": "serial",
+        "n": 26889502,
+        "ns": 9.778,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-1-base.log",
+        "version": "base",
+        "case": "retained_bytes",
+        "mode": "parallel",
+        "n": 5457464,
+        "ns": 44.48,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-1-base.log",
+        "version": "base",
+        "case": "canceled",
+        "mode": "serial",
+        "n": 5546706,
+        "ns": 39.3,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-1-base.log",
+        "version": "base",
+        "case": "canceled",
+        "mode": "parallel",
+        "n": 3778104,
+        "ns": 68.07,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-1-base.log",
+        "version": "base",
+        "case": "stopped",
+        "mode": "serial",
+        "n": 29195896,
+        "ns": 9.772,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-1-base.log",
+        "version": "base",
+        "case": "stopped",
+        "mode": "parallel",
+        "n": 4828604,
+        "ns": 53.79,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-1-base.log",
+        "version": "base",
+        "case": "payload",
+        "mode": "serial",
+        "n": 23910931,
+        "ns": 10.05,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-1-base.log",
+        "version": "base",
+        "case": "payload",
+        "mode": "parallel",
+        "n": 4318604,
+        "ns": 58.85,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-1-candidate.log",
+        "version": "candidate",
+        "case": "items",
+        "mode": "serial",
+        "n": 3677061,
+        "ns": 62.18,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-1-candidate.log",
+        "version": "candidate",
+        "case": "items",
+        "mode": "parallel",
+        "n": 2494735,
+        "ns": 104.6,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-1-candidate.log",
+        "version": "candidate",
+        "case": "queue_bytes",
+        "mode": "serial",
+        "n": 3673641,
+        "ns": 56.9,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-1-candidate.log",
+        "version": "candidate",
+        "case": "queue_bytes",
+        "mode": "parallel",
+        "n": 2731998,
+        "ns": 105.0,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-1-candidate.log",
+        "version": "candidate",
+        "case": "retained_bytes",
+        "mode": "serial",
+        "n": 5063281,
+        "ns": 62.67,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-1-candidate.log",
+        "version": "candidate",
+        "case": "retained_bytes",
+        "mode": "parallel",
+        "n": 2700788,
+        "ns": 93.96,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-1-candidate.log",
+        "version": "candidate",
+        "case": "canceled",
+        "mode": "serial",
+        "n": 3363933,
+        "ns": 76.57,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-1-candidate.log",
+        "version": "candidate",
+        "case": "canceled",
+        "mode": "parallel",
+        "n": 1718134,
+        "ns": 156.6,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-1-candidate.log",
+        "version": "candidate",
+        "case": "stopped",
+        "mode": "serial",
+        "n": 4223220,
+        "ns": 54.01,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-1-candidate.log",
+        "version": "candidate",
+        "case": "stopped",
+        "mode": "parallel",
+        "n": 2447356,
+        "ns": 90.99,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-1-candidate.log",
+        "version": "candidate",
+        "case": "payload",
+        "mode": "serial",
+        "n": 24020818,
+        "ns": 9.932,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-1-candidate.log",
+        "version": "candidate",
+        "case": "payload",
+        "mode": "parallel",
+        "n": 4549191,
+        "ns": 56.54,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-2-base.log",
+        "version": "base",
+        "case": "items",
+        "mode": "serial",
+        "n": 26124819,
+        "ns": 9.152,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-2-base.log",
+        "version": "base",
+        "case": "items",
+        "mode": "parallel",
+        "n": 4304870,
+        "ns": 56.82,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-2-base.log",
+        "version": "base",
+        "case": "queue_bytes",
+        "mode": "serial",
+        "n": 26475454,
+        "ns": 9.027,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-2-base.log",
+        "version": "base",
+        "case": "queue_bytes",
+        "mode": "parallel",
+        "n": 3954622,
+        "ns": 58.48,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-2-base.log",
+        "version": "base",
+        "case": "retained_bytes",
+        "mode": "serial",
+        "n": 26975005,
+        "ns": 8.875,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-2-base.log",
+        "version": "base",
+        "case": "retained_bytes",
+        "mode": "parallel",
+        "n": 4230381,
+        "ns": 55.77,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-2-base.log",
+        "version": "base",
+        "case": "canceled",
+        "mode": "serial",
+        "n": 8218696,
+        "ns": 28.81,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-2-base.log",
+        "version": "base",
+        "case": "canceled",
+        "mode": "parallel",
+        "n": 3681049,
+        "ns": 66.49,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-2-base.log",
+        "version": "base",
+        "case": "stopped",
+        "mode": "serial",
+        "n": 30772516,
+        "ns": 7.78,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-2-base.log",
+        "version": "base",
+        "case": "stopped",
+        "mode": "parallel",
+        "n": 4295731,
+        "ns": 55.98,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-2-base.log",
+        "version": "base",
+        "case": "payload",
+        "mode": "serial",
+        "n": 24209613,
+        "ns": 9.899,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-2-base.log",
+        "version": "base",
+        "case": "payload",
+        "mode": "parallel",
+        "n": 4003814,
+        "ns": 56.1,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-2-candidate.log",
+        "version": "candidate",
+        "case": "items",
+        "mode": "serial",
+        "n": 3072511,
+        "ns": 77.53,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-2-candidate.log",
+        "version": "candidate",
+        "case": "items",
+        "mode": "parallel",
+        "n": 2447350,
+        "ns": 95.14,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-2-candidate.log",
+        "version": "candidate",
+        "case": "queue_bytes",
+        "mode": "serial",
+        "n": 4114196,
+        "ns": 54.32,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-2-candidate.log",
+        "version": "candidate",
+        "case": "queue_bytes",
+        "mode": "parallel",
+        "n": 2403421,
+        "ns": 98.91,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-2-candidate.log",
+        "version": "candidate",
+        "case": "retained_bytes",
+        "mode": "serial",
+        "n": 4275603,
+        "ns": 59.56,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-2-candidate.log",
+        "version": "candidate",
+        "case": "retained_bytes",
+        "mode": "parallel",
+        "n": 1954214,
+        "ns": 105.8,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-2-candidate.log",
+        "version": "candidate",
+        "case": "canceled",
+        "mode": "serial",
+        "n": 3001046,
+        "ns": 80.22,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-2-candidate.log",
+        "version": "candidate",
+        "case": "canceled",
+        "mode": "parallel",
+        "n": 1775540,
+        "ns": 143.3,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-2-candidate.log",
+        "version": "candidate",
+        "case": "stopped",
+        "mode": "serial",
+        "n": 4887025,
+        "ns": 53.34,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-2-candidate.log",
+        "version": "candidate",
+        "case": "stopped",
+        "mode": "parallel",
+        "n": 2743696,
+        "ns": 89.17,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-2-candidate.log",
+        "version": "candidate",
+        "case": "payload",
+        "mode": "serial",
+        "n": 23979916,
+        "ns": 9.966,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-2-candidate.log",
+        "version": "candidate",
+        "case": "payload",
+        "mode": "parallel",
+        "n": 4046997,
+        "ns": 60.63,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-3-base.log",
+        "version": "base",
+        "case": "items",
+        "mode": "serial",
+        "n": 26229866,
+        "ns": 8.951,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-3-base.log",
+        "version": "base",
+        "case": "items",
+        "mode": "parallel",
+        "n": 4086430,
+        "ns": 57.94,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-3-base.log",
+        "version": "base",
+        "case": "queue_bytes",
+        "mode": "serial",
+        "n": 26476795,
+        "ns": 9.027,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-3-base.log",
+        "version": "base",
+        "case": "queue_bytes",
+        "mode": "parallel",
+        "n": 4665319,
+        "ns": 51.31,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-3-base.log",
+        "version": "base",
+        "case": "retained_bytes",
+        "mode": "serial",
+        "n": 26929603,
+        "ns": 8.885,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-3-base.log",
+        "version": "base",
+        "case": "retained_bytes",
+        "mode": "parallel",
+        "n": 4320950,
+        "ns": 59.95,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-3-base.log",
+        "version": "base",
+        "case": "canceled",
+        "mode": "serial",
+        "n": 8145291,
+        "ns": 29.21,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-3-base.log",
+        "version": "base",
+        "case": "canceled",
+        "mode": "parallel",
+        "n": 3955590,
+        "ns": 63.73,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-3-base.log",
+        "version": "base",
+        "case": "stopped",
+        "mode": "serial",
+        "n": 30828354,
+        "ns": 7.794,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-3-base.log",
+        "version": "base",
+        "case": "stopped",
+        "mode": "parallel",
+        "n": 4149885,
+        "ns": 61.81,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-3-base.log",
+        "version": "base",
+        "case": "payload",
+        "mode": "serial",
+        "n": 24126562,
+        "ns": 9.942,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-3-base.log",
+        "version": "base",
+        "case": "payload",
+        "mode": "parallel",
+        "n": 3866684,
+        "ns": 60.92,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-3-candidate.log",
+        "version": "candidate",
+        "case": "items",
+        "mode": "serial",
+        "n": 3597960,
+        "ns": 64.14,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-3-candidate.log",
+        "version": "candidate",
+        "case": "items",
+        "mode": "parallel",
+        "n": 2954233,
+        "ns": 103.5,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-3-candidate.log",
+        "version": "candidate",
+        "case": "queue_bytes",
+        "mode": "serial",
+        "n": 3776107,
+        "ns": 58.73,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-3-candidate.log",
+        "version": "candidate",
+        "case": "queue_bytes",
+        "mode": "parallel",
+        "n": 2433567,
+        "ns": 98.94,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-3-candidate.log",
+        "version": "candidate",
+        "case": "retained_bytes",
+        "mode": "serial",
+        "n": 4226854,
+        "ns": 56.7,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-3-candidate.log",
+        "version": "candidate",
+        "case": "retained_bytes",
+        "mode": "parallel",
+        "n": 2553882,
+        "ns": 103.1,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-3-candidate.log",
+        "version": "candidate",
+        "case": "canceled",
+        "mode": "serial",
+        "n": 3206524,
+        "ns": 80.49,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-3-candidate.log",
+        "version": "candidate",
+        "case": "canceled",
+        "mode": "parallel",
+        "n": 1632926,
+        "ns": 139.2,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-3-candidate.log",
+        "version": "candidate",
+        "case": "stopped",
+        "mode": "serial",
+        "n": 4622970,
+        "ns": 51.98,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-3-candidate.log",
+        "version": "candidate",
+        "case": "stopped",
+        "mode": "parallel",
+        "n": 2715018,
+        "ns": 83.35,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-3-candidate.log",
+        "version": "candidate",
+        "case": "payload",
+        "mode": "serial",
+        "n": 24038562,
+        "ns": 9.967,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-3-candidate.log",
+        "version": "candidate",
+        "case": "payload",
+        "mode": "parallel",
+        "n": 3793515,
+        "ns": 57.32,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-4-base.log",
+        "version": "base",
+        "case": "items",
+        "mode": "serial",
+        "n": 25571811,
+        "ns": 8.948,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-4-base.log",
+        "version": "base",
+        "case": "items",
+        "mode": "parallel",
+        "n": 4169830,
+        "ns": 57.27,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-4-base.log",
+        "version": "base",
+        "case": "queue_bytes",
+        "mode": "serial",
+        "n": 25032267,
+        "ns": 9.341,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-4-base.log",
+        "version": "base",
+        "case": "queue_bytes",
+        "mode": "parallel",
+        "n": 4191165,
+        "ns": 61.48,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-4-base.log",
+        "version": "base",
+        "case": "retained_bytes",
+        "mode": "serial",
+        "n": 26958213,
+        "ns": 8.867,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-4-base.log",
+        "version": "base",
+        "case": "retained_bytes",
+        "mode": "parallel",
+        "n": 4047379,
+        "ns": 53.05,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-4-base.log",
+        "version": "base",
+        "case": "canceled",
+        "mode": "serial",
+        "n": 8119537,
+        "ns": 29.23,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-4-base.log",
+        "version": "base",
+        "case": "canceled",
+        "mode": "parallel",
+        "n": 3589804,
+        "ns": 64.99,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-4-base.log",
+        "version": "base",
+        "case": "stopped",
+        "mode": "serial",
+        "n": 30878922,
+        "ns": 7.776,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-4-base.log",
+        "version": "base",
+        "case": "stopped",
+        "mode": "parallel",
+        "n": 4214320,
+        "ns": 55.4,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-4-base.log",
+        "version": "base",
+        "case": "payload",
+        "mode": "serial",
+        "n": 24148816,
+        "ns": 9.933,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-4-base.log",
+        "version": "base",
+        "case": "payload",
+        "mode": "parallel",
+        "n": 3871570,
+        "ns": 62.16,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-4-candidate.log",
+        "version": "candidate",
+        "case": "items",
+        "mode": "serial",
+        "n": 3889069,
+        "ns": 61.93,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-4-candidate.log",
+        "version": "candidate",
+        "case": "items",
+        "mode": "parallel",
+        "n": 2610327,
+        "ns": 116.7,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-4-candidate.log",
+        "version": "candidate",
+        "case": "queue_bytes",
+        "mode": "serial",
+        "n": 3514024,
+        "ns": 59.08,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-4-candidate.log",
+        "version": "candidate",
+        "case": "queue_bytes",
+        "mode": "parallel",
+        "n": 2896981,
+        "ns": 112.9,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-4-candidate.log",
+        "version": "candidate",
+        "case": "retained_bytes",
+        "mode": "serial",
+        "n": 4460766,
+        "ns": 55.83,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-4-candidate.log",
+        "version": "candidate",
+        "case": "retained_bytes",
+        "mode": "parallel",
+        "n": 2326915,
+        "ns": 105.8,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-4-candidate.log",
+        "version": "candidate",
+        "case": "canceled",
+        "mode": "serial",
+        "n": 2884820,
+        "ns": 88.9,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-4-candidate.log",
+        "version": "candidate",
+        "case": "canceled",
+        "mode": "parallel",
+        "n": 1585328,
+        "ns": 145.4,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-4-candidate.log",
+        "version": "candidate",
+        "case": "stopped",
+        "mode": "serial",
+        "n": 5275719,
+        "ns": 51.27,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-4-candidate.log",
+        "version": "candidate",
+        "case": "stopped",
+        "mode": "parallel",
+        "n": 2825809,
+        "ns": 92.34,
+        "bytes": 160,
+        "allocs": 1
+      },
+      {
+        "file": "rejection-4-candidate.log",
+        "version": "candidate",
+        "case": "payload",
+        "mode": "serial",
+        "n": 23615654,
+        "ns": 10.11,
+        "bytes": 0,
+        "allocs": 0
+      },
+      {
+        "file": "rejection-4-candidate.log",
+        "version": "candidate",
+        "case": "payload",
+        "mode": "parallel",
+        "n": 4476027,
+        "ns": 53.54,
+        "bytes": 0,
+        "allocs": 0
+      }
+    ],
+    "medians": {
+      "items": {
+        "serial": {
+          "base": {
+            "ns": 8.9495,
+            "bytes": 0.0,
+            "allocs": 0.0
+          },
+          "candidate": {
+            "ns": 63.16,
+            "bytes": 160.0,
+            "allocs": 1.0
+          }
+        },
+        "parallel": {
+          "base": {
+            "ns": 57.1,
+            "bytes": 0.0,
+            "allocs": 0.0
+          },
+          "candidate": {
+            "ns": 104.05,
+            "bytes": 160.0,
+            "allocs": 1.0
+          }
+        }
+      },
+      "queue_bytes": {
+        "serial": {
+          "base": {
+            "ns": 9.027,
+            "bytes": 0.0,
+            "allocs": 0.0
+          },
+          "candidate": {
+            "ns": 57.815,
+            "bytes": 160.0,
+            "allocs": 1.0
+          }
+        },
+        "parallel": {
+          "base": {
+            "ns": 57.315,
+            "bytes": 0.0,
+            "allocs": 0.0
+          },
+          "candidate": {
+            "ns": 101.97,
+            "bytes": 160.0,
+            "allocs": 1.0
+          }
+        }
+      },
+      "retained_bytes": {
+        "serial": {
+          "base": {
+            "ns": 8.879999999999999,
+            "bytes": 0.0,
+            "allocs": 0.0
+          },
+          "candidate": {
+            "ns": 58.13,
+            "bytes": 160.0,
+            "allocs": 1.0
+          }
+        },
+        "parallel": {
+          "base": {
+            "ns": 54.41,
+            "bytes": 0.0,
+            "allocs": 0.0
+          },
+          "candidate": {
+            "ns": 104.44999999999999,
+            "bytes": 160.0,
+            "allocs": 1.0
+          }
+        }
+      },
+      "canceled": {
+        "serial": {
+          "base": {
+            "ns": 29.22,
+            "bytes": 0.0,
+            "allocs": 0.0
+          },
+          "candidate": {
+            "ns": 80.35499999999999,
+            "bytes": 160.0,
+            "allocs": 1.0
+          }
+        },
+        "parallel": {
+          "base": {
+            "ns": 65.74,
+            "bytes": 0.0,
+            "allocs": 0.0
+          },
+          "candidate": {
+            "ns": 144.35000000000002,
+            "bytes": 160.0,
+            "allocs": 1.0
+          }
+        }
+      },
+      "stopped": {
+        "serial": {
+          "base": {
+            "ns": 7.787,
+            "bytes": 0.0,
+            "allocs": 0.0
+          },
+          "candidate": {
+            "ns": 52.66,
+            "bytes": 160.0,
+            "allocs": 1.0
+          }
+        },
+        "parallel": {
+          "base": {
+            "ns": 55.69,
+            "bytes": 0.0,
+            "allocs": 0.0
+          },
+          "candidate": {
+            "ns": 90.08,
+            "bytes": 160.0,
+            "allocs": 1.0
+          }
+        }
+      },
+      "payload": {
+        "serial": {
+          "base": {
+            "ns": 9.9375,
+            "bytes": 0.0,
+            "allocs": 0.0
+          },
+          "candidate": {
+            "ns": 9.9665,
+            "bytes": 0.0,
+            "allocs": 0.0
+          }
+        },
+        "parallel": {
+          "base": {
+            "ns": 59.885000000000005,
+            "bytes": 0.0,
+            "allocs": 0.0
+          },
+          "candidate": {
+            "ns": 56.93,
+            "bytes": 0.0,
+            "allocs": 0.0
+          }
+        }
+      }
+    }
+  },
+  "files": {
+    "aa-1-a-cleanup.json": {
+      "sha256": "9b2d4be04e58e303dfc77c6fed8dbb8c8bedb7aa56d825738e52ae714e9cb787",
+      "text": "{\n  \"name\": \"wk-enqueue-aa-1-a\",\n  \"state\": {\n    \"Status\": \"exited\",\n    \"Running\": false,\n    \"Paused\": false,\n    \"Restarting\": false,\n    \"OOMKilled\": false,\n    \"Dead\": false,\n    \"Pid\": 0,\n    \"ExitCode\": 0,\n    \"Error\": \"\",\n    \"StartedAt\": \"2026-09-22T02:29:48.180374801Z\",\n    \"FinishedAt\": \"2026-09-22T02:29:58.626863417Z\"\n  }\n}"
+    },
+    "aa-1-a.txt": {
+      "sha256": "3a5172ff903b48f849ca4a36df55a4b6ee2b45da9e0a90024d42ea07d703f0ae",
+      "text": "{\"arch\":\"arm64\",\"calls\":2187009,\"calls_per_second\":218699.62598719876,\"client_alloc_bytes_per_call\":944.7414107577976,\"client_gc_cycles\":135,\"client_mallocs_per_call\":16.000888427985437,\"elapsed_seconds\":10.000058254,\"errors\":0,\"go_version\":\"go1.25.11\",\"mean_ms\":0.07305112946723127,\"observer_enabled\":false,\"p50_ms\":0.054792,\"p95_ms\":0.1265,\"p99_ms\":0.40475,\"payload_bytes\":64,\"profiling_enabled\":false,\"request_budgets\":false,\"sample_cap_hit\":false,\"version\":\"old-client-base-server\",\"worker_counts\":[137301,137085,136371,136516,136589,136528,136599,136680,136949,136768,137037,136358,136663,136563,136354,136648],\"workers\":16}\n"
+    },
+    "aa-1-b-cleanup.json": {
+      "sha256": "5e8d62a7bbe139cc69352a00515b792dc9e5a2b63f1677b9f60e0cdf9f7a8b42",
+      "text": "{\n  \"name\": \"wk-enqueue-aa-1-b\",\n  \"state\": {\n    \"Status\": \"exited\",\n    \"Running\": false,\n    \"Paused\": false,\n    \"Restarting\": false,\n    \"OOMKilled\": false,\n    \"Dead\": false,\n    \"Pid\": 0,\n    \"ExitCode\": 0,\n    \"Error\": \"\",\n    \"StartedAt\": \"2026-09-22T02:29:58.803786834Z\",\n    \"FinishedAt\": \"2026-09-22T02:30:09.263727714Z\"\n  }\n}"
+    },
+    "aa-1-b.txt": {
+      "sha256": "b4cf8752a2326807242232d7c9f9024f9b48878c31801d6701e281c07dd4a523",
+      "text": "{\"arch\":\"arm64\",\"calls\":2187279,\"calls_per_second\":218726.15373413384,\"client_alloc_bytes_per_call\":944.7426286267092,\"client_gc_cycles\":135,\"client_mallocs_per_call\":16.000907063067856,\"elapsed_seconds\":10.000079838,\"errors\":0,\"go_version\":\"go1.25.11\",\"mean_ms\":0.07304197916269484,\"observer_enabled\":false,\"p50_ms\":0.054917,\"p95_ms\":0.126833,\"p99_ms\":0.380417,\"payload_bytes\":64,\"profiling_enabled\":false,\"request_budgets\":false,\"sample_cap_hit\":false,\"version\":\"old-client-base-server\",\"worker_counts\":[136763,136562,136599,136635,136340,136548,136872,136855,137126,137144,136596,136602,136160,136760,136785,136932],\"workers\":16}\n"
+    },
+    "aa-2-a-cleanup.json": {
+      "sha256": "d135cd2f26f41830a15f79bdf2c1f1ed981d7a1bd97d41468057ee539d94995b",
+      "text": "{\n  \"name\": \"wk-enqueue-aa-2-a\",\n  \"state\": {\n    \"Status\": \"exited\",\n    \"Running\": false,\n    \"Paused\": false,\n    \"Restarting\": false,\n    \"OOMKilled\": false,\n    \"Dead\": false,\n    \"Pid\": 0,\n    \"ExitCode\": 0,\n    \"Error\": \"\",\n    \"StartedAt\": \"2026-09-22T02:30:09.449715256Z\",\n    \"FinishedAt\": \"2026-09-22T02:30:19.908708927Z\"\n  }\n}"
+    },
+    "aa-2-a.txt": {
+      "sha256": "36e6468fa5ea80fac5dc617c3294e96e2043512b96ef0ce9160e3576a3109612",
+      "text": "{\"arch\":\"arm64\",\"calls\":2189958,\"calls_per_second\":218994.9859518382,\"client_alloc_bytes_per_call\":944.7312724718921,\"client_gc_cycles\":135,\"client_mallocs_per_call\":16.000956182721314,\"elapsed_seconds\":10.000037172,\"errors\":0,\"go_version\":\"go1.25.11\",\"mean_ms\":0.0729507862260372,\"observer_enabled\":false,\"p50_ms\":0.054958,\"p95_ms\":0.126459,\"p99_ms\":0.384958,\"payload_bytes\":64,\"profiling_enabled\":false,\"request_budgets\":false,\"sample_cap_hit\":false,\"version\":\"old-client-base-server\",\"worker_counts\":[136794,136799,136600,136556,136583,137229,136994,137289,137299,136604,136887,136525,137199,137072,136891,136637],\"workers\":16}\n"
+    },
+    "aa-2-b-cleanup.json": {
+      "sha256": "d5d8c3b0df28c5e04637894a895deb3c80766556ae9dd086715d652c30adb609",
+      "text": "{\n  \"name\": \"wk-enqueue-aa-2-b\",\n  \"state\": {\n    \"Status\": \"exited\",\n    \"Running\": false,\n    \"Paused\": false,\n    \"Restarting\": false,\n    \"OOMKilled\": false,\n    \"Dead\": false,\n    \"Pid\": 0,\n    \"ExitCode\": 0,\n    \"Error\": \"\",\n    \"StartedAt\": \"2026-09-22T02:30:20.095756011Z\",\n    \"FinishedAt\": \"2026-09-22T02:30:30.547202751Z\"\n  }\n}"
+    },
+    "aa-2-b.txt": {
+      "sha256": "5cf14824b3ddd6629e7d8b800e855eea94cbfa3e78a61cc506d7db9c3ba2c6a6",
+      "text": "{\"arch\":\"arm64\",\"calls\":2202167,\"calls_per_second\":220215.47956581222,\"client_alloc_bytes_per_call\":944.6256092294544,\"client_gc_cycles\":135,\"client_mallocs_per_call\":16.00090410945219,\"elapsed_seconds\":10.00005542,\"errors\":0,\"go_version\":\"go1.25.11\",\"mean_ms\":0.0725463261442025,\"observer_enabled\":false,\"p50_ms\":0.054625,\"p95_ms\":0.126084,\"p99_ms\":0.3745,\"payload_bytes\":64,\"profiling_enabled\":false,\"request_budgets\":false,\"sample_cap_hit\":false,\"version\":\"old-client-base-server\",\"worker_counts\":[137581,137304,137868,138134,137961,137674,137283,137848,137742,137343,137639,137205,137657,137596,137732,137600],\"workers\":16}\n"
+    },
+    "base-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    "binaries.json": {
+      "sha256": "6732fd88b1b8b572d280eda5b68c9445c9d0d0b25720e29b1f51cfacc9a9ba9e",
+      "text": "{\n  \"base-probe\": {\n    \"sha256\": \"a81dc8ea8a4807db7c1e46bde6e18f341fae086177e792f5db9cdfd83115de5c\",\n    \"bytes\": 13187534\n  },\n  \"old-probe\": {\n    \"sha256\": \"d34a3436c0fdef51e0ad4b4f60303d671549368e66d0638ca324a4d55e7c1a96\",\n    \"bytes\": 13106167\n  },\n  \"current-probe\": {\n    \"sha256\": \"69854ca61b5d4d66d0fc3b296d4a80cdaf25b7c8237514adc519a0265cb0fb9c\",\n    \"bytes\": 13186910\n  },\n  \"candidate-probe\": {\n    \"sha256\": \"ce4b7884710d31e0746938a37f00eaefa0d619b7f07e10ed4e0dc30067ee77da\",\n    \"bytes\": 13187318\n  }\n}"
+    },
+    "candidate-build.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "text": ""
+    },
+    "candidate-race.log": {
+      "sha256": "6b8389937d403f3cebd01d601f6734f29e4cde160eb77683ba5589ef2c0c4663",
+      "text": "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport\t1.916s\n?   \tgithub.com/WuKongIM/WuKongIM/pkg/transport/enqueueprobe\t[no test files]\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/buffer\t3.615s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/conn\t3.902s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/core\t3.201s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/peer\t3.095s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc\t3.161s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/sched\t1.474s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/testkit\t2.744s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/wire\t4.244s\n"
+    },
+    "candidate-stress.log": {
+      "sha256": "5d3b7533702986201790dc5c38f481e472e76fd5cd3021bdcb85fae1fdbb8985",
+      "text": "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc\t6.524s\n"
+    },
+    "candidate-unit.log": {
+      "sha256": "6c4c6ac9e979b2ee5fc38a0cf1e487197275388e3916daa2ea910ebb27900230",
+      "text": "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport\t1.990s\n?   \tgithub.com/WuKongIM/WuKongIM/pkg/transport/enqueueprobe\t[no test files]\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/buffer\t0.646s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/conn\t2.767s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/core\t2.734s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/peer\t0.976s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc\t3.833s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/internal/sched\t3.013s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/testkit\t1.312s\nok  \tgithub.com/WuKongIM/WuKongIM/pkg/transport/wire\t2.326s\n"
+    },
+    "candidate.patch": {
+      "sha256": "2cdab7eba1027372a78313c539c975d910b631e7f6efa02f2a3ef82a65af182f",
+      "text": "diff --git a/pkg/transport/internal/rpc/service.go b/pkg/transport/internal/rpc/service.go\nindex 50890f074..0c888df60 100644\n--- a/pkg/transport/internal/rpc/service.go\n+++ b/pkg/transport/internal/rpc/service.go\n@@ -173,6 +173,8 @@ func (s *Service) Enqueue(req Request) error {\n \tif req.Context == nil {\n \t\treq.Context = s.ctx\n \t}\n+\t// Allocate before locking so allocator work does not extend queue contention.\n+\tentry := &requestEntry{serviceTask: serviceTask{service: s, req: req}}\n \ts.mu.Lock()\n \tvar err error\n \tresult := \"ok\"\n@@ -194,7 +196,8 @@ func (s *Service) Enqueue(req Request) error {\n \t\ts.observeAdmissionAndQueue(result, payloadLen, snapshot)\n \t\treturn err\n \t}\n-\tentry := &requestEntry{serviceTask: serviceTask{service: s, req: req}, queued: true, enqueuedAt: time.Now()}\n+\tentry.queued = true\n+\tentry.enqueuedAt = time.Now()\n \tentry.req.entry = entry\n \ts.appendLocked(entry)\n \ts.retainedBytes += req.retainedBytes\n"
+    },
+    "check.py": {
+      "sha256": "e5f5fbd3bce3e5c281aed9ce3433d94070727ba882cbec9abcb6774649e89daf",
+      "text": "from pathlib import Path\nimport subprocess,os,shutil,json\nE=Path(__file__).resolve().parent\nW=Path('/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/rpc-enqueue-allocation')\nenv=dict(os.environ,GOWORK='off',GOTOOLCHAIN='go1.25.11')\nf=W/'pkg/transport/internal/rpc/service.go'; candidate=f.read_bytes()\nbench=W/'pkg/transport/internal/rpc/rejection_bench_test.go';shutil.copy(E/bench.name,bench)\ndef run(args,log,extra=None):\n p=subprocess.run(args,cwd=W,env=dict(env,**(extra or {})),stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=300)\n (E/log).write_bytes(p.stdout); print(log,p.returncode,flush=True);assert p.returncode==0,p.stdout.decode()\ntry:\n for v in ['candidate','base']:\n  if v=='base': f.write_bytes(subprocess.check_output(['git','show','HEAD:pkg/transport/internal/rpc/service.go'],cwd=W))\n  run(['go','test','-c','-o',str(E/(v+'-rpc.test')),'./pkg/transport/internal/rpc'],v+'-build.log',{'CGO_ENABLED':'0','GOOS':'linux','GOARCH':'arm64'})\nfinally:f.write_bytes(candidate)\n# Separate processes, alternating version order, no network timing overlap.\nfor i in range(1,5):\n for v in (['base','candidate'] if i%2 else ['candidate','base']):\n  run(['docker','run','--rm','--name','wk-enqueue-rejection','--pull=never','--platform','linux/amd64','--cpuset-cpus','4-7','--memory','3g','-e','GOMAXPROCS=4','-e','GOGC=100','-v',str(E)+':/bench:ro','--entrypoint','/bench/'+v+'-rpc.test','debian:12','-test.run=^$','-test.bench=BenchmarkAdmissionRejection','-test.benchmem','-test.benchtime=200ms','-test.count=1'],f'rejection-{i}-{v}.log')\nrun(['go','test','./pkg/transport/...','-count=1','-timeout=2m'],'candidate-unit.log')\nrun(['go','test','-race','-tags=integration','./pkg/transport/...','-count=1','-timeout=4m'],'candidate-race.log')\nrun(['go','test','-race','-tags=integration','./pkg/transport/internal/rpc','-run','TestQueue(Deadline|Expiry|Budget)','-count=20','-timeout=2m'],'candidate-stress.log')\n"
+    },
+    "pair-1-base-cleanup.json": {
+      "sha256": "ab438b2f0ed0660b2560acab1be33e2fbfef71e74f6876eefef2ad1338a5a2de",
+      "text": "{\n  \"name\": \"wk-enqueue-pair-1-base\",\n  \"state\": {\n    \"Status\": \"exited\",\n    \"Running\": false,\n    \"Paused\": false,\n    \"Restarting\": false,\n    \"OOMKilled\": false,\n    \"Dead\": false,\n    \"Pid\": 0,\n    \"ExitCode\": 0,\n    \"Error\": \"\",\n    \"StartedAt\": \"2026-09-22T02:28:22.843848304Z\",\n    \"FinishedAt\": \"2026-09-22T02:28:33.576237211Z\"\n  }\n}"
+    },
+    "pair-1-base.txt": {
+      "sha256": "8e0bc696ba91f82fbaa5dd9086eda6c070cae5fffae522f8041ba6dbcd0052ee",
+      "text": "{\"arch\":\"arm64\",\"calls\":2115163,\"calls_per_second\":211514.76201271097,\"client_alloc_bytes_per_call\":945.3029879966698,\"client_gc_cycles\":133,\"client_mallocs_per_call\":16.000892602603205,\"elapsed_seconds\":10.000072713,\"errors\":0,\"go_version\":\"go1.25.11\",\"mean_ms\":0.07553246597732657,\"observer_enabled\":false,\"p50_ms\":0.056791,\"p95_ms\":0.1335,\"p99_ms\":0.457708,\"payload_bytes\":64,\"profiling_enabled\":false,\"request_budgets\":false,\"sample_cap_hit\":false,\"version\":\"old-client-base-server\",\"worker_counts\":[131672,131998,132198,132156,132548,132520,131948,132265,132333,132175,132253,132088,132730,132386,132024,131869],\"workers\":16}\n"
+    },
+    "pair-1-candidate-cleanup.json": {
+      "sha256": "d6cfd895087e5e85ac3c83a8cb48fe6c8a1c4caa5422911431b80777d43c5e20",
+      "text": "{\n  \"name\": \"wk-enqueue-pair-1-candidate\",\n  \"state\": {\n    \"Status\": \"exited\",\n    \"Running\": false,\n    \"Paused\": false,\n    \"Restarting\": false,\n    \"OOMKilled\": false,\n    \"Dead\": false,\n    \"Pid\": 0,\n    \"ExitCode\": 0,\n    \"Error\": \"\",\n    \"StartedAt\": \"2026-09-22T02:28:33.739374003Z\",\n    \"FinishedAt\": \"2026-09-22T02:28:44.195168133Z\"\n  }\n}"
+    },
+    "pair-1-candidate.txt": {
+      "sha256": "8a16656e65464dd189bd5c1ad4b4100e4075a0bb9a0389f8fd9e78ebf31319b0",
+      "text": "{\"arch\":\"arm64\",\"calls\":2196406,\"calls_per_second\":219639.40834639,\"client_alloc_bytes_per_call\":944.6801001272078,\"client_gc_cycles\":135,\"client_mallocs_per_call\":16.000949278047866,\"elapsed_seconds\":10.000054255,\"errors\":0,\"go_version\":\"go1.25.11\",\"mean_ms\":0.07273750624383653,\"observer_enabled\":false,\"p50_ms\":0.054958,\"p95_ms\":0.126709,\"p99_ms\":0.354542,\"payload_bytes\":64,\"profiling_enabled\":false,\"request_budgets\":false,\"sample_cap_hit\":false,\"version\":\"old-client-candidate-server\",\"worker_counts\":[137462,137470,137262,137207,137300,137619,137115,137167,137475,137100,137818,137060,137289,137033,136877,137152],\"workers\":16}\n"
+    },
+    "pair-2-base-cleanup.json": {
+      "sha256": "6965f27e9a29b64e7bc735d72a09e450ec990f29567769605b583a9355944ade",
+      "text": "{\n  \"name\": \"wk-enqueue-pair-2-base\",\n  \"state\": {\n    \"Status\": \"exited\",\n    \"Running\": false,\n    \"Paused\": false,\n    \"Restarting\": false,\n    \"OOMKilled\": false,\n    \"Dead\": false,\n    \"Pid\": 0,\n    \"ExitCode\": 0,\n    \"Error\": \"\",\n    \"StartedAt\": \"2026-09-22T02:28:54.991772263Z\",\n    \"FinishedAt\": \"2026-09-22T02:29:05.437581045Z\"\n  }\n}"
+    },
+    "pair-2-base.txt": {
+      "sha256": "497e3c9cbc47dc81312cfb5e4bc6df2675b947bdaafbb883c17af81f3af268bc",
+      "text": "{\"arch\":\"arm64\",\"calls\":2196836,\"calls_per_second\":219682.30104052217,\"client_alloc_bytes_per_call\":944.6689329563062,\"client_gc_cycles\":135,\"client_mallocs_per_call\":16.000895378626353,\"elapsed_seconds\":10.000059129,\"errors\":0,\"go_version\":\"go1.25.11\",\"mean_ms\":0.0727225518436515,\"observer_enabled\":false,\"p50_ms\":0.05475,\"p95_ms\":0.126625,\"p99_ms\":0.391125,\"payload_bytes\":64,\"profiling_enabled\":false,\"request_budgets\":false,\"sample_cap_hit\":false,\"version\":\"old-client-base-server\",\"worker_counts\":[137403,137252,137372,137145,137111,137544,137164,137501,137245,137590,136881,137332,137623,137014,137442,137217],\"workers\":16}\n"
+    },
+    "pair-2-candidate-cleanup.json": {
+      "sha256": "9b7b93b65124b57e68f2d1694ad6e45b11c3bfe0a29c226b145ce804ee507ee6",
+      "text": "{\n  \"name\": \"wk-enqueue-pair-2-candidate\",\n  \"state\": {\n    \"Status\": \"exited\",\n    \"Running\": false,\n    \"Paused\": false,\n    \"Restarting\": false,\n    \"OOMKilled\": false,\n    \"Dead\": false,\n    \"Pid\": 0,\n    \"ExitCode\": 0,\n    \"Error\": \"\",\n    \"StartedAt\": \"2026-09-22T02:28:44.359597258Z\",\n    \"FinishedAt\": \"2026-09-22T02:28:54.824889471Z\"\n  }\n}"
+    },
+    "pair-2-candidate.txt": {
+      "sha256": "bfe91a4711d409ae085dafcd5fc9561d026c756f21c15f5667a3de3db031afe3",
+      "text": "{\"arch\":\"arm64\",\"calls\":2174443,\"calls_per_second\":217441.66430261033,\"client_alloc_bytes_per_call\":944.840340261851,\"client_gc_cycles\":134,\"client_mallocs_per_call\":16.000912417570845,\"elapsed_seconds\":10.000121214,\"errors\":0,\"go_version\":\"go1.25.11\",\"mean_ms\":0.07347290487494959,\"observer_enabled\":false,\"p50_ms\":0.055291,\"p95_ms\":0.128417,\"p99_ms\":0.403208,\"payload_bytes\":64,\"profiling_enabled\":false,\"request_budgets\":false,\"sample_cap_hit\":false,\"version\":\"old-client-candidate-server\",\"worker_counts\":[135870,135643,136118,135766,135839,135454,136279,135904,135677,136021,135331,135996,136526,136220,136430,135369],\"workers\":16}\n"
+    },
+    "pair-3-base-cleanup.json": {
+      "sha256": "c563886db48815e578f011de30c7777940f0100b192c5ec326c8c44fe2883864",
+      "text": "{\n  \"name\": \"wk-enqueue-pair-3-base\",\n  \"state\": {\n    \"Status\": \"exited\",\n    \"Running\": false,\n    \"Paused\": false,\n    \"Restarting\": false,\n    \"OOMKilled\": false,\n    \"Dead\": false,\n    \"Pid\": 0,\n    \"ExitCode\": 0,\n    \"Error\": \"\",\n    \"StartedAt\": \"2026-09-22T02:29:05.615243087Z\",\n    \"FinishedAt\": \"2026-09-22T02:29:16.089104675Z\"\n  }\n}"
+    },
+    "pair-3-base.txt": {
+      "sha256": "baaaec0134b2cdbe418c520026e3f5e8d911c0f26391f4a671ba48800ec41473",
+      "text": "{\"arch\":\"arm64\",\"calls\":2188118,\"calls_per_second\":218810.3065102529,\"client_alloc_bytes_per_call\":944.7361175219984,\"client_gc_cycles\":135,\"client_mallocs_per_call\":16.000925452832067,\"elapsed_seconds\":10.000068255,\"errors\":0,\"go_version\":\"go1.25.11\",\"mean_ms\":0.07301204287840052,\"observer_enabled\":false,\"p50_ms\":0.054916,\"p95_ms\":0.126917,\"p99_ms\":0.377833,\"payload_bytes\":64,\"profiling_enabled\":false,\"request_budgets\":false,\"sample_cap_hit\":false,\"version\":\"old-client-base-server\",\"worker_counts\":[136613,136503,136364,136843,136696,136655,136867,136928,136561,136865,136904,136648,136857,136997,137295,136522],\"workers\":16}\n"
+    },
+    "pair-3-candidate-cleanup.json": {
+      "sha256": "9ea49bd3411922ce65c5c4b3f7b1ed4a7d0f232361d27cf42e0e1d5abffc51eb",
+      "text": "{\n  \"name\": \"wk-enqueue-pair-3-candidate\",\n  \"state\": {\n    \"Status\": \"exited\",\n    \"Running\": false,\n    \"Paused\": false,\n    \"Restarting\": false,\n    \"OOMKilled\": false,\n    \"Dead\": false,\n    \"Pid\": 0,\n    \"ExitCode\": 0,\n    \"Error\": \"\",\n    \"StartedAt\": \"2026-09-22T02:29:16.264991426Z\",\n    \"FinishedAt\": \"2026-09-22T02:29:26.707260833Z\"\n  }\n}"
+    },
+    "pair-3-candidate.txt": {
+      "sha256": "fad9bc559c19f65436f7241f3cf1cb8d6dfd964340b7cd7e937978f2a2ef63a2",
+      "text": "{\"arch\":\"arm64\",\"calls\":2198735,\"calls_per_second\":219872.13303296172,\"client_alloc_bytes_per_call\":944.6555296568254,\"client_gc_cycles\":135,\"client_mallocs_per_call\":16.000902791832576,\"elapsed_seconds\":10.000062171,\"errors\":0,\"go_version\":\"go1.25.11\",\"mean_ms\":0.07266093040179922,\"observer_enabled\":false,\"p50_ms\":0.054584,\"p95_ms\":0.126041,\"p99_ms\":0.3835,\"payload_bytes\":64,\"profiling_enabled\":false,\"request_budgets\":false,\"sample_cap_hit\":false,\"version\":\"old-client-candidate-server\",\"worker_counts\":[137196,137739,137391,137572,137476,137789,137329,137219,137698,137355,137312,137036,137601,137515,137102,137405],\"workers\":16}\n"
+    },
+    "pair-4-base-cleanup.json": {
+      "sha256": "ae285dd4a32e8b5e41f76976152ba4ba3043a34772da38757e1c4495b5400f6c",
+      "text": "{\n  \"name\": \"wk-enqueue-pair-4-base\",\n  \"state\": {\n    \"Status\": \"exited\",\n    \"Running\": false,\n    \"Paused\": false,\n    \"Restarting\": false,\n    \"OOMKilled\": false,\n    \"Dead\": false,\n    \"Pid\": 0,\n    \"ExitCode\": 0,\n    \"Error\": \"\",\n    \"StartedAt\": \"2026-09-22T02:29:37.533428005Z\",\n    \"FinishedAt\": \"2026-09-22T02:29:47.98402001Z\"\n  }\n}"
+    },
+    "pair-4-base.txt": {
+      "sha256": "e7fc04bde2161f292c07d0489897b2f93f3127220395736263adad34613373ec",
+      "text": "{\"arch\":\"arm64\",\"calls\":2186411,\"calls_per_second\":218639.85456179644,\"client_alloc_bytes_per_call\":944.7517598475309,\"client_gc_cycles\":135,\"client_mallocs_per_call\":16.000929834326666,\"elapsed_seconds\":10.000056963,\"errors\":0,\"go_version\":\"go1.25.11\",\"mean_ms\":0.07307206441515342,\"observer_enabled\":false,\"p50_ms\":0.055083,\"p95_ms\":0.126958,\"p99_ms\":0.409625,\"payload_bytes\":64,\"profiling_enabled\":false,\"request_budgets\":false,\"sample_cap_hit\":false,\"version\":\"old-client-base-server\",\"worker_counts\":[136710,136393,136782,136532,136621,136573,137059,136827,136270,136430,136930,136621,136802,136407,136606,136848],\"workers\":16}\n"
+    },
+    "pair-4-candidate-cleanup.json": {
+      "sha256": "93d06981418729c0478d461c4ed41dd7a7d5ba0c95dcf0f9a6fe4a51157285f8",
+      "text": "{\n  \"name\": \"wk-enqueue-pair-4-candidate\",\n  \"state\": {\n    \"Status\": \"exited\",\n    \"Running\": false,\n    \"Paused\": false,\n    \"Restarting\": false,\n    \"OOMKilled\": false,\n    \"Dead\": false,\n    \"Pid\": 0,\n    \"ExitCode\": 0,\n    \"Error\": \"\",\n    \"StartedAt\": \"2026-09-22T02:29:26.8991365Z\",\n    \"FinishedAt\": \"2026-09-22T02:29:37.357806671Z\"\n  }\n}"
+    },
+    "pair-4-candidate.txt": {
+      "sha256": "649349d65656c8ce976b223ff865baa64e4c9270bf8d954b211ed0177140f24d",
+      "text": "{\"arch\":\"arm64\",\"calls\":2191388,\"calls_per_second\":219137.75258728393,\"client_alloc_bytes_per_call\":944.710417324545,\"client_gc_cycles\":135,\"client_mallocs_per_call\":16.00089851728676,\"elapsed_seconds\":10.000047797,\"errors\":0,\"go_version\":\"go1.25.11\",\"mean_ms\":0.0729067962259536,\"observer_enabled\":false,\"p50_ms\":0.054667,\"p95_ms\":0.125958,\"p99_ms\":0.387667,\"payload_bytes\":64,\"profiling_enabled\":false,\"request_budgets\":false,\"sample_cap_hit\":false,\"version\":\"old-client-candidate-server\",\"worker_counts\":[137203,137261,137028,136914,137266,137070,137058,136863,136862,136781,136998,136591,137031,136643,137067,136752],\"workers\":16}\n"
+    },
+    "probe.go": {
+      "sha256": "747a4f72a5e69cb4d81005c437f21328c8f17d44d49867e52965de842399eb90",
+      "text": "package main\n\nimport (\n\t\"bytes\"\n\t\"context\"\n\t\"encoding/json\"\n\t\"flag\"\n\t\"fmt\"\n\t\"github.com/WuKongIM/WuKongIM/pkg/transport\"\n\t\"io\"\n\t\"net\"\n\t\"net/http\"\n\t_ \"net/http/pprof\"\n\t\"os\"\n\t\"os/signal\"\n\t\"reflect\"\n\t\"runtime\"\n\t\"sort\"\n\t\"sync\"\n\t\"sync/atomic\"\n\t\"syscall\"\n\t\"time\"\n)\n\ntype discovery string\n\nfunc (d discovery) Resolve(transport.NodeID) (string, error) { return string(d), nil }\nfunc main() {\n\tmode := flag.String(\"mode\", \"client\", \"server or client\")\n\taddr := flag.String(\"addr\", \"127.0.0.1:7000\", \"peer/listen address\")\n\tversion := flag.String(\"version\", \"unknown\", \"revision label\")\n\tworkers := flag.Int(\"workers\", 1, \"bounded concurrency\")\n\tsize := flag.Int(\"bytes\", 64, \"payload bytes\")\n\tduration := flag.Duration(\"duration\", 3*time.Second, \"measurement duration\")\n\tbudgets := flag.String(\"budgets\", \"auto\", \"auto, on, or off; unsupported on fails\")\n\tprofile := flag.String(\"pprof\", \"\", \"optional loopback-only diagnostic profile listener\")\n\tfetchURL := flag.String(\"fetch\", \"\", \"loopback diagnostic URL\")\n\tflag.Parse()\n\tif *fetchURL != \"\" {\n\t\tresp, err := (&http.Client{Timeout: 20 * time.Second}).Get(*fetchURL)\n\t\tcheck(err)\n\t\tdefer resp.Body.Close()\n\t\tif resp.StatusCode != 200 {\n\t\t\tpanic(resp.Status)\n\t\t}\n\t\t_, err = io.Copy(os.Stdout, resp.Body)\n\t\tcheck(err)\n\t\treturn\n\t}\n\tif *budgets != \"auto\" && *budgets != \"on\" && *budgets != \"off\" {\n\t\tpanic(\"invalid budgets mode\")\n\t}\n\tif *profile != \"\" {\n\t\thost, _, err := net.SplitHostPort(*profile)\n\t\tif err != nil || (host != \"127.0.0.1\" && host != \"::1\") {\n\t\t\tpanic(\"pprof must bind loopback\")\n\t\t}\n\t\tlistener, err := net.Listen(\"tcp\", *profile)\n\t\tcheck(err)\n\t\truntime.SetMutexProfileFraction(10)\n\t\truntime.SetBlockProfileRate(1000000)\n\t\tgo func() { check(http.Serve(listener, nil)) }()\n\t}\n\n\tif *workers < 1 || *workers > 16 || *size < 1 || *size > 65537 || *duration <= 0 || *duration > 60*time.Second {\n\t\tpanic(\"invalid probe bounds\")\n\t}\n\tif *mode == \"server\" {\n\t\ts, e := transport.NewServer(transport.ServerConfig{NodeID: 2})\n\t\tcheck(e)\n\t\toptions := transport.ServiceOptions{Concurrency: 64, QueueSize: 4096, MaxQueueBytes: 64 << 20}\n\t\tcheck(json.Unmarshal([]byte(`{\"Timeout\":30000000000,\"QueueTimeout\":5000000000}`), &options))\n\t\tcheck(s.Handle(1, func(_ context.Context, p []byte) ([]byte, error) { return p, nil }, options))\n\t\tcheck(s.ListenAndServe(*addr))\n\t\tdefer s.Stop()\n\t\tfmt.Println(\"RPC_PROBE_READY\")\n\t\tc := make(chan os.Signal, 1)\n\t\tsignal.Notify(c, syscall.SIGTERM, syscall.SIGINT)\n\t\t<-c\n\t\treturn\n\t}\n\tcfg := transport.ClientConfig{NodeID: 1, Discovery: discovery(*addr), PoolSize: 16}\n\tf := reflect.ValueOf(&cfg).Elem().FieldByName(\"RequestBudgets\")\n\tif *budgets == \"on\" && !f.IsValid() {\n\t\tpanic(\"request budgets unsupported\")\n\t}\n\tbudgeted := f.IsValid() && *budgets != \"off\"\n\tif f.IsValid() {\n\t\tf.SetBool(budgeted)\n\t}\n\tc, e := transport.NewClient(cfg)\n\tcheck(e)\n\tdefer c.Stop()\n\tpayload := bytes.Repeat([]byte{0x5a}, *size)\n\tcall := func(shard int) error {\n\t\tctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)\n\t\tdefer cancel()\n\t\tp, e := c.Call(ctx, 2, uint64(shard), transport.PriorityRPC, 1, payload)\n\t\tif e != nil {\n\t\t\treturn e\n\t\t}\n\t\tif !bytes.Equal(p, payload) {\n\t\t\treturn fmt.Errorf(\"payload mismatch\")\n\t\t}\n\t\treturn nil\n\t}\n\tfor i := 0; i < 16; i++ {\n\t\tcheck(call(i))\n\t}\n\tsamples := make([][]int64, *workers)\n\tfor w := range samples {\n\t\tsamples[w] = make([]int64, 0, 100000)\n\t}\n\truntime.GC()\n\tvar before, after runtime.MemStats\n\truntime.ReadMemStats(&before)\n\tvar wg sync.WaitGroup\n\tvar errors atomic.Int64\n\tvar capped atomic.Bool\n\tstart := time.Now()\n\tstop := start.Add(*duration)\n\tfor w := 0; w < *workers; w++ {\n\t\twg.Add(1)\n\t\tgo func(w int) {\n\t\t\tdefer wg.Done()\n\t\t\ttimes := samples[w]\n\t\t\tfor time.Now().Before(stop) {\n\t\t\t\tt := time.Now()\n\t\t\t\te := call(w)\n\t\t\t\tif e != nil {\n\t\t\t\t\terrors.Add(1)\n\t\t\t\t\tcontinue\n\t\t\t\t}\n\t\t\t\ttimes = append(times, time.Since(t).Nanoseconds())\n\t\t\t\tif len(times) >= 1000000 {\n\t\t\t\t\tcapped.Store(true)\n\t\t\t\t\tbreak\n\t\t\t\t}\n\t\t\t}\n\t\t\tsamples[w] = times\n\t\t}(w)\n\t}\n\twg.Wait()\n\telapsed := time.Since(start)\n\truntime.ReadMemStats(&after)\n\tworkerCounts := make([]int, len(samples))\n\tfor i, sample := range samples {\n\t\tworkerCounts[i] = len(sample)\n\t}\n\tall := []int64{}\n\tfor _, s := range samples {\n\t\tall = append(all, s...)\n\t}\n\tsort.Slice(all, func(i, j int) bool { return all[i] < all[j] })\n\tif len(all) == 0 {\n\t\tpanic(\"no successful calls\")\n\t}\n\tpercentile := func(p float64) float64 { return float64(all[int(float64(len(all)-1)*p)]) / 1e6 }\n\tvar total int64\n\tfor _, v := range all {\n\t\ttotal += v\n\t}\n\tjson.NewEncoder(os.Stdout).Encode(map[string]any{\"arch\": runtime.GOARCH, \"worker_counts\": workerCounts, \"sample_cap_hit\": capped.Load(), \"client_mallocs_per_call\": float64(after.Mallocs-before.Mallocs) / float64(len(all)), \"client_gc_cycles\": after.NumGC - before.NumGC, \"version\": *version, \"go_version\": runtime.Version(), \"workers\": *workers, \"payload_bytes\": *size, \"request_budgets\": budgeted, \"observer_enabled\": false, \"profiling_enabled\": *profile != \"\", \"calls\": len(all), \"errors\": errors.Load(), \"elapsed_seconds\": elapsed.Seconds(), \"calls_per_second\": float64(len(all)) / elapsed.Seconds(), \"mean_ms\": float64(total) / float64(len(all)) / 1e6, \"p50_ms\": percentile(.50), \"p95_ms\": percentile(.95), \"p99_ms\": percentile(.99), \"client_alloc_bytes_per_call\": float64(after.TotalAlloc-before.TotalAlloc) / float64(len(all))})\n\tif errors.Load() != 0 || capped.Load() {\n\t\tos.Exit(1)\n\t}\n}\nfunc check(e error) {\n\tif e != nil {\n\t\tpanic(e)\n\t}\n}\n"
+    },
+    "rejection-1-base.log": {
+      "sha256": "39d7d1bb7670d62cfae14f7bd8d806e0b19dd2d83b40aebdf10c1a57056b99ae",
+      "text": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc\nBenchmarkAdmissionRejection/items/serial-4  \t22496396\t         8.931 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/items/parallel-4         \t 4605284\t        56.93 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/queue_bytes/serial-4     \t26400220\t         9.021 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/queue_bytes/parallel-4   \t 4082493\t        56.15 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/retained_bytes/serial-4  \t26889502\t         9.778 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/retained_bytes/parallel-4         \t 5457464\t        44.48 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/canceled/serial-4                 \t 5546706\t        39.30 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/canceled/parallel-4               \t 3778104\t        68.07 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/stopped/serial-4                  \t29195896\t         9.772 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/stopped/parallel-4                \t 4828604\t        53.79 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/payload/serial-4                  \t23910931\t        10.05 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/payload/parallel-4                \t 4318604\t        58.85 ns/op\t       0 B/op\t       0 allocs/op\nPASS\n"
+    },
+    "rejection-1-candidate.log": {
+      "sha256": "d6a29e14da11f73fa1408a51949984d3f5c0545b5fe60fd97d3f1b3575c0454c",
+      "text": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc\nBenchmarkAdmissionRejection/items/serial-4  \t 3677061\t        62.18 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/items/parallel-4         \t 2494735\t       104.6 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/queue_bytes/serial-4     \t 3673641\t        56.90 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/queue_bytes/parallel-4   \t 2731998\t       105.0 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/retained_bytes/serial-4  \t 5063281\t        62.67 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/retained_bytes/parallel-4         \t 2700788\t        93.96 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/canceled/serial-4                 \t 3363933\t        76.57 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/canceled/parallel-4               \t 1718134\t       156.6 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/stopped/serial-4                  \t 4223220\t        54.01 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/stopped/parallel-4                \t 2447356\t        90.99 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/payload/serial-4                  \t24020818\t         9.932 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/payload/parallel-4                \t 4549191\t        56.54 ns/op\t       0 B/op\t       0 allocs/op\nPASS\n"
+    },
+    "rejection-2-base.log": {
+      "sha256": "d1acc386396cab6ad0b5294f2a59897e436f688e14d89c8732e294a834829cb2",
+      "text": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc\nBenchmarkAdmissionRejection/items/serial-4  \t26124819\t         9.152 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/items/parallel-4         \t 4304870\t        56.82 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/queue_bytes/serial-4     \t26475454\t         9.027 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/queue_bytes/parallel-4   \t 3954622\t        58.48 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/retained_bytes/serial-4  \t26975005\t         8.875 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/retained_bytes/parallel-4         \t 4230381\t        55.77 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/canceled/serial-4                 \t 8218696\t        28.81 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/canceled/parallel-4               \t 3681049\t        66.49 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/stopped/serial-4                  \t30772516\t         7.780 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/stopped/parallel-4                \t 4295731\t        55.98 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/payload/serial-4                  \t24209613\t         9.899 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/payload/parallel-4                \t 4003814\t        56.10 ns/op\t       0 B/op\t       0 allocs/op\nPASS\n"
+    },
+    "rejection-2-candidate.log": {
+      "sha256": "7b4d1696911e5a0a63eccd6a811e18a71d54805b9c1a31745e9099dea7f3aea1",
+      "text": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc\nBenchmarkAdmissionRejection/items/serial-4  \t 3072511\t        77.53 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/items/parallel-4         \t 2447350\t        95.14 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/queue_bytes/serial-4     \t 4114196\t        54.32 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/queue_bytes/parallel-4   \t 2403421\t        98.91 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/retained_bytes/serial-4  \t 4275603\t        59.56 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/retained_bytes/parallel-4         \t 1954214\t       105.8 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/canceled/serial-4                 \t 3001046\t        80.22 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/canceled/parallel-4               \t 1775540\t       143.3 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/stopped/serial-4                  \t 4887025\t        53.34 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/stopped/parallel-4                \t 2743696\t        89.17 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/payload/serial-4                  \t23979916\t         9.966 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/payload/parallel-4                \t 4046997\t        60.63 ns/op\t       0 B/op\t       0 allocs/op\nPASS\n"
+    },
+    "rejection-3-base.log": {
+      "sha256": "2a98f872917c0209593c8c0c0d8adcfe93fbd18b8865c0ba9ca55d6db07d03ac",
+      "text": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc\nBenchmarkAdmissionRejection/items/serial-4  \t26229866\t         8.951 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/items/parallel-4         \t 4086430\t        57.94 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/queue_bytes/serial-4     \t26476795\t         9.027 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/queue_bytes/parallel-4   \t 4665319\t        51.31 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/retained_bytes/serial-4  \t26929603\t         8.885 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/retained_bytes/parallel-4         \t 4320950\t        59.95 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/canceled/serial-4                 \t 8145291\t        29.21 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/canceled/parallel-4               \t 3955590\t        63.73 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/stopped/serial-4                  \t30828354\t         7.794 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/stopped/parallel-4                \t 4149885\t        61.81 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/payload/serial-4                  \t24126562\t         9.942 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/payload/parallel-4                \t 3866684\t        60.92 ns/op\t       0 B/op\t       0 allocs/op\nPASS\n"
+    },
+    "rejection-3-candidate.log": {
+      "sha256": "deb4087d60c3e4307bca083b01dde306ec64ae2d652df8157385fc090c9c13f4",
+      "text": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc\nBenchmarkAdmissionRejection/items/serial-4  \t 3597960\t        64.14 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/items/parallel-4         \t 2954233\t       103.5 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/queue_bytes/serial-4     \t 3776107\t        58.73 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/queue_bytes/parallel-4   \t 2433567\t        98.94 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/retained_bytes/serial-4  \t 4226854\t        56.70 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/retained_bytes/parallel-4         \t 2553882\t       103.1 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/canceled/serial-4                 \t 3206524\t        80.49 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/canceled/parallel-4               \t 1632926\t       139.2 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/stopped/serial-4                  \t 4622970\t        51.98 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/stopped/parallel-4                \t 2715018\t        83.35 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/payload/serial-4                  \t24038562\t         9.967 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/payload/parallel-4                \t 3793515\t        57.32 ns/op\t       0 B/op\t       0 allocs/op\nPASS\n"
+    },
+    "rejection-4-base.log": {
+      "sha256": "dcc675b5b77cd86ae411ed9473886f2be75837be1ac855c81005de5a971f058c",
+      "text": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc\nBenchmarkAdmissionRejection/items/serial-4  \t25571811\t         8.948 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/items/parallel-4         \t 4169830\t        57.27 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/queue_bytes/serial-4     \t25032267\t         9.341 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/queue_bytes/parallel-4   \t 4191165\t        61.48 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/retained_bytes/serial-4  \t26958213\t         8.867 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/retained_bytes/parallel-4         \t 4047379\t        53.05 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/canceled/serial-4                 \t 8119537\t        29.23 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/canceled/parallel-4               \t 3589804\t        64.99 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/stopped/serial-4                  \t30878922\t         7.776 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/stopped/parallel-4                \t 4214320\t        55.40 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/payload/serial-4                  \t24148816\t         9.933 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/payload/parallel-4                \t 3871570\t        62.16 ns/op\t       0 B/op\t       0 allocs/op\nPASS\n"
+    },
+    "rejection-4-candidate.log": {
+      "sha256": "de5d43df527e0f0ae72450c81b2e3227069d4011f9a04a7c4842ce14560f8a30",
+      "text": "goos: linux\ngoarch: arm64\npkg: github.com/WuKongIM/WuKongIM/pkg/transport/internal/rpc\nBenchmarkAdmissionRejection/items/serial-4  \t 3889069\t        61.93 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/items/parallel-4         \t 2610327\t       116.7 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/queue_bytes/serial-4     \t 3514024\t        59.08 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/queue_bytes/parallel-4   \t 2896981\t       112.9 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/retained_bytes/serial-4  \t 4460766\t        55.83 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/retained_bytes/parallel-4         \t 2326915\t       105.8 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/canceled/serial-4                 \t 2884820\t        88.90 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/canceled/parallel-4               \t 1585328\t       145.4 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/stopped/serial-4                  \t 5275719\t        51.27 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/stopped/parallel-4                \t 2825809\t        92.34 ns/op\t     160 B/op\t       1 allocs/op\nBenchmarkAdmissionRejection/payload/serial-4                  \t23615654\t        10.11 ns/op\t       0 B/op\t       0 allocs/op\nBenchmarkAdmissionRejection/payload/parallel-4                \t 4476027\t        53.54 ns/op\t       0 B/op\t       0 allocs/op\nPASS\n"
+    },
+    "rejection-summary.json": {
+      "sha256": "bea038e00296c7d71971f8f4e15db98cc8d38b3d7e91d5008d1b2e28fa5a7c23",
+      "text": "{\n  \"rows\": [\n    {\n      \"file\": \"rejection-1-base.log\",\n      \"version\": \"base\",\n      \"case\": \"items\",\n      \"mode\": \"serial\",\n      \"n\": 22496396,\n      \"ns\": 8.931,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-1-base.log\",\n      \"version\": \"base\",\n      \"case\": \"items\",\n      \"mode\": \"parallel\",\n      \"n\": 4605284,\n      \"ns\": 56.93,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-1-base.log\",\n      \"version\": \"base\",\n      \"case\": \"queue_bytes\",\n      \"mode\": \"serial\",\n      \"n\": 26400220,\n      \"ns\": 9.021,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-1-base.log\",\n      \"version\": \"base\",\n      \"case\": \"queue_bytes\",\n      \"mode\": \"parallel\",\n      \"n\": 4082493,\n      \"ns\": 56.15,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-1-base.log\",\n      \"version\": \"base\",\n      \"case\": \"retained_bytes\",\n      \"mode\": \"serial\",\n      \"n\": 26889502,\n      \"ns\": 9.778,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-1-base.log\",\n      \"version\": \"base\",\n      \"case\": \"retained_bytes\",\n      \"mode\": \"parallel\",\n      \"n\": 5457464,\n      \"ns\": 44.48,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-1-base.log\",\n      \"version\": \"base\",\n      \"case\": \"canceled\",\n      \"mode\": \"serial\",\n      \"n\": 5546706,\n      \"ns\": 39.3,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-1-base.log\",\n      \"version\": \"base\",\n      \"case\": \"canceled\",\n      \"mode\": \"parallel\",\n      \"n\": 3778104,\n      \"ns\": 68.07,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-1-base.log\",\n      \"version\": \"base\",\n      \"case\": \"stopped\",\n      \"mode\": \"serial\",\n      \"n\": 29195896,\n      \"ns\": 9.772,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-1-base.log\",\n      \"version\": \"base\",\n      \"case\": \"stopped\",\n      \"mode\": \"parallel\",\n      \"n\": 4828604,\n      \"ns\": 53.79,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-1-base.log\",\n      \"version\": \"base\",\n      \"case\": \"payload\",\n      \"mode\": \"serial\",\n      \"n\": 23910931,\n      \"ns\": 10.05,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-1-base.log\",\n      \"version\": \"base\",\n      \"case\": \"payload\",\n      \"mode\": \"parallel\",\n      \"n\": 4318604,\n      \"ns\": 58.85,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-1-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"items\",\n      \"mode\": \"serial\",\n      \"n\": 3677061,\n      \"ns\": 62.18,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-1-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"items\",\n      \"mode\": \"parallel\",\n      \"n\": 2494735,\n      \"ns\": 104.6,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-1-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"queue_bytes\",\n      \"mode\": \"serial\",\n      \"n\": 3673641,\n      \"ns\": 56.9,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-1-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"queue_bytes\",\n      \"mode\": \"parallel\",\n      \"n\": 2731998,\n      \"ns\": 105.0,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-1-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"retained_bytes\",\n      \"mode\": \"serial\",\n      \"n\": 5063281,\n      \"ns\": 62.67,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-1-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"retained_bytes\",\n      \"mode\": \"parallel\",\n      \"n\": 2700788,\n      \"ns\": 93.96,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-1-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"canceled\",\n      \"mode\": \"serial\",\n      \"n\": 3363933,\n      \"ns\": 76.57,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-1-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"canceled\",\n      \"mode\": \"parallel\",\n      \"n\": 1718134,\n      \"ns\": 156.6,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-1-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"stopped\",\n      \"mode\": \"serial\",\n      \"n\": 4223220,\n      \"ns\": 54.01,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-1-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"stopped\",\n      \"mode\": \"parallel\",\n      \"n\": 2447356,\n      \"ns\": 90.99,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-1-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"payload\",\n      \"mode\": \"serial\",\n      \"n\": 24020818,\n      \"ns\": 9.932,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-1-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"payload\",\n      \"mode\": \"parallel\",\n      \"n\": 4549191,\n      \"ns\": 56.54,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-2-base.log\",\n      \"version\": \"base\",\n      \"case\": \"items\",\n      \"mode\": \"serial\",\n      \"n\": 26124819,\n      \"ns\": 9.152,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-2-base.log\",\n      \"version\": \"base\",\n      \"case\": \"items\",\n      \"mode\": \"parallel\",\n      \"n\": 4304870,\n      \"ns\": 56.82,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-2-base.log\",\n      \"version\": \"base\",\n      \"case\": \"queue_bytes\",\n      \"mode\": \"serial\",\n      \"n\": 26475454,\n      \"ns\": 9.027,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-2-base.log\",\n      \"version\": \"base\",\n      \"case\": \"queue_bytes\",\n      \"mode\": \"parallel\",\n      \"n\": 3954622,\n      \"ns\": 58.48,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-2-base.log\",\n      \"version\": \"base\",\n      \"case\": \"retained_bytes\",\n      \"mode\": \"serial\",\n      \"n\": 26975005,\n      \"ns\": 8.875,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-2-base.log\",\n      \"version\": \"base\",\n      \"case\": \"retained_bytes\",\n      \"mode\": \"parallel\",\n      \"n\": 4230381,\n      \"ns\": 55.77,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-2-base.log\",\n      \"version\": \"base\",\n      \"case\": \"canceled\",\n      \"mode\": \"serial\",\n      \"n\": 8218696,\n      \"ns\": 28.81,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-2-base.log\",\n      \"version\": \"base\",\n      \"case\": \"canceled\",\n      \"mode\": \"parallel\",\n      \"n\": 3681049,\n      \"ns\": 66.49,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-2-base.log\",\n      \"version\": \"base\",\n      \"case\": \"stopped\",\n      \"mode\": \"serial\",\n      \"n\": 30772516,\n      \"ns\": 7.78,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-2-base.log\",\n      \"version\": \"base\",\n      \"case\": \"stopped\",\n      \"mode\": \"parallel\",\n      \"n\": 4295731,\n      \"ns\": 55.98,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-2-base.log\",\n      \"version\": \"base\",\n      \"case\": \"payload\",\n      \"mode\": \"serial\",\n      \"n\": 24209613,\n      \"ns\": 9.899,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-2-base.log\",\n      \"version\": \"base\",\n      \"case\": \"payload\",\n      \"mode\": \"parallel\",\n      \"n\": 4003814,\n      \"ns\": 56.1,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-2-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"items\",\n      \"mode\": \"serial\",\n      \"n\": 3072511,\n      \"ns\": 77.53,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-2-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"items\",\n      \"mode\": \"parallel\",\n      \"n\": 2447350,\n      \"ns\": 95.14,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-2-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"queue_bytes\",\n      \"mode\": \"serial\",\n      \"n\": 4114196,\n      \"ns\": 54.32,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-2-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"queue_bytes\",\n      \"mode\": \"parallel\",\n      \"n\": 2403421,\n      \"ns\": 98.91,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-2-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"retained_bytes\",\n      \"mode\": \"serial\",\n      \"n\": 4275603,\n      \"ns\": 59.56,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-2-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"retained_bytes\",\n      \"mode\": \"parallel\",\n      \"n\": 1954214,\n      \"ns\": 105.8,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-2-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"canceled\",\n      \"mode\": \"serial\",\n      \"n\": 3001046,\n      \"ns\": 80.22,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-2-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"canceled\",\n      \"mode\": \"parallel\",\n      \"n\": 1775540,\n      \"ns\": 143.3,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-2-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"stopped\",\n      \"mode\": \"serial\",\n      \"n\": 4887025,\n      \"ns\": 53.34,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-2-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"stopped\",\n      \"mode\": \"parallel\",\n      \"n\": 2743696,\n      \"ns\": 89.17,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-2-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"payload\",\n      \"mode\": \"serial\",\n      \"n\": 23979916,\n      \"ns\": 9.966,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-2-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"payload\",\n      \"mode\": \"parallel\",\n      \"n\": 4046997,\n      \"ns\": 60.63,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-3-base.log\",\n      \"version\": \"base\",\n      \"case\": \"items\",\n      \"mode\": \"serial\",\n      \"n\": 26229866,\n      \"ns\": 8.951,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-3-base.log\",\n      \"version\": \"base\",\n      \"case\": \"items\",\n      \"mode\": \"parallel\",\n      \"n\": 4086430,\n      \"ns\": 57.94,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-3-base.log\",\n      \"version\": \"base\",\n      \"case\": \"queue_bytes\",\n      \"mode\": \"serial\",\n      \"n\": 26476795,\n      \"ns\": 9.027,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-3-base.log\",\n      \"version\": \"base\",\n      \"case\": \"queue_bytes\",\n      \"mode\": \"parallel\",\n      \"n\": 4665319,\n      \"ns\": 51.31,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-3-base.log\",\n      \"version\": \"base\",\n      \"case\": \"retained_bytes\",\n      \"mode\": \"serial\",\n      \"n\": 26929603,\n      \"ns\": 8.885,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-3-base.log\",\n      \"version\": \"base\",\n      \"case\": \"retained_bytes\",\n      \"mode\": \"parallel\",\n      \"n\": 4320950,\n      \"ns\": 59.95,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-3-base.log\",\n      \"version\": \"base\",\n      \"case\": \"canceled\",\n      \"mode\": \"serial\",\n      \"n\": 8145291,\n      \"ns\": 29.21,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-3-base.log\",\n      \"version\": \"base\",\n      \"case\": \"canceled\",\n      \"mode\": \"parallel\",\n      \"n\": 3955590,\n      \"ns\": 63.73,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-3-base.log\",\n      \"version\": \"base\",\n      \"case\": \"stopped\",\n      \"mode\": \"serial\",\n      \"n\": 30828354,\n      \"ns\": 7.794,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-3-base.log\",\n      \"version\": \"base\",\n      \"case\": \"stopped\",\n      \"mode\": \"parallel\",\n      \"n\": 4149885,\n      \"ns\": 61.81,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-3-base.log\",\n      \"version\": \"base\",\n      \"case\": \"payload\",\n      \"mode\": \"serial\",\n      \"n\": 24126562,\n      \"ns\": 9.942,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-3-base.log\",\n      \"version\": \"base\",\n      \"case\": \"payload\",\n      \"mode\": \"parallel\",\n      \"n\": 3866684,\n      \"ns\": 60.92,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-3-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"items\",\n      \"mode\": \"serial\",\n      \"n\": 3597960,\n      \"ns\": 64.14,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-3-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"items\",\n      \"mode\": \"parallel\",\n      \"n\": 2954233,\n      \"ns\": 103.5,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-3-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"queue_bytes\",\n      \"mode\": \"serial\",\n      \"n\": 3776107,\n      \"ns\": 58.73,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-3-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"queue_bytes\",\n      \"mode\": \"parallel\",\n      \"n\": 2433567,\n      \"ns\": 98.94,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-3-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"retained_bytes\",\n      \"mode\": \"serial\",\n      \"n\": 4226854,\n      \"ns\": 56.7,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-3-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"retained_bytes\",\n      \"mode\": \"parallel\",\n      \"n\": 2553882,\n      \"ns\": 103.1,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-3-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"canceled\",\n      \"mode\": \"serial\",\n      \"n\": 3206524,\n      \"ns\": 80.49,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-3-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"canceled\",\n      \"mode\": \"parallel\",\n      \"n\": 1632926,\n      \"ns\": 139.2,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-3-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"stopped\",\n      \"mode\": \"serial\",\n      \"n\": 4622970,\n      \"ns\": 51.98,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-3-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"stopped\",\n      \"mode\": \"parallel\",\n      \"n\": 2715018,\n      \"ns\": 83.35,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-3-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"payload\",\n      \"mode\": \"serial\",\n      \"n\": 24038562,\n      \"ns\": 9.967,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-3-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"payload\",\n      \"mode\": \"parallel\",\n      \"n\": 3793515,\n      \"ns\": 57.32,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-4-base.log\",\n      \"version\": \"base\",\n      \"case\": \"items\",\n      \"mode\": \"serial\",\n      \"n\": 25571811,\n      \"ns\": 8.948,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-4-base.log\",\n      \"version\": \"base\",\n      \"case\": \"items\",\n      \"mode\": \"parallel\",\n      \"n\": 4169830,\n      \"ns\": 57.27,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-4-base.log\",\n      \"version\": \"base\",\n      \"case\": \"queue_bytes\",\n      \"mode\": \"serial\",\n      \"n\": 25032267,\n      \"ns\": 9.341,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-4-base.log\",\n      \"version\": \"base\",\n      \"case\": \"queue_bytes\",\n      \"mode\": \"parallel\",\n      \"n\": 4191165,\n      \"ns\": 61.48,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-4-base.log\",\n      \"version\": \"base\",\n      \"case\": \"retained_bytes\",\n      \"mode\": \"serial\",\n      \"n\": 26958213,\n      \"ns\": 8.867,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-4-base.log\",\n      \"version\": \"base\",\n      \"case\": \"retained_bytes\",\n      \"mode\": \"parallel\",\n      \"n\": 4047379,\n      \"ns\": 53.05,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-4-base.log\",\n      \"version\": \"base\",\n      \"case\": \"canceled\",\n      \"mode\": \"serial\",\n      \"n\": 8119537,\n      \"ns\": 29.23,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-4-base.log\",\n      \"version\": \"base\",\n      \"case\": \"canceled\",\n      \"mode\": \"parallel\",\n      \"n\": 3589804,\n      \"ns\": 64.99,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-4-base.log\",\n      \"version\": \"base\",\n      \"case\": \"stopped\",\n      \"mode\": \"serial\",\n      \"n\": 30878922,\n      \"ns\": 7.776,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-4-base.log\",\n      \"version\": \"base\",\n      \"case\": \"stopped\",\n      \"mode\": \"parallel\",\n      \"n\": 4214320,\n      \"ns\": 55.4,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-4-base.log\",\n      \"version\": \"base\",\n      \"case\": \"payload\",\n      \"mode\": \"serial\",\n      \"n\": 24148816,\n      \"ns\": 9.933,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-4-base.log\",\n      \"version\": \"base\",\n      \"case\": \"payload\",\n      \"mode\": \"parallel\",\n      \"n\": 3871570,\n      \"ns\": 62.16,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-4-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"items\",\n      \"mode\": \"serial\",\n      \"n\": 3889069,\n      \"ns\": 61.93,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-4-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"items\",\n      \"mode\": \"parallel\",\n      \"n\": 2610327,\n      \"ns\": 116.7,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-4-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"queue_bytes\",\n      \"mode\": \"serial\",\n      \"n\": 3514024,\n      \"ns\": 59.08,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-4-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"queue_bytes\",\n      \"mode\": \"parallel\",\n      \"n\": 2896981,\n      \"ns\": 112.9,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-4-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"retained_bytes\",\n      \"mode\": \"serial\",\n      \"n\": 4460766,\n      \"ns\": 55.83,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-4-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"retained_bytes\",\n      \"mode\": \"parallel\",\n      \"n\": 2326915,\n      \"ns\": 105.8,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-4-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"canceled\",\n      \"mode\": \"serial\",\n      \"n\": 2884820,\n      \"ns\": 88.9,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-4-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"canceled\",\n      \"mode\": \"parallel\",\n      \"n\": 1585328,\n      \"ns\": 145.4,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-4-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"stopped\",\n      \"mode\": \"serial\",\n      \"n\": 5275719,\n      \"ns\": 51.27,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-4-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"stopped\",\n      \"mode\": \"parallel\",\n      \"n\": 2825809,\n      \"ns\": 92.34,\n      \"bytes\": 160,\n      \"allocs\": 1\n    },\n    {\n      \"file\": \"rejection-4-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"payload\",\n      \"mode\": \"serial\",\n      \"n\": 23615654,\n      \"ns\": 10.11,\n      \"bytes\": 0,\n      \"allocs\": 0\n    },\n    {\n      \"file\": \"rejection-4-candidate.log\",\n      \"version\": \"candidate\",\n      \"case\": \"payload\",\n      \"mode\": \"parallel\",\n      \"n\": 4476027,\n      \"ns\": 53.54,\n      \"bytes\": 0,\n      \"allocs\": 0\n    }\n  ],\n  \"medians\": {\n    \"items\": {\n      \"serial\": {\n        \"base\": {\n          \"ns\": 8.9495,\n          \"bytes\": 0.0,\n          \"allocs\": 0.0\n        },\n        \"candidate\": {\n          \"ns\": 63.16,\n          \"bytes\": 160.0,\n          \"allocs\": 1.0\n        }\n      },\n      \"parallel\": {\n        \"base\": {\n          \"ns\": 57.1,\n          \"bytes\": 0.0,\n          \"allocs\": 0.0\n        },\n        \"candidate\": {\n          \"ns\": 104.05,\n          \"bytes\": 160.0,\n          \"allocs\": 1.0\n        }\n      }\n    },\n    \"queue_bytes\": {\n      \"serial\": {\n        \"base\": {\n          \"ns\": 9.027,\n          \"bytes\": 0.0,\n          \"allocs\": 0.0\n        },\n        \"candidate\": {\n          \"ns\": 57.815,\n          \"bytes\": 160.0,\n          \"allocs\": 1.0\n        }\n      },\n      \"parallel\": {\n        \"base\": {\n          \"ns\": 57.315,\n          \"bytes\": 0.0,\n          \"allocs\": 0.0\n        },\n        \"candidate\": {\n          \"ns\": 101.97,\n          \"bytes\": 160.0,\n          \"allocs\": 1.0\n        }\n      }\n    },\n    \"retained_bytes\": {\n      \"serial\": {\n        \"base\": {\n          \"ns\": 8.879999999999999,\n          \"bytes\": 0.0,\n          \"allocs\": 0.0\n        },\n        \"candidate\": {\n          \"ns\": 58.13,\n          \"bytes\": 160.0,\n          \"allocs\": 1.0\n        }\n      },\n      \"parallel\": {\n        \"base\": {\n          \"ns\": 54.41,\n          \"bytes\": 0.0,\n          \"allocs\": 0.0\n        },\n        \"candidate\": {\n          \"ns\": 104.44999999999999,\n          \"bytes\": 160.0,\n          \"allocs\": 1.0\n        }\n      }\n    },\n    \"canceled\": {\n      \"serial\": {\n        \"base\": {\n          \"ns\": 29.22,\n          \"bytes\": 0.0,\n          \"allocs\": 0.0\n        },\n        \"candidate\": {\n          \"ns\": 80.35499999999999,\n          \"bytes\": 160.0,\n          \"allocs\": 1.0\n        }\n      },\n      \"parallel\": {\n        \"base\": {\n          \"ns\": 65.74,\n          \"bytes\": 0.0,\n          \"allocs\": 0.0\n        },\n        \"candidate\": {\n          \"ns\": 144.35000000000002,\n          \"bytes\": 160.0,\n          \"allocs\": 1.0\n        }\n      }\n    },\n    \"stopped\": {\n      \"serial\": {\n        \"base\": {\n          \"ns\": 7.787,\n          \"bytes\": 0.0,\n          \"allocs\": 0.0\n        },\n        \"candidate\": {\n          \"ns\": 52.66,\n          \"bytes\": 160.0,\n          \"allocs\": 1.0\n        }\n      },\n      \"parallel\": {\n        \"base\": {\n          \"ns\": 55.69,\n          \"bytes\": 0.0,\n          \"allocs\": 0.0\n        },\n        \"candidate\": {\n          \"ns\": 90.08,\n          \"bytes\": 160.0,\n          \"allocs\": 1.0\n        }\n      }\n    },\n    \"payload\": {\n      \"serial\": {\n        \"base\": {\n          \"ns\": 9.9375,\n          \"bytes\": 0.0,\n          \"allocs\": 0.0\n        },\n        \"candidate\": {\n          \"ns\": 9.9665,\n          \"bytes\": 0.0,\n          \"allocs\": 0.0\n        }\n      },\n      \"parallel\": {\n        \"base\": {\n          \"ns\": 59.885000000000005,\n          \"bytes\": 0.0,\n          \"allocs\": 0.0\n        },\n        \"candidate\": {\n          \"ns\": 56.93,\n          \"bytes\": 0.0,\n          \"allocs\": 0.0\n        }\n      }\n    }\n  }\n}"
+    },
+    "rejection_bench_test.go": {
+      "sha256": "c25b0fa5be2534aa71d5f7b4c08a791494bb5ecd90d51a3e13a98bd7b17e9841",
+      "text": "package rpc\n\nimport (\n \"context\"\n \"testing\"\n \"github.com/WuKongIM/WuKongIM/pkg/transport/internal/core\"\n)\n\n// BenchmarkAdmissionRejection isolates real Enqueue rejection with fixed service\n// state and reusable caller buffers. No pump runs because admission always fails.\nfunc BenchmarkAdmissionRejection(b *testing.B) {\n for _, mode := range []string{\"items\", \"queue_bytes\", \"retained_bytes\", \"canceled\", \"stopped\", \"payload\"} {\n  b.Run(mode, func(b *testing.B) {\n   for _, parallel := range []bool{false, true} {\n    name := \"serial\"; if parallel { name = \"parallel\" }\n    b.Run(name, func(b *testing.B) {\n     ctx, cancel := context.WithCancel(context.Background()); defer cancel()\n     s := &Service{ctx:ctx, opts:core.ServiceOptions{QueueSize:1, MaxQueueBytes:64, MaxRetainedBytes:64, MaxPayload:64}}\n     expected := core.ErrBusy\n     switch mode {\n     case \"items\": s.queuedItems=1\n     case \"queue_bytes\": s.queuedBytes=64\n     case \"retained_bytes\": s.retainedBytes=64\n     case \"canceled\": cancel(); expected=core.ErrCanceled\n     case \"stopped\": s.stopped=true; expected=core.ErrStopped\n     case \"payload\": s.opts.MaxPayload=1; expected=core.ErrMsgTooLarge\n     }\n     req:=Request{Payload:core.NewOwnedBuffer(make([]byte,64),nil)}\n     call:=func(){if err:=s.Enqueue(req); err!=expected {b.Fatalf(\"got %v, want %v\",err,expected)}}\n     b.ReportAllocs(); b.ResetTimer()\n     if parallel {b.RunParallel(func(pb *testing.PB){for pb.Next(){call()}})} else {for i:=0;i<b.N;i++{call()}}\n    })\n   }\n  })\n }\n}\n"
+    },
+    "run.py": {
+      "sha256": "a37cd2eab48418351201ee88053ed4c3fdc38c8fd0e71a6752670c3f7c56db49",
+      "text": "import pathlib,subprocess,json,time,datetime,hashlib,itertools,sys\nE=pathlib.Path(__file__).resolve().parent\nrows=[]\ndef cmd(args,timeout=30,**kwargs):return subprocess.run(args,capture_output=True,check=True,timeout=timeout,**kwargs)\ndef run(label,version,duration=10,diagnostic=None):\n name='wk-enqueue-'+label\n server=['docker','run','-d','--name',name,'--pull=never','--platform','linux/amd64','--cpuset-cpus','4-7','--memory','3g','-e','GOMAXPROCS=4','-e','GOGC=100','-v',str(E)+':/bench:ro','--entrypoint','/bench/'+version+'-probe','debian:12','-mode','server','-addr','127.0.0.1:7000']\n if diagnostic:server+=['-pprof','127.0.0.1:6060']\n created=False;proc=None;row=None\n try:\n  cmd(server);created=True;deadline=time.monotonic()+15\n  while True:\n   logs=cmd(['docker','logs',name]).stdout\n   if b'RPC_PROBE_READY' in logs:break\n   assert time.monotonic()<deadline,logs\n   time.sleep(.2)\n  client=['docker','run','--rm','--name',name+'-client','--pull=never','--platform','linux/amd64','--network','container:'+name,'--cpuset-cpus','0-3','--memory','3g','-e','GOMAXPROCS=4','-e','GOGC=100','-v',str(E)+':/bench:ro','--entrypoint','/bench/old-probe','debian:12','-mode','client','-addr','127.0.0.1:7000','-bytes','64','-workers','16','-duration',str(duration)+'s','-budgets','off','-version','old-client-'+version+'-server']\n  started=datetime.datetime.now(datetime.timezone.utc).isoformat()\n  proc=subprocess.Popen(client,stdout=subprocess.PIPE,stderr=subprocess.PIPE)\n  profiles={}\n  if diagnostic:\n   time.sleep(2)\n   requests=[('cpu','profile?seconds=8'),('allocs','allocs'),('mutex','mutex'),('block','block')] if diagnostic=='cpu' else [('trace','trace?seconds=3')]\n   for kind,path in requests:\n    t=datetime.datetime.now(datetime.timezone.utc).isoformat()\n    fetch=['docker','exec',name,'/bench/current-probe','-fetch','http://127.0.0.1:6060/debug/pprof/'+path]\n    r=cmd(fetch,25);(E/(label+'.'+kind)).write_bytes(r.stdout)\n    profiles[kind]={'started':t,'finished':datetime.datetime.now(datetime.timezone.utc).isoformat(),'bytes':len(r.stdout),'sha256':hashlib.sha256(r.stdout).hexdigest(),'command':fetch}\n  stdout,stderr=proc.communicate(timeout=duration+30);(E/(label+'.txt')).write_bytes(stdout+stderr);assert proc.returncode==0,(stdout,stderr)\n  result=json.loads(stdout);assert result['errors']==0 and not result['sample_cap_hit'] and result['arch']=='arm64'\n  assert len(result['worker_counts'])==16 and sum(result['worker_counts'])==result['calls'] and max(result['worker_counts'])<1000000\n  assert result['elapsed_seconds']>=duration and result['request_budgets']==False\n  peak=cmd(['docker','exec',name,'cat','/sys/fs/cgroup/memory.peak']).stdout.decode().strip()\n  row=dict(label=label,server=version,diagnostic=diagnostic,started=started,finished=datetime.datetime.now(datetime.timezone.utc).isoformat(),server_command=server,client_command=client,result=result,server_cgroup_memory_peak=int(peak),profiles=profiles,output_sha256=hashlib.sha256(stdout+stderr).hexdigest())\n finally:\n  if proc and proc.poll() is None:\n   subprocess.run(['docker','stop','--time','5',name+'-client'],capture_output=True,timeout=15);proc.communicate(timeout=15)\n  if created:\n   cmd(['docker','stop','--time','5',name]);state=json.loads(cmd(['docker','inspect',name]).stdout)[0]['State'];assert not state['Running'] and state['ExitCode']==0,state\n   cmd(['docker','rm',name]);(E/(label+'-cleanup.json')).write_text(json.dumps({'name':name,'state':state},indent=2))\n if row:\n  rows.append(row);(E/('diagnostics.json' if diagnostic else 'timing.json')).write_text(json.dumps(rows,indent=2)+'\\n')\n  print(json.dumps({'label':label,'server':version,'result':row['result'],'profiles':list(profiles)},ensure_ascii=False),flush=True)\n\nfor i in range(1,5):\n for v in ([\"base\",\"candidate\"] if i%2 else [\"candidate\",\"base\"]):run(f\"pair-{i}-{v}\",v)\nfor i in [1,2]:\n for v in [\"a\",\"b\"]:run(f\"aa-{i}-{v}\",\"base\")\n"
+    },
+    "save.py": {
+      "sha256": "e58569890e433e64c9114fc2534e2ba3aec3cad3bf549f113400437ad598293d",
+      "text": "from pathlib import Path\nimport json,hashlib,subprocess\nE=Path(__file__).resolve().parent\nW=Path('/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/rpc-enqueue-allocation')\ns=json.loads((E/'summary.json').read_text()); r=json.loads((E/'rejection-summary.json').read_text())\nassert subprocess.check_output(['git','diff','--','pkg/transport/internal/rpc/service.go'],cwd=W)==(E/'candidate.patch').read_bytes()\nfor f in ['candidate-unit.log','candidate-race.log','candidate-stress.log']:assert 'FAIL' not in (E/f).read_text()\nrows=json.loads((E/'timing.json').read_text());assert len(rows)==12\nfor row in rows:\n assert row['result']['errors']==0 and not row['result']['sample_cap_hit']\n assert sum(row['result']['worker_counts'])==row['result']['calls']\n assert hashlib.sha256((E/(row['label']+'.txt')).read_bytes()).hexdigest()==row['output_sha256']\n state=json.loads((E/(row['label']+'-cleanup.json')).read_text())['state'];assert not state['Running'] and state['ExitCode']==0\nfor row in r['rows']:\n assert row['allocs']==(1 if row['version']=='candidate' and row['case']!='payload' else 0)\n assert row['bytes']==160*row['allocs']\nprobe=W/'pkg/transport/enqueueprobe/main.go'; (E/'probe.go').write_bytes(probe.read_bytes())\npaths=[f for f in E.iterdir() if f.suffix in ['.json','.py','.go','.patch','.log','.txt'] and f.name!='validate.py']\nasset={'decision':'reject candidate; production unchanged','source':json.loads((E/'source.json').read_text()),'summary':s,'rejection':r,'files':{f.name:{'sha256':hashlib.sha256(f.read_bytes()).hexdigest(),'text':f.read_text()} for f in sorted(paths)}}\nasset['binaries']={f.name:{'sha256':hashlib.sha256(f.read_bytes()).hexdigest(),'bytes':f.stat().st_size} for f in E.iterdir() if f.name.endswith('-probe') or f.name.endswith('.test')}\n(W/'docs/reports/assets/rpc-enqueue-allocation-2026-09-22.json').write_text(json.dumps(asset,ensure_ascii=False,indent=2)+'\\n')\nreport='''# RPC 入队对象提前分配本地实验\n\n结论：**不采用此候选，生产代码保持不变**。将请求对象分配移到 `Service.mu` 外，\n吞吐中位仅提升 0.30%，未超过本轮同二进制对照的变化幅度；拒绝路径却确定新增\n160B、1 次分配。原有吞吐回退仍未解决。\n\n[机器可读证据](assets/rpc-enqueue-allocation-2026-09-22.json)包含候选补丁、探针、\n驱动、构建哈希、全部输出、拒绝成本、测试日志和容器清理回执。原始文件位于\n`/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation`。本轮未购买云资源。\n\n## 候选与验证方法\n\n基线为 `5c293024c`，已包含请求/执行器对象合并分配与共享队列定时器。\n候选仅修改 `Service.Enqueue`：在锁前创建 `requestEntry`，准入成功后仍在锁内设置\n`queued`、原始入队时间、FIFO、保留字节与 WaitGroup，并安装取消回调。\nMaxPayload 检查仍在对象分配前；未修改取消机制、执行器或背压策略。\n根 AGENTS 的精确源修订及 SHA256 已冻结在证据中；目标范围没有适用 FLOW 或更深 AGENTS。\n\n沿用前轮独立进程反馈环与已有 pprof 证据，依次检验四个预测：锁内分配造成争用；\n主要成本位于其他生命周期路径；提前分配增加拒绝成本；小幅收益属于运行波动。\n本轮不重新剖析：候选未达到保留条件，隔离分配测量已经给出明确拒绝代价；\n不能据此次结果给取消或执行器分配确定的因果份额。\n\n- Apple M4 Docker VM，Go 1.25.11，Linux ARM64 静态程序；Debian amd64 镜像仅提供 rootfs，\n  每个网络探针结果均确认运行架构为 arm64。`GOWORK=off`，构建 `-trimpath -buildvcs=false`。\n- 服务端 CPU4–7、客户端 CPU0–3，各 GOMAXPROCS=4、GOGC=100、内存限额3GiB。\n  两个进程独立 GC，在同一网络命名空间使用 loopback，无主机端口发布。\n- 固定旧客户端、预算关闭、64B、16调用者、16预热连接；服务并发64、队列4096项/64MiB、\n  队列期限5s、执行期限30s、调用期限2s。Observer 与剖析关闭。\n- 基线/候选按 AB、BA、AB、BA 共4对，之后同一基线二进制 A/A 共2对，每窗10s。\n  共12窗、26,213,913次成功RPC，错误与样本截断均为0。每次完整验证响应，保留逐调用者计数。\n  延迟分位沿用 `floor((n-1)*p)`；客户端分配指标不代表服务端成本。\n- 纯网络计时期间没有构建、测试或剖析。基线复用前轮最终 shared-probe，候选使用相同探针源码；\n  每个程序哈希已归档。驱动入口为证据中的 `run.py`。\n\n## 成功路径结果\n\n|服务端|吞吐中位 RPC/s|P99中位 ms|\n|---|---:|---:|\n|基线|218,725.08|0.400375|\n|候选|219,388.58|0.385584|\n|变化|+0.30%|-3.69%|\n\n四对吞吐变化分别为 +3.84%、−1.02%、+0.49%、+0.23%；P99变化分别为\n−22.54%、+3.09%、+1.50%、−5.36%。两组 A/A 吞吐变化 +0.01%、+0.56%，\nP99变化 −6.01%、−2.72%。第一对的收益没有在后续对照稳定重现，不能声称吞吐或尾延迟改善。\n有限对照用于工程取舍，不构成正式统计显著性或容量保证。\n\n## 拒绝成本\n\n隔离基准调用真实 `Enqueue`，固定满队列/字节限额/取消/停止状态，复用调用者字节，\n不运行 pump。测量拒绝分支本身，不代表完整网络拒绝吞吐或动态过载场景。\n六类状态 × 串行/4核并行 × 两版本 × 四轮，共96行；版本顺序交替，200ms/子基准。\n每次断言错误类型符合预期。探针与运行命令保存在 `rejection_bench_test.go`、`check.py`。\n\n|拒绝原因|串行基线→候选 ns/op|并行基线→候选 ns/op|新增 B/op、allocs/op|\n|---|---:|---:|---:|\n'''\nlabels={'items':'队列项满','queue_bytes':'队列字节满','retained_bytes':'保留字节满','canceled':'已取消','stopped':'已停机','payload':'载荷过大'}\nfor case,label in labels.items():\n d=r['medians'][case]; a=d['serial']; b=d['parallel'];c=a['candidate']\n report+=f\"|{label}|{a['base']['ns']:.2f} → {c['ns']:.2f}|{b['base']['ns']:.2f} → {b['candidate']['ns']:.2f}|{c['bytes']:.0f}、{c['allocs']:.0f}|\\n\"\nreport+='''\n全部四轮均确认：除载荷过大外，拒绝请求从0次分配变成1次、160B。\n队列项满的串行成本约7.1倍，并行成本约1.82倍。该代价会增加过载期分配压力，\n当前成功路径收益不足以支持这个取舍。未扩大到预算开启、大包或付费跨主机测量。\n\n## 验证与交付\n\n候选以下检查全部通过（`GOWORK=off GOTOOLCHAIN=go1.25.11`）：\n\n- `go test ./pkg/transport/... -count=1 -timeout=2m`\n- `go test -race -tags=integration ./pkg/transport/... -count=1 -timeout=4m`\n- `go test -race -tags=integration ./pkg/transport/internal/rpc -run 'TestQueue(Deadline|Expiry|Budget)' -count=20 -timeout=2m`\n\n既有测试覆盖取消、队列预算、载荷释放和停机；通过仅说明所测功能/竞态检查无失败，\n不说明性能合格。没有新增永久性能单测：稳定拒绝成本由真实准入微基准验证，成功路径收益\n由独立进程对照判断。本轮只交付报告与知识记录，因此不添加用户可见行为的 Changelog。\n临时候选、探针和微基准从工作树移除；所有本轮容器已停止并清理，保留原有 buildkit。\n\n下一步可将逐请求取消注册的成本与锁等待分开测量。先检查已有 trace/pprof，再设计保持\n取消与所有权顺序的窄实验；不应直接把 `watchQueue` 移出锁，也不应跳过取消来追求吞吐。\n'''\n(W/'docs/reports/2026-09-22-rpc-enqueue-allocation.md').write_text(report)\nk=W/'docs/development/PROJECT_KNOWLEDGE.md'; t=k.read_text();anchor='## Performance evidence\\n\\n';t=t.replace(anchor,anchor+'''- Moving RPC queue-owner allocation ahead of admission was rejected in the\n  2026-09-22 local experiment: successful-call throughput changed only +0.30%,\n  within same-binary variation, while busy/canceled/stopped admission added\n  160 B and one allocation per rejected call. Keep rejection-path allocation\n  costs in optimization acceptance criteria. See\n  [enqueue-allocation evidence](../reports/2026-09-22-rpc-enqueue-allocation.md).\n''',1);k.write_text(t)\nprint('evidence verified and report written')\n"
+    },
+    "source.json": {
+      "sha256": "afa089563aeb3186e027c700a94e634b217f6cfdd3ea3e6e0630ba23a6a84851",
+      "text": "{\n  \"base\": \"5c293024cf0f151454c89316c876aecdba24fcdb\",\n  \"AGENTS_sha256\": \"c6eae7244b1c660be4b2a62cbdc1efa5c26c35e34972e994df7e6ae073fc9d0b\",\n  \"applicable_FLOW\": []\n}"
+    },
+    "summary.json": {
+      "sha256": "f12eed7754f40d1ff2d600c36f405788ecf068c404251a0de5afe8ca8614aace",
+      "text": "{\n  \"base\": {\n    \"calls_per_second\": 218725.08053602467,\n    \"p99_ms\": 0.40037500000000004\n  },\n  \"candidate\": {\n    \"calls_per_second\": 219388.58046683698,\n    \"p99_ms\": 0.38558349999999997\n  },\n  \"changes_percent\": {\n    \"calls_per_second\": 0.3033488108388216,\n    \"p99_ms\": -3.694411489228866\n  },\n  \"successful_calls\": 26213913,\n  \"paired\": [\n    {\n      \"calls_per_second\": 3.841172245552671,\n      \"p99_ms\": -22.53969779859648\n    },\n    {\n      \"calls_per_second\": -1.019944131729822,\n      \"p99_ms\": 3.0892937040588153\n    },\n    {\n      \"calls_per_second\": 0.4852726270730079,\n      \"p99_ms\": 1.4998689897388617\n    },\n    {\n      \"calls_per_second\": 0.22772519058127383,\n      \"p99_ms\": -5.360512664021977\n    }\n  ],\n  \"aa\": [\n    {\n      \"calls_per_second\": 0.012129763283930117,\n      \"p99_ms\": -6.0118591723285935\n    },\n    {\n      \"calls_per_second\": 0.5573157799340756,\n      \"p99_ms\": -2.7166599992726526\n    }\n  ]\n}"
+    },
+    "timing.json": {
+      "sha256": "3b2f4eddc025a78ecbc021c85c0056362a02961edcab541af917528334d27383",
+      "text": "[\n  {\n    \"label\": \"pair-1-base\",\n    \"server\": \"base\",\n    \"diagnostic\": null,\n    \"started\": \"2026-09-22T02:28:23.214878+00:00\",\n    \"finished\": \"2026-09-22T02:28:33.555169+00:00\",\n    \"server_command\": [\n      \"docker\",\n      \"run\",\n      \"-d\",\n      \"--name\",\n      \"wk-enqueue-pair-1-base\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--cpuset-cpus\",\n      \"4-7\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/base-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"server\",\n      \"-addr\",\n      \"127.0.0.1:7000\"\n    ],\n    \"client_command\": [\n      \"docker\",\n      \"run\",\n      \"--rm\",\n      \"--name\",\n      \"wk-enqueue-pair-1-base-client\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--network\",\n      \"container:wk-enqueue-pair-1-base\",\n      \"--cpuset-cpus\",\n      \"0-3\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/old-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"client\",\n      \"-addr\",\n      \"127.0.0.1:7000\",\n      \"-bytes\",\n      \"64\",\n      \"-workers\",\n      \"16\",\n      \"-duration\",\n      \"10s\",\n      \"-budgets\",\n      \"off\",\n      \"-version\",\n      \"old-client-base-server\"\n    ],\n    \"result\": {\n      \"arch\": \"arm64\",\n      \"calls\": 2115163,\n      \"calls_per_second\": 211514.76201271097,\n      \"client_alloc_bytes_per_call\": 945.3029879966698,\n      \"client_gc_cycles\": 133,\n      \"client_mallocs_per_call\": 16.000892602603205,\n      \"elapsed_seconds\": 10.000072713,\n      \"errors\": 0,\n      \"go_version\": \"go1.25.11\",\n      \"mean_ms\": 0.07553246597732657,\n      \"observer_enabled\": false,\n      \"p50_ms\": 0.056791,\n      \"p95_ms\": 0.1335,\n      \"p99_ms\": 0.457708,\n      \"payload_bytes\": 64,\n      \"profiling_enabled\": false,\n      \"request_budgets\": false,\n      \"sample_cap_hit\": false,\n      \"version\": \"old-client-base-server\",\n      \"worker_counts\": [\n        131672,\n        131998,\n        132198,\n        132156,\n        132548,\n        132520,\n        131948,\n        132265,\n        132333,\n        132175,\n        132253,\n        132088,\n        132730,\n        132386,\n        132024,\n        131869\n      ],\n      \"workers\": 16\n    },\n    \"server_cgroup_memory_peak\": 23687168,\n    \"profiles\": {},\n    \"output_sha256\": \"8e0bc696ba91f82fbaa5dd9086eda6c070cae5fffae522f8041ba6dbcd0052ee\"\n  },\n  {\n    \"label\": \"pair-1-candidate\",\n    \"server\": \"candidate\",\n    \"diagnostic\": null,\n    \"started\": \"2026-09-22T02:28:33.850741+00:00\",\n    \"finished\": \"2026-09-22T02:28:44.169832+00:00\",\n    \"server_command\": [\n      \"docker\",\n      \"run\",\n      \"-d\",\n      \"--name\",\n      \"wk-enqueue-pair-1-candidate\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--cpuset-cpus\",\n      \"4-7\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/candidate-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"server\",\n      \"-addr\",\n      \"127.0.0.1:7000\"\n    ],\n    \"client_command\": [\n      \"docker\",\n      \"run\",\n      \"--rm\",\n      \"--name\",\n      \"wk-enqueue-pair-1-candidate-client\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--network\",\n      \"container:wk-enqueue-pair-1-candidate\",\n      \"--cpuset-cpus\",\n      \"0-3\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/old-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"client\",\n      \"-addr\",\n      \"127.0.0.1:7000\",\n      \"-bytes\",\n      \"64\",\n      \"-workers\",\n      \"16\",\n      \"-duration\",\n      \"10s\",\n      \"-budgets\",\n      \"off\",\n      \"-version\",\n      \"old-client-candidate-server\"\n    ],\n    \"result\": {\n      \"arch\": \"arm64\",\n      \"calls\": 2196406,\n      \"calls_per_second\": 219639.40834639,\n      \"client_alloc_bytes_per_call\": 944.6801001272078,\n      \"client_gc_cycles\": 135,\n      \"client_mallocs_per_call\": 16.000949278047866,\n      \"elapsed_seconds\": 10.000054255,\n      \"errors\": 0,\n      \"go_version\": \"go1.25.11\",\n      \"mean_ms\": 0.07273750624383653,\n      \"observer_enabled\": false,\n      \"p50_ms\": 0.054958,\n      \"p95_ms\": 0.126709,\n      \"p99_ms\": 0.354542,\n      \"payload_bytes\": 64,\n      \"profiling_enabled\": false,\n      \"request_budgets\": false,\n      \"sample_cap_hit\": false,\n      \"version\": \"old-client-candidate-server\",\n      \"worker_counts\": [\n        137462,\n        137470,\n        137262,\n        137207,\n        137300,\n        137619,\n        137115,\n        137167,\n        137475,\n        137100,\n        137818,\n        137060,\n        137289,\n        137033,\n        136877,\n        137152\n      ],\n      \"workers\": 16\n    },\n    \"server_cgroup_memory_peak\": 23949312,\n    \"profiles\": {},\n    \"output_sha256\": \"8a16656e65464dd189bd5c1ad4b4100e4075a0bb9a0389f8fd9e78ebf31319b0\"\n  },\n  {\n    \"label\": \"pair-2-candidate\",\n    \"server\": \"candidate\",\n    \"diagnostic\": null,\n    \"started\": \"2026-09-22T02:28:44.476425+00:00\",\n    \"finished\": \"2026-09-22T02:28:54.798567+00:00\",\n    \"server_command\": [\n      \"docker\",\n      \"run\",\n      \"-d\",\n      \"--name\",\n      \"wk-enqueue-pair-2-candidate\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--cpuset-cpus\",\n      \"4-7\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/candidate-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"server\",\n      \"-addr\",\n      \"127.0.0.1:7000\"\n    ],\n    \"client_command\": [\n      \"docker\",\n      \"run\",\n      \"--rm\",\n      \"--name\",\n      \"wk-enqueue-pair-2-candidate-client\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--network\",\n      \"container:wk-enqueue-pair-2-candidate\",\n      \"--cpuset-cpus\",\n      \"0-3\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/old-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"client\",\n      \"-addr\",\n      \"127.0.0.1:7000\",\n      \"-bytes\",\n      \"64\",\n      \"-workers\",\n      \"16\",\n      \"-duration\",\n      \"10s\",\n      \"-budgets\",\n      \"off\",\n      \"-version\",\n      \"old-client-candidate-server\"\n    ],\n    \"result\": {\n      \"arch\": \"arm64\",\n      \"calls\": 2174443,\n      \"calls_per_second\": 217441.66430261033,\n      \"client_alloc_bytes_per_call\": 944.840340261851,\n      \"client_gc_cycles\": 134,\n      \"client_mallocs_per_call\": 16.000912417570845,\n      \"elapsed_seconds\": 10.000121214,\n      \"errors\": 0,\n      \"go_version\": \"go1.25.11\",\n      \"mean_ms\": 0.07347290487494959,\n      \"observer_enabled\": false,\n      \"p50_ms\": 0.055291,\n      \"p95_ms\": 0.128417,\n      \"p99_ms\": 0.403208,\n      \"payload_bytes\": 64,\n      \"profiling_enabled\": false,\n      \"request_budgets\": false,\n      \"sample_cap_hit\": false,\n      \"version\": \"old-client-candidate-server\",\n      \"worker_counts\": [\n        135870,\n        135643,\n        136118,\n        135766,\n        135839,\n        135454,\n        136279,\n        135904,\n        135677,\n        136021,\n        135331,\n        135996,\n        136526,\n        136220,\n        136430,\n        135369\n      ],\n      \"workers\": 16\n    },\n    \"server_cgroup_memory_peak\": 23896064,\n    \"profiles\": {},\n    \"output_sha256\": \"bfe91a4711d409ae085dafcd5fc9561d026c756f21c15f5667a3de3db031afe3\"\n  },\n  {\n    \"label\": \"pair-2-base\",\n    \"server\": \"base\",\n    \"diagnostic\": null,\n    \"started\": \"2026-09-22T02:28:55.097358+00:00\",\n    \"finished\": \"2026-09-22T02:29:05.415426+00:00\",\n    \"server_command\": [\n      \"docker\",\n      \"run\",\n      \"-d\",\n      \"--name\",\n      \"wk-enqueue-pair-2-base\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--cpuset-cpus\",\n      \"4-7\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/base-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"server\",\n      \"-addr\",\n      \"127.0.0.1:7000\"\n    ],\n    \"client_command\": [\n      \"docker\",\n      \"run\",\n      \"--rm\",\n      \"--name\",\n      \"wk-enqueue-pair-2-base-client\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--network\",\n      \"container:wk-enqueue-pair-2-base\",\n      \"--cpuset-cpus\",\n      \"0-3\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/old-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"client\",\n      \"-addr\",\n      \"127.0.0.1:7000\",\n      \"-bytes\",\n      \"64\",\n      \"-workers\",\n      \"16\",\n      \"-duration\",\n      \"10s\",\n      \"-budgets\",\n      \"off\",\n      \"-version\",\n      \"old-client-base-server\"\n    ],\n    \"result\": {\n      \"arch\": \"arm64\",\n      \"calls\": 2196836,\n      \"calls_per_second\": 219682.30104052217,\n      \"client_alloc_bytes_per_call\": 944.6689329563062,\n      \"client_gc_cycles\": 135,\n      \"client_mallocs_per_call\": 16.000895378626353,\n      \"elapsed_seconds\": 10.000059129,\n      \"errors\": 0,\n      \"go_version\": \"go1.25.11\",\n      \"mean_ms\": 0.0727225518436515,\n      \"observer_enabled\": false,\n      \"p50_ms\": 0.05475,\n      \"p95_ms\": 0.126625,\n      \"p99_ms\": 0.391125,\n      \"payload_bytes\": 64,\n      \"profiling_enabled\": false,\n      \"request_budgets\": false,\n      \"sample_cap_hit\": false,\n      \"version\": \"old-client-base-server\",\n      \"worker_counts\": [\n        137403,\n        137252,\n        137372,\n        137145,\n        137111,\n        137544,\n        137164,\n        137501,\n        137245,\n        137590,\n        136881,\n        137332,\n        137623,\n        137014,\n        137442,\n        137217\n      ],\n      \"workers\": 16\n    },\n    \"server_cgroup_memory_peak\": 23924736,\n    \"profiles\": {},\n    \"output_sha256\": \"497e3c9cbc47dc81312cfb5e4bc6df2675b947bdaafbb883c17af81f3af268bc\"\n  },\n  {\n    \"label\": \"pair-3-base\",\n    \"server\": \"base\",\n    \"diagnostic\": null,\n    \"started\": \"2026-09-22T02:29:05.730823+00:00\",\n    \"finished\": \"2026-09-22T02:29:16.060687+00:00\",\n    \"server_command\": [\n      \"docker\",\n      \"run\",\n      \"-d\",\n      \"--name\",\n      \"wk-enqueue-pair-3-base\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--cpuset-cpus\",\n      \"4-7\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/base-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"server\",\n      \"-addr\",\n      \"127.0.0.1:7000\"\n    ],\n    \"client_command\": [\n      \"docker\",\n      \"run\",\n      \"--rm\",\n      \"--name\",\n      \"wk-enqueue-pair-3-base-client\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--network\",\n      \"container:wk-enqueue-pair-3-base\",\n      \"--cpuset-cpus\",\n      \"0-3\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/old-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"client\",\n      \"-addr\",\n      \"127.0.0.1:7000\",\n      \"-bytes\",\n      \"64\",\n      \"-workers\",\n      \"16\",\n      \"-duration\",\n      \"10s\",\n      \"-budgets\",\n      \"off\",\n      \"-version\",\n      \"old-client-base-server\"\n    ],\n    \"result\": {\n      \"arch\": \"arm64\",\n      \"calls\": 2188118,\n      \"calls_per_second\": 218810.3065102529,\n      \"client_alloc_bytes_per_call\": 944.7361175219984,\n      \"client_gc_cycles\": 135,\n      \"client_mallocs_per_call\": 16.000925452832067,\n      \"elapsed_seconds\": 10.000068255,\n      \"errors\": 0,\n      \"go_version\": \"go1.25.11\",\n      \"mean_ms\": 0.07301204287840052,\n      \"observer_enabled\": false,\n      \"p50_ms\": 0.054916,\n      \"p95_ms\": 0.126917,\n      \"p99_ms\": 0.377833,\n      \"payload_bytes\": 64,\n      \"profiling_enabled\": false,\n      \"request_budgets\": false,\n      \"sample_cap_hit\": false,\n      \"version\": \"old-client-base-server\",\n      \"worker_counts\": [\n        136613,\n        136503,\n        136364,\n        136843,\n        136696,\n        136655,\n        136867,\n        136928,\n        136561,\n        136865,\n        136904,\n        136648,\n        136857,\n        136997,\n        137295,\n        136522\n      ],\n      \"workers\": 16\n    },\n    \"server_cgroup_memory_peak\": 22605824,\n    \"profiles\": {},\n    \"output_sha256\": \"baaaec0134b2cdbe418c520026e3f5e8d911c0f26391f4a671ba48800ec41473\"\n  },\n  {\n    \"label\": \"pair-3-candidate\",\n    \"server\": \"candidate\",\n    \"diagnostic\": null,\n    \"started\": \"2026-09-22T02:29:16.376908+00:00\",\n    \"finished\": \"2026-09-22T02:29:26.684565+00:00\",\n    \"server_command\": [\n      \"docker\",\n      \"run\",\n      \"-d\",\n      \"--name\",\n      \"wk-enqueue-pair-3-candidate\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--cpuset-cpus\",\n      \"4-7\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/candidate-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"server\",\n      \"-addr\",\n      \"127.0.0.1:7000\"\n    ],\n    \"client_command\": [\n      \"docker\",\n      \"run\",\n      \"--rm\",\n      \"--name\",\n      \"wk-enqueue-pair-3-candidate-client\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--network\",\n      \"container:wk-enqueue-pair-3-candidate\",\n      \"--cpuset-cpus\",\n      \"0-3\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/old-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"client\",\n      \"-addr\",\n      \"127.0.0.1:7000\",\n      \"-bytes\",\n      \"64\",\n      \"-workers\",\n      \"16\",\n      \"-duration\",\n      \"10s\",\n      \"-budgets\",\n      \"off\",\n      \"-version\",\n      \"old-client-candidate-server\"\n    ],\n    \"result\": {\n      \"arch\": \"arm64\",\n      \"calls\": 2198735,\n      \"calls_per_second\": 219872.13303296172,\n      \"client_alloc_bytes_per_call\": 944.6555296568254,\n      \"client_gc_cycles\": 135,\n      \"client_mallocs_per_call\": 16.000902791832576,\n      \"elapsed_seconds\": 10.000062171,\n      \"errors\": 0,\n      \"go_version\": \"go1.25.11\",\n      \"mean_ms\": 0.07266093040179922,\n      \"observer_enabled\": false,\n      \"p50_ms\": 0.054584,\n      \"p95_ms\": 0.126041,\n      \"p99_ms\": 0.3835,\n      \"payload_bytes\": 64,\n      \"profiling_enabled\": false,\n      \"request_budgets\": false,\n      \"sample_cap_hit\": false,\n      \"version\": \"old-client-candidate-server\",\n      \"worker_counts\": [\n        137196,\n        137739,\n        137391,\n        137572,\n        137476,\n        137789,\n        137329,\n        137219,\n        137698,\n        137355,\n        137312,\n        137036,\n        137601,\n        137515,\n        137102,\n        137405\n      ],\n      \"workers\": 16\n    },\n    \"server_cgroup_memory_peak\": 22630400,\n    \"profiles\": {},\n    \"output_sha256\": \"fad9bc559c19f65436f7241f3cf1cb8d6dfd964340b7cd7e937978f2a2ef63a2\"\n  },\n  {\n    \"label\": \"pair-4-candidate\",\n    \"server\": \"candidate\",\n    \"diagnostic\": null,\n    \"started\": \"2026-09-22T02:29:27.005784+00:00\",\n    \"finished\": \"2026-09-22T02:29:37.336580+00:00\",\n    \"server_command\": [\n      \"docker\",\n      \"run\",\n      \"-d\",\n      \"--name\",\n      \"wk-enqueue-pair-4-candidate\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--cpuset-cpus\",\n      \"4-7\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/candidate-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"server\",\n      \"-addr\",\n      \"127.0.0.1:7000\"\n    ],\n    \"client_command\": [\n      \"docker\",\n      \"run\",\n      \"--rm\",\n      \"--name\",\n      \"wk-enqueue-pair-4-candidate-client\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--network\",\n      \"container:wk-enqueue-pair-4-candidate\",\n      \"--cpuset-cpus\",\n      \"0-3\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/old-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"client\",\n      \"-addr\",\n      \"127.0.0.1:7000\",\n      \"-bytes\",\n      \"64\",\n      \"-workers\",\n      \"16\",\n      \"-duration\",\n      \"10s\",\n      \"-budgets\",\n      \"off\",\n      \"-version\",\n      \"old-client-candidate-server\"\n    ],\n    \"result\": {\n      \"arch\": \"arm64\",\n      \"calls\": 2191388,\n      \"calls_per_second\": 219137.75258728393,\n      \"client_alloc_bytes_per_call\": 944.710417324545,\n      \"client_gc_cycles\": 135,\n      \"client_mallocs_per_call\": 16.00089851728676,\n      \"elapsed_seconds\": 10.000047797,\n      \"errors\": 0,\n      \"go_version\": \"go1.25.11\",\n      \"mean_ms\": 0.0729067962259536,\n      \"observer_enabled\": false,\n      \"p50_ms\": 0.054667,\n      \"p95_ms\": 0.125958,\n      \"p99_ms\": 0.387667,\n      \"payload_bytes\": 64,\n      \"profiling_enabled\": false,\n      \"request_budgets\": false,\n      \"sample_cap_hit\": false,\n      \"version\": \"old-client-candidate-server\",\n      \"worker_counts\": [\n        137203,\n        137261,\n        137028,\n        136914,\n        137266,\n        137070,\n        137058,\n        136863,\n        136862,\n        136781,\n        136998,\n        136591,\n        137031,\n        136643,\n        137067,\n        136752\n      ],\n      \"workers\": 16\n    },\n    \"server_cgroup_memory_peak\": 24133632,\n    \"profiles\": {},\n    \"output_sha256\": \"649349d65656c8ce976b223ff865baa64e4c9270bf8d954b211ed0177140f24d\"\n  },\n  {\n    \"label\": \"pair-4-base\",\n    \"server\": \"base\",\n    \"diagnostic\": null,\n    \"started\": \"2026-09-22T02:29:37.635138+00:00\",\n    \"finished\": \"2026-09-22T02:29:47.958668+00:00\",\n    \"server_command\": [\n      \"docker\",\n      \"run\",\n      \"-d\",\n      \"--name\",\n      \"wk-enqueue-pair-4-base\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--cpuset-cpus\",\n      \"4-7\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/base-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"server\",\n      \"-addr\",\n      \"127.0.0.1:7000\"\n    ],\n    \"client_command\": [\n      \"docker\",\n      \"run\",\n      \"--rm\",\n      \"--name\",\n      \"wk-enqueue-pair-4-base-client\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--network\",\n      \"container:wk-enqueue-pair-4-base\",\n      \"--cpuset-cpus\",\n      \"0-3\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/old-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"client\",\n      \"-addr\",\n      \"127.0.0.1:7000\",\n      \"-bytes\",\n      \"64\",\n      \"-workers\",\n      \"16\",\n      \"-duration\",\n      \"10s\",\n      \"-budgets\",\n      \"off\",\n      \"-version\",\n      \"old-client-base-server\"\n    ],\n    \"result\": {\n      \"arch\": \"arm64\",\n      \"calls\": 2186411,\n      \"calls_per_second\": 218639.85456179644,\n      \"client_alloc_bytes_per_call\": 944.7517598475309,\n      \"client_gc_cycles\": 135,\n      \"client_mallocs_per_call\": 16.000929834326666,\n      \"elapsed_seconds\": 10.000056963,\n      \"errors\": 0,\n      \"go_version\": \"go1.25.11\",\n      \"mean_ms\": 0.07307206441515342,\n      \"observer_enabled\": false,\n      \"p50_ms\": 0.055083,\n      \"p95_ms\": 0.126958,\n      \"p99_ms\": 0.409625,\n      \"payload_bytes\": 64,\n      \"profiling_enabled\": false,\n      \"request_budgets\": false,\n      \"sample_cap_hit\": false,\n      \"version\": \"old-client-base-server\",\n      \"worker_counts\": [\n        136710,\n        136393,\n        136782,\n        136532,\n        136621,\n        136573,\n        137059,\n        136827,\n        136270,\n        136430,\n        136930,\n        136621,\n        136802,\n        136407,\n        136606,\n        136848\n      ],\n      \"workers\": 16\n    },\n    \"server_cgroup_memory_peak\": 23576576,\n    \"profiles\": {},\n    \"output_sha256\": \"e7fc04bde2161f292c07d0489897b2f93f3127220395736263adad34613373ec\"\n  },\n  {\n    \"label\": \"aa-1-a\",\n    \"server\": \"base\",\n    \"diagnostic\": null,\n    \"started\": \"2026-09-22T02:29:48.287708+00:00\",\n    \"finished\": \"2026-09-22T02:29:58.605693+00:00\",\n    \"server_command\": [\n      \"docker\",\n      \"run\",\n      \"-d\",\n      \"--name\",\n      \"wk-enqueue-aa-1-a\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--cpuset-cpus\",\n      \"4-7\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/base-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"server\",\n      \"-addr\",\n      \"127.0.0.1:7000\"\n    ],\n    \"client_command\": [\n      \"docker\",\n      \"run\",\n      \"--rm\",\n      \"--name\",\n      \"wk-enqueue-aa-1-a-client\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--network\",\n      \"container:wk-enqueue-aa-1-a\",\n      \"--cpuset-cpus\",\n      \"0-3\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/old-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"client\",\n      \"-addr\",\n      \"127.0.0.1:7000\",\n      \"-bytes\",\n      \"64\",\n      \"-workers\",\n      \"16\",\n      \"-duration\",\n      \"10s\",\n      \"-budgets\",\n      \"off\",\n      \"-version\",\n      \"old-client-base-server\"\n    ],\n    \"result\": {\n      \"arch\": \"arm64\",\n      \"calls\": 2187009,\n      \"calls_per_second\": 218699.62598719876,\n      \"client_alloc_bytes_per_call\": 944.7414107577976,\n      \"client_gc_cycles\": 135,\n      \"client_mallocs_per_call\": 16.000888427985437,\n      \"elapsed_seconds\": 10.000058254,\n      \"errors\": 0,\n      \"go_version\": \"go1.25.11\",\n      \"mean_ms\": 0.07305112946723127,\n      \"observer_enabled\": false,\n      \"p50_ms\": 0.054792,\n      \"p95_ms\": 0.1265,\n      \"p99_ms\": 0.40475,\n      \"payload_bytes\": 64,\n      \"profiling_enabled\": false,\n      \"request_budgets\": false,\n      \"sample_cap_hit\": false,\n      \"version\": \"old-client-base-server\",\n      \"worker_counts\": [\n        137301,\n        137085,\n        136371,\n        136516,\n        136589,\n        136528,\n        136599,\n        136680,\n        136949,\n        136768,\n        137037,\n        136358,\n        136663,\n        136563,\n        136354,\n        136648\n      ],\n      \"workers\": 16\n    },\n    \"server_cgroup_memory_peak\": 23957504,\n    \"profiles\": {},\n    \"output_sha256\": \"3a5172ff903b48f849ca4a36df55a4b6ee2b45da9e0a90024d42ea07d703f0ae\"\n  },\n  {\n    \"label\": \"aa-1-b\",\n    \"server\": \"base\",\n    \"diagnostic\": null,\n    \"started\": \"2026-09-22T02:29:58.911959+00:00\",\n    \"finished\": \"2026-09-22T02:30:09.237571+00:00\",\n    \"server_command\": [\n      \"docker\",\n      \"run\",\n      \"-d\",\n      \"--name\",\n      \"wk-enqueue-aa-1-b\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--cpuset-cpus\",\n      \"4-7\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/base-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"server\",\n      \"-addr\",\n      \"127.0.0.1:7000\"\n    ],\n    \"client_command\": [\n      \"docker\",\n      \"run\",\n      \"--rm\",\n      \"--name\",\n      \"wk-enqueue-aa-1-b-client\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--network\",\n      \"container:wk-enqueue-aa-1-b\",\n      \"--cpuset-cpus\",\n      \"0-3\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/old-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"client\",\n      \"-addr\",\n      \"127.0.0.1:7000\",\n      \"-bytes\",\n      \"64\",\n      \"-workers\",\n      \"16\",\n      \"-duration\",\n      \"10s\",\n      \"-budgets\",\n      \"off\",\n      \"-version\",\n      \"old-client-base-server\"\n    ],\n    \"result\": {\n      \"arch\": \"arm64\",\n      \"calls\": 2187279,\n      \"calls_per_second\": 218726.15373413384,\n      \"client_alloc_bytes_per_call\": 944.7426286267092,\n      \"client_gc_cycles\": 135,\n      \"client_mallocs_per_call\": 16.000907063067856,\n      \"elapsed_seconds\": 10.000079838,\n      \"errors\": 0,\n      \"go_version\": \"go1.25.11\",\n      \"mean_ms\": 0.07304197916269484,\n      \"observer_enabled\": false,\n      \"p50_ms\": 0.054917,\n      \"p95_ms\": 0.126833,\n      \"p99_ms\": 0.380417,\n      \"payload_bytes\": 64,\n      \"profiling_enabled\": false,\n      \"request_budgets\": false,\n      \"sample_cap_hit\": false,\n      \"version\": \"old-client-base-server\",\n      \"worker_counts\": [\n        136763,\n        136562,\n        136599,\n        136635,\n        136340,\n        136548,\n        136872,\n        136855,\n        137126,\n        137144,\n        136596,\n        136602,\n        136160,\n        136760,\n        136785,\n        136932\n      ],\n      \"workers\": 16\n    },\n    \"server_cgroup_memory_peak\": 24104960,\n    \"profiles\": {},\n    \"output_sha256\": \"b4cf8752a2326807242232d7c9f9024f9b48878c31801d6701e281c07dd4a523\"\n  },\n  {\n    \"label\": \"aa-2-a\",\n    \"server\": \"base\",\n    \"diagnostic\": null,\n    \"started\": \"2026-09-22T02:30:09.554885+00:00\",\n    \"finished\": \"2026-09-22T02:30:19.881009+00:00\",\n    \"server_command\": [\n      \"docker\",\n      \"run\",\n      \"-d\",\n      \"--name\",\n      \"wk-enqueue-aa-2-a\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--cpuset-cpus\",\n      \"4-7\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/base-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"server\",\n      \"-addr\",\n      \"127.0.0.1:7000\"\n    ],\n    \"client_command\": [\n      \"docker\",\n      \"run\",\n      \"--rm\",\n      \"--name\",\n      \"wk-enqueue-aa-2-a-client\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--network\",\n      \"container:wk-enqueue-aa-2-a\",\n      \"--cpuset-cpus\",\n      \"0-3\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/old-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"client\",\n      \"-addr\",\n      \"127.0.0.1:7000\",\n      \"-bytes\",\n      \"64\",\n      \"-workers\",\n      \"16\",\n      \"-duration\",\n      \"10s\",\n      \"-budgets\",\n      \"off\",\n      \"-version\",\n      \"old-client-base-server\"\n    ],\n    \"result\": {\n      \"arch\": \"arm64\",\n      \"calls\": 2189958,\n      \"calls_per_second\": 218994.9859518382,\n      \"client_alloc_bytes_per_call\": 944.7312724718921,\n      \"client_gc_cycles\": 135,\n      \"client_mallocs_per_call\": 16.000956182721314,\n      \"elapsed_seconds\": 10.000037172,\n      \"errors\": 0,\n      \"go_version\": \"go1.25.11\",\n      \"mean_ms\": 0.0729507862260372,\n      \"observer_enabled\": false,\n      \"p50_ms\": 0.054958,\n      \"p95_ms\": 0.126459,\n      \"p99_ms\": 0.384958,\n      \"payload_bytes\": 64,\n      \"profiling_enabled\": false,\n      \"request_budgets\": false,\n      \"sample_cap_hit\": false,\n      \"version\": \"old-client-base-server\",\n      \"worker_counts\": [\n        136794,\n        136799,\n        136600,\n        136556,\n        136583,\n        137229,\n        136994,\n        137289,\n        137299,\n        136604,\n        136887,\n        136525,\n        137199,\n        137072,\n        136891,\n        136637\n      ],\n      \"workers\": 16\n    },\n    \"server_cgroup_memory_peak\": 24100864,\n    \"profiles\": {},\n    \"output_sha256\": \"36e6468fa5ea80fac5dc617c3294e96e2043512b96ef0ce9160e3576a3109612\"\n  },\n  {\n    \"label\": \"aa-2-b\",\n    \"server\": \"base\",\n    \"diagnostic\": null,\n    \"started\": \"2026-09-22T02:30:20.212441+00:00\",\n    \"finished\": \"2026-09-22T02:30:30.522288+00:00\",\n    \"server_command\": [\n      \"docker\",\n      \"run\",\n      \"-d\",\n      \"--name\",\n      \"wk-enqueue-aa-2-b\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--cpuset-cpus\",\n      \"4-7\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/base-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"server\",\n      \"-addr\",\n      \"127.0.0.1:7000\"\n    ],\n    \"client_command\": [\n      \"docker\",\n      \"run\",\n      \"--rm\",\n      \"--name\",\n      \"wk-enqueue-aa-2-b-client\",\n      \"--pull=never\",\n      \"--platform\",\n      \"linux/amd64\",\n      \"--network\",\n      \"container:wk-enqueue-aa-2-b\",\n      \"--cpuset-cpus\",\n      \"0-3\",\n      \"--memory\",\n      \"3g\",\n      \"-e\",\n      \"GOMAXPROCS=4\",\n      \"-e\",\n      \"GOGC=100\",\n      \"-v\",\n      \"/Users/tt/.codex/visualizations/2026/09/22/rpc-enqueue-allocation:/bench:ro\",\n      \"--entrypoint\",\n      \"/bench/old-probe\",\n      \"debian:12\",\n      \"-mode\",\n      \"client\",\n      \"-addr\",\n      \"127.0.0.1:7000\",\n      \"-bytes\",\n      \"64\",\n      \"-workers\",\n      \"16\",\n      \"-duration\",\n      \"10s\",\n      \"-budgets\",\n      \"off\",\n      \"-version\",\n      \"old-client-base-server\"\n    ],\n    \"result\": {\n      \"arch\": \"arm64\",\n      \"calls\": 2202167,\n      \"calls_per_second\": 220215.47956581222,\n      \"client_alloc_bytes_per_call\": 944.6256092294544,\n      \"client_gc_cycles\": 135,\n      \"client_mallocs_per_call\": 16.00090410945219,\n      \"elapsed_seconds\": 10.00005542,\n      \"errors\": 0,\n      \"go_version\": \"go1.25.11\",\n      \"mean_ms\": 0.0725463261442025,\n      \"observer_enabled\": false,\n      \"p50_ms\": 0.054625,\n      \"p95_ms\": 0.126084,\n      \"p99_ms\": 0.3745,\n      \"payload_bytes\": 64,\n      \"profiling_enabled\": false,\n      \"request_budgets\": false,\n      \"sample_cap_hit\": false,\n      \"version\": \"old-client-base-server\",\n      \"worker_counts\": [\n        137581,\n        137304,\n        137868,\n        138134,\n        137961,\n        137674,\n        137283,\n        137848,\n        137742,\n        137343,\n        137639,\n        137205,\n        137657,\n        137596,\n        137732,\n        137600\n      ],\n      \"workers\": 16\n    },\n    \"server_cgroup_memory_peak\": 24301568,\n    \"profiles\": {},\n    \"output_sha256\": \"5cf14824b3ddd6629e7d8b800e855eea94cbfa3e78a61cc506d7db9c3ba2c6a6\"\n  }\n]\n"
+    },
+    "timing.log": {
+      "sha256": "b242413b8a06a763def461aef625ef17376c28decc1d3972ec26f97853af8f2b",
+      "text": "{\"label\": \"pair-1-base\", \"server\": \"base\", \"result\": {\"arch\": \"arm64\", \"calls\": 2115163, \"calls_per_second\": 211514.76201271097, \"client_alloc_bytes_per_call\": 945.3029879966698, \"client_gc_cycles\": 133, \"client_mallocs_per_call\": 16.000892602603205, \"elapsed_seconds\": 10.000072713, \"errors\": 0, \"go_version\": \"go1.25.11\", \"mean_ms\": 0.07553246597732657, \"observer_enabled\": false, \"p50_ms\": 0.056791, \"p95_ms\": 0.1335, \"p99_ms\": 0.457708, \"payload_bytes\": 64, \"profiling_enabled\": false, \"request_budgets\": false, \"sample_cap_hit\": false, \"version\": \"old-client-base-server\", \"worker_counts\": [131672, 131998, 132198, 132156, 132548, 132520, 131948, 132265, 132333, 132175, 132253, 132088, 132730, 132386, 132024, 131869], \"workers\": 16}, \"profiles\": []}\n{\"label\": \"pair-1-candidate\", \"server\": \"candidate\", \"result\": {\"arch\": \"arm64\", \"calls\": 2196406, \"calls_per_second\": 219639.40834639, \"client_alloc_bytes_per_call\": 944.6801001272078, \"client_gc_cycles\": 135, \"client_mallocs_per_call\": 16.000949278047866, \"elapsed_seconds\": 10.000054255, \"errors\": 0, \"go_version\": \"go1.25.11\", \"mean_ms\": 0.07273750624383653, \"observer_enabled\": false, \"p50_ms\": 0.054958, \"p95_ms\": 0.126709, \"p99_ms\": 0.354542, \"payload_bytes\": 64, \"profiling_enabled\": false, \"request_budgets\": false, \"sample_cap_hit\": false, \"version\": \"old-client-candidate-server\", \"worker_counts\": [137462, 137470, 137262, 137207, 137300, 137619, 137115, 137167, 137475, 137100, 137818, 137060, 137289, 137033, 136877, 137152], \"workers\": 16}, \"profiles\": []}\n{\"label\": \"pair-2-candidate\", \"server\": \"candidate\", \"result\": {\"arch\": \"arm64\", \"calls\": 2174443, \"calls_per_second\": 217441.66430261033, \"client_alloc_bytes_per_call\": 944.840340261851, \"client_gc_cycles\": 134, \"client_mallocs_per_call\": 16.000912417570845, \"elapsed_seconds\": 10.000121214, \"errors\": 0, \"go_version\": \"go1.25.11\", \"mean_ms\": 0.07347290487494959, \"observer_enabled\": false, \"p50_ms\": 0.055291, \"p95_ms\": 0.128417, \"p99_ms\": 0.403208, \"payload_bytes\": 64, \"profiling_enabled\": false, \"request_budgets\": false, \"sample_cap_hit\": false, \"version\": \"old-client-candidate-server\", \"worker_counts\": [135870, 135643, 136118, 135766, 135839, 135454, 136279, 135904, 135677, 136021, 135331, 135996, 136526, 136220, 136430, 135369], \"workers\": 16}, \"profiles\": []}\n{\"label\": \"pair-2-base\", \"server\": \"base\", \"result\": {\"arch\": \"arm64\", \"calls\": 2196836, \"calls_per_second\": 219682.30104052217, \"client_alloc_bytes_per_call\": 944.6689329563062, \"client_gc_cycles\": 135, \"client_mallocs_per_call\": 16.000895378626353, \"elapsed_seconds\": 10.000059129, \"errors\": 0, \"go_version\": \"go1.25.11\", \"mean_ms\": 0.0727225518436515, \"observer_enabled\": false, \"p50_ms\": 0.05475, \"p95_ms\": 0.126625, \"p99_ms\": 0.391125, \"payload_bytes\": 64, \"profiling_enabled\": false, \"request_budgets\": false, \"sample_cap_hit\": false, \"version\": \"old-client-base-server\", \"worker_counts\": [137403, 137252, 137372, 137145, 137111, 137544, 137164, 137501, 137245, 137590, 136881, 137332, 137623, 137014, 137442, 137217], \"workers\": 16}, \"profiles\": []}\n{\"label\": \"pair-3-base\", \"server\": \"base\", \"result\": {\"arch\": \"arm64\", \"calls\": 2188118, \"calls_per_second\": 218810.3065102529, \"client_alloc_bytes_per_call\": 944.7361175219984, \"client_gc_cycles\": 135, \"client_mallocs_per_call\": 16.000925452832067, \"elapsed_seconds\": 10.000068255, \"errors\": 0, \"go_version\": \"go1.25.11\", \"mean_ms\": 0.07301204287840052, \"observer_enabled\": false, \"p50_ms\": 0.054916, \"p95_ms\": 0.126917, \"p99_ms\": 0.377833, \"payload_bytes\": 64, \"profiling_enabled\": false, \"request_budgets\": false, \"sample_cap_hit\": false, \"version\": \"old-client-base-server\", \"worker_counts\": [136613, 136503, 136364, 136843, 136696, 136655, 136867, 136928, 136561, 136865, 136904, 136648, 136857, 136997, 137295, 136522], \"workers\": 16}, \"profiles\": []}\n{\"label\": \"pair-3-candidate\", \"server\": \"candidate\", \"result\": {\"arch\": \"arm64\", \"calls\": 2198735, \"calls_per_second\": 219872.13303296172, \"client_alloc_bytes_per_call\": 944.6555296568254, \"client_gc_cycles\": 135, \"client_mallocs_per_call\": 16.000902791832576, \"elapsed_seconds\": 10.000062171, \"errors\": 0, \"go_version\": \"go1.25.11\", \"mean_ms\": 0.07266093040179922, \"observer_enabled\": false, \"p50_ms\": 0.054584, \"p95_ms\": 0.126041, \"p99_ms\": 0.3835, \"payload_bytes\": 64, \"profiling_enabled\": false, \"request_budgets\": false, \"sample_cap_hit\": false, \"version\": \"old-client-candidate-server\", \"worker_counts\": [137196, 137739, 137391, 137572, 137476, 137789, 137329, 137219, 137698, 137355, 137312, 137036, 137601, 137515, 137102, 137405], \"workers\": 16}, \"profiles\": []}\n{\"label\": \"pair-4-candidate\", \"server\": \"candidate\", \"result\": {\"arch\": \"arm64\", \"calls\": 2191388, \"calls_per_second\": 219137.75258728393, \"client_alloc_bytes_per_call\": 944.710417324545, \"client_gc_cycles\": 135, \"client_mallocs_per_call\": 16.00089851728676, \"elapsed_seconds\": 10.000047797, \"errors\": 0, \"go_version\": \"go1.25.11\", \"mean_ms\": 0.0729067962259536, \"observer_enabled\": false, \"p50_ms\": 0.054667, \"p95_ms\": 0.125958, \"p99_ms\": 0.387667, \"payload_bytes\": 64, \"profiling_enabled\": false, \"request_budgets\": false, \"sample_cap_hit\": false, \"version\": \"old-client-candidate-server\", \"worker_counts\": [137203, 137261, 137028, 136914, 137266, 137070, 137058, 136863, 136862, 136781, 136998, 136591, 137031, 136643, 137067, 136752], \"workers\": 16}, \"profiles\": []}\n{\"label\": \"pair-4-base\", \"server\": \"base\", \"result\": {\"arch\": \"arm64\", \"calls\": 2186411, \"calls_per_second\": 218639.85456179644, \"client_alloc_bytes_per_call\": 944.7517598475309, \"client_gc_cycles\": 135, \"client_mallocs_per_call\": 16.000929834326666, \"elapsed_seconds\": 10.000056963, \"errors\": 0, \"go_version\": \"go1.25.11\", \"mean_ms\": 0.07307206441515342, \"observer_enabled\": false, \"p50_ms\": 0.055083, \"p95_ms\": 0.126958, \"p99_ms\": 0.409625, \"payload_bytes\": 64, \"profiling_enabled\": false, \"request_budgets\": false, \"sample_cap_hit\": false, \"version\": \"old-client-base-server\", \"worker_counts\": [136710, 136393, 136782, 136532, 136621, 136573, 137059, 136827, 136270, 136430, 136930, 136621, 136802, 136407, 136606, 136848], \"workers\": 16}, \"profiles\": []}\n{\"label\": \"aa-1-a\", \"server\": \"base\", \"result\": {\"arch\": \"arm64\", \"calls\": 2187009, \"calls_per_second\": 218699.62598719876, \"client_alloc_bytes_per_call\": 944.7414107577976, \"client_gc_cycles\": 135, \"client_mallocs_per_call\": 16.000888427985437, \"elapsed_seconds\": 10.000058254, \"errors\": 0, \"go_version\": \"go1.25.11\", \"mean_ms\": 0.07305112946723127, \"observer_enabled\": false, \"p50_ms\": 0.054792, \"p95_ms\": 0.1265, \"p99_ms\": 0.40475, \"payload_bytes\": 64, \"profiling_enabled\": false, \"request_budgets\": false, \"sample_cap_hit\": false, \"version\": \"old-client-base-server\", \"worker_counts\": [137301, 137085, 136371, 136516, 136589, 136528, 136599, 136680, 136949, 136768, 137037, 136358, 136663, 136563, 136354, 136648], \"workers\": 16}, \"profiles\": []}\n{\"label\": \"aa-1-b\", \"server\": \"base\", \"result\": {\"arch\": \"arm64\", \"calls\": 2187279, \"calls_per_second\": 218726.15373413384, \"client_alloc_bytes_per_call\": 944.7426286267092, \"client_gc_cycles\": 135, \"client_mallocs_per_call\": 16.000907063067856, \"elapsed_seconds\": 10.000079838, \"errors\": 0, \"go_version\": \"go1.25.11\", \"mean_ms\": 0.07304197916269484, \"observer_enabled\": false, \"p50_ms\": 0.054917, \"p95_ms\": 0.126833, \"p99_ms\": 0.380417, \"payload_bytes\": 64, \"profiling_enabled\": false, \"request_budgets\": false, \"sample_cap_hit\": false, \"version\": \"old-client-base-server\", \"worker_counts\": [136763, 136562, 136599, 136635, 136340, 136548, 136872, 136855, 137126, 137144, 136596, 136602, 136160, 136760, 136785, 136932], \"workers\": 16}, \"profiles\": []}\n{\"label\": \"aa-2-a\", \"server\": \"base\", \"result\": {\"arch\": \"arm64\", \"calls\": 2189958, \"calls_per_second\": 218994.9859518382, \"client_alloc_bytes_per_call\": 944.7312724718921, \"client_gc_cycles\": 135, \"client_mallocs_per_call\": 16.000956182721314, \"elapsed_seconds\": 10.000037172, \"errors\": 0, \"go_version\": \"go1.25.11\", \"mean_ms\": 0.0729507862260372, \"observer_enabled\": false, \"p50_ms\": 0.054958, \"p95_ms\": 0.126459, \"p99_ms\": 0.384958, \"payload_bytes\": 64, \"profiling_enabled\": false, \"request_budgets\": false, \"sample_cap_hit\": false, \"version\": \"old-client-base-server\", \"worker_counts\": [136794, 136799, 136600, 136556, 136583, 137229, 136994, 137289, 137299, 136604, 136887, 136525, 137199, 137072, 136891, 136637], \"workers\": 16}, \"profiles\": []}\n{\"label\": \"aa-2-b\", \"server\": \"base\", \"result\": {\"arch\": \"arm64\", \"calls\": 2202167, \"calls_per_second\": 220215.47956581222, \"client_alloc_bytes_per_call\": 944.6256092294544, \"client_gc_cycles\": 135, \"client_mallocs_per_call\": 16.00090410945219, \"elapsed_seconds\": 10.00005542, \"errors\": 0, \"go_version\": \"go1.25.11\", \"mean_ms\": 0.0725463261442025, \"observer_enabled\": false, \"p50_ms\": 0.054625, \"p95_ms\": 0.126084, \"p99_ms\": 0.3745, \"payload_bytes\": 64, \"profiling_enabled\": false, \"request_budgets\": false, \"sample_cap_hit\": false, \"version\": \"old-client-base-server\", \"worker_counts\": [137581, 137304, 137868, 138134, 137961, 137674, 137283, 137848, 137742, 137343, 137639, 137205, 137657, 137596, 137732, 137600], \"workers\": 16}, \"profiles\": []}\n"
+    }
+  },
+  "binaries": {
+    "base-probe": {
+      "sha256": "a81dc8ea8a4807db7c1e46bde6e18f341fae086177e792f5db9cdfd83115de5c",
+      "bytes": 13187534
+    },
+    "old-probe": {
+      "sha256": "d34a3436c0fdef51e0ad4b4f60303d671549368e66d0638ca324a4d55e7c1a96",
+      "bytes": 13106167
+    },
+    "current-probe": {
+      "sha256": "69854ca61b5d4d66d0fc3b296d4a80cdaf25b7c8237514adc519a0265cb0fb9c",
+      "bytes": 13186910
+    },
+    "base-rpc.test": {
+      "sha256": "f189b88ea9631ae6094cb9b8e17a5a26f7bfa159b6e9998f7f774afa82a71abe",
+      "bytes": 9987607
+    },
+    "candidate-probe": {
+      "sha256": "ce4b7884710d31e0746938a37f00eaefa0d619b7f07e10ed4e0dc30067ee77da",
+      "bytes": 13187318
+    },
+    "candidate-rpc.test": {
+      "sha256": "da3b1afd04c795407077c8f0214f563b64537e89adb50cc464c7f18f3f491203",
+      "bytes": 9987863
+    }
+  },
+  "cleanup": {
+    "remaining_containers": [
+      "tgo-pal-dev-postgres-1",
+      "buildx_buildkit_multiarch0"
+    ],
+    "task_containers": [],
+    "production_diff": ""
+  }
+}
