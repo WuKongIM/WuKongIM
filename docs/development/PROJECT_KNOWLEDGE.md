@@ -349,6 +349,10 @@ specification, runbook, report, or module documentation; link to them when neede
   Running cancellation is opt-in for read-only RPCs;
   started mutations use independent bounded execution and may commit after their
   caller times out. Timeout/cancel is never a rollback acknowledgement.
+  Read handlers link service shutdown to their owned execution cancel function.
+  An execution timeout already provides that ownership; a zero-timeout read
+  with an external request context still needs its own child. Never use the
+  caller's cancel function or let service Stop cancel the caller's parent context.
   Complete backup/restore RPCs retain a 48-hour execution envelope, repository
   probes five minutes, and Operations MCP one minute for bounded profiling.
   Explicit remote timeout/busy/stopped status preserves temporary failure types;
@@ -369,6 +373,14 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
+- The 2026-09-22 read-execution context experiment removed one redundant child
+  context when CancelRunning and an execution timeout are enabled. The local
+  Linux ARM64 lifecycle fixture saved 464 B and five allocations per read; the
+  independent-process 64 B read fixture improved median throughput 3.99% and
+  P99 32.92%, with all four pairs improving. Follow-up did not find a consistent
+  regression in large-payload or mutation controls. This does not establish
+  recovery of the original default-mutation cross-host throughput regression.
+  See [read lifecycle evidence](../reports/2026-09-22-rpc-context-lifecycle.md).
 - The 2026-09-22 cancellation-watcher experiment rejected detachment outside the
   queue lock (four paired throughput declines). Capturing only the existing owner
   saved 32 B per registered callback on Go 1.25.11 Linux ARM64, without removing

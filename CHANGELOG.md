@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Reuse the execution context when linking service shutdown for cancellable read RPCs, reducing lifecycle allocations while preserving caller deadlines and independent mutation completion. / 可取消读 RPC 复用执行上下文响应服务停机，减少生命周期分配，并保留调用方截止时间及写操作独立完成语义。
+
 - Reduce internal RPC cancellation-callback memory by capturing the request owner, preserving cancellation and queue ownership rules. / 内部 RPC 取消回调复用请求所有权对象中的引用，减少回调占用内存，并保留取消和队列归属规则。
 
 - Reuse one queue-deadline timer per internal RPC service while preserving per-request cancellation, FIFO deadlines, and admission bounds. / 内部 RPC 每个服务复用一个排队截止时间定时器，保留逐请求取消、FIFO 截止时间和准入边界。

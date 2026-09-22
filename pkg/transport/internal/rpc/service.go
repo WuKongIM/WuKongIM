@@ -338,16 +338,17 @@ func (s *Service) handle(req Request) error {
 	cancel := func() {}
 	if s.opts.Timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, s.opts.Timeout)
+	} else if s.opts.CancelRunning && req.Context != s.ctx {
+		ctx, cancel = context.WithCancel(ctx)
 	}
 	defer cancel()
-	// A propagated context belongs to the connection; service shutdown must also stop it.
-	var stopService func() bool
+	// The execution context already has a cancel function. Reuse it to link
+	// service shutdown instead of adding a second cancellation context.
 	if s.opts.CancelRunning && req.Context != s.ctx {
-		var cancelService context.CancelFunc
-		ctx, cancelService = context.WithCancel(ctx)
-		stopService = context.AfterFunc(s.ctx, cancelService)
-		defer func() { stopService(); cancelService() }()
+		stopService := context.AfterFunc(s.ctx, cancel)
+		defer stopService()
 	}
+
 	if req.entry != nil {
 		s.observe(core.Event{Name: "service_wait", ServiceID: s.ID, ServiceAlias: s.opts.Alias, Result: "ok", Duration: nonNegativeSince(req.entry.enqueuedAt)})
 	}
