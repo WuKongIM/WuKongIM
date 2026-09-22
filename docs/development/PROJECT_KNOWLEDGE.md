@@ -376,6 +376,17 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Performance evidence
 
+- The admitted-write listener followup confirmed a measurement sensitivity:
+  changing only load-client GOGC from 100 to 400 reduced end-to-end P99 by
+  38.57%/33.41% with the same server. Three-second warmup and client GC control
+  still left one baseline A/A P99 change of +41.84%. Historical negative pairs
+  remain evidence, but do not establish a stable server-only regression.
+  Executor wakeup stacks account for about 90% of scheduler delay in both
+  versions; this is neither CPU share nor a new regression cause. Keep the
+  candidate rejected until a repeatable process-level gate exists, rather than
+  picking favorable later batches. See
+  [control-path measurement evidence](../reports/2026-09-22-rpc-control-path.md).
+
 - The 2026-09-22 admitted-write listener candidate and its empty-deadline-heap
   timer refinement were rejected. Deferring ownership until successful mutation
   admission removed read/rejection allocation costs and saved about 304 B/one
