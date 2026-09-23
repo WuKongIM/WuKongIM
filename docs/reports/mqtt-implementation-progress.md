@@ -2429,3 +2429,64 @@ shared GC. Full source/inbox projection, permission ordering, delivery/ACK/recov
 Will execution, unavailable-owner proof, app/configuration, state-transfer tooling
 and process/load acceptance remain required. The product MQTT listener remains
 unavailable; the full implementation goal is active.
+
+## Foreground exact-replica repair through Node and RPC 98
+
+Source `7b0dcab92`; the frozen context and failure inventory are in
+[mqtt-replay-repair-routing.md](../specs/mqtt-replay-repair-routing.md).
+`Node.RepairChannelMQTTReplay` now routes an explicitly selected anchor interval
+to one current target replica, which fetches from one current donor. Requests
+contain identities, fences and finite range budgets, never an expected content
+digest or caller HW. The target checks its own committed journal before fetching
+and imports through the atomic anchor-bound store port. Fresh Slot checks surround
+origin/target/donor work, including a further check immediately before import.
+Full ordered placement/quorum/status and write fences must remain unchanged.
+
+Immutable recovery is allowed under an existing migration write fence and may
+repair a learner. It does not publish migration readiness. Separate four-slot
+receiver/coordinator and donor admission has no waiting queue; nested cross-node
+requests cannot occupy the pool needed by donor reads. Calls have five-second
+deadlines, with 256-row / 16-MiB transfer limits. No per-Channel goroutines or
+background retry loops were introduced. A post-import authority failure withholds
+only the receipt; identical durably imported content remains safe to retry.
+
+RPC 98 uses closed `WMDQ/WMDR` version 1, a 4 KiB request bound, explicit repair
+and export actions, exact full-request echo and the existing closed status catalog.
+Export embeds the unchanged bounded replay-page codec; repair replies are body-free
+prefixes. Decoding retains independent content bytes. The service uses foreground
+mutation admission, the stable service gateway and matching peers; there is no
+fallback to ordinary history or an older lossy encoding.
+
+Verified:
+
+- Tests preceded implementation. Missing entry/repair types RED:
+  `/tmp/mqtt-repair-routing-red.log`; focused green:
+  `/tmp/mqtt-repair-routing-focused.log` (0.564 seconds).
+- `GOWORK=off go test -race ./pkg/channel/... ./pkg/cluster/channels
+  ./pkg/cluster/net ./pkg/cluster -count=1 -timeout=180s`: all passed,
+  `/tmp/mqtt-repair-routing-regression.log`. Cluster/channels 11.491 seconds,
+  cluster/net 4.389, cluster root 8.033. Tests cover missing/pending/foreign/future
+  independent proof, wrong endpoints and digests, pre-import/post-import metadata
+  changes, cancellation, migration fences, learners, weak quorum, saturation,
+  lease/admission cleanup on panic, gateway replacement and strict RPC
+  framing/version/action/status/echo/budget/ownership behavior.
+- `GOWORK=off go test -race -tags=integration ./pkg/cluster
+  -run '^TestMQTTRepairThreeNode' -count=1 -timeout=90s -v`: passed,
+  `/tmp/mqtt-repair-routing-integration.log`, test 11.33 seconds/package 12.758.
+  Three real TCP/disk nodes, 256 hash slots and two physical Slots use two Channel
+  voters and one learner. The learner first has a committed journal but no shared
+  content, repairs through origin→target→donor RPCs, retries with a different
+  donor, restarts with identical content and retries again. Loss of Slot quorum
+  rejects repair even when local content exists. Original-body removal remains
+  covered by the storage tests; this Node test does not claim product MQTT E2E.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-repair-routing-flow.log`. Index regenerated; `git diff --check` passed.
+  Existing macOS LC_DYSYMTAB warnings remain non-failing.
+
+Automatic bounded anchor/interval selection and donor rotation remain required
+before background recovery can replace the explicit one-interval operation.
+Replicated source release, learner/migration readiness, consumer-proof shared GC,
+source/inbox projection, permission ordering, delivery/ACK/recovery, durable Will
+execution, unavailable-owner proof, app/configuration, state transfer and full
+process/load acceptance remain open. The product MQTT listener is unavailable and
+the full implementation goal remains active.

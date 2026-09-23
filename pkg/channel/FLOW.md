@@ -111,7 +111,8 @@ DTOs, and `worker` bounds blocking I/O.
   next ranges use accepted progress, skip idle control tails and ignore copy-ahead.
   The optional store repair port exports/imports complete bounded anchor intervals;
   each side verifies its own committed journal, with no sender-supplied expected
-  digest. Network repair scheduling and replica-readiness admission remain separate.
+  digest. Fresh cluster repair now routes exact donor/target intervals; automatic
+  interval scheduling and replica-readiness admission remain separate.
   Replay preparation uses the same recovered leader/route admission and bounded
   checkpoint workers. It captures HW, verifies protection and returns owned
   local content after rechecking fences; it cannot release the original source.

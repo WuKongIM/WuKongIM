@@ -350,8 +350,11 @@ specification, runbook, report, or module documentation; link to them when neede
   now derives the expected prefix from each receiver's committed anchor inside the
   atomic import boundary; exports must reach that exact anchor within 256 rows /
   16 MiB. Original-body removal and restart preserve this proof; caller/donor hashes
-  cannot substitute for it. Replicated source release, network repair scheduling
-  and replica readiness remain required.
+  cannot substitute for it. Node/RPC 98 now routes exact target/donor intervals with
+  fresh placement before/after and before import, separate four-slot receiver/donor
+  admission and five-second deadlines. Stable migration write fences permit immutable
+  recovery; changed fences suppress the receipt. Automatic interval/donor selection,
+  replicated source release and replica readiness remain required.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.

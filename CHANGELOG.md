@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Repair shared MQTT content across current replicas with bounded internal RPC 98 and independent committed-anchor checks, including learner recovery and restart retries. Matching peers are required; automatic repair scheduling and the product MQTT listener remain under development. / 共享 MQTT 内容新增有界内部 RPC 98 跨副本修复，独立核验已提交锚点，支持 learner 恢复及重启重试；要求节点版本匹配，自动修复调度和 MQTT 产品监听仍在开发。
+
 - Verify shared MQTT replay repairs against the receiver's own committed content anchor, preserving recovery after original-history cleanup and restart. Network repair scheduling and the product MQTT listener remain under development. / 共享 MQTT 回放恢复改由接收方自身已提交内容锚点校验，支持原始历史清理及重启后的恢复；网络修复调度和 MQTT 产品监听仍在开发。
 
 - Plan MQTT replay from a coherent committed source/anchor view through fresh cluster routing and bounded RPC 97; resume from accepted progress after restart and avoid copying idle anchor tails. Source release and the product MQTT listener remain under development. / MQTT 回放规划已接入一致的已提交源/锚点视图、最新集群路由和有界 RPC 97，重启后从已接受进度续传并跳过纯锚点空闲尾部；源释放和 MQTT 产品监听仍在开发。

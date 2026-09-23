@@ -141,6 +141,8 @@ const (
 	RPCChannelMQTTAnchor
 	// RPCChannelMQTTPlan reads a coherent source and accepted-prefix planning view.
 	RPCChannelMQTTPlan
+	// RPCChannelMQTTRepair transfers one independently anchored replay interval.
+	RPCChannelMQTTRepair
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -275,6 +277,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "channel mqtt copy"
 	case RPCChannelMQTTAnchor:
 		return "channel mqtt anchor"
+	case RPCChannelMQTTRepair:
+		return "channel mqtt repair"
 	case RPCChannelMQTTPlan:
 		return "channel mqtt plan"
 	case RPCChannelMQTTReplay:
