@@ -143,6 +143,7 @@ const (
 	TaskDatabaseCommitCoordinator        TaskID = "database/commit_coordinator"
 	TaskPresenceBatchResolve             TaskID = "presence/batch_resolve"
 	TaskMQTTDeadlineWorker               TaskID = "mqtt/deadline_worker"
+	TaskMQTTReplayWorker                 TaskID = "mqtt/replay_worker"
 	TaskMQTTConnectionScheduler          TaskID = "mqtt/connection_scheduler"
 	TaskMQTTConnectionWorker             TaskID = "mqtt/connection_worker"
 	TaskMessagePermissionBatch           TaskID = "message/permission_batch"
@@ -249,6 +250,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskDatabaseCommitCoordinator, Module: ModuleDatabase, Name: "commit_coordinator", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskPresenceBatchResolve, Module: ModulePresence, Name: "batch_resolve", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskMQTTDeadlineWorker, Module: ModuleMQTT, Name: "deadline_worker", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskMQTTReplayWorker, Module: ModuleMQTT, Name: "replay_worker", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskMQTTConnectionScheduler, Module: ModuleMQTT, Name: "connection_scheduler", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskMQTTConnectionWorker, Module: ModuleMQTT, Name: "connection_worker", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMessagePermissionBatch, Module: ModuleMessage, Name: "permission_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},

@@ -1,6 +1,6 @@
 ---
 scope: package
-summary: Defines bounded broker-scoped MQTT session and exact owner identities without credentials or runtime handles.
+summary: Defines bounded MQTT identities and body-free replay scheduling DTOs shared by usecase and runtime.
 ---
 
 # MQTT Session Contracts Flow
@@ -8,7 +8,8 @@ summary: Defines bounded broker-scoped MQTT session and exact owner identities w
 ## Responsibility
 
 This package defines entry-neutral broker/ClientID keys and exact execution
-owner identities. It owns no storage, routing, packet or socket behavior.
+owner identities, plus body-free replay cursors/results shared by usecase and
+runtime. It owns no storage, routing, packet or socket behavior.
 
 ## Boundaries
 
@@ -21,6 +22,8 @@ owner identities. It owns no storage, routing, packet or socket behavior.
 1. Validate bounded UTF-8 identity components before lookup or serialization.
 2. Carry Session generation separately from connection owner generation.
 3. Preserve node, unique registry boot and non-reused connection ID for isolation.
+4. Carry bounded per-replica scan hints and cold scheduling passes without turning
+   them into durable content, readiness, release or subscription evidence.
 
 ## Invariants and Failure Semantics
 
@@ -31,6 +34,7 @@ owner identities. It owns no storage, routing, packet or socket behavior.
 ## Read First
 
 - [Owner identity](owner.go)
+- [Replay scheduling DTOs](replay.go)
 - [Execution contract](../../../docs/specs/mqtt-owner-execution.md)
 
 ## Update Triggers

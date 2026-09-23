@@ -56,7 +56,7 @@ closure, dependency order, and restart policy.
   16 initializers per batch; the caller owns cancellation and joins all work.
 - Manager Prometheus queries use one fixed burst identity for the bounded
   per-request fanout cohort.
-- MQTT deadline and connection scheduling each use one optional singleton per
+- MQTT deadline, replay and connection scheduling each use an optional singleton per
   node, with a bounded connection-worker pool. Owners join work before stopping
   dependencies; ClientID/hash Slot never label tasks.
 

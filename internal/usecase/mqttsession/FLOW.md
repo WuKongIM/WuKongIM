@@ -58,8 +58,8 @@ packet, concrete cluster/gateway adapter, worker or shared replay storage.
    boundary. It returns preparation evidence, never a subscription completion receipt.
 9. Replay alternates bounded copy/anchor admission with replica recovery, using
    fresh placement and accepted progress. Targets pin anchors and retain scan/donor
-   hints across errors; changed source/placement resets hints. Callers retain the
-   detached cursor even on failure; results grant no release, readiness or SUBACK.
+   hints across continued turns; changed source/placement resets hints. Cold pass
+   seeds rotate targets/phases/donors; results grant no release, readiness or SUBACK.
 
 ## Invariants and Failure Semantics
 

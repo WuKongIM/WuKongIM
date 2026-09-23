@@ -2700,3 +2700,66 @@ readiness and consumer-proof GC remain outstanding. Complete subscription/inbox
 projection, delivery/ACK/recovery, Will execution, unavailable-owner proof, product
 configuration, state transfer and full process/load acceptance remain required.
 The product MQTT listener is unavailable and the full implementation goal is active.
+
+## Managed replay discovery and bounded background work
+
+One optional `mqtt/replay_worker` loop now owns distinct-source discovery across
+locally led hash Slots, with separate read/step/turn deadlines and bounded pages
+and visits. It retains only a discovery position, pass ordinal and at most one
+finite journal-scan continuation per Slot. It does not allocate a per-source cache,
+queue or goroutine. Completed copy/import/coverage work and failures yield to the
+next source. Only successful advancing scans retain the exact pinned target;
+new anchors cannot extend that visit, and errors/placement changes end it.
+
+Cold passes rotate copy/recovery phases, replica selection and initial donor hints.
+This preserves participation without retaining every source's process cursor;
+actual content progress always comes from durable planning. Partial budgets keep
+unstarted sources discoverable. Whole-page validation rejects malformed or late
+results before effects. Source removal and Slot loss discard process hints. Stop
+joins the exact run; timeout retains ownership and prevents an overlapping restart.
+Shared body-free DTOs now live in `internal/contracts/mqttsession`, keeping runtime
+independent of usecase construction. App provides a real Node-backed worker factory.
+No storage schema, persistent encoding or operator configuration changed.
+
+The failure inventory and frozen context preceded code in
+[mqtt-replay-worker.md](../specs/mqtt-replay-worker.md).
+
+Validation:
+
+- Missing-contract RED: `/tmp/mqtt-replay-worker-red.log`. Focused green:
+  `/tmp/mqtt-replay-worker-focused.log` (runtime 0.519 s, usecase 0.817 s).
+  Coverage includes 256-Slot rotation, two passes over 4,096 failing sources with
+  one retained Slot state, partial pages, pinned scans, cold replica/donor rotation,
+  invalid pages/continuations, late results and lost-source/Slot hints. This is
+  algorithmic boundedness evidence, not the required production load measurement.
+- `GOWORK=off go test -race ./internal/runtime/mqttsession
+  ./internal/usecase/mqttsession ./pkg/goroutine -count=1 -timeout=120s`: passed,
+  `/tmp/mqtt-replay-worker-regression.log` (1.722 s, 9.581 s, 2.559 s).
+- `GOWORK=off go test -race -tags=integration ./internal/runtime/mqttsession
+  ./internal/app -run '^(TestReplayWorker|TestMQTTGroupSourcePreparationThreeNodeRecovery)'
+  -count=1 -timeout=120s -v`: passed, `/tmp/mqtt-replay-worker-integration.log`.
+  Runtime package 1.980 s verifies two managed runs, joined cancellation, no overlap
+  after Stop timeout, fresh restart hints and per-call deadline handling.
+  The three-node TCP/disk, 256-hash-slot app test (10.26 s, package 12.000 s) starts
+  actual workers rather than manually pumping coordinator turns. After stopping
+  them, an independent learner-target operation reports already-complete coverage
+  without importing any content. Session takeover retains the initial consumption
+  boundary. Permission incarnation remains controlled, and the subscription stays
+  Preparing; this is runtime integration, not full product process E2E.
+- Final cold-pass selection alternates copy/recovery on successive visits while
+  advancing the target every two visits. After that adjustment, reran
+  `GOWORK=off go test -race -tags=integration ./internal/runtime/mqttsession
+  ./internal/usecase/mqttsession ./internal/app
+  -run '^(TestReplay|TestMQTTGroupSourcePreparationThreeNodeRecovery)'
+  -count=1 -timeout=120s -v`: all passed, `/tmp/mqtt-replay-worker-final.log`
+  (runtime 1.664 s, usecase 1.901 s, app 12.186 s; three-node test 10.48 s).
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-replay-worker-flow.log`. FLOW index is regenerated. Existing macOS
+  linker warnings are non-failing.
+
+Next implement replicated source release, learner/migration readiness and
+consumer-proof shared GC, then finish source/inbox projection and subscription
+completion. Delivery/ACK/recovery, fenced Will execution, unavailable-owner proof,
+product configuration/start-stop-restore composition, state transfer and full
+process/load acceptance remain required. Product MQTT admission is unavailable;
+the complete implementation goal remains active.

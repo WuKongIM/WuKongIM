@@ -20,6 +20,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	gr "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 	"github.com/stretchr/testify/require"
 )
@@ -50,9 +51,13 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	var nodes []*cluster.Node
 	var owners []*runtime.Owners
 	var sessions []*sessioncase.App
+	var replayWorkers []*runtime.ReplayWorker
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
+		for _, w := range replayWorkers {
+			require.NoError(t, w.Stop(ctx))
+		}
 		for _, o := range owners {
 			require.NoError(t, o.Close(ctx))
 		}
@@ -171,24 +176,35 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	discovered, err := nodes[0].ReadMQTTRecovery(ctx, route.HashSlot, meta.MQTTRead{Kind: meta.MQTTReadSourceOwners, Limit: 64})
 	require.NoError(t, err)
 	require.Equal(t, []meta.MQTTBindingOwner{prepared.Binding.Key.Owner}, discovered.SourceOwners)
-	coordinator, err := newMQTTReplayCoordinator(nodes[0], ids)
+	var anchored, repaired, completed atomic.Int32
+	for _, n := range nodes {
+		w, e := newMQTTReplayWorker(n, ids, runtime.ReplayWorkerOptions{Registry: gr.New(), HashSlotCount: 256, Interval: 20 * time.Millisecond, PagesPerTurn: 32, Observe: func(o runtime.ReplayObservation) {
+			anchored.Add(int32(o.Anchored))
+			repaired.Add(int32(o.Repaired))
+			completed.Add(int32(o.Completed))
+		}})
+		require.NoError(t, e)
+		replayWorkers = append(replayWorkers, w)
+		require.NoError(t, w.Start(ctx))
+	}
+	require.Eventually(t, func() bool { return anchored.Load() > 0 && repaired.Load() > 0 && completed.Load() >= 3 }, 10*time.Second, 30*time.Millisecond)
+	for _, w := range replayWorkers {
+		require.NoError(t, w.Stop(ctx))
+	}
+	// The worker already imported learner content. This independently verifies
+	// coverage and must not perform an import on the test's behalf.
+	planRequest := ch.MQTTReplayPlanRequest{ChannelID: id, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 1, ExpectedRouteGeneration: 1, Generation: prepared.Binding.Key.Owner.Generation}
+	plan, err := nodes[0].PlanChannelMQTTReplay(ctx, planRequest)
 	require.NoError(t, err)
-	var replayCursor sessioncase.ReplayCursor
-	anchored, learnerCovered := false, false
-	require.Eventually(t, func() bool {
-		step, e := coordinator.Step(ctx, discovered.SourceOwners[0], replayCursor)
-		replayCursor = step.Next
-		if e != nil {
-			return false
-		}
-		anchored = anchored || step.Anchored
-		learnerCovered = learnerCovered || (step.Target == 3 && step.TargetComplete)
-		return anchored && learnerCovered
-	}, 10*time.Second, 30*time.Millisecond)
+	require.True(t, plan.HasAnchor)
+	covered, err := nodes[0].StepChannelMQTTReplayRecovery(ctx, ch.MQTTReplayRecoveryRequest{Target: 3, Source: planRequest, TargetAnchor: plan.Anchor.Manifest.LastOffset, ScanLimit: 64})
+	require.NoError(t, err)
+	require.True(t, covered.Plan.Complete)
+	require.False(t, covered.Repaired)
 	_, err = sources.Prepare(ctx, first.Owner, topic)
 	require.Error(t, err)
 	require.NoError(t, nodes[0].RemoveChannelSubscribers(ctx, id.ID, 2, []string{"alice"}, 2))
 	_, err = sources.Prepare(ctx, resumed.Owner, topic)
 	require.ErrorIs(t, err, sessioncase.ErrSubscriptionDenied)
-	t.Log("mqtt_source_preparation_evidence: nodes=3 hash_slots=256 tcp=true disk=true remote_channel_protection=true cursor_commit_reply_lost=true owner_1_to_3=true original_boundary_preserved=true subscription_still_preparing=true permission_incarnation=controlled distinct_source_discovery=true replay_turn_coordinator=true learner_content_recovered=true automatic_scheduler=false full_projection=false product_listener=false")
+	t.Log("mqtt_source_preparation_evidence: nodes=3 hash_slots=256 tcp=true disk=true remote_channel_protection=true cursor_commit_reply_lost=true owner_1_to_3=true original_boundary_preserved=true subscription_still_preparing=true permission_incarnation=controlled distinct_source_discovery=true replay_turn_coordinator=true learner_content_recovered=true automatic_scheduler=true full_projection=false product_listener=false")
 }

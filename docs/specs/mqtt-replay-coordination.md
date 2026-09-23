@@ -17,7 +17,10 @@ Changed source/placement restarts only hints, deriving content progress from sto
 The caller owns a bounded number of these cursors; they are never persisted truth.
 
 The result retains a detached continuation even on an operation error, so a failed
-copy yields to recovery on the next turn. Callers must keep that continuation.
+copy yields to recovery on the next continued turn. A caller continuing the same
+source visit must keep that continuation. The bounded background scanner may end
+the visit on failure and seed its next cold visit from a rotating discovery pass;
+all content progress still comes from durable planning. See [worker scheduling](mqtt-replay-worker.md).
 Current metadata/plan validation precedes work; explicit row/byte/time limits and
 cancellation checks bound the turn. Copy receipts must match the planned starting
 prefix and stay within its captured frontier. Only validated quorum receipts reach

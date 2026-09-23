@@ -1,6 +1,6 @@
 ---
 scope: package
-summary: Bounds MQTT owner-local execution, exact quiescence, cleanup and fair durable-deadline scheduling with joined shutdown.
+summary: Bounds MQTT owner execution, quiescence, connection/deadline/replay scheduling and joined shutdown.
 ---
 
 # MQTT Session Runtime Flow
@@ -8,7 +8,7 @@ summary: Bounds MQTT owner-local execution, exact quiescence, cleanup and fair d
 ## Responsibility
 
 This package tracks local connection execution and exact-owner quiescence,
-and schedules bounded durable deadline candidates through an injected usecase.
+and schedules bounded durable deadline/replay work through injected usecases.
 It does not authenticate users, acquire durable ownership, derive distributed
 leases, publish messages, or interpret MQTT packets.
 
@@ -46,6 +46,10 @@ leases, publish messages, or interpret MQTT packets.
 7. Connections keeps one indexed schedule per registered owner and one bounded
    worker cohort. Renew requires a newer installed lease; disconnect keeps its
    original monotonic observation and first intent through exact cleanup retries.
+8. One replay loop scans distinct sources across led hash Slots. It retains at most
+   one finite journal-scan continuation per Slot; work/errors yield to later sources.
+   Cold passes rotate phases, targets and donor hints; durable storage owns progress.
+   Partial budgets preserve unstarted entries; invalid/late pages dispatch nothing.
 
 ## Invariants and Failure Semantics
 
@@ -70,6 +74,8 @@ leases, publish messages, or interpret MQTT packets.
   cursors, and invalid pages or late discovery results authorize no new effects.
 - A stopping deadline loop cannot overlap a restart. No per-session task or
   unbounded queue is added; observation contains only aggregate counts/duration.
+  Replay has the same joined lifecycle; source removal or lost Slot ownership
+  discards hints. App must join it before stopping or restoring cluster dependencies.
 - Connections Stop fences owner admission and makes one heap pass to expedite
   live cleanup without starving behind failed retries. Timeout retains that run;
   successful Stop joins registered work. App separately closes unregistered Owners.
@@ -79,9 +85,9 @@ leases, publish messages, or interpret MQTT packets.
 
 - [Owner execution](owner.go)
 - [Deadline and shutdown ownership](owner_deadlines.go)
-- [Failure inventory](../../../docs/specs/mqtt-owner-execution.md)
 - [Deadline worker](deadline_worker.go)
 - [Connection supervision](connections.go)
+- [Replay worker](replay_worker.go)
 
 ## Update Triggers
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	contract "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
@@ -37,33 +38,10 @@ type ReplayCoordinatorOptions struct {
 	PageSize, MaxBytes int
 }
 
-// ReplayTargetCursor pins one replica's target while retaining scan/donor hints.
-// New accepted anchors must not restart unfinished recovery of this target.
-type ReplayTargetCursor struct {
-	NodeID                      ch.NodeID
-	AnchorPosition, AfterAnchor uint64
-	DonorAfter                  ch.NodeID
-}
-
-// ReplayCursor is bounded process-local scheduling state, never durable evidence.
-// Callers serialize turns per source and retain Next even when a turn fails.
-type ReplayCursor struct {
-	Source    meta.MQTTBindingOwner
-	Authority [32]byte
-	// Targets follows the exact ordered placement and contains at most 256 entries.
-	Targets    []ReplayTargetCursor
-	NextTarget int
-	// RepairNext gives replica recovery a turn after every attempted copy.
-	RepairNext bool
-}
-
-// ReplayStepResult acknowledges only this bounded operation. TargetComplete does
-// not imply that all replicas are caught up, learner readiness, GC or SUBACK.
-type ReplayStepResult struct {
-	Next                               ReplayCursor
-	Target                             ch.NodeID
-	Anchored, Repaired, TargetComplete bool
-}
+// Shared body-free scheduling DTOs avoid a runtime-to-usecase dependency.
+type ReplayTargetCursor = contract.ReplayTargetCursor
+type ReplayCursor = contract.ReplayCursor
+type ReplayStepResult = contract.ReplayStepResult
 
 // ReplayCoordinator owns no workers, payloads or mutable per-source state.
 type ReplayCoordinator struct{ options ReplayCoordinatorOptions }
@@ -129,7 +107,7 @@ func (c *ReplayCoordinator) Step(parent context.Context, source meta.MQTTBinding
 	if !plan.ValidFor(q) {
 		return out, ErrEvidence
 	}
-	if err = out.Next.bind(source, m, plan); err != nil {
+	if err = bindReplayCursor(&out.Next, source, m, plan); err != nil {
 		return out, err
 	}
 	rangeToCopy, hasCopy, err := plan.NextRange(c.options.PageSize, c.options.MaxBytes)
@@ -226,6 +204,7 @@ func (c *ReplayCoordinator) recover(ctx context.Context, source ch.MQTTReplayPla
 		out.Repaired = true
 		target.AfterAnchor, target.DonorAfter = 0, 0
 	default:
+		out.ContinueScan = !r.Plan.HasNext
 		target.AfterAnchor, target.DonorAfter = r.Plan.ScanAfter, r.DonorAfter
 	}
 	return out, nil
@@ -269,14 +248,24 @@ func validReplayPlacement(m ch.Meta, id ch.ChannelID) bool {
 	return members[m.Leader]
 }
 
-// bind discards hints only when their source or complete authority changes.
+// bindReplayCursor discards hints only when source or complete authority changes.
 // Same-authority malformed continuations fail closed instead of skipping work.
-func (c *ReplayCursor) bind(source meta.MQTTBindingOwner, m ch.Meta, plan ch.MQTTReplayPlan) error {
+func bindReplayCursor(c *ReplayCursor, source meta.MQTTBindingOwner, m ch.Meta, plan ch.MQTTReplayPlan) error {
 	authority := ch.MQTTReplayCopyAuthority(m)
 	if c.Source != source || c.Authority != authority {
-		*c = ReplayCursor{Source: source, Authority: authority, Targets: make([]ReplayTargetCursor, len(m.Replicas))}
+		pass, count := c.Pass, uint64(len(m.Replicas))
+		*c = ReplayCursor{Pass: pass, Source: source, Authority: authority, Targets: make([]ReplayTargetCursor, len(m.Replicas)), NextTarget: int((pass / 2) % count), RepairNext: pass%2 == 1}
 		for i, n := range m.Replicas {
 			c.Targets[i].NodeID = n
+		}
+		// Cold visits must eventually reach donors beyond the first bounded round.
+		// Only the current plan supplies the target; the pass supplies no proof.
+		if cycle := pass / (2 * count); cycle > 0 && plan.HasAnchor {
+			donor := m.Replicas[(cycle-1)%count]
+			target := &c.Targets[c.NextTarget]
+			if donor != target.NodeID {
+				target.AnchorPosition, target.DonorAfter = plan.Anchor.Manifest.LastOffset, donor
+			}
 		}
 		return nil
 	}

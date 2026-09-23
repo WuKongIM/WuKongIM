@@ -370,11 +370,17 @@ specification, runbook, report, or module documentation; link to them when neede
   hint, never a consumer-completion proof. Older read JSON stays unchanged.
   The replay usecase alternates bounded copy/anchor admission with round-robin
   replica recovery. Each target pins its accepted anchor and retains scan/donor
-  hints across errors and newer anchors. Callers retain the detached continuation
-  even on failure; source/placement changes reset hints, never durable progress.
+  hints across errors and newer anchors. Continued visits retain the detached
+  continuation on failure; source/placement changes reset hints, never durable progress.
   Idle control tails do not create new anchors. App composition uses fresh Slot
   metadata and existing Node ports without a local authority fallback.
-  Background scheduling, replicated source release and replica readiness remain required.
+  One managed replay worker scans locally led hash Slots, retaining only one finite
+  journal-scan continuation per Slot instead of a per-source cache. Work/errors
+  yield to later sources; cold passes rotate phases, targets and donor hints.
+  Partial budgets preserve unstarted entries, and source removal/Slot loss drops
+  hints. Stop joins its exact run before restart/restore; three-node composition
+  verifies automatic learner recovery. Product lifecycle wiring, replicated source
+  release and replica readiness remain required.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.

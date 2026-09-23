@@ -330,3 +330,58 @@ func TestReplayCoordinatorRejectsCopyOutsidePlannedPrefixAndBudget(t *testing.T)
 		})
 	}
 }
+
+func TestReplayCoordinatorColdPassRotatesReplicaPhaseAndDonor(t *testing.T) {
+	c, f, owner := newReplayFixture(t)
+	f.plan.HasAnchor = true
+	f.plan.Anchor = f.proof
+	f.plan.Source.CommittedThrough = 4
+	// Every visit is cold: there is no per-source cache to preserve NextTarget.
+	f.copyErr = ch.ErrNotReady
+	var requests []ch.MQTTReplayRecoveryRequest
+	f.repair = func(_ context.Context, q ch.MQTTReplayRecoveryRequest) (ch.MQTTReplayRecoveryResult, error) {
+		requests = append(requests, q)
+		return ch.MQTTReplayRecoveryResult{}, ch.ErrNotReady
+	}
+	for pass := uint64(0); pass < 24; pass++ {
+		_, err := c.Step(context.Background(), owner, ReplayCursor{Pass: pass})
+		require.ErrorIs(t, err, ch.ErrNotReady)
+	}
+	require.Equal(t, 12, f.copies)
+	require.Len(t, requests, 12)
+	seen := map[ch.NodeID]map[ch.NodeID]bool{}
+	for _, q := range requests {
+		if seen[q.Target] == nil {
+			seen[q.Target] = map[ch.NodeID]bool{}
+		}
+		seen[q.Target][q.DonorAfter] = true
+		require.Equal(t, uint64(3), q.TargetAnchor)
+	}
+	for _, target := range f.m.Replicas {
+		require.Contains(t, seen, target)
+		for _, donor := range f.m.Replicas {
+			if donor != target {
+				require.True(t, seen[target][donor], "target %d never advances past donor %d", target, donor)
+			}
+		}
+	}
+}
+
+func TestReplayCoordinatorOnlyScanRequestsImmediateContinuation(t *testing.T) {
+	c, f, owner := newReplayFixture(t)
+	seed, err := c.Step(context.Background(), owner, ReplayCursor{})
+	require.NoError(t, err)
+	require.False(t, seed.ContinueScan)
+	f.repair = func(context.Context, ch.MQTTReplayRecoveryRequest) (ch.MQTTReplayRecoveryResult, error) {
+		return ch.MQTTReplayRecoveryResult{Plan: ch.MQTTReplayRepairPlan{Current: f.receipt.Before, Target: f.proof, ScanAfter: 1}}, nil
+	}
+	scan, err := c.Step(context.Background(), owner, seed.Next)
+	require.NoError(t, err)
+	require.True(t, scan.ContinueScan)
+	f.repair = func(context.Context, ch.MQTTReplayRecoveryRequest) (ch.MQTTReplayRecoveryResult, error) {
+		return ch.MQTTReplayRecoveryResult{Plan: ch.MQTTReplayRepairPlan{Current: f.receipt.Before, Target: f.proof, Next: f.proof, HasNext: true}, DonorAfter: 1}, nil
+	}
+	retry, err := c.Step(context.Background(), owner, scan.Next)
+	require.NoError(t, err)
+	require.False(t, retry.ContinueScan)
+}
