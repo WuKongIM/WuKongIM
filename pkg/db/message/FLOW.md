@@ -116,6 +116,7 @@ Compatibility maps Channel records/offsets to this core without transferring eng
   Explicit anchor release verifies committed/local prefix proofs under append/checkpoint ownership, then advances only System 12.
   Format-6 retirement journals in System 15 retain whole-anchor decisions and monotonic prefixes.
   HW/reference/proposal checks, suffix replacement and backup preserve them; journals alone never prune replay content.
+  Retirement selection pins a captured anchor and scans at most 64 older journals per call, with verified backward continuations.
   Suffix cuts never split proposals; recovery replacement is fenced by the
   inspected frontier and atomically replaces complete verified proposal pages.
 - Queue-depth publication is monotonic through grouped collection and terminal
@@ -145,6 +146,5 @@ Compatibility maps Channel records/offsets to this core without transferring eng
 
 ## Update Triggers
 
-Update this file when durable rows or indexes change, lease/registry ownership
-changes, commit locking changes, checkpoint or retention semantics change,
+Update when durable rows/indexes, lease ownership, commit locking, checkpoints or retention change,
 backup/restore coverage changes, or the Channel compatibility contract changes.

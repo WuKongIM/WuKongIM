@@ -426,6 +426,13 @@ type MQTTReplayRetirementReader interface {
 	LoadMQTTReplayRetirement(context.Context, uint64) (ch.MQTTReplayRetirementProof, bool, error)
 }
 
+// MQTTReplayRetirementSelector selects a whole accepted prefix within the
+// captured consumer floor, with bounded reverse scans and verified continuations.
+// It neither grants retirement authority nor mutates replica-local coverage.
+type MQTTReplayRetirementSelector interface {
+	SelectMQTTReplayRetirementAnchor(context.Context, ch.MQTTReplayRetirementScan) (ch.MQTTReplayRetirementSelection, error)
+}
+
 // MQTTReplayAnchorReader reads an independently committed exact control proof;
 // neither original-row retention nor a donor-supplied digest is its authority.
 type MQTTReplayAnchorReader interface {

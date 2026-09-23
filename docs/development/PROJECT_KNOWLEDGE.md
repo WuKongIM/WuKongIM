@@ -289,6 +289,11 @@ specification, runbook, report, or module documentation; link to them when neede
   stores reject append/recovery. Pending decisions are not readable proofs or
   backup content. Journals survive original trim/restart, but do not materialize
   a pruned baseline or delete content. Product consumer admission remains unwired.
+  [Whole-anchor selection](../specs/mqtt-retirement-anchor-selection.md) scans at
+  most 64 historical journals in one pinned view, below the captured anchor and
+  consumer floor. Verified backward cursors survive restart/restore; a floor
+  between anchors rounds down without requiring local shared bodies. This read
+  supplies no permission to commit retirement or physically reclaim content.
   MQTT metadata facades route Session children by the frozen namespace/ClientID
   hash and source bindings by ordinary Channel ID or UID. Read RPC 91 requires
   a fresh Slot barrier and pinned primary/index snapshot; recovery explicitly

@@ -100,6 +100,7 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
   Unsupported stores reject it; neither the payload nor its journal authorizes GC.
   Explicit format-6 retirement uses the sequencer with closed retry intent and journal-capability checks.
   It preserves whole-anchor decisions through replica recovery; product consumer admission and physical GC remain separate.
+  The optional retirement selector verifies historical whole anchors below a captured consumer floor in bounded reverse pages.
   Typed anchor admission shares the durable sequencer, checks exact installed
   membership and chains the latest accepted prefix. Stable source/Through commands
   reuse committed proofs after restart or original trim; pending retries keep the
@@ -145,6 +146,5 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
 
 ## Update Triggers
 
-Update this file when subtree ownership changes, append or quorum semantics
-change, a new blocking-I/O path is added, metadata fencing changes, lifecycle
+Update when subtree ownership, append/quorum semantics, blocking-I/O paths, metadata fencing or lifecycle
 states change, or committed-read and retention guarantees change.

@@ -3253,3 +3253,55 @@ binding removal, full subscription/inbox projection, permission ordering,
 downlink/ACK paths, owner recovery, Will execution, product lifecycle/configuration,
 offline tools and process/load acceptance remain required. The full goal remains
 active; product MQTT admission is still unavailable.
+
+## Bounded historical retirement-anchor selection
+
+The retirement journal stage was committed as `b825be9df`. Its next prerequisite
+now selects a complete accepted anchor when the coherent consumer floor lies
+between anchors. The MessageDB/Channel optional read port pins an exact captured
+anchor and scans at most 64 earlier journals per call. Each visited proof checks
+its own source, HW, paired proposal and entry identity. Selection rounds down;
+newer commits cannot expand the captured range, and replica-local replay bodies
+are unnecessary. There is no new table, stored format or RPC version.
+
+Results distinguish an eligible whole anchor, exhaustion and reverse-page
+continuation. Continuations are revalidated as committed, within the capture and
+above the supplied floor; making a cursor eligible by changing the floor requires
+restarting selection. The typed Channel contract rejects mixed outcomes, forward
+cursors and changed capture identities. Selection makes no mutations and grants
+no consumer or current-authority permission. The native quorum integration now
+selects the anchor before its controlled retirement proposal, and verifies the
+same selection on all voters/learner after reopen and authority recovery.
+
+Contract/failure inventory and frozen context:
+[mqtt-retirement-anchor-selection.md](../specs/mqtt-retirement-anchor-selection.md).
+
+Validation:
+
+- Storage and typed-adapter RED logs prove the missing APIs before their
+  implementation: `/tmp/mqtt-retirement-selection-red.log` and
+  `/tmp/mqtt-retirement-selection-adapter-red.log`. Focused storage, contract and
+  adapter tests passed (0.805 s, 0.829 s and 0.702 s respectively).
+- `GOWORK=off go test -p 2 -race ./pkg/db/message ./pkg/channel/... -count=1
+  -timeout=180s`: all passed; message 36.385 s, store 5.584 s and replication
+  3.451 s. Log: `/tmp/mqtt-retirement-selection-race.log`.
+- `GOWORK=off go test -p 2 -race -tags=integration ./pkg/db/message
+  ./pkg/channel/replication -run
+  '^(TestMQTTRetirementSelection|TestMQTTReplayAnchorQuorumRestartRecoveryAndLearner)'
+  -count=1 -timeout=120s -v`: passed; message 4.216 s, replication 2.361 s.
+  `/tmp/mqtt-retirement-selection-integration.log` records original-history trim,
+  restart, backup/restore, a stable capture after later commits, absent shared
+  content, fourteen proof/cursor fault cases, cancellation and closed leases.
+  Three disk-backed voters and one learner retain selection and format-6 intent
+  through the existing in-process exchange-codec fixture; this is not a TCP or
+  process-level product acceptance test. Consumer admission remains controlled.
+- `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-retirement-selection-flow.log`. Generated index and whitespace pass.
+
+Retirement baseline materialization, bounded physical deletion, suffix-only
+repair/readiness and pruned backup restoration remain next. The selection port
+still needs ordered product admission/current-authority routing. Final binding
+removal, subscription/inbox projection, permission ordering, delivery/ACK,
+owner recovery, Will execution, product lifecycle/configuration, offline tools
+and process/load acceptance remain required. The full goal stays active and the
+MQTT product listener remains unavailable.

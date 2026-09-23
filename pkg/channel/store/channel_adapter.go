@@ -1394,6 +1394,27 @@ func (a *messageDBChannelStoreAdapter) LoadMQTTReplayRetirement(ctx context.Cont
 	return ch.MQTTReplayRetirementProof{Retirement: proof.Retirement, Manifest: proof.Manifest}, true, nil
 }
 
+func (a *messageDBChannelStoreAdapter) SelectMQTTReplayRetirementAnchor(ctx context.Context, q ch.MQTTReplayRetirementScan) (ch.MQTTReplayRetirementSelection, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayRetirementSelection{}, err
+	}
+	if !q.Valid() {
+		return ch.MQTTReplayRetirementSelection{}, ch.ErrInvalidConfig
+	}
+	p, err := a.store.SelectMQTTReplayRetirementAnchor(ctx, q.Generation, q.CapturedAnchor, q.Through, q.BeforeAnchor, q.Limit)
+	if err != nil {
+		return ch.MQTTReplayRetirementSelection{}, a.mapError(err)
+	}
+	out := ch.MQTTReplayRetirementSelection{
+		Captured: ch.MQTTReplayAnchorProof{Anchor: p.Captured.Anchor, Manifest: p.Captured.Manifest}, Candidate: ch.MQTTReplayAnchorProof{Anchor: p.Candidate.Anchor, Manifest: p.Candidate.Manifest},
+		HasCandidate: p.HasCandidate, Done: p.Done, BeforeAnchor: p.BeforeAnchor,
+	}
+	if !out.ValidFor(q) {
+		return ch.MQTTReplayRetirementSelection{}, ch.ErrLogConflict
+	}
+	return out, nil
+}
+
 func (a *messageDBChannelStoreAdapter) LoadMQTTReplayAnchor(ctx context.Context, position uint64) (ch.MQTTReplayAnchorProof, bool, error) {
 	if err := a.ensureOpen(); err != nil {
 		return ch.MQTTReplayAnchorProof{}, false, err
