@@ -1208,11 +1208,11 @@ func readOffsetRecordsRaw(db *MessageDB, key ChannelKey, fromOffset uint64, limi
 		totalBytes := 0
 		for i := len(all) - 1; i >= 0; i-- {
 			row := all[i]
-			if len(rows) > 0 && totalBytes+len(row.Payload) > maxBytes {
+			if len(rows) > 0 && totalBytes+len(row.Payload)+len(row.PublicationMetadata) > maxBytes {
 				break
 			}
 			rows = append(rows, row)
-			totalBytes += len(row.Payload)
+			totalBytes += len(row.Payload) + len(row.PublicationMetadata)
 			if len(rows) == limit {
 				break
 			}
@@ -1514,7 +1514,7 @@ func (s *ChannelStore) LoadDurableProposal(ctx context.Context, commandID quorum
 		if !identityPresent || identity.CommandID != commandID || identity.Index != index {
 			return DurableProposal{}, false, channel.ErrCorruptState
 		}
-		rowBytes := 96 + len(row.FromUID) + len(row.ClientMsgNo) + len(row.Payload)
+		rowBytes := 96 + len(row.FromUID) + len(row.ClientMsgNo) + len(row.Payload) + len(row.PublicationMetadata)
 		if rowBytes > maxBytes-used {
 			return DurableProposal{}, false, channel.ErrBackpressured
 		}
@@ -3259,7 +3259,7 @@ func (e *channelEntry) publishCommittedRows(rows []messageRow, nextLEO uint64, p
 func messageRowsBytes(rows []messageRow) int {
 	total := 0
 	for _, row := range rows {
-		total += len(row.Payload)
+		total += len(row.Payload) + len(row.PublicationMetadata)
 	}
 	return total
 }
@@ -3344,11 +3344,11 @@ func readRowsRaw(ctx context.Context, db *MessageDB, channelKey ChannelKey, from
 		if err := validateMaterializedMessageRow(current); err != nil {
 			return false, err
 		}
-		if opts.MaxBytes > 0 && len(rows) > 0 && totalBytes+len(current.Payload) > opts.MaxBytes {
+		if opts.MaxBytes > 0 && len(rows) > 0 && totalBytes+len(current.Payload)+len(current.PublicationMetadata) > opts.MaxBytes {
 			return true, nil
 		}
 		rows = append(rows, current)
-		totalBytes += len(current.Payload)
+		totalBytes += len(current.Payload) + len(current.PublicationMetadata)
 		if opts.Limit > 0 && len(rows) >= opts.Limit {
 			return true, nil
 		}
@@ -3443,7 +3443,7 @@ func decodeCompatibilityRecordPayload(payload []byte) (messageRow, error) {
 	if len(payload) < channel.DurableMessageHeaderSize {
 		return messageRow{}, io.ErrUnexpectedEOF
 	}
-	if payload[0] != channel.DurableMessageCodecVersion {
+	if payload[0] != channel.DurableMessageCodecVersion && payload[0] != channel.PublicationMessageCodecVersion {
 		return messageRow{}, channel.ErrCorruptValue
 	}
 	row := messageRow{
@@ -3492,7 +3492,21 @@ func decodeCompatibilityRecordPayload(payload []byte) (messageRow, error) {
 		return messageRow{}, err
 	}
 	row.Payload = append([]byte(nil), row.Payload...)
-	if serverTimestampMS, ok := decodeCompatibilityServerTimestamp(payload, pos); ok {
+	if payload[0] == channel.PublicationMessageCodecVersion {
+		if len(payload)-pos < 8 {
+			return messageRow{}, channel.ErrCorruptValue
+		}
+		row.ServerTimestampMS = int64(binary.BigEndian.Uint64(payload[pos : pos+8]))
+		pos += 8
+		row.PublicationMetadata, pos, err = readCompatibilityBytes(payload, pos)
+		if err != nil || pos != len(payload) || len(row.PublicationMetadata) == 0 {
+			return messageRow{}, channel.ErrCorruptValue
+		}
+		if err := row.validate(); err != nil {
+			return messageRow{}, channel.ErrCorruptValue
+		}
+		row.PublicationMetadata = bytes.Clone(row.PublicationMetadata)
+	} else if serverTimestampMS, ok := decodeCompatibilityServerTimestamp(payload, pos); ok {
 		row.ServerTimestampMS = serverTimestampMS
 	}
 	row.PayloadSize = uint64(len(row.Payload))
@@ -3517,11 +3531,15 @@ func compatibilityRecordFromRow(row messageRow) (channel.Record, error) {
 		}
 		size += 4 + fieldSize
 	}
-	if row.ServerTimestampMS != 0 {
+	version := channel.DurableMessageCodecVersion
+	if len(row.PublicationMetadata) != 0 {
+		version = channel.PublicationMessageCodecVersion
+		size += 8 + 4 + len(row.PublicationMetadata)
+	} else if row.ServerTimestampMS != 0 {
 		size += compatibilityServerTimestampSize
 	}
 	payload := make([]byte, 0, size)
-	payload = append(payload, channel.DurableMessageCodecVersion)
+	payload = append(payload, version)
 	payload = binary.BigEndian.AppendUint64(payload, row.MessageID)
 	payload = append(payload, row.FramerFlags, row.Setting, row.StreamFlag, row.ChannelType)
 	payload = binary.BigEndian.AppendUint32(payload, uint32(row.Expire))
@@ -3536,7 +3554,12 @@ func compatibilityRecordFromRow(row messageRow) (channel.Record, error) {
 	payload = appendCompatibilityString(payload, row.Topic)
 	payload = appendCompatibilityString(payload, row.FromUID)
 	payload = appendCompatibilityBytes(payload, row.Payload)
-	payload = appendCompatibilityServerTimestamp(payload, row.ServerTimestampMS)
+	if version == channel.PublicationMessageCodecVersion {
+		payload = binary.BigEndian.AppendUint64(payload, uint64(row.ServerTimestampMS))
+		payload = appendCompatibilityBytes(payload, row.PublicationMetadata)
+	} else {
+		payload = appendCompatibilityServerTimestamp(payload, row.ServerTimestampMS)
+	}
 	return channel.Record{ID: row.MessageID, Index: row.MessageSeq, Payload: payload, SizeBytes: len(payload)}, nil
 }
 
@@ -3617,6 +3640,7 @@ func decodeCompatibilityServerTimestamp(payload []byte, pos int) (int64, bool) {
 
 func channelMessageFromRow(row messageRow) channel.Message {
 	row.Payload = append([]byte(nil), row.Payload...)
+	row.PublicationMetadata = bytes.Clone(row.PublicationMetadata)
 	return channelMessageFromOwnedRow(row)
 }
 
@@ -3624,24 +3648,25 @@ func channelMessageFromRow(row messageRow) channel.Message {
 // The caller must discard the row after conversion, never pass shared data.
 func channelMessageFromOwnedRow(row messageRow) channel.Message {
 	return channel.Message{
-		MessageID:         row.MessageID,
-		MessageSeq:        row.MessageSeq,
-		Framer:            decodeMessageRowFramerFlags(row.FramerFlags),
-		Setting:           frame.Setting(row.Setting),
-		MsgKey:            row.MsgKey,
-		Expire:            uint32(row.Expire),
-		ClientSeq:         row.ClientSeq,
-		ClientMsgNo:       row.ClientMsgNo,
-		StreamNo:          row.StreamNo,
-		StreamID:          row.StreamID,
-		StreamFlag:        frame.StreamFlag(row.StreamFlag),
-		Timestamp:         int32(row.Timestamp),
-		ChannelID:         row.ChannelID,
-		ChannelType:       row.ChannelType,
-		Topic:             row.Topic,
-		FromUID:           row.FromUID,
-		ServerTimestampMS: row.ServerTimestampMS,
-		Payload:           row.Payload,
+		MessageID:           row.MessageID,
+		MessageSeq:          row.MessageSeq,
+		Framer:              decodeMessageRowFramerFlags(row.FramerFlags),
+		Setting:             frame.Setting(row.Setting),
+		MsgKey:              row.MsgKey,
+		Expire:              uint32(row.Expire),
+		ClientSeq:           row.ClientSeq,
+		ClientMsgNo:         row.ClientMsgNo,
+		StreamNo:            row.StreamNo,
+		StreamID:            row.StreamID,
+		StreamFlag:          frame.StreamFlag(row.StreamFlag),
+		Timestamp:           int32(row.Timestamp),
+		ChannelID:           row.ChannelID,
+		ChannelType:         row.ChannelType,
+		Topic:               row.Topic,
+		FromUID:             row.FromUID,
+		ServerTimestampMS:   row.ServerTimestampMS,
+		Payload:             row.Payload,
+		PublicationMetadata: row.PublicationMetadata,
 	}
 }
 

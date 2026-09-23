@@ -52,10 +52,10 @@ storage core without transferring shared-engine ownership.
 
 ## Invariants and Failure Semantics
 
-- Offline helpers independently read existing columns and verify native proposal
-  formats 1 and 2. Format 2 binds message Expire; old format-1 hashes remain
-  unchanged. Matched runtimes and full-generation rollback are required after
-  format-2 writes. Import adds no empty-key exception, uniqueness relaxation,
+- Offline helpers preserve optional publication column 21 and verify proposal
+  formats 1–3. Format 2 binds Expire; format 3 also binds publication metadata.
+  Metadata uses compatibility record codec 2; native codec-1 bytes stay unchanged.
+  Matched runtimes, tooling and full-generation rollback are required. Import adds no empty-key exception, uniqueness relaxation,
   or recovery path and rejects values the native runtime cannot represent.
 
 - A sparse SyncOnce ordinal index (ID 7, complete marker system ID 11) excludes

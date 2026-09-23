@@ -235,7 +235,7 @@ MQTT 5.0 在恢复已有会话时按标准重发未确认报文；不照搬 WK �
 
 ### 修改现有消息表
 
-当前 [message schema](../../pkg/db/message/schema.go)只有现有 IM 消息列，没有完整 MQTT 发布属性。推荐新增一个可选、有版本且有大小限制的 `publication_metadata` 列（或少量等价的可选列），保存：
+现有 [message schema](../../pkg/db/message/schema.go)新增可选、有版本且有大小限制的 `publication_metadata` 列（ID 21）；[存储格式](mqtt-publication-metadata.md)已实现，发送合同及集群 RPC 的完整传递仍待接通。该列保存：
 
 - 来源类型、稳定发布者客户端身份和命名空间。
 - 原始发布 QoS、用于重建应用 topic 的信息。

@@ -76,7 +76,7 @@ func (l *ChannelLog) VerifyOfflineImportedLog(ctx context.Context, maxBytes int)
 			return err
 		}
 		// Message rows do not duplicate the proposal's channel epoch. Restore
-		// it from the manifest before recomputing the existing version-1 identities;
+		// it from the manifest before recomputing the manifest-versioned identities;
 		// every separately stored entry is compared against that result below.
 		used, recoveryUsed := 0, 0
 		for i := range records {
@@ -85,7 +85,7 @@ func (l *ChannelLog) VerifyOfflineImportedLog(ctx context.Context, maxBytes int)
 			}
 			used += records[i].SizeBytes
 			row := rows[i]
-			recoveryBytes := quorumlog.RecoveryRecordBytes(row.FromUID, row.ClientMsgNo, len(row.Payload))
+			recoveryBytes := quorumlog.RecoveryRecordBytes(row.FromUID, row.ClientMsgNo, len(row.Payload)+len(row.PublicationMetadata))
 			if recoveryBytes > maxBytes-recoveryUsed {
 				return dberrors.ErrInvalidArgument
 			}

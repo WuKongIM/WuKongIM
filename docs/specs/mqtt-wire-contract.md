@@ -29,6 +29,9 @@ freezes the application conventions; it does not announce an enabled listener.
 - Payload bytes are the existing IM payload. MQTT QoS 0 does not set NoPersist.
   Source publications retain their original QoS, publisher identity, ordered
   properties and expiry basis through commit, replay and backup.
+- The combined [publication metadata value](mqtt-publication-metadata.md) is
+  limited to 32 KiB including identity and format overhead, independent of wire
+  property-block limits. An over-limit publication is rejected without truncation.
 
 ## Protocol capability matrix
 

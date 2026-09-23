@@ -15,20 +15,28 @@ const ProposalManifestVersion uint16 = 1
 // that were stored but not covered by the v1 entry digest.
 const ExpirationProposalManifestVersion uint16 = 2
 
-// SupportedProposalVersion accepts only the two fully specified digest formats.
+// PublicationProposalManifestVersion binds optional publication metadata as
+// well as lifetime. It requires compatible replicas and recovery tooling.
+const PublicationProposalManifestVersion uint16 = 3
+
+// SupportedProposalVersion accepts only fully specified digest formats.
 func SupportedProposalVersion(version uint16) bool {
-	return version == ProposalManifestVersion || version == ExpirationProposalManifestVersion
+	return version == ProposalManifestVersion || version == ExpirationProposalManifestVersion || version == PublicationProposalManifestVersion
 }
 
 // VersionForRecords chooses a format for a newly created proposal, never for
 // verification of a persisted manifest supplied by another node.
 func VersionForRecords(records []Record) uint16 {
+	version := ProposalManifestVersion
 	for _, record := range records {
+		if len(record.PublicationMetadata) != 0 {
+			return PublicationProposalManifestVersion
+		}
 		if record.Expire != 0 {
-			return ExpirationProposalManifestVersion
+			version = ExpirationProposalManifestVersion
 		}
 	}
-	return ProposalManifestVersion
+	return version
 }
 
 // CommandID is the retry-stable identity of one immutable proposal.
@@ -111,6 +119,10 @@ type Record struct {
 	SyncOnce bool
 	// Payload is the immutable message body.
 	Payload []byte
+	// PublicationMetadata is the complete immutable, bounded publication value.
+	// This generic hash contract binds bytes; the publication/store boundaries
+	// validate their content. Formats 1 and 2 must reject nonempty metadata.
+	PublicationMetadata []byte
 }
 
 // StructurallyValid reports whether a manifest has a complete authority,
@@ -157,7 +169,8 @@ func DeriveProposalEntries(manifest ProposalManifest, recordCount int, recordAt 
 	for offset := 0; offset < recordCount; offset++ {
 		index := manifest.BaseOffset + uint64(offset) + 1
 		record := recordAt(offset)
-		if record.ID == 0 || (record.Index != 0 && record.Index != index) || record.Epoch != manifest.ChannelEpoch || record.ServerTimestampMS <= 0 {
+		if record.ID == 0 || (record.Index != 0 && record.Index != index) || record.Epoch != manifest.ChannelEpoch || record.ServerTimestampMS <= 0 ||
+			manifest.Version < PublicationProposalManifestVersion && len(record.PublicationMetadata) != 0 {
 			return nil, false
 		}
 		entry := EntryIdentity{
@@ -192,7 +205,8 @@ func VerifyEntry(entry EntryIdentity, record Record) bool {
 	if !SupportedProposalVersion(entry.Version) || entry.ChannelEpoch == 0 || entry.LeaderTerm == 0 || entry.FenceVersion == 0 ||
 		entry.Index == 0 || entry.CommandID == (CommandID{}) || entry.Digest == (EntryDigest{}) ||
 		entry.PreviousIndex+1 != entry.Index || record.ID == 0 || (record.Index != 0 && record.Index != entry.Index) ||
-		record.Epoch != entry.ChannelEpoch || record.ServerTimestampMS <= 0 {
+		record.Epoch != entry.ChannelEpoch || record.ServerTimestampMS <= 0 ||
+		entry.Version < PublicationProposalManifestVersion && len(record.PublicationMetadata) != 0 {
 		return false
 	}
 	if entry.PreviousIndex == 0 {
@@ -207,7 +221,9 @@ func VerifyEntry(entry EntryIdentity, record Record) bool {
 
 func digestProposalEntry(entry EntryIdentity, record Record) EntryDigest {
 	hash := sha256.New()
-	if entry.Version == ExpirationProposalManifestVersion {
+	if entry.Version == PublicationProposalManifestVersion {
+		_, _ = hash.Write([]byte("wukongim/channel-entry/v3\x00"))
+	} else if entry.Version == ExpirationProposalManifestVersion {
 		_, _ = hash.Write([]byte("wukongim/channel-entry/v2\x00"))
 	} else {
 		_, _ = hash.Write([]byte("wukongim/channel-entry/v1\x00"))
@@ -226,7 +242,7 @@ func digestProposalEntry(entry EntryIdentity, record Record) EntryDigest {
 	_, _ = hash.Write(entry.CommandID[:])
 	_, _ = hash.Write(entry.PreviousDigest[:])
 	writeUint64(record.ID)
-	if entry.Version == ExpirationProposalManifestVersion {
+	if entry.Version >= ExpirationProposalManifestVersion {
 		writeUint64(uint64(record.Expire))
 	}
 	_, _ = hash.Write([]byte{record.Setting})
@@ -243,6 +259,9 @@ func digestProposalEntry(entry EntryIdentity, record Record) EntryDigest {
 	writeBytes([]byte(record.FromUID))
 	writeBytes([]byte(record.ClientMsgNo))
 	writeBytes(record.Payload)
+	if entry.Version == PublicationProposalManifestVersion {
+		writeBytes(record.PublicationMetadata)
+	}
 	var digest EntryDigest
 	copy(digest[:], hash.Sum(nil))
 	return digest

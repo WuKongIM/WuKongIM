@@ -15,7 +15,7 @@ import (
 
 const (
 	// DurableProposalManifestVersion identifies the original proposal format.
-	// Readers also accept the explicitly versioned lifetime-binding format 2.
+	// Readers also accept lifetime format 2 and publication metadata format 3.
 	DurableProposalManifestVersion = quorumlog.ProposalManifestVersion
 	durableProposalRecordSize      = 154
 	durableEntryIdentitySize       = 146
@@ -66,7 +66,7 @@ func deriveDurableProposalEntries(manifest DurableProposalManifest, records []ch
 			ID: row.MessageID, Index: row.MessageSeq, Epoch: records[index].Epoch,
 			Setting: row.Setting, FromUID: row.FromUID, ClientMsgNo: row.ClientMsgNo,
 			ServerTimestampMS: row.ServerTimestampMS, SyncOnce: row.FramerFlags&4 != 0, Expire: uint32(row.Expire),
-			Payload: row.Payload,
+			Payload: row.Payload, PublicationMetadata: row.PublicationMetadata,
 		}
 	})
 }
@@ -436,7 +436,7 @@ func verifyBackupRowIdentity(entry quorumlog.EntryIdentity, row messageRow) bool
 		ID: row.MessageID, Index: row.MessageSeq, Epoch: entry.ChannelEpoch,
 		Setting: row.Setting, FromUID: row.FromUID, ClientMsgNo: row.ClientMsgNo,
 		ServerTimestampMS: row.ServerTimestampMS, SyncOnce: row.FramerFlags&4 != 0, Expire: uint32(row.Expire),
-		Payload: row.Payload,
+		Payload: row.Payload, PublicationMetadata: row.PublicationMetadata,
 	})
 }
 

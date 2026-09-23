@@ -297,14 +297,15 @@ func (l *ChannelLog) recordToRow(seq uint64, record Record, defaultServerTimesta
 		serverTimestampMS = defaultServerTimestampMS
 	}
 	row := messageRow{
-		MessageSeq:        seq,
-		MessageID:         record.ID,
-		ClientMsgNo:       record.ClientMsgNo,
-		FromUID:           record.FromUID,
-		ChannelID:         l.id.ID,
-		ChannelType:       l.id.Type,
-		Payload:           record.Payload,
-		ServerTimestampMS: serverTimestampMS,
+		MessageSeq:          seq,
+		MessageID:           record.ID,
+		ClientMsgNo:         record.ClientMsgNo,
+		FromUID:             record.FromUID,
+		ChannelID:           l.id.ID,
+		ChannelType:         l.id.Type,
+		Payload:             record.Payload,
+		PublicationMetadata: record.PublicationMetadata,
+		ServerTimestampMS:   serverTimestampMS,
 	}
 	if record.SizeBytes > 0 {
 		row.PayloadSize = uint64(record.SizeBytes)

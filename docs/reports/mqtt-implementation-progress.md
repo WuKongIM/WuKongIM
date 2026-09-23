@@ -507,3 +507,70 @@ Validation for the atomic lifecycle slice (2026-09-23):
   zero invalid and the same 9 pre-existing length warnings.
 - `git diff --check` passed. Product E2E remains RED until the complete runtime,
   publication, source-protection and listener path exists.
+
+## Publication metadata format and message storage
+
+Frozen source context at `d5f6ee1a6`:
+
+- Root `AGENTS.md`: `d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade`
+- `pkg/db/FLOW.md`: `49c5fe18bcf98edd7bc072dececaf0114f8d51d77f52cffb96b49f240dd2584e`
+- `pkg/db/message/FLOW.md`: `ac910f21296d227ca70b6a6410501e12aab4efb4d5d0233a7176e8b6e8c2415d`
+
+The new entry-neutral `pkg/protocol/publication` format freezes publisher
+namespace/ClientID, origin, original QoS/topic, ordered properties and the expiry
+clock. It owns no wire packets, sessions or authorization. The complete value,
+including identity and encoding overhead, is capped at 32 KiB/128 properties.
+Unknown/partial formats, unsupported property variants, duplicate singleton
+properties, invalid strings and oversized values fail without truncation.
+User-property order and duplicate keys are retained. Native messages omit it.
+Ordinary MQTT uses original ingress time; Will uses the immutable source append
+timestamp, so delay and replay cannot restart or shorten its publication clock.
+
+PUBLISH/Will mapping produces owned content and canonical bytes after application
+topic and reserved-key checks. Will Delay stays outside forwarded content;
+`wk.client_msg_no` remains the message's separate field. Retain, QoS 2, aliases,
+client subscription identifiers and forged reserved output attributes fail.
+Mapping is not authentication or IM payload authorization, and its Will client
+number still does not provide a server idempotency domain.
+
+Message table 1 gains optional bytes column 21 (`publication_metadata`). Typed
+append/read, follower apply, binary backup/import and restore visitors preserve
+it. Native columns, missing-field defaults and codec-1 bytes remain unchanged.
+Nonempty metadata uses compatibility record codec 2, with a mandatory append
+timestamp and bounded metadata suffix; older readers reject that version.
+Exact proposal format 3 binds all format-2 semantics plus the entire metadata
+under a new digest domain. Formats 1/2 reject nonempty metadata instead of
+certifying an unbound value; original native hashes remain unchanged. Exact
+retry after binary backup import retains the publication proof.
+
+Tests preceded implementation at the approved codec/mapping/storage boundaries.
+They cover a literal v1 value, semantic and size failures, truncation, independent
+byte ownership, expiry presence/zero/Will basis/overflow, packet mapping,
+invalid-batch rollback, reopen, follower apply, binary backup and visitors,
+partial record rejection and altered metadata versus exact proposal proof.
+Budget checks cover reads, exact client-number lookup and native/recovery
+representations. The latter two initially failed because their counters omitted
+metadata; both now include it. Existing native storage fixtures and regressions
+remain green. IM send validation still rejects empty payloads; no new empty-body
+exception was introduced in the storage tests or product policy.
+
+Validation (2026-09-23):
+
+- `GOWORK=off go test ./pkg/db/... ./pkg/quorumlog/... ./pkg/protocol/... ./internal/access/mqtt -count=1 -timeout=90s` passed.
+- `GOWORK=off go test ./pkg/channel/... ./pkg/slot/... -count=1 -timeout=90s` passed.
+- Focused race tests for publication codec, access mapping, quorum identities
+  and message storage passed. After the final budget fixes, the complete message
+  package and its publication race tests passed again. macOS emitted the existing
+  LC_DYSYMTAB linker warning.
+- Named `flow-doc-contracts` passed after index regeneration: 83 compliant,
+  zero invalid and the same 9 pre-existing length warnings.
+- `git diff --check` passed.
+
+This is verified storage groundwork, not complete product replication. Next
+propagate the value through SendCommand, Channel records/clones, append adapters,
+RPC/quorum exchange, restore consumers and JSONL offline transfer, including
+all admission/read/fanout byte budgets. Business retry resolution must preserve
+the original stored clock, and server Will idempotency needs a distinct domain.
+Shared replay, source protection, owner isolation, authoritative runtime wiring,
+cleanup/restore fencing and capability gates remain required. Product process
+E2E is still RED and MQTT access remains disabled. The full goal stays active.

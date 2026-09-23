@@ -24,6 +24,14 @@ as a format migration and gate it behind an explicit rollout plan.
 
 ## Stable Durable IDs
 
+MQTT publication groundwork adds optional message column 21 (`publication_metadata`),
+compatibility record codec 2 and exact proposal format 3. Absent metadata keeps
+native record bytes and format-1/2 hashes unchanged. Binary backups preserve the
+new column and identity; message DTO/RPC propagation, JSONL transfer, restore
+consumers and capability gating are not complete, so product MQTT stays disabled.
+New data requires matched runtimes and tools and a pre-feature backup for rollback.
+See [the publication format](../../docs/specs/mqtt-publication-metadata.md).
+
 MQTT groundwork adds metadata tables 22 (`mqtt_session`), 23
 (`mqtt_subscription`), 24 (`mqtt_delivery_cursor`), 25 (`mqtt_inflight`), 26
 (`mqtt_source_binding`) and 27 (`mqtt_will`), with Slot commands 67–73.

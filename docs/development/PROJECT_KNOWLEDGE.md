@@ -195,6 +195,11 @@ specification, runbook, report, or module documentation; link to them when neede
   membership; protocol ACKs are separate from read state; delivery obligations
   survive ordinary history cleanup within their explicit lifetime and limits.
   Reliable recovery must cover messages from every entry, not only MQTT sends.
+  Optional message column 21 preserves bounded versioned publication metadata;
+  compatibility record codec 2 and proposal format 3 prevent lossy recovery.
+  Ordinary expiry uses ingress time; Will uses the original source append time.
+  Native formats remain unchanged; full DTO/RPC, offline transfer and capability
+  gates are still required before activation. See the [publication contract](../specs/mqtt-publication-metadata.md).
   Source-owned binding tombstones prevent delayed prepares from resurrecting a
   subscription. Unknown source boundaries block reclamation; stored progress
   requires current remote authority and source protection before use.
