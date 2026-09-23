@@ -518,3 +518,33 @@ func TestDisconnectIsolationDelayPreservesNormalDecisionAndOfflineClock(t *testi
 	require.NoError(t, e)
 	require.Equal(t, meta.MQTTWillCancelled, w.Stage, "normal disconnect became abnormal while isolation waited")
 }
+
+func TestQueuedDisconnectPreservesTrustedObservation(t *testing.T) {
+	f := setup(t)
+	cmd := command()
+	cmd.Will = will(t)
+	connection, err := f.service.Connect(context.Background(), cmd)
+	require.NoError(t, err)
+	f.now = f.now.Add(time.Second)
+	observed := f.now
+	f.now = f.now.Add(20 * time.Second)
+	require.NoError(t, f.service.Disconnect(context.Background(), app.DisconnectCommand{Owner: connection.Owner, Normal: true, ObservedAt: observed}))
+	row := f.row(t)
+	require.Equal(t, observed.UnixMilli()+60000, row.OfflineExpiresAtMS)
+	require.Zero(t, row.WillGeneration)
+}
+func TestQueuedDisconnectRejectsFutureAndWallOnlyObservation(t *testing.T) {
+	for _, mode := range []string{"future", "wall"} {
+		t.Run(mode, func(t *testing.T) {
+			f := setup(t)
+			connection, err := f.service.Connect(context.Background(), command())
+			require.NoError(t, err)
+			observed := f.now.Add(time.Second)
+			if mode == "wall" {
+				observed = f.now.Round(0)
+			}
+			require.Error(t, f.service.Disconnect(context.Background(), app.DisconnectCommand{Owner: connection.Owner, Normal: true, ObservedAt: observed}))
+			require.Equal(t, meta.MQTTSessionActive, f.row(t).State)
+		})
+	}
+}

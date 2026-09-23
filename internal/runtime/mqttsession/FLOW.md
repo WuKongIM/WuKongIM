@@ -20,6 +20,8 @@ leases, publish messages, or interpret MQTT packets.
   it must honor cancellation and cannot recursively wait for business cleanup.
 - App composition owns owner-registry sweeps and the durable deadline worker's
   start/stop ordering. The worker does not renew live owners or publish Wills.
+  Connections separately owns bounded live renewal and queued disconnect through
+  app-adapted usecases; entry callbacks only register or accept immutable intent.
 
 ## Main Flows
 
@@ -41,6 +43,9 @@ leases, publish messages, or interpret MQTT packets.
    hash Slots, with bounded reads/visits and per-call/turn deadlines. Only Waiting
    Wills reach lifecycle reconciliation; detached publication work remains intact.
    Stop joins the exact run; restart after Stop gets fresh process cursors.
+7. Connections keeps one indexed schedule per registered owner and one bounded
+   worker cohort. Renew requires a newer installed lease; disconnect keeps its
+   original monotonic observation and first intent through exact cleanup retries.
 
 ## Invariants and Failure Semantics
 
@@ -65,6 +70,10 @@ leases, publish messages, or interpret MQTT packets.
   cursors, and invalid pages or late discovery results authorize no new effects.
 - A stopping deadline loop cannot overlap a restart. No per-session task or
   unbounded queue is added; observation contains only aggregate counts/duration.
+- Connections Stop fences owner admission and makes one heap pass to expedite
+  live cleanup without starving behind failed retries. Timeout retains that run;
+  successful Stop joins registered work. App separately closes unregistered Owners.
+  Both Connections and its owner registry are terminal after Stop, including restore.
 
 ## Read First
 
@@ -72,7 +81,7 @@ leases, publish messages, or interpret MQTT packets.
 - [Deadline and shutdown ownership](owner_deadlines.go)
 - [Failure inventory](../../../docs/specs/mqtt-owner-execution.md)
 - [Deadline worker](deadline_worker.go)
-- [Scheduling contract](../../../docs/specs/mqtt-deadline-worker.md)
+- [Connection supervision](connections.go)
 
 ## Update Triggers
 

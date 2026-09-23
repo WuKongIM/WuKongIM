@@ -131,6 +131,10 @@ type DisconnectCommand struct {
 	Owner            contract.Owner
 	Normal           bool
 	SessionExpirySec *uint32
+	// ObservedAt is an optional trusted owner-local monotonic observation from
+	// entry admission. Queued cleanup preserves it; it is never client input or
+	// serialized authority evidence. Zero captures the current usecase time.
+	ObservedAt time.Time
 }
 
 func New(opts Options) (*App, error) {

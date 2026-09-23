@@ -99,6 +99,12 @@ func (a *App) Disconnect(ctx context.Context, c DisconnectCommand) error {
 	if err != nil {
 		return err
 	}
+	if !c.ObservedAt.IsZero() {
+		if c.ObservedAt == c.ObservedAt.Round(0) || c.ObservedAt.After(observed) || c.ObservedAt.UnixMilli() <= 0 {
+			return ErrClock
+		}
+		observed = c.ObservedAt
+	}
 	row, found, err := a.read(ctx, c.Owner.Key)
 	if err != nil {
 		return err

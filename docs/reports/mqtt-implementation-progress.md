@@ -1383,3 +1383,74 @@ restore composition, uncertain/unreachable owner recovery proof, live renewal,
 subscription/durable source activation, shared replay delivery, actual Will
 execution and recovery/tooling/pressure acceptance remain required. Product MQTT
 admission remains unavailable, and the full implementation goal remains active.
+
+## Bounded connection renewal and asynchronous lifecycle cleanup
+
+Frozen source `f9a926c81`, applicable digests and the pre-code failure inventory
+are in [`mqtt-connection-supervisor.md`](../specs/mqtt-connection-supervisor.md).
+Inspection of the gateway showed that ordinary close callbacks can run
+synchronously inside a PUBLISH handler. Calling joined Session disconnect there
+would wait for that same handler's admitted scope. This slice supplies the
+necessary scheduling boundary before the full PacketHandler can be connected.
+
+`internal/runtime/mqttsession.Connections` registers only an exact owner with an
+installed live lease. Each retained owner owns one indexed heap record; repeated
+registration or close notification adds no queue entry and does not replace the
+first disconnect intent. One managed scheduler and a bounded worker pool renew
+halfway through the installed lease and execute cleanup outside entry callbacks.
+Defaults are 16 workers, one worker cohort of queued jobs, a one-second call
+budget and 250ms retry delay. Capacity includes active, queued, executing and
+failed cleanup records. There are no per-owner goroutines or timers, and normal
+scheduling uses O(log N) heap operations rather than registry scans.
+
+Renewal success requires a newer lease actually installed in Owners. Cleanup
+requires exact physical/local quiescence plus a terminal lifecycle result;
+unresolved publish barriers, failed callbacks and late nil results remain
+retained. Callbacks receive copied intent and fixed error handling. Snapshot
+counters and fixed `mqtt/connection_scheduler` / `mqtt/connection_worker` tasks
+carry no identities or arbitrary error text.
+
+The Session disconnect command now accepts an optional trusted node-local
+monotonic observation. Queued cleanup and retries preserve this original time;
+future or wall-only observations fail before isolation. App adapts renewal and
+disconnect DTOs to the existing Session usecase, without adding protocol logic or
+changing storage schemas. Existing synchronous callers keep their current clock
+capture behavior.
+
+Stop permanently fences owner admission, preserves accepted intent and joins all
+registered work. A failing regression found that a failed cleanup at the heap
+head could hide live connections behind their future renewal dates. Stop now
+makes one bounded-by-capacity O(N) heap pass to expedite those live records;
+failed cleanup retains its retry delay. A timed-out Stop keeps the same run and
+its dependencies alive for a later join. App must separately close unregistered
+Owners. Restore requires a new supervisor and a fresh registry boot, not restart
+of this stopped lifetime.
+
+Tests and the failure inventory preceded implementation. Final validation:
+
+- `GOWORK=off go test ./internal/runtime/mqttsession ./internal/usecase/mqttsession
+  ./internal/access/mqtt ./pkg/goroutine -count=1 -timeout=90s` passed in
+  1.166 / 5.413 / 2.376 / 2.065 seconds; `/tmp/mqtt-connections-default.log`.
+- `GOWORK=off go test -race -tags=integration ./internal/runtime/mqttsession
+  -run '^TestConnections|^TestConnectionConfiguration' -count=1 -timeout=60s`
+  passed in 3.220 seconds, including nonblocking first-intent acceptance,
+  bounded capacity/concurrency, false renewal, panic/retry, overdue results,
+  joined stop and the failed-cleanup ordering regression. Existing macOS linker
+  warnings remain; `/tmp/mqtt-connections-race.log`.
+- `GOWORK=off go test -tags=integration ./internal/runtime/mqttsession
+  ./internal/app -run '^TestConnections|^TestMQTTConnectionSupervisorSingleNodeCluster$|^TestMQTTSessionAcquisitionThreeNodeRPC$|^TestMQTTPublishSingleNodeCluster'
+  -count=1 -timeout=90s -v` passed. The new real single-node cluster test uses 256
+  hash Slots, real device-token/Session authority, automatic renewed revisions,
+  a held entry scope, and original disconnect clock/expiry. It took 4.05 seconds;
+  existing PUBLISH and three-node Session tests took 2.86 / 12.67 seconds. Log:
+  `/tmp/mqtt-connections-integration.log`.
+- Named `flow-doc-contracts` passed after index regeneration: 86 compliant,
+  zero invalid, the same 9 existing line-count warnings. `git diff --check` passed.
+
+The new app integration uses controlled transport-close callbacks; it does not
+replace full product MQTT/Paho process-level acceptance. Gateway CONNECT/open/
+rollback/close mapping and product start/stop/restore registration are still
+pending, alongside subscription/delivery, distributed replay/source activation,
+Will execution, uncertain/unreachable-owner recovery proof, state transfer and
+pressure acceptance. Product MQTT admission remains unavailable and the original
+full implementation goal stays active.

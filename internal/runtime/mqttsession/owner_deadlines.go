@@ -81,10 +81,7 @@ func (m *Owners) Close(ctx context.Context) error {
 	if m == nil || ctx == nil {
 		return ErrOwnerInvalid
 	}
-	m.mu.Lock()
-	m.stopped = true
-	m.mu.Unlock()
-	m.cancel(ErrOwnerStopped)
+	m.StopAdmission()
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -107,6 +104,18 @@ func (m *Owners) Close(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+// StopAdmission permanently rejects new reservations/scopes and cancels existing
+// scopes without waiting for transport or business cleanup. It supplies no proof.
+func (m *Owners) StopAdmission() {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	m.stopped = true
+	m.mu.Unlock()
+	m.cancel(ErrOwnerStopped)
 }
 
 // OwnerSnapshot contains bounded aggregate diagnostics without owner identities.

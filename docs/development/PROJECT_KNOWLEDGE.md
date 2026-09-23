@@ -229,6 +229,12 @@ specification, runbook, report, or module documentation; link to them when neede
   can leave accepted Channel work running, so local scope drain is insufficient:
   MarkUncertain permanently retains isolation-unproved until a future valid
   recovery mechanism exists. Time or socket close must not clear this barrier.
+  The [connection supervisor](../specs/mqtt-connection-supervisor.md) performs
+  renewal and queued cleanup outside synchronous gateway close callbacks, which
+  may otherwise wait for their own PUBLISH scope. First disconnect intent and
+  its trusted monotonic observation survive retries. Stop fences admission and
+  joins registered work without erasing failed cleanup; app also closes remaining
+  unregistered Owners. Restore requires a fresh registry/boot and supervisor.
   The [Session usecase](../specs/mqtt-session-acquisition.md) verifies device
   credentials without WK conflict actions, isolates the exact old owner, rereads
   authority, atomically commits Session/Will and activates only the local candidate.

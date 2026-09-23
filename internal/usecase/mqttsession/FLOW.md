@@ -40,6 +40,8 @@ cluster/gateway adapter, background worker or shared replay implementation.
    scope, rereads exact ownership and commits Will/expiry without restarting their
    clock or changing normal intent because isolation took time.
    Late disconnect never changes a successor; original zero expiry cannot extend.
+   Queued entry cleanup supplies an optional trusted local monotonic observation;
+   wall-only or future values fail before isolation and are never client input.
 6. Reconcile one complete-owner deadline candidate against current authority.
    Active expiry still requires exact isolated disconnect; offline Will Delay and
    expiry use one coherent Session/Will read and at most one lifecycle commit.
