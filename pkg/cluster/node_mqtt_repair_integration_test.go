@@ -42,6 +42,14 @@ func TestMQTTRepairThreeNodeLearnerRestartAndIsolation(t *testing.T) {
 	require.Eventually(t, func() bool { receipt, err = nodes[0].CopyChannelMQTTReplay(ctx, replay); return err == nil }, 5*time.Second, 20*time.Millisecond)
 	proof, err := nodes[0].CommitChannelMQTTReplayAnchor(ctx, ch.MQTTReplayAnchorRequest{Meta: m, Copy: receipt, MessageID: 702, ServerTimestampMS: 1002})
 	require.NoError(t, err)
+	// Leave two accepted intervals for the learner so bounded selection must
+	// continue past a covered journal without treating it as completion.
+	_, err = nodes[0].AppendChannel(ctx, ch.AppendRequest{ChannelID: id, Message: ch.Message{MessageID: 703, FromUID: "sender", Payload: []byte("second interval"), ServerTimestampMS: 1003}})
+	require.NoError(t, err)
+	replay.Range.From, replay.Range.Through = 3, 4
+	require.Eventually(t, func() bool { receipt, err = nodes[0].CopyChannelMQTTReplay(ctx, replay); return err == nil }, 5*time.Second, 20*time.Millisecond)
+	proof, err = nodes[0].CommitChannelMQTTReplayAnchor(ctx, ch.MQTTReplayAnchorRequest{Meta: m, Copy: receipt, MessageID: 704, ServerTimestampMS: 1004})
+	require.NoError(t, err)
 	// Reconfirming existing content nudges native propagation of its own HW; the
 	// repair request cannot manufacture a receiver checkpoint.
 	_, err = nodes[0].CopyChannelMQTTReplay(ctx, replay)
@@ -55,6 +63,7 @@ func TestMQTTRepairThreeNodeLearnerRestartAndIsolation(t *testing.T) {
 		p, found, e := st.(channelstore.MQTTReplayAnchorReader).LoadMQTTReplayAnchor(ctx, proof.Manifest.LastOffset)
 		return e == nil && found && p == proof
 	}, 5*time.Second, 20*time.Millisecond)
+	replay.Range.From = 1
 	read := func(n *Node) (ch.MQTTReplayPage, error) {
 		st, e := n.defaultChannelStore.ChannelStore(m.Key, id)
 		if e != nil {
@@ -67,10 +76,39 @@ func TestMQTTRepairThreeNodeLearnerRestartAndIsolation(t *testing.T) {
 	require.Error(t, err, "learner journal must not imply shared content")
 	want, err := read(nodes[1])
 	require.NoError(t, err)
-	q := ch.MQTTReplayRepairRequest{Target: 3, Donor: 2, AnchorPosition: proof.Manifest.LastOffset, Request: replay}
-	prefix, err := nodes[0].RepairChannelMQTTReplay(ctx, q)
-	require.NoError(t, err)
-	require.Equal(t, proof.Prefix(), prefix)
+	scan := ch.MQTTReplayRepairScan{Generation: source.Generation, TargetAnchor: proof.Manifest.LastOffset, Limit: 1}
+	q := ch.MQTTReplayRepairRequest{Target: 3, Donor: 2, Request: replay}
+	var prefix ch.MQTTReplayPrefix
+	complete, continuations, repaired := false, 0, 0
+	for step := 0; step < 6; step++ {
+		st, e := nodes[2].defaultChannelStore.ChannelStore(m.Key, id)
+		require.NoError(t, e)
+		plan, e := st.(channelstore.MQTTReplayRepairPlanner).PlanMQTTReplayRepair(ctx, scan)
+		require.NoError(t, e)
+		require.NoError(t, st.Close())
+		require.True(t, plan.ValidFor(scan))
+		if plan.Complete {
+			require.Equal(t, proof.Prefix(), plan.Current)
+			complete = true
+			break
+		}
+		selected, more, e := plan.NextRange()
+		require.NoError(t, e)
+		if !more {
+			require.Greater(t, plan.ScanAfter, scan.AfterAnchor)
+			scan.AfterAnchor = plan.ScanAfter
+			continuations++
+			continue
+		}
+		q.AnchorPosition, q.Request.Range = plan.Next.Manifest.LastOffset, selected
+		prefix, e = nodes[0].RepairChannelMQTTReplay(ctx, q)
+		require.NoError(t, e)
+		require.Equal(t, plan.Next.Prefix(), prefix)
+		repaired++
+	}
+	require.True(t, complete)
+	require.Equal(t, 1, continuations)
+	require.Equal(t, 2, repaired)
 	got, err := read(nodes[2])
 	require.NoError(t, err)
 	require.Equal(t, want, got)
@@ -99,5 +137,5 @@ func TestMQTTRepairThreeNodeLearnerRestartAndIsolation(t *testing.T) {
 	failed, err := nodes[2].RepairChannelMQTTReplay(blocked, q)
 	require.Error(t, err)
 	require.Zero(t, failed)
-	t.Log("mqtt_repair_evidence: nodes=3 hash_slots=256 physical_slots=2 tcp=true disk=true learner_target=true independent_anchor=true donor_rotation=true restart=true exact_retry=true isolated_rejected=true source_release=false automatic_scheduler=false product_listener=false")
+	t.Log("mqtt_repair_evidence: nodes=3 hash_slots=256 physical_slots=2 tcp=true disk=true learner_target=true independent_anchor=true bounded_interval_planning=true scan_continuation=true donor_rotation=true restart=true exact_retry=true isolated_rejected=true source_release=false automatic_scheduler=false product_listener=false")
 }

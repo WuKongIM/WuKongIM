@@ -113,6 +113,8 @@ DTOs, and `worker` bounds blocking I/O.
   each side verifies its own committed journal, with no sender-supplied expected
   digest. Fresh cluster repair now routes exact donor/target intervals; automatic
   interval scheduling and replica-readiness admission remain separate.
+  Store planning selects the next interval from durable coverage and at most 64
+  journals, validates covered continuation hints and completes only an exact target.
   Replay preparation uses the same recovered leader/route admission and bounded
   checkpoint workers. It captures HW, verifies protection and returns owned
   local content after rechecking fences; it cannot release the original source.

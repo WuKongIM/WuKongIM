@@ -2490,3 +2490,60 @@ source/inbox projection, permission ordering, delivery/ACK/recovery, durable Wil
 execution, unavailable-owner proof, app/configuration, state transfer and full
 process/load acceptance remain open. The product MQTT listener is unavailable and
 the full implementation goal remains active.
+
+## Bounded replica-local recovery interval selection
+
+Source `cb65b5e72`; frozen context and the pre-implementation failure inventory
+are in [mqtt-replay-repair-planning.md](../specs/mqtt-replay-repair-planning.md).
+A pinned storage read now selects the next recoverable anchor interval from actual
+local replay coverage, bounded by one exact committed target. It distinguishes a
+next interval, completion of that target, and scan continuation. At most 64 journals
+are inspected per call. Continuation hints must name an independently committed
+anchor whose full cumulative prefix already matches the local meter; callers
+cannot use a cursor to skip missing content. Existing journal and metering keys
+suffice; no persisted format changes were made.
+
+The next interval starts at local coverage plus one, with exact count/byte budgets
+bounded by 256 rows / 16 MiB. Covered journals are verified before skipping; a local
+tail point check rejects missing/corrupt frontier evidence. A missing replay table
+remains missing even when source release is ahead. Completion is relative to the
+requested target, including historical targets after later progress, and changes
+no checkpoint, source-release decision or content frontier. The optional Channel
+store planner preserves these closed outcomes and derives a neutral replay range
+for the existing RPC 98 repair operation.
+
+Verified:
+
+- Tests preceded implementation. Storage RED:
+  `/tmp/mqtt-repair-plan-red.log`; Channel/adapter RED:
+  `/tmp/mqtt-repair-plan-adapter-red.log`. Focused green logs:
+  `/tmp/mqtt-repair-plan-focused.log` (2.813 seconds) and
+  `/tmp/mqtt-repair-plan-adapter-focused.log` (Channel 0.901, store 0.753).
+- `GOWORK=off go test -race ./pkg/db/message ./pkg/channel/...
+  ./pkg/cluster/channels ./pkg/cluster -count=1 -timeout=180s`: all passed in
+  `/tmp/mqtt-repair-plan-regression.log`. MessageDB 41.891 seconds, Channel store
+  8.922, cluster/channels 7.070, cluster root 14.490. Tests cover original trim on
+  both sides, restart between scan pages, partial local copy, historical target
+  completion, forged/uncovered/business-position continuations, corrupt/pending/
+  missing evidence, closed/canceled calls, counter/range bounds and closed result
+  shapes. Test-controlled release remains a fixture, not a product release path.
+- `GOWORK=off go test -race -tags=integration ./pkg/cluster
+  -run '^TestMQTTRepairThreeNode' -count=1 -timeout=90s -v`: passed in
+  `/tmp/mqtt-repair-plan-integration.log`, test 12.57 seconds/package 14.370.
+  Three real TCP/disk nodes, 256 hash slots and two physical Slots leave two
+  accepted intervals on a learner with journals but no shared content. The test
+  drives the real store planner with a one-journal scan budget, observes one
+  explicit continuation, repairs both selected intervals through Node/RPC 98,
+  proves target completion, then verifies donor switching, restart/exact retry
+  and rejection after loss of Slot quorum. This validates the planner/repair
+  composition; automatic background scheduling and full MQTT process E2E remain open.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-repair-plan-flow.log`. Index regenerated and `git diff --check` passed.
+  Existing macOS LC_DYSYMTAB linker warnings remain non-failing.
+
+Next compose the planner with bounded target-owned recovery steps and donor
+rotation, then replicated source release, learner/migration readiness and
+consumer-proof shared GC. Full source/inbox projection, permission ordering,
+delivery/ACK/recovery, Will execution, unavailable-owner proof, app/configuration,
+state transfer and full process/load acceptance remain required. The product MQTT
+listener remains unavailable; the full implementation goal is active.

@@ -111,9 +111,9 @@ Compatibility maps Channel records/offsets to this core without transferring eng
   Format-5 anchors journal controls in System 14; pinned source/latest reads optionally
   include exact command lookup, with one reverse seek and bounded proofs. Trims retain them; suffix replacement
   removes pending entries. Backups require matching journals and format versions.
-  Anchor repair verifies the receiver's journal under append/checkpoint ownership;
-  pinned exports must reach its exact endpoint within page bounds. Trim/restart
-  preserve retries; repair changes neither source release nor HW.
+  Anchor repair verifies local journals under append/checkpoint ownership; pinned exports must reach the exact endpoint.
+  Repair planning verifies coverage/cursors, scans at most 64 journals and returns one bounded interval or explicit continuation.
+  Trim/restart preserve exact retries; neither repair nor planning changes source release or HW.
   Suffix cuts never split proposals; recovery replacement is fenced by the
   inspected frontier and atomically replaces complete verified proposal pages.
 - Queue-depth publication is monotonic through grouped collection and terminal

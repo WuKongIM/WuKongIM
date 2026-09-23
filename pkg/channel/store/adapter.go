@@ -438,3 +438,10 @@ type MQTTReplayAnchorTransfer interface {
 	// The caller must keep the page immutable until import returns.
 	ImportMQTTReplayAnchor(context.Context, uint64, ch.MQTTReplayPage) (ch.MQTTReplayPrefix, error)
 }
+
+// MQTTReplayRepairPlanner selects at most one next anchored interval from a
+// pinned replica-local frontier. It never advances a checkpoint or infers cluster
+// readiness. A scan cursor is revalidated against already covered content.
+type MQTTReplayRepairPlanner interface {
+	PlanMQTTReplayRepair(context.Context, ch.MQTTReplayRepairScan) (ch.MQTTReplayRepairPlan, error)
+}

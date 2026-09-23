@@ -1423,3 +1423,21 @@ func (a *messageDBChannelStoreAdapter) ImportMQTTReplayAnchor(ctx context.Contex
 	}
 	return fromDBMQTTReplayPrefix(result), nil
 }
+
+func (a *messageDBChannelStoreAdapter) PlanMQTTReplayRepair(ctx context.Context, q ch.MQTTReplayRepairScan) (ch.MQTTReplayRepairPlan, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayRepairPlan{}, err
+	}
+	if !q.Valid() {
+		return ch.MQTTReplayRepairPlan{}, ch.ErrInvalidConfig
+	}
+	p, err := a.store.PlanMQTTReplayRepair(ctx, q.Generation, q.TargetAnchor, q.AfterAnchor, q.Limit)
+	if err != nil {
+		return ch.MQTTReplayRepairPlan{}, a.mapError(err)
+	}
+	out := ch.MQTTReplayRepairPlan{Current: fromDBMQTTReplayPrefix(p.Current), Target: ch.MQTTReplayAnchorProof{Anchor: p.Target.Anchor, Manifest: p.Target.Manifest}, Next: ch.MQTTReplayAnchorProof{Anchor: p.Next.Anchor, Manifest: p.Next.Manifest}, HasNext: p.HasNext, Complete: p.Complete, ScanAfter: p.ScanAfter}
+	if !out.ValidFor(q) {
+		return ch.MQTTReplayRepairPlan{}, ch.ErrLogConflict
+	}
+	return out, nil
+}

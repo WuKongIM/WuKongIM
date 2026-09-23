@@ -353,8 +353,11 @@ specification, runbook, report, or module documentation; link to them when neede
   cannot substitute for it. Node/RPC 98 now routes exact target/donor intervals with
   fresh placement before/after and before import, separate four-slot receiver/donor
   admission and five-second deadlines. Stable migration write fences permit immutable
-  recovery; changed fences suppress the receipt. Automatic interval/donor selection,
-  replicated source release and replica readiness remain required.
+  recovery; changed fences suppress the receipt. Store planning now selects the next
+  interval from one local frontier/journal view, verifies continuation coverage and
+  scans at most 64 journals. Completion covers only the exact requested target;
+  source copied-through never substitutes for missing replay content. Automatic
+  runtime/donor scheduling, replicated source release and replica readiness remain required.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.
