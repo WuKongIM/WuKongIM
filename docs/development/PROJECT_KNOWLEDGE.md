@@ -368,6 +368,12 @@ specification, runbook, report, or module documentation; link to them when neede
   Removed/UID rows are excluded. Each sampled index witness must match its primary.
   Cursors follow encoded owner order, preserving source generations. This is a work
   hint, never a consumer-completion proof. Older read JSON stays unchanged.
+  The replay usecase alternates bounded copy/anchor admission with round-robin
+  replica recovery. Each target pins its accepted anchor and retains scan/donor
+  hints across errors and newer anchors. Callers retain the detached continuation
+  even on failure; source/placement changes reset hints, never durable progress.
+  Idle control tails do not create new anchors. App composition uses fresh Slot
+  metadata and existing Node ports without a local authority fallback.
   Background scheduling, replicated source release and replica readiness remain required.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the

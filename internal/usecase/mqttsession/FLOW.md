@@ -1,6 +1,6 @@
 ---
 scope: package
-summary: Coordinates MQTT Session ownership, Will decisions, leases, deadlines and owner-fenced subscription intent/projection recovery.
+summary: Coordinates MQTT Session lifecycle, subscription preparation and bounded shared replay copy/recovery turns.
 ---
 
 # MQTT Session Usecase Flow
@@ -10,7 +10,7 @@ summary: Coordinates MQTT Session ownership, Will decisions, leases, deadlines a
 This package connects authenticated connection intent to authoritative Session
 metadata and the node-local Owners execution gate. Subscriptions coordinates
 intent with an injected durable projection capability. This package owns no
-packet, concrete cluster/gateway adapter, worker or shared replay implementation.
+packet, concrete cluster/gateway adapter, worker or shared replay storage.
 
 ## Boundaries
 
@@ -56,6 +56,10 @@ packet, concrete cluster/gateway adapter, worker or shared replay implementation
    confirming and saving its initial cursor boundary. Exact Session cursor CAS
    precedes binding activation; lost replies and owner resume preserve that
    boundary. It returns preparation evidence, never a subscription completion receipt.
+9. Replay alternates bounded copy/anchor admission with replica recovery, using
+   fresh placement and accepted progress. Targets pin anchors and retain scan/donor
+   hints across errors; changed source/placement resets hints. Callers retain the
+   detached cursor even on failure; results grant no release, readiness or SUBACK.
 
 ## Invariants and Failure Semantics
 
@@ -87,11 +91,9 @@ packet, concrete cluster/gateway adapter, worker or shared replay implementation
   MQTT recovery and acceptance remain separate required implementation work.
 
 ## Read First
-
 - [Contracts](types.go), [Acquisition](connect.go)
-- [Lifecycle](lifecycle.go), [Deadline reconciliation](deadlines.go)
-- [Subscription orchestration](subscriptions.go)
-
+- [Lifecycle](lifecycle.go)
+- [Subscription orchestration](subscriptions.go), [Replay coordination](replay.go)
 ## Update Triggers
 
 Update when authentication/isolation ordering, lifecycle policy, lease derivation,

@@ -2652,3 +2652,51 @@ source scan with bounded copy/anchor/recovery turns, fair continuation and joine
 start/stop/restore ownership, then replicated source release and consumer-proof
 GC. All remaining full-product requirements recorded above remain open; product
 MQTT admission is unavailable and the full implementation goal remains active.
+
+## Bounded replay coordination through real cluster ports
+
+The replay usecase now connects fresh Slot placement, accepted-prefix planning,
+current-quorum copying, anchor admission and exact-target recovery. One turn does
+one copy plus anchor commit, or one bounded recovery step. Copy attempts yield to
+recovery even after errors; every attempted replica advances round-robin selection.
+Each replica pins its target and retains scan/donor hints across newer anchors.
+An import needs another coverage read before target completion is reported.
+
+The body-free cursor is detached and bounded to 256 replica entries. Source or
+complete placement changes reset scheduling hints; durable progress comes from
+fresh planning. Copy receipts must begin at the complete accepted prefix and fit
+the captured frontier and row/byte budgets. Invalid evidence, cancellation and
+uncertain replies cannot claim success. Idle anchor-only tails create no controls.
+App composition reuses SlotMetaSource and foreground Node APIs; it owns no worker.
+No table, index, persisted format or configuration changed.
+
+Failure inventory and frozen source context were written before code in
+[mqtt-replay-coordination.md](../specs/mqtt-replay-coordination.md).
+
+Validation:
+
+- Missing-contract RED: `/tmp/mqtt-replay-coordination-red.log`; focused green
+  `/tmp/mqtt-replay-coordination-focused.log` (0.625 s). Tests cover pinned targets,
+  donor/scan continuation, rotation after failures, placement reset, detached
+  cursors, copy-prefix/budget mismatch, malformed proofs, cancellation and invalid
+  server identities/timestamps.
+- `GOWORK=off go test -race ./internal/usecase/mqttsession -count=1 -timeout=120s`:
+  passed (9.797 s), `/tmp/mqtt-replay-coordination-regression.log`.
+- `GOWORK=off go test -race -tags=integration ./internal/app
+  -run '^TestMQTTGroupSourcePreparationThreeNodeRecovery$' -count=1
+  -timeout=120s -v`: passed (test 10.53 s, package 12.222 s),
+  `/tmp/mqtt-replay-coordination-integration.log`. The three-node TCP/disk,
+  256-hash-slot composition discovers the prepared source through RPC 91, runs
+  real copy/anchor/recovery turns and confirms learner content coverage while
+  preserving the original Session consumption boundary through owner takeover.
+  Permission incarnation remains controlled; no subscription completion is claimed.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-replay-coordination-flow.log`. The generated index is current. An
+  initial documentation check caught six Read First links; reduced to the allowed
+  five before the passing check. macOS linker warnings remain non-failing.
+
+Background lifecycle/fair source scheduling, replicated source release, replica
+readiness and consumer-proof GC remain outstanding. Complete subscription/inbox
+projection, delivery/ACK/recovery, Will execution, unavailable-owner proof, product
+configuration, state transfer and full process/load acceptance remain required.
+The product MQTT listener is unavailable and the full implementation goal is active.

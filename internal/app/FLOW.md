@@ -63,6 +63,9 @@ Stop or startup rollback
   capabilities stay explicit instead of receiving partial implementations.
 - MQTT adapters map Will setup to uncached publish policy and connection-worker
   renewal/observed disconnect to Session usecases. Real-gateway/Paho integration validates the entry; product wiring remains pending.
+  Replay coordination wires the existing fresh SlotMetaSource and foreground Node
+  ports; three-node composition covers copying, anchors and learner recovery.
+  Its factory owns no scheduler and does not enable the product listener.
 - Command-channel suffixes are injected across send, delivery, CMD sync, plugin
   projection and Manager filtering without process-global state.
 - The normalized message system UID is injected consistently into user

@@ -105,7 +105,7 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	}, 20*time.Second, 50*time.Millisecond)
 	id := ch.ChannelID{ID: "group", Type: 2}
 	seedGroupSendPermission(t, nodes[0], id, "alice")
-	runtimeMeta := meta.ChannelRuntimeMeta{ChannelID: id.ID, ChannelType: 2, ChannelEpoch: 1, LeaderEpoch: 1, RouteGeneration: 1, Leader: 2, Replicas: []uint64{1, 2, 3}, ISR: []uint64{1, 2, 3}, MinISR: 2, Status: uint8(ch.StatusActive)}
+	runtimeMeta := meta.ChannelRuntimeMeta{ChannelID: id.ID, ChannelType: 2, ChannelEpoch: 1, LeaderEpoch: 1, RouteGeneration: 1, Leader: 2, Replicas: []uint64{1, 2, 3}, ISR: []uint64{1, 2}, MinISR: 2, Status: uint8(ch.StatusActive)}
 	require.NoError(t, nodes[0].Propose(ctx, cluster.ProposeRequest{Key: id.ID, Command: metafsm.EncodeUpsertChannelRuntimeMetaCommand(runtimeMeta)}))
 	require.NoError(t, nodes[0].UpsertDeviceMetadata(ctx, meta.Device{UID: "alice", DeviceFlag: 1, DeviceLevel: 1, Token: "secret"}))
 	cmd := sessioncase.ConnectCommand{Key: contract.Key{Namespace: "main", ClientID: "prepared"}, UID: "alice", Token: "secret", DeviceFlag: 1, SessionExpirySec: 60, ReceiveMaximum: 16, MaxPacketBytes: 1 << 20, CloseTransport: func(context.Context) error { return nil }}
@@ -164,10 +164,31 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	read, err = nodes[1].ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadSubscription, Namespace: "main", ClientID: "prepared", SessionGeneration: resumed.Owner.SessionGeneration, Topic: topic})
 	require.NoError(t, err)
 	require.Equal(t, intent, read.Subscriptions[0])
+	// Discover the source from durable obligations, then run the production turn
+	// coordinator through fresh metadata, copy/anchor RPCs and learner recovery.
+	route, err := nodes[0].RouteKey(id.ID)
+	require.NoError(t, err)
+	discovered, err := nodes[0].ReadMQTTRecovery(ctx, route.HashSlot, meta.MQTTRead{Kind: meta.MQTTReadSourceOwners, Limit: 64})
+	require.NoError(t, err)
+	require.Equal(t, []meta.MQTTBindingOwner{prepared.Binding.Key.Owner}, discovered.SourceOwners)
+	coordinator, err := newMQTTReplayCoordinator(nodes[0], ids)
+	require.NoError(t, err)
+	var replayCursor sessioncase.ReplayCursor
+	anchored, learnerCovered := false, false
+	require.Eventually(t, func() bool {
+		step, e := coordinator.Step(ctx, discovered.SourceOwners[0], replayCursor)
+		replayCursor = step.Next
+		if e != nil {
+			return false
+		}
+		anchored = anchored || step.Anchored
+		learnerCovered = learnerCovered || (step.Target == 3 && step.TargetComplete)
+		return anchored && learnerCovered
+	}, 10*time.Second, 30*time.Millisecond)
 	_, err = sources.Prepare(ctx, first.Owner, topic)
 	require.Error(t, err)
 	require.NoError(t, nodes[0].RemoveChannelSubscribers(ctx, id.ID, 2, []string{"alice"}, 2))
 	_, err = sources.Prepare(ctx, resumed.Owner, topic)
 	require.ErrorIs(t, err, sessioncase.ErrSubscriptionDenied)
-	t.Log("mqtt_source_preparation_evidence: nodes=3 hash_slots=256 tcp=true disk=true remote_channel_protection=true cursor_commit_reply_lost=true owner_1_to_3=true original_boundary_preserved=true subscription_still_preparing=true permission_incarnation=controlled full_projection=false product_listener=false")
+	t.Log("mqtt_source_preparation_evidence: nodes=3 hash_slots=256 tcp=true disk=true remote_channel_protection=true cursor_commit_reply_lost=true owner_1_to_3=true original_boundary_preserved=true subscription_still_preparing=true permission_incarnation=controlled distinct_source_discovery=true replay_turn_coordinator=true learner_content_recovered=true automatic_scheduler=false full_projection=false product_listener=false")
 }

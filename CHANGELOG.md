@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Coordinate bounded MQTT replay copying and replica recovery with resumable per-replica progress and fair retries. Three-node composition is verified; automatic scheduling and product MQTT admission remain under development. / MQTT 回放新增有界复制与副本恢复编排，保留各副本续传进度并公平轮转失败任务；三节点装配已验证，自动调度及产品入口仍在开发。
+
 - Discover MQTT replay sources once per source generation using bounded authoritative pages, avoiding scans through every subscriber of a large group. Preparing and removing obligations remain discoverable; automatic scheduling and product MQTT admission remain under development. / MQTT 回放新增有界、权威的按源代次分页发现，避免逐个遍历大群订阅者，保留准备中和撤销中的处理义务；自动调度及产品接入仍在开发。
 
 - Add target-owned MQTT replay recovery steps with bounded donor rotation, resumable progress and fresh cluster fencing. Verified across replica restart; background scheduling and the product MQTT listener remain under development. / MQTT 回放新增目标副本自主恢复步骤，支持有界供数轮转、进度续传和最新集群权威校验；已验证副本重启，后台调度及产品监听仍在开发。
