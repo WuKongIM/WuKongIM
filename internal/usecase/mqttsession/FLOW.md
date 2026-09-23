@@ -52,6 +52,10 @@ packet, concrete cluster/gateway adapter, worker or shared replay implementation
    Removing before closing matching work, and preserves outstanding exchanges.
    Same-lifetime owner resume reconciles stable intent; option replacement keeps
    its generation and operation. See the [failure inventory](../../../docs/specs/mqtt-subscription-orchestration.md).
+8. Group source preparation installs an unknown-boundary source binding before
+   confirming and saving its initial cursor boundary. Exact Session cursor CAS
+   precedes binding activation; lost replies and owner resume preserve that
+   boundary. It returns preparation evidence, never a subscription completion receipt.
 
 ## Invariants and Failure Semantics
 
@@ -77,6 +81,8 @@ packet, concrete cluster/gateway adapter, worker or shared replay implementation
   Product wiring requires replicated protection, initialized cursors, inbox future
   source admission and safe removal. Membership version changes cannot replace
   an active subscription silently; delivery/revocation ordering remains required.
+- Group preparation performs bounded point reads and at most a two-row cursor
+  check; it cannot create subscriptions, release content or authorize SUBACK.
 - These usecases are not yet wired into the product listener; full process-level
   MQTT recovery and acceptance remain separate required implementation work.
 

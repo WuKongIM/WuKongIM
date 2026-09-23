@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Preserve group MQTT consumption start positions while preparing durable source bindings and cursors, including lost commit replies and cross-node Session takeover. Complete subscription recovery and product MQTT admission remain under development. / 群 MQTT 源绑定与消费游标准备过程中保留首次起点，覆盖提交回复丢失和跨节点会话接管；完整订阅恢复及产品 MQTT 入口仍在开发。
+
 - Route MQTT source protection to the current Channel leader with fresh Slot quorum checks, preserving protection across leader changes and restart and rejecting isolated cached authority. Internal source RPC 93 requires matching peers; product MQTT access remains under development. / MQTT 源保护按当前 Channel leader 路由，使用新鲜 Slot 多数派确认，换主和重启保留保护并拒绝孤立节点的缓存权威；内部 RPC 93 需匹配节点，产品 MQTT 接入仍在开发。
 
 - Add fenced Channel admission for MQTT source protection, preserving message ordering and confirming a durable committed boundary before returning. Existing protection avoids repeated activation records; the product MQTT listener remains under development. / 新增 MQTT 源保护的 Channel 准入，保持消息顺序并在返回前确认持久提交边界；已有保护不重复追加激活记录，产品 MQTT 监听仍在开发。

@@ -297,6 +297,12 @@ specification, runbook, report, or module documentation; link to them when neede
   including absence; ordinary metadata cache/read semantics remain separate.
   Subscription projection and shared-copy transfer remain required; this
   capability cannot authorize SUBACK.
+  Group source preparation now creates a recoverable unknown-boundary binding,
+  reconfirms protection, saves one immutable start and initializes the Session
+  cursor before activating the binding. Lost commit replies and owner resume
+  retain that start; every completion rechecks intent and current permission.
+  Its prepared result is not a subscription completion receipt. Inbox discovery,
+  permission-incarnation ordering, shared recovery and removal remain required.
   Shared replay is message-domain table 2, never Slot message-body storage. Its
   atomic local copies normalize size hints and preserve original publication
   content; index 2 meters prefix ranges without reading bodies. Binary backup 2

@@ -1796,3 +1796,50 @@ handshake and source responsibility recovery. Shared-copy durability/transfer/GC
 reliable delivery, Will execution, app lifecycle/configuration and full process
 acceptance remain required. The product MQTT listener stays unavailable and the
 full implementation goal remains active.
+
+## Recoverable group source and cursor preparation
+
+Source `c4586d078`; the pre-code failure inventory and frozen context are in
+[mqtt-source-preparation.md](../specs/mqtt-source-preparation.md).
+`GroupSources.Prepare` connects routed Channel protection to authoritative source
+bindings and Session cursor initialization. It derives the group and principal
+from current intent/Owners, commits an unknown-boundary binding before choosing
+the protected tail, saves that boundary once, initializes the cursor with an
+exact owner/revision CAS and activates the binding using its committed revision.
+It leaves the subscription unchanged. An infrastructure adapter resolves fresh
+runtime metadata and supplies the app allocator's message ID to the Channel facade.
+
+Real metadata fault tests cover lost replies after each of four commits, parent
+renewal, owner/permission changes, source identity/generation changes, corruption,
+panic, cancellation and clock failures. A regression first demonstrated another
+binding commit after cancellation inside the clock callback; synchronous checks
+now reject it before the next effect, without relying on context callback timing.
+
+Verified:
+
+- API gates failed before implementation in `/tmp/mqtt-source-preparation-red.log`
+  and `/tmp/mqtt-source-preparation-integration-red.log`; the clock-cancellation
+  regression failed before its fix in `/tmp/mqtt-source-preparation-cancel-red.log`.
+- `GOWORK=off go test -race ./internal/usecase/mqttsession ./internal/infra/cluster
+  -count=1 -timeout=120s`: passed (10.833 / 3.506 seconds),
+  `/tmp/mqtt-source-preparation-regression-final.log`.
+- `GOWORK=off go test -race -tags=integration ./internal/app
+  -run '^TestMQTTGroupSourcePreparation' -count=1 -timeout=120s -v`: passed,
+  `/tmp/mqtt-source-preparation-integration-final.log`. Three real Node runtimes
+  use TCP, disk and 256 hash Slots. Evidence `mqtt_source_preparation_evidence`
+  proves remote protection, a lost committed cursor reply, owner 1→3 recovery,
+  unchanged original boundary and rejection after membership removal. Permission
+  incarnation is explicitly controlled; subscription remains Preparing. This is
+  not full projection, listener wiring or process-level MQTT acceptance. Test
+  teardown now stops runtimes before removing their temporary directories.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine line-budget
+  warnings; `/tmp/mqtt-source-preparation-flow.log`. The generated index is current.
+  macOS LC_DYSYMTAB warnings were non-failing; `git diff --check` passed.
+
+The next dependency is the complete projection contract: durable inbox discovery
+and future-person-source handshake, permission-incarnation/delivery ordering,
+shared-content recovery and removal/drain. The prepared-source result deliberately
+does not implement `SubscriptionProjection` or produce its completion receipt.
+Shared-copy transfer/GC, reliable delivery, Will execution, app/configuration,
+unavailable-owner proof and full process/load acceptance remain required. Product
+MQTT admission stays unavailable; the full implementation goal remains active.

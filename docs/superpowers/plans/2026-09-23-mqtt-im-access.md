@@ -6,6 +6,7 @@
 
 ## 当前进度
 
+- 群订阅的源准备已串联跨节点保护、持久 binding 和消费游标；先保存未知边界的可恢复责任，再固定起点，重试及 owner 接管均不重置。三节点验证游标提交后丢失回复及跨节点恢复。该结果不返回订阅完成回执；个人收件箱发现、权限代次、共享回放与撤销收尾仍待接通，见 [源准备合同](../../specs/mqtt-source-preparation.md)。
 - 源保护已通过 Node facade 和独立 RPC 93 跨节点路由；操作前后以新鲜 Slot 多数派/apply 屏障确认元数据，调用者 epoch/route 不被重写。三节点、256 hash slots 验证首次激活、重复确认、Channel 换主、重启及隔离后的拒绝。完整订阅投影、共享复制/回收和产品入口仍待实现，详见 [源路由合同](../../specs/mqtt-source-routing.md)。
 - 已完成独立 MQTT 5 输入/输出 codec，具备包长、属性和订阅数量上限；literal fixtures 与 Eclipse Paho v0.23.0 交叉验证，不依赖 WK frame。
 - 已固定 [wire contract](../../specs/mqtt-wire-contract.md)，实现精确 topic 编码、CONNECT 凭据提取和保留属性校验。
