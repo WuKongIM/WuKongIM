@@ -195,6 +195,9 @@ specification, runbook, report, or module documentation; link to them when neede
   membership; protocol ACKs are separate from read state; delivery obligations
   survive ordinary history cleanup within their explicit lifetime and limits.
   Reliable recovery must cover messages from every entry, not only MQTT sends.
+  Source-owned binding tombstones prevent delayed prepares from resurrecting a
+  subscription. Unknown source boundaries block reclamation; stored progress
+  requires current remote authority and source protection before use.
   Session/subscription Slot writes fence owner and revision atomically; repeated
   subscription options preserve delivery generation, and exact retry uses the
   child's own last-mutation revision. These storage primitives do not prove source

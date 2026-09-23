@@ -227,3 +227,81 @@ same-batch admission/ACK and rollback; linked-neighbor corruption failing closed
 count/byte accounting and pending-range invariants; old rows without optional
 columns; codec corruption/key checksum/bounds; snapshot and index preservation;
 Slot ownership, bounded malformed commands and complete inspection catalog.
+
+## Source-owned subscription projections
+
+`mqtt_source_binding` uses table **26**, family **0**, primary index **1**. The
+primary tuple is `(owner_kind, owner_id, owner_generation, namespace, client_id,
+session_generation, subscription_generation)`. Kind 1 is a concrete Channel
+source: its complete source ID and durable source generation are required. Kind
+2 is UID inbox qualification: owner ID is the UID and logical owner generation
+is empty. The key component encodes that absence as one NUL byte, because table
+key strings cannot be empty; that reserved value is invalid for Channel generations.
+Routing uses the source/UID owner, not the Session key, and never depends on a
+Channel leader epoch. No Session row is expected on this binding's logical Slot.
+
+Value columns 8–27 are UID, topic, binding revision, originating intent revision,
+progress-proof revision, authorization version, operation ID, stage, boundary
+known, start-after, completed-through, end-known, end-through, release reason,
+discovery-after Channel ID/type, discovery complete, recovery time, update time
+and acknowledged source-protection revision. All are required in the initial
+version-1 checksum column envelope. Column 28 is a derived retention floor.
+Values are bounded to 16 KiB; commands to 32 KiB including their existing header.
+
+Binding revision is a source-owned CAS sequence. Intent revision fences stale
+subscription lifecycle projections. Progress revision witnesses a committed
+Session cursor or explicit Session termination; it never decreases. Source
+protection revision acknowledges a separate replicated source operation, is
+monotonic and cannot exceed the binding revision. Metadata cannot establish
+these remote proofs by itself: the use case must obtain them through current
+authorities before proposing a transition. Source-system operations must use the
+binding's monotonic revision to fence delayed create/remove requests.
+
+Preparing -> Active -> Removing -> Removed is monotonic; Preparing may also
+cancel into Removing. A new missing-key Removed tombstone may precede a delayed
+prepare only with explicit Session-ended proof. Existing rows always traverse
+Removing to retain cleanup work. Removed never resurrects, even at a larger
+intent revision; a fresh subscription has a different generation/key. UID,
+topic, operation ID and authorization incarnation cannot change inside one key.
+
+For a Channel source, Preparing may initially have an unknown boundary. Source
+protection installs it once; activation requires that boundary, an acknowledged
+protection revision and a nonzero Session cursor proof. Completed position never
+regresses or changes without a newer progress proof. A normal remove captures a
+fixed end, drains or releases obligations through it, and acknowledges the source
+release before Removed. Explicit Session termination can discharge all remaining
+obligations using its newer authority proof. Removed tombstones remain until a
+separate proven cleanup contract permits deletion; TTL alone is insufficient.
+
+UID qualification has no message sequence/protection fields. Its stable Channel
+primary-key discovery cursor is monotonic (encoded string length, bytes, type),
+and activation requires initial discovery complete. Preparing qualification is
+already discoverable by the future person-Channel creation path. That path must
+commit UID directory registration before reading qualifications through a fresh
+UID authority barrier; a current-conversation list or callback cannot substitute
+for this handshake. The source-protection orchestration is still required.
+
+Index **2** contains Preparing/Active rows for bounded candidate discovery,
+index **3** contains all non-Removed rows by recovery time plus the complete key,
+and index **4** orders live Channel-source obligations by conservative completed
+position plus the complete Session key. An unknown boundary is a zero floor and
+must block reclamation until resolved. UID qualification is absent from the
+retention index. Removed rows leave all three indexes but remain addressable.
+Pages are bounded to 256. Stored/projection progress is only a conservative
+candidate for GC; missing authority or stale proofs never mean no consumers.
+The raw table index scan is not a coherent cross-row snapshot during concurrent
+mutations; a read barrier alone does not make an empty candidate page a GC proof.
+The distributed GC adapter must bind authoritative reads to a coherent view.
+Progress projections may coalesce multiple committed cursor advances; high-scale
+fanout must not require one source-Slot write per recipient per publication.
+
+Slot command **71** carries one expected binding revision and row in a strictly
+versioned JSON body. Failure inventory before code: source/UID routing isolation
+without a local Session; exact/changed retry; stale intent/progress/revision;
+identity or boundary rebinding; phase regression/resurrection; remove-before-
+prepare tombstones; progress without proof; UID discovery regression and mixed
+owner fields; missing protection/cleanup acknowledgment; same-batch visibility
+and rollback; complete-key candidate/recovery/retention pages and index removal;
+corrupt/bounded codec, inspection, snapshot, replay and Slot ownership. Product
+proof validation, source-system replication and first-message handshake remain
+required, not capabilities conferred by this storage primitive.

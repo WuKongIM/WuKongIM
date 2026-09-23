@@ -42,6 +42,16 @@ func DecodeCommandInspection(data []byte) (CommandInspection, error) {
 
 func inspectCommand(cmd command) (CommandInspection, error) {
 	switch typed := cmd.(type) {
+	case *mqttSourceBindingCASCmd:
+		r := typed.payload.Binding
+		k := r.Key
+		return simpleInspection("mqtt_source_binding", map[string]any{
+			"owner_kind": uint8(k.Owner.Kind), "owner_id": k.Owner.ID, "owner_generation": k.Owner.Generation,
+			"broker_namespace": k.Namespace, "client_id": k.ClientID, "session_generation": k.SessionGeneration,
+			"subscription_generation": k.SubscriptionGeneration, "expected_revision": typed.payload.ExpectedRevision,
+			"revision": r.Revision, "intent_revision": r.IntentRevision, "progress_revision": r.ProgressRevision,
+			"protection_revision": r.ProtectionRevision, "stage": uint8(r.Stage), "release_reason": uint8(r.ReleaseReason),
+		}), nil
 	case *mqttWindowCmd:
 		m := typed.payload.Mutation
 		k := m.Key

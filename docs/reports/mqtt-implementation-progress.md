@@ -314,3 +314,62 @@ Validation for the outbound window slice (2026-09-23):
   zero invalid and the same 9 pre-existing length warnings.
 - `git diff --check` passed. The product E2E remains RED until full source,
   runtime and listener wiring is complete; no network/capacity pass is claimed.
+
+
+## Source-owned subscription projections
+
+Frozen source context at `9fec94c0b`:
+
+- Root `AGENTS.md`: `d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade`
+- `pkg/db/FLOW.md`: `49c5fe18bcf98edd7bc072dececaf0114f8d51d77f52cffb96b49f240dd2584e`
+- `pkg/db/meta/FLOW.md`: `841368778832b8b4a647d9bbdb9a3dd1cfc0f1072d4f875b39df140d0dcd934a`
+- `pkg/slot/FLOW.md`: `cc2905828303be34f6e519ceafd853f96263e1bd6d91e72235b133bff91daedd`
+
+Table 26 and command 71 add Channel-source/UID-owned binding CAS, independent
+of the Session's Slot. Separate intent, cursor-proof and source-protection
+revisions reject stale lifecycle/progress projections. Removed tombstones cannot
+reactivate. Missing-key Session-ended tombstones fence delayed prepare; existing
+bindings traverse recoverable cleanup before removal. Source cleanup must be
+acknowledged before a live Channel binding leaves retention/recovery indexes.
+
+Channel boundaries are captured once. Unknown boundaries have a conservative
+zero floor. UID inbox qualification instead persists a monotonic initial-discovery
+cursor in encoded primary-key order. Its logical absent generation uses one
+reserved NUL key component because the table runtime rejects empty key strings;
+Channel generations cannot use that value. Candidate, reconciliation and
+retention scans have complete cursors and a 256-row cap. Snapshots/inspection
+include all rows and indexes, including retained terminal bindings.
+
+Failure cases and tests preceded implementation. The first RED was the missing
+source-binding API; a subsequent failure exposed the empty UID key component,
+resolved with the documented canonical encoding. Tests exercise exact/changed
+retries, stale intent/progress, immutable identity/boundaries, resurrection,
+remove-before-prepare, missing cleanup acknowledgment, source progress without
+proof, UID discovery ordering, same-batch visibility/rollback, bounded pages,
+index removal, pinned backup, codec bounds/checksums, FSM ownership, snapshot and
+replay. No Session row is assumed on the source/UID Slot.
+
+These are deterministic storage primitives, not remote authority or protection
+proof. Source/UID routing in the distributed proxy, protected source operations,
+first-person-message registration/qualification handshake and coherent GC reads
+remain unimplemented. Ordinary raw index scans are candidate discovery only;
+concurrent mutations can make a non-snapshot empty page insufficient to prove
+absence of consumers. Coalesced projection updates and authority-bound snapshot
+reads are required before high-scale reclamation or delivery can use this state.
+
+Five of seven planned tables now have storage primitives. Durable Will, shared
+replay and publication metadata, protected source discovery/retention, owner
+isolation, distributed reads, transfer/restore consistency and capability gates,
+product runtime/listener wiring, permission ordering, expiry/cleanup, global
+pressure, real-process interop and scale acceptance remain. The full approved
+scope stays active; product MQTT remains disabled and its E2E is still RED.
+
+Validation for this source-binding slice (2026-09-23):
+
+- `GOWORK=off go test ./pkg/db/... ./pkg/slot/... -count=1 -timeout=90s` passed.
+- `GOWORK=off go test -race ./pkg/db/meta ./pkg/slot/fsm -run 'TestMQTT' -count=1 -timeout=45s` passed
+  with the existing macOS LC_DYSYMTAB linker warning.
+- Named `flow-doc-contracts` passed after index regeneration: 81 compliant,
+  zero invalid and the same 9 pre-existing length warnings.
+- The final focused source-binding/FSM/catalog suite passed after tightening
+  canonical UID-key decoding. `git diff --check` passed.

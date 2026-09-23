@@ -52,6 +52,8 @@ It does not own product business policy or expose engine-specific APIs.
    commit; cursor revision/digest witnesses exact retries. The bounded inflight
    list preserves the earliest gap on out-of-order ACK. Exchange/cursor/session
    changes are atomic; recovery uses original send order and immutable references.
+   Source/UID bindings retain removal tombstones and index candidate discovery,
+   reconciliation and conservative retention floors; unknown boundaries block GC.
 
 ## Invariants and Failure Semantics
 

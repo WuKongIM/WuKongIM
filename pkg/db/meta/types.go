@@ -188,6 +188,8 @@ const (
 	TableIDMQTTDeliveryCursor uint32 = 24
 	// TableIDMQTTInflight stores only the bounded unacknowledged exchange window.
 	TableIDMQTTInflight uint32 = 25
+	// TableIDMQTTSourceBinding stores source-owned subscription projections.
+	TableIDMQTTSourceBinding uint32 = 26
 )
 
 const (

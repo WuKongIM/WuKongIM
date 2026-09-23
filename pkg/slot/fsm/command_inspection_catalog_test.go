@@ -33,6 +33,7 @@ func TestCommandInspectionCoversRegisteredDecoders(t *testing.T) {
 		name string
 		data []byte
 	}{
+		{"mqtt_source_binding", checked(EncodeMQTTSourceBindingCommand(0, mqttSourceBindingCommandFixture()))},
 		{"mqtt_session_cas", checked(EncodeMQTTSessionCASCommand(0, mqttSessionCommandFixture()))},
 		{"mqtt_subscription_mutation", checked(EncodeMQTTSubscriptionCommand(mqttSubscriptionCommandFixture()))},
 		{"mqtt_delivery_cursor", checked(EncodeMQTTDeliveryCursorCommand(mqttDeliveryCursorCommandFixture()))},
