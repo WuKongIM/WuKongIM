@@ -968,3 +968,51 @@ Validation:
 No listener, MQTT runtime, owner isolation, source activation, shared replay
 replication, restore fencing or rollout capability gate is introduced here.
 These remain required by the approved full goal; product MQTT stays unavailable.
+
+## Owner-local execution and quiescence RPC
+
+Frozen source `ec0367594`, applicable digests and the pre-code failure inventory
+are in [`mqtt-owner-execution.md`](../specs/mqtt-owner-execution.md).
+
+New entry-neutral identity contracts separate broker/ClientID, Session and owner
+generations, node, registry boot and locally issued connection IDs. The local
+runtime bounds pending/active/closing owners and admitted operations, checks
+monotonic lease expiry at admission, and maintains one indexed deadline per
+retained owner. Renewal cannot resurrect an expired owner or grow stale timers.
+Aggregate diagnostics are constant-time. Callbacks and waits stay outside the
+registry lock; sweep pages and shutdown cleanup are bounded.
+
+Quiescence permanently fences new work and cancels admitted scopes, but succeeds
+only after the injected physical-close callback and every explicit scope finish.
+Failures, panics and cancellation retain the fenced owner and capacity. Concurrent
+requests share one close attempt. Absence proves inactivity only for a retired,
+registry-issued identity in this exact boot; registry reconstruction needs a new
+boot. No per-owner worker or unbounded tombstone map was introduced.
+
+Node RPC 92 uses bounded version-1 `WKMQ`/`WKMq` frames and exact identity echoes.
+It targets only the socket owner and cannot turn unsupported responses, malformed
+replies, foreign boots or transport errors into isolation proof. It retains the
+existing mutation execution-cancellation policy and is not registered in app yet.
+
+Tests were written before each implementation. The first runtime run failed on
+missing contracts; the first RPC run failed on missing codec/service symbols.
+Channel-coordinated tests cover pending admission, lease expiry without a sweep,
+close errors/panics, retry/coalescing, cancellation versus scope completion, stale
+close isolation, capacity, bounded deadlines, shutdown and malformed RPC frames.
+They use no real sleeps or network listeners. Validation passed:
+
+- `GOWORK=off go test ./internal/contracts/mqttsession
+  ./internal/runtime/mqttsession ./internal/access/node ./pkg/cluster/net
+  -count=1 -timeout=90s`.
+- `GOWORK=off go test -race ./internal/runtime/mqttsession ./internal/access/node
+  -run 'TestOwner|TestMQTT' -count=1 -timeout=60s`; the existing macOS linker
+  warning remains. Local log: `/tmp/mqtt-owner-execution-race.log`.
+- Named `flow-doc-contracts`: 85 compliant, zero invalid and the same 9 existing
+  warnings after regenerating the index. `git diff --check` passed.
+
+Gateway close currently requests transport closure without exposing physical
+completion; this must be fixed before supplying the runtime callback. Distributed
+lease acquisition/derivation, foreground app composition and durable lifecycle
+orchestration also remain required. Local lease expiry alone does not prove
+already admitted effects drained. The product MQTT listener remains unavailable;
+the full approved implementation goal is still active.

@@ -129,6 +129,8 @@ const (
 	RPCMessageUpdateHint
 	// RPCSlotMQTTMetadata serves bounded authoritative MQTT metadata reads.
 	RPCSlotMQTTMetadata
+	// RPCMQTTOwner requests exact MQTT owner execution quiescence.
+	RPCMQTTOwner
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -255,6 +257,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "message update hint"
 	case RPCSlotMQTTMetadata:
 		return "slot mqtt metadata"
+	case RPCMQTTOwner:
+		return "mqtt owner"
 	default:
 		return "unknown service"
 	}

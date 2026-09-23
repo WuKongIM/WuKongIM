@@ -13,9 +13,8 @@ management and Operations MCP. Routing, retries and business policy live elsewhe
 
 ## Boundaries
 
-Cluster transport assigns service IDs; DTOs adapt narrow usecase/runtime ports
-injected by `internal/app`. The origin chooses targets; receivers revalidate
-local authority and required fences before calling the configured port.
+Cluster assigns service IDs. DTOs adapt narrow ports injected by `internal/app`.
+Origins select targets; receivers revalidate local authority/fences before calling ports.
 
 ## Main Flows
 
@@ -58,6 +57,9 @@ scheduled backup or restore
   requests retain version-2 bytes; invalid metadata fails before dispatch.
 - Owner-push request 2 preserves publication metadata, original timestamp and
   message settings. Empty extensions keep version-1 bytes; lossy downgrade is forbidden.
+- MQTT owner RPC 92 uses bounded `WKMQ`/`WKMq` format 1 and echoes the complete
+  owner identity. Only a completed local quiescence returns success; unknown
+  boots, missing support, malformed replies and transport failure prove nothing.
 - Transport cancellation and unavailable-target failures map to stable typed
   caller errors without reordering active aligned items.
 - Manager latest-message RPC preserves bounded scan saturation as its stable
@@ -86,10 +88,8 @@ scheduled backup or restore
 
 ## Read First
 
-- [presence_rpc.go](presence_rpc.go)
-- [channel_append_rpc.go](channel_append_rpc.go)
-- [scheduled_backup_rpc.go](scheduled_backup_rpc.go)
-- [manager_connection_rpc.go](manager_connection_rpc.go)
+- [Presence](presence_rpc.go), [Channel append](channel_append_rpc.go)
+- [Backup](scheduled_backup_rpc.go), [Manager connections](manager_connection_rpc.go)
 - [opsmcp_rpc.go](opsmcp_rpc.go)
 
 ## Update Triggers

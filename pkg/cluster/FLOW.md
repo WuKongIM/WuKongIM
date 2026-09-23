@@ -15,7 +15,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   Multi-Raft lifecycle and proposals; `channels` hosts Channel runtimes; `net`
   transports typed node RPC; `observe` runs low-frequency reporting.
 - `Node` delegates validated intents; Manager policy, drain safety, DTOs and response shaping stay in `internal`.
-- Typed RPC routes opaque DTOs by registered service; cluster may fence maintenance/ownership but does not absorb delivery or Manager logic.
+- Typed RPC routes opaque DTOs by registered service; cluster may fence maintenance/ownership but does not absorb delivery or Manager logic. Service 92 reserves exact MQTT owner quiescence for the access/runtime adapter; it never substitutes for Slot ownership.
 - Controller, Slot, Channel, transport and storage stay behind public facades and neutral errors.
 
 ## Main Flows

@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add bounded MQTT connection-owner admission, lease-expiry fencing and exact-owner quiescence RPC 92. Product wiring and physical transport completion remain under development; the MQTT listener stays unavailable. / 新增有界 MQTT 连接 owner 准入、租约到期隔离及精确 owner 静默确认 RPC 92；产品装配与物理连接关闭确认仍在开发，MQTT 入口尚未开放。
+
 - Add authoritative cluster access for MQTT session metadata, with coherent recovery pages and committed conditional-write results. Internal read RPC 91 requires matching peers; the MQTT listener remains unavailable. / 新增 MQTT 会话元数据的集群权威访问、一致恢复分页和已提交条件写入结果；内部读取 RPC 91 要求匹配节点，MQTT 入口仍未开放。
 
 - Add shared MQTT replay storage with bounded range accounting and backup version 2, preserving content after source-history cleanup without duplicate message-ID entries. Replay backups require matching tools; distributed MQTT access remains under development. / 新增共享 MQTT 回放存储、有界范围计量和二进制备份 v2，源历史清理后仍保留正文且不重复占用消息 ID 索引；回放备份须使用匹配工具，跨节点 MQTT 接入仍在开发。

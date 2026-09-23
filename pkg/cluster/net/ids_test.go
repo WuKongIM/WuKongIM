@@ -67,6 +67,7 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"slot_message_updates":           RPCSlotMessageUpdates,
 		"message_update_hint":            RPCMessageUpdateHint,
 		"slot_mqtt_metadata":             RPCSlotMQTTMetadata,
+		"mqtt_owner":                     RPCMQTTOwner,
 		"scheduled_backup_messages":      RPCScheduledBackupMessages,
 		"scheduled_backup_slot":          RPCScheduledBackupSlot,
 		"scheduled_backup_probe":         RPCScheduledBackupRepositoryProbe,
@@ -85,6 +86,9 @@ func rpcServiceIDsForTest() map[string]uint8 {
 func TestMQTTMetadataServiceIdentity(t *testing.T) {
 	if RPCSlotMQTTMetadata != 91 || transportServiceAlias(RPCSlotMQTTMetadata) != "slot mqtt metadata" {
 		t.Fatal("MQTT metadata service must preserve its reserved ID and alias")
+	}
+	if RPCMQTTOwner != 92 || transportServiceAlias(RPCMQTTOwner) != "mqtt owner" {
+		t.Fatal("MQTT owner service must preserve its ID and alias")
 	}
 }
 

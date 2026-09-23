@@ -212,6 +212,13 @@ specification, runbook, report, or module documentation; link to them when neede
   JSONL/digests remain unchanged. MQTT state transfer, restore fencing and
   capability gates remain before activation.
   See the [publication contract](../specs/mqtt-publication-metadata.md).
+  The local MQTT owner registry bounds pending/active/closing reservations and
+  admitted scopes. Begin synchronously checks its monotonic lease; cancellation
+  or deadline expiry never proves that admitted effects drained. Quiescence
+  requires physical transport closure plus explicit scope completion. RPC 92
+  echoes the exact owner and never treats another boot or network loss as proof.
+  See [owner execution](../specs/mqtt-owner-execution.md); gateway completion,
+  authoritative lease derivation and app registration are not yet connected.
   Source-owned binding tombstones prevent delayed prepares from resurrecting a
   subscription. Unknown source boundaries block reclamation; stored progress
   requires current remote authority and source protection before use.
