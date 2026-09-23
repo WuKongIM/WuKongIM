@@ -812,3 +812,50 @@ through ambiguous publication-result resolution, shared replay/source protection
 persistent session runtime, owner isolation, MQTT state transfer/restore fencing,
 capability gating and full process/scale acceptance. The product listener remains
 unavailable and the full implementation goal stays active.
+
+
+## Source-protection storage boundary
+
+Frozen source `c8f7eb474` and applicable digests are recorded in
+[`mqtt-source-protection.md`](../specs/mqtt-source-protection.md), together with
+the failure inventory written before code. Shared replay itself remains pending.
+
+Message System 12 now stores a key-bound checksummed source incarnation,
+monotonic CAS revision, immutable activation boundary, copied-through position
+and externally verified receipt reference. Local apply checks shape, current
+revision, unchanged incarnation/start, strictly advancing coverage and local HW;
+it cannot prove distributed activation or the receipt's origin. There is no
+product caller or permission to activate MQTT from this primitive alone.
+
+Physical retention clamps its eligible range at copied-through while logical
+history may advance. Empty-log protection explicitly avoids the existing raw
+reader's zero-as-unbounded sentinel. This extra boundary test first reproduced
+physical deletion of the first protected message, then passed after the scan
+was suppressed at an empty eligible range. Protected reads check incarnation
+and local HW under append ownership, return owned original bytes within row and
+payload/metadata budgets, and reject missing positions instead of skipping them.
+Suffix truncation cannot erase a protected source's committed positions.
+An additional RED checkpoint-loss test drove explicit zero-checkpoint creation
+in the same commit, with append/checkpoint lock ordering. Once source state
+exists, a missing checkpoint fails reads, exact retries and truncation closed.
+
+Binary backup exports/imports the System record and validates it against the
+selected HW. Tests cover state/read preservation after reopen and portable
+restore, safe cleanup boundaries, identity/CAS/receipt failures, protection after
+physical erasure, uncommitted reads and missing original rows. The initial API
+checks were RED before implementation; focused source tests now pass.
+
+Validation: complete `GOWORK=off go test ./pkg/db/... ./pkg/channel/... -count=1
+-timeout=90s` passed, as did focused MessageDB source-protection race tests. The
+existing macOS linker warning remains. Named `flow-doc-contracts` passed after
+index regeneration: 83 compliant, zero invalid, 9 existing warnings.
+After the checkpoint guard, the complete MessageDB suite and focused source race
+tests passed again.
+
+This is replica storage groundwork, not distributed reliability acceptance.
+Replicated activation/copy receipts, shared content and counting indexes, source
+lifecycle/deletion, every-entry admission and first-person-message registration,
+restore fencing, MQTT state JSONL transfer, capabilities and full session/network
+execution remain necessary. Product MQTT stays unavailable; the full goal remains
+active. Old writers can ignore this protection, so mixed-writer activation is
+explicitly unsupported.

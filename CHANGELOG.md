@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add replica storage guards for MQTT source retention and bounded original-content reads, preserving protection through binary backups. Replicated activation and shared replay remain under development; MQTT access stays unavailable. / 新增 MQTT 消息源保留的副本存储保护及有界原文读取，二进制备份保留保护状态；复制激活与共享回放仍在开发，MQTT 入口尚未开放。
+
 - Add a separate durable Will identity index and committed retry lookup, preserving client message numbers and reserving publication identity space during setup. Keyed Will records require matching runtimes/tools; the MQTT product listener remains unavailable. / 新增 Will 独立持久幂等索引与已提交重试查询，保留客户端消息号并在配置时预留发布身份空间；带服务端身份的 Will 数据要求匹配的运行时和工具，MQTT 产品入口仍未开放。
 
 ### 🔧 Improvements / 改进

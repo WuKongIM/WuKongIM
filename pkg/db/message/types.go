@@ -155,7 +155,8 @@ type RetentionTrimResult struct {
 	DeletedThroughSeq uint64
 	// Deleted is the number of message rows deleted.
 	Deleted int
-	// More reports whether another trim may still find rows below the boundary.
+	// More reports immediately eligible work below the effective boundary;
+	// source protection may clamp that boundary below the requested one.
 	More bool
 }
 

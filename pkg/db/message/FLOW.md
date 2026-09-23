@@ -100,6 +100,9 @@ storage core without transferring shared-engine ownership.
   pins before build, physical commit, publish, or terminal shutdown.
 - Retention and truncation remove primary and secondary rows together. Logical
   retention preserves canonical lookup state until physical deletion.
+  MQTT System 12 clamps physical trim at copied-through without holding logical
+  visibility back. Its bounded original-source reader fences incarnation/HW and
+  fails on gaps; local CAS applies a decision but proves no distributed authority.
   Suffix cuts never split proposals; recovery replacement is fenced by the
   inspected frontier and atomically replaces complete verified proposal pages.
 - Queue-depth publication is monotonic through grouped collection and terminal

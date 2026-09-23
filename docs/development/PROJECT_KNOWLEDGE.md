@@ -215,6 +215,10 @@ specification, runbook, report, or module documentation; link to them when neede
   Source-owned binding tombstones prevent delayed prepares from resurrecting a
   subscription. Unknown source boundaries block reclamation; stored progress
   requires current remote authority and source protection before use.
+  Message System 12 materializes source-incarnation protection and copy receipt
+  references. It clamps physical trim independently of logical history; protected
+  reads retain HW and reject gaps. Local CAS is not replicated activation or copy
+  proof. Every possible owner must support this guard before activation.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.

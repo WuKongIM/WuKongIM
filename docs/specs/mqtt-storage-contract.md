@@ -1,5 +1,10 @@
 # MQTT storage implementation contract
 
+Message source protection reserves System ID 12; its codec, CAS, protected-read
+and retention boundary are specified in [the source contract](mqtt-source-protection.md).
+This replica primitive is not replicated activation or proof of shared-content
+durability; those remain required before MQTT access can open.
+
 The approved [design](mqtt-im-access.md) remains the product contract. This file
 freezes durable identifiers and failure cases before implementing each storage
 slice. No storage primitive by itself authorizes a cluster session or proves an

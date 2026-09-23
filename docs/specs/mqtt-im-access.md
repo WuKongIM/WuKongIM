@@ -1,6 +1,6 @@
 # WuKongIM MQTT IM 接入设计
 
-状态：设计及表级方案已于 2026-09-23 确认；codec、网关接口及 session/subscription/cursor/inflight 四张表和 Slot 命令已建立并验证；MQTT 产品入口、完整持久运行时和可靠消息源尚未实现。
+状态：设计及表级方案已于 2026-09-23 确认；codec、网关接口、六张元数据表及其 Slot 命令、发布元数据传播和 Will 独立幂等已建立。源保护已有副本存储基础；MQTT 产品入口、完整持久运行时、复制激活及共享回放尚未实现。
 
 实施依据：[实施计划](../superpowers/plans/2026-09-23-mqtt-im-access.md)。本文件描述目标合同，不表示当前版本已提供这些能力。应用编码约定已冻结为 [wire contract](mqtt-wire-contract.md)。
 
@@ -235,7 +235,7 @@ MQTT 5.0 在恢复已有会话时按标准重发未确认报文；不照搬 WK �
 
 ### 修改现有消息表
 
-现有 [message schema](../../pkg/db/message/schema.go)新增可选、有版本且有大小限制的 `publication_metadata` 列（ID 21）；[存储格式](mqtt-publication-metadata.md)已实现，发送合同及集群 RPC 的完整传递仍待接通。该列保存：
+现有 [message schema](../../pkg/db/message/schema.go)新增可选、有版本且有大小限制的 `publication_metadata` 列（ID 21）；[存储格式](mqtt-publication-metadata.md)、发送合同及集群 RPC 的完整传递已实现。该列保存：
 
 - 来源类型、稳定发布者客户端身份和命名空间。
 - 原始发布 QoS、用于重建应用 topic 的信息。

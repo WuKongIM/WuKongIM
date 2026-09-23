@@ -1,6 +1,7 @@
 package message
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
@@ -336,6 +337,7 @@ func sameDurableProposal(left, right durableProposalRecord) bool {
 }
 
 func validateBackupProposalSystemEntries(channelKey ChannelKey, hw uint64, entries []backupRawEntry) error {
+	sourceKey := mqttSourceKey(channelKey)
 	byLast := make(map[uint64]durableProposalRecord)
 	byCommand := make(map[quorumlog.CommandID]durableProposalRecord)
 	entryIdentities := make(map[uint64]quorumlog.EntryIdentity)
@@ -345,6 +347,12 @@ func validateBackupProposalSystemEntries(channelKey ChannelKey, hw uint64, entri
 			return dberrors.ErrCorruptState
 		}
 		seenKeys[string(raw.Key)] = struct{}{}
+		if bytes.Equal(raw.Key, sourceKey) {
+			state, err := decodeMQTTSourceState(raw.Key, raw.Value)
+			if err != nil || state.CopiedThrough > hw {
+				return dberrors.ErrCorruptState
+			}
+		}
 		if lastOffset, ok := decodeProposalByLastKey(channelKey, raw.Key); ok {
 			record, err := decodeDurableProposalRecord(raw.Value)
 			if err != nil || record.manifest.LastOffset != lastOffset || lastOffset > hw {
@@ -478,6 +486,9 @@ func (e *channelEntry) validateDurableProposalCommandIndex(ctx context.Context) 
 // stageTruncateDurableProposals removes only complete suffix proposals and
 // their entry identities in the caller's synchronous message mutation batch.
 func (e *channelEntry) stageTruncateDurableProposals(ctx context.Context, batch *engine.Batch, to uint64) error {
+	if err := e.validateMQTTSourceTruncation(ctx, to); err != nil {
+		return err
+	}
 	if err := e.validateDurableProposalCommandIndex(ctx); err != nil {
 		return err
 	}

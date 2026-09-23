@@ -37,6 +37,14 @@ owner fencing and capability gating remain incomplete, so access stays disabled.
 New data requires matched runtimes and tools and a pre-feature backup for rollback.
 See [the publication format](../../docs/specs/mqtt-publication-metadata.md).
 
+Message System ID 12 stores version-1 key-bound source protection and shared-copy
+receipt references. Physical retention respects it; logical history stays
+independent. Binary backups validate/preserve it against their selected HW. Old
+writers ignore this safety state, so replicated activation requires matched
+runtimes and restored-owner fencing; local storage apply is not that activation.
+JSONL transfer and shared-replay integration remain pending. See
+[the source contract](../../docs/specs/mqtt-source-protection.md).
+
 MQTT groundwork adds metadata tables 22 (`mqtt_session`), 23
 (`mqtt_subscription`), 24 (`mqtt_delivery_cursor`), 25 (`mqtt_inflight`), 26
 (`mqtt_source_binding`) and 27 (`mqtt_will`), with Slot commands 67–73.
