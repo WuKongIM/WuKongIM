@@ -33,6 +33,7 @@ func TestCommandInspectionCoversRegisteredDecoders(t *testing.T) {
 		name string
 		data []byte
 	}{
+		{"mqtt_session_cas", checked(EncodeMQTTSessionCASCommand(0, mqttSessionCommandFixture()))},
 		{"message_update", checked(EncodeMessageUpdateCommand(metadb.MessageUpdateMutation{Op: "init", ChannelID: "g1", ChannelType: 2, Generation: "generation"}))},
 		{"noop", EncodeNoopCommand()},
 		{"upsert_user", EncodeUpsertUserCommand(user)},

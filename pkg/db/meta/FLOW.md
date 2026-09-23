@@ -42,6 +42,9 @@ It does not own product business policy or expose engine-specific APIs.
    hits/fills while active, advancing Hash-Slot generations on entry and exit
    even after failure. Late misses cannot fill a newer generation. Replica slices
    are cloned on return, and authority/routing checks remain outside storage.
+7. MQTT session bindings use revision CAS with independent session/owner
+   generations. Complete-key deadline pages cover active leases and offline
+   expiry; ended rows retain UID binding. Row/index updates share the FSM batch.
 
 ## Invariants and Failure Semantics
 
@@ -63,6 +66,9 @@ It does not own product business policy or expose engine-specific APIs.
   and deduplication.
 - Runtime metadata, Channel latest sequence, and event reducers stay monotonic
   and idempotent; create-only runtime batches never overwrite existing rows.
+- MQTT session CAS cannot rebind UID or regress generations. Snapshot/inspection
+  includes the row and deadline index; storage CAS alone proves no owner fencing.
+  Product MQTT remains disabled pending its complete recovery/rollout contract.
 - The Channel read cache is capacity-bounded, independently locked from shard
   lookup, and exposes current entries and capacity through `MetricsSnapshot`.
 

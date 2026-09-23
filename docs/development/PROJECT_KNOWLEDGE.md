@@ -190,8 +190,8 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Delivery and extension boundaries
 
-- The [MQTT IM access design](../specs/mqtt-im-access.md) defines the approved,
-  not-yet-implemented contract. MQTT Session subscriptions are separate from IM
+- The [MQTT IM access design](../specs/mqtt-im-access.md) defines the approved
+  target contract; product MQTT access is not yet enabled. MQTT Session subscriptions are separate from IM
   membership; protocol ACKs are separate from read state; delivery obligations
   survive ordinary history cleanup within their explicit lifetime and limits.
   Reliable recovery must cover messages from every entry, not only MQTT sends.

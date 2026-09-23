@@ -180,6 +180,8 @@ const (
 	TableIDMessageUpdateRequest uint32 = 20
 	// TableIDMessageUpdatePending stores body-free notification checkpoints.
 	TableIDMessageUpdatePending uint32 = 21
+	// TableIDMQTTSession stores broker-scoped ClientID bindings and session fences.
+	TableIDMQTTSession uint32 = 22
 )
 
 const (

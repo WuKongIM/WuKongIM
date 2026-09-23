@@ -1,9 +1,10 @@
 # MQTT implementation progress
 
 Full goal: implement the approved [MQTT IM access design](../specs/mqtt-im-access.md).
-Status: in progress; the product has no MQTT listener yet. No table migration,
-cluster session recovery, source retention protection or durable delivery has been
-implemented. No product E2E or capacity claim is made.
+Status: in progress; the product has no MQTT listener yet. The codec, generic
+gateway and first session-table/Slot-command slice are implemented. Other tables,
+cluster session recovery, source retention protection and durable delivery remain
+outstanding. No passing product E2E or capacity claim is made.
 
 ## Frozen starting context
 
@@ -121,3 +122,44 @@ state. Standard-client product interop remains RED as recorded above; session
 ownership, tables, replay/protection, reliable delivery, Will, quotas and full
 recovery/scale acceptance remain outstanding. The generic gateway is groundwork,
 not a complete MQTT feature.
+
+## First durable session row and Slot command
+
+Frozen context before this slice, at gateway milestone `bd4a00378`:
+
+- `pkg/db/FLOW.md`: `49c5fe18bcf98edd7bc072dececaf0114f8d51d77f52cffb96b49f240dd2584e`
+- `pkg/db/meta/FLOW.md`: `a998bf21d7d16f8f99cdd12fffb118637244e82aa02c7707053e61761ffa7fe0`
+- `pkg/slot/FLOW.md`: `f5ec37c77f41d348086c071e9f3fa18707e18b4e01038c2140570ee670c4bb9f`
+
+The [storage contract](../specs/mqtt-storage-contract.md) freezes new metadata table
+22 and Slot command 67. `mqtt_session` retains UID binding after termination,
+separates row/session/owner generations, checks exact CAS retries and monotonic
+transitions, and maintains a bounded complete-key deadline index. Its checksum
+envelope binds data to the physical key. Inspection and existing pinned snapshot
+paths include the row and index. The Slot command bounds and versions its body,
+rejects invalid ownership envelopes and commits with the applied watermark.
+
+Tests preceded implementation at each metadata/FSM boundary. They cover conflict
+and retry behavior, namespace isolation, owner identity and session-generation
+guards, same-batch overlays, rollback with a neighboring failure, all-field codec
+round trip/corruption checks, deadline maintenance, pinned backup restore, Slot
+snapshot/replay and command inspection. The existing command catalog check caught
+the missing fixture for command 67; the catalog was updated and the FSM suite
+then passed.
+
+Validation (2026-09-23):
+
+- `GOWORK=off go test ./pkg/db/... -count=1` passed.
+- `GOWORK=off go test ./pkg/slot/... -count=1 -timeout=90s` passed multiraft/proxy;
+  its sole FSM failure was the missing command fixture. After fixing it,
+  `GOWORK=off go test ./pkg/slot/fsm -count=1 -timeout=90s` passed.
+- `GOWORK=off go test -race ./pkg/db/meta ./pkg/slot/fsm -run 'TestMQTTSession' -count=1 -timeout=45s` passed
+  (the macOS linker emitted an LC_DYSYMTAB warning).
+- Named `flow-doc-contracts` passed after meta/Slot FLOW updates and index render:
+  81 compliant files, no invalid files and the same 9 existing length warnings.
+
+This is one of seven planned tables. Product wiring still proposes no MQTT
+commands. CAS does not prove old-owner isolation or supply an authoritative
+cluster read. Distributed routing, owner leases/fencing, the remaining tables,
+offline transfer, restored-owner invalidation, readiness gates and all original
+reliable delivery/Will/scale acceptance requirements remain required work.

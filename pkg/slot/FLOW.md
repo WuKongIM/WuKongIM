@@ -7,14 +7,12 @@ summary: Implements Multi-Raft Slot metadata, atomic FSM commands, authoritative
 
 ## Responsibility
 
-`pkg/slot` is the distributed metadata layer. Physical Slots are independent
-Raft groups that own logical hash-Slot partitions containing user, Channel,
-subscriber, runtime, membership, plugin-binding, migration, and message-event
-projection state.
+`pkg/slot` owns distributed metadata. Physical Slots are independent Raft groups
+owning hash-Slot partitions for user, Channel, subscriber, runtime, membership,
+plugin, migration, message projections, and MQTT session state.
 
-`multiraft` owns Raft groups and futures, `fsm` decodes and atomically applies
-metadata commands, and `proxy` routes writes to proposals and authoritative
-reads to the current Slot leader. Durable rows live in `pkg/db/meta`.
+`multiraft` owns Raft groups/futures; `fsm` atomically applies metadata commands;
+`proxy` routes proposals and authoritative reads. Rows live in `pkg/db/meta`.
 
 ## Boundaries
 
@@ -29,7 +27,7 @@ reads to the current Slot leader. Durable rows live in `pkg/db/meta`.
   accepts only device lookups and does not expose user scans.
 - Local reads are valid only for explicitly local contracts. A proxy must not
   answer a cluster-authoritative query from a convenient local replica.
-- FSM command and RPC catalogs live in code and tests, not in this overview.
+- Code/tests own the FSM command and RPC catalogs.
 
 ## Main Flows
 
@@ -54,6 +52,10 @@ reads to the current Slot leader. Durable rows live in `pkg/db/meta`.
 3. Maintenance and migration controls use the same fenced worker/FSM path:
    snapshots and backup prove an applied boundary, while Channel migration
    advances task and runtime metadata together through guarded phases.
+4. MQTT session CAS carries a bounded versioned row and expected revision.
+   Conditional conflicts return deterministic outcomes; successful row/index
+   changes commit with the applied watermark and survive snapshot/replay.
+   Product routing and old-owner fencing must precede future MQTT activation.
 
 ## Invariants and Failure Semantics
 
@@ -94,7 +96,5 @@ reads to the current Slot leader. Durable rows live in `pkg/db/meta`.
 
 ## Update Triggers
 
-Update this file when Slot/hash-Slot ownership changes, Raft Ready/apply order
-changes, a command crosses ownership domains, authoritative read routing
-changes, migration fence semantics change, or snapshot/recovery guarantees
-change.
+Update when Slot/hash-Slot ownership, Raft Ready/apply ordering, command ownership,
+authoritative reads, migration fences, or snapshot/recovery guarantees change.

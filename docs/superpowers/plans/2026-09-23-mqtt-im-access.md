@@ -1,6 +1,6 @@
 # MQTT IM 接入实施计划
 
-状态：实施中；协议 codec 和应用字段映射已建立，MQTT 监听及持久运行时尚未接通。依据：[MQTT IM 接入设计](../../specs/mqtt-im-access.md)。
+状态：实施中；codec、网关接口和首张 session 表/Slot CAS 已建立，MQTT 产品监听及完整持久运行时尚未接通。依据：[MQTT IM 接入设计](../../specs/mqtt-im-access.md)。
 
 本计划交付 MQTT 5.0、QoS 0/1、精确主题、持久会话、跨节点接管、受权限约束的可靠恢复和 Will。阶段完成不等于整体完成；仅在线收发的版本不能作为本次需求交付。
 
@@ -9,7 +9,8 @@
 - 已完成独立 MQTT 5 输入/输出 codec，具备包长、属性和订阅数量上限；literal fixtures 与 Eclipse Paho v0.23.0 交叉验证，不依赖 WK frame。
 - 已固定 [wire contract](../../specs/mqtt-wire-contract.md)，实现精确 topic 编码、CONNECT 凭据提取和保留属性校验。
 - 网关已增加独立 packet 接口，复用认证池、顺序 mailbox、串行写和共享空闲计时器；验证字节预算、认证回滚、Keep Alive、分片缓冲和原有协议回归。尚未在产品 app 中启用。
-- 单节点/三节点产品 E2E 场景已编译，首次单节点运行因缺失 MQTT 配置项失败；网关接入、六张元数据表、共享 replay、发布元数据复制、源保护、持久会话/Will/配额仍待实现，不能开启入口或声明功能完成。
+- `mqtt_session`（metadata table 22）及 Slot CAS 命令 67 已实现，覆盖绑定、代次、条件更新、到期索引、诊断、快照和重放；具体冻结布局见 [storage contract](../../specs/mqtt-storage-contract.md)。尚未接入分布式代理与 owner 隔离。
+- 单节点/三节点产品 E2E 场景已编译，首次单节点运行因缺失 MQTT 配置项失败；app 接入、其余五张元数据表、共享 replay、发布元数据复制、源保护、持久会话/Will/配额及离线迁移仍待实现，不能开启入口或声明功能完成。
 - 验证与冻结源码依据见 [实施记录](../../reports/mqtt-implementation-progress.md)。
 
 ## 开工合同
