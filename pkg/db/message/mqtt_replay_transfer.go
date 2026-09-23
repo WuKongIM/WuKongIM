@@ -36,25 +36,30 @@ func (l *ChannelLog) ExportMQTTReplay(ctx context.Context, generation string, fr
 		return MQTTReplayTransfer{}, err
 	}
 	defer view.Close()
-	s, ok, err := loadMQTTReplayState(view, l.key)
+	return exportMQTTReplayFrom(ctx, view, l.key, generation, from, through, opts)
+}
+
+// exportMQTTReplayFrom requires a pinned view or append/checkpoint ownership.
+func exportMQTTReplayFrom(ctx context.Context, view messageBackupReadView, key ChannelKey, generation string, from, through uint64, opts ReadOptions) (MQTTReplayTransfer, error) {
+	s, ok, err := loadMQTTReplayState(view, key)
 	if err != nil {
 		return MQTTReplayTransfer{}, err
 	}
 	if !ok || s.Generation != generation {
 		return MQTTReplayTransfer{}, dberrors.ErrConflict
 	}
-	if _, err := mqttReplayTransferEvidence(view, l.key, s); err != nil {
+	if _, err := mqttReplayTransferEvidence(view, key, s); err != nil {
 		return MQTTReplayTransfer{}, err
 	}
-	page, err := readMQTTReplayPage(ctx, view, l.key, s, from, through, opts)
+	page, err := readMQTTReplayPage(ctx, view, key, s, from, through, opts)
 	if err != nil {
 		return MQTTReplayTransfer{}, err
 	}
-	before, err := mqttReplayPrefix(view, l.key, s, page.After)
+	before, err := mqttReplayPrefix(view, key, s, page.After)
 	if err != nil {
 		return MQTTReplayTransfer{}, err
 	}
-	after, err := mqttReplayPrefix(view, l.key, s, page.Through)
+	after, err := mqttReplayPrefix(view, key, s, page.Through)
 	if err != nil {
 		return MQTTReplayTransfer{}, err
 	}
@@ -92,6 +97,12 @@ func (l *ChannelLog) ImportMQTTReplay(ctx context.Context, expected MQTTReplaySt
 	if err := ctxErr(ctx); err != nil {
 		return MQTTReplayState{}, err
 	}
+	return l.importMQTTReplayLocked(ctx, expected, page)
+}
+
+// importMQTTReplayLocked keeps proof verification and the content commit inside
+// one append/checkpoint ownership interval. The caller validates page bounds.
+func (l *ChannelLog) importMQTTReplayLocked(ctx context.Context, expected MQTTReplayState, page MQTTReplayTransfer) (MQTTReplayState, error) {
 	view := l.db.engine
 	evidence, err := mqttReplayTransferEvidence(view, l.key, expected)
 	if err != nil {

@@ -111,6 +111,9 @@ Compatibility maps Channel records/offsets to this core without transferring eng
   Format-5 anchors journal controls in System 14; pinned source/latest reads optionally
   include exact command lookup, with one reverse seek and bounded proofs. Trims retain them; suffix replacement
   removes pending entries. Backups require matching journals and format versions.
+  Anchor repair verifies the receiver's journal under append/checkpoint ownership;
+  pinned exports must reach its exact endpoint within page bounds. Trim/restart
+  preserve retries; repair changes neither source release nor HW.
   Suffix cuts never split proposals; recovery replacement is fenced by the
   inspected frontier and atomically replaces complete verified proposal pages.
 - Queue-depth publication is monotonic through grouped collection and terminal
@@ -137,11 +140,8 @@ Compatibility maps Channel records/offsets to this core without transferring eng
 
 ## Read First
 
-- [Database lifecycle](db.go)
-- [Channel lease](channel_log.go)
-- [Atomic append](append.go)
-- [Secondary indexes](indexes.go)
-- [Snapshot state](snapshot.go)
+- [Database lifecycle](db.go), [Channel lease](channel_log.go)
+- [Atomic append](append.go), [Secondary indexes](indexes.go), [Snapshot state](snapshot.go)
 
 ## Update Triggers
 

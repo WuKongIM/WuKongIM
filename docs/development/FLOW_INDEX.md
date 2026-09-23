@@ -76,7 +76,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [internal/usecase/user/FLOW.md](../../internal/usecase/user/FLOW.md) | `package` | Orchestrates legacy-compatible user tokens, device quit, online status, system UIDs, and restore cache reload. | 57 | ok |
 | [pkg/backup/FLOW.md](../../pkg/backup/FLOW.md) | `package` | Defines the portable full-backup repository format, strict manifests, compressed chunks, publication markers, and verification. | 52 | ok |
 | [pkg/bench/model/FLOW.md](../../pkg/bench/model/FLOW.md) | `package` | Defines shared wkbench configuration, deterministic plans, reports, rates, scenario digests, and bench target API DTOs. | 66 | ok |
-| [pkg/channel/FLOW.md](../../pkg/channel/FLOW.md) | `subtree` | Implements the reusable multi-reactor Channel log runtime, replication, persistence ports, transport, services, and bounded workers. | 142 | warning |
+| [pkg/channel/FLOW.md](../../pkg/channel/FLOW.md) | `subtree` | Implements the reusable multi-reactor Channel log runtime, replication, persistence ports, transport, services, and bounded workers. | 145 | warning |
 | [pkg/channel/reactor/FLOW.md](../../pkg/channel/reactor/FLOW.md) | `package` | Owns Channel-keyed reactor state, event scheduling, replication progress, lifecycle transitions, and fenced worker completion. | 99 | ok |
 | [pkg/channel/worker/FLOW.md](../../pkg/channel/worker/FLOW.md) | `package` | Runs bounded typed Channel store and RPC tasks with fenced completions, class-aware batching, lease cleanup, and observations. | 76 | ok |
 | [pkg/client/FLOW.md](../../pkg/client/FLOW.md) | `package` | Provides a tooling-grade WKProto TCP client with session crypto, bounded SEND/RECV queues, exact ACK matching, and pooling. | 65 | ok |

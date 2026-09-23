@@ -1035,15 +1035,20 @@ func (a *messageDBChannelStoreAdapter) PrepareMQTTReplay(ctx context.Context, re
 	if err != nil {
 		return ch.MQTTReplayPage{}, a.mapError(err)
 	}
-	prefix := func(p messagedb.MQTTReplayState) ch.MQTTReplayPrefix {
-		return ch.MQTTReplayPrefix{Generation: p.Generation, StartAfter: p.StartAfter, Through: p.Through, TotalBytes: p.TotalBytes, TotalStoredBytes: p.TotalStoredBytes, Digest: p.Digest}
-	}
-	out := ch.MQTTReplayPage{Before: prefix(page.Before), After: prefix(page.After), Records: make([]ch.MQTTReplayRecord, len(page.Records))}
+	return fromDBMQTTReplayPage(page), nil
+}
+
+func fromDBMQTTReplayPrefix(p messagedb.MQTTReplayState) ch.MQTTReplayPrefix {
+	return ch.MQTTReplayPrefix{Generation: p.Generation, StartAfter: p.StartAfter, Through: p.Through, TotalBytes: p.TotalBytes, TotalStoredBytes: p.TotalStoredBytes, Digest: p.Digest}
+}
+
+func fromDBMQTTReplayPage(page messagedb.MQTTReplayTransfer) ch.MQTTReplayPage {
+	out := ch.MQTTReplayPage{Before: fromDBMQTTReplayPrefix(page.Before), After: fromDBMQTTReplayPrefix(page.After), Records: make([]ch.MQTTReplayRecord, len(page.Records))}
 	for i, r := range page.Records {
 		out.Records[i] = ch.MQTTReplayRecord{Position: r.Position, ContentVersion: r.ContentVersion, MessageID: r.MessageID,
 			AccountedBytes: r.AccountedBytes, TotalBytes: r.TotalBytes, TotalStoredBytes: r.TotalStoredBytes, ContentHash: r.ContentHash, Digest: r.Digest, Content: r.Content}
 	}
-	return out, nil
+	return out
 }
 
 func (a *messageDBChannelStoreAdapter) Close() error {
@@ -1377,4 +1382,44 @@ func (a *messageDBChannelStoreAdapter) ReadMQTTReplayAnchors(ctx context.Context
 		return ch.MQTTReplayAnchorProof{Anchor: p.Anchor, Manifest: p.Manifest}
 	}
 	return ch.MQTTReplayAnchorState{Source: ch.MQTTSourceSnapshot{Generation: state.Source.Generation, StartAfter: state.Source.StartAfter, CommittedThrough: state.CommittedThrough}, Latest: proof(state.Latest), Requested: proof(state.Requested), HasLatest: state.HasLatest, HasRequested: state.HasRequested}, nil
+}
+
+func (a *messageDBChannelStoreAdapter) ExportMQTTReplayAnchor(ctx context.Context, position uint64, req ch.MQTTReplayRange) (ch.MQTTReplayPage, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayPage{}, err
+	}
+	if !req.Valid() || position <= req.Through {
+		return ch.MQTTReplayPage{}, ch.ErrInvalidConfig
+	}
+	page, err := a.store.ExportMQTTReplayAnchor(ctx, position, req.From, messagedb.ReadOptions{Limit: req.Limit, MaxBytes: req.MaxBytes})
+	if err != nil {
+		return ch.MQTTReplayPage{}, a.mapError(err)
+	}
+	if page.After.Generation != req.Generation || page.After.Through != req.Through {
+		return ch.MQTTReplayPage{}, ch.ErrLogConflict
+	}
+	return fromDBMQTTReplayPage(page), nil
+}
+
+func (a *messageDBChannelStoreAdapter) ImportMQTTReplayAnchor(ctx context.Context, position uint64, page ch.MQTTReplayPage) (ch.MQTTReplayPrefix, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayPrefix{}, err
+	}
+	rangeReq := ch.MQTTReplayRange{Generation: page.After.Generation, From: page.Before.Through + 1, Through: page.After.Through, Limit: 256, MaxBytes: 16 << 20}
+	if position <= page.After.Through || !page.ValidFor(rangeReq) {
+		return ch.MQTTReplayPrefix{}, ch.ErrInvalidConfig
+	}
+	prefix := func(p ch.MQTTReplayPrefix) messagedb.MQTTReplayState {
+		return messagedb.MQTTReplayState{Generation: p.Generation, StartAfter: p.StartAfter, Through: p.Through, TotalBytes: p.TotalBytes, TotalStoredBytes: p.TotalStoredBytes, Digest: p.Digest}
+	}
+	in := messagedb.MQTTReplayTransfer{Before: prefix(page.Before), After: prefix(page.After), Records: make([]messagedb.MQTTReplayRecord, len(page.Records))}
+	for i, r := range page.Records {
+		in.Records[i] = messagedb.MQTTReplayRecord{Position: r.Position, ContentVersion: r.ContentVersion, MessageID: r.MessageID,
+			AccountedBytes: r.AccountedBytes, TotalBytes: r.TotalBytes, TotalStoredBytes: r.TotalStoredBytes, ContentHash: r.ContentHash, Digest: r.Digest, Content: r.Content}
+	}
+	result, err := a.store.ImportMQTTReplayAnchor(ctx, position, in)
+	if err != nil {
+		return ch.MQTTReplayPrefix{}, a.mapError(err)
+	}
+	return fromDBMQTTReplayPrefix(result), nil
 }

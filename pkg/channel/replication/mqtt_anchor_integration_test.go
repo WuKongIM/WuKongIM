@@ -95,8 +95,38 @@ func TestMQTTReplayAnchorQuorumRestartRecoveryAndLearner(t *testing.T) {
 	for _, node := range []ch.NodeID{1, 2, 3, 4} {
 		require.Eventually(t, func() bool { return check(node) }, 3*time.Second, time.Millisecond, "replica %d must retain its committed anchor journal", node)
 	}
+	// The native quorum transfer installs independent journals, but does not
+	// imply shared-content readiness. A learner verifies the donor's complete
+	// page against its own committed journal before retaining replay content.
+	rangeReq := ch.MQTTReplayRange{Generation: page.After.Generation, From: 1, Through: 2, Limit: 256, MaxBytes: 1 << 20}
+	donor, err := factories[1].ChannelStore(a.Key, a.ChannelID)
+	require.NoError(t, err)
+	transfer, err := donor.(channelstore.MQTTReplayAnchorTransfer).ExportMQTTReplayAnchor(ctx, 3, rangeReq)
+	require.NoError(t, err)
+	require.Equal(t, page, transfer)
+	require.NoError(t, donor.Close())
+	learner, err := factories[4].ChannelStore(a.Key, a.ChannelID)
+	require.NoError(t, err)
+	repair := learner.(channelstore.MQTTReplayAnchorTransfer)
+	_, err = repair.ExportMQTTReplayAnchor(ctx, 3, rangeReq)
+	require.Error(t, err, "a replicated journal alone is not shared content")
+	beforeRepair, err := learner.Load(ctx)
+	require.NoError(t, err)
+	repaired, err := repair.ImportMQTTReplayAnchor(ctx, 3, transfer)
+	require.NoError(t, err)
+	require.Equal(t, page.After, repaired)
+	afterRepair, err := learner.Load(ctx)
+	require.NoError(t, err)
+	require.Equal(t, beforeRepair, afterRepair, "content import must not publish a log frontier")
+	require.NoError(t, learner.Close())
 	closeAll()
 	open()
+	learner, err = factories[4].ChannelStore(a.Key, a.ChannelID)
+	require.NoError(t, err)
+	transfer, err = learner.(channelstore.MQTTReplayAnchorTransfer).ExportMQTTReplayAnchor(ctx, 3, rangeReq)
+	require.NoError(t, err)
+	require.Equal(t, page, transfer, "accepted content and its proof survive restart")
+	require.NoError(t, learner.Close())
 	a.Leader = 2
 	a.ID.LeaderTerm++
 	installed, err := runtimes[2].Log().Install(ctx, a)
@@ -114,5 +144,5 @@ func TestMQTTReplayAnchorQuorumRestartRecoveryAndLearner(t *testing.T) {
 	failed, err := runtimes[2].Log().Commit(blocked, proposal)
 	require.Error(t, err)
 	require.Zero(t, failed.HW)
-	t.Log("mqtt_anchor_evidence: voters=3 learner=1 real_disk=true wire_codec=true committed_journal=true restart=true authority_recovery=true absent_quorum_rejected=true receipt_admission=false source_release=false product_listener=false")
+	t.Log("mqtt_anchor_evidence: voters=3 learner=1 real_disk=true wire_codec=true committed_journal=true independent_learner_content_import=true restart=true authority_recovery=true absent_quorum_rejected=true receipt_admission=false source_release=false product_listener=false")
 }

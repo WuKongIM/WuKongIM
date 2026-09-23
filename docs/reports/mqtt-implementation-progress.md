@@ -2373,3 +2373,59 @@ readiness and consumer-proof shared GC. Full source/inbox projection, permission
 ordering, delivery/ACK/recovery, durable Will execution, unavailable-owner proof,
 app/configuration, state-transfer tooling and full process/load acceptance remain
 required. The product MQTT listener remains unavailable and the full goal active.
+
+## Shared-content repair bound to each replica's committed anchor
+
+Source `8e425b3c2`; frozen context and the pre-implementation failure inventory
+are in [mqtt-replay-anchor-repair.md](../specs/mqtt-replay-anchor-repair.md).
+Source-release review identified a prerequisite: a replica missing shared content
+must authenticate donor data after originals disappear. The storage repair path
+now derives its expected full prefix from that replica's own committed System 14
+journal, within the same append/checkpoint ownership interval as atomic import.
+No caller-supplied expected digest is accepted by this port. Existing standalone
+transfer semantics and persisted formats are unchanged.
+
+Pinned exports read proof and content together and must reach the exact requested
+anchor within explicit bounds (256 rows / 16 MiB maximum). A shortened page is
+rejected because that anchor cannot authenticate its intermediate endpoint.
+Imports retain complete retries, preserve an existing prefix, reject gaps/partial
+overlaps and verify every committed entry as well as the complete content hash.
+Channel's optional `MQTTReplayAnchorTransfer` port preserves owned opaque row bytes
+and keeps message-domain types inside the existing adapter.
+
+Verified:
+
+- Tests preceded implementation. Missing storage operations RED:
+  `/tmp/mqtt-anchor-repair-red.log`; missing neutral port RED:
+  `/tmp/mqtt-anchor-repair-adapter-red.log`. Focused green runs:
+  `/tmp/mqtt-anchor-repair-focused.log` and
+  `/tmp/mqtt-anchor-repair-adapter-focused.log`.
+- `GOWORK=off go test -race ./pkg/db/message ./pkg/channel/store
+  ./pkg/channel/replication -count=1 -timeout=180s`: all passed in
+  `/tmp/mqtt-anchor-repair-regression.log`; MessageDB 30.341 seconds, store 7.395,
+  replication 3.904. Coverage includes originals removed on both sides, restart,
+  exact/historical retries, local-prefix continuation, forged native fields,
+  missing/pending/corrupt independent proof, bad final rows, gaps, short/oversized
+  pages, wrong identity/range, cancellation, closed leases and owned result bytes.
+  Test-controlled release models prior source reclamation; no product release
+  operation is introduced or claimed.
+- `GOWORK=off go test -race -tags=integration ./pkg/channel/replication
+  ./pkg/channel/service -run '^TestMQTT(ReplayAnchor|Anchor)' -count=1
+  -timeout=90s -v`: all passed in `/tmp/mqtt-anchor-repair-integration.log`;
+  replication 3.824 seconds, service 1.940. Three voters plus one learner retain
+  committed journals through real disk and native replication wire codecs.
+  Journal replication alone does not produce shared content; the learner imports
+  through the new port using its independent journal, changes no log frontier,
+  and retains exact content across all-runtime restart. This is storage/runtime
+  integration; donor page network scheduling and product process E2E remain open.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-anchor-repair-flow.log`. The first check caught an over-length FLOW;
+  its prose was condensed, the index regenerated and the check passed.
+  `git diff --check` passed. Existing macOS LC_DYSYMTAB warnings are non-failing.
+
+Next connect bounded anchor selection and donor network repair with replicated
+source-release decisions and learner/migration readiness, then consumer-proof
+shared GC. Full source/inbox projection, permission ordering, delivery/ACK/recovery,
+Will execution, unavailable-owner proof, app/configuration, state-transfer tooling
+and process/load acceptance remain required. The product MQTT listener remains
+unavailable; the full implementation goal is active.

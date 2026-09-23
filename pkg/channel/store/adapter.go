@@ -428,3 +428,13 @@ type MQTTReplayAnchorReader interface {
 type MQTTReplayAnchorStateReader interface {
 	ReadMQTTReplayAnchors(context.Context, uint64, ch.CommandID) (ch.MQTTReplayAnchorState, error)
 }
+
+// MQTTReplayAnchorTransfer repairs shared content using an anchor committed on
+// each replica independently. Export must reach that anchor's complete prefix;
+// import obtains its expected digest from the receiver's own journal. Neither
+// operation changes HW, source release, original history or learner readiness.
+type MQTTReplayAnchorTransfer interface {
+	ExportMQTTReplayAnchor(context.Context, uint64, ch.MQTTReplayRange) (ch.MQTTReplayPage, error)
+	// The caller must keep the page immutable until import returns.
+	ImportMQTTReplayAnchor(context.Context, uint64, ch.MQTTReplayPage) (ch.MQTTReplayPrefix, error)
+}

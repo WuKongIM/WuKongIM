@@ -346,8 +346,12 @@ specification, runbook, report, or module documentation; link to them when neede
   captures reactor HW and reads source/latest anchor in one pinned snapshot;
   a zero command skips only optional exact retry lookup. Node/RPC 97 surrounds
   this view with fresh Slot checks, preserving original proof bytes and a 4 KiB
-  cap. Next ranges ignore local copy-ahead and idle anchor-only tails. Replicated
-  source release, accepted-anchor repair and replica readiness remain required.
+  cap. Next ranges ignore local copy-ahead and idle anchor-only tails. Store repair
+  now derives the expected prefix from each receiver's committed anchor inside the
+  atomic import boundary; exports must reach that exact anchor within 256 rows /
+  16 MiB. Original-body removal and restart preserve this proof; caller/donor hashes
+  cannot substitute for it. Replicated source release, network repair scheduling
+  and replica readiness remain required.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.
