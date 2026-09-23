@@ -13,6 +13,8 @@ import (
 const mqttRecoveryRPCMaxBytes = 4096
 const mqttRecoveryRequestMagic = "WMUQ\x01"
 const mqttRecoveryReplyMagic = "WMUR\x01"
+const mqttReleaseRequestMagic = "WMUQ\x02"
+const mqttReleaseReplyMagic = "WMUR\x02"
 
 var errMQTTRecoveryRPC = errors.New("channels: invalid MQTT recovery RPC")
 
@@ -24,7 +26,11 @@ func encodeMQTTRecoveryRequest(q ch.MQTTReplayRecoveryRequest) ([]byte, error) {
 	if err != nil {
 		return nil, errMQTTRecoveryRPC
 	}
-	b := appendMQTTReplayString([]byte(mqttRecoveryRequestMagic), string(nested))
+	magic := mqttRecoveryRequestMagic
+	if q.ReleaseSource {
+		magic = mqttReleaseRequestMagic
+	}
+	b := appendMQTTReplayString([]byte(magic), string(nested))
 	for _, v := range []uint64{q.TargetAnchor, q.AfterAnchor, uint64(q.DonorAfter)} {
 		b = binary.BigEndian.AppendUint64(b, v)
 	}
@@ -36,7 +42,8 @@ func encodeMQTTRecoveryRequest(q ch.MQTTReplayRecoveryRequest) ([]byte, error) {
 }
 func decodeMQTTRecoveryRequest(b []byte) (ch.MQTTReplayRecoveryRequest, error) {
 	var empty ch.MQTTReplayRecoveryRequest
-	if len(b) > mqttRecoveryRPCMaxBytes || !bytes.HasPrefix(b, []byte(mqttRecoveryRequestMagic)) {
+	release := bytes.HasPrefix(b, []byte(mqttReleaseRequestMagic))
+	if len(b) > mqttRecoveryRPCMaxBytes || (!release && !bytes.HasPrefix(b, []byte(mqttRecoveryRequestMagic))) {
 		return empty, errMQTTRecoveryRPC
 	}
 	r := bytes.NewReader(b[len(mqttRecoveryRequestMagic):])
@@ -56,7 +63,7 @@ func decodeMQTTRecoveryRequest(b []byte) (ch.MQTTReplayRecoveryRequest, error) {
 	if err != nil || r.Len() != 0 {
 		return empty, errMQTTRecoveryRPC
 	}
-	q := ch.MQTTReplayRecoveryRequest{Target: inner.Leader, Source: inner.Request, TargetAnchor: fields[0], AfterAnchor: fields[1], DonorAfter: ch.NodeID(fields[2]), ScanLimit: int(limit)}
+	q := ch.MQTTReplayRecoveryRequest{Target: inner.Leader, Source: inner.Request, TargetAnchor: fields[0], AfterAnchor: fields[1], DonorAfter: ch.NodeID(fields[2]), ScanLimit: int(limit), ReleaseSource: release}
 	if !q.Valid() {
 		return empty, errMQTTRecoveryRPC
 	}
@@ -82,7 +89,11 @@ func encodeMQTTRecoveryReply(q ch.MQTTReplayRecoveryRequest, p ch.MQTTReplayReco
 	} else if !p.ValidFor(q) {
 		return nil, errMQTTRecoveryRPC
 	}
-	b := appendMQTTReplayString([]byte(mqttRecoveryReplyMagic), string(echo))
+	magic := mqttRecoveryReplyMagic
+	if q.ReleaseSource {
+		magic = mqttReleaseReplyMagic
+	}
+	b := appendMQTTReplayString([]byte(magic), string(echo))
 	b = append(b, status)
 	if status != 0 {
 		return b, nil
@@ -102,6 +113,9 @@ func encodeMQTTRecoveryReply(q ch.MQTTReplayRecoveryRequest, p ch.MQTTReplayReco
 	if p.Repaired {
 		flags |= 4
 	}
+	if p.SourceReleased {
+		flags |= 8
+	}
 	b = append(b, flags)
 	b = binary.BigEndian.AppendUint64(b, p.Plan.ScanAfter)
 	b = binary.BigEndian.AppendUint64(b, uint64(p.DonorAfter))
@@ -118,7 +132,11 @@ func encodeMQTTRecoveryReply(q ch.MQTTReplayRecoveryRequest, p ch.MQTTReplayReco
 }
 func decodeMQTTRecoveryReply(b []byte, q ch.MQTTReplayRecoveryRequest) (ch.MQTTReplayRecoveryResult, error) {
 	var empty ch.MQTTReplayRecoveryResult
-	if len(b) > mqttRecoveryRPCMaxBytes || !bytes.HasPrefix(b, []byte(mqttRecoveryReplyMagic)) {
+	magic := mqttRecoveryReplyMagic
+	if q.ReleaseSource {
+		magic = mqttReleaseReplyMagic
+	}
+	if len(b) > mqttRecoveryRPCMaxBytes || !bytes.HasPrefix(b, []byte(magic)) {
 		return empty, errMQTTRecoveryRPC
 	}
 	r := bytes.NewReader(b[len(mqttRecoveryReplyMagic):])
@@ -150,12 +168,13 @@ func decodeMQTTRecoveryReply(b []byte, q ch.MQTTReplayRecoveryRequest) (ch.MQTTR
 		return empty, errMQTTRecoveryRPC
 	}
 	flags, err := r.ReadByte()
-	if err != nil || flags & ^byte(7) != 0 {
+	if err != nil || flags & ^byte(15) != 0 {
 		return empty, errMQTTRecoveryRPC
 	}
 	out.Plan.HasNext = flags&1 != 0
 	out.Plan.Complete = flags&2 != 0
 	out.Repaired = flags&4 != 0
+	out.SourceReleased = flags&8 != 0
 	var fields [2]uint64
 	if binary.Read(r, binary.BigEndian, &fields) != nil {
 		return empty, errMQTTRecoveryRPC

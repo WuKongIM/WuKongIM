@@ -3009,3 +3009,69 @@ permissions, durable downlink/ACK entry paths, unavailable-owner recovery, Will
 execution, full lifecycle/configuration, offline tooling and product/process/load
 acceptance remain required. Product MQTT access is still unavailable and the full
 implementation goal remains active.
+
+## Routed background release of original source prefixes
+
+The target-owned recovery request now accepts explicit `ReleaseSource` intent.
+Complete coverage invokes an optional Channel storage release port, with a fresh
+full placement/fence check immediately before mutation and the existing serving/
+forwarding rechecks before reply. Storage independently verifies its committed
+anchor and immutable shared prefix. Scan/import/donor-retry outcomes do not
+release; ordinary recovery remains unchanged. Missing capabilities, stale or
+cancelled views, and store errors cannot report success. Durable effects preceding
+a lost/stale response remain safe and retryable, never rolled back.
+
+RPC 99 v1 retains ordinary recovery. Version 2 represents explicit release intent
+and requires a matching `SourceReleased` completion acknowledgement; the exact
+versioned request is echoed. Old peers reject v2, and old/missing/unsolicited
+acknowledgements cannot complete release. No new RPC number, table, stored encoding,
+queue or worker was added. The existing coordinator requests release on its
+bounded replica visits, including stable migration fences and learners. It only
+retires a completed target hint after the explicit acknowledgement validates.
+
+Failure inventory and frozen context:
+[mqtt-source-release-routing.md](../specs/mqtt-source-release-routing.md).
+
+Validation:
+
+- Test-first RED: `/tmp/mqtt-source-release-routing-red.log` (missing contract
+  fields and storage capability). New tests cover explicit/ordinary/partial
+  intent, absent capability, placement/fence changes before and after mutation,
+  cancellation, failure/panic cleanup, learners, stable fences, exact wire echoes,
+  version separation, truncations and missing/unrequested acknowledgements.
+- The first broad race run encountered disk exhaustion while linking; all running
+  test processes were observed terminal before clearing the reproducible Go build
+  cache (14 GiB) and retrying with package concurrency 2. Its new learner fixture
+  also needed a leader within the remaining ISR. Neither issue changed production
+  logic. `/tmp/mqtt-source-release-routing-green.log` retains that failed attempt.
+- `GOWORK=off go test -p 2 -race ./pkg/channel/... ./pkg/cluster/channels
+  ./internal/usecase/mqttsession -count=1 -timeout=180s`: passed all packages;
+  hosted Channels 7.432 s, usecase 9.514 s.
+  `/tmp/mqtt-source-release-routing-final.log`.
+- Real three-node target recovery, two bounded intervals, intermediate retention
+  remaining clamped, explicit release and physical trim, restart/exact retry,
+  content equality and isolated Slot rejection passed under race detection:
+  `GOWORK=off go test -race -tags=integration ./pkg/cluster
+  -run '^TestMQTTRepairThreeNodeLearnerRestartAndIsolation$' -count=1
+  -timeout=120s -v`; test 10.10 s, package 11.690 s.
+  `/tmp/mqtt-source-release-cluster.log`.
+- Managed three-node app composition passed under race detection with 256 hash
+  Slots, real TCP/disks, fenced learner repair and source release on all replicas:
+  `GOWORK=off go test -p 2 -race -tags=integration ./internal/app
+  -run '^TestMQTTGroupSourcePreparationThreeNodeRecovery$' -count=1
+  -timeout=120s -v`; test 10.08 s, package 11.817 s.
+  `/tmp/mqtt-source-release-worker-active.log`. The test explicitly invokes the
+  native retention facade to prove physical deletion is now permitted; it never
+  requests source release itself. Cold disk-only followers require their current
+  Channel role installed before using that runtime facade, as diagnosed by
+  `/tmp/mqtt-source-release-worker-final.log`. Shared proofs remain readable and
+  business writes remain fenced after cleanup.
+- `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-source-release-routing-flow.log`. Generated index and whitespace pass.
+
+Next implement consumer-proof shared-content GC without weakening the retained
+anchor, recovery and readiness contracts. Full subscription/inbox projection,
+permission ordering, durable downlink/ACK paths, unavailable-owner recovery, Will
+execution, product lifecycle/configuration, offline tools and process/load
+acceptance remain required. Product MQTT admission stays unavailable and the full
+implementation goal remains active.

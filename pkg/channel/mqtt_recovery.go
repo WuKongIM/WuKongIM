@@ -3,7 +3,8 @@ package channel
 import "context"
 
 // MQTTReplayRecoveryStepper performs one bounded receiver-owned recovery step.
-// Completion covers the requested anchor only, never cluster readiness or GC.
+// Completion covers the requested anchor and optionally releases its original
+// source prefix, never cluster readiness or shared-content GC.
 type MQTTReplayRecoveryStepper interface {
 	StepMQTTReplayRecovery(context.Context, MQTTReplayRecoveryRequest) (MQTTReplayRecoveryResult, error)
 }
@@ -17,6 +18,9 @@ type MQTTReplayRecoveryRequest struct {
 	DonorAfter                NodeID
 	// ScanLimit explicitly bounds local journal work to at most 64 entries.
 	ScanLimit int
+	// ReleaseSource explicitly requests source release after complete coverage.
+	// False preserves ordinary recovery without a cleanup-watermark mutation.
+	ReleaseSource bool
 }
 
 func (q MQTTReplayRecoveryRequest) repairScan() MQTTReplayRepairScan {
@@ -57,6 +61,9 @@ func (q MQTTReplayRecoveryRequest) AcceptsPlan(p MQTTReplayRepairPlan) bool {
 type MQTTReplayRecoveryResult struct {
 	Plan     MQTTReplayRepairPlan
 	Repaired bool
+	// SourceReleased confirms the requested original-source prefix is released.
+	// It is valid only on requested, complete recovery; it grants no shared GC.
+	SourceReleased bool
 	// DonorAfter advances a failed bounded round; it must name a current donor.
 	DonorAfter NodeID
 }
@@ -65,6 +72,9 @@ type MQTTReplayRecoveryResult struct {
 // Placement freshness of a retry donor is checked by the cluster service.
 func (p MQTTReplayRecoveryResult) ValidFor(q MQTTReplayRecoveryRequest) bool {
 	if !q.AcceptsPlan(p.Plan) {
+		return false
+	}
+	if p.SourceReleased != (q.ReleaseSource && p.Plan.Complete) {
 		return false
 	}
 	if !p.Plan.HasNext {

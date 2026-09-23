@@ -224,16 +224,33 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 		t.Logf("fenced plan: %+v err=%v", p, e)
 		t.FailNow()
 	}
+	// Require actual physical retention on all three replicas while the managed
+	// worker is running. This read/write path does not request source release;
+	// success therefore proves the background coordinator performed it.
+	planRequest := ch.MQTTReplayPlanRequest{ChannelID: id, ExpectedChannelEpoch: runtimeMeta.ChannelEpoch, ExpectedLeaderEpoch: runtimeMeta.LeaderEpoch, ExpectedRouteGeneration: runtimeMeta.RouteGeneration, Generation: prepared.Binding.Key.Owner.Generation}
+	plan, err := nodes[0].PlanChannelMQTTReplay(ctx, planRequest)
+	require.NoError(t, err)
+	require.True(t, plan.HasAnchor)
+	// Native quorum replication can keep a follower only on disk. Retention's
+	// runtime facade needs its current role installed before exercising cleanup;
+	// this activates no MQTT source release and copies no shared content.
+	for _, replica := range runtimeMeta.Replicas {
+		require.NoError(t, nodes[0].ApplyChannelMeta(ctx, replica, runtimeMeta))
+	}
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		for _, n := range nodes {
+			trim, e := n.ApplyChannelRetentionBoundary(ctx, id, plan.Anchor.Manifest.LastOffset, ch.RetentionApplyOptions{MaxTrimMessages: 256, MaxTrimBytes: 1 << 20})
+			require.NoError(c, e)
+			require.Equal(c, plan.Anchor.Anchor.Through, trim.PhysicalRetentionThroughSeq)
+			require.Equal(c, plan.Anchor.Manifest.LastOffset, trim.LocalRetentionThroughSeq)
+		}
+	}, 10*time.Second, 30*time.Millisecond)
 	for _, w := range replayWorkers {
 		require.NoError(t, w.Stop(ctx))
 	}
 	require.Zero(t, anchored.Load(), "fenced workers must never create a new anchor")
 	// The worker already imported learner content. This independently verifies
 	// coverage and must not perform an import on the test's behalf.
-	planRequest := ch.MQTTReplayPlanRequest{ChannelID: id, ExpectedChannelEpoch: runtimeMeta.ChannelEpoch, ExpectedLeaderEpoch: runtimeMeta.LeaderEpoch, ExpectedRouteGeneration: runtimeMeta.RouteGeneration, Generation: prepared.Binding.Key.Owner.Generation}
-	plan, err := nodes[0].PlanChannelMQTTReplay(ctx, planRequest)
-	require.NoError(t, err)
-	require.True(t, plan.HasAnchor)
 	covered, err := nodes[0].StepChannelMQTTReplayRecovery(ctx, ch.MQTTReplayRecoveryRequest{Target: 3, Source: planRequest, TargetAnchor: plan.Anchor.Manifest.LastOffset, ScanLimit: 64})
 	require.NoError(t, err)
 	require.True(t, covered.Plan.Complete)
@@ -250,5 +267,5 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	require.NoError(t, nodes[0].RemoveChannelSubscribers(ctx, id.ID, 2, []string{"alice"}, 2))
 	_, err = sources.Prepare(ctx, resumed.Owner, topic)
 	require.ErrorIs(t, err, sessioncase.ErrSubscriptionDenied)
-	t.Log("mqtt_source_preparation_evidence: nodes=3 hash_slots=256 tcp=true disk=true remote_channel_protection=true cursor_commit_reply_lost=true owner_1_to_3=true original_boundary_preserved=true subscription_still_preparing=true permission_incarnation=controlled distinct_source_discovery=true replay_turn_coordinator=true learner_content_recovered=true automatic_scheduler=true write_fenced_recovery=true writes_remain_fenced=true full_projection=false product_listener=false")
+	t.Log("mqtt_source_preparation_evidence: nodes=3 hash_slots=256 tcp=true disk=true remote_channel_protection=true cursor_commit_reply_lost=true owner_1_to_3=true original_boundary_preserved=true subscription_still_preparing=true permission_incarnation=controlled distinct_source_discovery=true replay_turn_coordinator=true learner_content_recovered=true automatic_scheduler=true source_release_all_replicas=true original_trim=true write_fenced_recovery=true writes_remain_fenced=true full_projection=false product_listener=false")
 }

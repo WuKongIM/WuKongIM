@@ -28,8 +28,9 @@ type ReplayCursor struct {
 	RepairNext bool
 }
 
-// ReplayStepResult acknowledges only this bounded operation. TargetComplete does
-// not imply that all replicas are caught up, learner readiness, GC or SUBACK.
+// ReplayStepResult acknowledges only this bounded operation. TargetComplete
+// confirms one target's coverage and requested original-source release, never
+// that all replicas are caught up, learner readiness, shared-content GC or SUBACK.
 type ReplayStepResult struct {
 	// ContinueScan requests continuation of this exact finite journal scan.
 	// Import, completion and failed donor rounds yield to another source.

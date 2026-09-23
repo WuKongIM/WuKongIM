@@ -68,14 +68,15 @@ and require a matching journal for every committed anchor, with identical
 proposal/entry format versions. This changes neither System 12 release nor local
 copy coverage. Business version selection remains 1–3. Old validators reject
 format 5; matching writers and tools and pre-feature rollback backups are required.
-Runtime copy-receipt admission and automatic release/import remain pending. See
+Runtime copy-receipt admission and routed anchored repair preserve these proofs. See
 [replay anchors](../../docs/specs/mqtt-replay-anchor.md).
 
 Explicit source release can now derive System 12 progress from a locally
 committed format-5 anchor and independently verified local replay coverage.
 It stores the anchor manifest digest in the existing receipt field and advances
-the local materialization revision, with no encoding or ID changes. Automatic
-cluster release still needs routing/scheduling integration. See
+the local materialization revision, with no encoding or ID changes. Background
+target recovery requests this through RPC 99 v2 with explicit intent and reply
+acknowledgement; v1 remains ordinary recovery and old servers reject v2. See
 [anchor-derived release](../../docs/specs/mqtt-source-anchor-release.md).
 
 Message-domain table 2 stores immutable MQTT shared replay by source incarnation,

@@ -403,8 +403,14 @@ specification, runbook, report, or module documentation; link to them when neede
   anchor and verified local replay prefix under append/checkpoint ownership.
   It updates only System 12, preserves the anchor manifest receipt, revalidates
   older retries and allows replicas to skip intermediate local CAS revisions.
-  Physical retention remains separately clamped. Automatic cluster release,
-  consumer-proof GC and product lifecycle wiring remain required.
+  Physical retention remains separately clamped. RPC 99 v2 explicitly requests
+  source release after complete target recovery; v1 keeps ordinary recovery.
+  The target rechecks fresh placement/fence immediately before storage release,
+  and caller/server recheck before acknowledgement. Stable fences and learners
+  are supported; cancelled or stale replies retain safe durable work for retry.
+  The coordinator requests release on existing bounded replica visits and rejects
+  absent/unsolicited acknowledgements. Consumer-proof GC and product lifecycle
+  wiring remain required.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.

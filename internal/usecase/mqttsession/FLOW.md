@@ -56,11 +56,11 @@ packet, concrete cluster/gateway adapter, worker or shared replay storage.
    confirming and saving its initial cursor boundary. Exact Session cursor CAS
    precedes binding activation; lost replies and owner resume preserve that
    boundary. It returns preparation evidence, never a subscription completion receipt.
-9. Replay alternates bounded copy/anchor admission with replica recovery, using
-   fresh placement and accepted progress. Targets pin anchors and retain scan/donor
-   hints across turns; placement resets hints. Cold passes rotate targets/phases/donors.
+9. Replay alternates bounded copy/anchor admission and recovery under fresh placement.
+   Targets pin anchors and scan/donor hints; placement resets hints and cold passes rotate work.
    Fenced turns only recover existing anchors; absent anchors yield without copying.
-   Cluster calls recheck authority; results grant no release, readiness or SUBACK.
+   Target visits explicitly request original-source release after complete coverage;
+   cluster calls recheck authority. Results grant no shared-content GC, readiness or SUBACK.
 
 ## Invariants and Failure Semantics
 

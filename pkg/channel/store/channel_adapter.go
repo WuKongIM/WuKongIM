@@ -1033,6 +1033,16 @@ func (a *messageDBChannelStoreAdapter) ReadMQTTReplayReadiness(ctx context.Conte
 	return ch.MQTTReplayReadiness{CommittedThrough: r.CommittedThrough, AnchorPosition: r.AnchorPosition, RequiredThrough: r.RequiredThrough, Covered: r.Covered}, nil
 }
 
+// ReleaseMQTTSourceAtAnchor keeps generation and position as the only inputs;
+// the message store derives the watermark and receipt from its durable proof.
+func (a *messageDBChannelStoreAdapter) ReleaseMQTTSourceAtAnchor(ctx context.Context, generation string, position uint64) error {
+	if err := a.ensureOpen(); err != nil {
+		return err
+	}
+	_, err := a.store.ReleaseMQTTSourceAtAnchor(ctx, generation, position)
+	return a.mapError(err)
+}
+
 // PrepareMQTTReplay translates storage-owned envelopes without another body
 // clone; their lifetime is independent of this temporary store lease.
 func (a *messageDBChannelStoreAdapter) PrepareMQTTReplay(ctx context.Context, req ch.MQTTReplayRange) (ch.MQTTReplayPage, error) {

@@ -81,7 +81,7 @@ func TestMQTTRepairThreeNodeLearnerRestartAndIsolation(t *testing.T) {
 	require.False(t, lagging.ReplayReadiness.Covered)
 	want, err := read(nodes[1])
 	require.NoError(t, err)
-	recovery := ch.MQTTReplayRecoveryRequest{Target: 3, Source: ch.MQTTReplayPlanRequest{ChannelID: id, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 1, ExpectedRouteGeneration: 1, Generation: source.Generation}, TargetAnchor: proof.Manifest.LastOffset, ScanLimit: 1}
+	recovery := ch.MQTTReplayRecoveryRequest{Target: 3, Source: ch.MQTTReplayPlanRequest{ChannelID: id, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 1, ExpectedRouteGeneration: 1, Generation: source.Generation}, TargetAnchor: proof.Manifest.LastOffset, ScanLimit: 1, ReleaseSource: true}
 	q := ch.MQTTReplayRepairRequest{Target: 3, Donor: 2, Request: replay}
 	var prefix ch.MQTTReplayPrefix
 	complete, continuations, repaired := false, 0, 0
@@ -89,7 +89,24 @@ func TestMQTTRepairThreeNodeLearnerRestartAndIsolation(t *testing.T) {
 		result, e := nodes[0].StepChannelMQTTReplayRecovery(ctx, recovery)
 		require.NoError(t, e)
 		require.True(t, result.ValidFor(recovery))
+		// Physical retention is still clamped during partial repair. Only the
+		// explicit complete-and-release step allows this replica to delete rows.
+		st, openErr := nodes[2].defaultChannelStore.ChannelStore(m.Key, id)
+		require.NoError(t, openErr)
+		_, trimErr := st.AdoptRetentionBoundary(ctx, proof.Manifest.LastOffset, ch.RetentionCursorCommitted)
+		require.NoError(t, trimErr)
+		_, trimErr = st.TrimMessagesThrough(ctx, proof.Manifest.LastOffset, channelstore.RetentionTrimOptions{MaxMessages: 256, MaxBytes: 1 << 20})
+		require.NoError(t, trimErr)
+		retained, readErr := st.LoadRetentionState(ctx)
+		require.NoError(t, readErr)
+		require.NoError(t, st.Close())
+		if !result.Plan.Complete {
+			require.Zero(t, retained.PhysicalRetentionThroughSeq)
+			require.False(t, result.SourceReleased)
+		}
 		if result.Plan.Complete {
+			require.True(t, result.SourceReleased)
+			require.Equal(t, proof.Anchor.Through, retained.PhysicalRetentionThroughSeq)
 			require.Equal(t, proof.Prefix(), result.Plan.Current)
 			complete = true
 			break
@@ -136,6 +153,7 @@ func TestMQTTRepairThreeNodeLearnerRestartAndIsolation(t *testing.T) {
 	covered, err := nodes[0].StepChannelMQTTReplayRecovery(ctx, recovery)
 	require.NoError(t, err)
 	require.True(t, covered.Plan.Complete)
+	require.True(t, covered.SourceReleased)
 	require.False(t, covered.Repaired)
 	ready, err := nodes[0].ProbeChannel(ctx, 3, id.ID, id.Type)
 	require.NoError(t, err)
@@ -151,5 +169,5 @@ func TestMQTTRepairThreeNodeLearnerRestartAndIsolation(t *testing.T) {
 	failed, err := nodes[2].StepChannelMQTTReplayRecovery(blocked, recovery)
 	require.Error(t, err)
 	require.Zero(t, failed)
-	t.Log("mqtt_repair_evidence: nodes=3 hash_slots=256 physical_slots=2 tcp=true disk=true learner_target=true independent_anchor=true bounded_interval_planning=true scan_continuation=true donor_rotation=true restart=true exact_retry=true isolated_rejected=true source_release=false target_owned_recovery_step=true replica_readiness_evidence=true automatic_scheduler=false product_listener=false")
+	t.Log("mqtt_repair_evidence: nodes=3 hash_slots=256 physical_slots=2 tcp=true disk=true learner_target=true independent_anchor=true bounded_interval_planning=true scan_continuation=true donor_rotation=true restart=true exact_retry=true isolated_rejected=true source_release=true original_trim=true target_owned_recovery_step=true replica_readiness_evidence=true automatic_scheduler=false product_listener=false")
 }

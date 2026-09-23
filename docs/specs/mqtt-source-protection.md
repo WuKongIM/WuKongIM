@@ -21,8 +21,8 @@ The `mqtt-log-v1:` namespace is reserved for first-control materialization;
 separate CAS cannot create it or install an unrelated source over a pending control.
 There is no reset API that can silently abandon protected obligations. Explicit
 [anchor-derived release](mqtt-source-anchor-release.md) now verifies the replica's
-own committed control and shared content before advancing this same record;
-automatic runtime invocation remains separate work.
+own committed control and shared content before advancing this same record.
+Routed recovery invokes it with explicit intent and fresh authority checks.
 Creation also installs an explicit zero checkpoint when absent, under the
 checkpoint mutex and in the same commit. Later missing checkpoints are corruption,
 including on exact retry and suffix truncation; they cannot mean an empty log.

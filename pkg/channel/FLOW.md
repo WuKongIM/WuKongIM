@@ -116,7 +116,7 @@ DTOs, and `worker` bounds blocking I/O.
   steps route to that target, try at most four donors with separate deadlines and
   return scan/import/retry/completion outcomes under fresh metadata checks.
   Import keeps the pre-import plan; the next read verifies completion. Active migration
-  probes bind local replay coverage to captured HW for migration gates; source release remains separate.
+  probes bind coverage to captured HW; explicit source release independently verifies committed/local proofs through an optional store port.
   Replay preparation uses the same recovered leader/route admission and bounded
   checkpoint workers. It captures HW, verifies protection and returns owned
   local content after rechecking fences; it cannot release the original source.

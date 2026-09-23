@@ -87,6 +87,21 @@ func (s *Service) stepLocalMQTTRecovery(ctx context.Context, q ch.MQTTReplayReco
 	}
 	result := ch.MQTTReplayRecoveryResult{Plan: plan}
 	if !plan.HasNext {
+		if plan.Complete && q.ReleaseSource {
+			release, ok := handle.(channelstore.MQTTSourceReleaser)
+			if !ok {
+				return empty, ch.ErrInvalidConfig
+			}
+			if err = s.recheckMQTTRepairAuthority(ctx, authority, m, q.Target); err != nil {
+				return empty, err
+			}
+			// The plan is scheduling evidence, not a substitute for the store's
+			// independent atomic revalidation of this exact committed anchor.
+			if err = release.ReleaseMQTTSourceAtAnchor(ctx, q.Source.Generation, q.TargetAnchor); err != nil {
+				return empty, err
+			}
+			result.SourceReleased = true
+		}
 		return result, nil
 	}
 	interval, has, err := plan.NextRange()

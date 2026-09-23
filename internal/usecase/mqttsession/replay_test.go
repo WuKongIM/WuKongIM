@@ -71,7 +71,8 @@ func newReplayFixture(t *testing.T) (*ReplayCoordinator, *replayCoordinatorFixtu
 		require.True(t, ok)
 		require.LessOrEqual(t, time.Until(deadline), 5*time.Second)
 		require.Equal(t, 64, q.ScanLimit)
-		return ch.MQTTReplayRecoveryResult{Plan: ch.MQTTReplayRepairPlan{Current: proof.Prefix(), Target: proof, Complete: true}}, nil
+		require.True(t, q.ReleaseSource)
+		return ch.MQTTReplayRecoveryResult{Plan: ch.MQTTReplayRepairPlan{Current: proof.Prefix(), Target: proof, Complete: true}, SourceReleased: true}, nil
 	}
 	c, err := NewReplayCoordinator(ReplayCoordinatorOptions{Metadata: f, Channels: f, MessageIDs: f, Now: func() time.Time { return time.UnixMilli(1000) }})
 	require.NoError(t, err)
@@ -92,7 +93,7 @@ func TestReplayCoordinatorCopiesThenRotatesPinnedRecovery(t *testing.T) {
 		if q.Target == 1 && q.DonorAfter == 0 {
 			return ch.MQTTReplayRecoveryResult{Plan: ch.MQTTReplayRepairPlan{Current: f.receipt.Before, Target: old, Next: old, HasNext: true}, DonorAfter: 2}, nil
 		}
-		return ch.MQTTReplayRecoveryResult{Plan: ch.MQTTReplayRepairPlan{Current: old.Prefix(), Target: old, Complete: true}}, nil
+		return ch.MQTTReplayRecoveryResult{Plan: ch.MQTTReplayRepairPlan{Current: old.Prefix(), Target: old, Complete: true}, SourceReleased: true}, nil
 	}
 	a, err := c.Step(context.Background(), owner, first.Next)
 	require.NoError(t, err)
@@ -152,7 +153,7 @@ func TestReplayCoordinatorErrorYieldsAndPreservesReplicaHints(t *testing.T) {
 	require.True(t, again.Next.RepairNext)
 	f.repair = func(_ context.Context, q ch.MQTTReplayRecoveryRequest) (ch.MQTTReplayRecoveryResult, error) {
 		require.Equal(t, ch.NodeID(2), q.Target)
-		return ch.MQTTReplayRecoveryResult{Plan: ch.MQTTReplayRepairPlan{Current: f.proof.Prefix(), Target: f.proof, Complete: true}}, nil
+		return ch.MQTTReplayRecoveryResult{Plan: ch.MQTTReplayRepairPlan{Current: f.proof.Prefix(), Target: f.proof, Complete: true}, SourceReleased: true}, nil
 	}
 	good, err := c.Step(context.Background(), owner, again.Next)
 	require.NoError(t, err)
@@ -274,7 +275,7 @@ func TestReplayCoordinatorResetsPlacementHintsAndRetainsScan(t *testing.T) {
 			require.Equal(t, uint64(1), q.AfterAnchor)
 			return ch.MQTTReplayRecoveryResult{Plan: ch.MQTTReplayRepairPlan{Current: f.receipt.Before, Target: f.proof, Next: f.proof, HasNext: true, ScanAfter: 1}, Repaired: true}, nil
 		}
-		return ch.MQTTReplayRecoveryResult{Plan: ch.MQTTReplayRepairPlan{Current: f.proof.Prefix(), Target: f.proof, Complete: true}}, nil
+		return ch.MQTTReplayRecoveryResult{Plan: ch.MQTTReplayRepairPlan{Current: f.proof.Prefix(), Target: f.proof, Complete: true}, SourceReleased: true}, nil
 	}
 	for range 3 {
 		step, err = c.Step(context.Background(), owner, step.Next)
@@ -302,7 +303,7 @@ func TestReplayCoordinatorRejectsInvalidConstructionAndSources(t *testing.T) {
 }
 
 func TestReplayCoordinatorRejectsUnassociatedRecovery(t *testing.T) {
-	for _, mode := range []string{"foreign_donor", "foreign_target", "future_authority", "false_complete", "cancel"} {
+	for _, mode := range []string{"foreign_donor", "foreign_target", "future_authority", "false_complete", "unreleased", "cancel"} {
 		t.Run(mode, func(t *testing.T) {
 			c, f, owner := newReplayFixture(t)
 			seed, err := c.Step(context.Background(), owner, ReplayCursor{})
@@ -310,7 +311,7 @@ func TestReplayCoordinatorRejectsUnassociatedRecovery(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			f.repair = func(_ context.Context, q ch.MQTTReplayRecoveryRequest) (ch.MQTTReplayRecoveryResult, error) {
-				result := ch.MQTTReplayRecoveryResult{Plan: ch.MQTTReplayRepairPlan{Current: f.proof.Prefix(), Target: f.proof, Complete: true}}
+				result := ch.MQTTReplayRecoveryResult{Plan: ch.MQTTReplayRepairPlan{Current: f.proof.Prefix(), Target: f.proof, Complete: true}, SourceReleased: true}
 				switch mode {
 				case "foreign_donor":
 					result.Plan = ch.MQTTReplayRepairPlan{Current: f.receipt.Before, Target: f.proof, Next: f.proof, HasNext: true}
@@ -319,6 +320,8 @@ func TestReplayCoordinatorRejectsUnassociatedRecovery(t *testing.T) {
 					result.Plan.Target.Manifest.LastOffset++
 				case "future_authority":
 					result.Plan.Target.Manifest.ChannelEpoch++
+				case "unreleased":
+					result.SourceReleased = false
 				case "false_complete":
 					result.Repaired = true
 				case "cancel":

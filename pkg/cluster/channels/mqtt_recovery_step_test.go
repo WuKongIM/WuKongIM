@@ -261,7 +261,7 @@ func TestMQTTRecoveryStepRPCClosedFramingAndOutcomes(t *testing.T) {
 		require.Error(t, err)
 	}
 	badVersion := bytes.Clone(body)
-	badVersion[4]++
+	badVersion[4] = 255
 	for _, b := range [][]byte{badVersion, append(bytes.Clone(body), 0), make([]byte, mqttRecoveryRPCMaxBytes+1)} {
 		_, err = decodeMQTTRecoveryRequest(b)
 		require.Error(t, err)

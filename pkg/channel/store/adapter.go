@@ -451,3 +451,11 @@ type MQTTReplayRepairPlanner interface {
 type MQTTReplayReadinessReader interface {
 	ReadMQTTReplayReadiness(context.Context, uint64) (ch.MQTTReplayReadiness, error)
 }
+
+// MQTTSourceReleaser independently verifies its own committed anchor and shared
+// content before advancing the original-source cleanup watermark. Success means
+// at least that anchor's prefix is released; it never advances HW or reclaims
+// shared replay. Implementations revalidate evidence on exact and older retries.
+type MQTTSourceReleaser interface {
+	ReleaseMQTTSourceAtAnchor(context.Context, string, uint64) error
+}

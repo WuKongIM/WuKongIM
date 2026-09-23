@@ -22,9 +22,9 @@ consumer acknowledgement. It relies on the immutable, atomically maintained
 replay prefix and bounded endpoint proofs; it does not audit every historical
 body for disk corruption. Shared content cannot be reclaimed by this operation.
 Future consumer-proof GC must preserve or explicitly replace these proofs.
-Cluster routing, bounded scheduling and current-authority admission still need
-to invoke this primitive before automatic source release is available. MQTT
-product admission remains disabled pending the full approved implementation.
+[Cluster routing and bounded scheduling](mqtt-source-release-routing.md) now
+invoke this primitive with explicit release intent and fresh authority checks.
+MQTT product admission remains disabled pending the full approved implementation.
 
 ## Failure inventory before implementation
 

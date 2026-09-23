@@ -33,7 +33,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    ambiguous sends retain committed-outcome recovery. MQTT source/replay RPCs 93/94
    recheck fresh Slot authority, caller fences and the serving node across gateway swaps.
    RPCs 95–98 bind copying, anchors, planning and exact-interval repair to fresh authority.
-   RPC 97 planning and RPC 99 target recovery permit stable write fences; neither releases history.
+   RPC 97 planning and RPC 99 recovery permit stable fences; explicit RPC-99 v2 completion also releases verified original sources.
    Active repair probes verify follower durability; leaders checkpoint recovered HW and request native tail propagation.
    Fresh placement/fence checks bind optional replay coverage; diagnostics stay observational.
    Planned transfers and replacement require fresh coverage at cutover and fence clearing.

@@ -23,7 +23,8 @@ runtime. It owns no storage, routing, packet or socket behavior.
 2. Carry Session generation separately from connection owner generation.
 3. Preserve node, unique registry boot and non-reused connection ID for isolation.
 4. Carry bounded per-replica scan hints and cold scheduling passes without turning
-   them into durable content, readiness, release or subscription evidence.
+   them into durable evidence; explicit target completion confirms original-source
+   release, never shared-content GC, readiness or subscription admission.
 
 ## Invariants and Failure Semantics
 

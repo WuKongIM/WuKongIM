@@ -18,7 +18,8 @@ type ReplayMetadata interface {
 }
 
 // ReplayChannels provides independently fenced cluster operations. Planning reads
-// accepted progress; neither copying nor recovery grants source-release authority.
+// accepted progress; explicit complete recovery can release original sources,
+// while shared-content reclamation remains a separate consumer-proof protocol.
 type ReplayChannels interface {
 	PlanChannelMQTTReplay(context.Context, ch.MQTTReplayPlanRequest) (ch.MQTTReplayPlan, error)
 	CopyChannelMQTTReplay(context.Context, ch.MQTTReplayRequest) (ch.MQTTReplayCopyReceipt, error)
@@ -188,7 +189,7 @@ func (c *ReplayCoordinator) recover(ctx context.Context, source ch.MQTTReplayPla
 	out.Target = target.NodeID
 	out.Next.NextTarget = (i + 1) % len(out.Next.Targets)
 	out.Next.RepairNext = false
-	q := ch.MQTTReplayRecoveryRequest{Target: target.NodeID, Source: source, TargetAnchor: target.AnchorPosition, AfterAnchor: target.AfterAnchor, DonorAfter: target.DonorAfter, ScanLimit: 64}
+	q := ch.MQTTReplayRecoveryRequest{Target: target.NodeID, Source: source, TargetAnchor: target.AnchorPosition, AfterAnchor: target.AfterAnchor, DonorAfter: target.DonorAfter, ScanLimit: 64, ReleaseSource: true}
 	if err := ctx.Err(); err != nil {
 		return out, err
 	}
