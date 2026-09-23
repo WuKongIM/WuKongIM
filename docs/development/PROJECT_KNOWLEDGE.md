@@ -293,8 +293,11 @@ specification, runbook, report, or module documentation; link to them when neede
   installed full authority and independently reloads captured/candidate anchors
   plus the latest decision. Stable source/Through commands preserve pending row
   identity; older retries reuse a newer committed decision without another append.
-  This internal port trusts ordered consumer permission from its product caller;
-  reactor/RPC wiring and that producer remain required. It never applies cleanup.
+  [Reactor admission](../specs/mqtt-retirement-reactor.md) uses the bounded append
+  queue and detached typed workers, preserving durable progress after observer
+  cancellation without caching retry identities. This internal port trusts ordered
+  consumer permission; fresh Slot/RPC routing and the producer remain required.
+  It never applies cleanup.
   [Whole-anchor selection](../specs/mqtt-retirement-anchor-selection.md) scans at
   most 64 historical journals in one pinned view, below the captured anchor and
   consumer floor. Verified backward cursors survive restart/restore; a floor

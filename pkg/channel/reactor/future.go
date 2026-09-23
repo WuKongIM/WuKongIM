@@ -18,6 +18,7 @@ type Result struct {
 	MQTTSourceFound bool
 	MQTTReplay      ch.MQTTReplayPage
 	MQTTAnchor      ch.MQTTReplayAnchorProof
+	MQTTRetirement  ch.MQTTReplayRetirementProof
 	MQTTPlan        ch.MQTTReplayPlan
 	Pull            transport.PullResponse
 	RuntimeSnapshot ch.RuntimeReactorSnapshot

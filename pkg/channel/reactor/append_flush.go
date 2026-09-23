@@ -55,6 +55,13 @@ func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 			return
 		}
 	}
+	if q := batch.requests[0].mqttRetirement; q != nil {
+		if err := r.validateMQTTRetirementAdmission(batch.requests[0].ctx, rc, *q); err != nil {
+			rc.appendQ.storeBlocked = false
+			r.failAppendBatch(rc, batch, err)
+			return
+		}
+	}
 	decision := rc.state.ProposeAppendBatch(machine.AppendBatchCommand{
 		BatchOpID: batch.batchOpID,
 		Waiters:   appendBatchWaiters(batch.requests),
@@ -81,6 +88,9 @@ func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 	if q := batch.requests[0].mqttAnchor; q != nil {
 		batch.authority = rc.quorumAuthority.ID
 		submitErr = r.submitQuorumMQTTAnchor(batch.fence, *q)
+	} else if q := batch.requests[0].mqttRetirement; q != nil {
+		batch.authority = rc.quorumAuthority.ID
+		submitErr = r.submitQuorumMQTTRetirement(batch.fence, *q)
 	} else if r.cfg.QuorumLog != nil {
 		batch.authority = rc.quorumAuthority.ID
 		batch.commandID = appendProposalCommandID(rc.state.Key, batch.authority, batch.records)

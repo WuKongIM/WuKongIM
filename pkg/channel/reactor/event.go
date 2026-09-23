@@ -93,6 +93,8 @@ type Event struct {
 	MQTTSourceActivation bool
 	// MQTTAnchor selects typed anchor admission on the ordinary append queue.
 	MQTTAnchor *ch.MQTTReplayAnchorRequest
+	// MQTTRetirement selects a verified whole-anchor retirement on the append queue.
+	MQTTRetirement *ch.MQTTReplayRetirementRequest
 }
 
 func eventKindName(kind EventKind) string {

@@ -3556,3 +3556,57 @@ Validation (terminal passes):
 Next route this typed operation through the existing reactor append queue, then
 fresh Slot/RPC admission and ordered consumer planning with bounded historical
 selection. Product MQTT access and the full goal remain incomplete and active.
+
+## Reactor-owned retirement admission
+
+The Channel service now reserves the existing append mailbox and queues one
+canonical typed retirement request. Queue/flush validation checks full recovered
+authority, status, placement, write admission, captured HW and capable storage;
+mixed control intents and changed payloads are rejected. Placement slices are
+owned, included in queue byte accounting, and survive caller cancellation. No
+blocking storage operation runs on a reactor goroutine.
+
+One typed store-append task calls the native retirement committer. It is not
+worker-batched with ordinary append records. Completion checks exact operation,
+generation and proof association before applying monotonic control progress.
+An already-started commit keeps progressing after observer cancellation or a
+later guard rejection, while the caller gets no success proof. Historical retries
+never insert the request ID into the recent-record cache. The existing append
+cancellation, lifecycle and bounded worker cleanup paths remain shared.
+
+Contract/failure inventory and frozen context:
+[mqtt-retirement-reactor.md](../specs/mqtt-retirement-reactor.md).
+
+Validation (terminal passes):
+
+- RED before implementation: the service lacked the optional interface and the
+  worker/reactor contracts were missing; `/tmp/mqtt-retirement-reactor-red.log`.
+- `GOWORK=off go test -p 2 -race -tags=integration ./pkg/channel/service
+  ./pkg/channel/reactor ./pkg/channel/worker -run '^TestMQTTRetirement'
+  -count=1 -timeout=90s -v`: all passed; service 1.614 s, reactor 1.307 s,
+  worker 1.370 s. `/tmp/mqtt-retirement-reactor-focused.log`. Actual disk service
+  integration covers single-node-cluster ordering, eight concurrent retries,
+  original identity, HW publication, full reopen, stale route/membership and
+  cancellation after the worker starts. Consumer permission is controlled.
+  Boundary cases additionally reject mixed/forged controls, future capture,
+  incapable storage, wrong operation/generation/source/reference and malformed
+  proof; guard/cancellation failures preserve real durable progress. Panic
+  containment is checked at the existing pool boundary, where recovery lives,
+  rather than incorrectly assuming direct Task.Run contains panics.
+- `GOWORK=off go test -p 2 -race ./pkg/channel/... -count=1 -timeout=180s`:
+  all nine packages passed; `/tmp/mqtt-retirement-reactor-race.log`.
+- `GOWORK=off go test -p 2 -race -tags=integration ./pkg/channel/service
+  ./pkg/channel/replication ./pkg/channel/reactor ./pkg/channel/worker
+  -run '^TestMQTT' -count=1 -timeout=120s -v`: all passed; service 2.371 s,
+  replication 4.031 s, reactor 1.605 s, worker 1.228 s.
+  `/tmp/mqtt-retirement-reactor-integration.log`. Includes neighboring source,
+  replay and anchor flows and the three-voter/learner native retirement scenario.
+- `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-retirement-reactor-flow.log`. Generated index and whitespace pass.
+
+Next add freshly fenced routed retirement/selector entry and connect the ordered
+consumer planner, bounded historical continuation and background producer. Full
+subscription/inbox projection, permission/removal ordering, delivery/ACK, owner
+recovery, Will execution, product lifecycle/configuration, offline tooling and
+process/load acceptance remain required. The goal is active; MQTT product access
+is still unavailable.

@@ -8,6 +8,8 @@ func (r *Reactor) handleWorkerResult(event Event) {
 		r.handleQuorumInstallResult(event.Worker)
 	case worker.TaskQuorumMQTTAnchor:
 		r.handleQuorumMQTTAnchorResult(event.Worker)
+	case worker.TaskQuorumMQTTRetirement:
+		r.handleQuorumMQTTRetirementResult(event.Worker)
 	case worker.TaskQuorumCommit:
 		r.handleQuorumCommitResult(event.Worker)
 	case worker.TaskStoreAppend:

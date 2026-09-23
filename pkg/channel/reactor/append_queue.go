@@ -58,6 +58,8 @@ type appendRequest struct {
 	mqttSourceActivation bool
 	// mqttAnchor retains owned metadata and copy evidence until terminal completion.
 	mqttAnchor *ch.MQTTReplayAnchorRequest
+	// mqttRetirement owns placement and immutable committed proof values.
+	mqttRetirement *ch.MQTTReplayRetirementRequest
 	// traceItems preserves selected transient trace sidecars across restore/retry.
 	traceItems []appendTraceItem
 	// traceEvaluated records that detail sampling already ran for this request.
@@ -334,6 +336,9 @@ func appendRequestBytes(req appendRequest) int {
 	n := recordsBytes(req.records)
 	if q := req.mqttAnchor; q != nil {
 		n += 8 * (len(q.Meta.Replicas) + len(q.Meta.ISR) + len(q.Copy.Copies))
+	}
+	if q := req.mqttRetirement; q != nil {
+		n += 8 * (len(q.Meta.Replicas) + len(q.Meta.ISR))
 	}
 	return n
 }

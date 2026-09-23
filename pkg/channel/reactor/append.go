@@ -39,10 +39,18 @@ func (r *Reactor) validateAppendEvent(ctx context.Context, rc *runtimeChannel, e
 		}
 	}
 	if event.MQTTAnchor != nil {
-		if event.MQTTSourceActivation {
+		if event.MQTTSourceActivation || event.MQTTRetirement != nil {
 			return ch.ErrInvalidConfig
 		}
 		if err := r.validateMQTTAnchorControl(rc, event); err != nil {
+			return err
+		}
+	}
+	if event.MQTTRetirement != nil {
+		if event.MQTTSourceActivation {
+			return ch.ErrInvalidConfig
+		}
+		if err := r.validateMQTTRetirementControl(rc, event); err != nil {
 			return err
 		}
 	}
@@ -102,12 +110,18 @@ func (r *Reactor) validateAppendEvent(ctx context.Context, rc *runtimeChannel, e
 
 func newAppendRequest(event Event, admittedAt time.Time) appendRequest {
 	var anchor *ch.MQTTReplayAnchorRequest
+	var retirement *ch.MQTTReplayRetirementRequest
 	if event.MQTTAnchor != nil {
 		owned := event.MQTTAnchor.Clone()
 		anchor = &owned
 	}
+	if event.MQTTRetirement != nil {
+		owned := event.MQTTRetirement.Clone()
+		retirement = &owned
+	}
 	return appendRequest{
 		mqttAnchor:           anchor,
+		mqttRetirement:       retirement,
 		opID:                 event.OpID,
 		req:                  event.Append,
 		future:               event.Future,

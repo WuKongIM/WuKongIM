@@ -79,11 +79,11 @@ typed bounded workers and returns as `EventWorkerResult`.
   plus latest anchor at captured HW, without promoting local copying into acceptance.
   Planning pins stable write fences and recovered leader/route/data-plane authority; appends remain fenced.
 
-- Anchor controls share the ordinary append queue, slice ownership, byte bounds
+- Anchor and retirement controls share the ordinary append queue, slice ownership, byte bounds
   and cancellation guards. Flush rechecks recovered authority; typed durable
   completion advances monotonic progress after observer cancellation. It returns
   only the verified control proof and never caches request records on retries.
-  Foreign operation/generation results cannot change replacement state.
+  Foreign completions cannot change replacement state. Retirement reuses covering decisions; consumer permission stays above this layer.
 
 ## Read First
 

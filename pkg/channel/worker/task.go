@@ -46,6 +46,8 @@ const (
 	TaskQuorumMQTTAnchor
 	// TaskStoreMQTTPlan checkpoints captured HW and reads one accepted-prefix view.
 	TaskStoreMQTTPlan
+	// TaskQuorumMQTTRetirement admits one whole-anchor retirement through quorum.
+	TaskQuorumMQTTRetirement
 )
 
 // Task describes blocking work submitted to a bounded pool.
@@ -62,11 +64,12 @@ type Task struct {
 	StoreLookupMessage *StoreLookupMessageTask
 	StoreApply         *StoreApplyTask
 	// StoreCheckpoint persists a checkpoint before runtime eviction.
-	StoreCheckpoint  *StoreCheckpointTask
-	StoreMQTTSource  *StoreMQTTSourceTask
-	StoreMQTTReplay  *StoreMQTTReplayTask
-	QuorumMQTTAnchor *QuorumMQTTAnchorTask
-	StoreMQTTPlan    *StoreMQTTPlanTask
+	StoreCheckpoint      *StoreCheckpointTask
+	StoreMQTTSource      *StoreMQTTSourceTask
+	StoreMQTTReplay      *StoreMQTTReplayTask
+	QuorumMQTTAnchor     *QuorumMQTTAnchorTask
+	QuorumMQTTRetirement *QuorumMQTTRetirementTask
+	StoreMQTTPlan        *StoreMQTTPlanTask
 	// StoreClose releases a store handle after the reactor has detached it.
 	StoreClose *StoreCloseTask
 	// StoreRetention adopts a logical retention boundary and optionally trims a safe prefix.
@@ -262,6 +265,8 @@ func (t Task) Run(ctx context.Context, deps Deps) Result {
 		res = runQuorumCommit(ctx, deps, t)
 	case TaskQuorumMQTTAnchor:
 		res = runQuorumMQTTAnchor(ctx, deps, t)
+	case TaskQuorumMQTTRetirement:
+		res = runQuorumMQTTRetirement(ctx, deps, t)
 	default:
 		res = invalidResult(t)
 	}

@@ -6,7 +6,7 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
-- Validate MQTT retirement commits against installed Channel authority and independent anchor proofs; uncertain retries preserve their original identity and older requests reuse committed decisions. No storage format changes; product wiring remains under development. / MQTT 回收提交核验当前 Channel 权威和独立锚点证明，未决重试保留原记录身份，旧请求复用已提交决策；无需变更存储格式，产品接入仍在开发。
+- Order MQTT retirement commits through the Channel append queue, validating installed authority and independent anchor proofs; retries preserve durable identities and observer cancellation cannot revoke started commits. No storage format changes; product wiring remains under development. / MQTT 回收提交接入 Channel 追加队列，核验当前权威和独立锚点证明；重试保留持久身份，观察者取消不撤销已开始的提交。无需变更存储格式，产品接入仍在开发。
 
 - Keep idle MQTT replay sources from repeatedly copying anchor/retirement controls by verifying bounded maintenance-only tails; later business resumes contiguous copying. Product access remains under development. / MQTT 回放核验有界维护记录尾部，避免空闲时反复复制锚点和回收记录；新业务到达后继续连续复制，产品接入仍在开发。
 

@@ -17,26 +17,27 @@ type Result struct {
 	// Duration is the worker execution time measured by the owning pool.
 	Duration time.Duration
 
-	StoreAppend        *StoreAppendResult
-	StoreLoad          *StoreLoadResult
-	StoreReadLog       *StoreReadLogResult
-	StoreLookupMessage *StoreLookupMessageResult
-	StoreApply         *StoreApplyResult
-	StoreCheckpoint    *StoreCheckpointResult
-	StoreMQTTSource    *StoreMQTTSourceResult
-	StoreMQTTReplay    *StoreMQTTReplayResult
-	StoreMQTTPlan      *StoreMQTTPlanResult
-	StoreClose         *StoreCloseResult
-	StoreRetention     *StoreRetentionResult
-	RPCPull            *RPCPullResult
-	RPCAck             *RPCAckResult
-	RPCNotify          *RPCNotifyResult
-	RPCPullHint        *RPCPullHintResult
-	MetaResolve        *MetaResolveResult
-	QuorumInstall      *QuorumInstallResult
-	QuorumCommit       *QuorumCommitResult
-	QuorumMQTTAnchor   *QuorumMQTTAnchorResult
-	Value              any
+	StoreAppend          *StoreAppendResult
+	StoreLoad            *StoreLoadResult
+	StoreReadLog         *StoreReadLogResult
+	StoreLookupMessage   *StoreLookupMessageResult
+	StoreApply           *StoreApplyResult
+	StoreCheckpoint      *StoreCheckpointResult
+	StoreMQTTSource      *StoreMQTTSourceResult
+	StoreMQTTReplay      *StoreMQTTReplayResult
+	StoreMQTTPlan        *StoreMQTTPlanResult
+	StoreClose           *StoreCloseResult
+	StoreRetention       *StoreRetentionResult
+	RPCPull              *RPCPullResult
+	RPCAck               *RPCAckResult
+	RPCNotify            *RPCNotifyResult
+	RPCPullHint          *RPCPullHintResult
+	MetaResolve          *MetaResolveResult
+	QuorumInstall        *QuorumInstallResult
+	QuorumCommit         *QuorumCommitResult
+	QuorumMQTTAnchor     *QuorumMQTTAnchorResult
+	QuorumMQTTRetirement *QuorumMQTTRetirementResult
+	Value                any
 }
 
 // StoreLoadResult returns an opened channel store and its durable initial state.

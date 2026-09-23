@@ -38,8 +38,9 @@ reloads the committed journal; caller cancellation never invents a committed rep
 
 Tests precede code at typed contracts and the real-disk native quorum runtime,
 using actual exchange codecs, three voters and a learner. Consumer-floor admission
-is controlled in this fixture. Reactor queue/RPC/usecase/product entry wiring and
-process-level acceptance remain required; this is not complete product admission.
+is controlled in this fixture. [Reactor queue admission](mqtt-retirement-reactor.md)
+now uses this port; fresh RPC/usecase/product entry wiring and process-level
+acceptance remain required. This is not complete product admission.
 
 ## Frozen context
 
