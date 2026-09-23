@@ -175,3 +175,55 @@ corrupt, truncated or wrong-key values; unsupported body/version/field and bound
 complete-key pagination, snapshot/replay and inspection; wrong Slot ownership.
 Product window execution, gap-preserving PUBACK, source completeness proof and
 quota scheduling remain required before the listener can be enabled.
+
+## Bounded outbound exchange window
+
+`mqtt_inflight` uses table **25**, primary index **1**, family **0**, and send-order
+index **2**. Primary tuple: `(namespace, client_id, session_generation, direction,
+packet_id)`. Direction 1 is server-to-client; direction 2 is reserved for possible
+client-to-server state and is not accepted by this slice. Only admitted QoS 1
+exchanges have rows. Values 6–23 are subscription generation, source kind/ID/
+generation, delivery order, source position, MessageID, MessageSeq, content
+version/hash, accounted bytes, QoS, stage, topic, Subscription Identifier,
+previous/next PacketID in that cursor's outstanding list, and update time.
+Awaiting PUBACK is stage 1. The immutable content reference is not replaced after
+admission, including after edits or option changes. Recovery scans use send order
+and the complete PacketID tie-breaker, never wrapping PacketID order.
+
+Session optional columns 27/28 add outbound inflight count and configured window
+limit. Missing count is zero; limit zero means the initial default 64. The hard
+storage bound is 1024; admission also respects peer Receive Maximum. A resumed
+connection may negotiate a lower Receive Maximum while retaining more old
+exchanges; the runtime must separately throttle retransmissions. Ordinary
+lifecycle CAS preserves delivery counters/allocators in the same generation;
+new generations start with zero counters, and only delivery mutations change
+same-generation accounting/window state.
+
+Cursor optional columns 19–24 add inflight count/bytes, head/tail PacketID and the
+last window result's PacketID/order. Missing values are zero. The outstanding
+list is ordered by source position. Removing a middle entry frees its window
+credit but does not skip the head. Completion is at most one position before the
+first outstanding entry, or window-through if none remain. Pending messages
+outside the window must fit in the not-yet-admitted source range. No per-message
+ACK tombstone or per-offline-client body copy is needed.
+
+Slot command **70** has a bounded 32-KiB version-1 body and supports admission,
+PUBACK completion and covered-range advancement. Every command carries session/
+owner/revision and exact source identity. An ACK also carries delivery order,
+so a delayed internal ACK cannot release a reused PacketID's different exchange.
+Admission validates the active current subscription; ordinary unsubscribe does
+not prevent completing an already admitted exchange. Cursor/list/session/index
+updates and Slot applied progress are one atomic batch. Exact retry uses a
+versioned, domain-separated request digest and the cursor's last-result receipt.
+Range advancement releases only unadmitted count/bytes; source qualification,
+permission, immutable content durability and complete source coverage remain
+caller proofs. No operation can infer those proofs from a local callback.
+
+Before implementation, test: persist-before-visible window admission; immutable
+content/options and send-order recovery; full window/Receive Maximum; ID wrapping
+and occupied-ID skipping; out-of-order ACK and holes; duplicate/changed/unrelated
+retry; stale owner/session/order; normal unsubscribe versus generation change;
+same-batch admission/ACK and rollback; linked-neighbor corruption failing closed;
+count/byte accounting and pending-range invariants; old rows without optional
+columns; codec corruption/key checksum/bounds; snapshot and index preservation;
+Slot ownership, bounded malformed commands and complete inspection catalog.

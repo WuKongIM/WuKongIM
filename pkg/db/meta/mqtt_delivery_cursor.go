@@ -46,6 +46,14 @@ type MQTTDeliveryCursor struct {
 	Revision           uint64 `json:"revision"`
 	LastMutationDigest string `json:"last_mutation_digest"`
 	UpdatedAtMS        int64  `json:"updated_at_ms"`
+	// Only window mutations maintain outstanding count/bytes and linked endpoints.
+	InflightCount uint16 `json:"inflight_count"`
+	InflightBytes uint64 `json:"inflight_bytes"`
+	HeadPacketID  uint16 `json:"head_packet_id"`
+	TailPacketID  uint16 `json:"tail_packet_id"`
+	// The receipt survives ACK deletion so exact retries return the same exchange.
+	LastWindowPacketID      uint16 `json:"last_window_packet_id"`
+	LastWindowDeliveryOrder uint64 `json:"last_window_delivery_order"`
 }
 
 // MQTTDeliveryCursorOp identifies an atomic accounting operation.
@@ -98,7 +106,20 @@ func validateMQTTDeliveryCursorKey(k MQTTDeliveryCursorKey) error {
 func ValidateMQTTDeliveryCursor(r MQTTDeliveryCursor) error {
 	if validateMQTTDeliveryCursorKey(r.Key) != nil || validateMQTTIdentity(r.Topic, 2048) != nil || r.Revision == 0 || r.UpdatedAtMS <= 0 ||
 		r.StartAfter > r.CompletedThrough || r.CompletedThrough > r.WindowThrough || r.WindowThrough > r.AccountedThrough ||
-		r.PendingMessages > r.AccountedThrough-r.StartAfter || (r.PendingMessages == 0 && r.PendingBytes != 0) || len(r.LastMutationDigest) != 64 {
+		r.PendingMessages > r.AccountedThrough-r.CompletedThrough || (r.PendingMessages == 0 && r.PendingBytes != 0) || len(r.LastMutationDigest) != 64 {
+		return dberrors.ErrInvalidArgument
+	}
+	if r.InflightCount > MQTTMaxInflight || uint64(r.InflightCount) > r.PendingMessages || r.InflightBytes > r.PendingBytes ||
+		r.PendingMessages-uint64(r.InflightCount) > r.AccountedThrough-r.WindowThrough ||
+		(r.LastWindowPacketID == 0) != (r.LastWindowDeliveryOrder == 0) {
+		return dberrors.ErrInvalidArgument
+	}
+	if r.InflightCount == 0 {
+		if r.InflightBytes != 0 || r.HeadPacketID != 0 || r.TailPacketID != 0 || r.CompletedThrough != r.WindowThrough {
+			return dberrors.ErrInvalidArgument
+		}
+	} else if r.HeadPacketID == 0 || r.TailPacketID == 0 || (r.InflightCount == 1) != (r.HeadPacketID == r.TailPacketID) ||
+		r.CompletedThrough >= r.WindowThrough || uint64(r.InflightCount) > r.WindowThrough-r.CompletedThrough {
 		return dberrors.ErrInvalidArgument
 	}
 	if _, err := hex.DecodeString(r.LastMutationDigest); err != nil {

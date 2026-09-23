@@ -2,7 +2,7 @@
 
 Full goal: implement the approved [MQTT IM access design](../specs/mqtt-im-access.md).
 Status: in progress; the product has no MQTT listener yet. The codec, generic
-gateway and session/subscription/cursor tables with Slot commands are implemented. Other tables,
+gateway and session/subscription/cursor/inflight tables with Slot commands are implemented. Other tables,
 cluster session recovery, source retention protection and durable delivery remain
 outstanding. No passing product E2E or capacity claim is made.
 
@@ -260,3 +260,57 @@ Before enabling the runtime, lifecycle Session CAS must preserve counters owned
 by the delivery commands within the same generation; a new generation and
 restore/import must handle their reset/consistency explicitly. Current storage
 CAS is still a general preparatory primitive, not a published product port.
+
+
+## Durable outbound QoS window and contiguous completion
+
+Frozen source context at `a69d4ce94`; the previous turn made verified progress:
+
+- Root `AGENTS.md`: `d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade`
+- `pkg/db/FLOW.md`: `49c5fe18bcf98edd7bc072dececaf0114f8d51d77f52cffb96b49f240dd2584e`
+- `pkg/db/meta/FLOW.md`: `16b60640961f2e82e2b55f476a4a2e2da54b07fc5abeac51ffc2d393430653da`
+- `pkg/slot/FLOW.md`: `0a7717bcd4bbe3d505c07b31e4e2bea0b6198735ca85387556bf8d92f6506083`
+
+Table 25 and command 70 persist only admitted outbound QoS 1 exchanges. Entries
+freeze content version/hash, application identity, Subscription Identifier and
+send order. Per-source outstanding links let ACK update adjacent records and
+advance only past the earliest remaining gap. Exchange removal, cursor progress,
+window credit, backlog counters and Slot apply progress commit together. A
+cursor receipt preserves exact ACK results after its exchange row is deleted.
+
+The allocator wraps 65535 to 1, probes at most the durable bounded live count
+plus one, and never overwrites an occupied ID. Admission respects both configured
+window and peer Receive Maximum. Reconnect may keep more old exchanges than the
+new smaller peer limit; runtime resend throttling remains required. Normal
+unsubscribe stops new admission but preserves completion of started exchanges.
+Lifecycle CAS now preserves same-generation delivery counters and allocators,
+and new lifetimes start empty. The earlier report's lifecycle-counter TODO is
+resolved for storage CAS; restore/import cross-row consistency is still required.
+
+Tests cover out-of-order ACK gaps, packet-number wrap, frozen references/options,
+flow control and reduced peer limits, stale owner/order, normal unsubscribe,
+covered-range release bounds, same-batch visibility, rejected admission and full
+rollback, original-order pagination/index deletion, pinned backup, inspection,
+FSM ownership/snapshot and retry after deleted ACK. Literal pre-change payloads
+prove new optional Session/Cursor columns retain older-row readability. Codec
+bounds, corrupt values and invalid command envelopes remain checked. Actual
+network resend pacing, an occupied-ID collision after a full packet-number cycle,
+and corruption recovery of an inconsistent graph still require product-level
+acceptance; these storage tests are not a scale or full recovery claim.
+
+Four of seven planned tables now have storage primitives. Remaining work includes
+source bindings, durable Will, shared replay and publication metadata, protected
+source discovery/retention, authoritative distributed reads, owner isolation,
+transfer/restore and capability gates, product access/runtime wiring, permission
+ordering, expiry/cleanup, global pressure, process interop and scale acceptance.
+The complete approved MQTT scope remains active, and no listener is enabled.
+
+Validation for the outbound window slice (2026-09-23):
+
+- `GOWORK=off go test ./pkg/db/... ./pkg/slot/... -count=1 -timeout=90s` passed.
+- `GOWORK=off go test -race ./pkg/db/meta ./pkg/slot/fsm -run 'TestMQTT' -count=1 -timeout=45s` passed,
+  with the existing macOS LC_DYSYMTAB linker warning.
+- Named `flow-doc-contracts` passed after index regeneration: 81 compliant,
+  zero invalid and the same 9 pre-existing length warnings.
+- `git diff --check` passed. The product E2E remains RED until full source,
+  runtime and listener wiring is complete; no network/capacity pass is claimed.

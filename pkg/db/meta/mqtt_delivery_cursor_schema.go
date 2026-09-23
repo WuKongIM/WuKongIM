@@ -4,6 +4,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/rowcodec"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/schema"
+	"math"
 )
 
 // Column IDs and the complete source tuple are durable format identifiers.
@@ -28,8 +29,14 @@ var mqttDeliveryCursorTable = registerMetaTable(TableSpec[MQTTDeliveryCursor]{
 		{ID: 16, Name: "revision", Type: schema.TypeUint64, Required: true},
 		{ID: 17, Name: "last_mutation_digest", Type: schema.TypeString, Required: true},
 		{ID: 18, Name: "updated_at_ms", Type: schema.TypeInt64, Required: true},
+		{ID: 19, Name: "inflight_count", Type: schema.TypeUint64},
+		{ID: 20, Name: "inflight_bytes", Type: schema.TypeUint64},
+		{ID: 21, Name: "head_packet_id", Type: schema.TypeUint64},
+		{ID: 22, Name: "tail_packet_id", Type: schema.TypeUint64},
+		{ID: 23, Name: "last_window_packet_id", Type: schema.TypeUint64},
+		{ID: 24, Name: "last_window_delivery_order", Type: schema.TypeUint64},
 	},
-	Families: []schema.Family{{ID: 0, Name: "primary", Columns: []uint16{8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18}}},
+	Families: []schema.Family{{ID: 0, Name: "primary", Columns: []uint16{8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24}}},
 	Primary: PrimarySpec[MQTTDeliveryCursor]{IndexID: 1, Name: "pk_mqtt_delivery_cursor", Columns: []uint16{1, 2, 3, 4, 5, 6, 7}, Layout: KeyLayout{KeyString, KeyString, KeyUint64, KeyUint64, KeyUint8, KeyString, KeyString}, Key: func(r MQTTDeliveryCursor) KeyParts {
 		return mqttDeliveryCursorPrimaryKey(r.Key)
 	}},
@@ -57,6 +64,13 @@ func encodeMQTTDeliveryCursorRow(key []byte, r MQTTDeliveryCursor) ([]byte, erro
 	_ = w.Uint64(16, r.Revision)
 	_ = w.String(17, r.LastMutationDigest)
 	_ = w.Int64(18, r.UpdatedAtMS)
+	_ = w.Uint64(19, uint64(r.InflightCount))
+	_ = w.Uint64(20, uint64(r.InflightBytes))
+	_ = w.Uint64(21, uint64(r.HeadPacketID))
+	_ = w.Uint64(22, uint64(r.TailPacketID))
+	_ = w.Uint64(23, uint64(r.LastWindowPacketID))
+	_ = w.Uint64(24, uint64(r.LastWindowDeliveryOrder))
+
 	return rowcodec.Wrap(key, 1, rowcodec.CodecColumns, rowcodec.FlagChecksum, w.Bytes()), nil
 }
 
@@ -108,6 +122,39 @@ func decodeMQTTDeliveryCursorRow(key []byte, pk KeyParts, value []byte) (MQTTDel
 			r.LastMutationDigest, err = s.String()
 		case 18:
 			r.UpdatedAtMS, err = s.Int64()
+		case 19:
+			var n uint64
+			n, err = s.Uint64()
+			if n > math.MaxUint16 {
+				return MQTTDeliveryCursor{}, dberrors.ErrCorruptValue
+			}
+			r.InflightCount = uint16(n)
+		case 20:
+			r.InflightBytes, err = s.Uint64()
+		case 21:
+			var n uint64
+			n, err = s.Uint64()
+			if n > math.MaxUint16 {
+				return MQTTDeliveryCursor{}, dberrors.ErrCorruptValue
+			}
+			r.HeadPacketID = uint16(n)
+		case 22:
+			var n uint64
+			n, err = s.Uint64()
+			if n > math.MaxUint16 {
+				return MQTTDeliveryCursor{}, dberrors.ErrCorruptValue
+			}
+			r.TailPacketID = uint16(n)
+		case 23:
+			var n uint64
+			n, err = s.Uint64()
+			if n > math.MaxUint16 {
+				return MQTTDeliveryCursor{}, dberrors.ErrCorruptValue
+			}
+			r.LastWindowPacketID = uint16(n)
+		case 24:
+			r.LastWindowDeliveryOrder, err = s.Uint64()
+
 		}
 		if err != nil {
 			return MQTTDeliveryCursor{}, err
@@ -127,5 +174,11 @@ func inspectMQTTDeliveryCursorRow(r MQTTDeliveryCursor) InspectRow {
 		"accounted_through": r.AccountedThrough, "window_through": r.WindowThrough, "completed_through": r.CompletedThrough,
 		"pending_messages": r.PendingMessages, "pending_bytes": r.PendingBytes, "revision": r.Revision,
 		"last_mutation_digest": r.LastMutationDigest, "updated_at_ms": r.UpdatedAtMS,
+		"inflight_count":             uint64(r.InflightCount),
+		"inflight_bytes":             uint64(r.InflightBytes),
+		"head_packet_id":             uint64(r.HeadPacketID),
+		"tail_packet_id":             uint64(r.TailPacketID),
+		"last_window_packet_id":      uint64(r.LastWindowPacketID),
+		"last_window_delivery_order": uint64(r.LastWindowDeliveryOrder),
 	}
 }

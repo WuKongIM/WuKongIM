@@ -16,7 +16,7 @@ func mqttSessionFixture() MQTTSession {
 	return MQTTSession{Namespace: "main", ClientID: "client", UID: "alice", Generation: 1, Revision: 1,
 		OwnerGeneration: 1, OwnerNodeID: 2, OwnerBootID: "boot-a", ConnectionID: 17, LeaseUntilMS: 5000,
 		State: MQTTSessionActive, SessionExpirySec: 86400, DeviceFlag: 1, ReceiveMaximum: 64, MaxPacketBytes: 1 << 20,
-		NextPacketID: 1, NextDeliveryOrder: 1, PendingMessages: 2, PendingBytes: 123,
+		NextPacketID: 1, NextDeliveryOrder: 1, PendingMessages: 0, PendingBytes: 0,
 		QuotaMessages: 10000, QuotaBytes: 64 << 20, WillGeneration: 3, UpdatedAtMS: 1000}
 }
 
@@ -90,7 +90,7 @@ func TestMQTTSessionBatchOverlayAndAtomicFailure(t *testing.T) {
 	row := mqttSessionFixture()
 	r1, err := b.CompareAndSwapMQTTSession(7, 0, row)
 	require.NoError(t, err)
-	row.Revision, row.NextDeliveryOrder = 2, 4
+	row.Revision, row.QuotaBytes = 2, 128<<20
 	r2, err := b.CompareAndSwapMQTTSession(7, 1, row)
 	require.NoError(t, err)
 	require.NoError(t, b.SetSlotAppliedIndex(1, 99))
@@ -237,11 +237,30 @@ func TestMQTTSessionRejectsInvalidRowsAndCorruptValues(t *testing.T) {
 		_, err := mqttSessionTable.decodeValue(key, pk, corrupt)
 		require.Error(t, err)
 	}
-	// Column 25 is the final v1 value column; 26 is reserved for the index.
+	// Column 28 is the last known field; column 30 remains an optional future field.
 	// A new optional uint8 column 27
 	// must not change old fields or require a value-envelope version bump.
 	future := append(append([]byte(nil), env.Payload...), 0x26, 7)
 	got, err = mqttSessionTable.decodeValue(key, pk, rowcodec.Wrap(key, 1, env.Codec, env.Flags, future))
 	require.NoError(t, err)
 	require.Equal(t, row, got)
+}
+
+func TestMQTTSessionLifecycleCannotRewriteDeliveryAccounting(t *testing.T) {
+	s := openTestMetaStore(t)
+	defer s.close(t)
+	row := mqttSessionFixture()
+	row.PendingMessages, row.PendingBytes = 0, 0
+	require.Equal(t, MQTTSessionCASApplied, writeMQTTSession(t, s.db, row, 0).Status)
+	for _, change := range []func(*MQTTSession){
+		func(r *MQTTSession) { r.PendingMessages = 1 },
+		func(r *MQTTSession) { r.PendingBytes = 1 },
+		func(r *MQTTSession) { r.NextPacketID++ },
+		func(r *MQTTSession) { r.NextDeliveryOrder++ },
+	} {
+		next := row
+		next.Revision++
+		change(&next)
+		require.Equal(t, MQTTSessionCASConflict, writeMQTTSession(t, s.db, next, 1).Status)
+	}
 }

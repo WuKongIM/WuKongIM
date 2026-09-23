@@ -10,6 +10,12 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 )
 
+// MQTTMaxInflight bounds durable per-session window state and allocator work.
+const MQTTMaxInflight uint16 = 1024
+
+// MQTTDefaultWindowLimit is the initial bound when no explicit limit is stored.
+const MQTTDefaultWindowLimit uint16 = 64
+
 // MQTTSessionState identifies durable session lifetime, not socket presence.
 type MQTTSessionState uint8
 
@@ -64,10 +70,15 @@ type MQTTSession struct {
 	NextPacketID uint16 `json:"next_packet_id"`
 	// NextDeliveryOrder preserves resend order independently of wrapping packet IDs.
 	NextDeliveryOrder uint64 `json:"next_delivery_order"`
-	PendingMessages   uint64 `json:"pending_messages"`
-	PendingBytes      uint64 `json:"pending_bytes"`
-	QuotaMessages     uint64 `json:"quota_messages"`
-	QuotaBytes        uint64 `json:"quota_bytes"`
+	// OutboundInflight is maintained only by atomic window mutations.
+	OutboundInflight uint16 `json:"outbound_inflight"`
+	// WindowLimit zero keeps the legacy/default limit. Receive Maximum also applies
+	// to new admission; reconnect may retain more old rows than the new peer limit.
+	WindowLimit     uint16 `json:"window_limit"`
+	PendingMessages uint64 `json:"pending_messages"`
+	PendingBytes    uint64 `json:"pending_bytes"`
+	QuotaMessages   uint64 `json:"quota_messages"`
+	QuotaBytes      uint64 `json:"quota_bytes"`
 	// WillGeneration references the current configuration, not old durable Will tasks.
 	WillGeneration    uint64               `json:"will_generation"`
 	TerminationReason MQTTSessionEndReason `json:"termination_reason"`
@@ -117,6 +128,7 @@ func ValidateMQTTSession(r MQTTSession) error {
 	}
 	if r.Generation == 0 || r.Revision == 0 || r.OwnerGeneration == 0 || r.OwnerNodeID == 0 || r.ConnectionID == 0 ||
 		r.DeviceFlag > 2 || r.ReceiveMaximum == 0 || r.MaxPacketBytes == 0 || r.NextPacketID == 0 || r.NextDeliveryOrder == 0 ||
+		r.OutboundInflight > MQTTMaxInflight || r.WindowLimit > MQTTMaxInflight || uint64(r.OutboundInflight) > r.PendingMessages ||
 		r.QuotaMessages == 0 || r.QuotaBytes == 0 || r.UpdatedAtMS <= 0 || r.LeaseUntilMS < 0 || r.OfflineExpiresAtMS < 0 {
 		return dberrors.ErrInvalidArgument
 	}
@@ -172,7 +184,7 @@ func (b *Batch) CompareAndSwapMQTTSession(slot HashSlot, expected uint64, row MQ
 			if old.Revision != expected || !validMQTTSessionTransition(old, row) {
 				return nil
 			}
-		} else if expected != 0 || row.Generation != 1 || row.OwnerGeneration != 1 || row.State != MQTTSessionActive {
+		} else if expected != 0 || row.Generation != 1 || row.OwnerGeneration != 1 || row.State != MQTTSessionActive || row.PendingMessages != 0 || row.PendingBytes != 0 || row.OutboundInflight != 0 {
 			return nil
 		}
 		if err := stageUpdateRow(mqttSessionTable, state, batch, slot, row); err != nil {
@@ -197,9 +209,11 @@ func validMQTTSessionTransition(old, next MQTTSession) bool {
 		return false
 	}
 	if next.Generation != old.Generation {
-		return newOwner && next.State == MQTTSessionActive
+		return newOwner && next.State == MQTTSessionActive && next.PendingMessages == 0 && next.PendingBytes == 0 && next.OutboundInflight == 0
 	}
-	if next.NextDeliveryOrder < old.NextDeliveryOrder || (old.State == MQTTSessionEnded && next.State != MQTTSessionEnded) {
+	// Delivery commands own counters and allocators within a session lifetime.
+	if next.PendingMessages != old.PendingMessages || next.PendingBytes != old.PendingBytes || next.OutboundInflight != old.OutboundInflight ||
+		next.NextPacketID != old.NextPacketID || next.NextDeliveryOrder != old.NextDeliveryOrder || (old.State == MQTTSessionEnded && next.State != MQTTSessionEnded) {
 		return false
 	}
 	if old.State == MQTTSessionOffline && next.State == MQTTSessionActive && !newOwner {

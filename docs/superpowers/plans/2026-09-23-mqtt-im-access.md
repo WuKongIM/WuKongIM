@@ -1,6 +1,6 @@
 # MQTT IM 接入实施计划
 
-状态：实施中；codec、网关接口和 session/subscription/cursor 三张表及 Slot 命令已建立，MQTT 产品监听及完整持久运行时尚未接通。依据：[MQTT IM 接入设计](../../specs/mqtt-im-access.md)。
+状态：实施中；codec、网关接口和 session/subscription/cursor/inflight 四张表及 Slot 命令已建立，MQTT 产品监听及完整持久运行时尚未接通。依据：[MQTT IM 接入设计](../../specs/mqtt-im-access.md)。
 
 本计划交付 MQTT 5.0、QoS 0/1、精确主题、持久会话、跨节点接管、受权限约束的可靠恢复和 Will。阶段完成不等于整体完成；仅在线收发的版本不能作为本次需求交付。
 
@@ -11,8 +11,9 @@
 - 网关已增加独立 packet 接口，复用认证池、顺序 mailbox、串行写和共享空闲计时器；验证字节预算、认证回滚、Keep Alive、分片缓冲和原有协议回归。尚未在产品 app 中启用。
 - `mqtt_session`（metadata table 22）及 Slot CAS 命令 67 已实现，覆盖绑定、代次、条件更新、到期索引、诊断、快照和重放；具体冻结布局见 [storage contract](../../specs/mqtt-storage-contract.md)。尚未接入分布式代理与 owner 隔离。
 - `mqtt_subscription`（table 23）及命令 68 已实现：订阅变更与会话 owner/revision 原子校验、同主题选项替换保留代次、建立/撤销阶段恢复索引、快照及精确重试。尚未接通源保护或 SUBACK。
-- `mqtt_delivery_cursor`（table 24）及命令 69 已实现：按订阅/源代次持久初始化边界、积压计量和配额超限终止，与会话计数原子更新；计量不会推进投递完成水位。inflight/PUBACK 联动仍待实现。
-- 单节点/三节点产品 E2E 场景已编译，首次单节点运行因缺失 MQTT 配置项失败；app 接入、其余三张元数据表、共享 replay、发布元数据复制、源保护、持久会话/Will/配额及离线迁移仍待实现，不能开启入口或声明功能完成。
+- `mqtt_delivery_cursor`（table 24）及命令 69 已实现：按订阅/源代次持久初始化边界、积压计量和配额超限终止，与会话计数原子更新；计量不会推进投递完成水位。已与新增窗口命令建立存储层联动。
+- `mqtt_inflight`（table 25）及命令 70 已实现：有界窗口、不可变内容引用、原发送顺序、乱序 ACK 的缺口保护、原子释放计数及 ACK 删除后的精确重试；新窗口列兼容旧行，生命周期 CAS 不再改写投递计数。尚未接通网络发送、跨节点 owner 隔离或共享内容持久证明。
+- 单节点/三节点产品 E2E 场景已编译，首次单节点运行因缺失 MQTT 配置项失败；app 接入、其余两张元数据表、共享 replay、发布元数据复制、源保护、持久会话/Will/配额及离线迁移仍待实现，不能开启入口或声明功能完成。
 - 验证与冻结源码依据见 [实施记录](../../reports/mqtt-implementation-progress.md)。
 
 ## 开工合同

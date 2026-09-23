@@ -168,7 +168,7 @@ func TestMQTTDeliveryCursorQuotaEndsSessionAtomically(t *testing.T) {
 func TestMQTTDeliveryCursorStorageFormatAndBounds(t *testing.T) {
 	row := MQTTDeliveryCursor{Key: mqttCursorFixture(), Topic: mqttSubscriptionFixture().Topic,
 		AuthorizationVersion: 9, StartAfter: 100, AccountedThrough: 105, WindowThrough: 103, CompletedThrough: 101,
-		PendingMessages: 2, PendingBytes: 120, Revision: 8, LastMutationDigest: strings.Repeat("a", 64), UpdatedAtMS: 1000}
+		PendingMessages: 2, PendingBytes: 120, InflightCount: 1, InflightBytes: 60, HeadPacketID: 77, TailPacketID: 77, Revision: 8, LastMutationDigest: strings.Repeat("a", 64), UpdatedAtMS: 1000}
 	for _, change := range []func(*MQTTDeliveryCursor){
 		func(r *MQTTDeliveryCursor) { r.Key.Namespace = "" },
 		func(r *MQTTDeliveryCursor) { r.Key.ClientID = strings.Repeat("a", 1025) },
@@ -218,7 +218,7 @@ func TestMQTTDeliveryCursorStorageFormatAndBounds(t *testing.T) {
 		_, err = mqttDeliveryCursorTable.decodeValue(key, pk, bad)
 		require.Error(t, err)
 	}
-	future := append(append([]byte(nil), env.Payload...), 0x16, 7) // optional column 19
+	future := append(append([]byte(nil), env.Payload...), 0x16, 7) // optional column 25
 	got, err = mqttDeliveryCursorTable.decodeValue(key, pk, rowcodec.Wrap(key, 1, env.Codec, env.Flags, future))
 	require.NoError(t, err)
 	require.Equal(t, row, got)
@@ -318,14 +318,17 @@ func TestMQTTDeliveryCursorMultipleSourcesOfflineAccountingAndOverflow(t *testin
 	require.NoError(t, err)
 	got.Revision++
 	got.QuotaBytes = ^uint64(0)
-	got.PendingBytes = ^uint64(0) - 1
+
 	writeMQTTSession(t, s.db, got, 9)
 	require.Equal(t, MQTTSessionCASConflict, writeMQTTCursor(t, s.db, m).Status)
 	m.ExpectedRevision = 10
+	m.AddedBytes = ^uint64(0) - 201
+	require.Equal(t, MQTTSessionCASApplied, writeMQTTCursor(t, s.db, m).Status)
+	m.ExpectedRevision, m.Through, m.AddedBytes = 11, 105, 60
 	require.Equal(t, MQTTSessionCASConflict, writeMQTTCursor(t, s.db, m).Status, "byte arithmetic must not wrap")
 	row, _, err := s.db.HashSlot(7).GetMQTTDeliveryCursor(ctx, m.Key)
 	require.NoError(t, err)
-	require.EqualValues(t, 103, row.AccountedThrough)
+	require.EqualValues(t, 104, row.AccountedThrough)
 }
 
 func TestMQTTDeliveryCursorPagesPinnedSnapshotAndInspection(t *testing.T) {

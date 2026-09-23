@@ -40,8 +40,10 @@ var mqttSessionTable = registerMetaTable(TableSpec[MQTTSession]{
 		{ID: 24, Name: "termination_reason", Type: schema.TypeUint8, Required: true},
 		{ID: 25, Name: "updated_at_ms", Type: schema.TypeInt64, Required: true},
 		{ID: 26, Name: "deadline_ms", Type: schema.TypeInt64},
+		{ID: 27, Name: "outbound_inflight", Type: schema.TypeUint64},
+		{ID: 28, Name: "window_limit", Type: schema.TypeUint64},
 	},
-	Families: []schema.Family{{ID: 0, Name: "primary", Columns: []uint16{3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25}}},
+	Families: []schema.Family{{ID: 0, Name: "primary", Columns: []uint16{3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28}}},
 	Primary: PrimarySpec[MQTTSession]{IndexID: 1, Name: "pk_mqtt_session", Columns: []uint16{1, 2}, Layout: KeyLayout{KeyString, KeyString}, Key: func(r MQTTSession) KeyParts {
 		return mqttSessionPrimaryKey(r.Namespace, r.ClientID)
 	}},
@@ -85,6 +87,8 @@ func encodeMQTTSessionRow(key []byte, r MQTTSession) ([]byte, error) {
 	_ = w.Uint64(23, r.WillGeneration)
 	_ = w.Uint8(24, uint8(r.TerminationReason))
 	_ = w.Int64(25, r.UpdatedAtMS)
+	_ = w.Uint64(27, uint64(r.OutboundInflight))
+	_ = w.Uint64(28, uint64(r.WindowLimit))
 	return rowcodec.Wrap(key, mqttSessionValueVersion, rowcodec.CodecColumns, rowcodec.FlagChecksum, w.Bytes()), nil
 }
 
@@ -180,6 +184,16 @@ func decodeMQTTSessionRow(key []byte, pk KeyParts, value []byte) (MQTTSession, e
 			r.TerminationReason = MQTTSessionEndReason(small)
 		case 25:
 			r.UpdatedAtMS, err = s.Int64()
+		case 27, 28:
+			n, err = s.Uint64()
+			if n > math.MaxUint16 {
+				return MQTTSession{}, dberrors.ErrCorruptValue
+			}
+			if id == 27 {
+				r.OutboundInflight = uint16(n)
+			} else {
+				r.WindowLimit = uint16(n)
+			}
 		}
 		if err != nil {
 			return MQTTSession{}, err
@@ -204,5 +218,6 @@ func inspectMQTTSessionRow(r MQTTSession) InspectRow {
 		"quota_messages": r.QuotaMessages, "quota_bytes": r.QuotaBytes,
 		"will_generation": r.WillGeneration, "termination_reason": uint8(r.TerminationReason),
 		"updated_at_ms": r.UpdatedAtMS, "deadline_ms": mqttSessionDeadline(r),
+		"outbound_inflight": uint64(r.OutboundInflight), "window_limit": uint64(r.WindowLimit),
 	}
 }

@@ -186,6 +186,8 @@ const (
 	TableIDMQTTSubscription uint32 = 23
 	// TableIDMQTTDeliveryCursor stores per-subscription source progress and backlog accounting.
 	TableIDMQTTDeliveryCursor uint32 = 24
+	// TableIDMQTTInflight stores only the bounded unacknowledged exchange window.
+	TableIDMQTTInflight uint32 = 25
 )
 
 const (

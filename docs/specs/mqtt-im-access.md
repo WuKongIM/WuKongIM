@@ -1,6 +1,6 @@
 # WuKongIM MQTT IM 接入设计
 
-状态：设计及表级方案已于 2026-09-23 确认；codec、网关接口及 session/subscription/cursor 三张表和 Slot 命令已建立并验证；MQTT 产品入口、完整持久运行时和可靠消息源尚未实现。
+状态：设计及表级方案已于 2026-09-23 确认；codec、网关接口及 session/subscription/cursor/inflight 四张表和 Slot 命令已建立并验证；MQTT 产品入口、完整持久运行时和可靠消息源尚未实现。
 
 实施依据：[实施计划](../superpowers/plans/2026-09-23-mqtt-im-access.md)。本文件描述目标合同，不表示当前版本已提供这些能力。应用编码约定已冻结为 [wire contract](mqtt-wire-contract.md)。
 
@@ -209,7 +209,7 @@ MQTT 5.0 在恢复已有会话时按标准重发未确认报文；不照搬 WK �
 
 ## 10. 表级设计
 
-新增 7 张 KV 逻辑表：6 张 Slot 元数据表、1 张共享 replay 内容表；扩展现有 `message` 表的可选发布元数据，并新增源保护/转存进度的 System 记录。逻辑表职责与拆分已经确认。具体字段编码、索引和 durable ID 按 [storage contract](mqtt-storage-contract.md)逐步冻结；当前已实现 session/subscription/cursor 三张表及其 Slot 命令，其他表和可靠链路仍待实施。
+新增 7 张 KV 逻辑表：6 张 Slot 元数据表、1 张共享 replay 内容表；扩展现有 `message` 表的可选发布元数据，并新增源保护/转存进度的 System 记录。逻辑表职责与拆分已经确认。具体字段编码、索引和 durable ID 按 [storage contract](mqtt-storage-contract.md)逐步冻结；当前已实现 session/subscription/cursor/inflight 四张表及其 Slot 命令，其他表和可靠链路仍待实施。
 
 当前行与索引均带自己的 hash-slot 分区，见 [meta keys](../../pkg/db/meta/keys.go)。同 Slot 的二级索引不会自动成为另一 Slot 上的反向索引。
 

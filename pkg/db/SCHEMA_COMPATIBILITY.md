@@ -25,7 +25,9 @@ as a format migration and gate it behind an explicit rollout plan.
 ## Stable Durable IDs
 
 MQTT groundwork adds metadata tables 22 (`mqtt_session`), 23
-(`mqtt_subscription`) and 24 (`mqtt_delivery_cursor`), with Slot commands 67–69. Rows use key-bound checksum
+(`mqtt_subscription`), 24 (`mqtt_delivery_cursor`) and 25 (`mqtt_inflight`), with
+Slot commands 67–70. Optional window columns retain legacy zero defaults; lifecycle
+CAS now preserves delivery-owned counters and allocators within a generation. Rows use key-bound checksum
 column envelopes; commands have bounded, explicitly versioned bodies. Snapshots and inspection preserve its state. Product
 MQTT access remains disabled: routing/activation, other MQTT tables, offline
 transfer, restored-owner fencing and capability gates are still required before

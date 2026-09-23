@@ -200,7 +200,11 @@ specification, runbook, report, or module documentation; link to them when neede
   child's own last-mutation revision. These storage primitives do not prove source
   protection or permit product activation. Per-source backlog accounting updates
   the Session quota aggregate atomically and can durably terminate an overflowing
-  Session; it never advances window admission or contiguous completion.
+  Session; it never advances window admission or contiguous completion. Window
+  commands separately persist immutable references and ordered outstanding links.
+  ACK frees only its exchange and keeps earlier gaps; lifecycle CAS cannot reset
+  same-generation delivery counters/allocators. A stored window is not permission
+  for an unfenced socket to send.
 - Send permissions belong in `internal/usecase/message` before append;
   `pkg/channel` stays business-rule free. Mutable recipient metadata and delivery
   tags are authoritative at their owning Slot/Channel leaders. Remote caches must

@@ -49,7 +49,9 @@ It does not own product business policy or expose engine-specific APIs.
    stages. Each child stores its last mutation revision to prove exact retries.
    Per-source delivery cursors separate backlog accounting from window admission
    and completion. Accounting and aggregate quota termination share one Slot
-   commit; cursor revision/digest witnesses exact retries.
+   commit; cursor revision/digest witnesses exact retries. The bounded inflight
+   list preserves the earliest gap on out-of-order ACK. Exchange/cursor/session
+   changes are atomic; recovery uses original send order and immutable references.
 
 ## Invariants and Failure Semantics
 
