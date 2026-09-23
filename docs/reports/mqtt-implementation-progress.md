@@ -719,3 +719,43 @@ The publication path still needs offline JSONL/restore preservation and rollout
 capability gates. Persistent execution, server Will idempotency, shared replay,
 source protection, owner isolation and full product/scale acceptance remain
 unfinished; the listener remains unavailable and the full goal stays active.
+
+## Offline publication preservation
+
+Frozen source context at `1ab735c25`: root `AGENTS.md` remains
+`d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade`;
+`pkg/db/FLOW.md` is
+`49c5fe18bcf98edd7bc072dececaf0114f8d51d77f52cffb96b49f240dd2584e`;
+`pkg/db/message/FLOW.md` is
+`7915801bd8c77f7068623e6927143cbe75d0c88aea874c79b75d927d33448a21`.
+
+Message inspection returns independently owned optional publication bytes.
+JSONL export/import preserves them as `publication_metadata_b64`, absent on native
+rows. Preflight bounds base64 allocation, validates canonical content, requires
+a positive original source timestamp and checks expiry arithmetic before writes.
+Import batching includes metadata bytes. Both verify modes bind exact metadata
+SHA-256; native JSONL and digest fixtures remain unchanged. Older strict bundle
+readers reject the new field rather than silently dropping it.
+
+Tests were written first and reproduced missing export data, false equality for
+metadata-only changes, absent decoding support and byte-budget undercounting.
+Real-store tests cover ordinary/Will export, validation, import, reopen,
+inspection ownership and both comparison modes with 256 hash slots. Invalid
+base64/versions/bounds, expiry overflow and missing source time fail preflight.
+An additional RED test caught that metadata without an expiry property could
+otherwise pass preflight with a zero timestamp and fail later during storage;
+the preflight check now matches storage's positive-timestamp requirement.
+
+Validation: `GOWORK=off go test ./pkg/db/... -count=1 -timeout=90s` passed.
+After the final preflight correction, the complete transfer suite and its focused
+publication race tests passed again. The existing macOS linker warning remains.
+Named `flow-doc-contracts` passed after regeneration: 83 compliant, zero invalid,
+9 existing warnings. `git diff --check` passed.
+
+Read-only audit found that Node restore verification and installation retain
+seekable message snapshot bytes and delegate to the already covered canonical
+backup reader/importer; they do not reconstruct payload-only records. This audit
+does not constitute complete product MQTT restore acceptance. MQTT state tables,
+owner fencing after restore, separate Will append identity, shared replay/source
+protection, runtime execution and capability/process/scale gates remain required.
+The listener remains unavailable and the full goal is active.

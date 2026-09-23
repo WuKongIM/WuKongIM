@@ -46,6 +46,9 @@ It does not own product policy or expose Pebble-specific APIs to callers.
 - Offline inspect/export/import/verify preserve all four message-edit tables. New
   JSONL edit datasets are omitted when empty; populated bundles require a
   matching CLI and import heads before their dependent projections.
+- Message JSONL preserves optional publication metadata and validates its bounds
+  and source timestamp before import. Native rows/digests remain unchanged;
+  import budgets and both comparison modes include the complete metadata.
 
 ## Read First
 

@@ -57,6 +57,7 @@ storage core without transferring shared-engine ownership.
   Metadata uses compatibility record codec 2; native codec-1 bytes stay unchanged.
   Matched runtimes, tooling and full-generation rollback are required. Import adds no empty-key exception, uniqueness relaxation,
   or recovery path and rejects values the native runtime cannot represent.
+  Inspection includes independently owned publication bytes only when present.
 
 - A sparse SyncOnce ordinal index (ID 7, complete marker system ID 11) excludes
   internal records from badge rank queries. Existing primary rows are rebuilt in

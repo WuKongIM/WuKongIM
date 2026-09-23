@@ -207,7 +207,10 @@ specification, runbook, report, or module documentation; link to them when neede
   reads retain HW/retention fences and omit history-edit overlays for retry proof.
   Owner-push RPC 2 preserves content, settings and original timestamp; envelopes
   with extended fields need upgraded owners, including native sends with time.
-  Offline transfer and capability gates remain before activation.
+  Message JSONL carries optional metadata; preflight validates its source clock,
+  import budgets count it, and both verify modes bind its exact SHA-256. Native
+  JSONL/digests remain unchanged. MQTT state transfer, restore fencing and
+  capability gates remain before activation.
   See the [publication contract](../specs/mqtt-publication-metadata.md).
   Source-owned binding tombstones prevent delayed prepares from resurrecting a
   subscription. Unknown source boundaries block reclamation; stored progress

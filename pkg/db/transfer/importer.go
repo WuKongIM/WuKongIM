@@ -317,7 +317,7 @@ type messageImportState struct {
 	records []msgdb.Record
 	// batchBaseSeq is the strict append base of records.
 	batchBaseSeq uint64
-	// recordBytes approximates the payload memory held by records.
+	// recordBytes bounds body and publication metadata memory held by records.
 	recordBytes int
 }
 
@@ -345,14 +345,15 @@ func (s *messageImportState) visit(row MessageRecord) error {
 		s.batchBaseSeq = uint64(row.MessageSeq)
 	}
 	s.records = append(s.records, msgdb.Record{
-		ID:                uint64(row.MessageID),
-		ClientMsgNo:       row.ClientMsgNo,
-		FromUID:           row.FromUID,
-		Payload:           row.Payload,
-		SizeBytes:         len(row.Payload),
-		ServerTimestampMS: row.ServerTimestampMS,
+		ID:                  uint64(row.MessageID),
+		ClientMsgNo:         row.ClientMsgNo,
+		FromUID:             row.FromUID,
+		Payload:             row.Payload,
+		PublicationMetadata: row.PublicationMetadata,
+		SizeBytes:           len(row.Payload) + len(row.PublicationMetadata),
+		ServerTimestampMS:   row.ServerTimestampMS,
 	})
-	s.recordBytes += len(row.Payload)
+	s.recordBytes += len(row.Payload) + len(row.PublicationMetadata)
 	s.stats.RowsWritten++
 	s.stats.MessagesImported++
 	if len(s.records) >= s.opts.MessageBatchSize || s.recordBytes >= s.opts.MessageBatchBytes {

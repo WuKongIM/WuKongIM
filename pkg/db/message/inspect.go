@@ -209,7 +209,7 @@ func inspectChannelRow(entry ChannelCatalogEntry) InspectMessageRow {
 
 func inspectMessageRow(msg Message) InspectMessageRow {
 	payload := append([]byte(nil), msg.Payload...)
-	return InspectMessageRow{
+	row := InspectMessageRow{
 		"message_seq":         msg.MessageSeq,
 		"message_id":          msg.MessageID,
 		"client_msg_no":       msg.ClientMsgNo,
@@ -219,4 +219,8 @@ func inspectMessageRow(msg Message) InspectMessageRow {
 		"payload_size":        uint64(len(payload)),
 		"payload":             payload,
 	}
+	if len(msg.PublicationMetadata) != 0 {
+		row["publication_metadata"] = append([]byte(nil), msg.PublicationMetadata...)
+	}
+	return row
 }

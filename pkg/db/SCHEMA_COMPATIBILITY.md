@@ -27,8 +27,13 @@ as a format migration and gate it behind an explicit rollout plan.
 MQTT publication groundwork adds optional message column 21 (`publication_metadata`),
 compatibility record codec 2 and exact proposal format 3. Absent metadata keeps
 native record bytes and format-1/2 hashes unchanged. Binary backups preserve the
-new column and identity; message DTO/RPC propagation, JSONL transfer, restore
-consumers and capability gating are not complete, so product MQTT stays disabled.
+column and exact proposal identities; product send and owner-push DTO/RPC carry
+the content. JSONL preserves message identities and publication metadata.
+JSONL omits `publication_metadata_b64` on native rows; older strict readers reject
+populated records. Preflight validates bounded metadata and a positive source
+timestamp, import byte budgets include metadata, and summary/full verification
+bind its SHA-256 without changing native digests. MQTT state transfer, restore
+owner fencing and capability gating remain incomplete, so access stays disabled.
 New data requires matched runtimes and tools and a pre-feature backup for rollback.
 See [the publication format](../../docs/specs/mqtt-publication-metadata.md).
 

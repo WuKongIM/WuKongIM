@@ -104,9 +104,10 @@ including native traffic before MQTT activation. Record SizeBytes includes both
 body and metadata; exact proposal validation rejects malformed content and
 understated sizes. Publication clock validation remains at durable admission.
 
-This remains infrastructure groundwork. SendCommand and product runtime/RPC DTOs,
-JSONL offline transfer, restore consumers, append-idempotency content checks,
-server Will idempotency and cluster capability gates still require propagation.
+This remains infrastructure groundwork. SendCommand, product append/owner-push
+RPC, JSONL transfer and original-content retry checks are covered below. Server
+Will idempotency, MQTT state transfer/restore fencing, shared replay, protected
+sources, authoritative session execution and cluster capability gates remain.
 The product listener remains disabled. Do not emit these records in a mixed
 cluster or downgrade/restore them with older tooling. Full activation requires
 matched owners, voters, learners and recovery tools; rollback after activation
@@ -137,6 +138,16 @@ selects version 2, native version-1 fixture stability, every truncated prefix,
 unknown/mislabeled version, oversized or malformed metadata, independent byte
 ownership in both projection directions, and a real client/handler round trip
 preserving the entire event and classified recipient results.
+
+Offline message JSONL gains optional `publication_metadata_b64`; omission keeps
+native rows byte-identical. Matching tools validate the decoded bounded value
+and its positive original source timestamp/expiry basis during preflight. Older strict JSONL readers reject
+this field rather than discard it. Inspection owns exposed bytes, import batch
+budgets include them, and both summary/full verification bind their exact SHA-256.
+Failure coverage: real store export/import/reopen with ordinary and Will metadata,
+unchanged native rows, metadata-only comparison differences, malformed/oversized
+base64 or metadata, absent/empty compatibility, invalid Will/expiry clocks and
+metadata-triggered import flushing before the row-count threshold.
 
 The next propagation boundary includes SendCommand, durable Message, committed
 and transient envelopes, appender mappings and the product append node RPC.

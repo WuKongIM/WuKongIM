@@ -792,14 +792,19 @@ func exportMessageRecord(channelKey string, row msgdb.InspectMessageRow) (Messag
 	if err != nil {
 		return MessageRecord{}, err
 	}
+	metadata, err := inspectPublicationMetadata(row)
+	if err != nil {
+		return MessageRecord{}, err
+	}
 	return MessageRecord{
-		ChannelKey:        channelKey,
-		MessageSeq:        Uint64(messageSeq),
-		MessageID:         Uint64(messageID),
-		ClientMsgNo:       clientMsgNo,
-		FromUID:           fromUID,
-		ServerTimestampMS: serverTimestampMS,
-		PayloadB64:        base64.StdEncoding.EncodeToString(payload),
+		ChannelKey:             channelKey,
+		MessageSeq:             Uint64(messageSeq),
+		MessageID:              Uint64(messageID),
+		ClientMsgNo:            clientMsgNo,
+		FromUID:                fromUID,
+		ServerTimestampMS:      serverTimestampMS,
+		PayloadB64:             base64.StdEncoding.EncodeToString(payload),
+		PublicationMetadataB64: base64.StdEncoding.EncodeToString(metadata),
 	}, nil
 }
 

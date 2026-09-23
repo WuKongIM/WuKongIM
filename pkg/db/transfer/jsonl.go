@@ -208,6 +208,11 @@ func decodeRecord(kind FileKind, line []byte) (any, error) {
 		}
 		record.PayloadB64 = *wire.PayloadB64
 		record.Payload = payload
+		record.PublicationMetadata, err = decodePublicationMetadata(wire.PublicationMetadataB64, record.ServerTimestampMS)
+		if err != nil {
+			return nil, err
+		}
+		record.PublicationMetadataB64 = wire.PublicationMetadataB64
 		return record, nil
 	default:
 		return nil, fmt.Errorf("unknown kind %q", kind)
@@ -242,13 +247,14 @@ func (w channelLatestRecordWire) record() ChannelLatestRecord {
 }
 
 type messageRecordWire struct {
-	ChannelKey        string  `json:"channel_key"`
-	MessageSeq        Uint64  `json:"message_seq"`
-	MessageID         Uint64  `json:"message_id"`
-	ClientMsgNo       string  `json:"client_msg_no"`
-	FromUID           string  `json:"from_uid"`
-	ServerTimestampMS int64   `json:"server_timestamp_ms"`
-	PayloadB64        *string `json:"payload_b64"`
+	ChannelKey             string  `json:"channel_key"`
+	MessageSeq             Uint64  `json:"message_seq"`
+	MessageID              Uint64  `json:"message_id"`
+	ClientMsgNo            string  `json:"client_msg_no"`
+	FromUID                string  `json:"from_uid"`
+	ServerTimestampMS      int64   `json:"server_timestamp_ms"`
+	PayloadB64             *string `json:"payload_b64"`
+	PublicationMetadataB64 string  `json:"publication_metadata_b64,omitempty"`
 }
 
 func (w messageRecordWire) record() MessageRecord {
