@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Refresh a cached Channel leader once when its RPC dial fails, allowing sends to resume after failover without changing uncertain-send recovery. Verify MQTT replay recovery with the old leader stopped. / 修复旧 Leader 停止后发送仍停留在缓存路由的问题：明确拨号失败时刷新路由并重试一次，未决发送恢复规则保持不变；已验证旧 Leader 停止后的 MQTT 回放恢复。
+
 - Require local MQTT replay coverage before planned Channel cutover and migration fence clearing; temporary catch-up stays runnable. Repair leader checkpoint propagation and graceful-drain fence application. Product MQTT access remains under development. / 频道计划迁移切换与解除写入封禁前核验 MQTT 本地回放覆盖，暂时落后可继续恢复；修复 Leader 检查点传播及排空前封禁应用，产品 MQTT 接入仍在开发。
 
 - Allow MQTT replay planning and background replica recovery under a stable migration write fence, while keeping new copying and business writes fenced. Product MQTT admission remains under development. / MQTT 回放规划与后台副本恢复可在稳定迁移写入栅栏下继续执行，新复制和业务写入仍受阻；产品 MQTT 接入仍在开发。

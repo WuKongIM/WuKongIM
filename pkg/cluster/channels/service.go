@@ -16,6 +16,7 @@ import (
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	nodetransport "github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 const forwardAppendRecoveryTimeout = 100 * time.Millisecond
@@ -1849,7 +1850,11 @@ func unavailableAppendMetaError(meta ch.Meta) error {
 }
 
 func retryableMetaCacheError(err error) bool {
-	return channelErrorMatches(err, ch.ErrStaleMeta) ||
+	// A failed dial sent no request on that connection. Refresh a cached dead
+	// leader through the existing one-shot retry; ambiguous send failures retain
+	// their separate committed-outcome recovery contract.
+	return errors.Is(err, nodetransport.ErrDialFailed) ||
+		channelErrorMatches(err, ch.ErrStaleMeta) ||
 		channelErrorMatches(err, ch.ErrChannelNotFound) ||
 		channelErrorMatches(err, ch.ErrNotLeader) ||
 		channelErrorMatches(err, ch.ErrNotReplica) ||

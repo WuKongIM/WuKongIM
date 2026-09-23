@@ -2920,3 +2920,46 @@ subscription/downlink/PUBACK entry paths, unavailable-owner recovery, fenced Wil
 execution, full lifecycle/configuration, MQTT offline transfer and process/load
 acceptance remain open. The product listener remains unavailable; the full
 implementation goal remains active.
+
+## Stopped-leader failover and resumed ordinary sending
+
+The real three-node failover test now stops the original Channel leader, selects
+an ISR target lacking shared replay, and runs the real Slot-backed failover task.
+It proves native leader installation before replay recovery, unchanged runnable
+verification while content is missing, rejected writes under the fence, repair
+from a surviving donor, content equality, fence removal and resumed ordinary
+append. TCP, disks and 256 hash Slots are real. Target selection/task scheduling
+are controlled; this is not a claim about automatic health-scanner selection or
+product MQTT E2E completion.
+
+The first fixture used full write readiness after a node stopped, which also
+requires three healthy placement candidates for new Channels. Existing Channel
+recovery instead needs the surviving Slot/Channel quorum, so the fixture now
+checks fresh authoritative metadata. The next run completed recovery but sending
+still dialed the dead cached leader (`/tmp/mqtt-failover-stopped-leader3.log`).
+Single and batch append now include typed transport dial failure in their existing
+one-shot fresh-authority retry. Exact-version invalidation and ambiguous-send
+recovery remain unchanged. Sequential joined polling removes a test diagnostic
+race caused by reading a timed-out Eventually callback's error variable.
+
+Failure inventory and frozen context:
+[mqtt-failover-recovery.md](../specs/mqtt-failover-recovery.md).
+
+Validation:
+
+- Failing single/batch/permanent-dial regression:
+  `/tmp/mqtt-failover-dial-red.log`.
+- `GOWORK=off go test -race ./pkg/cluster/channels -count=1 -timeout=120s`:
+  passed, 7.534 s; `/tmp/mqtt-failover-dial-green.log`. Includes existing
+  metadata-floor, bounded retry and uncertain committed-outcome recovery tests.
+- `GOWORK=off go test -race -tags=integration ./pkg/cluster
+  -run '^TestMQTTFailoverThreeNodeRecoversMissingContentAfterLeaderStops$'
+  -count=1 -timeout=120s -v`: passed, test 11.94 s / package 13.300 s;
+  `/tmp/mqtt-failover-stopped-leader-green.log`, with explicit evidence line.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-failover-flow.log`. Generated index is current and diff whitespace clean.
+
+Next connect independently proven source release, then consumer-proof replay GC
+and the remaining subscription/downlink/owner/Will/lifecycle/tooling acceptance.
+Source release and the MQTT product listener are still unavailable; the full goal
+remains active. No schema or wire-format change was needed for this repair.

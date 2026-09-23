@@ -29,16 +29,16 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    Person-directory prepare joins UID membership/runtime metadata before publishing directory-ready. MQTT metadata facades preserve foreground gates; read RPC 91 uses fresh Slot barriers and bounded coherent snapshots, with source/UID routing independent of Session routing.
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to
-   the exact leader while background control/task convergence stays bounded. MQTT source/replay RPCs 93/94 recheck fresh Slot authority, caller fences and the serving node across gateway swaps.
+   the exact leader. A cached leader's typed dial failure gets one fresh-route retry;
+   ambiguous sends retain committed-outcome recovery. MQTT source/replay RPCs 93/94
+   recheck fresh Slot authority, caller fences and the serving node across gateway swaps.
    RPCs 95–98 bind copying, anchors, planning and exact-interval repair to fresh authority.
    RPC 97 planning and RPC 99 target recovery permit stable write fences; neither releases history.
-   Active repair probes load authoritative replicas and verify follower durability;
-   leaders checkpoint recovered HW and request native committed-tail propagation.
+   Active repair probes verify follower durability; leaders checkpoint recovered HW and request native tail propagation.
    Fresh placement/fence checks bind optional replay coverage; diagnostics stay observational.
    Planned transfers and replacement require fresh coverage at cutover and fence clearing.
    Graceful drain applies/probes the fenced source; temporary catch-up yields without Slot writes.
-   Failover first selects a native leader, then gates fence clearing on replay coverage.
-   Dead leaders preempt unpromoted replacement through guarded abort and rescan;
+   Failover selects a native leader before requiring replay; dead leaders preempt unpromoted replacement through guarded abort and rescan;
    promoted tasks stay protected, and failover proof renewal never drains the dead source.
 4. Committed conversation and history reads batch Slot routes and group by exact Leader,
    preserving alignment and item errors. Conversation codec 10 carries UID-owned

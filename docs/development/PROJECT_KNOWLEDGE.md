@@ -395,6 +395,10 @@ specification, runbook, report, or module documentation; link to them when neede
   stay runnable without Slot writes. Graceful drain applies/probes source authority;
   active leader probes checkpoint recovered HW and request native tail propagation
   under the exact installed fence. This proves no source release or consumer GC.
+  A real stopped-leader test verifies native selection, fenced content recovery
+  from a surviving donor and resumed writes. Cached append routes refresh once
+  on typed transport dial failure; ambiguous post-send outcomes keep their existing
+  recovery rules. Candidate selection is explicit in this integration test.
   Product lifecycle wiring and source release remain required.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
