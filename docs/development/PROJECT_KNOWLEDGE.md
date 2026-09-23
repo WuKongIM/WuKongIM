@@ -321,6 +321,11 @@ specification, runbook, report, or module documentation; link to them when neede
   or model output. Named checks and path selection are defined only by
   [Review Agent policy](../../.github/review-agent/policy.json); focused Skill tests
   are cataloged only in [.agents/skill-tests.json](../../.agents/skill-tests.json).
+- Script integration `repoRoot(t)` also admits top-level tests to the bounded
+  parallel scheduler. Resolve it before creating command contexts, starting
+  processes, or allocating time-sensitive resources; queue time is not part of
+  a process deadline. Output-retention fixtures must observe streamed evidence
+  before injecting termination, independently of interpreter startup latency.
 - Local repair and the Deployment Action share `scripts/cloud-deployment/deploy.sh`
   for host activation, bounded readiness, and typed outcomes. Behavioral tests
   execute that entry with fake adapters; Go `clouddeploy` owns pure contracts

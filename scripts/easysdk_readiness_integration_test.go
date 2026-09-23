@@ -73,6 +73,9 @@ done
 }
 
 func TestEasySDKReadinessDetectsExitedServer(t *testing.T) {
+	// repoRoot admits this integration test to the parallel scheduler. Start
+	// process deadlines only after that potentially long scheduling wait.
+	root := repoRoot(t)
 	child := exec.Command("sh", "-c", "exit 0")
 	if err := child.Run(); err != nil {
 		t.Fatal(err)
@@ -83,9 +86,9 @@ func TestEasySDKReadinessDetectsExitedServer(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	output, err := exec.CommandContext(ctx, "bash", filepath.Join(repoRoot(t), "test/easysdk-release/wait-ready.sh"), strconv.Itoa(child.Process.Pid), log).CombinedOutput()
+	output, err := exec.CommandContext(ctx, "bash", filepath.Join(root, "test/easysdk-release/wait-ready.sh"), strconv.Itoa(child.Process.Pid), log).CombinedOutput()
 	if ctx.Err() != nil {
-		t.Fatal(ctx.Err())
+		t.Fatalf("readiness exit check: %v, process error=%v\n%s", ctx.Err(), err, output)
 	}
 	if err == nil || !strings.Contains(string(output), "exited before stable readiness") || !strings.Contains(string(output), "early exit diagnostic") {
 		t.Fatalf("unexpected result: %v\n%s", err, output)
