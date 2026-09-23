@@ -379,8 +379,12 @@ specification, runbook, report, or module documentation; link to them when neede
   yield to later sources; cold passes rotate phases, targets and donor hints.
   Partial budgets preserve unstarted entries, and source removal/Slot loss drops
   hints. Stop joins its exact run before restart/restore; three-node composition
-  verifies automatic learner recovery. Product lifecycle wiring, replicated source
-  release and replica readiness remain required.
+  verifies automatic learner recovery. Active migration probes attach optional
+  replica-local readiness: a pinned read binds captured HW/latest committed anchor
+  to independent replay coverage, with fresh complete placement/write-fence checks.
+  Absent/unsupported evidence is explicit; source copied-through is never coverage.
+  Ordinary diagnostics remain unchanged. Migration admission gates, product lifecycle
+  wiring and replicated source release remain required.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.

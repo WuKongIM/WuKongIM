@@ -34,8 +34,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    RPC 99 runs a bounded target-owned recovery step with donor rotation; none releases history or proves learner readiness.
    Repair probes activate cold replicas through authoritative metadata and the
    native reactor before inspecting progress. Native follower proofs recheck exact
-   durable state and metadata/runtime authority, rejecting future epochs/fences; diagnostics stay read-only. A dead
-   Leader can preempt an unpromoted replacement through the existing guarded
+   durable state and authority, then attach optional local replay coverage under fresh placement/fence checks;
+   diagnostics remain unchanged. A dead Leader can preempt an unpromoted replacement through the guarded
    abort, then elect from the next authoritative scan; promoted tasks are protected.
    Replacement catch-up stays runnable while its valid target is lagging.
    Failover proof renewal re-probes the surviving target under the current fence;

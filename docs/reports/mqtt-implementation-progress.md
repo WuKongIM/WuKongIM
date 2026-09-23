@@ -2763,3 +2763,46 @@ completion. Delivery/ACK/recovery, fenced Will execution, unavailable-owner proo
 product configuration/start-stop-restore composition, state transfer and full
 process/load acceptance remain required. Product MQTT admission is unavailable;
 the complete implementation goal remains active.
+
+## Replica-local replay coverage in active migration probes
+
+Active migration probes now attach optional replay evidence read from the target
+replica's own pinned storage view. Captured native HW selects its latest committed
+anchor; independently retained content and historical meters prove coverage.
+Missing shared content returns uncovered even when the native log is complete.
+Source copied-through is not coverage, pending controls are not requirements, and
+release obligations cannot be hidden by a missing anchor. Fresh complete placement,
+write fence and runtime authority are checked around the read. Old/unsupported
+stores leave evidence absent; ordinary diagnostic probes stay unchanged.
+The existing JSON migration RPC preserves the optional field without a table,
+index or persisted-format change. No migration admission or source-release decision
+is made by this observation alone.
+
+Failure inventory and frozen context preceded code in
+[mqtt-replica-readiness.md](../specs/mqtt-replica-readiness.md).
+
+Validation:
+
+- Missing-contract RED: `/tmp/mqtt-replica-readiness-red.log`. Focused green:
+  `/tmp/mqtt-replica-readiness-focused.log` (message 2.751 s, channel 1.456 s,
+  store 1.249 s, hosted service 0.472 s). Covered missing/partial shared content,
+  older captured anchors, pending controls, corruption, cancellation, changed
+  authority and unsupported capability. One closed-lease assertion was corrected
+  to expect the compatibility layer's existing `channel: closed` error.
+- `GOWORK=off go test -race ./pkg/db/message ./pkg/channel/...
+  ./pkg/cluster/channels ./pkg/cluster -count=1 -timeout=180s`: all passed,
+  `/tmp/mqtt-replica-readiness-regression.log` (message 37.172 s, cluster 10.676 s).
+- `GOWORK=off go test -race -tags=integration ./pkg/cluster
+  -run '^(TestMQTTRepairThreeNode|TestNativeQuorumColdFollowerRepairProbe|TestClusterChannelRepairProbeLoadsAndRefreshesDurableReplica)'
+  -count=1 -timeout=120s -v`: passed, `/tmp/mqtt-replica-readiness-integration.log`
+  (package 25.191 s, MQTT three-node test 10.48 s). Real TCP/disks and 256 hash
+  slots prove the remote learner reports uncovered before repair and covered
+  after restart; native cold/durable follower probes still pass. The storage
+  test separately verifies readiness after original-body trimming and reopen.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-replica-readiness-flow.log`. Index regenerated; `git diff --check`
+  passed. Existing macOS linker warnings remain non-failing.
+
+Migration admission gates and background recovery under a stable write fence are
+next, followed by replicated source release and consumer-proof GC. Product MQTT
+admission remains unavailable and the full implementation goal remains active.

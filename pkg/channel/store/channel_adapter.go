@@ -1022,6 +1022,17 @@ func (a *messageDBChannelStoreAdapter) LoadCommittedMQTTSource(ctx context.Conte
 	return ch.MQTTSourceSnapshot{Generation: source.Generation, StartAfter: source.StartAfter, CommittedThrough: through}, true, nil
 }
 
+func (a *messageDBChannelStoreAdapter) ReadMQTTReplayReadiness(ctx context.Context, through uint64) (ch.MQTTReplayReadiness, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayReadiness{}, err
+	}
+	r, err := a.store.ReadMQTTReplayReadiness(ctx, through)
+	if err != nil {
+		return ch.MQTTReplayReadiness{}, a.mapError(err)
+	}
+	return ch.MQTTReplayReadiness{CommittedThrough: r.CommittedThrough, AnchorPosition: r.AnchorPosition, RequiredThrough: r.RequiredThrough, Covered: r.Covered}, nil
+}
+
 // PrepareMQTTReplay translates storage-owned envelopes without another body
 // clone; their lifetime is independent of this temporary store lease.
 func (a *messageDBChannelStoreAdapter) PrepareMQTTReplay(ctx context.Context, req ch.MQTTReplayRange) (ch.MQTTReplayPage, error) {

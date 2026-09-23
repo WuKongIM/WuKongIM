@@ -445,3 +445,9 @@ type MQTTReplayAnchorTransfer interface {
 type MQTTReplayRepairPlanner interface {
 	PlanMQTTReplayRepair(context.Context, ch.MQTTReplayRepairScan) (ch.MQTTReplayRepairPlan, error)
 }
+
+// MQTTReplayReadinessReader verifies local shared coverage at a captured native
+// frontier in one pinned view. It cannot grant source release or consumer GC.
+type MQTTReplayReadinessReader interface {
+	ReadMQTTReplayReadiness(context.Context, uint64) (ch.MQTTReplayReadiness, error)
+}

@@ -113,7 +113,8 @@ Compatibility maps Channel records/offsets to this core without transferring eng
   removes pending entries. Backups require matching journals and format versions.
   Anchor repair verifies local journals under append/checkpoint ownership; pinned exports must reach the exact endpoint.
   Repair planning verifies coverage/cursors, scans at most 64 journals and returns one bounded interval or explicit continuation.
-  Trim/restart preserve exact retries; neither repair nor planning changes source release or HW.
+  Pinned readiness binds captured HW/latest anchor to local replay coverage, never source copied-through.
+  Trim/restart preserve proofs; repair, planning and readiness cannot release sources or advance HW.
   Suffix cuts never split proposals; recovery replacement is fenced by the
   inspected frontier and atomically replaces complete verified proposal pages.
 - Queue-depth publication is monotonic through grouped collection and terminal
@@ -129,8 +130,7 @@ Compatibility maps Channel records/offsets to this core without transferring eng
   path, and invalidates before and after every attempted mutation. Ordinary
   append does not invalidate unchanged retention state; cancellation, close and
   durable decoding errors remain visible.
-- Close rejects new work, drains admitted operations and pins, reclaims entries,
-  and closes the physical engine exactly once. One lease cannot close another.
+- Close drains admitted operations/pins and closes the engine once; one lease cannot close another.
 - Backup count and content come from one pinned view; restore is exact-retry
   idempotent, conflicts with different state, and cleans partial rows in bounded
   batches before retry.

@@ -82,7 +82,7 @@ func (s *Service) ActivateReplicaForRepair(ctx context.Context, id ch.ChannelID)
 			}
 			proof.LEO, proof.HW, proof.CheckpointHW = state.LEO, state.Committed, state.Committed
 		}
-		return proof, nil
+		return s.attachMQTTReplayReadiness(ctx, meta, proof)
 	}
 	return ch.RuntimeProbeChannel{}, ch.ErrChannelNotFound
 }

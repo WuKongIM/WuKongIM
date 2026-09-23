@@ -74,6 +74,11 @@ func TestMQTTRepairThreeNodeLearnerRestartAndIsolation(t *testing.T) {
 	}
 	_, err = read(nodes[2])
 	require.Error(t, err, "learner journal must not imply shared content")
+	lagging, err := nodes[0].ProbeChannel(ctx, 3, id.ID, id.Type)
+	require.NoError(t, err)
+	require.NotNil(t, lagging.ReplayReadiness)
+	require.True(t, lagging.ReplayReadiness.ValidFor(lagging.HW))
+	require.False(t, lagging.ReplayReadiness.Covered)
 	want, err := read(nodes[1])
 	require.NoError(t, err)
 	recovery := ch.MQTTReplayRecoveryRequest{Target: 3, Source: ch.MQTTReplayPlanRequest{ChannelID: id, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 1, ExpectedRouteGeneration: 1, Generation: source.Generation}, TargetAnchor: proof.Manifest.LastOffset, ScanLimit: 1}
@@ -132,6 +137,12 @@ func TestMQTTRepairThreeNodeLearnerRestartAndIsolation(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, covered.Plan.Complete)
 	require.False(t, covered.Repaired)
+	ready, err := nodes[0].ProbeChannel(ctx, 3, id.ID, id.Type)
+	require.NoError(t, err)
+	require.NotNil(t, ready.ReplayReadiness)
+	require.True(t, ready.ReplayReadiness.ValidFor(ready.HW))
+	require.True(t, ready.ReplayReadiness.Covered)
+	require.Equal(t, proof.Anchor.Through, ready.ReplayReadiness.RequiredThrough)
 	route := waitRouteKeyLeaderConverged(t, nodes, id.ID)
 	transferSlotLeaderAndWait(t, nodes, route.SlotID, 3)
 	stopNodes(t, nodes[0], nodes[1])
@@ -140,5 +151,5 @@ func TestMQTTRepairThreeNodeLearnerRestartAndIsolation(t *testing.T) {
 	failed, err := nodes[2].StepChannelMQTTReplayRecovery(blocked, recovery)
 	require.Error(t, err)
 	require.Zero(t, failed)
-	t.Log("mqtt_repair_evidence: nodes=3 hash_slots=256 physical_slots=2 tcp=true disk=true learner_target=true independent_anchor=true bounded_interval_planning=true scan_continuation=true donor_rotation=true restart=true exact_retry=true isolated_rejected=true source_release=false target_owned_recovery_step=true automatic_scheduler=false product_listener=false")
+	t.Log("mqtt_repair_evidence: nodes=3 hash_slots=256 physical_slots=2 tcp=true disk=true learner_target=true independent_anchor=true bounded_interval_planning=true scan_continuation=true donor_rotation=true restart=true exact_retry=true isolated_rejected=true source_release=false target_owned_recovery_step=true replica_readiness_evidence=true automatic_scheduler=false product_listener=false")
 }
