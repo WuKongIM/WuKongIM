@@ -195,6 +195,10 @@ specification, runbook, report, or module documentation; link to them when neede
   membership; protocol ACKs are separate from read state; delivery obligations
   survive ordinary history cleanup within their explicit lifetime and limits.
   Reliable recovery must cover messages from every entry, not only MQTT sends.
+  Session/subscription Slot writes fence owner and revision atomically; repeated
+  subscription options preserve delivery generation, and exact retry uses the
+  child's own last-mutation revision. These storage primitives do not prove source
+  protection or permit product activation.
 - Send permissions belong in `internal/usecase/message` before append;
   `pkg/channel` stays business-rule free. Mutable recipient metadata and delivery
   tags are authoritative at their owning Slot/Channel leaders. Remote caches must

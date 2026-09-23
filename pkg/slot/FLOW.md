@@ -52,10 +52,10 @@ plugin, migration, message projections, and MQTT session state.
 3. Maintenance and migration controls use the same fenced worker/FSM path:
    snapshots and backup prove an applied boundary, while Channel migration
    advances task and runtime metadata together through guarded phases.
-4. MQTT session CAS carries a bounded versioned row and expected revision.
-   Conditional conflicts return deterministic outcomes; successful row/index
-   changes commit with the applied watermark and survive snapshot/replay.
-   Product routing and old-owner fencing must precede future MQTT activation.
+4. MQTT session CAS and subscription mutation use bounded versioned commands.
+   Subscription writes check the full session owner and revision, then change
+   child/session/index state atomically. Conditional conflicts are deterministic;
+   successful writes commit with the applied watermark and survive snapshot/replay.
 
 ## Invariants and Failure Semantics
 

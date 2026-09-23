@@ -24,9 +24,9 @@ as a format migration and gate it behind an explicit rollout plan.
 
 ## Stable Durable IDs
 
-MQTT groundwork adds metadata table 22 (`mqtt_session`) and Slot command 67.
-The row uses a key-bound checksum column envelope; the command has a bounded,
-explicitly versioned body. Snapshots and inspection preserve its state. Product
+MQTT groundwork adds metadata tables 22 (`mqtt_session`) and 23
+(`mqtt_subscription`), with Slot commands 67 and 68. Rows use key-bound checksum
+column envelopes; commands have bounded, explicitly versioned bodies. Snapshots and inspection preserve its state. Product
 MQTT access remains disabled: routing/activation, other MQTT tables, offline
 transfer, restored-owner fencing and capability gates are still required before
 this feature can be enabled. Details and frozen IDs are in

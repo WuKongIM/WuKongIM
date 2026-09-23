@@ -44,7 +44,10 @@ It does not own product business policy or expose engine-specific APIs.
    are cloned on return, and authority/routing checks remain outside storage.
 7. MQTT session bindings use revision CAS with independent session/owner
    generations. Complete-key deadline pages cover active leases and offline
-   expiry; ended rows retain UID binding. Row/index updates share the FSM batch.
+   expiry; ended rows retain UID binding. Subscription intents atomically check
+   owner/revision, preserve generation on option replacement, and index recovery
+   stages. Each child stores its last mutation revision to prove exact retries.
+   Row/index updates share the FSM batch.
 
 ## Invariants and Failure Semantics
 

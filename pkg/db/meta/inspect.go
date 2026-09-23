@@ -81,6 +81,8 @@ func InspectScan(ctx context.Context, db *MetaDB, req InspectScanRequest) (Inspe
 	}
 
 	switch req.Table {
+	case "mqtt_subscription":
+		return inspectScanTable(ctx, db, req, slots, mqttSubscriptionTable, inspectMQTTSubscriptionRow)
 	case "mqtt_session":
 		return inspectScanTable(ctx, db, req, slots, mqttSessionTable, inspectMQTTSessionRow)
 	case "user":

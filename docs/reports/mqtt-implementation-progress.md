@@ -2,7 +2,7 @@
 
 Full goal: implement the approved [MQTT IM access design](../specs/mqtt-im-access.md).
 Status: in progress; the product has no MQTT listener yet. The codec, generic
-gateway and first session-table/Slot-command slice are implemented. Other tables,
+gateway and session/subscription tables with Slot commands are implemented. Other tables,
 cluster session recovery, source retention protection and durable delivery remain
 outstanding. No passing product E2E or capacity claim is made.
 
@@ -163,3 +163,48 @@ commands. CAS does not prove old-owner isolation or supply an authoritative
 cluster read. Distributed routing, owner leases/fencing, the remaining tables,
 offline transfer, restored-owner invalidation, readiness gates and all original
 reliable delivery/Will/scale acceptance requirements remain required work.
+
+
+## Subscription intent and atomic owner fence
+
+Frozen source context at `c19e28c46`:
+
+- Root `AGENTS.md`: `d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade`
+- `pkg/db/FLOW.md`: `49c5fe18bcf98edd7bc072dececaf0114f8d51d77f52cffb96b49f240dd2584e`
+- `pkg/db/meta/FLOW.md`: `fa95c3be00881889a00a53468fea9fc4505797f541dc61cbec49b3e821f07dab`
+- `pkg/slot/FLOW.md`: `636bf617263ff36124531d02b4790cbb77648030b98c3cffb455acd5339f4c3a`
+
+Metadata table 23 persists exact-topic intent, stable subscription generation,
+options and recoverable establishment/removal stages. Slot command 68 checks the
+complete owner identity and session revision, then atomically changes intent and
+advances session revision without resetting backlog/quota counters. The new
+subscription generation is allocated from that never-reused resulting revision.
+Active option replacement preserves source cursor identity. Recovery can finish
+existing work offline; new intents/options require an active session. Ended and
+older session generations allow only cleanup transitions.
+
+Tests were written at the previously approved metadata/FSM boundaries before
+implementation. They cover missing/stale owner rejection, exact/changed retry,
+phase and generation guards, same-batch visibility, atomic failure, namespace and
+generation isolation, complete-key bounded recovery pages, stale index removal,
+checksum/codec bounds, pinned snapshot, inspection, owned Slot validation and
+FSM snapshot/replay. Review identified a false-retry case: an unrelated session
+CAS could advance revision while leaving the same child value. A failing test
+reproduced it; storing the exact child mutation revision (column 18) now separates
+that case from a genuine completed retry.
+
+This is two of seven planned tables. Projection completion, source protection,
+SUBACK, distributed routing/owner isolation, remaining four metadata tables,
+shared replay, publication metadata, transfer/restore gates, Will, quotas and
+full process/scale acceptance remain outstanding. Product MQTT is still disabled.
+
+
+Validation for the subscription slice (2026-09-23):
+
+- `GOWORK=off go test ./pkg/db/... ./pkg/slot/... -count=1 -timeout=90s` passed.
+- `GOWORK=off go test -race ./pkg/db/meta ./pkg/slot/fsm -run 'TestMQTT(Session|Subscription)' -count=1 -timeout=45s` passed;
+  the macOS linker emitted its existing LC_DYSYMTAB warning.
+- Named `flow-doc-contracts` passed after regenerating the index: 81 compliant
+  files, no invalid files and the same 9 pre-existing length warnings.
+- `git diff --check` passed. No product interop result changed; its documented
+  RED state remains until the product listener and full persistent chain exist.

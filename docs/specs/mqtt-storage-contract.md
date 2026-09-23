@@ -69,3 +69,54 @@ owner rejection without failing unrelated commands, owned hash-Slot enforcement,
 atomic applied watermark, snapshot/replay preservation, bounded malformed-command
 rejection and an inspection catalog entry. A successful FSM CAS still requires
 the session use case's owner-isolation proof before a socket may become active.
+
+## Subscription row and owner-fenced mutation
+
+`mqtt_subscription` uses table **23**, primary index **1**, family **0** and
+recovery index **2**. Its primary tuple is `(namespace, client_id,
+session_generation, exact_topic)`. Value columns 5–17 are subscription generation,
+target kind, target ID, granted QoS, No Local, Retain As Published, Retain Handling,
+Subscription Identifier, authorization version, stage, operation ID, recovery time
+and update time. Column 18 is the resulting session revision of this exact child
+mutation; it prevents an unrelated session CAS from falsely acknowledging a retry.
+Columns 1–4 are the primary tuple. The checksum column envelope
+is version 1; all initial value fields are required. Target kinds are user inbox
+(1) and group (2); the use case validates canonical topic/target correspondence.
+
+Slot command **68** has a version-1 JSON body, rejects unknown fields and trailing
+values, and is bounded to 32 KiB including its existing version-1 command header.
+It atomically checks the session revision and full
+owner identity, mutates the subscription and increments session revision. It
+cannot create a session, change its owner or reset its backlog counters. Exact
+retries succeed only while that owner, resulting revision and complete child row
+remain current. New subscription generations use the resulting session revision,
+which never repeats within a ClientID binding. Creating one intent per command
+keeps generation allocation and per-filter outcomes deterministic.
+
+Stages are Preparing (1), Active (2), Removing (3), Removed (4). Preparing and
+Removing have a positive recovery timestamp; other stages have none. Creating an
+intent requires the active current session generation. Preparing becomes Active
+only after the use case establishes source protection and recoverable bindings;
+this storage primitive is not proof of either. Active option replacement retains
+the subscription generation, target, authorization version and operation ID, so
+existing delivery cursors are not reset. Cancellation traverses Removing before
+Removed. Removed is a tombstone until bounded cleanup; a later SUBSCRIBE allocates
+a fresh generation. Existing work may finish while offline. Ended or older
+session generations may only advance cleanup, never activate or create intents.
+
+Failure inventory before implementation at the already approved metadata/FSM
+seams: missing session; stale revision or any stale owner identity component;
+future/ended/old session activation; session counter loss; changed retry; invalid
+stage skips/regressions; generation/target/operation or authorization rebinding;
+option replacement dropping existing progress; same-batch visibility; neighboring
+failure leaving half a session/subscription/index update; namespace/generation
+isolation; equal-time complete-key recovery pagination; stale index removal;
+unbounded topic, identifier, page or command; corrupt/missing/type/version/checksum
+row values; snapshot/inspection omission; wrong Slot ownership; command replay
+and durable applied watermark. Codec tests cover the storage format contract;
+product behavior continues to require the process-level acceptance suite.
+
+Recovery pages are bounded to 256 and include the entire primary tuple after the
+timestamp. Session-generation scans are bounded to 256 with an exact-topic cursor.
+These are node-storage reads. Distributed authority, coherent quota reads,
+source-side projection, cleanup and mixed-version activation remain required.

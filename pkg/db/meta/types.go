@@ -182,6 +182,8 @@ const (
 	TableIDMessageUpdatePending uint32 = 21
 	// TableIDMQTTSession stores broker-scoped ClientID bindings and session fences.
 	TableIDMQTTSession uint32 = 22
+	// TableIDMQTTSubscription stores owner-fenced subscription intents and recovery stages.
+	TableIDMQTTSubscription uint32 = 23
 )
 
 const (

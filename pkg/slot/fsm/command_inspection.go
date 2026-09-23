@@ -42,6 +42,15 @@ func DecodeCommandInspection(data []byte) (CommandInspection, error) {
 
 func inspectCommand(cmd command) (CommandInspection, error) {
 	switch typed := cmd.(type) {
+	case *mqttSubscriptionCmd:
+		m := typed.payload.Mutation
+		r := m.Subscription
+		return simpleInspection("mqtt_subscription_mutation", map[string]any{
+			"broker_namespace": r.Namespace, "client_id": r.ClientID, "session_generation": r.SessionGeneration,
+			"expected_revision": m.ExpectedRevision, "owner_generation": m.OwnerGeneration, "owner_node_id": m.OwnerNodeID,
+			"topic": r.Topic, "generation": r.Generation, "target_kind": uint8(r.TargetKind), "target_id": r.TargetID,
+			"stage": uint8(r.Stage), "operation_id": r.OperationID,
+		}), nil
 	case *mqttSessionCASCmd:
 		r := typed.payload.Session
 		return simpleInspection("mqtt_session_cas", map[string]any{
