@@ -71,6 +71,7 @@ func verifyMQTTConsumerProgress(t *testing.T, ctx context.Context, nodes []*clus
 	require.NoError(t, err)
 	require.False(t, gap.Changed)
 	require.Equal(t, prepared.Binding, gap.Binding)
+	verifyMQTTReplayRetention(t, ctx, nodes, prepared, prepared.Cursor.StartAfter, false)
 	mutate(meta.MQTTWindowMutation{Op: meta.MQTTWindowAck, PacketID: pending[0].PacketID, DeliveryOrder: pending[0].DeliveryOrder})
 	completed, err := progress.Reconcile(ctx, prepared.Binding.Key)
 	require.NoError(t, err)
@@ -86,6 +87,7 @@ func verifyMQTTConsumerProgress(t *testing.T, ctx context.Context, nodes []*clus
 	require.NoError(t, err)
 	require.False(t, again.Changed)
 	require.Equal(t, completed.Binding, again.Binding)
+	verifyMQTTReplayRetention(t, ctx, nodes, prepared, completed.Binding.CompletedThrough, true)
 	t.Log("mqtt_consumer_progress_evidence: consumer_progress_cross_hash_slot=true ack_gap_preserved=true coalesced_projection=true independent_remote_read=true admission=controlled product_listener=false")
 	return progress
 }

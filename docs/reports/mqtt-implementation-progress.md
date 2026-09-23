@@ -3125,3 +3125,60 @@ readiness. Final binding removal, full subscription/inbox projection, permission
 ordering, downlink/ACK entry paths, unavailable-owner recovery, Will execution,
 product lifecycle/configuration, offline tooling and process/load acceptance
 remain required. The full goal is active; product MQTT admission stays unavailable.
+
+## Coherent consumer floor and ordered retention planning
+
+`ReplayRetention` now captures the accepted Channel replay anchor before reading
+the first source-owned retention page. A fresh Slot barrier and strict pinned
+primary/index view provide the minimum consumer floor, capped by that anchor.
+Unknown preparation and Removing obligations continue to constrain the result.
+The final fresh placement read rejects changes in membership, route, status or
+write fence. Cancellation and unproven/foreign/partial responses return no plan;
+results detach placement slices. No anchor means no range and no consumer read.
+
+Admission safety depends on the existing GroupSources ordering: commit unknown
+responsibility, then confirm the fresh source tail, then fix the start. A binding
+registered after the planner's snapshot therefore cannot choose a start below
+its earlier captured anchor. Reading consumers before capturing the anchor would
+break that guarantee. The planner performs at most four bounded port calls,
+without a subscriber scan, cache, worker, new table/command/read kind or wire format.
+
+The generic index reader previously skipped absent or mismatched primary rows.
+New fault tests reproduced both cases returning success. The retention method
+now pins its own snapshot for direct calls (or reuses its enclosing read snapshot)
+and verifies at most limit+1 witnesses, failing on missing, stale or corrupt
+entries. Existing pagination conventions are preserved. This is not a full
+integrity audit for arbitrary missing indexes; atomic index maintenance remains
+the storage invariant.
+
+Contract, ordering argument and test-first inventory:
+[mqtt-replay-retention-planning.md](../specs/mqtt-replay-retention-planning.md).
+
+Validation:
+
+- Storage RED reproduced missing/stale witness skipping;
+  `/tmp/mqtt-retention-storage-red.log`. Usecase/composition RED confirmed the
+  missing APIs: `/tmp/mqtt-retention-plan-red.log`,
+  `/tmp/mqtt-retention-composition-red.log`.
+- Focused tests passed: metadata 0.995 s/usecase 1.062 s;
+  `/tmp/mqtt-retention-focused.log`.
+- `GOWORK=off go test -p 2 -race ./pkg/db/meta ./pkg/slot/proxy
+  ./internal/usecase/mqttsession -count=1 -timeout=180s`: passed, respectively
+  32.138 s, 15.513 s and 23.199 s; `/tmp/mqtt-retention-race.log`.
+- `GOWORK=off go test -p 2 -race -tags=integration ./internal/app
+  -run '^TestMQTTGroupSourcePreparationThreeNodeRecovery$' -count=1
+  -timeout=120s -v`: passed, test 14.03 s/package 15.736 s;
+  `/tmp/mqtt-retention-three-node.log`. Real three-node TCP/disks and 256 hash
+  Slots verify ACK-gap floors, authoritative minima, unknown registration
+  blocking and post-registration boundary selection alongside prior recovery
+  coverage. The test controls subscription/window admission and the additional
+  registration; it does not claim complete product projection or physical GC.
+- `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-retention-flow.log`. Generated index and whitespace pass.
+
+The resulting plan is not a durable GC certificate. Next replicate the selected
+source decision and implement physical reclamation with retained accounting/hash
+boundaries so repair, readiness and restart remain valid after prefix deletion.
+Final binding removal and all remaining product projection, permission, delivery,
+owner recovery, Will, lifecycle/configuration, tooling and process/load acceptance
+work remain required. The full goal stays active and MQTT product access unavailable.

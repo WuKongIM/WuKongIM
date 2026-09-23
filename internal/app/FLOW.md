@@ -65,7 +65,7 @@ Stop or startup rollback
   renewal/observed disconnect to Session usecases. Real-gateway/Paho integration validates the entry; product wiring remains pending.
   Replay worker composition wires fresh SlotMetaSource and foreground Node ports;
   three-node managed-loop coverage verifies fenced learner recovery and original-source release.
-  Consumer progress composition uses foreground Node reads/CAS across Session/source Slots; it grants no shared GC.
+  Consumer progress and retention use foreground Node ports; retention captures anchors before consumer floors and grants no local GC.
   Full product start/stop/restore wiring and listener admission remain pending.
 - Command-channel suffixes are injected across send, delivery, CMD sync, plugin
   projection and Manager filtering without process-global state.

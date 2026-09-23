@@ -48,8 +48,8 @@ It does not own product business policy or expose engine-specific APIs.
    Accounting and quota termination share one Slot commit. The bounded inflight
    list preserves earliest ACK gaps; exchange/cursor/session updates are atomic,
    and recovery uses immutable references in original send order.
-   Source/UID bindings retain removal tombstones and index discovery, reconciliation
-   and conservative retention floors; unknown boundaries block reclamation.
+   Source/UID bindings retain tombstones and discovery/recovery indexes; unknown boundaries block retention.
+   Retention pages pin at most limit+1 strict primary/index witnesses, rejecting missing or stale entries.
    Distinct Channel-source discovery seeks across retention-index owner prefixes,
    checking at most 65 primary/index witnesses in one pinned view. It preserves
    Preparing/Removing obligations and proves neither consumer completion nor GC.

@@ -302,9 +302,14 @@ must block reclamation until resolved. UID qualification is absent from the
 retention index. Removed rows leave all three indexes but remain addressable.
 Pages are bounded to 256. Stored/projection progress is only a conservative
 candidate for GC; missing authority or stale proofs never mean no consumers.
-The raw table index scan is not a coherent cross-row snapshot during concurrent
-mutations; a read barrier alone does not make an empty candidate page a GC proof.
-The distributed GC adapter must bind authoritative reads to a coherent view.
+Generic table scans are insufficient for GC. The retention method now pins its
+own snapshot (or reuses the enclosing read snapshot), validates at most limit+1
+index/primary witnesses and rejects inconsistent entries rather than skipping
+them. A fresh first-page read with limit one yields the minimum or explicit
+absence. The [retention planner](mqtt-replay-retention-planning.md) captures an
+accepted Channel anchor BEFORE that read and caps its floor by the anchor, so
+later registrations cannot select an earlier source boundary. This plan still
+requires a replicated reclamation decision and recovery-aware physical cleanup.
 Progress projections may coalesce multiple committed cursor advances; high-scale
 fanout must not require one source-Slot write per recipient per publication.
 

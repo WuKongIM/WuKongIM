@@ -18,6 +18,17 @@ func newMQTTReplayCoordinator(node *cluster.Node, ids interface{ Next() uint64 }
 	})
 }
 
+// newMQTTReplayRetention composes ordered anchor/minimum reads through current
+// cluster authority. Reclamation still requires a replicated source decision.
+func newMQTTReplayRetention(node *cluster.Node) (*sessioncase.ReplayRetention, error) {
+	if node == nil {
+		return nil, sessioncase.ErrInvalid
+	}
+	return sessioncase.NewReplayRetention(sessioncase.ReplayRetentionOptions{
+		Metadata: channels.NewSlotMetaSource(node), Channels: node, Store: node,
+	})
+}
+
 // newMQTTReplayWorker binds the managed loop to real discovery and turn ports.
 // The caller owns start/stop/restore ordering relative to Node and its allocator.
 func newMQTTReplayWorker(node *cluster.Node, ids interface{ Next() uint64 }, options runtime.ReplayWorkerOptions) (*runtime.ReplayWorker, error) {

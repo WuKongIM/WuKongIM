@@ -276,6 +276,12 @@ specification, runbook, report, or module documentation; link to them when neede
   without writes. Explicit ended/replaced lifetimes retain Removing responsibility;
   offline or missing state proves no completion. It never marks Removed, invents
   source-release acknowledgement or authorizes shared-content GC.
+  [Retention planning](../specs/mqtt-replay-retention-planning.md) captures the
+  committed anchor before reading the first strict consumer-floor page. New
+  bindings register unknown responsibility before confirming their fresh tail;
+  reversing these reads breaks admission safety. Strict snapshot reads reject
+  inconsistent index witnesses and inspect at most limit+1 rows. Planning alone
+  cannot delete content; replicated GC and retained repair proofs remain required.
   MQTT metadata facades route Session children by the frozen namespace/ClientID
   hash and source bindings by ordinary Channel ID or UID. Read RPC 91 requires
   a fresh Slot barrier and pinned primary/index snapshot; recovery explicitly

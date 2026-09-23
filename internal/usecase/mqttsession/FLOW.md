@@ -35,9 +35,8 @@ no packet, concrete cluster/gateway adapter, worker or shared replay storage.
 4. Renew inside an admitted scope, preserve delivery/Will state, commit exact
    revision and install the original deadline. Confirmed loss/clock failure
    fences immediately; unconfirmed writes cannot extend local execution.
-5. Disconnect captures observation before blocking isolation outside the caller's
-   scope, rereads exact ownership and commits Will/expiry without restarting their
-   clock or changing normal intent because isolation took time.
+5. Disconnect captures observation before isolation outside the caller's scope,
+   then rereads ownership and commits Will/expiry without restarting clocks or changing normal intent.
    Late disconnect never changes a successor; original zero expiry cannot extend.
    Queued entry cleanup supplies an optional trusted local monotonic observation;
    wall-only or future values fail before isolation and are never client input.
@@ -48,12 +47,10 @@ no packet, concrete cluster/gateway adapter, worker or shared replay storage.
 7. Subscription establishment commits Preparing before projection, checks exact
    receipt/current child and permission, then commits Active. Removal commits
    Removing before closing matching work, and preserves outstanding exchanges.
-   Same-lifetime owner resume reconciles stable intent; option replacement keeps
-   its generation and operation. See the [failure inventory](../../../docs/specs/mqtt-subscription-orchestration.md).
-8. Group source preparation installs an unknown-boundary source binding before
-   confirming and saving its initial cursor boundary. Exact Session cursor CAS
-   precedes binding activation; lost replies and owner resume preserve that
-   boundary. It returns preparation evidence, never a subscription completion receipt.
+   Resume preserves intent; option replacement keeps generation/operation. See the [failure inventory](../../../docs/specs/mqtt-subscription-orchestration.md).
+8. Group preparation registers an unknown binding before fresh source confirmation.
+   It fixes one start, initializes the Session cursor, then activates the binding.
+   Lost replies/resume preserve that start; this is no subscription completion receipt.
 9. Replay alternates bounded copy/anchor admission and recovery under fresh placement.
    Targets pin anchors and scan/donor hints; placement resets hints and cold passes rotate work.
    Fenced turns only recover existing anchors; absent anchors yield without copying.
@@ -62,6 +59,9 @@ no packet, concrete cluster/gateway adapter, worker or shared replay storage.
     only contiguous completion with one CAS. Unchanged floors produce no write.
     Explicit lifetime end retains Removing without fabricating source release;
     offline/absent state cannot discharge responsibility or authorize content GC.
+11. Retention captures an accepted anchor before the strict minimum-consumer read.
+    Unknown/removing obligations limit the floor; later admission must fix a fresh tail.
+    Final placement/fence checks return planning evidence, never replica-local GC permission.
 
 ## Invariants and Failure Semantics
 

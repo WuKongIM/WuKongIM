@@ -68,26 +68,17 @@ func (s *Shard) ListMQTTSourceBindingRecovery(ctx context.Context, after MQTTSou
 	return rows, after, done, nil
 }
 
-// ListMQTTSourceBindingRetention returns conservative Channel-source floors.
-// Preparing without a boundary yields floor zero, never permission to reclaim.
-// An empty local result does not establish authoritative absence of consumers.
+// ListMQTTSourceBindingRetention returns conservative floors from a pinned view,
+// rejecting inconsistent index/primary witnesses rather than skipping them.
+// Unknown preparation yields zero. Authority and anchor ordering remain caller work.
 func (s *Shard) ListMQTTSourceBindingRetention(ctx context.Context, owner MQTTBindingOwner, after MQTTSourceBindingRetentionCursor, limit int) ([]MQTTSourceBinding, MQTTSourceBindingRetentionCursor, bool, error) {
 	if limit < 1 || limit > 256 || owner.Kind != MQTTBindingChannel || validateMQTTBindingOwner(owner) != nil {
 		return nil, after, false, dberrors.ErrInvalidArgument
 	}
-	var cursor KeyParts
 	if after != (MQTTSourceBindingRetentionCursor{}) {
 		if after.Key.Owner != owner || validateMQTTSourceBindingKey(after.Key) != nil {
 			return nil, after, false, dberrors.ErrInvalidArgument
 		}
-		cursor = mqttSourceBindingRetentionParts(after.Key, after.CompletedThrough)
 	}
-	rows, next, done, err := mqttSourceBindingTable.ScanIndex(ctx, s, 4, mqttBindingOwnerParts(owner), cursor, limit)
-	if err != nil {
-		return nil, after, false, err
-	}
-	if len(next) > 0 {
-		after = MQTTSourceBindingRetentionCursor{CompletedThrough: next[3].U64, Key: MQTTSourceBindingKey{Owner: owner, Namespace: next[4].S, ClientID: next[5].S, SessionGeneration: next[6].U64, SubscriptionGeneration: next[7].U64}}
-	}
-	return rows, after, done, nil
+	return s.readMQTTSourceRetention(ctx, owner, after, limit)
 }
