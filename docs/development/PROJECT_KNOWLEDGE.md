@@ -356,8 +356,13 @@ specification, runbook, report, or module documentation; link to them when neede
   recovery; changed fences suppress the receipt. Store planning now selects the next
   interval from one local frontier/journal view, verifies continuation coverage and
   scans at most 64 journals. Completion covers only the exact requested target;
-  source copied-through never substitutes for missing replay content. Automatic
-  runtime/donor scheduling, replicated source release and replica readiness remain required.
+  source copied-through never substitutes for missing replay content. Node/RPC 99
+  composes this planner with target-owned recovery: four donors at most, 750 ms
+  per donor inside five seconds, current leader/ISR before learners, and resumable
+  donor rotation. Import retains its pre-import plan; only the next verified read
+  reports completion. Replies carry exact request echoes and proofs within 4 KiB;
+  RPC 98 carries bodies. Receiver admission and stable migration fences are reused.
+  Background scheduling, replicated source release and replica readiness remain required.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.

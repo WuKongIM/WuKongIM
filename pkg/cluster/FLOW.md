@@ -30,8 +30,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to
    the exact leader while background control/task convergence stays bounded. MQTT source/replay RPCs 93/94 recheck fresh Slot authority, caller fences and the serving node across gateway swaps.
-   Copy/anchor/planning RPCs 95–97 bind fresh majorities to reactor proofs. RPC 98 repairs
-   bounded committed-anchor intervals among current replicas, including learners; none releases history.
+   RPCs 95–98 bind copying, anchors, planning and exact-interval repair to fresh authority.
+   RPC 99 runs a bounded target-owned recovery step with donor rotation; none releases history or proves learner readiness.
    Repair probes activate cold replicas through authoritative metadata and the
    native reactor before inspecting progress. Native follower proofs recheck exact
    durable state and metadata/runtime authority, rejecting future epochs/fences; diagnostics stay read-only. A dead

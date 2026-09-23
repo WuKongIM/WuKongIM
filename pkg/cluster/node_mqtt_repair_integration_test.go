@@ -76,35 +76,34 @@ func TestMQTTRepairThreeNodeLearnerRestartAndIsolation(t *testing.T) {
 	require.Error(t, err, "learner journal must not imply shared content")
 	want, err := read(nodes[1])
 	require.NoError(t, err)
-	scan := ch.MQTTReplayRepairScan{Generation: source.Generation, TargetAnchor: proof.Manifest.LastOffset, Limit: 1}
+	recovery := ch.MQTTReplayRecoveryRequest{Target: 3, Source: ch.MQTTReplayPlanRequest{ChannelID: id, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 1, ExpectedRouteGeneration: 1, Generation: source.Generation}, TargetAnchor: proof.Manifest.LastOffset, ScanLimit: 1}
 	q := ch.MQTTReplayRepairRequest{Target: 3, Donor: 2, Request: replay}
 	var prefix ch.MQTTReplayPrefix
 	complete, continuations, repaired := false, 0, 0
-	for step := 0; step < 6; step++ {
-		st, e := nodes[2].defaultChannelStore.ChannelStore(m.Key, id)
+	for step := 0; step < 8; step++ {
+		result, e := nodes[0].StepChannelMQTTReplayRecovery(ctx, recovery)
 		require.NoError(t, e)
-		plan, e := st.(channelstore.MQTTReplayRepairPlanner).PlanMQTTReplayRepair(ctx, scan)
-		require.NoError(t, e)
-		require.NoError(t, st.Close())
-		require.True(t, plan.ValidFor(scan))
-		if plan.Complete {
-			require.Equal(t, proof.Prefix(), plan.Current)
+		require.True(t, result.ValidFor(recovery))
+		if result.Plan.Complete {
+			require.Equal(t, proof.Prefix(), result.Plan.Current)
 			complete = true
 			break
 		}
-		selected, more, e := plan.NextRange()
-		require.NoError(t, e)
-		if !more {
-			require.Greater(t, plan.ScanAfter, scan.AfterAnchor)
-			scan.AfterAnchor = plan.ScanAfter
-			continuations++
+		if result.Repaired {
+			selected, more, e := result.Plan.NextRange()
+			require.NoError(t, e)
+			require.True(t, more)
+			q.AnchorPosition, q.Request.Range = result.Plan.Next.Manifest.LastOffset, selected
+			prefix = result.Plan.Next.Prefix()
+			recovery.AfterAnchor, recovery.DonorAfter = 0, 0
+			repaired++
 			continue
 		}
-		q.AnchorPosition, q.Request.Range = plan.Next.Manifest.LastOffset, selected
-		prefix, e = nodes[0].RepairChannelMQTTReplay(ctx, q)
-		require.NoError(t, e)
-		require.Equal(t, plan.Next.Prefix(), prefix)
-		repaired++
+		if !result.Plan.HasNext {
+			require.Greater(t, result.Plan.ScanAfter, recovery.AfterAnchor)
+			continuations++
+		}
+		recovery.AfterAnchor, recovery.DonorAfter = result.Plan.ScanAfter, result.DonorAfter
 	}
 	require.True(t, complete)
 	require.Equal(t, 1, continuations)
@@ -129,13 +128,17 @@ func TestMQTTRepairThreeNodeLearnerRestartAndIsolation(t *testing.T) {
 	prefix, err = nodes[0].RepairChannelMQTTReplay(ctx, q)
 	require.NoError(t, err)
 	require.Equal(t, proof.Prefix(), prefix)
+	covered, err := nodes[0].StepChannelMQTTReplayRecovery(ctx, recovery)
+	require.NoError(t, err)
+	require.True(t, covered.Plan.Complete)
+	require.False(t, covered.Repaired)
 	route := waitRouteKeyLeaderConverged(t, nodes, id.ID)
 	transferSlotLeaderAndWait(t, nodes, route.SlotID, 3)
 	stopNodes(t, nodes[0], nodes[1])
 	blocked, done := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer done()
-	failed, err := nodes[2].RepairChannelMQTTReplay(blocked, q)
+	failed, err := nodes[2].StepChannelMQTTReplayRecovery(blocked, recovery)
 	require.Error(t, err)
 	require.Zero(t, failed)
-	t.Log("mqtt_repair_evidence: nodes=3 hash_slots=256 physical_slots=2 tcp=true disk=true learner_target=true independent_anchor=true bounded_interval_planning=true scan_continuation=true donor_rotation=true restart=true exact_retry=true isolated_rejected=true source_release=false automatic_scheduler=false product_listener=false")
+	t.Log("mqtt_repair_evidence: nodes=3 hash_slots=256 physical_slots=2 tcp=true disk=true learner_target=true independent_anchor=true bounded_interval_planning=true scan_continuation=true donor_rotation=true restart=true exact_retry=true isolated_rejected=true source_release=false target_owned_recovery_step=true automatic_scheduler=false product_listener=false")
 }

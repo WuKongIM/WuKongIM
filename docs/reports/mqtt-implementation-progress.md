@@ -7,8 +7,10 @@ local replay/source-protection storage, Session acquisition/deadlines, owner
 supervision, subscription intent orchestration and the internal gateway/PUBLISH
 entry are implemented. Real Paho/TCP
 integration passes on a single-node cluster with 256 hash Slots. Distributed
-replay/source activation, subscription/delivery, Will execution, recovery/restore
-composition and capacity acceptance remain outstanding. No passing product E2E
+replay activation/copy/anchor and bounded recovery steps now pass three-node
+runtime integration. Automatic source-release/recovery scheduling, complete
+subscription/delivery, Will execution, product/restore composition and capacity
+acceptance remain outstanding. No passing product E2E
 or capacity claim is made.
 
 ## Frozen starting context
@@ -2547,3 +2549,56 @@ consumer-proof shared GC. Full source/inbox projection, permission ordering,
 delivery/ACK/recovery, Will execution, unavailable-owner proof, app/configuration,
 state transfer and full process/load acceptance remain required. The product MQTT
 listener remains unavailable; the full implementation goal is active.
+
+## Target-owned recovery steps through Node and RPC 99
+
+Failure inventory and frozen source are in
+[mqtt-replay-recovery-step.md](../specs/mqtt-replay-recovery-step.md).
+`Node.StepChannelMQTTReplayRecovery` now delegates one bounded operation to the
+exact target replica. That replica owns interval selection from its durable
+coverage and committed journals, then prioritizes the current leader and ISR
+before learners. Each step tries at most four distinct donors, with 750 ms fetch
+budgets inside a five-second operation. Failed rounds return the last attempted
+donor; missing or removed hints restart rotation without skipping content.
+
+The closed result preserves the full pre-import plan and distinguishes target
+coverage, continued journal scanning, one imported interval and donor retry.
+Only a subsequent planning read may report completion after import. Structurally
+invalid or mismatched-prefix donor pages rotate; local import errors surface.
+The receiver reloads its own committed proof atomically during import. Fresh
+Slot authority is checked before planning, each fetch/import and completion;
+changed placement/fences and cancellation withhold receipts even after a durable
+import. Stable migration write fences and learner placement remain supported.
+
+Existing four-slot receiver/donor admission is reused without nested receiver
+reservations or new goroutines. RPC 99 uses closed `WMUQ/WMUR` version 1 envelopes,
+full request echoes and a 4 KiB bound; RPC 98 carries the bounded content page.
+No table, persisted format, configuration key or product listener was added.
+
+Validation:
+
+- Failure inventory and tests preceded production code. Missing-contract RED:
+  `/tmp/mqtt-recovery-step-red.log`; focused green:
+  `/tmp/mqtt-recovery-step-focused.log` (channels 0.743 s, net 1.139 s,
+  Node package 1.311 s). Checks include donor rotation/malformed pages, invalid
+  hints/proofs/outcomes, stale authority, stable migration fences, cancellation,
+  import failure, panic cleanup, admission saturation and gateway replacement.
+- `GOWORK=off go test -race ./pkg/channel/... ./pkg/cluster/channels
+  ./pkg/cluster/net ./pkg/cluster -count=1 -timeout=180s`: passed all packages,
+  `/tmp/mqtt-recovery-step-regression.log` (channels 7.170 s, net 2.017 s,
+  Node package 13.893 s). Existing macOS LC_DYSYMTAB linker warnings are non-failing.
+- `GOWORK=off go test -race -tags=integration ./pkg/cluster
+  -run '^TestMQTTRepairThreeNode' -count=1 -timeout=90s -v`: passed,
+  `/tmp/mqtt-recovery-step-integration.log`, test 11.82 s/package 13.313 s.
+  Three nodes, real TCP/disks and 256 hash slots exercise origin-to-target RPC 99
+  and target-to-donor RPC 98, two imported intervals with one scan continuation,
+  a learner target, donor replacement for an exact retry, restart and rejection
+  after Slot quorum is lost. This is runtime integration, not product process E2E.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-recovery-step-flow.log`. The generated index is current.
+
+Next connect lifecycle scheduling, replicated source release, learner/migration
+readiness and consumer-proof shared GC. Complete source/inbox projection,
+permission ordering, delivery/ACK/recovery, Will execution, unavailable-owner
+proof, app/configuration, state transfer and full process/load acceptance remain
+required. The product MQTT listener remains unavailable; the full goal is active.

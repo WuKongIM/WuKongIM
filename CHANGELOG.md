@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add target-owned MQTT replay recovery steps with bounded donor rotation, resumable progress and fresh cluster fencing. Verified across replica restart; background scheduling and the product MQTT listener remain under development. / MQTT 回放新增目标副本自主恢复步骤，支持有界供数轮转、进度续传和最新集群权威校验；已验证副本重启，后台调度及产品监听仍在开发。
+
 - Select bounded MQTT recovery intervals from durable replica progress, validating scan continuations and preserving recovery after cleanup and restart. Automatic runtime scheduling and the product MQTT listener remain under development. / MQTT 恢复新增基于副本持久进度的有界区间规划，校验续扫游标并支持清理及重启后的恢复；后台运行时调度和 MQTT 产品监听仍在开发。
 
 - Repair shared MQTT content across current replicas with bounded internal RPC 98 and independent committed-anchor checks, including learner recovery and restart retries. Matching peers are required; automatic repair scheduling and the product MQTT listener remain under development. / 共享 MQTT 内容新增有界内部 RPC 98 跨副本修复，独立核验已提交锚点，支持 learner 恢复及重启重试；要求节点版本匹配，自动修复调度和 MQTT 产品监听仍在开发。

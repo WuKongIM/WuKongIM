@@ -19,11 +19,17 @@ type mqttRepairForwarder interface {
 // mqttRepairMeta permits immutable recovery while a migration blocks new writes.
 // It still requires fresh authority, strict-majority configuration and placement.
 func (s *Service) mqttRepairMeta(ctx context.Context, q ch.MQTTReplayRepairRequest) (ch.Meta, error) {
+	return s.mqttRepairAuthority(ctx, q.Request, q.Target, q.Donor)
+}
+
+// mqttRepairAuthority validates placement without requiring an arbitrary donor
+// before a receiver has established which content, if any, needs recovery.
+func (s *Service) mqttRepairAuthority(ctx context.Context, q ch.MQTTReplayRequest, replicas ...ch.NodeID) (ch.Meta, error) {
 	reader, ok := s.metaSource.(FreshChannelMetaSource)
 	if !ok {
 		return ch.Meta{}, ch.ErrInvalidConfig
 	}
-	m, err := reader.ResolveChannelMetaFresh(ctx, q.Request.ChannelID)
+	m, err := reader.ResolveChannelMetaFresh(ctx, q.ChannelID)
 	if err != nil {
 		return ch.Meta{}, err
 	}
@@ -35,17 +41,23 @@ func (s *Service) mqttRepairMeta(ctx context.Context, q ch.MQTTReplayRepairReque
 	}
 	unfenced := m
 	unfenced.WriteFence = ch.WriteFence{}
-	if err = validateMQTTCopyMeta(q.Request, unfenced); err != nil {
+	if err = validateMQTTCopyMeta(q, unfenced); err != nil {
 		return ch.Meta{}, err
 	}
-	if !slices.Contains(m.Replicas, q.Target) || !slices.Contains(m.Replicas, q.Donor) {
-		return ch.Meta{}, ch.ErrNotReplica
+	for _, replica := range replicas {
+		if !slices.Contains(m.Replicas, replica) {
+			return ch.Meta{}, ch.ErrNotReplica
+		}
 	}
 	return m, nil
 }
 
 func (s *Service) recheckMQTTRepairMeta(ctx context.Context, q ch.MQTTReplayRepairRequest, before ch.Meta) error {
-	current, err := s.mqttRepairMeta(ctx, q)
+	return s.recheckMQTTRepairAuthority(ctx, q.Request, before, q.Target, q.Donor)
+}
+
+func (s *Service) recheckMQTTRepairAuthority(ctx context.Context, q ch.MQTTReplayRequest, before ch.Meta, replicas ...ch.NodeID) error {
+	current, err := s.mqttRepairAuthority(ctx, q, replicas...)
 	if err != nil {
 		return err
 	}

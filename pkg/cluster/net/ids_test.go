@@ -161,3 +161,12 @@ func TestMQTTPlanServiceIdentity(t *testing.T) {
 		t.Fatal("planning checkpoint must preserve foreground mutation admission")
 	}
 }
+
+func TestMQTTRecoveryServiceIdentity(t *testing.T) {
+	if RPCChannelMQTTRecovery != 99 || transportServiceAlias(RPCChannelMQTTRecovery) != "channel mqtt recovery" {
+		t.Fatal("MQTT recovery service identity changed")
+	}
+	if !isForegroundChannelMutationService(RPCChannelMQTTRecovery) {
+		t.Fatal("MQTT recovery must preserve foreground mutation admission")
+	}
+}

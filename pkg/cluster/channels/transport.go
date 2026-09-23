@@ -569,6 +569,7 @@ func RegisterServiceHandlersOn(registrar HandlerRegistrar, service serviceRPCSer
 	registerMQTTAnchorHandler(registrar, service)
 	registerMQTTPlanHandler(registrar, service)
 	registerMQTTRepairHandler(registrar, service)
+	registerMQTTRecoveryHandler(registrar, service)
 	registrar.Register(clusternet.RPCChannelAppend, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		started := time.Now()
 		req, err := decodeAppendRequest(payload)

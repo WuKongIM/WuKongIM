@@ -143,6 +143,8 @@ const (
 	RPCChannelMQTTPlan
 	// RPCChannelMQTTRepair transfers one independently anchored replay interval.
 	RPCChannelMQTTRepair
+	// RPCChannelMQTTRecovery executes one bounded target-owned replay recovery step.
+	RPCChannelMQTTRecovery
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -279,6 +281,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "channel mqtt anchor"
 	case RPCChannelMQTTRepair:
 		return "channel mqtt repair"
+	case RPCChannelMQTTRecovery:
+		return "channel mqtt recovery"
 	case RPCChannelMQTTPlan:
 		return "channel mqtt plan"
 	case RPCChannelMQTTReplay:

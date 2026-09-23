@@ -111,10 +111,12 @@ DTOs, and `worker` bounds blocking I/O.
   next ranges use accepted progress, skip idle control tails and ignore copy-ahead.
   The optional store repair port exports/imports complete bounded anchor intervals;
   each side verifies its own committed journal, with no sender-supplied expected
-  digest. Fresh cluster repair now routes exact donor/target intervals; automatic
-  interval scheduling and replica-readiness admission remain separate.
-  Store planning selects the next interval from durable coverage and at most 64
-  journals, validates covered continuation hints and completes only an exact target.
+  digest. Store planning selects from durable coverage and at most 64 journals,
+  validates continuation hints and completes only an exact target. Cluster recovery
+  steps route to that target, try at most four donors with separate deadlines and
+  return scan/import/retry/completion outcomes under fresh metadata checks.
+  Import keeps the pre-import plan; the next read verifies completion. Background
+  scheduling, source release and replica-readiness admission remain separate.
   Replay preparation uses the same recovered leader/route admission and bounded
   checkpoint workers. It captures HW, verifies protection and returns owned
   local content after rechecking fences; it cannot release the original source.
