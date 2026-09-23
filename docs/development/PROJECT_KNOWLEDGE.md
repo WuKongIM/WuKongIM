@@ -190,6 +190,11 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Delivery and extension boundaries
 
+- The [MQTT IM access design](../specs/mqtt-im-access.md) defines the approved,
+  not-yet-implemented contract. MQTT Session subscriptions are separate from IM
+  membership; protocol ACKs are separate from read state; delivery obligations
+  survive ordinary history cleanup within their explicit lifetime and limits.
+  Reliable recovery must cover messages from every entry, not only MQTT sends.
 - Send permissions belong in `internal/usecase/message` before append;
   `pkg/channel` stays business-rule free. Mutable recipient metadata and delivery
   tags are authoritative at their owning Slot/Channel leaders. Remote caches must
