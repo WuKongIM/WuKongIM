@@ -26,6 +26,12 @@ func TestMQTTPlanDerivesOnlyAcceptedBoundedRanges(t *testing.T) {
 	require.False(t, more)
 	require.Zero(t, r)
 	p.Source.CommittedThrough = 9
+	p.MaintenanceOnly = true
+	r, more, err = p.NextRange(1, 1024)
+	require.NoError(t, err)
+	require.False(t, more)
+	require.Zero(t, r)
+	p.MaintenanceOnly = false
 	r, more, err = p.NextRange(1, 1024)
 	require.NoError(t, err)
 	require.True(t, more)
@@ -56,4 +62,15 @@ func TestMQTTPlanDerivesOnlyAcceptedBoundedRanges(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, more)
 	require.Equal(t, ^uint64(0), r.From)
+}
+
+func TestMQTTPlanRejectsUnboundedOrUnanchoredMaintenanceClaims(t *testing.T) {
+	p := MQTTReplayPlan{Source: MQTTSourceSnapshot{Generation: quorumlog.MQTTSourceGeneration(CommandID{1}), CommittedThrough: 9}, MaintenanceOnly: true}
+	_, _, err := p.NextRange(1, 1)
+	require.Error(t, err)
+	p.HasAnchor = true
+	p.Anchor = MQTTReplayAnchorProof{Anchor: quorumlog.MQTTReplayAnchor{SourceCommand: CommandID{1}, Through: 1, TotalStoredBytes: 10, Digest: EntryDigest{2}}, Manifest: ProposalManifest{Version: 5, ChannelEpoch: 1, LeaderTerm: 1, FenceVersion: 1, CommandID: CommandID{2}, BaseOffset: 1, LastOffset: 2, PreviousIndex: 1, PreviousTerm: 1, PreviousDigest: EntryDigest{2}, Digest: EntryDigest{3}}}
+	p.Source.CommittedThrough = 66
+	_, _, err = p.NextRange(1, 1)
+	require.Error(t, err)
 }

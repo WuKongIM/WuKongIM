@@ -107,7 +107,7 @@ Compatibility maps Channel records/offsets to this core without transferring eng
   Transfer requires committed log proofs plus an independent full-content digest;
   native hashes omit fields. Local copy/import never advances System 12 or proves quorum.
   Format-5 anchors journal controls in System 14; pinned source/latest reads optionally
-  include exact command lookup, with one reverse seek and bounded proofs. Trims retain them; suffix replacement
+  include exact command lookup; planning also proves at most 64 maintenance-tail positions. Trims retain journals; suffix replacement
   removes pending entries. Backups require matching journals and format versions.
   Anchor repair verifies local journals under append/checkpoint ownership; pinned exports must reach the exact endpoint.
   Repair planning verifies coverage/cursors, scans at most 64 journals and returns one bounded interval or explicit continuation.

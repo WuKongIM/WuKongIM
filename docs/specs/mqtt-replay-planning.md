@@ -50,3 +50,11 @@ Source `7ac762878`; SHA-256:
 - `pkg/cluster/FLOW.md`: `0c85c2c3cf96a92bcf92cd802a28ade73dd2db7f750c82e4808e35adc9fb530b`
 - `pkg/db/FLOW.md`: `8b723e6f1402c2361a872e3a6e4021ac4146782ebc9b416cb7b9cc9787bb9d75`
 - `pkg/db/message/FLOW.md`: `3d9d57d9911f19c1853f5334dfd728b97342604c3d39f1a4746fa22617c13d04`
+
+## Maintenance-only tails
+
+[Bounded maintenance-tail verification](mqtt-maintenance-tail-planning.md) extends
+the lone-anchor idle rule to committed anchor/retirement suffixes. It changes no
+accepted prefix: subsequent business includes those same control positions in
+its contiguous copy. RPC request v1 is unchanged; replies with this assertion
+use v2 and cannot be silently read by older peers.

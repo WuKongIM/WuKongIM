@@ -84,6 +84,13 @@ func TestMQTTRetirementRecoverySkipsPrunedBodiesAndResumesCleanup(t *testing.T) 
 			payload, err := retirement.MarshalBinary()
 			require.NoError(t, err)
 			decision := appendControl(6, 6, control(69, payload))
+			anchorState, err := stores[0].(channelstore.MQTTReplayAnchorStateReader).ReadMQTTReplayAnchors(ctx, decision.LastOffset, ch.CommandID{})
+			require.NoError(t, err)
+			require.True(t, anchorState.MaintenanceOnly, "adapter preserves pinned native maintenance proof")
+			plan := ch.MQTTReplayPlan{Source: anchorState.Source, Anchor: anchorState.Latest, HasAnchor: anchorState.HasLatest, MaintenanceOnly: anchorState.MaintenanceOnly}
+			_, more, err := plan.NextRange(256, 1<<20)
+			require.NoError(t, err)
+			require.False(t, more)
 			_, err = stores[0].(channelstore.MQTTReplayRetirer).RetireMQTTReplay(ctx, q.Source.Generation, decision.LastOffset, 256)
 			require.NoError(t, err)
 			oldRange := rangeQ

@@ -15,6 +15,9 @@ type MQTTReplayAnchorState struct {
 	Source                  MQTTSourceSnapshot
 	Latest, Requested       MQTTReplayAnchorProof
 	HasLatest, HasRequested bool
+	// MaintenanceOnly is a pinned proof that the bounded tail after Latest's
+	// accepted prefix contains only committed anchor/retirement controls.
+	MaintenanceOnly bool
 }
 
 // Prefix returns the independently committed immutable content boundary.

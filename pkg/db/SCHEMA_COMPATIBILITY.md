@@ -93,6 +93,11 @@ target recovery requests this through RPC 99 v2 with explicit intent and reply
 acknowledgement; v1 remains ordinary recovery and old servers reject v2. See
 [anchor-derived release](../../docs/specs/mqtt-source-anchor-release.md).
 
+MQTT plan RPC 97 keeps request v1 and uses reply v2 only when carrying an
+explicit bounded maintenance-tail assertion; ordinary/error replies remain v1.
+Older readers reject v2, and matched runtime deployment is required. This adds
+no stored metadata or native log format.
+
 RPC 99 version 3 explicitly applies the latest locally committed retirement
 before repair planning; a separate flag reports bounded cleanup still pending.
 Versions 1/2 preserve their bytes and behavior; old peers reject version 3, and

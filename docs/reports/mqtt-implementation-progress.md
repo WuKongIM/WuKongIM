@@ -3449,3 +3449,66 @@ feedback. Final binding removal, complete subscription/inbox projection,
 permission ordering, delivery/ACK, owner recovery, Will execution, product
 lifecycle/configuration, offline tools and process/load acceptance remain
 required. The goal is active; product MQTT access remains unavailable.
+
+
+## Bounded planning for maintenance-only replay tails
+
+Planning previously suppressed only a lone latest anchor. A committed retirement
+behind that anchor would make an idle source appear copyable again, enabling a
+copy/anchor/retirement feedback loop once the producer is connected. The pinned
+source/latest-anchor read now optionally verifies every position after the
+accepted prefix through captured HW as a format-5 anchor or format-6 retirement.
+Native entry identities, paired manifests and matching committed journals are
+checked independently; original bodies, payload lookalikes, SyncOnce, speculative
+shared-copy progress and later checkpoints cannot substitute for that proof.
+
+At most 64 positions are examined. Longer tails conservatively remain copyable;
+subsequent business starts copying immediately after the old accepted prefix and
+includes every intervening control. No accepted frontier, source watermark,
+retirement decision or storage encoding changes during planning. Workers/adapters
+preserve the assertion. RPC 97 request v1 is unchanged; ordinary/error replies
+stay v1, while a reply with MaintenanceOnly uses v2 plus a required explicit
+marker and full request echo. Old readers reject it; matched replicas remain
+required. RPC 99's nested request bytes are unchanged.
+
+Contract/failure inventory and frozen context:
+[mqtt-maintenance-tail-planning.md](../specs/mqtt-maintenance-tail-planning.md).
+
+Validation (terminal passes):
+
+- Missing fields produced RED before implementation in
+  `/tmp/mqtt-maintenance-tail-red.log`. Boundary tests cover proof propagation,
+  unanchored/oversized claims, v2 framing/marker/echo, eight idle coordinator
+  visits without copying/anchoring, continued replica recovery, and later business.
+- `GOWORK=off go test -p 2 -race ./pkg/db/message ./pkg/channel/...
+  ./pkg/cluster/channels ./internal/usecase/mqttsession -count=1 -timeout=180s`:
+  all passed; message 46.082 s, store 3.959 s, cluster channels 6.962 s,
+  usecase 14.036 s; `/tmp/mqtt-maintenance-tail-race.log`.
+- `GOWORK=off go test -p 2 -race -tags=integration ./pkg/db/message
+  ./pkg/cluster/channels ./pkg/cluster ./internal/app -run
+  '^(TestMQTTMaintenanceTail|TestMQTTRetirementRecoverySkipsPrunedBodiesAndResumesCleanup|TestMQTTAnchorThree|TestMQTTReplayRetention)'
+  -count=1 -timeout=150s -v`: message 5.326 s, channels 2.268 s and cluster
+  16.155 s passed; `/tmp/mqtt-maintenance-tail-integration.log`. The app selector
+  matched no test and contributes no behavioral evidence. Real-disk cases cover
+  historical/pending cuts, ordinary/SyncOnce/lookalike business, corrupt/missing
+  journals/identities, 64/65-position bounds, original trim, reopen and backup
+  restoration. Service storage adapters preserve the retirement-tail assertion;
+  three TCP nodes exercise planning replies, restart, leader change and isolation.
+- The actual app entry test was then run explicitly:
+  `GOWORK=off go test -p 2 -race -tags=integration ./internal/app -run
+  '^TestMQTTGroupSourcePreparationThreeNodeRecovery$' -count=1 -timeout=150s -v`.
+  Passed in 13.132 s; `/tmp/mqtt-maintenance-tail-app.log`. It preserves ordered
+  consumer-floor capture, ACK gaps, unknown-binding protection, fair automatic
+  recovery, all-replica original-source release and stable-fence behavior.
+  Consumer admission remains fixture-controlled and the product listener disabled.
+- `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-maintenance-tail-flow.log`. Generated index and whitespace pass.
+
+Next implement the typed current-authority retirement commit entry and connect
+ordered consumer-floor capture plus bounded whole-anchor selection to it. The
+producer must preserve exact retries, continue historical selection fairly, and
+skip already committed equal/older retirement decisions. Full subscription/inbox
+projection, removal/permission ordering, persistent delivery/ACK, owner recovery,
+Will execution, product lifecycle/configuration, offline tools and process/load
+acceptance remain required. The goal stays active; this prerequisite is not
+producer or complete product acceptance.

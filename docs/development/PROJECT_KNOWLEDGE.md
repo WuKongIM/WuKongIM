@@ -306,6 +306,11 @@ specification, runbook, report, or module documentation; link to them when neede
   donor selection, with at most 64 primary rows per turn. Pending cleanup yields
   to later source passes, independently of finite journal-scan continuations.
   Versions 1/2 retain behavior; consumer admission and product wiring are pending.
+  [Maintenance-tail planning](../specs/mqtt-maintenance-tail-planning.md) prevents
+  idle copy/anchor/retirement feedback by proving every suffix position is an
+  anchor or retirement, through captured HW in one snapshot (at most 64). Larger
+  tails conservatively copy; later business copies all intervening controls. RPC 97
+  reply v2 preserves the assertion; ordinary/error replies and requests stay v1.
   MQTT metadata facades route Session children by the frozen namespace/ClientID
   hash and source bindings by ordinary Channel ID or UID. Read RPC 91 requires
   a fresh Slot barrier and pinned primary/index snapshot; recovery explicitly

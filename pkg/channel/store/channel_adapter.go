@@ -1462,7 +1462,7 @@ func (a *messageDBChannelStoreAdapter) ReadMQTTReplayAnchors(ctx context.Context
 	proof := func(p messagedb.MQTTReplayAnchorProof) ch.MQTTReplayAnchorProof {
 		return ch.MQTTReplayAnchorProof{Anchor: p.Anchor, Manifest: p.Manifest}
 	}
-	return ch.MQTTReplayAnchorState{Source: ch.MQTTSourceSnapshot{Generation: state.Source.Generation, StartAfter: state.Source.StartAfter, CommittedThrough: state.CommittedThrough}, Latest: proof(state.Latest), Requested: proof(state.Requested), HasLatest: state.HasLatest, HasRequested: state.HasRequested}, nil
+	return ch.MQTTReplayAnchorState{Source: ch.MQTTSourceSnapshot{Generation: state.Source.Generation, StartAfter: state.Source.StartAfter, CommittedThrough: state.CommittedThrough}, Latest: proof(state.Latest), Requested: proof(state.Requested), HasLatest: state.HasLatest, HasRequested: state.HasRequested, MaintenanceOnly: state.MaintenanceOnly}, nil
 }
 
 func (a *messageDBChannelStoreAdapter) ExportMQTTReplayAnchor(ctx context.Context, position uint64, req ch.MQTTReplayRange) (ch.MQTTReplayPage, error) {

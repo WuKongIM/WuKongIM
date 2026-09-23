@@ -47,7 +47,7 @@ func runStoreMQTTPlan(ctx context.Context, deps Deps, task Task) Result {
 		result.Err = err
 		return result
 	}
-	plan := ch.MQTTReplayPlan{Source: state.Source, Anchor: state.Latest, HasAnchor: state.HasLatest}
+	plan := ch.MQTTReplayPlan{Source: state.Source, Anchor: state.Latest, HasAnchor: state.HasLatest, MaintenanceOnly: state.MaintenanceOnly}
 	if state.HasRequested || state.Requested != (ch.MQTTReplayAnchorProof{}) || state.Source.CommittedThrough != q.CommittedThrough || !plan.ValidFor(q.Request) {
 		result.Err = ch.ErrLogConflict
 		return result

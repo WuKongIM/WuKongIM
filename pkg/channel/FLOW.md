@@ -109,7 +109,7 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
   after observer cancellation, without inserting request identities into caches.
   Cluster entry adds fresh Slot routing; source-release admission remains separate.
   Read-only planning pins HW and the exact write fence through checkpoint workers;
-  next ranges use accepted progress, skip idle control tails and ignore copy-ahead.
+  next ranges use accepted progress, skip verified bounded anchor/retirement tails and ignore copy-ahead.
   The optional store repair port exports/imports complete bounded anchor intervals;
   each side verifies its own committed journal, with no sender-supplied expected
   digest. Store planning selects from durable coverage and at most 64 journals,

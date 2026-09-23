@@ -16,6 +16,9 @@ type MQTTReplayAnchorState struct {
 	CommittedThrough        uint64
 	Latest, Requested       MQTTReplayAnchorProof
 	HasLatest, HasRequested bool
+	// MaintenanceOnly proves the bounded suffix to CommittedThrough contains
+	// only anchors/retirements; it is computed for planning (zero command) reads.
+	MaintenanceOnly bool
 }
 
 // ReadMQTTReplayAnchors uses one reverse seek plus bounded point proofs. Through
@@ -96,6 +99,12 @@ func (l *ChannelLog) ReadMQTTReplayAnchors(ctx context.Context, through uint64, 
 					return out, dberrors.ErrCorruptState
 				}
 			}
+		}
+	}
+	if command == (quorumlog.CommandID{}) && out.HasLatest {
+		out.MaintenanceOnly, err = mqttMaintenanceOnly(ctx, view, l.key, out.Latest, through)
+		if err != nil {
+			return MQTTReplayAnchorState{}, err
 		}
 	}
 	if err = ctxErr(ctx); err != nil {

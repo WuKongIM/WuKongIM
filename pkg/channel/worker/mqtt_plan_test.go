@@ -16,6 +16,20 @@ type mqttPlanStore struct {
 	command     ch.CommandID
 	readThrough uint64
 }
+
+func TestMQTTPlanWorkerPreservesMaintenanceOnlyProof(t *testing.T) {
+	gen := quorumlog.MQTTSourceGeneration(ch.CommandID{1})
+	a := ch.MQTTReplayAnchorProof{Anchor: quorumlog.MQTTReplayAnchor{SourceCommand: ch.CommandID{1}, Through: 1, TotalStoredBytes: 10, Digest: ch.EntryDigest{2}}, Manifest: ch.ProposalManifest{Version: 5, ChannelEpoch: 1, LeaderTerm: 1, FenceVersion: 1, CommandID: ch.CommandID{2}, BaseOffset: 1, LastOffset: 2, PreviousIndex: 1, PreviousTerm: 1, PreviousDigest: ch.EntryDigest{2}, Digest: ch.EntryDigest{3}}}
+	s := &mqttPlanStore{state: ch.MQTTReplayAnchorState{Source: ch.MQTTSourceSnapshot{Generation: gen, CommittedThrough: 3}, Latest: a, HasLatest: true, MaintenanceOnly: true}}
+	task := Task{Kind: TaskStoreMQTTPlan, Fence: ch.Fence{ChannelKey: "1:plan", OpID: 7}, StoreMQTTPlan: &StoreMQTTPlanTask{Request: ch.MQTTReplayPlanRequest{ChannelID: ch.ChannelID{ID: "plan", Type: 1}, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 1, ExpectedRouteGeneration: 1, Generation: gen}, CommittedThrough: 3}}
+	out := task.Run(context.Background(), Deps{Stores: mqttPlanFactory{s}})
+	require.NoError(t, out.Err)
+	require.True(t, out.StoreMQTTPlan.Plan.MaintenanceOnly)
+	s.state.HasLatest, s.state.Latest = false, ch.MQTTReplayAnchorProof{}
+	out = task.Run(context.Background(), Deps{Stores: mqttPlanFactory{s}})
+	require.Error(t, out.Err)
+}
+
 type mqttPlanFactory struct{ s *mqttPlanStore }
 
 func (f mqttPlanFactory) ChannelStore(ch.ChannelKey, ch.ChannelID) (store.ChannelStore, error) {

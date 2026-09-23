@@ -13,6 +13,7 @@ import (
 const mqttPlanRPCMaxBytes = 4096
 const mqttPlanRequestMagic = "WMPQ\x01"
 const mqttPlanReplyMagic = "WMPR\x01"
+const mqttPlanMaintenanceReplyMagic = "WMPR\x02"
 
 var errMQTTPlanRPC = errors.New("channels: invalid MQTT plan RPC")
 
@@ -80,7 +81,11 @@ func encodeMQTTPlanReply(q mqttPlanForwardRequest, p ch.MQTTReplayPlan, operatio
 	} else if !p.ValidFor(q.Request) {
 		return nil, errMQTTPlanRPC
 	}
-	b := appendMQTTReplayString([]byte(mqttPlanReplyMagic), string(echo))
+	magic := mqttPlanReplyMagic
+	if operationErr == nil && p.MaintenanceOnly {
+		magic = mqttPlanMaintenanceReplyMagic
+	}
+	b := appendMQTTReplayString([]byte(magic), string(echo))
 	b = append(b, status)
 	if operationErr == nil {
 		b = appendMQTTReplayString(b, p.Source.Generation)
@@ -95,6 +100,9 @@ func encodeMQTTPlanReply(q mqttPlanForwardRequest, p ch.MQTTReplayPlan, operatio
 		} else {
 			b = append(b, 0)
 		}
+		if p.MaintenanceOnly {
+			b = append(b, 1)
+		}
 	}
 	if len(b) > mqttPlanRPCMaxBytes {
 		return nil, errMQTTPlanRPC
@@ -104,7 +112,8 @@ func encodeMQTTPlanReply(q mqttPlanForwardRequest, p ch.MQTTReplayPlan, operatio
 
 func decodeMQTTPlanReply(b []byte, q mqttPlanForwardRequest) (ch.MQTTReplayPlan, error) {
 	var empty ch.MQTTReplayPlan
-	if len(b) > mqttPlanRPCMaxBytes || !bytes.HasPrefix(b, []byte(mqttPlanReplyMagic)) {
+	maintenance := bytes.HasPrefix(b, []byte(mqttPlanMaintenanceReplyMagic))
+	if len(b) > mqttPlanRPCMaxBytes || (!maintenance && !bytes.HasPrefix(b, []byte(mqttPlanReplyMagic))) {
 		return empty, errMQTTPlanRPC
 	}
 	r := bytes.NewReader(b[len(mqttPlanReplyMagic):])
@@ -121,7 +130,7 @@ func decodeMQTTPlanReply(b []byte, q mqttPlanForwardRequest) (ch.MQTTReplayPlan,
 		return empty, errMQTTPlanRPC
 	}
 	if status != 0 {
-		if r.Len() != 0 {
+		if maintenance || r.Len() != 0 {
 			return empty, errMQTTPlanRPC
 		}
 		return empty, mqttSourceStatuses[status]
@@ -144,6 +153,13 @@ func decodeMQTTPlanReply(b []byte, q mqttPlanForwardRequest) (ch.MQTTReplayPlan,
 		if err != nil {
 			return empty, errMQTTPlanRPC
 		}
+	}
+	if maintenance {
+		flag, err := r.ReadByte()
+		if err != nil || flag != 1 {
+			return empty, errMQTTPlanRPC
+		}
+		p.MaintenanceOnly = true
 	}
 	if r.Len() != 0 || !p.ValidFor(q.Request) {
 		return empty, errMQTTPlanRPC

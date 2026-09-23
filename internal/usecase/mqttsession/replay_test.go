@@ -98,6 +98,26 @@ func TestReplayCoordinatorKeepsCleanupPendingTargetAndRotates(t *testing.T) {
 	require.True(t, second.TargetComplete)
 }
 
+func TestReplayCoordinatorMaintenanceTailStaysIdleUntilBusiness(t *testing.T) {
+	c, f, owner := newReplayFixture(t)
+	f.plan.HasAnchor, f.plan.Anchor, f.plan.Source.CommittedThrough, f.plan.MaintenanceOnly = true, f.proof, 4, true
+	cursor := ReplayCursor{}
+	for range 8 {
+		out, err := c.Step(context.Background(), owner, cursor)
+		require.NoError(t, err)
+		require.True(t, out.TargetComplete)
+		cursor = out.Next
+	}
+	require.Zero(t, f.copies)
+	require.Zero(t, f.commits)
+	require.Equal(t, 8, f.repairs)
+	f.plan.MaintenanceOnly, f.plan.Source.CommittedThrough = false, 5
+	f.copyErr = ch.ErrNotReady
+	_, err := c.Step(context.Background(), owner, cursor)
+	require.ErrorIs(t, err, ch.ErrNotReady)
+	require.Equal(t, 1, f.copies, "new business resumes ordinary bounded copy")
+}
+
 func TestReplayCoordinatorCopiesThenRotatesPinnedRecovery(t *testing.T) {
 	c, f, owner := newReplayFixture(t)
 	first, err := c.Step(context.Background(), owner, ReplayCursor{})

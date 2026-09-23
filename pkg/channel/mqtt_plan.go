@@ -36,6 +36,9 @@ type MQTTReplayPlan struct {
 	Anchor MQTTReplayAnchorProof
 	// HasAnchor distinguishes a verified latest journal row from its absence.
 	HasAnchor bool
+	// MaintenanceOnly proves every position after Anchor's accepted prefix up
+	// to the captured HW is an anchor/retirement control, within 64 positions.
+	MaintenanceOnly bool
 }
 
 func (p MQTTReplayPlan) valid() bool {
@@ -43,11 +46,12 @@ func (p MQTTReplayPlan) valid() bool {
 		return false
 	}
 	if !p.HasAnchor {
-		return p.Anchor == (MQTTReplayAnchorProof{})
+		return !p.MaintenanceOnly && p.Anchor == (MQTTReplayAnchorProof{})
 	}
 	a, m := p.Anchor.Anchor, p.Anchor.Manifest
 	return a.Valid() && m.StructurallyValid() && m.Version == quorumlog.MQTTReplayAnchorProposalManifestVersion && a.Through < m.LastOffset &&
-		m.LastOffset <= p.Source.CommittedThrough && p.Anchor.Prefix().Generation == p.Source.Generation && a.StartAfter == p.Source.StartAfter
+		m.LastOffset <= p.Source.CommittedThrough && p.Anchor.Prefix().Generation == p.Source.Generation && a.StartAfter == p.Source.StartAfter &&
+		(!p.MaintenanceOnly || p.Source.CommittedThrough-a.Through <= 64)
 }
 
 // ValidFor validates result association; only the store/runtime proves durability.
@@ -70,7 +74,8 @@ func (p MQTTReplayPlan) ValidFor(q MQTTReplayPlanRequest) bool {
 }
 
 // NextRange bounds the next copy page from accepted progress. A lone latest
-// control is idle; later content includes that control in the next copy range.
+// anchor or a verified maintenance-only suffix is idle; later business includes
+// those controls in its next contiguous copy range.
 func (p MQTTReplayPlan) NextRange(limit, maxBytes int) (MQTTReplayRange, bool, error) {
 	if !p.valid() || limit < 1 || limit > 256 || maxBytes < 1 || maxBytes > 16<<20 {
 		return MQTTReplayRange{}, false, ErrInvalidConfig
@@ -78,7 +83,7 @@ func (p MQTTReplayPlan) NextRange(limit, maxBytes int) (MQTTReplayRange, bool, e
 	from := p.Source.StartAfter + 1
 	if p.HasAnchor {
 		from = p.Anchor.Anchor.Through + 1
-		if from == p.Anchor.Manifest.LastOffset && from == p.Source.CommittedThrough {
+		if p.MaintenanceOnly || (from == p.Anchor.Manifest.LastOffset && from == p.Source.CommittedThrough) {
 			return MQTTReplayRange{}, false, nil
 		}
 	}

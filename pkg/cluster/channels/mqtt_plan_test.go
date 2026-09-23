@@ -188,3 +188,37 @@ func TestMQTTPlanRPCBoundsEchoAndOptionalProof(t *testing.T) {
 	_, err = encodeMQTTPlanReply(req, p, nil)
 	require.Error(t, err)
 }
+
+func TestMQTTPlanRPCPreservesMaintenanceOnlyAssertion(t *testing.T) {
+	s, m, runtime, request, plan := mqttRoutedPlanFixture(t)
+	plan.MaintenanceOnly = true
+	runtime.plan = func(context.Context, ch.MQTTReplayPlanRequest) (ch.MQTTReplayPlan, error) { return plan, nil }
+	network := clusternet.NewLocalNetwork()
+	RegisterServiceHandlersOn(localNetworkRegistrar{network: network, nodeID: 2}, NewServiceGateway(s))
+	origin, err := NewService(Config{LocalNode: 1, MetaSource: m, Runtime: &fakeRuntime{}, Forward: NewTransportClient(network)})
+	require.NoError(t, err)
+	got, err := origin.PlanMQTTReplay(context.Background(), request)
+	require.NoError(t, err)
+	require.Equal(t, plan, got)
+	q := mqttPlanForwardRequest{Leader: 2, Request: request}
+	b, err := encodeMQTTPlanReply(q, plan, nil)
+	require.NoError(t, err)
+	require.Equal(t, byte(2), b[4])
+	for cut := range len(b) {
+		_, err = decodeMQTTPlanReply(b[:cut], q)
+		require.Error(t, err)
+	}
+	for _, flag := range []byte{0, 2, 255} {
+		bad := bytes.Clone(b)
+		bad[len(bad)-1] = flag
+		_, err = decodeMQTTPlanReply(bad, q)
+		require.Error(t, err)
+	}
+	bad := bytes.Clone(b)
+	bad[4] = 1
+	_, err = decodeMQTTPlanReply(bad, q)
+	require.Error(t, err)
+	plan.HasAnchor, plan.Anchor = false, ch.MQTTReplayAnchorProof{}
+	_, err = encodeMQTTPlanReply(q, plan, nil)
+	require.Error(t, err)
+}
