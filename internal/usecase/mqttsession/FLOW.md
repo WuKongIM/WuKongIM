@@ -54,7 +54,7 @@ no packet, concrete cluster/gateway adapter, worker or shared replay storage.
 9. Replay alternates bounded copy/anchor admission and recovery under fresh placement.
    Targets pin anchors and scan/donor hints; placement resets hints and cold passes rotate work.
    Fenced turns only recover existing anchors; absent anchors yield without copying.
-   Complete target visits request source release with fresh authority; results grant no GC, readiness or SUBACK.
+   Recovery applies committed retirement and releases sources; pending cleanup yields without granting new GC, readiness or SUBACK authority.
 10. Consumer progress reads one binding and a pinned Session/cursor, projecting
     only contiguous completion with one CAS. Unchanged floors produce no write.
     Explicit lifetime end retains Removing without fabricating source release;

@@ -1,10 +1,15 @@
 package channel
 
-import "context"
+import (
+	"context"
+
+	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
+)
 
 // MQTTReplayRecoveryStepper performs one bounded receiver-owned recovery step.
 // Completion covers the requested anchor and optionally releases its original
-// source prefix, never cluster readiness or shared-content GC.
+// source prefix. Explicit retirement applies an already committed decision;
+// recovery never creates consumer authority or establishes cluster readiness.
 type MQTTReplayRecoveryStepper interface {
 	StepMQTTReplayRecovery(context.Context, MQTTReplayRecoveryRequest) (MQTTReplayRecoveryResult, error)
 }
@@ -19,8 +24,11 @@ type MQTTReplayRecoveryRequest struct {
 	// ScanLimit explicitly bounds local journal work to at most 64 entries.
 	ScanLimit int
 	// ReleaseSource explicitly requests source release after complete coverage.
-	// False preserves ordinary recovery without a cleanup-watermark mutation.
+	// False preserves the original-source watermark, independently of retirement.
 	ReleaseSource bool
+	// ApplyRetirement requests bounded application of this target's latest
+	// committed retirement before repair planning. It never admits a new decision.
+	ApplyRetirement bool
 }
 
 func (q MQTTReplayRecoveryRequest) repairScan() MQTTReplayRepairScan {
@@ -43,17 +51,31 @@ func (q MQTTReplayRecoveryRequest) AcceptsPlan(p MQTTReplayRepairPlan) bool {
 		proofs = append(proofs, p.Next)
 	}
 	for _, p := range proofs {
-		m := p.Manifest
-		for _, pair := range [][2]uint64{{m.ChannelEpoch, q.Source.ExpectedChannelEpoch}, {m.LeaderTerm, q.Source.ExpectedLeaderEpoch}, {m.FenceVersion, q.Source.ExpectedRouteGeneration}} {
-			if pair[0] < pair[1] {
-				break
-			}
-			if pair[0] > pair[1] {
-				return false
-			}
+		if !q.acceptsManifest(p.Manifest) {
+			return false
 		}
 	}
 	return true
+}
+
+func (q MQTTReplayRecoveryRequest) acceptsManifest(m ProposalManifest) bool {
+	for _, pair := range [][2]uint64{{m.ChannelEpoch, q.Source.ExpectedChannelEpoch}, {m.LeaderTerm, q.Source.ExpectedLeaderEpoch}, {m.FenceVersion, q.Source.ExpectedRouteGeneration}} {
+		if pair[0] < pair[1] {
+			return true
+		}
+		if pair[0] > pair[1] {
+			return false
+		}
+	}
+	return true
+}
+
+// AcceptsRetirement checks a trusted storage proof's source and historical
+// authority. The storage mutation must independently revalidate its commitment.
+func (q MQTTReplayRecoveryRequest) AcceptsRetirement(p MQTTReplayRetirementProof) bool {
+	return q.Valid() && q.ApplyRetirement && p.Retirement.Valid() && p.Manifest.StructurallyValid() &&
+		p.Manifest.Version == quorumlog.MQTTReplayRetirementProposalManifestVersion && p.Retirement.AnchorPosition < p.Manifest.LastOffset &&
+		quorumlog.MQTTSourceGeneration(p.Retirement.Anchor.SourceCommand) == q.Source.Generation && q.acceptsManifest(p.Manifest)
 }
 
 // MQTTReplayRecoveryResult preserves the pre-import plan. Repaired acknowledges
@@ -64,6 +86,9 @@ type MQTTReplayRecoveryResult struct {
 	// SourceReleased confirms the requested original-source prefix is released.
 	// It is valid only on requested, complete recovery; it grants no shared GC.
 	SourceReleased bool
+	// RetirementPending means this turn applied the logical retirement baseline
+	// but bounded physical cleanup remains, even when Plan.Complete is true.
+	RetirementPending bool
 	// DonorAfter advances a failed bounded round; it must name a current donor.
 	DonorAfter NodeID
 }
@@ -71,7 +96,7 @@ type MQTTReplayRecoveryResult struct {
 // ValidFor closes the four outcomes: complete, scan, imported interval, or retry.
 // Placement freshness of a retry donor is checked by the cluster service.
 func (p MQTTReplayRecoveryResult) ValidFor(q MQTTReplayRecoveryRequest) bool {
-	if !q.AcceptsPlan(p.Plan) {
+	if !q.AcceptsPlan(p.Plan) || (p.RetirementPending && !q.ApplyRetirement) {
 		return false
 	}
 	if p.SourceReleased != (q.ReleaseSource && p.Plan.Complete) {

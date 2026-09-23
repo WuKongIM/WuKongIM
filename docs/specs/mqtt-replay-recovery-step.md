@@ -24,7 +24,11 @@ Node/RPC 99 exposes this body-free step with a 4 KiB closed versioned codec and
 full request echo. The donor body uses existing RPC 98. Higher-level scheduling
 must retain returned continuation hints and use a current target anchor; the step
 alone is neither source release, migration readiness nor a background scheduler.
-No new table, log format, configuration key or product MQTT listener is introduced.
+Version 2 adds explicit source release; [version 3](mqtt-retirement-recovery.md)
+adds explicit application of locally committed retirement before planning. A
+separate flag reports pending bounded cleanup even when logical coverage is
+complete. Original version-1/2 bytes and behavior remain unchanged. No new table,
+log format, configuration key or product MQTT listener is introduced.
 
 ## Failure inventory before implementation
 

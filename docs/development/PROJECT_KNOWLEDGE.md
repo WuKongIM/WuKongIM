@@ -301,7 +301,11 @@ specification, runbook, report, or module documentation; link to them when neede
   from retained bodies, and historical cuts reject newer retirement authority.
   Pruned backups use version 3; versions 1/2 keep their export bytes. Restore
   publishes the baseline/frontier only after suffix installation, deferring the
-  redundant version-2 header frontier. Product admission/scheduling is still pending.
+  redundant version-2 header frontier. [Recovery application](../specs/mqtt-retirement-recovery.md)
+  explicitly uses RPC 99 v3: a pinned latest committed decision is applied before
+  donor selection, with at most 64 primary rows per turn. Pending cleanup yields
+  to later source passes, independently of finite journal-scan continuations.
+  Versions 1/2 retain behavior; consumer admission and product wiring are pending.
   MQTT metadata facades route Session children by the frozen namespace/ClientID
   hash and source bindings by ordinary Channel ID or UID. Read RPC 91 requires
   a fresh Slot barrier and pinned primary/index snapshot; recovery explicitly

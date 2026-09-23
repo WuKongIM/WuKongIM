@@ -114,7 +114,7 @@ Compatibility maps Channel records/offsets to this core without transferring eng
   Readiness binds captured HW/latest anchor to local coverage; repair/planning/readiness never release sources or advance HW.
   Explicit anchor release verifies committed/local prefix proofs under append/checkpoint ownership, then advances only System 12.
   Format-6 retirement journals in System 15 retain whole-anchor decisions and monotonic prefixes.
-  HW/reference/proposal checks, suffix replacement and backup preserve them; journals alone never prune replay content.
+  Pinned latest retirement reads use HW-bounded reverse seek and independent source/proposal proofs; suffix replacement and backup preserve journals.
   Retirement selection pins a captured anchor and scans at most 64 older journals per call, with verified backward continuations.
   Explicit retirement verifies its committed decision, atomically storing table-2 System-2 baseline/deletion progress and bounded row/meter removal.
   Suffix hashing, repair and readiness retain cumulative counters; historical cuts cannot borrow later retirement authority.

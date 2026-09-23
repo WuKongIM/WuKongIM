@@ -426,6 +426,12 @@ type MQTTReplayRetirementReader interface {
 	LoadMQTTReplayRetirement(context.Context, uint64) (ch.MQTTReplayRetirementProof, bool, error)
 }
 
+// MQTTReplayLatestRetirementReader pins the source, native HW and latest covered
+// decision. It supplies no caller-selected retirement floor and changes no state.
+type MQTTReplayLatestRetirementReader interface {
+	LoadLatestMQTTReplayRetirement(context.Context, string) (ch.MQTTReplayRetirementProof, bool, error)
+}
+
 // MQTTReplayRetirementSelector selects a whole accepted prefix within the
 // captured consumer floor, with bounded reverse scans and verified continuations.
 // It neither grants retirement authority nor mutates replica-local coverage.

@@ -7,8 +7,8 @@ import (
 )
 
 // StepChannelMQTTReplayRecovery preserves foreground gates before one bounded
-// target-owned step, including explicitly requested original-source release.
-// Its result never grants migration readiness or shared-content reclamation.
+// target-owned step, including explicit source release and application of an
+// already committed retirement. It grants no new retirement or migration authority.
 func (n *Node) StepChannelMQTTReplayRecovery(ctx context.Context, q ch.MQTTReplayRecoveryRequest) (ch.MQTTReplayRecoveryResult, error) {
 	if err := ctxErr(ctx); err != nil {
 		return ch.MQTTReplayRecoveryResult{}, err

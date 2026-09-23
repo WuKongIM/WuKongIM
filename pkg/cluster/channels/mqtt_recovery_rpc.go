@@ -15,6 +15,8 @@ const mqttRecoveryRequestMagic = "WMUQ\x01"
 const mqttRecoveryReplyMagic = "WMUR\x01"
 const mqttReleaseRequestMagic = "WMUQ\x02"
 const mqttReleaseReplyMagic = "WMUR\x02"
+const mqttRetirementRequestMagic = "WMUQ\x03"
+const mqttRetirementReplyMagic = "WMUR\x03"
 
 var errMQTTRecoveryRPC = errors.New("channels: invalid MQTT recovery RPC")
 
@@ -30,11 +32,21 @@ func encodeMQTTRecoveryRequest(q ch.MQTTReplayRecoveryRequest) ([]byte, error) {
 	if q.ReleaseSource {
 		magic = mqttReleaseRequestMagic
 	}
+	if q.ApplyRetirement {
+		magic = mqttRetirementRequestMagic
+	}
 	b := appendMQTTReplayString([]byte(magic), string(nested))
 	for _, v := range []uint64{q.TargetAnchor, q.AfterAnchor, uint64(q.DonorAfter)} {
 		b = binary.BigEndian.AppendUint64(b, v)
 	}
 	b = append(b, byte(q.ScanLimit))
+	if q.ApplyRetirement {
+		flags := byte(0)
+		if q.ReleaseSource {
+			flags = 1
+		}
+		b = append(b, flags)
+	}
 	if len(b) > mqttRecoveryRPCMaxBytes {
 		return nil, errMQTTRecoveryRPC
 	}
@@ -43,7 +55,8 @@ func encodeMQTTRecoveryRequest(q ch.MQTTReplayRecoveryRequest) ([]byte, error) {
 func decodeMQTTRecoveryRequest(b []byte) (ch.MQTTReplayRecoveryRequest, error) {
 	var empty ch.MQTTReplayRecoveryRequest
 	release := bytes.HasPrefix(b, []byte(mqttReleaseRequestMagic))
-	if len(b) > mqttRecoveryRPCMaxBytes || (!release && !bytes.HasPrefix(b, []byte(mqttRecoveryRequestMagic))) {
+	retire := bytes.HasPrefix(b, []byte(mqttRetirementRequestMagic))
+	if len(b) > mqttRecoveryRPCMaxBytes || (!retire && !release && !bytes.HasPrefix(b, []byte(mqttRecoveryRequestMagic))) {
 		return empty, errMQTTRecoveryRPC
 	}
 	r := bytes.NewReader(b[len(mqttRecoveryRequestMagic):])
@@ -60,10 +73,20 @@ func decodeMQTTRecoveryRequest(b []byte) (ch.MQTTReplayRecoveryRequest, error) {
 		return empty, errMQTTRecoveryRPC
 	}
 	limit, err := r.ReadByte()
-	if err != nil || r.Len() != 0 {
+	if err != nil {
 		return empty, errMQTTRecoveryRPC
 	}
-	q := ch.MQTTReplayRecoveryRequest{Target: inner.Leader, Source: inner.Request, TargetAnchor: fields[0], AfterAnchor: fields[1], DonorAfter: ch.NodeID(fields[2]), ScanLimit: int(limit), ReleaseSource: release}
+	if retire {
+		flags, err := r.ReadByte()
+		if err != nil || flags & ^byte(1) != 0 {
+			return empty, errMQTTRecoveryRPC
+		}
+		release = flags&1 != 0
+	}
+	if r.Len() != 0 {
+		return empty, errMQTTRecoveryRPC
+	}
+	q := ch.MQTTReplayRecoveryRequest{Target: inner.Leader, Source: inner.Request, TargetAnchor: fields[0], AfterAnchor: fields[1], DonorAfter: ch.NodeID(fields[2]), ScanLimit: int(limit), ReleaseSource: release, ApplyRetirement: retire}
 	if !q.Valid() {
 		return empty, errMQTTRecoveryRPC
 	}
@@ -93,6 +116,9 @@ func encodeMQTTRecoveryReply(q ch.MQTTReplayRecoveryRequest, p ch.MQTTReplayReco
 	if q.ReleaseSource {
 		magic = mqttReleaseReplyMagic
 	}
+	if q.ApplyRetirement {
+		magic = mqttRetirementReplyMagic
+	}
 	b := appendMQTTReplayString([]byte(magic), string(echo))
 	b = append(b, status)
 	if status != 0 {
@@ -116,6 +142,9 @@ func encodeMQTTRecoveryReply(q ch.MQTTReplayRecoveryRequest, p ch.MQTTReplayReco
 	if p.SourceReleased {
 		flags |= 8
 	}
+	if p.RetirementPending {
+		flags |= 16
+	}
 	b = append(b, flags)
 	b = binary.BigEndian.AppendUint64(b, p.Plan.ScanAfter)
 	b = binary.BigEndian.AppendUint64(b, uint64(p.DonorAfter))
@@ -135,6 +164,9 @@ func decodeMQTTRecoveryReply(b []byte, q ch.MQTTReplayRecoveryRequest) (ch.MQTTR
 	magic := mqttRecoveryReplyMagic
 	if q.ReleaseSource {
 		magic = mqttReleaseReplyMagic
+	}
+	if q.ApplyRetirement {
+		magic = mqttRetirementReplyMagic
 	}
 	if len(b) > mqttRecoveryRPCMaxBytes || !bytes.HasPrefix(b, []byte(magic)) {
 		return empty, errMQTTRecoveryRPC
@@ -168,13 +200,18 @@ func decodeMQTTRecoveryReply(b []byte, q ch.MQTTReplayRecoveryRequest) (ch.MQTTR
 		return empty, errMQTTRecoveryRPC
 	}
 	flags, err := r.ReadByte()
-	if err != nil || flags & ^byte(15) != 0 {
+	allowed := byte(15)
+	if q.ApplyRetirement {
+		allowed |= 16
+	}
+	if err != nil || flags & ^allowed != 0 {
 		return empty, errMQTTRecoveryRPC
 	}
 	out.Plan.HasNext = flags&1 != 0
 	out.Plan.Complete = flags&2 != 0
 	out.Repaired = flags&4 != 0
 	out.SourceReleased = flags&8 != 0
+	out.RetirementPending = flags&16 != 0
 	var fields [2]uint64
 	if binary.Read(r, binary.BigEndian, &fields) != nil {
 		return empty, errMQTTRecoveryRPC

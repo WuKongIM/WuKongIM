@@ -93,6 +93,11 @@ target recovery requests this through RPC 99 v2 with explicit intent and reply
 acknowledgement; v1 remains ordinary recovery and old servers reject v2. See
 [anchor-derived release](../../docs/specs/mqtt-source-anchor-release.md).
 
+RPC 99 version 3 explicitly applies the latest locally committed retirement
+before repair planning; a separate flag reports bounded cleanup still pending.
+Versions 1/2 preserve their bytes and behavior; old peers reject version 3, and
+callers must not downgrade the requested effect. No new storage encoding is added.
+
 Message table 2 System 2 materializes a verified format-6 retirement. Its fixed
 version-1, checksummed envelope stores two uint64 values: the retirement control
 position and the engine-deleted-through cursor. Its counters/digest are resolved

@@ -11,6 +11,7 @@ import (
 
 const mqttRecoveryDonorAttempts = 4
 const mqttRecoveryDonorTimeout = 750 * time.Millisecond
+const mqttRecoveryRetireLimit = 64
 
 type mqttRecoveryForwarder interface {
 	ForwardMQTTReplayRecoveryStep(context.Context, ch.MQTTReplayRecoveryRequest) (ch.MQTTReplayRecoveryResult, error)
@@ -78,6 +79,13 @@ func (s *Service) stepLocalMQTTRecovery(ctx context.Context, q ch.MQTTReplayReco
 	if !ok {
 		return empty, ch.ErrInvalidConfig
 	}
+	pending := false
+	if q.ApplyRetirement {
+		pending, err = s.applyMQTTRecoveryRetirement(ctx, handle, q, authority, m)
+		if err != nil {
+			return empty, err
+		}
+	}
 	plan, err := planner.PlanMQTTReplayRepair(ctx, ch.MQTTReplayRepairScan{Generation: q.Source.Generation, TargetAnchor: q.TargetAnchor, AfterAnchor: q.AfterAnchor, Limit: q.ScanLimit})
 	if err != nil {
 		return empty, err
@@ -85,7 +93,7 @@ func (s *Service) stepLocalMQTTRecovery(ctx context.Context, q ch.MQTTReplayReco
 	if !q.AcceptsPlan(plan) {
 		return empty, ch.ErrLogConflict
 	}
-	result := ch.MQTTReplayRecoveryResult{Plan: plan}
+	result := ch.MQTTReplayRecoveryResult{Plan: plan, RetirementPending: pending}
 	if !plan.HasNext {
 		if plan.Complete && q.ReleaseSource {
 			release, ok := handle.(channelstore.MQTTSourceReleaser)
@@ -159,6 +167,51 @@ func (s *Service) stepLocalMQTTRecovery(ctx context.Context, q ch.MQTTReplayReco
 		return result, nil
 	}
 	return result, nil
+}
+
+// applyMQTTRecoveryRetirement consumes only receiver-owned committed evidence.
+// The bounded store mutation independently rechecks it under append ownership;
+// repeated turns resume its durable cursor without any caller cleanup position.
+func (s *Service) applyMQTTRecoveryRetirement(ctx context.Context, handle channelstore.ChannelStore, q ch.MQTTReplayRecoveryRequest, authority ch.MQTTReplayRequest, m ch.Meta) (bool, error) {
+	reader, ok := handle.(channelstore.MQTTReplayLatestRetirementReader)
+	retirer, canRetire := handle.(channelstore.MQTTReplayRetirer)
+	if !ok || !canRetire {
+		return false, ch.ErrInvalidConfig
+	}
+	proof, found, err := reader.LoadLatestMQTTReplayRetirement(ctx, q.Source.Generation)
+	if err != nil {
+		return false, err
+	}
+	if err = ctx.Err(); err != nil {
+		return false, err
+	}
+	if !found {
+		if proof != (ch.MQTTReplayRetirementProof{}) {
+			return false, ch.ErrLogConflict
+		}
+		return false, nil
+	}
+	if !q.AcceptsRetirement(proof) {
+		return false, ch.ErrLogConflict
+	}
+	if err = s.recheckMQTTRepairAuthority(ctx, authority, m, q.Target); err != nil {
+		return false, err
+	}
+	r, err := retirer.RetireMQTTReplay(ctx, q.Source.Generation, proof.Manifest.LastOffset, mqttRecoveryRetireLimit)
+	if err != nil {
+		return false, err
+	}
+	if err = ctx.Err(); err != nil {
+		return false, err
+	}
+	a, p := proof.Retirement.Anchor, r.Retired
+	if r.RetirementPosition < proof.Manifest.LastOffset || p.Generation != q.Source.Generation || p.StartAfter != a.StartAfter ||
+		p.Through < a.Through || p.Through >= r.RetirementPosition || p.TotalBytes < a.TotalBytes || p.TotalStoredBytes < a.TotalStoredBytes ||
+		p.TotalBytes > p.TotalStoredBytes || p.Digest == [32]byte{} || (p.Through == a.Through && (p.TotalBytes != a.TotalBytes || p.TotalStoredBytes != a.TotalStoredBytes || p.Digest != a.Digest)) ||
+		r.Deleted < 0 || r.Deleted > mqttRecoveryRetireLimit || r.DeletedThrough < p.StartAfter || r.DeletedThrough > p.Through || r.Done != (r.DeletedThrough == p.Through) {
+		return false, ch.ErrLogConflict
+	}
+	return !r.Done, nil
 }
 
 func fetchMQTTRecoveryDonor(ctx context.Context, forward mqttRepairForwarder, q ch.MQTTReplayRepairRequest) (ch.MQTTReplayPage, error) {

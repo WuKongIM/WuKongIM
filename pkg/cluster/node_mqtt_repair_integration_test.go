@@ -81,7 +81,7 @@ func TestMQTTRepairThreeNodeLearnerRestartAndIsolation(t *testing.T) {
 	require.False(t, lagging.ReplayReadiness.Covered)
 	want, err := read(nodes[1])
 	require.NoError(t, err)
-	recovery := ch.MQTTReplayRecoveryRequest{Target: 3, Source: ch.MQTTReplayPlanRequest{ChannelID: id, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 1, ExpectedRouteGeneration: 1, Generation: source.Generation}, TargetAnchor: proof.Manifest.LastOffset, ScanLimit: 1, ReleaseSource: true}
+	recovery := ch.MQTTReplayRecoveryRequest{Target: 3, Source: ch.MQTTReplayPlanRequest{ChannelID: id, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 1, ExpectedRouteGeneration: 1, Generation: source.Generation}, TargetAnchor: proof.Manifest.LastOffset, ScanLimit: 1, ReleaseSource: true, ApplyRetirement: true}
 	q := ch.MQTTReplayRepairRequest{Target: 3, Donor: 2, Request: replay}
 	var prefix ch.MQTTReplayPrefix
 	complete, continuations, repaired := false, 0, 0

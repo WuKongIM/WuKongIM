@@ -33,8 +33,10 @@ existing baselines or a rollback to an unpruned archive fail. Fully retired cont
 is a valid zero-row version-3 archive. Matched binaries/tools are required.
 
 This storage seam consumes a replicated decision, not a caller consumer floor.
-Product admission, migration routing and scheduling still must select/commit and
-apply such decisions through the current authority before enabling MQTT access.
+Explicit [recovery application](mqtt-retirement-recovery.md) now discovers and
+applies the latest committed decision before requesting donor bodies. Product
+consumer admission still must select/commit decisions through current authority
+before enabling MQTT access.
 
 ## Failure inventory before implementation
 

@@ -189,7 +189,7 @@ func (c *ReplayCoordinator) recover(ctx context.Context, source ch.MQTTReplayPla
 	out.Target = target.NodeID
 	out.Next.NextTarget = (i + 1) % len(out.Next.Targets)
 	out.Next.RepairNext = false
-	q := ch.MQTTReplayRecoveryRequest{Target: target.NodeID, Source: source, TargetAnchor: target.AnchorPosition, AfterAnchor: target.AfterAnchor, DonorAfter: target.DonorAfter, ScanLimit: 64, ReleaseSource: true}
+	q := ch.MQTTReplayRecoveryRequest{Target: target.NodeID, Source: source, TargetAnchor: target.AnchorPosition, AfterAnchor: target.AfterAnchor, DonorAfter: target.DonorAfter, ScanLimit: 64, ReleaseSource: true, ApplyRetirement: true}
 	if err := ctx.Err(); err != nil {
 		return out, err
 	}
@@ -204,6 +204,10 @@ func (c *ReplayCoordinator) recover(ctx context.Context, source ch.MQTTReplayPla
 		return out, ErrEvidence
 	}
 	switch {
+	case r.Plan.Complete && r.RetirementPending:
+		// Cleanup has a durable store cursor. Yield this worker visit instead of
+		// pretending to advance a journal scan; a later pass resumes bounded work.
+		target.AfterAnchor, target.DonorAfter = 0, 0
 	case r.Plan.Complete:
 		out.TargetComplete = true
 		*target = ReplayTargetCursor{NodeID: target.NodeID}

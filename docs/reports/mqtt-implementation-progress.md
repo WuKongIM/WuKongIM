@@ -3387,3 +3387,65 @@ Final binding removal, complete subscription/inbox projection, permission orderi
 delivery/ACK, owner recovery, Will execution, product lifecycle/configuration,
 offline tools and process/load acceptance remain required. The goal is active and
 product MQTT access remains unavailable.
+
+
+## Committed retirement application before replica recovery
+
+RPC 99 version 3 explicitly applies a target's latest committed retirement before
+its repair planner or any donor fetch. A pinned HW/source/journal lookup uses one
+reverse seek and bounded independent proposal/anchor checks, excluding pending
+controls. Current placement is checked again before the store independently
+revalidates and applies the decision with a 64-primary-row cleanup limit. No
+caller-supplied consumer floor, deletion position, new native control or new
+storage encoding is introduced. Ordinary version-1/2 bytes and behavior remain.
+
+The reply separates logical plan completion from pending physical cleanup.
+Direct coordinator visits retain their target anchor and rotate; the managed
+worker yields each durable cleanup step to other sources and resumes its store
+cursor on a later cold pass. Only advancing finite journal scans may request a
+worker continuation. An initial coordinator implementation incorrectly reused
+that continuation flag; the worker-contract audit reproduced the error before
+removing it. Completion waits for cleanup, while source release remains a
+separate explicit effect and neither result grants new consumer authority.
+
+Contract/failure inventory and frozen context:
+[mqtt-retirement-recovery.md](../specs/mqtt-retirement-recovery.md).
+
+Validation (all terminal passes):
+
+- Missing APIs produced RED before implementation in
+  `/tmp/mqtt-retirement-recovery-red.log`. The cleanup/yield regression was RED in
+  `/tmp/mqtt-retirement-recovery-yield-red.log` before its fix.
+- `GOWORK=off go test -p 2 -race ./pkg/db/message ./pkg/channel
+  ./pkg/channel/store ./pkg/cluster/channels ./internal/usecase/mqttsession
+  -count=1 -timeout=180s`: all passed; message 63.751 s, Channel 2.407 s,
+  store 6.143 s, cluster channels 7.007 s, usecase 29.712 s.
+  `/tmp/mqtt-retirement-recovery-race.log`. Boundary cases cover explicit intent,
+  absence, future/foreign proof, unsupported stores, metadata changes, stable
+  fences, cancellation/panic, malformed outcomes and closed v3 codecs.
+- `GOWORK=off go test -p 2 -race -tags=integration ./pkg/db/message
+  ./pkg/cluster/channels ./pkg/cluster -run
+  '^(TestMQTTLatestRetirement|TestMQTTRetirementRecoverySkipsPrunedBodiesAndResumesCleanup|TestMQTTRepairThreeNodeLearnerRestartAndIsolation)'
+  -count=1 -timeout=150s -v`: all passed; message 6.079 s, channels 2.706 s,
+  cluster 14.692 s. `/tmp/mqtt-retirement-recovery-integration.log`.
+  Real disks prove pending decisions excluded, corrupt evidence rejected,
+  absence without writes, and restart discovery. Service-entry integration
+  commits a controlled retirement through 65, prunes the donor, and recovers
+  only positions 66..67 on a target missing old bodies or retaining 65 old rows;
+  the latter cleans 64 rows in its first turn and finishes after reopen.
+  The three-node TCP scenario exercises v3 forwarding, learner recovery, original
+  source release/trim, restart, and rejection after loss of Slot quorum. It has
+  no retirement producer; the real-disk service scenario supplies that decision.
+- After the coordinator yield fix, `GOWORK=off go test -p 2 -race
+  ./internal/usecase/mqttsession ./internal/runtime/mqttsession -count=1
+  -timeout=120s`: both passed, 15.149 s / 1.887 s;
+  `/tmp/mqtt-retirement-recovery-scheduling.log`.
+- `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-retirement-recovery-flow.log`. Generated index and whitespace pass.
+
+Remaining next dependency: ordered consumer/current-authority retirement
+production, including prevention of maintenance-only copy/anchor/retirement
+feedback. Final binding removal, complete subscription/inbox projection,
+permission ordering, delivery/ACK, owner recovery, Will execution, product
+lifecycle/configuration, offline tools and process/load acceptance remain
+required. The goal is active; product MQTT access remains unavailable.

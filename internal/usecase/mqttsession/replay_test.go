@@ -72,11 +72,30 @@ func newReplayFixture(t *testing.T) (*ReplayCoordinator, *replayCoordinatorFixtu
 		require.LessOrEqual(t, time.Until(deadline), 5*time.Second)
 		require.Equal(t, 64, q.ScanLimit)
 		require.True(t, q.ReleaseSource)
+		require.True(t, q.ApplyRetirement)
 		return ch.MQTTReplayRecoveryResult{Plan: ch.MQTTReplayRepairPlan{Current: proof.Prefix(), Target: proof, Complete: true}, SourceReleased: true}, nil
 	}
 	c, err := NewReplayCoordinator(ReplayCoordinatorOptions{Metadata: f, Channels: f, MessageIDs: f, Now: func() time.Time { return time.UnixMilli(1000) }})
 	require.NoError(t, err)
 	return c, f, owner
+}
+
+func TestReplayCoordinatorKeepsCleanupPendingTargetAndRotates(t *testing.T) {
+	c, f, owner := newReplayFixture(t)
+	f.plan.HasAnchor, f.plan.Anchor, f.plan.Source.CommittedThrough = true, f.proof, f.proof.Manifest.LastOffset
+	f.repair = func(_ context.Context, q ch.MQTTReplayRecoveryRequest) (ch.MQTTReplayRecoveryResult, error) {
+		require.True(t, q.ApplyRetirement)
+		return ch.MQTTReplayRecoveryResult{Plan: ch.MQTTReplayRepairPlan{Current: f.proof.Prefix(), Target: f.proof, Complete: true}, SourceReleased: true, RetirementPending: q.Target == 1}, nil
+	}
+	first, err := c.Step(context.Background(), owner, ReplayCursor{})
+	require.NoError(t, err)
+	require.False(t, first.TargetComplete)
+	require.False(t, first.ContinueScan, "cleanup yields; only advancing journal scans retain a worker visit")
+	require.Equal(t, f.proof.Manifest.LastOffset, first.Next.Targets[0].AnchorPosition)
+	second, err := c.Step(context.Background(), owner, first.Next)
+	require.NoError(t, err)
+	require.Equal(t, ch.NodeID(2), second.Target)
+	require.True(t, second.TargetComplete)
 }
 
 func TestReplayCoordinatorCopiesThenRotatesPinnedRecovery(t *testing.T) {

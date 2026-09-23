@@ -115,7 +115,7 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
   digest. Store planning selects from durable coverage and at most 64 journals,
   validates continuation hints and completes only an exact target. Cluster recovery
   steps route to that target, try at most four donors with separate deadlines and
-  return scan/import/retry/completion outcomes under fresh metadata checks.
+  return scan/import/retry/completion under fresh metadata; explicit retirement first applies committed baselines with bounded cleanup.
   Import keeps the pre-import plan; the next read verifies completion. Active migration
   probes bind coverage to captured HW; explicit source release independently verifies committed/local proofs through an optional store port.
   Replay preparation uses the same recovered leader/route admission and bounded
