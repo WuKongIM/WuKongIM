@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add the authenticated MQTT PUBLISH adapter over existing IM permissions and durable sends, with committed QoS 1 acknowledgments and takeover fencing for uncertain writes. Product MQTT admission and uncertain-write recovery remain under development. / MQTT 发布适配复用现有 IM 权限与持久消息链路，QoS 1 提交后确认；未决写入阻止接管产生错误隔离证明。产品 MQTT 入口与未决写入恢复仍在开发。
+
 - Add bounded MQTT Session/Will deadline scanning across locally led hash slots, with fair paging and joined shutdown/restart. Product MQTT admission remains under development. / 新增按本节点负责 hash slot 执行的有界 MQTT 会话与 Will 到期扫描，支持公平分页及等待任务退出的停止/重启；产品 MQTT 入口仍在开发。
 
 - Reconcile MQTT Session and Will deadlines through current cluster authority, preserving detached Will obligations and rejecting stale-owner cleanup. Product MQTT access remains under development. / MQTT 会话及 Will 到期处理复用当前集群权威，保留独立发布义务并拒绝旧 owner 清理；产品 MQTT 接入仍在开发。

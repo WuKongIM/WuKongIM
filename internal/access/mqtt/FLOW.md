@@ -1,6 +1,6 @@
 ---
 scope: package
-summary: Translates MQTT application topics, credentials and publication content without owning authentication or durable session policy.
+summary: Maps MQTT identities and publications and binds authenticated PUBLISH to shared message policy with exact-owner execution and committed ACKs.
 ---
 
 # MQTT Access Mapping Flow
@@ -9,6 +9,7 @@ summary: Translates MQTT application topics, credentials and publication content
 
 This package maps wire-validated MQTT 5 packets to IM identities and immutable
 publication content. Product listener/session orchestration is not yet wired.
+Its Publisher bridges accepted connections to the existing message usecase.
 
 ## Boundaries
 
@@ -24,6 +25,11 @@ publication content. Product listener/session orchestration is not yet wired.
    forgery before constructing owned publication content.
 3. Map original QoS, publisher identity and ordered content properties to the
    bounded durable format. Separate Will Delay from forwarded properties.
+4. Admit exact-owner execution, obtain its immutable UID, check uncached ordinary
+   publish permission, and call Send with owned content and no device privilege.
+5. Confirm a committed result before QoS 1 PUBACK; retain the scope through reply
+   enqueue. Definite rejection maps to a valid MQTT reason. Uncertain Send fences
+   closure and marks unresolved owner work before releasing the local scope.
 
 ## Invariants and Failure Semantics
 
@@ -36,12 +42,19 @@ publication content. Product listener/session orchestration is not yet wired.
 - Will setup reserves the 79-byte server identity before accepting its template;
   ordinary publications retain the full metadata bound.
 - Errors contain fixed diagnostics without credential or content values.
+- Call contexts combine owner cancellation and bounded request deadlines. Check
+  expiry/cancellation after dependencies; no detached work or retries are added.
+- PacketID is reply correlation only. Unknown append outcomes emit no PUBACK and
+  cannot prove takeover safety even after physical close and local scope drain.
+  Proof-based recovery and complete product admission remain pending.
 
 ## Read First
 
 - [Identity and topic mapping](mapping.go)
 - [Publication mapping](publication.go)
+- [Authenticated publish entry](publisher.go)
 - [Application contract](../../../docs/specs/mqtt-wire-contract.md)
+- [Publish failure inventory](../../../docs/specs/mqtt-publish-entry.md)
 
 ## Update Triggers
 

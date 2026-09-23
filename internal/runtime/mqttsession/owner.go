@@ -84,6 +84,10 @@ type ownerEntry struct {
 	operations      int
 	attempt         *ownerCloseAttempt
 	complete        chan struct{}
+	// uncertain retains isolation failure after an admitted dependency returned
+	// without proving its asynchronous effects finished. It never clears by time.
+	uncertain      bool
+	completeClosed bool
 }
 
 // Owners tracks bounded owner execution. One short registry lock protects maps,
@@ -208,6 +212,59 @@ type Operation struct {
 
 func (o *Operation) Context() context.Context { return o.ctx }
 
+// UID returns the immutable authenticated principal reserved with this owner.
+// It is identity only, never proof that the operation is still allowed to act.
+func (o *Operation) UID() string {
+	if o == nil || o.entry == nil {
+		return ""
+	}
+	return o.entry.uid
+}
+
+// Check revalidates execution before another effect without acquiring a second
+// operation slot. Expiry fences admission even when the sweep has not run;
+// callers must still retain this scope until every admitted effect finishes.
+func (o *Operation) Check() error {
+	if o == nil || o.owners == nil || o.entry == nil || o.done.Load() {
+		return ErrOwnerFenced
+	}
+	if err := o.ctx.Err(); err != nil {
+		return err
+	}
+	m := o.owners
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if o.done.Load() || m.stopped || o.entry.stage != ownerActive {
+		return ErrOwnerFenced
+	}
+	if !m.opts.Now().Before(o.entry.leaseUntil) {
+		m.fenceLocked(o.entry)
+		return ErrOwnerFenced
+	}
+	return o.ctx.Err()
+}
+
+// MarkUncertain permanently withholds quiescence proof for an unproved admitted
+// effect. It must run before Done; the owner stays bounded and fenced even after
+// physical close. This registry has no recovery-proof mechanism to clear it.
+func (o *Operation) MarkUncertain() error {
+	if o == nil || o.owners == nil || o.entry == nil {
+		return ErrOwnerInvalid
+	}
+	m := o.owners
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if o.done.Load() || m.entries[o.entry.owner.ConnectionID] != o.entry {
+		return ErrOwnerFenced
+	}
+	if !o.entry.uncertain {
+		o.entry.uncertain = true
+		m.counts.Uncertain++
+	}
+	m.fenceLocked(o.entry)
+	return nil
+}
+
 // Begin is the admission ordering point shared with Quiesce and lease expiry.
 func (m *Owners) Begin(ctx context.Context, owner contract.Owner) (*Operation, error) {
 	if m == nil || ctx == nil {
@@ -304,7 +361,7 @@ func (m *Owners) Quiesce(ctx context.Context, owner contract.Owner) error {
 		done := e.complete
 		m.retireLocked(e)
 		m.mu.Unlock()
-		return awaitOwner(ctx, done)
+		return m.awaitQuiescence(ctx, e, done)
 	}
 	if attempt := e.attempt; attempt != nil {
 		m.mu.Unlock()
@@ -314,7 +371,7 @@ func (m *Owners) Quiesce(ctx context.Context, owner contract.Owner) error {
 		if attempt.err != nil {
 			return attempt.err
 		}
-		return awaitOwner(ctx, e.complete)
+		return m.awaitQuiescence(ctx, e, e.complete)
 	}
 	attempt := &ownerCloseAttempt{done: make(chan struct{})}
 	e.attempt = attempt
@@ -334,7 +391,19 @@ func (m *Owners) Quiesce(ctx context.Context, owner contract.Owner) error {
 	if err != nil {
 		return err
 	}
-	return awaitOwner(ctx, e.complete)
+	return m.awaitQuiescence(ctx, e, e.complete)
+}
+
+func (m *Owners) awaitQuiescence(ctx context.Context, e *ownerEntry, done <-chan struct{}) error {
+	if err := awaitOwner(ctx, done); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if e.uncertain {
+		return ErrOwnerUnknown
+	}
+	return nil
 }
 
 func (m *Owners) entryLocked(owner contract.Owner) (*ownerEntry, error) {
@@ -370,6 +439,13 @@ func (m *Owners) fenceLocked(e *ownerEntry) {
 
 func (m *Owners) retireLocked(e *ownerEntry) {
 	if e.stage != ownerClosing || !e.transportClosed || e.operations != 0 || m.entries[e.owner.ConnectionID] != e {
+		return
+	}
+	if e.uncertain {
+		if !e.completeClosed {
+			e.completeClosed = true
+			close(e.complete)
+		}
 		return
 	}
 	delete(m.entries, e.owner.ConnectionID)

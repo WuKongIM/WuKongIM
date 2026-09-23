@@ -28,6 +28,8 @@
 - 单节点/三节点产品 E2E 场景已编译，首次单节点运行因缺失 MQTT 配置项失败；app 接入、生命周期权威编排与 owner 隔离、共享 replay 的跨节点复制、源保护激活、持久会话/Will/配额及 MQTT 状态离线迁移仍待实现，不能开启入口或声明功能完成。
 - 验证与冻结源码依据见 [实施记录](../../reports/mqtt-implementation-progress.md)。
 
+- 已实现认证后 PUBLISH 入口适配：取 owner 内的 UID、检查当前发布权限并复用 Send；QoS 0 持久化，QoS 1 在明确提交后确认。真实单节点集群验证跨 PacketID 幂等和成员移除。未决 Send 会保留隔离未证明状态；完整产品入口、跨节点未决执行恢复证明与下行仍待实现。
+
 ## 开工合同
 
 - 从实现任务的确切 revision 冻结适用 AGENTS/FLOW；按目录读取适用 FLOW，使用 `.worktrees/` 中的任务工作区。

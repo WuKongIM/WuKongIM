@@ -1317,3 +1317,69 @@ wiring, live-owner renewal/cleanup scheduling, valid unavailable-owner fencing,
 Will execution with retained idempotency, distributed replay/delivery and full
 process-level acceptance are still required. MQTT admission remains unavailable
 and the original full implementation goal stays active.
+
+## Authenticated inbound PUBLISH bridge
+
+Frozen source `62129e7bb`, applicable digests and the pre-code failure inventory
+are in [`mqtt-publish-entry.md`](../specs/mqtt-publish-entry.md). This slice adds
+no database table or product listener/configuration.
+
+`internal/access/mqtt.Publisher` obtains the authenticated UID from an admitted
+owner operation, rejects mismatched connection identity and privileged device
+flags, maps owned publication bytes, checks current ordinary-topic permission,
+and calls the existing message usecase. ClientID never becomes a privileged
+DeviceID; PacketID remains protocol correlation, separate from client_msg_no,
+MessageID and ClientSeq. QoS 0 persists without PUBACK. QoS 1 success requires a
+valid committed ID/sequence; explicit permission/business rejection gets a valid
+MQTT reason, while uncertain results produce no PUBACK and request closure.
+
+The operation remains held through reply enqueue. Dependency contexts now combine
+owner cancellation with the earlier request/entry deadline. A failing regression
+caught the initial use of a gateway-only context, which did not cancel Send during
+takeover; this is fixed. Lease/cancellation checks after dependencies suppress late
+replies, and fixed diagnostics redact arbitrary dependency error/panic text.
+
+Inspection of the real append router exposed a second boundary: Future.Wait and
+remote forwarding can return while admitted Channel work continues. Before
+releasing an uncertain Send's local scope, MarkUncertain permanently fences and
+retains its owner. Physical closure plus zero local operations wakes all quiescence
+waiters with isolation-unproved. Repeated marking, Sweep, Close, lease expiry and
+capacity pressure cannot turn this into a successful proof. The state is bounded
+by owner capacity and exposed only as an aggregate count. A valid committed or
+definite rejection receipt resolves the append result even when the entry context
+has expired; no late ACK is emitted. This registry intentionally provides no
+unproved clearing/reset path. Recovering these uncertain attempts needs a separate
+completion/fencing proof before full product takeover can be advertised.
+
+Tests were written before the new entry/runtime implementation; initial runs
+failed on missing Publisher/operation symbols. The discovered cancellation and
+uncertain-completion bugs received failing regressions before their fixes.
+
+Final validation passed:
+
+- `GOWORK=off go test ./internal/access/mqtt ./internal/runtime/mqttsession
+  ./internal/usecase/mqttsession -count=1 -timeout=90s`: 0.411 / 0.643 / 6.190s;
+  `/tmp/mqtt-publish-entry-default.log`.
+- `GOWORK=off go test -race ./internal/access/mqtt ./internal/runtime/mqttsession
+  -run 'TestPublisher|TestOwnerOperation|TestOwnerUncertain' -count=1 -timeout=90s`:
+  1.877 / 2.361s; `/tmp/mqtt-publish-entry-race.log`. Existing macOS linker warnings
+  remain, with no race report.
+- `GOWORK=off go test -tags=integration ./internal/app
+  -run '^TestMQTTPublishSingleNodeCluster|^TestMQTTSessionAcquisitionThreeNodeRPC|^TestPublicationSingleNodeClusterRetryAfterEdit'
+  -count=1 -timeout=90s -v` passed. The new real single-node cluster test uses 256
+  hash Slots, real device-token/Session authority and production message wiring.
+  It proves committed metadata, QoS 0 persistence, cross-PID retry deduplication,
+  reuse of a completed PID for a distinct message, and immediate denial after
+  membership removal. It took 2.99s; existing three-node acquisition/deadline and
+  edited-history retry tests took 11.77 / 3.12s. Log:
+  `/tmp/mqtt-publish-entry-integration.log`.
+- Named `flow-doc-contracts` passed after index regeneration: 86 compliant,
+  zero invalid, the same 9 pre-existing line-count warnings. `git diff --check`
+  passed.
+
+Transport writes in the new app integration are controlled callbacks. This is
+not the full Paho/WK process-level acceptance test. Product listener/start-stop-
+restore composition, uncertain/unreachable owner recovery proof, live renewal,
+subscription/durable source activation, shared replay delivery, actual Will
+execution and recovery/tooling/pressure acceptance remain required. Product MQTT
+admission remains unavailable, and the full implementation goal remains active.

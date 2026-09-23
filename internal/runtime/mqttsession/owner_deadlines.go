@@ -112,7 +112,9 @@ func (m *Owners) Close(ctx context.Context) error {
 // OwnerSnapshot contains bounded aggregate diagnostics without owner identities.
 type OwnerSnapshot struct {
 	Held, Pending, Active, Closing, Operations, Deadlines int
-	Stopped                                               bool
+	// Uncertain counts retained owners for which effect completion is unproved.
+	Uncertain int
+	Stopped   bool
 }
 
 // Snapshot is constant-time and never scans identities under the registry lock.

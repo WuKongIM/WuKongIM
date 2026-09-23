@@ -60,6 +60,10 @@ scope must remain open through every associated effect and network write. Closin
 the scope is explicit and idempotent; ignoring a cancelled scope keeps the owner
 retained and prevents a false quiescence receipt. A scope must not escape into
 untracked background effects. Metadata mutations still carry durable owner fences.
+A dependency may return while accepted Channel work continues. MarkUncertain
+before Done permanently retains an isolation-unproved barrier in this bounded
+registry. Physical close and drained local scopes wake waiters with failure;
+time, Sweep and Close cannot erase it. No recovery-proof clearing API exists yet.
 
 Quiesce first closes admission permanently and cancels operation contexts, then
 closes the transport through the injected callback. It succeeds only when both

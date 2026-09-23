@@ -223,6 +223,12 @@ specification, runbook, report, or module documentation; link to them when neede
   waits; submission or callback errors remain failure. See
   [close proof](../specs/gateway-transport-close-proof.md) and
   [owner execution](../specs/mqtt-owner-execution.md).
+  The [PUBLISH entry](../specs/mqtt-publish-entry.md) takes UID from admitted owner
+  execution, checks current ordinary-topic permission and reuses Send. QoS 0
+  still persists; QoS 1 success needs committed ID/sequence. An uncertain Send
+  can leave accepted Channel work running, so local scope drain is insufficient:
+  MarkUncertain permanently retains isolation-unproved until a future valid
+  recovery mechanism exists. Time or socket close must not clear this barrier.
   The [Session usecase](../specs/mqtt-session-acquisition.md) verifies device
   credentials without WK conflict actions, isolates the exact old owner, rereads
   authority, atomically commits Session/Will and activates only the local candidate.

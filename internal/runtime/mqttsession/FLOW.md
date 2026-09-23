@@ -27,6 +27,8 @@ leases, publish messages, or interpret MQTT packets.
    activation opens execution only for its exact identity and committed receipt.
 2. Begin checks the active local lease and per-owner capacity synchronously.
    A scope retains ownership through all effects; explicit Done releases it.
+   UID reads its immutable authenticated principal; Check revalidates the live
+   lease before another effect without consuming a second operation slot.
 3. Fence closes admission/cancels scopes without waiting; it supplies no isolation
    proof. Quiesce also coalesces transport close and succeeds only after physical
    closure and every admitted scope drain.
@@ -54,6 +56,10 @@ leases, publish messages, or interpret MQTT packets.
   existing heap entry rather than appending stale deadline records.
 - A scope must not escape into untracked effects; cancellation alone does not
   end it. Gateway adaptation and distributed takeover remain separate work.
+- MarkUncertain before Done retains an unresolved-effect barrier when a dependency
+  may still execute. Physical closure and local drain wake quiescence waiters with
+  isolation-unproved, never success. The bounded owner remains retained; no time,
+  sweep, shutdown or lease refresh clears it. Recovery needs separate proof.
 - Scan hints advance only past visited candidates, including failures; durable
   rows retry after wrap. Future boundaries reset the stream, lost Slots lose
   cursors, and invalid pages or late discovery results authorize no new effects.
