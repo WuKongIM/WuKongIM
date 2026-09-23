@@ -22,6 +22,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	gr "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	wire "github.com/WuKongIM/WuKongIM/pkg/protocol/mqtt"
 	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 	"github.com/stretchr/testify/require"
@@ -44,9 +45,13 @@ func TestMQTTSessionAcquisitionThreeNodeRPC(t *testing.T) {
 	owners := make([]*runtime.Owners, 0, 3)
 	services := make([]*sessioncase.App, 0, 3)
 	permissionStores := make([]*clusterinfra.ChannelMetadataStore, 0, 3)
+	deadlineWorkers := make([]*runtime.DeadlineWorker, 0, 3)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
+		for _, w := range deadlineWorkers {
+			require.NoError(t, w.Stop(ctx))
+		}
 		for _, r := range owners {
 			require.NoError(t, r.Close(ctx))
 		}
@@ -231,21 +236,19 @@ func TestMQTTSessionAcquisitionThreeNodeRPC(t *testing.T) {
 	require.NoError(t, e)
 	require.Len(t, waiting.Wills, 1)
 	require.Equal(t, meta.MQTTWillWaiting, waiting.Wills[0].Stage)
+	for i, n := range nodes {
+		w, err := runtime.NewDeadlineWorker(runtime.DeadlineWorkerOptions{Source: n, Reconciler: services[i], Registry: gr.New(), HashSlotCount: 256, Interval: 20 * time.Millisecond, PagesPerTurn: 32})
+		require.NoError(t, err)
+		deadlineWorkers = append(deadlineWorkers, w)
+		require.NoError(t, w.Start(ctx))
+	}
 	require.Eventually(t, func() bool {
-		if err := services[0].ReconcileDeadline(ctx, delayed.Owner); err != nil {
-			t.Logf("reconcile due: %v", err)
-			return false
-		}
 		r, err := nodes[2].ReadMQTT(ctx, delayRead)
 		return err == nil && len(r.Wills) == 1 && r.Wills[0].Stage == meta.MQTTWillReady && r.Session != nil && r.Session.WillGeneration == 0
-	}, 5*time.Second, 50*time.Millisecond)
+	}, 10*time.Second, 50*time.Millisecond)
 	require.Eventually(t, func() bool {
-		if err := services[0].ReconcileDeadline(ctx, delayed.Owner); err != nil {
-			t.Logf("reconcile expiry: %v", err)
-			return false
-		}
 		r, err := nodes[2].ReadMQTT(ctx, delayRead)
 		return err == nil && len(r.Wills) == 1 && r.Wills[0].Stage == meta.MQTTWillReady && r.Session != nil && r.Session.State == meta.MQTTSessionEnded
-	}, 5*time.Second, 50*time.Millisecond)
-	t.Log("MQTT deadline recovery: remote_authority=true delayed_will_ready=true expired_session_ended=true detached_will_preserved=true")
+	}, 10*time.Second, 50*time.Millisecond)
+	t.Log("MQTT deadline recovery: owned_hash_slot_scans=true automatic_reconciliation=true delayed_will_ready=true expired_session_ended=true detached_will_preserved=true")
 }

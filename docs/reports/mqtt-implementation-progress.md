@@ -1252,3 +1252,68 @@ Session expiry alone misses shorter Will delays. Actual Will execution remains
 dependent on fenced claims, current authorization and source retention through
 ambiguous append resolution. Product MQTT composition, replay/delivery/recovery
 and the full process-level acceptance remain unfinished; the goal stays active.
+
+## Bounded node-owned deadline scheduling
+
+Frozen source `065ff2174`, applicable digests and the pre-code failure inventory
+are in [`mqtt-deadline-worker.md`](../specs/mqtt-deadline-worker.md).
+
+One optional managed MQTT singleton now rotates Session-deadline and Will-recovery
+index pages over the node's current locally led logical hash Slots. It validates
+the bounded unique Slot list, drops cursors for lost ownership, and alternates
+index/Slot positions even when a page fails or exhausts the visit budget. Defaults
+are 256 hash Slots, 200ms interval, a two-second turn, 250ms per dependency call,
+eight pages of at most 16 rows and at most 64 visited candidates. There is no
+per-session worker, timer, queue or detached timeout task.
+
+Each complete page is validated before any lifecycle call. Cursor ordering matches
+the persisted deadline/length-prefixed identity/generation tuple. Only visited
+rows advance process hints; failed candidates stay durable and retry after wrap.
+Unvisited rows survive partial turns, and future boundaries reset that stream.
+Ready/executing Wills are visited without lifecycle mutation so they cannot block
+Waiting work; actual publication remains a separate fenced responsibility.
+
+Start owns an explicit lifetime independent of its startup context. Stop cancels
+and joins the exact loop before dependencies close; a timed-out stop retains it
+and rejects an overlapping restart. A joined restart starts with fresh cursors.
+The task registry adds only fixed `mqtt/deadline_worker` labels. Observations carry
+aggregate counts and duration, without identities, bodies or error strings.
+
+Unit and integration tests were written before the implementation and failed on
+missing worker/catalog symbols. They cover all 256 Slots and both indexes, tiny
+visit budgets, failed/unvisited cursor progress, future boundaries, detached Will
+work, ownership loss, malformed lists/pages, encoded tie ordering, bounded
+configuration and joined stop/restart. Additional failing tests exposed two
+pre-fix errors: late nil results after per-call timeout were accepted, and future
+candidates did not consume the visit budget. Both are fixed; source lists/pages
+are rejected if their context expired before return, and every inspected candidate
+consumes budget. Active calls are still joined rather than abandoned.
+
+Validation passed after the fixes:
+
+- `GOWORK=off go test ./internal/runtime/mqttsession
+  ./internal/usecase/mqttsession ./pkg/goroutine -count=1 -timeout=90s`
+  (0.823 / 4.358 / 1.435 seconds); `/tmp/mqtt-deadline-worker-default.log`.
+- `GOWORK=off go test -race -tags=integration ./internal/runtime/mqttsession
+  -run '^TestDeadlineWorker' -count=1 -timeout=90s` passed in 1.398 seconds,
+  including joined shutdown and overdue dependency results. The existing macOS
+  linker warning remains; `/tmp/mqtt-deadline-worker-race.log`.
+- `GOWORK=off go test -tags=integration ./internal/runtime/mqttsession
+  ./internal/app -run '^TestDeadlineWorkerJoinedStopAndFreshRestart$|^TestDeadlineWorkerRejectsLateSuccessAfterCallDeadline$|^TestMQTTSessionAcquisitionThreeNodeRPC$'
+  -count=1 -timeout=90s -v` passed. The real three-node test took 11.94 seconds
+  with 256 logical hash Slots / two physical Slots / three replicas. Its deadline
+  phase now starts the real workers instead of manually calling reconciliation;
+  evidence reports `owned_hash_slot_scans=true`, `automatic_reconciliation=true`,
+  `delayed_will_ready=true`, `expired_session_ended=true`, and
+  `detached_will_preserved=true`. Runtime lifecycle evidence reports two managed
+  runs, joined canceled work and fresh restart cursors. Log:
+  `/tmp/mqtt-deadline-worker-integration.log`.
+- Named `flow-doc-contracts` passed after index regeneration: 86 compliant,
+  zero invalid, same 9 existing warnings. `git diff --check` passed.
+
+The three-node composition remains an integration harness with controlled socket
+close callbacks, not a complete product MQTT listener. Product startup/stop/restore
+wiring, live-owner renewal/cleanup scheduling, valid unavailable-owner fencing,
+Will execution with retained idempotency, distributed replay/delivery and full
+process-level acceptance are still required. MQTT admission remains unavailable
+and the original full implementation goal stays active.

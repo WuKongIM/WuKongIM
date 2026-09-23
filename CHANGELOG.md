@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add bounded MQTT Session/Will deadline scanning across locally led hash slots, with fair paging and joined shutdown/restart. Product MQTT admission remains under development. / 新增按本节点负责 hash slot 执行的有界 MQTT 会话与 Will 到期扫描，支持公平分页及等待任务退出的停止/重启；产品 MQTT 入口仍在开发。
+
 - Reconcile MQTT Session and Will deadlines through current cluster authority, preserving detached Will obligations and rejecting stale-owner cleanup. Product MQTT access remains under development. / MQTT 会话及 Will 到期处理复用当前集群权威，保留独立发布义务并拒绝旧 owner 清理；产品 MQTT 接入仍在开发。
 
 - Validate MQTT Will setup against current IM publish permissions without using cached grants or creating messages; product MQTT access remains under development. / MQTT Will 配置复用当前 IM 发布权限，绕过缓存授权且不产生消息；产品 MQTT 接入仍在开发。

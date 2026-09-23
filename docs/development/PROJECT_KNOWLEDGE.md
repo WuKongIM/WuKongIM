@@ -237,6 +237,11 @@ specification, runbook, report, or module documentation; link to them when neede
   lifecycle decision. Waiting Will deadlines use a coherent Session/Will read;
   Ready obligations detach atomically and survive later offline expiry. Scheduling
   must scan both Session and Will deadline indexes, never only Session expiry.
+  The node-owned deadline worker rotates those indexes over locally led hash
+  Slots with bounded pages/visits and joined per-call contexts. Complete cursors
+  advance only over visited rows; future boundaries reset, failed rows remain
+  durable, and lost ownership discards cursors. Stop must join before restore or
+  dependency shutdown; restart cannot overlap an old run. It does not publish Wills.
   Product app registration and unreachable/restarted-owner isolation proof remain
   required; stored inactive state, boot mismatch or lease expiry alone is not proof.
   Source-owned binding tombstones prevent delayed prepares from resurrecting a

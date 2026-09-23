@@ -1,13 +1,14 @@
 ---
 scope: package
-summary: Bounds owner-local MQTT reservations, monotonic execution admission, exact quiescence, deadline cleanup and shutdown.
+summary: Bounds MQTT owner-local execution, exact quiescence, cleanup and fair durable-deadline scheduling with joined shutdown.
 ---
 
-# MQTT Owner Execution Flow
+# MQTT Session Runtime Flow
 
 ## Responsibility
 
-This package tracks local connection execution and exact-owner quiescence.
+This package tracks local connection execution and exact-owner quiescence,
+and schedules bounded durable deadline candidates through an injected usecase.
 It does not authenticate users, acquire durable ownership, derive distributed
 leases, publish messages, or interpret MQTT packets.
 
@@ -17,7 +18,8 @@ leases, publish messages, or interpret MQTT packets.
   a conservative deadline from the same owner-local monotonic time base.
 - The injected close callback seals writes and closes the physical transport;
   it must honor cancellation and cannot recursively wait for business cleanup.
-- App composition owns periodic bounded sweeps and joined shutdown.
+- App composition owns owner-registry sweeps and the durable deadline worker's
+  start/stop ordering. The worker does not renew live owners or publish Wills.
 
 ## Main Flows
 
@@ -33,6 +35,10 @@ leases, publish messages, or interpret MQTT packets.
    per-session goroutine or full-registry scan.
 5. Shutdown closes admission and cancels scopes before bounded cleanup pages;
    timeouts retain unfinished owners and permit a later exact retry.
+6. One managed deadline loop rotates Session/Will index pages over currently led
+   hash Slots, with bounded reads/visits and per-call/turn deadlines. Only Waiting
+   Wills reach lifecycle reconciliation; detached publication work remains intact.
+   Stop joins the exact run; restart after Stop gets fresh process cursors.
 
 ## Invariants and Failure Semantics
 
@@ -48,12 +54,19 @@ leases, publish messages, or interpret MQTT packets.
   existing heap entry rather than appending stale deadline records.
 - A scope must not escape into untracked effects; cancellation alone does not
   end it. Gateway adaptation and distributed takeover remain separate work.
+- Scan hints advance only past visited candidates, including failures; durable
+  rows retry after wrap. Future boundaries reset the stream, lost Slots lose
+  cursors, and invalid pages or late discovery results authorize no new effects.
+- A stopping deadline loop cannot overlap a restart. No per-session task or
+  unbounded queue is added; observation contains only aggregate counts/duration.
 
 ## Read First
 
 - [Owner execution](owner.go)
 - [Deadline and shutdown ownership](owner_deadlines.go)
 - [Failure inventory](../../../docs/specs/mqtt-owner-execution.md)
+- [Deadline worker](deadline_worker.go)
+- [Scheduling contract](../../../docs/specs/mqtt-deadline-worker.md)
 
 ## Update Triggers
 

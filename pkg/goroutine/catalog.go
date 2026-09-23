@@ -17,6 +17,7 @@ const (
 	ModuleChannel       Module = "channel"
 	ModuleDatabase      Module = "database"
 	ModulePresence      Module = "presence"
+	ModuleMQTT          Module = "mqtt"
 	ModuleMessage       Module = "message"
 	ModuleChannelAppend Module = "channelappend"
 	ModuleDelivery      Module = "delivery"
@@ -140,6 +141,7 @@ const (
 	TaskDatabaseBackupStream             TaskID = "database/backup_stream"
 	TaskDatabaseCommitCoordinator        TaskID = "database/commit_coordinator"
 	TaskPresenceBatchResolve             TaskID = "presence/batch_resolve"
+	TaskMQTTDeadlineWorker               TaskID = "mqtt/deadline_worker"
 	TaskMessagePermissionBatch           TaskID = "message/permission_batch"
 	TaskMessageDirectoryBatch            TaskID = "message/directory_batch"
 	TaskMessageDirectoryProjector        TaskID = "message/directory_projector"
@@ -242,6 +244,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskDatabaseBackupStream, Module: ModuleDatabase, Name: "backup_stream", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskDatabaseCommitCoordinator, Module: ModuleDatabase, Name: "commit_coordinator", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskPresenceBatchResolve, Module: ModulePresence, Name: "batch_resolve", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
+	{ID: TaskMQTTDeadlineWorker, Module: ModuleMQTT, Name: "deadline_worker", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskMessagePermissionBatch, Module: ModuleMessage, Name: "permission_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMessageDirectoryBatch, Module: ModuleMessage, Name: "directory_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMessageDirectoryProjector, Module: ModuleMessage, Name: "directory_projector", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
