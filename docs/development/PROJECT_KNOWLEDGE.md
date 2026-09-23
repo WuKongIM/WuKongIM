@@ -308,6 +308,13 @@ specification, runbook, report, or module documentation; link to them when neede
   content; index 2 meters prefix ranges without reading bodies. Binary backup 2
   validates/rebuilds the shared keyspace without global-ID duplicates; native-only
   backup stays version 1. Replica storage is not cross-node durability or safe GC.
+  Bounded replay transfer requires installed committed entry/proposal proofs and
+  an independently accepted complete-content prefix. Native log digests omit some
+  row fields, so the received page cannot supply its own recovery authority.
+  Import can refill shared content after original-body trim, commits rows/meters
+  and local progress atomically, and never advances source release or readiness.
+  See [replay transfer](../specs/mqtt-replay-transfer.md); quorum receipts and
+  learner/migration scheduling remain runtime requirements.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.

@@ -1843,3 +1843,57 @@ does not implement `SubscriptionProjection` or produce its completion receipt.
 Shared-copy transfer/GC, reliable delivery, Will execution, app/configuration,
 unavailable-owner proof and full process/load acceptance remain required. Product
 MQTT admission stays unavailable; the full implementation goal remains active.
+
+## Bounded shared replay transfer with an independent content anchor
+
+Source `c71e102be`; the pre-code failure inventory and frozen context are in
+[mqtt-replay-transfer.md](../specs/mqtt-replay-transfer.md). `ChannelLog` now
+exports pinned pages and atomically imports up to 256 records / 16 MiB. Import
+requires an independently accepted full-content prefix plus the receiving
+replica's already installed committed activation, source, checkpoint and exact
+entry/proposal evidence. It validates canonical envelopes, counters, chain links,
+paired manifests and committed proposal tails using bounded point reads.
+
+Inspection found that native log digests do not bind all replay envelope fields:
+RedDot and stream fields are examples, and format 1 predates lifetime binding.
+The API therefore explicitly requires a separate expected prefix from a verified
+current-authority copy/recovery decision. Taking it from the received page would
+violate the contract. Tests independently change an unbound native field and a
+log-bound payload, reseal the page, and verify rejection by the appropriate check.
+This step does not implement the producer of that distributed decision.
+
+Rows, range meters and local coverage share one synchronous commit. Gaps,
+extending overlaps, orphan rows/meters and inconsistent retries fail; a failed
+last record leaves no partial writes. Fully covered historical retries return
+their accepted endpoint even after later progress. A receiver can refill missing
+shared content after original-body trim using retained committed identities and
+the independently accepted prefix. Source copied-through may temporarily exceed
+local recovery coverage; neither partial import nor its return value grants
+readiness. The test explicitly controls the external source-release decision.
+Import does not change source release, checkpoints or ordinary message rows.
+
+Verified:
+
+- API tests failed before implementation, `/tmp/mqtt-replay-transfer-red.log`.
+- Focused `TestMQTTReplayTransfer` tests passed (3.803 seconds),
+  `/tmp/mqtt-replay-transfer-focused.log`. Coverage includes bounded pagination,
+  owned bytes, original-body trim, disk reopen, exact historical retries,
+  generation/key/content corruption, missing local evidence, malformed counters,
+  limits, cancellation, overlapping extensions and atomic failure.
+- `GOWORK=off go test -race ./pkg/db/message -count=1 -timeout=180s`: passed
+  (21.956 seconds), `/tmp/mqtt-replay-transfer-race.log`. The macOS linker emitted
+  a non-failing LC_DYSYMTAB warning.
+- `GOWORK=off go test ./pkg/db/... ./pkg/quorumlog -count=1 -timeout=180s`:
+  all packages passed, `/tmp/mqtt-replay-transfer-regression.log`.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing
+  line-budget warnings, `/tmp/mqtt-replay-transfer-flow.log`. Rendering the index
+  produced no index diff. `git diff --check` passed.
+
+No durable schema or protocol format changed. These are storage-level tests,
+not process-level MQTT acceptance. Current-authority copy receipts, transfer RPC
+and learner/migration readiness, source-release replication and consumer-proof
+GC remain required. The broader implementation still needs complete subscription
+projection, inbox discovery/future-source admission, permission-incarnation
+ordering, reliable delivery/ACK/recovery, fenced Will execution, unavailable-owner
+proof, app/configuration and full process/load acceptance. Product MQTT admission
+stays unavailable; the implementation goal remains active.

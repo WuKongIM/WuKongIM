@@ -45,8 +45,14 @@ validate the complete new stream before mutation and restore replay rows without
 touching ordinary unique indexes. Restored runtime authority is still fenced by
 the future activation protocol. Older tools must reject version 2, not omit it.
 
+The [bounded transfer primitive](mqtt-replay-transfer.md) now exports pinned
+pages and atomically imports against installed committed log identities and an
+independently accepted complete-content prefix. Native entry digests omit some
+row fields, so sender-supplied page hashes alone cannot authenticate recovery.
+This adds no durable schema or wire-format change.
+
 No generic delete/TTL is provided. Consumer-proof GC, cross-node replication,
-learner/migration transfer, authority recovery and MQTT-state JSONL export remain
+learner/migration orchestration, authority recovery and MQTT-state JSONL export remain
 required before product activation. This replica storage API alone cannot
 authorize SUBACK, advance a distributed copy frontier or open the MQTT listener.
 

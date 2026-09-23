@@ -59,7 +59,6 @@ storage core without transferring shared-engine ownership.
   Matched runtimes, tooling and full-generation rollback are required. Import adds no empty-key exception, uniqueness relaxation,
   or recovery path and rejects values the native runtime cannot represent.
   Inspection includes independently owned publication bytes only when present.
-
 - A sparse SyncOnce ordinal index (ID 7, complete marker system ID 11) excludes
   internal records from badge rank queries. Existing primary rows are rebuilt in
   bounded batches before the marker is published; channel append ownership
@@ -108,9 +107,10 @@ storage core without transferring shared-engine ownership.
   12. Duplicates keep the first boundary; only uncommitted suffixes can replace it.
   Backups skip pending controls and validate committed source/manifest pairs.
   Source/checkpoint reads pin activation/source/HW; admission requires a covered control.
-  Shared replay table 2 copies committed original content and prefix counters
-  atomically, canonicalizes size hints, and meters ranges through small index-2
-  endpoints. Local coverage never advances System 12 or claims quorum durability.
+  Shared replay table 2 atomically stores canonical content and prefix counters;
+  index 2 meters ranges. Bounded transfer requires installed committed log proofs
+  and an independently accepted full-content digest: native log hashes omit fields.
+  Local copy/import never advances System 12 or proves quorum durability.
   Suffix cuts never split proposals; recovery replacement is fenced by the
   inspected frontier and atomically replaces complete verified proposal pages.
 - Queue-depth publication is monotonic through grouped collection and terminal
