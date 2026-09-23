@@ -144,6 +144,10 @@ _Avoid_: Evidence Bundle, historical diagnostics
 The single existing wkbench coordinator run whose bounded phases generate and evaluate one Scenario Profile on the simulator.
 _Avoid_: Cloud daemon, dev-sim loop
 
+**Worker Assignment**:
+One immutable generation of work assigned to one worker within a Workload Execution. Its identity distinguishes replacement assignments even when the parent run identity is reused.
+_Avoid_: Workload Execution, worker process
+
 **Internal Capability Token**:
 A random, run-scoped credential authorizing one narrow private interaction among simulator services and cluster nodes.
 _Avoid_: Administrator login, shared private token

@@ -1,17 +1,14 @@
 package worker
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
 	"github.com/WuKongIM/WuKongIM/internal/bench/report"
 )
 
@@ -21,62 +18,6 @@ const (
 	// reproof without exposing session or transport error details.
 	TerminalReceiveSealFailureReasonCode = "terminal_receive_seal_failed"
 )
-
-var errTerminalReceiveSealFailed = errors.New("terminal receive seal failed")
-
-// WorkloadRunner receives worker lifecycle hooks for assigned benchmark shards.
-type WorkloadRunner interface {
-	// Prepare prepares target-side benchmark data for the active assignment.
-	Prepare(ctx context.Context, assignment Assignment) error
-	// Connect establishes workload connections for the active assignment.
-	Connect(ctx context.Context, assignment Assignment) error
-	// Warmup runs warmup traffic for the active assignment.
-	Warmup(ctx context.Context, assignment Assignment) error
-	// Run runs measured traffic for the active assignment.
-	Run(ctx context.Context, assignment Assignment) error
-	// Cooldown drains workload state after measured traffic.
-	Cooldown(ctx context.Context, assignment Assignment) error
-}
-
-// MetricsReporter exposes worker-local metrics collected by a workload runner.
-type MetricsReporter interface {
-	// MetricsSnapshot returns a JSON-friendly worker-local metrics snapshot.
-	MetricsSnapshot() metrics.SnapshotData
-}
-
-// ConnectionStatusReporter exposes live online connection state for bounded diagnostics.
-type ConnectionStatusReporter interface {
-	// ConnectionStatus returns the latest active connection count and reconnect churn.
-	ConnectionStatus() (activeUsers int, reconnectedUsers uint64)
-}
-
-// LifecycleStatusReporter exposes one bounded worker-wide status projection
-// for periodic local baseline evidence. Implementations must not include
-// per-connection or per-message identities.
-type LifecycleStatusReporter interface {
-	// LifecycleStatus returns one coherent connection and traffic lifecycle snapshot.
-	LifecycleStatus() LifecycleStatus
-}
-
-// AssignmentStarter receives a hook when the control plane accepts a fresh run assignment.
-type AssignmentStarter interface {
-	// BeginAssignment resets per-run runner state before any phase hook executes.
-	BeginAssignment(assignment Assignment)
-}
-
-// AssignmentStopper releases resources owned by a terminal worker assignment.
-type AssignmentStopper interface {
-	// EndAssignment closes assignment-scoped connections and background work.
-	// Implementations must be idempotent because stop requests may be retried.
-	EndAssignment(assignment Assignment) error
-}
-
-// TerminalReceiveSealer closes only the assignment's receive readers after an
-// acknowledged external terminal cut and proves that the live drained cut did
-// not change across that stop boundary. Product sessions remain connected.
-type TerminalReceiveSealer interface {
-	SealTerminalReceive(ctx context.Context, assignment Assignment) error
-}
 
 // StopRequest identifies the exact assignment that a coordinator intends to stop.
 type StopRequest struct {
@@ -94,48 +35,6 @@ type RunRequest struct {
 	AssignmentID string `json:"assignment_id"`
 }
 
-// assignmentIdentity identifies one immutable worker assignment generation.
-type assignmentIdentity struct {
-	// runID identifies the parent benchmark run.
-	runID string
-	// assignmentID identifies one generation within runID.
-	assignmentID string
-}
-
-func requiredAssignmentIdentity(runID, assignmentID string) (assignmentIdentity, error) {
-	identity := assignmentIdentity{
-		runID:        strings.TrimSpace(runID),
-		assignmentID: strings.TrimSpace(assignmentID),
-	}
-	if identity.runID == "" {
-		return assignmentIdentity{}, fmt.Errorf("run_id is required")
-	}
-	if identity.assignmentID == "" {
-		return assignmentIdentity{}, fmt.Errorf("assignment_id is required")
-	}
-	return identity, nil
-}
-
-func (i assignmentIdentity) matches(assignment Assignment) bool {
-	return assignmentIdentityMatches(assignment, i.runID, i.assignmentID)
-}
-
-func (i assignmentIdentity) isZero() bool {
-	return i.runID == "" && i.assignmentID == ""
-}
-
-// TrafficResetter rebuilds traffic executors for an assignment without reconnecting sessions.
-type TrafficResetter interface {
-	// ResetTraffic applies assignment traffic changes while preserving existing connections.
-	ResetTraffic(assignment Assignment) error
-}
-
-// TrafficRecoverer repairs failed sessions and rebuilds traffic executors.
-type TrafficRecoverer interface {
-	// RecoverTraffic applies recovery for cause while preserving healthy connections.
-	RecoverTraffic(ctx context.Context, assignment Assignment, cause error) error
-}
-
 // Config controls the worker HTTP control server.
 type Config struct {
 	// ControlToken is the bearer token required for /v1 control routes.
@@ -150,70 +49,21 @@ type Config struct {
 	WorkloadClientFactory WorkloadClientFactory
 }
 
-// Server exposes the wkbench worker control HTTP API.
+// Server authenticates and translates HTTP control requests. Assignment state,
+// runner hooks and evidence fencing belong exclusively to assignmentLifecycle.
 type Server struct {
-	cfg    Config
-	state  *State
-	runner WorkloadRunner
-	mux    *http.ServeMux
-
-	// lifecycleMu serializes assignment admission, phase task publication, and
-	// terminal stop commit without covering the phase hook's execution time.
-	lifecycleMu sync.Mutex
-	taskMu      sync.Mutex
-	taskSeq     uint64
-	activeTask  lifecycleTask
-	stopMu      sync.Mutex
-	stopTask    *terminalStopTask
-	// stoppingAssignment fences assignment work as soon as an exact-generation
-	// stop is admitted. It remains set until a stopped assignment is replaced.
-	stoppingAssignment assignmentIdentity
-	terminalMu         sync.Mutex
-	// terminalLifecycle is an exact-generation post-drain cut captured before
-	// EndAssignment closes sessions. It remains readable after PhaseStopped.
-	terminalLifecycle *terminalLifecycleSnapshot
+	cfg         Config
+	assignments *assignmentLifecycle
+	mux         *http.ServeMux
 }
 
-type terminalLifecycleSnapshot struct {
-	identity  assignmentIdentity
-	lifecycle LifecycleStatus
-}
-
-// lifecycleTaskKind identifies assignment work that terminal stop must cancel and join.
-type lifecycleTaskKind string
-
-const (
-	lifecycleTaskPhase           lifecycleTaskKind = "phase"
-	lifecycleTaskPrepareChannels lifecycleTaskKind = "prepare_channels"
-)
-
-// lifecycleTask is the single published phase or owner-channel preparation hook.
-type lifecycleTask struct {
-	id           uint64
-	runID        string
-	assignmentID string
-	kind         lifecycleTaskKind
-	phase        Phase
-	cancel       context.CancelFunc
-	done         <-chan struct{}
-}
-
-// terminalStopTask is the shared exact-run finalization outcome joined by stop retries.
-type terminalStopTask struct {
-	runID        string
-	assignmentID string
-	done         chan struct{}
-	status       Status
-	err          error
-}
-
-// NewServer builds a worker control server with in-memory assignment state.
+// NewServer builds the HTTP adapter and its worker-assignment owner.
 func NewServer(cfg Config) *Server {
 	runner := cfg.WorkloadRunner
 	if runner == nil {
 		runner = newDefaultWorkloadRunner(cfg.WorkloadClientFactory)
 	}
-	s := &Server{cfg: cfg, state: NewState(cfg.WorkDir), runner: runner, mux: http.NewServeMux()}
+	s := &Server{cfg: cfg, assignments: newAssignmentLifecycle(cfg.WorkDir, runner), mux: http.NewServeMux()}
 	s.routes()
 	return s
 }
@@ -267,16 +117,10 @@ func (s *Server) assign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid assignment json")
 		return
 	}
-	s.lifecycleMu.Lock()
-	defer s.lifecycleMu.Unlock()
-	before := s.state.Status()
-	if !s.stoppingAssignment.isZero() && before.Phase != PhaseStopped {
-		writeError(w, http.StatusConflict, fmt.Sprintf("%v: assignment %q/%q is stopping", ErrInvalidPhaseTransition, s.stoppingAssignment.runID, s.stoppingAssignment.assignmentID))
-		return
-	}
-	if err := s.state.Assign(a); err != nil {
+	status, err := s.assignments.Assign(a)
+	if err != nil {
 		switch {
-		case errors.Is(err, ErrActiveRunConflict):
+		case errors.Is(err, ErrActiveRunConflict), errors.Is(err, ErrInvalidPhaseTransition):
 			writeError(w, http.StatusConflict, err.Error())
 		case errors.Is(err, ErrAssignmentPersistence):
 			writeError(w, http.StatusInternalServerError, err.Error())
@@ -285,31 +129,7 @@ func (s *Server) assign(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	status := s.state.Status()
-	if assignmentStarted(before, status) {
-		s.stoppingAssignment = assignmentIdentity{}
-		s.clearTerminalLifecycle()
-		s.stopMu.Lock()
-		s.stopTask = nil
-		s.stopMu.Unlock()
-		if starter, ok := s.runner.(AssignmentStarter); ok {
-			starter.BeginAssignment(status.Assignment)
-		}
-	}
 	writeJSON(w, http.StatusOK, status)
-}
-
-func assignmentStarted(before, after Status) bool {
-	if after.Phase != PhaseAssigned || strings.TrimSpace(after.Assignment.RunID) == "" || strings.TrimSpace(after.Assignment.AssignmentID) == "" {
-		return false
-	}
-	if strings.TrimSpace(before.Assignment.RunID) == "" {
-		return true
-	}
-	if before.Phase == PhaseStopped {
-		return !assignmentIdentityMatches(before.Assignment, after.Assignment.RunID, after.Assignment.AssignmentID)
-	}
-	return !assignmentIdentityMatches(before.Assignment, after.Assignment.RunID, after.Assignment.AssignmentID)
 }
 
 func (s *Server) phase(phase Phase) http.HandlerFunc {
@@ -330,50 +150,15 @@ func (s *Server) phase(phase Phase) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		s.lifecycleMu.Lock()
-		status := s.state.Status()
-		if !identity.matches(status.Assignment) {
-			s.lifecycleMu.Unlock()
-			writeError(w, http.StatusConflict, assignmentIdentityConflict(status.Assignment, identity.runID, identity.assignmentID).Error())
-			return
-		}
-		if !s.stoppingAssignment.isZero() {
-			stopping := s.stoppingAssignment
-			s.lifecycleMu.Unlock()
-			writeError(w, http.StatusConflict, fmt.Sprintf("%v: assignment %q/%q is stopping", ErrInvalidPhaseTransition, stopping.runID, stopping.assignmentID))
-			return
-		}
-		activeTask := s.currentLifecycleTask()
-		if activeTask.id != 0 && !(activeTask.kind == lifecycleTaskPhase && activeTask.runID == identity.runID && activeTask.assignmentID == identity.assignmentID && activeTask.phase == phase) {
-			s.lifecycleMu.Unlock()
-			writeError(w, http.StatusConflict, fmt.Sprintf("%v: lifecycle task %q already running", ErrInvalidPhaseTransition, activeTask.kind))
-			return
-		}
-		nextStatus, started, err := s.state.BeginPhaseForAssignment(identity.runID, identity.assignmentID, phase)
+		nextStatus, result, err := s.assignments.StartPhase(identity, phase)
 		if err != nil {
-			s.lifecycleMu.Unlock()
 			writeError(w, http.StatusConflict, err.Error())
 			return
 		}
-		if !started {
-			s.lifecycleMu.Unlock()
+		if result == nil {
 			writeJSON(w, http.StatusOK, nextStatus)
 			return
 		}
-		assignment := nextStatus.Assignment
-		phaseCtx, phaseCancel := context.WithCancel(context.Background())
-		phaseDone := make(chan struct{})
-		phaseTaskID := s.storeLifecycleTask(assignment.RunID, assignment.AssignmentID, lifecycleTaskPhase, phase, phaseCancel, phaseDone)
-		result := make(chan error, 1)
-		go func() {
-			err := s.completePhase(phaseCtx, phase, assignment)
-			close(phaseDone)
-			s.clearLifecycleTask(phaseTaskID)
-			result <- err
-		}()
-		// Publishing the phase task before releasing lifecycleMu makes stop either
-		// observe and cancel this task or commit stopped before this admission.
-		s.lifecycleMu.Unlock()
 		select {
 		case err := <-result:
 			if err != nil {
@@ -384,95 +169,10 @@ func (s *Server) phase(phase Phase) http.HandlerFunc {
 				writePhaseError(w, http.StatusInternalServerError, err)
 				return
 			}
-			writeJSON(w, http.StatusOK, s.state.Status())
+			writeJSON(w, http.StatusOK, s.assignments.controlStatus())
 		case <-time.After(phaseStartGrace):
 			writeJSONStatus(w, http.StatusAccepted, nextStatus)
 		}
-	}
-}
-
-func (s *Server) completePhase(ctx context.Context, phase Phase, assignment Assignment) error {
-	err := s.runPhaseHook(ctx, phase, assignment)
-	completeErr := s.state.CompletePhaseForAssignment(assignment.RunID, assignment.AssignmentID, phase, err)
-	if errors.Is(err, context.Canceled) && errors.Is(completeErr, ErrInvalidPhaseTransition) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	return completeErr
-}
-
-func (s *Server) storeLifecycleTask(runID, assignmentID string, kind lifecycleTaskKind, phase Phase, cancel context.CancelFunc, done <-chan struct{}) uint64 {
-	s.taskMu.Lock()
-	defer s.taskMu.Unlock()
-	s.taskSeq++
-	s.activeTask = lifecycleTask{id: s.taskSeq, runID: runID, assignmentID: assignmentID, kind: kind, phase: phase, cancel: cancel, done: done}
-	return s.taskSeq
-}
-
-// clearLifecycleTask removes only the exact task generation that completed.
-func (s *Server) clearLifecycleTask(taskID uint64) {
-	s.taskMu.Lock()
-	defer s.taskMu.Unlock()
-	if s.activeTask.id != taskID {
-		return
-	}
-	s.activeTask = lifecycleTask{}
-}
-
-// currentLifecycleTask returns the published task, reaping a completed generation.
-func (s *Server) currentLifecycleTask() lifecycleTask {
-	s.taskMu.Lock()
-	defer s.taskMu.Unlock()
-	if s.activeTask.id != 0 && lifecycleTaskDone(s.activeTask.done) {
-		s.activeTask = lifecycleTask{}
-	}
-	return s.activeTask
-}
-
-// cancelActiveLifecycleTask requests cancellation and returns the task completion signal.
-func (s *Server) cancelActiveLifecycleTask(expected assignmentIdentity) <-chan struct{} {
-	task := s.currentLifecycleTask()
-	if task.id != 0 && (task.runID != expected.runID || task.assignmentID != expected.assignmentID) {
-		return nil
-	}
-	cancel := task.cancel
-	if cancel != nil {
-		cancel()
-	}
-	return task.done
-}
-
-func lifecycleTaskDone(done <-chan struct{}) bool {
-	if done == nil {
-		return false
-	}
-	select {
-	case <-done:
-		return true
-	default:
-		return false
-	}
-}
-
-func (s *Server) runPhaseHook(ctx context.Context, phase Phase, assignment Assignment) error {
-	if s.runner == nil {
-		return nil
-	}
-	switch phase {
-	case PhasePrepare:
-		return s.runner.Prepare(ctx, assignment)
-	case PhaseConnect:
-		return s.runner.Connect(ctx, assignment)
-	case PhaseWarmup:
-		return s.runner.Warmup(ctx, assignment)
-	case PhaseRun:
-		return s.runner.Run(ctx, assignment)
-	case PhaseCooldown:
-		return s.runner.Cooldown(ctx, assignment)
-	default:
-		return nil
 	}
 }
 
@@ -493,46 +193,13 @@ func (s *Server) prepareChannels(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	s.lifecycleMu.Lock()
-	status := s.state.Status()
-	if !identity.matches(status.Assignment) {
-		s.lifecycleMu.Unlock()
-		writeError(w, http.StatusConflict, assignmentIdentityConflict(status.Assignment, identity.runID, identity.assignmentID).Error())
-		return
-	}
-	if !s.stoppingAssignment.isZero() {
-		stopping := s.stoppingAssignment
-		s.lifecycleMu.Unlock()
-		writeError(w, http.StatusConflict, fmt.Sprintf("%v: assignment %q/%q is stopping", ErrInvalidPhaseTransition, stopping.runID, stopping.assignmentID))
-		return
-	}
-	if status.Assignment.RunID == "" || status.Phase == PhaseIdle || status.Phase == PhaseStopped {
-		s.lifecycleMu.Unlock()
-		writeError(w, http.StatusConflict, "worker is not assigned")
-		return
-	}
-	if activeTask := s.currentLifecycleTask(); activeTask.id != 0 {
-		s.lifecycleMu.Unlock()
-		writeError(w, http.StatusConflict, fmt.Sprintf("%v: lifecycle task %q already running", ErrInvalidPhaseTransition, activeTask.kind))
-		return
-	}
-	runner, ok := s.runner.(PrepareChannelsRunner)
-	if !ok {
-		s.lifecycleMu.Unlock()
-		writeJSON(w, http.StatusOK, status)
-		return
-	}
-	prepareCtx, prepareCancel := context.WithCancel(r.Context())
-	prepareDone := make(chan struct{})
-	taskID := s.storeLifecycleTask(status.Assignment.RunID, status.Assignment.AssignmentID, lifecycleTaskPrepareChannels, "", prepareCancel, prepareDone)
-	assignment := status.Assignment
-	s.lifecycleMu.Unlock()
-
-	err = runner.PrepareChannels(prepareCtx, assignment)
-	prepareCancel()
-	close(prepareDone)
-	s.clearLifecycleTask(taskID)
+	status, err := s.assignments.PrepareChannels(r.Context(), identity)
 	if err != nil {
+		var executionErr *assignmentExecutionError
+		if !errors.As(err, &executionErr) {
+			writeError(w, http.StatusConflict, err.Error())
+			return
+		}
 		if errors.Is(err, errTargetUnavailable) {
 			writePhaseError(w, http.StatusServiceUnavailable, err)
 			return
@@ -540,7 +207,7 @@ func (s *Server) prepareChannels(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, s.state.Status())
+	writeJSON(w, http.StatusOK, status)
 }
 
 func (s *Server) stop(w http.ResponseWriter, r *http.Request) {
@@ -560,7 +227,7 @@ func (s *Server) stop(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	task := s.beginTerminalStop(identity)
+	task := s.assignments.Stop(identity)
 	select {
 	case <-task.done:
 		if task.err != nil {
@@ -594,45 +261,10 @@ func (s *Server) terminalCut(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	identity, err := requiredAssignmentIdentity(request.RunID, request.AssignmentID)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	s.lifecycleMu.Lock()
-	defer s.lifecycleMu.Unlock()
-	status := s.state.Status()
-	if !identity.matches(status.Assignment) {
-		writeError(w, http.StatusConflict, assignmentIdentityConflict(status.Assignment, identity.runID, identity.assignmentID).Error())
-		return
-	}
-	coordinator, ok := s.runner.(TerminalCutCoordinator)
-	if !ok {
-		writeError(w, http.StatusConflict, "external terminal cut is not enabled")
-		return
-	}
-	cutStatus := coordinator.TerminalCutStatus()
-	if cutStatus.Binding != nil {
-		if terminalCutRequestMatchesBinding(request, *cutStatus.Binding) {
-			writeJSON(w, http.StatusOK, cutStatus.Binding)
-			return
-		}
-		writeError(w, http.StatusConflict, ErrTerminalCutAlreadyAcknowledged.Error())
-		return
-	}
-	if status.Phase != PhaseRun || status.ActivePhase != PhaseCooldown || !cutStatus.Required || !cutStatus.Ready {
-		writeError(w, http.StatusConflict, ErrTerminalCutNotReady.Error())
-		return
-	}
-	if err := validateTerminalCutRequest(request, cutStatus.ReadyAt, cutStatus.DeadlineAt, time.Now().UTC()); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	binding, err := coordinator.AcknowledgeTerminalCut(request)
+	binding, err := s.assignments.AcknowledgeTerminalCut(request)
 	if err != nil {
 		statusCode := http.StatusBadRequest
-		if errors.Is(err, ErrTerminalCutNotReady) || errors.Is(err, ErrTerminalCutAlreadyAcknowledged) || errors.Is(err, ErrActiveRunConflict) {
+		if errors.Is(err, ErrTerminalCutNotReady) || errors.Is(err, ErrTerminalCutAlreadyAcknowledged) || errors.Is(err, ErrActiveRunConflict) || errors.Is(err, errTerminalCutDisabled) {
 			statusCode = http.StatusConflict
 		}
 		writeError(w, statusCode, err.Error())
@@ -662,219 +294,12 @@ func decodeTerminalCutRequest(reader io.Reader) (TerminalCutRequest, error) {
 	return request, nil
 }
 
-func (s *Server) beginTerminalStop(expected assignmentIdentity) *terminalStopTask {
-	// Stop admission is synchronous with assignment and phase admission. Once
-	// this lock is released, no new assignment work for the run may start.
-	s.lifecycleMu.Lock()
-	defer s.lifecycleMu.Unlock()
-	current := s.state.Status()
-	if !expected.matches(current.Assignment) {
-		task := &terminalStopTask{
-			runID:        expected.runID,
-			assignmentID: expected.assignmentID,
-			done:         make(chan struct{}),
-			status:       current,
-			err:          assignmentIdentityConflict(current.Assignment, expected.runID, expected.assignmentID),
-		}
-		close(task.done)
-		return task
-	}
-	if current.Phase == PhaseIdle {
-		task := &terminalStopTask{
-			runID:        expected.runID,
-			assignmentID: expected.assignmentID,
-			done:         make(chan struct{}),
-			status:       current,
-			err:          fmt.Errorf("%w: %s to %s", ErrInvalidPhaseTransition, current.Phase, PhaseStopped),
-		}
-		close(task.done)
-		return task
-	}
-	s.stopMu.Lock()
-	defer s.stopMu.Unlock()
-	if existing := s.stopTask; existing != nil && existing.runID == expected.runID && existing.assignmentID == expected.assignmentID {
-		select {
-		case <-existing.done:
-			if existing.err == nil || errors.Is(existing.err, errTerminalReceiveSealFailed) {
-				return existing
-			}
-		default:
-			return existing
-		}
-	}
-	task := &terminalStopTask{runID: expected.runID, assignmentID: expected.assignmentID, done: make(chan struct{})}
-	s.stopTask = task
-	s.stoppingAssignment = expected
-	activeDone := s.cancelActiveLifecycleTask(expected)
-	// Terminal cleanup must outlive the caller's HTTP deadline. Concurrent
-	// retries for the same run join this one bounded background finalizer.
-	go func() {
-		task.status, task.err = s.finalizeStop(expected, activeDone)
-		close(task.done)
-	}()
-	return task
-}
-
-func (s *Server) finalizeStop(expected assignmentIdentity, activeDone <-chan struct{}) (Status, error) {
-	if activeDone != nil {
-		<-activeDone
-	}
-
-	s.lifecycleMu.Lock()
-	before := s.state.Status()
-	if !expected.matches(before.Assignment) {
-		s.lifecycleMu.Unlock()
-		return before, assignmentIdentityConflict(before.Assignment, expected.runID, expected.assignmentID)
-	}
-	if before.Phase == PhaseStopped {
-		s.lifecycleMu.Unlock()
-		return before, nil
-	}
-	assignment := before.Assignment
-	s.lifecycleMu.Unlock()
-
-	// Freeze the exact post-drain lifecycle before teardown. The stopped status
-	// exposes this cut with explicit provenance instead of pretending the
-	// sessions remain live after EndAssignment closes them.
-	var terminalReceiveSealErr error
-	if before.Phase == PhaseCooldown && before.ActivePhase == "" && before.LastError == "" {
-		sealComplete := true
-		if coordinator, ok := s.runner.(TerminalCutCoordinator); ok && coordinator.TerminalCutStatus().Required {
-			sealComplete = false
-			sealer, canSeal := s.runner.(TerminalReceiveSealer)
-			if canSeal {
-				cut := coordinator.TerminalCutStatus()
-				if cut.Binding == nil || cut.DeadlineAt.IsZero() {
-					sealComplete = false
-				} else {
-					sealCtx, cancel := context.WithDeadline(context.Background(), cut.DeadlineAt)
-					if err := sealer.SealTerminalReceive(sealCtx, assignment); err != nil {
-						terminalReceiveSealErr = errTerminalReceiveSealFailed
-						sealComplete = false
-					} else {
-						sealComplete = true
-					}
-					cancel()
-				}
-			}
-		}
-		if sealComplete {
-			s.freezeTerminalLifecycle(expected)
-		}
-	}
-
-	// Admission remains fenced while teardown runs, so a slow runner cannot
-	// make exact-run phase or prepare requests wait behind this cleanup.
-	if stopper, ok := s.runner.(AssignmentStopper); ok {
-		if err := stopper.EndAssignment(assignment); err != nil {
-			return s.state.Status(), fmt.Errorf("end assignment %q/%q: %w", assignment.RunID, assignment.AssignmentID, err)
-		}
-	}
-
-	s.lifecycleMu.Lock()
-	defer s.lifecycleMu.Unlock()
-	current := s.state.Status()
-	if !expected.matches(current.Assignment) {
-		return current, assignmentIdentityConflict(current.Assignment, expected.runID, expected.assignmentID)
-	}
-	if err := s.state.StopForAssignment(expected.runID, expected.assignmentID); err != nil {
-		return s.state.Status(), err
-	}
-	return s.statusWithTerminalLifecycle(s.state.Status()), terminalReceiveSealErr
-}
-
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w)
 		return
 	}
-	writeJSON(w, http.StatusOK, s.statusResponse())
-}
-
-func (s *Server) statusResponse() Status {
-	status := s.state.Status()
-	status.ObservedAt = time.Now().UTC()
-	if status.Phase == PhaseStopped {
-		return s.statusWithTerminalLifecycle(status)
-	}
-	if reporter, ok := s.runner.(LifecycleStatusReporter); ok {
-		lifecycle := reporter.LifecycleStatus()
-		lifecycle.TerminalPreClose = false
-		decorateLifecycleTerminalCut(s.runner, &lifecycle)
-		status.Lifecycle = &lifecycle
-		return status
-	}
-	if reporter, ok := s.runner.(ConnectionStatusReporter); ok {
-		active, reconnected := reporter.ConnectionStatus()
-		lifecycle := LifecycleStatus{ActiveConnections: active, ReconnectedUsers: reconnected}
-		decorateLifecycleTerminalCut(s.runner, &lifecycle)
-		status.Lifecycle = &lifecycle
-	}
-	return status
-}
-
-func (s *Server) freezeTerminalLifecycle(identity assignmentIdentity) {
-	var lifecycle *LifecycleStatus
-	if reporter, ok := s.runner.(LifecycleStatusReporter); ok {
-		value := reporter.LifecycleStatus()
-		decorateLifecycleTerminalCut(s.runner, &value)
-		if value.Traffic.Remaining != 0 || !value.ReceiveDrain.TerminalProofComplete() {
-			return
-		}
-		if value.TerminalCutRequired && (!value.ReceiveDrain.Required || !value.TerminalCutReady || value.TerminalCut == nil || !validTerminalCutBinding(*value.TerminalCut, identity)) {
-			return
-		}
-		value.TerminalPreClose = true
-		lifecycle = &value
-	}
-	if lifecycle == nil {
-		return
-	}
-	s.terminalMu.Lock()
-	s.terminalLifecycle = &terminalLifecycleSnapshot{identity: identity, lifecycle: *lifecycle}
-	s.terminalMu.Unlock()
-}
-
-func decorateLifecycleTerminalCut(runner WorkloadRunner, lifecycle *LifecycleStatus) {
-	coordinator, ok := runner.(TerminalCutCoordinator)
-	if !ok || lifecycle == nil {
-		return
-	}
-	status := coordinator.TerminalCutStatus()
-	lifecycle.TerminalCutRequired = status.Required
-	lifecycle.TerminalCutReady = status.Ready
-	lifecycle.TerminalCutReadyAt = status.ReadyAt
-	lifecycle.TerminalCutDeadlineAt = status.DeadlineAt
-	if status.Binding != nil {
-		binding := *status.Binding
-		lifecycle.TerminalCut = &binding
-	} else {
-		lifecycle.TerminalCut = nil
-	}
-}
-
-func (s *Server) statusWithTerminalLifecycle(status Status) Status {
-	if status.ObservedAt.IsZero() {
-		status.ObservedAt = time.Now().UTC()
-	}
-	identity, err := requiredAssignmentIdentity(status.Assignment.RunID, status.Assignment.AssignmentID)
-	if err != nil {
-		return status
-	}
-	s.terminalMu.Lock()
-	defer s.terminalMu.Unlock()
-	if s.terminalLifecycle == nil || s.terminalLifecycle.identity != identity {
-		return status
-	}
-	lifecycle := s.terminalLifecycle.lifecycle
-	status.Lifecycle = &lifecycle
-	return status
-}
-
-func (s *Server) clearTerminalLifecycle() {
-	s.terminalMu.Lock()
-	s.terminalLifecycle = nil
-	s.terminalMu.Unlock()
+	writeJSON(w, http.StatusOK, s.assignments.Status())
 }
 
 func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
@@ -882,12 +307,11 @@ func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
-	s.lifecycleMu.Lock()
-	defer s.lifecycleMu.Unlock()
-	if !s.validateEvidenceRun(w, r) {
+	evidence, ok := s.readEvidence(w, r)
+	if !ok {
 		return
 	}
-	writeJSON(w, http.StatusOK, s.metricsSnapshot())
+	writeJSON(w, http.StatusOK, evidence.metrics)
 }
 
 func (s *Server) report(w http.ResponseWriter, r *http.Request) {
@@ -895,18 +319,17 @@ func (s *Server) report(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
-	s.lifecycleMu.Lock()
-	defer s.lifecycleMu.Unlock()
-	if !s.validateEvidenceRun(w, r) {
+	evidence, ok := s.readEvidence(w, r)
+	if !ok {
 		return
 	}
-	status := s.state.Status()
+	status := evidence.status
 	payload := map[string]any{
 		"run_id":        status.Assignment.RunID,
 		"assignment_id": status.Assignment.AssignmentID,
 		"worker_id":     status.Assignment.WorkerID,
 		"phase":         status.Phase,
-		"metrics":       s.metricsSnapshot(),
+		"metrics":       evidence.metrics,
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -916,43 +339,18 @@ func (s *Server) report(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, report.WorkerReport{WorkerID: status.Assignment.WorkerID, Report: data})
 }
 
-func (s *Server) validateEvidenceRun(w http.ResponseWriter, r *http.Request) bool {
+func (s *Server) readEvidence(w http.ResponseWriter, r *http.Request) (assignmentEvidence, bool) {
 	expected, err := requiredAssignmentIdentity(r.URL.Query().Get("run_id"), r.URL.Query().Get("assignment_id"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
-		return false
+		return assignmentEvidence{}, false
 	}
-	status := s.state.Status()
-	if expected.matches(status.Assignment) && status.Phase == PhaseStopped && status.ActivePhase == "" {
-		return true
+	evidence, err := s.assignments.Evidence(expected)
+	if err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return assignmentEvidence{}, false
 	}
-	if expected.matches(status.Assignment) {
-		writeError(w, http.StatusConflict, fmt.Sprintf("evidence assignment %q/%q is not terminal: phase=%q active_phase=%q", expected.runID, expected.assignmentID, status.Phase, status.ActivePhase))
-		return false
-	}
-	writeError(w, http.StatusConflict, assignmentIdentityConflict(status.Assignment, expected.runID, expected.assignmentID).Error())
-	return false
-}
-
-func (s *Server) metricsSnapshot() metrics.SnapshotData {
-	if reporter, ok := s.runner.(MetricsReporter); ok {
-		return normalizeMetricsSnapshot(reporter.MetricsSnapshot())
-	}
-	return metrics.SnapshotData{Counters: map[string]uint64{}, Gauges: map[string]float64{}, Histograms: map[string]metrics.HistogramSummary{}}
-}
-
-func normalizeMetricsSnapshot(snapshot metrics.SnapshotData) metrics.SnapshotData {
-	snapshot = metrics.SanitizeSnapshot(snapshot)
-	if snapshot.Counters == nil {
-		snapshot.Counters = map[string]uint64{}
-	}
-	if snapshot.Gauges == nil {
-		snapshot.Gauges = map[string]float64{}
-	}
-	if snapshot.Histograms == nil {
-		snapshot.Histograms = map[string]metrics.HistogramSummary{}
-	}
-	return snapshot
+	return evidence, true
 }
 
 func (s *Server) withControl(next http.HandlerFunc) http.HandlerFunc {

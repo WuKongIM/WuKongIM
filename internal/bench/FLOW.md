@@ -50,8 +50,14 @@ native local baseline
 
 - Planning is deterministic from validated config and seed; identity, Channel,
   traffic, and worker partitions do not overlap or retain unbounded history.
-- Every worker mutation and evidence read is fenced by exact run and assignment
-  identity. Reusing a run ID never aliases another assignment generation.
+- The worker assignment lifecycle module owns generation admission, phase and
+  channel-preparation tasks, cancel/join, terminal-cut acknowledgement, teardown,
+  and terminal evidence. The HTTP adapter only authenticates, maps requests and
+  waits for outcomes; assignment state is private to the lifecycle module.
+  Every mutation and terminal evidence capture is fenced by exact run and
+  assignment identity. Reusing a run ID never aliases another generation.
+  Phase tasks outlive HTTP callers, channel preparation follows its request,
+  and stop retries join owned cleanup even after the caller disconnects.
 - Coordinator terminal paths attempt exact stop for every assigned worker
   before reading stable metrics/reports. Moving or unconfirmed evidence yields
   a harness-invalid result rather than a best-effort report.
@@ -105,7 +111,7 @@ native local baseline
 
 - [planner/planner.go](planner/planner.go)
 - [coordinator/run.go](coordinator/run.go)
-- [worker/server.go](worker/server.go)
+- [worker/assignment_lifecycle.go](worker/assignment_lifecycle.go)
 - [target/client.go](target/client.go)
 - [report/report.go](report/report.go)
 

@@ -277,8 +277,8 @@ func (s Status) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// State stores the active worker assignment and monotonic phase.
-type State struct {
+// assignmentState stores the active worker assignment and monotonic phase.
+type assignmentState struct {
 	mu                 sync.Mutex
 	workDir            string
 	phase              Phase
@@ -289,14 +289,14 @@ type State struct {
 	assignment         Assignment
 }
 
-// NewState creates empty worker assignment state. When workDir is non-empty,
+// newAssignmentState creates empty worker assignment state. When workDir is non-empty,
 // accepted assignments are persisted to current-run.json.
-func NewState(workDir string) *State {
-	return &State{workDir: workDir, phase: PhaseIdle}
+func newAssignmentState(workDir string) *assignmentState {
+	return &assignmentState{workDir: workDir, phase: PhaseIdle}
 }
 
 // Assign stores a run assignment unless another non-equivalent assignment is active.
-func (s *State) Assign(a Assignment) error {
+func (s *assignmentState) Assign(a Assignment) error {
 	a.RunID = strings.TrimSpace(a.RunID)
 	a.AssignmentID = strings.TrimSpace(a.AssignmentID)
 	a.WorkerID = strings.TrimSpace(a.WorkerID)
@@ -347,25 +347,8 @@ func assignmentsEqual(a, b Assignment) bool {
 	return string(aJSON) == string(bJSON)
 }
 
-// Transition advances the worker to the next expected phase or accepts an idempotent retry.
-func (s *State) Transition(next Phase) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.transitionLocked(next)
-}
-
-// TransitionForAssignment advances the phase only if the exact assignment generation matches.
-func (s *State) TransitionForAssignment(runID, assignmentID string, next Phase) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !assignmentIdentityMatches(s.assignment, runID, assignmentID) {
-		return assignmentIdentityConflict(s.assignment, runID, assignmentID)
-	}
-	return s.transitionLocked(next)
-}
-
 // BeginPhaseForAssignment starts a phase hook if it is not already running or complete.
-func (s *State) BeginPhaseForAssignment(runID, assignmentID string, next Phase) (Status, bool, error) {
+func (s *assignmentState) BeginPhaseForAssignment(runID, assignmentID string, next Phase) (Status, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !assignmentIdentityMatches(s.assignment, runID, assignmentID) {
@@ -391,7 +374,7 @@ func (s *State) BeginPhaseForAssignment(runID, assignmentID string, next Phase) 
 }
 
 // CompletePhaseForAssignment records the terminal result of an asynchronous phase hook.
-func (s *State) CompletePhaseForAssignment(runID, assignmentID string, phase Phase, phaseErr error) error {
+func (s *assignmentState) CompletePhaseForAssignment(runID, assignmentID string, phase Phase, phaseErr error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !assignmentIdentityMatches(s.assignment, runID, assignmentID) {
@@ -413,7 +396,7 @@ func (s *State) CompletePhaseForAssignment(runID, assignmentID string, phase Pha
 	return s.transitionLocked(phase)
 }
 
-func (s *State) transitionLocked(next Phase) error {
+func (s *assignmentState) transitionLocked(next Phase) error {
 	if s.phase == next {
 		return nil
 	}
@@ -424,23 +407,8 @@ func (s *State) transitionLocked(next Phase) error {
 	return nil
 }
 
-// Stop marks the current assignment as stopped. Idle workers cannot be stopped.
-func (s *State) Stop() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.assignment.RunID == "" || s.phase == PhaseIdle {
-		return fmt.Errorf("%w: %s to %s", ErrInvalidPhaseTransition, s.phase, PhaseStopped)
-	}
-	s.phase = PhaseStopped
-	s.active = ""
-	s.lastError = ""
-	s.lastErrorCode = ""
-	s.lastErrorOperation = ""
-	return nil
-}
-
 // StopForAssignment marks only the exact active assignment generation stopped.
-func (s *State) StopForAssignment(runID, assignmentID string) error {
+func (s *assignmentState) StopForAssignment(runID, assignmentID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !assignmentIdentityMatches(s.assignment, runID, assignmentID) {
@@ -473,13 +441,13 @@ func assignmentIdentityConflict(active Assignment, runID, assignmentID string) e
 }
 
 // Status returns a copy of the current worker control state.
-func (s *State) Status() Status {
+func (s *assignmentState) Status() Status {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.statusLocked()
 }
 
-func (s *State) statusLocked() Status {
+func (s *assignmentState) statusLocked() Status {
 	return Status{
 		Phase:              s.phase,
 		ActivePhase:        s.active,
@@ -556,7 +524,7 @@ func failureOperationForError(err error) FailureOperationCode {
 	}
 }
 
-func (s *State) persistAssignment(a Assignment) error {
+func (s *assignmentState) persistAssignment(a Assignment) error {
 	if s.workDir == "" {
 		return nil
 	}

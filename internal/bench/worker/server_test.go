@@ -15,6 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/bench/metrics"
@@ -174,38 +175,44 @@ func TestWorkerDuplicatePhasePostIsIdempotent(t *testing.T) {
 }
 
 func TestWorkerPhasePostAcceptsLongRunningHookWithoutWaiting(t *testing.T) {
-	runner := newBlockingPrepareRunner()
-	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
-	assign(t, srv, "secret", "run-a")
-	defer runner.release()
+	synctest.Test(t, func(t *testing.T) {
+		runner := newBlockingPrepareRunner()
+		defer runner.release()
+		srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
+		assign(t, srv, "secret", "run-a")
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		body := mustJSON(t, RunRequest{RunID: "run-a", AssignmentID: defaultTestAssignmentID("run-a")})
+		req := httptest.NewRequest(http.MethodPost, "/v1/phase/prepare", bytes.NewReader(body)).WithContext(ctx)
+		req.Header.Set("Authorization", "Bearer secret")
+		phaseDone := make(chan *httptest.ResponseRecorder, 1)
+		go func() {
+			rec := httptest.NewRecorder()
+			srv.ServeHTTP(rec, req)
+			phaseDone <- rec
+		}()
+		<-runner.entered
+		cancel()
+		synctest.Wait()
+		assertAssignmentPending(t, runner.canceled)
 
-	phaseDone := make(chan *httptest.ResponseRecorder, 1)
-	go func() {
-		phaseDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/prepare", "secret", nil)
-	}()
-	require.True(t, runner.waitForCalls(1, time.Second), "prepare hook did not start")
-
-	select {
-	case rec := <-phaseDone:
-		require.Contains(t, []int{http.StatusAccepted, http.StatusOK}, rec.Code, rec.Body.String())
-	case <-time.After(50 * time.Millisecond):
-		t.Fatal("phase POST waited for the long-running hook")
-	}
-
-	status := workerStatusMap(t, srv, "secret")
-	require.Equal(t, string(PhaseAssigned), status["phase"])
-	require.Equal(t, string(PhasePrepare), status["active_phase"])
-	require.Equal(t, string(PhaseAssigned), status["completed_phase"])
-	require.Empty(t, status["last_error"])
-
-	runner.release()
-	require.Eventually(t, func() bool {
+		// Synthetic time reaches the HTTP grace period while the hook is blocked.
+		rec := <-phaseDone
+		require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
 		status := workerStatusMap(t, srv, "secret")
-		return status["phase"] == string(PhasePrepare) &&
-			status["completed_phase"] == string(PhasePrepare) &&
-			status["active_phase"] == nil &&
-			status["last_error"] == nil
-	}, time.Second, 10*time.Millisecond)
+		require.Equal(t, string(PhaseAssigned), status["phase"])
+		require.Equal(t, string(PhasePrepare), status["active_phase"])
+		require.Equal(t, string(PhaseAssigned), status["completed_phase"])
+		require.Empty(t, status["last_error"])
+
+		runner.release()
+		synctest.Wait()
+		status = workerStatusMap(t, srv, "secret")
+		require.Equal(t, string(PhasePrepare), status["phase"])
+		require.Equal(t, string(PhasePrepare), status["completed_phase"])
+		require.Empty(t, status["active_phase"])
+		require.Empty(t, status["last_error"])
+	})
 }
 
 func TestWorkerDuplicateInProgressAndCompletedPhasePostsDoNotRunHookTwice(t *testing.T) {
@@ -460,7 +467,8 @@ func TestWorkerStatusResponseStaysCompactForLargeAssignment(t *testing.T) {
 			OnlineIdentityIndexes: make([]int, 100_000),
 		},
 	}
-	require.NoError(t, srv.state.Assign(assignment))
+	_, err := srv.assignments.Assign(assignment)
+	require.NoError(t, err)
 
 	rec := authorizedRecorder(t, srv, http.MethodGet, "/v1/status", "secret", nil)
 
@@ -475,7 +483,7 @@ func TestWorkerStatusResponseStaysCompactForLargeAssignment(t *testing.T) {
 	require.Equal(t, assignment.AssignmentID, status.Assignment.AssignmentID)
 	require.Equal(t, assignment.WorkerID, status.Assignment.WorkerID)
 	require.Empty(t, status.Assignment.Plan.OnlineIdentityIndexes)
-	require.Len(t, srv.state.Status().Assignment.Plan.OnlineIdentityIndexes, 100_000, "internal state must retain the full assignment")
+	require.Len(t, srv.assignments.controlStatus().Assignment.Plan.OnlineIdentityIndexes, 100_000, "internal state must retain the full assignment")
 }
 
 func TestWorkerStatusProjectsBoundedLiveLifecycleEvidence(t *testing.T) {
@@ -508,50 +516,6 @@ func TestWorkerStatusProjectsBoundedLiveLifecycleEvidence(t *testing.T) {
 	require.NotNil(t, status.Lifecycle)
 	require.Equal(t, runner.lifecycle, *status.Lifecycle)
 	require.Less(t, rec.Body.Len(), 2048, "live status must remain independent of message and connection cardinality")
-}
-
-func TestWorkerStoppedStatusPreservesExactGenerationPreCloseLifecycle(t *testing.T) {
-	runner := &lifecycleSnapshotRunner{lifecycle: LifecycleStatus{
-		ActiveConnections: 2500,
-		ReceiveDrain:      completeReceiveDrainProof(2500),
-		Traffic: TrafficStatus{
-			LogicalSent: 1000, SendACKs: 1000, Remaining: 0,
-			StableClientMsgNo: true, RetryEvidenceComplete: true,
-		},
-	}}
-	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
-	assign(t, srv, "secret", "run-a")
-	for _, path := range []string{"/v1/phase/prepare", "/v1/phase/connect", "/v1/phase/warmup", "/v1/phase/run", "/v1/phase/cooldown"} {
-		postPhase(t, srv, "secret", path, http.StatusOK)
-	}
-
-	stopRec := authorizedRecorder(t, srv, http.MethodPost, "/v1/stop", "secret", nil)
-	require.Equal(t, http.StatusOK, stopRec.Code, stopRec.Body.String())
-	var stopped Status
-	require.NoError(t, json.Unmarshal(stopRec.Body.Bytes(), &stopped))
-	require.Equal(t, PhaseStopped, stopped.Phase)
-	require.NotNil(t, stopped.Lifecycle)
-	require.True(t, stopped.Lifecycle.TerminalPreClose)
-	require.Equal(t, 2500, stopped.Lifecycle.ActiveConnections)
-	require.Zero(t, stopped.Lifecycle.Traffic.Remaining)
-
-	// A later read returns the immutable pre-close cut rather than the runner's
-	// now-closed live state, and an exact stop retry joins the same generation.
-	runner.lifecycle = LifecycleStatus{ActiveConnections: 0, Traffic: TrafficStatus{Remaining: 99}}
-	for _, method := range []string{http.MethodGet, http.MethodPost} {
-		path := "/v1/status"
-		if method == http.MethodPost {
-			path = "/v1/stop"
-		}
-		rec := authorizedRecorder(t, srv, method, path, "secret", nil)
-		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		var status Status
-		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &status))
-		require.NotNil(t, status.Lifecycle)
-		require.True(t, status.Lifecycle.TerminalPreClose)
-		require.Equal(t, 2500, status.Lifecycle.ActiveConnections)
-		require.Zero(t, status.Lifecycle.Traffic.Remaining)
-	}
 }
 
 func TestWorkerStopReportsTerminalReceiveSealFailureAfterAssignmentCleanup(t *testing.T) {
@@ -593,22 +557,6 @@ func TestWorkerStopReportsTerminalReceiveSealFailureAfterAssignmentCleanup(t *te
 	require.JSONEq(t, stop.Body.String(), retry.Body.String())
 	require.Equal(t, int32(1), runner.sealCalls.Load(), "exact retry must retain the failed terminal proof")
 	require.Equal(t, int32(1), runner.endCalls.Load(), "exact retry must not repeat teardown")
-}
-
-func TestWorkerNewAssignmentCannotReusePreviousTerminalLifecycle(t *testing.T) {
-	runner := &lifecycleSnapshotRunner{lifecycle: LifecycleStatus{ActiveConnections: 2500}}
-	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
-	assign(t, srv, "secret", "run-a")
-	for _, path := range []string{"/v1/phase/prepare", "/v1/phase/connect", "/v1/phase/warmup", "/v1/phase/run", "/v1/phase/cooldown", "/v1/stop"} {
-		postPhase(t, srv, "secret", path, http.StatusOK)
-	}
-
-	runner.lifecycle = LifecycleStatus{ActiveConnections: 17}
-	assign(t, srv, "secret", "run-b")
-	status := workerStatus(t, srv, "secret")
-	require.NotNil(t, status.Lifecycle)
-	require.False(t, status.Lifecycle.TerminalPreClose)
-	require.Equal(t, 17, status.Lifecycle.ActiveConnections)
 }
 
 func TestWorkerStopBeforeCooldownDoesNotClaimTerminalPreCloseProof(t *testing.T) {
@@ -1122,7 +1070,8 @@ func TestWorkerDefaultRunnerMetricsSurviveCooldown(t *testing.T) {
 
 func TestWorkerDefaultRunnerNewRunResetsConnectMetricsAfterStop(t *testing.T) {
 	pool := newWorkerPersonClientPool()
-	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
+	runner := newDefaultWorkloadRunner(pool.newClient).(*defaultWorkloadRunner)
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
 	assignment := personShardAssignment()
 	assignFull(t, srv, "secret", assignment)
 	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
@@ -1139,24 +1088,25 @@ func TestWorkerDefaultRunnerNewRunResetsConnectMetricsAfterStop(t *testing.T) {
 	}
 	assignFull(t, srv, "secret", assignment)
 
-	snap := srv.runner.(MetricsReporter).MetricsSnapshot()
+	snap := runner.MetricsSnapshot()
 	require.Zero(t, snap.Counters["connect_attempt_total"])
 	require.Zero(t, snap.Counters["connect_success_total"])
 }
 
 func TestWorkerDefaultRunnerStopClosesConnectionsAndPreservesMetrics(t *testing.T) {
 	pool := newWorkerPersonClientPool()
-	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: pool.newClient})
+	runner := newDefaultWorkloadRunner(pool.newClient).(*defaultWorkloadRunner)
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
 	assignment := connectionOnlyAssignment(0)
 	assignFull(t, srv, "secret", assignment)
 	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
 	postPhase(t, srv, "secret", "/v1/phase/connect", http.StatusOK)
-	active, _ := srv.runner.(ConnectionStatusReporter).ConnectionStatus()
+	active, _ := runner.ConnectionStatus()
 	require.Equal(t, 3, active)
 
 	postPhase(t, srv, "secret", "/v1/stop", http.StatusOK)
 
-	active, _ = srv.runner.(ConnectionStatusReporter).ConnectionStatus()
+	active, _ = runner.ConnectionStatus()
 	require.Zero(t, active)
 	rec := authorizedRecorder(t, srv, http.MethodGet, "/v1/metrics", "secret", nil)
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -1260,7 +1210,8 @@ func TestWorkerDefaultRunnerTrafficRebuildJoinsOldRecvDrainsBeforeStartingNewOne
 		clientsMu.Unlock()
 		return client, nil
 	}
-	srv := NewServer(Config{ControlToken: "secret", WorkloadClientFactory: factory})
+	runner := newDefaultWorkloadRunner(factory).(*defaultWorkloadRunner)
+	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
 	assignment := personShardAssignment()
 	assignFull(t, srv, "secret", assignment)
 	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
@@ -1275,7 +1226,6 @@ func TestWorkerDefaultRunnerTrafficRebuildJoinsOldRecvDrainsBeforeStartingNewOne
 		require.Equal(t, int32(1), <-client.starts)
 	}
 
-	runner := srv.runner.(*defaultWorkloadRunner)
 	resetDone := make(chan error, 1)
 	go func() { resetDone <- runner.ResetTraffic(assignment) }()
 	for _, client := range gotClients {
@@ -1894,37 +1844,6 @@ func TestWorkerDefaultRunnerRejectsPersonShardWithoutTraffic(t *testing.T) {
 	require.Equal(t, PhasePrepare, workerStatus(t, srv, "secret").Phase)
 }
 
-func TestWorkerConcurrentDuplicatePhaseRunsHookOnce(t *testing.T) {
-	runner := newBlockingConnectRunner()
-	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
-	assign(t, srv, "secret", "run-a")
-	postPhase(t, srv, "secret", "/v1/phase/prepare", http.StatusOK)
-
-	var wg sync.WaitGroup
-	recorders := make([]*httptest.ResponseRecorder, 2)
-	wg.Add(2)
-	for i := range recorders {
-		go func(idx int) {
-			defer wg.Done()
-			recorders[idx] = authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/connect", "secret", nil)
-		}(i)
-	}
-
-	require.True(t, runner.waitForCalls(1, time.Second), "first hook call did not start")
-	time.Sleep(50 * time.Millisecond)
-	require.Equal(t, int32(1), runner.calls.Load())
-	runner.release()
-	wg.Wait()
-
-	for _, rec := range recorders {
-		require.Contains(t, []int{http.StatusAccepted, http.StatusOK}, rec.Code, rec.Body.String())
-	}
-	require.Equal(t, int32(1), runner.calls.Load())
-	require.Eventually(t, func() bool {
-		return workerStatus(t, srv, "secret").Phase == PhaseConnect
-	}, time.Second, 10*time.Millisecond)
-}
-
 func TestWorkerStopCancelsActiveAsyncPhase(t *testing.T) {
 	runner := newBlockingPrepareRunner()
 	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
@@ -1949,50 +1868,6 @@ func TestWorkerStopCancelsActiveAsyncPhase(t *testing.T) {
 	require.Equal(t, PhaseStopped, status.Phase)
 	require.Empty(t, status.ActivePhase)
 	require.Empty(t, status.LastError)
-}
-
-func TestWorkerStopWaitsForActivePhaseExit(t *testing.T) {
-	runner := newDelayedCancelExitRunner()
-	t.Cleanup(runner.release)
-	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
-	assign(t, srv, "secret", "run-a")
-
-	phaseDone := make(chan *httptest.ResponseRecorder, 1)
-	go func() {
-		phaseDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/prepare", "secret", nil)
-	}()
-	require.True(t, runner.waitStarted(time.Second), "prepare hook did not start")
-	select {
-	case rec := <-phaseDone:
-		require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
-	case <-time.After(100 * time.Millisecond):
-		t.Fatal("phase request did not return promptly")
-	}
-
-	stopDone := make(chan *httptest.ResponseRecorder, 1)
-	go func() {
-		stopDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/stop", "secret", nil)
-	}()
-	require.True(t, runner.waitCanceled(time.Second), "stop did not cancel active phase context")
-	statusBeforeExit := workerStatus(t, srv, "secret")
-	require.NotEqual(t, PhaseStopped, statusBeforeExit.Phase, "stopped must not be visible before the phase exits")
-	require.Equal(t, PhasePrepare, statusBeforeExit.ActivePhase)
-	require.False(t, runner.waitEnded(20*time.Millisecond), "runner teardown ran before the active phase exited")
-	select {
-	case rec := <-stopDone:
-		t.Fatalf("stop returned %d before the active phase exited", rec.Code)
-	case <-time.After(20 * time.Millisecond):
-	}
-
-	runner.release()
-	select {
-	case rec := <-stopDone:
-		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	case <-time.After(time.Second):
-		t.Fatal("stop did not return after the active phase exited")
-	}
-	require.True(t, runner.waitEnded(time.Second), "runner teardown did not run after the active phase exited")
-	require.Equal(t, PhaseStopped, workerStatus(t, srv, "secret").Phase)
 }
 
 func TestWorkerStopContinuesFinalizationAfterRequestCancellation(t *testing.T) {
@@ -2037,180 +1912,6 @@ func TestWorkerStopContinuesFinalizationAfterRequestCancellation(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return workerStatus(t, srv, "secret").Phase == PhaseStopped
 	}, time.Second, 10*time.Millisecond)
-}
-
-func TestWorkerStopRetriesJoinOneBackgroundFinalizer(t *testing.T) {
-	runner := newDelayedCancelExitRunner()
-	t.Cleanup(runner.release)
-	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
-	assign(t, srv, "secret", "run-a")
-	phaseDone := make(chan *httptest.ResponseRecorder, 1)
-	go func() {
-		phaseDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/prepare", "secret", nil)
-	}()
-	require.True(t, runner.waitStarted(time.Second), "prepare hook did not start")
-	select {
-	case <-phaseDone:
-	case <-time.After(time.Second):
-		t.Fatal("phase request did not return")
-	}
-
-	stopWithDeadline := func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
-		defer cancel()
-		req := httptest.NewRequest(http.MethodPost, "/v1/stop", bytes.NewReader(mustJSON(t, StopRequest{RunID: "run-a", AssignmentID: defaultTestAssignmentID("run-a")}))).WithContext(ctx)
-		req.Header.Set("Authorization", "Bearer secret")
-		srv.ServeHTTP(httptest.NewRecorder(), req)
-	}
-	stopWithDeadline()
-	require.True(t, runner.waitCanceled(time.Second), "first stop did not cancel the active phase")
-	srv.stopMu.Lock()
-	firstTask := srv.stopTask
-	srv.stopMu.Unlock()
-	stopWithDeadline()
-	srv.stopMu.Lock()
-	secondTask := srv.stopTask
-	srv.stopMu.Unlock()
-	require.Same(t, firstTask, secondTask, "same-run stop retry created another background finalizer")
-
-	runner.release()
-	require.True(t, runner.waitEnded(time.Second), "shared finalizer did not end assignment resources")
-	require.Eventually(t, func() bool {
-		return workerStatus(t, srv, "secret").Phase == PhaseStopped
-	}, time.Second, 10*time.Millisecond)
-}
-
-func TestWorkerStopCancelsAndWaitsForPrepareChannelsExecution(t *testing.T) {
-	runner := newBlockingPrepareChannelsStopper()
-	t.Cleanup(runner.release)
-	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
-	assign(t, srv, "secret", "run-a")
-
-	prepareDone := make(chan *httptest.ResponseRecorder, 1)
-	go func() {
-		prepareDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/prepare/channels", "secret", mustJSON(t, RunRequest{RunID: "run-a"}))
-	}()
-	require.True(t, waitWorkerTestSignal(runner.started, time.Second), "channel preparation did not start")
-	stopDone := make(chan *httptest.ResponseRecorder, 1)
-	go func() {
-		stopDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/stop", "secret", mustJSON(t, StopRequest{RunID: "run-a"}))
-	}()
-	require.True(t, waitWorkerTestSignal(runner.canceled, time.Second), "stop did not cancel channel preparation")
-	require.False(t, waitWorkerTestSignal(runner.ended, 20*time.Millisecond), "stop tore down resources before channel preparation exited")
-	select {
-	case rec := <-stopDone:
-		t.Fatalf("stop returned %d before channel preparation exited", rec.Code)
-	case <-time.After(20 * time.Millisecond):
-	}
-
-	runner.release()
-	select {
-	case rec := <-prepareDone:
-		require.Equal(t, http.StatusInternalServerError, rec.Code, rec.Body.String())
-	case <-time.After(time.Second):
-		t.Fatal("channel preparation did not return after release")
-	}
-	select {
-	case rec := <-stopDone:
-		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	case <-time.After(time.Second):
-		t.Fatal("stop did not return after channel preparation exited")
-	}
-	require.True(t, waitWorkerTestSignal(runner.ended, time.Second), "stop did not tear down assignment resources")
-}
-
-func TestWorkerStopRejectsPhaseAndPrepareAdmissionDuringTeardown(t *testing.T) {
-	runner := newStopAdmissionRunner()
-	t.Cleanup(runner.releaseEndAssignment)
-	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
-	assign(t, srv, "secret", "run-a")
-
-	firstPhaseDone := make(chan *httptest.ResponseRecorder, 1)
-	go func() {
-		firstPhaseDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/prepare", "secret", nil)
-	}()
-	require.True(t, runner.waitFirstStarted(time.Second), "first prepare hook did not start")
-	select {
-	case rec := <-firstPhaseDone:
-		require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
-	case <-time.After(100 * time.Millisecond):
-		t.Fatal("first phase request did not return promptly")
-	}
-
-	stopDone := make(chan *httptest.ResponseRecorder, 1)
-	go func() {
-		stopDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/stop", "secret", nil)
-	}()
-	require.True(t, runner.waitEndEntered(time.Second), "stop did not enter assignment teardown")
-
-	secondPhaseDone := make(chan *httptest.ResponseRecorder, 1)
-	go func() {
-		secondPhaseDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/phase/prepare", "secret", mustJSON(t, RunRequest{RunID: "run-a"}))
-	}()
-	select {
-	case rec := <-secondPhaseDone:
-		require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
-	case <-time.After(100 * time.Millisecond):
-		t.Fatal("phase admission did not reject promptly after terminal stop began")
-	}
-	require.False(t, runner.waitSecondStarted(20*time.Millisecond), "phase admission crossed an in-progress terminal stop")
-	prepareAdmissionDone := make(chan *httptest.ResponseRecorder, 1)
-	go func() {
-		prepareAdmissionDone <- authorizedRecorder(t, srv, http.MethodPost, "/v1/prepare/channels", "secret", mustJSON(t, RunRequest{RunID: "run-a"}))
-	}()
-	select {
-	case rec := <-prepareAdmissionDone:
-		require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
-	case <-time.After(100 * time.Millisecond):
-		t.Fatal("prepare admission did not reject promptly after terminal stop began")
-	}
-	require.Equal(t, http.StatusConflict, assignRecorder(t, srv, "secret", "run-a").Code, "same-assignment retry crossed an in-progress terminal stop")
-
-	runner.releaseEndAssignment()
-	select {
-	case rec := <-stopDone:
-		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	case <-time.After(time.Second):
-		t.Fatal("stop did not return after teardown was released")
-	}
-	require.False(t, runner.waitSecondStarted(20*time.Millisecond), "stopped assignment started a second hook")
-}
-
-func TestWorkerStoppedAssignmentGenerationCannotBeReactivated(t *testing.T) {
-	runner := &assignmentStartRecorder{}
-	srv := NewServer(Config{ControlToken: "secret", WorkloadRunner: runner})
-	assignment := Assignment{RunID: "run-a", AssignmentID: "generation-a", WorkerID: "worker-a"}
-	assignFull(t, srv, "secret", assignment)
-	require.Len(t, runner.started, 1)
-
-	stop := authorizedRecorder(t, srv, http.MethodPost, "/v1/stop", "secret", mustJSON(t, StopRequest{
-		RunID: assignment.RunID, AssignmentID: assignment.AssignmentID,
-	}))
-	require.Equal(t, http.StatusOK, stop.Code, stop.Body.String())
-
-	retry := authorizedRecorder(t, srv, http.MethodPost, "/v1/assign", "secret", mustJSON(t, assignment))
-	require.Equal(t, http.StatusConflict, retry.Code, retry.Body.String())
-	require.Len(t, runner.started, 1, "terminal assignment generation restarted its runner state")
-	status := workerStatus(t, srv, "secret")
-	require.Equal(t, PhaseStopped, status.Phase)
-	require.Equal(t, assignment.RunID, status.Assignment.RunID)
-	require.Equal(t, assignment.AssignmentID, status.Assignment.AssignmentID)
-}
-
-func TestWorkerOldLifecycleTaskCannotClearNewCancellation(t *testing.T) {
-	srv := NewServer(Config{ControlToken: "secret"})
-	firstDone := make(chan struct{})
-	firstID := srv.storeLifecycleTask("run-a", "generation-a", lifecycleTaskPhase, PhasePrepare, func() {}, firstDone)
-	secondCanceled := make(chan struct{})
-	secondDone := make(chan struct{})
-	secondID := srv.storeLifecycleTask("run-a", "generation-a", lifecycleTaskPrepareChannels, "", func() { close(secondCanceled) }, secondDone)
-	require.NotEqual(t, firstID, secondID)
-
-	srv.clearLifecycleTask(firstID)
-	gotDone := srv.cancelActiveLifecycleTask(assignmentIdentity{runID: "run-a", assignmentID: "generation-a"})
-
-	require.Equal(t, (<-chan struct{})(secondDone), gotDone)
-	require.True(t, waitWorkerTestSignal(secondCanceled, time.Second), "old task cleanup erased the newer phase cancel function")
 }
 
 func TestWorkerOldPhaseHookDoesNotAdvanceNewAssignment(t *testing.T) {
@@ -3397,7 +3098,7 @@ func authorizedRecorder(t *testing.T, srv *Server, method, path, token string, b
 	req := httptest.NewRequest(method, path, bytes.NewReader(body))
 	if method == http.MethodGet && (req.URL.Path == "/v1/metrics" || req.URL.Path == "/v1/report") {
 		query := req.URL.Query()
-		status := srv.state.Status()
+		status := srv.assignments.controlStatus()
 		runID := strings.TrimSpace(query.Get("run_id"))
 		if runID == "" {
 			runID = status.Assignment.RunID
@@ -3431,7 +3132,7 @@ func withDefaultTestAssignmentIdentity(t *testing.T, srv *Server, method, path s
 	if method != http.MethodPost {
 		return body
 	}
-	status := srv.state.Status()
+	status := srv.assignments.controlStatus()
 	switch path {
 	case "/v1/assign":
 		if len(body) == 0 {

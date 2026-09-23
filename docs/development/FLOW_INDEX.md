@@ -24,7 +24,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [internal/access/reviewagentcheckmcp/FLOW.md](../../internal/access/reviewagentcheckmcp/FLOW.md) | `package` | Exposes only protected named Review Agent checks and trusted generation-bound evidence through local stdio MCP. | 44 | ok |
 | [internal/access/reviewagentcli/FLOW.md](../../internal/access/reviewagentcli/FLOW.md) | `package` | Exposes Review Agent control operations and model-result normalization through strict bounded JSON process contracts. | 45 | ok |
 | [internal/app/FLOW.md](../../internal/app/FLOW.md) | `package` | Composes product and Agent runtimes and owns their dependency-safe lifecycle ordering. | 113 | warning |
-| [internal/bench/FLOW.md](../../internal/bench/FLOW.md) | `subtree` | Implements deterministic black-box benchmark planning, workers, traffic, and evidence. | 115 | warning |
+| [internal/bench/FLOW.md](../../internal/bench/FLOW.md) | `subtree` | Implements deterministic black-box benchmark planning, workers, traffic, and evidence. | 121 | warning |
 | [internal/bench/chatlifecycle/FLOW.md](../../internal/bench/chatlifecycle/FLOW.md) | `package` | Runs the fenced chat-lifecycle workload, evidence pipeline, and aged-data capacity proof. | 100 | ok |
 | [internal/contracts/backup/FLOW.md](../../internal/contracts/backup/FLOW.md) | `package` | Defines bounded entry-independent backup, repository, export, restore, and Controller coordination DTOs without policy or I/O. | 54 | ok |
 | [internal/contracts/channelappend/FLOW.md](../../internal/contracts/channelappend/FLOW.md) | `package` | Defines immutable entry-independent Channel append, authority, result, and committed-envelope contracts with stable error families. | 51 | ok |

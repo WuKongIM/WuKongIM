@@ -11,10 +11,10 @@ import (
 )
 
 func TestStateRejectsOutOfOrderPhaseTransition(t *testing.T) {
-	state := NewState("")
+	state := newAssignmentState("")
 	require.NoError(t, state.Assign(Assignment{RunID: "run-a", AssignmentID: "generation-a", WorkerID: "worker-a"}))
 
-	err := state.Transition(PhaseRun)
+	err := transitionAssignmentState(state, PhaseRun)
 
 	require.ErrorIs(t, err, ErrInvalidPhaseTransition)
 	require.Equal(t, PhaseAssigned, state.Status().Phase)
@@ -48,7 +48,7 @@ func TestStatusUnmarshalAcceptsLegacyExpandedAssignment(t *testing.T) {
 }
 
 func TestStateRejectsAssignmentWithoutAssignmentID(t *testing.T) {
-	state := NewState("")
+	state := newAssignmentState("")
 
 	err := state.Assign(Assignment{RunID: "run-a", WorkerID: "worker-a"})
 
@@ -57,7 +57,7 @@ func TestStateRejectsAssignmentWithoutAssignmentID(t *testing.T) {
 }
 
 func TestStateTreatsAssignmentIDAsRunGeneration(t *testing.T) {
-	state := NewState("")
+	state := newAssignmentState("")
 	first := Assignment{RunID: "run-a", AssignmentID: "generation-a", WorkerID: "worker-a"}
 	second := Assignment{RunID: "run-a", AssignmentID: "generation-b", WorkerID: "worker-a"}
 	require.NoError(t, state.Assign(first))
@@ -65,16 +65,16 @@ func TestStateTreatsAssignmentIDAsRunGeneration(t *testing.T) {
 	err := state.Assign(second)
 
 	require.ErrorIs(t, err, ErrActiveRunConflict)
-	require.NoError(t, state.Stop())
+	require.NoError(t, transitionAssignmentState(state, PhaseStopped))
 	require.NoError(t, state.Assign(second))
 	require.Equal(t, "generation-b", state.Status().Assignment.AssignmentID)
 }
 
 func TestStateRejectsReactivatingStoppedAssignmentGeneration(t *testing.T) {
-	state := NewState("")
+	state := newAssignmentState("")
 	assignment := Assignment{RunID: "run-a", AssignmentID: "generation-a", WorkerID: "worker-a"}
 	require.NoError(t, state.Assign(assignment))
-	require.NoError(t, state.Stop())
+	require.NoError(t, transitionAssignmentState(state, PhaseStopped))
 
 	err := state.Assign(assignment)
 
@@ -84,10 +84,10 @@ func TestStateRejectsReactivatingStoppedAssignmentGeneration(t *testing.T) {
 }
 
 func TestStateRejectsMutatingStoppedAssignmentGeneration(t *testing.T) {
-	state := NewState("")
+	state := newAssignmentState("")
 	assignment := Assignment{RunID: "run-a", AssignmentID: "generation-a", WorkerID: "worker-a", Plan: model.WorkerPlan{WorkerID: "worker-a"}}
 	require.NoError(t, state.Assign(assignment))
-	require.NoError(t, state.Stop())
+	require.NoError(t, transitionAssignmentState(state, PhaseStopped))
 
 	mutated := assignment
 	mutated.Plan.WorkerID = "worker-b"
@@ -99,31 +99,31 @@ func TestStateRejectsMutatingStoppedAssignmentGeneration(t *testing.T) {
 }
 
 func TestStateTransitionsPhasesMonotonically(t *testing.T) {
-	state := NewState("")
+	state := newAssignmentState("")
 	require.NoError(t, state.Assign(Assignment{RunID: "run-a", AssignmentID: "generation-a", WorkerID: "worker-a"}))
 
 	for _, phase := range []Phase{PhasePrepare, PhaseConnect, PhaseWarmup, PhaseRun, PhaseCooldown, PhaseStopped} {
-		require.NoError(t, state.Transition(phase), phase)
+		require.NoError(t, transitionAssignmentState(state, phase), phase)
 		require.Equal(t, phase, state.Status().Phase)
 	}
 }
 
 func TestStateRejectsDifferentActiveRunUntilStopped(t *testing.T) {
-	state := NewState("")
+	state := newAssignmentState("")
 	require.NoError(t, state.Assign(Assignment{RunID: "run-a", AssignmentID: "generation-a", WorkerID: "worker-a"}))
 
 	err := state.Assign(Assignment{RunID: "run-b", AssignmentID: "generation-b", WorkerID: "worker-a"})
 
 	require.ErrorIs(t, err, ErrActiveRunConflict)
-	require.NoError(t, state.Stop())
+	require.NoError(t, transitionAssignmentState(state, PhaseStopped))
 	require.NoError(t, state.Assign(Assignment{RunID: "run-b", AssignmentID: "generation-b", WorkerID: "worker-a"}))
 	require.Equal(t, "run-b", state.Status().Assignment.RunID)
 }
 
 func TestStateSameRunRetryPreservesAdvancedPhase(t *testing.T) {
-	state := NewState("")
+	state := newAssignmentState("")
 	require.NoError(t, state.Assign(Assignment{RunID: "run-a", AssignmentID: "generation-a", WorkerID: "worker-a"}))
-	require.NoError(t, state.Transition(PhasePrepare))
+	require.NoError(t, transitionAssignmentState(state, PhasePrepare))
 
 	require.NoError(t, state.Assign(Assignment{RunID: "run-a", AssignmentID: "generation-a", WorkerID: "worker-a"}))
 
@@ -131,7 +131,7 @@ func TestStateSameRunRetryPreservesAdvancedPhase(t *testing.T) {
 }
 
 func TestStateSameRunDifferentAssignmentConflictsWhileActive(t *testing.T) {
-	state := NewState("")
+	state := newAssignmentState("")
 	base := Assignment{RunID: "run-a", AssignmentID: "generation-a", WorkerID: "worker-a", Plan: model.WorkerPlan{WorkerID: "worker-a"}}
 	require.NoError(t, state.Assign(base))
 
@@ -142,10 +142,10 @@ func TestStateSameRunDifferentAssignmentConflictsWhileActive(t *testing.T) {
 }
 
 func TestStateSameRunSamePlanRetryPreservesAdvancedPhase(t *testing.T) {
-	state := NewState("")
+	state := newAssignmentState("")
 	assignment := Assignment{RunID: "run-a", AssignmentID: "generation-a", WorkerID: "worker-a", Plan: model.WorkerPlan{WorkerID: "worker-a"}}
 	require.NoError(t, state.Assign(assignment))
-	require.NoError(t, state.Transition(PhasePrepare))
+	require.NoError(t, transitionAssignmentState(state, PhasePrepare))
 
 	require.NoError(t, state.Assign(assignment))
 
@@ -156,7 +156,7 @@ func TestStateSameRunSamePlanRetryPreservesAdvancedPhase(t *testing.T) {
 func TestStateDoesNotMutateWhenAssignmentPersistenceFails(t *testing.T) {
 	workDir := filepath.Join(t.TempDir(), "not-a-directory")
 	require.NoError(t, os.WriteFile(workDir, []byte("file blocks directory"), 0o644))
-	state := NewState(workDir)
+	state := newAssignmentState(workDir)
 
 	err := state.Assign(Assignment{RunID: "run-a", AssignmentID: "generation-a", WorkerID: "worker-a"})
 
@@ -167,19 +167,19 @@ func TestStateDoesNotMutateWhenAssignmentPersistenceFails(t *testing.T) {
 }
 
 func TestStateDuplicatePhaseTransitionIsIdempotent(t *testing.T) {
-	state := NewState("")
+	state := newAssignmentState("")
 	require.NoError(t, state.Assign(Assignment{RunID: "run-a", AssignmentID: "generation-a", WorkerID: "worker-a"}))
-	require.NoError(t, state.Transition(PhasePrepare))
+	require.NoError(t, transitionAssignmentState(state, PhasePrepare))
 
-	require.NoError(t, state.Transition(PhasePrepare))
+	require.NoError(t, transitionAssignmentState(state, PhasePrepare))
 
 	require.Equal(t, PhasePrepare, state.Status().Phase)
 }
 
 func TestStateStopFromIdleConflicts(t *testing.T) {
-	state := NewState("")
+	state := newAssignmentState("")
 
-	err := state.Stop()
+	err := transitionAssignmentState(state, PhaseStopped)
 
 	require.ErrorIs(t, err, ErrInvalidPhaseTransition)
 	require.Equal(t, PhaseIdle, state.Status().Phase)
@@ -187,7 +187,7 @@ func TestStateStopFromIdleConflicts(t *testing.T) {
 
 func TestStatePersistsAssignmentWhenWorkDirIsSet(t *testing.T) {
 	workDir := t.TempDir()
-	state := NewState(workDir)
+	state := newAssignmentState(workDir)
 	const token = "bench-api-token-canary"
 
 	require.NoError(t, state.Assign(Assignment{
@@ -209,4 +209,18 @@ func TestStatePersistsAssignmentWhenWorkDirIsSet(t *testing.T) {
 	info, err := os.Stat(path)
 	require.NoError(t, err)
 	require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+}
+
+// transitionAssignmentState exercises only the state operations used by the
+// lifetime owner; it does not preserve a second production transition interface.
+func transitionAssignmentState(state *assignmentState, phase Phase) error {
+	identity := state.Status().Assignment
+	if phase == PhaseStopped {
+		return state.StopForAssignment(identity.RunID, identity.AssignmentID)
+	}
+	_, started, err := state.BeginPhaseForAssignment(identity.RunID, identity.AssignmentID, phase)
+	if err != nil || !started {
+		return err
+	}
+	return state.CompletePhaseForAssignment(identity.RunID, identity.AssignmentID, phase, nil)
 }

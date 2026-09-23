@@ -506,6 +506,16 @@ specification, runbook, report, or module documentation; link to them when neede
   `docs/reports/2026-09-22-rpc-cross-host-results.md`; mixed-version effects are
   not additive and different Lease measurements must not be pooled.
 
+- A Worker Assignment is one immutable worker generation within a Workload
+  Execution. `internal/bench/worker/assignment_lifecycle.go` owns admission,
+  tasks, cancellation/join, terminal-cut acknowledgement, teardown and terminal
+  evidence; HTTP only translates requests and responses. State is internal.
+  Phase tasks outlive request cancellation; channel preparation follows its
+  request; stop finalization outlives its waiter. Exact stopped-generation
+  validation and metric capture share the replacement fence. Pre-close proof is
+  retained before session teardown and cannot cross assignment generations.
+  The generic owner adds no universal stop timeout or atomic live-status promise.
+
 - Benchmark progress snapshots capture counters and gauges at one lock-protected
   instant without copying or sorting latency history or waiting for report
   aggregation. Lifecycle polling and terminal traffic projection share report
