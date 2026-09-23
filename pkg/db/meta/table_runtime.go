@@ -195,6 +195,9 @@ func (t Table[R]) Get(ctx context.Context, s *Shard, pk KeyParts) (R, bool, erro
 	if err := s.check(ctx); err != nil {
 		return zero, false, err
 	}
+	if s.readSnapshot != nil {
+		return snapshotUpdateRow(s.readSnapshot, t, s.hashSlot, pk)
+	}
 	row, exists, err := t.getByPrimaryKey(s.db, s.hashSlot, pk)
 	if err != nil || !exists {
 		return zero, exists, err
@@ -343,7 +346,7 @@ func (t Table[R]) scanIndexWithOptions(ctx context.Context, s *Shard, indexID ui
 		}
 		span.Start = keycodec.PrefixEnd(afterKey)
 	}
-	iter, err := s.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+	iter, err := s.newTableReadIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
 	if err != nil {
 		return nil, nil, false, err
 	}
@@ -363,7 +366,13 @@ func (t Table[R]) scanIndexWithOptions(ctx context.Context, s *Shard, indexID ui
 		if !ok || !keyPartsHasPrefix(indexParts, prefix) {
 			continue
 		}
-		row, exists, err := t.getByPrimaryKey(s.db, s.hashSlot, primaryParts)
+		var row R
+		var exists bool
+		if s.readSnapshot != nil {
+			row, exists, err = snapshotUpdateRow(s.readSnapshot, t, s.hashSlot, primaryParts)
+		} else {
+			row, exists, err = t.getByPrimaryKey(s.db, s.hashSlot, primaryParts)
+		}
 		if err != nil {
 			return nil, nil, false, err
 		}
@@ -660,7 +669,7 @@ func (t Table[R]) scanPrimary(ctx context.Context, s *Shard, prefix KeyParts, af
 		}
 		span.Start = keycodec.PrefixEnd(afterKey)
 	}
-	iter, err := s.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+	iter, err := s.newTableReadIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
 	if err != nil {
 		return nil, nil, false, err
 	}

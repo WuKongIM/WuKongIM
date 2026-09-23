@@ -908,3 +908,63 @@ distributed replay replication, source activation, migration/learner catch-up,
 consumer-proof GC, MQTT-state JSONL, restored-owner fencing or product wiring.
 Those and the persistent session/network runtime remain required; MQTT access
 stays unavailable and the full implementation goal remains active.
+
+## Authoritative MQTT metadata access
+
+Frozen source `9f031e9ae`, applicable digests, the pre-code failure inventory and
+the exact wire/routing contract are in
+[`mqtt-slot-access.md`](../specs/mqtt-slot-access.md).
+
+The six metadata tables now have a distributed Slot facade and foreground-gated
+`cluster.Node` entrypoints. A versioned length-delimited namespace/ClientID hash
+keeps all Session lifetimes and children together. Source bindings share existing
+Channel-ID/UID routing. All seven write commands require deterministic committed
+results; missing result capability fails before submission, and fenced or malformed
+results cannot masquerade as success. Additional RED checks exposed a missing
+Session-state field being accepted in cursor results; decision fields now reject
+missing state, inconsistent termination reasons and impossible Will references.
+
+Read RPC 91, format 1, supports bounded point reads and recovery pages. The actual
+Slot leader establishes a fresh ReadIndex/durable-apply barrier, reads primary
+rows and secondary indexes from one pinned snapshot, and rechecks authority and
+routing. Session children share that snapshot with their current Session. Scans
+name a logical hash Slot rather than equating it with a Raft group. No stale-local
+fallback or cached negative result is allowed. Requests/replies, selected fields,
+page counts, identities and complete continuation cursors are bounded/validated.
+The final-page cursor retains existing table semantics; a failing remote-page
+test caught an initially over-strict validator before it was corrected.
+
+The metadata snapshot and proxy/Node APIs were first exercised by failing tests
+before implementation. Focused cases cover stale owner mutation, remote reads
+when the origin has no row, fresh barriers, source versus Session routing,
+detached Will ownership, wrong hash-Slot ownership, route changes, malformed RPC,
+missing proposal results, response shape and foreground maintenance gates.
+
+Validation:
+
+- Complete default suites passed: `GOWORK=off go test ./pkg/db/meta
+  ./pkg/slot/... ./pkg/cluster/... -count=1 -timeout=90s`.
+- The focused snapshot/proxy race run passed with the pre-existing macOS linker
+  warning: `GOWORK=off go test -race ./pkg/db/meta ./pkg/slot/proxy
+  -run '^TestMQTT(Read|Slot|Routing|Writes|SourceAnd)' -count=1 -timeout=90s`.
+- Real cluster integration passed in 12.46 seconds: `GOWORK=off go test
+  -tags=integration ./pkg/cluster
+  -run '^TestMQTTMetadataThreeNodeAuthorityAndRecovery$' -count=1 -timeout=90s -v`.
+  It used three nodes, 256 logical hash Slots, two physical Slots and three
+  replicas; the tested Session mapped to hash Slot 223 / physical Slot 2.
+  Authority moved from node 1 to node 2, revision 2 survived reconstruction of
+  the old leader from its durable directory, and an isolated leader rejected
+  both reads and writes. This is real metadata Raft/transport coverage, not
+  process-level MQTT client acceptance or connection-owner isolation.
+- An earlier broad attempt failed during compilation because the filesystem ran
+  out of space. Clearing only regenerable Go build cache recovered about 13 GiB;
+  the complete command above subsequently passed. No source/data was removed.
+- After tightening committed decision validation, the complete Slot proxy suite
+  and its focused `-race -run '^TestMQTT'` suite passed again.
+- Named `flow-doc-contracts` passed after regenerating the index: 83 compliant,
+  zero invalid and the same 9 existing warnings. Updated FLOW files remain at
+  their previous line counts. `git diff --check` passed.
+
+No listener, MQTT runtime, owner isolation, source activation, shared replay
+replication, restore fencing or rollout capability gate is introduced here.
+These remain required by the approved full goal; product MQTT stays unavailable.

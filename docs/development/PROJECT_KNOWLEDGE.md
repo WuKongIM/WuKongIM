@@ -215,6 +215,12 @@ specification, runbook, report, or module documentation; link to them when neede
   Source-owned binding tombstones prevent delayed prepares from resurrecting a
   subscription. Unknown source boundaries block reclamation; stored progress
   requires current remote authority and source protection before use.
+  MQTT metadata facades route Session children by the frozen namespace/ClientID
+  hash and source bindings by ordinary Channel ID or UID. Read RPC 91 requires
+  a fresh Slot barrier and pinned primary/index snapshot; recovery explicitly
+  selects a logical hash Slot. Writes require committed conditional results.
+  See [Slot access](../specs/mqtt-slot-access.md); these APIs do not prove owner
+  isolation, replica capability activation or safe restored-owner execution.
   Message System 12 materializes source-incarnation protection and copy receipt
   references. It clamps physical trim independently of logical history; protected
   reads retain HW and reject gaps. Local CAS is not replicated activation or copy

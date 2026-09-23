@@ -127,6 +127,8 @@ const (
 	RPCSlotMessageUpdates
 	// RPCMessageUpdateHint delivers body-free edit hints to exact owner sessions.
 	RPCMessageUpdateHint
+	// RPCSlotMQTTMetadata serves bounded authoritative MQTT metadata reads.
+	RPCSlotMQTTMetadata
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -251,6 +253,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "slot message updates"
 	case RPCMessageUpdateHint:
 		return "message update hint"
+	case RPCSlotMQTTMetadata:
+		return "slot mqtt metadata"
 	default:
 		return "unknown service"
 	}

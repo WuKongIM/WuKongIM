@@ -40,6 +40,7 @@ func NewChannelMetadataStore(cluster Cluster, db *metadb.DB, observers ...Messag
 		{serviceID: permissionBatchRPCServiceID, handler: store.handlePermissionBatchRPC},
 		{serviceID: membershipRPCServiceID, handler: store.handleMembershipRPC},
 		{serviceID: messageUpdateRPCServiceID, handler: store.handleMessageUpdateReadRPC},
+		{serviceID: mqttReadRPCServiceID, handler: store.handleMQTTReadRPC},
 	})
 	return store
 }

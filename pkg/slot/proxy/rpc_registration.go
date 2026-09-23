@@ -51,5 +51,6 @@ func storeRPCHandlers(store *Store) []storeRPCRegistration {
 		{serviceID: pluginBindingRPCServiceID, handler: store.handlePluginBindingRPC},
 		{serviceID: membershipRPCServiceID, handler: store.handleMembershipRPC},
 		{serviceID: messageUpdateRPCServiceID, handler: store.handleMessageUpdateReadRPC},
+		{serviceID: mqttReadRPCServiceID, handler: store.handleMQTTReadRPC},
 	}
 }

@@ -7,8 +7,7 @@ summary: Owns Hash-Slot-scoped metadata tables, deterministic batches, membershi
 
 ## Responsibility
 
-This package stores Channel-owned and UID-owned metadata on shared internal DB
-primitives. It exposes stable `Shard` handles and must not import Pebble directly.
+This package stores entity-owned metadata on shared DB primitives through stable `Shard` handles; it must not import Pebble directly.
 It does not own product business policy or expose engine-specific APIs.
 
 ## Boundaries
@@ -54,9 +53,10 @@ It does not own product business policy or expose engine-specific APIs.
    Will records outlive Session replacement. Session transitions and quota endings
    resolve old Will atomically; new ownership may install a new configuration.
    Delays, execution leases and receipts are distinct; bodies are bounded/redacted.
+   Bounded MQTT reads pin Session, child rows and secondary indexes together;
+   private snapshot handles never escape or replace canonical writable shards.
 
 ## Invariants and Failure Semantics
-
 - Event sequence pages scan a pinned native iterator and retain a bounded heap,
   so event-key order cannot truncate results before the sequence cursor.
 - Offline event import installs one exact historical projection, its last event

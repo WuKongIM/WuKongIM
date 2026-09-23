@@ -9,16 +9,17 @@
 - 已完成独立 MQTT 5 输入/输出 codec，具备包长、属性和订阅数量上限；literal fixtures 与 Eclipse Paho v0.23.0 交叉验证，不依赖 WK frame。
 - 已固定 [wire contract](../../specs/mqtt-wire-contract.md)，实现精确 topic 编码、CONNECT 凭据提取和保留属性校验。
 - 网关已增加独立 packet 接口，复用认证池、顺序 mailbox、串行写和共享空闲计时器；验证字节预算、认证回滚、Keep Alive、分片缓冲和原有协议回归。尚未在产品 app 中启用。
-- `mqtt_session`（metadata table 22）及 Slot CAS 命令 67 已实现，覆盖绑定、代次、条件更新、到期索引、诊断、快照和重放；具体冻结布局见 [storage contract](../../specs/mqtt-storage-contract.md)。尚未接入分布式代理与 owner 隔离。
+- `mqtt_session`（metadata table 22）及 Slot CAS 命令 67 已实现，覆盖绑定、代次、条件更新、到期索引、诊断、快照和重放；具体冻结布局见 [storage contract](../../specs/mqtt-storage-contract.md)。分布式代理已接入，连接 owner 隔离仍待实现。
 - `mqtt_subscription`（table 23）及命令 68 已实现：订阅变更与会话 owner/revision 原子校验、同主题选项替换保留代次、建立/撤销阶段恢复索引、快照及精确重试。尚未接通源保护或 SUBACK。
 - `mqtt_delivery_cursor`（table 24）及命令 69 已实现：按订阅/源代次持久初始化边界、积压计量和配额超限终止，与会话计数原子更新；计量不会推进投递完成水位。已与新增窗口命令建立存储层联动。
 - `mqtt_inflight`（table 25）及命令 70 已实现：有界窗口、不可变内容引用、原发送顺序、乱序 ACK 的缺口保护、原子释放计数及 ACK 删除后的精确重试；新窗口列兼容旧行，生命周期 CAS 不再改写投递计数。尚未接通网络发送、跨节点 owner 隔离或共享内容持久证明。
-- `mqtt_source_binding`（table 26）及命令 71 已实现：源/UID 独立 CAS、单调生命周期与进度证明、撤销终态防止迟到准备复活、用户收件箱发现进度、候选/恢复/保留水位分页及快照重放。分布式权威读取、源保护复制和首条单聊消息握手仍待接通。
+- `mqtt_source_binding`（table 26）及命令 71 已实现：源/UID 独立 CAS、单调生命周期与进度证明、撤销终态防止迟到准备复活、用户收件箱发现进度、候选/恢复/保留水位分页及快照重放。分布式权威读取已接通，源保护复制和首条单聊消息握手仍待实现。
 - `mqtt_will`（table 27）及命令 72 已实现：不可变发布内容、延迟/取消/待执行状态、执行租约与过期接管、持久结果回执、稳定服务端重试身份、恢复分页和脱敏诊断。命令 73 已将会话切换、旧 Will 处理和新 Will 安装原子化，配额超限也同步处理 Will；服务端独立幂等索引与发送重试查询已贯通；发布授权、执行调度与未决结果的保留保护仍待接通。
 - 发布元数据 codec、PUBLISH/Will 应用映射、message 可选列 21、复制记录 codec 2 及精确 proposal format 3 已实现；验证重启、二进制备份、不可变摘要和字节预算。Channel 存储、运行时、复制 exchange 6 与 RPC codec 11 已补齐元数据传播、独立字节所有权及预算；旧版有损编码明确拒绝。SendCommand、committed envelope、产品 append runtime/RPC 3 已贯通；业务重试核对原始内容并保留首次时间，原始提交读取保留权威/HW/retention 校验且不受消息编辑影响。owner-push RPC 2 已保留发布元数据、时间与完整消息设置；消息 JSONL 导出/导入及摘要对比已保留元数据、原始时间和字节预算；MQTT 状态离线迁移、恢复 fencing 及能力门控仍待完成。
 - Will 发布使用 metadata v2 的稳定身份和 message 唯一索引 8；普通幂等索引 4 保持独立，客户端消息号仍参与历史查询。配置阶段预留 79 字节身份空间，发送入口拒绝未绑定身份的 Will 模板；真实单节点集群覆盖跨域同号、相同 Will 重试、不同 Will 共存及内容冲突拒绝。
 - 源保护 System 12 已实现副本级 CAS、转存回执引用、物理保留限制和绕过逻辑历史的有界原文读取；读取核对源代次/HW 并拒绝缺口，二进制备份验证并保留状态。该存储接口尚未接入复制激活，不能独立授权 SUBACK 或推进共享内容证明。
 - 共享回放采用 message-domain table 2；有界复制原始内容与进度原子提交，规范化副本计量提示，独立小型索引完成范围计量。二进制备份 v2 保留并验证回放链，普通备份保持 v1；复制不推进源释放水位，分布式复制、迁移与消费者证明 GC 仍待接通。
+- 六张元数据表的 Slot 代理和 Node facade 已接通：冻结 namespace/ClientID 路由，源映射复用 Channel ID/UID 路由；RPC 91 使用新鲜 ReadIndex/apply 屏障及一致快照，拒绝缺失或损坏的条件写入结果。真实三节点、256 hash slots 验证 leader 切换、重启恢复和无多数派拒绝读写；不替代连接隔离或 MQTT 客户端验收。
 - 单节点/三节点产品 E2E 场景已编译，首次单节点运行因缺失 MQTT 配置项失败；app 接入、生命周期权威编排与 owner 隔离、共享 replay 的跨节点复制、源保护激活、持久会话/Will/配额及 MQTT 状态离线迁移仍待实现，不能开启入口或声明功能完成。
 - 验证与冻结源码依据见 [实施记录](../../reports/mqtt-implementation-progress.md)。
 

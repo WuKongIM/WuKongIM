@@ -16,9 +16,8 @@ plugin, migration, message projections, and MQTT session state.
 
 ## Boundaries
 
-- Controller chooses Slot assignments; Channel stores message logs; usecases
-  own business policy. This subtree persists and serves metadata under the
-  supplied ownership and command contracts.
+- Controller chooses Slot assignments, Channel stores logs, and usecases own
+  business policy. This subtree serves metadata under supplied command contracts.
 - Writes resolve `HashSlotForKey` then `SlotForKey`; authoritative reads execute
   on the actual Slot leader through registered typed RPC.
 - Slot proxy handlers register through the promoted
@@ -46,9 +45,8 @@ plugin, migration, message projections, and MQTT session state.
 2. A Multi-Raft worker persists Ready state, sends messages, batches normal
    entries, flushes before configuration changes, and atomically applies an
    ownership-validated FSM batch before persisting apply and completing futures.
-   Durable Slot storage owns snapshot payload bytes; the Raft memory view keeps
-   only the matching index, term, and membership boundary and loads the payload
-   from durable storage only when a lagging peer needs snapshot transfer.
+   Durable storage owns snapshot bytes; Raft memory keeps the index, term and
+   membership boundary, loading payload only for a lagging peer's snapshot transfer.
 3. Maintenance and migration controls use the same fenced worker/FSM path:
    snapshots and backup prove an applied boundary, while Channel migration
    advances task and runtime metadata together through guarded phases.
@@ -56,6 +54,11 @@ plugin, migration, message projections, and MQTT session state.
    Overflow and Session/Will lifecycle update state atomically; ACK preserves gaps;
    tombstones fence stale work. Rows/indexes/applied progress retain exact receipts.
    Authentication, owner isolation and publication execution remain caller work.
+   The distributed facade hashes a versioned namespace/ClientID tuple for Session
+   children; source bindings retain ordinary Channel-ID/UID routing. RPC 91 uses
+   a fresh local ReadIndex/apply barrier then one pinned primary/index snapshot,
+   revalidating routing/authority before return. Recovery pages select a logical
+   hash Slot; writes require exact committed results without result-less fallback.
 
 ## Invariants and Failure Semantics
 
@@ -76,9 +79,8 @@ plugin, migration, message projections, and MQTT session state.
 - Migration cutover requires task, epoch, leader, fence, drain, replica, ISR,
   and phase proof from the same authoritative state. Irreversible commit or
   promotion cannot later be labeled aborted.
-- Losing leadership fails pending proposal/configuration futures. Transport
-  payload ownership, queues, apply batches, subscriber commands, scans,
-  snapshots, and result payloads remain bounded.
+- Losing leadership fails pending futures. Transport ownership, queues, apply
+  batches, subscriber commands, scans, snapshots and results remain bounded.
 - Recovery restores the persisted snapshot boundary then replays its committed
   suffix; a later applied marker must never skip replay.
 - Ordinary and CMD membership progress is monotonic and UID-owned. Removed
@@ -89,10 +91,8 @@ plugin, migration, message projections, and MQTT session state.
 ## Read First
 
 - [Subtree boundary](BOUNDARY.md)
-- [Multi-Raft API](multiraft/api.go)
-- [Raft Slot worker](multiraft/slot.go)
-- [FSM state machine](fsm/statemachine.go)
-- [Distributed proxy](proxy/store.go)
+- [Multi-Raft API](multiraft/api.go), [Raft Slot worker](multiraft/slot.go)
+- [FSM state machine](fsm/statemachine.go), [Distributed proxy](proxy/store.go)
 
 ## Update Triggers
 

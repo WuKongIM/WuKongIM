@@ -1,11 +1,25 @@
 package meta
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
+)
 
 // Shard is a typed metadata handle for one hash slot.
 type Shard struct {
 	db       *MetaDB
 	hashSlot HashSlot
+	// readSnapshot is set only on private, request-scoped read handles. It is
+	// never installed in the canonical shard registry or returned to callers.
+	readSnapshot *engine.Snapshot
+}
+
+func (s *Shard) newTableReadIter(span engine.Span, opts engine.IterOptions) (*engine.Iter, error) {
+	if s.readSnapshot != nil {
+		return s.readSnapshot.NewIter(span, opts)
+	}
+	return s.db.engine.NewIter(span, opts)
 }
 
 // HashSlot returns the shard hash slot.
