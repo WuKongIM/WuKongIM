@@ -120,3 +120,58 @@ Recovery pages are bounded to 256 and include the entire primary tuple after the
 timestamp. Session-generation scans are bounded to 256 with an exact-topic cursor.
 These are node-storage reads. Distributed authority, coherent quota reads,
 source-side projection, cleanup and mixed-version activation remain required.
+
+## Delivery cursor and backlog accounting
+
+`mqtt_delivery_cursor` is metadata table **24**, primary index **1**, family **0**.
+The primary tuple is `(namespace, client_id, session_generation,
+subscription_generation, source_kind, source_id, source_generation)`. Source kind
+1 identifies an IM Channel log; source ID must encode its complete Channel
+identity (at most 4096 UTF-8 bytes), and source generation is a durable incarnation (at most 128 UTF-8
+bytes), not a routing/leader epoch. The infrastructure adapter supplies canonical
+identity. UID inbox subscriptions have one cursor for each concrete source.
+
+Columns 8–18 are topic, authorization version, subscription start-after position,
+accounted-through, window-through, completed-through, pending messages/bytes,
+last mutation revision, last mutation digest and update time. Initial values use
+the same version-1 checksum column envelope as the other new MQTT tables. All
+initial value fields are required. Optional later fields must append new IDs.
+
+The three progress positions must not be conflated:
+`start_after <= completed_through <= window_through <= accounted_through`.
+A source position identifies at most one application publication (a logical
+message sequence, not a possibly batched Raft entry index). Accounting records
+all qualifying reliable backlog, including messages that have
+not entered the bounded inflight window. It does not authorize content GC or
+confirm network delivery. Future window/ACK commands must preserve gaps and
+atomically maintain the cursor, exchange records and session counters.
+
+Slot command **69** initially supports cursor initialization and forward backlog
+accounting. It checks the complete session owner and expected revision, current
+session/subscription generation and captured authorization version. Cursor,
+session revision/counters and applied watermark share one commit. New cursors
+start with zero backlog and all progress at one protected source start. Accounting
+requires strictly increasing source coverage and adds exact qualified count/bytes;
+zero messages cannot add bytes. The caller must prove source coverage and the
+counts from committed protected records; a timestamp or callback is not proof.
+An increment cannot claim more messages than newly covered source positions.
+Quota overflow persists the cursor and explicitly ends the session with the quota
+reason in the same commit, preserving the reason and revision for exact retry.
+No wall clock, access check or cross-Slot source proof is inferred by storage.
+
+The command's version-1 JSON body is limited to 32 KiB including the existing
+header. The cursor stores the canonical request digest and resulting session
+revision so an unrelated write or changed retry cannot impersonate completion.
+Generation/subscription source scans use complete cursors and pages of at most
+256. Snapshot/inspection preserve all progress and accounting values.
+
+Failure inventory before implementation: source/namespace/session/subscription
+isolation; missing or stale session/owner/subscription; ended/old-generation
+resurrection; source start rebinding; missing source mistaken for empty backlog;
+changed/unrelated retry; quota count and byte overflow; arithmetic wrap; backward
+or duplicate coverage; more qualified messages than covered positions; account
+progress incorrectly releasing history; same-batch overlay and neighbor rollback;
+corrupt, truncated or wrong-key values; unsupported body/version/field and bounds;
+complete-key pagination, snapshot/replay and inspection; wrong Slot ownership.
+Product window execution, gap-preserving PUBACK, source completeness proof and
+quota scheduling remain required before the listener can be enabled.

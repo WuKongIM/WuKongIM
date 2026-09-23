@@ -208,6 +208,7 @@ type commandDecoder func(data []byte) (command, error)
 var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeMessageUpdate:                       decodeMessageUpdateCommand,
 	cmdTypeMQTTSessionCAS:                      decodeMQTTSessionCASCommand,
+	cmdTypeMQTTDeliveryCursorMutation:          decodeMQTTDeliveryCursorCommand,
 	cmdTypeMQTTSubscriptionMutation:            decodeMQTTSubscriptionCommand,
 	cmdTypeUpsertUser:                          decodeUpsertUser,
 	cmdTypeUpsertChannel:                       decodeUpsertChannel,

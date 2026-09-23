@@ -184,6 +184,8 @@ const (
 	TableIDMQTTSession uint32 = 22
 	// TableIDMQTTSubscription stores owner-fenced subscription intents and recovery stages.
 	TableIDMQTTSubscription uint32 = 23
+	// TableIDMQTTDeliveryCursor stores per-subscription source progress and backlog accounting.
+	TableIDMQTTDeliveryCursor uint32 = 24
 )
 
 const (

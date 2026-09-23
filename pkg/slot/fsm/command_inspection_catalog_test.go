@@ -35,6 +35,7 @@ func TestCommandInspectionCoversRegisteredDecoders(t *testing.T) {
 	}{
 		{"mqtt_session_cas", checked(EncodeMQTTSessionCASCommand(0, mqttSessionCommandFixture()))},
 		{"mqtt_subscription_mutation", checked(EncodeMQTTSubscriptionCommand(mqttSubscriptionCommandFixture()))},
+		{"mqtt_delivery_cursor", checked(EncodeMQTTDeliveryCursorCommand(mqttDeliveryCursorCommandFixture()))},
 		{"message_update", checked(EncodeMessageUpdateCommand(metadb.MessageUpdateMutation{Op: "init", ChannelID: "g1", ChannelType: 2, Generation: "generation"}))},
 		{"noop", EncodeNoopCommand()},
 		{"upsert_user", EncodeUpsertUserCommand(user)},

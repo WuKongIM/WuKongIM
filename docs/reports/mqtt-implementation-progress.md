@@ -2,7 +2,7 @@
 
 Full goal: implement the approved [MQTT IM access design](../specs/mqtt-im-access.md).
 Status: in progress; the product has no MQTT listener yet. The codec, generic
-gateway and session/subscription tables with Slot commands are implemented. Other tables,
+gateway and session/subscription/cursor tables with Slot commands are implemented. Other tables,
 cluster session recovery, source retention protection and durable delivery remain
 outstanding. No passing product E2E or capacity claim is made.
 
@@ -208,3 +208,55 @@ Validation for the subscription slice (2026-09-23):
   files, no invalid files and the same 9 pre-existing length warnings.
 - `git diff --check` passed. No product interop result changed; its documented
   RED state remains until the product listener and full persistent chain exist.
+
+
+## Per-source delivery cursor and quota accounting
+
+Frozen source context at `55bff9dec` (the previous goal turn made verified progress):
+
+- Root `AGENTS.md`: `d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade`
+- `pkg/db/FLOW.md`: `49c5fe18bcf98edd7bc072dececaf0114f8d51d77f52cffb96b49f240dd2584e`
+- `pkg/db/meta/FLOW.md`: `ccf6db2222e7eb3f92d71f73e344691ffea6064b0fd955abf0a8b21fa8c959b3`
+- `pkg/slot/FLOW.md`: `0be0d7393520285333bba5fdb76e74cbe36a0eca45fb1dcebc1f93bf408ffcd5`
+
+Metadata table 24 and Slot command 69 establish one protected-start cursor for
+each subscription/source incarnation and atomically count qualified ranges into
+both source and session backlog. The cursor separates accounted coverage,
+window admission and completed progress; this slice changes only accounting.
+Exceeding message or byte quota ends the session with a durable reason in that
+same commit. Owner, session/subscription generation and captured authorization
+version fence writes; the revision and canonical mutation digest distinguish
+exact retry from a changed request or unrelated session write.
+
+Tests were written first at the established metadata/FSM boundaries. They cover
+protected-start immutability, stale/missing identity, accounting without false
+completion, count/byte termination and retry, offline multi-source accumulation,
+takeover and arithmetic overflow, same-batch overlays and full rollback,
+complete-key pagination, codec bounds/corruption, pinned backup, inspection and
+Slot snapshot/replay. Source coverage is a caller proof, not something these
+storage tests establish. These tests do not claim QoS delivery is implemented.
+
+Three of seven tables now have storage primitives. The next slice must persist
+only the bounded QoS window, freeze content references and send order, and link
+PUBACK removal with contiguous source completion and counter release in one
+Slot commit. In particular, out-of-order PUBACK cannot use maximum message
+sequence as completion; packet-ID reuse must not overwrite evidence of an older
+uncompleted exchange. Remaining full-scope requirements stay unchanged: source
+protection/shared replay, publication metadata, source bindings, Will,
+authoritative distributed reads/owner isolation, transfer/restore and capability
+gates, product interop, permission/recovery/retention behavior and scale evidence.
+
+Validation for cursor accounting (2026-09-23):
+
+- `GOWORK=off go test ./pkg/db/... ./pkg/slot/... -count=1 -timeout=90s` passed.
+- `GOWORK=off go test -race ./pkg/db/meta ./pkg/slot/fsm -run 'TestMQTT' -count=1 -timeout=45s` passed
+  (the existing macOS LC_DYSYMTAB linker warning remains).
+- Named `flow-doc-contracts` passed: 81 compliant, none invalid, the same 9
+  pre-existing length warnings. The FLOW index was regenerated.
+- `git diff --check` passed. Product acceptance remains RED/unimplemented as
+  previously recorded; the checks above are not protocol or capacity acceptance.
+
+Before enabling the runtime, lifecycle Session CAS must preserve counters owned
+by the delivery commands within the same generation; a new generation and
+restore/import must handle their reset/consistency explicitly. Current storage
+CAS is still a general preparatory primitive, not a published product port.

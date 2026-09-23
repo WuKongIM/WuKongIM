@@ -47,7 +47,9 @@ It does not own product business policy or expose engine-specific APIs.
    expiry; ended rows retain UID binding. Subscription intents atomically check
    owner/revision, preserve generation on option replacement, and index recovery
    stages. Each child stores its last mutation revision to prove exact retries.
-   Row/index updates share the FSM batch.
+   Per-source delivery cursors separate backlog accounting from window admission
+   and completion. Accounting and aggregate quota termination share one Slot
+   commit; cursor revision/digest witnesses exact retries.
 
 ## Invariants and Failure Semantics
 
