@@ -321,6 +321,10 @@ specification, runbook, report, or module documentation; link to them when neede
   or model output. Named checks and path selection are defined only by
   [Review Agent policy](../../.github/review-agent/policy.json); focused Skill tests
   are cataloged only in [.agents/skill-tests.json](../../.agents/skill-tests.json).
+- Local repair and the Deployment Action share `scripts/cloud-deployment/deploy.sh`
+  for host activation, bounded readiness, and typed outcomes. Behavioral tests
+  execute that entry with fake adapters; Go `clouddeploy` owns pure contracts
+  and validation, not a parallel test-only execution model.
 - Paid cloud creation requires exact start authorization and a bounded cost envelope.
   Deployment, diagnosis, status, or cleanup does not authorize buying resources.
   Preserve immutable Lease expiry and exact resource identity. A run is released

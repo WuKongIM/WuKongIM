@@ -1,7 +1,6 @@
 package clouddeploy_test
 
 import (
-	"context"
 	"errors"
 	"slices"
 	"testing"
@@ -253,67 +252,6 @@ func TestEvaluateReadinessRejectsInvalidPublicEndpointWithoutPanicking(t *testin
 	if outcome.Passed || outcome.Failure == nil || outcome.Failure.Code != clouddeploy.FailureEvidence || outcome.Failure.HostRole != "load" {
 		t.Fatalf("outcome = %#v", outcome)
 	}
-}
-
-func TestDeployUsesLoadHopAndStopsAtExactGate(t *testing.T) {
-	now := time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)
-	manifest := deploymentManifest()
-	plan, err := clouddeploy.BuildPlan(deploymentLease(now), manifest, now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fleet := &recordingFleet{snapshot: readySnapshot(plan, now)}
-	outcome := clouddeploy.Deploy(context.Background(), fleet, plan, manifest, now)
-	if !outcome.Passed {
-		t.Fatalf("Deploy() = %#v", outcome)
-	}
-	wantPrefix := []string{"stage:load", "relay:load:service-1", "relay:load:service-2", "relay:load:service-3"}
-	if len(fleet.calls) < len(wantPrefix) || !slices.Equal(fleet.calls[:len(wantPrefix)], wantPrefix) {
-		t.Fatalf("calls = %v", fleet.calls)
-	}
-
-	fleet = &recordingFleet{snapshot: readySnapshot(plan, now), failCall: "prepare:service-2"}
-	outcome = clouddeploy.Deploy(context.Background(), fleet, plan, manifest, now)
-	if outcome.Passed || outcome.Failure == nil || outcome.Failure.Code != clouddeploy.FailureDiskMount ||
-		outcome.Failure.LastCompletedGate != clouddeploy.GateBundleVerified || outcome.Failure.HostRole != "service-2" {
-		t.Fatalf("failed outcome = %#v", outcome)
-	}
-}
-
-type recordingFleet struct {
-	calls    []string
-	failCall string
-	snapshot clouddeploy.ReadinessSnapshot
-}
-
-func (f *recordingFleet) call(value string) error {
-	f.calls = append(f.calls, value)
-	if value == f.failCall {
-		return errors.New("injected secret-bearing detail must not escape")
-	}
-	return nil
-}
-
-func (f *recordingFleet) StageBundle(_ context.Context, host clouddeploy.HostPlan, _ string) error {
-	return f.call("stage:" + host.Role)
-}
-func (f *recordingFleet) RelayBundle(_ context.Context, load, host clouddeploy.HostPlan, _ string) error {
-	return f.call("relay:" + load.Role + ":" + host.Role)
-}
-func (f *recordingFleet) VerifyBundle(_ context.Context, host clouddeploy.HostPlan, _ string) error {
-	return f.call("verify:" + host.Role)
-}
-func (f *recordingFleet) PrepareHost(_ context.Context, host clouddeploy.HostPlan) error {
-	return f.call("prepare:" + host.Role)
-}
-func (f *recordingFleet) ActivateHost(_ context.Context, host clouddeploy.HostPlan) error {
-	return f.call("activate:" + host.Role)
-}
-func (f *recordingFleet) Snapshot(_ context.Context, _ clouddeploy.DeploymentPlan) (clouddeploy.ReadinessSnapshot, error) {
-	if err := f.call("snapshot"); err != nil {
-		return clouddeploy.ReadinessSnapshot{}, err
-	}
-	return f.snapshot, nil
 }
 
 func deploymentManifest() clouddeploy.Manifest {

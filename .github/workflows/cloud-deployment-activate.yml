@@ -327,11 +327,13 @@ jobs:
             (.mcp_url | test("^https://[0-9.]+:19444/mcp$")) and
             (.ca_fingerprint | test("^sha256:[0-9a-f]{64}$"))
           ' analysis-endpoint.json >/dev/null
-      - name: Transfer through load node and activate native services
+      - name: Activate native services and prove bounded Deployment readiness
+        id: readiness
         shell: bash
         env:
           WK_CLOUD_LOAD_PUBLIC_IP: ${{ steps.plan.outputs.load_public }}
           WK_CLOUD_DEPLOYMENT_PLAN: deployment-plan.json
+          WK_CLOUD_LEASE_RECEIPT: lease-receipt.json
           WK_CLOUD_BUNDLE_ARCHIVE: cloud-deployment-bundle.tar.gz
           WK_CLOUD_RUNTIME_NODE_ARCHIVE: runtime-node.tar.gz
           WK_CLOUD_RUNTIME_LOAD_ARCHIVE: runtime-load.tar.gz
@@ -339,49 +341,17 @@ jobs:
           WK_CLOUD_SSH_CONFIG: deployment-ssh-config
           WK_CLOUD_FAILURE_OUTPUT: deployment-failure-state.json
           WK_CLOUD_LAST_GATE_OUTPUT: last-completed-gate.txt
-        run: |
-          set -euo pipefail
-          export WK_CLOUD_SERVICE1_IP="$(jq -er '.hosts[] | select(.role=="service-1") | .private_address' deployment-plan.json)"
-          export WK_CLOUD_SERVICE2_IP="$(jq -er '.hosts[] | select(.role=="service-2") | .private_address' deployment-plan.json)"
-          export WK_CLOUD_SERVICE3_IP="$(jq -er '.hosts[] | select(.role=="service-3") | .private_address' deployment-plan.json)"
-          scripts/cloud-deployment/write-deployment-failure.sh deployment-failure-state.json \
-            bundle_transfer_failed plan_validated load \
-            'deployment SSH transport initialization failed' 'load host was not contacted'
-          scripts/cloud-deployment/write-ssh-config.sh
-          scripts/cloud-deployment/activate-hosts.sh
-      - name: Prove bounded Deployment readiness
-        id: readiness
-        shell: bash
-        env:
-          WK_CLOUD_LOAD_PUBLIC_IP: ${{ steps.plan.outputs.load_public }}
-          WK_CLOUD_DEPLOYMENT_PLAN: deployment-plan.json
-          WK_CLOUD_SSH_CONFIG: deployment-ssh-config
           WK_CLOUD_READINESS_OUTPUT: readiness-snapshot.json
+          WK_CLOUD_READINESS_CREDENTIALS: readiness-credentials
+          WK_CLOUD_OUTCOME_OUTPUT: deployment-outcome.json
         run: |
           set -euo pipefail
-          source readiness-credentials
-          scripts/cloud-deployment/write-deployment-failure.sh deployment-failure-state.json \
-            readiness_evidence_invalid services_active load \
-            'bounded readiness collection did not complete' 'native services were activated; readiness is unknown'
           export WK_CLOUD_SERVICE1_IP="$(jq -er '.hosts[] | select(.role=="service-1") | .private_address' deployment-plan.json)"
           export WK_CLOUD_SERVICE2_IP="$(jq -er '.hosts[] | select(.role=="service-2") | .private_address' deployment-plan.json)"
           export WK_CLOUD_SERVICE3_IP="$(jq -er '.hosts[] | select(.role=="service-3") | .private_address' deployment-plan.json)"
-          deadline=$(( $(date -u +%s) + 1200 ))
-          while true; do
-            if scripts/cloud-deployment/collect-readiness.sh; then
-              if "$RUNNER_TEMP/trusted-deployment-tools/wkcloudgate" deployment-gate \
-                --lease-receipt lease-receipt.json \
-                --plan deployment-plan.json \
-                --bundle-manifest "$RUNNER_TEMP/deployment-bundle/bundle-manifest.json" \
-                --snapshot readiness-snapshot.json \
-                >deployment-outcome.json; then
-                printf '%s\n' ready >last-completed-gate.txt
-                break
-              fi
-            fi
-            test "$(date -u +%s)" -lt "$deadline"
-            sleep 10
-          done
+          WK_CLOUD_GATE_TOOL="$RUNNER_TEMP/trusted-deployment-tools/wkcloudgate" \
+            WK_CLOUD_BUNDLE_MANIFEST="$RUNNER_TEMP/deployment-bundle/bundle-manifest.json" \
+            scripts/cloud-deployment/deploy.sh
       - name: Emit bounded failure when activation stopped before the gate
         if: failure() || cancelled()
         shell: bash

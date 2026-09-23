@@ -893,6 +893,11 @@ bundle. See
 
 ## Cloud Deployment activation
 
+The Action and local repair both invoke `scripts/cloud-deployment/deploy.sh`.
+It owns activation order, bounded readiness retries, and the typed outcome;
+callers retain provenance validation, credential ownership, and workload start.
+Behavioral tests execute this same entry with fake process/SSH adapters.
+
 `cloud-deployment-activate.yml` has repository and Artifact read permission but
 no OIDC or provider credential. It authenticates both caller-selected Artifact
 runs as successful executions of the exact protected workflows on `main`,

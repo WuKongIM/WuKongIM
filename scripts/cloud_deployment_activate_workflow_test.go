@@ -34,10 +34,10 @@ func TestCloudDeploymentActivationHasSSHAuthorityOnly(t *testing.T) {
 		"trusted-deployment-tools/wkcloudgate\" deployment-plan",
 		`--bootstrap-pubkey "$deployment_public_key"`,
 		`--bootstrap-pubkey "$CODEX_DIAGNOSTIC_PUBKEY"`,
-		"scripts/cloud-deployment/activate-hosts.sh",
+		"scripts/cloud-deployment/deploy.sh",
 		"write-deployment-failure.sh deployment-failure-state.json",
-		"scripts/cloud-deployment/collect-readiness.sh",
-		"trusted-deployment-tools/wkcloudgate\" deployment-gate",
+		"WK_CLOUD_READINESS_CREDENTIALS: readiness-credentials",
+		`WK_CLOUD_GATE_TOOL="$RUNNER_TEMP/trusted-deployment-tools/wkcloudgate"`,
 		`manager_user="operator-$(openssl rand -hex 12)"`,
 		`demo_user="$manager_user"`,
 		`{username:$manager_user,password:$manager_password,permissions:[{resource:"*",actions:["r"]}]}`,
@@ -84,7 +84,7 @@ func TestCloudDeploymentActivationHasSSHAuthorityOnly(t *testing.T) {
 			t.Fatalf("activation workflow uploads plaintext credential material %q", secretArtifact)
 		}
 	}
-	if strings.Contains(text, `>>"$GITHUB_ENV"`) || !strings.Contains(text, "source readiness-credentials") ||
+	if strings.Contains(text, `>>"$GITHUB_ENV"`) || !strings.Contains(text, "WK_CLOUD_READINESS_CREDENTIALS: readiness-credentials") ||
 		!strings.Contains(text, "rm -f deployment-key readiness-credentials") {
 		t.Fatal("activation workflow does not scope and remove UI readiness credentials")
 	}
@@ -107,7 +107,7 @@ func TestCloudDeploymentActivationBindsRepairGenerationWithoutChangingLeaseIdent
 		`--purpose "$DEPLOYMENT_PURPOSE"`,
 		`--generation "$DEPLOYMENT_GENERATION"`,
 		`install -m 0600 "$lease_receipt" lease-receipt.json`,
-		`--lease-receipt lease-receipt.json`,
+		`WK_CLOUD_LEASE_RECEIPT: lease-receipt.json`,
 		`lease_source_sha="$(jq -er .lease_source_sha deployment-plan.json)"`,
 		`--source-sha "$lease_source_sha"`,
 		`wukongim.cloud_deployment.plan/v2`,
@@ -329,7 +329,7 @@ func extractSingleQuotedCommandAfter(t *testing.T, text, marker string) string {
 
 func TestCloudDeploymentInvokedShellHelpersAreExecutable(t *testing.T) {
 	for _, name := range []string{
-		"activate-hosts.sh", "collect-readiness.sh", "validate-upstream-run.sh",
+		"deploy.sh", "activate-hosts.sh", "collect-readiness.sh", "validate-upstream-run.sh",
 		"install-orchestrator-compat-user.sh", "install-frozen-worker-health-compat.sh",
 		"install-frozen-stage-process-compat.sh",
 		"prime-frozen-orchestrator-stage.sh",

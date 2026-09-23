@@ -1,7 +1,6 @@
 package clouddeploy
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -324,17 +323,6 @@ type Outcome struct {
 	Failure *DeploymentFailure `json:"failure,omitempty"`
 }
 
-// Fleet is the SSH/native-host boundary used by the deployment controller.
-// Provider lifecycle operations are intentionally absent.
-type Fleet interface {
-	StageBundle(context.Context, HostPlan, string) error
-	RelayBundle(context.Context, HostPlan, HostPlan, string) error
-	VerifyBundle(context.Context, HostPlan, string) error
-	PrepareHost(context.Context, HostPlan) error
-	ActivateHost(context.Context, HostPlan) error
-	Snapshot(context.Context, DeploymentPlan) (ReadinessSnapshot, error)
-}
-
 // BuildPlan converts exact active Lease inventory into the fixed native topology.
 func BuildPlan(lease LeaseInventory, manifest Manifest, now time.Time) (DeploymentPlan, error) {
 	return buildPlan(lease, manifest, DeploymentPurposeImmutable, 1, now)
@@ -533,43 +521,6 @@ func ValidatePlanForLease(plan DeploymentPlan, lease LeaseInventory, manifest Ma
 		return ErrInvalidDeployment
 	}
 	return ValidatePlan(plan, manifest, now)
-}
-
-// Deploy executes the provider-free transfer, verification, native activation,
-// and readiness sequence through an SSH-like Fleet port.
-func Deploy(ctx context.Context, fleet Fleet, plan DeploymentPlan, manifest Manifest, now time.Time) Outcome {
-	if fleet == nil || ValidatePlan(plan, manifest, now) != nil {
-		return failed(FailureInvalidPlan, GateNone, "", "deployment plan validation failed")
-	}
-	load, _ := findHost(plan.Hosts, "load")
-	if err := fleet.StageBundle(ctx, load, plan.BundleDigest); err != nil {
-		return failed(FailureBundleTransfer, GatePlanValidated, "load", "load host staging failed")
-	}
-	for _, host := range plan.Hosts[:ServiceHostCount] {
-		if err := fleet.RelayBundle(ctx, load, host, plan.BundleDigest); err != nil {
-			return failed(FailureBundleTransfer, GatePlanValidated, host.Role, "private host relay failed")
-		}
-	}
-	for _, host := range plan.Hosts {
-		if err := fleet.VerifyBundle(ctx, host, plan.BundleDigest); err != nil {
-			return failed(FailureBundleDigest, GateBundleTransferred, host.Role, "host bundle verification failed")
-		}
-	}
-	for _, host := range plan.Hosts {
-		if err := fleet.PrepareHost(ctx, host); err != nil {
-			return failed(FailureDiskMount, GateBundleVerified, host.Role, "host preparation failed")
-		}
-	}
-	for _, host := range plan.Hosts {
-		if err := fleet.ActivateHost(ctx, host); err != nil {
-			return failed(FailureActivation, GateHostsPrepared, host.Role, "native service activation failed")
-		}
-	}
-	snapshot, err := fleet.Snapshot(ctx, plan)
-	if err != nil {
-		return failed(FailureEvidence, GateServicesActive, "", "readiness snapshot unavailable")
-	}
-	return EvaluateReadiness(plan, snapshot, now)
 }
 
 // EvaluateReadiness returns every successful identity in a typed receipt or

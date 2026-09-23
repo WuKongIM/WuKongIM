@@ -16,7 +16,10 @@ non-secret Lease inventory and has no provider lifecycle authority.
 - Bundles contain Ubuntu 24.04 native binaries, assets, pinned offline
   dependencies, and templates, but no secrets or Lease-specific configuration.
 - Host transfer, disk mounting, systemd, runtime credentials, SSH, and live
-  evidence are Action adapters; workload orchestration alone starts coordinators.
+  evidence are script adapters; workload orchestration alone starts coordinators.
+- `scripts/cloud-deployment/deploy.sh` owns production execution for local repair
+  and Actions. This package owns pure planning, validation, and readiness gates;
+  it has no separate host-execution controller.
 - Deployment cannot quote, acquire, release, sweep, or replace Lease provenance.
 
 ## Main Flows
@@ -28,9 +31,10 @@ non-secret Lease inventory and has no provider lifecycle authority.
 2. `BuildPlan` binds Lease, source, control, bundle, four roles, addresses,
    disks, expiry, topology, quote line items, and budget into one immutable
    digest; render secret-free role files and perform idempotent offline install.
-3. Activate infrastructure with coordinators dormant, read every host's
-   effective topology and chrony evidence, apply host/cluster/proxy/observer
-   gates, and emit a typed readiness receipt or stable bounded failure.
+3. `EvaluateReadiness` validates supplied host topology, chrony, cluster, proxy,
+   and observer evidence against the exact Plan and Lease, emitting a typed
+   readiness receipt or stable bounded failure. The shared script entry collects
+   evidence with coordinators dormant and invokes this gate via `wkcloudgate`.
 
 ## Invariants and Failure Semantics
 

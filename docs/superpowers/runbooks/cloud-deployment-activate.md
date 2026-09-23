@@ -40,6 +40,13 @@ output or credentials.
 
 ## Native activation sequence
 
+Both this Action and local `direct-lab.sh deploy` invoke
+`scripts/cloud-deployment/deploy.sh` after validating provenance and preparing
+credentials. That entry owns activation, readiness retries, and outcome
+publication; SSH/file transfer/systemd stay in its host adapters. Behavioral
+integration tests use the same entry with fake SSH and process adapters.
+
+
 1. Stage the bundle and Plan plus short-lived `0600` credential archives on the
    public load node.
 2. Relay the same archive from that load node to the three private service
@@ -59,12 +66,23 @@ output or credentials.
    a 960-second systemd start timeout. `Requisite=` checks workers and
    Prometheus without restarting a terminal process. Every workload and product
    unit has `Restart=no`.
-6. Poll for at most 20 minutes until the exact four bundle digests, OS/base
+6. Remove remote credential staging after all hosts activate; a cleanup failure
+   prevents readiness admission.
+7. Poll for at most 20 minutes until the exact four bundle digests, OS/base
    tools, system/data filesystems, five-percent reserve, one-second clock
    bound, systemd units, three members, 256 physical Slots, 12 logical groups,
    replica counts read from the effective startup configuration of all three
    nodes, workers, seven Prometheus targets, strict formal workload config,
    Manager, Demo, proxy, and Analysis checks all pass.
+
+The readiness deadline includes each collection and gate process as well as
+retry delays. Timeout or cancellation terminates the active local command
+group, allowing at most ten seconds for termination before escalation. It does
+not roll back remote services or release the Lease. Each retry discards its
+previous snapshot; only a passing receipt bound to the current Plan and received
+before the deadline is published as success. The latest typed gate failure is
+retained if a later probe is unavailable; otherwise the current operation guard
+supplies the failure outcome. A failed local deploy leaves request state unchanged.
 
 The production host path records `bundle_transferred`, `bundle_verified`,
 `hosts_prepared`, and `services_active` separately. Before every operation it
@@ -100,3 +118,7 @@ publishing plaintext in an Artifact. Worker and Analysis capabilities remain
 separately scoped. Bootstrap public keys remain Lease-bounded; final credential
 deletion and operator credential handoff are controlled by the top-level run
 workflow.
+
+Local repair retains its request-scoped credentials for later generations and
+diagnosis; runner cleanup rules do not delete that local state. Both callers
+require remote upload-staging cleanup before publishing a successful receipt.

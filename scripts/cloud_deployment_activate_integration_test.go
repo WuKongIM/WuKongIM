@@ -24,7 +24,7 @@ func TestCloudDeploymentActivateHostsWithFakeSSH(t *testing.T) {
 		wantGate    string
 		wantRole    string
 	}{
-		{name: "success", wantGate: "services_active"},
+		{name: "success", wantGate: "ready"},
 		{name: "transfer", failTool: "scp", wantCode: "bundle_transfer_failed", wantGate: "plan_validated", wantRole: "load"},
 		{name: "verification", failHost: "10.42.0.12", failCommand: "verify-offline", wantCode: "bundle_digest_mismatch", wantGate: "bundle_transferred", wantRole: "service-2"},
 		{name: "orchestrator compatibility", failHost: "10.42.0.12", failCommand: "orchestrator-compat", wantCode: "credential_materialization_failed", wantGate: "bundle_verified", wantRole: "service-2"},
@@ -46,6 +46,7 @@ func TestCloudDeploymentActivateHostsWithFakeSSH(t *testing.T) {
 			writeFakeDeploymentCommand(t, fakeBin, "ssh", `#!/usr/bin/env bash
 set -euo pipefail
 joined="$*"
+printf 'ssh %s\n' "$joined" >>"$WK_FAKE_OPERATIONS"
 if [[ "$joined" == *"root_source="* ]]; then printf '/dev/fake-data\n'; exit 0; fi
 if [[ -n "${WK_FAKE_FAIL_COMMAND:-}" && "$WK_FAKE_FAIL_COMMAND" == normalize-config && "$joined" == *"${WK_FAKE_FAIL_HOST:-}"* && "$joined" == *"sed -i"* ]]; then exit 42; fi
 if [[ -n "${WK_FAKE_FAIL_COMMAND:-}" && "$WK_FAKE_FAIL_COMMAND" == orchestrator-compat && "$joined" == *"${WK_FAKE_FAIL_HOST:-}"* && "$joined" == *"sudo bash /home/wkdeploy/install-orchestrator-compat-user.sh"* ]]; then exit 42; fi
@@ -57,6 +58,7 @@ exit 0
 `)
 			writeFakeDeploymentCommand(t, fakeBin, "scp", `#!/usr/bin/env bash
 set -euo pipefail
+printf 'scp %s\n' "$*" >>"$WK_FAKE_OPERATIONS"
 if [[ "${WK_FAKE_FAIL_TOOL:-}" == scp ]]; then exit 42; fi
 exit 0
 `)
@@ -75,20 +77,39 @@ fi
 exit 0
 `)
 
-			for _, name := range []string{"cloud-deployment-bundle.tar.gz", "runtime-node.tar.gz", "runtime-load.tar.gz", "deployment-key", "deployment-ssh-config"} {
+			for _, name := range []string{"cloud-deployment-bundle.tar.gz", "runtime-node.tar.gz", "runtime-load.tar.gz", "deployment-key", "deployment-ssh-config", "lease-receipt.json", "bundle-manifest.json", "readiness-credentials"} {
 				if err := os.WriteFile(filepath.Join(root, name), []byte("fixture\n"), 0o600); err != nil {
 					t.Fatal(err)
 				}
 			}
+			if err := os.WriteFile(filepath.Join(root, "readiness-credentials"), nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
 			planPath := filepath.Join(root, "deployment-plan.json")
-			plan := `{"purpose":"immutable","generation":1,"topology":{"physical_hash_slots":256,"logical_slot_groups":12,"slot_replicas":3,"channel_replicas":3},"hosts":[{"role":"service-1","private_address":"10.42.0.11"},{"role":"service-2","private_address":"10.42.0.12"},{"role":"service-3","private_address":"10.42.0.13"},{"role":"load","private_address":"10.42.0.20"}]}`
+			plan := `{"plan_digest":"sha256:` + strings.Repeat("a", 64) + `","purpose":"immutable","generation":1,"topology":{"physical_hash_slots":256,"logical_slot_groups":12,"slot_replicas":3,"channel_replicas":3},"hosts":[{"role":"service-1","private_address":"10.42.0.11"},{"role":"service-2","private_address":"10.42.0.12"},{"role":"service-3","private_address":"10.42.0.13"},{"role":"load","private_address":"10.42.0.20"}]}`
 			if err := os.WriteFile(planPath, []byte(plan), 0o600); err != nil {
 				t.Fatal(err)
 			}
+			writeFakeDeploymentCommand(t, fakeBin, "ssh-writer", "#!/usr/bin/env bash\nexit 0\n")
+			writeFakeDeploymentCommand(t, fakeBin, "collector", "#!/usr/bin/env bash\nprintf 'collect\\n' >>\"$WK_FAKE_OPERATIONS\"\nprintf '{}\\n' >\"$WK_CLOUD_READINESS_OUTPUT\"\n")
+			writeFakeDeploymentCommand(t, fakeBin, "gate", `#!/usr/bin/env bash
+jq -n --arg digest "$(jq -r .plan_digest "$WK_CLOUD_DEPLOYMENT_PLAN")" '{passed:true,receipt:{schema:"wukongim.cloud_deployment.receipt/v2",deployment_plan_digest:$digest}}'
+`)
+			outcomePath := filepath.Join(root, "outcome.json")
+			operationsPath := filepath.Join(root, "operations.log")
 			failurePath := filepath.Join(root, "failure.json")
 			gatePath := filepath.Join(root, "last-gate.txt")
-			command := exec.Command("bash", filepath.Join(repoRoot(t), "scripts", "cloud-deployment", "activate-hosts.sh"))
+			command := exec.Command("bash", filepath.Join(repoRoot(t), "scripts", "cloud-deployment", "deploy.sh"))
 			command.Env = append(os.Environ(),
+				"WK_CLOUD_LEASE_RECEIPT="+filepath.Join(root, "lease-receipt.json"),
+				"WK_CLOUD_BUNDLE_MANIFEST="+filepath.Join(root, "bundle-manifest.json"),
+				"WK_CLOUD_READINESS_CREDENTIALS="+filepath.Join(root, "readiness-credentials"),
+				"WK_CLOUD_READINESS_OUTPUT="+filepath.Join(root, "snapshot.json"),
+				"WK_CLOUD_OUTCOME_OUTPUT="+outcomePath,
+				"WK_CLOUD_SSH_CONFIG_WRITER="+filepath.Join(fakeBin, "ssh-writer"),
+				"WK_CLOUD_READINESS_COLLECTOR="+filepath.Join(fakeBin, "collector"),
+				"WK_CLOUD_GATE_TOOL="+filepath.Join(fakeBin, "gate"),
+				"WK_FAKE_OPERATIONS="+operationsPath,
 				"PATH="+fakeBin+":"+os.Getenv("PATH"),
 				"RUNNER_TEMP="+root,
 				"WK_CLOUD_DEPLOYMENT_PLAN="+planPath,
@@ -116,12 +137,51 @@ exit 0
 				if _, statErr := os.Stat(failurePath); !errors.Is(statErr, os.ErrNotExist) {
 					t.Fatalf("successful activation retained stale failure state: %v", statErr)
 				}
+				operations, readErr := os.ReadFile(operationsPath)
+				if readErr != nil {
+					t.Fatal(readErr)
+				}
+				// Every host must cross each phase before any host enters the next.
+				lastPhase := -1
+				counts := make([]int, 7)
+				for _, operation := range strings.Split(string(operations), "\n") {
+					phase := -1
+					switch {
+					case strings.HasPrefix(operation, "scp "):
+						phase = 0
+					case strings.Contains(operation, "scp -o BatchMode=yes"):
+						phase = 1
+					case strings.Contains(operation, "verify-offline"):
+						phase = 2
+					case strings.Contains(operation, "install-offline"):
+						phase = 3
+					case strings.Contains(operation, "activate-offline"):
+						phase = 4
+					case strings.Contains(operation, "rm -rf /home/wkdeploy/run-secrets /home/wkdeploy/runtime-"):
+						phase = 5
+					case operation == "collect":
+						phase = 6
+					}
+					if phase < 0 {
+						continue
+					}
+					if phase < lastPhase {
+						t.Fatalf("phase %d after %d: %s", phase, lastPhase, operations)
+					}
+					lastPhase = phase
+					counts[phase]++
+				}
+				for phase, want := range []int{1, 3, 4, 4, 4, 4, 1} {
+					if counts[phase] != want {
+						t.Fatalf("phase %d operations=%d, want %d: %s", phase, counts[phase], want, operations)
+					}
+				}
 				return
 			}
 			if err == nil {
 				t.Fatalf("activate-hosts unexpectedly passed, output=%s", output)
 			}
-			encoded, readErr := os.ReadFile(failurePath)
+			encoded, readErr := os.ReadFile(outcomePath)
 			if readErr != nil {
 				t.Fatal(readErr)
 			}

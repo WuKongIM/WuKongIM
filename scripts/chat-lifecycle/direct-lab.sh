@@ -509,7 +509,7 @@ start_request() {
 
 deploy_request() {
   local request_id="$1" directory root generation generation_dir source_sha bundle_digest builder preparer
-  local ssh_writer activator readiness gate deadline temporary
+  local temporary
   directory="$(resolve_request_dir "$request_id")"
   jq -e '.schema == "wukongim.chat_lifecycle.direct_lab_state/v1" and
     (.state == "active" or .state == "deployed" or .state == "diagnosis_ready")' \
@@ -569,34 +569,17 @@ deploy_request() {
   export WK_CLOUD_LAST_GATE_OUTPUT="$generation_dir/last-completed-gate.txt"
   export WK_CLOUD_READINESS_OUTPUT="$generation_dir/readiness-snapshot.json"
 
-  ssh_writer="${WK_CHAT_LAB_SSH_CONFIG_WRITER:-$root/scripts/cloud-deployment/write-ssh-config.sh}"
-  activator="${WK_CHAT_LAB_ACTIVATOR:-$root/scripts/cloud-deployment/activate-hosts.sh}"
-  readiness="${WK_CHAT_LAB_READINESS:-$root/scripts/cloud-deployment/collect-readiness.sh}"
-  require_executable "$ssh_writer"
-  require_executable "$activator"
-  require_executable "$readiness"
-  "$ssh_writer"
-  "$activator"
-
-  # shellcheck disable=SC1090
-  source "$generation_dir/readiness-credentials"
-  gate="$(gate_tool "$directory")"
-  require_executable "$gate"
-  deadline=$(( $(date -u +%s) + ${WK_CHAT_LAB_READINESS_TIMEOUT_SECONDS:-1200} ))
-  while true; do
-    if "$readiness" && "$gate" deployment-gate \
-      --lease-receipt "$directory/receipt.json" \
-      --plan "$generation_dir/deployment-plan.json" \
-      --bundle-manifest "$generation_dir/bundle-root/bundle-manifest.json" \
-      --snapshot "$generation_dir/readiness-snapshot.json" \
-      >"$generation_dir/deployment-outcome.json"; then
-      break
-    fi
-    (( $(date -u +%s) < deadline )) || die 'deployment readiness deadline elapsed'
-    sleep "${WK_CHAT_LAB_READINESS_POLL_SECONDS:-10}"
-  done
-  jq -e '.passed == true and .receipt.schema == "wukongim.cloud_deployment.receipt/v2"' \
-    "$generation_dir/deployment-outcome.json" >/dev/null || die 'deployment gate did not pass'
+  WK_CLOUD_SSH_CONFIG_WRITER="${WK_CHAT_LAB_SSH_CONFIG_WRITER:-$root/scripts/cloud-deployment/write-ssh-config.sh}" \
+    WK_CLOUD_ACTIVATOR="${WK_CHAT_LAB_ACTIVATOR:-$root/scripts/cloud-deployment/activate-hosts.sh}" \
+    WK_CLOUD_READINESS_COLLECTOR="${WK_CHAT_LAB_READINESS:-$root/scripts/cloud-deployment/collect-readiness.sh}" \
+    WK_CLOUD_GATE_TOOL="$(gate_tool "$directory")" \
+    WK_CLOUD_LEASE_RECEIPT="$directory/receipt.json" \
+    WK_CLOUD_BUNDLE_MANIFEST="$generation_dir/bundle-root/bundle-manifest.json" \
+    WK_CLOUD_READINESS_CREDENTIALS="$generation_dir/readiness-credentials" \
+    WK_CLOUD_OUTCOME_OUTPUT="$generation_dir/deployment-outcome.json" \
+    WK_CLOUD_READINESS_TIMEOUT_SECONDS="${WK_CHAT_LAB_READINESS_TIMEOUT_SECONDS:-1200}" \
+    WK_CLOUD_READINESS_POLL_SECONDS="${WK_CHAT_LAB_READINESS_POLL_SECONDS:-10}" \
+    "$root/scripts/cloud-deployment/deploy.sh"
   temporary="$directory/.state.next.$$"
   jq --argjson generation "$generation" --arg source "$source_sha" --arg bundle "$bundle_digest" \
     --arg plan "$(jq -er .plan_digest "$generation_dir/deployment-plan.json")" \

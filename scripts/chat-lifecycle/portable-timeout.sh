@@ -36,17 +36,17 @@ kill_after = int(sys.argv[2])
 command = sys.argv[3:]
 child = subprocess.Popen(command, start_new_session=True)
 
-def forward(signum, _frame):
-    try:
-        os.killpg(child.pid, signum)
-    except ProcessLookupError:
-        pass
+class Interrupted(Exception):
+    def __init__(self, signum):
+        self.signum = signum
 
-signal.signal(signal.SIGINT, forward)
-signal.signal(signal.SIGTERM, forward)
-try:
-    sys.exit(child.wait(timeout=seconds))
-except subprocess.TimeoutExpired:
+def interrupt(signum, _frame):
+    raise Interrupted(signum)
+
+def stop_group():
+    # Once stopping, additional caller signals must not abandon owned children.
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
     try:
         os.killpg(child.pid, signal.SIGTERM)
     except ProcessLookupError:
@@ -54,10 +54,25 @@ except subprocess.TimeoutExpired:
     try:
         child.wait(timeout=kill_after)
     except subprocess.TimeoutExpired:
+        pass
+    finally:
+        # A shell can exit on TERM while a grandchild ignores it. Clean the
+        # complete owned group even when the direct child has already exited.
         try:
             os.killpg(child.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
         child.wait()
+
+signal.signal(signal.SIGINT, interrupt)
+signal.signal(signal.SIGTERM, interrupt)
+try:
+    status = child.wait(timeout=seconds)
+    sys.exit(status if status >= 0 else 128 - status)
+except subprocess.TimeoutExpired:
+    stop_group()
     sys.exit(124)
+except Interrupted as stopped:
+    stop_group()
+    sys.exit(128 + stopped.signum)
 ' "$seconds" "$kill_after" "$@"
