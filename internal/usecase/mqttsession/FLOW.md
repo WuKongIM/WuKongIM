@@ -1,6 +1,6 @@
 ---
 scope: package
-summary: Coordinates authenticated MQTT Session acquisition, exact-owner isolation, atomic Will decisions, conservative local leases and disconnect.
+summary: Coordinates authenticated MQTT Session acquisition, exact-owner isolation, atomic Will decisions, leases, disconnect and deadline reconciliation.
 ---
 
 # MQTT Session Usecase Flow
@@ -40,6 +40,10 @@ cluster/gateway adapter, background worker or shared replay implementation.
    scope, rereads exact ownership and commits Will/expiry without restarting their
    clock or changing normal intent because isolation took time.
    Late disconnect never changes a successor; original zero expiry cannot extend.
+6. Reconcile one complete-owner deadline candidate against current authority.
+   Active expiry still requires exact isolated disconnect; offline Will Delay and
+   expiry use one coherent Session/Will read and at most one lifecycle commit.
+   Ready work detaches before lifetime expiry and survives later Session ending.
 
 ## Invariants and Failure Semantics
 
@@ -55,13 +59,16 @@ cluster/gateway adapter, background worker or shared replay implementation.
   exits, including dependency panic, before local fencing/cleanup may join it.
 - Close errors retain runtime capacity for bounded cleanup. No token is stored
   in durable rows, local owner claims or the returned connection.
+- Deadline scans must page both Session deadlines and Waiting Will deadlines.
+  Stale candidates, missing referenced work, changed authority and uncertain
+  commits cannot erase an obligation; publication scheduling remains separate.
 - These usecases are not yet wired into the product listener; full process-level
   MQTT recovery and acceptance remain separate required implementation work.
 
 ## Read First
 
 - [Contracts](types.go), [Acquisition](connect.go)
-- [Lifecycle](lifecycle.go), [Renewal](renew.go)
+- [Lifecycle](lifecycle.go), [Deadline reconciliation](deadlines.go)
 - [Failure inventory](../../../docs/specs/mqtt-session-acquisition.md)
 
 ## Update Triggers

@@ -233,6 +233,10 @@ specification, runbook, report, or module documentation; link to them when neede
   preserves delivery/Will state and fences confirmed loss or invalid clocks.
   Expired active owners record abnormal disconnect at their recorded deadline
   before reconnect; delayed cleanup cannot restart Will or offline expiry.
+  Deadline reconciliation fences the complete scanned owner and advances one
+  lifecycle decision. Waiting Will deadlines use a coherent Session/Will read;
+  Ready obligations detach atomically and survive later offline expiry. Scheduling
+  must scan both Session and Will deadline indexes, never only Session expiry.
   Product app registration and unreachable/restarted-owner isolation proof remain
   required; stored inactive state, boot mismatch or lease expiry alone is not proof.
   Source-owned binding tombstones prevent delayed prepares from resurrecting a

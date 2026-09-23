@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Reconcile MQTT Session and Will deadlines through current cluster authority, preserving detached Will obligations and rejecting stale-owner cleanup. Product MQTT access remains under development. / MQTT 会话及 Will 到期处理复用当前集群权威，保留独立发布义务并拒绝旧 owner 清理；产品 MQTT 接入仍在开发。
+
 - Validate MQTT Will setup against current IM publish permissions without using cached grants or creating messages; product MQTT access remains under development. / MQTT Will 配置复用当前 IM 发布权限，绕过缓存授权且不产生消息；产品 MQTT 接入仍在开发。
 
 - Add authenticated MQTT Session acquisition, bounded local renewal and atomic disconnect/Will orchestration through cluster metadata, including exact-owner takeover RPC. Product MQTT admission and unavailable-owner recovery remain under development. / 新增经集群元数据编排的 MQTT 会话认证获取、有界本地续租、断连与 Will 原子处理，并接入精确 owner 接管 RPC；产品 MQTT 入口及失联 owner 恢复仍在开发。

@@ -217,4 +217,35 @@ func TestMQTTSessionAcquisitionThreeNodeRPC(t *testing.T) {
 	require.Len(t, wills.Wills, 1)
 	require.Equal(t, meta.MQTTWillCancelled, wills.Wills[0].Stage)
 	t.Log("MQTT Will setup: authoritative_membership=true armed_durable=true revoked_replacement_rejected_before_isolation=true normal_disconnect_cancelled=true")
+
+	// A different node can promote a delayed Will and later expire the offline
+	// Session from authoritative state. No live socket or in-memory timer is needed.
+	require.NoError(t, nodes[0].AddChannelSubscribers(ctx, "will-group", 2, []string{"alice"}, 3))
+	willCommand.SessionExpirySec = 2
+	willCommand.Will.DelaySeconds = 1
+	delayed, e := services[1].Connect(ctx, willCommand)
+	require.NoError(t, e)
+	require.NoError(t, services[1].Disconnect(ctx, sessioncase.DisconnectCommand{Owner: delayed.Owner}))
+	delayRead := meta.MQTTRead{Kind: meta.MQTTReadWill, WillKey: meta.MQTTWillKey{Namespace: "main", ClientID: "will-client", SessionGeneration: delayed.Owner.SessionGeneration, WillGeneration: delayed.WillGeneration}}
+	waiting, e := nodes[2].ReadMQTT(ctx, delayRead)
+	require.NoError(t, e)
+	require.Len(t, waiting.Wills, 1)
+	require.Equal(t, meta.MQTTWillWaiting, waiting.Wills[0].Stage)
+	require.Eventually(t, func() bool {
+		if err := services[0].ReconcileDeadline(ctx, delayed.Owner); err != nil {
+			t.Logf("reconcile due: %v", err)
+			return false
+		}
+		r, err := nodes[2].ReadMQTT(ctx, delayRead)
+		return err == nil && len(r.Wills) == 1 && r.Wills[0].Stage == meta.MQTTWillReady && r.Session != nil && r.Session.WillGeneration == 0
+	}, 5*time.Second, 50*time.Millisecond)
+	require.Eventually(t, func() bool {
+		if err := services[0].ReconcileDeadline(ctx, delayed.Owner); err != nil {
+			t.Logf("reconcile expiry: %v", err)
+			return false
+		}
+		r, err := nodes[2].ReadMQTT(ctx, delayRead)
+		return err == nil && len(r.Wills) == 1 && r.Wills[0].Stage == meta.MQTTWillReady && r.Session != nil && r.Session.State == meta.MQTTSessionEnded
+	}, 5*time.Second, 50*time.Millisecond)
+	t.Log("MQTT deadline recovery: remote_authority=true delayed_will_ready=true expired_session_ended=true detached_will_preserved=true")
 }

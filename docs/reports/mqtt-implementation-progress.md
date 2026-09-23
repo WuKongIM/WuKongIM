@@ -1198,3 +1198,57 @@ Validation:
 The Will worker, execution-time reauthorization, product MQTT composition and all
 remaining recovery/replay/delivery acceptance work are still required. This seam
 does not enable the product listener or complete the full implementation goal.
+
+## Session and Waiting Will deadline reconciliation
+
+Frozen source `4c329e595`, applicable context digests and the pre-code failure
+inventory are in [`mqtt-session-deadlines.md`](../specs/mqtt-session-deadlines.md).
+
+`ReconcileDeadline` takes one complete observed owner, rereads current Slot
+authority and commits at most one lifecycle event. Missing/replaced owners are
+fenced; renewed live leases and already-ended rows are no-ops. Expired active
+owners still require the existing exact quiescence proof and abnormal disconnect
+path. Unreachable owners remain errors, not presumed dead from elapsed time.
+Delayed reconciliation retains the recorded execution boundary for Will Delay
+and offline lifetime rather than starting those clocks at cleanup time.
+
+Offline reconciliation reads a referenced Waiting Will and its current Session
+from one authoritative snapshot. It validates the complete reference/owner,
+rejects missing or inconsistent evidence, and uses the existing atomic WillDue
+command to detach Ready work. The offline Session stays resumable until its own
+expiry; later expiry ends it without rewriting detached work or resurrecting a
+cancelled Will. Counters, allocators, quotas and UID binding survive. A concurrent
+reconnect wins or loses the existing owner/revision CAS; there is no local retry
+loop that could overwrite a successor.
+
+The first tests failed on the missing method before implementation. Deterministic
+storage tests cover renewed/stale candidates, unknown isolation, late execution
+boundaries, Will Delay before expiry, terminal idempotence, cancelled/Ready Will
+preservation, reconnect during proposal, corrupt/foreign/missing snapshots,
+uncertain/malformed/conflicting replies, overflow, clock regression and cancellation.
+
+Validation passed:
+
+- `GOWORK=off go test ./internal/usecase/mqttsession
+  ./internal/runtime/mqttsession -count=1 -timeout=90s` (4.178 / 1.153 seconds);
+  log: `/tmp/mqtt-session-deadlines-default.log`.
+- `GOWORK=off go test -race ./internal/usecase/mqttsession -count=1 -timeout=90s`
+  (5.423 seconds), with the existing macOS linker warning; log:
+  `/tmp/mqtt-session-deadlines-race.log`.
+- `GOWORK=off go test -tags=integration ./internal/app
+  -run '^TestMQTTSessionAcquisitionThreeNodeRPC$' -count=1 -timeout=90s -v`
+  passed in 11.66 seconds. The three-node/256-hash-Slot integration retains
+  acquisition and current-permission assertions, then uses another node to
+  promote a delayed Will and end its offline Session. Evidence reports
+  `delayed_will_ready=true`, `expired_session_ended=true`, and
+  `detached_will_preserved=true`; log: `/tmp/mqtt-session-deadlines-integration.log`.
+- Named `flow-doc-contracts` passed after reducing Read First navigation to its
+  five-reference bound and regenerating the index: 86 compliant, zero invalid,
+  same 9 existing warnings. `git diff --check` passed.
+
+This adds the authoritative advancement operation, not its periodic scheduler or
+a publisher. Scheduling must fairly page both Session and Waiting Will indexes;
+Session expiry alone misses shorter Will delays. Actual Will execution remains
+dependent on fenced claims, current authorization and source retention through
+ambiguous append resolution. Product MQTT composition, replay/delivery/recovery
+and the full process-level acceptance remain unfinished; the goal stays active.
