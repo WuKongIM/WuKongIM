@@ -383,8 +383,13 @@ specification, runbook, report, or module documentation; link to them when neede
   replica-local readiness: a pinned read binds captured HW/latest committed anchor
   to independent replay coverage, with fresh complete placement/write-fence checks.
   Absent/unsupported evidence is explicit; source copied-through is never coverage.
-  Ordinary diagnostics remain unchanged. Migration admission gates, product lifecycle
-  wiring and replicated source release remain required.
+  Ordinary diagnostics remain unchanged. Accepted-prefix planning pins the exact
+  write fence while retaining recovered leader/data-plane authority; RPC 97 uses
+  immutable recovery's fresh placement checks. Fenced coordinator turns only recover
+  existing anchors, enabling background catch-up without admitting copies or writes.
+  Planning uses native quorum read readiness, not `CommitReady`, which intentionally
+  stays false after successful recovery under a write fence.
+  Migration admission gates, product lifecycle wiring and source release remain required.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.

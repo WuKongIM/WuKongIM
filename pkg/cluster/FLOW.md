@@ -31,7 +31,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    monotonically to the selected runtime, and appends locally or forwards to
    the exact leader while background control/task convergence stays bounded. MQTT source/replay RPCs 93/94 recheck fresh Slot authority, caller fences and the serving node across gateway swaps.
    RPCs 95–98 bind copying, anchors, planning and exact-interval repair to fresh authority.
-   RPC 99 runs a bounded target-owned recovery step with donor rotation; none releases history or proves learner readiness.
+   RPC 97 planning and RPC 99 target recovery permit stable write fences; neither releases history.
    Repair probes activate cold replicas through authoritative metadata and the
    native reactor before inspecting progress. Native follower proofs recheck exact
    durable state and authority, then attach optional local replay coverage under fresh placement/fence checks;

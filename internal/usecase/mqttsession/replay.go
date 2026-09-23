@@ -93,9 +93,6 @@ func (c *ReplayCoordinator) Step(parent context.Context, source meta.MQTTBinding
 	if !validReplayPlacement(m, q.ChannelID) {
 		return out, ErrEvidence
 	}
-	if m.WriteFence.Set() {
-		return out, ch.ErrWriteFenced
-	}
 	q.ExpectedChannelEpoch, q.ExpectedLeaderEpoch, q.ExpectedRouteGeneration = m.Epoch, m.LeaderEpoch, m.RouteGeneration
 	plan, err := c.options.Channels.PlanChannelMQTTReplay(ctx, q)
 	if err != nil {
@@ -109,6 +106,15 @@ func (c *ReplayCoordinator) Step(parent context.Context, source meta.MQTTBinding
 	}
 	if err = bindReplayCursor(&out.Next, source, m, plan); err != nil {
 		return out, err
+	}
+	// Migration may wait for shared content while business admission is fenced.
+	// Recover only already committed anchors; no fence can authorize new copying
+	// or anchor controls, including when this source has not accepted one yet.
+	if m.WriteFence.Set() {
+		if plan.HasAnchor {
+			return c.recover(ctx, q, plan, out)
+		}
+		return out, nil
 	}
 	rangeToCopy, hasCopy, err := plan.NextRange(c.options.PageSize, c.options.MaxBytes)
 	if err != nil {

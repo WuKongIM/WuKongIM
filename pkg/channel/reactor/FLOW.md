@@ -77,6 +77,7 @@ typed bounded workers and returns as `EventWorkerResult`.
   authority, operation identity and bounded page structure before returning bytes.
   Accepted-prefix planning shares these waiter/worker guards and returns source
   plus latest anchor at captured HW, without promoting local copying into acceptance.
+  Planning pins stable write fences and recovered leader/route/data-plane authority; appends remain fenced.
 
 - Anchor controls share the ordinary append queue, slice ownership, byte bounds
   and cancellation guards. Flush rechecks recovered authority; typed durable

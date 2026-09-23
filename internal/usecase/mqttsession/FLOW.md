@@ -58,8 +58,9 @@ packet, concrete cluster/gateway adapter, worker or shared replay storage.
    boundary. It returns preparation evidence, never a subscription completion receipt.
 9. Replay alternates bounded copy/anchor admission with replica recovery, using
    fresh placement and accepted progress. Targets pin anchors and retain scan/donor
-   hints across continued turns; changed source/placement resets hints. Cold pass
-   seeds rotate targets/phases/donors; results grant no release, readiness or SUBACK.
+   hints across turns; placement resets hints. Cold passes rotate targets/phases/donors.
+   Fenced turns only recover existing anchors; absent anchors yield without copying.
+   Cluster calls recheck authority; results grant no release, readiness or SUBACK.
 
 ## Invariants and Failure Semantics
 
@@ -85,8 +86,7 @@ packet, concrete cluster/gateway adapter, worker or shared replay storage.
   Product wiring requires replicated protection, initialized cursors, inbox future
   source admission and safe removal. Membership version changes cannot replace
   an active subscription silently; delivery/revocation ordering remains required.
-- Group preparation performs bounded point reads and at most a two-row cursor
-  check; it cannot create subscriptions, release content or authorize SUBACK.
+- Group preparation bounds point/cursor reads; it cannot create subscriptions, release content or authorize SUBACK.
 - These usecases are not yet wired into the product listener; full process-level
   MQTT recovery and acceptance remain separate required implementation work.
 

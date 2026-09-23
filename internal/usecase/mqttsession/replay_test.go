@@ -160,7 +160,7 @@ func TestReplayCoordinatorErrorYieldsAndPreservesReplicaHints(t *testing.T) {
 }
 
 func TestReplayCoordinatorRejectsUnsafeCopyAndContinuation(t *testing.T) {
-	for _, mode := range []string{"cancel_before", "cancel_after_copy", "meta_error", "plan_error", "bad_meta", "weak_quorum", "write_fence", "bad_plan", "foreign_receipt", "copy_ahead", "bad_receipt", "bad_proof", "future_proof", "zero_id", "zero_clock", "lost_commit", "oversize_cursor", "future_cursor"} {
+	for _, mode := range []string{"cancel_before", "cancel_after_copy", "meta_error", "plan_error", "bad_meta", "weak_quorum", "bad_plan", "foreign_receipt", "copy_ahead", "bad_receipt", "bad_proof", "future_proof", "zero_id", "zero_clock", "lost_commit", "oversize_cursor", "future_cursor"} {
 		t.Run(mode, func(t *testing.T) {
 			c, f, owner := newReplayFixture(t)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -179,8 +179,6 @@ func TestReplayCoordinatorRejectsUnsafeCopyAndContinuation(t *testing.T) {
 				f.m.Replicas = []ch.NodeID{1, 1}
 			case "weak_quorum":
 				f.m.MinISR = 1
-			case "write_fence":
-				f.m.WriteFence = ch.WriteFence{Token: "moving", Version: 1}
 			case "bad_plan":
 				f.plan.Source.Generation = "foreign"
 			case "foreign_receipt":
@@ -213,7 +211,7 @@ func TestReplayCoordinatorRejectsUnsafeCopyAndContinuation(t *testing.T) {
 			require.False(t, out.Anchored)
 			require.False(t, out.Repaired)
 			require.False(t, out.TargetComplete)
-			if mode == "cancel_before" || mode == "meta_error" || mode == "bad_meta" || mode == "weak_quorum" || mode == "write_fence" || mode == "oversize_cursor" {
+			if mode == "cancel_before" || mode == "meta_error" || mode == "bad_meta" || mode == "weak_quorum" || mode == "oversize_cursor" {
 				require.Zero(t, f.copies)
 			}
 			if mode == "cancel_after_copy" || mode == "foreign_receipt" || mode == "copy_ahead" || mode == "bad_receipt" || mode == "zero_id" || mode == "zero_clock" {
@@ -221,6 +219,39 @@ func TestReplayCoordinatorRejectsUnsafeCopyAndContinuation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReplayCoordinatorWriteFenceOnlyPermitsExistingAnchorRecovery(t *testing.T) {
+	c, f, owner := newReplayFixture(t)
+	f.m.WriteFence = ch.WriteFence{Token: "moving", Version: 1}
+	idle, err := c.Step(context.Background(), owner, ReplayCursor{})
+	require.NoError(t, err)
+	require.False(t, idle.Anchored)
+	require.Zero(t, f.copies)
+	require.Zero(t, f.commits)
+	require.Zero(t, f.repairs)
+	require.Equal(t, 1, f.plans)
+	f.plan.HasAnchor, f.plan.Anchor = true, f.proof
+	f.plan.Source.CommittedThrough = 4 // New uncopied content must not trigger copying under the fence.
+	step := idle
+	for _, target := range []ch.NodeID{1, 2, 3, 1} {
+		step, err = c.Step(context.Background(), owner, step.Next)
+		require.NoError(t, err)
+		require.Equal(t, target, step.Target)
+		require.True(t, step.TargetComplete)
+		require.False(t, step.Anchored)
+	}
+	require.Zero(t, f.copies)
+	require.Zero(t, f.commits)
+	require.Equal(t, 4, f.repairs)
+	f.repair = func(context.Context, ch.MQTTReplayRecoveryRequest) (ch.MQTTReplayRecoveryResult, error) {
+		return ch.MQTTReplayRecoveryResult{}, ch.ErrNotReady
+	}
+	failed, err := c.Step(context.Background(), owner, step.Next)
+	require.ErrorIs(t, err, ch.ErrNotReady)
+	require.Equal(t, ch.NodeID(2), failed.Target)
+	require.Equal(t, 2, failed.Next.NextTarget)
+	require.False(t, failed.TargetComplete)
 }
 
 func TestReplayCoordinatorResetsPlacementHintsAndRetainsScan(t *testing.T) {

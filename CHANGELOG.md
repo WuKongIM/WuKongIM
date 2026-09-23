@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Allow MQTT replay planning and background replica recovery under a stable migration write fence, while keeping new copying and business writes fenced. Product MQTT admission remains under development. / MQTT 回放规划与后台副本恢复可在稳定迁移写入栅栏下继续执行，新复制和业务写入仍受阻；产品 MQTT 接入仍在开发。
+
 - Expose replica-local MQTT replay coverage in active migration probes, distinguishing a caught-up native log from complete replay content. Migration admission and product MQTT access remain under development. / 主动迁移探测新增 MQTT 副本回放覆盖证据，区分原生日志追平与回放内容齐全；迁移准入和产品 MQTT 接入仍在开发。
 
 - Add managed background MQTT replay scheduling with bounded per-Slot state, rotating source/replica work and joined restart. Three-node automatic learner recovery is verified; full product MQTT admission remains under development. / 新增 MQTT 回放后台调度，按 Slot 限制状态、轮转消息源与副本，并在停止排空后重启；三节点自动补齐 learner 已验证，完整产品入口仍在开发。

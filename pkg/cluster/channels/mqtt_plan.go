@@ -42,10 +42,10 @@ func (s *Service) planMQTTReplay(ctx context.Context, q ch.MQTTReplayPlanRequest
 	if s == nil || !q.Valid() {
 		return empty, ch.ErrInvalidConfig
 	}
-	// Reuse the copy path's exact bounded authority check without supplying a
-	// range: planning is what discovers that range at a reactor-owned frontier.
+	// Immutable planning shares recovery's stable-fence authority check. Copy and
+	// anchor admission continue to require unfenced metadata independently.
 	authorityRequest := ch.MQTTReplayRequest{ChannelID: q.ChannelID, ExpectedChannelEpoch: q.ExpectedChannelEpoch, ExpectedLeaderEpoch: q.ExpectedLeaderEpoch, ExpectedRouteGeneration: q.ExpectedRouteGeneration}
-	m, err := s.mqttCopyMeta(ctx, authorityRequest)
+	m, err := s.mqttRepairAuthority(ctx, authorityRequest)
 	if err != nil {
 		return empty, err
 	}
@@ -75,12 +75,8 @@ func (s *Service) planMQTTReplay(ctx context.Context, q ch.MQTTReplayPlanRequest
 	if err = ctx.Err(); err != nil {
 		return empty, err
 	}
-	current, err := s.mqttCopyMeta(ctx, authorityRequest)
-	if err != nil {
+	if err = s.recheckMQTTRepairAuthority(ctx, authorityRequest, m); err != nil {
 		return empty, err
-	}
-	if ch.MQTTReplayCopyAuthority(current) != ch.MQTTReplayCopyAuthority(m) {
-		return empty, ch.ErrStaleMeta
 	}
 	if !p.ValidFor(q) {
 		return empty, ch.ErrLogConflict

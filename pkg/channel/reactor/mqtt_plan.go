@@ -12,6 +12,8 @@ type mqttPlanWaiter struct {
 	request ch.MQTTReplayPlanRequest
 	// committedThrough is captured once on this reactor; later appends cannot expand it.
 	committedThrough uint64
+	// writeFence permits immutable planning only while the exact fence is unchanged.
+	writeFence ch.WriteFence
 }
 
 func (r *Reactor) validateMQTTPlanAdmission(ctx context.Context, rc *runtimeChannel, q ch.MQTTReplayPlanRequest) error {
@@ -25,8 +27,32 @@ func (r *Reactor) validateMQTTPlanAdmission(ctx context.Context, rc *runtimeChan
 	if err := r.validateMQTTLeaderCapability(rc, q.ChannelID, q.ExpectedRouteGeneration); err != nil {
 		return err
 	}
-	if err := r.validateAppendEvent(ctx, rc, Event{Append: ch.AppendBatchRequest{ExpectedChannelEpoch: q.ExpectedChannelEpoch, ExpectedLeaderEpoch: q.ExpectedLeaderEpoch}}); err != nil {
+	// Planning has no append side effect. A recovered leader may read under a
+	// migration fence so replica recovery can satisfy the cutover condition.
+	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if rc.state.Status == ch.StatusDeleted || rc.state.Status == ch.StatusDeleting {
+		return ch.ErrChannelNotFound
+	}
+	if rc.state.Role != ch.RoleLeader {
+		return ch.ErrNotLeader
+	}
+	// Quorum recovery makes reads ready even when the authoritative write fence
+	// intentionally leaves CommitReady false. Never infer recovery from the fence.
+	if !rc.quorumReadReady || rc.quorumInstall != nil {
+		return ch.ErrNotReady
+	}
+	if q.ExpectedChannelEpoch != rc.state.Epoch || q.ExpectedLeaderEpoch != rc.state.LeaderEpoch {
+		return ch.ErrStaleMeta
+	}
+	if r.appendAdmissionGuard != nil {
+		if err := r.appendAdmissionGuard.AllowChannelAppend(ctx, ch.AppendAdmissionRequest{
+			ChannelID: rc.state.ID, ChannelKey: rc.state.Key, Epoch: rc.state.Epoch,
+			LeaderEpoch: rc.state.LeaderEpoch, Leader: rc.state.Leader,
+		}); err != nil {
+			return err
+		}
 	}
 	if rc.state.HW == 0 {
 		return ch.ErrNotReady
@@ -56,7 +82,7 @@ func (r *Reactor) handleMQTTPlan(event Event) {
 		event.Future.Complete(Result{Err: err})
 		return
 	}
-	rc.lookupWaiters[opID].plan = &mqttPlanWaiter{request: event.MQTTPlan, committedThrough: rc.state.HW}
+	rc.lookupWaiters[opID].plan = &mqttPlanWaiter{request: event.MQTTPlan, committedThrough: rc.state.HW, writeFence: rc.state.WriteFence}
 	fence := ch.Fence{ChannelKey: rc.state.Key, Generation: rc.state.Generation, Epoch: rc.state.Epoch, LeaderEpoch: rc.state.LeaderEpoch, OpID: opID}
 	if r.cfg.Pools == nil {
 		err = ch.ErrInvalidConfig
@@ -86,7 +112,7 @@ func (r *Reactor) handleStoreMQTTPlanResult(result worker.Result) {
 		complete(err)
 		return
 	}
-	if result.Fence.Generation != rc.state.Generation || result.Fence.Epoch != rc.state.Epoch || result.Fence.LeaderEpoch != rc.state.LeaderEpoch {
+	if result.Fence.Generation != rc.state.Generation || result.Fence.Epoch != rc.state.Epoch || result.Fence.LeaderEpoch != rc.state.LeaderEpoch || w.plan.writeFence != rc.state.WriteFence {
 		complete(ch.ErrStaleMeta)
 		return
 	}

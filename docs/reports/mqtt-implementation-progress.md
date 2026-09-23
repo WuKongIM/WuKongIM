@@ -2806,3 +2806,56 @@ Validation:
 Migration admission gates and background recovery under a stable write fence are
 next, followed by replicated source release and consumer-proof GC. Product MQTT
 admission remains unavailable and the full implementation goal remains active.
+
+## Background replay recovery under a stable write fence
+
+Read-only replay planning now captures the exact migration write fence with HW
+and rejects changed, renewed or cleared fences at completion. Fresh Slot placement
+and data-plane authority remain mandatory. Fenced coordinator turns recover only
+existing committed anchors; no anchor means yield, without new copying or controls.
+Native business admission retains its existing fence behavior. No persisted format,
+table, configuration or new worker is introduced.
+
+The real three-node test exposed a distinction absent from the first fixture:
+native recovery sets quorum read readiness while deliberately leaving
+`CommitReady=false` under a write fence. The first implementation checked that
+write flag and rejected every planning turn. Bounded diagnostics recorded 125
+failed turns with native `RecoveryRequired=false`, followed by a rejected plan
+(`/tmp/mqtt-fenced-recovery-diagnostic.log`). The fixture was corrected to model
+that state and reproduced RED before changing admission to use the existing
+quorum read flag. Business writes remain closed.
+
+The test setup also needed bounded initial anchor establishment and an authoritative
+reread of the committed route generation before applying fenced metadata. Immediate
+write rejection may be `not ready` during native recovery or `write fenced`; neither
+is interpreted as successful business admission. These fixture corrections did not
+relax the required learner-content or no-new-anchor assertions.
+
+Failure inventory and exact source context precede code in
+[mqtt-fenced-recovery.md](../specs/mqtt-fenced-recovery.md).
+
+Validation:
+
+- Initial RED `/tmp/mqtt-fenced-recovery-red.log`; recovered-read-state RED
+  `/tmp/mqtt-fenced-recovery-read-state-red.log`. Tests cover stable/changed/renewed/
+  cleared fences, native read/write separation, authority/cancellation, absent
+  anchors, target rotation and retained errors without copying.
+- `GOWORK=off go test -race ./pkg/channel/... ./pkg/cluster/channels
+  ./internal/usecase/mqttsession -count=1 -timeout=120s`: all passed after the
+  read-state correction, `/tmp/mqtt-fenced-recovery-regression-final.log`
+  (reactor 2.926 s, hosted service 9.546 s, usecase 13.924 s).
+- `GOWORK=off go test -race -tags=integration ./internal/app
+  -run '^TestMQTTGroupSourcePreparationThreeNodeRecovery$' -count=1
+  -timeout=120s -v`: passed, `/tmp/mqtt-fenced-recovery-integration-green.log`
+  (test 10.13 s, package 11.913 s). Real TCP/disks, three nodes and 256 hash Slots
+  verify managed learner repair under the fence, independent coverage after the
+  workers stop, zero newly admitted anchors and continued business-write rejection.
+  Permission incarnation is controlled and subscription completion is still absent.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-fenced-recovery-flow.log`. Reactor/usecase FLOW files remain within
+  the 100-line target, and the generated index is current.
+
+Next connect replica readiness to migration phase admission and verify graceful
+transfer, replacement and automatic failover without a recovery deadlock. Replicated
+source release, consumer GC and the remaining full-product work stay open; the
+MQTT product listener remains unavailable and the implementation goal stays active.

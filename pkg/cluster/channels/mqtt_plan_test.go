@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"testing"
+	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
@@ -35,9 +36,12 @@ func mqttRoutedPlanFixture(t *testing.T) (*Service, *mqttFreshMeta, *mqttPlanRun
 }
 
 func TestMQTTPlanRoutingRejectsAuthorityChangesAndInvalidReplies(t *testing.T) {
-	for _, mode := range []string{"success", "route_before", "route_after", "members_after", "status_after", "fence_after", "cancel_before", "cancel_after", "read_error", "bad_plan", "runtime_error"} {
+	for _, mode := range []string{"success", "stable_fence", "renewed_fence", "cleared_fence", "route_before", "route_after", "members_after", "status_after", "fence_after", "cancel_before", "cancel_after", "read_error", "bad_plan", "runtime_error"} {
 		t.Run(mode, func(t *testing.T) {
 			s, m, r, q, want := mqttRoutedPlanFixture(t)
+			if mode == "stable_fence" || mode == "renewed_fence" || mode == "cleared_fence" {
+				m.meta.WriteFence = ch.WriteFence{Token: "moving", Version: 1, Until: time.UnixMilli(1000)}
+			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			called := false
@@ -64,6 +68,10 @@ func TestMQTTPlanRoutingRejectsAuthorityChangesAndInvalidReplies(t *testing.T) {
 					return
 				}
 				switch mode {
+				case "renewed_fence":
+					m.meta.WriteFence.Until = m.meta.WriteFence.Until.Add(time.Second)
+				case "cleared_fence":
+					m.meta.WriteFence = ch.WriteFence{}
 				case "route_after":
 					m.meta.RouteGeneration++
 				case "members_after":
@@ -80,7 +88,7 @@ func TestMQTTPlanRoutingRejectsAuthorityChangesAndInvalidReplies(t *testing.T) {
 				m.fail = context.DeadlineExceeded
 			}
 			got, err := s.PlanMQTTReplay(ctx, q)
-			if mode == "success" {
+			if mode == "success" || mode == "stable_fence" {
 				require.NoError(t, err)
 				require.Equal(t, want, got)
 			} else {
@@ -96,6 +104,7 @@ func TestMQTTPlanRoutingRejectsAuthorityChangesAndInvalidReplies(t *testing.T) {
 
 func TestMQTTPlanRoutingForwardsThroughStableGateway(t *testing.T) {
 	s, m, _, q, want := mqttRoutedPlanFixture(t)
+	m.meta.WriteFence = ch.WriteFence{Token: "moving", Version: 1}
 	network := clusternet.NewLocalNetwork()
 	g := NewServiceGateway(s)
 	RegisterServiceHandlersOn(localNetworkRegistrar{network: network, nodeID: 2}, g)

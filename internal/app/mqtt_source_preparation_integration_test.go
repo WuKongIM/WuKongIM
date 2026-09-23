@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -22,6 +23,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	gr "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -176,24 +178,59 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	discovered, err := nodes[0].ReadMQTTRecovery(ctx, route.HashSlot, meta.MQTTRead{Kind: meta.MQTTReadSourceOwners, Limit: 64})
 	require.NoError(t, err)
 	require.Equal(t, []meta.MQTTBindingOwner{prepared.Binding.Key.Owner}, discovered.SourceOwners)
-	var anchored, repaired, completed atomic.Int32
+	// Establish one accepted anchor while the learner still lacks shared content,
+	// then require the managed workers to recover it with business writes fenced.
+	coordinator, err := newMQTTReplayCoordinator(nodes[0], ids)
+	require.NoError(t, err)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		seed, e := coordinator.Step(ctx, prepared.Binding.Key.Owner, contract.ReplayCursor{})
+		require.NoError(c, e)
+		// An uncertain previous commit may already have installed the anchor;
+		// a verified recovery result proves the same setup condition on retry.
+		require.True(c, seed.Anchored || seed.TargetComplete)
+	}, 15*time.Second, 30*time.Millisecond)
+	runtimeMeta.WriteFenceToken, runtimeMeta.WriteFenceVersion = "replay-migration", 1
+	runtimeMeta.WriteFenceReason = uint8(ch.WriteFenceReasonReplicaReplace)
+	runtimeMeta.WriteFenceUntilMS = time.Now().Add(time.Minute).UnixMilli()
+	require.NoError(t, nodes[0].Propose(ctx, cluster.ProposeRequest{Key: id.ID, Command: metafsm.EncodeUpsertChannelRuntimeMetaCommand(runtimeMeta)}))
+	runtimeMeta, err = nodes[0].GetChannelRuntimeMetaFresh(ctx, id.ID, int64(id.Type))
+	require.NoError(t, err)
+	require.Equal(t, "replay-migration", runtimeMeta.WriteFenceToken)
+	// The migration cutover applies fenced metadata before draining the leader;
+	// this fixture follows that same runtime-application boundary.
+	require.NoError(t, nodes[0].ApplyChannelMeta(ctx, runtimeMeta.Leader, runtimeMeta))
+	_, err = nodes[0].AppendChannel(ctx, ch.AppendRequest{ChannelID: id, Message: ch.Message{MessageID: 20002, FromUID: "alice", Payload: []byte("fenced"), ServerTimestampMS: time.Now().UnixMilli()}})
+	require.True(t, errors.Is(err, ch.ErrWriteFenced) || errors.Is(err, ch.ErrNotReady), "new authority must reject business admission: %v", err)
+	var anchored, repaired, completed, attempts, failures atomic.Int32
 	for _, n := range nodes {
 		w, e := newMQTTReplayWorker(n, ids, runtime.ReplayWorkerOptions{Registry: gr.New(), HashSlotCount: 256, Interval: 20 * time.Millisecond, PagesPerTurn: 32, Observe: func(o runtime.ReplayObservation) {
 			anchored.Add(int32(o.Anchored))
 			repaired.Add(int32(o.Repaired))
 			completed.Add(int32(o.Completed))
+			attempts.Add(int32(o.Attempts))
+			failures.Add(int32(o.Failures))
 		}})
 		require.NoError(t, e)
 		replayWorkers = append(replayWorkers, w)
 		require.NoError(t, w.Start(ctx))
 	}
-	require.Eventually(t, func() bool { return anchored.Load() > 0 && repaired.Load() > 0 && completed.Load() >= 3 }, 10*time.Second, 30*time.Millisecond)
+	if !assert.Eventually(t, func() bool { return repaired.Load() > 0 && completed.Load() >= 3 }, 10*time.Second, 30*time.Millisecond) {
+		t.Logf("fenced recovery: attempts=%d failures=%d anchored=%d repaired=%d complete=%d authority=%+v", attempts.Load(), failures.Load(), anchored.Load(), repaired.Load(), completed.Load(), runtimeMeta)
+		for i, n := range nodes {
+			probe, e := n.ChannelRuntimeProbe(ctx, ch.RuntimeSelector{ChannelIDs: []ch.ChannelID{id}})
+			t.Logf("node %d runtime: %+v err=%v", i+1, probe, e)
+		}
+		p, e := nodes[0].PlanChannelMQTTReplay(ctx, ch.MQTTReplayPlanRequest{ChannelID: id, ExpectedChannelEpoch: runtimeMeta.ChannelEpoch, ExpectedLeaderEpoch: runtimeMeta.LeaderEpoch, ExpectedRouteGeneration: runtimeMeta.RouteGeneration, Generation: prepared.Binding.Key.Owner.Generation})
+		t.Logf("fenced plan: %+v err=%v", p, e)
+		t.FailNow()
+	}
 	for _, w := range replayWorkers {
 		require.NoError(t, w.Stop(ctx))
 	}
+	require.Zero(t, anchored.Load(), "fenced workers must never create a new anchor")
 	// The worker already imported learner content. This independently verifies
 	// coverage and must not perform an import on the test's behalf.
-	planRequest := ch.MQTTReplayPlanRequest{ChannelID: id, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 1, ExpectedRouteGeneration: 1, Generation: prepared.Binding.Key.Owner.Generation}
+	planRequest := ch.MQTTReplayPlanRequest{ChannelID: id, ExpectedChannelEpoch: runtimeMeta.ChannelEpoch, ExpectedLeaderEpoch: runtimeMeta.LeaderEpoch, ExpectedRouteGeneration: runtimeMeta.RouteGeneration, Generation: prepared.Binding.Key.Owner.Generation}
 	plan, err := nodes[0].PlanChannelMQTTReplay(ctx, planRequest)
 	require.NoError(t, err)
 	require.True(t, plan.HasAnchor)
@@ -201,10 +238,17 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, covered.Plan.Complete)
 	require.False(t, covered.Repaired)
+	ready, err := nodes[0].ProbeChannel(ctx, 3, id.ID, id.Type)
+	require.NoError(t, err)
+	require.NotNil(t, ready.ReplayReadiness)
+	require.True(t, ready.ReplayReadiness.Covered)
+	require.True(t, ready.WriteFence.Set())
+	_, err = nodes[0].AppendChannel(ctx, ch.AppendRequest{ChannelID: id, Message: ch.Message{MessageID: 20002, FromUID: "alice", Payload: []byte("fenced"), ServerTimestampMS: time.Now().UnixMilli()}})
+	require.True(t, errors.Is(err, ch.ErrWriteFenced) || errors.Is(err, ch.ErrNotReady), "recovered fenced authority must still reject writes: %v", err)
 	_, err = sources.Prepare(ctx, first.Owner, topic)
 	require.Error(t, err)
 	require.NoError(t, nodes[0].RemoveChannelSubscribers(ctx, id.ID, 2, []string{"alice"}, 2))
 	_, err = sources.Prepare(ctx, resumed.Owner, topic)
 	require.ErrorIs(t, err, sessioncase.ErrSubscriptionDenied)
-	t.Log("mqtt_source_preparation_evidence: nodes=3 hash_slots=256 tcp=true disk=true remote_channel_protection=true cursor_commit_reply_lost=true owner_1_to_3=true original_boundary_preserved=true subscription_still_preparing=true permission_incarnation=controlled distinct_source_discovery=true replay_turn_coordinator=true learner_content_recovered=true automatic_scheduler=true full_projection=false product_listener=false")
+	t.Log("mqtt_source_preparation_evidence: nodes=3 hash_slots=256 tcp=true disk=true remote_channel_protection=true cursor_commit_reply_lost=true owner_1_to_3=true original_boundary_preserved=true subscription_still_preparing=true permission_incarnation=controlled distinct_source_discovery=true replay_turn_coordinator=true learner_content_recovered=true automatic_scheduler=true write_fenced_recovery=true writes_remain_fenced=true full_projection=false product_listener=false")
 }
