@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/publication"
 )
 
 const appendMetricPathChannelPlane = "channelplane"
@@ -130,7 +131,7 @@ func newIdempotentAppendBatch(items []preparedSend) idempotentAppendBatch {
 	type idempotencyKey struct {
 		fromUID     string
 		clientMsgNo string
-		payloadHash uint64
+		contentHash uint64
 	}
 	seen := make(map[idempotencyKey]int, len(items))
 	for index, item := range items {
@@ -145,7 +146,7 @@ func newIdempotentAppendBatch(items []preparedSend) idempotentAppendBatch {
 		key := idempotencyKey{
 			fromUID:     cmd.FromUID,
 			clientMsgNo: cmd.ClientMsgNo,
-			payloadHash: idempotencyPayloadHash(cmd.Payload),
+			contentHash: logicalSendFingerprint(cmd),
 		}
 		owner, exists := seen[key]
 		if exists && sameLogicalSend(batch.items[owner].Command, cmd) {
@@ -221,13 +222,22 @@ func logicalSendFingerprint(cmd SendCommand) uint64 {
 		hash ^= uint64(value)
 		hash *= idempotencyFNV64aPrime
 	}
+	if len(cmd.PublicationMetadata) != 0 {
+		// Admission validates metadata; SameContent still rejects invalid values
+		// and confirms every candidate, including any fingerprint collision.
+		content, _ := publication.ContentFingerprint(cmd.PublicationMetadata)
+		hash ^= content
+		hash *= idempotencyFNV64aPrime
+	}
 	return hash
 }
 
 func sameLogicalSend(left, right SendCommand) bool {
-	return left.FromUID == right.FromUID &&
-		left.ClientMsgNo == right.ClientMsgNo &&
-		bytes.Equal(left.Payload, right.Payload)
+	if left.FromUID != right.FromUID || left.ClientMsgNo != right.ClientMsgNo || !bytes.Equal(left.Payload, right.Payload) {
+		return false
+	}
+	same, err := publication.SameContent(left.PublicationMetadata, right.PublicationMetadata)
+	return err == nil && same
 }
 
 // expandCompletions restores one completion per accepted caller. Only the
@@ -294,20 +304,21 @@ func appendRequest(target AuthorityTarget, active []preparedSend, attempt int) A
 			serverTimestampMS = time.Now().UnixMilli()
 		}
 		req.Messages = append(req.Messages, Message{
-			MessageID:         cmd.MessageID,
-			ChannelID:         cmd.ChannelID,
-			ChannelType:       cmd.ChannelType,
-			Setting:           cmd.Setting,
-			Topic:             cmd.Topic,
-			Expire:            cmd.Expire,
-			FromUID:           cmd.FromUID,
-			ClientMsgNo:       cmd.ClientMsgNo,
-			TraceID:           cmd.TraceID,
-			ChannelKey:        cmd.ChannelKey,
-			Payload:           cmd.Payload,
-			SyncOnce:          cmd.SyncOnce,
-			RedDot:            cmd.RedDot,
-			ServerTimestampMS: serverTimestampMS,
+			MessageID:           cmd.MessageID,
+			ChannelID:           cmd.ChannelID,
+			ChannelType:         cmd.ChannelType,
+			Setting:             cmd.Setting,
+			Topic:               cmd.Topic,
+			Expire:              cmd.Expire,
+			FromUID:             cmd.FromUID,
+			ClientMsgNo:         cmd.ClientMsgNo,
+			TraceID:             cmd.TraceID,
+			ChannelKey:          cmd.ChannelKey,
+			Payload:             cmd.Payload,
+			PublicationMetadata: cmd.PublicationMetadata,
+			SyncOnce:            cmd.SyncOnce,
+			RedDot:              cmd.RedDot,
+			ServerTimestampMS:   serverTimestampMS,
 		})
 	}
 	return req
@@ -574,27 +585,32 @@ func committedEnvelopeForAppend(item preparedSend, appended AppendBatchItemResul
 	if appended.Message.ServerTimestampMS != 0 {
 		serverTimestampMS = appended.Message.ServerTimestampMS
 	}
+	metadata := appended.Message.PublicationMetadata
+	if len(metadata) == 0 {
+		metadata = cmd.PublicationMetadata
+	}
 	payload := appended.Message.Payload
 	if len(payload) == 0 {
 		payload = cmd.Payload
 	}
 	return CommittedEnvelope{
-		MessageID:         appended.MessageID,
-		MessageSeq:        appended.MessageSeq,
-		ChannelID:         cmd.ChannelID,
-		ChannelType:       cmd.ChannelType,
-		FromUID:           cmd.FromUID,
-		SenderNodeID:      cmd.SenderNodeID,
-		SenderSessionID:   cmd.SenderSessionID,
-		Setting:           cmd.Setting,
-		Topic:             cmd.Topic,
-		Expire:            cmd.Expire,
-		ClientMsgNo:       cmd.ClientMsgNo,
-		ServerTimestampMS: serverTimestampMS,
-		Payload:           cloneBytes(payload),
-		RedDot:            cmd.RedDot,
-		SyncOnce:          cmd.SyncOnce,
-		MessageScopedUIDs: append([]string(nil), cmd.MessageScopedUIDs...),
+		MessageID:           appended.MessageID,
+		MessageSeq:          appended.MessageSeq,
+		ChannelID:           cmd.ChannelID,
+		ChannelType:         cmd.ChannelType,
+		FromUID:             cmd.FromUID,
+		SenderNodeID:        cmd.SenderNodeID,
+		SenderSessionID:     cmd.SenderSessionID,
+		Setting:             cmd.Setting,
+		Topic:               cmd.Topic,
+		Expire:              cmd.Expire,
+		ClientMsgNo:         cmd.ClientMsgNo,
+		ServerTimestampMS:   serverTimestampMS,
+		Payload:             cloneBytes(payload),
+		PublicationMetadata: cloneBytes(metadata),
+		RedDot:              cmd.RedDot,
+		SyncOnce:            cmd.SyncOnce,
+		MessageScopedUIDs:   append([]string(nil), cmd.MessageScopedUIDs...),
 	}
 }
 

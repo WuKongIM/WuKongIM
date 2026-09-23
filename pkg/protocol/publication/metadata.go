@@ -281,3 +281,42 @@ func validIdentity(s string) bool {
 	return len(s) <= MaxIdentityBytes && strings.TrimSpace(s) != "" && validString(s)
 }
 func validTopic(s string) bool { return s != "" && validString(s) && !strings.ContainsAny(s, "#+") }
+
+// SameContent compares canonical publication content for an application-key
+// retry. It validates both optional values and excludes only the server-assigned
+// ingress clock. Callers must retain the original record/clock on a match and
+// compare the body separately. This is not an MQTT packet-exchange identity.
+func SameContent(left, right []byte) (bool, error) {
+	for _, value := range [][]byte{left, right} {
+		if len(value) != 0 {
+			if _, err := Decode(value); err != nil {
+				return false, err
+			}
+		}
+	}
+	if len(left) == 0 || len(right) == 0 {
+		return len(left) == len(right), nil
+	}
+	// Version 1 has version/source/QoS, then the eight-byte AcceptedAtMS clock.
+	return bytes.Equal(left[:3], right[:3]) && bytes.Equal(left[11:], right[11:]), nil
+}
+
+// ContentFingerprint returns a bounded lookup hash that excludes the ingress
+// clock. It validates optional metadata and returns zero for native messages.
+// Collisions remain possible: callers must confirm matches with SameContent.
+func ContentFingerprint(value []byte) (uint64, error) {
+	if len(value) == 0 {
+		return 0, nil
+	}
+	if _, err := Decode(value); err != nil {
+		return 0, err
+	}
+	hash := uint64(14695981039346656037)
+	for _, part := range [][]byte{value[:3], value[11:]} {
+		for _, b := range part {
+			hash ^= uint64(b)
+			hash *= 1099511628211
+		}
+	}
+	return hash, nil
+}

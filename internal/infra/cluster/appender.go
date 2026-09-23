@@ -132,20 +132,21 @@ func toChannelMessages(in []channelappend.Message) []channelruntime.Message {
 	out := make([]channelruntime.Message, 0, len(in))
 	for _, msg := range in {
 		out = append(out, channelruntime.Message{
-			MessageID:         msg.MessageID,
-			MessageSeq:        msg.MessageSeq,
-			ChannelID:         msg.ChannelID,
-			ChannelType:       msg.ChannelType,
-			Setting:           msg.Setting,
-			FromUID:           msg.FromUID,
-			ClientMsgNo:       msg.ClientMsgNo,
-			TraceID:           msg.TraceID,
-			ChannelKey:        msg.ChannelKey,
-			Payload:           append([]byte(nil), msg.Payload...),
-			SyncOnce:          msg.SyncOnce,
-			RedDot:            msg.RedDot,
-			Expire:            msg.Expire,
-			ServerTimestampMS: msg.ServerTimestampMS,
+			MessageID:           msg.MessageID,
+			MessageSeq:          msg.MessageSeq,
+			ChannelID:           msg.ChannelID,
+			ChannelType:         msg.ChannelType,
+			Setting:             msg.Setting,
+			FromUID:             msg.FromUID,
+			ClientMsgNo:         msg.ClientMsgNo,
+			TraceID:             msg.TraceID,
+			ChannelKey:          msg.ChannelKey,
+			Payload:             append([]byte(nil), msg.Payload...),
+			PublicationMetadata: append([]byte(nil), msg.PublicationMetadata...),
+			SyncOnce:            msg.SyncOnce,
+			RedDot:              msg.RedDot,
+			Expire:              msg.Expire,
+			ServerTimestampMS:   msg.ServerTimestampMS,
 		})
 	}
 	return out
@@ -173,20 +174,21 @@ func fromChannelAppendResult(res channelruntime.AppendBatchResult) channelappend
 
 func fromChannelMessage(msg channelruntime.Message) channelappend.Message {
 	return channelappend.Message{
-		MessageID:         msg.MessageID,
-		MessageSeq:        msg.MessageSeq,
-		ChannelID:         msg.ChannelID,
-		ChannelType:       msg.ChannelType,
-		Setting:           msg.Setting,
-		FromUID:           msg.FromUID,
-		ClientMsgNo:       msg.ClientMsgNo,
-		TraceID:           msg.TraceID,
-		ChannelKey:        msg.ChannelKey,
-		Payload:           append([]byte(nil), msg.Payload...),
-		SyncOnce:          msg.SyncOnce,
-		RedDot:            msg.RedDot,
-		Expire:            msg.Expire,
-		ServerTimestampMS: msg.ServerTimestampMS,
+		MessageID:           msg.MessageID,
+		MessageSeq:          msg.MessageSeq,
+		ChannelID:           msg.ChannelID,
+		ChannelType:         msg.ChannelType,
+		Setting:             msg.Setting,
+		FromUID:             msg.FromUID,
+		ClientMsgNo:         msg.ClientMsgNo,
+		TraceID:             msg.TraceID,
+		ChannelKey:          msg.ChannelKey,
+		Payload:             append([]byte(nil), msg.Payload...),
+		PublicationMetadata: append([]byte(nil), msg.PublicationMetadata...),
+		SyncOnce:            msg.SyncOnce,
+		RedDot:              msg.RedDot,
+		Expire:              msg.Expire,
+		ServerTimestampMS:   msg.ServerTimestampMS,
 	}
 }
 

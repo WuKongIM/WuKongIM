@@ -122,6 +122,8 @@ type SendCommand struct {
 	Expire uint32
 	// Payload is the message body. Send-path implementations treat it as immutable.
 	Payload []byte
+	// PublicationMetadata is bounded immutable content and its original expiry basis.
+	PublicationMetadata []byte
 	// NoPersist requests transient delivery without writing the channel log.
 	NoPersist bool
 	// SyncOnce marks a one-shot sync command.
@@ -149,6 +151,7 @@ type SendCommand struct {
 // Clone returns an independent copy of the send command.
 func (c SendCommand) Clone() SendCommand {
 	c.Payload = cloneBytes(c.Payload)
+	c.PublicationMetadata = cloneBytes(c.PublicationMetadata)
 	c.MessageScopedUIDs = append([]string(nil), c.MessageScopedUIDs...)
 	return c
 }
@@ -217,6 +220,11 @@ type IdempotencyQuery struct {
 	ChannelType uint8
 	// PayloadHash is the FNV-64a hash of the raw message payload used to reject conflicting key reuse.
 	PayloadHash uint64
+	// Payload is borrowed immutable content for exact publication retry comparison.
+	// Native callers retain the existing payload-hash-only contract.
+	Payload []byte
+	// PublicationMetadata is compared excluding only the ingress timestamp.
+	PublicationMetadata []byte
 }
 
 // Message is the durable append payload used by the channel appender port.
@@ -245,6 +253,8 @@ type Message struct {
 	ChannelKey string
 	// Payload is the durable message body.
 	Payload []byte
+	// PublicationMetadata is bounded immutable content and its original expiry basis.
+	PublicationMetadata []byte
 	// SyncOnce marks this durable message as a one-shot command-sync entry.
 	SyncOnce bool
 	// RedDot preserves the protocol unread-badge flag through storage and replication.
@@ -256,6 +266,7 @@ type Message struct {
 // Clone returns an independent copy of the durable append message.
 func (m Message) Clone() Message {
 	m.Payload = cloneBytes(m.Payload)
+	m.PublicationMetadata = cloneBytes(m.PublicationMetadata)
 	return m
 }
 
@@ -351,6 +362,8 @@ type CommittedEnvelope struct {
 	ServerTimestampMS int64
 	// Payload is the writer-owned post-commit payload copy. Delivery paths treat it as immutable.
 	Payload []byte
+	// PublicationMetadata is bounded immutable content and its original expiry basis.
+	PublicationMetadata []byte
 	// RedDot carries the client red-dot flag for delivery side effects.
 	RedDot bool
 	// SyncOnce marks a one-shot command that is persisted in the separate CMD Channel log.
@@ -362,6 +375,7 @@ type CommittedEnvelope struct {
 // Clone returns an independent copy of the committed envelope.
 func (e CommittedEnvelope) Clone() CommittedEnvelope {
 	e.Payload = cloneBytes(e.Payload)
+	e.PublicationMetadata = cloneBytes(e.PublicationMetadata)
 	e.MessageScopedUIDs = append([]string(nil), e.MessageScopedUIDs...)
 	return e
 }

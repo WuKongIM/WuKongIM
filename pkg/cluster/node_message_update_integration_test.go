@@ -59,6 +59,10 @@ func TestMessageUpdateThreeNodeQuorumAndLeaderTransfer(t *testing.T) {
 		if e != nil || len(result) != 1 || result[0].Err != nil || len(result[0].Read.Messages) != 1 || string(result[0].Read.Messages[0].Payload) != "edited" || result[0].Read.Messages[0].Version != 1 {
 			t.Fatalf("node=%d result=%+v err=%v", node.NodeID(), result, e)
 		}
+		raw, e := node.ReadChannelOriginalCommittedBatch(ctx, query)
+		if e != nil || len(raw) != 1 || raw[0].Err != nil || len(raw[0].Read.Messages) != 1 || string(raw[0].Read.Messages[0].Payload) != "original" || raw[0].Read.Messages[0].Version != 0 {
+			t.Fatalf("node=%d original=%+v err=%v", node.NodeID(), raw, e)
+		}
 	}
 	// Move Slot authority while the Channel log remains immutable.
 	transferSlotLeaderAndWait(t, nodes, route.SlotID, origin.NodeID())

@@ -137,7 +137,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   may follow caller cancellation, while started mutations keep independent
   execution. Ready frames batch without an idle coalescing delay.
 
-- Routed committed and persisted message batches and conversation heads hydrate latest payload replacements through Slot authority. Cross-channel record chunks preserve batching above 200 total recent records; replacement growth respects each page byte budget and retains continuation. Matching skips empty pages, scans at most eight updates directly, and indexes larger pages without copying payload-bearing structs. The Slot ReadIndex/apply barrier is request-scoped, separate from readiness proof reuse; serving edit proposals check the content epoch under restore admission, including forwarded commands; local raw log/backup reads remain immutable.
+- Routed committed and persisted history and conversation heads hydrate latest payload replacements through Slot authority. Explicit original committed reads omit edits but retain Leader/HW/retention fences for retry proof. Cross-channel chunks preserve batching above 200 recents; replacement growth respects page budgets and continuation. Matching skips empty pages, scans at most eight updates directly, and indexes larger pages without copying payload-bearing structs. The request-scoped Slot ReadIndex/apply barrier is separate from readiness proof reuse; serving edit proposals check the restore content epoch, including forwarded commands. Local log/backup reads remain immutable.
 
 ## Read First
 

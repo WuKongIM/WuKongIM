@@ -201,7 +201,12 @@ specification, runbook, report, or module documentation; link to them when neede
   Channel RPC 11 and quorum exchange 6 preserve it with content budgets and
   explicit rejection of lossy encodings. Exchange requires matched replicas;
   native storage hashes and older Channel RPC layouts remain unchanged.
-  Product DTO/RPC, offline transfer and capability gates remain before activation. See the [publication contract](../specs/mqtt-publication-metadata.md).
+  Send commands/envelopes and product append RPC 3 preserve metadata; native-only
+  requests retain version 2. Business retries compare original content excluding
+  only ingress time and preserve the original clock. Routed original committed
+  reads retain HW/retention fences and omit history-edit overlays for retry proof.
+  Owner-push RPC, offline transfer and capability gates remain before activation.
+  See the [publication contract](../specs/mqtt-publication-metadata.md).
   Source-owned binding tombstones prevent delayed prepares from resurrecting a
   subscription. Unknown source boundaries block reclamation; stored progress
   requires current remote authority and source protection before use.

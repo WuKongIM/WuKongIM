@@ -27,6 +27,9 @@ delivery policy, persistence or network packets.
    independently owned strings and binary properties in original order.
 3. Expiry uses ordinary MQTT ingress time or the original Will source append
    timestamp, never replay time. Absent and zero expiry remain distinct.
+4. Content comparison and lookup fingerprints validate optional values and
+   exclude only the ingress clock. Hash matches require exact comparison;
+   neither can replace a durable packet-exchange identity.
 
 ## Invariants and Failure Semantics
 

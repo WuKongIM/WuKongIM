@@ -630,3 +630,56 @@ shared replay, protected source retention, authoritative session execution,
 owner isolation, cleanup, capability gates and real-process/scale acceptance
 remain required. Existing product E2E is still RED; no MQTT listener is enabled
 and the full implementation goal remains active.
+
+## Send metadata and original-content retry proof
+
+Frozen source context at `804299269`:
+
+- Root `AGENTS.md`: `d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade`
+- `internal/contracts/channelappend/FLOW.md`: `c186be06331770c1e287e9f374b322dc3d7f8008316776b9b0bfaca436de43c6`
+- `internal/runtime/channelappend/FLOW.md`: `a74b3398389cf8fa429f4a11bef8bc65d86141aae6472a0e6fdf1a6f0c791894`
+- `internal/infra/cluster/FLOW.md`: `44ca466e7fd926d47d24eb24e1d368ccbce4dc20517fbea79f4dea863e92e62f`
+- `internal/access/node/FLOW.md`: `908b49b5616c2da4472aab07c0f81d4d2ede43804d941f42be651e3c073826bd`
+- `internal/app/FLOW.md`: `a2b94e35aa9ebedc57a139a951566612d40278ace020571cac8015f803930d36`
+- `pkg/protocol/publication/FLOW.md`: `a812e55a5b8ff513163e0f758d3f45fd76c1a8ba2ae8dea7d1d00fd6a18ff714`
+- `pkg/cluster/FLOW.md`: `84f7cd138b9a999cdd0e8ce31516482fd8c86b11865688abf297426895b4821e`
+
+SendCommand, append messages and committed/transient envelopes now preserve
+owned metadata through the product runtime and infrastructure mappings. Product
+append request 3 carries the value after each command; native-only requests keep
+the literal version-2 layout. Bounds, syntax, strict prefixes, mislabeled frames
+and mutable input isolation are covered. Invalid content is rejected before
+route preparation or message-ID allocation, including transient sends.
+
+Business retry lookup/coalescing compares exact MQTT bodies plus semantic
+publication content. The publication package owns comparison and fingerprint
+layout, excludes only ingress time, and validates both values. Hash matches still
+require exact comparison. Matching retries keep the original record/expiry clock
+and produce no second post-commit effect. The committed proof budget and exact
+record match both include metadata.
+
+A new real app integration test initially reproduced `channel: log conflict`
+when retrying after a history edit. Original committed batch reads now delegate
+through the current Channel Leader and preserve HW/retention fences while omitting
+edit overlays. Idempotency uses that explicit port; user-facing history keeps
+its overlay. This is not a protected replay read below the history floor.
+
+Validation (2026-09-23), with tests written before each implementation change:
+
+- `GOWORK=off go test ./pkg/protocol/publication ./pkg/cluster/... ./internal/contracts/channelappend ./internal/runtime/channelappend ./internal/infra/cluster ./internal/access/node ./internal/usecase/message ./internal/app -count=1 -timeout=90s` passed.
+- `GOWORK=off go test -race ./pkg/protocol/publication ./internal/contracts/channelappend ./internal/runtime/channelappend ./internal/infra/cluster ./internal/access/node -run TestPublication -count=1 -timeout=90s` passed; existing macOS linker warnings remain.
+- `GOWORK=off go test -tags=integration ./internal/app -run TestPublicationSingleNodeClusterRetryAfterEdit -count=1 -timeout=60s` passed with 256 hash slots after reproducing the failure. It verifies original metadata, edited history, stable retry IDs, and changed-QoS rejection without another record.
+- The integration retention test passed. The three-node edit/failover test passed
+  original reads on all nodes but initially failed after stopping its old leader
+  with a transport connection refusal. Its isolated rerun
+  (`GOWORK=off go test -tags=integration ./pkg/cluster -run '^TestMessageUpdateThreeNodeQuorumAndLeaderTransfer$' -count=1 -timeout=90s`)
+  passed. This records the observed intermittent failure without claiming its
+  independent failover timing is resolved.
+- Named `flow-doc-contracts` passed after regeneration: 83 compliant, zero
+  invalid and 9 existing length warnings. `git diff --check` passed.
+
+Owner-push RPC still needs lossless metadata/time/setting projection. Separate
+server Will idempotency, JSONL transfer, restore consumers, shared replay,
+protected source retention, session execution, owner isolation, cleanup,
+capability gates and process/scale acceptance remain required. Product MQTT
+E2E is still RED and the listener remains unavailable; the full goal is active.

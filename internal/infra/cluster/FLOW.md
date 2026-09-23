@@ -84,6 +84,10 @@ management, plugins, diagnostics, and bounded operations observations.
 - A generic append failure may still resolve through durable idempotency lookup
   and therefore emits no premature adapter terminal error; final item logging
   and recovered/unresolved accounting belong to channelappend.
+- Retry proof uses routed original committed content, retaining HW/retention
+  fences while avoiding history-edit overlays. MQTT compares exact body and
+  semantic metadata; only its ingress clock may differ. Proof bytes and read
+  budgets include metadata; append mappings preserve independent ownership.
 - Person-directory batching shares duplicate Channel results, detaches canceled
   waiters without canceling accepted work, and never publishes ready after a
   membership or runtime-metadata prepare failure.

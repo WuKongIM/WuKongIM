@@ -714,6 +714,9 @@ func preRouteChannel(cmd SendCommand, channels runtimechannelid.CommandCodec) (C
 	if cmd.FromUID == "" {
 		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonAuthFail}}, true
 	}
+	if !validSendPublication(cmd.PublicationMetadata) {
+		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonInvalidRequest}}, true
+	}
 	if cmd.RequestScoped || (len(cmd.MessageScopedUIDs) > 0 && cmd.ChannelID == "") {
 		return preRouteRequestScopedChannel(cmd, channels)
 	}

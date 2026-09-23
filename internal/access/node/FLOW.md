@@ -7,11 +7,9 @@ summary: Adapts versioned node RPC frames to local authority, runtime, and manag
 
 ## Responsibility
 
-This package owns internal node-to-node RPC handlers, clients, bounded codecs,
-version negotiation, and stable status mapping. It transports presence,
-delivery, Channel append, lifecycle, backup, diagnostics, management, and
-Operations MCP commands to local ports. It does not own routing, conflict,
-retry, lifecycle-safety, or business policy.
+This package owns internal node RPC handlers, clients, bounded codecs, versions
+and stable statuses for presence, delivery, append, lifecycle, backup, diagnostics,
+management and Operations MCP. Routing, retries and business policy live elsewhere.
 
 ## Boundaries
 
@@ -58,6 +56,8 @@ scheduled backup or restore
   service 88 is explicitly unsupported, while transport failures remain unavailable.
 - Channel append RPC never resolves routes, creates proxy Channel state,
   appends outside local authority, or runs post-commit effects elsewhere.
+- Channel append request 3 carries bounded publication metadata. Native-only
+  requests retain version-2 bytes; invalid metadata fails before dispatch.
 - Transport cancellation and unavailable-target failures map to stable typed
   caller errors without reordering active aligned items.
 - Manager latest-message RPC preserves bounded scan saturation as its stable

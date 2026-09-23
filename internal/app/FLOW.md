@@ -77,6 +77,8 @@ Stop or startup rollback
 - Channel append uses Slot-leader subscribers and owns versioned snapshot reuse.
   Producers start after consumers and drain before them; a drain timeout keeps
   dependencies alive so a later `Stop` can continue the same drain.
+  Idempotency wiring requires routed original committed reads so later history
+  edits cannot change the content used to prove a send retry.
 - Startup failure rolls back completed components in reverse order. Constructor
   failure releases constructor-owned pools, sinks, and audit resources.
 - Presence wiring shares one owner boot identity between session activation and

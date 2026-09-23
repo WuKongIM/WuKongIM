@@ -111,3 +111,40 @@ The product listener remains disabled. Do not emit these records in a mixed
 cluster or downgrade/restore them with older tooling. Full activation requires
 matched owners, voters, learners and recovery tools; rollback after activation
 requires a compatible pre-feature backup, not a binary-only rollback.
+
+## Send-path content and retries
+
+Content comparison and lookup fingerprints belong to the publication codec:
+callers must not depend on its byte offsets. Lookup hashing ignores only the
+ingress clock, rejects malformed values and is never a substitute for exact
+content comparison. Native values keep an allocation-free absent-value path.
+
+Committed retry proof reads the original Channel content through current
+authority, HW and retention fences. User-facing history may overlay later edits;
+those edits cannot invalidate an otherwise identical original publish retry or
+become its comparison body. Failure coverage includes an app-wired send, edit,
+clock-only retry and changed-QoS rejection against a real single-node cluster
+with 256 hash slots, plus routed original reads on a three-node cluster.
+
+The next propagation boundary includes SendCommand, durable Message, committed
+and transient envelopes, appender mappings and the product append node RPC.
+Each clone must own metadata bytes; borrowed synchronous values remain immutable.
+The product RPC emits version 3 when any command has metadata and retains exact
+version-2 native requests. Version 3 adds a bounded value after each command's
+existing tail, before the item timeout; decoders accept both explicit layouts.
+
+Business retries with the same sender/client key must match original publication
+content: source, QoS, publisher identity, topic and ordered properties. Only the
+server-assigned MQTT ingress timestamp may differ. A successful duplicate keeps
+the original durable record and therefore its original expiry clock; it does not
+replace metadata or repeat post-commit delivery. Different publication content
+must not coalesce or pass committed-idempotency proof. This comparison is not an
+MQTT Packet Identifier exchange ledger and does not grant a server Will domain.
+
+Failure coverage before implementation: metadata loss or aliasing in any clone,
+append/envelope mapping or forwarding; malformed/oversized/truncated RPC fields;
+native version-2 byte drift; changed QoS, identity, topic, property order/value or
+expiry accepted under a reused key; timestamp-only retries needlessly duplicated;
+committed proof returning different metadata or omitting its read-byte budget;
+coalesced retries emitting multiple effects; invalid metadata reaching allocation
+or either persistent/transient append. Native payload-only behavior stays intact.

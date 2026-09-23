@@ -881,6 +881,20 @@ func (n *Node) ReadChannelCommitted(ctx context.Context, id channelruntime.Chann
 // ReadChannelCommittedBatch delegates aligned committed-message reads to the
 // Channel service, which groups remote calls by exact Channel Leader.
 func (n *Node) ReadChannelCommittedBatch(ctx context.Context, reads []channels.CommittedRead) ([]channels.CommittedReadResult, error) {
+	results, err := n.ReadChannelOriginalCommittedBatch(ctx, reads)
+	if err != nil {
+		return nil, err
+	}
+	if err := n.overlayMessageReads(ctx, reads, results); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+// ReadChannelOriginalCommittedBatch proves original publication content through
+// the current Channel Leader without applying later payload edits. It preserves
+// authority, HW and retention fences; it cannot bypass history retention.
+func (n *Node) ReadChannelOriginalCommittedBatch(ctx context.Context, reads []channels.CommittedRead) ([]channels.CommittedReadResult, error) {
 	if err := ctxErr(ctx); err != nil {
 		return nil, err
 	}
@@ -893,14 +907,7 @@ func (n *Node) ReadChannelCommittedBatch(ctx context.Context, reads []channels.C
 	if !ok {
 		return nil, ErrNotStarted
 	}
-	results, err := reader.ReadCommittedBatch(ctx, reads)
-	if err != nil {
-		return nil, err
-	}
-	if err := n.overlayMessageReads(ctx, reads, results); err != nil {
-		return nil, err
-	}
-	return results, nil
+	return reader.ReadCommittedBatch(ctx, reads)
 }
 
 // ReadChannelPersistedBatch routes conversation recents to current-Leader disk state.

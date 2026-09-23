@@ -140,6 +140,9 @@ func prepareSend(ctx context.Context, cmd SendCommand, ports preparePorts, looku
 	if cmd.FromUID == "" {
 		return prepareSendResult{result: SendResult{Reason: ReasonAuthFail}}, true
 	}
+	if !validSendPublication(cmd.PublicationMetadata) {
+		return prepareSendResult{result: SendResult{Reason: ReasonInvalidRequest}}, true
+	}
 	if cmd.RequestScoped || (len(cmd.MessageScopedUIDs) > 0 && cmd.ChannelID == "") {
 		return prepareRequestScopedSend(ctx, cmd, ports, lookupIdempotency)
 	}
@@ -280,12 +283,18 @@ func lookupIdempotentSend(ctx context.Context, cmd SendCommand, ports preparePor
 	if ports.idempotency == nil || cmd.ClientMsgNo == "" {
 		return SendResult{}, false, nil
 	}
+	var payload []byte
+	if len(cmd.PublicationMetadata) != 0 {
+		payload = cmd.Payload
+	}
 	return ports.idempotency.LookupSend(ctx, IdempotencyQuery{
-		FromUID:     cmd.FromUID,
-		ClientMsgNo: cmd.ClientMsgNo,
-		ChannelID:   cmd.ChannelID,
-		ChannelType: cmd.ChannelType,
-		PayloadHash: idempotencyPayloadHash(cmd.Payload),
+		FromUID:             cmd.FromUID,
+		ClientMsgNo:         cmd.ClientMsgNo,
+		ChannelID:           cmd.ChannelID,
+		ChannelType:         cmd.ChannelType,
+		PayloadHash:         idempotencyPayloadHash(cmd.Payload),
+		Payload:             payload,
+		PublicationMetadata: cmd.PublicationMetadata,
 	})
 }
 

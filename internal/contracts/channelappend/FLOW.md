@@ -32,6 +32,9 @@ It does not perform permission checks, durable append, routing, or delivery.
 
 - Hot-path payload and scoped-recipient slices may be borrowed only while every
   participant treats them as immutable; concrete durable/async owners copy.
+- Publication metadata follows the same immutable ownership through commands,
+  messages and committed envelopes. Retry queries borrow body and metadata;
+  their comparison excludes only the server-assigned ingress clock.
 - Authority target carries complete route generation and observed write-fence
   state. Route generation orders cache projection, not Channel machine state.
 - Append requests carry expected authority and leader epochs to reject stale
