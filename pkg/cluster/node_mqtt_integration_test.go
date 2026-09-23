@@ -44,6 +44,32 @@ func TestMQTTMetadataThreeNodeAuthorityAndRecovery(t *testing.T) {
 		require.NotNil(t, read.Session)
 		require.Equal(t, uint64(1), read.Session.Revision)
 	}
+	// Multiple obligations share one source job, while generations stay distinct.
+	sourceQuery := metadb.MQTTRead{Kind: metadb.MQTTReadSourceOwners, Limit: 1}
+	var sourceOwners []metadb.MQTTBindingOwner
+	for _, generation := range []string{"g1", "g2"} {
+		owner := metadb.MQTTBindingOwner{Kind: metadb.MQTTBindingChannel, ID: "2:" + key, Generation: generation}
+		sourceOwners = append(sourceOwners, owner)
+		for _, client := range []string{"a", "b"} {
+			binding := metadb.MQTTSourceBinding{Key: metadb.MQTTSourceBindingKey{Owner: owner, Namespace: "main", ClientID: client, SessionGeneration: 1, SubscriptionGeneration: 2}, UID: "alice", Topic: "topic", Revision: 1, IntentRevision: 2, AuthorizationVersion: 1, OperationID: "subscribe", Stage: metadb.MQTTBindingPreparing, RecoveryAtMS: 1000, UpdatedAtMS: 1000}
+			written, e := origin.CompareAndSwapMQTTSourceBinding(ctx, 0, binding)
+			require.NoError(t, e)
+			require.Equal(t, metadb.MQTTSessionCASApplied, written.Status)
+		}
+	}
+	checkSources := func(n *Node) {
+		query := sourceQuery
+		for i, owner := range sourceOwners {
+			page, e := n.ReadMQTTRecovery(ctx, route.HashSlot, query)
+			require.NoError(t, e)
+			require.Equal(t, []metadb.MQTTBindingOwner{owner}, page.SourceOwners)
+			require.Equal(t, i == len(sourceOwners)-1, page.Done)
+			query.After = page.After
+		}
+	}
+	for _, n := range nodes {
+		checkSources(n)
+	}
 	transferSlotLeaderAndWait(t, nodes, route.SlotID, origin.NodeID())
 	waitUntil(t, func() bool {
 		for _, n := range nodes {
@@ -77,6 +103,7 @@ func TestMQTTMetadataThreeNodeAuthorityAndRecovery(t *testing.T) {
 	page, err := restarted.ReadMQTTRecovery(ctx, route.HashSlot, metadb.MQTTRead{Kind: metadb.MQTTReadSessionDeadlines, Limit: 1})
 	require.NoError(t, err)
 	require.Equal(t, []metadb.MQTTSession{updated}, page.Sessions)
+	checkSources(restarted)
 	// Preserve the current leader but remove its quorum. A cached successful
 	// read above must not make either presence or absence authoritative now.
 	for _, n := range nodes {
@@ -95,5 +122,10 @@ func TestMQTTMetadataThreeNodeAuthorityAndRecovery(t *testing.T) {
 	_, err = origin.CompareAndSwapMQTTSession(blocked, 2, updated)
 	done()
 	require.Error(t, err)
+	blocked, done = context.WithTimeout(context.Background(), 300*time.Millisecond)
+	_, err = origin.ReadMQTTRecovery(blocked, route.HashSlot, sourceQuery)
+	done()
+	require.Error(t, err)
+	t.Log("mqtt_source_discovery_evidence: nodes=3 hash_slots=256 tcp=true disk=true distinct_sources=true paginated=true leader_transfer=true restart=true isolated_rejected=true scheduler=false")
 	t.Logf("MQTT metadata verified: hash_slots=256 physical_slots=2 replicas=3 hash_slot=%d slot=%d original_leader=%d new_leader=%d revision=2; restart preserved state; isolated reads and writes rejected", route.HashSlot, route.SlotID, route.Leader, origin.NodeID())
 }

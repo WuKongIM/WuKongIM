@@ -2602,3 +2602,53 @@ readiness and consumer-proof shared GC. Complete source/inbox projection,
 permission ordering, delivery/ACK/recovery, Will execution, unavailable-owner
 proof, app/configuration, state transfer and full process/load acceptance remain
 required. The product MQTT listener remains unavailable; the full goal is active.
+
+## Distinct durable source discovery for background replay
+
+The next scheduling dependency is now available through existing Node/RPC 91.
+`MQTTReadSourceOwners` (kind 16) returns at most 64 distinct Channel source
+incarnations from the source-binding retention index. One pinned snapshot checks
+an index/primary witness per owner and seeks directly beyond that owner's entire
+subscriber prefix; the final next-owner probe bounds work to `limit + 1` witnesses.
+Preparing and Removing obligations remain discoverable; Removed and UID records
+are excluded. Malformed/dangling sampled witnesses fail closed. This is a work
+hint, not an audit of skipped rows, a consumer-completion receipt or GC permission.
+
+The complete cursor follows durable encoded string order and preserves source
+generations. Empty pages retain the input cursor; replies reject duplicates,
+regression, unordered owners, foreign arrays and incorrect last-owner cursors.
+The added zero cursor/result fields are omitted so older read kinds retain their
+JSON shape. New reads use fresh Slot barriers and fail on old peers that do not
+recognize kind 16. No tables, indexes or persisted encodings changed.
+
+Failure inventory and source digests precede code in
+[mqtt-source-discovery.md](../specs/mqtt-source-discovery.md).
+
+Validation:
+
+- Missing-contract RED: `/tmp/mqtt-source-discovery-red.log`. Focused green:
+  `/tmp/mqtt-source-discovery-focused.log`, metadata 0.877 s, proxy 1.198 s.
+  Three source incarnations with 128 bindings each verify prefix skipping under
+  a bounded cancellation-check budget, including an unfinished removal; pinned
+  snapshots, bad index/primary witnesses and closed RPC outcomes are covered.
+  This is algorithmic boundary evidence, not a 100,000-member load measurement.
+- `GOWORK=off go test -race ./pkg/db/meta ./pkg/slot/proxy ./pkg/cluster
+  -count=1 -timeout=180s`: passed, `/tmp/mqtt-source-discovery-regression.log`
+  (29.064 s, 20.843 s, 17.998 s respectively).
+- `GOWORK=off go test -race -tags=integration ./pkg/cluster
+  -run '^TestMQTTMetadataThreeNode' -count=1 -timeout=90s -v`: first failed during
+  initial `WaitClusterReady`, before any new discovery request, in
+  `/tmp/mqtt-source-discovery-integration.log`. The same command rerun alone passed
+  unchanged in `/tmp/mqtt-source-discovery-integration-retry.log` (test 11.60 s,
+  package 12.968 s). Three nodes, TCP/disks and 256 hash slots verified distinct
+  generations, pagination, Slot leader transfer, restart and isolated-read refusal.
+  The bootstrap timeout was not reproduced or diagnosed as a product fix.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings,
+  `/tmp/mqtt-source-discovery-flow.log`. FLOW index regenerated; existing macOS
+  linker warnings remain non-failing.
+
+The background worker itself is still outstanding. Next compose this durable
+source scan with bounded copy/anchor/recovery turns, fair continuation and joined
+start/stop/restore ownership, then replicated source release and consumer-proof
+GC. All remaining full-product requirements recorded above remain open; product
+MQTT admission is unavailable and the full implementation goal remains active.

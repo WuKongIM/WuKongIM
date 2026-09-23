@@ -60,6 +60,8 @@ plugin, migration, message projections, and MQTT session state.
    a fresh local ReadIndex/apply barrier then one pinned primary/index snapshot,
    revalidating routing/authority before return. Recovery pages select a logical
    hash Slot; writes require exact committed results without result-less fallback.
+   Read kind 16 pages distinct Channel-source owners for replay scheduling, with
+   encoded-order cursors and unchanged JSON for older kinds; it authorizes no GC.
 
 ## Invariants and Failure Semantics
 
@@ -91,9 +93,7 @@ plugin, migration, message projections, and MQTT session state.
 
 ## Read First
 
-- [Subtree boundary](BOUNDARY.md)
-- [Multi-Raft API](multiraft/api.go), [Raft Slot worker](multiraft/slot.go)
-- [FSM state machine](fsm/statemachine.go), [Distributed proxy](proxy/store.go)
+- [Boundary](BOUNDARY.md), [Multi-Raft API](multiraft/api.go), [Raft worker](multiraft/slot.go), [FSM](fsm/statemachine.go), [Proxy](proxy/store.go)
 
 ## Update Triggers
 

@@ -362,6 +362,12 @@ specification, runbook, report, or module documentation; link to them when neede
   donor rotation. Import retains its pre-import plan; only the next verified read
   reports completion. Replies carry exact request echoes and proofs within 4 KiB;
   RPC 98 carries bodies. Receiver admission and stable migration fences are reused.
+  Durable discovery uses `MQTTReadSourceOwners` (read kind 16, Node/RPC 91):
+  pinned retention-index prefix seeks return at most 64 distinct Channel sources,
+  independently of subscriber count. Preparing/Removing obligations remain visible;
+  Removed/UID rows are excluded. Each sampled index witness must match its primary.
+  Cursors follow encoded owner order, preserving source generations. This is a work
+  hint, never a consumer-completion proof. Older read JSON stays unchanged.
   Background scheduling, replicated source release and replica readiness remain required.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the

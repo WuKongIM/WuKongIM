@@ -25,11 +25,15 @@ const (
 	MQTTReadSourceRetention
 	MQTTReadWill
 	MQTTReadWillRecovery
+	// MQTTReadSourceOwners discovers distinct Channel sources through retention index 4.
+	MQTTReadSourceOwners
 )
 
 // MQTTReadCursor contains exactly the cursor belonging to the selected read.
 // Complete index tie-breakers survive RPC serialization and hash-Slot paging.
 type MQTTReadCursor struct {
+	// SourceOwner is omitted entirely for older kinds to preserve their JSON shape.
+	SourceOwner    MQTTBindingOwner                 `json:"source_owner,omitzero"`
 	Topic          string                           `json:"topic,omitempty"`
 	Deadline       MQTTSessionDeadlineCursor        `json:"deadline,omitempty"`
 	Subscription   MQTTSubscriptionRecoveryCursor   `json:"subscription,omitempty"`
@@ -62,6 +66,7 @@ type MQTTRead struct {
 // MQTTReadResult owns a bounded result from one snapshot. Session is included
 // with Session-owned child reads so callers can fence subsequent decisions.
 type MQTTReadResult struct {
+	SourceOwners    []MQTTBindingOwner   `json:"source_owners,omitempty"`
 	Session         *MQTTSession         `json:"session,omitempty"`
 	Sessions        []MQTTSession        `json:"sessions,omitempty"`
 	Subscriptions   []MQTTSubscription   `json:"subscriptions,omitempty"`
@@ -75,7 +80,7 @@ type MQTTReadResult struct {
 
 // Recovery identifies reads that scan one explicitly selected logical hash Slot.
 func (q MQTTRead) Recovery() bool {
-	return q.Kind == MQTTReadSessionDeadlines || q.Kind == MQTTReadSubscriptionRecovery || q.Kind == MQTTReadSourceRecovery || q.Kind == MQTTReadWillRecovery
+	return q.Kind == MQTTReadSessionDeadlines || q.Kind == MQTTReadSubscriptionRecovery || q.Kind == MQTTReadSourceRecovery || q.Kind == MQTTReadWillRecovery || q.Kind == MQTTReadSourceOwners
 }
 
 // SessionIdentity reports the stable owner for Session-scoped reads, including
@@ -158,6 +163,8 @@ func ValidateMQTTRead(q MQTTRead) error {
 		} else {
 			want.After.Retention = q.After.Retention
 		}
+	case MQTTReadSourceOwners:
+		page, want.After.SourceOwner = true, q.After.SourceOwner
 	case MQTTReadSourceRecovery:
 		page, want.After.SourceRecovery = true, q.After.SourceRecovery
 	case MQTTReadWill:
@@ -187,6 +194,9 @@ func ValidateMQTTRead(q MQTTRead) error {
 
 func validateMQTTReadCursor(q MQTTRead) error {
 	a := q.After
+	if a.SourceOwner != (MQTTBindingOwner{}) && (a.SourceOwner.Kind != MQTTBindingChannel || validateMQTTBindingOwner(a.SourceOwner) != nil) {
+		return dberrors.ErrInvalidArgument
+	}
 	bad := a.Topic != "" && validateMQTTIdentity(a.Topic, 2048) != nil
 	if a.Deadline != (MQTTSessionDeadlineCursor{}) {
 		bad = bad || a.Deadline.DeadlineMS <= 0 || validateMQTTIdentity(a.Deadline.Namespace, 1024) != nil || validateMQTTIdentity(a.Deadline.ClientID, 1024) != nil
@@ -301,6 +311,8 @@ func (s *Shard) readMQTTState(ctx context.Context, q MQTTRead) (MQTTReadResult, 
 		}
 	case MQTTReadSourceCandidates:
 		out.Bindings, out.After.Binding, out.Done, err = s.ListMQTTSourceBindingCandidates(ctx, q.Owner, q.After.Binding, q.Limit)
+	case MQTTReadSourceOwners:
+		out.SourceOwners, out.After.SourceOwner, out.Done, err = s.ListMQTTSourceOwners(ctx, q.After.SourceOwner, q.Limit)
 	case MQTTReadSourceRecovery:
 		out.Bindings, out.After.SourceRecovery, out.Done, err = s.ListMQTTSourceBindingRecovery(ctx, q.After.SourceRecovery, q.Limit)
 	case MQTTReadSourceRetention:

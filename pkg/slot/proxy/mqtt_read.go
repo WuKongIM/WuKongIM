@@ -220,7 +220,7 @@ func validateMQTTReadShape(q metadb.MQTTRead, r metadb.MQTTReadResult) error {
 	if r.Session != nil && (!sessionOwned || r.Session.Namespace != ns || r.Session.ClientID != client || metadb.ValidateMQTTSession(*r.Session) != nil) {
 		return bad
 	}
-	counts := [6]int{len(r.Sessions), len(r.Subscriptions), len(r.DeliveryCursors), len(r.Inflight), len(r.Bindings), len(r.Wills)}
+	counts := [7]int{len(r.Sessions), len(r.Subscriptions), len(r.DeliveryCursors), len(r.Inflight), len(r.Bindings), len(r.Wills), len(r.SourceOwners)}
 	selected := -1
 	switch q.Kind {
 	case metadb.MQTTReadSessionDeadlines:
@@ -235,6 +235,8 @@ func validateMQTTReadShape(q metadb.MQTTRead, r metadb.MQTTReadResult) error {
 		selected = 4
 	case metadb.MQTTReadWill, metadb.MQTTReadWillRecovery:
 		selected = 5
+	case metadb.MQTTReadSourceOwners:
+		selected = 6
 	}
 	count := 0
 	for i, n := range counts {
@@ -281,6 +283,17 @@ func validateMQTTReadShape(q metadb.MQTTRead, r metadb.MQTTReadResult) error {
 		if metadb.ValidateMQTTSourceBinding(v) != nil || q.Kind == metadb.MQTTReadSourceBinding && v.Key != q.BindingKey || (q.Kind == metadb.MQTTReadSourceCandidates || q.Kind == metadb.MQTTReadSourceRetention) && v.Key.Owner != q.Owner {
 			return bad
 		}
+	}
+	previous := q.After.SourceOwner
+	for _, owner := range r.SourceOwners {
+		probe := metadb.MQTTRead{Kind: metadb.MQTTReadSourceOwners, Limit: 1, After: metadb.MQTTReadCursor{SourceOwner: owner}}
+		if owner == (metadb.MQTTBindingOwner{}) || metadb.ValidateMQTTRead(probe) != nil || (previous != (metadb.MQTTBindingOwner{}) && metadb.CompareMQTTBindingOwners(previous, owner) >= 0) {
+			return bad
+		}
+		previous = owner
+	}
+	if q.Kind == metadb.MQTTReadSourceOwners && r.After.SourceOwner != previous {
+		return bad
 	}
 	for _, v := range r.Wills {
 		if metadb.ValidateMQTTWill(v) != nil || q.Kind == metadb.MQTTReadWill && v.Key != q.WillKey {

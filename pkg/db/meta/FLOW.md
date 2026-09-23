@@ -50,6 +50,9 @@ It does not own product business policy or expose engine-specific APIs.
    and recovery uses immutable references in original send order.
    Source/UID bindings retain removal tombstones and index discovery, reconciliation
    and conservative retention floors; unknown boundaries block reclamation.
+   Distinct Channel-source discovery seeks across retention-index owner prefixes,
+   checking at most 65 primary/index witnesses in one pinned view. It preserves
+   Preparing/Removing obligations and proves neither consumer completion nor GC.
    Will records outlive Session replacement. Session transitions and quota endings
    resolve old Will atomically; new ownership may install a new configuration.
    Delays, execution leases and receipts are distinct; bodies are bounded/redacted.
@@ -89,10 +92,7 @@ It does not own product business policy or expose engine-specific APIs.
 
 ## Read First
 
-- [Metadata database](db.go)
-- [Schema registry](schema.go)
-- [Transaction helpers](tx_helpers.go)
-- [Snapshots](snapshot.go)
+- [Metadata database](db.go), [Schema registry](schema.go), [Transaction helpers](tx_helpers.go), [Snapshots](snapshot.go)
 
 ## Update Triggers
 
