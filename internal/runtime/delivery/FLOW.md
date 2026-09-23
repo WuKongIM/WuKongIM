@@ -41,6 +41,8 @@ It does not select subscribers, append messages, or build gateway packets.
 - Transient plans never create offline effects.
 - Duplicate recipient rows intentionally produce duplicate writes and retain
   independent ACK attempt state.
+- Gateway calls the FeedbackHandler directly; protocol frame mapping stays in
+  the gateway adapter and runtime feedback DTOs stay entry-independent.
 - RECVACK and session-close remove only matching owner-local identities;
   activity-throttled expiry avoids full tracker scans.
 - `Stop` closes admission, waits for enqueuers, and drains every accepted plan

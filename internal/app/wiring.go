@@ -18,6 +18,7 @@ import (
 	applog "github.com/WuKongIM/WuKongIM/internal/log"
 	obsdiagnostics "github.com/WuKongIM/WuKongIM/internal/observability/diagnostics"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
+	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	runtimeops "github.com/WuKongIM/WuKongIM/internal/runtime/opsmcp"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/persondirectory"
@@ -858,6 +859,11 @@ func (a *App) wireAPIMessageFacade() {
 func (a *App) wireGatewayHandler(ownerNodeID uint64) {
 	if a.handler == nil {
 		handlerMessages := accessgateway.MessageUsecase(a.messages)
+		// Disabled delivery leaves the optional feedback port absent.
+		var feedback runtimedelivery.FeedbackHandler
+		if a.onlineDelivery != nil {
+			feedback = a.onlineDelivery
+		}
 		var editCapabilities accessgateway.MessageUpdateCapabilities
 		if a.messageUpdateHintsReady {
 			editCapabilities = a.online
@@ -866,7 +872,7 @@ func (a *App) wireGatewayHandler(ownerNodeID uint64) {
 			MessageUpdateCapabilities: editCapabilities,
 			Messages:                  handlerMessages,
 			Presence:                  a.gatewayPresenceUsecase(),
-			Delivery:                  a.delivery,
+			Delivery:                  feedback,
 			OwnerNodeID:               ownerNodeID,
 			SendTimeout:               a.cfg.Gateway.SendTimeout,
 			SendackObserver:           a.sendackObserver(),

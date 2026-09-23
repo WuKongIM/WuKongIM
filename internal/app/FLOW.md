@@ -57,6 +57,8 @@ Stop or startup rollback
   uses the production-default send deadline; native-package preview runs it explicitly.
 - Synchronous before-send Webhook admission is wired independently of asynchronous
   Webhook workers and plugin enablement; configuration errors fail startup.
+- Gateway feedback uses the existing Online Delivery FeedbackHandler directly;
+  disabled delivery leaves that optional port absent.
 - Optional features are wired only when all required ports exist; unavailable
   capabilities stay explicit instead of receiving partial implementations.
 - Command-channel suffixes are injected across send, delivery, CMD sync, plugin

@@ -198,6 +198,10 @@ specification, runbook, report, or module documentation; link to them when neede
   asynchronous effects; its cursor is only a progress hint, and losing it may
   duplicate replay. Delivery, RECVACK, webhook completion, and business execution
   are not implied by SENDACK.
+- Gateway receive ACK and session-close feedback use the Online Delivery
+  runtime FeedbackHandler directly. App binds the optional port; gateway owns
+  frame mapping and the runtime owns exact-session ACK cleanup. The temporary
+  delivery usecase and committed-event compatibility entry have been retired.
 - Online delivery preserves per-Channel order through bounded queues. Presence
   routes are volatile, UID-authority-fenced projections; concrete sessions remain
   owner-local. Authority changes require bounded reconstruction before an empty

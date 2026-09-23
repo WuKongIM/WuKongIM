@@ -30,7 +30,6 @@ import (
 	channelusecase "github.com/WuKongIM/WuKongIM/internal/usecase/channel"
 	cmdsyncusecase "github.com/WuKongIM/WuKongIM/internal/usecase/cmdsync"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
-	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
@@ -133,7 +132,6 @@ type App struct {
 	cmdSync       *cmdsyncusecase.App
 	conversations *conversationusecase.App
 	users         *userusecase.App
-	delivery      *deliveryusecase.App
 	// onlineDelivery owns canonical recipient-plan processing and owner-local ACK state.
 	onlineDelivery *runtimedelivery.Runtime
 	// deliveryWorker owns the canonical delivery runtime lifecycle.
@@ -429,14 +427,6 @@ func (a *App) Conversations() *conversationusecase.App {
 		return nil
 	}
 	return a.conversations
-}
-
-// Delivery returns the delivery usecase app.
-func (a *App) Delivery() *deliveryusecase.App {
-	if a == nil {
-		return nil
-	}
-	return a.delivery
 }
 
 func (a *App) metricsHandler() http.Handler {

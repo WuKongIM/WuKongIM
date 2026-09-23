@@ -6,6 +6,10 @@ Shared domain vocabulary for product messaging and Cloud Simulation.
 
 ### Messaging
 
+**Online Delivery**:
+Delivery of a message to connected recipient sessions, identified by their owner node and exact session identity. A receive acknowledgement is distinct from durable message commitment.
+_Avoid_: Durable append, offline synchronization
+
 **Committed Message Page**:
 A bounded selection of ordinary messages from one Channel's committed history, selected by the requested sequence range, read direction, and applicable visibility floor. Selecting the latest page chooses the newest eligible messages; response ordering follows the caller's established contract.
 _Avoid_: Conversation page, history dump

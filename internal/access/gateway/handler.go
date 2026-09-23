@@ -10,9 +10,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/benchterminal"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -62,12 +62,6 @@ type PresenceUsecase interface {
 	Touch(context.Context, presence.TouchCommand) error
 }
 
-// DeliveryUsecase is the delivery feedback entry used by the gateway adapter.
-type DeliveryUsecase interface {
-	Recvack(context.Context, delivery.RecvackCommand) error
-	SessionClosed(context.Context, delivery.SessionClosedCommand) error
-}
-
 // TerminalFenceUsecase authenticates and admits one exact owner-local session
 // marker after the target-side product drains have completed.
 type TerminalFenceUsecase interface {
@@ -84,7 +78,7 @@ type Options struct {
 	// Presence activates and deactivates authenticated gateway sessions.
 	Presence PresenceUsecase
 	// Delivery receives client recvacks and session close cleanup events.
-	Delivery DeliveryUsecase
+	Delivery delivery.FeedbackHandler
 	// BenchTerminalFence owns the benchmark-only terminal epoch. Production
 	// composition may bind it once after the gateway runtime is constructed.
 	BenchTerminalFence TerminalFenceUsecase
@@ -100,12 +94,12 @@ type Options struct {
 	Logger wklog.Logger
 }
 
-// Handler adapts pkg/gateway frames to internal message usecases.
+// Handler maps gateway frames and session events to usecases and runtime ports.
 type Handler struct {
 	messageUpdateCapabilities MessageUpdateCapabilities
 	messages                  MessageUsecase
 	presence                  PresenceUsecase
-	delivery                  DeliveryUsecase
+	delivery                  delivery.FeedbackHandler
 	terminalFence             atomic.Pointer[terminalFenceBinding]
 	ownerNodeID               uint64
 	sendTimeout               time.Duration
@@ -258,7 +252,7 @@ func (h *Handler) OnSessionClose(ctx coregateway.Context) error {
 	if h.delivery != nil && ctx.Session != nil {
 		uid, _ := ctx.Session.Value(coregateway.SessionValueUID).(string)
 		if uid != "" && ctx.Session.ID() != 0 {
-			deliveryErr = h.delivery.SessionClosed(reqCtx, delivery.SessionClosedCommand{UID: uid, SessionID: ctx.Session.ID()})
+			deliveryErr = h.delivery.SessionClosed(reqCtx, delivery.SessionClosed{UID: uid, SessionID: ctx.Session.ID()})
 			if deliveryErr != nil {
 				fields := append([]wklog.Field{
 					wklog.Event("internal.access.gateway.session_close_delivery_failed"),
@@ -442,7 +436,7 @@ func (h *Handler) handleRecvack(ctx *coregateway.Context, pkt *frame.RecvackPack
 	if uid == "" || ctx.Session.ID() == 0 || pkt.MessageID <= 0 {
 		return nil
 	}
-	err := h.delivery.Recvack(requestContextFromContext(ctx), delivery.RecvackCommand{
+	err := h.delivery.Recvack(requestContextFromContext(ctx), delivery.Recvack{
 		UID:        uid,
 		SessionID:  ctx.Session.ID(),
 		MessageID:  uint64(pkt.MessageID),

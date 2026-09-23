@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	authoritypresence "github.com/WuKongIM/WuKongIM/internal/runtime/presence"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/benchterminal"
-	"github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
@@ -188,10 +188,10 @@ func TestHandlerOnSessionCloseForwardsDeliveryWhenPresenceFails(t *testing.T) {
 	sess := newTestSession(t, nil)
 	sess.SetValue(coregateway.SessionValueUID, "u1")
 	presenceErr := errors.New("presence failed")
-	deliveryUsecase := &recordingDelivery{}
+	feedback := &recordingDelivery{}
 	handler := New(Options{
 		Presence: &recordingPresence{deactivateErr: presenceErr},
-		Delivery: deliveryUsecase,
+		Delivery: feedback,
 	})
 
 	err := handler.OnSessionClose(coregateway.Context{
@@ -201,10 +201,10 @@ func TestHandlerOnSessionCloseForwardsDeliveryWhenPresenceFails(t *testing.T) {
 	if !errors.Is(err, presenceErr) {
 		t.Fatalf("OnSessionClose() error = %v, want joined presence error", err)
 	}
-	if len(deliveryUsecase.closedCommands) != 1 {
-		t.Fatalf("delivery session closed commands = %d, want 1", len(deliveryUsecase.closedCommands))
+	if len(feedback.closedCommands) != 1 {
+		t.Fatalf("delivery session closed commands = %d, want 1", len(feedback.closedCommands))
 	}
-	cmd := deliveryUsecase.closedCommands[0]
+	cmd := feedback.closedCommands[0]
 	if cmd.UID != "u1" || cmd.SessionID != sess.ID() {
 		t.Fatalf("delivery session closed command = %#v", cmd)
 	}
@@ -460,8 +460,8 @@ func TestWriteSendackTraceRecordsWriteError(t *testing.T) {
 func TestOnFrameRecvackForwardsToDelivery(t *testing.T) {
 	sess := newTestSession(t, nil)
 	sess.SetValue(coregateway.SessionValueUID, "u1")
-	deliveryUsecase := &recordingDelivery{}
-	handler := New(Options{Delivery: deliveryUsecase})
+	feedback := &recordingDelivery{}
+	handler := New(Options{Delivery: feedback})
 
 	err := handler.OnFrame(coregateway.Context{
 		Session:        sess,
@@ -470,10 +470,10 @@ func TestOnFrameRecvackForwardsToDelivery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OnFrame() error = %v", err)
 	}
-	if len(deliveryUsecase.recvackCommands) != 1 {
-		t.Fatalf("recvack commands = %d, want 1", len(deliveryUsecase.recvackCommands))
+	if len(feedback.recvackCommands) != 1 {
+		t.Fatalf("recvack commands = %d, want 1", len(feedback.recvackCommands))
 	}
-	cmd := deliveryUsecase.recvackCommands[0]
+	cmd := feedback.recvackCommands[0]
 	if cmd.UID != "u1" || cmd.SessionID != sess.ID() || cmd.MessageID != 77 || cmd.MessageSeq != 8 {
 		t.Fatalf("recvack command = %#v", cmd)
 	}
@@ -482,8 +482,8 @@ func TestOnFrameRecvackForwardsToDelivery(t *testing.T) {
 func TestTerminalFenceEventSealsExactSessionAndRejectsAllLaterBusinessFramesBeforeUsecases(t *testing.T) {
 	terminal, grant := readyGatewayTerminalController(t, 1)
 	messages := &recordingMessages{sendResult: message.SendResult{Reason: message.ReasonSuccess}}
-	deliveryUsecase := &recordingDelivery{}
-	handler := New(Options{Messages: messages, Delivery: deliveryUsecase, BenchTerminalFence: terminal})
+	feedback := &recordingDelivery{}
+	handler := New(Options{Messages: messages, Delivery: feedback, BenchTerminalFence: terminal})
 	var writes []frame.Frame
 	sess := session.New(session.Config{ID: 101, WriteFrameFn: func(f frame.Frame, _ session.OutboundMeta) error {
 		writes = append(writes, f)
@@ -516,8 +516,8 @@ func TestTerminalFenceEventSealsExactSessionAndRejectsAllLaterBusinessFramesBefo
 			t.Fatalf("late %T error = %v, want %v", late, err, ErrTerminalSessionSealed)
 		}
 	}
-	if len(messages.batchItems) != 0 || len(deliveryUsecase.recvackCommands) != 0 {
-		t.Fatalf("late frames reached usecases: sends=%d recvacks=%d", len(messages.batchItems), len(deliveryUsecase.recvackCommands))
+	if len(messages.batchItems) != 0 || len(feedback.recvackCommands) != 0 {
+		t.Fatalf("late frames reached usecases: sends=%d recvacks=%d", len(messages.batchItems), len(feedback.recvackCommands))
 	}
 	if status := terminal.Status(); status.Stage != benchterminal.StageFailed || status.Failure != benchterminal.FailureProtocolViolation {
 		t.Fatalf("terminal status after late frame = %#v, want permanent protocol failure", status)
@@ -1311,16 +1311,16 @@ func requireTraceNodeAndSeq(t *testing.T, event sendtrace.Event, nodeID uint64, 
 type recordingDelivery struct {
 	recvackErr      error
 	closedErr       error
-	recvackCommands []delivery.RecvackCommand
-	closedCommands  []delivery.SessionClosedCommand
+	recvackCommands []delivery.Recvack
+	closedCommands  []delivery.SessionClosed
 }
 
-func (d *recordingDelivery) Recvack(_ context.Context, cmd delivery.RecvackCommand) error {
+func (d *recordingDelivery) Recvack(_ context.Context, cmd delivery.Recvack) error {
 	d.recvackCommands = append(d.recvackCommands, cmd)
 	return d.recvackErr
 }
 
-func (d *recordingDelivery) SessionClosed(_ context.Context, cmd delivery.SessionClosedCommand) error {
+func (d *recordingDelivery) SessionClosed(_ context.Context, cmd delivery.SessionClosed) error {
 	d.closedCommands = append(d.closedCommands, cmd)
 	return d.closedErr
 }

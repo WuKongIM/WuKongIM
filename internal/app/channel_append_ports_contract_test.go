@@ -6,8 +6,6 @@ import (
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
-	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
-	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/stretchr/testify/require"
 )
 
@@ -136,55 +134,6 @@ func TestChannelAppendSubscriberPortPropagatesStorageFailureWithoutPartialPage(
 	require.Empty(t, page.Recipients)
 	require.Empty(t, page.Cursor)
 	require.False(t, page.Done)
-}
-
-func TestOnlineDeliveryFeedbackPortsPreserveExactSessionOwnership(t *testing.T) {
-	t.Parallel()
-
-	tracker := runtimedelivery.NewAckTracker(runtimedelivery.AckTrackerOptions{
-		ShardCount: 4,
-		Now:        func() int64 { return 1_788_323_400 },
-	})
-	runtime := runtimedelivery.NewRuntime(runtimedelivery.RuntimeOptions{
-		LocalNodeID: 1,
-		Acks:        tracker,
-	})
-	adapter := onlineDeliveryUsecaseAdapter{runtime: runtime}
-	for _, pending := range []runtimedelivery.PendingRecvAck{
-		{UID: "u1", SessionID: 10, MessageID: 100, MessageSeq: 1},
-		{UID: "u1", SessionID: 10, MessageID: 101, MessageSeq: 2},
-		{UID: "u1", SessionID: 11, MessageID: 100, MessageSeq: 3},
-		{UID: "u2", SessionID: 10, MessageID: 100, MessageSeq: 4},
-	} {
-		require.True(t, tracker.Bind(pending))
-	}
-
-	require.NoError(t, adapter.Recvack(context.Background(), deliveryusecase.RecvackCommand{
-		UID: "u1", SessionID: 10, MessageID: 100, MessageSeq: 1,
-	}))
-	require.Equal(t, 3, tracker.PendingCount())
-	_, found := tracker.Ack(runtimedelivery.Recvack{
-		UID: "u1", SessionID: 10, MessageID: 100,
-	})
-	require.False(t, found, "the acknowledged identity must be removed")
-
-	require.NoError(t, adapter.SessionClosed(
-		context.Background(),
-		deliveryusecase.SessionClosedCommand{UID: "u1", SessionID: 10},
-	))
-	require.Equal(t, 2, tracker.PendingCount())
-	_, found = tracker.Ack(runtimedelivery.Recvack{
-		UID: "u1", SessionID: 10, MessageID: 101,
-	})
-	require.False(t, found, "the closed session must be removed")
-	for _, ack := range []runtimedelivery.Recvack{
-		{UID: "u1", SessionID: 11, MessageID: 100},
-		{UID: "u2", SessionID: 10, MessageID: 100},
-	} {
-		_, found = tracker.Ack(ack)
-		require.True(t, found, "unrelated owner session must remain pending")
-	}
-	require.Zero(t, tracker.PendingCount())
 }
 
 type subscriberPageNodeStub struct {

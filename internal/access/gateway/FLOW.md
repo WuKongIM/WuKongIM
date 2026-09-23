@@ -1,6 +1,6 @@
 ---
 scope: package
-summary: Maps gateway sessions and frames to message, presence, and delivery usecases without owning authority or durable-send policy.
+summary: Maps gateway sessions and frames to message and presence usecases and Online Delivery feedback without owning authority or durable-send policy.
 ---
 
 # Gateway Access Flow
@@ -8,8 +8,8 @@ summary: Maps gateway sessions and frames to message, presence, and delivery use
 ## Responsibility
 
 `internal/access/gateway` adapts `pkg/gateway` authentication/session events and
-WKProto frames to entry-independent presence, message, delivery, and benchmark
-terminal-fence commands,
+WKProto frames to entry-independent presence, message, and benchmark
+terminal-fence commands and the Online Delivery runtime FeedbackHandler,
 then maps results back to protocol frames and stable reason codes.
 It does not own reusable message, presence, delivery, or storage policy.
 
@@ -43,6 +43,8 @@ It does not own reusable message, presence, delivery, or storage policy.
   SENDACK while observations keep timeout distinct.
 - Unauthenticated SEND becomes a SENDACK result rather than a raw protocol
   error. Malformed/stale RECVACK is ignored without protocol noise.
+- Gateway maps ACK and close events directly to runtime feedback DTOs. The
+  composition root supplies the optional port; disabled delivery is a no-op.
 - Batched result cardinality and order must match inputs.
 - Business rejection codes 128–255 pass through SENDACK unchanged; system reasons
   retain explicit mapping.

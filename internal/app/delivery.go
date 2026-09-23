@@ -1,29 +1,19 @@
 package app
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/WuKongIM/WuKongIM/internal/contracts/messageevents"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/channelappend"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 	conversationusecase "github.com/WuKongIM/WuKongIM/internal/usecase/conversation"
-	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 const defaultDeliveryRetryMaxAttempts = 3
 const defaultDeliveryRetryBackoff = 10 * time.Millisecond
-
-var errOnlineDeliveryCommittedSubmitUnsupported = errors.New("internal/app: committed delivery submission requires a canonical recipient plan")
-
-type onlineDeliveryUsecaseAdapter struct {
-	// runtime owns recipient feedback after channelappend produces canonical plans.
-	runtime *runtimedelivery.Runtime
-}
 
 type deliveryMessageObserver struct {
 	// app records non-fatal delivery sink failures for tests and diagnostics.
@@ -231,26 +221,4 @@ func (a *App) recordDeliveryError(err error) {
 			a.metrics.Delivery.ObserveError(class)
 		}
 	}
-}
-
-// SubmitCommitted is retained only for the temporary delivery-usecase facade.
-// Channelappend is the sole production producer of canonical delivery plans.
-func (a onlineDeliveryUsecaseAdapter) SubmitCommitted(context.Context, messageevents.MessageCommitted) error {
-	return errOnlineDeliveryCommittedSubmitUnsupported
-}
-
-func (a onlineDeliveryUsecaseAdapter) Recvack(ctx context.Context, cmd deliveryusecase.RecvackCommand) error {
-	if a.runtime == nil {
-		return nil
-	}
-	return a.runtime.Recvack(ctx, runtimedelivery.Recvack{
-		UID: cmd.UID, SessionID: cmd.SessionID, MessageID: cmd.MessageID, MessageSeq: cmd.MessageSeq,
-	})
-}
-
-func (a onlineDeliveryUsecaseAdapter) SessionClosed(ctx context.Context, cmd deliveryusecase.SessionClosedCommand) error {
-	if a.runtime == nil {
-		return nil
-	}
-	return a.runtime.SessionClosed(ctx, runtimedelivery.SessionClosed{UID: cmd.UID, SessionID: cmd.SessionID})
 }

@@ -7,8 +7,8 @@ owns the linked product-runtime detail.
 App wiring starts `internal/runtime/delivery.Runtime`, injects its canonical
 plan-admission port into channelappend, and registers only owner-push RPC. The
 retired manager/retry/fanout execution stack and fanout RPC have been removed.
-Gateway feedback temporarily crosses the existing delivery-usecase facade,
-which performs only command-type conversion.
+Gateway maps receive ACK and session-close events directly to the runtime
+FeedbackHandler. App binds this narrow port only when delivery is enabled.
 
 Operations MCP has no independent process, listener, port, or config enable
 switch. `internal/app` creates and closes its local call-control audit writer,
@@ -75,7 +75,7 @@ current control snapshot.
 `Delivery.Enabled` remains false for app-level zero-value configs, while the
 `wukongim` executable config enables `WK_DELIVERY_ENABLE` by default. With delivery disabled, committed messages still append and update their
 channel-local sender-sequence index, but no online delivery is submitted. With delivery enabled, gateway RECVACK and session close
-feedback flows through the temporary delivery usecase facade, while
+feedback flows directly through the runtime FeedbackHandler, while
 channelappend post-commit effects enqueue bounded multi-target recipient
 delivery plans into the canonical Online Delivery runtime. Each plan retains
 every exact Slot authority fence. The app

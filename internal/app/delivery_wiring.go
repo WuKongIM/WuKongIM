@@ -5,7 +5,6 @@ import (
 	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
 	deliveryinfra "github.com/WuKongIM/WuKongIM/internal/infra/delivery"
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
-	deliveryusecase "github.com/WuKongIM/WuKongIM/internal/usecase/delivery"
 )
 
 func (a *App) wireDelivery() {
@@ -50,7 +49,6 @@ func (a *App) wireDelivery() {
 		}),
 	})
 	a.onlineDelivery = runtime
-	a.delivery = deliveryusecase.New(deliveryusecase.Options{Runtime: onlineDeliveryUsecaseAdapter{runtime: runtime}})
 	a.deliveryWorker = runtime
 	if presenceNode, ok := a.cluster.(clusterinfra.PresenceNode); ok {
 		adapter := accessnode.New(accessnode.Options{
