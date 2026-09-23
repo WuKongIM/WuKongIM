@@ -147,7 +147,7 @@ func (p *Pools) poolFor(kind TaskKind) *Pool {
 		return p.StoreRead
 	case TaskStoreApply, TaskStoreRetention:
 		return p.StoreApply
-	case TaskStoreCheckpoint, TaskStoreMQTTSource, TaskStoreMQTTReplay:
+	case TaskStoreCheckpoint, TaskStoreMQTTSource, TaskStoreMQTTReplay, TaskStoreMQTTPlan:
 		return p.StoreCheckpoint
 	case TaskRPCPull, TaskRPCAck, TaskRPCNotify, TaskRPCPullHint:
 		return p.RPC

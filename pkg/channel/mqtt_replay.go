@@ -32,15 +32,19 @@ type MQTTReplayRange struct {
 
 // Valid requires the canonical activated generation and explicit finite page budgets.
 func (r MQTTReplayRange) Valid() bool {
+	return validMQTTReplayGeneration(r.Generation) && r.From > 0 && r.Through >= r.From && r.Limit > 0 && r.Limit <= 256 && r.MaxBytes > 0 && r.MaxBytes <= 16<<20
+}
+
+func validMQTTReplayGeneration(generation string) bool {
 	const prefix = "mqtt-log-v1:"
 	var command CommandID
-	if len(r.Generation) != len(prefix)+hex.EncodedLen(len(command)) || !strings.HasPrefix(r.Generation, prefix) {
+	if len(generation) != len(prefix)+hex.EncodedLen(len(command)) || !strings.HasPrefix(generation, prefix) {
 		return false
 	}
-	if _, err := hex.Decode(command[:], []byte(r.Generation[len(prefix):])); err != nil || command == (CommandID{}) || r.Generation != quorumlog.MQTTSourceGeneration(command) {
+	if _, err := hex.Decode(command[:], []byte(generation[len(prefix):])); err != nil || command == (CommandID{}) || generation != quorumlog.MQTTSourceGeneration(command) {
 		return false
 	}
-	return r.From > 0 && r.Through >= r.From && r.Limit > 0 && r.Limit <= 256 && r.MaxBytes > 0 && r.MaxBytes <= 16<<20
+	return true
 }
 
 // Valid rejects implicit authority and unbounded or empty ranges before admission.

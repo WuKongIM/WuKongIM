@@ -94,19 +94,10 @@ func encodeMQTTAnchorReply(q mqttAnchorForwardRequest, p ch.MQTTReplayAnchorProo
 	b := appendMQTTReplayString([]byte(mqttAnchorReplyMagic), string(echo))
 	b = append(b, status)
 	if operationErr == nil {
-		anchor, err := p.Anchor.MarshalBinary()
+		b, err = appendMQTTAnchorProof(b, p)
 		if err != nil {
 			return nil, errMQTTAnchorRPC
 		}
-		b = appendMQTTReplayString(b, string(anchor))
-		m := p.Manifest
-		b = binary.BigEndian.AppendUint16(b, m.Version)
-		for _, v := range []uint64{m.ChannelEpoch, m.LeaderTerm, m.FenceVersion, m.BaseOffset, m.LastOffset, m.PreviousTerm, m.PreviousIndex} {
-			b = binary.BigEndian.AppendUint64(b, v)
-		}
-		b = append(b, m.CommandID[:]...)
-		b = append(b, m.PreviousDigest[:]...)
-		b = append(b, m.Digest[:]...)
 	}
 	if len(b) > mqttAnchorRPCMaxBytes {
 		return nil, errMQTTAnchorRPC
@@ -138,6 +129,33 @@ func decodeMQTTAnchorReply(b []byte, q mqttAnchorForwardRequest) (ch.MQTTReplayA
 		}
 		return p, mqttSourceStatuses[status]
 	}
+	p, err = readMQTTAnchorProof(r)
+	if err != nil || r.Len() != 0 || !validMQTTAnchorProof(q, p) {
+		return ch.MQTTReplayAnchorProof{}, errMQTTAnchorRPC
+	}
+	return p, nil
+}
+
+// appendMQTTAnchorProof is the fixed version-1 proof envelope shared by anchor
+// commit and planning replies. The enclosing request binds its source/authority.
+func appendMQTTAnchorProof(b []byte, p ch.MQTTReplayAnchorProof) ([]byte, error) {
+	anchor, err := p.Anchor.MarshalBinary()
+	if err != nil {
+		return nil, errMQTTAnchorRPC
+	}
+	b = appendMQTTReplayString(b, string(anchor))
+	m := p.Manifest
+	b = binary.BigEndian.AppendUint16(b, m.Version)
+	for _, v := range []uint64{m.ChannelEpoch, m.LeaderTerm, m.FenceVersion, m.BaseOffset, m.LastOffset, m.PreviousTerm, m.PreviousIndex} {
+		b = binary.BigEndian.AppendUint64(b, v)
+	}
+	b = append(b, m.CommandID[:]...)
+	b = append(b, m.PreviousDigest[:]...)
+	return append(b, m.Digest[:]...), nil
+}
+
+func readMQTTAnchorProof(r *bytes.Reader) (ch.MQTTReplayAnchorProof, error) {
+	var p ch.MQTTReplayAnchorProof
 	body, err := readMQTTSourceString(r, 256)
 	if err != nil {
 		return p, errMQTTAnchorRPC
@@ -156,9 +174,6 @@ func decodeMQTTAnchorReply(b []byte, q mqttAnchorForwardRequest) (ch.MQTTReplayA
 		if _, err := io.ReadFull(r, dst); err != nil {
 			return ch.MQTTReplayAnchorProof{}, errMQTTAnchorRPC
 		}
-	}
-	if r.Len() != 0 || !validMQTTAnchorProof(q, p) {
-		return ch.MQTTReplayAnchorProof{}, errMQTTAnchorRPC
 	}
 	return p, nil
 }

@@ -75,6 +75,8 @@ typed bounded workers and returns as `EventWorkerResult`.
 - Replay preparation shares recovered leader admission, cancellation and lifecycle
   ownership. Captured HW bounds its checkpoint worker; typed completion rechecks
   authority, operation identity and bounded page structure before returning bytes.
+  Accepted-prefix planning shares these waiter/worker guards and returns source
+  plus latest anchor at captured HW, without promoting local copying into acceptance.
 
 - Anchor controls share the ordinary append queue, slice ownership, byte bounds
   and cancellation guards. Flush rechecks recovered authority; typed durable

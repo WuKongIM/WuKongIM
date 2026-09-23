@@ -22,6 +22,8 @@ func (r *Reactor) handleWorkerResult(event Event) {
 		r.handleStoreMQTTSourceResult(event.Worker)
 	case worker.TaskStoreMQTTReplay:
 		r.handleStoreMQTTReplayResult(event.Worker)
+	case worker.TaskStoreMQTTPlan:
+		r.handleStoreMQTTPlanResult(event.Worker)
 	case worker.TaskStoreCheckpoint:
 		r.handleStoreCheckpointResult(event.Worker)
 	case worker.TaskStoreClose:

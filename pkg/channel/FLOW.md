@@ -107,6 +107,8 @@ DTOs, and `worker` bounds blocking I/O.
   queue and uses typed workers; control completion advances durable progress even
   after observer cancellation, without inserting request identities into caches.
   Cluster entry adds fresh Slot routing; source-release admission remains separate.
+  Planning reads source/latest anchor at one captured HW through checkpoint workers;
+  next ranges use accepted progress, skip idle control tails and ignore copy-ahead.
   Replay preparation uses the same recovered leader/route admission and bounded
   checkpoint workers. It captures HW, verifies protection and returns owned
   local content after rechecking fences; it cannot release the original source.

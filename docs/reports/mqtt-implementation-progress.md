@@ -2310,3 +2310,66 @@ learner/migration readiness and consumer-proof shared GC. Full source/inbox
 projection, permission ordering, delivery/ACK/recovery, Will execution, unavailable-
 owner proof, app/configuration, migration tooling and full process/load acceptance
 remain required. The product MQTT listener remains unavailable and the goal active.
+
+## Coherent accepted-prefix planning through Node and RPC
+
+Source `7ac762878`; the failure inventory and frozen context are in
+[mqtt-replay-planning.md](../specs/mqtt-replay-planning.md). `PlanMQTTReplay`
+accepts exact Channel/leader/route fences plus source generation. The reactor
+captures committed HW, retains an ordinary lookup waiter and submits a typed
+checkpoint-pool task. That task checkpoints only the captured frontier and reads
+source/latest-anchor evidence from one pinned snapshot. A zero optional command
+now skips the exact retry lookup; existing nonzero-command admission semantics
+and persisted formats are unchanged.
+
+The returned plan has explicit anchor presence and no local-copy watermark.
+`NextRange` derives a bounded page from the accepted prefix or activation start.
+It reports no work for a lone latest control; subsequent content includes that
+control in the next interval. Cancellation, unsupported capabilities, foreign
+worker kinds/operations, replaced generations, stale route/epochs, write admission
+and mismatched result HW cannot publish a plan. Temporary leases close on errors
+and panic. No new worker pool or per-Channel goroutine was added.
+
+`Node.PlanChannelMQTTReplay` preserves foreground admission. The cluster service
+and stable gateway surround the reactor read with fresh Slot checks, comparing
+full ordered membership/status/quorum as well as exact fences. Body-free RPC 97
+uses closed `WMPQ/WMPR` version 1, a 4 KiB cap, complete request echo, explicit
+optional proof and the existing MQTT error catalog. Anchor proof serialization is
+shared with RPC 96 without changing its bytes. Both local and forwarded operations
+have a five-second deadline; no caller supplies HW or a guessed accepted prefix.
+
+Verified:
+
+- Tests preceded implementation. Storage/Channel RED is
+  `/tmp/mqtt-plan-red.log`; cluster/RPC RED is `/tmp/mqtt-plan-route-red.log`.
+  Focused green runs are `/tmp/mqtt-plan-focused.log` and
+  `/tmp/mqtt-plan-route-focused.log`.
+- `GOWORK=off go test -race ./pkg/channel/... ./pkg/db/message
+  ./pkg/cluster/channels ./pkg/cluster/net ./pkg/cluster -count=1 -timeout=180s`:
+  all passed in `/tmp/mqtt-plan-regression.log`. MessageDB 39.410 seconds,
+  Channel reactor 3.641, Channel store 7.845, cluster/channels 7.649 and cluster
+  root 17.503. Tests cover pending-journal exclusion, captured older views,
+  preserved exact-command reads, absence/malformed proofs, bounded ranges and
+  maximum sequence arithmetic, source mismatch, cancellation, lifecycle/worker
+  ownership, gateway replacement and closed RPC framing/echo/status handling.
+- `GOWORK=off go test -race -tags=integration ./pkg/cluster
+  ./pkg/channel/service ./pkg/channel/replication -run '^TestMQTT(Anchor|Plan)'
+  -count=1 -timeout=120s -v`: all passed in `/tmp/mqtt-plan-integration.log`.
+  Cluster 16.297 seconds, service 2.046, replication 2.366. Existing real-disk
+  service and three-node TCP tests now consume planned ranges before copying and
+  committing anchors. They verify that local copy-ahead is not accepted progress,
+  an idle anchor has no work, subsequent appends resume at the right position,
+  restart/leader change retain the latest anchor, an old exact retry cannot regress
+  it, and loss of Slot quorum rejects planning. Three nodes use 256 hash slots
+  and two physical Slots. This remains Node/runtime integration, not full product
+  MQTT process acceptance.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-plan-flow.log`. The index was regenerated and `git diff --check`
+  passed. Existing macOS LC_DYSYMTAB linker warnings remain non-failing.
+
+Next connect accepted anchors to replicated source-release decisions, then
+accepted-anchor donor repair after original-body reclamation, learner/migration
+readiness and consumer-proof shared GC. Full source/inbox projection, permission
+ordering, delivery/ACK/recovery, durable Will execution, unavailable-owner proof,
+app/configuration, state-transfer tooling and full process/load acceptance remain
+required. The product MQTT listener remains unavailable and the full goal active.

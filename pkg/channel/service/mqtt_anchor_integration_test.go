@@ -53,16 +53,38 @@ func TestMQTTAnchorServiceSingleNodeClusterOrderingRestartAndRetry(t *testing.T)
 	sourceReq := ch.MQTTSourceRequest{ChannelID: meta.ID, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 1, ExpectedRouteGeneration: 1, MessageID: 10, ServerTimestampMS: 10}
 	source, e := api.(ch.MQTTSourceActivator).EnsureMQTTSource(ctx, sourceReq)
 	require.NoError(t, e)
+	planReplay := func() ch.MQTTReplayPlan {
+		t.Helper()
+		plan, err := api.(ch.MQTTReplayPlanner).PlanMQTTReplay(ctx, ch.MQTTReplayPlanRequest{ChannelID: meta.ID, ExpectedChannelEpoch: meta.Epoch, ExpectedLeaderEpoch: meta.LeaderEpoch, ExpectedRouteGeneration: meta.RouteGeneration, Generation: source.Generation})
+		require.NoError(t, err)
+		return plan
+	}
+	initial := planReplay()
+	require.False(t, initial.HasAnchor)
+	require.Equal(t, uint64(1), initial.Source.CommittedThrough)
 	appended, e := api.Append(ctx, ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{MessageID: 11, ServerTimestampMS: 11, Payload: []byte("business")}})
 	require.NoError(t, e)
 	require.Equal(t, uint64(2), appended.MessageSeq)
 	page, e := api.(ch.MQTTReplayPreparer).PrepareMQTTReplay(ctx, ch.MQTTReplayRequest{ChannelID: meta.ID, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 1, ExpectedRouteGeneration: 1, Range: ch.MQTTReplayRange{Generation: source.Generation, From: 1, Through: 2, Limit: 256, MaxBytes: 1 << 20}})
 	require.NoError(t, e)
 	receipt := ch.MQTTReplayCopyReceipt{Request: ch.MQTTReplayRequest{ChannelID: meta.ID, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 1, ExpectedRouteGeneration: 1, Range: ch.MQTTReplayRange{Generation: source.Generation, From: 1, Through: 2, Limit: len(page.Records), MaxBytes: int(page.After.TotalStoredBytes - page.Before.TotalStoredBytes)}}, Leader: 1, Authority: ch.MQTTReplayCopyAuthority(meta), WriteQuorum: 1, Copies: []ch.NodeID{1}, Before: page.Before, After: page.After}
+	copied := planReplay()
+	require.False(t, copied.HasAnchor, "local copy is not accepted progress")
+	nextRange, more, e := copied.NextRange(256, 1<<20)
+	require.NoError(t, e)
+	require.True(t, more)
+	require.Equal(t, uint64(1), nextRange.From)
+	require.Equal(t, uint64(2), nextRange.Through)
 	request := ch.MQTTReplayAnchorRequest{Meta: meta, Copy: receipt, MessageID: 12, ServerTimestampMS: 12}
 	first, e := api.(ch.MQTTReplayAnchorCommitter).CommitMQTTReplayAnchor(ctx, request)
 	require.NoError(t, e)
 	require.Equal(t, uint64(3), first.Manifest.LastOffset)
+	accepted := planReplay()
+	require.True(t, accepted.HasAnchor)
+	require.Equal(t, first, accepted.Anchor)
+	_, more, e = accepted.NextRange(256, 1<<20)
+	require.NoError(t, e)
+	require.False(t, more, "a lone anchor tail has no new copy work")
 	idleReq := receipt.Request
 	idleReq.Range.From, idleReq.Range.Through = 3, 3
 	idleReq.Range.Limit, idleReq.Range.MaxBytes = 256, 1<<20
@@ -97,6 +119,13 @@ func TestMQTTAnchorServiceSingleNodeClusterOrderingRestartAndRetry(t *testing.T)
 	after, e := api.Append(ctx, ch.AppendRequest{ChannelID: meta.ID, Message: ch.Message{MessageID: 20, ServerTimestampMS: 20, Payload: []byte("after anchor")}})
 	require.NoError(t, e)
 	require.Equal(t, uint64(4), after.MessageSeq)
+	nextPlan := planReplay()
+	require.Equal(t, first, nextPlan.Anchor)
+	nextRange, more, e = nextPlan.NextRange(256, 1<<20)
+	require.NoError(t, e)
+	require.True(t, more)
+	require.Equal(t, uint64(3), nextRange.From)
+	require.Equal(t, uint64(4), nextRange.Through)
 	// Existing source confirmation exposes the reactor's committed frontier.
 	confirmed, e := api.(ch.MQTTSourceActivator).EnsureMQTTSource(ctx, sourceReq)
 	require.NoError(t, e)
@@ -118,6 +147,9 @@ func TestMQTTAnchorServiceSingleNodeClusterOrderingRestartAndRetry(t *testing.T)
 	meta.LeaderEpoch++
 	meta.RouteGeneration++
 	open()
+	recoveredPlan := planReplay()
+	require.Equal(t, first, recoveredPlan.Anchor)
+	require.GreaterOrEqual(t, recoveredPlan.Source.CommittedThrough, uint64(4))
 	request.Meta = meta
 	request.Copy.Request.ExpectedLeaderEpoch = meta.LeaderEpoch
 	request.Copy.Request.ExpectedRouteGeneration = meta.RouteGeneration

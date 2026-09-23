@@ -147,6 +147,8 @@ func (r *Reactor) handle(event Event) {
 		r.handleMQTTSource(event)
 	case EventMQTTReplay:
 		r.handleMQTTReplay(event)
+	case EventMQTTPlan:
+		r.handleMQTTPlan(event)
 	case EventRuntimeSnapshot:
 		r.handleRuntimeSnapshot(event)
 	case EventRuntimeProbe:

@@ -6,7 +6,9 @@
 
 ## 当前进度
 
-- 回放证明已接通最新 Slot 权威、Node facade 和无正文 RPC 96：操作前后核对回执对应的完整成员配置，接收端自行读取元数据，再调用 reactor 提交。保持历史证明和空闲重试语义，当前前缀规划、复制源释放与产品 MQTT 监听仍待完成，见 [证明路由合同](../../specs/mqtt-replay-anchor-routing.md)。
+- 已接通一致的回放前缀规划：reactor 捕获提交水位，checkpoint worker 从同一快照读取源与最新锚点，Node/RPC 97 前后校验最新 Slot 权威。复制范围从已接受位置开始，本地提前复制不改变起点，纯锚点尾部不生成空闲任务；复制源释放和清理后恢复仍待完成，见 [前缀规划合同](../../specs/mqtt-replay-planning.md)。
+
+- 回放证明已接通最新 Slot 权威、Node facade 和无正文 RPC 96：操作前后核对回执对应的完整成员配置，接收端自行读取元数据，再调用 reactor 提交。保持历史证明和空闲重试语义；前缀规划已接通，复制源释放与产品 MQTT 监听仍待完成，见 [证明路由合同](../../specs/mqtt-replay-anchor-routing.md)。
 
 - 回放证明准入已接入 Channel service/reactor：复用追加保留、队列、worker 与生命周期，队列计入成员证据字节，完成时单独返回证明、不把重试请求写进历史缓存。真实磁盘验证并发/空闲重试、重启、取消后完成与后续业务顺序；最新 Slot 路由和 Node/RPC 已接入，见 [reactor 准入合同](../../specs/mqtt-replay-anchor-reactor.md)。
 

@@ -44,6 +44,8 @@ const (
 	TaskStoreMQTTReplay
 	// TaskQuorumMQTTAnchor admits one control through the durable sequencer.
 	TaskQuorumMQTTAnchor
+	// TaskStoreMQTTPlan checkpoints captured HW and reads one accepted-prefix view.
+	TaskStoreMQTTPlan
 )
 
 // Task describes blocking work submitted to a bounded pool.
@@ -64,6 +66,7 @@ type Task struct {
 	StoreMQTTSource  *StoreMQTTSourceTask
 	StoreMQTTReplay  *StoreMQTTReplayTask
 	QuorumMQTTAnchor *QuorumMQTTAnchorTask
+	StoreMQTTPlan    *StoreMQTTPlanTask
 	// StoreClose releases a store handle after the reactor has detached it.
 	StoreClose *StoreCloseTask
 	// StoreRetention adopts a logical retention boundary and optionally trims a safe prefix.
@@ -237,6 +240,8 @@ func (t Task) Run(ctx context.Context, deps Deps) Result {
 		res = runStoreMQTTSource(ctx, deps, t)
 	case TaskStoreMQTTReplay:
 		res = runStoreMQTTReplay(ctx, deps, t)
+	case TaskStoreMQTTPlan:
+		res = runStoreMQTTPlan(ctx, deps, t)
 	case TaskStoreClose:
 		res = runStoreClose(ctx, deps, t)
 	case TaskStoreRetention:

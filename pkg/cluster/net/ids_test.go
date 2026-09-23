@@ -152,3 +152,12 @@ func TestMQTTAnchorServiceIdentity(t *testing.T) {
 		t.Fatal("MQTT anchor must preserve foreground mutation admission")
 	}
 }
+
+func TestMQTTPlanServiceIdentity(t *testing.T) {
+	if RPCChannelMQTTPlan != 97 || transportServiceAlias(RPCChannelMQTTPlan) != "channel mqtt plan" {
+		t.Fatal("MQTT planning identity changed")
+	}
+	if !isForegroundChannelMutationService(RPCChannelMQTTPlan) {
+		t.Fatal("planning checkpoint must preserve foreground mutation admission")
+	}
+}

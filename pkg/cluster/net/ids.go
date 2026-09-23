@@ -139,6 +139,8 @@ const (
 	RPCChannelMQTTCopy
 	// RPCChannelMQTTAnchor admits a replay copy checkpoint through the leader reactor.
 	RPCChannelMQTTAnchor
+	// RPCChannelMQTTPlan reads a coherent source and accepted-prefix planning view.
+	RPCChannelMQTTPlan
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -273,6 +275,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "channel mqtt copy"
 	case RPCChannelMQTTAnchor:
 		return "channel mqtt anchor"
+	case RPCChannelMQTTPlan:
+		return "channel mqtt plan"
 	case RPCChannelMQTTReplay:
 		return "channel mqtt replay"
 	default:

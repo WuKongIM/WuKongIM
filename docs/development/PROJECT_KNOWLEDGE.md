@@ -342,8 +342,12 @@ specification, runbook, report, or module documentation; link to them when neede
   now rechecks fresh Slot authority around the reactor call; body-free RPC 96
   uses a closed 8 KiB codec and exact receipt echo. Received metadata always comes
   from the serving Slot read. Historical proofs keep their original authority;
-  post-commit fencing withholds a reply without undoing durability. Coherent prefix
-  planning and replicated source release remain required.
+  post-commit fencing withholds a reply without undoing durability. Planning now
+  captures reactor HW and reads source/latest anchor in one pinned snapshot;
+  a zero command skips only optional exact retry lookup. Node/RPC 97 surrounds
+  this view with fresh Slot checks, preserving original proof bytes and a 4 KiB
+  cap. Next ranges ignore local copy-ahead and idle anchor-only tails. Replicated
+  source release, accepted-anchor repair and replica readiness remain required.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.

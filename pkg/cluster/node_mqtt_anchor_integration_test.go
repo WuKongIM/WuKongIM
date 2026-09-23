@@ -41,6 +41,18 @@ func TestMQTTAnchorThreeNodeRoutingRestartAndIsolation(t *testing.T) {
 	install()
 	source, err := nodes[0].EnsureChannelMQTTSource(ctx, ch.MQTTSourceRequest{ChannelID: id, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 1, ExpectedRouteGeneration: 1, MessageID: 900, ServerTimestampMS: 1000})
 	require.NoError(t, err)
+	planRequest := func() ch.MQTTReplayPlanRequest {
+		return ch.MQTTReplayPlanRequest{ChannelID: id, ExpectedChannelEpoch: m.Epoch, ExpectedLeaderEpoch: m.LeaderEpoch, ExpectedRouteGeneration: m.RouteGeneration, Generation: source.Generation}
+	}
+	planReplay := func() ch.MQTTReplayPlan {
+		t.Helper()
+		p, e := nodes[0].PlanChannelMQTTReplay(ctx, planRequest())
+		require.NoError(t, e)
+		return p
+	}
+	initialPlan := planReplay()
+	require.False(t, initialPlan.HasAnchor)
+	require.Equal(t, uint64(1), initialPlan.Source.CommittedThrough)
 	appendBusiness := func(messageID, sequence uint64) {
 		t.Helper()
 		result, e := nodes[0].AppendChannel(ctx, ch.AppendRequest{ChannelID: id, Message: ch.Message{MessageID: messageID, FromUID: "sender", Payload: []byte("immutable business content"), ServerTimestampMS: 1001}})
@@ -48,7 +60,10 @@ func TestMQTTAnchorThreeNodeRoutingRestartAndIsolation(t *testing.T) {
 		require.Equal(t, sequence, result.MessageSeq)
 	}
 	appendBusiness(901, 2)
-	rangeReq := ch.MQTTReplayRequest{ChannelID: id, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 1, ExpectedRouteGeneration: 1, Range: ch.MQTTReplayRange{Generation: source.Generation, From: 1, Through: 2, Limit: 256, MaxBytes: 1 << 20}}
+	copyRange, more, err := planReplay().NextRange(256, 1<<20)
+	require.NoError(t, err)
+	require.True(t, more)
+	rangeReq := ch.MQTTReplayRequest{ChannelID: id, ExpectedChannelEpoch: 1, ExpectedLeaderEpoch: 1, ExpectedRouteGeneration: 1, Range: copyRange}
 	copyPage := func(q ch.MQTTReplayRequest) ch.MQTTReplayCopyReceipt {
 		t.Helper()
 		var receipt ch.MQTTReplayCopyReceipt
@@ -62,6 +77,12 @@ func TestMQTTAnchorThreeNodeRoutingRestartAndIsolation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, receipt.After, proof.Prefix())
 	require.Equal(t, uint64(3), proof.Manifest.LastOffset)
+	acceptedPlan := planReplay()
+	require.True(t, acceptedPlan.HasAnchor)
+	require.Equal(t, proof, acceptedPlan.Anchor)
+	_, more, err = acceptedPlan.NextRange(256, 1<<20)
+	require.NoError(t, err)
+	require.False(t, more)
 	// Concurrent exact retries reuse the single committed control over real TCP.
 	var wg sync.WaitGroup
 	var replies [4]ch.MQTTReplayAnchorProof
@@ -102,9 +123,13 @@ func TestMQTTAnchorThreeNodeRoutingRestartAndIsolation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, proof, idle)
 	appendBusiness(904, 4)
+	copyRange, more, err = planReplay().NextRange(256, 1<<20)
+	require.NoError(t, err)
+	require.True(t, more)
+	require.Equal(t, uint64(3), copyRange.From)
+	require.Equal(t, uint64(4), copyRange.Through)
 	nextReq := rangeReq
-	nextReq.Range.From = 3
-	nextReq.Range.Through = 4
+	nextReq.Range = copyRange
 	nextReceipt := copyPage(nextReq)
 	// Preparation preserves a previously materialized short page. Consume that
 	// page again with a larger bound only after the remaining suffix is copied.
@@ -140,6 +165,8 @@ func TestMQTTAnchorThreeNodeRoutingRestartAndIsolation(t *testing.T) {
 	recovered, err := nodes[0].CommitChannelMQTTReplayAnchor(ctx, ch.MQTTReplayAnchorRequest{Meta: m, Copy: recoveredCopy, MessageID: 906, ServerTimestampMS: 1006})
 	require.NoError(t, err)
 	require.Equal(t, proof, recovered, "old proof survives a later anchor, restart and authority change")
+	recoveredPlan := planReplay()
+	require.Equal(t, next, recoveredPlan.Anchor, "planning retains the latest accepted anchor after an older exact retry")
 	// The new leader commits its native current-term barrier at position 6.
 	appendBusiness(907, 7)
 	route := waitRouteKeyLeaderConverged(t, nodes, id.ID)
@@ -150,5 +177,11 @@ func TestMQTTAnchorThreeNodeRoutingRestartAndIsolation(t *testing.T) {
 	failed, err := nodes[2].CommitChannelMQTTReplayAnchor(blocked, ch.MQTTReplayAnchorRequest{Meta: m, Copy: recoveredCopy, MessageID: 908, ServerTimestampMS: 1008})
 	require.Error(t, err)
 	require.Zero(t, failed)
+	planCtx, finish := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer finish()
+	isolatedPlan, err := nodes[2].PlanChannelMQTTReplay(planCtx, planRequest())
+	require.Error(t, err)
+	require.Zero(t, isolatedPlan)
+	t.Log("mqtt_plan_routing_evidence: fresh_slot=true captured_hw=true real_copy_and_commit=true accepted_prefix=true idle_no_work=true restart=true leader_change=true latest_survives_old_retry=true isolated_plan_rejected=true product_listener=false")
 	t.Log("mqtt_anchor_routing_evidence: nodes=3 hash_slots=256 physical_slots=2 tcp=true disk=true real_copy_receipt=true remote_commit=true concurrent_retry=true idle_retry=true append_ordering=true restart=true leader_change=true old_proof=true isolated_reply_rejected=true source_release=false product_listener=false")
 }

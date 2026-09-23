@@ -20,5 +20,8 @@ func TestMQTTAnchorNodeForegroundGates(t *testing.T) {
 		p, err := tc.node.CommitChannelMQTTReplayAnchor(context.Background(), ch.MQTTReplayAnchorRequest{})
 		require.ErrorIs(t, err, tc.err)
 		require.Zero(t, p)
+		plan, err := tc.node.PlanChannelMQTTReplay(context.Background(), ch.MQTTReplayPlanRequest{})
+		require.ErrorIs(t, err, tc.err)
+		require.Zero(t, plan)
 	}
 }

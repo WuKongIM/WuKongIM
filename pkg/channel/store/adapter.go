@@ -424,6 +424,7 @@ type MQTTReplayAnchorReader interface {
 
 // MQTTReplayAnchorStateReader returns source/latest/exact-command evidence from
 // one snapshot at already persisted HW; it must not mutate committed progress.
+// A zero command skips only the optional exact retry lookup.
 type MQTTReplayAnchorStateReader interface {
 	ReadMQTTReplayAnchors(context.Context, uint64, ch.CommandID) (ch.MQTTReplayAnchorState, error)
 }

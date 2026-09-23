@@ -54,6 +54,8 @@ const (
 	EventMQTTSource
 	// EventMQTTReplay prepares bounded shared content under recovered authority.
 	EventMQTTReplay
+	// EventMQTTPlan captures a coherent source and accepted-prefix view.
+	EventMQTTPlan
 )
 
 // Event is the mailbox envelope consumed by reactors.
@@ -86,6 +88,7 @@ type Event struct {
 	// MQTTSource fences source confirmation and explicit control append admission.
 	MQTTSource ch.MQTTSourceRequest
 	MQTTReplay ch.MQTTReplayRequest
+	MQTTPlan   ch.MQTTReplayPlanRequest
 	// MQTTSourceActivation selects a canonical control only on EventAppend.
 	MQTTSourceActivation bool
 	// MQTTAnchor selects typed anchor admission on the ordinary append queue.
@@ -136,6 +139,8 @@ func eventKindName(kind EventKind) string {
 		return "EventMQTTSource"
 	case EventMQTTReplay:
 		return "EventMQTTReplay"
+	case EventMQTTPlan:
+		return "EventMQTTPlan"
 	default:
 		return "EventUnknown"
 	}

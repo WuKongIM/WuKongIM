@@ -19,10 +19,11 @@ type MQTTReplayAnchorState struct {
 }
 
 // ReadMQTTReplayAnchors uses one reverse seek plus bounded point proofs. Through
-// is already checkpointed by the sequencer; this read never advances its HW.
+// is already checkpointed by the owner; this read never advances its HW. A zero
+// command omits the exact retry lookup without changing the latest journal view.
 func (l *ChannelLog) ReadMQTTReplayAnchors(ctx context.Context, through uint64, command quorumlog.CommandID) (MQTTReplayAnchorState, error) {
 	var out MQTTReplayAnchorState
-	if through == 0 || command == (quorumlog.CommandID{}) {
+	if through == 0 {
 		return out, dberrors.ErrInvalidArgument
 	}
 	if err := l.beginUse(); err != nil {
@@ -77,21 +78,23 @@ func (l *ChannelLog) ReadMQTTReplayAnchors(ctx context.Context, through uint64, 
 	if err = iter.Error(); err != nil {
 		return out, err
 	}
-	requested, found, err := loadDurableProposalFrom(view, encodeProposalByCommandKey(l.key, command))
-	if err != nil {
-		return out, err
-	}
-	if found {
-		if requested.manifest.Version != quorumlog.MQTTReplayAnchorProposalManifestVersion {
-			return out, dberrors.ErrConflict
+	if command != (quorumlog.CommandID{}) {
+		requested, found, err := loadDurableProposalFrom(view, encodeProposalByCommandKey(l.key, command))
+		if err != nil {
+			return out, err
 		}
-		if requested.manifest.LastOffset <= through {
-			out.Requested, out.HasRequested, err = loadMQTTReplayAnchorFrom(view, l.key, requested.manifest.LastOffset)
-			if err != nil {
-				return out, err
+		if found {
+			if requested.manifest.Version != quorumlog.MQTTReplayAnchorProposalManifestVersion {
+				return out, dberrors.ErrConflict
 			}
-			if !out.HasRequested || out.Requested.Manifest != requested.manifest || !out.HasLatest || out.Requested.Manifest.LastOffset > out.Latest.Manifest.LastOffset {
-				return out, dberrors.ErrCorruptState
+			if requested.manifest.LastOffset <= through {
+				out.Requested, out.HasRequested, err = loadMQTTReplayAnchorFrom(view, l.key, requested.manifest.LastOffset)
+				if err != nil {
+					return out, err
+				}
+				if !out.HasRequested || out.Requested.Manifest != requested.manifest || !out.HasLatest || out.Requested.Manifest.LastOffset > out.Latest.Manifest.LastOffset {
+					return out, dberrors.ErrCorruptState
+				}
 			}
 		}
 	}
