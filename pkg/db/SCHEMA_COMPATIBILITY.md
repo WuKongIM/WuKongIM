@@ -71,6 +71,13 @@ format 5; matching writers and tools and pre-feature rollback backups are requir
 Runtime copy-receipt admission and automatic release/import remain pending. See
 [replay anchors](../../docs/specs/mqtt-replay-anchor.md).
 
+Explicit source release can now derive System 12 progress from a locally
+committed format-5 anchor and independently verified local replay coverage.
+It stores the anchor manifest digest in the existing receipt field and advances
+the local materialization revision, with no encoding or ID changes. Automatic
+cluster release still needs routing/scheduling integration. See
+[anchor-derived release](../../docs/specs/mqtt-source-anchor-release.md).
+
 Message-domain table 2 stores immutable MQTT shared replay by source incarnation,
 position and content version. Index 2 provides bounded cumulative counters;
 System 1 publishes the copied prefix. Neither copying nor a local digest grants

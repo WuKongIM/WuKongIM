@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add a storage boundary for releasing original MQTT source messages only after verifying a committed replay anchor and local content coverage; preserve protection across cleanup, restart and backup restore. Automatic release and product access remain under development. / 新增原始 MQTT 消息安全清理的存储接口，核验已提交回放锚点和本地内容覆盖后才推进水位，并验证清理、重启及备份恢复；自动释放与产品接入仍在开发。
+
 - Refresh a cached Channel leader once when its RPC dial fails, allowing sends to resume after failover without changing uncertain-send recovery. Verify MQTT replay recovery with the old leader stopped. / 修复旧 Leader 停止后发送仍停留在缓存路由的问题：明确拨号失败时刷新路由并重试一次，未决发送恢复规则保持不变；已验证旧 Leader 停止后的 MQTT 回放恢复。
 
 - Require local MQTT replay coverage before planned Channel cutover and migration fence clearing; temporary catch-up stays runnable. Repair leader checkpoint propagation and graceful-drain fence application. Product MQTT access remains under development. / 频道计划迁移切换与解除写入封禁前核验 MQTT 本地回放覆盖，暂时落后可继续恢复；修复 Leader 检查点传播及排空前封禁应用，产品 MQTT 接入仍在开发。

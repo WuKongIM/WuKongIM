@@ -399,7 +399,12 @@ specification, runbook, report, or module documentation; link to them when neede
   from a surviving donor and resumed writes. Cached append routes refresh once
   on typed transport dial failure; ambiguous post-send outcomes keep their existing
   recovery rules. Candidate selection is explicit in this integration test.
-  Product lifecycle wiring and source release remain required.
+  Explicit storage source release derives its boundary from an own committed
+  anchor and verified local replay prefix under append/checkpoint ownership.
+  It updates only System 12, preserves the anchor manifest receipt, revalidates
+  older retries and allows replicas to skip intermediate local CAS revisions.
+  Physical retention remains separately clamped. Automatic cluster release,
+  consumer-proof GC and product lifecycle wiring remain required.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.

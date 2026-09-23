@@ -113,8 +113,8 @@ Compatibility maps Channel records/offsets to this core without transferring eng
   removes pending entries. Backups require matching journals and format versions.
   Anchor repair verifies local journals under append/checkpoint ownership; pinned exports must reach the exact endpoint.
   Repair planning verifies coverage/cursors, scans at most 64 journals and returns one bounded interval or explicit continuation.
-  Pinned readiness binds captured HW/latest anchor to local replay coverage, never source copied-through.
-  Trim/restart preserve proofs; repair, planning and readiness cannot release sources or advance HW.
+  Readiness binds captured HW/latest anchor to local coverage; repair/planning/readiness never release sources or advance HW.
+  Explicit anchor release verifies committed/local prefix proofs under append/checkpoint ownership, then advances only System 12.
   Suffix cuts never split proposals; recovery replacement is fenced by the
   inspected frontier and atomically replaces complete verified proposal pages.
 - Queue-depth publication is monotonic through grouped collection and terminal

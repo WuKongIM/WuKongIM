@@ -16,15 +16,16 @@ import (
 type MQTTSourceState struct {
 	// Generation follows the log incarnation, not a leader or process lifetime.
 	Generation string
-	// Revision orders replicated decisions; local reads do not allocate it.
+	// Revision orders local materializations of replicated decisions. Replicas
+	// may skip intermediate anchors; this is not a cluster-wide commit index.
 	Revision uint64
 	// StartAfter is the immutable protection boundary. Subscription cursors
 	// choose their own admitted boundary and never infer history permission here.
 	StartAfter uint64
-	// CopiedThrough may release source rows only after the caller has verified
-	// replicated shared content. The database cannot establish that proof.
+	// CopiedThrough releases source rows after replicated copy proof: either an
+	// externally verified CAS decision or a locally verified committed anchor.
 	CopiedThrough uint64
-	// ReceiptDigest binds the externally verified copy receipt, not just a time.
+	// ReceiptDigest binds the verified receipt or exact anchor manifest digest.
 	ReceiptDigest [32]byte
 }
 

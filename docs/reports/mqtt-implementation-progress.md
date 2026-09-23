@@ -2963,3 +2963,49 @@ Next connect independently proven source release, then consumer-proof replay GC
 and the remaining subscription/downlink/owner/Will/lifecycle/tooling acceptance.
 Source release and the MQTT product listener are still unavailable; the full goal
 remains active. No schema or wire-format change was needed for this repair.
+
+## Original-source release from an own committed replay anchor
+
+Storage now exposes `ReleaseMQTTSourceAtAnchor` on the canonical Channel log and
+compatibility lease. The caller supplies only the generation and anchor position.
+Under append/checkpoint ownership it verifies its own committed journal, paired
+proposal/entry identities, activation, checkpoint, local shared tail and anchored
+cumulative prefix. A synchronous batch advances only System 12 and records the
+anchor manifest digest. Exact and older retries validate evidence before returning
+the current state. Local materialization revisions need not match across replicas
+that skip different intermediate anchors. No table, encoding, checkpoint mutation,
+content deletion, caller digest or caller release watermark is introduced.
+
+The storage tests exercise native replicas with identical anchors but missing
+shared content; import followed by release; historical anchor release while the
+local prefix is newer; protected suffix retention; concurrent release/trim;
+corrupt or missing evidence; revision overflow; cancelled/closed operations;
+restart and binary backup/restore after original history removal. Proofs rely on
+atomic immutable replay prefixes and bounded endpoint verification, not an audit
+of every historical body. Shared-content GC is still unavailable.
+
+Failure inventory and frozen context are in
+[mqtt-source-anchor-release.md](../specs/mqtt-source-anchor-release.md).
+
+Validation:
+
+- Test-first RED: `/tmp/mqtt-source-anchor-release-red.log` (missing interface).
+- Initial focused run exposed a fault-fixture issue: direct engine retention
+  corruption bypassed the warm cache. Switching to the retention writer also
+  required a valid retained-max sequence before testing the intended source-fence
+  violation. These were fixture corrections; production logic was unchanged.
+- `GOWORK=off go test -race ./pkg/db/... -count=1 -timeout=180s`:
+  all other packages passed, including transfer (100.378 s); the new retention
+  fixture was the only failure in message. `/tmp/mqtt-source-anchor-release-db.log`.
+- After correcting that fixture, `GOWORK=off go test -race ./pkg/db/message
+  -count=1 -timeout=120s`: passed, 31.659 s;
+  `/tmp/mqtt-source-anchor-release-message.log`.
+- `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-source-anchor-release-flow.log`. Generated index is current.
+
+Automatic source release still requires runtime/current-authority routing and
+bounded background invocation. Consumer-proof GC, subscription/inbox projection,
+permissions, durable downlink/ACK entry paths, unavailable-owner recovery, Will
+execution, full lifecycle/configuration, offline tooling and product/process/load
+acceptance remain required. Product MQTT access is still unavailable and the full
+implementation goal remains active.
