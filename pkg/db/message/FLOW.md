@@ -107,7 +107,7 @@ storage core without transferring shared-engine ownership.
   Format 4's System 13 protects the pending prefix; HW atomically creates System
   12. Duplicates keep the first boundary; only uncommitted suffixes can replace it.
   Backups skip pending controls and validate committed source/manifest pairs.
-  Activated checkpoint reads pin a coherent marker/source/HW view.
+  Source/checkpoint reads pin activation/source/HW; admission requires a covered control.
   Shared replay table 2 copies committed original content and prefix counters
   atomically, canonicalizes size hints, and meters ranges through small index-2
   endpoints. Local coverage never advances System 12 or claims quorum durability.

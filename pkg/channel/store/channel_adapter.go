@@ -1011,6 +1011,17 @@ func (a *messageDBChannelStoreAdapter) StoreCheckpoint(ctx context.Context, chec
 	return a.mapError(a.store.StoreCheckpointHWMonotonic(ctx, checkpoint.HW))
 }
 
+func (a *messageDBChannelStoreAdapter) LoadCommittedMQTTSource(ctx context.Context, through uint64) (ch.MQTTSourceSnapshot, bool, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTSourceSnapshot{}, false, err
+	}
+	source, found, err := a.store.LoadCommittedMQTTSourceState(ctx, through)
+	if err != nil || !found {
+		return ch.MQTTSourceSnapshot{}, false, a.mapError(err)
+	}
+	return ch.MQTTSourceSnapshot{Generation: source.Generation, StartAfter: source.StartAfter, CommittedThrough: through}, true, nil
+}
+
 func (a *messageDBChannelStoreAdapter) Close() error {
 	if a == nil {
 		return nil

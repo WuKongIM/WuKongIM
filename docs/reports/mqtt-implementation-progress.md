@@ -1687,3 +1687,65 @@ yet. Distributed shared-copy proof/advancement, migration/restore transfer,
 future-person-source admission, reliable delivery, permission-incarnation fencing
 and the other full MQTT requirements remain incomplete. The full goal stays
 active and the product listener stays unavailable.
+
+## Fenced source admission through the Channel facade
+
+Source `2354eaab9`; the frozen context and pre-code failure inventory are in
+[mqtt-source-channel-admission.md](../specs/mqtt-source-channel-admission.md).
+`MQTTSourceActivator.EnsureMQTTSource` now admits first activation through the
+existing reactor append queue and durable quorum owner. Native Append/AppendBatch
+cannot select controls by payload. The request requires Channel/leader epochs,
+route generation and an allocator-issued message identity with stable timestamp.
+The Channel remains reserved against eviction through confirmation.
+
+The reactor captures its own committed HW, then a typed task in the bounded
+checkpoint pool persists that boundary and reads one pinned activation/source/HW
+view. Pending controls beyond the captured boundary and unrelated local CAS
+state cannot claim committed protection. Temporary leases close on success,
+error and panic. Source queries share existing lookup cancellation and lifecycle
+guards; completion checks generation, epochs, route, leader readiness, write
+fencing, the admission guard and synchronous caller cancellation. Unsupported
+stores and the legacy non-quorum mode reject the capability.
+
+Already active protection returns without another control record. Concurrent
+first requests may append redundant controls but retain the first generation and
+protection start. The returned committed boundary is separately suitable for a
+new subscription's initial cursor; its previously chosen cursor must survive
+intent retries. This capability is local leader evidence, not fresh Slot routing,
+permission authorization or a distributed subscription receipt.
+
+Validation found and fixed two issues before delivery: the compatibility method
+initially returned the wrong nil-handle error, caught by the existing complete-
+surface lifecycle test; and a synchronous cancellation inside the admission guard
+could reach a successful reactor completion. The latter received a failing
+regression before the fix and now rechecks context after the guard returns.
+
+Verified:
+
+- The initial API gate failed before implementation as expected in
+  `/tmp/mqtt-source-admission-red.log`; cancellation regression evidence is in
+  `/tmp/mqtt-source-admission-cancel-red.log`.
+- `GOWORK=off go test ./pkg/quorumlog ./pkg/db/message ./pkg/channel/...
+  -count=1 -timeout=120s`: passed; `/tmp/mqtt-source-admission-regression-final.log`.
+  Message storage took 19.847 seconds; all Channel packages passed. The earlier
+  run's compatibility error is recorded in `/tmp/mqtt-source-admission-regression.log`.
+- `GOWORK=off go test -race -tags=integration ./pkg/channel/service
+  ./pkg/channel/reactor ./pkg/channel/worker ./pkg/db/message
+  -run '^TestMQTTSource' -count=1 -timeout=90s -v`: passed in 2.070 / 1.420 /
+  1.788 / 3.494 seconds; `/tmp/mqtt-source-admission-race-final.log`. Existing
+  macOS LC_DYSYMTAB linker warnings only. The real disk-backed single-node cluster
+  service test covers native payload isolation, ordered activation, repeated
+  admission without append, restart/recovery and protected trim. Another test
+  covers 16 concurrent first admissions. The test emits
+  `mqtt_source_channel_evidence`; these in-process runtimes are not product
+  process E2E acceptance or a new multi-node source-routing test.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine line-count
+  warnings; `/tmp/mqtt-source-admission-flow.log`. Message FLOW remains at the
+  150-line limit; Channel FLOW is 124 lines. `git diff --check` passed.
+
+Next work is the authoritative source-owner route and recoverable subscription
+projection, including its permission incarnation and first-DM future-source
+handshake. Distributed shared-copy proofs, transfer/GC, reliable delivery,
+Will execution, product lifecycle/config wiring and full process acceptance
+remain required. The product MQTT listener stays unavailable and the full
+implementation goal remains active.

@@ -31,6 +31,8 @@ It does not own reactor state machines, business retries, or dependency policy.
    checkpoint across channels while preserving per-task proof and results.
    Quorum install and commit use the bounded store-append pool but call the
    deep durable-log owner and are never worker-batched.
+   Source confirmation uses the checkpoint pool, persists reactor-captured HW
+   before its consistent protection read, and closes its temporary store lease.
 3. Close admission, resolve queued accepted tasks as closed when configured,
    cancel the runtime for active dependency calls, wait for handlers, and
    release the executor.

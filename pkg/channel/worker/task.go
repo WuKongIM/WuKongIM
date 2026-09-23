@@ -38,6 +38,8 @@ const (
 	TaskQuorumInstall
 	// TaskQuorumCommit executes one exact durable quorum proposal.
 	TaskQuorumCommit
+	// TaskStoreMQTTSource persists admitted HW and confirms source activation.
+	TaskStoreMQTTSource
 )
 
 // Task describes blocking work submitted to a bounded pool.
@@ -55,6 +57,7 @@ type Task struct {
 	StoreApply         *StoreApplyTask
 	// StoreCheckpoint persists a checkpoint before runtime eviction.
 	StoreCheckpoint *StoreCheckpointTask
+	StoreMQTTSource *StoreMQTTSourceTask
 	// StoreClose releases a store handle after the reactor has detached it.
 	StoreClose *StoreCloseTask
 	// StoreRetention adopts a logical retention boundary and optionally trims a safe prefix.
@@ -224,6 +227,8 @@ func (t Task) Run(ctx context.Context, deps Deps) Result {
 		res = runStoreApply(ctx, deps, t)
 	case TaskStoreCheckpoint:
 		res = runStoreCheckpoint(ctx, deps, t)
+	case TaskStoreMQTTSource:
+		res = runStoreMQTTSource(ctx, deps, t)
 	case TaskStoreClose:
 		res = runStoreClose(ctx, deps, t)
 	case TaskStoreRetention:

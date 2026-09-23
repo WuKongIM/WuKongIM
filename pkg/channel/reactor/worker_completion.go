@@ -16,6 +16,8 @@ func (r *Reactor) handleWorkerResult(event Event) {
 		r.handleStoreReadLogResult(event.Worker)
 	case worker.TaskStoreLookupMessage:
 		r.handleStoreLookupMessageResult(event.Worker)
+	case worker.TaskStoreMQTTSource:
+		r.handleStoreMQTTSourceResult(event.Worker)
 	case worker.TaskStoreCheckpoint:
 		r.handleStoreCheckpointResult(event.Worker)
 	case worker.TaskStoreClose:

@@ -54,6 +54,8 @@ type appendRequest struct {
 	enqueuedAt time.Time
 	records    []ch.Record
 	commitMode ch.CommitMode
+	// mqttSourceActivation preserves explicit control intent through queue retries.
+	mqttSourceActivation bool
 	// traceItems preserves selected transient trace sidecars across restore/retry.
 	traceItems []appendTraceItem
 	// traceEvaluated records that detail sampling already ran for this request.

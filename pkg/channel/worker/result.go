@@ -23,6 +23,7 @@ type Result struct {
 	StoreLookupMessage *StoreLookupMessageResult
 	StoreApply         *StoreApplyResult
 	StoreCheckpoint    *StoreCheckpointResult
+	StoreMQTTSource    *StoreMQTTSourceResult
 	StoreClose         *StoreCloseResult
 	StoreRetention     *StoreRetentionResult
 	RPCPull            *RPCPullResult

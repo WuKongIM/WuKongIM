@@ -78,6 +78,7 @@ func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 			Key: rc.state.Key, Expected: batch.authority, CommandID: batch.commandID, Records: batch.records,
 			PayloadsImmutable:         true,
 			ServerAllocatedMessageIDs: task.StoreAppend.ServerAllocatedMessageIDs,
+			MQTTSourceActivation:      batch.requests[0].mqttSourceActivation,
 		})
 	} else {
 		submitErr = r.submitStoreAppend(context.Background(), batch.requests[0].req.ChannelID, task)

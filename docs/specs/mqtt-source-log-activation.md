@@ -40,9 +40,10 @@ missing/mismatched projections and cuts that reinterpret an active source as
 pending. Matched runtimes/tools are required; old format readers reject format 4.
 No message body enters Slot metadata; no new metadata table is introduced.
 
-This slice exposes the replication primitive. Product reactor admission,
-projection receipts, source routing and SUBACK remain required. A local read or
-the mere presence of System 13 is never sufficient authorization for SUBACK.
+This slice exposes the replication primitive. [Channel admission](mqtt-source-channel-admission.md)
+now sequences first activation and confirms its committed projection. Source
+routing, subscription projection receipts and SUBACK remain required. A local
+read or the mere presence of System 13 is never sufficient authorization for SUBACK.
 
 ## Failure inventory before implementation
 

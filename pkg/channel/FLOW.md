@@ -90,7 +90,10 @@ DTOs, and `worker` bounds blocking I/O.
   domain. Replica stores must advertise atomic pending protection/materialization;
   unsupported factories reject append and recovery. Quorum, restart and learner
   repair carry the exact control. The first activation survives repeated controls;
-  product reactor/subscription admission and shared-copy transfer remain separate.
+  reactor admission orders it with business appends. The optional source facade
+  confirms captured HW through checkpoint workers and rechecks current fences;
+  existing protection avoids another control. Subscription projection and
+  shared-copy transfer remain separate; this receipt is not SUBACK authority.
 - Same-Channel append ordering survives batching and worker concurrency.
   Quorum success requires replicated progress; desired replicas never imply it.
 - Optional server Will lookup preserves its separate storage identity domain;

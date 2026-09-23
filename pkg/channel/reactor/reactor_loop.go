@@ -143,6 +143,8 @@ func (r *Reactor) handle(event Event) {
 		r.handleCheckState(event)
 	case EventLookupCommittedMessage:
 		r.handleLookupCommittedMessage(event)
+	case EventMQTTSource:
+		r.handleMQTTSource(event)
 	case EventRuntimeSnapshot:
 		r.handleRuntimeSnapshot(event)
 	case EventRuntimeProbe:

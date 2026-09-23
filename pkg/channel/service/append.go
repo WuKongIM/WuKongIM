@@ -31,6 +31,12 @@ func (c *cluster) Append(ctx context.Context, req ch.AppendRequest) (ch.AppendRe
 }
 
 func (c *cluster) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
+	return c.appendBatch(ctx, req, nil)
+}
+
+// appendBatch preserves the ordinary sequencer/cancellation path for explicit
+// source controls without exposing that intent on the generic append request.
+func (c *cluster) appendBatch(ctx context.Context, req ch.AppendBatchRequest, source *ch.MQTTSourceRequest) (ch.AppendBatchResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -44,7 +50,12 @@ func (c *cluster) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (c
 	defer releaseAppend()
 	opID := c.group.NextOpID()
 	started = time.Now()
-	future, err := c.group.Submit(ctx, key, reactor.Event{Kind: reactor.EventAppend, Key: key, Append: req, Context: ctx, OpID: opID})
+	event := reactor.Event{Kind: reactor.EventAppend, Key: key, Append: req, Context: ctx, OpID: opID}
+	if source != nil {
+		event.MQTTSourceActivation = true
+		event.MQTTSource = *source
+	}
+	future, err := c.group.Submit(ctx, key, event)
 	c.observeAppendStage("runtime_append_submit", err, time.Since(started))
 	if err != nil {
 		return ch.AppendBatchResult{}, err

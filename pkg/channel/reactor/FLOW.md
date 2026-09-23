@@ -68,6 +68,10 @@ typed bounded workers and returns as `EventWorkerResult`.
   factory or database.
 - Committed lookup is read-only and returns a row only when its positive
   sequence is covered by current HW.
+- Source confirmation captures HW under recovered leader/epoch/route/write
+  admission, then checkpoints and reads protection in a bounded worker. Lookup
+  waiters also guard its cancellation and lifecycle; completion rechecks every
+  fence and context. First source controls share the ordered quorum append queue.
 
 ## Read First
 

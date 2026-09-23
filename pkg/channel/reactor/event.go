@@ -50,6 +50,8 @@ const (
 	// EventLeaderEvictReady performs the final normal-priority leader eviction recheck.
 	EventLeaderEvictReady
 	EventClose
+	// EventMQTTSource captures committed progress and confirms source protection.
+	EventMQTTSource
 )
 
 // Event is the mailbox envelope consumed by reactors.
@@ -79,6 +81,10 @@ type Event struct {
 	RuntimeChannelIDs []ch.ChannelID
 	// LeaderEvictAppendSeq fences final leader eviction behind same-channel Append submissions.
 	LeaderEvictAppendSeq uint64
+	// MQTTSource fences source confirmation and explicit control append admission.
+	MQTTSource ch.MQTTSourceRequest
+	// MQTTSourceActivation selects a canonical control only on EventAppend.
+	MQTTSourceActivation bool
 }
 
 func eventKindName(kind EventKind) string {
@@ -121,6 +127,8 @@ func eventKindName(kind EventKind) string {
 		return "EventLeaderEvictReady"
 	case EventClose:
 		return "EventClose"
+	case EventMQTTSource:
+		return "EventMQTTSource"
 	default:
 		return "EventUnknown"
 	}
