@@ -63,3 +63,26 @@ Verified commands (2026-09-23):
 
 The source protection/replay chain must precede enabling persistent MQTT access;
 a connected online-only slice is not completion of this goal.
+
+## Process acceptance in progress
+
+The interop scenario now compiles with standard Eclipse Paho clients, authenticated
+WKProto helpers, real cluster startup and bounded JSON result artifacts. Its first
+single-node run is intentionally RED: configuration rendering rejects the not-yet
+implemented `WK_MQTT_ENABLE` key. No product MQTT connection was accepted and no
+passing result artifact was written.
+
+Frozen harness context before edits:
+
+- `test/e2e/AGENTS.md`: `59bb62e0ce12e7b25324108976cfbf5fe3a939a5ff1c93d09e2a8050e7be79b2`
+- `test/e2e/suite/FLOW.md`: `3bf6d34b55434d0e4cb2c257c92d354fa30a8e938b2308b10c7112cf7d78df56`
+
+The suite FLOW and catalog now mention MQTT. The scenario has its own domain and
+scenario AGENTS files. This red acceptance must not be skipped or counted as a
+successful feature gate while gateway and durable capabilities are developed.
+
+Harness validation passed:
+- Focused existing WKProto suite-helper tests with `-tags=e2e`.
+- Named `flow-doc-contracts` check from the repository policy, with `GOWORK=off`,
+  after regenerating the index. It reports 81 compliant FLOW files and 9 existing
+  length warnings, with no invalid files.

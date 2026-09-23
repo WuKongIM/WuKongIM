@@ -12,7 +12,7 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
 
 ## Boundaries
 
-- Helpers observe public HTTP, WKProto, metrics, process state, and bounded
+- Helpers observe public HTTP, WKProto, MQTT 5, metrics, process state, and bounded
   artifacts; they do not import app, use cases, or storage internals.
 - `WK_E2E_*` is harness-only and is removed from spawned nodes. Real product
   variables must be passed explicitly through `NodeSpec.Env`.
@@ -42,6 +42,10 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
 - Managed-process WKProto readiness registers a dedicated device token through
   Product HTTP, then proves a real authenticated handshake. Registration errors
   remain bounded and never echo credentials; readiness does not disable auth.
+- MQTT fixtures use independent Eclipse Paho clients with bounded receive queues
+  and deadlines. Queue overflow fails the observation instead of dropping a
+  message silently. Explicit WK fixture credentials preserve token-auth behavior;
+  no client helper provisions credentials or makes application retry decisions.
 - WebSocket gateway opt-in publishes only the allocated loopback listener;
   TCP WKProto remains the readiness authority for the started node.
 - Diagnostics expose bounded paths and tails. TOML is re-encoded only after

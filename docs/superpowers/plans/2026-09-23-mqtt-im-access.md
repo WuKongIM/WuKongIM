@@ -8,7 +8,7 @@
 
 - 已完成独立 MQTT 5 输入/输出 codec，具备包长、属性和订阅数量上限；literal fixtures 与 Eclipse Paho v0.23.0 交叉验证，不依赖 WK frame。
 - 已固定 [wire contract](../../specs/mqtt-wire-contract.md)，实现精确 topic 编码、CONNECT 凭据提取和保留属性校验。
-- 单节点/三节点产品 E2E、网关接入、六张元数据表、共享 replay、发布元数据复制、源保护、持久会话/Will/配额仍待实现，不能开启入口或声明功能完成。
+- 单节点/三节点产品 E2E 场景已编译，首次单节点运行因缺失 MQTT 配置项失败；网关接入、六张元数据表、共享 replay、发布元数据复制、源保护、持久会话/Will/配额仍待实现，不能开启入口或声明功能完成。
 - 验证与冻结源码依据见 [实施记录](../../reports/mqtt-implementation-progress.md)。
 
 ## 开工合同

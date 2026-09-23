@@ -52,6 +52,12 @@ func (c *WKProtoClient) Connect(addr, uid, deviceID string) error {
 
 // ConnectContext opens the TCP connection and returns the successful Connack.
 func (c *WKProtoClient) ConnectContext(ctx context.Context, addr, uid, deviceID string) (*frame.ConnackPacket, error) {
+	return c.ConnectAuthenticatedContext(ctx, addr, uid, deviceID, "", frame.APP)
+}
+
+// ConnectAuthenticatedContext uses a provisioned device token without disabling
+// product authentication. The harness never logs or persists token input.
+func (c *WKProtoClient) ConnectAuthenticatedContext(ctx context.Context, addr, uid, deviceID, token string, flag frame.DeviceFlag) (*frame.ConnackPacket, error) {
 	if c == nil {
 		return nil, fmt.Errorf("wkproto client: nil client")
 	}
@@ -72,7 +78,8 @@ func (c *WKProtoClient) ConnectContext(ctx context.Context, addr, uid, deviceID 
 	connack, err := inner.Connect(ctx, wkclient.ConnectOptions{
 		UID:        uid,
 		DeviceID:   deviceID,
-		DeviceFlag: frame.APP,
+		DeviceFlag: flag,
+		Token:      token,
 	})
 	if err != nil {
 		_ = inner.Close()
