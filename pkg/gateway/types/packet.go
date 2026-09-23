@@ -21,7 +21,11 @@ type PacketAuthResult struct {
 	Accepted      bool
 	Reply         any
 	SessionValues map[string]any
-	Rollback      func(error)
+	// CheckReply optionally revalidates accepted activation immediately before
+	// reply enqueue. It must be bounded and retain resources until open/rollback.
+	// An error or panic prevents the reply and invokes Rollback exactly once.
+	CheckReply func() error
+	Rollback   func(error)
 }
 
 // WritePacket uses the session's common encode/write/close serialization lock.

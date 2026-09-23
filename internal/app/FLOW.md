@@ -62,7 +62,7 @@ Stop or startup rollback
 - Optional features are wired only when all required ports exist; unavailable
   capabilities stay explicit instead of receiving partial implementations.
 - MQTT adapters map Will setup to uncached publish policy and connection-worker
-  renewal/observed disconnect to Session usecases. Product wiring remains pending.
+  renewal/observed disconnect to Session usecases. Real-gateway/Paho integration validates the entry; product wiring remains pending.
 - Command-channel suffixes are injected across send, delivery, CMD sync, plugin
   projection and Manager filtering without process-global state.
 - The normalized message system UID is injected consistently into user

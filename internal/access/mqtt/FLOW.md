@@ -1,6 +1,6 @@
 ---
 scope: package
-summary: Maps MQTT identities and publications and binds authenticated PUBLISH to shared message policy with exact-owner execution and committed ACKs.
+summary: Maps MQTT gateway lifecycle and publications to Session and message usecases with exact-owner execution and committed ACKs.
 ---
 
 # MQTT Access Mapping Flow
@@ -8,8 +8,9 @@ summary: Maps MQTT identities and publications and binds authenticated PUBLISH t
 ## Responsibility
 
 This package maps wire-validated MQTT 5 packets to IM identities and immutable
-publication content. Product listener/session orchestration is not yet wired.
-Its Publisher bridges accepted connections to the existing message usecase.
+publication content. Handler binds generic gateway callbacks to Session acquisition
+and connection supervision; Publisher invokes the existing message usecase.
+Product listener composition, subscription and delivery remain unavailable.
 
 ## Boundaries
 
@@ -30,6 +31,11 @@ Its Publisher bridges accepted connections to the existing message usecase.
 5. Confirm a committed result before QoS 1 PUBACK; retain the scope through reply
    enqueue. Definite rejection maps to a valid MQTT reason. Uncertain Send fences
    closure and marks unresolved owner work before releasing the local scope.
+6. Acquire and register CONNECT ownership, hold an operation across CONNACK,
+   check admission immediately before reply, then release on open or rollback.
+7. Control packets admit the same owner. Close callbacks enqueue cleanup without
+   joining packet execution; decoded DISCONNECT receipt survives TCP EOF before
+   mailbox dispatch. Validate direction/expiry before suppressing Will.
 
 ## Invariants and Failure Semantics
 
@@ -47,14 +53,17 @@ Its Publisher bridges accepted connections to the existing message usecase.
 - PacketID is reply correlation only. Unknown append outcomes emit no PUBACK and
   cannot prove takeover safety even after physical close and local scope drain.
   Proof-based recovery and complete product admission remain pending.
+- Register normal disconnect intent before fencing renewal; retain its original
+  monotonic observation. Invalid expiry/direction never cancels Will. Peer packet
+  limits apply to accepted and rejected CONNACK. Unsupported controls fail closed.
 
 ## Read First
 
 - [Identity and topic mapping](mapping.go)
 - [Publication mapping](publication.go)
 - [Authenticated publish entry](publisher.go)
-- [Application contract](../../../docs/specs/mqtt-wire-contract.md)
-- [Publish failure inventory](../../../docs/specs/mqtt-publish-entry.md)
+- [Gateway lifecycle entry](handler.go)
+- [Gateway failure inventory](../../../docs/specs/mqtt-gateway-entry.md)
 
 ## Update Triggers
 

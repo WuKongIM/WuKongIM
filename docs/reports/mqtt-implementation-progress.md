@@ -1,11 +1,14 @@
 # MQTT implementation progress
 
 Full goal: implement the approved [MQTT IM access design](../specs/mqtt-im-access.md).
-Status: in progress; the product has no MQTT listener yet. The codec, generic
-gateway, six MQTT metadata tables with Slot commands, publication storage and
-Channel replication/RPC propagation are implemented. The shared replay table,
-cluster session recovery, source retention protection and durable delivery remain
-outstanding. No passing product E2E or capacity claim is made.
+Status: in progress; product MQTT admission remains unavailable. Codec/gateway,
+six metadata tables with authoritative Slot access, publication propagation,
+local replay/source-protection storage, Session acquisition/deadlines, owner
+supervision and the internal gateway/PUBLISH entry are implemented. Real Paho/TCP
+integration passes on a single-node cluster with 256 hash Slots. Distributed
+replay/source activation, subscription/delivery, Will execution, recovery/restore
+composition and capacity acceptance remain outstanding. No passing product E2E
+or capacity claim is made.
 
 ## Frozen starting context
 
@@ -1454,3 +1457,56 @@ pending, alongside subscription/delivery, distributed replay/source activation,
 Will execution, uncertain/unreachable-owner recovery proof, state transfer and
 pressure acceptance. Product MQTT admission remains unavailable and the original
 full implementation goal stays active.
+
+## Gateway entry and real Paho transport integration
+
+Frozen source `ffdf821a9`, applicable context digests and the pre-code failure
+inventory are in [mqtt-gateway-entry.md](../specs/mqtt-gateway-entry.md). No table,
+Slot command or product configuration changes are needed for this slice.
+
+`internal/access/mqtt.Handler` maps CONNECT credentials/Will and negotiated limits
+to Session acquisition. Registration precedes acceptance. An owner operation
+spans the gateway-owned CONNACK enqueue and transfers exactly once to open or
+rollback cleanup. Optional generic `PacketAuthResult.CheckReply` checks live
+activation immediately before enqueue; its error/panic prevents CONNACK and
+rolls back. Acquisition has a bounded timeout; the handshake operation instead
+follows the gateway request lifetime. Both successful and rejected CONNACK honor
+the peer's full uint32 Maximum Packet Size. Fixed errors contain no secrets.
+
+Private accepted connection evidence feeds Publisher and owner-gated PING. Client
+DISCONNECT validates reason direction and expiry; original zero expiry cannot
+be extended. Close/rollback callbacks release handshake state and enqueue cleanup
+without waiting for their own packet scope. One normal-intent ordering regression
+proved that Connections must receive intent before explicit fencing, otherwise
+concurrent renewal can synthesize abnormal cleanup first.
+
+Real Paho then exposed TCP EOF racing queued DISCONNECT. Before the fix, normal
+client shutdown left its Will waiting. A deterministic decode/close regression
+also failed. The MQTT adapter now retains one constant-size, immutable receipt
+of the first fully decoded DISCONNECT, with trusted monotonic observation and
+only reason/expiry/server-reference presence. The entry validates it on close;
+no client diagnostic strings, properties or payload are retained. This does not
+execute pending messages after closure or substitute socket close for isolation.
+
+Tests preceded implementation and each discovered fix. Verification:
+
+- `GOWORK=off go test ./internal/access/mqtt ./pkg/gateway/... -count=1 -timeout=90s`
+  passed for all listed gateway packages; `/tmp/mqtt-gateway-default.log`.
+- `GOWORK=off go test -race -tags=integration ./internal/access/mqtt ./internal/app
+  ./pkg/gateway/core -run '^TestHandler|^TestMQTTGatewayPahoSingleNodeCluster$|^TestPacketProtocol|^TestPhysicalTransportCloseProofTCPAndWebSocket$'
+  -count=1 -timeout=120s -v` passed: 2.909 / 5.945 / 2.605 seconds. No data races;
+  existing macOS LC_DYSYMTAB linker warnings remain. Log: `/tmp/mqtt-gateway-race.log`.
+- The Paho scenario uses real gnet TCP, durable device-token validation, actual
+  message/Session usecases and a single-node cluster with 256 hash Slots. It
+  proves invalid-token non-eviction, committed PUBACK, same-ID physical takeover,
+  persistent Session resume, normal/abnormal Will decisions, small-CONNACK
+  rollback and joined cleanup. TCP and WebSocket physical-close regression also
+  passed. The test emits a reproducible `mqtt_gateway_evidence` summary.
+- Named `flow-doc-contracts` passed after index regeneration: 86 compliant,
+  zero invalid, the same 9 existing line-count warnings. `git diff --check` passed.
+
+This is internal app integration, not full product/process-level acceptance.
+Subscription/unsubscription/downstream ACK entry, reliable delivery, distributed
+source activation/replay, Will execution, uncertain/unavailable-owner recovery,
+app lifecycle/restore wiring, state transfer and pressure acceptance remain
+required. Product MQTT config stays unavailable and the full goal stays active.

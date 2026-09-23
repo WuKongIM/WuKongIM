@@ -185,6 +185,33 @@ func TestPacketProtocolRollsBackAcceptedConnectionOnWriteFailure(t *testing.T) {
 	require.Empty(t, rolled, "activation rolled back twice")
 }
 
+func TestPacketProtocolChecksAcceptedReplyBeforeEnqueue(t *testing.T) {
+	for _, panicCheck := range []bool{false, true} {
+		rolled := make(chan error, 1)
+		h := &packetHandler{opened: make(chan gt.Context, 1), closed: make(chan struct{}, 1), connect: func(gt.Context, any) (*gt.PacketAuthResult, error) {
+			return &gt.PacketAuthResult{Accepted: true, Reply: &mqtt.Connack{}, CheckReply: func() error {
+				if panicCheck {
+					panic("secret")
+				}
+				return errors.New("owner expired before reply")
+			}, Rollback: func(err error) { rolled <- err }}, nil
+		}, packet: func(gt.Context, any) error { return nil }}
+		_, factory := packetServer(t, h)
+		conn := factory.MustOpen("mqtt", 1)
+		factory.MustData("mqtt", 1, packetConnect)
+		select {
+		case err := <-rolled:
+			require.Error(t, err)
+			require.NotContains(t, err.Error(), "secret")
+		case <-time.After(5 * time.Second):
+			t.Fatal("reply check did not roll back")
+		}
+		require.Empty(t, conn.Writes())
+		require.Empty(t, h.opened)
+		require.Empty(t, h.closed)
+	}
+}
+
 func TestPacketProtocolLateAuthenticationRollsBackAfterPeerViolation(t *testing.T) {
 	entered, release, rolled := make(chan struct{}), make(chan struct{}), make(chan struct{}, 1)
 	h := &packetHandler{opened: make(chan gt.Context, 1), closed: make(chan struct{}, 1), connect: func(gt.Context, any) (*gt.PacketAuthResult, error) {

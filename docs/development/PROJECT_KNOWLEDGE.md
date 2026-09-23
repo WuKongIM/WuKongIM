@@ -235,6 +235,12 @@ specification, runbook, report, or module documentation; link to them when neede
   its trusted monotonic observation survive retries. Stop fences admission and
   joins registered work without erasing failed cleanup; app also closes remaining
   unregistered Owners. Restore requires a fresh registry/boot and supervisor.
+  The [gateway entry](../specs/mqtt-gateway-entry.md) retains execution across
+  CONNACK and rechecks before enqueue; close callbacks never join packet scopes.
+  A constant-size decoded DISCONNECT receipt survives EOF before mailbox dispatch.
+  Validate client reason/expiry before cancelling Will, and register normal intent
+  before fencing renewal. Real Paho/TCP integration passes; product admission,
+  subscription/delivery and complete recovery remain unavailable.
   The [Session usecase](../specs/mqtt-session-acquisition.md) verifies device
   credentials without WK conflict actions, isolates the exact old owner, rereads
   authority, atomically commits Session/Will and activates only the local candidate.

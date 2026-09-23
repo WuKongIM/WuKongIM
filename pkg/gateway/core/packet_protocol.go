@@ -175,6 +175,12 @@ func (s *Server) runPacketAuthTask(task asyncAuthTask) {
 		state.close(gt.CloseReasonPolicyViolation, err)
 		return
 	}
+	if result.CheckReply != nil {
+		if err = callPacketCallback(result.CheckReply); err != nil {
+			state.close(gt.CloseReasonPolicyViolation, err)
+			return
+		}
+	}
 	if !state.beginAuthenticatedOpen() {
 		return
 	}

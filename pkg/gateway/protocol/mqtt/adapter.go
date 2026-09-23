@@ -16,6 +16,28 @@ const Name = "mqtt"
 // It limits every server packet, including the authentication reply.
 const SessionMaximumPacketSize = "gateway.mqtt.maximum_packet_size"
 
+const disconnectObservationKey = "gateway.mqtt.disconnect_observation"
+
+// DisconnectObservation preserves one fully decoded peer intent across TCP EOF
+// racing the ordered packet mailbox. It retains no payload, strings or properties;
+// entry policy must still validate direction and the negotiated Session expiry.
+type DisconnectObservation struct {
+	Reason                               byte
+	SessionExpirySec                     uint32
+	HasSessionExpiry, HasServerReference bool
+	ObservedAt                           time.Time
+}
+
+// ReceivedDisconnect returns a value copy of the first complete DISCONNECT.
+// Decode owns its monotonic observation; clients cannot supply this timestamp.
+func ReceivedDisconnect(s session.Session) (DisconnectObservation, bool) {
+	if s == nil {
+		return DisconnectObservation{}, false
+	}
+	o, ok := s.Value(disconnectObservationKey).(DisconnectObservation)
+	return o, ok
+}
+
 // Adapter owns immutable codec limits; client/session policy stays outside it.
 type Adapter struct{ limits wire.Limits }
 
@@ -24,7 +46,7 @@ func (*Adapter) Name() string                  { return Name }
 func (*Adapter) OnOpen(session.Session) error  { return nil }
 func (*Adapter) OnClose(session.Session) error { return nil }
 
-func (a *Adapter) DecodePackets(_ session.Session, in []byte) ([]protocol.InboundPacket, int, error) {
+func (a *Adapter) DecodePackets(sess session.Session, in []byte) ([]protocol.InboundPacket, int, error) {
 	var out []protocol.InboundPacket
 	consumed := 0
 	// A coalesced network read must not allocate one object per tiny packet.
@@ -40,6 +62,21 @@ func (a *Adapter) DecodePackets(_ session.Session, in []byte) ([]protocol.Inboun
 		if connect, ok := p.(*wire.Connect); ok {
 			timeout := time.Duration(connect.KeepAlive) * 1500 * time.Millisecond
 			packet.ReadIdleTimeout = &timeout
+		}
+		if disconnect, ok := p.(*wire.Disconnect); ok && sess != nil {
+			if _, seen := ReceivedDisconnect(sess); !seen {
+				o := DisconnectObservation{Reason: disconnect.Reason, ObservedAt: time.Now()}
+				for _, property := range disconnect.Properties {
+					switch property.ID {
+					case wire.SessionExpiryInterval:
+						o.HasSessionExpiry = true
+						o.SessionExpirySec = property.Number
+					case wire.ServerReference:
+						o.HasServerReference = true
+					}
+				}
+				sess.SetValue(disconnectObservationKey, o)
+			}
 		}
 		out = append(out, packet)
 		consumed += n

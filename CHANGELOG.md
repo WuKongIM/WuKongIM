@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add MQTT gateway handshake, authenticated publishing and asynchronous disconnect handling, including normal DISCONNECT followed immediately by TCP close. Verified with Paho against a single-node cluster; product MQTT admission remains under development. / 新增 MQTT 网关握手、认证发布和异步断连处理，正确保留发送 DISCONNECT 后立即关闭 TCP 的正常退出意图；已用 Paho 对单节点集群验证，产品 MQTT 入口仍在开发。
+
 - Add bounded MQTT connection renewal and asynchronous disconnect scheduling, preserving original disconnect timing through retries and joined shutdown. Product MQTT admission remains under development. / 新增有界 MQTT 连接续租与异步断连调度，重试保留原始断连时刻，停止等待已接纳任务完成；产品 MQTT 入口仍在开发。
 
 - Add the authenticated MQTT PUBLISH adapter over existing IM permissions and durable sends, with committed QoS 1 acknowledgments and takeover fencing for uncertain writes. Product MQTT admission and uncertain-write recovery remain under development. / MQTT 发布适配复用现有 IM 权限与持久消息链路，QoS 1 提交后确认；未决写入阻止接管产生错误隔离证明。产品 MQTT 入口与未决写入恢复仍在开发。
