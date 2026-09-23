@@ -126,6 +126,18 @@ become its comparison body. Failure coverage includes an app-wired send, edit,
 clock-only retry and changed-QoS rejection against a real single-node cluster
 with 256 hash slots, plus routed original reads on a three-node cluster.
 
+Owner-push request `WKVD` version 2 preserves the complete committed envelope:
+after the version-1 envelope fields, append setting byte, topic string, expiry
+uvarint, append timestamp varint, SyncOnce boolean and bounded metadata bytes;
+routes follow that extension. Version 1 remains byte-identical for envelopes
+without any extended value. Responses stay version 1. An older owner must reject
+version 2 instead of accepting a request with lost publication attributes.
+Failures to cover before implementation: each independently nonzero extension
+selects version 2, native version-1 fixture stability, every truncated prefix,
+unknown/mislabeled version, oversized or malformed metadata, independent byte
+ownership in both projection directions, and a real client/handler round trip
+preserving the entire event and classified recipient results.
+
 The next propagation boundary includes SendCommand, durable Message, committed
 and transient envelopes, appender mappings and the product append node RPC.
 Each clone must own metadata bytes; borrowed synchronous values remain immutable.

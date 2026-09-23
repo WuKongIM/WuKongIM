@@ -205,7 +205,9 @@ specification, runbook, report, or module documentation; link to them when neede
   requests retain version 2. Business retries compare original content excluding
   only ingress time and preserve the original clock. Routed original committed
   reads retain HW/retention fences and omit history-edit overlays for retry proof.
-  Owner-push RPC, offline transfer and capability gates remain before activation.
+  Owner-push RPC 2 preserves content, settings and original timestamp; envelopes
+  with extended fields need upgraded owners, including native sends with time.
+  Offline transfer and capability gates remain before activation.
   See the [publication contract](../specs/mqtt-publication-metadata.md).
   Source-owned binding tombstones prevent delayed prepares from resurrecting a
   subscription. Unknown source boundaries block reclamation; stored progress

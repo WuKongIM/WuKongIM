@@ -13,11 +13,9 @@ management and Operations MCP. Routing, retries and business policy live elsewhe
 
 ## Boundaries
 
-RPC service IDs come from the cluster transport. Request and response DTOs
-adapt narrow contracts from use cases and runtimes; local implementations are
-injected by `internal/app`. Origin-side orchestration chooses the target. The
-receiver revalidates only local authority and fences required by the operation,
-then calls the configured local port.
+Cluster transport assigns service IDs; DTOs adapt narrow usecase/runtime ports
+injected by `internal/app`. The origin chooses targets; receivers revalidate
+local authority and required fences before calling the configured port.
 
 ## Main Flows
 
@@ -58,6 +56,8 @@ scheduled backup or restore
   appends outside local authority, or runs post-commit effects elsewhere.
 - Channel append request 3 carries bounded publication metadata. Native-only
   requests retain version-2 bytes; invalid metadata fails before dispatch.
+- Owner-push request 2 preserves publication metadata, original timestamp and
+  message settings. Empty extensions keep version-1 bytes; lossy downgrade is forbidden.
 - Transport cancellation and unavailable-target failures map to stable typed
   caller errors without reordering active aligned items.
 - Manager latest-message RPC preserves bounded scan saturation as its stable

@@ -16,8 +16,9 @@ It does not select subscribers, append messages, or build gateway packets.
 - The runtime depends on narrow plan, presence, owner-push, local-write,
   offline, ACK, and observation ports; it does not import app, gateway,
   concrete cluster runtimes, Prometheus, or packet builders.
-- Exported version-one owner-push DTOs remain wire compatibility types;
-  canonical logic uses `internal/contracts/onlinedelivery`.
+- Exported owner-push DTOs remain wire compatibility types; request version 2
+  carries full publication content while version-1 fields keep their layout.
+  Canonical logic uses `internal/contracts/onlinedelivery`.
 - Durable append, subscriber selection, and webhook delivery live elsewhere.
 
 ## Main Flows

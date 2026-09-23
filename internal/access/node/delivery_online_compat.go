@@ -8,8 +8,8 @@ import (
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
 )
 
-// OnlineDeliveryOwnerPush accepts canonical owner pushes while the stable wire
-// codec remains compatible with the legacy delivery DTOs.
+// OnlineDeliveryOwnerPush accepts canonical owner pushes through the versioned
+// wire codec, retaining the original layout for version-one envelopes.
 type OnlineDeliveryOwnerPush interface {
 	PushOwner(context.Context, onlinedelivery.OwnerPush) (onlinedelivery.OwnerPushResult, error)
 }
@@ -19,7 +19,7 @@ type onlineDeliveryOwnerPushAdapter struct {
 }
 
 // AdaptOnlineDeliveryOwnerPush exposes a canonical owner pusher through the
-// existing server-side legacy port while the version-one wire remains stable.
+// existing server-side port without losing extended publication content.
 func AdaptOnlineDeliveryOwnerPush(push OnlineDeliveryOwnerPush) DeliveryOwnerPush {
 	if push == nil {
 		return nil
@@ -53,33 +53,45 @@ func legacyDeliveryPushFromOnline(push onlinedelivery.OwnerPush) runtimedelivery
 
 func onlineDeliveryEnvelopeFromLegacy(env runtimedelivery.Envelope) channelappendcontract.CommittedEnvelope {
 	return channelappendcontract.CommittedEnvelope{
-		MessageID:         env.MessageID,
-		MessageSeq:        env.MessageSeq,
-		ChannelID:         env.ChannelID,
-		ChannelType:       env.ChannelType,
-		FromUID:           env.FromUID,
-		SenderNodeID:      env.SenderNodeID,
-		SenderSessionID:   env.SenderSessionID,
-		ClientMsgNo:       env.ClientMsgNo,
-		RedDot:            env.RedDot,
-		Payload:           append([]byte(nil), env.Payload...),
-		MessageScopedUIDs: append([]string(nil), env.MessageScopedUIDs...),
+		MessageID:           env.MessageID,
+		MessageSeq:          env.MessageSeq,
+		ChannelID:           env.ChannelID,
+		ChannelType:         env.ChannelType,
+		FromUID:             env.FromUID,
+		SenderNodeID:        env.SenderNodeID,
+		SenderSessionID:     env.SenderSessionID,
+		ClientMsgNo:         env.ClientMsgNo,
+		Setting:             env.Setting,
+		Topic:               env.Topic,
+		Expire:              env.Expire,
+		ServerTimestampMS:   env.ServerTimestampMS,
+		SyncOnce:            env.SyncOnce,
+		PublicationMetadata: append([]byte(nil), env.PublicationMetadata...),
+		RedDot:              env.RedDot,
+		Payload:             append([]byte(nil), env.Payload...),
+		MessageScopedUIDs:   append([]string(nil), env.MessageScopedUIDs...),
 	}
 }
 
 func legacyDeliveryEnvelopeFromOnline(event channelappendcontract.CommittedEnvelope) runtimedelivery.Envelope {
 	return runtimedelivery.Envelope{
-		MessageID:         event.MessageID,
-		MessageSeq:        event.MessageSeq,
-		ChannelID:         event.ChannelID,
-		ChannelType:       event.ChannelType,
-		FromUID:           event.FromUID,
-		SenderNodeID:      event.SenderNodeID,
-		SenderSessionID:   event.SenderSessionID,
-		ClientMsgNo:       event.ClientMsgNo,
-		RedDot:            event.RedDot,
-		Payload:           append([]byte(nil), event.Payload...),
-		MessageScopedUIDs: append([]string(nil), event.MessageScopedUIDs...),
+		MessageID:           event.MessageID,
+		MessageSeq:          event.MessageSeq,
+		ChannelID:           event.ChannelID,
+		ChannelType:         event.ChannelType,
+		FromUID:             event.FromUID,
+		SenderNodeID:        event.SenderNodeID,
+		SenderSessionID:     event.SenderSessionID,
+		ClientMsgNo:         event.ClientMsgNo,
+		Setting:             event.Setting,
+		Topic:               event.Topic,
+		Expire:              event.Expire,
+		ServerTimestampMS:   event.ServerTimestampMS,
+		SyncOnce:            event.SyncOnce,
+		PublicationMetadata: append([]byte(nil), event.PublicationMetadata...),
+		RedDot:              event.RedDot,
+		Payload:             append([]byte(nil), event.Payload...),
+		MessageScopedUIDs:   append([]string(nil), event.MessageScopedUIDs...),
 	}
 }
 

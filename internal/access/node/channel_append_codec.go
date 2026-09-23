@@ -345,7 +345,7 @@ func readChannelAppendSendCommand(body []byte, offset int, version byte) (channe
 		return channelappend.SendCommand{}, offset, err
 	}
 	if version == 3 {
-		if cmd.PublicationMetadata, offset, err = readChannelAppendPublication(body, offset); err != nil {
+		if cmd.PublicationMetadata, offset, err = readPublicationBytes(body, offset); err != nil {
 			return channelappend.SendCommand{}, offset, err
 		}
 	}
@@ -562,24 +562,4 @@ func validateChannelAppendCollectionLen(count uint64, remaining int, label strin
 		return fmt.Errorf("internal/access/node: %s length exceeds payload", label)
 	}
 	return nil
-}
-
-// readChannelAppendPublication bounds and validates before taking ownership.
-func readChannelAppendPublication(body []byte, offset int) ([]byte, int, error) {
-	size, next, err := readUvarint(body, offset)
-	if err != nil {
-		return nil, offset, err
-	}
-	if size > publication.MaxEncodedBytes || size > uint64(len(body)-next) {
-		return nil, offset, publication.ErrTooLarge
-	}
-	if size == 0 {
-		return nil, next, nil
-	}
-	end := next + int(size)
-	value := body[next:end]
-	if _, err := publication.Decode(value); err != nil {
-		return nil, offset, err
-	}
-	return append([]byte(nil), value...), end, nil
 }

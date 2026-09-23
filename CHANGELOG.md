@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Owner-push RPC 2 preserves publication metadata, message settings and the original timestamp across nodes. Upgrade recipient owners together; extended envelopes, including native sends with timestamps, cannot fall back to older peers. / owner-push RPC 2 保留跨节点投递的发布元数据、消息设置和原始时间戳；接收连接所在节点须同步升级，含扩展字段的消息（包括带时间戳的原生消息）不会降级转发给旧节点。
+
 - Preserve publication metadata through send commands and forwarding, and verify retries against original committed content so later message edits cannot cause false conflicts. The MQTT product listener remains unavailable. / 发送命令与转发保留发布元数据，重试使用原始已提交内容校验，避免后续消息编辑造成错误冲突；MQTT 产品入口仍未开放。
 
 - Channel quorum exchange now requires matched version-6 peers, including native traffic before MQTT is enabled. Upgrade replicas together; older data-bearing exchanges are rejected. / Channel 多数派复制协议升级为 exchange 6，MQTT 尚未启用时的原生消息流量同样要求各副本版本一致；须同步升级副本，旧版数据交换将被拒绝。

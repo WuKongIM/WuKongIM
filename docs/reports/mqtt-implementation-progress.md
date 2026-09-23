@@ -683,3 +683,39 @@ server Will idempotency, JSONL transfer, restore consumers, shared replay,
 protected source retention, session execution, owner isolation, cleanup,
 capability gates and process/scale acceptance remain required. Product MQTT
 E2E is still RED and the listener remains unavailable; the full goal is active.
+
+## Lossless owner-push content
+
+Frozen source context at `d2975716b`: root `AGENTS.md` remains
+`d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade`;
+`internal/access/node/FLOW.md` is
+`456bab390a29044e80d250a00532c95ee92548cdb2b481070265561c4c655459`;
+`internal/runtime/delivery/FLOW.md` is
+`82ce3526ea629c78e67abb809b56ba2606ec40756c64fc5021e853b5e4bd008b`.
+
+The owner-push compatibility projection and request version 2 now preserve all
+committed-envelope fields, including publication bytes, original timestamp,
+setting, topic, expiry and SyncOnce. Sequence-zero transient messages use the
+same content path. Each nonzero extension selects version 2; envelopes with no
+extensions keep literal version-1 bytes, and responses remain version 1. No
+lossy downgrade is attempted. Native sends carrying append timestamps therefore
+also require upgraded owner nodes, as recorded in the Changelog.
+
+Tests preceded the changes and reproduced loss of each extension and acceptance
+of malformed metadata. They now verify both independent projection directions,
+bounded decoding, every incomplete prefix, version refusal, the native literal
+fixture and an actual client/handler codec round trip with canonical owner-push
+results. The common metadata decoder validates before copying and is shared with
+append RPC. This is entry-level in-memory integration, not MQTT process E2E.
+
+Validation: complete tests for node access, delivery runtime/infrastructure,
+online-delivery contracts and app passed (`GOWORK=off go test` with those five
+package paths, `-count=1 -timeout=90s`). Node-access publication race tests passed
+with the existing macOS linker warning. Named `flow-doc-contracts` passed after
+regeneration with 83 compliant files, zero invalid and 9 existing warnings;
+`git diff --check` passed.
+
+The publication path still needs offline JSONL/restore preservation and rollout
+capability gates. Persistent execution, server Will idempotency, shared replay,
+source protection, owner isolation and full product/scale acceptance remain
+unfinished; the listener remains unavailable and the full goal stays active.
