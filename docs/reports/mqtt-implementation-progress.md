@@ -2243,3 +2243,70 @@ migration readiness, and consumer-proof shared GC. Complete source/inbox project
 permission ordering, delivery/ACK/recovery, Will execution, unavailable-owner proof,
 app/configuration and full process/load acceptance remain required. The product
 MQTT listener remains unavailable and the full implementation goal remains active.
+
+## Fresh Slot admission and Node RPC for replay anchors
+
+Source `0e039062a3a207aaa8b0d31ace929bfaa524c48c`; pre-code failure inventory and
+frozen context are in [mqtt-replay-anchor-routing.md](../specs/mqtt-replay-anchor-routing.md).
+The cluster service and `Node.CommitChannelMQTTReplayAnchor` now route the existing
+neutral committer through fresh Slot reads before and after execution. The complete
+copy authority binds ordered placement, status, leader, epochs, route and strict
+quorum. Only freshly resolved metadata reaches the reactor; caller lease and
+retention values cannot override it. A post-commit fence failure withholds the
+proof without rolling back the control.
+
+Internal RPC 96 uses the closed `WMAQ/WMAR` version-1 codec, capped at 8 KiB and
+256 acknowledgements. It carries copy evidence and control identity without
+message bodies or caller-authoritative membership. Replies echo the full request,
+validate prefix/proof association and preserve historical creating authority in
+Channel epoch/term/route order. Forwarding binds the receipt's leader exactly,
+uses the stable gateway and cannot recurse. Existing foreground transport and
+reactor queues bound work; calls have a five-second deadline. No new durable
+schema, workers or per-Channel goroutines were introduced.
+
+The first real three-node race test exposed an existing Controller startup
+publication race: live peer Step calls read `Runtime.raft` while startup assigned
+it. Publication, failed-start reset, promotion cleanup and inbound capture now
+use the existing runtime mutex; Raft execution and stop never run under that lock.
+The test also now accounts for the native current-term barrier after leader change.
+Concurrent metadata installation can legitimately return temporary `not ready`
+from its try-lock; the integration retries only explicit readiness/backpressure
+errors within fixed attempt/time bounds, never proof conflicts.
+
+Verified:
+
+- Tests preceded implementation. Missing-entry/RPC RED:
+  `/tmp/mqtt-anchor-routing-red.log`; historical-authority regression RED:
+  `/tmp/mqtt-anchor-routing-history-red.log`. The first Node race trace is retained
+  in `/tmp/mqtt-anchor-routing-integration.log`; the intermediate run with one
+  temporary-admission failure is `/tmp/mqtt-anchor-routing-integration-fixed.log`.
+- `GOWORK=off go test -race ./pkg/controller/... ./pkg/cluster/channels
+  ./pkg/cluster/net ./pkg/cluster -count=1 -timeout=180s`: all passed,
+  `/tmp/mqtt-anchor-routing-regression.log`. Controller root 2.241 seconds,
+  cluster/channels 6.971, cluster/net 1.221, cluster root 8.664. Route/codec tests
+  cover fresh pre/post authority, cancellation, absent capabilities, changed
+  placement/quorum/status/fence, gateway replacement, wrong serving nodes, malformed
+  framing/versions/status/proofs, exact echo, owned bytes and the maximum ack set.
+- `GOWORK=off go test -race -tags=integration ./pkg/cluster
+  -run '^TestMQTTAnchorThreeNode' -count=2 -timeout=120s -v`: both passed,
+  13.26 and 12.61 seconds, package total 27.600 seconds;
+  `/tmp/mqtt-anchor-routing-integration-final.log`. Real three-node TCP/disk,
+  256 hash slots and two physical Slots exercised real copy receipts, remote
+  reactor commit, concurrent/exact/idle retries, chained anchors, ordered business
+  messages, serving-node restart, leader change and rejection without Slot quorum.
+  The recovered historical proof equals its original despite a later anchor.
+  This is Node/runtime integration, not full MQTT product process E2E.
+- `GOWORK=off go test -race -tags=integration ./pkg/controller
+  -run '^TestRuntime(SingleVoter|Mirror|VoterWires|PromoteControllerVoter|PrepareControllerVoter)'
+  -count=1 -timeout=90s`: passed, 4.684 seconds;
+  `/tmp/mqtt-anchor-routing-controller.log`.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-anchor-routing-flow.log`. Index regenerated and `git diff --check`
+  passed. Existing macOS LC_DYSYMTAB linker warnings remain non-failing.
+
+Next expose coherent accepted-prefix planning through reactor-captured committed
+state, then connect replicated source release, accepted-anchor donor repair,
+learner/migration readiness and consumer-proof shared GC. Full source/inbox
+projection, permission ordering, delivery/ACK/recovery, Will execution, unavailable-
+owner proof, app/configuration, migration tooling and full process/load acceptance
+remain required. The product MQTT listener remains unavailable and the goal active.

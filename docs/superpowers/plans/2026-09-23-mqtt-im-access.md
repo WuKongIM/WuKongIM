@@ -6,9 +6,11 @@
 
 ## 当前进度
 
-- 回放证明准入已接入 Channel service/reactor：复用追加保留、队列、worker 与生命周期，队列计入成员证据字节，完成时单独返回证明、不把重试请求写进历史缓存。真实磁盘验证并发/空闲重试、重启、取消后完成与后续业务顺序；新鲜 Slot 路由和 Node/RPC 尚未接入，见 [reactor 准入合同](../../specs/mqtt-replay-anchor-reactor.md)。
+- 回放证明已接通最新 Slot 权威、Node facade 和无正文 RPC 96：操作前后核对回执对应的完整成员配置，接收端自行读取元数据，再调用 reactor 提交。保持历史证明和空闲重试语义，当前前缀规划、复制源释放与产品 MQTT 监听仍待完成，见 [证明路由合同](../../specs/mqtt-replay-anchor-routing.md)。
 
-- 回放证明已接入原生 Channel 串行提交器：核对已安装的投票/learner 集合与当前复制回执，按已接受前缀连续推进，重启、换主和并发重试复用历史证明，待定提交沿用原始记录。三副本真实磁盘/交换编码验证已通过；reactor 已接线，Slot 新鲜路由与自动释放尚未接线，见 [证明准入合同](../../specs/mqtt-replay-anchor-admission.md)。
+- 回放证明准入已接入 Channel service/reactor：复用追加保留、队列、worker 与生命周期，队列计入成员证据字节，完成时单独返回证明、不把重试请求写进历史缓存。真实磁盘验证并发/空闲重试、重启、取消后完成与后续业务顺序；最新 Slot 路由和 Node/RPC 已接入，见 [reactor 准入合同](../../specs/mqtt-replay-anchor-reactor.md)。
+
+- 回放证明已接入原生 Channel 串行提交器：核对已安装的投票/learner 集合与当前复制回执，按已接受前缀连续推进，重启、换主和并发重试复用历史证明，待定提交沿用原始记录。三副本真实磁盘/交换编码验证已通过；reactor 和 Slot 路由已接线，自动释放尚未接线，见 [证明准入合同](../../specs/mqtt-replay-anchor-admission.md)。
 
 - 已补复制证明的持久化基础：format-5 内部控制记录与 Message System 14 日志，支持多数派复制、learner、重启/换主恢复、清理后证明读取与备份。真实磁盘验证以本地已提交证明恢复共享正文；幂等提交器已实现，新鲜路由编排、源释放与迁移可用性仍待接通，见 [证明存储合同](../../specs/mqtt-replay-anchor.md)。
 

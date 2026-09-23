@@ -408,7 +408,9 @@ func (r *Runtime) clearControllerVoterRuntimeFields() {
 		_ = r.raft.Stop()
 	}
 	r.sm = nil
+	r.mu.Lock()
 	r.raft = nil
+	r.mu.Unlock()
 	r.server = nil
 	r.syncServer = nil
 }

@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Route MQTT replay anchor commits through fresh Slot authority and bounded internal RPC 96, preserving exact retries after Channel leader changes and restart. Fix Controller Raft pointer publication racing inbound messages during restart. The product MQTT listener remains under development. / MQTT 回放证明提交已接入最新 Slot 权威与有界内部 RPC 96，换主和重启后保留精确重试；修复 Controller 重启时 Raft 指针发布与入站消息竞争。MQTT 产品监听仍在开发。
+
 - Route MQTT replay anchor admission through bounded Channel workers and ordinary append ordering, retaining durable progress after caller cancellation and exact proofs across restart. Fresh cluster routing and the MQTT product listener remain under development. / MQTT 回放证明准入接入有界 Channel worker 与普通追加顺序，调用取消后仍保留已提交进度，重启后继续复用证明；新鲜集群路由及 MQTT 产品监听仍在开发。
 
 - Serialize MQTT replay anchor acceptance with Channel writes, validate current-voter copy evidence, and preserve exact retries across restart and leader changes. Reactor/cluster entry wiring and automatic source release remain under development. / MQTT 回放证明接入 Channel 串行提交器，校验当前副本复制回执并支持重启、换主后的精确重试；reactor/集群入口及自动源释放仍在开发。

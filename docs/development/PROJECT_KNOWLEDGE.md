@@ -338,8 +338,12 @@ specification, runbook, report, or module documentation; link to them when neede
   The service now uses the reactor append queue and a typed append worker, with
   owned membership bytes and cancellation/lifecycle guards. Control completion
   advances durable progress without synthesizing a message or caching request IDs;
-  observer cancellation cannot undo admitted durability. Fresh Slot entry wiring
-  and replicated source release remain required.
+  observer cancellation cannot undo admitted durability. Node/cluster admission
+  now rechecks fresh Slot authority around the reactor call; body-free RPC 96
+  uses a closed 8 KiB codec and exact receipt echo. Received metadata always comes
+  from the serving Slot read. Historical proofs keep their original authority;
+  post-commit fencing withholds a reply without undoing durability. Coherent prefix
+  planning and replicated source release remain required.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.

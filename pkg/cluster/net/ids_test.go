@@ -143,3 +143,12 @@ func TestMQTTCopyServiceIdentity(t *testing.T) {
 		t.Fatal("MQTT copy must preserve maintenance admission")
 	}
 }
+
+func TestMQTTAnchorServiceIdentity(t *testing.T) {
+	if RPCChannelMQTTAnchor != 96 || transportServiceAlias(RPCChannelMQTTAnchor) != "channel mqtt anchor" {
+		t.Fatal("MQTT anchor service identity changed")
+	}
+	if !isForegroundChannelMutationService(RPCChannelMQTTAnchor) {
+		t.Fatal("MQTT anchor must preserve foreground mutation admission")
+	}
+}

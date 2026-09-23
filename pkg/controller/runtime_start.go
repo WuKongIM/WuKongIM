@@ -35,9 +35,13 @@ func (r *Runtime) startVoter(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	r.mu.Lock()
 	r.sm, r.raft = sm, service
+	r.mu.Unlock()
 	if err := service.Start(ctx); err != nil {
+		r.mu.Lock()
 		r.sm, r.raft = nil, nil
+		r.mu.Unlock()
 		return err
 	}
 	srv, err := server.New(server.Config{StateSource: sm, Proposer: service, Now: r.cfg.Now})

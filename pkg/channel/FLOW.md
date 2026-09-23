@@ -106,7 +106,7 @@ DTOs, and `worker` bounds blocking I/O.
   original row. Anchor-only tails stay idle. The service now reserves the append
   queue and uses typed workers; control completion advances durable progress even
   after observer cancellation, without inserting request identities into caches.
-  Fresh Slot entry wiring remains separate.
+  Cluster entry adds fresh Slot routing; source-release admission remains separate.
   Replay preparation uses the same recovered leader/route admission and bounded
   checkpoint workers. It captures HW, verifies protection and returns owned
   local content after rechecking fences; it cannot release the original source.

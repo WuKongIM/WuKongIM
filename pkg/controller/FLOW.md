@@ -74,6 +74,8 @@ not depend on `pkg/cluster`.
   final revision- and voter-proof-fenced durable state command.
 - Watch buffers retain the newest visible state under pressure; bounded
   observers and diagnostics must never stall apply.
+- Startup publishes the Raft service under the runtime mutex; inbound Step
+  captures it under that mutex and releases the lock before Raft execution.
 
 ## Read First
 

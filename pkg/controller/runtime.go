@@ -24,8 +24,10 @@ type Runtime struct {
 	state ClusterState
 	watch chan StateEvent
 
-	store  *statefile.Store
-	sm     *fsm.StateMachine
+	store *statefile.Store
+	sm    *fsm.StateMachine
+	// raft is published/captured under mu for inbound Step calls that can arrive
+	// during startup. Other lifecycle operations retain serialized ownership.
 	raft   *controllerraft.Service
 	server *server.Server
 
@@ -150,10 +152,16 @@ func (r *Runtime) CompactControllerRaftLog(ctx context.Context) (LogCompactionRe
 
 // Step applies an inbound Controller Raft message to the local Raft service.
 func (r *Runtime) Step(ctx context.Context, msg raftpb.Message) error {
-	if r == nil || r.raft == nil {
+	if r == nil {
 		return nil
 	}
-	return r.raft.Step(ctx, msg)
+	r.mu.RLock()
+	service := r.raft
+	r.mu.RUnlock()
+	if service == nil {
+		return nil
+	}
+	return service.Step(ctx, msg)
 }
 
 // GetState serves Controller state sync requests from local voter state.
