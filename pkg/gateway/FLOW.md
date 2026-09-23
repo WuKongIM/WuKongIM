@@ -82,17 +82,17 @@ Message, presence, Channel, and Controller business policy stays outside gateway
   write directly to the transport connection.
   Sealed ACK enqueue failure never reopens ordinary writes, and remote proof
   still requires the client's exact decoded ACK.
+- Physical isolation uses optional CloseTransportAndWait, fencing new I/O and
+  joining gnet CloseWithCallback; OnClose/enqueue are not completion proof.
+  Cancellation bounds waiting; one receipt persists independently of cleanup.
 - Observations remain low-cardinality and never add per-connection identities.
   Pressure snapshots carry monotonic revisions so delayed callbacks cannot
   overwrite terminal zero or resurrect a cleared connection source.
 
 ## Read First
 
-- [Public options](types/options.go)
-- [Core server](core/server.go)
-- [Async SEND](core/async_send.go)
-- [Independent packet path](core/packet_protocol.go)
-- [Transport contract](transport/transport.go)
+- [Options](types/options.go), [Core](core/server.go), [Async SEND](core/async_send.go)
+- [Packet path](core/packet_protocol.go), [Transport](transport/transport.go)
 
 ## Update Triggers
 

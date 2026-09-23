@@ -46,6 +46,12 @@ type SessionActivationRollbacker interface {
 	OnSessionActivateRollback(ctx Context, err error)
 }
 
+// TransportCloser isolates a connection without joining lifecycle callbacks.
+// It is a per-connection capability, not a per-packet closure.
+type TransportCloser interface {
+	CloseTransportAndWait(context.Context, CloseReason) error
+}
+
 type Context struct {
 	Session        session.Session
 	Listener       string
@@ -57,6 +63,9 @@ type Context struct {
 	RequestContext context.Context
 	// CloseSessionFn closes the owning gateway connection state when core builds this context.
 	CloseSessionFn func(CloseReason, error)
+	// TransportCloser fences admission and joins physical closure only;
+	// it must not invoke or wait for protocol/business lifecycle cleanup.
+	TransportCloser TransportCloser
 }
 
 func (ctx *Context) WriteFrame(f frame.Frame) error {
@@ -90,7 +99,8 @@ func (ctx *Context) OutboundSealed() bool {
 	return ok && state.OutboundSealed()
 }
 
-// CloseSession closes the gateway session through the physical connection path when available.
+// CloseSession requests closure through the owning gateway state when available.
+// Success is not proof that the physical connection has finished closing.
 func (ctx *Context) CloseSession(reason CloseReason, err error) error {
 	if ctx == nil {
 		return session.ErrSessionClosed
@@ -103,4 +113,13 @@ func (ctx *Context) CloseSession(reason CloseReason, err error) error {
 		return session.ErrSessionClosed
 	}
 	return ctx.Session.Close()
+}
+
+// CloseTransportAndWait requires the optional physical close capability. It
+// never substitutes logical closure or lifecycle callbacks for isolation proof.
+func (ctx *Context) CloseTransportAndWait(wait context.Context, reason CloseReason) error {
+	if ctx == nil || ctx.TransportCloser == nil {
+		return ErrCloseProofUnsupported
+	}
+	return ctx.TransportCloser.CloseTransportAndWait(wait, reason)
 }

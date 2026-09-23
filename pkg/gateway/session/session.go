@@ -43,6 +43,12 @@ type OutboundSealState interface {
 	OutboundSealed() bool
 }
 
+// OutboundFencer permanently fences new writes without joining an entered
+// encoder. Physical transport closure and admitted effect drain are separate.
+type OutboundFencer interface {
+	FenceOutbound()
+}
+
 type WriteOption interface {
 	apply(*OutboundMeta)
 }
@@ -254,7 +260,7 @@ func (s *session) Close() error {
 	if s == nil {
 		return nil
 	}
-	s.closing.Store(true)
+	s.FenceOutbound()
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	if s.closed.Load() {
@@ -262,6 +268,12 @@ func (s *session) Close() error {
 	}
 	s.closed.Store(true)
 	return nil
+}
+
+func (s *session) FenceOutbound() {
+	if s != nil {
+		s.closing.Store(true)
+	}
 }
 
 func (s *session) SetValue(key string, value any) {

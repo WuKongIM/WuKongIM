@@ -217,8 +217,13 @@ specification, runbook, report, or module documentation; link to them when neede
   or deadline expiry never proves that admitted effects drained. Quiescence
   requires physical transport closure plus explicit scope completion. RPC 92
   echoes the exact owner and never treats another boot or network loss as proof.
-  See [owner execution](../specs/mqtt-owner-execution.md); gateway completion,
-  authoritative lease derivation and app registration are not yet connected.
+  Gateway `CloseTransportAndWait` fences admission and joins the physical gnet
+  CloseWithCallback independently of business cleanup. OnClose precedes residual
+  writes/socket close and cannot supply proof. One lazy receipt survives canceled
+  waits; submission or callback errors remain failure. See
+  [close proof](../specs/gateway-transport-close-proof.md) and
+  [owner execution](../specs/mqtt-owner-execution.md); authoritative lease
+  derivation and app registration are not yet connected.
   Source-owned binding tombstones prevent delayed prepares from resurrecting a
   subscription. Unknown source boundaries block reclamation; stored progress
   requires current remote authority and source protection before use.

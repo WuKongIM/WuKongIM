@@ -97,6 +97,7 @@ func (d dispatcher) context(state *sessionState, replyToken string, reason gatew
 		CloseSessionFn: func(closeReason gatewaytypes.CloseReason, closeErr error) {
 			state.close(closeReason, closeErr)
 		},
+		TransportCloser: state,
 	}
 }
 

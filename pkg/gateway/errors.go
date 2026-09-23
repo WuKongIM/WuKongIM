@@ -3,6 +3,7 @@ package gateway
 import gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 
 var (
+	ErrCloseProofUnsupported    = gatewaytypes.ErrCloseProofUnsupported
 	ErrNilHandler               = gatewaytypes.ErrNilHandler
 	ErrListenerNameEmpty        = gatewaytypes.ErrListenerNameEmpty
 	ErrListenerNameDuplicate    = gatewaytypes.ErrListenerNameDuplicate

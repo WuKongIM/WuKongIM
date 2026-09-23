@@ -1,6 +1,9 @@
 package transport
 
-import "errors"
+import (
+	"context"
+	"errors"
+)
 
 type Factory interface {
 	Name() string
@@ -25,6 +28,20 @@ type Conn interface {
 	LocalAddr() string
 	RemoteAddr() string
 }
+
+// CloseWaiter provides physical isolation independently of handler cleanup.
+// CloseAndWait fences future writes and returns nil only after physical close
+// completes. Cancellation (including an already canceled context) stops only
+// this wait; the close is still requested and repeated calls join one receipt.
+// A successful Conn.Close or OnClose notification is not a substitute.
+type CloseWaiter interface {
+	CloseAndWait(context.Context) error
+}
+
+var (
+	ErrConnectionClosing = errors.New("gateway/transport: connection closing")
+	ErrCloseUnproved     = errors.New("gateway/transport: physical close unproved")
+)
 
 // PeerAddress preserves the physical TCP peer when RemoteAddr is supplied by a
 // trusted proxy. It is optional so existing transport implementations remain valid.

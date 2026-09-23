@@ -1524,8 +1524,10 @@ func (st *sessionState) close(reason gatewaytypes.CloseReason, err error) {
 
 	st.closeOnce.Do(func() {
 		st.metaMu.Lock()
+		if !st.closing {
+			st.closeReasonValue = reason
+		}
 		st.closing = true
-		st.closeReasonValue = reason
 		if err != nil {
 			st.closeErrs = append(st.closeErrs, err)
 		}

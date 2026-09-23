@@ -1016,3 +1016,64 @@ lease acquisition/derivation, foreground app composition and durable lifecycle
 orchestration also remain required. Local lease expiry alone does not prove
 already admitted effects drained. The product MQTT listener remains unavailable;
 the full approved implementation goal is still active.
+
+## Gateway physical close completion
+
+Frozen source `0ddb24890`, applicable digests and the pre-code failure inventory
+are in [`gateway-transport-close-proof.md`](../specs/gateway-transport-close-proof.md).
+The pinned gnet v2.9.7 implementation calls OnClose before residual writes and the
+socket close syscall. We therefore use CloseWithCallback completion; the queued
+actor close event, ordinary Conn.Close and logical Session.Close are not evidence.
+
+Gateway Context now carries a per-connection TransportCloser capability without
+allocating another per-packet callback. CloseTransportAndWait fences new inbound
+and outbound admission, cancels request work and joins physical closure. It never
+enters the ordinary lifecycle close callback or waits for open/business cleanup;
+normal transport notification still performs that ordered cleanup. The original
+close reason survives it. Missing transport or Session capabilities fail explicitly.
+The Session fence is nonblocking even when an earlier encoder has entered; owner
+scopes must still cover that earlier effect through its completion.
+
+The gnet transport lazily retains one close receipt and fences new write paths.
+All waiters share its one submission. Submission and callback completion must
+both succeed, including synchronous callbacks and ambiguous enqueue errors. A
+failure remains failure; cancellation stops waiting without queuing another close
+or erasing the request. No waiter goroutine, timer or per-connection worker was
+added. Physical isolation uses raw close for WebSocket, not a graceful close-frame
+handshake, and does not claim client receipt of buffered application data.
+
+The first focused test run failed on the missing capabilities before code was
+written. A further pre-fix failure exposed cancellation between core's admission
+fence and transport submission: an already canceled transport wait must still
+request close. Core checks preexisting caller cancellation before changing its
+admission state, but cancellation after that point cannot suppress socket closure.
+Default tests cover that boundary, coalescing, callback/submission ordering,
+sticky failures, unsupported capability and independent lifecycle cleanup.
+
+Validation passed:
+
+- `GOWORK=off go test ./pkg/gateway/... ./internal/access/gateway
+  ./internal/access/mqtt -count=1 -timeout=90s`.
+- `GOWORK=off go test -race ./pkg/gateway/session ./pkg/gateway/core
+  ./pkg/gateway/transport/gnet -run
+  'TestOutboundFence|TestCloseWait|TestContextPhysicalClose'
+  -count=1 -timeout=60s`.
+- `GOWORK=off go test -tags=integration ./pkg/gateway/core
+  ./pkg/gateway/transport/gnet -run
+  'TestPhysicalTransportCloseProof|TestPacketProtocol|TestTCPListenerDelivers|TestTCPAndWebSocketListenersShareOneEngineGroup'
+  -count=1 -timeout=90s -v`.
+  Real TCP and WebSocket sockets exchanged MQTT CONNECT/CONNACK, then proved
+  physical close and rejected late writes while the business close callback was
+  deliberately blocked. Repeated waits succeeded without depending on that
+  callback. The JSON evidence for both networks is printed in the reproducible
+  test output; local retained logs are `/tmp/mqtt-transport-close-integration.log`,
+  `/tmp/mqtt-transport-close-default.log` and `/tmp/mqtt-transport-close-race.log`.
+- Named `flow-doc-contracts`: 85 compliant, zero invalid, same 9 existing warnings.
+  The gateway FLOW remains 100 lines. `git diff --check` passed.
+
+This closes the gateway proof seam identified in the preceding slice. MQTT owner
+RPC registration, conservative authoritative lease derivation, lifecycle usecase
+orchestration, product authentication/listener composition, distributed replay
+and remaining accepted recovery/acceptance work are still outstanding. These are
+real gateway transport integrations, not the full process-level MQTT product E2E.
+The product listener remains unavailable and the full goal remains active.

@@ -6,7 +6,9 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
-- Add bounded MQTT connection-owner admission, lease-expiry fencing and exact-owner quiescence RPC 92. Product wiring and physical transport completion remain under development; the MQTT listener stays unavailable. / 新增有界 MQTT 连接 owner 准入、租约到期隔离及精确 owner 静默确认 RPC 92；产品装配与物理连接关闭确认仍在开发，MQTT 入口尚未开放。
+- Add an optional gateway physical-close receipt for safe connection isolation, independently of business cleanup. TCP/WebSocket use completed transport close callbacks; canceled waits share the same close request. MQTT product wiring remains incomplete. / 网关新增独立于业务清理的物理连接关闭确认，TCP/WebSocket 以底层关闭完成回调为准，取消等待后仍复用同一次关闭请求；MQTT 产品装配尚未完成。
+
+- Add bounded MQTT connection-owner admission, lease-expiry fencing and exact-owner quiescence RPC 92. Product wiring remains under development; the MQTT listener stays unavailable. / 新增有界 MQTT 连接 owner 准入、租约到期隔离及精确 owner 静默确认 RPC 92；产品装配仍在开发，MQTT 入口尚未开放。
 
 - Add authoritative cluster access for MQTT session metadata, with coherent recovery pages and committed conditional-write results. Internal read RPC 91 requires matching peers; the MQTT listener remains unavailable. / 新增 MQTT 会话元数据的集群权威访问、一致恢复分页和已提交条件写入结果；内部读取 RPC 91 要求匹配节点，MQTT 入口仍未开放。
 

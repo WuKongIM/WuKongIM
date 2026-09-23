@@ -87,10 +87,11 @@ success only for its complete exact requested identity; it neither reroutes nor
 infers isolation from an unsupported service or communication failure.
 
 The app has not registered this adapter or connected its runtime callback to
-the gateway. Gateway `CloseSession` currently requests closure and does not
-expose a physical completion proof. That boundary, foreground composition,
-authoritative lease derivation and durable lifecycle acquisition remain required
-before any product takeover or listener can use this module.
+the gateway. The gateway now exposes optional `CloseTransportAndWait` physical
+completion independently of business cleanup; ordinary `CloseSession` remains
+only a closure request. See [the close contract](gateway-transport-close-proof.md).
+Foreground composition, authoritative lease derivation and durable lifecycle
+acquisition remain required before product takeover can use this module.
 
 ## Frozen context
 
