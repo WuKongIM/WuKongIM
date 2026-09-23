@@ -15,8 +15,9 @@ release. A previously copied portion returns an existing bounded page before
 continuing into uncopied content; a lost short-page reply can be retried safely.
 
 Preparation establishes replica-local immutable content. It is not a quorum
-copy receipt, delivery permission or SUBACK. Fresh cluster routing, distributed
-copy decisions and follower/learner transfer must surround this primitive before
+copy receipt, delivery permission or SUBACK. [Fresh cluster routing](mqtt-replay-routing.md)
+now exposes this facade through Node and RPC 94. Distributed copy decisions and
+follower/learner transfer must surround this primitive before
 product use. Unsupported/legacy stores fail explicitly; no fallback bypasses
 Channel authority or cluster semantics.
 

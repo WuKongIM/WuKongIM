@@ -133,6 +133,8 @@ const (
 	RPCMQTTOwner
 	// RPCChannelMQTTSource establishes source protection on the exact Channel leader.
 	RPCChannelMQTTSource
+	// RPCChannelMQTTReplay prepares bounded shared content on the current leader.
+	RPCChannelMQTTReplay
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -263,6 +265,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "mqtt owner"
 	case RPCChannelMQTTSource:
 		return "channel mqtt source"
+	case RPCChannelMQTTReplay:
+		return "channel mqtt replay"
 	default:
 		return "unknown service"
 	}

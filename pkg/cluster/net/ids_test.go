@@ -125,3 +125,12 @@ func TestMQTTSourceServiceIdentity(t *testing.T) {
 		t.Fatal("source activation must use bounded mutation admission")
 	}
 }
+
+func TestMQTTReplayServiceIdentity(t *testing.T) {
+	if RPCChannelMQTTReplay != 94 || transportServiceAlias(RPCChannelMQTTReplay) != "channel mqtt replay" {
+		t.Fatal("MQTT replay service identity changed")
+	}
+	if !isForegroundChannelMutationService(RPCChannelMQTTReplay) {
+		t.Fatal("replay preparation must use bounded mutation admission")
+	}
+}

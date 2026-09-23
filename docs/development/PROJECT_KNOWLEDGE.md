@@ -318,8 +318,10 @@ specification, runbook, report, or module documentation; link to them when neede
   The Channel replay preparation facade checks recovered leader/epoch/route
   admission before and after a bounded checkpoint worker. It captures HW,
   confirms source protection and returns owned content without releasing history.
-  Covered pages precede extensions so short-page replies can be retried. Fresh
-  cluster routing and quorum copy coordination remain required above the facade.
+  Covered pages precede extensions so short-page replies can be retried. The Node
+  facade and RPC 94 now perform fresh Slot reads before/after preparation, reject
+  changed placement and preserve exact request/page fields across gateway swaps.
+  A routed page still proves no quorum copy; coordination remains required.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.

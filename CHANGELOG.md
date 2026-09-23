@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Route shared MQTT replay preparation through fresh cluster authority, preserving content across Channel leader changes and restart while rejecting isolated cached routes. Internal RPC 94 requires matching peers; replicated-copy coordination and product MQTT admission remain under development. / 共享 MQTT 回放准备接入新鲜集群权威，换主和重启保持内容一致并拒绝孤立节点缓存路由；内部 RPC 94 需匹配节点，复制确认编排及产品 MQTT 入口仍在开发。
+
 - Prepare shared MQTT replay through recovered Channel leader admission and bounded workers, preserving short-page retries and original-source protection across restart. Distributed copying and product MQTT admission remain under development. / 共享 MQTT 回放准备接入已恢复 Channel leader 的准入与有界 worker，重启后保留短页重试和原始源保护；跨节点复制及产品 MQTT 入口仍在开发。
 
 - Add bounded shared MQTT replay recovery with atomic imports, committed-log validation and an independently accepted full-content digest, preserving retries after original-body cleanup and restart. Distributed recovery and product MQTT admission remain under development. / 新增共享 MQTT 回放的有界恢复与原子导入，核对已提交日志及独立确认的完整内容摘要，支持原文清理和重启后的重试；跨节点恢复及产品 MQTT 入口仍在开发。

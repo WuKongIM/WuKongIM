@@ -157,10 +157,25 @@ func (s *Service) ensureMQTTSource(ctx context.Context, req ch.MQTTSourceRequest
 }
 
 func validateMQTTSourceAuthority(req ch.MQTTSourceRequest, meta ch.Meta) error {
-	if !cacheableAppendMeta(req.ChannelID, meta) {
+	return validateMQTTChannelAuthority(req.ChannelID, req.ExpectedChannelEpoch, req.ExpectedLeaderEpoch, req.ExpectedRouteGeneration, meta)
+}
+
+// validateMQTTChannelAuthority requires a valid exact placement before either
+// source activation or replay preparation can reach the Channel runtime.
+func validateMQTTChannelAuthority(id ch.ChannelID, epoch, leaderEpoch, route uint64, meta ch.Meta) error {
+	if !cacheableAppendMeta(id, meta) {
 		return ch.ErrNotReady
 	}
-	if meta.Epoch != req.ExpectedChannelEpoch || meta.LeaderEpoch != req.ExpectedLeaderEpoch || meta.RouteGeneration != req.ExpectedRouteGeneration {
+	for _, members := range [][]ch.NodeID{meta.Replicas, meta.ISR} {
+		seen := make(map[ch.NodeID]struct{}, len(members))
+		for _, node := range members {
+			if _, exists := seen[node]; node == 0 || exists {
+				return ch.ErrNotReady
+			}
+			seen[node] = struct{}{}
+		}
+	}
+	if meta.Epoch != epoch || meta.LeaderEpoch != leaderEpoch || meta.RouteGeneration != route {
 		return ch.ErrStaleMeta
 	}
 	if meta.WriteFence.Set() {

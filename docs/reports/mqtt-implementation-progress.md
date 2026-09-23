@@ -1943,3 +1943,53 @@ inbox discovery, permission ordering, reliable delivery/ACK/recovery, Will
 execution, unavailable-owner proof, app/configuration and process/load acceptance
 are still outstanding; the full goal remains active and MQTT product admission
 remains unavailable.
+
+## Fresh cluster routing for shared replay preparation
+
+Source `5dea2b8f1`; the pre-code failure inventory and frozen context are in
+[mqtt-replay-routing.md](../specs/mqtt-replay-routing.md). Node foreground gates
+now expose replay preparation through the hosted Channel service. Fresh Slot
+quorum/apply reads bracket local runtime admission or one forwarded call, under a
+five-second limit. Exact caller epochs/route, leader, replica/ISR sets, MinISR,
+status and write fence must remain valid. Zero/duplicate replica identities are
+rejected by a shared source/replay authority validator before runtime effects.
+Unrelated lease and logical-retention updates do not invalidate immutable content.
+
+Dedicated foreground mutation RPC 94 uses closed `WMRQ`/`WMRR` version-1 codecs,
+4 KiB requests and replies capped at 16 MiB plus 64 KiB framing. Replies echo the
+entire request, preserve every prefix/record field and own decoded content.
+Length/count/content budgets are checked before allocation; malformed/trailing
+frames, changed echoes, unknown versions/statuses and error replies carrying
+pages fail. Unknown error text remains generic. The receiver serves only the
+named local leader and never forwards again; gateway clear/replacement keeps the
+registered transport handler stable. No table or stored format changed.
+
+Verified:
+
+- New routing/codec/Node/transport-ID tests failed before implementation in
+  `/tmp/mqtt-replay-routing-red.log`, then focused source/replay tests passed in
+  `/tmp/mqtt-replay-routing-focused.log`.
+- `GOWORK=off go test -race ./pkg/cluster/... -count=1 -timeout=180s`: all
+  packages passed, `/tmp/mqtt-replay-routing-race.log`.
+- `GOWORK=off go test -race -tags=integration ./pkg/cluster
+  -run '^TestMQTTReplayRoutingThreeNode' -count=1 -timeout=120s -v`: passed
+  (15.565 seconds including package overhead),
+  `/tmp/mqtt-replay-routing-integration.log`. Evidence
+  `mqtt_replay_route_evidence` uses three real Node runtimes, TCP, disk, 256 hash
+  Slots and two physical Slots. It covers remote short-page retry, larger-than-
+  request content frames, complete byte/digest equality after Channel leader
+  recovery, node restart, and rejection after a warmed node loses its majority.
+  The new leader derives copies from protected originals; this does not prove
+  follower shared-copy import or post-GC distributed recovery.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing
+  line-budget warnings, `/tmp/mqtt-replay-routing-flow.log`. Rendering the index
+  produced no index diff. `git diff --check` passed. Non-failing macOS
+  LC_DYSYMTAB linker warnings remain present.
+
+The next dependency is current-membership copy coordination and receiver import
+with independently accepted content decisions, followed by replicated release
+frontiers, learner/migration readiness and consumer-proof GC. Complete source
+projection/inbox discovery, permission ordering, delivery/ACK/recovery, fenced
+Will execution, unavailable-owner proof, app/configuration and full process/load
+acceptance remain required. The MQTT product listener is unavailable and the
+full implementation goal remains active.
