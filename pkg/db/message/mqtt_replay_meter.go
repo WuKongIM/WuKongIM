@@ -64,6 +64,13 @@ func loadMQTTReplayMeter(view messageBackupReadView, key ChannelKey, s MQTTRepla
 // validateMQTTReplayTail verifies the primary tail as well as the small index
 // before an extension. Range metering alone deliberately never reads bodies.
 func validateMQTTReplayTail(view messageBackupReadView, key ChannelKey, s MQTTReplayState) error {
+	base, _, err := mqttReplayBaseline(view, key, s)
+	if err != nil {
+		return err
+	}
+	if s == base {
+		return nil
+	}
 	if _, err := loadMQTTReplayMeter(view, key, s, s.Through); err != nil {
 		return err
 	}

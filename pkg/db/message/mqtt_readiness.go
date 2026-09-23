@@ -55,6 +55,13 @@ func (l *ChannelLog) ReadMQTTReplayReadiness(ctx context.Context, through uint64
 	if err != nil {
 		return empty, err
 	}
+	retired, hasRetired, err := loadMQTTReplayRetired(view, l.key)
+	if err != nil {
+		return empty, err
+	}
+	if hasRetired && (!present || retired.position > through) {
+		return empty, dberrors.ErrConflict
+	}
 	if !evidence.present || evidence.manifest.LastOffset > through {
 		if present && (!evidence.sourcePresent || current.Generation != evidence.source.Generation) {
 			return empty, dberrors.ErrCorruptState

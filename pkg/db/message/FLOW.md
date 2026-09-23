@@ -96,11 +96,10 @@ Compatibility maps Channel records/offsets to this core without transferring eng
   pins before build, physical commit, publish, or terminal shutdown.
 - Retention and truncation remove primary and secondary rows together. Logical
   retention preserves canonical lookup state until physical deletion.
-  MQTT System 12 clamps physical trim at copied-through without holding logical
-  visibility back. Its bounded original-source reader fences incarnation/HW and
-  fails on gaps; local CAS applies a decision but proves no distributed authority.
-  Format 4's System 13 protects the pending prefix; HW atomically creates System
-  12. Duplicates keep the first boundary; only uncommitted suffixes can replace it.
+  MQTT System 12 clamps physical trim at copied-through independently of logical visibility.
+  Bounded original reads fence incarnation/HW and reject gaps; local CAS proves no distributed authority.
+  Format 4's System 13 protects pending prefixes; HW atomically creates System 12.
+  Duplicates preserve the first boundary; only uncommitted suffixes can replace it.
   Backups skip pending controls and validate committed source/manifest pairs.
   Source/checkpoint reads pin activation/source/HW; admission requires a covered control.
   Replay table 2 atomically stores canonical content/counters; index 2 meters ranges.
@@ -117,6 +116,8 @@ Compatibility maps Channel records/offsets to this core without transferring eng
   Format-6 retirement journals in System 15 retain whole-anchor decisions and monotonic prefixes.
   HW/reference/proposal checks, suffix replacement and backup preserve them; journals alone never prune replay content.
   Retirement selection pins a captured anchor and scans at most 64 older journals per call, with verified backward continuations.
+  Explicit retirement verifies its committed decision, atomically storing table-2 System-2 baseline/deletion progress and bounded row/meter removal.
+  Suffix hashing, repair and readiness retain cumulative counters; historical cuts cannot borrow later retirement authority.
   Suffix cuts never split proposals; recovery replacement is fenced by the
   inspected frontier and atomically replaces complete verified proposal pages.
 - Queue-depth publication is monotonic through grouped collection and terminal
@@ -136,9 +137,8 @@ Compatibility maps Channel records/offsets to this core without transferring eng
 - Backup count and content come from one pinned view; restore is exact-retry
   idempotent, conflicts with different state, and cleans partial rows in bounded
   batches before retry.
-  Replay-bearing backups use version 2; native-only streams stay version 1.
-  Preflight validates replay chains and target coverage before writes; restore
-  rebuilds metering without inserting shared copies into the global message index.
+  Native/full/pruned backups use versions 1/2/3. Preflight verifies baselines, suffix chains and target compatibility before writing.
+  Restore rebuilds meters without global IDs, publishing baseline/frontier together after the suffix; legacy header frontiers wait until then.
 
 ## Read First
 

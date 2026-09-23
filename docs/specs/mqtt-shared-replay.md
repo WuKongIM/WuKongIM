@@ -45,6 +45,14 @@ validate the complete new stream before mutation and restore replay rows without
 touching ordinary unique indexes. Restored runtime authority is still fenced by
 the future activation protocol. Older tools must reject version 2, not omit it.
 
+[Retired replay storage](mqtt-retired-replay-storage.md) now retains a committed
+whole-anchor baseline and separately bounded deletion progress. Only the suffix
+above that baseline remains readable/copyable; cumulative counters and hashes do
+not restart. Pruned archives use version 3 and may contain zero suffix rows.
+Restore publishes the baseline/frontier atomically after the suffix, including
+deferring the redundant frontier in a legacy version-2 header. Product retirement
+admission and scheduling remain separate prerequisites for activation.
+
 The [bounded transfer primitive](mqtt-replay-transfer.md) now exports pinned
 pages and atomically imports against installed committed log identities and an
 independently accepted complete-content prefix. Native entry digests omit some

@@ -86,7 +86,7 @@ func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size in
 		return BackupSnapshotStats{}, dberrors.ErrCorruptValue
 	}
 	version, err := readMessageBackupStreamUint16(reader)
-	if err != nil || (version != messageBackupSnapshotVersion && version != mqttReplayBackupVersion) {
+	if err != nil || (version != messageBackupSnapshotVersion && version != mqttReplayBackupVersion && version != mqttRetiredReplayBackupVersion) {
 		return BackupSnapshotStats{}, dberrors.ErrCorruptValue
 	}
 	hashSlot, err := readMessageBackupStreamUint16(reader)
@@ -99,6 +99,7 @@ func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size in
 	}
 	stats := BackupSnapshotStats{HashSlot: hashSlot, ChannelCount: uint64(channelCount)}
 	previousKey := ChannelKey("")
+	hasRetirement := false
 	for channelIndex := uint32(0); channelIndex < channelCount; channelIndex++ {
 		if err := ctxErr(ctx); err != nil {
 			return BackupSnapshotStats{}, err
@@ -148,6 +149,9 @@ func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size in
 			if !bytes.HasPrefix(systemKey, encodeMessageSystemAllPrefix(key)) || bytes.Equal(systemKey, encodeCheckpointKey(key)) {
 				return BackupSnapshotStats{}, dberrors.ErrCorruptValue
 			}
+			if bytes.Equal(systemKey, mqttReplayRetiredKey(key)) || (version == messageBackupSnapshotVersion && bytes.Equal(systemKey, mqttReplayStateKey(key))) {
+				return BackupSnapshotStats{}, dberrors.ErrCorruptValue
+			}
 			systemEntries = append(systemEntries, backupRawEntry{Key: systemKey, Value: systemValue})
 		}
 		messageCount, err := binary.ReadUvarint(reader)
@@ -177,17 +181,21 @@ func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size in
 		if maxMessageID > stats.MaxMessageID {
 			stats.MaxMessageID = maxMessageID
 		}
-		if version == mqttReplayBackupVersion {
-			replay, err := readMQTTReplayBackup(ctx, reader, header, replayTarget, installReplay)
+		if version >= mqttReplayBackupVersion {
+			replay, err := readMQTTReplayBackup(ctx, reader, header, replayTarget, installReplay, version)
 			if err != nil {
 				return BackupSnapshotStats{}, err
 			}
 			if err := addMQTTReplayBackupStats(&stats, replay); err != nil {
 				return BackupSnapshotStats{}, err
 			}
+			hasRetirement = hasRetirement || replay.hasRetirement
 		}
 	}
 	if version == mqttReplayBackupVersion && stats.ReplayMessageCount == 0 {
+		return BackupSnapshotStats{}, dberrors.ErrCorruptValue
+	}
+	if version == mqttRetiredReplayBackupVersion && !hasRetirement {
 		return BackupSnapshotStats{}, dberrors.ErrCorruptValue
 	}
 	if _, err := reader.ReadByte(); err != io.EOF {
@@ -260,6 +268,12 @@ func (db *MessageDB) importMessageBackupChannelStream(ctx context.Context, reade
 		return 0, err
 	}
 	for _, entry := range header.systemEntries {
+		// Version 2 carries a redundant frontier in this legacy header. Preserve
+		// its bytes on export, but publish it only after validating/installing the
+		// dedicated replay suffix. Version 3's baseline is never a header field.
+		if bytes.Equal(entry.Key, mqttReplayStateKey(header.key)) {
+			continue
+		}
 		if err := metadataBatch.Set(entry.Key, entry.Value); err != nil {
 			_ = metadataBatch.Close()
 			return 0, err

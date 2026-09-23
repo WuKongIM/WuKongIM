@@ -43,6 +43,11 @@ work must materialize the retired accounting/hash baseline, recover only the
 remaining suffix, persist bounded physical deletion progress, preserve backup
 and restore of pruned content, and route admission through current authority.
 
+The subsequent [retired storage contract](mqtt-retired-replay-storage.md) now
+implements baseline materialization, bounded local cleanup, suffix recovery and
+version-3 backup/restore. Product admission/current-authority routing and scheduling
+remain unwired; the original journal itself still has no automatic deletion effect.
+
 ## Failure inventory before code
 
 1. Business payload selects internal retirement semantics; multi-record or

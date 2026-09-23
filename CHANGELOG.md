@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add durable MQTT replay retirement baselines and bounded storage cleanup, preserving suffix recovery and pruned version-3 backups; restore publishes replay coverage only after content installation. Product admission and scheduling remain under development. / MQTT 回放新增持久回收基线和有界存储清理，保留后缀恢复与 version-3 备份；恢复仅在内容写完后发布覆盖进度。产品准入与调度仍在开发。
+
 - Persist MQTT replay-retirement decisions as explicit proposal format 6 with independently verified anchor references, replicated journals and backup preservation; bounded historical selection rounds consumer floors down to complete anchors. Matching replicas/tools are required; product admission and physical shared-content GC remain under development. / MQTT 回放回收决策新增显式 proposal format 6，独立核验锚点引用并保留复制日志及备份；有界历史选择将消费者水位向前取整到完整锚点。需要匹配副本与工具，产品准入及共享内容物理回收仍在开发。
 
 - Validate MQTT consumer retention floors in a strict snapshot, capturing accepted replay anchors before reading obligations so concurrent subscriptions cannot be skipped. Physical shared-content GC and product access remain under development. / MQTT 消费者保留水位采用严格一致快照，先固定已提交回放锚点、再读取消息责任，避免跳过并发订阅；共享内容物理回收及产品接入仍在开发。

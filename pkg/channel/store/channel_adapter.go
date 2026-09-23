@@ -1394,6 +1394,20 @@ func (a *messageDBChannelStoreAdapter) LoadMQTTReplayRetirement(ctx context.Cont
 	return ch.MQTTReplayRetirementProof{Retirement: proof.Retirement, Manifest: proof.Manifest}, true, nil
 }
 
+func (a *messageDBChannelStoreAdapter) RetireMQTTReplay(ctx context.Context, generation string, position uint64, limit int) (ch.MQTTReplayRetirementResult, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayRetirementResult{}, err
+	}
+	if position == 0 || limit < 1 || limit > 256 {
+		return ch.MQTTReplayRetirementResult{}, ch.ErrInvalidConfig
+	}
+	r, err := a.store.RetireMQTTReplay(ctx, generation, position, limit)
+	if err != nil {
+		return ch.MQTTReplayRetirementResult{}, a.mapError(err)
+	}
+	return ch.MQTTReplayRetirementResult{RetirementPosition: r.RetirementPosition, Retired: fromDBMQTTReplayPrefix(r.Retired), DeletedThrough: r.DeletedThrough, Deleted: r.Deleted, Done: r.Done}, nil
+}
+
 func (a *messageDBChannelStoreAdapter) SelectMQTTReplayRetirementAnchor(ctx context.Context, q ch.MQTTReplayRetirementScan) (ch.MQTTReplayRetirementSelection, error) {
 	if err := a.ensureOpen(); err != nil {
 		return ch.MQTTReplayRetirementSelection{}, err

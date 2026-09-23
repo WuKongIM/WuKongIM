@@ -16,12 +16,23 @@ const mqttReplayBackupVersion uint16 = 2
 
 type mqttReplayBackupStats struct {
 	count, storedBytes, maxMessageID uint64
+	hasRetirement                    bool
 }
 
 func mqttReplayBackupState(view messageBackupReadView, cut BackupChannelCut) (MQTTReplayState, bool, error) {
 	s, present, err := loadMQTTReplayState(view, cut.Key)
-	if err != nil || !present {
+	if err != nil {
 		return s, present, err
+	}
+	if !present {
+		_, hasRetired, err := view.Get(mqttReplayRetiredKey(cut.Key))
+		if err != nil {
+			return s, false, err
+		}
+		if hasRetired {
+			return s, false, dberrors.ErrCorruptState
+		}
+		return s, false, nil
 	}
 	value, ok, err := view.Get(mqttSourceKey(cut.Key))
 	if err != nil {
@@ -35,6 +46,9 @@ func mqttReplayBackupState(view messageBackupReadView, cut BackupChannelCut) (MQ
 		return s, false, err
 	}
 	if err := validateMQTTReplayCut(s, source, cut.Checkpoint.HW); err != nil {
+		return s, false, err
+	}
+	if _, _, err = mqttReplayBackupBaseline(view, cut.Key, s, cut.Checkpoint.HW); err != nil {
 		return s, false, err
 	}
 	return s, true, nil
@@ -58,7 +72,14 @@ func selectMessageBackupVersion(ctx context.Context, view messageBackupReadView,
 			return 0, err
 		}
 		if ok {
-			version = mqttReplayBackupVersion
+			version = max(version, mqttReplayBackupVersion)
+			_, retired, err := view.Get(mqttReplayRetiredKey(cut.Key))
+			if err != nil {
+				return 0, err
+			}
+			if retired {
+				version = mqttRetiredReplayBackupVersion
+			}
 		}
 	}
 	return version, nil
@@ -68,8 +89,14 @@ func selectMessageBackupVersion(ctx context.Context, view messageBackupReadView,
 // Memory is bounded to one row, independently of the number of subscribers.
 func visitMQTTReplayBackup(ctx context.Context, view messageBackupReadView, key ChannelKey, s MQTTReplayState, visit func([]byte) error) (mqttReplayBackupStats, error) {
 	var stats mqttReplayBackupStats
-	current := MQTTReplayState{Generation: s.Generation, StartAfter: s.StartAfter, Through: s.StartAfter}
-	for pos := s.StartAfter + 1; ; pos++ {
+	base, retirement, err := mqttReplayBaseline(view, key, s)
+	if err != nil {
+		return stats, err
+	}
+	stats.hasRetirement = retirement != 0
+	current := base
+	for current.Through < s.Through {
+		pos := current.Through + 1
 		if err := ctxErr(ctx); err != nil {
 			return stats, err
 		}
@@ -104,14 +131,26 @@ func visitMQTTReplayBackup(ctx context.Context, view messageBackupReadView, key 
 	if current != s {
 		return stats, dberrors.ErrCorruptState
 	}
-	stats.storedBytes = s.TotalStoredBytes
+	stats.storedBytes = s.TotalStoredBytes - base.TotalStoredBytes
 	return stats, nil
 }
 
-func writeMQTTReplayBackup(ctx context.Context, w io.Writer, view messageBackupReadView, cut BackupChannelCut) error {
+func writeMQTTReplayBackup(ctx context.Context, w io.Writer, view messageBackupReadView, cut BackupChannelCut, version uint16) error {
 	s, ok, err := mqttReplayBackupState(view, cut)
 	if err != nil {
 		return err
+	}
+	if version == mqttRetiredReplayBackupVersion {
+		var marker []byte
+		if ok {
+			_, marker, err = mqttReplayBackupBaseline(view, cut.Key, s, cut.Checkpoint.HW)
+			if err != nil {
+				return err
+			}
+		}
+		if err = writeBackupBytes(w, marker); err != nil {
+			return err
+		}
 	}
 	if !ok {
 		return writeBackupBytes(w, nil)
@@ -126,13 +165,33 @@ func writeMQTTReplayBackup(ctx context.Context, w io.Writer, view messageBackupR
 // readMQTTReplayBackup accepts only bounded fields and validates the full prefix.
 // install is nil during preflight and inspection. Restore commits bounded row
 // batches and publishes the frontier last; incomplete restore is never coverage.
-func readMQTTReplayBackup(ctx context.Context, reader *bufio.Reader, header messageBackupChannelHeader, target *MessageDB, install bool) (mqttReplayBackupStats, error) {
+func readMQTTReplayBackup(ctx context.Context, reader *bufio.Reader, header messageBackupChannelHeader, target *MessageDB, install bool, version uint16) (mqttReplayBackupStats, error) {
 	var stats mqttReplayBackupStats
+	var marker []byte
+	var err error
+	if version == mqttRetiredReplayBackupVersion {
+		marker, err = readMQTTReplayBackupField(reader, 64)
+		if err != nil {
+			return stats, err
+		}
+	}
 	value, err := readMQTTReplayBackupField(reader, 256)
 	if err != nil {
 		return stats, err
 	}
+	headerState := false
+	for _, entry := range header.systemEntries {
+		if bytes.Equal(entry.Key, mqttReplayStateKey(header.key)) {
+			if headerState || len(value) == 0 || !bytes.Equal(entry.Value, value) {
+				return stats, dberrors.ErrCorruptState
+			}
+			headerState = true
+		}
+	}
 	if len(value) == 0 {
+		if len(marker) != 0 {
+			return stats, dberrors.ErrCorruptState
+		}
 		return stats, rejectExistingMQTTReplay(target, header.key)
 	}
 	s, err := decodeMQTTReplayState(header.key, value)
@@ -151,6 +210,17 @@ func readMQTTReplayBackup(ctx context.Context, reader *bufio.Reader, header mess
 	if err := validateMQTTReplayCut(s, source, header.checkpoint.HW); err != nil {
 		return stats, err
 	}
+	retired, err := mqttReplayRestoreBaseline(header, marker, s)
+	if err != nil {
+		return stats, err
+	}
+	if err = validateMQTTReplayRestoreBaseline(target, header.key, retired); err != nil {
+		return stats, err
+	}
+	base := MQTTReplayState{Generation: s.Generation, StartAfter: s.StartAfter, Through: s.StartAfter}
+	if retired.position != 0 {
+		base, stats.hasRetirement = retired.prefix(), true
+	}
 	var batch *engine.Batch
 	if target != nil {
 		old, present, err := loadMQTTReplayState(target.engine, header.key)
@@ -165,9 +235,10 @@ func readMQTTReplayBackup(ctx context.Context, reader *bufio.Reader, header mess
 			defer func() { _ = batch.Close() }()
 		}
 	}
-	current := MQTTReplayState{Generation: s.Generation, StartAfter: s.StartAfter, Through: s.StartAfter}
+	current := base
 	batchBytes := 0
-	for pos := s.StartAfter + 1; ; pos++ {
+	for current.Through < s.Through {
+		pos := current.Through + 1
 		if err := ctxErr(ctx); err != nil {
 			return stats, err
 		}
@@ -221,6 +292,9 @@ func readMQTTReplayBackup(ctx context.Context, reader *bufio.Reader, header mess
 		return stats, dberrors.ErrCorruptState
 	}
 	if install {
+		if err := stageRestoredMQTTReplayBaseline(batch, header.key, retired); err != nil {
+			return stats, err
+		}
 		if err := batch.Set(mqttReplayStateKey(header.key), value); err != nil {
 			return stats, err
 		}
@@ -228,7 +302,7 @@ func readMQTTReplayBackup(ctx context.Context, reader *bufio.Reader, header mess
 			return stats, err
 		}
 	}
-	stats.storedBytes = s.TotalStoredBytes
+	stats.storedBytes = s.TotalStoredBytes - base.TotalStoredBytes
 	return stats, nil
 }
 
@@ -237,6 +311,13 @@ func rejectExistingMQTTReplay(target *MessageDB, key ChannelKey) error {
 		return nil
 	}
 	_, present, err := loadMQTTReplayState(target.engine, key)
+	if err != nil {
+		return err
+	}
+	if present {
+		return dberrors.ErrConflict
+	}
+	_, present, err = target.engine.Get(mqttReplayRetiredKey(key))
 	if err != nil {
 		return err
 	}

@@ -95,11 +95,11 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
   confirms captured HW through checkpoint workers and rechecks current fences;
   existing protection avoids another control. Subscription projection and
   shared-copy transfer remain separate; this receipt is not SUBACK authority.
-  Format-5 replay anchors retain committed full-content checkpoints in a separate
-  journal; exact retry, recovery and learner transfer preserve control intent.
+  Format-5 journals retain full-content checkpoints; exact retry, recovery and learner transfer preserve control intent.
   Unsupported stores reject it; neither the payload nor its journal authorizes GC.
   Explicit format-6 retirement uses the sequencer with closed retry intent and journal-capability checks.
-  It preserves whole-anchor decisions through replica recovery; product consumer admission and physical GC remain separate.
+  It preserves whole-anchor decisions through replica recovery; product consumer admission remains separate.
+  The optional retirement store port materializes verified baselines and bounded cleanup, preserving suffix repair/readiness after body removal.
   The optional retirement selector verifies historical whole anchors below a captured consumer floor in bounded reverse pages.
   Typed anchor admission shares the durable sequencer, checks exact installed
   membership and chains the latest accepted prefix. Stable source/Through commands

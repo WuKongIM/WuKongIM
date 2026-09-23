@@ -64,11 +64,19 @@ func verifyMQTTRetirementQuorum(t *testing.T, ctx context.Context, a Authority, 
 			return false
 		}
 		proof, found, err := st.(channelstore.MQTTReplayRetirementReader).LoadMQTTReplayRetirement(ctx, receipt.Last)
-		return err == nil && found && proof.Retirement == r && proof.Manifest.CommandID == proposal.CommandID && proof.Manifest.Version == quorumlog.MQTTReplayRetirementProposalManifestVersion
+		if err != nil || !found || proof.Retirement != r || proof.Manifest.CommandID != proposal.CommandID || proof.Manifest.Version != quorumlog.MQTTReplayRetirementProposalManifestVersion {
+			return false
+		}
+		retired, err := st.(channelstore.MQTTReplayRetirer).RetireMQTTReplay(ctx, scan.Generation, receipt.Last, 1)
+		if err != nil || !retired.Done || retired.Deleted > 1 || retired.Retired != anchor.Prefix() {
+			return false
+		}
+		ready, err := st.(channelstore.MQTTReplayReadinessReader).ReadMQTTReplayReadiness(ctx, receipt.HW)
+		return err == nil && ready.Covered
 	}
 	for _, node := range []ch.NodeID{1, 2, 3, 4} {
 		require.Eventually(t, func() bool { return check(node) }, 3*time.Second, time.Millisecond)
 	}
-	t.Log("mqtt_retirement_evidence: voters=3 learner=1 real_disk=true wire_codec=true bounded_anchor_selection=true explicit_control=true business_retry_rejected=true committed_journal=true consumer_admission=controlled physical_gc=false product_listener=false")
+	t.Log("mqtt_retirement_evidence: voters=3 learner=1 real_disk=true wire_codec=true bounded_anchor_selection=true explicit_control=true business_retry_rejected=true committed_journal=true retired_baseline=true bounded_cleanup=true readiness=true consumer_admission=controlled product_listener=false")
 	return check
 }

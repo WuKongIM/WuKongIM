@@ -82,7 +82,7 @@ suffix replacement removes only uncommitted journals. No replay row, meter or
 source-release encoding changes, and no physical reclamation is enabled here.
 Business format selection remains 1–3. Old validators reject format 6, so all
 writers/tools must match and rollback requires a pre-feature backup. Product
-consumer admission and pruned-prefix recovery remain required. See
+consumer admission remains required; explicit local materialization is described below. See
 [replay retirement](../../docs/specs/mqtt-replay-retirement.md).
 
 Explicit source release can now derive System 12 progress from a locally
@@ -93,14 +93,33 @@ target recovery requests this through RPC 99 v2 with explicit intent and reply
 acknowledgement; v1 remains ordinary recovery and old servers reject v2. See
 [anchor-derived release](../../docs/specs/mqtt-source-anchor-release.md).
 
+Message table 2 System 2 materializes a verified format-6 retirement. Its fixed
+version-1, checksummed envelope stores two uint64 values: the retirement control
+position and the engine-deleted-through cursor. Its counters/digest are resolved
+from the independently verified committed journal. Baseline/frontier and bounded
+primary/meter range deletion commit atomically; the original System 1 frontier
+encoding stays unchanged and may now include retired responsibility. Old writers
+cannot interpret this state and must not operate on a pruned database.
+Pruned backups use version 3: each channel's replay section begins with an
+optional baseline marker, followed by the existing frontier and only its retained
+suffix. The archive normalizes cleanup progress to complete, and zero suffix rows
+are valid. Version-1/2 export bytes remain unchanged. Import verifies all journal
+references and suffix hashes, rejects retirement regression, and publishes the
+frontier/marker only after content is installed. Redundant legacy version-2 header
+frontiers are validated but no longer installed before their replay section.
+Restoring a fully pruned archive may finish equivalent partial cleanup with range
+tombstones; physical disk reclamation remains engine compaction's responsibility.
+Matching tools and pre-feature rollback backups are required. See
+[retired replay storage](../../docs/specs/mqtt-retired-replay-storage.md).
+
 Message-domain table 2 stores immutable MQTT shared replay by source incarnation,
 position and content version. Index 2 provides bounded cumulative counters;
-System 1 publishes the copied prefix. Neither copying nor a local digest grants
+System 1 publishes cumulative copied/retired coverage. Neither copying nor a local digest grants
 source-release authority. Canonical content normalizes replica-local size hints.
-Replay-bearing binary backups use version 2, validate complete digest chains and
+Unpruned replay-bearing binary backups use version 2, validate complete digest chains and
 existing target coverage before writes, then rebuild the counting index without
 ordinary global-ID entries. Native-only backups retain version 1. Older binaries
-and tools cannot restore version 2. Distributed replication, consumer-proof GC,
+and tools cannot restore versions 2/3. Product retirement admission/scheduling,
 MQTT-state JSONL and restored-owner fencing remain required before activation.
 See [the replay contract](../../docs/specs/mqtt-shared-replay.md).
 

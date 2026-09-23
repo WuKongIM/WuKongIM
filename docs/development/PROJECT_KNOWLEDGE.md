@@ -294,6 +294,14 @@ specification, runbook, report, or module documentation; link to them when neede
   consumer floor. Verified backward cursors survive restart/restore; a floor
   between anchors rounds down without requiring local shared bodies. This read
   supplies no permission to commit retirement or physically reclaim content.
+  [Retired replay storage](../specs/mqtt-retired-replay-storage.md) applies only
+  committed format-6 decisions. Table-2 System-2 links the exact cumulative
+  baseline and a separate bounded deletion cursor; remaining suffixes retain
+  their original counters/hashes. Repair/readiness distinguish retired obligation
+  from retained bodies, and historical cuts reject newer retirement authority.
+  Pruned backups use version 3; versions 1/2 keep their export bytes. Restore
+  publishes the baseline/frontier only after suffix installation, deferring the
+  redundant version-2 header frontier. Product admission/scheduling is still pending.
   MQTT metadata facades route Session children by the frozen namespace/ClientID
   hash and source bindings by ordinary Channel ID or UID. Read RPC 91 requires
   a fresh Slot barrier and pinned primary/index snapshot; recovery explicitly

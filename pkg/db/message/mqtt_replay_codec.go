@@ -66,7 +66,8 @@ type MQTTReplayRecord struct {
 type MQTTReplayState struct {
 	// Generation is the source log incarnation, independent of leader epochs.
 	Generation string
-	// StartAfter is immutable; every later position through Through is copied.
+	// StartAfter is immutable; later positions through Through are copied or
+	// discharged by an independently committed materialized retirement baseline.
 	StartAfter uint64
 	Through    uint64
 	// TotalBytes counts payload/properties; TotalStoredBytes counts row envelopes.

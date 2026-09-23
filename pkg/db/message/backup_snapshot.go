@@ -185,8 +185,8 @@ func writeMessageBackupSnapshot(ctx context.Context, writer io.Writer, view mess
 		if err := writeBackupChannel(ctx, payload, view, channel, messageCount); err != nil {
 			return err
 		}
-		if version == mqttReplayBackupVersion {
-			if err := writeMQTTReplayBackup(ctx, payload, view, channel); err != nil {
+		if version >= mqttReplayBackupVersion {
+			if err := writeMQTTReplayBackup(ctx, payload, view, channel, version); err != nil {
 				return err
 			}
 		}
@@ -396,7 +396,7 @@ func snapshotBackupSystemEntries(ctx context.Context, view messageBackupReadView
 			return nil, err
 		}
 		key := iter.Key()
-		if bytes.Equal(key, checkpointKey) || bytes.Equal(key, nonBusinessVersionKey(channelKey)) {
+		if bytes.Equal(key, checkpointKey) || bytes.Equal(key, nonBusinessVersionKey(channelKey)) || bytes.Equal(key, mqttReplayRetiredKey(channelKey)) {
 			continue
 		}
 		if bytes.HasPrefix(key, historyPrefix) {
@@ -611,7 +611,7 @@ func visitBackupMessages(ctx context.Context, view messageBackupReadView, channe
 
 // ImportBackupSnapshot verifies and installs one portable message snapshot into a restore target.
 func (db *MessageDB) ImportBackupSnapshot(ctx context.Context, data []byte) (BackupSnapshotStats, error) {
-	if len(data) >= 6 && binary.BigEndian.Uint16(data[4:6]) == mqttReplayBackupVersion {
+	if len(data) >= 6 && (binary.BigEndian.Uint16(data[4:6]) == mqttReplayBackupVersion || binary.BigEndian.Uint16(data[4:6]) == mqttRetiredReplayBackupVersion) {
 		return db.ImportBackupSnapshotReader(ctx, bytes.NewReader(data), int64(len(data)))
 	}
 	if err := db.beginUse(); err != nil {
@@ -689,7 +689,7 @@ func (db *MessageDB) ImportBackupSnapshot(ctx context.Context, data []byte) (Bac
 			if err != nil {
 				return BackupSnapshotStats{}, err
 			}
-			if !bytes.HasPrefix(systemKey, encodeMessageSystemAllPrefix(key)) || bytes.Equal(systemKey, encodeCheckpointKey(key)) {
+			if !bytes.HasPrefix(systemKey, encodeMessageSystemAllPrefix(key)) || bytes.Equal(systemKey, encodeCheckpointKey(key)) || bytes.Equal(systemKey, mqttReplayStateKey(key)) || bytes.Equal(systemKey, mqttReplayRetiredKey(key)) {
 				return BackupSnapshotStats{}, dberrors.ErrCorruptValue
 			}
 			systemEntries = append(systemEntries, backupRawEntry{Key: systemKey, Value: systemValue})

@@ -433,6 +433,13 @@ type MQTTReplayRetirementSelector interface {
 	SelectMQTTReplayRetirementAnchor(context.Context, ch.MQTTReplayRetirementScan) (ch.MQTTReplayRetirementSelection, error)
 }
 
+// MQTTReplayRetirer independently verifies its committed retirement, atomically
+// materializes the cumulative baseline and removes at most limit primary rows
+// with their meters. Retries may finish a newer already materialized decision.
+type MQTTReplayRetirer interface {
+	RetireMQTTReplay(context.Context, string, uint64, int) (ch.MQTTReplayRetirementResult, error)
+}
+
 // MQTTReplayAnchorReader reads an independently committed exact control proof;
 // neither original-row retention nor a donor-supplied digest is its authority.
 type MQTTReplayAnchorReader interface {

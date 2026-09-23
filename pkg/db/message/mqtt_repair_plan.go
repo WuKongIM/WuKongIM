@@ -33,6 +33,18 @@ func verifyMQTTRepairCovered(view messageBackupReadView, key ChannelKey, current
 	if expected.Generation != current.Generation || expected.StartAfter != current.StartAfter || expected.Through > current.Through {
 		return dberrors.ErrConflict
 	}
+	base, position, err := mqttReplayBaseline(view, key, current)
+	if err != nil {
+		return err
+	}
+	if position != 0 && expected.Through <= base.Through {
+		// The caller independently proves this anchor. Retirement discharges its
+		// responsibility without claiming that its historical meter/body survives.
+		if expected.TotalBytes > base.TotalBytes || expected.TotalStoredBytes > base.TotalStoredBytes || (expected.Through == base.Through && expected != base) {
+			return dberrors.ErrCorruptState
+		}
+		return nil
+	}
 	prefix, err := mqttReplayPrefix(view, key, current, expected.Through)
 	if err != nil {
 		return err

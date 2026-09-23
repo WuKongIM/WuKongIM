@@ -31,10 +31,22 @@ func validateMQTTReplayRead(generation string, from, through uint64, opts ReadOp
 	return nil
 }
 
+// loadMQTTReplayState requires a pinned view or writer exclusion so absence of
+// the frontier cannot race publication of its paired retirement marker.
 func loadMQTTReplayState(view messageBackupReadView, key ChannelKey) (MQTTReplayState, bool, error) {
 	value, ok, err := view.Get(mqttReplayStateKey(key))
-	if err != nil || !ok {
+	if err != nil {
 		return MQTTReplayState{}, ok, err
+	}
+	if !ok {
+		_, retired, err := view.Get(mqttReplayRetiredKey(key))
+		if err != nil {
+			return MQTTReplayState{}, false, err
+		}
+		if retired {
+			return MQTTReplayState{}, false, dberrors.ErrCorruptState
+		}
+		return MQTTReplayState{}, false, nil
 	}
 	s, err := decodeMQTTReplayState(key, value)
 	return s, err == nil, err
@@ -50,7 +62,12 @@ func (l *ChannelLog) LoadMQTTReplayState(ctx context.Context) (MQTTReplayState, 
 	if err := ctxErr(ctx); err != nil {
 		return MQTTReplayState{}, false, err
 	}
-	return loadMQTTReplayState(l.db.engine, l.key)
+	view, err := l.db.engine.NewSnapshot()
+	if err != nil {
+		return MQTTReplayState{}, false, err
+	}
+	defer view.Close()
+	return loadMQTTReplayState(view, l.key)
 }
 
 // CopyMQTTReplaySource copies an exact committed source prefix into shared local
@@ -200,8 +217,15 @@ func mqttReplayPrefix(view messageBackupReadView, key ChannelKey, s MQTTReplaySt
 	if position < s.StartAfter || position > s.Through {
 		return s, dberrors.ErrConflict
 	}
-	if position == s.StartAfter {
-		return MQTTReplayState{Generation: s.Generation, StartAfter: s.StartAfter, Through: position}, nil
+	base, _, err := mqttReplayBaseline(view, key, s)
+	if err != nil {
+		return s, err
+	}
+	if position < base.Through {
+		return s, dberrors.ErrConflict
+	}
+	if position == base.Through {
+		return base, nil
 	}
 	return loadMQTTReplayMeter(view, key, s, position)
 }

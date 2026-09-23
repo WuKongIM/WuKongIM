@@ -3305,3 +3305,85 @@ removal, subscription/inbox projection, permission ordering, delivery/ACK,
 owner recovery, Will execution, product lifecycle/configuration, offline tools
 and process/load acceptance remain required. The full goal stays active and the
 MQTT product listener remains unavailable.
+
+## Retired baselines, bounded cleanup and suffix-only backups
+
+The MessageDB/Channel store now applies independently committed format-6
+retirements. Table 2 System 2 links the original control position to a separate
+deleted-through cursor. The exact cumulative prefix comes from the independently
+verified journal; the existing local replay frontier advances to that baseline or
+keeps a verified later prefix. Under append/checkpoint ownership, one synchronous
+batch publishes baseline/frontier and removes at most 256 primary rows plus their
+meter range. A key-only seek skips absent positions, with one lookahead. The cursor
+reports engine removal; disk bytes are reclaimed by existing compaction.
+
+Logical reads reject retired prefixes immediately, including while cleanup is
+partial. Endpoint metering and suffix copy/import retain original cumulative
+counters/hashes. Already retired anchors satisfy recovery/source-release
+responsibility without claiming their bodies still exist. Readiness and backup
+cuts cannot use a retirement newer than their captured HW. Applying a committed
+decision does not require downloading an absent old copy; exact/older retries
+preserve newer materialization and bounded cleanup progress.
+
+Pruned portable snapshots now use version 3: one optional baseline reference and
+only the retained suffix, including a valid empty suffix. Export normalizes the
+deleted-through cursor to the retired endpoint because the archive carries none
+of those bodies. Restore preflights references, source/proposal proofs, target
+compatibility and the full suffix hash chain, then publishes baseline/frontier
+atomically after bounded content batches. Equivalent partial target cleanup is
+finished with range tombstones; unpruned rollback archives fail. Version-1/2 export
+bytes remain unchanged, and matching writers/tools remain mandatory.
+
+An interrupted-restore audit exposed that the legacy version-2 system header
+contained a redundant replay frontier installed before its replay rows. Import
+now validates that duplicate but defers publication to the replay section's final
+commit. The new baseline is excluded from native headers entirely. Version-2/3
+interruption tests prove native metadata may have installed while both replay
+frontier and baseline remain absent, followed by successful exact restore retry.
+
+Contract/failure inventory and frozen context:
+[mqtt-retired-replay-storage.md](../specs/mqtt-retired-replay-storage.md).
+
+Validation:
+
+- Missing core/adapter APIs produced RED before implementation:
+  `/tmp/mqtt-retired-storage-red.log`, `/tmp/mqtt-retired-adapter-red.log`.
+  Initial core cases passed in 2.405 s; `/tmp/mqtt-retired-core.log`.
+- Additional failure inventories reproduced three real gaps before their fixes:
+  a copied frontier above HW (`/tmp/mqtt-retired-future-red.log`), a missing replay
+  frontier beside a retained baseline (`/tmp/mqtt-retired-missing-state-red.log`),
+  and premature coverage during interrupted restore
+  (`/tmp/mqtt-retired-restore-order-red.log`). Reads now pin frontier/marker
+  absence together; application rejects future coverage; restore publishes last.
+- `GOWORK=off go test -p 2 -race -tags=integration ./pkg/db/message
+  ./pkg/channel/replication -run
+  '^(TestMQTTRetiredReplay|TestMQTTReplayAnchorQuorumRestartRecoveryAndLearner)'
+  -count=1 -timeout=120s -v`: passed, message 5.636 s, replication 2.607 s;
+  `/tmp/mqtt-retired-integration-final.log`. Coverage includes partial cleanup,
+  absent-copy retirement, retained-suffix transfer/metering, import rejection
+  below retirement, exact and older retries, reopen, original-source release,
+  historical cuts, partial/empty-suffix backup restore, changed proof rejection,
+  canceled work and missing/corrupt baseline evidence. Three disk-backed voters
+  and one learner apply the decision, clean content and verify readiness through
+  reopen and authority recovery using actual exchange codecs. Transport remains
+  the in-process wire fixture and consumer admission is controlled.
+- `GOWORK=off go test -p 2 -race -tags=integration ./pkg/db/message -run
+  '^TestMQTTRetiredReplayInterruptedRestoreDoesNotPublishCoverage$' -count=1
+  -timeout=90s -v`: verifies the final version-2/version-3 interruption matrix;
+  `/tmp/mqtt-retired-restore-versions.log`.
+- `GOWORK=off go test -p 2 -race ./pkg/db/... ./pkg/channel/... -count=1
+  -timeout=180s`: all passed after final production edits; message 42.747 s,
+  transfer 96.476 s, store 4.365 s. `/tmp/mqtt-retired-final-race.log`.
+- `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-retired-flow.log`. Generated index and whitespace pass.
+
+Next connect ordered consumer admission/current-authority retirement production
+and bounded replica application to replay recovery. A replica whose old content
+was never copied must apply its committed baseline before requesting that retired
+content from donors. The producer/coordinator must also avoid a maintenance
+feedback loop where copying a retirement-only native tail creates another anchor
+and retirement indefinitely; control positions still require coherent cursors.
+Final binding removal, complete subscription/inbox projection, permission ordering,
+delivery/ACK, owner recovery, Will execution, product lifecycle/configuration,
+offline tools and process/load acceptance remain required. The goal is active and
+product MQTT access remains unavailable.

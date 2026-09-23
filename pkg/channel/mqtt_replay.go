@@ -53,7 +53,8 @@ func (r MQTTReplayRequest) Valid() bool {
 		r.ExpectedLeaderEpoch != 0 && r.ExpectedRouteGeneration != 0 && r.Range.Valid()
 }
 
-// MQTTReplayPrefix identifies complete immutable local coverage, not authority.
+// MQTTReplayPrefix identifies cumulative coverage or a committed retired
+// baseline. It alone does not prove retained bodies or current authority.
 type MQTTReplayPrefix struct {
 	Generation                   string
 	StartAfter, Through          uint64
