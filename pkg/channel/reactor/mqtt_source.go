@@ -20,12 +20,19 @@ type mqttSourceWaiter struct {
 // store from claiming replicated protection. Route identity is checked even if
 // the Channel and leader epochs did not change.
 func (r *Reactor) validateMQTTSourceCapability(rc *runtimeChannel, req ch.MQTTSourceRequest) error {
-	capability, ok := r.cfg.Store.(store.MQTTSourceActivationFactory)
-	if !req.Valid() || r.cfg.QuorumLog == nil || !ok || !capability.SupportsMQTTSourceActivation() {
+	if !req.Valid() {
 		return ch.ErrInvalidConfig
 	}
-	if rc == nil || rc.state == nil || rc.state.ID != req.ChannelID ||
-		rc.quorumAuthority.ID.FenceVersion != req.ExpectedRouteGeneration {
+	return r.validateMQTTLeaderCapability(rc, req.ChannelID, req.ExpectedRouteGeneration)
+}
+
+func (r *Reactor) validateMQTTLeaderCapability(rc *runtimeChannel, id ch.ChannelID, route uint64) error {
+	capability, ok := r.cfg.Store.(store.MQTTSourceActivationFactory)
+	if r.cfg.QuorumLog == nil || !ok || !capability.SupportsMQTTSourceActivation() {
+		return ch.ErrInvalidConfig
+	}
+	if rc == nil || rc.state == nil || rc.state.ID != id ||
+		rc.quorumAuthority.ID.FenceVersion != route {
 		return ch.ErrStaleMeta
 	}
 	return nil

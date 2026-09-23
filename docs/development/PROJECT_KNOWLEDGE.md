@@ -315,6 +315,11 @@ specification, runbook, report, or module documentation; link to them when neede
   and local progress atomically, and never advances source release or readiness.
   See [replay transfer](../specs/mqtt-replay-transfer.md); quorum receipts and
   learner/migration scheduling remain runtime requirements.
+  The Channel replay preparation facade checks recovered leader/epoch/route
+  admission before and after a bounded checkpoint worker. It captures HW,
+  confirms source protection and returns owned content without releasing history.
+  Covered pages precede extensions so short-page replies can be retried. Fresh
+  cluster routing and quorum copy coordination remain required above the facade.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.

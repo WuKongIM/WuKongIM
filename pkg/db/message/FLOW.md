@@ -107,10 +107,10 @@ storage core without transferring shared-engine ownership.
   12. Duplicates keep the first boundary; only uncommitted suffixes can replace it.
   Backups skip pending controls and validate committed source/manifest pairs.
   Source/checkpoint reads pin activation/source/HW; admission requires a covered control.
-  Shared replay table 2 atomically stores canonical content and prefix counters;
-  index 2 meters ranges. Bounded transfer requires installed committed log proofs
-  and an independently accepted full-content digest: native log hashes omit fields.
-  Local copy/import never advances System 12 or proves quorum durability.
+  Replay table 2 atomically stores canonical content/counters; index 2 meters ranges.
+  Preparation returns covered pages before extending, preserving short-page retries.
+  Transfer requires committed log proofs plus an independent full-content digest;
+  native hashes omit fields. Local copy/import never advances System 12 or proves quorum.
   Suffix cuts never split proposals; recovery replacement is fenced by the
   inspected frontier and atomically replaces complete verified proposal pages.
 - Queue-depth publication is monotonic through grouped collection and terminal

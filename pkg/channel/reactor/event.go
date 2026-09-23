@@ -52,6 +52,8 @@ const (
 	EventClose
 	// EventMQTTSource captures committed progress and confirms source protection.
 	EventMQTTSource
+	// EventMQTTReplay prepares bounded shared content under recovered authority.
+	EventMQTTReplay
 )
 
 // Event is the mailbox envelope consumed by reactors.
@@ -83,6 +85,7 @@ type Event struct {
 	LeaderEvictAppendSeq uint64
 	// MQTTSource fences source confirmation and explicit control append admission.
 	MQTTSource ch.MQTTSourceRequest
+	MQTTReplay ch.MQTTReplayRequest
 	// MQTTSourceActivation selects a canonical control only on EventAppend.
 	MQTTSourceActivation bool
 }
@@ -129,6 +132,8 @@ func eventKindName(kind EventKind) string {
 		return "EventClose"
 	case EventMQTTSource:
 		return "EventMQTTSource"
+	case EventMQTTReplay:
+		return "EventMQTTReplay"
 	default:
 		return "EventUnknown"
 	}

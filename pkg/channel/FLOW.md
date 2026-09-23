@@ -94,6 +94,9 @@ DTOs, and `worker` bounds blocking I/O.
   confirms captured HW through checkpoint workers and rechecks current fences;
   existing protection avoids another control. Subscription projection and
   shared-copy transfer remain separate; this receipt is not SUBACK authority.
+  Replay preparation uses the same recovered leader/route admission and bounded
+  checkpoint workers. It captures HW, verifies protection and returns owned
+  local content after rechecking fences; it cannot release the original source.
 - Same-Channel append ordering survives batching and worker concurrency.
   Quorum success requires replicated progress; desired replicas never imply it.
 - Optional server Will lookup preserves its separate storage identity domain;

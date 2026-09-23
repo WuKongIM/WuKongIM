@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Prepare shared MQTT replay through recovered Channel leader admission and bounded workers, preserving short-page retries and original-source protection across restart. Distributed copying and product MQTT admission remain under development. / 共享 MQTT 回放准备接入已恢复 Channel leader 的准入与有界 worker，重启后保留短页重试和原始源保护；跨节点复制及产品 MQTT 入口仍在开发。
+
 - Add bounded shared MQTT replay recovery with atomic imports, committed-log validation and an independently accepted full-content digest, preserving retries after original-body cleanup and restart. Distributed recovery and product MQTT admission remain under development. / 新增共享 MQTT 回放的有界恢复与原子导入，核对已提交日志及独立确认的完整内容摘要，支持原文清理和重启后的重试；跨节点恢复及产品 MQTT 入口仍在开发。
 
 - Preserve group MQTT consumption start positions while preparing durable source bindings and cursors, including lost commit replies and cross-node Session takeover. Complete subscription recovery and product MQTT admission remain under development. / 群 MQTT 源绑定与消费游标准备过程中保留首次起点，覆盖提交回复丢失和跨节点会话接管；完整订阅恢复及产品 MQTT 入口仍在开发。

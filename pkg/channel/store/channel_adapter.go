@@ -1022,6 +1022,30 @@ func (a *messageDBChannelStoreAdapter) LoadCommittedMQTTSource(ctx context.Conte
 	return ch.MQTTSourceSnapshot{Generation: source.Generation, StartAfter: source.StartAfter, CommittedThrough: through}, true, nil
 }
 
+// PrepareMQTTReplay translates storage-owned envelopes without another body
+// clone; their lifetime is independent of this temporary store lease.
+func (a *messageDBChannelStoreAdapter) PrepareMQTTReplay(ctx context.Context, req ch.MQTTReplayRange) (ch.MQTTReplayPage, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayPage{}, err
+	}
+	if !req.Valid() {
+		return ch.MQTTReplayPage{}, ch.ErrInvalidConfig
+	}
+	page, err := a.store.PrepareMQTTReplay(ctx, req.Generation, req.From, req.Through, messagedb.ReadOptions{Limit: req.Limit, MaxBytes: req.MaxBytes})
+	if err != nil {
+		return ch.MQTTReplayPage{}, a.mapError(err)
+	}
+	prefix := func(p messagedb.MQTTReplayState) ch.MQTTReplayPrefix {
+		return ch.MQTTReplayPrefix{Generation: p.Generation, StartAfter: p.StartAfter, Through: p.Through, TotalBytes: p.TotalBytes, TotalStoredBytes: p.TotalStoredBytes, Digest: p.Digest}
+	}
+	out := ch.MQTTReplayPage{Before: prefix(page.Before), After: prefix(page.After), Records: make([]ch.MQTTReplayRecord, len(page.Records))}
+	for i, r := range page.Records {
+		out.Records[i] = ch.MQTTReplayRecord{Position: r.Position, ContentVersion: r.ContentVersion, MessageID: r.MessageID,
+			AccountedBytes: r.AccountedBytes, TotalBytes: r.TotalBytes, TotalStoredBytes: r.TotalStoredBytes, ContentHash: r.ContentHash, Digest: r.Digest, Content: r.Content}
+	}
+	return out, nil
+}
+
 func (a *messageDBChannelStoreAdapter) Close() error {
 	if a == nil {
 		return nil

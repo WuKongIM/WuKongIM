@@ -404,3 +404,9 @@ type MQTTSourceActivationFactory interface {
 type MQTTSourceReader interface {
 	LoadCommittedMQTTSource(context.Context, uint64) (ch.MQTTSourceSnapshot, bool, error)
 }
+
+// MQTTReplayPreparer creates/reads bounded local shared content after the worker
+// has persisted captured HW and verified source protection. It owns result bytes.
+type MQTTReplayPreparer interface {
+	PrepareMQTTReplay(context.Context, ch.MQTTReplayRange) (ch.MQTTReplayPage, error)
+}

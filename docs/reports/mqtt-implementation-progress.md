@@ -1897,3 +1897,49 @@ projection, inbox discovery/future-source admission, permission-incarnation
 ordering, reliable delivery/ACK/recovery, fenced Will execution, unavailable-owner
 proof, app/configuration and full process/load acceptance. Product MQTT admission
 stays unavailable; the implementation goal remains active.
+
+## Channel admission for bounded shared replay preparation
+
+Source `330690f90`; frozen context and pre-code failures are recorded in
+[mqtt-replay-admission.md](../specs/mqtt-replay-admission.md). The public optional
+`MQTTReplayPreparer` facade now reaches the owning reactor, checkpoint workers
+and MessageDB adapter. Requests preserve exact Channel/leader epochs and route
+generation; the reactor captures HW, rejects future ranges and rechecks current
+leader readiness, write fences, admission guard and caller context at completion.
+Replay waiters share existing cancellation/eviction ownership but cannot be
+consumed by message/source completions or foreign operation IDs.
+
+The worker persists captured HW, confirms committed source identity, prepares one
+bounded page and closes its temporary lease on success, error or panic. The
+adapter transfers owned opaque original-row bytes and all counters/hashes without
+an extra payload clone. Preparation first returns already copied pages before
+extending into uncopied history, so retrying a lost short-page response cannot
+produce an overlapping extension. No source-release or log-format change occurs.
+
+Verified:
+
+- Unit/API tests were written first and initially failed to compile due to the
+  missing facade, tasks and store method: `/tmp/mqtt-replay-admission-red.log`.
+  Focused tests then passed, `/tmp/mqtt-replay-admission-focused.log`.
+- `GOWORK=off go test -race ./pkg/channel/... ./pkg/db/message -count=1
+  -timeout=180s`: every package passed; `/tmp/mqtt-replay-admission-race.log`.
+- `GOWORK=off go test -race -tags=integration ./pkg/channel/service
+  -run '^TestMQTT(Source|Replay)Service' -count=1 -timeout=120s -v`: passed
+  (2.682 seconds), `/tmp/mqtt-replay-admission-integration-race.log`.
+  The replay evidence uses a real disk-backed single-node cluster quorum runtime,
+  checks concurrent short-page retry, source/leader ordering, stale epoch/route
+  rejection, restart recovery, independent returned buffers and retained original
+  protection. The existing source-service integration tests also pass. This is
+  not multi-node transfer or product MQTT acceptance.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing
+  line-budget warnings; `/tmp/mqtt-replay-admission-flow.log`. FLOW index regenerated;
+  `git diff --check` passed. macOS LC_DYSYMTAB linker warnings were non-failing.
+
+Next, fresh cluster authority and a bounded routed RPC must expose this facade,
+then coordinate independently accepted copy decisions and receiver imports under
+current replica membership. Quorum-copy/source-release replication, learner
+readiness and consumer-proof GC remain required. Complete subscription projection,
+inbox discovery, permission ordering, reliable delivery/ACK/recovery, Will
+execution, unavailable-owner proof, app/configuration and process/load acceptance
+are still outstanding; the full goal remains active and MQTT product admission
+remains unavailable.

@@ -72,6 +72,9 @@ typed bounded workers and returns as `EventWorkerResult`.
   admission, then checkpoints and reads protection in a bounded worker. Lookup
   waiters also guard its cancellation and lifecycle; completion rechecks every
   fence and context. First source controls share the ordered quorum append queue.
+- Replay preparation shares recovered leader admission, cancellation and lifecycle
+  ownership. Captured HW bounds its checkpoint worker; typed completion rechecks
+  authority, operation identity and bounded page structure before returning bytes.
 
 ## Read First
 

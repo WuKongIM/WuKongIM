@@ -33,6 +33,8 @@ It does not own reactor state machines, business retries, or dependency policy.
    deep durable-log owner and are never worker-batched.
    Source confirmation uses the checkpoint pool, persists reactor-captured HW
    before its consistent protection read, and closes its temporary store lease.
+   Replay preparation shares that pool, verifies source generation and bounds
+   before copying/reading one owned page, and never advances source release.
 3. Close admission, resolve queued accepted tasks as closed when configured,
    cancel the runtime for active dependency calls, wait for handlers, and
    release the executor.

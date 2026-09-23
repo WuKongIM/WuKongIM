@@ -51,6 +51,12 @@ independently accepted complete-content prefix. Native entry digests omit some
 row fields, so sender-supplied page hashes alone cannot authenticate recovery.
 This adds no durable schema or wire-format change.
 
+The [Channel preparation facade](mqtt-replay-admission.md) now orders bounded
+copy/read admission under recovered leader/epoch/route fences, captures committed
+HW and executes through checkpoint workers. Previously copied prefixes return
+existing pages before extending; a lost short-page reply remains retryable.
+The caller still needs fresh cluster authority and quorum copy coordination.
+
 No generic delete/TTL is provided. Consumer-proof GC, cross-node replication,
 learner/migration orchestration, authority recovery and MQTT-state JSONL export remain
 required before product activation. This replica storage API alone cannot
