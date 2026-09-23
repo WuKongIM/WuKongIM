@@ -16,7 +16,8 @@ cluster/gateway adapter, background worker or shared replay implementation.
 - Metadata uses three narrow shared contracts implemented by the foreground-
   gated cluster Node; product reads never fall back to local storage.
 - Device-token verification reuses user policy without WK master-device kicks.
-- Will permission is checked at setup and must be checked again on execution.
+- Will permission is checked at setup and must be checked again on execution;
+  explicit denial remains distinct from authority or infrastructure failure.
 - Isolation requires exact owner quiescence or another valid proof supplied by
   its port. A stored state, lease expiry, foreign boot or RPC error is not proof.
 - App owns composition, bounded request contexts, renewal/sweep scheduling and

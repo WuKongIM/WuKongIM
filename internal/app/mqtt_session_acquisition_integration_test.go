@@ -4,21 +4,25 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	accessmqtt "github.com/WuKongIM/WuKongIM/internal/access/mqtt"
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession"
 	"github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta"
+	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
 	runtime "github.com/WuKongIM/WuKongIM/internal/runtime/mqttsession"
+	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	sessioncase "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	wire "github.com/WuKongIM/WuKongIM/pkg/protocol/mqtt"
 	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 	"github.com/stretchr/testify/require"
 )
@@ -27,12 +31,6 @@ type mqttAcquisitionDeviceReader struct{ node *cluster.Node }
 
 func (r mqttAcquisitionDeviceReader) GetDevice(ctx context.Context, uid string, flag int64) (meta.Device, error) {
 	return r.node.GetDeviceMetadata(ctx, uid, flag)
-}
-
-type mqttAcquisitionRejectWill struct{}
-
-func (mqttAcquisitionRejectWill) AuthorizeWill(context.Context, string, sessioncase.WillTarget) error {
-	return errors.New("Will permission adapter intentionally absent in acquisition-only integration")
 }
 
 // This proves usecase composition with real Slot authority, device credentials
@@ -45,11 +43,15 @@ func TestMQTTSessionAcquisitionThreeNodeRPC(t *testing.T) {
 	nodes := make([]*cluster.Node, 0, 3)
 	owners := make([]*runtime.Owners, 0, 3)
 	services := make([]*sessioncase.App, 0, 3)
+	permissionStores := make([]*clusterinfra.ChannelMetadataStore, 0, 3)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		for _, r := range owners {
 			require.NoError(t, r.Close(ctx))
+		}
+		for _, s := range permissionStores {
+			require.NoError(t, s.Stop(ctx))
 		}
 		var wg sync.WaitGroup
 		for _, n := range nodes {
@@ -74,7 +76,10 @@ func TestMQTTSessionAcquisitionThreeNodeRPC(t *testing.T) {
 		owners = append(owners, r)
 		n.RegisterRPC(accessnode.MQTTOwnerRPCServiceID, accessnode.MQTTOwnerRPC{Owners: r})
 		tokens := user.New(user.Options{DeviceReader: mqttAcquisitionDeviceReader{node: n}})
-		service, e := sessioncase.New(sessioncase.Options{Store: n, Owners: r, Isolation: accessnode.NewMQTTOwnerClient(n), Tokens: tokens, Wills: mqttAcquisitionRejectWill{}, LeaseDuration: 30 * time.Second, CleanupTimeout: time.Second, SessionExpiryLimitSec: 86400, QuotaMessages: 10000, QuotaBytes: 64 << 20, WindowLimit: 64})
+		permissions := clusterinfra.NewChannelMetadataStore(n, nil, nil)
+		permissionStores = append(permissionStores, permissions)
+		messages := message.New(message.Options{PermissionStore: permissions, PermissionCacheTTL: time.Hour})
+		service, e := sessioncase.New(sessioncase.Options{Store: n, Owners: r, Isolation: accessnode.NewMQTTOwnerClient(n), Tokens: tokens, Wills: mqttWillAuthorizer{messages: messages}, LeaseDuration: 30 * time.Second, CleanupTimeout: time.Second, SessionExpiryLimitSec: 86400, QuotaMessages: 10000, QuotaBytes: 64 << 20, WindowLimit: 64})
 		require.NoError(t, e)
 		services = append(services, service)
 	}
@@ -177,4 +182,39 @@ func TestMQTTSessionAcquisitionThreeNodeRPC(t *testing.T) {
 	route, e := nodes[0].RouteKey(key)
 	require.NoError(t, e)
 	t.Logf("MQTT acquisition: hash_slots=256 physical_slots=2 replicas=3 hash_slot=%d slot=%d metadata_leader=%d owner_path=2->3->1 generation=1 owner_generation=3 bad_token_rejected=true remote_scope_drained=true stale_disconnect_rejected=true receive_maximum=1", route.HashSlot, route.SlotID, route.Leader)
+
+	// Will setup reads current group authority without sending or altering the
+	// previous connection. Permission at execution is a separate required check.
+	require.NoError(t, nodes[0].UpsertChannelMetadata(ctx, meta.Channel{ChannelID: "will-group", ChannelType: 2}))
+	require.NoError(t, nodes[0].AddChannelSubscribers(ctx, "will-group", 2, []string{"alice"}, 1))
+	topic, e := accessmqtt.FormatTopic(accessmqtt.Target{ChannelID: "will-group", ChannelType: 2})
+	require.NoError(t, e)
+	input, e := accessmqtt.MapWill(&wire.Will{Topic: topic, Payload: []byte("gone"), QoS: 1, Properties: []wire.Property{{ID: wire.UserProperty, Text: "wk.client_msg_no", Value: "will-1"}}}, "main", "will-client")
+	require.NoError(t, e)
+	var willCloses atomic.Int32
+	willCommand := command
+	willCommand.Key.ClientID = "will-client"
+	willCommand.Will = &sessioncase.Will{WillTarget: sessioncase.WillTarget{Topic: topic, TargetID: input.Target.ChannelID, TargetType: input.Target.ChannelType}, QoS: 1, Payload: input.Payload, PublicationMetadata: input.Metadata, ClientMsgNo: input.ClientMsgNo}
+	willCommand.CloseTransport = func(context.Context) error { willCloses.Add(1); return nil }
+	willConnection, e := services[1].Connect(ctx, willCommand)
+	require.NoError(t, e)
+	willRead := meta.MQTTRead{Kind: meta.MQTTReadWill, WillKey: meta.MQTTWillKey{Namespace: "main", ClientID: "will-client", SessionGeneration: willConnection.Owner.SessionGeneration, WillGeneration: willConnection.WillGeneration}}
+	wills, e := nodes[2].ReadMQTT(ctx, willRead)
+	require.NoError(t, e)
+	require.Len(t, wills.Wills, 1)
+	require.Equal(t, meta.MQTTWillArmed, wills.Wills[0].Stage)
+	require.NoError(t, nodes[0].RemoveChannelSubscribers(ctx, "will-group", 2, []string{"alice"}, 2))
+	_, e = services[2].Connect(ctx, willCommand)
+	require.ErrorIs(t, e, sessioncase.ErrWillDenied)
+	require.Zero(t, willCloses.Load(), "unauthorized Will replacement isolated the accepted owner")
+	unchanged, e := nodes[0].ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadSession, Namespace: "main", ClientID: "will-client"})
+	require.NoError(t, e)
+	require.NotNil(t, unchanged.Session)
+	require.Equal(t, willConnection.Lease.Revision, unchanged.Session.Revision)
+	require.NoError(t, services[1].Disconnect(ctx, sessioncase.DisconnectCommand{Owner: willConnection.Owner, Normal: true}))
+	wills, e = nodes[2].ReadMQTT(ctx, willRead)
+	require.NoError(t, e)
+	require.Len(t, wills.Wills, 1)
+	require.Equal(t, meta.MQTTWillCancelled, wills.Wills[0].Stage)
+	t.Log("MQTT Will setup: authoritative_membership=true armed_durable=true revoked_replacement_rejected_before_isolation=true normal_disconnect_cancelled=true")
 }

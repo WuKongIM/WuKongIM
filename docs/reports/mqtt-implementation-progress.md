@@ -1144,3 +1144,57 @@ unreachable/restarted-owner recovery proof, source activation and shared replay
 replication, delivery/ACK/Will workers, revocation, restore and the remaining
 approved acceptance work are still required. The product listener stays
 unavailable and the full implementation goal remains active.
+
+## Current IM permission checks for Will setup
+
+Frozen source `21e808f9c`, applicable context digests and the pre-code failure
+inventory are recorded in the Will setup section of
+[`mqtt-session-acquisition.md`](../specs/mqtt-session-acquisition.md).
+
+The message usecase now exposes a read-only publish-permission query containing
+only the authenticated sender and ordinary person/group destination. It reuses
+the existing business policy and its reason precedence, but requires authority
+and bypasses the optional SEND cache for every fact. It cannot accept system-
+device or request-scoped controls, reinterpret a command suffix or encoded person
+conversation, create person directories, run send hooks or append a message.
+Missing authority, invalid input, cancellation and infrastructure errors remain
+explicit. The app Will adapter only translates sibling DTOs and maps a confirmed
+negative policy result to `ErrWillDenied`. Setup grants no future execution.
+
+Tests were written first and failed on the missing query, adapter and denial
+error before production code was added. Coverage includes a warm SEND cache
+followed by member removal, denylist and sender-ban changes; group policy order;
+person normalization and disband; absence of send side effects; configured system
+UID versus forbidden device bypass; malformed targets; missing/canceled authority
+and preserved storage errors.
+
+The existing three-node acquisition integration now composes the real cluster
+permission adapter and this Will authorizer. It stores an allowed Will, removes
+the publisher from the group, rejects replacement CONNECT before closing the
+accepted owner or changing its revision, then verifies normal disconnect cancels
+the durable Will. It retains the earlier owner 2 -> 3 -> 1 assertions and uses
+256 logical hash Slots, two physical Slots and three replicas. It still uses
+controlled physical-close callbacks, not a complete MQTT product listener.
+
+Validation:
+
+- `GOWORK=off go test ./internal/usecase/message ./internal/usecase/mqttsession
+  -count=1 -timeout=90s` passed (0.390 / 1.895 seconds).
+- `GOWORK=off go test -race ./internal/usecase/message
+  -run '^TestPublishPermission|^TestSend.*Permission' -count=1 -timeout=90s`
+  passed in 1.884 seconds with the pre-existing macOS linker warning; log:
+  `/tmp/mqtt-will-authorization-race.log`. `git diff --check` passed.
+- `GOWORK=off go test -tags=integration ./internal/app
+  -run '^TestMQTTSessionAcquisitionThreeNodeRPC$' -count=1 -timeout=90s -v`
+  passed in 9.35 seconds. Evidence includes `armed_durable=true`,
+  `revoked_replacement_rejected_before_isolation=true` and
+  `normal_disconnect_cancelled=true`; log:
+  `/tmp/mqtt-will-authorization-integration.log`.
+- Named `flow-doc-contracts` passed after index regeneration: 86 compliant,
+  zero invalid and the same 9 existing warnings. The already-over-target app and
+  message FLOW files retain concise new navigation needed for this permission
+  boundary; restructuring their unrelated flows is outside this change.
+
+The Will worker, execution-time reauthorization, product MQTT composition and all
+remaining recovery/replay/delivery acceptance work are still required. This seam
+does not enable the product listener or complete the full implementation goal.

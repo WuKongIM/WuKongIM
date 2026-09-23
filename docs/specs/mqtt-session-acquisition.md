@@ -115,3 +115,44 @@ Source `571963d33`; SHA-256 digests follow.
 - `internal/usecase/message/FLOW.md`: `161490413a1676815da7834ca2216857fc0cc4c5e2e00fe1a965abc7fcf22357`
 
 - `pkg/protocol/publication/FLOW.md`: `c233c21b41ca6cfc2f4c34ffec50bba4eb099952591856b4f3233f231a2ec655`
+
+## Will setup permission seam: failure inventory
+
+Before implementing the read-only permission query and app adapter:
+
+1. Missing permission infrastructure or cancellation becomes permission success.
+   Fail explicitly; never inherit ordinary SEND's optional-store compatibility.
+2. A warm SEND cache accepts a removed group member, new denylist entry or send
+   ban. Query every permission fact through the existing authority port.
+3. Reimplementing rules changes sender-ban, group ban/disband, membership,
+   allowlist or personal-receiver precedence. Reuse the message policy itself.
+4. A caller smuggles system-device, request-scoped or already-normalized personal
+   authority through a broad SendCommand. Expose only authenticated UID and a
+   bounded client-visible person/group destination; normalize personal channels
+   using that UID and never accept a device bypass. Reject reserved command-channel
+   suffixes and personal IDs containing the underlying conversation separator;
+   neither may be reinterpreted as another destination.
+5. Checking a Will creates a person directory, runs payload hooks or submits a
+   message. The new query performs reads only and grants no future publication.
+6. A storage/routing error is converted to a business denial or a missing row.
+   Preserve errors; the app translates only an explicit negative policy result
+   into the fixed Will-denied error.
+7. The real Session composition evicts the previous owner before rejecting its
+   unauthorized replacement Will. Extend the three-node acquisition integration
+   to exercise current membership reads and rejection before isolation.
+
+The implemented query keeps business reason precedence in the message usecase,
+while its required authority port bypasses the ordinary SEND cache for every
+fact. The app adapter only maps sibling DTOs and explicit denials; unavailable
+authority remains an error. Will execution still needs its own current check and
+ordinary send admission. Product listener composition is not enabled by this seam.
+
+Frozen source `21e808f9c`; applicable SHA-256 digests for this seam:
+
+- `AGENTS.md`: `d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade`
+- `internal/usecase/message/FLOW.md`: `161490413a1676815da7834ca2216857fc0cc4c5e2e00fe1a965abc7fcf22357`
+- `internal/app/FLOW.md`: `8dab6a38e7e158056e187b4ae2e56b60d3bceb8728e955e870820c3976ed209c`
+- `internal/usecase/mqttsession/FLOW.md`: `6c2f146d6dcfda0e8011c48ce25ee1b18b79160f88ed4f53a4629ebd57945ca3`
+- `internal/infra/cluster/FLOW.md`: `280bbf0f0d5c87e1875e727cb33468c9f41b21490f85c80e4b92c12ace43fa76`
+- `internal/contracts/channelappend/FLOW.md`: `b8b3aaa839d8fe0cc03ff6652a29635115c5f708c19476573b695965ac863b15`
+- `internal/access/mqtt/FLOW.md`: `9dcd77d3a6be9170f40b4de7959a541942c6844848e226174a8f7e1b733300cd`

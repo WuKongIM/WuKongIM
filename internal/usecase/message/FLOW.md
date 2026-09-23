@@ -29,6 +29,10 @@ depending on their frames, JSON, or concrete cluster runtimes.
 
 ## Main Flows
 
+`CheckPublishPermission` reuses person/group policy with uncached authority reads
+and a narrow UID/ordinary-target query. It fails without authority and performs no
+SEND hooks, directory writes or append; delayed publications must authorize again.
+
 1. `SendBatchEach` uses an allocation-tight single-item path at cardinality one;
    larger batches coalesce equivalent raw permission reads. Both evaluate the
    same legacy policy, establish each accepted person directory once, run hooks

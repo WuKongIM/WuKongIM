@@ -226,6 +226,8 @@ specification, runbook, report, or module documentation; link to them when neede
   The [Session usecase](../specs/mqtt-session-acquisition.md) verifies device
   credentials without WK conflict actions, isolates the exact old owner, rereads
   authority, atomically commits Session/Will and activates only the local candidate.
+  Will setup uses message's read-only person/group permission query, bypassing the
+  SEND cache without creating directories or publishing; execution rechecks policy.
   Local lease time starts before proposal submission; durable milliseconds round
   up while the monotonic deadline never moves with response latency. Renewal
   preserves delivery/Will state and fences confirmed loss or invalid clocks.

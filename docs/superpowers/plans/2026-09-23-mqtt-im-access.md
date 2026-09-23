@@ -22,6 +22,7 @@
 - 六张元数据表的 Slot 代理和 Node facade 已接通：冻结 namespace/ClientID 路由，源映射复用 Channel ID/UID 路由；RPC 91 使用新鲜 ReadIndex/apply 屏障及一致快照，拒绝缺失或损坏的条件写入结果。真实三节点、256 hash slots 验证 leader 切换、重启恢复和无多数派拒绝读写；不替代连接隔离或 MQTT 客户端验收。
 - owner 本地运行时已实现有界预留、单调时钟准入、到期隔离、关闭重试与执行排空；RPC 92 只接受完整身份的静默确认。独立测试及竞争检测通过；网关已补齐独立物理关闭确认并验证真实 TCP/WebSocket 连接，后续 Session 用例已接入显式隔离及保守的本地租约安装，app 装配与失联 owner 恢复仍未完成。
 - `internal/usecase/mqttsession` 已接入认证、旧 owner 隔离后权威重读、Session/Will 原子获取、本地单调租约安装/续租和精确断连；提交前计时防止响应延迟延长执行权。真实三节点、256 hash slots、设备凭据与 RPC 92 验证 owner 2→3→1 接管、远端排空及迟到断连拒绝。产品入口、失联/重启 owner 的有效隔离证明和完整恢复仍待接通。
+- Will 配置授权已复用消息用例的单聊/群聊规则，逐项读取当前权威数据并绕过发送缓存；检查不创建单聊目录、不运行发送 hook、不发布消息。app 适配只转换 DTO 和明确的权限拒绝，执行时的再次授权与持久任务调度仍待实现。
 - 单节点/三节点产品 E2E 场景已编译，首次单节点运行因缺失 MQTT 配置项失败；app 接入、生命周期权威编排与 owner 隔离、共享 replay 的跨节点复制、源保护激活、持久会话/Will/配额及 MQTT 状态离线迁移仍待实现，不能开启入口或声明功能完成。
 - 验证与冻结源码依据见 [实施记录](../../reports/mqtt-implementation-progress.md)。
 

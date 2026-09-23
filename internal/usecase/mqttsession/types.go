@@ -19,6 +19,8 @@ var (
 	ErrEvidence = errors.New("mqttsession: invalid authority evidence")
 	ErrFenced   = errors.New("mqttsession: durable owner fenced")
 	ErrClock    = errors.New("mqttsession: lifecycle clock unavailable or regressed")
+	// ErrWillDenied distinguishes current publish-policy denial from unavailable authority.
+	ErrWillDenied = errors.New("mqttsession: Will publication not authorized")
 )
 
 // Metadata uses shared durable contracts and is implemented by the foreground-

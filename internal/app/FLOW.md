@@ -61,6 +61,8 @@ Stop or startup rollback
   disabled delivery leaves that optional port absent.
 - Optional features are wired only when all required ports exist; unavailable
   capabilities stay explicit instead of receiving partial implementations.
+- The MQTT Will setup adapter maps Session intent to the message usecase's
+  uncached read-only permission query. Full MQTT product wiring is still pending.
 - Command-channel suffixes are injected across send, delivery, CMD sync, plugin
   projection and Manager filtering without process-global state.
 - The normalized message system UID is injected consistently into user
