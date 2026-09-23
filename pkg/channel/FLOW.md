@@ -10,10 +10,8 @@ summary: Implements the reusable multi-reactor Channel log runtime, replication,
 metadata fences, per-Channel ordering, leader append, durable-quorum commits, follower pull replication,
 committed progress, retention, lifecycle, and synchronous reactor facades.
 
-`machine` holds pure transitions, `reactor` owns state and scheduling,
-`replication` holds protocol decisions, `service`
-is the synchronous facade, `store` defines persistence, `transport` defines RPC
-DTOs, and `worker` bounds blocking I/O.
+`machine` holds pure transitions; `reactor` owns scheduling; `replication` owns protocol decisions.
+`service` is the facade, `store` defines persistence, `transport` defines RPC, and `worker` bounds blocking I/O.
 
 ## Boundaries
 - Product permission, authority selection, subscriber fanout, and SENDACK
@@ -100,6 +98,8 @@ DTOs, and `worker` bounds blocking I/O.
   Format-5 replay anchors retain committed full-content checkpoints in a separate
   journal; exact retry, recovery and learner transfer preserve control intent.
   Unsupported stores reject it; neither the payload nor its journal authorizes GC.
+  Explicit format-6 retirement uses the sequencer with closed retry intent and journal-capability checks.
+  It preserves whole-anchor decisions through replica recovery; product consumer admission and physical GC remain separate.
   Typed anchor admission shares the durable sequencer, checks exact installed
   membership and chains the latest accepted prefix. Stable source/Through commands
   reuse committed proofs after restart or original trim; pending retries keep the

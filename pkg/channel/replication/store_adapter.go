@@ -233,6 +233,9 @@ func (a *storeAdapter) Sync(ctx context.Context, mutations []Mutation) []Mutatio
 		if mutation.Manifest.Version == quorumlog.MQTTReplayAnchorProposalManifestVersion && !a.supportsMQTTAnchors() {
 			return rejectMutations(results, ch.ErrInvalidConfig)
 		}
+		if mutation.Manifest.Version == quorumlog.MQTTReplayRetirementProposalManifestVersion && !a.supportsMQTTRetirements() {
+			return rejectMutations(results, ch.ErrInvalidConfig)
+		}
 		if !validMutation(mutation) {
 			return rejectMutations(results, ch.ErrInvalidConfig)
 		}
@@ -314,6 +317,9 @@ func (a *storeAdapter) Replace(ctx context.Context, replacements []RecoveryRepla
 	for _, replacement := range replacements {
 		for _, proposal := range replacement.Proposals {
 			if proposal.Manifest.Version == quorumlog.MQTTReplayAnchorProposalManifestVersion && !a.supportsMQTTAnchors() {
+				return rejectRecoveryReplacements(results, ch.ErrInvalidConfig)
+			}
+			if proposal.Manifest.Version == quorumlog.MQTTReplayRetirementProposalManifestVersion && !a.supportsMQTTRetirements() {
 				return rejectRecoveryReplacements(results, ch.ErrInvalidConfig)
 			}
 			if proposal.Manifest.Version == quorumlog.MQTTSourceProposalManifestVersion && !a.supportsMQTTActivation() {
@@ -698,4 +704,9 @@ func (a *storeAdapter) supportsMQTTActivation() bool {
 func (a *storeAdapter) supportsMQTTAnchors() bool {
 	capable, ok := a.cfg.Factory.(channelstore.MQTTReplayAnchorFactory)
 	return ok && capable.SupportsMQTTReplayAnchors()
+}
+
+func (a *storeAdapter) supportsMQTTRetirements() bool {
+	capable, ok := a.cfg.Factory.(channelstore.MQTTReplayRetirementFactory)
+	return ok && capable.SupportsMQTTReplayRetirements()
 }

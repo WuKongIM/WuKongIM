@@ -71,6 +71,20 @@ format 5; matching writers and tools and pre-feature rollback backups are requir
 Runtime copy-receipt admission and routed anchored repair preserve these proofs. See
 [replay anchors](../../docs/specs/mqtt-replay-anchor.md).
 
+Exact proposal format 6 records one explicitly selected replay-retirement
+decision under a new hash domain. Its closed payload binds a complete accepted
+anchor, its original position and proposal digest. Message System ID 15 journals
+the canonical control envelope in a key-bound version-1 checksum value. Append
+and recovery validate source activation, the covered anchor and monotonic prefix;
+committed reads independently verify the full proposal/entry/reference chain.
+Backup keeps only HW-covered decisions and validates their journals and anchors;
+suffix replacement removes only uncommitted journals. No replay row, meter or
+source-release encoding changes, and no physical reclamation is enabled here.
+Business format selection remains 1–3. Old validators reject format 6, so all
+writers/tools must match and rollback requires a pre-feature backup. Product
+consumer admission and pruned-prefix recovery remain required. See
+[replay retirement](../../docs/specs/mqtt-replay-retirement.md).
+
 Explicit source release can now derive System 12 progress from a locally
 committed format-5 anchor and independently verified local replay coverage.
 It stores the anchor manifest digest in the existing receipt field and advances

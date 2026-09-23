@@ -473,6 +473,18 @@ func snapshotBackupSystemEntries(ctx context.Context, view messageBackupReadView
 		if err != nil {
 			return nil, err
 		}
+		if bytes.HasPrefix(key, mqttReplayRetirementPrefix(channelKey)) {
+			position, ok := mqttReplayRetirementPosition(channelKey, key)
+			if !ok {
+				return nil, dberrors.ErrCorruptState
+			}
+			if _, _, err := decodeMQTTRetirementJournal(channelKey, position, value); err != nil {
+				return nil, err
+			}
+			if position > hw {
+				continue
+			}
+		}
 		if bytes.HasPrefix(key, mqttReplayAnchorPrefix(channelKey)) {
 			position, ok := mqttReplayAnchorPosition(channelKey, key)
 			if !ok {

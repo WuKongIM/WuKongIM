@@ -44,8 +44,11 @@ type Proposal struct {
 	// format. It requires one canonical internal record and capable replicas.
 	MQTTSourceActivation bool
 	// MQTTReplayAnchor selects one canonical content-checkpoint control. It is
-	// mutually exclusive with source activation; business callers leave both false.
+	// mutually exclusive with other controls; business callers leave all false.
 	MQTTReplayAnchor bool
+	// MQTTReplayRetirement selects one canonical accepted-anchor retirement.
+	// Its caller must establish consumer permission before entering the sequencer.
+	MQTTReplayRetirement bool
 }
 
 // Receipt proves that one exact proposal is durable on the local leader and

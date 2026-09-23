@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Persist MQTT replay-retirement decisions as explicit proposal format 6 with independently verified anchor references, replicated journals and backup preservation. Matching replicas/tools are required; product admission and physical shared-content GC remain under development. / MQTT 回放回收决策新增显式 proposal format 6，独立核验锚点引用并保留复制日志及备份；需要匹配副本与工具，产品准入及共享内容物理回收仍在开发。
+
 - Validate MQTT consumer retention floors in a strict snapshot, capturing accepted replay anchors before reading obligations so concurrent subscriptions cannot be skipped. Physical shared-content GC and product access remain under development. / MQTT 消费者保留水位采用严格一致快照，先固定已提交回放锚点、再读取消息责任，避免跳过并发订阅；共享内容物理回收及产品接入仍在开发。
 
 - Project durable MQTT consumer completion into source bindings while preserving ACK gaps and pending removal after Session termination. No new storage format is required; shared-content GC and product access remain under development. / MQTT 持久消费进度接入源绑定，保留乱序 ACK 缺口及会话结束后的清理责任；无需新增存储格式，共享内容回收与产品接入仍在开发。

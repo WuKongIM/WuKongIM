@@ -416,6 +416,16 @@ type MQTTReplayPreparer interface {
 // cleanup, committed proof reads and portable backup preservation.
 type MQTTReplayAnchorFactory interface{ SupportsMQTTReplayAnchors() bool }
 
+// MQTTReplayRetirementFactory attests atomic format-6 decision journaling,
+// committed anchor verification, suffix cleanup and backup preservation.
+type MQTTReplayRetirementFactory interface{ SupportsMQTTReplayRetirements() bool }
+
+// MQTTReplayRetirementReader verifies the committed decision and its original
+// anchor in the replica's own journal. It does not delete shared content.
+type MQTTReplayRetirementReader interface {
+	LoadMQTTReplayRetirement(context.Context, uint64) (ch.MQTTReplayRetirementProof, bool, error)
+}
+
 // MQTTReplayAnchorReader reads an independently committed exact control proof;
 // neither original-row retention nor a donor-supplied digest is its authority.
 type MQTTReplayAnchorReader interface {

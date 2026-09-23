@@ -14,7 +14,7 @@ import (
 )
 
 func TestMQTTReplayAnchorQuorumRestartRecoveryAndLearner(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	router := &runtimeTestRouter{servers: make(map[ch.NodeID]*ExchangeServer)}
 	paths := map[ch.NodeID]string{}
@@ -133,6 +133,15 @@ func TestMQTTReplayAnchorQuorumRestartRecoveryAndLearner(t *testing.T) {
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, installed.HW, uint64(3))
 	require.True(t, check(2))
+	retirementCheck := verifyMQTTRetirementQuorum(t, ctx, a, runtimes, factories)
+	closeAll()
+	open()
+	a.ID.LeaderTerm++
+	_, err = runtimes[2].Log().Install(ctx, a)
+	require.NoError(t, err)
+	for _, node := range []ch.NodeID{1, 2, 3, 4} {
+		require.Eventually(t, func() bool { return retirementCheck(node) }, 3*time.Second, time.Millisecond)
+	}
 	for _, node := range []ch.NodeID{1, 3, 4} {
 		router.register(node, nil)
 	}

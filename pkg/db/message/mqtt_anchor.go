@@ -36,9 +36,9 @@ func mqttReplayAnchorPosition(key ChannelKey, k []byte) (uint64, bool) {
 	return n, n != 0
 }
 
-// canonicalMQTTAnchorContent excludes every native business-only field and
+// canonicalMQTTControlContent excludes every native business-only field and
 // normalizes the replica-local size hint before retaining the control envelope.
-func canonicalMQTTAnchorContent(key ChannelKey, row messageRow) ([]byte, error) {
+func canonicalMQTTControlContent(key ChannelKey, row messageRow) ([]byte, error) {
 	expected := messageRow{MessageID: row.MessageID, MessageSeq: row.MessageSeq, ChannelID: row.ChannelID, ChannelType: row.ChannelType, ServerTimestampMS: row.ServerTimestampMS, FramerFlags: 4, Payload: row.Payload, PayloadSize: uint64(len(row.Payload))}
 	row.PayloadSize = uint64(len(row.Payload))
 	k := encodeMessageRowKey(key, row.MessageSeq, 0)
@@ -72,7 +72,7 @@ func decodeMQTTAnchorJournal(key ChannelKey, position uint64, value []byte) (mes
 	if err != nil {
 		return row, a, err
 	}
-	content, err := canonicalMQTTAnchorContent(key, row)
+	content, err := canonicalMQTTControlContent(key, row)
 	if err != nil || !bytes.Equal(content, env.Payload) {
 		return row, a, dberrors.ErrCorruptValue
 	}
@@ -138,7 +138,7 @@ func (e *channelEntry) stageMQTTReplayAnchors(batch *engine.Batch, rows []messag
 		if err != nil || a.SourceCommand != activation.CommandID || a.StartAfter != activation.BaseOffset || a.Through > hw || a.Through >= p.manifest.LastOffset {
 			return dberrors.ErrConflict
 		}
-		content, err := canonicalMQTTAnchorContent(e.key, row)
+		content, err := canonicalMQTTControlContent(e.key, row)
 		if err != nil {
 			return err
 		}

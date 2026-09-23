@@ -7,9 +7,8 @@ summary: Stores Channel message logs, indexes, checkpoints, retention state, sna
 
 ## Responsibility
 
-`pkg/db/message` persists node-local Channel logs on `pkg/db/internal`, with canonical leases, atomic append
-and follower apply, secondary indexes, checkpoints and history, logical and
-physical retention, inspection, and portable backup/restore snapshots.
+`pkg/db/message` persists node-local Channel logs with canonical leases, atomic append/follower apply,
+indexes, checkpoints, history, retention, inspection and portable backup/restore on `pkg/db/internal`.
 
 Compatibility maps Channel records/offsets to this core without transferring engine ownership.
 
@@ -50,7 +49,7 @@ Compatibility maps Channel records/offsets to this core without transferring eng
 ## Invariants and Failure Semantics
 
 - Offline helpers preserve optional publication column 21 and verify proposal
-  formats 1–5. Format 2 binds Expire; format 3 also binds publication metadata;
+  formats 1–6. Format 2 binds Expire; format 3 also binds publication metadata;
   format 4 exclusively binds one canonical internal source activation record.
   Metadata uses compatibility record codec 2; native codec-1 bytes stay unchanged.
   Matched runtimes, tooling and full-generation rollback are required. Import adds no empty-key exception, uniqueness relaxation,
@@ -115,6 +114,8 @@ Compatibility maps Channel records/offsets to this core without transferring eng
   Repair planning verifies coverage/cursors, scans at most 64 journals and returns one bounded interval or explicit continuation.
   Readiness binds captured HW/latest anchor to local coverage; repair/planning/readiness never release sources or advance HW.
   Explicit anchor release verifies committed/local prefix proofs under append/checkpoint ownership, then advances only System 12.
+  Format-6 retirement journals in System 15 retain whole-anchor decisions and monotonic prefixes.
+  HW/reference/proposal checks, suffix replacement and backup preserve them; journals alone never prune replay content.
   Suffix cuts never split proposals; recovery replacement is fenced by the
   inspected frontier and atomically replaces complete verified proposal pages.
 - Queue-depth publication is monotonic through grouped collection and terminal
@@ -140,8 +141,7 @@ Compatibility maps Channel records/offsets to this core without transferring eng
 
 ## Read First
 
-- [Database lifecycle](db.go), [Channel lease](channel_log.go)
-- [Atomic append](append.go), [Secondary indexes](indexes.go), [Snapshot state](snapshot.go)
+- [Database lifecycle](db.go), [Channel lease](channel_log.go), [Atomic append](append.go), [Indexes](indexes.go), [Snapshots](snapshot.go)
 
 ## Update Triggers
 

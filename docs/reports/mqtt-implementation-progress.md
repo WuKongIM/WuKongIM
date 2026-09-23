@@ -3182,3 +3182,74 @@ boundaries so repair, readiness and restart remain valid after prefix deletion.
 Final binding removal and all remaining product projection, permission, delivery,
 owner recovery, Will, lifecycle/configuration, tooling and process/load acceptance
 work remain required. The full goal stays active and MQTT product access unavailable.
+
+## Replicated replay-retirement decision journal
+
+Proposal format 6 now explicitly records retirement of one complete previously
+accepted replay anchor. The closed payload includes its immutable prefix,
+original control position and exact proposal digest, under a separate hash
+domain. Business format selection remains 1–3. The native sequencer preserves
+retirement intent through retained/pending retries and conflict reconciliation;
+ordinary retries and mixed control flags cannot reuse its receipt. Unsupported
+stores reject both append and recovery replacement.
+
+Message System 15 journals the canonical envelope atomically with the exact
+proposal. Staging verifies the retained or same-batch activation, a covered
+matching anchor and a nonregressing prefix; an equal prefix keeps its original
+reference. A covered recovery batch may carry activation, anchor and retirement
+together. Point reads independently verify HW, source, anchor, paired proposal
+and entry identity. Pending decisions remain unreadable, suffix replacement
+removes pending journals, and ordinary history trimming leaves committed proof.
+Backup omits pending decisions and preflights journal/reference completeness and
+monotonicity; restart and restore preserve the decision.
+
+No shared content/meters are deleted or coverage fabricated. The journal provides
+the future pruned prefix's accepted hash/counter baseline; consumer admission is
+still controlled in the native-quorum integration test. The product producer,
+physical cleanup, suffix-only recovery and readiness changes remain unwired.
+Exact format 6 requires matching replicas and tools, with pre-feature backups
+for rollback; original business encodings and backup framing are unchanged.
+
+Contract and test-first inventory:
+[mqtt-replay-retirement.md](../specs/mqtt-replay-retirement.md).
+
+Validation:
+
+- Contract/storage/capability RED logs: `/tmp/mqtt-retirement-red.log` and
+  `/tmp/mqtt-retirement-adapter-red.log`. Initial fixture compilation identified
+  the existing core source-state accessor and StoreAppendBatch interface; the
+  fixture was corrected to those APIs. Focused tests passed: quorumlog 0.500 s,
+  message 2.586 s, replication 0.399 s;
+  `/tmp/mqtt-retirement-focused.log`.
+- A further staging audit reproduced acceptance after both activation and
+  source projections were removed: `/tmp/mqtt-retirement-activation-red.log`.
+  Staging now resolves the retained/same-batch activation and checks its committed
+  frontier and identity before accepting the reference.
+- `GOWORK=off go test -p 2 -race ./pkg/quorumlog ./pkg/db/... ./pkg/channel/...
+  -count=1 -timeout=180s`: every DB and Channel package passed, including message
+  42.977 s and transfer 96.038 s. One quorumlog legacy-format test still asserted
+  that version 6 was unsupported; `/tmp/mqtt-retirement-race.log` records that
+  failure. Updating the unknown-version fixture to 7 preserves its native format
+  assertions. After the explicit sequencer flag/reader wiring,
+  `GOWORK=off go test -p 2 -race ./pkg/quorumlog ./pkg/channel/... -count=1
+  -timeout=180s` passed all packages; `/tmp/mqtt-retirement-native-final.log`.
+- Sequencer integration RED verified missing explicit intent/reader APIs:
+  `/tmp/mqtt-retirement-sequencer-red.log`. Then
+  `GOWORK=off go test -p 2 -race -tags=integration ./pkg/channel/replication
+  -run '^TestMQTTReplayAnchorQuorumRestartRecoveryAndLearner$' -count=1
+  -timeout=90s -v` passed, test 0.83 s/package 3.029 s;
+  `/tmp/mqtt-retirement-replicas.log`. Three real disk-backed voters and one
+  learner pass actual exchange codecs, quorum commit, control/business retry
+  separation, committed refresh, restart and recovered authority. Transport is
+  the existing in-process wire-link fixture; this does not claim TCP/process
+  product acceptance or independently wired consumer permission.
+- `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-retirement-flow.log`. Generated index and whitespace pass.
+
+Next materialize the retired replay baseline and bounded physical cleanup while
+preserving metering, transfer, repair, readiness and pruned backup restoration,
+then connect ordered consumer admission and current-authority routing. Final
+binding removal, full subscription/inbox projection, permission ordering,
+downlink/ACK paths, owner recovery, Will execution, product lifecycle/configuration,
+offline tools and process/load acceptance remain required. The full goal remains
+active; product MQTT admission is still unavailable.

@@ -1380,6 +1380,20 @@ func (f *MessageDBFactory) SupportsMQTTSourceActivation() bool { return f != nil
 // SupportsMQTTReplayAnchors advertises atomic format-5 control journal support.
 func (f *MessageDBFactory) SupportsMQTTReplayAnchors() bool { return f != nil && f.engine != nil }
 
+// SupportsMQTTReplayRetirements advertises journal persistence, not physical GC.
+func (f *MessageDBFactory) SupportsMQTTReplayRetirements() bool { return f != nil && f.engine != nil }
+
+func (a *messageDBChannelStoreAdapter) LoadMQTTReplayRetirement(ctx context.Context, position uint64) (ch.MQTTReplayRetirementProof, bool, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayRetirementProof{}, false, err
+	}
+	proof, found, err := a.store.LoadMQTTReplayRetirement(ctx, position)
+	if err != nil || !found {
+		return ch.MQTTReplayRetirementProof{}, found, a.mapError(err)
+	}
+	return ch.MQTTReplayRetirementProof{Retirement: proof.Retirement, Manifest: proof.Manifest}, true, nil
+}
+
 func (a *messageDBChannelStoreAdapter) LoadMQTTReplayAnchor(ctx context.Context, position uint64) (ch.MQTTReplayAnchorProof, bool, error) {
 	if err := a.ensureOpen(); err != nil {
 		return ch.MQTTReplayAnchorProof{}, false, err

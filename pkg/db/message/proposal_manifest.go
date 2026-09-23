@@ -420,7 +420,10 @@ func validateBackupProposalSystemEntries(channelKey ChannelKey, hw uint64, entri
 	if err := validateMQTTActivationBackup(channelKey, hw, entries, byLast); err != nil {
 		return err
 	}
-	return validateMQTTReplayAnchorBackup(channelKey, hw, entries, byLast, entryIdentities)
+	if err := validateMQTTReplayAnchorBackup(channelKey, hw, entries, byLast, entryIdentities); err != nil {
+		return err
+	}
+	return validateMQTTRetirementBackup(channelKey, hw, entries, byLast, entryIdentities)
 }
 
 func backupEntryIdentityMap(channelKey ChannelKey, entries []backupRawEntry) (map[uint64]quorumlog.EntryIdentity, error) {
@@ -548,6 +551,9 @@ func (e *channelEntry) stageTruncateDurableProposals(ctx context.Context, batch 
 		return nil
 	}
 	if err := e.stageTruncateMQTTReplayAnchors(batch, to); err != nil {
+		return err
+	}
+	if err := e.stageTruncateMQTTReplayRetirements(batch, to); err != nil {
 		return err
 	}
 	entrySpan := keycodec.NewPrefixSpan(encodeEntryIdentityPrefix(e.key))

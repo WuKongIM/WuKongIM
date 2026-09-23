@@ -282,6 +282,13 @@ specification, runbook, report, or module documentation; link to them when neede
   reversing these reads breaks admission safety. Strict snapshot reads reject
   inconsistent index witnesses and inspect at most limit+1 rows. Planning alone
   cannot delete content; replicated GC and retained repair proofs remain required.
+  [Replay retirement](../specs/mqtt-replay-retirement.md) now has explicit proposal
+  format 6 and Message System 15 journaling. It retires a complete committed
+  anchor, retaining its exact digest/counters; equal prefixes cannot change the
+  reference. Native quorum retry preserves the control intent, and incapable
+  stores reject append/recovery. Pending decisions are not readable proofs or
+  backup content. Journals survive original trim/restart, but do not materialize
+  a pruned baseline or delete content. Product consumer admission remains unwired.
   MQTT metadata facades route Session children by the frozen namespace/ClientID
   hash and source bindings by ordinary Channel ID or UID. Read RPC 91 requires
   a fresh Slot barrier and pinned primary/index snapshot; recovery explicitly
