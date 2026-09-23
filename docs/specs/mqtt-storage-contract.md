@@ -356,11 +356,10 @@ or opaque properties. Terminal cleanup, global limits and durable idempotency
 retention must be coordinated; no unconditional delete API is introduced here.
 
 Slot command **72** is a version-1, at-most-256-KiB CAS envelope with strict
-unknown-field/trailing-data checks. This first Will slice is the row/execution
-primitive. Atomic Session transition plus old-Will resolution/new-Will install
-is still required before connecting the product lifecycle; independent CAS calls
-must never be treated as that atomic transition. Source snapshots alone do not
-validate restored execution leases.
+unknown-field/trailing-data checks. This Will slice is the row/execution
+primitive. Command 73 below owns atomic Session transition plus old-Will
+resolution/new-Will install; direct CAS cannot mutate a referenced live Will.
+Source snapshots alone do not validate restored execution leases.
 
 Failure inventory before implementation: key/namespace/generation isolation;
 immutable identity/body/target/options; exact versus changed or stale retry;
@@ -372,3 +371,55 @@ same-batch visibility and neighboring rollback; deadline index changes, pinned
 snapshot/inspection, Slot ownership and applied watermark. Product-level Will
 scheduling, authorization, atomic lifecycle and duplicate publication remain E2E
 requirements. Protocol basis: [OASIS MQTT 5.0, sections 3.1.2.5 and 3.1.3.2](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).
+
+## Atomic Session/Will lifecycle
+
+Slot command **73** carries an at-most-256-KiB version-1 lifecycle mutation: expected
+Session revision/generation and complete old owner fence, event, Clean Start,
+a proposed Session and optional immutable new Will. Events are InstallWill (1),
+Connect (2), NormalDisconnect (3), DisconnectWithWill (4), End (5), WillDue (6).
+An initial Connect uses a zero expected fence and creates Session plus Will in
+one commit. Existing Connect always advances owner generation; generation changes
+only for Clean Start, an ended/expired Session, or takeover of an active Session
+whose expiry interval is zero. An expired offline Session cannot be resumed.
+
+The proposed Session carries the next revision and decision time. Will reference
+and lifecycle receipt are server-derived and must be zero/empty in the request.
+A new Will uses the resulting Session revision as its generation, matches its
+UID and complete owner, and starts Armed. At most the old and new Will are touched.
+Session, Will rows, deadlines/recovery indexes and apply progress commit together.
+No conditional conflict may stage half of the operation. Any neighboring failure
+rolls back all of it. Missing or mismatched referenced Will state is corruption,
+not permission to ignore an obligation.
+
+Normal disconnect cancels Armed Will. Other closes capture disconnect time and
+schedule at the earlier of Will Delay and Session expiry; zero expiry/delay
+produces Ready immediately. Same-Session reconnect before the deadline cancels;
+Clean Start or Session end preserves/accelerates the publication obligation.
+Ready detaches from the live Session, so it survives subsequent replacement.
+WillDue makes due Waiting work Ready, ending the Session too when expiry is due.
+Explicit expiry cannot prematurely end a live/unexpired Session. Permission and
+source-loss endings still require current publication authorization at execution.
+An active record with an expired owner lease first requires a durable close
+resolution, so reconnect cannot reset the timing of an already-lost connection.
+The caller must prove old-owner isolation before Connect; row CAS is not proof.
+
+Optional Session column **29**, `last_lifecycle_digest`, defaults empty for old
+rows and stores SHA-256 of the versioned/domain-separated lifecycle request.
+Exact retry needs both the resulting Session revision and matching digest, even
+when Connect changed owner. Later unrelated writes invalidate the revision test.
+Generic Session CAS preserves this receipt and cannot assign/change a Will
+reference or change lifetime, owner or connection state while one is referenced.
+Direct Will CAS cannot mutate a referenced live Will; detached execution remains
+independent. Quota accounting resolves a referenced Will in its same terminal
+Session commit, rather than leaving Armed work stranded.
+
+Failure inventory before code: initial atomic creation; install/retry; all old
+owner fence components; changed retry and later unrelated updates; counter or
+allocator loss; normal/nonzero-reason close and expiry override; delay versus
+expiry and zero values; takeover, resume, Clean Start and expired resume; old Will
+survival/new Will collision; due execution and premature expiry; generic bypass;
+missing referenced Will; quota termination; same-batch visibility and rollback;
+legacy receipt default, corrupt receipt, snapshot/replay, inspection redaction,
+command bounds/unknown fields/Slot ownership. This deterministic state transition
+still requires authoritative usecase orchestration and real-process acceptance.

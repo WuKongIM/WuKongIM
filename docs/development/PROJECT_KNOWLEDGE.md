@@ -199,7 +199,9 @@ specification, runbook, report, or module documentation; link to them when neede
   subscription. Unknown source boundaries block reclamation; stored progress
   requires current remote authority and source protection before use.
   Will obligations retain their original Session generation after replacement.
-  Session transitions and old/new Will decisions must commit atomically. Server
+  Session transitions and old/new Will decisions commit atomically through the
+  lifecycle command; quota termination resolves Will in its accounting commit.
+  Generic CAS cannot change a referenced live Will or bypass its lifecycle. Server
   Will retry identities require a distinct append-idempotency domain; a reserved
   string prefix alone cannot prevent client-controlled key collisions.
   Session/subscription Slot writes fence owner and revision atomically; repeated

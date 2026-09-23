@@ -42,6 +42,15 @@ func DecodeCommandInspection(data []byte) (CommandInspection, error) {
 
 func inspectCommand(cmd command) (CommandInspection, error) {
 	switch typed := cmd.(type) {
+	case *mqttLifecycleCmd:
+		m := typed.payload.Mutation
+		r := m.Session
+		return simpleInspection("mqtt_lifecycle", map[string]any{
+			"broker_namespace": r.Namespace, "client_id": r.ClientID, "expected_revision": m.ExpectedRevision,
+			"expected_generation": m.ExpectedGeneration, "owner_generation": m.OwnerGeneration, "owner_node_id": m.OwnerNodeID,
+			"event": uint8(m.Event), "clean_start": m.CleanStart, "revision": r.Revision, "generation": r.Generation,
+			"next_owner_generation": r.OwnerGeneration, "next_owner_node_id": r.OwnerNodeID, "state": uint8(r.State), "has_new_will": m.Will != nil,
+		}), nil
 	case *mqttWillCASCmd:
 		r := typed.payload.Will
 		return simpleInspection("mqtt_will", map[string]any{

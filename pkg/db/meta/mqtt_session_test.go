@@ -17,7 +17,7 @@ func mqttSessionFixture() MQTTSession {
 		OwnerGeneration: 1, OwnerNodeID: 2, OwnerBootID: "boot-a", ConnectionID: 17, LeaseUntilMS: 5000,
 		State: MQTTSessionActive, SessionExpirySec: 86400, DeviceFlag: 1, ReceiveMaximum: 64, MaxPacketBytes: 1 << 20,
 		NextPacketID: 1, NextDeliveryOrder: 1, PendingMessages: 0, PendingBytes: 0,
-		QuotaMessages: 10000, QuotaBytes: 64 << 20, WillGeneration: 3, UpdatedAtMS: 1000}
+		QuotaMessages: 10000, QuotaBytes: 64 << 20, WillGeneration: 0, UpdatedAtMS: 1000}
 }
 
 func writeMQTTSession(t *testing.T, db *MetaDB, row MQTTSession, expected uint64) MQTTSessionCASResult {
@@ -237,7 +237,7 @@ func TestMQTTSessionRejectsInvalidRowsAndCorruptValues(t *testing.T) {
 		_, err := mqttSessionTable.decodeValue(key, pk, corrupt)
 		require.Error(t, err)
 	}
-	// Column 28 is the last known field; column 30 remains an optional future field.
+	// Column 29 is the last known field; column 31 remains an optional future field.
 	// A new optional uint8 column 27
 	// must not change old fields or require a value-envelope version bump.
 	future := append(append([]byte(nil), env.Payload...), 0x26, 7)

@@ -26,10 +26,12 @@ as a format migration and gate it behind an explicit rollout plan.
 
 MQTT groundwork adds metadata tables 22 (`mqtt_session`), 23
 (`mqtt_subscription`), 24 (`mqtt_delivery_cursor`), 25 (`mqtt_inflight`), 26
-(`mqtt_source_binding`) and 27 (`mqtt_will`), with Slot commands 67–72.
-Will content and receipts survive Session replacement; current lifecycle
-coordination and the separate server idempotency domain remain required. Source bindings have separate
-Channel/UID ownership and retain removal tombstones; their proof revisions do
+(`mqtt_source_binding`) and 27 (`mqtt_will`), with Slot commands 67–73.
+Command 73 atomically resolves Session/Will transitions and records optional
+Session column 29 for exact retry; older rows default to an empty receipt.
+Generic CAS cannot bypass referenced Will lifecycle. The separate server append
+idempotency domain and product authority wiring remain required. Source bindings
+have separate Channel/UID ownership and retain removal tombstones; their proof revisions do
 not establish remote authority by themselves. Optional window columns retain
 legacy zero defaults; lifecycle CAS preserves delivery-owned counters and
 allocators within a generation. Rows use key-bound checksum column envelopes;

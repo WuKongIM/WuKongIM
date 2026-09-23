@@ -51,9 +51,9 @@ It does not own product business policy or expose engine-specific APIs.
    and recovery uses immutable references in original send order.
    Source/UID bindings retain removal tombstones and index discovery, reconciliation
    and conservative retention floors; unknown boundaries block reclamation.
-   Will records outlive Session replacement. Cancellable delays, leased execution
-   and terminal receipts are distinct; bodies are bounded and omitted from inspect.
-   Atomic Session/Will lifecycle and publication authority remain integration work.
+   Will records outlive Session replacement. Session transitions and quota endings
+   resolve old Will atomically; new ownership may install a new configuration.
+   Delays, execution leases and receipts are distinct; bodies are bounded/redacted.
 
 ## Invariants and Failure Semantics
 

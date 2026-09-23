@@ -440,3 +440,70 @@ Validation for this Will storage slice (2026-09-23):
   zero invalid and the same 9 pre-existing length warnings.
 - `git diff --check` passed. Last edits after the tests only format comparisons,
   add comments and update documentation.
+
+
+## Atomic Session and Will lifecycle
+
+Frozen source context at `eaa929047`; the preceding Will-storage turn was verified
+progress:
+
+- Root `AGENTS.md`: `d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade`
+- `pkg/db/FLOW.md`: `49c5fe18bcf98edd7bc072dececaf0114f8d51d77f52cffb96b49f240dd2584e`
+- `pkg/db/meta/FLOW.md`: `50ac24509c5e48b0b4dacbfb4e75207a90127b0d7082fa78409dd685bcbf22cd`
+- `pkg/slot/FLOW.md`: `d7dc025e238810347ac1d98e048952e2ad27279eacb031c3b3da585836830777`
+
+Command 73 atomically creates or switches a Session, resolves its prior Will and
+optionally installs a new configuration. It covers normal/nonzero-reason close,
+resume/takeover, Clean Start, expiry/end and due Will work. New configuration
+uses the resulting Session revision as its Will generation. Complete old-owner
+and Session fences prevent delayed close/timer work from changing a new owner.
+No conditional conflict stages half a decision. Missing or mismatched referenced
+Will state fails as corruption instead of discarding an obligation.
+
+Optional Session column 29 stores a domain-separated lifecycle request digest.
+Together with the resulting revision it proves exact retry even after owner
+change. An unrelated Session write invalidates the revision witness. Generic
+Session CAS cannot forge the reference/receipt or bypass the lifecycle while
+Will is referenced; direct Will CAS cannot mutate a referenced live record.
+Ready publication work is detached and continues under its own execution lease.
+Quota accounting resolves old Will in the same commit as its terminal Session
+and backlog counters, including when the Session was offline.
+
+An expired active owner lease must first be resolved into a durable close before
+Connect. Otherwise an overdue lost connection could incorrectly be interpreted
+as a fresh timely reconnect and have its Will cancelled. The future authority
+orchestrator must supply the proved close time, fresh read barrier and old-owner
+isolation; this storage rule neither proves isolation nor permits socket IO.
+
+Failure inventory and public metadata/FSM tests preceded implementation. Tests
+cover initial atomic creation, installation, full owner fencing, changed retry,
+unrelated writes, normal/delayed/short-expiry/zero-expiry close, resume/takeover,
+Clean Start, expired resume, due/early-due, premature expiry, forbidden expiry
+increase, reset counter constraints, bypass attempts, new-key collision, missing
+references, same-batch visibility, neighboring rollback and active/offline quota
+endings. FSM tests cover atomic ordered application, owner-change receipt retry
+after snapshot, apply watermark, Slot ownership, redacted inspection and bounded
+malformed commands. The existing literal pre-window Session payload also proves
+column 29 defaults empty. Its historical Will reference is preserved explicitly
+in that codec fixture; new lifecycle fixtures no longer invent unbacked Will IDs.
+
+The previous report's storage-level Session/Will atomicity TODO is resolved.
+Product scheduling, publication authorization, old-owner isolation and network
+behavior remain unverified. Next work includes the shared entry-neutral
+publication codec/replication contract and the server Will idempotency domain,
+then protected source/replay integration and authoritative runtime wiring. Full
+expiry/cleanup, restore/transfer consistency, capability gates, real-process
+interop and scale acceptance remain required. All six metadata tables have
+storage primitives, but the shared replay table and full reliable chain remain
+incomplete. The full goal stays active and MQTT product access remains disabled.
+
+Validation for the atomic lifecycle slice (2026-09-23):
+
+- Focused MQTT metadata/FSM and inspection-catalog tests passed.
+- `GOWORK=off go test ./pkg/db/... ./pkg/slot/... -count=1 -timeout=90s` passed.
+- `GOWORK=off go test -race ./pkg/db/meta ./pkg/slot/fsm -run 'TestMQTT' -count=1 -timeout=45s` passed,
+  with the existing macOS LC_DYSYMTAB linker warning.
+- Named `flow-doc-contracts` passed after index regeneration: 81 compliant,
+  zero invalid and the same 9 pre-existing length warnings.
+- `git diff --check` passed. Product E2E remains RED until the complete runtime,
+  publication, source-protection and listener path exists.

@@ -227,6 +227,13 @@ func (b *Batch) CompareAndSwapMQTTWill(slot HashSlot, expected uint64, row MQTTW
 		} else if expected != 0 || row.Stage != MQTTWillArmed {
 			return nil
 		}
+		session, sessionFound, err := loadUpdateRow(mqttSessionTable, state, slot, mqttSessionPrimaryKey(row.Key.Namespace, row.Key.ClientID))
+		if err != nil {
+			return err
+		}
+		if sessionFound && session.Generation == row.Key.SessionGeneration && session.WillGeneration == row.Key.WillGeneration {
+			return nil
+		}
 		if err := stageUpdateRow(mqttWillTable, state, batch, slot, row); err != nil {
 			return err
 		}

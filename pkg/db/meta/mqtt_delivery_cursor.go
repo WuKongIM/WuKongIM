@@ -200,6 +200,7 @@ func (b *Batch) MutateMQTTDeliveryCursor(slot HashSlot, m MQTTDeliveryCursorMuta
 			(sub.Stage != MQTTSubscriptionPreparing && sub.Stage != MQTTSubscriptionActive) {
 			return nil
 		}
+		previousSession := session
 		switch m.Op {
 		case MQTTCursorInit:
 			if exists {
@@ -226,7 +227,25 @@ func (b *Batch) MutateMQTTDeliveryCursor(slot HashSlot, m MQTTDeliveryCursorMuta
 		}
 		session.Revision++
 		session.UpdatedAtMS = m.UpdatedAtMS
+		var resolvedWill *MQTTWill
+		if session.State == MQTTSessionEnded && previousSession.WillGeneration != 0 {
+			live, err := loadMQTTReferencedWill(state, slot, previousSession)
+			if err != nil {
+				return err
+			}
+			var ok bool
+			resolvedWill, ok = resolveMQTTLifecycleWill(previousSession, session, MQTTLifecycleEnd, live)
+			if !ok {
+				return nil
+			}
+			session.WillGeneration = 0
+		}
 		row.Revision, row.LastMutationDigest, row.UpdatedAtMS = session.Revision, digest, m.UpdatedAtMS
+		if resolvedWill != nil {
+			if err := stageUpdateRow(mqttWillTable, state, batch, slot, *resolvedWill); err != nil {
+				return err
+			}
+		}
 		if err := stageUpdateRow(mqttDeliveryCursorTable, state, batch, slot, row); err != nil {
 			return err
 		}

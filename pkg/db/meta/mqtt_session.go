@@ -2,6 +2,7 @@ package meta
 
 import (
 	"context"
+	"encoding/hex"
 	"math"
 	"strings"
 	"unicode/utf8"
@@ -79,7 +80,9 @@ type MQTTSession struct {
 	PendingBytes    uint64 `json:"pending_bytes"`
 	QuotaMessages   uint64 `json:"quota_messages"`
 	QuotaBytes      uint64 `json:"quota_bytes"`
-	// WillGeneration references the current configuration, not old durable Will tasks.
+	// LastLifecycleDigest is an optional exact-retry receipt; ordinary CAS preserves it.
+	LastLifecycleDigest string `json:"last_lifecycle_digest"`
+	// WillGeneration references current Armed/Waiting state, not detached obligations.
 	WillGeneration    uint64               `json:"will_generation"`
 	TerminationReason MQTTSessionEndReason `json:"termination_reason"`
 	UpdatedAtMS       int64                `json:"updated_at_ms"`
@@ -118,6 +121,14 @@ func validateMQTTIdentity(value string, maxBytes int) error {
 // applying product auth/lease policy. Such decisions must remain deterministic
 // in the Slot FSM and carry the caller's previously established authority proof.
 func ValidateMQTTSession(r MQTTSession) error {
+	if r.LastLifecycleDigest != "" {
+		if len(r.LastLifecycleDigest) != 64 {
+			return dberrors.ErrInvalidArgument
+		}
+		if _, err := hex.DecodeString(r.LastLifecycleDigest); err != nil {
+			return dberrors.ErrInvalidArgument
+		}
+	}
 	for _, value := range []string{r.Namespace, r.ClientID, r.UID} {
 		if err := validateMQTTIdentity(value, 1024); err != nil {
 			return err
@@ -181,10 +192,10 @@ func (b *Batch) CompareAndSwapMQTTSession(slot HashSlot, expected uint64, row MQ
 				result.Status = MQTTSessionCASUnchanged
 				return nil
 			}
-			if old.Revision != expected || !validMQTTSessionTransition(old, row) {
+			if old.Revision != expected || !validMQTTSessionTransition(old, row) || !validMQTTSessionGenericWillChange(old, row) {
 				return nil
 			}
-		} else if expected != 0 || row.Generation != 1 || row.OwnerGeneration != 1 || row.State != MQTTSessionActive || row.PendingMessages != 0 || row.PendingBytes != 0 || row.OutboundInflight != 0 {
+		} else if row.WillGeneration != 0 || row.LastLifecycleDigest != "" || expected != 0 || row.Generation != 1 || row.OwnerGeneration != 1 || row.State != MQTTSessionActive || row.PendingMessages != 0 || row.PendingBytes != 0 || row.OutboundInflight != 0 {
 			return nil
 		}
 		if err := stageUpdateRow(mqttSessionTable, state, batch, slot, row); err != nil {
@@ -271,4 +282,15 @@ func mqttSessionDeadline(row MQTTSession) int64 {
 	default:
 		return 0
 	}
+}
+
+// validMQTTSessionGenericWillChange prevents split Session/Will lifecycle writes.
+func validMQTTSessionGenericWillChange(old, next MQTTSession) bool {
+	if old.WillGeneration != next.WillGeneration || old.LastLifecycleDigest != next.LastLifecycleDigest {
+		return false
+	}
+	if old.WillGeneration == 0 {
+		return true
+	}
+	return old.Generation == next.Generation && old.OwnerGeneration == next.OwnerGeneration && old.OwnerNodeID == next.OwnerNodeID && old.OwnerBootID == next.OwnerBootID && old.ConnectionID == next.ConnectionID && old.State == next.State && old.SessionExpirySec == next.SessionExpirySec && old.OfflineExpiresAtMS == next.OfflineExpiresAtMS
 }

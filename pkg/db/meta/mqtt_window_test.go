@@ -16,6 +16,7 @@ import (
 func TestMQTTWindowOptionalFieldsPreserveOlderRows(t *testing.T) {
 	// Literal value payloads captured before columns 27/28 and 19–24 existed.
 	session := mqttSessionFixture()
+	session.WillGeneration = 3 // Preserve the original literal fixture, including its pre-lifecycle reference.
 	pk := mqttSessionTable.spec.Primary.Key(session)
 	key, err := mqttSessionTable.primaryRowKey(7, pk)
 	require.NoError(t, err)
@@ -26,6 +27,7 @@ func TestMQTTWindowOptionalFieldsPreserveOlderRows(t *testing.T) {
 	require.Equal(t, session, got)
 	require.Zero(t, got.OutboundInflight)
 	require.Zero(t, got.WindowLimit)
+	require.Empty(t, got.LastLifecycleDigest)
 	session.PendingMessages, session.PendingBytes, session.OutboundInflight, session.WindowLimit = 2, 120, 2, 64
 	value, err := mqttSessionTable.encodeValue(key, session)
 	require.NoError(t, err)
