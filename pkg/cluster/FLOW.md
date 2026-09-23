@@ -29,7 +29,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    Person-directory prepare joins UID membership/runtime metadata before publishing directory-ready. MQTT metadata facades preserve foreground gates; read RPC 91 uses fresh Slot barriers and bounded coherent snapshots, with source/UID routing independent of Session routing.
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to
-   the exact leader while background control/task convergence stays bounded.
+   the exact leader while background control/task convergence stays bounded. MQTT source RPC 93 uses fresh Slot reads before/after activation, exact caller fences and local-only serving across gateway swaps.
    Repair probes activate cold replicas through authoritative metadata and the
    native reactor before inspecting progress. Native follower proofs read exact
    durable state and recheck metadata/runtime authority, rejecting future durable

@@ -68,6 +68,7 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"message_update_hint":            RPCMessageUpdateHint,
 		"slot_mqtt_metadata":             RPCSlotMQTTMetadata,
 		"mqtt_owner":                     RPCMQTTOwner,
+		"mqtt_source":                    RPCChannelMQTTSource,
 		"scheduled_backup_messages":      RPCScheduledBackupMessages,
 		"scheduled_backup_slot":          RPCScheduledBackupSlot,
 		"scheduled_backup_probe":         RPCScheduledBackupRepositoryProbe,
@@ -113,5 +114,14 @@ func TestRPCManagerNodeConfigServiceAlias(t *testing.T) {
 	}
 	if got := transportServiceAlias(RPCManagerNodeConfigDocument); got != "manager node config document" {
 		t.Fatalf("node config document service alias = %q, want manager node config document", got)
+	}
+}
+
+func TestMQTTSourceServiceIdentity(t *testing.T) {
+	if RPCChannelMQTTSource != 93 || transportServiceAlias(RPCChannelMQTTSource) != "channel mqtt source" {
+		t.Fatal("MQTT source service identity changed")
+	}
+	if !isForegroundChannelMutationService(RPCChannelMQTTSource) {
+		t.Fatal("source activation must use bounded mutation admission")
 	}
 }

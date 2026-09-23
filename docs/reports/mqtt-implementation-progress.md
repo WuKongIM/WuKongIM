@@ -1749,3 +1749,50 @@ handshake. Distributed shared-copy proofs, transfer/GC, reliable delivery,
 Will execution, product lifecycle/config wiring and full process acceptance
 remain required. The product MQTT listener stays unavailable and the full
 implementation goal remains active.
+
+## Source authority routing and fresh Slot metadata
+
+Source `2a6fceea2`; frozen rules and the pre-code failure inventory are in
+[mqtt-source-routing.md](../specs/mqtt-source-routing.md). Node now routes
+`EnsureChannelMQTTSource` through the Channel service and dedicated RPC 93.
+Origin and serving leader confirm runtime metadata through fresh Slot quorum/
+apply barriers before and after activation. Explicit caller epochs and route
+generation survive forwarding unchanged. The serving handler is local-only,
+uses the recovered runtime and follows ServiceGateway replacement. Source RPC
+has a closed bounded codec, exact request echo and zero source on every error.
+
+The additional runtime-meta `get_fresh` operation requires codec 3, verifies
+derived hash/physical Slot mapping and leadership, and cannot fall back to a
+legacy or cached read. Both found and absent results require a fresh barrier.
+Regression tests first reproduced acceptance of unrelated batch/cursor reply
+fields and late oversized-frame rejection; implementation now rejects those
+before accepting a point-read result. The restart fixture explicitly waits for
+Slot write authority after startup readiness; transient election failures remain
+errors rather than becoming cached success.
+
+Verified for this slice:
+
+- Initial API compilation failed as expected before implementation:
+  `/tmp/mqtt-source-routing-red.log`. Additional failing shape regressions:
+  `/tmp/mqtt-source-routing-shape-red.log`.
+- `GOWORK=off go test -tags=integration ./pkg/slot/proxy ./pkg/cluster/channels
+  ./pkg/cluster/net ./pkg/cluster -run '^TestMQTTSource' -count=1 -timeout=100s -v`:
+  passed, `/tmp/mqtt-source-routing-test-final.log`.
+- `GOWORK=off go test ./pkg/slot/proxy ./pkg/cluster/... -count=1 -timeout=120s`:
+  passed, `/tmp/mqtt-source-routing-regression.log`.
+- The same four focused packages with `-race -tags=integration`, the source
+  filter and a 120-second timeout: passed, `/tmp/mqtt-source-routing-race.log`.
+  The three real Node runtimes use TCP, disk, 256 hash Slots and two physical
+  Slots. Evidence `mqtt_source_route_evidence` covers remote activation, ordinary
+  append ordering, repeat confirmation, Channel leader recovery, restart and
+  rejection of warmed authority after the other two nodes stop. This is not
+  process-level product MQTT acceptance. macOS linker warnings were non-failing.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine pre-existing
+  line-budget warnings; `/tmp/mqtt-source-routing-flow-final.log`.
+
+Next is recoverable subscription projection over these routed primitives,
+including permission incarnation, initialized cursors, first-DM future-source
+handshake and source responsibility recovery. Shared-copy durability/transfer/GC,
+reliable delivery, Will execution, app lifecycle/configuration and full process
+acceptance remain required. The product MQTT listener stays unavailable and the
+full implementation goal remains active.

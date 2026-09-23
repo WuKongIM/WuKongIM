@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Route MQTT source protection to the current Channel leader with fresh Slot quorum checks, preserving protection across leader changes and restart and rejecting isolated cached authority. Internal source RPC 93 requires matching peers; product MQTT access remains under development. / MQTT 源保护按当前 Channel leader 路由，使用新鲜 Slot 多数派确认，换主和重启保留保护并拒绝孤立节点的缓存权威；内部 RPC 93 需匹配节点，产品 MQTT 接入仍在开发。
+
 - Add fenced Channel admission for MQTT source protection, preserving message ordering and confirming a durable committed boundary before returning. Existing protection avoids repeated activation records; the product MQTT listener remains under development. / 新增 MQTT 源保护的 Channel 准入，保持消息顺序并在返回前确认持久提交边界；已有保护不重复追加激活记录，产品 MQTT 监听仍在开发。
 
 - Replicate MQTT source activation through the Channel quorum log, retaining pending protection and restoring it across restart, leader recovery and learner catch-up. Matching format-4 replicas/tools are required; product MQTT admission remains under development. / MQTT 源保护激活接入 Channel 多数派日志，保留未决保护并覆盖重启、换主恢复及 learner 追赶；须使用支持格式 4 的副本和工具，产品 MQTT 入口仍在开发。

@@ -290,8 +290,13 @@ specification, runbook, report, or module documentation; link to them when neede
   exact identities. Channel's optional source facade now uses the ordered append
   queue for first activation and a checkpoint worker for committed confirmation.
   Repeated admission avoids another control, rechecks epoch/route/write fences
-  and returns a separate subscription-start boundary. Subscription projection
-  and shared-copy transfer remain required; this capability cannot authorize SUBACK.
+  and returns a separate subscription-start boundary. Source routing now uses
+  Node/Channel RPC 93 and fresh Slot runtime-meta reads before/after activation;
+  explicit caller epochs/route cannot be rewritten. The serving node never
+  forwards again. Fresh point reads require codec 3 and quorum/apply confirmation,
+  including absence; ordinary metadata cache/read semantics remain separate.
+  Subscription projection and shared-copy transfer remain required; this
+  capability cannot authorize SUBACK.
   Shared replay is message-domain table 2, never Slot message-body storage. Its
   atomic local copies normalize size hints and preserve original publication
   content; index 2 meters prefix ranges without reading bodies. Binary backup 2

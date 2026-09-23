@@ -17,6 +17,7 @@ const runtimeMetaRPCServiceID uint8 = clusternet.RPCSlotRuntimeMetadata
 
 const (
 	runtimeMetaRPCGet        = "get"
+	runtimeMetaRPCGetFresh   = "get_fresh"
 	runtimeMetaRPCBatchGet   = "batch_get"
 	runtimeMetaRPCList       = "list"
 	runtimeMetaRPCScanPage   = "scan_page"
@@ -247,6 +248,16 @@ func (s *Store) handleRuntimeMetaRPC(ctx context.Context, body []byte) ([]byte, 
 	req, err := decodeRuntimeMetaRPCRequest(body)
 	if err != nil {
 		return nil, err
+	}
+	if req.Op == runtimeMetaRPCGetFresh {
+		meta, err := s.readRuntimeMetaFreshLocal(ctx, req)
+		if errors.Is(err, metadb.ErrNotFound) {
+			return encodeRuntimeMetaRPCResponseForRequest(req, runtimeMetaRPCResponse{Status: rpcStatusNotFound})
+		}
+		if err != nil {
+			return nil, err
+		}
+		return encodeRuntimeMetaRPCResponseForRequest(req, runtimeMetaRPCResponse{Status: rpcStatusOK, Meta: &meta})
 	}
 
 	slotID := multiraft.SlotID(req.SlotID)

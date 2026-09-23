@@ -42,6 +42,7 @@ plugin, migration, message projections, and MQTT session state.
    missing or Slot failures. Exact ordinary-membership batches accept at most
    200 keys for one UID and use one authoritative membership RPC; found rows
    are identity-unique, missing keys remain absent, and read errors fail the batch.
+   Runtime-meta `get_fresh` is a separate bounded version-3 point read: fresh local quorum/apply barrier, derived mapping/leadership recheck, exact identity, and no legacy codec fallback or metadata creation.
 2. A Multi-Raft worker persists Ready state, sends messages, batches normal
    entries, flushes before configuration changes, and atomically applies an
    ownership-validated FSM batch before persisting apply and completing futures.
@@ -96,5 +97,4 @@ plugin, migration, message projections, and MQTT session state.
 
 ## Update Triggers
 
-Update when Slot/hash-Slot ownership, Raft Ready/apply ordering, command ownership,
-authoritative reads, migration fences, or snapshot/recovery guarantees change.
+Update when Slot/hash-Slot ownership, Raft Ready/apply ordering, command ownership, authoritative reads, migration fences, or snapshot/recovery guarantees change.

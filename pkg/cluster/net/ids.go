@@ -131,6 +131,8 @@ const (
 	RPCSlotMQTTMetadata
 	// RPCMQTTOwner requests exact MQTT owner execution quiescence.
 	RPCMQTTOwner
+	// RPCChannelMQTTSource establishes source protection on the exact Channel leader.
+	RPCChannelMQTTSource
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -259,6 +261,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "slot mqtt metadata"
 	case RPCMQTTOwner:
 		return "mqtt owner"
+	case RPCChannelMQTTSource:
+		return "channel mqtt source"
 	default:
 		return "unknown service"
 	}

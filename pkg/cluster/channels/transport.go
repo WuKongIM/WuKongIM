@@ -563,6 +563,7 @@ type serviceRPCServer interface {
 // underlying runtime must be rebuilt without replacing transport services.
 func RegisterServiceHandlersOn(registrar HandlerRegistrar, service serviceRPCServer) {
 	RegisterHandlersOn(registrar, service.Server())
+	registerMQTTSourceHandler(registrar, service)
 	registrar.Register(clusternet.RPCChannelAppend, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		started := time.Now()
 		req, err := decodeAppendRequest(payload)
