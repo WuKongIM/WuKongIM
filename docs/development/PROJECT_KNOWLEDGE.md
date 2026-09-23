@@ -289,6 +289,12 @@ specification, runbook, report, or module documentation; link to them when neede
   stores reject append/recovery. Pending decisions are not readable proofs or
   backup content. Journals survive original trim/restart, but do not materialize
   a pruned baseline or delete content. Product consumer admission remains unwired.
+  [Typed retirement admission](../specs/mqtt-retirement-admission.md) checks the
+  installed full authority and independently reloads captured/candidate anchors
+  plus the latest decision. Stable source/Through commands preserve pending row
+  identity; older retries reuse a newer committed decision without another append.
+  This internal port trusts ordered consumer permission from its product caller;
+  reactor/RPC wiring and that producer remain required. It never applies cleanup.
   [Whole-anchor selection](../specs/mqtt-retirement-anchor-selection.md) scans at
   most 64 historical journals in one pinned view, below the captured anchor and
   consumer floor. Verified backward cursors survive restart/restore; a floor

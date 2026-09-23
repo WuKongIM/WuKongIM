@@ -133,12 +133,13 @@ func TestMQTTReplayAnchorQuorumRestartRecoveryAndLearner(t *testing.T) {
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, installed.HW, uint64(3))
 	require.True(t, check(2))
-	retirementCheck := verifyMQTTRetirementQuorum(t, ctx, a, runtimes, factories)
+	retirementCheck := verifyMQTTRetirementQuorum(t, ctx, a, runtimes, factories, router)
 	closeAll()
 	open()
 	a.ID.LeaderTerm++
 	_, err = runtimes[2].Log().Install(ctx, a)
 	require.NoError(t, err)
+	a = verifyMQTTRetirementTypedRestartRetry(t, ctx, a, runtimes, factories)
 	for _, node := range []ch.NodeID{1, 2, 3, 4} {
 		require.Eventually(t, func() bool { return retirementCheck(node) }, 3*time.Second, time.Millisecond)
 	}

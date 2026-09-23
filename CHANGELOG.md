@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Validate MQTT retirement commits against installed Channel authority and independent anchor proofs; uncertain retries preserve their original identity and older requests reuse committed decisions. No storage format changes; product wiring remains under development. / MQTT 回收提交核验当前 Channel 权威和独立锚点证明，未决重试保留原记录身份，旧请求复用已提交决策；无需变更存储格式，产品接入仍在开发。
+
 - Keep idle MQTT replay sources from repeatedly copying anchor/retirement controls by verifying bounded maintenance-only tails; later business resumes contiguous copying. Product access remains under development. / MQTT 回放核验有界维护记录尾部，避免空闲时反复复制锚点和回收记录；新业务到达后继续连续复制，产品接入仍在开发。
 
 - Apply committed MQTT replay retirement before replica recovery requests donor content, with bounded cleanup and restart continuation. RPC 99 v3 is explicit; product MQTT access remains under development. / MQTT 副本恢复在索取消息前应用已提交回收决策，支持分批清理和重启续作；RPC 99 v3 显式启用，产品接入仍在开发。

@@ -3512,3 +3512,47 @@ projection, removal/permission ordering, persistent delivery/ACK, owner recovery
 Will execution, product lifecycle/configuration, offline tools and process/load
 acceptance remain required. The goal stays active; this prerequisite is not
 producer or complete product acceptance.
+
+## Typed native retirement commit admission
+
+The native sequencer now exposes a bounded typed retirement request containing
+current placement, captured/candidate whole-anchor proofs, the capped consumer
+floor and server record identity. It checks the exact installed membership,
+authority and write fence, checkpoints only its own HW, and independently reloads
+both committed anchors and the latest retirement. The port trusts the product
+caller to capture the anchor before reading fresh consumer obligations; request
+validation alone does not prove that ordering. It is not a public consumer API.
+
+Canonical source/Through commands reuse a matching or newer committed decision.
+An uncertain pending retry retains its first payload and ID/timestamp even if
+the observer supplies new values; other pending commands remain backpressured.
+New controls use the existing format-6 majority path and success is reloaded
+from the committed journal. This introduces no table or encoding changes and
+never applies a replay baseline, deletes content or advances consumer metadata.
+
+Contract/failure inventory and frozen context:
+[mqtt-retirement-admission.md](../specs/mqtt-retirement-admission.md).
+
+Validation (terminal passes):
+
+- Missing typed contracts produced RED before implementation in
+  `/tmp/mqtt-retirement-admission-red.log`.
+- `GOWORK=off go test -p 2 -race -tags=integration ./pkg/channel
+  ./pkg/channel/replication -run
+  '^(TestMQTTRetirement|TestMQTTReplayAnchorQuorumRestartRecoveryAndLearner)'
+  -count=1 -timeout=120s -v`: passed; native replication 2.768 s.
+  `/tmp/mqtt-retirement-admission-focused.log`. Actual disk stores and exchange
+  codecs, three voters and a non-voting learner verify independent proof and
+  placement rejection, bounded admission, cancellation, partial quorum, original
+  pending identity, eight concurrent retries, advancing decisions, delayed old
+  requests, restart recovery and write-fence rejection. Copied suffixes remain
+  readable after admission until explicit baseline application. Consumer/copy
+  permission is fixture-controlled; this is not process-level product acceptance.
+- `GOWORK=off go test -p 2 -race ./pkg/channel/... -count=1 -timeout=180s`:
+  all nine packages passed. `/tmp/mqtt-retirement-admission-race.log`.
+- `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-retirement-admission-flow.log`. Generated index and whitespace pass.
+
+Next route this typed operation through the existing reactor append queue, then
+fresh Slot/RPC admission and ordered consumer planning with bounded historical
+selection. Product MQTT access and the full goal remain incomplete and active.
