@@ -88,6 +88,8 @@ management, plugins, diagnostics, and bounded operations observations.
   fences while avoiding history-edit overlays. MQTT compares exact body and
   semantic metadata; only its ingress clock may differ. Proof bytes and read
   budgets include metadata; append mappings preserve independent ownership.
+- Keyed Wills select a required server-domain lookup capability; absence cannot
+  fall back to client numbers. Original committed proof remains mandatory.
 - Person-directory batching shares duplicate Channel results, detaches canceled
   waiters without canceling accepted work, and never publishes ready after a
   membership or runtime-metadata prepare failure.

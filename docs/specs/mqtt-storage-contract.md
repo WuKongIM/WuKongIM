@@ -344,10 +344,13 @@ reclaim requires expiry and exactly one generation increment. Only that executor
 may record Published/Rejected while its lease is valid. Ambiguous execution is
 retried with the same immutable publication and server-owned idempotency identity.
 The identity is `mqtt-will-v1:` plus SHA-256 of the version-1 canonical key JSON;
-it is **not** an ordinary client `ClientMsgNo`. The future message append contract
-must give server Will identities a separate idempotency domain so a caller cannot
-forge a colliding client message number. A row/lease alone grants no permission
-to publish: current authorization and duplicate-result resolution remain required.
+it is **not** an ordinary client `ClientMsgNo`. Published metadata version 2
+binds this key, and message unique index 8 provides the separate server domain.
+The original client number remains content, so a caller cannot forge a colliding
+client-domain key. Setup reserves the 79-byte identity tail before accepting a
+template. See [Will append identity](mqtt-will-idempotency.md). A row/lease alone
+grants no permission to publish: current authorization, fenced execution and
+source retention through ambiguous-result resolution remain required.
 
 Armed and terminal rows have no recovery index entry. Waiting/Ready use due time;
 Executing uses lease expiry. Complete-key pages are capped at 256 and bodies are

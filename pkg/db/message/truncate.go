@@ -57,6 +57,10 @@ func (l *ChannelLog) TruncateFrom(ctx context.Context, fromSeq uint64) error {
 }
 
 func (l *ChannelLog) stageDeleteMessage(batch *engine.Batch, msg Message) error {
+	identity, err := rowIdempotencyKey(msg.FromUID, msg.ClientMsgNo, msg.PublicationMetadata)
+	if err != nil {
+		return err
+	}
 	if err := batch.Delete(nonBusinessIndexKey(l.key, msg.MessageSeq)); err != nil {
 		return err
 	}
@@ -68,13 +72,13 @@ func (l *ChannelLog) stageDeleteMessage(batch *engine.Batch, msg Message) error 
 			return err
 		}
 	}
-	if msg.ClientMsgNo != "" && msg.FromUID == "" {
+	if msg.ClientMsgNo != "" && (msg.FromUID == "" || identity.ServerWillKey != "") {
 		if err := batch.Delete(encodeMessageClientMsgNoIndexKey(l.key, msg.ClientMsgNo, msg.MessageSeq)); err != nil {
 			return err
 		}
 	}
-	if msg.FromUID != "" && msg.ClientMsgNo != "" {
-		if err := batch.Delete(encodeMessageIdempotencyIndexKey(l.key, msg.FromUID, msg.ClientMsgNo)); err != nil {
+	if identity.valid() {
+		if err := batch.Delete(l.idempotencyStorageKey(identity)); err != nil {
 			return err
 		}
 	}

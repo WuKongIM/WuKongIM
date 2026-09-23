@@ -69,12 +69,14 @@ type Message struct {
 	ServerTimestampMS int64
 }
 
-// IdempotencyKey identifies one sender/client-message pair in a channel.
+// IdempotencyKey selects exactly one client or server domain within a channel.
 type IdempotencyKey struct {
 	// FromUID is the sender UID.
 	FromUID string
 	// ClientMsgNo is the client-provided message number.
 	ClientMsgNo string
+	// ServerWillKey selects a durable Will intent; ClientMsgNo must be empty.
+	ServerWillKey string
 }
 
 // IdempotencyHit is the durable message selected by an idempotency key.

@@ -877,6 +877,29 @@ func (a *messageDBChannelStoreAdapter) LookupIdempotency(ctx context.Context, fr
 	return IdempotencyHit{Message: fromOwnedDBMessage(msg), PayloadHash: payloadHash}, true, nil
 }
 
+// LookupWillIdempotency retains the stored client number as content while
+// resolving a separately indexed immutable server intent.
+func (a *messageDBChannelStoreAdapter) LookupWillIdempotency(ctx context.Context, fromUID, serverKey string) (IdempotencyHit, bool, error) {
+	if err := a.ensureOpen(); err != nil {
+		return IdempotencyHit{}, false, err
+	}
+	if err := ctx.Err(); err != nil {
+		return IdempotencyHit{}, false, err
+	}
+	entry, payloadHash, ok, err := a.store.LookupWillIdempotency(ctx, fromUID, serverKey)
+	if err != nil || !ok {
+		return IdempotencyHit{}, ok, a.mapError(err)
+	}
+	msg, ok, err := a.store.GetMessageBySeq(entry.MessageSeq)
+	if err != nil || !ok {
+		return IdempotencyHit{}, ok, a.mapError(err)
+	}
+	if msg.MessageID != entry.MessageID {
+		return IdempotencyHit{}, false, ch.ErrLogConflict
+	}
+	return IdempotencyHit{Message: fromOwnedDBMessage(msg), PayloadHash: payloadHash}, true, nil
+}
+
 // CountOrdinaryMessages preserves the caller's authoritative committed range.
 func (a *messageDBChannelStoreAdapter) CountOrdinaryMessages(ctx context.Context, after, through uint64) (uint64, error) {
 	if err := a.ensureOpen(); err != nil {

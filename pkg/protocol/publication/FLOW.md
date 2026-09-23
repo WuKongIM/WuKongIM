@@ -22,7 +22,7 @@ delivery policy, persistence or network packets.
 ## Main Flows
 
 1. Encode validates source, time, identities, property variants, duplicates and
-   total size before allocating a canonical version-1 value.
+   total size before allocating v1 content or v2 content with a server Will key.
 2. Decode bounds input/counts, rejects unknown or partial formats, and returns
    independently owned strings and binary properties in original order.
 3. Expiry uses ordinary MQTT ingress time or the original Will source append
@@ -39,8 +39,10 @@ delivery policy, persistence or network packets.
   noncanonical variant fields and trailing bytes fail closed.
 - Publisher namespace plus ClientID is stable across Session generations.
 - Will configuration has no ingress clock and does not forward Will Delay.
+- Setup reserves the 79-byte v2 identity tail within the complete size bound.
+- V2 is Will-only and carries the immutable intent key; native/v1 bytes stay fixed.
 - An expiry deadline does not authorize abandoning an already begun exchange.
-- This format grants neither publication permission nor server idempotency.
+- This format grants no execution authority and proves no committed result.
 
 ## Read First
 

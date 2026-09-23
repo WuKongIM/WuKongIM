@@ -88,6 +88,8 @@ DTOs, and `worker` bounds blocking I/O.
   rollback after new-format writes is unsupported.
 - Same-Channel append ordering survives batching and worker concurrency.
   Quorum success requires replicated progress; desired replicas never imply it.
+- Optional server Will lookup preserves its separate storage identity domain;
+  its durable candidate still requires current committed visibility proof.
 - Unloaded state is absence from the reactor map. Cold PullHint activation must
   resolve authoritative metadata and prove local replica membership before
   opening storage.

@@ -759,3 +759,56 @@ does not constitute complete product MQTT restore acceptance. MQTT state tables,
 owner fencing after restore, separate Will append identity, shared replay/source
 protection, runtime execution and capability/process/scale gates remain required.
 The listener remains unavailable and the full goal is active.
+
+## Separate Will append identity
+
+Source context is `84b99eb1d`; the applicable frozen digests, durable layouts
+and pre-implementation failure inventory are recorded in
+[`mqtt-will-idempotency.md`](../specs/mqtt-will-idempotency.md).
+
+Publication metadata v2 now carries a canonical server Will intent key. Ordinary
+content and unkeyed configuration templates retain v1 bytes. Message unique
+index 8 derives its key from that identity and sender UID; native client index 4
+is unchanged. Wills keep their original client number and use nonunique index 3
+for history lookup. Durable row verification, append/follower validation,
+recovery replacement, truncation, retention and backup import preserve domain
+separation. Will lookups use point proofs without adding a native negative-filter
+cache or scan. The legacy row-free reservation API cannot populate this domain.
+
+The Channel store, Node and infrastructure adapter expose the separate lookup
+capability. Product retry still proves the original record through the current
+Leader's committed read; a missing server capability fails closed. Send admission
+rejects unkeyed Will templates before routing or ID allocation. CONNECT mapping
+reserves the 79-byte identity tail before accepting configuration, while ordinary
+MQTT retains its existing metadata limit. Runtime execution must bind the durable
+Will row's key; these bytes alone prove no lease or authorization.
+
+Tests were written first. Codec/store API tests initially failed to compile
+because identity support was absent. The real app integration then reproduced
+the substantive retry bug: a Will committed alongside a native message with the
+same client number, but its retry failed with log conflict through the old lookup
+domain. That test now passes with 256 hash slots, two independent Will intents,
+stable retry results, native retry and changed client/body rejection. Separate
+RED tests caught acceptance of an oversized future publication and admission of
+an unbound Will template before their guards were implemented. Store coverage
+includes one-batch collisions, strict/server-allocated/follower modes, invalid
+identity, reopen, portable backup/import, domain-safe deletion, retained-prefix
+recovery checks and a valid-looking index tuple pointing at another Will.
+
+Validation passed:
+
+- Full publication, `pkg/db/...` and `pkg/channel/...` suites; after adding the
+  lookup ports, complete Channel store, `pkg/cluster/...`, infrastructure cluster
+  and app suites passed again. Complete MQTT access and channelappend runtime
+  suites passed after their final admission changes.
+- App integration tests for Will-domain retry and publication retry after edit
+  passed together (`-tags=integration`, `-count=1`, `-timeout=70s`).
+- Focused race tests for publication, MessageDB, infrastructure cluster and MQTT
+  access passed; the existing macOS linker warning remains.
+- Named `flow-doc-contracts`: 83 compliant, zero invalid, 9 existing warnings.
+
+Still required: fenced Will execution and current permission checks, retention
+through ambiguous publication-result resolution, shared replay/source protection,
+persistent session runtime, owner isolation, MQTT state transfer/restore fencing,
+capability gating and full process/scale acceptance. The product listener remains
+unavailable and the full implementation goal stays active.

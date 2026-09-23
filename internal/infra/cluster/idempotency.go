@@ -19,6 +19,12 @@ type ChannelIdempotencyNode interface {
 	ReadChannelOriginalCommittedBatch(context.Context, []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error)
 }
 
+// ChannelWillIdempotencyNode is required for server-origin Will lookup. Absence
+// must fail closed instead of silently selecting the client-message domain.
+type ChannelWillIdempotencyNode interface {
+	LookupChannelWillIdempotency(context.Context, channelruntime.ChannelID, string, string) (channelstore.IdempotencyHit, bool, error)
+}
+
 // ChannelIdempotencyStore adapts cluster committed idempotency lookups to channelappend.
 type ChannelIdempotencyStore struct {
 	node ChannelIdempotencyNode
@@ -35,7 +41,30 @@ func (s *ChannelIdempotencyStore) LookupSend(ctx context.Context, query channela
 	if s == nil || s.node == nil || query.FromUID == "" || query.ClientMsgNo == "" || query.ChannelID == "" || query.ChannelType == 0 {
 		return channelappend.SendResult{}, false, nil
 	}
-	hit, ok, err := s.node.LookupChannelIdempotency(ctx, channelruntime.ChannelID{ID: query.ChannelID, Type: query.ChannelType}, query.FromUID, query.ClientMsgNo)
+	var serverKey string
+	if len(query.PublicationMetadata) != 0 {
+		metadata, err := publication.Decode(query.PublicationMetadata)
+		if err != nil {
+			return channelappend.SendResult{}, false, channelappend.ErrAppendFailed
+		}
+		serverKey = metadata.ServerWillKey
+	}
+	id := channelruntime.ChannelID{ID: query.ChannelID, Type: query.ChannelType}
+	var hit channelstore.IdempotencyHit
+	var ok bool
+	var err error
+	if serverKey != "" {
+		node, supported := s.node.(ChannelWillIdempotencyNode)
+		if !supported {
+			return channelappend.SendResult{}, false, channelappend.ErrAppendFailed
+		}
+		hit, ok, err = node.LookupChannelWillIdempotency(ctx, id, query.FromUID, serverKey)
+		if errors.Is(err, channelruntime.ErrInvalidConfig) {
+			return channelappend.SendResult{}, false, channelappend.ErrAppendFailed
+		}
+	} else {
+		hit, ok, err = s.node.LookupChannelIdempotency(ctx, id, query.FromUID, query.ClientMsgNo)
+	}
 	if err != nil || !ok {
 		if channelIdempotencyLookupMissError(err) {
 			return channelappend.SendResult{}, false, nil

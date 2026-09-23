@@ -18,6 +18,7 @@ const (
 	messageIndexIDGlobalMessageID    uint16 = 5
 	messageIndexIDFromUIDMessageSeq  uint16 = 6
 	messageIndexIDNonBusinessSeq     uint16 = 7
+	messageIndexIDServerWill         uint16 = 8
 
 	messageSystemIDCheckpoint          uint16 = 1
 	messageSystemIDHistory             uint16 = 2
@@ -117,6 +118,8 @@ var MessageTable = schema.Table{
 		Columns: []uint16{messageColumnIDMessageSeq},
 	},
 	Indexes: []schema.Index{
+		// The server key is derived from publication metadata, not its full bytes.
+		{ID: messageIndexIDServerWill, Name: "uidx_server_will_from_uid", Unique: true, Columns: []uint16{messageColumnIDPublicationMetadata, messageColumnIDFromUID}},
 		{ID: messageIndexIDNonBusinessSeq, Name: "idx_non_business_seq", Columns: []uint16{messageColumnIDMessageSeq}},
 		{ID: messageIndexIDClientMsgNo, Name: "idx_senderless_client_msg_no", Columns: []uint16{messageColumnIDClientMsgNo, messageColumnIDMessageSeq}},
 		{ID: messageIndexIDFromUIDClientMsgNo, Name: "uidx_client_msg_no_from_uid", Unique: true, Columns: []uint16{messageColumnIDClientMsgNo, messageColumnIDFromUID}},

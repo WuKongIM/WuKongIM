@@ -93,6 +93,9 @@ storage core without transferring shared-engine ownership.
 - Idempotency filter negatives may avoid a read; possible hits always verify
   durable index and message data. Saturation can increase reads, never admit a
   duplicate.
+- Keyed Wills derive unique index 8 from publication metadata and UID; client
+  index 3 preserves history lookup while native index 4 stays separate. Will
+  uniqueness uses durable point proofs without the native negative filter.
 - Caller cancellation stops waiting but cannot release commit-owned locks or
   pins before build, physical commit, publish, or terminal shutdown.
 - Retention and truncation remove primary and secondary rows together. Logical

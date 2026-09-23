@@ -1474,6 +1474,20 @@ func (s *ChannelStore) LookupIdempotency(key channel.IdempotencyKey) (channel.Id
 	return channel.IdempotencyEntry{MessageID: hit.MessageID, MessageSeq: hit.MessageSeq, Offset: hit.Offset}, hit.PayloadHash, true, nil
 }
 
+// LookupWillIdempotency verifies a server-domain identity against its original
+// row. Legacy row-free reservation APIs cannot create entries in this domain.
+func (s *ChannelStore) LookupWillIdempotency(ctx context.Context, fromUID, serverKey string) (channel.IdempotencyEntry, uint64, bool, error) {
+	if err := s.beginUse(); err != nil {
+		return channel.IdempotencyEntry{}, 0, false, err
+	}
+	defer s.endUse()
+	hit, ok, err := s.log.lookupIdempotency(ctx, IdempotencyKey{FromUID: fromUID, ServerWillKey: serverKey})
+	if err != nil || !ok {
+		return channel.IdempotencyEntry{}, 0, ok, toChannelError(err)
+	}
+	return channel.IdempotencyEntry{MessageID: hit.MessageID, MessageSeq: hit.MessageSeq, Offset: hit.Offset}, hit.PayloadHash, true, nil
+}
+
 // LoadDurableProposal returns one exact proposal while holding the canonical
 // Channel append lock so its manifest and rows form one stable view.
 func (s *ChannelStore) LoadDurableProposal(ctx context.Context, commandID quorumlog.CommandID, maxRecords int, maxBytes int) (DurableProposal, bool, error) {

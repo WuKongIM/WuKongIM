@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add a separate durable Will identity index and committed retry lookup, preserving client message numbers and reserving publication identity space during setup. Keyed Will records require matching runtimes/tools; the MQTT product listener remains unavailable. / 新增 Will 独立持久幂等索引与已提交重试查询，保留客户端消息号并在配置时预留发布身份空间；带服务端身份的 Will 数据要求匹配的运行时和工具，MQTT 产品入口仍未开放。
+
 ### 🔧 Improvements / 改进
 
 - Preserve optional publication metadata in offline message inspection and JSONL transfer; validation and comparison now detect invalid or changed metadata while native rows retain their previous format. / 离线消息查看和 JSONL 导入导出保留可选发布元数据，校验与对比能够识别无效或变化的元数据，原生消息行格式保持兼容。

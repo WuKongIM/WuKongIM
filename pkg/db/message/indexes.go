@@ -100,8 +100,8 @@ func (l *ChannelLog) listByClientMsgNoBounded(ctx context.Context, clientMsgNo s
 		return MessagePage{}, err
 	}
 
-	// Sender-less records cannot participate in idempotency, so they retain
-	// the sequence-suffixed client index without adding a write to normal sends.
+	// Sender-less records and server-keyed Wills use the sequence-suffixed
+	// client index without adding a write to normal client-domain sends.
 	legacyPrefix := encodeMessageClientMsgNoIndexPrefix(l.key, clientMsgNo)
 	legacySpan := keycodec.NewPrefixSpan(legacyPrefix)
 	legacyIter, err := l.db.engine.NewIter(engine.Span{Start: legacySpan.Start, End: legacySpan.End}, engine.IterOptions{})

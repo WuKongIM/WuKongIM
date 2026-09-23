@@ -17,6 +17,14 @@ Publisher identity is namespace plus ClientID; Session generation is deliberatel
 absent so No Local survives reconnect. The original topic is provenance; outbound
 personal topics are reconstructed for the recipient's subscription.
 
+Version 2 preserves that body and appends one uint16-sized server Will key. It
+is valid only for SourceWill, with a canonical `mqtt-will-v1:` plus 64 lowercase
+hex digits. Unkeyed templates and ordinary MQTT still emit identical version-1
+bytes. Will setup reserves the 79-byte tail within the 32-KiB total; it cannot
+accept a template that later cannot fit its execution identity. This is a
+server intent reference, not a client property or execution-authority proof.
+See [the separate Will idempotency domain](mqtt-will-idempotency.md).
+
 Property kinds are independent durable IDs: payload format=1 (byte), message
 expiry=2 (uint32 seconds), content type=3 (uint16 string), response topic=4
 (uint16 string), correlation data=5 (uint16 binary), user property=6 (two uint16
@@ -163,6 +171,13 @@ the original durable record and therefore its original expiry clock; it does not
 replace metadata or repeat post-commit delivery. Different publication content
 must not coalesce or pass committed-idempotency proof. This comparison is not an
 MQTT Packet Identifier exchange ledger and does not grant a server Will domain.
+
+Keyed version-2 Wills instead select message index 8, independently of the
+ordinary sender/client index 4. Their complete metadata binds the server key in
+proposal format 3, content comparison and committed proof; original client
+numbers remain content and history lookup metadata. An unavailable server lookup
+capability fails closed. Unkeyed version-1 Will templates do not acquire that
+domain merely by carrying SourceWill or a reserved-looking client number.
 
 Failure coverage before implementation: metadata loss or aliasing in any clone,
 append/envelope mapping or forwarding; malformed/oversized/truncated RPC fields;

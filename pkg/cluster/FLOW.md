@@ -93,7 +93,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 - Scalar Slot mapping reads the current foreground table without copying
   placement peers or looking up an unused diagnostic epoch; lifecycle,
   missing-mapping and observed-Leader checks remain the same as full routing.
-- Desired or preferred ownership never substitutes for an observed leader.
+- Desired ownership never substitutes for an observed leader. Client and server Will idempotency lookups return local candidates, never committed proof.
   Missing, stale, incomplete, duplicate, or mismatched authority evidence
   fails readiness or the foreground operation closed.
 - Slot Raft defaults to a 50 ms local tick, two-tick heartbeat, and 40-tick

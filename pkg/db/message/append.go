@@ -128,18 +128,30 @@ func (l *channelEntry) stageMessageRows(ctx context.Context, batch *engine.Batch
 }
 
 func (l *channelEntry) stageMessageRow(batch *engine.Batch, row messageRow, cache *appendKeyCache) error {
+	identity, err := rowIdempotencyKey(row.FromUID, row.ClientMsgNo, row.PublicationMetadata)
+	if err != nil {
+		return err
+	}
 	if err := l.stageMessageHeaderRow(batch, row, cache); err != nil {
 		return err
 	}
 	if err := l.stageGlobalMessageIDIndexRow(batch, row); err != nil {
 		return err
 	}
-	if row.ClientMsgNo != "" && row.FromUID == "" {
+	if row.ClientMsgNo != "" && (row.FromUID == "" || identity.ServerWillKey != "") {
 		if err := l.stageClientMsgNoIndexRow(batch, row, cache); err != nil {
 			return err
 		}
 	}
-	if row.FromUID != "" && row.ClientMsgNo != "" {
+	if identity.ServerWillKey != "" {
+		value, err := encodeIdempotencyIndexValue(row)
+		if err != nil {
+			return err
+		}
+		if err := batch.Set(encodeMessageWillIdempotencyIndexKey(l.key, row.FromUID, identity.ServerWillKey), value); err != nil {
+			return err
+		}
+	} else if row.FromUID != "" && row.ClientMsgNo != "" {
 		if err := l.stageIdempotencyIndexRow(batch, row, cache); err != nil {
 			return err
 		}
@@ -257,9 +269,25 @@ func (l *ChannelLog) validateAppendRow(ctx context.Context, row messageRow, seen
 	if row.FromUID == "" || row.ClientMsgNo == "" {
 		return nil
 	}
-	key := IdempotencyKey{FromUID: row.FromUID, ClientMsgNo: row.ClientMsgNo}
+	key, err := rowIdempotencyKey(row.FromUID, row.ClientMsgNo, row.PublicationMetadata)
+	if err != nil {
+		return err
+	}
 	if seen.rememberIdempotencyKey(key) {
 		return fmt.Errorf("%w: duplicate idempotency key", dberrors.ErrConflict)
+	}
+	if key.ServerWillKey != "" {
+		// Wills use durable point proofs even on followers. They never enter the
+		// native negative filter, so reopening cannot mistake them for absent.
+		l.db.idempotencyPointReads.Add(1)
+		hit, ok, err := l.lookupIdempotencyByKey(ctx, key, l.idempotencyStorageKey(key))
+		if err != nil {
+			return err
+		}
+		if ok && hit.MessageSeq != row.MessageSeq {
+			return fmt.Errorf("%w: Will identity already stored at seq %d", dberrors.ErrConflict, hit.MessageSeq)
+		}
+		return nil
 	}
 	scratch.idempotencyIndexKey = cache.idempotencyIndexKeyTo(scratch.idempotencyIndexKey, key.FromUID, key.ClientMsgNo)
 	if mode == AppendTrustedContiguous {

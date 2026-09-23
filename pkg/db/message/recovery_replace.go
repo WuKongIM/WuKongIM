@@ -286,7 +286,8 @@ func (s *ChannelStore) ReplaceRecoverySuffix(ctx context.Context, req ReplaceRec
 	if s.log.idempotencyMembershipLoaded {
 		cache := s.log.appendKeyCache
 		for _, row := range prepared.rows {
-			if row.FromUID != "" && row.ClientMsgNo != "" {
+			key, _ := rowIdempotencyKey(row.FromUID, row.ClientMsgNo, row.PublicationMetadata) // Prepared rows were validated before commit.
+			if key.ServerWillKey == "" && row.FromUID != "" && row.ClientMsgNo != "" {
 				s.log.idempotencyMembership.add(cache.idempotencyIndexKey(row.FromUID, row.ClientMsgNo))
 			}
 		}
@@ -442,7 +443,6 @@ func (s *ChannelStore) validateRecoveryProposalKeyReuse(manifest DurableProposal
 }
 
 func (s *ChannelStore) validateRecoveryRows(ctx context.Context, rows []messageRow, keepThrough uint64, seen *appendValidationSeen) error {
-	cache := s.log.appendKeyCache
 	for _, row := range rows {
 		if err := row.validate(); err != nil {
 			return err
@@ -460,11 +460,14 @@ func (s *ChannelStore) validateRecoveryRows(ctx context.Context, rows []messageR
 		if row.FromUID == "" || row.ClientMsgNo == "" {
 			continue
 		}
-		key := IdempotencyKey{FromUID: row.FromUID, ClientMsgNo: row.ClientMsgNo}
+		key, err := rowIdempotencyKey(row.FromUID, row.ClientMsgNo, row.PublicationMetadata)
+		if err != nil {
+			return err
+		}
 		if seen.rememberIdempotencyKey(key) {
 			return dberrors.ErrConflict
 		}
-		hit, present, err := s.log.lookupIdempotencyByKey(ctx, key, cache.idempotencyIndexKey(key.FromUID, key.ClientMsgNo))
+		hit, present, err := s.log.lookupIdempotencyByKey(ctx, key, s.log.idempotencyStorageKey(key))
 		if err != nil {
 			return err
 		}

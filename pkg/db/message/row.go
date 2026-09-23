@@ -43,6 +43,9 @@ func (r messageRow) validate() error {
 		if err != nil || r.ServerTimestampMS <= 0 {
 			return dberrors.ErrInvalidArgument
 		}
+		if m.ServerWillKey != "" && (r.FromUID == "" || r.ClientMsgNo == "") {
+			return dberrors.ErrInvalidArgument
+		}
 		if _, _, err := m.ExpiryDeadlineMS(r.ServerTimestampMS); err != nil {
 			return dberrors.ErrInvalidArgument
 		}

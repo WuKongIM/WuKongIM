@@ -219,8 +219,12 @@ specification, runbook, report, or module documentation; link to them when neede
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.
   Generic CAS cannot change a referenced live Will or bypass its lifecycle. Server
-  Will retry identities require a distinct append-idempotency domain; a reserved
-  string prefix alone cannot prevent client-controlled key collisions.
+  Will retry identities use message index 8 with publication metadata v2; native
+  client index 4 remains separate and index 3 includes Will client-number history.
+  Setup reserves its 79-byte identity tail. Server lookup requires the original
+  committed proof and fails closed without its capability; prefix strings alone
+  confer no server identity. Fenced execution and retention through ambiguous
+  publication-result resolution still need runtime wiring.
   Session/subscription Slot writes fence owner and revision atomically; repeated
   subscription options preserve delivery generation, and exact retry uses the
   child's own last-mutation revision. These storage primitives do not prove source

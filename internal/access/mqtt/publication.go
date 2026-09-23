@@ -111,6 +111,11 @@ func mapPublication(topic string, payload []byte, qos byte, retain bool, propert
 		m.Properties = append(m.Properties, v)
 	}
 	encoded, err := publication.Encode(m)
+	if err == nil && m.Source == publication.SourceWill && len(encoded) > publication.MaxWillTemplateBytes {
+		// The execution identity is assigned later by the fenced lifecycle,
+		// but its bytes must fit before the CONNECT configuration is accepted.
+		err = publication.ErrTooLarge
+	}
 	if err != nil {
 		if errors.Is(err, publication.ErrTooLarge) {
 			return input, 0, publicationError(wire.PacketTooLarge)

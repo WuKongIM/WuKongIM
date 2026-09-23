@@ -1075,6 +1075,19 @@ func localLeaderCommitsOwnLEO(meta metadb.ChannelRuntimeMeta, localNodeID uint64
 
 // LookupChannelIdempotency reads one local Channel idempotency index entry.
 func (n *Node) LookupChannelIdempotency(ctx context.Context, id channelruntime.ChannelID, fromUID string, clientMsgNo string) (channelstore.IdempotencyHit, bool, error) {
+	return n.lookupChannelIdempotency(ctx, id, fromUID, clientMsgNo, "")
+}
+
+// LookupChannelWillIdempotency reads one local server-domain candidate. The
+// caller must prove visibility through the current Leader's committed log.
+func (n *Node) LookupChannelWillIdempotency(ctx context.Context, id channelruntime.ChannelID, fromUID, serverKey string) (channelstore.IdempotencyHit, bool, error) {
+	if serverKey == "" {
+		return channelstore.IdempotencyHit{}, false, channelruntime.ErrInvalidConfig
+	}
+	return n.lookupChannelIdempotency(ctx, id, fromUID, "", serverKey)
+}
+
+func (n *Node) lookupChannelIdempotency(ctx context.Context, id channelruntime.ChannelID, fromUID, clientMsgNo, serverKey string) (channelstore.IdempotencyHit, bool, error) {
 	if err := ctxErr(ctx); err != nil {
 		return channelstore.IdempotencyHit{}, false, err
 	}
@@ -1090,6 +1103,13 @@ func (n *Node) LookupChannelIdempotency(ctx context.Context, id channelruntime.C
 		return channelstore.IdempotencyHit{}, false, err
 	}
 	defer func() { _ = store.Close() }()
+	if serverKey != "" {
+		lookup, ok := store.(channelstore.WillIdempotencyLookup)
+		if !ok {
+			return channelstore.IdempotencyHit{}, false, channelruntime.ErrInvalidConfig
+		}
+		return lookup.LookupWillIdempotency(ctx, fromUID, serverKey)
+	}
 	lookup, ok := store.(channelstore.IdempotencyLookup)
 	if !ok {
 		return channelstore.IdempotencyHit{}, false, channelruntime.ErrInvalidConfig

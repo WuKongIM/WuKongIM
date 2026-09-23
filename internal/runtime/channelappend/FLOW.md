@@ -55,8 +55,8 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
   one.
 - Expected Channel and leader epochs fence every durable write. A canonical
   target mismatch is stale routing and creates no state.
-- Invalid publication metadata fails before route side effects or ID allocation,
-  including transient sends. Owned envelopes preserve the original metadata.
+- Invalid metadata and unkeyed Will templates fail before routing or IDs, including
+  transient sends. Owned envelopes preserve original metadata.
 - Accepted work is not canceled by later caller cancellation. A timed-out Stop
   bounds only that caller's wait and never discards admitted work.
 - Per-item result order and cardinality are preserved across routing, append,

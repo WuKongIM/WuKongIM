@@ -180,6 +180,12 @@ type IdempotencyLookup interface {
 	LookupIdempotency(ctx context.Context, fromUID string, clientMsgNo string) (IdempotencyHit, bool, error)
 }
 
+// WillIdempotencyLookup selects the server Will domain independently of client
+// numbers. Like IdempotencyLookup, a hit still requires current committed proof.
+type WillIdempotencyLookup interface {
+	LookupWillIdempotency(ctx context.Context, fromUID, serverKey string) (IdempotencyHit, bool, error)
+}
+
 // OrdinaryMessageCounter counts non-SyncOnce positions in (after, through].
 // Callers supply committed and retention-aware bounds from the current authority.
 type OrdinaryMessageCounter interface {

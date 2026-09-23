@@ -17,6 +17,10 @@ const (
 	MaxProperties    = 128
 	MaxIdentityBytes = 1024
 	MaxTopicBytes    = 2048
+	// MaxWillTemplateBytes reserves the sized server identity before CONNECT
+	// accepts a Will. Publishing that template must still fit MaxEncodedBytes.
+	MaxWillTemplateBytes = MaxEncodedBytes - 2 - len(serverWillKeyPrefix) - 64
+	serverWillKeyPrefix  = "mqtt-will-v1:"
 )
 
 var (
@@ -71,6 +75,10 @@ type Metadata struct {
 	// OriginalTopic is provenance, not necessarily the recipient's output topic.
 	OriginalTopic string
 	Properties    []Property
+	// ServerWillKey binds a published Will to its durable server intent. Empty
+	// values retain the v1 template format; only SourceWill may use this domain.
+	// The key does not prove execution authority and is never a wire property.
+	ServerWillKey string
 }
 
 // ExpiryDeadlineMS preserves the original lifetime without restarting it on a
@@ -98,7 +106,8 @@ func (m Metadata) ExpiryDeadlineMS(serverTimestampMS int64) (int64, bool, error)
 	return 0, false, nil
 }
 
-// Encode returns an owned canonical v1 value. The full allocation is bounded.
+// Encode returns an owned canonical value: v2 for a keyed Will, otherwise v1.
+// The full allocation, including the server identity, is bounded.
 func Encode(m Metadata) ([]byte, error) {
 	n, err := m.encodedSize()
 	if err != nil {
@@ -106,6 +115,9 @@ func Encode(m Metadata) ([]byte, error) {
 	}
 	b := make([]byte, 3, n)
 	b[0], b[1], b[2] = 1, byte(m.Source), m.QoS
+	if m.ServerWillKey != "" {
+		b[0] = 2
+	}
 	b = binary.BigEndian.AppendUint64(b, uint64(m.AcceptedAtMS))
 	b = appendString(b, m.PublisherNamespace)
 	b = appendString(b, m.PublisherClientID)
@@ -128,6 +140,9 @@ func Encode(m Metadata) ([]byte, error) {
 			b = appendString(b, p.Value)
 		}
 	}
+	if m.ServerWillKey != "" {
+		b = appendString(b, m.ServerWillKey)
+	}
 	return b, nil
 }
 
@@ -146,7 +161,7 @@ func Decode(b []byte) (Metadata, error) {
 	if len(b) == 0 {
 		return m, ErrInvalid
 	}
-	if b[0] != 1 {
+	if b[0] != 1 && b[0] != 2 {
 		return m, ErrUnsupported
 	}
 	d := decoder{b: b[1:]}
@@ -177,6 +192,12 @@ func Decode(b []byte) (Metadata, error) {
 			return Metadata{}, ErrUnsupported
 		}
 		m.Properties = append(m.Properties, p)
+	}
+	if b[0] == 2 {
+		m.ServerWillKey = string(d.sized())
+		if m.ServerWillKey == "" {
+			return Metadata{}, ErrInvalid
+		}
 	}
 	if d.failed || len(d.b) != 0 {
 		return Metadata{}, ErrInvalid
@@ -227,6 +248,12 @@ func (m Metadata) encodedSize() (int, error) {
 		return 0, ErrTooLarge
 	}
 	n := 19 + len(m.PublisherNamespace) + len(m.PublisherClientID) + len(m.OriginalTopic)
+	if m.ServerWillKey != "" {
+		if m.Source != SourceWill || !ValidServerWillKey(m.ServerWillKey) {
+			return 0, ErrInvalid
+		}
+		n += 2 + len(m.ServerWillKey)
+	}
 	var seen uint8
 	for _, p := range m.Properties {
 		if p.Kind < PayloadFormat || p.Kind > UserProperty {
@@ -282,6 +309,20 @@ func validIdentity(s string) bool {
 }
 func validTopic(s string) bool { return s != "" && validString(s) && !strings.ContainsAny(s, "#+") }
 
+// ValidServerWillKey checks the canonical durable Will intent identity. It
+// validates syntax only; authority comes from the fenced Will lifecycle.
+func ValidServerWillKey(key string) bool {
+	if len(key) != len(serverWillKeyPrefix)+64 || !strings.HasPrefix(key, serverWillKeyPrefix) {
+		return false
+	}
+	for _, b := range key[len(serverWillKeyPrefix):] {
+		if !(b >= '0' && b <= '9' || b >= 'a' && b <= 'f') {
+			return false
+		}
+	}
+	return true
+}
+
 // SameContent compares canonical publication content for an application-key
 // retry. It validates both optional values and excludes only the server-assigned
 // ingress clock. Callers must retain the original record/clock on a match and
@@ -297,7 +338,7 @@ func SameContent(left, right []byte) (bool, error) {
 	if len(left) == 0 || len(right) == 0 {
 		return len(left) == len(right), nil
 	}
-	// Version 1 has version/source/QoS, then the eight-byte AcceptedAtMS clock.
+	// Both versions have version/source/QoS, then the eight-byte ingress clock.
 	return bytes.Equal(left[:3], right[:3]) && bytes.Equal(left[11:], right[11:]), nil
 }
 

@@ -42,8 +42,12 @@ MQTT groundwork adds metadata tables 22 (`mqtt_session`), 23
 (`mqtt_source_binding`) and 27 (`mqtt_will`), with Slot commands 67–73.
 Command 73 atomically resolves Session/Will transitions and records optional
 Session column 29 for exact retry; older rows default to an empty receipt.
-Generic CAS cannot bypass referenced Will lifecycle. The separate server append
-idempotency domain and product authority wiring remain required. Source bindings
+Generic CAS cannot bypass referenced Will lifecycle. Message index 8 selects the
+separate server Will identity derived from publication metadata v2; ordinary
+index 4 stays unchanged and nonunique client-number index 3 also covers Wills.
+Only new keyed records use index 8, so no legacy backfill is needed. All writers,
+deletions and portable imports maintain it; older readers reject v2 metadata.
+Product execution/authority wiring remains required. Source bindings
 have separate Channel/UID ownership and retain removal tombstones; their proof revisions do
 not establish remote authority by themselves. Optional window columns retain
 legacy zero defaults; lifecycle CAS preserves delivery-owned counters and
