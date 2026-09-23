@@ -324,8 +324,13 @@ specification, runbook, report, or module documentation; link to them when neede
   A routed page alone proves no quorum copy. Copy coordination and body-free RPC
   95 independently derive the exact full-content prefix on current ISR voters,
   require the leader plus a strict MinISR majority, and recheck fresh membership.
-  Receiver requests never advance HW; bounded copy receipts still require a
-  replicated accepted decision before source release or recovery anchoring.
+  Receiver requests never advance HW; bounded copy receipts still require runtime
+  admission into an accepted decision. Format-5 anchor controls now replicate a
+  source/prefix/full-content digest and atomically retain canonical journal rows
+  under Message System 14. Committed reads verify source and exact log proofs
+  after original trimming; backups preserve committed entries and reject missing
+  journals or mismatched proposal/entry versions. Quorum, restart and learner
+  transfer preserve these controls; receipt admission/release remain unwired.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.

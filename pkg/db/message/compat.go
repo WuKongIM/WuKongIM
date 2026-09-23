@@ -3223,6 +3223,9 @@ func (e *channelEntry) stageCommitRows(batch *engine.Batch, rows []messageRow, c
 	if err := e.stageMQTTActivation(batch, checkpoint, proposals, keepThrough); err != nil {
 		return toChannelError(err)
 	}
+	if err := e.stageMQTTReplayAnchors(batch, rows, checkpoint, proposals, keepThrough); err != nil {
+		return toChannelError(err)
+	}
 	if err := e.stageMessageRows(context.Background(), batch, rows); err != nil {
 		return toChannelError(err)
 	}

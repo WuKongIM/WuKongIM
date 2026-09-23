@@ -7,18 +7,15 @@ summary: Stores Channel message logs, indexes, checkpoints, retention state, sna
 
 ## Responsibility
 
-`pkg/db/message` owns node-local Channel log persistence on the shared
-`pkg/db/internal` engine. It provides canonical Channel leases, atomic append
+`pkg/db/message` persists node-local Channel logs on `pkg/db/internal`, with canonical leases, atomic append
 and follower apply, secondary indexes, checkpoints and history, logical and
 physical retention, inspection, and portable backup/restore snapshots.
 
-The compatibility surface maps `pkg/channel` records and offsets to this typed
-storage core without transferring shared-engine ownership.
+Compatibility maps Channel records/offsets to this core without transferring engine ownership.
 
 ## Boundaries
 
-- Pebble-specific code stays under `pkg/db/internal`; this package must not
-  import Pebble directly.
+- Pebble-specific code stays under `pkg/db/internal`; direct Pebble imports are forbidden.
 - `MessageDB` owns one registry and physical engine. Each `Channel` or
   `ForChannel` call returns an independently closable lease over a shared
   canonical entry.
@@ -53,7 +50,7 @@ storage core without transferring shared-engine ownership.
 ## Invariants and Failure Semantics
 
 - Offline helpers preserve optional publication column 21 and verify proposal
-  formats 1–4. Format 2 binds Expire; format 3 also binds publication metadata;
+  formats 1–5. Format 2 binds Expire; format 3 also binds publication metadata;
   format 4 exclusively binds one canonical internal source activation record.
   Metadata uses compatibility record codec 2; native codec-1 bytes stay unchanged.
   Matched runtimes, tooling and full-generation rollback are required. Import adds no empty-key exception, uniqueness relaxation,
@@ -111,6 +108,9 @@ storage core without transferring shared-engine ownership.
   Preparation returns covered pages before extending, preserving short-page retries.
   Transfer requires committed log proofs plus an independent full-content digest;
   native hashes omit fields. Local copy/import never advances System 12 or proves quorum.
+  Format-5 anchors journal canonical controls under System 14; committed point reads
+  verify source/checkpoint/entry proofs. Trims retain them, suffix replacement removes
+  pending entries, and backups require matching committed journals and format versions.
   Suffix cuts never split proposals; recovery replacement is fenced by the
   inspected frontier and atomically replaces complete verified proposal pages.
 - Queue-depth publication is monotonic through grouped collection and terminal

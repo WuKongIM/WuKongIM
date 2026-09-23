@@ -58,6 +58,19 @@ are unchanged, but old validators reject format 4. Matching writers/tools are
 required; JSONL transfer and product restore activation remain incomplete. See
 [log activation](../../docs/specs/mqtt-source-log-activation.md).
 
+Exact proposal format 5 stores one explicitly tagged MQTT replay anchor with a
+separate hash domain and fixed version-1 source/prefix/digest payload. Message
+System ID 14 retains a key-bound version-1 journal entry per control position,
+atomically with the exact append. Committed reads verify source activation,
+checkpoint and complete proposal/entry proofs; prefix cleanup retains journals,
+while uncommitted suffix replacement removes them. Backups omit pending entries
+and require a matching journal for every committed anchor, with identical
+proposal/entry format versions. This changes neither System 12 release nor local
+copy coverage. Business version selection remains 1–3. Old validators reject
+format 5; matching writers and tools and pre-feature rollback backups are required.
+Runtime copy-receipt admission and automatic release/import remain pending. See
+[replay anchors](../../docs/specs/mqtt-replay-anchor.md).
+
 Message-domain table 2 stores immutable MQTT shared replay by source incarnation,
 position and content version. Index 2 provides bounded cumulative counters;
 System 1 publishes the copied prefix. Neither copying nor a local digest grants

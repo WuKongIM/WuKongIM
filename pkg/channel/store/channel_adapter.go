@@ -1350,3 +1350,17 @@ func (a *messageDBChannelStoreAdapter) readIndexedCommitted(ctx context.Context,
 // SupportsMQTTSourceActivation advertises the message store's atomic control
 // projection and retention guards, not a quorum or rollout proof.
 func (f *MessageDBFactory) SupportsMQTTSourceActivation() bool { return f != nil && f.engine != nil }
+
+// SupportsMQTTReplayAnchors advertises atomic format-5 control journal support.
+func (f *MessageDBFactory) SupportsMQTTReplayAnchors() bool { return f != nil && f.engine != nil }
+
+func (a *messageDBChannelStoreAdapter) LoadMQTTReplayAnchor(ctx context.Context, position uint64) (ch.MQTTReplayAnchorProof, bool, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayAnchorProof{}, false, err
+	}
+	proof, found, err := a.store.LoadMQTTReplayAnchor(ctx, position)
+	if err != nil || !found {
+		return ch.MQTTReplayAnchorProof{}, found, a.mapError(err)
+	}
+	return ch.MQTTReplayAnchorProof{Anchor: proof.Anchor, Manifest: proof.Manifest}, true, nil
+}

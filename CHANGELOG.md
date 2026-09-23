@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Persist MQTT replay content anchors through Channel quorum replication, recovery and backups, retaining verifiable proofs after original history cleanup. New format-5 controls require matching runtimes/tools; MQTT admission and automatic release remain unavailable. / MQTT 回放内容证明已支持 Channel 多数派复制、恢复和备份，原始历史清理后仍可核验；新增 format-5 控制记录要求运行时及工具版本匹配，MQTT 入口和自动释放尚未开放。
+
 - Add current-quorum confirmation for shared MQTT replay, with independent full-content checks on each voter and bounded internal RPC 95. Copy receipts do not release source history; the MQTT product listener remains unavailable. / 新增共享 MQTT 回放的当前多数副本确认，各副本独立校验完整内容，使用有界内部 RPC 95；复制回执不释放原始历史，MQTT 产品入口仍未开放。
 
 - Route shared MQTT replay preparation through fresh cluster authority, preserving content across Channel leader changes and restart while rejecting isolated cached routes. Internal RPC 94 requires matching peers; replicated-copy coordination and product MQTT admission remain under development. / 共享 MQTT 回放准备接入新鲜集群权威，换主和重启保持内容一致并拒绝孤立节点缓存路由；内部 RPC 94 需匹配节点，复制确认编排及产品 MQTT 入口仍在开发。

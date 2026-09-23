@@ -239,7 +239,7 @@ func (l *quorumLog) Release(key ch.ChannelKey, expected AuthorityID) bool {
 
 func (l *quorumLog) Commit(ctx context.Context, proposal Proposal) (Receipt, error) {
 	if l == nil || ctx == nil || proposal.Key == "" || proposal.Expected == (AuthorityID{}) ||
-		proposal.CommandID == (ch.CommandID{}) || len(proposal.Records) == 0 ||
+		proposal.CommandID == (ch.CommandID{}) || len(proposal.Records) == 0 || (proposal.MQTTSourceActivation && proposal.MQTTReplayAnchor) ||
 		len(proposal.Records) > l.cfg.MaxProposalRecords || !validProposalRecords(proposal.Records, l.cfg.MaxProposalBytes) {
 		return Receipt{}, ch.ErrInvalidConfig
 	}
@@ -263,7 +263,7 @@ func (l *quorumLog) Commit(ctx context.Context, proposal Proposal) (Receipt, err
 	}
 
 	if retained, ok := state.retained[proposal.CommandID]; ok {
-		if !sameProposalContent(retained.proposal, proposal.Records, proposal.MQTTSourceActivation) {
+		if !sameProposalContent(retained.proposal, proposal.Records, proposal.MQTTSourceActivation, proposal.MQTTReplayAnchor) {
 			return Receipt{}, ch.ErrLogConflict
 		}
 		if retained.durable {
@@ -272,7 +272,7 @@ func (l *quorumLog) Commit(ctx context.Context, proposal Proposal) (Receipt, err
 		return l.retryPending(ctx, state, retained)
 	}
 	if state.pending != nil && state.pending.proposal.manifest.CommandID == proposal.CommandID {
-		if !sameProposalContent(state.pending.proposal, proposal.Records, proposal.MQTTSourceActivation) {
+		if !sameProposalContent(state.pending.proposal, proposal.Records, proposal.MQTTSourceActivation, proposal.MQTTReplayAnchor) {
 			return Receipt{}, ch.ErrLogConflict
 		}
 		return l.retryPending(ctx, state, *state.pending)
@@ -282,7 +282,7 @@ func (l *quorumLog) Commit(ctx context.Context, proposal Proposal) (Receipt, err
 	}
 
 	durable, err := sealAppendProposal(
-		state.authority, state.frontier, state.hw, proposal.CommandID, proposal.Records, proposal.PayloadsImmutable, proposal.ServerAllocatedMessageIDs, proposal.MQTTSourceActivation,
+		state.authority, state.frontier, state.hw, proposal.CommandID, proposal.Records, proposal.PayloadsImmutable, proposal.ServerAllocatedMessageIDs, proposal.MQTTSourceActivation, proposal.MQTTReplayAnchor,
 	)
 	if err != nil {
 		return Receipt{}, err
@@ -312,7 +312,7 @@ func (l *quorumLog) reconcileCommandConflict(ctx context.Context, state *quorumC
 	if err != nil {
 		return Receipt{}, err
 	}
-	if !found || !sameProposalContent(loaded.proposal, proposal.Records, proposal.MQTTSourceActivation) {
+	if !found || !sameProposalContent(loaded.proposal, proposal.Records, proposal.MQTTSourceActivation, proposal.MQTTReplayAnchor) {
 		return Receipt{}, ch.ErrLogConflict
 	}
 	l.remember(state, loaded)
@@ -384,6 +384,7 @@ func (l *quorumLog) retryPending(ctx context.Context, state *quorumChannel, reta
 				Key: state.authority.Key, Expected: state.authority.ID,
 				CommandID: retained.proposal.manifest.CommandID, Records: retained.proposal.records,
 				MQTTSourceActivation: retained.proposal.manifest.Version == quorumlog.MQTTSourceProposalManifestVersion,
+				MQTTReplayAnchor:     retained.proposal.manifest.Version == quorumlog.MQTTReplayAnchorProposalManifestVersion,
 			})
 		}
 		return Receipt{}, err
@@ -467,6 +468,7 @@ func sealAppendProposal(
 	payloadsImmutable bool,
 	serverAllocatedMessageIDs bool,
 	sourceActivation bool,
+	replayAnchor bool,
 ) (durableProposal, error) {
 	if frontier.LEO == ^uint64(0) || uint64(len(records)) > ^uint64(0)-frontier.LEO {
 		return durableProposal{}, ch.ErrInvalidConfig
@@ -475,6 +477,9 @@ func sealAppendProposal(
 	version := ch.ProposalVersionForRecords(frozen)
 	if sourceActivation {
 		version = quorumlog.MQTTSourceProposalManifestVersion
+	}
+	if replayAnchor {
+		version = quorumlog.MQTTReplayAnchorProposalManifestVersion
 	}
 	manifest, entries, ok := ch.SealProposalManifest(ch.ProposalManifest{
 		Version:      version,
@@ -525,7 +530,10 @@ func validProposalRecords(records []ch.Record, maxBytes int) bool {
 	return total <= maxBytes
 }
 
-func sameProposalContent(retained durableProposal, records []ch.Record, activation bool) bool {
+func sameProposalContent(retained durableProposal, records []ch.Record, activation, anchor bool) bool {
+	if (retained.manifest.Version == quorumlog.MQTTReplayAnchorProposalManifestVersion) != anchor {
+		return false
+	}
 	if (retained.manifest.Version == quorumlog.MQTTSourceProposalManifestVersion) != activation {
 		return false
 	}

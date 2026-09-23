@@ -473,6 +473,18 @@ func snapshotBackupSystemEntries(ctx context.Context, view messageBackupReadView
 		if err != nil {
 			return nil, err
 		}
+		if bytes.HasPrefix(key, mqttReplayAnchorPrefix(channelKey)) {
+			position, ok := mqttReplayAnchorPosition(channelKey, key)
+			if !ok {
+				return nil, dberrors.ErrCorruptState
+			}
+			if _, _, err := decodeMQTTAnchorJournal(channelKey, position, value); err != nil {
+				return nil, err
+			}
+			if position > hw {
+				continue
+			}
+		}
 		if bytes.Equal(key, mqttActivationKey(channelKey)) {
 			activation, err := decodeMQTTActivation(key, value)
 			if err != nil {

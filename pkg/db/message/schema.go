@@ -33,6 +33,7 @@ const (
 	messageSystemIDNonBusinessIndex    uint16 = 11
 	messageSystemIDMQTTSource          uint16 = 12
 	messageSystemIDMQTTActivation      uint16 = 13
+	messageSystemIDMQTTReplayAnchor    uint16 = 14
 
 	messageColumnIDMessageSeq          uint16 = 1
 	messageColumnIDMessageID           uint16 = 2

@@ -16,7 +16,7 @@ import (
 
 const (
 	// DurableProposalManifestVersion identifies the original proposal format.
-	// Readers also accept lifetime 2, publication 3 and source activation 4.
+	// Readers also accept lifetime 2, publication 3, source 4 and replay anchor 5.
 	DurableProposalManifestVersion = quorumlog.ProposalManifestVersion
 	durableProposalRecordSize      = 154
 	durableEntryIdentitySize       = 146
@@ -399,7 +399,7 @@ func validateBackupProposalSystemEntries(channelKey ChannelKey, hw uint64, entri
 		previousDigest := record.manifest.PreviousDigest
 		for index := record.manifest.BaseOffset + 1; ; index++ {
 			entry, ok := entryIdentities[index]
-			if !ok || entry.ChannelEpoch != record.manifest.ChannelEpoch || entry.LeaderTerm != record.manifest.LeaderTerm ||
+			if !ok || entry.Version != record.manifest.Version || entry.ChannelEpoch != record.manifest.ChannelEpoch || entry.LeaderTerm != record.manifest.LeaderTerm ||
 				entry.FenceVersion != record.manifest.FenceVersion || entry.CommandID != record.manifest.CommandID ||
 				entry.PreviousTerm != previousTerm || entry.PreviousIndex != previousIndex || entry.PreviousDigest != previousDigest {
 				return dberrors.ErrCorruptState
@@ -417,7 +417,10 @@ func validateBackupProposalSystemEntries(channelKey ChannelKey, hw uint64, entri
 	if len(byLast) != len(byCommand) || len(coveredEntries) != len(entryIdentities) {
 		return dberrors.ErrCorruptState
 	}
-	return validateMQTTActivationBackup(channelKey, hw, entries, byLast)
+	if err := validateMQTTActivationBackup(channelKey, hw, entries, byLast); err != nil {
+		return err
+	}
+	return validateMQTTReplayAnchorBackup(channelKey, hw, entries, byLast, entryIdentities)
 }
 
 func backupEntryIdentityMap(channelKey ChannelKey, entries []backupRawEntry) (map[uint64]quorumlog.EntryIdentity, error) {
@@ -543,6 +546,9 @@ func (e *channelEntry) stageTruncateDurableProposals(ctx context.Context, batch 
 	}
 	if to == ^uint64(0) {
 		return nil
+	}
+	if err := e.stageTruncateMQTTReplayAnchors(batch, to); err != nil {
+		return err
 	}
 	entrySpan := keycodec.NewPrefixSpan(encodeEntryIdentityPrefix(e.key))
 	return batch.DeleteRange(engine.Span{Start: encodeEntryIdentityKey(e.key, to+1), End: entrySpan.End})

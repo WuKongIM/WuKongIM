@@ -97,6 +97,9 @@ DTOs, and `worker` bounds blocking I/O.
   confirms captured HW through checkpoint workers and rechecks current fences;
   existing protection avoids another control. Subscription projection and
   shared-copy transfer remain separate; this receipt is not SUBACK authority.
+  Format-5 replay anchors retain committed full-content checkpoints in a separate
+  journal; exact retry, recovery and learner transfer preserve control intent.
+  Unsupported stores reject it; neither the payload nor its journal authorizes GC.
   Replay preparation uses the same recovered leader/route admission and bounded
   checkpoint workers. It captures HW, verifies protection and returns owned
   local content after rechecking fences; it cannot release the original source.

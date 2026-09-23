@@ -411,3 +411,13 @@ type MQTTSourceReader interface {
 type MQTTReplayPreparer interface {
 	PrepareMQTTReplay(context.Context, ch.MQTTReplayRange) (ch.MQTTReplayPage, error)
 }
+
+// MQTTReplayAnchorFactory attests atomic format-5 journal persistence, suffix
+// cleanup, committed proof reads and portable backup preservation.
+type MQTTReplayAnchorFactory interface{ SupportsMQTTReplayAnchors() bool }
+
+// MQTTReplayAnchorReader reads an independently committed exact control proof;
+// neither original-row retention nor a donor-supplied digest is its authority.
+type MQTTReplayAnchorReader interface {
+	LoadMQTTReplayAnchor(context.Context, uint64) (ch.MQTTReplayAnchorProof, bool, error)
+}

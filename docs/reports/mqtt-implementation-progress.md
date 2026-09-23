@@ -2048,3 +2048,70 @@ consumer-proof GC. Complete source projection/inbox discovery, permission
 ordering, delivery/ACK/recovery, fenced Will execution, unavailable-owner proof,
 app/configuration and full process/load acceptance remain required. The MQTT
 product listener stays unavailable and the full implementation goal stays active.
+
+
+## Replicated content-anchor format and durable journal
+
+Source `776a843a0`; failure inventory and frozen context are in
+[mqtt-replay-anchor.md](../specs/mqtt-replay-anchor.md). Explicit proposal format
+5 carries one canonical internal anchor: source activation command, immutable
+start, copied-through position, cumulative byte counts and complete-content
+digest. The control cannot cover itself. Its independent hash domain and closed
+payload preserve native formats 1–3 and source format 4. Business payload bytes
+cannot select control semantics, and exact retry preserves the explicit intent.
+
+Message System 14 atomically retains a bounded canonical control-row envelope by
+control position, independently of ordinary history. Committed point reads pin a
+snapshot and verify source activation, checkpoint and exact proposal/entry proofs.
+Pending anchors remain invisible. Original-body prefix trim preserves journals;
+uncommitted suffix replacement deletes them. Portable backups omit pending
+anchors and require matching committed journals. Unsupported store factories
+reject both append and recovery of format 5. The adapter exposes a typed proof
+without importing MessageDB contracts outside the existing adapter boundary.
+
+Native quorum append, wire codec, follower/learner repair and authority recovery
+now preserve format-5 controls. This is the storage/replication primitive: current
+copy-receipt admission and its ordered, idempotent reactor facade are still
+unwired. Anchors do not advance source release or establish migration readiness.
+They require matching runtimes/tools; binary-only downgrade after new records is
+unsupported. Existing binary backup framing is unchanged.
+
+Two additional regressions were reproduced before their fixes. Backup preflight
+accepted a manifest labeled format 5 paired with a resealed format-1 entry; it
+now requires proposal/entry version equality for every format. Atomic recovery
+that replaced an uncommitted activation and installed a new anchor consulted the
+old source marker; staging now resolves the replacement batch's incarnation.
+
+Verified:
+
+- Initial format/storage tests failed before implementation in
+  `/tmp/mqtt-anchor-red.log`; native admission/reader tests failed first in
+  `/tmp/mqtt-anchor-native-red.log`. Regression RED logs are
+  `/tmp/mqtt-anchor-backup-red.log` and `/tmp/mqtt-anchor-recovery-red.log`.
+- `GOWORK=off go test -race ./pkg/db/... ./pkg/channel/... ./pkg/quorumlog
+  ./pkg/cluster/... -count=1 -timeout=180s`: all packages passed,
+  `/tmp/mqtt-anchor-race.log`. After the final recovery fix, the affected full
+  MessageDB, Channel store/replication and quorumlog suites passed again in
+  `/tmp/mqtt-anchor-final-race.log` (MessageDB 25.554 seconds).
+- Focused race verification in `/tmp/mqtt-anchor-storage-final.log` confirms
+  actual removal of the original prefix and control row, durable proof reads,
+  restart, proof-anchored import, backup restoration and corruption rejection.
+  Source release in this storage fixture is an explicit test-controlled decision,
+  not a production release coordinator.
+- `GOWORK=off go test -race -tags=integration ./pkg/channel/replication
+  -run '^TestMQTTReplayAnchorQuorum' -count=1 -timeout=90s -v`: passed
+  (3.254 seconds including package overhead),
+  `/tmp/mqtt-anchor-integration-final.log`. `mqtt_anchor_evidence` verifies three
+  voters plus one learner, real disk and the wire codec, committed journal reads,
+  restart, authority recovery and no-quorum refusal. This is in-process runtime
+  integration, not a product MQTT process test or a current-copy receipt proof.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-anchor-flow.log`. FLOW index regenerated. Non-failing macOS
+  LC_DYSYMTAB linker warnings remain present. `git diff --check` passed.
+
+Next, connect fresh current-copy receipts to ordered/idempotent anchor admission,
+then source release, accepted-anchor donor import, migration readiness and shared
+consumer-proof GC. Complete source projection/inbox discovery, permission
+ordering, delivery/ACK/recovery, Will execution, unavailable-owner proof,
+app/configuration and process/load acceptance remain required. The MQTT listener
+stays unavailable and the full goal stays active.

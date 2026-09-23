@@ -65,7 +65,7 @@ func ProposalVersionForRecords(records []Record) uint16 {
 	return version
 }
 
-// SupportedProposalVersion accepts business formats and explicit source controls.
+// SupportedProposalVersion accepts business formats and explicit MQTT controls.
 func SupportedProposalVersion(version uint16) bool {
 	return quorumlog.SupportedProposalVersion(version)
 }
