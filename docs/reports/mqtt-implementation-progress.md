@@ -86,3 +86,38 @@ Harness validation passed:
 - Named `flow-doc-contracts` check from the repository policy, with `GOWORK=off`,
   after regenerating the index. It reports 81 compliant FLOW files and 9 existing
   length warnings, with no invalid files.
+
+## Gateway packet milestone
+
+The reusable gateway now accepts an independent `PacketAdapter` and
+`PacketHandler`, while preserving existing WK frame APIs. MQTT uses the existing
+bounded auth pool, session-ordered SEND mailbox, serialized session writes and
+shared idle heap/monitor. Queued and executing packet bytes share a 64 MiB default
+budget. The codec limits each coalesced decode to 128 owned packets; partial input
+grows amortized. Peer Maximum Packet Size applies to every encoded response.
+
+Accepted activation has one cleanup owner: a failed handshake invokes rollback,
+and a completed handshake transfers cleanup to the open/close lifecycle. Entry
+callback panics produce fixed diagnostics without logging peer-provided values.
+Listener errors and packet-kind observations use the existing observer boundary.
+MQTT Keep Alive renews only after complete packets, uses the negotiated 1.5 factor,
+and disables the protocol deadline at zero without creating a per-client timer.
+
+Public gateway integration tests were added before behavior changes. They found
+and drove fixes for repeated fragment-prefix allocation, missing listener error
+routing, missing packet observations and incorrect Keep Alive handling. Existing
+WK admission tests also caught an allocation regression during queue refactoring;
+rejection again occurs before frame boxing/cloning.
+
+Verified on 2026-09-23:
+
+- `GOWORK=off go test ./pkg/gateway/... ./pkg/protocol/mqtt ./internal/access/mqtt -count=1`
+- `GOWORK=off go test -tags=integration ./pkg/gateway/... ./pkg/protocol/mqtt ./internal/access/mqtt -count=1 -timeout=90s`
+- `GOWORK=off go test -race -tags=integration ./pkg/gateway/... ./pkg/protocol/mqtt ./internal/access/mqtt -count=1 -timeout=90s`
+- Named `flow-doc-contracts` after updating gateway FLOW and regenerating the index.
+
+These checks passed. The product app still has no MQTT listener or durable MQTT
+state. Standard-client product interop remains RED as recorded above; session
+ownership, tables, replay/protection, reliable delivery, Will, quotas and full
+recovery/scale acceptance remain outstanding. The generic gateway is groundwork,
+not a complete MQTT feature.

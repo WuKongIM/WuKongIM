@@ -58,6 +58,8 @@ type Server struct {
 	dispatcher dispatcher
 	sessions   *session.Manager
 
+	// packetBytes accounts for independent auth and dispatch work until completion.
+	packetBytes   atomic.Int64
 	nextSessionID atomic.Uint64
 	accepting     atomic.Bool
 
@@ -78,9 +80,10 @@ type Server struct {
 }
 
 type listenerRuntime struct {
-	options gatewaytypes.ListenerOptions
-	factory transport.Factory
-	adapter protocol.Adapter
+	options       gatewaytypes.ListenerOptions
+	factory       transport.Factory
+	adapter       protocol.Adapter
+	packetAdapter protocol.PacketAdapter
 	// auth declares the selected wire protocol's CONNECT handshake requirement.
 	auth    protocol.ConnectAuthenticationPolicy
 	tracker protocol.ReplyTokenTracker
@@ -130,6 +133,8 @@ type sessionState struct {
 	cancelRequestContext context.CancelFunc
 
 	lastReadActivity atomic.Int64
+	// readIdleOverride holds an immutable protocol-negotiated timeout, if any.
+	readIdleOverride atomic.Pointer[time.Duration]
 }
 
 // SessionSummary contains aggregate gateway session counts for drain safety.
@@ -152,6 +157,7 @@ func NewServer(registry *Registry, opts *gatewaytypes.Options) (*Server, error) 
 
 	cfg := gatewaytypes.Options{
 		Handler:        opts.Handler,
+		PacketHandler:  opts.PacketHandler,
 		Authenticator:  opts.Authenticator,
 		Observer:       opts.Observer,
 		DefaultSession: opts.DefaultSession,
@@ -173,15 +179,25 @@ func NewServer(registry *Registry, opts *gatewaytypes.Options) (*Server, error) 
 		if err != nil {
 			return nil, err
 		}
-		adapter, err := registry.Protocol(listener.Protocol)
-		if err != nil {
-			return nil, err
+		packetAdapter := registry.packetProtocol(listener.Protocol)
+		var adapter protocol.Adapter
+		if packetAdapter == nil {
+			adapter, err = registry.Protocol(listener.Protocol)
+			if err != nil {
+				return nil, err
+			}
+			if cfg.Handler == nil {
+				return nil, gatewaytypes.ErrNilHandler
+			}
+		} else if cfg.PacketHandler == nil {
+			return nil, gatewaytypes.ErrNilHandler
 		}
 
 		runtime := &listenerRuntime{
 			options:       listener,
 			factory:       factory,
 			adapter:       adapter,
+			packetAdapter: packetAdapter,
 			eventNetwork:  connectionEventNetwork(listener.Network),
 			eventProtocol: connectionEventProtocol(listener.Network),
 		}
@@ -200,6 +216,14 @@ func NewServer(registry *Registry, opts *gatewaytypes.Options) (*Server, error) 
 	var idleTracker *idleTracker
 	if cfg.DefaultSession.IdleTimeout > 0 {
 		idleTracker = newIdleTracker(cfg.DefaultSession.IdleTimeout)
+	}
+	if idleTracker == nil {
+		for _, listener := range listeners {
+			if listener.packetAdapter != nil {
+				idleTracker = newIdleTracker(0)
+				break
+			}
+		}
 	}
 
 	srv := &Server{
@@ -250,7 +274,7 @@ func (s *Server) Start() error {
 	s.async.Store(async)
 	for _, runtime := range runtimes {
 		if err := runtime.listener.Start(); err != nil {
-			s.dispatcher.listenerError(runtime.options.Name, err)
+			s.listenerError(runtime, err)
 			s.rollbackRuntimeListeners(runtimes)
 			if stopped := s.async.Swap(nil); stopped != nil {
 				stopped.stop()
@@ -301,7 +325,7 @@ func (s *Server) buildListeners(runtimes []*listenerRuntime) error {
 					MaxOutboundBytes:          int64(s.options.DefaultSession.MaxOutboundBytes),
 					Observer:                  s.transportPressureObserver(),
 					OnError: func(err error) {
-						s.dispatcher.listenerError(runtime.options.Name, err)
+						s.listenerError(runtime, err)
 					},
 					Logger: s.options.Logger.Named("transport").Named(runtime.options.Name),
 				},
@@ -452,6 +476,7 @@ func (s *Server) onOpen(listener *listenerRuntime, conn transport.Conn) error {
 		WriteFrameFn: func(f frame.Frame, meta session.OutboundMeta) error {
 			return s.encodeAndWrite(state, f, meta)
 		},
+		WritePacketFn: func(p any, meta session.OutboundMeta) error { return s.encodeAndWritePacket(state, p, meta) },
 	})
 
 	if peer, ok := conn.(transport.PeerAddress); ok {
@@ -464,7 +489,7 @@ func (s *Server) onOpen(listener *listenerRuntime, conn transport.Conn) error {
 	s.registerState(state)
 	s.observeConnectionOpen(state)
 
-	if err := listener.adapter.OnOpen(sess); err != nil {
+	if err := listener.onOpen(sess); err != nil {
 		state.close(gatewaytypes.CloseReasonProtocolError, err)
 		return nil
 	}
@@ -482,6 +507,9 @@ func (s *Server) onOpen(listener *listenerRuntime, conn transport.Conn) error {
 func (s *Server) onData(listener *listenerRuntime, conn transport.Conn, data []byte) error {
 	if listener == nil || conn == nil {
 		return nil
+	}
+	if listener.packetAdapter != nil {
+		return s.onPacketData(listener, conn, data)
 	}
 
 	state := s.state(listener.options.Name, conn.ID())
@@ -710,6 +738,10 @@ func (s *Server) handleAuthFrame(state *sessionState, replyToken string, f frame
 }
 
 func (s *Server) runAuthTask(task asyncAuthTask) {
+	if task.packet != nil {
+		s.runPacketAuthTask(task)
+		return
+	}
 	state := task.state
 	connect := task.connect
 	start := task.enqueuedAt
@@ -981,6 +1013,9 @@ func (s *Server) encodeAndWrite(state *sessionState, f frame.Frame, meta session
 		return session.ErrSessionClosed
 	}
 
+	if state.listener.adapter == nil {
+		return session.ErrPacketWriteUnsupported
+	}
 	encoded, err := state.listener.adapter.Encode(state.session, f, meta)
 	if err != nil {
 		return err
@@ -1016,8 +1051,7 @@ func (s *Server) dispatchSessionOpen(state *sessionState) error {
 
 // startIdleMonitor starts one shared deadline monitor for all sessions on this server.
 func (s *Server) startIdleMonitor() {
-	timeout := s.options.DefaultSession.IdleTimeout
-	if timeout <= 0 {
+	if s.idleTracker == nil {
 		return
 	}
 
@@ -1027,10 +1061,6 @@ func (s *Server) startIdleMonitor() {
 		return
 	}
 	tracker := s.idleTracker
-	if tracker == nil {
-		tracker = newIdleTracker(timeout)
-		s.idleTracker = tracker
-	}
 	stopCh := make(chan struct{})
 	s.idleMonitorStop = stopCh
 	s.workerWG.Add(1)
@@ -1048,6 +1078,14 @@ func (s *Server) startIdleMonitor() {
 				return
 			case now := <-timer.C:
 				s.closeIdleSessions(now)
+				timer.Reset(tracker.nextWait(time.Now()))
+			case <-tracker.wake:
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
 				timer.Reset(tracker.nextWait(time.Now()))
 			}
 		}
@@ -1145,6 +1183,7 @@ type asyncDispatchTask struct {
 	state      *sessionState
 	replyToken string
 	frame      frame.Frame
+	packet     *protocol.InboundPacket
 	enqueuedAt time.Time
 }
 
@@ -1159,6 +1198,9 @@ type asyncSendBatchLimits struct {
 }
 
 func asyncDispatchTaskByteCount(task asyncDispatchTask) int {
+	if task.packet != nil {
+		return task.packet.Bytes
+	}
 	send, ok := task.frame.(*frame.SendPacket)
 	if !ok || send == nil {
 		return 0
@@ -1167,6 +1209,9 @@ func asyncDispatchTaskByteCount(task asyncDispatchTask) int {
 }
 
 func recordAsyncDispatchWait(task asyncDispatchTask) time.Duration {
+	if task.packet != nil && !task.enqueuedAt.IsZero() {
+		return time.Since(task.enqueuedAt)
+	}
 	send, ok := task.frame.(*frame.SendPacket)
 	if !ok || task.enqueuedAt.IsZero() {
 		return 0
@@ -1185,10 +1230,12 @@ func recordAsyncDispatchWait(task asyncDispatchTask) time.Duration {
 }
 
 type asyncAuthTask struct {
-	state      *sessionState
-	replyToken string
-	connect    *frame.ConnectPacket
-	enqueuedAt time.Time
+	state             *sessionState
+	replyToken        string
+	connect           *frame.ConnectPacket
+	packet            *protocol.InboundPacket
+	packetReservation *authPacketReservation
+	enqueuedAt        time.Time
 }
 
 type asyncAuthStats interface {
@@ -1239,6 +1286,10 @@ func (s *Server) syncSessionProtocol(state *sessionState) error {
 	}
 
 	if state.listener == nil {
+		return nil
+	}
+	if state.listener.packetAdapter != nil {
+		state.setAuthRequired(true)
 		return nil
 	}
 	required, resolved := false, true
@@ -1488,7 +1539,7 @@ func (st *sessionState) close(reason gatewaytypes.CloseReason, err error) {
 			_ = st.session.Close()
 		}
 		if st.listener != nil {
-			if closeErr := st.listener.adapter.OnClose(st.session); closeErr != nil {
+			if closeErr := st.listener.onClose(st.session); closeErr != nil {
 				st.appendCloseError(closeErr)
 			}
 		}
@@ -1836,7 +1887,11 @@ func (st *sessionState) touchReadActivity() {
 	now := time.Now()
 	st.lastReadActivity.Store(now.UnixNano())
 	if st.server != nil && st.server.idleTracker != nil {
-		st.server.idleTracker.touch(st, now)
+		if timeout := st.readIdleOverride.Load(); timeout != nil {
+			st.server.idleTracker.touchWithTimeout(st, now, *timeout)
+		} else {
+			st.server.idleTracker.touch(st, now)
+		}
 	}
 }
 

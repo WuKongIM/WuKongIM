@@ -73,3 +73,14 @@ Before implementing each slice, write its failing public-boundary test:
 
 Protocol source: [OASIS MQTT 5.0](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html),
 sections 1.5, 2, 3 and 4. Application conventions above are WuKongIM-specific.
+
+Gateway implementation failure slice: independent packets must use the existing
+bounded auth worker and session-ordered dispatch mailbox, never run storage work
+on the transport loop. The public core boundary verifies CONNECT-first/single
+handshake, rejected or pending authentication, output failure activation rollback,
+post-auth ordering, drain admission, queued+executing byte budgets, and serialized
+packet writes. WK/JSON-RPC paths retain their existing regression suite. These
+isolated scheduling tests accompany, not replace, product process acceptance.
+Additional gateway failures cover fragment allocation amplification, peer packet
+limits, callback panic redaction, listener-error routing, bounded packet-kind
+observations, complete-packet Keep Alive renewal and zero disabling the timer.

@@ -23,6 +23,11 @@ func New(opts Options) (*Gateway, error) {
 		return nil, err
 	}
 
+	for _, adapter := range opts.PacketProtocols {
+		if err := registry.RegisterPacketProtocol(adapter); err != nil {
+			return nil, err
+		}
+	}
 	server, err := core.NewServer(registry, &opts)
 	if err != nil {
 		return nil, err

@@ -41,6 +41,9 @@ const (
 
 func malformed(detail string) error { return &Error{Reason: MalformedPacket, Detail: detail} }
 
+// DefaultMaxPacketBytes bounds a complete packet when Limits leaves it unset.
+const DefaultMaxPacketBytes = 1 << 20
+
 // Limits bounds wire allocation before a packet enters the dispatch queue.
 // Zero values select safe defaults; MaxPacketBytes includes the fixed header.
 type Limits struct {
@@ -66,7 +69,7 @@ func (l Limits) properties() int {
 
 func (l Limits) packetBytes() int {
 	if l.MaxPacketBytes <= 0 {
-		return 1 << 20
+		return DefaultMaxPacketBytes
 	}
 	return l.MaxPacketBytes
 }

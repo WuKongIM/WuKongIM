@@ -64,21 +64,24 @@ func WithReplyToken(token string) WriteOption {
 }
 
 type Config struct {
-	ID           uint64
-	Listener     string
-	RemoteAddr   string
-	LocalAddr    string
-	WriteFrameFn WriteFrameFn
+	ID            uint64
+	Listener      string
+	RemoteAddr    string
+	LocalAddr     string
+	WriteFrameFn  WriteFrameFn
+	WritePacketFn WritePacketFn
 }
 
 func New(cfg Config) Session {
-	return newSession(
+	sess := newSession(
 		cfg.ID,
 		cfg.Listener,
 		cfg.RemoteAddr,
 		cfg.LocalAddr,
 		cfg.WriteFrameFn,
 	)
+	sess.writePacketFn = cfg.WritePacketFn
+	return sess
 }
 
 type session struct {
@@ -95,6 +98,7 @@ type session struct {
 	closing        atomic.Bool
 	closed         atomic.Bool
 	writeFrameFn   WriteFrameFn
+	writePacketFn  WritePacketFn
 }
 
 // These keys mirror gateway/types session value keys without importing that package.
