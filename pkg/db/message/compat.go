@@ -889,7 +889,7 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 	for _, index := range indexes {
 		entry := items[index].Store.log.channelEntry
 		indexesByEntry[entry] = append(indexesByEntry[entry], index)
-		if items[index].Committed > 0 {
+		if items[index].Committed > 0 || items[index].Proposal.Version == quorumlog.MQTTSourceProposalManifestVersion {
 			checkpointByEntry[entry] = struct{}{}
 		}
 	}
@@ -1931,7 +1931,7 @@ func commitPreparedCheckpointHWBatch(ctx context.Context, owner *Engine, prepare
 		Build: func(batch *engine.Batch) error {
 			for _, item := range prepared {
 				checkpoint := item.checkpoint
-				if err := item.store.log.channelEntry.stageCommitRows(batch, nil, &checkpoint, nil, nil, nil); err != nil {
+				if err := item.store.log.channelEntry.stageCommitRows(batch, nil, &checkpoint, nil, nil, nil, ^uint64(0)); err != nil {
 					return err
 				}
 			}
@@ -2212,7 +2212,7 @@ func (s *ChannelStore) prepareExactAppendRecordsLocked(ctx context.Context, expe
 	}
 	nextLEO := expectedBaseOffset + uint64(len(records))
 	prepared := preparedCommitRows{store: s, baseOffset: expectedBaseOffset, nextLEO: nextLEO}
-	if err := s.prepareExactCheckpointLocked(ctx, committed, nextLEO, max(base, nextLEO), &prepared); err != nil {
+	if err := s.prepareExactCheckpointLocked(ctx, committed, nextLEO, max(base, nextLEO), manifest.Version == quorumlog.MQTTSourceProposalManifestVersion, &prepared); err != nil {
 		return preparedCommitRows{}, err
 	}
 	if proposalDisposition == durableProposalAlreadyPresent {
@@ -2238,11 +2238,11 @@ func (s *ChannelStore) prepareExactAppendRecordsLocked(ctx context.Context, expe
 	return prepared, nil
 }
 
-func (s *ChannelStore) prepareExactCheckpointLocked(ctx context.Context, committed, proposalLEO, visibleLEO uint64, prepared *preparedCommitRows) error {
+func (s *ChannelStore) prepareExactCheckpointLocked(ctx context.Context, committed, proposalLEO, visibleLEO uint64, activation bool, prepared *preparedCommitRows) error {
 	if prepared == nil || committed > proposalLEO {
 		return channel.ErrInvalidArgument
 	}
-	if committed == 0 {
+	if committed == 0 && !activation {
 		return nil
 	}
 	prepared.checkpointLocked = true
@@ -2256,8 +2256,8 @@ func (s *ChannelStore) prepareExactCheckpointLocked(ctx context.Context, committ
 	if checkpoint.HW > visibleLEO {
 		return channel.ErrCorruptState
 	}
-	if committed > checkpoint.HW {
-		checkpoint.HW = committed
+	if committed > checkpoint.HW || activation {
+		checkpoint.HW = max(committed, checkpoint.HW)
 		prepared.checkpoint = &checkpoint
 	}
 	return nil
@@ -2298,7 +2298,7 @@ func (s *ChannelStore) prepareStagedExactReplayLocked(
 		store: item.Store, baseOffset: item.ExpectedBaseOffset, nextLEO: manifest.LastOffset,
 		alreadyDurable: true, dependsOnCommit: true,
 	}
-	if err := s.prepareExactCheckpointLocked(ctx, item.Committed, manifest.LastOffset, visibleLEO, &prepared); err != nil {
+	if err := s.prepareExactCheckpointLocked(ctx, item.Committed, manifest.LastOffset, visibleLEO, manifest.Version == quorumlog.MQTTSourceProposalManifestVersion, &prepared); err != nil {
 		return preparedCommitRows{}, err
 	}
 	return prepared, nil
@@ -2366,7 +2366,7 @@ func (s *ChannelStore) prepareAdjacentExactAppendLocked(
 		store: s, baseOffset: item.ExpectedBaseOffset, nextLEO: manifest.LastOffset,
 		rows: rows, proposals: []durableProposalRecord{{manifest: manifest}}, entries: entries,
 	}
-	if err := s.prepareExactCheckpointLocked(ctx, item.Committed, manifest.LastOffset, manifest.LastOffset, &prepared); err != nil {
+	if err := s.prepareExactCheckpointLocked(ctx, item.Committed, manifest.LastOffset, manifest.LastOffset, manifest.Version == quorumlog.MQTTSourceProposalManifestVersion, &prepared); err != nil {
 		return preparedCommitRows{}, err
 	}
 	proposal := durableProposalRecord{manifest: manifest}
@@ -3145,7 +3145,7 @@ func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared 
 		Bytes:     preparedRowsBytes(prepared),
 		Build: func(batch *engine.Batch) error {
 			for _, mutation := range mutations {
-				if err := mutation.entry.stageCommitRows(batch, mutation.rows, mutation.checkpoint, mutation.point, mutation.proposals, mutation.entries); err != nil {
+				if err := mutation.entry.stageCommitRows(batch, mutation.rows, mutation.checkpoint, mutation.point, mutation.proposals, mutation.entries, ^uint64(0)); err != nil {
 					return err
 				}
 			}
@@ -3219,7 +3219,10 @@ func commitRowsPriority(lane string) commit.Priority {
 	}
 }
 
-func (e *channelEntry) stageCommitRows(batch *engine.Batch, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint, proposals []durableProposalRecord, entries []quorumlog.EntryIdentity) error {
+func (e *channelEntry) stageCommitRows(batch *engine.Batch, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint, proposals []durableProposalRecord, entries []quorumlog.EntryIdentity, keepThrough uint64) error {
+	if err := e.stageMQTTActivation(batch, checkpoint, proposals, keepThrough); err != nil {
+		return toChannelError(err)
+	}
 	if err := e.stageMessageRows(context.Background(), batch, rows); err != nil {
 		return toChannelError(err)
 	}

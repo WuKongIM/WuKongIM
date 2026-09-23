@@ -8,6 +8,7 @@ import (
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/publication"
+	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 )
 
 type recoveryDispatcher interface {
@@ -262,7 +263,7 @@ func (l *quorumLog) Commit(ctx context.Context, proposal Proposal) (Receipt, err
 	}
 
 	if retained, ok := state.retained[proposal.CommandID]; ok {
-		if !sameProposalContent(retained.proposal, proposal.Records) {
+		if !sameProposalContent(retained.proposal, proposal.Records, proposal.MQTTSourceActivation) {
 			return Receipt{}, ch.ErrLogConflict
 		}
 		if retained.durable {
@@ -271,7 +272,7 @@ func (l *quorumLog) Commit(ctx context.Context, proposal Proposal) (Receipt, err
 		return l.retryPending(ctx, state, retained)
 	}
 	if state.pending != nil && state.pending.proposal.manifest.CommandID == proposal.CommandID {
-		if !sameProposalContent(state.pending.proposal, proposal.Records) {
+		if !sameProposalContent(state.pending.proposal, proposal.Records, proposal.MQTTSourceActivation) {
 			return Receipt{}, ch.ErrLogConflict
 		}
 		return l.retryPending(ctx, state, *state.pending)
@@ -280,8 +281,8 @@ func (l *quorumLog) Commit(ctx context.Context, proposal Proposal) (Receipt, err
 		return Receipt{}, ch.ErrBackpressured
 	}
 
-	durable, err := sealBusinessProposal(
-		state.authority, state.frontier, state.hw, proposal.CommandID, proposal.Records, proposal.PayloadsImmutable, proposal.ServerAllocatedMessageIDs,
+	durable, err := sealAppendProposal(
+		state.authority, state.frontier, state.hw, proposal.CommandID, proposal.Records, proposal.PayloadsImmutable, proposal.ServerAllocatedMessageIDs, proposal.MQTTSourceActivation,
 	)
 	if err != nil {
 		return Receipt{}, err
@@ -311,7 +312,7 @@ func (l *quorumLog) reconcileCommandConflict(ctx context.Context, state *quorumC
 	if err != nil {
 		return Receipt{}, err
 	}
-	if !found || !sameProposalContent(loaded.proposal, proposal.Records) {
+	if !found || !sameProposalContent(loaded.proposal, proposal.Records, proposal.MQTTSourceActivation) {
 		return Receipt{}, ch.ErrLogConflict
 	}
 	l.remember(state, loaded)
@@ -382,6 +383,7 @@ func (l *quorumLog) retryPending(ctx context.Context, state *quorumChannel, reta
 			return l.reconcileCommandConflict(ctx, state, Proposal{
 				Key: state.authority.Key, Expected: state.authority.ID,
 				CommandID: retained.proposal.manifest.CommandID, Records: retained.proposal.records,
+				MQTTSourceActivation: retained.proposal.manifest.Version == quorumlog.MQTTSourceProposalManifestVersion,
 			})
 		}
 		return Receipt{}, err
@@ -456,7 +458,7 @@ func (l *quorumLog) existingChannel(key ch.ChannelKey) *quorumChannel {
 	return l.channels[key]
 }
 
-func sealBusinessProposal(
+func sealAppendProposal(
 	authority Authority,
 	frontier ReplicaState,
 	hw uint64,
@@ -464,13 +466,18 @@ func sealBusinessProposal(
 	records []ch.Record,
 	payloadsImmutable bool,
 	serverAllocatedMessageIDs bool,
+	sourceActivation bool,
 ) (durableProposal, error) {
 	if frontier.LEO == ^uint64(0) || uint64(len(records)) > ^uint64(0)-frontier.LEO {
 		return durableProposal{}, ch.ErrInvalidConfig
 	}
 	frozen := immutableProposalRecords(records, payloadsImmutable)
+	version := ch.ProposalVersionForRecords(frozen)
+	if sourceActivation {
+		version = quorumlog.MQTTSourceProposalManifestVersion
+	}
 	manifest, entries, ok := ch.SealProposalManifest(ch.ProposalManifest{
-		Version:      ch.ProposalVersionForRecords(frozen),
+		Version:      version,
 		ChannelEpoch: authority.ID.ChannelEpoch, LeaderTerm: authority.ID.LeaderTerm, FenceVersion: authority.ID.FenceVersion,
 		CommandID: command, BaseOffset: frontier.LEO, LastOffset: frontier.LEO + uint64(len(frozen)),
 		PreviousTerm: frontier.TailIdentity.LeaderTerm, PreviousIndex: frontier.LEO, PreviousDigest: frontier.TailIdentity.Digest,
@@ -518,7 +525,10 @@ func validProposalRecords(records []ch.Record, maxBytes int) bool {
 	return total <= maxBytes
 }
 
-func sameProposalContent(retained durableProposal, records []ch.Record) bool {
+func sameProposalContent(retained durableProposal, records []ch.Record, activation bool) bool {
+	if (retained.manifest.Version == quorumlog.MQTTSourceProposalManifestVersion) != activation {
+		return false
+	}
 	if retained.manifest.LastOffset < retained.manifest.BaseOffset ||
 		uint64(len(records)) != retained.manifest.LastOffset-retained.manifest.BaseOffset {
 		return false

@@ -65,7 +65,7 @@ func ProposalVersionForRecords(records []Record) uint16 {
 	return version
 }
 
-// SupportedProposalVersion preserves original, lifetime and publication identity formats.
+// SupportedProposalVersion accepts business formats and explicit source controls.
 func SupportedProposalVersion(version uint16) bool {
 	return quorumlog.SupportedProposalVersion(version)
 }

@@ -283,6 +283,12 @@ specification, runbook, report, or module documentation; link to them when neede
   proof. Every possible owner must support this guard before activation.
   Protected checkpoint absence/inconsistency is corruption across reads and
   mutations; raw writes cannot regress HW and suffix cuts share its commit lock.
+  Explicit format-4 Channel controls now replicate initial source activation.
+  System 13 retains the first manifest and protects its pending prefix; the
+  covering HW commit creates System 12. Local CAS cannot fabricate the reserved
+  `mqtt-log-v1:` generation. Committed backups require both projections and their
+  exact identities. Product reactor/subscription admission and shared-copy
+  transfer remain required; no local marker by itself authorizes SUBACK.
   Shared replay is message-domain table 2, never Slot message-body storage. Its
   atomic local copies normalize size hints and preserve original publication
   content; index 2 meters prefix ranges without reading bodies. Binary backup 2

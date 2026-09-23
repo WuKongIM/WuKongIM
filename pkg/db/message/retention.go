@@ -101,6 +101,8 @@ func (l *ChannelLog) trimPrefixThroughLimit(ctx context.Context, throughSeq uint
 
 	l.appendMu.Lock()
 	defer l.appendMu.Unlock()
+	l.checkpointMu.Lock()
+	defer l.checkpointMu.Unlock()
 
 	leo, err := l.loadLEOLocked(ctx)
 	if err != nil {
@@ -117,6 +119,16 @@ func (l *ChannelLog) trimPrefixThroughLimit(ctx context.Context, throughSeq uint
 		return RetentionTrimResult{}, dberrors.ErrCorruptState
 	}
 	requestedThrough := throughSeq
+	activation, err := readMQTTActivationEvidence(l.db.engine, l.key)
+	if err != nil {
+		return RetentionTrimResult{}, err
+	}
+	if activation.present && !activation.sourcePresent {
+		if state.PhysicalRetentionThroughSeq > activation.manifest.BaseOffset {
+			return RetentionTrimResult{}, dberrors.ErrCorruptState
+		}
+		throughSeq = min(throughSeq, activation.manifest.BaseOffset)
+	}
 	protection, protected, err := l.channelEntry.loadMQTTSourceState(ctx)
 	if err != nil {
 		return RetentionTrimResult{}, err

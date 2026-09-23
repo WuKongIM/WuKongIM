@@ -93,6 +93,9 @@ func (l *ChannelLog) installSnapshotLocked(ctx context.Context, snap Snapshot, c
 	if err := batch.Set(encodeSnapshotKey(l.key), append([]byte(nil), snap.Payload...)); err != nil {
 		return 0, err
 	}
+	if err := l.channelEntry.stageMQTTActivation(batch, &checkpoint, nil, ^uint64(0)); err != nil {
+		return 0, err
+	}
 	if err := batch.Set(encodeCheckpointKey(l.key), encodeCheckpoint(checkpoint)); err != nil {
 		return 0, err
 	}

@@ -390,3 +390,10 @@ type ReadLogRequest struct {
 type ReadLogResult struct {
 	Records []ch.Record
 }
+
+// MQTTSourceActivationFactory attests that exact format-4 appends atomically
+// protect their pending prefix and checkpoint commits materialize source state.
+// Implementations without this capability must reject activation/recovery.
+type MQTTSourceActivationFactory interface {
+	SupportsMQTTSourceActivation() bool
+}

@@ -1311,3 +1311,7 @@ func (a *messageDBChannelStoreAdapter) readIndexedCommitted(ctx context.Context,
 	}
 	return out, ctx.Err()
 }
+
+// SupportsMQTTSourceActivation advertises the message store's atomic control
+// projection and retention guards, not a quorum or rollout proof.
+func (f *MessageDBFactory) SupportsMQTTSourceActivation() bool { return f != nil && f.engine != nil }

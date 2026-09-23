@@ -45,6 +45,19 @@ runtimes and restored-owner fencing; local storage apply is not that activation.
 JSONL transfer and shared-replay integration remain pending. See
 [the source contract](../../docs/specs/mqtt-source-protection.md).
 
+Exact proposal format 4 introduces one explicitly tagged MQTT source activation
+record with its own hash domain; business format selection remains 1–3. Message
+System ID 13 stores the first activation manifest in a key-bound version-1 fixed
+envelope. Pending activation clamps physical trim; the HW commit atomically
+materializes System 12, whose `mqtt-log-v1:` generation is reserved for that
+projection. Local CAS cannot create or replace it. Uncommitted suffix replacement
+can replace the pending marker; committed activation cannot reset. Portable
+backups omit pending controls and preflight the matching committed manifest,
+source state and exact identities. Existing backup framing and manifest widths
+are unchanged, but old validators reject format 4. Matching writers/tools are
+required; JSONL transfer and product restore activation remain incomplete. See
+[log activation](../../docs/specs/mqtt-source-log-activation.md).
+
 Message-domain table 2 stores immutable MQTT shared replay by source incarnation,
 position and content version. Index 2 provides bounded cumulative counters;
 System 1 publishes the copied prefix. Neither copying nor a local digest grants

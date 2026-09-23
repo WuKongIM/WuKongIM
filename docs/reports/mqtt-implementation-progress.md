@@ -1617,3 +1617,73 @@ before any replica can trim it. Committed control materialization and recoverabl
 metadata intent are implementation alternatives under evaluation, not completed
 mechanisms. Source-copy replication, projection wiring and full product process
 acceptance remain required; the full implementation goal stays active.
+
+## Source activation carried by the exact Channel log
+
+Source `9625f6ba3`; frozen context and the pre-code failure inventory are in
+[mqtt-source-log-activation.md](../specs/mqtt-source-log-activation.md).
+The earlier alternatives are resolved for initial activation: an explicitly
+selected format-4 proposal shares the existing Channel sequencer, voter quorum,
+exact retry, authority recovery and learner repair. Native record format
+selection remains 1–3; payload bytes cannot implicitly select a control.
+
+Format 4 requires one canonical internal SyncOnce record and a distinct entry
+hash domain. Its command determines the reserved `mqtt-log-v1:` source generation.
+Message System 13 stores the first activation manifest in a checksummed fixed
+value; it is part of the same synchronous append as the record and exact indexes.
+A pending marker clamps trim at the preceding boundary without publishing active
+source state. The covering checkpoint commit atomically creates System 12.
+Repeated controls retain the first generation/start. Uncommitted suffix removal
+and replacement update the pending marker in the same batch; committed source
+obligations remain protected. Storage factories without the explicit capability
+reject activation append/recovery instead of acknowledging only message bytes.
+
+Checkpoint reads on activated logs pin the marker/source/HW view, avoiding false
+corruption when initial materialization races a reader. Native reads add one
+bounded marker lookup, not a snapshot or history scan. Physical trim shares the
+checkpoint fence. A regression found that the old local source CAS could create
+a reserved generation or install unrelated state over a pending control; both
+now fail before writing. Local state still carries no independent quorum proof.
+
+Binary backup excludes pending controls above its committed cut and preserves
+committed activation, source state and exact identities together. Preflight
+cross-checks the first manifest, generation and boundary. Backup framing and
+manifest widths remain unchanged; old format validators reject format 4.
+Matched runtimes and tools remain required. No new metadata table or Slot
+message-body command was added.
+
+Verified:
+
+- The pre-implementation format/API gate failed as expected in
+  `/tmp/mqtt-log-activation-red.log`; local-CAS bypass regressions failed before
+  their fix in `/tmp/mqtt-activation-cas-red.log`.
+- `GOWORK=off go test ./pkg/quorumlog ./pkg/db/... ./pkg/channel/...
+  -count=1 -timeout=120s`: passed; `/tmp/mqtt-log-activation-regression-final.log`.
+  Message storage completed in 30.095 seconds, metadata in 29.049, transfer in
+  19.982, replication in 3.854 and Channel storage in 6.984. Two older assertions
+  reserving version 4 as unsupported now reserve version 5; native version
+  selection/hash coverage remains unchanged.
+- `GOWORK=off go test -tags=integration ./pkg/channel/replication
+  -run '^TestMQTTSourceActivationQuorumRestartRecoveryAndLearner$'
+  -count=1 -timeout=30s -v`: passed in 2.242 seconds;
+  `/tmp/mqtt-log-activation-integration.log`. Three real disk-backed voters plus
+  one learner exchange actual encoded/decoded batches, restart all stores,
+  recover a new leader, retain protected content despite logical retirement and
+  reject success without quorum. The test emits a reproducible evidence line.
+  It runs replication runtimes in-process; it is not product process acceptance.
+- `GOWORK=off go test -race -tags=integration ./pkg/quorumlog
+  ./pkg/db/message ./pkg/channel/replication
+  -run '^TestMQTT(LogActivation|SourceActivation|Activation|Checkpoint)'
+  -count=1 -timeout=90s`: passed in 1.383 / 4.168 / 2.726 seconds;
+  `/tmp/mqtt-log-activation-race.log`. Existing macOS LC_DYSYMTAB warning only.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing
+  line-count warnings; `/tmp/mqtt-log-activation-flow.log`. The initially oversized
+  message FLOW was condensed to the allowed limit. `git diff --check` passed.
+
+Next integration must admit this control through the product Channel reactor
+and source owner, observe committed source state, and complete the recoverable
+subscription projection before SUBACK. No product code selects this proposal flag
+yet. Distributed shared-copy proof/advancement, migration/restore transfer,
+future-person-source admission, reliable delivery, permission-incarnation fencing
+and the other full MQTT requirements remain incomplete. The full goal stays
+active and the product listener stays unavailable.

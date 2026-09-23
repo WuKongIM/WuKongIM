@@ -18,7 +18,8 @@ type MQTTSourceState struct {
 	Generation string
 	// Revision orders replicated decisions; local reads do not allocate it.
 	Revision uint64
-	// StartAfter is the immutable subscription/source activation boundary.
+	// StartAfter is the immutable protection boundary. Subscription cursors
+	// choose their own admitted boundary and never infer history permission here.
 	StartAfter uint64
 	// CopiedThrough may release source rows only after the caller has verified
 	// replicated shared content. The database cannot establish that proof.
@@ -118,6 +119,17 @@ func (l *ChannelLog) ApplyMQTTSourceState(ctx context.Context, expectedRevision 
 	current, present, err := l.channelEntry.loadMQTTSourceState(ctx)
 	if err != nil {
 		return err
+	}
+	if !present {
+		_, pending, err := loadMQTTActivation(l.db.engine, l.key)
+		if err != nil {
+			return err
+		}
+		// Log-derived generations and pending activations are materialized only
+		// by the exact control/checkpoint batch, never by a separate local CAS.
+		if pending || strings.HasPrefix(next.Generation, "mqtt-log-v1:") {
+			return dberrors.ErrConflict
+		}
 	}
 	exactRetry := present && current == next
 	if present && !exactRetry {
@@ -235,6 +247,11 @@ func (e *channelEntry) validateMQTTSourceTruncation(ctx context.Context, to uint
 	source, present, err := e.loadMQTTSourceState(ctx)
 	if err != nil || !present {
 		return err
+	}
+	if strings.HasPrefix(source.Generation, "mqtt-log-v1:") {
+		if _, err := readMQTTActivationEvidence(e.db.engine, e.key); err != nil {
+			return err
+		}
 	}
 	value, ok, err := e.db.engine.Get(encodeCheckpointKey(e.key))
 	if err != nil {

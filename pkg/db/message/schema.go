@@ -32,6 +32,7 @@ const (
 	messageSystemIDEntryIdentity       uint16 = 10
 	messageSystemIDNonBusinessIndex    uint16 = 11
 	messageSystemIDMQTTSource          uint16 = 12
+	messageSystemIDMQTTActivation      uint16 = 13
 
 	messageColumnIDMessageSeq          uint16 = 1
 	messageColumnIDMessageID           uint16 = 2

@@ -16,7 +16,7 @@ import (
 
 const (
 	// DurableProposalManifestVersion identifies the original proposal format.
-	// Readers also accept lifetime format 2 and publication metadata format 3.
+	// Readers also accept lifetime 2, publication 3 and source activation 4.
 	DurableProposalManifestVersion = quorumlog.ProposalManifestVersion
 	durableProposalRecordSize      = 154
 	durableEntryIdentitySize       = 146
@@ -417,7 +417,7 @@ func validateBackupProposalSystemEntries(channelKey ChannelKey, hw uint64, entri
 	if len(byLast) != len(byCommand) || len(coveredEntries) != len(entryIdentities) {
 		return dberrors.ErrCorruptState
 	}
-	return nil
+	return validateMQTTActivationBackup(channelKey, hw, entries, byLast)
 }
 
 func backupEntryIdentityMap(channelKey ChannelKey, entries []backupRawEntry) (map[uint64]quorumlog.EntryIdentity, error) {
@@ -487,6 +487,9 @@ func (e *channelEntry) validateDurableProposalCommandIndex(ctx context.Context) 
 // their entry identities in the caller's synchronous message mutation batch.
 func (e *channelEntry) stageTruncateDurableProposals(ctx context.Context, batch *engine.Batch, to uint64) error {
 	if err := e.validateMQTTSourceTruncation(ctx, to); err != nil {
+		return err
+	}
+	if err := e.stageMQTTActivation(batch, nil, nil, to); err != nil {
 		return err
 	}
 	if err := e.validateDurableProposalCommandIndex(ctx); err != nil {

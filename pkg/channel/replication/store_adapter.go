@@ -6,6 +6,7 @@ import (
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 )
 
 const (
@@ -226,6 +227,9 @@ func (a *storeAdapter) Sync(ctx context.Context, mutations []Mutation) []Mutatio
 	}
 	bytes := 0
 	for _, mutation := range mutations {
+		if mutation.Manifest.Version == quorumlog.MQTTSourceProposalManifestVersion && !a.supportsMQTTActivation() {
+			return rejectMutations(results, ch.ErrInvalidConfig)
+		}
 		if !validMutation(mutation) {
 			return rejectMutations(results, ch.ErrInvalidConfig)
 		}
@@ -305,6 +309,11 @@ func (a *storeAdapter) Replace(ctx context.Context, replacements []RecoveryRepla
 	}
 	totalBytes := 0
 	for _, replacement := range replacements {
+		for _, proposal := range replacement.Proposals {
+			if proposal.Manifest.Version == quorumlog.MQTTSourceProposalManifestVersion && !a.supportsMQTTActivation() {
+				return rejectRecoveryReplacements(results, ch.ErrInvalidConfig)
+			}
+		}
 		itemBytes, validationErr := validateRecoveryReplacement(replacement, a.cfg.MaxBatchBytes)
 		if validationErr != nil {
 			return rejectRecoveryReplacements(results, validationErr)
@@ -672,4 +681,10 @@ func rejectMutations(results []MutationResult, err error) []MutationResult {
 		results[index] = MutationResult{Outcome: outcome, Err: err}
 	}
 	return results
+}
+
+// supportsMQTTActivation refuses stores that only persist the message record.
+func (a *storeAdapter) supportsMQTTActivation() bool {
+	capable, ok := a.cfg.Factory.(channelstore.MQTTSourceActivationFactory)
+	return ok && capable.SupportsMQTTSourceActivation()
 }

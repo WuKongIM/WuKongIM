@@ -1,9 +1,10 @@
 # MQTT protected source storage
 
-This is the replica storage boundary for the approved reliable-source design.
-It does not establish Channel authority or authorize SUBACK. Product MQTT stays
-disabled until replicated activation, copy proof and restored-owner fencing are
-implemented. A local successful write is never a distributed durability proof.
+This defines replica storage for the approved reliable-source design. The
+[log activation primitive](mqtt-source-log-activation.md) now carries initial
+protection through exact quorum replication/recovery. Product admission, shared
+copy proof and restored-owner fencing remain incomplete. A local successful
+write is never a distributed durability proof or authorization for SUBACK.
 
 ## Contract
 
@@ -16,6 +17,8 @@ keeps the incarnation/start, strictly advances copy coverage, requires a nonzero
 receipt digest, and cannot exceed the local committed checkpoint. Exact retry
 returns the same state. This API materializes a replicated decision; callers
 must prove authority and shared-content durability before invoking advancement.
+The `mqtt-log-v1:` namespace is reserved for first-control materialization;
+separate CAS cannot create it or install an unrelated source over a pending control.
 There is no reset/release API that can silently abandon protected obligations.
 Creation also installs an explicit zero checkpoint when absent, under the
 checkpoint mutex and in the same commit. Later missing checkpoints are corruption,

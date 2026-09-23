@@ -86,6 +86,11 @@ DTOs, and `worker` bounds blocking I/O.
   all content budgets include it. Older lossy encodings fail explicitly.
   Exchange 6 requires matched replicas even before MQTT activation. Binary-only
   rollback after new-format writes is unsupported.
+- Explicit MQTT source activation uses one format-4 control with a separate hash
+  domain. Replica stores must advertise atomic pending protection/materialization;
+  unsupported factories reject append and recovery. Quorum, restart and learner
+  repair carry the exact control. The first activation survives repeated controls;
+  product reactor/subscription admission and shared-copy transfer remain separate.
 - Same-Channel append ordering survives batching and worker concurrency.
   Quorum success requires replicated progress; desired replicas never imply it.
 - Optional server Will lookup preserves its separate storage identity domain;

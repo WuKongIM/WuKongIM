@@ -473,6 +473,20 @@ func snapshotBackupSystemEntries(ctx context.Context, view messageBackupReadView
 		if err != nil {
 			return nil, err
 		}
+		if bytes.Equal(key, mqttActivationKey(channelKey)) {
+			activation, err := decodeMQTTActivation(key, value)
+			if err != nil {
+				return nil, err
+			}
+			if activation.LastOffset > hw {
+				if _, present, err := view.Get(mqttSourceKey(channelKey)); err != nil {
+					return nil, err
+				} else if present {
+					return nil, dberrors.ErrCorruptState
+				}
+				continue
+			}
+		}
 		entries = append(entries, backupRawEntry{Key: key, Value: value})
 	}
 	if err := iter.Error(); err != nil {

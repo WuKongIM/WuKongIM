@@ -53,7 +53,8 @@ storage core without transferring shared-engine ownership.
 ## Invariants and Failure Semantics
 
 - Offline helpers preserve optional publication column 21 and verify proposal
-  formats 1–3. Format 2 binds Expire; format 3 also binds publication metadata.
+  formats 1–4. Format 2 binds Expire; format 3 also binds publication metadata;
+  format 4 exclusively binds one canonical internal source activation record.
   Metadata uses compatibility record codec 2; native codec-1 bytes stay unchanged.
   Matched runtimes, tooling and full-generation rollback are required. Import adds no empty-key exception, uniqueness relaxation,
   or recovery path and rejects values the native runtime cannot represent.
@@ -103,6 +104,10 @@ storage core without transferring shared-engine ownership.
   MQTT System 12 clamps physical trim at copied-through without holding logical
   visibility back. Its bounded original-source reader fences incarnation/HW and
   fails on gaps; local CAS applies a decision but proves no distributed authority.
+  Format 4's System 13 protects the pending prefix; HW atomically creates System
+  12. Duplicates keep the first boundary; only uncommitted suffixes can replace it.
+  Backups skip pending controls and validate committed source/manifest pairs.
+  Activated checkpoint reads pin a coherent marker/source/HW view.
   Shared replay table 2 copies committed original content and prefix counters
   atomically, canonicalizes size hints, and meters ranges through small index-2
   endpoints. Local coverage never advances System 12 or claims quorum durability.

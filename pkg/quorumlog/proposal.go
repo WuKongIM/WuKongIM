@@ -21,7 +21,7 @@ const PublicationProposalManifestVersion uint16 = 3
 
 // SupportedProposalVersion accepts only fully specified digest formats.
 func SupportedProposalVersion(version uint16) bool {
-	return version == ProposalManifestVersion || version == ExpirationProposalManifestVersion || version == PublicationProposalManifestVersion
+	return version == ProposalManifestVersion || version == ExpirationProposalManifestVersion || version == PublicationProposalManifestVersion || version == MQTTSourceProposalManifestVersion
 }
 
 // VersionForRecords chooses a format for a newly created proposal, never for
@@ -128,6 +128,9 @@ type Record struct {
 // StructurallyValid reports whether a manifest has a complete authority,
 // command, range, predecessor, and tail identity.
 func (m ProposalManifest) StructurallyValid() bool {
+	if m.Version == MQTTSourceProposalManifestVersion && m.LastOffset-m.BaseOffset != 1 {
+		return false
+	}
 	if !SupportedProposalVersion(m.Version) || m.ChannelEpoch == 0 || m.LeaderTerm == 0 || m.FenceVersion == 0 ||
 		m.CommandID == (CommandID{}) || m.Digest == (EntryDigest{}) ||
 		m.LastOffset <= m.BaseOffset || m.PreviousIndex != m.BaseOffset {
@@ -149,6 +152,9 @@ func (m ProposalManifest) ValidFor(expectedBase uint64, recordCount int) bool {
 // DeriveProposalEntries constructs the entry-by-entry hash chain for records.
 // recordAt must return immutable semantic records in proposal order.
 func DeriveProposalEntries(manifest ProposalManifest, recordCount int, recordAt func(int) Record) ([]EntryIdentity, bool) {
+	if manifest.Version == MQTTSourceProposalManifestVersion && recordCount != 1 {
+		return nil, false
+	}
 	if recordAt == nil || recordCount <= 0 || uint64(recordCount) > ^uint64(0)-manifest.BaseOffset ||
 		!SupportedProposalVersion(manifest.Version) || manifest.ChannelEpoch == 0 || manifest.LeaderTerm == 0 || manifest.FenceVersion == 0 ||
 		manifest.CommandID == (CommandID{}) || manifest.LastOffset != manifest.BaseOffset+uint64(recordCount) ||
@@ -169,6 +175,9 @@ func DeriveProposalEntries(manifest ProposalManifest, recordCount int, recordAt 
 	for offset := 0; offset < recordCount; offset++ {
 		index := manifest.BaseOffset + uint64(offset) + 1
 		record := recordAt(offset)
+		if manifest.Version == MQTTSourceProposalManifestVersion && !validMQTTSourceRecord(record) {
+			return nil, false
+		}
 		if record.ID == 0 || (record.Index != 0 && record.Index != index) || record.Epoch != manifest.ChannelEpoch || record.ServerTimestampMS <= 0 ||
 			manifest.Version < PublicationProposalManifestVersion && len(record.PublicationMetadata) != 0 {
 			return nil, false
@@ -202,6 +211,9 @@ func SealProposalManifest(manifest ProposalManifest, records []Record) (Proposal
 // VerifyEntry reports whether record is the semantic content certified by
 // entry's authority, predecessor, command, index, and digest.
 func VerifyEntry(entry EntryIdentity, record Record) bool {
+	if entry.Version == MQTTSourceProposalManifestVersion && !validMQTTSourceRecord(record) {
+		return false
+	}
 	if !SupportedProposalVersion(entry.Version) || entry.ChannelEpoch == 0 || entry.LeaderTerm == 0 || entry.FenceVersion == 0 ||
 		entry.Index == 0 || entry.CommandID == (CommandID{}) || entry.Digest == (EntryDigest{}) ||
 		entry.PreviousIndex+1 != entry.Index || record.ID == 0 || (record.Index != 0 && record.Index != entry.Index) ||
@@ -221,7 +233,9 @@ func VerifyEntry(entry EntryIdentity, record Record) bool {
 
 func digestProposalEntry(entry EntryIdentity, record Record) EntryDigest {
 	hash := sha256.New()
-	if entry.Version == PublicationProposalManifestVersion {
+	if entry.Version == MQTTSourceProposalManifestVersion {
+		_, _ = hash.Write([]byte("wukongim/channel-entry/v4\x00"))
+	} else if entry.Version == PublicationProposalManifestVersion {
 		_, _ = hash.Write([]byte("wukongim/channel-entry/v3\x00"))
 	} else if entry.Version == ExpirationProposalManifestVersion {
 		_, _ = hash.Write([]byte("wukongim/channel-entry/v2\x00"))
@@ -259,7 +273,7 @@ func digestProposalEntry(entry EntryIdentity, record Record) EntryDigest {
 	writeBytes([]byte(record.FromUID))
 	writeBytes([]byte(record.ClientMsgNo))
 	writeBytes(record.Payload)
-	if entry.Version == PublicationProposalManifestVersion {
+	if entry.Version >= PublicationProposalManifestVersion {
 		writeBytes(record.PublicationMetadata)
 	}
 	var digest EntryDigest

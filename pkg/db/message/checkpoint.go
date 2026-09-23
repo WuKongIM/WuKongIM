@@ -25,6 +25,9 @@ func (l *ChannelLog) loadCheckpoint(ctx context.Context) (Checkpoint, bool, erro
 	if err != nil {
 		return Checkpoint{}, false, err
 	}
+	if cp, ok, handled, err := l.mqttActivationCheckpoint(ctx, source); handled {
+		return cp, ok, err
+	}
 	value, ok, err := l.db.engine.Get(encodeCheckpointKey(l.key))
 	if err != nil {
 		return Checkpoint{}, false, err
@@ -69,6 +72,9 @@ func (l *ChannelLog) storeCheckpointLocked(ctx context.Context, checkpoint Check
 	}
 	batch := l.db.engine.NewBatch()
 	defer batch.Close()
+	if err := l.channelEntry.stageMQTTActivation(batch, &checkpoint, nil, ^uint64(0)); err != nil {
+		return err
+	}
 	if err := batch.Set(encodeCheckpointKey(l.key), encodeCheckpoint(checkpoint)); err != nil {
 		return err
 	}

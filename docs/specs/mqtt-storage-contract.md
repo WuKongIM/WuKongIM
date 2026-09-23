@@ -2,8 +2,11 @@
 
 Message source protection reserves System ID 12; its codec, CAS, protected-read
 and retention boundary are specified in [the source contract](mqtt-source-protection.md).
-This replica primitive is not replicated activation or proof of shared-content
-durability; those remain required before MQTT access can open.
+System ID **13** now stores the first exact format-4 activation manifest; its
+pending trim fence and committed materialization are specified in
+[log activation](mqtt-source-log-activation.md). Local state is not a quorum
+receipt or proof of shared-content durability. Product admission and complete
+distributed replay remain required before MQTT access can open.
 
 The seventh logical table is message-domain table 2, `mqtt_replay_message`, not a
 Slot payload table. Its row, metering index, local frontier and backup-v2 contract

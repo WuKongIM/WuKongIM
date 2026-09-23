@@ -262,7 +262,7 @@ func (s *ChannelStore) ReplaceRecoverySuffix(ctx context.Context, req ReplaceRec
 		return recoveryReplaceError(err), err
 	}
 	if err := s.log.channelEntry.stageCommitRows(
-		batch, prepared.rows, &checkpoint, nil, prepared.proposals, prepared.entries,
+		batch, prepared.rows, &checkpoint, nil, prepared.proposals, prepared.entries, req.KeepThrough,
 	); err != nil {
 		return recoveryReplaceError(err), err
 	}

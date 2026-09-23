@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Replicate MQTT source activation through the Channel quorum log, retaining pending protection and restoring it across restart, leader recovery and learner catch-up. Matching format-4 replicas/tools are required; product MQTT admission remains under development. / MQTT 源保护激活接入 Channel 多数派日志，保留未决保护并覆盖重启、换主恢复及 learner 追赶；须使用支持格式 4 的副本和工具，产品 MQTT 入口仍在开发。
+
 - Prevent protected MQTT source loss through checkpoint regression, missing-checkpoint recreation or concurrent suffix truncation. Distributed MQTT activation remains under development. / 修复检查点回退、丢失检查点重建及并发截断绕过 MQTT 消息源保护的问题；跨节点 MQTT 激活仍在开发。
 
 - Add recoverable MQTT subscription intent orchestration with owner fencing, bounded subscription admission and safe removal ordering. Distributed source activation and product MQTT admission remain under development. / 新增可恢复的 MQTT 订阅意图编排，按连接 owner 校验、有界接纳订阅并保留撤销顺序；跨节点源保护激活及产品入口仍在开发。
