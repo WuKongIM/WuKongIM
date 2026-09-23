@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
 	"slices"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -15,18 +14,10 @@ import (
 // MQTTReplayAnchorAdmission carries fresh authority plus independently collected
 // current-voter copy evidence. The entry must recheck fresh metadata around this
 // call. MessageID is server allocated; an uncertain retry retains the first row.
-type MQTTReplayAnchorAdmission struct {
-	Meta              ch.Meta
-	Copy              ch.MQTTReplayCopyReceipt
-	MessageID         uint64
-	ServerTimestampMS int64
-}
+type MQTTReplayAnchorAdmission = ch.MQTTReplayAnchorRequest
 
-// MQTTReplayAnchorCommitter admits one bounded accepted content interval through
-// the same sequencer as business writes. The returned proof never authorizes GC.
-type MQTTReplayAnchorCommitter interface {
-	CommitMQTTReplayAnchor(context.Context, MQTTReplayAnchorAdmission) (ch.MQTTReplayAnchorProof, error)
-}
+// MQTTReplayAnchorCommitter is shared with the reactor-owned service facade.
+type MQTTReplayAnchorCommitter = ch.MQTTReplayAnchorCommitter
 
 // mqttAnchorStateStore checkpoints only the installed sequencer's HW before
 // reading one pinned source/latest/command view. It owns each temporary lease.
@@ -112,10 +103,9 @@ func (l *quorumLog) CommitMQTTReplayAnchor(ctx context.Context, q MQTTReplayAnch
 		return empty, ch.ErrLogConflict
 	}
 	after := q.Copy.After
-	anchor := quorumlog.MQTTReplayAnchor{StartAfter: after.StartAfter, Through: after.Through, TotalBytes: after.TotalBytes, TotalStoredBytes: after.TotalStoredBytes, Digest: after.Digest}
-	// ValidFor already requires the exact canonical generation spelling.
-	if _, err := hex.Decode(anchor.SourceCommand[:], []byte(after.Generation[len("mqtt-log-v1:"):])); err != nil {
-		return empty, ch.ErrInvalidConfig
+	anchor, err := q.Anchor()
+	if err != nil {
+		return empty, err
 	}
 	command := mqttAnchorCommand(anchor)
 	current, err := reader.prepareMQTTReplayAnchors(ctx, authority.Key, authority.ChannelID, state.hw, command)

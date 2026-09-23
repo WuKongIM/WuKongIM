@@ -34,6 +34,7 @@ type Result struct {
 	MetaResolve        *MetaResolveResult
 	QuorumInstall      *QuorumInstallResult
 	QuorumCommit       *QuorumCommitResult
+	QuorumMQTTAnchor   *QuorumMQTTAnchorResult
 	Value              any
 }
 

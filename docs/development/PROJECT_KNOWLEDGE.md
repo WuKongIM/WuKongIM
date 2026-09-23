@@ -335,7 +335,11 @@ specification, runbook, report, or module documentation; link to them when neede
   derives a source/Through command identity. Pinned source/latest/command proofs
   keep retries independent of control IDs and original bodies; uncertain proposals
   retain their first row. An anchor-only tail cannot generate another idle anchor.
-  Reactor/fresh Slot entry wiring and replicated source release remain required.
+  The service now uses the reactor append queue and a typed append worker, with
+  owned membership bytes and cancellation/lifecycle guards. Control completion
+  advances durable progress without synthesizing a message or caching request IDs;
+  observer cancellation cannot undo admitted durability. Fresh Slot entry wiring
+  and replicated source release remain required.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.

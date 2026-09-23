@@ -42,6 +42,8 @@ const (
 	TaskStoreMQTTSource
 	// TaskStoreMQTTReplay prepares bounded shared content below captured HW.
 	TaskStoreMQTTReplay
+	// TaskQuorumMQTTAnchor admits one control through the durable sequencer.
+	TaskQuorumMQTTAnchor
 )
 
 // Task describes blocking work submitted to a bounded pool.
@@ -58,9 +60,10 @@ type Task struct {
 	StoreLookupMessage *StoreLookupMessageTask
 	StoreApply         *StoreApplyTask
 	// StoreCheckpoint persists a checkpoint before runtime eviction.
-	StoreCheckpoint *StoreCheckpointTask
-	StoreMQTTSource *StoreMQTTSourceTask
-	StoreMQTTReplay *StoreMQTTReplayTask
+	StoreCheckpoint  *StoreCheckpointTask
+	StoreMQTTSource  *StoreMQTTSourceTask
+	StoreMQTTReplay  *StoreMQTTReplayTask
+	QuorumMQTTAnchor *QuorumMQTTAnchorTask
 	// StoreClose releases a store handle after the reactor has detached it.
 	StoreClose *StoreCloseTask
 	// StoreRetention adopts a logical retention boundary and optionally trims a safe prefix.
@@ -252,6 +255,8 @@ func (t Task) Run(ctx context.Context, deps Deps) Result {
 		res = runQuorumInstall(ctx, deps, t)
 	case TaskQuorumCommit:
 		res = runQuorumCommit(ctx, deps, t)
+	case TaskQuorumMQTTAnchor:
+		res = runQuorumMQTTAnchor(ctx, deps, t)
 	default:
 		res = invalidResult(t)
 	}

@@ -6,6 +6,8 @@ func (r *Reactor) handleWorkerResult(event Event) {
 	switch event.Worker.Kind {
 	case worker.TaskQuorumInstall:
 		r.handleQuorumInstallResult(event.Worker)
+	case worker.TaskQuorumMQTTAnchor:
+		r.handleQuorumMQTTAnchorResult(event.Worker)
 	case worker.TaskQuorumCommit:
 		r.handleQuorumCommitResult(event.Worker)
 	case worker.TaskStoreAppend:

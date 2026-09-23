@@ -88,6 +88,8 @@ type Event struct {
 	MQTTReplay ch.MQTTReplayRequest
 	// MQTTSourceActivation selects a canonical control only on EventAppend.
 	MQTTSourceActivation bool
+	// MQTTAnchor selects typed anchor admission on the ordinary append queue.
+	MQTTAnchor *ch.MQTTReplayAnchorRequest
 }
 
 func eventKindName(kind EventKind) string {

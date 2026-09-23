@@ -103,7 +103,10 @@ DTOs, and `worker` bounds blocking I/O.
   Typed anchor admission shares the durable sequencer, checks exact installed
   membership and chains the latest accepted prefix. Stable source/Through commands
   reuse committed proofs after restart or original trim; pending retries keep the
-  original row. Anchor-only tails stay idle. Reactor/fresh entry wiring is separate.
+  original row. Anchor-only tails stay idle. The service now reserves the append
+  queue and uses typed workers; control completion advances durable progress even
+  after observer cancellation, without inserting request identities into caches.
+  Fresh Slot entry wiring remains separate.
   Replay preparation uses the same recovered leader/route admission and bounded
   checkpoint workers. It captures HW, verifies protection and returns owned
   local content after rechecking fences; it cannot release the original source.

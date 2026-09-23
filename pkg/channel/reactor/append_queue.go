@@ -56,6 +56,8 @@ type appendRequest struct {
 	commitMode ch.CommitMode
 	// mqttSourceActivation preserves explicit control intent through queue retries.
 	mqttSourceActivation bool
+	// mqttAnchor retains owned metadata and copy evidence until terminal completion.
+	mqttAnchor *ch.MQTTReplayAnchorRequest
 	// traceItems preserves selected transient trace sidecars across restore/retry.
 	traceItems []appendTraceItem
 	// traceEvaluated records that detail sampling already ran for this request.
@@ -114,7 +116,7 @@ func (q *appendQueue) push(req appendRequest) error {
 	if len(req.records) == 0 {
 		return ch.ErrInvalidConfig
 	}
-	reqBytes := recordsBytes(req.records)
+	reqBytes := appendRequestBytes(req)
 	if q.cfg.MaxPending > 0 && len(q.pending)+1 > q.cfg.MaxPending {
 		return ch.ErrBackpressured
 	}
@@ -269,7 +271,7 @@ func (q *appendQueue) recount() {
 	q.flushDue = time.Time{}
 	for i, req := range q.pending {
 		q.records += len(req.records)
-		q.bytes += recordsBytes(req.records)
+		q.bytes += appendRequestBytes(req)
 		if i == 0 && q.cfg.MaxWait > 0 {
 			q.flushDue = req.enqueuedAt.Add(q.effectiveMaxWait())
 		}
@@ -282,7 +284,7 @@ func (q *appendQueue) batchRequestCount() int {
 	bytes := 0
 	for _, req := range q.pending {
 		reqRecords := len(req.records)
-		reqBytes := recordsBytes(req.records)
+		reqBytes := appendRequestBytes(req)
 		if take > 0 && q.cfg.MaxRecords > 0 && records+reqRecords > q.cfg.MaxRecords {
 			break
 		}
@@ -325,4 +327,13 @@ func recordsBytes(records []ch.Record) int {
 		total += max(record.SizeBytes, len(record.Payload)+len(record.PublicationMetadata))
 	}
 	return total
+}
+
+// appendRequestBytes includes retained copy membership beyond control payloads.
+func appendRequestBytes(req appendRequest) int {
+	n := recordsBytes(req.records)
+	if q := req.mqttAnchor; q != nil {
+		n += 8 * (len(q.Meta.Replicas) + len(q.Meta.ISR) + len(q.Copy.Copies))
+	}
+	return n
 }

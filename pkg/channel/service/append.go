@@ -71,15 +71,7 @@ func (c *cluster) appendBatch(ctx context.Context, req ch.AppendBatchRequest, so
 	}
 	c.observeAppendStage("runtime_append_wait", ctx.Err(), time.Since(started))
 	// Cancellation after mailbox admission is cooperative; durable writes already started are not cancelled.
-	cleanup, err := c.group.Submit(context.Background(), key, reactor.Event{Kind: reactor.EventCancelWaiter, Key: key, CancelOp: opID, CancelErr: ctx.Err()})
-	if err == nil {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), appendCancelCleanupTimeout)
-		_, err = cleanup.Await(cleanupCtx)
-		cleanupCancel()
-	}
-	if err != nil {
-		future.Complete(reactor.Result{Err: ctx.Err()})
-	}
+	c.cancelAppendObservation(key, opID, future, ctx.Err())
 	return ch.AppendBatchResult{}, ctx.Err()
 }
 
@@ -118,4 +110,17 @@ func (c *cluster) observeAppendStage(stage string, err error, d time.Duration) {
 		result = "err"
 	}
 	observer.ObserveChannelAppendStage(stage, result, d)
+}
+
+// cancelAppendObservation removes a caller without canceling admitted durability.
+func (c *cluster) cancelAppendObservation(key ch.ChannelKey, opID ch.OpID, future *reactor.Future, cancelErr error) {
+	cleanup, err := c.group.Submit(context.Background(), key, reactor.Event{Kind: reactor.EventCancelWaiter, Key: key, CancelOp: opID, CancelErr: cancelErr})
+	if err == nil {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), appendCancelCleanupTimeout)
+		_, err = cleanup.Await(cleanupCtx)
+		cleanupCancel()
+	}
+	if err != nil {
+		future.Complete(reactor.Result{Err: cancelErr})
+	}
 }

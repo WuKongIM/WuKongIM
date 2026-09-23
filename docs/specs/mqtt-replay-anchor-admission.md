@@ -41,7 +41,9 @@ a later bounded interval. Neither admission nor its checkpoint releases original
 Tests precede code. Runtime integration uses disk-backed voters and the actual
 exchange codec. This is not fresh Slot routing, reactor/app wiring, automated
 source release, learner shared-content readiness or product MQTT acceptance.
-Those remain required and must use this same sequencer admission primitive.
+The reactor-owned facade is now implemented in
+[reactor integration](mqtt-replay-anchor-reactor.md). Fresh Slot routing and the
+remaining paths must use that facade and this same sequencer primitive.
 
 ## Frozen context
 

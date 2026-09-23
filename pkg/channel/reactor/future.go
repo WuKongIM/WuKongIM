@@ -17,6 +17,7 @@ type Result struct {
 	MQTTSource      ch.MQTTSourceSnapshot
 	MQTTSourceFound bool
 	MQTTReplay      ch.MQTTReplayPage
+	MQTTAnchor      ch.MQTTReplayAnchorProof
 	Pull            transport.PullResponse
 	RuntimeSnapshot ch.RuntimeReactorSnapshot
 	// RuntimeActivationRejectedTotal carries reactor-local rejection counts for node snapshots.

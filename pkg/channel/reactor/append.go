@@ -38,6 +38,14 @@ func (r *Reactor) validateAppendEvent(ctx context.Context, rc *runtimeChannel, e
 			return err
 		}
 	}
+	if event.MQTTAnchor != nil {
+		if event.MQTTSourceActivation {
+			return ch.ErrInvalidConfig
+		}
+		if err := r.validateMQTTAnchorControl(rc, event); err != nil {
+			return err
+		}
+	}
 	if event.MQTTSourceActivation {
 		if err := r.validateMQTTSourceControl(rc, event); err != nil {
 			return err
@@ -93,7 +101,13 @@ func (r *Reactor) validateAppendEvent(ctx context.Context, rc *runtimeChannel, e
 }
 
 func newAppendRequest(event Event, admittedAt time.Time) appendRequest {
+	var anchor *ch.MQTTReplayAnchorRequest
+	if event.MQTTAnchor != nil {
+		owned := event.MQTTAnchor.Clone()
+		anchor = &owned
+	}
 	return appendRequest{
+		mqttAnchor:           anchor,
 		opID:                 event.OpID,
 		req:                  event.Append,
 		future:               event.Future,

@@ -30,7 +30,9 @@ It does not own reactor state machines, business retries, or dependency policy.
    and 250 microseconds; optional store interfaces batch append, apply, and
    checkpoint across channels while preserving per-task proof and results.
    Quorum install and commit use the bounded store-append pool but call the
-   deep durable-log owner and are never worker-batched.
+   deep durable-log owner and are never worker-batched. Typed MQTT anchor commits
+   share this pool and continue admitted durability independently of caller
+   cancellation; their bounded proof returns to reactor ownership.
    Source confirmation uses the checkpoint pool, persists reactor-captured HW
    before its consistent protection read, and closes its temporary store lease.
    Replay preparation shares that pool, verifies source generation and bounds

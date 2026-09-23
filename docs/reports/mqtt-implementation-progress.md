@@ -2179,3 +2179,67 @@ repair, learner/migration readiness and consumer-proof GC. Source projection,
 inbox discovery, permission ordering, delivery/ACK/recovery, fenced Will execution,
 unavailable-owner proof, app/configuration and full process/load acceptance remain
 required. The product MQTT listener remains unavailable; the full goal is active.
+
+## Reactor-owned replay anchor admission and cancellation
+
+Source `38e19e035`; the pre-code failure inventory and frozen governing context
+are in [mqtt-replay-anchor-reactor.md](../specs/mqtt-replay-anchor-reactor.md).
+The neutral `MQTTReplayAnchorRequest`/committer contract is now implemented by the
+Channel service as well as the durable sequencer. The service validates before
+allocating retained metadata copies, reserves the ordinary append path, and
+submits an explicitly typed control on the existing append mailbox/queue.
+Membership and acknowledgement slice bytes count toward the queue budget.
+
+Admission and flush check capable storage, the recovered leader, exact installed
+placement/epochs/route/status, write admission and committed source range. Typed
+`TaskQuorumMQTTAnchor` uses the bounded append pool and is not worker-batched.
+Once started, the effect is independent of the requesting observer's cancellation.
+Ordinary business appends, source controls and anchor requests retain one ordering
+and the existing lifecycle/eviction guards.
+
+A pure control-completion transition advances LEO/HW monotonically and retires
+waiters without assigning the new request's message ID or payload to a previously
+committed control. Reactor completion returns only the proof and deliberately
+omits recent-record cache insertion. Current committed progress is published even
+when the observer has canceled or its post-commit guard denies a reply. Foreign
+operation/generation results are ignored; changed authority and malformed/source-
+mismatched proofs cannot publish progress. Existing append cancellation cleanup
+is shared without changing its semantics. No durable schema or wire format changed.
+
+Verified:
+
+- Tests were written before implementation. RED logs:
+  `/tmp/mqtt-anchor-reactor-red.log`, `/tmp/mqtt-anchor-reactor-fence-red.log`
+  and `/tmp/mqtt-anchor-service-red.log`.
+- Focused state-machine/worker/reactor tests passed in
+  `/tmp/mqtt-anchor-reactor-focused.log`. Coverage includes old/new controls,
+  cancellation, stale/foreign completions, guard failure/cancellation, malformed
+  proofs, an enabled recent cache, queue byte bounds and owned member slices.
+- `GOWORK=off go test -race ./pkg/channel/... ./pkg/cluster/channels -count=1
+  -timeout=180s`: all packages passed, `/tmp/mqtt-anchor-reactor-race.log`.
+  Reactor 5.301 seconds, worker 4.721 seconds, cluster/channels 8.564 seconds.
+- `GOWORK=off go test -race -tags=integration ./pkg/channel/service
+  ./pkg/channel/replication -run '^TestMQTT' -count=1 -timeout=90s -v`: all
+  passed, `/tmp/mqtt-anchor-reactor-integration.log`. Service 2.636 seconds,
+  replication 3.903 seconds. This also retained the preceding three-voter/learner
+  wire/disk/recovery coverage.
+- Final service verification after the validation-before-copy review passed in
+  `/tmp/mqtt-anchor-reactor-final.log` (1.926 seconds). The single-node cluster
+  uses real disk and the native quorum owner: concurrent and idle retries reuse
+  the original proof, original row IDs stay unchanged, later business sequences
+  stay ordered, the reactor's committed frontier is consistent, and restart
+  preserves proofs. A blocked real worker allows the caller to cancel and mutate
+  its request; releasing it still persists the exact owned control and permits
+  the next business append at the correct position. These are service/runtime
+  integrations, not a product MQTT process E2E or fresh Slot RPC admission.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-anchor-reactor-flow.log`. FLOW index regenerated. `git diff --check`
+  passed; macOS LC_DYSYMTAB linker warnings remain non-failing.
+
+Next expose coherent accepted-prefix planning and route anchor admission through
+fresh Slot authority, the stable cluster gateway and a bounded versioned Node RPC.
+Then connect replicated source release, accepted-anchor donor repair, learner and
+migration readiness, and consumer-proof shared GC. Complete source/inbox projection,
+permission ordering, delivery/ACK/recovery, Will execution, unavailable-owner proof,
+app/configuration and full process/load acceptance remain required. The product
+MQTT listener remains unavailable and the full implementation goal remains active.

@@ -76,6 +76,12 @@ typed bounded workers and returns as `EventWorkerResult`.
   ownership. Captured HW bounds its checkpoint worker; typed completion rechecks
   authority, operation identity and bounded page structure before returning bytes.
 
+- Anchor controls share the ordinary append queue, slice ownership, byte bounds
+  and cancellation guards. Flush rechecks recovered authority; typed durable
+  completion advances monotonic progress after observer cancellation. It returns
+  only the verified control proof and never caches request records on retries.
+  Foreign operation/generation results cannot change replacement state.
+
 ## Read First
 
 - [Reactor state](reactor.go)
