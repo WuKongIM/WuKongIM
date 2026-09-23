@@ -1,8 +1,15 @@
 # MQTT IM 接入实施计划
 
-状态：设计已确认，实施待开始。依据：[MQTT IM 接入设计](../../specs/mqtt-im-access.md)。
+状态：实施中；协议 codec 和应用字段映射已建立，MQTT 监听及持久运行时尚未接通。依据：[MQTT IM 接入设计](../../specs/mqtt-im-access.md)。
 
 本计划交付 MQTT 5.0、QoS 0/1、精确主题、持久会话、跨节点接管、受权限约束的可靠恢复和 Will。阶段完成不等于整体完成；仅在线收发的版本不能作为本次需求交付。
+
+## 当前进度
+
+- 已完成独立 MQTT 5 输入/输出 codec，具备包长、属性和订阅数量上限；literal fixtures 与 Eclipse Paho v0.23.0 交叉验证，不依赖 WK frame。
+- 已固定 [wire contract](../../specs/mqtt-wire-contract.md)，实现精确 topic 编码、CONNECT 凭据提取和保留属性校验。
+- 单节点/三节点产品 E2E、网关接入、六张元数据表、共享 replay、发布元数据复制、源保护、持久会话/Will/配额仍待实现，不能开启入口或声明功能完成。
+- 验证与冻结源码依据见 [实施记录](../../reports/mqtt-implementation-progress.md)。
 
 ## 开工合同
 
@@ -79,4 +86,4 @@ Will 使用持久任务和稳定业务幂等键；实现创建和触发时的授
 
 至少证明：无越权、无未解释的丢失、QoS 1 重复身份稳定、旧 owner 不再授权写入、配额及队列有界、保留/备份/恢复完整。按相关变更更新 FLOW 并通过 `flow-doc-contracts`，同步 PROJECT_KNOWLEDGE、配置文档和用户可见 CHANGELOG。
 
-这是一项实现计划，当前没有运行上述测试，也没有创建协议代码、表定义或迁移。
+产品级验收尚未运行；协议级已完成验证不替代上述完整验收。具体已运行命令与未完成范围以实施记录为准。
