@@ -126,6 +126,9 @@ app -> access/usecase/runtime/infra/pkg
 
 ### Test Policy
 
+- NEVER write unit tests after you write code.
+- Highly prefer E2E tests as the sole testing mechanism. Use them to verify complex features work. At the end of E2E tests, produce a verifiable and repeatable artifact.
+- If you must test a system in isolation, FIRST write all the ways it could fail, THEN write the code.
 - You MUST run at least the tests directly related to the change.
 - Unit tests MUST remain fast. Tests that simulate realistic elapsed time or
   external integration MUST use the `integration` build tag.
@@ -134,9 +137,6 @@ app -> access/usecase/runtime/infra/pkg
   MUST live in `*_integration_test.go` with the `integration` build tag.
   Static source/configuration contracts, parsers, AWK/JQ transforms, help
   output, and no-background dry runs SHOULD remain in the default unit tier.
-- Development SHOULD default to unit tests. Integration and E2E suites SHOULD
-  run only when the change affects those behaviors or the task explicitly
-  requires them.
 - Repository-wide Go gates MUST NOT use root `./...`. Go ignores `.gitignore`
   during package discovery and may include local packages under `tmp/` or
   `web/node_modules/`.
