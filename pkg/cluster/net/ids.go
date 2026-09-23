@@ -135,6 +135,8 @@ const (
 	RPCChannelMQTTSource
 	// RPCChannelMQTTReplay prepares bounded shared content on the current leader.
 	RPCChannelMQTTReplay
+	// RPCChannelMQTTCopy confirms independently derived current-voter shared content.
+	RPCChannelMQTTCopy
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -265,6 +267,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "mqtt owner"
 	case RPCChannelMQTTSource:
 		return "channel mqtt source"
+	case RPCChannelMQTTCopy:
+		return "channel mqtt copy"
 	case RPCChannelMQTTReplay:
 		return "channel mqtt replay"
 	default:

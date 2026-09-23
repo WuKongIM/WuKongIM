@@ -1993,3 +1993,58 @@ projection/inbox discovery, permission ordering, delivery/ACK/recovery, fenced
 Will execution, unavailable-owner proof, app/configuration and full process/load
 acceptance remain required. The MQTT product listener is unavailable and the
 full implementation goal remains active.
+
+
+## Current-quorum confirmation of shared replay copies
+
+Source `736e46d7d`; pre-code failure inventory and frozen context are recorded in
+[mqtt-replay-copy-quorum.md](../specs/mqtt-replay-copy-quorum.md). The Node copy
+facade prepares one bounded leader page and obtains independent current-ISR
+confirmations. Receipt success requires the current leader and MinISR distinct
+voters, with a strict majority topology. Fresh Slot reads bracket coordination
+and receiver storage work; exact membership, epochs/route, status and leader are
+bound by a domain-separated digest. No source-release frontier changes.
+
+Body-free foreground RPC 95 uses closed WMCQ/WMCR version-1 codecs, 4 KiB caps,
+exact complete request echoes and voter identity checks. Each receiver reads its
+existing committed source checkpoint, independently prepares/verifies the full
+content prefix, resumes partial local coverage within the original 256-row and
+16-MiB budgets, and closes its lease on every exit. Four coordinator slots, four
+separate receiver slots and at most four joined workers per coordinator bound
+memory and work; successful quorum cancels outstanding calls. Gateway swaps and
+Node maintenance remain fenced. No durable table or stored format changed.
+
+The real three-node test exposed a necessary native replication dependency: after
+the final append, followers had LEO 4 but checkpoint HW 3, while the leader had
+HW 4. Receivers correctly rejected coverage through 4. A regression test preceded
+the fix: the leader can now request replay of its installed sequencer's committed
+tail through the existing bounded repair owner. Exact full Authority is checked;
+there is no caller-supplied HW. This on-demand hint propagates commit progress
+without adding another broadcast to every ordinary append. Scheduling is not a
+copy receipt; follower confirmation still checks durable storage afterward.
+
+Verified:
+
+- Initial tests failed before implementation in `/tmp/mqtt-copy-red.log` and
+  `/tmp/mqtt-copy-integration-red.log`. Native refresh regression first failed
+  in `/tmp/mqtt-copy-refresh-red.log`; focused suites then passed in
+  `/tmp/mqtt-copy-focused.log` and `/tmp/mqtt-copy-refresh-focused.log`.
+- `GOWORK=off go test -race ./pkg/cluster/... ./pkg/channel/... ./pkg/goroutine
+  -count=1 -timeout=180s`: all packages passed, `/tmp/mqtt-copy-race.log`.
+- `GOWORK=off go test -race -tags=integration ./pkg/cluster
+  -run '^TestMQTTCopyThreeNode' -count=1 -timeout=120s -v`: passed
+  (14.520 seconds including package overhead), `/tmp/mqtt-copy-integration.log`.
+  `mqtt_copy_quorum_evidence` verifies three real Node runtimes, TCP, disk,
+  256 hash Slots, two physical Slots, all-voter full-content equality, follower
+  restart, leader change, preserved originals and isolated-node refusal.
+  This is runtime integration, not product-process MQTT acceptance or post-GC import.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing
+  line-budget warnings, `/tmp/mqtt-copy-flow.log`. FLOW index regenerated.
+  Non-failing macOS LC_DYSYMTAB linker warnings remain present.
+
+Next, accepted copy/release decisions must be log-replicated and serve as durable
+full-content anchors for post-GC receiver import, learner/migration readiness and
+consumer-proof GC. Complete source projection/inbox discovery, permission
+ordering, delivery/ACK/recovery, fenced Will execution, unavailable-owner proof,
+app/configuration and full process/load acceptance remain required. The MQTT
+product listener stays unavailable and the full implementation goal stays active.

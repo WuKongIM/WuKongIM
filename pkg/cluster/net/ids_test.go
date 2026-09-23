@@ -134,3 +134,12 @@ func TestMQTTReplayServiceIdentity(t *testing.T) {
 		t.Fatal("replay preparation must use bounded mutation admission")
 	}
 }
+
+func TestMQTTCopyServiceIdentity(t *testing.T) {
+	if RPCChannelMQTTCopy != 95 || transportServiceAlias(RPCChannelMQTTCopy) != "channel mqtt copy" {
+		t.Fatal("MQTT copy service identity changed")
+	}
+	if !isForegroundChannelMutationService(RPCChannelMQTTCopy) {
+		t.Fatal("MQTT copy must preserve maintenance admission")
+	}
+}

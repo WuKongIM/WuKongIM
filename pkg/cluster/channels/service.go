@@ -298,17 +298,21 @@ type Config struct {
 
 // Service wraps Channel and exposes both client and replication surfaces.
 type Service struct {
+	// MQTT copy coordination and replica I/O have separate no-queue admission.
+	mqttCopyCoordinators, mqttCopyReceivers chan struct{}
 	// persistedReads bounds disk-only batches across all callers on this node; overflow fails immediately.
 	persistedReads chan struct{}
 	// replicaStore reads native exchange durability independently of reactor residency.
 	replicaStore replication.ReplicaStore
-	runtime      channelRuntime
-	localNode    ch.NodeID
-	metaSource   ChannelMetaSource
-	ensurer      ChannelMetaEnsurer
-	forward      ForwardClient
-	store        channelstore.Factory
-	metaCache    channelMetaCache
+	// replicaCommitRefresh propagates only an installed native sequencer frontier.
+	replicaCommitRefresh replication.CommittedReplicaRefresher
+	runtime              channelRuntime
+	localNode            ch.NodeID
+	metaSource           ChannelMetaSource
+	ensurer              ChannelMetaEnsurer
+	forward              ForwardClient
+	store                channelstore.Factory
+	metaCache            channelMetaCache
 	// metaApplyLocks serialize complete metadata application per channel shard.
 	// They prevent a delayed cached apply from following a newer explicit apply.
 	metaApplyLocks [channelMetaApplyLockCount]sync.Mutex
@@ -367,7 +371,8 @@ func NewService(cfg Config) (*Service, error) {
 		}
 	}
 	ensurer, _ := cfg.MetaSource.(ChannelMetaEnsurer)
-	return &Service{persistedReads: make(chan struct{}, persistedConversationReadBatches), replicaStore: replicaStore, runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, store: cfg.Store, observer: cfg.Observer, migration: cfg.MigrationStore, goroutines: cfg.Goroutines}, nil
+	commitRefresh, _ := cfg.QuorumLog.(replication.CommittedReplicaRefresher)
+	return &Service{mqttCopyCoordinators: make(chan struct{}, mqttCopyConcurrent), mqttCopyReceivers: make(chan struct{}, mqttCopyConcurrent), persistedReads: make(chan struct{}, persistedConversationReadBatches), replicaStore: replicaStore, replicaCommitRefresh: commitRefresh, runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, store: cfg.Store, observer: cfg.Observer, migration: cfg.MigrationStore, goroutines: cfg.Goroutines}, nil
 }
 
 // Runtime returns the Channel public cluster surface.

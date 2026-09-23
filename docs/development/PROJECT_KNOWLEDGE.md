@@ -313,15 +313,19 @@ specification, runbook, report, or module documentation; link to them when neede
   row fields, so the received page cannot supply its own recovery authority.
   Import can refill shared content after original-body trim, commits rows/meters
   and local progress atomically, and never advances source release or readiness.
-  See [replay transfer](../specs/mqtt-replay-transfer.md); quorum receipts and
-  learner/migration scheduling remain runtime requirements.
+  See [replay transfer](../specs/mqtt-replay-transfer.md); replicated accepted
+  anchors and learner/migration scheduling remain runtime requirements.
   The Channel replay preparation facade checks recovered leader/epoch/route
   admission before and after a bounded checkpoint worker. It captures HW,
   confirms source protection and returns owned content without releasing history.
   Covered pages precede extensions so short-page replies can be retried. The Node
   facade and RPC 94 now perform fresh Slot reads before/after preparation, reject
   changed placement and preserve exact request/page fields across gateway swaps.
-  A routed page still proves no quorum copy; coordination remains required.
+  A routed page alone proves no quorum copy. Copy coordination and body-free RPC
+  95 independently derive the exact full-content prefix on current ISR voters,
+  require the leader plus a strict MinISR majority, and recheck fresh membership.
+  Receiver requests never advance HW; bounded copy receipts still require a
+  replicated accepted decision before source release or recovery anchoring.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.

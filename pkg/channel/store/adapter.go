@@ -399,8 +399,9 @@ type MQTTSourceActivationFactory interface {
 }
 
 // MQTTSourceReader verifies one committed activation/source/checkpoint view.
-// The caller must first persist the reactor's captured HW. This storage read
-// supplies no independent current-leader or subscription authority.
+// Leader callers first persist captured reactor HW; replica callers require an
+// existing checkpoint and must never advance it from requested coverage. This
+// read supplies no independent current-leader or subscription authority.
 type MQTTSourceReader interface {
 	LoadCommittedMQTTSource(context.Context, uint64) (ch.MQTTSourceSnapshot, bool, error)
 }

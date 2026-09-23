@@ -64,6 +64,9 @@ DTOs, and `worker` bounds blocking I/O.
   same-authority, missing, or malformed evidence remains a conflict.
 - The node-owned replication runtime bounds local mutation batches, per-target
   exchange, recovery probes, and follower repair without per-Channel goroutines.
+  On-demand committed replica refresh replays the installed sequencer's tail
+  through existing repair workers; it accepts exact authority, never caller HW,
+  and scheduling itself supplies no durability receipt.
   Install preserves every observed suffix, proves compatible voter tails on one
   exact hash chain, and copies at most one bounded page before yielding for a fresh proof. Probe rounds
   consume arrived evidence plus the local result, then use a quorum without waiting

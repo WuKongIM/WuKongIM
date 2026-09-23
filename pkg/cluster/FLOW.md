@@ -30,10 +30,11 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to
    the exact leader while background control/task convergence stays bounded. MQTT source/replay RPCs 93/94 recheck fresh Slot authority, caller fences and the serving node across gateway swaps.
+   Body-free copy RPC 95 independently derives committed content on current voters;
+   bounded coordination requires leader/MinISR majority, rechecks fresh membership and cannot release history.
    Repair probes activate cold replicas through authoritative metadata and the
-   native reactor before inspecting progress. Native follower proofs read exact
-   durable state and recheck metadata/runtime authority, rejecting future durable
-   epochs or fences; diagnostic probes stay read-only. A dead
+   native reactor before inspecting progress. Native follower proofs recheck exact
+   durable state and metadata/runtime authority, rejecting future epochs/fences; diagnostics stay read-only. A dead
    Leader can preempt an unpromoted replacement through the existing guarded
    abort, then elect from the next authoritative scan; promoted tasks are protected.
    Replacement catch-up stays runnable while its valid target is lagging.
@@ -131,11 +132,10 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   cluster routing and exact authority fences.
 - Node RPC negotiates budget/cancel support through a reserved wire-v1 service;
   explicit unsupported peers retain v1. Queued work expires under caller budgets
-  or the five-second service queue limit. Default execution is bounded to 30
-  seconds (one minute for Operations MCP, five minutes for repository probes,
-  48 hours for complete backup/restore operations); read-only handlers
-  may follow caller cancellation, while started mutations keep independent
-  execution. Ready frames batch without an idle coalescing delay.
+  or a five-second limit. Execution defaults to 30 seconds (one minute for
+  Operations MCP, five minutes for repository probes, 48 hours for backup/restore).
+  Read-only handlers may follow caller cancellation; started mutations execute
+  independently. Ready frames batch without an idle coalescing delay.
 
 - Routed committed and persisted history and conversation heads hydrate latest payload replacements through Slot authority. Explicit original committed reads omit edits but retain Leader/HW/retention fences for retry proof. Cross-channel chunks preserve batching above 200 recents; replacement growth respects page budgets and continuation. Matching skips empty pages, scans at most eight updates directly, and indexes larger pages without copying payload-bearing structs. The request-scoped Slot ReadIndex/apply barrier is separate from readiness proof reuse; serving edit proposals check the restore content epoch, including forwarded commands. Local log/backup reads remain immutable.
 
