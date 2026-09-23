@@ -5,16 +5,19 @@ import (
 	"testing"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/stretchr/testify/require"
 )
 
 type mqttReadinessStore struct {
 	channelstore.ChannelStore
-	value  ch.MQTTReplayReadiness
-	err    error
-	after  func()
-	closed int
+	value         ch.MQTTReplayReadiness
+	err           error
+	after         func()
+	closed        int
+	checkpoints   []uint64
+	checkpointErr error
 }
 
 func (s *mqttReadinessStore) ReadMQTTReplayReadiness(ctx context.Context, hw uint64) (ch.MQTTReplayReadiness, error) {
@@ -86,6 +89,66 @@ func TestMQTTReplicaReadinessAttachesOnlyFreshBoundedEvidence(t *testing.T) {
 			}
 			if mode != "unsupported" && mode != "no_fresh_reader" && mode != "missing_reader" {
 				require.Equal(t, 1, handle.closed)
+			}
+		})
+	}
+}
+
+type mqttReadinessRefresh struct {
+	calls []replication.Authority
+	err   error
+}
+
+func (r *mqttReadinessRefresh) RequestCommittedReplicaRefresh(_ context.Context, a replication.Authority) error {
+	r.calls = append(r.calls, a)
+	return r.err
+}
+func (s *mqttReadinessStore) StoreCheckpoint(_ context.Context, cp ch.Checkpoint) error {
+	s.checkpoints = append(s.checkpoints, cp.HW)
+	return s.checkpointErr
+}
+
+func TestMQTTLeaderReadinessCheckpointsOnlyRecoveredCapturedHW(t *testing.T) {
+	for _, mode := range []string{"ready", "fenced", "recovering", "checkpoint_error", "refresh_error"} {
+		t.Run(mode, func(t *testing.T) {
+			id := ch.ChannelID{ID: "leader-readiness", Type: 2}
+			m := ch.Meta{ID: id, Key: ch.ChannelKeyForID(id), Epoch: 1, LeaderEpoch: 2, RouteGeneration: 3, Leader: 1, Replicas: []ch.NodeID{1, 2, 3}, ISR: []ch.NodeID{1, 2}, MinISR: 2, Status: ch.StatusActive}
+			if mode == "fenced" {
+				m.WriteFence = ch.WriteFence{Token: "migration", Version: 4}
+			}
+			proof := ch.RuntimeProbeChannel{ChannelID: id, ChannelEpoch: 1, LeaderEpoch: 2, Role: ch.RoleLeader, Status: ch.StatusActive, LEO: 10, HW: 10, CheckpointHW: 10, WriteFence: m.WriteFence}
+			if mode == "recovering" {
+				proof.RecoveryRequired = true
+			}
+			runtime := &repairActivationRuntime{}
+			runtime.probe = ch.RuntimeProbeResult{Channels: []ch.RuntimeProbeChannel{proof}}
+			handle := &mqttReadinessStore{value: ch.MQTTReplayReadiness{CommittedThrough: 10, Covered: true}}
+			refresh := &mqttReadinessRefresh{}
+			if mode == "checkpoint_error" {
+				handle.checkpointErr = ch.ErrNotReady
+			}
+			if mode == "refresh_error" {
+				refresh.err = ch.ErrStaleMeta
+			}
+			svc, err := NewService(Config{LocalNode: 1, Runtime: runtime, MetaSource: &mqttFreshMeta{meta: m}})
+			require.NoError(t, err)
+			svc.store = &mqttReadinessFactory{mqttCopyFactory: mqttCopyFactory{handle: handle}}
+			svc.replicaCommitRefresh = refresh
+			got, err := svc.attachMQTTReplayReadiness(context.Background(), m, proof)
+			if mode == "ready" || mode == "fenced" {
+				require.NoError(t, err)
+				require.NotNil(t, got.ReplayReadiness)
+				require.Equal(t, []uint64{10}, handle.checkpoints)
+				require.Len(t, refresh.calls, 1)
+				require.Equal(t, m.WriteFence, refresh.calls[0].WriteFence)
+				require.Equal(t, []ch.NodeID{3}, refresh.calls[0].Learners)
+			} else {
+				require.Error(t, err)
+				require.Nil(t, got.ReplayReadiness)
+			}
+			if mode == "recovering" {
+				require.Empty(t, handle.checkpoints)
+				require.Empty(t, refresh.calls)
 			}
 		})
 	}

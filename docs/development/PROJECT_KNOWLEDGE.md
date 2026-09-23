@@ -389,7 +389,13 @@ specification, runbook, report, or module documentation; link to them when neede
   existing anchors, enabling background catch-up without admitting copies or writes.
   Planning uses native quorum read readiness, not `CommitReady`, which intentionally
   stays false after successful recovery under a write fence.
-  Migration admission gates, product lifecycle wiring and source release remain required.
+  Planned migration re-probes coverage before promotion/leader commit and before
+  clearing the task fence. Failover selects a native leader first, then waits for
+  replay recovery before clearing its fence. Missing coverage and native HW lag
+  stay runnable without Slot writes. Graceful drain applies/probes source authority;
+  active leader probes checkpoint recovered HW and request native tail propagation
+  under the exact installed fence. This proves no source release or consumer GC.
+  Product lifecycle wiring and source release remain required.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.

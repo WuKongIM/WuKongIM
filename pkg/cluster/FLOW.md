@@ -32,14 +32,14 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    the exact leader while background control/task convergence stays bounded. MQTT source/replay RPCs 93/94 recheck fresh Slot authority, caller fences and the serving node across gateway swaps.
    RPCs 95–98 bind copying, anchors, planning and exact-interval repair to fresh authority.
    RPC 97 planning and RPC 99 target recovery permit stable write fences; neither releases history.
-   Repair probes activate cold replicas through authoritative metadata and the
-   native reactor before inspecting progress. Native follower proofs recheck exact
-   durable state and authority, then attach optional local replay coverage under fresh placement/fence checks;
-   diagnostics remain unchanged. A dead Leader can preempt an unpromoted replacement through the guarded
-   abort, then elect from the next authoritative scan; promoted tasks are protected.
-   Replacement catch-up stays runnable while its valid target is lagging.
-   Failover proof renewal re-probes the surviving target under the current fence;
-   it never falls back to draining the unavailable source.
+   Active repair probes load authoritative replicas and verify follower durability;
+   leaders checkpoint recovered HW and request native committed-tail propagation.
+   Fresh placement/fence checks bind optional replay coverage; diagnostics stay observational.
+   Planned transfers and replacement require fresh coverage at cutover and fence clearing.
+   Graceful drain applies/probes the fenced source; temporary catch-up yields without Slot writes.
+   Failover first selects a native leader, then gates fence clearing on replay coverage.
+   Dead leaders preempt unpromoted replacement through guarded abort and rescan;
+   promoted tasks stay protected, and failover proof renewal never drains the dead source.
 4. Committed conversation and history reads batch Slot routes and group by exact Leader,
    preserving alignment and item errors. Conversation codec 10 carries UID-owned
    badge floors, excluded internal-position counts, and optional set-unread

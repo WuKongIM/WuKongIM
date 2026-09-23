@@ -34,9 +34,8 @@ func (l *quorumLog) RequestCommittedReplicaRefresh(ctx context.Context, a Author
 	if !sameAuthority(state.authority, a) {
 		return ch.ErrStaleMeta
 	}
-	if a.WriteFence.Set() {
-		return ch.ErrWriteFenced
-	}
+	// Propagating already-proven progress is recovery, not a business append.
+	// sameAuthority above still requires the exact installed write fence.
 	if state.hw == 0 {
 		return nil
 	}

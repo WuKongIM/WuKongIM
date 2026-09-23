@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Require local MQTT replay coverage before planned Channel cutover and migration fence clearing; temporary catch-up stays runnable. Repair leader checkpoint propagation and graceful-drain fence application. Product MQTT access remains under development. / 频道计划迁移切换与解除写入封禁前核验 MQTT 本地回放覆盖，暂时落后可继续恢复；修复 Leader 检查点传播及排空前封禁应用，产品 MQTT 接入仍在开发。
+
 - Allow MQTT replay planning and background replica recovery under a stable migration write fence, while keeping new copying and business writes fenced. Product MQTT admission remains under development. / MQTT 回放规划与后台副本恢复可在稳定迁移写入栅栏下继续执行，新复制和业务写入仍受阻；产品 MQTT 接入仍在开发。
 
 - Expose replica-local MQTT replay coverage in active migration probes, distinguishing a caught-up native log from complete replay content. Migration admission and product MQTT access remain under development. / 主动迁移探测新增 MQTT 副本回放覆盖证据，区分原生日志追平与回放内容齐全；迁移准入和产品 MQTT 接入仍在开发。

@@ -2,9 +2,11 @@ package channels
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 )
 
@@ -48,6 +50,9 @@ func (s *Service) attachMQTTReplayReadiness(parent context.Context, m ch.Meta, p
 	if err := recheck(); err != nil {
 		return empty, err
 	}
+	if proof.RecoveryRequired {
+		return empty, ch.ErrNotReady
+	}
 	handle, err := s.store.ChannelStore(ch.ChannelKeyForID(m.ID), m.ID)
 	if err != nil {
 		return empty, err
@@ -56,6 +61,20 @@ func (s *Service) attachMQTTReplayReadiness(parent context.Context, m ch.Meta, p
 	reader, ok := handle.(channelstore.MQTTReplayReadinessReader)
 	if !ok {
 		return empty, ch.ErrInvalidConfig
+	}
+	if proof.Role == ch.RoleLeader {
+		if s.localNode != m.Leader || s.replicaCommitRefresh == nil || proof.HW > proof.LEO {
+			return empty, ch.ErrInvalidConfig
+		}
+		// Runtime HW includes quorum-proven recovery barriers whose checkpoint
+		// can still lag until another append. Confirm this captured boundary;
+		// followers must continue to use their own independently durable HW.
+		if err = handle.StoreCheckpoint(ctx, ch.Checkpoint{HW: proof.HW}); err != nil {
+			return empty, err
+		}
+		if err = s.replicaCommitRefresh.RequestCommittedReplicaRefresh(ctx, mqttReplicaAuthority(m)); err != nil {
+			return empty, err
+		}
 	}
 	ready, err := reader.ReadMQTTReplayReadiness(ctx, proof.HW)
 	if err != nil {
@@ -86,4 +105,18 @@ func (s *Service) attachMQTTReplayReadiness(parent context.Context, m ch.Meta, p
 	}
 	proof.ReplayReadiness = &ready
 	return proof, nil
+}
+
+// mqttReplicaAuthority binds refresh hints to the exact installed placement.
+// The native sequencer supplies committed progress, never the probe's caller.
+func mqttReplicaAuthority(m ch.Meta) replication.Authority {
+	a := replication.Authority{Key: ch.ChannelKeyForID(m.ID), ChannelID: m.ID,
+		ID:     replication.AuthorityID{ChannelEpoch: m.Epoch, LeaderTerm: m.LeaderEpoch, FenceVersion: m.RouteGeneration},
+		Leader: m.Leader, Voters: m.ISR, WriteQuorum: int(m.MinISR), WriteFence: m.WriteFence}
+	for _, node := range m.Replicas {
+		if !slices.Contains(m.ISR, node) {
+			a.Learners = append(a.Learners, node)
+		}
+	}
+	return a
 }

@@ -65,8 +65,8 @@ DTOs, and `worker` bounds blocking I/O.
 - The node-owned replication runtime bounds local mutation batches, per-target
   exchange, recovery probes, and follower repair without per-Channel goroutines.
   On-demand committed replica refresh replays the installed sequencer's tail
-  through existing repair workers; it accepts exact authority, never caller HW,
-  and scheduling itself supplies no durability receipt.
+  through existing repair workers, including under an unchanged write fence. Exact
+  authority is required; caller HW and scheduling supply no durability receipt.
   Install preserves every observed suffix, proves compatible voter tails on one
   exact hash chain, and copies at most one bounded page before yielding for a fresh proof. Probe rounds
   consume arrived evidence plus the local result, then use a quorum without waiting
@@ -116,7 +116,7 @@ DTOs, and `worker` bounds blocking I/O.
   steps route to that target, try at most four donors with separate deadlines and
   return scan/import/retry/completion outcomes under fresh metadata checks.
   Import keeps the pre-import plan; the next read verifies completion. Active migration
-  probes bind optional replica-local replay coverage to captured HW; release/admission remain separate.
+  probes bind local replay coverage to captured HW for migration gates; source release remains separate.
   Replay preparation uses the same recovered leader/route admission and bounded
   checkpoint workers. It captures HW, verifies protection and returns owned
   local content after rechecking fences; it cannot release the original source.

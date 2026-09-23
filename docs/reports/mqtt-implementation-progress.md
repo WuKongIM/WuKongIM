@@ -2859,3 +2859,64 @@ Next connect replica readiness to migration phase admission and verify graceful
 transfer, replacement and automatic failover without a recovery deadlock. Replicated
 source release, consumer GC and the remaining full-product work stay open; the
 MQTT product listener remains unavailable and the implementation goal stays active.
+
+## Replay coverage gates at migration cutover
+
+Planned leader transfer and replica replacement now require explicit, current
+replica-local replay coverage at final catch-up and again in the separate
+commit/promote phase. Verification also requires coverage before clearing the
+write fence. Missing, malformed, uncovered or recovering evidence yields without
+Slot task writes, preserving runnable work. Failover commits a surviving native
+leader before applying the replay gate at verification; it never drains a dead
+source. No new table, persisted encoding or configuration is introduced.
+
+The real three-node sequence exposed two native integration gaps. After replica
+replacement, the source runtime reported HW 7 but its durable checkpoint was 6;
+the pinned readiness read at 6 succeeded. Active recovered-leader probes now
+checkpoint their captured HW and request existing bounded committed-tail repair
+under exact installed authority. Stable fences permit that repair. The following
+run passed this phase but graceful drain saw the previous cleared fence: drain
+now applies/probes current source metadata first. Temporary native HW lag stays
+runnable at both planned-transfer catch-up stages. Storage reads remain pinned
+and read-only; the active leader probe owns checkpoint confirmation. Ordinary
+runtime diagnostics retain their observational contract.
+
+Failure inventory and frozen context are in
+[mqtt-migration-admission.md](../specs/mqtt-migration-admission.md).
+
+Validation:
+
+- Admission RED: `/tmp/mqtt-migration-admission-red.log`; seven-phase/nine-mode
+  matrix covers missing/invalid/uncovered/recovering evidence, proof refresh,
+  native no-anchor receipts and resuming the same phase without Slot churn.
+- Three-node diagnostic `/tmp/mqtt-migration-isolate2.log` distinguishes native
+  runtime HW from durable checkpoint and independent content coverage.
+  `/tmp/mqtt-migration-progress.log` records the subsequent stale drain fence.
+- Checkpoint/refresh RED and green: `/tmp/mqtt-migration-checkpoint-red.log`,
+  `/tmp/mqtt-migration-checkpoint-green.log`. Graceful phase order and native-lag
+  RED: `/tmp/mqtt-migration-drain-red.log`; hosted package green 5.583 s.
+- `GOWORK=off go test -race ./pkg/channel/... ./pkg/cluster/channels
+  ./pkg/cluster -count=1 -timeout=180s`: passed;
+  `/tmp/mqtt-migration-regression-final.log` (hosted 9.399 s, cluster 12.065 s).
+- Real three-node replacement followed by graceful leader transfer passed with
+  TCP/disks, authoritative Slot tasks and 256 hash Slots. It verifies the target
+  has caught up natively while missing replay, unchanged runnable task/fence,
+  explicit bounded recovery and successful membership/leadership transitions.
+  `/tmp/mqtt-migration-final-integration.log` (12.72 s); combined race regression
+  `/tmp/mqtt-migration-recovery-regression.log` repeats migration (14.83 s) and
+  managed fenced app recovery (11.36 s). Migration scanning is deliberately
+  controlled by an exact real-task selector; background native replication is real.
+- Native cold-follower probing and real three-node replay repair/restart/isolation
+  passed under race detection: `/tmp/mqtt-migration-cold-repair.log`
+  (tests 5.71 s / 10.13 s, package 17.224 s). The earlier combined regex matched
+  only migration/app tests; this separate run uses the exact remaining test names.
+- `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-migration-flow.log`. FLOW index regenerated; diff whitespace clean.
+
+Automatic dead-leader failover ordering is covered by executor tests, not yet a
+real stopped-node MQTT migration test. Replicated source release, consumer-proof
+GC, complete subscription/inbox projection and permission ordering, durable
+subscription/downlink/PUBACK entry paths, unavailable-owner recovery, fenced Will
+execution, full lifecycle/configuration, MQTT offline transfer and process/load
+acceptance remain open. The product listener remains unavailable; the full
+implementation goal remains active.

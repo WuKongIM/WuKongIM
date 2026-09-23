@@ -111,6 +111,9 @@ func (e *MigrationExecutor) runReplicaReplaceFinalTargetCatchUp(ctx context.Cont
 		// A blocked task is excluded from execution and would never recover.
 		return nil
 	}
+	if !migrationReplayReady(probe, task) {
+		return nil
+	}
 	progress := metadb.ChannelMigrationProgress{
 		LeaderLEO:          task.CutoverLEO,
 		LeaderHW:           task.CutoverHW,
@@ -123,6 +126,10 @@ func (e *MigrationExecutor) runReplicaReplaceFinalTargetCatchUp(ctx context.Cont
 func (e *MigrationExecutor) runReplicaReplacePromoteAndRemove(ctx context.Context, task metadb.ChannelMigrationTask) error {
 	if !taskHasCutoverProof(task) || task.DrainedFenceVersion != task.FenceVersion {
 		return e.store.Advance(ctx, task, task.UpdatedAtMS, metadb.ChannelMigrationPhaseFinalTargetCatchUp, metadb.ChannelMigrationStatusRunning, "")
+	}
+	ready, err := e.recheckMigrationReplayTarget(ctx, task)
+	if err != nil || !ready {
+		return err
 	}
 	return e.store.PromoteLearnerAndRemoveSource(ctx, task)
 }
@@ -148,6 +155,9 @@ func (e *MigrationExecutor) runReplicaReplaceVerifyMembership(ctx context.Contex
 	}
 	if err := validateLeaderTransferRuntimeProbe(probe, meta, ch.RoleFollower); err != nil {
 		return e.blockTask(ctx, task, migrationBlockTargetNotReady)
+	}
+	if !migrationReplayReady(probe, task) {
+		return nil
 	}
 	if !writeFenceMatchesTask(probe.WriteFence, task) ||
 		meta.WriteFenceToken != task.TaskID ||

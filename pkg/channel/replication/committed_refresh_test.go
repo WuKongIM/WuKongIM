@@ -16,7 +16,7 @@ func (s *committedRefreshSink) RecordFollowerRepair(r followerRepair) {
 func (s *committedRefreshSink) InstallAuthority(Authority) {}
 
 func TestCommittedReplicaRefreshUsesOnlyInstalledQuorumFrontier(t *testing.T) {
-	for _, mode := range []string{"ok", "empty", "missing", "unready", "released", "changed_epoch", "changed_voters", "changed_quorum", "fenced", "cancel", "invalid_tail"} {
+	for _, mode := range []string{"ok", "empty", "missing", "unready", "released", "changed_epoch", "changed_voters", "changed_quorum", "fenced", "changed_fence", "cancel", "invalid_tail"} {
 		t.Run(mode, func(t *testing.T) {
 			h := newReplicaHarness(t, 1, 2, 3)
 			sink := &committedRefreshSink{}
@@ -47,13 +47,16 @@ func TestCommittedReplicaRefreshUsesOnlyInstalledQuorumFrontier(t *testing.T) {
 				a.WriteQuorum = 3
 			case "fenced":
 				a.WriteFence = ch.WriteFence{Token: "transfer", Version: 1}
+				state.authority.WriteFence = a.WriteFence
+			case "changed_fence":
+				a.WriteFence = ch.WriteFence{Token: "foreign", Version: 2}
 			case "cancel":
 				cancel()
 			case "invalid_tail":
 				state.hw++
 			}
 			err = log.RequestCommittedReplicaRefresh(ctx, a)
-			if mode == "ok" {
+			if mode == "ok" || mode == "fenced" {
 				require.NoError(t, err)
 				require.Len(t, sink.repairs, 2)
 				for i, r := range sink.repairs {
