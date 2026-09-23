@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add recoverable MQTT subscription intent orchestration with owner fencing, bounded subscription admission and safe removal ordering. Distributed source activation and product MQTT admission remain under development. / 新增可恢复的 MQTT 订阅意图编排，按连接 owner 校验、有界接纳订阅并保留撤销顺序；跨节点源保护激活及产品入口仍在开发。
+
 - Add MQTT gateway handshake, authenticated publishing and asynchronous disconnect handling, including normal DISCONNECT followed immediately by TCP close. Verified with Paho against a single-node cluster; product MQTT admission remains under development. / 新增 MQTT 网关握手、认证发布和异步断连处理，正确保留发送 DISCONNECT 后立即关闭 TCP 的正常退出意图；已用 Paho 对单节点集群验证，产品 MQTT 入口仍在开发。
 
 - Add bounded MQTT connection renewal and asynchronous disconnect scheduling, preserving original disconnect timing through retries and joined shutdown. Product MQTT admission remains under development. / 新增有界 MQTT 连接续租与异步断连调度，重试保留原始断连时刻，停止等待已接纳任务完成；产品 MQTT 入口仍在开发。

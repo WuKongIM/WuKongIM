@@ -241,6 +241,12 @@ specification, runbook, report, or module documentation; link to them when neede
   Validate client reason/expiry before cancelling Will, and register normal intent
   before fencing renewal. Real Paho/TCP integration passes; product admission,
   subscription/delivery and complete recovery remain unavailable.
+  [Subscription orchestration](../specs/mqtt-subscription-orchestration.md) persists
+  Preparing/Removing before projection and accepts only exact intent receipts.
+  Resume preserves generation/operation; replacement preserves cursors. Counts
+  use bounded pages plus parent revision CAS. Parent cancellation is checked
+  synchronously, not only through asynchronous propagation. Projection receipts
+  require a real distributed implementation; controlled test receipts are not proof.
   The [Session usecase](../specs/mqtt-session-acquisition.md) verifies device
   credentials without WK conflict actions, isolates the exact old owner, rereads
   authority, atomically commits Session/Will and activates only the local candidate.

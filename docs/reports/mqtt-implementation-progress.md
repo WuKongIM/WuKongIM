@@ -4,7 +4,8 @@ Full goal: implement the approved [MQTT IM access design](../specs/mqtt-im-acces
 Status: in progress; product MQTT admission remains unavailable. Codec/gateway,
 six metadata tables with authoritative Slot access, publication propagation,
 local replay/source-protection storage, Session acquisition/deadlines, owner
-supervision and the internal gateway/PUBLISH entry are implemented. Real Paho/TCP
+supervision, subscription intent orchestration and the internal gateway/PUBLISH
+entry are implemented. Real Paho/TCP
 integration passes on a single-node cluster with 256 hash Slots. Distributed
 replay/source activation, subscription/delivery, Will execution, recovery/restore
 composition and capacity acceptance remain outstanding. No passing product E2E
@@ -1510,3 +1511,64 @@ Subscription/unsubscription/downstream ACK entry, reliable delivery, distributed
 source activation/replay, Will execution, uncertain/unavailable-owner recovery,
 app lifecycle/restore wiring, state transfer and pressure acceptance remain
 required. Product MQTT config stays unavailable and the full goal stays active.
+
+## Recoverable subscription intent orchestration
+
+Source `2a0e94b0a`, frozen context and the pre-code failure inventory are recorded
+in [mqtt-subscription-orchestration.md](../specs/mqtt-subscription-orchestration.md).
+This slice uses existing table 23 and Slot command 68 without a schema change.
+
+`mqttsession.Subscriptions` derives UID from admitted owner execution, checks
+current Session/child evidence and receive authorization, then persists Preparing
+before asking the projection port to establish protected recoverable sources and
+cursors. A matching exact-intent receipt, fresh owner/child read and permission
+recheck precede Active. Active option replacement keeps generation, operation,
+target and authorization version; it never resets delivery progress. QoS 2
+subscription requests are granted at most QoS 1. Changed permission incarnation
+fails closed for the separate revocation mechanism.
+
+Unsubscribe commits Removing before projection seals new matching, and Removed
+only after matching completion evidence. It requires owner evidence but not
+receive permission, so revoked subscriptions can still be removed. Outstanding
+exchanges/content remain the projection/delivery lifecycle's responsibility;
+this usecase does not touch inflight rows. Reconcile resumes existing intent
+under a new owner of the same durable Session lifetime, preserving its stable
+generation and operation identity. A concurrent parent renewal is accepted only
+after rereading an unchanged exact child and the same owner.
+
+Admission defaults to 128 retained subscriptions, 16 pages of 64 rows, and a
+five-second call budget. Preparing and Removing count toward quota; Removed
+tombstones consume scan budget until safe cleanup. All counted pages must share
+one Session revision, which also fences the new-intent CAS against concurrent
+admission. Exhausted scan budgets or invalid cursor/evidence cannot imply space.
+No background worker, per-client lock or unbounded retry loop is introduced.
+
+A deterministic regression showed that an already-cancelled parent could still
+activate intent while its context.AfterFunc callback was pending. Execution now
+checks parent cancellation synchronously at each boundary. Every exit, including
+dependency panic, releases its scope; dependency panic text is not returned.
+
+Verified:
+
+- `GOWORK=off go test ./internal/usecase/mqttsession ./internal/access/mqtt
+  ./internal/runtime/mqttsession -count=1 -timeout=90s`: passed in
+  6.134 / 1.222 / 0.871 seconds; `/tmp/mqtt-subscriptions-regression.log`.
+- `GOWORK=off go test -race ./internal/usecase/mqttsession -run '^TestSubscriptions'
+  -count=1 -timeout=60s`: passed in 3.920 seconds. Existing macOS LC_DYSYMTAB linker
+  warning only; `/tmp/mqtt-subscriptions-race.log`.
+- `GOWORK=off go test -tags=integration ./internal/app
+  -run '^TestMQTTSubscriptionIntentSingleNodeCluster$' -count=1 -timeout=60s -v`:
+  passed in 3.195 seconds. A real single-node cluster with 256 hash Slots verifies
+  unavailable-source Preparing retention, owner resume, stable identity,
+  concurrent real renewal, current membership rejection and removal after revoke.
+  `/tmp/mqtt-subscriptions-integration.log` includes reproducible evidence with
+  `projection=controlled distributed_source_proof=false`.
+- Named `flow-doc-contracts` passed: 86 compliant, zero invalid and the same 9
+  existing line-count warnings. `git diff --check` passed.
+
+The successful projection receipts in these tests are explicitly controlled
+fixtures, never product adapters or independent source durability evidence.
+Actual replicated protection/projection, future-person-source admission, offline
+reconciliation, revocation ordering, source/cursor limits, safe tombstone GC and
+SUBACK/UNSUBACK entry remain required. Product MQTT admission remains unavailable;
+these usecases and tests do not substitute for process-level delivery acceptance.

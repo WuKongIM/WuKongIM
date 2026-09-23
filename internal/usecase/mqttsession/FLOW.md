@@ -1,6 +1,6 @@
 ---
 scope: package
-summary: Coordinates authenticated MQTT Session acquisition, exact-owner isolation, atomic Will decisions, leases, disconnect and deadline reconciliation.
+summary: Coordinates MQTT Session ownership, Will decisions, leases, deadlines and owner-fenced subscription intent/projection recovery.
 ---
 
 # MQTT Session Usecase Flow
@@ -8,12 +8,13 @@ summary: Coordinates authenticated MQTT Session acquisition, exact-owner isolati
 ## Responsibility
 
 This package connects authenticated connection intent to authoritative Session
-metadata and the node-local Owners execution gate. It owns no packet, concrete
-cluster/gateway adapter, background worker or shared replay implementation.
+metadata and the node-local Owners execution gate. Subscriptions coordinates
+intent with an injected durable projection capability. This package owns no
+packet, concrete cluster/gateway adapter, worker or shared replay implementation.
 
 ## Boundaries
 
-- Metadata uses three narrow shared contracts implemented by the foreground-
+- Metadata uses narrow shared contracts implemented by the foreground-
   gated cluster Node; product reads never fall back to local storage.
 - Device-token verification reuses user policy without WK master-device kicks.
 - Will permission is checked at setup and must be checked again on execution;
@@ -46,6 +47,11 @@ cluster/gateway adapter, background worker or shared replay implementation.
    Active expiry still requires exact isolated disconnect; offline Will Delay and
    expiry use one coherent Session/Will read and at most one lifecycle commit.
    Ready work detaches before lifetime expiry and survives later Session ending.
+7. Subscription establishment commits Preparing before projection, checks exact
+   receipt/current child and permission, then commits Active. Removal commits
+   Removing before closing matching work, and preserves outstanding exchanges.
+   Same-lifetime owner resume reconciles stable intent; option replacement keeps
+   its generation and operation. See the [failure inventory](../../../docs/specs/mqtt-subscription-orchestration.md).
 
 ## Invariants and Failure Semantics
 
@@ -64,6 +70,13 @@ cluster/gateway adapter, background worker or shared replay implementation.
 - Deadline scans must page both Session deadlines and Waiting Will deadlines.
   Stale candidates, missing referenced work, changed authority and uncertain
   commits cannot erase an obligation; publication scheduling remains separate.
+- Subscription counts use bounded pages at one parent revision; its CAS rejects
+  concurrent admissions. Pending/removing rows consume quota; tombstones consume
+  scan budget. Parent cancellation is checked synchronously at effect boundaries.
+- Projection receipts are trusted-port assertions, not independent source proof.
+  Product wiring requires replicated protection, initialized cursors, inbox future
+  source admission and safe removal. Membership version changes cannot replace
+  an active subscription silently; delivery/revocation ordering remains required.
 - These usecases are not yet wired into the product listener; full process-level
   MQTT recovery and acceptance remain separate required implementation work.
 
@@ -71,9 +84,9 @@ cluster/gateway adapter, background worker or shared replay implementation.
 
 - [Contracts](types.go), [Acquisition](connect.go)
 - [Lifecycle](lifecycle.go), [Deadline reconciliation](deadlines.go)
-- [Failure inventory](../../../docs/specs/mqtt-session-acquisition.md)
+- [Subscription orchestration](subscriptions.go)
 
 ## Update Triggers
 
 Update when authentication/isolation ordering, lifecycle policy, lease derivation,
-commit evidence, cleanup ownership or product composition changes.
+commit evidence, subscription projection, cleanup ownership or product composition changes.
