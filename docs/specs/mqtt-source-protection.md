@@ -38,6 +38,8 @@ Results own their content. The first oversized row fails the requested budget.
 Portable binary backup carries the System record and validates it against the
 selected HW; import must not accept malformed state or a frontier above the cut.
 Raw source state on restore still needs distributed reactivation before use.
+Shared replay table 2 now provides bounded local copies and metering; its local
+digest cannot authorize this System record's advancement. Cross-node copying,
 MQTT state JSONL transfer/capability gates and full shared replay remain required.
 Older writers ignore this System key and can erase protected content. Activation
 therefore requires matched runtimes on every possible owner; binary-only rollback

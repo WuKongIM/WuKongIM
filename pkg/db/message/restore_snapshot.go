@@ -93,6 +93,6 @@ func ReplayBackupSnapshotReader(
 				}
 			}
 			return maxMessageID, nil
-		},
+		}, nil, false,
 	)
 }

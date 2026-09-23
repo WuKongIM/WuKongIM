@@ -51,6 +51,10 @@ type BackupSnapshotStats struct {
 	MessageCount uint64
 	// MaxMessageID is the greatest durable message ID encoded by the snapshot.
 	MaxMessageID uint64
+	// ReplayMessageCount counts immutable source-shared copies separately.
+	ReplayMessageCount uint64
+	// ReplayStoredBytes counts original row envelopes in shared replay content.
+	ReplayStoredBytes uint64
 }
 
 type messageBackupStream struct {
@@ -159,11 +163,15 @@ func writeMessageBackupSnapshot(ctx context.Context, writer io.Writer, view mess
 	if messageCounts != nil && len(messageCounts) != len(channels) {
 		return dberrors.ErrCorruptState
 	}
+	version, err := selectMessageBackupVersion(ctx, view, channels)
+	if err != nil {
+		return err
+	}
 	checksum := crc32.NewIEEE()
 	payload := io.MultiWriter(writer, checksum)
 	header := make([]byte, 0, 12)
 	header = append(header, messageBackupSnapshotMagic[:]...)
-	header = binary.BigEndian.AppendUint16(header, messageBackupSnapshotVersion)
+	header = binary.BigEndian.AppendUint16(header, version)
 	header = binary.BigEndian.AppendUint16(header, hashSlot)
 	header = binary.BigEndian.AppendUint32(header, uint32(len(channels)))
 	if _, err := payload.Write(header); err != nil {
@@ -177,10 +185,15 @@ func writeMessageBackupSnapshot(ctx context.Context, writer io.Writer, view mess
 		if err := writeBackupChannel(ctx, payload, view, channel, messageCount); err != nil {
 			return err
 		}
+		if version == mqttReplayBackupVersion {
+			if err := writeMQTTReplayBackup(ctx, payload, view, channel); err != nil {
+				return err
+			}
+		}
 	}
 	trailer := make([]byte, 4)
 	binary.BigEndian.PutUint32(trailer, checksum.Sum32())
-	_, err := writer.Write(trailer)
+	_, err = writer.Write(trailer)
 	return err
 }
 
@@ -341,6 +354,19 @@ func inspectMessageBackupSnapshot(ctx context.Context, view messageBackupReadVie
 		stats.MessageCount += counts[index]
 		if maxMessageID > stats.MaxMessageID {
 			stats.MaxMessageID = maxMessageID
+		}
+		replay, present, err := mqttReplayBackupState(view, channel)
+		if err != nil {
+			return BackupSnapshotStats{}, nil, err
+		}
+		if present {
+			result, err := visitMQTTReplayBackup(ctx, view, channel.Key, replay, nil)
+			if err != nil {
+				return BackupSnapshotStats{}, nil, err
+			}
+			if err := addMQTTReplayBackupStats(&stats, result); err != nil {
+				return BackupSnapshotStats{}, nil, err
+			}
 		}
 	}
 	return stats, counts, nil
@@ -547,6 +573,9 @@ func visitBackupMessages(ctx context.Context, view messageBackupReadView, channe
 
 // ImportBackupSnapshot verifies and installs one portable message snapshot into a restore target.
 func (db *MessageDB) ImportBackupSnapshot(ctx context.Context, data []byte) (BackupSnapshotStats, error) {
+	if len(data) >= 6 && binary.BigEndian.Uint16(data[4:6]) == mqttReplayBackupVersion {
+		return db.ImportBackupSnapshotReader(ctx, bytes.NewReader(data), int64(len(data)))
+	}
 	if err := db.beginUse(); err != nil {
 		return BackupSnapshotStats{}, err
 	}
@@ -647,6 +676,9 @@ func (db *MessageDB) ImportBackupSnapshot(ctx context.Context, data []byte) (Bac
 }
 
 func (db *MessageDB) importBackupChannel(ctx context.Context, reader *bytes.Reader, key ChannelKey, id ChannelID, checkpoint Checkpoint, systemEntries []backupRawEntry, messageCount uint64) (uint64, error) {
+	if err := rejectExistingMQTTReplay(db, key); err != nil {
+		return 0, err
+	}
 	if err := validateBackupProposalSystemEntries(key, checkpoint.HW, systemEntries); err != nil {
 		return 0, err
 	}

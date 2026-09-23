@@ -859,3 +859,52 @@ restore fencing, MQTT state JSONL transfer, capabilities and full session/networ
 execution remain necessary. Product MQTT stays unavailable; the full goal remains
 active. Old writers can ignore this protection, so mixed-writer activation is
 explicitly unsupported.
+
+## Shared replay replica table and portable recovery
+
+Frozen source `7d53fd4c4`, applicable digests and the pre-code failure inventory
+are recorded in [`mqtt-shared-replay.md`](../specs/mqtt-shared-replay.md).
+Repository boundary review keeps message bodies out of Slot metadata commands.
+The seventh logical table is message-domain table 2, in the original Channel
+partition, with independent source-incarnation/position/content-version keys.
+No ordinary global MessageID index entry is created for a shared copy.
+
+Bounded copies require protected, committed, contiguous original source records.
+They synchronously commit immutable content, prefix counters, small metering
+index 2 and table System 1 together. Repeated copies read existing content after
+source cleanup; errors cannot leave a partially copied page. Original publication
+properties and all message fields are retained. `PayloadSize` is canonicalized
+to actual payload length because append/fetch callers can supply different local
+size hints for identical publications. A two-replica storage test first reproduced
+different content/proofs from those hints and now proves equality. Copying does
+not advance source System 12: no local digest is claimed as quorum evidence.
+
+Range counts use two small cumulative endpoints without fetching bodies. Read
+pages validate contiguous digest links and own their bytes. Copying across a
+missing durable tail first passed incorrectly in a RED test, then failed closed
+after explicit tail verification. The shared keyspace survives ordinary history
+cleanup and database reopen, without per-session content duplication.
+
+Pinned binary backups use version 2 only when replay content exists, including
+the frontier and each original-content row. Native-only streams keep version 1.
+Both new-format import entrypoints preflight the entire stream and target replay
+coverage before writing; restore rebuilds metering and publishes the frontier
+last. A RED target-conflict test exposed source-state overwrite by older backups;
+v1/v2 imports now reject conflicting replay coverage before that overwrite.
+Tests also cover exact import retry, corrupt replay under a repaired outer CRC,
+snapshot pinning during another copy, all ordinary history already removed,
+source/cut mismatch, missing positions, bounds and key-bound row corruption.
+
+Validation passed:
+
+- `GOWORK=off go test ./pkg/db/... ./pkg/channel/... -count=1 -timeout=90s`.
+- After size-hint canonicalization, the complete MessageDB suite and focused
+  `-race` replay tests passed. The existing macOS linker warning remains.
+- Named `flow-doc-contracts`: 83 compliant, zero invalid, 9 existing warnings;
+  the FLOW index was regenerated. `git diff --check` passed.
+
+All seven logical tables now have storage groundwork. This slice does not add
+distributed replay replication, source activation, migration/learner catch-up,
+consumer-proof GC, MQTT-state JSONL, restored-owner fencing or product wiring.
+Those and the persistent session/network runtime remain required; MQTT access
+stays unavailable and the full implementation goal remains active.

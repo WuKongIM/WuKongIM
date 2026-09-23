@@ -103,6 +103,9 @@ storage core without transferring shared-engine ownership.
   MQTT System 12 clamps physical trim at copied-through without holding logical
   visibility back. Its bounded original-source reader fences incarnation/HW and
   fails on gaps; local CAS applies a decision but proves no distributed authority.
+  Shared replay table 2 copies committed original content and prefix counters
+  atomically, canonicalizes size hints, and meters ranges through small index-2
+  endpoints. Local coverage never advances System 12 or claims quorum durability.
   Suffix cuts never split proposals; recovery replacement is fenced by the
   inspected frontier and atomically replaces complete verified proposal pages.
 - Queue-depth publication is monotonic through grouped collection and terminal
@@ -121,6 +124,9 @@ storage core without transferring shared-engine ownership.
 - Backup count and content come from one pinned view; restore is exact-retry
   idempotent, conflicts with different state, and cleans partial rows in bounded
   batches before retry.
+  Replay-bearing backups use version 2; native-only streams stay version 1.
+  Preflight validates replay chains and target coverage before writes; restore
+  rebuilds metering without inserting shared copies into the global message index.
 
 ## Read First
 

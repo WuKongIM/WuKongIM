@@ -37,11 +37,11 @@ func (db *MessageDB) ImportBackupSnapshotReader(ctx context.Context, source io.R
 	if err := verifyMessageBackupStreamChecksum(source, size); err != nil {
 		return BackupSnapshotStats{}, err
 	}
-	stats, err := parseMessageBackupStream(ctx, source, size, validateMessageBackupChannel)
+	stats, err := parseMessageBackupStream(ctx, source, size, validateMessageBackupChannel, db, false)
 	if err != nil {
 		return BackupSnapshotStats{}, err
 	}
-	installed, err := parseMessageBackupStream(ctx, source, size, db.importMessageBackupChannelStream)
+	installed, err := parseMessageBackupStream(ctx, source, size, db.importMessageBackupChannelStream, db, true)
 	if err != nil {
 		return BackupSnapshotStats{}, err
 	}
@@ -76,7 +76,7 @@ func verifyMessageBackupStreamChecksum(source io.ReadSeeker, size int64) error {
 	return nil
 }
 
-func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size int64, visit func(context.Context, *bufio.Reader, messageBackupChannelHeader) (uint64, error)) (BackupSnapshotStats, error) {
+func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size int64, visit func(context.Context, *bufio.Reader, messageBackupChannelHeader) (uint64, error), replayTarget *MessageDB, installReplay bool) (BackupSnapshotStats, error) {
 	if _, err := source.Seek(0, io.SeekStart); err != nil {
 		return BackupSnapshotStats{}, err
 	}
@@ -86,7 +86,7 @@ func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size in
 		return BackupSnapshotStats{}, dberrors.ErrCorruptValue
 	}
 	version, err := readMessageBackupStreamUint16(reader)
-	if err != nil || version != messageBackupSnapshotVersion {
+	if err != nil || (version != messageBackupSnapshotVersion && version != mqttReplayBackupVersion) {
 		return BackupSnapshotStats{}, dberrors.ErrCorruptValue
 	}
 	hashSlot, err := readMessageBackupStreamUint16(reader)
@@ -161,6 +161,11 @@ func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size in
 		if err := validateBackupProposalSystemEntries(key, checkpoint.HW, systemEntries); err != nil {
 			return BackupSnapshotStats{}, err
 		}
+		if version == messageBackupSnapshotVersion {
+			if err := rejectExistingMQTTReplay(replayTarget, key); err != nil {
+				return BackupSnapshotStats{}, err
+			}
+		}
 		maxMessageID, err := visit(ctx, reader, header)
 		if err != nil {
 			return BackupSnapshotStats{}, err
@@ -172,6 +177,18 @@ func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size in
 		if maxMessageID > stats.MaxMessageID {
 			stats.MaxMessageID = maxMessageID
 		}
+		if version == mqttReplayBackupVersion {
+			replay, err := readMQTTReplayBackup(ctx, reader, header, replayTarget, installReplay)
+			if err != nil {
+				return BackupSnapshotStats{}, err
+			}
+			if err := addMQTTReplayBackupStats(&stats, replay); err != nil {
+				return BackupSnapshotStats{}, err
+			}
+		}
+	}
+	if version == mqttReplayBackupVersion && stats.ReplayMessageCount == 0 {
+		return BackupSnapshotStats{}, dberrors.ErrCorruptValue
 	}
 	if _, err := reader.ReadByte(); err != io.EOF {
 		return BackupSnapshotStats{}, dberrors.ErrCorruptValue

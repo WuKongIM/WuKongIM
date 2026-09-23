@@ -5,6 +5,11 @@ and retention boundary are specified in [the source contract](mqtt-source-protec
 This replica primitive is not replicated activation or proof of shared-content
 durability; those remain required before MQTT access can open.
 
+The seventh logical table is message-domain table 2, `mqtt_replay_message`, not a
+Slot payload table. Its row, metering index, local frontier and backup-v2 contract
+are frozen in [shared replay storage](mqtt-shared-replay.md). All seven tables now
+have storage groundwork; the distributed runtime remains incomplete.
+
 The approved [design](mqtt-im-access.md) remains the product contract. This file
 freezes durable identifiers and failure cases before implementing each storage
 slice. No storage primitive by itself authorizes a cluster session or proves an

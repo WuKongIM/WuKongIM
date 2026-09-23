@@ -1,6 +1,6 @@
 # MQTT IM 接入实施计划
 
-状态：实施中；codec、网关接口和 session/subscription/cursor/inflight/source_binding/will 六张表的存储基础及 Slot 命令已建立，MQTT 产品监听及完整持久运行时尚未接通。依据：[MQTT IM 接入设计](../../specs/mqtt-im-access.md)。
+状态：实施中；codec、网关接口和 session/subscription/cursor/inflight/source_binding/will 六张表的存储基础及 Slot 命令、共享回放表的副本存储与备份已建立，MQTT 产品监听及完整持久运行时尚未接通。依据：[MQTT IM 接入设计](../../specs/mqtt-im-access.md)。
 
 本计划交付 MQTT 5.0、QoS 0/1、精确主题、持久会话、跨节点接管、受权限约束的可靠恢复和 Will。阶段完成不等于整体完成；仅在线收发的版本不能作为本次需求交付。
 
@@ -18,7 +18,8 @@
 - 发布元数据 codec、PUBLISH/Will 应用映射、message 可选列 21、复制记录 codec 2 及精确 proposal format 3 已实现；验证重启、二进制备份、不可变摘要和字节预算。Channel 存储、运行时、复制 exchange 6 与 RPC codec 11 已补齐元数据传播、独立字节所有权及预算；旧版有损编码明确拒绝。SendCommand、committed envelope、产品 append runtime/RPC 3 已贯通；业务重试核对原始内容并保留首次时间，原始提交读取保留权威/HW/retention 校验且不受消息编辑影响。owner-push RPC 2 已保留发布元数据、时间与完整消息设置；消息 JSONL 导出/导入及摘要对比已保留元数据、原始时间和字节预算；MQTT 状态离线迁移、恢复 fencing 及能力门控仍待完成。
 - Will 发布使用 metadata v2 的稳定身份和 message 唯一索引 8；普通幂等索引 4 保持独立，客户端消息号仍参与历史查询。配置阶段预留 79 字节身份空间，发送入口拒绝未绑定身份的 Will 模板；真实单节点集群覆盖跨域同号、相同 Will 重试、不同 Will 共存及内容冲突拒绝。
 - 源保护 System 12 已实现副本级 CAS、转存回执引用、物理保留限制和绕过逻辑历史的有界原文读取；读取核对源代次/HW 并拒绝缺口，二进制备份验证并保留状态。该存储接口尚未接入复制激活，不能独立授权 SUBACK 或推进共享内容证明。
-- 单节点/三节点产品 E2E 场景已编译，首次单节点运行因缺失 MQTT 配置项失败；app 接入、生命周期权威编排与 owner 隔离、共享 replay、源保护、持久会话/Will/配额及 MQTT 状态离线迁移仍待实现，不能开启入口或声明功能完成。
+- 共享回放采用 message-domain table 2；有界复制原始内容与进度原子提交，规范化副本计量提示，独立小型索引完成范围计量。二进制备份 v2 保留并验证回放链，普通备份保持 v1；复制不推进源释放水位，分布式复制、迁移与消费者证明 GC 仍待接通。
+- 单节点/三节点产品 E2E 场景已编译，首次单节点运行因缺失 MQTT 配置项失败；app 接入、生命周期权威编排与 owner 隔离、共享 replay 的跨节点复制、源保护激活、持久会话/Will/配额及 MQTT 状态离线迁移仍待实现，不能开启入口或声明功能完成。
 - 验证与冻结源码依据见 [实施记录](../../reports/mqtt-implementation-progress.md)。
 
 ## 开工合同

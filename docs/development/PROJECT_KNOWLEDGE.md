@@ -219,6 +219,11 @@ specification, runbook, report, or module documentation; link to them when neede
   references. It clamps physical trim independently of logical history; protected
   reads retain HW and reject gaps. Local CAS is not replicated activation or copy
   proof. Every possible owner must support this guard before activation.
+  Shared replay is message-domain table 2, never Slot message-body storage. Its
+  atomic local copies normalize size hints and preserve original publication
+  content; index 2 meters prefix ranges without reading bodies. Binary backup 2
+  validates/rebuilds the shared keyspace without global-ID duplicates; native-only
+  backup stays version 1. Replica storage is not cross-node durability or safe GC.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.

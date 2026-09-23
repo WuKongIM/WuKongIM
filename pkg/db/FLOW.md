@@ -49,6 +49,9 @@ It does not own product policy or expose Pebble-specific APIs to callers.
 - Message JSONL preserves optional publication metadata and validates its bounds
   and source timestamp before import. Native rows/digests remain unchanged;
   import budgets and both comparison modes include the complete metadata.
+- Shared replay stays in the message domain, separate from Slot metadata. Binary
+  backup version 2 includes its content and progress; MQTT JSONL state transfer
+  and distributed restore activation remain separate required work.
 
 ## Read First
 

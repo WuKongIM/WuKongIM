@@ -45,6 +45,17 @@ runtimes and restored-owner fencing; local storage apply is not that activation.
 JSONL transfer and shared-replay integration remain pending. See
 [the source contract](../../docs/specs/mqtt-source-protection.md).
 
+Message-domain table 2 stores immutable MQTT shared replay by source incarnation,
+position and content version. Index 2 provides bounded cumulative counters;
+System 1 publishes the copied prefix. Neither copying nor a local digest grants
+source-release authority. Canonical content normalizes replica-local size hints.
+Replay-bearing binary backups use version 2, validate complete digest chains and
+existing target coverage before writes, then rebuild the counting index without
+ordinary global-ID entries. Native-only backups retain version 1. Older binaries
+and tools cannot restore version 2. Distributed replication, consumer-proof GC,
+MQTT-state JSONL and restored-owner fencing remain required before activation.
+See [the replay contract](../../docs/specs/mqtt-shared-replay.md).
+
 MQTT groundwork adds metadata tables 22 (`mqtt_session`), 23
 (`mqtt_subscription`), 24 (`mqtt_delivery_cursor`), 25 (`mqtt_inflight`), 26
 (`mqtt_source_binding`) and 27 (`mqtt_will`), with Slot commands 67–73.
@@ -61,7 +72,7 @@ not establish remote authority by themselves. Optional window columns retain
 legacy zero defaults; lifecycle CAS preserves delivery-owned counters and
 allocators within a generation. Rows use key-bound checksum column envelopes;
 commands have bounded, explicitly versioned bodies. Snapshots and inspection
-preserve this state. Product MQTT access remains disabled: routing/activation, other MQTT tables, offline
+preserve this state. Product MQTT access remains disabled: routing/activation, distributed shared replay, offline
 transfer, restored-owner fencing and capability gates are still required before
 this feature can be enabled. Details and frozen IDs are in
 [the MQTT storage contract](../../docs/specs/mqtt-storage-contract.md).
