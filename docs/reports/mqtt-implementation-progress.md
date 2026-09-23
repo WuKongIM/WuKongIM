@@ -373,3 +373,70 @@ Validation for this source-binding slice (2026-09-23):
   zero invalid and the same 9 pre-existing length warnings.
 - The final focused source-binding/FSM/catalog suite passed after tightening
   canonical UID-key decoding. `git diff --check` passed.
+
+
+## Durable Will storage and execution receipts
+
+Frozen source context at `934300b18`; the previous turn was verified progress:
+
+- Root `AGENTS.md`: `d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade`
+- `pkg/db/FLOW.md`: `49c5fe18bcf98edd7bc072dececaf0114f8d51d77f52cffb96b49f240dd2584e`
+- `pkg/db/meta/FLOW.md`: `0a30b90143e4d37b7e6f05c47583d3e91695fffe53bb2148a775b3a9256ed33f`
+- `pkg/slot/FLOW.md`: `513bc1394e92a5b0b6e8369b7e86f2d210a7a7ad0785423b9b34504d682387a1`
+
+Table 27 and command 72 add bounded immutable Will content, separate Session
+proof and record revisions, cancellable delay, durable publication obligation,
+execution leases and terminal publication/rejection/cancellation receipts. An
+expired executor cannot complete work; reclaim increments the execution fence.
+Old Session generations remain addressable after a replacement. Canonical
+server Will identities remain stable across execution retries, but require a
+separate append-idempotency domain before publication is wired. Merely placing
+a prefix in ordinary client-controlled message numbers would not isolate them.
+
+The payload is limited to MQTT CONNECT's 65,535-byte Binary Data bound and the
+opaque versioned publication metadata to 32 KiB. The row uses a 128-KiB checksum
+column envelope and the command a 256-KiB strict versioned JSON envelope. Inputs
+are cloned before asynchronous batch commit; decoded bytes are owned. Recovery
+pages carry full tie breakers and are capped at 256; runtime scheduling must use
+smaller count/byte budgets appropriate to full-body rows. Inspection includes
+references and byte counts without publication bodies or opaque properties.
+
+Failure cases and tests preceded implementation. Metadata tests cover immutable
+intent, exact/stale retry, newer decision proof, cancellation deadline, early
+Session-end acceleration, zero delay, worker theft/renewal/reclaim and expired
+completion, terminal receipt survival, byte ownership, neighboring rollback,
+bounds/checksum/future columns, deadline index changes, pinned snapshots and
+redacted inspection. FSM tests cover ordered apply, stale replay, owned hash
+Slots, apply watermark, restored receipts and maximum-size/malformed commands.
+One failing test initially changed disconnect time beyond its update time; its
+fixture was corrected to a structurally valid attempted boundary rewrite so it
+checks transition fencing rather than unrelated row validation.
+
+The [OASIS MQTT 5.0 standard](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html)
+was checked for Will Delay, Session-end/resume/takeover and Message Expiry rules.
+This primitive records decisions; it does not yet establish product protocol
+correctness. Next, one Slot operation must atomically update the Session,
+resolve its old Will and install any new Will. Two independently successful CAS
+operations cannot substitute for that boundary. Generic Session CAS and quota
+termination must be integrated with it so no lifecycle path strands Armed or
+Waiting work. Lease restoration, current authorization and ambiguous publication
+resolution also remain required. The opaque publication metadata body still
+needs its shared entry-neutral codec and replication/append contract.
+
+Six of seven planned tables now have storage primitives. The full approved goal
+remains active: Session/Will atomic lifecycle, shared replay/publication metadata,
+protected sources and first-contact discovery, authority/isolation, permission
+ordering, global pressure, expiry/cleanup, transfer/restore and rollout gates,
+product wiring, process interop and scale acceptance remain incomplete. Product
+MQTT is disabled and its E2E remains RED; no real Will publication is claimed.
+
+Validation for this Will storage slice (2026-09-23):
+
+- Focused metadata/FSM Will and complete inspection-catalog tests passed.
+- `GOWORK=off go test ./pkg/db/... ./pkg/slot/... -count=1 -timeout=90s` passed.
+- `GOWORK=off go test -race ./pkg/db/meta ./pkg/slot/fsm -run 'TestMQTT' -count=1 -timeout=45s` passed,
+  with the existing macOS LC_DYSYMTAB linker warning.
+- Named `flow-doc-contracts` passed after index regeneration: 81 compliant,
+  zero invalid and the same 9 pre-existing length warnings.
+- `git diff --check` passed. Last edits after the tests only format comparisons,
+  add comments and update documentation.

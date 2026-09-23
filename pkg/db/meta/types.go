@@ -190,6 +190,8 @@ const (
 	TableIDMQTTInflight uint32 = 25
 	// TableIDMQTTSourceBinding stores source-owned subscription projections.
 	TableIDMQTTSourceBinding uint32 = 26
+	// TableIDMQTTWill retains configuration, obligations and execution receipts.
+	TableIDMQTTWill uint32 = 27
 )
 
 const (

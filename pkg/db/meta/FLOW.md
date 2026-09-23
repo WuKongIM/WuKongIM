@@ -42,18 +42,18 @@ It does not own product business policy or expose engine-specific APIs.
    hits/fills while active, advancing Hash-Slot generations on entry and exit
    even after failure. Late misses cannot fill a newer generation. Replica slices
    are cloned on return, and authority/routing checks remain outside storage.
-7. MQTT session bindings use revision CAS with independent session/owner
-   generations. Complete-key deadline pages cover active leases and offline
-   expiry; ended rows retain UID binding. Subscription intents atomically check
-   owner/revision, preserve generation on option replacement, and index recovery
-   stages. Each child stores its last mutation revision to prove exact retries.
-   Per-source delivery cursors separate backlog accounting from window admission
-   and completion. Accounting and aggregate quota termination share one Slot
-   commit; cursor revision/digest witnesses exact retries. The bounded inflight
-   list preserves the earliest gap on out-of-order ACK. Exchange/cursor/session
-   changes are atomic; recovery uses original send order and immutable references.
-   Source/UID bindings retain removal tombstones and index candidate discovery,
-   reconciliation and conservative retention floors; unknown boundaries block GC.
+7. MQTT sessions separate lifetime/owner generations, revision and deadline pages;
+   ended rows retain UID binding. Subscription writes fence owner/revision and
+   preserve generation on option replacement; child receipts prove exact retries.
+   Delivery cursors separate backlog accounting, window admission and completion.
+   Accounting and quota termination share one Slot commit. The bounded inflight
+   list preserves earliest ACK gaps; exchange/cursor/session updates are atomic,
+   and recovery uses immutable references in original send order.
+   Source/UID bindings retain removal tombstones and index discovery, reconciliation
+   and conservative retention floors; unknown boundaries block reclamation.
+   Will records outlive Session replacement. Cancellable delays, leased execution
+   and terminal receipts are distinct; bodies are bounded and omitted from inspect.
+   Atomic Session/Will lifecycle and publication authority remain integration work.
 
 ## Invariants and Failure Semantics
 

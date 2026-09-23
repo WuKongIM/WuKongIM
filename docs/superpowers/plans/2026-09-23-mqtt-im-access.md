@@ -1,6 +1,6 @@
 # MQTT IM 接入实施计划
 
-状态：实施中；codec、网关接口和 session/subscription/cursor/inflight/source_binding 五张表及 Slot 命令已建立，MQTT 产品监听及完整持久运行时尚未接通。依据：[MQTT IM 接入设计](../../specs/mqtt-im-access.md)。
+状态：实施中；codec、网关接口和 session/subscription/cursor/inflight/source_binding/will 六张表的存储基础及 Slot 命令已建立，MQTT 产品监听及完整持久运行时尚未接通。依据：[MQTT IM 接入设计](../../specs/mqtt-im-access.md)。
 
 本计划交付 MQTT 5.0、QoS 0/1、精确主题、持久会话、跨节点接管、受权限约束的可靠恢复和 Will。阶段完成不等于整体完成；仅在线收发的版本不能作为本次需求交付。
 
@@ -14,7 +14,8 @@
 - `mqtt_delivery_cursor`（table 24）及命令 69 已实现：按订阅/源代次持久初始化边界、积压计量和配额超限终止，与会话计数原子更新；计量不会推进投递完成水位。已与新增窗口命令建立存储层联动。
 - `mqtt_inflight`（table 25）及命令 70 已实现：有界窗口、不可变内容引用、原发送顺序、乱序 ACK 的缺口保护、原子释放计数及 ACK 删除后的精确重试；新窗口列兼容旧行，生命周期 CAS 不再改写投递计数。尚未接通网络发送、跨节点 owner 隔离或共享内容持久证明。
 - `mqtt_source_binding`（table 26）及命令 71 已实现：源/UID 独立 CAS、单调生命周期与进度证明、撤销终态防止迟到准备复活、用户收件箱发现进度、候选/恢复/保留水位分页及快照重放。分布式权威读取、源保护复制和首条单聊消息握手仍待接通。
-- 单节点/三节点产品 E2E 场景已编译，首次单节点运行因缺失 MQTT 配置项失败；app 接入、Will 元数据表、共享 replay、发布元数据复制、源保护、持久会话/Will/配额及离线迁移仍待实现，不能开启入口或声明功能完成。
+- `mqtt_will`（table 27）及命令 72 已实现：不可变发布内容、延迟/取消/待执行状态、执行租约与过期接管、持久结果回执、稳定服务端重试身份、恢复分页和脱敏诊断。会话切换与 Will 的原子联动、服务端幂等域、发布授权和真实发送仍待接通。
+- 单节点/三节点产品 E2E 场景已编译，首次单节点运行因缺失 MQTT 配置项失败；app 接入、Session/Will 原子生命周期、共享 replay、发布元数据复制、源保护、持久会话/Will/配额及离线迁移仍待实现，不能开启入口或声明功能完成。
 - 验证与冻结源码依据见 [实施记录](../../reports/mqtt-implementation-progress.md)。
 
 ## 开工合同

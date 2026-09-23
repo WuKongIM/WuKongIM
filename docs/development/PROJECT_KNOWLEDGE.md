@@ -198,6 +198,10 @@ specification, runbook, report, or module documentation; link to them when neede
   Source-owned binding tombstones prevent delayed prepares from resurrecting a
   subscription. Unknown source boundaries block reclamation; stored progress
   requires current remote authority and source protection before use.
+  Will obligations retain their original Session generation after replacement.
+  Session transitions and old/new Will decisions must commit atomically. Server
+  Will retry identities require a distinct append-idempotency domain; a reserved
+  string prefix alone cannot prevent client-controlled key collisions.
   Session/subscription Slot writes fence owner and revision atomically; repeated
   subscription options preserve delivery generation, and exact retry uses the
   child's own last-mutation revision. These storage primitives do not prove source

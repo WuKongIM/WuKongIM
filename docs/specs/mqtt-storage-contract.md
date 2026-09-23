@@ -305,3 +305,70 @@ and rollback; complete-key candidate/recovery/retention pages and index removal;
 corrupt/bounded codec, inspection, snapshot, replay and Slot ownership. Product
 proof validation, source-system replication and first-message handshake remain
 required, not capabilities conferred by this storage primitive.
+
+## Durable Will records and execution receipts
+
+`mqtt_will` uses table **27**, family **0**, primary index **1** and recovery
+index **2**. The key is `(namespace, client_id, original_session_generation,
+will_generation)` and routes to the ClientID's Slot. Old obligations survive
+replacement of the current Session. Will generation is allocated by the Session
+lifecycle, not by a client. The originating owner tuple is immutable evidence,
+not authority for an old connection to modify the current Session.
+
+Value columns 5–33 are UID, origin owner generation/node/boot/connection,
+row revision, Session decision revision, exact topic, target ID/type, payload,
+publication metadata, Will Delay seconds, QoS, client message number, server
+idempotency identity, stage, disconnect time, due time, execution generation,
+executor node/boot/lease, cancellation reason, rejection reason, resulting
+MessageID/MessageSeq, publication time and update time. Column 34 is the derived
+recovery deadline. Required version-1 checksum column values are bounded to
+128 KiB. Payload is at most 65,535 bytes (CONNECT Binary Data); optional opaque
+publication metadata is at most 32 KiB and starts with format version 1. The
+shared publication contract must validate its contents before use. Will Delay
+is scheduling state, not a forwarded PUBLISH property. Message Expiry starts
+with publication, not configuration, disconnection or the delay period.
+
+Stages are Armed (1), Waiting (2), Ready (3), Executing (4), Published (5),
+Cancelled (6) and Rejected (7). Creation starts Armed. An authoritative Session
+decision moves Armed to Waiting/Ready/Cancelled. Waiting becomes Ready at its
+deadline, or earlier after a newer Session-end decision; a same-Session resume
+may cancel it strictly before its due time. Waiting cannot change its captured
+disconnect time or extend its deadline. Ready is a durable publication obligation
+and cannot be cancelled by a later connection. Normal DISCONNECT cancellation
+is valid from Armed; resume cancellation requires a nonzero Will Delay. Terminal
+records do not reactivate. Stored decision revisions must increase for lifecycle
+changes; they are caller-supplied proof references, not authenticated by row CAS.
+
+Ready can acquire one execution lease. Renewal keeps generation and executor;
+reclaim requires expiry and exactly one generation increment. Only that executor
+may record Published/Rejected while its lease is valid. Ambiguous execution is
+retried with the same immutable publication and server-owned idempotency identity.
+The identity is `mqtt-will-v1:` plus SHA-256 of the version-1 canonical key JSON;
+it is **not** an ordinary client `ClientMsgNo`. The future message append contract
+must give server Will identities a separate idempotency domain so a caller cannot
+forge a colliding client message number. A row/lease alone grants no permission
+to publish: current authorization and duplicate-result resolution remain required.
+
+Armed and terminal rows have no recovery index entry. Waiting/Ready use due time;
+Executing uses lease expiry. Complete-key pages are capped at 256 and bodies are
+owned copies. Inspection exposes status, references and byte counts, not payload
+or opaque properties. Terminal cleanup, global limits and durable idempotency
+retention must be coordinated; no unconditional delete API is introduced here.
+
+Slot command **72** is a version-1, at-most-256-KiB CAS envelope with strict
+unknown-field/trailing-data checks. This first Will slice is the row/execution
+primitive. Atomic Session transition plus old-Will resolution/new-Will install
+is still required before connecting the product lifecycle; independent CAS calls
+must never be treated as that atomic transition. Source snapshots alone do not
+validate restored execution leases.
+
+Failure inventory before implementation: key/namespace/generation isolation;
+immutable identity/body/target/options; exact versus changed or stale retry;
+stale decision proof, early/late cancel, due-time regression/extension, terminal
+resurrection; live executor theft, expired executor completion, lease renewal and
+reclaim; stable publication receipt under replay; owned input/output byte slices;
+bounded bodies/metadata/pages/commands; checksum and unknown-column behavior;
+same-batch visibility and neighboring rollback; deadline index changes, pinned
+snapshot/inspection, Slot ownership and applied watermark. Product-level Will
+scheduling, authorization, atomic lifecycle and duplicate publication remain E2E
+requirements. Protocol basis: [OASIS MQTT 5.0, sections 3.1.2.5 and 3.1.3.2](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).

@@ -52,10 +52,10 @@ plugin, migration, message projections, and MQTT session state.
 3. Maintenance and migration controls use the same fenced worker/FSM path:
    snapshots and backup prove an applied boundary, while Channel migration
    advances task and runtime metadata together through guarded phases.
-4. Bounded/versioned MQTT commands fence Session children and source/UID bindings.
-   Backlog overflow ends sessions; ACK preserves earlier gaps; removed source
-   bindings reject delayed prepare. Rows/indexes/applied progress commit together.
-   Snapshot/replay preserves exact receipts; remote authority remains caller proof.
+4. Bounded/versioned MQTT commands persist Session children, source bindings and
+   Will obligations. Overflow ends sessions; ACK preserves gaps; tombstones fence
+   stale work. Rows/indexes/applied progress commit together and preserve receipts.
+   Remote authority and atomic Session/Will lifecycle remain integration work.
 
 ## Invariants and Failure Semantics
 
