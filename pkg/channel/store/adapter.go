@@ -421,3 +421,9 @@ type MQTTReplayAnchorFactory interface{ SupportsMQTTReplayAnchors() bool }
 type MQTTReplayAnchorReader interface {
 	LoadMQTTReplayAnchor(context.Context, uint64) (ch.MQTTReplayAnchorProof, bool, error)
 }
+
+// MQTTReplayAnchorStateReader returns source/latest/exact-command evidence from
+// one snapshot at already persisted HW; it must not mutate committed progress.
+type MQTTReplayAnchorStateReader interface {
+	ReadMQTTReplayAnchors(context.Context, uint64, ch.CommandID) (ch.MQTTReplayAnchorState, error)
+}

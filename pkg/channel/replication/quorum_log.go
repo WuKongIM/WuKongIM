@@ -252,6 +252,15 @@ func (l *quorumLog) Commit(ctx context.Context, proposal Proposal) (Receipt, err
 	}
 	state.mu.Lock()
 	defer state.mu.Unlock()
+	return l.commitLocked(ctx, state, proposal)
+}
+
+// commitLocked shares the installed Channel sequencer with typed control admission.
+// The caller owns state.mu until durability and frontier publication complete.
+func (l *quorumLog) commitLocked(ctx context.Context, state *quorumChannel, proposal Proposal) (Receipt, error) {
+	if err := ctx.Err(); err != nil {
+		return Receipt{}, err
+	}
 	if !state.ready {
 		return Receipt{}, ch.ErrNotReady
 	}

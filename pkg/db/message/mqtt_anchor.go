@@ -168,12 +168,16 @@ func (l *ChannelLog) LoadMQTTReplayAnchor(ctx context.Context, position uint64) 
 		return MQTTReplayAnchorProof{}, false, err
 	}
 	defer view.Close()
-	value, found, err := view.Get(mqttReplayAnchorKey(l.key, position))
+	return loadMQTTReplayAnchorFrom(view, l.key, position)
+}
+
+func loadMQTTReplayAnchorFrom(view proposalReadView, key ChannelKey, position uint64) (MQTTReplayAnchorProof, bool, error) {
+	value, found, err := view.Get(mqttReplayAnchorKey(key, position))
 	if err != nil {
 		return MQTTReplayAnchorProof{}, false, err
 	}
 	if !found {
-		entry, present, err := loadDurableEntryIdentityFrom(view, l.key, position)
+		entry, present, err := loadDurableEntryIdentityFrom(view, key, position)
 		if err != nil {
 			return MQTTReplayAnchorProof{}, false, err
 		}
@@ -182,11 +186,11 @@ func (l *ChannelLog) LoadMQTTReplayAnchor(ctx context.Context, position uint64) 
 		}
 		return MQTTReplayAnchorProof{}, false, nil
 	}
-	row, a, err := decodeMQTTAnchorJournal(l.key, position, value)
+	row, a, err := decodeMQTTAnchorJournal(key, position, value)
 	if err != nil {
 		return MQTTReplayAnchorProof{}, false, err
 	}
-	evidence, err := readMQTTActivationEvidence(view, l.key)
+	evidence, err := readMQTTActivationEvidence(view, key)
 	if err != nil {
 		return MQTTReplayAnchorProof{}, false, err
 	}
@@ -196,11 +200,11 @@ func (l *ChannelLog) LoadMQTTReplayAnchor(ctx context.Context, position uint64) 
 	if position > evidence.checkpoint.HW {
 		return MQTTReplayAnchorProof{}, false, nil
 	}
-	_, activation, err := mqttReplayCommittedEntry(view, l.key, evidence.manifest.LastOffset, evidence.checkpoint.HW)
+	_, activation, err := mqttReplayCommittedEntry(view, key, evidence.manifest.LastOffset, evidence.checkpoint.HW)
 	if err != nil || activation != evidence.manifest {
 		return MQTTReplayAnchorProof{}, false, dberrors.ErrCorruptState
 	}
-	entry, manifest, err := mqttReplayCommittedEntry(view, l.key, position, evidence.checkpoint.HW)
+	entry, manifest, err := mqttReplayCommittedEntry(view, key, position, evidence.checkpoint.HW)
 	if err != nil {
 		return MQTTReplayAnchorProof{}, false, err
 	}

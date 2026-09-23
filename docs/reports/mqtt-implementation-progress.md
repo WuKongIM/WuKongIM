@@ -2115,3 +2115,67 @@ consumer-proof GC. Complete source projection/inbox discovery, permission
 ordering, delivery/ACK/recovery, Will execution, unavailable-owner proof,
 app/configuration and process/load acceptance remain required. The MQTT listener
 stays unavailable and the full goal stays active.
+
+## Ordered current-copy admission in the durable sequencer
+
+Source `f97570cac`; pre-code failure inventory and frozen context are in
+[mqtt-replay-anchor-admission.md](../specs/mqtt-replay-anchor-admission.md).
+`MQTTReplayAnchorCommitter` now shares the existing durable Channel sequencer
+mutex with ordinary writes. It independently checks the installed leader,
+epochs, route, voters, learners and quorum against the supplied current metadata,
+and validates sorted distinct current-voter receipts including the leader. The
+copy authority hash moved to the neutral Channel contract without changing its
+version-1 bytes. This is a trusted internal coordinator contract, not signed or
+Byzantine-tolerant evidence, and its caller still must obtain fresh Slot metadata.
+
+Only sequencer-owned recovered HW is checkpointed. A coherent store read obtains
+source identity, the latest committed journal entry and the exact command proof
+using one reverse seek and bounded point reads. New intervals must start exactly
+at the last accepted prefix. Source/Through command identities survive changed
+control MessageIDs, restart, leader changes, later anchors and original-body
+cleanup; conflicting content cannot obtain a different command for that boundary.
+An uncertain pending proposal retains its original immutable row. An uncovered
+suffix containing only the preceding anchor returns the existing proof, avoiding
+an idle sequence of self-generated controls. No table, index or wire format was
+added, and source release remains unchanged.
+
+Review reproduced a proposal-budget regression before its fix: the new helper
+initially counted payload bytes without the ordinary 96-byte record overhead.
+The integration regression failed with expected backpressure but successful
+append, then passed after admission reused complete proposal validation.
+
+Verified:
+
+- Pre-implementation RED evidence: `/tmp/mqtt-anchor-admission-red.log` and
+  `/tmp/mqtt-anchor-admission-runtime-red.log`. Budget regression RED:
+  `/tmp/mqtt-anchor-admission-budget-red.log`.
+- `GOWORK=off go test -race ./pkg/channel/... ./pkg/db/message
+  ./pkg/cluster/channels -count=1 -timeout=180s`: all passed,
+  `/tmp/mqtt-anchor-admission-race.log` (MessageDB 28.469 seconds).
+- `GOWORK=off go test -race -tags=integration ./pkg/channel/replication
+  ./pkg/channel/service -run '^Test(MQTT|CommittedReplica)' -count=1
+  -timeout=90s -v`: all passed, `/tmp/mqtt-anchor-admission-integration.log`.
+  Replication package 4.898 seconds, service package 2.489 seconds. The new
+  evidence record verifies three disk-backed voters, actual exchange encoding,
+  concurrent/exact retry, accepted-prefix chaining, anchor-only idle behavior,
+  restart, leader change, no-quorum refusal and resumption of an uncertain append.
+  Final focused race verification also reads the durable original proposal and
+  confirms that uncertain retry kept its first MessageID (2.440 seconds,
+  `/tmp/mqtt-anchor-admission-final.log`).
+  Copy receipts in this fixture are assembled after independently copying each
+  actual replica; this is not the Node/RPC coordinator or a product process E2E.
+- Storage tests verify pending exclusion, caller-HW rejection, older snapshot
+  boundaries, exact command lookup after original trim and missing-journal failure.
+  Receipt validation covers changed authority, invalid placement, learner votes,
+  duplicates, missing leader/quorum and malformed ranges/counters.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-anchor-admission-flow.log`. FLOW index regenerated; `git diff --check`
+  passed. Non-failing macOS LC_DYSYMTAB linker warnings remain present.
+
+Next connect this primitive to bounded reactor workers and fresh cluster routing,
+including coherent accepted-prefix planning and completion that preserves reactor
+HW/lifecycle ownership. Then implement replicated release, accepted-anchor donor
+repair, learner/migration readiness and consumer-proof GC. Source projection,
+inbox discovery, permission ordering, delivery/ACK/recovery, fenced Will execution,
+unavailable-owner proof, app/configuration and full process/load acceptance remain
+required. The product MQTT listener remains unavailable; the full goal is active.

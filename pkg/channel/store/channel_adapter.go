@@ -1364,3 +1364,17 @@ func (a *messageDBChannelStoreAdapter) LoadMQTTReplayAnchor(ctx context.Context,
 	}
 	return ch.MQTTReplayAnchorProof{Anchor: proof.Anchor, Manifest: proof.Manifest}, true, nil
 }
+
+func (a *messageDBChannelStoreAdapter) ReadMQTTReplayAnchors(ctx context.Context, through uint64, command ch.CommandID) (ch.MQTTReplayAnchorState, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayAnchorState{}, err
+	}
+	state, err := a.store.ReadMQTTReplayAnchors(ctx, through, command)
+	if err != nil {
+		return ch.MQTTReplayAnchorState{}, a.mapError(err)
+	}
+	proof := func(p messagedb.MQTTReplayAnchorProof) ch.MQTTReplayAnchorProof {
+		return ch.MQTTReplayAnchorProof{Anchor: p.Anchor, Manifest: p.Manifest}
+	}
+	return ch.MQTTReplayAnchorState{Source: ch.MQTTSourceSnapshot{Generation: state.Source.Generation, StartAfter: state.Source.StartAfter, CommittedThrough: state.CommittedThrough}, Latest: proof(state.Latest), Requested: proof(state.Requested), HasLatest: state.HasLatest, HasRequested: state.HasRequested}, nil
+}

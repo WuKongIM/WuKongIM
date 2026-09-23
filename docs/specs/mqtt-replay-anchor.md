@@ -68,11 +68,14 @@ replacement; a regression covers this before the staging fix.
 
 ## Remaining admission and recovery integration
 
-The next facade must read the latest committed anchor, chain the next copy page
+The sequencer admission primitive now reads the latest committed anchor and
+validates exact command retries (see [admission](mqtt-replay-anchor-admission.md)).
+The reactor/fresh cluster facade must chain the next copy page
 from that accepted prefix (or the activation start), and recheck the receipt's
 exact current membership before ordered control append. This keeps every newly
 accepted recovery interval within the existing row/byte bounds even if local
 copy preparation has run ahead. A repeated accepted prefix must reuse committed
 proof rather than append another control, and an anchor-only tail must stay idle.
-Current-copy receipt validation, release decisions, post-GC donor repair and
-learner/migration readiness are not implemented by the format/storage primitive.
+Current-copy validation exists in the typed sequencer port; fresh cluster entry
+wiring, release decisions, post-GC donor repair and learner/migration readiness
+remain required beyond the format/storage primitive.

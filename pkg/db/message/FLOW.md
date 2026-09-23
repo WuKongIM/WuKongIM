@@ -108,9 +108,9 @@ Compatibility maps Channel records/offsets to this core without transferring eng
   Preparation returns covered pages before extending, preserving short-page retries.
   Transfer requires committed log proofs plus an independent full-content digest;
   native hashes omit fields. Local copy/import never advances System 12 or proves quorum.
-  Format-5 anchors journal canonical controls under System 14; committed point reads
-  verify source/checkpoint/entry proofs. Trims retain them, suffix replacement removes
-  pending entries, and backups require matching committed journals and format versions.
+  Format-5 anchors journal controls in System 14; pinned source/latest/command reads
+  use one reverse seek and bounded log proofs. Trims retain them; suffix replacement
+  removes pending entries. Backups require matching journals and format versions.
   Suffix cuts never split proposals; recovery replacement is fenced by the
   inspected frontier and atomically replaces complete verified proposal pages.
 - Queue-depth publication is monotonic through grouped collection and terminal

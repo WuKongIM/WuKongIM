@@ -2,8 +2,6 @@ package channels
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/binary"
 	"slices"
 	"sync"
 	"time"
@@ -46,20 +44,7 @@ func (q mqttCopyRequest) valid() bool {
 
 // mqttCopyAuthority deliberately omits leases and logical retention: neither
 // changes immutable originals. Ordered membership is included without cache use.
-func mqttCopyAuthority(m ch.Meta) [32]byte {
-	b := appendMQTTReplayString([]byte("mqtt-copy-authority-v1"), m.ID.ID)
-	b = append(b, byte(m.ID.Type), byte(m.Status))
-	for _, v := range []uint64{m.Epoch, m.LeaderEpoch, m.RouteGeneration, uint64(m.Leader), uint64(m.MinISR)} {
-		b = binary.BigEndian.AppendUint64(b, v)
-	}
-	for _, members := range [][]ch.NodeID{m.Replicas, m.ISR} {
-		b = binary.BigEndian.AppendUint32(b, uint32(len(members)))
-		for _, n := range members {
-			b = binary.BigEndian.AppendUint64(b, uint64(n))
-		}
-	}
-	return sha256.Sum256(b)
-}
+func mqttCopyAuthority(m ch.Meta) [32]byte { return ch.MQTTReplayCopyAuthority(m) }
 
 func validateMQTTCopyMeta(q ch.MQTTReplayRequest, m ch.Meta) error {
 	if err := validateMQTTChannelAuthority(q.ChannelID, q.ExpectedChannelEpoch, q.ExpectedLeaderEpoch, q.ExpectedRouteGeneration, m); err != nil {

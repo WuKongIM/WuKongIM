@@ -330,7 +330,12 @@ specification, runbook, report, or module documentation; link to them when neede
   under Message System 14. Committed reads verify source and exact log proofs
   after original trimming; backups preserve committed entries and reject missing
   journals or mismatched proposal/entry versions. Quorum, restart and learner
-  transfer preserve these controls; receipt admission/release remain unwired.
+  transfer preserve these controls. Typed sequencer admission now validates exact
+  installed voters/learners and copy membership, chains accepted prefixes and
+  derives a source/Through command identity. Pinned source/latest/command proofs
+  keep retries independent of control IDs and original bodies; uncertain proposals
+  retain their first row. An anchor-only tail cannot generate another idle anchor.
+  Reactor/fresh Slot entry wiring and replicated source release remain required.
   Will obligations retain their original Session generation after replacement.
   Session transitions and old/new Will decisions commit atomically through the
   lifecycle command; quota termination resolves Will in its accounting commit.

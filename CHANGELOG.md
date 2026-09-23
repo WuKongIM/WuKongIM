@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Serialize MQTT replay anchor acceptance with Channel writes, validate current-voter copy evidence, and preserve exact retries across restart and leader changes. Reactor/cluster entry wiring and automatic source release remain under development. / MQTT 回放证明接入 Channel 串行提交器，校验当前副本复制回执并支持重启、换主后的精确重试；reactor/集群入口及自动源释放仍在开发。
+
 - Persist MQTT replay content anchors through Channel quorum replication, recovery and backups, retaining verifiable proofs after original history cleanup. New format-5 controls require matching runtimes/tools; MQTT admission and automatic release remain unavailable. / MQTT 回放内容证明已支持 Channel 多数派复制、恢复和备份，原始历史清理后仍可核验；新增 format-5 控制记录要求运行时及工具版本匹配，MQTT 入口和自动释放尚未开放。
 
 - Add current-quorum confirmation for shared MQTT replay, with independent full-content checks on each voter and bounded internal RPC 95. Copy receipts do not release source history; the MQTT product listener remains unavailable. / 新增共享 MQTT 回放的当前多数副本确认，各副本独立校验完整内容，使用有界内部 RPC 95；复制回执不释放原始历史，MQTT 产品入口仍未开放。

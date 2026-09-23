@@ -100,6 +100,10 @@ DTOs, and `worker` bounds blocking I/O.
   Format-5 replay anchors retain committed full-content checkpoints in a separate
   journal; exact retry, recovery and learner transfer preserve control intent.
   Unsupported stores reject it; neither the payload nor its journal authorizes GC.
+  Typed anchor admission shares the durable sequencer, checks exact installed
+  membership and chains the latest accepted prefix. Stable source/Through commands
+  reuse committed proofs after restart or original trim; pending retries keep the
+  original row. Anchor-only tails stay idle. Reactor/fresh entry wiring is separate.
   Replay preparation uses the same recovered leader/route admission and bounded
   checkpoint workers. It captures HW, verifies protection and returns owned
   local content after rechecking fences; it cannot release the original source.
