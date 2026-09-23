@@ -3075,3 +3075,53 @@ permission ordering, durable downlink/ACK paths, unavailable-owner recovery, Wil
 execution, product lifecycle/configuration, offline tools and process/load
 acceptance remain required. Product MQTT admission stays unavailable and the full
 implementation goal remains active.
+
+## Consumer completion projection
+
+`SourceProgress` now projects the durable cursor's contiguous completed prefix
+into its exact Channel-source binding. It uses the existing foreground Node
+ports: one source-owned point read, one pinned current Session/exact-cursor read,
+and at most one binding CAS. Unchanged floors cause no write; multiple ACKs can
+coalesce. Accounting, window admission and a later ACK never skip an earlier gap.
+Normal removal caps completion at its sealed end. No table, column, Slot command,
+RPC, retained cache or per-consumer worker was added.
+
+Only explicit ended state or a newer Session lifetime records Session termination.
+That decision retains `Removing` and the previous protection acknowledgement;
+it cannot mark `Removed` or invent the separate source release receipt. Offline,
+expired lease, missing rows and read failures prove no completion. Foreign or
+incoherent identities/revisions, partial responses, cancellation, clock regression,
+overflow and changed CAS receipts fail without claiming a committed projection.
+Lost commit replies recover through a fresh read without another write.
+
+Contract and test-first failure inventory:
+[mqtt-consumer-progress.md](../specs/mqtt-consumer-progress.md).
+
+Validation:
+
+- Test-first RED for both usecase and composition: missing SourceProgress and
+  factory interfaces; `/tmp/mqtt-consumer-progress-red.log` and
+  `/tmp/mqtt-consumer-progress-integration-red.log`.
+- Focused completion/fault tests passed (4.913 s), followed by
+  `GOWORK=off go test -p 2 -race ./internal/usecase/mqttsession -count=1
+  -timeout=180s`: passed, 13.397 s. Logs:
+  `/tmp/mqtt-consumer-progress-focused.log`, `/tmp/mqtt-consumer-progress-race.log`.
+- `GOWORK=off go test -p 2 -race -tags=integration ./internal/app
+  -run '^TestMQTTGroupSourcePreparationThreeNodeRecovery$' -count=1
+  -timeout=120s -v`: passed, test 10.83 s/package 12.562 s;
+  `/tmp/mqtt-consumer-progress-three-node.log`. Three real TCP/disk nodes and
+  256 hash Slots verify distinct consumer/source hash Slots, committed ACK-gap
+  preservation, one coalesced projection, independent remote reads and pending
+  removal after explicit Session end. Subscription activation and publication
+  reference admission are controlled test inputs, not product SUBACK/downlink
+  acceptance. Existing owner takeover, learner recovery, source release,
+  retention and permission checks remain passing.
+- `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-consumer-progress-flow.log`. The generated index and whitespace pass.
+
+Next establish the coherent source GC certificate and new-consumer admission
+ordering, then shared physical reclamation while preserving anchor recovery and
+readiness. Final binding removal, full subscription/inbox projection, permission
+ordering, downlink/ACK entry paths, unavailable-owner recovery, Will execution,
+product lifecycle/configuration, offline tooling and process/load acceptance
+remain required. The full goal is active; product MQTT admission stays unavailable.

@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Project durable MQTT consumer completion into source bindings while preserving ACK gaps and pending removal after Session termination. No new storage format is required; shared-content GC and product access remain under development. / MQTT 持久消费进度接入源绑定，保留乱序 ACK 缺口及会话结束后的清理责任；无需新增存储格式，共享内容回收与产品接入仍在开发。
+
 - Automatically release original MQTT source prefixes after background recovery verifies committed replay coverage on each replica. Explicit RPC 99 v2 acknowledgements retain fresh authority checks; shared-content GC and product access remain under development. / 后台恢复逐副本验证已提交回放内容后，自动推进原始消息清理水位；RPC 99 v2 显式确认释放并核验最新权威，共享内容回收与产品接入仍在开发。
 
 - Add a storage boundary for releasing original MQTT source messages only after verifying a committed replay anchor and local content coverage; preserve protection across cleanup, restart and backup restore. Automatic release and product access remain under development. / 新增原始 MQTT 消息安全清理的存储接口，核验已提交回放锚点和本地内容覆盖后才推进水位，并验证清理、重启及备份恢复；自动释放与产品接入仍在开发。

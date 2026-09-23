@@ -271,6 +271,11 @@ specification, runbook, report, or module documentation; link to them when neede
   Source-owned binding tombstones prevent delayed prepares from resurrecting a
   subscription. Unknown source boundaries block reclamation; stored progress
   requires current remote authority and source protection before use.
+  [Consumer progress](../specs/mqtt-consumer-progress.md) projects only contiguous
+  cursor completion from a pinned Session/cursor read, coalescing unchanged floors
+  without writes. Explicit ended/replaced lifetimes retain Removing responsibility;
+  offline or missing state proves no completion. It never marks Removed, invents
+  source-release acknowledgement or authorizes shared-content GC.
   MQTT metadata facades route Session children by the frozen namespace/ClientID
   hash and source bindings by ordinary Channel ID or UID. Read RPC 91 requires
   a fresh Slot barrier and pinned primary/index snapshot; recovery explicitly

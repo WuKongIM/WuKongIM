@@ -1,16 +1,15 @@
 ---
 scope: package
-summary: Coordinates MQTT Session lifecycle, subscription preparation and bounded shared replay copy/recovery turns.
+summary: Coordinates MQTT Session lifecycle, subscription preparation, consumer progress and bounded replay copy/recovery turns.
 ---
 
 # MQTT Session Usecase Flow
 
 ## Responsibility
 
-This package connects authenticated connection intent to authoritative Session
-metadata and the node-local Owners execution gate. Subscriptions coordinates
-intent with an injected durable projection capability. This package owns no
-packet, concrete cluster/gateway adapter, worker or shared replay storage.
+This package connects authenticated intent to Session metadata and node-local
+Owners gates. Subscriptions coordinates intent with durable projection. It owns
+no packet, concrete cluster/gateway adapter, worker or shared replay storage.
 
 ## Boundaries
 
@@ -29,8 +28,7 @@ packet, concrete cluster/gateway adapter, worker or shared replay storage.
 1. CONNECT validates bounded owned input and credentials, reads the binding,
    isolates the observed old owner and rereads authority. A changed owner fails;
    the usecase does not loop through evicting new successors.
-2. An expired active owner first records abnormal disconnect at its recorded
-   execution deadline. Will due time and offline lifetime do not restart at recovery.
+2. Expired owners record abnormal disconnect at their execution deadline; recovery never restarts Will/offline clocks.
 3. Recheck credentials/Will permission, reserve a bounded local candidate, capture
    its monotonic deadline before proposal, atomically commit Session/Will and
    then activate. Any failed candidate is fenced and given bounded close cleanup.
@@ -59,8 +57,11 @@ packet, concrete cluster/gateway adapter, worker or shared replay storage.
 9. Replay alternates bounded copy/anchor admission and recovery under fresh placement.
    Targets pin anchors and scan/donor hints; placement resets hints and cold passes rotate work.
    Fenced turns only recover existing anchors; absent anchors yield without copying.
-   Target visits explicitly request original-source release after complete coverage;
-   cluster calls recheck authority. Results grant no shared-content GC, readiness or SUBACK.
+   Complete target visits request source release with fresh authority; results grant no GC, readiness or SUBACK.
+10. Consumer progress reads one binding and a pinned Session/cursor, projecting
+    only contiguous completion with one CAS. Unchanged floors produce no write.
+    Explicit lifetime end retains Removing without fabricating source release;
+    offline/absent state cannot discharge responsibility or authorize content GC.
 
 ## Invariants and Failure Semantics
 
@@ -91,8 +92,7 @@ packet, concrete cluster/gateway adapter, worker or shared replay storage.
   MQTT recovery and acceptance remain separate required implementation work.
 
 ## Read First
-- [Contracts](types.go), [Acquisition](connect.go)
-- [Lifecycle](lifecycle.go)
+- [Contracts](types.go), [Acquisition](connect.go), [Lifecycle](lifecycle.go)
 - [Subscription orchestration](subscriptions.go), [Replay coordination](replay.go)
 ## Update Triggers
 
