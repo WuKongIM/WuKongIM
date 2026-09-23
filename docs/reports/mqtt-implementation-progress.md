@@ -1572,3 +1572,48 @@ Actual replicated protection/projection, future-person-source admission, offline
 reconciliation, revocation ordering, source/cursor limits, safe tombstone GC and
 SUBACK/UNSUBACK entry remain required. Product MQTT admission remains unavailable;
 these usecases and tests do not substitute for process-level delivery acceptance.
+
+## Protected source checkpoint integrity
+
+Source `6d462a582`; frozen context and the failure inventory precede code in
+[mqtt-source-checkpoint-integrity.md](../specs/mqtt-source-checkpoint-integrity.md).
+While tracing distributed activation, storage regressions demonstrated that both
+raw checkpoint setters could lower protected HW, nine mutation paths could
+recreate a lost explicit checkpoint, and both suffix truncation facades could
+finish while another operation owned the checkpoint commit mutex.
+
+Checkpoint reads now validate source evidence first, then require a well-formed
+explicit checkpoint covering copied-through. Reading in that order avoids
+combining pre-activation absence with a newly atomically installed source.
+Missing/corrupt evidence also rejects no-op HW writes, exact append retries,
+fetched appends and snapshot installation without partial state. The legacy raw
+setter still supports non-monotonic native checkpoints, while protected HW
+cannot regress. Typed and compatibility suffix cuts hold append then checkpoint
+through commit; after waiting, they recheck the committed protection frontier.
+
+This adds bounded point reads, not history scans, queues or unbounded cached
+state. No schema, RPC or replicated source authority was added.
+
+Verified:
+
+- Pre-fix regressions failed on the intended behavior in
+  `/tmp/mqtt-checkpoint-red.log` and `/tmp/mqtt-checkpoint-race-red.log`; the latter
+  proves both cuts returned success while the checkpoint mutex remained owned.
+- `GOWORK=off go test ./pkg/db/message ./pkg/channel/store
+  ./pkg/channel/replication -count=1 -timeout=120s`: passed in
+  17.762 / 5.819 / 2.353 seconds; `/tmp/mqtt-checkpoint-regression.log`.
+- `GOWORK=off go test -race -tags=integration ./pkg/db/message
+  -run '^TestMQTTCheckpoint' -count=1 -timeout=60s`: passed in 4.134 seconds;
+  `/tmp/mqtt-checkpoint-race.log`. Existing macOS LC_DYSYMTAB linker warning only.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, the same nine existing
+  line-count warnings; `/tmp/mqtt-checkpoint-flow.log`. `git diff --check` passed.
+
+Distributed activation still needs a durable decision carried through authority
+recovery and learner repair. Existing exact proposals replicate message records,
+while System 12 is still independently materialized replica state; broadcasting
+local CAS calls cannot establish the missing guarantee. The protection decision
+must precede subscriber success, survive leader replacement and protect content
+before any replica can trim it. Committed control materialization and recoverable
+metadata intent are implementation alternatives under evaluation, not completed
+mechanisms. Source-copy replication, projection wiring and full product process
+acceptance remain required; the full implementation goal stays active.

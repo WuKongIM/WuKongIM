@@ -111,8 +111,10 @@ storage core without transferring shared-engine ownership.
 - Queue-depth publication is monotonic through grouped collection and terminal
   zero. Backup includes committed proposal/entry identities and excludes the
   uncommitted suffix above the selected HW.
-- Checkpoint updates are serialized, initialize an explicit zero, never regress
-  HW, and preserve epoch and log-start fields.
+- Monotonic checkpoint updates preserve epoch/log-start fields. Protected sources
+  require an intact explicit checkpoint on every load; missing or inconsistent
+  evidence cannot be recreated by a writer. Raw setters also reject protected HW
+  regression. Suffix cuts hold append then checkpoint locks through commit.
 - Retention reads reuse immutable state in the bounded canonical/warm registry.
   A database-wide generation disables hits/fills during overlapping retention
   mutations, truncation, recovery replacement, discard and either backup import

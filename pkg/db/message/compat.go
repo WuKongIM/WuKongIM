@@ -2467,7 +2467,8 @@ func (s *ChannelStore) LoadCheckpoint() (channel.Checkpoint, error) {
 	return checkpointToChannel(checkpoint), nil
 }
 
-// StoreCheckpoint stores checkpoint without monotonic validation.
+// StoreCheckpoint keeps the legacy raw setter except that protected MQTT
+// source checkpoints must remain intact and cannot regress committed HW.
 func (s *ChannelStore) StoreCheckpoint(checkpoint channel.Checkpoint) error {
 	if err := s.beginUse(); err != nil {
 		return err
@@ -2693,6 +2694,8 @@ func (s *ChannelStore) truncateLocked(ctx context.Context, to uint64, truncateHi
 	defer finishRetention()
 	s.log.appendMu.Lock()
 	defer s.log.appendMu.Unlock()
+	s.log.checkpointMu.Lock()
+	defer s.log.checkpointMu.Unlock()
 	leo, err := s.log.loadLEOLocked(ctx)
 	if err != nil {
 		return toChannelError(err)

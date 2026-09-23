@@ -18,21 +18,35 @@ func (l *ChannelLog) LoadCheckpoint(ctx context.Context) (Checkpoint, bool, erro
 }
 
 func (l *ChannelLog) loadCheckpoint(ctx context.Context) (Checkpoint, bool, error) {
-	if err := ctx.Err(); err != nil {
+	// Read protection first. Initial activation atomically creates an explicit
+	// checkpoint; reversing these reads could pair an earlier absence with a
+	// newly installed source and report corruption during a valid activation.
+	source, protected, err := l.channelEntry.loadMQTTSourceState(ctx)
+	if err != nil {
 		return Checkpoint{}, false, err
 	}
 	value, ok, err := l.db.engine.Get(encodeCheckpointKey(l.key))
-	if err != nil || !ok {
-		return Checkpoint{}, ok, err
+	if err != nil {
+		return Checkpoint{}, false, err
+	}
+	if !ok {
+		if protected {
+			return Checkpoint{}, false, dberrors.ErrCorruptState
+		}
+		return Checkpoint{}, false, nil
 	}
 	checkpoint, err := decodeCheckpoint(value)
 	if err != nil {
 		return Checkpoint{}, false, err
 	}
+	if protected && (validateCheckpoint(checkpoint) != nil || checkpoint.HW < source.CopiedThrough) {
+		return Checkpoint{}, false, dberrors.ErrCorruptState
+	}
 	return checkpoint, true, nil
 }
 
-// StoreCheckpoint stores checkpoint without monotonic validation.
+// StoreCheckpoint preserves the legacy raw setter for unprotected logs. An
+// installed MQTT source requires intact evidence and a non-regressing HW.
 func (l *ChannelLog) StoreCheckpoint(ctx context.Context, checkpoint Checkpoint) error {
 	if err := l.beginUse(); err != nil {
 		return err
@@ -48,6 +62,9 @@ func (l *ChannelLog) storeCheckpointLocked(ctx context.Context, checkpoint Check
 		return err
 	}
 	if err := validateCheckpoint(checkpoint); err != nil {
+		return err
+	}
+	if err := l.channelEntry.validateMQTTSourceTruncation(ctx, checkpoint.HW); err != nil {
 		return err
 	}
 	batch := l.db.engine.NewBatch()

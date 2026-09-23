@@ -228,10 +228,11 @@ func (l *ChannelLog) ReadMQTTProtectedSource(ctx context.Context, generation str
 	return result, nil
 }
 
-// validateMQTTSourceTruncation keeps a source's committed positions intact even
-// when a legacy suffix-truncate caller lacks an exact proposal manifest.
+// validateMQTTSourceTruncation preserves committed protected positions across
+// suffix cuts and raw checkpoint writes. The caller holds checkpointMu until
+// commit so the inspected frontier cannot advance before the mutation ends.
 func (e *channelEntry) validateMQTTSourceTruncation(ctx context.Context, to uint64) error {
-	_, present, err := e.loadMQTTSourceState(ctx)
+	source, present, err := e.loadMQTTSourceState(ctx)
 	if err != nil || !present {
 		return err
 	}
@@ -245,6 +246,9 @@ func (e *channelEntry) validateMQTTSourceTruncation(ctx context.Context, to uint
 	cp, err := decodeCheckpoint(value)
 	if err != nil {
 		return err
+	}
+	if validateCheckpoint(cp) != nil || cp.HW < source.CopiedThrough {
+		return dberrors.ErrCorruptState
 	}
 	if to < cp.HW {
 		return dberrors.ErrConflict

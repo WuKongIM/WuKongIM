@@ -21,6 +21,8 @@ func (l *ChannelLog) TruncateFrom(ctx context.Context, fromSeq uint64) error {
 
 	l.appendMu.Lock()
 	defer l.appendMu.Unlock()
+	l.checkpointMu.Lock()
+	defer l.checkpointMu.Unlock()
 
 	leo, err := l.loadLEOLocked(ctx)
 	if err != nil {

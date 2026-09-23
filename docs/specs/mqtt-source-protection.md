@@ -20,6 +20,10 @@ There is no reset/release API that can silently abandon protected obligations.
 Creation also installs an explicit zero checkpoint when absent, under the
 checkpoint mutex and in the same commit. Later missing checkpoints are corruption,
 including on exact retry and suffix truncation; they cannot mean an empty log.
+All checkpoint loads enforce this evidence, including fetch/snapshot/recovery
+and otherwise idempotent HW writes. Raw setters cannot regress protected HW;
+suffix cuts share the checkpoint mutex through commit. See the
+[checkpoint integrity regressions](mqtt-source-checkpoint-integrity.md).
 
 Activation cannot claim content already physically removed. Physical prefix
 cleanup stops at copied-through, while ordinary logical history may advance

@@ -281,6 +281,8 @@ specification, runbook, report, or module documentation; link to them when neede
   references. It clamps physical trim independently of logical history; protected
   reads retain HW and reject gaps. Local CAS is not replicated activation or copy
   proof. Every possible owner must support this guard before activation.
+  Protected checkpoint absence/inconsistency is corruption across reads and
+  mutations; raw writes cannot regress HW and suffix cuts share its commit lock.
   Shared replay is message-domain table 2, never Slot message-body storage. Its
   atomic local copies normalize size hints and preserve original publication
   content; index 2 meters prefix ranges without reading bodies. Binary backup 2
