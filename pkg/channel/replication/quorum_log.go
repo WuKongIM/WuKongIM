@@ -7,6 +7,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/publication"
 )
 
 type recoveryDispatcher interface {
@@ -496,10 +497,19 @@ func immutableProposalRecords(records []ch.Record, payloadsImmutable bool) []ch.
 func validProposalRecords(records []ch.Record, maxBytes int) bool {
 	total := 0
 	for _, record := range records {
-		if record.ID == 0 || record.Epoch == 0 || record.ServerTimestampMS <= 0 || record.SizeBytes != len(record.Payload) {
+		if record.ID == 0 || record.Epoch == 0 || record.ServerTimestampMS <= 0 || record.SizeBytes != len(record.Payload)+len(record.PublicationMetadata) {
 			return false
 		}
-		item := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload)
+		if len(record.PublicationMetadata) != 0 {
+			metadata, err := publication.Decode(record.PublicationMetadata)
+			if err != nil {
+				return false
+			}
+			if _, _, err := metadata.ExpiryDeadlineMS(record.ServerTimestampMS); err != nil {
+				return false
+			}
+		}
+		item := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload) + len(record.PublicationMetadata)
 		if item > maxBytes-total {
 			return false
 		}
@@ -521,6 +531,7 @@ func cloneRecords(records []ch.Record) []ch.Record {
 	cloned := append([]ch.Record(nil), records...)
 	for index := range cloned {
 		cloned[index].Payload = append([]byte(nil), cloned[index].Payload...)
+		cloned[index].PublicationMetadata = append([]byte(nil), cloned[index].PublicationMetadata...)
 	}
 	return cloned
 }

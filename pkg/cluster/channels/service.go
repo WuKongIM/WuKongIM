@@ -477,6 +477,7 @@ func (s *Service) ReadChannelLastVisible(ctx context.Context, id ch.ChannelID, v
 			return ch.Message{}, false, err
 		}
 		resp.Message.Payload = append([]byte(nil), resp.Message.Payload...)
+		resp.Message.PublicationMetadata = append([]byte(nil), resp.Message.PublicationMetadata...)
 		return resp.Message, resp.Found, nil
 	}
 	return s.readLocalLastVisible(ctx, id, visibleAfterSeq)
@@ -515,6 +516,7 @@ func (s *Service) ReadConversationHead(ctx context.Context, id ch.ChannelID, uid
 			return ConversationHead{}, err
 		}
 		resp.Message.Payload = append([]byte(nil), resp.Message.Payload...)
+		resp.Message.PublicationMetadata = append([]byte(nil), resp.Message.PublicationMetadata...)
 		return conversationHeadFromResponse(resp), nil
 	}
 	result := s.readLocalConversationHeads(ctx, uid, []ConversationHeadRequest{{
@@ -1522,6 +1524,7 @@ func (s *Service) readLocalLastVisible(ctx context.Context, id ch.ChannelID, vis
 			continue
 		}
 		msg.Payload = append([]byte(nil), msg.Payload...)
+		msg.PublicationMetadata = append([]byte(nil), msg.PublicationMetadata...)
 		return msg, true, nil
 	}
 	return ch.Message{}, false, nil

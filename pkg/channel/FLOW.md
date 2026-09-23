@@ -32,7 +32,7 @@ DTOs, and `worker` bounds blocking I/O.
 1. The service reserves a Channel key and submits an append; the reactor fences
    role, epochs, write admission, and capacity, while store workers durably
    append in order and local or quorum progress completes aligned futures.
-   Borrowed public payloads are cloned at admission; an adapter-owned append
+   Borrowed payload and publication-metadata bytes are cloned at admission; an adapter-owned append
    may explicitly transfer immutable payloads that downstream state, quorum,
    and storage submissions share while copying record metadata.
    With `DurableQuorumLog`, leader activation first installs a recovered
@@ -80,11 +80,12 @@ DTOs, and `worker` bounds blocking I/O.
    so upper layers may transfer them without another deep copy.
    The optional persisted-frontier port reads LEO without an unused checkpoint;
    committed reads keep the full Load contract and quorum boundary.
-- New proposals containing a nonzero message lifetime use exact proposal format 2,
-  binding Expire in the digest; legacy format-1 hashes remain unchanged.
-  Channel RPC 9 and quorum exchange 5 preserve lifetimes during replication and
-  recovery. Deploy matched runtimes before emitting format 2; binary-only rollback
-  and lossy older message encodings are unsupported.
+- Nonzero lifetimes require exact proposal format 2; publication metadata
+  requires format 3 and message record codec 2. Native hashes remain unchanged.
+  Channel RPC 11 and quorum exchange 6 preserve bounded, validated metadata;
+  all content budgets include it. Older lossy encodings fail explicitly.
+  Exchange 6 requires matched replicas even before MQTT activation. Binary-only
+  rollback after new-format writes is unsupported.
 - Same-Channel append ordering survives batching and worker concurrency.
   Quorum success requires replicated progress; desired replicas never imply it.
 - Unloaded state is absence from the reactor map. Cold PullHint activation must

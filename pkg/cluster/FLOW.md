@@ -42,7 +42,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 4. Committed conversation and history reads batch Slot routes and group by exact Leader,
    preserving alignment and item errors. Conversation codec 10 carries UID-owned
    badge floors, excluded internal-position counts, and optional set-unread
-   boundaries; leader reads add retention and the latest own send. Cold quorum Leaders (even HW=LEO=0)
+   boundaries. Codec 11 preserves publication metadata and rejects lossy encodings;
+   read/overlay budgets include it and earlier field gates stay fixed. Cold quorum Leaders (even HW=LEO=0)
    recover first; loaded Leaders still installing authority cannot serve HW.
    Indexed committed reads use a distinct RPC kind, retaining HW, retention,
    and authority fences; older nodes reject it instead of serving a range.

@@ -6,6 +6,7 @@ import (
 	"math"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/publication"
 )
 
 const (
@@ -125,6 +126,11 @@ func EncodeExchangeBatchResult(result ExchangeBatchResult) ([]byte, error) {
 		if item.RequestID == 0 || len(item.Probe.Entries) > maxRecoveryProbeIndexes ||
 			len(item.Fetch.Proposals) > maxRecoveryReplacementProposals {
 			return nil, ch.ErrInvalidConfig
+		}
+		for _, proposal := range item.Fetch.Proposals {
+			if !validProposalRecords(proposal.Records, MaxExchangeBatchBytes) {
+				return nil, ch.ErrInvalidConfig
+			}
 		}
 		buf = appendCodecUvarint(buf, item.RequestID)
 		buf = appendReplicateResult(buf, item.Replicate)
@@ -313,6 +319,7 @@ func appendRecords(dst []byte, records []ch.Record) []byte {
 		dst = appendCodecBool(dst, record.RedDot)
 		dst = appendCodecUvarint(dst, uint64(record.Expire))
 		dst = appendCodecBytes(dst, record.Payload)
+		dst = appendCodecBytes(dst, record.PublicationMetadata)
 		dst = appendCodecUvarint(dst, uint64(record.SizeBytes))
 	}
 	return dst
@@ -410,8 +417,10 @@ func (c *exchangeCursor) boolean() (bool, bool) {
 	return value == 1, ok && value <= 1
 }
 
-func (c *exchangeCursor) bytes() ([]byte, bool) {
-	count, ok := c.count(MaxExchangeBatchBytes)
+func (c *exchangeCursor) bytes() ([]byte, bool) { return c.bytesBounded(MaxExchangeBatchBytes) }
+
+func (c *exchangeCursor) bytesBounded(maxBytes int) ([]byte, bool) {
+	count, ok := c.count(maxBytes)
 	if !ok || count > len(c.data)-c.offset {
 		return nil, false
 	}
@@ -645,15 +654,16 @@ func (c *exchangeCursor) records() ([]ch.Record, bool) {
 			okExpire = false
 		}
 		payload, okPayload := c.bytes()
+		metadata, okMetadata := c.bytesBounded(publication.MaxEncodedBytes)
 		sizeBytes, okSize := c.uvarint()
 		if sizeBytes > math.MaxInt {
 			okSize = false
 		}
 		records[index] = ch.Record{
 			ID: id, Index: recordIndex, Epoch: epoch, Setting: setting, FromUID: fromUID, ClientMsgNo: clientMsgNo,
-			ServerTimestampMS: timestamp, SyncOnce: syncOnce, RedDot: redDot, Expire: uint32(expire), Payload: payload, SizeBytes: int(sizeBytes),
+			ServerTimestampMS: timestamp, SyncOnce: syncOnce, RedDot: redDot, Expire: uint32(expire), Payload: payload, PublicationMetadata: metadata, SizeBytes: int(sizeBytes),
 		}
-		okCount = okCount && okID && okIndex && okEpoch && okSetting && okFrom && okClient && okTimestamp && okSync && okRedDot && okExpire && okPayload && okSize
+		okCount = okCount && okID && okIndex && okEpoch && okSetting && okFrom && okClient && okTimestamp && okSync && okRedDot && okExpire && okPayload && okMetadata && okSize
 	}
-	return records, okCount
+	return records, okCount && validProposalRecords(records, MaxExchangeBatchBytes)
 }

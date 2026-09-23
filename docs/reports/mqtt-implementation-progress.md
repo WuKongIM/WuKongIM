@@ -2,7 +2,8 @@
 
 Full goal: implement the approved [MQTT IM access design](../specs/mqtt-im-access.md).
 Status: in progress; the product has no MQTT listener yet. The codec, generic
-gateway and session/subscription/cursor/inflight tables with Slot commands are implemented. Other tables,
+gateway, six MQTT metadata tables with Slot commands, publication storage and
+Channel replication/RPC propagation are implemented. The shared replay table,
 cluster session recovery, source retention protection and durable delivery remain
 outstanding. No passing product E2E or capacity claim is made.
 
@@ -574,3 +575,58 @@ the original stored clock, and server Will idempotency needs a distinct domain.
 Shared replay, source protection, owner isolation, authoritative runtime wiring,
 cleanup/restore fencing and capability gates remain required. Product process
 E2E is still RED and MQTT access remains disabled. The full goal stays active.
+
+## Channel publication propagation
+
+Frozen source context at `9f39a4ce2`:
+
+- Root `AGENTS.md`: `d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade`
+- `pkg/channel/FLOW.md`: `8115b685d72f6043547cd1aaa24f693623360192cf095cc43c7072d7b49c1050`
+- `pkg/channel/reactor/FLOW.md`: `fa6df60855d02e1dccfad25c32cd8c19c205515a53c777a5f5c8acbcdc0cd2d3`
+- `pkg/channel/worker/FLOW.md`: `da9c03f3b2480ae1601938e205ed47981a2b6a6c6248b2f66f88ae930a107752`
+- `pkg/cluster/FLOW.md`: `3955a06f0484970ff495d60648d99cf2efba96718fdcc4d86ef5afd8efecb6c8`
+
+Channel Message/Record now carry publication metadata. Admission, append results,
+record caches, quorum proposals, donor pages and durable reads preserve their
+ownership, and mixed proposals select format 3 independently of record order.
+The MessageDB adapter reuses canonical record codec 2 and propagates encoding
+errors before submitting single/batch append, follower apply or suffix replacement.
+Invalid content changes neither records nor HW. Memory storage validates the same
+publication format and clamps size hints to at least the actual content size.
+
+Quorum exchange 6 carries metadata in replication and recovery replies, validates
+bounded content/expiry/size and binds the exact proposal proof. It deliberately
+requires matched peers for all data-bearing exchanges, including native traffic
+while MQTT remains unavailable. This deployment requirement is in the Changelog.
+Channel RPC 11 adds the bounded value to single/batch append, pull and read
+responses, rejects lossy downgrade, and preserves older native layouts. Literal
+codec-10 append and conversation-response fixtures prove the former bytes;
+conversation badge gates remain at 10 rather than moving with the current codec.
+
+Tests preceded each behavior change. They cover owned source/result/read bytes,
+exact recovery and changed-proof rejection, single-node cluster admission,
+malformed/truncated/oversized RPC values, older-peer refusal, aggregate persisted
+read budgets, edit-growth continuation and storage validation without partial
+mutation. Native response allocation regression tests caught a per-head interface
+allocation in metadata validation; direct message inspection restored the prior
+budget. A final memory-storage test also caught body-only size hints bypassing
+read budgets; both leader and follower insertion now retain the actual size.
+
+Validation (2026-09-23):
+
+- `GOWORK=off go test ./pkg/channel/... ./pkg/cluster/... ./internal/infra/cluster/... -count=1 -timeout=90s` passed after codec, ownership, budget and storage-error changes.
+- `GOWORK=off go test -race ./pkg/channel/store ./pkg/channel/service ./pkg/channel/replication ./pkg/cluster/channels ./pkg/cluster -run TestPublication -count=1 -timeout=90s` passed; the existing macOS LC_DYSYMTAB linker warning remains.
+- After final storage validation/size-hint changes, the full Channel suite and
+  focused publication storage race tests passed again.
+- Named `flow-doc-contracts` passed after regeneration and shortening the Cluster
+  FLOW to its existing hard limit: 83 compliant, zero invalid, 9 length warnings.
+- `git diff --check` passed.
+
+Next connect entry-neutral SendCommand/committed-envelope contracts, product
+Channel-append runtime, infrastructure adapters and product node RPC. Durable
+idempotency still needs publication-content matching with the original accepted
+clock and a separate server Will domain. JSONL transfer, restore consumers,
+shared replay, protected source retention, authoritative session execution,
+owner isolation, cleanup, capability gates and real-process/scale acceptance
+remain required. Existing product E2E is still RED; no MQTT listener is enabled
+and the full implementation goal remains active.

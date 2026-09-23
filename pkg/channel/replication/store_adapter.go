@@ -444,7 +444,7 @@ func recoveryProposalsFromPage(request FetchRange, page channelstore.ExactRecove
 			return nil, ch.ErrLogConflict
 		}
 		page.Records[index].Epoch = entry.Identity.ChannelEpoch
-		recordBytes := 96 + len(page.Records[index].FromUID) + len(page.Records[index].ClientMsgNo) + len(page.Records[index].Payload)
+		recordBytes := 96 + len(page.Records[index].FromUID) + len(page.Records[index].ClientMsgNo) + len(page.Records[index].Payload) + len(page.Records[index].PublicationMetadata)
 		if used > request.MaxBytes-recordBytes {
 			return nil, ch.ErrBackpressured
 		}
@@ -597,7 +597,7 @@ func estimateMutationBytes(mutation Mutation, maxBytes int) (int, bool) {
 		return 0, false
 	}
 	for _, record := range mutation.Records {
-		itemBytes, ok := boundedByteSize(maxBytes-total, 96, len(record.FromUID), len(record.ClientMsgNo), len(record.Payload))
+		itemBytes, ok := boundedByteSize(maxBytes-total, 96, len(record.FromUID), len(record.ClientMsgNo), len(record.Payload), len(record.PublicationMetadata))
 		if !ok {
 			return 0, false
 		}

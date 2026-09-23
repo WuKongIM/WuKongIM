@@ -222,7 +222,7 @@ func validRecoveryProposals(request FetchRequest, proposals []RecoveryProposal) 
 			return false
 		}
 		for _, record := range proposal.Records {
-			recordBytes := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload)
+			recordBytes := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload) + len(record.PublicationMetadata)
 			if bytes > request.MaxBytes-recordBytes {
 				return false
 			}
@@ -242,6 +242,7 @@ func cloneRecoveryProposals(source []RecoveryProposal) []RecoveryProposal {
 		cloned[index].Records = make([]ch.Record, len(proposal.Records))
 		for recordIndex, record := range proposal.Records {
 			record.Payload = append([]byte(nil), record.Payload...)
+			record.PublicationMetadata = append([]byte(nil), record.PublicationMetadata...)
 			cloned[index].Records[recordIndex] = record
 		}
 	}

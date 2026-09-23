@@ -35,7 +35,7 @@ func DeriveProposalEntries(manifest ProposalManifest, recordCount int, recordAt 
 		return quorumlog.Record{
 			ID: record.ID, Index: record.Index, Epoch: record.Epoch, Setting: record.Setting,
 			FromUID: record.FromUID, ClientMsgNo: record.ClientMsgNo,
-			ServerTimestampMS: record.ServerTimestampMS, SyncOnce: record.SyncOnce, Payload: record.Payload, Expire: record.Expire,
+			ServerTimestampMS: record.ServerTimestampMS, SyncOnce: record.SyncOnce, Payload: record.Payload, Expire: record.Expire, PublicationMetadata: record.PublicationMetadata,
 		}
 	})
 }
@@ -53,15 +53,19 @@ func SealProposalManifest(manifest ProposalManifest, records []Record) (Proposal
 
 // ProposalVersionForRecords selects a format only for a new business proposal.
 func ProposalVersionForRecords(records []Record) uint16 {
+	version := ProposalManifestVersion
 	for _, record := range records {
+		if len(record.PublicationMetadata) != 0 {
+			return quorumlog.PublicationProposalManifestVersion
+		}
 		if record.Expire != 0 {
-			return quorumlog.ExpirationProposalManifestVersion
+			version = quorumlog.ExpirationProposalManifestVersion
 		}
 	}
-	return ProposalManifestVersion
+	return version
 }
 
-// SupportedProposalVersion preserves original v1 and expiration-aware v2 reads.
+// SupportedProposalVersion preserves original, lifetime and publication identity formats.
 func SupportedProposalVersion(version uint16) bool {
 	return quorumlog.SupportedProposalVersion(version)
 }

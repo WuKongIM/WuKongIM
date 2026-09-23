@@ -79,7 +79,32 @@ native absent values; owned reads across reopen; follower apply and binary
 backup/import/visitor preservation; partial record rejection; exact proposal
 retry versus altered attributes; read, lookup and recovery byte budgets.
 
-This is storage groundwork. SendCommand, Channel runtime/RPC/replication DTOs,
+Channel propagation failure inventory: admission, append results, record caches,
+exact recovery and committed reads must preserve independently owned metadata;
+body-only size hints must not bypass queue/cache/read/recovery budgets. Quorum
+exchange must preserve and validate the value and reject older lossy formats.
+Channel RPC must cover single/batch append, pull/recovery, history and conversation
+responses, including their nested batches. A downgrade must fail explicitly when
+metadata is present. Decoders must reject truncated, malformed and oversized
+values before copying them. Native codec-10 messages and conversation badge
+fields must retain their exact previous bytes and semantics.
+
+Channel messages/records, admission, caches, append results, exact recovery and
+committed reads now preserve the metadata and count it in content budgets.
+MessageDB adaptation propagates encoding errors before any request mutation;
+the memory backend enforces the same publication validation.
+
+Channel RPC **11** appends a uvarint-length metadata value after each message or
+record's Expire field; zero length means absent. Versions through 10 retain their
+original field layouts, including codec-10 conversation badges. Single/batch
+append and nested read/pull responses refuse lossy downgrades. Quorum exchange
+**6** inserts the length-prefixed metadata after the record body and before
+SizeBytes. Only exchange 6 is supported: all replicas must run matched versions,
+including native traffic before MQTT activation. Record SizeBytes includes both
+body and metadata; exact proposal validation rejects malformed content and
+understated sizes. Publication clock validation remains at durable admission.
+
+This remains infrastructure groundwork. SendCommand and product runtime/RPC DTOs,
 JSONL offline transfer, restore consumers, append-idempotency content checks,
 server Will idempotency and cluster capability gates still require propagation.
 The product listener remains disabled. Do not emit these records in a mixed

@@ -198,8 +198,10 @@ specification, runbook, report, or module documentation; link to them when neede
   Optional message column 21 preserves bounded versioned publication metadata;
   compatibility record codec 2 and proposal format 3 prevent lossy recovery.
   Ordinary expiry uses ingress time; Will uses the original source append time.
-  Native formats remain unchanged; full DTO/RPC, offline transfer and capability
-  gates are still required before activation. See the [publication contract](../specs/mqtt-publication-metadata.md).
+  Channel RPC 11 and quorum exchange 6 preserve it with content budgets and
+  explicit rejection of lossy encodings. Exchange requires matched replicas;
+  native storage hashes and older Channel RPC layouts remain unchanged.
+  Product DTO/RPC, offline transfer and capability gates remain before activation. See the [publication contract](../specs/mqtt-publication-metadata.md).
   Source-owned binding tombstones prevent delayed prepares from resurrecting a
   subscription. Unknown source boundaries block reclamation; stored progress
   requires current remote authority and source protection before use.

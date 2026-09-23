@@ -180,6 +180,7 @@ func cloneCacheRecord(record ch.Record) ch.Record {
 	if len(record.Payload) > 0 {
 		record.Payload = append([]byte(nil), record.Payload...)
 	}
+	record.PublicationMetadata = append([]byte(nil), record.PublicationMetadata...)
 	return record
 }
 
@@ -192,10 +193,7 @@ func cacheRecordsBytes(records []ch.Record) int {
 }
 
 func cacheRecordSize(record ch.Record) int {
-	if record.SizeBytes > 0 {
-		return record.SizeBytes
-	}
-	return len(record.Payload)
+	return max(record.SizeBytes, len(record.Payload)+len(record.PublicationMetadata))
 }
 
 // releaseRecentRecordsAcknowledgedByAllFollowers keeps only records that at

@@ -260,16 +260,17 @@ func (f *MessageDBFactory) ListLatestMessages(ctx context.Context, beforeMessage
 	out := make([]ch.Message, 0, len(page.Messages))
 	for _, msg := range page.Messages {
 		out = append(out, ch.Message{
-			MessageID:         msg.MessageID,
-			MessageSeq:        msg.MessageSeq,
-			ChannelID:         msg.ChannelID,
-			ChannelType:       msg.ChannelType,
-			FromUID:           msg.FromUID,
-			ClientMsgNo:       msg.ClientMsgNo,
-			Payload:           cloneBytes(msg.Payload),
-			ServerTimestampMS: msg.ServerTimestampMS,
-			RedDot:            msg.RedDot,
-			Expire:            msg.Expire,
+			MessageID:           msg.MessageID,
+			MessageSeq:          msg.MessageSeq,
+			ChannelID:           msg.ChannelID,
+			ChannelType:         msg.ChannelType,
+			FromUID:             msg.FromUID,
+			ClientMsgNo:         msg.ClientMsgNo,
+			Payload:             cloneBytes(msg.Payload),
+			PublicationMetadata: cloneBytes(msg.PublicationMetadata),
+			ServerTimestampMS:   msg.ServerTimestampMS,
+			RedDot:              msg.RedDot,
+			Expire:              msg.Expire,
 		})
 	}
 	return out, page.HasMore, page.NextBeforeMessageID, nil
@@ -303,6 +304,12 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 			results[i].Outcome = AppendOutcomeDefinitelyNotWritten
 			continue
 		}
+		records, err := encodeRecordsForMessageDB(item.ChannelID, item.Request.Records)
+		if err != nil {
+			results[i].Err = err
+			results[i].Outcome = AppendOutcomeDefinitelyNotWritten
+			continue
+		}
 		dbStore, err := f.engine.ForChannel(channel.ChannelKey(item.ChannelKey), channel.ChannelID{ID: item.ChannelID.ID, Type: item.ChannelID.Type})
 		if err != nil {
 			results[i].Err = f.mapError(err)
@@ -311,7 +318,7 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 		}
 		dbItems = append(dbItems, messagedb.AppendBatchItem{
 			Store:                     dbStore,
-			Records:                   encodeRecordsForMessageDB(item.ChannelID, item.Request.Records),
+			Records:                   records,
 			Class:                     messageDBAppendBatchClass(item.Request.Class),
 			Committed:                 item.Request.Committed,
 			ServerAllocatedMessageIDs: item.Request.ServerAllocatedMessageIDs,
@@ -365,12 +372,16 @@ func (f *MessageDBFactory) ApplyFollowerBatch(ctx context.Context, items []Apply
 		}
 	}()
 	for i, item := range items {
+		records, err := encodeRecordsForMessageDB(item.ChannelID, item.Request.Records)
+		if err != nil {
+			results[i].Err = err
+			continue
+		}
 		dbStore, err := f.engine.ForChannel(channel.ChannelKey(item.ChannelKey), channel.ChannelID{ID: item.ChannelID.ID, Type: item.ChannelID.Type})
 		if err != nil {
 			results[i].Err = f.mapError(err)
 			continue
 		}
-		records := encodeRecordsForMessageDB(item.ChannelID, item.Request.Records)
 		checkpointHW := followerApplyCheckpointHW(records, item.Request.LeaderHW)
 		dbItems = append(dbItems, messagedb.ApplyFetchBatchItem{
 			Store: dbStore,
@@ -628,9 +639,13 @@ func (a *messageDBChannelStoreAdapter) ReplaceRecoverySuffix(ctx context.Context
 	}
 	proposals := make([]messagedb.RecoveryProposal, len(req.Proposals))
 	for index, proposal := range req.Proposals {
+		records, err := a.encodeRecords(proposal.Records)
+		if err != nil {
+			return replaceRecoverySuffixErrorResult(err), err
+		}
 		proposals[index] = messagedb.RecoveryProposal{
 			Manifest: proposal.Manifest,
-			Records:  a.encodeRecords(proposal.Records),
+			Records:  records,
 		}
 	}
 	result, err := a.store.ReplaceRecoverySuffix(ctx, messagedb.ReplaceRecoverySuffixRequest{
@@ -687,7 +702,10 @@ func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req App
 	if err := ctx.Err(); err != nil {
 		return appendLeaderErrorResult(err), err
 	}
-	records := a.encodeRecords(req.Records)
+	records, err := a.encodeRecords(req.Records)
+	if err != nil {
+		return appendLeaderErrorResult(err), err
+	}
 	results := messagedb.StoreAppendBatch(ctx, []messagedb.AppendBatchItem{{
 		Store:                     a.store,
 		Records:                   records,
@@ -702,7 +720,7 @@ func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req App
 		return AppendLeaderResult{Outcome: AppendOutcomeUnknown}, ch.ErrInvalidConfig
 	}
 	result := results[0]
-	err := a.mapError(result.Err)
+	err = a.mapError(result.Err)
 	lastOffset := result.LastOffset
 	if len(records) == 0 {
 		lastOffset = result.BaseOffset
@@ -728,7 +746,10 @@ func (a *messageDBChannelStoreAdapter) ApplyFollower(ctx context.Context, req Ap
 	if err := ctx.Err(); err != nil {
 		return ApplyFollowerResult{}, err
 	}
-	records := encodeRecordsForMessageDB(a.id, req.Records)
+	records, err := encodeRecordsForMessageDB(a.id, req.Records)
+	if err != nil {
+		return ApplyFollowerResult{}, err
+	}
 	checkpointHW := followerApplyCheckpointHW(records, req.LeaderHW)
 	leo, err := storeApplyFetchRecords(a.store, channel.ApplyFetchStoreRequest{
 		Records:      records,
@@ -980,30 +1001,34 @@ func (a *messageDBChannelStoreAdapter) Close() error {
 	return a.closeErr
 }
 
-func (a *messageDBChannelStoreAdapter) encodeRecords(records []ch.Record) []channel.Record {
+func (a *messageDBChannelStoreAdapter) encodeRecords(records []ch.Record) ([]channel.Record, error) {
 	return encodeRecordsForMessageDB(a.id, records)
 }
 
-func encodeRecordsForMessageDB(id ch.ChannelID, records []ch.Record) []channel.Record {
+func encodeRecordsForMessageDB(id ch.ChannelID, records []ch.Record) ([]channel.Record, error) {
 	out := make([]channel.Record, len(records))
 	for i, record := range records {
 		msg := channel.Message{
-			MessageID:         record.ID,
-			MessageSeq:        record.Index,
-			Framer:            frame.Framer{SyncOnce: record.SyncOnce, RedDot: record.RedDot},
-			Setting:           frame.Setting(record.Setting),
-			Expire:            record.Expire,
-			ChannelID:         id.ID,
-			ChannelType:       id.Type,
-			FromUID:           record.FromUID,
-			ClientMsgNo:       record.ClientMsgNo,
-			ServerTimestampMS: record.ServerTimestampMS,
-			Payload:           cloneBytes(record.Payload),
+			MessageID:           record.ID,
+			MessageSeq:          record.Index,
+			Framer:              frame.Framer{SyncOnce: record.SyncOnce, RedDot: record.RedDot},
+			Setting:             frame.Setting(record.Setting),
+			Expire:              record.Expire,
+			ChannelID:           id.ID,
+			ChannelType:         id.Type,
+			FromUID:             record.FromUID,
+			ClientMsgNo:         record.ClientMsgNo,
+			ServerTimestampMS:   record.ServerTimestampMS,
+			Payload:             cloneBytes(record.Payload),
+			PublicationMetadata: cloneBytes(record.PublicationMetadata),
 		}
-		payload, _ := encodeDBCompatibleMessage(msg)
+		payload, err := encodeDBCompatibleMessage(msg)
+		if err != nil {
+			return nil, ch.ErrInvalidConfig
+		}
 		out[i] = channel.Record{ID: record.ID, Index: record.Index, Epoch: record.Epoch, Payload: payload, SizeBytes: len(payload)}
 	}
-	return out
+	return out, nil
 }
 
 type applyFetchStore interface {
@@ -1025,18 +1050,19 @@ func fromDBRecord(record channel.Record) ch.Record {
 	msg, err := decodeDBCompatibleMessage(record.Payload)
 	if err == nil {
 		return ch.Record{
-			ID:                msg.MessageID,
-			Index:             record.Index,
-			Epoch:             record.Epoch,
-			FromUID:           msg.FromUID,
-			ClientMsgNo:       msg.ClientMsgNo,
-			Setting:           uint8(msg.Setting),
-			Payload:           cloneBytes(msg.Payload),
-			SizeBytes:         len(msg.Payload),
-			ServerTimestampMS: msg.ServerTimestampMS,
-			SyncOnce:          msg.Framer.SyncOnce,
-			RedDot:            msg.Framer.RedDot,
-			Expire:            msg.Expire,
+			ID:                  msg.MessageID,
+			Index:               record.Index,
+			Epoch:               record.Epoch,
+			FromUID:             msg.FromUID,
+			ClientMsgNo:         msg.ClientMsgNo,
+			Setting:             uint8(msg.Setting),
+			Payload:             cloneBytes(msg.Payload),
+			PublicationMetadata: cloneBytes(msg.PublicationMetadata),
+			SizeBytes:           len(msg.Payload) + len(msg.PublicationMetadata),
+			ServerTimestampMS:   msg.ServerTimestampMS,
+			SyncOnce:            msg.Framer.SyncOnce,
+			RedDot:              msg.Framer.RedDot,
+			Expire:              msg.Expire,
 		}
 	}
 	return ch.Record{ID: record.ID, Index: record.Index, Epoch: record.Epoch, Payload: cloneBytes(record.Payload), SizeBytes: record.SizeBytes}
@@ -1045,7 +1071,7 @@ func fromDBRecord(record channel.Record) ch.Record {
 // fromOwnedDBMessage transfers a MessageDB read result to the Channel caller.
 // MessageDB returns independent payloads; the source must not be reused.
 func fromOwnedDBMessage(msg channel.Message) ch.Message {
-	return ch.Message{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, Setting: uint8(msg.Setting), FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Payload: msg.Payload, ServerTimestampMS: msg.ServerTimestampMS, SyncOnce: msg.Framer.SyncOnce, RedDot: msg.Framer.RedDot, Expire: msg.Expire}
+	return ch.Message{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, Setting: uint8(msg.Setting), FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Payload: msg.Payload, PublicationMetadata: msg.PublicationMetadata, ServerTimestampMS: msg.ServerTimestampMS, SyncOnce: msg.Framer.SyncOnce, RedDot: msg.Framer.RedDot, Expire: msg.Expire}
 }
 
 const durableMessageHeaderSize = 45
@@ -1055,6 +1081,12 @@ var durableServerTimestampMagic = [...]byte{'w', 'k', 't', 's'}
 const durableServerTimestampSize = 12
 
 func encodeDBCompatibleMessage(message channel.Message) ([]byte, error) {
+	// Publication records share the canonical storage codec rather than a
+	// second layout that could discard fields during Channel recovery.
+	if len(message.PublicationMetadata) != 0 {
+		record, err := messagedb.EncodeMessageRecord(message, 0)
+		return record.Payload, err
+	}
 	payloadHash := hashPayload(message.Payload)
 	size := durableMessageHeaderSize + 4 + len(message.MsgKey) + 4 + len(message.ClientMsgNo) + 4 + len(message.StreamNo) + 4 + len(message.ChannelID) + 4 + len(message.Topic) + 4 + len(message.FromUID) + 4 + len(message.Payload)
 	if message.ServerTimestampMS != 0 {
@@ -1083,6 +1115,9 @@ func encodeDBCompatibleMessage(message channel.Message) ([]byte, error) {
 func decodeDBCompatibleMessage(payload []byte) (channel.Message, error) {
 	if len(payload) < durableMessageHeaderSize {
 		return channel.Message{}, io.ErrUnexpectedEOF
+	}
+	if payload[0] == channel.PublicationMessageCodecVersion {
+		return messagedb.DecodeMessageRecord(channel.Record{ID: binary.BigEndian.Uint64(payload[1:9]), Payload: payload})
 	}
 	if payload[0] != channel.DurableMessageCodecVersion {
 		return channel.Message{}, ch.ErrInvalidConfig
@@ -1245,7 +1280,7 @@ func (a *messageDBChannelStoreAdapter) readIndexedCommitted(ctx context.Context,
 		if m.MessageSeq < req.MinSeq || m.MessageSeq > req.MaxSeq {
 			continue
 		}
-		used += len(m.Payload)
+		used += len(m.Payload) + len(m.PublicationMetadata)
 		if used > req.MaxBytes {
 			return ReadCommittedResult{}, ch.ErrInvalidConfig
 		}

@@ -158,6 +158,8 @@ type Message struct {
 	// RedDot preserves the protocol unread-badge flag through storage and replication.
 	RedDot  bool
 	Payload []byte
+	// PublicationMetadata is optional bounded immutable publication content.
+	PublicationMetadata []byte
 }
 
 // OpID identifies an asynchronous operation inside one channel generation.
@@ -196,7 +198,9 @@ type Record struct {
 	RedDot bool
 	// Payload is the encoded message body in v0 memory and store adapters.
 	Payload []byte
-	// SizeBytes is used by batching and read budgets.
+	// PublicationMetadata follows Payload through every replica and recovery copy.
+	PublicationMetadata []byte
+	// SizeBytes counts Payload plus PublicationMetadata for batching/read budgets.
 	SizeBytes int
 }
 
@@ -227,7 +231,8 @@ type AppendBatchRequest struct {
 	Messages  []Message
 	// PayloadsImmutable lets an adapter transfer payload buffers that it owns and
 	// promises never to mutate. False keeps the public borrowed-buffer behavior
-	// and makes the Channel runtime clone payloads at admission.
+	// and makes the Channel runtime clone content at admission. This promise
+	// includes both payload and publication metadata buffers.
 	PayloadsImmutable bool
 
 	// TraceID correlates diagnostics events for this append batch.

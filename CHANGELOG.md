@@ -8,7 +8,9 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
-- Add bounded MQTT 5 codec and reusable gateway packet support, including negotiated Keep Alive and packet limits, plus owner-fenced session/subscription storage, per-source backlog accounting, a durable QoS 1 window, source-owned subscription projections and atomic Session/Will storage transitions, plus versioned publication metadata storage, as groundwork for MQTT IM access; the product listener remains unavailable while durable session support is under development. / 新增有界 MQTT 5 编解码及网关 packet 接口，支持协商心跳和包长限制，以及受 owner 保护的会话/订阅存储、按消息源计算的积压计量、持久 QoS 1 窗口、源端订阅关系及 Will 存储与会话生命周期原子变更，并补充发布元数据的版本化存储；完整持久会话仍在开发，产品 MQTT 入口尚未开放。
+- Channel quorum exchange now requires matched version-6 peers, including native traffic before MQTT is enabled. Upgrade replicas together; older data-bearing exchanges are rejected. / Channel 多数派复制协议升级为 exchange 6，MQTT 尚未启用时的原生消息流量同样要求各副本版本一致；须同步升级副本，旧版数据交换将被拒绝。
+
+- Add bounded MQTT 5 codec and reusable gateway packet support, including negotiated Keep Alive and packet limits, plus owner-fenced session/subscription storage, per-source backlog accounting, a durable QoS 1 window, source-owned subscription projections and atomic Session/Will storage transitions, plus versioned publication metadata storage and lossless Channel replication/RPC, as groundwork for MQTT IM access; the product listener remains unavailable while durable session support is under development. / 新增有界 MQTT 5 编解码及网关 packet 接口，支持协商心跳和包长限制，以及受 owner 保护的会话/订阅存储、按消息源计算的积压计量、持久 QoS 1 窗口、源端订阅关系及 Will 存储与会话生命周期原子变更，并补充发布元数据的版本化存储与 Channel 复制/RPC 传播；完整持久会话仍在开发，产品 MQTT 入口尚未开放。
 
 - Bound cloud deployment readiness commands by the shared deadline and publish consistent failure receipts for local repair and GitHub Actions, including interrupted probes. / 本地修复与 GitHub Actions 共用部署执行入口，readiness 命令受统一截止时间约束，中断与失败均保留一致的结构化结果。
 

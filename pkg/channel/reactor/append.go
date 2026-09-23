@@ -107,20 +107,23 @@ func appendRecordsFromMessages(messages []ch.Message, admittedAt time.Time, payl
 			serverTimestampMS = admittedAt.UnixMilli()
 		}
 		payload := msg.Payload
+		metadata := msg.PublicationMetadata
 		if !payloadsImmutable {
 			payload = append([]byte(nil), msg.Payload...)
+			metadata = append([]byte(nil), metadata...)
 		}
 		records[i] = ch.Record{
-			ID:                msg.MessageID,
-			Setting:           msg.Setting,
-			FromUID:           msg.FromUID,
-			ClientMsgNo:       msg.ClientMsgNo,
-			Payload:           payload,
-			SizeBytes:         len(msg.Payload),
-			ServerTimestampMS: serverTimestampMS,
-			SyncOnce:          msg.SyncOnce,
-			RedDot:            msg.RedDot,
-			Expire:            msg.Expire,
+			ID:                  msg.MessageID,
+			Setting:             msg.Setting,
+			FromUID:             msg.FromUID,
+			ClientMsgNo:         msg.ClientMsgNo,
+			Payload:             payload,
+			PublicationMetadata: metadata,
+			SizeBytes:           len(msg.Payload) + len(metadata),
+			ServerTimestampMS:   serverTimestampMS,
+			SyncOnce:            msg.SyncOnce,
+			RedDot:              msg.RedDot,
+			Expire:              msg.Expire,
 		}
 	}
 	return records

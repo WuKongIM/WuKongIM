@@ -320,11 +320,7 @@ func requestsRecordCount(requests []appendRequest) int {
 func recordsBytes(records []ch.Record) int {
 	total := 0
 	for _, record := range records {
-		if record.SizeBytes > 0 {
-			total += record.SizeBytes
-			continue
-		}
-		total += len(record.Payload)
+		total += max(record.SizeBytes, len(record.Payload)+len(record.PublicationMetadata))
 	}
 	return total
 }

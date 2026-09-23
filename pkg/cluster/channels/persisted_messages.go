@@ -63,7 +63,7 @@ func (s *Service) readSelectedMessageBatch(ctx context.Context, requests []Commi
 			results[i].Err = ch.ErrNotReady
 		}
 		for _, msg := range results[i].Read.Messages {
-			used += len(msg.Payload)
+			used += len(msg.Payload) + len(msg.PublicationMetadata)
 			if used > persistedMessageBatchBytes {
 				failed := fail(ch.ErrBackpressured)
 				outcome = "byte_budget"
