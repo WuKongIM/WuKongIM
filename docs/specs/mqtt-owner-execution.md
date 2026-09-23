@@ -90,8 +90,11 @@ The app has not registered this adapter or connected its runtime callback to
 the gateway. The gateway now exposes optional `CloseTransportAndWait` physical
 completion independently of business cleanup; ordinary `CloseSession` remains
 only a closure request. See [the close contract](gateway-transport-close-proof.md).
-Foreground composition, authoritative lease derivation and durable lifecycle
-acquisition remain required before product takeover can use this module.
+The [Session usecase](mqtt-session-acquisition.md) now performs authenticated
+acquisition/renewal with committed results and deadlines captured before proposal.
+It requires explicit prior-owner isolation. Foreground composition and valid
+unreachable/restarted-owner recovery proof remain required before product takeover
+can be enabled.
 
 ## Frozen context
 

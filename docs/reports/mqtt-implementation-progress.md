@@ -1077,3 +1077,70 @@ orchestration, product authentication/listener composition, distributed replay
 and remaining accepted recovery/acceptance work are still outstanding. These are
 real gateway transport integrations, not the full process-level MQTT product E2E.
 The product listener remains unavailable and the full goal remains active.
+
+## Authenticated Session acquisition, renewal and disconnect
+
+Frozen source `571963d33`, applicable context digests and the pre-code failure
+inventory are in [`mqtt-session-acquisition.md`](../specs/mqtt-session-acquisition.md).
+The new entry-neutral usecase verifies the existing device credential and Will
+permission, preserves ClientID/UID binding, proves exact old-owner isolation and
+rereads current Slot authority before proposing. It rechecks authorization after
+isolation, reserves a bounded local owner, commits the atomic Session/Will
+transition, and only then activates execution. Concurrent acquisition conflicts
+do not loop through evicting successors. Resume preserves delivery counters,
+allocators and lifetime quotas; new lifetimes reset them.
+
+Lease grants capture their monotonic deadline before the proposal and keep it
+through acknowledgement. Durable milliseconds round upward by less than one
+millisecond, while the local deadline remains unchanged. Renewal preserves the
+Session's other fields; confirmed ownership loss or invalid clock/evidence fences
+local admission immediately. A failed candidate is fenced independently of caller
+cancellation and receives bounded physical cleanup. Fence itself neither waits
+for transport nor claims isolation. Expired active owners first commit abnormal
+disconnect at the recorded execution boundary before reconnect decides their
+Will and offline lifetime.
+
+Disconnect records observation before metadata/RPC/drain delays, joins exact
+owner isolation outside admitted scopes, and rereads ownership before committing
+the Will decision and expiry. Slow isolation cannot turn an accepted normal
+disconnect into a Will publication or restart its offline lifetime. Stale owners
+cannot disconnect a successor. An originally zero expiry cannot be extended.
+
+Tests preceded implementation. The initial RED run found the missing usecase and
+nonblocking owner Fence. Additional failing regressions were written before fixes
+for known-ended/invalid-clock renewal retaining admission, millisecond truncation
+putting the durable lease before its local gate, dependency panic leaking a renewal
+scope, and slow disconnect isolation changing normal intent/offline timing.
+
+Validation passed:
+
+- `GOWORK=off go test ./internal/usecase/mqttsession
+  ./internal/runtime/mqttsession -count=1 -timeout=60s`.
+- `GOWORK=off go test -race ./internal/usecase/mqttsession
+  ./internal/runtime/mqttsession -count=1 -timeout=90s`.
+  Final package times were 2.982 and 1.581 seconds; the pre-existing macOS linker
+  warning remains. Log: `/tmp/mqtt-session-acquisition-race.log`.
+- `GOWORK=off go test -tags=integration ./internal/app
+  -run '^TestMQTTSessionAcquisitionThreeNodeRPC$' -count=1 -timeout=90s -v`.
+  Final test time was 7.84 seconds. Three real nodes used 256 logical hash Slots,
+  two physical Slots and three replicas. The Session mapped to hash Slot 223 /
+  physical Slot 2 with metadata leader 1; connection ownership moved 2 -> 3 -> 1
+  while preserving Session generation 1 and advancing owner generation to 3.
+  Real device-token verification rejected bad credentials before isolation;
+  remote RPC 92 waited for an admitted scope to drain; stale disconnect was
+  rejected and Receive Maximum 1 survived renewal. The reproducible evidence is
+  printed by the test and retained in `/tmp/mqtt-session-acquisition-integration.log`.
+  An earlier run passed business assertions but failed temporary-directory
+  cleanup ordering; one parent directory now outlives joined node shutdown and
+  both subsequent complete runs passed.
+- Named `flow-doc-contracts` passed after regenerating the index: 86 compliant,
+  zero invalid and the same 9 existing warnings. `git diff --check` passed.
+
+This integration composes real Slot authority, authentication and owner RPC, but
+uses controlled physical-close callbacks. Real TCP/WebSocket close was verified
+in the preceding gateway slice; neither test substitutes for full process-level
+MQTT product acceptance. Product configuration/listener composition, valid
+unreachable/restarted-owner recovery proof, source activation and shared replay
+replication, delivery/ACK/Will workers, revocation, restore and the remaining
+approved acceptance work are still required. The product listener stays
+unavailable and the full implementation goal remains active.

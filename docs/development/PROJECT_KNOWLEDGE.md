@@ -222,8 +222,17 @@ specification, runbook, report, or module documentation; link to them when neede
   writes/socket close and cannot supply proof. One lazy receipt survives canceled
   waits; submission or callback errors remain failure. See
   [close proof](../specs/gateway-transport-close-proof.md) and
-  [owner execution](../specs/mqtt-owner-execution.md); authoritative lease
-  derivation and app registration are not yet connected.
+  [owner execution](../specs/mqtt-owner-execution.md).
+  The [Session usecase](../specs/mqtt-session-acquisition.md) verifies device
+  credentials without WK conflict actions, isolates the exact old owner, rereads
+  authority, atomically commits Session/Will and activates only the local candidate.
+  Local lease time starts before proposal submission; durable milliseconds round
+  up while the monotonic deadline never moves with response latency. Renewal
+  preserves delivery/Will state and fences confirmed loss or invalid clocks.
+  Expired active owners record abnormal disconnect at their recorded deadline
+  before reconnect; delayed cleanup cannot restart Will or offline expiry.
+  Product app registration and unreachable/restarted-owner isolation proof remain
+  required; stored inactive state, boot mismatch or lease expiry alone is not proof.
   Source-owned binding tombstones prevent delayed prepares from resurrecting a
   subscription. Unknown source boundaries block reclamation; stored progress
   requires current remote authority and source protection before use.

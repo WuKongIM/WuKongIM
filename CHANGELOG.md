@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add authenticated MQTT Session acquisition, bounded local renewal and atomic disconnect/Will orchestration through cluster metadata, including exact-owner takeover RPC. Product MQTT admission and unavailable-owner recovery remain under development. / 新增经集群元数据编排的 MQTT 会话认证获取、有界本地续租、断连与 Will 原子处理，并接入精确 owner 接管 RPC；产品 MQTT 入口及失联 owner 恢复仍在开发。
+
 - Add an optional gateway physical-close receipt for safe connection isolation, independently of business cleanup. TCP/WebSocket use completed transport close callbacks; canceled waits share the same close request. MQTT product wiring remains incomplete. / 网关新增独立于业务清理的物理连接关闭确认，TCP/WebSocket 以底层关闭完成回调为准，取消等待后仍复用同一次关闭请求；MQTT 产品装配尚未完成。
 
 - Add bounded MQTT connection-owner admission, lease-expiry fencing and exact-owner quiescence RPC 92. Product wiring remains under development; the MQTT listener stays unavailable. / 新增有界 MQTT 连接 owner 准入、租约到期隔离及精确 owner 静默确认 RPC 92；产品装配仍在开发，MQTT 入口尚未开放。

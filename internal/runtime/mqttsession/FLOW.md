@@ -25,8 +25,9 @@ leases, publish messages, or interpret MQTT packets.
    activation opens execution only for its exact identity and committed receipt.
 2. Begin checks the active local lease and per-owner capacity synchronously.
    A scope retains ownership through all effects; explicit Done releases it.
-3. Quiesce permanently fences admission, cancels scopes and coalesces transport
-   close. It returns success only after transport closure and all scopes drain.
+3. Fence closes admission/cancels scopes without waiting; it supplies no isolation
+   proof. Quiesce also coalesces transport close and succeeds only after physical
+   closure and every admitted scope drain.
 4. One indexed heap entry per retained owner schedules pending expiry, lease
    expiry or cleanup retry. A sweep visits at most 256 due owners, without a
    per-session goroutine or full-registry scan.

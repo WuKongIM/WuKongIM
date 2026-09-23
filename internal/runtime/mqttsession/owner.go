@@ -267,6 +267,23 @@ func (o *Operation) Done() {
 	m.retireLocked(o.entry)
 }
 
+// Fence permanently closes admission and cancels scopes without invoking the
+// transport or waiting for admitted effects. Sweep/Quiesce still owns cleanup;
+// this operation alone supplies no isolation receipt.
+func (m *Owners) Fence(owner contract.Owner) error {
+	if m == nil {
+		return ErrOwnerInvalid
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	e, err := m.entryLocked(owner)
+	if err != nil || e == nil {
+		return err
+	}
+	m.fenceLocked(e)
+	return nil
+}
+
 // Quiesce proves exact-owner isolation only after transport closure and operation
 // drain. Failed/timed-out attempts stay fenced and retain their capacity.
 func (m *Owners) Quiesce(ctx context.Context, owner contract.Owner) error {
