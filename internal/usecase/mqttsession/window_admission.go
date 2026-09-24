@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"math"
-	"slices"
 	"time"
 
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession"
@@ -164,7 +163,7 @@ func (w *WindowAdmission) Prepare(parent context.Context, o contract.Owner, key 
 	if head != nil && head.NextFrom != 0 {
 		through = min(through, head.NextFrom-1)
 	}
-	page, err := w.originals(ctx, op, request, cursor, sub, through)
+	page, err := w.originals(ctx, op, cursor, sub, through)
 	if err != nil {
 		return out, err
 	}
@@ -355,7 +354,7 @@ func (w *WindowAdmission) read(ctx context.Context, op *subscriptionOperation, q
 
 // originals pins a committed anchor and rechecks both placement and permission
 // after reading. It cannot use mutable history or accept an unanchored suffix.
-func (w *WindowAdmission) originals(ctx context.Context, op *subscriptionOperation, request ch.MQTTReplayPlanRequest, cursor meta.MQTTDeliveryCursor, sub meta.MQTTSubscription, through uint64) (ch.MQTTReplayConsumerPage, error) {
+func (w *WindowAdmission) originals(ctx context.Context, op *subscriptionOperation, cursor meta.MQTTDeliveryCursor, sub meta.MQTTSubscription, through uint64) (ch.MQTTReplayConsumerPage, error) {
 	var empty ch.MQTTReplayConsumerPage
 	authorize := func() error {
 		version, err := w.guard.authorize(ctx, op, subscriptionRequestFromRow(sub))
@@ -370,51 +369,9 @@ func (w *WindowAdmission) originals(ctx context.Context, op *subscriptionOperati
 	if err := authorize(); err != nil {
 		return empty, err
 	}
-	placement, err := w.options.Metadata.ResolveChannelMetaFresh(ctx, request.ChannelID)
+	page, err := readAnchoredOriginals(ctx, w.options.Metadata, w.options.Channels, cursor, cursor.WindowThrough+1, through, w.options.PageSize, w.options.MaxBytes)
 	if err != nil {
 		return empty, err
-	}
-	if !validReplayPlacement(placement, request.ChannelID) {
-		return empty, ErrEvidence
-	}
-	placement.Replicas, placement.ISR = slices.Clone(placement.Replicas), slices.Clone(placement.ISR)
-	request.ExpectedChannelEpoch, request.ExpectedLeaderEpoch, request.ExpectedRouteGeneration = placement.Epoch, placement.LeaderEpoch, placement.RouteGeneration
-	if err = checkSubscriptionScope(ctx, op); err != nil {
-		return empty, err
-	}
-	plan, err := w.options.Channels.PlanChannelMQTTReplay(ctx, request)
-	if err != nil {
-		return empty, err
-	}
-	if err = checkSubscriptionScope(ctx, op); err != nil {
-		return empty, err
-	}
-	if !plan.ValidFor(request) || plan.Source.StartAfter > cursor.StartAfter || plan.Source.CommittedThrough < cursor.AccountedThrough {
-		return empty, ErrEvidence
-	}
-	if !plan.HasAnchor {
-		return empty, ch.ErrNotReady
-	}
-	if plan.Anchor.Anchor.Through < cursor.AccountedThrough {
-		return empty, ErrEvidence
-	}
-	q := ch.MQTTReplayConsumerRequest{AnchorPosition: plan.Anchor.Manifest.LastOffset, Request: ch.MQTTReplayRequest{ChannelID: request.ChannelID, ExpectedChannelEpoch: request.ExpectedChannelEpoch, ExpectedLeaderEpoch: request.ExpectedLeaderEpoch, ExpectedRouteGeneration: request.ExpectedRouteGeneration, Range: ch.MQTTReplayRange{Generation: cursor.Key.SourceGeneration, From: cursor.WindowThrough + 1, Through: through, Limit: w.options.PageSize, MaxBytes: w.options.MaxBytes}}}
-	page, err := w.options.Channels.ReadChannelMQTTReplay(ctx, q)
-	if err != nil {
-		return empty, err
-	}
-	if err = checkSubscriptionScope(ctx, op); err != nil {
-		return empty, err
-	}
-	if !page.ValidFor(request.ChannelID, q.Request.Range) || page.Before.StartAfter != plan.Source.StartAfter || (page.After.Through == plan.Anchor.Anchor.Through && page.After != plan.Anchor.Prefix()) {
-		return empty, ErrEvidence
-	}
-	current, err := w.options.Metadata.ResolveChannelMetaFresh(ctx, request.ChannelID)
-	if err != nil {
-		return empty, err
-	}
-	if !validReplayPlacement(current, request.ChannelID) || ch.MQTTReplayCopyAuthority(current) != ch.MQTTReplayCopyAuthority(placement) || current.WriteFence != placement.WriteFence {
-		return empty, ErrEvidence
 	}
 	if err = authorize(); err != nil {
 		return empty, err

@@ -77,6 +77,22 @@ func verifyMQTTConsumerProgress(t *testing.T, ctx context.Context, nodes []*clus
 		pending = append(pending, got.Delivery.Exchange)
 	}
 	require.EqualValues(t, 2, read().Session.OutboundInflight)
+	recovery, err := newMQTTExchangeRecovery(nodes[2], owners, authorization)
+	require.NoError(t, err)
+	var after meta.MQTTInflightCursor
+	for i, entry := range content.Records {
+		got, e := recovery.Next(ctx, owner, after)
+		require.NoError(t, e)
+		require.NotNil(t, got.Delivery)
+		require.Equal(t, entry, got.Delivery.Publication)
+		require.Equal(t, pending[i].Publication, got.Delivery.Exchange.Publication)
+		require.Equal(t, pending[i].PacketID, got.Delivery.Exchange.PacketID)
+		after = got.After
+	}
+	recovered, err := recovery.Next(ctx, owner, after)
+	require.NoError(t, err)
+	require.True(t, recovered.Done)
+	require.Nil(t, recovered.Delivery)
 	acknowledge := func(i int) sessioncase.AcknowledgementResult {
 		result, e := acknowledgements.Acknowledge(ctx, sessioncase.AcknowledgementCommand{Owner: owner, Key: prepared.Cursor.Key, PacketID: pending[i].PacketID, DeliveryOrder: pending[i].DeliveryOrder})
 		require.NoError(t, e)
@@ -108,6 +124,6 @@ func verifyMQTTConsumerProgress(t *testing.T, ctx context.Context, nodes []*clus
 	require.False(t, again.Changed)
 	require.Equal(t, completed.Binding, again.Binding)
 	verifyMQTTReplayRetention(t, ctx, nodes, prepared, completed.Binding.CompletedThrough, true, ids, expected)
-	t.Log("mqtt_consumer_progress_evidence: consumer_progress_cross_hash_slot=true ack_gap_preserved=true exact_ack_usecase=true duplicate_ack_no_write=true coalesced_projection=true independent_remote_read=true accounting=real_anchored_content admission=real_anchored_content product_listener=false")
+	t.Log("mqtt_consumer_progress_evidence: consumer_progress_cross_hash_slot=true ack_gap_preserved=true exact_ack_usecase=true duplicate_ack_no_write=true coalesced_projection=true independent_remote_read=true accounting=real_anchored_content admission=real_anchored_content recovery=real_anchored_content product_listener=false")
 	return progress
 }

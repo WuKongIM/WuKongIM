@@ -4506,3 +4506,60 @@ source cleanup, unavailable-owner isolation, Will execution, product/restore,
 offline tools, metrics and process/load acceptance work is also still required.
 Product MQTT is not enabled; these tests do not establish process-level acceptance
 or capacity.
+
+## Existing-exchange recovery preparation
+
+[ExchangeRecovery](../specs/mqtt-exchange-recovery.md) now reads one existing
+exchange in DeliveryOrder under exact Owners admission. Its authoritative pinned
+Session/cursor and retained active/removing source binding prove original
+responsibility and permission incarnation. Current subscription rows/options are
+not used to rewrite a begun exchange, so ordinary unsubscribe and a replacement
+subscription generation preserve PacketID, QoS and SubscriptionIdentifier.
+Current receive permission still must match the original authorization version.
+
+A shared private anchored-original reader now serves WindowAdmission and recovery.
+It captures the committed anchor, reads a bounded exact source range and rechecks
+placement. Recovery compares immutable ID/sequence/version/hash/bytes, rechecks
+permission and point-reads the exact exchange before returning. Unrelated ACKs may
+update links; target disappearance, new admission, foreign ownership or changed
+identity yields without caller-cursor progress. No recovery preparation writes
+ACK/window/progress, expires an exchange or interprets Receive Maximum as deletion
+permission. Empty results also require current clock/owner evidence.
+
+App composition uses fresh Node/SlotMetaSource and Owners ports. The real
+three-node physical-trim test now independently compares original content during
+accounting, window admission and existing-exchange recovery before exercising ACK
+gaps and retention. It remains an internal composition test with controlled
+subscription activation; no autonomous sender or product listener is represented.
+
+Validation (2026-09-24):
+
+- The failure inventory and public usecase/app tests preceded code. Missing-API
+  RED: `/tmp/mqtt-exchange-recovery-red.log` and
+  `/tmp/mqtt-exchange-recovery-app-red.log`. The concurrent-admission fixture uses
+  actual WindowAdmission, since lifecycle Session CAS correctly refuses direct
+  allocator changes.
+- Full usecase/app race suites passed (51.635s / 5.357s),
+  `/tmp/mqtt-exchange-recovery-race.log`, before the final two evidence guards.
+- Empty-result clock regression and contradictory readback debt each failed
+  before their corresponding guards were added:
+  `/tmp/mqtt-exchange-recovery-guards-red.log` and
+  `/tmp/mqtt-exchange-recovery-debt-red.log`.
+- Final `GOWORK=off go test -race -tags=integration -p 2 ./internal/usecase/mqttsession ./internal/app -run '^(TestExchangeRecovery.*|TestWindowAdmission.*|TestMQTTGroupSourcePreparationThreeNodeRecovery)$' -count=1 -timeout=150s`
+  passed (11.075s / 19.969s), `/tmp/mqtt-exchange-recovery-final.log`. The final
+  source covers actual metadata commits, unsubscribe sealing/replacement,
+  connection takeover, expired begun exchange retention, ACK/new-admission races,
+  corrupt/foreign/missing proofs, current permission/placement changes,
+  cancellation/panic/clock failures and real TCP/disk three-node original trim.
+- Named `flow-doc-contracts` passed with 86 compliant files, zero invalid and
+  nine existing length warnings (`/tmp/mqtt-exchange-recovery-flow.log`). Only
+  existing Darwin linker warnings appeared; formatting/diff checks are clean.
+
+The goal remains active. This read-only preparation does not establish complete
+connection recovery or grant network sending. The sender must serialize old
+exchange recovery before new admission, enforce final current receive permission,
+apply gateway credit/order, and complete QoS 0 after enqueue. Autonomous scheduling,
+inbox/future-person sources, unattended cleanup/source deactivation, unavailable
+owner isolation, Will execution, product/restore composition, offline tools,
+metrics and full process/load acceptance remain required. No product MQTT listener
+or capacity result is claimed.

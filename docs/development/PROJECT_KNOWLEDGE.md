@@ -220,6 +220,13 @@ specification, runbook, report, or module documentation; link to them when neede
   keeps the earlier native/MQTT/Will deadline with remaining zero when expired.
   App codec composition reserves 136 outbound properties/64 KiB while preserving
   inbound/peer packet bounds. Caller still owns private completion after enqueue.
+  [Exchange recovery](../specs/mqtt-exchange-recovery.md) prepares one begun
+  exchange in DeliveryOrder under exact ownership. Its retained cursor/binding
+  supplies the original permission incarnation across unsubscribe/replacement;
+  current permission and anchored content must still agree. Final point read
+  accepts unrelated ACK link changes but rejects disappearance/new admission.
+  It never ACKs, expires or changes an exchange. Page completion is not a complete
+  connection-recovery proof; sender serialization and final permission remain required.
   Optional message column 21 preserves bounded versioned publication metadata;
   compatibility record codec 2 and proposal format 3 prevent lossy recovery.
   Ordinary expiry uses ingress time; Will uses the original source append time.
