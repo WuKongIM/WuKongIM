@@ -297,6 +297,10 @@ specification, runbook, report, or module documentation; link to them when neede
   queue and detached typed workers, preserving durable progress after observer
   cancellation without caching retry identities. [Routed admission](../specs/mqtt-retirement-routing.md)
   uses RPC 100 with full placement identity and fresh Slot checks around the reactor;
+  successful local commits and idempotent retries request native voter refresh
+  so idle replicas learn the decision without a later business append. The native
+  sequencer supplies HW; scheduling is not a follower durability receipt. Missing
+  refresh capability rejects local admission and post-refresh authority is checked.
   RPC 101 returns bounded historical selection under a stable fence and the exact
   captured proof. Serving-node binding, closed echoes and foreground gates survive
   gateway replacement. These internal ports trust ordered consumer permission;

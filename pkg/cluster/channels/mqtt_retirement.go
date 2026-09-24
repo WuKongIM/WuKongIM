@@ -117,7 +117,7 @@ func (s *Service) commitMQTTReplayRetirement(ctx context.Context, q mqttRetireme
 	var p ch.MQTTReplayRetirementProof
 	if m.Leader == s.localNode {
 		committer, ok := s.runtime.(ch.MQTTReplayRetirementCommitter)
-		if !ok {
+		if !ok || s.replicaCommitRefresh == nil {
 			return empty, ch.ErrInvalidConfig
 		}
 		if err = s.applyRuntimeMetaContext(ctx, m, true, true); err != nil {
@@ -140,6 +140,20 @@ func (s *Service) commitMQTTReplayRetirement(ctx context.Context, q mqttRetireme
 	}
 	if !q.accepts(p) {
 		return empty, ch.ErrLogConflict
+	}
+	if m.Leader == s.localNode {
+		// Idle voters must learn this commit without another business append.
+		// Native repair reads its own sequencer HW; even an idempotent retry
+		// reschedules propagation, but scheduling grants no durable receipt.
+		if err = s.replicaCommitRefresh.RequestCommittedReplicaRefresh(ctx, mqttReplicaAuthority(m)); err != nil {
+			return empty, err
+		}
+		if err = ctx.Err(); err != nil {
+			return empty, err
+		}
+		if _, err = s.mqttRetirementMeta(ctx, q); err != nil {
+			return empty, err
+		}
 	}
 	return p, nil
 }

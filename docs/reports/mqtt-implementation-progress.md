@@ -3670,3 +3670,45 @@ binding removal, complete subscription/inbox projection, permission ordering,
 delivery/ACK, unavailable-owner recovery, Will execution, product lifecycle,
 offline tools and process/load acceptance remain required. The full goal remains
 active; this routed capability does not complete MQTT product admission.
+
+## Idle retirement commit propagation
+
+The three-node retirement scenario exposed an idle-tail gap: native quorum commit
+scheduled learners, while voting followers could retain the newest control with
+their committed checkpoint still at the previous record. Without a later append,
+their retirement reader could not expose the newest committed decision.
+
+The routed serving leader now requires `CommittedReplicaRefresher` before local
+admission, verifies the returned proof and fresh authority, requests existing
+bounded native tail repair, and rechecks authority before success. Idempotent
+retries request repair again. The sequencer supplies HW; caller proofs and
+scheduling are never follower receipts. Missing capability and scheduling errors
+fail explicitly without undoing already admitted durability. Remote origins do
+not refresh their own logs. No table, wire or storage format changes are required.
+
+Validation:
+
+- Before the production fix, the real three-node test failed with `idle voter 1
+  must learn the committed retirement`; `/tmp/mqtt-retirement-propagation-red.log`.
+  Service failure cases also failed before code in
+  `/tmp/mqtt-retirement-propagation-unit-red.log`.
+- `GOWORK=off go test -p 2 -race ./pkg/cluster/channels -run
+  '^TestMQTTRetirementRoute' -count=1 -timeout=60s -v`: passed, 1.532 s;
+  `/tmp/mqtt-retirement-propagation-unit.log`. Includes missing capability,
+  scheduling failure/retry, invalid proof, before/after authority changes,
+  cancellation and remote-origin isolation.
+- `GOWORK=off go test -p 2 -race -tags=integration ./pkg/cluster -run
+  '^TestMQTTAnchorThreeNodeRoutingRestartAndIsolation$' -count=1
+  -timeout=150s -v`: passed, 18.955 s;
+  `/tmp/mqtt-retirement-propagation-integration.log`. Every voter independently
+  reads the latest exact retirement proof without another business append or
+  test-written checkpoint, before the existing restart/isolation checks.
+- `GOWORK=off go test -p 2 -race ./pkg/cluster/channels ./pkg/cluster
+  -count=1 -timeout=180s`: passed, 6.970/7.770 s;
+  `/tmp/mqtt-retirement-propagation-race.log`.
+- `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-retirement-propagation-flow.log`. Generated index unchanged.
+
+The ordered consumer-floor producer, its bounded continuation and automatic
+worker composition remain next. Full MQTT scope and product admission remain
+unfinished; the active goal is unchanged.

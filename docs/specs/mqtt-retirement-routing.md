@@ -49,3 +49,35 @@ Source `24884ff7a60ff3d94f54c0efcdb835c42e309996`; SHA-256:
 - `AGENTS.md`: `d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade`
 - `pkg/channel/FLOW.md`: `44194fb8fed90b10c8a8b8c265348bfc7273592c978c74b74dae4f7b5192b72a`
 - `pkg/cluster/FLOW.md`: `cd37662c9883982aad6d69241840ac439b646d6c8cd0b6f42cc8c729bc0c6f7e`
+
+## Idle retirement propagation
+
+After verifying a local committed retirement, the serving leader requests bounded
+native tail propagation to current voters through `CommittedReplicaRefresher`.
+The native sequencer supplies its own committed boundary; the request and its
+proof never supply HW. Idempotent retries also request propagation. Scheduling
+is not a receipt that followers have completed repair. Learners retain the
+existing native commit repair path. No new record, table or RPC is introduced.
+
+Failure inventory before this fix:
+
+1. A final retirement remains uncommitted on idle voters until another append;
+   the real three-node test must observe the exact newest proof on every voter
+   without another business write or a test-generated checkpoint.
+2. Missing refresh capability permits local admission, or a scheduling failure
+   falsely reports success. A retry must reuse committed identity and retry
+   propagation; uncertain durability is never undone.
+3. Invalid proof or stale post-commit authority schedules refresh, or authority
+   changes/cancellation during refresh still permit a success reply. Refresh
+   must use exact fresh placement and final authority must be rechecked.
+4. An origin node refreshes its own log for a remotely committed retirement.
+
+The existing approved Node/service/storage seams cover these cases. The initial
+three-node test fails at `idle voter 1 must learn the committed retirement` in
+`/tmp/mqtt-retirement-propagation-red.log` before the production change.
+
+Frozen source `f1feb6929d04bf354b995a9e5ab7821cd9a1e0f1`; SHA-256:
+
+- `AGENTS.md`: `d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade`
+- `pkg/channel/FLOW.md`: `f409f21633ab545ec268bd3914b71c0882023447a98c56e2ab89a161c6fd281e`
+- `pkg/cluster/FLOW.md`: `f451f2fb8141689d54b553a53d16ea830ba8fd053d7e795a5738261b659e0bb5`

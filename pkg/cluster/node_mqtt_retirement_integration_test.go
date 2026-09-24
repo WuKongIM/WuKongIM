@@ -10,6 +10,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/stretchr/testify/require"
 )
 
@@ -71,6 +72,19 @@ func verifyRoutedMQTTRetirement(t *testing.T, ctx context.Context, nodes []*Node
 	old, err := nodes[0].CommitChannelMQTTReplayRetirement(ctx, request)
 	require.NoError(t, err)
 	require.Equal(t, newer, old)
+	// An idle source may never append again. Every voter must learn that this
+	// exact decision is committed so its next recovery turn can apply retirement.
+	for _, node := range nodes {
+		require.Eventually(t, func() bool {
+			st, e := node.defaultChannelStore.ChannelStore(m.Key, m.ID)
+			if e != nil {
+				return false
+			}
+			defer st.Close()
+			p, found, e := st.(channelstore.MQTTReplayLatestRetirementReader).LoadLatestMQTTReplayRetirement(ctx, source.Generation)
+			return e == nil && found && p == newer
+		}, 3*time.Second, 20*time.Millisecond, "idle voter %d must learn the committed retirement", node.cfg.NodeID)
+	}
 	// Reopen the exact serving node, then retry the older selection under the
 	// same still-current authority. Historical journal proofs must remain sufficient.
 	stopNodes(t, nodes[2])

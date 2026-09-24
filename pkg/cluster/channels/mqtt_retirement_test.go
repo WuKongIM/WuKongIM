@@ -8,6 +8,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/stretchr/testify/require"
 )
@@ -43,6 +44,7 @@ func mqttRoutedRetirementFixture(t *testing.T) (*Service, *mqttFreshMeta, *mqttR
 	}}
 	s, err := NewService(Config{LocalNode: anchor.Meta.Leader, MetaSource: m, Runtime: runtime})
 	require.NoError(t, err)
+	s.replicaCommitRefresh = &mqttReadinessRefresh{}
 	return s, m, runtime, q, want
 }
 
@@ -110,13 +112,81 @@ func TestMQTTRetirementRouteRequiresFreshFullAuthority(t *testing.T) {
 			if mode == "success" {
 				require.NoError(t, e)
 				require.Equal(t, want, p)
-				require.Equal(t, 2, m.calls)
+				require.Equal(t, 3, m.calls)
 			} else {
 				require.Error(t, e)
 				require.Zero(t, p)
 			}
 			if mode == "route_before" || mode == "members_before" || mode == "fence_before" || mode == "cancel_before" || mode == "read_error" || mode == "unsupported" {
 				require.False(t, called)
+			}
+			if mode != "success" {
+				require.Empty(t, s.replicaCommitRefresh.(*mqttReadinessRefresh).calls)
+			}
+		})
+	}
+}
+
+type mqttRetirementRefresh func(context.Context, replication.Authority) error
+
+func (f mqttRetirementRefresh) RequestCommittedReplicaRefresh(ctx context.Context, a replication.Authority) error {
+	return f(ctx, a)
+}
+
+func TestMQTTRetirementRouteRefreshesCommittedRetries(t *testing.T) {
+	for _, mode := range []string{"missing", "retry", "authority_after", "cancel_after"} {
+		t.Run(mode, func(t *testing.T) {
+			s, m, runtime, q, want := mqttRoutedRetirementFixture(t)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			commits, refreshes := 0, 0
+			original := runtime.commit
+			runtime.commit = func(c context.Context, r ch.MQTTReplayRetirementRequest) (ch.MQTTReplayRetirementProof, error) {
+				commits++
+				return original(c, r)
+			}
+			s.replicaCommitRefresh = mqttRetirementRefresh(func(c context.Context, a replication.Authority) error {
+				refreshes++
+				require.Equal(t, commits, refreshes, "refresh follows verified durable commit, including retry")
+				require.Equal(t, ch.ChannelKeyForID(q.Meta.ID), a.Key)
+				require.Equal(t, q.Meta.ID, a.ChannelID)
+				require.Equal(t, replication.AuthorityID{ChannelEpoch: 2, LeaderTerm: 3, FenceVersion: 4}, a.ID)
+				require.Equal(t, ch.NodeID(2), a.Leader)
+				require.Equal(t, q.Meta.ISR, a.Voters)
+				require.Equal(t, int(q.Meta.MinISR), a.WriteQuorum)
+				require.Zero(t, a.WriteFence)
+				require.NoError(t, c.Err())
+				switch mode {
+				case "retry":
+					if refreshes == 1 {
+						return ch.ErrBackpressured
+					}
+				case "authority_after":
+					m.meta.RouteGeneration++
+				case "cancel_after":
+					cancel()
+				}
+				return nil
+			})
+			if mode == "missing" {
+				s.replicaCommitRefresh = nil
+			}
+			p, err := s.CommitMQTTReplayRetirement(ctx, q)
+			require.Error(t, err)
+			require.Zero(t, p)
+			if mode == "missing" {
+				require.ErrorIs(t, err, ch.ErrInvalidConfig)
+				require.Zero(t, commits)
+				return
+			}
+			require.Equal(t, 1, refreshes)
+			if mode == "retry" {
+				require.ErrorIs(t, err, ch.ErrBackpressured)
+				q.MessageID++
+				p, err = s.CommitMQTTReplayRetirement(ctx, q)
+				require.NoError(t, err)
+				require.Equal(t, want, p)
+				require.Equal(t, 2, refreshes)
 			}
 		})
 	}
@@ -129,6 +199,10 @@ func TestMQTTRetirementRouteForwardsOnceAcrossGatewayReplacement(t *testing.T) {
 	RegisterServiceHandlersOn(localNetworkRegistrar{network: network, nodeID: 2}, gateway)
 	origin, err := NewService(Config{LocalNode: 1, MetaSource: m, Runtime: &fakeRuntime{}, Forward: NewTransportClient(network)})
 	require.NoError(t, err)
+	origin.replicaCommitRefresh = mqttRetirementRefresh(func(context.Context, replication.Authority) error {
+		t.Fatal("remote retirement must refresh only its serving leader")
+		return ch.ErrInvalidConfig
+	})
 	p, err := origin.CommitMQTTReplayRetirement(context.Background(), q)
 	require.NoError(t, err)
 	require.Equal(t, want, p)
