@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"math"
 	"strings"
 	"time"
@@ -24,6 +25,8 @@ func (s *Subscriptions) Subscribe(parent context.Context, o contract.Owner, r Su
 	if err != nil {
 		return out, err
 	}
+	unconfirmed := false
+	defer subscriptionUnconfirmed(&unconfirmed, &err)
 	defer finishSubscription(op, cancel, &err)
 	if r.TargetKind == meta.MQTTSubscriptionUserInbox && r.TargetID != op.UID() {
 		return out, ErrSubscriptionDenied
@@ -32,6 +35,7 @@ func (s *Subscriptions) Subscribe(parent context.Context, o contract.Owner, r Su
 	if err != nil {
 		return out, err
 	}
+	unconfirmed = found && (old.Stage == meta.MQTTSubscriptionPreparing || old.Stage == meta.MQTTSubscriptionRemoving)
 	version, err := s.authorize(ctx, op, r)
 	if err != nil {
 		return out, err
@@ -55,6 +59,7 @@ func (s *Subscriptions) Subscribe(parent context.Context, o contract.Owner, r Su
 			}
 			next := old
 			setSubscriptionOptions(&next, r)
+			unconfirmed = true
 			return s.mutate(ctx, op, o, session, next)
 		default:
 			return out, ErrConflict
@@ -69,6 +74,7 @@ func (s *Subscriptions) Subscribe(parent context.Context, o contract.Owner, r Su
 	next := meta.MQTTSubscription{Namespace: o.Key.Namespace, ClientID: o.Key.ClientID, SessionGeneration: o.SessionGeneration, Topic: r.Topic, TargetKind: r.TargetKind, TargetID: r.TargetID, Generation: session.Revision + 1, AuthorizationVersion: version, Stage: meta.MQTTSubscriptionPreparing}
 	next.OperationID = subscriptionOperationID(next)
 	setSubscriptionOptions(&next, r)
+	unconfirmed = true
 	next, err = s.mutate(ctx, op, o, session, next)
 	if err != nil {
 		return out, err
@@ -86,6 +92,8 @@ func (s *Subscriptions) Unsubscribe(parent context.Context, o contract.Owner, to
 	if err != nil {
 		return false, err
 	}
+	unconfirmed := false
+	defer subscriptionUnconfirmed(&unconfirmed, &err)
 	defer finishSubscription(op, cancel, &err)
 	session, row, found, err := s.read(ctx, op, o, topic)
 	if err != nil {
@@ -94,6 +102,7 @@ func (s *Subscriptions) Unsubscribe(parent context.Context, o contract.Owner, to
 	if !found || row.Stage == meta.MQTTSubscriptionRemoved {
 		return false, nil
 	}
+	unconfirmed = true
 	if row.Stage != meta.MQTTSubscriptionRemoving {
 		row.Stage = meta.MQTTSubscriptionRemoving
 		row, err = s.mutate(ctx, op, o, session, row)
@@ -103,6 +112,14 @@ func (s *Subscriptions) Unsubscribe(parent context.Context, o contract.Owner, to
 	}
 	_, err = s.complete(ctx, op, o, row)
 	return err == nil, err
+}
+
+// Preserve the original cause for bounded pending handling while distinguishing
+// an unresolved intent from a rejection before any possible mutation.
+func subscriptionUnconfirmed(possible *bool, err *error) {
+	if *possible && *err != nil {
+		*err = errors.Join(ErrSubscriptionUnconfirmed, *err)
+	}
 }
 
 // Reconcile resumes exact pending intent under the current live owner. It does

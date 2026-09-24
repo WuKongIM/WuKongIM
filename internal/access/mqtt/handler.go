@@ -55,6 +55,12 @@ type HandlerOptions struct {
 	// Deliveries binds accepted connections to scheduled sending; nil disables it.
 	// A configured delivery port requires Acknowledgements.
 	Deliveries ConnectionDeliveries
+	// Subscriptions maps confirmed intent transitions; nil disables SUB/UNSUB.
+	// It requires delivery registration and durable acknowledgement support.
+	Subscriptions SessionSubscriptions
+	// SubscriptionTimeout bounds the entire control packet, including reply;
+	// default five seconds, maximum one minute, independent of its filter count.
+	SubscriptionTimeout time.Duration
 	// ConnectTimeout bounds acquisition and open handoff separately; default
 	// five seconds, maximum one minute.
 	ConnectTimeout time.Duration
@@ -67,7 +73,7 @@ type HandlerOptions struct {
 }
 
 // Handler owns gateway mapping and handoff only. App must not expose product
-// MQTT until all required paths, including subscriptions, are composed.
+// MQTT until all required paths, including inbox projection, are composed.
 type Handler struct{ options HandlerOptions }
 
 var _ gt.PacketHandler = (*Handler)(nil)
@@ -91,6 +97,9 @@ func NewHandler(o HandlerOptions) (*Handler, error) {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
+	if o.SubscriptionTimeout == 0 {
+		o.SubscriptionTimeout = 5 * time.Second
+	}
 	if o.ConnectTimeout == 0 {
 		o.ConnectTimeout = 5 * time.Second
 	}
@@ -101,7 +110,7 @@ func NewHandler(o HandlerOptions) (*Handler, error) {
 		o.MaxPacketBytes = wire.DefaultMaxPacketBytes
 	}
 	now := o.Now()
-	if o.Deliveries != nil && o.Acknowledgements == nil {
+	if (o.Deliveries != nil && o.Acknowledgements == nil) || (o.Subscriptions != nil && o.Deliveries == nil) || o.SubscriptionTimeout <= 0 || o.SubscriptionTimeout > time.Minute {
 		return nil, ErrHandlerInvalid
 	}
 	if !contract.ValidIdentity(o.Namespace, 1024) || o.Sessions == nil || o.Connections == nil || o.Owners == nil || o.Publisher == nil || o.Publisher.options.Owners != o.Owners || o.ConnectTimeout <= 0 || o.ConnectTimeout > time.Minute || o.CleanupTimeout <= 0 || o.CleanupTimeout > 5*time.Second || o.MaxPacketBytes > wire.DefaultMaxPacketBytes || now == now.Round(0) {
@@ -344,6 +353,10 @@ func (h *Handler) OnPacket(g gt.Context, packet any) (err error) {
 	}
 	if p, ok := packet.(*wire.Puback); ok {
 		return h.acknowledge(g, s, p)
+	}
+	switch packet.(type) {
+	case *wire.Subscribe, *wire.Unsubscribe:
+		return h.subscriptionPacket(g, s, packet)
 	}
 	op, beginErr := h.options.Owners.Begin(g.RequestContext, s.connection.Owner)
 	if beginErr != nil {

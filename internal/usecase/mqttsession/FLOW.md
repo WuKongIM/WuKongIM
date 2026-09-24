@@ -42,9 +42,9 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
 7. Subscription establishment commits Preparing, checks projection/current child
    and permission, then Active. Removal commits Removing before SourceDrain fixes
    the accounting end and releases only unadmitted backlog; exchanges survive.
-   Qualified cursors release one validated range per turn; pending retains Removing until the fixed end.
-   Group removal discovers its original cursor or registers missing preparation before protected cancellation Init.
+   Qualified cursors release one range per turn; group removal recovers its cursor or registers missing preparation before protected cancellation Init.
    Resume preserves intent; replacement keeps generation/operation. See the [failure inventory](../../../docs/specs/mqtt-subscription-orchestration.md).
+   SubscriptionRequests waits only for explicit pending work within attempts/deadline. Possible writes and pending intent mark errors Unconfirmed; entry cannot return a definitive negative ACK.
 8. Group preparation registers an unknown binding before fresh protection confirmation,
    fixes one start, initializes the cursor and activates the binding. GroupProjection adds all-replica replay confirmation and current intent/permission checks before a receipt.
 9. Replay maintenance rotates bounded copy/anchor admission, recovery and retirement under fresh placement.

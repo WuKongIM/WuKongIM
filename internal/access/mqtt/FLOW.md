@@ -10,7 +10,7 @@ summary: Maps MQTT gateway lifecycle, inbound publications and outbound exchange
 This package maps wire-validated MQTT 5 packets to IM identities and immutable
 publication content. Handler binds generic gateway callbacks to Session acquisition
 and connection supervision; Publisher invokes the existing message usecase.
-App registers delivery after connection open; product listener and subscription entry remain unavailable.
+App registers delivery after connection open and composes confirmed subscription requests; product admission remains unavailable.
 
 ## Boundaries
 
@@ -49,6 +49,10 @@ App registers delivery after connection open; product listener and subscription 
 9. BindDelivery captures the accepted Connection and a bound entry-neutral sink;
    per-turn contexts feed the existing send paths. Busy/expiry prove non-writes, including temporary owner-operation pressure;
    terminal feedback maps to DISCONNECT and closure intent, never isolation proof.
+10. SUB/UNSUB maps at most 128 filters in input order under one bounded owner scope
+    through reply. Usecases own pending convergence and exact intent proof.
+    Unconfirmed errors close without partial ACK; successful reply releases the
+    scope before waking delivery. Unsubscribe preserves begun exchanges.
 
 ## Invariants and Failure Semantics
 
@@ -68,7 +72,7 @@ App registers delivery after connection open; product listener and subscription 
   Proof-based recovery and complete product admission remain pending.
 - Register normal disconnect intent before fencing renewal; retain its original
   monotonic observation. Invalid expiry/direction never cancels Will. Peer packet
-  limits apply to accepted and rejected CONNACK. Unsupported controls fail closed.
+  limits apply to accepted and rejected CONNACK. Subscription identifiers require composed subscription, delivery and ACK ports.
 
 - Successful bound ACK wakes delivery after credit release; unknown ACK adds no
   work. Close records first intent before fencing/waking. Wake failure is only a

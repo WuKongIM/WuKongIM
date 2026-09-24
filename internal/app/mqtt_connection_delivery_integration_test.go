@@ -37,7 +37,12 @@ func TestMQTTEmptyGroupSubscriptionPahoSingleNodeCluster(t *testing.T) {
 	testMQTTConnectionDeliveryPaho(t, false)
 }
 
-func testMQTTConnectionDeliveryPaho(t *testing.T, existingMessage bool) {
+func TestMQTTSubscriptionEntryPahoSingleNodeCluster(t *testing.T) {
+	testMQTTConnectionDeliveryPaho(t, false, true)
+}
+
+func testMQTTConnectionDeliveryPaho(t *testing.T, existingMessage bool, protocolSubscriptions ...bool) {
+	entryEnabled := len(protocolSubscriptions) > 0 && protocolSubscriptions[0]
 	cfg := singleNodeClusterAppConfig(t)
 	cfg.Cluster.Slots.HashSlotCount = 256
 	a, err := New(cfg)
@@ -137,7 +142,11 @@ func testMQTTConnectionDeliveryPaho(t *testing.T, existingMessage bool) {
 	require.NoError(t, err)
 	// A one-minute idle poll makes sub-three-second ACK/close progress evidence
 	// for entry wakes, rather than accidental periodic polling.
-	deliveries, err := runtime.NewDeliveries(runtime.DeliveryOptions{Owners: owners, Workers: 2, IdleInterval: time.Minute, Retry: 20 * time.Millisecond})
+	idle := time.Minute
+	if entryEnabled {
+		idle = 10 * time.Millisecond
+	}
+	deliveries, err := runtime.NewDeliveries(runtime.DeliveryOptions{Owners: owners, Workers: 2, IdleInterval: idle, Retry: 20 * time.Millisecond})
 	require.NoError(t, err)
 	require.NoError(t, deliveries.Start(ctx))
 	t.Cleanup(func() {
@@ -150,7 +159,12 @@ func testMQTTConnectionDeliveryPaho(t *testing.T, existingMessage bool) {
 	require.NoError(t, err)
 	publisher, err := access.NewPublisher(access.PublisherOptions{Owners: owners, Messages: a.Messages()})
 	require.NoError(t, err)
-	handler, err := access.NewHandler(access.HandlerOptions{Namespace: key.Namespace, Sessions: sessions, Connections: connections, Owners: owners, Publisher: publisher, Acknowledgements: acks, Deliveries: mqttConnectionDeliveries{coordinator: coordinator, scheduler: deliveries}})
+	var subscriptionPort access.SessionSubscriptions
+	if entryEnabled {
+		subscriptionPort, err = newMQTTSubscriptionRequests(node, owners, authorization, a.messageIDs, 128)
+		require.NoError(t, err)
+	}
+	handler, err := access.NewHandler(access.HandlerOptions{Subscriptions: subscriptionPort, Namespace: key.Namespace, Sessions: sessions, Connections: connections, Owners: owners, Publisher: publisher, Acknowledgements: acks, Deliveries: mqttConnectionDeliveries{coordinator: coordinator, scheduler: deliveries}})
 	require.NoError(t, err)
 	registry := core.NewRegistry()
 	require.NoError(t, registry.RegisterTransport(transport.NewFactory()))
@@ -186,6 +200,7 @@ func testMQTTConnectionDeliveryPaho(t *testing.T, existingMessage bool) {
 		ack, e := client.Connect(ctx, &paho.Connect{ClientID: key.ClientID, Username: "alice", Password: []byte("secret"), UsernameFlag: true, PasswordFlag: true, Properties: &paho.ConnectProperties{SessionExpiryInterval: &expiry, ReceiveMaximum: &maximum, User: paho.UserProperties{{Key: "wk.device_flag", Value: "1"}}}})
 		require.NoError(t, e)
 		require.True(t, ack.SessionPresent)
+		require.Equal(t, entryEnabled, ack.Properties.SubIDAvailable)
 		return peer{client: client, received: received}
 	}
 	read := func() *meta.MQTTSession {
@@ -228,9 +243,12 @@ func testMQTTConnectionDeliveryPaho(t *testing.T, existingMessage bool) {
 		r := read()
 		return r.PendingMessages == 0 && r.PendingBytes == 0 && r.OutboundInflight == 0
 	}, 3*time.Second, time.Millisecond)
+	if entryEnabled {
+		verifyMQTTSubscriptionPackets(t, ctx, a, second.client, second.received, deliveries, read)
+	}
 	require.NoError(t, second.client.Disconnect(&paho.Disconnect{}))
 	require.Eventually(t, func() bool {
 		return read().State == meta.MQTTSessionOffline && deliveries.Snapshot().Tracked == 0 && connections.Snapshot().Tracked == 0 && owners.Snapshot().Held == 0
 	}, 3*time.Second, time.Millisecond)
-	t.Logf("mqtt_connection_delivery_evidence: initially_empty=%t client=Paho transport=gnet/TCP hash_slots=256 subscription_setup=real_usecase_direct source_protection=real replay=real source_discovery=automatic accounting=real delivery_registration=entry sender=real gateway_sink=real receive_maximum=1 takeover_same_packet_dup=true ack_wake=true close_wake=true idle_poll=1m pending_zero=true cleanup_joined=true product_listener=false", !existingMessage)
+	t.Logf("mqtt_connection_delivery_evidence: initially_empty=%t client=Paho transport=gnet/TCP hash_slots=256 subscription_setup=real_usecase_direct source_protection=real replay=real source_discovery=automatic accounting=real delivery_registration=entry sender=real gateway_sink=real receive_maximum=1 takeover_same_packet_dup=true ack_wake=true close_wake=true idle_poll=%s pending_zero=true cleanup_joined=true product_listener=false", !existingMessage, idle)
 }

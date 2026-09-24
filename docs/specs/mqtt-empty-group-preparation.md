@@ -33,7 +33,8 @@ The SourceProtector adapter may initialize Channel runtime infrastructure only
 on authoritative absence; it cannot create business metadata or change policy.
 This reuses Node.ResolveChannelAppendAuthority and its existing lifecycle and
 capacity owner. Shared protection still uses a separately refreshed Slot view.
-Product SUB/UNSUB, offline/inbox maintenance and process acceptance remain required.
+[Group SUB/UNSUB entry](mqtt-subscription-entry.md) subsequently composes this path;
+product admission, offline/inbox maintenance and process acceptance remain required.
 
 ## Evidence
 

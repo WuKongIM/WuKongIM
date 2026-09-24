@@ -213,8 +213,13 @@ specification, runbook, report, or module documentation; link to them when neede
   reuses the hosted Channel initializer only on confirmed runtime absence and
   rereads fresh Slot authority before source protection; denied subscriptions
   create no runtime and ambiguous creation errors never authorize protection.
-  Subscription entry, inbox future
-  source admission, offline scheduling and product composition remain outstanding.
+  [Subscription entry](../specs/mqtt-subscription-entry.md) maps ordered SUB/UNSUB
+  replies under one deadline and owner scope. Its request usecase waits only for
+  explicit replay/drain pending work (64 attempts, 25ms spacing, 5s total by default).
+  Possible mutation/pending intent marks errors Unconfirmed; late/unknown results
+  close without a misleading negative or partial batch ACK. Real Paho verifies
+  group SUB/UNSUB and ACK after removal. Inbox future source admission, offline
+  scheduling and product composition remain outstanding.
 
 - Subscriber join identity uses optional column 4 and table 5 System 1 per-hash-Slot
   allocation high water. Legacy empty rows mean incarnation 1; new joins allocate

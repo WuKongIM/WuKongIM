@@ -88,10 +88,14 @@ func connectReason(err error) byte {
 }
 
 func (h *Handler) connack(c sessioncase.Connection) *wire.Connack {
+	var identifiers uint32
+	if h.options.Subscriptions != nil {
+		identifiers = 1
+	}
 	return &wire.Connack{SessionPresent: c.SessionPresent, Properties: []wire.Property{
 		{ID: wire.MaximumQoS, Number: 1}, {ID: wire.RetainAvailable, Number: 0},
 		{ID: wire.WildcardSubscriptionAvailable, Number: 0}, {ID: wire.SharedSubscriptionAvailable, Number: 0},
-		{ID: wire.SubscriptionIdentifierAvailable, Number: 0}, {ID: wire.TopicAliasMaximum, Number: 0},
+		{ID: wire.SubscriptionIdentifierAvailable, Number: identifiers}, {ID: wire.TopicAliasMaximum, Number: 0},
 		{ID: wire.MaximumPacketSize, Number: h.options.MaxPacketBytes}, {ID: wire.SessionExpiryInterval, Number: c.SessionExpirySec},
 	}}
 }

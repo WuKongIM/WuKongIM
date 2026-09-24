@@ -57,11 +57,12 @@ A second regression ensures normal intent reaches Connections before an explicit
 owner fence. Reversing that order allowed concurrent renewal to synthesize an
 abnormal intent first. Both failures were reproduced before their fixes.
 
-The entry currently rejects subscription and unsubscription control packets.
-Subsequent outbound binding supports durable PUBACK; the
+The subsequent [subscription entry](mqtt-subscription-entry.md) maps SUB/UNSUB
+through confirmed durable intent and bounded pending completion. Outbound binding
+supports durable PUBACK; the
 [connection handoff](mqtt-connection-delivery.md) registers scheduled delivery
-after open and wakes it after ACK or close. CONNACK disables subscription identifiers until that capability
-is composed. No database columns, commands, listener config or product capability
+after open and wakes it after ACK or close. CONNACK enables subscription identifiers only when that capability
+and delivery/ACK are composed. No database columns, commands, listener config or product capability
 gate are added here. This internal integration is not full product acceptance.
 
 ## Frozen context

@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Handle MQTT SUBSCRIBE/UNSUBSCRIBE with ordered per-filter reasons, QoS/options and subscription identifiers. Bounded pending completion preserves uncertain intents; unsubscribe retains exchanges awaiting PUBACK. Real Paho group coverage passes; inbox and product listener wiring remain under development. / MQTT 接入 SUBSCRIBE/UNSUBSCRIBE，按原顺序返回过滤器结果，保存 QoS、选项及订阅标识；有界等待保留未确认意图，退订保留等待 PUBACK 的交换。真实 Paho 群订阅已验证，收件箱和产品监听仍在开发。
+
 - Prepare MQTT group subscriptions before the first business message by reusing bounded Channel runtime initialization and freshly checking source authority. Denied subscriptions create no runtime; product access remains under development. / MQTT 群订阅可在首条业务消息之前准备完成，复用有界 Channel 运行时初始化并重新核验消息源权威；拒绝的订阅不创建运行时，产品接入仍在开发。
 
 - Bind MQTT connection open to automatic delivery, wake sending after committed PUBACK, and expedite cleanup after disconnect while retaining unfinished work. Real TCP/Paho coverage verifies takeover retransmission and receive credit; product listener and subscription entry remain under development. / MQTT 连接打开后自动注册投递，PUBACK 提交后唤醒发送，断开后加速清理并保留未完成工作；真实 TCP/Paho 验证接管重发与接收额度，产品监听和订阅入口仍在开发。

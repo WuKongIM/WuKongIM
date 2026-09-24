@@ -77,5 +77,6 @@ Channel runtime and repeatedly received `db: not found` during preparation.
 Creating the Channel through ordinary IM send makes the complete chain pass;
 that pre-subscription message is excluded by the prepared boundary. The subsequent
 [empty-group preparation](mqtt-empty-group-preparation.md) removes that prerequisite
-and adds a real Paho regression before any business message. Full product listener, SUB/UNSUB, inbox
-future admission, offline maintenance and restore/process acceptance remain open.
+and adds a real Paho regression before any business message. The subsequent [subscription entry](mqtt-subscription-entry.md) covers wire
+SUB/UNSUB for groups. Full product listener, inbox future admission, offline
+maintenance and restore/process acceptance remain open.

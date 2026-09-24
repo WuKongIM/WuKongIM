@@ -15,6 +15,10 @@ var (
 	ErrSubscriptionRevoked  = errors.New("mqttsession: subscription authorization incarnation changed")
 	ErrSubscriptionLimit    = errors.New("mqttsession: subscription capacity or scan budget exhausted")
 	ErrSubscriptionCallback = errors.New("mqttsession: subscription dependency failed")
+	// ErrSubscriptionUnconfirmed accompanies errors after a possible intent write
+	// or observation of pending intent. Entry must not send a definitive negative
+	// reply that would hide later recovery of that same durable subscription.
+	ErrSubscriptionUnconfirmed = errors.New("mqttsession: subscription intent remains unconfirmed")
 )
 
 // SubscriptionRequest contains an entry-mapped exact topic and receive options.
