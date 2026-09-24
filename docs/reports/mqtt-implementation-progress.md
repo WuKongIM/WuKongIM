@@ -4451,3 +4451,58 @@ ended-Session cleanup/source deactivation, unavailable-owner isolation, Will
 execution, product/restore lifecycle, offline MQTT tools, metrics and complete
 process/load acceptance also remain outstanding. The product listener stays
 unwired; no capacity or complete-product claim is made.
+
+
+## QoS 0 gateway enqueue and bounded property headroom
+
+[QoS 0 gateway](../specs/mqtt-qos0-gateway.md) now accepts a trusted prepared
+original for the exact open owner and enqueues through the common gateway writer.
+It shares the QoS 1 nonblocking sending gate but creates no PacketID, ACK binding
+or durable exchange, and consumes no Receive Maximum credit. The trusted sender
+still owns preparation serialization, current receive permission and private
+CompleteQoS0 after successful enqueue. Error/panic/cancellation across writing
+fences/closes without retry or invented completion; expired new candidates yield
+without writing or closing an otherwise live connection.
+
+QoS 0/1 share original-content mapping, ordered property preservation and server
+identity generation. Native, MQTT and Will expiry retain their original clocks;
+the earlier native/publication deadline is forwarded. Begun QoS 1 remains valid
+with remaining interval zero; QoS 0 cannot start after expiry. Explicit QoS 1
+redelivery now additionally requires SessionPresent on the connection.
+
+The generic MQTT adapter gains independent outbound codec limits while its
+existing New constructor remains symmetric. App composition reserves 136 output
+properties and 64 KiB property bytes for original metadata plus bounded server
+fields, preserving the inbound settings and peer packet-size cap. No truncation,
+new schema or wire format is introduced. This addresses the previously identified
+case where server attributes pushed a fully accepted input above the output count.
+
+Validation (2026-09-24):
+
+- Failure inventory, public entry, generic adapter and app tests preceded code;
+  missing-API RED logs: `/tmp/mqtt-qos0-red.log`, `/tmp/mqtt-qos0-app-red.log`.
+  A helper name initially collided with the existing inbound mapper; it was
+  renamed before successful validation.
+- `GOWORK=off go test -race -p 2 ./internal/access/mqtt ./pkg/gateway/protocol/mqtt ./internal/app -count=1`
+  passed (1.733s / 1.943s / 6.304s), `/tmp/mqtt-qos0-race.log`. Coverage includes
+  mixed send reentrancy, full credit, absent ACK composition for QoS 0, original
+  and downgraded QoS, native/Will/deadline combination, expiry/clock errors,
+  foreign/malformed candidates, canceled/fenced owners, callback failures,
+  independent codec limits and unchanged peer caps.
+- `GOWORK=off go test -race -tags=integration -p 2 ./internal/app -run '^(TestMQTTGatewayPahoSingleNodeCluster|TestMQTTProtocolReservesBoundedOutboundPropertyHeadroom)$' -count=1 -timeout=120s`
+  passed (6.420s), `/tmp/mqtt-qos0-integration.log`. Real Paho/TCP/gnet and a
+  single-node cluster with 256 hash Slots verify a 128-property input, preserved
+  133 outbound user properties, QoS 0 while QoS 1 credit is occupied, unchanged
+  durable debt/exchange counts, takeover/DUP identity and authoritative PUBACK.
+  Outbound source/window admission remains explicitly controlled in this test.
+- Existing Darwin linker warnings only. Named `flow-doc-contracts` results are
+  recorded in `/tmp/mqtt-qos0-flow.log`: 86 compliant, zero invalid and nine
+  existing length warnings; formatting/diff checks are clean.
+
+Full implementation remains active. Autonomous sender/current-permission ordering,
+reconnect-first exchange recovery, private QoS 0 completion composition and fair
+accounting/delivery scheduling remain required. The previously recorded inbox,
+source cleanup, unavailable-owner isolation, Will execution, product/restore,
+offline tools, metrics and process/load acceptance work is also still required.
+Product MQTT is not enabled; these tests do not establish process-level acceptance
+or capacity.

@@ -23,9 +23,12 @@ func (f outboundAcks) Acknowledge(ctx context.Context, q sessioncase.Acknowledge
 	return f(ctx, q)
 }
 
-func outboundFixture(t *testing.T, maximum uint16, ack outboundAcks) (*handlerFixture, access.OutboundDelivery) {
+func outboundFixture(t *testing.T, maximum uint16, ack outboundAcks, resumed ...bool) (*handlerFixture, access.OutboundDelivery) {
 	t.Helper()
 	f := newHandlerFixture(t)
+	if len(resumed) > 0 {
+		f.connection.SessionPresent = resumed[0]
+	}
 	var err error
 	f.h, err = access.NewHandler(access.HandlerOptions{Namespace: "main", Sessions: f.sessions, Connections: f.connections, Owners: f.owners, Publisher: f.publisher, Acknowledgements: ack, Now: func() time.Time { return f.now }})
 	require.NoError(t, err)
@@ -81,7 +84,7 @@ func TestOutboundMappingPreservesContentAndExpiry(t *testing.T) {
 		t.Run(map[bool]string{false: "remaining", true: "expired-begun"}[expired], func(t *testing.T) {
 			f, d := outboundFixture(t, 2, func(context.Context, sessioncase.AcknowledgementCommand) (sessioncase.AcknowledgementResult, error) {
 				return sessioncase.AcknowledgementResult{Absent: true}, nil
-			})
+			}, true)
 			metadata := publication.Metadata{Source: publication.SourceMQTT, QoS: 1, PublisherNamespace: "main", PublisherClientID: "origin", OriginalTopic: d.Exchange.Topic, AcceptedAtMS: f.now.Add(-1500 * time.Millisecond).UnixMilli(), Properties: []publication.Property{{Kind: publication.UserProperty, Text: "app", Value: "first"}, {Kind: publication.CorrelationData, Binary: []byte{1, 2}}, {Kind: publication.UserProperty, Text: "app", Value: "second"}, {Kind: publication.MessageExpiry, Number: 3}}}
 			var err error
 			d.Publication.Message.PublicationMetadata, err = publication.Encode(metadata)

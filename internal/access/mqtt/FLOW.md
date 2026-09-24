@@ -42,6 +42,8 @@ Product listener composition, subscription and delivery scheduling remain unavai
    acknowledgement usecase. Connection send capacity is bounded by Receive Maximum
    and 1024; concurrent send admission yields without a queue. Only resumed
    connections may retransmit old exchanges, supplied in original order.
+   QoS 0 shares the send gate without ACK bindings/credit; expired new candidates
+   yield before enqueue. The trusted sender owns private completion afterward.
 
 ## Invariants and Failure Semantics
 
@@ -66,6 +68,7 @@ Product listener composition, subscription and delivery scheduling remain unavai
 - Outbound binding stores no bodies. Strictly increasing attempted order prevents
   same-connection retransmission. Unknown PUBACK adds no credit; negative PUBACK
   completes the exchange. Failed writes/ACKs close and preserve durable recovery.
+  Native/MQTT/Will expiry uses the earlier original deadline. App reserves bounded outbound property headroom.
   Current receive permission, source proof and window admission remain caller
   obligations. Original properties/expiry survive mapping; output never truncates.
 

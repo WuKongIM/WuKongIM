@@ -17,7 +17,6 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/gateway/core"
-	adapter "github.com/WuKongIM/WuKongIM/pkg/gateway/protocol/mqtt"
 	transport "github.com/WuKongIM/WuKongIM/pkg/gateway/transport/gnet"
 	gt "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 	wire "github.com/WuKongIM/WuKongIM/pkg/protocol/mqtt"
@@ -74,7 +73,7 @@ func TestMQTTGatewayPahoSingleNodeCluster(t *testing.T) {
 	received := make(chan *paho.Publish, 8)
 	registry := core.NewRegistry()
 	require.NoError(t, registry.RegisterTransport(transport.NewFactory()))
-	require.NoError(t, registry.RegisterPacketProtocol(adapter.New(wire.Limits{})))
+	require.NoError(t, registry.RegisterPacketProtocol(newMQTTProtocol(wire.Limits{})))
 	server, err := core.NewServer(registry, &gt.Options{PacketHandler: entry, Listeners: []gt.ListenerOptions{{Name: "mqtt", Network: "tcp", Transport: "gnet", Protocol: "mqtt", Address: "127.0.0.1:0"}}})
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
@@ -130,7 +129,11 @@ func TestMQTTGatewayPahoSingleNodeCluster(t *testing.T) {
 	require.Error(t, err)
 	require.NotNil(t, denied)
 	require.Equal(t, byte(0x87), denied.ReasonCode)
-	receipt, err := first.Publish(ctx, &paho.Publish{Topic: topic, QoS: 1, Payload: []byte("committed"), Properties: &paho.PublishProperties{User: paho.UserProperties{{Key: "wk.client_msg_no", Value: "first"}}}})
+	originalProperties := paho.UserProperties{{Key: "wk.client_msg_no", Value: "first"}}
+	for i := 0; i < 127; i++ {
+		originalProperties = append(originalProperties, paho.UserProperty{Key: "app", Value: "ordered"})
+	}
+	receipt, err := first.Publish(ctx, &paho.Publish{Topic: topic, QoS: 1, Payload: []byte("committed"), Properties: &paho.PublishProperties{User: originalProperties}})
 	require.NoError(t, err)
 	require.Zero(t, receipt.ReasonCode)
 	rows, err := node.ReadChannelCommitted(ctx, channel, store.ReadCommittedRequest{FromSeq: 1, Limit: 10, MaxBytes: 1 << 20})
@@ -144,6 +147,21 @@ func TestMQTTGatewayPahoSingleNodeCluster(t *testing.T) {
 	require.False(t, firstDown.Duplicate())
 	require.Equal(t, "committed", string(firstDown.Payload))
 	require.Equal(t, delivery.Exchange.PacketID, firstDown.PacketID)
+	require.Len(t, firstDown.Properties.User, 133)
+	beforeQoS0 := read("paho")
+	require.EqualValues(t, 1, beforeQoS0.OutboundInflight)
+	candidate := sessioncase.PreparedDelivery{Owner: delivery.Owner, Topic: topic, SubscriptionIdentifier: delivery.Exchange.Publication.SubscriptionIdentifier, Publication: delivery.Publication}
+	require.NoError(t, handler.SendQoS0(firstGateway, candidate))
+	qos0Down := awaitMQTTGatewayPublication(t, ctx, received)
+	require.Zero(t, qos0Down.QoS)
+	require.Zero(t, qos0Down.PacketID)
+	require.False(t, qos0Down.Duplicate())
+	require.Equal(t, firstDown.Payload, qos0Down.Payload)
+	require.Equal(t, firstDown.Properties.User, qos0Down.Properties.User)
+	afterQoS0 := read("paho")
+	require.Equal(t, beforeQoS0.OutboundInflight, afterQoS0.OutboundInflight)
+	require.Equal(t, beforeQoS0.PendingMessages, afterQoS0.PendingMessages)
+	require.Equal(t, beforeQoS0.PendingBytes, afterQoS0.PendingBytes)
 	second, _, ack, err := dial("paho", "secret", false, 0)
 	require.NoError(t, err)
 	require.True(t, ack.SessionPresent)
@@ -201,5 +219,5 @@ func TestMQTTGatewayPahoSingleNodeCluster(t *testing.T) {
 	require.Error(t, err)
 	offline("small-connack")
 	require.Eventually(t, func() bool { return connections.Snapshot().Tracked == 0 && owners.Snapshot().Held == 0 }, 3*time.Second, 10*time.Millisecond)
-	t.Log("mqtt_gateway_evidence: client=Paho transport=gnet/TCP hash_slots=256 auth=true invalid_token_no_eviction=true committed_ack=true takeover=true resume=true will_decisions=true connack_rollback=true cleanup_joined=true outbound_resume_same_packet=true outbound_puback_slot_commit=true admission_and_content_reference=controlled product_listener=false")
+	t.Log("mqtt_gateway_evidence: client=Paho transport=gnet/TCP hash_slots=256 auth=true invalid_token_no_eviction=true committed_ack=true takeover=true resume=true will_decisions=true connack_rollback=true cleanup_joined=true outbound_resume_same_packet=true outbound_puback_slot_commit=true qos0_at_full_credit=true complete_properties=true admission_and_content_reference=controlled product_listener=false")
 }

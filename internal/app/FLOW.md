@@ -64,7 +64,7 @@ Stop or startup rollback
 - MQTT adapters map Will setup to uncached publish policy and connection-worker
   renewal/observed disconnect to Session usecases. Real-gateway/Paho integration validates the entry, exact outbound binding and
   PUBACK commits across connection takeover with controlled window/content admission;
-  product wiring remains pending.
+  QoS 0 at full QoS 1 credit and complete properties use independent outbound codec bounds; product wiring remains pending.
   Replay worker composition wires fresh SlotMetaSource and foreground Node ports;
   three-node managed-loop coverage verifies fenced learner recovery, source release and retirement after the last binding leaves.
   Consumer progress, exact exchange acknowledgements and retention use foreground Node ports; ACK also gates on local Owners. Retention captures anchors before consumer floors and grants no local GC.

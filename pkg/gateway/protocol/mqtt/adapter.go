@@ -39,9 +39,16 @@ func ReceivedDisconnect(s session.Session) (DisconnectObservation, bool) {
 }
 
 // Adapter owns immutable codec limits; client/session policy stays outside it.
-type Adapter struct{ limits wire.Limits }
+type Adapter struct{ limits, outboundLimits wire.Limits }
 
-func New(limits wire.Limits) *Adapter          { return &Adapter{limits: limits} }
+// New applies the same codec limits in both directions.
+func New(limits wire.Limits) *Adapter { return NewWithOutboundLimits(limits, limits) }
+
+// NewWithOutboundLimits reserves independent bounded server output without
+// weakening inbound admission. The peer packet limit still caps every write.
+func NewWithOutboundLimits(inbound, outbound wire.Limits) *Adapter {
+	return &Adapter{limits: inbound, outboundLimits: outbound}
+}
 func (*Adapter) Name() string                  { return Name }
 func (*Adapter) OnOpen(session.Session) error  { return nil }
 func (*Adapter) OnClose(session.Session) error { return nil }
@@ -88,7 +95,7 @@ func (a *Adapter) EncodePacket(sess session.Session, value any, _ session.Outbou
 	if !ok {
 		return nil, errors.New("gateway/mqtt: unsupported outbound value")
 	}
-	limits := a.limits
+	limits := a.outboundLimits
 	if limits.MaxPacketBytes <= 0 {
 		limits.MaxPacketBytes = wire.DefaultMaxPacketBytes
 	}

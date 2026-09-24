@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add MQTT QoS 0 enqueue without consuming QoS 1 receive credit, preserve original native/Will expiry, and reserve bounded output space for server-added properties. Product send/recovery scheduling remains under development. / MQTT QoS 0 发送入队不占用 QoS 1 接收额度，保留原生及 Will 过期时钟，并为服务端附加属性预留有界出站空间；产品发送及恢复调度仍在开发。
+
 - Prepare MQTT delivery from anchored original messages, confirm durable QoS 1 exchanges before returning them, and preserve queued charges when subscriptions downgrade to QoS 0 until enqueue completion. Product sending and recovery scheduling remain under development. / MQTT 投递准备读取已提交锚点内原文，QoS 1 入窗后回读确认持久交换；订阅降为 QoS 0 时保留积压计量，直至发送入队完成后扣减。产品发送和恢复调度仍在开发。
 
 - Compute MQTT online/offline backlog from committed original replay messages, preserving publication QoS, No Local and expiry while rejecting stale ownership, changed permissions and incomplete source evidence. Product scheduling and delivery remain under development. / MQTT 在线及离线积压改由已提交原始回放消息计算，保留发布 QoS、No Local 和过期语义，拒绝陈旧所有权、权限变化及不完整源证明；产品调度和投递仍在开发。

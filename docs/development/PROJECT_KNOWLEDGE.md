@@ -215,6 +215,11 @@ specification, runbook, report, or module documentation; link to them when neede
   whose debit is submitted only after successful enqueue. No uncharged QoS 1
   resurrection, implicit ACK or send grant; final permission/recovery ordering
   and autonomous scheduling remain required. No new table or wire format.
+  [QoS 0 gateway](../specs/mqtt-qos0-gateway.md) shares the send gate without
+  PacketID/ACK binding or QoS 1 credit. Expired new candidates yield; begun QoS 1
+  keeps the earlier native/MQTT/Will deadline with remaining zero when expired.
+  App codec composition reserves 136 outbound properties/64 KiB while preserving
+  inbound/peer packet bounds. Caller still owns private completion after enqueue.
   Optional message column 21 preserves bounded versioned publication metadata;
   compatibility record codec 2 and proposal format 3 prevent lossy recovery.
   Ordinary expiry uses ingress time; Will uses the original source append time.

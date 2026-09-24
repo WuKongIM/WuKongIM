@@ -42,7 +42,7 @@ type HandlerOptions struct {
 	Connections ConnectionSupervisor
 	Owners      *runtime.Owners
 	Publisher   *Publisher
-	// Acknowledgements completes exact outbound exchanges; nil disables delivery.
+	// Acknowledgements completes exact outbound exchanges; nil disables QoS 1 delivery.
 	Acknowledgements OutboundAcknowledgements
 	// ConnectTimeout bounds acquisition, default five seconds, maximum one minute.
 	ConnectTimeout time.Duration

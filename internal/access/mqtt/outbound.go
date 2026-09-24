@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"math"
 	"strconv"
 	"strings"
 
@@ -20,6 +21,8 @@ import (
 var (
 	ErrOutboundInvalid = errors.New("mqtt: invalid outbound exchange or order")
 	ErrOutboundBusy    = errors.New("mqtt: outbound connection capacity unavailable")
+	// ErrOutboundExpired means a new QoS 0 candidate was not enqueued.
+	ErrOutboundExpired = errors.New("mqtt: outbound publication expired before enqueue")
 )
 
 // OutboundAcknowledgements owns current authority checks and durable completion.
@@ -50,7 +53,7 @@ func (h *Handler) SendQoS1(g gt.Context, d OutboundDelivery) (err error) {
 			err = ErrHandlerCallback
 		}
 	}()
-	if s == nil || g.RequestContext == nil || h.options.Acknowledgements == nil || d.Owner != s.connection.Owner {
+	if s == nil || g.RequestContext == nil || h.options.Acknowledgements == nil || d.Owner != s.connection.Owner || (d.Redelivery && !s.connection.SessionPresent) {
 		return ErrOutboundInvalid
 	}
 	s.mu.Lock()
@@ -163,18 +166,43 @@ func mapOutbound(d OutboundDelivery, uid string, nowMS int64) (*wire.Publish, er
 		r.AccountedBytes != uint64(len(m.Payload))+uint64(len(m.PublicationMetadata)) || r.AccountedBytes != e.Publication.Bytes || len(m.Payload) > wire.DefaultMaxPacketBytes || nowMS < e.UpdatedAtMS {
 		return nil, ErrOutboundInvalid
 	}
-	target, err := ParseTopic(e.Topic)
+	p, err := mapOutboundPublication(r, e.Topic, e.Publication.SubscriptionIdentifier, uid, 1, nowMS)
+	if err != nil {
+		return nil, err
+	}
+	p.PacketID, p.Dup = e.PacketID, d.Redelivery
+	return p, nil
+}
+
+// mapOutboundPublication preserves original metadata for either delivery QoS. Effective
+// expiry is the earlier native/publication deadline; begun QoS 1 is never dropped.
+func mapOutboundPublication(r ch.MQTTReplayPublication, topic string, subscriptionID uint32, uid string, qos byte, nowMS int64) (*wire.Publish, error) {
+	m := r.Message
+	if r.Internal || r.ContentVersion != 1 || r.ContentHash == [32]byte{} || m.MessageID == 0 || m.MessageSeq == 0 || m.Version != 0 || m.UpdatedAtMS != 0 || m.TraceID != "" || m.ChannelKey != "" ||
+		r.AccountedBytes != uint64(len(m.Payload))+uint64(len(m.PublicationMetadata)) || len(m.Payload) > wire.DefaultMaxPacketBytes || subscriptionID > 268435455 || nowMS <= 0 || m.ServerTimestampMS > nowMS {
+		return nil, ErrOutboundInvalid
+	}
+	target, err := ParseTopic(topic)
 	if err != nil || target.ChannelType != m.ChannelType || (target.ChannelType == 2 && target.ChannelID != m.ChannelID) || (target.ChannelType == 1 && target.ChannelID != uid) {
 		return nil, ErrOutboundInvalid
 	}
-	p := &wire.Publish{Topic: e.Topic, PacketID: e.PacketID, QoS: 1, Dup: d.Redelivery, Payload: bytes.Clone(m.Payload)}
-	if len(m.PublicationMetadata) > 0 {
-		metadata, err := publication.Decode(m.PublicationMetadata)
-		if err != nil || metadata.QoS != 1 {
+	var deadline int64
+	expires := false
+	if m.Expire != 0 {
+		duration := int64(m.Expire) * 1000
+		if m.ServerTimestampMS <= 0 || m.ServerTimestampMS > math.MaxInt64-duration {
 			return nil, ErrOutboundInvalid
 		}
-		deadline, expires, err := metadata.ExpiryDeadlineMS(m.ServerTimestampMS)
-		if err != nil {
+		deadline, expires = m.ServerTimestampMS+duration, true
+	}
+	var metadata publication.Metadata
+	if len(m.PublicationMetadata) > 0 {
+		metadata, err = publication.Decode(m.PublicationMetadata)
+		if err != nil || qos > metadata.QoS {
+			return nil, ErrOutboundInvalid
+		}
+		mdDeadline, mdExpires, e := metadata.ExpiryDeadlineMS(m.ServerTimestampMS)
+		if e != nil {
 			return nil, ErrOutboundInvalid
 		}
 		basis := metadata.AcceptedAtMS
@@ -184,39 +212,52 @@ func mapOutbound(d OutboundDelivery, uid string, nowMS int64) (*wire.Publish, er
 		if nowMS < basis {
 			return nil, ErrOutboundInvalid
 		}
-		for _, v := range metadata.Properties {
-			prop := wire.Property{Number: v.Number, Text: v.Text, Value: v.Value, Data: v.Binary}
-			switch v.Kind {
-			case publication.PayloadFormat:
-				prop.ID = wire.PayloadFormatIndicator
-			case publication.MessageExpiry:
-				prop.ID = wire.MessageExpiryInterval
-				prop.Number = 0
-				if expires && deadline > nowMS {
-					prop.Number = uint32((deadline - nowMS + 999) / 1000)
-				}
-			case publication.ContentType:
-				prop.ID = wire.ContentType
-			case publication.ResponseTopic:
-				prop.ID = wire.ResponseTopic
-			case publication.CorrelationData:
-				prop.ID = wire.CorrelationData
-			case publication.UserProperty:
-				if strings.HasPrefix(v.Text, "wk.") {
-					return nil, ErrOutboundInvalid
-				}
-				prop.ID = wire.UserProperty
-			default:
+		if mdExpires && (!expires || mdDeadline < deadline) {
+			deadline, expires = mdDeadline, true
+		}
+	}
+	if qos == 0 && expires && nowMS >= deadline {
+		return nil, ErrOutboundExpired
+	}
+	remaining := uint32(0)
+	if expires && deadline > nowMS {
+		remaining = uint32((deadline - nowMS + 999) / 1000)
+	}
+	p := &wire.Publish{Topic: topic, QoS: qos, Payload: bytes.Clone(m.Payload)}
+	hasExpiryProperty := false
+	for _, v := range metadata.Properties {
+		prop := wire.Property{Number: v.Number, Text: v.Text, Value: v.Value, Data: v.Binary}
+		switch v.Kind {
+		case publication.PayloadFormat:
+			prop.ID = wire.PayloadFormatIndicator
+		case publication.MessageExpiry:
+			prop.ID = wire.MessageExpiryInterval
+			prop.Number = remaining
+			hasExpiryProperty = true
+		case publication.ContentType:
+			prop.ID = wire.ContentType
+		case publication.ResponseTopic:
+			prop.ID = wire.ResponseTopic
+		case publication.CorrelationData:
+			prop.ID = wire.CorrelationData
+		case publication.UserProperty:
+			if strings.HasPrefix(v.Text, "wk.") {
 				return nil, ErrOutboundInvalid
 			}
-			p.Properties = append(p.Properties, prop)
+			prop.ID = wire.UserProperty
+		default:
+			return nil, ErrOutboundInvalid
 		}
+		p.Properties = append(p.Properties, prop)
+	}
+	if expires && !hasExpiryProperty {
+		p.Properties = append(p.Properties, wire.Property{ID: wire.MessageExpiryInterval, Number: remaining})
 	}
 	for _, pair := range [][2]string{{"wk.message_id", strconv.FormatUint(m.MessageID, 10)}, {"wk.message_seq", strconv.FormatUint(m.MessageSeq, 10)}, {"wk.from_uid", m.FromUID}, {"wk.channel_id", m.ChannelID}, {"wk.channel_type", strconv.FormatUint(uint64(m.ChannelType), 10)}, {clientMessageProperty, m.ClientMsgNo}} {
 		p.Properties = append(p.Properties, wire.Property{ID: wire.UserProperty, Text: pair[0], Value: pair[1]})
 	}
-	if e.Publication.SubscriptionIdentifier > 0 {
-		p.Properties = append(p.Properties, wire.Property{ID: wire.SubscriptionIdentifier, Number: e.Publication.SubscriptionIdentifier})
+	if subscriptionID > 0 {
+		p.Properties = append(p.Properties, wire.Property{ID: wire.SubscriptionIdentifier, Number: subscriptionID})
 	}
 	return p, nil
 }

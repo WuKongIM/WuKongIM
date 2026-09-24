@@ -75,7 +75,7 @@ Message, presence, Channel, and Controller business policy stays outside gateway
   disables that deadline when Keep Alive is zero. One shared heap/monitor owns
   these deadlines, including when the default idle timeout is disabled.
 - MQTT decoding owns payload bytes, caps coalesced batches at 128 packets and
-  grows fragmented input amortized; encoding enforces the peer packet limit.
+  grows fragmented input amortized; independent inbound/outbound codec limits preserve the peer packet cap.
   Independent packet callbacks recover panics with fixed, redacted diagnostics.
   One constant-size receipt preserves decoded DISCONNECT reason/expiry/time across
   EOF before dispatch. Entry validates it; no strings or payloads are retained.
