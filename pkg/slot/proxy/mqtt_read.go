@@ -227,7 +227,7 @@ func validateMQTTReadShape(q metadb.MQTTRead, r metadb.MQTTReadResult) error {
 	if r.Session != nil && (!sessionOwned || r.Session.Namespace != ns || r.Session.ClientID != client || metadb.ValidateMQTTSession(*r.Session) != nil) {
 		return bad
 	}
-	counts := [7]int{len(r.Sessions), len(r.Subscriptions), len(r.DeliveryCursors), len(r.Inflight), len(r.Bindings), len(r.Wills), len(r.SourceOwners)}
+	counts := [8]int{len(r.Sessions), len(r.Subscriptions), len(r.DeliveryCursors), len(r.Inflight), len(r.Bindings), len(r.Wills), len(r.SourceOwners), len(r.Directory)}
 	selected := -1
 	switch q.Kind {
 	case metadb.MQTTReadSessionDeadlines:
@@ -244,6 +244,8 @@ func validateMQTTReadShape(q metadb.MQTTRead, r metadb.MQTTReadResult) error {
 		selected = 5
 	case metadb.MQTTReadSourceOwners, metadb.MQTTReadReplaySources:
 		selected = 6
+	case metadb.MQTTReadInboxDirectory:
+		selected = 7
 	}
 	if q.Kind == metadb.MQTTReadAccounting {
 		if len(r.DeliveryCursors) > 1 || (len(r.DeliveryCursors) == 0 && r.Accounting != nil) {
@@ -316,6 +318,18 @@ func validateMQTTReadShape(q metadb.MQTTRead, r metadb.MQTTReadResult) error {
 		if metadb.ValidateMQTTWill(v) != nil || q.Kind == metadb.MQTTReadWill && v.Key != q.WillKey {
 			return bad
 		}
+	}
+	previousDirectory := q.After.Directory
+	for _, key := range r.Directory {
+		probe := q
+		probe.After.Directory = key
+		if key == (metadb.ChannelKey{}) || metadb.ValidateMQTTRead(probe) != nil || (previousDirectory != (metadb.ChannelKey{}) && metadb.CompareMQTTDirectoryKeys(previousDirectory, key) >= 0) {
+			return bad
+		}
+		previousDirectory = key
+	}
+	if q.Kind == metadb.MQTTReadInboxDirectory && r.After.Directory != previousDirectory {
+		return bad
 	}
 	return nil
 }

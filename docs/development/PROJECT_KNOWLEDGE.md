@@ -650,6 +650,7 @@ specification, runbook, report, or module documentation; link to them when neede
   credit. Writes and ACK failures close without discarding durable exchanges.
   This adapter trusts caller admission/content/permission proof. Product scheduling,
   listener composition and full recovery acceptance remain required.
+- [MQTT inbox directory discovery](../specs/mqtt-inbox-directory.md) uses read kind 20 on RPC 91, routing by UID and scanning the existing membership primary key. Pages retain all types/tombstones, follow encoded length/bytes/type order, and never use mutable activation or personal visibility. Each page is pinned after a fresh authority barrier; this is not a multi-page snapshot. Future person sources still require committed UID registration followed by qualification/protection before first append; the current asynchronous directory task is insufficient. No new table is introduced.
 - Send permissions belong in `internal/usecase/message` before append;
   `pkg/channel` stays business-rule free. Mutable recipient metadata and delivery
   tags are authoritative at their owning Slot/Channel leaders. Remote caches must

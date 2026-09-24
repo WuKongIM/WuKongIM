@@ -59,7 +59,7 @@ It does not own product business policy or expose engine-specific APIs.
    resolve old Will atomically; new ownership may install a new configuration.
    Delays, execution leases and receipts are distinct; bodies are bounded/redacted.
    Bounded MQTT reads pin Session, children and indexes; kind 19 pins channel/member/sequence without the live channel cache.
-   Private snapshots never replace canonical writable shards; membership evidence is identity/high-water checked, not a policy grant.
+   Kind 20 scans stable UID directory primary keys, retaining hidden/tombstoned and non-person candidates. Private snapshots never replace writable shards; evidence grants no receive policy.
 
 ## Invariants and Failure Semantics
 - Event sequence pages scan a pinned native iterator and retain a bounded heap,

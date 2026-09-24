@@ -60,7 +60,7 @@ func mqttReadRoutingKey(q metadb.MQTTRead) (string, error) {
 		return q.MembershipKey.ChannelID, nil
 	case metadb.MQTTReadSourceBinding:
 		return MQTTSourceRoutingKey(q.BindingKey.Owner)
-	case metadb.MQTTReadSourceCandidates, metadb.MQTTReadSourceRetention:
+	case metadb.MQTTReadSourceCandidates, metadb.MQTTReadSourceRetention, metadb.MQTTReadInboxDirectory:
 		return MQTTSourceRoutingKey(q.Owner)
 	default:
 		return "", metadb.ErrInvalidArgument

@@ -33,11 +33,15 @@ const (
 	MQTTReadAccounting
 	// MQTTReadMembership pins channel flags, ordinary membership and its allocator.
 	MQTTReadMembership
+	// MQTTReadInboxDirectory discovers UID directory keys in stable primary order.
+	MQTTReadInboxDirectory
 )
 
 // MQTTReadCursor contains exactly the cursor belonging to the selected read.
 // Complete index tie-breakers survive RPC serialization and hash-Slot paging.
 type MQTTReadCursor struct {
+	// Directory is omitted from older kinds to preserve their wire representation.
+	Directory ChannelKey `json:"directory,omitzero"`
 	// SourceOwner is omitted entirely for older kinds to preserve their JSON shape.
 	SourceOwner    MQTTBindingOwner                 `json:"source_owner,omitzero"`
 	Topic          string                           `json:"topic,omitempty"`
@@ -73,6 +77,7 @@ type MQTTRead struct {
 // MQTTReadResult owns a bounded result from one snapshot. Session is included
 // with Session-owned child reads so callers can fence subsequent decisions.
 type MQTTReadResult struct {
+	Directory       []ChannelKey         `json:"directory,omitempty"`
 	Membership      *MQTTMembershipView  `json:"membership,omitempty"`
 	Accounting      *MQTTAccountingRange `json:"accounting,omitempty"`
 	SourceOwners    []MQTTBindingOwner   `json:"source_owners,omitempty"`
@@ -113,6 +118,12 @@ func ValidateMQTTRead(q MQTTRead) error {
 	want := MQTTRead{Kind: q.Kind}
 	page := false
 	switch q.Kind {
+	case MQTTReadInboxDirectory:
+		want.Owner = q.Owner
+		if q.Owner.Kind != MQTTBindingUID || validateMQTTBindingOwner(q.Owner) != nil {
+			return dberrors.ErrInvalidArgument
+		}
+		page, want.After.Directory = true, q.After.Directory
 	case MQTTReadMembership:
 		want.MembershipKey = q.MembershipKey
 		if err := validateMQTTMembershipKey(q.MembershipKey); err != nil {
@@ -208,6 +219,9 @@ func ValidateMQTTRead(q MQTTRead) error {
 
 func validateMQTTReadCursor(q MQTTRead) error {
 	a := q.After
+	if a.Directory != (ChannelKey{}) && validateMQTTDirectoryKey(a.Directory) != nil {
+		return dberrors.ErrInvalidArgument
+	}
 	if a.SourceOwner != (MQTTBindingOwner{}) && (a.SourceOwner.Kind != MQTTBindingChannel || validateMQTTBindingOwner(a.SourceOwner) != nil) {
 		return dberrors.ErrInvalidArgument
 	}
@@ -284,6 +298,8 @@ func (s *Shard) readMQTTState(ctx context.Context, q MQTTRead) (MQTTReadResult, 
 	}
 	var err error
 	switch q.Kind {
+	case MQTTReadInboxDirectory:
+		out.Directory, out.After.Directory, out.Done, err = s.readMQTTInboxDirectory(ctx, q.Owner.ID, q.After.Directory, q.Limit)
 	case MQTTReadMembership:
 		out.Membership, err = s.readMQTTMembership(ctx, q.MembershipKey)
 	case MQTTReadSession:

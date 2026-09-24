@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add bounded, Slot-authoritative MQTT inbox directory discovery over existing membership primary keys. Personal conversation visibility and activation do not change scan order; matched nodes are required for read kind 20. Inbox admission and product access remain under development. / MQTT 收件箱目录发现复用成员表稳定主键，支持有界分页与 Slot 权威读取；个人会话可见性及活跃排序不影响扫描。读取类型 20 需要匹配节点，收件箱准入与产品接入仍在开发。
+
 - Handle MQTT SUBSCRIBE/UNSUBSCRIBE with ordered per-filter reasons, QoS/options and subscription identifiers. Bounded pending completion preserves uncertain intents; unsubscribe retains exchanges awaiting PUBACK. Real Paho group coverage passes; inbox and product listener wiring remain under development. / MQTT 接入 SUBSCRIBE/UNSUBSCRIBE，按原顺序返回过滤器结果，保存 QoS、选项及订阅标识；有界等待保留未确认意图，退订保留等待 PUBACK 的交换。真实 Paho 群订阅已验证，收件箱和产品监听仍在开发。
 
 - Prepare MQTT group subscriptions before the first business message by reusing bounded Channel runtime initialization and freshly checking source authority. Denied subscriptions create no runtime; product access remains under development. / MQTT 群订阅可在首条业务消息之前准备完成，复用有界 Channel 运行时初始化并重新核验消息源权威；拒绝的订阅不创建运行时，产品接入仍在开发。

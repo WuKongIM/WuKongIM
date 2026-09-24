@@ -62,7 +62,7 @@ plugin, migration, message projections, and MQTT session state.
    Read kind 16 discovers active Channel sources; kind 17 includes retained tombstones for replay cleanup.
    Both use bounded encoded-order cursors and unchanged older JSON; old peers reject kind 17, and discovery authorizes no GC.
    Matched nodes use command 69 operation 4 for qualified charges and read kind 18 for pinned Session/cursor/head.
-   Kind 19 routes membership by Channel ID and pins flags/member/incarnation high water; old peers reject it, older JSON stays unchanged.
+   Kind 19 pins Channel flags/member/incarnation; kind 20 pages stable directory keys under fresh UID authority. Matched peers are required; older JSON stays unchanged.
 
 ## Invariants and Failure Semantics
 

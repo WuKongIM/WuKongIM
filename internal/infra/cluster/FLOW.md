@@ -37,8 +37,8 @@ management, plugins, diagnostics, and bounded operations observations.
    Channel append clones payload bytes once and explicitly transfers that
    immutable ownership to the Channel runtime. Mutable recipient metadata is
    reread from the Slot leader per routed batch; only person metadata is cached.
-   First person SENDs prepare coalesced UID membership/runtime metadata and
-   publish directory-ready only after every prepare proposal joins.
+   First person SENDs commit coalesced Channel directory tasks/runtime metadata;
+   the asynchronous projector later ensures UID memberships and publishes ready.
 2. Presence reconstruction coalesces target groups into one bounded read per
    active owner instead of repeating unavailable-owner timeouts per Hash Slot. It validates each
    owner boot identity, and rechecks current membership and Slot authority before
@@ -95,8 +95,8 @@ management, plugins, diagnostics, and bounded operations observations.
   Confirmed runtime absence uses the existing bounded Channel initializer, then
   rereads fresh Slot fences. No business metadata creation, policy retry or authority fallback is allowed.
 - Person-directory batching shares duplicate Channel results, detaches canceled
-  waiters without canceling accepted work, and never publishes ready after a
-  membership or runtime-metadata prepare failure.
+  waiters without canceling accepted work. Admission proves a durable task, not
+  committed UID membership; MQTT future-source admission needs a separate barrier.
 - Mutable request and response payloads crossing runtime ownership boundaries
   are cloned unless the contract explicitly transfers ownership.
 - Node lifecycle, Slot movement, retention, and Controller changes are executed
