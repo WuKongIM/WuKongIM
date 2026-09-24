@@ -141,8 +141,14 @@ func TestMQTTGatewayPahoSingleNodeCluster(t *testing.T) {
 	require.Len(t, rows.Messages, 1)
 	require.Equal(t, "alice", rows.Messages[0].FromUID)
 	firstGateway := <-opened
+	firstConnection, firstSink, err := handler.BindDelivery(firstGateway)
+	require.NoError(t, err)
+	require.False(t, firstConnection.SessionPresent)
 	delivery := prepareMQTTGatewayOutbound(t, ctx, node, read("paho"), rows.Messages[0], topic)
-	require.NoError(t, handler.SendQoS1(firstGateway, delivery))
+	preparedDelivery := sessioncase.PreparedDelivery{Owner: delivery.Owner, Topic: topic, QoS: 1, Exchange: delivery.Exchange, Publication: delivery.Publication}
+	queued, err := firstSink.Enqueue(ctx, preparedDelivery, false)
+	require.NoError(t, err)
+	require.Equal(t, sessioncase.DeliveryQueued, queued)
 	firstDown := awaitMQTTGatewayPublication(t, ctx, received)
 	require.False(t, firstDown.Duplicate())
 	require.Equal(t, "committed", string(firstDown.Payload))
@@ -151,7 +157,9 @@ func TestMQTTGatewayPahoSingleNodeCluster(t *testing.T) {
 	beforeQoS0 := read("paho")
 	require.EqualValues(t, 1, beforeQoS0.OutboundInflight)
 	candidate := sessioncase.PreparedDelivery{Owner: delivery.Owner, Topic: topic, SubscriptionIdentifier: delivery.Exchange.Publication.SubscriptionIdentifier, Publication: delivery.Publication}
-	require.NoError(t, handler.SendQoS0(firstGateway, candidate))
+	queued, err = firstSink.Enqueue(ctx, candidate, false)
+	require.NoError(t, err)
+	require.Equal(t, sessioncase.DeliveryQueued, queued)
 	qos0Down := awaitMQTTGatewayPublication(t, ctx, received)
 	require.Zero(t, qos0Down.QoS)
 	require.Zero(t, qos0Down.PacketID)
@@ -171,10 +179,17 @@ func TestMQTTGatewayPahoSingleNodeCluster(t *testing.T) {
 		t.Fatal("takeover did not physically close previous client")
 	}
 	secondGateway := <-opened
-	require.Error(t, handler.SendQoS1(firstGateway, delivery))
+	_, err = firstSink.Enqueue(ctx, preparedDelivery, false)
+	require.Error(t, err)
+	secondConnection, secondSink, err := handler.BindDelivery(secondGateway)
+	require.NoError(t, err)
+	require.True(t, secondConnection.SessionPresent)
 	delivery.Owner = mqttGatewayOwner(read("paho"))
 	delivery.Redelivery = true
-	require.NoError(t, handler.SendQoS1(secondGateway, delivery))
+	preparedDelivery.Owner = delivery.Owner
+	queued, err = secondSink.Enqueue(ctx, preparedDelivery, true)
+	require.NoError(t, err)
+	require.Equal(t, sessioncase.DeliveryQueued, queued)
 	resumedDown := awaitMQTTGatewayPublication(t, ctx, received)
 	require.True(t, resumedDown.Duplicate())
 	require.Equal(t, firstDown.PacketID, resumedDown.PacketID)

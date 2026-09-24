@@ -7,8 +7,7 @@ summary: Coordinates MQTT Session lifecycle, subscription preparation, consumer 
 
 ## Responsibility
 
-This package coordinates authenticated Session lifecycle, Owners gates and durable
-subscription projection. It owns no packet, concrete adapter, worker or replay storage.
+This package coordinates Session lifecycle, Owners, subscriptions and delivery; it owns no packet, concrete adapter, worker or replay storage.
 
 ## Boundaries
 
@@ -53,7 +52,9 @@ subscription projection. It owns no packet, concrete adapter, worker or replay s
    Fenced turns only recover existing anchors; absent anchors yield without copying.
    Confirmation captures one anchor, checks every replica and rechecks placement; partial recovery remains pending. Maintenance grants no consumer GC or SUBACK authority.
 10. Accounting reads bounded anchored originals for online/offline debt, preserving QoS/No Local/expiry and exact revisions; quota ending proves no owner isolation.
-    WindowAdmission rechecks originals/options and exact charges; Original QoS 0 preclaims once; downgraded QoS 1 completes after enqueue. ExchangeRecovery reads begun exchanges in send order across unsubscribe, checking old authorization, anchored content and current exchange readback.
+    WindowAdmission checks originals/options and exact charges; original QoS 0 preclaims once. ExchangeRecovery reads begun exchanges across unsubscribe with original authorization/content identity.
+    Sender serializes old recovery before new admission and checks permission immediately before enqueue under exact ownership; ambiguity closes without retry.
+    Only its private proved-enqueued QoS-0 token may rebase completion across unrelated revisions. Definite revocation releases scopes before End; no body queue or scheduler is added.
     Consumer progress reads one binding and a pinned Session/cursor, projecting only contiguous completion with one CAS. Acknowledgements checks current owner and exact PacketID/order before one command-70 commit; absent exchanges cause no writes.
     Explicit lifetime end retains Removing without fabricating source release;
     offline/absent state cannot discharge responsibility or authorize content GC.
@@ -90,8 +91,7 @@ subscription projection. It owns no packet, concrete adapter, worker or replay s
   source admission and safe removal. Membership version changes cannot replace
   an active subscription silently; delivery/revocation ordering remains required.
 - Group preparation bounds reads and grants no subscription, release or SUBACK authority. ACK survives unsubscribe; entry binds sent exchanges first.
-- These usecases are not yet wired into the product listener; full process-level
-  MQTT recovery and acceptance remain separate required implementation work.
+- Product listener, receive-authority adapter, fair scheduling and process-level acceptance remain required implementation work.
 
 ## Read First
 - [Contracts](types.go), [Acquisition](connect.go), [Lifecycle](lifecycle.go), [Subscriptions](subscriptions.go), [Replay](replay.go)

@@ -37,6 +37,7 @@ type PreparedDelivery struct {
 	Exchange               meta.MQTTInflight
 	Publication            ch.MQTTReplayPublication
 	completion             *qos0Completion
+	permission             *deliveryPermission
 }
 
 type WindowPreparation struct {
@@ -208,6 +209,7 @@ func (w *WindowAdmission) Prepare(parent context.Context, o contract.Owner, key 
 			}
 			preclaim = policy.originalQoS == 0
 			delivery = &PreparedDelivery{Owner: o, Topic: sub.Topic, QoS: qos, SubscriptionIdentifier: sub.SubscriptionIdentifier, Publication: entry}
+			delivery.permission = &deliveryPermission{request: subscriptionRequestFromRow(sub), version: sub.AuthorizationVersion, subscriptionRevision: sub.Revision}
 			if qos == 1 {
 				mutation.Op = meta.MQTTWindowAdmit
 				mutation.Publication = meta.MQTTInflightPublication{Position: entry.Message.MessageSeq, MessageID: entry.Message.MessageID, MessageSeq: entry.Message.MessageSeq, ContentVersion: entry.ContentVersion, ContentHash: hex.EncodeToString(entry.ContentHash[:]), Bytes: entry.AccountedBytes, SubscriptionIdentifier: sub.SubscriptionIdentifier}

@@ -44,6 +44,9 @@ Product listener composition, subscription and delivery scheduling remain unavai
    connections may retransmit old exchanges, supplied in original order.
    QoS 0 shares the send gate without ACK bindings/credit; expired new candidates
    yield before enqueue. The trusted sender owns private completion afterward.
+9. BindDelivery captures the accepted Connection and a bound entry-neutral sink;
+   per-turn contexts feed the existing send paths. Busy/expiry prove non-writes, including temporary owner-operation pressure;
+   terminal feedback maps to DISCONNECT and closure intent, never isolation proof.
 
 ## Invariants and Failure Semantics
 

@@ -23,10 +23,11 @@ Consumer accounting now reads committed original messages and qualifies bounded
 online/offline backlog through the Node composition. Window admission and ordered
 existing-exchange recovery preparation are implemented. Original QoS 0 now consumes
 its source position before exposing a candidate, preventing retries after takeover;
-QoS 1 downgraded to QoS 0 keeps post-enqueue completion. Product scheduling, final
-send permission and full connection recovery remain outstanding. Exact-owner
-explicit ending now isolates execution, ends Session/Will and forces a fresh
-lifetime on reconnect; sender/maintenance triggers remain outstanding.
+QoS 1 downgraded to QoS 0 keeps post-enqueue completion. Bounded connection turns
+now serialize recovery before admission, perform final receive authorization and
+invoke exact-owner ending for definitive revocation. A gateway sink preserves
+packet/credit/ACK rules; private QoS 0 completion reconciles unrelated revisions.
+Production receive-authority wiring, discovery and fair scheduling remain outstanding.
 Inbox subscription/delivery, source deactivation,
 Will execution, product/restore composition and capacity
 acceptance remain outstanding. No passing product E2E
@@ -4659,3 +4660,71 @@ Reconnect-before-new delivery, QoS 0 completion reconciliation, fair scheduling,
 inbox/future sources, unattended source cleanup, unavailable-owner isolation,
 Will execution, product/restore composition, offline tools, metrics and full
 process/load acceptance remain required.
+
+## Bounded connection sender and gateway sink
+
+[Sender](../specs/mqtt-sender.md) now freezes a connection's existing exchange
+ceiling and serializes each turn through a nonblocking gate. Pending completion
+precedes existing unsent exchange recovery, which precedes new source admission.
+Old exchanges on a resumed connection retain identity/DUP; admissions begun on
+this connection, including a lost admission reply, use DUP=false. Busy preserves
+the sent cursor and stores no body. Original QoS 0 preclaims may be lost when not
+enqueued, but cannot be returned as another attempt.
+
+Preparation privately captures permission identity. Immediately before enqueue,
+the sender rechecks current Session and exact exchange or QoS-0 subscription,
+then current receive authorization. This last authoritative authorization is the
+ordering point, with exact owner execution held through enqueue. Definitive
+denial fences and closes, releases scopes, then calls End; unavailable authority
+does not end a valid Session. Ambiguous writes close without same-connection
+retry. Failed ending stays pending for another bounded turn, unless superseded.
+
+Only successfully enqueued downgraded QoS 0 can leave a private body-free pending
+completion token. Reconciliation checks the exact current cursor/head and original
+debit before rebasing across an unrelated revision; a committed-but-lost reply
+is recognized without another send. The public CompleteQoS0 method remains strict.
+No schema, command or RPC changed, and no new worker/queue is introduced.
+
+Handler.BindDelivery supplies the accepted Connection and sink over the existing
+SendQoS1/SendQoS0 paths. It retains credit, PacketID/order binding, peer/property
+bounds and current physical identity, maps definite busy/expiry outcomes, and
+emits standard terminal feedback before requesting closure. Close intent is not
+isolation proof. App composition builds the sender from Node and Owners ports.
+
+Validation (2026-09-24):
+
+- The failure inventory and public usecase, app and sink tests preceded their
+  corresponding implementation. Missing-API RED logs: `/tmp/mqtt-sender-red.log`,
+  `/tmp/mqtt-sender-app-red.log`, `/tmp/mqtt-sender-sink-red.log`.
+- `GOWORK=off go test -race -p 2 ./internal/usecase/mqttsession ./internal/access/mqtt ./internal/app -count=1`
+  passed before the final operation-pressure correction (58.942s / 1.619s / 4.795s),
+  `/tmp/mqtt-sender-race.log`. New coverage includes
+  actual takeover/order/identity, busy yielding, ambiguous admission and enqueue,
+  final revocation and scope release, infrastructure denial distinction, reentrant
+  turns, concurrent renewal, lost QoS-0 completion, and original QoS-0 non-retry.
+- `GOWORK=off go test -race -tags=integration -p 2 ./internal/app -run '^(TestMQTTGatewayPahoSingleNodeCluster|TestMQTTGroupSourcePreparationThreeNodeRecovery)$' -count=1 -timeout=150s`
+  passed (25.048s), `/tmp/mqtt-sender-integration.log`. Real Paho/TCP exercises the
+  new gateway sink, QoS 0 at full credit, takeover/DUP and exact PUBACK with
+  controlled source/window admission. The real three-node, 256-hash-Slot case
+  independently compares trimmed anchored originals delivered by the actual sender
+  to a controlled sink before verifying real ACK gaps and retention. These are
+  complementary internal composition tests, not one product process acceptance
+  scenario. Existing Darwin linker warnings only.
+- A later review found that temporary Owners operation saturation was classified
+  as a closed connection by the gateway, and as an error by the sender. Both
+  failures were reproduced before their guards changed:
+  `/tmp/mqtt-sender-pressure-red.log` and `/tmp/mqtt-sender-owner-red.log`.
+  Saturation now yields Busy before/inside a turn and at gateway admission;
+  releasing capacity preserves the same send order and healthy connection.
+- Final `GOWORK=off go test -race -tags=integration -p 2 ./internal/usecase/mqttsession ./internal/access/mqtt ./internal/app -run '^(TestSender.*|TestDeliverySink.*|TestOutbound.*|TestMQTTGatewayPahoSingleNodeCluster|TestMQTTGroupSourcePreparationThreeNodeRecovery)$' -count=1 -timeout=150s`
+  passed (4.749s / 2.620s / 23.617s), `/tmp/mqtt-sender-final.log`, including the
+  pressure correction and both real integration scenarios.
+- Named `flow-doc-contracts` passed: 86 compliant files, zero invalid and nine
+  existing length warnings (`/tmp/mqtt-sender-flow.log`). All nine frozen context
+  hashes match `4ee4ece2104a6cb298a1ac42cea03bfdc337cb22`; formatting/diff checks passed.
+
+The full goal remains active. The production receive-authority adapter (including
+stable membership incarnation), fair source/accounting/delivery scheduling, inbox
+and future-person sources, unattended cleanup/source deactivation, unavailable-owner
+isolation, Will execution, product/restore composition, offline tools, metrics and
+complete process/load acceptance remain required. Product MQTT is not enabled.

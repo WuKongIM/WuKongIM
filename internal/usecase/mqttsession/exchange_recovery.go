@@ -207,7 +207,7 @@ func (r *ExchangeRecovery) Next(parent context.Context, o contract.Owner, after 
 	if err = checkSubscriptionScope(ctx, op); err != nil {
 		return out, err
 	}
-	return RecoveryPreparation{Delivery: &PreparedDelivery{Owner: o, Topic: e.Topic, QoS: 1, SubscriptionIdentifier: e.Publication.SubscriptionIdentifier, Exchange: current, Publication: original}, After: next, Done: page.Done}, nil
+	return RecoveryPreparation{Delivery: &PreparedDelivery{Owner: o, Topic: e.Topic, QoS: 1, SubscriptionIdentifier: e.Publication.SubscriptionIdentifier, Exchange: current, Publication: original, permission: &deliveryPermission{request: permission, version: cursor.AuthorizationVersion}}, After: next, Done: page.Done}, nil
 }
 func (r *ExchangeRecovery) read(ctx context.Context, op *subscriptionOperation, q meta.MQTTRead) (meta.MQTTReadResult, error) {
 	if err := checkSubscriptionScope(ctx, op); err != nil {

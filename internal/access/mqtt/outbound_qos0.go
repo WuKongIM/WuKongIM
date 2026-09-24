@@ -35,7 +35,7 @@ func (h *Handler) SendQoS0(g gt.Context, d sessioncase.PreparedDelivery) (err er
 	defer func() { s.mu.Lock(); s.sending = false; s.mu.Unlock() }()
 	op, err := h.options.Owners.Begin(g.RequestContext, d.Owner)
 	if err != nil {
-		return ErrHandlerClosed
+		return outboundOwnerError(err)
 	}
 	defer op.Done()
 	if op.UID() != s.connection.UID {

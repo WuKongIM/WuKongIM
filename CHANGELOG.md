@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add bounded MQTT connection sending with old-exchange-first recovery, send-time permission checks, revocation ending and QoS 0 completion across concurrent ACK/renewal. Gateway sink preserves receive credit and PUBACK identity; product scheduling remains under development. / MQTT 增加有界连接发送编排，先恢复旧交换，再检查当前权限发送；撤权结束会话，QoS 0 完成可跨 ACK/续租版本变化核对。网关出口保留接收额度及 PUBACK 身份，产品调度仍在开发。
+
 - Add exact-owner MQTT Session ending for revocation, source loss and explicit cleanup, preserving unfinished delivery and Will state and requiring a fresh lifetime on reconnect. Automatic triggers and product wiring remain under development. / MQTT 增加撤权、源丢失及显式清理的精确 owner 会话结束路径，保留未完成投递和 Will 状态，重连使用新生命周期；自动触发及产品接入仍在开发。
 
 - Prevent original MQTT/Will QoS 0 from being retried after a crash or takeover by consuming its source position before returning a send candidate. QoS 1 downgraded to QoS 0 keeps post-enqueue accounting. Product sending remains under development. / 原始 MQTT/Will QoS 0 在返回发送候选前消费源位置，防止崩溃或接管后重复发送；QoS 1 降为 QoS 0 仍保留入队后计量。产品发送仍在开发。

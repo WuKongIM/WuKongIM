@@ -215,8 +215,8 @@ specification, runbook, report, or module documentation; link to them when neede
   before returning a candidate, so lost replies/takeover never retry it; completion
   is a verified no-op. QoS 1 downgraded to QoS 0 retains its private revision-bound
   debit until enqueue; that downgrade permits duplicates. No uncharged QoS 1
-  resurrection, implicit ACK or send grant; final permission/recovery ordering
-  and autonomous scheduling remain required. No new table or wire format.
+  resurrection, implicit ACK or send grant: the sender supplies permission/recovery
+  ordering and app/runtime must supply scheduling. No new table or wire format.
   [QoS 0 gateway](../specs/mqtt-qos0-gateway.md) shares the send gate without
   PacketID/ACK binding or QoS 1 credit. Expired new candidates yield; begun QoS 1
   keeps the earlier native/MQTT/Will deadline with remaining zero when expired.
@@ -228,13 +228,20 @@ specification, runbook, report, or module documentation; link to them when neede
   current permission and anchored content must still agree. Final point read
   accepts unrelated ACK link changes but rejects disappearance/new admission.
   It never ACKs, expires or changes an exchange. Page completion is not a complete
-  connection-recovery proof; sender serialization and final permission remain required.
+  connection-recovery proof; the sender owns serialization and final permission.
   [Explicit Session ending](../specs/mqtt-session-ending.md) isolates the exact
   observed owner before one atomic Session/Will end, even if quota accounting
   already ended the row. It preserves debt and the first end reason, never follows
   a successor, and gives the next connection a fresh lifetime. Expired active
-  owners first record the original disconnect; final permission detection and
+  owners first record the original disconnect; production receive authority and
   automatic ending/cleanup scheduling remain required.
+  The [connection sender](../specs/mqtt-sender.md) serializes recovery before new
+  admission, makes fresh permission the final authoritative read before enqueue,
+  and invokes End for definitive denial after releasing owner scopes. It keeps
+  no bodies; one private already-enqueued QoS-0 completion may reconcile exact
+  charges after ACK/renewal revisions or a lost reply. Gateway BindDelivery adapts
+  the accepted connection to that sink contract; unknown writes close without
+  retry. Production permission authority, discovery and scheduling remain required.
   Optional message column 21 preserves bounded versioned publication metadata;
   compatibility record codec 2 and proposal format 3 prevent lossy recovery.
   Ordinary expiry uses ingress time; Will uses the original source append time.

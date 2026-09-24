@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession"
+	runtime "github.com/WuKongIM/WuKongIM/internal/runtime/mqttsession"
 	sessioncase "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -79,7 +80,7 @@ func (h *Handler) SendQoS1(g gt.Context, d OutboundDelivery) (err error) {
 	defer func() { s.mu.Lock(); s.sending = false; s.mu.Unlock() }()
 	op, err := h.options.Owners.Begin(g.RequestContext, d.Owner)
 	if err != nil {
-		return ErrHandlerClosed
+		return outboundOwnerError(err)
 	}
 	defer op.Done()
 	if op.UID() != s.connection.UID {
@@ -112,6 +113,15 @@ func (h *Handler) SendQoS1(g gt.Context, d OutboundDelivery) (err error) {
 		return h.terminate(g, s, 0)
 	}
 	return nil
+}
+
+// Capacity refusal precedes exchange binding and packet enqueue, so it can yield
+// without closing a healthy owner or consuming this connection's send order.
+func outboundOwnerError(err error) error {
+	if errors.Is(err, runtime.ErrOwnerLimit) {
+		return ErrOutboundBusy
+	}
+	return ErrHandlerClosed
 }
 
 // acknowledge captures an immutable binding before entering business work. The
