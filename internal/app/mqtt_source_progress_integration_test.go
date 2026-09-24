@@ -68,24 +68,35 @@ func verifyMQTTConsumerProgress(t *testing.T, ctx context.Context, nodes []*clus
 	sender, err := newMQTTSender(nodes[2], owners, authorization, sessions)
 	require.NoError(t, err)
 	var pending []meta.MQTTInflight
+	var publications []sessioncase.PreparedDelivery
+	var duplicates []bool
 	stream, err := sender.Open(ctx, connection, mqttProgressDeliverySink{enqueue: func(_ context.Context, d sessioncase.PreparedDelivery, dup bool) (sessioncase.DeliveryDisposition, error) {
-		require.False(t, dup, "these exchanges began on this connection")
-		require.Less(t, len(pending), len(content.Records))
-		require.Equal(t, content.Records[len(pending)], d.Publication)
-		require.EqualValues(t, 1, d.QoS)
 		pending = append(pending, d.Exchange)
+		publications = append(publications, d)
+		duplicates = append(duplicates, dup)
 		return sessioncase.DeliveryQueued, nil
 	}})
 	require.NoError(t, err)
-	for range content.Records {
-		got, e := stream.Turn(ctx, prepared.Cursor.Key)
-		require.NoError(t, e)
-		require.True(t, got.Enqueued)
+	scheduler, err := runtime.NewDeliveries(runtime.DeliveryOptions{Owners: owners, Workers: 2})
+	require.NoError(t, err)
+	require.NoError(t, scheduler.Start(ctx))
+	stopScheduler := func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		require.NoError(t, scheduler.Stop(stopCtx))
+	}
+	defer stopScheduler()
+	require.NoError(t, scheduler.Register(owner, mqttPreparedSourceTask{stream: stream, key: prepared.Cursor.Key}))
+	require.Eventually(t, func() bool { return scheduler.Snapshot().Completed == 1 }, 10*time.Second, time.Millisecond)
+	stopScheduler() // Join before inspecting callback-owned observations.
+	require.Zero(t, scheduler.Snapshot().Failures)
+	require.Len(t, publications, 2)
+	require.Equal(t, []bool{false, false}, duplicates)
+	for i, d := range publications {
+		require.Equal(t, content.Records[i], d.Publication)
+		require.EqualValues(t, 1, d.QoS)
 	}
 	require.EqualValues(t, 2, read().Session.OutboundInflight)
-	idle, err := stream.Turn(ctx, prepared.Cursor.Key)
-	require.NoError(t, err)
-	require.True(t, idle.Idle)
 	require.Len(t, pending, 2)
 	acknowledge := func(i int) sessioncase.AcknowledgementResult {
 		result, e := acknowledgements.Acknowledge(ctx, sessioncase.AcknowledgementCommand{Owner: owner, Key: prepared.Cursor.Key, PacketID: pending[i].PacketID, DeliveryOrder: pending[i].DeliveryOrder})
@@ -118,7 +129,7 @@ func verifyMQTTConsumerProgress(t *testing.T, ctx context.Context, nodes []*clus
 	require.False(t, again.Changed)
 	require.Equal(t, completed.Binding, again.Binding)
 	verifyMQTTReplayRetention(t, ctx, nodes, prepared, completed.Binding.CompletedThrough, true, ids, expected)
-	t.Log("mqtt_consumer_progress_evidence: consumer_progress_cross_hash_slot=true ack_gap_preserved=true exact_ack_usecase=true duplicate_ack_no_write=true coalesced_projection=true independent_remote_read=true accounting=real_anchored_content sender=real_anchored_content delivery_sink=controlled product_listener=false")
+	t.Log("mqtt_consumer_progress_evidence: consumer_progress_cross_hash_slot=true ack_gap_preserved=true exact_ack_usecase=true duplicate_ack_no_write=true coalesced_projection=true independent_remote_read=true accounting=real_anchored_content sender=real_anchored_content delivery_scheduler=real delivery_workers=2 source_discovery=prepared_fixture delivery_sink=controlled product_listener=false")
 	return progress
 }
 
@@ -130,3 +141,15 @@ func (s mqttProgressDeliverySink) Enqueue(ctx context.Context, d sessioncase.Pre
 	return s.enqueue(ctx, d, dup)
 }
 func (s mqttProgressDeliverySink) Close(context.Context, meta.MQTTSessionEndReason) error { return nil }
+
+// mqttPreparedSourceTask is a finite integration scenario over one already
+// prepared source. Product discovery must rotate all current subscription sources.
+type mqttPreparedSourceTask struct {
+	stream *sessioncase.DeliveryStream
+	key    meta.MQTTDeliveryCursorKey
+}
+
+func (s mqttPreparedSourceTask) Turn(ctx context.Context) (runtime.DeliveryWork, error) {
+	out, err := s.stream.Turn(ctx, s.key)
+	return runtime.DeliveryWork{Again: out.Enqueued || out.Advanced, Done: out.Idle}, err
+}

@@ -1,14 +1,13 @@
 ---
 scope: package
-summary: Bounds MQTT owner execution, quiescence, connection/deadline/replay scheduling and joined shutdown.
+summary: Bounds MQTT owner execution, quiescence, delivery/connection/deadline/replay scheduling and joined shutdown.
 ---
 
 # MQTT Session Runtime Flow
 
 ## Responsibility
 
-This package tracks local connection execution and exact-owner quiescence,
-and schedules bounded durable deadline/replay work through injected usecases.
+This package tracks local execution/quiescence and schedules bounded deadline, replay and delivery work through injected usecases.
 It does not authenticate users, acquire durable ownership, derive distributed
 leases, publish messages, or interpret MQTT packets.
 
@@ -50,6 +49,10 @@ leases, publish messages, or interpret MQTT packets.
    one finite recovery or retirement journal-scan continuation per Slot; work/errors yield to later sources.
    Cold passes rotate phases, targets and donor hints; durable storage owns progress.
    Reverse scans pin source/authority/capture/floor and strictly decrease; partial budgets preserve unstarted entries. Invalid/late pages dispatch nothing; commit counts never prove cleanup.
+9. Deliveries retains one body-free task per exact Owner with a fixed cohort and
+   indexed due heap. Progress yields to other due Owners; wakes coalesce during
+   queued/executing work, and idle polling recovers missed hints. Failure backoff
+   survives wake floods; fencing alone cannot discard pending usecase cleanup.
 
 ## Invariants and Failure Semantics
 
@@ -80,13 +83,15 @@ leases, publish messages, or interpret MQTT packets.
   live cleanup without starving behind failed retries. Timeout retains that run;
   successful Stop joins registered work. App separately closes unregistered Owners.
   Both Connections and its owner registry are terminal after Stop, including restore.
+- Deliveries Stop is terminal: cancel turns, skip queued business calls, join the
+  scheduler/cohort, then release records. Timeout retains the run. App fences
+  admission first and keeps dependencies alive until join; this is no isolation proof.
 
 ## Read First
 
 - [Owner execution](owner.go)
-- [Deadline and shutdown ownership](owner_deadlines.go)
 - [Deadline worker](deadline_worker.go)
-- [Connection supervision](connections.go)
+- [Connection supervision](connections.go), [Delivery scheduling](deliveries.go)
 - [Replay worker](replay_worker.go)
 
 ## Update Triggers

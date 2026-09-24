@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add bounded MQTT connection delivery scheduling with fair turns, coalesced wakes, retry backoff and joined shutdown. Automatic source discovery and product listener wiring remain under development. / MQTT 增加有界连接投递调度，支持公平轮转、唤醒合并、失败退避和等待任务退出的停止流程；自动消息源发现与产品监听接入仍在开发。
+
 - Refresh committed replay progress on idle voters during anchored planning, preventing a new MQTT subscriber from waiting indefinitely for another message. / 锚点规划会刷新空闲投票副本的已提交进度，避免新 MQTT 订阅必须等到下一条消息才能完成恢复。
 
 - Use fresh Slot-authoritative MQTT receive checks with one coherent channel/member snapshot. Group removal or rejoin invalidates old subscriptions and exchanges; send mutes preserve receiving. RPC 91 read kind 19 requires matched nodes; product access remains under development. / MQTT 接收权限改用 Slot 权威的一致频道/成员快照；退群或重加入使旧订阅与交换失效，发送禁言不影响接收。RPC 91 读取类型 19 要求匹配节点，产品接入仍在开发。

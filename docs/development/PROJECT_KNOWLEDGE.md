@@ -191,6 +191,15 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Delivery and extension boundaries
 
+- [MQTT delivery scheduling](../specs/mqtt-delivery-scheduling.md) retains one
+  task per exact activated Owner and uses a fixed bounded cohort. Wake hints
+  coalesce without body queues; errors impose a retry floor even under wake
+  floods. Fencing cannot discard pending End cleanup. Terminal Stop cancels and
+  joins all calls before releasing records; timeout retains that run and grants
+  no isolation proof. App fences admission first and keeps dependencies alive
+  until join. Three-node Sender/Slot coverage uses a prepared source and controlled
+  sink; automatic source discovery and product composition remain outstanding.
+
 - Subscriber join identity uses optional column 4 and table 5 System 1 per-hash-Slot
   allocation high water. Legacy empty rows mean incarnation 1; new joins allocate
   above 1 atomically with membership/count changes. Repeated adds preserve it;

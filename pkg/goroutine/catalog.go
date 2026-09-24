@@ -146,6 +146,8 @@ const (
 	TaskMQTTReplayWorker                 TaskID = "mqtt/replay_worker"
 	TaskMQTTConnectionScheduler          TaskID = "mqtt/connection_scheduler"
 	TaskMQTTConnectionWorker             TaskID = "mqtt/connection_worker"
+	TaskMQTTDeliveryScheduler            TaskID = "mqtt/delivery_scheduler"
+	TaskMQTTDeliveryWorker               TaskID = "mqtt/delivery_worker"
 	TaskMessagePermissionBatch           TaskID = "message/permission_batch"
 	TaskMessageDirectoryBatch            TaskID = "message/directory_batch"
 	TaskMessageDirectoryProjector        TaskID = "message/directory_projector"
@@ -253,6 +255,8 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskMQTTReplayWorker, Module: ModuleMQTT, Name: "replay_worker", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskMQTTConnectionScheduler, Module: ModuleMQTT, Name: "connection_scheduler", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskMQTTConnectionWorker, Module: ModuleMQTT, Name: "connection_worker", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskMQTTDeliveryScheduler, Module: ModuleMQTT, Name: "delivery_scheduler", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskMQTTDeliveryWorker, Module: ModuleMQTT, Name: "delivery_worker", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMessagePermissionBatch, Module: ModuleMessage, Name: "permission_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMessageDirectoryBatch, Module: ModuleMessage, Name: "directory_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMessageDirectoryProjector, Module: ModuleMessage, Name: "directory_projector", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
