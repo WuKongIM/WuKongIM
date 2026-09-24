@@ -6,6 +6,7 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Compose durable MQTT group subscription establishment with shared-replay confirmation on every eligible replica and current-owner/permission checks; incomplete recovery keeps the subscription pending. Product MQTT access remains under development. / MQTT 群订阅建立接入所有候选副本的共享回放确认及当前所有者、权限检查；恢复未完成时保留准备状态，产品接入仍在开发。
 - Seal MQTT unsubscribe ranges and release unadmitted backlog without discarding inflight exchanges; interrupted preparations can be cancelled explicitly, including failures before their first binding commit. Slot command 69 operation 3 requires matching nodes; product MQTT access remains under development. / MQTT 退订固定处理区间并释放未发送积压，保留已发送未确认交换；中断的准备流程支持显式取消，包括首次绑定写入前失败的情况。Slot 命令 69 操作 3 要求匹配节点，产品接入仍在开发。
 
 - Complete MQTT consumer-binding removal with separately committed source acknowledgements, fresh end/drain proof and recoverable tombstones. Lost replies and subscription replacement preserve responsibilities; product MQTT access remains under development. / MQTT 消费绑定移除新增独立提交的源端确认，重新核验会话终止或处理完成证明，并保留可恢复 tombstone；回包丢失与订阅换代不会丢失责任，产品接入仍在开发。

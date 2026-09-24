@@ -11,7 +11,8 @@ replay activation/copy/anchor and bounded recovery steps now pass three-node
 runtime integration. Bounded copy/recovery/retirement scheduling and exact binding
 removal, unsubscribe sealing and live-owner cancelled-preparation discovery
 (including before the first binding) are implemented.
-Complete subscription/delivery, source deactivation,
+Concrete group projection now confirms shared replay on every eligible replica.
+Inbox subscription/delivery, source deactivation,
 Will execution, product/restore composition and capacity
 acceptance remain outstanding. No passing product E2E
 or capacity claim is made.
@@ -4046,3 +4047,58 @@ Unattended ended-Session discovery before first registration, full group/inbox
 establishment and shared-content readiness, source deactivation/pruning, delivery
 and ACK entry, owner recovery, Will execution, product configuration/lifecycle,
 offline tooling and process/load acceptance still remain. The full goal is active.
+
+
+## Concrete group projection and shared-replay confirmation
+
+`GroupProjection` implements the existing subscription projection port for group
+intents. It validates the complete current request, derives protected preparation
+through GroupSources, confirms shared replay, then rechecks exact intent and
+permission before returning a receipt. Remove uses group drain discovery/sealing
+without requiring receive permission or discarding outstanding exchanges. App
+composition uses real foreground Node, fresh Slot metadata and source protection.
+Inbox requests explicitly fail until their independent admission path exists.
+
+`ReplayCoordinator.Confirm` captures active placement and an authoritative plan.
+A missing/below-boundary anchor advances at most one ordinary bounded turn and
+returns pending. A covered anchor (including a verified maintenance-only tail)
+requires an independently complete recovery result from every configured replica,
+including learners, for that exact full anchor. Partial imports, journal scans,
+pending retirement and conflicting proofs cannot certify completion. Placement
+is reread after all replies. No source-release flag, new GC authority, retry loop,
+per-source cache, table or wire format is introduced; managed maintenance retains
+responsibility for long recovery scans and scheduling fairness.
+
+Validation (2026-09-24):
+
+- Tests before implementation: replay confirmation RED at
+  `/tmp/mqtt-projection-replay-red.log`, projection RED at
+  `/tmp/mqtt-group-projection-red.log`, app composition RED at
+  `/tmp/mqtt-group-projection-app-red.log`.
+- Focused confirmation/projection tests passed, 1.590 s;
+  `/tmp/mqtt-group-projection-green.log`. They cover incomplete learners,
+  retirement cleanup, different anchors, initial/new fences, changed placement,
+  cancellation/unavailability, preserved maintenance tails and exact-owner intent.
+- Full related race suites passed: MQTT usecase 24.795 s, app 4.834 s;
+  `/tmp/mqtt-group-projection-race.log`. Existing Darwin linker warnings only.
+- `GOWORK=off go test -p 2 -race -tags=integration ./internal/app -run
+  TestMQTTGroupSourcePreparationThreeNodeRecovery -count=1 -timeout=120s -v`
+  passed, 20.150 s; `/tmp/mqtt-group-projection-app-retry.log`. The initial run
+  returned `channel: not ready` before the test's expected replay-pending outcome;
+  the harness now allows bounded initial retries while still requiring pending
+  intent, an independent learner probe proving missing shared content, then real
+  recovery and Active completion. It verifies owner transfer 1→3, an intervening
+  native publication, unchanged original cursor and real projection removal.
+  Unlike earlier establishment fixtures, this scenario has no fabricated
+  projection receipt. Permission incarnation remains controlled and no product
+  listener or product E2E acceptance is claimed.
+
+Named `flow-doc-contracts` passed: 86 compliant, zero invalid, nine existing
+warnings (`/tmp/mqtt-group-projection-flow.log`); formatting/diff checks are clean.
+
+Frozen context and failure inventory: [group projection](../specs/mqtt-group-projection.md).
+The complete goal remains active. Inbox/future-person admission, unattended
+ended-Session discovery before registration, source deactivation/pruning, full
+consumer accounting/delivery/PUBACK entry, unavailable-owner recovery, Will
+execution, product lifecycle/configuration, offline tools and process/load
+acceptance remain required.

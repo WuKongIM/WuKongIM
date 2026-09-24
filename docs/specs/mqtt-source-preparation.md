@@ -5,7 +5,9 @@ bindings and Session consumption cursors. It is a required component of the
 complete subscription projection, not a `SubscriptionProjection` implementation
 or permission to return SUBACK. Shared-content recovery, removal/drain, inbox
 discovery/future-person-source admission and permission-incarnation ordering
-remain mandatory before the product can compose that final projection.
+remain mandatory before product admission. [GroupProjection](mqtt-group-projection.md)
+now composes group preparation, shared recovery confirmation and removal; this
+preparation method alone still cannot return a subscription receipt.
 
 `GroupSources.Prepare` derives UID and intent from the current admitted owner.
 It requires a current Preparing/Active group subscription and rechecks receive

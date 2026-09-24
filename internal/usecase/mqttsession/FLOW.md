@@ -47,11 +47,11 @@ no packet, concrete cluster/gateway adapter, worker or shared replay storage.
    Group removal discovers its original cursor or registers missing preparation before protected cancellation Init.
    Resume preserves intent; replacement keeps generation/operation. See the [failure inventory](../../../docs/specs/mqtt-subscription-orchestration.md).
 8. Group preparation registers an unknown binding before fresh protection confirmation,
-   fixes one start, initializes the cursor and activates the binding. Retries preserve that start; this is no subscription completion receipt.
+   fixes one start, initializes the cursor and activates the binding. GroupProjection adds all-replica replay confirmation and current intent/permission checks before a receipt.
 9. Replay maintenance rotates bounded copy/anchor admission, recovery and retirement under fresh placement.
    Targets pin anchors and scan/donor hints; placement resets hints and cold passes rotate work.
    Fenced turns only recover existing anchors; absent anchors yield without copying.
-   Recovery applies committed retirement and releases sources; pending cleanup yields without granting new GC, readiness or SUBACK authority.
+   Confirmation captures one anchor, checks every replica and rechecks placement; partial recovery remains pending. Maintenance grants no consumer GC or SUBACK authority.
 10. Consumer progress reads one binding and a pinned Session/cursor, projecting
     only contiguous completion with one CAS. Unchanged floors produce no write.
     Explicit lifetime end retains Removing without fabricating source release;

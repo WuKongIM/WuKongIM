@@ -290,6 +290,12 @@ specification, runbook, report, or module documentation; link to them when neede
   closed/replaced intent and cannot reset a cursor; unknown starts still need
   replicated protection. Old peers reject op 3. Same-topic replacement and lost
   replies retain the original seal; a newer closure revision may equal stored intent.
+  [Group projection](../specs/mqtt-group-projection.md) composes preparation,
+  all-replica confirmation and drain. Confirmation pins a full accepted anchor,
+  requires complete independent recovery from each eligible replica and rechecks
+  fresh placement. Missing copy, partial import, scans and retirement cleanup
+  stay pending; verified maintenance-only tails need no extra anchor. Long repair
+  scans remain managed maintenance work; inbox admission is not implemented here.
   [Group drain discovery](../specs/mqtt-group-removal-discovery.md) reads the
   exact closed intent and at most two cursors. Existing cursors pin the original
   source without another protection call. Missing preparation registers unknown

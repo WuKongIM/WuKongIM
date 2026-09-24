@@ -69,7 +69,7 @@ Stop or startup rollback
   Binding removal uses the same authoritative Node port: a source-Slot acknowledgement retains responsibility until a later verified tombstone commit; three-node continuation is covered.
   SourceDrain discovers group cleanup and seals unsubscribe ranges through Node ports; pre-binding interruption, cross-node resume and concurrent ACK conflicts preserve inflight exchanges.
   Replay maintenance rotates copy/recovery/retirement through the same worker; real ACK gaps and unknown registrations block decisions, and reopened replicas prove applied retirement independently of counters.
-  Full product start/stop/restore wiring and listener admission remain pending.
+  GroupProjection composes real protection, preparation, all-replica replay confirmation and removal; product/inbox/lifecycle wiring remains pending.
 - Command-channel suffixes are injected across send, delivery, CMD sync, plugin
   projection and Manager filtering without process-global state.
 - The normalized message system UID is injected consistently into user

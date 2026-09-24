@@ -60,7 +60,9 @@ successor's content or activate an authoritative subscription by itself.
 [SourceDrain](mqtt-source-drain.md) supplies the concrete per-source sealing and
 unadmitted-quota release step, including cancelled preparation. It preserves
 inflight exchanges; final binding release remains SourceRemoval's responsibility.
-Full group/inbox projection and recovery scheduling still have to compose them.
+[GroupProjection](mqtt-group-projection.md) now composes group establishment and
+removal through real protection, shared recovery and drain ports. Inbox projection
+and complete recovery scheduling remain required.
 
 Default bound: 128 retained subscriptions, 16 pages of at most 64 rows and five
 seconds per usecase call. Configuration may allow up to 1024 subscriptions and
@@ -79,8 +81,9 @@ Real single-node cluster integration verifies durable intent, unavailable-source
 failure, owner resume, concurrent parent renewal and removal after membership
 revocation. Its projection receipt is explicitly controlled by the test. Neither
 that fixture nor matching receipt fields prove distributed source durability.
-Actual projection, background offline reconciliation, permission-incarnation
-ordering, safe tombstone GC and product entry composition remain required.
+The concrete group projection is separate from that fixture. Inbox projection,
+background offline reconciliation, permission-incarnation ordering, safe tombstone
+GC and product entry composition remain required.
 
 ## Frozen context
 

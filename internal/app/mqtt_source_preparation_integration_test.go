@@ -47,7 +47,8 @@ func (s *mqttSourcePreparationLostReply) MutateMQTTDeliveryCursor(ctx context.Co
 }
 
 // Real source/Session Slot commits and Channel protection are composed here.
-// Permission incarnation is controlled; no full projection receipt is minted.
+// Permission incarnation is controlled. The separate group projection helper
+// additionally verifies concrete establishment and removal receipts.
 func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	rootDir := t.TempDir() // Node shutdown must run before directory removal.
 	voters := []cluster.ControlVoter{{NodeID: 1, Addr: freeSendackSmokeTCPAddr(t)}, {NodeID: 2, Addr: freeSendackSmokeTCPAddr(t)}, {NodeID: 3, Addr: freeSendackSmokeTCPAddr(t)}}
@@ -277,6 +278,7 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	}
 	progress := verifyMQTTConsumerProgress(t, ctx, nodes, resumed.Owner, prepared, ids, plan.Anchor)
 	verifyMQTTSourceDrain(t, ctx, nodes, owners, sessions, authorize, adapter)
+	verifyMQTTGroupProjection(t, ctx, nodes, owners, sessions, authorize, ids)
 	require.NoError(t, nodes[0].RemoveChannelSubscribers(ctx, id.ID, 2, []string{"alice"}, 2))
 	_, err = sources.Prepare(ctx, resumed.Owner, topic)
 	require.ErrorIs(t, err, sessioncase.ErrSubscriptionDenied)
