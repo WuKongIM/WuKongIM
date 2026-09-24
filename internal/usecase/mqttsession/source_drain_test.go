@@ -104,8 +104,16 @@ func TestSourceDrainUnsubscribeReleasesOnlyUnadmittedBacklog(t *testing.T) {
 	f, store, progress, prepared := progressFixture(t)
 	ack := advanceProgressWindow(t, f, prepared)
 	o := f.connection.Owner
-	account := meta.MQTTDeliveryCursorMutation{Key: prepared.Cursor.Key, ExpectedRevision: f.row(t).Revision, OwnerGeneration: o.OwnerGeneration, OwnerNodeID: o.NodeID, OwnerBootID: o.BootID, ConnectionID: o.ConnectionID, Op: meta.MQTTCursorAccount, Topic: prepared.Cursor.Topic, AuthorizationVersion: prepared.Cursor.AuthorizationVersion, Through: prepared.Cursor.StartAfter + 4, AddedMessages: 2, AddedBytes: 8, UpdatedAtMS: f.now.UnixMilli()}
+	account := meta.MQTTDeliveryCursorMutation{Key: prepared.Cursor.Key, ExpectedRevision: f.row(t).Revision, OwnerGeneration: o.OwnerGeneration, OwnerNodeID: o.NodeID, OwnerBootID: o.BootID, ConnectionID: o.ConnectionID, Op: meta.MQTTCursorAccountQualified, Topic: prepared.Cursor.Topic, AuthorizationVersion: prepared.Cursor.AuthorizationVersion, Through: prepared.Cursor.StartAfter + 3, AddedMessages: 1, AddedBytes: 4, UpdatedAtMS: f.now.UnixMilli()}
+	account.Qualified = &meta.MQTTQualifiedAccounting{From: prepared.Cursor.StartAfter + 3, SubscriptionRevision: f.subscription(t, prepared.Binding.Topic).Revision, Items: []meta.MQTTAccountingItem{{Position: prepared.Cursor.StartAfter + 3, Bytes: 4}}}
 	r, err := f.store.MutateMQTTDeliveryCursor(ctx, account)
+	require.NoError(t, err)
+	require.Equal(t, meta.MQTTSessionCASApplied, r.Status)
+	account.ExpectedRevision = f.row(t).Revision
+	account.Through++
+	account.Qualified.From++
+	account.Qualified.Items[0].Position++
+	r, err = f.store.MutateMQTTDeliveryCursor(ctx, account)
 	require.NoError(t, err)
 	require.Equal(t, meta.MQTTSessionCASApplied, r.Status)
 	readInflight := func() []meta.MQTTInflight {
@@ -125,6 +133,10 @@ func TestSourceDrainUnsubscribeReleasesOnlyUnadmittedBacklog(t *testing.T) {
 	}
 	f.denied = true // Lost receive permission must not prevent unsubscribe.
 	existed, err := f.subscriptions.Unsubscribe(ctx, o, prepared.Binding.Topic)
+	require.ErrorIs(t, err, app.ErrSourceDrainPending)
+	require.Equal(t, meta.MQTTSubscriptionRemoving, f.subscription(t, prepared.Binding.Topic).Stage)
+	require.EqualValues(t, 3, f.row(t).PendingMessages)
+	existed, err = f.subscriptions.Unsubscribe(ctx, o, prepared.Binding.Topic)
 	require.NoError(t, err)
 	require.True(t, existed)
 	require.Equal(t, meta.MQTTSubscriptionRemoved, f.subscription(t, prepared.Binding.Topic).Stage)

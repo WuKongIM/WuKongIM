@@ -54,6 +54,11 @@ type MQTTDeliveryCursor struct {
 	// The receipt survives ACK deletion so exact retries return the same exchange.
 	LastWindowPacketID      uint16 `json:"last_window_packet_id"`
 	LastWindowDeliveryOrder uint64 `json:"last_window_delivery_order"`
+	// AccountingVersion 1 requires bounded System-1 range receipts for all
+	// unadmitted charges. Head/tail are range From positions, not message ACKs.
+	AccountingVersion uint8  `json:"accounting_version,omitempty"`
+	AccountingHead    uint64 `json:"accounting_head,omitempty"`
+	AccountingTail    uint64 `json:"accounting_tail,omitempty"`
 }
 
 // MQTTDeliveryCursorOp identifies an atomic accounting operation.
@@ -65,6 +70,8 @@ const (
 	// MQTTCursorCancelInit records an empty cancelled preparation only after the
 	// exact subscription stopped admitting, or a newer generation replaced it.
 	MQTTCursorCancelInit MQTTDeliveryCursorOp = 3
+	// MQTTCursorAccountQualified records exact charged positions for later debit.
+	MQTTCursorAccountQualified MQTTDeliveryCursorOp = 4
 )
 
 // MQTTDeliveryCursorMutation carries authority and qualified source coverage.
@@ -81,10 +88,11 @@ type MQTTDeliveryCursorMutation struct {
 	Topic                string                `json:"topic"`
 	AuthorizationVersion uint64                `json:"authorization_version"`
 	// Through is the protected initial boundary or newly accounted source tail.
-	Through       uint64 `json:"through"`
-	AddedMessages uint64 `json:"added_messages"`
-	AddedBytes    uint64 `json:"added_bytes"`
-	UpdatedAtMS   int64  `json:"updated_at_ms"`
+	Through       uint64                   `json:"through"`
+	AddedMessages uint64                   `json:"added_messages"`
+	AddedBytes    uint64                   `json:"added_bytes"`
+	UpdatedAtMS   int64                    `json:"updated_at_ms"`
+	Qualified     *MQTTQualifiedAccounting `json:"qualified,omitempty"`
 }
 
 // MQTTDeliveryCursorResult is meaningful only after its enclosing batch commits.
@@ -125,6 +133,12 @@ func ValidateMQTTDeliveryCursor(r MQTTDeliveryCursor) error {
 		r.CompletedThrough >= r.WindowThrough || uint64(r.InflightCount) > r.WindowThrough-r.CompletedThrough {
 		return dberrors.ErrInvalidArgument
 	}
+	if r.AccountingVersion > 1 || (r.AccountingVersion == 0 && (r.AccountingHead != 0 || r.AccountingTail != 0)) ||
+		(r.AccountingHead == 0) != (r.AccountingTail == 0) || r.AccountingHead > r.AccountingTail || r.AccountingTail > r.AccountedThrough ||
+		(r.AccountingHead != 0 && r.AccountingHead <= r.StartAfter) || (r.AccountingVersion == 1 && (r.AccountingHead == 0) != (r.PendingMessages == uint64(r.InflightCount))) ||
+		(r.AccountingVersion == 1 && r.AccountingHead == 0 && r.PendingBytes != r.InflightBytes) {
+		return dberrors.ErrInvalidArgument
+	}
 	if _, err := hex.DecodeString(r.LastMutationDigest); err != nil {
 		return dberrors.ErrInvalidArgument
 	}
@@ -138,7 +152,18 @@ func ValidateMQTTDeliveryCursorMutation(m MQTTDeliveryCursorMutation) error {
 		validateMQTTIdentity(m.OwnerBootID, 128) != nil || m.ConnectionID == 0 || m.UpdatedAtMS <= 0 {
 		return dberrors.ErrInvalidArgument
 	}
+	if m.Op != MQTTCursorAccountQualified && m.Qualified != nil {
+		return dberrors.ErrInvalidArgument
+	}
 	switch m.Op {
+	case MQTTCursorAccountQualified:
+		if m.Qualified == nil || m.Qualified.SubscriptionRevision == 0 {
+			return dberrors.ErrInvalidArgument
+		}
+		total, ok := accountingTotals(m.Qualified.From, m.Through, m.Qualified.Items)
+		if !ok || m.AddedMessages != uint64(len(m.Qualified.Items)) || m.AddedBytes != total {
+			return dberrors.ErrInvalidArgument
+		}
 	case MQTTCursorInit, MQTTCursorCancelInit:
 		if m.AddedMessages != 0 || m.AddedBytes != 0 {
 			return dberrors.ErrInvalidArgument
@@ -162,6 +187,11 @@ func (b *Batch) MutateMQTTDeliveryCursor(slot HashSlot, m MQTTDeliveryCursorMuta
 	}
 	if err := ValidateMQTTDeliveryCursorMutation(m); err != nil {
 		return nil, err
+	}
+	if m.Qualified != nil {
+		owned := *m.Qualified
+		owned.Items = append([]MQTTAccountingItem(nil), owned.Items...)
+		m.Qualified = &owned
 	}
 	canonical, err := json.Marshal(m)
 	if err != nil {
@@ -211,6 +241,13 @@ func (b *Batch) MutateMQTTDeliveryCursor(slot HashSlot, m MQTTDeliveryCursorMuta
 			(sub.Stage != MQTTSubscriptionPreparing && sub.Stage != MQTTSubscriptionActive) {
 			return nil
 		}
+		if m.Op == MQTTCursorAccountQualified && sub.Revision != m.Qualified.SubscriptionRevision {
+			return nil
+		}
+		if exists && row.AccountingVersion == 1 && m.Op == MQTTCursorAccount {
+			return nil
+		}
+		var accountingChanges []MQTTAccountingRange
 		previousSession := session
 		switch m.Op {
 		case MQTTCursorInit, MQTTCursorCancelInit:
@@ -219,12 +256,22 @@ func (b *Batch) MutateMQTTDeliveryCursor(slot HashSlot, m MQTTDeliveryCursorMuta
 			}
 			row = MQTTDeliveryCursor{Key: m.Key, Topic: m.Topic, AuthorizationVersion: m.AuthorizationVersion,
 				StartAfter: m.Through, AccountedThrough: m.Through, WindowThrough: m.Through, CompletedThrough: m.Through}
-		case MQTTCursorAccount:
+		case MQTTCursorAccount, MQTTCursorAccountQualified:
 			if !exists || row.Topic != m.Topic || row.AuthorizationVersion != m.AuthorizationVersion || m.Through <= row.AccountedThrough ||
 				m.AddedMessages > m.Through-row.AccountedThrough || m.AddedMessages > math.MaxUint64-row.PendingMessages ||
 				m.AddedBytes > math.MaxUint64-row.PendingBytes || m.AddedMessages > math.MaxUint64-session.PendingMessages ||
 				m.AddedBytes > math.MaxUint64-session.PendingBytes {
 				return nil
+			}
+			if m.Op == MQTTCursorAccountQualified {
+				var ok bool
+				accountingChanges, ok, err = prepareMQTTAccountingAppend(state, slot, &row, m)
+				if err != nil {
+					return err
+				}
+				if !ok {
+					return nil
+				}
 			}
 			row.AccountedThrough = m.Through
 			row.PendingMessages += m.AddedMessages
@@ -254,6 +301,11 @@ func (b *Batch) MutateMQTTDeliveryCursor(slot HashSlot, m MQTTDeliveryCursorMuta
 		row.Revision, row.LastMutationDigest, row.UpdatedAtMS = session.Revision, digest, m.UpdatedAtMS
 		if resolvedWill != nil {
 			if err := stageUpdateRow(mqttWillTable, state, batch, slot, *resolvedWill); err != nil {
+				return err
+			}
+		}
+		for _, receipt := range accountingChanges {
+			if err := stageMQTTAccounting(state, batch, slot, receipt, false); err != nil {
 				return err
 			}
 		}

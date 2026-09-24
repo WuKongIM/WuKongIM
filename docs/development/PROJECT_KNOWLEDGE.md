@@ -195,6 +195,14 @@ specification, runbook, report, or module documentation; link to them when neede
   membership; protocol ACKs are separate from read state; delivery obligations
   survive ordinary history cleanup within their explicit lifetime and limits.
   Reliable recovery must cover messages from every entry, not only MQTT sends.
+  [Qualified accounting](../specs/mqtt-qualified-accounting.md) preserves original
+  charge membership/bytes when options or expiry later change: cursor table 24
+  System 1 stores bounded ranges, optional columns 25–27 hold version/head/tail,
+  command 69 operation 4 appends, and read kind 18 pins a coherent head. Admission
+  and release debit exact receipts; empty ranges allocate nothing. SourceDrain
+  releases one range per turn and retains explicit pending until its fixed end.
+  Matched nodes/tools and pre-feature backup rollback are required; source
+  qualification and product delivery scheduling remain separate work.
   Optional message column 21 preserves bounded versioned publication metadata;
   compatibility record codec 2 and proposal format 3 prevent lossy recovery.
   Ordinary expiry uses ingress time; Will uses the original source append time.

@@ -218,7 +218,7 @@ func TestMQTTDeliveryCursorStorageFormatAndBounds(t *testing.T) {
 		_, err = mqttDeliveryCursorTable.decodeValue(key, pk, bad)
 		require.Error(t, err)
 	}
-	future := append(append([]byte(nil), env.Payload...), 0x16, 7) // optional column 25
+	future := append(append([]byte(nil), env.Payload...), 0x46, 7) // unknown optional column 28
 	got, err = mqttDeliveryCursorTable.decodeValue(key, pk, rowcodec.Wrap(key, 1, env.Codec, env.Flags, future))
 	require.NoError(t, err)
 	require.Equal(t, row, got)

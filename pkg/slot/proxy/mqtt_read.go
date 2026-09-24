@@ -227,7 +227,7 @@ func validateMQTTReadShape(q metadb.MQTTRead, r metadb.MQTTReadResult) error {
 		selected = 0
 	case metadb.MQTTReadSubscription, metadb.MQTTReadSubscriptions, metadb.MQTTReadSubscriptionRecovery:
 		selected = 1
-	case metadb.MQTTReadDeliveryCursor, metadb.MQTTReadDeliveryCursors:
+	case metadb.MQTTReadDeliveryCursor, metadb.MQTTReadDeliveryCursors, metadb.MQTTReadAccounting:
 		selected = 2
 	case metadb.MQTTReadInflight, metadb.MQTTReadInflightPage:
 		selected = 3
@@ -237,6 +237,16 @@ func validateMQTTReadShape(q metadb.MQTTRead, r metadb.MQTTReadResult) error {
 		selected = 5
 	case metadb.MQTTReadSourceOwners, metadb.MQTTReadReplaySources:
 		selected = 6
+	}
+	if q.Kind == metadb.MQTTReadAccounting {
+		if len(r.DeliveryCursors) > 1 || (len(r.DeliveryCursors) == 0 && r.Accounting != nil) {
+			return bad
+		}
+		if len(r.DeliveryCursors) == 1 && metadb.ValidateMQTTAccountingHead(r.DeliveryCursors[0], r.Accounting) != nil {
+			return bad
+		}
+	} else if r.Accounting != nil {
+		return bad
 	}
 	count := 0
 	for i, n := range counts {
@@ -270,7 +280,7 @@ func validateMQTTReadShape(q metadb.MQTTRead, r metadb.MQTTReadResult) error {
 		}
 	}
 	for _, v := range r.DeliveryCursors {
-		if metadb.ValidateMQTTDeliveryCursor(v) != nil || v.Key.Namespace != ns || v.Key.ClientID != client || q.Kind == metadb.MQTTReadDeliveryCursor && v.Key != q.CursorKey || q.Kind == metadb.MQTTReadDeliveryCursors && (v.Key.SessionGeneration != q.SessionGeneration || v.Key.SubscriptionGeneration != q.SubscriptionGeneration) {
+		if metadb.ValidateMQTTDeliveryCursor(v) != nil || v.Key.Namespace != ns || v.Key.ClientID != client || (q.Kind == metadb.MQTTReadDeliveryCursor || q.Kind == metadb.MQTTReadAccounting) && v.Key != q.CursorKey || q.Kind == metadb.MQTTReadDeliveryCursors && (v.Key.SessionGeneration != q.SessionGeneration || v.Key.SubscriptionGeneration != q.SubscriptionGeneration) {
 			return bad
 		}
 	}

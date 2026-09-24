@@ -38,7 +38,8 @@ func TestMQTTDeliveryCursorCommandAtomicAccountingAndSnapshot(t *testing.T) {
 	}
 	initial := mqttDeliveryCursorCommandFixture()
 	account := initial
-	account.ExpectedRevision, account.Op, account.Through, account.AddedMessages, account.AddedBytes = 3, metadb.MQTTCursorAccount, 104, 3, 120
+	account.ExpectedRevision, account.Op, account.Through, account.AddedMessages, account.AddedBytes = 3, metadb.MQTTCursorAccountQualified, 104, 3, 120
+	account.Qualified = &metadb.MQTTQualifiedAccounting{From: 101, SubscriptionRevision: 2, Items: []metadb.MQTTAccountingItem{{Position: 101, Bytes: 40}, {Position: 103, Bytes: 40}, {Position: 104, Bytes: 40}}}
 	results, err := sm.(multiraft.BatchStateMachine).ApplyBatch(ctx, []multiraft.Command{command(sessionRaw, 1), command(subRaw, 2), encode(initial, 3), encode(account, 4), encode(initial, 5)})
 	require.NoError(t, err)
 	for i, status := range []metadb.MQTTSessionCASStatus{metadb.MQTTSessionCASApplied, metadb.MQTTSessionCASApplied, metadb.MQTTSessionCASConflict} {
@@ -82,6 +83,11 @@ func TestMQTTDeliveryCursorCommandAtomicAccountingAndSnapshot(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, found)
 	require.Equal(t, before, got)
+	qualified, err := target.ReadMQTTState(ctx, 7, metadb.MQTTRead{Kind: metadb.MQTTReadAccounting, CursorKey: account.Key})
+	require.NoError(t, err)
+	require.NotNil(t, qualified.Accounting)
+	require.Equal(t, account.Qualified.Items, qualified.Accounting.Items)
+	require.EqualValues(t, 101, qualified.DeliveryCursors[0].AccountingHead)
 	aggregate, _, err := target.ForHashSlot(7).GetMQTTSession(ctx, "main", "phone")
 	require.NoError(t, err)
 	require.EqualValues(t, 3, aggregate.PendingMessages)

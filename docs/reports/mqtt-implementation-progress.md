@@ -17,7 +17,9 @@ trim, with original publication fields and committed native control classificati
 Exact outbound acknowledgement orchestration and Node composition are implemented.
 Gateway send binding and PUBACK dispatch now pass real Paho/TCP takeover/resume
 integration, with controlled admission and content-reference assertions.
-Product delivery scheduling, receive permission and full recovery remain outstanding.
+Qualified backlog range receipts now preserve original charge membership/bytes
+across option/expiry changes, with exact admission/debit and bounded SourceDrain.
+Product qualification, delivery scheduling, receive permission and full recovery remain outstanding.
 Inbox subscription/delivery, source deactivation,
 Will execution, product/restore composition and capacity
 acceptance remain outstanding. No passing product E2E
@@ -4278,3 +4280,56 @@ Validation (2026-09-24):
   passed (6.172s); only the existing Darwin linker warning appeared.
 - `flow-doc-contracts` passed: 86 compliant, zero invalid, nine existing length warnings; `git diff --check` passed.
 - Product listener, autonomous delivery/recovery and capacity acceptance remain pending.
+
+## Qualified backlog range receipts
+
+[Qualified accounting](../specs/mqtt-qualified-accounting.md) extends the existing
+cursor table with System-1 receipts and optional columns 25–27. Each positive
+receipt covers at most 256 source positions and owns sorted charged position/byte
+pairs; empty coverage adds no receipt. Command 69 operation 4 fences the exact
+subscription revision, appends the chain and updates Session/cursor quotas in one
+Slot commit. Version 1 prohibits legacy accounting; upgrade cannot guess existing
+unadmitted backlog. No payload or per-message inflight row is duplicated.
+
+Window admission selects the first outstanding charge and exact bytes. Advance
+debits one head prefix and checks the successor before unlinking; ACK retains the
+existing frozen exchange/gap contract. Read kind 18 pins Session/cursor/head and
+rejects missing, inconsistent or unrelated state. SourceDrain releases one range
+per turn; explicit pending preserves the fixed end and Removing intent. Matched
+writers/tools are required, and rollback needs a pre-feature backup. MQTT JSONL
+transfer remains outstanding.
+
+Validation (2026-09-24):
+
+- The pre-implementation failures are `/tmp/mqtt-qualified-red.log` and
+  `/tmp/mqtt-qualified-routing-red.log`; focused storage/FSM/proxy/usecase tests
+  passed after correcting the initially omitted optional-column encoder.
+- Additional corruption tests failed before the corresponding guards were added
+  (`/tmp/mqtt-qualified-corruption-red.log`): partial optional tuples, headless
+  byte debt, and successor count/bytes/revision/time inconsistency. The guards
+  now reject these before any progress. The old unknown-column compatibility
+  fixture moved from newly allocated column 25 to still-unknown column 28.
+  Focused tests passed (`/tmp/mqtt-qualified-corruption-green.log`).
+- `GOWORK=off go test -race -p 2 ./pkg/db/meta ./pkg/slot/fsm ./pkg/slot/proxy ./internal/usecase/mqttsession -count=1`
+  passed (29.728s / 16.203s / 14.290s / 33.921s), logged in
+  `/tmp/mqtt-qualified-race.log`.
+- `GOWORK=off go test -race -tags=integration -p 2 ./pkg/cluster ./internal/app -run '^(TestMQTTMetadataThreeNodeAuthorityAndRecovery|TestMQTTGroupSourcePreparationThreeNodeRecovery)$' -count=1 -timeout=150s`
+  passed (16.322s / 21.029s), logged in `/tmp/mqtt-qualified-integration.log`.
+  Real three-node TCP/disk and 256 hash Slots verify linked/empty coverage,
+  exact retry, quota-ending preservation, leader transfer, disk reconstruction
+  and both receipts consumed through the restarted facade. The existing source
+  preparation/unsubscribe/recovery integration also passes. Only existing Darwin
+  linker warnings appeared. Qualification inputs remain controlled fixtures.
+- FSM snapshot/restore retains the auxiliary state; a neighboring logical failure
+  leaves no partial receipt. Malformed head/tail and incorrect debit tests fail
+  closed, and ordinary unsubscribe preserves inflight ACK gaps.
+- Named `flow-doc-contracts` passed: 86 compliant, zero invalid and nine existing
+  length warnings (`/tmp/mqtt-qualified-flow.log`); formatting and diff checks passed.
+
+Source qualification/accounting orchestration (online and offline), durable
+window admission, autonomous reconnect/delivery and current receive permission
+are still required. Inbox/future-person source admission, unattended ended-Session
+discovery, source deactivation, unavailable-owner isolation/recovery, Will
+execution, product listener/restore composition, offline MQTT tools, metrics and
+process/load acceptance remain outstanding. Product MQTT is still disabled and
+no process-level E2E or capacity result is claimed.

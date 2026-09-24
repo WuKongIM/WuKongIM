@@ -11,8 +11,7 @@ summary: Implements Multi-Raft Slot metadata, atomic FSM commands, authoritative
 owning hash-Slot partitions for user, Channel, subscriber, runtime, membership,
 plugin, migration, message projections, and MQTT session state.
 
-`multiraft` owns Raft groups/futures; `fsm` atomically applies metadata commands;
-`proxy` routes proposals and authoritative reads. Rows live in `pkg/db/meta`.
+`multiraft` owns Raft, `fsm` applies commands, `proxy` routes authoritative access; rows live in `pkg/db/meta`.
 
 ## Boundaries
 
@@ -62,6 +61,7 @@ plugin, migration, message projections, and MQTT session state.
    hash Slot; writes require exact committed results without result-less fallback.
    Read kind 16 discovers active Channel sources; kind 17 includes retained tombstones for replay cleanup.
    Both use bounded encoded-order cursors and unchanged older JSON; old peers reject kind 17, and discovery authorizes no GC.
+   Matched nodes use command 69 operation 4 for qualified charges and read kind 18 for pinned Session/cursor/head.
 
 ## Invariants and Failure Semantics
 

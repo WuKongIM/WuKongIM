@@ -133,6 +133,17 @@ func (b *Batch) MutateMQTTWindow(slot HashSlot, m MQTTWindowMutation) (*MQTTWind
 		if session.OutboundInflight < cursor.InflightCount || session.PendingMessages < cursor.PendingMessages || session.PendingBytes < cursor.PendingBytes {
 			return dberrors.ErrCorruptValue
 		}
+		var consumed *MQTTAccountingRange
+		if cursor.AccountingVersion == 1 && m.Op != MQTTWindowAck {
+			var ok bool
+			consumed, ok, err = prepareMQTTAccountingConsume(state, slot, &cursor, m)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return nil
+			}
+		}
 		var changed [3]MQTTInflight
 		var changedCount int
 		var erased *MQTTInflight
@@ -274,6 +285,11 @@ func (b *Batch) MutateMQTTWindow(slot HashSlot, m MQTTWindowMutation) (*MQTTWind
 				return dberrors.ErrCorruptValue
 			}
 			return nil
+		}
+		if consumed != nil {
+			if err := stageMQTTAccounting(state, batch, slot, *consumed, true); err != nil {
+				return err
+			}
 		}
 		for _, entry := range changed[:changedCount] {
 			if err := stageUpdateRow(mqttInflightTable, state, batch, slot, entry); err != nil {

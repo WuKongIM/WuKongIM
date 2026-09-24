@@ -35,8 +35,11 @@ var mqttDeliveryCursorTable = registerMetaTable(TableSpec[MQTTDeliveryCursor]{
 		{ID: 22, Name: "tail_packet_id", Type: schema.TypeUint64},
 		{ID: 23, Name: "last_window_packet_id", Type: schema.TypeUint64},
 		{ID: 24, Name: "last_window_delivery_order", Type: schema.TypeUint64},
+		{ID: 25, Name: "accounting_version", Type: schema.TypeUint8},
+		{ID: 26, Name: "accounting_head", Type: schema.TypeUint64},
+		{ID: 27, Name: "accounting_tail", Type: schema.TypeUint64},
 	},
-	Families: []schema.Family{{ID: 0, Name: "primary", Columns: []uint16{8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24}}},
+	Families: []schema.Family{{ID: 0, Name: "primary", Columns: []uint16{8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27}}},
 	Primary: PrimarySpec[MQTTDeliveryCursor]{IndexID: 1, Name: "pk_mqtt_delivery_cursor", Columns: []uint16{1, 2, 3, 4, 5, 6, 7}, Layout: KeyLayout{KeyString, KeyString, KeyUint64, KeyUint64, KeyUint8, KeyString, KeyString}, Key: func(r MQTTDeliveryCursor) KeyParts {
 		return mqttDeliveryCursorPrimaryKey(r.Key)
 	}},
@@ -70,6 +73,11 @@ func encodeMQTTDeliveryCursorRow(key []byte, r MQTTDeliveryCursor) ([]byte, erro
 	_ = w.Uint64(22, uint64(r.TailPacketID))
 	_ = w.Uint64(23, uint64(r.LastWindowPacketID))
 	_ = w.Uint64(24, uint64(r.LastWindowDeliveryOrder))
+	if r.AccountingVersion != 0 {
+		_ = w.Uint64(25, uint64(r.AccountingVersion))
+		_ = w.Uint64(26, r.AccountingHead)
+		_ = w.Uint64(27, r.AccountingTail)
+	}
 
 	return rowcodec.Wrap(key, 1, rowcodec.CodecColumns, rowcodec.FlagChecksum, w.Bytes()), nil
 }
@@ -89,6 +97,7 @@ func decodeMQTTDeliveryCursorRow(key []byte, pk KeyParts, value []byte) (MQTTDel
 	r.Key = mqttDeliveryCursorKeyFromParts(pk)
 	s := rowcodec.NewBorrowedScanner(env.Payload)
 	var seen uint32
+	var accountingSeen uint8
 	var last uint16
 	for s.Next() {
 		id := s.ColumnID()
@@ -98,6 +107,9 @@ func decodeMQTTDeliveryCursorRow(key []byte, pk KeyParts, value []byte) (MQTTDel
 		last = id
 		if id >= 8 && id <= 18 {
 			seen |= 1 << (id - 8)
+		}
+		if id >= 25 && id <= 27 {
+			accountingSeen |= 1 << (id - 25)
 		}
 		switch id {
 		case 8:
@@ -154,13 +166,25 @@ func decodeMQTTDeliveryCursorRow(key []byte, pk KeyParts, value []byte) (MQTTDel
 			r.LastWindowPacketID = uint16(n)
 		case 24:
 			r.LastWindowDeliveryOrder, err = s.Uint64()
+		case 25:
+			var n uint64
+			n, err = s.Uint64()
+			if n > 1 {
+				return MQTTDeliveryCursor{}, dberrors.ErrCorruptValue
+			}
+			r.AccountingVersion = uint8(n)
+		case 26:
+			r.AccountingHead, err = s.Uint64()
+		case 27:
+			r.AccountingTail, err = s.Uint64()
 
 		}
 		if err != nil {
 			return MQTTDeliveryCursor{}, err
 		}
 	}
-	if s.Err() != nil || seen != (1<<11)-1 || ValidateMQTTDeliveryCursor(r) != nil {
+	if s.Err() != nil || seen != (1<<11)-1 ||
+		(accountingSeen != 0 && (accountingSeen != 7 || r.AccountingVersion != 1)) || ValidateMQTTDeliveryCursor(r) != nil {
 		return MQTTDeliveryCursor{}, dberrors.ErrCorruptValue
 	}
 	return r, nil
@@ -180,5 +204,6 @@ func inspectMQTTDeliveryCursorRow(r MQTTDeliveryCursor) InspectRow {
 		"tail_packet_id":             uint64(r.TailPacketID),
 		"last_window_packet_id":      uint64(r.LastWindowPacketID),
 		"last_window_delivery_order": uint64(r.LastWindowDeliveryOrder),
+		"accounting_version":         uint64(r.AccountingVersion), "accounting_head": r.AccountingHead, "accounting_tail": r.AccountingTail,
 	}
 }

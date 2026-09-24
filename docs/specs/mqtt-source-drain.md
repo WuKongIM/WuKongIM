@@ -8,10 +8,12 @@ binding's end at that cursor's AccountedThrough, preserving its start and progre
 this is the complete durable obligation, not a new read of the moving source tail.
 Unaccounted future source positions are no longer matched after unsubscribe.
 
-Commit Removing and the fixed end before releasing unadmitted backlog. One
-existing MQTTWindowAdvance moves WindowThrough to the seal and subtracts exactly
-Pending minus Inflight counts/bytes from the cursor and Session in the same Slot
-commit. It leaves every inflight exchange, PacketID, delivery order, immutable
+Commit Removing and the fixed end before releasing unadmitted backlog. Legacy cursors use one
+MQTTWindowAdvance to move WindowThrough to the seal and subtract Pending minus
+Inflight counts/bytes. Qualified cursors read one pinned accounting head and debit
+only its exact original charges, stopping before the next range. Each turn uses
+one Slot commit and returns ErrSourceDrainPending while the fixed end remains;
+Removing intent retains the remaining work for a later reconcile. It leaves every inflight exchange, PacketID, delivery order, immutable
 content reference and ACK gap untouched. Empty nonqualifying ranges still advance
 the window. Already sealed retries preserve the first end; current Session CAS
 rejects concurrent ACK/accounting/owner changes and a later turn rereads evidence.
@@ -25,14 +27,15 @@ closed intent, not acceptance of absence as general completion evidence. That
 storage operation must reject active admission and keep ordinary Init unchanged.
 The cancellation cursor can never admit new messages for the closed generation.
 
-No per-message scan, worker, cache or new table is needed. App owns composition;
+No message-body scan, worker, cache or new table is needed; qualified debit
+checks at most 256 charge pairs and storage verifies its next head witness. App owns composition;
 proof comes from current Node ports, not local storage or projection callbacks.
 Normal removal does not require current receive permission and cannot terminate
 the Session or discard already-started QoS exchanges. Product projection/inbox
 discovery, automatic reconciliation and wire acknowledgements remain part of
 the complete MQTT implementation.
 
-There are at most five point reads, two binding CAS writes, one cancellation
+There are at most six point reads, two binding CAS writes, one cancellation
 initialization and one window mutation; known cursors need fewer operations.
 Each call shares one deadline and joins its owner scope before returning. A
 binding already removed as Drained can complete a retry whose earlier unsubscribe

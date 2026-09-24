@@ -46,7 +46,8 @@ It does not own product business policy or expose engine-specific APIs.
    preserve generation on option replacement; child receipts prove exact retries.
    Delivery cursors separate backlog accounting, window admission and completion.
    Explicit cancellation Init requires closed intent; ordinary Init/Account remain fenced.
-   Accounting and quota termination share one Slot commit. The bounded inflight
+   Qualified charge receipts use cursor System 1; append/debit and quota ending commit atomically.
+   Read kind 18 pins the head; consumption verifies head/successor before unlinking. The bounded inflight
    list preserves earliest ACK gaps; exchange/cursor/session updates are atomic,
    and recovery uses immutable references in original send order.
    Source/UID bindings retain tombstones and discovery/recovery indexes; unknown boundaries block retention.
@@ -96,5 +97,4 @@ It does not own product business policy or expose engine-specific APIs.
 
 ## Update Triggers
 
-Update this file when table ownership, batching, memberships, indexes, source
-fences, runtime metadata, event state, snapshots, restore, or caches change.
+Update when ownership, batches, memberships, indexes, source fences, runtime/event state, snapshots, restore or caches change.

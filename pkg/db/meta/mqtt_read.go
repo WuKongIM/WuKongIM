@@ -29,6 +29,8 @@ const (
 	MQTTReadSourceOwners
 	// MQTTReadReplaySources includes retained tombstones so cleanup stays discoverable.
 	MQTTReadReplaySources
+	// MQTTReadAccounting pins Session, cursor and its exact qualified range head.
+	MQTTReadAccounting
 )
 
 // MQTTReadCursor contains exactly the cursor belonging to the selected read.
@@ -68,6 +70,7 @@ type MQTTRead struct {
 // MQTTReadResult owns a bounded result from one snapshot. Session is included
 // with Session-owned child reads so callers can fence subsequent decisions.
 type MQTTReadResult struct {
+	Accounting      *MQTTAccountingRange `json:"accounting,omitempty"`
 	SourceOwners    []MQTTBindingOwner   `json:"source_owners,omitempty"`
 	Session         *MQTTSession         `json:"session,omitempty"`
 	Sessions        []MQTTSession        `json:"sessions,omitempty"`
@@ -91,7 +94,7 @@ func (q MQTTRead) SessionIdentity() (string, string, bool) {
 	switch q.Kind {
 	case MQTTReadSession, MQTTReadSubscription, MQTTReadSubscriptions, MQTTReadDeliveryCursors, MQTTReadInflight, MQTTReadInflightPage:
 		return q.Namespace, q.ClientID, true
-	case MQTTReadDeliveryCursor:
+	case MQTTReadDeliveryCursor, MQTTReadAccounting:
 		return q.CursorKey.Namespace, q.CursorKey.ClientID, true
 	case MQTTReadWill:
 		return q.WillKey.Namespace, q.WillKey.ClientID, true
@@ -125,7 +128,7 @@ func ValidateMQTTRead(q MQTTRead) error {
 		}
 	case MQTTReadSubscriptionRecovery:
 		page, want.After.Subscription = true, q.After.Subscription
-	case MQTTReadDeliveryCursor:
+	case MQTTReadDeliveryCursor, MQTTReadAccounting:
 		want.CursorKey = q.CursorKey
 		if validateMQTTDeliveryCursorKey(q.CursorKey) != nil {
 			return dberrors.ErrInvalidArgument
@@ -286,12 +289,15 @@ func (s *Shard) readMQTTState(ctx context.Context, q MQTTRead) (MQTTReadResult, 
 		out.Subscriptions, out.After.Topic, out.Done, err = s.ListMQTTSubscriptions(ctx, q.Namespace, q.ClientID, q.SessionGeneration, q.After.Topic, q.Limit)
 	case MQTTReadSubscriptionRecovery:
 		out.Subscriptions, out.After.Subscription, out.Done, err = s.ListMQTTSubscriptionRecovery(ctx, q.After.Subscription, q.Limit)
-	case MQTTReadDeliveryCursor:
+	case MQTTReadDeliveryCursor, MQTTReadAccounting:
 		var r MQTTDeliveryCursor
 		var found bool
 		r, found, err = s.GetMQTTDeliveryCursor(ctx, q.CursorKey)
 		if found {
 			out.DeliveryCursors = []MQTTDeliveryCursor{r}
+			if q.Kind == MQTTReadAccounting && err == nil {
+				out.Accounting, err = s.readMQTTAccounting(r)
+			}
 		}
 	case MQTTReadDeliveryCursors:
 		out.DeliveryCursors, out.After.Delivery, out.Done, err = s.ListMQTTDeliveryCursors(ctx, q.Namespace, q.ClientID, q.SessionGeneration, q.SubscriptionGeneration, q.After.Delivery, q.Limit)

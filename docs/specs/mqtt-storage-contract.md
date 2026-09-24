@@ -182,6 +182,27 @@ proofs. Old peers reject operation 3. Row encodings and the bounded version-1
 command envelope are unchanged; all participating nodes must match. See
 [source drain](mqtt-source-drain.md) for the usecase and failure inventory.
 
+Command 69 **AccountQualified (4)** adds bounded original charge receipts in
+cursor table **24**, System **1**, keyed by full cursor tuple and range From.
+Optional columns **25/26/27** store accounting version/head/tail; they are all
+absent for legacy version 0 or all present with version 1. A receipt spans at
+most 256 positions and contains sorted position/byte pairs, captured subscription
+revision/time and a forward link. Empty coverage creates no receipt; no message
+body or exchange identity is copied. Exact current subscription revision fences
+option replacement. Existing inflight may remain on upgrade, but WindowThrough
+must equal AccountedThrough so no legacy unadmitted charges are guessed.
+Once upgraded, ordinary Account (2) is rejected.
+
+Admission consumes the earliest charge with its original bytes. Advance checks
+one head prefix, and validates the successor against remaining debt before
+unlinking. ACK still debits frozen inflight amounts. Read kind **18** pins Session,
+cursor and head; missing or incoherent witnesses fail closed. SourceDrain releases
+one bounded range per turn, retaining Removing intent while more remains. All
+participating nodes/tools must match; rollback requires a pre-feature backup.
+See [qualified accounting](mqtt-qualified-accounting.md) for the envelope,
+compatibility and failure inventory. Current policy/source proof remains caller
+work; a receipt does not itself authorize sending.
+
 The command's version-1 JSON body is limited to 32 KiB including the existing
 header. The cursor stores the canonical request digest and resulting session
 revision so an unrelated write or changed retry cannot impersonate completion.

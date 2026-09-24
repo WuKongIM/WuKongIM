@@ -7,9 +7,8 @@ summary: Coordinates MQTT Session lifecycle, subscription preparation, consumer 
 
 ## Responsibility
 
-This package connects authenticated intent to Session metadata and node-local
-Owners gates. Subscriptions coordinates intent with durable projection. It owns
-no packet, concrete cluster/gateway adapter, worker or shared replay storage.
+This package coordinates authenticated Session lifecycle, Owners gates and durable
+subscription projection. It owns no packet, concrete adapter, worker or replay storage.
 
 ## Boundaries
 
@@ -44,6 +43,7 @@ no packet, concrete cluster/gateway adapter, worker or shared replay storage.
 7. Subscription establishment commits Preparing, checks projection/current child
    and permission, then Active. Removal commits Removing before SourceDrain fixes
    the accounting end and releases only unadmitted backlog; exchanges survive.
+   Qualified cursors release one validated range per turn; pending retains Removing until the fixed end.
    Group removal discovers its original cursor or registers missing preparation before protected cancellation Init.
    Resume preserves intent; replacement keeps generation/operation. See the [failure inventory](../../../docs/specs/mqtt-subscription-orchestration.md).
 8. Group preparation registers an unknown binding before fresh protection confirmation,
@@ -88,7 +88,7 @@ no packet, concrete cluster/gateway adapter, worker or shared replay storage.
   Product wiring requires replicated protection, initialized cursors, inbox future
   source admission and safe removal. Membership version changes cannot replace
   an active subscription silently; delivery/revocation ordering remains required.
-- Group preparation bounds point/cursor reads; it cannot create subscriptions, release content or authorize SUBACK. ACK completion survives ordinary unsubscribe; entry must bind sent exchanges before deferring packet work.
+- Group preparation bounds reads and grants no subscription, release or SUBACK authority. ACK survives unsubscribe; entry binds sent exchanges first.
 - These usecases are not yet wired into the product listener; full process-level
   MQTT recovery and acceptance remain separate required implementation work.
 

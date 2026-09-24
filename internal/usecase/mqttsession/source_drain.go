@@ -2,6 +2,7 @@ package mqttsession
 
 import (
 	"context"
+	"errors"
 	"math"
 	"strconv"
 	"strings"
@@ -11,6 +12,10 @@ import (
 	runtime "github.com/WuKongIM/WuKongIM/internal/runtime/mqttsession"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
+
+// ErrSourceDrainPending means one bounded range was released; the persisted
+// Removing intent and fixed end retain the remaining cleanup responsibility.
+var ErrSourceDrainPending = errors.New("mqttsession: source drain pending")
 
 // SourceDrainMetadata keeps sealing on the source Slot and window/accounting
 // mutations on the Session Slot, both through current foreground authority.
@@ -132,6 +137,30 @@ func (p *SourceDrain) Seal(parent context.Context, o contract.Owner, key meta.MQ
 		}
 		m := meta.MQTTWindowMutation{Key: cursor.Key, ExpectedRevision: s.Revision, OwnerGeneration: o.OwnerGeneration, OwnerNodeID: o.NodeID, OwnerBootID: o.BootID, ConnectionID: o.ConnectionID,
 			Op: meta.MQTTWindowAdvance, Through: b.EndThrough, ReleasedMessages: cursor.PendingMessages - uint64(cursor.InflightCount), ReleasedBytes: cursor.PendingBytes - cursor.InflightBytes, UpdatedAtMS: now.UnixMilli()}
+		if cursor.AccountingVersion == 1 {
+			r, e := p.read(ctx, op, meta.MQTTRead{Kind: meta.MQTTReadAccounting, CursorKey: cursor.Key})
+			if e != nil {
+				return out, e
+			}
+			if e = p.guard.checkSession(ctx, op, o, r.Session); e != nil {
+				return out, e
+			}
+			if r.Session.Revision != s.Revision || len(r.DeliveryCursors) != 1 || r.DeliveryCursors[0] != cursor || len(r.Bindings) != 0 || len(r.Subscriptions) != 0 || meta.ValidateMQTTAccountingHead(cursor, r.Accounting) != nil {
+				return out, ErrEvidence
+			}
+			m.ReleasedMessages, m.ReleasedBytes = 0, 0
+			if r.Accounting != nil {
+				if r.Accounting.NextFrom != 0 {
+					m.Through = min(m.Through, r.Accounting.NextFrom-1)
+				}
+				for _, item := range r.Accounting.Items {
+					if item.Position > cursor.WindowThrough && item.Position <= m.Through {
+						m.ReleasedMessages++
+						m.ReleasedBytes += item.Bytes
+					}
+				}
+			}
+		}
 		if meta.ValidateMQTTWindowMutation(m) != nil {
 			return out, ErrEvidence
 		}
@@ -153,6 +182,9 @@ func (p *SourceDrain) Seal(parent context.Context, o contract.Owner, key meta.MQ
 	_, cursor, found, err = p.cursor(ctx, op, o, b, s.Revision)
 	if err != nil {
 		return out, err
+	}
+	if found && cursor.AccountingVersion == 1 && cursor.WindowThrough < b.EndThrough {
+		return SourceDrainResult{Binding: b, Cursor: cursor}, ErrSourceDrainPending
 	}
 	if !found || cursor.WindowThrough != b.EndThrough || cursor.PendingMessages != uint64(cursor.InflightCount) || cursor.PendingBytes != cursor.InflightBytes {
 		return out, ErrEvidence

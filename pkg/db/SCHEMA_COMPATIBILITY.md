@@ -147,6 +147,15 @@ Command 69 operation 3 explicitly initializes empty cancelled preparation after
 closed/replaced subscription intent. It preserves existing row/envelope formats
 and ordinary Init/Account semantics; older nodes reject it, requiring matched
 participants. No index or data backfill is introduced.
+Command 69 operation 4 persists qualified backlog receipts under table 24 System 1,
+with key-bound fixed envelope version 1. Optional cursor columns 25–27 are an
+all-or-none version/head/tail tuple; old rows retain legacy version 0. Upgrade
+requires no unadmitted legacy backlog. RPC 91 read kind 18 pins the head alongside
+Session/cursor; old peers reject the operation/read. All writers and tools must
+match before use; old writers cannot preserve this System state, so rollback
+requires a pre-feature backup. Hash-Slot snapshots preserve row/index/System
+spans together; MQTT JSONL transfer remains outstanding. See
+[qualified accounting](../../docs/specs/mqtt-qualified-accounting.md).
 Command 73 atomically resolves Session/Will transitions and records optional
 Session column 29 for exact retry; older rows default to an empty receipt.
 Generic CAS cannot bypass referenced Will lifecycle. Message index 8 selects the
