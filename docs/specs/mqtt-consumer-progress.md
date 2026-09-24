@@ -14,8 +14,10 @@ to Removing with a Session decision revision. Lease expiry, elapsed message age,
 offline time, missing Session/cursor or unavailable authority cannot discharge
 the obligation. Existing Removed tombstones remain immutable. This operation
 never marks Removed or manufactures the separate source-release acknowledgement;
-normal removal/drain and final source-side removal remain subsequent lifecycle
-work. In particular it is not a shared-content deletion API or a GC certificate.
+normal removal/drain is separate lifecycle work. The subsequent
+[SourceRemoval](mqtt-binding-removal.md) usecase now revalidates proof and commits
+source acknowledgement before final removal. Neither operation is a
+shared-content deletion API or a GC certificate.
 
 Each turn has a bounded deadline, two point reads and at most one conditional
 write, with no per-consumer worker or retained cache. Reads, cancellation and CAS

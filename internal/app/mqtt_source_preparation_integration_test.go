@@ -288,6 +288,7 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	require.Equal(t, meta.MQTTBindingRemoving, ended.Binding.Stage)
 	require.Equal(t, meta.MQTTBindingSessionEnded, ended.Binding.ReleaseReason)
 	require.Equal(t, prepared.Binding.ProtectionRevision, ended.Binding.ProtectionRevision)
+	verifyMQTTSourceRemoval(t, ctx, nodes, ended.Binding)
 	// Reopen each stopped replica and inspect its own durable decision/coverage.
 	// These read-only checks cannot apply retirement on the worker's behalf.
 	for i, node := range nodes {

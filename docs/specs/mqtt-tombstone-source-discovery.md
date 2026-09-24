@@ -21,8 +21,9 @@ match. Slot snapshots and restart already preserve these primary tombstones.
 The existing worker switches to kind 17 while retaining all per-Slot bounds,
 continuation checks and joined lifecycle. A tombstone does not stop source
 protection or prove replica cleanup. Source deactivation, safe tombstone pruning,
-activation interrupted before the first binding and final revision-fenced
-binding release remain separate lifecycle work; no row deletion is introduced.
+activation interrupted before the first binding remain separate lifecycle work;
+no row deletion is introduced. [Revision-fenced binding release](mqtt-binding-removal.md)
+now uses a separate source-Slot acknowledgement and retained Removed tombstone.
 
 ## Failure inventory before implementation
 

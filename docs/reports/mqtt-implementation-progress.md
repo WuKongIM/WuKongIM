@@ -8,8 +8,9 @@ supervision, subscription intent orchestration and the internal gateway/PUBLISH
 entry are implemented. Real Paho/TCP
 integration passes on a single-node cluster with 256 hash Slots. Distributed
 replay activation/copy/anchor and bounded recovery steps now pass three-node
-runtime integration. Automatic source-release/recovery scheduling, complete
-subscription/delivery, Will execution, product/restore composition and capacity
+runtime integration. Bounded copy/recovery/retirement scheduling and exact binding
+removal are implemented. Complete subscription/delivery, source deactivation,
+Will execution, product/restore composition and capacity
 acceptance remain outstanding. No passing product E2E
 or capacity claim is made.
 
@@ -3893,3 +3894,54 @@ remain lifecycle work. This slice does not claim those contracts or product
 MQTT admission. Full subscription/inbox projection, delivery/ACK entry, owner
 recovery, Will execution, product lifecycle/configuration, offline tooling and
 process/load acceptance remain required; the full goal stays active.
+
+## Source-owned consumer release and final binding removal
+
+`SourceRemoval.Reconcile` now completes an already-Removing Channel binding.
+Each turn reads current remote evidence and commits at most one exact source-Slot
+CAS. Ended/replaced Session lifetimes need an explicit previously projected end
+decision; normal completion requires closed admission and the exact fully drained
+sealed cursor. A newer same-topic subscription generation proves old admission
+closed without changing the new subscription. Offline/absent state, ACK gaps,
+accounting past the seal and mismatched identities cannot release responsibility.
+
+The first source-Slot commit acknowledges the binding revision while retaining
+Removing and its recovery/retention indexes. A later independently validated turn
+writes Removed and keeps the tombstone. Any intervening binding write invalidates
+the acknowledgement; lost responses resume from committed state. This clarifies
+the existing separate replicated per-consumer release contract: table 26 owns
+that responsibility; no per-consumer record is added to the native Channel log.
+Aggregate System 12 protection, copied-through and replay retirement are unchanged.
+No table, column, command or wire encoding changes are required. See the frozen
+context and failure inventory in [binding removal](../specs/mqtt-binding-removal.md).
+
+Validation (2026-09-24):
+
+- Initial usecase RED: `/tmp/mqtt-binding-removal-red.log`; normal-drain RED:
+  `/tmp/mqtt-binding-removal-drain-red.log`; app-composition RED:
+  `/tmp/mqtt-binding-removal-app-red.log`. Tests preceded each behavior/wiring slice.
+- `GOWORK=off go test -p 2 -race ./internal/usecase/mqttsession
+  -run 'TestSourceRemoval|TestSourceProgress' -count=1 -timeout=90s`: passed,
+  13.903 s; `/tmp/mqtt-binding-removal-proof.log`. Covers lost acknowledgement/
+  removal replies, ACK gaps, subscription replacement, revision invalidation,
+  stale/missing/foreign proof, uncertain CAS receipts and cancellation/clock bounds.
+- `GOWORK=off go test -p 2 -tags=integration ./internal/app -run
+  TestMQTTGroupSourcePreparationThreeNodeRecovery -count=1 -timeout=120s -v`:
+  passed, 14.784 s; `/tmp/mqtt-binding-removal-app-green.log`. Real TCP/disks and
+  256 hash Slots verify the actual ended Session, source acknowledgement, retained
+  consumer index before final commit, node-1-to-node-3 continuation without receipt
+  handoff, independent authoritative tombstone read and preserved replay discovery.
+  Existing independent message-store reopen/retirement coverage also passes.
+- Related full default race suites: usecase 20.664 s and app 4.710 s;
+  `/tmp/mqtt-binding-removal-race.log`. Darwin's existing linker warning appears;
+  both suites pass without reported races.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-binding-removal-flow.log`. The generated index reflects app FLOW length.
+
+The normal-removal seal is controlled in these focused fixtures. End capture,
+unadmitted backlog release, source deactivation, activation interrupted before
+first registration, and safe tombstone pruning still need their lifecycle
+orchestration. Complete subscription/inbox projection, delivery/ACK entry,
+owner recovery, Will execution, product lifecycle/configuration, offline tooling
+and process/load acceptance remain required. Product MQTT is still unavailable;
+the full implementation goal remains active.

@@ -268,7 +268,11 @@ protection revision acknowledges a separate replicated source operation, is
 monotonic and cannot exceed the binding revision. Metadata cannot establish
 these remote proofs by itself: the use case must obtain them through current
 authorities before proposing a transition. Source-system operations must use the
-binding's monotonic revision to fence delayed create/remove requests.
+binding's monotonic revision to fence delayed create/remove requests. For
+per-consumer removal, the separate source operation is a replicated source-Slot
+acknowledgement that retains Removing at ProtectionRevision=Revision; a later
+validated CAS writes Removed. It changes no native aggregate source protection
+or copy frontier. See [binding removal](mqtt-binding-removal.md).
 
 Preparing -> Active -> Removing -> Removed is monotonic; Preparing may also
 cancel into Removing. A new missing-key Removed tombstone may precede a delayed

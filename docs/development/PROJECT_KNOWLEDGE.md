@@ -276,6 +276,13 @@ specification, runbook, report, or module documentation; link to them when neede
   without writes. Explicit ended/replaced lifetimes retain Removing responsibility;
   offline or missing state proves no completion. It never marks Removed, invents
   source-release acknowledgement or authorizes shared-content GC.
+  [Binding removal](../specs/mqtt-binding-removal.md) separately revalidates remote
+  end/drain proof, acknowledges the exact binding revision on the source Slot
+  while retaining Removing, then revalidates before committing Removed. A changed
+  binding invalidates that acknowledgement. Normal completion requires closed
+  admission and a fully completed sealed cursor with no pending/inflight work;
+  newer subscription generations cannot inherit old cleanup. Aggregate Channel
+  protection remains independent, and retained tombstones preserve discovery.
   [Retention planning](../specs/mqtt-replay-retention-planning.md) captures the
   committed anchor before reading the first strict consumer-floor page. New
   bindings register unknown responsibility before confirming their fresh tail;

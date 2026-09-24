@@ -13,15 +13,12 @@ no packet, concrete cluster/gateway adapter, worker or shared replay storage.
 
 ## Boundaries
 
-- Metadata uses narrow shared contracts implemented by the foreground-
-  gated cluster Node; product reads never fall back to local storage.
+- Metadata uses narrow shared contracts on the foreground-gated Node; product reads never fall back to local storage.
 - Device-token verification reuses user policy without WK master-device kicks.
-- Will permission is checked at setup and must be checked again on execution;
-  explicit denial remains distinct from authority or infrastructure failure.
+- Will permission is checked at setup and execution; explicit denial differs from authority or infrastructure failure.
 - Isolation requires exact owner quiescence or another valid proof supplied by
   its port. A stored state, lease expiry, foreign boot or RPC error is not proof.
-- App owns composition, bounded request contexts, renewal/sweep scheduling and
-  unavailable-owner/restore fencing before enabling product MQTT admission.
+- App owns composition, bounded contexts, renewal/sweep scheduling and unavailable-owner/restore fencing before product admission.
 
 ## Main Flows
 
@@ -59,6 +56,10 @@ no packet, concrete cluster/gateway adapter, worker or shared replay storage.
     only contiguous completion with one CAS. Unchanged floors produce no write.
     Explicit lifetime end retains Removing without fabricating source release;
     offline/absent state cannot discharge responsibility or authorize content GC.
+    SourceRemoval revalidates ended-lifetime or closed-subscription/drained-cursor
+    proof, acknowledges one exact binding revision on its source Slot, then
+    revalidates before a separate Removed commit. Tombstones remain; aggregate
+    Channel protection and shared-content retirement are unaffected.
 11. Retention captures an accepted anchor before the strict minimum-consumer read.
     Retirement reruns this plan per turn, selects whole anchors and submits a routed decision; unknown/removing obligations limit the floor.
     Finite continuations retain capture/floor while fresh permission covers it; changed authority/lower floors yield. Maintenance keeps phase hints separate and preserves replica rotation; no local GC is granted.
@@ -92,8 +93,7 @@ no packet, concrete cluster/gateway adapter, worker or shared replay storage.
   MQTT recovery and acceptance remain separate required implementation work.
 
 ## Read First
-- [Contracts](types.go), [Acquisition](connect.go), [Lifecycle](lifecycle.go)
-- [Subscription orchestration](subscriptions.go), [Replay coordination](replay.go)
+- [Contracts](types.go), [Acquisition](connect.go), [Lifecycle](lifecycle.go), [Subscriptions](subscriptions.go), [Replay](replay.go)
 ## Update Triggers
 
 Update when authentication/isolation ordering, lifecycle policy, lease derivation,
