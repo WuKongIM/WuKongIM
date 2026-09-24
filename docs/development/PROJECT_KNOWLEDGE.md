@@ -209,7 +209,11 @@ specification, runbook, report, or module documentation; link to them when neede
   preserves first intent before fencing/waking and never discards pending End.
   Lost hints rely on idle polling. Real Paho/256-Slot coverage joins automatic
   discovery, accounting, sending, takeover DUP and ACK/close cleanup; subscription
-  setup invokes the real usecase directly. Subscription entry, inbox future
+  setup invokes the real usecase directly. [Empty-group preparation](../specs/mqtt-empty-group-preparation.md)
+  reuses the hosted Channel initializer only on confirmed runtime absence and
+  rereads fresh Slot authority before source protection; denied subscriptions
+  create no runtime and ambiguous creation errors never authorize protection.
+  Subscription entry, inbox future
   source admission, offline scheduling and product composition remain outstanding.
 
 - Subscriber join identity uses optional column 4 and table 5 System 1 per-hash-Slot

@@ -30,6 +30,14 @@ import (
 // shared protection is confirmed. Subsequent delivery has no manually supplied
 // cursor, exchange, content, sink registration, enqueue or ACK invocation.
 func TestMQTTConnectionDeliveryPahoSingleNodeCluster(t *testing.T) {
+	testMQTTConnectionDeliveryPaho(t, true)
+}
+
+func TestMQTTEmptyGroupSubscriptionPahoSingleNodeCluster(t *testing.T) {
+	testMQTTConnectionDeliveryPaho(t, false)
+}
+
+func testMQTTConnectionDeliveryPaho(t *testing.T, existingMessage bool) {
 	cfg := singleNodeClusterAppConfig(t)
 	cfg.Cluster.Slots.HashSlotCount = 256
 	a, err := New(cfg)
@@ -47,10 +55,14 @@ func TestMQTTConnectionDeliveryPahoSingleNodeCluster(t *testing.T) {
 	channel := ch.ChannelID{ID: "mqtt-scheduled", Type: 2}
 	waitSingleNodeClusterRouteLeader(t, node, channel.ID, cfg.NodeID)
 	seedGroupSendPermission(t, node, channel, "alice")
-	// Create the Channel runtime through ordinary IM send before preparing its
-	// replay source. This earlier message must be excluded by StartAfter.
-	_, err = a.Messages().Send(ctx, message.SendCommand{FromUID: "alice", DeviceFlag: 1, ChannelID: channel.ID, ChannelType: channel.Type, ClientMsgNo: "before-subscription", Payload: []byte("before"), Origin: message.SendOriginClient})
-	require.NoError(t, err)
+	if existingMessage {
+		// This earlier message must be excluded by StartAfter.
+		_, err = a.Messages().Send(ctx, message.SendCommand{FromUID: "alice", DeviceFlag: 1, ChannelID: channel.ID, ChannelType: channel.Type, ClientMsgNo: "before-subscription", Payload: []byte("before"), Origin: message.SendOriginClient})
+		require.NoError(t, err)
+	} else {
+		_, err = node.GetChannelRuntimeMetaFresh(ctx, channel.ID, int64(channel.Type))
+		require.ErrorIs(t, err, meta.ErrNotFound)
+	}
 	require.NoError(t, node.UpsertDeviceMetadata(ctx, meta.Device{UID: "alice", DeviceFlag: 1, Token: "secret", DeviceLevel: 1}))
 	owners, err := runtime.NewOwners(runtime.OwnerOptions{NodeID: cfg.NodeID, BootID: "paho-scheduled", Capacity: 16, MaxOperations: 8, PendingTimeout: time.Second, MaxLease: time.Minute, CloseRetry: time.Second})
 	require.NoError(t, err)
@@ -81,6 +93,18 @@ func TestMQTTConnectionDeliveryPahoSingleNodeCluster(t *testing.T) {
 	topic, err := access.FormatTopic(access.Target{ChannelID: channel.ID, ChannelType: channel.Type})
 	require.NoError(t, err)
 	request := sessioncase.SubscriptionRequest{Topic: topic, TargetKind: meta.MQTTSubscriptionGroup, TargetID: channel.ID, RequestedQoS: 1, SubscriptionIdentifier: 41}
+	if !existingMessage {
+		deniedID := ch.ChannelID{ID: "mqtt-denied-empty", Type: 2}
+		seedGroupSendPermission(t, node, deniedID, "bob")
+		denied := request
+		denied.TargetID = deniedID.ID
+		denied.Topic, err = access.FormatTopic(access.Target{ChannelID: deniedID.ID, ChannelType: deniedID.Type})
+		require.NoError(t, err)
+		_, err = subscriptions.Subscribe(ctx, prepared.Owner, denied)
+		require.ErrorIs(t, err, sessioncase.ErrSubscriptionDenied)
+		_, err = node.GetChannelRuntimeMetaFresh(ctx, deniedID.ID, int64(deniedID.Type))
+		require.ErrorIs(t, err, meta.ErrNotFound)
+	}
 	var active meta.MQTTSubscription
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		active, err = subscriptions.Subscribe(ctx, prepared.Owner, request)
@@ -208,5 +232,5 @@ func TestMQTTConnectionDeliveryPahoSingleNodeCluster(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return read().State == meta.MQTTSessionOffline && deliveries.Snapshot().Tracked == 0 && connections.Snapshot().Tracked == 0 && owners.Snapshot().Held == 0
 	}, 3*time.Second, time.Millisecond)
-	t.Log("mqtt_connection_delivery_evidence: client=Paho transport=gnet/TCP hash_slots=256 subscription_setup=real_usecase_direct source_protection=real replay=real source_discovery=automatic accounting=real delivery_registration=entry sender=real gateway_sink=real receive_maximum=1 takeover_same_packet_dup=true ack_wake=true close_wake=true idle_poll=1m pending_zero=true cleanup_joined=true product_listener=false")
+	t.Logf("mqtt_connection_delivery_evidence: initially_empty=%t client=Paho transport=gnet/TCP hash_slots=256 subscription_setup=real_usecase_direct source_protection=real replay=real source_discovery=automatic accounting=real delivery_registration=entry sender=real gateway_sink=real receive_maximum=1 takeover_same_packet_dup=true ack_wake=true close_wake=true idle_poll=1m pending_zero=true cleanup_joined=true product_listener=false", !existingMessage)
 }

@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession"
@@ -13,6 +14,9 @@ import (
 // MQTTSourceNode is the foreground-gated distributed facade, never local storage.
 type MQTTSourceNode interface {
 	GetChannelRuntimeMetaFresh(context.Context, string, int64) (meta.ChannelRuntimeMeta, error)
+	// ResolveChannelAppendAuthority reuses bounded Slot runtime initialization.
+	// Its result may be cached and is not fresh source-protection authority.
+	ResolveChannelAppendAuthority(context.Context, ch.ChannelID) (ch.Meta, error)
 	EnsureChannelMQTTSource(context.Context, ch.MQTTSourceRequest) (ch.MQTTSourceSnapshot, error)
 }
 
@@ -23,8 +27,9 @@ type MQTTSourceProtectorOptions struct {
 	Now        func() time.Time
 }
 
-// MQTTSourceProtector translates one bounded source request without policy,
-// metadata creation, retries or authority fallback.
+// MQTTSourceProtector translates one bounded source request. Confirmed absence
+// initializes runtime infrastructure through the existing Channel service; it
+// never creates business metadata, changes policy or retries uncertain effects.
 type MQTTSourceProtector struct{ options MQTTSourceProtectorOptions }
 
 func NewMQTTSourceProtector(o MQTTSourceProtectorOptions) (*MQTTSourceProtector, error) {
@@ -45,6 +50,20 @@ func (p *MQTTSourceProtector) ProtectMQTTSource(ctx context.Context, id sessionc
 		return sessioncase.ProtectedSource{}, err
 	}
 	metadata, err := p.options.Node.GetChannelRuntimeMetaFresh(ctx, id.ID, int64(id.Type))
+	if errors.Is(err, meta.ErrNotFound) {
+		if err = ctx.Err(); err != nil {
+			return sessioncase.ProtectedSource{}, err
+		}
+		if _, err = p.options.Node.ResolveChannelAppendAuthority(ctx, ch.ChannelID{ID: id.ID, Type: id.Type}); err != nil {
+			return sessioncase.ProtectedSource{}, err
+		}
+		if err = ctx.Err(); err != nil {
+			return sessioncase.ProtectedSource{}, err
+		}
+		// Initialization owns capacity, placement and coalescing. Only a new
+		// foreground Slot read can supply the fences for subsequent protection.
+		metadata, err = p.options.Node.GetChannelRuntimeMetaFresh(ctx, id.ID, int64(id.Type))
+	}
 	if err != nil {
 		return sessioncase.ProtectedSource{}, err
 	}

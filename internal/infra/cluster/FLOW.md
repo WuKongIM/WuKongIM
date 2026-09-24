@@ -92,7 +92,8 @@ management, plugins, diagnostics, and bounded operations observations.
   fall back to client numbers. Original committed proof remains mandatory.
 - MQTT source protection maps exact source identity through fresh Slot runtime
   metadata to routed Channel admission, using the app's message-ID allocator.
-  The adapter cannot create metadata, retry policy decisions or bypass authority.
+  Confirmed runtime absence uses the existing bounded Channel initializer, then
+  rereads fresh Slot fences. No business metadata creation, policy retry or authority fallback is allowed.
 - Person-directory batching shares duplicate Channel results, detaches canceled
   waiters without canceling accepted work, and never publishes ready after a
   membership or runtime-metadata prepare failure.

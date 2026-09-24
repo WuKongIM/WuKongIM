@@ -75,7 +75,7 @@ subscription entry, inbox future sources, offline maintenance and restore safety
 The initial integration fixture seeded group metadata/membership without a
 Channel runtime and repeatedly received `db: not found` during preparation.
 Creating the Channel through ordinary IM send makes the complete chain pass;
-that pre-subscription message is excluded by the prepared boundary. Subscription
-entry work must also cover a valid group before its first ordinary append, not
-rely on this fixture's initialization. Full product listener, SUB/UNSUB, inbox
+that pre-subscription message is excluded by the prepared boundary. The subsequent
+[empty-group preparation](mqtt-empty-group-preparation.md) removes that prerequisite
+and adds a real Paho regression before any business message. Full product listener, SUB/UNSUB, inbox
 future admission, offline maintenance and restore/process acceptance remain open.
