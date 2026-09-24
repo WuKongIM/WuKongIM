@@ -1,5 +1,10 @@
 # Bounded distinct-source discovery for MQTT replay scheduling
 
+This specifies active-source read kind 16. The managed replay worker now uses
+[kind 17](mqtt-tombstone-source-discovery.md), which also retains primary
+tombstones so cleanup remains discoverable after the last consumer leaves.
+Kind 16's index and semantics below remain unchanged.
+
 Background replay cannot depend on best-effort append callbacks or scan every
 subscriber before reaching the next source. Reuse source-binding retention index
 4: its `(owner kind, source identity, source generation)` prefix covers Preparing,

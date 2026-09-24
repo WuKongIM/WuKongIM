@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Preserve MQTT replay cleanup discovery after the last consumer leaves by paging retained source-binding tombstones. No new table/index is needed; RPC 91 read kind 17 requires matching nodes. Product MQTT access remains under development. / MQTT 最后一个消费者退出后仍可通过保留的绑定 tombstone 发现回放清理任务，无需新表或索引；RPC 91 读取类型 17 要求匹配节点，产品接入仍在开发。
+
 - Schedule MQTT replay retirement alongside bounded copy/recovery, and resume learner replication after original-prefix trim only with matching durable identity. Three-node reopen verifies applied retirement; product MQTT access remains under development. / MQTT 回放后台轮转复制、恢复与回收；原始前缀裁剪后，learner 仅在持久身份匹配时续传。三节点重开验证回收边界已应用，产品 MQTT 接入仍在开发。
 
 - Connect ordered MQTT consumer progress to bounded retirement selection and replicated decisions; ACK gaps and unknown registrations prevent unsafe reclamation. Automatic scheduling and product MQTT access remain under development. / MQTT 消费者水位接入有界回收选择和复制决策，乱序 ACK 缺口及未知订阅阻止越界回收；自动调度及产品接入仍在开发。

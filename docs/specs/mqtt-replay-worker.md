@@ -8,6 +8,12 @@ any effects. Cursors advance only past attempted sources, including failures;
 unstarted entries remain discoverable. Lost Slot ownership drops all its hints.
 Stop cancels and joins the exact run; a timeout prevents an overlapping restart.
 
+Discovery now uses [read kind 17](mqtt-tombstone-source-discovery.md), preserving
+source hints in retained primary tombstones after the last live consumer leaves.
+This does not add consumer responsibility or bypass the ordered retention plan.
+The worker never downgrades to active-source-only kind 16. Source deactivation
+and eventual safe tombstone pruning are separate lifecycle requirements.
+
 A source visit ends after one copy/anchor attempt, one imported recovery interval,
 one coverage result or one failed donor round. Only successful journal scanning
 continues the same source/target on its next Slot turn. Its exact pinned target is

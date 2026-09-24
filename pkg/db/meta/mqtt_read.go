@@ -27,6 +27,8 @@ const (
 	MQTTReadWillRecovery
 	// MQTTReadSourceOwners discovers distinct Channel sources through retention index 4.
 	MQTTReadSourceOwners
+	// MQTTReadReplaySources includes retained tombstones so cleanup stays discoverable.
+	MQTTReadReplaySources
 )
 
 // MQTTReadCursor contains exactly the cursor belonging to the selected read.
@@ -80,7 +82,7 @@ type MQTTReadResult struct {
 
 // Recovery identifies reads that scan one explicitly selected logical hash Slot.
 func (q MQTTRead) Recovery() bool {
-	return q.Kind == MQTTReadSessionDeadlines || q.Kind == MQTTReadSubscriptionRecovery || q.Kind == MQTTReadSourceRecovery || q.Kind == MQTTReadWillRecovery || q.Kind == MQTTReadSourceOwners
+	return q.Kind == MQTTReadSessionDeadlines || q.Kind == MQTTReadSubscriptionRecovery || q.Kind == MQTTReadSourceRecovery || q.Kind == MQTTReadWillRecovery || q.Kind == MQTTReadSourceOwners || q.Kind == MQTTReadReplaySources
 }
 
 // SessionIdentity reports the stable owner for Session-scoped reads, including
@@ -163,7 +165,7 @@ func ValidateMQTTRead(q MQTTRead) error {
 		} else {
 			want.After.Retention = q.After.Retention
 		}
-	case MQTTReadSourceOwners:
+	case MQTTReadSourceOwners, MQTTReadReplaySources:
 		page, want.After.SourceOwner = true, q.After.SourceOwner
 	case MQTTReadSourceRecovery:
 		page, want.After.SourceRecovery = true, q.After.SourceRecovery
@@ -313,6 +315,8 @@ func (s *Shard) readMQTTState(ctx context.Context, q MQTTRead) (MQTTReadResult, 
 		out.Bindings, out.After.Binding, out.Done, err = s.ListMQTTSourceBindingCandidates(ctx, q.Owner, q.After.Binding, q.Limit)
 	case MQTTReadSourceOwners:
 		out.SourceOwners, out.After.SourceOwner, out.Done, err = s.ListMQTTSourceOwners(ctx, q.After.SourceOwner, q.Limit)
+	case MQTTReadReplaySources:
+		out.SourceOwners, out.After.SourceOwner, out.Done, err = s.ListMQTTReplaySources(ctx, q.After.SourceOwner, q.Limit)
 	case MQTTReadSourceRecovery:
 		out.Bindings, out.After.SourceRecovery, out.Done, err = s.ListMQTTSourceBindingRecovery(ctx, q.After.SourceRecovery, q.Limit)
 	case MQTTReadSourceRetention:

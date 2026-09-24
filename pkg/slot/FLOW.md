@@ -60,8 +60,8 @@ plugin, migration, message projections, and MQTT session state.
    a fresh local ReadIndex/apply barrier then one pinned primary/index snapshot,
    revalidating routing/authority before return. Recovery pages select a logical
    hash Slot; writes require exact committed results without result-less fallback.
-   Read kind 16 pages distinct Channel-source owners for replay scheduling, with
-   encoded-order cursors and unchanged JSON for older kinds; it authorizes no GC.
+   Read kind 16 discovers active Channel sources; kind 17 includes retained tombstones for replay cleanup.
+   Both use bounded encoded-order cursors and unchanged older JSON; old peers reject kind 17, and discovery authorizes no GC.
 
 ## Invariants and Failure Semantics
 

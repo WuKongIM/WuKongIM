@@ -103,6 +103,13 @@ before repair planning; a separate flag reports bounded cleanup still pending.
 Versions 1/2 preserve their bytes and behavior; old peers reject version 3, and
 callers must not downgrade the requested effect. No new storage encoding is added.
 
+MQTT metadata RPC 91 read kind 17 discovers replay sources through existing
+primary binding rows, including Removed tombstones. Kind 16 retains active-source
+semantics. This adds no table/index/row layout or backfill; matched runtimes are
+required because older peers reject the new read kind. Workers cannot downgrade
+to kind 16 and lose cleanup after the last consumer leaves. Retention decisions
+still use the strict consumer index, not these discovery hints.
+
 Message table 2 System 2 materializes a verified format-6 retirement. Its fixed
 version-1, checksummed envelope stores two uint64 values: the retirement control
 position and the engine-deleted-through cursor. Its counters/digest are resolved

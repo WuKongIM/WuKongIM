@@ -50,9 +50,9 @@ It does not own product business policy or expose engine-specific APIs.
    and recovery uses immutable references in original send order.
    Source/UID bindings retain tombstones and discovery/recovery indexes; unknown boundaries block retention.
    Retention pages pin at most limit+1 strict primary/index witnesses, rejecting missing or stale entries.
-   Distinct Channel-source discovery seeks across retention-index owner prefixes,
-   checking at most 65 primary/index witnesses in one pinned view. It preserves
-   Preparing/Removing obligations and proves neither consumer completion nor GC.
+   Active-source discovery seeks retention-index prefixes; replay discovery also retains primary tombstones.
+   Each pinned scan checks at most 65 owner witnesses, skipping whole subscriber prefixes.
+   Tombstones keep cleanup discoverable without restoring consumer responsibility or proving GC.
    Will records outlive Session replacement. Session transitions and quota endings
    resolve old Will atomically; new ownership may install a new configuration.
    Delays, execution leases and receipts are distinct; bodies are bounded/redacted.

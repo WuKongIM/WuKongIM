@@ -62,7 +62,7 @@ func TestReplayWorkerRotates256SlotsAndOwnsOnlySlotState(t *testing.T) {
 	require.Len(t, state.slots, 256)
 	require.Equal(t, meta.HashSlot(255), s.slots[0])
 	for _, q := range s.queries {
-		require.Equal(t, meta.MQTTReadSourceOwners, q.Kind)
+		require.Equal(t, meta.MQTTReadReplaySources, q.Kind, "cleanup must remain discoverable after the final binding is Removed")
 	}
 }
 

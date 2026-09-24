@@ -241,7 +241,7 @@ func (w *ReplayWorker) sweep(parent context.Context, state *replayScanState) (ou
 			scan = &replaySlotScan{}
 			state.slots[slot] = scan
 		}
-		q := meta.MQTTRead{Kind: meta.MQTTReadSourceOwners, Limit: w.opts.PageSize, After: meta.MQTTReadCursor{SourceOwner: scan.after}}
+		q := meta.MQTTRead{Kind: meta.MQTTReadReplaySources, Limit: w.opts.PageSize, After: meta.MQTTReadCursor{SourceOwner: scan.after}}
 		out.Pages++
 		call, done = context.WithTimeout(ctx, w.opts.ReadTimeout)
 		r, e := w.opts.Source.ReadMQTTRecovery(call, slot, q)
@@ -330,7 +330,7 @@ func validReplaySourcePage(q meta.MQTTRead, r meta.MQTTReadResult) bool {
 	}
 	previous := q.After.SourceOwner
 	for _, source := range r.SourceOwners {
-		probe := meta.MQTTRead{Kind: meta.MQTTReadSourceOwners, Limit: 1, After: meta.MQTTReadCursor{SourceOwner: source}}
+		probe := meta.MQTTRead{Kind: meta.MQTTReadReplaySources, Limit: 1, After: meta.MQTTReadCursor{SourceOwner: source}}
 		if source == (meta.MQTTBindingOwner{}) || meta.ValidateMQTTRead(probe) != nil || (previous != (meta.MQTTBindingOwner{}) && meta.CompareMQTTBindingOwners(previous, source) >= 0) {
 			return false
 		}

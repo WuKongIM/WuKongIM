@@ -64,7 +64,7 @@ Stop or startup rollback
 - MQTT adapters map Will setup to uncached publish policy and connection-worker
   renewal/observed disconnect to Session usecases. Real-gateway/Paho integration validates the entry; product wiring remains pending.
   Replay worker composition wires fresh SlotMetaSource and foreground Node ports;
-  three-node managed-loop coverage verifies fenced learner recovery and original-source release.
+  three-node managed-loop coverage verifies fenced learner recovery, source release and retirement after the last binding leaves.
   Consumer progress and retention use foreground Node ports; retention captures anchors before consumer floors and grants no local GC.
   Replay maintenance rotates copy/recovery/retirement through the same worker; real ACK gaps and unknown registrations block decisions, and reopened replicas prove applied retirement independently of counters.
   Full product start/stop/restore wiring and listener admission remain pending.

@@ -426,12 +426,18 @@ specification, runbook, report, or module documentation; link to them when neede
   donor rotation. Import retains its pre-import plan; only the next verified read
   reports completion. Replies carry exact request echoes and proofs within 4 KiB;
   RPC 98 carries bodies. Receiver admission and stable migration fences are reused.
-  Durable discovery uses `MQTTReadSourceOwners` (read kind 16, Node/RPC 91):
+  Active-source discovery uses `MQTTReadSourceOwners` (read kind 16, Node/RPC 91):
   pinned retention-index prefix seeks return at most 64 distinct Channel sources,
   independently of subscriber count. Preparing/Removing obligations remain visible;
   Removed/UID rows are excluded. Each sampled index witness must match its primary.
   Cursors follow encoded owner order, preserving source generations. This is a work
   hint, never a consumer-completion proof. Older read JSON stays unchanged.
+  Replay workers use [tombstone discovery](../specs/mqtt-tombstone-source-discovery.md),
+  `MQTTReadReplaySources` (kind 17), instead: bounded primary-prefix seeks include
+  Removed bindings so final consumer departure cannot erase cleanup work. No new
+  table/index/backfill is needed, and kind 16 keeps its existing meaning. The
+  retention index still excludes Removed obligations. Old peers reject kind 17;
+  do not downgrade. Source deactivation and safe tombstone pruning remain required.
   The replay usecase alternates bounded copy/anchor admission with round-robin
   replica recovery. Each target pins its accepted anchor and retains scan/donor
   hints across errors and newer anchors. Continued visits retain the detached

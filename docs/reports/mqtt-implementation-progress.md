@@ -3833,3 +3833,63 @@ entry. Removal therefore needs both its separate revision-fenced source-release
 acknowledgement and durable discovery of unfinished source cleanup. Do not treat
 a Removed CAS or the absence of bindings as proof that every replica completed
 retirement. No removal code or changed removal contract was added in this slice.
+
+## Replay discovery survives the final consumer's departure
+
+`MQTTReadReplaySources` adds closed read kind 17 to RPC 91. It seeks table 26
+primary owner prefixes, including retained Removed tombstones, in one snapshot.
+At most limit+1 (65) rows are decoded per page, independent of subscribers per
+source. Encoded owner/generation order remains the cursor order. The existing
+worker now requests kind 17; active-source kind 16 and strict retention index 4
+keep their existing semantics. Thus removing consumer responsibility no longer
+also removes the source's cleanup scheduling hint. No new table, index, row
+encoding or backfill is required; older peers reject kind 17 and no fallback is
+allowed. Frozen context and failure inventory:
+[mqtt-tombstone-source-discovery.md](../specs/mqtt-tombstone-source-discovery.md).
+
+Validation (2026-09-24):
+
+- Before implementation, focused storage/RPC/worker tests failed on absent kind
+  17 in `/tmp/mqtt-tombstone-discovery-red.log`. The real three-node managed-loop
+  test then failed on `only tombstones remain: background discovery must still
+  reach retirement`, 24.518 s; `/tmp/mqtt-tombstone-discovery-app-red.log`.
+- `GOWORK=off go test -p 2 -race ./pkg/db/meta ./pkg/slot/proxy
+  ./internal/runtime/mqttsession -run 'TestMQTTReplaySources|TestReplayWorker'
+  -count=1 -timeout=90s -v`: passed, 1.981/2.147/1.499 s;
+  `/tmp/mqtt-tombstone-discovery-unit.log`. Includes bounded prefix skipping,
+  pinned snapshot, malformed primary key/value, cancellation, closed replies,
+  preserved kind-16 semantics, continuation fairness and worker query selection.
+- `GOWORK=off go test -p 2 -race -tags=integration ./internal/app -run
+  '^TestMQTTReplayWorkerRetiresSourceWithOnlyTombstones$' -count=1
+  -timeout=120s -v`: passed, 13.176 s;
+  `/tmp/mqtt-tombstone-discovery-app-green.log`. With no index-4 consumer entries,
+  only the real managed worker produces retirement. Independent reopened stores
+  on all three replicas show the exact decision, applied retired baseline and
+  current coverage; read-only historical export cannot return retired content.
+- `GOWORK=off go test -p 2 -race -tags=integration ./pkg/cluster -run
+  '^TestMQTTMetadataThreeNodeAuthorityAndRecovery$' -count=1 -timeout=120s -v`:
+  passed, 17.358 s; `/tmp/mqtt-tombstone-discovery-cluster-final.log`. Removed
+  sources remain discoverable after Slot transfer and process reconstruction;
+  they are absent from consumer retention. An isolated leader rejects reads.
+  The fixture now waits up to five seconds for the actual authoritative read
+  after stopping a node; an earlier route observation does not prove current
+  barrier readiness. Initial failures are preserved in
+  `/tmp/mqtt-tombstone-discovery-cluster.log` and
+  `/tmp/mqtt-tombstone-discovery-cluster-green.log`; no production routing changed.
+- Related default race suites passed: metadata 27.175 s, Slot proxy 17.934 s,
+  cluster 11.990 s, runtime 1.377 s, app 4.887 s;
+  `/tmp/mqtt-tombstone-discovery-race.log`.
+- Replay-worker joined lifecycle integration passed, 1.629 s;
+  `/tmp/mqtt-tombstone-discovery-worker-integration.log`. Existing real ACK-gap,
+  unknown-registration and fenced-learner app regression passed, 16.423 s;
+  `/tmp/mqtt-tombstone-discovery-app-regression.log`.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-tombstone-discovery-flow.log`. Generated index unchanged.
+
+Binding release permission is explicitly controlled in these fixtures. Formal
+revision-fenced source acknowledgement/final removal, source deactivation,
+activation interrupted before first binding and eventual safe tombstone pruning
+remain lifecycle work. This slice does not claim those contracts or product
+MQTT admission. Full subscription/inbox projection, delivery/ACK entry, owner
+recovery, Will execution, product lifecycle/configuration, offline tooling and
+process/load acceptance remain required; the full goal stays active.

@@ -46,7 +46,7 @@ leases, publish messages, or interpret MQTT packets.
 7. Connections keeps one indexed schedule per registered owner and one bounded
    worker cohort. Renew requires a newer installed lease; disconnect keeps its
    original monotonic observation and first intent through exact cleanup retries.
-8. One replay loop scans distinct sources across led hash Slots. It retains at most
+8. One replay loop uses read kind 17 across led hash Slots, retaining tombstone sources for cleanup. It retains at most
    one finite recovery or retirement journal-scan continuation per Slot; work/errors yield to later sources.
    Cold passes rotate phases, targets and donor hints; durable storage owns progress.
    Reverse scans pin source/authority/capture/floor and strictly decrease; partial budgets preserve unstarted entries. Invalid/late pages dispatch nothing; commit counts never prove cleanup.

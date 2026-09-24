@@ -235,7 +235,7 @@ func validateMQTTReadShape(q metadb.MQTTRead, r metadb.MQTTReadResult) error {
 		selected = 4
 	case metadb.MQTTReadWill, metadb.MQTTReadWillRecovery:
 		selected = 5
-	case metadb.MQTTReadSourceOwners:
+	case metadb.MQTTReadSourceOwners, metadb.MQTTReadReplaySources:
 		selected = 6
 	}
 	count := 0
@@ -286,13 +286,13 @@ func validateMQTTReadShape(q metadb.MQTTRead, r metadb.MQTTReadResult) error {
 	}
 	previous := q.After.SourceOwner
 	for _, owner := range r.SourceOwners {
-		probe := metadb.MQTTRead{Kind: metadb.MQTTReadSourceOwners, Limit: 1, After: metadb.MQTTReadCursor{SourceOwner: owner}}
+		probe := metadb.MQTTRead{Kind: q.Kind, Limit: 1, After: metadb.MQTTReadCursor{SourceOwner: owner}}
 		if owner == (metadb.MQTTBindingOwner{}) || metadb.ValidateMQTTRead(probe) != nil || (previous != (metadb.MQTTBindingOwner{}) && metadb.CompareMQTTBindingOwners(previous, owner) >= 0) {
 			return bad
 		}
 		previous = owner
 	}
-	if q.Kind == metadb.MQTTReadSourceOwners && r.After.SourceOwner != previous {
+	if (q.Kind == metadb.MQTTReadSourceOwners || q.Kind == metadb.MQTTReadReplaySources) && r.After.SourceOwner != previous {
 		return bad
 	}
 	for _, v := range r.Wills {

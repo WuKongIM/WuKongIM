@@ -26,7 +26,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 2. Slot proposals and metadata facades resolve one immutable route snapshot,
    expose bounded exact-key UID membership reads and group Channel- or UID-owned
    work by physical Slot, execute locally or forward, and recheck leadership.
-   Person-directory prepare joins UID membership/runtime metadata before publishing directory-ready. MQTT metadata facades preserve foreground gates; read RPC 91 uses fresh Slot barriers and bounded coherent snapshots, with source/UID routing independent of Session routing.
+   Person-directory prepare joins UID membership/runtime metadata before publishing directory-ready. MQTT RPC 91 uses fresh Slot barriers and bounded snapshots; read kind 17 retains tombstone-source discovery after the last consumer leaves. Source/UID routing stays independent of Session routing.
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to
    the exact leader. A cached leader's typed dial failure gets one fresh-route retry;

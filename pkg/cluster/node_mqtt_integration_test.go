@@ -45,8 +45,9 @@ func TestMQTTMetadataThreeNodeAuthorityAndRecovery(t *testing.T) {
 		require.Equal(t, uint64(1), read.Session.Revision)
 	}
 	// Multiple obligations share one source job, while generations stay distinct.
-	sourceQuery := metadb.MQTTRead{Kind: metadb.MQTTReadSourceOwners, Limit: 1}
+	sourceQuery := metadb.MQTTRead{Kind: metadb.MQTTReadReplaySources, Limit: 1}
 	var sourceOwners []metadb.MQTTBindingOwner
+	var departing []metadb.MQTTSourceBinding
 	for _, generation := range []string{"g1", "g2"} {
 		owner := metadb.MQTTBindingOwner{Kind: metadb.MQTTBindingChannel, ID: "2:" + key, Generation: generation}
 		sourceOwners = append(sourceOwners, owner)
@@ -55,6 +56,9 @@ func TestMQTTMetadataThreeNodeAuthorityAndRecovery(t *testing.T) {
 			written, e := origin.CompareAndSwapMQTTSourceBinding(ctx, 0, binding)
 			require.NoError(t, e)
 			require.Equal(t, metadb.MQTTSessionCASApplied, written.Status)
+			if generation == "g1" {
+				departing = append(departing, binding)
+			}
 		}
 	}
 	checkSources := func(n *Node) {
@@ -70,6 +74,28 @@ func TestMQTTMetadataThreeNodeAuthorityAndRecovery(t *testing.T) {
 	for _, n := range nodes {
 		checkSources(n)
 	}
+	// Controlled binding transitions exercise the catalog, not product removal
+	// permission. The final tombstone must survive routing and disk reconstruction.
+	for _, binding := range departing {
+		binding.Revision, binding.Stage, binding.ProgressRevision, binding.ReleaseReason = 2, metadb.MQTTBindingRemoving, 3, metadb.MQTTBindingSessionEnded
+		written, e := origin.CompareAndSwapMQTTSourceBinding(ctx, 1, binding)
+		require.NoError(t, e)
+		require.Equal(t, metadb.MQTTSessionCASApplied, written.Status)
+		binding.Revision, binding.Stage, binding.RecoveryAtMS, binding.ProtectionRevision = 3, metadb.MQTTBindingRemoved, 0, 2
+		written, e = origin.CompareAndSwapMQTTSourceBinding(ctx, 2, binding)
+		require.NoError(t, e)
+		require.Equal(t, metadb.MQTTSessionCASApplied, written.Status)
+	}
+	for _, n := range nodes {
+		checkSources(n)
+		active, e := n.ReadMQTTRecovery(ctx, route.HashSlot, metadb.MQTTRead{Kind: metadb.MQTTReadSourceOwners, Limit: 64})
+		require.NoError(t, e)
+		require.Equal(t, sourceOwners[1:], active.SourceOwners)
+		floor, e := n.ReadMQTT(ctx, metadb.MQTTRead{Kind: metadb.MQTTReadSourceRetention, Owner: sourceOwners[0], Limit: 1})
+		require.NoError(t, e)
+		require.Empty(t, floor.Bindings)
+		require.True(t, floor.Done)
+	}
 	transferSlotLeaderAndWait(t, nodes, route.SlotID, origin.NodeID())
 	waitUntil(t, func() bool {
 		for _, n := range nodes {
@@ -82,8 +108,15 @@ func TestMQTTMetadataThreeNodeAuthorityAndRecovery(t *testing.T) {
 	})
 	victim := nodes[route.Leader-1]
 	stopNodes(t, victim)
-	read, err := origin.ReadMQTT(ctx, query)
-	require.NoError(t, err)
+	// Stopping a node can also change Controller/other Slot leadership. The
+	// earlier route observation is not proof that fresh barriers are ready now.
+	var read metadb.MQTTReadResult
+	require.Eventually(t, func() bool {
+		probe, done := context.WithTimeout(ctx, 500*time.Millisecond)
+		defer done()
+		read, err = origin.ReadMQTT(probe, query)
+		return err == nil
+	}, 5*time.Second, 20*time.Millisecond, "the surviving metadata quorum must restore authoritative reads")
 	updated := *read.Session
 	updated.Revision = 2
 	updated.LeaseUntilMS = 6000
@@ -126,6 +159,6 @@ func TestMQTTMetadataThreeNodeAuthorityAndRecovery(t *testing.T) {
 	_, err = origin.ReadMQTTRecovery(blocked, route.HashSlot, sourceQuery)
 	done()
 	require.Error(t, err)
-	t.Log("mqtt_source_discovery_evidence: nodes=3 hash_slots=256 tcp=true disk=true distinct_sources=true paginated=true leader_transfer=true restart=true isolated_rejected=true scheduler=false")
+	t.Log("mqtt_source_discovery_evidence: nodes=3 hash_slots=256 tcp=true disk=true distinct_sources=true paginated=true leader_transfer=true restart=true isolated_rejected=true removed_source_retained=true removed_consumer_excluded=true binding_release=controlled scheduler=false")
 	t.Logf("MQTT metadata verified: hash_slots=256 physical_slots=2 replicas=3 hash_slot=%d slot=%d original_leader=%d new_leader=%d revision=2; restart preserved state; isolated reads and writes rejected", route.HashSlot, route.SlotID, route.Leader, origin.NodeID())
 }
