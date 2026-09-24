@@ -41,6 +41,7 @@ type publishFixture struct {
 	messages   *publishMessages
 	now        time.Time
 	writes     []any
+	write      func(any) error
 	closed     bool
 }
 
@@ -59,7 +60,13 @@ func newPublishFixture(t *testing.T) *publishFixture {
 	}}
 	f.publisher, err = access.NewPublisher(access.PublisherOptions{Owners: f.owners, Messages: f.messages, Now: func() time.Time { return f.now }})
 	require.NoError(t, err)
-	f.gateway = gt.Context{RequestContext: context.Background(), Session: session.New(session.Config{ID: 42, WritePacketFn: func(p any, _ session.OutboundMeta) error { f.writes = append(f.writes, p); return nil }}), CloseSessionFn: func(gt.CloseReason, error) { f.closed = true }}
+	f.gateway = gt.Context{RequestContext: context.Background(), Session: session.New(session.Config{ID: 42, WritePacketFn: func(p any, _ session.OutboundMeta) error {
+		if f.write != nil {
+			return f.write(p)
+		}
+		f.writes = append(f.writes, p)
+		return nil
+	}}), CloseSessionFn: func(gt.CloseReason, error) { f.closed = true }}
 	t.Cleanup(func() {
 		uncertain := f.owners.Snapshot().Uncertain
 		err := f.owners.Close(context.Background())

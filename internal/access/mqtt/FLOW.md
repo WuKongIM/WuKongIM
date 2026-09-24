@@ -1,6 +1,6 @@
 ---
 scope: package
-summary: Maps MQTT gateway lifecycle and publications to Session and message usecases with exact-owner execution and committed ACKs.
+summary: Maps MQTT gateway lifecycle, inbound publications and outbound exchange bindings to owner-fenced Session and message usecases.
 ---
 
 # MQTT Access Mapping Flow
@@ -10,7 +10,7 @@ summary: Maps MQTT gateway lifecycle and publications to Session and message use
 This package maps wire-validated MQTT 5 packets to IM identities and immutable
 publication content. Handler binds generic gateway callbacks to Session acquisition
 and connection supervision; Publisher invokes the existing message usecase.
-Product listener composition, subscription and delivery remain unavailable.
+Product listener composition, subscription and delivery scheduling remain unavailable.
 
 ## Boundaries
 
@@ -37,6 +37,12 @@ Product listener composition, subscription and delivery remain unavailable.
    joining packet execution; decoded DISCONNECT receipt survives TCP EOF before
    mailbox dispatch. Validate direction/expiry before suppressing Will.
 
+8. Send trusted admitted QoS 1 content under exact-owner execution, bind its
+   cursor/PacketID/order before gateway enqueue and forward PUBACK to the durable
+   acknowledgement usecase. Connection send capacity is bounded by Receive Maximum
+   and 1024; concurrent send admission yields without a queue. Only resumed
+   connections may retransmit old exchanges, supplied in original order.
+
 ## Invariants and Failure Semantics
 
 - QoS 0 does not imply NoPersist. Retain, QoS 2, aliases and client-supplied
@@ -57,13 +63,19 @@ Product listener composition, subscription and delivery remain unavailable.
   monotonic observation. Invalid expiry/direction never cancels Will. Peer packet
   limits apply to accepted and rejected CONNACK. Unsupported controls fail closed.
 
+- Outbound binding stores no bodies. Strictly increasing attempted order prevents
+  same-connection retransmission. Unknown PUBACK adds no credit; negative PUBACK
+  completes the exchange. Failed writes/ACKs close and preserve durable recovery.
+  Current receive permission, source proof and window admission remain caller
+  obligations. Original properties/expiry survive mapping; output never truncates.
+
 ## Read First
 
 - [Identity and topic mapping](mapping.go)
 - [Publication mapping](publication.go)
 - [Authenticated publish entry](publisher.go)
 - [Gateway lifecycle entry](handler.go)
-- [Gateway failure inventory](../../../docs/specs/mqtt-gateway-entry.md)
+- [Outbound binding](outbound.go)
 
 ## Update Triggers
 

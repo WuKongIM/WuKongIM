@@ -20,8 +20,9 @@ order/key is a conflict and must never be acknowledged by the old request.
 Exact committed replies must match the selected packet/order and next parent
 revision. Lost replies can be reconciled by re-reading; there is no retry loop,
 new table, packet codec, Slot command or shared-content GC permission. App wires
-foreground Node access and the same local Owners registry. Entry/runtime send
-binding and product PUBACK dispatch remain required after this slice.
+foreground Node access and the same local Owners registry. The [gateway binding](mqtt-outbound-gateway.md) now supplies exact sent identities
+and PUBACK dispatch at the internal entry seam. Product scheduling/listener
+composition and complete recovery remain required.
 
 ## Failure inventory before implementation
 

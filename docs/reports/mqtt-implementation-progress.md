@@ -14,8 +14,10 @@ removal, unsubscribe sealing and live-owner cancelled-preparation discovery
 Concrete group projection now confirms shared replay on every eligible replica.
 Anchored typed consumer messages route through foreground Node/RPC after original
 trim, with original publication fields and committed native control classification.
-Exact outbound acknowledgement orchestration and Node composition are implemented;
-entry send/packet binding and PUBACK dispatch remain outstanding.
+Exact outbound acknowledgement orchestration and Node composition are implemented.
+Gateway send binding and PUBACK dispatch now pass real Paho/TCP takeover/resume
+integration, with controlled admission and content-reference assertions.
+Product delivery scheduling, receive permission and full recovery remain outstanding.
 Inbox subscription/delivery, source deactivation,
 Will execution, product/restore composition and capacity
 acceptance remain outstanding. No passing product E2E
@@ -4244,3 +4246,35 @@ window admission and consumer qualification/accounting, reconnect delivery, inbo
 and future-person admission, ended-Session discovery, source deactivation, owner
 recovery, Will execution, product lifecycle, offline tools and process/load
 acceptance remain outstanding.
+
+## Outbound gateway exchange binding
+
+The internal Handler now sends trusted admitted QoS 1 exchanges through the
+existing serialized gateway writer. It retains only cursor/PacketID/DeliveryOrder
+identities, bounded by Receive Maximum and 1024. A nonblocking send gate preserves
+order with no new queue/worker; a connection cannot resend an attempted order.
+PUBACK captures the exact binding before the real acknowledgement usecase.
+Negative reasons complete; unknown/duplicate IDs cannot create additional credit.
+Failed writes, uncertain ACKs and callbacks close/fence instead of discarding the
+persistent exchange. Original ordered properties, server identities and remaining
+expiry are mapped without sharing payload storage or truncating content.
+
+Pre-code failure inventory/frozen source digests are in
+[mqtt-outbound-gateway.md](../specs/mqtt-outbound-gateway.md). Public entry tests
+started RED for missing types/methods. The real Paho/gnet single-node cluster test
+now retains an unacknowledged exchange across physical connection takeover,
+checks the same PacketID/body/properties with DUP, and independently observes
+Slot state after the client's manual PUBACK. The initial test setup used an
+incorrect subscription generation; matching the parent revision contract fixed
+that fixture. Subscription/accounting/content-reference admission stays controlled;
+this is internal integration, not product process E2E or source-proof acceptance.
+
+Validation (2026-09-24):
+
+- `GOWORK=off go test -p 2 ./internal/access/mqtt -count=1` passed (0.308s).
+- `GOWORK=off go test -race -p 2 ./internal/access/mqtt ./internal/usecase/mqttsession ./internal/app -count=1`
+  passed (1.724s / 32.285s / 4.814s).
+- `GOWORK=off go test -race -tags=integration -p 2 ./internal/app -run '^TestMQTTGatewayPahoSingleNodeCluster$' -count=1 -timeout=90s`
+  passed (6.172s); only the existing Darwin linker warning appeared.
+- `flow-doc-contracts` passed: 86 compliant, zero invalid, nine existing length warnings; `git diff --check` passed.
+- Product listener, autonomous delivery/recovery and capacity acceptance remain pending.

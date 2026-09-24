@@ -63,14 +63,19 @@ func TestMQTTGatewayPahoSingleNodeCluster(t *testing.T) {
 		defer cancel()
 		require.NoError(t, connections.Stop(ctx))
 	})
+	acks, err := newMQTTAcknowledgements(node, owners)
+	require.NoError(t, err)
 	publisher, err := access.NewPublisher(access.PublisherOptions{Owners: owners, Messages: a.Messages()})
 	require.NoError(t, err)
-	handler, err := access.NewHandler(access.HandlerOptions{Namespace: "main", Sessions: sessions, Connections: connections, Owners: owners, Publisher: publisher})
+	handler, err := access.NewHandler(access.HandlerOptions{Namespace: "main", Sessions: sessions, Connections: connections, Owners: owners, Publisher: publisher, Acknowledgements: acks})
 	require.NoError(t, err)
+	opened := make(chan gt.Context, 16)
+	entry := &mqttOutboundCapture{Handler: handler, opened: opened}
+	received := make(chan *paho.Publish, 8)
 	registry := core.NewRegistry()
 	require.NoError(t, registry.RegisterTransport(transport.NewFactory()))
 	require.NoError(t, registry.RegisterPacketProtocol(adapter.New(wire.Limits{})))
-	server, err := core.NewServer(registry, &gt.Options{PacketHandler: handler, Listeners: []gt.ListenerOptions{{Name: "mqtt", Network: "tcp", Transport: "gnet", Protocol: "mqtt", Address: "127.0.0.1:0"}}})
+	server, err := core.NewServer(registry, &gt.Options{PacketHandler: entry, Listeners: []gt.ListenerOptions{{Name: "mqtt", Network: "tcp", Transport: "gnet", Protocol: "mqtt", Address: "127.0.0.1:0"}}})
 	require.NoError(t, err)
 	require.NoError(t, server.Start())
 	t.Cleanup(func() { require.NoError(t, server.Stop()) })
@@ -79,7 +84,7 @@ func TestMQTTGatewayPahoSingleNodeCluster(t *testing.T) {
 	dial := func(id, token string, will bool, max uint32) (*paho.Client, net.Conn, *paho.Connack, error) {
 		conn, e := (&net.Dialer{}).DialContext(ctx, "tcp", server.ListenerAddr("mqtt"))
 		require.NoError(t, e)
-		client := paho.NewClient(paho.ClientConfig{Conn: conn})
+		client := paho.NewClient(paho.ClientConfig{Conn: conn, EnableManualAcknowledgment: true, SendAcksInterval: time.Millisecond, OnPublishReceived: []func(paho.PublishReceived) (bool, error){func(p paho.PublishReceived) (bool, error) { received <- p.Packet; return true, nil }}})
 		t.Cleanup(func() {
 			_ = conn.Close()
 			select {
@@ -89,7 +94,8 @@ func TestMQTTGatewayPahoSingleNodeCluster(t *testing.T) {
 			}
 		})
 		expiry := uint32(60)
-		packet := &paho.Connect{ClientID: id, Username: "alice", Password: []byte(token), UsernameFlag: true, PasswordFlag: true, Properties: &paho.ConnectProperties{SessionExpiryInterval: &expiry, User: paho.UserProperties{{Key: "wk.device_flag", Value: "1"}}}}
+		receiveMax := uint16(1)
+		packet := &paho.Connect{ClientID: id, Username: "alice", Password: []byte(token), UsernameFlag: true, PasswordFlag: true, Properties: &paho.ConnectProperties{SessionExpiryInterval: &expiry, ReceiveMaximum: &receiveMax, User: paho.UserProperties{{Key: "wk.device_flag", Value: "1"}}}}
 		if max > 0 {
 			packet.Properties.MaximumPacketSize = &max
 		}
@@ -131,6 +137,13 @@ func TestMQTTGatewayPahoSingleNodeCluster(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows.Messages, 1)
 	require.Equal(t, "alice", rows.Messages[0].FromUID)
+	firstGateway := <-opened
+	delivery := prepareMQTTGatewayOutbound(t, ctx, node, read("paho"), rows.Messages[0], topic)
+	require.NoError(t, handler.SendQoS1(firstGateway, delivery))
+	firstDown := awaitMQTTGatewayPublication(t, ctx, received)
+	require.False(t, firstDown.Duplicate())
+	require.Equal(t, "committed", string(firstDown.Payload))
+	require.Equal(t, delivery.Exchange.PacketID, firstDown.PacketID)
 	second, _, ack, err := dial("paho", "secret", false, 0)
 	require.NoError(t, err)
 	require.True(t, ack.SessionPresent)
@@ -139,6 +152,21 @@ func TestMQTTGatewayPahoSingleNodeCluster(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("takeover did not physically close previous client")
 	}
+	secondGateway := <-opened
+	require.Error(t, handler.SendQoS1(firstGateway, delivery))
+	delivery.Owner = mqttGatewayOwner(read("paho"))
+	delivery.Redelivery = true
+	require.NoError(t, handler.SendQoS1(secondGateway, delivery))
+	resumedDown := awaitMQTTGatewayPublication(t, ctx, received)
+	require.True(t, resumedDown.Duplicate())
+	require.Equal(t, firstDown.PacketID, resumedDown.PacketID)
+	require.Equal(t, firstDown.Payload, resumedDown.Payload)
+	require.Equal(t, firstDown.Properties.User, resumedDown.Properties.User)
+	require.NoError(t, second.Ack(resumedDown))
+	require.Eventually(t, func() bool {
+		r, e := node.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadInflight, Namespace: "main", ClientID: "paho", SessionGeneration: delivery.Owner.SessionGeneration, PacketID: delivery.Exchange.PacketID})
+		return e == nil && len(r.Inflight) == 0 && r.Session != nil && r.Session.PendingMessages == 0 && r.Session.OutboundInflight == 0
+	}, 3*time.Second, time.Millisecond*10)
 	require.NoError(t, second.Disconnect(&paho.Disconnect{}))
 	offline("paho")
 	resumed, _, ack, err := dial("paho", "secret", false, 0)
@@ -173,5 +201,5 @@ func TestMQTTGatewayPahoSingleNodeCluster(t *testing.T) {
 	require.Error(t, err)
 	offline("small-connack")
 	require.Eventually(t, func() bool { return connections.Snapshot().Tracked == 0 && owners.Snapshot().Held == 0 }, 3*time.Second, 10*time.Millisecond)
-	t.Log("mqtt_gateway_evidence: client=Paho transport=gnet/TCP hash_slots=256 auth=true invalid_token_no_eviction=true committed_ack=true takeover=true resume=true will_decisions=true connack_rollback=true cleanup_joined=true")
+	t.Log("mqtt_gateway_evidence: client=Paho transport=gnet/TCP hash_slots=256 auth=true invalid_token_no_eviction=true committed_ack=true takeover=true resume=true will_decisions=true connack_rollback=true cleanup_joined=true outbound_resume_same_packet=true outbound_puback_slot_commit=true admission_and_content_reference=controlled product_listener=false")
 }

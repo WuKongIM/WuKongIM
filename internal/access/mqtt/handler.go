@@ -42,6 +42,8 @@ type HandlerOptions struct {
 	Connections ConnectionSupervisor
 	Owners      *runtime.Owners
 	Publisher   *Publisher
+	// Acknowledgements completes exact outbound exchanges; nil disables delivery.
+	Acknowledgements OutboundAcknowledgements
 	// ConnectTimeout bounds acquisition, default five seconds, maximum one minute.
 	ConnectTimeout time.Duration
 	// CleanupTimeout bounds rejected-candidate cleanup, default one second, max five.
@@ -52,7 +54,7 @@ type HandlerOptions struct {
 	Now func() time.Time
 }
 
-// Handler owns gateway mapping and handoff only. Subscription and delivery entry
+// Handler owns gateway mapping and handoff only. Subscription and scheduled delivery
 // remain unavailable; app must not expose product MQTT until all required paths exist.
 type Handler struct{ options HandlerOptions }
 
@@ -66,6 +68,11 @@ type connectionState struct {
 	mu              sync.Mutex
 	handshake       *runtime.Operation
 	opened, closing bool
+	// Only identity bindings survive enqueue; bodies belong to the bounded writer.
+	receiveMaximum    uint16
+	sent              map[uint16]sessioncase.AcknowledgementCommand
+	sending           bool
+	lastDeliveryOrder uint64
 }
 
 func NewHandler(o HandlerOptions) (*Handler, error) {
@@ -135,7 +142,7 @@ func (h *Handler) OnConnect(g gt.Context, packet any) (result *gt.PacketAuthResu
 	if connection.Owner.Validate() != nil || connection.Owner.Key != command.Key || connection.UID != command.UID || connection.DeviceFlag != command.DeviceFlag {
 		return reject(0x88), nil
 	}
-	state = &connectionState{connection: connection, gatewayID: g.Session.ID()}
+	state = &connectionState{connection: connection, gatewayID: g.Session.ID(), receiveMaximum: command.ReceiveMaximum}
 	if registerErr := h.options.Connections.Register(connection.Owner); registerErr != nil {
 		return reject(connectReason(registerErr)), nil
 	}
@@ -275,6 +282,9 @@ func (h *Handler) OnPacket(g gt.Context, packet any) (err error) {
 	}
 	if p, ok := packet.(*wire.Publish); ok {
 		return h.options.Publisher.Publish(g, s.connection, p)
+	}
+	if p, ok := packet.(*wire.Puback); ok {
+		return h.acknowledge(g, s, p)
 	}
 	op, beginErr := h.options.Owners.Begin(g.RequestContext, s.connection.Owner)
 	if beginErr != nil {

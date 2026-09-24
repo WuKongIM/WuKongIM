@@ -548,7 +548,13 @@ specification, runbook, report, or module documentation; link to them when neede
   match; a reused ID conflicts. Completion needs no current subscription grant,
   so ordinary unsubscribe preserves old exchanges. Absence is an explicit read
   result, never a delivery receipt; lost replies reconcile without double writes.
-  Entry send/packet binding and product dispatch remain required.
+  [Outbound gateway binding](../specs/mqtt-outbound-gateway.md) captures exact
+  exchange identities before enqueue, retains no bodies, and bounds connection
+  sends by Receive Maximum/1024. Concurrent sends yield; attempted orders cannot
+  retransmit on the same connection. Negative PUBACK completes; unknown IDs add no
+  credit. Writes and ACK failures close without discarding durable exchanges.
+  This adapter trusts caller admission/content/permission proof. Product scheduling,
+  listener composition and full recovery acceptance remain required.
 - Send permissions belong in `internal/usecase/message` before append;
   `pkg/channel` stays business-rule free. Mutable recipient metadata and delivery
   tags are authoritative at their owning Slot/Channel leaders. Remote caches must
