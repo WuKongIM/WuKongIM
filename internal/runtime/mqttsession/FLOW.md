@@ -47,9 +47,9 @@ leases, publish messages, or interpret MQTT packets.
    worker cohort. Renew requires a newer installed lease; disconnect keeps its
    original monotonic observation and first intent through exact cleanup retries.
 8. One replay loop scans distinct sources across led hash Slots. It retains at most
-   one finite journal-scan continuation per Slot; work/errors yield to later sources.
+   one finite recovery or retirement journal-scan continuation per Slot; work/errors yield to later sources.
    Cold passes rotate phases, targets and donor hints; durable storage owns progress.
-   Partial budgets preserve unstarted entries; invalid/late pages dispatch nothing.
+   Reverse scans pin source/authority/capture/floor and strictly decrease; partial budgets preserve unstarted entries. Invalid/late pages dispatch nothing; commit counts never prove cleanup.
 
 ## Invariants and Failure Semantics
 

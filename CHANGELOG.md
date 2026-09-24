@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Schedule MQTT replay retirement alongside bounded copy/recovery, and resume learner replication after original-prefix trim only with matching durable identity. Three-node reopen verifies applied retirement; product MQTT access remains under development. / MQTT 回放后台轮转复制、恢复与回收；原始前缀裁剪后，learner 仅在持久身份匹配时续传。三节点重开验证回收边界已应用，产品 MQTT 接入仍在开发。
+
 - Connect ordered MQTT consumer progress to bounded retirement selection and replicated decisions; ACK gaps and unknown registrations prevent unsafe reclamation. Automatic scheduling and product MQTT access remain under development. / MQTT 消费者水位接入有界回收选择和复制决策，乱序 ACK 缺口及未知订阅阻止越界回收；自动调度及产品接入仍在开发。
 
 - Propagate committed MQTT replay retirement to idle voters without waiting for another message; retries renew bounded native repair and preserve authority checks. Product MQTT access remains under development. / MQTT 回放回收提交后主动向空闲投票副本传播，幂等重试补发有界修复并保留权威校验，无需等待后续消息；产品接入仍在开发。

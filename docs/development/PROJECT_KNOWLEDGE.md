@@ -308,8 +308,11 @@ specification, runbook, report, or module documentation; link to them when neede
   retention each turn, validates a bounded whole-anchor selection and commits it
   through those ports. Continuations pin capture/floor, retaining increased
   permission conservatively while decreases or authority changes yield. App
-  composes real Node ports; automatic retirement scheduling remains required.
-  Neither entry applies physical cleanup.
+  composes real Node ports. [Automatic maintenance](../specs/mqtt-retirement-scheduling.md)
+  rotates copy/recovery/retirement through the same bounded worker; phase hints
+  cannot mix. Reverse continuations pin capture/floor and strictly decrease.
+  Commit counts are operation observations, never replica cleanup proof. Reopened
+  three-node stores independently verify retired baselines. No new table/wire is needed.
   [Whole-anchor selection](../specs/mqtt-retirement-anchor-selection.md) scans at
   most 64 historical journals in one pinned view, below the captured anchor and
   consumer floor. Verified backward cursors survive restart/restore; a floor
@@ -440,7 +443,11 @@ specification, runbook, report, or module documentation; link to them when neede
   yield to later sources; cold passes rotate phases, targets and donor hints.
   Partial budgets preserve unstarted entries, and source removal/Slot loss drops
   hints. Stop joins its exact run before restart/restore; three-node composition
-  verifies automatic learner recovery. Active migration probes attach optional
+  verifies automatic learner recovery. After original-prefix trim, native repair
+  may advance only after a bounded follower probe matches an independent local
+  exact identity under the unchanged frontier. LEO alone does not prove HW; the
+  final proposal still carries missing commitment. This adds neither votes nor
+  authority. Active migration probes attach optional
   replica-local readiness: a pinned read binds captured HW/latest committed anchor
   to independent replay coverage, with fresh complete placement/write-fence checks.
   Absent/unsupported evidence is explicit; source copied-through is never coverage.

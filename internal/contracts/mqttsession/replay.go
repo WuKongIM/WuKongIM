@@ -26,6 +26,8 @@ type ReplayCursor struct {
 	NextTarget int
 	// RepairNext gives replica recovery a turn after every attempted copy.
 	RepairNext bool
+	// Retirement is exclusive with Targets and pins one finite reverse scan.
+	Retirement ReplayRetirementCursor
 }
 
 // ReplayStepResult acknowledges only this bounded operation. TargetComplete
@@ -34,7 +36,11 @@ type ReplayCursor struct {
 type ReplayStepResult struct {
 	// ContinueScan requests continuation of this exact finite journal scan.
 	// Import, completion and failed donor rounds yield to another source.
-	ContinueScan                       bool
+	ContinueScan bool
+	// ContinueRetirement is exclusive with ContinueScan and every durable result.
+	ContinueRetirement bool
+	// RetirementCommitted includes idempotent decisions, never replica cleanup.
+	RetirementCommitted                bool
 	Next                               ReplayCursor
 	Target                             ch.NodeID
 	Anchored, Repaired, TargetComplete bool

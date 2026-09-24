@@ -19,6 +19,7 @@ import (
 	sessioncase "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/user"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	gr "github.com/WuKongIM/WuKongIM/pkg/goroutine"
@@ -90,7 +91,7 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 		require.NoError(t, err)
 		sessions = append(sessions, s)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	started := make(chan error, 3)
 	for _, n := range nodes {
@@ -274,7 +275,7 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	for _, replica := range runtimeMeta.Replicas {
 		require.NoError(t, nodes[0].ApplyChannelMeta(ctx, replica, runtimeMeta))
 	}
-	progress := verifyMQTTConsumerProgress(t, ctx, nodes, resumed.Owner, prepared, ids)
+	progress := verifyMQTTConsumerProgress(t, ctx, nodes, resumed.Owner, prepared, ids, plan.Anchor)
 	require.NoError(t, nodes[0].RemoveChannelSubscribers(ctx, id.ID, 2, []string{"alice"}, 2))
 	_, err = sources.Prepare(ctx, resumed.Owner, topic)
 	require.ErrorIs(t, err, sessioncase.ErrSubscriptionDenied)
@@ -287,5 +288,33 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	require.Equal(t, meta.MQTTBindingRemoving, ended.Binding.Stage)
 	require.Equal(t, meta.MQTTBindingSessionEnded, ended.Binding.ReleaseReason)
 	require.Equal(t, prepared.Binding.ProtectionRevision, ended.Binding.ProtectionRevision)
+	// Reopen each stopped replica and inspect its own durable decision/coverage.
+	// These read-only checks cannot apply retirement on the worker's behalf.
+	for i, node := range nodes {
+		require.NoError(t, node.Stop(ctx))
+		factory := channelstore.NewMessageDBFactory(filepath.Join(rootDir, fmt.Sprintf("node-%d", i+1), "messages"))
+		func() {
+			defer factory.Close()
+			store, e := factory.ChannelStore(ch.ChannelKeyForID(id), id)
+			require.NoError(t, e)
+			defer store.Close()
+			state, e := store.Load(ctx)
+			require.NoError(t, e)
+			t.Logf("mqtt_retirement_reopen: replica=%d state=%+v", i+1, state)
+			decision, found, e := store.(channelstore.MQTTReplayLatestRetirementReader).LoadLatestMQTTReplayRetirement(ctx, prepared.Binding.Key.Owner.Generation)
+			require.NoError(t, e)
+			require.True(t, found, "replica %d must durably learn the retirement decision", i+1)
+			require.Equal(t, plan.Anchor.Anchor, decision.Retirement.Anchor)
+			reader := store.(channelstore.MQTTReplayReadinessReader)
+			_, e = reader.ReadMQTTReplayReadiness(ctx, plan.Anchor.Manifest.LastOffset)
+			require.Error(t, e, "the applied newer baseline cannot be used at historical HW on replica %d", i+1)
+			ready, e := reader.ReadMQTTReplayReadiness(ctx, decision.Manifest.LastOffset)
+			require.NoError(t, e)
+			require.True(t, ready.Covered, "replica %d retains valid coverage after automatic retirement", i+1)
+			_, e = store.(channelstore.MQTTReplayAnchorTransfer).ExportMQTTReplayAnchor(ctx, plan.Anchor.Manifest.LastOffset, ch.MQTTReplayRange{Generation: prepared.Binding.Key.Owner.Generation, From: plan.Anchor.Anchor.StartAfter + 1, Through: plan.Anchor.Anchor.Through, Limit: 256, MaxBytes: 1 << 20})
+			require.Error(t, e, "replica %d must refuse retired content without applying GC during verification", i+1)
+		}()
+	}
+	t.Log("mqtt_automatic_retirement_evidence: background_first_commit=true all_replica_baselines_applied=true independent_disk_reopen=true historical_cut_rejected=true current_coverage=true physical_compaction_unasserted=true product_listener=false")
 	t.Log("mqtt_source_preparation_evidence: nodes=3 hash_slots=256 tcp=true disk=true remote_channel_protection=true cursor_commit_reply_lost=true owner_1_to_3=true original_boundary_preserved=true subscription_preparing_before_controlled_window_admission=true permission_incarnation=controlled distinct_source_discovery=true replay_turn_coordinator=true learner_content_recovered=true automatic_scheduler=true source_release_all_replicas=true original_trim=true write_fenced_recovery=true writes_remain_fenced=true session_end_retained_removal=true full_projection=false product_listener=false")
 }

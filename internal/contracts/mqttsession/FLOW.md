@@ -25,8 +25,8 @@ runtime. It owns no storage, routing, packet or socket behavior.
 4. Carry bounded per-replica scan hints and cold scheduling passes without turning
    them into durable evidence; explicit target completion confirms original-source
    release, never shared-content GC, readiness or subscription admission.
-5. Retirement continuations hold one immutable capture and conservative floor;
-   each turn must revalidate consumers. A committed decision is not replica cleanup.
+5. Retirement continuations are exclusive with recovery hints and hold one immutable
+   capture/floor; each turn revalidates consumers. Commit observations are not replica cleanup.
 
 ## Invariants and Failure Semantics
 

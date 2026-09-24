@@ -51,7 +51,7 @@ no packet, concrete cluster/gateway adapter, worker or shared replay storage.
 8. Group preparation registers an unknown binding before fresh source confirmation.
    It fixes one start, initializes the Session cursor, then activates the binding.
    Lost replies/resume preserve that start; this is no subscription completion receipt.
-9. Replay alternates bounded copy/anchor admission and recovery under fresh placement.
+9. Replay maintenance rotates bounded copy/anchor admission, recovery and retirement under fresh placement.
    Targets pin anchors and scan/donor hints; placement resets hints and cold passes rotate work.
    Fenced turns only recover existing anchors; absent anchors yield without copying.
    Recovery applies committed retirement and releases sources; pending cleanup yields without granting new GC, readiness or SUBACK authority.
@@ -61,7 +61,7 @@ no packet, concrete cluster/gateway adapter, worker or shared replay storage.
     offline/absent state cannot discharge responsibility or authorize content GC.
 11. Retention captures an accepted anchor before the strict minimum-consumer read.
     Retirement reruns this plan per turn, selects whole anchors and submits a routed decision; unknown/removing obligations limit the floor.
-    Finite continuations retain the original capture/floor while fresh permission covers it; changed authority or lower floors yield. No local GC is granted.
+    Finite continuations retain capture/floor while fresh permission covers it; changed authority/lower floors yield. Maintenance keeps phase hints separate and preserves replica rotation; no local GC is granted.
 
 ## Invariants and Failure Semantics
 

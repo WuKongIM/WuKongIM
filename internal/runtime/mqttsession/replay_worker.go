@@ -9,6 +9,7 @@ import (
 	"time"
 
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession"
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	gr "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 )
@@ -36,7 +37,9 @@ type ReplayStepper interface {
 type ReplayObservation struct {
 	Pages, Visited, Attempts, Failures           int
 	Anchored, Repaired, Completed, Continuations int
-	Duration                                     time.Duration
+	// RetirementCommits includes idempotent decisions, not completed replica GC.
+	RetirementCommits int
+	Duration          time.Duration
 }
 
 type ReplayWorkerOptions struct {
@@ -275,8 +278,11 @@ func (w *ReplayWorker) sweep(parent context.Context, state *replayScanState) (ou
 			if e != nil {
 				out.Failures++
 			} else {
-				if step.ContinueScan {
+				if step.ContinueScan || step.ContinueRetirement {
 					next, ok := continueReplayScan(source, cursor, step)
+					if step.ContinueRetirement {
+						next, ok = continueRetirementScan(source, cursor, step)
+					}
 					if ok {
 						scan.pending, scan.cursor = source, next
 						out.Continuations++
@@ -293,6 +299,9 @@ func (w *ReplayWorker) sweep(parent context.Context, state *replayScanState) (ou
 					}
 					if step.TargetComplete {
 						out.Completed++
+					}
+					if step.RetirementCommitted {
+						out.RetirementCommits++
 					}
 				}
 			}
@@ -334,7 +343,7 @@ func validReplaySourcePage(q meta.MQTTRead, r meta.MQTTReadResult) bool {
 // move and its scan must advance; changed placement ends the visit instead.
 func continueReplayScan(source meta.MQTTBindingOwner, previous contract.ReplayCursor, result contract.ReplayStepResult) (contract.ReplayCursor, bool) {
 	next := result.Next
-	if !result.ContinueScan || result.Anchored || result.Repaired || result.TargetComplete || next.Source != source || next.Pass != previous.Pass || next.Authority == [32]byte{} || len(next.Targets) == 0 || len(next.Targets) > 256 || next.NextTarget < 0 || next.NextTarget >= len(next.Targets) {
+	if !result.ContinueScan || result.ContinueRetirement || result.RetirementCommitted || next.Retirement != (contract.ReplayRetirementCursor{}) || previous.Retirement != (contract.ReplayRetirementCursor{}) || result.Anchored || result.Repaired || result.TargetComplete || next.Source != source || next.Pass != previous.Pass || next.Authority == [32]byte{} || len(next.Targets) == 0 || len(next.Targets) > 256 || next.NextTarget < 0 || next.NextTarget >= len(next.Targets) {
 		return contract.ReplayCursor{}, false
 	}
 	at := (next.NextTarget + len(next.Targets) - 1) % len(next.Targets)
@@ -354,5 +363,29 @@ func continueReplayScan(source meta.MQTTBindingOwner, previous contract.ReplayCu
 	next.Targets = slices.Clone(next.Targets)
 	next.RepairNext = true
 	next.NextTarget = at
+	return next, true
+}
+
+// continueRetirementScan retains only a strictly decreasing finite journal scan.
+// Proofs are immutable scheduling bounds; the next usecase turn rereads permission.
+func continueRetirementScan(source meta.MQTTBindingOwner, previous contract.ReplayCursor, result contract.ReplayStepResult) (contract.ReplayCursor, bool) {
+	next, zero := result.Next, contract.ReplayCursor{}
+	r := next.Retirement
+	if !result.ContinueRetirement || result.ContinueScan || result.RetirementCommitted || result.Anchored || result.Repaired || result.TargetComplete || result.Target != 0 || next.Source != source || next.Pass != previous.Pass || next.Authority == [32]byte{} || len(next.Targets) != 0 || next.NextTarget != 0 || next.RepairNext || r.Source != source || r.Authority != next.Authority {
+		return zero, false
+	}
+	q := ch.MQTTReplayRetirementScan{Generation: source.Generation, CapturedAnchor: r.Captured.Manifest.LastOffset, Through: r.Through, Limit: 1}
+	page := ch.MQTTReplayRetirementSelection{Captured: r.Captured, BeforeAnchor: r.BeforeAnchor}
+	if !page.ValidFor(q) {
+		return zero, false
+	}
+	old := previous.Retirement
+	if old == (contract.ReplayRetirementCursor{}) {
+		if previous.Source != (meta.MQTTBindingOwner{}) || previous.Authority != [32]byte{} || len(previous.Targets) != 0 || previous.NextTarget != 0 || previous.RepairNext {
+			return zero, false
+		}
+	} else if previous.Source != source || previous.Authority != next.Authority || old.Source != r.Source || old.Authority != r.Authority || old.Captured != r.Captured || old.Through != r.Through || old.BeforeAnchor <= r.BeforeAnchor || len(previous.Targets) != 0 || previous.NextTarget != 0 || previous.RepairNext {
+		return zero, false
+	}
 	return next, true
 }

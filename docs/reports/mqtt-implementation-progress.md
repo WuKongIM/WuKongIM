@@ -3768,3 +3768,68 @@ Final binding removal, complete subscription/inbox projection, permission
 ordering, delivery/ACK entry, unavailable-owner recovery, Will execution,
 product lifecycle/configuration, offline tools and process/load acceptance remain
 required. This completes one producer capability, not the full active goal.
+
+## Automatic retirement and repair after original-prefix trim
+
+The existing replay worker now uses `ReplayMaintenance` to rotate bounded copy,
+recovery and retirement. Mapping the original two-phase sequence preserves
+replica/donor rotation. A reverse retirement continuation has its own body-free
+cursor, pins capture/floor/source/authority/pass and must strictly decrease.
+Each Slot still retains at most one continuation; durable work/errors yield.
+Aggregate commit observations include idempotent decisions and never prove GC.
+
+The real three-node scenario exposed a native prerequisite: after original
+history was trimmed and a new authority installed, learner repair restarted at
+position one and stayed there. Reopened voters had LEO/HW 8, while the learner
+remained at 5 without the retirement decision. Native repair now uses one bounded
+follower probe and an independent local identity read after an unavailable
+fetch. Only an exact matching tail under an unchanged local frontier advances
+the hint. Unknown, malformed, ahead or mismatched evidence cannot skip content.
+An already-present final proposal still needs a committed checkpoint or replay;
+the probe adds no authority and learners remain non-voting.
+
+Validation (2026-09-24):
+
+- Scheduler types/wiring first failed in
+  `/tmp/mqtt-retirement-scheduling-red.log` and
+  `/tmp/mqtt-retirement-scheduling-app-red.log`. The real-disk native regression
+  failed before the repair change in `/tmp/mqtt-retirement-scheduling-native-red.log`;
+  original app evidence is `/tmp/mqtt-retirement-scheduling-app-diag.log`.
+- `GOWORK=off go test -p 2 -race -tags=integration ./pkg/channel/replication
+  -run '^TestNativeLearnerCatchesUpUnderWriteFence$' -count=1 -timeout=30s -v`:
+  passed, 1.874 s; `/tmp/mqtt-retirement-scheduling-native-green.log`. Corrupted
+  tail identities block progress, matching tails resume, later commits arrive,
+  and missing voter quorum still rejects writes. The fixture retries explicit
+  incomplete convergence/read-proof results before asserting installation.
+- `GOWORK=off go test -p 2 -race -tags=integration ./internal/app -run
+  '^TestMQTTGroupSourcePreparationThreeNodeRecovery$' -count=1 -timeout=120s -v`:
+  passed, 15.094 s; `/tmp/mqtt-retirement-scheduling-app-green.log`. Only managed
+  workers produce the first decision. Real ACK gaps and unknown registrations
+  block it; all three independently reopened stores contain the decision and
+  refuse retired export while retaining current coverage. No verifier applies GC.
+- `GOWORK=off go test -p 2 -race ./internal/contracts/mqttsession
+  ./internal/usecase/mqttsession ./internal/runtime/mqttsession ./internal/app
+  ./pkg/channel/replication -count=1 -timeout=180s`: passed; contracts compiled,
+  usecase 14.013 s, runtime 1.661 s, app 4.477 s, replication 2.915 s;
+  `/tmp/mqtt-retirement-scheduling-race.log`.
+- `GOWORK=off go test -p 2 -race -tags=integration ./pkg/channel/replication
+  ./internal/runtime/mqttsession -count=1 -timeout=180s`: passed, 5.412/3.038 s;
+  `/tmp/mqtt-retirement-scheduling-integration.log`. Includes joined stop/restart,
+  paged learner catch-up/promotion and MQTT control recovery.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-retirement-scheduling-flow.log`. Generated index unchanged.
+
+Frozen context and failure inventory are in
+[mqtt-retirement-scheduling.md](../specs/mqtt-retirement-scheduling.md).
+No table/wire format is added in this slice. Physical compaction is not asserted.
+Final binding removal, subscription/inbox projection, delivery/ACK entry, owner
+recovery, Will execution, product lifecycle/configuration, offline tools and
+process/load acceptance remain required. The full MQTT goal remains active.
+
+Next-step inspection: final binding removal must preserve source cleanup
+discoverability. The existing distinct-source scan derives work from non-Removed
+binding retention entries; dropping the last binding also drops that scheduling
+entry. Removal therefore needs both its separate revision-fenced source-release
+acknowledgement and durable discovery of unfinished source cleanup. Do not treat
+a Removed CAS or the absence of bindings as proof that every replica completed
+retirement. No removal code or changed removal contract was added in this slice.

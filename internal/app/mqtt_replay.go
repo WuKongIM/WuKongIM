@@ -46,6 +46,14 @@ func newMQTTReplayWorker(node *cluster.Node, ids interface{ Next() uint64 }, opt
 	if err != nil {
 		return nil, err
 	}
-	options.Source, options.Stepper = node, coordinator
+	retirement, err := newMQTTReplayRetirement(node, ids)
+	if err != nil {
+		return nil, err
+	}
+	maintenance, err := sessioncase.NewReplayMaintenance(coordinator, retirement)
+	if err != nil {
+		return nil, err
+	}
+	options.Source, options.Stepper = node, maintenance
 	return runtime.NewReplayWorker(options)
 }
