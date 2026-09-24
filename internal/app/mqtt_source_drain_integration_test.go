@@ -18,11 +18,16 @@ import (
 
 type mqttDrainInterruptedPreparation struct {
 	*cluster.Node
+	beforeWrite  bool
 	binding      meta.MQTTSourceBinding
 	afterBinding func(context.Context, meta.MQTTSourceBinding) error
 }
 
 func (s *mqttDrainInterruptedPreparation) CompareAndSwapMQTTSourceBinding(ctx context.Context, rev uint64, b meta.MQTTSourceBinding) (meta.MQTTSourceBindingResult, error) {
+	if s.beforeWrite {
+		s.binding = b
+		return meta.MQTTSourceBindingResult{}, context.DeadlineExceeded
+	}
 	r, err := s.Node.CompareAndSwapMQTTSourceBinding(ctx, rev, b)
 	if err == nil && r.Status == meta.MQTTSessionCASApplied && s.afterBinding != nil {
 		if err = s.afterBinding(ctx, b); err != nil {
@@ -41,7 +46,7 @@ func (s *mqttDrainInterruptedPreparation) CompareAndSwapMQTTSourceBinding(ctx co
 // controlled fixture until the complete delivery projection is composed.
 func verifyMQTTSourceDrain(t *testing.T, ctx context.Context, nodes []*cluster.Node, owners []*runtime.Owners, sessions []*sessioncase.App, authorization sessioncase.SubscriptionAuthorizer, protector sessioncase.SourceProtector) {
 	t.Helper()
-	for _, mode := range []string{"backlog", "cancel"} {
+	for _, mode := range []string{"backlog", "cancel", "before_binding"} {
 		connection, err := sessions[0].Connect(ctx, sessioncase.ConnectCommand{Key: contract.Key{Namespace: "main", ClientID: "drain-" + mode}, UID: "alice", Token: "secret", DeviceFlag: 1, SessionExpirySec: 60, ReceiveMaximum: 16, MaxPacketBytes: 1 << 20, CloseTransport: func(context.Context) error { return nil }})
 		require.NoError(t, err)
 		o := connection.Owner
@@ -53,9 +58,9 @@ func verifyMQTTSourceDrain(t *testing.T, ctx context.Context, nodes []*cluster.N
 		request := sessioncase.SubscriptionRequest{Topic: "wk/v1/groups/Z3JvdXA/messages", TargetKind: meta.MQTTSubscriptionGroup, TargetID: "group", RequestedQoS: 1}
 		_, err = subs.Subscribe(ctx, o, request)
 		require.ErrorIs(t, err, sessioncase.ErrEvidence)
-		interrupted := &mqttDrainInterruptedPreparation{Node: nodes[0]}
+		interrupted := &mqttDrainInterruptedPreparation{Node: nodes[0], beforeWrite: mode == "before_binding"}
 		var metadata sessioncase.GroupSourceMetadata = nodes[0]
-		if mode == "cancel" {
+		if mode != "backlog" {
 			metadata = interrupted
 		}
 		sources, err := sessioncase.NewGroupSources(sessioncase.GroupSourceOptions{Store: metadata, Owners: owners[0], Authorization: authorization, Sources: protector})
@@ -63,9 +68,14 @@ func verifyMQTTSourceDrain(t *testing.T, ctx context.Context, nodes []*cluster.N
 		prepared, err := sources.Prepare(ctx, o, request.Topic)
 		var key meta.MQTTSourceBindingKey
 		var before []meta.MQTTInflight
-		if mode == "cancel" {
+		if mode != "backlog" {
 			require.ErrorIs(t, err, context.DeadlineExceeded)
 			key = interrupted.binding.Key
+			if mode == "before_binding" {
+				missing, e := nodes[1].ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadSourceBinding, BindingKey: key})
+				require.NoError(t, e)
+				require.Empty(t, missing.Bindings, "native protection succeeded but registration never committed")
+			}
 		} else {
 			require.NoError(t, err)
 			key = prepared.Binding.Key
@@ -112,7 +122,7 @@ func verifyMQTTSourceDrain(t *testing.T, ctx context.Context, nodes []*cluster.N
 			racing, e := sessioncase.NewSourceDrain(sessioncase.SourceDrainOptions{Store: interrupted, Owners: owners[0], Sources: protector})
 			require.NoError(t, e)
 			projection.remove = func(c context.Context, r sessioncase.SubscriptionProjectionRequest) (sessioncase.SubscriptionProjectionReceipt, error) {
-				_, e := racing.Seal(c, r.Owner, key)
+				_, e := racing.SealGroup(c, r.Owner, r.Subscription.Topic)
 				return mqttSubscriptionFixtureReceipt(r), e
 			}
 			_, err = subs.Unsubscribe(ctx, o, request.Topic)
@@ -126,10 +136,38 @@ func verifyMQTTSourceDrain(t *testing.T, ctx context.Context, nodes []*cluster.N
 			require.Equal(t, before[0].PacketID, exchanges.Inflight[0].PacketID)
 			before = exchanges.Inflight
 		}
+		if mode == "before_binding" {
+			// Discovery must register durable responsibility even if the caller
+			// loses that reply. A different owner then resumes the same intent.
+			interrupted.beforeWrite = false
+			uncertain, e := sessioncase.NewSourceDrain(sessioncase.SourceDrainOptions{Store: interrupted, Owners: owners[0], Sources: protector})
+			require.NoError(t, e)
+			projection.remove = func(c context.Context, r sessioncase.SubscriptionProjectionRequest) (sessioncase.SubscriptionProjectionReceipt, error) {
+				_, e := uncertain.SealGroup(c, r.Owner, r.Subscription.Topic)
+				return mqttSubscriptionFixtureReceipt(r), e
+			}
+			_, e = subs.Unsubscribe(ctx, o, request.Topic)
+			require.ErrorIs(t, e, context.DeadlineExceeded)
+			pending, e := nodes[1].ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadSourceBinding, BindingKey: key})
+			require.NoError(t, e)
+			require.Len(t, pending.Bindings, 1)
+			require.False(t, pending.Bindings[0].BoundaryKnown)
+			require.Equal(t, key.SubscriptionGeneration, pending.Bindings[0].IntentRevision)
+			resumed, e := sessions[2].Connect(ctx, sessioncase.ConnectCommand{Key: o.Key, UID: "alice", Token: "secret", DeviceFlag: 1, SessionExpirySec: 60, ReceiveMaximum: 16, MaxPacketBytes: 1 << 20, CloseTransport: func(context.Context) error { return nil }})
+			require.NoError(t, e)
+			require.Equal(t, o.SessionGeneration, resumed.Owner.SessionGeneration)
+			_, e = drain.SealGroup(ctx, o, request.Topic)
+			require.Error(t, e)
+			o = resumed.Owner
+			subs, e = sessioncase.NewSubscriptions(sessioncase.SubscriptionOptions{Store: nodes[2], Owners: owners[2], Authorization: authorization, Projection: projection})
+			require.NoError(t, e)
+			drain, e = newMQTTSourceDrain(nodes[2], owners[2], protector)
+			require.NoError(t, e)
+		}
 		var sealed sessioncase.SourceDrainResult
 		projection.remove = func(c context.Context, r sessioncase.SubscriptionProjectionRequest) (sessioncase.SubscriptionProjectionReceipt, error) {
 			var e error
-			sealed, e = drain.Seal(c, r.Owner, key)
+			sealed, e = drain.SealGroup(c, r.Owner, r.Subscription.Topic)
 			return mqttSubscriptionFixtureReceipt(r), e
 		}
 		_, err = subs.Unsubscribe(ctx, o, request.Topic)

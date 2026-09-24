@@ -290,6 +290,12 @@ specification, runbook, report, or module documentation; link to them when neede
   closed/replaced intent and cannot reset a cursor; unknown starts still need
   replicated protection. Old peers reject op 3. Same-topic replacement and lost
   replies retain the original seal; a newer closure revision may equal stored intent.
+  [Group drain discovery](../specs/mqtt-group-removal-discovery.md) reads the
+  exact closed intent and at most two cursors. Existing cursors pin the original
+  source without another protection call. Missing preparation registers unknown
+  responsibility using the original subscription generation/revision, then seals;
+  it cannot recreate a missing binding behind an initialized cursor. Unattended
+  ended-Session discovery and native source deactivation remain separate work.
   [Retention planning](../specs/mqtt-replay-retention-planning.md) captures the
   committed anchor before reading the first strict consumer-floor page. New
   bindings register unknown responsibility before confirming their fresh tail;

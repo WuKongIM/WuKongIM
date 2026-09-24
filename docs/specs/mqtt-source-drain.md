@@ -74,3 +74,8 @@ Source `ac2b1fbaf087a09796ff210f9e64cd38e6d6dd04`; SHA-256:
 - `internal/app/FLOW.md`: `dad6bb21eebd4d47d7c9338af99252caccf385a8dea0797f355c6aaf2df2b7a0`
 - `pkg/db/FLOW.md`: `3560287fef837ef40dcf04754ac1037a28ec85d26dae7748f465ab9524c624fe`
 - `pkg/db/meta/FLOW.md`: `1e820ab2a012ae730f25988f9ed603258799ea8601ab95e48e89bb766d8c2f87`
+
+`SealGroup` now supplies bounded discovery for current closed group intent,
+including preparation interrupted before its first binding. See
+[group removal discovery](mqtt-group-removal-discovery.md); exact-source `Seal`
+continues to reject a missing binding rather than infer empty work.

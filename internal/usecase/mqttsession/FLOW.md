@@ -44,7 +44,7 @@ no packet, concrete cluster/gateway adapter, worker or shared replay storage.
 7. Subscription establishment commits Preparing, checks projection/current child
    and permission, then Active. Removal commits Removing before SourceDrain fixes
    the accounting end and releases only unadmitted backlog; exchanges survive.
-   Interrupted preparation explicitly initializes a cancellation cursor after protection.
+   Group removal discovers its original cursor or registers missing preparation before protected cancellation Init.
    Resume preserves intent; replacement keeps generation/operation. See the [failure inventory](../../../docs/specs/mqtt-subscription-orchestration.md).
 8. Group preparation registers an unknown binding before fresh protection confirmation,
    fixes one start, initializes the cursor and activates the binding. Retries preserve that start; this is no subscription completion receipt.

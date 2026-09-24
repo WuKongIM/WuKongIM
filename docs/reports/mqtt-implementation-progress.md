@@ -9,7 +9,8 @@ entry are implemented. Real Paho/TCP
 integration passes on a single-node cluster with 256 hash Slots. Distributed
 replay activation/copy/anchor and bounded recovery steps now pass three-node
 runtime integration. Bounded copy/recovery/retirement scheduling and exact binding
-removal, unsubscribe sealing and cancelled-preparation recovery are implemented.
+removal, unsubscribe sealing and live-owner cancelled-preparation discovery
+(including before the first binding) are implemented.
 Complete subscription/delivery, source deactivation,
 Will execution, product/restore composition and capacity
 acceptance remain outstanding. No passing product E2E
@@ -4005,3 +4006,43 @@ safe tombstone cleanup. Complete delivery/ACK entry, unavailable-owner recovery,
 Will execution, product lifecycle/configuration, offline tooling and process/load
 acceptance remain required. Product MQTT admission is unavailable; the full goal
 remains active.
+
+
+## Group cancellation before the first binding
+
+`SourceDrain.SealGroup` now resolves the exact current closed group intent and
+at most two cursors. Existing cursors identify the original source without
+another protection call. If preparation stopped before both cursor and binding,
+replicated protection resolves the source and a new unknown binding records the
+original Preparing revision (`Subscription.Generation`), preserving the later
+closure witness. The existing drain fixes the cancellation boundary and seals.
+Current intent is rechecked before registration and after sealing; no receive
+authorization is needed. Missing bindings behind initialized cursors, extra
+cursors, foreign sources and changed intent fail without resetting progress.
+No new schema, command, worker, subscriber scan or per-source cache is added.
+
+Validation (2026-09-24):
+
+- Tests preceded the implementation: missing `SealGroup` produced RED at
+  `/tmp/mqtt-group-drain-red.log`; focused GREEN took 2.907 s at
+  `/tmp/mqtt-group-drain-green.log`.
+- Full related race suites passed: MQTT usecase 24.155 s and app 4.839 s,
+  `/tmp/mqtt-group-drain-race.log`; existing Darwin linker warnings only.
+- `GOWORK=off go test -p 2 -race -tags=integration ./internal/app -run
+  TestMQTTGroupSourcePreparationThreeNodeRecovery -count=1 -timeout=120s -v`
+  passed in 19.019 s; `/tmp/mqtt-group-drain-app.log`. Real three-node TCP/disk
+  with 256 hash Slots verifies native protection with no first binding, uncertain
+  cleanup registration, independent remote reads, owner transfer from 1 to 3,
+  stale-owner rejection and successful cancellation. Existing concurrent-ACK and
+  inflight-preservation coverage also passes. Establishment/window admission
+  remain controlled; no product listener or product E2E claim is made.
+
+Named `flow-doc-contracts` passed: 86 compliant, zero invalid, nine existing
+warnings; `/tmp/mqtt-group-drain-flow.log`. Formatting and diff checks are clean.
+
+Frozen source/rules and failure inventory are in
+[group removal discovery](../specs/mqtt-group-removal-discovery.md).
+Unattended ended-Session discovery before first registration, full group/inbox
+establishment and shared-content readiness, source deactivation/pruning, delivery
+and ACK entry, owner recovery, Will execution, product configuration/lifecycle,
+offline tooling and process/load acceptance still remain. The full goal is active.
