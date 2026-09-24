@@ -81,6 +81,25 @@ func (s *Service) planMQTTReplay(ctx context.Context, q ch.MQTTReplayPlanRequest
 	if !p.ValidFor(q) {
 		return empty, ch.ErrLogConflict
 	}
+	if p.HasAnchor && m.Leader == s.localNode {
+		if s.replicaCommitRefresh == nil {
+			return empty, ch.ErrInvalidConfig
+		}
+		// An idle anchor can be durable on a voter whose committed checkpoint
+		// still lags. Re-drive native propagation even after lost commit replies
+		// or a restart, without treating this captured plan's HW as authority.
+		// This bounded hint also works under an unchanged write fence; recovery
+		// must subsequently verify each replica's own committed journal/content.
+		if err = s.replicaCommitRefresh.RequestCommittedReplicaRefresh(ctx, mqttReplicaAuthority(m)); err != nil {
+			return empty, err
+		}
+		if err = ctx.Err(); err != nil {
+			return empty, err
+		}
+		if err = s.recheckMQTTRepairAuthority(ctx, authorityRequest, m); err != nil {
+			return empty, err
+		}
+	}
 	return p, nil
 }
 

@@ -58,7 +58,8 @@ It does not own product business policy or expose engine-specific APIs.
    Will records outlive Session replacement. Session transitions and quota endings
    resolve old Will atomically; new ownership may install a new configuration.
    Delays, execution leases and receipts are distinct; bodies are bounded/redacted.
-   Bounded MQTT reads pin Session, children and indexes; private snapshots never replace canonical writable shards.
+   Bounded MQTT reads pin Session, children and indexes; kind 19 pins channel/member/sequence without the live channel cache.
+   Private snapshots never replace canonical writable shards; membership evidence is identity/high-water checked, not a policy grant.
 
 ## Invariants and Failure Semantics
 - Event sequence pages scan a pinned native iterator and retain a bounded heap,
@@ -96,5 +97,4 @@ It does not own product business policy or expose engine-specific APIs.
 - [Metadata database](db.go), [Schema registry](schema.go), [Transaction helpers](tx_helpers.go), [Snapshots](snapshot.go)
 
 ## Update Triggers
-
 Update when ownership, batches, memberships, indexes, source fences, runtime/event state, snapshots, restore or caches change.

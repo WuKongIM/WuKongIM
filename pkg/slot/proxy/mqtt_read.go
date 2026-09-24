@@ -216,6 +216,13 @@ func decodeMQTTReadReply(body []byte, req mqttReadRPC) (mqttReadReply, error) {
 
 func validateMQTTReadShape(q metadb.MQTTRead, r metadb.MQTTReadResult) error {
 	bad := metadb.ErrCorruptValue
+	if q.Kind == metadb.MQTTReadMembership {
+		if metadb.ValidateMQTTMembershipView(q.MembershipKey, r.Membership) != nil {
+			return bad
+		}
+	} else if r.Membership != nil {
+		return bad
+	}
 	ns, client, sessionOwned := q.SessionIdentity()
 	if r.Session != nil && (!sessionOwned || r.Session.Namespace != ns || r.Session.ClientID != client || metadb.ValidateMQTTSession(*r.Session) != nil) {
 		return bad

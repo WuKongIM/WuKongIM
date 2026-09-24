@@ -62,6 +62,7 @@ plugin, migration, message projections, and MQTT session state.
    Read kind 16 discovers active Channel sources; kind 17 includes retained tombstones for replay cleanup.
    Both use bounded encoded-order cursors and unchanged older JSON; old peers reject kind 17, and discovery authorizes no GC.
    Matched nodes use command 69 operation 4 for qualified charges and read kind 18 for pinned Session/cursor/head.
+   Kind 19 routes membership by Channel ID and pins flags/member/incarnation high water; old peers reject it, older JSON stays unchanged.
 
 ## Invariants and Failure Semantics
 
@@ -96,5 +97,4 @@ plugin, migration, message projections, and MQTT session state.
 - [Boundary](BOUNDARY.md), [Multi-Raft API](multiraft/api.go), [Raft worker](multiraft/slot.go), [FSM](fsm/statemachine.go), [Proxy](proxy/store.go)
 
 ## Update Triggers
-
 Update when Slot/hash-Slot ownership, Raft Ready/apply ordering, command ownership, authoritative reads, migration fences, or snapshot/recovery guarantees change.

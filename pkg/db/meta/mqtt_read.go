@@ -31,6 +31,8 @@ const (
 	MQTTReadReplaySources
 	// MQTTReadAccounting pins Session, cursor and its exact qualified range head.
 	MQTTReadAccounting
+	// MQTTReadMembership pins channel flags, ordinary membership and its allocator.
+	MQTTReadMembership
 )
 
 // MQTTReadCursor contains exactly the cursor belonging to the selected read.
@@ -52,6 +54,7 @@ type MQTTReadCursor struct {
 // MQTTRead carries one operation. Irrelevant fields are rejected, not ignored.
 // Logical/physical Slot routing is deliberately outside this storage request.
 type MQTTRead struct {
+	MembershipKey          SubscriberKey         `json:"membership_key,omitzero"`
 	Kind                   MQTTReadKind          `json:"kind"`
 	Namespace              string                `json:"namespace,omitempty"`
 	ClientID               string                `json:"client_id,omitempty"`
@@ -70,6 +73,7 @@ type MQTTRead struct {
 // MQTTReadResult owns a bounded result from one snapshot. Session is included
 // with Session-owned child reads so callers can fence subsequent decisions.
 type MQTTReadResult struct {
+	Membership      *MQTTMembershipView  `json:"membership,omitempty"`
 	Accounting      *MQTTAccountingRange `json:"accounting,omitempty"`
 	SourceOwners    []MQTTBindingOwner   `json:"source_owners,omitempty"`
 	Session         *MQTTSession         `json:"session,omitempty"`
@@ -109,6 +113,11 @@ func ValidateMQTTRead(q MQTTRead) error {
 	want := MQTTRead{Kind: q.Kind}
 	page := false
 	switch q.Kind {
+	case MQTTReadMembership:
+		want.MembershipKey = q.MembershipKey
+		if err := validateMQTTMembershipKey(q.MembershipKey); err != nil {
+			return err
+		}
 	case MQTTReadSession:
 		want.Namespace, want.ClientID = q.Namespace, q.ClientID
 	case MQTTReadSessionDeadlines:
@@ -275,6 +284,8 @@ func (s *Shard) readMQTTState(ctx context.Context, q MQTTRead) (MQTTReadResult, 
 	}
 	var err error
 	switch q.Kind {
+	case MQTTReadMembership:
+		out.Membership, err = s.readMQTTMembership(ctx, q.MembershipKey)
 	case MQTTReadSession:
 	case MQTTReadSessionDeadlines:
 		out.Sessions, out.After.Deadline, out.Done, err = s.ListMQTTSessionDeadlines(ctx, q.After.Deadline, q.Limit)

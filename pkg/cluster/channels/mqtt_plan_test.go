@@ -7,6 +7,7 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/stretchr/testify/require"
 )
@@ -32,6 +33,7 @@ func mqttRoutedPlanFixture(t *testing.T) (*Service, *mqttFreshMeta, *mqttPlanRun
 	}}
 	s, err := NewService(Config{LocalNode: 2, MetaSource: m, Runtime: r})
 	require.NoError(t, err)
+	s.replicaCommitRefresh = &mqttReadinessRefresh{}
 	return s, m, r, q, p
 }
 
@@ -110,6 +112,10 @@ func TestMQTTPlanRoutingForwardsThroughStableGateway(t *testing.T) {
 	RegisterServiceHandlersOn(localNetworkRegistrar{network: network, nodeID: 2}, g)
 	origin, err := NewService(Config{LocalNode: 1, MetaSource: m, Runtime: &fakeRuntime{}, Forward: NewTransportClient(network)})
 	require.NoError(t, err)
+	origin.replicaCommitRefresh = mqttRetirementRefresh(func(context.Context, replication.Authority) error {
+		t.Fatal("forwarding origin must not schedule refresh")
+		return nil
+	})
 	got, err := origin.PlanMQTTReplay(context.Background(), q)
 	require.NoError(t, err)
 	require.Equal(t, want, got)
@@ -221,4 +227,62 @@ func TestMQTTPlanRPCPreservesMaintenanceOnlyAssertion(t *testing.T) {
 	plan.HasAnchor, plan.Anchor = false, ch.MQTTReplayAnchorProof{}
 	_, err = encodeMQTTPlanReply(q, plan, nil)
 	require.Error(t, err)
+}
+
+func TestMQTTPlanRefreshesIdleCommittedAnchorBeforeRecovery(t *testing.T) {
+	for _, mode := range []string{"idle", "fenced", "missing", "failed", "canceled", "changed", "malformed", "no_anchor"} {
+		t.Run(mode, func(t *testing.T) {
+			s, m, r, q, plan := mqttRoutedPlanFixture(t)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			plan.MaintenanceOnly = true
+			if mode == "fenced" {
+				m.meta.WriteFence = ch.WriteFence{Token: "moving", Version: 1}
+			}
+			if mode == "malformed" {
+				plan.Source.Generation = "wrong"
+			}
+			if mode == "no_anchor" {
+				plan.HasAnchor = false
+				plan.Anchor = ch.MQTTReplayAnchorProof{}
+				plan.MaintenanceOnly = false
+			}
+			r.plan = func(context.Context, ch.MQTTReplayPlanRequest) (ch.MQTTReplayPlan, error) { return plan, nil }
+			refreshed := 0
+			s.replicaCommitRefresh = mqttRetirementRefresh(func(c context.Context, a replication.Authority) error {
+				refreshed++
+				require.Equal(t, mqttReplicaAuthority(m.meta), a, "refresh must carry installed placement and fence, never caller HW")
+				require.NoError(t, c.Err())
+				switch mode {
+				case "failed":
+					return ch.ErrBackpressured
+				case "canceled":
+					cancel()
+				case "changed":
+					m.meta.RouteGeneration++
+				}
+				return nil
+			})
+			if mode == "missing" {
+				s.replicaCommitRefresh = nil
+			}
+			got, err := s.PlanMQTTReplay(ctx, q)
+			switch mode {
+			case "idle", "fenced":
+				require.NoError(t, err)
+				require.Equal(t, plan, got)
+				require.Equal(t, 1, refreshed)
+			case "no_anchor":
+				require.NoError(t, err)
+				require.Equal(t, plan, got)
+				require.Zero(t, refreshed)
+			default:
+				require.Error(t, err)
+				require.Zero(t, got)
+			}
+			if mode == "malformed" || mode == "missing" {
+				require.Zero(t, refreshed)
+			}
+		})
+	}
 }

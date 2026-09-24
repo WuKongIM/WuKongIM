@@ -91,10 +91,10 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
   source admission and safe removal. Membership version changes cannot replace
   an active subscription silently; delivery/revocation ordering remains required.
 - Group preparation bounds reads and grants no subscription, release or SUBACK authority. ACK survives unsubscribe; entry binds sent exchanges first.
-- Product listener, receive-authority adapter, fair scheduling and process-level acceptance remain required implementation work.
+- ReceiveAuthorization reads a fresh coherent Slot channel/member/sequence view; group grants use join incarnation, self inbox uses admitted UID. Send mutes do not deny receiving; ambiguous evidence cannot revoke.
+- Product listener, fair scheduling and process-level acceptance remain required implementation work.
 
 ## Read First
 - [Contracts](types.go), [Acquisition](connect.go), [Lifecycle](lifecycle.go), [Subscriptions](subscriptions.go), [Replay](replay.go)
 ## Update Triggers
-
 Update when lifecycle, isolation, accounting, commit evidence, subscription projection, cleanup or composition changes.

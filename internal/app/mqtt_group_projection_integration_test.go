@@ -19,7 +19,7 @@ import (
 )
 
 // verifyMQTTGroupProjection uses real protection, shared copy/recovery and Slot
-// intent commits. Only permission incarnation remains a controlled authority.
+// intent commits, with production receive authority from native membership.
 func verifyMQTTGroupProjection(t *testing.T, ctx context.Context, nodes []*cluster.Node, owners []*runtime.Owners, sessions []*sessioncase.App, authorization sessioncase.SubscriptionAuthorizer, ids interface{ Next() uint64 }) {
 	t.Helper()
 	id := ch.ChannelID{ID: "projection-group", Type: 2}
@@ -79,5 +79,5 @@ func verifyMQTTGroupProjection(t *testing.T, ctx context.Context, nodes []*clust
 	removed, e := nodes[1].ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadSubscription, Namespace: cmd.Key.Namespace, ClientID: cmd.Key.ClientID, SessionGeneration: resumed.Owner.SessionGeneration, Topic: request.Topic})
 	require.NoError(t, e)
 	require.Equal(t, meta.MQTTSubscriptionRemoved, removed.Subscriptions[0].Stage)
-	t.Log("mqtt_group_projection_evidence: nodes=3 hash_slots=256 real_establishment=true learner_missing_content_blocks=true owner_1_to_3=true original_cursor_preserved=true all_replica_confirmation=true real_removal=true permission_incarnation=controlled product_listener=false")
+	t.Log("mqtt_group_projection_evidence: nodes=3 hash_slots=256 real_establishment=true learner_missing_content_blocks=true owner_1_to_3=true original_cursor_preserved=true all_replica_confirmation=true real_removal=true permission_incarnation=native product_listener=false")
 }

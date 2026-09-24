@@ -47,7 +47,7 @@ func (s *mqttSourcePreparationLostReply) MutateMQTTDeliveryCursor(ctx context.Co
 }
 
 // Real source/Session Slot commits and Channel protection are composed here.
-// Permission incarnation is controlled. The separate group projection helper
+// Receive authority uses native membership. The separate group projection helper
 // additionally verifies concrete establishment and removal receipts.
 func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	rootDir := t.TempDir() // Node shutdown must run before directory removal.
@@ -120,20 +120,8 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	cmd := sessioncase.ConnectCommand{Key: contract.Key{Namespace: "main", ClientID: "prepared"}, UID: "alice", Token: "secret", DeviceFlag: 1, SessionExpirySec: 60, ReceiveMaximum: 16, MaxPacketBytes: 1 << 20, CloseTransport: func(context.Context) error { return nil }}
 	first, err := sessions[0].Connect(ctx, cmd)
 	require.NoError(t, err)
-	authorize := mqttSubscriptionAuthorizationFixture(func(c context.Context, uid string, r sessioncase.SubscriptionRequest) (uint64, error) {
-		channel, e := nodes[0].GetChannelMetadataAuthoritative(c, r.TargetID, 2)
-		if e != nil {
-			return 0, e
-		}
-		member, e := nodes[0].ContainsChannelSubscriberAuthoritative(c, r.TargetID, 2, uid)
-		if e != nil {
-			return 0, e
-		}
-		if channel.Disband != 0 || !member {
-			return 0, sessioncase.ErrSubscriptionDenied
-		}
-		return 7, nil
-	})
+	authorize, err := newMQTTReceiveAuthorization(nodes[0])
+	require.NoError(t, err)
 	subs, err := sessioncase.NewSubscriptions(sessioncase.SubscriptionOptions{Store: nodes[0], Owners: owners[0], Authorization: authorize, Projection: &mqttSubscriptionProjectionFixture{establish: func(context.Context, sessioncase.SubscriptionProjectionRequest) (sessioncase.SubscriptionProjectionReceipt, error) {
 		return sessioncase.SubscriptionProjectionReceipt{}, sessioncase.ErrEvidence
 	}}})
@@ -313,6 +301,7 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	progress := verifyMQTTConsumerProgress(t, ctx, nodes, owners[2], resumed, sessions[2], prepared, ids, plan.Anchor, authorize)
 	verifyMQTTSourceDrain(t, ctx, nodes, owners, sessions, authorize, adapter)
 	verifyMQTTGroupProjection(t, ctx, nodes, owners, sessions, authorize, ids)
+	verifyMQTTReceiveRejoin(t, ctx, nodes, owners, sessions, replayWorkers, ids)
 	require.NoError(t, nodes[0].RemoveChannelSubscribers(ctx, id.ID, 2, []string{"alice"}, 2))
 	_, err = sources.Prepare(ctx, resumed.Owner, topic)
 	require.ErrorIs(t, err, sessioncase.ErrSubscriptionDenied)
@@ -354,5 +343,5 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 		}()
 	}
 	t.Log("mqtt_automatic_retirement_evidence: background_first_commit=true all_replica_baselines_applied=true independent_disk_reopen=true historical_cut_rejected=true current_coverage=true physical_compaction_unasserted=true product_listener=false")
-	t.Log("mqtt_source_preparation_evidence: nodes=3 hash_slots=256 tcp=true disk=true remote_channel_protection=true cursor_commit_reply_lost=true owner_1_to_3=true original_boundary_preserved=true subscription_preparing_before_controlled_window_admission=true permission_incarnation=controlled distinct_source_discovery=true replay_turn_coordinator=true learner_content_recovered=true automatic_scheduler=true source_release_all_replicas=true original_trim=true write_fenced_recovery=true writes_remain_fenced=true session_end_retained_removal=true full_projection=false product_listener=false")
+	t.Log("mqtt_source_preparation_evidence: nodes=3 hash_slots=256 tcp=true disk=true remote_channel_protection=true cursor_commit_reply_lost=true owner_1_to_3=true original_boundary_preserved=true subscription_preparing_before_controlled_window_admission=true permission_incarnation=native distinct_source_discovery=true replay_turn_coordinator=true learner_content_recovered=true automatic_scheduler=true source_release_all_replicas=true original_trim=true write_fenced_recovery=true writes_remain_fenced=true session_end_retained_removal=true full_projection=false product_listener=false")
 }

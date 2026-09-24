@@ -26,13 +26,13 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 2. Slot proposals and metadata facades resolve one immutable route snapshot,
    expose bounded exact-key UID membership reads and group Channel- or UID-owned
    work by physical Slot, execute locally or forward, and recheck leadership.
-   Person-directory prepare joins UID membership/runtime metadata before publishing directory-ready. MQTT RPC 91 uses fresh Slot barriers and bounded snapshots; read kind 17 retains tombstone-source discovery after the last consumer leaves; kind 18 pins a qualified accounting head and cursor. Source/UID routing stays independent of Session routing.
+   Person-directory prepare joins UID membership/runtime metadata before publishing directory-ready. MQTT RPC 91 uses fresh Slot barriers and bounded snapshots; read kind 17 retains tombstone-source discovery after the last consumer leaves; kind 18 pins a qualified accounting head/cursor; kind 19 pins channel/member/incarnation evidence. Source/UID routing stays independent of Session routing.
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to
    the exact leader. A cached leader's typed dial failure gets one fresh-route retry;
    ambiguous sends retain committed-outcome recovery. MQTT source/replay RPCs 93/94
    recheck fresh Slot authority, caller fences and the serving node across gateway swaps.
-   RPCs 95–101 bind copying, anchors/retirement, planning, selection and repair to fresh authority; retirement and retries schedule native propagation to idle voters before final authority checks.
+   RPCs 95–101 bind copying, anchors/retirement, planning, selection and repair to fresh authority; retirement/retries and anchored plans schedule bounded native propagation to idle voters before final authority checks; hints grant no recovery proof.
    RPC 97/99 permit stable fences; plan reply v2 proves maintenance tails; recovery v2 releases sources and v3 applies retirement. RPC 102 v2 reads anchored typed messages under fresh authority with separate four-slot admission; v1 is rejected.
    Active repair probes verify follower durability; leaders checkpoint recovered HW and request native tail propagation.
    Fresh placement/fence checks bind optional replay coverage; diagnostics stay observational.

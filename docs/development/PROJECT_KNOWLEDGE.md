@@ -198,7 +198,15 @@ specification, runbook, report, or module documentation; link to them when neede
   UID projections are not receive-authority incarnations. Matched writers/tools,
   native snapshots and JSONL preserve live identities plus deleted high water;
   v2 migration retains legacy 1. See [the contract](../specs/mqtt-member-incarnation.md).
-  A production fresh receive-authority read remains required.
+  [Receive authority](../specs/mqtt-receive-authority.md) uses RPC 91 kind 19: a fresh
+  Slot barrier and one pinned channel/member/sequence snapshot, bypassing the live
+  channel cache. Group receive requires actual membership and no disband, ignores
+  send mutes and returns the stable join incarnation; self inbox binds admitted UID.
+  Unavailability/corruption is not definitive denial. Rejoin rejects old exchanges
+  and ends the exact Session while retaining debt; no listener/scheduler is enabled.
+  Anchored plans reschedule native committed-frontier propagation even when idle
+  or write-fenced: an ISR replica may hold the anchor while its HW still lags.
+  The hint carries exact placement, no caller HW, and grants no recovery proof.
 
 - The [MQTT IM access design](../specs/mqtt-im-access.md) defines the approved
   target contract; product MQTT access is not yet enabled. MQTT Session subscriptions are separate from IM
@@ -243,8 +251,8 @@ specification, runbook, report, or module documentation; link to them when neede
   observed owner before one atomic Session/Will end, even if quota accounting
   already ended the row. It preserves debt and the first end reason, never follows
   a successor, and gives the next connection a fresh lifetime. Expired active
-  owners first record the original disconnect; production receive authority and
-  automatic ending/cleanup scheduling remain required.
+  owners first record the original disconnect; automatic ending/cleanup scheduling
+  remains required.
   The [connection sender](../specs/mqtt-sender.md) serializes recovery before new
   admission, makes fresh permission the final authoritative read before enqueue,
   and invokes End for definitive denial after releasing owner scopes. It keeps

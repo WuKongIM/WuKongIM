@@ -72,7 +72,7 @@ Stop or startup rollback
   SourceDrain discovers group cleanup and seals unsubscribe ranges through Node ports; pre-binding interruption, cross-node resume and concurrent ACK conflicts preserve inflight exchanges.
   Replay maintenance rotates copy/recovery/retirement through the same worker; real ACK gaps and unknown registrations block decisions, and reopened replicas prove applied retirement independently of counters.
   GroupProjection composes real protection, preparation, all-replica replay confirmation and removal; product/inbox/lifecycle wiring remains pending.
-  Sender composition shares fresh Node originals/window state and exact-owner End. Three-node coverage accounts and sends trimmed originals through bounded turns to a controlled sink, then checks ACK gaps; Paho separately verifies the gateway sink. Production authority, scheduler and product composition remain pending.
+  Sender composition shares fresh Node originals/window state and exact-owner End. Three-node coverage accounts and sends trimmed originals through bounded turns to a controlled sink, then checks ACK gaps; Paho separately verifies the gateway sink. ReceiveAuthorization shares the foreground Node’s fresh coherent membership read; three-node rejoin ends old exchanges while retaining debt. Scheduler and product composition remain pending.
 - Command-channel suffixes are injected across send, delivery, CMD sync, plugin
   projection and Manager filtering without process-global state.
 - The normalized message system UID is injected consistently into user

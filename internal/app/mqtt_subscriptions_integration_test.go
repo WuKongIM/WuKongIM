@@ -17,12 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type mqttSubscriptionAuthorizationFixture func(context.Context, string, sessioncase.SubscriptionRequest) (uint64, error)
-
-func (f mqttSubscriptionAuthorizationFixture) AuthorizeSubscription(ctx context.Context, uid string, r sessioncase.SubscriptionRequest) (uint64, error) {
-	return f(ctx, uid, r)
-}
-
 // This test controls source proof explicitly; its successful receipt exercises
 // intent orchestration only and must never be installed in product composition.
 type mqttSubscriptionProjectionFixture struct {
@@ -78,20 +72,8 @@ func TestMQTTSubscriptionIntentSingleNodeCluster(t *testing.T) {
 	projection := &mqttSubscriptionProjectionFixture{establish: func(context.Context, sessioncase.SubscriptionProjectionRequest) (sessioncase.SubscriptionProjectionReceipt, error) {
 		return sessioncase.SubscriptionProjectionReceipt{}, unavailable
 	}}
-	authorization := mqttSubscriptionAuthorizationFixture(func(ctx context.Context, uid string, r sessioncase.SubscriptionRequest) (uint64, error) {
-		channel, err := node.GetChannelMetadataAuthoritative(ctx, r.TargetID, 2)
-		if err != nil {
-			return 0, err
-		}
-		member, err := node.ContainsChannelSubscriberAuthoritative(ctx, r.TargetID, 2, uid)
-		if err != nil {
-			return 0, err
-		}
-		if channel.Disband != 0 || !member {
-			return 0, sessioncase.ErrSubscriptionDenied
-		}
-		return 0, nil
-	})
+	authorization, err := newMQTTReceiveAuthorization(node)
+	require.NoError(t, err)
 	subscriptions, err := sessioncase.NewSubscriptions(sessioncase.SubscriptionOptions{Store: node, Owners: owners, Authorization: authorization, Projection: projection})
 	require.NoError(t, err)
 	request := sessioncase.SubscriptionRequest{Topic: "wk/v1/groups/Z3JvdXA/messages", TargetKind: meta.MQTTSubscriptionGroup, TargetID: id.ID, RequestedQoS: 1, NoLocal: true}
@@ -104,6 +86,7 @@ func TestMQTTSubscriptionIntentSingleNodeCluster(t *testing.T) {
 	_, err = subscriptions.Subscribe(ctx, first.Owner, request)
 	require.ErrorIs(t, err, unavailable)
 	pending := read()
+	require.Greater(t, pending.AuthorizationVersion, uint64(1))
 	require.Equal(t, meta.MQTTSubscriptionPreparing, pending.Stage)
 	resumed, err := sessions.Connect(ctx, command)
 	require.NoError(t, err)
@@ -126,6 +109,10 @@ func TestMQTTSubscriptionIntentSingleNodeCluster(t *testing.T) {
 	require.NoError(t, node.RemoveChannelSubscribers(ctx, id.ID, 2, []string{"alice"}, 2))
 	_, err = subscriptions.Subscribe(ctx, resumed.Owner, request)
 	require.ErrorIs(t, err, sessioncase.ErrSubscriptionDenied)
+	require.NoError(t, node.AddChannelSubscribers(ctx, id.ID, 2, []string{"alice"}, 2))
+	_, err = subscriptions.Subscribe(ctx, resumed.Owner, request)
+	require.ErrorIs(t, err, sessioncase.ErrSubscriptionRevoked)
+	require.NoError(t, node.RemoveChannelSubscribers(ctx, id.ID, 2, []string{"alice"}, 2))
 	projection.remove = func(context.Context, sessioncase.SubscriptionProjectionRequest) (sessioncase.SubscriptionProjectionReceipt, error) {
 		return sessioncase.SubscriptionProjectionReceipt{}, unavailable
 	}
@@ -139,5 +126,5 @@ func TestMQTTSubscriptionIntentSingleNodeCluster(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, meta.MQTTSubscriptionRemoved, removed.Stage)
 	require.Zero(t, owners.Snapshot().Operations)
-	t.Log("mqtt_subscription_intent_evidence: hash_slots=256 authoritative_intent=true source_unavailable_no_activation=true owner_resume=true stable_generation=true concurrent_parent_renewal=true revoked_can_remove=true projection=controlled distributed_source_proof=false")
+	t.Log("mqtt_subscription_intent_evidence: hash_slots=256 authoritative_intent=true source_unavailable_no_activation=true owner_resume=true stable_generation=true concurrent_parent_renewal=true revoked_can_remove=true same_version_rejoin_revoked=true receive_authority=real projection=controlled distributed_source_proof=false")
 }

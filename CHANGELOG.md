@@ -6,6 +6,10 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Refresh committed replay progress on idle voters during anchored planning, preventing a new MQTT subscriber from waiting indefinitely for another message. / 锚点规划会刷新空闲投票副本的已提交进度，避免新 MQTT 订阅必须等到下一条消息才能完成恢复。
+
+- Use fresh Slot-authoritative MQTT receive checks with one coherent channel/member snapshot. Group removal or rejoin invalidates old subscriptions and exchanges; send mutes preserve receiving. RPC 91 read kind 19 requires matched nodes; product access remains under development. / MQTT 接收权限改用 Slot 权威的一致频道/成员快照；退群或重加入使旧订阅与交换失效，发送禁言不影响接收。RPC 91 读取类型 19 要求匹配节点，产品接入仍在开发。
+
 - Preserve stable subscriber join identities across retries, rejoin, channel recreation and backup/JSONL transfer, preparing MQTT receive authorization to reject old membership grants. Matching writers/tools are required; product MQTT access remains under development. / 成员加入代次可跨重试、退群重加、删群重建和备份/JSONL 迁移保存，为 MQTT 拒绝旧成员授权提供依据；要求匹配版本的写入节点和工具，产品接入仍在开发。
 
 - Add bounded MQTT connection sending with old-exchange-first recovery, send-time permission checks, revocation ending and QoS 0 completion across concurrent ACK/renewal. Gateway sink preserves receive credit and PUBACK identity; product scheduling remains under development. / MQTT 增加有界连接发送编排，先恢复旧交换，再检查当前权限发送；撤权结束会话，QoS 0 完成可跨 ACK/续租版本变化核对。网关出口保留接收额度及 PUBACK 身份，产品调度仍在开发。
