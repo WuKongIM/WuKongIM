@@ -47,6 +47,7 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
    SubscriptionRequests waits only for explicit pending work within attempts/deadline. Possible writes and pending intent mark errors Unconfirmed; entry cannot return a definitive negative ACK.
 8. Group preparation registers an unknown binding before fresh protection confirmation,
    fixes one start, initializes the cursor and activates the binding. GroupProjection adds all-replica replay confirmation and current intent/permission checks before a receipt.
+   InboxSources prepares one canonical person source from fresh UID qualification, including offline Sessions, using stored-owner/revision CAS without a connection grant. Closed intent skips new admission and retains cleanup debt.
 9. Replay maintenance rotates bounded copy/anchor admission, recovery and retirement under fresh placement.
    Targets pin anchors and scan/donor hints; placement resets hints and cold passes rotate work.
    Fenced turns only recover existing anchors; absent anchors yield without copying.
@@ -56,8 +57,7 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
     Sender serializes old recovery before new admission and checks final receive permission; ambiguity closes without retry. Only its private proved-enqueued QoS-0 token may rebase completion across unrelated revisions.
     [DeliveryCoordinator](delivery_coordinator.go) rotates one subscription/source per turn, then accounts and sends; bounded body-free hints survive source failures. Revocation/quota cleanup runs after scopes release, including lost quota replies.
     Consumer progress reads one binding and a pinned Session/cursor, projecting only contiguous completion with one CAS. Acknowledgements checks current owner and exact PacketID/order before one command-70 commit; absent exchanges cause no writes.
-    Explicit lifetime end retains Removing without fabricating source release;
-    offline/absent state cannot discharge responsibility or authorize content GC.
+    Explicit lifetime end retains Removing without fabricating source release; offline/absent state cannot discharge responsibility or authorize content GC.
     SourceRemoval revalidates ended-lifetime or closed-subscription/drained-cursor
     proof, acknowledges one exact binding revision on its source Slot, then
     revalidates before a separate Removed commit. Tombstones remain; aggregate
