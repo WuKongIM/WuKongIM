@@ -15,24 +15,24 @@ type mqttConsumerReadForwardRequest struct {
 	Request ch.MQTTReplayConsumerRequest
 }
 type mqttConsumerReadForwarder interface {
-	ForwardMQTTConsumerRead(context.Context, ch.NodeID, ch.MQTTReplayConsumerRequest) (ch.MQTTReplayPage, error)
+	ForwardMQTTConsumerRead(context.Context, ch.NodeID, ch.MQTTReplayConsumerRequest) (ch.MQTTReplayConsumerPage, error)
 }
 
 // ReadMQTTReplay routes one bounded page under fresh authority. Stable write
 // fences permit this immutable read; foreground maintenance still gates entry.
-func (s *Service) ReadMQTTReplay(ctx context.Context, q ch.MQTTReplayConsumerRequest) (ch.MQTTReplayPage, error) {
+func (s *Service) ReadMQTTReplay(ctx context.Context, q ch.MQTTReplayConsumerRequest) (ch.MQTTReplayConsumerPage, error) {
 	return s.readMQTTReplay(ctx, q, 0)
 }
 
-func (s *Service) handleForwardMQTTConsumerRead(ctx context.Context, q mqttConsumerReadForwardRequest) (ch.MQTTReplayPage, error) {
+func (s *Service) handleForwardMQTTConsumerRead(ctx context.Context, q mqttConsumerReadForwardRequest) (ch.MQTTReplayConsumerPage, error) {
 	if s == nil || q.Leader == 0 || q.Leader != s.localNode {
-		return ch.MQTTReplayPage{}, ch.ErrNotLeader
+		return ch.MQTTReplayConsumerPage{}, ch.ErrNotLeader
 	}
 	return s.readMQTTReplay(ctx, q.Request, q.Leader)
 }
 
-func (s *Service) readMQTTReplay(ctx context.Context, q ch.MQTTReplayConsumerRequest, serving ch.NodeID) (ch.MQTTReplayPage, error) {
-	var empty ch.MQTTReplayPage
+func (s *Service) readMQTTReplay(ctx context.Context, q ch.MQTTReplayConsumerRequest, serving ch.NodeID) (ch.MQTTReplayConsumerPage, error) {
+	var empty ch.MQTTReplayConsumerPage
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -51,7 +51,7 @@ func (s *Service) readMQTTReplay(ctx context.Context, q ch.MQTTReplayConsumerReq
 	if serving != 0 && serving != m.Leader {
 		return empty, ch.ErrNotLeader
 	}
-	var page ch.MQTTReplayPage
+	var page ch.MQTTReplayConsumerPage
 	if m.Leader == s.localNode {
 		select {
 		case s.mqttConsumerReads <- struct{}{}:
@@ -88,16 +88,16 @@ func (s *Service) readMQTTReplay(ctx context.Context, q ch.MQTTReplayConsumerReq
 	if err = s.recheckMQTTRepairAuthority(ctx, q.Request, m); err != nil {
 		return empty, err
 	}
-	if !page.ValidFor(q.Request.Range) {
+	if !page.ValidFor(q.Request.ChannelID, q.Request.Range) {
 		return empty, ch.ErrLogConflict
 	}
 	return page, nil
 }
 
-func (g *ServiceGateway) handleForwardMQTTConsumerRead(ctx context.Context, q mqttConsumerReadForwardRequest) (ch.MQTTReplayPage, error) {
+func (g *ServiceGateway) handleForwardMQTTConsumerRead(ctx context.Context, q mqttConsumerReadForwardRequest) (ch.MQTTReplayConsumerPage, error) {
 	s, err := g.service()
 	if err != nil {
-		return ch.MQTTReplayPage{}, err
+		return ch.MQTTReplayConsumerPage{}, err
 	}
 	return s.handleForwardMQTTConsumerRead(ctx, q)
 }

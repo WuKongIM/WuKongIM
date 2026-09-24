@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Preserve original MQTT delivery fields and identify internal controls from committed native log proofs when reading shared content; reject incomplete proofs and malformed pages. Internal RPC 102 now requires v2; product delivery remains under development. / 共享内容读取保留原始投递字段，并依据已提交原生日志证明识别内部控制记录；证明缺失或分页损坏时拒绝读取。内部 RPC 102 现要求 v2，产品投递仍在开发。
+
 - Read bounded MQTT shared-content pages through current cluster routing after original-history trim, with committed-anchor checks and independent read backpressure. Internal RPC 102 requires matching nodes; product MQTT delivery remains under development. / 原始历史裁剪后，MQTT 共享内容可通过当前集群路由分页读取，核验已提交锚点并独立限制读取并发；内部 RPC 102 要求匹配节点，产品投递仍在开发。
 
 - Compose durable MQTT group subscription establishment with shared-replay confirmation on every eligible replica and current-owner/permission checks; incomplete recovery keeps the subscription pending. Product MQTT access remains under development. / MQTT 群订阅建立接入所有候选副本的共享回放确认及当前所有者、权限检查；恢复未完成时保留准备状态，产品接入仍在开发。

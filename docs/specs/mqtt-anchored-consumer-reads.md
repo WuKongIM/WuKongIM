@@ -27,10 +27,12 @@ which must lie within that anchor. Short pages retain their own Before/After
 prefixes; repair export still requires the complete endpoint. No history fallback,
 filtering, accounting, authorization or mutation happens in storage. Result bytes
 are independently owned. The Channel store adapter exposes the same bounded port
-without leaking MessageDB codecs into usecases.
+without leaking MessageDB codecs into usecases. The original raw storage port
+remains available; the routed consumer page now uses the strict
+[typed content contract](mqtt-typed-consumer-content.md).
 
-Foreground Node/RPC routing now exposes this storage contract. Typed content
-interpretation, per-subscription qualification/accounting, window admission,
+Foreground Node/RPC routing now exposes typed content from this storage contract.
+Per-subscription qualification/accounting, window admission,
 PUBACK and product delivery remain required. A content read grants no consumer
 authorization. No schema or command format changes; RPC 102 requires matching peers.
 
@@ -54,8 +56,8 @@ Source `7913d76f2fe7f6a62929f723885b170f2db14a16`; SHA-256:
 The foreground Node facade routes once to the current Channel leader, with fresh
 Slot placement and stable-fence checks before and after the read on both origin
 and server. Storage I/O has a separate bounded serving pool (four requests, no
-wait queue), not a reactor goroutine. RPC 102 uses distinct version-1 magic and
-an exact anchor/request echo around the existing bounded replay page codec.
+wait queue), not a reactor goroutine. RPC 102 initially used a distinct version-1 raw-page envelope; the typed
+consumer contract now requires v2 with the same exact anchor/request binding.
 Older nodes reject it; there is no fallback to local storage or ordinary history.
 
 Additional failures: wrong serving node, route/ISR/fence changes, missing port,

@@ -110,7 +110,7 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
   Cluster entry adds fresh Slot routing; source-release admission remains separate.
   Read-only planning pins HW and the exact write fence through checkpoint workers;
   next ranges use accepted progress, skip verified bounded anchor/retirement tails and ignore copy-ahead.
-  The optional consumer store port returns bounded short pages within a verified committed anchor; the repair port exports/imports complete anchor intervals;
+  The consumer store port returns bounded typed messages and native control classification within a verified committed anchor; the repair port exports/imports complete anchor intervals;
   each side verifies its own committed journal, with no sender-supplied expected
   digest. Store planning selects from durable coverage and at most 64 journals,
   validates continuation hints and completes only an exact target. Cluster recovery

@@ -12,7 +12,8 @@ runtime integration. Bounded copy/recovery/retirement scheduling and exact bindi
 removal, unsubscribe sealing and live-owner cancelled-preparation discovery
 (including before the first binding) are implemented.
 Concrete group projection now confirms shared replay on every eligible replica.
-Anchored consumer pages route through foreground Node/RPC after original trim.
+Anchored typed consumer messages route through foreground Node/RPC after original
+trim, with original publication fields and committed native control classification.
 Inbox subscription/delivery, source deactivation,
 Will execution, product/restore composition and capacity
 acceptance remain outstanding. No passing product E2E
@@ -4148,3 +4149,50 @@ qualification/accounting, window admission and delivery/PUBACK still require
 implementation; inbox/future-person admission, ended-Session discovery, source
 deactivation, owner recovery, Will execution, product lifecycle, offline tools
 and process/load acceptance are also outstanding.
+
+## Typed consumer messages and native control classification
+
+Consumer Node/RPC reads now return original Message values, immutable content
+references and cumulative proofs. Storage pins the anchor, canonical shared rows
+and each retained committed entry/paired proposal in one snapshot. Explicit
+native formats 4/5/6 identify internal controls; a payload lookalike or ordinary
+SyncOnce message does not. Missing or inconsistent proof returns no partial page.
+The Channel adapter transfers strictly decoded fields and owned payload/metadata
+without using ordinary history's opaque compatibility fallback.
+
+RPC 102 v2 carries typed messages once using frozen message codec 11, exact request
+association, bounded canonical-content counters and a total reply cap. Old v1
+requests/replies fail explicitly. Generic copy/repair transfer formats, durable
+rows and Slot commands remain unchanged. No permission, expiry/QoS qualification,
+Session accounting, delivery or GC authority is inferred from these reads.
+
+Validation (2026-09-24):
+
+- Tests preceded the storage, adapter and routed changes. RED artifacts:
+  `/tmp/mqtt-typed-storage-red.log`, `/tmp/mqtt-typed-adapter-red.log`,
+  `/tmp/mqtt-typed-routing-red.log`, `/tmp/mqtt-typed-app-red.log`.
+- Storage tests passed, 4.045 s (`/tmp/mqtt-typed-storage-green.log`): original
+  fields/metadata, controls and lookalikes, missing/foreign native proof, trim,
+  receiver reopen and caller byte ownership. Routed/adapter focused tests passed
+  (`/tmp/mqtt-typed-routing-green.log`), including every reply truncation, typed
+  validation failures, old envelopes, exact error status and owned decoded bytes.
+- Focused MQTT race suites passed for MessageDB and Node, 40.237 / 1.733 s
+  (`/tmp/mqtt-typed-storage-node-race.log`). Full Channel-store and cluster-channel
+  race suites passed, 6.000 / 7.055 s (`/tmp/mqtt-typed-ports-race.log`). Only the
+  existing Darwin linker warnings were observed.
+- Three-node race integration passed in 21.150 s (`/tmp/mqtt-typed-app.log`):
+  `GOWORK=off go test -race -tags=integration -p 2 ./internal/app -run
+  '^TestMQTTGroupSourcePreparationThreeNodeRecovery$' -count=1 -timeout=120s`.
+  Two origins read typed messages after physical original trim under the stable
+  migration fence; actual payload/sender, pagination, ownership and missing-anchor
+  rejection are checked alongside existing projection/removal/reopen coverage.
+- The nested message codec was then explicitly pinned to its unchanged value 11;
+  focused RPC tests passed again (`/tmp/mqtt-typed-rpc-final.log`).
+- Named `flow-doc-contracts` passed: 86 compliant, zero invalid, nine existing
+  warnings (`/tmp/mqtt-typed-flow.log`). Formatting/diff checks passed.
+
+Frozen context/failure inventory: [typed consumer content](../specs/mqtt-typed-consumer-content.md).
+This is runtime/storage integration, not product process E2E. Qualification and
+accounting, delivery/PUBACK, inbox and future-person admission, unattended ended
+Session discovery, source deactivation, unavailable-owner recovery, Will execution,
+product lifecycle, offline tools and process/load acceptance remain required.

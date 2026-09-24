@@ -109,7 +109,7 @@ Compatibility maps Channel records/offsets to this core without transferring eng
   Format-5 anchors journal controls in System 14; pinned source/latest reads optionally
   include exact command lookup; planning also proves at most 64 maintenance-tail positions. Trims retain journals; suffix replacement
   removes pending entries. Backups require matching journals and format versions.
-  Anchor repair verifies local journals under append/checkpoint ownership; repair exports reach the endpoint. Consumer reads verify that committed endpoint before returning bounded short pages.
+  Anchor repair verifies local journals under append/checkpoint ownership; repair exports reach the endpoint. Consumer reads verify that endpoint and native identities, returning typed short pages and explicit control classification.
   Repair planning verifies coverage/cursors, scans at most 64 journals and returns one bounded interval or explicit continuation.
   Readiness binds captured HW/latest anchor to local coverage; repair/planning/readiness never release sources or advance HW.
   Explicit anchor release verifies committed/local prefix proofs under append/checkpoint ownership, then advances only System 12.

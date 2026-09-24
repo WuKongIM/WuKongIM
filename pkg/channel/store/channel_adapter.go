@@ -1484,18 +1484,25 @@ func (a *messageDBChannelStoreAdapter) ExportMQTTReplayAnchor(ctx context.Contex
 
 // ReadMQTTReplayAnchor preserves storage's independently committed coverage and
 // short-page bounds without falling back to ordinary history.
-func (a *messageDBChannelStoreAdapter) ReadMQTTReplayAnchor(ctx context.Context, position uint64, req ch.MQTTReplayRange) (ch.MQTTReplayPage, error) {
+func (a *messageDBChannelStoreAdapter) ReadMQTTReplayAnchor(ctx context.Context, position uint64, req ch.MQTTReplayRange) (ch.MQTTReplayConsumerPage, error) {
 	if err := a.ensureOpen(); err != nil {
-		return ch.MQTTReplayPage{}, err
+		return ch.MQTTReplayConsumerPage{}, err
 	}
 	if !req.Valid() || position == 0 || req.Through >= position {
-		return ch.MQTTReplayPage{}, ch.ErrInvalidConfig
+		return ch.MQTTReplayConsumerPage{}, ch.ErrInvalidConfig
 	}
-	page, err := a.store.ReadMQTTReplayAnchor(ctx, req.Generation, position, req.From, req.Through, messagedb.ReadOptions{Limit: req.Limit, MaxBytes: req.MaxBytes})
+	page, err := a.store.ReadMQTTReplayMessages(ctx, req.Generation, position, req.From, req.Through, messagedb.ReadOptions{Limit: req.Limit, MaxBytes: req.MaxBytes})
 	if err != nil {
-		return ch.MQTTReplayPage{}, a.mapError(err)
+		return ch.MQTTReplayConsumerPage{}, a.mapError(err)
 	}
-	return fromDBMQTTReplayPage(page), nil
+	out := ch.MQTTReplayConsumerPage{Before: fromDBMQTTReplayPrefix(page.Before), After: fromDBMQTTReplayPrefix(page.After), Records: make([]ch.MQTTReplayPublication, len(page.Records))}
+	for i, r := range page.Records {
+		out.Records[i] = ch.MQTTReplayPublication{Message: fromOwnedDBMessage(r.Message), Internal: r.Internal, ContentVersion: r.ContentVersion, AccountedBytes: r.AccountedBytes, TotalBytes: r.TotalBytes, TotalStoredBytes: r.TotalStoredBytes, ContentHash: r.ContentHash, Digest: r.Digest}
+	}
+	if !out.ValidFor(a.id, req) {
+		return ch.MQTTReplayConsumerPage{}, ch.ErrLogConflict
+	}
+	return out, nil
 }
 
 func (a *messageDBChannelStoreAdapter) ImportMQTTReplayAnchor(ctx context.Context, position uint64, page ch.MQTTReplayPage) (ch.MQTTReplayPrefix, error) {

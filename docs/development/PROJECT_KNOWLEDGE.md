@@ -456,7 +456,11 @@ specification, runbook, report, or module documentation; link to them when neede
   fresh placement/fence checks, a five-second deadline and separate four-slot
   storage admission without a queue. One pinned snapshot verifies the committed
   anchor and full-prefix endpoint before reading a bounded short page; original
-  history is never a fallback. Replies echo the exact anchor and range. Reads
+  history is never a fallback. Each typed message is checked against its retained
+  committed native entry/proposal; only explicit formats 4/5/6 mark a control.
+  Payload lookalikes and SyncOnce alone cannot. RPC 102 v2 uses existing message
+  codec 11, preserves immutable references and rejects v1 without downgrade.
+  Replies echo the exact anchor and range. Reads
   grant no Session authorization, accounting, window admission or GC permission.
   Three-node integration verifies remote short pages after physical original trim.
   Active-source discovery uses `MQTTReadSourceOwners` (read kind 16, Node/RPC 91):

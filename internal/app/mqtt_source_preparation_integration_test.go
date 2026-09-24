@@ -273,23 +273,26 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	}}
 	firstPage, err := nodes[0].ReadChannelMQTTReplay(ctx, consumerRead)
 	require.NoError(t, err)
-	require.True(t, firstPage.ValidFor(consumerRead.Request.Range))
+	require.True(t, firstPage.ValidFor(id, consumerRead.Request.Range))
 	require.Len(t, firstPage.Records, 1)
-	require.Equal(t, uint64(20001), firstPage.Records[0].MessageID)
+	require.Equal(t, uint64(20001), firstPage.Records[0].Message.MessageID)
+	require.False(t, firstPage.Records[0].Internal)
+	require.Equal(t, []byte("after interrupted preparation"), firstPage.Records[0].Message.Payload)
+	require.Equal(t, "alice", firstPage.Records[0].Message.FromUID)
 	require.Less(t, firstPage.After.Through, plan.Anchor.Anchor.Through)
 	otherPage, err := nodes[2].ReadChannelMQTTReplay(ctx, consumerRead)
 	require.NoError(t, err)
 	require.Equal(t, firstPage, otherPage)
-	firstPage.Records[0].Content[0] ^= 0xff
+	firstPage.Records[0].Message.Payload[0] ^= 0xff
 	againPage, err := nodes[0].ReadChannelMQTTReplay(ctx, consumerRead)
 	require.NoError(t, err)
 	require.Equal(t, otherPage, againPage, "caller mutation must not change shared content")
 	consumerRead.Request.Range.From = otherPage.After.Through + 1
 	nextPage, err := nodes[2].ReadChannelMQTTReplay(ctx, consumerRead)
 	require.NoError(t, err)
-	require.True(t, nextPage.ValidFor(consumerRead.Request.Range))
+	require.True(t, nextPage.ValidFor(id, consumerRead.Request.Range))
 	require.Len(t, nextPage.Records, 1)
-	require.Equal(t, uint64(20003), nextPage.Records[0].MessageID)
+	require.Equal(t, uint64(20003), nextPage.Records[0].Message.MessageID)
 	require.Equal(t, otherPage.After, nextPage.Before)
 	consumerRead.AnchorPosition += 100
 	unprovenPage, err := nodes[0].ReadChannelMQTTReplay(ctx, consumerRead)

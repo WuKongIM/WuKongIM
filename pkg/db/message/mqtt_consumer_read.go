@@ -29,28 +29,7 @@ func (l *ChannelLog) ReadMQTTReplayAnchor(ctx context.Context, generation string
 		return MQTTReplayTransfer{}, err
 	}
 	defer view.Close()
-	expected, err := committedMQTTReplayPrefix(view, l.key, anchor)
-	if err != nil {
-		return MQTTReplayTransfer{}, err
-	}
-	if expected.Generation != generation || from <= expected.StartAfter || through > expected.Through {
-		return MQTTReplayTransfer{}, dberrors.ErrConflict
-	}
-	current, found, err := loadMQTTReplayState(view, l.key)
-	if err != nil {
-		return MQTTReplayTransfer{}, err
-	}
-	if !found || current.Generation != generation || current.StartAfter != expected.StartAfter || current.Through < expected.Through {
-		return MQTTReplayTransfer{}, dberrors.ErrConflict
-	}
-	prefix, err := mqttReplayPrefix(view, l.key, current, expected.Through)
-	if err != nil {
-		return MQTTReplayTransfer{}, err
-	}
-	if prefix != expected {
-		return MQTTReplayTransfer{}, dberrors.ErrCorruptState
-	}
-	return exportMQTTReplayFrom(ctx, view, l.key, generation, from, through, opts)
+	return readMQTTReplayAnchorFrom(ctx, view, l.key, generation, anchor, from, through, opts)
 }
 
 // ReadMQTTReplayAnchor retains the compatibility lease through the pinned read.
@@ -61,4 +40,30 @@ func (s *ChannelStore) ReadMQTTReplayAnchor(ctx context.Context, generation stri
 	defer s.endUse()
 	page, err := s.log.ReadMQTTReplayAnchor(ctx, generation, anchor, from, through, opts)
 	return page, toChannelError(err)
+}
+
+// readMQTTReplayAnchorFrom requires one pinned snapshot for proof and content.
+func readMQTTReplayAnchorFrom(ctx context.Context, view messageBackupReadView, key ChannelKey, generation string, anchor, from, through uint64, opts ReadOptions) (MQTTReplayTransfer, error) {
+	expected, err := committedMQTTReplayPrefix(view, key, anchor)
+	if err != nil {
+		return MQTTReplayTransfer{}, err
+	}
+	if expected.Generation != generation || from <= expected.StartAfter || through > expected.Through {
+		return MQTTReplayTransfer{}, dberrors.ErrConflict
+	}
+	current, found, err := loadMQTTReplayState(view, key)
+	if err != nil {
+		return MQTTReplayTransfer{}, err
+	}
+	if !found || current.Generation != generation || current.StartAfter != expected.StartAfter || current.Through < expected.Through {
+		return MQTTReplayTransfer{}, dberrors.ErrConflict
+	}
+	prefix, err := mqttReplayPrefix(view, key, current, expected.Through)
+	if err != nil {
+		return MQTTReplayTransfer{}, err
+	}
+	if prefix != expected {
+		return MQTTReplayTransfer{}, dberrors.ErrCorruptState
+	}
+	return exportMQTTReplayFrom(ctx, view, key, generation, from, through, opts)
 }

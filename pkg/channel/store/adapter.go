@@ -469,11 +469,11 @@ type MQTTReplayAnchorTransfer interface {
 	ImportMQTTReplayAnchor(context.Context, uint64, ch.MQTTReplayPage) (ch.MQTTReplayPrefix, error)
 }
 
-// MQTTReplayConsumerReader returns bounded pages within a locally committed
-// anchor after verifying its complete shared prefix. Pages may end before that
-// anchor; current routing, consumer permission and accounting remain above storage.
+// MQTTReplayConsumerReader returns typed original messages within a locally
+// committed anchor, including verified native control classification. Pages may
+// end before the anchor; routing, permissions and accounting remain above storage.
 type MQTTReplayConsumerReader interface {
-	ReadMQTTReplayAnchor(context.Context, uint64, ch.MQTTReplayRange) (ch.MQTTReplayPage, error)
+	ReadMQTTReplayAnchor(context.Context, uint64, ch.MQTTReplayRange) (ch.MQTTReplayConsumerPage, error)
 }
 
 // MQTTReplayRepairPlanner selects at most one next anchored interval from a

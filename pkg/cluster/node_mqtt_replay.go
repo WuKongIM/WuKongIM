@@ -27,19 +27,19 @@ func (n *Node) PrepareChannelMQTTReplay(ctx context.Context, req ch.MQTTReplayRe
 
 // ReadChannelMQTTReplay routes an immutable, anchored consumer page through
 // foreground admission. It neither prepares content nor advances a consumer.
-func (n *Node) ReadChannelMQTTReplay(ctx context.Context, req ch.MQTTReplayConsumerRequest) (ch.MQTTReplayPage, error) {
+func (n *Node) ReadChannelMQTTReplay(ctx context.Context, req ch.MQTTReplayConsumerRequest) (ch.MQTTReplayConsumerPage, error) {
 	if err := ctxErr(ctx); err != nil {
-		return ch.MQTTReplayPage{}, err
+		return ch.MQTTReplayConsumerPage{}, err
 	}
 	if err := n.ensureForeground(); err != nil {
-		return ch.MQTTReplayPage{}, err
+		return ch.MQTTReplayConsumerPage{}, err
 	}
 	if n.channels == nil {
-		return ch.MQTTReplayPage{}, ErrNotStarted
+		return ch.MQTTReplayConsumerPage{}, ErrNotStarted
 	}
 	reader, ok := n.channels.(ch.MQTTReplayConsumerReader)
 	if !ok {
-		return ch.MQTTReplayPage{}, ch.ErrInvalidConfig
+		return ch.MQTTReplayConsumerPage{}, ch.ErrInvalidConfig
 	}
 	return reader.ReadMQTTReplay(ctx, req)
 }
