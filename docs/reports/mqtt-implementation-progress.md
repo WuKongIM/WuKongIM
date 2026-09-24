@@ -3712,3 +3712,59 @@ Validation:
 The ordered consumer-floor producer, its bounded continuation and automatic
 worker composition remain next. Full MQTT scope and product admission remain
 unfinished; the active goal is unchanged.
+
+## Ordered consumer retirement producer
+
+`ReplayRetirement.Step` now joins the real ordered retention planner, bounded
+historical selection and typed routed commit. Every turn captures accepted source
+progress before fresh consumer permission. Unknown responsibility, no anchor,
+stable write fences and exhausted selection yield without a new decision. A
+verified candidate gets its ID from the shared server allocator and a bounded
+timestamp; the returned durable proof must match the requested source/prefix.
+
+Body-free continuation DTOs pin the original capture, conservative floor and
+decreasing reverse cursor. A resumed turn always rereads permission. Increasing
+consumer progress keeps the older safe floor, so continuing traffic cannot move
+the target indefinitely; a lower floor or changed source/authority discards the
+visit. Same-authority malformed/future hints fail, and storage independently
+revalidates historical captures. Scheduling never proves local GC completion.
+
+App composition uses fresh Slot planning and foreground Node selection/commit.
+The three-node scenario first verifies fenced recovery, then explicitly clears
+its fixture-owned migration fence before real ACK/progress-driven retirement.
+Initial subscription/window admission is still controlled. The managed worker
+has not yet been extended with retirement turns, and the product listener remains
+unavailable. Frozen context and failure inventory:
+[mqtt-retirement-production.md](../specs/mqtt-retirement-production.md).
+
+Validation:
+
+- Unit and app scenarios failed before production types/wiring existed:
+  `/tmp/mqtt-retirement-producer-red.log` and
+  `/tmp/mqtt-retirement-producer-app-red.log`.
+- `GOWORK=off go test -p 2 -race ./internal/usecase/mqttsession -run
+  '^TestReplayRetirement' -count=1 -timeout=60s -v`: passed, 1.571 s;
+  `/tmp/mqtt-retirement-producer-unit.log`. Covers ordering, finite continuation
+  with advancing latest/floors, floor decrease, changed authority/source, unknown
+  bindings, fences, exhausted pages, invalid outcomes/proofs/IDs/time, dependency
+  errors, cancellation and already-committed retry replies.
+- `GOWORK=off go test -p 2 -race -tags=integration ./internal/app -run
+  '^TestMQTTGroupSourcePreparationThreeNodeRecovery$' -count=1
+  -timeout=120s -v`: passed, 12.695 s;
+  `/tmp/mqtt-retirement-producer-app.log`. Three real TCP/disk Nodes with 256
+  hash Slots prove real out-of-order ACK gaps prevent retirement; an unknown
+  later registration still blocks after completion; fixing its fresh boundary
+  permits exactly the accepted whole anchor. Another Node reuses the same proof.
+- `GOWORK=off go test -p 2 -race ./internal/contracts/mqttsession
+  ./internal/usecase/mqttsession ./internal/app -count=1 -timeout=180s`: passed;
+  usecase 13.512 s, app 4.652 s, contracts compiled with no tests.
+  `/tmp/mqtt-retirement-producer-race.log`.
+- `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-retirement-producer-flow.log`. Generated index updated.
+
+Next connect this producer and its finite continuation to the existing bounded
+replay loop, rotating copy/recovery/retirement while preserving per-Slot bounds.
+Final binding removal, complete subscription/inbox projection, permission
+ordering, delivery/ACK entry, unavailable-owner recovery, Will execution,
+product lifecycle/configuration, offline tools and process/load acceptance remain
+required. This completes one producer capability, not the full active goal.

@@ -29,6 +29,16 @@ func newMQTTReplayRetention(node *cluster.Node) (*sessioncase.ReplayRetention, e
 	})
 }
 
+// newMQTTReplayRetirement binds ordered permission to foreground selection and
+// native retirement commits. It does not start a worker or expose MQTT admission.
+func newMQTTReplayRetirement(node *cluster.Node, ids interface{ Next() uint64 }) (*sessioncase.ReplayRetirement, error) {
+	planner, err := newMQTTReplayRetention(node)
+	if err != nil {
+		return nil, err
+	}
+	return sessioncase.NewReplayRetirement(sessioncase.ReplayRetirementOptions{Retention: planner, Channels: node, MessageIDs: ids})
+}
+
 // newMQTTReplayWorker binds the managed loop to real discovery and turn ports.
 // The caller owns start/stop/restore ordering relative to Node and its allocator.
 func newMQTTReplayWorker(node *cluster.Node, ids interface{ Next() uint64 }, options runtime.ReplayWorkerOptions) (*runtime.ReplayWorker, error) {

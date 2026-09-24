@@ -1,6 +1,6 @@
 ---
 scope: package
-summary: Coordinates MQTT Session lifecycle, subscription preparation, consumer progress and bounded replay copy/recovery turns.
+summary: Coordinates MQTT Session lifecycle, subscription preparation, consumer progress and bounded replay copy/recovery/retirement turns.
 ---
 
 # MQTT Session Usecase Flow
@@ -60,8 +60,8 @@ no packet, concrete cluster/gateway adapter, worker or shared replay storage.
     Explicit lifetime end retains Removing without fabricating source release;
     offline/absent state cannot discharge responsibility or authorize content GC.
 11. Retention captures an accepted anchor before the strict minimum-consumer read.
-    Unknown/removing obligations limit the floor; later admission must fix a fresh tail.
-    Final placement/fence checks return planning evidence, never replica-local GC permission.
+    Retirement reruns this plan per turn, selects whole anchors and submits a routed decision; unknown/removing obligations limit the floor.
+    Finite continuations retain the original capture/floor while fresh permission covers it; changed authority or lower floors yield. No local GC is granted.
 
 ## Invariants and Failure Semantics
 

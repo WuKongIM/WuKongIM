@@ -4,7 +4,8 @@ The native retirement committer accepts a whole-anchor selection bounded by an
 anchor captured before a fresh consumer-floor read. Product orchestration owns
 that ordering and fresh Slot authority; this native port does not infer consumer
 permission from local storage, age, absence or request fields. It must remain an
-internal trusted port until that orchestration and routed admission are wired.
+internal trusted port. [Ordered production](mqtt-retirement-production.md) now
+supplies permission through routed admission; automatic scheduling remains pending.
 
 A request carries current full placement, the captured and selected anchor proofs,
 consumer Through, and a server control identity. Under the installed Channel

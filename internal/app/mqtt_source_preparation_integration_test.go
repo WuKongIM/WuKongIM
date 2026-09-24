@@ -266,7 +266,15 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	require.True(t, errors.Is(err, ch.ErrWriteFenced) || errors.Is(err, ch.ErrNotReady), "recovered fenced authority must still reject writes: %v", err)
 	_, err = sources.Prepare(ctx, first.Owner, topic)
 	require.Error(t, err)
-	progress := verifyMQTTConsumerProgress(t, ctx, nodes, resumed.Owner, prepared)
+	// The controlled migration has verified all replica coverage. Clear its
+	// fixture-owned fence before exercising consumer-authorized retirement.
+	runtimeMeta.WriteFenceToken, runtimeMeta.WriteFenceReason, runtimeMeta.WriteFenceUntilMS = "", 0, 0
+	runtimeMeta.WriteFenceVersion++
+	require.NoError(t, nodes[0].Propose(ctx, cluster.ProposeRequest{Key: id.ID, Command: metafsm.EncodeUpsertChannelRuntimeMetaCommand(runtimeMeta)}))
+	for _, replica := range runtimeMeta.Replicas {
+		require.NoError(t, nodes[0].ApplyChannelMeta(ctx, replica, runtimeMeta))
+	}
+	progress := verifyMQTTConsumerProgress(t, ctx, nodes, resumed.Owner, prepared, ids)
 	require.NoError(t, nodes[0].RemoveChannelSubscribers(ctx, id.ID, 2, []string{"alice"}, 2))
 	_, err = sources.Prepare(ctx, resumed.Owner, topic)
 	require.ErrorIs(t, err, sessioncase.ErrSubscriptionDenied)

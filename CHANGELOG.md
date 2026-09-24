@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Connect ordered MQTT consumer progress to bounded retirement selection and replicated decisions; ACK gaps and unknown registrations prevent unsafe reclamation. Automatic scheduling and product MQTT access remain under development. / MQTT 消费者水位接入有界回收选择和复制决策，乱序 ACK 缺口及未知订阅阻止越界回收；自动调度及产品接入仍在开发。
+
 - Propagate committed MQTT replay retirement to idle voters without waiting for another message; retries renew bounded native repair and preserve authority checks. Product MQTT access remains under development. / MQTT 回放回收提交后主动向空闲投票副本传播，幂等重试补发有界修复并保留权威校验，无需等待后续消息；产品接入仍在开发。
 
 - Route bounded MQTT retirement selection and commits through fresh Slot authority and the Channel append queue; retries preserve durable identities and started commits survive observer cancellation. RPCs 100/101 require matching nodes; no storage format changes. Product wiring remains under development. / MQTT 有界回收选择与提交接入新鲜 Slot 权威及 Channel 追加队列；重试保留持久身份，观察者取消不撤销已开始的提交。RPC 100/101 需要匹配节点，无存储格式变化；产品接入仍在开发。

@@ -10,7 +10,7 @@ Both sides of a forward perform fresh Slot metadata reads before and after the
 operation. Selection permits an unchanged migration write fence and reads only
 committed journals; it shares bounded donor-read admission, owns one store lease
 and publishes no checkpoint. The producer must retain its captured proof and floor
-across continuation, restarting when a fresh floor changes; each reply must match
+across continuation while fresh permission still covers it, restarting on a lower floor; each reply must match
 the exact request and the store verifies its cursor. Retirement requires unfenced metadata and binds full ordered
 placement/status/quorum by the existing authority hash; fresh server metadata,
 not caller leases or retention overlays, reaches the reactor. A post-commit

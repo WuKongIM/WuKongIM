@@ -19,7 +19,7 @@ import (
 // verifyMQTTConsumerProgress uses controlled subscription/window admission to
 // exercise real Slot commits and fresh cross-node completion projection. It does
 // not claim the still-pending product delivery or SUBACK path is operational.
-func verifyMQTTConsumerProgress(t *testing.T, ctx context.Context, nodes []*cluster.Node, owner contract.Owner, prepared sessioncase.PreparedGroupSource) *sessioncase.SourceProgress {
+func verifyMQTTConsumerProgress(t *testing.T, ctx context.Context, nodes []*cluster.Node, owner contract.Owner, prepared sessioncase.PreparedGroupSource, ids interface{ Next() uint64 }) *sessioncase.SourceProgress {
 	t.Helper()
 	progress, err := newMQTTSourceProgress(nodes[0])
 	require.NoError(t, err)
@@ -71,7 +71,7 @@ func verifyMQTTConsumerProgress(t *testing.T, ctx context.Context, nodes []*clus
 	require.NoError(t, err)
 	require.False(t, gap.Changed)
 	require.Equal(t, prepared.Binding, gap.Binding)
-	verifyMQTTReplayRetention(t, ctx, nodes, prepared, prepared.Cursor.StartAfter, false)
+	verifyMQTTReplayRetention(t, ctx, nodes, prepared, prepared.Cursor.StartAfter, false, ids)
 	mutate(meta.MQTTWindowMutation{Op: meta.MQTTWindowAck, PacketID: pending[0].PacketID, DeliveryOrder: pending[0].DeliveryOrder})
 	completed, err := progress.Reconcile(ctx, prepared.Binding.Key)
 	require.NoError(t, err)
@@ -87,7 +87,7 @@ func verifyMQTTConsumerProgress(t *testing.T, ctx context.Context, nodes []*clus
 	require.NoError(t, err)
 	require.False(t, again.Changed)
 	require.Equal(t, completed.Binding, again.Binding)
-	verifyMQTTReplayRetention(t, ctx, nodes, prepared, completed.Binding.CompletedThrough, true)
+	verifyMQTTReplayRetention(t, ctx, nodes, prepared, completed.Binding.CompletedThrough, true, ids)
 	t.Log("mqtt_consumer_progress_evidence: consumer_progress_cross_hash_slot=true ack_gap_preserved=true coalesced_projection=true independent_remote_read=true admission=controlled product_listener=false")
 	return progress
 }

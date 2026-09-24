@@ -13,8 +13,9 @@ subsequently rejects a reply. Historical/newer already-committed proofs never
 insert the caller's proposed record into the recent cache. Queued cancellation
 can discard work; started durability belongs to its worker until completion.
 Consumer-floor read ordering remains a trusted product responsibility. Fresh
-[Slot/RPC routing](mqtt-retirement-routing.md) is connected; the consumer producer
-and full product lifecycle remain required work.
+[Slot/RPC routing](mqtt-retirement-routing.md) and ordered
+[consumer production](mqtt-retirement-production.md) are connected; automatic
+scheduling and full product lifecycle remain required work.
 
 ## Failure inventory before implementation
 

@@ -304,7 +304,12 @@ specification, runbook, report, or module documentation; link to them when neede
   RPC 101 returns bounded historical selection under a stable fence and the exact
   captured proof. Serving-node binding, closed echoes and foreground gates survive
   gateway replacement. These internal ports trust ordered consumer permission;
-  the product producer remains required. Neither entry applies physical cleanup.
+  [Consumer production](../specs/mqtt-retirement-production.md) now reruns ordered
+  retention each turn, validates a bounded whole-anchor selection and commits it
+  through those ports. Continuations pin capture/floor, retaining increased
+  permission conservatively while decreases or authority changes yield. App
+  composes real Node ports; automatic retirement scheduling remains required.
+  Neither entry applies physical cleanup.
   [Whole-anchor selection](../specs/mqtt-retirement-anchor-selection.md) scans at
   most 64 historical journals in one pinned view, below the captured anchor and
   consumer floor. Verified backward cursors survive restart/restore; a floor

@@ -66,6 +66,7 @@ Stop or startup rollback
   Replay worker composition wires fresh SlotMetaSource and foreground Node ports;
   three-node managed-loop coverage verifies fenced learner recovery and original-source release.
   Consumer progress and retention use foreground Node ports; retention captures anchors before consumer floors and grants no local GC.
+  Retirement composes that ordered planner with bounded selection and typed commit; real ACK gaps and unknown registrations block decisions. Automatic retirement scheduling remains pending.
   Full product start/stop/restore wiring and listener admission remain pending.
 - Command-channel suffixes are injected across send, delivery, CMD sync, plugin
   projection and Manager filtering without process-global state.
