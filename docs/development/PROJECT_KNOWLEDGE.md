@@ -208,6 +208,13 @@ specification, runbook, report, or module documentation; link to them when neede
   It does not depend on window capacity or grant send/owner-isolation authority;
   failed evidence or revision races leave progress unchanged. Discovery/scheduling
   and product delivery remain required.
+  [Window admission](../specs/mqtt-window-admission.md) derives payload/reference
+  from anchored originals, applies current new-delivery QoS/No Local/expiry and
+  consumes one exact original-charge receipt per turn. QoS 1 requires committed
+  exchange readback; QoS 0 returns a private revision-bound completion candidate
+  whose debit is submitted only after successful enqueue. No uncharged QoS 1
+  resurrection, implicit ACK or send grant; final permission/recovery ordering
+  and autonomous scheduling remain required. No new table or wire format.
   Optional message column 21 preserves bounded versioned publication metadata;
   compatibility record codec 2 and proposal format 3 prevent lossy recovery.
   Ordinary expiry uses ingress time; Will uses the original source append time.

@@ -313,12 +313,19 @@ func (a *Accounting) read(ctx context.Context, q meta.MQTTRead) (meta.MQTTReadRe
 // qualifiesForBacklog preserves immutable publisher/QoS/expiry semantics. The
 // typed reader already proved content and control identity; this grants no send.
 func qualifiesForBacklog(sub meta.MQTTSubscription, e ch.MQTTReplayPublication, at int64) (bool, error) {
+	eligible, qos, err := publicationEligibility(sub, e, at)
+	return eligible && qos == 1, err
+}
+
+// publicationEligibility evaluates a new delivery; existing exchanges preserve
+// their original QoS and do not use this expiry/No Local filter.
+func publicationEligibility(sub meta.MQTTSubscription, e ch.MQTTReplayPublication, at int64) (bool, uint8, error) {
 	m := e.Message
-	eligible := !e.Internal && sub.GrantedQoS == 1
+	eligible, qos := !e.Internal, sub.GrantedQoS
 	if m.Expire != 0 {
 		duration := int64(m.Expire) * 1000
 		if m.ServerTimestampMS <= 0 || m.ServerTimestampMS > math.MaxInt64-duration {
-			return false, ErrEvidence
+			return false, 0, ErrEvidence
 		}
 		if at >= m.ServerTimestampMS+duration {
 			eligible = false
@@ -327,15 +334,16 @@ func qualifiesForBacklog(sub meta.MQTTSubscription, e ch.MQTTReplayPublication, 
 	if len(m.PublicationMetadata) != 0 {
 		md, err := publication.Decode(m.PublicationMetadata)
 		if err != nil {
-			return false, ErrEvidence
+			return false, 0, ErrEvidence
 		}
 		deadline, expires, err := md.ExpiryDeadlineMS(m.ServerTimestampMS)
 		if err != nil {
-			return false, ErrEvidence
+			return false, 0, ErrEvidence
 		}
-		if md.QoS == 0 || (expires && at >= deadline) || (sub.NoLocal && md.PublisherNamespace == sub.Namespace && md.PublisherClientID == sub.ClientID) {
+		qos = min(qos, md.QoS)
+		if (expires && at >= deadline) || (sub.NoLocal && md.PublisherNamespace == sub.Namespace && md.PublisherClientID == sub.ClientID) {
 			eligible = false
 		}
 	}
-	return eligible, nil
+	return eligible, qos, nil
 }

@@ -4394,3 +4394,60 @@ autonomous initial/reconnect/QoS 0 delivery, inbox/future-person admission,
 unattended ended-Session cleanup/source deactivation, unavailable-owner isolation,
 Will execution, product/restore lifecycle, MQTT offline tools, metrics and complete
 process/load acceptance remain outstanding. No product listener or capacity claim.
+
+
+## Window admission from original messages
+
+[WindowAdmission](../specs/mqtt-window-admission.md) now prepares the next action
+from authoritative Session/cursor/accounting-head, active subscription and source
+binding under an exact Owners scope. It reads bounded anchored original content,
+rechecks placement/current receive permission, and uses current new-delivery
+QoS/No Local/expiry. Original charge receipts determine every debit. Each turn
+consumes at most one receipt; skipped prefixes preserve existing ACK gaps, and
+option changes cannot resurrect previously uncharged QoS 1 messages.
+
+QoS 1 admission commits through command 70 and then point-reads the exact durable
+PacketID/order/content reference before returning a prepared delivery. Full is
+flow control; lost/malformed replies, invalid readback or owner changes expose no
+packet. Existing exchanges are never expired or ACKed by preparation. QoS 0
+returns an uncommitted candidate with a private captured owner/revision/debit;
+CompleteQoS0 is reserved for a trusted sender after successful enqueue. Public
+presentation fields cannot redirect completion; repeated or changed-parent
+completion fails without rebasing. Subscription downgrade retains old charges
+until this completion. No schema, command or RPC format changed.
+
+App composition uses the real Node and Owners ports. Three-node coverage after
+original physical trim now uses both actual accounting and actual window
+preparation, independently compares returned original content, and completes
+through the exact acknowledgement usecase before checking cross-Slot retention.
+Subscription activation and the permission-version fixture remain controlled;
+this test does not perform autonomous gateway delivery or product-level E2E.
+
+Validation (2026-09-24):
+
+- The failure inventory and public usecase/app tests preceded implementation.
+  Missing-API RED evidence: `/tmp/mqtt-window-red.log` and
+  `/tmp/mqtt-window-app-red.log`. The first run additionally caught a test fixture
+  missing the required SyncOnce flag on an explicitly internal control; that
+  fixture was corrected, without weakening the typed-reader validation.
+- Full `GOWORK=off go test -race -p 2 ./internal/usecase/mqttsession ./internal/app -count=1`
+  passed (51.245s / 5.530s), `/tmp/mqtt-window-race.log`. Cases cover original
+  identity and bytes, expired/No Local/internal skips, original charge debit,
+  QoS downgrade, forged/repeated/stale completion, receipt boundaries, full
+  windows, malformed/missing evidence, changed permissions/options/placement,
+  clock failures, cancellation, callback panic and ambiguous commits/readback.
+- `GOWORK=off go test -race -tags=integration -p 2 ./internal/app -run '^TestMQTTGroupSourcePreparationThreeNodeRecovery$' -count=1 -timeout=150s`
+  passed (21.886s), `/tmp/mqtt-window-integration.log`, using real TCP/disk,
+  three nodes and 256 hash Slots. Existing Darwin linker warnings only.
+- Named `flow-doc-contracts` and formatting/diff validation are recorded in
+  `/tmp/mqtt-window-flow.log`; the final check has 86 compliant files, zero invalid
+  and nine existing length warnings.
+
+Prepared delivery remains separate from network admission. The full goal still
+requires send-time permission/revocation ordering, old-exchange recovery before
+new delivery, QoS 0 gateway enqueue, autonomous initial/reconnect/accounting
+scheduling and quota-owner cleanup. Inbox/future-person sources, unattended
+ended-Session cleanup/source deactivation, unavailable-owner isolation, Will
+execution, product/restore lifecycle, offline MQTT tools, metrics and complete
+process/load acceptance also remain outstanding. The product listener stays
+unwired; no capacity or complete-product claim is made.

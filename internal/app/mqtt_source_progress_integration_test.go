@@ -4,7 +4,6 @@ package app
 
 import (
 	"context"
-	"encoding/hex"
 	"testing"
 	"time"
 
@@ -19,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// verifyMQTTConsumerProgress uses controlled subscription/window admission to
+// verifyMQTTConsumerProgress uses controlled subscription activation and real window admission to
 // exercise real Slot commits and fresh cross-node completion projection. It does
 // not claim the still-pending product delivery or SUBACK path is operational.
 func verifyMQTTConsumerProgress(t *testing.T, ctx context.Context, nodes []*cluster.Node, owners *runtime.Owners, owner contract.Owner, prepared sessioncase.PreparedGroupSource, ids interface{ Next() uint64 }, expected ch.MQTTReplayAnchorProof, authorization sessioncase.SubscriptionAuthorizer) *sessioncase.SourceProgress {
@@ -66,20 +65,18 @@ func verifyMQTTConsumerProgress(t *testing.T, ctx context.Context, nodes []*clus
 	require.NoError(t, err)
 	require.Len(t, content.Records, 2)
 	require.Equal(t, content.Records[0].AccountedBytes+content.Records[1].AccountedBytes, accounted.AddedBytes)
-	mutate := func(m meta.MQTTWindowMutation) meta.MQTTWindowResult {
-		m.Key, m.ExpectedRevision = prepared.Cursor.Key, read().Session.Revision
-		m.OwnerGeneration, m.OwnerNodeID, m.OwnerBootID, m.ConnectionID = owner.OwnerGeneration, owner.NodeID, owner.BootID, owner.ConnectionID
-		m.UpdatedAtMS = time.Now().UnixMilli()
-		r, e := nodes[2].MutateMQTTWindow(ctx, m)
-		require.NoError(t, e)
-		require.Equal(t, meta.MQTTWindowApplied, r.Status)
-		return r
-	}
-	var pending []meta.MQTTWindowResult
+	window, err := newMQTTWindowAdmission(nodes[2], owners, authorization)
+	require.NoError(t, err)
+	var pending []meta.MQTTInflight
 	for _, entry := range content.Records {
-		position := entry.Message.MessageSeq
-		pending = append(pending, mutate(meta.MQTTWindowMutation{Op: meta.MQTTWindowAdmit, Publication: meta.MQTTInflightPublication{Position: position, MessageID: entry.Message.MessageID, MessageSeq: position, ContentVersion: entry.ContentVersion, ContentHash: hex.EncodeToString(entry.ContentHash[:]), Bytes: entry.AccountedBytes}}))
+		got, e := window.Prepare(ctx, owner, prepared.Cursor.Key)
+		require.NoError(t, e)
+		require.NotNil(t, got.Delivery)
+		require.Equal(t, entry, got.Delivery.Publication)
+		require.EqualValues(t, 1, got.Delivery.QoS)
+		pending = append(pending, got.Delivery.Exchange)
 	}
+	require.EqualValues(t, 2, read().Session.OutboundInflight)
 	acknowledge := func(i int) sessioncase.AcknowledgementResult {
 		result, e := acknowledgements.Acknowledge(ctx, sessioncase.AcknowledgementCommand{Owner: owner, Key: prepared.Cursor.Key, PacketID: pending[i].PacketID, DeliveryOrder: pending[i].DeliveryOrder})
 		require.NoError(t, e)
@@ -111,6 +108,6 @@ func verifyMQTTConsumerProgress(t *testing.T, ctx context.Context, nodes []*clus
 	require.False(t, again.Changed)
 	require.Equal(t, completed.Binding, again.Binding)
 	verifyMQTTReplayRetention(t, ctx, nodes, prepared, completed.Binding.CompletedThrough, true, ids, expected)
-	t.Log("mqtt_consumer_progress_evidence: consumer_progress_cross_hash_slot=true ack_gap_preserved=true exact_ack_usecase=true duplicate_ack_no_write=true coalesced_projection=true independent_remote_read=true accounting=real_anchored_content admission=controlled product_listener=false")
+	t.Log("mqtt_consumer_progress_evidence: consumer_progress_cross_hash_slot=true ack_gap_preserved=true exact_ack_usecase=true duplicate_ack_no_write=true coalesced_projection=true independent_remote_read=true accounting=real_anchored_content admission=real_anchored_content product_listener=false")
 	return progress
 }
