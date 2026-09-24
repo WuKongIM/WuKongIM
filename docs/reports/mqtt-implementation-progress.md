@@ -24,7 +24,9 @@ online/offline backlog through the Node composition. Window admission and ordere
 existing-exchange recovery preparation are implemented. Original QoS 0 now consumes
 its source position before exposing a candidate, preventing retries after takeover;
 QoS 1 downgraded to QoS 0 keeps post-enqueue completion. Product scheduling, final
-send permission and full connection recovery remain outstanding.
+send permission and full connection recovery remain outstanding. Exact-owner
+explicit ending now isolates execution, ends Session/Will and forces a fresh
+lifetime on reconnect; sender/maintenance triggers remain outstanding.
 Inbox subscription/delivery, source deactivation,
 Will execution, product/restore composition and capacity
 acceptance remain outstanding. No passing product E2E
@@ -4607,3 +4609,53 @@ sender composition, not a completed sender. Final receive-permission admission,
 explicit revocation ending, reconnect-before-new ordering, downgraded-QoS-0
 completion reconciliation, fair scheduling and all previously recorded product,
 source, Will, offline-tool and process/load acceptance work remain outstanding.
+
+## Exact-owner explicit Session ending
+
+[App.End](../specs/mqtt-session-ending.md) accepts a trusted end decision, reads
+current Session authority, proves the exact owner's transport/execution quiescence,
+and rereads before committing the existing atomic lifecycle End command. Ended
+and offline rows still require isolation; they are not evidence that a socket
+stopped. A stale request cannot follow a successor. Repeated ending preserves the
+first reason and detached/cancelled Will work; the next connection receives a new
+lifetime with Session Present=false while the ClientID stays UID-bound.
+
+Ending preserves delivery counters, exchange identities, allocators and source
+responsibility for verified cleanup. Any live Will becomes ready atomically with
+ending, but no publication is performed. Observation is captured before isolation;
+an already expired active owner first records its original abnormal disconnect.
+This bounded two-command path retains the original Will clocks rather than
+restarting them at delayed observation/cleanup. Uncertain replies stop the turn;
+retries re-read authority. No table, schema, command or RPC format changed.
+
+Validation (2026-09-24):
+
+- Failure inventory, public lifecycle tests and the app integration extension
+  preceded implementation. Missing-API RED evidence is in `/tmp/mqtt-end-red.log`
+  and `/tmp/mqtt-end-app-red.log`.
+- The first focused run exposed a test expectation that retained the first
+  exchange's links from before the second admission. The fixture now captures the
+  actual linked exchanges immediately before End, then proves they are unchanged.
+  No product behavior was weakened to satisfy that expectation.
+- `GOWORK=off go test -race -tags=integration -p 2 ./internal/usecase/mqttsession ./internal/app -run '^(TestEndSession.*|TestMQTTSessionAcquisitionThreeNodeRPC)$' -count=1 -timeout=150s`
+  passed (4.115s / 13.557s), `/tmp/mqtt-end-validation.log`. Coverage includes actual
+  metadata/Owners, drained effects, retained charged/unadmitted and inflight debt,
+  Will timing/cancellation/detachment, non-resuming reconnect, stale identities,
+  changed owners, invalid evidence, cancellation, callback panic and ambiguous
+  commit outcomes. Only existing Darwin linker warnings appeared.
+- The three-node case uses real TCP, disk, 256 hash Slots, foreground authority
+  and remote owner RPC. It verifies remote draining, the ended reason and ready
+  Will on every node, repeated end, fresh lifetime and stale-end rejection.
+  Physical transport close callbacks remain controlled; this is internal app
+  integration, not autonomous product MQTT process acceptance.
+- Named `flow-doc-contracts` passed after keeping Read First within its five-link
+  limit: 86 compliant files, zero invalid and nine existing length warnings
+  (`/tmp/mqtt-end-flow.log`). All seven frozen context digests match source
+  `5e6e1819c5cd9cc434069b43ae2f1d0aa1a66678`; formatting/diff checks passed.
+
+The goal remains active. The sender still needs final receive-permission ordering
+and definitive-revocation handling that invokes End after releasing its scope.
+Reconnect-before-new delivery, QoS 0 completion reconciliation, fair scheduling,
+inbox/future sources, unattended source cleanup, unavailable-owner isolation,
+Will execution, product/restore composition, offline tools, metrics and full
+process/load acceptance remain required.

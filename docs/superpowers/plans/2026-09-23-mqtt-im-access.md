@@ -6,6 +6,8 @@
 
 ## 当前进度
 
+- 已实现精确 owner 的显式 Session 结束：先确认连接关闭及操作排空，再以现有生命周期命令原子结束 Session/Will；保留投递责任和首个原因，旧请求不能跟随接管者，重连返回 Session Present=false。真实三节点远程隔离验证通过；当前权限检测、发送器触发与自动清理仍待接通，见 [会话结束合同](../../specs/mqtt-session-ending.md)。
+
 - 已修正原始 QoS 0 的崩溃窗口：返回候选前先消费未计量源位置，仅 Applied 回执授予本次候选；丢回包、重复回执或接管后不能再次发送。原始 QoS 1 降为 QoS 0 则保留入队后扣减，协议允许该降级发生重复。此修正替代此前“所有 QoS 0 均入队后推进”的准备合同，见 [至多一次合同](../../specs/mqtt-qos0-preclaim.md)。
 
 - 已接通旧交换恢复准备：按 DeliveryOrder 读取现有交换，以旧游标/绑定核验授权版本、原文和最终交换身份；普通退订及同名订阅替换不覆盖已开始交换的 QoS、PacketID 或 SubscriptionIdentifier。三节点裁剪场景使用真实恢复读取；恢复先于新发送、最后发包权限及自动调度仍待装配，见 [旧交换恢复合同](../../specs/mqtt-exchange-recovery.md)。

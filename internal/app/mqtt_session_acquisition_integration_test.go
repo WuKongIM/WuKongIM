@@ -223,9 +223,51 @@ func TestMQTTSessionAcquisitionThreeNodeRPC(t *testing.T) {
 	require.Equal(t, meta.MQTTWillCancelled, wills.Wills[0].Stage)
 	t.Log("MQTT Will setup: authoritative_membership=true armed_durable=true revoked_replacement_rejected_before_isolation=true normal_disconnect_cancelled=true")
 
+	require.NoError(t, nodes[0].AddChannelSubscribers(ctx, "will-group", 2, []string{"alice"}, 3))
+	// A trusted revocation decision ends the observed lifetime through real
+	// remote owner isolation and Slot authority, without following a successor.
+	willCommand.Will.DelaySeconds = 30
+	ending, e := services[1].Connect(ctx, willCommand)
+	require.NoError(t, e)
+	admitted, e := owners[1].Begin(ctx, ending.Owner)
+	require.NoError(t, e)
+	defer admitted.Done()
+	closedBefore := willCloses.Load()
+	endDone := make(chan error, 1)
+	go func() {
+		endDone <- services[2].End(ctx, sessioncase.EndCommand{Owner: ending.Owner, Reason: meta.MQTTSessionRevoked})
+	}()
+	require.Eventually(t, func() bool { return willCloses.Load() > closedBefore }, 5*time.Second, 10*time.Millisecond)
+	select {
+	case err := <-endDone:
+		t.Fatalf("remote ending bypassed admitted scope: %v", err)
+	default:
+	}
+	admitted.Done()
+	require.NoError(t, <-endDone)
+	endRead := meta.MQTTRead{Kind: meta.MQTTReadWill, WillKey: meta.MQTTWillKey{Namespace: "main", ClientID: "will-client", SessionGeneration: ending.Owner.SessionGeneration, WillGeneration: ending.WillGeneration}}
+	for _, n := range nodes {
+		r, err := n.ReadMQTT(ctx, endRead)
+		require.NoError(t, err)
+		require.NotNil(t, r.Session)
+		require.Equal(t, meta.MQTTSessionEnded, r.Session.State)
+		require.Equal(t, meta.MQTTSessionRevoked, r.Session.TerminationReason)
+		require.Zero(t, r.Session.WillGeneration)
+		require.Len(t, r.Wills, 1)
+		require.Equal(t, meta.MQTTWillReady, r.Wills[0].Stage)
+	}
+	require.NoError(t, services[0].End(ctx, sessioncase.EndCommand{Owner: ending.Owner, Reason: meta.MQTTSessionSourceLost}))
+	freshCommand := willCommand
+	freshCommand.Will = nil
+	freshAfterEnd, e := services[0].Connect(ctx, freshCommand)
+	require.NoError(t, e)
+	require.False(t, freshAfterEnd.SessionPresent)
+	require.Equal(t, ending.Owner.SessionGeneration+1, freshAfterEnd.Owner.SessionGeneration)
+	require.ErrorIs(t, services[2].End(ctx, sessioncase.EndCommand{Owner: ending.Owner, Reason: meta.MQTTSessionRevoked}), sessioncase.ErrFenced)
+	t.Log("MQTT explicit ending: remote_scope_drained=true ended_reason=revoked will_ready=true repeated_end_preserved=true next_session_present=false stale_end_rejected=true")
+
 	// A different node can promote a delayed Will and later expire the offline
 	// Session from authoritative state. No live socket or in-memory timer is needed.
-	require.NoError(t, nodes[0].AddChannelSubscribers(ctx, "will-group", 2, []string{"alice"}, 3))
 	willCommand.SessionExpirySec = 2
 	willCommand.Will.DelaySeconds = 1
 	delayed, e := services[1].Connect(ctx, willCommand)

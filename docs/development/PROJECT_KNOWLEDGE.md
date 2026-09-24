@@ -229,6 +229,12 @@ specification, runbook, report, or module documentation; link to them when neede
   accepts unrelated ACK link changes but rejects disappearance/new admission.
   It never ACKs, expires or changes an exchange. Page completion is not a complete
   connection-recovery proof; sender serialization and final permission remain required.
+  [Explicit Session ending](../specs/mqtt-session-ending.md) isolates the exact
+  observed owner before one atomic Session/Will end, even if quota accounting
+  already ended the row. It preserves debt and the first end reason, never follows
+  a successor, and gives the next connection a fresh lifetime. Expired active
+  owners first record the original disconnect; final permission detection and
+  automatic ending/cleanup scheduling remain required.
   Optional message column 21 preserves bounded versioned publication metadata;
   compatibility record codec 2 and proposal format 3 prevent lossy recovery.
   Ordinary expiry uses ingress time; Will uses the original source append time.

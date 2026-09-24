@@ -31,11 +31,11 @@ subscription projection. It owns no packet, concrete adapter, worker or replay s
 4. Renew inside an admitted scope, preserve delivery/Will state, commit exact
    revision and install the original deadline. Confirmed loss/clock failure
    fences immediately; unconfirmed writes cannot extend local execution.
-5. Disconnect captures observation before isolation outside the caller's scope,
-   then rereads ownership and commits Will/expiry without restarting clocks or changing normal intent.
-   Late disconnect never changes a successor; original zero expiry cannot extend.
-   Queued entry cleanup supplies an optional trusted local monotonic observation;
+5. Disconnect captures observation before isolation outside every owner scope, preserving Will/expiry clocks and normal intent.
+   Original zero expiry cannot extend. Queued cleanup may supply a trusted monotonic observation;
    wall-only or future values fail before isolation and are never client input.
+   [End](end.go) requires exact isolation even for ended rows, then atomically ends Session/Will while retaining delivery/source debt.
+   Neither follows a successor. End retains the first reason; expired active owners record the original disconnect first.
 6. Reconcile one complete-owner deadline candidate against current authority.
    Active expiry still requires exact isolated disconnect; offline Will Delay and
    expiry use one coherent Session/Will read and at most one lifecycle commit.

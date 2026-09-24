@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add exact-owner MQTT Session ending for revocation, source loss and explicit cleanup, preserving unfinished delivery and Will state and requiring a fresh lifetime on reconnect. Automatic triggers and product wiring remain under development. / MQTT 增加撤权、源丢失及显式清理的精确 owner 会话结束路径，保留未完成投递和 Will 状态，重连使用新生命周期；自动触发及产品接入仍在开发。
+
 - Prevent original MQTT/Will QoS 0 from being retried after a crash or takeover by consuming its source position before returning a send candidate. QoS 1 downgraded to QoS 0 keeps post-enqueue accounting. Product sending remains under development. / 原始 MQTT/Will QoS 0 在返回发送候选前消费源位置，防止崩溃或接管后重复发送；QoS 1 降为 QoS 0 仍保留入队后计量。产品发送仍在开发。
 
 - Prepare existing MQTT exchanges in original send order from authoritative replay content, preserving packet identity and frozen options across unsubscribe/replacement while rejecting changed receive permissions. Autonomous reconnect sending remains under development. / MQTT 旧交换可按原发送顺序从权威回放原文准备，退订或同名订阅替换后仍保留包身份与既定选项，并拒绝已变化的接收权限；自动重连发送仍在开发。
