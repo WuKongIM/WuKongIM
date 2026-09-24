@@ -1482,6 +1482,22 @@ func (a *messageDBChannelStoreAdapter) ExportMQTTReplayAnchor(ctx context.Contex
 	return fromDBMQTTReplayPage(page), nil
 }
 
+// ReadMQTTReplayAnchor preserves storage's independently committed coverage and
+// short-page bounds without falling back to ordinary history.
+func (a *messageDBChannelStoreAdapter) ReadMQTTReplayAnchor(ctx context.Context, position uint64, req ch.MQTTReplayRange) (ch.MQTTReplayPage, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayPage{}, err
+	}
+	if !req.Valid() || position == 0 || req.Through >= position {
+		return ch.MQTTReplayPage{}, ch.ErrInvalidConfig
+	}
+	page, err := a.store.ReadMQTTReplayAnchor(ctx, req.Generation, position, req.From, req.Through, messagedb.ReadOptions{Limit: req.Limit, MaxBytes: req.MaxBytes})
+	if err != nil {
+		return ch.MQTTReplayPage{}, a.mapError(err)
+	}
+	return fromDBMQTTReplayPage(page), nil
+}
+
 func (a *messageDBChannelStoreAdapter) ImportMQTTReplayAnchor(ctx context.Context, position uint64, page ch.MQTTReplayPage) (ch.MQTTReplayPrefix, error) {
 	if err := a.ensureOpen(); err != nil {
 		return ch.MQTTReplayPrefix{}, err

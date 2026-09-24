@@ -264,6 +264,37 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	require.NotNil(t, ready.ReplayReadiness)
 	require.True(t, ready.ReplayReadiness.Covered)
 	require.True(t, ready.WriteFence.Set())
+	// Both origins forward to node 2. Bounded consumer pages must survive
+	// physical original-log trim and a stable migration fence without repair.
+	consumerRead := ch.MQTTReplayConsumerRequest{AnchorPosition: plan.Anchor.Manifest.LastOffset, Request: ch.MQTTReplayRequest{
+		ChannelID: id, ExpectedChannelEpoch: planRequest.ExpectedChannelEpoch,
+		ExpectedLeaderEpoch: planRequest.ExpectedLeaderEpoch, ExpectedRouteGeneration: planRequest.ExpectedRouteGeneration,
+		Range: ch.MQTTReplayRange{Generation: planRequest.Generation, From: prepared.Cursor.StartAfter + 1, Through: plan.Anchor.Anchor.Through, Limit: 1, MaxBytes: 1 << 20},
+	}}
+	firstPage, err := nodes[0].ReadChannelMQTTReplay(ctx, consumerRead)
+	require.NoError(t, err)
+	require.True(t, firstPage.ValidFor(consumerRead.Request.Range))
+	require.Len(t, firstPage.Records, 1)
+	require.Equal(t, uint64(20001), firstPage.Records[0].MessageID)
+	require.Less(t, firstPage.After.Through, plan.Anchor.Anchor.Through)
+	otherPage, err := nodes[2].ReadChannelMQTTReplay(ctx, consumerRead)
+	require.NoError(t, err)
+	require.Equal(t, firstPage, otherPage)
+	firstPage.Records[0].Content[0] ^= 0xff
+	againPage, err := nodes[0].ReadChannelMQTTReplay(ctx, consumerRead)
+	require.NoError(t, err)
+	require.Equal(t, otherPage, againPage, "caller mutation must not change shared content")
+	consumerRead.Request.Range.From = otherPage.After.Through + 1
+	nextPage, err := nodes[2].ReadChannelMQTTReplay(ctx, consumerRead)
+	require.NoError(t, err)
+	require.True(t, nextPage.ValidFor(consumerRead.Request.Range))
+	require.Len(t, nextPage.Records, 1)
+	require.Equal(t, uint64(20003), nextPage.Records[0].MessageID)
+	require.Equal(t, otherPage.After, nextPage.Before)
+	consumerRead.AnchorPosition += 100
+	unprovenPage, err := nodes[0].ReadChannelMQTTReplay(ctx, consumerRead)
+	require.Error(t, err)
+	require.Zero(t, unprovenPage)
 	_, err = nodes[0].AppendChannel(ctx, ch.AppendRequest{ChannelID: id, Message: ch.Message{MessageID: 20002, FromUID: "alice", Payload: []byte("fenced"), ServerTimestampMS: time.Now().UnixMilli()}})
 	require.True(t, errors.Is(err, ch.ErrWriteFenced) || errors.Is(err, ch.ErrNotReady), "recovered fenced authority must still reject writes: %v", err)
 	_, err = sources.Prepare(ctx, first.Owner, topic)

@@ -452,6 +452,13 @@ specification, runbook, report, or module documentation; link to them when neede
   donor rotation. Import retains its pre-import plan; only the next verified read
   reports completion. Replies carry exact request echoes and proofs within 4 KiB;
   RPC 98 carries bodies. Receiver admission and stable migration fences are reused.
+  [Consumer reads](../specs/mqtt-anchored-consumer-reads.md) use Node/RPC 102,
+  fresh placement/fence checks, a five-second deadline and separate four-slot
+  storage admission without a queue. One pinned snapshot verifies the committed
+  anchor and full-prefix endpoint before reading a bounded short page; original
+  history is never a fallback. Replies echo the exact anchor and range. Reads
+  grant no Session authorization, accounting, window admission or GC permission.
+  Three-node integration verifies remote short pages after physical original trim.
   Active-source discovery uses `MQTTReadSourceOwners` (read kind 16, Node/RPC 91):
   pinned retention-index prefix seeks return at most 64 distinct Channel sources,
   independently of subscriber count. Preparing/Removing obligations remain visible;

@@ -149,6 +149,8 @@ const (
 	RPCChannelMQTTRetirement
 	// RPCChannelMQTTRetirementSelection reads a bounded historical anchor page.
 	RPCChannelMQTTRetirementSelection
+	// RPCChannelMQTTConsumerRead serves bounded anchored consumer content.
+	RPCChannelMQTTConsumerRead
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -293,6 +295,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "channel mqtt retirement selection"
 	case RPCChannelMQTTPlan:
 		return "channel mqtt plan"
+	case RPCChannelMQTTConsumerRead:
+		return "channel mqtt consumer read"
 	case RPCChannelMQTTReplay:
 		return "channel mqtt replay"
 	default:

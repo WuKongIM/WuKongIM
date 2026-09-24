@@ -12,6 +12,7 @@ runtime integration. Bounded copy/recovery/retirement scheduling and exact bindi
 removal, unsubscribe sealing and live-owner cancelled-preparation discovery
 (including before the first binding) are implemented.
 Concrete group projection now confirms shared replay on every eligible replica.
+Anchored consumer pages route through foreground Node/RPC after original trim.
 Inbox subscription/delivery, source deactivation,
 Will execution, product/restore composition and capacity
 acceptance remain outstanding. No passing product E2E
@@ -4102,3 +4103,48 @@ ended-Session discovery before registration, source deactivation/pruning, full
 consumer accounting/delivery/PUBACK entry, unavailable-owner recovery, Will
 execution, product lifecycle/configuration, offline tools and process/load
 acceptance remain required.
+
+## Anchored consumer pages through cluster routing
+
+The storage consumer read now pins one snapshot, verifies an independently
+committed anchor and local full-prefix endpoint, and returns a bounded page that
+may stop before that anchor. Existing repair export still requires its exact
+complete endpoint. Pages own immutable canonical content and cumulative proofs;
+missing, pending, foreign, incomplete or corrupt evidence returns no page. Reads
+do not mutate source protection, consumer progress, retirement or ordinary history.
+
+The Channel adapter and foreground Node facade expose this contract through
+RPC 102. Both origin and serving leader recheck fresh Slot placement and stable
+write fences. Serving storage work has four dedicated slots without a waiting
+queue and a five-second deadline; it never runs on a reactor goroutine. A distinct
+versioned envelope echoes the exact anchor around the bounded replay codec.
+Unknown peers fail explicitly. There is no new table, row codec or Slot command.
+
+Validation (2026-09-24):
+
+- Tests preceded storage, adapter, routing and Node implementations. RED logs:
+  `/tmp/mqtt-consumer-read-red.log`, `/tmp/mqtt-consumer-adapter-red.log`,
+  `/tmp/mqtt-consumer-routing-red.log`, `/tmp/mqtt-consumer-node-red.log` and
+  `/tmp/mqtt-consumer-app-red.log`.
+- Focused race tests across MessageDB, Channel store, cluster channels/transport
+  and Node passed (`/tmp/mqtt-consumer-race.log`). The Channel-store filter matched
+  no tests; the full suite below supplies its actual verification.
+- Full race suites for `pkg/channel/store`, `pkg/cluster/channels` and
+  `pkg/cluster/net` passed in 4.480 / 6.946 / 1.413 s;
+  `/tmp/mqtt-consumer-ports-race.log`. Existing Darwin linker warnings only.
+- `GOWORK=off go test -race -tags=integration -p 2 ./internal/app -run
+  '^TestMQTTGroupSourcePreparationThreeNodeRecovery$' -count=1` passed in
+  21.161 s (`/tmp/mqtt-consumer-app.log`). After physical original-prefix trim on
+  all three replicas, two origins remotely read the same short page under a stable
+  migration fence, continue through the next publication, verify caller byte
+  ownership and reject an absent anchor. Existing projection/removal/reopen checks
+  also pass. This is real TCP/disk runtime integration, not product process E2E.
+- Named `flow-doc-contracts` passed: 86 compliant, zero invalid, nine existing
+  warnings (`/tmp/mqtt-consumer-flow.log`). Formatting and diff checks passed.
+
+Frozen context and failure inventory: [consumer read contract](../specs/mqtt-anchored-consumer-reads.md).
+The full goal remains active. Typed content interpretation, subscription
+qualification/accounting, window admission and delivery/PUBACK still require
+implementation; inbox/future-person admission, ended-Session discovery, source
+deactivation, owner recovery, Will execution, product lifecycle, offline tools
+and process/load acceptance are also outstanding.

@@ -565,6 +565,7 @@ func RegisterServiceHandlersOn(registrar HandlerRegistrar, service serviceRPCSer
 	RegisterHandlersOn(registrar, service.Server())
 	registerMQTTSourceHandler(registrar, service)
 	registerMQTTReplayHandler(registrar, service)
+	registerMQTTConsumerReadHandler(registrar, service)
 	registerMQTTCopyHandler(registrar, service)
 	registerMQTTAnchorHandler(registrar, service)
 	registerMQTTPlanHandler(registrar, service)

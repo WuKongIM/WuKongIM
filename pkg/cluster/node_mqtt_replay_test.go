@@ -18,5 +18,7 @@ func TestMQTTReplayNodeForegroundGates(t *testing.T) {
 	}{{absent, ErrNotStarted}, {&Node{}, ErrNotStarted}, {maintenance, ErrMaintenance}} {
 		_, err := tc.node.PrepareChannelMQTTReplay(context.Background(), ch.MQTTReplayRequest{})
 		require.ErrorIs(t, err, tc.err)
+		_, err = tc.node.ReadChannelMQTTReplay(context.Background(), ch.MQTTReplayConsumerRequest{})
+		require.ErrorIs(t, err, tc.err)
 	}
 }

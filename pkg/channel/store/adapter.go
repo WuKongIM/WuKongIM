@@ -469,6 +469,13 @@ type MQTTReplayAnchorTransfer interface {
 	ImportMQTTReplayAnchor(context.Context, uint64, ch.MQTTReplayPage) (ch.MQTTReplayPrefix, error)
 }
 
+// MQTTReplayConsumerReader returns bounded pages within a locally committed
+// anchor after verifying its complete shared prefix. Pages may end before that
+// anchor; current routing, consumer permission and accounting remain above storage.
+type MQTTReplayConsumerReader interface {
+	ReadMQTTReplayAnchor(context.Context, uint64, ch.MQTTReplayRange) (ch.MQTTReplayPage, error)
+}
+
 // MQTTReplayRepairPlanner selects at most one next anchored interval from a
 // pinned replica-local frontier. It never advances a checkpoint or infers cluster
 // readiness. A scan cursor is revalidated against already covered content.
