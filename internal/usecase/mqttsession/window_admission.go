@@ -42,7 +42,7 @@ type PreparedDelivery struct {
 type WindowPreparation struct {
 	Delivery *PreparedDelivery
 	Through  uint64
-	// Advanced commits a skipped prefix. Full yields to ACK flow control. Idle
+	// Advanced confirms a skipped prefix or original-QoS-0 claim. Full yields to ACK flow control. Idle
 	// means only that this cursor's already-accounted prefix has been consumed.
 	Advanced, Full, Idle bool
 }
@@ -51,6 +51,8 @@ type qos0Completion struct {
 	issuer   *WindowAdmission
 	owner    contract.Owner
 	mutation meta.MQTTWindowMutation
+	// preclaimed original QoS 0 has already consumed its source position.
+	preclaimed bool
 }
 
 // WindowAdmission derives one action from authoritative accounting and original
@@ -85,7 +87,8 @@ func NewWindowAdmission(o WindowAdmissionOptions) (*WindowAdmission, error) {
 
 // Prepare processes at most one bounded page and one original charge receipt.
 // A skip and an admission are separate turns; a failed/ambiguous commit never
-// exposes a delivery. QoS 0 remains uncommitted until successful packet enqueue.
+// exposes a delivery. Original QoS 0 claims its uncharged position before return;
+// QoS 1 downgraded to QoS 0 keeps its charges until successful packet enqueue.
 func (w *WindowAdmission) Prepare(parent context.Context, o contract.Owner, key meta.MQTTDeliveryCursorKey) (out WindowPreparation, err error) {
 	if w == nil || meta.ValidateMQTTRead(meta.MQTTRead{Kind: meta.MQTTReadAccounting, CursorKey: key}) != nil || key.Namespace != o.Key.Namespace || key.ClientID != o.Key.ClientID || key.SessionGeneration != o.SessionGeneration {
 		return out, ErrInvalid
@@ -176,6 +179,7 @@ func (w *WindowAdmission) Prepare(parent context.Context, o contract.Owner, key 
 	}
 	mutation := meta.MQTTWindowMutation{Key: key, ExpectedRevision: session.Revision, OwnerGeneration: o.OwnerGeneration, OwnerNodeID: o.NodeID, OwnerBootID: o.BootID, ConnectionID: o.ConnectionID, Op: meta.MQTTWindowAdvance, UpdatedAtMS: at.UnixMilli()}
 	var delivery *PreparedDelivery
+	preclaim := false
 	itemIndex := 0
 	for _, entry := range page.Records {
 		charged := false
@@ -190,14 +194,19 @@ func (w *WindowAdmission) Prepare(parent context.Context, o contract.Owner, key 
 				}
 			}
 		}
-		eligible, qos, e := publicationEligibility(sub, entry, at.UnixMilli())
+		policy, e := publicationEligibility(sub, entry, at.UnixMilli())
 		if e != nil {
 			return out, e
 		}
-		if eligible && (qos == 0 || charged) {
+		if policy.originalQoS == 0 && charged {
+			return out, ErrEvidence
+		}
+		qos := policy.qos
+		if policy.eligible && (qos == 0 || charged) {
 			if mutation.Through != 0 {
 				break
 			}
+			preclaim = policy.originalQoS == 0
 			delivery = &PreparedDelivery{Owner: o, Topic: sub.Topic, QoS: qos, SubscriptionIdentifier: sub.SubscriptionIdentifier, Publication: entry}
 			if qos == 1 {
 				mutation.Op = meta.MQTTWindowAdmit
@@ -221,8 +230,23 @@ func (w *WindowAdmission) Prepare(parent context.Context, o contract.Owner, key 
 		return out, err
 	}
 	if delivery != nil && delivery.QoS == 0 {
-		delivery.completion = &qos0Completion{issuer: w, owner: o, mutation: mutation}
-		return WindowPreparation{Delivery: delivery}, nil
+		delivery.completion = &qos0Completion{issuer: w, owner: o, mutation: mutation, preclaimed: preclaim}
+		if !preclaim {
+			return WindowPreparation{Delivery: delivery}, nil
+		}
+		receipt, e := w.commit(ctx, op, mutation)
+		if e != nil {
+			return out, e
+		}
+		if e = w.check(ctx, op, o, session, mutation.UpdatedAtMS); e != nil {
+			return out, e
+		}
+		result := WindowPreparation{Advanced: true, Through: mutation.Through}
+		// An exact retry cannot grant a second original-QoS-0 send attempt.
+		if receipt.Status == meta.MQTTWindowApplied {
+			result.Delivery = delivery
+		}
+		return result, nil
 	}
 	receipt, err := w.commit(ctx, op, mutation)
 	if err != nil {
@@ -260,7 +284,8 @@ func (w *WindowAdmission) Prepare(parent context.Context, o contract.Owner, key 
 
 // CompleteQoS0 must be called only after successful packet enqueue by the trusted
 // sender. Private captured identity/revision/debits cannot be redirected through
-// public presentation fields; a changed parent fails without rebasing the work.
+// public presentation fields. Preclaimed original QoS 0 is a verified no-op;
+// downgrade completion rejects changed parents without rebasing the work.
 func (w *WindowAdmission) CompleteQoS0(parent context.Context, d PreparedDelivery) (changed bool, err error) {
 	c := d.completion
 	if w == nil || c == nil || c.issuer != w {
@@ -277,6 +302,15 @@ func (w *WindowAdmission) CompleteQoS0(parent context.Context, d PreparedDeliver
 	}
 	if err = w.guard.checkSession(ctx, op, c.owner, r.Session); err != nil {
 		return false, err
+	}
+	if c.preclaimed {
+		if r.Session.Revision < c.mutation.ExpectedRevision+1 {
+			return false, ErrEvidence
+		}
+		if err = w.check(ctx, op, c.owner, *r.Session, c.mutation.UpdatedAtMS); err != nil {
+			return false, err
+		}
+		return false, nil
 	}
 	if r.Session.Revision != c.mutation.ExpectedRevision {
 		return false, ErrConflict

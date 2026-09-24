@@ -154,8 +154,14 @@ func TestWindowAdmissionQoS0CompletesOnlyCapturedCandidate(t *testing.T) {
 			require.NotNil(t, got.Delivery)
 			require.Zero(t, got.Delivery.QoS)
 			require.Zero(t, got.Delivery.Exchange)
-			require.Equal(t, before, f.row(t))
-			require.Zero(t, f.window.writes)
+			if downgrade {
+				require.Equal(t, before, f.row(t))
+				require.Zero(t, f.window.writes)
+			} else {
+				require.True(t, got.Advanced)
+				require.Equal(t, before.Revision+1, f.row(t).Revision)
+				require.Equal(t, 1, f.window.writes)
+			}
 			forged := app.PreparedDelivery{Owner: got.Delivery.Owner, Publication: got.Delivery.Publication, QoS: 0}
 			changed, err := w.CompleteQoS0(context.Background(), forged)
 			require.Error(t, err)
@@ -165,14 +171,18 @@ func TestWindowAdmissionQoS0CompletesOnlyCapturedCandidate(t *testing.T) {
 			got.Delivery.Publication.Message.MessageSeq++
 			changed, err = w.CompleteQoS0(context.Background(), *got.Delivery)
 			require.NoError(t, err)
-			require.True(t, changed)
+			require.Equal(t, downgrade, changed)
 			require.Zero(t, f.row(t).PendingMessages)
 			require.Zero(t, f.row(t).PendingBytes)
 			require.Zero(t, f.row(t).OutboundInflight)
 			cursor := readAcknowledgementCursor(t, f.groupSourceFixture, f.key)
 			require.EqualValues(t, 11, cursor.CompletedThrough)
 			changed, err = w.CompleteQoS0(context.Background(), *got.Delivery)
-			require.Error(t, err)
+			if downgrade {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 			require.False(t, changed)
 			require.Equal(t, 1, f.window.writes)
 		})

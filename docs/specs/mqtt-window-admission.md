@@ -15,14 +15,19 @@ first eligible QoS-1 record is atomically admitted with its original content
 reference, PacketID and DeliveryOrder; a subsequent authoritative point read
 confirms that exchange before returning it. Window-full is a flow-control result.
 
-QoS 0 remains distinct: Prepare returns an uncommitted candidate and a private
+QoS 0 distinguishes original publication QoS, as corrected by
+[at-most-once preparation](mqtt-qos0-preclaim.md). Original MQTT/Will QoS 0 first
+commits an uncharged WindowAdvance. Only an Applied receipt returns the candidate;
+unchanged/ambiguous replies cannot authorize another attempt. Loss after that
+claim and before enqueue is allowed; takeover never retries the position.
+CompleteQoS0 verifies a preclaimed candidate without another mutation.
+
+Original QoS 1 downgraded to QoS 0 returns an uncommitted candidate and a private
 captured completion mutation. CompleteQoS0 may be called only after successful
-packet enqueue; it checks the exact owner and commits that original revision's
-advance/debit. Failure keeps the record recoverable and cannot report completion.
-It can release a prior QoS-1 charge after an explicit subscription downgrade,
-but never fabricates an inflight exchange or silently discards the message.
-No offline guarantee is added for original QoS-0 publications. Independent
-scheduling/expiry cleanup may discard such uncharged history within that contract.
+packet enqueue; it checks exact owner/revision and advances/debits the original
+charge. Failure keeps responsibility and cannot claim completion. OASIS permits
+duplicates for this downgrade. No inflight exchange or offline QoS-0 guarantee
+is added. A positive charge on original QoS 0 is invalid evidence.
 
 Returned preparation is not a send grant. The caller still orders old exchanges
 before new delivery on resume, rechecks receive permission at the network admission
@@ -42,8 +47,9 @@ the gateway's enqueue/connection quota.
   missing, foreign, partial or corrupt Session/child/head/binding/page becomes empty.
 - Skips debit re-evaluated counts instead of original charges, cross unbounded
   receipts, erase ACK gaps or revive uncharged QoS-1 records after option changes.
-- QoS downgrade erases queued responsibility before sending; QoS-0 completion
-  can be forged, used for another owner or repeated after another mutation.
+- QoS downgrade erases queued responsibility before sending; its completion can
+  be forged or rebound to another revision. Original QoS 0 can repeat after a crash
+  or an unchanged/ambiguous claim reply; preclaimed completion debits twice.
 - Expiry/No Local changes are ignored before new admission, or begun exchanges
   are incorrectly expired or acknowledged by preparation.
 - Parent/options/owner/permission/source-placement races admit foreign work;

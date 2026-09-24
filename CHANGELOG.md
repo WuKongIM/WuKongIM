@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Prevent original MQTT/Will QoS 0 from being retried after a crash or takeover by consuming its source position before returning a send candidate. QoS 1 downgraded to QoS 0 keeps post-enqueue accounting. Product sending remains under development. / 原始 MQTT/Will QoS 0 在返回发送候选前消费源位置，防止崩溃或接管后重复发送；QoS 1 降为 QoS 0 仍保留入队后计量。产品发送仍在开发。
+
 - Prepare existing MQTT exchanges in original send order from authoritative replay content, preserving packet identity and frozen options across unsubscribe/replacement while rejecting changed receive permissions. Autonomous reconnect sending remains under development. / MQTT 旧交换可按原发送顺序从权威回放原文准备，退订或同名订阅替换后仍保留包身份与既定选项，并拒绝已变化的接收权限；自动重连发送仍在开发。
 
 - Add MQTT QoS 0 enqueue without consuming QoS 1 receive credit, preserve original native/Will expiry, and reserve bounded output space for server-added properties. Product send/recovery scheduling remains under development. / MQTT QoS 0 发送入队不占用 QoS 1 接收额度，保留原生及 Will 过期时钟，并为服务端附加属性预留有界出站空间；产品发送及恢复调度仍在开发。

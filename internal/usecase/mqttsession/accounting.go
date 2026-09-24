@@ -313,37 +313,44 @@ func (a *Accounting) read(ctx context.Context, q meta.MQTTRead) (meta.MQTTReadRe
 // qualifiesForBacklog preserves immutable publisher/QoS/expiry semantics. The
 // typed reader already proved content and control identity; this grants no send.
 func qualifiesForBacklog(sub meta.MQTTSubscription, e ch.MQTTReplayPublication, at int64) (bool, error) {
-	eligible, qos, err := publicationEligibility(sub, e, at)
-	return eligible && qos == 1, err
+	policy, err := publicationEligibility(sub, e, at)
+	return policy.eligible && policy.qos == 1, err
+}
+
+// publicationPolicy keeps original QoS distinct from a subscription downgrade:
+// original QoS 0 needs at-most-once claim, while a QoS 1 downgrade may duplicate.
+type publicationPolicy struct {
+	eligible         bool
+	qos, originalQoS uint8
 }
 
 // publicationEligibility evaluates a new delivery; existing exchanges preserve
 // their original QoS and do not use this expiry/No Local filter.
-func publicationEligibility(sub meta.MQTTSubscription, e ch.MQTTReplayPublication, at int64) (bool, uint8, error) {
+func publicationEligibility(sub meta.MQTTSubscription, e ch.MQTTReplayPublication, at int64) (publicationPolicy, error) {
 	m := e.Message
-	eligible, qos := !e.Internal, sub.GrantedQoS
+	policy := publicationPolicy{eligible: !e.Internal, qos: sub.GrantedQoS, originalQoS: 1}
 	if m.Expire != 0 {
 		duration := int64(m.Expire) * 1000
 		if m.ServerTimestampMS <= 0 || m.ServerTimestampMS > math.MaxInt64-duration {
-			return false, 0, ErrEvidence
+			return publicationPolicy{}, ErrEvidence
 		}
 		if at >= m.ServerTimestampMS+duration {
-			eligible = false
+			policy.eligible = false
 		}
 	}
 	if len(m.PublicationMetadata) != 0 {
 		md, err := publication.Decode(m.PublicationMetadata)
 		if err != nil {
-			return false, 0, ErrEvidence
+			return publicationPolicy{}, ErrEvidence
 		}
 		deadline, expires, err := md.ExpiryDeadlineMS(m.ServerTimestampMS)
 		if err != nil {
-			return false, 0, ErrEvidence
+			return publicationPolicy{}, ErrEvidence
 		}
-		qos = min(qos, md.QoS)
+		policy.qos, policy.originalQoS = min(policy.qos, md.QoS), md.QoS
 		if (expires && at >= deadline) || (sub.NoLocal && md.PublisherNamespace == sub.Namespace && md.PublisherClientID == sub.ClientID) {
-			eligible = false
+			policy.eligible = false
 		}
 	}
-	return eligible, qos, nil
+	return policy, nil
 }

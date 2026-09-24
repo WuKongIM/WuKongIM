@@ -211,8 +211,10 @@ specification, runbook, report, or module documentation; link to them when neede
   [Window admission](../specs/mqtt-window-admission.md) derives payload/reference
   from anchored originals, applies current new-delivery QoS/No Local/expiry and
   consumes one exact original-charge receipt per turn. QoS 1 requires committed
-  exchange readback; QoS 0 returns a private revision-bound completion candidate
-  whose debit is submitted only after successful enqueue. No uncharged QoS 1
+  exchange readback. Original QoS 0 [preclaims once](../specs/mqtt-qos0-preclaim.md)
+  before returning a candidate, so lost replies/takeover never retry it; completion
+  is a verified no-op. QoS 1 downgraded to QoS 0 retains its private revision-bound
+  debit until enqueue; that downgrade permits duplicates. No uncharged QoS 1
   resurrection, implicit ACK or send grant; final permission/recovery ordering
   and autonomous scheduling remain required. No new table or wire format.
   [QoS 0 gateway](../specs/mqtt-qos0-gateway.md) shares the send gate without

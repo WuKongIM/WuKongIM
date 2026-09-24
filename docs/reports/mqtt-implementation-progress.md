@@ -20,8 +20,11 @@ integration, with controlled admission and content-reference assertions.
 Qualified backlog range receipts now preserve original charge membership/bytes
 across option/expiry changes, with exact admission/debit and bounded SourceDrain.
 Consumer accounting now reads committed original messages and qualifies bounded
-online/offline backlog through the Node composition. Product scheduling, window
-admission, send permission and full recovery remain outstanding.
+online/offline backlog through the Node composition. Window admission and ordered
+existing-exchange recovery preparation are implemented. Original QoS 0 now consumes
+its source position before exposing a candidate, preventing retries after takeover;
+QoS 1 downgraded to QoS 0 keeps post-enqueue completion. Product scheduling, final
+send permission and full connection recovery remain outstanding.
 Inbox subscription/delivery, source deactivation,
 Will execution, product/restore composition and capacity
 acceptance remain outstanding. No passing product E2E
@@ -4563,3 +4566,44 @@ inbox/future-person sources, unattended cleanup/source deactivation, unavailable
 owner isolation, Will execution, product/restore composition, offline tools,
 metrics and full process/load acceptance remain required. No product MQTT listener
 or capacity result is claimed.
+
+## Original QoS 0 at-most-once correction
+
+The [preclaim contract](../specs/mqtt-qos0-preclaim.md) supersedes the earlier
+all-QoS-0 post-enqueue completion description in this report. Inspection of the
+sender crash window showed that enqueue followed by cursor completion could
+repeat original QoS 0 on takeover. Original MQTT/Will QoS 0 now consumes its
+uncharged source position before returning a candidate. Only an Applied receipt
+exposes one attempt; unchanged, lost, malformed, canceled or panicking replies
+cannot expose another candidate. Loss between claim and enqueue is permitted.
+Original QoS 0 with a positive accounting charge is rejected as invalid evidence.
+
+The private completion token records the preclaim. CompleteQoS0 verifies ownership
+and the committed revision, then returns unchanged without a second mutation;
+unrelated ACK/renewal/option revisions do not invalidate this no-op. Original QoS 1
+downgraded to QoS 0 still retains its captured revision and charges until enqueue.
+This distinction follows [OASIS MQTT 5.0](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html),
+sections 4.3.1 and 3.8.4: original QoS 0 is at most once, while QoS 1 delivered at
+QoS 0 may duplicate. No table, field encoding, command or RPC format changed.
+
+Validation (2026-09-24):
+
+- Failure inventory and changed expectations preceded implementation. RED evidence
+  is `/tmp/mqtt-qos0-preclaim-red.log`, including both MQTT/Will takeover without
+  completion, ambiguous claim outcomes, unrelated parent revision and contradictory
+  positive charges.
+- Full `GOWORK=off go test -race -p 2 ./internal/usecase/mqttsession -count=1`
+  passed (60.309s), `/tmp/mqtt-qos0-preclaim-race.log`. Tests use actual metadata
+  commits and live Owners, including actual Connect takeover; source/placement
+  ports remain controlled fixtures. They do not simulate product process crashes
+  or establish network delivery. Existing Darwin linker warning only.
+- Named `flow-doc-contracts` passed with 86 compliant files, zero invalid and nine
+  existing length warnings (`/tmp/mqtt-qos0-preclaim-flow.log`). Frozen context
+  digests were verified against `db1f9bccdf57413e81ccbf8616fbb280c7bcf563`;
+  formatting and diff checks passed.
+
+The full implementation goal remains active. The correction is a prerequisite for
+sender composition, not a completed sender. Final receive-permission admission,
+explicit revocation ending, reconnect-before-new ordering, downgraded-QoS-0
+completion reconciliation, fair scheduling and all previously recorded product,
+source, Will, offline-tool and process/load acceptance work remain outstanding.
