@@ -19,14 +19,15 @@ func TestMigrationUsesExistingMessageProposalFormat(t *testing.T) {
 	want := source
 	want.Timestamp = 0 // Existing native recovery uses server milliseconds.
 	require.Equal(t, want, got)
+	require.Equal(t, quorumlog.ProposalManifestVersion, quorumlog.VersionForRecords([]quorumlog.Record{record}), "ordinary v2 messages keep the original format")
 	manifest := quorumlog.ProposalManifest{Version: quorumlog.ProposalManifestVersion, ChannelEpoch: 1, LeaderTerm: 1, FenceVersion: 1, CommandID: quorumlog.CommandID{1}, LastOffset: 1}
 	_, entries, ok := quorumlog.SealProposalManifest(manifest, []quorumlog.Record{record})
 	require.True(t, ok)
 	require.Equal(t, uint16(1), entries[0].Version)
-	for _, version := range []uint16{0, 3} {
+	for _, version := range []uint16{0, ^uint16(0)} {
 		manifest.Version = version
 		_, _, ok = quorumlog.SealProposalManifest(manifest, []quorumlog.Record{record})
-		require.False(t, ok, "migration must reject unsupported native versions")
+		require.False(t, ok, "native codec must reject unknown versions")
 	}
 }
 

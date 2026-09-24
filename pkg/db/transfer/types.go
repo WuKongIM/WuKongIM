@@ -29,6 +29,8 @@ const (
 	FileKindMetaChannels FileKind = "meta.channels"
 	// FileKindMetaSubscribers stores channel subscriber rows.
 	FileKindMetaSubscribers FileKind = "meta.subscribers"
+	// FileKindMetaSubscriberSequences retains per-Slot join allocation high water.
+	FileKindMetaSubscriberSequences FileKind = "meta.subscriber_sequences"
 	// FileKindMetaUserChannelMemberships stores user-to-channel membership rows.
 	FileKindMetaUserChannelMemberships FileKind = "meta.user_channel_memberships"
 	// FileKindMetaUserCMDChannelMemberships stores user-to-command-channel bindings.
@@ -209,6 +211,8 @@ type SubscriberRecord struct {
 	ChannelType int64 `json:"channel_type"`
 	// UID is the stable subscriber user identifier.
 	UID string `json:"uid"`
+	// Incarnation zero preserves legacy membership identity 1.
+	Incarnation Uint64 `json:"incarnation,omitempty"`
 }
 
 // UserChannelMembershipRecord represents one imported user-to-channel membership row.

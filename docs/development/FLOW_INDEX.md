@@ -82,7 +82,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [pkg/client/FLOW.md](../../pkg/client/FLOW.md) | `package` | Provides a tooling-grade WKProto TCP client with session crypto, bounded SEND/RECV queues, exact ACK matching, and pooling. | 65 | ok |
 | [pkg/cluster/FLOW.md](../../pkg/cluster/FLOW.md) | `subtree` | Composes Controller state, Slot Multi-Raft metadata, typed node RPC, routing, and replicated Channel runtimes behind Node. | 150 | warning |
 | [pkg/controller/FLOW.md](../../pkg/controller/FLOW.md) | `subtree` | Implements the canonical Controller Raft runtime, durable cluster state, mirror synchronization, planning, and fenced task transitions. | 92 | ok |
-| [pkg/db/FLOW.md](../../pkg/db/FLOW.md) | `subtree` | Guides node-local storage ownership, root lifecycle, message and metadata domains, snapshots, metrics, and engine isolation. | 67 | ok |
+| [pkg/db/FLOW.md](../../pkg/db/FLOW.md) | `subtree` | Guides node-local storage ownership, root lifecycle, message and metadata domains, snapshots, metrics, and engine isolation. | 69 | ok |
 | [pkg/db/message/FLOW.md](../../pkg/db/message/FLOW.md) | `package` | Stores Channel message logs, indexes, checkpoints, retention state, snapshots, and compatibility leases on the shared DB engine. | 150 | warning |
 | [pkg/db/meta/FLOW.md](../../pkg/db/meta/FLOW.md) | `package` | Owns Hash-Slot-scoped metadata tables, deterministic batches, membership directories, snapshots, restore, and cache invalidation. | 100 | ok |
 | [pkg/flowdoc/FLOW.md](../../pkg/flowdoc/FLOW.md) | `package` | Parses the closed metadata and structure of Agent FLOW navigation files. | 49 | ok |

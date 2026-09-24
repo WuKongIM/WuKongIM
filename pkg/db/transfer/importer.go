@@ -44,6 +44,7 @@ func ImportBundle(ctx context.Context, root string, store *db.NodeStore, opts Im
 		FileKindMetaUsers,
 		FileKindMetaDevices,
 		FileKindMetaChannels,
+		FileKindMetaSubscriberSequences,
 		FileKindMetaSubscribers,
 		FileKindMetaUserChannelMemberships,
 		FileKindMetaUserCMDChannelMemberships,
@@ -76,6 +77,9 @@ func normalizeImportOptions(opts ImportOptions) ImportOptions {
 	if opts.SubscriberBatchSize <= 0 {
 		opts.SubscriberBatchSize = defaultSubscriberBatchSize
 	}
+	if opts.SubscriberBatchSize > 4096 {
+		opts.SubscriberBatchSize = 4096
+	}
 	if opts.MessageBatchSize <= 0 {
 		opts.MessageBatchSize = defaultMessageBatchSize
 	}
@@ -95,6 +99,11 @@ func groupManifestEntries(manifest Manifest) map[FileKind][]FileEntry {
 
 func checkTargetEmpty(ctx context.Context, store *db.NodeStore) error {
 	meta := store.Meta()
+	if present, err := meta.HasSubscriberSequences(ctx); err != nil {
+		return err
+	} else if present {
+		return fmt.Errorf("non-empty target: subscriber allocation sequence")
+	}
 	for _, table := range metadb.InspectTables() {
 		nonEmpty, err := metaTableHasAnyRow(ctx, meta, table.Name)
 		if err != nil {
@@ -158,6 +167,9 @@ func importMetaEntry(ctx context.Context, root string, entry FileEntry, store *d
 
 func importMetaRecord(ctx context.Context, meta *metadb.MetaDB, kind FileKind, record any) error {
 	switch kind {
+	case FileKindMetaSubscriberSequences:
+		row := record.(SubscriberSequenceRecord)
+		return meta.HashSlot(row.HashSlot).ImportSubscriberSequence(ctx, uint64(row.Sequence))
 	case FileKindMetaMessageUpdates:
 		row := record.(MessageUpdateRecord)
 		return meta.ImportMessageUpdate(ctx, metadb.HashSlot(row.HashSlot), row.MessageUpdateImport)
@@ -244,16 +256,16 @@ type subscriberGroup struct {
 func importSubscriberEntry(ctx context.Context, root string, entry FileEntry, meta *metadb.MetaDB, opts ImportOptions, stats *ImportStats) error {
 	var current subscriberGroup
 	var haveCurrent bool
-	uids := make([]string, 0, opts.SubscriberBatchSize)
+	rows := make([]metadb.Subscriber, 0, opts.SubscriberBatchSize)
 
 	flush := func() error {
-		if !haveCurrent || len(uids) == 0 {
+		if !haveCurrent || len(rows) == 0 {
 			return nil
 		}
-		if err := meta.HashSlot(current.hashSlot).AddSubscribers(ctx, current.channelID, current.channelType, uids, 0); err != nil {
+		if err := meta.HashSlot(current.hashSlot).ImportSubscribers(ctx, current.channelID, current.channelType, rows); err != nil {
 			return err
 		}
-		uids = uids[:0]
+		rows = rows[:0]
 		return nil
 	}
 
@@ -267,10 +279,10 @@ func importSubscriberEntry(ctx context.Context, root string, entry FileEntry, me
 		}
 		current = next
 		haveCurrent = true
-		uids = append(uids, row.UID)
+		rows = append(rows, metadb.Subscriber{ChannelID: row.ChannelID, ChannelType: row.ChannelType, UID: row.UID, Incarnation: uint64(row.Incarnation)})
 		stats.RowsWritten++
 		stats.SubscribersImported++
-		if len(uids) >= opts.SubscriberBatchSize {
+		if len(rows) >= opts.SubscriberBatchSize {
 			return flush()
 		}
 		return nil

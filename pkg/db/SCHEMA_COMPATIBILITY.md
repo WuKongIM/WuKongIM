@@ -24,6 +24,17 @@ as a format migration and gate it behind an explicit rollout plan.
 
 ## Stable Durable IDs
 
+Subscriber table 5 keeps its primary key and adds optional column 4,
+`incarnation`, in a key-bound version-1 column envelope. Empty legacy values
+normalize to incarnation 1. System 1 under this table stores a version-1,
+checksummed fixed uint64 allocation high water per hash Slot; it survives member
+and channel deletion. Native snapshots preserve both. JSONL adds optional
+`incarnation` and a nonempty-only `meta.subscriber_sequences` dataset, represented
+as decimal strings. Imports require sequence witnesses for nonlegacy members and
+never allocate replacement identities. Old writers erase these values, and old
+tools reject the new dataset: all writers/tools must match before deployment;
+rollback requires a pre-feature backup. See [subscriber incarnations](../../docs/specs/mqtt-member-incarnation.md).
+
 MQTT publication groundwork adds optional message column 21 (`publication_metadata`),
 compatibility record codec 2 and exact proposal format 3. Absent metadata keeps
 native record bytes and format-1/2 hashes unchanged. Binary backups preserve the

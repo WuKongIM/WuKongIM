@@ -522,6 +522,7 @@ func inspectSubscriberRow(subscriber Subscriber) InspectRow {
 		"channel_id":   subscriber.ChannelID,
 		"channel_type": subscriber.ChannelType,
 		"uid":          subscriber.UID,
+		"incarnation":  subscriber.Incarnation,
 	}
 }
 

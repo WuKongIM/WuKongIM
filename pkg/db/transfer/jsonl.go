@@ -108,6 +108,15 @@ func decodeRecord(kind FileKind, line []byte) (any, error) {
 			return nil, err
 		}
 		return record, nil
+	case FileKindMetaSubscriberSequences:
+		var record SubscriberSequenceRecord
+		if err := decodeStrict(line, &record); err != nil {
+			return nil, err
+		}
+		if record.Sequence < 2 {
+			return nil, fmt.Errorf("%w: invalid subscriber sequence", ErrValidation)
+		}
+		return record, nil
 	case FileKindMetaSubscribers:
 		var record SubscriberRecord
 		if err := decodeStrict(line, &record); err != nil {

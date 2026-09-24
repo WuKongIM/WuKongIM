@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"bytes"
 	"context"
 	"errors"
 
@@ -255,6 +256,13 @@ func (b *Batch) DeleteChannel(hashSlot HashSlot, channelID string, channelType i
 			}
 		}
 		subscriberPrefix := encodeSubscriberRowPrefix(hashSlot, channelID, channelType)
+		// Hide disk rows and earlier point overlays from subsequent commands.
+		state.subscriberDeletes = append(state.subscriberDeletes, subscriberPrefix)
+		for key := range state.subscriberRows {
+			if bytes.HasPrefix([]byte(key), subscriberPrefix) {
+				delete(state.subscriberRows, key)
+			}
+		}
 		subscriberSpan := prefixSpan(subscriberPrefix)
 		return engineBatch.DeleteRange(engine.Span{Start: subscriberSpan.Start, End: subscriberSpan.End})
 	})

@@ -331,7 +331,12 @@ func installMetadata(ctx context.Context, s *meta.Shard, row migration.TargetRec
 		if !exists {
 			return errors.New("subscriber has no explicitly planned native channel")
 		}
-		return s.AddSubscribers(ctx, v.ChannelID, v.ChannelType, []string{v.UID}, 1)
+		// Original v2 membership has no join incarnation. Preserve the legacy
+		// identity instead of assigning a new receive grant during import.
+		if v.Incarnation > 1 {
+			return errors.New("v2 subscriber has an unexpected native incarnation")
+		}
+		return s.ImportSubscribers(ctx, v.ChannelID, v.ChannelType, []meta.Subscriber{v})
 	case "membership":
 		var v meta.UserChannelMembership
 		if err := migration.UnmarshalState(row.Value, &v); err != nil {

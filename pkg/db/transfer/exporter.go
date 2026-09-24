@@ -133,7 +133,14 @@ func exportMetaFiles(ctx context.Context, root string, meta *metadb.MetaDB, opts
 		specs = append(specs, exportMetaSpec{table: table, path: "meta/" + table + ".jsonl", kind: FileKindMetaMessageUpdates, convert: exportMessageUpdateRecord(table)})
 	}
 
-	entries := make([]FileEntry, 0, len(specs))
+	entries := make([]FileEntry, 0, len(specs)+1)
+	sequenceEntry, err := exportSubscriberSequences(ctx, root, meta, opts, stats)
+	if err != nil {
+		return nil, err
+	}
+	if sequenceEntry != nil {
+		entries = append(entries, *sequenceEntry)
+	}
 	for _, spec := range specs {
 		entry, err := exportMetaFile(ctx, root, meta, opts, spec, stats)
 		if err != nil {
@@ -604,7 +611,14 @@ func exportSubscriberRecord(slot uint16, row metadb.InspectRow) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return SubscriberRecord{HashSlot: slot, ChannelID: channelID, ChannelType: channelType, UID: uid}, nil
+	incarnation, err := rowUint64(row, "incarnation")
+	if err != nil {
+		return nil, err
+	}
+	if incarnation == 1 {
+		incarnation = 0
+	} // Keep legacy bundle row bytes stable.
+	return SubscriberRecord{HashSlot: slot, ChannelID: channelID, ChannelType: channelType, UID: uid, Incarnation: Uint64(incarnation)}, nil
 }
 
 func exportUserChannelMembershipRecord(slot uint16, row metadb.InspectRow) (any, error) {

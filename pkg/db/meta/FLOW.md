@@ -75,8 +75,9 @@ It does not own product business policy or expose engine-specific APIs.
   preserves source version and rejects tombstones.
 - Command-channel membership is a separate UID table with start/ACK sequence
   and no ordinary activation, read, or delete fields.
-- Subscriber rows, count, and mutation version change atomically after UID sort
-  and deduplication.
+- Subscriber rows, count, mutation version and join incarnations commit after UID sort/deduplication.
+  Re-add preserves incarnation; removal/rejoin allocates from table 5 System 1; deletion retains its high water.
+  Range tombstones fence staged/disk rows. Legacy empty rows mean 1; snapshots/JSONL preserve identity.
 - Runtime metadata, Channel latest sequence, and event reducers stay monotonic
   and idempotent; create-only runtime batches never overwrite existing rows.
 - MQTT session CAS cannot rebind UID or regress generations. Snapshot/inspection
@@ -84,7 +85,6 @@ It does not own product business policy or expose engine-specific APIs.
   Product MQTT remains disabled pending its complete recovery/rollout contract.
 - The Channel read cache is capacity-bounded, independently locked from shard
   lookup, and exposes current entries and capacity through `MetricsSnapshot`.
-
 - An imported `conversation_hidden_through_seq` is list-only state. Optional
   fixed-value tails preserve old rows; marked rows require matching binaries.
   Same-generation projections preserve it, while a new source generation replaces it.

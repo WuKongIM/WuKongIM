@@ -1,5 +1,6 @@
 # Project Knowledge
 
+
 Keep only stable, cross-module facts that prevent incorrect designs or unsafe
 operations. Repository rules belong in [AGENTS.md](../../AGENTS.md), domain terms
 in [CONTEXT.md](../../CONTEXT.md), and module navigation in the applicable
@@ -189,6 +190,15 @@ specification, runbook, report, or module documentation; link to them when neede
   [message-update contract](../specs/message-update-api.md).
 
 ## Delivery and extension boundaries
+
+- Subscriber join identity uses optional column 4 and table 5 System 1 per-hash-Slot
+  allocation high water. Legacy empty rows mean incarnation 1; new joins allocate
+  above 1 atomically with membership/count changes. Repeated adds preserve it;
+  rejoin and channel recreation cannot reuse it. Channel mutation versions and
+  UID projections are not receive-authority incarnations. Matched writers/tools,
+  native snapshots and JSONL preserve live identities plus deleted high water;
+  v2 migration retains legacy 1. See [the contract](../specs/mqtt-member-incarnation.md).
+  A production fresh receive-authority read remains required.
 
 - The [MQTT IM access design](../specs/mqtt-im-access.md) defines the approved
   target contract; product MQTT access is not yet enabled. MQTT Session subscriptions are separate from IM

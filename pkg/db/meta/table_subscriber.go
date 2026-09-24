@@ -12,6 +12,7 @@ const (
 	subscriberColumnChannelID   uint16 = 1
 	subscriberColumnChannelType uint16 = 2
 	subscriberColumnUID         uint16 = 3
+	subscriberColumnIncarnation uint16 = 4
 )
 
 var subscriberTable = registerMetaTable(TableSpec[Subscriber]{
@@ -21,8 +22,9 @@ var subscriberTable = registerMetaTable(TableSpec[Subscriber]{
 		{ID: subscriberColumnChannelID, Name: "channel_id", Type: schema.TypeString, Required: true},
 		{ID: subscriberColumnChannelType, Name: "channel_type", Type: schema.TypeInt64, Required: true},
 		{ID: subscriberColumnUID, Name: "uid", Type: schema.TypeString, Required: true},
+		{ID: subscriberColumnIncarnation, Name: "incarnation", Type: schema.TypeUint64},
 	},
-	Families: []schema.Family{{ID: subscriberPrimaryFamilyID, Name: "primary"}},
+	Families: []schema.Family{{ID: subscriberPrimaryFamilyID, Name: "primary", Columns: []uint16{subscriberColumnIncarnation}}},
 	Primary: PrimarySpec[Subscriber]{
 		IndexID:  subscriberPrimaryIndexID,
 		FamilyID: subscriberPrimaryFamilyID,
@@ -33,13 +35,9 @@ var subscriberTable = registerMetaTable(TableSpec[Subscriber]{
 			return subscriberPrimaryKey(subscriber.ChannelID, subscriber.ChannelType, subscriber.UID)
 		},
 	},
-	Validate: validateSubscriber,
-	EncodeValue: func(Subscriber) ([]byte, error) {
-		return nil, nil
-	},
-	DecodeValue: func(primary KeyParts, value []byte) (Subscriber, error) {
-		return Subscriber{ChannelID: primary[0].S, ChannelType: primary[1].I64, UID: primary[2].S}, nil
-	},
+	Validate:           validateSubscriber,
+	EncodeValueWithKey: encodeSubscriberValue,
+	DecodeValueWithKey: decodeSubscriberValue,
 })
 
 // SubscriberTable describes the subscriber table schema.
@@ -164,6 +162,7 @@ func (s *Shard) mutateSubscribers(ctx context.Context, channelID string, channel
 
 	batch := s.db.engine.NewBatch()
 	defer batch.Close()
+	state := &batchCommitState{db: s.db}
 	for _, uid := range normalized {
 		key, err := subscriberRowKey(s.hashSlot, channelID, channelType, uid)
 		if err != nil {
@@ -175,10 +174,18 @@ func (s *Shard) mutateSubscribers(ctx context.Context, channelID string, channel
 		}
 		if add {
 			if !exists {
+				incarnation, err := allocateSubscriberIncarnation(state, s.hashSlot)
+				if err != nil {
+					return err
+				}
+				value, err := encodeSubscriberValue(key, Subscriber{Incarnation: incarnation})
+				if err != nil {
+					return err
+				}
+				if err = batch.Set(key, value); err != nil {
+					return err
+				}
 				channel.SubscriberCount++
-			}
-			if err := batch.Set(key, nil); err != nil {
-				return err
 			}
 		} else {
 			if exists && channel.SubscriberCount > 0 {
@@ -188,6 +195,9 @@ func (s *Shard) mutateSubscribers(ctx context.Context, channelID string, channel
 				return err
 			}
 		}
+	}
+	if err := flushSubscriberSequence(state, batch, s.hashSlot); err != nil {
+		return err
 	}
 	if err := s.stageChannel(batch, primaryKey, channel); err != nil {
 		return err

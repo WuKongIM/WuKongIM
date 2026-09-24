@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"bytes"
 	"context"
 	"errors"
 
@@ -50,14 +51,17 @@ type metaBatchOp struct {
 }
 
 type batchCommitState struct {
-	db               *MetaDB
-	tableRows        map[string]tableRowOverlay
-	tableCreates     map[string]struct{}
-	runtimeMeta      map[string]runtimeMetaOverlay
-	migrationTasks   map[string]migrationTaskOverlay
-	subscriberRows   map[string]bool
-	channelPublishes map[string]Channel
-	channelDeletes   map[string]struct{}
+	db             *MetaDB
+	tableRows      map[string]tableRowOverlay
+	tableCreates   map[string]struct{}
+	runtimeMeta    map[string]runtimeMetaOverlay
+	migrationTasks map[string]migrationTaskOverlay
+	subscriberRows map[string]bool
+	// subscriberDeletes bounds range tombstones to channels touched by this batch.
+	subscriberDeletes   [][]byte
+	subscriberSequences map[HashSlot]uint64
+	channelPublishes    map[string]Channel
+	channelDeletes      map[string]struct{}
 }
 
 type tableRowOverlay struct {
@@ -433,6 +437,11 @@ func (state *batchCommitState) loadChannel(ctx context.Context, key []byte, chan
 func (state *batchCommitState) loadSubscriberExists(key []byte) (bool, error) {
 	if exists, ok := state.subscriberRows[string(key)]; ok {
 		return exists, nil
+	}
+	for _, prefix := range state.subscriberDeletes {
+		if bytes.HasPrefix(key, prefix) {
+			return false, nil
+		}
 	}
 	_, exists, err := state.db.get(key)
 	return exists, err
