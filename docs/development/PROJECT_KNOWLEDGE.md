@@ -295,9 +295,12 @@ specification, runbook, report, or module documentation; link to them when neede
   identity; older retries reuse a newer committed decision without another append.
   [Reactor admission](../specs/mqtt-retirement-reactor.md) uses the bounded append
   queue and detached typed workers, preserving durable progress after observer
-  cancellation without caching retry identities. This internal port trusts ordered
-  consumer permission; fresh Slot/RPC routing and the producer remain required.
-  It never applies cleanup.
+  cancellation without caching retry identities. [Routed admission](../specs/mqtt-retirement-routing.md)
+  uses RPC 100 with full placement identity and fresh Slot checks around the reactor;
+  RPC 101 returns bounded historical selection under a stable fence and the exact
+  captured proof. Serving-node binding, closed echoes and foreground gates survive
+  gateway replacement. These internal ports trust ordered consumer permission;
+  the product producer remains required. Neither entry applies physical cleanup.
   [Whole-anchor selection](../specs/mqtt-retirement-anchor-selection.md) scans at
   most 64 historical journals in one pinned view, below the captured anchor and
   consumer floor. Verified backward cursors survive restart/restore; a floor

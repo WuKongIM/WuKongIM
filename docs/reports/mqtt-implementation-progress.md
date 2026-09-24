@@ -3610,3 +3610,63 @@ subscription/inbox projection, permission/removal ordering, delivery/ACK, owner
 recovery, Will execution, product lifecycle/configuration, offline tooling and
 process/load acceptance remain required. The goal is active; MQTT product access
 is still unavailable.
+
+## Routed retirement and bounded historical selection
+
+Node foreground gates and fresh Slot reads now route retirement admission (RPC
+100) and historical selection (RPC 101). The mutating request carries a full
+placement identity and fixed serving leader; fresh server metadata supplies the
+reactor request, ignoring caller lease/retention overlays. Both origin and server
+recheck current authority, and a post-commit failure withholds its response.
+Gateway replacement cannot recursively reroute an already addressed request.
+
+Selection preserves the exact captured proof, capped floor and bounded cursor
+in its request/reply association. It reads committed journals through the existing
+four-slot donor-read budget, never publishes a checkpoint and always closes its
+store lease. A stable migration fence permits selection; any fence change rejects
+the reply. The caller must preserve the original capture/floor across a scan and
+restart if its consumer plan changes. Selection grants no consumer permission.
+
+Both version-1 RPCs use bounded closed envelopes, full request echoes, exact
+proof association and typed errors. Matching nodes are required; unsupported peers
+have no degraded fallback. No table or durable message format changes are made.
+The product consumer planner/producer still must authorize these internal ports.
+
+Contract/failure inventory and frozen context:
+[mqtt-retirement-routing.md](../specs/mqtt-retirement-routing.md).
+
+Validation (terminal passes):
+
+- Missing contracts/interfaces/IDs produced RED before implementation in
+  `/tmp/mqtt-retirement-routing-red.log`.
+- `GOWORK=off go test -p 2 -race ./pkg/channel ./pkg/cluster/channels
+  ./pkg/cluster/net ./pkg/cluster -run
+  '^(TestMQTTRetirement|TestMQTTAnchorNodeForegroundGates)' -count=1
+  -timeout=90s -v`: all passed; `/tmp/mqtt-retirement-routing-focused.log`.
+  Cases cover before/after authority changes, unsupported capabilities, caller
+  cancellation, wrong proofs, gateway swaps, Node gates, bounded admission,
+  stable/renewed/cleared fences, lease cleanup including panic unwinding, exact
+  RPC request/reply framing, all truncation cuts, typed errors and echo changes.
+- `GOWORK=off go test -p 2 -race -tags=integration ./pkg/cluster -run
+  '^TestMQTTAnchorThreeNodeRoutingRestartAndIsolation$' -count=1
+  -timeout=150s -v`: passed, 19.465 s;
+  `/tmp/mqtt-retirement-routing-integration.log`. Three real TCP Nodes with
+  256 hash Slots and real disks scan one historical anchor per turn, rounding
+  floor 3 down to prefix 2, then commit through the reactor/native quorum. Four
+  concurrent retries reuse position 8; an advancing decision occupies position 9
+  and old requests reuse it. Reopening the serving node preserves retirement and
+  historical selection; losing Slot quorum rejects both operations. Consumer
+  permission is fixture-controlled; the product MQTT listener remains disabled.
+- `GOWORK=off go test -p 2 -race ./pkg/channel ./pkg/cluster/channels
+  ./pkg/cluster/net ./pkg/cluster -count=1 -timeout=180s`: all passed; Channel
+  1.234 s, channels 6.961 s, net 1.206 s, cluster 7.738 s.
+  `/tmp/mqtt-retirement-routing-race.log`.
+- `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-retirement-routing-flow.log`. Generated index and whitespace pass.
+
+Next connect ordered consumer-floor planning, bounded historical continuation,
+native retirement commit and replica recovery to the automatic producer. Final
+binding removal, complete subscription/inbox projection, permission ordering,
+delivery/ACK, unavailable-owner recovery, Will execution, product lifecycle,
+offline tools and process/load acceptance remain required. The full goal remains
+active; this routed capability does not complete MQTT product admission.

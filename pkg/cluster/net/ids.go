@@ -145,6 +145,10 @@ const (
 	RPCChannelMQTTRepair
 	// RPCChannelMQTTRecovery executes one bounded target-owned replay recovery step.
 	RPCChannelMQTTRecovery
+	// RPCChannelMQTTRetirement admits whole-anchor retirement on the current leader.
+	RPCChannelMQTTRetirement
+	// RPCChannelMQTTRetirementSelection reads a bounded historical anchor page.
+	RPCChannelMQTTRetirementSelection
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -283,6 +287,10 @@ func transportServiceAlias(serviceID uint8) string {
 		return "channel mqtt repair"
 	case RPCChannelMQTTRecovery:
 		return "channel mqtt recovery"
+	case RPCChannelMQTTRetirement:
+		return "channel mqtt retirement"
+	case RPCChannelMQTTRetirementSelection:
+		return "channel mqtt retirement selection"
 	case RPCChannelMQTTPlan:
 		return "channel mqtt plan"
 	case RPCChannelMQTTReplay:

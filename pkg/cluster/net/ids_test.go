@@ -170,3 +170,12 @@ func TestMQTTRecoveryServiceIdentity(t *testing.T) {
 		t.Fatal("MQTT recovery must preserve foreground mutation admission")
 	}
 }
+
+func TestMQTTRetirementServicesHaveStableIDsAndForegroundPolicy(t *testing.T) {
+	if RPCChannelMQTTRetirement != 100 || transportServiceAlias(RPCChannelMQTTRetirement) != "channel mqtt retirement" || !isForegroundChannelMutationService(RPCChannelMQTTRetirement) {
+		t.Fatal("retirement service lost exact ID or mutation policy")
+	}
+	if RPCChannelMQTTRetirementSelection != 101 || transportServiceAlias(RPCChannelMQTTRetirementSelection) != "channel mqtt retirement selection" || !isForegroundChannelMutationService(RPCChannelMQTTRetirementSelection) {
+		t.Fatal("selection service lost exact ID or foreground policy")
+	}
+}

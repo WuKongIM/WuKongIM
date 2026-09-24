@@ -98,7 +98,7 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
   Format-5 journals retain full-content checkpoints; exact retry, recovery and learner transfer preserve control intent.
   Unsupported stores reject it; neither the payload nor its journal authorizes GC.
   Typed format-6 retirement verifies current sequencer authority and independently reloads committed anchors; stable commands preserve pending identities and reuse newer decisions.
-  It preserves whole-anchor decisions through replica recovery and uses the bounded reactor append queue; ordered product consumer admission and RPC routing remain separate.
+  It preserves whole-anchor decisions through replica recovery and uses the bounded reactor append queue; fresh cluster routing binds placement, while ordered product consumer admission remains separate.
   The optional retirement store port materializes verified baselines and bounded cleanup, preserving suffix repair/readiness after body removal.
   The optional retirement selector verifies historical whole anchors below a captured consumer floor in bounded reverse pages.
   Typed anchor admission shares the durable sequencer, checks exact installed
