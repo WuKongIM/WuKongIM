@@ -9,7 +9,8 @@ entry are implemented. Real Paho/TCP
 integration passes on a single-node cluster with 256 hash Slots. Distributed
 replay activation/copy/anchor and bounded recovery steps now pass three-node
 runtime integration. Bounded copy/recovery/retirement scheduling and exact binding
-removal are implemented. Complete subscription/delivery, source deactivation,
+removal, unsubscribe sealing and cancelled-preparation recovery are implemented.
+Complete subscription/delivery, source deactivation,
 Will execution, product/restore composition and capacity
 acceptance remain outstanding. No passing product E2E
 or capacity claim is made.
@@ -3945,3 +3946,62 @@ orchestration. Complete subscription/inbox projection, delivery/ACK entry,
 owner recovery, Will execution, product lifecycle/configuration, offline tooling
 and process/load acceptance remain required. Product MQTT is still unavailable;
 the full implementation goal remains active.
+
+
+## Unsubscribe sealing, quota release and cancelled preparation
+
+`SourceDrain.Seal` now reads closed intent and its pinned Session/cursor under
+an admitted current owner, seals the durable accounting end on the source Slot,
+then uses the existing window advancement to release Pending-minus-Inflight
+counts/bytes. Outstanding exchanges, PacketIDs, send order and ACK gaps remain.
+Lost seal/window replies resume without resetting the start or subtracting quota
+twice. A concurrent ACK invalidates the old Session CAS; the next turn retains
+the seal and recomputes only the unadmitted remainder. A new same-topic generation
+and its independent quota are untouched. Already-Drained tombstones complete a
+retried unsubscribe instead of permanently returning conflict.
+
+Interrupted preparation also cancels: an unknown start first requires fresh
+replicated protection, while a missing unproven cursor receives explicit empty
+cancellation initialization. Slot command 69 gains operation 3 (CancelInit),
+which requires active exact Session ownership and closed/replaced subscription
+intent. Ordinary Init/Account remain unchanged, existing cursors cannot reset,
+and no backlog is added. Existing row/index/envelope formats are preserved; old
+nodes reject op 3 and all participants must match. No new table is required.
+Frozen context and failure inventory: [source drain](../specs/mqtt-source-drain.md).
+
+Validation (2026-09-24):
+
+- Usecase RED: `/tmp/mqtt-source-drain-red.log`; storage cancellation RED:
+  `/tmp/mqtt-cursor-cancel-red.log`; cancellation composition RED:
+  `/tmp/mqtt-source-drain-cancel-red.log`; app wiring RED:
+  `/tmp/mqtt-source-drain-app-red.log`.
+- Further failures before fixes exposed retrying an already-removed binding
+  (`/tmp/mqtt-source-drain-retry-red.log`) and treating an equal newer closure
+  revision as stale (`/tmp/mqtt-source-drain-replacement-red.log`). The initial
+  cancellation run (`/tmp/mqtt-source-drain-cancel-green.log`) also rejected the
+  protector port's generation by incorrectly borrowing native replay validation;
+  validation now stays with the actual protector contract. Subsequent focused
+  drain/removal tests passed, 8.462 s;
+  `/tmp/mqtt-source-drain-replacement-green.log`.
+- `GOWORK=off go test -p 2 -race -tags=integration ./internal/app -run
+  TestMQTTGroupSourcePreparationThreeNodeRecovery -count=1 -timeout=120s -v`:
+  passed, 20.880 s; `/tmp/mqtt-source-drain-app-final.log`. Real three-node TCP,
+  disks and 256 hash Slots exercise actual unsubscribe/source sealing, remote
+  cancellation Init, an ACK committed between seal and window release, stale-CAS
+  rejection and successful retry. Remaining inflight references and quota are
+  independently read through other nodes. Subscription establishment and window
+  content admission remain explicitly controlled; this is not product delivery E2E.
+- Full related default race suites passed: metadata 34.194 s, Slot FSM 25.975 s,
+  Slot proxy 12.174 s, MQTT usecase 23.871 s, app 4.742 s;
+  `/tmp/mqtt-source-drain-race.log`. Existing Darwin linker warnings appear;
+  there are no reported races or failed tests.
+- Named `flow-doc-contracts`: 86 compliant, zero invalid, nine existing warnings;
+  `/tmp/mqtt-source-drain-flow.log`. Generated index reflects app FLOW length.
+
+SourceDrain handles an existing exact Channel binding. Full projection must still
+resolve/discover all group/inbox sources, fence preparation interrupted before its
+first binding, schedule progress/drain/removal and handle source deactivation and
+safe tombstone cleanup. Complete delivery/ACK entry, unavailable-owner recovery,
+Will execution, product lifecycle/configuration, offline tooling and process/load
+acceptance remain required. Product MQTT admission is unavailable; the full goal
+remains active.

@@ -67,6 +67,7 @@ Stop or startup rollback
   three-node managed-loop coverage verifies fenced learner recovery, source release and retirement after the last binding leaves.
   Consumer progress and retention use foreground Node ports; retention captures anchors before consumer floors and grants no local GC.
   Binding removal uses the same authoritative Node port: a source-Slot acknowledgement retains responsibility until a later verified tombstone commit; three-node continuation is covered.
+  SourceDrain seals unsubscribe ranges and releases unadmitted quota through Node ports; cancellation Init and concurrent ACK conflicts are covered without discarding inflight exchanges.
   Replay maintenance rotates copy/recovery/retirement through the same worker; real ACK gaps and unknown registrations block decisions, and reopened replicas prove applied retirement independently of counters.
   Full product start/stop/restore wiring and listener admission remain pending.
 - Command-channel suffixes are injected across send, delivery, CMD sync, plugin

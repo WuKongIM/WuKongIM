@@ -172,6 +172,16 @@ Quota overflow persists the cursor and explicitly ends the session with the quot
 reason in the same commit, preserving the reason and revision for exact retry.
 No wall clock, access check or cross-Slot source proof is inferred by storage.
 
+Command 69 also supports explicit **CancelInit (3)** for interrupted preparation.
+It initializes only a missing empty cursor under an active exact Session owner,
+after the same subscription generation is Removing/Removed with matching
+authorization, or a newer generation replaced it. Ordinary Init (1) and Account
+(2) keep their original admission checks. CancelInit cannot add backlog or reset
+an existing cursor; source protection and the original boundary remain caller
+proofs. Old peers reject operation 3. Row encodings and the bounded version-1
+command envelope are unchanged; all participating nodes must match. See
+[source drain](mqtt-source-drain.md) for the usecase and failure inventory.
+
 The command's version-1 JSON body is limited to 32 KiB including the existing
 header. The cursor stores the canonical request digest and resulting session
 revision so an unrelated write or changed retry cannot impersonate completion.
@@ -262,7 +272,8 @@ version-1 checksum column envelope. Column 28 is a derived retention floor.
 Values are bounded to 16 KiB; commands to 32 KiB including their existing header.
 
 Binding revision is a source-owned CAS sequence. Intent revision fences stale
-subscription lifecycle projections. Progress revision witnesses a committed
+subscription lifecycle projections, including a newer subscription revision
+proving old admission closed. Progress revision witnesses a committed
 Session cursor or explicit Session termination; it never decreases. Source
 protection revision acknowledges a separate replicated source operation, is
 monotonic and cannot exceed the binding revision. Metadata cannot establish

@@ -116,7 +116,7 @@ func (p *SourceRemoval) drained(ctx context.Context, b meta.MQTTSourceBinding) (
 		if sub.Stage < meta.MQTTSubscriptionRemoving {
 			return false, nil
 		}
-	} else if sub.Revision <= b.IntentRevision || sub.OperationID == b.OperationID {
+	} else if sub.OperationID == b.OperationID {
 		return false, ErrEvidence
 	}
 	sessionRevision := r.Session.Revision

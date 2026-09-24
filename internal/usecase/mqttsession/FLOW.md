@@ -41,13 +41,13 @@ no packet, concrete cluster/gateway adapter, worker or shared replay storage.
    Active expiry still requires exact isolated disconnect; offline Will Delay and
    expiry use one coherent Session/Will read and at most one lifecycle commit.
    Ready work detaches before lifetime expiry and survives later Session ending.
-7. Subscription establishment commits Preparing before projection, checks exact
-   receipt/current child and permission, then commits Active. Removal commits
-   Removing before closing matching work, and preserves outstanding exchanges.
-   Resume preserves intent; option replacement keeps generation/operation. See the [failure inventory](../../../docs/specs/mqtt-subscription-orchestration.md).
-8. Group preparation registers an unknown binding before fresh source confirmation.
-   It fixes one start, initializes the Session cursor, then activates the binding.
-   Lost replies/resume preserve that start; this is no subscription completion receipt.
+7. Subscription establishment commits Preparing, checks projection/current child
+   and permission, then Active. Removal commits Removing before SourceDrain fixes
+   the accounting end and releases only unadmitted backlog; exchanges survive.
+   Interrupted preparation explicitly initializes a cancellation cursor after protection.
+   Resume preserves intent; replacement keeps generation/operation. See the [failure inventory](../../../docs/specs/mqtt-subscription-orchestration.md).
+8. Group preparation registers an unknown binding before fresh protection confirmation,
+   fixes one start, initializes the cursor and activates the binding. Retries preserve that start; this is no subscription completion receipt.
 9. Replay maintenance rotates bounded copy/anchor admission, recovery and retirement under fresh placement.
    Targets pin anchors and scan/donor hints; placement resets hints and cold passes rotate work.
    Fenced turns only recover existing anchors; absent anchors yield without copying.

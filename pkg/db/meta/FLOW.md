@@ -45,6 +45,7 @@ It does not own product business policy or expose engine-specific APIs.
    ended rows retain UID binding. Subscription writes fence owner/revision and
    preserve generation on option replacement; child receipts prove exact retries.
    Delivery cursors separate backlog accounting, window admission and completion.
+   Explicit cancellation Init requires closed intent; ordinary Init/Account remain fenced.
    Accounting and quota termination share one Slot commit. The bounded inflight
    list preserves earliest ACK gaps; exchange/cursor/session updates are atomic,
    and recovery uses immutable references in original send order.
@@ -56,8 +57,7 @@ It does not own product business policy or expose engine-specific APIs.
    Will records outlive Session replacement. Session transitions and quota endings
    resolve old Will atomically; new ownership may install a new configuration.
    Delays, execution leases and receipts are distinct; bodies are bounded/redacted.
-   Bounded MQTT reads pin Session, child rows and secondary indexes together;
-   private snapshot handles never escape or replace canonical writable shards.
+   Bounded MQTT reads pin Session, children and indexes; private snapshots never replace canonical writable shards.
 
 ## Invariants and Failure Semantics
 - Event sequence pages scan a pinned native iterator and retain a bounded heap,

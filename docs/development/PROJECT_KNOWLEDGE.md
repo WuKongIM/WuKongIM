@@ -283,6 +283,13 @@ specification, runbook, report, or module documentation; link to them when neede
   admission and a fully completed sealed cursor with no pending/inflight work;
   newer subscription generations cannot inherit old cleanup. Aggregate Channel
   protection remains independent, and retained tombstones preserve discovery.
+  [SourceDrain](../specs/mqtt-source-drain.md) seals the durable accounting end
+  after subscription admission closes, then releases only Pending-minus-Inflight
+  quota through the existing window command. ACK gaps and exchanges remain.
+  Interrupted preparation uses command 69 CancelInit (op 3), which requires
+  closed/replaced intent and cannot reset a cursor; unknown starts still need
+  replicated protection. Old peers reject op 3. Same-topic replacement and lost
+  replies retain the original seal; a newer closure revision may equal stored intent.
   [Retention planning](../specs/mqtt-replay-retention-planning.md) captures the
   committed anchor before reading the first strict consumer-floor page. New
   bindings register unknown responsibility before confirming their fresh tail;

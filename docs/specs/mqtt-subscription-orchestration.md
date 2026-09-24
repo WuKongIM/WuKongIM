@@ -57,6 +57,11 @@ All projection writes must be generation/operation fenced and monotonic. A late
 or uncertain operation can only retain conservative obligations, never release a
 successor's content or activate an authoritative subscription by itself.
 
+[SourceDrain](mqtt-source-drain.md) supplies the concrete per-source sealing and
+unadmitted-quota release step, including cancelled preparation. It preserves
+inflight exchanges; final binding release remains SourceRemoval's responsibility.
+Full group/inbox projection and recovery scheduling still have to compose them.
+
 Default bound: 128 retained subscriptions, 16 pages of at most 64 rows and five
 seconds per usecase call. Configuration may allow up to 1024 subscriptions and
 64 scan pages. The Session revision CAS is the concurrent quota guard; there is

@@ -12,8 +12,8 @@ followed by a pinned Session/cursor read. The cursor must account exactly throug
 that end, complete through it, and have no pending or inflight obligations. A
 newer subscription generation also proves old admission closed; its own work is
 unaffected. Missing state, offline time and lease expiry are not release proof.
-Normal end capture and release of unadmitted backlog remain the responsibility
-of the subscription/window orchestration, not this completion operation.
+[SourceDrain](mqtt-source-drain.md) captures the accounting end after admission
+closes and releases unadmitted backlog. This completion operation remains separate.
 
 The per-consumer protection is table 26 on the source Slot. After validating
 fresh Session-side evidence, one replicated source-Slot CAS acknowledges release
@@ -50,7 +50,8 @@ Slot command or RPC encoding changes are needed.
    routing becomes a local shortcut. Aggregate source/copy proofs are changed.
 
 Tests use the already approved usecase/metadata and real cluster seams. The
-normal sealed-end fixture does not claim full subscription removal is composed.
+normal sealed-end fixture does not claim full product projection is composed.
+SourceDrain tests now additionally provide real usecase sealing and cancellation.
 
 ## Frozen context
 

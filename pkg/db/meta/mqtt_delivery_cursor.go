@@ -62,6 +62,9 @@ type MQTTDeliveryCursorOp uint8
 const (
 	MQTTCursorInit    MQTTDeliveryCursorOp = 1
 	MQTTCursorAccount MQTTDeliveryCursorOp = 2
+	// MQTTCursorCancelInit records an empty cancelled preparation only after the
+	// exact subscription stopped admitting, or a newer generation replaced it.
+	MQTTCursorCancelInit MQTTDeliveryCursorOp = 3
 )
 
 // MQTTDeliveryCursorMutation carries authority and qualified source coverage.
@@ -136,7 +139,7 @@ func ValidateMQTTDeliveryCursorMutation(m MQTTDeliveryCursorMutation) error {
 		return dberrors.ErrInvalidArgument
 	}
 	switch m.Op {
-	case MQTTCursorInit:
+	case MQTTCursorInit, MQTTCursorCancelInit:
 		if m.AddedMessages != 0 || m.AddedBytes != 0 {
 			return dberrors.ErrInvalidArgument
 		}
@@ -196,13 +199,21 @@ func (b *Batch) MutateMQTTDeliveryCursor(slot HashSlot, m MQTTDeliveryCursorMuta
 		if err != nil {
 			return err
 		}
-		if !found || sub.Generation != m.Key.SubscriptionGeneration || sub.AuthorizationVersion != m.AuthorizationVersion ||
+		if !found {
+			return nil
+		}
+		if m.Op == MQTTCursorCancelInit {
+			if session.State != MQTTSessionActive || sub.Generation < m.Key.SubscriptionGeneration ||
+				(sub.Generation == m.Key.SubscriptionGeneration && (sub.AuthorizationVersion != m.AuthorizationVersion || sub.Stage < MQTTSubscriptionRemoving)) {
+				return nil
+			}
+		} else if sub.Generation != m.Key.SubscriptionGeneration || sub.AuthorizationVersion != m.AuthorizationVersion ||
 			(sub.Stage != MQTTSubscriptionPreparing && sub.Stage != MQTTSubscriptionActive) {
 			return nil
 		}
 		previousSession := session
 		switch m.Op {
-		case MQTTCursorInit:
+		case MQTTCursorInit, MQTTCursorCancelInit:
 			if exists {
 				return nil
 			}

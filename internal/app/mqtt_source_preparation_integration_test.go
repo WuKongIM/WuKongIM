@@ -276,6 +276,7 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 		require.NoError(t, nodes[0].ApplyChannelMeta(ctx, replica, runtimeMeta))
 	}
 	progress := verifyMQTTConsumerProgress(t, ctx, nodes, resumed.Owner, prepared, ids, plan.Anchor)
+	verifyMQTTSourceDrain(t, ctx, nodes, owners, sessions, authorize, adapter)
 	require.NoError(t, nodes[0].RemoveChannelSubscribers(ctx, id.ID, 2, []string{"alice"}, 2))
 	_, err = sources.Prepare(ctx, resumed.Owner, topic)
 	require.ErrorIs(t, err, sessioncase.ErrSubscriptionDenied)

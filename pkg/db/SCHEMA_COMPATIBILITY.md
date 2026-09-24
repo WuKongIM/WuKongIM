@@ -143,6 +143,10 @@ See [the replay contract](../../docs/specs/mqtt-shared-replay.md).
 MQTT groundwork adds metadata tables 22 (`mqtt_session`), 23
 (`mqtt_subscription`), 24 (`mqtt_delivery_cursor`), 25 (`mqtt_inflight`), 26
 (`mqtt_source_binding`) and 27 (`mqtt_will`), with Slot commands 67–73.
+Command 69 operation 3 explicitly initializes empty cancelled preparation after
+closed/replaced subscription intent. It preserves existing row/envelope formats
+and ordinary Init/Account semantics; older nodes reject it, requiring matched
+participants. No index or data backfill is introduced.
 Command 73 atomically resolves Session/Will transitions and records optional
 Session column 29 for exact retry; older rows default to an empty receipt.
 Generic CAS cannot bypass referenced Will lifecycle. Message index 8 selects the
