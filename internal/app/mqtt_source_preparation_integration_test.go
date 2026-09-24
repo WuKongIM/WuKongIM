@@ -310,7 +310,7 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	for _, replica := range runtimeMeta.Replicas {
 		require.NoError(t, nodes[0].ApplyChannelMeta(ctx, replica, runtimeMeta))
 	}
-	progress := verifyMQTTConsumerProgress(t, ctx, nodes, owners[2], resumed.Owner, prepared, ids, plan.Anchor)
+	progress := verifyMQTTConsumerProgress(t, ctx, nodes, owners[2], resumed.Owner, prepared, ids, plan.Anchor, authorize)
 	verifyMQTTSourceDrain(t, ctx, nodes, owners, sessions, authorize, adapter)
 	verifyMQTTGroupProjection(t, ctx, nodes, owners, sessions, authorize, ids)
 	require.NoError(t, nodes[0].RemoveChannelSubscribers(ctx, id.ID, 2, []string{"alice"}, 2))

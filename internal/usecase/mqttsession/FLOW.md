@@ -52,7 +52,8 @@ subscription projection. It owns no packet, concrete adapter, worker or replay s
    Targets pin anchors and scan/donor hints; placement resets hints and cold passes rotate work.
    Fenced turns only recover existing anchors; absent anchors yield without copying.
    Confirmation captures one anchor, checks every replica and rechecks placement; partial recovery remains pending. Maintenance grants no consumer GC or SUBACK authority.
-10. Consumer progress reads one binding and a pinned Session/cursor, projecting
+10. Accounting reads bounded anchored originals for online/offline debt, preserving QoS/No Local/expiry and exact revisions; quota ending proves no owner isolation.
+    Consumer progress reads one binding and a pinned Session/cursor, projecting
     only contiguous completion with one CAS. Acknowledgements checks current owner and exact PacketID/order before one command-70 commit; absent exchanges cause no writes.
     Explicit lifetime end retains Removing without fabricating source release;
     offline/absent state cannot discharge responsibility or authorize content GC.
@@ -96,5 +97,4 @@ subscription projection. It owns no packet, concrete adapter, worker or replay s
 - [Contracts](types.go), [Acquisition](connect.go), [Lifecycle](lifecycle.go), [Subscriptions](subscriptions.go), [Replay](replay.go)
 ## Update Triggers
 
-Update when authentication/isolation ordering, lifecycle policy, lease derivation,
-commit evidence, subscription projection, cleanup ownership or product composition changes.
+Update when lifecycle, isolation, accounting, commit evidence, subscription projection, cleanup or composition changes.

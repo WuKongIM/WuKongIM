@@ -19,7 +19,9 @@ Gateway send binding and PUBACK dispatch now pass real Paho/TCP takeover/resume
 integration, with controlled admission and content-reference assertions.
 Qualified backlog range receipts now preserve original charge membership/bytes
 across option/expiry changes, with exact admission/debit and bounded SourceDrain.
-Product qualification, delivery scheduling, receive permission and full recovery remain outstanding.
+Consumer accounting now reads committed original messages and qualifies bounded
+online/offline backlog through the Node composition. Product scheduling, window
+admission, send permission and full recovery remain outstanding.
 Inbox subscription/delivery, source deactivation,
 Will execution, product/restore composition and capacity
 acceptance remain outstanding. No passing product E2E
@@ -4333,3 +4335,62 @@ discovery, source deactivation, unavailable-owner isolation/recovery, Will
 execution, product listener/restore composition, offline MQTT tools, metrics and
 process/load acceptance remain outstanding. Product MQTT is still disabled and
 no process-level E2E or capacity result is claimed.
+
+## Consumer accounting from original messages
+
+[Accounting](../specs/mqtt-consumer-accounting.md) now computes a bounded source
+page's charges for both online and offline Sessions. Its public input is the exact
+cursor identity; Session/owner/subscription/source evidence and original content
+come from authoritative ports. It checks coherent parent/child state, active source
+binding, fresh placement/committed anchor and current receive permission, then
+uses command 69 operation 4 with all captured fences. It neither creates inflight
+exchanges nor depends on available window capacity.
+
+Native persistent messages default to QoS 1; MQTT/Will preserve publication QoS.
+No Local compares publisher namespace/ClientID, while native messages from the
+same UID remain eligible. Internal classification comes from the typed reader,
+not SyncOnce. MQTT, Will and native expiry retain their original clock; expired,
+internal and effective QoS 0 positions advance coverage without debt. One fixed
+evaluation time is recorded, with clock regression and lifetime deadline checks
+before the proposal. Quota termination retains debt and returns the exact observed
+owner for lifecycle cleanup; this is not an isolation proof. There is no worker,
+network send, per-consumer cache or implicit retry.
+
+App composition uses fresh SlotMetaSource and foreground Node ports. The real
+three-node original-trim/consumer-progress scenario now calls this accounting
+usecase instead of injecting counts. It independently reads anchored content for
+exact bytes/hash/identity during controlled window admission, then exercises the
+actual acknowledgement usecase, ACK gaps and cross-Slot retention. Subscription
+activation/window admission and authorization-version fixtures remain controlled;
+product subscription/delivery scheduling is not represented by this test.
+
+Validation (2026-09-24):
+
+- Public usecase and app tests preceded implementation and failed for missing
+  APIs (`/tmp/mqtt-accounting-usecase-red.log`, `/tmp/mqtt-accounting-app-red.log`).
+  Focused usecase tests passed in 3.649s. Online/offline qualification, original
+  expiry/QoS/No Local, missing/corrupt source proofs, options/owner/permission
+  races, canceled/panicking dependencies, lost replies, zero-charge coverage and
+  quota-ending results are covered using the real metadata commit seam.
+- Full usecase/app race suites passed (37.366s / 4.925s) in
+  `/tmp/mqtt-accounting-usecase-race.log`.
+- A further failure-first clock guard rejects evaluation/proposal regression
+  within the same turn (`/tmp/mqtt-accounting-clock-red.log` then GREEN); a
+  failure-first aggregate guard rejects cursor debt above Session totals before
+  returning an idle result or attempting a proposal (`/tmp/mqtt-accounting-counter-red.log`).
+  After both guards, all `TestAccounting` cases passed with `-race` in 5.103s
+  (`/tmp/mqtt-accounting-counter-green.log`).
+- `GOWORK=off go test -race -tags=integration -p 2 ./internal/usecase/mqttsession ./internal/app -run '^(TestAccounting.*|TestMQTTGroupSourcePreparationThreeNodeRecovery)$' -count=1 -timeout=150s`
+  passed (4.224s / 19.537s), `/tmp/mqtt-accounting-final.log`, with real TCP/disk,
+  three nodes and 256 hash Slots. Original physical trim, shared replay recovery,
+  actual accounting and subsequent ACK/source progress all pass. Existing Darwin
+  linker warnings only.
+- Named `flow-doc-contracts` passes: 86 compliant, zero invalid, nine existing
+  length warnings (`/tmp/mqtt-accounting-flow.log`).
+
+The full goal remains active. Discovery/fair scheduling and quota-owner cleanup,
+actual durable window admission, send-time permission/revocation ordering,
+autonomous initial/reconnect/QoS 0 delivery, inbox/future-person admission,
+unattended ended-Session cleanup/source deactivation, unavailable-owner isolation,
+Will execution, product/restore lifecycle, MQTT offline tools, metrics and complete
+process/load acceptance remain outstanding. No product listener or capacity claim.

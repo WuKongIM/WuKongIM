@@ -201,8 +201,13 @@ specification, runbook, report, or module documentation; link to them when neede
   command 69 operation 4 appends, and read kind 18 pins a coherent head. Admission
   and release debit exact receipts; empty ranges allocate nothing. SourceDrain
   releases one range per turn and retains explicit pending until its fixed end.
-  Matched nodes/tools and pre-feature backup rollback are required; source
-  qualification and product delivery scheduling remain separate work.
+  Matched nodes/tools and pre-feature backup rollback are required.
+  [Consumer accounting](../specs/mqtt-consumer-accounting.md) reads anchored
+  original messages for online/offline Sessions, applies QoS/No Local/expiry,
+  checks exact current intent/binding/permission, and commits one bounded range.
+  It does not depend on window capacity or grant send/owner-isolation authority;
+  failed evidence or revision races leave progress unchanged. Discovery/scheduling
+  and product delivery remain required.
   Optional message column 21 preserves bounded versioned publication metadata;
   compatibility record codec 2 and proposal format 3 prevent lossy recovery.
   Ordinary expiry uses ingress time; Will uses the original source append time.

@@ -64,8 +64,9 @@ at most one partially consumed range per cursor, not arbitrary skipped history.
   or downgrade to old read semantics across RPC. Cleanup treats partial as complete.
 
 Tests precede implementation at the approved metadata/FSM/routed cluster seams.
-Public usecase qualification, offline scheduling, product listener and full process
-acceptance remain required after this storage prerequisite.
+The [consumer accounting usecase](mqtt-consumer-accounting.md) now supplies source
+qualification. Offline scheduling, product listener and full process acceptance
+remain required after these prerequisites.
 
 ## Frozen context
 

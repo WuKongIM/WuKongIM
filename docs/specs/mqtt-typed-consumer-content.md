@@ -8,7 +8,9 @@ with the original content reference/cumulative counters. The serving storage
 snapshot verifies every canonical row against its retained committed native entry
 and paired proposal. Only explicit native proposal formats 4/5/6 classify as
 internal controls; payload spelling and SyncOnce alone never establish that fact.
-Consumer policy (No Local, expiry, QoS, permissions) remains above storage.
+Consumer policy (No Local, expiry, QoS, permissions) remains above storage; the
+[consumer accounting usecase](mqtt-consumer-accounting.md) now applies it to
+qualified backlog without authorizing sends.
 
 The Channel adapter maps strict decoded storage messages to existing Message
 values; it must not use the permissive ordinary-history opaque-byte fallback.

@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Compute MQTT online/offline backlog from committed original replay messages, preserving publication QoS, No Local and expiry while rejecting stale ownership, changed permissions and incomplete source evidence. Product scheduling and delivery remain under development. / MQTT 在线及离线积压改由已提交原始回放消息计算，保留发布 QoS、No Local 和过期语义，拒绝陈旧所有权、权限变化及不完整源证明；产品调度和投递仍在开发。
+
 - Preserve exact MQTT backlog charges across subscription-option and expiry changes, with bounded atomic debit and resumable unsubscribe cleanup. Slot command 69 operation 4 and metadata read kind 18 require matching nodes/tools; product MQTT delivery remains under development. / MQTT 保存原始积压条数与字节计量，支持订阅选项或过期变化后的精确扣减及分批退订清理；Slot 命令 69 操作 4、读取类型 18 要求匹配节点和工具，产品投递仍在开发。
 
 - Bind MQTT outbound QoS 1 packets to exact durable exchanges, respect Receive Maximum, and commit PUBACK through current Session ownership. Reconnect preserves packet identity; failed writes/confirmations retain durable recovery. Product MQTT delivery remains under development. / MQTT 下行 QoS 1 绑定精确持久交换并遵守 Receive Maximum，PUBACK 通过当前 Session 所有权提交；重连保留包身份，写入或确认失败仍保留持久恢复。产品 MQTT 投递仍在开发。
