@@ -10,8 +10,8 @@ import (
 )
 
 // BindDelivery returns this accepted connection and its entry-neutral sink.
-// App opens exactly one Sender stream from the pair after OnSessionOpen, retains
-// it through terminal cleanup, and supplies bounded per-turn contexts.
+// OnSessionOpen passes the pair to app after handshake release. App opens one
+// Sender stream, retains it through cleanup and supplies bounded turn contexts.
 func (h *Handler) BindDelivery(g gt.Context) (sessioncase.Connection, sessioncase.DeliverySink, error) {
 	if h == nil || g.RequestContext == nil {
 		return sessioncase.Connection{}, nil, ErrOutboundInvalid

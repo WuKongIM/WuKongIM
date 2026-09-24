@@ -55,8 +55,10 @@ closure is not a durable lifetime-end decision.
 
 Validation combines native metadata/usecase tests with the existing real
 three-node Sender/Slot scenario. Inbox *future source admission*, offline
-maintenance, listener hooks and process acceptance remain separate required
-work; paging existing cursors cannot establish them.
+maintenance, product composition and process acceptance remain separate required
+work; paging existing cursors cannot establish them. The subsequent
+[connection handoff](mqtt-connection-delivery.md) wires gateway open and ACK/close
+wakes to this task.
 
 ## Validation evidence
 

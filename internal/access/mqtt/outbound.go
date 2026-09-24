@@ -160,6 +160,7 @@ func (h *Handler) acknowledge(g gt.Context, s *connectionState, p *wire.Puback) 
 	if closed {
 		return ErrHandlerClosed
 	}
+	h.wakeDelivery(s.connection.Owner)
 	return nil
 }
 

@@ -10,7 +10,7 @@ summary: Maps MQTT gateway lifecycle, inbound publications and outbound exchange
 This package maps wire-validated MQTT 5 packets to IM identities and immutable
 publication content. Handler binds generic gateway callbacks to Session acquisition
 and connection supervision; Publisher invokes the existing message usecase.
-Product listener composition, subscription and delivery scheduling remain unavailable.
+App registers delivery after connection open; product listener and subscription entry remain unavailable.
 
 ## Boundaries
 
@@ -33,6 +33,8 @@ Product listener composition, subscription and delivery scheduling remain unavai
    closure and marks unresolved owner work before releasing the local scope.
 6. Acquire and register CONNECT ownership, hold an operation across CONNACK,
    check admission immediately before reply, then release on open or rollback.
+   Open registers one bound delivery task with a bounded context after scope release;
+   failure queues exact disconnect. No callbacks run under the connection mutex.
 7. Control packets admit the same owner. Close callbacks enqueue cleanup without
    joining packet execution; decoded DISCONNECT receipt survives TCP EOF before
    mailbox dispatch. Validate direction/expiry before suppressing Will.
@@ -68,6 +70,9 @@ Product listener composition, subscription and delivery scheduling remain unavai
   monotonic observation. Invalid expiry/direction never cancels Will. Peer packet
   limits apply to accepted and rejected CONNACK. Unsupported controls fail closed.
 
+- Successful bound ACK wakes delivery after credit release; unknown ACK adds no
+  work. Close records first intent before fencing/waking. Wake failure is only a
+  lost hint; idle polling retries, and no task is discarded by entry cleanup.
 - Outbound binding stores no bodies. Strictly increasing attempted order prevents
   same-connection retransmission. Unknown PUBACK adds no credit; negative PUBACK
   completes the exchange. Failed writes/ACKs close and preserve durable recovery.

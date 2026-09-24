@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Bind MQTT connection open to automatic delivery, wake sending after committed PUBACK, and expedite cleanup after disconnect while retaining unfinished work. Real TCP/Paho coverage verifies takeover retransmission and receive credit; product listener and subscription entry remain under development. / MQTT 连接打开后自动注册投递，PUBACK 提交后唤醒发送，断开后加速清理并保留未完成工作；真实 TCP/Paho 验证接管重发与接收额度，产品监听和订阅入口仍在开发。
+
 - Automatically discover existing MQTT subscription sources, account protected backlog and schedule sending after old-exchange recovery; quota reply loss and accounting-time revocation preserve exact-owner cleanup. Product listener and offline scheduling remain under development. / MQTT 可自动发现既有订阅消息源、计量受保护积压，并在恢复旧交换后调度发送；超限回包丢失及计量时撤权均保留精确 owner 清理。产品监听与离线调度仍在开发。
 
 - Add bounded MQTT connection delivery scheduling with fair turns, coalesced wakes, retry backoff and joined shutdown. Automatic source discovery and product listener wiring remain under development. / MQTT 增加有界连接投递调度，支持公平轮转、唤醒合并、失败退避和等待任务退出的停止流程；自动消息源发现与产品监听接入仍在开发。

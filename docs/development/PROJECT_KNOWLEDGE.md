@@ -203,7 +203,13 @@ specification, runbook, report, or module documentation; link to them when neede
   source scans retain bounded hints; authoritative accounting precedes new sending.
   Quota reply loss is recovered from durable state before isolation/feedback;
   denied accounting ends the exact lifetime after releasing scopes. Three-node
-  coverage uses real discovery/accounting and a controlled sink. Inbox future
+  coverage uses real discovery/accounting and a controlled sink. The
+  [connection handoff](../specs/mqtt-connection-delivery.md) registers a task after
+  CONNACK and handshake release. Bound ACK wakes after credit release; close
+  preserves first intent before fencing/waking and never discards pending End.
+  Lost hints rely on idle polling. Real Paho/256-Slot coverage joins automatic
+  discovery, accounting, sending, takeover DUP and ACK/close cleanup; subscription
+  setup invokes the real usecase directly. Subscription entry, inbox future
   source admission, offline scheduling and product composition remain outstanding.
 
 - Subscriber join identity uses optional column 4 and table 5 System 1 per-hash-Slot

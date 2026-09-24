@@ -36,6 +36,14 @@ type ConnectionSupervisor interface {
 	Disconnect(runtime.DisconnectIntent) error
 }
 
+// ConnectionDeliveries registers one bound task after CONNACK enqueue. App owns
+// its lifetime, including terminal cleanup after entry closes. Wake is a
+// nonblocking hint; failures must be recoverable by runtime idle polling.
+type ConnectionDeliveries interface {
+	Register(context.Context, sessioncase.Connection, sessioncase.DeliverySink) error
+	Wake(contract.Owner) error
+}
+
 type HandlerOptions struct {
 	Namespace   string
 	Sessions    SessionLifecycle
@@ -44,7 +52,11 @@ type HandlerOptions struct {
 	Publisher   *Publisher
 	// Acknowledgements completes exact outbound exchanges; nil disables QoS 1 delivery.
 	Acknowledgements OutboundAcknowledgements
-	// ConnectTimeout bounds acquisition, default five seconds, maximum one minute.
+	// Deliveries binds accepted connections to scheduled sending; nil disables it.
+	// A configured delivery port requires Acknowledgements.
+	Deliveries ConnectionDeliveries
+	// ConnectTimeout bounds acquisition and open handoff separately; default
+	// five seconds, maximum one minute.
 	ConnectTimeout time.Duration
 	// CleanupTimeout bounds rejected-candidate cleanup, default one second, max five.
 	CleanupTimeout time.Duration
@@ -54,8 +66,8 @@ type HandlerOptions struct {
 	Now func() time.Time
 }
 
-// Handler owns gateway mapping and handoff only. Subscription and scheduled delivery
-// remain unavailable; app must not expose product MQTT until all required paths exist.
+// Handler owns gateway mapping and handoff only. App must not expose product
+// MQTT until all required paths, including subscriptions, are composed.
 type Handler struct{ options HandlerOptions }
 
 var _ gt.PacketHandler = (*Handler)(nil)
@@ -89,6 +101,9 @@ func NewHandler(o HandlerOptions) (*Handler, error) {
 		o.MaxPacketBytes = wire.DefaultMaxPacketBytes
 	}
 	now := o.Now()
+	if o.Deliveries != nil && o.Acknowledgements == nil {
+		return nil, ErrHandlerInvalid
+	}
 	if !contract.ValidIdentity(o.Namespace, 1024) || o.Sessions == nil || o.Connections == nil || o.Owners == nil || o.Publisher == nil || o.Publisher.options.Owners != o.Owners || o.ConnectTimeout <= 0 || o.ConnectTimeout > time.Minute || o.CleanupTimeout <= 0 || o.CleanupTimeout > 5*time.Second || o.MaxPacketBytes > wire.DefaultMaxPacketBytes || now == now.Round(0) {
 		return nil, ErrHandlerInvalid
 	}
@@ -194,11 +209,19 @@ func (h *Handler) state(g gt.Context) *connectionState {
 
 // OnSessionOpen releases the handshake only after checking its live execution
 // gate. An expired or cancelled acquisition cannot become packet-admissible.
-func (h *Handler) OnSessionOpen(g gt.Context) error {
+func (h *Handler) OnSessionOpen(g gt.Context) (err error) {
 	s := h.state(g)
 	if s == nil {
 		return ErrHandlerClosed
 	}
+	defer func() {
+		if recover() != nil {
+			err = ErrHandlerCallback
+		}
+		if err != nil {
+			h.closeState(s, false, nil)
+		}
+	}()
 	s.mu.Lock()
 	op := s.handshake
 	valid := !s.closing && !s.opened && op != nil && g.RequestContext != nil && g.RequestContext.Err() == nil && op.Check() == nil
@@ -209,10 +232,43 @@ func (h *Handler) OnSessionOpen(g gt.Context) error {
 	s.mu.Unlock()
 	op.Done()
 	if !valid {
-		h.closeState(s, false, nil)
 		return ErrHandlerClosed
 	}
+	if h.options.Deliveries != nil {
+		ctx, cancel := context.WithTimeout(g.RequestContext, h.options.ConnectTimeout)
+		defer cancel()
+		connection, sink, bindErr := h.BindDelivery(g)
+		if bindErr != nil || h.options.Deliveries.Register(ctx, connection, sink) != nil || ctx.Err() != nil {
+			return ErrHandlerClosed
+		}
+		// A newly scheduled turn may already occupy the operation budget. Begin
+		// checks identity/lease before that limit; saturation alone is not closure.
+		check, checkErr := h.options.Owners.Begin(ctx, connection.Owner)
+		if check != nil {
+			checkErr = check.Check()
+			check.Done()
+		}
+		if checkErr != nil && !errors.Is(checkErr, runtime.ErrOwnerLimit) {
+			return ErrHandlerClosed
+		}
+		s.mu.Lock()
+		closed := s.closing
+		s.mu.Unlock()
+		if closed || ctx.Err() != nil {
+			return ErrHandlerClosed
+		}
+	}
 	return nil
+}
+
+// wakeDelivery never changes committed results or interrupts required cleanup.
+// No connection lock is held: callbacks may schedule immediately or reenter.
+func (h *Handler) wakeDelivery(owner contract.Owner) {
+	if h.options.Deliveries == nil {
+		return
+	}
+	defer func() { _ = recover() }()
+	_ = h.options.Deliveries.Wake(owner)
 }
 
 // closeState preserves first intent before any transport callback can reenter.
@@ -237,7 +293,10 @@ func (h *Handler) closeStateAt(s *connectionState, normal bool, expiry *uint32, 
 	op.Done()
 	// The supervisor records intent before it fences. Fencing first lets a
 	// concurrent renewal synthesize abnormal cleanup ahead of normal DISCONNECT.
-	defer h.options.Owners.Fence(s.connection.Owner)
+	defer func() {
+		_ = h.options.Owners.Fence(s.connection.Owner)
+		h.wakeDelivery(s.connection.Owner)
+	}()
 	_ = h.options.Connections.Disconnect(runtime.DisconnectIntent{Owner: s.connection.Owner, Normal: normal, SessionExpirySec: expiry, ObservedAt: observed})
 }
 

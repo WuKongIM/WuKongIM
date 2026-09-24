@@ -24,13 +24,21 @@ func (f outboundAcks) Acknowledge(ctx context.Context, q sessioncase.Acknowledge
 }
 
 func outboundFixture(t *testing.T, maximum uint16, ack outboundAcks, resumed ...bool) (*handlerFixture, access.OutboundDelivery) {
+	return outboundFixtureWithOptions(t, maximum, ack, nil, resumed...)
+}
+
+func outboundFixtureWithOptions(t *testing.T, maximum uint16, ack outboundAcks, configure func(*access.HandlerOptions), resumed ...bool) (*handlerFixture, access.OutboundDelivery) {
 	t.Helper()
 	f := newHandlerFixture(t)
 	if len(resumed) > 0 {
 		f.connection.SessionPresent = resumed[0]
 	}
 	var err error
-	f.h, err = access.NewHandler(access.HandlerOptions{Namespace: "main", Sessions: f.sessions, Connections: f.connections, Owners: f.owners, Publisher: f.publisher, Acknowledgements: ack, Now: func() time.Time { return f.now }})
+	options := access.HandlerOptions{Namespace: "main", Sessions: f.sessions, Connections: f.connections, Owners: f.owners, Publisher: f.publisher, Acknowledgements: ack, Now: func() time.Time { return f.now }}
+	if configure != nil {
+		configure(&options)
+	}
+	f.h, err = access.NewHandler(options)
 	require.NoError(t, err)
 	p := handlerConnect()
 	p.Properties = append(p.Properties, wire.Property{ID: wire.ReceiveMaximum, Number: uint32(maximum)})
