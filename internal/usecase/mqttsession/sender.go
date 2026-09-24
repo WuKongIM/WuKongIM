@@ -80,6 +80,8 @@ type DeliveryStream struct {
 	after          meta.MQTTInflightCursor
 	pending        *qos0Completion
 	closed, ending bool
+	// endReason preserves the first trusted terminal decision through retries.
+	endReason meta.MQTTSessionEndReason
 }
 
 // deliveryPermission is minted by original-content preparation, not by callers
@@ -170,6 +172,7 @@ func (s *DeliveryStream) Turn(parent context.Context, key meta.MQTTDeliveryCurso
 		}
 		if errors.Is(err, ErrSubscriptionDenied) || errors.Is(err, ErrSubscriptionRevoked) {
 			s.closed, s.ending = true, true
+			s.endReason = meta.MQTTSessionRevoked
 		}
 		if errors.Is(err, ErrFenced) || errors.Is(err, ErrClock) || errors.Is(err, runtime.ErrOwnerFenced) {
 			s.closed = true
@@ -277,7 +280,7 @@ func (s *DeliveryStream) finishEnding(parent context.Context) (out DeliveryTurn,
 	}()
 	reason := meta.MQTTSessionEndReason(0)
 	if s.ending {
-		reason = meta.MQTTSessionRevoked
+		reason = s.endReason
 	}
 	err = closeDeliverySink(ctx, s.sink, reason)
 	if s.ending {

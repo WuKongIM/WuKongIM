@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Automatically discover existing MQTT subscription sources, account protected backlog and schedule sending after old-exchange recovery; quota reply loss and accounting-time revocation preserve exact-owner cleanup. Product listener and offline scheduling remain under development. / MQTT 可自动发现既有订阅消息源、计量受保护积压，并在恢复旧交换后调度发送；超限回包丢失及计量时撤权均保留精确 owner 清理。产品监听与离线调度仍在开发。
+
 - Add bounded MQTT connection delivery scheduling with fair turns, coalesced wakes, retry backoff and joined shutdown. Automatic source discovery and product listener wiring remain under development. / MQTT 增加有界连接投递调度，支持公平轮转、唤醒合并、失败退避和等待任务退出的停止流程；自动消息源发现与产品监听接入仍在开发。
 
 - Refresh committed replay progress on idle voters during anchored planning, preventing a new MQTT subscriber from waiting indefinitely for another message. / 锚点规划会刷新空闲投票副本的已提交进度，避免新 MQTT 订阅必须等到下一条消息才能完成恢复。

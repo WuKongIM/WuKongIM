@@ -81,7 +81,8 @@ remaining work and must have their own real-authority evidence before admission.
   Its source is already prepared and sink controlled; no automatic source
   discovery, socket scheduling or product process acceptance is claimed.
 
-Next: bounded per-connection source discovery/accounting, one stream registered
-after accepted CONNECT, entry wake/close hooks, offline maintenance, and complete
-product lifecycle/restore admission. Existing successful runtime Stop cannot
-stand in for those usecase and cluster guarantees.
+Bounded per-connection source discovery/accounting is now implemented by the
+[delivery coordinator](mqtt-delivery-coordinator.md). Remaining work includes
+one stream registered after accepted CONNECT, entry wake/close hooks, offline
+maintenance, and complete product lifecycle/restore admission. Successful runtime
+Stop cannot stand in for those usecase and cluster guarantees.

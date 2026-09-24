@@ -197,8 +197,14 @@ specification, runbook, report, or module documentation; link to them when neede
   floods. Fencing cannot discard pending End cleanup. Terminal Stop cancels and
   joins all calls before releasing records; timeout retains that run and grants
   no isolation proof. App fences admission first and keeps dependencies alive
-  until join. Three-node Sender/Slot coverage uses a prepared source and controlled
-  sink; automatic source discovery and product composition remain outstanding.
+  until join. [DeliveryCoordinator](../specs/mqtt-delivery-coordinator.md) opens
+  one stream before admission, recovers old exchanges first and rotates one
+  subscription/source per turn through existing Session-Slot pages. Only unfinished
+  source scans retain bounded hints; authoritative accounting precedes new sending.
+  Quota reply loss is recovered from durable state before isolation/feedback;
+  denied accounting ends the exact lifetime after releasing scopes. Three-node
+  coverage uses real discovery/accounting and a controlled sink. Inbox future
+  source admission, offline scheduling and product composition remain outstanding.
 
 - Subscriber join identity uses optional column 4 and table 5 System 1 per-hash-Slot
   allocation high water. Legacy empty rows mean incarnation 1; new joins allocate
