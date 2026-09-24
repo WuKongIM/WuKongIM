@@ -53,7 +53,7 @@ no packet, concrete cluster/gateway adapter, worker or shared replay storage.
    Fenced turns only recover existing anchors; absent anchors yield without copying.
    Confirmation captures one anchor, checks every replica and rechecks placement; partial recovery remains pending. Maintenance grants no consumer GC or SUBACK authority.
 10. Consumer progress reads one binding and a pinned Session/cursor, projecting
-    only contiguous completion with one CAS. Unchanged floors produce no write.
+    only contiguous completion with one CAS. Acknowledgements checks current owner and exact PacketID/order before one command-70 commit; absent exchanges cause no writes.
     Explicit lifetime end retains Removing without fabricating source release;
     offline/absent state cannot discharge responsibility or authorize content GC.
     SourceRemoval revalidates ended-lifetime or closed-subscription/drained-cursor
@@ -88,7 +88,7 @@ no packet, concrete cluster/gateway adapter, worker or shared replay storage.
   Product wiring requires replicated protection, initialized cursors, inbox future
   source admission and safe removal. Membership version changes cannot replace
   an active subscription silently; delivery/revocation ordering remains required.
-- Group preparation bounds point/cursor reads; it cannot create subscriptions, release content or authorize SUBACK.
+- Group preparation bounds point/cursor reads; it cannot create subscriptions, release content or authorize SUBACK. ACK completion survives ordinary unsubscribe; entry must bind sent exchanges before deferring packet work.
 - These usecases are not yet wired into the product listener; full process-level
   MQTT recovery and acceptance remain separate required implementation work.
 

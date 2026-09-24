@@ -542,6 +542,13 @@ specification, runbook, report, or module documentation; link to them when neede
   ACK frees only its exchange and keeps earlier gaps; lifecycle CAS cannot reset
   same-generation delivery counters/allocators. A stored window is not permission
   for an unfenced socket to send.
+  [Acknowledgements](../specs/mqtt-outbound-acknowledgements.md) uses the current
+  local Owner and one authoritative Session/inflight point read before at most
+  one command-70 commit. Caller-captured cursor/PacketID/DeliveryOrder must all
+  match; a reused ID conflicts. Completion needs no current subscription grant,
+  so ordinary unsubscribe preserves old exchanges. Absence is an explicit read
+  result, never a delivery receipt; lost replies reconcile without double writes.
+  Entry send/packet binding and product dispatch remain required.
 - Send permissions belong in `internal/usecase/message` before append;
   `pkg/channel` stays business-rule free. Mutable recipient metadata and delivery
   tags are authoritative at their owning Slot/Channel leaders. Remote caches must

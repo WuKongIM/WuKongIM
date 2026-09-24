@@ -1,0 +1,205 @@
+package mqttsession_test
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+	"time"
+
+	app "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession"
+	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
+	"github.com/stretchr/testify/require"
+)
+
+type acknowledgementStore struct {
+	*groupSourceStore
+	reads, writes int
+	read          func(meta.MQTTRead, *meta.MQTTReadResult)
+	before        func(meta.MQTTWindowMutation)
+	after         func(*meta.MQTTWindowResult) error
+}
+
+func (s *acknowledgementStore) ReadMQTT(ctx context.Context, q meta.MQTTRead) (meta.MQTTReadResult, error) {
+	s.reads++
+	r, e := s.groupSourceStore.ReadMQTT(ctx, q)
+	if e == nil && s.read != nil {
+		s.read(q, &r)
+	}
+	return r, e
+}
+func (s *acknowledgementStore) MutateMQTTWindow(ctx context.Context, m meta.MQTTWindowMutation) (meta.MQTTWindowResult, error) {
+	s.writes++
+	if s.before != nil {
+		s.before(m)
+	}
+	b := s.db.NewBatch()
+	defer b.Close()
+	r, e := b.MutateMQTTWindow(7, m)
+	if e != nil {
+		return meta.MQTTWindowResult{}, e
+	}
+	if e = b.Commit(ctx); e != nil {
+		return meta.MQTTWindowResult{}, e
+	}
+	if s.after != nil {
+		if e = s.after(r); e != nil {
+			return meta.MQTTWindowResult{}, e
+		}
+	}
+	return *r, nil
+}
+func acknowledgementFixture(t *testing.T) (*groupSourceFixture, *acknowledgementStore, *app.Acknowledgements, []app.AcknowledgementCommand) {
+	t.Helper()
+	f := setupGroupSource(t)
+	prepared, e := f.prepare()
+	require.NoError(t, e)
+	f.project.establish = func(_ context.Context, r app.SubscriptionProjectionRequest) (app.SubscriptionProjectionReceipt, error) {
+		return projectionReceipt(r), nil
+	}
+	_, e = f.subscriptions.Subscribe(context.Background(), f.connection.Owner, subscriptionRequest())
+	require.NoError(t, e)
+	s := &acknowledgementStore{groupSourceStore: f.store}
+	o := f.connection.Owner
+	_, e = s.MutateMQTTDeliveryCursor(context.Background(), meta.MQTTDeliveryCursorMutation{Key: prepared.Cursor.Key, ExpectedRevision: f.row(t).Revision, OwnerGeneration: o.OwnerGeneration, OwnerNodeID: o.NodeID, OwnerBootID: o.BootID, ConnectionID: o.ConnectionID, Op: meta.MQTTCursorAccount, Topic: prepared.Cursor.Topic, AuthorizationVersion: prepared.Cursor.AuthorizationVersion, Through: prepared.Cursor.StartAfter + 2, AddedMessages: 2, AddedBytes: 2, UpdatedAtMS: f.now.UnixMilli()})
+	require.NoError(t, e)
+	var commands []app.AcknowledgementCommand
+	for i := uint64(1); i <= 2; i++ {
+		position := prepared.Cursor.StartAfter + i
+		r, e := s.MutateMQTTWindow(context.Background(), meta.MQTTWindowMutation{Key: prepared.Cursor.Key, ExpectedRevision: f.row(t).Revision, OwnerGeneration: o.OwnerGeneration, OwnerNodeID: o.NodeID, OwnerBootID: o.BootID, ConnectionID: o.ConnectionID, Op: meta.MQTTWindowAdmit, Publication: meta.MQTTInflightPublication{Position: position, MessageID: 100 + i, MessageSeq: position, ContentVersion: 1, ContentHash: strings.Repeat("a", 64), Bytes: 1, SubscriptionIdentifier: subscriptionRequest().SubscriptionIdentifier}, UpdatedAtMS: f.now.UnixMilli()})
+		require.NoError(t, e)
+		require.Equal(t, meta.MQTTWindowApplied, r.Status)
+		commands = append(commands, app.AcknowledgementCommand{Owner: o, Key: prepared.Cursor.Key, PacketID: r.PacketID, DeliveryOrder: r.DeliveryOrder})
+	}
+	s.writes = 0
+	ack, e := app.NewAcknowledgements(app.AcknowledgementOptions{Store: s, Owners: f.owners, Now: func() time.Time { return f.now }})
+	require.NoError(t, e)
+	return f, s, ack, commands
+}
+func readAcknowledgementCursor(t *testing.T, f *groupSourceFixture, key meta.MQTTDeliveryCursorKey) meta.MQTTDeliveryCursor {
+	t.Helper()
+	r, e := f.store.ReadMQTT(context.Background(), meta.MQTTRead{Kind: meta.MQTTReadDeliveryCursor, CursorKey: key})
+	require.NoError(t, e)
+	require.Len(t, r.DeliveryCursors, 1)
+	return r.DeliveryCursors[0]
+}
+
+func TestAcknowledgementsPreserveGapsAndCompleteAfterUnsubscribe(t *testing.T) {
+	f, s, a, commands := acknowledgementFixture(t)
+	ctx := context.Background()
+	_, e := f.subscriptions.Unsubscribe(ctx, f.connection.Owner, subscriptionRequest().Topic)
+	require.NoError(t, e)
+	f.denied = true
+	second, e := a.Acknowledge(ctx, commands[1])
+	require.NoError(t, e)
+	require.True(t, second.Changed)
+	require.False(t, second.Absent)
+	cursor := readAcknowledgementCursor(t, f, commands[0].Key)
+	require.Equal(t, cursor.StartAfter, cursor.CompletedThrough)
+	require.EqualValues(t, 1, cursor.InflightCount)
+	duplicate, e := a.Acknowledge(ctx, commands[1])
+	require.NoError(t, e)
+	require.True(t, duplicate.Absent)
+	require.False(t, duplicate.Changed)
+	require.Equal(t, 1, s.writes)
+	first, e := a.Acknowledge(ctx, commands[0])
+	require.NoError(t, e)
+	require.True(t, first.Changed)
+	cursor = readAcknowledgementCursor(t, f, commands[0].Key)
+	require.Equal(t, cursor.AccountedThrough, cursor.CompletedThrough)
+	require.Zero(t, cursor.PendingMessages)
+	require.Zero(t, cursor.PendingBytes)
+	require.Zero(t, f.row(t).OutboundInflight)
+	require.Equal(t, 3, s.reads)
+	require.Equal(t, 2, s.writes)
+}
+
+func TestAcknowledgementsRecoverLostReplyWithoutASecondMutation(t *testing.T) {
+	f, s, a, commands := acknowledgementFixture(t)
+	lost := errors.New("lost ACK commit reply")
+	s.after = func(*meta.MQTTWindowResult) error { return lost }
+	got, e := a.Acknowledge(context.Background(), commands[0])
+	require.ErrorIs(t, e, lost)
+	require.Zero(t, got)
+	s.after = nil
+	got, e = a.Acknowledge(context.Background(), commands[0])
+	require.NoError(t, e)
+	require.True(t, got.Absent)
+	require.False(t, got.Changed)
+	require.Equal(t, 1, s.writes)
+	require.EqualValues(t, 1, f.row(t).OutboundInflight)
+}
+
+func TestAcknowledgementsRejectStaleIdentityOrInvalidEvidence(t *testing.T) {
+	for _, fault := range []string{"order", "source", "foreign_session", "owner", "canceled", "expired", "no_session", "uid", "ended", "partial", "extra", "invalid_row", "wrong_packet", "read_panic", "revision_race", "bad_receipt", "reply_panic", "canceled_after_commit"} {
+		t.Run(fault, func(t *testing.T) {
+			f, s, a, commands := acknowledgementFixture(t)
+			q := commands[0]
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			switch fault {
+			case "order":
+				q.DeliveryOrder++
+			case "source":
+				q.Key.SourceGeneration = "foreign"
+			case "foreign_session":
+				q.Key.SessionGeneration++
+			case "owner":
+				q.Owner.OwnerGeneration++
+			case "canceled":
+				cancel()
+			case "expired":
+				f.now = f.now.Add(time.Minute)
+			case "no_session":
+				s.read = func(_ meta.MQTTRead, r *meta.MQTTReadResult) { r.Session = nil }
+			case "uid":
+				s.read = func(_ meta.MQTTRead, r *meta.MQTTReadResult) { r.Session.UID = "foreign" }
+			case "ended":
+				s.read = func(_ meta.MQTTRead, r *meta.MQTTReadResult) {
+					r.Session.State = meta.MQTTSessionEnded
+					r.Session.TerminationReason = meta.MQTTSessionQuota
+				}
+			case "partial":
+				s.read = func(_ meta.MQTTRead, r *meta.MQTTReadResult) { r.Done = false }
+			case "extra":
+				s.read = func(_ meta.MQTTRead, r *meta.MQTTReadResult) { r.Bindings = []meta.MQTTSourceBinding{{}} }
+			case "invalid_row":
+				s.read = func(_ meta.MQTTRead, r *meta.MQTTReadResult) { r.Inflight[0].Publication.Position = 0 }
+			case "wrong_packet":
+				s.read = func(_ meta.MQTTRead, r *meta.MQTTReadResult) { r.Inflight[0].PacketID++ }
+			case "read_panic":
+				s.read = func(meta.MQTTRead, *meta.MQTTReadResult) { panic("secret") }
+			case "revision_race":
+				s.before = func(meta.MQTTWindowMutation) {
+					s.before = nil
+					_, e := a.Acknowledge(ctx, commands[1])
+					require.NoError(t, e)
+				}
+			case "bad_receipt":
+				s.after = func(r *meta.MQTTWindowResult) error { r.DeliveryOrder++; return nil }
+			case "reply_panic":
+				s.after = func(*meta.MQTTWindowResult) error { panic("secret") }
+			case "canceled_after_commit":
+				s.after = func(*meta.MQTTWindowResult) error { cancel(); return nil }
+			}
+			got, e := a.Acknowledge(ctx, q)
+			require.Error(t, e)
+			require.Zero(t, got)
+			switch fault {
+			case "revision_race":
+				require.Equal(t, 2, s.writes)
+				require.EqualValues(t, 1, f.row(t).OutboundInflight)
+			case "bad_receipt", "reply_panic", "canceled_after_commit":
+				require.Equal(t, 1, s.writes)
+				require.EqualValues(t, 1, f.row(t).OutboundInflight)
+			default:
+				require.Zero(t, s.writes)
+				require.EqualValues(t, 2, f.row(t).OutboundInflight)
+			}
+			if fault == "read_panic" || fault == "reply_panic" {
+				require.ErrorIs(t, e, app.ErrSubscriptionCallback)
+				require.NotContains(t, e.Error(), "secret")
+			}
+		})
+	}
+}

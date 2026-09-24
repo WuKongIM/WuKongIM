@@ -65,7 +65,7 @@ Stop or startup rollback
   renewal/observed disconnect to Session usecases. Real-gateway/Paho integration validates the entry; product wiring remains pending.
   Replay worker composition wires fresh SlotMetaSource and foreground Node ports;
   three-node managed-loop coverage verifies fenced learner recovery, source release and retirement after the last binding leaves.
-  Consumer progress and retention use foreground Node ports; retention captures anchors before consumer floors and grants no local GC.
+  Consumer progress, exact exchange acknowledgements and retention use foreground Node ports; ACK also gates on local Owners. Retention captures anchors before consumer floors and grants no local GC.
   Binding removal uses the same authoritative Node port: a source-Slot acknowledgement retains responsibility until a later verified tombstone commit; three-node continuation is covered.
   SourceDrain discovers group cleanup and seals unsubscribe ranges through Node ports; pre-binding interruption, cross-node resume and concurrent ACK conflicts preserve inflight exchanges.
   Replay maintenance rotates copy/recovery/retirement through the same worker; real ACK gaps and unknown registrations block decisions, and reopened replicas prove applied retirement independently of counters.

@@ -14,6 +14,8 @@ removal, unsubscribe sealing and live-owner cancelled-preparation discovery
 Concrete group projection now confirms shared replay on every eligible replica.
 Anchored typed consumer messages route through foreground Node/RPC after original
 trim, with original publication fields and committed native control classification.
+Exact outbound acknowledgement orchestration and Node composition are implemented;
+entry send/packet binding and PUBACK dispatch remain outstanding.
 Inbox subscription/delivery, source deactivation,
 Will execution, product/restore composition and capacity
 acceptance remain outstanding. No passing product E2E
@@ -4196,3 +4198,49 @@ This is runtime/storage integration, not product process E2E. Qualification and
 accounting, delivery/PUBACK, inbox and future-person admission, unattended ended
 Session discovery, source deactivation, unavailable-owner recovery, Will execution,
 product lifecycle, offline tools and process/load acceptance remain required.
+
+## Exact outbound acknowledgement orchestration
+
+`Acknowledgements` accepts the caller-captured cursor/PacketID/DeliveryOrder under
+one exact current local Owner. It reads current Session/inflight through Node and
+performs at most one existing command-70 ACK with the captured parent revision.
+It validates complete read shape, owner/UID/clock and the committed reply. Ordinary
+unsubscribe or receive denial cannot prevent completing an admitted exchange;
+Session termination and ownership loss still fence it. Missing exchanges return
+an explicit absent observation, with no mutation or claim of network delivery.
+A different key/order conflicts instead of releasing a reused PacketID.
+
+App composition supplies foreground Node and the same local Owners registry.
+The three-node progress scenario now uses this real acknowledgement usecase for
+out-of-order completion and duplicate ACKs; source progress/retention still verifies
+the resulting gap independently. Admission and accounting remain controlled.
+This does not connect product PUBACK dispatch or prove packet-to-send binding.
+
+Validation (2026-09-24):
+
+- Tests preceded implementation: `/tmp/mqtt-ack-red.log` and app composition RED
+  `/tmp/mqtt-ack-app-red.log`. The first runtime test attempt exposed a fixture
+  missing its subscription identifier during controlled window admission. After
+  matching that existing storage contract, focused tests passed in 3.749 s
+  (`/tmp/mqtt-ack-green.log`); no production window rule was relaxed.
+- Public usecase coverage includes ordinary unsubscribe, receive denial, ACK gaps,
+  lost replies, duplicates, wrong source/order/packet, stale/expired owners,
+  malformed/partial reads, callback panic, revision races, invalid receipts and
+  cancellation after commit. Failures return no success; mutations retain their
+  committed state when only reply observation fails.
+- Full MQTT-usecase and app race suites passed, 28.676 / 4.751 s
+  (`/tmp/mqtt-ack-race.log`); existing Darwin linker warnings only.
+- `GOWORK=off go test -race -tags=integration -p 2 ./internal/app -run
+  '^TestMQTTGroupSourcePreparationThreeNodeRecovery$' -count=1 -timeout=120s`
+  passed in 20.130 s (`/tmp/mqtt-ack-app.log`). Real three-node TCP/disk with
+  256 hash Slots validates exact-order rejection, duplicate absence, gap-safe
+  completion and independent cross-node source progress/retirement checks.
+- Named `flow-doc-contracts` passed: 86 compliant, zero invalid, nine existing
+  warnings (`/tmp/mqtt-ack-flow.log`); formatting and diff checks passed.
+
+Frozen context and failure inventory: [outbound acknowledgements](../specs/mqtt-outbound-acknowledgements.md).
+The full goal remains active. Entry send binding/PUBACK dispatch, actual durable
+window admission and consumer qualification/accounting, reconnect delivery, inbox
+and future-person admission, ended-Session discovery, source deactivation, owner
+recovery, Will execution, product lifecycle, offline tools and process/load
+acceptance remain outstanding.
