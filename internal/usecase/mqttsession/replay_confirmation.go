@@ -75,11 +75,16 @@ func (c *ReplayCoordinator) Confirm(parent context.Context, source meta.MQTTBind
 		}
 		request := ch.MQTTReplayRecoveryRequest{Target: target, Source: q, TargetAnchor: plan.Anchor.Manifest.LastOffset, ScanLimit: 64, ApplyRetirement: true}
 		result, e := c.options.Channels.StepChannelMQTTReplayRecovery(ctx, request)
-		if e != nil {
-			return e
-		}
 		if err = ctx.Err(); err != nil {
 			return err
+		}
+		if e != nil {
+			// Native checkpoint propagation and receiver admission may lag the
+			// captured anchor. Yield without accepting any replica's coverage.
+			if errors.Is(e, ch.ErrNotReady) || errors.Is(e, ch.ErrBackpressured) {
+				return errors.Join(ErrReplayPending, e)
+			}
+			return e
 		}
 		if !result.ValidFor(request) || result.Plan.Target != plan.Anchor || (result.DonorAfter != 0 && !slices.Contains(m.Replicas, result.DonorAfter)) {
 			return ErrEvidence

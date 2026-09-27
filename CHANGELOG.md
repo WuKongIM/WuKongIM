@@ -6,6 +6,10 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Keep MQTT subscription setup waiting for native replica checkpoints, and retry definite unsubscribe CAS rejection only under unchanged intent and ownership. / MQTT 订阅建立有界等待副本原生提交水位；退订 CAS 明确拒绝后，仅在意图和所有权均未变化时做有限重试。
+
+- Expose background MQTT subscription-removal confirmations as a fixed aggregate metric, including retries without client identity labels. / 新增 MQTT 后台退订完成确认的固定维度聚合指标，包含重试确认且不携带客户端身份标签。
+
 - Automatically finish interrupted MQTT unsubscribe for inbox and group subscriptions after disconnect, including preparation before the first binding. Bounded recovery preserves unacknowledged exchanges and retries final state writes. Full crash and scale acceptance remains in progress. / MQTT 私聊收件箱和群订阅退订中断后可在断线状态自动续作，包括首条绑定写入前的中断；有界恢复保留未确认交换并重试最终状态写入。完整崩溃和容量验收仍在进行。
 
 - Automatically sweep expired MQTT owner reservations and retry incomplete transport cleanup with bounded work and joined shutdown. Aggregate metrics retain visibility of unresolved effects. / MQTT 自动清理到期的连接所有权预留，并有界重试未完成的传输关闭；停止时等待任务结束，聚合指标保留未决副作用状态。

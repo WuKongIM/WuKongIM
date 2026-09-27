@@ -79,6 +79,19 @@ func (s *Service) stepLocalMQTTRecovery(ctx context.Context, q ch.MQTTReplayReco
 	if !ok {
 		return empty, ch.ErrInvalidConfig
 	}
+	// A target selected by another node may still be an uncommitted suffix
+	// here. Planning requires a locally committed anchor; native replication
+	// must supply that checkpoint before any repair or retirement can run.
+	state, err := handle.Load(ctx)
+	if err != nil {
+		return empty, err
+	}
+	if err = ctx.Err(); err != nil {
+		return empty, err
+	}
+	if state.HW < q.TargetAnchor {
+		return empty, ch.ErrNotReady
+	}
 	pending := false
 	if q.ApplyRetirement {
 		pending, err = s.applyMQTTRecoveryRetirement(ctx, handle, q, authority, m)

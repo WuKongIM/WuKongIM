@@ -15,6 +15,9 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
+// Only a definite CAS receipt carries this private retry classification.
+var errSubscriptionCASRejected = errors.New("mqttsession: subscription CAS rejected")
+
 // Subscribe persists one filter at a time, granting QoS at most one. Success
 // describes authoritative Active intent; entry still owns its SUBACK enqueue.
 func (s *Subscriptions) Subscribe(parent context.Context, o contract.Owner, r SubscriptionRequest) (out meta.MQTTSubscription, err error) {
@@ -104,14 +107,43 @@ func (s *Subscriptions) Unsubscribe(parent context.Context, o contract.Owner, to
 	}
 	unconfirmed = true
 	if row.Stage != meta.MQTTSubscriptionRemoving {
-		row.Stage = meta.MQTTSubscriptionRemoving
-		row, err = s.mutate(ctx, op, o, session, row)
+		row, err = s.startRemoval(ctx, op, o, session, row)
 		if err != nil {
 			return false, err
 		}
 	}
+	// Only instrumented temporary-copy builds interrupt after durable intent.
+	// gofail: var wkMQTTUnsubscribeAfterIntent bool
+	// if wkMQTTUnsubscribeAfterIntent {
+	//  return false, context.DeadlineExceeded
+	// }
 	_, err = s.complete(ctx, op, o, row)
 	return err == nil, err
+}
+
+// startRemoval tolerates unrelated parent renewal/accounting without following
+// a changed child or Owner. At most three writes share the original deadline;
+// unknown outcomes never retry, even when a port returns an ErrConflict value.
+func (s *Subscriptions) startRemoval(ctx context.Context, op *subscriptionOperation, o contract.Owner, session meta.MQTTSession, before meta.MQTTSubscription) (meta.MQTTSubscription, error) {
+	for attempt := 0; ; attempt++ {
+		next := before
+		next.Stage = meta.MQTTSubscriptionRemoving
+		row, err := s.mutate(ctx, op, o, session, next)
+		if err == nil {
+			return row, nil
+		}
+		if !errors.Is(err, errSubscriptionCASRejected) || attempt == 2 {
+			return meta.MQTTSubscription{}, err
+		}
+		currentParent, current, found, err := s.read(ctx, op, o, before.Topic)
+		if err != nil {
+			return meta.MQTTSubscription{}, err
+		}
+		if !found || current != before || currentParent.Revision <= session.Revision {
+			return meta.MQTTSubscription{}, ErrConflict
+		}
+		session = currentParent
+	}
 }
 
 // Preserve the original cause for bounded pending handling while distinguishing
@@ -362,7 +394,7 @@ func (s *Subscriptions) mutate(ctx context.Context, op *subscriptionOperation, o
 		return meta.MQTTSubscription{}, err
 	}
 	if receipt.Status == meta.MQTTSessionCASConflict {
-		return meta.MQTTSubscription{}, ErrConflict
+		return meta.MQTTSubscription{}, errors.Join(ErrConflict, errSubscriptionCASRejected)
 	}
 	if (receipt.Status != meta.MQTTSessionCASApplied && receipt.Status != meta.MQTTSessionCASUnchanged) || receipt.CurrentRevision != row.Revision {
 		return meta.MQTTSubscription{}, ErrEvidence

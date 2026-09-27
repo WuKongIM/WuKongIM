@@ -58,7 +58,7 @@ This is eventual maintenance, not a promised quota-enforcement latency at scale.
 App starts maintenance after cluster readiness and joins it before closing its
 dependencies. Cancellation cannot substitute for joining admitted effects.
 Two fixed task labels register scheduler and worker ownership. Metrics expose
-`wukongim_mqtt_consumer_events_total{event}` with eleven predeclared outcomes (including subsequent UID retirement) and
+`wukongim_mqtt_consumer_events_total{event}` with twelve predeclared outcomes (including subsequent UID retirement and subscription-removal confirmation) and
 `wukongim_mqtt_consumer_work{state}` with admitted/capacity series. No ClientID,
 UID, source, payload or raw error becomes a label. End confirmations can repeat.
 

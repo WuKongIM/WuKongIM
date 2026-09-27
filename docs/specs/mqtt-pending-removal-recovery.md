@@ -73,6 +73,8 @@ Subscription work identity excludes RecoveryAtMS. Preparing remains indexed but
 is skipped. Stop joins both kinds of work; no new task, table, encoding, RPC,
 configuration field or per-Session goroutine is introduced. Existing aggregate
 turn metrics include this work and do not claim unique subscription counts.
+The subsequent fixed `subscription_removal_confirmed` event exposes observed
+completion (including retries); failures and late results cannot increment it.
 
 ## Additional reproduced races
 

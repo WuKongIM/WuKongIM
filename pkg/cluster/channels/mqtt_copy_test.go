@@ -20,10 +20,69 @@ type mqttCopyStore struct {
 	loadErr        error
 	closed, copies int
 	prepare        func(context.Context, ch.MQTTReplayRange) (ch.MQTTReplayPage, error)
+	state          *channelstore.InitialState
+	stateErr       error
+	afterLoad      func()
+	sourceReads    int
+}
+
+func (s *mqttCopyStore) Load(context.Context) (channelstore.InitialState, error) {
+	if s.afterLoad != nil {
+		s.afterLoad()
+	}
+	if s.state != nil {
+		return *s.state, s.stateErr
+	}
+	return channelstore.InitialState{LEO: s.source.CommittedThrough, HW: s.source.CommittedThrough, CheckpointHW: s.source.CommittedThrough}, s.stateErr
 }
 
 func (s *mqttCopyStore) LoadCommittedMQTTSource(context.Context, uint64) (ch.MQTTSourceSnapshot, bool, error) {
+	s.sourceReads++
 	return s.source, s.found, s.loadErr
+}
+
+func TestMQTTCopyReceiverRequiresItsOwnCommittedBoundary(t *testing.T) {
+	for _, mode := range []string{"lagging", "load-error", "canceled", "source-corrupt"} {
+		t.Run(mode, func(t *testing.T) {
+			s, _, st, _, q, _ := mqttCopyFixture(t)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			want := ch.ErrNotReady
+			switch mode {
+			case "lagging":
+				st.state = &channelstore.InitialState{LEO: q.After.Through}
+				st.loadErr = ch.ErrLogConflict // The source port requires an already committed boundary.
+			case "load-error":
+				st.stateErr = ch.ErrLogConflict
+				want = ch.ErrLogConflict
+			case "canceled":
+				st.afterLoad = cancel
+				want = context.Canceled
+			case "source-corrupt":
+				st.loadErr = ch.ErrLogConflict
+				want = ch.ErrLogConflict
+			}
+			ack, err := s.confirmMQTTReplayCopy(ctx, q)
+			require.ErrorIs(t, err, want)
+			require.Zero(t, ack)
+			require.Zero(t, st.copies)
+			require.Equal(t, 1, st.closed)
+			require.Empty(t, s.mqttCopyReceivers)
+			if mode == "source-corrupt" {
+				require.Equal(t, 1, st.sourceReads)
+			} else {
+				require.Zero(t, st.sourceReads)
+			}
+			if mode == "lagging" {
+				// Only native checkpoint propagation supplies readiness for a retry.
+				st.state.HW, st.state.CheckpointHW, st.loadErr = q.After.Through, q.After.Through, nil
+				ack, err = s.confirmMQTTReplayCopy(ctx, q)
+				require.NoError(t, err)
+				require.Equal(t, q.Target, ack)
+				require.Equal(t, 1, st.copies)
+			}
+		})
+	}
 }
 func (s *mqttCopyStore) PrepareMQTTReplay(c context.Context, q ch.MQTTReplayRange) (ch.MQTTReplayPage, error) {
 	s.copies++

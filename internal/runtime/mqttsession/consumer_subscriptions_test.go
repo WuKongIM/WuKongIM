@@ -10,8 +10,9 @@ import (
 
 type consumerSubscriptionFunc func(context.Context, meta.MQTTSubscriptionRecoveryCursor) error
 
-func (f consumerSubscriptionFunc) MaintainSubscription(ctx context.Context, k meta.MQTTSubscriptionRecoveryCursor) error {
-	return f(ctx, k)
+func (f consumerSubscriptionFunc) MaintainSubscription(ctx context.Context, k meta.MQTTSubscriptionRecoveryCursor) (bool, error) {
+	err := f(ctx, k)
+	return err == nil, err
 }
 func consumerSubscription(id string, at int64) meta.MQTTSubscription {
 	return meta.MQTTSubscription{Namespace: "main", ClientID: id, SessionGeneration: 1, Topic: "topic", Generation: 2, Revision: 3, TargetKind: meta.MQTTSubscriptionUserInbox, TargetID: "alice", GrantedQoS: 1, Stage: meta.MQTTSubscriptionRemoving, OperationID: "operation", UpdatedAtMS: 1000, RecoveryAtMS: at}

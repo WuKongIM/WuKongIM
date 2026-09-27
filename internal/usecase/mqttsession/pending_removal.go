@@ -127,6 +127,12 @@ func (p *SubscriptionRemoval) Reconcile(parent context.Context, hint meta.MQTTSu
 	if err = ctx.Err(); err != nil {
 		return false, err
 	}
+	// Projection has completed; the subscription index must survive a failed
+	// final write even when the UID qualification has left binding recovery.
+	// gofail: var wkMQTTSubscriptionRemovalBeforeCommit bool
+	// if wkMQTTSubscriptionRemovalBeforeCommit {
+	//  return false, context.DeadlineExceeded
+	// }
 	receipt, err := p.options.Store.MutateMQTTSubscription(ctx, mutation)
 	if err != nil {
 		return false, err

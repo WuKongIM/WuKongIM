@@ -53,7 +53,7 @@ func (a *App) wireMQTTConsumers(node *cluster.Node, auth sessioncase.Subscriptio
 			for _, e := range []struct {
 				name  string
 				count int
-			}{{"pages", o.Pages}, {"visited", o.Visited}, {"scheduled", o.Scheduled}, {"completed", o.Completed}, {"failures", o.Failures}, {"accounted", o.Accounted}, {"projected", o.Projected}, {"removed", o.Removed}, {"quota_end_confirmed", o.QuotaEnded}, {"revocation_end_confirmed", o.RevokedEnded}, {"qualification_removed", o.QualificationRemoved}} {
+			}{{"pages", o.Pages}, {"visited", o.Visited}, {"scheduled", o.Scheduled}, {"completed", o.Completed}, {"failures", o.Failures}, {"accounted", o.Accounted}, {"projected", o.Projected}, {"removed", o.Removed}, {"quota_end_confirmed", o.QuotaEnded}, {"revocation_end_confirmed", o.RevokedEnded}, {"qualification_removed", o.QualificationRemoved}, {"subscription_removal_confirmed", o.SubscriptionRemovalConfirmed}} {
 				m.ObserveConsumer(e.name, uint64(e.count))
 			}
 			m.SetConsumerWork(o.Admitted, o.Capacity)
@@ -77,10 +77,10 @@ type mqttSubscriptionMaintenance struct {
 	removal *sessioncase.SubscriptionRemoval
 }
 
-func (m mqttSubscriptionMaintenance) MaintainSubscription(ctx context.Context, k meta.MQTTSubscriptionRecoveryCursor) error {
-	_, err := m.removal.Reconcile(ctx, k)
+func (m mqttSubscriptionMaintenance) MaintainSubscription(ctx context.Context, k meta.MQTTSubscriptionRecoveryCursor) (bool, error) {
+	completed, err := m.removal.Reconcile(ctx, k)
 	if errors.Is(err, sessioncase.ErrSourceDrainPending) {
-		return nil
+		return false, nil
 	}
-	return err
+	return completed, err
 }

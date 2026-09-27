@@ -7,15 +7,70 @@ import (
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/stretchr/testify/require"
 )
 
 type mqttRecoveryStore struct {
 	*mqttRepairStore
-	plan    ch.MQTTReplayRepairPlan
-	planErr error
-	plans   int
+	plan      ch.MQTTReplayRepairPlan
+	planErr   error
+	plans     int
+	state     *channelstore.InitialState
+	stateErr  error
+	afterLoad func()
+}
+
+func (s *mqttRecoveryStore) Load(context.Context) (channelstore.InitialState, error) {
+	if s.afterLoad != nil {
+		s.afterLoad()
+	}
+	if s.state != nil {
+		return *s.state, s.stateErr
+	}
+	hw := s.plan.Target.Manifest.LastOffset
+	return channelstore.InitialState{LEO: hw, HW: hw, CheckpointHW: hw}, s.stateErr
+}
+
+func TestMQTTRecoveryRequiresReceiverCommittedAnchor(t *testing.T) {
+	for _, mode := range []string{"lagging", "load-error", "canceled", "committed-conflict"} {
+		t.Run(mode, func(t *testing.T) {
+			s, _, st, _, _, q := mqttRecoveryFixture(t)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			want := ch.ErrNotReady
+			switch mode {
+			case "lagging":
+				st.state = &channelstore.InitialState{LEO: q.TargetAnchor}
+				st.planErr = ch.ErrLogConflict
+			case "load-error":
+				st.stateErr, want = ch.ErrLogConflict, ch.ErrLogConflict
+			case "canceled":
+				st.afterLoad, want = cancel, context.Canceled
+			case "committed-conflict":
+				st.planErr, want = ch.ErrLogConflict, ch.ErrLogConflict
+			}
+			result, err := s.StepMQTTReplayRecovery(ctx, q)
+			require.ErrorIs(t, err, want)
+			require.Zero(t, result)
+			require.Zero(t, st.imports)
+			require.Equal(t, 1, st.closed)
+			require.Empty(t, s.mqttRepairReceivers)
+			if mode == "committed-conflict" {
+				require.Equal(t, 1, st.plans)
+			} else {
+				require.Zero(t, st.plans)
+			}
+			if mode == "lagging" {
+				st.state.HW, st.state.CheckpointHW, st.planErr = q.TargetAnchor, q.TargetAnchor, nil
+				result, err = s.StepMQTTReplayRecovery(ctx, q)
+				require.NoError(t, err)
+				require.True(t, result.Repaired)
+				require.False(t, result.Plan.Complete, "import alone cannot claim verified completion")
+			}
+		})
+	}
 }
 
 func (s *mqttRecoveryStore) PlanMQTTReplayRepair(_ context.Context, q ch.MQTTReplayRepairScan) (ch.MQTTReplayRepairPlan, error) {

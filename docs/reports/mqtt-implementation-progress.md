@@ -38,7 +38,24 @@ Owner admission. [Pending removal recovery](../specs/mqtt-pending-removal-recove
 now completes UID checkpoints and final Removing subscriptions, including discovery
 before the first binding. Both index streams share the fixed consumer cohort.
 Three-node product-worker composition passes controlled interrupted inbox/group
-removal; full product-listener fault injection remains required.
+removal. [Product-process fault acceptance](mqtt-unsubscribe-fault-acceptance.json)
+now passes all eight inbox/group × committed-intent/final-completion failure ×
+single-node/three-node scenarios with 256 Slots (224.552s). Real Paho/WK clients
+prove background completion before reconnect, original PacketID/DUP/identity and
+fresh resubscription; the confirmation metric is fixed and aggregate. Temporary-copy
+gofail builds contain the injection controls; ordinary builds have no dependency.
+
+That process suite exposed three subscription windows, all reproduced before
+repair: follower copy before native committed HW, anchor recovery before its
+local checkpoint, and a definite Removing CAS rejection after an unrelated parent
+revision update. Receivers now wait on their own checkpoints; bounded confirmation
+keeps the all-replica requirement. Removing intent rebases at most twice only after
+fresh same-Owner/identical-child evidence. Unknown replies, corruption and changed
+intent remain failures. Focused race, bounded-request integration and FLOW checks
+pass; the [failure inventory](../specs/mqtt-unsubscribe-fault-acceptance.md) and JSON
+report preserve source digests, RED evidence, commands and eight process artifacts.
+These are controlled request failures and connection closure; abrupt process-crash
+and network-partition acceptance still remain required.
 
 These product milestones are not complete MQTT delivery.
 Safe uncertain dispatch recovery, unavailable-owner

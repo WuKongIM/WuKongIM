@@ -2,15 +2,17 @@
 
 状态：实施中。默认关闭的 MQTT 产品入口、会话恢复、Will 调度及离线消费者维护已接通；真实进程验证范围见各里程碑报告。未知结果恢复、不可用 owner 隔离、完整清理、备份恢复后重建和容量验收仍未完成。依据：[MQTT IM 接入设计](../../specs/mqtt-im-access.md)。
 
-已接通 [消费者后台维护](../../specs/mqtt-consumer-maintenance.md)：复用 source binding 恢复索引，独立于在线状态和接收窗口计量积压，确认精确 owner 结束后推进来源清理；正常 ACK 通过有界任务投影连续完成水位。明确结束或被替换的 UID 资格现已纳入同一后台任务，见 [资格退役合同](../../specs/mqtt-qualification-retirement.md)；尚未完成的普通退订、无 cursor 的准备和持久交换清理仍需完成。
+已接通 [消费者后台维护](../../specs/mqtt-consumer-maintenance.md)：复用 source binding 恢复索引，独立于在线状态和接收窗口计量积压，确认精确 owner 结束后推进来源清理；正常 ACK 通过有界任务投影连续完成水位。明确结束或被替换的 UID 资格现已纳入同一后台任务，见 [资格退役合同](../../specs/mqtt-qualification-retirement.md)；普通退订的后台续作现已接通，见下方；持久交换回收与完整故障验收仍需完成。
 
 本计划交付 MQTT 5.0、QoS 0/1、精确主题、持久会话、跨节点接管、受权限约束的可靠恢复和 Will。阶段完成不等于整体完成；仅在线收发的版本不能作为本次需求交付。
 
 ## 当前进度
 
-- 已接通 [已关闭来源的后台续作](../../specs/mqtt-closed-source-maintenance.md)：现有消费者任务可在无本地 Owner 时封口、补建取消游标并每轮释放一个计量范围。最终 UID 检查点、订阅完成与首次绑定前的意图发现仍待完成。
+- [退订故障进程验收](../../reports/mqtt-unsubscribe-fault-acceptance.json) 的 8 项场景通过，覆盖单节点/三节点、收件箱/群及两处中断；验证后台完成、原 PacketID/DUP/消息身份和重新订阅边界。修复副本提交水位追赶时误断开订阅、退订与普通 Session 更新冲突的问题；保留严格权限、所有权和全副本证明。突发崩溃、网络分区与完整容量验收仍待完成。
 
-- 已补 [离线退订的存储前置合同](../../specs/mqtt-offline-drain.md)：已关闭或被替换的订阅可在精确 owner/修订下分批释放未入窗积压和补建取消游标，保留 inflight 与 ACK 缺口；在线业务入口外的后台编排与进程故障验收仍待完成。
+- 已接通 [已关闭来源的后台续作](../../specs/mqtt-closed-source-maintenance.md)：现有消费者任务可在无本地 Owner 时封口、补建取消游标并每轮释放一个计量范围。[pending 退订恢复](../../specs/mqtt-pending-removal-recovery.md) 已接通最终 UID 检查点、订阅完成与首次绑定前的意图发现，两类索引共用有界 worker 池；三节点装配验证通过。
+
+- 已补 [离线退订的存储前置合同](../../specs/mqtt-offline-drain.md)：已关闭或被替换的订阅可在精确 owner/修订下分批释放未入窗积压和补建取消游标，保留 inflight 与 ACK 缺口；后台编排已接通；专用进程故障注入验收见 [故障验收合同](../../specs/mqtt-unsubscribe-fault-acceptance.md)。
 
 - 已接通 [Owner 到期清理](../../specs/mqtt-owner-sweeping.md)：独立定时任务复用 deadline 堆，有界回收未注册的到期预留及重试传输关闭，停止时等待回调结束。未决副作用继续占用容量；不把时间或物理关闭当成远程隔离证明。
 
@@ -237,4 +239,4 @@ Will 使用持久任务和稳定业务幂等键；实现创建和触发时的授
 
 至少证明：无越权、无未解释的丢失、QoS 1 重复身份稳定、旧 owner 不再授权写入、配额及队列有界、保留/备份/恢复完整。按相关变更更新 FLOW 并通过 `flow-doc-contracts`，同步 PROJECT_KNOWLEDGE、配置文档和用户可见 CHANGELOG。
 
-产品级验收尚未运行；协议级已完成验证不替代上述完整验收。具体已运行命令与未完成范围以实施记录为准。
+部分产品级验收已运行，不能替代上述完整故障和容量验收。具体已运行命令与未完成范围以实施记录为准。

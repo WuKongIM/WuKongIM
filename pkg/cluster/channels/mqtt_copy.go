@@ -233,6 +233,19 @@ func (s *Service) confirmMQTTReplayCopy(ctx context.Context, q mqttCopyRequest) 
 	if !ok {
 		return 0, ch.ErrInvalidConfig
 	}
+	// The requested boundary is remote evidence. Source reads require this
+	// replica's committed checkpoint first; a durable but unapplied suffix is
+	// ordinary catch-up, not corrupt source state or permission to advance HW.
+	state, err := st.Load(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if err = ctx.Err(); err != nil {
+		return 0, err
+	}
+	if state.HW < q.After.Through {
+		return 0, ch.ErrNotReady
+	}
 	source, found, err := reader.LoadCommittedMQTTSource(ctx, q.After.Through)
 	if err != nil {
 		return 0, err

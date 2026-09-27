@@ -2,6 +2,7 @@ package mqttsession
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strconv"
 	"strings"
@@ -133,10 +134,16 @@ func (c *ReplayCoordinator) Step(parent context.Context, source meta.MQTTBinding
 		return out, err
 	}
 	copy, err := c.options.Channels.CopyChannelMQTTReplay(ctx, request)
-	if err != nil {
-		return out, err
+	if stopped := ctx.Err(); stopped != nil {
+		return out, stopped
 	}
-	if err = ctx.Err(); err != nil {
+	if err != nil {
+		// Copy may wait for native committed checkpoints or bounded admission.
+		// No anchor has been submitted: a fresh turn can verify existing copies.
+		// Unknown failures and anchor outcomes never acquire this retry signal.
+		if errors.Is(err, ch.ErrNotReady) || errors.Is(err, ch.ErrBackpressured) {
+			return out, errors.Join(ErrReplayPending, err)
+		}
 		return out, err
 	}
 	before := ch.MQTTReplayPrefix{Generation: source.Generation, StartAfter: plan.Source.StartAfter, Through: plan.Source.StartAfter}

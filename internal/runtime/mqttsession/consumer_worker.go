@@ -25,8 +25,9 @@ type ConsumerMaintenance interface {
 
 // ConsumerSubscriptionMaintenance rereads pending intent and parent authority;
 // it never receives message bodies or derives policy from a recovery hint.
+// True confirms observed removal, including retries; it is not a unique count.
 type ConsumerSubscriptionMaintenance interface {
-	MaintainSubscription(context.Context, meta.MQTTSubscriptionRecoveryCursor) error
+	MaintainSubscription(context.Context, meta.MQTTSubscriptionRecoveryCursor) (bool, error)
 }
 
 // consumerWorkKey is a tagged primary identity. Exactly one field is set;
@@ -69,10 +70,15 @@ type ConsumerWorkerOptions struct {
 }
 
 // ConsumerWork carries only proved per-turn outcomes; it contains no identity or body.
-type ConsumerWork struct{ Accounted, Projected, Removed, QuotaEnded, RevokedEnded, QualificationRemoved bool }
+type ConsumerWork struct {
+	// SubscriptionRemovalConfirmed counts observed completion, including retries.
+	SubscriptionRemovalConfirmed                                                  bool
+	Accounted, Projected, Removed, QuotaEnded, RevokedEnded, QualificationRemoved bool
+}
 
 // ConsumerObservation excludes keys, bodies, errors and other unbounded labels.
 type ConsumerObservation struct {
+	SubscriptionRemovalConfirmed                            int
 	QualificationRemoved                                    int
 	Pages, Visited, Scheduled, Completed, Failures          int
 	Duration                                                time.Duration
@@ -162,12 +168,15 @@ func (w *ConsumerWorker) Start(ctx context.Context) error {
 		var work ConsumerWork
 		var err error
 		if k.subscription != (meta.MQTTSubscriptionRecoveryCursor{}) {
-			err = w.opts.Subscriptions.MaintainSubscription(call, k.subscription)
+			work.SubscriptionRemovalConfirmed, err = w.opts.Subscriptions.MaintainSubscription(call, k.subscription)
 		} else {
 			work, err = w.opts.Maintainer.MaintainConsumer(call, k.binding)
 		}
 		if err == nil {
 			err = call.Err()
+		}
+		if err != nil {
+			work.SubscriptionRemovalConfirmed = false
 		}
 		done()
 		select {
@@ -235,6 +244,9 @@ func (w *ConsumerWorker) loop(r *consumerWorkerRun) {
 			case result := <-r.results:
 				delete(admitted, result.key)
 				out.Completed++
+				if result.work.SubscriptionRemovalConfirmed {
+					out.SubscriptionRemovalConfirmed++
+				}
 				if result.work.QualificationRemoved {
 					out.QualificationRemoved++
 				}

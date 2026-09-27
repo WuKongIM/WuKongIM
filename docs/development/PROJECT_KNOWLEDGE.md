@@ -352,12 +352,25 @@ specification, runbook, report, or module documentation; link to them when neede
   Nested drains inherit the captured Owner; pending subscription index 2 survives
   qualification removal, retaining retries after a failed final child CAS.
   Foreground completion accepts only an identical child already marked Removed.
+  [Unsubscribe fault acceptance](../specs/mqtt-unsubscribe-fault-acceptance.md)
+  exercises committed-intent failure and failed final completion through real
+  Paho/WK product processes. `subscription_removal_confirmed` is a fixed aggregate
+  confirmation event, including retries, not a unique-subscription count. Gofail
+  markers are inert in ordinary builds; instrumentation uses a temporary copy.
+  A copy receiver must check its own durable HW before the strict committed-source
+  reader; recovery likewise requires locally committed target anchors before
+  planning. A remote request may legitimately be ahead. Typed copy/recovery
+  readiness/pressure becomes replay pending. Unknown errors, cancellation and
+  anchor write failures do not authorize request retry or SUBACK.
+  Removing intent alone rebases definite CAS rejection at most twice, requiring
+  the exact unchanged child and same Owner under a newer parent revision. Unknown
+  replies and port-level conflict errors remain unconfirmed without retry.
   The [gateway entry](../specs/mqtt-gateway-entry.md) retains execution across
   CONNACK and rechecks before enqueue; close callbacks never join packet scopes.
   A constant-size decoded DISCONNECT receipt survives EOF before mailbox dispatch.
   Validate client reason/expiry before cancelling Will, and register normal intent
-  before fencing renewal. Real Paho/TCP integration passes; product admission,
-  subscription/delivery and complete recovery remain unavailable.
+  before fencing renewal. The opt-in product listener composes subscription and
+  delivery; complete recovery and failure/scale acceptance remain required.
   [Subscription orchestration](../specs/mqtt-subscription-orchestration.md) persists
   Preparing/Removing before projection and accepts only exact intent receipts.
   Resume preserves generation/operation; replacement preserves cursors. Counts

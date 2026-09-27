@@ -32,7 +32,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    the exact leader. Explicit prepared appends require fresh Slot reads and preserve exact route through RPC 12; ordinary cached dial failure gets one fresh-route retry;
    ambiguous sends retain committed-outcome recovery. MQTT source/replay RPCs 93/94
    recheck fresh Slot authority, caller fences and the serving node across gateway swaps.
-   RPCs 95–101 bind copying, anchors/retirement, planning, selection and repair to fresh authority; retirement/retries and anchored plans schedule bounded native propagation to idle voters before final authority checks; hints grant no recovery proof.
+   RPCs 95–101 bind copying, anchors/retirement, planning, selection and repair to fresh authority; copy/recovery receivers verify their own committed HW before source reads or anchor planning. Lag yields without changing checkpoints. Retirement/retries and anchored plans schedule bounded native propagation to idle voters before final authority checks; hints grant no recovery proof.
    RPC 97/99 permit stable fences; plan reply v2 proves maintenance tails; recovery v2 releases sources and v3 applies retirement. RPC 102 v2 reads anchored typed messages; RPC 103 reads retained Will proof through the recovered reactor. Each uses fresh authority and separate four-slot admission; absence never authorizes Will republication.
    Active repair probes verify follower durability; leaders checkpoint recovered HW and request native tail propagation.
    Fresh placement/fence checks bind optional replay coverage; diagnostics stay observational.
