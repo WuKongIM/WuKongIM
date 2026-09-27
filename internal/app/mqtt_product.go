@@ -26,6 +26,7 @@ type mqttProduct struct {
 	deliveries  *runtime.Deliveries
 	deadlines   *runtime.DeadlineWorker
 	replay      *runtime.ReplayWorker
+	wills       *runtime.WillWorker
 }
 
 func (a *App) wireMQTT(nodeID uint64) error {
@@ -105,6 +106,14 @@ func (a *App) wireMQTT(nodeID uint64) error {
 	if err != nil {
 		return err
 	}
+	executor, err := newMQTTWillExecutor(node, a.messages, sessioncase.WillExecutionOptions{NodeID: nodeID, BootID: hex.EncodeToString(boot[:]), LeaseDuration: 10 * time.Second, TurnTimeout: 5 * time.Second})
+	if err != nil {
+		return err
+	}
+	m.wills, err = runtime.NewWillWorker(runtime.WillWorkerOptions{Source: node, Executor: mqttWillExecution{executor}, Registry: a.goroutines, HashSlotCount: hashSlots})
+	if err != nil {
+		return err
+	}
 	a.cfg.Gateway.Listeners = append(a.cfg.Gateway.Listeners, gateway.ListenerOptions{Name: "mqtt", Network: "tcp", Transport: "gnet", Protocol: "mqtt", Address: c.ListenAddr})
 	return nil
 }
@@ -114,7 +123,7 @@ func (m *mqttProduct) Start(ctx context.Context) error {
 	if m == nil {
 		return nil
 	}
-	for _, w := range []WorkerRuntime{m.replay, m.deadlines, m.connections, m.deliveries} {
+	for _, w := range []WorkerRuntime{m.replay, m.deadlines, m.wills, m.connections, m.deliveries} {
 		if err := w.Start(ctx); err != nil {
 			return err
 		}
@@ -132,6 +141,9 @@ func (m *mqttProduct) Stop(ctx context.Context) error {
 	var result error
 	if m.deliveries != nil {
 		result = errors.Join(result, m.deliveries.Stop(ctx))
+	}
+	if m.wills != nil {
+		result = errors.Join(result, m.wills.Stop(ctx))
 	}
 	if m.deadlines != nil {
 		result = errors.Join(result, m.deadlines.Stop(ctx))
@@ -174,4 +186,19 @@ func (p mqttProductProjection) Remove(ctx context.Context, r sessioncase.Subscri
 		return sessioncase.SubscriptionProjectionReceipt{}, err
 	}
 	return target.Remove(ctx, r)
+}
+
+// mqttWillExecution maps the usecase result without turning pending work into
+// a retry decision. Only the authoritative recovery index schedules later turns.
+type mqttWillExecution struct{ executor *sessioncase.WillExecutor }
+
+func (e mqttWillExecution) ExecuteWill(ctx context.Context, key meta.MQTTWillKey) error {
+	result, err := e.executor.Execute(ctx, key)
+	if err != nil {
+		return err
+	}
+	if result.Pending {
+		return sessioncase.ErrWillPending
+	}
+	return nil
 }

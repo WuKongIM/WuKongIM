@@ -348,6 +348,22 @@ func (h *Handler) OnPacket(g gt.Context, packet any) (err error) {
 	if !live {
 		return h.terminate(g, s, 0)
 	}
+	// DISCONNECT only records cleanup intent. Requiring a new owner operation
+	// would turn a decoded normal receipt into abnormal closure when TCP EOF
+	// cancels dispatch or fencing/operation pressure closes execution admission.
+	if p, ok := packet.(*wire.Disconnect); ok {
+		expiry, valid := disconnectExpiry(p, s.connection.SessionExpirySec)
+		if !valid {
+			return h.terminate(g, s, wire.ProtocolError)
+		}
+		observed := h.options.Now()
+		if _, received, ok := receivedDisconnect(g); ok {
+			observed = received
+		}
+		h.closeStateAt(s, p.Reason == 0, expiry, observed)
+		_ = g.CloseSession(gt.CloseReasonPeerClosed, nil)
+		return nil
+	}
 	if p, ok := packet.(*wire.Publish); ok {
 		return h.options.Publisher.Publish(g, s.connection, p)
 	}
@@ -374,18 +390,6 @@ func (h *Handler) OnPacket(g gt.Context, packet any) (err error) {
 		if g.WritePacket(&wire.Pingresp{}) != nil {
 			return h.terminate(g, s, 0)
 		}
-		return nil
-	case *wire.Disconnect:
-		expiry, valid := disconnectExpiry(p, s.connection.SessionExpirySec)
-		if !valid {
-			return h.terminate(g, s, wire.ProtocolError)
-		}
-		observed := h.options.Now()
-		if _, received, ok := receivedDisconnect(g); ok {
-			observed = received
-		}
-		h.closeStateAt(s, p.Reason == 0, expiry, observed)
-		_ = g.CloseSession(gt.CloseReasonPeerClosed, nil)
 		return nil
 	default:
 		return h.terminate(g, s, 0x83)

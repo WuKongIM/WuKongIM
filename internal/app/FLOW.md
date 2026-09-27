@@ -66,13 +66,13 @@ Stop or startup rollback
   group/inbox projection, future person-source admission, replay maintenance,
   delivery and durable ACKs are wired before listener admission. Real process
   Paho/WKProto interop passes in single-node and three-node 256-hash-Slot clusters.
-  Stop fences Owners, joins delivery/deadline/replay/connection work, then closes
+  Stop fences Owners, joins delivery/deadline/Will/replay/connection work, then closes
   remaining Owners before message/cluster dependencies. Incomplete cleanup keeps
   those dependencies alive. Restore stops this terminal runtime and keeps admission
   closed; fresh restore-generation reactivation remains outstanding.
   WillExecutor freezes hook output before first dispatch and only recovers positive
-  receipts for uncertain started work. Automatic Will publication, safe uncertain
-  redispatch, owner sweeps, unavailable-owner recovery, offline cleanup/accounting,
+  receipts for uncertain started work. Its managed scanner and four-turn cohort now
+  publish detached due work. Safe uncertain redispatch, owner sweeps, unavailable-owner recovery, offline cleanup/accounting,
   complete failure acceptance and scale qualification remain required. See
   [product composition](../../docs/specs/mqtt-product-runtime.md) and the linked
   module contracts; successful online interop is not complete MQTT delivery.

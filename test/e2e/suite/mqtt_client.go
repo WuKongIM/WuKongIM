@@ -21,9 +21,22 @@ type MQTTClient struct {
 	errors   chan error
 }
 
+// MQTTConnectOptions supplies optional Will fields to the independent wire client.
+type MQTTConnectOptions struct {
+	Will           *paho.WillMessage
+	WillProperties *paho.WillProperties
+}
+
 // ConnectMQTT authenticates using the wire contract's WEB device token and
 // preserves the caller's Clean Start/expiry choices. It makes no retry decisions.
-func ConnectMQTT(ctx context.Context, addr, uid, token, clientID string, clean bool, expiry uint32) (*MQTTClient, error) {
+func ConnectMQTT(ctx context.Context, addr, uid, token, clientID string, clean bool, expiry uint32, options ...MQTTConnectOptions) (*MQTTClient, error) {
+	if len(options) > 1 {
+		return nil, errors.New("MQTT fixture accepts one option set")
+	}
+	var o MQTTConnectOptions
+	if len(options) == 1 {
+		o = options[0]
+	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	conn, err := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(ctx, "tcp", addr)
@@ -56,7 +69,7 @@ func ConnectMQTT(ctx context.Context, addr, uid, token, clientID string, clean b
 	})
 	ack, err := c.Client.Connect(ctx, &paho.Connect{
 		ClientID: clientID, Username: uid, UsernameFlag: true, Password: []byte(token), PasswordFlag: true,
-		CleanStart: clean, KeepAlive: 30,
+		CleanStart: clean, KeepAlive: 30, WillMessage: o.Will, WillProperties: o.WillProperties,
 		Properties: &paho.ConnectProperties{SessionExpiryInterval: &expiry, RequestProblemInfo: true, User: paho.UserProperties{{Key: "wk.device_flag", Value: "1"}}},
 	})
 	if err != nil {
@@ -89,3 +102,6 @@ func (c *MQTTClient) Close() error {
 	_ = c.conn.Close()
 	return err
 }
+
+// Abort closes TCP without DISCONNECT, preserving the server's abnormal-close path.
+func (c *MQTTClient) Abort() error { return c.conn.Close() }

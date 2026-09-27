@@ -63,7 +63,7 @@ func TestHandlerAcceptsNormalIntentBeforeFencingRenewal(t *testing.T) {
 		if op != nil {
 			op.Done()
 		}
-		require.ErrorIs(t, err, runtime.ErrOwnerLimit)
+		require.NoError(t, err, "disconnect intent does not require a new execution scope")
 	}
 	require.NoError(t, f.h.OnPacket(f.gateway, &wire.Disconnect{}))
 }
@@ -287,5 +287,40 @@ func TestHandlerDecodedDisconnectSurvivesTransportCloseBeforeDispatch(t *testing
 		require.NoError(t, f.h.OnSessionClose(f.gateway))
 		require.Len(t, f.connections.intents, 1)
 		require.Equal(t, normal, f.connections.intents[0].Normal)
+	}
+}
+
+func TestHandlerDisconnectIntentSurvivesCancelledOrFencedDispatch(t *testing.T) {
+	for _, state := range []string{"cancelled", "fenced", "busy"} {
+		t.Run(state, func(t *testing.T) {
+			f := newHandlerFixture(t)
+			f.accept(t)
+			require.NoError(t, f.h.OnSessionOpen(f.gateway))
+			packet := &wire.Disconnect{}
+			encoded, err := wire.Encode(packet, wire.Limits{})
+			require.NoError(t, err)
+			_, _, err = adapter.New(wire.Limits{}).DecodePackets(f.gateway.Session, encoded)
+			require.NoError(t, err)
+			observed, ok := adapter.ReceivedDisconnect(f.gateway.Session)
+			require.True(t, ok)
+			f.now = time.Now()
+			switch state {
+			case "cancelled":
+				ctx, cancel := context.WithCancel(f.gateway.RequestContext)
+				cancel()
+				f.gateway.RequestContext = ctx
+			case "fenced":
+				require.NoError(t, f.owners.Fence(f.connection.Owner))
+			case "busy":
+				op, e := f.owners.Begin(context.Background(), f.connection.Owner)
+				require.NoError(t, e)
+				defer op.Done()
+			}
+			require.NoError(t, f.h.OnPacket(f.gateway, packet))
+			require.NoError(t, f.h.OnSessionClose(f.gateway))
+			require.Len(t, f.connections.intents, 1)
+			require.True(t, f.connections.intents[0].Normal, "transport cancellation replaced received normal intent")
+			require.Equal(t, observed.ObservedAt, f.connections.intents[0].ObservedAt)
+		})
 	}
 }

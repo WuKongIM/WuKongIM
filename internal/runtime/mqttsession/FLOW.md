@@ -1,13 +1,13 @@
 ---
 scope: package
-summary: Bounds MQTT owner execution, quiescence, delivery/connection/deadline/replay scheduling and joined shutdown.
+summary: Bounds MQTT owner execution, quiescence, delivery/connection/deadline/replay/Will scheduling and joined shutdown.
 ---
 
 # MQTT Session Runtime Flow
 
 ## Responsibility
 
-This package tracks local execution/quiescence and schedules bounded deadline, replay and delivery work through injected usecases.
+This package tracks local execution/quiescence and schedules bounded deadline, replay, Will and delivery work through injected usecases.
 It does not authenticate users, acquire durable ownership, derive distributed
 leases, publish messages, or interpret MQTT packets.
 
@@ -42,6 +42,7 @@ leases, publish messages, or interpret MQTT packets.
    hash Slots, with bounded reads/visits and per-call/turn deadlines. Only Waiting
    Wills reach lifecycle reconciliation; detached publication work remains intact.
    Stop joins the exact run; restart after Stop gets fresh process cursors.
+   A separate [Will scanner](will_worker.go) selects detached due keys; four workers call the authority-rereading executor. Bodies never enter its queue, pressure preserves cursors, and Stop joins the cohort before dependencies close.
 7. Connections keeps one indexed schedule per registered owner and one bounded
    worker cohort. Renew requires a newer installed lease; disconnect keeps its
    original monotonic observation and first intent through exact cleanup retries.
@@ -88,7 +89,6 @@ leases, publish messages, or interpret MQTT packets.
   admission first and keeps dependencies alive until join; this is no isolation proof.
 
 ## Read First
-
 - [Owner execution](owner.go)
 - [Deadline worker](deadline_worker.go)
 - [Connection supervision](connections.go), [Delivery scheduling](deliveries.go)

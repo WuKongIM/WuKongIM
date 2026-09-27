@@ -78,3 +78,10 @@ and cleanup, restore reactivation, or scale qualification. The approved complete
 objective remains open. No tables, columns, storage encoding or RPC IDs change
 in this composition step. Frozen governing context is recorded in the adjacent
 [implementation evidence JSON](../reports/mqtt-product-runtime.json).
+
+## Subsequent Will scheduling
+
+[Will scheduling](mqtt-will-scheduling.md) now composes a separate bounded scanner
+and four-turn cohort, with product-process evidence for delayed abnormal-close
+publication and normal-close cancellation. The historical interop evidence above
+retains its original scope. Remaining crash/restore/offline/scale gates stay open.

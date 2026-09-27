@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Schedule due MQTT Wills through a bounded worker cohort, and preserve normal DISCONNECT intent when EOF cancels packet dispatch. Full crash recovery and MQTT acceptance remain in progress. / MQTT 到期 Will 已接通有界后台发布；修复 EOF 取消报文处理时正常 DISCONNECT 可能被误判为异常断线的问题。完整崩溃恢复及 MQTT 验收仍在进行。
+
 - Add a default-off MQTT 5 TCP entry with bounded TOML/environment configuration, durable token authentication and MQTT/WK person-message interoperability. Full recovery, Will scheduling, restore reactivation and scale acceptance remain under development. / 新增默认关闭的 MQTT 5 TCP 入口，支持有界 TOML/环境变量配置、持久设备令牌鉴权及 MQTT/WK 私聊互通；完整恢复、Will 调度、备份恢复后重建和容量验收仍在开发。
 
 - Accept empty MQTT PUBLISH and Will bodies through shared message admission, including explicit empty Webhook replacements, while preserving native payload validation. Full MQTT product access remains under development. / MQTT PUBLISH 与 Will 的空正文已可通过共享消息入口，Webhook 可显式替换为空；原生消息校验保持不变，完整 MQTT 产品接入仍在开发。

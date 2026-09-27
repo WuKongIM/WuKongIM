@@ -1153,3 +1153,10 @@ specification, runbook, report, or module documentation; link to them when neede
   entry admission closed because terminal owner registries cannot be reused.
   Configuration and online interop do not establish unavailable-owner recovery,
   automatic Will publication, offline cleanup or scale readiness.
+
+- [Will scheduling](../specs/mqtt-will-scheduling.md) scans authoritative recovery
+  pages across currently led hash Slots and admits at most four body-free keys.
+  Waiting/future tasks are skipped; execution rereads/claims authority and never
+  infers a safe redispatch from lease expiry or an absent receipt. Stop joins
+  scanner and cohort. MQTT DISCONNECT records valid cleanup intent without a
+  new owner scope, preserving normal cancellation across EOF/fencing/pressure.

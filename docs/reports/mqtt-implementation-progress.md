@@ -8,8 +8,13 @@ Real-process Paho/WKProto authenticated interop passes on single-node and three-
 clusters with 256 hash Slots. TOML/env configuration and the complete app/config
 unit suites pass with the race detector.
 
-This is the first product interop milestone, not complete MQTT delivery.
-Automatic Will publication, safe uncertain dispatch recovery, unavailable-owner
+A bounded Will scanner and four-turn cohort now publish due detached work.
+Real process Will Delay/abnormal closure/normal cancellation passes in both
+topologies; that test exposed and fixed normal-intent loss during cancelled
+packet dispatch. See [Will scheduling](../specs/mqtt-will-scheduling.md).
+
+These product milestones are not complete MQTT delivery.
+Safe uncertain dispatch recovery, unavailable-owner
 isolation, owner sweeping, offline accounting/cleanup, restore reactivation and
 full failure/scale acceptance remain outstanding. Restore currently joins MQTT
 and retains closed admission because its terminal runtime cannot be reused.

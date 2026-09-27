@@ -35,7 +35,7 @@ App registers delivery after connection open and composes group/inbox subscripti
    check admission immediately before reply, then release on open or rollback.
    Open registers one bound delivery task with a bounded context after scope release;
    failure queues exact disconnect. No callbacks run under the connection mutex.
-7. Control packets admit the same owner. Close callbacks enqueue cleanup without
+7. Ping admits the same owner; DISCONNECT records cleanup intent without a new scope. EOF cancellation, fencing and operation pressure cannot replace valid decoded normal intent. Close callbacks enqueue cleanup without
    joining packet execution; decoded DISCONNECT receipt survives TCP EOF before
    mailbox dispatch. Validate direction/expiry before suppressing Will.
 
