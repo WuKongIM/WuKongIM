@@ -47,7 +47,7 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
    SubscriptionRequests waits only for explicit pending work within attempts/deadline. Possible writes and pending intent mark errors Unconfirmed; entry cannot return a definitive negative ACK.
 8. Group preparation registers an unknown binding before fresh protection confirmation,
    fixes one start, initializes the cursor and activates the binding. GroupProjection adds all-replica replay confirmation and current intent/permission checks before a receipt.
-   InboxSources prepares one canonical person source from fresh qualification, including offline Sessions; closed intent retains cleanup debt. InboxAdmission waits for pinned native directory readiness, scans one bounded participant page, commits each prepared candidate and rechecks its incarnation. InboxAppender drives bounded preparation before ordinary person writes and pins its exact fresh checkpoint/authority into durable append; pending work survives timeout.
+   InboxSources prepares one canonical person source from fresh qualification, including offline Sessions; closed intent retains cleanup debt. InboxAdmission waits for pinned native directory readiness, scans one bounded participant page, commits each prepared candidate and rechecks its incarnation. InboxAppender drives bounded preparation before ordinary person writes and pins its exact fresh checkpoint/authority into durable append; pending work survives timeout. InboxEstablishment commits UID qualification before one bounded initial-directory page; each protected cursor needs all-replica confirmation before discovery advances, and exact intent/permission precede its receipt.
 9. Replay maintenance rotates bounded copy/anchor admission, recovery and retirement under fresh placement.
    Targets pin anchors and scan/donor hints; placement resets hints and cold passes rotate work.
    Fenced turns only recover existing anchors; absent anchors yield without copying.
@@ -92,7 +92,7 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
   an active subscription silently; delivery/revocation ordering remains required.
 - Group preparation bounds reads and grants no subscription, release or SUBACK authority. ACK survives unsubscribe; entry binds sent exchanges first.
 - ReceiveAuthorization reads a fresh coherent Slot channel/member/sequence view; group grants use join incarnation, self inbox uses admitted UID. Send mutes do not deny receiving; ambiguous evidence cannot revoke.
-- Product listener, initial inbox projection, safe removal, offline scheduling and process-level acceptance remain required implementation work.
+- Product listener, safe inbox removal, offline scheduling and process-level acceptance remain required implementation work.
 
 ## Read First
 - [Contracts](types.go), [Acquisition](connect.go), [Lifecycle](lifecycle.go), [Subscriptions](subscriptions.go), [Replay](replay.go)

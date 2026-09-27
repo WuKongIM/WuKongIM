@@ -19,19 +19,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Qualification remains an explicit fixture. The native directory projector,
-// bounded admission turns and offline first-message recovery use real cluster
-// paths. The automatic variant enters through native SEND; product MQTT listener
-// and complete qualification projection remain separate work.
+// The first two variants retain explicit qualification fixtures. Establishment
+// covers a real initial directory and future source through native SEND; full
+// product listener and safe inbox removal remain separate work.
 func TestMQTTInboxAdmissionOfflineDirectoryBeforeFirstPersonSingleNodeCluster(t *testing.T) {
-	runMQTTInboxFirstPerson(t, false)
+	runMQTTInboxFirstPerson(t, false, false)
 }
 
 func TestMQTTInboxAppenderOfflineDirectoryBeforeFirstPersonSingleNodeCluster(t *testing.T) {
-	runMQTTInboxFirstPerson(t, true)
+	runMQTTInboxFirstPerson(t, true, false)
 }
 
-func runMQTTInboxFirstPerson(t *testing.T, automatic bool) {
+func TestMQTTInboxEstablishmentExistingAndFutureOfflinePersonSingleNodeCluster(t *testing.T) {
+	runMQTTInboxFirstPerson(t, true, true)
+}
+
+func runMQTTInboxFirstPerson(t *testing.T, automatic, establish bool) {
 	t.Helper()
 	cfg := singleNodeClusterAppConfig(t)
 	cfg.Cluster.Slots.HashSlotCount = 256
@@ -63,36 +66,75 @@ func runMQTTInboxFirstPerson(t *testing.T, automatic bool) {
 	require.NoError(t, err)
 	auth, err := newMQTTReceiveAuthorization(node)
 	require.NoError(t, err)
+	replay, err := newMQTTReplayWorker(node, a.messageIDs, runtime.ReplayWorkerOptions{HashSlotCount: 256, Interval: 20 * time.Millisecond, PagesPerTurn: 32})
+	require.NoError(t, err)
+	require.NoError(t, replay.Start(ctx))
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		require.NoError(t, replay.Stop(ctx))
+	})
+	existingChannel := channelid.EncodePersonChannel("alice", "carol")
+	var existing message.SendResult
+	if establish {
+		existing, err = a.Messages().Send(ctx, message.SendCommand{FromUID: "carol", DeviceFlag: 1, ChannelID: existingChannel, ChannelType: 1, ClientMsgNo: "before-inbox", Payload: []byte("before subscription"), Origin: message.SendOriginClient})
+		require.NoError(t, err)
+	}
 	projection := &mqttSubscriptionProjectionFixture{establish: func(context.Context, sessioncase.SubscriptionProjectionRequest) (sessioncase.SubscriptionProjectionReceipt, error) {
 		return sessioncase.SubscriptionProjectionReceipt{}, sessioncase.ErrReplayPending
 	}}
+	if establish {
+		initial, initialErr := newMQTTInboxEstablishment(node, owners, auth, a.messageIDs)
+		require.NoError(t, initialErr)
+		projection.establish = initial.Establish
+	}
 	subscriptions, err := sessioncase.NewSubscriptions(sessioncase.SubscriptionOptions{Store: node, Owners: owners, Authorization: auth, Projection: projection})
 	require.NoError(t, err)
 	request := sessioncase.SubscriptionRequest{Topic: "wk/v1/users/YWxpY2U/inbox", TargetID: "alice", TargetKind: meta.MQTTSubscriptionUserInbox, RequestedQoS: 1}
-	_, err = subscriptions.Subscribe(ctx, connection.Owner, request)
-	require.ErrorIs(t, err, sessioncase.ErrReplayPending)
-	intent, err := node.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadSubscription, Namespace: key.Namespace, ClientID: key.ClientID, SessionGeneration: connection.Owner.SessionGeneration, Topic: request.Topic})
-	require.NoError(t, err)
-	require.Len(t, intent.Subscriptions, 1)
-	sub := intent.Subscriptions[0]
-	qualification := meta.MQTTSourceBinding{Key: meta.MQTTSourceBindingKey{Owner: meta.MQTTBindingOwner{Kind: meta.MQTTBindingUID, ID: "alice"}, Namespace: key.Namespace, ClientID: key.ClientID, SessionGeneration: sub.SessionGeneration, SubscriptionGeneration: sub.Generation}, UID: "alice", Topic: sub.Topic, OperationID: sub.OperationID, Revision: 1, IntentRevision: sub.Revision, Stage: meta.MQTTBindingPreparing, UpdatedAtMS: time.Now().UnixMilli(), RecoveryAtMS: time.Now().UnixMilli()}
-	result, err := node.CompareAndSwapMQTTSourceBinding(ctx, 0, qualification)
-	require.NoError(t, err)
-	require.Equal(t, meta.MQTTSessionCASApplied, result.Status)
-	directory, err := node.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadInboxDirectory, Owner: meta.MQTTBindingOwner{Kind: meta.MQTTBindingUID, ID: "alice"}, Limit: 64})
-	require.NoError(t, err)
-	require.True(t, directory.Done)
-	require.Empty(t, directory.Directory)
-	qualification.Revision, qualification.Stage, qualification.DiscoveryDone = 2, meta.MQTTBindingActive, true
-	result, err = node.CompareAndSwapMQTTSourceBinding(ctx, 1, qualification)
-	require.NoError(t, err)
-	require.Equal(t, meta.MQTTSessionCASApplied, result.Status)
-	projection.establish = func(_ context.Context, r sessioncase.SubscriptionProjectionRequest) (sessioncase.SubscriptionProjectionReceipt, error) {
-		return mqttSubscriptionFixtureReceipt(r), nil
+	var sub meta.MQTTSubscription
+	if establish {
+		control, controlErr := sessioncase.NewSubscriptionRequests(sessioncase.SubscriptionRequestOptions{Subscriptions: subscriptions})
+		require.NoError(t, controlErr)
+		sub, err = control.Subscribe(ctx, connection.Owner, request)
+		require.NoError(t, err)
+		require.Equal(t, meta.MQTTSubscriptionActive, sub.Stage)
+		qualificationKey := meta.MQTTSourceBindingKey{Owner: meta.MQTTBindingOwner{Kind: meta.MQTTBindingUID, ID: "alice"}, Namespace: key.Namespace, ClientID: key.ClientID, SessionGeneration: sub.SessionGeneration, SubscriptionGeneration: sub.Generation}
+		qualification, readErr := node.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadSourceBinding, BindingKey: qualificationKey})
+		require.NoError(t, readErr)
+		require.Len(t, qualification.Bindings, 1)
+		require.Equal(t, meta.MQTTBindingActive, qualification.Bindings[0].Stage)
+		require.True(t, qualification.Bindings[0].DiscoveryDone)
+		initial, readErr := node.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadDeliveryCursors, Namespace: key.Namespace, ClientID: key.ClientID, SessionGeneration: sub.SessionGeneration, SubscriptionGeneration: sub.Generation, Limit: 64})
+		require.NoError(t, readErr)
+		require.Len(t, initial.DeliveryCursors, 1)
+		require.Equal(t, "1:"+existingChannel, initial.DeliveryCursors[0].Key.SourceID)
+		require.Greater(t, initial.DeliveryCursors[0].StartAfter, existing.MessageSeq, "subscription starts after pre-existing business content")
+	} else {
+		_, err = subscriptions.Subscribe(ctx, connection.Owner, request)
+		require.ErrorIs(t, err, sessioncase.ErrReplayPending)
+		intent, err := node.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadSubscription, Namespace: key.Namespace, ClientID: key.ClientID, SessionGeneration: connection.Owner.SessionGeneration, Topic: request.Topic})
+		require.NoError(t, err)
+		require.Len(t, intent.Subscriptions, 1)
+		sub = intent.Subscriptions[0]
+		qualification := meta.MQTTSourceBinding{Key: meta.MQTTSourceBindingKey{Owner: meta.MQTTBindingOwner{Kind: meta.MQTTBindingUID, ID: "alice"}, Namespace: key.Namespace, ClientID: key.ClientID, SessionGeneration: sub.SessionGeneration, SubscriptionGeneration: sub.Generation}, UID: "alice", Topic: sub.Topic, OperationID: sub.OperationID, Revision: 1, IntentRevision: sub.Revision, Stage: meta.MQTTBindingPreparing, UpdatedAtMS: time.Now().UnixMilli(), RecoveryAtMS: time.Now().UnixMilli()}
+		result, err := node.CompareAndSwapMQTTSourceBinding(ctx, 0, qualification)
+		require.NoError(t, err)
+		require.Equal(t, meta.MQTTSessionCASApplied, result.Status)
+		directory, err := node.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadInboxDirectory, Owner: meta.MQTTBindingOwner{Kind: meta.MQTTBindingUID, ID: "alice"}, Limit: 64})
+		require.NoError(t, err)
+		require.True(t, directory.Done)
+		require.Empty(t, directory.Directory)
+		qualification.Revision, qualification.Stage, qualification.DiscoveryDone = 2, meta.MQTTBindingActive, true
+		result, err = node.CompareAndSwapMQTTSourceBinding(ctx, 1, qualification)
+		require.NoError(t, err)
+		require.Equal(t, meta.MQTTSessionCASApplied, result.Status)
+		projection.establish = func(_ context.Context, r sessioncase.SubscriptionProjectionRequest) (sessioncase.SubscriptionProjectionReceipt, error) {
+			return mqttSubscriptionFixtureReceipt(r), nil
+		}
+		active, err := subscriptions.Reconcile(ctx, connection.Owner, sub.Topic)
+		require.NoError(t, err)
+		require.Equal(t, meta.MQTTSubscriptionActive, active.Stage)
 	}
-	active, err := subscriptions.Reconcile(ctx, connection.Owner, sub.Topic)
-	require.NoError(t, err)
-	require.Equal(t, meta.MQTTSubscriptionActive, active.Stage)
 	require.NoError(t, sessions.Disconnect(ctx, sessioncase.DisconnectCommand{Owner: connection.Owner, Normal: true}))
 	channel := sessioncase.SourceChannel{ID: channelid.EncodePersonChannel("alice", "bob"), Type: 1}
 	_, err = node.GetChannelRuntimeMetaFresh(ctx, channel.ID, 1)
@@ -129,8 +171,18 @@ func runMQTTInboxFirstPerson(t *testing.T, automatic bool) {
 	}
 	cursors, err := node.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadDeliveryCursors, Namespace: key.Namespace, ClientID: key.ClientID, SessionGeneration: sub.SessionGeneration, SubscriptionGeneration: sub.Generation, Limit: 64})
 	require.NoError(t, err)
-	require.Len(t, cursors.DeliveryCursors, 1)
-	cursor := cursors.DeliveryCursors[0]
+	wantCursors := 1
+	if establish {
+		wantCursors = 2
+	}
+	require.Len(t, cursors.DeliveryCursors, wantCursors)
+	var cursor meta.MQTTDeliveryCursor
+	for _, candidate := range cursors.DeliveryCursors {
+		if candidate.Key.SourceID == "1:"+channel.ID {
+			cursor = candidate
+		}
+	}
+	require.NotZero(t, cursor.Key.SourceID)
 	bindingKey := meta.MQTTSourceBindingKey{Owner: meta.MQTTBindingOwner{Kind: meta.MQTTBindingChannel, ID: cursor.Key.SourceID, Generation: cursor.Key.SourceGeneration}, Namespace: key.Namespace, ClientID: key.ClientID, SessionGeneration: sub.SessionGeneration, SubscriptionGeneration: sub.Generation}
 	bindings, err := node.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadSourceBinding, BindingKey: bindingKey})
 	require.NoError(t, err)
@@ -143,14 +195,6 @@ func runMQTTInboxFirstPerson(t *testing.T, automatic bool) {
 		sendFirst()
 	}
 	require.Greater(t, sent.MessageSeq, prepared.Cursor.StartAfter)
-	replay, err := newMQTTReplayWorker(node, a.messageIDs, runtime.ReplayWorkerOptions{HashSlotCount: 256, Interval: 20 * time.Millisecond, PagesPerTurn: 32})
-	require.NoError(t, err)
-	require.NoError(t, replay.Start(ctx))
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		require.NoError(t, replay.Stop(ctx))
-	})
 	confirmation, err := newMQTTReplayCoordinator(node, a.messageIDs)
 	require.NoError(t, err)
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -168,5 +212,5 @@ func runMQTTInboxFirstPerson(t *testing.T, automatic bool) {
 	require.EqualValues(t, 1, state.Session.PendingMessages)
 	require.EqualValues(t, 1, state.DeliveryCursors[0].PendingMessages)
 	require.Equal(t, prepared.Cursor.StartAfter, state.DeliveryCursors[0].StartAfter)
-	t.Logf("mqtt_inbox_admission_evidence: nodes=1 hash_slots=256 qualification_fixture=true first_person_source=true offline_session=true real_source_protection=true real_cursor_commit=true native_send=true shared_replay=true offline_accounted=1 native_directory_projector=true bounded_admission=true automatic_append_hook=%t product_listener=false", automatic)
+	t.Logf("mqtt_inbox_admission_evidence: nodes=1 hash_slots=256 qualification_fixture=%t initial_existing_source=%t first_person_source=true offline_session=true real_source_protection=true real_cursor_commit=true native_send=true shared_replay=true offline_accounted=1 native_directory_projector=true bounded_admission=true automatic_append_hook=%t product_listener=false", !establish, establish, automatic)
 }

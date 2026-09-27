@@ -54,7 +54,8 @@ before its first persistent append. Preparing qualifications already participate
 Together these orderings cover insertions behind a scan cursor. The existing
 asynchronous person-directory task alone does not meet this pre-append contract.
 
-This directory read is infrastructure for that handshake. Qualification
-orchestration, future-channel admission, offline maintenance, cleanup and product
-listener integration remain required. Completing a directory page authorizes
+InboxEstablishment now uses this read after committing UID qualification;
+InboxAppender drives future-source admission behind the private composition gate.
+Offline maintenance, safe cleanup and complete product listener integration remain
+required. Completing a directory page authorizes
 neither SUBACK nor delivery nor source reclamation.

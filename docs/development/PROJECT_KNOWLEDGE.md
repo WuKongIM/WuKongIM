@@ -478,7 +478,14 @@ specification, runbook, report, or module documentation; link to them when neede
   directory work once, advances bounded resumable pages and checks the exact final
   checkpoint/caller epochs before binding the current route. Offline first native
   SEND is covered; command/group paths and committed receipts retain their semantics.
-  Initial inbox projection, physical-runtime/restore fencing, offline scheduling
+  [Inbox establishment](../specs/mqtt-inbox-establishment.md) first commits UID
+  qualification, then advances one bounded native directory page per call. Each
+  candidate commits progress only after protected cursor preparation and all-replica
+  replay confirmation. Lost replies and owner takeover retain starts; current
+  intent and self-inbox permission gate the final receipt. Active option updates
+  retain that qualification. Real single-node cluster coverage uses this path for
+  an existing source, then admits a new source while offline without qualification
+  fixtures. Safe inbox removal, physical-runtime/restore fencing, offline scheduling
   and full product composition remain required.
   See [Slot access](../specs/mqtt-slot-access.md); these APIs do not prove owner
   isolation, replica capability activation or safe restored-owner execution.

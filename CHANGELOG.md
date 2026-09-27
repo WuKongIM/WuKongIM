@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Establish MQTT inbox subscriptions through durable UID qualification and bounded existing-channel discovery, preserving confirmed progress across retries and owner takeover. Real single-node cluster coverage joins existing and future offline sources without qualification fixtures; safe removal and product access remain under development. / MQTT 收件箱订阅先持久化 UID 资格，再分页准备已有频道；重试与所有者接管保留已确认进度。真实单节点集群验证已有频道和离线新来源，无需模拟资格记录；安全退订及产品接入仍在开发。
+
 - Preserve MQTT inbox scan progress for every supported directory ID up to 4096 bytes, including snapshot restore. Matched readers and tools are required for long checkpoints; product access remains under development. / MQTT 收件箱扫描进度支持目录允许的最长 4096 字节频道 ID，并在快照恢复后保留；长游标需要匹配版本的读取节点和工具，产品接入仍在开发。
 
 - Prepare MQTT inbox sources automatically before ordinary persistent person writes through the shared appender, with bounded waiting and exact append fencing. Real single-node cluster coverage verifies offline first-message replay/accounting; complete MQTT product access remains under development. / 普通持久个人消息通过统一写入入口自动准备 MQTT 收件箱来源，等待有界并校验精确追加版本。真实单节点集群验证离线首条消息回放与计量；完整 MQTT 产品接入仍在开发。
