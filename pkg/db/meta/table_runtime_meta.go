@@ -231,6 +231,10 @@ func (s *Shard) DeleteChannelRuntimeMeta(ctx context.Context, channelID string, 
 	}
 	batch := s.db.engine.NewBatch()
 	defer batch.Close()
+	state := &batchCommitState{db: s.db, tableRows: make(map[string]tableRowOverlay)}
+	if err := invalidateMQTTInboxAdmission(state, batch, s.hashSlot, channelID, channelType); err != nil {
+		return err
+	}
 	if err := batch.Delete(key); err != nil {
 		return err
 	}

@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Persist resumable MQTT inbox source-admission progress with Slot-authoritative reads and runtime-incarnation fencing across deletion, recreation and snapshot restore. Matching runtimes are required; automatic first-write admission and product access remain under development. / MQTT 收件箱来源准入进度支持持久化续跑、Slot 权威读取及跨删除、重建、快照恢复的代次隔离。要求匹配运行时；首次写入自动准入和产品接入仍在开发。
+
 - Prepare new MQTT inbox person sources while their durable Session is offline, preserving fixed boundaries through lost replies and same-lifetime takeover. Real single-node cluster coverage verifies the first native message reaches shared replay and offline accounting. Automatic future-source admission and product access remain under development. / MQTT 持久会话离线时可准备新的个人消息源，丢回包及同代接管保留既定边界；真实单节点集群验证首条原生消息进入共享回放并计入离线积压。自动新来源准入及产品接入仍在开发。
 
 - Add bounded, Slot-authoritative MQTT inbox directory discovery over existing membership primary keys. Personal conversation visibility and activation do not change scan order; matched nodes are required for read kind 20. Inbox admission and product access remain under development. / MQTT 收件箱目录发现复用成员表稳定主键，支持有界分页与 Slot 权威读取；个人会话可见性及活跃排序不影响扫描。读取类型 20 需要匹配节点，收件箱准入与产品接入仍在开发。

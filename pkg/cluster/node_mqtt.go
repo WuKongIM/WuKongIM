@@ -99,3 +99,12 @@ func (n *Node) CompareAndSwapMQTTWill(ctx context.Context, expected uint64, row 
 	}
 	return s.CompareAndSwapMQTTWill(ctx, expected, row)
 }
+
+// CompareAndSwapMQTTInboxAdmission preserves foreground admission and Channel routing.
+func (n *Node) CompareAndSwapMQTTInboxAdmission(ctx context.Context, expected uint64, row metadb.MQTTInboxAdmission) (metadb.MQTTInboxAdmissionResult, error) {
+	s, err := n.mqttMetadataStore()
+	if err != nil {
+		return metadb.MQTTInboxAdmissionResult{}, err
+	}
+	return s.CompareAndSwapMQTTInboxAdmission(ctx, expected, row)
+}

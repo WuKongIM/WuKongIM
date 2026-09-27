@@ -35,6 +35,8 @@ const (
 	MQTTReadMembership
 	// MQTTReadInboxDirectory discovers UID directory keys in stable primary order.
 	MQTTReadInboxDirectory
+	// MQTTReadInboxAdmission pins a person runtime and its admission checkpoint.
+	MQTTReadInboxAdmission
 )
 
 // MQTTReadCursor contains exactly the cursor belonging to the selected read.
@@ -58,6 +60,7 @@ type MQTTReadCursor struct {
 // MQTTRead carries one operation. Irrelevant fields are rejected, not ignored.
 // Logical/physical Slot routing is deliberately outside this storage request.
 type MQTTRead struct {
+	AdmissionChannel       string                `json:"admission_channel,omitempty"`
 	MembershipKey          SubscriberKey         `json:"membership_key,omitzero"`
 	Kind                   MQTTReadKind          `json:"kind"`
 	Namespace              string                `json:"namespace,omitempty"`
@@ -77,19 +80,20 @@ type MQTTRead struct {
 // MQTTReadResult owns a bounded result from one snapshot. Session is included
 // with Session-owned child reads so callers can fence subsequent decisions.
 type MQTTReadResult struct {
-	Directory       []ChannelKey         `json:"directory,omitempty"`
-	Membership      *MQTTMembershipView  `json:"membership,omitempty"`
-	Accounting      *MQTTAccountingRange `json:"accounting,omitempty"`
-	SourceOwners    []MQTTBindingOwner   `json:"source_owners,omitempty"`
-	Session         *MQTTSession         `json:"session,omitempty"`
-	Sessions        []MQTTSession        `json:"sessions,omitempty"`
-	Subscriptions   []MQTTSubscription   `json:"subscriptions,omitempty"`
-	DeliveryCursors []MQTTDeliveryCursor `json:"delivery_cursors,omitempty"`
-	Inflight        []MQTTInflight       `json:"inflight,omitempty"`
-	Bindings        []MQTTSourceBinding  `json:"bindings,omitempty"`
-	Wills           []MQTTWill           `json:"wills,omitempty"`
-	After           MQTTReadCursor       `json:"after"`
-	Done            bool                 `json:"done"`
+	Admission       *MQTTInboxAdmissionView `json:"admission,omitempty"`
+	Directory       []ChannelKey            `json:"directory,omitempty"`
+	Membership      *MQTTMembershipView     `json:"membership,omitempty"`
+	Accounting      *MQTTAccountingRange    `json:"accounting,omitempty"`
+	SourceOwners    []MQTTBindingOwner      `json:"source_owners,omitempty"`
+	Session         *MQTTSession            `json:"session,omitempty"`
+	Sessions        []MQTTSession           `json:"sessions,omitempty"`
+	Subscriptions   []MQTTSubscription      `json:"subscriptions,omitempty"`
+	DeliveryCursors []MQTTDeliveryCursor    `json:"delivery_cursors,omitempty"`
+	Inflight        []MQTTInflight          `json:"inflight,omitempty"`
+	Bindings        []MQTTSourceBinding     `json:"bindings,omitempty"`
+	Wills           []MQTTWill              `json:"wills,omitempty"`
+	After           MQTTReadCursor          `json:"after"`
+	Done            bool                    `json:"done"`
 }
 
 // Recovery identifies reads that scan one explicitly selected logical hash Slot.
@@ -118,6 +122,11 @@ func ValidateMQTTRead(q MQTTRead) error {
 	want := MQTTRead{Kind: q.Kind}
 	page := false
 	switch q.Kind {
+	case MQTTReadInboxAdmission:
+		want.AdmissionChannel = q.AdmissionChannel
+		if _, err := mqttInboxParticipants(q.AdmissionChannel); err != nil {
+			return err
+		}
 	case MQTTReadInboxDirectory:
 		want.Owner = q.Owner
 		if q.Owner.Kind != MQTTBindingUID || validateMQTTBindingOwner(q.Owner) != nil {
@@ -298,6 +307,8 @@ func (s *Shard) readMQTTState(ctx context.Context, q MQTTRead) (MQTTReadResult, 
 	}
 	var err error
 	switch q.Kind {
+	case MQTTReadInboxAdmission:
+		out.Admission, err = s.readMQTTInboxAdmission(ctx, q.AdmissionChannel)
 	case MQTTReadInboxDirectory:
 		out.Directory, out.After.Directory, out.Done, err = s.readMQTTInboxDirectory(ctx, q.Owner.ID, q.After.Directory, q.Limit)
 	case MQTTReadMembership:

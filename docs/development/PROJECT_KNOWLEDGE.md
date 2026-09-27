@@ -460,6 +460,11 @@ specification, runbook, report, or module documentation; link to them when neede
   hash and source bindings by ordinary Channel ID or UID. Read RPC 91 requires
   a fresh Slot barrier and pinned primary/index snapshot; recovery explicitly
   selects a logical hash Slot. Writes require committed conditional results.
+  [Inbox admission checkpoints](../specs/mqtt-inbox-admission-checkpoint.md) use table 26 System 1,
+  command 74 and RPC 91 kind 21. Progress follows both canonical person UIDs;
+  runtime deletion retains an invalidation with monotonic revision. Pinned reads
+  expose the current directory generation separately from possibly stale progress.
+  Remote UID/source proofs and the automatic first-append hook remain caller work.
   See [Slot access](../specs/mqtt-slot-access.md); these APIs do not prove owner
   isolation, replica capability activation or safe restored-owner execution.
   Message System 12 materializes source-incarnation protection and copy receipt

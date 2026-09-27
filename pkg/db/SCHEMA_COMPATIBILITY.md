@@ -153,7 +153,17 @@ See [the replay contract](../../docs/specs/mqtt-shared-replay.md).
 
 MQTT groundwork adds metadata tables 22 (`mqtt_session`), 23
 (`mqtt_subscription`), 24 (`mqtt_delivery_cursor`), 25 (`mqtt_inflight`), 26
-(`mqtt_source_binding`) and 27 (`mqtt_will`), with Slot commands 67–73.
+(`mqtt_source_binding`) and 27 (`mqtt_will`), with Slot commands 67–74.
+Command 74 stores person-inbox admission progress under table 26 System 1,
+keyed by the canonical person Channel ID. Its version-1 key-bound fixed envelope
+stores directory generation, monotonic revision, timestamp, participant and a
+bounded qualification cursor. Runtime deletion invalidates the record atomically
+without resetting its revision; ordinary Channel deletion advances the runtime
+incarnation. RPC 91 kind 21 pins both records. Native Hash-Slot snapshots preserve
+the existing System span without a framing change. Older writers cannot retain
+these fences, so matching writers/tools and a pre-feature rollback backup are
+required. MQTT JSONL transfer and automatic append admission remain pending.
+See [admission checkpoints](../../docs/specs/mqtt-inbox-admission-checkpoint.md).
 Command 69 operation 3 explicitly initializes empty cancelled preparation after
 closed/replaced subscription intent. It preserves existing row/envelope formats
 and ordinary Init/Account semantics; older nodes reject it, requiring matched

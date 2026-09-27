@@ -216,6 +216,13 @@ func decodeMQTTReadReply(body []byte, req mqttReadRPC) (mqttReadReply, error) {
 
 func validateMQTTReadShape(q metadb.MQTTRead, r metadb.MQTTReadResult) error {
 	bad := metadb.ErrCorruptValue
+	if q.Kind == metadb.MQTTReadInboxAdmission {
+		if metadb.ValidateMQTTInboxAdmissionView(q.AdmissionChannel, r.Admission) != nil {
+			return bad
+		}
+	} else if r.Admission != nil {
+		return bad
+	}
 	if q.Kind == metadb.MQTTReadMembership {
 		if metadb.ValidateMQTTMembershipView(q.MembershipKey, r.Membership) != nil {
 			return bad

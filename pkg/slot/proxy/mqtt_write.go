@@ -264,3 +264,19 @@ func decodeMQTTJSON(body []byte, limit int, out any) error {
 	}
 	return nil
 }
+
+// CompareAndSwapMQTTInboxAdmission persists bounded progress at Channel authority.
+// Storage verifies the current runtime generation; remote source proof is separate.
+func (s *Store) CompareAndSwapMQTTInboxAdmission(ctx context.Context, expected uint64, row metadb.MQTTInboxAdmission) (out metadb.MQTTInboxAdmissionResult, err error) {
+	cmd, err := metafsm.EncodeMQTTInboxAdmissionCommand(expected, row)
+	if err != nil {
+		return out, err
+	}
+	if err = s.proposeMQTT(ctx, row.ChannelID, cmd, &out); err == nil {
+		err = validateMQTTCASResult(out.Status, out.CurrentRevision, expected)
+	}
+	if err != nil {
+		return metadb.MQTTInboxAdmissionResult{}, err
+	}
+	return out, nil
+}

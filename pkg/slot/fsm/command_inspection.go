@@ -59,6 +59,12 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 			"execution_generation": r.ExecutionGeneration, "executor_node_id": r.ExecutorNodeID, "due_at_ms": r.DueAtMS, "lease_until_ms": r.LeaseUntilMS,
 			"message_id": r.MessageID, "message_seq": r.MessageSeq, "payload_bytes": len(r.Payload), "publication_metadata_bytes": len(r.PublicationMetadata),
 		}), nil
+	case *mqttInboxAdmissionCASCmd:
+		r := typed.payload.Admission
+		return simpleInspection("mqtt_inbox_admission", map[string]any{
+			"channel_id": r.ChannelID, "directory_generation": r.DirectoryGeneration, "expected_revision": typed.payload.ExpectedRevision,
+			"revision": r.Revision, "participant": r.Participant, "broker_namespace": r.After.Namespace, "client_id": r.After.ClientID,
+		}), nil
 	case *mqttSourceBindingCASCmd:
 		r := typed.payload.Binding
 		k := r.Key

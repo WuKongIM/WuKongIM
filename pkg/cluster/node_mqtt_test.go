@@ -34,6 +34,8 @@ func TestMQTTMetadataNodeForegroundGates(t *testing.T) {
 		require.ErrorIs(t, err, tc.err)
 		_, err = tc.node.CompareAndSwapMQTTSourceBinding(ctx, 0, metadb.MQTTSourceBinding{})
 		require.ErrorIs(t, err, tc.err)
+		_, err = tc.node.CompareAndSwapMQTTInboxAdmission(ctx, 0, metadb.MQTTInboxAdmission{})
+		require.ErrorIs(t, err, tc.err)
 		_, err = tc.node.CompareAndSwapMQTTWill(ctx, 0, metadb.MQTTWill{})
 		require.ErrorIs(t, err, tc.err)
 	}

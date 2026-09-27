@@ -33,6 +33,7 @@ func TestCommandInspectionCoversRegisteredDecoders(t *testing.T) {
 		name string
 		data []byte
 	}{
+		{"mqtt_inbox_admission", checked(EncodeMQTTInboxAdmissionCommand(0, mqttInboxAdmissionCommandFixture()))},
 		{"mqtt_lifecycle", checked(EncodeMQTTLifecycleCommand(mqttLifecycleCommandFixture()))},
 		{"mqtt_will", checked(EncodeMQTTWillCommand(0, mqttWillCommandFixture()))},
 		{"mqtt_source_binding", checked(EncodeMQTTSourceBindingCommand(0, mqttSourceBindingCommandFixture()))},
