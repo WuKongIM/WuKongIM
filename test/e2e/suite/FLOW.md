@@ -47,6 +47,8 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
 - Diagnostics expose bounded paths and tails. TOML is re-encoded only after
   schema validation; invalid structure is fully omitted, and sensitive leaves
   plus nested secret-like keys are redacted.
+- Linux recovery sampling separates process RSS/I/O/CPU from enclosing cgroup
+  limits/OOM counters and joins its sampler; public profiles are size/time bounded.
 - Message-send recovery retries only exact public
   `503 {"error":"retry required"}` with one stable body and idempotency key.
 - `WaitClusterReady` proves availability only. `WaitSlotLeadersStable` proves

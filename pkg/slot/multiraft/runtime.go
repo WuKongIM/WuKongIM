@@ -12,9 +12,12 @@ import (
 type Runtime struct {
 	opts Options
 
-	mu        sync.RWMutex
-	closed    bool
-	slots     map[SlotID]*slot
+	mu     sync.RWMutex
+	closed bool
+	slots  map[SlotID]*slot
+	// opening reserves identities before a constructor may mutate durable data.
+	opening   map[SlotID]struct{}
+	openWG    sync.WaitGroup
 	scheduler *scheduler
 	apply     *applyPipeline
 	stopCh    chan struct{}
@@ -44,6 +47,7 @@ func New(opts Options) (*Runtime, error) {
 	rt := &Runtime{
 		opts:      opts,
 		slots:     make(map[SlotID]*slot),
+		opening:   make(map[SlotID]struct{}),
 		scheduler: newScheduler(opts.Observer),
 		apply:     newApplyPipeline(opts.Workers, opts.Goroutines, opts.Observer),
 		stopCh:    make(chan struct{}),

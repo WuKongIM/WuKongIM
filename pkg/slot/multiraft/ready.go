@@ -13,12 +13,18 @@ func (s *storageAdapter) load(ctx context.Context) (BootstrapState, raftpb.Snaps
 		return BootstrapState{}, raftpb.Snapshot{}, nil, err
 	}
 
-	memory := raft.NewMemoryStorage()
-
 	snap, err := s.storage.Snapshot(ctx)
 	if err != nil {
 		return BootstrapState{}, raftpb.Snapshot{}, nil, err
 	}
+	return s.loadSnapshot(ctx, state, snap)
+}
+
+// loadSnapshot initializes Raft memory from either a full legacy snapshot or
+// the metadata of a pinned startup stream.
+func (s *storageAdapter) loadSnapshot(ctx context.Context, state BootstrapState, snap raftpb.Snapshot) (BootstrapState, raftpb.Snapshot, *loadedMemoryStorage, error) {
+	memory := raft.NewMemoryStorage()
+
 	if !raft.IsEmptySnap(snap) {
 		if err := memory.ApplySnapshot(snapshotWithoutData(snap)); err != nil {
 			return BootstrapState{}, raftpb.Snapshot{}, nil, err

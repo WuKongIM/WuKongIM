@@ -191,6 +191,35 @@ For custom binary metadata values, follow the fixed/raw rules above.
 
 ## Snapshots And Import
 
+The metadata global system key `System(0, 3) + physical Slot ID` is the
+startup-install pending marker; its value is the eight-byte big-endian snapshot
+index. It is excluded from hash-slot snapshots and business backups. It is
+committed with range deletion and a zero Slot applied watermark, then removed
+atomically with the completed snapshot watermark. A pending marker rejects
+watermark reads; startup must reinstall a verified snapshot, never skip replay.
+Normal completed databases retain no new marker. The portable snapshot and
+Raft envelope formats are unchanged.
+
+Optional certified recovery reserves global `System(0, 4)` for a physical
+sequence seal (`WKSEAL01` followed by an eight-byte next-visible sequence),
+`System(0, 5) + physical Slot ID` for atomic FSM certificates, and
+`System(0, 6)` for a 16-byte random database incarnation. A certificate contains
+version byte 1, that incarnation, an eight-byte applied index, at most 64 KiB
+of opaque Raft proof and a four-byte IEEE CRC32 trailer. These global keys are
+excluded from portable hash-slot snapshots and business backups. Unsupported
+or inconsistent evidence selects full recovery. An unaware older/offline
+writer advances the physical sequence without refreshing the seal and thereby
+invalidates reuse; it need not understand these keys. An invalid startup seal
+causes all old certificates to be durably deleted before any new scoped write
+can refresh the seal, including certificates for currently unopened Slots. Ordinary unclassified
+metadata batches invalidate certificates, including mixed group commits.
+Known disjoint Slot writes instead validate each certificate epoch under the
+commit lock: stale or absent proofs delete only the affected Slot certificate.
+Fenced startup installation removes its own proof atomically with its pending
+marker and preserves disjoint proofs. Legacy migration maintenance, overlapping
+ownership and mismatched ownership proofs retain global invalidation. No on-disk
+format changes are needed for this scoped invalidation.
+
 Metadata hash-slot snapshots export raw row, index, and system keyspaces. Field
 additions inside an existing row value usually do not need snapshot version
 changes, but the imported value must be decodable by the receiving binary.

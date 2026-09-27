@@ -43,8 +43,20 @@ It does not own product business policy or expose engine-specific APIs.
    even after failure. Late misses cannot fill a newer generation. Replica slices
    are cloned on return, and authority/routing checks remain outside storage.
 
+7. Startup-only snapshot installation validates the complete immutable stream
+   before deletion, writes at most 8 MiB or 65,536 records per batch (one larger
+   valid record may occupy its own batch), and fences incomplete installs with
+   a physical-Slot global marker. Completion atomically publishes the snapshot
+   applied index and removes the marker. The caller must keep the Slot absent
+   until installation succeeds; ordinary runtime replacement remains atomic.
+
 ## Invariants and Failure Semantics
 
+- Recovery certificates share the FSM mutation batch and applied watermark.
+  Database incarnation, sequence seal and incomplete-install state fence reuse.
+  A stale live anchor cannot revive a certificate after an unclassified write.
+  Known disjoint FSM writes and fenced startup installs invalidate their own
+  certificate, preserving neighboring Slots even without a snapshot anchor.
 - Event sequence pages scan a pinned native iterator and retain a bounded heap,
   so event-key order cannot truncate results before the sequence cursor.
 - Offline event import installs one exact historical projection, its last event

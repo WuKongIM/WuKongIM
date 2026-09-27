@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"runtime"
+	"sync"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
@@ -40,6 +41,9 @@ type Options struct {
 // DB wraps a Pebble database without exposing Pebble types to domain packages.
 type DB struct {
 	pdb *pebble.DB
+	// sealMu serializes sequence-certified writes only when recovery sealing is enabled.
+	sealMu sync.Mutex
+	seal   *recoverySeal
 }
 
 // Open opens a Pebble-backed engine at path.
@@ -91,7 +95,19 @@ func (e *DB) NewBatch() *Batch {
 	if e == nil || e.pdb == nil {
 		return &Batch{}
 	}
-	return &Batch{batch: e.pdb.NewBatch()}
+	return &Batch{batch: e.pdb.NewBatch(), db: e}
+}
+
+// NewBatchWithSize reserves a bounded encoded write buffer, avoiding repeated
+// growth while installing large snapshots. Size is an allocation hint only.
+func (e *DB) NewBatchWithSize(size int) *Batch {
+	if e == nil || e.pdb == nil {
+		return &Batch{}
+	}
+	if size <= 0 {
+		return e.NewBatch()
+	}
+	return &Batch{batch: e.pdb.NewBatchWithSize(size), db: e}
 }
 
 // NewIter creates an iterator over span.

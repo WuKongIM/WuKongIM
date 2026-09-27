@@ -42,6 +42,8 @@ type Batch struct {
 	messageEventApplied map[string]MessageEventApplied
 	closed              bool
 	lastLocked          []HashSlot
+	// recoveryScoped means the FSM explicitly classified this request's owner.
+	recoveryScoped bool
 }
 
 type metaBatchOp struct {
@@ -346,6 +348,9 @@ func (b *Batch) Commit(ctx context.Context) error {
 		RebuildOnGroupAbort: true,
 		Records:             len(b.ops),
 		Build: func(engineBatch *engine.Batch) error {
+			if !b.recoveryScoped {
+				engineBatch.InvalidateRecoveryCertificates()
+			}
 			state = &batchCommitState{
 				db:               b.db,
 				tableRows:        make(map[string]tableRowOverlay),

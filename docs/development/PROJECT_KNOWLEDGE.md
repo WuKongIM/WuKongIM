@@ -74,6 +74,34 @@ specification, runbook, report, or module documentation; link to them when neede
   committed entries after the snapshot index. A later stored applied watermark
   must not skip replay. WAL recovery may repair only an incomplete physical tail
   record in the newest segment; other corruption fails closed.
+- Slot startup can stream verified snapshot chunks into bounded metadata
+  batches before registering the Slot. A global physical-Slot pending marker
+  fences interrupted installs; completion atomically publishes the snapshot
+  watermark and clears the marker. Retry reinstalls the complete snapshot.
+  Runtime snapshot replacement remains atomic. Recovery progress logs use
+  `slot.recovery.progress`, never record keys or credentials, and throttle
+  same-stage updates to five seconds; completion refers to the startup
+  committed suffix, not gateway admission. A local applied index alone still
+  does not authorize skipping snapshot recovery.
+- Certified Slot startup additionally verifies physical metadata sequence continuity,
+  database incarnation, cluster/node/Slot ownership, snapshot content and the exact
+  Raft entry/configuration history. Business mutations and their proof share one
+  batch; unclassified or older-writer mutations invalidate reuse. Known disjoint
+  Slot writes invalidate only their own stale/absent proof, so multi-Slot upgrades
+  and snapshotless neighbors do not cause repeated full recovery. Migration
+  maintenance or uncertain ownership keeps global invalidation. An invalid
+  startup seal durably clears even unopened Slots before resealing. Compaction publishes
+  the replacement anchor after its durable Raft snapshot. Logs distinguish
+  `checkpoint_reuse` and `checkpoint_fallback`. Snapshotless legacy recovery
+  retains its watermark behavior; it gains no certificate until a real snapshot
+  establishes a new anchor. Small E2E success does not satisfy the three-million-
+  user Linux 2/4 GiB restart gate.
+- The 2026-09-27 three-million-user/device gate reproduced baseline startup OOM
+  at 2 GiB. Streaming recovery passed both caps; certified reuse used about
+  126–128 MiB RSS and completed Slot recovery in 0.22–0.24 s, while full ready
+  still took about 5.4 s. Normal, interrupted-install retry and complete row
+  inventory passed. See `docs/reports/2026-09-27-startup-recovery.md` for scope,
+  binary receipts, the fixed Pebble large-batch header pitfall and compatibility limits.
 - Controller WAL prefix deletion must preserve a durable, verifiable CRC starting
   point for the first retained segment. Rolling CRC state crosses segment
   boundaries in the legacy format; intact retained bytes alone cannot validate

@@ -41,27 +41,27 @@ type portableSnapshotEntryOrder struct {
 // ImportHashSlotSnapshotReader validates then installs a seekable portable
 // snapshot without retaining the complete hash-slot payload in memory.
 func (db *MetaDB) ImportHashSlotSnapshotReader(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64) error {
-	return db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, portableSnapshotAllEntries, false, false, nil)
+	return db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, portableSnapshotAllEntries, false, false, nil, nil)
 }
 
 // ImportHashSlotSnapshotReaderPreservingMigrationMeta installs semantic data
 // while retaining target-local migration workflow rows.
 func (db *MetaDB) ImportHashSlotSnapshotReaderPreservingMigrationMeta(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64) error {
-	return db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, portableSnapshotBackupEntries, true, false, nil)
+	return db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, portableSnapshotBackupEntries, true, false, nil, nil)
 }
 
 // ImportHashSlotSnapshotReaderForRestore installs semantic data while
 // retaining target-local migration rows and optionally clearing every restored
 // user and device token as the rows enter the target database.
 func (db *MetaDB) ImportHashSlotSnapshotReaderForRestore(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64, invalidateTokens bool) error {
-	return db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, portableSnapshotBackupEntries, true, invalidateTokens, nil)
+	return db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, portableSnapshotBackupEntries, true, invalidateTokens, nil, nil)
 }
 
 // ImportHashSlotSnapshotReaderForRestoreWithStats installs semantic data and
 // returns the exact record count authenticated by the portable stream.
 func (db *MetaDB) ImportHashSlotSnapshotReaderForRestoreWithStats(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64, invalidateTokens bool) (BackupSnapshotStats, error) {
 	var stats BackupSnapshotStats
-	err := db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, portableSnapshotBackupEntries, true, invalidateTokens, &stats)
+	err := db.importHashSlotSnapshotReader(ctx, hashSlots, reader, size, portableSnapshotBackupEntries, true, invalidateTokens, &stats, nil)
 	return stats, err
 }
 
@@ -94,7 +94,7 @@ func VerifyBackupHashSlotSnapshotReader(
 	return BackupSnapshotStats{EntryCount: entryCount}, nil
 }
 
-func (db *MetaDB) importHashSlotSnapshotReader(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64, scope portableSnapshotEntryScope, preserveMigrationMeta, invalidateTokens bool, stats *BackupSnapshotStats) error {
+func (db *MetaDB) importHashSlotSnapshotReader(ctx context.Context, hashSlots []uint16, reader io.ReadSeeker, size int64, scope portableSnapshotEntryScope, preserveMigrationMeta, invalidateTokens bool, stats *BackupSnapshotStats, startup *startupRestore) error {
 	if err := checkSnapshotDB(ctx, db); err != nil {
 		return err
 	}
@@ -102,9 +102,24 @@ func (db *MetaDB) importHashSlotSnapshotReader(ctx context.Context, hashSlots []
 	if err != nil {
 		return err
 	}
+	report := func(p SnapshotRestoreProgress) {
+		if startup != nil && startup.report != nil {
+			startup.report(p)
+		}
+	}
+	tracked := &snapshotValidationReader{ReadSeeker: reader, ctx: ctx, size: size, stage: "snapshot_checksum", report: report}
+	if startup != nil && reader != nil {
+		reader = tracked
+	}
+	report(SnapshotRestoreProgress{Stage: "snapshot_checksum", TotalBytes: size})
 	if err := verifySeekableSnapshotChecksum(reader, size); err != nil {
+		if canceled := contextErr(ctx); canceled != nil {
+			return canceled
+		}
 		return err
 	}
+	tracked.stage = "snapshot_validate"
+	report(SnapshotRestoreProgress{Stage: "snapshot_validate", TotalBytes: size})
 	streamSlots, entryCount, err := visitSlotSnapshotStream(
 		ctx, reader, size, scope,
 		func(_, _ []byte) error { return nil },
@@ -119,15 +134,46 @@ func (db *MetaDB) importHashSlotSnapshotReader(ctx context.Context, hashSlots []
 		stats.EntryCount = entryCount
 	}
 
+	if err := contextErr(ctx); err != nil {
+		return err
+	}
+	tracked.stage = ""
+	report(SnapshotRestoreProgress{Stage: "snapshot_prepare", TotalBytes: size, TotalEntries: int64(entryCount)})
+	if err := contextErr(ctx); err != nil {
+		return err
+	}
 	unlock := db.lockHashSlots(normalized)
 	defer unlock()
 	deleteBatch := db.engine.NewBatch()
+	// Startup admission and the validated ownership set make these mutations
+	// Slot-scoped. Keep unrelated proofs; this Slot remains uncertified until
+	// the caller establishes its new snapshot anchor after complete installation.
+	classifyStartupBatch := func(batch *engine.Batch) {
+		if startup != nil && db.recoveryEnabled {
+			batch.PreserveRecoveryCertificateAt(recoveryCheckpointKey(startup.slotID), 0)
+		}
+	}
+	classifyStartupBatch(deleteBatch)
 	for _, hashSlot := range normalized {
 		for _, span := range hashSlotSnapshotReplaceSpans(hashSlot, preserveMigrationMeta) {
 			if err := deleteBatch.DeleteRange(engine.Span{Start: span.Start, End: span.End}); err != nil {
 				_ = deleteBatch.Close()
 				return err
 			}
+		}
+	}
+	if startup != nil {
+		if err := deleteBatch.Delete(recoveryCheckpointKey(startup.slotID)); err != nil {
+			_ = deleteBatch.Close()
+			return err
+		}
+		if err := deleteBatch.Set(encodeSlotRestorePendingKey(startup.slotID), slotIndexValue(startup.index)); err != nil {
+			_ = deleteBatch.Close()
+			return err
+		}
+		if err := deleteBatch.Set(encodeSlotAppliedIndexKey(startup.slotID), slotIndexValue(0)); err != nil {
+			_ = deleteBatch.Close()
+			return err
 		}
 	}
 	if err := deleteBatch.Commit(true); err != nil {
@@ -138,7 +184,28 @@ func (db *MetaDB) importHashSlotSnapshotReader(ctx context.Context, hashSlots []
 		return err
 	}
 
-	batch := db.engine.NewBatch()
+	report(SnapshotRestoreProgress{Stage: "snapshot_install", TotalBytes: size, TotalEntries: int64(entryCount)})
+	// Invalidate even when a later chunk fails after the old ranges were deleted.
+	defer db.clearChannelCache()
+	maxEntries, maxBytes := slotSnapshotImportBatchEntries, slotSnapshotImportBatchBytes
+	if startup != nil {
+		maxEntries, maxBytes = 64<<10, 8<<20
+	}
+	var installedEntries, installedBytes int64
+
+	newBatch := db.engine.NewBatch
+	if startup != nil {
+		capacity := maxBytes + maxEntries*11 + 16
+		if size < int64(capacity) {
+			capacity = int(size) + 16
+		}
+		newBatch = func() *engine.Batch {
+			batch := db.engine.NewBatchWithSize(capacity)
+			classifyStartupBatch(batch)
+			return batch
+		}
+	}
+	batch := newBatch()
 	batchEntries := 0
 	batchBytes := 0
 	flush := func() error {
@@ -151,7 +218,10 @@ func (db *MetaDB) importHashSlotSnapshotReader(ctx context.Context, hashSlots []
 		if err := batch.Close(); err != nil {
 			return err
 		}
-		batch = db.engine.NewBatch()
+		installedEntries += int64(batchEntries)
+		installedBytes += int64(batchBytes)
+		report(SnapshotRestoreProgress{Stage: "snapshot_install", Bytes: installedBytes, TotalBytes: size, Entries: installedEntries, TotalEntries: int64(entryCount)})
+		batch = newBatch()
 		batchEntries = 0
 		batchBytes = 0
 		return nil
@@ -164,16 +234,30 @@ func (db *MetaDB) importHashSlotSnapshotReader(ctx context.Context, hashSlots []
 				return err
 			}
 		}
-		if err := db.stageSlotSnapshotEntry(batch, entry, normalized, preserveMigrationMeta); err != nil {
+		// Flush before the next record would exceed the byte bound. One
+		// format-allowed large record may occupy its own batch.
+		if batchEntries > 0 && batchBytes+len(key)+len(entry.Value) > maxBytes {
+			if err := flush(); err != nil {
+				return err
+			}
+		}
+		if preserveMigrationMeta {
+			if err := db.stageSlotSnapshotEntry(batch, entry, normalized, true); err != nil {
+				return err
+			}
+		} else if err := batch.Set(entry.Key, entry.Value); err != nil {
 			return err
 		}
 		batchEntries++
-		batchBytes += len(key) + len(value)
-		if batchEntries >= slotSnapshotImportBatchEntries || batchBytes >= slotSnapshotImportBatchBytes {
+		batchBytes += len(key) + len(entry.Value)
+		if batchEntries >= maxEntries || batchBytes >= maxBytes {
 			return flush()
 		}
 		return nil
 	})
+	if canceled := contextErr(ctx); canceled != nil {
+		err = canceled
+	}
 	if err == nil {
 		err = flush()
 	}
@@ -184,6 +268,25 @@ func (db *MetaDB) importHashSlotSnapshotReader(ctx context.Context, hashSlots []
 	if closeErr != nil {
 		return closeErr
 	}
+	if err := contextErr(ctx); err != nil {
+		return err
+	}
+	if startup != nil {
+		final := db.engine.NewBatch()
+		defer final.Close()
+		classifyStartupBatch(final)
+		if err := final.Set(encodeSlotAppliedIndexKey(startup.slotID), slotIndexValue(startup.index)); err != nil {
+			return err
+		}
+		if err := final.Delete(encodeSlotRestorePendingKey(startup.slotID)); err != nil {
+			return err
+		}
+		if err := final.Commit(true); err != nil {
+			return err
+		}
+	}
+	report(SnapshotRestoreProgress{Stage: "snapshot_installed", Bytes: size, TotalBytes: size, Entries: int64(entryCount), TotalEntries: int64(entryCount)})
+
 	db.clearChannelCache()
 	return nil
 }
@@ -262,6 +365,7 @@ func visitSlotSnapshotStream(ctx context.Context, source io.ReadSeeker, size int
 	if err != nil || entryCount > math.MaxInt {
 		return nil, 0, dberrors.ErrCorruptValue
 	}
+	var largeRecord []byte
 	for index := uint64(0); index < entryCount; index++ {
 		if err := contextErr(ctx); err != nil {
 			return nil, 0, err
@@ -274,19 +378,34 @@ func visitSlotSnapshotStream(ctx context.Context, source io.ReadSeeker, size int
 		if err != nil {
 			return nil, 0, err
 		}
-		key, err := readSlotStreamBytes(reader, keySize)
-		if err != nil {
-			return nil, 0, err
+		// Small rows borrow the buffered reader until the visitor returns.
+		// Large rows reuse one bounded record buffer across visits.
+		recordSize := int(keySize + valueSize)
+		borrowed := recordSize <= reader.Size()
+		var record []byte
+		if borrowed {
+			record, err = reader.Peek(recordSize)
+		} else {
+			if cap(largeRecord) < recordSize {
+				largeRecord = make([]byte, recordSize)
+			}
+			record = largeRecord[:recordSize]
+			_, err = io.ReadFull(reader, record)
 		}
-		value, err := readSlotStreamBytes(reader, valueSize)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, dberrors.ErrCorruptValue
 		}
+		key, value := record[:int(keySize)], record[int(keySize):]
 		if err := entryOrder.accept(key); err != nil {
 			return nil, 0, err
 		}
 		if err := visit(key, value); err != nil {
 			return nil, 0, err
+		}
+		if borrowed {
+			if _, err := reader.Discard(recordSize); err != nil {
+				return nil, 0, err
+			}
 		}
 	}
 	if _, err := reader.ReadByte(); err != io.EOF {
@@ -346,14 +465,6 @@ func readSlotStreamSize(reader *bufio.Reader) (uint64, error) {
 		return 0, dberrors.ErrCorruptValue
 	}
 	return size, nil
-}
-
-func readSlotStreamBytes(reader *bufio.Reader, size uint64) ([]byte, error) {
-	value := make([]byte, int(size))
-	if _, err := io.ReadFull(reader, value); err != nil {
-		return nil, dberrors.ErrCorruptValue
-	}
-	return value, nil
 }
 
 func readSlotStreamUint16(reader io.Reader) (uint16, error) {

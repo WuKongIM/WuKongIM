@@ -29,6 +29,7 @@ func (r *Runtime) Close() error {
 	r.mu.Unlock()
 	dispatchFutureCompletions(completions)
 
+	r.openWG.Wait()
 	r.wg.Wait()
 
 	for _, g := range slots {
@@ -58,6 +59,10 @@ func (r *Runtime) OpenSlot(ctx context.Context, opts SlotOptions) error {
 		return err
 	}
 
+	if err := r.reserveOpen(opts.ID); err != nil {
+		return err
+	}
+	defer r.finishOpen(opts.ID)
 	g, err := newSlot(ctx, r.opts.NodeID, r.opts.Logger, r.opts.Raft, opts, r.opts.Observer, r.apply)
 	if err != nil {
 		return err
@@ -84,6 +89,10 @@ func (r *Runtime) BootstrapSlot(ctx context.Context, req BootstrapSlotRequest) e
 		return fmt.Errorf("%w: local campaign node %d is not an initial voter", ErrInvalidOptions, r.opts.NodeID)
 	}
 
+	if err := r.reserveOpen(req.Slot.ID); err != nil {
+		return err
+	}
+	defer r.finishOpen(req.Slot.ID)
 	g, err := newSlot(ctx, r.opts.NodeID, r.opts.Logger, r.opts.Raft, req.Slot, r.opts.Observer, r.apply)
 	if err != nil {
 		return err
@@ -184,6 +193,9 @@ func (r *Runtime) ReloadSlot(ctx context.Context, slotID SlotID) error {
 	current.closed = true
 	completions := current.failPendingLocked(ErrSlotClosed)
 	delete(r.slots, slotID)
+	r.opening[slotID] = struct{}{}
+	r.openWG.Add(1)
+	defer r.finishOpen(slotID)
 	r.mu.Unlock()
 	current.mu.Unlock()
 	dispatchFutureCompletions(completions)
@@ -205,6 +217,7 @@ func (r *Runtime) ReloadSlot(ctx context.Context, slotID SlotID) error {
 		r.opts.Logger,
 		r.opts.Raft,
 		SlotOptions{
+			ClusterID:    current.clusterID,
 			ID:           slotID,
 			Storage:      current.storage,
 			StateMachine: current.stateMachine,
@@ -644,4 +657,31 @@ func validateSlotOptions(opts SlotOptions) error {
 		return ErrInvalidOptions
 	}
 	return nil
+}
+
+// reserveOpen fences duplicate and concurrent constructors before Restore.
+func (r *Runtime) reserveOpen(id SlotID) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return ErrRuntimeClosed
+	}
+	if _, ok := r.slots[id]; ok {
+		return ErrSlotExists
+	}
+	if _, ok := r.opening[id]; ok {
+		return ErrSlotExists
+	}
+	if r.opening == nil {
+		r.opening = make(map[SlotID]struct{})
+	}
+	r.opening[id] = struct{}{}
+	r.openWG.Add(1)
+	return nil
+}
+func (r *Runtime) finishOpen(id SlotID) {
+	r.mu.Lock()
+	delete(r.opening, id)
+	r.mu.Unlock()
+	r.openWG.Done()
 }
