@@ -98,6 +98,9 @@ func (a *App) suspendRestoreSideEffects(ctx context.Context) error {
 	// idempotent stops on every call so a later startup pass cannot escape a
 	// maintenance fence merely because an earlier pass saw closed workers.
 	a.restoreSideEffectsSuspended = true
+	if err := a.mqtt.Stop(ctx); err != nil {
+		return err
+	}
 	var resultErr error
 	if err := a.pauseRestoreAdmissions(ctx); err != nil {
 		resultErr = errors.Join(resultErr, err)
@@ -145,6 +148,11 @@ func (a *App) resumeRestoreSideEffects(ctx context.Context) error {
 	defer a.restoreSideEffectsMu.Unlock()
 	if !a.restoreSideEffectsSuspended {
 		return nil
+	}
+	// MQTT owner registries are terminal after Stop. Keep admission closed until
+	// fresh restore-generation composition is available; never reuse old owners.
+	if a.mqtt != nil {
+		return errors.New("internal/app: MQTT restore reactivation requires process restart")
 	}
 	var resultErr error
 	// Clear again after the durable logical activation. The first reset at

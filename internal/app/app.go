@@ -102,8 +102,10 @@ type App struct {
 	channelAppends        *channelappend.Group
 	channelAppendRouter   *channelappend.Router
 	channelAppendMetadata *clusterinfra.ChannelAppendMetadataCache
-	// mqttInboxWrites privately gates full-cluster inbox append preparation until
-	// complete MQTT configuration, lifecycle and restore admission are composed.
+	// mqtt owns the optional entry and its joined runtime lifecycle.
+	mqtt *mqttProduct
+	// mqttInboxWrites enables full-cluster preparation for future person sources.
+	// Product MQTT and focused module integrations share the same appender gate.
 	mqttInboxWrites bool
 	// benchTerminal owns the one-shot terminal drain and opaque grant for one
 	// benchmark product-process generation.
@@ -235,6 +237,7 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		return nil, err
 	}
 	app.applyOptions(opts)
+	app.mqttInboxWrites = app.mqttInboxWrites || app.cfg.MQTT.Enabled
 	clusterCfg := defaultClusterConfig(app.cfg)
 	clusterCfg.CreatedBy = app.buildIdentity
 	clusterCfg.CreatedBy.Version = app.buildVersion
@@ -316,6 +319,9 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireCMDSync()
 	app.wireAPIMessageFacade()
 	app.wireGatewayHandler(clusterCfg.NodeID)
+	if err := app.wireMQTT(clusterCfg.NodeID); err != nil {
+		return nil, err
+	}
 	if err := app.wireGateway(clusterCfg.NodeID); err != nil {
 		return nil, err
 	}

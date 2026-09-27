@@ -37,6 +37,7 @@ import (
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	mqttwire "github.com/WuKongIM/WuKongIM/pkg/protocol/mqtt"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -53,6 +54,10 @@ func (a *App) applyConfigDefaults() error {
 // without constructing runtimes or touching the filesystem.
 func NormalizeConfig(cfg Config) (Config, error) {
 	var err error
+	cfg.MQTT, err = NormalizeMQTTConfig(cfg.MQTT)
+	if err != nil {
+		return Config{}, err
+	}
 	cfg.Gateway = defaultGatewayConfig(cfg.Gateway)
 	cfg.Manager = defaultManagerConfig(cfg.Manager)
 	if err := validateManagerConfig(cfg.Manager); err != nil {
@@ -1302,7 +1307,7 @@ func managerPermissionConfigs(permissions []ManagerPermissionConfig) []accessman
 
 func (a *App) wireGateway(nodeID uint64) error {
 	if a.gateway == nil && len(a.cfg.Gateway.Listeners) > 0 {
-		gw, err := gateway.New(gateway.Options{
+		options := gateway.Options{
 			Handler:        a.handler,
 			Authenticator:  a.newGatewayAuthenticator(nodeID),
 			Listeners:      a.cfg.Gateway.Listeners,
@@ -1315,7 +1320,12 @@ func (a *App) wireGateway(nodeID uint64) error {
 			Transport: a.cfg.Gateway.Transport,
 			Observer:  a.gatewayObserver(),
 			Logger:    a.logger.Named("gateway"),
-		})
+		}
+		if a.mqtt != nil {
+			options.PacketHandler = a.mqtt.handler
+			options.PacketProtocols = append(options.PacketProtocols, newMQTTProtocol(mqttwire.Limits{MaxPacketBytes: int(a.cfg.MQTT.MaxPacketBytes)}))
+		}
+		gw, err := gateway.New(options)
 		if err != nil {
 			return err
 		}

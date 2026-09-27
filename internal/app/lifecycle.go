@@ -174,6 +174,10 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		a.channelAppendStarted = true
 	}
+	if err := a.mqtt.Start(ctx); err != nil {
+		a.logLifecycleError("mqtt", "start", err)
+		return errors.Join(err, a.rollbackStarted(ctx))
+	}
 	if a.restoreMaintenance.Load() {
 		if err := a.suspendRestoreSideEffects(ctx); err != nil {
 			a.logLifecycleError("restore_side_effects", "suspend", err)
@@ -377,6 +381,9 @@ func (a *App) Stop(ctx context.Context) error {
 	}
 	a.restoreDiagnosticsSink()
 	if !a.started {
+		if err := a.mqtt.Stop(ctx); err != nil {
+			return err
+		}
 		var err error
 		if a.messageChannelStore != nil {
 			if stopErr := a.messageChannelStore.Stop(ctx); stopErr != nil {
@@ -405,6 +412,10 @@ func (a *App) Stop(ctx context.Context) error {
 		} else {
 			a.gatewayStarted = false
 		}
+	}
+	if stopErr := a.mqtt.Stop(ctx); stopErr != nil {
+		a.logLifecycleWarn("mqtt", "stop", stopErr)
+		return errors.Join(err, stopErr, a.syncLogger())
 	}
 	if a.prometheusStarted && a.prometheus != nil {
 		if stopErr := a.prometheus.Stop(ctx); stopErr != nil {
@@ -606,6 +617,9 @@ func (a *App) syncLogger() error {
 }
 
 func (a *App) rollbackStarted(ctx context.Context) error {
+	if err := a.mqtt.Stop(ctx); err != nil {
+		return err
+	}
 	var err error
 	if a.prometheusStarted && a.prometheus != nil {
 		if stopErr := a.prometheus.Stop(ctx); stopErr != nil {

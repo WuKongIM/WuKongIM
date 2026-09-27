@@ -1,10 +1,12 @@
 # MQTT IM 接入实施计划
 
-状态：实施中；codec、网关接口和 session/subscription/cursor/inflight/source_binding/will 六张表的存储基础及 Slot 命令、共享回放表的副本存储与备份已建立，MQTT 产品监听及完整持久运行时尚未接通。依据：[MQTT IM 接入设计](../../specs/mqtt-im-access.md)。
+状态：实施中。默认关闭的 MQTT 产品入口、配置和群/收件箱投递装配已接通；真实单节点与三节点集群互通 E2E 已通过。Will 自动调度、未知结果恢复、不可用 owner 隔离、离线清理、备份恢复后重建和容量验收仍未完成。依据：[MQTT IM 接入设计](../../specs/mqtt-im-access.md)。
 
 本计划交付 MQTT 5.0、QoS 0/1、精确主题、持久会话、跨节点接管、受权限约束的可靠恢复和 Will。阶段完成不等于整体完成；仅在线收发的版本不能作为本次需求交付。
 
 ## 当前进度
+
+- 产品装配复用 Gateway、设备令牌、共享消息追加、群/收件箱投影、后台回放及精确 ACK；TOML/env 配置已加入上限与双语参考。两种拓扑均验证双协议私聊、稳定消息身份和多个 ClientID 共存。恢复备份后保持入口关闭，不能复用已停止的 owner 注册表；完整验收边界见 [产品合同](../../specs/mqtt-product-runtime.md)。
 
 - 空正文 MQTT PUBLISH/Will 已贯通共享追加和 Webhook；显式空替换清空正文，nil 仍保留原文，原生消息仍须非空。真实单节点集群验证空正文的 QoS 0/1 提交、跨 PacketID 去重、撤权拒绝，以及 Will 非空原文改写为空后丢回包恢复。无需新增表或编码；产品进程 E2E 仍待完成，见 [空正文合同](../../specs/mqtt-empty-publication.md)。
 

@@ -342,3 +342,21 @@ Session 的 `RemoteAddr` 使用声明的客户端地址，`LocalAddr` 保留实�
 | `WK_CLUSTER_GROUP_COUNT` | `WK_CLUSTER_INITIAL_SLOT_COUNT` |
 | `WK_CLUSTER_GROUP_REPLICA_N` | `WK_CLUSTER_SLOT_REPLICA_N` |
 | `WK_CLUSTER_HASH_SLOT_MIGRATION_ENABLED` | 按用途改用 `WK_CHANNEL_MIGRATION_*` |
+
+## MQTT（开发分支）
+
+默认关闭。当前分支正在完成 MQTT 全量验收，以下配置用于开发验证。
+
+| 配置项 | 环境变量 | 类型 | 说明 |
+| --- | --- | --- | --- |
+| `mqtt.enable` | `WK_MQTT_ENABLE` | `bool` | 开启 MQTT 5 TCP 监听，默认关闭；完整产品验收仍在进行。 |
+| `mqtt.listen_addr` | `WK_MQTT_LISTEN_ADDR` | `string` | TCP 监听地址，端口须非零；TLS 由上游终止。 |
+| `mqtt.namespace` | `WK_MQTT_NAMESPACE` | `string` | 稳定的 broker ClientID 命名空间；所有集群节点必须一致。 |
+| `mqtt.max_connections` | `WK_MQTT_MAX_CONNECTIONS` | `int` | 保留的 owner 上限，包含准备中和关闭中的连接；范围 1 至 1000000。 |
+| `mqtt.max_subscriptions` | `WK_MQTT_MAX_SUBSCRIPTIONS` | `int` | 每个会话准备中、活跃及移除中的订阅总上限；范围 1 至 1024。 |
+| `mqtt.workers` | `WK_MQTT_WORKERS` | `int` | 连接和投递各自的有界 worker 数；范围 1 至 128。 |
+| `mqtt.max_packet_bytes` | `WK_MQTT_MAX_PACKET_BYTES` | `uint32` | 入站报文最大字节数；默认及上限为 1 MiB。 |
+| `mqtt.session_expiry_limit_sec` | `WK_MQTT_SESSION_EXPIRY_LIMIT_SEC` | `uint32` | 允许请求的离线会话有效期上限，单位秒；默认 24 小时。 |
+| `mqtt.quota_messages` | `WK_MQTT_QUOTA_MESSAGES` | `uint64` | 每会话逻辑积压条数上限；候选默认值 10000，不代表容量保证。 |
+| `mqtt.quota_bytes` | `WK_MQTT_QUOTA_BYTES` | `uint64` | 每会话逻辑积压字节上限；候选默认值 64 MiB。 |
+| `mqtt.window_limit` | `WK_MQTT_WINDOW_LIMIT` | `uint16` | 持久 QoS 1 交换上限；范围 1 至 1024，同时受对端 Receive Maximum 限制。 |

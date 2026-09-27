@@ -81,6 +81,17 @@ var removedConfigKeyReplacements = map[string]string{
 }
 
 var schemaFields = []fieldSpec{
+	{TOMLPath: "mqtt.enable", EnvKey: "WK_MQTT_ENABLE", Kind: kindBool, Group: "mqtt", Label: "MQTT enable"},
+	{TOMLPath: "mqtt.listen_addr", EnvKey: "WK_MQTT_LISTEN_ADDR", Kind: kindString, Group: "mqtt", Label: "MQTT listen addr"},
+	{TOMLPath: "mqtt.namespace", EnvKey: "WK_MQTT_NAMESPACE", Kind: kindString, Group: "mqtt", Label: "MQTT namespace"},
+	{TOMLPath: "mqtt.max_connections", EnvKey: "WK_MQTT_MAX_CONNECTIONS", Kind: kindInt, Group: "mqtt", Label: "MQTT max connections"},
+	{TOMLPath: "mqtt.max_subscriptions", EnvKey: "WK_MQTT_MAX_SUBSCRIPTIONS", Kind: kindInt, Group: "mqtt", Label: "MQTT max subscriptions"},
+	{TOMLPath: "mqtt.workers", EnvKey: "WK_MQTT_WORKERS", Kind: kindInt, Group: "mqtt", Label: "MQTT workers"},
+	{TOMLPath: "mqtt.max_packet_bytes", EnvKey: "WK_MQTT_MAX_PACKET_BYTES", Kind: kindUint32, Group: "mqtt", Label: "MQTT max packet bytes"},
+	{TOMLPath: "mqtt.session_expiry_limit_sec", EnvKey: "WK_MQTT_SESSION_EXPIRY_LIMIT_SEC", Kind: kindUint32, Group: "mqtt", Label: "MQTT session expiry limit sec"},
+	{TOMLPath: "mqtt.quota_messages", EnvKey: "WK_MQTT_QUOTA_MESSAGES", Kind: kindUint64, Group: "mqtt", Label: "MQTT quota messages"},
+	{TOMLPath: "mqtt.quota_bytes", EnvKey: "WK_MQTT_QUOTA_BYTES", Kind: kindUint64, Group: "mqtt", Label: "MQTT quota bytes"},
+	{TOMLPath: "mqtt.window_limit", EnvKey: "WK_MQTT_WINDOW_LIMIT", Kind: kindUint16, Group: "mqtt", Label: "MQTT window limit"},
 	{TOMLPath: "node.id", EnvKey: "WK_NODE_ID", Kind: kindUint64, Group: "node", Label: "Node ID", Required: true},
 	{TOMLPath: "node.data_dir", EnvKey: "WK_NODE_DATA_DIR", Kind: kindString, Group: "node", Label: "Data directory", Required: true},
 
@@ -278,6 +289,18 @@ func schemaByEnvKey() map[string]fieldSpec {
 
 func supportedConfigKeysForBuilder() []string {
 	return []string{
+		"WK_MQTT_ENABLE",
+		"WK_MQTT_LISTEN_ADDR",
+		"WK_MQTT_NAMESPACE",
+		"WK_MQTT_MAX_CONNECTIONS",
+		"WK_MQTT_MAX_SUBSCRIPTIONS",
+		"WK_MQTT_WORKERS",
+		"WK_MQTT_MAX_PACKET_BYTES",
+		"WK_MQTT_SESSION_EXPIRY_LIMIT_SEC",
+		"WK_MQTT_QUOTA_MESSAGES",
+		"WK_MQTT_QUOTA_BYTES",
+		"WK_MQTT_WINDOW_LIMIT",
+
 		"WK_NODE_ID",
 		"WK_NODE_DATA_DIR",
 		"WK_CLUSTER_LISTEN_ADDR",

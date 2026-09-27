@@ -1306,6 +1306,9 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		MaxTrimMessages:   cfg.ChannelMessageRetention.MaxTrimMessages,
 		MaxTrimBytes:      cfg.ChannelMessageRetention.MaxTrimBytes,
 	}
+	if cfg.MQTT, err = loadMQTTConfig(values); err != nil {
+		return app.Config{}, err
+	}
 	return cfg, nil
 }
 

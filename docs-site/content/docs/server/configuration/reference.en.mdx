@@ -352,3 +352,21 @@ These legacy variables are no longer accepted. Replace them when upgrading confi
 | `WK_CLUSTER_GROUP_COUNT` | `WK_CLUSTER_INITIAL_SLOT_COUNT` |
 | `WK_CLUSTER_GROUP_REPLICA_N` | `WK_CLUSTER_SLOT_REPLICA_N` |
 | `WK_CLUSTER_HASH_SLOT_MIGRATION_ENABLED` | Use the applicable `WK_CHANNEL_MIGRATION_*` settings |
+
+## MQTT (development branch)
+
+Disabled by default. Full MQTT acceptance is in progress; these settings support development validation.
+
+| Key | Environment variable | Type | Description |
+| --- | --- | --- | --- |
+| `mqtt.enable` | `WK_MQTT_ENABLE` | `bool` | Open the MQTT 5 TCP listener; default false. MQTT product acceptance remains in progress. |
+| `mqtt.listen_addr` | `WK_MQTT_LISTEN_ADDR` | `string` | TCP bind address with a nonzero port; TLS terminates upstream. |
+| `mqtt.namespace` | `WK_MQTT_NAMESPACE` | `string` | Stable broker ClientID namespace; use the same value on every cluster node. |
+| `mqtt.max_connections` | `WK_MQTT_MAX_CONNECTIONS` | `int` | Maximum retained owners including pending and closing connections; 1 to 1000000. |
+| `mqtt.max_subscriptions` | `WK_MQTT_MAX_SUBSCRIPTIONS` | `int` | Maximum pending, active and removing subscriptions per Session; 1 to 1024. |
+| `mqtt.workers` | `WK_MQTT_WORKERS` | `int` | Workers in each bounded connection/delivery cohort; 1 to 128. |
+| `mqtt.max_packet_bytes` | `WK_MQTT_MAX_PACKET_BYTES` | `uint32` | Maximum inbound packet bytes; default and ceiling 1 MiB. |
+| `mqtt.session_expiry_limit_sec` | `WK_MQTT_SESSION_EXPIRY_LIMIT_SEC` | `uint32` | Maximum requested offline Session lifetime in seconds; default 24 hours. |
+| `mqtt.quota_messages` | `WK_MQTT_QUOTA_MESSAGES` | `uint64` | Logical per-Session backlog count limit; candidate default 10000, not a scale guarantee. |
+| `mqtt.quota_bytes` | `WK_MQTT_QUOTA_BYTES` | `uint64` | Logical per-Session backlog byte limit; candidate default 64 MiB. |
+| `mqtt.window_limit` | `WK_MQTT_WINDOW_LIMIT` | `uint16` | Maximum durable QoS 1 exchanges; 1 to 1024, further limited by peer Receive Maximum. |

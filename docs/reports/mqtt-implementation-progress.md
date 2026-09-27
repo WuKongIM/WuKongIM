@@ -1,37 +1,20 @@
 # MQTT implementation progress
 
 Full goal: implement the approved [MQTT IM access design](../specs/mqtt-im-access.md).
-Status: in progress; product MQTT admission remains unavailable. Codec/gateway,
-six metadata tables with authoritative Slot access, publication propagation,
-local replay/source-protection storage, Session acquisition/deadlines, owner
-supervision, subscription intent orchestration and the internal gateway/PUBLISH
-entry are implemented. Real Paho/TCP
-integration passes on a single-node cluster with 256 hash Slots. Distributed
-replay activation/copy/anchor and bounded recovery steps now pass three-node
-runtime integration. Bounded copy/recovery/retirement scheduling and exact binding
-removal, unsubscribe sealing and live-owner cancelled-preparation discovery
-(including before the first binding) are implemented.
-Concrete group projection now confirms shared replay on every eligible replica.
-Anchored typed consumer messages route through foreground Node/RPC after original
-trim, with original publication fields and committed native control classification.
-Exact outbound acknowledgement orchestration and Node composition are implemented.
-Gateway send binding and PUBACK dispatch now pass real Paho/TCP takeover/resume
-integration, with controlled admission and content-reference assertions.
-Qualified backlog range receipts now preserve original charge membership/bytes
-across option/expiry changes, with exact admission/debit and bounded SourceDrain.
-Consumer accounting now reads committed original messages and qualifies bounded
-online/offline backlog through the Node composition. Window admission and ordered
-existing-exchange recovery preparation are implemented. Original QoS 0 now consumes
-its source position before exposing a candidate, preventing retries after takeover;
-QoS 1 downgraded to QoS 0 keeps post-enqueue completion. Bounded connection turns
-now serialize recovery before admission, perform final receive authorization and
-invoke exact-owner ending for definitive revocation. A gateway sink preserves
-packet/credit/ACK rules; private QoS 0 completion reconciles unrelated revisions.
-Production receive-authority wiring, discovery and fair scheduling remain outstanding.
-Inbox subscription/delivery, source deactivation,
-Will execution, product/restore composition and capacity
-acceptance remain outstanding. No passing product E2E
-or capacity claim is made.
+Status: in progress. The default-off `cmd/wukongim` MQTT listener now composes
+existing Session, group/inbox projection, future person-source admission, replay,
+delivery and exact ACK capabilities through the shared Gateway and cluster ports.
+Real-process Paho/WKProto authenticated interop passes on single-node and three-node
+clusters with 256 hash Slots. TOML/env configuration and the complete app/config
+unit suites pass with the race detector.
+
+This is the first product interop milestone, not complete MQTT delivery.
+Automatic Will publication, safe uncertain dispatch recovery, unavailable-owner
+isolation, owner sweeping, offline accounting/cleanup, restore reactivation and
+full failure/scale acceptance remain outstanding. Restore currently joins MQTT
+and retains closed admission because its terminal runtime cannot be reused.
+See [product composition and evidence](../specs/mqtt-product-runtime.md).
+Historical sections below record the narrower evidence available at each step.
 
 ## Frozen starting context
 

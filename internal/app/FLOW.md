@@ -61,20 +61,21 @@ Stop or startup rollback
   disabled delivery leaves that optional port absent.
 - Optional features are wired only when all required ports exist; unavailable
   capabilities stay explicit instead of receiving partial implementations.
-- MQTT adapters map Will setup to uncached publish policy and connection-worker
-  renewal/observed disconnect to Session usecases. Real-gateway/Paho integration validates the entry, exact outbound binding and
-  PUBACK commits across connection takeover with controlled window/content admission;
-  QoS 0 at full QoS 1 credit and complete properties use independent outbound codec bounds; product wiring remains pending. Three-node lifecycle coverage also verifies remote exact-owner ending, Will readiness, fresh lifetime and stale-end rejection.
-  WillExecutor composition binds foreground Slot claims, current message policy, frozen hook preparation, ordinary directory/append and retained-content proof. Single-node cluster coverage recovers real Webhook output after lost replies and revocation with original identity/time and no repeated hooks; fresh denied work is rejected. Scheduling, uncertain redispatch and product lifecycle remain pending.
-  Replay worker composition wires fresh SlotMetaSource and foreground Node ports;
-  three-node managed-loop coverage verifies fenced learner recovery, source release and retirement after the last binding leaves.
-  Consumer progress, exact exchange acknowledgements and retention use foreground Node ports; ACK also gates on local Owners. Retention captures anchors before consumer floors and grants no local GC.
-  Binding removal uses the same authoritative Node port: a source-Slot acknowledgement retains responsibility until a later verified tombstone commit; three-node continuation is covered.
-  SourceDrain discovers group cleanup and seals unsubscribe ranges through Node ports; pre-binding interruption, cross-node resume and concurrent ACK conflicts preserve inflight exchanges.
-  Replay maintenance rotates copy/recovery/retirement through the same worker; real ACK gaps and unknown registrations block decisions, and reopened replicas prove applied retirement independently of counters.
-  InboxSources and InboxAdmission compose real person-source protection, offline cursors and resumable preparation after the native directory projector. Single-node cluster coverage verifies first-message replay/accounting with explicit qualification setup; explicit prepared-append integrations reject old routes after directory and physical runtime recreation, while new authority continues the retained log. A private composition gate now binds automatic preparation to the shared Appender: native SEND creates directory tasks, prepares offline sources and pins fresh checkpoint authority before append. InboxEstablishment also wires real UID qualification, bounded directory discovery and replay confirmation; single-node cluster coverage prepares an existing source and then admits an offline future source without qualification fixtures. InboxProjection also wires bounded removal; single-node cluster coverage releases unadmitted backlog, preserves the exact exchange and commits its ACK after unsubscribe without wire transport. Automatic cleanup and product composition remain required. The default product path stays unchanged.
-  GroupProjection composes real protection, preparation, all-replica replay confirmation and removal. SubscriptionRequests adds bounded pending completion; real Paho SUB/UNSUB covers empty groups, mixed reasons, options/identifiers and PUBACK after removal. Product/inbox composition remains pending.
-  DeliveryCoordinator composes fresh Node source discovery, Accounting, Sender and exact-owner End. Three-node coverage automatically discovers existing cursors, accounts trimmed originals and sends through the real bounded delivery cohort to a controlled sink, then checks ACK gaps. App binds Coordinator.Open to Deliveries.Register after gateway open; real Paho coverage verifies automatic sending, takeover DUP, durable ACK, ACK/close wakes and joined cleanup with real group preparation invoked directly, including a group before its first business message. ReceiveAuthorization uses coherent membership reads; three-node rejoin ends old exchanges while retaining debt. Cursorless cleanup, offline scheduling and product composition remain pending.
+- Opt-in MQTT composition shares the existing Gateway and device-token verifier,
+  without WK device-conflict actions. Exact-owner RPC, connection renewal,
+  group/inbox projection, future person-source admission, replay maintenance,
+  delivery and durable ACKs are wired before listener admission. Real process
+  Paho/WKProto interop passes in single-node and three-node 256-hash-Slot clusters.
+  Stop fences Owners, joins delivery/deadline/replay/connection work, then closes
+  remaining Owners before message/cluster dependencies. Incomplete cleanup keeps
+  those dependencies alive. Restore stops this terminal runtime and keeps admission
+  closed; fresh restore-generation reactivation remains outstanding.
+  WillExecutor freezes hook output before first dispatch and only recovers positive
+  receipts for uncertain started work. Automatic Will publication, safe uncertain
+  redispatch, owner sweeps, unavailable-owner recovery, offline cleanup/accounting,
+  complete failure acceptance and scale qualification remain required. See
+  [product composition](../../docs/specs/mqtt-product-runtime.md) and the linked
+  module contracts; successful online interop is not complete MQTT delivery.
 - Command-channel suffixes are injected across send, delivery, CMD sync, plugin
   projection and Manager filtering without process-global state.
 - The normalized message system UID is injected consistently into user

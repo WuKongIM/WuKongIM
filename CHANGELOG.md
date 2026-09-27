@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add a default-off MQTT 5 TCP entry with bounded TOML/environment configuration, durable token authentication and MQTT/WK person-message interoperability. Full recovery, Will scheduling, restore reactivation and scale acceptance remain under development. / 新增默认关闭的 MQTT 5 TCP 入口，支持有界 TOML/环境变量配置、持久设备令牌鉴权及 MQTT/WK 私聊互通；完整恢复、Will 调度、备份恢复后重建和容量验收仍在开发。
+
 - Accept empty MQTT PUBLISH and Will bodies through shared message admission, including explicit empty Webhook replacements, while preserving native payload validation. Full MQTT product access remains under development. / MQTT PUBLISH 与 Will 的空正文已可通过共享消息入口，Webhook 可显式替换为空；原生消息校验保持不变，完整 MQTT 产品接入仍在开发。
 
 - Freeze MQTT Will hook output before publication so recovery preserves the actual body and original receipt without repeating transformations. Preparation can resume after lost replies; uncertain dispatch and complete MQTT access remain under development. / MQTT Will 发布前持久保存钩子处理后的正文，恢复时保留实际正文与原始回执，不重复改写消息；准备阶段可在丢回包后续作，未知发布结果的安全重试和完整接入仍在开发。

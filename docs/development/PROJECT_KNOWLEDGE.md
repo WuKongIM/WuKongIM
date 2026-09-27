@@ -239,7 +239,7 @@ specification, runbook, report, or module documentation; link to them when neede
   The hint carries exact placement, no caller HW, and grants no recovery proof.
 
 - The [MQTT IM access design](../specs/mqtt-im-access.md) defines the approved
-  target contract; product MQTT access is not yet enabled. MQTT Session subscriptions are separate from IM
+  target contract; the default-off product listener now has single-node and three-node process interop coverage. Complete durable/Will/restore/scale acceptance remains pending. MQTT Session subscriptions are separate from IM
   membership; protocol ACKs are separate from read state; delivery obligations
   survive ordinary history cleanup within their explicit lifetime and limits.
   Reliable recovery must cover messages from every entry, not only MQTT sends.
@@ -1145,3 +1145,11 @@ specification, runbook, report, or module documentation; link to them when neede
   host. Keep counter deltas on their sampled intervals, missing values explicit,
   and surviving-thread scheduler deltas labeled as lower bounds. A correlation
   does not establish a transport defect or infrastructure root cause.
+
+- [MQTT product composition](../specs/mqtt-product-runtime.md) reuses the Gateway
+  and starts bounded Session, replay and delivery workers after cluster readiness.
+  `mqtt.enable` also enables future person-source preparation on shared native
+  sends. Incomplete Stop retains message/cluster dependencies; restore leaves
+  entry admission closed because terminal owner registries cannot be reused.
+  Configuration and online interop do not establish unavailable-owner recovery,
+  automatic Will publication, offline cleanup or scale readiness.

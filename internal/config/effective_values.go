@@ -6,6 +6,17 @@ import "github.com/WuKongIM/WuKongIM/internal/app"
 // Object lists and paths are inspected only for redaction; their contents never enter the document.
 func effectiveConfigValues(cfg app.Config) map[string]any {
 	return map[string]any{
+		"WK_MQTT_ENABLE":                                             cfg.MQTT.Enabled,
+		"WK_MQTT_LISTEN_ADDR":                                        cfg.MQTT.ListenAddr,
+		"WK_MQTT_NAMESPACE":                                          cfg.MQTT.Namespace,
+		"WK_MQTT_MAX_CONNECTIONS":                                    cfg.MQTT.MaxConnections,
+		"WK_MQTT_MAX_SUBSCRIPTIONS":                                  cfg.MQTT.MaxSubscriptions,
+		"WK_MQTT_WORKERS":                                            cfg.MQTT.Workers,
+		"WK_MQTT_MAX_PACKET_BYTES":                                   cfg.MQTT.MaxPacketBytes,
+		"WK_MQTT_SESSION_EXPIRY_LIMIT_SEC":                           cfg.MQTT.SessionExpiryLimitSec,
+		"WK_MQTT_QUOTA_MESSAGES":                                     cfg.MQTT.QuotaMessages,
+		"WK_MQTT_QUOTA_BYTES":                                        cfg.MQTT.QuotaBytes,
+		"WK_MQTT_WINDOW_LIMIT":                                       cfg.MQTT.WindowLimit,
 		"WK_NODE_ID":                                                 cfg.NodeID,
 		"WK_NODE_DATA_DIR":                                           cfg.DataDir,
 		"WK_CLUSTER_LISTEN_ADDR":                                     cfg.Cluster.ListenAddr,

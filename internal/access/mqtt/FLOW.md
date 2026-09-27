@@ -10,7 +10,7 @@ summary: Maps MQTT gateway lifecycle, inbound publications and outbound exchange
 This package maps wire-validated MQTT 5 packets to IM identities and immutable
 publication content. Handler binds generic gateway callbacks to Session acquisition
 and connection supervision; Publisher invokes the existing message usecase.
-App registers delivery after connection open and composes confirmed subscription requests; product admission remains unavailable.
+App registers delivery after connection open and composes group/inbox subscription requests; an opt-in product listener shares the existing Gateway.
 
 ## Boundaries
 
@@ -69,7 +69,7 @@ App registers delivery after connection open and composes confirmed subscription
   expiry/cancellation after dependencies; no detached work or retries are added.
 - PacketID is reply correlation only. Unknown append outcomes emit no PUBACK and
   cannot prove takeover safety even after physical close and local scope drain.
-  Proof-based recovery and complete product admission remain pending.
+  Unavailable-owner recovery and complete product acceptance remain pending.
 - Register normal disconnect intent before fencing renewal; retain its original
   monotonic observation. Invalid expiry/direction never cancels Will. Peer packet
   limits apply to accepted and rejected CONNACK. Subscription identifiers require composed subscription, delivery and ACK ports.
