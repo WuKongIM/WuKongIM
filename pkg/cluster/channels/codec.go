@@ -23,7 +23,11 @@ const (
 	legacyCodecVersionV9  = uint8(9)
 	legacyCodecVersionV10 = uint8(10)
 	codecVersion          = uint8(11)
+	// appendRouteCodecVersion is opt-in; unfenced traffic retains codec 11.
+	appendRouteCodecVersion = uint8(12)
 )
+
+var errAppendRouteCodecRequired = errors.New("channels: append route fence requires channel codec version 12")
 
 var errPublicationCodecRequired = errors.New("channels: publication metadata requires channel codec version 11")
 
@@ -209,9 +213,18 @@ func decodeNotifyRequest(data []byte) (channeltransport.NotifyRequest, error) {
 	return req, nil
 }
 func encodeAppendRequest(req ch.AppendRequest) ([]byte, error) {
+	if req.ExpectedRouteGeneration != 0 {
+		return encodeAppendRequestVersion(req, appendRouteCodecVersion)
+	}
 	return encodeAppendRequestVersion(req, codecVersion)
 }
 func encodeAppendRequestVersion(req ch.AppendRequest, version uint8) ([]byte, error) {
+	if version == appendRouteCodecVersion && req.ExpectedRouteGeneration == 0 {
+		return nil, errInvalidCodecFrame
+	}
+	if req.ExpectedRouteGeneration != 0 && version < appendRouteCodecVersion {
+		return nil, errAppendRouteCodecRequired
+	}
 	if err := legacyMessageFlagError(req, version); err != nil {
 		return nil, err
 	}
@@ -239,9 +252,18 @@ func decodeAppendResponse(data []byte) (ch.AppendResult, error) {
 	return resp, decodeRPCResult(data, kindAppendResponse, &resp)
 }
 func encodeAppendBatchRequest(req ch.AppendBatchRequest) ([]byte, error) {
+	if req.ExpectedRouteGeneration != 0 {
+		return encodeAppendBatchRequestVersion(req, appendRouteCodecVersion)
+	}
 	return encodeAppendBatchRequestVersion(req, codecVersion)
 }
 func encodeAppendBatchRequestVersion(req ch.AppendBatchRequest, version uint8) ([]byte, error) {
+	if version == appendRouteCodecVersion && req.ExpectedRouteGeneration == 0 {
+		return nil, errInvalidCodecFrame
+	}
+	if req.ExpectedRouteGeneration != 0 && version < appendRouteCodecVersion {
+		return nil, errAppendRouteCodecRequired
+	}
 	if err := legacyMessageFlagError(req, version); err != nil {
 		return nil, err
 	}
@@ -583,7 +605,7 @@ func encodeFrameVersion(version uint8, kind uint8, payload []byte) []byte {
 }
 
 func encodeRequestFrame(version uint8, kind uint8, payload []byte) ([]byte, error) {
-	if version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != legacyCodecVersionV7 && version != legacyCodecVersionV8 && version != legacyCodecVersionV9 && version != legacyCodecVersionV10 && version != codecVersion {
+	if version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != legacyCodecVersionV7 && version != legacyCodecVersionV8 && version != legacyCodecVersionV9 && version != legacyCodecVersionV10 && version != codecVersion && !(version == appendRouteCodecVersion && (kind == kindAppend || kind == kindAppendBatch)) {
 		return nil, errInvalidCodecFrame
 	}
 	return encodeFrameVersion(version, kind, payload), nil
@@ -599,7 +621,7 @@ func decodeFrameWithVersion(data []byte, wantKind uint8) (uint8, []byte, error) 
 		return 0, nil, errInvalidCodecFrame
 	}
 	version := data[0]
-	if version != legacyCodecVersionV3 && version != legacyCodecVersionV4 && version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != legacyCodecVersionV7 && version != legacyCodecVersionV8 && version != legacyCodecVersionV9 && version != legacyCodecVersionV10 && version != codecVersion {
+	if version != legacyCodecVersionV3 && version != legacyCodecVersionV4 && version != legacyCodecVersionV5 && version != legacyCodecVersionV6 && version != legacyCodecVersionV7 && version != legacyCodecVersionV8 && version != legacyCodecVersionV9 && version != legacyCodecVersionV10 && version != codecVersion && !(version == appendRouteCodecVersion && (wantKind == kindAppend || wantKind == kindAppendBatch)) {
 		return 0, nil, errInvalidCodecFrame
 	}
 	return version, data[2:], nil
@@ -1027,6 +1049,9 @@ func appendAppendRequest(dst []byte, req ch.AppendRequest, version uint8) []byte
 	dst = append(dst, byte(req.CommitMode))
 	dst = appendUvarint(dst, req.ExpectedChannelEpoch)
 	dst = appendUvarint(dst, req.ExpectedLeaderEpoch)
+	if version >= appendRouteCodecVersion {
+		dst = appendUvarint(dst, req.ExpectedRouteGeneration)
+	}
 	return dst
 }
 
@@ -1049,6 +1074,14 @@ func readAppendRequest(body []byte, offset int, version uint8) (ch.AppendRequest
 	}
 	if req.ExpectedLeaderEpoch, offset, err = readUvarint(body, offset); err != nil {
 		return ch.AppendRequest{}, offset, err
+	}
+	if version >= appendRouteCodecVersion {
+		if req.ExpectedRouteGeneration, offset, err = readUvarint(body, offset); err != nil {
+			return ch.AppendRequest{}, offset, err
+		}
+		if req.ExpectedRouteGeneration == 0 {
+			return ch.AppendRequest{}, offset, errInvalidCodecFrame
+		}
 	}
 	return req, offset, nil
 }
@@ -1087,6 +1120,9 @@ func appendAppendBatchRequest(dst []byte, req ch.AppendBatchRequest, version uin
 	dst = appendBool(dst, req.OmitResultPayload)
 	if version >= legacyCodecVersionV7 {
 		dst = appendBool(dst, req.ServerAllocatedMessageIDs)
+	}
+	if version >= appendRouteCodecVersion {
+		dst = appendUvarint(dst, req.ExpectedRouteGeneration)
 	}
 	return dst
 }
@@ -1128,6 +1164,14 @@ func readAppendBatchRequest(body []byte, offset int, version uint8) (ch.AppendBa
 	if version >= legacyCodecVersionV7 {
 		if req.ServerAllocatedMessageIDs, offset, err = readBool(body, offset, "append batch server allocated message ids"); err != nil {
 			return ch.AppendBatchRequest{}, offset, err
+		}
+	}
+	if version >= appendRouteCodecVersion {
+		if req.ExpectedRouteGeneration, offset, err = readUvarint(body, offset); err != nil {
+			return ch.AppendBatchRequest{}, offset, err
+		}
+		if req.ExpectedRouteGeneration == 0 {
+			return ch.AppendBatchRequest{}, offset, errInvalidCodecFrame
 		}
 	}
 	return req, offset, nil
@@ -1613,7 +1657,7 @@ func readMessage(body []byte, offset int, version uint8) (ch.Message, int, error
 		return readMessageV4Remainder(body, offset, msg)
 	case legacyCodecVersionV5, legacyCodecVersionV6, legacyCodecVersionV7:
 		return readMessageV5Remainder(body, offset, msg)
-	case legacyCodecVersionV8, legacyCodecVersionV9, legacyCodecVersionV10, codecVersion:
+	case legacyCodecVersionV8, legacyCodecVersionV9, legacyCodecVersionV10, codecVersion, appendRouteCodecVersion:
 		msg, offset, err = readMessageV5Remainder(body, offset, msg)
 		if err == nil {
 			msg.RedDot, offset, err = readBool(body, offset, "red dot")
@@ -1912,7 +1956,7 @@ func readRecord(body []byte, offset int, version uint8) (ch.Record, int, error) 
 		return readRecordV4Remainder(body, offset, record)
 	case legacyCodecVersionV5, legacyCodecVersionV6, legacyCodecVersionV7:
 		return readRecordV5Remainder(body, offset, record)
-	case legacyCodecVersionV8, legacyCodecVersionV9, legacyCodecVersionV10, codecVersion:
+	case legacyCodecVersionV8, legacyCodecVersionV9, legacyCodecVersionV10, codecVersion, appendRouteCodecVersion:
 		record, offset, err = readRecordV5Remainder(body, offset, record)
 		if err == nil {
 			record.RedDot, offset, err = readBool(body, offset, "red dot")

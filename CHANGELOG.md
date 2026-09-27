@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Preserve exact prepared-append authority through fresh cluster routing, forwarding and durable queues; person-directory deletion now advances the append fence atomically. MQTT automatic admission and product access remain under development. / 消息追加可携带准备时的精确版本，经过集群读取、转发和持久化队列仍保留校验；删除个人频道目录时原子推进追加版本。MQTT 自动准入和产品接入仍在开发。
+
 - Prepare future MQTT inbox sources in bounded, resumable turns after native UID directory projection completes. Inconsistent candidate indexes fail closed; real single-node cluster validation covers offline first-message replay/accounting. Automatic append fencing and product access remain under development. / 复用原生 UID 目录投影完成状态，以有界、可续跑的轮次准备 MQTT 新收件箱来源；候选索引不一致时拒绝继续。真实单节点集群已验证离线首条消息回放与计量，自动写入隔离及产品接入仍在开发。
 
 - Persist resumable MQTT inbox source-admission progress with Slot-authoritative reads and runtime-incarnation fencing across deletion, recreation and snapshot restore. Matching runtimes are required; automatic first-write admission and product access remain under development. / MQTT 收件箱来源准入进度支持持久化续跑、Slot 权威读取及跨删除、重建、快照恢复的代次隔离。要求匹配运行时；首次写入自动准入和产品接入仍在开发。

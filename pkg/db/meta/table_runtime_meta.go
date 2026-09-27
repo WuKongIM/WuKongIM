@@ -412,12 +412,12 @@ func resolveMonotonicChannelRuntimeMeta(existing ChannelRuntimeMeta, exists bool
 		return existing, MonotonicIgnoredStale
 	case candidate.ChannelEpoch > existing.ChannelEpoch:
 		preserveRuntimeMetaState(existing, &candidate)
-		return bumpRuntimeRoute(existing, candidate, candidateHadRouteGeneration), MonotonicApplied
+		return bumpRuntimeRoute(existing, candidate, candidateHadRouteGeneration)
 	case candidate.LeaderEpoch < existing.LeaderEpoch:
 		return existing, MonotonicIgnoredStale
 	case candidate.LeaderEpoch > existing.LeaderEpoch:
 		preserveRuntimeMetaState(existing, &candidate)
-		return bumpRuntimeRoute(existing, candidate, candidateHadRouteGeneration), MonotonicApplied
+		return bumpRuntimeRoute(existing, candidate, candidateHadRouteGeneration)
 	case candidate.Leader != existing.Leader:
 		return existing, MonotonicConflict
 	}
@@ -425,7 +425,7 @@ func resolveMonotonicChannelRuntimeMeta(existing ChannelRuntimeMeta, exists bool
 		candidate.LeaseUntilMS = existing.LeaseUntilMS
 	}
 	preserveRuntimeMetaState(existing, &candidate)
-	return bumpRuntimeRoute(existing, candidate, candidateHadRouteGeneration), MonotonicApplied
+	return bumpRuntimeRoute(existing, candidate, candidateHadRouteGeneration)
 }
 
 func preserveRuntimeMetaState(existing ChannelRuntimeMeta, candidate *ChannelRuntimeMeta) {
@@ -445,18 +445,22 @@ func preserveRuntimeMetaState(existing ChannelRuntimeMeta, candidate *ChannelRun
 	}
 }
 
-func bumpRuntimeRoute(existing, candidate ChannelRuntimeMeta, candidateHadRouteGeneration bool) ChannelRuntimeMeta {
+func bumpRuntimeRoute(existing, candidate ChannelRuntimeMeta, candidateHadRouteGeneration bool) (ChannelRuntimeMeta, MonotonicResult) {
 	if !candidateHadRouteGeneration && candidate.RouteGeneration < existing.RouteGeneration {
 		candidate.RouteGeneration = existing.RouteGeneration
 	}
 	if runtimeRouteChanged(existing, candidate) && candidate.RouteGeneration <= existing.RouteGeneration {
+		if existing.RouteGeneration == ^uint64(0) {
+			return existing, MonotonicConflict
+		}
 		candidate.RouteGeneration = nextChannelRouteGeneration(existing.RouteGeneration)
 	}
-	return candidate
+	return candidate, MonotonicApplied
 }
 
 func runtimeRouteChanged(a, b ChannelRuntimeMeta) bool {
-	return a.ChannelEpoch != b.ChannelEpoch ||
+	return a.DirectoryGeneration != b.DirectoryGeneration ||
+		a.ChannelEpoch != b.ChannelEpoch ||
 		a.LeaderEpoch != b.LeaderEpoch ||
 		a.Leader != b.Leader ||
 		!slices.Equal(a.Replicas, b.Replicas) ||

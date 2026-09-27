@@ -60,6 +60,7 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 		ChannelID:                 channelappend.ChannelID{ID: "room", Type: 1},
 		ExpectedEpoch:             12,
 		ExpectedLeaderEpoch:       34,
+		ExpectedRouteGeneration:   56,
 		TraceID:                   "trace-request",
 		ChannelKey:                "channel/key-request",
 		Attempt:                   4,
@@ -110,6 +111,9 @@ func TestChannelAppenderMapsAppendBatchRequestAndResult(t *testing.T) {
 	}
 	if req.ExpectedLeaderEpoch != 34 {
 		t.Fatalf("ExpectedLeaderEpoch = %d, want 34", req.ExpectedLeaderEpoch)
+	}
+	if req.ExpectedRouteGeneration != 56 {
+		t.Fatalf("ExpectedRouteGeneration = %d, want 56", req.ExpectedRouteGeneration)
 	}
 	if req.CommitMode != channelruntime.CommitModeQuorum {
 		t.Fatalf("CommitMode = %v, want %v", req.CommitMode, channelruntime.CommitModeQuorum)

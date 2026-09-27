@@ -48,6 +48,13 @@ func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 		rc.appendQ.storeBlocked = false
 		return
 	}
+	for _, req := range batch.requests {
+		if err := r.validateAppendRouteFence(rc, req.req); err != nil {
+			rc.appendQ.storeBlocked = false
+			r.failAppendBatch(rc, batch, err)
+			return
+		}
+	}
 	if q := batch.requests[0].mqttAnchor; q != nil {
 		if err := r.validateMQTTAnchorAdmission(batch.requests[0].ctx, rc, *q); err != nil {
 			rc.appendQ.storeBlocked = false

@@ -112,7 +112,8 @@ type Meta struct {
 	// LeaderEpoch fences leader changes within an epoch.
 	LeaderEpoch uint64
 	// RouteGeneration is the authoritative version of the complete routing record.
-	// It is a cache/version fence and is not part of the Channel state machine.
+	// The reactor also uses it as the durable-quorum fence version; the pure
+	// Channel state machine does not own this routing record.
 	RouteGeneration uint64
 	// Leader is the authoritative leader node.
 	Leader NodeID
@@ -216,6 +217,9 @@ type AppendRequest struct {
 	CommitMode           CommitMode
 	ExpectedChannelEpoch uint64
 	ExpectedLeaderEpoch  uint64
+	// ExpectedRouteGeneration binds optional preparation to exact durable authority.
+	// Nonzero requires both epochs and quorum commit; zero preserves ordinary append.
+	ExpectedRouteGeneration uint64
 }
 
 // AppendResult is the committed result for one append.
@@ -245,7 +249,9 @@ type AppendBatchRequest struct {
 	CommitMode           CommitMode
 	ExpectedChannelEpoch uint64
 	ExpectedLeaderEpoch  uint64
-	OmitResultPayload    bool
+	// ExpectedRouteGeneration has the same exact-authority contract as AppendRequest.
+	ExpectedRouteGeneration uint64
+	OmitResultPayload       bool
 	// ServerAllocatedMessageIDs proves all message IDs came from a node-scoped globally unique allocator.
 	// Stores may skip only the existing-message-ID lookup when this is true.
 	ServerAllocatedMessageIDs bool

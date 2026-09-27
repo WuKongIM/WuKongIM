@@ -79,7 +79,7 @@ It does not own product business policy or expose engine-specific APIs.
 - Subscriber rows, count, mutation version and join incarnations commit after UID sort/deduplication.
   Re-add preserves incarnation; removal/rejoin allocates from table 5 System 1; deletion retains its high water.
   Range tombstones fence staged/disk rows. Legacy empty rows mean 1; snapshots/JSONL preserve identity.
-- Runtime metadata, Channel latest sequence, and event reducers stay monotonic
+- Person directory incarnation changes atomically advance the runtime append route, rejecting overflow. Runtime metadata, Channel latest sequence and event reducers stay monotonic
   and idempotent; create-only runtime batches never overwrite existing rows.
 - MQTT session CAS cannot rebind UID or regress generations. Snapshot/inspection
   includes the row and deadline index; storage CAS alone proves no owner fencing.

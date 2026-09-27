@@ -28,7 +28,7 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
 ## Main Flows
 
 1. The service reserves a Channel key and submits an append; the reactor fences
-   role, epochs, write admission, and capacity, while store workers durably
+   role, epochs, optional exact durable route, write admission and capacity, while workers durably
    append in order and local or quorum progress completes aligned futures.
    Borrowed payload and publication-metadata bytes are cloned at admission; an adapter-owned append
    may explicitly transfer immutable payloads that downstream state, quorum,
@@ -83,7 +83,7 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
    committed reads keep the full Load contract and quorum boundary.
 - Nonzero lifetimes require exact proposal format 2; publication metadata
   requires format 3 and message record codec 2. Native hashes remain unchanged.
-  Channel RPC 11 and quorum exchange 6 preserve bounded, validated metadata;
+  Channel RPC 11 and quorum exchange 6 preserve metadata; opt-in append RPC 12 also preserves exact route fences;
   all content budgets include it. Older lossy encodings fail explicitly.
   Exchange 6 requires matched replicas even before MQTT activation. Binary-only
   rollback after new-format writes is unsupported.

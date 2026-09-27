@@ -400,6 +400,18 @@ func (s *Service) ApplyMeta(meta ch.Meta) error { return s.applyRuntimeMeta(meta
 
 // Append appends one message.
 func (s *Service) Append(ctx context.Context, req ch.AppendRequest) (ch.AppendResult, error) {
+	if req.ExpectedRouteGeneration != 0 {
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		meta, err := s.resolvePreparedAppendMeta(ctx, req.ChannelID, req.ExpectedChannelEpoch, req.ExpectedLeaderEpoch, req.ExpectedRouteGeneration, req.CommitMode)
+		if err != nil {
+			return ch.AppendResult{}, err
+		}
+		return s.appendWithMeta(ctx, req, meta, true)
+	}
 	res, err, usedMeta, usedCache := s.appendOnce(ctx, req)
 	if err == nil || !usedCache || !retryableMetaCacheError(err) {
 		return res, err
@@ -412,6 +424,18 @@ func (s *Service) Append(ctx context.Context, req ch.AppendRequest) (ch.AppendRe
 
 // AppendBatch appends messages to one channel.
 func (s *Service) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
+	if req.ExpectedRouteGeneration != 0 {
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		meta, err := s.resolvePreparedAppendMeta(ctx, req.ChannelID, req.ExpectedChannelEpoch, req.ExpectedLeaderEpoch, req.ExpectedRouteGeneration, req.CommitMode)
+		if err != nil {
+			return ch.AppendBatchResult{}, err
+		}
+		return s.appendBatchWithMeta(ctx, req, meta, true)
+	}
 	res, err, usedMeta, usedCache := s.appendBatchOnce(ctx, req)
 	if err == nil || !usedCache || !retryableMetaCacheError(err) {
 		return res, err
@@ -1591,11 +1615,12 @@ func (s *Service) appendWithMeta(ctx context.Context, req ch.AppendRequest, meta
 			if err != nil {
 				recoverStarted := time.Now()
 				batch, recovered := s.recoverForwardAppendBatch(ctx, meta, ch.AppendBatchRequest{
-					ChannelID:            req.ChannelID,
-					Messages:             []ch.Message{req.Message},
-					CommitMode:           req.CommitMode,
-					ExpectedChannelEpoch: req.ExpectedChannelEpoch,
-					ExpectedLeaderEpoch:  req.ExpectedLeaderEpoch,
+					ChannelID:               req.ChannelID,
+					Messages:                []ch.Message{req.Message},
+					CommitMode:              req.CommitMode,
+					ExpectedChannelEpoch:    req.ExpectedChannelEpoch,
+					ExpectedLeaderEpoch:     req.ExpectedLeaderEpoch,
+					ExpectedRouteGeneration: req.ExpectedRouteGeneration,
 				}, err)
 				s.observeAppendStage("forward_append_recover", recoveredAppendError(recovered, err), time.Since(recoverStarted))
 				if recovered && len(batch.Items) == 1 && batch.Items[0].Err == nil {
@@ -1606,7 +1631,7 @@ func (s *Service) appendWithMeta(ctx context.Context, req ch.AppendRequest, meta
 			return res, err
 		}
 		started := time.Now()
-		err := s.applyRuntimeMeta(meta, false)
+		err := s.applyAppendMeta(ctx, meta, req.ExpectedRouteGeneration)
 		s.observeAppendStage("meta_apply", err, time.Since(started))
 		if err != nil {
 			return ch.AppendResult{}, err
@@ -1668,7 +1693,7 @@ func (s *Service) appendBatchWithMeta(ctx context.Context, req ch.AppendBatchReq
 			return res, err
 		}
 		started := time.Now()
-		err := s.applyRuntimeMeta(meta, false)
+		err := s.applyAppendMeta(ctx, meta, req.ExpectedRouteGeneration)
 		s.observeAppendStage("meta_apply", err, time.Since(started))
 		if err != nil {
 			return ch.AppendBatchResult{}, err

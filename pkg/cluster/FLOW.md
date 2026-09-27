@@ -29,7 +29,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    Person-directory prepare joins UID membership/runtime metadata before publishing directory-ready. MQTT RPC 91 uses fresh Slot barriers and bounded snapshots; read kind 17 retains tombstone-source discovery after the last consumer leaves; kind 18 pins a qualified accounting head/cursor; kind 19 pins channel/member/incarnation evidence. Source/UID routing stays independent of Session routing.
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to
-   the exact leader. A cached leader's typed dial failure gets one fresh-route retry;
+   the exact leader. Explicit prepared appends require fresh Slot reads and preserve exact route through RPC 12; ordinary cached dial failure gets one fresh-route retry;
    ambiguous sends retain committed-outcome recovery. MQTT source/replay RPCs 93/94
    recheck fresh Slot authority, caller fences and the serving node across gateway swaps.
    RPCs 95–101 bind copying, anchors/retirement, planning, selection and repair to fresh authority; retirement/retries and anchored plans schedule bounded native propagation to idle voters before final authority checks; hints grant no recovery proof.

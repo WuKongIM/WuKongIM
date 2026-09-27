@@ -36,9 +36,9 @@ It does not perform permission checks, durable append, routing, or delivery.
   messages and committed envelopes. Retry queries borrow body and metadata;
   their comparison excludes only the server-assigned ingress clock.
 - Authority target carries complete route generation and observed write-fence
-  state. Route generation orders cache projection, not Channel machine state.
-- Append requests carry expected authority and leader epochs to reject stale
-  writes without reinterpreting caller intent.
+  state. Route generation orders cache projection and the durable quorum authority.
+- Append requests carry expected authority/leader epochs and an optional exact durable route.
+  Nonzero routes require complete epochs and quorum commit; adapters cannot rewrite intent.
 - Server-allocated message-ID proof applies to every item and skips only
   existing-ID reads; sender/client idempotency remains mandatory.
 

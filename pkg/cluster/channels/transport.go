@@ -213,6 +213,21 @@ func (c *TransportClient) Notify(ctx context.Context, node ch.NodeID, req channe
 
 // ForwardAppend sends a client append request to node.
 func (c *TransportClient) ForwardAppend(ctx context.Context, node ch.NodeID, req ch.AppendRequest) (ch.AppendResult, error) {
+	if req.ExpectedRouteGeneration != 0 {
+		payload, err := encodeAppendRequest(req)
+		if err != nil {
+			return ch.AppendResult{}, err
+		}
+		// Prepared authority cannot fall back to a format that drops its fence.
+		resp, err := c.callShard(ctx, uint64(node), clusternet.RPCChannelAppend, channelForwardShardKey(req.ChannelID), payload)
+		if err != nil {
+			return ch.AppendResult{}, err
+		}
+		if len(resp) == 0 || resp[0] != codecVersion {
+			return ch.AppendResult{}, errInvalidCodecFrame
+		}
+		return decodeAppendResponse(resp)
+	}
 	resp, err := c.callShardVersioned(ctx, uint64(node), clusternet.RPCChannelAppend, channelForwardShardKey(req.ChannelID), func(version uint8) ([]byte, error) {
 		return encodeAppendRequestVersion(req, version)
 	})
@@ -224,6 +239,21 @@ func (c *TransportClient) ForwardAppend(ctx context.Context, node ch.NodeID, req
 
 // ForwardAppendBatch sends a client append batch request to node.
 func (c *TransportClient) ForwardAppendBatch(ctx context.Context, node ch.NodeID, req ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
+	if req.ExpectedRouteGeneration != 0 {
+		payload, err := encodeAppendBatchRequest(req)
+		if err != nil {
+			return ch.AppendBatchResult{}, err
+		}
+		// Prepared authority cannot fall back to a format that drops its fence.
+		resp, err := c.callShard(ctx, uint64(node), clusternet.RPCChannelAppendBatch, channelForwardShardKey(req.ChannelID), payload)
+		if err != nil {
+			return ch.AppendBatchResult{}, err
+		}
+		if len(resp) == 0 || resp[0] != codecVersion {
+			return ch.AppendBatchResult{}, errInvalidCodecFrame
+		}
+		return decodeAppendBatchResponse(resp)
+	}
 	resp, err := c.callShardVersioned(ctx, uint64(node), clusternet.RPCChannelAppendBatch, channelForwardShardKey(req.ChannelID), func(version uint8) ([]byte, error) {
 		return encodeAppendBatchRequestVersion(req, version)
 	})

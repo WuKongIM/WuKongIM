@@ -469,7 +469,11 @@ specification, runbook, report, or module documentation; link to them when neede
   either UID. Each prepared/closed candidate commits progress independently;
   strict candidate witnesses fail on missing/stale rows. Real single-node cluster
   coverage joins the native projector, offline source preparation and first-message
-  replay/accounting. Automatic append-incarnation fencing remains required.
+  replay/accounting. [Prepared append fences](../specs/mqtt-append-route-fence.md)
+  carry an optional exact route through fresh Slot reads and the durable sequencer;
+  person directory deletion atomically advances that route. Only explicit fenced
+  requests use Channel append codec 12, without lossy fallback. Automatic checkpoint
+  binding and physical-runtime/restore incarnation fencing remain required.
   See [Slot access](../specs/mqtt-slot-access.md); these APIs do not prove owner
   isolation, replica capability activation or safe restored-owner execution.
   Message System 12 materializes source-incarnation protection and copy receipt

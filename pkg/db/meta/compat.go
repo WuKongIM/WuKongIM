@@ -1868,7 +1868,11 @@ func (b *WriteBatch) stageChannelMigrationTaskAndMeta(hashSlot uint16, guard Cha
 		// Migration mutations bypass the ordinary runtime-meta upsert path, so
 		// advance the complete-route generation whenever the projected route,
 		// authority, membership, retention, or write-fence state changes.
-		nextMeta = bumpRuntimeRoute(meta, nextMeta, true)
+		var routeResult MonotonicResult
+		nextMeta, routeResult = bumpRuntimeRoute(meta, nextMeta, true)
+		if routeResult == MonotonicConflict {
+			return dberrors.ErrConflict
+		}
 		if !guard.matches(task) || !runtimeGuard.matches(meta) {
 			if task == nextTask && channelRuntimeMetaEqual(meta, nextMeta) {
 				return nil

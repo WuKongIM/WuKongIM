@@ -64,7 +64,7 @@ management, plugins, diagnostics, and bounded operations observations.
 
 ## Invariants and Failure Semantics
 
-- Route, leader, term, epoch, revision, and lease fences must be forwarded
+- Route, leader, term, epoch, revision, lease and optional prepared-append route fences must be forwarded
   exactly; preferred or cached ownership must never replace observed authority.
 - Missing leaders, stale routes, unavailable placement, and write fences fail
   closed as typed retryable errors, including a stopped or unreachable append

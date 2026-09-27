@@ -16,7 +16,7 @@ type appendStageObserver interface {
 }
 
 func (c *cluster) Append(ctx context.Context, req ch.AppendRequest) (ch.AppendResult, error) {
-	batch, err := c.AppendBatch(ctx, ch.AppendBatchRequest{ChannelID: req.ChannelID, Messages: []ch.Message{req.Message}, CommitMode: req.CommitMode, ExpectedChannelEpoch: req.ExpectedChannelEpoch, ExpectedLeaderEpoch: req.ExpectedLeaderEpoch})
+	batch, err := c.AppendBatch(ctx, ch.AppendBatchRequest{ChannelID: req.ChannelID, Messages: []ch.Message{req.Message}, CommitMode: req.CommitMode, ExpectedChannelEpoch: req.ExpectedChannelEpoch, ExpectedLeaderEpoch: req.ExpectedLeaderEpoch, ExpectedRouteGeneration: req.ExpectedRouteGeneration})
 	if err != nil {
 		return ch.AppendResult{}, err
 	}

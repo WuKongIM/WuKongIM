@@ -182,7 +182,7 @@ func (s *Shard) DeleteChannel(ctx context.Context, channelID string, channelType
 
 // DeleteChannel stages the complete Channel-owned deletion boundary. For a
 // person Channel, deleting a live incarnation also advances the runtime
-// directory generation before removing its pending task.
+// directory and append-route generations before removing its pending task.
 func (b *Batch) DeleteChannel(hashSlot HashSlot, channelID string, channelType int64) error {
 	if err := b.ensureOpen(); err != nil {
 		return err
@@ -240,10 +240,11 @@ func (b *Batch) DeleteChannel(hashSlot HashSlot, channelID string, channelType i
 					return err
 				}
 				if runtimeExists {
-					if runtimeMeta.DirectoryGeneration == ^uint64(0) {
+					if runtimeMeta.DirectoryGeneration == ^uint64(0) || runtimeMeta.RouteGeneration == ^uint64(0) {
 						return dberrors.ErrConflict
 					}
 					runtimeMeta.DirectoryGeneration++
+					runtimeMeta.RouteGeneration++
 					runtimeValue, err := channelRuntimeMetaTable.encodeValue(runtimeKey, runtimeMeta)
 					if err != nil {
 						return err

@@ -93,6 +93,9 @@ func (r *Reactor) validateAppendEvent(ctx context.Context, rc *runtimeChannel, e
 			rc.state.Leader,
 		)
 	}
+	if err := r.validateAppendRouteFence(rc, event.Append); err != nil {
+		return err
+	}
 	if r.appendAdmissionGuard != nil {
 		err := r.appendAdmissionGuard.AllowChannelAppend(ctx, ch.AppendAdmissionRequest{
 			ChannelID:   rc.state.ID,
@@ -104,6 +107,24 @@ func (r *Reactor) validateAppendEvent(ctx context.Context, rc *runtimeChannel, e
 		if err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// validateAppendRouteFence binds prepared work to the installed durable authority.
+// It performs no metadata I/O and never upgrades a caller's expected version.
+func (r *Reactor) validateAppendRouteFence(rc *runtimeChannel, req ch.AppendBatchRequest) error {
+	if req.ExpectedRouteGeneration == 0 {
+		return nil
+	}
+	if r.cfg.QuorumLog == nil || req.ExpectedChannelEpoch == 0 || req.ExpectedLeaderEpoch == 0 ||
+		normalizedCommitMode(req.CommitMode) != ch.CommitModeQuorum {
+		return ch.ErrInvalidConfig
+	}
+	if rc.state.ID != req.ChannelID || rc.quorumAuthority.ID.ChannelEpoch != req.ExpectedChannelEpoch ||
+		rc.quorumAuthority.ID.LeaderTerm != req.ExpectedLeaderEpoch ||
+		rc.quorumAuthority.ID.FenceVersion != req.ExpectedRouteGeneration {
+		return ch.ErrStaleMeta
 	}
 	return nil
 }

@@ -24,6 +24,15 @@ as a format migration and gate it behind an explicit rollout plan.
 
 ## Stable Durable IDs
 
+Person-directory deletion now advances existing runtime route column 16 together
+with directory column 17, rejecting overflow; ordinary monotonic upserts also
+advance the route when directory generation changes. No column, key or stored
+format is added. Matching writers are required before using this stronger fence:
+old binaries do not advance both versions. Optional prepared append requests use
+Channel RPC 12 and reject lossy older formats; ordinary requests/replies remain
+11. Runtime deletion/restore activation is a separate fence, still required before
+MQTT product activation. See [prepared append authority](../../docs/specs/mqtt-append-route-fence.md).
+
 Subscriber table 5 keeps its primary key and adds optional column 4,
 `incarnation`, in a key-bound version-1 column envelope. Empty legacy values
 normalize to incarnation 1. System 1 under this table stores a version-1,

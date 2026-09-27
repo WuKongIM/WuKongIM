@@ -65,6 +65,7 @@ func (a *ChannelAppender) AppendBatch(ctx context.Context, req channelappend.App
 		ChannelID:                 channelruntime.ChannelID{ID: req.ChannelID.ID, Type: req.ChannelID.Type},
 		ExpectedChannelEpoch:      req.ExpectedEpoch,
 		ExpectedLeaderEpoch:       req.ExpectedLeaderEpoch,
+		ExpectedRouteGeneration:   req.ExpectedRouteGeneration,
 		Messages:                  toChannelMessages(req.Messages),
 		PayloadsImmutable:         true,
 		TraceID:                   req.TraceID,

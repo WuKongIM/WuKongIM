@@ -278,6 +278,9 @@ type AppendBatchRequest struct {
 	ExpectedEpoch uint64
 	// ExpectedLeaderEpoch fences append against stale authority leadership.
 	ExpectedLeaderEpoch uint64
+	// ExpectedRouteGeneration optionally binds preparation to exact durable authority.
+	// Nonzero requires both epochs and quorum commit; adapters must preserve it.
+	ExpectedRouteGeneration uint64
 	// Messages are the durable messages for the target channel.
 	Messages []Message
 	// TraceID is the first non-empty diagnostics trace identifier among request messages.
