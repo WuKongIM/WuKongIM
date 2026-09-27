@@ -144,6 +144,9 @@ func (l *channelEntry) stageMessageRow(batch *engine.Batch, row messageRow, cach
 		}
 	}
 	if identity.ServerWillKey != "" {
+		if err := l.stageWillReceipt(batch, row, identity); err != nil {
+			return err
+		}
 		value, err := encodeIdempotencyIndexValue(row)
 		if err != nil {
 			return err
@@ -280,6 +283,16 @@ func (l *ChannelLog) validateAppendRow(ctx context.Context, row messageRow, seen
 		// Wills use durable point proofs even on followers. They never enter the
 		// native negative filter, so reopening cannot mistake them for absent.
 		l.db.idempotencyPointReads.Add(1)
+		receipt, present, err := loadWillReceipt(l.db.engine, l.key, key)
+		if err != nil {
+			return err
+		}
+		if present {
+			expected, err := willReceiptFromRow(row)
+			if err != nil || receipt != expected {
+				return dberrors.ErrConflict
+			}
+		}
 		hit, ok, err := l.lookupIdempotencyByKey(ctx, key, l.idempotencyStorageKey(key))
 		if err != nil {
 			return err

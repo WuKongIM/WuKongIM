@@ -86,8 +86,11 @@ Additional failure inventory before implementing the executor:
     new publication is needed; do not restart the expiry clock or overwrite the
     old receipt with an authorization failure.
 
-These are outstanding execution/retention requirements, not newly implemented
-storage semantics or evidence that the product MQTT listener is ready.
+[System-16 receipts](mqtt-will-receipts.md) now implement the local retained-proof
+prerequisite, including binary backup v4 and conflict preflight. They do not yet
+supply routed execution authority, whole-channel deletion/restore fencing or a
+Will executor. Those requirements remain outstanding; the product listener is
+not ready.
 
 ## Frozen implementation context
 

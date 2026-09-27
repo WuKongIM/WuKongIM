@@ -67,6 +67,13 @@ func selectMessageBackupVersion(ctx context.Context, view messageBackupReadView,
 		if err := ctxErr(ctx); err != nil {
 			return 0, err
 		}
+		receipt, err := hasCommittedWillReceipt(ctx, view, cut)
+		if err != nil {
+			return 0, err
+		}
+		if receipt {
+			version = willReceiptBackupVersion
+		}
 		_, ok, err := mqttReplayBackupState(view, cut)
 		if err != nil {
 			return 0, err
@@ -78,7 +85,7 @@ func selectMessageBackupVersion(ctx context.Context, view messageBackupReadView,
 				return 0, err
 			}
 			if retired {
-				version = mqttRetiredReplayBackupVersion
+				version = max(version, mqttRetiredReplayBackupVersion)
 			}
 		}
 	}
@@ -140,7 +147,7 @@ func writeMQTTReplayBackup(ctx context.Context, w io.Writer, view messageBackupR
 	if err != nil {
 		return err
 	}
-	if version == mqttRetiredReplayBackupVersion {
+	if version >= mqttRetiredReplayBackupVersion {
 		var marker []byte
 		if ok {
 			_, marker, err = mqttReplayBackupBaseline(view, cut.Key, s, cut.Checkpoint.HW)
@@ -169,7 +176,7 @@ func readMQTTReplayBackup(ctx context.Context, reader *bufio.Reader, header mess
 	var stats mqttReplayBackupStats
 	var marker []byte
 	var err error
-	if version == mqttRetiredReplayBackupVersion {
+	if version >= mqttRetiredReplayBackupVersion {
 		marker, err = readMQTTReplayBackupField(reader, 64)
 		if err != nil {
 			return stats, err

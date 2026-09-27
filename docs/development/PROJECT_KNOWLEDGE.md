@@ -660,9 +660,15 @@ specification, runbook, report, or module documentation; link to them when neede
   Will retry identities use message index 8 with publication metadata v2; native
   client index 4 remains separate and index 3 includes Will client-number history.
   Index 8 is removed with physical history deletion; a miss after an uncertain
-  Will append is not proof of nonpublication. Execution recovery still needs a
-  retained receipt/protected original across cleanup and restore. Expired task
-  leases alone cannot discharge an append with an unknown outcome; see the
+  Will append is not proof of nonpublication. [System-16 receipts](../specs/mqtt-will-receipts.md)
+  now retain identity/time/content SHA-256 atomically with keyed Will originals.
+  Prefix trim preserves them and may derive a missing legacy receipt before
+  deleting its original; suffix rollback removes only its matching receipts.
+  Backup v4 includes committed receipts and their message-ID high water; all
+  byte/stream imports preflight content, trim witnesses and target conflicts.
+  Local proof still needs Node routing, executor fencing and whole-channel
+  deletion/restore composition. Expired task leases alone cannot discharge an
+  append with an unknown outcome; see the
   [Will execution failure inventory](../specs/mqtt-will-idempotency.md#execution-recovery-constraints).
   Setup reserves its 79-byte identity tail. Server lookup requires the original
   committed proof and fails closed without its capability; prefix strings alone

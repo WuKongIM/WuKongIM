@@ -55,6 +55,8 @@ type BackupSnapshotStats struct {
 	ReplayMessageCount uint64
 	// ReplayStoredBytes counts original row envelopes in shared replay content.
 	ReplayStoredBytes uint64
+	// WillReceiptCount includes committed receipts whose bodies were trimmed.
+	WillReceiptCount uint64
 }
 
 type messageBackupStream struct {
@@ -323,6 +325,9 @@ func inspectMessageBackupSnapshot(ctx context.Context, view messageBackupReadVie
 		if err != nil {
 			return BackupSnapshotStats{}, nil, err
 		}
+		if err := addWillReceiptBackupStats(&stats, channel.Key, systemEntries); err != nil {
+			return BackupSnapshotStats{}, nil, err
+		}
 		entryIdentities, err := backupEntryIdentityMap(channel.Key, systemEntries)
 		if err != nil {
 			return BackupSnapshotStats{}, nil, err
@@ -473,6 +478,19 @@ func snapshotBackupSystemEntries(ctx context.Context, view messageBackupReadView
 		if err != nil {
 			return nil, err
 		}
+		if bytes.HasPrefix(key, willReceiptPrefix(channelKey)) {
+			receipt, err := decodeWillReceipt(channelKey, key, value)
+			if err != nil {
+				return nil, err
+			}
+			if receipt.MessageSeq > hw {
+				continue
+			}
+			identity, _ := willReceiptIdentity(channelKey, key)
+			if err := validateWillReceiptOriginal(view, channelKey, identity, receipt); err != nil {
+				return nil, err
+			}
+		}
 		if bytes.HasPrefix(key, mqttReplayRetirementPrefix(channelKey)) {
 			position, ok := mqttReplayRetirementPosition(channelKey, key)
 			if !ok {
@@ -611,224 +629,9 @@ func visitBackupMessages(ctx context.Context, view messageBackupReadView, channe
 
 // ImportBackupSnapshot verifies and installs one portable message snapshot into a restore target.
 func (db *MessageDB) ImportBackupSnapshot(ctx context.Context, data []byte) (BackupSnapshotStats, error) {
-	if len(data) >= 6 && (binary.BigEndian.Uint16(data[4:6]) == mqttReplayBackupVersion || binary.BigEndian.Uint16(data[4:6]) == mqttRetiredReplayBackupVersion) {
-		return db.ImportBackupSnapshotReader(ctx, bytes.NewReader(data), int64(len(data)))
-	}
-	if err := db.beginUse(); err != nil {
-		return BackupSnapshotStats{}, err
-	}
-	defer db.endUse()
-	if len(data) < 16 {
-		return BackupSnapshotStats{}, dberrors.ErrCorruptValue
-	}
-	payload := data[:len(data)-4]
-	wantChecksum := binary.BigEndian.Uint32(data[len(data)-4:])
-	if crc32.ChecksumIEEE(payload) != wantChecksum {
-		return BackupSnapshotStats{}, dberrors.ErrChecksumMismatch
-	}
-	reader := bytes.NewReader(payload)
-	var magic [4]byte
-	if _, err := io.ReadFull(reader, magic[:]); err != nil || magic != messageBackupSnapshotMagic {
-		return BackupSnapshotStats{}, dberrors.ErrCorruptValue
-	}
-	version, err := readBackupUint16(reader)
-	if err != nil || version != messageBackupSnapshotVersion {
-		return BackupSnapshotStats{}, dberrors.ErrCorruptValue
-	}
-	hashSlot, err := readBackupUint16(reader)
-	if err != nil {
-		return BackupSnapshotStats{}, err
-	}
-	channelCount, err := readBackupUint32(reader)
-	if err != nil {
-		return BackupSnapshotStats{}, err
-	}
-	stats := BackupSnapshotStats{HashSlot: hashSlot, ChannelCount: uint64(channelCount)}
-	previousKey := ChannelKey("")
-	for index := uint32(0); index < channelCount; index++ {
-		if err := ctxErr(ctx); err != nil {
-			return BackupSnapshotStats{}, err
-		}
-		keyString, err := readBackupString(reader)
-		if err != nil {
-			return BackupSnapshotStats{}, err
-		}
-		key := ChannelKey(keyString)
-		idString, err := readBackupString(reader)
-		if err != nil {
-			return BackupSnapshotStats{}, err
-		}
-		channelType, err := reader.ReadByte()
-		if err != nil {
-			return BackupSnapshotStats{}, err
-		}
-		if key == "" || idString == "" || (previousKey != "" && key <= previousKey) {
-			return BackupSnapshotStats{}, dberrors.ErrCorruptValue
-		}
-		previousKey = key
-		checkpointBody := make([]byte, 24)
-		if _, err := io.ReadFull(reader, checkpointBody); err != nil {
-			return BackupSnapshotStats{}, err
-		}
-		checkpoint, err := decodeCheckpoint(checkpointBody)
-		if err != nil {
-			return BackupSnapshotStats{}, err
-		}
-		id := ChannelID{ID: idString, Type: channelType}
-		systemCount, err := readBackupUvarint(reader)
-		if err != nil {
-			return BackupSnapshotStats{}, err
-		}
-		systemEntries := make([]backupRawEntry, 0, systemCount)
-		for systemIndex := uint64(0); systemIndex < systemCount; systemIndex++ {
-			systemKey, err := readBackupBytes(reader)
-			if err != nil {
-				return BackupSnapshotStats{}, err
-			}
-			systemValue, err := readBackupBytes(reader)
-			if err != nil {
-				return BackupSnapshotStats{}, err
-			}
-			if !bytes.HasPrefix(systemKey, encodeMessageSystemAllPrefix(key)) || bytes.Equal(systemKey, encodeCheckpointKey(key)) || bytes.Equal(systemKey, mqttReplayStateKey(key)) || bytes.Equal(systemKey, mqttReplayRetiredKey(key)) {
-				return BackupSnapshotStats{}, dberrors.ErrCorruptValue
-			}
-			systemEntries = append(systemEntries, backupRawEntry{Key: systemKey, Value: systemValue})
-		}
-		messageCount, err := readBackupUvarint(reader)
-		if err != nil {
-			return BackupSnapshotStats{}, err
-		}
-		maxMessageID, err := db.importBackupChannel(ctx, reader, key, id, checkpoint, systemEntries, messageCount)
-		if err != nil {
-			return BackupSnapshotStats{}, err
-		}
-		stats.MessageCount += messageCount
-		if maxMessageID > stats.MaxMessageID {
-			stats.MaxMessageID = maxMessageID
-		}
-	}
-	if reader.Len() != 0 {
-		return BackupSnapshotStats{}, dberrors.ErrCorruptValue
-	}
-	return stats, nil
-}
-
-func (db *MessageDB) importBackupChannel(ctx context.Context, reader *bytes.Reader, key ChannelKey, id ChannelID, checkpoint Checkpoint, systemEntries []backupRawEntry, messageCount uint64) (uint64, error) {
-	if err := rejectExistingMQTTReplay(db, key); err != nil {
-		return 0, err
-	}
-	if err := validateBackupProposalSystemEntries(key, checkpoint.HW, systemEntries); err != nil {
-		return 0, err
-	}
-	finishRetention := db.beginRetentionMutation()
-	defer finishRetention()
-	db.registry.invalidateWarm(key)
-	// Fence live leases as well as retired state, including partial imports.
-	db.ordinaryIndexEpoch.Add(1)
-	defer db.ordinaryIndexEpoch.Add(1)
-	entryIdentities, err := backupEntryIdentityMap(key, systemEntries)
-	if err != nil {
-		return 0, err
-	}
-	if current, ok, err := db.engine.Get(encodeCatalogKey(key)); err != nil {
-		return 0, err
-	} else if ok {
-		currentID, err := decodeCatalogValue(current)
-		if err != nil || currentID != id {
-			return 0, dberrors.ErrConflict
-		}
-	}
-	currentCheckpoint, currentCheckpointPresent, err := db.loadBackupImportCheckpoint(key)
-	if err != nil {
-		return 0, err
-	}
-	if currentCheckpointPresent && currentCheckpoint == checkpoint {
-		// Reapplying an already installed snapshot is idempotent.
-	} else if currentCheckpointPresent {
-		return 0, dberrors.ErrConflict
-	}
-	entry := &channelEntry{db: db, key: key, id: id, appendKeyCache: newAppendKeyCache(key, id)}
-	batch := db.engine.NewBatch()
-	if err := batch.Set(encodeCatalogKey(key), encodeCatalogValue(id)); err != nil {
-		batch.Close()
-		return 0, err
-	}
-	if err := batch.Set(encodeCheckpointKey(key), encodeCheckpoint(checkpoint)); err != nil {
-		batch.Close()
-		return 0, err
-	}
-	for _, systemEntry := range systemEntries {
-		if err := batch.Set(systemEntry.Key, systemEntry.Value); err != nil {
-			batch.Close()
-			return 0, err
-		}
-	}
-	if err := batch.Commit(true); err != nil {
-		batch.Close()
-		return 0, err
-	}
-	if err := batch.Close(); err != nil {
-		return 0, err
-	}
-	var previousSeq uint64
-	var maxMessageID uint64
-	messageBatch := db.engine.NewBatch()
-	stager := nonBusinessStager{entry: entry, batch: messageBatch, ctx: ctx}
-	defer func() { _ = messageBatch.Close() }()
-	for index := uint64(0); index < messageCount; index++ {
-		if err := ctxErr(ctx); err != nil {
-			return 0, err
-		}
-		seq, err := readBackupUint64(reader)
-		if err != nil {
-			return 0, err
-		}
-		if seq == 0 || seq > checkpoint.HW || (previousSeq != 0 && seq <= previousSeq) {
-			return 0, dberrors.ErrCorruptValue
-		}
-		previousSeq = seq
-		header, err := readBackupBytes(reader)
-		if err != nil {
-			return 0, err
-		}
-		payload, err := readBackupBytes(reader)
-		if err != nil {
-			return 0, err
-		}
-		row := messageRow{MessageSeq: seq}
-		if err := decodeMessageHeader(encodeMessageRowKey(key, seq, messageHeaderFamilyID), header, &row); err != nil {
-			return 0, err
-		}
-		if err := decodeMessagePayload(encodeMessageRowKey(key, seq, messagePayloadFamilyID), payload, &row); err != nil {
-			return 0, err
-		}
-		if row.ChannelID != id.ID || row.ChannelType != id.Type {
-			return 0, dberrors.ErrCorruptState
-		}
-		if identity, ok := entryIdentities[seq]; ok && !verifyBackupRowIdentity(identity, row) {
-			return 0, dberrors.ErrCorruptState
-		}
-		if row.MessageID > maxMessageID {
-			maxMessageID = row.MessageID
-		}
-		if err := stager.stage(row, entry.appendKeyCache); err != nil {
-			return 0, err
-		}
-		flush := (index+1)%backupImportBatchMessages == 0 || index+1 == messageCount
-		if flush {
-			if err := messageBatch.Commit(true); err != nil {
-				return 0, err
-			}
-			if index+1 < messageCount {
-				if err := messageBatch.Close(); err != nil {
-					return 0, err
-				}
-				messageBatch = db.engine.NewBatch()
-				stager = nonBusinessStager{entry: entry, batch: messageBatch, ctx: ctx}
-			}
-		}
-	}
-	return maxMessageID, nil
+	// Byte and streaming callers share complete semantic preflight, including
+	// legacy archives whose live rows could overwrite retained Will proof.
+	return db.ImportBackupSnapshotReader(ctx, bytes.NewReader(data), int64(len(data)))
 }
 
 func (db *MessageDB) loadBackupImportCheckpoint(key ChannelKey) (Checkpoint, bool, error) {

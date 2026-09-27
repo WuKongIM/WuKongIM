@@ -24,6 +24,8 @@ type messageBackupChannelHeader struct {
 	checkpoint    Checkpoint
 	systemEntries []backupRawEntry
 	messageCount  uint64
+	// restoreTarget is only supplied by the fenced import path during preflight.
+	restoreTarget *MessageDB
 }
 
 // ImportBackupSnapshotReader validates the complete seekable stream before
@@ -37,7 +39,11 @@ func (db *MessageDB) ImportBackupSnapshotReader(ctx context.Context, source io.R
 	if err := verifyMessageBackupStreamChecksum(source, size); err != nil {
 		return BackupSnapshotStats{}, err
 	}
-	stats, err := parseMessageBackupStream(ctx, source, size, validateMessageBackupChannel, db, false)
+	validate := func(ctx context.Context, reader *bufio.Reader, header messageBackupChannelHeader) (uint64, error) {
+		header.restoreTarget = db
+		return validateMessageBackupChannel(ctx, reader, header)
+	}
+	stats, err := parseMessageBackupStream(ctx, source, size, validate, db, false)
 	if err != nil {
 		return BackupSnapshotStats{}, err
 	}
@@ -86,7 +92,7 @@ func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size in
 		return BackupSnapshotStats{}, dberrors.ErrCorruptValue
 	}
 	version, err := readMessageBackupStreamUint16(reader)
-	if err != nil || (version != messageBackupSnapshotVersion && version != mqttReplayBackupVersion && version != mqttRetiredReplayBackupVersion) {
+	if err != nil || (version != messageBackupSnapshotVersion && version != mqttReplayBackupVersion && version != mqttRetiredReplayBackupVersion && version != willReceiptBackupVersion) {
 		return BackupSnapshotStats{}, dberrors.ErrCorruptValue
 	}
 	hashSlot, err := readMessageBackupStreamUint16(reader)
@@ -152,6 +158,9 @@ func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size in
 			if bytes.Equal(systemKey, mqttReplayRetiredKey(key)) || (version == messageBackupSnapshotVersion && bytes.Equal(systemKey, mqttReplayStateKey(key))) {
 				return BackupSnapshotStats{}, dberrors.ErrCorruptValue
 			}
+			if version < willReceiptBackupVersion && bytes.HasPrefix(systemKey, willReceiptPrefix(key)) {
+				return BackupSnapshotStats{}, dberrors.ErrCorruptValue
+			}
 			systemEntries = append(systemEntries, backupRawEntry{Key: systemKey, Value: systemValue})
 		}
 		messageCount, err := binary.ReadUvarint(reader)
@@ -169,6 +178,9 @@ func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size in
 			if err := rejectExistingMQTTReplay(replayTarget, key); err != nil {
 				return BackupSnapshotStats{}, err
 			}
+		}
+		if err := addWillReceiptBackupStats(&stats, key, systemEntries); err != nil {
+			return BackupSnapshotStats{}, err
 		}
 		maxMessageID, err := visit(ctx, reader, header)
 		if err != nil {
@@ -192,6 +204,9 @@ func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size in
 			hasRetirement = hasRetirement || replay.hasRetirement
 		}
 	}
+	if version == willReceiptBackupVersion && stats.WillReceiptCount == 0 {
+		return BackupSnapshotStats{}, dberrors.ErrCorruptValue
+	}
 	if version == mqttReplayBackupVersion && stats.ReplayMessageCount == 0 {
 		return BackupSnapshotStats{}, dberrors.ErrCorruptValue
 	}
@@ -205,6 +220,15 @@ func parseMessageBackupStream(ctx context.Context, source io.ReadSeeker, size in
 }
 
 func validateMessageBackupChannel(ctx context.Context, reader *bufio.Reader, header messageBackupChannelHeader) (uint64, error) {
+	receipts, err := backupWillReceiptMap(header.key, header.systemEntries)
+	if err != nil {
+		return 0, err
+	}
+	for id, receipt := range receipts.entries {
+		if err := validateWillReceiptTarget(header.restoreTarget, header.key, id, receipt); err != nil {
+			return 0, err
+		}
+	}
 	entryIdentities, err := backupEntryIdentityMap(header.key, header.systemEntries)
 	if err != nil {
 		return 0, err
@@ -216,6 +240,12 @@ func validateMessageBackupChannel(ctx context.Context, reader *bufio.Reader, hea
 		if err != nil {
 			return 0, err
 		}
+		if err := validateWillRestoreRow(header.restoreTarget, header.key, row); err != nil {
+			return 0, err
+		}
+		if err := validateWillBackupRow(receipts, row); err != nil {
+			return 0, err
+		}
 		if identity, ok := entryIdentities[seq]; ok && !verifyBackupRowIdentity(identity, row) {
 			return 0, dberrors.ErrCorruptState
 		}
@@ -224,10 +254,14 @@ func validateMessageBackupChannel(ctx context.Context, reader *bufio.Reader, hea
 			maxMessageID = row.MessageID
 		}
 	}
+	if err := validateWillBackupCoverage(receipts, header); err != nil {
+		return 0, err
+	}
 	return maxMessageID, nil
 }
 
 func (db *MessageDB) importMessageBackupChannelStream(ctx context.Context, reader *bufio.Reader, header messageBackupChannelHeader) (uint64, error) {
+	header.restoreTarget = db
 	if err := validateBackupProposalSystemEntries(header.key, header.checkpoint.HW, header.systemEntries); err != nil {
 		return 0, err
 	}
@@ -237,6 +271,15 @@ func (db *MessageDB) importMessageBackupChannelStream(ctx context.Context, reade
 	// Fence live leases as well as retired state, including partial imports.
 	db.ordinaryIndexEpoch.Add(1)
 	defer db.ordinaryIndexEpoch.Add(1)
+	receipts, err := backupWillReceiptMap(header.key, header.systemEntries)
+	if err != nil {
+		return 0, err
+	}
+	for id, receipt := range receipts.entries {
+		if err := validateWillReceiptTarget(header.restoreTarget, header.key, id, receipt); err != nil {
+			return 0, err
+		}
+	}
 	entryIdentities, err := backupEntryIdentityMap(header.key, header.systemEntries)
 	if err != nil {
 		return 0, err
@@ -299,6 +342,12 @@ func (db *MessageDB) importMessageBackupChannelStream(ctx context.Context, reade
 			return 0, err
 		}
 		previousSeq = seq
+		if err := validateWillRestoreRow(header.restoreTarget, header.key, row); err != nil {
+			return 0, err
+		}
+		if err := validateWillBackupRow(receipts, row); err != nil {
+			return 0, err
+		}
 		if identity, ok := entryIdentities[seq]; ok && !verifyBackupRowIdentity(identity, row) {
 			return 0, dberrors.ErrCorruptState
 		}
@@ -320,6 +369,9 @@ func (db *MessageDB) importMessageBackupChannelStream(ctx context.Context, reade
 				stager = nonBusinessStager{entry: entry, batch: messageBatch, ctx: ctx}
 			}
 		}
+	}
+	if err := validateWillBackupCoverage(receipts, header); err != nil {
+		return 0, err
 	}
 	return maxMessageID, nil
 }

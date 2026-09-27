@@ -24,6 +24,25 @@ as a format migration and gate it behind an explicit rollout plan.
 
 ## Stable Durable IDs
 
+Message table 1 System 16 retains keyed Will publication receipts independently
+of ordinary history. Its key appends sized server-Will key and UID; its key-bound
+version-1 fixed envelope stores sequence, message ID, original timestamp and the
+versioned SHA-256 of length-delimited UID, client number, body and metadata.
+Append/follower apply writes it with the original; physical trim preserves it,
+materializing missing legacy receipts only from still-present originals in that
+same trim batch. Suffix rollback removes the corresponding suffix receipts and
+retained-prefix admission rejects duplicate server identities. Local reads pin
+checkpoint/original/physical-retention evidence; they grant no cluster authority.
+
+Populated receipt backups require binary version 4 (existing System section and
+v3-compatible replay fields). Native backups remain versions 1–3; new readers
+accept them through the same complete semantic preflight. Receipt message IDs
+participate in allocation statistics even after their bodies are gone. No
+historical receipt can be reconstructed from absent original content. Matched
+writers/tools, rollout gating and a pre-feature rollback generation are required.
+Node routing, full-channel deletion, restore activation and MQTT JSONL remain
+unfinished; see [Will receipts](../../docs/specs/mqtt-will-receipts.md).
+
 Person-directory deletion now advances existing runtime route column 16 together
 with directory column 17, rejecting overflow; ordinary monotonic upserts also
 advance the route when directory generation changes. No column, key or stored

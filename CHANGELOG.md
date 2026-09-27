@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Retain compact MQTT Will publication receipts when ordinary message history is trimmed, preserving identity and original time through restart and binary backup v4. Restore rejects conflicting proof before writing. Matched writers/tools are required; Will execution and product access remain under development. / 普通消息历史清理后保留 MQTT Will 的精简发布回执，重启和 v4 二进制备份恢复保留原消息身份及时间；恢复前拒绝冲突证明。要求匹配版本的写入节点和工具，Will 执行与产品接入仍在开发。
+
 - Remove MQTT inbox subscriptions through bounded, resumable source draining: release unadmitted backlog while retaining QoS 1 exchanges and ACKs. Independent checkpoints survive Slot snapshots and owner takeover; matched writers/tools are required. Product access and automatic cleanup remain under development. / MQTT 收件箱退订支持有界、可恢复的来源清理，释放未发送积压并保留 QoS 1 交换及 ACK。独立进度支持 Slot 快照和所有者接管；要求匹配版本的写入节点和工具。产品接入及自动清理仍在开发。
 
 - Establish MQTT inbox subscriptions through durable UID qualification and bounded existing-channel discovery, preserving confirmed progress across retries and owner takeover. Real single-node cluster coverage joins existing and future offline sources without qualification fixtures; product access remains under development. / MQTT 收件箱订阅先持久化 UID 资格，再分页准备已有频道；重试与所有者接管保留已确认进度。真实单节点集群验证已有频道和离线新来源，无需模拟资格记录；产品接入仍在开发。

@@ -59,9 +59,19 @@ func (l *ChannelLog) TruncateFrom(ctx context.Context, fromSeq uint64) error {
 }
 
 func (l *ChannelLog) stageDeleteMessage(batch *engine.Batch, msg Message) error {
+	return l.stageMessageDeletion(batch, msg, false)
+}
+
+// Prefix retention preserves compact Will receipts; suffix rollback removes them.
+func (l *ChannelLog) stageMessageDeletion(batch *engine.Batch, msg Message, preserveWill bool) error {
 	identity, err := rowIdempotencyKey(msg.FromUID, msg.ClientMsgNo, msg.PublicationMetadata)
 	if err != nil {
 		return err
+	}
+	if identity.ServerWillKey != "" && preserveWill {
+		if err := l.stageRetainedWillReceipt(batch, msg, identity); err != nil {
+			return err
+		}
 	}
 	if err := batch.Delete(nonBusinessIndexKey(l.key, msg.MessageSeq)); err != nil {
 		return err
@@ -76,6 +86,11 @@ func (l *ChannelLog) stageDeleteMessage(batch *engine.Batch, msg Message) error 
 	}
 	if msg.ClientMsgNo != "" && (msg.FromUID == "" || identity.ServerWillKey != "") {
 		if err := batch.Delete(encodeMessageClientMsgNoIndexKey(l.key, msg.ClientMsgNo, msg.MessageSeq)); err != nil {
+			return err
+		}
+	}
+	if identity.ServerWillKey != "" && !preserveWill {
+		if err := batch.Delete(willReceiptKey(l.key, identity)); err != nil {
 			return err
 		}
 	}

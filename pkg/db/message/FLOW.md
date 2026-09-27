@@ -91,7 +91,7 @@ Compatibility maps Channel records/offsets to this core without transferring eng
   duplicate.
 - Keyed Wills derive unique index 8 from publication metadata and UID; client
   index 3 preserves history lookup while native index 4 stays separate. Will
-  uniqueness uses durable point proofs without the native negative filter.
+  uniqueness uses durable point proofs without the native negative filter. System 16 atomically retains compact Will receipts across prefix trim; still-present legacy originals can materialize them during trim, while suffix rollback removes matching receipts.
 - Caller cancellation stops waiting but cannot release commit-owned locks or
   pins before build, physical commit, publish, or terminal shutdown.
 - Retention and truncation remove primary and secondary rows together. Logical
@@ -137,7 +137,7 @@ Compatibility maps Channel records/offsets to this core without transferring eng
 - Backup count and content come from one pinned view; restore is exact-retry
   idempotent, conflicts with different state, and cleans partial rows in bounded
   batches before retry.
-  Native/full/pruned backups use versions 1/2/3. Preflight verifies baselines, suffix chains and target compatibility before writing.
+  Native/full/pruned/Will-receipt backups use versions 1/2/3/4. Byte and streaming imports share preflight for chains, originals/trim proof and immutable target receipts; allocation high-water statistics include receipts.
   Restore rebuilds meters without global IDs, publishing baseline/frontier together after the suffix; legacy header frontiers wait until then.
 
 ## Read First

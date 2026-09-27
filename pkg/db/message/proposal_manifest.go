@@ -347,6 +347,12 @@ func validateBackupProposalSystemEntries(channelKey ChannelKey, hw uint64, entri
 			return dberrors.ErrCorruptState
 		}
 		seenKeys[string(raw.Key)] = struct{}{}
+		if bytes.HasPrefix(raw.Key, willReceiptPrefix(channelKey)) {
+			r, err := decodeWillReceipt(channelKey, raw.Key, raw.Value)
+			if err != nil || r.MessageSeq > hw {
+				return dberrors.ErrCorruptState
+			}
+		}
 		if bytes.Equal(raw.Key, sourceKey) {
 			state, err := decodeMQTTSourceState(raw.Key, raw.Value)
 			if err != nil || state.CopiedThrough > hw {

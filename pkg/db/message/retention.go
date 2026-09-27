@@ -183,7 +183,7 @@ func (l *ChannelLog) trimPrefixThroughLimit(ctx context.Context, throughSeq uint
 	defer batch.Close()
 	for _, row := range deleteRows {
 		msg := messageFromRow(row)
-		if err := l.stageDeleteMessage(batch, msg); err != nil {
+		if err := l.stageMessageDeletion(batch, msg, true); err != nil {
 			return RetentionTrimResult{}, err
 		}
 		result.DeletedThroughSeq = msg.MessageSeq

@@ -467,6 +467,15 @@ func (s *ChannelStore) validateRecoveryRows(ctx context.Context, rows []messageR
 		if seen.rememberIdempotencyKey(key) {
 			return dberrors.ErrConflict
 		}
+		if key.ServerWillKey != "" {
+			receipt, present, err := loadWillReceipt(s.log.db.engine, s.log.key, key)
+			if err != nil {
+				return err
+			}
+			if present && receipt.MessageSeq <= keepThrough {
+				return dberrors.ErrConflict
+			}
+		}
 		hit, present, err := s.log.lookupIdempotencyByKey(ctx, key, s.log.idempotencyStorageKey(key))
 		if err != nil {
 			return err

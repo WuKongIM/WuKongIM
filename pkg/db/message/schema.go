@@ -35,6 +35,7 @@ const (
 	messageSystemIDMQTTActivation       uint16 = 13
 	messageSystemIDMQTTReplayAnchor     uint16 = 14
 	messageSystemIDMQTTReplayRetirement uint16 = 15
+	messageSystemIDWillReceipt          uint16 = 16
 
 	messageColumnIDMessageSeq          uint16 = 1
 	messageColumnIDMessageID           uint16 = 2

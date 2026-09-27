@@ -52,7 +52,7 @@ It does not own product policy or expose Pebble-specific APIs to callers.
   and source timestamp before import. Native rows/digests remain unchanged;
   import budgets and both comparison modes include the complete metadata.
 - Shared replay stays in the message domain, separate from Slot metadata. Binary
-  backups use version 2 for full copies and version 3 for retired baselines/suffixes; MQTT JSONL state transfer
+  backups use version 2 for full copies, 3 for retired baselines/suffixes and 4 for retained Will receipts; MQTT JSONL state transfer
   and distributed restore activation remain separate required work.
 
 ## Read First
