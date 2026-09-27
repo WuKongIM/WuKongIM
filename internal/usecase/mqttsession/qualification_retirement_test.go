@@ -21,7 +21,7 @@ func qualificationMaintenanceFixture(t *testing.T) (*inboxSourceFixture, *progre
 	require.NoError(t, e)
 	// UID turns must never use this unrelated Channel accounting fixture.
 	_, accounting := setupAccounting(t)
-	consumer, e := app.NewConsumerMaintenance(app.ConsumerMaintenanceOptions{Store: s, Accounting: accounting, Progress: progress, Removal: removal, Ender: f.service})
+	consumer, e := app.NewConsumerMaintenance(app.ConsumerMaintenanceOptions{Store: s, Accounting: accounting, Drain: backgroundDrain(t, s, func() time.Time { return f.now }), Progress: progress, Removal: removal, Ender: f.service})
 	require.NoError(t, e)
 	return f, s, progress, removal, consumer
 }

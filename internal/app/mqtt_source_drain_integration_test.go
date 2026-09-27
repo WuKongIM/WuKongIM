@@ -165,19 +165,30 @@ func verifyMQTTSourceDrain(t *testing.T, ctx context.Context, nodes []*cluster.N
 			require.NoError(t, e)
 		}
 		var sealed sessioncase.SourceDrainResult
-		projection.remove = func(c context.Context, r sessioncase.SubscriptionProjectionRequest) (sessioncase.SubscriptionProjectionReceipt, error) {
-			var e error
-			sealed, e = drain.SealGroup(c, r.Owner, r.Subscription.Topic)
-			return mqttSubscriptionFixtureReceipt(r), e
+		if mode == "backlog" {
+			// The stale release left durable Removing intent. Complete it from a
+			// different node after physical disconnect, without acquiring an Owner.
+			require.NoError(t, sessions[0].Disconnect(ctx, sessioncase.DisconnectCommand{Owner: o, Normal: true}))
+			background, e := sessioncase.NewSourceDrain(sessioncase.SourceDrainOptions{Store: nodes[2], Sources: protector})
+			require.NoError(t, e)
+			sealed, err = background.ReconcileClosed(ctx, key)
+			require.NoError(t, err)
+		} else {
+			projection.remove = func(c context.Context, r sessioncase.SubscriptionProjectionRequest) (sessioncase.SubscriptionProjectionReceipt, error) {
+				var e error
+				sealed, e = drain.SealGroup(c, r.Owner, r.Subscription.Topic)
+				return mqttSubscriptionFixtureReceipt(r), e
+			}
+			_, err = subs.Unsubscribe(ctx, o, request.Topic)
+			require.NoError(t, err)
 		}
-		_, err = subs.Unsubscribe(ctx, o, request.Topic)
-		require.NoError(t, err)
 		r, err := nodes[1].ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadDeliveryCursor, CursorKey: sealed.Cursor.Key})
 		require.NoError(t, err)
 		require.Equal(t, []meta.MQTTDeliveryCursor{sealed.Cursor}, r.DeliveryCursors)
 		require.Equal(t, uint64(sealed.Cursor.InflightCount), r.Session.PendingMessages)
 		require.Equal(t, sealed.Binding.EndThrough, sealed.Cursor.WindowThrough)
 		if mode == "backlog" {
+			require.Equal(t, meta.MQTTSessionOffline, r.Session.State)
 			require.EqualValues(t, 1, r.Session.PendingMessages)
 			exchanges, err := nodes[2].ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadInflightPage, Namespace: o.Key.Namespace, ClientID: o.Key.ClientID, SessionGeneration: o.SessionGeneration, Limit: 16})
 			require.NoError(t, err)
@@ -186,6 +197,6 @@ func verifyMQTTSourceDrain(t *testing.T, ctx context.Context, nodes []*cluster.N
 			require.Zero(t, r.Session.PendingMessages)
 			require.Positive(t, sealed.Binding.ProgressRevision)
 		}
-		t.Logf("mqtt_source_drain_evidence: nodes=3 hash_slots=256 mode=%s unsubscribe_real=true sealed_end=true remote_cursor_read=true concurrent_ack_cas=%t quota_preserved=true inflight_preserved=true establishment_and_window_admission=controlled product_listener=false", mode, mode == "backlog")
+		t.Logf("mqtt_source_drain_evidence: nodes=3 hash_slots=256 mode=%s unsubscribe_real=true sealed_end=true remote_cursor_read=true concurrent_ack_cas=%t background_offline=%t quota_preserved=true inflight_preserved=true establishment_and_window_admission=controlled product_listener=false", mode, mode == "backlog", mode == "backlog")
 	}
 }

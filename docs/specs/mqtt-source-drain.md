@@ -85,5 +85,7 @@ continues to reject a missing binding rather than infer empty work.
 
 The [offline drain metadata contract](mqtt-offline-drain.md) now permits closed
 intent cleanup while Offline, retaining exact owner/revision fences and inflight
-work. `SourceDrain.Seal` still requires local live execution; a separate bounded
-background closed-intent entry and subscription recovery remain to be composed.
+work. `SourceDrain.Seal` still requires local live execution;
+[ReconcileClosed](mqtt-closed-source-maintenance.md) now captures authoritative
+closed intent independently of local Owners and runs in consumer maintenance.
+Final subscription/UID completion and pre-binding discovery remain required.

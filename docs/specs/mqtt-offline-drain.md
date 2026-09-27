@@ -82,3 +82,10 @@ JSON artifacts are embedded in the [evidence report](../reports/mqtt-offline-dra
 with exact source context, implementation hashes and repeatable commands.
 `flow-doc-contracts` passes with 87 compliant files, zero invalid files and the
 same nine existing warnings. Schema/FSM participants still require matching builds.
+
+## Subsequent source scheduling
+
+[Closed-source maintenance](mqtt-closed-source-maintenance.md) now uses these
+primitives through an Owner-independent entry in the existing consumer cohort.
+The metadata evidence above retains its scope; final subscription/UID completion
+and discovery before first binding remain outstanding.

@@ -111,3 +111,8 @@ Gateway admission and joins it after fencing owners, before final registry close
 and retirement publication. Pending expiry, failed-close retry and sampled owner
 metrics are wired; uncertain effects remain retained. This completes the earlier
 orphan-scheduling gap, not unavailable-owner or unknown-effect recovery.
+
+[Closed-source maintenance](mqtt-closed-source-maintenance.md) now reuses that
+consumer cohort to resume seals and one accounting range for closed subscriptions,
+including Offline Sessions. It has no local Owner dependency or network authority.
+UID/subscription completion and discovery before a first binding remain pending.

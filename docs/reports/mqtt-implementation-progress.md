@@ -32,8 +32,10 @@ verifies automatic cleanup; callback barriers verify joined cancellation.
 
 The [offline drain metadata contract](../specs/mqtt-offline-drain.md) now permits
 closed-intent cleanup under exact Offline Session fences while preserving
-unconfirmed exchanges. Its background usecase and product discovery are still
-required; this prerequisite does not complete interrupted UNSUBSCRIBE recovery.
+unconfirmed exchanges. [Closed-source maintenance](../specs/mqtt-closed-source-maintenance.md)
+now drives these stages from existing binding recovery indexes without local
+Owner admission. Final subscription/UID completion and pre-binding discovery
+remain required before interrupted UNSUBSCRIBE recovery is complete.
 
 These product milestones are not complete MQTT delivery.
 Safe uncertain dispatch recovery, unavailable-owner

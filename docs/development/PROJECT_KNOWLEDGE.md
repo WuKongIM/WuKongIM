@@ -344,7 +344,10 @@ specification, runbook, report, or module documentation; link to them when neede
   [Offline drain metadata](../specs/mqtt-offline-drain.md) allows only closed-intent
   window advancement and cancellation initialization under exact owner/revision
   fences; it never grants offline Admit/ACK or clears inflight exchanges.
-  Background draining still needs an entry independent of live local Owners.
+  [Closed-source maintenance](../specs/mqtt-closed-source-maintenance.md) derives
+  one exact parent/UID from routed reads and shares the foreground sealing stages
+  without local Owner admission. It only handles durable closed intent and yields
+  after one accounting range; final subscription/UID completion remains separate.
   The [gateway entry](../specs/mqtt-gateway-entry.md) retains execution across
   CONNACK and rechecks before enqueue; close callbacks never join packet scopes.
   A constant-size decoded DISCONNECT receipt survives EOF before mailbox dispatch.

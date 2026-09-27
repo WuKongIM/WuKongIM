@@ -64,7 +64,7 @@ Stop or startup rollback
 - Opt-in MQTT composition shares the existing Gateway and device-token verifier,
   without WK device-conflict actions. Exact-owner RPC, connection renewal,
   group/inbox projection, future person-source admission, replay maintenance,
-  delivery, ACKs, owner sweeps, offline accounting/progress and Channel/ended-UID removal are wired before admission. Real process
+  delivery, ACKs, owner sweeps, offline accounting/closed-source drain/progress and Channel/ended-UID removal are wired before admission. Real process
   Paho/WKProto interop passes in single-node and three-node 256-hash-Slot clusters.
   Stop closes admission, joins MQTT work/Owners while transport callbacks and message/cluster dependencies remain alive,
   then persists proved boot retirement before Gateway shutdown. Incomplete cleanup retains dependencies.

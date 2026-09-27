@@ -26,7 +26,8 @@ type SourceDrainMetadata interface {
 }
 
 type SourceDrainOptions struct {
-	Store  SourceDrainMetadata
+	Store SourceDrainMetadata
+	// Owners is required only by foreground Seal/SealGroup.
 	Owners *runtime.Owners
 	// Sources is needed only to fix an interrupted preparation's unknown start.
 	Sources SourceProtector
@@ -54,7 +55,7 @@ func NewSourceDrain(o SourceDrainOptions) (*SourceDrain, error) {
 	if o.Timeout == 0 {
 		o.Timeout = 5 * time.Second
 	}
-	if o.Store == nil || o.Owners == nil || o.Timeout <= 0 || o.Timeout > time.Minute {
+	if o.Store == nil || o.Timeout <= 0 || o.Timeout > time.Minute {
 		return nil, ErrInvalid
 	}
 	p := &SourceDrain{options: o, guard: &Subscriptions{options: SubscriptionOptions{Owners: o.Owners, Now: o.Now, Timeout: o.Timeout}}}
@@ -69,16 +70,21 @@ func NewSourceDrain(o SourceDrainOptions) (*SourceDrain, error) {
 // Lost replies resume from authoritative state; there is no internal retry loop.
 func (p *SourceDrain) Seal(parent context.Context, o contract.Owner, key meta.MQTTSourceBindingKey) (out SourceDrainResult, err error) {
 	q := meta.MQTTRead{Kind: meta.MQTTReadSourceBinding, BindingKey: key}
-	if p == nil || key.Owner.Kind != meta.MQTTBindingChannel || meta.ValidateMQTTRead(q) != nil ||
+	if p == nil || p.options.Owners == nil || key.Owner.Kind != meta.MQTTBindingChannel || meta.ValidateMQTTRead(q) != nil ||
 		key.Namespace != o.Key.Namespace || key.ClientID != o.Key.ClientID || key.SessionGeneration != o.SessionGeneration {
 		return out, ErrInvalid
 	}
-	op, ctx, cancel, err := p.guard.begin(parent, o)
+	live, ctx, cancel, err := p.guard.begin(parent, o)
 	if err != nil {
 		return out, err
 	}
-	defer finishSubscription(op, cancel, &err)
-	r, err := p.read(ctx, op, q)
+	defer finishSubscription(live, cancel, &err)
+	return p.seal(ctx, &sourceDrainScope{live: live, uid: live.UID()}, o, key)
+}
+
+// seal shares durable stages between foreground execution and closed-intent maintenance.
+func (p *SourceDrain) seal(ctx context.Context, op *sourceDrainScope, o contract.Owner, key meta.MQTTSourceBindingKey) (out SourceDrainResult, err error) {
+	r, err := p.read(ctx, op, meta.MQTTRead{Kind: meta.MQTTReadSourceBinding, BindingKey: key})
 	if err != nil {
 		return out, err
 	}
@@ -132,7 +138,7 @@ func (p *SourceDrain) Seal(parent context.Context, o contract.Owner, key meta.MQ
 		if e != nil {
 			return out, e
 		}
-		if e = p.guard.checkSession(ctx, op, o, &s); e != nil {
+		if e = p.checkDrainSession(ctx, op, o, &s); e != nil {
 			return out, e
 		}
 		m := meta.MQTTWindowMutation{Key: cursor.Key, ExpectedRevision: s.Revision, OwnerGeneration: o.OwnerGeneration, OwnerNodeID: o.NodeID, OwnerBootID: o.BootID, ConnectionID: o.ConnectionID,
@@ -142,7 +148,7 @@ func (p *SourceDrain) Seal(parent context.Context, o contract.Owner, key meta.MQ
 			if e != nil {
 				return out, e
 			}
-			if e = p.guard.checkSession(ctx, op, o, r.Session); e != nil {
+			if e = p.checkDrainSession(ctx, op, o, r.Session); e != nil {
 				return out, e
 			}
 			if r.Session.Revision != s.Revision || len(r.DeliveryCursors) != 1 || r.DeliveryCursors[0] != cursor || len(r.Bindings) != 0 || len(r.Subscriptions) != 0 || meta.ValidateMQTTAccountingHead(cursor, r.Accounting) != nil {
@@ -168,7 +174,7 @@ func (p *SourceDrain) Seal(parent context.Context, o contract.Owner, key meta.MQ
 		if e != nil {
 			return out, e
 		}
-		if e = checkSubscriptionScope(ctx, op); e != nil {
+		if e = op.check(ctx); e != nil {
 			return out, e
 		}
 		if receipt.Status == meta.MQTTWindowConflict {
@@ -194,14 +200,14 @@ func (p *SourceDrain) Seal(parent context.Context, o contract.Owner, key meta.MQ
 
 // closedIntent proves no future accounting/admission can enter this generation.
 // Receive permission is deliberately irrelevant to releasing unadmitted backlog.
-func (p *SourceDrain) closedIntent(ctx context.Context, op *subscriptionOperation, o contract.Owner, b meta.MQTTSourceBinding) (meta.MQTTSession, meta.MQTTSubscription, error) {
+func (p *SourceDrain) closedIntent(ctx context.Context, op *sourceDrainScope, o contract.Owner, b meta.MQTTSourceBinding) (meta.MQTTSession, meta.MQTTSubscription, error) {
 	var s meta.MQTTSession
 	var sub meta.MQTTSubscription
 	r, err := p.read(ctx, op, meta.MQTTRead{Kind: meta.MQTTReadSubscription, Namespace: b.Key.Namespace, ClientID: b.Key.ClientID, SessionGeneration: b.Key.SessionGeneration, Topic: b.Topic})
 	if err != nil {
 		return s, sub, err
 	}
-	if err = p.guard.checkSession(ctx, op, o, r.Session); err != nil {
+	if err = p.checkDrainSession(ctx, op, o, r.Session); err != nil {
 		return s, sub, err
 	}
 	if len(r.Bindings) != 0 || len(r.DeliveryCursors) != 0 || len(r.Subscriptions) != 1 || r.Session.Revision < b.IntentRevision || r.Session.Revision < b.ProgressRevision {
@@ -226,7 +232,7 @@ func (p *SourceDrain) closedIntent(ctx context.Context, op *subscriptionOperatio
 	return *r.Session, sub, nil
 }
 
-func (p *SourceDrain) cursor(ctx context.Context, op *subscriptionOperation, o contract.Owner, b meta.MQTTSourceBinding, minimum uint64) (meta.MQTTSession, meta.MQTTDeliveryCursor, bool, error) {
+func (p *SourceDrain) cursor(ctx context.Context, op *sourceDrainScope, o contract.Owner, b meta.MQTTSourceBinding, minimum uint64) (meta.MQTTSession, meta.MQTTDeliveryCursor, bool, error) {
 	var s meta.MQTTSession
 	var c meta.MQTTDeliveryCursor
 	k := b.Key
@@ -235,7 +241,7 @@ func (p *SourceDrain) cursor(ctx context.Context, op *subscriptionOperation, o c
 	if err != nil {
 		return s, c, false, err
 	}
-	if err = p.guard.checkSession(ctx, op, o, r.Session); err != nil {
+	if err = p.checkDrainSession(ctx, op, o, r.Session); err != nil {
 		return s, c, false, err
 	}
 	if len(r.Bindings) != 0 || len(r.Subscriptions) != 0 || len(r.DeliveryCursors) > 1 || r.Session.Revision < minimum {
@@ -255,13 +261,13 @@ func (p *SourceDrain) cursor(ctx context.Context, op *subscriptionOperation, o c
 
 // cancelBoundary confirms replicated protection before choosing one empty start
 // for an unknown preparation. Closed admission makes that choice non-delivering.
-func (p *SourceDrain) cancelBoundary(ctx context.Context, op *subscriptionOperation, b meta.MQTTSourceBinding, sub meta.MQTTSubscription) (meta.MQTTSourceBinding, error) {
+func (p *SourceDrain) cancelBoundary(ctx context.Context, op *sourceDrainScope, b meta.MQTTSourceBinding, sub meta.MQTTSubscription) (meta.MQTTSourceBinding, error) {
 	typeText, id, found := strings.Cut(b.Key.Owner.ID, ":")
 	kind, parseErr := strconv.ParseUint(typeText, 10, 8)
 	if !found || parseErr != nil || kind == 0 || strconv.FormatUint(kind, 10) != typeText || !contract.ValidIdentity(id, 1024) || p.options.Sources == nil {
 		return meta.MQTTSourceBinding{}, ErrEvidence
 	}
-	if err := checkSubscriptionScope(ctx, op); err != nil {
+	if err := op.check(ctx); err != nil {
 		return meta.MQTTSourceBinding{}, err
 	}
 	channel := SourceChannel{ID: id, Type: uint8(kind)}
@@ -269,7 +275,7 @@ func (p *SourceDrain) cancelBoundary(ctx context.Context, op *subscriptionOperat
 	if err != nil {
 		return meta.MQTTSourceBinding{}, err
 	}
-	if err = checkSubscriptionScope(ctx, op); err != nil {
+	if err = op.check(ctx); err != nil {
 		return meta.MQTTSourceBinding{}, err
 	}
 	if source.Channel != channel || source.Generation != b.Key.Owner.Generation || source.ProtectedAfter >= source.CommittedThrough || b.Revision == math.MaxUint64 {
@@ -282,9 +288,9 @@ func (p *SourceDrain) cancelBoundary(ctx context.Context, op *subscriptionOperat
 	return p.sealBinding(ctx, op, b, next)
 }
 
-func (p *SourceDrain) cancelCursor(ctx context.Context, op *subscriptionOperation, o contract.Owner, b meta.MQTTSourceBinding, s meta.MQTTSession) (meta.MQTTSession, meta.MQTTDeliveryCursor, error) {
+func (p *SourceDrain) cancelCursor(ctx context.Context, op *sourceDrainScope, o contract.Owner, b meta.MQTTSourceBinding, s meta.MQTTSession) (meta.MQTTSession, meta.MQTTDeliveryCursor, error) {
 	var empty meta.MQTTDeliveryCursor
-	if err := p.guard.checkSession(ctx, op, o, &s); err != nil {
+	if err := p.checkDrainSession(ctx, op, o, &s); err != nil {
 		return meta.MQTTSession{}, empty, err
 	}
 	now, err := p.guard.now()
@@ -302,13 +308,13 @@ func (p *SourceDrain) cancelCursor(ctx context.Context, op *subscriptionOperatio
 	if err != nil {
 		return meta.MQTTSession{}, empty, err
 	}
-	if err = checkSubscriptionScope(ctx, op); err != nil {
+	if err = op.check(ctx); err != nil {
 		return meta.MQTTSession{}, empty, err
 	}
 	if r.Status == meta.MQTTSessionCASConflict {
 		return meta.MQTTSession{}, empty, ErrConflict
 	}
-	if (r.Status != meta.MQTTSessionCASApplied && r.Status != meta.MQTTSessionCASUnchanged) || r.CurrentRevision != s.Revision+1 || r.SessionState != meta.MQTTSessionActive || r.TerminationReason != 0 {
+	if (r.Status != meta.MQTTSessionCASApplied && r.Status != meta.MQTTSessionCASUnchanged) || r.CurrentRevision != s.Revision+1 || r.SessionState != s.State || r.TerminationReason != 0 {
 		return meta.MQTTSession{}, empty, ErrEvidence
 	}
 	s, c, found, err := p.cursor(ctx, op, o, b, r.CurrentRevision)
@@ -321,24 +327,24 @@ func (p *SourceDrain) cancelCursor(ctx context.Context, op *subscriptionOperatio
 	return s, c, nil
 }
 
-func (p *SourceDrain) read(ctx context.Context, op *subscriptionOperation, q meta.MQTTRead) (meta.MQTTReadResult, error) {
-	if err := checkSubscriptionScope(ctx, op); err != nil {
+func (p *SourceDrain) read(ctx context.Context, op *sourceDrainScope, q meta.MQTTRead) (meta.MQTTReadResult, error) {
+	if err := op.check(ctx); err != nil {
 		return meta.MQTTReadResult{}, err
 	}
 	r, err := p.options.Store.ReadMQTT(ctx, q)
 	if err != nil {
 		return meta.MQTTReadResult{}, err
 	}
-	if err = checkSubscriptionScope(ctx, op); err != nil {
+	if err = op.check(ctx); err != nil {
 		return meta.MQTTReadResult{}, err
 	}
-	if !r.Done || r.After != (meta.MQTTReadCursor{}) || len(r.SourceOwners) != 0 || len(r.Sessions) != 0 || len(r.Inflight) != 0 || len(r.Wills) != 0 {
+	if !r.Done || r.After != (meta.MQTTReadCursor{}) || r.Runtime != nil || r.Admission != nil || r.Membership != nil || len(r.Directory) != 0 || (q.Kind != meta.MQTTReadAccounting && r.Accounting != nil) || len(r.SourceOwners) != 0 || len(r.Sessions) != 0 || len(r.Inflight) != 0 || len(r.Wills) != 0 {
 		return meta.MQTTReadResult{}, ErrEvidence
 	}
 	return r, nil
 }
 
-func (p *SourceDrain) sealBinding(ctx context.Context, op *subscriptionOperation, old, next meta.MQTTSourceBinding) (meta.MQTTSourceBinding, error) {
+func (p *SourceDrain) sealBinding(ctx context.Context, op *sourceDrainScope, old, next meta.MQTTSourceBinding) (meta.MQTTSourceBinding, error) {
 	now, err := p.guard.now()
 	if err != nil {
 		return meta.MQTTSourceBinding{}, err
@@ -350,14 +356,14 @@ func (p *SourceDrain) sealBinding(ctx context.Context, op *subscriptionOperation
 	if meta.ValidateMQTTSourceBinding(next) != nil {
 		return meta.MQTTSourceBinding{}, ErrEvidence
 	}
-	if err = checkSubscriptionScope(ctx, op); err != nil {
+	if err = op.check(ctx); err != nil {
 		return meta.MQTTSourceBinding{}, err
 	}
 	r, err := p.options.Store.CompareAndSwapMQTTSourceBinding(ctx, old.Revision, next)
 	if err != nil {
 		return meta.MQTTSourceBinding{}, err
 	}
-	if err = checkSubscriptionScope(ctx, op); err != nil {
+	if err = op.check(ctx); err != nil {
 		return meta.MQTTSourceBinding{}, err
 	}
 	if r.Status == meta.MQTTSessionCASConflict {

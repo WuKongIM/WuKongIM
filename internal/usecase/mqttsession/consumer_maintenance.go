@@ -13,6 +13,7 @@ import (
 type ConsumerMaintenanceOptions struct {
 	Store      SourceProgressMetadata
 	Accounting *Accounting
+	Drain      *SourceDrain
 	Progress   *SourceProgress
 	Removal    *SourceRemoval
 	Ender      SessionEnder
@@ -33,7 +34,7 @@ func NewConsumerMaintenance(o ConsumerMaintenanceOptions) (*ConsumerMaintenance,
 	if o.Timeout == 0 {
 		o.Timeout = 5 * time.Second
 	}
-	if o.Store == nil || o.Accounting == nil || o.Progress == nil || o.Removal == nil || o.Ender == nil || o.Timeout <= 0 || o.Timeout > 5*time.Second {
+	if o.Store == nil || o.Accounting == nil || o.Drain == nil || o.Progress == nil || o.Removal == nil || o.Ender == nil || o.Timeout <= 0 || o.Timeout > 5*time.Second {
 		return nil, ErrInvalid
 	}
 	return &ConsumerMaintenance{options: o}, nil
@@ -90,6 +91,22 @@ func (c *ConsumerMaintenance) Maintain(parent context.Context, k meta.MQTTSource
 	s := r.Session
 	if len(r.Bindings) != 0 || len(r.Subscriptions) > 1 || s == nil || meta.ValidateMQTTSession(*s) != nil || s.Namespace != k.Namespace || s.ClientID != k.ClientID || s.UID != b.UID || s.Generation < k.SessionGeneration {
 		return out, ErrEvidence
+	}
+	if s.Generation == k.SessionGeneration && s.State != meta.MQTTSessionEnded {
+		if len(r.Subscriptions) != 1 || !validSubscriptionEvidence(r.Subscriptions[0], *s) || r.Subscriptions[0].Topic != b.Topic || r.Subscriptions[0].Generation < k.SubscriptionGeneration {
+			return out, ErrEvidence
+		}
+		sub := r.Subscriptions[0]
+		if sub.Generation > k.SubscriptionGeneration || sub.Stage >= meta.MQTTSubscriptionRemoving {
+			_, e := c.options.Drain.ReconcileClosed(ctx, k)
+			if errors.Is(e, ErrSourceDrainPending) {
+				// The existing binding index retains the next bounded range turn.
+				return out, ctx.Err()
+			}
+			if e != nil {
+				return out, e
+			}
+		}
 	}
 	reason := meta.MQTTSessionEndReason(0)
 	if s.Generation == k.SessionGeneration && s.State == meta.MQTTSessionEnded {

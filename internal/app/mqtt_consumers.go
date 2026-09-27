@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 
+	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
 	runtime "github.com/WuKongIM/WuKongIM/internal/runtime/mqttsession"
 	sessioncase "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -24,7 +25,15 @@ func (a *App) wireMQTTConsumers(node *cluster.Node, auth sessioncase.Subscriptio
 	if err != nil {
 		return nil, err
 	}
-	maintenance, err := sessioncase.NewConsumerMaintenance(sessioncase.ConsumerMaintenanceOptions{Store: node, Accounting: accounting, Progress: progress, Removal: removal, Ender: ender})
+	protector, err := clusterinfra.NewMQTTSourceProtector(clusterinfra.MQTTSourceProtectorOptions{Node: node, MessageIDs: a.messageIDs})
+	if err != nil {
+		return nil, err
+	}
+	drain, err := sessioncase.NewSourceDrain(sessioncase.SourceDrainOptions{Store: node, Sources: protector})
+	if err != nil {
+		return nil, err
+	}
+	maintenance, err := sessioncase.NewConsumerMaintenance(sessioncase.ConsumerMaintenanceOptions{Store: node, Accounting: accounting, Drain: drain, Progress: progress, Removal: removal, Ender: ender})
 	if err != nil {
 		return nil, err
 	}

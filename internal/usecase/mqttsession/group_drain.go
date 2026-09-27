@@ -11,14 +11,15 @@ import (
 // preparation interrupted before its first binding commit. It cannot establish
 // subscriptions or clear inflight work; final release remains SourceRemoval's job.
 func (p *SourceDrain) SealGroup(parent context.Context, o contract.Owner, topic string) (out SourceDrainResult, err error) {
-	if p == nil || !validSubscriptionTopic(topic) {
+	if p == nil || p.options.Owners == nil || !validSubscriptionTopic(topic) {
 		return out, ErrInvalid
 	}
-	op, ctx, cancel, err := p.guard.begin(parent, o)
+	live, ctx, cancel, err := p.guard.begin(parent, o)
 	if err != nil {
 		return out, err
 	}
-	defer finishSubscription(op, cancel, &err)
+	defer finishSubscription(live, cancel, &err)
+	op := &sourceDrainScope{live: live, uid: live.UID()}
 	sub, err := p.closedGroup(ctx, op, o, topic)
 	if err != nil {
 		return out, err
@@ -27,7 +28,7 @@ func (p *SourceDrain) SealGroup(parent context.Context, o contract.Owner, topic 
 	if err != nil {
 		return out, err
 	}
-	if err = p.guard.checkSession(ctx, op, o, r.Session); err != nil {
+	if err = p.checkDrainSession(ctx, op, o, r.Session); err != nil {
 		return out, err
 	}
 	if r.Session.Revision < sub.Revision || len(r.Bindings) != 0 || len(r.Subscriptions) != 0 || len(r.DeliveryCursors) > 1 {
@@ -47,14 +48,14 @@ func (p *SourceDrain) SealGroup(parent context.Context, o contract.Owner, topic 
 			return out, ErrEvidence
 		}
 		channel := SourceChannel{ID: sub.TargetID, Type: 2}
-		if err = checkSubscriptionScope(ctx, op); err != nil {
+		if err = op.check(ctx); err != nil {
 			return out, err
 		}
 		source, e := p.options.Sources.ProtectMQTTSource(ctx, channel)
 		if e != nil {
 			return out, e
 		}
-		if err = checkSubscriptionScope(ctx, op); err != nil {
+		if err = op.check(ctx); err != nil {
 			return out, err
 		}
 		if source.Channel != channel || !contract.ValidIdentity(source.Generation, 128) || source.ProtectedAfter >= source.CommittedThrough {
@@ -104,12 +105,12 @@ func (p *SourceDrain) SealGroup(parent context.Context, o contract.Owner, topic 
 
 // closedGroup accepts only current closed intent; caller-supplied old snapshots
 // cannot manufacture a registration for an already replaced subscription.
-func (p *SourceDrain) closedGroup(ctx context.Context, op *subscriptionOperation, o contract.Owner, topic string) (meta.MQTTSubscription, error) {
+func (p *SourceDrain) closedGroup(ctx context.Context, op *sourceDrainScope, o contract.Owner, topic string) (meta.MQTTSubscription, error) {
 	r, err := p.read(ctx, op, meta.MQTTRead{Kind: meta.MQTTReadSubscription, Namespace: o.Key.Namespace, ClientID: o.Key.ClientID, SessionGeneration: o.SessionGeneration, Topic: topic})
 	if err != nil {
 		return meta.MQTTSubscription{}, err
 	}
-	if err = p.guard.checkSession(ctx, op, o, r.Session); err != nil {
+	if err = p.checkDrainSession(ctx, op, o, r.Session); err != nil {
 		return meta.MQTTSubscription{}, err
 	}
 	if len(r.Bindings) != 0 || len(r.DeliveryCursors) != 0 || len(r.Subscriptions) != 1 {
