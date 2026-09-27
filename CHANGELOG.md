@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Enforce MQTT Session quotas while clients are offline or their receive window is full, and maintain source completion through bounded background work. Fixed aggregate metrics expose progress; complete crash recovery, cleanup and scale acceptance remain in progress. / MQTT 客户端离线或接收窗口满时通过有界后台任务执行会话配额，并推进来源完成与清理；提供固定维度进度指标。完整崩溃恢复、清理与容量验收仍在进行。
+
 - Drain MQTT owners before stopping Gateway transport, and persist proved graceful boot retirement for persistent-session restart. Preserve normal DISCONNECT during open/delivery cleanup to avoid spurious Wills. Abrupt-crash recovery remains under development. / MQTT 会话清理先于 Gateway 传输停止，保存正常退出凭据以恢复持久会话；修复连接初始化、投递清理竞态导致正常断连误发 Will 的问题。异常崩溃恢复仍在开发。
 
 - Schedule due MQTT Wills through a bounded worker cohort, and preserve normal DISCONNECT intent when EOF cancels packet dispatch. Full crash recovery and MQTT acceptance remain in progress. / MQTT 到期 Will 已接通有界后台发布；修复 EOF 取消报文处理时正常 DISCONNECT 可能被误判为异常断线的问题。完整崩溃恢复及 MQTT 验收仍在进行。

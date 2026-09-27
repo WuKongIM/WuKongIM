@@ -1,13 +1,13 @@
 ---
 scope: package
-summary: Bounds MQTT owner execution, quiescence, delivery/connection/deadline/replay/Will scheduling and joined shutdown.
+summary: Bounds MQTT owners, quiescence, consumer maintenance and delivery/connection/deadline/replay/Will scheduling.
 ---
 
 # MQTT Session Runtime Flow
 
 ## Responsibility
 
-This package tracks local execution/quiescence and schedules bounded deadline, replay, Will and delivery work through injected usecases.
+This package bounds local execution/quiescence and schedules consumer, deadline, replay, Will and delivery work through injected usecases.
 It does not authenticate users, acquire durable ownership, derive distributed
 leases, publish messages, or interpret MQTT packets.
 
@@ -52,8 +52,8 @@ leases, publish messages, or interpret MQTT packets.
    Reverse scans pin source/authority/capture/floor and strictly decrease; partial budgets preserve unstarted entries. Invalid/late pages dispatch nothing; commit counts never prove cleanup.
 9. Deliveries retains one body-free task per exact Owner with a fixed cohort and
    indexed due heap. Progress yields to other due Owners; wakes coalesce during
-   queued/executing work, and idle polling recovers missed hints. Failure backoff
-   survives wake floods; fencing alone cannot discard pending usecase cleanup.
+   queued/executing work; idle polling recovers missed hints and failure backoff survives wakes. Fencing cannot discard cleanup.
+10. Consumer maintenance scans source-binding recovery pages over led Slots and admits a fixed cohort of body-free Channel keys. It accounts offline/full-window debt, projects ACK progress and removes proved closed obligations through usecases. Complete-page validation accepts terminal request cursors; pressure preserves unadmitted rows and Stop joins all work.
 
 ## Invariants and Failure Semantics
 

@@ -1,0 +1,333 @@
+{
+  "source": "5579e764f427915d46bf0e433f535f4090135e9d",
+  "digests": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "internal/app/FLOW.md": "653cd1ade10e7130cf0cf455ddc76591a4607284357cba355c10597fef53b99b",
+    "internal/runtime/mqttsession/FLOW.md": "70c13d5349c6b81d67d4c73f87e47214fecee592d1d99c2715c356a028a778bb",
+    "internal/usecase/mqttsession/FLOW.md": "8f1259fc15dcc8870fee2ebbfafb7a14c38f9cec7eb235cbc859c9f9be37cc63",
+    "pkg/db/FLOW.md": "33c7ba81c18ed8cb377e9bef541526028ef31e64dd03becc7ac1ea6cc14fb10a",
+    "pkg/db/meta/FLOW.md": "9930080c1073c6ce567f561b300e1515dfe71eb2b5065a60414d181b738e584c",
+    "pkg/goroutine/FLOW.md": "4f67505771b9bafbe15cd452ef1cc27e1e22718812775d078707cb3304c569ea",
+    "test/e2e/AGENTS.md": "bc4eb6b87f8443511c5d208580144340e5218f5d0b14e6adb3c6361fa17a8063",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "test/e2e/suite/FLOW.md": "fdf3576f99b00cfdb878ea5623e7f39a576a75bb7ebf5b6fa8de031ae9561add",
+    "pkg/workqueue/FLOW.md": "6720c38d539f939cab8d64daecc539484fe2023aa3e5a5260d52f18260a6d5cd",
+    "pkg/cluster/FLOW.md": "f20e23043a7e5a9016a34624cd6cf9a342aedbceca3335a3d41b3597bad06d16"
+  },
+  "scope": "bounded consumer accounting/progress/removal composition; complete approved MQTT goal remains in progress",
+  "red_evidence": [
+    {
+      "scenario": "offline quotas before composition",
+      "result": "public completion metric never appeared while receiver was offline",
+      "log_sha256": "2c24824085120f32e3815bf34b54e9c7753240d8c45f8d63731f6491b161ae5a"
+    },
+    {
+      "scenario": "consumer usecase contracts",
+      "result": "compile RED before ConsumerMaintenance APIs existed",
+      "log_sha256": "7af7b5899bc8490962d2660113740e00813ea026555badc931e5ce53f95ae8af"
+    },
+    {
+      "scenario": "consumer runtime contracts",
+      "result": "compile RED before ConsumerWorker APIs existed",
+      "log_sha256": "0fd8b551d2c514e32461221e83b8dd270505cc8811931aea3330fc2a599d89f1"
+    },
+    {
+      "scenario": "real terminal-page discovery",
+      "result": "positive pages/failures with zero visited/scheduled; terminal cursor incorrectly rejected",
+      "log_sha256": "c2d3a8fec10d5318479d990f7cf7de8737ff42041cb3855d6bbea9cff90278dd"
+    },
+    {
+      "scenario": "terminal page pressure regression",
+      "result": "expected one scheduled key, got zero before guard correction",
+      "log_sha256": "fa86e450ce5df05f5713395856008aed035606b8c70f5c4fee91a58d90a583a6"
+    }
+  ],
+  "checks": [
+    {
+      "command": "GOWORK=off go test -race -p 2 ./internal/usecase/mqttsession ./internal/runtime/mqttsession ./pkg/metrics ./pkg/goroutine ./internal/app -count=1",
+      "result": "passed: 77.988s / 2.000s / 3.475s / 1.622s / 4.684s; before terminal cursor correction",
+      "log_sha256": "9d9a1bcc8b94480cc15f9351d4b08697799305a3aca0e41657ebb28f42368cd0"
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 ./internal/runtime/mqttsession -count=1",
+      "result": "passed: 1.900s after terminal cursor correction",
+      "log_sha256": "bfc45c119221ff783f8980d67c5863b024c30d67e2c1da9cec7e790cdc8e9d8a"
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 -tags=integration ./internal/runtime/mqttsession -run TestConsumerWorker -count=1",
+      "result": "passed: 1.508s including terminal page regression and joined lifecycle",
+      "log_sha256": "2871cc62a3d5a514fc04336afeb585f92b329faca1dae6ced463ba6682037200"
+    },
+    {
+      "command": "WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-consumer-reports GOWORK=off go test -p 2 -tags=e2e ./test/e2e/mqtt/quota -count=1 -timeout=8m -v",
+      "result": "passed: 206.545s, eight scenarios",
+      "log_sha256": "21d19e6686a3c8b1378eb6d92f7897e670a367c9fc67d57279a1ab3cf8b55df7"
+    },
+    {
+      "command": "WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-consumer-regression GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/session ./test/e2e/mqtt/will -count=1 -timeout=5m -v",
+      "result": "passed: Session 131.043s, Will 57.871s",
+      "log_sha256": "14e907bc378ea6223db93edd0e06900efadbcbcd36fcb70fac658425168f5c24"
+    },
+    {
+      "command": "GOWORK=off go run ./scripts/flowcheck --mode check",
+      "result": "passed: 87 compliant, 0 invalid, 9 existing length warnings",
+      "log_sha256": "518c3c03df7eb5d31ffef78aaf4666017b3054bf4e16f65a227b11efc525cf09"
+    }
+  ],
+  "process_artifacts": [
+    {
+      "file": "mqtt-consumer-ack-completion-1.json",
+      "sha256": "a5ecf6c8d4f1554e2b8ca1bb8152c997d37182dcb7cd255e20de8a7df6ebe439",
+      "assertions": {
+        "ack_progress_projected": true,
+        "closed_source_removed": true,
+        "hash_slots": 256,
+        "nodes": 1,
+        "passed": true,
+        "receive_maximum": 1,
+        "scenario": "ack-completion"
+      }
+    },
+    {
+      "file": "mqtt-consumer-ack-completion-3.json",
+      "sha256": "8510917750e41c8fbed94754603f3d1789d1f96d00a28147e1fd4d5f53eaecf9",
+      "assertions": {
+        "ack_progress_projected": true,
+        "closed_source_removed": true,
+        "hash_slots": 256,
+        "nodes": 3,
+        "passed": true,
+        "receive_maximum": 1,
+        "scenario": "ack-completion"
+      }
+    },
+    {
+      "file": "mqtt-consumer-full-window-1.json",
+      "sha256": "c0f7ba2c56085160d972132ec7899d7100de26f37eb7f6103862eaec1a7186aa",
+      "assertions": {
+        "ended_before_reconnect": true,
+        "hash_slots": 256,
+        "nodes": 1,
+        "offline": false,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscribe_delivers_fresh_message": true,
+        "scenario": "full-window",
+        "session_present": false,
+        "source_removed_before_reconnect": true
+      }
+    },
+    {
+      "file": "mqtt-consumer-full-window-3.json",
+      "sha256": "39602741b685fa4535862a1e1f37236d8036d5e5f4300d0d7c65a35c4abfe93b",
+      "assertions": {
+        "ended_before_reconnect": true,
+        "hash_slots": 256,
+        "nodes": 3,
+        "offline": false,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscribe_delivers_fresh_message": true,
+        "scenario": "full-window",
+        "session_present": false,
+        "source_removed_before_reconnect": true
+      }
+    },
+    {
+      "file": "mqtt-consumer-offline-bytes-1.json",
+      "sha256": "73c507542e8cb2a19a3196ec461a11c6fb82bf6c7d6c1f954a1f72912aa74674",
+      "assertions": {
+        "ended_before_reconnect": true,
+        "hash_slots": 256,
+        "nodes": 1,
+        "offline": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscribe_delivers_fresh_message": true,
+        "scenario": "offline-bytes",
+        "session_present": false,
+        "source_removed_before_reconnect": true
+      }
+    },
+    {
+      "file": "mqtt-consumer-offline-bytes-3.json",
+      "sha256": "7e9aaa880289ae73b6a2b449be509e8613215468b819d9f2cd6179fe2e3e281d",
+      "assertions": {
+        "ended_before_reconnect": true,
+        "hash_slots": 256,
+        "nodes": 3,
+        "offline": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscribe_delivers_fresh_message": true,
+        "scenario": "offline-bytes",
+        "session_present": false,
+        "source_removed_before_reconnect": true
+      }
+    },
+    {
+      "file": "mqtt-consumer-offline-messages-1.json",
+      "sha256": "927469b0dac0842d05c8b31edac09cce734ec967079282d4363b2066016d2e67",
+      "assertions": {
+        "ended_before_reconnect": true,
+        "hash_slots": 256,
+        "nodes": 1,
+        "offline": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscribe_delivers_fresh_message": true,
+        "scenario": "offline-messages",
+        "session_present": false,
+        "source_removed_before_reconnect": true
+      }
+    },
+    {
+      "file": "mqtt-consumer-offline-messages-3.json",
+      "sha256": "d3f4d120dd472bebfc111d66c411e34b6c276fcff8546bedeb44c0caa51e5b13",
+      "assertions": {
+        "ended_before_reconnect": true,
+        "hash_slots": 256,
+        "nodes": 3,
+        "offline": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscribe_delivers_fresh_message": true,
+        "scenario": "offline-messages",
+        "session_present": false,
+        "source_removed_before_reconnect": true
+      }
+    },
+    {
+      "file": "mqtt-session-1.json",
+      "sha256": "283aa555cd68f006e516e1e543a1106d8205b45ac239afdc455917c465db7725",
+      "assertions": {
+        "client_id_uid_binding_enforced": true,
+        "dup_on_resume": true,
+        "future_contact_offline_delivered": true,
+        "hash_slots": 256,
+        "live_takeover_closed_old_owner": true,
+        "message_ids": [
+          "2104132167188615168",
+          "2104132172595073024",
+          "2104132175690469376",
+          "2104132257911410688",
+          "2104132339746476032"
+        ],
+        "nodes": 1,
+        "packet_id_preserved": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscriptions": 0,
+        "scenario": "mqtt-persistent-session",
+        "session_present": true
+      }
+    },
+    {
+      "file": "mqtt-session-3.json",
+      "sha256": "b6f7564051bbf496aadc401b5ca4898220f8220c11440a58ff27d7538660f9d5",
+      "assertions": {
+        "client_id_uid_binding_enforced": true,
+        "dup_on_resume": true,
+        "future_contact_offline_delivered": true,
+        "hash_slots": 256,
+        "live_takeover_closed_old_owner": true,
+        "message_ids": [
+          "2104132470600372224",
+          "2104132494826672128",
+          "2104132498005962752",
+          "2104132545909100544",
+          "2104132573432123392"
+        ],
+        "nodes": 3,
+        "packet_id_preserved": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscriptions": 0,
+        "scenario": "mqtt-persistent-session",
+        "session_present": true
+      }
+    },
+    {
+      "file": "mqtt-session-owner-restart.json",
+      "sha256": "4ce79107622e3019f8c5e09095504fca476b50204a3b551e600e3d998da47bb4",
+      "assertions": {
+        "dup_on_resume": true,
+        "hash_slots": 256,
+        "message_id": "2104132619032596480",
+        "nodes": 1,
+        "packet_id_preserved": true,
+        "passed": true,
+        "resubscriptions": 0,
+        "scenario": "mqtt-session-owner-restart",
+        "session_present": true
+      }
+    },
+    {
+      "file": "mqtt-session-shutdown.json",
+      "sha256": "0eae5a1b4a59602f23599e237329b4a64084d4fc365e87a068b329cd90fd5565",
+      "assertions": {
+        "scenario": "mqtt-active-owner-shutdown",
+        "nodes": 1,
+        "hash_slots": 256,
+        "passed": true,
+        "exit_success": true,
+        "client_closed": true,
+        "lifecycle_stop_failures": 0
+      }
+    },
+    {
+      "file": "mqtt-will-1.json",
+      "sha256": "bce30ab94aac044a2299885b877d8a7e57b2bf603277ec4e66009c759365c23a",
+      "assertions": {
+        "abnormal_close_published": true,
+        "delay_seconds": 2,
+        "hash_slots": 256,
+        "message_id": "2104132740449308672",
+        "nodes": 1,
+        "normal_close_cancelled": true,
+        "passed": true,
+        "scenario": "mqtt-will"
+      }
+    },
+    {
+      "file": "mqtt-will-3.json",
+      "sha256": "8a07105f87d6264ced669361cc3744077481dae76432914947c06e572ced3e5d",
+      "assertions": {
+        "abnormal_close_published": true,
+        "delay_seconds": 2,
+        "hash_slots": 256,
+        "message_id": "2104132859739508736",
+        "nodes": 3,
+        "normal_close_cancelled": true,
+        "passed": true,
+        "scenario": "mqtt-will"
+      }
+    }
+  ],
+  "new_context_digests": {
+    "test/e2e/mqtt/quota/AGENTS.md": "c6b2b6db1fb65a10fbbd9e6ccfd8beb5801c4018f32c8d0c6f1f7a39de8f071e"
+  },
+  "implementation_sha256": {
+    "internal/app/mqtt_consumers.go": "630e8e2842c588f8f98084e53652d491630f46a5ae373c8c2fd83031f6460c8b",
+    "internal/runtime/mqttsession/consumer_candidates.go": "80f46b0a0c3784822f0e1f580a5f11bb62fdff63d18efa28ad9c882914a7ac38",
+    "internal/runtime/mqttsession/consumer_scan.go": "76da1bb77ae30e4c4d1bcd480203677c3f322683f1057e46a41d7033af63ed3c",
+    "internal/runtime/mqttsession/consumer_worker.go": "d5cc5dba05076c4af78bb5a16ad50be57c581e67b100c610bd6ddebac9fe17cf",
+    "internal/runtime/mqttsession/consumer_worker_integration_test.go": "5dc60493d902c666a35d7bf9d74f0da53ae8ec69e0e9cde2de832a1668e473b3",
+    "internal/runtime/mqttsession/consumer_worker_test.go": "ad220bd8ef2e69c62926955f23156ed8f1f00580336c061d0a51e73bf6e9007f",
+    "internal/usecase/mqttsession/consumer_maintenance.go": "2eae077ad12dcb835d402b069f090ed1d30a0cbd2406190252203303a6d0ab2e",
+    "internal/usecase/mqttsession/consumer_maintenance_test.go": "391ef4284fc8a3c498f2c856bf98a17604f5bd7206797cb8bca29e1ebf2f7b81",
+    "pkg/metrics/mqtt.go": "846292aa3c76ef02a19c236d2d6824724d455c64b328543fef0e6d8f7d67a6ed",
+    "pkg/metrics/mqtt_test.go": "fcf41aa2c8a335b8925ba5eee6170ac2b7e421a10925ea5fbf7efba929bee0fe",
+    "test/e2e/mqtt/quota/quota_test.go": "1c93606aeba36a9c382e702d261ace8a9ace0f988cfd88deea311ce5a6ef26d8",
+    "internal/app/mqtt_product.go": "5333e4d2d938401e57cf9311ac71a1a78721791b5274719582c7d1789d4d4e0d",
+    "pkg/goroutine/catalog.go": "1eae860b5b5a9155362e028bdd10c3938a486229981a5198b832abd0f96fc1f4",
+    "pkg/metrics/registry.go": "78f1dab3900e17e16b2d8cce96a15978d3b61aef831bd1c833c71d670ac6d096"
+  },
+  "limits": [
+    "UID qualification and cursorless preparation cleanup are not implemented here",
+    "Removing Channel bindings does not reclaim Session/cursor/inflight/accounting metadata or authorize content GC",
+    "No unavailable-owner/crash proof, uncertain Will redispatch, restore reactivation, global pressure or scale qualification",
+    "End metrics count confirmations and may repeat; they are not unique Session counters",
+    "No table, index, command or RPC schema changed; all nodes still require matched enabled MQTT configuration"
+  ]
+}

@@ -36,6 +36,7 @@ type Registry struct {
 	NodeResource      *NodeResourceMetrics
 	NodeLifecycle     *NodeLifecycleMetrics
 	OpsMCP            *OpsMCPMetrics
+	MQTT              *MQTTMetrics
 }
 
 func New(nodeID uint64, nodeName string) *Registry {
@@ -70,6 +71,7 @@ func New(nodeID uint64, nodeName string) *Registry {
 		NodeResource:      newNodeResourceMetrics(registry, labels),
 		NodeLifecycle:     newNodeLifecycleMetrics(registry, labels),
 		OpsMCP:            newOpsMCPMetrics(registry, labels),
+		MQTT:              newMQTTMetrics(registry, labels),
 	}
 }
 

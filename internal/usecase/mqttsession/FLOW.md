@@ -57,6 +57,7 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
     WindowAdmission checks originals/options and exact charges; original QoS 0 preclaims once. ExchangeRecovery reads begun exchanges across unsubscribe with original authorization/content identity.
     Sender serializes old recovery before new admission and checks final receive permission; ambiguity closes without retry. Only its private proved-enqueued QoS-0 token may rebase completion across unrelated revisions.
     [DeliveryCoordinator](delivery_coordinator.go) rotates one subscription/source per turn, then accounts and sends; bounded body-free hints survive source failures. Revocation/quota cleanup runs after scopes release, including lost quota replies.
+    ConsumerMaintenance rereads one binding and current subscription, accounts online/offline independently of the window, then projects or removes through existing ports. Quota/revocation cleanup targets only the captured Owner, including lost quota replies.
     Consumer progress reads one binding and a pinned Session/cursor, projecting only contiguous completion with one CAS. Acknowledgements checks current owner and exact PacketID/order before one command-70 commit; absent exchanges cause no writes.
     Explicit lifetime end retains Removing without fabricating source release; offline/absent state cannot discharge responsibility or authorize content GC.
     SourceRemoval revalidates ended-lifetime or closed-subscription/drained-cursor
@@ -69,8 +70,7 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
 
 ## Invariants and Failure Semantics
 
-- ClientID stays UID-bound through expiry/Clean Start. Different IDs coexist.
-- Resume preserves counters/allocators and lifetime quotas; a new lifetime
+- ClientID stays UID-bound through expiry/Clean Start. Different IDs coexist. Resume preserves counters/allocators and lifetime quotas; a new lifetime
   resets them. A lower Receive Maximum does not delete old inflight exchanges.
 - Local deadlines retain monotonic time. Stored milliseconds round upward so
   the local gate does not outlive its recorded upper bound; neither is remote
@@ -92,7 +92,7 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
   an active subscription silently; delivery/revocation ordering remains required.
 - Group preparation bounds reads and grants no subscription, release or SUBACK authority. ACK survives unsubscribe; entry binds sent exchanges first.
 - ReceiveAuthorization reads a fresh coherent Slot channel/member/sequence view; group grants use join incarnation, self inbox uses admitted UID. Send mutes do not deny receiving; ambiguous evidence cannot revoke.
-- App now composes an opt-in product listener with process-level interop coverage. Will scheduling invokes the same executor; cursorless cleanup, offline scheduling and full failure/scale acceptance remain required.
+- App now composes an opt-in product listener with process-level interop coverage. Will and consumer scheduling invoke existing policy; UID/cursorless cleanup and full failure/scale acceptance remain required.
 
 ## Read First
 - [Contracts](types.go), [Acquisition](connect.go), [Lifecycle](lifecycle.go), [Subscriptions](subscriptions.go), [Replay](replay.go)

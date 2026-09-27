@@ -64,7 +64,7 @@ Stop or startup rollback
 - Opt-in MQTT composition shares the existing Gateway and device-token verifier,
   without WK device-conflict actions. Exact-owner RPC, connection renewal,
   group/inbox projection, future person-source admission, replay maintenance,
-  delivery and durable ACKs are wired before listener admission. Real process
+  delivery, ACKs and bounded offline consumer accounting/progress/removal are wired before admission. Real process
   Paho/WKProto interop passes in single-node and three-node 256-hash-Slot clusters.
   Stop closes admission, joins MQTT work/Owners while transport callbacks and message/cluster dependencies remain alive,
   then persists proved boot retirement before Gateway shutdown. Incomplete cleanup retains dependencies.
@@ -72,7 +72,7 @@ Stop or startup rollback
   closed; fresh restore-generation reactivation remains outstanding.
   WillExecutor freezes hook output before first dispatch and only recovers positive
   receipts for uncertain started work. Its managed scanner and four-turn cohort now
-  publish detached due work. Safe uncertain redispatch, owner sweeps, unavailable-owner recovery, offline cleanup/accounting,
+  publish detached due work. Safe uncertain redispatch, owner sweeps, unavailable-owner recovery, UID/cursorless cleanup,
   complete failure acceptance and scale qualification remain required. See
   [product composition](../../docs/specs/mqtt-product-runtime.md) and the linked
   module contracts; successful online interop is not complete MQTT delivery.

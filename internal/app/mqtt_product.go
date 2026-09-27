@@ -30,6 +30,7 @@ type mqttProduct struct {
 	replay      *runtime.ReplayWorker
 	wills       *runtime.WillWorker
 	retirements *mqttowner.Retirements
+	consumers   *runtime.ConsumerWorker
 }
 
 func (a *App) wireMQTT(nodeID uint64) error {
@@ -69,6 +70,10 @@ func (a *App) wireMQTT(nodeID uint64) error {
 		return err
 	}
 	authorization, err := newMQTTReceiveAuthorization(node)
+	if err != nil {
+		return err
+	}
+	m.consumers, err = a.wireMQTTConsumers(node, authorization, sessions)
 	if err != nil {
 		return err
 	}
@@ -130,7 +135,7 @@ func (m *mqttProduct) Start(ctx context.Context) error {
 	if m == nil {
 		return nil
 	}
-	for _, w := range []WorkerRuntime{m.replay, m.deadlines, m.wills, m.connections, m.deliveries} {
+	for _, w := range []WorkerRuntime{m.replay, m.deadlines, m.wills, m.consumers, m.connections, m.deliveries} {
 		if err := w.Start(ctx); err != nil {
 			return err
 		}
@@ -148,6 +153,9 @@ func (m *mqttProduct) Stop(ctx context.Context) error {
 	var result error
 	if m.deliveries != nil {
 		result = errors.Join(result, m.deliveries.Stop(ctx))
+	}
+	if m.consumers != nil {
+		result = errors.Join(result, m.consumers.Stop(ctx))
 	}
 	if m.wills != nil {
 		result = errors.Join(result, m.wills.Stop(ctx))

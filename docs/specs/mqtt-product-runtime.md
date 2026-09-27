@@ -87,3 +87,13 @@ in this composition step. Frozen governing context is recorded in the adjacent
 and four-turn cohort, with product-process evidence for delayed abnormal-close
 publication and normal-close cancellation. The historical interop evidence above
 retains its original scope. Remaining crash/restore/offline/scale gates stay open.
+
+## Subsequent consumer maintenance
+
+[Consumer maintenance](mqtt-consumer-maintenance.md) now joins original-content
+accounting, exact quota/revocation cleanup, contiguous ACK projection and
+Channel-binding removal through a separately bounded cohort. Offline clients
+and full receive windows no longer depend on online delivery turns for
+accounting. UID/cursorless cleanup, storage reclamation, crash/restore and scale
+qualification remain distinct requirements. Existing recovery indexes are reused;
+this composition adds no table, column, command or RPC encoding.

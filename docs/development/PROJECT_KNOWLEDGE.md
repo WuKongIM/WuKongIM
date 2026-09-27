@@ -1167,3 +1167,14 @@ specification, runbook, report, or module documentation; link to them when neede
   infers a safe redispatch from lease expiry or an absent receipt. Stop joins
   scanner and cohort. MQTT DISCONNECT records valid cleanup intent without a
   new owner scope, preserving normal cancellation across EOF/fencing/pressure.
+
+- [Consumer maintenance](../specs/mqtt-consumer-maintenance.md) discovers existing
+  source-binding recovery keys on led hash Slots, then accounts one original
+  content page independently of online state or receive credit. Current authority,
+  owner/revision fences, definite revocation and exact cleanup remain usecase
+  policy. Ended quota rows recover lost replies before source removal. ACK progress
+  projects only contiguous completion; removed Channel bindings do not prove UID,
+  cursor/inflight cleanup or content GC. Recovery terminal pages may retain the
+  request cursor; capacity pressure still resumes from the last admitted row.
+  Fixed aggregate metrics count turn observations, including repeated ending
+  confirmations, not unique Sessions. Stop joins the bounded cohort.

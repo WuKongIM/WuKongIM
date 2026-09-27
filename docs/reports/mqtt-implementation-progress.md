@@ -13,9 +13,16 @@ Real process Will Delay/abnormal closure/normal cancellation passes in both
 topologies; that test exposed and fixed normal-intent loss during cancelled
 packet dispatch. See [Will scheduling](../specs/mqtt-will-scheduling.md).
 
+Bounded consumer maintenance now accounts offline/full-window debt, confirms
+quota/revocation cleanup, projects contiguous ACK progress and removes proved
+closed Channel obligations. Eight real-process cases pass across both topologies;
+Session/Will regression suites and focused race/stop contracts also pass. See
+[consumer maintenance evidence](mqtt-consumer-maintenance.json). This step reuses
+existing recovery indexes and introduces no durable table or RPC format.
+
 These product milestones are not complete MQTT delivery.
 Safe uncertain dispatch recovery, unavailable-owner
-isolation, owner sweeping, offline accounting/cleanup, restore reactivation and
+isolation, owner sweeping, complete UID/cursor/inflight cleanup, restore reactivation and
 full failure/scale acceptance remain outstanding. Restore currently joins MQTT
 and retains closed admission because its terminal runtime cannot be reused.
 See [product composition and evidence](../specs/mqtt-product-runtime.md).

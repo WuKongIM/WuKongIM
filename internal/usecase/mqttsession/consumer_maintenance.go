@@ -1,0 +1,159 @@
+package mqttsession
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
+)
+
+// ConsumerMaintenanceOptions composes authoritative, bounded usecases. This
+// maintenance grants no network-write or inflight-admission capability.
+type ConsumerMaintenanceOptions struct {
+	Store      SourceProgressMetadata
+	Accounting *Accounting
+	Progress   *SourceProgress
+	Removal    *SourceRemoval
+	Ender      SessionEnder
+	// Timeout bounds one complete binding turn, including exact-owner cleanup.
+	Timeout time.Duration
+}
+
+// ConsumerMaintenanceResult reports proved outcomes of this turn. Retried End
+// confirmations may repeat; these are not unique Session termination counts.
+type ConsumerMaintenanceResult struct{ Accounted, Projected, Removed, QuotaEnded, RevokedEnded bool }
+type ConsumerMaintenance struct{ options ConsumerMaintenanceOptions }
+
+func NewConsumerMaintenance(o ConsumerMaintenanceOptions) (*ConsumerMaintenance, error) {
+	if o.Timeout == 0 {
+		o.Timeout = 5 * time.Second
+	}
+	if o.Store == nil || o.Accounting == nil || o.Progress == nil || o.Removal == nil || o.Ender == nil || o.Timeout <= 0 || o.Timeout > 5*time.Second {
+		return nil, ErrInvalid
+	}
+	return &ConsumerMaintenance{options: o}, nil
+}
+
+// Maintain rereads one source binding, accounts one original-content page even
+// without a live socket/window, then projects completion or performs one removal
+// step. Exact revisions and owner identity fence concurrent reconnect/removal.
+func (c *ConsumerMaintenance) Maintain(parent context.Context, k meta.MQTTSourceBindingKey) (out ConsumerMaintenanceResult, err error) {
+	q := meta.MQTTRead{Kind: meta.MQTTReadSourceBinding, BindingKey: k}
+	if c == nil || parent == nil || k.Owner.Kind != meta.MQTTBindingChannel || meta.ValidateMQTTRead(q) != nil {
+		return out, ErrInvalid
+	}
+	defer func() {
+		if recover() != nil {
+			err = ErrSubscriptionCallback
+		}
+	}()
+	ctx, cancel := context.WithTimeout(parent, c.options.Timeout)
+	defer cancel()
+	r, err := c.read(ctx, q)
+	if err != nil {
+		return out, err
+	}
+	if r.Session != nil || len(r.Subscriptions) != 0 || len(r.Bindings) != 1 {
+		return out, ErrEvidence
+	}
+	b := r.Bindings[0]
+	if meta.ValidateMQTTSourceBinding(b) != nil || b.Key != k {
+		return out, ErrEvidence
+	}
+	if b.Stage == meta.MQTTBindingRemoved {
+		return out, nil
+	}
+	r, err = c.read(ctx, meta.MQTTRead{Kind: meta.MQTTReadSubscription, Namespace: k.Namespace, ClientID: k.ClientID, SessionGeneration: k.SessionGeneration, Topic: b.Topic})
+	if err != nil {
+		return out, err
+	}
+	s := r.Session
+	if len(r.Bindings) != 0 || len(r.Subscriptions) > 1 || s == nil || meta.ValidateMQTTSession(*s) != nil || s.Namespace != k.Namespace || s.ClientID != k.ClientID || s.UID != b.UID || s.Generation < k.SessionGeneration {
+		return out, ErrEvidence
+	}
+	reason := meta.MQTTSessionEndReason(0)
+	if s.Generation == k.SessionGeneration && s.State == meta.MQTTSessionEnded {
+		if s.TerminationReason == meta.MQTTSessionQuota || s.TerminationReason == meta.MQTTSessionRevoked {
+			reason = s.TerminationReason
+		}
+	} else if s.Generation == k.SessionGeneration && b.Stage == meta.MQTTBindingActive {
+		if len(r.Subscriptions) != 1 {
+			return out, ErrEvidence
+		}
+		sub := r.Subscriptions[0]
+		if !validSubscriptionEvidence(sub, *s) || sub.Topic != b.Topic || sub.Generation < k.SubscriptionGeneration {
+			return out, ErrEvidence
+		}
+		if sub.Generation == k.SubscriptionGeneration && sub.Stage == meta.MQTTSubscriptionActive {
+			if sub.OperationID != b.OperationID || sub.AuthorizationVersion != b.AuthorizationVersion {
+				return out, ErrEvidence
+			}
+			key := meta.MQTTDeliveryCursorKey{Namespace: k.Namespace, ClientID: k.ClientID, SessionGeneration: k.SessionGeneration, SubscriptionGeneration: k.SubscriptionGeneration, SourceKind: meta.MQTTSourceChannel, SourceID: k.Owner.ID, SourceGeneration: k.Owner.Generation}
+			a, e := c.options.Accounting.Account(ctx, key)
+			if e != nil {
+				if !errors.Is(e, ErrSubscriptionDenied) && !errors.Is(e, ErrSubscriptionRevoked) {
+					return out, e
+				}
+				reason = meta.MQTTSessionRevoked
+			} else {
+				if a.Owner != sessionOwner(*s) {
+					return out, ErrFenced
+				}
+				out.Accounted = a.Changed
+				if a.Ended {
+					reason = meta.MQTTSessionQuota
+				}
+			}
+		}
+	}
+	if reason != 0 {
+		if err = ctx.Err(); err != nil {
+			return out, err
+		}
+		if err = c.options.Ender.End(ctx, EndCommand{Owner: sessionOwner(*s), Reason: reason}); err != nil {
+			return out, err
+		}
+		if err = ctx.Err(); err != nil {
+			return out, err
+		}
+		out.QuotaEnded = reason == meta.MQTTSessionQuota
+		out.RevokedEnded = reason == meta.MQTTSessionRevoked
+	}
+	if err = ctx.Err(); err != nil {
+		return out, err
+	}
+	progress, err := c.options.Progress.Reconcile(ctx, k)
+	if err != nil {
+		return out, err
+	}
+	out.Projected = progress.Changed
+	if progress.NeedsRemoval {
+		if err = ctx.Err(); err != nil {
+			return out, err
+		}
+		removed, e := c.options.Removal.Reconcile(ctx, k)
+		if e != nil {
+			return out, e
+		}
+		out.Removed = removed.Changed && removed.Binding.Stage == meta.MQTTBindingRemoved
+	}
+	return out, ctx.Err()
+}
+
+func (c *ConsumerMaintenance) read(ctx context.Context, q meta.MQTTRead) (meta.MQTTReadResult, error) {
+	if err := ctx.Err(); err != nil {
+		return meta.MQTTReadResult{}, err
+	}
+	r, err := c.options.Store.ReadMQTT(ctx, q)
+	if err != nil {
+		return r, err
+	}
+	if err = ctx.Err(); err != nil {
+		return meta.MQTTReadResult{}, err
+	}
+	if !r.Done || r.After != (meta.MQTTReadCursor{}) || r.Runtime != nil || r.Admission != nil || r.Membership != nil || r.Accounting != nil || len(r.Directory)+len(r.SourceOwners)+len(r.Sessions)+len(r.DeliveryCursors)+len(r.Inflight)+len(r.Wills) != 0 {
+		return meta.MQTTReadResult{}, ErrEvidence
+	}
+	return r, nil
+}
