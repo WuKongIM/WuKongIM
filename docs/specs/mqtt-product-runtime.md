@@ -51,9 +51,11 @@ messages/64 MiB and a 64-exchange window (also bounded by peer Receive Maximum).
 These values are limits, not measured capacity guarantees.
 
 App owns exact-owner RPC registration, group/inbox projection selection and
-worker lifecycle. Startup precedes Gateway admission; Stop fences owners and
-joins delivery, deadlines, replay and connection cleanup before closing remaining
-owners. Any incomplete cleanup retains cluster/message dependencies for retry.
+worker lifecycle. Startup precedes Gateway admission; Stop closes admission and
+joins MQTT producers/owners before stopping Gateway's physical-close callbacks.
+Any incomplete cleanup retains transport/cluster/message dependencies for retry.
+Successful join records a [graceful boot retirement](mqtt-owner-retirement.md)
+for exact older-owner RPC recovery after process restart.
 Restore stops the same terminal runtime and currently keeps admission closed;
 fresh restore-generation reactivation is still required. No old registry is
 reactivated and no unavailable owner is assumed isolated.

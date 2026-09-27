@@ -45,7 +45,8 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
 - MQTT fixtures use independent Eclipse Paho clients with bounded receive queues
   and deadlines. Queue overflow fails the observation instead of dropping a
   message silently. Explicit WK fixture credentials preserve token-auth behavior;
-  no client helper provisions credentials or makes application retry decisions. Optional Will fields and abrupt TCP close exercise independent Paho wire behavior.
+  no helper provisions credentials or makes application retry decisions. Optional
+  Will fields, manual PUBACK, Receive Maximum and TCP abort exercise Paho behavior.
 - WebSocket gateway opt-in publishes only the allocated loopback listener;
   TCP WKProto remains the readiness authority for the started node.
 - Diagnostics expose bounded paths and tails. TOML is re-encoded only after

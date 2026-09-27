@@ -36,8 +36,8 @@ App registers delivery after connection open and composes group/inbox subscripti
    Open registers one bound delivery task with a bounded context after scope release;
    failure queues exact disconnect. No callbacks run under the connection mutex.
 7. Ping admits the same owner; DISCONNECT records cleanup intent without a new scope. EOF cancellation, fencing and operation pressure cannot replace valid decoded normal intent. Close callbacks enqueue cleanup without
-   joining packet execution; decoded DISCONNECT receipt survives TCP EOF before
-   mailbox dispatch. Validate direction/expiry before suppressing Will.
+   joining packet execution; validated DISCONNECT intent also survives EOF during
+   open registration or delivery cleanup before mailbox dispatch. Explicit protocol rejection remains abnormal.
 
 8. Send trusted admitted QoS 1 content under exact-owner execution, bind its
    cursor/PacketID/order before gateway enqueue and forward PUBACK to the durable

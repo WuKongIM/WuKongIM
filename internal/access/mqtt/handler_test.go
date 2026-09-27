@@ -324,3 +324,62 @@ func TestHandlerDisconnectIntentSurvivesCancelledOrFencedDispatch(t *testing.T) 
 		})
 	}
 }
+
+func TestHandlerDecodedIntentSurvivesOpenAndFeedbackCleanup(t *testing.T) {
+	for _, tc := range []struct {
+		name                          string
+		open, feedback, invalid, will bool
+		normal                        bool
+	}{
+		{name: "EOF before open finishes", open: true, normal: true},
+		{name: "delivery feedback before close callback", feedback: true, normal: true},
+		{name: "invalid open control", open: true, invalid: true},
+		{name: "explicit protocol failure", invalid: true},
+		{name: "disconnect with Will", feedback: true, will: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newHandlerFixture(t)
+			f.accept(t)
+			if !tc.open {
+				require.NoError(t, f.h.OnSessionOpen(f.gateway))
+			}
+			var sink sessioncase.DeliverySink
+			if tc.feedback {
+				_, s, e := f.h.BindDelivery(f.gateway)
+				require.NoError(t, e)
+				sink = s
+			}
+			p := &wire.Disconnect{}
+			if tc.will {
+				p.Reason = 4
+			}
+			if tc.invalid && tc.open {
+				p.Reason = 0x8e
+			}
+			encoded, e := wire.Encode(p, wire.Limits{})
+			require.NoError(t, e)
+			_, _, e = adapter.New(wire.Limits{}).DecodePackets(f.gateway.Session, encoded)
+			require.NoError(t, e)
+			observed, ok := adapter.ReceivedDisconnect(f.gateway.Session)
+			require.True(t, ok)
+			f.now = time.Now()
+			switch {
+			case tc.open:
+				ctx, cancel := context.WithCancel(f.gateway.RequestContext)
+				cancel()
+				f.gateway.RequestContext = ctx
+				require.Error(t, f.h.OnSessionOpen(f.gateway))
+			case tc.feedback:
+				require.NoError(t, sink.Close(context.Background(), 0))
+			default:
+				require.Error(t, f.h.OnPacket(f.gateway, &wire.Disconnect{Reason: 0x8e}))
+			}
+			require.NoError(t, f.h.OnSessionClose(f.gateway))
+			require.Len(t, f.connections.intents, 1)
+			require.Equal(t, tc.normal, f.connections.intents[0].Normal)
+			if tc.normal {
+				require.Equal(t, observed.ObservedAt, f.connections.intents[0].ObservedAt)
+			}
+		})
+	}
+}

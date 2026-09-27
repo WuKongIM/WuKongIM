@@ -39,6 +39,22 @@ before the close callback consumed the already decoded normal receipt. A focused
 regression invokes the public packet callback under each condition before fixing
 that ordering. Disconnect records cleanup intent; it needs no new business scope.
 
+Subsequent graceful-restart validation exposed another normal-close publication
+on three nodes. Failure inventory: EOF can cancel OnSessionOpen after CONNACK
+was sent but before delivery registration finishes; its error cleanup currently
+records abnormal intent before the eventual close callback. Similarly, delivery
+feedback can request a transport close before that callback consumes the receipt.
+Regression coverage must put a decoded receipt before each public callback and
+preserve the first valid reason/expiry/observation, while explicit protocol errors,
+invalid disconnect controls and reason 4 must not gain normal-close treatment.
+
+The new cases first failed deterministically. Open-time error cleanup and generic
+transport/delivery termination now use the same validated close receipt as the
+gateway close callback. Explicit protocol rejection keeps abnormal intent.
+The access race suite and real Gateway integration pass; product Will scenarios
+pass twice in each 256-Slot topology. This later evidence is included in
+[the Session process report](../reports/mqtt-session-process.json).
+
 ## Implemented worker
 
 The optional product runtime starts one Will scanner plus four direct workers

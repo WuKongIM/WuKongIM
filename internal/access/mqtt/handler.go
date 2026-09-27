@@ -228,7 +228,9 @@ func (h *Handler) OnSessionOpen(g gt.Context) (err error) {
 			err = ErrHandlerCallback
 		}
 		if err != nil {
-			h.closeState(s, false, nil)
+			// CONNACK may already be on the wire when EOF cancels open-time
+			// registration. Preserve any validated decoded peer close intent.
+			_ = h.OnSessionClose(g)
 		}
 	}()
 	s.mu.Lock()
@@ -416,7 +418,13 @@ func (h *Handler) terminate(g gt.Context, s *connectionState, reason byte) error
 		_ = g.WritePacket(&wire.Disconnect{Reason: reason})
 	}
 	if h != nil {
-		h.closeState(s, false, nil)
+		if reason == 0 {
+			// Transport/open/delivery cancellation can beat the gateway close
+			// callback. An explicit protocol rejection still takes the error path.
+			_ = h.OnSessionClose(g)
+		} else {
+			h.closeState(s, false, nil)
+		}
 	}
 	_ = g.CloseSession(gt.CloseReasonPolicyViolation, ErrHandlerClosed)
 	return ErrHandlerClosed

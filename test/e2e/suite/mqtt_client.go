@@ -21,8 +21,12 @@ type MQTTClient struct {
 	errors   chan error
 }
 
-// MQTTConnectOptions supplies optional Will fields to the independent wire client.
+// MQTTConnectOptions controls independent wire-client behavior, never server state.
 type MQTTConnectOptions struct {
+	// ManualAcknowledgements leaves incoming QoS 1 publications pending until Client.Ack.
+	ManualAcknowledgements bool
+	// ReceiveMaximum advertises an explicit receive window; zero uses the client default.
+	ReceiveMaximum uint16
 	Will           *paho.WillMessage
 	WillProperties *paho.WillProperties
 }
@@ -46,6 +50,7 @@ func ConnectMQTT(ctx context.Context, addr, uid, token, clientID string, clean b
 	c := &MQTTClient{conn: conn, messages: make(chan *paho.Publish, 64), errors: make(chan error, 1)}
 	c.Client = paho.NewClient(paho.ClientConfig{
 		ClientID: clientID, Conn: conn, PacketTimeout: 5 * time.Second,
+		EnableManualAcknowledgment: o.ManualAcknowledgements, SendAcksInterval: time.Millisecond,
 		OnPublishReceived: []func(paho.PublishReceived) (bool, error){func(received paho.PublishReceived) (bool, error) {
 			select {
 			case c.messages <- received.Packet:
@@ -67,10 +72,15 @@ func ConnectMQTT(ctx context.Context, addr, uid, token, clientID string, clean b
 			}
 		},
 	})
+	var receiveMaximum *uint16
+	if o.ReceiveMaximum != 0 {
+		value := o.ReceiveMaximum
+		receiveMaximum = &value
+	}
 	ack, err := c.Client.Connect(ctx, &paho.Connect{
 		ClientID: clientID, Username: uid, UsernameFlag: true, Password: []byte(token), PasswordFlag: true,
 		CleanStart: clean, KeepAlive: 30, WillMessage: o.Will, WillProperties: o.WillProperties,
-		Properties: &paho.ConnectProperties{SessionExpiryInterval: &expiry, RequestProblemInfo: true, User: paho.UserProperties{{Key: "wk.device_flag", Value: "1"}}},
+		Properties: &paho.ConnectProperties{SessionExpiryInterval: &expiry, ReceiveMaximum: receiveMaximum, RequestProblemInfo: true, User: paho.UserProperties{{Key: "wk.device_flag", Value: "1"}}},
 	})
 	if err != nil {
 		_ = conn.Close()

@@ -6,10 +6,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	access "github.com/WuKongIM/WuKongIM/internal/access/mqtt"
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
+	"github.com/WuKongIM/WuKongIM/internal/infra/mqttowner"
 	runtime "github.com/WuKongIM/WuKongIM/internal/runtime/mqttsession"
 	sessioncase "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -27,6 +29,7 @@ type mqttProduct struct {
 	deadlines   *runtime.DeadlineWorker
 	replay      *runtime.ReplayWorker
 	wills       *runtime.WillWorker
+	retirements *mqttowner.Retirements
 }
 
 func (a *App) wireMQTT(nodeID uint64) error {
@@ -48,7 +51,11 @@ func (a *App) wireMQTT(nodeID uint64) error {
 	}
 	m := &mqttProduct{owners: owners}
 	a.mqtt = m // Constructor failure must retain ownership for App.Stop cleanup.
-	node.RegisterRPC(accessnode.MQTTOwnerRPCServiceID, accessnode.MQTTOwnerRPC{Owners: owners})
+	m.retirements, err = mqttowner.NewRetirements(filepath.Join(defaultClusterConfig(a.cfg).DataDir, "mqtt", "retired-owners"), nodeID)
+	if err != nil {
+		return err
+	}
+	node.RegisterRPC(accessnode.MQTTOwnerRPCServiceID, accessnode.MQTTOwnerRPC{Owners: runtime.Isolation{Owners: owners, Retired: m.retirements}})
 	sessions, err := sessioncase.New(sessioncase.Options{Store: node, Owners: owners, Isolation: accessnode.NewMQTTOwnerClient(node), Tokens: a.users, Wills: mqttWillAuthorizer{messages: a.messages}, LeaseDuration: 30 * time.Second, CleanupTimeout: time.Second, SessionExpiryLimitSec: c.SessionExpiryLimitSec, QuotaMessages: c.QuotaMessages, QuotaBytes: c.QuotaBytes, WindowLimit: c.WindowLimit})
 	if err != nil {
 		return err
@@ -154,7 +161,17 @@ func (m *mqttProduct) Stop(ctx context.Context) error {
 	if m.connections != nil {
 		result = errors.Join(result, m.connections.Stop(ctx))
 	}
-	return errors.Join(result, m.owners.Close(ctx))
+	result = errors.Join(result, m.owners.Close(ctx))
+	if result != nil || m.retirements == nil {
+		return result
+	}
+	// Persist only after every producer and owner has joined. A later process
+	// may reuse this proof without guessing from the old Session state or lease.
+	proof, err := m.owners.Retirement()
+	if err != nil {
+		return err
+	}
+	return m.retirements.Record(ctx, proof)
 }
 
 // mqttProductProjection selects a composed port; each port owns validation and

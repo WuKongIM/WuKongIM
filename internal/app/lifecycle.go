@@ -405,6 +405,16 @@ func (a *App) Stop(ctx context.Context) error {
 		return err
 	}
 	var err error
+	if admission, ok := a.gateway.(gatewayDrainRuntime); ok {
+		admission.SetAcceptingNewSessions(false)
+	}
+	// MQTT quiescence joins physical-close callbacks on the gateway transport
+	// loop. Keep that loop and business dependencies alive until cleanup joins;
+	// a timeout retains them for a later Stop attempt.
+	if stopErr := a.mqtt.Stop(ctx); stopErr != nil {
+		a.logLifecycleWarn("mqtt", "stop", stopErr)
+		return errors.Join(stopErr, a.syncLogger())
+	}
 	if a.gatewayStarted && a.gateway != nil {
 		if stopErr := a.gateway.Stop(); stopErr != nil {
 			a.logLifecycleWarn("gateway", "stop", stopErr)
@@ -412,10 +422,6 @@ func (a *App) Stop(ctx context.Context) error {
 		} else {
 			a.gatewayStarted = false
 		}
-	}
-	if stopErr := a.mqtt.Stop(ctx); stopErr != nil {
-		a.logLifecycleWarn("mqtt", "stop", stopErr)
-		return errors.Join(err, stopErr, a.syncLogger())
 	}
 	if a.prometheusStarted && a.prometheus != nil {
 		if stopErr := a.prometheus.Stop(ctx); stopErr != nil {

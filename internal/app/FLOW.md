@@ -66,9 +66,9 @@ Stop or startup rollback
   group/inbox projection, future person-source admission, replay maintenance,
   delivery and durable ACKs are wired before listener admission. Real process
   Paho/WKProto interop passes in single-node and three-node 256-hash-Slot clusters.
-  Stop fences Owners, joins delivery/deadline/Will/replay/connection work, then closes
-  remaining Owners before message/cluster dependencies. Incomplete cleanup keeps
-  those dependencies alive. Restore stops this terminal runtime and keeps admission
+  Stop closes admission, joins MQTT work/Owners while transport callbacks and message/cluster dependencies remain alive,
+  then persists proved boot retirement before Gateway shutdown. Incomplete cleanup retains dependencies.
+  Exact-owner RPC can use that node's older-boot receipt after graceful restart; no crash/unknown-effect isolation is inferred. Restore keeps admission
   closed; fresh restore-generation reactivation remains outstanding.
   WillExecutor freezes hook output before first dispatch and only recovers positive
   receipts for uncertain started work. Its managed scanner and four-turn cohort now

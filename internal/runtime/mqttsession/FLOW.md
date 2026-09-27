@@ -61,8 +61,8 @@ leases, publish messages, or interpret MQTT packets.
 - Lease expiry is an admission fence, not proof of drained in-flight work.
 - Exact receipt retries cannot extend deadlines; stale/expired owners never reopen.
 - Allocation/publication and retirement share one short lock. An absent issued
-  ID from this exact registry boot is inactive; future IDs or foreign boots fail
-  closed. Registry reconstruction must change boot identity.
+  ID from this exact boot is inactive; terminal drained registries mint retirement. Isolation delegates foreign boots
+  of this same node only to explicit persisted proof. Reconstruction changes boot.
 - Callback errors/panics retain fenced state and capacity; no transport callback or wait
   runs under the registry lock. Panic/error diagnostics contain no callback text.
 - Diagnostics use constant-time aggregate counters. Timer renewal fixes the

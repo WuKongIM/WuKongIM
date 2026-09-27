@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Drain MQTT owners before stopping Gateway transport, and persist proved graceful boot retirement for persistent-session restart. Preserve normal DISCONNECT during open/delivery cleanup to avoid spurious Wills. Abrupt-crash recovery remains under development. / MQTT 会话清理先于 Gateway 传输停止，保存正常退出凭据以恢复持久会话；修复连接初始化、投递清理竞态导致正常断连误发 Will 的问题。异常崩溃恢复仍在开发。
+
 - Schedule due MQTT Wills through a bounded worker cohort, and preserve normal DISCONNECT intent when EOF cancels packet dispatch. Full crash recovery and MQTT acceptance remain in progress. / MQTT 到期 Will 已接通有界后台发布；修复 EOF 取消报文处理时正常 DISCONNECT 可能被误判为异常断线的问题。完整崩溃恢复及 MQTT 验收仍在进行。
 
 - Add a default-off MQTT 5 TCP entry with bounded TOML/environment configuration, durable token authentication and MQTT/WK person-message interoperability. Full recovery, Will scheduling, restore reactivation and scale acceptance remain under development. / 新增默认关闭的 MQTT 5 TCP 入口，支持有界 TOML/环境变量配置、持久设备令牌鉴权及 MQTT/WK 私聊互通；完整恢复、Will 调度、备份恢复后重建和容量验收仍在开发。
