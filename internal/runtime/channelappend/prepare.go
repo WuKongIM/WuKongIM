@@ -140,13 +140,15 @@ func prepareSend(ctx context.Context, cmd SendCommand, ports preparePorts, looku
 	if cmd.FromUID == "" {
 		return prepareSendResult{result: SendResult{Reason: ReasonAuthFail}}, true
 	}
-	if !validSendPublication(cmd.PublicationMetadata) {
+	// MQTT content may be empty; native sends still require a body. Validate the
+	// complete provenance before any scoped/transient branch can allocate an ID.
+	if !validSendPublication(cmd.PublicationMetadata) || (len(cmd.Payload) == 0 && len(cmd.PublicationMetadata) == 0) {
 		return prepareSendResult{result: SendResult{Reason: ReasonInvalidRequest}}, true
 	}
 	if cmd.RequestScoped || (len(cmd.MessageScopedUIDs) > 0 && cmd.ChannelID == "") {
 		return prepareRequestScopedSend(ctx, cmd, ports, lookupIdempotency)
 	}
-	if cmd.ChannelID == "" || cmd.ChannelType == 0 || len(cmd.Payload) == 0 {
+	if cmd.ChannelID == "" || cmd.ChannelType == 0 {
 		return prepareSendResult{result: SendResult{Reason: ReasonInvalidRequest}}, true
 	}
 	if cmd.NoPersist {
@@ -156,9 +158,6 @@ func prepareSend(ctx context.Context, cmd SendCommand, ports preparePorts, looku
 }
 
 func prepareRequestScopedSend(ctx context.Context, cmd SendCommand, ports preparePorts, lookupIdempotency bool) (prepareSendResult, bool) {
-	if len(cmd.Payload) == 0 {
-		return prepareSendResult{result: SendResult{Reason: ReasonInvalidRequest}}, true
-	}
 	if !cmd.SyncOnce {
 		return prepareSendResult{err: ErrRequestSubscribersRequireSyncOnce}, true
 	}

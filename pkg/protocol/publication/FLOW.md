@@ -30,6 +30,7 @@ delivery policy, persistence or network packets.
 4. Content comparison and lookup fingerprints validate optional values and
    exclude only the ingress clock. Hash matches require exact comparison;
    neither can replace a durable packet-exchange identity.
+5. Send validation accepts absent native metadata, rejects unkeyed Will templates, and checks expiry arithmetic before hooks/routing; it grants no authority.
 
 ## Invariants and Failure Semantics
 

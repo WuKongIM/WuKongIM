@@ -714,13 +714,13 @@ func preRouteChannel(cmd SendCommand, channels runtimechannelid.CommandCodec) (C
 	if cmd.FromUID == "" {
 		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonAuthFail}}, true
 	}
-	if !validSendPublication(cmd.PublicationMetadata) {
+	if !validSendPublication(cmd.PublicationMetadata) || (len(cmd.Payload) == 0 && len(cmd.PublicationMetadata) == 0) {
 		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonInvalidRequest}}, true
 	}
 	if cmd.RequestScoped || (len(cmd.MessageScopedUIDs) > 0 && cmd.ChannelID == "") {
 		return preRouteRequestScopedChannel(cmd, channels)
 	}
-	if cmd.ChannelID == "" || cmd.ChannelType == 0 || len(cmd.Payload) == 0 {
+	if cmd.ChannelID == "" || cmd.ChannelType == 0 {
 		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonInvalidRequest}}, true
 	}
 	channelID, isCommand := channels.FromCommandChannel(cmd.ChannelID)
@@ -738,9 +738,6 @@ func preRouteChannel(cmd SendCommand, channels runtimechannelid.CommandCodec) (C
 }
 
 func preRouteRequestScopedChannel(cmd SendCommand, channels runtimechannelid.CommandCodec) (ChannelID, SendBatchItemResult, bool) {
-	if len(cmd.Payload) == 0 {
-		return ChannelID{}, SendBatchItemResult{Result: SendResult{Reason: ReasonInvalidRequest}}, true
-	}
 	if !cmd.SyncOnce {
 		return ChannelID{}, SendBatchItemResult{Err: ErrRequestSubscribersRequireSyncOnce}, true
 	}

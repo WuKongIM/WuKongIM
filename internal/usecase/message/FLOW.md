@@ -66,6 +66,7 @@ SEND hooks, directory writes or append; delayed publications must authorize agai
   Equivalent reads may be coalesced; commands and outcomes may not.
 - A missing submitter is route-not-ready. Permission, directory, or hook
   failures remain item-local; batch order and cardinality are preserved.
+- Before-send validates publication provenance before callbacks. Empty MQTT input/replacement is valid; native bodies stay nonempty and nil replacement preserves input.
 - Permission and directory concurrency, batch sync size, page limits, event
   enrichment, and observer data are bounded. No identity enters metric labels.
   Submitter deadline errors preserve the original cause while attaching only

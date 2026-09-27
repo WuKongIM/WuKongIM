@@ -683,6 +683,11 @@ specification, runbook, report, or module documentation; link to them when neede
   stores optional Will columns 35/36: Preparing, Prepared, Started and transformed
   body. Current policy gates resumable preparation; only a definite Started CAS
   grants dispatch through ordinary directory/append without repeated hooks.
+  [Empty publication bodies](../specs/mqtt-empty-publication.md) are accepted only
+  with validated MQTT/Will provenance. Webhooks may explicitly clear that body;
+  nil replacement preserves it, and native payload validation remains unchanged.
+  Real cluster coverage verifies empty QoS 0/1 commits/retries and frozen empty
+  Will receipts after lost replies and permission revocation.
   Started/legacy execution only recovers positive content-matched receipts; later denial or absence cannot resolve an unknown
   append. Single-node cluster composition verifies original identity/time after
   lost observation and revocation, including real Webhook replacement. Uncertain

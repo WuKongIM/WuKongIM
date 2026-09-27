@@ -56,7 +56,7 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
 - Expected Channel and leader epochs fence every durable write. A canonical
   target mismatch is stale routing and creates no state.
 - Invalid metadata and unkeyed Will templates fail before routing or IDs, including
-  transient sends. Owned envelopes preserve original metadata.
+  transient sends. Valid MQTT metadata permits empty bodies; native sends still require a body. Owned envelopes preserve original metadata.
 - Accepted work is not canceled by later caller cancellation. A timed-out Stop
   bounds only that caller's wait and never discards admitted work.
 - Per-item result order and cardinality are preserved across routing, append,

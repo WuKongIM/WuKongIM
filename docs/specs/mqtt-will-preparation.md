@@ -56,9 +56,9 @@ Started with no positive receipt still needs safe retry admission, retained
 receipt transfer, runtime-incarnation binding and distributed restore isolation.
 Preparation evidence alone does not authorize redispatch. Automatic scheduling,
 product lifecycle and process E2E acceptance remain separate work. Storage preserves
-empty prepared payloads distinctly; the shared append router/preparer still rejects
-empty bodies, so empty MQTT publication needs its own entry-to-storage validation
-before product activation.
+empty prepared payloads distinctly; [empty publication admission](mqtt-empty-publication.md)
+now permits them through the shared router/preparer and before-send Webhook while
+retaining native nonempty-body validation.
 
 Preparation adds two bounded Slot CAS writes before the first append. Four admitted
 turns retain the existing five-second maximum context and monotonic lease checks;

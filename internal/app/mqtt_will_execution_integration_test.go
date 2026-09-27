@@ -45,14 +45,22 @@ func (p loseWillObservation) LookupWillPublication(context.Context, sessioncase.
 // run on the production app's 256-hash-slot single-node cluster. No MQTT listener
 // is opened; this is composition coverage, not process-level product acceptance.
 func TestMQTTWillExecutionSingleNodeClusterRecoversBeforeRevocation(t *testing.T) {
-	runWillExecutionRecovery(t, false)
+	runWillExecutionRecovery(t, false, false)
 }
 
 func TestMQTTWillExecutionSingleNodeClusterFreezesWebhookBeforeRecovery(t *testing.T) {
-	runWillExecutionRecovery(t, true)
+	runWillExecutionRecovery(t, true, false)
 }
 
-func runWillExecutionRecovery(t *testing.T, transform bool) {
+func TestMQTTWillExecutionEmptyBodySingleNodeCluster(t *testing.T) {
+	runWillExecutionRecovery(t, false, true)
+}
+
+func TestMQTTWillExecutionEmptyWebhookBodySingleNodeCluster(t *testing.T) {
+	runWillExecutionRecovery(t, true, true)
+}
+
+func runWillExecutionRecovery(t *testing.T, transform, empty bool) {
 	cfg := singleNodeClusterAppConfig(t)
 	cfg.Cluster.Slots.HashSlotCount = 256
 	var hookCalls atomic.Int64
@@ -67,7 +75,11 @@ func runWillExecutionRecovery(t *testing.T, transform bool) {
 			}
 			hookCalls.Add(1)
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]any{"allow": true, "payload": append([]byte("hook:"), q.Payload...)})
+			body := append([]byte("hook:"), q.Payload...)
+			if empty {
+				body = []byte{}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"allow": true, "payload": body})
 		}))
 		t.Cleanup(hook.Close)
 		cfg.Webhook.BeforeSend = BeforeSendWebhookConfig{Enabled: true, HTTPAddr: hook.URL, Timeout: time.Second}
@@ -97,9 +109,13 @@ func runWillExecutionRecovery(t *testing.T, transform bool) {
 	topic, err := access.FormatTopic(access.Target{ChannelID: id.ID, ChannelType: id.Type})
 	require.NoError(t, err)
 	ready := func(client string) meta.MQTTWillKey {
+		body := []byte(client)
+		if empty && !transform {
+			body = nil
+		}
 		md, err := publication.Encode(publication.Metadata{Source: publication.SourceWill, QoS: 1, PublisherNamespace: "main", PublisherClientID: client, OriginalTopic: topic, Properties: []publication.Property{{Kind: publication.MessageExpiry, Number: 60}}})
 		require.NoError(t, err)
-		conn, err := sessions.Connect(ctx, sessioncase.ConnectCommand{Key: contract.Key{Namespace: "main", ClientID: client}, UID: "alice", Token: "secret", DeviceFlag: 1, SessionExpirySec: 60, ReceiveMaximum: 16, MaxPacketBytes: 1 << 20, CloseTransport: func(context.Context) error { return nil }, Will: &sessioncase.Will{WillTarget: sessioncase.WillTarget{Topic: topic, TargetID: id.ID, TargetType: id.Type}, QoS: 1, ClientMsgNo: "same-client-number", Payload: []byte(client), PublicationMetadata: md}})
+		conn, err := sessions.Connect(ctx, sessioncase.ConnectCommand{Key: contract.Key{Namespace: "main", ClientID: client}, UID: "alice", Token: "secret", DeviceFlag: 1, SessionExpirySec: 60, ReceiveMaximum: 16, MaxPacketBytes: 1 << 20, CloseTransport: func(context.Context) error { return nil }, Will: &sessioncase.Will{WillTarget: sessioncase.WillTarget{Topic: topic, TargetID: id.ID, TargetType: id.Type}, QoS: 1, ClientMsgNo: "same-client-number", Payload: body, PublicationMetadata: md}})
 		require.NoError(t, err)
 		require.NoError(t, sessions.Disconnect(ctx, sessioncase.DisconnectCommand{Owner: conn.Owner}))
 		return meta.MQTTWillKey{Namespace: "main", ClientID: client, SessionGeneration: conn.Owner.SessionGeneration, WillGeneration: conn.WillGeneration}
@@ -126,13 +142,22 @@ func runWillExecutionRecovery(t *testing.T, transform bool) {
 	require.NoError(t, before[0].Err)
 	require.Len(t, before[0].Read.Messages, 2, "lost reply must follow a real commit")
 	original := before[0].Read.Messages[1]
+	if empty {
+		for _, m := range before[0].Read.Messages {
+			require.Empty(t, m.Payload)
+		}
+	}
 	if transform {
-		require.Equal(t, "hook:lost", string(original.Payload))
+		expectedOriginal, expectedFrozen := "lost", "hook:lost"
+		if empty {
+			expectedFrozen = ""
+		}
+		require.Equal(t, expectedFrozen, string(original.Payload))
 		stored, err := node.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadWill, WillKey: lost})
 		require.NoError(t, err)
 		require.Len(t, stored.Wills, 1)
-		require.Equal(t, "lost", string(stored.Wills[0].Payload))
-		require.Equal(t, "hook:lost", string(stored.Wills[0].DispatchPayload))
+		require.Equal(t, expectedOriginal, string(stored.Wills[0].Payload))
+		require.Equal(t, expectedFrozen, string(stored.Wills[0].DispatchPayload))
 		require.Equal(t, meta.MQTTWillDispatchStarted, stored.Wills[0].DispatchStage)
 	}
 	require.NoError(t, node.RemoveChannelSubscribers(ctx, id.ID, int64(id.Type), []string{"alice"}, 2))
@@ -154,6 +179,6 @@ func runWillExecutionRecovery(t *testing.T, transform bool) {
 	require.Equal(t, before[0].Read.Messages, after[0].Read.Messages, "recovery and denial append no business message")
 	if transform {
 		require.Equal(t, int64(2), hookCalls.Load())
-		t.Log("mqtt_will_preparation_evidence: nodes=1 hash_slots=256 real_webhook=true frozen_payload=true lost_reply=true revoked_before_recovery=true hooks=2 committed_messages=2 product_listener=false")
+		t.Logf("mqtt_will_preparation_evidence: nodes=1 hash_slots=256 real_webhook=true frozen_payload=true lost_reply=true revoked_before_recovery=true hooks=2 committed_messages=2 product_listener=false empty_payload=%t", empty)
 	}
 }

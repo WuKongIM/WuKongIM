@@ -4,6 +4,9 @@ package app
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -27,8 +30,32 @@ import (
 // committed Channel storage. The transport writer is controlled; full product
 // listener/process-level acceptance remains a separate gate.
 func TestMQTTPublishSingleNodeClusterCommitRetryAndRevocation(t *testing.T) {
+	runMQTTPublishCommitRetry(t, []byte("durable"), false)
+}
+
+func TestMQTTPublishEmptyBodySingleNodeCluster(t *testing.T) {
+	runMQTTPublishCommitRetry(t, nil, false)
+}
+
+func TestMQTTPublishEmptyWebhookBodySingleNodeCluster(t *testing.T) {
+	runMQTTPublishCommitRetry(t, nil, true)
+}
+
+func TestMQTTPublishEmptyWebhookReplacementSingleNodeCluster(t *testing.T) {
+	runMQTTPublishCommitRetry(t, []byte("durable"), true)
+}
+
+func runMQTTPublishCommitRetry(t *testing.T, payload []byte, emptyWebhook bool) {
 	cfg := singleNodeClusterAppConfig(t)
 	cfg.Cluster.Slots.HashSlotCount = 256
+	if emptyWebhook {
+		hook := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"allow": true, "payload": []byte{}})
+		}))
+		t.Cleanup(hook.Close)
+		cfg.Webhook.BeforeSend = BeforeSendWebhookConfig{Enabled: true, HTTPAddr: hook.URL, Timeout: time.Second}
+	}
 	a, err := New(cfg)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -59,13 +86,18 @@ func TestMQTTPublishSingleNodeClusterCommitRetryAndRevocation(t *testing.T) {
 	gateway := gt.Context{RequestContext: ctx, Session: session.New(session.Config{ID: 91, WritePacketFn: func(p any, _ session.OutboundMeta) error { writes = append(writes, p); return nil }}), CloseSessionFn: func(gt.CloseReason, error) { t.Error("unexpected close") }}
 	topic, err := access.FormatTopic(access.Target{ChannelID: id.ID, ChannelType: id.Type})
 	require.NoError(t, err)
-	packet := &wire.Publish{Topic: topic, QoS: 1, PacketID: 10, Payload: []byte("durable"), Properties: []wire.Property{{ID: wire.UserProperty, Text: "wk.client_msg_no", Value: "mqtt-first"}}}
+	packet := &wire.Publish{Topic: topic, QoS: 1, PacketID: 10, Payload: payload, Properties: []wire.Property{{ID: wire.UserProperty, Text: "wk.client_msg_no", Value: "mqtt-first"}}}
 	require.NoError(t, publisher.Publish(gateway, connection, packet))
 	require.Equal(t, []any{&wire.Puback{PacketID: 10}}, writes)
 	query := store.ReadCommittedRequest{FromSeq: 1, Limit: 10, MaxBytes: 1 << 20}
 	first, err := node.ReadChannelCommitted(ctx, id, query)
 	require.NoError(t, err)
 	require.Len(t, first.Messages, 1)
+	expectedPayload := payload
+	if emptyWebhook {
+		expectedPayload = nil
+	}
+	require.Equal(t, string(expectedPayload), string(first.Messages[0].Payload))
 	require.Equal(t, "alice", first.Messages[0].FromUID)
 	require.Equal(t, "mqtt-first", first.Messages[0].ClientMsgNo)
 	original, err := publication.Decode(first.Messages[0].PublicationMetadata)
@@ -94,6 +126,9 @@ func TestMQTTPublishSingleNodeClusterCommitRetryAndRevocation(t *testing.T) {
 	rows, err := node.ReadChannelCommitted(ctx, id, query)
 	require.NoError(t, err)
 	require.Len(t, rows.Messages, 3)
+	for _, row := range rows.Messages {
+		require.Equal(t, string(expectedPayload), string(row.Payload))
+	}
 	require.Equal(t, uint64(3), rows.Messages[2].MessageSeq)
 	zero, err := publication.Decode(rows.Messages[2].PublicationMetadata)
 	require.NoError(t, err)
@@ -107,5 +142,5 @@ func TestMQTTPublishSingleNodeClusterCommitRetryAndRevocation(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows.Messages, 3)
 	require.Zero(t, owners.Snapshot().Operations)
-	t.Log("mqtt_publish_evidence: hash_slots=256 authenticated=true commit_before_ack=true qos0_persisted=true cross_pid_retry_deduplicated=true reused_pid_new_message=true membership_revocation_denied=true")
+	t.Logf("mqtt_publish_evidence: hash_slots=256 authenticated=true commit_before_ack=true qos0_persisted=true cross_pid_retry_deduplicated=true reused_pid_new_message=true membership_revocation_denied=true empty_payload=%t real_webhook=%t", len(expectedPayload) == 0, emptyWebhook)
 }

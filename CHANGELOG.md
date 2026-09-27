@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Accept empty MQTT PUBLISH and Will bodies through shared message admission, including explicit empty Webhook replacements, while preserving native payload validation. Full MQTT product access remains under development. / MQTT PUBLISH 与 Will 的空正文已可通过共享消息入口，Webhook 可显式替换为空；原生消息校验保持不变，完整 MQTT 产品接入仍在开发。
+
 - Freeze MQTT Will hook output before publication so recovery preserves the actual body and original receipt without repeating transformations. Preparation can resume after lost replies; uncertain dispatch and complete MQTT access remain under development. / MQTT Will 发布前持久保存钩子处理后的正文，恢复时保留实际正文与原始回执，不重复改写消息；准备阶段可在丢回包后续作，未知发布结果的安全重试和完整接入仍在开发。
 
 - Preserve Channel authority generations across physical runtime deletion and recreation, rejecting stale prepared writes and retiring old person-directory work atomically. MQTT recovery can read runtime and retirement from one authoritative snapshot. Matched cluster binaries are required; full MQTT access remains under development. / 频道运行时物理删除、重建后保留并推进权威代次，拒绝旧追加请求，并原子撤销旧单聊目录任务；MQTT 恢复可在同一权威快照中读取运行时与删除代次。集群需使用匹配版本；完整 MQTT 接入仍在开发。
