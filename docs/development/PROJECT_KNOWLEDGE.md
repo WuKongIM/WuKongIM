@@ -472,8 +472,14 @@ specification, runbook, report, or module documentation; link to them when neede
   replay/accounting. [Prepared append fences](../specs/mqtt-append-route-fence.md)
   carry an optional exact route through fresh Slot reads and the durable sequencer;
   person directory deletion atomically advances that route. Only explicit fenced
-  requests use Channel append codec 12, without lossy fallback. Automatic checkpoint
-  binding and physical-runtime/restore incarnation fencing remain required.
+  requests use Channel append codec 12, without lossy fallback.
+  [Automatic append preparation](../specs/mqtt-inbox-appender.md) sits before the
+  shared durable Appender under a private app composition gate. It admits native
+  directory work once, advances bounded resumable pages and checks the exact final
+  checkpoint/caller epochs before binding the current route. Offline first native
+  SEND is covered; command/group paths and committed receipts retain their semantics.
+  Initial inbox projection, physical-runtime/restore fencing, offline scheduling
+  and full product composition remain required.
   See [Slot access](../specs/mqtt-slot-access.md); these APIs do not prove owner
   isolation, replica capability activation or safe restored-owner execution.
   Message System 12 materializes source-incarnation protection and copy receipt

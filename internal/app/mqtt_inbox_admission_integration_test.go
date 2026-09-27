@@ -21,11 +21,21 @@ import (
 
 // Qualification remains an explicit fixture. The native directory projector,
 // bounded admission turns and offline first-message recovery use real cluster
-// paths; no automatic message hook or product MQTT listener is claimed.
+// paths. The automatic variant enters through native SEND; product MQTT listener
+// and complete qualification projection remain separate work.
 func TestMQTTInboxAdmissionOfflineDirectoryBeforeFirstPersonSingleNodeCluster(t *testing.T) {
+	runMQTTInboxFirstPerson(t, false)
+}
+
+func TestMQTTInboxAppenderOfflineDirectoryBeforeFirstPersonSingleNodeCluster(t *testing.T) {
+	runMQTTInboxFirstPerson(t, true)
+}
+
+func runMQTTInboxFirstPerson(t *testing.T, automatic bool) {
+	t.Helper()
 	cfg := singleNodeClusterAppConfig(t)
 	cfg.Cluster.Slots.HashSlotCount = 256
-	a, err := New(cfg)
+	a, err := New(cfg, func(a *App) { a.mqttInboxWrites = automatic })
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -87,18 +97,31 @@ func TestMQTTInboxAdmissionOfflineDirectoryBeforeFirstPersonSingleNodeCluster(t 
 	channel := sessioncase.SourceChannel{ID: channelid.EncodePersonChannel("alice", "bob"), Type: 1}
 	_, err = node.GetChannelRuntimeMetaFresh(ctx, channel.ID, 1)
 	require.ErrorIs(t, err, meta.ErrNotFound)
-	admission, err := newMQTTInboxAdmission(node, a.messageIDs)
+	var sent message.SendResult
+	sendFirst := func() {
+		t.Helper()
+		var sendErr error
+		sent, sendErr = a.Messages().Send(ctx, message.SendCommand{FromUID: "bob", DeviceFlag: 1, ChannelID: channel.ID, ChannelType: 1, ClientMsgNo: "first-person", Payload: []byte("first offline person message"), Origin: message.SendOriginClient})
+		require.NoError(t, sendErr)
+	}
+	if automatic {
+		sendFirst()
+	} else {
+		admission, admissionErr := newMQTTInboxAdmission(node, a.messageIDs)
+		require.NoError(t, admissionErr)
+		results := node.AdmitPersonDirectoryTasks(ctx, []meta.PersonDirectoryTask{{ChannelID: channel.ID, ChannelType: 1, CreatedAt: time.Now().UnixMilli()}})
+		require.Equal(t, []error{nil}, results)
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			progress, stepErr := admission.Advance(ctx, channel)
+			require.NoError(c, stepErr)
+			require.True(c, progress.Ready)
+		}, 10*time.Second, 25*time.Millisecond)
+	}
+	admitted, err := node.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadInboxAdmission, AdmissionChannel: channel.ID})
 	require.NoError(t, err)
-	results := node.AdmitPersonDirectoryTasks(ctx, []meta.PersonDirectoryTask{{ChannelID: channel.ID, ChannelType: 1, CreatedAt: time.Now().UnixMilli()}})
-	require.Equal(t, []error{nil}, results)
-	var progress sessioncase.InboxAdmissionProgress
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		var stepErr error
-		progress, stepErr = admission.Advance(ctx, channel)
-		require.NoError(c, stepErr)
-		require.True(c, progress.Ready)
-	}, 10*time.Second, 25*time.Millisecond)
-	require.Equal(t, uint8(2), progress.Checkpoint.Participant)
+	require.NotNil(t, admitted.Admission)
+	require.NotNil(t, admitted.Admission.Checkpoint)
+	require.Equal(t, uint8(2), admitted.Admission.Checkpoint.Participant)
 	for _, uid := range []string{"alice", "bob"} {
 		directory, readErr := node.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadInboxDirectory, Owner: meta.MQTTBindingOwner{Kind: meta.MQTTBindingUID, ID: uid}, Limit: 64})
 		require.NoError(t, readErr)
@@ -116,8 +139,9 @@ func TestMQTTInboxAdmissionOfflineDirectoryBeforeFirstPersonSingleNodeCluster(t 
 	require.True(t, prepared.Needed)
 	require.Equal(t, meta.MQTTBindingActive, prepared.Binding.Stage)
 	require.Greater(t, prepared.Cursor.StartAfter, uint64(0), "replicated activation precedes the business message")
-	sent, err := a.Messages().Send(ctx, message.SendCommand{FromUID: "bob", DeviceFlag: 1, ChannelID: channel.ID, ChannelType: 1, ClientMsgNo: "first-person", Payload: []byte("first offline person message"), Origin: message.SendOriginClient})
-	require.NoError(t, err)
+	if !automatic {
+		sendFirst()
+	}
 	require.Greater(t, sent.MessageSeq, prepared.Cursor.StartAfter)
 	replay, err := newMQTTReplayWorker(node, a.messageIDs, runtime.ReplayWorkerOptions{HashSlotCount: 256, Interval: 20 * time.Millisecond, PagesPerTurn: 32})
 	require.NoError(t, err)
@@ -144,5 +168,5 @@ func TestMQTTInboxAdmissionOfflineDirectoryBeforeFirstPersonSingleNodeCluster(t 
 	require.EqualValues(t, 1, state.Session.PendingMessages)
 	require.EqualValues(t, 1, state.DeliveryCursors[0].PendingMessages)
 	require.Equal(t, prepared.Cursor.StartAfter, state.DeliveryCursors[0].StartAfter)
-	t.Log("mqtt_inbox_admission_evidence: nodes=1 hash_slots=256 qualification_fixture=true first_person_source=true offline_session=true real_source_protection=true real_cursor_commit=true native_send=true shared_replay=true offline_accounted=1 native_directory_projector=true bounded_admission=true automatic_append_hook=false product_listener=false")
+	t.Logf("mqtt_inbox_admission_evidence: nodes=1 hash_slots=256 qualification_fixture=true first_person_source=true offline_session=true real_source_protection=true real_cursor_commit=true native_send=true shared_replay=true offline_accounted=1 native_directory_projector=true bounded_admission=true automatic_append_hook=%t product_listener=false", automatic)
 }

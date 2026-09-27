@@ -699,6 +699,12 @@ func (a *App) wireUsers() {
 }
 
 func (a *App) wireChannelAppend(nodeID uint64) error {
+	if a.mqttInboxWrites {
+		node, ok := a.cluster.(*cluster.Node)
+		if !ok || node == nil || a.personDirectoryProjector == nil || a.channelAppends != nil {
+			return fmt.Errorf("internal/app: inbox append requires real cluster, directory projector and owned appender")
+		}
+	}
 	if a.channelAppends == nil {
 		appendNode, hasAppendNode := a.cluster.(clusterinfra.ChannelAppendNode)
 		authorityNode, hasAuthorityNode := a.cluster.(clusterinfra.ChannelAppendAuthorityNode)
@@ -713,10 +719,18 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 				}
 				a.messageIDs = messageIDs
 			}
+			var durableAppender channelappend.Appender = clusterinfra.NewChannelAppender(appendNode, a.logger.Named("cluster.append"))
+			if a.mqttInboxWrites {
+				var err error
+				durableAppender, err = newMQTTInboxAppender(a.cluster.(*cluster.Node), messageIDs, durableAppender, a.personDirectoryProjector.Wake)
+				if err != nil {
+					return fmt.Errorf("internal/app: wire inbox append: %w", err)
+				}
+			}
 			opts := channelappend.Options{
 				CommandChannelSuffix:   a.cfg.Message.CMDChannelSuffix,
 				LocalNodeID:            nodeID,
-				Appender:               clusterinfra.NewChannelAppender(appendNode, a.logger.Named("cluster.append")),
+				Appender:               durableAppender,
 				MessageID:              messageIDs,
 				AuthorityShardCount:    a.cfg.ChannelAppend.AuthorityShardCount,
 				AdvancePoolSize:        a.cfg.ChannelAppend.AdvancePoolSize,

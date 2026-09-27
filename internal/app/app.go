@@ -102,6 +102,9 @@ type App struct {
 	channelAppends        *channelappend.Group
 	channelAppendRouter   *channelappend.Router
 	channelAppendMetadata *clusterinfra.ChannelAppendMetadataCache
+	// mqttInboxWrites privately gates full-cluster inbox append preparation until
+	// complete MQTT configuration, lifecycle and restore admission are composed.
+	mqttInboxWrites bool
 	// benchTerminal owns the one-shot terminal drain and opaque grant for one
 	// benchmark product-process generation.
 	benchTerminal *benchterminal.Controller
