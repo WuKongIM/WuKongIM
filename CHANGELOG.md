@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Preserve Channel authority generations across physical runtime deletion and recreation, rejecting stale prepared writes and retiring old person-directory work atomically. Matched cluster binaries are required; full MQTT access remains under development. / 频道运行时物理删除、重建后保留并推进权威代次，拒绝旧追加请求，并原子撤销旧单聊目录任务。集群需使用匹配版本；完整 MQTT 接入仍在开发。
+
 - Add bounded MQTT Will first-dispatch and committed-result recovery through existing message policy and cluster authority. Lost observations preserve original identity/time even after permission revocation; uncertain redispatch and product access remain under development. / MQTT Will 接通有界首次发布和已提交结果恢复，复用消息权限与集群权威；观察结果丢失且后续撤权时仍恢复原身份和时间，未知结果的重发及产品接入仍在开发。
 
 - Route retained MQTT Will receipt queries through fresh Slot and recovered Channel authority, preserving original identity after history cleanup and restart and rejecting isolated warm readers. Queries are bounded and respect maintenance; Will execution and product access remain under development. / MQTT Will 回执查询接通最新 Slot 与已恢复频道权威，历史清理及重启后保留原身份，失去多数派的节点不能返回缓存结果；查询有界并遵循维护隔离，Will 执行和产品接入仍在开发。

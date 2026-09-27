@@ -285,11 +285,7 @@ func TestSlotMetaSourceObservesEnsureMetaStageBreakdown(t *testing.T) {
 	requireAppendStage(t, observer.events, "meta_create_build", "ok")
 	requireAppendStage(t, observer.events, "meta_create_propose", "ok")
 	requireAppendStage(t, observer.events, "meta_create_write", "ok")
-	for _, event := range observer.events {
-		if event.stage == "meta_final_read" {
-			t.Fatalf("successful identity-bound create unexpectedly reread authoritative metadata: %#v", event)
-		}
-	}
+	requireAppendStage(t, observer.events, "meta_final_read", "ok")
 	for _, stage := range []string{"meta_create_build", "meta_create_propose"} {
 		requirePositiveAppendStageDuration(t, observer.events, stage)
 	}
@@ -317,7 +313,7 @@ func TestSlotMetaSourceDoesNotObserveProposalWhenPlacementBuildFails(t *testing.
 	}
 }
 
-func TestSlotMetaSourceCreatedResultDoesNotDependOnLaggingReread(t *testing.T) {
+func TestSlotMetaSourceCreatedResultRequiresAuthoritativeReread(t *testing.T) {
 	id := ch.ChannelID{ID: "ensure-create-lagging-read", Type: 1}
 	store := &laggingRuntimeMetaStore{}
 	observer := &appendStageObserver{}
@@ -325,20 +321,12 @@ func TestSlotMetaSourceCreatedResultDoesNotDependOnLaggingReread(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, source.Close()) })
 
 	meta, err := source.EnsureChannelMeta(context.Background(), id)
-	if err != nil {
-		t.Fatalf("EnsureChannelMeta() error = %v", err)
+	require.ErrorIs(t, err, metadb.ErrNotFound)
+	require.Equal(t, ch.Meta{}, meta)
+	if store.creates != 1 || store.upserts != 0 || store.reads != 1 {
+		t.Fatalf("creates=%d upserts=%d reads=%d, want one create and one failed authoritative reread", store.creates, store.upserts, store.reads)
 	}
-	if meta.ID != id {
-		t.Fatalf("EnsureChannelMeta() meta = %#v, want %v", meta, id)
-	}
-	if store.creates != 1 || store.upserts != 0 || store.reads != 0 {
-		t.Fatalf("creates=%d upserts=%d reads=%d, want one proven create and no reread", store.creates, store.upserts, store.reads)
-	}
-	for _, event := range observer.events {
-		if event.stage == "meta_final_read" {
-			t.Fatalf("successful identity-bound create unexpectedly reread authoritative metadata: %#v", event)
-		}
-	}
+	requireAppendStage(t, observer.events, "meta_final_read", "miss")
 }
 
 func TestSlotMetaSourceCreatesMissingRuntimeMetaFromPlacement(t *testing.T) {
@@ -360,8 +348,8 @@ func TestSlotMetaSourceCreatesMissingRuntimeMetaFromPlacement(t *testing.T) {
 	if reader.creates != 1 || reader.upserts != 0 {
 		t.Fatalf("creates=%d upserts=%d, want one create-only call", reader.creates, reader.upserts)
 	}
-	if reader.batchReads != 0 {
-		t.Fatalf("authoritative batch rereads=%d, want none after an identity-bound created result", reader.batchReads)
+	if reader.batchReads != 1 {
+		t.Fatalf("authoritative batch rereads=%d, want one after an identity-bound created result", reader.batchReads)
 	}
 	if meta.Leader != 3 || meta.MinISR != 2 {
 		t.Fatalf("created meta leader/minISR = %#v, want placement", meta)

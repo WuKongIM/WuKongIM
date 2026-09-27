@@ -43,8 +43,8 @@ type Channel struct {
 	SubscriberMutationVersion uint64
 	// SubscriberCount stores the durable number of ordinary subscriber rows.
 	SubscriberCount uint64
-	// DirectoryProjectionState advances monotonically from none to pending to
-	// ready for canonical person-channel membership projection.
+	// DirectoryProjectionState advances from none to pending to ready for a live
+	// person-channel projection. Runtime retirement withdraws readiness atomically.
 	DirectoryProjectionState DirectoryProjectionState
 	// DirectoryProjectionGeneration is the exact durable incarnation whose
 	// pending task or completed UID projection the state describes.

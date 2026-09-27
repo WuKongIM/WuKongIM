@@ -22,8 +22,9 @@ Failure inventory at the existing metadata, append, RPC and adapter seams:
 - Person directory deletion must advance its existing route fence atomically;
   overflow must reject deletion, and monotonic updates cannot bypass the bump.
 - Binary snapshots must retain existing route/directory fields. Physical runtime
-  deletion, restore activation and product initial-subscription races still need
-  their separate incarnation and owner-isolation contracts before activation.
+  deletion now has a [retained incarnation floor](mqtt-runtime-incarnation.md);
+  restore activation and product initial-subscription races still need their
+  owner-isolation contracts before activation.
 
 These checks reuse approved append/storage boundaries. They do not add business
 policy to reusable runtime or infrastructure layers. Product MQTT stays disabled
@@ -66,10 +67,11 @@ the old proof and verifies old/new bodies plus absence of the rejected message b
 committed indexed reads. Authority installation may add an internal log barrier;
 business sequence numbers need not be adjacent across the route change.
 
-Automatic checkpoint-to-append binding remains unfinished. These tests do not
-prove atomicity between concurrent Slot deletion and an already admitted Channel
-commit, or safety after physical runtime deletion/restore reuses older metadata.
-Those lifecycle/activation boundaries, initial inbox subscription handshake,
+The [automatic checkpoint-to-append binding](mqtt-inbox-appender.md) and
+[physical runtime recreation fence](mqtt-runtime-incarnation.md) are implemented
+behind the private composition gate. These tests do not prove atomicity between
+concurrent Slot deletion and an already admitted Channel commit, or safety when
+restore reuses older metadata. Those lifecycle/activation boundaries,
 matched replica capabilities and process E2E acceptance remain required. The
 product listener stays disabled.
 

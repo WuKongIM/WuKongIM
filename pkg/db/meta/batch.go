@@ -204,6 +204,11 @@ func (b *Batch) UpsertChannelRuntimeMeta(hashSlot HashSlot, meta ChannelRuntimeM
 		if err != nil {
 			return err
 		}
+		if !exists {
+			if err := rejectRetiredRuntimeUpsert(state, hashSlot, meta); err != nil {
+				return err
+			}
+		}
 		next, result := resolveMonotonicChannelRuntimeMeta(existing, exists, meta)
 		switch result {
 		case MonotonicIgnoredStale:
@@ -244,14 +249,18 @@ func (b *Batch) CreateChannelRuntimeMeta(hashSlot HashSlot, meta ChannelRuntimeM
 		if exists {
 			return nil
 		}
-		value, err := channelRuntimeMetaTable.encodeValue(key, staged)
+		next, err := newRuntimeIncarnation(state, hashSlot, staged)
+		if err != nil {
+			return err
+		}
+		value, err := channelRuntimeMetaTable.encodeValue(key, next)
 		if err != nil {
 			return err
 		}
 		if err := batch.Set(key, value); err != nil {
 			return err
 		}
-		state.runtimeMeta[string(key)] = runtimeMetaOverlay{meta: staged, exists: true}
+		state.runtimeMeta[string(key)] = runtimeMetaOverlay{meta: next, exists: true}
 		result.Created = true
 		return nil
 	})

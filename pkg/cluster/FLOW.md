@@ -114,8 +114,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   generation or make migration decisions from stale state.
 - Runtime-meta creation uses one supervised owner per logical Slot: duplicate
   identities coalesce, unique work is bounded and canonical-sorted, placement
-  comes from one current revision, and uncertain proposals retry only rows an
-  authoritative reread proves missing.
+  comes from one current revision; every create rereads committed versions, including
+  wholly successful batches. Uncertain proposals retry only authoritatively missing rows.
 - UID-owned membership fanout and person-directory batches have fixed
   concurrency. Directory-ready can never hide missing UID membership or
   missing append runtime metadata.

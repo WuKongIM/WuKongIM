@@ -31,7 +31,8 @@ func TestMQTTInboxAdmissionCommandSnapshotAndAtomicRecreation(t *testing.T) {
 	cmd := func(index uint64, raw []byte) multiraft.Command {
 		return multiraft.Command{SlotID: 11, HashSlot: 9, Index: index, Term: 1, Data: raw}
 	}
-	recreate := EncodeUpsertChannelRuntimeMetaCommand(fsmTestRuntimeMeta(row.ChannelID, 1))
+	recreate, err := EncodeCreateChannelRuntimeMetaBatchCommandChecked([]CreateChannelRuntimeMetaBatchItem{{HashSlot: 9, Meta: fsmTestRuntimeMeta(row.ChannelID, 1)}})
+	require.NoError(t, err)
 	phase1 := row
 	phase1.Revision, phase1.Participant = 2, 1
 	done := row
@@ -70,8 +71,10 @@ func TestMQTTInboxAdmissionCommandSnapshotAndAtomicRecreation(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 0, view.Admission.Checkpoint.DirectoryGeneration)
 	require.EqualValues(t, 4, view.Admission.Checkpoint.Revision)
-	require.EqualValues(t, 1, view.Admission.Runtime.DirectoryGeneration)
+	require.NotNil(t, view.Admission.Runtime)
+	require.Greater(t, view.Admission.Runtime.DirectoryGeneration, uint64(1))
 	row.Revision = 5
+	row.DirectoryGeneration = view.Admission.Runtime.DirectoryGeneration
 	applied, err := restored.Apply(ctx, cmd(8, encode(4, row)))
 	require.NoError(t, err)
 	require.NoError(t, json.Unmarshal(applied, &result))

@@ -24,6 +24,22 @@ as a format migration and gate it behind an explicit rollout plan.
 
 ## Stable Durable IDs
 
+Metadata table 3 (`channel_runtime_meta`) System 1 now retains one incarnation
+floor per deleted channel ID/type under its existing hash-Slot prefix. Its key
+uses the runtime primary-key layout; its key-bound version-1 checksummed fixed
+envelope contains one big-endian uint64. It is not a runtime row. Physical
+deletion atomically retains the maximum channel/leader/route/directory/write-fence
+version, withdraws person-directory readiness/tasks and invalidates MQTT inbox
+admission. Only explicit create can reopen the absent identity, assigning versions
+above that floor. Late upserts and directory admission cannot resurrect it.
+Create results keep their wire format; callers reread actual committed versions.
+Native snapshots and portable binary metadata streams preserve registered System
+spans, including deleted identities. No old row encoding changes, but all writers
+must match: older binaries can erase/reuse authority. A pre-feature backup is
+required for rollback; old deletion history cannot be reconstructed. MQTT JSONL
+transfer and distributed restore activation remain required before product access.
+See [runtime incarnation fence](../../docs/specs/mqtt-runtime-incarnation.md).
+
 Message table 1 System 16 retains keyed Will publication receipts independently
 of ordinary history. Its key appends sized server-Will key and UID; its key-bound
 version-1 fixed envelope stores sequence, message ID, original timestamp and the
@@ -49,8 +65,9 @@ advance the route when directory generation changes. No column, key or stored
 format is added. Matching writers are required before using this stronger fence:
 old binaries do not advance both versions. Optional prepared append requests use
 Channel RPC 12 and reject lossy older formats; ordinary requests/replies remain
-11. Runtime deletion/restore activation is a separate fence, still required before
-MQTT product activation. See [prepared append authority](../../docs/specs/mqtt-append-route-fence.md).
+11. Physical runtime deletion uses the retained floor above; restore activation
+still requires separate fencing before MQTT product activation.
+See [prepared append authority](../../docs/specs/mqtt-append-route-fence.md).
 
 Subscriber table 5 keeps its primary key and adds optional column 4,
 `incarnation`, in a key-bound version-1 column envelope. Empty legacy values

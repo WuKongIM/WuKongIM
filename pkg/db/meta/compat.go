@@ -1069,18 +1069,7 @@ func (b *WriteBatch) DeleteChannelRuntimeMeta(hashSlot uint16, channelID string,
 	if err := b.ensure(); err != nil {
 		return err
 	}
-	if err := validateKeyString(channelID); err != nil {
-		return err
-	}
-	key := encodeChannelRuntimeMetaRowKey(HashSlot(hashSlot), channelID, channelType, channelRuntimeMetaPrimaryFamilyID)
-	b.batch.addOp(HashSlot(hashSlot), func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
-		if err := invalidateMQTTInboxAdmission(state, batch, HashSlot(hashSlot), channelID, channelType); err != nil {
-			return err
-		}
-		state.runtimeMeta[string(key)] = runtimeMetaOverlay{exists: false}
-		return batch.Delete(key)
-	})
-	return nil
+	return b.batch.deleteChannelRuntimeMeta(HashSlot(hashSlot), channelID, channelType, false)
 }
 
 func (b *WriteBatch) AdvanceChannelRetentionThroughSeq(hashSlot uint16, req ChannelRetentionAdvance) error {

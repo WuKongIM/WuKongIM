@@ -485,8 +485,13 @@ specification, runbook, report, or module documentation; link to them when neede
   intent and self-inbox permission gate the final receipt. Active option updates
   retain that qualification. Real single-node cluster coverage uses this path for
   an existing source, then admits a new source while offline without qualification
-  fixtures. Physical-runtime/restore fencing, offline scheduling and full product
-  composition remain required. [Inbox removal](../specs/mqtt-inbox-removal.md)
+  fixtures. [Physical runtime deletion](../specs/mqtt-runtime-incarnation.md)
+  retains table 3 System 1 authority floors; explicit recreation advances all
+  authority versions, while late upserts and absent-runtime directory admission
+  fail. Deletion atomically withdraws person-directory tasks/readiness and inbox
+  checkpoints. Cold creation rereads actual committed versions even after success.
+  Restore fencing, offline scheduling and full product composition remain required.
+  [Inbox removal](../specs/mqtt-inbox-removal.md)
   use UID binding optional columns 29–32, separate from initial discovery.
   Empty initialization precedes monotonic ID/incarnation progress; completed
   normal removal needs its Session revision witness. Command 71 and binary

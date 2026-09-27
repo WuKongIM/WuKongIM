@@ -78,7 +78,7 @@ plugin, migration, message projections, and MQTT session state.
   return deterministic results such as stale metadata; unexpected apply
   failures do not expose a partially committed batch.
 - Runtime metadata epochs, route generation, retention, and write-fence version
-  advance monotonically. Cleared fences retain their generation marker, and no
+  advance monotonically; physical deletion retains a floor for explicit recreation and retires person-directory work atomically. Cleared fences retain their generation marker, and no
   task may overwrite a foreign fence.
 - Migration cutover requires task, epoch, leader, fence, drain, replica, ISR,
   and phase proof from the same authoritative state. Irreversible commit or

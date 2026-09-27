@@ -88,17 +88,17 @@ func TestMQTTInboxAdmissionResumesBothParticipantsAndFencesIncarnations(t *testi
 	require.Equal(t, MQTTSessionCASConflict, writeMQTTInboxAdmission(t, s.db, 5, row).Status, "old exact retry must not confirm another incarnation")
 	row.Revision, row.DirectoryGeneration, row.Participant = 7, 2, 0
 	require.Equal(t, MQTTSessionCASApplied, writeMQTTInboxAdmission(t, s.db, 6, row).Status)
-	// Physical runtime deletion retains a revision witness even after recreation at generation 1.
+	// Physical deletion retains both the admission revision and runtime generation floor.
 	require.NoError(t, s.db.HashSlot(9).DeleteChannelRuntimeMeta(ctx, row.ChannelID, 1))
 	view = readMQTTInboxAdmission(t, s.db, row.ChannelID)
 	require.Nil(t, view.Runtime)
 	require.Equal(t, uint64(0), view.Checkpoint.DirectoryGeneration)
 	require.Equal(t, uint64(8), view.Checkpoint.Revision)
-	_, err = s.db.HashSlot(9).UpsertChannelRuntimeMeta(ctx, testRuntimeMeta(row.ChannelID, 1))
-	require.NoError(t, err)
+	fresh := createRuntimeIncarnation(t, s.db, 9, testRuntimeMeta(row.ChannelID, 1))
 	row = mqttInboxAdmissionFixture()
 	require.Equal(t, MQTTSessionCASConflict, writeMQTTInboxAdmission(t, s.db, 0, row).Status)
 	row.Revision = 9
+	row.DirectoryGeneration = fresh.DirectoryGeneration
 	require.Equal(t, MQTTSessionCASApplied, writeMQTTInboxAdmission(t, s.db, 8, row).Status)
 }
 

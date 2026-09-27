@@ -167,6 +167,11 @@ func (s *Shard) UpsertChannelRuntimeMeta(ctx context.Context, meta ChannelRuntim
 	if err != nil {
 		return 0, err
 	}
+	if !exists {
+		if err := rejectRetiredRuntimeUpsert(&batchCommitState{db: s.db}, s.hashSlot, meta); err != nil {
+			return MonotonicConflict, err
+		}
+	}
 	next, result := resolveMonotonicChannelRuntimeMeta(existing, exists, meta)
 	if result == MonotonicIgnoredStale {
 		return result, nil
@@ -212,33 +217,18 @@ func (s *Shard) GetChannelRuntimeMeta(ctx context.Context, channelID string, cha
 	}
 }
 
-// DeleteChannelRuntimeMeta removes one runtime metadata row.
+// DeleteChannelRuntimeMeta removes one runtime row while retaining its authority
+// high water atomically. Subsequent recreation requires an explicit create.
 func (s *Shard) DeleteChannelRuntimeMeta(ctx context.Context, channelID string, channelType int64) error {
 	if err := s.check(ctx); err != nil {
 		return err
 	}
-	if err := validateKeyString(channelID); err != nil {
-		return err
-	}
-	unlock := s.lock()
-	defer unlock()
-	key := encodeChannelRuntimeMetaRowKey(s.hashSlot, channelID, channelType, channelRuntimeMetaPrimaryFamilyID)
-	if _, ok, err := s.db.get(key); err != nil || !ok {
-		if err != nil {
-			return err
-		}
-		return dberrors.ErrNotFound
-	}
-	batch := s.db.engine.NewBatch()
+	batch := s.db.NewBatch()
 	defer batch.Close()
-	state := &batchCommitState{db: s.db, tableRows: make(map[string]tableRowOverlay)}
-	if err := invalidateMQTTInboxAdmission(state, batch, s.hashSlot, channelID, channelType); err != nil {
+	if err := batch.deleteChannelRuntimeMeta(s.hashSlot, channelID, channelType, true); err != nil {
 		return err
 	}
-	if err := batch.Delete(key); err != nil {
-		return err
-	}
-	return batch.Commit(true)
+	return batch.Commit(ctx)
 }
 
 // ListChannelRuntimeMetaPage returns runtime metadata in channel ID/type order.
