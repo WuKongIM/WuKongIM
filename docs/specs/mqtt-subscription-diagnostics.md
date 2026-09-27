@@ -61,3 +61,21 @@ are `disabled`, `malformed`, `owner_limit`, `fenced`, `deadline`, `canceled`,
   should isolate cold first-subscription admission to improve capture frequency.
 - Exact binary, rule and log hashes are recorded in
   [the evidence report](../reports/mqtt-subscription-diagnostics.json).
+
+## Focused admission loop
+
+`TestColdGroupSubscriptionAdmission` now performs 64 fresh group/Session
+subscriptions in one real three-node 256-Slot cluster, using the original first
+fixture then deterministic new identities. It contains no publication, ACK,
+UNSUBSCRIBE, enabled failpoint or application retry. Its bounded JSON records
+both successful and failed attempts, fixed closure categories and admission
+latency. It is admission coverage, not yet a reproducer of the intermittent bug.
+
+Both the stage-probe binary (98.723s) and ordinary candidate (91.516s) passed all
+64 attempts. Candidate median/P95/max SUBSCRIBE time was 976.598/1094.784/1464.490
+ms. These sequential local observations do not qualify scale or long-sequence
+performance. They do not exclude process-startup timing: repeated cold groups in
+one warmed cluster omit repeated process startup. Exact commands and artifact
+hashes are in [the admission report](../reports/mqtt-cold-subscribe-admission.json).
+The two historical connection failures remain unresolved; no retry or timeout
+policy was changed by this work.

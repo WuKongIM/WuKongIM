@@ -254,3 +254,86 @@ func runRecovery(t *testing.T, count int, target, cut string) {
 	require.NoError(t, os.WriteFile(path, append(data, '\n'), 0600))
 	t.Logf("result artifact: %s", path)
 }
+
+// TestColdGroupSubscriptionAdmission exercises the setup where failure was
+// observed before the unsubscribe fault is enabled. One cluster amortizes startup while each
+// attempt uses a fresh group and persistent Session, without request retries.
+func TestColdGroupSubscriptionAdmission(t *testing.T) {
+	s := suite.New(t)
+	var options []suite.Option
+	addrs := make([]string, 3)
+	for i := range addrs {
+		addrs[i] = suite.ReserveLoopbackPorts(t).GatewayAddr
+		options = append(options, suite.WithNodeConfigOverrides(uint64(i+1), map[string]string{"WK_CLUSTER_HASH_SLOT_COUNT": "256", "WK_GATEWAY_TOKEN_AUTH_ON": "true", "WK_MQTT_ENABLE": "true", "WK_MQTT_LISTEN_ADDR": addrs[i]}))
+	}
+	cluster := s.StartThreeNodeCluster(append(options, suite.WithManagerHTTP())...)
+	ready, done := context.WithTimeout(context.Background(), 30*time.Second)
+	require.NoError(t, cluster.WaitClusterReady(ready), cluster.DumpDiagnostics())
+	_, err := cluster.WaitSlotLeadersStable(ready, time.Second)
+	done()
+	require.NoError(t, err, cluster.DumpDiagnostics())
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
+	defer cancel()
+	first, last := cluster.MustNode(1), cluster.MustNode(3)
+	const attempts = 64
+	durations := make([]int64, 0, attempts)
+	completed := 0
+	step := "credentials"
+	var observations []map[string]any
+	defer func() {
+		report := map[string]any{"scenario": "cold-group-subscribe", "nodes": 3, "hash_slots": 256, "attempt_limit": attempts, "completed": completed, "passed": !t.Failed() && completed == attempts, "last_step": step, "foreground_retries": 0, "subscribe_elapsed_us": durations, "closure_observations": observations}
+		dir := os.Getenv("WK_E2E_MQTT_REPORT_DIR")
+		if dir == "" {
+			dir = first.Spec.RootDir
+		}
+		require.NoError(t, os.MkdirAll(dir, 0755))
+		data, err := json.MarshalIndent(report, "", "  ")
+		require.NoError(t, err)
+		path := filepath.Join(dir, "mqtt-cold-group-subscribe.json")
+		require.NoError(t, os.WriteFile(path, append(data, '\n'), 0600))
+		t.Logf("result artifact: %s", path)
+	}()
+	for _, uid := range []string{"alice", "bob"} {
+		_, err := suite.PostJSON(ctx, "http://"+first.APIAddr()+"/user/token", map[string]any{"uid": uid, "token": uid + "-recovery-token", "device_flag": 1, "device_level": 1}, nil)
+		require.NoError(t, err)
+	}
+	for i := 0; i < attempts; i++ {
+		group, clientID := "recover-group", "recovery-bob"
+		if i != 0 {
+			group += fmt.Sprintf("-%d", i)
+			clientID += fmt.Sprintf("-%d", i)
+		}
+		step = "create_group"
+		require.NoError(t, suite.PostChannel(ctx, first.APIAddr(), map[string]any{"channel_id": group, "channel_type": frame.ChannelTypeGroup, "reset": 1, "subscribers": []string{"alice", "bob"}}))
+		step = "connect"
+		bob, err := suite.ConnectMQTT(ctx, addrs[2], "bob", "bob-recovery-token", clientID, false, 600, suite.MQTTConnectOptions{ManualAcknowledgements: true, ReceiveMaximum: 1})
+		require.NoError(t, err, last.DumpDiagnostics())
+		t.Cleanup(func() { _ = bob.Abort() })
+		require.False(t, bob.Connack.SessionPresent)
+		step = "subscribe"
+		started := time.Now()
+		ack, err := bob.Client.Subscribe(ctx, &paho.Subscribe{Subscriptions: []paho.SubscribeOptions{{Topic: "wk/v1/groups/" + base64.RawURLEncoding.EncodeToString([]byte(group)) + "/messages", QoS: 1}}})
+		durations = append(durations, time.Since(started).Microseconds())
+		if err != nil {
+			for nodeID := uint64(1); nodeID <= 3; nodeID++ {
+				node := cluster.MustNode(nodeID)
+				call, done := context.WithTimeout(context.Background(), time.Second)
+				samples, metricErr := suite.FetchMetricSamples(call, node.APIAddr())
+				done()
+				t.Logf("attempt %d node %d metric error: %v", i, nodeID, metricErr)
+				for _, v := range samples {
+					if v.Name == "wukongim_mqtt_subscription_closures_total" && v.Value != 0 {
+						observations = append(observations, map[string]any{"node": nodeID, "operation": v.Labels["operation"], "reason": v.Labels["reason"], "count": v.Value})
+					}
+				}
+				t.Logf("node %d: %s", nodeID, node.DumpDiagnostics())
+			}
+		}
+		require.NoError(t, err, "first SUBSCRIBE attempt %d after %s", i, time.Since(started))
+		require.Equal(t, []byte{1}, ack.Reasons)
+		step = "disconnect"
+		require.NoError(t, bob.Close())
+		completed++
+	}
+	step = "complete"
+}

@@ -14,3 +14,11 @@ response failure is not an abrupt process-crash or partition-isolation proof.
 
 Build: `scripts/build-gofail-binary.sh --package internal/usecase/mqttsession --out /tmp/wukongim-mqtt-gofail`
 Run: `WK_E2E_BINARY=/tmp/wukongim-mqtt-gofail WK_E2E_GOFAIL_MQTT=1 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-unsubscribe-fault-reports GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/unsubscribe_recovery -count=1 -timeout=10m -v`
+
+`TestColdGroupSubscriptionAdmission` is focused first-subscription coverage
+and a diagnostic loop derived from this scenario. A passing run does not prove
+the intermittent setup failure is repaired. It needs no gofail build: one real three-node
+256-Slot cluster attempts 64 fresh persistent Sessions/groups without retrying
+SUBSCRIBE, publications or unsubscribe faults. It emits a bounded JSON result on
+success or failure, including fixed closure observations and per-attempt latency.
+Run it with `GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/unsubscribe_recovery -run '^TestColdGroupSubscriptionAdmission$' -count=1 -timeout=3m -v`.

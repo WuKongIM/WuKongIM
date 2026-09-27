@@ -1239,3 +1239,10 @@ specification, runbook, report, or module documentation; link to them when neede
   requests, not unique connections, CAS non-write proof or isolation. Fenced
   admitted scopes may report cancellation. See
   [failure inventory](../specs/mqtt-subscription-diagnostics.md).
+
+- `TestColdGroupSubscriptionAdmission` isolates subscription admission steps in
+  one real three-node cluster with 64 new persistent Sessions/groups and no
+  foreground retries or publications. It emits bounded success/failure JSON.
+  Candidate and error-only-probe runs pass; the intermittent initial SUBSCRIBE
+  error is still unreproduced by this focused loop, so process-startup conditions
+  remain an open distinction. See [evidence](../reports/mqtt-cold-subscribe-admission.json).
