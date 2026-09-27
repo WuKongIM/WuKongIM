@@ -754,9 +754,10 @@ specification, runbook, report, or module documentation; link to them when neede
   same-generation delivery counters/allocators. A stored window is not permission
   for an unfenced socket to send.
   [Acknowledgements](../specs/mqtt-outbound-acknowledgements.md) uses the current
-  local Owner and one authoritative Session/inflight point read before at most
-  one command-70 commit. Caller-captured cursor/PacketID/DeliveryOrder must all
-  match; a reused ID conflicts. Completion needs no current subscription grant,
+  local Owner and authoritative Session/inflight point reads. At most three
+  command-70 proposals share that scope after definite rejection, requiring a
+  newer parent revision and the same immutable exchange. Unknown write outcomes
+  never retry. Caller-captured cursor/PacketID/DeliveryOrder must all match; a reused ID conflicts. Completion needs no current subscription grant,
   so ordinary unsubscribe preserves old exchanges. Absence is an explicit read
   result, never a delivery receipt; lost replies reconcile without double writes.
   [Outbound gateway binding](../specs/mqtt-outbound-gateway.md) captures exact

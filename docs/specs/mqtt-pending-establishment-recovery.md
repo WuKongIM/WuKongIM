@@ -144,3 +144,14 @@ test probes were removed; evidence logs retain their bounded observations.
 
 After probe removal, the original product binary passed one unchanged short
 repetition. This does not erase the earlier EOF failures or establish a fix.
+
+
+### Subsequent candidate verification
+
+The [bounded ACK concurrency change](mqtt-outbound-acknowledgements.md) fixes a
+separately reproduced renewal/ACK rejection. Its candidate passed all eight
+subscription process cases, preserving offline activation, original source start
+and message identity with no foreground SUBSCRIBE retry. The original seven-of-eight
+report remains historical evidence. This successful matrix does not identify the
+cause of the intermittent EOF; that connection investigation and the separate
+latency/scale requirements remain open. See [candidate evidence](../reports/mqtt-ack-concurrency.json).

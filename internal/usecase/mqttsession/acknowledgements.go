@@ -43,7 +43,7 @@ type AcknowledgementResult struct {
 }
 
 // Acknowledgements completes existing exchanges. It owns no send admission,
-// packet binding, retries, network writes, subscription changes or content GC.
+// packet binding, network writes, subscription changes or content GC.
 type Acknowledgements struct {
 	options AcknowledgementOptions
 	guard   *Subscriptions
@@ -66,9 +66,10 @@ func NewAcknowledgements(o AcknowledgementOptions) (*Acknowledgements, error) {
 	return a, nil
 }
 
-// Acknowledge performs one point read and at most one mutation. Current receive
-// permission/subscription state is irrelevant to completing an existing exchange;
-// active Session ownership and the exact durable order remain mandatory.
+// Acknowledge permits at most three proposals under one admitted Owner after
+// definite CAS rejection. Fresh reads must retain the original immutable exchange
+// and advance the parent revision. Receive permission is irrelevant to completion;
+// unknown write outcomes never retry.
 func (a *Acknowledgements) Acknowledge(parent context.Context, q AcknowledgementCommand) (out AcknowledgementResult, err error) {
 	o := q.Owner
 	if a == nil || q.PacketID == 0 || q.DeliveryOrder == 0 || meta.ValidateMQTTRead(meta.MQTTRead{Kind: meta.MQTTReadDeliveryCursor, CursorKey: q.Key}) != nil ||
@@ -80,52 +81,79 @@ func (a *Acknowledgements) Acknowledge(parent context.Context, q Acknowledgement
 		return out, err
 	}
 	defer finishSubscription(op, cancel, &err)
-	if err = checkSubscriptionScope(ctx, op); err != nil {
-		return out, err
+	var original meta.MQTTInflight
+	var previousRevision uint64
+	for attempt := 0; ; attempt++ {
+		if err = checkSubscriptionScope(ctx, op); err != nil {
+			return out, err
+		}
+		r, err := a.options.Store.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadInflight, Namespace: o.Key.Namespace, ClientID: o.Key.ClientID, SessionGeneration: o.SessionGeneration, PacketID: q.PacketID})
+		if err != nil {
+			return out, err
+		}
+		if err = a.guard.checkSession(ctx, op, o, r.Session); err != nil {
+			return out, err
+		}
+		if !r.Done || r.After != (meta.MQTTReadCursor{}) || len(r.Inflight) > 1 || len(r.SourceOwners) != 0 || len(r.Sessions) != 0 || len(r.Subscriptions) != 0 || len(r.DeliveryCursors) != 0 || len(r.Bindings) != 0 || len(r.Wills) != 0 {
+			return out, ErrEvidence
+		}
+		if attempt > 0 && r.Session.Revision <= previousRevision {
+			return out, ErrConflict
+		}
+		if len(r.Inflight) == 0 {
+			return AcknowledgementResult{Absent: true}, nil
+		}
+		entry := r.Inflight[0]
+		if meta.ValidateMQTTInflight(entry) != nil || entry.PacketID != q.PacketID {
+			return out, ErrEvidence
+		}
+		if entry.Key != q.Key || entry.DeliveryOrder != q.DeliveryOrder {
+			return out, ErrConflict
+		}
+		if attempt == 0 {
+			original = entry
+		} else if !sameAcknowledgedExchange(original, entry) {
+			return out, ErrConflict
+		}
+		now, err := a.guard.now()
+		if err != nil {
+			return out, err
+		}
+		if now.UnixMilli() < entry.UpdatedAtMS || now.UnixMilli() < r.Session.UpdatedAtMS || r.Session.Revision == math.MaxUint64 {
+			return out, ErrClock
+		}
+		mutation := meta.MQTTWindowMutation{Key: q.Key, ExpectedRevision: r.Session.Revision, OwnerGeneration: o.OwnerGeneration, OwnerNodeID: o.NodeID, OwnerBootID: o.BootID, ConnectionID: o.ConnectionID, Op: meta.MQTTWindowAck, PacketID: q.PacketID, DeliveryOrder: q.DeliveryOrder, UpdatedAtMS: now.UnixMilli()}
+		if err = checkSubscriptionScope(ctx, op); err != nil {
+			return out, err
+		}
+		receipt, err := a.options.Store.MutateMQTTWindow(ctx, mutation)
+		if err != nil {
+			return out, err
+		}
+		if err = checkSubscriptionScope(ctx, op); err != nil {
+			return out, err
+		}
+		if receipt.Status == meta.MQTTWindowConflict {
+			if attempt == 2 {
+				return out, ErrConflict
+			}
+			// Only this definite non-write receipt permits another proposal.
+			// Port errors and malformed successful replies never enter this path.
+			previousRevision = r.Session.Revision
+			continue
+		}
+		if (receipt.Status != meta.MQTTWindowApplied && receipt.Status != meta.MQTTWindowUnchanged) || receipt.CurrentRevision != r.Session.Revision+1 || receipt.PacketID != q.PacketID || receipt.DeliveryOrder != q.DeliveryOrder {
+			return out, ErrEvidence
+		}
+		return AcknowledgementResult{Changed: receipt.Status == meta.MQTTWindowApplied}, nil
 	}
-	r, err := a.options.Store.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadInflight, Namespace: o.Key.Namespace, ClientID: o.Key.ClientID, SessionGeneration: o.SessionGeneration, PacketID: q.PacketID})
-	if err != nil {
-		return out, err
-	}
-	if err = a.guard.checkSession(ctx, op, o, r.Session); err != nil {
-		return out, err
-	}
-	if !r.Done || r.After != (meta.MQTTReadCursor{}) || len(r.Inflight) > 1 || len(r.SourceOwners) != 0 || len(r.Sessions) != 0 || len(r.Subscriptions) != 0 || len(r.DeliveryCursors) != 0 || len(r.Bindings) != 0 || len(r.Wills) != 0 {
-		return out, ErrEvidence
-	}
-	if len(r.Inflight) == 0 {
-		return AcknowledgementResult{Absent: true}, nil
-	}
-	entry := r.Inflight[0]
-	if meta.ValidateMQTTInflight(entry) != nil || entry.PacketID != q.PacketID {
-		return out, ErrEvidence
-	}
-	if entry.Key != q.Key || entry.DeliveryOrder != q.DeliveryOrder {
-		return out, ErrConflict
-	}
-	now, err := a.guard.now()
-	if err != nil {
-		return out, err
-	}
-	if now.UnixMilli() < entry.UpdatedAtMS || now.UnixMilli() < r.Session.UpdatedAtMS || r.Session.Revision == math.MaxUint64 {
-		return out, ErrClock
-	}
-	mutation := meta.MQTTWindowMutation{Key: q.Key, ExpectedRevision: r.Session.Revision, OwnerGeneration: o.OwnerGeneration, OwnerNodeID: o.NodeID, OwnerBootID: o.BootID, ConnectionID: o.ConnectionID, Op: meta.MQTTWindowAck, PacketID: q.PacketID, DeliveryOrder: q.DeliveryOrder, UpdatedAtMS: now.UnixMilli()}
-	if err = checkSubscriptionScope(ctx, op); err != nil {
-		return out, err
-	}
-	receipt, err := a.options.Store.MutateMQTTWindow(ctx, mutation)
-	if err != nil {
-		return out, err
-	}
-	if err = checkSubscriptionScope(ctx, op); err != nil {
-		return out, err
-	}
-	if receipt.Status == meta.MQTTWindowConflict {
-		return out, ErrConflict
-	}
-	if (receipt.Status != meta.MQTTWindowApplied && receipt.Status != meta.MQTTWindowUnchanged) || receipt.CurrentRevision != r.Session.Revision+1 || receipt.PacketID != q.PacketID || receipt.DeliveryOrder != q.DeliveryOrder {
-		return out, ErrEvidence
-	}
-	return AcknowledgementResult{Changed: receipt.Status == meta.MQTTWindowApplied}, nil
+}
+
+// sameAcknowledgedExchange pins sent content and protocol identity. Neighbor
+// ACKs may change list links and update time; the atomic window command checks
+// those current links itself and never consumes links from this read snapshot.
+func sameAcknowledgedExchange(a, b meta.MQTTInflight) bool {
+	return a.Key == b.Key && a.Direction == b.Direction && a.PacketID == b.PacketID &&
+		a.DeliveryOrder == b.DeliveryOrder && a.Publication == b.Publication &&
+		a.QoS == b.QoS && a.Stage == b.Stage && a.Topic == b.Topic
 }

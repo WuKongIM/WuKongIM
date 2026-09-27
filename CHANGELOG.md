@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Keep MQTT PUBACK progress through ordinary Session renewal or neighboring acknowledgements using bounded retries after definite version rejection, while preserving exact exchange identity and rejecting unknown write outcomes. / MQTT PUBACK 与会话续租或相邻确认并发时，仅对明确的版本拒绝做有界重试，保留原交换身份，未知写入结果仍停止处理。
+
 - Automatically finish interrupted MQTT inbox/group subscription setup after disconnect, retaining prepared starts and rechecking permission before activation. Expose bounded background confirmation metrics. / MQTT 收件箱和群订阅建立中断后，可在断线状态自动续作，保留原消息起点并在激活前重检权限；新增后台完成确认聚合指标。
 
 - Preserve the captured MQTT owner throughout inbox subscription preparation, rejecting takeover inside nested source work. Add offline group/inbox preparation for pending recovery. / MQTT 收件箱订阅准备全程绑定已捕获的 Owner，嵌套来源准备中发生接管时拒绝沿用新身份；新增离线群订阅和收件箱准备能力。

@@ -18,6 +18,7 @@ type acknowledgementStore struct {
 	read          func(meta.MQTTRead, *meta.MQTTReadResult)
 	before        func(meta.MQTTWindowMutation)
 	after         func(*meta.MQTTWindowResult) error
+	write         func(context.Context, meta.MQTTWindowMutation) (meta.MQTTWindowResult, error)
 }
 
 func (s *acknowledgementStore) ReadMQTT(ctx context.Context, q meta.MQTTRead) (meta.MQTTReadResult, error) {
@@ -30,6 +31,9 @@ func (s *acknowledgementStore) ReadMQTT(ctx context.Context, q meta.MQTTRead) (m
 }
 func (s *acknowledgementStore) MutateMQTTWindow(ctx context.Context, m meta.MQTTWindowMutation) (meta.MQTTWindowResult, error) {
 	s.writes++
+	if s.write != nil {
+		return s.write(ctx, m)
+	}
 	if s.before != nil {
 		s.before(m)
 	}
@@ -131,7 +135,7 @@ func TestAcknowledgementsRecoverLostReplyWithoutASecondMutation(t *testing.T) {
 }
 
 func TestAcknowledgementsRejectStaleIdentityOrInvalidEvidence(t *testing.T) {
-	for _, fault := range []string{"order", "source", "foreign_session", "owner", "canceled", "expired", "no_session", "uid", "ended", "partial", "extra", "invalid_row", "wrong_packet", "read_panic", "revision_race", "bad_receipt", "reply_panic", "canceled_after_commit"} {
+	for _, fault := range []string{"order", "source", "foreign_session", "owner", "canceled", "expired", "no_session", "uid", "ended", "partial", "extra", "invalid_row", "wrong_packet", "read_panic", "bad_receipt", "reply_panic", "canceled_after_commit"} {
 		t.Run(fault, func(t *testing.T) {
 			f, s, a, commands := acknowledgementFixture(t)
 			q := commands[0]
@@ -169,12 +173,6 @@ func TestAcknowledgementsRejectStaleIdentityOrInvalidEvidence(t *testing.T) {
 				s.read = func(_ meta.MQTTRead, r *meta.MQTTReadResult) { r.Inflight[0].PacketID++ }
 			case "read_panic":
 				s.read = func(meta.MQTTRead, *meta.MQTTReadResult) { panic("secret") }
-			case "revision_race":
-				s.before = func(meta.MQTTWindowMutation) {
-					s.before = nil
-					_, e := a.Acknowledge(ctx, commands[1])
-					require.NoError(t, e)
-				}
 			case "bad_receipt":
 				s.after = func(r *meta.MQTTWindowResult) error { r.DeliveryOrder++; return nil }
 			case "reply_panic":
@@ -186,9 +184,6 @@ func TestAcknowledgementsRejectStaleIdentityOrInvalidEvidence(t *testing.T) {
 			require.Error(t, e)
 			require.Zero(t, got)
 			switch fault {
-			case "revision_race":
-				require.Equal(t, 2, s.writes)
-				require.EqualValues(t, 1, f.row(t).OutboundInflight)
 			case "bad_receipt", "reply_panic", "canceled_after_commit":
 				require.Equal(t, 1, s.writes)
 				require.EqualValues(t, 1, f.row(t).OutboundInflight)
@@ -200,6 +195,145 @@ func TestAcknowledgementsRejectStaleIdentityOrInvalidEvidence(t *testing.T) {
 				require.ErrorIs(t, e, app.ErrSubscriptionCallback)
 				require.NotContains(t, e.Error(), "secret")
 			}
+		})
+	}
+}
+
+// The native renewal and ACK both update the Session revision, while the sent
+// exchange remains the same. A definite CAS rejection must not require reconnect.
+func TestAcknowledgementsCompleteAcrossConcurrentRenewal(t *testing.T) {
+	f, store, acknowledgements, commands := acknowledgementFixture(t)
+	before := f.row(t)
+	store.before = func(m meta.MQTTWindowMutation) {
+		store.before = nil
+		require.Equal(t, meta.MQTTWindowAck, m.Op)
+		f.now = f.now.Add(time.Millisecond)
+		_, err := f.service.Renew(context.Background(), commands[0].Owner)
+		require.NoError(t, err)
+	}
+	result, err := acknowledgements.Acknowledge(context.Background(), commands[0])
+	require.NoError(t, err)
+	require.True(t, result.Changed)
+	require.False(t, result.Absent)
+	require.Equal(t, 2, store.writes)
+	require.EqualValues(t, 1, f.row(t).OutboundInflight)
+	require.Equal(t, before.Revision+2, f.row(t).Revision)
+	cursor := readAcknowledgementCursor(t, f, commands[0].Key)
+	require.Equal(t, cursor.StartAfter+1, cursor.CompletedThrough)
+}
+
+func TestAcknowledgementsRetainOriginalExchangeAcrossOtherAcknowledgements(t *testing.T) {
+	for _, same := range []bool{false, true} {
+		t.Run(map[bool]string{false: "neighbor", true: "already-absent"}[same], func(t *testing.T) {
+			f, store, acknowledgements, commands := acknowledgementFixture(t)
+			if same {
+				store.before = func(meta.MQTTWindowMutation) {
+					store.before = nil
+					f.now = f.now.Add(time.Millisecond)
+					_, err := f.service.Renew(context.Background(), commands[0].Owner)
+					require.NoError(t, err)
+				}
+				store.after = func(r *meta.MQTTWindowResult) error {
+					store.after = nil
+					require.Equal(t, meta.MQTTWindowConflict, r.Status)
+					result, err := acknowledgements.Acknowledge(context.Background(), commands[0])
+					require.NoError(t, err)
+					require.True(t, result.Changed)
+					return nil
+				}
+			} else {
+				store.before = func(meta.MQTTWindowMutation) {
+					store.before = nil
+					result, err := acknowledgements.Acknowledge(context.Background(), commands[1])
+					require.NoError(t, err)
+					require.True(t, result.Changed)
+				}
+			}
+			result, err := acknowledgements.Acknowledge(context.Background(), commands[0])
+			require.NoError(t, err)
+			if same {
+				require.Equal(t, app.AcknowledgementResult{Absent: true}, result)
+				require.Equal(t, 2, store.writes, "absence must not trigger another proposal")
+				require.EqualValues(t, 1, f.row(t).OutboundInflight)
+			} else {
+				require.Equal(t, app.AcknowledgementResult{Changed: true}, result)
+				require.Equal(t, 3, store.writes)
+				require.Zero(t, f.row(t).OutboundInflight)
+				cursor := readAcknowledgementCursor(t, f, commands[0].Key)
+				require.Equal(t, cursor.AccountedThrough, cursor.CompletedThrough)
+			}
+		})
+	}
+}
+
+func TestAcknowledgementsRetryOnlyDefiniteRejectionUnderPinnedAuthority(t *testing.T) {
+	faults := []string{"churn", "unchanged-revision", "regressed-revision", "owner", "uid", "lifetime", "publication", "topic", "order", "source", "partial", "cancel", "expiry", "clock", "unknown-conflict", "unknown-timeout"}
+	for _, fault := range faults {
+		t.Run(fault, func(t *testing.T) {
+			f, store, acknowledgements, commands := acknowledgementFixture(t)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			originalRevision := f.row(t).Revision
+			store.before = func(meta.MQTTWindowMutation) {
+				if fault != "churn" {
+					store.before = nil
+				}
+				f.now = f.now.Add(time.Millisecond)
+				_, err := f.service.Renew(context.Background(), commands[0].Owner)
+				require.NoError(t, err)
+				switch fault {
+				case "cancel":
+					cancel()
+				case "expiry":
+					f.now = f.now.Add(time.Minute)
+				case "clock":
+					f.now = f.now.Add(-2 * time.Millisecond)
+				}
+			}
+			store.read = func(_ meta.MQTTRead, r *meta.MQTTReadResult) {
+				if store.writes == 0 {
+					return
+				}
+				switch fault {
+				case "unchanged-revision":
+					r.Session.Revision = originalRevision
+				case "regressed-revision":
+					r.Session.Revision = originalRevision - 1
+				case "owner":
+					r.Session.OwnerGeneration++
+				case "uid":
+					r.Session.UID = "other"
+				case "lifetime":
+					r.Session.Generation++
+				case "publication":
+					r.Inflight[0].Publication.MessageID++
+				case "topic":
+					r.Inflight[0].Topic += "/changed"
+				case "order":
+					r.Inflight[0].DeliveryOrder++
+				case "source":
+					r.Inflight[0].Key.SourceGeneration += "-changed"
+				case "partial":
+					r.Done = false
+				}
+			}
+			if fault == "unknown-conflict" || fault == "unknown-timeout" {
+				store.write = func(context.Context, meta.MQTTWindowMutation) (meta.MQTTWindowResult, error) {
+					if fault == "unknown-conflict" {
+						return meta.MQTTWindowResult{}, app.ErrConflict
+					}
+					return meta.MQTTWindowResult{}, context.DeadlineExceeded
+				}
+			}
+			result, err := acknowledgements.Acknowledge(ctx, commands[0])
+			require.Error(t, err)
+			require.Zero(t, result)
+			wantWrites := 1
+			if fault == "churn" {
+				wantWrites = 3
+			}
+			require.Equal(t, wantWrites, store.writes)
+			require.EqualValues(t, 2, f.row(t).OutboundInflight, "failure must preserve both exchanges")
 		})
 	}
 }

@@ -1,0 +1,395 @@
+{
+  "schema_version": 1,
+  "status": "ack_concurrency_and_subscribe_matrix_verified_unsubscribe_setup_failure_open",
+  "full_goal_status": "in_progress",
+  "source_revision": "919f4023da5d991d4358bb6c2708ac47362154da",
+  "source_rules_sha256": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "internal/usecase/mqttsession/FLOW.md": "1d4d429ad695ac45b6f40b7fd7445952db6f5b8067aaf82a5af6f572b384c1d9",
+    "internal/access/mqtt/FLOW.md": "da87411d7f48fb9b39def7e4baab5cb73dcea1e3c4db7917dad41eb24ae5ff5f",
+    "internal/runtime/mqttsession/FLOW.md": "5f61cca4475b652f61c893afeae4d7d721258072158504b92c78749971e6c29d",
+    "internal/app/FLOW.md": "9f2d53b995b2b5885a4e2a66574fbefb685e7911467d8baac4d0b811000b0331",
+    "test/e2e/AGENTS.md": "386f70c7f300d4b40c874d09b0e67858757f0a02f19a9efd3f41d6f91c71e91a",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "test/e2e/mqtt/subscribe_recovery/AGENTS.md": "ddbb484760671984a1c307fd744b5b39c4331eaf742c35fdfc11ef54aea79ef1",
+    "test/e2e/suite/FLOW.md": "fdf3576f99b00cfdb878ea5623e7f39a576a75bb7ebf5b6fa8de031ae9561add",
+    "test/e2e/mqtt/unsubscribe_recovery/AGENTS.md": "e4c319825fefcfa011e1d61e8e1b2b48bfec156e6e3e965f71a12107b60f434c"
+  },
+  "candidate_go_sha256": {
+    "internal/usecase/mqttsession/acknowledgements.go": "ddb467e1e0d2858e1e1236ea8279cf4d7178936a4b31f36c6fdac9b8204fe80b",
+    "internal/usecase/mqttsession/acknowledgements_test.go": "c2931283b434cb4896933fc702465981fc6b170c6865ce6c07c21c57d5bc6e38"
+  },
+  "problem": "A native Session renewal between ACK point read and proposal definitely rejects that proposal while retaining the exact sent exchange. The prior acknowledgement returned Conflict; the MQTT entry closes on ACK failure.",
+  "scope": "Verified deterministic ACK concurrency defect. Causal relationship to the earlier intermittent post-resume EOF is unproven.",
+  "behavior": {
+    "max_proposals": 3,
+    "scope": "one admitted exact Owner and original deadline",
+    "retry_admission": "only a nil-error MQTTWindowConflict receipt, followed by a strictly newer current parent and identical immutable exchange",
+    "pinned_exchange": [
+      "cursor/source/lifetime key",
+      "direction",
+      "PacketID",
+      "DeliveryOrder",
+      "publication reference and bytes/identifier metadata",
+      "QoS",
+      "stage",
+      "topic"
+    ],
+    "mutable_fields_not_reused": [
+      "previous/next PacketID links",
+      "row update time"
+    ],
+    "unknown_errors_retry": false,
+    "new_tables": 0,
+    "new_rpc_ids": 0,
+    "new_config_fields": 0,
+    "new_workers": 0
+  },
+  "test_first": {
+    "inventory": "docs/specs/mqtt-outbound-acknowledgements.md#bounded-concurrent-progress-failure-inventory",
+    "first_regression": {
+      "command": "GOWORK=off go test -race -p 2 ./internal/usecase/mqttsession -run '^TestAcknowledgementsCompleteAcrossConcurrentRenewal$' -count=1",
+      "exit_code": 1,
+      "log": {
+        "path": "/tmp/mqtt-ack-concurrency-red.log",
+        "sha256": "8359f6b15a9093d16db9020e3417d66580a6a6dc02c1251909384479a68c0481"
+      },
+      "failure": "real renewal succeeded, then ACK returned concurrent lifecycle decision"
+    },
+    "complete_matrix_red": {
+      "command": "GOWORK=off go test -race -p 2 ./internal/usecase/mqttsession -run '^TestAcknowledgements' -count=1",
+      "exit_code": 1,
+      "log": {
+        "path": "/tmp/mqtt-ack-concurrency-pinned-red.log",
+        "sha256": "dc91a981662254199e76c0e45943b67d9054c1650b656b496879ae21a845f9c3"
+      },
+      "failure": "renewal, neighbor ACK, same exchange absent after rejection and bounded churn cases failed before retry implementation; temporary error-only logging did not change behavior."
+    }
+  },
+  "verification": [
+    {
+      "command": "GOWORK=off go test -race -p 2 ./internal/usecase/mqttsession -run '^TestAcknowledgements' -count=1",
+      "exit_code": 0,
+      "log": {
+        "path": "/tmp/mqtt-ack-concurrency-green.log",
+        "sha256": "faac7d1a7fa9355dac3115c22a3d84f7e2fd3f711c4a3f58605d6fc49e8b9066"
+      },
+      "scope": "Renewal/neighbor ACK and post-rejection absence; sixteen stopping/bound cases plus original gaps, unsubscribe, lost replies and invalid evidence coverage."
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 ./internal/usecase/mqttsession ./internal/access/mqtt ./internal/app -count=1",
+      "exit_code": 0,
+      "log": {
+        "path": "/tmp/mqtt-ack-concurrency-full-race.log",
+        "sha256": "b88393f2c591e7f0b08dd1f2f8c783b0cea16b2e173eea1f9a176b34178e01a0"
+      }
+    },
+    {
+      "named_check": "flow-doc-contracts",
+      "exit_code": 0,
+      "log": {
+        "path": "/tmp/mqtt-ack-concurrency-flow.log",
+        "sha256": "518c3c03df7eb5d31ffef78aaf4666017b3054bf4e16f65a227b11efc525cf09"
+      },
+      "result": "87 compliant FLOW files, 0 invalid, 9 existing length warnings."
+    }
+  ],
+  "pre_fix_process_probe": {
+    "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-ack2-probe-gofail WK_E2E_GOFAIL_MQTT=1 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-ack2-probe-reports GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/subscribe_recovery -run 'TestInterruptedSubscribeBackgroundRecovery/1-node-cluster/inbox/before-completion$' -count=3 -failfast -timeout=3m -v",
+    "exit_code": 0,
+    "log": {
+      "path": "/tmp/mqtt-ack-concurrency-process-probe.log",
+      "sha256": "8cb8074e0afb4c96b8579d87cc1f27afd5e7411136b32d577ee3b70bb1b3c8b0"
+    },
+    "result": "Three pre-fix runs passed with only error/resumed-close probes. No failing close site was captured; this is not evidence that ACK rejection caused the historical EOF. All temporary probes removed."
+  },
+  "candidate_binary": {
+    "path": "/tmp/wukongim-mqtt-ack-concurrency-gofail",
+    "sha256": "300211f293a93a75a4b181b5a03b1e89ee4e9148c21000c4a7b12486178fc3c6",
+    "build_command": "GOPROXY=https://proxy.golang.org,direct scripts/build-gofail-binary.sh --package internal/usecase/mqttsession --out /tmp/wukongim-mqtt-ack-concurrency-gofail",
+    "build_log": {
+      "path": "/tmp/mqtt-ack-concurrency-build.log",
+      "sha256": "10cfba538cbe433a9bf0d8e5b332656652289cd1b0ce8d6fe2c0b822861c9ccb"
+    }
+  },
+  "process_verification": {
+    "subscribe": {
+      "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-ack-concurrency-gofail WK_E2E_GOFAIL_MQTT=1 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-ack-concurrency-reports GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/subscribe_recovery -count=1 -timeout=10m -v",
+      "exit_code": 0,
+      "log": {
+        "path": "/tmp/mqtt-ack-concurrency-process-acceptance.log",
+        "sha256": "25387e21439045226788a22f64f8d3f8f3f424c2973d4a51cf11af7c397c814c"
+      },
+      "cases": 8,
+      "passed": 8,
+      "artifacts": [
+        {
+          "path": "/tmp/mqtt-ack-concurrency-reports/mqtt-subscribe-group-after-intent-1.json",
+          "sha256": "ffbdeaaee47bde3fb4e3da471dd2d4c794500b0f1ca21190ebe7e2532a1e6e45",
+          "result": {
+            "background_completion_before_reconnect": true,
+            "completion_fault_hits": 0,
+            "cut": "after-intent",
+            "failure_kind": "controlled-request-failure-and-connection-close",
+            "foreground_subscribe_retries": 0,
+            "hash_slots": 256,
+            "intent_fault_hits": 1,
+            "message_identity_preserved": true,
+            "nodes": 1,
+            "offline_and_fresh_delivery": true,
+            "original_start_preserved": true,
+            "passed": true,
+            "scenario": "interrupted-subscribe",
+            "session_present": true,
+            "target": "group"
+          }
+        },
+        {
+          "path": "/tmp/mqtt-ack-concurrency-reports/mqtt-subscribe-group-after-intent-3.json",
+          "sha256": "895f5d707eddfc9f28754d8135a7a87089fa17c6b48738c94718fe473188edbe",
+          "result": {
+            "background_completion_before_reconnect": true,
+            "completion_fault_hits": 0,
+            "cut": "after-intent",
+            "failure_kind": "controlled-request-failure-and-connection-close",
+            "foreground_subscribe_retries": 0,
+            "hash_slots": 256,
+            "intent_fault_hits": 1,
+            "message_identity_preserved": true,
+            "nodes": 3,
+            "offline_and_fresh_delivery": true,
+            "original_start_preserved": true,
+            "passed": true,
+            "scenario": "interrupted-subscribe",
+            "session_present": true,
+            "target": "group"
+          }
+        },
+        {
+          "path": "/tmp/mqtt-ack-concurrency-reports/mqtt-subscribe-group-before-completion-1.json",
+          "sha256": "d30af315cbcfcec565e9840e774754c0c55d39e48165a73d6047da5dc6653165",
+          "result": {
+            "background_completion_before_reconnect": true,
+            "completion_fault_hits": 1,
+            "cut": "before-completion",
+            "failure_kind": "controlled-request-failure-and-connection-close",
+            "foreground_subscribe_retries": 0,
+            "hash_slots": 256,
+            "intent_fault_hits": 1,
+            "message_identity_preserved": true,
+            "nodes": 1,
+            "offline_and_fresh_delivery": true,
+            "original_start_preserved": true,
+            "passed": true,
+            "scenario": "interrupted-subscribe",
+            "session_present": true,
+            "target": "group"
+          }
+        },
+        {
+          "path": "/tmp/mqtt-ack-concurrency-reports/mqtt-subscribe-group-before-completion-3.json",
+          "sha256": "215b13d512660258959bfdbc6caed5d1aaba52d9fb5fc60d38ccf67d03de1906",
+          "result": {
+            "background_completion_before_reconnect": true,
+            "completion_fault_hits": 1,
+            "cut": "before-completion",
+            "failure_kind": "controlled-request-failure-and-connection-close",
+            "foreground_subscribe_retries": 0,
+            "hash_slots": 256,
+            "intent_fault_hits": 1,
+            "message_identity_preserved": true,
+            "nodes": 3,
+            "offline_and_fresh_delivery": true,
+            "original_start_preserved": true,
+            "passed": true,
+            "scenario": "interrupted-subscribe",
+            "session_present": true,
+            "target": "group"
+          }
+        },
+        {
+          "path": "/tmp/mqtt-ack-concurrency-reports/mqtt-subscribe-inbox-after-intent-1.json",
+          "sha256": "567d78e50a7ec96f0715143c6199909ce9e891ac20fc5f9bea8d2dfaca888f76",
+          "result": {
+            "background_completion_before_reconnect": true,
+            "completion_fault_hits": 0,
+            "cut": "after-intent",
+            "failure_kind": "controlled-request-failure-and-connection-close",
+            "foreground_subscribe_retries": 0,
+            "hash_slots": 256,
+            "intent_fault_hits": 1,
+            "message_identity_preserved": true,
+            "nodes": 1,
+            "offline_and_fresh_delivery": true,
+            "original_start_preserved": true,
+            "passed": true,
+            "scenario": "interrupted-subscribe",
+            "session_present": true,
+            "target": "inbox"
+          }
+        },
+        {
+          "path": "/tmp/mqtt-ack-concurrency-reports/mqtt-subscribe-inbox-after-intent-3.json",
+          "sha256": "d671f06123d2a650344d8af594a6e035d94abb7fd459710ceb2fb22afc7a285d",
+          "result": {
+            "background_completion_before_reconnect": true,
+            "completion_fault_hits": 0,
+            "cut": "after-intent",
+            "failure_kind": "controlled-request-failure-and-connection-close",
+            "foreground_subscribe_retries": 0,
+            "hash_slots": 256,
+            "intent_fault_hits": 1,
+            "message_identity_preserved": true,
+            "nodes": 3,
+            "offline_and_fresh_delivery": true,
+            "original_start_preserved": true,
+            "passed": true,
+            "scenario": "interrupted-subscribe",
+            "session_present": true,
+            "target": "inbox"
+          }
+        },
+        {
+          "path": "/tmp/mqtt-ack-concurrency-reports/mqtt-subscribe-inbox-before-completion-1.json",
+          "sha256": "435c87e0d80900c75a815580c6f284992666e7bbb7b8b5e72a90336a437556cc",
+          "result": {
+            "background_completion_before_reconnect": true,
+            "completion_fault_hits": 1,
+            "cut": "before-completion",
+            "failure_kind": "controlled-request-failure-and-connection-close",
+            "foreground_subscribe_retries": 0,
+            "hash_slots": 256,
+            "intent_fault_hits": 1,
+            "message_identity_preserved": true,
+            "nodes": 1,
+            "offline_and_fresh_delivery": true,
+            "original_start_preserved": true,
+            "passed": true,
+            "scenario": "interrupted-subscribe",
+            "session_present": true,
+            "target": "inbox"
+          }
+        },
+        {
+          "path": "/tmp/mqtt-ack-concurrency-reports/mqtt-subscribe-inbox-before-completion-3.json",
+          "sha256": "98fedc6ba498f70505539b5bceb1c208208908f1c8674491922616a342fd17cb",
+          "result": {
+            "background_completion_before_reconnect": true,
+            "completion_fault_hits": 1,
+            "cut": "before-completion",
+            "failure_kind": "controlled-request-failure-and-connection-close",
+            "foreground_subscribe_retries": 0,
+            "hash_slots": 256,
+            "intent_fault_hits": 1,
+            "message_identity_preserved": true,
+            "nodes": 3,
+            "offline_and_fresh_delivery": true,
+            "original_start_preserved": true,
+            "passed": true,
+            "scenario": "interrupted-subscribe",
+            "session_present": true,
+            "target": "inbox"
+          }
+        }
+      ],
+      "scope": "Both 256-hash-Slot topologies and both subscription targets, interrupted after intent/before activation; background completion precedes reconnect without another SUBSCRIBE; preserved source boundary and native message identity, ACK then fresh delivery."
+    },
+    "unsubscribe": {
+      "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-ack-concurrency-gofail WK_E2E_GOFAIL_MQTT=1 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-ack-concurrency-unsubscribe-reports GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/unsubscribe_recovery -run 'TestInterruptedUnsubscribeBackgroundRecovery/(1|3)-node-cluster/(inbox|group)/before-completion$' -count=1 -timeout=6m -v",
+      "exit_code": 1,
+      "log": {
+        "path": "/tmp/mqtt-ack-concurrency-unsubscribe.log",
+        "sha256": "1ad7908e63355eae8f738e619922978ca3a1998a406486e0cc4f2459a65a6fc0"
+      },
+      "cases": 4,
+      "passed": 3,
+      "failed": 1,
+      "failed_case": "3-node-cluster/group/before-completion",
+      "failure": "Initial SUBSCRIBE failed after 894.604ms with connection lost after request transmitted, before any publication or ACK. No unsubscribe interruption was reached in this case.",
+      "artifacts": [
+        {
+          "path": "/tmp/mqtt-ack-concurrency-unsubscribe-reports/mqtt-unsubscribe-group-before-completion-1.json",
+          "sha256": "e7ae254a0ecc4dad54bde755ede90503b53a11062cff7a2912dceb53b74218b0",
+          "result": {
+            "background_completion_before_reconnect": true,
+            "completion_fault_hits": 1,
+            "cut": "before-completion",
+            "dup_on_resume": true,
+            "failure_kind": "controlled-request-failure-and-connection-close",
+            "foreground_unsubscribe_retries": 0,
+            "hash_slots": 256,
+            "intent_fault_hits": 1,
+            "message_identity_preserved": true,
+            "nodes": 1,
+            "packet_id_preserved": true,
+            "passed": true,
+            "resubscribe_delivers_only_fresh": true,
+            "scenario": "interrupted-unsubscribe",
+            "session_present": true,
+            "target": "group"
+          }
+        },
+        {
+          "path": "/tmp/mqtt-ack-concurrency-unsubscribe-reports/mqtt-unsubscribe-inbox-before-completion-1.json",
+          "sha256": "574d523d4a27bd5133743adf43cca450cbf831f31d718ec0baf653791cdbe92a",
+          "result": {
+            "background_completion_before_reconnect": true,
+            "completion_fault_hits": 1,
+            "cut": "before-completion",
+            "dup_on_resume": true,
+            "failure_kind": "controlled-request-failure-and-connection-close",
+            "foreground_unsubscribe_retries": 0,
+            "hash_slots": 256,
+            "intent_fault_hits": 1,
+            "message_identity_preserved": true,
+            "nodes": 1,
+            "packet_id_preserved": true,
+            "passed": true,
+            "resubscribe_delivers_only_fresh": true,
+            "scenario": "interrupted-unsubscribe",
+            "session_present": true,
+            "target": "inbox"
+          }
+        },
+        {
+          "path": "/tmp/mqtt-ack-concurrency-unsubscribe-reports/mqtt-unsubscribe-inbox-before-completion-3.json",
+          "sha256": "069a85b214d98cc8f3517073d438bc013f2fc5c36975f1c45d8ed5ed99686e88",
+          "result": {
+            "background_completion_before_reconnect": true,
+            "completion_fault_hits": 1,
+            "cut": "before-completion",
+            "dup_on_resume": true,
+            "failure_kind": "controlled-request-failure-and-connection-close",
+            "foreground_unsubscribe_retries": 0,
+            "hash_slots": 256,
+            "intent_fault_hits": 1,
+            "message_identity_preserved": true,
+            "nodes": 3,
+            "packet_id_preserved": true,
+            "passed": true,
+            "resubscribe_delivers_only_fresh": true,
+            "scenario": "interrupted-unsubscribe",
+            "session_present": true,
+            "target": "inbox"
+          }
+        }
+      ],
+      "followup_probe": {
+        "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-subscribe-error-probe WK_E2E_GOFAIL_MQTT=1 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-subscribe-entry-probe-reports GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/unsubscribe_recovery -run 'TestInterruptedUnsubscribeBackgroundRecovery/3-node-cluster/group/before-completion$' -count=3 -failfast -timeout=3m -v",
+        "exit_code": 0,
+        "log": {
+          "path": "/tmp/mqtt-subscribe-entry-probe.log",
+          "sha256": "deedccae59bf6d9d86974d5a77c096acf7b3b522e4b9fb7f534cbbc1c3102fed"
+        },
+        "result": "Three repetitions passed with error-only Subscribe/CAS classification probes. The setup failure did not recur, so no cause or fix is established. Temporary probes removed."
+      }
+    },
+    "limits": "Controlled request failures do not prove abrupt process-crash or network-partition isolation. The historical EOF cause remains unconfirmed despite this passing candidate matrix."
+  },
+  "limitations": [
+    "Historical intermittent post-resume EOF has no confirmed failing close-path observation.",
+    "Related unsubscribe regression still has an unexplained initial SUBSCRIBE failure before any ACK; successful probe repetitions are not a fix.",
+    "No abrupt crash/unavailable-owner isolation or unknown-effect recovery is proven.",
+    "Ended record reclamation, restore reentry, uncertain Will redispatch/receipt transfer, full failure acceptance and scale qualification remain incomplete."
+  ]
+}
