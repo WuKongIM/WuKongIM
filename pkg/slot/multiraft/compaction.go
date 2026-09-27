@@ -104,6 +104,16 @@ func (g *slot) compactLogAt(
 			return err
 		}
 	}
+	// Capture proof continuity before reading business rows; an intervening
+	// uncertified commit must not certify a different post-snapshot state.
+	var checkpointState []CheckpointState
+	if fsm, ok := g.stateMachine.(CheckpointStateMachine); ok && g.clusterID != "" {
+		state, err := fsm.RecoveryState(ctx)
+		if err != nil {
+			return err
+		}
+		checkpointState = append(checkpointState, state)
+	}
 	stateSnap, err := g.stateMachine.Snapshot(ctx)
 	if err != nil {
 		return err
@@ -138,7 +148,7 @@ func (g *slot) compactLogAt(
 	if err := g.storageView.memory.Compact(applied); err != nil && !errors.Is(err, raft.ErrCompacted) {
 		return err
 	}
-	return nil
+	return g.resetCheckpointAnchor(ctx, snap, g.configAppliedIndexForSnapshot(applied), checkpointState...)
 }
 
 func (g *slot) compactLogManually(ctx context.Context, applied uint64) (LogCompactionResult, error) {

@@ -132,9 +132,16 @@ type RaftOptions struct {
 }
 
 type SlotOptions struct {
-	ID           SlotID
-	Storage      Storage
-	StateMachine StateMachine
+	// ClusterID binds optional durable recovery proofs to this cluster. Empty
+	// keeps compatibility adapters on their existing recovery protocol.
+	ClusterID string
+	// StartupRecovery permits bounded non-atomic snapshot installation only
+	// while the caller fences all business readers/writers on the node. Default
+	// false preserves atomic installation for live opens and maintenance reloads.
+	StartupRecovery bool
+	ID              SlotID
+	Storage         Storage
+	StateMachine    StateMachine
 }
 
 type BootstrapSlotRequest struct {
@@ -321,6 +328,9 @@ type Command struct {
 	// Data is read-only and valid until Apply or ApplyBatch returns. State
 	// machines that retain command bytes beyond the call must copy them.
 	Data []byte
+	// Checkpoint is immutable, local apply evidence, never a client wire field.
+	// Supporting FSMs persist its final batch boundary with business mutations.
+	Checkpoint *RecoveryCheckpoint
 }
 
 type Snapshot struct {

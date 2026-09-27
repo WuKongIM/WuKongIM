@@ -181,6 +181,7 @@ func (m *stateMachine) ApplyBatch(ctx context.Context, cmds []multiraft.Command)
 	appliedCommands := make([]command, len(cmds))
 	var pendingDeltaKeys []deltaReplayKey
 	var pendingForwardDeltas []pendingForwardDelta
+	var migrationMaintenance bool
 	pendingDeltaRecords := make(map[metadb.AppliedHashSlotDelta]struct{})
 	pendingMigrationStates := make(map[uint16]metadb.HashSlotMigrationState)
 commandLoop:
@@ -200,6 +201,7 @@ commandLoop:
 		if err != nil {
 			return nil, err
 		}
+		migrationMaintenance = migrationMaintenance || isMigrationMaintenanceCommand(decoded)
 		applyHashSlots := commandApplyHashSlots(decoded, hashSlot)
 		if _, ok := decoded.(scopedHashSlotCommand); ok {
 			if err := m.validateCommandHashSlots(applyHashSlots); err != nil {
@@ -288,7 +290,16 @@ commandLoop:
 		results[i] = commandApplyResult(decoded)
 	}
 	if len(cmds) > 0 && cmds[len(cmds)-1].Index > 0 {
-		if err := wb.SetSlotAppliedIndex(m.slot, cmds[len(cmds)-1].Index); err != nil {
+		last := cmds[len(cmds)-1]
+		var err error
+		if migrationMaintenance {
+			// Legacy migration commands can address non-owned partitions.
+			// Keep global invalidation even if the final entry is ordinary.
+			err = wb.SetSlotAppliedIndex(m.slot, last.Index)
+		} else {
+			err = m.stageRecoveryCheckpoint(wb, last)
+		}
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -324,7 +335,7 @@ func (m *stateMachine) commitStaleAppliedIndex(ctx context.Context, cmd multiraf
 	}
 	wb := m.db.NewWriteBatch()
 	defer wb.Close()
-	if err := wb.SetSlotAppliedIndex(m.slot, cmd.Index); err != nil {
+	if err := m.stageRecoveryCheckpoint(wb, cmd); err != nil {
 		return err
 	}
 	started := time.Now()
@@ -740,13 +751,29 @@ func (m *stateMachine) forwardCommittedDeltas(ctx context.Context, pending []pen
 	}
 }
 
+// RestoreStartupSnapshot installs verified data before the Slot becomes
+// discoverable. Runtime snapshot replacement retains the atomic Restore path.
+func (m *stateMachine) RestoreStartupSnapshot(ctx context.Context, snap multiraft.Snapshot, reader io.ReadSeeker, size int64, report func(multiraft.RecoveryProgress)) error {
+	if !m.recoveryIsolated() {
+		return metadb.ErrInvalidArgument
+	}
+	m.ownershipMu.RLock()
+	hashSlots := m.runtimeSnapshotHashSlotsLocked()
+	m.ownershipMu.RUnlock()
+	return m.db.MetaDB().RestoreStartupSnapshot(ctx, m.slot, snap.Index, hashSlots, reader, size, func(p metadb.SnapshotRestoreProgress) {
+		if report != nil {
+			report(multiraft.RecoveryProgress{Stage: p.Stage, Bytes: p.Bytes, TotalBytes: p.TotalBytes, Entries: p.Entries, TotalEntries: p.TotalEntries})
+		}
+	})
+}
+
 func (m *stateMachine) Restore(ctx context.Context, snap multiraft.Snapshot) error {
 	m.ownershipMu.RLock()
 	hashSlots := m.runtimeSnapshotHashSlotsLocked()
 	m.ownershipMu.RUnlock()
 	if err := m.db.ImportHashSlotSnapshot(ctx, metadb.SlotSnapshot{
 		HashSlots: hashSlots,
-		Data:      append([]byte(nil), snap.Data...),
+		Data:      snap.Data,
 	}); err != nil {
 		return err
 	}

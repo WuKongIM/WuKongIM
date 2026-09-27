@@ -22,7 +22,10 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 
 1. Node construction records format identity only for fresh directories; startup rechecks
    supported markers before writable runtimes. Lifecycle starts transport and Controller, installs control routes, reconciles
-   Slots/Channels and exposes readiness. Stop rejects work and reverses ownership.
+   Slots/Channels and exposes readiness. Default metadata enables its sequence seal
+   before Slot construction. Only initial Node.Start permits certified FSM reuse or
+   bounded installation with admission closed; live placement and maintenance reloads
+   retain atomic restore. Stop rejects work and reverses ownership.
 2. Slot proposals and metadata facades resolve one immutable route snapshot,
    expose bounded exact-key UID membership reads and group Channel- or UID-owned
    work by physical Slot, execute locally or
@@ -140,10 +143,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 
 ## Read First
 
-- [Public API](api.go), [Node ownership](node.go), [Lifecycle](node_lifecycle.go)
-- [Routing publication](routing/router.go), [Channel hosting](channels/service.go)
+- [API](api.go), [Node](node.go), [Lifecycle](node_lifecycle.go), [Routing](routing/router.go), [Channels](channels/service.go)
 
 ## Update Triggers
 
-Update when lifecycle, readiness, ownership, route/authority publication,
-typed RPC policy, or maintenance/backup semantics change.
+Update when lifecycle, readiness, ownership, route/authority publication, typed RPC policy, or maintenance/backup semantics change.

@@ -60,6 +60,11 @@ type Runtime interface {
 
 // Config wires a Manager.
 type Config struct {
+	// ClusterID binds optional Slot recovery certificates to their cluster.
+	ClusterID string
+	// StartupRecovery reports whether node-wide startup admission is closed.
+	// A nil callback keeps live Slot restoration atomic.
+	StartupRecovery func() bool
 	// LocalNode is this node's stable cluster identity.
 	LocalNode uint64
 	// Runtime is the local Multi-Raft runtime adapter.

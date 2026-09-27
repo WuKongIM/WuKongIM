@@ -42,6 +42,10 @@ func (n *Node) ensureDefaultSlots() error {
 	if err != nil {
 		return err
 	}
+	if err := metaDB.MetaDB().EnableRecoveryCheckpoints(); err != nil {
+		_ = metaDB.Close()
+		return err
+	}
 	raftDB, err := raftlog.Open(filepath.Join(n.cfg.DataDir, defaultSlotRaftDirName), raftlog.Options{Logger: namedLogger(n.cfg.Logger, "slot_raft_db")})
 	if err != nil {
 		_ = metaDB.Close()
@@ -70,8 +74,12 @@ func (n *Node) ensureDefaultSlots() error {
 	}
 	adapter := slots.NewAdapter(runtime)
 	manager := slots.NewManager(slots.Config{
-		LocalNode: n.cfg.NodeID,
-		Runtime:   adapter,
+		ClusterID: n.cfg.Control.ClusterID,
+		// Only initial Node.Start owns the node-wide foreground admission fence.
+		// Later placement changes and maintenance reloads retain atomic restore.
+		StartupRecovery: func() bool { return !n.started.Load() },
+		LocalNode:       n.cfg.NodeID,
+		Runtime:         adapter,
 		Storage: func(slotID uint32) (multiraft.Storage, error) {
 			return raftDB.ForSlot(uint64(slotID)), nil
 		},

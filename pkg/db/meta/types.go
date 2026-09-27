@@ -220,4 +220,6 @@ const (
 
 	systemIDSnapshot    uint16 = 1
 	systemIDSlotApplied uint16 = 2
+	// systemIDSlotRestorePending fences incomplete startup installs outside hash-slot snapshots.
+	systemIDSlotRestorePending uint16 = 3
 )

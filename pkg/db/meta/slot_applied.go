@@ -34,6 +34,11 @@ func (db *MetaDB) SlotAppliedIndex(_ context.Context, slotID uint64) (uint64, er
 	if slotID == 0 {
 		return 0, dberrors.ErrInvalidArgument
 	}
+	if _, pending, err := db.get(encodeSlotRestorePendingKey(slotID)); err != nil {
+		return 0, err
+	} else if pending {
+		return 0, ErrRestoreIncomplete
+	}
 	value, found, err := db.get(encodeSlotAppliedIndexKey(slotID))
 	if err != nil {
 		return 0, err

@@ -15,6 +15,8 @@ This domain owns black-box multi-node cluster lifecycle coverage for
 
 ## Scenario Catalog
 
+- `startup_recovery`: a 256-hash-slot single-node cluster preserves snapshot and committed-suffix device credentials across restarts and exports recovery progress evidence.
+
 - `dynamic_node_join`: dynamic data-node seed join, activation, delivery,
   onboarding, scale-in drain, safety gates, negative join/activation paths, and
   concurrent task guards.

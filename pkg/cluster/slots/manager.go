@@ -12,16 +12,18 @@ import (
 
 // Manager opens or bootstraps local Slot runtimes according to assignments.
 type Manager struct {
-	localNode  uint64
-	runtime    Runtime
-	storage    StorageFactory
-	stateMach  StateMachineFactory
-	unassigned map[uint32]struct{}
+	clusterID       string
+	startupRecovery func() bool
+	localNode       uint64
+	runtime         Runtime
+	storage         StorageFactory
+	stateMach       StateMachineFactory
+	unassigned      map[uint32]struct{}
 }
 
 // NewManager creates a Manager from cfg.
 func NewManager(cfg Config) *Manager {
-	return &Manager{localNode: cfg.LocalNode, runtime: cfg.Runtime, storage: cfg.Storage, stateMach: cfg.StateMachine, unassigned: make(map[uint32]struct{})}
+	return &Manager{clusterID: cfg.ClusterID, startupRecovery: cfg.StartupRecovery, localNode: cfg.LocalNode, runtime: cfg.Runtime, storage: cfg.Storage, stateMach: cfg.StateMachine, unassigned: make(map[uint32]struct{})}
 }
 
 // BootstrapCampaignNode returns the initial voter that should campaign first.
@@ -67,7 +69,7 @@ func (m *Manager) Ensure(ctx context.Context, assignment Assignment) error {
 	if err != nil {
 		return err
 	}
-	opts := multiraft.SlotOptions{ID: multiraft.SlotID(assignment.SlotID), Storage: storage, StateMachine: stateMachine}
+	opts := multiraft.SlotOptions{ClusterID: m.clusterID, ID: multiraft.SlotID(assignment.SlotID), Storage: storage, StateMachine: stateMachine, StartupRecovery: m.startupRecovery != nil && m.startupRecovery()}
 	initial, err := storage.InitialState(ctx)
 	if err != nil {
 		return err
@@ -104,6 +106,7 @@ func (m *Manager) OpenLearner(ctx context.Context, assignment Assignment) error 
 		return err
 	}
 	return m.runtime.OpenSlot(ctx, multiraft.SlotOptions{
+		ClusterID:    m.clusterID,
 		ID:           multiraft.SlotID(assignment.SlotID),
 		Storage:      storage,
 		StateMachine: stateMachine,

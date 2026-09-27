@@ -8,9 +8,8 @@ summary: Implements Multi-Raft Slot metadata, atomic FSM commands, authoritative
 ## Responsibility
 
 `pkg/slot` is the distributed metadata layer. Physical Slots are independent
-Raft groups that own logical hash-Slot partitions containing user, Channel,
-subscriber, runtime, membership, plugin-binding, migration, and message-event
-projection state.
+Raft groups owning logical hash-Slot partitions for users, Channels, subscribers,
+runtime, membership, plugin-binding, migration, and message-event projections.
 
 `multiraft` owns Raft groups and futures, `fsm` decodes and atomically applies
 metadata commands, and `proxy` routes writes to proposals and authoritative
@@ -51,6 +50,11 @@ reads to the current Slot leader. Durable rows live in `pkg/db/meta`.
    Durable Slot storage owns snapshot payload bytes; the Raft memory view keeps
    only the matching index, term, and membership boundary and loads the payload
    from durable storage only when a lagging peer needs snapshot transfer.
+   Fenced startup verifies pinned snapshots and optional FSM proofs against engine
+   continuity, identity, ownership and exact Raft history. Valid proofs skip rewriting;
+   otherwise bounded installation publishes its watermark before registration.
+   Open reserves identity before mutation; close joins constructors. INFO
+   `slot.recovery.progress` throttles same-stage counters to five seconds; suffix completion requires durable apply.
 3. Maintenance and migration controls use the same fenced worker/FSM path:
    snapshots and backup prove an applied boundary, while Channel migration
    advances task and runtime metadata together through guarded phases.
@@ -77,24 +81,20 @@ reads to the current Slot leader. Durable rows live in `pkg/db/meta`.
 - Losing leadership fails pending proposal/configuration futures. Transport
   payload ownership, queues, apply batches, subscriber commands, scans,
   snapshots, and result payloads remain bounded.
-- Recovery restores the persisted snapshot boundary then replays its committed
-  suffix; a later applied marker must never skip replay.
+- Recovery starts at a verified snapshot/certified FSM boundary and replays its
+  committed suffix; a watermark alone cannot skip replay. Unknown or migration writes invalidate
+  all proofs; disjoint FSM writes invalidate only their own. Compaction reanchors
+  after durable snapshot publication. Snapshotless legacy
+  recovery keeps watermark semantics without certifying unknown state.
 - Ordinary and CMD membership progress is monotonic and UID-owned. Removed
   conversation table IDs stay reserved and must not be reused.
-
 - Message edits atomically resolve CAS/idempotency and maintain latest-state indexes through the Slot FSM. Reads group at most 200 targets by physical Slot with eight managed workers and a fresh local-only safe ReadIndex plus durable-apply barrier per group, followed by one shared database snapshot for that group (noop fallback for embedding ports without ReadIndex). Replica capability activation is persisted in each channel head; later quorum writes reuse it unless the replica set changes. JSON RPC format, row counts and bytes are bounded; read DTOs omit default zero fields while preserving field names, aligned pages and legacy decoding; matched binaries remain a rollout requirement. Read assembly revalidates Slot mapping and authority with a dedicated retryable read-route cause, distinct from database/CAS conflicts. ReadIndex requires a durable current-term commit; unconfirmed/canceled reads remain counted up to 256 per Slot until confirmation or Raft reset.
 
 ## Read First
 
-- [Subtree boundary](BOUNDARY.md)
-- [Multi-Raft API](multiraft/api.go)
-- [Raft Slot worker](multiraft/slot.go)
-- [FSM state machine](fsm/statemachine.go)
-- [Distributed proxy](proxy/store.go)
+- [Boundary](BOUNDARY.md), [API](multiraft/api.go), [Worker](multiraft/slot.go), [FSM](fsm/statemachine.go), [Proxy](proxy/store.go)
 
 ## Update Triggers
 
-Update this file when Slot/hash-Slot ownership changes, Raft Ready/apply order
-changes, a command crosses ownership domains, authoritative read routing
-changes, migration fence semantics change, or snapshot/recovery guarantees
-change.
+Update when Slot/hash-Slot ownership, Raft Ready/apply order, cross-domain commands,
+authoritative read routing, migration fences or snapshot/recovery guarantees change.

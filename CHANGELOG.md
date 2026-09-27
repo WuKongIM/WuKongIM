@@ -8,6 +8,9 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Bound Slot startup snapshot installation memory with verified streaming and crash-retry fencing; print throttled recovery stages, byte/record progress, and committed-log replay completion. / Slot 启动快照采用校验后的流式分批安装，降低恢复内存峰值并保护中断重试；输出限频的恢复阶段、字节/条目进度和已提交日志重放完成信息。
+- Reuse certified Slot metadata on restart after verifying database continuity and exact Raft history; fall back to snapshot restoration when evidence is incompatible and log the selected recovery path. / 重启时校验数据库连续性及准确的 Raft 历史，复用有持久化证明的 Slot 元数据；证明不匹配时回退快照恢复，并记录所选恢复路径。
+
 - Bound cloud deployment readiness commands by the shared deadline and publish consistent failure receipts for local repair and GitHub Actions, including interrupted probes. / 本地修复与 GitHub Actions 共用部署执行入口，readiness 命令受统一截止时间约束，中断与失败均保留一致的结构化结果。
 
 - Add bounded Linux host/network sampling and monotonic RPC timeline correlation, with explicit missing data and sampling overhead. / 新增有界 Linux 主机、网络采样与 RPC 单调时钟对齐，显式保留缺失指标和采样开销。
