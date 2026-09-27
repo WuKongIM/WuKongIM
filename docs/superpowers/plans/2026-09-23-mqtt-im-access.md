@@ -8,7 +8,7 @@
 
 ## 当前进度
 
-- 已补 [离线订阅准备入口](../../specs/mqtt-pending-establishment-recovery.md)：群和收件箱复用原消息起点、游标及有界发现，要求精确且未过期的 Offline Session；收件箱嵌套准备绑定同一 Owner 和完整订阅意图，接管后拒绝借用新身份。这些入口仅返回投影凭据，后台 Preparing 调度、最终激活、撤权编排和进程故障验收仍需接通。
+- 已补 [离线订阅准备入口](../../specs/mqtt-pending-establishment-recovery.md)：群和收件箱复用原消息起点、游标及有界发现，要求精确且未过期的 Offline Session；收件箱嵌套准备绑定同一 Owner 和完整订阅意图，接管后拒绝借用新身份。准备入口只返回投影凭据；现已接通同一消费者任务池中的 Preparing 调度、最终 Active CAS 和精确 Owner 撤权结束。三节点装配和四包全量 race 测试通过。首轮产品进程验收 7/8 通过；单节点收件箱在恢复后 ACK 与后续收发阶段出现间歇 EOF，尚未确定原因，后续单项通过不视为修复，详见 [证据报告](../../reports/mqtt-pending-establishment-recovery.json)。
 
 - [退订故障进程验收](../../reports/mqtt-unsubscribe-fault-acceptance.json) 的 8 项场景通过，覆盖单节点/三节点、收件箱/群及两处中断；验证后台完成、原 PacketID/DUP/消息身份和重新订阅边界。修复副本提交水位追赶时误断开订阅、退订与普通 Session 更新冲突的问题；保留严格权限、所有权和全副本证明。突发崩溃、网络分区与完整容量验收仍待完成。
 

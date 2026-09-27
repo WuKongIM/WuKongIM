@@ -1,0 +1,371 @@
+{
+  "schema_version": 1,
+  "status": "background_orchestration_verified_process_acceptance_incomplete",
+  "full_goal_status": "in_progress",
+  "source_revision": "8a92a1556a9dd4c8a1a3267ae22c68bae9d9bdca",
+  "source_rules_sha256": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "internal/usecase/mqttsession/FLOW.md": "c7aa73eb4bdb33161fd18720e275f523843be8f9bcba273af1be8af4f0e30099",
+    "internal/runtime/mqttsession/FLOW.md": "8774dd9734f74e53e5dbb45bc22dd7a0d27e525e1a66f38578b990b0e90f213f",
+    "internal/app/FLOW.md": "466997951355cc94e2fe6dfb9ca3a391184e9840b9afc29c7a4ac10203229fe1",
+    "test/e2e/AGENTS.md": "67cc966118c26e6e28a5f06d301857536a86d8ec457b131b88d1ad90f4d99ab4",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "test/e2e/suite/FLOW.md": "fdf3576f99b00cfdb878ea5623e7f39a576a75bb7ebf5b6fa8de031ae9561add"
+  },
+  "new_scenario_rules_sha256": {
+    "test/e2e/mqtt/subscribe_recovery/AGENTS.md": "ddbb484760671984a1c307fd744b5b39c4331eaf742c35fdfc11ef54aea79ef1"
+  },
+  "candidate_go_sha256": {
+    "internal/app/mqtt_consumers.go": "3a76c333460d77467eb3de24ce679c6b231b630463ceba9e2744d12635ba4c14",
+    "internal/app/mqtt_group_projection_integration_test.go": "b1e0aa8cd87cbc733596c40eb69bf1a0f4357e596138850da30011a46c138d57",
+    "internal/app/mqtt_pending_establishment_integration_test.go": "f47c3f8ca1327f63d89cf06274cadf63202c6e26e49932dc2714e6136868cf80",
+    "internal/app/mqtt_pending_removal_integration_test.go": "b20c07eed5ea71a6f8ad83b8403d67e86915712ce1aaf8090571c9f60c4b5d6b",
+    "internal/app/mqtt_product.go": "5ea70ec7fe8c80718d2bf695e891958ad84a4c9b49951ff851a1635b7c264681",
+    "internal/app/mqtt_source_preparation_integration_test.go": "b2495d41276f8ec256efc95f1af00e5234a5548dea677e6ad081b9ad81f506fe",
+    "internal/runtime/mqttsession/consumer_scan.go": "c44aeb8e5abd3c2593cded3ab30ca2e959e4565fb54e523fb88746d2ea76659b",
+    "internal/runtime/mqttsession/consumer_subscriptions_test.go": "94decf179890ce665d50737e1525e35fa72c9d5942c8809a81e9897c3986d5ca",
+    "internal/runtime/mqttsession/consumer_worker.go": "bb2f31cf2bae2ca1f477740efd4201e6de55bd1c01032131eac51810eddb75f7",
+    "internal/runtime/mqttsession/consumer_worker_integration_test.go": "1c8f1aec08acf7199bfec0a8089227962980dddad2d47848e6a72fb5612e9631",
+    "internal/usecase/mqttsession/pending_establishment.go": "d1a748e3abb759b4db464bb3e0d47de102976c96d107bd43dbc9db52cec55fc5",
+    "internal/usecase/mqttsession/pending_establishment_test.go": "a0436d11f8ae01f3fb4ff131a902f94d8b34e09a04be5e3c710ce55e43a4292f",
+    "internal/usecase/mqttsession/pending_removal.go": "a5688bb83ddfc27f0c2cd68091a0eb5ab35f04aac67a741f7f81f0d4c97487c1",
+    "internal/usecase/mqttsession/pending_subscription_read.go": "aa189840907a9ed85c675c6c6dd1f82f7c1fe5bc8638d3755786377888ea90da",
+    "internal/usecase/mqttsession/subscriptions.go": "1d4f5eafc4e8d44b4d3b44988a6955936c1ebf888eafcbae5dbfb66868171cb6",
+    "pkg/metrics/mqtt.go": "24cc9e30eea413bd4c0374d570a3e5cb91c089d25844dfe3bdfad97d039fbf1e",
+    "pkg/metrics/mqtt_test.go": "7ed898fffe34521b058c8ec1f14185236a0cb49d2cc873549897db91c3fa8231",
+    "test/e2e/mqtt/subscribe_recovery/subscribe_recovery_test.go": "7974723d1a7cf8028e3c81c6bdb15ca0ec5109753313891aa48b4e6524a15708"
+  },
+  "test_first": {
+    "inventory": "docs/specs/mqtt-pending-establishment-recovery.md",
+    "orchestration": {
+      "result": "New public constructor/options absent before implementation; compile-time RED.",
+      "log": {
+        "path": "/tmp/mqtt-pending-establishment-orchestration-red.log",
+        "sha256": "bf701a00bc1f811d4e88b8f21a38dbee574e88bd37765cd73e374943f1c7491e"
+      }
+    },
+    "runtime_metrics": {
+      "result": "New work result absent and fixed counter vocabulary still 12 rather than 13 before worker/metrics changes.",
+      "log": {
+        "path": "/tmp/mqtt-pending-establishment-worker-red.log",
+        "sha256": "01b099ec651cc0ab27a6ff904088a73933c9621b816f2783d13c47aa8faa7ed2"
+      }
+    },
+    "process_hooks": {
+      "result": "Scenario written before its two inert markers; frozen older product binary lacked their listed endpoints. This is harness readiness RED, not a business-recovery failure.",
+      "log": {
+        "path": "/tmp/mqtt-pending-establishment-process-red.log",
+        "sha256": "87738f55ea34d697610385d931cc95cea3b9c1bc2944fac111cd0f05762aeb99"
+      }
+    }
+  },
+  "verified": [
+    {
+      "command": "GOWORK=off go test -race -p 2 ./internal/usecase/mqttsession -run '^TestPending(Establishment|Removal)' -count=1",
+      "exit_code": 0,
+      "log": {
+        "path": "/tmp/mqtt-pending-establishment-orchestration-green.log",
+        "sha256": "f9545e3b4813dac4ce8517c008c5352bc91e083fb13568f3acd47e199dd85638"
+      },
+      "scope": "Both real offline projections; final-CAS rejection/failure/lost reply, unrelated parent update, exact identity/owner/permission, expiry/cancellation/panic/receipt validation, revoked ending and lost ending replies."
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 ./internal/runtime/mqttsession ./pkg/metrics ./internal/app -count=1",
+      "exit_code": 0,
+      "log": {
+        "path": "/tmp/mqtt-pending-establishment-worker-green.log",
+        "sha256": "80af9b256896ad85d0620a3864aa83ab7912dbb01d69aca3a4970b367d8903ee"
+      },
+      "scope": "Shared Preparing/Removing discovery, admission pressure and fixed aggregate metric vocabulary/composition."
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 -tags=integration ./internal/runtime/mqttsession -run '^TestConsumer' -count=1 -timeout=2m",
+      "exit_code": 0,
+      "log": {
+        "path": "/tmp/mqtt-pending-establishment-worker-integration.log",
+        "sha256": "8c0fe7643097bf27ca9fd3180c265bc62134f20295cc8f8ac21fb5eae732540e"
+      },
+      "scope": "Shared cohort and joined lifecycle; successful establishment/removal/revocation observations and suppressed failed/late outcomes."
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 -tags=integration ./internal/app -run '^TestMQTTGroupSourcePreparationThreeNodeRecovery$' -count=1 -timeout=4m -v",
+      "exit_code": 0,
+      "log": {
+        "path": "/tmp/mqtt-pending-establishment-app-green.log",
+        "sha256": "bb87aa1ce51832dd2caa3ed259f1d12ed342fe19e3e1c5a800841edb404cf37c"
+      },
+      "scope": "Real three-node TCP/disk, 256 hash Slots, both disconnected pre-binding intents activate using product worker composition; existing removal, all-replica projection and revocation assertions pass. No product listener in this test."
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 ./internal/usecase/mqttsession ./internal/runtime/mqttsession ./pkg/metrics ./internal/app -count=1",
+      "exit_code": 0,
+      "log": {
+        "path": "/tmp/mqtt-pending-establishment-full-race.log",
+        "sha256": "28e81146890c90c6a90050d3a946f604033707b45d36d4cb2fb91a72d5221830"
+      },
+      "scope": "Full four-package default tier; platform linker warnings did not fail tests."
+    },
+    {
+      "named_check": "flow-doc-contracts",
+      "exit_code": 0,
+      "log": {
+        "path": "/tmp/mqtt-pending-establishment-flow.log",
+        "sha256": "518c3c03df7eb5d31ffef78aaf4666017b3054bf4e16f65a227b11efc525cf09"
+      },
+      "scope": "87 compliant, 0 invalid, 9 existing length warnings."
+    }
+  ],
+  "integration_fixture_diagnosis": {
+    "symptom": "Learner missing-content assertion never became true after first replay-pending result.",
+    "probe": {
+      "path": "/tmp/mqtt-pending-establishment-app-probe.log",
+      "sha256": "79be1d27ef8a553d7dd16231c15afbf2e2389e96a30cf922ac4f05d2e21540cf"
+    },
+    "observed": "AnchorPosition=0, Covered=true, nil error on every sampled probe; no anchor existed yet.",
+    "differential": {
+      "path": "/tmp/mqtt-pending-establishment-app-differential.log",
+      "sha256": "c5089f94fcaad8644227a89d99dc358b813ed10d6ccb421bb2f32dd9fd61c0da"
+    },
+    "differential_result": "Removing only the new pending-establishment helper reproduced the same no-anchor failure.",
+    "correction": "Bounded foreground setup now requires a real leader anchor before independently asserting missing learner content. Original all-replica coverage/retained-cursor assertions remain.",
+    "unproved_trial_removed": "Stopping and joining replay workers did not fix the failure; trial removed.",
+    "temporary_probes_removed": true
+  },
+  "process_acceptance": {
+    "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-establishment-gofail WK_E2E_GOFAIL_MQTT=1 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-subscribe-fault-reports GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/subscribe_recovery -count=1 -timeout=10m -v",
+    "build_command": "GOPROXY=https://proxy.golang.org,direct scripts/build-gofail-binary.sh --package internal/usecase/mqttsession --out /tmp/wukongim-mqtt-establishment-gofail",
+    "build_log": {
+      "path": "/tmp/mqtt-pending-establishment-build.log",
+      "sha256": "5844e7563890899b1d0bdf1170cbcce34f7231ccb360b253b9b5c15a28cbaf54"
+    },
+    "binary": {
+      "path": "/tmp/wukongim-mqtt-establishment-gofail",
+      "sha256": "8e5b80049a85ec8f4c08ca36e48b3fb46b7164dbbd2f0dfbce992e9c6c8d994e"
+    },
+    "log": {
+      "path": "/tmp/mqtt-pending-establishment-process-green.log",
+      "sha256": "a8054724cbe5ce8649618cd4f724aaa838388ccb7d64ada4b2d12b461d3c40c2"
+    },
+    "log_name_warning": "Historical filename says green; the actual exit code was 1 and the suite failed.",
+    "exit_code": 1,
+    "cases": 8,
+    "passed": 7,
+    "failed": 1,
+    "failed_case": "1-node-cluster/inbox/before-completion",
+    "failure": "Background activation and resumed offline delivery succeeded; Receive for the fresh native message returned EOF after PUBACK.",
+    "cause": "unconfirmed",
+    "artifacts": [
+      {
+        "path": "/tmp/mqtt-subscribe-fault-reports/mqtt-subscribe-group-after-intent-1.json",
+        "sha256": "ffbdeaaee47bde3fb4e3da471dd2d4c794500b0f1ca21190ebe7e2532a1e6e45",
+        "result": {
+          "background_completion_before_reconnect": true,
+          "completion_fault_hits": 0,
+          "cut": "after-intent",
+          "failure_kind": "controlled-request-failure-and-connection-close",
+          "foreground_subscribe_retries": 0,
+          "hash_slots": 256,
+          "intent_fault_hits": 1,
+          "message_identity_preserved": true,
+          "nodes": 1,
+          "offline_and_fresh_delivery": true,
+          "original_start_preserved": true,
+          "passed": true,
+          "scenario": "interrupted-subscribe",
+          "session_present": true,
+          "target": "group"
+        }
+      },
+      {
+        "path": "/tmp/mqtt-subscribe-fault-reports/mqtt-subscribe-group-after-intent-3.json",
+        "sha256": "895f5d707eddfc9f28754d8135a7a87089fa17c6b48738c94718fe473188edbe",
+        "result": {
+          "background_completion_before_reconnect": true,
+          "completion_fault_hits": 0,
+          "cut": "after-intent",
+          "failure_kind": "controlled-request-failure-and-connection-close",
+          "foreground_subscribe_retries": 0,
+          "hash_slots": 256,
+          "intent_fault_hits": 1,
+          "message_identity_preserved": true,
+          "nodes": 3,
+          "offline_and_fresh_delivery": true,
+          "original_start_preserved": true,
+          "passed": true,
+          "scenario": "interrupted-subscribe",
+          "session_present": true,
+          "target": "group"
+        }
+      },
+      {
+        "path": "/tmp/mqtt-subscribe-fault-reports/mqtt-subscribe-group-before-completion-1.json",
+        "sha256": "d30af315cbcfcec565e9840e774754c0c55d39e48165a73d6047da5dc6653165",
+        "result": {
+          "background_completion_before_reconnect": true,
+          "completion_fault_hits": 1,
+          "cut": "before-completion",
+          "failure_kind": "controlled-request-failure-and-connection-close",
+          "foreground_subscribe_retries": 0,
+          "hash_slots": 256,
+          "intent_fault_hits": 1,
+          "message_identity_preserved": true,
+          "nodes": 1,
+          "offline_and_fresh_delivery": true,
+          "original_start_preserved": true,
+          "passed": true,
+          "scenario": "interrupted-subscribe",
+          "session_present": true,
+          "target": "group"
+        }
+      },
+      {
+        "path": "/tmp/mqtt-subscribe-fault-reports/mqtt-subscribe-group-before-completion-3.json",
+        "sha256": "215b13d512660258959bfdbc6caed5d1aaba52d9fb5fc60d38ccf67d03de1906",
+        "result": {
+          "background_completion_before_reconnect": true,
+          "completion_fault_hits": 1,
+          "cut": "before-completion",
+          "failure_kind": "controlled-request-failure-and-connection-close",
+          "foreground_subscribe_retries": 0,
+          "hash_slots": 256,
+          "intent_fault_hits": 1,
+          "message_identity_preserved": true,
+          "nodes": 3,
+          "offline_and_fresh_delivery": true,
+          "original_start_preserved": true,
+          "passed": true,
+          "scenario": "interrupted-subscribe",
+          "session_present": true,
+          "target": "group"
+        }
+      },
+      {
+        "path": "/tmp/mqtt-subscribe-fault-reports/mqtt-subscribe-inbox-after-intent-1.json",
+        "sha256": "567d78e50a7ec96f0715143c6199909ce9e891ac20fc5f9bea8d2dfaca888f76",
+        "result": {
+          "background_completion_before_reconnect": true,
+          "completion_fault_hits": 0,
+          "cut": "after-intent",
+          "failure_kind": "controlled-request-failure-and-connection-close",
+          "foreground_subscribe_retries": 0,
+          "hash_slots": 256,
+          "intent_fault_hits": 1,
+          "message_identity_preserved": true,
+          "nodes": 1,
+          "offline_and_fresh_delivery": true,
+          "original_start_preserved": true,
+          "passed": true,
+          "scenario": "interrupted-subscribe",
+          "session_present": true,
+          "target": "inbox"
+        }
+      },
+      {
+        "path": "/tmp/mqtt-subscribe-fault-reports/mqtt-subscribe-inbox-after-intent-3.json",
+        "sha256": "d671f06123d2a650344d8af594a6e035d94abb7fd459710ceb2fb22afc7a285d",
+        "result": {
+          "background_completion_before_reconnect": true,
+          "completion_fault_hits": 0,
+          "cut": "after-intent",
+          "failure_kind": "controlled-request-failure-and-connection-close",
+          "foreground_subscribe_retries": 0,
+          "hash_slots": 256,
+          "intent_fault_hits": 1,
+          "message_identity_preserved": true,
+          "nodes": 3,
+          "offline_and_fresh_delivery": true,
+          "original_start_preserved": true,
+          "passed": true,
+          "scenario": "interrupted-subscribe",
+          "session_present": true,
+          "target": "inbox"
+        }
+      },
+      {
+        "path": "/tmp/mqtt-subscribe-fault-reports/mqtt-subscribe-inbox-before-completion-3.json",
+        "sha256": "98fedc6ba498f70505539b5bceb1c208208908f1c8674491922616a342fd17cb",
+        "result": {
+          "background_completion_before_reconnect": true,
+          "completion_fault_hits": 1,
+          "cut": "before-completion",
+          "failure_kind": "controlled-request-failure-and-connection-close",
+          "foreground_subscribe_retries": 0,
+          "hash_slots": 256,
+          "intent_fault_hits": 1,
+          "message_identity_preserved": true,
+          "nodes": 3,
+          "offline_and_fresh_delivery": true,
+          "original_start_preserved": true,
+          "passed": true,
+          "scenario": "interrupted-subscribe",
+          "session_present": true,
+          "target": "inbox"
+        }
+      }
+    ],
+    "scope": "Real product processes, independent Paho MQTT 5 and WKProto; two controlled request failures; completion observed before reconnect with no second SUBSCRIBE. Does not prove abrupt crash or partition isolation."
+  },
+  "open_failure_investigation": {
+    "metrics_loop": {
+      "log": {
+        "path": "/tmp/mqtt-pending-establishment-ack-metrics.log",
+        "sha256": "a23891c8f712c8310eeec8ee5a4d1616f6d4395cda223965c3311d3d40dc0c95"
+      },
+      "result": "Same short scenario reproduced EOF twice in three runs. Activation counter positive; no quota/revocation ending."
+    },
+    "ack_cas_probe": {
+      "log": {
+        "path": "/tmp/mqtt-pending-establishment-ack-probe.log",
+        "sha256": "dfcc97c3a99c966afb6c07b5396cc3b11a848c6a74717a993f0566d7b1620955"
+      },
+      "result": "Two short runs passed. No failing close path captured; not a fix."
+    },
+    "close_site_probe": {
+      "log": {
+        "path": "/tmp/mqtt-pending-establishment-close-probe.log",
+        "sha256": "09bcc3a0bc25e61180f5e2631a492beff29f0769dbe377017cc549c4c7f3fb3e"
+      },
+      "result": "Three short runs passed. No cause established; not a fix."
+    },
+    "long_sequence_probe": {
+      "log": {
+        "path": "/tmp/mqtt-pending-establishment-ack-sequence-probe.log",
+        "sha256": "e86680f40e0dfb2e1cde2de787e5cb935630f07eb927ed17751b05973292aecd"
+      },
+      "result": "Eight-publication diagnostic timed out at 100 seconds twice; different symptom from EOF. Third repetition deliberately terminated after confirming its live runner and own node group; excluded from product-failure evidence. Owned node group was confirmed gone."
+    },
+    "temporary_probes_removed": true,
+    "production_ack_or_close_policy_changed": false,
+    "original_binary_control": {
+      "log": {
+        "path": "/tmp/mqtt-pending-establishment-original-control.log",
+        "sha256": "d3da2bbc51ba273c8fd67d01ef3bab2d3d34485b0cc32135078502f27228701e"
+      },
+      "result": "After removing all temporary probes, the unchanged original binary passed one short repetition (44.554s). No production fix was made; the intermittent EOF remains unresolved."
+    }
+  },
+  "resource_bounds": {
+    "new_per_session_goroutines": 0,
+    "new_queues": 0,
+    "shared_cohort": true,
+    "max_pending_turn_seconds": 5,
+    "final_activation_cas_attempts_per_turn": 1,
+    "recovery_hints": "body-free primary keys; timestamps excluded",
+    "counter_dimensions": "existing fixed event label; 13 events total"
+  },
+  "storage_compatibility": {
+    "new_tables": 0,
+    "new_columns": 0,
+    "new_commands": 0,
+    "new_rpc_ids": 0,
+    "new_encodings": 0
+  },
+  "remaining_full_goal": [
+    "Resolve the short process EOF and complete pending-establishment process acceptance.",
+    "Ended Session/subscription/cursor/inflight/accounting reclamation and bounded tombstone retirement.",
+    "Abrupt crash, unavailable-owner isolation and unresolved remote effects.",
+    "Safe uncertain Started Will redispatch, receipt transfer/coverage and Channel deletion/restore fences.",
+    "Fresh restore-generation composition and reentry.",
+    "Global pressure/capacity, rollout/operator tooling, all approved failure families and scale/performance artifacts."
+  ]
+}

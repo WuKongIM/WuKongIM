@@ -352,6 +352,12 @@ specification, runbook, report, or module documentation; link to them when neede
   Nested drains inherit the captured Owner; pending subscription index 2 survives
   qualification removal, retaining retries after a failed final child CAS.
   Foreground completion accepts only an identical child already marked Removed.
+  [Pending establishment recovery](../specs/mqtt-pending-establishment-recovery.md)
+  dispatches Preparing through the same bounded cohort. Captured Offline
+  preparation retains full intent and source starts; fresh permission and one
+  final parent CAS precede Active. Definite denial ends only the exact Owner;
+  unknown failures retain intent. `subscription_establishment_confirmed` counts
+  timely successful observations, including retries, with no identity labels.
   [Unsubscribe fault acceptance](../specs/mqtt-unsubscribe-fault-acceptance.md)
   exercises committed-intent failure and failed final completion through real
   Paho/WK product processes. `subscription_removal_confirmed` is a fixed aggregate

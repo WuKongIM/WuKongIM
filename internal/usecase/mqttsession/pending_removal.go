@@ -64,7 +64,7 @@ func (p *SubscriptionRemoval) Reconcile(parent context.Context, hint meta.MQTTSu
 			completed = false
 		}
 	}()
-	session, sub, found, err := p.read(ctx, q)
+	session, sub, found, err := readPendingSubscription(ctx, p.options.Store, q)
 	if err != nil || !found {
 		return false, err
 	}
@@ -101,7 +101,7 @@ func (p *SubscriptionRemoval) Reconcile(parent context.Context, hint meta.MQTTSu
 	if err != nil {
 		return false, err
 	}
-	session, current, found, err := p.read(ctx, q)
+	session, current, found, err := readPendingSubscription(ctx, p.options.Store, q)
 	if err != nil {
 		return false, err
 	}
@@ -144,41 +144,4 @@ func (p *SubscriptionRemoval) Reconcile(parent context.Context, hint meta.MQTTSu
 		return false, ErrEvidence
 	}
 	return true, nil
-}
-
-func (p *SubscriptionRemoval) read(ctx context.Context, q meta.MQTTRead) (session meta.MQTTSession, sub meta.MQTTSubscription, found bool, err error) {
-	if err = ctx.Err(); err != nil {
-		return
-	}
-	r, err := p.options.Store.ReadMQTT(ctx, q)
-	if err != nil {
-		return
-	}
-	if err = ctx.Err(); err != nil {
-		return
-	}
-	if !r.Done || r.After != (meta.MQTTReadCursor{}) || r.Runtime != nil || r.Admission != nil || r.Membership != nil || r.Accounting != nil || len(r.Sessions)+len(r.Directory)+len(r.SourceOwners)+len(r.DeliveryCursors)+len(r.Inflight)+len(r.Bindings)+len(r.Wills) != 0 || len(r.Subscriptions) > 1 {
-		err = ErrEvidence
-		return
-	}
-	if r.Session == nil {
-		if len(r.Subscriptions) != 0 {
-			err = ErrEvidence
-		}
-		return
-	}
-	if meta.ValidateMQTTSession(*r.Session) != nil || r.Session.Namespace != q.Namespace || r.Session.ClientID != q.ClientID {
-		err = ErrEvidence
-		return
-	}
-	session = *r.Session
-	if len(r.Subscriptions) == 0 {
-		return
-	}
-	sub = r.Subscriptions[0]
-	if meta.ValidateMQTTSubscription(sub) != nil || sub.Namespace != q.Namespace || sub.ClientID != q.ClientID || sub.SessionGeneration != q.SessionGeneration || sub.Topic != q.Topic {
-		err = ErrEvidence
-		return
-	}
-	return session, sub, true, nil
 }

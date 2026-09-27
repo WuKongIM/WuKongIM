@@ -82,6 +82,12 @@ func (s *Subscriptions) Subscribe(parent context.Context, o contract.Owner, r Su
 	if err != nil {
 		return out, err
 	}
+	// Inert outside temporary instrumented builds: retain the committed intent
+	// when the initiating connection loses its completion reply.
+	// gofail: var wkMQTTSubscribeAfterIntent bool
+	// if wkMQTTSubscribeAfterIntent {
+	//  return out, context.DeadlineExceeded
+	// }
 	return s.complete(ctx, op, o, next)
 }
 

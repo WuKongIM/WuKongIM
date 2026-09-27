@@ -53,7 +53,7 @@ leases, publish messages, or interpret MQTT packets.
 9. Deliveries retains one body-free task per exact Owner with a fixed cohort and
    indexed due heap. Progress yields to other due Owners; wakes coalesce during
    queued/executing work; idle polling recovers missed hints and failure backoff survives wakes. Fencing cannot discard cleanup.
-10. Consumer maintenance rotates source-binding and pending-subscription recovery streams over led Slots, with at most two cursors per Slot and one fixed cohort of body-free keys. It accounts offline/full-window debt, projects ACK progress and retires proved closed obligations through usecases. Complete-page validation accepts terminal request cursors; pressure preserves unadmitted rows, subscription hints exclude timestamps, Preparing yields to separate establishment and Stop joins all work. Timely successful removal confirmations feed one fixed aggregate event, including retries.
+10. Consumer maintenance rotates source-binding and pending-subscription recovery streams over led Slots, with at most two cursors per Slot and one fixed cohort of body-free keys. It accounts offline/full-window debt, projects ACK progress and retires proved closed obligations through usecases. Complete-page validation accepts terminal request cursors; pressure preserves unadmitted rows, subscription hints exclude timestamps, Preparing and Removing use the same bounded cohort and Stop joins all work. Timely successful establishment/removal confirmations feed separate fixed aggregate events, including retries; late/failed turns clear both outcomes and subscription revocation confirmation.
 
 ## Invariants and Failure Semantics
 

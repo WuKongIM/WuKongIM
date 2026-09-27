@@ -70,6 +70,77 @@ real single-node cluster composition. It includes commands and source/log digest
 The negative control was run after implementation and is labelled accordingly.
 Dependency transfer failures are excluded from product failure evidence.
 
-Pending-establishment orchestration, Preparing dispatch in the shared cohort,
-final activation, revocation ending and new product-process fault acceptance
-remain outstanding. Their requirements above remain part of the full goal.
+The subsequent orchestration milestone below adds final activation and shared
+dispatch. Projection evidence above retains its original, narrower scope.
+
+## Orchestration failure inventory
+
+Before implementing final activation and dispatch, cover both real projections
+followed by failed/rejected/lost final writes. Recovery preserves every original
+option and identity and clears the pending index only after a definite Active
+commit. A fresh Active row can confirm a lost successful reply without another
+write. An unrelated parent update can be reread; changed child/Owner/lifetime,
+expired Offline state, malformed evidence and cancelled callbacks cannot activate.
+
+Definite receive denial or incarnation change before/after projection uses the
+existing exact-Owner End path with reason Revoked. Authority failures are not
+denial. End errors and late results produce no confirmation; a stored Revoked
+ending may retry exact isolation/ending after a lost reply. Recovery cannot
+follow a successor, reinterpret quota/expiry ending as revocation, or emit SUBACK.
+
+## Background activation and composition
+
+SubscriptionEstablishment rereads the current Session and complete child from
+one authoritative point read. It uses only an unexpired Offline captured Owner,
+confirms real inbox/group preparation, then rechecks intent and permission before
+one final Preparing-to-Active CAS. Existing Active evidence can confirm a lost
+reply without another write. Definite denial or permission-incarnation change
+uses exact-Owner End with reason Revoked; unknown errors retain work. Ended
+Revoked rows can retry the exact ending port, never infer isolation from storage.
+
+The existing consumer scanner dispatches Preparing and Removing body-free keys
+through the same bounded cohort and per-Slot cursors. App composes both offline
+projection ports before worker construction. No queue, per-Session goroutine,
+table, column, encoding or RPC is added. The thirteenth fixed consumer event is
+`subscription_establishment_confirmed`; it counts successful observations,
+including retries, not unique subscriptions. Failed or late turns clear outcomes.
+
+The three-node composition case proves activation of both disconnected intents
+before the first binding, followed by existing removal and permission tests.
+Its earlier projection assertion required correction: a replay-pending result
+may precede anchor creation while native replica checkpoints catch up. A bounded
+probe found AnchorPosition=0, and removing the new recovery scenario reproduced
+the same failure. The test now advances preparation until the leader reports an
+anchor before requiring missing learner content and eventual all-replica coverage.
+No product confirmation requirement was weakened.
+
+The process scenario lives in `test/e2e/mqtt/subscribe_recovery`. Its two inert
+comment failpoints interrupt committed intent and final background activation.
+The final-write case sends a native message while activation is held, proving
+that retry retains the original start rather than moving to the later tail.
+The ordinary binary contains neither a failpoint runtime nor an added endpoint.
+See the [orchestration evidence](../reports/mqtt-pending-establishment-recovery.json)
+for exact verification scope, commands, fixed source context and limitations.
+
+### Process acceptance investigation (open)
+
+The first eight-case process run passed seven cases. The single-node cluster
+inbox/final-write case activated offline and delivered its first original message,
+then observed EOF while awaiting a fresh native message after PUBACK. A focused
+three-run loop reproduced EOF twice. Fixed public MQTT counters confirmed
+activation without quota/revocation ending; they did not identify the close path.
+ACK/version contention, replay readiness and connection lifecycle are hypotheses,
+not a diagnosed cause. Full process acceptance remains unverified until the
+failure is explained and the unchanged business assertions pass.
+
+A conditional ACK-CAS probe passed two short runs without reproducing EOF. A
+later close-call-site/ACK-error probe passed three short runs; these successes
+are not a fix or proof of the cause. An eight-publication diagnostic instead
+hit the 100-second receive deadline twice, with no ACK conflict captured. Its
+third repetition was intentionally stopped and its owned node group terminated;
+that aborted repetition is not product-failure evidence. The original short
+acceptance scenario and all its assertions remain intact. Temporary server and
+test probes were removed; evidence logs retain their bounded observations.
+
+After probe removal, the original product binary passed one unchanged short
+repetition. This does not erase the earlier EOF failures or establish a fix.

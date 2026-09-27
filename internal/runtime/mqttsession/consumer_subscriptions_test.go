@@ -10,9 +10,9 @@ import (
 
 type consumerSubscriptionFunc func(context.Context, meta.MQTTSubscriptionRecoveryCursor) error
 
-func (f consumerSubscriptionFunc) MaintainSubscription(ctx context.Context, k meta.MQTTSubscriptionRecoveryCursor) (bool, error) {
+func (f consumerSubscriptionFunc) MaintainSubscription(ctx context.Context, k meta.MQTTSubscriptionRecoveryCursor) (ConsumerSubscriptionWork, error) {
 	err := f(ctx, k)
-	return err == nil, err
+	return ConsumerSubscriptionWork{Removed: err == nil}, err
 }
 func consumerSubscription(id string, at int64) meta.MQTTSubscription {
 	return meta.MQTTSubscription{Namespace: "main", ClientID: id, SessionGeneration: 1, Topic: "topic", Generation: 2, Revision: 3, TargetKind: meta.MQTTSubscriptionUserInbox, TargetID: "alice", GrantedQoS: 1, Stage: meta.MQTTSubscriptionRemoving, OperationID: "operation", UpdatedAtMS: 1000, RecoveryAtMS: at}
@@ -47,7 +47,7 @@ func TestConsumerSubscriptionsRotateBothStreamsAcross256Slots(t *testing.T) {
 	}
 	require.Empty(t, state.cursors)
 }
-func TestConsumerSubscriptionsRetainPressureSkipPreparingAndNormalizeHints(t *testing.T) {
+func TestConsumerSubscriptionsRetainPressurePrepareAndNormalizeHints(t *testing.T) {
 	s := &deadlineSource{slots: []meta.HashSlot{0}}
 	a, b, c := consumerSubscription("a", 1000), consumerSubscription("b", 2000), consumerSubscription("c", 3000)
 	a.Stage = meta.MQTTSubscriptionPreparing
@@ -69,11 +69,12 @@ func TestConsumerSubscriptionsRetainPressureSkipPreparingAndNormalizeHints(t *te
 		require.Zero(t, k.binding)
 		require.Zero(t, k.subscription.RecoveryAtMS)
 		got = append(got, k)
-		return k.subscription.ClientID == "b"
+		return k.subscription.ClientID != "c"
 	})
-	require.Equal(t, 1, o.Scheduled)
-	require.Len(t, got, 2)
-	require.Equal(t, "b", got[0].subscription.ClientID)
+	require.Equal(t, 2, o.Scheduled)
+	require.Len(t, got, 3)
+	require.Equal(t, "a", got[0].subscription.ClientID)
+	require.Equal(t, "b", got[1].subscription.ClientID)
 	got = nil
 	o = w.sweep(context.Background(), &state, func(k consumerWorkKey) bool { got = append(got, k); return true })
 	require.Zero(t, o.Failures)

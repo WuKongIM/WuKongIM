@@ -120,3 +120,11 @@ cohort with subscription-index discovery. It finishes closed inbox/group intent,
 including interrupted preparation before the first binding and failed final
 completion writes. Three-node product-worker composition is verified with a
 controlled interruption; full product-listener fault acceptance remains required.
+
+
+[Pending establishment recovery](mqtt-pending-establishment-recovery.md) now
+passes real group/inbox offline preparation into that same consumer cohort.
+Preparing dispatch, final activation and definite-revocation ending no longer
+require foreground resubscription; the captured Owner and complete intent remain
+fixed. Product-process acceptance uses controlled failures and public metrics;
+it does not prove crash isolation, unknown-effect recovery or full reclamation.

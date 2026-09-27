@@ -102,7 +102,7 @@ func (w *ConsumerWorker) sweep(parent context.Context, state *consumerScanState,
 			continue
 		}
 		complete := true
-		for i, candidate := range candidates {
+		for _, candidate := range candidates {
 			if ctx.Err() != nil {
 				complete = false
 				break
@@ -125,12 +125,6 @@ func (w *ConsumerWorker) sweep(parent context.Context, state *consumerScanState,
 				delete(state.cursors, stream)
 				complete = false
 				break
-			}
-			// Preparing remains indexed for independent establishment recovery;
-			// this cohort does not activate subscriptions without live admission.
-			if kind == meta.MQTTReadSubscriptionRecovery && r.Subscriptions[i].Stage == meta.MQTTSubscriptionPreparing {
-				state.cursors[stream] = candidate
-				continue
 			}
 			if !admit(key) {
 				complete = false

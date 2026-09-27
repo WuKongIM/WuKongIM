@@ -25,9 +25,15 @@ type ConsumerMaintenance interface {
 
 // ConsumerSubscriptionMaintenance rereads pending intent and parent authority;
 // it never receives message bodies or derives policy from a recovery hint.
-// True confirms observed removal, including retries; it is not a unique count.
+// Confirmations describe timely observed outcomes, including retries.
 type ConsumerSubscriptionMaintenance interface {
-	MaintainSubscription(context.Context, meta.MQTTSubscriptionRecoveryCursor) (bool, error)
+	MaintainSubscription(context.Context, meta.MQTTSubscriptionRecoveryCursor) (ConsumerSubscriptionWork, error)
+}
+
+// ConsumerSubscriptionWork keeps establishment, ordinary removal and revoked
+// lifetime ending distinct. It contains no source or connection authority.
+type ConsumerSubscriptionWork struct {
+	Established, Removed, RevokedEnded bool
 }
 
 // consumerWorkKey is a tagged primary identity. Exactly one field is set;
@@ -43,7 +49,7 @@ type ConsumerWorkerOptions struct {
 	Source DeadlineSource
 	// Maintainer rereads authority before accounting or releasing a source obligation.
 	Maintainer ConsumerMaintenance
-	// Subscriptions optionally shares this cohort with closed-intent completion.
+	// Subscriptions optionally shares this cohort with pending intent completion.
 	// Product MQTT composition supplies it for both target kinds.
 	Subscriptions ConsumerSubscriptionMaintenance
 	// Registry owns the scanner and bounded execution pool.
@@ -71,6 +77,8 @@ type ConsumerWorkerOptions struct {
 
 // ConsumerWork carries only proved per-turn outcomes; it contains no identity or body.
 type ConsumerWork struct {
+	// SubscriptionEstablishmentConfirmed counts observed activation, including retries.
+	SubscriptionEstablishmentConfirmed bool
 	// SubscriptionRemovalConfirmed counts observed completion, including retries.
 	SubscriptionRemovalConfirmed                                                  bool
 	Accounted, Projected, Removed, QuotaEnded, RevokedEnded, QualificationRemoved bool
@@ -78,6 +86,7 @@ type ConsumerWork struct {
 
 // ConsumerObservation excludes keys, bodies, errors and other unbounded labels.
 type ConsumerObservation struct {
+	SubscriptionEstablishmentConfirmed                      int
 	SubscriptionRemovalConfirmed                            int
 	QualificationRemoved                                    int
 	Pages, Visited, Scheduled, Completed, Failures          int
@@ -168,7 +177,11 @@ func (w *ConsumerWorker) Start(ctx context.Context) error {
 		var work ConsumerWork
 		var err error
 		if k.subscription != (meta.MQTTSubscriptionRecoveryCursor{}) {
-			work.SubscriptionRemovalConfirmed, err = w.opts.Subscriptions.MaintainSubscription(call, k.subscription)
+			var outcome ConsumerSubscriptionWork
+			outcome, err = w.opts.Subscriptions.MaintainSubscription(call, k.subscription)
+			work.SubscriptionEstablishmentConfirmed = outcome.Established
+			work.SubscriptionRemovalConfirmed = outcome.Removed
+			work.RevokedEnded = outcome.RevokedEnded
 		} else {
 			work, err = w.opts.Maintainer.MaintainConsumer(call, k.binding)
 		}
@@ -177,6 +190,10 @@ func (w *ConsumerWorker) Start(ctx context.Context) error {
 		}
 		if err != nil {
 			work.SubscriptionRemovalConfirmed = false
+			work.SubscriptionEstablishmentConfirmed = false
+			if k.subscription != (meta.MQTTSubscriptionRecoveryCursor{}) {
+				work.RevokedEnded = false
+			}
 		}
 		done()
 		select {
@@ -244,6 +261,9 @@ func (w *ConsumerWorker) loop(r *consumerWorkerRun) {
 			case result := <-r.results:
 				delete(admitted, result.key)
 				out.Completed++
+				if result.work.SubscriptionEstablishmentConfirmed {
+					out.SubscriptionEstablishmentConfirmed++
+				}
 				if result.work.SubscriptionRemovalConfirmed {
 					out.SubscriptionRemovalConfirmed++
 				}

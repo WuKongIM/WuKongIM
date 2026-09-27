@@ -6,7 +6,9 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
-- Preserve the captured MQTT owner throughout inbox subscription preparation, rejecting takeover inside nested source work. Add offline group/inbox preparation for pending recovery; automatic activation remains under development. / MQTT 收件箱订阅准备全程绑定已捕获的 Owner，嵌套来源准备中发生接管时拒绝沿用新身份；新增离线群订阅和收件箱准备能力，自动激活仍在开发。
+- Automatically finish interrupted MQTT inbox/group subscription setup after disconnect, retaining prepared starts and rechecking permission before activation. Expose bounded background confirmation metrics. / MQTT 收件箱和群订阅建立中断后，可在断线状态自动续作，保留原消息起点并在激活前重检权限；新增后台完成确认聚合指标。
+
+- Preserve the captured MQTT owner throughout inbox subscription preparation, rejecting takeover inside nested source work. Add offline group/inbox preparation for pending recovery. / MQTT 收件箱订阅准备全程绑定已捕获的 Owner，嵌套来源准备中发生接管时拒绝沿用新身份；新增离线群订阅和收件箱准备能力。
 
 - Keep MQTT subscription setup waiting for native replica checkpoints, and retry definite unsubscribe CAS rejection only under unchanged intent and ownership. / MQTT 订阅建立有界等待副本原生提交水位；退订 CAS 明确拒绝后，仅在意图和所有权均未变化时做有限重试。
 

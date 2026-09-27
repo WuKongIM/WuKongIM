@@ -161,3 +161,76 @@ func TestConsumerWorkerSharesCohortWithPendingSubscriptions(t *testing.T) {
 	require.Zero(t, registry.Snapshot().ManagedTotal)
 	t.Log("sources_and_subscriptions=true max_admitted=2 joined_stop=true no_overlap=true")
 }
+
+type consumerSubscriptionOutcome func(context.Context, meta.MQTTSubscriptionRecoveryCursor) (ConsumerSubscriptionWork, error)
+
+func (f consumerSubscriptionOutcome) MaintainSubscription(ctx context.Context, k meta.MQTTSubscriptionRecoveryCursor) (ConsumerSubscriptionWork, error) {
+	return f(ctx, k)
+}
+
+func TestConsumerSubscriptionOutcomesRejectLateAndFailedConfirmations(t *testing.T) {
+	for _, mode := range []string{"established", "removed", "revoked", "failed", "late"} {
+		t.Run(mode, func(t *testing.T) {
+			s := &deadlineSource{slots: []meta.HashSlot{0}}
+			s.read = func(_ uint16, q meta.MQTTRead) (meta.MQTTReadResult, error) {
+				if q.Kind == meta.MQTTReadSourceRecovery {
+					return meta.MQTTReadResult{Done: true, After: q.After}, nil
+				}
+				row := consumerSubscription("pending", 1000)
+				row.Stage = meta.MQTTSubscriptionPreparing
+				return meta.MQTTReadResult{Subscriptions: []meta.MQTTSubscription{row}, Done: true, After: q.After}, nil
+			}
+			observed := make(chan ConsumerObservation, 1)
+			w, err := NewConsumerWorker(ConsumerWorkerOptions{Source: s, Workers: 1, Interval: 10 * time.Millisecond, ExecutionTimeout: 20 * time.Millisecond,
+				Maintainer: consumerWorkFunc(func(context.Context, meta.MQTTSourceBindingKey) (ConsumerWork, error) { return ConsumerWork{}, nil }),
+				Subscriptions: consumerSubscriptionOutcome(func(ctx context.Context, _ meta.MQTTSubscriptionRecoveryCursor) (ConsumerSubscriptionWork, error) {
+					if mode == "late" {
+						<-ctx.Done()
+						return ConsumerSubscriptionWork{Established: true, Removed: true, RevokedEnded: true}, nil
+					}
+					if mode == "failed" {
+						return ConsumerSubscriptionWork{Established: true, Removed: true, RevokedEnded: true}, fmt.Errorf("unconfirmed")
+					}
+					return ConsumerSubscriptionWork{Established: mode == "established", Removed: mode == "removed", RevokedEnded: mode == "revoked"}, nil
+				}), Observe: func(o ConsumerObservation) {
+					if o.Completed > 0 {
+						select {
+						case observed <- o:
+						default:
+						}
+					}
+				}})
+			require.NoError(t, err)
+			require.NoError(t, w.Start(context.Background()))
+			defer func() {
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				require.NoError(t, w.Stop(ctx))
+			}()
+			var o ConsumerObservation
+			select {
+			case o = <-observed:
+			case <-time.After(2 * time.Second):
+				t.Fatal("pending work was not observed")
+			}
+			if mode == "established" {
+				require.Positive(t, o.SubscriptionEstablishmentConfirmed)
+			} else {
+				require.Zero(t, o.SubscriptionEstablishmentConfirmed)
+			}
+			if mode == "removed" {
+				require.Positive(t, o.SubscriptionRemovalConfirmed)
+			} else {
+				require.Zero(t, o.SubscriptionRemovalConfirmed)
+			}
+			if mode == "revoked" {
+				require.Positive(t, o.RevokedEnded)
+			} else {
+				require.Zero(t, o.RevokedEnded)
+			}
+			if mode == "failed" || mode == "late" {
+				require.Positive(t, o.Failures)
+			}
+		})
+	}
+}

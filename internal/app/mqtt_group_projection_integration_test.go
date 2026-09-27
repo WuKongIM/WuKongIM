@@ -36,7 +36,14 @@ func verifyMQTTGroupProjection(t *testing.T, ctx context.Context, nodes []*clust
 	request := sessioncase.SubscriptionRequest{Topic: "wk/v1/groups/cHJvamVjdGlvbi1ncm91cA/messages", TargetKind: meta.MQTTSubscriptionGroup, TargetID: id.ID, RequestedQoS: 1}
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		_, e = subs.Subscribe(ctx, first.Owner, request)
-		require.ErrorIs(c, e, sessioncase.ErrReplayPending, "a committed anchor cannot immediately certify every replica")
+		require.ErrorIs(c, e, sessioncase.ErrReplayPending, "initial projection must await all-replica confirmation")
+		// Pending can precede the anchor while native commit checkpoints catch
+		// up. Advance preparation until a real anchor exists before asserting
+		// that the learner is missing its independently recovered content.
+		view, err := nodes[0].ProbeChannel(ctx, 2, id.ID, id.Type)
+		require.NoError(c, err)
+		require.NotNil(c, view.ReplayReadiness)
+		require.Positive(c, view.ReplayReadiness.AnchorPosition)
 	}, 10*time.Second, 30*time.Millisecond)
 	intent, e := nodes[1].ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadSubscription, Namespace: cmd.Key.Namespace, ClientID: cmd.Key.ClientID, SessionGeneration: first.Owner.SessionGeneration, Topic: request.Topic})
 	require.NoError(t, e)

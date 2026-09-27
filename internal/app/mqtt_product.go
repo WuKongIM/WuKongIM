@@ -78,15 +78,15 @@ func (a *App) wireMQTT(nodeID uint64) error {
 	if err != nil {
 		return err
 	}
-	m.consumers, err = a.wireMQTTConsumers(node, authorization, sessions)
-	if err != nil {
-		return err
-	}
 	groups, err := newMQTTGroupProjection(node, owners, authorization, a.messageIDs)
 	if err != nil {
 		return err
 	}
 	inbox, err := newMQTTInboxProjection(node, owners, authorization, a.messageIDs)
+	if err != nil {
+		return err
+	}
+	m.consumers, err = a.wireMQTTConsumers(node, authorization, sessions, groups, inbox)
 	if err != nil {
 		return err
 	}
