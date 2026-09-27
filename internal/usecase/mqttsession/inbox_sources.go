@@ -66,6 +66,20 @@ var errInboxIntentClosed = errors.New("mqttsession: inbox intent no longer admit
 // caller must order directory registration before qualification discovery and all
 // required preparations before the first persistent person append.
 func (p *InboxSources) Prepare(parent context.Context, qualification meta.MQTTSourceBindingKey, channel SourceChannel) (out PreparedInboxSource, err error) {
+	return p.prepare(parent, qualification, channel, nil)
+}
+
+// PrepareIntent pins the initiating Owner and exact child through all nested
+// source effects. A takeover must start another turn rather than rebase this one.
+func (p *InboxSources) PrepareIntent(parent context.Context, r SubscriptionProjectionRequest, qualification meta.MQTTSourceBindingKey, channel SourceChannel) (PreparedInboxSource, error) {
+	sub := r.Subscription
+	if r.Owner.Validate() != nil || meta.ValidateMQTTSubscription(sub) != nil || sub.Stage != meta.MQTTSubscriptionPreparing || sub.TargetKind != meta.MQTTSubscriptionUserInbox || sub.TargetID != r.UID || sub.AuthorizationVersion != 0 || r.UID != qualification.Owner.ID || sub.Namespace != qualification.Namespace || sub.ClientID != qualification.ClientID || sub.SessionGeneration != qualification.SessionGeneration || sub.Generation != qualification.SubscriptionGeneration || r.Owner.Key.Namespace != sub.Namespace || r.Owner.Key.ClientID != sub.ClientID || r.Owner.SessionGeneration != sub.SessionGeneration {
+		return PreparedInboxSource{}, ErrInvalid
+	}
+	return p.prepare(parent, qualification, channel, &r)
+}
+
+func (p *InboxSources) prepare(parent context.Context, qualification meta.MQTTSourceBindingKey, channel SourceChannel, request *SubscriptionProjectionRequest) (out PreparedInboxSource, err error) {
 	if p == nil || parent == nil || qualification.Owner.Kind != meta.MQTTBindingUID || meta.ValidateMQTTRead(meta.MQTTRead{Kind: meta.MQTTReadSourceBinding, BindingKey: qualification}) != nil || channel.Type != 1 {
 		return out, ErrInvalid
 	}
@@ -92,7 +106,7 @@ func (p *InboxSources) Prepare(parent context.Context, qualification meta.MQTTSo
 	if _, err = p.now(); err != nil {
 		return out, err
 	}
-	t := inboxSourcePreparation{p: p, ctx: ctx, key: qualification, channel: channel}
+	t := inboxSourcePreparation{p: p, ctx: ctx, key: qualification, channel: channel, request: request}
 	source, err := t.protect()
 	if err != nil {
 		return out, err

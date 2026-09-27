@@ -1209,6 +1209,15 @@ specification, runbook, report, or module documentation; link to them when neede
   cohort and adds one cursor per Slot (at most 512 for 256 Slots). Timestamps are
   scan hints, not work identity; Preparing is skipped. Stop joins all work.
 
+- [Offline subscription preparation](../specs/mqtt-pending-establishment-recovery.md)
+  shares group source boundaries and bounded inbox discovery with foreground
+  projection, while requiring a captured unexpired Offline Session and complete
+  Preparing child. It retains replay confirmation and grants no activation,
+  network execution or isolation proof. Inbox establishment passes its exact
+  Owner/child into nested source preparation; ordinary future-source admission
+  retains its separate same-lifetime ownership behavior. Worker dispatch and
+  final activation remain required before automatic establishment is available.
+
 - [Ended UID qualification retirement](../specs/mqtt-qualification-retirement.md)
   uses the same bounded consumer cohort. Only fresh explicit parent ending or a
   newer Session generation closes old qualification; offline time and lease

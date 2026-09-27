@@ -57,6 +57,17 @@ report preserve source digests, RED evidence, commands and eight process artifac
 These are controlled request failures and connection closure; abrupt process-crash
 and network-partition acceptance still remain required.
 
+[Offline preparation](../specs/mqtt-pending-establishment-recovery.md) now reuses
+protected group boundaries and bounded inbox discovery without local Owner
+admission. It requires the captured unexpired Offline Session and complete
+Preparing intent, and preserves all-replica replay confirmation. Inbox nested
+source work now pins the same Owner/child instead of following a takeover.
+Focused/full usecase race, deadline integration and existing single-node cluster
+composition pass; [evidence](mqtt-offline-establishment-preparation.json) records
+the saved baseline and an unfenced nested-source negative control.
+These are projection ports only: pending establishment dispatch, final activation,
+revocation orchestration and process fault acceptance still remain to be wired.
+
 These product milestones are not complete MQTT delivery.
 Safe uncertain dispatch recovery, unavailable-owner
 isolation, pending establishment/ended-record/cursor/inflight cleanup, restore reactivation and

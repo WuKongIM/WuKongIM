@@ -85,10 +85,11 @@ func (p *GroupProjection) project(parent context.Context, r SubscriptionProjecti
 		return out, err
 	}
 	defer finishSubscription(op, cancel, &err)
+	scope := &preparationScope{live: op, uid: op.UID()}
 	if r.UID != op.UID() {
 		return out, ErrEvidence
 	}
-	if _, err = p.sources.current(ctx, op, r.Owner, r.Subscription); err != nil {
+	if _, err = p.sources.current(ctx, scope, r.Owner, r.Subscription); err != nil {
 		return out, err
 	}
 	if establish {
@@ -107,11 +108,11 @@ func (p *GroupProjection) project(parent context.Context, r SubscriptionProjecti
 			return out, err
 		}
 	}
-	if _, err = p.sources.current(ctx, op, r.Owner, r.Subscription); err != nil {
+	if _, err = p.sources.current(ctx, scope, r.Owner, r.Subscription); err != nil {
 		return out, err
 	}
 	if establish {
-		if err = p.sources.authorize(ctx, op, r.Subscription); err != nil {
+		if err = p.sources.authorize(ctx, scope, r.Subscription); err != nil {
 			return out, err
 		}
 	}
@@ -120,3 +121,35 @@ func (p *GroupProjection) project(parent context.Context, r SubscriptionProjecti
 }
 
 var _ SubscriptionProjection = (*GroupProjection)(nil)
+
+// EstablishOffline resumes one captured Preparing group after disconnect. It
+// retains all-replica confirmation but cannot activate intent or emit SUBACK.
+func (p *GroupProjection) EstablishOffline(parent context.Context, r SubscriptionProjectionRequest) (out SubscriptionProjectionReceipt, err error) {
+	if p == nil || r.Subscription.TargetKind != meta.MQTTSubscriptionGroup {
+		return out, ErrInvalid
+	}
+	scope, ctx, cancel, err := beginOfflinePreparation(parent, p.sources.guard, r)
+	if err != nil {
+		return out, err
+	}
+	defer cancel()
+	defer finishPreparation(ctx, scope, &out, &err)
+	prepared, err := p.sources.prepare(ctx, scope, r.Owner, r.Subscription)
+	if err != nil {
+		return out, err
+	}
+	if err = scope.check(ctx); err != nil {
+		return out, err
+	}
+	if err = p.replay.Confirm(ctx, prepared.Binding.Key.Owner, prepared.Binding.StartAfter); err != nil {
+		return out, err
+	}
+	if _, err = p.sources.current(ctx, scope, r.Owner, r.Subscription); err != nil {
+		return out, err
+	}
+	if err = p.sources.authorize(ctx, scope, r.Subscription); err != nil {
+		return out, err
+	}
+	sub := r.Subscription
+	return SubscriptionProjectionReceipt{Namespace: sub.Namespace, ClientID: sub.ClientID, Topic: sub.Topic, SessionGeneration: sub.SessionGeneration, SubscriptionGeneration: sub.Generation, IntentRevision: sub.Revision, OperationID: sub.OperationID}, nil
+}

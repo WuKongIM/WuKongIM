@@ -11,7 +11,7 @@ import (
 type inboxEstablishmentTurn struct {
 	p       *InboxEstablishment
 	ctx     context.Context
-	op      *subscriptionOperation
+	op      *preparationScope
 	request SubscriptionProjectionRequest
 }
 
@@ -21,11 +21,11 @@ func (t *inboxEstablishmentTurn) key() meta.MQTTSourceBindingKey {
 }
 
 func (t *inboxEstablishmentTurn) read(q meta.MQTTRead) (meta.MQTTReadResult, error) {
-	if err := checkSubscriptionScope(t.ctx, t.op); err != nil {
+	if err := t.op.check(t.ctx); err != nil {
 		return meta.MQTTReadResult{}, err
 	}
 	r, err := t.p.options.Store.ReadMQTT(t.ctx, q)
-	if stopped := checkSubscriptionScope(t.ctx, t.op); stopped != nil {
+	if stopped := t.op.check(t.ctx); stopped != nil {
 		return meta.MQTTReadResult{}, stopped
 	}
 	if err != nil {
@@ -44,24 +44,10 @@ func (t *inboxEstablishmentTurn) read(q meta.MQTTRead) (meta.MQTTReadResult, err
 // substitutes a successor intent merely because generation or operation matches.
 func (t *inboxEstablishmentTurn) current() error {
 	o, sub := t.request.Owner, t.request.Subscription
-	r, err := t.read(meta.MQTTRead{Kind: meta.MQTTReadSubscription, Namespace: o.Key.Namespace, ClientID: o.Key.ClientID, SessionGeneration: o.SessionGeneration, Topic: sub.Topic})
-	if err != nil {
+	if _, err := t.op.current(t.ctx, t.p.guard, t.p.options.Store, o, sub); err != nil {
 		return err
 	}
-	if err = t.p.guard.checkSession(t.ctx, t.op, o, r.Session); err != nil {
-		return err
-	}
-	if len(r.Subscriptions) != 1 || r.Subscriptions[0] != sub || !validSubscriptionEvidence(sub, *r.Session) {
-		return ErrConflict
-	}
-	version, err := t.p.guard.authorize(t.ctx, t.op, subscriptionRequestFromRow(sub))
-	if err != nil {
-		return err
-	}
-	if version != 0 {
-		return ErrSubscriptionRevoked
-	}
-	return nil
+	return t.op.authorize(t.ctx, t.p.guard, sub)
 }
 
 func (t *inboxEstablishmentTurn) qualification() (meta.MQTTSourceBinding, bool, error) {
@@ -104,11 +90,11 @@ func (t *inboxEstablishmentTurn) write(row meta.MQTTSourceBinding) (meta.MQTTSou
 	if meta.ValidateMQTTSourceBinding(row) != nil {
 		return meta.MQTTSourceBinding{}, ErrEvidence
 	}
-	if err := checkSubscriptionScope(t.ctx, t.op); err != nil {
+	if err := t.op.check(t.ctx); err != nil {
 		return meta.MQTTSourceBinding{}, err
 	}
 	r, err := t.p.options.Store.CompareAndSwapMQTTSourceBinding(t.ctx, expected, row)
-	if stopped := checkSubscriptionScope(t.ctx, t.op); stopped != nil {
+	if stopped := t.op.check(t.ctx); stopped != nil {
 		return meta.MQTTSourceBinding{}, stopped
 	}
 	if err != nil {

@@ -19,6 +19,10 @@ func (f inboxEstablishSource) Prepare(ctx context.Context, k meta.MQTTSourceBind
 	return f(ctx, k, ch)
 }
 
+func (f inboxEstablishSource) PrepareIntent(ctx context.Context, _ app.SubscriptionProjectionRequest, k meta.MQTTSourceBindingKey, ch app.SourceChannel) (app.PreparedInboxSource, error) {
+	return f(ctx, k, ch)
+}
+
 type inboxEstablishStore struct {
 	*groupSourceStore
 	write func(context.Context, uint64, meta.MQTTSourceBinding) (meta.MQTTSourceBindingResult, error)

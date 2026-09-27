@@ -98,6 +98,15 @@ func (p *GroupSources) Prepare(parent context.Context, o contract.Owner, topic s
 	if !found || sub.TargetKind != meta.MQTTSubscriptionGroup || (sub.Stage != meta.MQTTSubscriptionPreparing && sub.Stage != meta.MQTTSubscriptionActive) {
 		return out, ErrConflict
 	}
+	return p.prepare(ctx, &preparationScope{live: op, uid: op.UID()}, o, sub)
+}
+
+// prepare shares protected boundary/cursor work without creating a live Owner
+// scope for offline recovery. The caller pins the complete original intent.
+func (p *GroupSources) prepare(ctx context.Context, op *preparationScope, o contract.Owner, sub meta.MQTTSubscription) (out PreparedGroupSource, err error) {
+	if _, err = p.current(ctx, op, o, sub); err != nil {
+		return out, err
+	}
 	if err = p.authorize(ctx, op, sub); err != nil {
 		return out, err
 	}
@@ -176,20 +185,20 @@ func (p *GroupSources) Prepare(parent context.Context, o contract.Owner, topic s
 			return out, e
 		}
 		mutation := meta.MQTTDeliveryCursorMutation{Key: cursorKey, ExpectedRevision: session.Revision, OwnerGeneration: o.OwnerGeneration, OwnerNodeID: o.NodeID, OwnerBootID: o.BootID, ConnectionID: o.ConnectionID, Op: meta.MQTTCursorInit, Topic: sub.Topic, AuthorizationVersion: sub.AuthorizationVersion, Through: binding.StartAfter, UpdatedAtMS: now.UnixMilli()}
-		if e = checkSubscriptionScope(ctx, op); e != nil {
+		if e = op.check(ctx); e != nil {
 			return out, e
 		}
 		receipt, e := p.options.Store.MutateMQTTDeliveryCursor(ctx, mutation)
 		if e != nil {
 			return out, e
 		}
-		if e = checkSubscriptionScope(ctx, op); e != nil {
+		if e = op.check(ctx); e != nil {
 			return out, e
 		}
 		if receipt.Status == meta.MQTTSessionCASConflict {
 			return out, ErrConflict
 		}
-		if (receipt.Status != meta.MQTTSessionCASApplied && receipt.Status != meta.MQTTSessionCASUnchanged) || receipt.CurrentRevision != session.Revision+1 || receipt.SessionState != meta.MQTTSessionActive || receipt.TerminationReason != 0 {
+		if (receipt.Status != meta.MQTTSessionCASApplied && receipt.Status != meta.MQTTSessionCASUnchanged) || receipt.CurrentRevision != session.Revision+1 || receipt.SessionState != session.State || receipt.TerminationReason != 0 {
 			return out, ErrEvidence
 		}
 		_, cursor, hasCursor, err = p.readCursor(ctx, op, o, sub, cursorKey)
@@ -226,40 +235,23 @@ func (p *GroupSources) Prepare(parent context.Context, o contract.Owner, topic s
 	return PreparedGroupSource{Binding: binding, Cursor: cursor}, nil
 }
 
-func (p *GroupSources) current(ctx context.Context, op *subscriptionOperation, o contract.Owner, sub meta.MQTTSubscription) (meta.MQTTSession, error) {
-	session, current, found, err := p.guard.read(ctx, op, o, sub.Topic)
-	if err != nil {
-		return meta.MQTTSession{}, err
-	}
-	if !found || current != sub {
-		return meta.MQTTSession{}, ErrConflict
-	}
-	if err = checkSubscriptionScope(ctx, op); err != nil {
-		return meta.MQTTSession{}, err
-	}
-	return session, nil
+func (p *GroupSources) current(ctx context.Context, op *preparationScope, o contract.Owner, sub meta.MQTTSubscription) (meta.MQTTSession, error) {
+	return op.current(ctx, p.guard, p.options.Store, o, sub)
 }
 
-func (p *GroupSources) authorize(ctx context.Context, op *subscriptionOperation, sub meta.MQTTSubscription) error {
-	version, err := p.guard.authorize(ctx, op, subscriptionRequestFromRow(sub))
-	if err != nil {
-		return err
-	}
-	if version != sub.AuthorizationVersion {
-		return ErrSubscriptionRevoked
-	}
-	return nil
+func (p *GroupSources) authorize(ctx context.Context, op *preparationScope, sub meta.MQTTSubscription) error {
+	return op.authorize(ctx, p.guard, sub)
 }
 
-func (p *GroupSources) protect(ctx context.Context, op *subscriptionOperation, channel SourceChannel) (ProtectedSource, error) {
-	if err := checkSubscriptionScope(ctx, op); err != nil {
+func (p *GroupSources) protect(ctx context.Context, op *preparationScope, channel SourceChannel) (ProtectedSource, error) {
+	if err := op.check(ctx); err != nil {
 		return ProtectedSource{}, err
 	}
 	source, err := p.options.Sources.ProtectMQTTSource(ctx, channel)
 	if err != nil {
 		return ProtectedSource{}, err
 	}
-	if err = checkSubscriptionScope(ctx, op); err != nil {
+	if err = op.check(ctx); err != nil {
 		return ProtectedSource{}, err
 	}
 	if source.Channel != channel || !contract.ValidIdentity(source.Generation, 128) || source.ProtectedAfter >= source.CommittedThrough {
@@ -268,15 +260,15 @@ func (p *GroupSources) protect(ctx context.Context, op *subscriptionOperation, c
 	return source, nil
 }
 
-func (p *GroupSources) readBinding(ctx context.Context, op *subscriptionOperation, sub meta.MQTTSubscription, key meta.MQTTSourceBindingKey) (meta.MQTTSourceBinding, bool, error) {
-	if err := checkSubscriptionScope(ctx, op); err != nil {
+func (p *GroupSources) readBinding(ctx context.Context, op *preparationScope, sub meta.MQTTSubscription, key meta.MQTTSourceBindingKey) (meta.MQTTSourceBinding, bool, error) {
+	if err := op.check(ctx); err != nil {
 		return meta.MQTTSourceBinding{}, false, err
 	}
 	r, err := p.options.Store.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadSourceBinding, BindingKey: key})
 	if err != nil {
 		return meta.MQTTSourceBinding{}, false, err
 	}
-	if err = checkSubscriptionScope(ctx, op); err != nil {
+	if err = op.check(ctx); err != nil {
 		return meta.MQTTSourceBinding{}, false, err
 	}
 	if !r.Done || len(r.Bindings) > 1 {
@@ -295,19 +287,19 @@ func (p *GroupSources) readBinding(ctx context.Context, op *subscriptionOperatio
 	return b, true, nil
 }
 
-func (p *GroupSources) readCursor(ctx context.Context, op *subscriptionOperation, o contract.Owner, sub meta.MQTTSubscription, key meta.MQTTDeliveryCursorKey) (meta.MQTTSession, meta.MQTTDeliveryCursor, bool, error) {
+func (p *GroupSources) readCursor(ctx context.Context, op *preparationScope, o contract.Owner, sub meta.MQTTSubscription, key meta.MQTTDeliveryCursorKey) (meta.MQTTSession, meta.MQTTDeliveryCursor, bool, error) {
 	var empty meta.MQTTDeliveryCursor
-	if err := checkSubscriptionScope(ctx, op); err != nil {
+	if err := op.check(ctx); err != nil {
 		return meta.MQTTSession{}, empty, false, err
 	}
 	r, err := p.options.Store.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadDeliveryCursors, Namespace: sub.Namespace, ClientID: sub.ClientID, SessionGeneration: sub.SessionGeneration, SubscriptionGeneration: sub.Generation, Limit: 2})
 	if err != nil {
 		return meta.MQTTSession{}, empty, false, err
 	}
-	if err = p.guard.checkSession(ctx, op, o, r.Session); err != nil {
+	if err = op.checkSession(ctx, p.guard, o, r.Session); err != nil {
 		return meta.MQTTSession{}, empty, false, err
 	}
-	if err = checkSubscriptionScope(ctx, op); err != nil {
+	if err = op.check(ctx); err != nil {
 		return meta.MQTTSession{}, empty, false, err
 	}
 	if !r.Done || len(r.DeliveryCursors) > 1 || r.After != (meta.MQTTReadCursor{}) {
@@ -323,7 +315,7 @@ func (p *GroupSources) readCursor(ctx context.Context, op *subscriptionOperation
 	return *r.Session, cursor, true, nil
 }
 
-func (p *GroupSources) writeBinding(ctx context.Context, op *subscriptionOperation, o contract.Owner, sub meta.MQTTSubscription, row meta.MQTTSourceBinding) (meta.MQTTSourceBinding, error) {
+func (p *GroupSources) writeBinding(ctx context.Context, op *preparationScope, o contract.Owner, sub meta.MQTTSubscription, row meta.MQTTSourceBinding) (meta.MQTTSourceBinding, error) {
 	if _, err := p.current(ctx, op, o, sub); err != nil {
 		return meta.MQTTSourceBinding{}, err
 	}
@@ -345,14 +337,14 @@ func (p *GroupSources) writeBinding(ctx context.Context, op *subscriptionOperati
 	if meta.ValidateMQTTSourceBinding(row) != nil {
 		return meta.MQTTSourceBinding{}, ErrEvidence
 	}
-	if err = checkSubscriptionScope(ctx, op); err != nil {
+	if err = op.check(ctx); err != nil {
 		return meta.MQTTSourceBinding{}, err
 	}
 	receipt, err := p.options.Store.CompareAndSwapMQTTSourceBinding(ctx, expected, row)
 	if err != nil {
 		return meta.MQTTSourceBinding{}, err
 	}
-	if err = checkSubscriptionScope(ctx, op); err != nil {
+	if err = op.check(ctx); err != nil {
 		return meta.MQTTSourceBinding{}, err
 	}
 	if receipt.Status == meta.MQTTSessionCASConflict {

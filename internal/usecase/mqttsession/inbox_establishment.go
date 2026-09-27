@@ -16,11 +16,17 @@ type InboxEstablishmentMetadata interface {
 	CompareAndSwapMQTTSourceBinding(context.Context, uint64, meta.MQTTSourceBinding) (meta.MQTTSourceBindingResult, error)
 }
 
+// InboxEstablishmentSources preserves the captured Owner and full intent inside
+// nested source preparation; ordinary future-source admission may follow ownership.
+type InboxEstablishmentSources interface {
+	PrepareIntent(context.Context, SubscriptionProjectionRequest, meta.MQTTSourceBindingKey, SourceChannel) (PreparedInboxSource, error)
+}
+
 type InboxEstablishmentOptions struct {
 	Store         InboxEstablishmentMetadata
 	Owners        *runtime.Owners
 	Authorization SubscriptionAuthorizer
-	Sources       InboxAdmissionSources
+	Sources       InboxEstablishmentSources
 	Replay        GroupReplayConfirmation
 	// PageSize bounds one turn including non-person candidates; default 8, maximum 64.
 	PageSize int
@@ -70,19 +76,29 @@ func (p *InboxEstablishment) Establish(parent context.Context, r SubscriptionPro
 	if err != nil {
 		return out, err
 	}
-	defer func() {
-		defer op.Done()
-		defer cancel()
-		if recover() != nil {
-			err = ErrSubscriptionCallback
-		}
-		if stopped := checkSubscriptionScope(ctx, op); err == nil && stopped != nil {
-			err = stopped
-		}
-		if err != nil {
-			out = SubscriptionProjectionReceipt{}
-		}
-	}()
+	defer op.Done()
+	defer cancel()
+	scope := &preparationScope{live: op, uid: op.UID()}
+	defer finishPreparation(ctx, scope, &out, &err)
+	return p.establish(ctx, scope, r)
+}
+
+// EstablishOffline continues the original UID qualification and bounded discovery
+// without local Owner admission. Successful projection alone grants no SUBACK.
+func (p *InboxEstablishment) EstablishOffline(parent context.Context, r SubscriptionProjectionRequest) (out SubscriptionProjectionReceipt, err error) {
+	if p == nil || r.Subscription.TargetKind != meta.MQTTSubscriptionUserInbox {
+		return out, ErrInvalid
+	}
+	scope, ctx, cancel, err := beginOfflinePreparation(parent, p.guard, r)
+	if err != nil {
+		return out, err
+	}
+	defer cancel()
+	defer finishPreparation(ctx, scope, &out, &err)
+	return p.establish(ctx, scope, r)
+}
+
+func (p *InboxEstablishment) establish(ctx context.Context, op *preparationScope, r SubscriptionProjectionRequest) (out SubscriptionProjectionReceipt, err error) {
 	if r.UID != op.UID() || r.Subscription.TargetID != r.UID || r.Subscription.AuthorizationVersion != 0 {
 		return out, ErrEvidence
 	}
@@ -120,7 +136,7 @@ func (p *InboxEstablishment) Establish(parent context.Context, r SubscriptionPro
 					return out, err
 				}
 				ch := SourceChannel{ID: candidate.ChannelID, Type: 1}
-				prepared, e := p.options.Sources.Prepare(ctx, row.Key, ch)
+				prepared, e := p.options.Sources.PrepareIntent(ctx, r, row.Key, ch)
 				if e != nil {
 					return out, e
 				}

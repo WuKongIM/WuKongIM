@@ -9,14 +9,16 @@ import (
 )
 
 // inboxSourcePreparation is request-owned; only the immutable subscription
-// intent is retained between fresh authority reads. Owner replacement may advance
-// the Session inside that lifetime; a changed intent requires another attempt.
+// intent is retained between fresh authority reads. Future-source admission may
+// follow ownership inside that lifetime; establishment pins its captured Owner.
 type inboxSourcePreparation struct {
 	p       *InboxSources
 	ctx     context.Context
 	key     meta.MQTTSourceBindingKey
 	channel SourceChannel
 	intent  meta.MQTTSubscription
+	// request freezes establishment authority; nil retains future-source admission.
+	request *SubscriptionProjectionRequest
 }
 
 func (t *inboxSourcePreparation) read(q meta.MQTTRead) (meta.MQTTReadResult, error) {
@@ -43,6 +45,9 @@ func (t *inboxSourcePreparation) read(q meta.MQTTRead) (meta.MQTTReadResult, err
 func (t *inboxSourcePreparation) session(s *meta.MQTTSession) error {
 	if s == nil || meta.ValidateMQTTSession(*s) != nil || s.Namespace != t.key.Namespace || s.ClientID != t.key.ClientID || s.UID != t.key.Owner.ID || s.Generation < t.key.SessionGeneration {
 		return ErrEvidence
+	}
+	if t.request != nil && (sessionOwner(*s) != t.request.Owner || s.UID != t.request.UID) {
+		return ErrFenced
 	}
 	if s.Generation > t.key.SessionGeneration || s.State == meta.MQTTSessionEnded {
 		return errInboxIntentClosed
@@ -86,6 +91,9 @@ func (t *inboxSourcePreparation) current() (meta.MQTTSession, error) {
 	}
 	if sub.TargetKind != meta.MQTTSubscriptionUserInbox || sub.TargetID != t.key.Owner.ID || sub.AuthorizationVersion != 0 || sub.OperationID != qualification.OperationID || qualification.IntentRevision > sub.Revision {
 		return meta.MQTTSession{}, ErrEvidence
+	}
+	if t.request != nil && sub != t.request.Subscription {
+		return meta.MQTTSession{}, ErrConflict
 	}
 	if t.intent != (meta.MQTTSubscription{}) && t.intent != sub {
 		return meta.MQTTSession{}, ErrConflict
