@@ -40,7 +40,7 @@ accept them through the same complete semantic preflight. Receipt message IDs
 participate in allocation statistics even after their bodies are gone. No
 historical receipt can be reconstructed from absent original content. Matched
 writers/tools, rollout gating and a pre-feature rollback generation are required.
-Node routing, full-channel deletion, restore activation and MQTT JSONL remain
+Full-channel deletion, restore activation, receipt transfer and MQTT JSONL remain
 unfinished; see [Will receipts](../../docs/specs/mqtt-will-receipts.md).
 
 Person-directory deletion now advances existing runtime route column 16 together

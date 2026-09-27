@@ -123,8 +123,8 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
   local content after rechecking fences; it cannot release the original source.
 - Same-Channel append ordering survives batching and worker concurrency.
   Quorum success requires replicated progress; desired replicas never imply it.
-- Optional server Will lookup preserves its separate storage identity domain. The
-  optional receipt reader pins checkpoint/original-or-trim proof across body cleanup; both still require current cluster authority.
+- Original server Will lookup remains a candidate in its separate identity domain.
+  Retained receipt reads use recovered reactor authority and captured-HW checkpoint workers with lifecycle/cancellation fences; the optional store pins original-or-trim proof, while fresh Slot authority remains above this facade.
 - Unloaded state is absence from the reactor map. Cold PullHint activation must
   resolve authoritative metadata and prove local replica membership before
   opening storage.

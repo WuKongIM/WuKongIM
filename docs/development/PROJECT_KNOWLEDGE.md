@@ -666,8 +666,11 @@ specification, runbook, report, or module documentation; link to them when neede
   deleting its original; suffix rollback removes only its matching receipts.
   Backup v4 includes committed receipts and their message-ID high water; all
   byte/stream imports preflight content, trim witnesses and target conflicts.
-  Local proof still needs Node routing, executor fencing and whole-channel
-  deletion/restore composition. The optional `store.WillReceiptLookup` exposes
+  [Routed reads](../specs/mqtt-will-receipt-routing.md) now use fresh Slot checks,
+  recovered reactor HW, bounded checkpoint workers and exact-echo RPC 103.
+  Three-node TCP/disk evidence covers renewal, original trim, restart and isolated
+  warm-reader rejection. Executor fencing, replica receipt transfer and whole-channel
+  deletion/restore composition remain pending. The optional `store.WillReceiptLookup` exposes
   checkpoint-pinned `channel.WillReceipt` values, including after trim/reopen;
   adapter absence/errors never grant retry authority. Expired task leases alone cannot discharge an
   append with an unknown outcome; see the

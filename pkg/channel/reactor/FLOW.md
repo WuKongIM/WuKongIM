@@ -7,9 +7,8 @@ summary: Owns Channel-keyed reactor state, event scheduling, replication progres
 
 ## Responsibility
 
-`pkg/channel/reactor` owns every loaded Channel runtime. A stable hash assigns a
-Channel key to one node-local reactor, and that reactor goroutine is the sole
-writer of its machine, append, replication, retention, and lifecycle state.
+`pkg/channel/reactor` hashes each loaded Channel key to one node-local reactor.
+Its goroutine exclusively owns machine, append, replication, retention and lifecycle state.
 
 Blocking store, transport, metadata-resolution, and close work leaves through
 typed bounded workers and returns as `EventWorkerResult`.
@@ -78,6 +77,7 @@ typed bounded workers and returns as `EventWorkerResult`.
   Accepted-prefix planning shares these waiter/worker guards and returns source
   plus latest anchor at captured HW, without promoting local copying into acceptance.
   Planning pins stable write fences and recovered leader/route/data-plane authority; appends remain fenced.
+  Retained Will queries also capture HW and reject partial proof, foreign tasks and changed authority/fences.
 
 - Anchor and retirement controls share the ordinary append queue, slice ownership, byte bounds
   and cancellation guards. Flush rechecks recovered authority; typed durable

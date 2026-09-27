@@ -305,6 +305,8 @@ type Service struct {
 	mqttRepairReceivers, mqttRepairDonors chan struct{}
 	// Consumer content reads cannot occupy repair admission or wait in a queue.
 	mqttConsumerReads chan struct{}
+	// willReceiptReads bounds foreground publication-proof queries without waiting.
+	willReceiptReads chan struct{}
 	// persistedReads bounds disk-only batches across all callers on this node; overflow fails immediately.
 	persistedReads chan struct{}
 	// replicaStore reads native exchange durability independently of reactor residency.
@@ -377,7 +379,7 @@ func NewService(cfg Config) (*Service, error) {
 	}
 	ensurer, _ := cfg.MetaSource.(ChannelMetaEnsurer)
 	commitRefresh, _ := cfg.QuorumLog.(replication.CommittedReplicaRefresher)
-	return &Service{mqttConsumerReads: make(chan struct{}, mqttConsumerConcurrent), mqttRepairReceivers: make(chan struct{}, mqttRepairConcurrent), mqttRepairDonors: make(chan struct{}, mqttRepairConcurrent), mqttCopyCoordinators: make(chan struct{}, mqttCopyConcurrent), mqttCopyReceivers: make(chan struct{}, mqttCopyConcurrent), persistedReads: make(chan struct{}, persistedConversationReadBatches), replicaStore: replicaStore, replicaCommitRefresh: commitRefresh, runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, store: cfg.Store, observer: cfg.Observer, migration: cfg.MigrationStore, goroutines: cfg.Goroutines}, nil
+	return &Service{willReceiptReads: make(chan struct{}, willReceiptConcurrent), mqttConsumerReads: make(chan struct{}, mqttConsumerConcurrent), mqttRepairReceivers: make(chan struct{}, mqttRepairConcurrent), mqttRepairDonors: make(chan struct{}, mqttRepairConcurrent), mqttCopyCoordinators: make(chan struct{}, mqttCopyConcurrent), mqttCopyReceivers: make(chan struct{}, mqttCopyConcurrent), persistedReads: make(chan struct{}, persistedConversationReadBatches), replicaStore: replicaStore, replicaCommitRefresh: commitRefresh, runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, store: cfg.Store, observer: cfg.Observer, migration: cfg.MigrationStore, goroutines: cfg.Goroutines}, nil
 }
 
 // Runtime returns the Channel public cluster surface.

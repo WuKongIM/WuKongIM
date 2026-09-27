@@ -20,6 +20,7 @@ type Result struct {
 	MQTTAnchor      ch.MQTTReplayAnchorProof
 	MQTTRetirement  ch.MQTTReplayRetirementProof
 	MQTTPlan        ch.MQTTReplayPlan
+	WillReceipt     ch.WillReceiptResult
 	Pull            transport.PullResponse
 	RuntimeSnapshot ch.RuntimeReactorSnapshot
 	// RuntimeActivationRejectedTotal carries reactor-local rejection counts for node snapshots.

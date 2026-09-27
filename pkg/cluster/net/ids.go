@@ -151,6 +151,8 @@ const (
 	RPCChannelMQTTRetirementSelection
 	// RPCChannelMQTTConsumerRead serves bounded anchored consumer content.
 	RPCChannelMQTTConsumerRead
+	// RPCChannelWillReceipt reads retained publication proof under current authority.
+	RPCChannelWillReceipt
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -297,6 +299,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "channel mqtt plan"
 	case RPCChannelMQTTConsumerRead:
 		return "channel mqtt consumer read"
+	case RPCChannelWillReceipt:
+		return "channel will receipt"
 	case RPCChannelMQTTReplay:
 		return "channel mqtt replay"
 	default:

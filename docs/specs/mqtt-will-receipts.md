@@ -1,7 +1,8 @@
 # MQTT Will publication receipts
 
-Status: local receipt storage, Channel store adapter and binary backup implemented; current Channel
-authority routing, Will execution and product admission remain pending.
+Status: receipt storage, Channel store adapter, binary backup and
+[authority routing](mqtt-will-receipt-routing.md) implemented. Will execution and
+product admission remain pending.
 This implements the retained-proof prerequisite in the Will execution failure
 inventory. It does not itself execute, authorize or schedule a Will.
 
@@ -41,8 +42,8 @@ per-session body copy, or new public listener is introduced.
 Ordinary prefix retention preserves these compact records; the old body/index
 APIs keep their visibility semantics. Receipts do not authorize new publications,
 release pending tasks, or replace fresh authority checks. Whole-channel deletion,
-restore activation, executor fencing, receipt retirement/resource quotas, Node
-routing, offline JSONL and actual Will execution remain required product work.
+restore activation, executor fencing, receipt transfer/retirement/resource quotas,
+offline JSONL and actual Will execution remain required product work.
 Matched writers/tools and a pre-feature rollback generation are mandatory.
 
 Restore review also requires rejecting an existing target receipt with the same
@@ -87,5 +88,6 @@ bounded retirement/admission policy must be composed before product enablement.
 The optional `store.WillReceiptLookup` maps the pinned local receipt into
 `channel.WillReceipt`. Adapter tests first failed on the missing capability, then
 verified leader/follower checkpoint gating, native identity isolation, prefix
-trim, factory reopen and lifecycle/cancellation errors. This adds no routed Node
-API and does not reinterpret an absent receipt as permission to publish.
+trim, factory reopen and lifecycle/cancellation errors. The adapter alone does
+not reinterpret an absent receipt as permission to publish; the separate routed
+read contract adds current Slot and recovered reactor checks.

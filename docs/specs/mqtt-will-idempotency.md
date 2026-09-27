@@ -86,11 +86,12 @@ Additional failure inventory before implementing the executor:
     new publication is needed; do not restart the expiry clock or overwrite the
     old receipt with an authorization failure.
 
-[System-16 receipts](mqtt-will-receipts.md) now implement the local retained-proof
-prerequisite, including binary backup v4 and conflict preflight. They do not yet
-supply routed execution authority, whole-channel deletion/restore fencing or a
-Will executor. Those requirements remain outstanding; the product listener is
-not ready.
+[System-16 receipts](mqtt-will-receipts.md) implement the retained-proof
+prerequisite, including binary backup v4 and conflict preflight. The separate
+[routed read](mqtt-will-receipt-routing.md) adds fresh Slot and recovered Channel
+authority. Execution authorization, receipt transfer, whole-channel
+deletion/restore fencing and a Will executor remain outstanding; the product
+listener is not ready.
 
 ## Frozen implementation context
 

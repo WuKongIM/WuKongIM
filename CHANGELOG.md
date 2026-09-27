@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Route retained MQTT Will receipt queries through fresh Slot and recovered Channel authority, preserving original identity after history cleanup and restart and rejecting isolated warm readers. Queries are bounded and respect maintenance; Will execution and product access remain under development. / MQTT Will 回执查询接通最新 Slot 与已恢复频道权威，历史清理及重启后保留原身份，失去多数派的节点不能返回缓存结果；查询有界并遵循维护隔离，Will 执行和产品接入仍在开发。
+
 - Expose retained MQTT Will receipts through the Channel storage adapter after leader/follower apply, history cleanup and reopen; committed-checkpoint and lifecycle checks remain mandatory. Cluster routing and Will execution remain under development. / 频道存储适配器支持读取主副本写入后保留的 MQTT Will 回执，历史清理及重开后仍可查询，并保留提交水位与生命周期校验；集群路由和 Will 执行仍在开发。
 
 - Retain compact MQTT Will publication receipts when ordinary message history is trimmed, preserving identity and original time through restart and binary backup v4. Restore rejects conflicting proof before writing. Matched writers/tools are required; Will execution and product access remain under development. / 普通消息历史清理后保留 MQTT Will 的精简发布回执，重启和 v4 二进制备份恢复保留原消息身份及时间；恢复前拒绝冲突证明。要求匹配版本的写入节点和工具，Will 执行与产品接入仍在开发。

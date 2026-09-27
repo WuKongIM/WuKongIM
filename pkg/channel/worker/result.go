@@ -26,6 +26,7 @@ type Result struct {
 	StoreMQTTSource      *StoreMQTTSourceResult
 	StoreMQTTReplay      *StoreMQTTReplayResult
 	StoreMQTTPlan        *StoreMQTTPlanResult
+	StoreWillReceipt     *StoreWillReceiptResult
 	StoreClose           *StoreCloseResult
 	StoreRetention       *StoreRetentionResult
 	RPCPull              *RPCPullResult

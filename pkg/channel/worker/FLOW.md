@@ -39,6 +39,8 @@ It does not own reactor state machines, business retries, or dependency policy.
    before copying/reading one owned page, and never advances source release.
    Planning reads one pinned source/latest-anchor view at captured HW in the same
    checkpoint pool, retaining bounded maintenance-tail proofs with identical lease cleanup and no body transfer.
+   Retained Will receipt reads use the same checkpoint pool and captured HW;
+   unsupported stores fail before checkpointing and every acquired lease closes.
 3. Close admission, resolve queued accepted tasks as closed when configured,
    cancel the runtime for active dependency calls, wait for handlers, and
    release the executor.

@@ -48,6 +48,8 @@ const (
 	TaskStoreMQTTPlan
 	// TaskQuorumMQTTRetirement admits one whole-anchor retirement through quorum.
 	TaskQuorumMQTTRetirement
+	// TaskStoreWillReceipt checkpoints captured HW before a retained publication read.
+	TaskStoreWillReceipt
 )
 
 // Task describes blocking work submitted to a bounded pool.
@@ -70,6 +72,7 @@ type Task struct {
 	QuorumMQTTAnchor     *QuorumMQTTAnchorTask
 	QuorumMQTTRetirement *QuorumMQTTRetirementTask
 	StoreMQTTPlan        *StoreMQTTPlanTask
+	StoreWillReceipt     *StoreWillReceiptTask
 	// StoreClose releases a store handle after the reactor has detached it.
 	StoreClose *StoreCloseTask
 	// StoreRetention adopts a logical retention boundary and optionally trims a safe prefix.
@@ -245,6 +248,8 @@ func (t Task) Run(ctx context.Context, deps Deps) Result {
 		res = runStoreMQTTReplay(ctx, deps, t)
 	case TaskStoreMQTTPlan:
 		res = runStoreMQTTPlan(ctx, deps, t)
+	case TaskStoreWillReceipt:
+		res = runStoreWillReceipt(ctx, deps, t)
 	case TaskStoreClose:
 		res = runStoreClose(ctx, deps, t)
 	case TaskStoreRetention:
