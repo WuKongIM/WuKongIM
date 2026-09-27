@@ -375,8 +375,10 @@ publication metadata, Will Delay seconds, QoS, client message number, server
 idempotency identity, stage, disconnect time, due time, execution generation,
 executor node/boot/lease, cancellation reason, rejection reason, resulting
 MessageID/MessageSeq, publication time and update time. Column 34 is the derived
-recovery deadline. Required version-1 checksum column values are bounded to
-128 KiB. Payload is at most 65,535 bytes (CONNECT Binary Data); optional opaque
+recovery deadline. Optional columns 35/36 add dispatch phase and frozen hook
+payload; unmarked rows preserve previous encoding. Version-1 checksum column
+values are bounded to 192 KiB. Each original/frozen payload is at most 65,535
+bytes (CONNECT Binary Data); optional opaque
 publication metadata is at most 32 KiB and starts with format version 1. The
 shared publication contract must validate its contents before use. Will Delay
 is scheduling state, not a forwarded PUBLISH property. Message Expiry starts
@@ -395,8 +397,15 @@ changes; they are caller-supplied proof references, not authenticated by row CAS
 
 Ready can acquire one execution lease. Renewal keeps generation and executor;
 reclaim requires expiry and exactly one generation increment. Only that executor
-may record Published/Rejected while its lease is valid. Ambiguous execution is
-retried with the same immutable publication and server-owned idempotency identity.
+may record Published/Rejected while its lease is valid. Marked work advances
+Preparing (1), Prepared (2), Started (3): hooks freeze only the payload in Prepared,
+and a definite Started CAS precedes dispatch. Takeover retains phase/content;
+Published requires Started and Rejected requires no Started uncertainty. Legacy
+Executing rows cannot acquire a phase retrospectively. Command 72 is bounded to
+320 KiB including both payloads and JSON-escaped identities. Ambiguous Started
+execution currently recovers positive receipts only; safe redispatch still needs
+its incarnation/restore/receipt-transfer contract. Future retries must retain the
+same frozen publication and server-owned idempotency identity.
 The identity is `mqtt-will-v1:` plus SHA-256 of the version-1 canonical key JSON;
 it is **not** an ordinary client `ClientMsgNo`. Published metadata version 2
 binds this key, and message unique index 8 provides the separate server domain.

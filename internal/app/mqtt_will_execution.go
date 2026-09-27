@@ -12,10 +12,11 @@ import (
 )
 
 type mqttWillMessageSender interface {
-	Send(context.Context, message.SendCommand) (message.SendResult, error)
+	PrepareWill(context.Context, message.WillSendCommand) ([]byte, message.Reason, error)
+	SendPreparedWill(context.Context, message.WillSendCommand) (message.SendResult, error)
 }
 
-// mqttWillPublications maps sibling DTOs to the existing SEND usecase. Retained
+// mqttWillPublications maps sibling DTOs to message-owned preparation and dispatch. Retained
 // evidence is read separately so SEND errors cannot erase an already committed Will.
 type mqttWillPublications struct {
 	*clusterinfra.MQTTWillReceipts
@@ -25,7 +26,7 @@ type mqttWillPublications struct {
 var _ mqttsession.WillPublications = mqttWillPublications{}
 
 func (p mqttWillPublications) PublishWill(ctx context.Context, q mqttsession.WillPublication) error {
-	r, err := p.messages.Send(ctx, message.SendCommand{FromUID: q.UID, ClientMsgNo: q.ClientMsgNo, ChannelID: q.Target.TargetID, ChannelType: q.Target.TargetType, Payload: q.Payload, PublicationMetadata: q.PublicationMetadata, NormalizePersonChannel: q.Target.TargetType == 1})
+	r, err := p.messages.SendPreparedWill(ctx, mqttWillSendCommand(q))
 	if err != nil {
 		return err
 	}
@@ -38,7 +39,25 @@ func (p mqttWillPublications) PublishWill(ctx context.Context, q mqttsession.Wil
 	return nil
 }
 
-// newMQTTWillExecutor composes first dispatch and positive-receipt recovery with
+func (p mqttWillPublications) PrepareWillPublication(ctx context.Context, q mqttsession.WillPublication) ([]byte, error) {
+	body, reason, err := p.messages.PrepareWill(ctx, mqttWillSendCommand(q))
+	if err != nil {
+		return nil, err
+	}
+	if reason == message.ReasonSuccess {
+		return body, nil
+	}
+	if reason == message.ReasonSystemError || reason == message.ReasonNodeNotMatch {
+		return nil, mqttsession.ErrWillPending
+	}
+	return nil, mqttsession.ErrWillDenied
+}
+
+func mqttWillSendCommand(q mqttsession.WillPublication) message.WillSendCommand {
+	return message.WillSendCommand{FromUID: q.UID, ClientMsgNo: q.ClientMsgNo, TargetID: q.Target.TargetID, TargetType: q.Target.TargetType, Payload: q.Payload, PublicationMetadata: q.PublicationMetadata}
+}
+
+// newMQTTWillExecutor composes frozen preparation, dispatch and positive recovery with
 // foreground cluster ports. Its caller owns scheduling and lifecycle admission;
 // constructing it does not enable the product MQTT listener or uncertain retries.
 func newMQTTWillExecutor(node *cluster.Node, messages *message.App, opts mqttsession.WillExecutionOptions) (*mqttsession.WillExecutor, error) {

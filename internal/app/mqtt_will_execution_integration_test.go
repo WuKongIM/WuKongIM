@@ -4,7 +4,11 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -41,8 +45,33 @@ func (p loseWillObservation) LookupWillPublication(context.Context, sessioncase.
 // run on the production app's 256-hash-slot single-node cluster. No MQTT listener
 // is opened; this is composition coverage, not process-level product acceptance.
 func TestMQTTWillExecutionSingleNodeClusterRecoversBeforeRevocation(t *testing.T) {
+	runWillExecutionRecovery(t, false)
+}
+
+func TestMQTTWillExecutionSingleNodeClusterFreezesWebhookBeforeRecovery(t *testing.T) {
+	runWillExecutionRecovery(t, true)
+}
+
+func runWillExecutionRecovery(t *testing.T, transform bool) {
 	cfg := singleNodeClusterAppConfig(t)
 	cfg.Cluster.Slots.HashSlotCount = 256
+	var hookCalls atomic.Int64
+	if transform {
+		hook := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var q struct {
+				Payload []byte `json:"payload"`
+			}
+			if json.NewDecoder(r.Body).Decode(&q) != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			hookCalls.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"allow": true, "payload": append([]byte("hook:"), q.Payload...)})
+		}))
+		t.Cleanup(hook.Close)
+		cfg.Webhook.BeforeSend = BeforeSendWebhookConfig{Enabled: true, HTTPAddr: hook.URL, Timeout: time.Second}
+	}
 	a, err := New(cfg)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -97,6 +126,15 @@ func TestMQTTWillExecutionSingleNodeClusterRecoversBeforeRevocation(t *testing.T
 	require.NoError(t, before[0].Err)
 	require.Len(t, before[0].Read.Messages, 2, "lost reply must follow a real commit")
 	original := before[0].Read.Messages[1]
+	if transform {
+		require.Equal(t, "hook:lost", string(original.Payload))
+		stored, err := node.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadWill, WillKey: lost})
+		require.NoError(t, err)
+		require.Len(t, stored.Wills, 1)
+		require.Equal(t, "lost", string(stored.Wills[0].Payload))
+		require.Equal(t, "hook:lost", string(stored.Wills[0].DispatchPayload))
+		require.Equal(t, meta.MQTTWillDispatchStarted, stored.Wills[0].DispatchStage)
+	}
 	require.NoError(t, node.RemoveChannelSubscribers(ctx, id.ID, int64(id.Type), []string{"alice"}, 2))
 	now = now.Add(11 * time.Second)
 	opts.BootID = "executor-2"
@@ -114,4 +152,8 @@ func TestMQTTWillExecutionSingleNodeClusterRecoversBeforeRevocation(t *testing.T
 	require.Len(t, after, 1)
 	require.NoError(t, after[0].Err)
 	require.Equal(t, before[0].Read.Messages, after[0].Read.Messages, "recovery and denial append no business message")
+	if transform {
+		require.Equal(t, int64(2), hookCalls.Load())
+		t.Log("mqtt_will_preparation_evidence: nodes=1 hash_slots=256 real_webhook=true frozen_payload=true lost_reply=true revoked_before_recovery=true hooks=2 committed_messages=2 product_listener=false")
+	}
 }

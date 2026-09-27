@@ -34,8 +34,16 @@ func (s *willExecutionStore) CompareAndSwapMQTTWill(ctx context.Context, revisio
 }
 
 type willPublications struct {
+	prepare func(context.Context, app.WillPublication) ([]byte, error)
 	lookup  func(context.Context, app.WillPublication) (app.WillPublicationReceipt, bool, error)
 	publish func(context.Context, app.WillPublication) error
+}
+
+func (p willPublications) PrepareWillPublication(ctx context.Context, q app.WillPublication) ([]byte, error) {
+	if p.prepare != nil {
+		return p.prepare(ctx, q)
+	}
+	return append([]byte(nil), q.Payload...), nil
 }
 
 func (p willPublications) LookupWillPublication(ctx context.Context, q app.WillPublication) (app.WillPublicationReceipt, bool, error) {

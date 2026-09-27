@@ -675,11 +675,14 @@ specification, runbook, report, or module documentation; link to them when neede
   recovered reactor HW, bounded checkpoint workers and exact-echo RPC 103.
   Three-node TCP/disk evidence covers renewal, original trim, restart and isolated
   warm-reader rejection. [Execution turns](../specs/mqtt-will-execution.md) claim
-  exact detached rows and permit first SEND only after a definite Applied Ready
-  claim and current authorization. Expired Executing work only recovers positive
-  content-matched receipts; later denial or absence cannot resolve an unknown
+  exact detached rows. [Frozen preparation](../specs/mqtt-will-preparation.md)
+  stores optional Will columns 35/36: Preparing, Prepared, Started and transformed
+  body. Current policy gates resumable preparation; only a definite Started CAS
+  grants dispatch through ordinary directory/append without repeated hooks.
+  Started/legacy execution only recovers positive content-matched receipts; later denial or absence cannot resolve an unknown
   append. Single-node cluster composition verifies original identity/time after
-  lost observation and revocation. Uncertain redispatch, automatic scheduling,
+  lost observation and revocation, including real Webhook replacement. Uncertain
+  redispatch, automatic scheduling,
   replica receipt transfer and whole-channel deletion/restore remain pending.
   The optional `store.WillReceiptLookup` exposes
   checkpoint-pinned `channel.WillReceipt` values, including after trim/reopen;

@@ -10,9 +10,11 @@ import (
 )
 
 const (
-	cmdTypeMQTTWillCAS      uint8 = 72
-	mqttWillCommandVersion        = 1
-	maxMQTTWillCommandBytes       = 256 << 10
+	cmdTypeMQTTWillCAS     uint8 = 72
+	mqttWillCommandVersion       = 1
+	// Two bounded payloads plus metadata and worst-case escaped identities fit
+	// this fixed command budget; legacy unprepared encodings stay unchanged.
+	maxMQTTWillCommandBytes = 320 << 10
 )
 
 type mqttWillCASPayload struct {

@@ -242,8 +242,8 @@ func TestMQTTWillCodecAndBounds(t *testing.T) {
 		_, err = mqttWillTable.decodeValue(key, pk, bad)
 		require.Error(t, err)
 	}
-	// Required column 33 is followed by unknown 35; derived column 34 stays reserved.
-	future := append(bytes.Clone(env.Payload), 0x26, 7)
+	// Required column 33 is followed by unknown 37; derived column 34 stays reserved.
+	future := append(bytes.Clone(env.Payload), 0x46, 7)
 	got, err = mqttWillTable.decodeValue(key, pk, rowcodec.Wrap(key, 1, env.Codec, env.Flags, future))
 	require.NoError(t, err)
 	require.Equal(t, r, got)

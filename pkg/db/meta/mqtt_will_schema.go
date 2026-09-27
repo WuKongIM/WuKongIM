@@ -45,8 +45,10 @@ var mqttWillTable = registerMetaTable(TableSpec[MQTTWill]{
 		{ID: 32, Name: "published_at_ms", Type: schema.TypeInt64, Required: true},
 		{ID: 33, Name: "updated_at_ms", Type: schema.TypeInt64, Required: true},
 		{ID: 34, Name: "recovery_at_ms", Type: schema.TypeInt64},
+		{ID: 35, Name: "dispatch_stage", Type: schema.TypeUint8},
+		{ID: 36, Name: "dispatch_payload", Type: schema.TypeBytes},
 	},
-	Families: []schema.Family{{ID: 0, Name: "primary", Columns: []uint16{5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33}}},
+	Families: []schema.Family{{ID: 0, Name: "primary", Columns: []uint16{5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 35, 36}}},
 	Primary:  PrimarySpec[MQTTWill]{IndexID: 1, Name: "pk_mqtt_will", Columns: []uint16{1, 2, 3, 4}, Layout: KeyLayout{KeyString, KeyString, KeyUint64, KeyUint64}, Key: func(r MQTTWill) KeyParts { return mqttWillPrimaryKey(r.Key) }},
 	Indexes: []IndexSpec[MQTTWill]{{ID: 2, Name: "idx_mqtt_will_recovery", Columns: []uint16{34, 1, 2, 3, 4}, Layout: KeyLayout{KeyInt64Ordered, KeyString, KeyString, KeyUint64, KeyUint64}, CorruptIndexKeyIsError: true, Key: func(r MQTTWill) (KeyParts, bool) {
 		at := mqttWillRecoveryAt(r)
@@ -94,12 +96,18 @@ func encodeMQTTWillRow(key []byte, r MQTTWill) ([]byte, error) {
 	_ = w.Uint64(31, r.MessageSeq)
 	_ = w.Int64(32, r.PublishedAtMS)
 	_ = w.Int64(33, r.UpdatedAtMS)
+	if r.DispatchStage != MQTTWillDispatchLegacy {
+		_ = w.Uint8(35, uint8(r.DispatchStage))
+		if r.DispatchStage >= MQTTWillDispatchPrepared {
+			_ = w.RawBytes(36, r.DispatchPayload)
+		}
+	}
 	return rowcodec.Wrap(key, 1, rowcodec.CodecColumns, rowcodec.FlagChecksum, w.Bytes()), nil
 }
 
 func decodeMQTTWillRow(key []byte, pk KeyParts, value []byte) (MQTTWill, error) {
 	var r MQTTWill
-	if len(value) > 128<<10 || len(pk) != 4 {
+	if len(value) > 192<<10 || len(pk) != 4 {
 		return r, dberrors.ErrCorruptValue
 	}
 	env, err := rowcodec.UnwrapBorrowed(key, value)
@@ -113,6 +121,7 @@ func decodeMQTTWillRow(key []byte, pk KeyParts, value []byte) (MQTTWill, error) 
 	s := rowcodec.NewBorrowedScanner(env.Payload)
 	var seen uint32
 	var last uint16
+	var seenDispatch, seenPayload bool
 	for s.Next() {
 		id := s.ColumnID()
 		if id <= last {
@@ -192,12 +201,19 @@ func decodeMQTTWillRow(key []byte, pk KeyParts, value []byte) (MQTTWill, error) 
 			r.PublishedAtMS, err = s.Int64()
 		case 33:
 			r.UpdatedAtMS, err = s.Int64()
+		case 35:
+			var n uint8
+			n, err = s.Uint8()
+			r.DispatchStage, seenDispatch = MQTTWillDispatchStage(n), true
+		case 36:
+			r.DispatchPayload, err = s.Bytes()
+			seenPayload = true
 		}
 		if err != nil {
 			return MQTTWill{}, err
 		}
 	}
-	if s.Err() != nil || seen != (1<<29)-1 || ValidateMQTTWill(r) != nil {
+	if s.Err() != nil || seen != (1<<29)-1 || ValidateMQTTWill(r) != nil || seenDispatch != (r.DispatchStage != MQTTWillDispatchLegacy) || seenPayload != (r.DispatchStage >= MQTTWillDispatchPrepared) {
 		return MQTTWill{}, dberrors.ErrCorruptValue
 	}
 	return r, nil
@@ -239,5 +255,7 @@ func inspectMQTTWillRow(r MQTTWill) InspectRow {
 		"published_at_ms":            r.PublishedAtMS,
 		"updated_at_ms":              r.UpdatedAtMS,
 		"recovery_at_ms":             mqttWillRecoveryAt(r),
+		"dispatch_stage":             uint8(r.DispatchStage),
+		"dispatch_payload_bytes":     len(r.DispatchPayload),
 	}
 }

@@ -1,15 +1,16 @@
 # MQTT Will execution turns
 
 This implements first dispatch and positive-receipt recovery for a detached Will.
-It does not enable the product listener. The existing Will row and command are
-reused; no table or encoding is added.
+It does not enable the product listener. The initial execution slice reused the
+existing row unchanged; [frozen preparation](mqtt-will-preparation.md) now adds
+optional phases/body to that same table and command.
 
 ## Failure inventory before implementation
 
 1. Session replacement hides an older detached Ready Will, or a scan candidate
    supplies execution authority without an exact foreground reread.
 2. Two callers both dispatch after the same claim: only a definite Applied
-   Ready-to-Executing CAS grants first dispatch. Unchanged, conflict, malformed
+   Ready claim followed by a definite Started CAS grants first dispatch. Unchanged, conflict, malformed
    replies and unknown outcomes cannot grant it.
 3. Setup authorization is reused at execution; a fresh explicit denial must
    finish Rejected without invoking SEND. Authority failures retain the task.
@@ -18,8 +19,9 @@ reused; no table or encoding is added.
    Receipt recovery precedes any new authorization decision.
 5. A lease expires during an unknown append. A missing receipt, missing runtime,
    permission denial or foreign boot must not be treated as nonpublication.
-   An existing Executing task may recover a positive receipt, but this increment
-   does not redispatch it or reject it based on present permission.
+   Started or legacy Executing work may recover a positive receipt, but cannot
+   redispatch or reject based on present permission. Explicit Preparing/Prepared
+   work can resume before any dispatch has been authorized.
 6. The final CAS reply is lost, conflicts or reports the wrong revision. A later
    exact read may recover Published; no invented timestamp or second SEND is used.
 7. A wall-only clock, regression, overflow, cancellation or elapsed local lease
@@ -39,13 +41,14 @@ reused; no table or encoding is added.
 ## Remaining product gates
 
 An expired execution is not proof that its prior append stopped. Receipt absence
-therefore retains a pending obligation. Redispatch after uncertain or never-started
+therefore retains a pending obligation. Redispatch after uncertain Started
 execution still needs a fenced admission/recovery decision, receipt transfer and
 whole-Channel delete/restore isolation. Automatic scheduling, receipt quotas and
 retirement, product lifecycle and process-level acceptance remain required.
-SEND retains its existing hooks. A hook-transformed body cannot match the
-immutable template receipt and therefore remains pending; product admission must
-define and freeze such transformations before enabling this execution path.
+The message usecase now runs payload hooks before a durable Prepared commit,
+then submits that frozen body after a definite Started commit. Positive recovery
+uses the frozen content. Legacy Executing rows retain their original evidence
+and cannot be upgraded to resumable preparation. See the preparation contract.
 
 ## Validation
 

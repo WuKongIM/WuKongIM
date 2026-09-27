@@ -58,6 +58,7 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 			"expected_revision": typed.payload.ExpectedRevision, "revision": r.Revision, "decision_revision": r.DecisionRevision, "stage": uint8(r.Stage),
 			"execution_generation": r.ExecutionGeneration, "executor_node_id": r.ExecutorNodeID, "due_at_ms": r.DueAtMS, "lease_until_ms": r.LeaseUntilMS,
 			"message_id": r.MessageID, "message_seq": r.MessageSeq, "payload_bytes": len(r.Payload), "publication_metadata_bytes": len(r.PublicationMetadata),
+			"dispatch_stage": uint8(r.DispatchStage), "dispatch_payload_bytes": len(r.DispatchPayload),
 		}), nil
 	case *mqttInboxAdmissionCASCmd:
 		r := typed.payload.Admission

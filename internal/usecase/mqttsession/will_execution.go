@@ -45,6 +45,8 @@ type WillPublicationReceipt struct {
 // retained proof through fresh authority. Lookup must verify exact sender,
 // server key, client number, body and metadata. Absence proves no nonpublication.
 type WillPublications interface {
+	// PrepareWillPublication runs hooks without publishing and returns owned output.
+	PrepareWillPublication(context.Context, WillPublication) ([]byte, error)
 	LookupWillPublication(context.Context, WillPublication) (WillPublicationReceipt, bool, error)
 	PublishWill(context.Context, WillPublication) error
 }
@@ -54,7 +56,7 @@ type WillExecutionOptions struct {
 	Store WillExecutionStore
 	// Publications preserves server-domain content and independently resolves its receipt.
 	Publications WillPublications
-	// Authorizer evaluates current policy for first dispatch, independently of setup.
+	// Authorizer evaluates current policy before resumable preparation/dispatch.
 	Authorizer WillAuthorizer
 	// NodeID and BootID identify this executor process, never a connection owner.
 	NodeID uint64
@@ -67,7 +69,7 @@ type WillExecutionOptions struct {
 	TurnTimeout time.Duration
 }
 
-// WillExecutor performs one bounded first-dispatch or positive-recovery turn.
+// WillExecutor performs one bounded preparation, dispatch or recovery turn.
 // It owns no worker, scan cursor or persistent body cache.
 type WillExecutor struct {
 	opts      WillExecutionOptions
@@ -102,9 +104,9 @@ func (e *WillExecutor) now() (time.Time, error) {
 	return t, nil
 }
 
-// Execute rereads an exact key. Only a definite first Ready claim may publish;
-// a previous Executing attempt can finish from positive proof but cannot safely
-// redispatch or reject on absence, lease expiry or a later permission change.
+// Execute rereads an exact key and persists hook output before dispatch. Only a
+// definite Started transition may publish; an existing Started/legacy attempt
+// requires positive proof and cannot redispatch on absence or lease expiry.
 func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (out WillExecutionResult, err error) {
 	if e == nil || parent == nil || meta.ValidateMQTTRead(meta.MQTTRead{Kind: meta.MQTTReadWill, WillKey: key}) != nil {
 		return out, ErrInvalid
@@ -152,12 +154,15 @@ func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (ou
 	if w.Stage == meta.MQTTWillExecuting && started.UnixMilli() < w.LeaseUntilMS {
 		return out, ErrWillPending
 	}
-	if w.Revision >= math.MaxUint64-1 || w.ExecutionGeneration == math.MaxUint64 {
+	if w.Revision > math.MaxUint64-4 || w.ExecutionGeneration == math.MaxUint64 {
 		return out, ErrEvidence
 	}
 	first := w.Stage == meta.MQTTWillReady
 	next := w
 	next.Stage = meta.MQTTWillExecuting
+	if first {
+		next.DispatchStage = meta.MQTTWillDispatchPreparing
+	}
 	next.ExecutionGeneration++
 	next.ExecutorNodeID, next.ExecutorBootID = e.opts.NodeID, e.opts.BootID
 	next.Revision++
@@ -176,6 +181,9 @@ func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (ou
 	}
 	if err = willExecutionCAS(claimed, next.Revision); err != nil {
 		return out, err
+	}
+	if claimed.Status != meta.MQTTSessionCASApplied {
+		return out, ErrWillPending
 	}
 	w = next
 	out = willExecutionResult(w)
@@ -222,7 +230,7 @@ func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (ou
 		return out, err
 	}
 	var publishErr error
-	if first && claimed.Status == meta.MQTTSessionCASApplied {
+	if w.DispatchStage == meta.MQTTWillDispatchPreparing || w.DispatchStage == meta.MQTTWillDispatchPrepared {
 		if err = e.opts.Authorizer.AuthorizeWill(ctx, w.UID, q.Target); err != nil {
 			if errors.Is(err, ErrWillDenied) {
 				return finish(meta.MQTTWillRejected, WillPublicationReceipt{})
@@ -230,6 +238,49 @@ func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (ou
 			return out, err
 		}
 		if err = check(); err != nil {
+			return out, err
+		}
+		phase := func(stage meta.MQTTWillDispatchStage, payload []byte) error {
+			if err := check(); err != nil {
+				return err
+			}
+			next := w
+			next.Revision++
+			next.UpdatedAtMS = last.UnixMilli()
+			next.DispatchStage, next.DispatchPayload = stage, bytes.Clone(payload)
+			r, err := e.opts.Store.CompareAndSwapMQTTWill(ctx, w.Revision, next)
+			if err != nil {
+				return err
+			}
+			if err := willExecutionCAS(r, next.Revision); err != nil {
+				return err
+			}
+			if r.Status != meta.MQTTSessionCASApplied {
+				return ErrWillPending
+			}
+			w = next
+			q.Payload = bytes.Clone(payload)
+			return nil
+		}
+		if w.DispatchStage == meta.MQTTWillDispatchPreparing {
+			body, err := e.opts.Publications.PrepareWillPublication(ctx, q)
+			if err != nil {
+				if errors.Is(err, ErrWillDenied) {
+					return finish(meta.MQTTWillRejected, WillPublicationReceipt{})
+				}
+				return out, err
+			}
+			if len(body) > 65535 {
+				return out, ErrEvidence
+			}
+			if err := phase(meta.MQTTWillDispatchPrepared, body); err != nil {
+				return out, err
+			}
+		}
+		if err := phase(meta.MQTTWillDispatchStarted, w.DispatchPayload); err != nil {
+			return out, err
+		}
+		if err := check(); err != nil {
 			return out, err
 		}
 		publishErr = e.opts.Publications.PublishWill(ctx, q)
@@ -283,5 +334,9 @@ func willPublication(w meta.MQTTWill) (WillPublication, error) {
 	if err != nil {
 		return WillPublication{}, ErrEvidence
 	}
-	return WillPublication{UID: w.UID, ClientMsgNo: w.ClientMsgNo, Target: WillTarget{Topic: w.Topic, TargetID: w.TargetID, TargetType: w.TargetType}, Payload: bytes.Clone(w.Payload), PublicationMetadata: encoded}, nil
+	body := w.Payload
+	if w.DispatchStage >= meta.MQTTWillDispatchPrepared {
+		body = w.DispatchPayload
+	}
+	return WillPublication{UID: w.UID, ClientMsgNo: w.ClientMsgNo, Target: WillTarget{Topic: w.Topic, TargetID: w.TargetID, TargetType: w.TargetType}, Payload: bytes.Clone(body), PublicationMetadata: encoded}, nil
 }

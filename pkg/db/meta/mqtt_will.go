@@ -51,6 +51,17 @@ const (
 	MQTTWillPublicationInvalid MQTTWillRejectReason = 3
 )
 
+// MQTTWillDispatchStage distinguishes safely resumable preparation from a
+// publication that may already have reached append. Zero denotes legacy evidence.
+type MQTTWillDispatchStage uint8
+
+const (
+	MQTTWillDispatchLegacy MQTTWillDispatchStage = iota
+	MQTTWillDispatchPreparing
+	MQTTWillDispatchPrepared
+	MQTTWillDispatchStarted
+)
+
 // MQTTWill owns bounded publication content and a durable execution receipt.
 // Origin owner fields never grant authority to a stale connection. Session
 // lifecycle decisions and current publication authorization remain caller proofs.
@@ -92,6 +103,11 @@ type MQTTWill struct {
 	// PublishedAtMS is the committed publication time, not the Will's configuration time.
 	PublishedAtMS int64 `json:"published_at_ms"`
 	UpdatedAtMS   int64 `json:"updated_at_ms"`
+	// DispatchStage is monotonic; only a definite Started CAS may grant dispatch.
+	DispatchStage MQTTWillDispatchStage `json:"dispatch_stage,omitempty"`
+	// DispatchPayload freezes hook output independently of the original template.
+	// Prepared/Started distinguishes a valid empty body from unfinished preparation.
+	DispatchPayload []byte `json:"dispatch_payload,omitempty"`
 }
 
 // MQTTWillResult is valid only after the enclosing batch commits successfully.
@@ -128,6 +144,12 @@ func MQTTWillIdempotencyKey(k MQTTWillKey) (string, error) {
 // ValidateMQTTWill checks storage shape; it cannot authenticate a remote Session
 // decision, infer elapsed time, or authorize a publication from a local row.
 func ValidateMQTTWill(r MQTTWill) error {
+	if r.DispatchStage > MQTTWillDispatchStarted || len(r.DispatchPayload) > 65535 || r.DispatchStage < MQTTWillDispatchPrepared && len(r.DispatchPayload) != 0 || r.DispatchStage != MQTTWillDispatchLegacy && r.Stage != MQTTWillExecuting && r.Stage != MQTTWillPublished && r.Stage != MQTTWillRejected {
+		return dberrors.ErrInvalidArgument
+	}
+	if r.DispatchStage != MQTTWillDispatchLegacy && (r.Stage == MQTTWillPublished && r.DispatchStage != MQTTWillDispatchStarted || r.Stage == MQTTWillRejected && r.DispatchStage == MQTTWillDispatchStarted) {
+		return dberrors.ErrInvalidArgument
+	}
 	id, err := MQTTWillIdempotencyKey(r.Key)
 	if err != nil || r.IdempotencyKey != id || validateMQTTIdentity(r.UID, 1024) != nil || validateMQTTIdentity(r.OwnerBootID, 128) != nil || validateMQTTIdentity(r.Topic, 2048) != nil || validateMQTTIdentity(r.TargetID, 1024) != nil || validateMQTTIdentity(r.ClientMsgNo, 1024) != nil {
 		return dberrors.ErrInvalidArgument
@@ -208,6 +230,7 @@ func (b *Batch) CompareAndSwapMQTTWill(slot HashSlot, expected uint64, row MQTTW
 	}
 	row.Payload = bytes.Clone(row.Payload)
 	row.PublicationMetadata = bytes.Clone(row.PublicationMetadata)
+	row.DispatchPayload = bytes.Clone(row.DispatchPayload)
 	result := &MQTTWillResult{}
 	b.addOp(slot, func(_ context.Context, state *batchCommitState, batch *engine.Batch) error {
 		*result = MQTTWillResult{Status: MQTTSessionCASConflict}
@@ -257,7 +280,7 @@ func sameMQTTWillExecutor(a, b MQTTWill) bool {
 		a.ExecutorNodeID == b.ExecutorNodeID && a.ExecutorBootID == b.ExecutorBootID
 }
 func equalMQTTWill(a, b MQTTWill) bool {
-	return sameMQTTWillPublication(a, b) && a.Revision == b.Revision &&
+	return sameMQTTWillDispatch(a, b) && sameMQTTWillPublication(a, b) && a.Revision == b.Revision &&
 		a.DecisionRevision == b.DecisionRevision && a.Stage == b.Stage &&
 		a.DisconnectedAtMS == b.DisconnectedAtMS && a.DueAtMS == b.DueAtMS &&
 		sameMQTTWillExecutor(a, b) && a.LeaseUntilMS == b.LeaseUntilMS &&
@@ -269,7 +292,7 @@ func equalMQTTWill(a, b MQTTWill) bool {
 // validMQTTWillTransition fences decisions and executors without consulting a
 // wall clock. The authority supplies the persisted decision/update times.
 func validMQTTWillTransition(old, next MQTTWill) bool {
-	if !sameMQTTWillPublication(old, next) || next.DecisionRevision < old.DecisionRevision || next.UpdatedAtMS < old.UpdatedAtMS {
+	if !sameMQTTWillPublication(old, next) || !validMQTTWillDispatchTransition(old, next) || next.DecisionRevision < old.DecisionRevision || next.UpdatedAtMS < old.UpdatedAtMS {
 		return false
 	}
 	switch old.Stage {
@@ -312,6 +335,29 @@ func validMQTTWillTransition(old, next MQTTWill) bool {
 	default:
 		return false
 	}
+}
+
+func sameMQTTWillDispatch(a, b MQTTWill) bool {
+	return a.DispatchStage == b.DispatchStage && bytes.Equal(a.DispatchPayload, b.DispatchPayload)
+}
+
+// Dispatch phase evidence cannot be invented for an old uncertain execution.
+// Executor/lease/revision checks remain in the enclosing transition reducer.
+func validMQTTWillDispatchTransition(old, next MQTTWill) bool {
+	if old.DispatchStage == MQTTWillDispatchLegacy {
+		return sameMQTTWillDispatch(old, next) || old.Stage == MQTTWillReady && next.Stage == MQTTWillExecuting && next.DispatchStage == MQTTWillDispatchPreparing
+	}
+	if next.Stage == MQTTWillPublished && old.DispatchStage != MQTTWillDispatchStarted || next.Stage == MQTTWillRejected && old.DispatchStage == MQTTWillDispatchStarted {
+		return false
+	}
+	if sameMQTTWillDispatch(old, next) {
+		return true
+	}
+	if old.Stage != MQTTWillExecuting || next.Stage != MQTTWillExecuting || !sameMQTTWillExecutor(old, next) {
+		return false
+	}
+	return old.DispatchStage == MQTTWillDispatchPreparing && next.DispatchStage == MQTTWillDispatchPrepared ||
+		old.DispatchStage == MQTTWillDispatchPrepared && next.DispatchStage == MQTTWillDispatchStarted && bytes.Equal(old.DispatchPayload, next.DispatchPayload)
 }
 
 func mqttWillPrimaryKey(k MQTTWillKey) KeyParts {

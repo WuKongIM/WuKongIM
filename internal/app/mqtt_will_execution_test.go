@@ -11,10 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type willMessageSender func(context.Context, message.SendCommand) (message.SendResult, error)
+type willMessageSender func(context.Context, message.WillSendCommand) (message.SendResult, error)
 
-func (f willMessageSender) Send(ctx context.Context, q message.SendCommand) (message.SendResult, error) {
+func (f willMessageSender) SendPreparedWill(ctx context.Context, q message.WillSendCommand) (message.SendResult, error) {
 	return f(ctx, q)
+}
+
+func (f willMessageSender) PrepareWill(_ context.Context, q message.WillSendCommand) ([]byte, message.Reason, error) {
+	return append([]byte(nil), q.Payload...), message.ReasonSuccess, nil
 }
 
 func TestMQTTWillPublisherReusesMessageUsecaseWithoutInventingOwner(t *testing.T) {
@@ -22,8 +26,8 @@ func TestMQTTWillPublisherReusesMessageUsecaseWithoutInventingOwner(t *testing.T
 	require.NoError(t, err)
 	q := mqttsession.WillPublication{UID: "alice", ClientMsgNo: "client", Target: mqttsession.WillTarget{Topic: "t", TargetID: "bob", TargetType: 1}, Payload: []byte("bye"), PublicationMetadata: md}
 	for _, bad := range []bool{false, true} {
-		p := mqttWillPublications{messages: willMessageSender(func(_ context.Context, c message.SendCommand) (message.SendResult, error) {
-			require.Equal(t, message.SendCommand{FromUID: q.UID, ClientMsgNo: q.ClientMsgNo, ChannelID: "bob", ChannelType: 1, Payload: q.Payload, PublicationMetadata: md, NormalizePersonChannel: true}, c)
+		p := mqttWillPublications{messages: willMessageSender(func(_ context.Context, c message.WillSendCommand) (message.SendResult, error) {
+			require.Equal(t, message.WillSendCommand{FromUID: q.UID, ClientMsgNo: q.ClientMsgNo, TargetID: "bob", TargetType: 1, Payload: q.Payload, PublicationMetadata: md}, c)
 			if bad {
 				return message.SendResult{Reason: message.ReasonNotAllowSend}, nil
 			}

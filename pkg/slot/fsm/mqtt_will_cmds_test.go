@@ -4,12 +4,35 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMQTTWillPreparedCommandFitsEscapedIdentityBounds(t *testing.T) {
+	r := mqttWillCommandFixture()
+	r.Key.Namespace, r.Key.ClientID = strings.Repeat("\x01", 1024), strings.Repeat("\x01", 1024)
+	r.UID, r.TargetID, r.ClientMsgNo = strings.Repeat("\x01", 1024), strings.Repeat("\x01", 1024), strings.Repeat("\x01", 1024)
+	r.Topic, r.OwnerBootID, r.ExecutorBootID = strings.Repeat("\x01", 2048), strings.Repeat("\x01", 128), strings.Repeat("\x01", 128)
+	r.IdempotencyKey, _ = metadb.MQTTWillIdempotencyKey(r.Key)
+	r.Stage, r.ExecutionGeneration, r.ExecutorNodeID, r.LeaseUntilMS = metadb.MQTTWillExecuting, 1, 10, 9000
+	r.DisconnectedAtMS, r.DueAtMS, r.UpdatedAtMS = 2000, 7000, 7001
+	r.DispatchStage = metadb.MQTTWillDispatchPrepared
+	r.Payload, r.DispatchPayload = bytes.Repeat([]byte{7}, 65535), bytes.Repeat([]byte{8}, 65535)
+	r.PublicationMetadata = bytes.Repeat([]byte{1}, 32<<10)
+	require.NoError(t, metadb.ValidateMQTTWill(r))
+	raw, err := EncodeMQTTWillCommand(0, r)
+	require.NoError(t, err)
+	require.LessOrEqual(t, len(raw), 320<<10)
+	cmd, err := decodeMQTTWillCASCommand(raw[2:])
+	require.NoError(t, err)
+	require.Equal(t, r, cmd.(*mqttWillCASCmd).payload.Will)
+	_, err = decodeMQTTWillCASCommand(append(raw[2:], bytes.Repeat([]byte{' '}, 320<<10)...))
+	require.Error(t, err)
+}
 
 func mqttWillCommandFixture() metadb.MQTTWill {
 	k := metadb.MQTTWillKey{Namespace: "main", ClientID: "client", SessionGeneration: 1, WillGeneration: 2}

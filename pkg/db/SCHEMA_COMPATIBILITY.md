@@ -199,6 +199,16 @@ See [the replay contract](../../docs/specs/mqtt-shared-replay.md).
 MQTT groundwork adds metadata tables 22 (`mqtt_session`), 23
 (`mqtt_subscription`), 24 (`mqtt_delivery_cursor`), 25 (`mqtt_inflight`), 26
 (`mqtt_source_binding`) and 27 (`mqtt_will`), with Slot commands 67–74.
+Table 27 optional columns 35/36 preserve dispatch phase and frozen hook payload.
+Unmarked rows retain their exact previous encoding; marked rows separate safe
+Preparing/Prepared continuation from Started outcomes requiring positive proof.
+Both original and transformed payloads remain bounded at 65,535 bytes; row decoding
+is capped at 192 KiB and command 72 at 320 KiB including escaped identities.
+Snapshots and typed reads retain both bodies; inspection reports lengths only.
+Old strict peers reject new JSON and old writers may drop optional columns, so
+matched writers/tools and a pre-feature rollback generation are required.
+No backfill can infer the dispatch phase of old Executing rows. See
+[frozen Will preparation](../../docs/specs/mqtt-will-preparation.md).
 Command 74 stores person-inbox admission progress under table 26 System 1,
 keyed by the canonical person Channel ID. Its version-1 key-bound fixed envelope
 stores directory generation, monotonic revision, timestamp, participant and a
