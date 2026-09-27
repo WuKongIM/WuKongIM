@@ -65,6 +65,7 @@ Stop or startup rollback
   renewal/observed disconnect to Session usecases. Real-gateway/Paho integration validates the entry, exact outbound binding and
   PUBACK commits across connection takeover with controlled window/content admission;
   QoS 0 at full QoS 1 credit and complete properties use independent outbound codec bounds; product wiring remains pending. Three-node lifecycle coverage also verifies remote exact-owner ending, Will readiness, fresh lifetime and stale-end rejection.
+  WillExecutor composition binds foreground Slot claims, current message policy, ordinary SEND and retained-content proof. Single-node cluster coverage recovers a lost publication reply after revocation with original identity/time, and rejects a fresh denied task. Scheduling, uncertain redispatch and product lifecycle remain pending.
   Replay worker composition wires fresh SlotMetaSource and foreground Node ports;
   three-node managed-loop coverage verifies fenced learner recovery, source release and retirement after the last binding leaves.
   Consumer progress, exact exchange acknowledgements and retention use foreground Node ports; ACK also gates on local Owners. Retention captures anchors before consumer floors and grants no local GC.

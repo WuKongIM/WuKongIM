@@ -14,6 +14,7 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
 - Metadata uses narrow shared contracts on the foreground-gated Node; product reads never fall back to local storage.
 - Device-token verification reuses user policy without WK master-device kicks.
 - Will permission is checked at setup and execution; explicit denial differs from authority or infrastructure failure.
+- WillExecutor rereads detached work and claims one exact revision. Only Applied Ready claims dispatch through fresh permission; expired Executing work recovers positive retained receipts without reauthorization, redispatch or inferred rejection. Four turns run concurrently without a waiting queue; local deadlines precede CAS and gate subsequent effects.
 - Isolation requires exact owner quiescence or another valid proof supplied by
   its port. A stored state, lease expiry, foreign boot or RPC error is not proof.
 - App owns composition, bounded contexts, renewal/sweep scheduling and unavailable-owner/restore fencing before product admission.
@@ -76,13 +77,12 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
   isolation evidence. Clock regression, overflow and late installation fail.
 - Committed replies must match the expected revision and Will decision. A
   timeout/conflict never activates a candidate or triggers an unbounded retry.
-- Cancellation alone does not release scopes; renewal releases its scope on all
-  exits, including dependency panic, before local fencing/cleanup may join it.
+- Cancellation alone does not release scopes; renewal releases its scope on all exits, including dependency panic, before local fencing/cleanup may join it.
 - Close errors retain runtime capacity for bounded cleanup. No token is stored
   in durable rows, local owner claims or the returned connection.
 - Deadline scans must page both Session deadlines and Waiting Will deadlines.
   Stale candidates, missing referenced work, changed authority and uncertain
-  commits cannot erase an obligation; publication scheduling remains separate.
+  commits cannot erase an obligation; Will publication scheduling and fenced uncertain-dispatch recovery remain separate.
 - Subscription counts use bounded pages at one parent revision; its CAS rejects
   concurrent admissions. Pending/removing rows consume quota; tombstones consume
   scan budget. Parent cancellation is checked synchronously at effect boundaries.

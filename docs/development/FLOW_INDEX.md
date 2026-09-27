@@ -24,7 +24,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [internal/access/opsmcp/FLOW.md](../../internal/access/opsmcp/FLOW.md) | `package` | Authenticates and routes the embedded closed-world Operations MCP while revalidating owner, revision, credential, and admission fences. | 49 | ok |
 | [internal/access/reviewagentcheckmcp/FLOW.md](../../internal/access/reviewagentcheckmcp/FLOW.md) | `package` | Exposes only protected named Review Agent checks and trusted generation-bound evidence through local stdio MCP. | 44 | ok |
 | [internal/access/reviewagentcli/FLOW.md](../../internal/access/reviewagentcli/FLOW.md) | `package` | Exposes Review Agent control operations and model-result normalization through strict bounded JSON process contracts. | 45 | ok |
-| [internal/app/FLOW.md](../../internal/app/FLOW.md) | `package` | Composes product and Agent runtimes and owns their dependency-safe lifecycle ordering. | 130 | warning |
+| [internal/app/FLOW.md](../../internal/app/FLOW.md) | `package` | Composes product and Agent runtimes and owns their dependency-safe lifecycle ordering. | 131 | warning |
 | [internal/bench/FLOW.md](../../internal/bench/FLOW.md) | `subtree` | Implements deterministic black-box benchmark planning, workers, traffic, and evidence. | 121 | warning |
 | [internal/bench/chatlifecycle/FLOW.md](../../internal/bench/chatlifecycle/FLOW.md) | `package` | Runs the fenced chat-lifecycle workload, evidence pipeline, and aged-data capacity proof. | 100 | ok |
 | [internal/contracts/backup/FLOW.md](../../internal/contracts/backup/FLOW.md) | `package` | Defines bounded entry-independent backup, repository, export, restore, and Controller coordination DTOs without policy or I/O. | 54 | ok |
@@ -37,7 +37,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [internal/infra/cloudanalysis/FLOW.md](../../internal/infra/cloudanalysis/FLOW.md) | `package` | Implements bounded private-origin sources and strict parsers for live cloud simulation analysis. | 59 | ok |
 | [internal/infra/clouddeploy/FLOW.md](../../internal/infra/clouddeploy/FLOW.md) | `package` | Provides a root-anchored filesystem adapter for cloud deployment files, inventory, and digests. | 44 | ok |
 | [internal/infra/cloudlease/alibaba/FLOW.md](../../internal/infra/cloudlease/alibaba/FLOW.md) | `package` | Implements fail-closed Alibaba Cloud lease quoting, paid lifecycle, inventory, release, sweep, and OIDC bootstrap. | 61 | ok |
-| [internal/infra/cluster/FLOW.md](../../internal/infra/cluster/FLOW.md) | `package` | Adapts internal ports to cluster, channel, metadata, node-RPC, and operations runtimes without owning business policy. | 123 | warning |
+| [internal/infra/cluster/FLOW.md](../../internal/infra/cluster/FLOW.md) | `package` | Adapts internal ports to cluster, channel, metadata, node-RPC, and operations runtimes without owning business policy. | 124 | warning |
 | [internal/infra/delivery/FLOW.md](../../internal/infra/delivery/FLOW.md) | `package` | Adapts presence lookup and owner-local session writes for canonical online delivery. | 52 | ok |
 | [internal/infra/issueagentgithub/FLOW.md](../../internal/infra/issueagentgithub/FLOW.md) | `package` | Implements bounded GitHub reads and fenced writes for the serverless Issue Agent. | 52 | ok |
 | [internal/infra/reviewagentgithub/FLOW.md](../../internal/infra/reviewagentgithub/FLOW.md) | `package` | Implements exact-head GitHub reads, state refs, review publication, checks, and merge for the Review Agent. | 52 | ok |

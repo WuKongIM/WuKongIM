@@ -669,16 +669,22 @@ specification, runbook, report, or module documentation; link to them when neede
   [Routed reads](../specs/mqtt-will-receipt-routing.md) now use fresh Slot checks,
   recovered reactor HW, bounded checkpoint workers and exact-echo RPC 103.
   Three-node TCP/disk evidence covers renewal, original trim, restart and isolated
-  warm-reader rejection. Executor fencing, replica receipt transfer and whole-channel
-  deletion/restore composition remain pending. The optional `store.WillReceiptLookup` exposes
+  warm-reader rejection. [Execution turns](../specs/mqtt-will-execution.md) claim
+  exact detached rows and permit first SEND only after a definite Applied Ready
+  claim and current authorization. Expired Executing work only recovers positive
+  content-matched receipts; later denial or absence cannot resolve an unknown
+  append. Single-node cluster composition verifies original identity/time after
+  lost observation and revocation. Uncertain redispatch, automatic scheduling,
+  replica receipt transfer and whole-channel deletion/restore remain pending.
+  The optional `store.WillReceiptLookup` exposes
   checkpoint-pinned `channel.WillReceipt` values, including after trim/reopen;
   adapter absence/errors never grant retry authority. Expired task leases alone cannot discharge an
   append with an unknown outcome; see the
   [Will execution failure inventory](../specs/mqtt-will-idempotency.md#execution-recovery-constraints).
   Setup reserves its 79-byte identity tail. Server lookup requires the original
   committed proof and fails closed without its capability; prefix strings alone
-  confer no server identity. Fenced execution and retention through ambiguous
-  publication-result resolution still need runtime wiring.
+  confer no server identity. Product execution and retained-proof lifecycle still
+  need complete fencing and lifecycle wiring.
   Session/subscription Slot writes fence owner and revision atomically; repeated
   subscription options preserve delivery generation, and exact retry uses the
   child's own last-mutation revision. These storage primitives do not prove source

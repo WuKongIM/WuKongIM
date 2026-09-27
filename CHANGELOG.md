@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add bounded MQTT Will first-dispatch and committed-result recovery through existing message policy and cluster authority. Lost observations preserve original identity/time even after permission revocation; uncertain redispatch and product access remain under development. / MQTT Will 接通有界首次发布和已提交结果恢复，复用消息权限与集群权威；观察结果丢失且后续撤权时仍恢复原身份和时间，未知结果的重发及产品接入仍在开发。
+
 - Route retained MQTT Will receipt queries through fresh Slot and recovered Channel authority, preserving original identity after history cleanup and restart and rejecting isolated warm readers. Queries are bounded and respect maintenance; Will execution and product access remain under development. / MQTT Will 回执查询接通最新 Slot 与已恢复频道权威，历史清理及重启后保留原身份，失去多数派的节点不能返回缓存结果；查询有界并遵循维护隔离，Will 执行和产品接入仍在开发。
 
 - Expose retained MQTT Will receipts through the Channel storage adapter after leader/follower apply, history cleanup and reopen; committed-checkpoint and lifecycle checks remain mandatory. Cluster routing and Will execution remain under development. / 频道存储适配器支持读取主副本写入后保留的 MQTT Will 回执，历史清理及重开后仍可查询，并保留提交水位与生命周期校验；集群路由和 Will 执行仍在开发。
