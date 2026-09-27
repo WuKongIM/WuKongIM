@@ -186,6 +186,13 @@ type WillIdempotencyLookup interface {
 	LookupWillIdempotency(ctx context.Context, fromUID, serverKey string) (IdempotencyHit, bool, error)
 }
 
+// WillReceiptLookup pins one local receipt with its stored committed boundary
+// and original/trim evidence. Current Channel authority is the caller's duty;
+// absence is not proof of nonpublication after an uncertain append.
+type WillReceiptLookup interface {
+	LookupWillReceipt(ctx context.Context, fromUID, serverKey string) (ch.WillReceipt, bool, error)
+}
+
 // OrdinaryMessageCounter counts non-SyncOnce positions in (after, through].
 // Callers supply committed and retention-aware bounds from the current authority.
 type OrdinaryMessageCounter interface {

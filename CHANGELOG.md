@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Expose retained MQTT Will receipts through the Channel storage adapter after leader/follower apply, history cleanup and reopen; committed-checkpoint and lifecycle checks remain mandatory. Cluster routing and Will execution remain under development. / 频道存储适配器支持读取主副本写入后保留的 MQTT Will 回执，历史清理及重开后仍可查询，并保留提交水位与生命周期校验；集群路由和 Will 执行仍在开发。
+
 - Retain compact MQTT Will publication receipts when ordinary message history is trimmed, preserving identity and original time through restart and binary backup v4. Restore rejects conflicting proof before writing. Matched writers/tools are required; Will execution and product access remain under development. / 普通消息历史清理后保留 MQTT Will 的精简发布回执，重启和 v4 二进制备份恢复保留原消息身份及时间；恢复前拒绝冲突证明。要求匹配版本的写入节点和工具，Will 执行与产品接入仍在开发。
 
 - Remove MQTT inbox subscriptions through bounded, resumable source draining: release unadmitted backlog while retaining QoS 1 exchanges and ACKs. Independent checkpoints survive Slot snapshots and owner takeover; matched writers/tools are required. Product access and automatic cleanup remain under development. / MQTT 收件箱退订支持有界、可恢复的来源清理，释放未发送积压并保留 QoS 1 交换及 ACK。独立进度支持 Slot 快照和所有者接管；要求匹配版本的写入节点和工具。产品接入及自动清理仍在开发。

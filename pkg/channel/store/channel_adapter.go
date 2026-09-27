@@ -900,6 +900,36 @@ func (a *messageDBChannelStoreAdapter) LookupWillIdempotency(ctx context.Context
 	return IdempotencyHit{Message: fromOwnedDBMessage(msg), PayloadHash: payloadHash}, true, nil
 }
 
+// LookupWillReceipt preserves compact publication proof after ordinary body
+// cleanup without weakening the local checkpoint/evidence checks in storage.
+func (a *messageDBChannelStoreAdapter) LookupWillReceipt(ctx context.Context, fromUID, serverKey string) (ch.WillReceipt, bool, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.WillReceipt{}, false, err
+	}
+	if ctx == nil {
+		return ch.WillReceipt{}, false, ch.ErrInvalidConfig
+	}
+	receipt, found, err := a.store.LookupWillReceipt(ctx, fromUID, serverKey)
+	if err != nil {
+		if errors.Is(err, channel.ErrInvalidArgument) {
+			return ch.WillReceipt{}, false, ch.ErrInvalidConfig
+		}
+		if errors.Is(err, channel.ErrCorruptValue) {
+			return ch.WillReceipt{}, false, ch.ErrLogConflict
+		}
+		return ch.WillReceipt{}, false, a.mapError(err)
+	}
+	if !found {
+		return ch.WillReceipt{}, false, nil
+	}
+	out := ch.WillReceipt{MessageID: receipt.MessageID, MessageSeq: receipt.MessageSeq,
+		ServerTimestampMS: receipt.ServerTimestampMS, ContentHash: receipt.ContentHash}
+	if !out.Valid() {
+		return ch.WillReceipt{}, false, ch.ErrLogConflict
+	}
+	return out, true, nil
+}
+
 // CountOrdinaryMessages preserves the caller's authoritative committed range.
 func (a *messageDBChannelStoreAdapter) CountOrdinaryMessages(ctx context.Context, after, through uint64) (uint64, error) {
 	if err := a.ensureOpen(); err != nil {

@@ -201,6 +201,24 @@ func (l *ChannelLog) LookupWillReceipt(ctx context.Context, id IdempotencyKey) (
 	}
 	return receipt, true, nil
 }
+
+// LookupWillReceipt keeps the compatibility lease pinned through the receipt's
+// checkpoint/original view. It does not supply distributed read authority.
+func (s *ChannelStore) LookupWillReceipt(ctx context.Context, fromUID, serverKey string) (WillReceipt, bool, error) {
+	if ctx == nil {
+		return WillReceipt{}, false, toChannelError(dberrors.ErrInvalidArgument)
+	}
+	if err := s.beginUse(); err != nil {
+		return WillReceipt{}, false, err
+	}
+	defer s.endUse()
+	receipt, found, err := s.log.LookupWillReceipt(ctx, IdempotencyKey{FromUID: fromUID, ServerWillKey: serverKey})
+	if err != nil {
+		return WillReceipt{}, false, toChannelError(err)
+	}
+	return receipt, found, nil
+}
+
 func validateWillReceiptOriginal(view messageBackupReadView, channel ChannelKey, id IdempotencyKey, r WillReceipt) error {
 	key := encodeMessageRowKey(channel, r.MessageSeq, messageHeaderFamilyID)
 	value, found, err := view.Get(key)

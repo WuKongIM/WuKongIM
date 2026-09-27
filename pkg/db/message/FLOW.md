@@ -10,7 +10,7 @@ summary: Stores Channel message logs, indexes, checkpoints, retention state, sna
 `pkg/db/message` persists node-local Channel logs with canonical leases, atomic append/follower apply,
 indexes, checkpoints, history, retention, inspection and portable backup/restore on `pkg/db/internal`.
 
-Compatibility maps Channel records/offsets to this core without transferring engine ownership.
+Compatibility maps Channel records/offsets and pinned retained Will receipts without transferring engine ownership or cluster authority.
 
 ## Boundaries
 

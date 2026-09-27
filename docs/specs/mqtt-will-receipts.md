@@ -1,6 +1,6 @@
 # MQTT Will publication receipts
 
-Status: local receipt storage and binary backup implemented; current Channel
+Status: local receipt storage, Channel store adapter and binary backup implemented; current Channel
 authority routing, Will execution and product admission remain pending.
 This implements the retained-proof prerequisite in the Will execution failure
 inventory. It does not itself execute, authorize or schedule a Will.
@@ -52,6 +52,20 @@ an existing receipt as well.
 
 ## Verification
 
+### Channel storage adapter failure inventory
+
+- The optional receipt reader returns a storage-neutral value with the exact
+  message identity, original time and fingerprint after leader append or follower
+  apply. A durable row above the stored checkpoint is not a publication receipt.
+- Prefix trimming and lease/factory reopen preserve the same result. Native
+  client numbers cannot select a Will receipt, including identical prefix text.
+- Invalid identities, cancellation, closed leases and closed factories return
+  explicit errors and no partial receipt. The compatibility lease pins the
+  underlying store for the complete read; absent capability is not an empty hit.
+- This adapter alone grants neither current Channel authority nor permission to
+  retry an uncertain append. Routed reads still require fresh Slot metadata and
+  completed Channel recovery; an absent result is not proof of nonpublication.
+
 Storage tests first failed because the receipt API/projection did not exist.
 Focused tests then verify append modes, content identity, committed cut filtering,
 trim/reopen, suffix rollback, recovery-prefix conflicts, v4 byte/stream restore,
@@ -69,3 +83,9 @@ The app integration exercises the existing real single-node cluster Will SEND
 path with 256 hash slots. It is not a Will executor, a routed receipt-read test,
 or process-level MQTT acceptance. Receipts remain compact retained state; their
 bounded retirement/admission policy must be composed before product enablement.
+
+The optional `store.WillReceiptLookup` maps the pinned local receipt into
+`channel.WillReceipt`. Adapter tests first failed on the missing capability, then
+verified leader/follower checkpoint gating, native identity isolation, prefix
+trim, factory reopen and lifecycle/cancellation errors. This adds no routed Node
+API and does not reinterpret an absent receipt as permission to publish.

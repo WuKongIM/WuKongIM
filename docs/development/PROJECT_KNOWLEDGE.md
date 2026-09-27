@@ -667,7 +667,9 @@ specification, runbook, report, or module documentation; link to them when neede
   Backup v4 includes committed receipts and their message-ID high water; all
   byte/stream imports preflight content, trim witnesses and target conflicts.
   Local proof still needs Node routing, executor fencing and whole-channel
-  deletion/restore composition. Expired task leases alone cannot discharge an
+  deletion/restore composition. The optional `store.WillReceiptLookup` exposes
+  checkpoint-pinned `channel.WillReceipt` values, including after trim/reopen;
+  adapter absence/errors never grant retry authority. Expired task leases alone cannot discharge an
   append with an unknown outcome; see the
   [Will execution failure inventory](../specs/mqtt-will-idempotency.md#execution-recovery-constraints).
   Setup reserves its 79-byte identity tail. Server lookup requires the original
