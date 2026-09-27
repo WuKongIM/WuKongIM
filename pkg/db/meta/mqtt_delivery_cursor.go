@@ -233,7 +233,9 @@ func (b *Batch) MutateMQTTDeliveryCursor(slot HashSlot, m MQTTDeliveryCursorMuta
 			return nil
 		}
 		if m.Op == MQTTCursorCancelInit {
-			if session.State != MQTTSessionActive || sub.Generation < m.Key.SubscriptionGeneration ||
+			// Closed intent permits empty cleanup initialization even offline.
+			// The exact Session/owner fence above still rejects ended lifetimes.
+			if sub.Generation < m.Key.SubscriptionGeneration ||
 				(sub.Generation == m.Key.SubscriptionGeneration && (sub.AuthorizationVersion != m.AuthorizationVersion || sub.Stage < MQTTSubscriptionRemoving)) {
 				return nil
 			}

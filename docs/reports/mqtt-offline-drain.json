@@ -1,0 +1,187 @@
+{
+  "source": "fe6d74ee02a6cb637ab7d78c4a7e52a51a563896",
+  "digests": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "pkg/db/FLOW.md": "33c7ba81c18ed8cb377e9bef541526028ef31e64dd03becc7ac1ea6cc14fb10a",
+    "pkg/db/meta/FLOW.md": "9930080c1073c6ce567f561b300e1515dfe71eb2b5065a60414d181b738e584c",
+    "internal/usecase/mqttsession/FLOW.md": "1173093284c21ce8e2c6f61e86d584b300449e560053336cdb2eaa10cbfadfb4",
+    "test/e2e/AGENTS.md": "cd13514f93a552e2f9d4cc0b46f85848477e38dccd07840bcfe7d343170b8876",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "test/e2e/mqtt/quota/AGENTS.md": "75089add54b1f205ebb8bb8d3382695a63bb98ea3f1a091677b66386de436034"
+  },
+  "scope": "Offline closed-intent metadata prerequisites for interrupted UNSUBSCRIBE recovery; background usecase and composition still outstanding",
+  "checks": [
+    {
+      "command": "GOWORK=off go test -p 2 ./pkg/db/meta -run 'TestMQTTOfflineDrain|TestMQTTOfflineCancellation' -count=1",
+      "result": "RED: closed offline advance and CancelInit returned Conflict instead of Applied",
+      "log_sha256": "2219d22975be4b2b286bdd25da240422e59759b5914ac7cf180d5986cedb2097"
+    },
+    {
+      "command": "GOWORK=off go test -p 2 ./pkg/db/meta -run TestMQTTOfflineDrainKeepsOneAccountingRangePerMutation -count=1",
+      "result": "RED: first bounded offline range release returned Conflict",
+      "log_sha256": "c8ae4c9312c26aaf6ffd05ece6890ec006334ab4e06ff1157b9b84fc32cb9199"
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 ./pkg/db/meta -run 'TestMQTTOfflineDrain|TestMQTTOfflineCancellation|TestMQTTWindow|TestMQTTQualified|TestMQTTCursorCancel' -count=1",
+      "result": "PASS: 5.114s",
+      "log_sha256": "4d4148e57b95687ade3df3d0daa2a357dc94f889d027be54f7a108d50c255cfe"
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 ./pkg/db/meta ./internal/usecase/mqttsession -count=1",
+      "result": "PASS: metadata 37.962s; MQTT usecases 95.513s",
+      "log_sha256": "14bc48ef7b98671b64cafb1d04e12dbf1a36cf1d5d2cd1634d03ce41516fac00"
+    },
+    {
+      "command": "GOWORK=off go run ./scripts/flowcheck --mode check",
+      "result": "PASS: 87 compliant, 0 invalid, 9 existing warnings",
+      "log_sha256": "518c3c03df7eb5d31ffef78aaf4666017b3054bf4e16f65a227b11efc525cf09"
+    },
+    {
+      "command": "WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-offline-drain-reports GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/quota -count=1 -timeout=8m -v",
+      "result": "PASS: 207.193s, eight quota and completion process scenarios; regression only, not interrupted unsubscribe recovery",
+      "log_sha256": "90c06b84a7582fb1a6ab248d6ac8cc5a7127fd1a879a13a7f9c45de662249eb9"
+    }
+  ],
+  "implementation_sha256": {
+    "pkg/db/meta/mqtt_window.go": "56dc633037fd99daf99c8e74a6e8bb7fcd2b9556dbf9485cf555aa549d1bde54",
+    "pkg/db/meta/mqtt_delivery_cursor.go": "dbfe8fca8729aa209d6b49a13453dd4e7ef94b553710fdb4e51e1006a53da0cb",
+    "pkg/db/meta/mqtt_offline_drain_test.go": "33b828b65e4ddb37d9ebc8a7ea46174f8024ebfaa257a2829e78f654195b3a5e"
+  },
+  "remaining": [
+    "Background source draining independent of live local Owners",
+    "UID drain checkpoint and subscription completion",
+    "Pending-intent discovery and cursorless preparation recovery",
+    "Process fault acceptance of interrupted UNSUBSCRIBE",
+    "Full MQTT crash/restore/scale requirements"
+  ],
+  "process_artifacts": [
+    {
+      "file": "mqtt-consumer-ack-completion-1.json",
+      "sha256": "a5ecf6c8d4f1554e2b8ca1bb8152c997d37182dcb7cd255e20de8a7df6ebe439",
+      "assertions": {
+        "ack_progress_projected": true,
+        "closed_source_removed": true,
+        "hash_slots": 256,
+        "nodes": 1,
+        "passed": true,
+        "receive_maximum": 1,
+        "scenario": "ack-completion"
+      }
+    },
+    {
+      "file": "mqtt-consumer-ack-completion-3.json",
+      "sha256": "8510917750e41c8fbed94754603f3d1789d1f96d00a28147e1fd4d5f53eaecf9",
+      "assertions": {
+        "ack_progress_projected": true,
+        "closed_source_removed": true,
+        "hash_slots": 256,
+        "nodes": 3,
+        "passed": true,
+        "receive_maximum": 1,
+        "scenario": "ack-completion"
+      }
+    },
+    {
+      "file": "mqtt-consumer-full-window-1.json",
+      "sha256": "5d4d13de4a58a643e215d04e8a872df8f90fdbcc4f96b987af1cd3f46b438ccf",
+      "assertions": {
+        "ended_before_reconnect": true,
+        "hash_slots": 256,
+        "nodes": 1,
+        "offline": false,
+        "old_qualification_removed": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscribe_delivers_fresh_message": true,
+        "scenario": "full-window",
+        "session_present": false,
+        "source_removed_before_reconnect": true
+      }
+    },
+    {
+      "file": "mqtt-consumer-full-window-3.json",
+      "sha256": "355a15c831258115f4f2aa651c14f54c3e87777d181a258d6c6299607d4215e3",
+      "assertions": {
+        "ended_before_reconnect": true,
+        "hash_slots": 256,
+        "nodes": 3,
+        "offline": false,
+        "old_qualification_removed": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscribe_delivers_fresh_message": true,
+        "scenario": "full-window",
+        "session_present": false,
+        "source_removed_before_reconnect": true
+      }
+    },
+    {
+      "file": "mqtt-consumer-offline-bytes-1.json",
+      "sha256": "a757633cf6dc5d315a5be95d4af52812e738bb179ea560a224a498f2390976b8",
+      "assertions": {
+        "ended_before_reconnect": true,
+        "hash_slots": 256,
+        "nodes": 1,
+        "offline": true,
+        "old_qualification_removed": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscribe_delivers_fresh_message": true,
+        "scenario": "offline-bytes",
+        "session_present": false,
+        "source_removed_before_reconnect": true
+      }
+    },
+    {
+      "file": "mqtt-consumer-offline-bytes-3.json",
+      "sha256": "78d3a2d6ff8bf8c9c497657051f8b7f517a3c11fb66f4f03ffb225b2769bba95",
+      "assertions": {
+        "ended_before_reconnect": true,
+        "hash_slots": 256,
+        "nodes": 3,
+        "offline": true,
+        "old_qualification_removed": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscribe_delivers_fresh_message": true,
+        "scenario": "offline-bytes",
+        "session_present": false,
+        "source_removed_before_reconnect": true
+      }
+    },
+    {
+      "file": "mqtt-consumer-offline-messages-1.json",
+      "sha256": "22fcf88b9c3cc50f1feb198704bf58d80dc5a8b5587ad15605604008ec2a075b",
+      "assertions": {
+        "ended_before_reconnect": true,
+        "hash_slots": 256,
+        "nodes": 1,
+        "offline": true,
+        "old_qualification_removed": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscribe_delivers_fresh_message": true,
+        "scenario": "offline-messages",
+        "session_present": false,
+        "source_removed_before_reconnect": true
+      }
+    },
+    {
+      "file": "mqtt-consumer-offline-messages-3.json",
+      "sha256": "f4b7f2a48005883417e2abf29ace12c2e2eaabff39671b78c09501c434c34444",
+      "assertions": {
+        "ended_before_reconnect": true,
+        "hash_slots": 256,
+        "nodes": 3,
+        "offline": true,
+        "old_qualification_removed": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscribe_delivers_fresh_message": true,
+        "scenario": "offline-messages",
+        "session_present": false,
+        "source_removed_before_reconnect": true
+      }
+    }
+  ]
+}

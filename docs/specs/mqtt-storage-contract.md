@@ -173,7 +173,7 @@ reason in the same commit, preserving the reason and revision for exact retry.
 No wall clock, access check or cross-Slot source proof is inferred by storage.
 
 Command 69 also supports explicit **CancelInit (3)** for interrupted preparation.
-It initializes only a missing empty cursor under an active exact Session owner,
+It initializes only a missing empty cursor under an exact non-ended Session owner,
 after the same subscription generation is Removing/Removed with matching
 authorization, or a newer generation replaced it. Ordinary Init (1) and Account
 (2) keep their original admission checks. CancelInit cannot add backlog or reset
@@ -489,3 +489,16 @@ missing referenced Will; quota termination; same-batch visibility and rollback;
 legacy receipt default, corrupt receipt, snapshot/replay, inspection redaction,
 command bounds/unknown fields/Slot ownership. This deterministic state transition
 still requires authoritative usecase orchestration and real-process acceptance.
+
+## Offline closed-intent cleanup
+
+Window Advance (command 70 operation 3) now also accepts Offline Sessions only
+when the same subscription generation is Removing/Removed with matching
+authorization, or a strictly newer generation proves the old intent closed.
+Owner tuple, lifetime and exact parent revision still fence every mutation.
+Offline admission and ACK remain forbidden. CancelInit (command 69 operation 3)
+also permits Offline under its existing closed-intent witness; ended lifetimes
+remain rejected. No command, column, index or row encoding changes, but matched
+FSM binaries are required because acceptance semantics changed. See
+[offline drain authority](mqtt-offline-drain.md). Background orchestration remains
+separate work; these primitives do not create online execution authority.

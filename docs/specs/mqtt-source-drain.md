@@ -82,3 +82,8 @@ Source `ac2b1fbaf087a09796ff210f9e64cd38e6d6dd04`; SHA-256:
 including preparation interrupted before its first binding. See
 [group removal discovery](mqtt-group-removal-discovery.md); exact-source `Seal`
 continues to reject a missing binding rather than infer empty work.
+
+The [offline drain metadata contract](mqtt-offline-drain.md) now permits closed
+intent cleanup while Offline, retaining exact owner/revision fences and inflight
+work. `SourceDrain.Seal` still requires local live execution; a separate bounded
+background closed-intent entry and subscription recovery remain to be composed.

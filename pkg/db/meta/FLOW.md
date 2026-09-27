@@ -44,7 +44,7 @@ It does not own product business policy or expose engine-specific APIs.
    ended rows retain UID binding. Subscription writes fence owner/revision and
    preserve generation on option replacement; child receipts prove exact retries.
    Delivery cursors separate backlog accounting, window admission and completion.
-   Explicit cancellation Init requires closed intent; ordinary Init/Account remain fenced.
+   Explicit cancellation Init and offline window release require closed intent; admission/ACK remain active-only and ordinary Init/Account keep their fences.
    Qualified charge receipts use cursor System 1; append/debit and quota ending commit atomically.
    Read kind 18 pins the head; consumption verifies head/successor before unlinking. The bounded inflight
    list preserves earliest ACK gaps; exchange/cursor/session updates are atomic,

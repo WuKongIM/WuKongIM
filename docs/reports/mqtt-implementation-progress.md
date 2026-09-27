@@ -30,6 +30,11 @@ uncertain effects and exposes fixed aggregate state; no durable Session policy
 or ownership proof changes. App integration reproduces the previous leak and
 verifies automatic cleanup; callback barriers verify joined cancellation.
 
+The [offline drain metadata contract](../specs/mqtt-offline-drain.md) now permits
+closed-intent cleanup under exact Offline Session fences while preserving
+unconfirmed exchanges. Its background usecase and product discovery are still
+required; this prerequisite does not complete interrupted UNSUBSCRIBE recovery.
+
 These product milestones are not complete MQTT delivery.
 Safe uncertain dispatch recovery, unavailable-owner
 isolation, pending-intent/cursor/inflight cleanup, restore reactivation and

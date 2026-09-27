@@ -341,6 +341,10 @@ specification, runbook, report, or module documentation; link to them when neede
   joined loop and bounded visits/time. Close failure and uncertain effects retain
   capacity; its aggregate metrics report sampled state, never isolation proof.
   Restore requires a fresh registry/boot and supervisor.
+  [Offline drain metadata](../specs/mqtt-offline-drain.md) allows only closed-intent
+  window advancement and cancellation initialization under exact owner/revision
+  fences; it never grants offline Admit/ACK or clears inflight exchanges.
+  Background draining still needs an entry independent of live local Owners.
   The [gateway entry](../specs/mqtt-gateway-entry.md) retains execution across
   CONNACK and rechecks before enqueue; close callbacks never join packet scopes.
   A constant-size decoded DISCONNECT receipt survives EOF before mailbox dispatch.

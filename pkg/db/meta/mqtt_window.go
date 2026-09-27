@@ -127,8 +127,23 @@ func (b *Batch) MutateMQTTWindow(slot HashSlot, m MQTTWindowMutation) (*MQTTWind
 			*result = MQTTWindowResult{Status: MQTTWindowUnchanged, CurrentRevision: session.Revision, PacketID: cursor.LastWindowPacketID, DeliveryOrder: cursor.LastWindowDeliveryOrder}
 			return nil
 		}
-		if session.Revision != m.ExpectedRevision || session.State != MQTTSessionActive {
+		if session.Revision != m.ExpectedRevision {
 			return nil
+		}
+		if session.State != MQTTSessionActive {
+			// Offline cleanup can release only a durably closed generation. It
+			// grants no admission or ACK authority, and cannot end a lifetime.
+			if session.State != MQTTSessionOffline || m.Op != MQTTWindowAdvance {
+				return nil
+			}
+			sub, ok, err := loadUpdateRow(mqttSubscriptionTable, state, slot, mqttSubscriptionPrimaryKey(m.Key.Namespace, m.Key.ClientID, m.Key.SessionGeneration, cursor.Topic))
+			if err != nil {
+				return err
+			}
+			if !ok || sub.Generation < m.Key.SubscriptionGeneration ||
+				(sub.Generation == m.Key.SubscriptionGeneration && (sub.Stage < MQTTSubscriptionRemoving || sub.AuthorizationVersion != cursor.AuthorizationVersion)) {
+				return nil
+			}
 		}
 		if session.OutboundInflight < cursor.InflightCount || session.PendingMessages < cursor.PendingMessages || session.PendingBytes < cursor.PendingBytes {
 			return dberrors.ErrCorruptValue
