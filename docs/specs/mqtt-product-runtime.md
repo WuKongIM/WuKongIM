@@ -101,7 +101,7 @@ this composition adds no table, column, command or RPC encoding.
 [Ended UID qualification retirement](mqtt-qualification-retirement.md) now runs
 in that same cohort, separately observing confirmed qualification tombstones.
 It preserves successor lifetimes and independent source/drain obligations.
-Normal pending-unsubscribe and cursorless recovery are still required.
+Subsequent pending-unsubscribe recovery is described below; complete record reclamation remains required.
 
 ## Subsequent owner sweeping
 
@@ -115,4 +115,8 @@ orphan-scheduling gap, not unavailable-owner or unknown-effect recovery.
 [Closed-source maintenance](mqtt-closed-source-maintenance.md) now reuses that
 consumer cohort to resume seals and one accounting range for closed subscriptions,
 including Offline Sessions. It has no local Owner dependency or network authority.
-UID/subscription completion and discovery before a first binding remain pending.
+[Pending removal recovery](mqtt-pending-removal-recovery.md) now shares the same
+cohort with subscription-index discovery. It finishes closed inbox/group intent,
+including interrupted preparation before the first binding and failed final
+completion writes. Three-node product-worker composition is verified with a
+controlled interruption; full product-listener fault acceptance remains required.

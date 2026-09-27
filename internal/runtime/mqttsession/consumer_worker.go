@@ -23,12 +23,28 @@ type ConsumerMaintenance interface {
 	MaintainConsumer(context.Context, meta.MQTTSourceBindingKey) (ConsumerWork, error)
 }
 
+// ConsumerSubscriptionMaintenance rereads pending intent and parent authority;
+// it never receives message bodies or derives policy from a recovery hint.
+type ConsumerSubscriptionMaintenance interface {
+	MaintainSubscription(context.Context, meta.MQTTSubscriptionRecoveryCursor) error
+}
+
+// consumerWorkKey is a tagged primary identity. Exactly one field is set;
+// subscription timestamps are cleared so scan updates cannot defeat deduplication.
+type consumerWorkKey struct {
+	binding      meta.MQTTSourceBindingKey
+	subscription meta.MQTTSubscriptionRecoveryCursor
+}
+
 // ConsumerWorkerOptions separates bounded discovery from slower consumer work.
 type ConsumerWorkerOptions struct {
 	// Source discovers current authority-owned recovery pages.
 	Source DeadlineSource
 	// Maintainer rereads authority before accounting or releasing a source obligation.
 	Maintainer ConsumerMaintenance
+	// Subscriptions optionally shares this cohort with closed-intent completion.
+	// Product MQTT composition supplies it for both target kinds.
+	Subscriptions ConsumerSubscriptionMaintenance
 	// Registry owns the scanner and bounded execution pool.
 	Registry *gr.Registry
 	// HashSlotCount matches the deployment; zero selects 256.
@@ -76,10 +92,10 @@ type consumerWorkerRun struct {
 	cancel  context.CancelFunc
 	done    chan struct{}
 	results chan consumerWorkResult
-	queue   *workqueue.BoundedWorkerQueue[meta.MQTTSourceBindingKey]
+	queue   *workqueue.BoundedWorkerQueue[consumerWorkKey]
 }
 type consumerWorkResult struct {
-	key    meta.MQTTSourceBindingKey
+	key    consumerWorkKey
 	failed bool
 	work   ConsumerWork
 }
@@ -137,13 +153,19 @@ func (w *ConsumerWorker) Start(ctx context.Context) error {
 	}
 	runCtx, cancel := context.WithCancel(context.Background())
 	r := &consumerWorkerRun{ctx: runCtx, cancel: cancel, done: make(chan struct{}), results: make(chan consumerWorkResult, w.opts.Workers)}
-	q, err := workqueue.NewBoundedWorkerQueue(workqueue.BoundedWorkerQueueConfig{Name: "mqtt_consumers", Goroutines: w.opts.Registry, Task: gr.TaskMQTTConsumerWorker, Workers: w.opts.Workers, QueueSize: w.opts.Workers}, func(_ context.Context, k meta.MQTTSourceBindingKey) error {
+	q, err := workqueue.NewBoundedWorkerQueue(workqueue.BoundedWorkerQueueConfig{Name: "mqtt_consumers", Goroutines: w.opts.Registry, Task: gr.TaskMQTTConsumerWorker, Workers: w.opts.Workers, QueueSize: w.opts.Workers}, func(_ context.Context, k consumerWorkKey) error {
 		// The run context fences queued work even though the generic queue drains it.
 		if r.ctx.Err() != nil {
 			return nil
 		}
 		call, done := context.WithTimeout(r.ctx, w.opts.ExecutionTimeout)
-		work, err := w.opts.Maintainer.MaintainConsumer(call, k)
+		var work ConsumerWork
+		var err error
+		if k.subscription != (meta.MQTTSubscriptionRecoveryCursor{}) {
+			err = w.opts.Subscriptions.MaintainSubscription(call, k.subscription)
+		} else {
+			work, err = w.opts.Maintainer.MaintainConsumer(call, k.binding)
+		}
 		if err == nil {
 			err = call.Err()
 		}
@@ -203,7 +225,7 @@ func (w *ConsumerWorker) Stop(ctx context.Context) error {
 func (w *ConsumerWorker) loop(r *consumerWorkerRun) {
 	ticker := time.NewTicker(w.opts.Interval)
 	defer ticker.Stop()
-	admitted := make(map[meta.MQTTSourceBindingKey]struct{}, w.opts.Workers)
+	admitted := make(map[consumerWorkKey]struct{}, w.opts.Workers)
 	var state consumerScanState
 	for r.ctx.Err() == nil {
 		var out ConsumerObservation
@@ -239,7 +261,7 @@ func (w *ConsumerWorker) loop(r *consumerWorkerRun) {
 			}
 		}
 		if len(admitted) < w.opts.Workers {
-			scan := w.sweep(r.ctx, &state, func(key meta.MQTTSourceBindingKey) bool {
+			scan := w.sweep(r.ctx, &state, func(key consumerWorkKey) bool {
 				if r.ctx.Err() != nil {
 					return false
 				}

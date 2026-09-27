@@ -97,3 +97,67 @@ func TestConsumerWorkerBoundedCohortJoinedStopAndFreshRestart(t *testing.T) {
 	require.Zero(t, registry.Snapshot().ManagedTotal)
 	t.Log("Consumer scheduling: max_admitted=4 stop_joined=true no_overlap=true restart_cursor_reset=true")
 }
+
+func TestConsumerWorkerSharesCohortWithPendingSubscriptions(t *testing.T) {
+	s := &deadlineSource{slots: []meta.HashSlot{0}}
+	s.read = func(_ uint16, q meta.MQTTRead) (meta.MQTTReadResult, error) {
+		if q.Kind == meta.MQTTReadSourceRecovery {
+			return meta.MQTTReadResult{Bindings: []meta.MQTTSourceBinding{consumerBinding("a", 1000)}, Done: true, After: q.After}, nil
+		}
+		return meta.MQTTReadResult{Subscriptions: []meta.MQTTSubscription{consumerSubscription("b", 2000)}, Done: true, After: q.After}, nil
+	}
+	entered := make(chan string, 4)
+	cancelled := make(chan string, 4)
+	release := make(chan struct{})
+	var calls atomic.Int32
+	work := func(ctx context.Context, kind string) error {
+		calls.Add(1)
+		entered <- kind
+		<-ctx.Done()
+		cancelled <- kind
+		<-release
+		return ctx.Err()
+	}
+	registry := gr.New()
+	w, err := NewConsumerWorker(ConsumerWorkerOptions{Source: s, Workers: 2, Registry: registry, Interval: 10 * time.Millisecond,
+		Maintainer: consumerWorkFunc(func(ctx context.Context, _ meta.MQTTSourceBindingKey) (ConsumerWork, error) {
+			return ConsumerWork{}, work(ctx, "source")
+		}),
+		Subscriptions: consumerSubscriptionFunc(func(ctx context.Context, k meta.MQTTSubscriptionRecoveryCursor) error {
+			if k.RecoveryAtMS != 0 {
+				return fmt.Errorf("timestamp entered identity")
+			}
+			return work(ctx, "subscription")
+		})})
+	require.NoError(t, err)
+	require.NoError(t, w.Start(context.Background()))
+	seen := map[string]bool{}
+	for range 2 {
+		select {
+		case kind := <-entered:
+			seen[kind] = true
+		case <-time.After(2 * time.Second):
+			t.Fatal("shared cohort did not run both kinds")
+		}
+	}
+	require.True(t, seen["source"] && seen["subscription"])
+	stop, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(t, w.Stop(stop), context.Canceled)
+	for range 2 {
+		select {
+		case <-cancelled:
+		case <-time.After(time.Second):
+			t.Fatal("work did not cancel")
+		}
+	}
+	require.ErrorIs(t, w.Start(context.Background()), ErrConsumerWorkerStopping)
+	require.EqualValues(t, 2, calls.Load())
+	close(release)
+	joined, done := context.WithTimeout(context.Background(), 2*time.Second)
+	defer done()
+	require.NoError(t, w.Stop(joined))
+	require.NoError(t, registry.Group(gr.ModuleMQTT).Wait(joined))
+	require.Zero(t, registry.Snapshot().ManagedTotal)
+	t.Log("sources_and_subscriptions=true max_admitted=2 joined_stop=true no_overlap=true")
+}

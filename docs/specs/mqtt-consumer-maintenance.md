@@ -31,7 +31,7 @@
     successful quota-end observations allow deterministic public E2E waiting.
 
 The initial composition maintains Channel bindings, including person sources
-qualified through UID inbox bindings. Subsequent [ended-UID retirement](mqtt-qualification-retirement.md) reuses this cohort; normal pending-intent and cursorless preparation cleanup remain separate required work. No new table, index or RPC format is needed.
+qualified through UID inbox bindings. Subsequent [ended-UID retirement](mqtt-qualification-retirement.md) reuses this cohort; subsequent [pending removal recovery](mqtt-pending-removal-recovery.md) adds closed-intent discovery and completion. No new table, index or RPC format is needed.
 
 All maintenance uses cluster authority, including single-node clusters; tests use
 256 hash Slots. Usecase policy, runtime scheduling, app wiring and metrics remain
@@ -51,7 +51,7 @@ Slots. Defaults are 32 pages per scan, 16 rows per page, 200 ms cadence, a two-s
 scan budget, 250 ms per read and five seconds per execution. Configured
 `mqtt.workers` bounds queued plus executing keys (default 16, maximum 128).
 There is no per-Session goroutine, payload queue or unbounded discovery map.
-Retained cursors are bounded by the configured hash-Slot count, normally 256.
+Product composition scans two streams per Slot, bounding retained cursors at twice the configured hash-Slot count, normally 512.
 A full cohort retains the last admitted row cursor; failed rows retry on wrap.
 This is eventual maintenance, not a promised quota-enforcement latency at scale.
 

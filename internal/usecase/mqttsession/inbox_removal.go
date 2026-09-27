@@ -15,10 +15,18 @@ type InboxRemovalDrain interface {
 	Seal(context.Context, contract.Owner, meta.MQTTSourceBindingKey) (SourceDrainResult, error)
 }
 
+// InboxClosedRemovalDrain resumes only already closed durable source intent.
+// It grants no live Owner operation or transport execution capability.
+type InboxClosedRemovalDrain interface {
+	SealClosed(context.Context, contract.Owner, meta.MQTTSourceBindingKey) (SourceDrainResult, error)
+}
+
 type InboxRemovalOptions struct {
 	Store  InboxEstablishmentMetadata
 	Owners *runtime.Owners
 	Drain  InboxRemovalDrain
+	// ClosedDrain permits background cleanup when no live Owner is admitted.
+	ClosedDrain InboxClosedRemovalDrain
 	// PageSize bounds one closed cursor page, default 8 and maximum 64.
 	PageSize int
 	// Timeout bounds the complete turn; Now shares owner monotonic time.
@@ -43,7 +51,7 @@ func NewInboxRemoval(o InboxRemovalOptions) (*InboxRemoval, error) {
 	if o.PageSize == 0 {
 		o.PageSize = 8
 	}
-	if o.Store == nil || o.Owners == nil || o.Drain == nil || o.PageSize < 1 || o.PageSize > 64 || o.Timeout <= 0 || o.Timeout > time.Minute {
+	if o.Store == nil || ((o.Owners == nil || o.Drain == nil) && o.ClosedDrain == nil) || o.PageSize < 1 || o.PageSize > 64 || o.Timeout <= 0 || o.Timeout > time.Minute {
 		return nil, ErrInvalid
 	}
 	p := &InboxRemoval{options: o, guard: &Subscriptions{options: SubscriptionOptions{Owners: o.Owners, Now: o.Now, Timeout: o.Timeout}}}
@@ -57,7 +65,7 @@ func NewInboxRemoval(o InboxRemovalOptions) (*InboxRemoval, error) {
 // current candidate while SourceDrain is pending. Receive permission is not a
 // cleanup prerequisite; every effect still requires current owner/closed intent.
 func (p *InboxRemoval) Remove(parent context.Context, r SubscriptionProjectionRequest) (out SubscriptionProjectionReceipt, err error) {
-	if p == nil || meta.ValidateMQTTSubscription(r.Subscription) != nil || r.Subscription.TargetKind != meta.MQTTSubscriptionUserInbox {
+	if p == nil || p.options.Owners == nil || p.options.Drain == nil || meta.ValidateMQTTSubscription(r.Subscription) != nil || r.Subscription.TargetKind != meta.MQTTSubscriptionUserInbox {
 		return out, ErrInvalid
 	}
 	if r.Subscription.Stage != meta.MQTTSubscriptionRemoving {
@@ -80,6 +88,36 @@ func (p *InboxRemoval) Remove(parent context.Context, r SubscriptionProjectionRe
 			out = SubscriptionProjectionReceipt{}
 		}
 	}()
+	return p.remove(ctx, &closedIntentScope{live: op, uid: op.UID()}, r)
+}
+
+// RemoveClosed drains one frozen Removing intent from authoritative metadata,
+// including offline Sessions. It never follows a changed Owner or lifetime and
+// returns no receipt after cancellation, late evidence or uncertain writes.
+func (p *InboxRemoval) RemoveClosed(parent context.Context, r SubscriptionProjectionRequest) (out SubscriptionProjectionReceipt, err error) {
+	if p == nil || parent == nil || p.options.ClosedDrain == nil || meta.ValidateMQTTSubscription(r.Subscription) != nil || r.Subscription.TargetKind != meta.MQTTSubscriptionUserInbox {
+		return out, ErrInvalid
+	}
+	if r.Subscription.Stage != meta.MQTTSubscriptionRemoving {
+		return out, ErrConflict
+	}
+	ctx, cancel := context.WithTimeout(parent, p.options.Timeout)
+	defer cancel()
+	defer func() {
+		if recover() != nil {
+			err = ErrSubscriptionCallback
+		}
+		if err == nil {
+			err = ctx.Err()
+		}
+		if err != nil {
+			out = SubscriptionProjectionReceipt{}
+		}
+	}()
+	return p.remove(ctx, &closedIntentScope{uid: r.UID}, r)
+}
+
+func (p *InboxRemoval) remove(ctx context.Context, op *closedIntentScope, r SubscriptionProjectionRequest) (out SubscriptionProjectionReceipt, err error) {
 	if r.UID != op.UID() || r.Subscription.TargetID != r.UID || r.Subscription.AuthorizationVersion != 0 {
 		return out, ErrEvidence
 	}
@@ -125,7 +163,7 @@ func (p *InboxRemoval) Remove(parent context.Context, r SubscriptionProjectionRe
 			}
 			key := row.Key
 			key.Owner = meta.MQTTBindingOwner{Kind: meta.MQTTBindingChannel, ID: candidate.Key.SourceID, Generation: candidate.Key.SourceGeneration}
-			sealed, e := p.options.Drain.Seal(ctx, r.Owner, key)
+			sealed, e := t.drain(key)
 			if e != nil {
 				return out, e
 			}

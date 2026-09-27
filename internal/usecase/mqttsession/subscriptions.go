@@ -176,6 +176,14 @@ func (s *Subscriptions) complete(ctx context.Context, op *subscriptionOperation,
 		return meta.MQTTSubscription{}, ErrInvalid
 	}
 	if err != nil {
+		// A background worker may finish this exact closed intent while projection
+		// yields. Confirm durable completion before treating that race as failure.
+		if row.Stage == meta.MQTTSubscriptionRemoving && (errors.Is(err, ErrConflict) || errors.Is(err, ErrSourceDrainPending)) {
+			_, current, found, readErr := s.read(ctx, op, o, row.Topic)
+			if readErr == nil && found && sameRemovedIntent(row, current) {
+				return current, nil
+			}
+		}
 		return meta.MQTTSubscription{}, err
 	}
 	if err = checkSubscriptionScope(ctx, op); err != nil {
@@ -187,6 +195,9 @@ func (s *Subscriptions) complete(ctx context.Context, op *subscriptionOperation,
 	session, current, found, err := s.read(ctx, op, o, row.Topic)
 	if err != nil {
 		return meta.MQTTSubscription{}, err
+	}
+	if found && sameRemovedIntent(row, current) {
+		return current, nil
 	}
 	if !found || current != row {
 		return meta.MQTTSubscription{}, ErrConflict
@@ -442,4 +453,15 @@ func subscriptionOperationID(row meta.MQTTSubscription) string {
 	b = binary.BigEndian.AppendUint64(b, row.Generation)
 	sum := sha256.Sum256(b)
 	return "mqtt-sub-v1:" + hex.EncodeToString(sum[:])
+}
+
+// sameRemovedIntent accepts only monotonic completion of the full captured
+// child. A replacement generation, operation or receive option never matches.
+func sameRemovedIntent(before, after meta.MQTTSubscription) bool {
+	if before.Stage != meta.MQTTSubscriptionRemoving || after.Stage != meta.MQTTSubscriptionRemoved || after.Revision <= before.Revision || after.UpdatedAtMS < before.UpdatedAtMS {
+		return false
+	}
+	before.Stage, before.RecoveryAtMS = meta.MQTTSubscriptionRemoved, 0
+	before.Revision, before.UpdatedAtMS = after.Revision, after.UpdatedAtMS
+	return before == after
 }

@@ -6,9 +6,7 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
-- Resume MQTT closed-source sealing and bounded backlog release in background maintenance after disconnect, preserving unacknowledged exchanges. Final interrupted-unsubscribe recovery remains in progress. / MQTT 断连后可通过后台维护继续已关闭来源的封口与分批积压释放，保留未确认交换；退订中断的完整恢复仍在进行。
-
-- Permit fenced offline MQTT cleanup of closed subscription generations while preserving outstanding exchanges. Automatic interrupted-unsubscribe recovery remains under development. / MQTT 存储支持离线后按精确代次清理已关闭订阅的未入窗积压，保留未确认交换；退订中断的自动恢复仍在接线。
+- Automatically finish interrupted MQTT unsubscribe for inbox and group subscriptions after disconnect, including preparation before the first binding. Bounded recovery preserves unacknowledged exchanges and retries final state writes. Full crash and scale acceptance remains in progress. / MQTT 私聊收件箱和群订阅退订中断后可在断线状态自动续作，包括首条绑定写入前的中断；有界恢复保留未确认交换并重试最终状态写入。完整崩溃和容量验收仍在进行。
 
 - Automatically sweep expired MQTT owner reservations and retry incomplete transport cleanup with bounded work and joined shutdown. Aggregate metrics retain visibility of unresolved effects. / MQTT 自动清理到期的连接所有权预留，并有界重试未完成的传输关闭；停止时等待任务结束，聚合指标保留未决副作用状态。
 

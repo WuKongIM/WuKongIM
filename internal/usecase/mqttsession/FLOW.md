@@ -43,12 +43,12 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
 7. Subscription establishment commits Preparing, checks projection/current child
    and permission, then Active. Removal commits Removing before SourceDrain fixes
    the accounting end and releases only unadmitted backlog; exchanges survive.
-   Qualified cursors release one range per turn; group removal recovers its cursor or registers missing preparation before protected cancellation Init.
+   Qualified cursors release one range per turn; group removal recovers its cursor or registers missing preparation before protected cancellation Init. SubscriptionRemoval completes frozen Removing intent without live admission; foreground completion accepts only the identical already-Removed child.
    Resume preserves intent; replacement keeps generation/operation. See the [failure inventory](../../../docs/specs/mqtt-subscription-orchestration.md).
    SubscriptionRequests waits only for explicit pending work within attempts/deadline. Possible writes and pending intent mark errors Unconfirmed; entry cannot return a definitive negative ACK.
 8. Group preparation registers an unknown binding before fresh protection confirmation,
    fixes one start, initializes the cursor and activates the binding. GroupProjection adds all-replica replay confirmation and current intent/permission checks before a receipt.
-   InboxSources prepares one canonical person source from fresh qualification, including offline Sessions; closed intent retains cleanup debt. InboxAdmission waits for pinned native directory readiness, scans one bounded participant page, commits each prepared candidate and rechecks its incarnation. InboxAppender drives bounded preparation before ordinary person writes and pins its exact fresh checkpoint/authority into durable append; pending work survives timeout. InboxEstablishment commits UID qualification before one bounded initial-directory page; each protected cursor needs all-replica confirmation before discovery advances, and exact intent/permission precede its receipt. InboxRemoval closes UID qualification before bounded cursor draining, persists each completed source independently and retains exchanges and cursorless cleanup debt.
+   InboxSources prepares one canonical person source from fresh qualification, including offline Sessions; closed intent retains cleanup debt. InboxAdmission waits for pinned native directory readiness, scans one bounded participant page, commits each prepared candidate and rechecks its incarnation. InboxAppender drives bounded preparation before ordinary person writes and pins its exact fresh checkpoint/authority into durable append; pending work survives timeout. InboxEstablishment commits UID qualification before one bounded initial-directory page; each protected cursor needs all-replica confirmation before discovery advances, and exact intent/permission precede its receipt. InboxRemoval closes UID qualification before bounded cursor draining, persists each completed source independently and retains exchanges and cursorless cleanup debt. RemoveClosed shares these stages offline and passes the captured Owner into nested source cleanup.
 9. Replay maintenance rotates bounded copy/anchor admission, recovery and retirement under fresh placement.
    Targets pin anchors and scan/donor hints; placement resets hints and cold passes rotate work.
    Fenced turns only recover existing anchors; absent anchors yield without copying.
@@ -92,7 +92,7 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
   an active subscription silently; delivery/revocation ordering remains required.
 - Group preparation bounds reads and grants no subscription, release or SUBACK authority. ACK survives unsubscribe; entry binds sent exchanges first.
 - ReceiveAuthorization reads a fresh coherent Slot channel/member/sequence view; group grants use join incarnation, self inbox uses admitted UID. Send mutes do not deny receiving; ambiguous evidence cannot revoke.
-- App now composes an opt-in product listener with process-level interop coverage. Will and consumer scheduling invoke existing policy; pending-intent/cursorless cleanup and full failure/scale acceptance remain required.
+- App now composes an opt-in product listener with process-level interop coverage. Will and consumer scheduling invoke existing policy; pending-removal recovery now shares the consumer cohort; ended-record reclamation and full failure/scale acceptance remain required.
 
 ## Read First
 - [Contracts](types.go), [Acquisition](connect.go), [Lifecycle](lifecycle.go), [Subscriptions](subscriptions.go), [Replay](replay.go)

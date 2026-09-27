@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 
 	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
 	runtime "github.com/WuKongIM/WuKongIM/internal/runtime/mqttsession"
@@ -37,7 +38,15 @@ func (a *App) wireMQTTConsumers(node *cluster.Node, auth sessioncase.Subscriptio
 	if err != nil {
 		return nil, err
 	}
-	opts := runtime.ConsumerWorkerOptions{Source: node, Maintainer: mqttConsumerMaintenance{maintenance}, Registry: a.goroutines, Workers: a.cfg.MQTT.Workers, HashSlotCount: defaultClusterConfig(a.cfg).Slots.HashSlotCount}
+	inbox, err := sessioncase.NewInboxRemoval(sessioncase.InboxRemovalOptions{Store: node, ClosedDrain: drain})
+	if err != nil {
+		return nil, err
+	}
+	pending, err := sessioncase.NewSubscriptionRemoval(sessioncase.SubscriptionRemovalOptions{Store: node, Inbox: inbox, Groups: drain})
+	if err != nil {
+		return nil, err
+	}
+	opts := runtime.ConsumerWorkerOptions{Source: node, Maintainer: mqttConsumerMaintenance{maintenance}, Subscriptions: mqttSubscriptionMaintenance{pending}, Registry: a.goroutines, Workers: a.cfg.MQTT.Workers, HashSlotCount: defaultClusterConfig(a.cfg).Slots.HashSlotCount}
 	if a.metrics != nil {
 		opts.Observe = func(o runtime.ConsumerObservation) {
 			m := a.metrics.MQTT
@@ -60,4 +69,18 @@ type mqttConsumerMaintenance struct {
 func (m mqttConsumerMaintenance) MaintainConsumer(ctx context.Context, k meta.MQTTSourceBindingKey) (runtime.ConsumerWork, error) {
 	r, err := m.maintenance.Maintain(ctx, k)
 	return runtime.ConsumerWork{Accounted: r.Accounted, Projected: r.Projected, Removed: r.Removed, QuotaEnded: r.QuotaEnded, RevokedEnded: r.RevokedEnded, QualificationRemoved: r.QualificationRemoved}, err
+}
+
+// mqttSubscriptionMaintenance maps a bounded pending turn to scheduling outcome;
+// the durable subscription index retains work after source qualification removal.
+type mqttSubscriptionMaintenance struct {
+	removal *sessioncase.SubscriptionRemoval
+}
+
+func (m mqttSubscriptionMaintenance) MaintainSubscription(ctx context.Context, k meta.MQTTSubscriptionRecoveryCursor) error {
+	_, err := m.removal.Reconcile(ctx, k)
+	if errors.Is(err, sessioncase.ErrSourceDrainPending) {
+		return nil
+	}
+	return err
 }

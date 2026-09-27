@@ -19,11 +19,49 @@ func (p *SourceDrain) SealGroup(parent context.Context, o contract.Owner, topic 
 		return out, err
 	}
 	defer finishSubscription(live, cancel, &err)
-	op := &sourceDrainScope{live: live, uid: live.UID()}
+	op := &closedIntentScope{live: live, uid: live.UID()}
 	sub, err := p.closedGroup(ctx, op, o, topic)
 	if err != nil {
 		return out, err
 	}
+	return p.sealGroup(ctx, op, o, sub)
+}
+
+// SealClosedGroup discovers an interrupted preparation under one frozen parent
+// and child, including when the client has disconnected before any binding.
+func (p *SourceDrain) SealClosedGroup(parent context.Context, request SubscriptionProjectionRequest) (out SourceDrainResult, err error) {
+	if p == nil || parent == nil || meta.ValidateMQTTSubscription(request.Subscription) != nil || request.Subscription.TargetKind != meta.MQTTSubscriptionGroup {
+		return out, ErrInvalid
+	}
+	if request.Subscription.Stage != meta.MQTTSubscriptionRemoving {
+		return out, ErrConflict
+	}
+	ctx, cancel := context.WithTimeout(parent, p.options.Timeout)
+	defer cancel()
+	defer func() {
+		if recover() != nil {
+			err = ErrSubscriptionCallback
+		}
+		if err == nil {
+			err = ctx.Err()
+		}
+		if err != nil {
+			out = SourceDrainResult{}
+		}
+	}()
+	op := &closedIntentScope{uid: request.UID}
+	current, err := p.closedGroup(ctx, op, request.Owner, request.Subscription.Topic)
+	if err != nil {
+		return out, err
+	}
+	if current != request.Subscription {
+		return out, ErrConflict
+	}
+	return p.sealGroup(ctx, op, request.Owner, current)
+}
+
+func (p *SourceDrain) sealGroup(ctx context.Context, op *closedIntentScope, o contract.Owner, sub meta.MQTTSubscription) (out SourceDrainResult, err error) {
+	topic := sub.Topic
 	r, err := p.read(ctx, op, meta.MQTTRead{Kind: meta.MQTTReadDeliveryCursors, Namespace: sub.Namespace, ClientID: sub.ClientID, SessionGeneration: sub.SessionGeneration, SubscriptionGeneration: sub.Generation, Limit: 2})
 	if err != nil {
 		return out, err
@@ -89,7 +127,7 @@ func (p *SourceDrain) SealGroup(parent context.Context, o contract.Owner, topic 
 			}
 		}
 	}
-	out, err = p.Seal(ctx, o, key)
+	out, err = p.seal(ctx, op, o, key)
 	if err != nil {
 		return SourceDrainResult{}, err
 	}
@@ -105,7 +143,7 @@ func (p *SourceDrain) SealGroup(parent context.Context, o contract.Owner, topic 
 
 // closedGroup accepts only current closed intent; caller-supplied old snapshots
 // cannot manufacture a registration for an already replaced subscription.
-func (p *SourceDrain) closedGroup(ctx context.Context, op *sourceDrainScope, o contract.Owner, topic string) (meta.MQTTSubscription, error) {
+func (p *SourceDrain) closedGroup(ctx context.Context, op *closedIntentScope, o contract.Owner, topic string) (meta.MQTTSubscription, error) {
 	r, err := p.read(ctx, op, meta.MQTTRead{Kind: meta.MQTTReadSubscription, Namespace: o.Key.Namespace, ClientID: o.Key.ClientID, SessionGeneration: o.SessionGeneration, Topic: topic})
 	if err != nil {
 		return meta.MQTTSubscription{}, err

@@ -36,7 +36,7 @@ func TestConsumerWorkerRotatesSlotsAndPreservesPressureCursor(t *testing.T) {
 	w := consumerWorkerFixture(t, s)
 	var state consumerScanState
 	for range 8 {
-		o := w.sweep(context.Background(), &state, func(meta.MQTTSourceBindingKey) bool { t.Fatal("empty page dispatched"); return true })
+		o := w.sweep(context.Background(), &state, func(consumerWorkKey) bool { t.Fatal("empty page dispatched"); return true })
 		require.Equal(t, 32, o.Pages)
 	}
 	require.Len(t, s.visited, 256)
@@ -57,15 +57,15 @@ func TestConsumerWorkerRotatesSlotsAndPreservesPressureCursor(t *testing.T) {
 	}
 	w.opts.PagesPerTurn = 1
 	state = consumerScanState{}
-	w.sweep(context.Background(), &state, func(k meta.MQTTSourceBindingKey) bool { return k.ClientID == "aa" })
+	w.sweep(context.Background(), &state, func(k consumerWorkKey) bool { return k.binding.ClientID == "aa" })
 	require.Equal(t, consumerCursor(rows[0]), state.cursors[0])
-	w.sweep(context.Background(), &state, func(meta.MQTTSourceBindingKey) bool { t.Fatal("failed page dispatched"); return true })
+	w.sweep(context.Background(), &state, func(consumerWorkKey) bool { t.Fatal("failed page dispatched"); return true })
 	var next string
-	w.sweep(context.Background(), &state, func(k meta.MQTTSourceBindingKey) bool { next = k.ClientID; return true })
+	w.sweep(context.Background(), &state, func(k consumerWorkKey) bool { next = k.binding.ClientID; return true })
 	require.Equal(t, "bb", next)
 	require.Equal(t, []uint16{0, 1, 0}, s.visited)
 	s.slots = []meta.HashSlot{1}
-	w.sweep(context.Background(), &state, func(meta.MQTTSourceBindingKey) bool { return true })
+	w.sweep(context.Background(), &state, func(consumerWorkKey) bool { return true })
 	_, ok := state.cursors[0]
 	require.False(t, ok)
 }
@@ -95,7 +95,7 @@ func TestConsumerWorkerRejectsWholeInvalidOrLatePage(t *testing.T) {
 			}
 			w := consumerWorkerFixture(t, s)
 			var state consumerScanState
-			w.sweep(ctx, &state, func(meta.MQTTSourceBindingKey) bool { t.Fatal("invalid page dispatched"); return true })
+			w.sweep(ctx, &state, func(consumerWorkKey) bool { t.Fatal("invalid page dispatched"); return true })
 			require.Empty(t, state.cursors)
 		})
 	}
@@ -115,7 +115,7 @@ func TestConsumerWorkerIncludesUIDAndResetsFutureBoundary(t *testing.T) {
 	var state consumerScanState
 	var keys []string
 	for range 2 {
-		w.sweep(context.Background(), &state, func(k meta.MQTTSourceBindingKey) bool { keys = append(keys, k.ClientID); return true })
+		w.sweep(context.Background(), &state, func(k consumerWorkKey) bool { keys = append(keys, k.binding.ClientID); return true })
 	}
 	require.Equal(t, []string{"a", "b", "a", "b"}, keys)
 	require.Empty(t, state.cursors)
@@ -136,12 +136,12 @@ func TestConsumerWorkerTerminalPageRetainsRequestCursor(t *testing.T) {
 	}
 	w := consumerWorkerFixture(t, s)
 	var state consumerScanState
-	first := w.sweep(context.Background(), &state, func(k meta.MQTTSourceBindingKey) bool { return k.ClientID == "a" })
+	first := w.sweep(context.Background(), &state, func(k consumerWorkKey) bool { return k.binding.ClientID == "a" })
 	require.Equal(t, 1, first.Scheduled)
 	require.Zero(t, first.Failures)
 	require.Equal(t, consumerCursor(a), state.cursors[0])
 	var keys []string
-	second := w.sweep(context.Background(), &state, func(k meta.MQTTSourceBindingKey) bool { keys = append(keys, k.ClientID); return true })
+	second := w.sweep(context.Background(), &state, func(k consumerWorkKey) bool { keys = append(keys, k.binding.ClientID); return true })
 	require.Equal(t, []string{"b"}, keys)
 	require.Zero(t, second.Failures)
 	require.Empty(t, state.cursors)

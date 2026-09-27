@@ -12,7 +12,7 @@ import (
 type inboxRemovalTurn struct {
 	p       *InboxRemoval
 	ctx     context.Context
-	op      *subscriptionOperation
+	op      *closedIntentScope
 	request SubscriptionProjectionRequest
 }
 
@@ -22,17 +22,17 @@ func (t *inboxRemovalTurn) key() meta.MQTTSourceBindingKey {
 }
 
 func (t *inboxRemovalTurn) read(q meta.MQTTRead) (meta.MQTTReadResult, error) {
-	if err := checkSubscriptionScope(t.ctx, t.op); err != nil {
+	if err := t.op.check(t.ctx); err != nil {
 		return meta.MQTTReadResult{}, err
 	}
 	r, err := t.p.options.Store.ReadMQTT(t.ctx, q)
-	if stopped := checkSubscriptionScope(t.ctx, t.op); stopped != nil {
+	if stopped := t.op.check(t.ctx); stopped != nil {
 		return meta.MQTTReadResult{}, stopped
 	}
 	if err != nil {
 		return meta.MQTTReadResult{}, err
 	}
-	if r.Membership != nil || r.Accounting != nil || r.Admission != nil || len(r.Sessions)+len(r.Directory)+len(r.SourceOwners)+len(r.Inflight)+len(r.Wills) != 0 ||
+	if r.Runtime != nil || r.Membership != nil || r.Accounting != nil || r.Admission != nil || len(r.Sessions)+len(r.Directory)+len(r.SourceOwners)+len(r.Inflight)+len(r.Wills) != 0 ||
 		(q.Kind != meta.MQTTReadSubscription && len(r.Subscriptions) != 0) || len(r.Subscriptions) > 1 ||
 		(q.Kind != meta.MQTTReadSourceBinding && len(r.Bindings) != 0) || len(r.Bindings) > 1 ||
 		(q.Kind == meta.MQTTReadSourceBinding && r.Session != nil) ||
@@ -49,7 +49,7 @@ func (t *inboxRemovalTurn) current() (meta.MQTTSession, error) {
 	if err != nil {
 		return meta.MQTTSession{}, err
 	}
-	if err = t.p.guard.checkSession(t.ctx, t.op, o, r.Session); err != nil {
+	if err = t.op.checkSession(t.ctx, t.p.guard, o, r.Session); err != nil {
 		return meta.MQTTSession{}, err
 	}
 	if len(r.Subscriptions) != 1 || r.Subscriptions[0] != sub || !validSubscriptionEvidence(sub, *r.Session) || sub.OperationID != subscriptionOperationID(sub) {
@@ -102,11 +102,11 @@ func (t *inboxRemovalTurn) write(row meta.MQTTSourceBinding) (meta.MQTTSourceBin
 	if meta.ValidateMQTTSourceBinding(row) != nil {
 		return meta.MQTTSourceBinding{}, ErrEvidence
 	}
-	if err = checkSubscriptionScope(t.ctx, t.op); err != nil {
+	if err = t.op.check(t.ctx); err != nil {
 		return meta.MQTTSourceBinding{}, err
 	}
 	r, err := t.p.options.Store.CompareAndSwapMQTTSourceBinding(t.ctx, expected, row)
-	if stopped := checkSubscriptionScope(t.ctx, t.op); stopped != nil {
+	if stopped := t.op.check(t.ctx); stopped != nil {
 		return meta.MQTTSourceBinding{}, stopped
 	}
 	if err != nil {
@@ -122,7 +122,7 @@ func (t *inboxRemovalTurn) write(row meta.MQTTSourceBinding) (meta.MQTTSourceBin
 }
 
 func (t *inboxRemovalTurn) validatePage(row meta.MQTTSourceBinding, q meta.MQTTRead, r meta.MQTTReadResult) error {
-	if err := t.p.guard.checkSession(t.ctx, t.op, t.request.Owner, r.Session); err != nil {
+	if err := t.op.checkSession(t.ctx, t.p.guard, t.request.Owner, r.Session); err != nil {
 		return err
 	}
 	if r.Session.Revision < t.request.Subscription.Revision || r.Session.Revision < row.ProgressRevision || len(r.DeliveryCursors) > q.Limit || !r.Done && len(r.DeliveryCursors) != q.Limit {
@@ -161,4 +161,13 @@ func inboxDrainKeyAfter(a, b meta.MQTTDeliveryCursorKey) bool {
 		}
 	}
 	return false
+}
+
+// drain retains the enclosing captured Owner fence before and after background
+// source work. The drain port itself rereads source and closed intent authority.
+func (t *inboxRemovalTurn) drain(key meta.MQTTSourceBindingKey) (SourceDrainResult, error) {
+	if t.op.live != nil {
+		return t.p.options.Drain.Seal(t.ctx, t.request.Owner, key)
+	}
+	return t.p.options.ClosedDrain.SealClosed(t.ctx, t.request.Owner, key)
 }

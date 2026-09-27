@@ -79,11 +79,11 @@ func (p *SourceDrain) Seal(parent context.Context, o contract.Owner, key meta.MQ
 		return out, err
 	}
 	defer finishSubscription(live, cancel, &err)
-	return p.seal(ctx, &sourceDrainScope{live: live, uid: live.UID()}, o, key)
+	return p.seal(ctx, &closedIntentScope{live: live, uid: live.UID()}, o, key)
 }
 
 // seal shares durable stages between foreground execution and closed-intent maintenance.
-func (p *SourceDrain) seal(ctx context.Context, op *sourceDrainScope, o contract.Owner, key meta.MQTTSourceBindingKey) (out SourceDrainResult, err error) {
+func (p *SourceDrain) seal(ctx context.Context, op *closedIntentScope, o contract.Owner, key meta.MQTTSourceBindingKey) (out SourceDrainResult, err error) {
 	r, err := p.read(ctx, op, meta.MQTTRead{Kind: meta.MQTTReadSourceBinding, BindingKey: key})
 	if err != nil {
 		return out, err
@@ -200,7 +200,7 @@ func (p *SourceDrain) seal(ctx context.Context, op *sourceDrainScope, o contract
 
 // closedIntent proves no future accounting/admission can enter this generation.
 // Receive permission is deliberately irrelevant to releasing unadmitted backlog.
-func (p *SourceDrain) closedIntent(ctx context.Context, op *sourceDrainScope, o contract.Owner, b meta.MQTTSourceBinding) (meta.MQTTSession, meta.MQTTSubscription, error) {
+func (p *SourceDrain) closedIntent(ctx context.Context, op *closedIntentScope, o contract.Owner, b meta.MQTTSourceBinding) (meta.MQTTSession, meta.MQTTSubscription, error) {
 	var s meta.MQTTSession
 	var sub meta.MQTTSubscription
 	r, err := p.read(ctx, op, meta.MQTTRead{Kind: meta.MQTTReadSubscription, Namespace: b.Key.Namespace, ClientID: b.Key.ClientID, SessionGeneration: b.Key.SessionGeneration, Topic: b.Topic})
@@ -232,7 +232,7 @@ func (p *SourceDrain) closedIntent(ctx context.Context, op *sourceDrainScope, o 
 	return *r.Session, sub, nil
 }
 
-func (p *SourceDrain) cursor(ctx context.Context, op *sourceDrainScope, o contract.Owner, b meta.MQTTSourceBinding, minimum uint64) (meta.MQTTSession, meta.MQTTDeliveryCursor, bool, error) {
+func (p *SourceDrain) cursor(ctx context.Context, op *closedIntentScope, o contract.Owner, b meta.MQTTSourceBinding, minimum uint64) (meta.MQTTSession, meta.MQTTDeliveryCursor, bool, error) {
 	var s meta.MQTTSession
 	var c meta.MQTTDeliveryCursor
 	k := b.Key
@@ -261,7 +261,7 @@ func (p *SourceDrain) cursor(ctx context.Context, op *sourceDrainScope, o contra
 
 // cancelBoundary confirms replicated protection before choosing one empty start
 // for an unknown preparation. Closed admission makes that choice non-delivering.
-func (p *SourceDrain) cancelBoundary(ctx context.Context, op *sourceDrainScope, b meta.MQTTSourceBinding, sub meta.MQTTSubscription) (meta.MQTTSourceBinding, error) {
+func (p *SourceDrain) cancelBoundary(ctx context.Context, op *closedIntentScope, b meta.MQTTSourceBinding, sub meta.MQTTSubscription) (meta.MQTTSourceBinding, error) {
 	typeText, id, found := strings.Cut(b.Key.Owner.ID, ":")
 	kind, parseErr := strconv.ParseUint(typeText, 10, 8)
 	if !found || parseErr != nil || kind == 0 || strconv.FormatUint(kind, 10) != typeText || !contract.ValidIdentity(id, 1024) || p.options.Sources == nil {
@@ -288,7 +288,7 @@ func (p *SourceDrain) cancelBoundary(ctx context.Context, op *sourceDrainScope, 
 	return p.sealBinding(ctx, op, b, next)
 }
 
-func (p *SourceDrain) cancelCursor(ctx context.Context, op *sourceDrainScope, o contract.Owner, b meta.MQTTSourceBinding, s meta.MQTTSession) (meta.MQTTSession, meta.MQTTDeliveryCursor, error) {
+func (p *SourceDrain) cancelCursor(ctx context.Context, op *closedIntentScope, o contract.Owner, b meta.MQTTSourceBinding, s meta.MQTTSession) (meta.MQTTSession, meta.MQTTDeliveryCursor, error) {
 	var empty meta.MQTTDeliveryCursor
 	if err := p.checkDrainSession(ctx, op, o, &s); err != nil {
 		return meta.MQTTSession{}, empty, err
@@ -327,7 +327,7 @@ func (p *SourceDrain) cancelCursor(ctx context.Context, op *sourceDrainScope, o 
 	return s, c, nil
 }
 
-func (p *SourceDrain) read(ctx context.Context, op *sourceDrainScope, q meta.MQTTRead) (meta.MQTTReadResult, error) {
+func (p *SourceDrain) read(ctx context.Context, op *closedIntentScope, q meta.MQTTRead) (meta.MQTTReadResult, error) {
 	if err := op.check(ctx); err != nil {
 		return meta.MQTTReadResult{}, err
 	}
@@ -344,7 +344,7 @@ func (p *SourceDrain) read(ctx context.Context, op *sourceDrainScope, q meta.MQT
 	return r, nil
 }
 
-func (p *SourceDrain) sealBinding(ctx context.Context, op *sourceDrainScope, old, next meta.MQTTSourceBinding) (meta.MQTTSourceBinding, error) {
+func (p *SourceDrain) sealBinding(ctx context.Context, op *closedIntentScope, old, next meta.MQTTSourceBinding) (meta.MQTTSourceBinding, error) {
 	now, err := p.guard.now()
 	if err != nil {
 		return meta.MQTTSourceBinding{}, err

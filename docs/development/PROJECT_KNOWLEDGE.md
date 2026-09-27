@@ -347,7 +347,11 @@ specification, runbook, report, or module documentation; link to them when neede
   [Closed-source maintenance](../specs/mqtt-closed-source-maintenance.md) derives
   one exact parent/UID from routed reads and shares the foreground sealing stages
   without local Owner admission. It only handles durable closed intent and yields
-  after one accounting range; final subscription/UID completion remains separate.
+  after one accounting range. [Pending removal recovery](../specs/mqtt-pending-removal-recovery.md)
+  finishes UID checkpoints and exact Removing children without live admission.
+  Nested drains inherit the captured Owner; pending subscription index 2 survives
+  qualification removal, retaining retries after a failed final child CAS.
+  Foreground completion accepts only an identical child already marked Removed.
   The [gateway entry](../specs/mqtt-gateway-entry.md) retains execution across
   CONNACK and rechecks before enqueue; close callbacks never join packet scopes.
   A constant-size decoded DISCONNECT receipt survives EOF before mailbox dispatch.
@@ -1170,7 +1174,7 @@ specification, runbook, report, or module documentation; link to them when neede
   sends. Incomplete Stop retains message/cluster dependencies; restore leaves
   entry admission closed because terminal owner registries cannot be reused.
   Configuration and online interop do not establish unavailable-owner recovery,
-  automatic Will publication, offline cleanup or scale readiness.
+  safe uncertain Will redispatch, full storage reclamation or scale readiness.
 
 - [Will scheduling](../specs/mqtt-will-scheduling.md) scans authoritative recovery
   pages across currently led hash Slots and admits at most four body-free keys.
@@ -1188,7 +1192,9 @@ specification, runbook, report, or module documentation; link to them when neede
   cursor/inflight cleanup or content GC. Recovery terminal pages may retain the
   request cursor; capacity pressure still resumes from the last admitted row.
   Fixed aggregate metrics count turn observations, including repeated ending
-  confirmations, not unique Sessions. Stop joins the bounded cohort.
+  confirmations, not unique Sessions. Pending subscription recovery shares that
+  cohort and adds one cursor per Slot (at most 512 for 256 Slots). Timestamps are
+  scan hints, not work identity; Preparing is skipped. Stop joins all work.
 
 - [Ended UID qualification retirement](../specs/mqtt-qualification-retirement.md)
   uses the same bounded consumer cohort. Only fresh explicit parent ending or a

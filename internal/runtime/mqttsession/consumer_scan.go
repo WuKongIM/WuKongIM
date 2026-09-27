@@ -11,12 +11,12 @@ import (
 
 type consumerScanState struct {
 	next    uint32
-	cursors map[uint16]meta.MQTTReadCursor
+	cursors map[uint32]meta.MQTTReadCursor
 }
 
 // sweep advances only past visited/skipped or accepted keys. Each attempted
 // source yields to the next Slot, including failures and cohort pressure.
-func (w *ConsumerWorker) sweep(parent context.Context, state *consumerScanState, admit func(meta.MQTTSourceBindingKey) bool) (out ConsumerObservation) {
+func (w *ConsumerWorker) sweep(parent context.Context, state *consumerScanState, admit func(consumerWorkKey) bool) (out ConsumerObservation) {
 	started := time.Now()
 	defer func() { out.Duration = time.Since(started) }()
 	if parent.Err() != nil {
@@ -45,7 +45,7 @@ func (w *ConsumerWorker) sweep(parent context.Context, state *consumerScanState,
 		led[uint16(h)] = true
 	}
 	for h := range state.cursors {
-		if !led[h] {
+		if !led[uint16(h/2)] {
 			delete(state.cursors, h)
 		}
 	}
@@ -54,17 +54,31 @@ func (w *ConsumerWorker) sweep(parent context.Context, state *consumerScanState,
 		return out
 	}
 	if state.cursors == nil {
-		state.cursors = make(map[uint16]meta.MQTTReadCursor)
+		state.cursors = make(map[uint32]meta.MQTTReadCursor)
 	}
-	index := sort.Search(len(slots), func(i int) bool { return uint32(slots[i]) >= state.next })
-	if index == len(slots) {
+	// Each led Slot owns at most two independent continuations. Rotation uses
+	// (Slot, stream) order, so a pressured source cannot starve pending intent.
+	streams := make([]uint32, 0, len(slots)*2)
+	for _, h := range slots {
+		streams = append(streams, uint32(h)*2)
+		if w.opts.Subscriptions != nil {
+			streams = append(streams, uint32(h)*2+1)
+		}
+	}
+	index := sort.Search(len(streams), func(i int) bool { return streams[i] >= state.next })
+	if index == len(streams) {
 		index = 0
 	}
-	for page := 0; page < min(w.opts.PagesPerTurn, len(slots)) && ctx.Err() == nil; page++ {
-		slot := uint16(slots[index])
-		state.next = uint32(slot) + 1
-		index = (index + 1) % len(slots)
-		q := meta.MQTTRead{Kind: meta.MQTTReadSourceRecovery, Limit: w.opts.PageSize, After: state.cursors[slot]}
+	for page := 0; page < min(w.opts.PagesPerTurn, len(streams)) && ctx.Err() == nil; page++ {
+		stream := streams[index]
+		slot := uint16(stream / 2)
+		state.next = stream + 1
+		index = (index + 1) % len(streams)
+		kind := meta.MQTTReadSourceRecovery
+		if stream%2 == 1 {
+			kind = meta.MQTTReadSubscriptionRecovery
+		}
+		q := meta.MQTTRead{Kind: kind, Limit: w.opts.PageSize, After: state.cursors[stream]}
 		out.Pages++
 		call, done = context.WithTimeout(ctx, w.opts.CallTimeout)
 		r, e := w.opts.Source.ReadMQTTRecovery(call, slot, q)
@@ -77,13 +91,18 @@ func (w *ConsumerWorker) sweep(parent context.Context, state *consumerScanState,
 			continue
 		}
 		// Validate every witness before admitting any key from this page.
-		candidates, e := consumerCandidates(q, r)
+		var candidates []meta.MQTTReadCursor
+		if kind == meta.MQTTReadSubscriptionRecovery {
+			candidates, e = consumerSubscriptionCandidates(q, r)
+		} else {
+			candidates, e = consumerCandidates(q, r)
+		}
 		if e != nil {
 			out.Failures++
 			continue
 		}
 		complete := true
-		for _, candidate := range candidates {
+		for i, candidate := range candidates {
 			if ctx.Err() != nil {
 				complete = false
 				break
@@ -95,20 +114,33 @@ func (w *ConsumerWorker) sweep(parent context.Context, state *consumerScanState,
 				break
 			}
 			out.Visited++
-			if candidate.SourceRecovery.RecoveryAtMS > now {
-				delete(state.cursors, slot)
+			due := candidate.SourceRecovery.RecoveryAtMS
+			key := consumerWorkKey{binding: candidate.SourceRecovery.Key}
+			if kind == meta.MQTTReadSubscriptionRecovery {
+				due = candidate.Subscription.RecoveryAtMS
+				key = consumerWorkKey{subscription: candidate.Subscription}
+				key.subscription.RecoveryAtMS = 0
+			}
+			if due > now {
+				delete(state.cursors, stream)
 				complete = false
 				break
 			}
-			if !admit(candidate.SourceRecovery.Key) {
+			// Preparing remains indexed for independent establishment recovery;
+			// this cohort does not activate subscriptions without live admission.
+			if kind == meta.MQTTReadSubscriptionRecovery && r.Subscriptions[i].Stage == meta.MQTTSubscriptionPreparing {
+				state.cursors[stream] = candidate
+				continue
+			}
+			if !admit(key) {
 				complete = false
 				break
 			}
 			out.Scheduled++
-			state.cursors[slot] = candidate
+			state.cursors[stream] = candidate
 		}
 		if complete && r.Done {
-			delete(state.cursors, slot)
+			delete(state.cursors, stream)
 		}
 	}
 	return out

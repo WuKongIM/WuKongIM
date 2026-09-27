@@ -47,7 +47,8 @@ type SubscriptionAuthorizer interface {
 }
 
 // SubscriptionProjectionRequest binds monotonic cross-Slot work to one persisted
-// intent and the initiating execution owner. UID comes from admitted Owners state.
+// intent and one captured owner. UID comes from admitted Owners state for live
+// projection or a freshly validated Session for closed-intent maintenance.
 type SubscriptionProjectionRequest struct {
 	Owner        contract.Owner
 	UID          string

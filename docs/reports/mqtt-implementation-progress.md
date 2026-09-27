@@ -34,12 +34,15 @@ The [offline drain metadata contract](../specs/mqtt-offline-drain.md) now permit
 closed-intent cleanup under exact Offline Session fences while preserving
 unconfirmed exchanges. [Closed-source maintenance](../specs/mqtt-closed-source-maintenance.md)
 now drives these stages from existing binding recovery indexes without local
-Owner admission. Final subscription/UID completion and pre-binding discovery
-remain required before interrupted UNSUBSCRIBE recovery is complete.
+Owner admission. [Pending removal recovery](../specs/mqtt-pending-removal-recovery.md)
+now completes UID checkpoints and final Removing subscriptions, including discovery
+before the first binding. Both index streams share the fixed consumer cohort.
+Three-node product-worker composition passes controlled interrupted inbox/group
+removal; full product-listener fault injection remains required.
 
 These product milestones are not complete MQTT delivery.
 Safe uncertain dispatch recovery, unavailable-owner
-isolation, pending-intent/cursor/inflight cleanup, restore reactivation and
+isolation, pending establishment/ended-record/cursor/inflight cleanup, restore reactivation and
 full failure/scale acceptance remain outstanding. Restore currently joins MQTT
 and retains closed admission because its terminal runtime cannot be reused.
 See [product composition and evidence](../specs/mqtt-product-runtime.md).

@@ -7,54 +7,27 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-// sourceDrainScope separates live execution from cleanup of durable closed
-// intent. A background scope grants no Owner operation or network capability.
-type sourceDrainScope struct {
-	live *subscriptionOperation
-	uid  string
-}
-
-func (s *sourceDrainScope) UID() string { return s.uid }
-func (s *sourceDrainScope) check(ctx context.Context) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if s.live != nil {
-		return s.live.Check()
-	}
-	return nil
-}
-
-func (p *SourceDrain) checkDrainSession(ctx context.Context, op *sourceDrainScope, o contract.Owner, row *meta.MQTTSession) error {
-	if op.live != nil {
-		return p.guard.checkSession(ctx, op.live, o, row)
-	}
-	if err := op.check(ctx); err != nil {
-		return err
-	}
-	if row == nil {
-		return ErrFenced
-	}
-	if meta.ValidateMQTTSession(*row) != nil {
-		return ErrEvidence
-	}
-	if sessionOwner(*row) != o || row.UID != op.uid || row.State == meta.MQTTSessionEnded {
-		return ErrFenced
-	}
-	now, err := p.guard.now()
-	if err != nil {
-		return err
-	}
-	if now.UnixMilli() < row.UpdatedAtMS {
-		return ErrClock
-	}
-	return nil
+func (p *SourceDrain) checkDrainSession(ctx context.Context, op *closedIntentScope, o contract.Owner, row *meta.MQTTSession) error {
+	return op.checkSession(ctx, p.guard, o, row)
 }
 
 // ReconcileClosed rereads one exact binding and parent before bounded cleanup.
 // It never follows another lifetime/Owner once captured, never activates a
 // Session, and requires closed intent again inside every shared sealing turn.
-func (p *SourceDrain) ReconcileClosed(parent context.Context, key meta.MQTTSourceBindingKey) (out SourceDrainResult, err error) {
+func (p *SourceDrain) ReconcileClosed(parent context.Context, key meta.MQTTSourceBindingKey) (SourceDrainResult, error) {
+	return p.reconcileClosed(parent, key, nil)
+}
+
+// SealClosed inherits the enclosing cleanup's captured Owner. A nested turn
+// cannot obtain fresh authority from a successor between the caller's checks.
+func (p *SourceDrain) SealClosed(parent context.Context, owner contract.Owner, key meta.MQTTSourceBindingKey) (SourceDrainResult, error) {
+	if owner == (contract.Owner{}) {
+		return SourceDrainResult{}, ErrInvalid
+	}
+	return p.reconcileClosed(parent, key, &owner)
+}
+
+func (p *SourceDrain) reconcileClosed(parent context.Context, key meta.MQTTSourceBindingKey, expected *contract.Owner) (out SourceDrainResult, err error) {
 	q := meta.MQTTRead{Kind: meta.MQTTReadSourceBinding, BindingKey: key}
 	if p == nil || parent == nil || key.Owner.Kind != meta.MQTTBindingChannel || meta.ValidateMQTTRead(q) != nil {
 		return out, ErrInvalid
@@ -72,7 +45,7 @@ func (p *SourceDrain) ReconcileClosed(parent context.Context, key meta.MQTTSourc
 			out = SourceDrainResult{}
 		}
 	}()
-	op := &sourceDrainScope{}
+	op := &closedIntentScope{}
 	r, err := p.read(ctx, op, q)
 	if err != nil {
 		return out, err
@@ -94,6 +67,9 @@ func (p *SourceDrain) ReconcileClosed(parent context.Context, key meta.MQTTSourc
 		return out, ErrEvidence
 	}
 	o := sessionOwner(*r.Session)
+	if expected != nil && o != *expected {
+		return out, ErrFenced
+	}
 	if err = p.checkDrainSession(ctx, op, o, r.Session); err != nil {
 		return out, err
 	}
