@@ -2,7 +2,7 @@
 
 状态：实施中。默认关闭的 MQTT 产品入口、会话恢复、Will 调度及离线消费者维护已接通；真实进程验证范围见各里程碑报告。未知结果恢复、不可用 owner 隔离、完整清理、备份恢复后重建和容量验收仍未完成。依据：[MQTT IM 接入设计](../../specs/mqtt-im-access.md)。
 
-已接通 [消费者后台维护](../../specs/mqtt-consumer-maintenance.md)：复用 source binding 恢复索引，独立于在线状态和接收窗口计量积压，确认精确 owner 结束后推进来源清理；正常 ACK 通过有界任务投影连续完成水位。UID 资格、无 cursor 的准备和持久交换清理仍需完成。
+已接通 [消费者后台维护](../../specs/mqtt-consumer-maintenance.md)：复用 source binding 恢复索引，独立于在线状态和接收窗口计量积压，确认精确 owner 结束后推进来源清理；正常 ACK 通过有界任务投影连续完成水位。明确结束或被替换的 UID 资格现已纳入同一后台任务，见 [资格退役合同](../../specs/mqtt-qualification-retirement.md)；尚未完成的普通退订、无 cursor 的准备和持久交换清理仍需完成。
 
 本计划交付 MQTT 5.0、QoS 0/1、精确主题、持久会话、跨节点接管、受权限约束的可靠恢复和 Will。阶段完成不等于整体完成；仅在线收发的版本不能作为本次需求交付。
 

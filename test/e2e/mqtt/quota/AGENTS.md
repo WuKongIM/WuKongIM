@@ -3,7 +3,7 @@
 Use real single-node and three-node product clusters with 256 hash Slots,
 trusted HTTP provisioning, WKProto producers and independent Paho clients.
 Offline quota cases keep the receiver disconnected until public metrics confirm
-ending and source removal. Full-window cases retain one unacknowledged exchange.
+ending, Channel-source removal and UID qualification retirement. Full-window cases retain one unacknowledged exchange.
 Reconnect once without Clean Start; require Session Present 0, then subscribe and
 receive a new message. Completion cases ACK, observe projected progress,
 unsubscribe and observe source removal. Never inspect tables or substitute an

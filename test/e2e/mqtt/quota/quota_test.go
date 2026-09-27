@@ -155,6 +155,7 @@ func runConsumerScenario(t *testing.T, count int, scenario string) {
 	} else {
 		waitEvent("quota_end_confirmed")
 		waitEvent("removed")
+		waitEvent("qualification_removed")
 		if !offline {
 			select {
 			case <-bob.Client.Done():
@@ -173,6 +174,7 @@ func runConsumerScenario(t *testing.T, count int, scenario string) {
 		require.NoError(t, resumed.Client.Ack(p))
 		report["ended_before_reconnect"], report["source_removed_before_reconnect"], report["resubscribe_delivers_fresh_message"] = true, true, true
 		report["session_present"], report["offline"] = false, offline
+		report["old_qualification_removed"] = true
 	}
 	dir := os.Getenv("WK_E2E_MQTT_REPORT_DIR")
 	if dir == "" {

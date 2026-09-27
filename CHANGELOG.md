@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Retire MQTT inbox qualifications after explicit Session ending or replacement through bounded background maintenance, preserving new lifetimes and independent source obligations. / MQTT 会话明确结束或被新代次替换后，有界后台维护会移除旧收件资格的候选索引，并保留新会话及独立的来源责任。
+
 - Enforce MQTT Session quotas while clients are offline or their receive window is full, and maintain source completion through bounded background work. Fixed aggregate metrics expose progress; complete crash recovery, cleanup and scale acceptance remain in progress. / MQTT 客户端离线或接收窗口满时通过有界后台任务执行会话配额，并推进来源完成与清理；提供固定维度进度指标。完整崩溃恢复、清理与容量验收仍在进行。
 
 - Drain MQTT owners before stopping Gateway transport, and persist proved graceful boot retirement for persistent-session restart. Preserve normal DISCONNECT during open/delivery cleanup to avoid spurious Wills. Abrupt-crash recovery remains under development. / MQTT 会话清理先于 Gateway 传输停止，保存正常退出凭据以恢复持久会话；修复连接初始化、投递清理竞态导致正常断连误发 Will 的问题。异常崩溃恢复仍在开发。

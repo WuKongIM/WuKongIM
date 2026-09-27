@@ -14,7 +14,8 @@ func TestMQTTConsumerMetricsBoundLabelsAndMaterializeZero(t *testing.T) {
 	f, e := r.Gather()
 	require.NoError(t, e)
 	events := requireMetricFamily(t, f, "wukongim_mqtt_consumer_events_total")
-	require.Len(t, events.Metric, 10)
+	require.Len(t, events.Metric, 11)
+	require.Zero(t, findMetricByLabels(t, events, map[string]string{"event": "qualification_removed"}).GetCounter().GetValue())
 	require.Equal(t, float64(2), findMetricByLabels(t, events, map[string]string{"event": "quota_end_confirmed"}).GetCounter().GetValue())
 	require.Zero(t, findMetricByLabels(t, events, map[string]string{"event": "revocation_end_confirmed"}).GetCounter().GetValue())
 	for _, m := range events.Metric {

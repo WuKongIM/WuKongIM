@@ -19,10 +19,14 @@ closed Channel obligations. Eight real-process cases pass across both topologies
 Session/Will regression suites and focused race/stop contracts also pass. See
 [consumer maintenance evidence](mqtt-consumer-maintenance.json). This step reuses
 existing recovery indexes and introduces no durable table or RPC format.
+[Ended-UID retirement](../specs/mqtt-qualification-retirement.md) additionally
+removes old inbox candidate/recovery entries after explicit ending or a newer
+lifetime. Six process scenarios verify zero expiry, elapsed expiry and Clean
+Start without damaging a successor or future person-source delivery.
 
 These product milestones are not complete MQTT delivery.
 Safe uncertain dispatch recovery, unavailable-owner
-isolation, owner sweeping, complete UID/cursor/inflight cleanup, restore reactivation and
+isolation, owner sweeping, pending-intent/cursor/inflight cleanup, restore reactivation and
 full failure/scale acceptance remain outstanding. Restore currently joins MQTT
 and retains closed admission because its terminal runtime cannot be reused.
 See [product composition and evidence](../specs/mqtt-product-runtime.md).

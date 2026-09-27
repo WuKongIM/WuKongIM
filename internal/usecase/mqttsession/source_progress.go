@@ -53,7 +53,7 @@ func NewSourceProgress(o SourceProgressOptions) (*SourceProgress, error) {
 func (p *SourceProgress) Reconcile(parent context.Context, key meta.MQTTSourceBindingKey) (SourceProgressResult, error) {
 	var out SourceProgressResult
 	q := meta.MQTTRead{Kind: meta.MQTTReadSourceBinding, BindingKey: key}
-	if p == nil || parent == nil || key.Owner.Kind != meta.MQTTBindingChannel || meta.ValidateMQTTRead(q) != nil {
+	if p == nil || parent == nil || meta.ValidateMQTTRead(q) != nil {
 		return out, ErrInvalid
 	}
 	ctx, cancel := context.WithTimeout(parent, p.options.Timeout)
@@ -72,6 +72,9 @@ func (p *SourceProgress) Reconcile(parent context.Context, key meta.MQTTSourceBi
 	out = SourceProgressResult{Binding: b, NeedsRemoval: b.Stage == meta.MQTTBindingRemoving}
 	if b.Stage == meta.MQTTBindingRemoved {
 		return out, nil
+	}
+	if key.Owner.Kind == meta.MQTTBindingUID {
+		return p.qualification(ctx, b)
 	}
 	cursorKey := meta.MQTTDeliveryCursorKey{Namespace: key.Namespace, ClientID: key.ClientID, SessionGeneration: key.SessionGeneration, SubscriptionGeneration: key.SubscriptionGeneration, SourceKind: meta.MQTTSourceChannel, SourceID: key.Owner.ID, SourceGeneration: key.Owner.Generation}
 	r, err = p.read(ctx, meta.MQTTRead{Kind: meta.MQTTReadDeliveryCursor, CursorKey: cursorKey})
@@ -142,7 +145,7 @@ func (p *SourceProgress) read(ctx context.Context, q meta.MQTTRead) (meta.MQTTRe
 	if err = ctx.Err(); err != nil {
 		return meta.MQTTReadResult{}, err
 	}
-	if !r.Done || r.After != (meta.MQTTReadCursor{}) || len(r.SourceOwners) != 0 || len(r.Sessions) != 0 || len(r.Subscriptions) != 0 || len(r.Inflight) != 0 || len(r.Wills) != 0 {
+	if !r.Done || r.After != (meta.MQTTReadCursor{}) || r.Runtime != nil || r.Admission != nil || r.Membership != nil || r.Accounting != nil || len(r.Directory) != 0 || len(r.SourceOwners) != 0 || len(r.Sessions) != 0 || len(r.Subscriptions) != 0 || len(r.Inflight) != 0 || len(r.Wills) != 0 {
 		return meta.MQTTReadResult{}, ErrEvidence
 	}
 	return r, nil

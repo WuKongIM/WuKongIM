@@ -13,7 +13,7 @@ func newMQTTMetrics(reg prometheus.Registerer, labels prometheus.Labels) *MQTTMe
 	v := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "wukongim_mqtt_consumer_events_total", Help: "Bounded consumer maintenance turn observations; end confirmations may repeat and are not unique Session counts.", ConstLabels: labels}, []string{"event"})
 	g := prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "wukongim_mqtt_consumer_work", Help: "Admitted consumer keys across queued and executing work, and the configured cohort bound.", ConstLabels: labels}, []string{"state"})
 	m := &MQTTMetrics{events: make(map[string]prometheus.Counter), admitted: g.WithLabelValues("admitted"), capacity: g.WithLabelValues("capacity")}
-	for _, event := range []string{"pages", "visited", "scheduled", "completed", "failures", "accounted", "projected", "removed", "quota_end_confirmed", "revocation_end_confirmed"} {
+	for _, event := range []string{"pages", "visited", "scheduled", "completed", "failures", "accounted", "projected", "removed", "quota_end_confirmed", "revocation_end_confirmed", "qualification_removed"} {
 		m.events[event] = v.WithLabelValues(event)
 	}
 	reg.MustRegister(v, g)

@@ -97,3 +97,8 @@ and full receive windows no longer depend on online delivery turns for
 accounting. UID/cursorless cleanup, storage reclamation, crash/restore and scale
 qualification remain distinct requirements. Existing recovery indexes are reused;
 this composition adds no table, column, command or RPC encoding.
+
+[Ended UID qualification retirement](mqtt-qualification-retirement.md) now runs
+in that same cohort, separately observing confirmed qualification tombstones.
+It preserves successor lifetimes and independent source/drain obligations.
+Normal pending-unsubscribe and cursorless recovery are still required.

@@ -53,10 +53,11 @@ type ConsumerWorkerOptions struct {
 }
 
 // ConsumerWork carries only proved per-turn outcomes; it contains no identity or body.
-type ConsumerWork struct{ Accounted, Projected, Removed, QuotaEnded, RevokedEnded bool }
+type ConsumerWork struct{ Accounted, Projected, Removed, QuotaEnded, RevokedEnded, QualificationRemoved bool }
 
 // ConsumerObservation excludes keys, bodies, errors and other unbounded labels.
 type ConsumerObservation struct {
+	QualificationRemoved                                    int
 	Pages, Visited, Scheduled, Completed, Failures          int
 	Duration                                                time.Duration
 	Accounted, Projected, Removed, QuotaEnded, RevokedEnded int
@@ -212,6 +213,9 @@ func (w *ConsumerWorker) loop(r *consumerWorkerRun) {
 			case result := <-r.results:
 				delete(admitted, result.key)
 				out.Completed++
+				if result.work.QualificationRemoved {
+					out.QualificationRemoved++
+				}
 				if result.work.Accounted {
 					out.Accounted++
 				}

@@ -49,6 +49,7 @@ black-box e2e coverage for `cmd/wukongim` and internal behavior only.
 
 | Domain | Scenario path | Purpose | Run |
 | --- | --- | --- | --- |
+| `mqtt` | `test/e2e/mqtt/qualification` | Prove ended/replaced UID qualification retirement and new-lifetime future-source delivery in 256-hash-Slot single-node and three-node clusters. | `WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-qualification-reports GOWORK=off go test -p 2 -tags=e2e ./test/e2e/mqtt/qualification -count=1 -timeout=6m -v` |
 | `mqtt` | `test/e2e/mqtt/quota` | Prove offline message/byte quotas, full-window quotas and ACK/source completion in 256-hash-Slot single-node and three-node clusters. | `WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-consumer-reports GOWORK=off go test -p 2 -tags=e2e ./test/e2e/mqtt/quota -count=1 -timeout=8m -v` |
 | `mqtt` | `test/e2e/mqtt/session` | Prove persistent reconnect, offline future contacts, live takeover, manual QoS 1 recovery and graceful owner-process restart with 256 hash Slots. | `WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-session-reports GOWORK=off go test -p 2 -tags=e2e ./test/e2e/mqtt/session -count=1 -timeout=4m -v` |
 | `mqtt` | `test/e2e/mqtt/will` | Prove delayed Will publication after TCP loss and normal DISCONNECT cancellation in 256-hash-Slot single-node and three-node clusters. | `GOWORK=off go test -p 2 -tags=e2e ./test/e2e/mqtt/will -count=1 -timeout=4m -v` |

@@ -311,7 +311,7 @@ func TestSourceProgressBoundsUnknownResponsibilitiesAndInput(t *testing.T) {
 	}
 	_, err := c.Reconcile(nil, p.Binding.Key)
 	require.Error(t, err)
-	p.Binding.Key.Owner.Kind = meta.MQTTBindingUID
+	p.Binding.Key.Owner.Kind = 3 // Unsupported owner kind still fails before storage.
 	p.Binding.Key.Owner.Generation = ""
 	_, err = c.Reconcile(context.Background(), p.Binding.Key)
 	require.Error(t, err)

@@ -101,7 +101,7 @@ func TestConsumerWorkerRejectsWholeInvalidOrLatePage(t *testing.T) {
 	}
 }
 
-func TestConsumerWorkerSkipsUIDAndResetsFutureBoundary(t *testing.T) {
+func TestConsumerWorkerIncludesUIDAndResetsFutureBoundary(t *testing.T) {
 	s := &deadlineSource{slots: []meta.HashSlot{0}}
 	a, b, c := consumerBinding("a", 1000), consumerBinding("b", 2000), consumerBinding("c", 200000)
 	a.Key.Owner = meta.MQTTBindingOwner{Kind: meta.MQTTBindingUID, ID: "alice"}
@@ -117,7 +117,7 @@ func TestConsumerWorkerSkipsUIDAndResetsFutureBoundary(t *testing.T) {
 	for range 2 {
 		w.sweep(context.Background(), &state, func(k meta.MQTTSourceBindingKey) bool { keys = append(keys, k.ClientID); return true })
 	}
-	require.Equal(t, []string{"b", "b"}, keys)
+	require.Equal(t, []string{"a", "b", "a", "b"}, keys)
 	require.Empty(t, state.cursors)
 }
 

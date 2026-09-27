@@ -38,12 +38,13 @@ func NewSourceRemoval(o SourceRemovalOptions) (*SourceRemoval, error) {
 }
 
 // Reconcile acknowledges a proven removal before a separate turn removes its
-// consumer indexes. Each turn rereads remote proof and performs at most one CAS;
-// intervening binding changes require a new acknowledgement of that revision.
+// consumer indexes. Ended UID qualifications need no Channel acknowledgement.
+// Each turn rereads proof and performs at most one CAS; Channel changes require
+// a new acknowledgement of that exact revision.
 func (p *SourceRemoval) Reconcile(parent context.Context, key meta.MQTTSourceBindingKey) (SourceRemovalResult, error) {
 	var out SourceRemovalResult
 	q := meta.MQTTRead{Kind: meta.MQTTReadSourceBinding, BindingKey: key}
-	if p == nil || parent == nil || key.Owner.Kind != meta.MQTTBindingChannel || meta.ValidateMQTTRead(q) != nil {
+	if p == nil || parent == nil || meta.ValidateMQTTRead(q) != nil {
 		return out, ErrInvalid
 	}
 	ctx, cancel := context.WithTimeout(parent, p.options.Timeout)
@@ -64,6 +65,10 @@ func (p *SourceRemoval) Reconcile(parent context.Context, key meta.MQTTSourceBin
 		return out, nil
 	}
 	if b.ReleaseReason != meta.MQTTBindingSessionEnded {
+		if key.Owner.Kind == meta.MQTTBindingUID {
+			// Normal unsubscribe retains its independent closed-cursor drain.
+			return out, nil
+		}
 		drained, err := p.drained(ctx, b)
 		if err != nil {
 			return SourceRemovalResult{}, err
@@ -157,7 +162,7 @@ func (p *SourceRemoval) read(ctx context.Context, q meta.MQTTRead) (meta.MQTTRea
 	if err = ctx.Err(); err != nil {
 		return meta.MQTTReadResult{}, err
 	}
-	if !r.Done || r.After != (meta.MQTTReadCursor{}) || len(r.SourceOwners) != 0 || len(r.Sessions) != 0 || len(r.Inflight) != 0 || len(r.Wills) != 0 {
+	if !r.Done || r.After != (meta.MQTTReadCursor{}) || r.Runtime != nil || r.Admission != nil || r.Membership != nil || r.Accounting != nil || len(r.Directory) != 0 || len(r.SourceOwners) != 0 || len(r.Sessions) != 0 || len(r.Inflight) != 0 || len(r.Wills) != 0 {
 		return meta.MQTTReadResult{}, ErrEvidence
 	}
 	return r, nil
@@ -171,7 +176,11 @@ func (p *SourceRemoval) write(ctx context.Context, old meta.MQTTSourceBinding) (
 	}
 	next := old
 	next.Revision, next.UpdatedAtMS, next.RecoveryAtMS = old.Revision+1, now, now
-	if old.ProtectionRevision == old.Revision {
+	if old.Key.Owner.Kind == meta.MQTTBindingUID {
+		// UID qualification has no Channel protection acknowledgement. Its
+		// separate Removing commit already closed future-source admission.
+		next.Stage, next.RecoveryAtMS = meta.MQTTBindingRemoved, 0
+	} else if old.ProtectionRevision == old.Revision {
 		next.Stage, next.RecoveryAtMS = meta.MQTTBindingRemoved, 0
 		if next.ReleaseReason == 0 {
 			next.ReleaseReason = meta.MQTTBindingDrained

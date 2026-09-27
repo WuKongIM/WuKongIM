@@ -22,7 +22,11 @@ type ConsumerMaintenanceOptions struct {
 
 // ConsumerMaintenanceResult reports proved outcomes of this turn. Retried End
 // confirmations may repeat; these are not unique Session termination counts.
-type ConsumerMaintenanceResult struct{ Accounted, Projected, Removed, QuotaEnded, RevokedEnded bool }
+type ConsumerMaintenanceResult struct {
+	Accounted, Projected, Removed, QuotaEnded, RevokedEnded bool
+	// QualificationRemoved counts a UID tombstone, never a Channel release.
+	QualificationRemoved bool
+}
 type ConsumerMaintenance struct{ options ConsumerMaintenanceOptions }
 
 func NewConsumerMaintenance(o ConsumerMaintenanceOptions) (*ConsumerMaintenance, error) {
@@ -35,12 +39,12 @@ func NewConsumerMaintenance(o ConsumerMaintenanceOptions) (*ConsumerMaintenance,
 	return &ConsumerMaintenance{options: o}, nil
 }
 
-// Maintain rereads one source binding, accounts one original-content page even
-// without a live socket/window, then projects completion or performs one removal
-// step. Exact revisions and owner identity fence concurrent reconnect/removal.
+// Maintain accounts one Channel content page independently of sockets/windows,
+// then projects completion or removal. UID keys project explicit lifetime ending
+// without accounting or Channel release. Exact generations fence every turn.
 func (c *ConsumerMaintenance) Maintain(parent context.Context, k meta.MQTTSourceBindingKey) (out ConsumerMaintenanceResult, err error) {
 	q := meta.MQTTRead{Kind: meta.MQTTReadSourceBinding, BindingKey: k}
-	if c == nil || parent == nil || k.Owner.Kind != meta.MQTTBindingChannel || meta.ValidateMQTTRead(q) != nil {
+	if c == nil || parent == nil || meta.ValidateMQTTRead(q) != nil {
 		return out, ErrInvalid
 	}
 	defer func() {
@@ -50,6 +54,21 @@ func (c *ConsumerMaintenance) Maintain(parent context.Context, k meta.MQTTSource
 	}()
 	ctx, cancel := context.WithTimeout(parent, c.options.Timeout)
 	defer cancel()
+	if k.Owner.Kind == meta.MQTTBindingUID {
+		// UID work never accounts content, acquires an owner scope or grants GC.
+		progress, e := c.options.Progress.Reconcile(ctx, k)
+		if e != nil {
+			return out, e
+		}
+		if progress.NeedsRemoval {
+			removed, e := c.options.Removal.Reconcile(ctx, k)
+			if e != nil {
+				return out, e
+			}
+			out.QualificationRemoved = removed.Changed && removed.Binding.Stage == meta.MQTTBindingRemoved
+		}
+		return out, ctx.Err()
+	}
 	r, err := c.read(ctx, q)
 	if err != nil {
 		return out, err

@@ -31,8 +31,7 @@
     successful quota-end observations allow deterministic public E2E waiting.
 
 The initial composition maintains Channel bindings, including person sources
-qualified through UID inbox bindings. UID qualification and cursorless preparation
-cleanup remain separate required work. No new table, index or RPC format is needed.
+qualified through UID inbox bindings. Subsequent [ended-UID retirement](mqtt-qualification-retirement.md) reuses this cohort; normal pending-intent and cursorless preparation cleanup remain separate required work. No new table, index or RPC format is needed.
 
 All maintenance uses cluster authority, including single-node clusters; tests use
 256 hash Slots. Usecase policy, runtime scheduling, app wiring and metrics remain
@@ -59,7 +58,7 @@ This is eventual maintenance, not a promised quota-enforcement latency at scale.
 App starts maintenance after cluster readiness and joins it before closing its
 dependencies. Cancellation cannot substitute for joining admitted effects.
 Two fixed task labels register scheduler and worker ownership. Metrics expose
-`wukongim_mqtt_consumer_events_total{event}` with ten predeclared outcomes and
+`wukongim_mqtt_consumer_events_total{event}` with eleven predeclared outcomes (including subsequent UID retirement) and
 `wukongim_mqtt_consumer_work{state}` with admitted/capacity series. No ClientID,
 UID, source, payload or raw error becomes a label. End confirmations can repeat.
 
@@ -83,7 +82,7 @@ and three-node clusters with 256 hash Slots, aggregating only public fixed metri
 After quota ending, reconnect must report Session Present 0 and resubscription
 must deliver a new message. Artifacts contain assertions, never message bodies.
 
-These checks do not prove UID-binding/cursorless cleanup, inflight/accounting-row
+The original checks do not prove complete UID-binding/cursorless cleanup, inflight/accounting-row
 reclamation, content GC, global storage pressure, abrupt owner-crash isolation,
 restore reactivation or high-scale throughput. Those remain full-goal work.
 

@@ -1178,3 +1178,12 @@ specification, runbook, report, or module documentation; link to them when neede
   request cursor; capacity pressure still resumes from the last admitted row.
   Fixed aggregate metrics count turn observations, including repeated ending
   confirmations, not unique Sessions. Stop joins the bounded cohort.
+
+- [Ended UID qualification retirement](../specs/mqtt-qualification-retirement.md)
+  uses the same bounded consumer cohort. Only fresh explicit parent ending or a
+  newer Session generation closes old qualification; offline time and lease
+  expiry alone do not. Removing and Removed are separate source-owned CAS steps,
+  preserving discovery/drain checkpoints and zero Channel protection. Retained
+  tombstones fence late preparation. This grants no Channel release, owner
+  isolation, cursor/inflight reclamation or content GC. `qualification_removed`
+  observes confirmed Applied removals separately from ACK/Channel progress.

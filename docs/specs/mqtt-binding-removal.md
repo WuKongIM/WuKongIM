@@ -1,5 +1,7 @@
 # MQTT source binding removal
 
+[Ended UID qualification retirement](mqtt-qualification-retirement.md) now shares the bounded entrypoint; its separate contract requires explicit lifetime-ending proof and never performs Channel acknowledgement or content release. The following describes Channel removal.
+
 `SourceRemoval.Reconcile` completes one already-Removing Channel binding through
 the existing foreground Slot metadata port. It accepts only an exact key, never
 caller-supplied completion or release evidence. It owns no worker or message

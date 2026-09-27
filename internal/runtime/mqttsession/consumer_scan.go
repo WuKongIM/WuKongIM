@@ -100,13 +100,11 @@ func (w *ConsumerWorker) sweep(parent context.Context, state *consumerScanState,
 				complete = false
 				break
 			}
-			if candidate.SourceRecovery.Key.Owner.Kind == meta.MQTTBindingChannel {
-				if !admit(candidate.SourceRecovery.Key) {
-					complete = false
-					break
-				}
-				out.Scheduled++
+			if !admit(candidate.SourceRecovery.Key) {
+				complete = false
+				break
 			}
+			out.Scheduled++
 			state.cursors[slot] = candidate
 		}
 		if complete && r.Done {
