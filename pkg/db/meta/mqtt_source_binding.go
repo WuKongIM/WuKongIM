@@ -80,6 +80,12 @@ type MQTTSourceBinding struct {
 	DiscoveryAfterChannelID   string `json:"discovery_after_channel_id"`
 	DiscoveryAfterChannelType uint8  `json:"discovery_after_channel_type"`
 	DiscoveryDone             bool   `json:"discovery_done"`
+	// Drain version 1 retains UID-only removal progress in the closed Session's
+	// cursor prefix. It cannot reset initial discovery or prove source release.
+	DrainVersion               uint8  `json:"drain_version,omitempty"`
+	DrainAfterSourceID         string `json:"drain_after_source_id,omitempty"`
+	DrainAfterSourceGeneration string `json:"drain_after_source_generation,omitempty"`
+	DrainDone                  bool   `json:"drain_done,omitempty"`
 	// RecoveryAtMS also schedules active projections for bounded reconciliation.
 	RecoveryAtMS int64 `json:"recovery_at_ms"`
 	UpdatedAtMS  int64 `json:"updated_at_ms"`
@@ -127,6 +133,9 @@ func ValidateMQTTSourceBinding(r MQTTSourceBinding) error {
 	}
 	if r.ReleaseReason > MQTTBindingSessionEnded || (r.Stage < MQTTBindingRemoving && r.ReleaseReason != 0) || (r.ReleaseReason == MQTTBindingDrained && r.Stage != MQTTBindingRemoved) || (r.ReleaseReason == MQTTBindingSessionEnded && r.ProgressRevision == 0) || (r.Stage == MQTTBindingRemoved && r.ReleaseReason == 0) {
 		return dberrors.ErrInvalidArgument
+	}
+	if err := validateMQTTInboxDrain(r); err != nil {
+		return err
 	}
 	if r.Key.Owner.Kind == MQTTBindingUID {
 		if r.UID != r.Key.Owner.ID || r.BoundaryKnown || r.StartAfter != 0 || r.CompletedThrough != 0 || r.EndKnown || r.EndThrough != 0 || r.ProtectionRevision != 0 || (r.Stage == MQTTBindingActive && !r.DiscoveryDone) {
@@ -235,6 +244,9 @@ func validMQTTSourceBindingTransition(old, next MQTTSourceBinding) bool {
 		return false
 	}
 	if next.Key.Owner.Kind == MQTTBindingUID {
+		if !validMQTTInboxDrainTransition(old, next) {
+			return false
+		}
 		if old.DiscoveryDone && (!next.DiscoveryDone || next.DiscoveryAfterChannelID != old.DiscoveryAfterChannelID || next.DiscoveryAfterChannelType != old.DiscoveryAfterChannelType) {
 			return false
 		}

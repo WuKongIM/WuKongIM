@@ -193,6 +193,17 @@ separate server Will identity derived from publication metadata v2; ordinary
 index 4 stays unchanged and nonunique client-number index 3 also covers Wills.
 Only new keyed records use index 8, so no legacy backfill is needed. All writers,
 deletions and portable imports maintain it; older readers reject v2 metadata.
+UID binding table 26 adds optional all-or-none columns 29–32 for drain version 1,
+SourceID/SourceGeneration continuation and completion. Absent markers retain
+legacy bytes/JSON; marked rows keep the existing envelope/key/index formats.
+Command 71 preserves nonzero progress as optional JSON. New normal UID removal
+requires initialized/completed drain evidence; exact retries and reading legacy
+tombstones remain supported. Explicit Session ending has independent proof.
+Older writers may erase these columns, so deployment requires matched
+readers/writers/tools and a pre-feature rollback backup. Snapshots preserve the
+whole tuple; full MQTT JSONL transfer remains pending. See
+[inbox removal](../../docs/specs/mqtt-inbox-removal.md).
+
 Product execution/authority wiring remains required. Source bindings
 have separate Channel/UID ownership and retain removal tombstones; UID discovery
 checkpoints accept the native directory limit of 4096 ID bytes. This expands

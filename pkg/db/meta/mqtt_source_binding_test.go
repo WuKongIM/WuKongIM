@@ -225,8 +225,8 @@ func TestMQTTSourceBindingDurableCodec(t *testing.T) {
 		_, err = mqttSourceBindingTable.decodeValue(key, pk, bad)
 		require.Error(t, err)
 	}
-	// Optional column 29 follows required 27; virtual retention column 28 is reserved.
-	future := append(bytes.Clone(env.Payload), 0x26, 7)
+	// Optional column 33 follows required 27; retention 28 and drain 29–32 are reserved.
+	future := append(bytes.Clone(env.Payload), 0x66, 7)
 	got, err = mqttSourceBindingTable.decodeValue(key, pk, rowcodec.Wrap(key, 1, env.Codec, env.Flags, future))
 	require.NoError(t, err)
 	require.Equal(t, r, got)

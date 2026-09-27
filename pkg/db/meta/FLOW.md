@@ -49,7 +49,7 @@ It does not own product business policy or expose engine-specific APIs.
    Read kind 18 pins the head; consumption verifies head/successor before unlinking. The bounded inflight
    list preserves earliest ACK gaps; exchange/cursor/session updates are atomic,
    and recovery uses immutable references in original send order.
-   Source/UID bindings retain tombstones and discovery/recovery indexes; unknown boundaries block retention.
+   Source/UID bindings retain tombstones and discovery/recovery indexes; unknown boundaries block retention. UID-only optional drain columns 29–32 retain a separate monotonic closed-cursor scan; ordinary UID removal requires completed drain proof, while explicit lifetime ending remains separate.
    Retention and candidate pages pin at most limit+1 strict primary/index witnesses, rejecting missing or stale entries.
    Active-source discovery seeks retention-index prefixes; replay discovery also retains primary tombstones.
    Each pinned scan checks at most 65 owner witnesses, skipping whole subscriber prefixes.

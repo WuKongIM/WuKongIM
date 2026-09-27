@@ -38,8 +38,12 @@ var mqttSourceBindingTable = registerMetaTable(TableSpec[MQTTSourceBinding]{
 		{ID: 26, Name: "updated_at_ms", Type: schema.TypeInt64, Required: true},
 		{ID: 27, Name: "protection_revision", Type: schema.TypeUint64, Required: true},
 		{ID: 28, Name: "retention_floor", Type: schema.TypeUint64},
+		{ID: 29, Name: "drain_version", Type: schema.TypeUint8},
+		{ID: 30, Name: "drain_after_source_id", Type: schema.TypeString},
+		{ID: 31, Name: "drain_after_source_generation", Type: schema.TypeString},
+		{ID: 32, Name: "drain_done", Type: schema.TypeUint8},
 	},
-	Families: []schema.Family{{ID: 0, Name: "primary", Columns: []uint16{8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27}}},
+	Families: []schema.Family{{ID: 0, Name: "primary", Columns: []uint16{8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 29, 30, 31, 32}}},
 	Primary:  PrimarySpec[MQTTSourceBinding]{IndexID: 1, Name: "pk_mqtt_source_binding", Columns: []uint16{1, 2, 3, 4, 5, 6, 7}, Layout: KeyLayout{KeyUint8, KeyString, KeyString, KeyString, KeyString, KeyUint64, KeyUint64}, Key: func(r MQTTSourceBinding) KeyParts { return mqttSourceBindingPrimaryKey(r.Key) }},
 	Indexes: []IndexSpec[MQTTSourceBinding]{
 		{ID: 2, Name: "idx_mqtt_source_binding_candidate", Columns: []uint16{1, 2, 3, 4, 5, 6, 7}, Layout: KeyLayout{KeyUint8, KeyString, KeyString, KeyString, KeyString, KeyUint64, KeyUint64}, CorruptIndexKeyIsError: true, Key: func(r MQTTSourceBinding) (KeyParts, bool) {
@@ -97,6 +101,16 @@ func encodeMQTTSourceBindingRow(key []byte, r MQTTSourceBinding) ([]byte, error)
 	_ = w.Int64(25, r.RecoveryAtMS)
 	_ = w.Int64(26, r.UpdatedAtMS)
 	_ = w.Uint64(27, r.ProtectionRevision)
+	if r.DrainVersion != 0 {
+		_ = w.Uint8(29, r.DrainVersion)
+		_ = w.String(30, r.DrainAfterSourceID)
+		_ = w.String(31, r.DrainAfterSourceGeneration)
+		var done uint8
+		if r.DrainDone {
+			done = 1
+		}
+		_ = w.Uint8(32, done)
+	}
 	return rowcodec.Wrap(key, 1, rowcodec.CodecColumns, rowcodec.FlagChecksum, w.Bytes()), nil
 }
 
@@ -120,6 +134,7 @@ func decodeMQTTSourceBindingRow(key []byte, pk KeyParts, value []byte) (MQTTSour
 	r.Key = mqttSourceBindingKeyFromParts(pk)
 	s := rowcodec.NewBorrowedScanner(env.Payload)
 	var seen uint32
+	var drainSeen uint8
 	var last uint16
 	for s.Next() {
 		id := s.ColumnID()
@@ -129,6 +144,9 @@ func decodeMQTTSourceBindingRow(key []byte, pk KeyParts, value []byte) (MQTTSour
 		last = id
 		if id >= 8 && id <= 27 {
 			seen |= 1 << (id - 8)
+		}
+		if id >= 29 && id <= 32 {
+			drainSeen |= 1 << (id - 29)
 		}
 		switch id {
 		case 8:
@@ -190,12 +208,25 @@ func decodeMQTTSourceBindingRow(key []byte, pk KeyParts, value []byte) (MQTTSour
 			r.UpdatedAtMS, err = s.Int64()
 		case 27:
 			r.ProtectionRevision, err = s.Uint64()
+		case 29:
+			r.DrainVersion, err = s.Uint8()
+		case 30:
+			r.DrainAfterSourceID, err = s.String()
+		case 31:
+			r.DrainAfterSourceGeneration, err = s.String()
+		case 32:
+			var n uint8
+			n, err = s.Uint8()
+			if n > 1 {
+				return MQTTSourceBinding{}, dberrors.ErrCorruptValue
+			}
+			r.DrainDone = n == 1
 		}
 		if err != nil {
 			return MQTTSourceBinding{}, err
 		}
 	}
-	if s.Err() != nil || seen != (1<<20)-1 || ValidateMQTTSourceBinding(r) != nil {
+	if s.Err() != nil || seen != (1<<20)-1 || drainSeen != 0 && (drainSeen != 15 || r.DrainVersion != 1) || ValidateMQTTSourceBinding(r) != nil {
 		return MQTTSourceBinding{}, dberrors.ErrCorruptValue
 	}
 	return r, nil
@@ -203,33 +234,37 @@ func decodeMQTTSourceBindingRow(key []byte, pk KeyParts, value []byte) (MQTTSour
 
 func inspectMQTTSourceBindingRow(r MQTTSourceBinding) InspectRow {
 	return InspectRow{
-		"owner_kind":                   uint8(r.Key.Owner.Kind),
-		"owner_id":                     r.Key.Owner.ID,
-		"owner_generation":             r.Key.Owner.Generation,
-		"broker_namespace":             r.Key.Namespace,
-		"client_id":                    r.Key.ClientID,
-		"session_generation":           r.Key.SessionGeneration,
-		"subscription_generation":      r.Key.SubscriptionGeneration,
-		"uid":                          r.UID,
-		"topic":                        r.Topic,
-		"revision":                     r.Revision,
-		"intent_revision":              r.IntentRevision,
-		"progress_revision":            r.ProgressRevision,
-		"authorization_version":        r.AuthorizationVersion,
-		"operation_id":                 r.OperationID,
-		"stage":                        uint8(r.Stage),
-		"boundary_known":               r.BoundaryKnown,
-		"start_after":                  r.StartAfter,
-		"completed_through":            r.CompletedThrough,
-		"end_known":                    r.EndKnown,
-		"end_through":                  r.EndThrough,
-		"release_reason":               uint8(r.ReleaseReason),
-		"discovery_after_channel_id":   r.DiscoveryAfterChannelID,
-		"discovery_after_channel_type": r.DiscoveryAfterChannelType,
-		"discovery_done":               r.DiscoveryDone,
-		"recovery_at_ms":               r.RecoveryAtMS,
-		"updated_at_ms":                r.UpdatedAtMS,
-		"protection_revision":          r.ProtectionRevision,
-		"retention_floor":              r.CompletedThrough,
+		"owner_kind":                    uint8(r.Key.Owner.Kind),
+		"owner_id":                      r.Key.Owner.ID,
+		"owner_generation":              r.Key.Owner.Generation,
+		"broker_namespace":              r.Key.Namespace,
+		"client_id":                     r.Key.ClientID,
+		"session_generation":            r.Key.SessionGeneration,
+		"subscription_generation":       r.Key.SubscriptionGeneration,
+		"uid":                           r.UID,
+		"topic":                         r.Topic,
+		"revision":                      r.Revision,
+		"intent_revision":               r.IntentRevision,
+		"progress_revision":             r.ProgressRevision,
+		"authorization_version":         r.AuthorizationVersion,
+		"operation_id":                  r.OperationID,
+		"stage":                         uint8(r.Stage),
+		"boundary_known":                r.BoundaryKnown,
+		"start_after":                   r.StartAfter,
+		"completed_through":             r.CompletedThrough,
+		"end_known":                     r.EndKnown,
+		"end_through":                   r.EndThrough,
+		"release_reason":                uint8(r.ReleaseReason),
+		"discovery_after_channel_id":    r.DiscoveryAfterChannelID,
+		"discovery_after_channel_type":  r.DiscoveryAfterChannelType,
+		"discovery_done":                r.DiscoveryDone,
+		"recovery_at_ms":                r.RecoveryAtMS,
+		"updated_at_ms":                 r.UpdatedAtMS,
+		"protection_revision":           r.ProtectionRevision,
+		"retention_floor":               r.CompletedThrough,
+		"drain_version":                 r.DrainVersion,
+		"drain_after_source_id":         r.DrainAfterSourceID,
+		"drain_after_source_generation": r.DrainAfterSourceGeneration,
+		"drain_done":                    r.DrainDone,
 	}
 }

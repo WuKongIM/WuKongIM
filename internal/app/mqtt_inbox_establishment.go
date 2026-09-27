@@ -8,7 +8,8 @@ import (
 
 // newMQTTInboxEstablishment composes initial UID discovery with authoritative
 // source preparation and all-replica replay confirmation. Product composition
-// must also require automatic person append admission and safe inbox removal.
+// uses mqttInboxProjection for removal and also needs automatic person append
+// admission, maintenance and restore fencing.
 func newMQTTInboxEstablishment(node *cluster.Node, owners *runtime.Owners, authorization sessioncase.SubscriptionAuthorizer, ids interface{ Next() uint64 }) (*sessioncase.InboxEstablishment, error) {
 	sources, err := newMQTTInboxSources(node, ids)
 	if err != nil {

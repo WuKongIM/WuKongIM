@@ -1,7 +1,7 @@
 # MQTT inbox establishment
 
-Status: establishment implemented; safe removal and complete product composition
-remain required. The product listener remains disabled.
+Status: establishment implemented; [inbox removal](mqtt-inbox-removal.md) now
+composes its counterpart. Complete product composition remains required. The product listener remains disabled.
 This continues the approved authoritative metadata, source and subscription seams.
 
 ## Failure inventory before implementation
@@ -37,8 +37,9 @@ InboxEstablishment implements the Establish half of SubscriptionProjection. It
 reuses durable UID binding discovery fields, InboxSources and shared replay
 confirmation. It owns no worker or queue. Unfinished pages return ErrReplayPending
 for the existing bounded SubscriptionRequests controller; failures preserve debt.
-Complete safe inbox removal, offline maintenance, rollout/restore fencing and
-product lifecycle composition remain necessary for the full feature.
+InboxProjection composes establishment and bounded removal. Cursorless cleanup,
+offline maintenance, rollout/restore fencing and product lifecycle composition
+remain necessary for the full feature.
 
 ## Verification
 

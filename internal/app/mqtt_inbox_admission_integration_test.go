@@ -21,20 +21,24 @@ import (
 
 // The first two variants retain explicit qualification fixtures. Establishment
 // covers a real initial directory and future source through native SEND; full
-// product listener and safe inbox removal remain separate work.
+// product listener and automatic offline cleanup remain separate work.
 func TestMQTTInboxAdmissionOfflineDirectoryBeforeFirstPersonSingleNodeCluster(t *testing.T) {
-	runMQTTInboxFirstPerson(t, false, false)
+	runMQTTInboxFirstPerson(t, false, false, false)
 }
 
 func TestMQTTInboxAppenderOfflineDirectoryBeforeFirstPersonSingleNodeCluster(t *testing.T) {
-	runMQTTInboxFirstPerson(t, true, false)
+	runMQTTInboxFirstPerson(t, true, false, false)
 }
 
 func TestMQTTInboxEstablishmentExistingAndFutureOfflinePersonSingleNodeCluster(t *testing.T) {
-	runMQTTInboxFirstPerson(t, true, true)
+	runMQTTInboxFirstPerson(t, true, true, false)
 }
 
-func runMQTTInboxFirstPerson(t *testing.T, automatic, establish bool) {
+func TestMQTTInboxRemovalRetainsExchangeAfterUnsubscribeSingleNodeCluster(t *testing.T) {
+	runMQTTInboxFirstPerson(t, true, true, true)
+}
+
+func runMQTTInboxFirstPerson(t *testing.T, automatic, establish, remove bool) {
 	t.Helper()
 	cfg := singleNodeClusterAppConfig(t)
 	cfg.Cluster.Slots.HashSlotCount = 256
@@ -84,9 +88,10 @@ func runMQTTInboxFirstPerson(t *testing.T, automatic, establish bool) {
 		return sessioncase.SubscriptionProjectionReceipt{}, sessioncase.ErrReplayPending
 	}}
 	if establish {
-		initial, initialErr := newMQTTInboxEstablishment(node, owners, auth, a.messageIDs)
+		initial, initialErr := newMQTTInboxProjection(node, owners, auth, a.messageIDs)
 		require.NoError(t, initialErr)
 		projection.establish = initial.Establish
+		projection.remove = initial.Remove
 	}
 	subscriptions, err := sessioncase.NewSubscriptions(sessioncase.SubscriptionOptions{Store: node, Owners: owners, Authorization: auth, Projection: projection})
 	require.NoError(t, err)
@@ -212,5 +217,58 @@ func runMQTTInboxFirstPerson(t *testing.T, automatic, establish bool) {
 	require.EqualValues(t, 1, state.Session.PendingMessages)
 	require.EqualValues(t, 1, state.DeliveryCursors[0].PendingMessages)
 	require.Equal(t, prepared.Cursor.StartAfter, state.DeliveryCursors[0].StartAfter)
+	if remove {
+		second, sendErr := a.Messages().Send(ctx, message.SendCommand{FromUID: "bob", DeviceFlag: 1, ChannelID: channel.ID, ChannelType: 1, ClientMsgNo: "second-person", Payload: []byte("unadmitted offline backlog"), Origin: message.SendOriginClient})
+		require.NoError(t, sendErr)
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			require.NoError(c, confirmation.Confirm(ctx, prepared.Binding.Key.Owner, second.MessageSeq))
+		}, 10*time.Second, 20*time.Millisecond)
+		accounted, err = accounting.Account(ctx, prepared.Cursor.Key)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, accounted.AddedMessages)
+		connection, err = sessions.Connect(ctx, sessioncase.ConnectCommand{Key: key, UID: "alice", Token: "secret", DeviceFlag: 1, SessionExpirySec: 60, ReceiveMaximum: 16, MaxPacketBytes: 1 << 20, CloseTransport: func(context.Context) error { return nil }})
+		require.NoError(t, err)
+		window, windowErr := newMQTTWindowAdmission(node, owners, auth)
+		require.NoError(t, windowErr)
+		var delivery *sessioncase.PreparedDelivery
+		for attempt := 0; attempt < 8 && delivery == nil; attempt++ {
+			step, stepErr := window.Prepare(ctx, connection.Owner, prepared.Cursor.Key)
+			require.NoError(t, stepErr)
+			delivery = step.Delivery
+			if delivery == nil {
+				require.True(t, step.Advanced)
+			}
+		}
+		require.NotNil(t, delivery)
+		require.EqualValues(t, 1, delivery.QoS)
+		exchange := delivery.Exchange
+		require.Equal(t, sent.MessageID, exchange.Publication.MessageID)
+		control, controlErr := sessioncase.NewSubscriptionRequests(sessioncase.SubscriptionRequestOptions{Subscriptions: subscriptions})
+		require.NoError(t, controlErr)
+		existed, removeErr := control.Unsubscribe(ctx, connection.Owner, sub.Topic)
+		require.NoError(t, removeErr)
+		require.True(t, existed)
+		retained, readErr := node.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadInflight, Namespace: key.Namespace, ClientID: key.ClientID, SessionGeneration: sub.SessionGeneration, PacketID: exchange.PacketID})
+		require.NoError(t, readErr)
+		require.Equal(t, []meta.MQTTInflight{exchange}, retained.Inflight)
+		require.EqualValues(t, 1, retained.Session.PendingMessages)
+		require.EqualValues(t, 1, retained.Session.OutboundInflight)
+		qualificationKey := meta.MQTTSourceBindingKey{Owner: meta.MQTTBindingOwner{Kind: meta.MQTTBindingUID, ID: "alice"}, Namespace: key.Namespace, ClientID: key.ClientID, SessionGeneration: sub.SessionGeneration, SubscriptionGeneration: sub.Generation}
+		closed, readErr := node.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadSourceBinding, BindingKey: qualificationKey})
+		require.NoError(t, readErr)
+		require.Len(t, closed.Bindings, 1)
+		require.Equal(t, meta.MQTTBindingRemoved, closed.Bindings[0].Stage)
+		require.True(t, closed.Bindings[0].DrainDone)
+		acks, ackErr := newMQTTAcknowledgements(node, owners)
+		require.NoError(t, ackErr)
+		ack, ackErr := acks.Acknowledge(ctx, sessioncase.AcknowledgementCommand{Owner: connection.Owner, Key: exchange.Key, PacketID: exchange.PacketID, DeliveryOrder: exchange.DeliveryOrder})
+		require.NoError(t, ackErr)
+		require.True(t, ack.Changed)
+		final, readErr := node.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadDeliveryCursor, CursorKey: exchange.Key})
+		require.NoError(t, readErr)
+		require.Zero(t, final.Session.PendingMessages)
+		require.Zero(t, final.Session.OutboundInflight)
+		t.Log("mqtt_inbox_removal_evidence: nodes=1 hash_slots=256 real_qualification=true original_sources=2 real_qualified_accounting=true unadmitted_released=1 inflight_preserved=1 exact_ack_after_unsubscribe=true wire_transport=false product_listener=false")
+	}
 	t.Logf("mqtt_inbox_admission_evidence: nodes=1 hash_slots=256 qualification_fixture=%t initial_existing_source=%t first_person_source=true offline_session=true real_source_protection=true real_cursor_commit=true native_send=true shared_replay=true offline_accounted=1 native_directory_projector=true bounded_admission=true automatic_append_hook=%t product_listener=false", !establish, establish, automatic)
 }

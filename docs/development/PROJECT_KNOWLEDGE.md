@@ -485,8 +485,17 @@ specification, runbook, report, or module documentation; link to them when neede
   intent and self-inbox permission gate the final receipt. Active option updates
   retain that qualification. Real single-node cluster coverage uses this path for
   an existing source, then admits a new source while offline without qualification
-  fixtures. Safe inbox removal, physical-runtime/restore fencing, offline scheduling
-  and full product composition remain required.
+  fixtures. Physical-runtime/restore fencing, offline scheduling and full product
+  composition remain required. [Inbox removal](../specs/mqtt-inbox-removal.md)
+  use UID binding optional columns 29–32, separate from initial discovery.
+  Empty initialization precedes monotonic ID/incarnation progress; completed
+  normal removal needs its Session revision witness. Command 71 and binary
+  snapshots retain it. Marked state requires matching writers/tools; it is not
+  source-release or shared-content GC proof. InboxRemoval closes qualification
+  before bounded cursor draining, commits per-source progress and retains exact
+  inflight exchanges for ACK after unsubscribe. Cursorless bindings remain
+  independent cleanup debt. App composes both halves; real single-node cluster
+  integration covers backlog release and subsequent ACK without wire transport.
   See [Slot access](../specs/mqtt-slot-access.md); these APIs do not prove owner
   isolation, replica capability activation or safe restored-owner execution.
   Message System 12 materializes source-incarnation protection and copy receipt
