@@ -114,6 +114,14 @@ func runRecovery(t *testing.T, count int, target, cut string) {
 	bob := connect(addrs[count-1])
 	require.False(t, bob.Connack.SessionPresent)
 	subscribe(bob)
+	closureCount := func() float64 {
+		call, done := context.WithTimeout(ctx, 2*time.Second)
+		defer done()
+		value, err := suite.FetchMetricValue(call, nodes[count-1].APIAddr(), "wukongim_mqtt_subscription_closures_total", map[string]string{"operation": "unsubscribe", "reason": "deadline"})
+		require.NoError(t, err)
+		return value
+	}
+	require.Zero(t, closureCount())
 	alice, err := suite.NewWKProtoClient()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = alice.Close() })
@@ -180,6 +188,9 @@ func runRecovery(t *testing.T, count int, target, cut string) {
 	case <-ctx.Done():
 		t.Fatal("interrupted foreground transport did not close")
 	}
+	// Transport closure can become visible before the packet defer records it.
+	require.Eventually(t, func() bool { return closureCount() == 1 }, time.Second, 10*time.Millisecond)
+	closureObservations := closureCount()
 	call, done := context.WithTimeout(ctx, 2*time.Second)
 	hits, err := faults[count-1].Count(call, intentFault)
 	done()
@@ -236,7 +247,7 @@ func runRecovery(t *testing.T, count int, target, cut string) {
 		dir = nodes[0].Spec.RootDir
 	}
 	require.NoError(t, os.MkdirAll(dir, 0755))
-	report := map[string]any{"scenario": "interrupted-unsubscribe", "target": target, "cut": cut, "nodes": count, "hash_slots": 256, "passed": true, "intent_fault_hits": hits, "completion_fault_hits": gateHits, "background_completion_before_reconnect": true, "foreground_unsubscribe_retries": 0, "session_present": true, "packet_id_preserved": true, "dup_on_resume": true, "message_identity_preserved": true, "resubscribe_delivers_only_fresh": true, "failure_kind": "controlled-request-failure-and-connection-close"}
+	report := map[string]any{"subscription_closure_observations": closureObservations, "scenario": "interrupted-unsubscribe", "target": target, "cut": cut, "nodes": count, "hash_slots": 256, "passed": true, "intent_fault_hits": hits, "completion_fault_hits": gateHits, "background_completion_before_reconnect": true, "foreground_unsubscribe_retries": 0, "session_present": true, "packet_id_preserved": true, "dup_on_resume": true, "message_identity_preserved": true, "resubscribe_delivers_only_fresh": true, "failure_kind": "controlled-request-failure-and-connection-close"}
 	data, err := json.MarshalIndent(report, "", "  ")
 	require.NoError(t, err)
 	path := filepath.Join(dir, fmt.Sprintf("mqtt-unsubscribe-%s-%s-%d.json", target, cut, count))

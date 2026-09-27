@@ -1233,3 +1233,9 @@ specification, runbook, report, or module documentation; link to them when neede
   tombstones fence late preparation. This grants no Channel release, owner
   isolation, cursor/inflight reclamation or content GC. `qualification_removed`
   observes confirmed Applied removals separately from ACK/Channel progress.
+
+- MQTT subscription diagnostics: `wukongim_mqtt_subscription_closures_total`
+  materializes 34 fixed operation/reason series per node. These count entry close
+  requests, not unique connections, CAS non-write proof or isolation. Fenced
+  admitted scopes may report cancellation. See
+  [failure inventory](../specs/mqtt-subscription-diagnostics.md).

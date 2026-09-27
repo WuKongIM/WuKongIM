@@ -8,6 +8,7 @@ import (
 
 	access "github.com/WuKongIM/WuKongIM/internal/access/mqtt"
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession"
+	runtime "github.com/WuKongIM/WuKongIM/internal/runtime/mqttsession"
 	app "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	wire "github.com/WuKongIM/WuKongIM/pkg/protocol/mqtt"
@@ -28,14 +29,18 @@ func (s *handlerSubscriptions) Unsubscribe(ctx context.Context, o contract.Owner
 func subscriptionRow(o contract.Owner, r app.SubscriptionRequest, now time.Time) meta.MQTTSubscription {
 	return meta.MQTTSubscription{Namespace: o.Key.Namespace, ClientID: o.Key.ClientID, SessionGeneration: o.SessionGeneration, Topic: r.Topic, Generation: 1, Revision: 1, TargetKind: r.TargetKind, TargetID: r.TargetID, GrantedQoS: min(r.RequestedQoS, 1), Stage: meta.MQTTSubscriptionActive, OperationID: "test", UpdatedAtMS: now.UnixMilli(), NoLocal: r.NoLocal, RetainAsPublished: r.RetainAsPublished, RetainHandling: r.RetainHandling, SubscriptionIdentifier: r.SubscriptionIdentifier}
 }
-func subscriptionHandler(t *testing.T) (*handlerFixture, *handlerSubscriptions, *int) {
+func subscriptionHandler(t *testing.T, observe ...func(string, string)) (*handlerFixture, *handlerSubscriptions, *int) {
 	t.Helper()
 	f := newHandlerFixture(t)
 	port := &handlerSubscriptions{subscribe: func(_ context.Context, o contract.Owner, r app.SubscriptionRequest) (meta.MQTTSubscription, error) {
 		return subscriptionRow(o, r, f.now), nil
 	}, unsubscribe: func(context.Context, contract.Owner, string) (bool, error) { return true, nil }}
 	wakes := new(int)
-	h, err := access.NewHandler(access.HandlerOptions{Namespace: "main", Sessions: f.sessions, Connections: f.connections, Owners: f.owners, Publisher: f.publisher, Acknowledgements: outboundAcks(func(context.Context, app.AcknowledgementCommand) (app.AcknowledgementResult, error) {
+	var observer func(string, string)
+	if len(observe) > 0 {
+		observer = observe[0]
+	}
+	h, err := access.NewHandler(access.HandlerOptions{ObserveSubscriptionClose: observer, Namespace: "main", Sessions: f.sessions, Connections: f.connections, Owners: f.owners, Publisher: f.publisher, Acknowledgements: outboundAcks(func(context.Context, app.AcknowledgementCommand) (app.AcknowledgementResult, error) {
 		return app.AcknowledgementResult{}, nil
 	}), Subscriptions: port, Deliveries: handlerDeliveries{register: func(context.Context, app.Connection, app.DeliverySink) error { return nil }, wake: func(contract.Owner) error { *wakes++; return nil }}, Now: func() time.Time { return f.now }})
 	require.NoError(t, err)
@@ -246,5 +251,139 @@ func TestSubscriptionEntryRequiresDeliveryAndValidTimeout(t *testing.T) {
 		}
 		_, err := access.NewHandler(o)
 		require.ErrorIs(t, err, access.ErrHandlerInvalid)
+	}
+}
+
+func TestSubscriptionClosureObservationsPreservePacketOutcome(t *testing.T) {
+	cases := []struct {
+		name, want string
+		err        error
+	}{
+		{"unknown", "unknown", errors.New("private topic and credential")},
+		{"conflict", "conflict", errors.Join(app.ErrSubscriptionUnconfirmed, app.ErrConflict)},
+		{"evidence", "evidence", app.ErrEvidence},
+		{"clock", "clock", app.ErrClock},
+		{"pending", "pending", app.ErrReplayPending},
+		{"drain", "pending", app.ErrSourceDrainPending},
+		{"unconfirmed", "unconfirmed", app.ErrSubscriptionUnconfirmed},
+		{"denied", "denied", errors.Join(app.ErrSubscriptionUnconfirmed, app.ErrSubscriptionDenied)},
+		{"revoked", "denied", errors.Join(app.ErrSubscriptionUnconfirmed, app.ErrSubscriptionRevoked)},
+		{"quota", "quota", errors.Join(app.ErrSubscriptionUnconfirmed, app.ErrSubscriptionLimit)},
+		{"deadline", "deadline", context.DeadlineExceeded},
+		{"canceled", "canceled", context.Canceled},
+		{"owner_limit", "owner_limit", runtime.ErrOwnerLimit},
+		{"fenced", "fenced", runtime.ErrOwnerFenced},
+		{"durable_fenced", "fenced", app.ErrFenced},
+		{"callback", "callback", app.ErrSubscriptionCallback},
+		{"panic", "callback", nil},
+		{"scope_canceled", "canceled", nil},
+		// Fencing cancels an admitted operation; Check returns that context error first.
+		{"scope_fenced", "canceled", nil},
+		{"before_scope", "fenced", nil},
+		{"write", "reply_write", nil},
+		{"malformed", "malformed", nil},
+		{"invalid_reply", "reply_evidence", nil},
+		{"success", "", nil},
+	}
+	for _, operation := range []string{"subscribe", "unsubscribe"} {
+		for _, tc := range cases {
+			t.Run(operation+"/"+tc.name, func(t *testing.T) {
+				if operation == "unsubscribe" && tc.name == "invalid_reply" {
+					return
+				}
+				var events [][2]string
+				f, port, _ := subscriptionHandler(t, func(op, reason string) { events = append(events, [2]string{op, reason}) })
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				f.gateway.RequestContext = ctx
+				effect := func() {
+					switch tc.name {
+					case "panic":
+						panic("private")
+					case "scope_canceled":
+						cancel()
+					case "scope_fenced":
+						require.NoError(t, f.owners.Fence(f.connection.Owner))
+					}
+				}
+				port.subscribe = func(_ context.Context, o contract.Owner, r app.SubscriptionRequest) (meta.MQTTSubscription, error) {
+					effect()
+					row := subscriptionRow(o, r, f.now)
+					if tc.name == "invalid_reply" {
+						row.ClientID = "private-other"
+					}
+					return row, tc.err
+				}
+				port.unsubscribe = func(context.Context, contract.Owner, string) (bool, error) { effect(); return true, tc.err }
+				if tc.name == "before_scope" {
+					require.NoError(t, f.owners.Fence(f.connection.Owner))
+				}
+				if tc.name == "write" {
+					f.write = func(any) error { return errors.New("private") }
+				}
+				p := subscribePacket()
+				if tc.name == "malformed" {
+					p.PacketID = 0
+				}
+				var packet any = p
+				if operation == "unsubscribe" {
+					packet = &wire.Unsubscribe{PacketID: p.PacketID, Filters: []string{p.Subscriptions[0].Filter}}
+				}
+				err := f.h.OnPacket(f.gateway, packet)
+				if tc.want == "" {
+					require.NoError(t, err)
+					require.Empty(t, events)
+					require.False(t, f.closed)
+				} else {
+					require.Error(t, err)
+					require.True(t, f.closed)
+					require.Equal(t, [][2]string{{operation, tc.want}}, events)
+				}
+				require.Zero(t, f.owners.Snapshot().Operations)
+			})
+		}
+	}
+}
+
+func TestSubscriptionClosureObserverCannotChangeResults(t *testing.T) {
+	for _, mode := range []string{"definite_denial", "definite_quota", "later_failure", "observer_panic"} {
+		t.Run(mode, func(t *testing.T) {
+			observed := 0
+			f, port, _ := subscriptionHandler(t, func(string, string) {
+				observed++
+				if mode == "observer_panic" {
+					panic("private")
+				}
+			})
+			calls := 0
+			port.subscribe = func(_ context.Context, o contract.Owner, r app.SubscriptionRequest) (meta.MQTTSubscription, error) {
+				calls++
+				if mode == "definite_denial" {
+					return meta.MQTTSubscription{}, app.ErrSubscriptionDenied
+				}
+				if mode == "definite_quota" {
+					return meta.MQTTSubscription{}, app.ErrSubscriptionLimit
+				}
+				if calls == 2 {
+					return meta.MQTTSubscription{}, app.ErrConflict
+				}
+				return subscriptionRow(o, r, f.now), nil
+			}
+			p := subscribePacket()
+			p.Subscriptions = append(p.Subscriptions, p.Subscriptions[0])
+			err := f.h.OnPacket(f.gateway, p)
+			if mode == "definite_denial" || mode == "definite_quota" {
+				require.NoError(t, err)
+				require.Zero(t, observed)
+			} else {
+				require.ErrorIs(t, err, access.ErrHandlerClosed)
+				require.Equal(t, 1, observed)
+				require.True(t, f.closed)
+				for _, w := range f.writes {
+					_, ok := w.(*wire.Suback)
+					require.False(t, ok)
+				}
+			}
+		})
 	}
 }

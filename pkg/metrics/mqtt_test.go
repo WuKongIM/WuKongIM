@@ -62,3 +62,26 @@ func TestMQTTConsumerMetricsBoundLabelsAndMaterializeZero(t *testing.T) {
 	disabled.ObserveConsumer("completed", 1)
 	disabled.SetConsumerWork(0, 16)
 }
+
+func TestMQTTSubscriptionClosuresHaveFixedZeroSeries(t *testing.T) {
+	r := New(1, "node")
+	r.MQTT.ObserveSubscriptionClose("subscribe", "conflict")
+	r.MQTT.ObserveSubscriptionClose("unsubscribe", "deadline")
+	r.MQTT.ObserveSubscriptionClose("secret-client", "conflict")
+	r.MQTT.ObserveSubscriptionClose("subscribe", "secret-topic")
+	f, err := r.Gather()
+	require.NoError(t, err)
+	family := requireMetricFamily(t, f, "wukongim_mqtt_subscription_closures_total")
+	require.Len(t, family.Metric, 34)
+	for _, operation := range []string{"subscribe", "unsubscribe"} {
+		for _, reason := range []string{"disabled", "malformed", "owner_limit", "fenced", "deadline", "canceled", "clock", "conflict", "evidence", "pending", "unconfirmed", "denied", "quota", "callback", "reply_evidence", "reply_write", "unknown"} {
+			want := float64(0)
+			if operation == "subscribe" && reason == "conflict" || operation == "unsubscribe" && reason == "deadline" {
+				want = 1
+			}
+			require.Equal(t, want, findMetricByLabels(t, family, map[string]string{"operation": operation, "reason": reason}).GetCounter().GetValue())
+		}
+	}
+	var disabled *MQTTMetrics
+	disabled.ObserveSubscriptionClose("subscribe", "unknown")
+}

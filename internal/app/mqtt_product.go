@@ -110,7 +110,11 @@ func (a *App) wireMQTT(nodeID uint64) error {
 	if err != nil {
 		return err
 	}
-	m.handler, err = access.NewHandler(access.HandlerOptions{Namespace: c.Namespace, Sessions: sessions, Connections: m.connections, Owners: owners, Publisher: publisher, Acknowledgements: acks, Deliveries: mqttConnectionDeliveries{coordinator: coordinator, scheduler: m.deliveries}, Subscriptions: requests, MaxPacketBytes: c.MaxPacketBytes})
+	handlerOptions := access.HandlerOptions{Namespace: c.Namespace, Sessions: sessions, Connections: m.connections, Owners: owners, Publisher: publisher, Acknowledgements: acks, Deliveries: mqttConnectionDeliveries{coordinator: coordinator, scheduler: m.deliveries}, Subscriptions: requests, MaxPacketBytes: c.MaxPacketBytes}
+	if a.metrics != nil {
+		handlerOptions.ObserveSubscriptionClose = a.metrics.MQTT.ObserveSubscriptionClose
+	}
+	m.handler, err = access.NewHandler(handlerOptions)
 	if err != nil {
 		return err
 	}

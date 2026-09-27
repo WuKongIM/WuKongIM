@@ -5,6 +5,7 @@ import "github.com/prometheus/client_golang/prometheus"
 // MQTTMetrics keeps fixed aggregate consumer and owner work series. Events count turn
 // observations, including repeated confirmations, not unique Sessions/messages.
 type MQTTMetrics struct {
+	subscriptionClosures                   map[[2]string]prometheus.Counter
 	events                                 map[string]prometheus.Counter
 	admitted, capacity                     prometheus.Gauge
 	ownerTurns, ownerVisits, ownerFailures prometheus.Counter
@@ -25,7 +26,14 @@ func newMQTTMetrics(reg prometheus.Registerer, labels prometheus.Labels) *MQTTMe
 	for _, state := range []string{"held", "pending", "active", "closing", "operations", "deadlines", "uncertain"} {
 		m.ownerWork[state] = w.WithLabelValues(state)
 	}
-	reg.MustRegister(v, g, s, w)
+	closure := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "wukongim_mqtt_subscription_closures_total", Help: "SUB/UNSUB entry close requests by fixed failure reason; not unique connections or proof of isolation.", ConstLabels: labels}, []string{"operation", "reason"})
+	m.subscriptionClosures = make(map[[2]string]prometheus.Counter, 34)
+	for _, operation := range []string{"subscribe", "unsubscribe"} {
+		for _, reason := range []string{"disabled", "malformed", "owner_limit", "fenced", "deadline", "canceled", "clock", "conflict", "evidence", "pending", "unconfirmed", "denied", "quota", "callback", "reply_evidence", "reply_write", "unknown"} {
+			m.subscriptionClosures[[2]string{operation, reason}] = closure.WithLabelValues(operation, reason)
+		}
+	}
+	reg.MustRegister(v, g, s, w, closure)
 	return m
 }
 
@@ -66,5 +74,16 @@ func (m *MQTTMetrics) SetOwnerWork(state string, value int) {
 	}
 	if g := m.ownerWork[state]; g != nil {
 		g.Set(float64(max(0, value)))
+	}
+}
+
+// ObserveSubscriptionClose accepts only pre-materialized operation/reason pairs.
+// It never creates series from identities, topics or dependency error text.
+func (m *MQTTMetrics) ObserveSubscriptionClose(operation, reason string) {
+	if m == nil {
+		return
+	}
+	if c := m.subscriptionClosures[[2]string{operation, reason}]; c != nil {
+		c.Inc()
 	}
 }

@@ -105,7 +105,7 @@ Stop or startup rollback
 - Restore maintenance keeps Manager reachable while product traffic is fenced;
   restore-sensitive caches and side-effect runtimes are reactivated before
   Controller clears maintenance.
-- Observability is bounded and low-cardinality; runtime labels must not contain
+- Observability is bounded and low-cardinality; MQTT SUB/UNSUB entry closure observations use 34 fixed operation/reason series and supply no isolation or retry proof. Runtime labels must not contain
   UIDs, Channel IDs, client message IDs, addresses, or secret material.
   Transport publishes exact bounded-label counter batches and one-in-32 latency
   samples, separating handler, service-queue and complete client RPC time. Its

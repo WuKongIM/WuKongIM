@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession"
+	runtime "github.com/WuKongIM/WuKongIM/internal/runtime/mqttsession"
 	sessioncase "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	gt "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
@@ -28,28 +29,54 @@ type subscriptionInput struct {
 // subscriptionPacket maps one bounded, ordered batch and retains owner execution
 // through reply enqueue. A later unknown result cannot emit a partial batch ACK.
 func (h *Handler) subscriptionPacket(g gt.Context, s *connectionState, packet any) error {
+	operation := "subscribe"
+	if _, ok := packet.(*wire.Unsubscribe); ok {
+		operation = "unsubscribe"
+	}
+	diagnostic := ""
+	defer func() {
+		if p := recover(); p != nil {
+			if diagnostic == "" {
+				diagnostic = "callback"
+			}
+			h.observeSubscriptionClose(operation, diagnostic)
+			panic(p) // OnPacket owns callback failure and transport cleanup.
+		}
+		if diagnostic != "" {
+			h.observeSubscriptionClose(operation, diagnostic)
+		}
+	}()
+	closeWith := func(reason string, wireReason byte) error {
+		diagnostic = reason
+		return h.terminate(g, s, wireReason)
+	}
 	if h.options.Subscriptions == nil {
-		return h.terminate(g, s, 0x83)
+		return closeWith("disabled", 0x83)
 	}
 	id, inputs, subscribe, err := mapSubscriptionPacket(packet)
 	if err != nil {
-		return h.terminate(g, s, wire.ProtocolError)
+		return closeWith("malformed", wire.ProtocolError)
 	}
 	ctx, cancel := context.WithTimeout(g.RequestContext, h.options.SubscriptionTimeout)
 	defer cancel()
 	op, err := h.options.Owners.Begin(ctx, s.connection.Owner)
 	if err != nil {
-		return h.terminate(g, s, 0)
+		return closeWith(subscriptionCloseReason(err), 0)
 	}
 	defer op.Done()
 	deadline, _ := ctx.Deadline()
 	callCtx, cancelCall := context.WithDeadline(op.Context(), deadline)
 	defer cancelCall()
-	valid := func() bool { return ctx.Err() == nil && op.Check() == nil }
+	check := func() error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return op.Check()
+	}
 	reasons := make([]byte, len(inputs))
 	for i, input := range inputs {
-		if !valid() {
-			return h.terminate(g, s, 0)
+		if err := check(); err != nil {
+			return closeWith(subscriptionCloseReason(err), 0)
 		}
 		if input.reason != 0 {
 			reasons[i] = input.reason
@@ -57,25 +84,28 @@ func (h *Handler) subscriptionPacket(g gt.Context, s *connectionState, packet an
 		}
 		if subscribe {
 			row, e := h.options.Subscriptions.Subscribe(callCtx, s.connection.Owner, input.request)
-			if !valid() {
-				return h.terminate(g, s, 0)
+			if err := check(); err != nil {
+				return closeWith(subscriptionCloseReason(err), 0)
 			}
 			if e != nil {
 				reason := subscriptionFailureReason(e)
 				if reason == 0 {
-					return h.terminate(g, s, 0x83)
+					return closeWith(subscriptionCloseReason(e), 0x83)
 				}
 				reasons[i] = reason
 			} else {
 				if !validSubscriptionReply(row, s.connection.Owner, input.request) {
-					return h.terminate(g, s, 0x83)
+					return closeWith("reply_evidence", 0x83)
 				}
 				reasons[i] = row.GrantedQoS
 			}
 		} else {
 			existed, e := h.options.Subscriptions.Unsubscribe(callCtx, s.connection.Owner, input.request.Topic)
-			if !valid() || e != nil {
-				return h.terminate(g, s, 0)
+			if err := check(); err != nil {
+				return closeWith(subscriptionCloseReason(err), 0)
+			}
+			if e != nil {
+				return closeWith(subscriptionCloseReason(e), 0)
 			}
 			if !existed {
 				reasons[i] = 0x11
@@ -86,12 +116,60 @@ func (h *Handler) subscriptionPacket(g gt.Context, s *connectionState, packet an
 	if subscribe {
 		reply = &wire.Suback{PacketID: id, Reasons: reasons}
 	}
-	if !valid() || g.WritePacket(reply) != nil || !valid() {
-		return h.terminate(g, s, 0)
+	if err := check(); err != nil {
+		return closeWith(subscriptionCloseReason(err), 0)
+	}
+	if g.WritePacket(reply) != nil {
+		return closeWith("reply_write", 0)
+	}
+	if err := check(); err != nil {
+		return closeWith(subscriptionCloseReason(err), 0)
 	}
 	op.Done()
 	h.wakeDelivery(s.connection.Owner)
 	return nil
+}
+
+// observeSubscriptionClose cannot replace the original result or interrupt cleanup.
+func (h *Handler) observeSubscriptionClose(operation, reason string) {
+	if h.options.ObserveSubscriptionClose == nil {
+		return
+	}
+	defer func() { _ = recover() }()
+	h.options.ObserveSubscriptionClose(operation, reason)
+}
+
+// subscriptionCloseReason diagnoses the underlying failure even when joined
+// with unconfirmed intent. It grants no retry, ACK or isolation authority.
+func subscriptionCloseReason(err error) string {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return "deadline"
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	case errors.Is(err, runtime.ErrOwnerLimit):
+		return "owner_limit"
+	case errors.Is(err, runtime.ErrOwnerFenced), errors.Is(err, runtime.ErrOwnerStopped), errors.Is(err, sessioncase.ErrFenced):
+		return "fenced"
+	case errors.Is(err, sessioncase.ErrClock):
+		return "clock"
+	case errors.Is(err, sessioncase.ErrConflict):
+		return "conflict"
+	case errors.Is(err, sessioncase.ErrEvidence):
+		return "evidence"
+	case errors.Is(err, sessioncase.ErrReplayPending), errors.Is(err, sessioncase.ErrSourceDrainPending):
+		return "pending"
+	case errors.Is(err, sessioncase.ErrSubscriptionCallback):
+		return "callback"
+	case errors.Is(err, sessioncase.ErrSubscriptionDenied), errors.Is(err, sessioncase.ErrSubscriptionRevoked):
+		return "denied"
+	case errors.Is(err, sessioncase.ErrSubscriptionLimit):
+		return "quota"
+	case errors.Is(err, sessioncase.ErrSubscriptionUnconfirmed):
+		return "unconfirmed"
+	default:
+		return "unknown"
+	}
 }
 
 // mapSubscriptionPacket validates the entire packet envelope before any effect;

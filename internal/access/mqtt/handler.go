@@ -58,6 +58,10 @@ type HandlerOptions struct {
 	// Subscriptions maps confirmed intent transitions; nil disables SUB/UNSUB.
 	// It requires delivery registration and durable acknowledgement support.
 	Subscriptions SessionSubscriptions
+	// ObserveSubscriptionClose receives fixed operation/reason names when a
+	// SUB/UNSUB packet requests closure. It must be fast and nonblocking; panic
+	// cannot affect packet outcome. No identities or error strings are supplied.
+	ObserveSubscriptionClose func(operation, reason string)
 	// SubscriptionTimeout bounds the entire control packet, including reply;
 	// default five seconds, maximum one minute, independent of its filter count.
 	SubscriptionTimeout time.Duration

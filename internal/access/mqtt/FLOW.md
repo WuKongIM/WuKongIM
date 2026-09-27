@@ -53,6 +53,8 @@ App registers delivery after connection open and composes group/inbox subscripti
     through reply. Usecases own pending convergence and exact intent proof.
     Unconfirmed errors close without partial ACK; successful reply releases the
     scope before waking delivery. Unsubscribe preserves begun exchanges.
+    Failed control packets report one fixed operation/reason observation; callback
+    failures cannot change cleanup or results. Counts prove no transport isolation.
 
 ## Invariants and Failure Semantics
 
