@@ -8,7 +8,7 @@ move those entries into a version section named for that exact tag.
 
 - Freeze MQTT Will hook output before publication so recovery preserves the actual body and original receipt without repeating transformations. Preparation can resume after lost replies; uncertain dispatch and complete MQTT access remain under development. / MQTT Will 发布前持久保存钩子处理后的正文，恢复时保留实际正文与原始回执，不重复改写消息；准备阶段可在丢回包后续作，未知发布结果的安全重试和完整接入仍在开发。
 
-- Preserve Channel authority generations across physical runtime deletion and recreation, rejecting stale prepared writes and retiring old person-directory work atomically. Matched cluster binaries are required; full MQTT access remains under development. / 频道运行时物理删除、重建后保留并推进权威代次，拒绝旧追加请求，并原子撤销旧单聊目录任务。集群需使用匹配版本；完整 MQTT 接入仍在开发。
+- Preserve Channel authority generations across physical runtime deletion and recreation, rejecting stale prepared writes and retiring old person-directory work atomically. MQTT recovery can read runtime and retirement from one authoritative snapshot. Matched cluster binaries are required; full MQTT access remains under development. / 频道运行时物理删除、重建后保留并推进权威代次，拒绝旧追加请求，并原子撤销旧单聊目录任务；MQTT 恢复可在同一权威快照中读取运行时与删除代次。集群需使用匹配版本；完整 MQTT 接入仍在开发。
 
 - Add bounded MQTT Will first-dispatch and committed-result recovery through existing message policy and cluster authority. Lost observations preserve original identity/time even after permission revocation; uncertain redispatch and product access remain under development. / MQTT Will 接通有界首次发布和已提交结果恢复，复用消息权限与集群权威；观察结果丢失且后续撤权时仍恢复原身份和时间，未知结果的重发及产品接入仍在开发。
 

@@ -39,6 +39,12 @@ must match: older binaries can erase/reuse authority. A pre-feature backup is
 required for rollback; old deletion history cannot be reconstructed. MQTT JSONL
 transfer and distributed restore activation remain required before product access.
 See [runtime incarnation fence](../../docs/specs/mqtt-runtime-incarnation.md).
+MQTT read RPC 91 kind 22 exposes that existing floor and the live runtime from
+one snapshot. Optional `runtime_channel`/`runtime` fields are absent on older
+queries/replies, preserving their JSON. New reads require matched peers; no
+durable format, backfill or write semantics change. Physical identity does not
+cover business Channel deletion or restore generations and cannot authorize
+Will redispatch. See [runtime source reads](../../docs/specs/mqtt-runtime-source.md).
 
 Message table 1 System 16 retains keyed Will publication receipts independently
 of ordinary history. Its key appends sized server-Will key and UID; its key-bound

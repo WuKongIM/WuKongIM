@@ -490,6 +490,10 @@ specification, runbook, report, or module documentation; link to them when neede
   authority versions, while late upserts and absent-runtime directory admission
   fail. Deletion atomically withdraws person-directory tasks/readiness and inbox
   checkpoints. Cold creation rereads actual committed versions even after success.
+  [Runtime source reads](../specs/mqtt-runtime-source.md) use MQTT read kind 22 to
+  pin that floor and the live runtime after a fresh Slot barrier. The exact key
+  and floor distinguish physical recreation while ordinary routing changes do
+  not; this is neither business-lifetime identity nor Will redispatch authority.
   Restore fencing, offline scheduling and full product composition remain required.
   [Inbox removal](../specs/mqtt-inbox-removal.md)
   use UID binding optional columns 29–32, separate from initial discovery.

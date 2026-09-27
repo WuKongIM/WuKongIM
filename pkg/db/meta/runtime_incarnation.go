@@ -90,18 +90,25 @@ func loadRuntimeRetirement(state *batchCommitState, slot HashSlot, id string, ty
 	if err != nil || !found {
 		return 0, false, err
 	}
+	n, err := decodeRuntimeRetirement(key, v)
+	return n, err == nil, err
+}
+
+// decodeRuntimeRetirement is shared by staged writes and pinned snapshot reads.
+// Its checksum binds the authority floor to the exact hash Slot and Channel.
+func decodeRuntimeRetirement(key, v []byte) (uint64, error) {
 	e, err := rowcodec.UnwrapBorrowed(key, v)
 	if err != nil {
-		return 0, false, err
+		return 0, err
 	}
 	if e.Version != 1 || e.Codec != rowcodec.CodecFixed || e.Flags != rowcodec.FlagChecksum || len(e.Payload) != 8 {
-		return 0, false, dberrors.ErrCorruptValue
+		return 0, dberrors.ErrCorruptValue
 	}
 	n := binary.BigEndian.Uint64(e.Payload)
 	if n == 0 {
-		return 0, false, dberrors.ErrCorruptValue
+		return 0, dberrors.ErrCorruptValue
 	}
-	return n, true, nil
+	return n, nil
 }
 
 // retireRuntimeAuthority runs in the same physical batch as deletion and sees

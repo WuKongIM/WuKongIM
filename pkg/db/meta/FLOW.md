@@ -59,7 +59,7 @@ It does not own product business policy or expose engine-specific APIs.
    Delays, execution leases and receipts are distinct; optional Will columns 35/36 retain Preparing/Prepared/Started and frozen hook output. Exact live executors advance phases; takeover preserves them, terminal shapes are strict, and bodies are bounded/redacted.
    Bounded MQTT reads pin Session, children and indexes; kind 19 pins channel/member/sequence without the live channel cache.
    Kind 20 scans stable UID directory primary keys, including hidden/tombstoned and non-person candidates; UID binding checkpoints share its 4096-byte ID bound.
-   Kind 21 pins person directory/runtime/admission progress; table 26 System 1 retains monotonic invalidations on runtime deletion. Private snapshots never replace writable shards; evidence grants no receive policy.
+   Kind 21 pins person directory/runtime/admission progress; table 26 System 1 retains monotonic invalidations on runtime deletion. Kind 22 pins runtime plus table 3 System 1 retirement without live-cache reads. Private snapshots never replace writable shards; evidence grants no policy or redispatch authority.
 
 ## Invariants and Failure Semantics
 - Event sequence pages scan a pinned native iterator and retain a bounded heap,

@@ -62,7 +62,7 @@ plugin, migration, message projections, and MQTT session state.
    Both use bounded encoded-order cursors and unchanged older JSON; old peers reject kind 17, and discovery authorizes no GC.
    Matched nodes use command 69 operation 4 for qualified charges and read kind 18 for pinned Session/cursor/head.
    Kind 19 pins Channel flags/member/incarnation; kind 20 pages stable UID directory keys.
-   Command 74 and kind 21 persist/read person admission progress with runtime-incarnation fencing. Command 71 preserves optional UID drain progress across apply/snapshot/replay. Matched peers are required; absent optional fields preserve older JSON.
+   Command 74 and kind 21 persist/read person admission progress with runtime-incarnation fencing. Kind 22 routes by Channel ID and pins runtime/retirement together. Command 71 preserves optional UID drain progress across apply/snapshot/replay. Matched peers are required; absent optional fields preserve older JSON.
 
 ## Invariants and Failure Semantics
 

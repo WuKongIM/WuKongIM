@@ -37,6 +37,8 @@ const (
 	MQTTReadInboxDirectory
 	// MQTTReadInboxAdmission pins a person runtime and its admission checkpoint.
 	MQTTReadInboxAdmission
+	// MQTTReadChannelRuntime pins physical runtime identity across route changes.
+	MQTTReadChannelRuntime
 )
 
 // MQTTReadCursor contains exactly the cursor belonging to the selected read.
@@ -60,6 +62,7 @@ type MQTTReadCursor struct {
 // MQTTRead carries one operation. Irrelevant fields are rejected, not ignored.
 // Logical/physical Slot routing is deliberately outside this storage request.
 type MQTTRead struct {
+	RuntimeChannel         ChannelKey            `json:"runtime_channel,omitzero"`
 	AdmissionChannel       string                `json:"admission_channel,omitempty"`
 	MembershipKey          SubscriberKey         `json:"membership_key,omitzero"`
 	Kind                   MQTTReadKind          `json:"kind"`
@@ -80,6 +83,7 @@ type MQTTRead struct {
 // MQTTReadResult owns a bounded result from one snapshot. Session is included
 // with Session-owned child reads so callers can fence subsequent decisions.
 type MQTTReadResult struct {
+	Runtime         *MQTTRuntimeView        `json:"runtime,omitempty"`
 	Admission       *MQTTInboxAdmissionView `json:"admission,omitempty"`
 	Directory       []ChannelKey            `json:"directory,omitempty"`
 	Membership      *MQTTMembershipView     `json:"membership,omitempty"`
@@ -122,6 +126,11 @@ func ValidateMQTTRead(q MQTTRead) error {
 	want := MQTTRead{Kind: q.Kind}
 	page := false
 	switch q.Kind {
+	case MQTTReadChannelRuntime:
+		want.RuntimeChannel = q.RuntimeChannel
+		if err := validateMQTTRuntimeKey(q.RuntimeChannel); err != nil {
+			return err
+		}
 	case MQTTReadInboxAdmission:
 		want.AdmissionChannel = q.AdmissionChannel
 		if _, err := mqttInboxParticipants(q.AdmissionChannel); err != nil {
@@ -307,6 +316,8 @@ func (s *Shard) readMQTTState(ctx context.Context, q MQTTRead) (MQTTReadResult, 
 	}
 	var err error
 	switch q.Kind {
+	case MQTTReadChannelRuntime:
+		out.Runtime, err = s.readMQTTRuntime(ctx, q.RuntimeChannel)
 	case MQTTReadInboxAdmission:
 		out.Admission, err = s.readMQTTInboxAdmission(ctx, q.AdmissionChannel)
 	case MQTTReadInboxDirectory:

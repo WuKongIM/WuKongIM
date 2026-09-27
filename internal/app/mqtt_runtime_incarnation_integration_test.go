@@ -44,6 +44,12 @@ func TestMQTTPreparedAppendRejectsPhysicalRuntimeRecreationSingleNodeCluster(t *
 	require.NoError(t, node.Propose(ctx, cluster.ProposeRequest{Key: id.ID, Command: create}))
 	first, err := node.GetChannelRuntimeMetaFresh(ctx, id.ID, int64(id.Type))
 	require.NoError(t, err)
+	sourceQuery := meta.MQTTRead{Kind: meta.MQTTReadChannelRuntime, RuntimeChannel: meta.ChannelKey{ChannelID: id.ID, ChannelType: int64(id.Type)}}
+	firstSource, err := node.ReadMQTT(ctx, sourceQuery)
+	require.NoError(t, err)
+	require.NotNil(t, firstSource.Runtime)
+	require.Equal(t, first, *firstSource.Runtime.Meta)
+	require.Zero(t, firstSource.Runtime.RetiredThrough)
 	appender := clusterinfra.NewChannelAppender(node)
 	q := appendcontract.AppendBatchRequest{ChannelID: appendcontract.ChannelID{ID: id.ID, Type: id.Type}, ExpectedEpoch: first.ChannelEpoch, ExpectedLeaderEpoch: first.LeaderEpoch, ExpectedRouteGeneration: first.RouteGeneration, CommitMode: appendcontract.CommitModeQuorum, Messages: []appendcontract.Message{{MessageID: a.messageIDs.Next(), Payload: []byte("old incarnation"), ServerTimestampMS: time.Now().UnixMilli()}}}
 	oldID := q.Messages[0].MessageID
@@ -54,11 +60,19 @@ func TestMQTTPreparedAppendRejectsPhysicalRuntimeRecreationSingleNodeCluster(t *
 	require.NoError(t, node.Propose(ctx, cluster.ProposeRequest{Key: id.ID, Command: fsm.EncodeDeleteChannelRuntimeMetaCommand(id.ID, int64(id.Type))}))
 	_, err = node.GetChannelRuntimeMetaFresh(ctx, id.ID, int64(id.Type))
 	require.ErrorIs(t, err, meta.ErrNotFound)
+	deletedSource, err := node.ReadMQTT(ctx, sourceQuery)
+	require.NoError(t, err)
+	require.Nil(t, deletedSource.Runtime.Meta)
+	require.Greater(t, deletedSource.Runtime.RetiredThrough, firstSource.Runtime.RetiredThrough)
 	require.NoError(t, node.Propose(ctx, cluster.ProposeRequest{Key: id.ID, Command: create}))
 	fresh, err := node.GetChannelRuntimeMetaFresh(ctx, id.ID, int64(id.Type))
 	require.NoError(t, err)
 	require.Greater(t, fresh.ChannelEpoch, first.ChannelEpoch)
 	require.Greater(t, fresh.RouteGeneration, first.RouteGeneration)
+	freshSource, err := node.ReadMQTT(ctx, sourceQuery)
+	require.NoError(t, err)
+	require.Equal(t, deletedSource.Runtime.RetiredThrough, freshSource.Runtime.RetiredThrough)
+	require.Equal(t, fresh, *freshSource.Runtime.Meta)
 	q.Messages = []appendcontract.Message{{MessageID: a.messageIDs.Next(), Payload: []byte("stale incarnation"), ServerTimestampMS: time.Now().UnixMilli()}}
 	staleID := q.Messages[0].MessageID
 	_, err = appender.AppendBatch(ctx, q)
@@ -84,5 +98,5 @@ func TestMQTTPreparedAppendRejectsPhysicalRuntimeRecreationSingleNodeCluster(t *
 			require.Equal(t, []byte(check.body), pages[0].Read.Messages[0].Payload)
 		}
 	}
-	t.Logf("mqtt_runtime_incarnation_evidence: nodes=1 hash_slots=256 physical_delete=true slot_fsm=true old_epoch=%d new_epoch=%d old_route=%d new_route=%d stale_request_absent=true committed_bodies=2", first.ChannelEpoch, fresh.ChannelEpoch, first.RouteGeneration, fresh.RouteGeneration)
+	t.Logf("mqtt_runtime_incarnation_evidence: nodes=1 hash_slots=256 physical_delete=true slot_fsm=true source_read_kind=22 coherent_retirement=true old_epoch=%d new_epoch=%d old_route=%d new_route=%d stale_request_absent=true committed_bodies=2", first.ChannelEpoch, fresh.ChannelEpoch, first.RouteGeneration, fresh.RouteGeneration)
 }
