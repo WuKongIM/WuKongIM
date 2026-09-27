@@ -6,6 +6,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMQTTOwnerMetricsUseOnlyFixedAggregateLabels(t *testing.T) {
+	r := New(1, "node")
+	r.MQTT.ObserveOwnerSweep(3, true)
+	r.MQTT.SetOwnerWork("held", 4)
+	r.MQTT.SetOwnerWork("uncertain", 1)
+	r.MQTT.SetOwnerWork("private-client", 9)
+	r.MQTT.SetOwnerWork("pending", -1)
+	f, err := r.Gather()
+	require.NoError(t, err)
+	events := requireMetricFamily(t, f, "wukongim_mqtt_owner_sweep_total")
+	require.Len(t, events.Metric, 3)
+	for event, value := range map[string]float64{"turns": 1, "visited": 3, "failures": 1} {
+		require.Equal(t, value, findMetricByLabels(t, events, map[string]string{"event": event}).GetCounter().GetValue())
+	}
+	work := requireMetricFamily(t, f, "wukongim_mqtt_owner_work")
+	require.Len(t, work.Metric, 7)
+	for state, value := range map[string]float64{"held": 4, "pending": 0, "active": 0, "closing": 0, "operations": 0, "deadlines": 0, "uncertain": 1} {
+		require.Equal(t, value, findMetricByLabels(t, work, map[string]string{"state": state}).GetGauge().GetValue())
+	}
+	var disabled *MQTTMetrics
+	disabled.ObserveOwnerSweep(1, false)
+	disabled.SetOwnerWork("held", 1)
+}
+
 func TestMQTTConsumerMetricsBoundLabelsAndMaterializeZero(t *testing.T) {
 	r := New(1, "node")
 	r.MQTT.ObserveConsumer("quota_end_confirmed", 2)

@@ -147,6 +147,7 @@ const (
 	TaskMQTTConsumerWorker               TaskID = "mqtt/consumer_worker"
 	TaskMQTTWillWorker                   TaskID = "mqtt/will_worker"
 	TaskMQTTDeadlineWorker               TaskID = "mqtt/deadline_worker"
+	TaskMQTTOwnerSweeper                 TaskID = "mqtt/owner_sweeper"
 	TaskMQTTReplayWorker                 TaskID = "mqtt/replay_worker"
 	TaskMQTTConnectionScheduler          TaskID = "mqtt/connection_scheduler"
 	TaskMQTTConnectionWorker             TaskID = "mqtt/connection_worker"
@@ -260,6 +261,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskMQTTConsumerWorker, Module: ModuleMQTT, Name: "consumer_worker", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMQTTWillWorker, Module: ModuleMQTT, Name: "will_worker", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMQTTDeadlineWorker, Module: ModuleMQTT, Name: "deadline_worker", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskMQTTOwnerSweeper, Module: ModuleMQTT, Name: "owner_sweeper", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskMQTTReplayWorker, Module: ModuleMQTT, Name: "replay_worker", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskMQTTConnectionScheduler, Module: ModuleMQTT, Name: "connection_scheduler", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskMQTTConnectionWorker, Module: ModuleMQTT, Name: "connection_worker", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},

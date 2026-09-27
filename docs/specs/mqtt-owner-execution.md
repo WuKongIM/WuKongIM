@@ -90,15 +90,16 @@ bounded to 2,304 bytes and reject truncation/trailing bytes. The client accepts
 success only for its complete exact requested identity; it neither reroutes nor
 infers isolation from an unsupported service or communication failure.
 
-The app has not registered this adapter or connected its runtime callback to
-the gateway. The gateway now exposes optional `CloseTransportAndWait` physical
+The [product composition](mqtt-product-runtime.md) registers this adapter and
+connects its runtime callback to the gateway. Gateway exposes `CloseTransportAndWait` physical
 completion independently of business cleanup; ordinary `CloseSession` remains
 only a closure request. See [the close contract](gateway-transport-close-proof.md).
 The [Session usecase](mqtt-session-acquisition.md) now performs authenticated
 acquisition/renewal with committed results and deadlines captured before proposal.
-It requires explicit prior-owner isolation. Foreground composition and valid
-unreachable/restarted-owner recovery proof remain required before product takeover
-can be enabled.
+It requires explicit prior-owner isolation. Foreground composition and graceful restart retirement are now wired. Valid
+unreachable/crashed-owner recovery proof remains required for complete takeover
+acceptance. A joined [owner sweeper](mqtt-owner-sweeping.md) now drives automatic
+local expiry/retry cleanup without changing that distributed proof requirement.
 
 ## Frozen context
 

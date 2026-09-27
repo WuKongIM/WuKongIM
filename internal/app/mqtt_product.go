@@ -24,6 +24,7 @@ import (
 type mqttProduct struct {
 	handler     *access.Handler
 	owners      *runtime.Owners
+	sweeper     *runtime.OwnerSweeper
 	connections *runtime.Connections
 	deliveries  *runtime.Deliveries
 	deadlines   *runtime.DeadlineWorker
@@ -52,6 +53,10 @@ func (a *App) wireMQTT(nodeID uint64) error {
 	}
 	m := &mqttProduct{owners: owners}
 	a.mqtt = m // Constructor failure must retain ownership for App.Stop cleanup.
+	m.sweeper, err = a.wireMQTTOwnerSweeper(owners)
+	if err != nil {
+		return err
+	}
 	m.retirements, err = mqttowner.NewRetirements(filepath.Join(defaultClusterConfig(a.cfg).DataDir, "mqtt", "retired-owners"), nodeID)
 	if err != nil {
 		return err
@@ -135,7 +140,7 @@ func (m *mqttProduct) Start(ctx context.Context) error {
 	if m == nil {
 		return nil
 	}
-	for _, w := range []WorkerRuntime{m.replay, m.deadlines, m.wills, m.consumers, m.connections, m.deliveries} {
+	for _, w := range []WorkerRuntime{m.sweeper, m.replay, m.deadlines, m.wills, m.consumers, m.connections, m.deliveries} {
 		if err := w.Start(ctx); err != nil {
 			return err
 		}
@@ -151,6 +156,9 @@ func (m *mqttProduct) Stop(ctx context.Context) error {
 	}
 	m.owners.StopAdmission()
 	var result error
+	if m.sweeper != nil {
+		result = errors.Join(result, m.sweeper.Stop(ctx))
+	}
 	if m.deliveries != nil {
 		result = errors.Join(result, m.deliveries.Stop(ctx))
 	}

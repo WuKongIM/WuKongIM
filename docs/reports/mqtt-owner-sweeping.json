@@ -1,0 +1,168 @@
+{
+  "source_revision": "d336c259ef107681afdaec46dd1c836bebc6e00f",
+  "context": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade"
+    },
+    {
+      "path": "internal/runtime/mqttsession/FLOW.md",
+      "sha256": "505671e287cd0e6e1e6cf1331ea6d62bca4451c8b1b7a54066ac1a9ef3a73789"
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "sha256": "3375265c9ac60c245e7d834ba526458f73dd27cf57905daf96735dc33f04a26f"
+    },
+    {
+      "path": "pkg/goroutine/FLOW.md",
+      "sha256": "f92a68aecd32f5ec1975f254a4241cf8988f678253973d6775de8c7a8c86b46f"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "cd13514f93a552e2f9d4cc0b46f85848477e38dccd07840bcfe7d343170b8876"
+    },
+    {
+      "path": "test/e2e/mqtt/AGENTS.md",
+      "sha256": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f"
+    },
+    {
+      "path": "test/e2e/mqtt/session/AGENTS.md",
+      "sha256": "f35cc835e01232c6719ece1f429cc9227d792e3e11f431a88cbed74a6e9f7799"
+    }
+  ],
+  "scope": "Automatic local owner expiry and cleanup retries; full approved MQTT goal remains in progress",
+  "checks": [
+    {
+      "command": "GOWORK=off go test -p 2 -tags=integration ./internal/app -run 'TestMQTTOwnerSweepProductSingleNodeCluster' -count=1 -timeout=1m",
+      "result": "RED: product never swept an expired unregistered reservation, 10.292s",
+      "log_sha256": "3bb385cac846dd196a81022cfbdfb0109e40a9e3df7801a532a4c89f153d0de7"
+    },
+    {
+      "command": "GOWORK=off go test -p 2 -tags=integration ./internal/runtime/mqttsession ./pkg/metrics -run 'TestOwnerSweeper|TestMQTTOwnerMetrics' -count=1",
+      "result": "RED: missing sweeper and fixed aggregate metrics APIs",
+      "log_sha256": "41ed44e8596ed47b330a8103b421cc06057b96a9a5900c2dff2ae5991565a988"
+    },
+    {
+      "command": "GOWORK=off go test -p 2 -tags=integration ./internal/runtime/mqttsession ./pkg/metrics ./internal/app -run 'TestOwnerSweeper|TestMQTTOwnerMetrics|TestMQTTOwnerSweepProduct' -count=1 -timeout=2m",
+      "result": "PASS: runtime 1.075s; metrics 0.755s; app 8.153s",
+      "log_sha256": "187a20d372a756dd19bfd8ba88846cc4af3347487af68b82f9916a03c6570479"
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 ./internal/runtime/mqttsession ./internal/app ./pkg/metrics ./pkg/goroutine -count=1",
+      "result": "PASS: 1.637s / 4.324s / 3.394s / 1.660s; Darwin linker warnings only",
+      "log_sha256": "a1d43444a06a01e347eee283045850f7257278464d90fd4213d2ac8a4a11bca9"
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 -tags=integration ./internal/runtime/mqttsession ./internal/app -run 'TestOwnerSweeper|TestMQTTOwnerSweepProduct|TestMQTTConnectionSupervisorSingleNodeCluster' -count=1 -timeout=2m -v",
+      "result": "PASS: runtime 1.511s, app 14.606s",
+      "log_sha256": "f36bfc910dbcd6eb4e7ff8eed99a059970f0c5f8a7e2e4704a9ead178879c6d3"
+    },
+    {
+      "command": "WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-owner-sweep-reports GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/session -count=1 -timeout=5m -v",
+      "result": "PASS: 124.094s; 1-node and 3-node session recovery, graceful restart and active-owner TERM",
+      "log_sha256": "91cb6b9116d6938bd62dff13b49eb59a627fc61bf064f91983b2d49d347a4332"
+    },
+    {
+      "command": "GOWORK=off go run ./scripts/flowcheck --mode check",
+      "result": "PASS: 87 compliant, 0 invalid, 9 existing length warnings",
+      "log_sha256": "518c3c03df7eb5d31ffef78aaf4666017b3054bf4e16f65a227b11efc525cf09"
+    }
+  ],
+  "process_artifacts": [
+    {
+      "file": "mqtt-session-1.json",
+      "sha256": "9ae0321eea0a5fc594ce8fdfb1f4f59e4eb9e357e6399c9404d85f7cd534ed20",
+      "assertions": {
+        "client_id_uid_binding_enforced": true,
+        "dup_on_resume": true,
+        "future_contact_offline_delivered": true,
+        "hash_slots": 256,
+        "live_takeover_closed_old_owner": true,
+        "message_ids": [
+          "2104175702189281280",
+          "2104175707570573312",
+          "2104175710649192448",
+          "2104175792610086912",
+          "2104175873107169280"
+        ],
+        "nodes": 1,
+        "packet_id_preserved": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscriptions": 0,
+        "scenario": "mqtt-persistent-session",
+        "session_present": true
+      }
+    },
+    {
+      "file": "mqtt-session-3.json",
+      "sha256": "098b6e9b309fabf3a0754c4a902dff35c8749e6754813a10b2bbc6c32142f1a7",
+      "assertions": {
+        "client_id_uid_binding_enforced": true,
+        "dup_on_resume": true,
+        "future_contact_offline_delivered": true,
+        "hash_slots": 256,
+        "live_takeover_closed_old_owner": true,
+        "message_ids": [
+          "2104176002388201472",
+          "2104176026006327296",
+          "2104176029420498944",
+          "2104176051843239936",
+          "2104176078430932992"
+        ],
+        "nodes": 3,
+        "packet_id_preserved": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscriptions": 0,
+        "scenario": "mqtt-persistent-session",
+        "session_present": true
+      }
+    },
+    {
+      "file": "mqtt-session-owner-restart.json",
+      "sha256": "d12b9afb20ef03791d67463a46fd1b7c1d71f5d89cfe390c81130f6cef520d0c",
+      "assertions": {
+        "dup_on_resume": true,
+        "hash_slots": 256,
+        "message_id": "2104176122773114880",
+        "nodes": 1,
+        "packet_id_preserved": true,
+        "passed": true,
+        "resubscriptions": 0,
+        "scenario": "mqtt-session-owner-restart",
+        "session_present": true
+      }
+    },
+    {
+      "file": "mqtt-session-shutdown.json",
+      "sha256": "0eae5a1b4a59602f23599e237329b4a64084d4fc365e87a068b329cd90fd5565",
+      "assertions": {
+        "scenario": "mqtt-active-owner-shutdown",
+        "nodes": 1,
+        "hash_slots": 256,
+        "passed": true,
+        "exit_success": true,
+        "client_closed": true,
+        "lifecycle_stop_failures": 0
+      }
+    }
+  ],
+  "implementation_sha256": {
+    "internal/runtime/mqttsession/owner_sweeper.go": "26f85d3056863a452f28897a76f8bae2278bcd9c399426066e6803d4495e7ce8",
+    "internal/runtime/mqttsession/owner_sweeper_test.go": "d70f4486242d5f651f8809bd8e9e298d7cf77e85427a7932cac25d36be1e1dfe",
+    "internal/runtime/mqttsession/owner_sweeper_integration_test.go": "91369fa8b6c5ec4e50aa7b3963b6d3613fb4945afbf1a30f077662d278c03bcc",
+    "internal/app/mqtt_owner_sweep.go": "bf6d2a8dfbcbba6014e818f2c6ee1c59c723ef9749f2e7f67304976b9a2d636b",
+    "internal/app/mqtt_owner_sweep_integration_test.go": "c762a0aa4b14af97b5920e66f5799799514151d5a312af0609f21749bb14cc53",
+    "internal/app/mqtt_product.go": "360a03cf6edaabb890709567628bc496058f6850154127dabc631ef842134976",
+    "pkg/metrics/mqtt.go": "8f4e02751acf2a471bfe0d29c772d3467a4cc587e454274f40b51964c955dc26",
+    "pkg/metrics/mqtt_test.go": "b98d70042ddbd5b78bcf4f2415ca6ef8a000c9d540706824ed6d701b791abe13",
+    "pkg/goroutine/catalog.go": "31bda6e7d49758519801c5aaf8c5e0b98001f5e1888d389a7170da04a0f961d6"
+  },
+  "limitations": [
+    "Process regressions do not inject orphan reservations; App integration injects a real pending Owner without manually sweeping.",
+    "Slow callbacks and uncertain barriers are covered with actual Owners and callback seams, not process faults.",
+    "Visit counts are attempts, not isolation proofs; gauges are last sampled aggregate state.",
+    "No abrupt-crash/unavailable-owner recovery, pending-intent/cursorless cleanup, metadata reclamation, fresh restore runtime or full scale qualification is claimed."
+  ]
+}

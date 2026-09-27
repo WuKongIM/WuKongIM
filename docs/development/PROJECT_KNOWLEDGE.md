@@ -336,7 +336,11 @@ specification, runbook, report, or module documentation; link to them when neede
   may otherwise wait for their own PUBLISH scope. First disconnect intent and
   its trusted monotonic observation survive retries. Stop fences admission and
   joins registered work without erasing failed cleanup; app also closes remaining
-  unregistered Owners. Restore requires a fresh registry/boot and supervisor.
+  unregistered Owners. The [owner sweeper](../specs/mqtt-owner-sweeping.md) drives
+  the existing deadline heap independently of connection registration, with one
+  joined loop and bounded visits/time. Close failure and uncertain effects retain
+  capacity; its aggregate metrics report sampled state, never isolation proof.
+  Restore requires a fresh registry/boot and supervisor.
   The [gateway entry](../specs/mqtt-gateway-entry.md) retains execution across
   CONNACK and rechecks before enqueue; close callbacks never join packet scopes.
   A constant-size decoded DISCONNECT receipt survives EOF before mailbox dispatch.

@@ -17,7 +17,7 @@ leases, publish messages, or interpret MQTT packets.
   a conservative deadline from the same owner-local monotonic time base.
 - The injected close callback seals writes and closes the physical transport;
   it must honor cancellation and cannot recursively wait for business cleanup.
-- App composition owns owner-registry sweeps and the durable deadline worker's
+- App composition owns the joined OwnerSweeper and durable deadline worker's
   start/stop ordering. The worker does not renew live owners or publish Wills.
   Connections separately owns bounded live renewal and queued disconnect through
   app-adapted usecases; entry callbacks only register or accept immutable intent.
@@ -35,7 +35,7 @@ leases, publish messages, or interpret MQTT packets.
    closure and every admitted scope drain.
 4. One indexed heap entry per retained owner schedules pending expiry, lease
    expiry or cleanup retry. A sweep visits at most 256 due owners, without a
-   per-session goroutine or full-registry scan.
+   per-session goroutine or full-registry scan. The managed sweeper defaults to 256 visits/250ms, with a 250ms turn deadline; Stop joins even slow callbacks.
 5. Shutdown closes admission and cancels scopes before bounded cleanup pages;
    timeouts retain unfinished owners and permit a later exact retry.
 6. One managed deadline loop rotates Session/Will index pages over currently led

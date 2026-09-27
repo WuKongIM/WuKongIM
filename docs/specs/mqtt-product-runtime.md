@@ -102,3 +102,12 @@ this composition adds no table, column, command or RPC encoding.
 in that same cohort, separately observing confirmed qualification tombstones.
 It preserves successor lifetimes and independent source/drain obligations.
 Normal pending-unsubscribe and cursorless recovery are still required.
+
+## Subsequent owner sweeping
+
+[Owner sweeping](mqtt-owner-sweeping.md) now drives the existing local heap with
+one managed loop, independent of connection registration. App starts it before
+Gateway admission and joins it after fencing owners, before final registry close
+and retirement publication. Pending expiry, failed-close retry and sampled owner
+metrics are wired; uncertain effects remain retained. This completes the earlier
+orphan-scheduling gap, not unavailable-owner or unknown-effect recovery.

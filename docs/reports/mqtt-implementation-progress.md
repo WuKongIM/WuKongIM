@@ -24,9 +24,15 @@ removes old inbox candidate/recovery entries after explicit ending or a newer
 lifetime. Six process scenarios verify zero expiry, elapsed expiry and Clean
 Start without damaging a successor or future person-source delivery.
 
+A joined [owner sweeper](../specs/mqtt-owner-sweeping.md) now drives the existing
+local deadline heap for unregistered reservations and cleanup retries. It retains
+uncertain effects and exposes fixed aggregate state; no durable Session policy
+or ownership proof changes. App integration reproduces the previous leak and
+verifies automatic cleanup; callback barriers verify joined cancellation.
+
 These product milestones are not complete MQTT delivery.
 Safe uncertain dispatch recovery, unavailable-owner
-isolation, owner sweeping, pending-intent/cursor/inflight cleanup, restore reactivation and
+isolation, pending-intent/cursor/inflight cleanup, restore reactivation and
 full failure/scale acceptance remain outstanding. Restore currently joins MQTT
 and retains closed admission because its terminal runtime cannot be reused.
 See [product composition and evidence](../specs/mqtt-product-runtime.md).

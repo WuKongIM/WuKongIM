@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Automatically sweep expired MQTT owner reservations and retry incomplete transport cleanup with bounded work and joined shutdown. Aggregate metrics retain visibility of unresolved effects. / MQTT 自动清理到期的连接所有权预留，并有界重试未完成的传输关闭；停止时等待任务结束，聚合指标保留未决副作用状态。
+
 - Retire MQTT inbox qualifications after explicit Session ending or replacement through bounded background maintenance, preserving new lifetimes and independent source obligations. / MQTT 会话明确结束或被新代次替换后，有界后台维护会移除旧收件资格的候选索引，并保留新会话及独立的来源责任。
 
 - Enforce MQTT Session quotas while clients are offline or their receive window is full, and maintain source completion through bounded background work. Fixed aggregate metrics expose progress; complete crash recovery, cleanup and scale acceptance remain in progress. / MQTT 客户端离线或接收窗口满时通过有界后台任务执行会话配额，并推进来源完成与清理；提供固定维度进度指标。完整崩溃恢复、清理与容量验收仍在进行。
