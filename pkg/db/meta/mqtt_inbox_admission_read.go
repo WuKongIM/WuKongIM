@@ -6,10 +6,11 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 )
 
-// MQTTInboxAdmissionView pairs runtime incarnation and progress from one pinned
+// MQTTInboxAdmissionView pairs directory readiness, runtime and progress in one pinned
 // snapshot. A stale checkpoint is visible for reset; it never implies readiness.
 type MQTTInboxAdmissionView struct {
 	ChannelID  string              `json:"channel_id"`
+	Channel    *Channel            `json:"channel,omitempty"`
 	Runtime    *ChannelRuntimeMeta `json:"runtime,omitempty"`
 	Checkpoint *MQTTInboxAdmission `json:"checkpoint,omitempty"`
 }
@@ -18,6 +19,9 @@ type MQTTInboxAdmissionView struct {
 // require equal positive generations and Participant 2 before using completion.
 func ValidateMQTTInboxAdmissionView(id string, v *MQTTInboxAdmissionView) error {
 	if _, err := mqttInboxParticipants(id); err != nil || v == nil || v.ChannelID != id {
+		return dberrors.ErrCorruptValue
+	}
+	if c := v.Channel; c != nil && (c.ChannelID != id || c.ChannelType != 1 || validateChannel(*c) != nil) {
 		return dberrors.ErrCorruptValue
 	}
 	if r := v.Runtime; r != nil && (r.ChannelID != id || r.ChannelType != 1 || r.DirectoryGeneration == 0 || validateChannelRuntimeMeta(*r) != nil) {
@@ -38,6 +42,13 @@ func (s *Shard) readMQTTInboxAdmission(ctx context.Context, id string) (*MQTTInb
 		return nil, dberrors.ErrInvalidArgument
 	}
 	v := &MQTTInboxAdmissionView{ChannelID: id}
+	c, hasChannel, e := channelTable.Get(ctx, s, KeyParts{String(id), Int64Ordered(1)})
+	if e != nil {
+		return nil, e
+	}
+	if hasChannel {
+		v.Channel = &c
+	}
 	r, found, err := channelRuntimeMetaTable.Get(ctx, s, channelRuntimeMetaPrimaryKey(id, 1))
 	if err != nil {
 		return nil, err

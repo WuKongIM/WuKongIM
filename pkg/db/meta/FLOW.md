@@ -50,7 +50,7 @@ It does not own product business policy or expose engine-specific APIs.
    list preserves earliest ACK gaps; exchange/cursor/session updates are atomic,
    and recovery uses immutable references in original send order.
    Source/UID bindings retain tombstones and discovery/recovery indexes; unknown boundaries block retention.
-   Retention pages pin at most limit+1 strict primary/index witnesses, rejecting missing or stale entries.
+   Retention and candidate pages pin at most limit+1 strict primary/index witnesses, rejecting missing or stale entries.
    Active-source discovery seeks retention-index prefixes; replay discovery also retains primary tombstones.
    Each pinned scan checks at most 65 owner witnesses, skipping whole subscriber prefixes.
    Tombstones keep cleanup discoverable without restoring consumer responsibility or proving GC.
@@ -59,7 +59,7 @@ It does not own product business policy or expose engine-specific APIs.
    Delays, execution leases and receipts are distinct; bodies are bounded/redacted.
    Bounded MQTT reads pin Session, children and indexes; kind 19 pins channel/member/sequence without the live channel cache.
    Kind 20 scans stable UID directory primary keys, including hidden/tombstoned and non-person candidates.
-   Kind 21 pins person runtime/admission progress; table 26 System 1 retains monotonic invalidations on runtime deletion. Private snapshots never replace writable shards; evidence grants no receive policy.
+   Kind 21 pins person directory/runtime/admission progress; table 26 System 1 retains monotonic invalidations on runtime deletion. Private snapshots never replace writable shards; evidence grants no receive policy.
 
 ## Invariants and Failure Semantics
 - Event sequence pages scan a pinned native iterator and retain a bounded heap,

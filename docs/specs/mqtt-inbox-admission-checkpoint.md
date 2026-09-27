@@ -50,7 +50,7 @@ The Node facade preserves foreground/maintenance admission and routes by the
 canonical Channel ID through existing Slot proposal handling.
 
 RPC **91**, read kind **21**, accepts only `admission_channel` and pins the
-runtime plus optional checkpoint in one snapshot after a fresh authority/apply
+business Channel, runtime and optional checkpoint in one snapshot after a fresh authority/apply
 barrier. An absent runtime may have no checkpoint or an invalidated checkpoint;
 live progress without runtime is corruption. Stale positive generations remain
 visible for reset, never automatically interpreted as readiness. New fields are
@@ -72,3 +72,8 @@ FSM batch rollback, recreation, exact retry, ownership and snapshot restore;
 and 256-hash-Slot two-node proxy fixtures with deliberately absent origin data,
 fresh apply barriers and changed authority. These deterministic tests do not
 prove product first-append admission or a full MQTT process E2E run.
+
+Read kind 21 now also carries the optional native Channel row from that same
+snapshot. The usecase requires its directory Ready marker and generation to
+match the runtime before scanning qualifications. This is an added read field,
+with no stored-format change; matching MQTT peers remain required.

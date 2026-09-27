@@ -47,7 +47,7 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
    SubscriptionRequests waits only for explicit pending work within attempts/deadline. Possible writes and pending intent mark errors Unconfirmed; entry cannot return a definitive negative ACK.
 8. Group preparation registers an unknown binding before fresh protection confirmation,
    fixes one start, initializes the cursor and activates the binding. GroupProjection adds all-replica replay confirmation and current intent/permission checks before a receipt.
-   InboxSources prepares one canonical person source from fresh UID qualification, including offline Sessions, using stored-owner/revision CAS without a connection grant. Closed intent skips new admission and retains cleanup debt.
+   InboxSources prepares one canonical person source from fresh qualification, including offline Sessions; closed intent retains cleanup debt. InboxAdmission waits for pinned native directory readiness, scans one bounded participant page, commits each prepared candidate and rechecks its incarnation.
 9. Replay maintenance rotates bounded copy/anchor admission, recovery and retirement under fresh placement.
    Targets pin anchors and scan/donor hints; placement resets hints and cold passes rotate work.
    Fenced turns only recover existing anchors; absent anchors yield without copying.

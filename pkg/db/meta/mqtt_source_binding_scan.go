@@ -28,21 +28,10 @@ func (s *Shard) ListMQTTSourceBindingCandidates(ctx context.Context, owner MQTTB
 	if limit < 1 || limit > 256 || validateMQTTBindingOwner(owner) != nil {
 		return nil, after, false, dberrors.ErrInvalidArgument
 	}
-	var cursor KeyParts
-	if after != (MQTTSourceBindingKey{}) {
-		if after.Owner != owner || validateMQTTSourceBindingKey(after) != nil {
-			return nil, after, false, dberrors.ErrInvalidArgument
-		}
-		cursor = mqttSourceBindingPrimaryKey(after)
+	if after != (MQTTSourceBindingKey{}) && (after.Owner != owner || validateMQTTSourceBindingKey(after) != nil) {
+		return nil, after, false, dberrors.ErrInvalidArgument
 	}
-	rows, next, done, err := mqttSourceBindingTable.ScanIndex(ctx, s, 2, mqttBindingOwnerParts(owner), cursor, limit)
-	if err != nil {
-		return nil, after, false, err
-	}
-	if len(next) > 0 {
-		after = mqttSourceBindingKeyFromParts(next)
-	}
-	return rows, after, done, nil
+	return s.readMQTTSourceCandidatesStrict(ctx, owner, after, limit)
 }
 
 // ListMQTTSourceBindingRecovery includes active reconciliation and unfinished

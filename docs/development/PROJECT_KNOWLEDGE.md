@@ -464,7 +464,12 @@ specification, runbook, report, or module documentation; link to them when neede
   command 74 and RPC 91 kind 21. Progress follows both canonical person UIDs;
   runtime deletion retains an invalidation with monotonic revision. Pinned reads
   expose the current directory generation separately from possibly stale progress.
-  Remote UID/source proofs and the automatic first-append hook remain caller work.
+  [Bounded admission turns](../specs/mqtt-inbox-admission-turn.md) reuse the pinned
+  native Channel Ready marker at the same directory generation before scanning
+  either UID. Each prepared/closed candidate commits progress independently;
+  strict candidate witnesses fail on missing/stale rows. Real single-node cluster
+  coverage joins the native projector, offline source preparation and first-message
+  replay/accounting. Automatic append-incarnation fencing remains required.
   See [Slot access](../specs/mqtt-slot-access.md); these APIs do not prove owner
   isolation, replica capability activation or safe restored-owner execution.
   Message System 12 materializes source-incarnation protection and copy receipt

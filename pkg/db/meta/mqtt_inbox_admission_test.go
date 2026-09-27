@@ -101,3 +101,28 @@ func TestMQTTInboxAdmissionResumesBothParticipantsAndFencesIncarnations(t *testi
 	row.Revision = 9
 	require.Equal(t, MQTTSessionCASApplied, writeMQTTInboxAdmission(t, s.db, 8, row).Status)
 }
+
+func TestMQTTInboxAdmissionPinsDirectoryReadinessWithItsIncarnation(t *testing.T) {
+	s := openTestMetaStore(t)
+	defer s.close(t)
+	ctx := context.Background()
+	id := mqttInboxAdmissionFixture().ChannelID
+	_, err := s.db.HashSlot(9).UpsertChannelRuntimeMeta(ctx, testRuntimeMeta(id, 1))
+	require.NoError(t, err)
+	channel := Channel{ChannelID: id, ChannelType: 1, DirectoryProjectionState: DirectoryProjectionReady, DirectoryProjectionGeneration: 1}
+	require.NoError(t, s.db.HashSlot(9).UpsertChannel(ctx, channel))
+	snap, err := s.engine.NewSnapshot()
+	require.NoError(t, err)
+	defer snap.Close()
+	frozen := &Shard{db: s.db, hashSlot: 9, readSnapshot: snap}
+	require.NoError(t, s.db.HashSlot(9).DeleteChannel(ctx, id, 1))
+	q := MQTTRead{Kind: MQTTReadInboxAdmission, AdmissionChannel: id}
+	old, err := frozen.readMQTTState(ctx, q)
+	require.NoError(t, err)
+	require.Equal(t, channel, *old.Admission.Channel)
+	require.EqualValues(t, 1, old.Admission.Runtime.DirectoryGeneration)
+	live, err := s.db.ReadMQTTState(ctx, 9, q)
+	require.NoError(t, err)
+	require.Nil(t, live.Admission.Channel)
+	require.EqualValues(t, 2, live.Admission.Runtime.DirectoryGeneration)
+}
