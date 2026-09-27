@@ -48,10 +48,15 @@ func (c *ReplayCoordinator) Confirm(parent context.Context, source meta.MQTTBind
 	authority := ch.MQTTReplayCopyAuthority(m)
 	q.ExpectedChannelEpoch, q.ExpectedLeaderEpoch, q.ExpectedRouteGeneration = m.Epoch, m.LeaderEpoch, m.RouteGeneration
 	plan, err := c.options.Channels.PlanChannelMQTTReplay(ctx, q)
-	if err != nil {
-		return err
+	if stopped := ctx.Err(); stopped != nil {
+		return stopped
 	}
-	if err = ctx.Err(); err != nil {
+	if err != nil {
+		// Planning admits no copy or anchor. Typed read-admission yields retain
+		// Preparing intent; every later attempt must read fresh authority/progress.
+		if errors.Is(err, ch.ErrNotReady) || errors.Is(err, ch.ErrBackpressured) {
+			return errors.Join(ErrReplayPending, err)
+		}
 		return err
 	}
 	if !plan.ValidFor(q) || startAfter <= plan.Source.StartAfter || startAfter > plan.Source.CommittedThrough {

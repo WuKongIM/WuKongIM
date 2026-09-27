@@ -185,3 +185,72 @@ func TestReplayConfirmationAwaitsReplicaCheckpointWithoutAcceptingFailure(t *tes
 		})
 	}
 }
+
+// The initial query and Step's fresh query are both planning reads. Neither may
+// turn temporary read admission into a false receipt or an unknown write retry.
+func TestReplayConfirmationAwaitsPlanningReadiness(t *testing.T) {
+	for _, stage := range []string{"initial", "nested"} {
+		for _, tc := range []struct {
+			name              string
+			failure           error
+			pending, canceled bool
+		}{
+			{name: "not-ready", failure: ch.ErrNotReady, pending: true},
+			{name: "pressure", failure: ch.ErrBackpressured, pending: true},
+			{name: "stale", failure: ch.ErrStaleMeta},
+			{name: "corrupt", failure: ch.ErrLogConflict},
+			{name: "invalid", failure: ch.ErrInvalidConfig},
+			{name: "unknown", failure: errors.New("planning result unavailable")},
+			{name: "deadline", failure: context.DeadlineExceeded},
+			{name: "canceled", failure: ch.ErrNotReady, canceled: true},
+		} {
+			t.Run(stage+"/"+tc.name, func(t *testing.T) {
+				c, f, source := newReplayFixture(t)
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				failingRead := 1
+				if stage == "nested" {
+					failingRead = 2
+				}
+				f.planRead = func(context.Context, ch.MQTTReplayPlanRequest) (ch.MQTTReplayPlan, error) {
+					if f.plans == failingRead {
+						if tc.canceled {
+							cancel()
+						}
+						return ch.MQTTReplayPlan{}, tc.failure
+					}
+					return f.plan, nil
+				}
+				err := c.Confirm(ctx, source, 2)
+				if tc.pending {
+					require.ErrorIs(t, err, ErrReplayPending)
+				} else {
+					require.NotErrorIs(t, err, ErrReplayPending)
+				}
+				if tc.canceled {
+					require.ErrorIs(t, err, context.Canceled)
+				} else {
+					require.ErrorIs(t, err, tc.failure)
+				}
+				require.Equal(t, failingRead, f.plans)
+				require.Zero(t, f.copies)
+				require.Zero(t, f.commits)
+				require.Zero(t, f.repairs)
+				require.False(t, f.plan.HasAnchor)
+				if !tc.pending {
+					return
+				}
+				f.planRead = nil
+				require.ErrorIs(t, c.Confirm(ctx, source, 2), ErrReplayPending, "a fresh copy/anchor still does not prove every replica")
+				require.Equal(t, 1, f.copies)
+				require.Equal(t, 1, f.commits)
+				require.Zero(t, f.repairs)
+				f.repair = func(context.Context, ch.MQTTReplayRecoveryRequest) (ch.MQTTReplayRecoveryResult, error) {
+					return ch.MQTTReplayRecoveryResult{Plan: ch.MQTTReplayRepairPlan{Current: f.proof.Prefix(), Target: f.proof, Complete: true}}, nil
+				}
+				require.NoError(t, c.Confirm(ctx, source, 2))
+				require.Equal(t, 3, f.repairs)
+			})
+		}
+	}
+}

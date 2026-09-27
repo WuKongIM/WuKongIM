@@ -52,7 +52,7 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
 9. Replay maintenance rotates bounded copy/anchor admission, recovery and retirement under fresh placement.
    Targets pin anchors and scan/donor hints; placement resets hints and cold passes rotate work.
    Fenced turns only recover existing anchors; absent anchors yield without copying.
-   Confirmation captures one anchor, checks every replica and rechecks placement; partial recovery remains pending. Pre-anchor copy and replica-recovery readiness/pressure yield explicit pending within the existing request bound; cancellation, unknown errors and anchor failures are not retried. Maintenance grants no consumer GC or SUBACK authority.
+   Confirmation captures one anchor, checks every replica and rechecks placement; partial recovery remains pending. Read-only planning, pre-anchor copy and replica-recovery readiness/pressure yield explicit pending within the existing request bound; cancellation, unknown errors and anchor failures are not retried. Maintenance grants no consumer GC or SUBACK authority.
 10. Accounting reads bounded anchored originals for online/offline debt, preserving QoS/No Local/expiry and exact revisions; quota ending proves no owner isolation.
     WindowAdmission checks originals/options and exact charges; original QoS 0 preclaims once. ExchangeRecovery reads begun exchanges across unsubscribe with original authorization/content identity.
     Sender serializes old recovery before new admission and checks final receive permission; ambiguity closes without retry. Only its private proved-enqueued QoS-0 token may rebase completion across unrelated revisions.

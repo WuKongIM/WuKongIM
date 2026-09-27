@@ -1,6 +1,6 @@
 # MQTT subscription closure diagnostics
 
-Status: fixed entry observations verified; underlying failure diagnosis in progress. This change supplies
+Status: entry observations and planning-read readiness verified; underlying failure diagnosis in progress. This change supplies
 missing observations; it does not claim to fix the historical initial SUBSCRIBE
 failure or post-resume EOF.
 
@@ -79,3 +79,44 @@ one warmed cluster omit repeated process startup. Exact commands and artifact
 hashes are in [the admission report](../reports/mqtt-cold-subscribe-admission.json).
 The two historical connection failures remain unresolved; no retry or timeout
 policy was changed by this work.
+
+## Planning-read readiness inventory (before implementation)
+
+A replay planning query is read-only with respect to consumer intent and anchor
+admission. Typed `channel.ErrNotReady`/`ErrBackpressured` from that query should
+keep existing Preparing intent pending under the existing request attempt/time
+bound. The initial Confirm query and its nested Step query must both preserve
+that classification. This is a separate code-path defect hypothesis; the
+historical natural closure has not yet been observed at this boundary.
+
+- No copy, anchor mutation, replica completion or successful SUBACK may follow a
+  failed plan read. A later attempt must start from fresh authority/plan reads.
+- Only typed readiness/capacity yields gain `ErrReplayPending`; unknown errors,
+  deadlines, stale authority, corruption and invalid configuration do not.
+- Synchronous cancellation after the read wins over its readiness classification.
+- Recovery must still confirm every replica and exact captured anchor before
+  completion. Anchor write outcomes and metadata authority failures retain their
+  existing policy; this change cannot grant generic retries.
+- The initial and nested paths need deterministic RED coverage before changes.
+
+The sixteen initial/nested planning cases ran RED before implementation: typed
+readiness/capacity cases lacked pending and cancellation lost to the plan error.
+They now pass (race, 1.890s). Production changes only classify those read-only
+admission yields and give synchronous cancellation precedence. Existing copy,
+anchor and all-replica proof rules remain in force. The complete usecase/access/app
+race runs passed (112.323s / 1.937s / 5.132s), as did the FLOW named check.
+
+The startup-only loop separately passed 20 fresh-process repetitions without the
+gofail control endpoint (248.170s), then 20 with the original control endpoint and
+WaitListed readiness but no enabled fault (251.183s). The wider Subscribe/group/
+replay probes captured no failing stage in either profile. These passing runs
+preceded the planning fix and therefore cannot verify or explain that fix.
+
+The updated candidate passed all eight interrupted-SUBSCRIBE and eight
+interrupted-UNSUBSCRIBE product-process cases (266.172s / 224.640s): both
+256-Slot topologies, inbox/group, and both intent/final-completion interruption
+boundaries. The evidence verifies offline completion before reconnect, original
+message/PacketID recovery and fresh delivery; UNSUBSCRIBE also verifies the exact
+fixed closure observation. These controlled request failures are not abrupt
+crash/partition proofs. See [the planning report](../reports/mqtt-plan-readiness.json).
+The initial natural SUBSCRIBE failure and historical post-resume EOF remain open.

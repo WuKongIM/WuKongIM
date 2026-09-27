@@ -97,10 +97,15 @@ func (c *ReplayCoordinator) Step(parent context.Context, source meta.MQTTBinding
 	}
 	q.ExpectedChannelEpoch, q.ExpectedLeaderEpoch, q.ExpectedRouteGeneration = m.Epoch, m.LeaderEpoch, m.RouteGeneration
 	plan, err := c.options.Channels.PlanChannelMQTTReplay(ctx, q)
-	if err != nil {
-		return out, err
+	if stopped := ctx.Err(); stopped != nil {
+		return out, stopped
 	}
-	if err = ctx.Err(); err != nil {
+	if err != nil {
+		// Planning admits no copy or anchor. Typed read-admission yields retain
+		// Preparing intent; every later attempt must read fresh authority/progress.
+		if errors.Is(err, ch.ErrNotReady) || errors.Is(err, ch.ErrBackpressured) {
+			return out, errors.Join(ErrReplayPending, err)
+		}
 		return out, err
 	}
 	if !plan.ValidFor(q) {

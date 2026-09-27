@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- MQTT subscription preparation now waits within its existing bound when read-only replay planning is temporarily unready or backpressured; cancellation still stops the request and all-replica confirmation remains required. / MQTT 订阅准备遇到只读回放规划暂未就绪或容量压力时，在既有时限内等待；取消仍会终止请求，且保持全部副本确认要求。
+
 - MQTT now exposes fixed SUBSCRIBE/UNSUBSCRIBE failure counters to distinguish closure paths without recording client identities or message content.
 - MQTT 新增固定分类的订阅/退订失败计数，便于定位断连路径，不记录客户端身份或消息内容。
 

@@ -1246,3 +1246,18 @@ specification, runbook, report, or module documentation; link to them when neede
   Candidate and error-only-probe runs pass; the intermittent initial SUBSCRIBE
   error is still unreproduced by this focused loop, so process-startup conditions
   remain an open distinction. See [evidence](../reports/mqtt-cold-subscribe-admission.json).
+
+- Replay planning is a read-only admission boundary. Confirm and nested Step now
+  preserve typed NotReady/Backpressured as bounded pending, with synchronous
+  cancellation taking precedence. Unknown, stale, corrupt and anchor-write
+  outcomes gain no retry. The deterministic planning regressions, full related race suites and all 16
+  subscribe/unsubscribe interruption process cases pass; causal relation to the
+  intermittent SUBSCRIBE/EOF failures is still unproven. See
+  [evidence](../reports/mqtt-plan-readiness.json).
+
+- Ended-record cleanup must not simply delete Removed source bindings:
+  `CompareAndSwapMQTTSourceBinding` uses the retained row to reject resurrection,
+  while an absent row permits a revision-zero Preparing create. Any future
+  physical tombstone retirement needs a durable rejection boundary for delayed
+  creates. Session child cleanup, detached Wills and ClientID/UID binding have
+  separate retention obligations; current code has not implemented that cleanup.

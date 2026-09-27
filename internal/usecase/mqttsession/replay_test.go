@@ -20,6 +20,7 @@ type replayCoordinatorFixture struct {
 	metaErr, planErr, copyErr, commitErr       error
 	metaCalls, plans, copies, commits, repairs int
 	id                                         uint64
+	planRead                                   func(context.Context, ch.MQTTReplayPlanRequest) (ch.MQTTReplayPlan, error)
 	afterCopy                                  func()
 	repair                                     func(context.Context, ch.MQTTReplayRecoveryRequest) (ch.MQTTReplayRecoveryResult, error)
 }
@@ -28,8 +29,11 @@ func (f *replayCoordinatorFixture) ResolveChannelMetaFresh(context.Context, ch.C
 	f.metaCalls++
 	return f.m, f.metaErr
 }
-func (f *replayCoordinatorFixture) PlanChannelMQTTReplay(context.Context, ch.MQTTReplayPlanRequest) (ch.MQTTReplayPlan, error) {
+func (f *replayCoordinatorFixture) PlanChannelMQTTReplay(ctx context.Context, q ch.MQTTReplayPlanRequest) (ch.MQTTReplayPlan, error) {
 	f.plans++
+	if f.planRead != nil {
+		return f.planRead(ctx, q)
+	}
 	return f.plan, f.planErr
 }
 func (f *replayCoordinatorFixture) CopyChannelMQTTReplay(context.Context, ch.MQTTReplayRequest) (ch.MQTTReplayCopyReceipt, error) {

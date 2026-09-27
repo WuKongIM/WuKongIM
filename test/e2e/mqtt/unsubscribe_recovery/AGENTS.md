@@ -22,3 +22,15 @@ the intermittent setup failure is repaired. It needs no gofail build: one real t
 SUBSCRIBE, publications or unsubscribe faults. It emits a bounded JSON result on
 success or failure, including fixed closure observations and per-attempt latency.
 Run it with `GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/unsubscribe_recovery -run '^TestColdGroupSubscriptionAdmission$' -count=1 -timeout=3m -v`.
+
+`TestColdStartupGroupSubscriptionAdmission` uses the same first-subscription
+assertions but performs only one admission per fresh three-node cluster. Use
+`-count=N -failfast` with an explicit bounded timeout to distinguish process
+startup from repeated cold groups in a warmed cluster. It emits
+`mqtt-startup-group-subscribe.json`; repetitions overwrite that last-result file
+while the test log retains every verdict. It also requires no enabled failpoint.
+
+When `WK_E2E_GOFAIL_MQTT=1`, the startup-only loop also preserves the original
+scenario's gofail HTTP endpoints and WaitListed readiness queries, but enables
+no fault. This profile requires an instrumented binary; the default startup-only
+profile works with an ordinary product binary. The artifact records the profile.

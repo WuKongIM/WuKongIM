@@ -259,11 +259,29 @@ func runRecovery(t *testing.T, count int, target, cut string) {
 // observed before the unsubscribe fault is enabled. One cluster amortizes startup while each
 // attempt uses a fresh group and persistent Session, without request retries.
 func TestColdGroupSubscriptionAdmission(t *testing.T) {
+	runColdGroupSubscriptionAdmission(t, 64)
+}
+
+// TestColdStartupGroupSubscriptionAdmission retains process startup for every
+// repetition; it does not substitute new groups in an already warmed cluster.
+func TestColdStartupGroupSubscriptionAdmission(t *testing.T) {
+	runColdGroupSubscriptionAdmission(t, 1)
+}
+
+func runColdGroupSubscriptionAdmission(t *testing.T, attempts int) {
+	t.Helper()
 	s := suite.New(t)
 	var options []suite.Option
 	addrs := make([]string, 3)
+	var faults []suite.GofailEndpoint
+	withFaultControl := attempts == 1 && os.Getenv("WK_E2E_GOFAIL_MQTT") == "1"
 	for i := range addrs {
 		addrs[i] = suite.ReserveLoopbackPorts(t).GatewayAddr
+		if withFaultControl {
+			endpoint := suite.ReserveGofailEndpoint(t)
+			faults = append(faults, endpoint)
+			options = append(options, suite.WithNodeEnv(uint64(i+1), endpoint.Env()))
+		}
 		options = append(options, suite.WithNodeConfigOverrides(uint64(i+1), map[string]string{"WK_CLUSTER_HASH_SLOT_COUNT": "256", "WK_GATEWAY_TOKEN_AUTH_ON": "true", "WK_MQTT_ENABLE": "true", "WK_MQTT_LISTEN_ADDR": addrs[i]}))
 	}
 	cluster := s.StartThreeNodeCluster(append(options, suite.WithManagerHTTP())...)
@@ -275,13 +293,18 @@ func TestColdGroupSubscriptionAdmission(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
 	defer cancel()
 	first, last := cluster.MustNode(1), cluster.MustNode(3)
-	const attempts = 64
+	for _, endpoint := range faults {
+		call, done := context.WithTimeout(ctx, 3*time.Second)
+		_, err := endpoint.WaitListed(call, intentFault, completionFault)
+		done()
+		require.NoError(t, err)
+	}
 	durations := make([]int64, 0, attempts)
 	completed := 0
 	step := "credentials"
 	var observations []map[string]any
 	defer func() {
-		report := map[string]any{"scenario": "cold-group-subscribe", "nodes": 3, "hash_slots": 256, "attempt_limit": attempts, "completed": completed, "passed": !t.Failed() && completed == attempts, "last_step": step, "foreground_retries": 0, "subscribe_elapsed_us": durations, "closure_observations": observations}
+		report := map[string]any{"fault_control_enabled": withFaultControl, "scenario": "cold-group-subscribe", "nodes": 3, "hash_slots": 256, "attempt_limit": attempts, "completed": completed, "passed": !t.Failed() && completed == attempts, "last_step": step, "foreground_retries": 0, "subscribe_elapsed_us": durations, "closure_observations": observations}
 		dir := os.Getenv("WK_E2E_MQTT_REPORT_DIR")
 		if dir == "" {
 			dir = first.Spec.RootDir
@@ -289,7 +312,11 @@ func TestColdGroupSubscriptionAdmission(t *testing.T) {
 		require.NoError(t, os.MkdirAll(dir, 0755))
 		data, err := json.MarshalIndent(report, "", "  ")
 		require.NoError(t, err)
-		path := filepath.Join(dir, "mqtt-cold-group-subscribe.json")
+		name := "mqtt-cold-group-subscribe.json"
+		if attempts == 1 {
+			name = "mqtt-startup-group-subscribe.json"
+		}
+		path := filepath.Join(dir, name)
 		require.NoError(t, os.WriteFile(path, append(data, '\n'), 0600))
 		t.Logf("result artifact: %s", path)
 	}()
