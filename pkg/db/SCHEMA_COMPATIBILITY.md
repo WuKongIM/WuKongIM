@@ -171,7 +171,7 @@ without resetting its revision; ordinary Channel deletion advances the runtime
 incarnation. RPC 91 kind 21 pins both records. Native Hash-Slot snapshots preserve
 the existing System span without a framing change. Older writers cannot retain
 these fences, so matching writers/tools and a pre-feature rollback backup are
-required. MQTT JSONL transfer and automatic append admission remain pending.
+required. MQTT JSONL transfer and full product activation remain pending.
 See [admission checkpoints](../../docs/specs/mqtt-inbox-admission-checkpoint.md).
 Command 69 operation 3 explicitly initializes empty cancelled preparation after
 closed/replaced subscription intent. It preserves existing row/envelope formats
@@ -194,7 +194,11 @@ index 4 stays unchanged and nonunique client-number index 3 also covers Wills.
 Only new keyed records use index 8, so no legacy backfill is needed. All writers,
 deletions and portable imports maintain it; older readers reject v2 metadata.
 Product execution/authority wiring remains required. Source bindings
-have separate Channel/UID ownership and retain removal tombstones; their proof revisions do
+have separate Channel/UID ownership and retain removal tombstones; UID discovery
+checkpoints accept the native directory limit of 4096 ID bytes. This expands
+validation only, preserving column/envelope/index encodings. Older binaries
+reject checkpoints above 1024 bytes, so matched readers/writers/tools and a
+pre-feature rollback backup are required. Their proof revisions do
 not establish remote authority by themselves. Optional window columns retain
 legacy zero defaults; lifecycle CAS preserves delivery-owned counters and
 allocators within a generation. Rows use key-bound checksum column envelopes;

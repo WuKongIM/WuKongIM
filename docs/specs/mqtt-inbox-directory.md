@@ -18,6 +18,20 @@
 - Older requests/replies must retain their JSON shape; old peers reject the new
   kind. This is a matched-binary addition, not a new table or RPC service.
 
+## Durable cursor bounds
+
+The initial-projection checkpoint must accept every legal directory candidate,
+including 1025–4096-byte IDs belonging to other channel types or tombstones.
+Failure inventory: scan success must not be followed by an unpersistable cursor;
+UTF-8 bounds are bytes, not characters; values over 4096 bytes and invalid
+identities must fail; checkpoint ordering cannot regress; backup verification
+and restore must preserve the exact ID/type and permit resumption after it.
+
+The UID binding reuses directory-key validation for its existing discovery
+columns. No table, column, envelope or index changes. Long checkpoints require
+matched readers/writers/tools because older validation rejected IDs over 1024
+bytes. Preserve a pre-feature backup for rollback.
+
 ## Contract
 
 Read kind 20, `MQTTReadInboxDirectory`, uses an `MQTTBindingUID` Owner and the

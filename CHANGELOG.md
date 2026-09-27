@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Preserve MQTT inbox scan progress for every supported directory ID up to 4096 bytes, including snapshot restore. Matched readers and tools are required for long checkpoints; product access remains under development. / MQTT 收件箱扫描进度支持目录允许的最长 4096 字节频道 ID，并在快照恢复后保留；长游标需要匹配版本的读取节点和工具，产品接入仍在开发。
+
 - Prepare MQTT inbox sources automatically before ordinary persistent person writes through the shared appender, with bounded waiting and exact append fencing. Real single-node cluster coverage verifies offline first-message replay/accounting; complete MQTT product access remains under development. / 普通持久个人消息通过统一写入入口自动准备 MQTT 收件箱来源，等待有界并校验精确追加版本。真实单节点集群验证离线首条消息回放与计量；完整 MQTT 产品接入仍在开发。
 
 - Preserve exact prepared-append authority through fresh cluster routing, forwarding and durable queues; person-directory deletion now advances the append fence atomically. MQTT automatic admission and product access remain under development. / 消息追加可携带准备时的精确版本，经过集群读取、转发和持久化队列仍保留校验；删除个人频道目录时原子推进追加版本。MQTT 自动准入和产品接入仍在开发。

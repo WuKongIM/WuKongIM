@@ -76,7 +76,7 @@ type MQTTSourceBinding struct {
 	EndKnown      bool                     `json:"end_known"`
 	EndThrough    uint64                   `json:"end_through"`
 	ReleaseReason MQTTBindingReleaseReason `json:"release_reason"`
-	// Discovery uses stable UID membership primary order, not conversation activity.
+	// Discovery uses native directory ID/type bounds and stable UID primary order.
 	DiscoveryAfterChannelID   string `json:"discovery_after_channel_id"`
 	DiscoveryAfterChannelType uint8  `json:"discovery_after_channel_type"`
 	DiscoveryDone             bool   `json:"discovery_done"`
@@ -136,7 +136,7 @@ func ValidateMQTTSourceBinding(r MQTTSourceBinding) error {
 			if r.DiscoveryAfterChannelType != 0 {
 				return dberrors.ErrInvalidArgument
 			}
-		} else if validateMQTTIdentity(r.DiscoveryAfterChannelID, 1024) != nil || r.DiscoveryAfterChannelType == 0 {
+		} else if validateMQTTDirectoryKey(ChannelKey{ChannelID: r.DiscoveryAfterChannelID, ChannelType: int64(r.DiscoveryAfterChannelType)}) != nil {
 			return dberrors.ErrInvalidArgument
 		}
 		return nil

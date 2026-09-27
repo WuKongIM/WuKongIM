@@ -58,7 +58,7 @@ It does not own product business policy or expose engine-specific APIs.
    resolve old Will atomically; new ownership may install a new configuration.
    Delays, execution leases and receipts are distinct; bodies are bounded/redacted.
    Bounded MQTT reads pin Session, children and indexes; kind 19 pins channel/member/sequence without the live channel cache.
-   Kind 20 scans stable UID directory primary keys, including hidden/tombstoned and non-person candidates.
+   Kind 20 scans stable UID directory primary keys, including hidden/tombstoned and non-person candidates; UID binding checkpoints share its 4096-byte ID bound.
    Kind 21 pins person directory/runtime/admission progress; table 26 System 1 retains monotonic invalidations on runtime deletion. Private snapshots never replace writable shards; evidence grants no receive policy.
 
 ## Invariants and Failure Semantics
