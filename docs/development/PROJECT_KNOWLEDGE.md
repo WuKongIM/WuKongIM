@@ -659,6 +659,11 @@ specification, runbook, report, or module documentation; link to them when neede
   Generic CAS cannot change a referenced live Will or bypass its lifecycle. Server
   Will retry identities use message index 8 with publication metadata v2; native
   client index 4 remains separate and index 3 includes Will client-number history.
+  Index 8 is removed with physical history deletion; a miss after an uncertain
+  Will append is not proof of nonpublication. Execution recovery still needs a
+  retained receipt/protected original across cleanup and restore. Expired task
+  leases alone cannot discharge an append with an unknown outcome; see the
+  [Will execution failure inventory](../specs/mqtt-will-idempotency.md#execution-recovery-constraints).
   Setup reserves its 79-byte identity tail. Server lookup requires the original
   committed proof and fails closed without its capability; prefix strings alone
   confer no server identity. Fenced execution and retention through ambiguous

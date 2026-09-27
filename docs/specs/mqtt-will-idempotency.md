@@ -60,6 +60,35 @@ separate acceptance requirement.
    Runtime retries fail to retain original body/time/identity after an edit,
    takeover or ambiguous commit. These require follow-on mapping/runtime tests.
 
+## Execution recovery constraints
+
+The executor is still required. At source `d9f660450`, original committed lookup
+and index 8 cannot independently prove a publication absent after an uncertain
+append. `pkg/db/message/truncate.go` deletes the derived Will index together with
+the primary row; `TestWillIdempotencySeparateDomainsSurviveReopenBackupAndDeletion`
+explicitly verifies that lookup misses after physical prefix trim. The existing
+index contract must not be reported as retention-independent execution recovery.
+
+Additional failure inventory before implementing the executor:
+
+10. A Will append commits, its reply or the final Will CAS is lost, and ordinary
+    history is physically trimmed before retry. Recovery must retain a committed
+    receipt or protect its original proof until the detached task can finish;
+    a missing index cannot authorize a new business message. This includes
+    backup/restore and Channel incarnation changes, not only process restart.
+11. An execution lease expires while an admitted append has an unknown outcome.
+    A successor cannot treat wall-clock expiry as proof that the old append has
+    stopped. In particular, later permission denial must not discharge ambiguous
+    publication responsibility as a definitive rejection. Every actual publish
+    still requires fresh authorization and bounded, fenced execution.
+12. A committed Will is found after permission changes. Recover its original
+    MessageID, sequence, timestamp and server identity before deciding whether a
+    new publication is needed; do not restart the expiry clock or overwrite the
+    old receipt with an authorization failure.
+
+These are outstanding execution/retention requirements, not newly implemented
+storage semantics or evidence that the product MQTT listener is ready.
+
 ## Frozen implementation context
 
 Source `84b99eb1d`; applicable SHA-256 digests:
