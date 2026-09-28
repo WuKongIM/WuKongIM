@@ -136,7 +136,7 @@ func ValidateMQTTSourceBinding(r MQTTSourceBinding) error {
 	if validateMQTTSourceBindingKey(r.Key) != nil || validateMQTTIdentity(r.UID, 1024) != nil || validateMQTTIdentity(r.Topic, 2048) != nil || validateMQTTIdentity(r.OperationID, 128) != nil || r.Revision == 0 || r.IntentRevision == 0 || r.UpdatedAtMS <= 0 || r.ProtectionRevision > r.Revision {
 		return dberrors.ErrInvalidArgument
 	}
-	if r.Stage < MQTTBindingPreparing || r.Stage > MQTTBindingRemoved || (r.Stage == MQTTBindingRemoved && r.RecoveryAtMS != 0) || (r.Stage != MQTTBindingRemoved && r.RecoveryAtMS <= 0) {
+	if r.Stage < MQTTBindingPreparing || r.Stage > MQTTBindingRemoved || (r.Stage == MQTTBindingRemoved && r.RecoveryAtMS < 0) || (r.Stage != MQTTBindingRemoved && r.RecoveryAtMS <= 0) {
 		return dberrors.ErrInvalidArgument
 	}
 	if r.ReleaseReason > MQTTBindingSessionEnded || (r.Stage < MQTTBindingRemoving && r.ReleaseReason != 0) || (r.ReleaseReason == MQTTBindingDrained && r.Stage != MQTTBindingRemoved) || (r.ReleaseReason == MQTTBindingSessionEnded && r.ProgressRevision == 0) || (r.Stage == MQTTBindingRemoved && r.ReleaseReason == 0) {
@@ -244,7 +244,14 @@ func (b *Batch) CompareAndSwapMQTTSourceBinding(slot HashSlot, expected uint64, 
 }
 
 func validMQTTSourceBindingTransition(old, next MQTTSourceBinding) bool {
-	if old.Stage == MQTTBindingRemoved || next.Stage < old.Stage || next.Stage > old.Stage+1 && !(old.Stage == MQTTBindingPreparing && next.Stage == MQTTBindingRemoving) {
+	if old.Stage == MQTTBindingRemoved {
+		// A tombstone only defers its retirement attempt: every other field,
+		// including Stage, stays identical and the schedule moves forward.
+		deferred := next
+		deferred.Revision, deferred.UpdatedAtMS, deferred.RecoveryAtMS = old.Revision, old.UpdatedAtMS, old.RecoveryAtMS
+		return deferred == old && next.UpdatedAtMS >= old.UpdatedAtMS && next.RecoveryAtMS > old.RecoveryAtMS
+	}
+	if next.Stage < old.Stage || next.Stage > old.Stage+1 && !(old.Stage == MQTTBindingPreparing && next.Stage == MQTTBindingRemoving) {
 		return false
 	}
 	if old.UID != next.UID || old.Topic != next.Topic || old.AuthorizationVersion != next.AuthorizationVersion || old.OperationID != next.OperationID || next.IntentRevision < old.IntentRevision || next.ProgressRevision < old.ProgressRevision || next.ProtectionRevision < old.ProtectionRevision {

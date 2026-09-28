@@ -50,7 +50,8 @@ var mqttSourceBindingTable = registerMetaTable(TableSpec[MQTTSourceBinding]{
 			return mqttSourceBindingPrimaryKey(r.Key), r.Stage == MQTTBindingPreparing || r.Stage == MQTTBindingActive
 		}},
 		{ID: 3, Name: "idx_mqtt_source_binding_recovery", Columns: []uint16{25, 1, 2, 3, 4, 5, 6, 7}, Layout: KeyLayout{KeyInt64Ordered, KeyUint8, KeyString, KeyString, KeyString, KeyString, KeyUint64, KeyUint64}, CorruptIndexKeyIsError: true, Key: func(r MQTTSourceBinding) (KeyParts, bool) {
-			return append(KeyParts{Int64Ordered(r.RecoveryAtMS)}, mqttSourceBindingPrimaryKey(r.Key)...), r.Stage != MQTTBindingRemoved
+			// Removed rows stay indexed only while scheduled for tombstone retirement.
+			return append(KeyParts{Int64Ordered(r.RecoveryAtMS)}, mqttSourceBindingPrimaryKey(r.Key)...), r.Stage != MQTTBindingRemoved || r.RecoveryAtMS > 0
 		}},
 		{ID: 4, Name: "idx_mqtt_source_binding_retention", Columns: []uint16{1, 2, 3, 28, 4, 5, 6, 7}, Layout: KeyLayout{KeyUint8, KeyString, KeyString, KeyUint64, KeyString, KeyString, KeyUint64, KeyUint64}, CorruptIndexKeyIsError: true, Key: func(r MQTTSourceBinding) (KeyParts, bool) {
 			return mqttSourceBindingRetentionParts(r.Key, r.CompletedThrough), r.Key.Owner.Kind == MQTTBindingChannel && r.Stage != MQTTBindingRemoved
