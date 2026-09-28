@@ -18,7 +18,11 @@ type mqttSourceBindingRetirePayload struct {
 	Key              metadb.MQTTSourceBindingKey `json:"key"`
 	ExpectedRevision uint64                      `json:"expected_revision"`
 	// ClosedThrough is the Session generation the caller proved has ended.
-	ClosedThrough uint64 `json:"closed_through"`
+	ClosedThrough uint64 `json:"closed_through,omitempty"`
+	// LiveSubscriptionThrough is the subscription generation through which the
+	// caller proved every subscription of the still-live Session was Removed.
+	// Exactly one of ClosedThrough and LiveSubscriptionThrough is non-zero.
+	LiveSubscriptionThrough uint64 `json:"live_subscription_through,omitempty"`
 }
 
 type mqttSourceBindingRetireCmd struct {
@@ -28,6 +32,10 @@ type mqttSourceBindingRetireCmd struct {
 
 func (c *mqttSourceBindingRetireCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
 	var err error
+	if c.payload.LiveSubscriptionThrough != 0 {
+		c.result, err = wb.RetireLiveMQTTSourceBinding(hashSlot, c.payload.Key, c.payload.ExpectedRevision, c.payload.LiveSubscriptionThrough)
+		return err
+	}
 	c.result, err = wb.RetireMQTTSourceBinding(hashSlot, c.payload.Key, c.payload.ExpectedRevision, c.payload.ClosedThrough)
 	return err
 }
@@ -55,6 +63,22 @@ func EncodeMQTTSourceBindingRetireCommand(key metadb.MQTTSourceBindingKey, expec
 	return append([]byte{commandVersion, cmdTypeMQTTSourceBindingRetire}, body...), nil
 }
 
+// EncodeMQTTSourceBindingLiveRetireCommand deletes one acknowledged Removed
+// tombstone of a still-live Session. The use case must first read the Session
+// Slot proving the lifetime is current and every subscription through
+// subscriptionThrough is Removed.
+func EncodeMQTTSourceBindingLiveRetireCommand(key metadb.MQTTSourceBindingKey, expected, subscriptionThrough uint64) ([]byte, error) {
+	p := mqttSourceBindingRetirePayload{Version: 1, Key: key, ExpectedRevision: expected, LiveSubscriptionThrough: subscriptionThrough}
+	if err := validateMQTTSourceBindingRetirePayload(p); err != nil {
+		return nil, err
+	}
+	body, err := json.Marshal(p)
+	if err != nil {
+		return nil, err
+	}
+	return append([]byte{commandVersion, cmdTypeMQTTSourceBindingRetire}, body...), nil
+}
+
 func decodeMQTTSourceBindingRetireCommand(data []byte) (command, error) {
 	if len(data) > maxMQTTSourceBindingRetireBytes-headerSize {
 		return nil, metadb.ErrInvalidArgument
@@ -76,7 +100,8 @@ func decodeMQTTSourceBindingRetireCommand(data []byte) (command, error) {
 }
 
 func validateMQTTSourceBindingRetirePayload(p mqttSourceBindingRetirePayload) error {
-	if p.Version != 1 || p.ExpectedRevision == 0 || p.Key.SessionGeneration == 0 || p.ClosedThrough < p.Key.SessionGeneration {
+	if p.Version != 1 || p.ExpectedRevision == 0 || p.Key.SessionGeneration == 0 || (p.ClosedThrough == 0) == (p.LiveSubscriptionThrough == 0) ||
+		p.ClosedThrough != 0 && p.ClosedThrough < p.Key.SessionGeneration || p.LiveSubscriptionThrough != 0 && p.LiveSubscriptionThrough < p.Key.SubscriptionGeneration {
 		return metadb.ErrInvalidArgument
 	}
 	return metadb.ValidateMQTTSourceBindingKey(p.Key)

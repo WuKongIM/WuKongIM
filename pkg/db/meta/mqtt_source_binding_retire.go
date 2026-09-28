@@ -361,3 +361,11 @@ func (b *Batch) RetireLiveMQTTSourceBinding(slot HashSlot, key MQTTSourceBinding
 	})
 	return result, nil
 }
+
+// RetireLiveMQTTSourceBinding stages live-Session tombstone retirement.
+func (b *WriteBatch) RetireLiveMQTTSourceBinding(slot uint16, key MQTTSourceBindingKey, expected, subscriptionThrough uint64) (*MQTTSourceBindingResult, error) {
+	if err := b.ensure(); err != nil {
+		return nil, err
+	}
+	return b.batch.RetireLiveMQTTSourceBinding(HashSlot(slot), key, expected, subscriptionThrough)
+}

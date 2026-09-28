@@ -48,6 +48,7 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 			"owner_kind": uint8(p.Key.Owner.Kind), "owner_id": p.Key.Owner.ID, "owner_generation": p.Key.Owner.Generation,
 			"broker_namespace": p.Key.Namespace, "client_id": p.Key.ClientID, "session_generation": p.Key.SessionGeneration,
 			"subscription_generation": p.Key.SubscriptionGeneration, "expected_revision": p.ExpectedRevision, "closed_through": p.ClosedThrough,
+			"live_subscription_through": p.LiveSubscriptionThrough,
 		}), nil
 	case *mqttReplayMarkerClearCmd:
 		o := typed.payload.Owner

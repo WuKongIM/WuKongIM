@@ -62,3 +62,43 @@ func TestMQTTSourceBindingRetireCommandFencesAcrossSnapshot(t *testing.T) {
 		require.Error(t, err)
 	}
 }
+
+func TestMQTTSourceBindingLiveRetireCommandFencesEndedSubscriptions(t *testing.T) {
+	ctx := context.Background()
+	sm, err := NewStateMachineWithHashSlots(openTestDB(t), 11, []uint16{9})
+	require.NoError(t, err)
+	cas := func(expected uint64, row metadb.MQTTSourceBinding) []byte {
+		raw, err := EncodeMQTTSourceBindingCommand(expected, row)
+		require.NoError(t, err)
+		return raw
+	}
+	r := mqttSourceBindingCommandFixture()
+	removing := r
+	removing.Revision, removing.Stage, removing.ReleaseReason, removing.ProgressRevision = 2, metadb.MQTTBindingRemoving, metadb.MQTTBindingSessionEnded, 2
+	removed := removing
+	removed.Revision, removed.Stage, removed.RecoveryAtMS, removed.ProtectionRevision = 3, metadb.MQTTBindingRemoved, 0, 2
+	live, err := EncodeMQTTSourceBindingLiveRetireCommand(r.Key, 3, r.Key.SubscriptionGeneration)
+	require.NoError(t, err)
+	later := r
+	later.Key.SubscriptionGeneration++
+	var commands []multiraft.Command
+	for i, raw := range [][]byte{cas(0, r), cas(1, removing), cas(2, removed), live, cas(0, r), cas(0, later)} {
+		commands = append(commands, multiraft.Command{SlotID: 11, HashSlot: 9, Index: uint64(i + 1), Term: 1, Data: raw})
+	}
+	results, err := sm.(multiraft.BatchStateMachine).ApplyBatch(ctx, commands)
+	require.NoError(t, err)
+	for i, want := range []metadb.MQTTSessionCASStatus{metadb.MQTTSessionCASApplied, metadb.MQTTSessionCASConflict, metadb.MQTTSessionCASApplied} {
+		var got metadb.MQTTSourceBindingResult
+		require.NoError(t, json.Unmarshal(results[i+3], &got))
+		require.Equal(t, want, got.Status, "result %d", i+3)
+	}
+	view, err := DecodeCommandInspection(live)
+	require.NoError(t, err)
+	require.Equal(t, r.Key.SubscriptionGeneration, view.Payload["live_subscription_through"])
+	// Exactly one watermark kind is accepted.
+	_, err = EncodeMQTTSourceBindingLiveRetireCommand(r.Key, 3, r.Key.SubscriptionGeneration-1)
+	require.Error(t, err)
+	both := append([]byte{1, 77}, []byte(`{"version":1,"key":{},"expected_revision":3,"closed_through":1,"live_subscription_through":2}`)...)
+	_, err = DecodeCommandInspection(both)
+	require.Error(t, err)
+}
