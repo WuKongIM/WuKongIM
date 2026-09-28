@@ -78,7 +78,7 @@ func (s *Service) commitMQTTReplayAnchor(ctx context.Context, q mqttAnchorForwar
 		if !ok {
 			return empty, ch.ErrInvalidConfig
 		}
-		if err = s.applyRuntimeMetaContext(ctx, meta, true, true); err != nil {
+		if err = s.applyRequestMetaContext(ctx, meta); err != nil {
 			return empty, err
 		}
 		proof, err = committer.CommitMQTTReplayAnchor(ctx, ch.MQTTReplayAnchorRequest{Meta: meta, Copy: q.Copy, MessageID: q.MessageID, ServerTimestampMS: q.ServerTimestampMS})

@@ -60,7 +60,7 @@ func (s *Service) readWillReceipt(ctx context.Context, q ch.WillReceiptRequest, 
 		if !ok {
 			return empty, ch.ErrInvalidConfig
 		}
-		if err = s.applyRuntimeMetaContext(ctx, meta, true, true); err != nil {
+		if err = s.applyRequestMetaContext(ctx, meta); err != nil {
 			return empty, err
 		}
 		proof, err = reader.ReadWillReceipt(ctx, q)

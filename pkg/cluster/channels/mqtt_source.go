@@ -120,7 +120,7 @@ func (s *Service) ensureMQTTSource(ctx context.Context, req ch.MQTTSourceRequest
 		if !ok {
 			return ch.MQTTSourceSnapshot{}, ch.ErrInvalidConfig
 		}
-		if err = s.applyRuntimeMetaContext(ctx, meta, true, true); err != nil {
+		if err = s.applyRequestMetaContext(ctx, meta); err != nil {
 			return ch.MQTTSourceSnapshot{}, err
 		}
 		source, err = activator.EnsureMQTTSource(ctx, req)

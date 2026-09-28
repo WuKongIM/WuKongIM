@@ -41,7 +41,7 @@ func (s *Service) applyAppendMeta(ctx context.Context, meta ch.Meta, route uint6
 	if route == 0 {
 		return s.applyRuntimeMeta(meta, false)
 	}
-	if err := s.applyRuntimeMetaContext(ctx, meta, true, true); err != nil {
+	if err := s.applyRequestMetaContext(ctx, meta); err != nil {
 		return err
 	}
 	return ctx.Err()

@@ -1781,6 +1781,19 @@ func (s *Service) applyRuntimeMeta(meta ch.Meta, authoritative bool) error {
 }
 
 func (s *Service) applyRuntimeMetaContext(ctx context.Context, meta ch.Meta, authoritative, bounded bool) error {
+	return s.applyRuntimeMetaWith(ctx, meta, authoritative, bounded, false)
+}
+
+// applyRequestMetaContext applies fresh authoritative metadata for one
+// request-owned call (MQTT source/replay/anchor/retirement, Will receipts and
+// prepared appends). Concurrent requests on one Channel contend for the same
+// shard lock, so it waits within the caller's deadline instead of failing as
+// not ready. Without a deadline it yields like the migration apply.
+func (s *Service) applyRequestMetaContext(ctx context.Context, meta ch.Meta) error {
+	return s.applyRuntimeMetaWith(ctx, meta, true, true, true)
+}
+
+func (s *Service) applyRuntimeMetaWith(ctx context.Context, meta ch.Meta, authoritative, bounded, wait bool) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
@@ -1803,7 +1816,10 @@ func (s *Service) applyRuntimeMetaContext(ctx context.Context, meta ch.Meta, aut
 	}
 	lock := &s.metaApplyLocks[channelMetaApplyLockIndex(meta.ID)]
 	if bounded {
-		if !lock.TryLock() {
+		if !lockWithinDeadline(ctx, lock, wait) {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			return ch.ErrNotReady
 		}
 	} else {
@@ -1823,6 +1839,33 @@ func (s *Service) applyRuntimeMetaContext(ctx context.Context, meta ch.Meta, aut
 		s.metaCache.installIfNewer(candidate.ID, candidate)
 	}
 	return nil
+}
+
+// lockWithinDeadline acquires lock without blocking past ctx. It polls with a
+// short capped backoff because sync.Mutex cannot be abandoned mid-Lock; only
+// waiters with a deadline poll, so the wait is always bounded.
+func lockWithinDeadline(ctx context.Context, lock *sync.Mutex, wait bool) bool {
+	if lock.TryLock() {
+		return true
+	}
+	if _, ok := ctx.Deadline(); !wait || !ok {
+		return false
+	}
+	delay := time.Millisecond
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return false
+		case <-timer.C:
+		}
+		if lock.TryLock() {
+			return true
+		}
+		delay = min(2*delay, 8*time.Millisecond)
+		timer.Reset(delay)
+	}
 }
 
 func channelMetaApplyLockIndex(id ch.ChannelID) int {

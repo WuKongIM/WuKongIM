@@ -120,7 +120,7 @@ func (s *Service) commitMQTTReplayRetirement(ctx context.Context, q mqttRetireme
 		if !ok || s.replicaCommitRefresh == nil {
 			return empty, ch.ErrInvalidConfig
 		}
-		if err = s.applyRuntimeMetaContext(ctx, m, true, true); err != nil {
+		if err = s.applyRequestMetaContext(ctx, m); err != nil {
 			return empty, err
 		}
 		p, err = committer.CommitMQTTReplayRetirement(ctx, q.request(m))

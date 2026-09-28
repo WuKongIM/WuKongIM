@@ -72,7 +72,7 @@ func (s *Service) prepareMQTTReplay(ctx context.Context, req ch.MQTTReplayReques
 		if !ok {
 			return ch.MQTTReplayPage{}, ch.ErrInvalidConfig
 		}
-		if err = s.applyRuntimeMetaContext(ctx, meta, true, true); err != nil {
+		if err = s.applyRequestMetaContext(ctx, meta); err != nil {
 			return ch.MQTTReplayPage{}, err
 		}
 		page, err = preparer.PrepareMQTTReplay(ctx, req)

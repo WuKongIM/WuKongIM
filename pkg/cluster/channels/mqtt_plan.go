@@ -58,7 +58,7 @@ func (s *Service) planMQTTReplay(ctx context.Context, q ch.MQTTReplayPlanRequest
 		if !ok {
 			return empty, ch.ErrInvalidConfig
 		}
-		if err = s.applyRuntimeMetaContext(ctx, m, true, true); err != nil {
+		if err = s.applyRequestMetaContext(ctx, m); err != nil {
 			return empty, err
 		}
 		p, err = planner.PlanMQTTReplay(ctx, q)

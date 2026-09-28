@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Concurrent MQTT SUBSCRIBE requests to the same group no longer disconnect with an unclassified failure; per-request Channel metadata application now waits for a contended shard lock within the request deadline instead of failing as not ready. / 多个客户端同时订阅同一群时，不再因未分类错误被断开；按请求应用频道元数据时，遇到分片锁竞争会在请求时限内等待，而不是直接返回未就绪。
+
 - Persistent MQTT Sessions now resume immediately after the owning node process crashes (SIGKILL, OOM, power loss) and restarts; a data-directory lock proves the previous boot is gone. A second process on the same data directory cannot start MQTT. / 持有 MQTT 持久会话的节点进程崩溃（SIGKILL、OOM、断电）重启后，会话可立即恢复；数据目录锁用于证明上一个进程已退出，同一数据目录的第二个进程无法启动 MQTT。
 
 - Automatically reclaim ended MQTT Session children through the bounded consumer task pool, confirming exact-owner isolation when required and preserving successor lifetimes. Preserve cleanup markers on reconnect and tolerate definite same-owner disconnect races within the original acquisition bound. Add fixed aggregate backfill/completion metrics. / 已结束 MQTT 会话子记录可由有界消费者任务池自动回收，必要时确认准确 Owner 已停止执行，并保留新代会话；重连保留回收标记，并在原准入边界内处理同一 Owner 断开引起的明确版本冲突；新增固定维度补建及完成指标。
