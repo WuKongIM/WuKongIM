@@ -175,6 +175,30 @@ func (s *Store) CompareAndSwapMQTTSourceBinding(ctx context.Context, expected ui
 	return out, nil
 }
 
+// RetireMQTTSourceBinding deletes one acknowledged Removed tombstone on the
+// binding owner's Slot. The caller must already hold fresh Session-Slot proof
+// that every lifetime through closedThrough has ended.
+func (s *Store) RetireMQTTSourceBinding(ctx context.Context, key metadb.MQTTSourceBindingKey, expected, closedThrough uint64) (out metadb.MQTTSourceBindingResult, err error) {
+	cmd, err := metafsm.EncodeMQTTSourceBindingRetireCommand(key, expected, closedThrough)
+	if err != nil {
+		return out, err
+	}
+	route, err := MQTTSourceRoutingKey(key.Owner)
+	if err != nil {
+		return out, err
+	}
+	if err = s.proposeMQTT(ctx, route, cmd, &out); err == nil {
+		// Applied deletes the row, so no revision survives; conflicts echo the current row.
+		if out.Status != metadb.MQTTSessionCASConflict && (out.Status != metadb.MQTTSessionCASApplied || out.CurrentRevision != 0) {
+			err = metadb.ErrCorruptValue
+		}
+	}
+	if err != nil {
+		return metadb.MQTTSourceBindingResult{}, err
+	}
+	return out, nil
+}
+
 // CompareAndSwapMQTTWill retains detached obligations on the original Session
 // Slot, even when that Session no longer exists or has a newer lifetime.
 func (s *Store) CompareAndSwapMQTTWill(ctx context.Context, expected uint64, row metadb.MQTTWill) (out metadb.MQTTWillResult, err error) {
