@@ -169,3 +169,88 @@ func (s *Shard) listMQTTReplayMarkers(ctx context.Context, after MQTTBindingOwne
 	}
 	return out, nil
 }
+
+// ClearMQTTReplayMarker removes one Channel owner's replay-discovery marker
+// after the caller proved replay cleanup has nothing left for that owner. It
+// conflicts while any binding row under the owner exists (disk or this batch),
+// so a new consumer keeps discovery through its own primary row. Lifetime
+// fences are never removed here.
+func (b *Batch) ClearMQTTReplayMarker(slot HashSlot, owner MQTTBindingOwner) (*MQTTSourceBindingResult, error) {
+	if err := b.ensureOpen(); err != nil {
+		return nil, err
+	}
+	if owner.Kind != MQTTBindingChannel || validateMQTTBindingOwner(owner) != nil {
+		return nil, dberrors.ErrInvalidArgument
+	}
+	result := &MQTTSourceBindingResult{}
+	b.addOp(slot, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
+		*result = MQTTSourceBindingResult{Status: MQTTSessionCASConflict}
+		mk, err := mqttBindingMarkerKey(slot, owner)
+		if err != nil {
+			return err
+		}
+		if _, found, err := mqttSourceBindingTable.loadBatchValue(state, mk); err != nil || !found {
+			return err
+		}
+		rows, err := mqttBindingOwnerHasRows(ctx, state, slot, owner)
+		if err != nil || rows {
+			return err
+		}
+		if err = batch.Delete(mk); err != nil {
+			return err
+		}
+		state.tableRows[string(mk)] = tableRowOverlay{exists: false}
+		*result = MQTTSourceBindingResult{Status: MQTTSessionCASApplied}
+		return nil
+	})
+	return result, nil
+}
+
+// mqttBindingOwnerHasRows reports whether any primary row under the owner is
+// visible to this apply batch. It stops at the first visible row.
+func mqttBindingOwnerHasRows(ctx context.Context, state *batchCommitState, slot HashSlot, owner MQTTBindingOwner) (bool, error) {
+	prefix, err := encodeKeyParts(encodeRowPrefix(slot, TableIDMQTTSourceBinding), mqttBindingOwnerParts(owner))
+	if err != nil {
+		return false, err
+	}
+	span := keycodec.NewPrefixSpan(prefix)
+	masked := func(key []byte) bool {
+		for _, d := range state.tableDeletes {
+			if mqttReclamationContains(d, key) {
+				return true
+			}
+		}
+		return false
+	}
+	for key, row := range state.tableRows {
+		if row.exists && mqttReclamationContains(engine.Span{Start: span.Start, End: span.End}, []byte(key)) {
+			return true, nil
+		}
+	}
+	iter, err := state.db.engine.NewIter(engine.Span{Start: span.Start, End: span.End}, engine.IterOptions{})
+	if err != nil {
+		return false, err
+	}
+	defer iter.Close()
+	for ok := iter.First(); ok; ok = iter.Next() {
+		if err := contextErr(ctx); err != nil {
+			return false, err
+		}
+		if row, touched := state.tableRows[string(iter.Key())]; touched && !row.exists {
+			continue
+		}
+		if masked(iter.Key()) {
+			continue
+		}
+		return true, nil
+	}
+	return false, iter.Error()
+}
+
+// WriteBatch.ClearMQTTReplayMarker exposes marker clearing to the Slot FSM.
+func (b *WriteBatch) ClearMQTTReplayMarker(slot uint16, owner MQTTBindingOwner) (*MQTTSourceBindingResult, error) {
+	if err := b.ensure(); err != nil {
+		return nil, err
+	}
+	return b.batch.ClearMQTTReplayMarker(HashSlot(slot), owner)
+}

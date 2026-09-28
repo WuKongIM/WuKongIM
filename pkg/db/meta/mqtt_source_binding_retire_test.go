@@ -104,3 +104,57 @@ func TestMQTTSourceBindingRetirementRejectsUnprovenRows(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, found)
 }
+
+func clearMQTTReplayMarker(t *testing.T, db *MetaDB, owner MQTTBindingOwner) MQTTSourceBindingResult {
+	t.Helper()
+	b := db.NewBatch()
+	defer b.Close()
+	result, err := b.ClearMQTTReplayMarker(9, owner)
+	require.NoError(t, err)
+	require.NoError(t, b.Commit(context.Background()))
+	return *result
+}
+
+func TestMQTTReplayMarkerClearsOnlyWithoutOwnerRows(t *testing.T) {
+	s := openTestMetaStore(t)
+	defer s.close(t)
+	r := removedMQTTSourceBinding(t, s.db, mqttSourceBindingFixture())
+	owner := r.Key.Owner
+	// A live row under the owner keeps the marker absent-or-irrelevant: clear conflicts.
+	require.Equal(t, MQTTSessionCASConflict, clearMQTTReplayMarker(t, s.db, owner).Status)
+	require.Equal(t, MQTTSessionCASApplied, retireMQTTSourceBinding(t, s.db, r.Key, 3, 1).Status)
+
+	// A new consumer row under the same owner blocks the clear.
+	next := mqttSourceBindingFixture()
+	next.Key.SessionGeneration = 2
+	require.Equal(t, MQTTSessionCASApplied, writeMQTTSourceBinding(t, s.db, 0, next).Status)
+	require.Equal(t, MQTTSessionCASConflict, clearMQTTReplayMarker(t, s.db, owner).Status)
+	sources, _, _, err := s.db.HashSlot(9).ListMQTTReplaySources(context.Background(), MQTTBindingOwner{}, 64)
+	require.NoError(t, err)
+	require.Equal(t, []MQTTBindingOwner{owner}, sources)
+
+}
+
+func TestMQTTReplayMarkerClearRemovesDiscovery(t *testing.T) {
+	s := openTestMetaStore(t)
+	defer s.close(t)
+	r := removedMQTTSourceBinding(t, s.db, mqttSourceBindingFixture())
+	require.Equal(t, MQTTSessionCASApplied, retireMQTTSourceBinding(t, s.db, r.Key, 3, 1).Status)
+	require.Equal(t, MQTTSessionCASApplied, clearMQTTReplayMarker(t, s.db, r.Key.Owner).Status)
+	require.Equal(t, MQTTSessionCASConflict, clearMQTTReplayMarker(t, s.db, r.Key.Owner).Status)
+	sources, _, done, err := s.db.HashSlot(9).ListMQTTReplaySources(context.Background(), MQTTBindingOwner{}, 64)
+	require.NoError(t, err)
+	require.True(t, done)
+	require.Empty(t, sources)
+	// The lifetime fence survives the marker clear.
+	require.Equal(t, MQTTSessionCASConflict, writeMQTTSourceBinding(t, s.db, 0, mqttSourceBindingFixture()).Status)
+}
+
+func TestMQTTReplayMarkerClearRejectsInvalidOwner(t *testing.T) {
+	s := openTestMetaStore(t)
+	defer s.close(t)
+	b := s.db.NewBatch()
+	defer b.Close()
+	_, err := b.ClearMQTTReplayMarker(9, MQTTBindingOwner{})
+	require.Error(t, err)
+}
