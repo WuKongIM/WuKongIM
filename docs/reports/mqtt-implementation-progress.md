@@ -4791,3 +4791,23 @@ reported no failures after the retirement wiring; `./pkg/metrics
 Remaining: in-lifetime (UNSUBSCRIBE) tombstones retire only after Session end;
 marker clearing awaits a replicated never-started or replica-reclaimed proof;
 100k-member churn retirement load is not measured.
+
+## Live-Session unsubscribe tombstone retirement
+
+The System-2 fence also stores `(LiveSessionGeneration, SubscriptionThrough)`.
+SourceRetirement retires a live Session's Removed tombstone after proving, from
+fresh bounded reads (16 pages of 64), that the Session is unchanged and every
+subscription through that generation is Removed. First inserts with the same
+Session generation and subscription generation <= the watermark conflict; the
+watermark only advances. Slot command 77 carries exactly one of
+`closed_through` or `live_subscription_through`.
+
+Commits: `090e542fa`, `357f9f708`, `a151221d9`, `b3e169389`.
+Validation: `GOWORK=off go test ./pkg/db/... ./pkg/slot/... ./pkg/cluster/... ./pkg/metrics/... ./internal/... -count=1`
+reported no failures.
+
+Known limits: an old subscription never unsubscribed holds the watermark below
+it; sessions with more than 1024 subscriptions keep tombstones until the
+lifetime ends. Replay marker clearing stays deferred. Remaining goal items:
+crash recovery, scale acceptance, production receive-authority adapter, fair
+scheduling and full process/load acceptance. Product MQTT is not enabled.
