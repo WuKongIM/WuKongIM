@@ -158,3 +158,62 @@ func TestMQTTReplayMarkerClearRejectsInvalidOwner(t *testing.T) {
 	_, err := b.ClearMQTTReplayMarker(9, MQTTBindingOwner{})
 	require.Error(t, err)
 }
+
+func retireLiveMQTTSourceBinding(t *testing.T, db *MetaDB, key MQTTSourceBindingKey, expected, subscriptionThrough uint64) MQTTSourceBindingResult {
+	t.Helper()
+	b := db.NewBatch()
+	defer b.Close()
+	result, err := b.RetireLiveMQTTSourceBinding(9, key, expected, subscriptionThrough)
+	require.NoError(t, err)
+	require.NoError(t, b.Commit(context.Background()))
+	return *result
+}
+
+func TestMQTTSourceBindingLiveRetirementFencesOnlyEndedSubscriptions(t *testing.T) {
+	s := openTestMetaStore(t)
+	defer s.close(t)
+	// Fixture: Session generation 1, subscription generation 2.
+	removed := removedMQTTSourceBinding(t, s.db, mqttSourceBindingFixture())
+	b := s.db.NewBatch()
+	_, err := b.RetireLiveMQTTSourceBinding(9, removed.Key, removed.Revision, removed.Key.SubscriptionGeneration-1)
+	require.ErrorIs(t, err, ErrInvalidArgument)
+	b.Close()
+	require.Equal(t, MQTTSessionCASApplied, retireLiveMQTTSourceBinding(t, s.db, removed.Key, removed.Revision, 2).Status)
+	_, found, err := s.db.HashSlot(9).GetMQTTSourceBinding(context.Background(), removed.Key)
+	require.NoError(t, err)
+	require.False(t, found)
+
+	// A delayed first insert of the retired or a lower subscription conflicts.
+	late := mqttSourceBindingFixture()
+	require.Equal(t, MQTTSessionCASConflict, writeMQTTSourceBinding(t, s.db, 0, late).Status)
+	late.Key.SubscriptionGeneration = 1
+	require.Equal(t, MQTTSessionCASConflict, writeMQTTSourceBinding(t, s.db, 0, late).Status)
+	// A later subscription of the same live Session is not fenced.
+	late.Key.SubscriptionGeneration = 3
+	require.Equal(t, MQTTSessionCASApplied, writeMQTTSourceBinding(t, s.db, 0, late).Status)
+	// A newer Session lifetime is not fenced by the older live watermark.
+	newer := mqttSourceBindingFixture()
+	newer.Key.SessionGeneration = 2
+	require.Equal(t, MQTTSessionCASApplied, writeMQTTSourceBinding(t, s.db, 0, newer).Status)
+
+	// Raising the live watermark stays monotonic and fences newly ended gaps.
+	other := mqttSourceBindingFixture()
+	other.Key.SubscriptionGeneration = 5
+	other = removedMQTTSourceBinding(t, s.db, other)
+	require.Equal(t, MQTTSessionCASApplied, retireLiveMQTTSourceBinding(t, s.db, other.Key, other.Revision, 5).Status)
+	gap := mqttSourceBindingFixture()
+	gap.Key.SubscriptionGeneration = 4
+	require.Equal(t, MQTTSessionCASConflict, writeMQTTSourceBinding(t, s.db, 0, gap).Status)
+
+	// Ending the lifetime subsumes the live watermark for every subscription.
+	last := mqttSourceBindingFixture()
+	last.Key.SubscriptionGeneration = 6
+	last = removedMQTTSourceBinding(t, s.db, last)
+	require.Equal(t, MQTTSessionCASApplied, retireMQTTSourceBinding(t, s.db, last.Key, last.Revision, 1).Status)
+	gap.Key.SubscriptionGeneration = 9
+	require.Equal(t, MQTTSessionCASConflict, writeMQTTSourceBinding(t, s.db, 0, gap).Status)
+	// The newer Session row is untouched by either fence.
+	_, found, err = s.db.HashSlot(9).GetMQTTSourceBinding(context.Background(), newer.Key)
+	require.NoError(t, err)
+	require.True(t, found)
+}

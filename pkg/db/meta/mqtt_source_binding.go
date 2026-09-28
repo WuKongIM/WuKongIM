@@ -218,7 +218,7 @@ func (b *Batch) CompareAndSwapMQTTSourceBinding(slot HashSlot, expected uint64, 
 			if err != nil {
 				return err
 			}
-			if row.Key.SessionGeneration <= fence {
+			if fence.Blocks(row.Key) {
 				return nil
 			}
 			switch row.Stage {

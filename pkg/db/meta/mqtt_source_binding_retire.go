@@ -33,28 +33,61 @@ func mqttBindingMarkerKey(slot HashSlot, o MQTTBindingOwner) ([]byte, error) {
 	return encodeKeyParts(mqttBindingSystemPrefix(slot, mqttBindingMarkerSystem), mqttBindingOwnerParts(o))
 }
 
-// loadMQTTBindingFence returns the closed Session generation for one client, or 0.
-func loadMQTTBindingFence(state *batchCommitState, slot HashSlot, k MQTTSourceBindingKey) (uint64, error) {
+// mqttBindingFence is the per-(owner, client) insert fence. Closed fences whole
+// ended Session lifetimes; LiveSession/LiveSubscriptionThrough fence ended
+// subscriptions of one still-live Session lifetime.
+type mqttBindingFence struct {
+	Closed, LiveSession, LiveSubscriptionThrough uint64
+}
+
+// Blocks reports whether a first insert of key could resurrect a retired row.
+func (f mqttBindingFence) Blocks(k MQTTSourceBindingKey) bool {
+	return k.SessionGeneration <= f.Closed || k.SessionGeneration == f.LiveSession && k.SubscriptionGeneration <= f.LiveSubscriptionThrough
+}
+
+func (f mqttBindingFence) encode() []byte {
+	if f.LiveSession == 0 {
+		return binary.BigEndian.AppendUint64(nil, f.Closed)
+	}
+	b := binary.BigEndian.AppendUint64(nil, f.Closed)
+	b = binary.BigEndian.AppendUint64(b, f.LiveSession)
+	return binary.BigEndian.AppendUint64(b, f.LiveSubscriptionThrough)
+}
+
+// loadMQTTBindingFence returns the insert fence for one client, or zero.
+func loadMQTTBindingFence(state *batchCommitState, slot HashSlot, k MQTTSourceBindingKey) (mqttBindingFence, error) {
 	key, err := mqttBindingFenceKey(slot, k)
 	if err != nil {
-		return 0, err
+		return mqttBindingFence{}, err
 	}
 	value, found, err := mqttSourceBindingTable.loadBatchValue(state, key)
 	if err != nil || !found {
-		return 0, err
+		return mqttBindingFence{}, err
 	}
 	env, err := rowcodec.UnwrapBorrowed(key, value)
 	if err != nil {
-		return 0, err
+		return mqttBindingFence{}, err
 	}
-	if env.Version != 1 || env.Codec != rowcodec.CodecFixed || env.Flags != rowcodec.FlagChecksum || len(env.Payload) != 8 {
-		return 0, dberrors.ErrCorruptValue
+	if env.Version != 1 || env.Codec != rowcodec.CodecFixed || env.Flags != rowcodec.FlagChecksum {
+		return mqttBindingFence{}, dberrors.ErrCorruptValue
 	}
-	closed := binary.BigEndian.Uint64(env.Payload)
-	if closed == 0 {
-		return 0, dberrors.ErrCorruptValue
+	p := env.Payload
+	var f mqttBindingFence
+	switch len(p) {
+	case 8:
+		f.Closed = binary.BigEndian.Uint64(p)
+		if f.Closed == 0 {
+			return mqttBindingFence{}, dberrors.ErrCorruptValue
+		}
+	case 24:
+		f = mqttBindingFence{Closed: binary.BigEndian.Uint64(p), LiveSession: binary.BigEndian.Uint64(p[8:]), LiveSubscriptionThrough: binary.BigEndian.Uint64(p[16:])}
+		if f.LiveSession == 0 || f.LiveSubscriptionThrough == 0 || f.LiveSession <= f.Closed {
+			return mqttBindingFence{}, dberrors.ErrCorruptValue
+		}
+	default:
+		return mqttBindingFence{}, dberrors.ErrCorruptValue
 	}
-	return closed, nil
+	return f, nil
 }
 
 func stageMQTTBindingSystem(state *batchCommitState, b *engine.Batch, key, body []byte) error {
@@ -93,12 +126,13 @@ func (b *Batch) RetireMQTTSourceBinding(slot HashSlot, key MQTTSourceBindingKey,
 		if err != nil {
 			return err
 		}
-		if closedThrough > fence {
-			fk, err := mqttBindingFenceKey(slot, key)
-			if err != nil {
-				return err
+		if closedThrough > fence.Closed {
+			next := mqttBindingFence{Closed: closedThrough}
+			// An ended lifetime subsumes any older live watermark.
+			if fence.LiveSession > closedThrough {
+				next.LiveSession, next.LiveSubscriptionThrough = fence.LiveSession, fence.LiveSubscriptionThrough
 			}
-			if err = stageMQTTBindingSystem(state, batch, fk, binary.BigEndian.AppendUint64(nil, closedThrough)); err != nil {
+			if err = stageMQTTBindingFence(state, batch, slot, key, next); err != nil {
 				return err
 			}
 		}
@@ -253,4 +287,77 @@ func (b *WriteBatch) ClearMQTTReplayMarker(slot uint16, owner MQTTBindingOwner) 
 		return nil, err
 	}
 	return b.batch.ClearMQTTReplayMarker(HashSlot(slot), owner)
+}
+
+func stageMQTTBindingFence(state *batchCommitState, b *engine.Batch, slot HashSlot, k MQTTSourceBindingKey, f mqttBindingFence) error {
+	key, err := mqttBindingFenceKey(slot, k)
+	if err != nil {
+		return err
+	}
+	return stageMQTTBindingSystem(state, b, key, f.encode())
+}
+
+// RetireLiveMQTTSourceBinding deletes one acknowledged Removed tombstone of a
+// still-live Session lifetime. The caller must prove from a fresh Session-Slot
+// read that the Session is still key.SessionGeneration and every subscription
+// of it through subscriptionThrough is Removed; new subscriptions allocate
+// higher generations, so fencing through that watermark cannot block live work.
+func (b *Batch) RetireLiveMQTTSourceBinding(slot HashSlot, key MQTTSourceBindingKey, expected, subscriptionThrough uint64) (*MQTTSourceBindingResult, error) {
+	if err := b.ensureOpen(); err != nil {
+		return nil, err
+	}
+	if validateMQTTSourceBindingKey(key) != nil || expected == 0 || subscriptionThrough < key.SubscriptionGeneration {
+		return nil, dberrors.ErrInvalidArgument
+	}
+	result := &MQTTSourceBindingResult{}
+	b.addOp(slot, func(_ context.Context, state *batchCommitState, batch *engine.Batch) error {
+		*result = MQTTSourceBindingResult{Status: MQTTSessionCASConflict}
+		pk := mqttSourceBindingPrimaryKey(key)
+		old, found, err := loadUpdateRow(mqttSourceBindingTable, state, slot, pk)
+		if err != nil || !found {
+			return err
+		}
+		result.CurrentRevision = old.Revision
+		if old.Revision != expected || old.Stage != MQTTBindingRemoved || old.ProtectionRevision == 0 && old.Key.Owner.Kind == MQTTBindingChannel {
+			return nil
+		}
+		fence, err := loadMQTTBindingFence(state, slot, key)
+		if err != nil {
+			return err
+		}
+		// A lower live lifetime cannot move the watermark backwards; it must
+		// use ended-lifetime retirement instead.
+		if fence.LiveSession > key.SessionGeneration {
+			return nil
+		}
+		if key.SessionGeneration > fence.Closed {
+			next := fence
+			if next.LiveSession < key.SessionGeneration {
+				next.LiveSession, next.LiveSubscriptionThrough = key.SessionGeneration, 0
+			}
+			if subscriptionThrough > next.LiveSubscriptionThrough {
+				next.LiveSubscriptionThrough = subscriptionThrough
+			}
+			if next != fence {
+				if err = stageMQTTBindingFence(state, batch, slot, key, next); err != nil {
+					return err
+				}
+			}
+		}
+		if key.Owner.Kind == MQTTBindingChannel {
+			mk, err := mqttBindingMarkerKey(slot, key.Owner)
+			if err != nil {
+				return err
+			}
+			if err = stageMQTTBindingSystem(state, batch, mk, nil); err != nil {
+				return err
+			}
+		}
+		if err = deleteUpdateRow(mqttSourceBindingTable, state, batch, slot, pk); err != nil {
+			return err
+		}
+		*result = MQTTSourceBindingResult{Status: MQTTSessionCASApplied}
+		return nil
+	})
+	return result, nil
 }
