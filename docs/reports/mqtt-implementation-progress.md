@@ -4771,3 +4771,23 @@ stable membership incarnation), fair source/accounting/delivery scheduling, inbo
 and future-person sources, unattended cleanup/source deactivation, unavailable-owner
 isolation, Will execution, product/restore composition, offline tools, metrics and
 complete process/load acceptance remain required. Product MQTT is not enabled.
+
+## Source binding tombstone retirement
+
+Design: `docs/specs/mqtt-tombstone-retirement.md`. Acknowledged Removed rows of
+an ended Session lifetime are retired atomically: a monotonic per-(owner,
+client) System-2 fence rejects resurrection of generations <= ClosedThrough, a
+per-Channel-owner System-3 marker keeps replay discovery after the last row, and
+the row is deleted (Slot command 77, proxy/Node routing, ConsumerMaintenance
+turn). `wukongim_mqtt_consumer_events_total{event="retired"}` counts deletions.
+Replay marker clearing (Slot command 78) is implemented to the Node surface but
+has no caller: copy-ahead persists replay state before anchors, so no current
+signal proves an owner has nothing left to clean.
+
+Verified: `GOWORK=off go test ./pkg/db/... ./pkg/slot/... ./pkg/cluster/... ./internal/... -count=1`
+reported no failures after the retirement wiring; `./pkg/metrics
+./internal/runtime/mqttsession ./internal/app` passed after the metric change.
+
+Remaining: in-lifetime (UNSUBSCRIBE) tombstones retire only after Session end;
+marker clearing awaits a replicated never-started or replica-reclaimed proof;
+100k-member churn retirement load is not measured.
