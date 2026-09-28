@@ -10,6 +10,8 @@ import (
 // SourceRetirementMetadata reads Session proof and retires source tombstones.
 type SourceRetirementMetadata interface {
 	ReadMQTT(context.Context, meta.MQTTRead) (meta.MQTTReadResult, error)
+	// RetireLiveMQTTSourceBinding fences ended subscriptions of a live Session.
+	RetireLiveMQTTSourceBinding(context.Context, meta.MQTTSourceBindingKey, uint64, uint64) (meta.MQTTSourceBindingResult, error)
 	RetireMQTTSourceBinding(context.Context, meta.MQTTSourceBindingKey, uint64, uint64) (meta.MQTTSourceBindingResult, error)
 }
 
@@ -82,13 +84,25 @@ func (p *SourceRetirement) Reconcile(parent context.Context, key meta.MQTTSource
 		closed = s.Generation - 1
 	case s.State == meta.MQTTSessionEnded:
 		closed = s.Generation
+	case s.State != meta.MQTTSessionEnded:
+		// Live Session: new subscriptions take Revision+1, so a fence through
+		// this generation is safe once every lower-or-equal one has ended.
+		ok, e := p.endedThrough(ctx, s, key.SubscriptionGeneration)
+		if e != nil || !ok {
+			return false, e
+		}
 	default:
 		return false, nil
 	}
 	if err = ctx.Err(); err != nil {
 		return false, err
 	}
-	res, err := p.options.Store.RetireMQTTSourceBinding(ctx, key, b.Revision, closed)
+	var res meta.MQTTSourceBindingResult
+	if closed != 0 {
+		res, err = p.options.Store.RetireMQTTSourceBinding(ctx, key, b.Revision, closed)
+	} else {
+		res, err = p.options.Store.RetireLiveMQTTSourceBinding(ctx, key, b.Revision, key.SubscriptionGeneration)
+	}
 	if err != nil {
 		return false, err
 	}
@@ -102,6 +116,50 @@ func (p *SourceRetirement) Reconcile(parent context.Context, key meta.MQTTSource
 		return false, ErrConflict
 	}
 	return false, ErrEvidence
+}
+
+// maxLiveRetirementPages bounds one live proof to 16*64 subscriptions.
+const maxLiveRetirementPages = 16
+
+// endedThrough proves every subscription of the live Session with generation
+// <= through is Removed. Unfinished or oversized scans return false.
+func (p *SourceRetirement) endedThrough(ctx context.Context, s *meta.MQTTSession, through uint64) (bool, error) {
+	if through > s.Revision {
+		return false, ErrEvidence
+	}
+	q := meta.MQTTRead{Kind: meta.MQTTReadSubscriptions, Namespace: s.Namespace, ClientID: s.ClientID, SessionGeneration: s.Generation, Limit: 64}
+	for page := 0; page < maxLiveRetirementPages; page++ {
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
+		r, err := p.options.Store.ReadMQTT(ctx, q)
+		if err != nil {
+			return false, err
+		}
+		// The page pins its Session row; it must be the proven lifetime unchanged.
+		if r.Session != nil && (r.Session.Generation != s.Generation || r.Session.Revision != s.Revision || r.Session.State == meta.MQTTSessionEnded) {
+			return false, nil
+		}
+		if len(r.Bindings) != 0 || len(r.Subscriptions) > q.Limit {
+			return false, ErrEvidence
+		}
+		for _, sub := range r.Subscriptions {
+			if sub.Namespace != s.Namespace || sub.ClientID != s.ClientID || sub.SessionGeneration != s.Generation {
+				return false, ErrEvidence
+			}
+			if sub.Generation <= through && sub.Stage != meta.MQTTSubscriptionRemoved {
+				return false, nil
+			}
+		}
+		if r.Done {
+			return true, nil
+		}
+		if r.After.Topic == "" || r.After.Topic <= q.After.Topic {
+			return false, ErrEvidence
+		}
+		q.After.Topic = r.After.Topic
+	}
+	return false, nil
 }
 
 func (p *SourceRetirement) read(ctx context.Context, q meta.MQTTRead) (meta.MQTTReadResult, error) {

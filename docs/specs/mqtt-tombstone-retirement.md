@@ -41,10 +41,19 @@ source-Slot batch:
 - deletes the primary row (Removed rows already carry no secondary indexes).
 
 The usecase supplies `closedThrough` only from a fresh pinned Session-Slot read
-showing that generation Ended or superseded by a newer generation. Removed rows
-of a still-live Session (unsubscribe) are retained until that lifetime ends,
-so the bound is per live Session, not per history. UID qualification rows use
-the fence only; they have no replay marker.
+showing that generation Ended or superseded by a newer generation. UID
+qualification rows use the fence only; they have no replay marker.
+
+Live Session (unsubscribe) tombstones retire through a second fence field,
+`(LiveSessionGeneration, SubscriptionThrough)`, stored in the same System-2
+record. The usecase must prove from fresh reads that the Session is still the
+same generation and every subscription of it with generation <= G is Removed
+(bounded to 16 pages of 64). New subscriptions take `Session.Revision + 1`, so
+all live or Preparing subscriptions are above G and are never fenced. The fence
+rejects first inserts with `SessionGeneration == S && SubscriptionGeneration <= G`
+and only moves forward; a lower live Session generation is ignored. A single
+command carries exactly one of `closed_through` or `live_subscription_through`.
+An old subscription that is never unsubscribed holds the watermark below it.
 
 Rows are discovered by the existing bounded maintenance scans; retirement runs
 at most one CAS per bounded turn and yields under Slot pressure. Snapshot,

@@ -66,8 +66,9 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
     Channel protection and shared-content retirement are unaffected.
     SourceRetirement deletes an acknowledged Removed tombstone only after a fresh
     Session read proves its lifetime Ended or superseded; the source Slot keeps a
-    closed-lifetime fence and a replay marker. Live-lifetime tombstones and absent
-    Sessions are left in place.
+    closed-lifetime fence and a replay marker. For a live Session it first proves
+    (bounded pages) every subscription through that generation is Removed, then
+    fences (Session generation, subscription generation). Absent Sessions stay.
 11. Retention captures an accepted anchor before the strict minimum-consumer read.
     Retirement reruns this plan per turn, selects whole anchors and submits a routed decision; unknown/removing obligations limit the floor.
     Finite continuations retain capture/floor while fresh permission covers it; changed authority/lower floors yield. Maintenance keeps phase hints separate and preserves replica rotation; no local GC is granted.
