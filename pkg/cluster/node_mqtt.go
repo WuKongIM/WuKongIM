@@ -100,6 +100,15 @@ func (n *Node) RetireMQTTSourceBinding(ctx context.Context, key metadb.MQTTSourc
 	return s.RetireMQTTSourceBinding(ctx, key, expected, closedThrough)
 }
 
+// RetireLiveMQTTSourceBinding deletes one ended-subscription tombstone of a live Session.
+func (n *Node) RetireLiveMQTTSourceBinding(ctx context.Context, key metadb.MQTTSourceBindingKey, expected, subscriptionThrough uint64) (metadb.MQTTSourceBindingResult, error) {
+	s, err := n.mqttMetadataStore()
+	if err != nil {
+		return metadb.MQTTSourceBindingResult{}, err
+	}
+	return s.RetireLiveMQTTSourceBinding(ctx, key, expected, subscriptionThrough)
+}
+
 // ClearMQTTReplayMarker removes one owner's replay marker on its owner Slot.
 func (n *Node) ClearMQTTReplayMarker(ctx context.Context, owner metadb.MQTTBindingOwner) (metadb.MQTTSourceBindingResult, error) {
 	s, err := n.mqttMetadataStore()

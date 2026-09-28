@@ -183,6 +183,21 @@ func (s *Store) RetireMQTTSourceBinding(ctx context.Context, key metadb.MQTTSour
 	if err != nil {
 		return out, err
 	}
+	return s.proposeMQTTSourceBindingRetire(ctx, key, cmd)
+}
+
+// RetireLiveMQTTSourceBinding deletes one acknowledged Removed tombstone of a
+// still-live Session. The caller must already hold fresh Session-Slot proof
+// that every subscription through subscriptionThrough is Removed.
+func (s *Store) RetireLiveMQTTSourceBinding(ctx context.Context, key metadb.MQTTSourceBindingKey, expected, subscriptionThrough uint64) (out metadb.MQTTSourceBindingResult, err error) {
+	cmd, err := metafsm.EncodeMQTTSourceBindingLiveRetireCommand(key, expected, subscriptionThrough)
+	if err != nil {
+		return out, err
+	}
+	return s.proposeMQTTSourceBindingRetire(ctx, key, cmd)
+}
+
+func (s *Store) proposeMQTTSourceBindingRetire(ctx context.Context, key metadb.MQTTSourceBindingKey, cmd []byte) (out metadb.MQTTSourceBindingResult, err error) {
 	route, err := MQTTSourceRoutingKey(key.Owner)
 	if err != nil {
 		return out, err
