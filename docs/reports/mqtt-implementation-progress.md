@@ -4811,3 +4811,32 @@ it; sessions with more than 1024 subscriptions keep tombstones until the
 lifetime ends. Replay marker clearing stays deferred. Remaining goal items:
 crash recovery, scale acceptance, production receive-authority adapter, fair
 scheduling and full process/load acceptance. Product MQTT is not enabled.
+
+## Crashed owner boot retirement
+
+Design: `docs/specs/mqtt-crashed-boot-retirement.md`. Before any MQTT owner,
+RPC, listener or worker exists, `Retirements.Recover` takes an exclusive flock
+on `<data>/mqtt/retired-owners/LOCK` for the process lifetime. Started-boot
+markers without a receipt are then proven crashed and receive a receipt bounded
+by MaxUint64; the current boot writes its own marker. Graceful `Record` removes
+the marker after its receipt; `Close` releases the lock afterwards. Corrupt,
+foreign or renamed markers and a second process fail MQTT startup closed.
+Late durable effects stay fenced by takeover OwnerGeneration CAS. The proof is
+node-local; partition and unavailable-node recovery are not covered.
+
+Validation (2026-09-28):
+
+- `internal/infra/mqttowner` failure-inventory tests were written first (RED:
+  `Recover`/`Close` undefined), then pass.
+- E2E `GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/crash_recovery`:
+  SIGKILL of the owner process group with an unacknowledged QoS 1 delivery,
+  restart of the same spec, Session Present, same Packet Identifier with DUP,
+  one post-recovery delivery, no extras, no resubscription. Before the fix the
+  resumed CONNECT got CONNACK 0x88. Artifact:
+  `mqtt-session-owner-crash.json` under `WK_E2E_MQTT_REPORT_DIR`.
+- E2E regressions `mqtt/session`, `mqtt/reclamation`, `mqtt/will` pass.
+- Unit `./internal/... ./pkg/cluster/... ./pkg/metrics/...` and Linux build pass.
+
+Remaining: scale acceptance, production receive-authority adapter, fair
+scheduling, partition/unavailable-node owner isolation, replay marker clearing
+and full process/load acceptance. Product MQTT is not enabled by default.
