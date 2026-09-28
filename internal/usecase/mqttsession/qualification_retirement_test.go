@@ -88,7 +88,7 @@ func TestQualificationRetirementPreservesIndependentSourceDebt(t *testing.T) {
 			require.Equal(t, meta.MQTTBindingSessionEnded, stored.ReleaseReason)
 			require.Equal(t, parent.Revision, stored.ProgressRevision)
 			require.Zero(t, stored.ProtectionRevision)
-			require.Zero(t, stored.RecoveryAtMS)
+			require.Positive(t, stored.RecoveryAtMS, "Removed stays scheduled for tombstone retirement")
 			require.Equal(t, q.DiscoveryDone, stored.DiscoveryDone)
 			require.Equal(t, q.DrainVersion, stored.DrainVersion)
 			require.Equal(t, q.DrainDone, stored.DrainDone)

@@ -20,7 +20,8 @@ func consumerCandidates(q meta.MQTTRead, r meta.MQTTReadResult) ([]meta.MQTTRead
 	after := q.After
 	out := make([]meta.MQTTReadCursor, 0, len(r.Bindings))
 	for _, b := range r.Bindings {
-		if meta.ValidateMQTTSourceBinding(b) != nil || b.Stage == meta.MQTTBindingRemoved {
+		// Removed rows appear only while scheduled for tombstone retirement.
+		if meta.ValidateMQTTSourceBinding(b) != nil || b.Stage == meta.MQTTBindingRemoved && b.RecoveryAtMS <= 0 {
 			return nil, ErrDeadlineScanEvidence
 		}
 		next := meta.MQTTReadCursor{SourceRecovery: meta.MQTTSourceBindingRecoveryCursor{RecoveryAtMS: b.RecoveryAtMS, Key: b.Key}}

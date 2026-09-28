@@ -95,10 +95,8 @@ func (t *inboxRemovalTurn) write(row meta.MQTTSourceBinding) (meta.MQTTSourceBin
 	}
 	expected := row.Revision
 	row.Revision++
+	// Removed rows stay scheduled so tombstone retirement discovers them.
 	row.UpdatedAtMS, row.RecoveryAtMS = now.UnixMilli(), now.UnixMilli()
-	if row.Stage == meta.MQTTBindingRemoved {
-		row.RecoveryAtMS = 0
-	}
 	if meta.ValidateMQTTSourceBinding(row) != nil {
 		return meta.MQTTSourceBinding{}, ErrEvidence
 	}

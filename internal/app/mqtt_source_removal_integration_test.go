@@ -34,7 +34,7 @@ func verifyMQTTSourceRemoval(t *testing.T, ctx context.Context, nodes []*cluster
 	require.Equal(t, meta.MQTTBindingRemoved, removed.Binding.Stage)
 	require.Equal(t, ack.Binding.ProtectionRevision, removed.Binding.ProtectionRevision)
 	require.Equal(t, ended.ProgressRevision, removed.Binding.ProgressRevision)
-	require.Zero(t, removed.Binding.RecoveryAtMS)
+	require.Positive(t, removed.Binding.RecoveryAtMS, "Removed stays scheduled for tombstone retirement")
 	stored, err := nodes[1].ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadSourceBinding, BindingKey: ended.Key})
 	require.NoError(t, err)
 	require.Equal(t, []meta.MQTTSourceBinding{removed.Binding}, stored.Bindings)

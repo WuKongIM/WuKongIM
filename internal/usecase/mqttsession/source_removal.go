@@ -179,9 +179,10 @@ func (p *SourceRemoval) write(ctx context.Context, old meta.MQTTSourceBinding) (
 	if old.Key.Owner.Kind == meta.MQTTBindingUID {
 		// UID qualification has no Channel protection acknowledgement. Its
 		// separate Removing commit already closed future-source admission.
-		next.Stage, next.RecoveryAtMS = meta.MQTTBindingRemoved, 0
+		// RecoveryAtMS stays scheduled so tombstone retirement discovers it.
+		next.Stage = meta.MQTTBindingRemoved
 	} else if old.ProtectionRevision == old.Revision {
-		next.Stage, next.RecoveryAtMS = meta.MQTTBindingRemoved, 0
+		next.Stage = meta.MQTTBindingRemoved
 		if next.ReleaseReason == 0 {
 			next.ReleaseReason = meta.MQTTBindingDrained
 		}

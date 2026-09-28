@@ -2,6 +2,7 @@ package mqttsession
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -13,12 +14,23 @@ type SourceRetirementMetadata interface {
 	// RetireLiveMQTTSourceBinding fences ended subscriptions of a live Session.
 	RetireLiveMQTTSourceBinding(context.Context, meta.MQTTSourceBindingKey, uint64, uint64) (meta.MQTTSourceBindingResult, error)
 	RetireMQTTSourceBinding(context.Context, meta.MQTTSourceBindingKey, uint64, uint64) (meta.MQTTSourceBindingResult, error)
+	// CompareAndSwapMQTTSourceBinding defers an unprovable scheduled tombstone.
+	CompareAndSwapMQTTSourceBinding(context.Context, uint64, meta.MQTTSourceBinding) (meta.MQTTSourceBindingResult, error)
 }
 
 type SourceRetirementOptions struct {
-	Store   SourceRetirementMetadata
+	Store SourceRetirementMetadata
+	// Now timestamps deferrals; it must not run behind stored UpdatedAtMS.
+	Now     func() time.Time
 	Timeout time.Duration
 }
+
+// Deferral bounds: an unprovable tombstone waits at least the minimum and its
+// delay doubles up to the cap, so unretirable rows cost O(1) scans per cap.
+const (
+	minRetirementDeferral = time.Second
+	maxRetirementDeferral = 10 * time.Minute
+)
 
 // SourceRetirement deletes one acknowledged Removed binding once its Session
 // lifetime is proven irreversible. The source Slot keeps a closed-lifetime
@@ -29,6 +41,9 @@ type SourceRetirement struct{ options SourceRetirementOptions }
 func NewSourceRetirement(o SourceRetirementOptions) (*SourceRetirement, error) {
 	if o.Timeout == 0 {
 		o.Timeout = 5 * time.Second
+	}
+	if o.Now == nil {
+		o.Now = time.Now
 	}
 	if o.Store == nil || o.Timeout <= 0 || o.Timeout > time.Minute {
 		return nil, ErrInvalid
@@ -60,8 +75,11 @@ func (p *SourceRetirement) Reconcile(parent context.Context, key meta.MQTTSource
 	if b.Key != key || meta.ValidateMQTTSourceBinding(b) != nil {
 		return false, ErrEvidence
 	}
-	if b.Stage != meta.MQTTBindingRemoved || key.Owner.Kind == meta.MQTTBindingChannel && b.ProtectionRevision == 0 {
+	if b.Stage != meta.MQTTBindingRemoved {
 		return false, nil
+	}
+	if key.Owner.Kind == meta.MQTTBindingChannel && b.ProtectionRevision == 0 {
+		return false, p.postpone(ctx, b)
 	}
 	r, err = p.read(ctx, meta.MQTTRead{Kind: meta.MQTTReadSession, Namespace: key.Namespace, ClientID: key.ClientID})
 	if err != nil {
@@ -72,7 +90,7 @@ func (p *SourceRetirement) Reconcile(parent context.Context, key meta.MQTTSource
 	}
 	s := r.Session
 	if s == nil {
-		return false, nil
+		return false, p.postpone(ctx, b)
 	}
 	if !removalSessionMatches(s, b) {
 		return false, ErrEvidence
@@ -88,11 +106,14 @@ func (p *SourceRetirement) Reconcile(parent context.Context, key meta.MQTTSource
 		// Live Session: new subscriptions take Revision+1, so a fence through
 		// this generation is safe once every lower-or-equal one has ended.
 		ok, e := p.endedThrough(ctx, s, key.SubscriptionGeneration)
-		if e != nil || !ok {
+		if e != nil {
 			return false, e
 		}
+		if !ok {
+			return false, p.postpone(ctx, b)
+		}
 	default:
-		return false, nil
+		return false, p.postpone(ctx, b)
 	}
 	if err = ctx.Err(); err != nil {
 		return false, err
@@ -160,6 +181,40 @@ func (p *SourceRetirement) endedThrough(ctx context.Context, s *meta.MQTTSession
 		q.After.Topic = r.After.Topic
 	}
 	return false, nil
+}
+
+// postpone pushes one scheduled tombstone's next attempt back with a doubling
+// delay. Unscheduled legacy rows (RecoveryAtMS 0) are not discoverable and stay
+// untouched. A lost race is benign: the next discovery rereads the row.
+func (p *SourceRetirement) postpone(ctx context.Context, b meta.MQTTSourceBinding) error {
+	if b.RecoveryAtMS <= 0 {
+		return nil
+	}
+	now := p.options.Now().UnixMilli()
+	if now <= 0 || now < b.UpdatedAtMS || b.Revision == math.MaxUint64 {
+		return ErrClock
+	}
+	delay := max(minRetirementDeferral.Milliseconds(), min(2*(b.RecoveryAtMS-b.UpdatedAtMS), maxRetirementDeferral.Milliseconds()))
+	next := b
+	next.Revision, next.UpdatedAtMS, next.RecoveryAtMS = b.Revision+1, now, max(now+delay, b.RecoveryAtMS+1)
+	if meta.ValidateMQTTSourceBinding(next) != nil {
+		return ErrEvidence
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	res, err := p.options.Store.CompareAndSwapMQTTSourceBinding(ctx, b.Revision, next)
+	if err != nil {
+		return err
+	}
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	switch res.Status {
+	case meta.MQTTSessionCASApplied, meta.MQTTSessionCASConflict:
+		return nil
+	}
+	return ErrEvidence
 }
 
 func (p *SourceRetirement) read(ctx context.Context, q meta.MQTTRead) (meta.MQTTReadResult, error) {

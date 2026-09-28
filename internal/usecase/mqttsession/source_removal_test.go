@@ -70,7 +70,7 @@ func TestSourceRemovalAcknowledgesEndedLifetimeBeforeRemovingAndRecoversLostRepl
 			require.Equal(t, ended.Binding.Revision+2, again.Binding.Revision)
 			require.Equal(t, ended.Binding.Revision+1, again.Binding.ProtectionRevision)
 			require.Equal(t, ended.Binding.ProgressRevision, again.Binding.ProgressRevision)
-			require.Zero(t, again.Binding.RecoveryAtMS)
+			require.Positive(t, again.Binding.RecoveryAtMS, "Removed stays scheduled for tombstone retirement")
 			retained, err = f.store.ReadMQTT(ctx, meta.MQTTRead{Kind: meta.MQTTReadSourceRetention, Owner: prepared.Binding.Key.Owner, Limit: 1})
 			require.NoError(t, err)
 			require.Empty(t, retained.Bindings)
