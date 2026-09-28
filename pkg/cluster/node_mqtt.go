@@ -91,6 +91,15 @@ func (n *Node) CompareAndSwapMQTTSourceBinding(ctx context.Context, expected uin
 	return s.CompareAndSwapMQTTSourceBinding(ctx, expected, row)
 }
 
+// RetireMQTTSourceBinding deletes one proven-ended tombstone on its owner Slot.
+func (n *Node) RetireMQTTSourceBinding(ctx context.Context, key metadb.MQTTSourceBindingKey, expected, closedThrough uint64) (metadb.MQTTSourceBindingResult, error) {
+	s, err := n.mqttMetadataStore()
+	if err != nil {
+		return metadb.MQTTSourceBindingResult{}, err
+	}
+	return s.RetireMQTTSourceBinding(ctx, key, expected, closedThrough)
+}
+
 // CompareAndSwapMQTTWill preserves obligations beyond the current Session lifetime.
 func (n *Node) CompareAndSwapMQTTWill(ctx context.Context, expected uint64, row metadb.MQTTWill) (metadb.MQTTWillResult, error) {
 	s, err := n.mqttMetadataStore()

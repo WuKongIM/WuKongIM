@@ -62,8 +62,12 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
     Explicit lifetime end retains Removing without fabricating source release; offline/absent state cannot discharge responsibility or authorize content GC.
     SourceRemoval revalidates ended-lifetime or closed-subscription/drained-cursor
     proof, acknowledges one exact binding revision on its source Slot, then
-    revalidates before a separate Removed commit. UID termination needs no Channel acknowledgement. Tombstones remain; aggregate
+    revalidates before a separate Removed commit. UID termination needs no Channel acknowledgement. Aggregate
     Channel protection and shared-content retirement are unaffected.
+    SourceRetirement deletes an acknowledged Removed tombstone only after a fresh
+    Session read proves its lifetime Ended or superseded; the source Slot keeps a
+    closed-lifetime fence and a replay marker. Live-lifetime tombstones and absent
+    Sessions are left in place.
 11. Retention captures an accepted anchor before the strict minimum-consumer read.
     Retirement reruns this plan per turn, selects whole anchors and submits a routed decision; unknown/removing obligations limit the floor.
     Finite continuations retain capture/floor while fresh permission covers it; changed authority/lower floors yield. Maintenance keeps phase hints separate and preserves replica rotation; no local GC is granted.

@@ -16,6 +16,9 @@ type ConsumerMaintenanceOptions struct {
 	Drain      *SourceDrain
 	Progress   *SourceProgress
 	Removal    *SourceRemoval
+	// Retirement is optional; when set, Removed tombstones of ended lifetimes
+	// are deleted behind the source Slot's closed-lifetime fence.
+	Retirement *SourceRetirement
 	Ender      SessionEnder
 	// Timeout bounds one complete binding turn, including exact-owner cleanup.
 	Timeout time.Duration
@@ -27,6 +30,8 @@ type ConsumerMaintenanceResult struct {
 	Accounted, Projected, Removed, QuotaEnded, RevokedEnded bool
 	// QualificationRemoved counts a UID tombstone, never a Channel release.
 	QualificationRemoved bool
+	// Retired reports a deleted Removed tombstone of an ended lifetime.
+	Retired bool
 }
 type ConsumerMaintenance struct{ options ConsumerMaintenanceOptions }
 
@@ -68,6 +73,9 @@ func (c *ConsumerMaintenance) Maintain(parent context.Context, k meta.MQTTSource
 			}
 			out.QualificationRemoved = removed.Changed && removed.Binding.Stage == meta.MQTTBindingRemoved
 		}
+		if err = c.retire(ctx, k, &out); err != nil {
+			return out, err
+		}
 		return out, ctx.Err()
 	}
 	r, err := c.read(ctx, q)
@@ -82,7 +90,7 @@ func (c *ConsumerMaintenance) Maintain(parent context.Context, k meta.MQTTSource
 		return out, ErrEvidence
 	}
 	if b.Stage == meta.MQTTBindingRemoved {
-		return out, nil
+		return out, c.retire(ctx, k, &out)
 	}
 	r, err = c.read(ctx, meta.MQTTRead{Kind: meta.MQTTReadSubscription, Namespace: k.Namespace, ClientID: k.ClientID, SessionGeneration: k.SessionGeneration, Topic: b.Topic})
 	if err != nil {
@@ -175,6 +183,20 @@ func (c *ConsumerMaintenance) Maintain(parent context.Context, k meta.MQTTSource
 		out.Removed = removed.Changed && removed.Binding.Stage == meta.MQTTBindingRemoved
 	}
 	return out, ctx.Err()
+}
+
+// retire runs one optional tombstone retirement turn. A lost race is benign:
+// the next discovery pass rereads the binding.
+func (c *ConsumerMaintenance) retire(ctx context.Context, k meta.MQTTSourceBindingKey, out *ConsumerMaintenanceResult) error {
+	if c.options.Retirement == nil {
+		return nil
+	}
+	done, err := c.options.Retirement.Reconcile(ctx, k)
+	if errors.Is(err, ErrConflict) {
+		return nil
+	}
+	out.Retired = done
+	return err
 }
 
 func (c *ConsumerMaintenance) read(ctx context.Context, q meta.MQTTRead) (meta.MQTTReadResult, error) {

@@ -34,7 +34,11 @@ func (a *App) wireMQTTConsumers(node *cluster.Node, auth sessioncase.Subscriptio
 	if err != nil {
 		return nil, err
 	}
-	maintenance, err := sessioncase.NewConsumerMaintenance(sessioncase.ConsumerMaintenanceOptions{Store: node, Accounting: accounting, Drain: drain, Progress: progress, Removal: removal, Ender: ender})
+	retirement, err := sessioncase.NewSourceRetirement(sessioncase.SourceRetirementOptions{Store: node})
+	if err != nil {
+		return nil, err
+	}
+	maintenance, err := sessioncase.NewConsumerMaintenance(sessioncase.ConsumerMaintenanceOptions{Store: node, Accounting: accounting, Drain: drain, Progress: progress, Removal: removal, Retirement: retirement, Ender: ender})
 	if err != nil {
 		return nil, err
 	}
