@@ -52,6 +52,8 @@ var mqttSessionTable = registerMetaTable(TableSpec[MQTTSession]{
 	Indexes: []IndexSpec[MQTTSession]{{ID: 2, Name: "idx_mqtt_session_deadline", Columns: []uint16{26, 1, 2}, Layout: KeyLayout{KeyInt64Ordered, KeyString, KeyString}, CorruptIndexKeyIsError: true, Key: func(r MQTTSession) (KeyParts, bool) {
 		deadline := mqttSessionDeadline(r)
 		return KeyParts{Int64Ordered(deadline), String(r.Namespace), String(r.ClientID)}, deadline > 0
+	}}, {ID: 3, Name: "idx_mqtt_session_reclamation", Columns: []uint16{1, 2}, Layout: KeyLayout{KeyString, KeyString}, CorruptIndexKeyIsError: true, Key: func(r MQTTSession) (KeyParts, bool) {
+		return mqttSessionPrimaryKey(r.Namespace, r.ClientID), MQTTSessionReclamationTarget(r) > 0
 	}}},
 	Validate:           ValidateMQTTSession,
 	EncodeValueWithKey: encodeMQTTSessionRow,

@@ -118,3 +118,13 @@ func (n *Node) ReclaimMQTTSession(ctx context.Context, m metadb.MQTTSessionRecla
 	}
 	return s.ReclaimMQTTSession(ctx, m)
 }
+
+// BuildMQTTReclamationIndex advances bounded discovery backfill through current
+// Slot authority, retaining the same foreground/restore-maintenance admission.
+func (n *Node) BuildMQTTReclamationIndex(ctx context.Context, hashSlot uint16) (metadb.MQTTReclamationIndexResult, error) {
+	s, err := n.mqttMetadataStore()
+	if err != nil {
+		return metadb.MQTTReclamationIndexResult{}, err
+	}
+	return s.BuildMQTTReclamationIndex(ctx, hashSlot)
+}

@@ -295,8 +295,11 @@ specification, runbook, report, or module documentation; link to them when neede
   then atomically clears old cursor/accounting/inflight spans. Range masks make
   results independent of Raft apply grouping. The retained parent prevents old
   child recreation; source tombstones and detached Wills remain separate. The
-  completion marker proves no owner isolation or shared-content GC. Automatic
-  discovery must cover older rows without assuming a new index is populated.
+  completion marker proves no owner isolation or shared-content GC. Discovery uses table-22
+  index 3 and read kind 23, rejecting missing/incomplete System-1 coverage.
+  Command 76 backfills at most 64 historical rows and its cursor atomically;
+  ordinary writes maintain eligibility behind the cursor. Matched writers are
+  required. Owner isolation, scheduling and process acceptance remain required.
   The [connection sender](../specs/mqtt-sender.md) serializes recovery before new
   admission, makes fresh permission the final authoritative read before enqueue,
   and invokes End for definitive denial after releasing owner scopes. It keeps

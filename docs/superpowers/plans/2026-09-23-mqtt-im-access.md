@@ -8,6 +8,7 @@
 
 ## 当前进度
 
+- 已接通旧会话回收的有界发现：table 22 新增索引 3 和 System 1 覆盖进度，命令 76 每批补建最多 64 行；读取类型 23 拒绝未完成覆盖，三节点重启后续建并核验候选。自动调度与 Owner 隔离编排仍待接通，见 [发现报告](../../reports/mqtt-reclamation-discovery.json)。
 - 已建立 [旧会话子记录回收事务](../../specs/mqtt-session-reclamation.md)：Session 可选列 30、Slot 命令 75 和 Node 路由，分批清理旧订阅/索引后原子释放游标、计量和交换记录；保留新代会话、来源屏障和独立 Will。已修正同批与分批重放的结果差异；自动发现、隔离编排和后台调度仍待接通。验证证据见 [报告](../../reports/mqtt-session-reclamation.json)。
 
 - 回放只读规划的就绪分类已按测试先行修复：初次及嵌套规划仅将明确的 NotReady/Backpressured 保持为有界 pending，取消优先，未知/陈旧/损坏结果及锚点写入不增加重试。16 项定向用例、三个相关包完整 race、FLOW 检查以及订阅/退订中断共 16 项真实进程场景通过。修复前的启动型探针两种环境各 20 次通过，未捕获自然断连，不能用来证明该修复解释了历史故障。见 [证据](../../reports/mqtt-plan-readiness.json)。

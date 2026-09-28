@@ -24,6 +24,20 @@ as a format migration and gate it behind an explicit rollout plan.
 
 ## Stable Durable IDs
 
+MQTT Session table 22 adds index 3, `idx_mqtt_session_reclamation`, in primary
+namespace/ClientID encoded order. Eligibility means an ended generation exceeds
+the existing column-30 reclamation marker. All ordinary Session writes maintain
+it. Table 22 System 1 stores one version-1, key-bound checksummed fixed backfill
+checkpoint per hash Slot (Done byte and two sized identity strings); its maximum
+encoded size is 2200 bytes. Command 76 commits at most 64 historical rows plus the
+checkpoint without changing Session values/revisions. Read kind 23 requires Done
+and strictly validates pinned index/primary witnesses; missing coverage is never
+empty work. Raw metadata snapshots preserve both spans. Historical rows remain
+readable, but matched writers are required before backfill: older writers can omit
+new eligibility behind a completed cursor. Use a pre-feature backup for rollback;
+MQTT JSONL and restore reactivation remain unfinished. See
+[Session reclamation](../../docs/specs/mqtt-session-reclamation.md).
+
 Metadata table 3 (`channel_runtime_meta`) System 1 now retains one incarnation
 floor per deleted channel ID/type under its existing hash-Slot prefix. Its key
 uses the runtime primary-key layout; its key-bound version-1 checksummed fixed

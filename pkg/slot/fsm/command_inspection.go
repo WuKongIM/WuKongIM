@@ -42,6 +42,8 @@ func DecodeCommandInspection(data []byte) (CommandInspection, error) {
 
 func inspectCommand(cmd command) (CommandInspection, error) {
 	switch typed := cmd.(type) {
+	case *mqttReclamationIndexCmd:
+		return simpleInspection("mqtt_reclamation_index", map[string]any{"page_limit": 64}), nil
 	case *mqttReclamationCmd:
 		m := typed.payload.Mutation
 		return simpleInspection("mqtt_session_reclamation", map[string]any{

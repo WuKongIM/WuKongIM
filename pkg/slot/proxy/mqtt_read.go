@@ -244,7 +244,7 @@ func validateMQTTReadShape(q metadb.MQTTRead, r metadb.MQTTReadResult) error {
 	counts := [8]int{len(r.Sessions), len(r.Subscriptions), len(r.DeliveryCursors), len(r.Inflight), len(r.Bindings), len(r.Wills), len(r.SourceOwners), len(r.Directory)}
 	selected := -1
 	switch q.Kind {
-	case metadb.MQTTReadSessionDeadlines:
+	case metadb.MQTTReadSessionDeadlines, metadb.MQTTReadSessionReclamation:
 		selected = 0
 	case metadb.MQTTReadSubscription, metadb.MQTTReadSubscriptions, metadb.MQTTReadSubscriptionRecovery:
 		selected = 1
@@ -294,6 +294,19 @@ func validateMQTTReadShape(q metadb.MQTTRead, r metadb.MQTTReadResult) error {
 	}
 	for _, v := range r.Sessions {
 		if metadb.ValidateMQTTSession(v) != nil {
+			return bad
+		}
+	}
+	if q.Kind == metadb.MQTTReadSessionReclamation {
+		previous := q.After.Session
+		for _, row := range r.Sessions {
+			key := metadb.MQTTSessionCursor{Namespace: row.Namespace, ClientID: row.ClientID}
+			if metadb.MQTTSessionReclamationTarget(row) == 0 || metadb.CompareMQTTSessionCursors(previous, key) >= 0 {
+				return bad
+			}
+			previous = key
+		}
+		if r.After.Session != previous {
 			return bad
 		}
 	}

@@ -33,6 +33,7 @@ func TestCommandInspectionCoversRegisteredDecoders(t *testing.T) {
 		name string
 		data []byte
 	}{
+		{"mqtt_reclamation_index", EncodeMQTTReclamationIndexCommand()},
 		{"mqtt_session_reclamation", checked(EncodeMQTTSessionReclamationCommand(mqttReclamationCommandFixture()))},
 		{"mqtt_inbox_admission", checked(EncodeMQTTInboxAdmissionCommand(0, mqttInboxAdmissionCommandFixture()))},
 		{"mqtt_lifecycle", checked(EncodeMQTTLifecycleCommand(mqttLifecycleCommandFixture()))},

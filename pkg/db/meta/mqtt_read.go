@@ -39,11 +39,15 @@ const (
 	MQTTReadInboxAdmission
 	// MQTTReadChannelRuntime pins physical runtime identity across route changes.
 	MQTTReadChannelRuntime
+	// MQTTReadSessionReclamation discovers only unreclaimed ended lifetimes.
+	MQTTReadSessionReclamation
 )
 
 // MQTTReadCursor contains exactly the cursor belonging to the selected read.
 // Complete index tie-breakers survive RPC serialization and hash-Slot paging.
 type MQTTReadCursor struct {
+	// Session is absent on older read kinds, preserving their JSON.
+	Session MQTTSessionCursor `json:"session,omitzero"`
 	// Directory is omitted from older kinds to preserve their wire representation.
 	Directory ChannelKey `json:"directory,omitzero"`
 	// SourceOwner is omitted entirely for older kinds to preserve their JSON shape.
@@ -102,7 +106,7 @@ type MQTTReadResult struct {
 
 // Recovery identifies reads that scan one explicitly selected logical hash Slot.
 func (q MQTTRead) Recovery() bool {
-	return q.Kind == MQTTReadSessionDeadlines || q.Kind == MQTTReadSubscriptionRecovery || q.Kind == MQTTReadSourceRecovery || q.Kind == MQTTReadWillRecovery || q.Kind == MQTTReadSourceOwners || q.Kind == MQTTReadReplaySources
+	return q.Kind == MQTTReadSessionReclamation || q.Kind == MQTTReadSessionDeadlines || q.Kind == MQTTReadSubscriptionRecovery || q.Kind == MQTTReadSourceRecovery || q.Kind == MQTTReadWillRecovery || q.Kind == MQTTReadSourceOwners || q.Kind == MQTTReadReplaySources
 }
 
 // SessionIdentity reports the stable owner for Session-scoped reads, including
@@ -149,6 +153,8 @@ func ValidateMQTTRead(q MQTTRead) error {
 		}
 	case MQTTReadSession:
 		want.Namespace, want.ClientID = q.Namespace, q.ClientID
+	case MQTTReadSessionReclamation:
+		page, want.After.Session = true, q.After.Session
 	case MQTTReadSessionDeadlines:
 		page, want.After.Deadline = true, q.After.Deadline
 	case MQTTReadSubscription, MQTTReadSubscriptions:
@@ -237,6 +243,9 @@ func ValidateMQTTRead(q MQTTRead) error {
 
 func validateMQTTReadCursor(q MQTTRead) error {
 	a := q.After
+	if a.Session != (MQTTSessionCursor{}) && validateMQTTSessionCursor(a.Session) != nil {
+		return dberrors.ErrInvalidArgument
+	}
 	if a.Directory != (ChannelKey{}) && validateMQTTDirectoryKey(a.Directory) != nil {
 		return dberrors.ErrInvalidArgument
 	}
@@ -325,6 +334,8 @@ func (s *Shard) readMQTTState(ctx context.Context, q MQTTRead) (MQTTReadResult, 
 	case MQTTReadMembership:
 		out.Membership, err = s.readMQTTMembership(ctx, q.MembershipKey)
 	case MQTTReadSession:
+	case MQTTReadSessionReclamation:
+		out.Sessions, out.After.Session, out.Done, err = s.ListMQTTSessionReclamation(ctx, q.After.Session, q.Limit)
 	case MQTTReadSessionDeadlines:
 		out.Sessions, out.After.Deadline, out.Done, err = s.ListMQTTSessionDeadlines(ctx, q.After.Deadline, q.Limit)
 	case MQTTReadSubscription:

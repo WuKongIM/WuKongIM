@@ -1,8 +1,9 @@
 # MQTT Session child reclamation
 
 Status: the storage transaction, Slot command and Node facade are implemented.
-Automatic candidate discovery, owner-quiescence orchestration, bounded background
-scheduling and product process acceptance remain required. This is part of the
+Bounded indexed discovery and durable historical-row backfill are also implemented.
+Owner-quiescence orchestration, background scheduling and product process acceptance
+remain required. This is part of the
 approved [MQTT design](mqtt-im-access.md), not completion of its cleanup contract.
 
 ## Authority and scope
@@ -70,7 +71,8 @@ Slot command **75** uses header version 1, body version 1 and a 16 KiB total
 limit. Unknown fields/versions and trailing JSON reject. The Node facade retains
 foreground/restore-maintenance admission; the proxy hashes the existing Session
 routing tuple and requires committed proposal results, with no result-less
-fallback. No new RPC service, metadata table or secondary index is introduced.
+fallback. No new RPC service or metadata table is introduced. Indexed discovery below adds
+one secondary index and one per-hash-Slot coverage record.
 
 `Applied` binds revision to expected+1. `Done` binds the completion marker to the
 requested boundary. `Unchanged` is a monotonic completion witness and may survive
@@ -101,8 +103,49 @@ controlled lifetime decisions; it is not a process-level MQTT scenario, abrupt
 crash/partition proof or automatic discovery test. Exact results and source hashes
 are retained in [the report](../reports/mqtt-session-reclamation.json).
 
-Next, discovery must include old Session rows without relying on an unbackfilled
-new index. Scheduling must rotate 256 hash Slots under bounded work and preserve
+Indexed discovery now includes historical rows through the coverage contract
+below. Scheduling must rotate 256 hash Slots under bounded work and preserve
 unresolved owner duties. Product acceptance must demonstrate autonomous cleanup
 and continued source/Will recovery. Source-tombstone retirement, full JSONL/restore
 composition and scale qualification remain part of the full objective.
+
+## Indexed discovery and historical coverage
+
+Table 22 index **3** (`idx_mqtt_session_reclamation`) contains only identities
+whose latest ended generation exceeds `reclaimed_through_generation`: the current
+Ended generation or the predecessor of a live generation. Ordinary Session writes
+maintain it atomically. The cursor is the complete namespace/ClientID tuple in
+encoded string order (length, then bytes); it contains no revision or authority.
+
+Table 22 **System 1** stores one key-bound, checksummed version-1 fixed coverage
+record per logical hash Slot. It contains the last scanned primary identity and
+Done. Missing/incomplete coverage is not empty work: read kind **23** rejects it
+with Conflict. A corrupt record fails closed. Raw metadata snapshots include both
+the checkpoint and all index entries in the same pinned state.
+
+Slot command **76** accepts only a version-1 body, with a 128-byte total bound.
+It resumes after the persisted primary cursor, reads at most 65 candidates and
+indexes at most 64 in one atomic batch with the next checkpoint. It merges earlier
+point/range overlays, does not rewrite Session values or revisions, and repeats a
+completed build without a state change. Concurrent new or changed Sessions behind
+the cursor are covered by the ordinary writer. Completion certifies coverage,
+never absence of remaining cleanup or owner isolation.
+
+Read kind 23 pins the coverage record and at most limit+1 index/primary witnesses.
+It rejects missing, corrupt or stale witnesses, checks encoded order and returns
+the exact last cursor on terminal pages too. Node and proxy use the existing
+foreground/maintenance gates, current hash-Slot ownership, result-bearing proposals
+and authoritative read barriers. Old request JSON omits the new zero cursor field.
+
+All writers must match before backfill or discovery is enabled. An old writer
+could omit eligibility after a completed build; this is not a mixed-writer rolling
+upgrade guarantee. Rollback requires the existing pre-feature backup. No new table
+or Session value column is added by discovery; MQTT JSONL remains unfinished.
+
+Storage tests cover legacy rows with no new index, pinned reads, corrupt witnesses,
+rollback, snapshot restore, encoded order, lifecycle changes and same-batch
+backfill. A real three-node TCP/disk integration with 256 hash Slots builds 65 rows
+in pages of 64 and 1 across graceful full-cluster reconstruction, checks reads from
+all nodes and confirms reclamation withdraws a candidate. It is not process-level
+MQTT or automatic scheduling acceptance; missing historical indexes are tested in
+storage. See [discovery evidence](../reports/mqtt-reclamation-discovery.json).

@@ -78,7 +78,7 @@ func (b *Batch) ReclaimMQTTSession(slot HashSlot, m MQTTSessionReclamation) (*MQ
 		if err != nil {
 			return err
 		}
-		keys, done, err := mqttReclamationSubscriptionKeys(ctx, state, span)
+		keys, done, err := mqttReclamationBatchKeys(ctx, state, span)
 		if err != nil {
 			return err
 		}
@@ -158,10 +158,10 @@ func mqttReclamationSpan(base []byte, m MQTTSessionReclamation) (engine.Span, er
 	return engine.Span{Start: start, End: keycodec.PrefixEnd(last)}, nil
 }
 
-// mqttReclamationSubscriptionKeys keeps at most 65 ordered candidates while
+// mqttReclamationBatchKeys keeps at most 65 ordered candidates while
 // merging prior operations in the atomic apply batch. Deleted primary prefixes
 // are skipped with seeks, keeping page results independent of apply batching.
-func mqttReclamationSubscriptionKeys(ctx context.Context, state *batchCommitState, span engine.Span) ([][]byte, bool, error) {
+func mqttReclamationBatchKeys(ctx context.Context, state *batchCommitState, span engine.Span) ([][]byte, bool, error) {
 	iter, err := state.db.engine.NewIter(span, engine.IterOptions{})
 	if err != nil {
 		return nil, false, err
