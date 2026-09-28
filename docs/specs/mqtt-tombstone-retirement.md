@@ -63,3 +63,15 @@ restore and inspect cover Systems 2/3 as registered system spans.
 6. Snapshot/restore/inspect omits Systems 2/3; old peers accept kind 17 without
    marker semantics (all binaries must match, as for kind 17 today).
 7. Unbounded scan or retirement storm under 100k-member group churn.
+
+## Replay marker clearing (deferred)
+
+`ClearMQTTReplayMarker` (Slot command 78) deletes a System-3 marker only while
+the owner has no binding rows. No caller invokes it yet. Local replay copies may
+run ahead of any committed anchor (`CopyMQTTReplaySource` persists replay state
+before anchoring), so `!HasAnchor` does not prove there is nothing to clean.
+Clearing requires either a replicated "source never started" proof or a
+Channel-level proof that replica copies were reclaimed. Until then markers
+stay, bounded to one per Channel owner and paged by replay discovery. The
+`wukongim_mqtt_consumer_events_total{event="retired"}` counter shows how often
+retirement creates or refreshes markers.

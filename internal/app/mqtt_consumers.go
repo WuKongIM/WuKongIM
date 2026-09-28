@@ -65,7 +65,7 @@ func (a *App) wireMQTTConsumers(node *cluster.Node, auth sessioncase.Subscriptio
 			for _, e := range []struct {
 				name  string
 				count int
-			}{{"pages", o.Pages}, {"visited", o.Visited}, {"scheduled", o.Scheduled}, {"completed", o.Completed}, {"failures", o.Failures}, {"accounted", o.Accounted}, {"projected", o.Projected}, {"removed", o.Removed}, {"quota_end_confirmed", o.QuotaEnded}, {"revocation_end_confirmed", o.RevokedEnded}, {"qualification_removed", o.QualificationRemoved}, {"subscription_removal_confirmed", o.SubscriptionRemovalConfirmed}, {"subscription_establishment_confirmed", o.SubscriptionEstablishmentConfirmed}, {"reclamation_confirmed", o.ReclamationConfirmed}, {"reclamation_index_rows", o.ReclamationIndexRows}} {
+			}{{"pages", o.Pages}, {"visited", o.Visited}, {"scheduled", o.Scheduled}, {"completed", o.Completed}, {"failures", o.Failures}, {"accounted", o.Accounted}, {"projected", o.Projected}, {"removed", o.Removed}, {"retired", o.Retired}, {"quota_end_confirmed", o.QuotaEnded}, {"revocation_end_confirmed", o.RevokedEnded}, {"qualification_removed", o.QualificationRemoved}, {"subscription_removal_confirmed", o.SubscriptionRemovalConfirmed}, {"subscription_establishment_confirmed", o.SubscriptionEstablishmentConfirmed}, {"reclamation_confirmed", o.ReclamationConfirmed}, {"reclamation_index_rows", o.ReclamationIndexRows}} {
 				m.ObserveConsumer(e.name, uint64(e.count))
 			}
 			m.SetConsumerWork(o.Admitted, o.Capacity)
@@ -80,7 +80,7 @@ type mqttConsumerMaintenance struct {
 
 func (m mqttConsumerMaintenance) MaintainConsumer(ctx context.Context, k meta.MQTTSourceBindingKey) (runtime.ConsumerWork, error) {
 	r, err := m.maintenance.Maintain(ctx, k)
-	return runtime.ConsumerWork{Accounted: r.Accounted, Projected: r.Projected, Removed: r.Removed, QuotaEnded: r.QuotaEnded, RevokedEnded: r.RevokedEnded, QualificationRemoved: r.QualificationRemoved}, err
+	return runtime.ConsumerWork{Accounted: r.Accounted, Projected: r.Projected, Removed: r.Removed, Retired: r.Retired, QuotaEnded: r.QuotaEnded, RevokedEnded: r.RevokedEnded, QualificationRemoved: r.QualificationRemoved}, err
 }
 
 // mqttSubscriptionMaintenance maps a bounded pending turn to scheduling outcome;

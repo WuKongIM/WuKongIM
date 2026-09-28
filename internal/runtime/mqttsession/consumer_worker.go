@@ -88,6 +88,8 @@ type ConsumerWork struct {
 	// SubscriptionRemovalConfirmed counts observed completion, including retries.
 	SubscriptionRemovalConfirmed                                                  bool
 	Accounted, Projected, Removed, QuotaEnded, RevokedEnded, QualificationRemoved bool
+	// Retired reports one deleted Removed tombstone of an ended lifetime.
+	Retired bool
 }
 
 // ConsumerObservation excludes keys, bodies, errors and other unbounded labels.
@@ -99,7 +101,9 @@ type ConsumerObservation struct {
 	Pages, Visited, Scheduled, Completed, Failures          int
 	Duration                                                time.Duration
 	Accounted, Projected, Removed, QuotaEnded, RevokedEnded int
-	Admitted, Capacity                                      int
+	// Retired counts tombstones deleted behind lifetime fences.
+	Retired            int
+	Admitted, Capacity int
 }
 
 // ConsumerWorker owns one scanner and one bounded cohort. Every run keeps only
@@ -291,6 +295,9 @@ func (w *ConsumerWorker) loop(r *consumerWorkerRun) {
 				}
 				if result.work.Removed {
 					out.Removed++
+				}
+				if result.work.Retired {
+					out.Retired++
 				}
 				if result.work.QuotaEnded {
 					out.QuotaEnded++
