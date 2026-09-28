@@ -69,8 +69,8 @@ func (s *Shard) ListMQTTReplaySources(ctx context.Context, after MQTTBindingOwne
 		if owner.Kind != MQTTBindingChannel || validateMQTTBindingOwner(owner) != nil || (last != (MQTTBindingOwner{}) && CompareMQTTBindingOwners(last, owner) >= 0) {
 			return nil, after, false, dberrors.ErrCorruptValue
 		}
-		if len(rows) == limit {
-			return rows, last, false, nil
+		if len(rows) == limit+1 {
+			break
 		}
 		last = owner
 		rows = append(rows, owner)
@@ -86,5 +86,30 @@ func (s *Shard) ListMQTTReplaySources(ctx context.Context, after MQTTBindingOwne
 	if err = contextErr(ctx); err != nil {
 		return nil, after, false, err
 	}
-	return rows, last, true, nil
+	// Retired owners keep cleanup discoverable through System-3 markers.
+	markers, err := s.listMQTTReplayMarkers(ctx, after, limit+1)
+	if err != nil {
+		return nil, after, false, err
+	}
+	merged := make([]MQTTBindingOwner, 0, len(rows)+len(markers))
+	for i, j := 0, 0; i < len(rows) || j < len(markers); {
+		switch {
+		case j == len(markers) || i < len(rows) && CompareMQTTBindingOwners(rows[i], markers[j]) < 0:
+			merged = append(merged, rows[i])
+			i++
+		case i == len(rows) || CompareMQTTBindingOwners(rows[i], markers[j]) > 0:
+			merged = append(merged, markers[j])
+			j++
+		default:
+			merged = append(merged, rows[i])
+			i, j = i+1, j+1
+		}
+	}
+	if len(merged) > limit {
+		return merged[:limit], merged[limit-1], false, nil
+	}
+	if len(merged) > 0 {
+		last = merged[len(merged)-1]
+	}
+	return merged, last, true, nil
 }

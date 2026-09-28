@@ -42,6 +42,13 @@ func DecodeCommandInspection(data []byte) (CommandInspection, error) {
 
 func inspectCommand(cmd command) (CommandInspection, error) {
 	switch typed := cmd.(type) {
+	case *mqttSourceBindingRetireCmd:
+		p := typed.payload
+		return simpleInspection("mqtt_source_binding_retire", map[string]any{
+			"owner_kind": uint8(p.Key.Owner.Kind), "owner_id": p.Key.Owner.ID, "owner_generation": p.Key.Owner.Generation,
+			"broker_namespace": p.Key.Namespace, "client_id": p.Key.ClientID, "session_generation": p.Key.SessionGeneration,
+			"subscription_generation": p.Key.SubscriptionGeneration, "expected_revision": p.ExpectedRevision, "closed_through": p.ClosedThrough,
+		}), nil
 	case *mqttReclamationIndexCmd:
 		return simpleInspection("mqtt_reclamation_index", map[string]any{"page_limit": 64}), nil
 	case *mqttReclamationCmd:

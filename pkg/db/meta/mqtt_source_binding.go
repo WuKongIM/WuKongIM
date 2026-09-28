@@ -115,6 +115,11 @@ func validateMQTTBindingOwner(o MQTTBindingOwner) error {
 	return nil
 }
 
+// ValidateMQTTSourceBindingKey checks one binding key shape for command codecs.
+func ValidateMQTTSourceBindingKey(k MQTTSourceBindingKey) error {
+	return validateMQTTSourceBindingKey(k)
+}
+
 func validateMQTTSourceBindingKey(k MQTTSourceBindingKey) error {
 	if validateMQTTBindingOwner(k.Owner) != nil || validateMQTTIdentity(k.Namespace, 1024) != nil || validateMQTTIdentity(k.ClientID, 1024) != nil || k.SessionGeneration == 0 || k.SubscriptionGeneration == 0 {
 		return dberrors.ErrInvalidArgument
@@ -203,6 +208,14 @@ func (b *Batch) CompareAndSwapMQTTSourceBinding(slot HashSlot, expected uint64, 
 			}
 		} else {
 			if expected != 0 {
+				return nil
+			}
+			// A retired lifetime stays fenced after its tombstone row is deleted.
+			fence, err := loadMQTTBindingFence(state, slot, row.Key)
+			if err != nil {
+				return err
+			}
+			if row.Key.SessionGeneration <= fence {
 				return nil
 			}
 			switch row.Stage {
