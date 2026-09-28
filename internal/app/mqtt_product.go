@@ -61,6 +61,14 @@ func (a *App) wireMQTT(nodeID uint64) error {
 	if err != nil {
 		return err
 	}
+	// Prove crashed earlier boots and mark this boot started before any owner,
+	// RPC, listener or worker exists. Failure keeps MQTT from starting.
+	recoverCtx, cancelRecover := context.WithTimeout(context.Background(), 10*time.Second)
+	err = m.retirements.Recover(recoverCtx, hex.EncodeToString(boot[:]))
+	cancelRecover()
+	if err != nil {
+		return fmt.Errorf("mqtt: recover owner retirements: %w", err)
+	}
 	node.RegisterRPC(accessnode.MQTTOwnerRPCServiceID, accessnode.MQTTOwnerRPC{Owners: runtime.Isolation{Owners: owners, Retired: m.retirements}})
 	sessions, err := sessioncase.New(sessioncase.Options{Store: node, Owners: owners, Isolation: accessnode.NewMQTTOwnerClient(node), Tokens: a.users, Wills: mqttWillAuthorizer{messages: a.messages}, LeaseDuration: 30 * time.Second, CleanupTimeout: time.Second, SessionExpiryLimitSec: c.SessionExpiryLimitSec, QuotaMessages: c.QuotaMessages, QuotaBytes: c.QuotaBytes, WindowLimit: c.WindowLimit})
 	if err != nil {
@@ -191,7 +199,11 @@ func (m *mqttProduct) Stop(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return m.retirements.Record(ctx, proof)
+	if err = m.retirements.Record(ctx, proof); err != nil {
+		return err
+	}
+	// Release the data-directory lock only after the graceful receipt is durable.
+	return m.retirements.Close()
 }
 
 // mqttProductProjection selects a composed port; each port owns validation and

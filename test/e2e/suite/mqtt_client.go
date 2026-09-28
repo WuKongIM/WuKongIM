@@ -5,6 +5,7 @@ package suite
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"time"
 
@@ -84,6 +85,10 @@ func ConnectMQTT(ctx context.Context, addr, uid, token, clientID string, clean b
 	})
 	if err != nil {
 		_ = conn.Close()
+		if ack != nil {
+			// Preserve the server decision; paho's error text omits it.
+			return nil, fmt.Errorf("%w (CONNACK reason 0x%02x)", err, ack.ReasonCode)
+		}
 		return nil, err
 	}
 	c.Connack = ack

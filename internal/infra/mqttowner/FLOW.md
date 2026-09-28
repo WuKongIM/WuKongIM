@@ -1,6 +1,6 @@
 ---
 scope: package
-summary: Persists immutable node-local proofs of gracefully retired MQTT owner boots.
+summary: Persists immutable node-local proofs of gracefully retired or crashed MQTT owner boots.
 ---
 
 # internal/infra/mqttowner Flow
@@ -20,7 +20,12 @@ owned here. Runtime decides when terminal owner quiescence is proved.
 1. Record one versioned bounded fact with NodeID, BootID and maximum issued ID.
 2. Sync its temporary file, publish an immutable hard link, then sync the directory.
    Equal retries succeed; conflicts never replace facts.
-3. Hash the exact node/boot for a point lookup capped at 1 KiB, verify format,
+3. Recover runs before any owner, RPC, listener or worker: it holds an exclusive
+   `LOCK` flock for the process lifetime, mints MaxUint64-bound receipts for
+   started boots without receipts (proven dead by the lock), removes proven
+   markers, then writes the current boot's started marker. Record removes that
+   marker after its receipt; Close releases the lock after Record.
+4. Hash the exact node/boot for a point lookup capped at 1 KiB, verify format,
    checksum and identity/bound, then return proof or fail closed.
 
 ## Invariants and Failure Semantics
@@ -30,12 +35,15 @@ owned here. Runtime decides when terminal owner quiescence is proved.
 - No UID, ClientID, token, payload, per-owner cache or past-boot scan exists.
 - One file per nonempty graceful boot remains indefinitely; time is not authority
   to delete receipts still referenced by old durable Sessions.
-- This is not abrupt-crash, unavailable-node, restore or uncertain-effect fencing.
+- Crash proofs are node-local and lock-based; unavailable-node, partition, restore
+  or uncertain-effect fencing is not provided. Corrupt or foreign markers fail
+  Recover closed, so MQTT does not start.
 
 ## Read First
 
 - [Storage adapter](retirements.go)
 - [Contract and failure inventory](../../../docs/specs/mqtt-owner-retirement.md)
+- [Crashed-boot retirement](../../../docs/specs/mqtt-crashed-boot-retirement.md)
 
 ## Update Triggers
 

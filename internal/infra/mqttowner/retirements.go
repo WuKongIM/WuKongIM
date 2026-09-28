@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession"
 	runtime "github.com/WuKongIM/WuKongIM/internal/runtime/mqttsession"
@@ -25,6 +26,11 @@ var errRetirement = errors.New("mqttowner: retirement persistence failed")
 type Retirements struct {
 	dir    string
 	nodeID uint64
+	// mu guards the process lock and the recovered current boot.
+	mu      sync.Mutex
+	lock    *os.File
+	current string
+	closed  bool
 }
 
 func NewRetirements(dir string, nodeID uint64) (*Retirements, error) {
@@ -60,13 +66,28 @@ func (s *Retirements) Record(ctx context.Context, proof runtime.RetiredBoot) err
 	if maxID == 0 {
 		return nil
 	}
+	if err := s.writeReceipt(ctx, boot, maxID); err != nil {
+		return err
+	}
+	// The receipt now proves this boot; its started marker is redundant.
+	return removeDurably(s.dir, s.markerPath(boot))
+}
+
+// writeReceipt publishes one immutable receipt bounding a boot's issued IDs.
+func (s *Retirements) writeReceipt(ctx context.Context, boot string, maxID uint64) error {
 	data := []byte{'M', 'Q', 'O', 'R', 0, 1}
-	data = binary.BigEndian.AppendUint64(data, node)
+	data = binary.BigEndian.AppendUint64(data, s.nodeID)
 	data = binary.BigEndian.AppendUint64(data, maxID)
 	data = binary.BigEndian.AppendUint16(data, uint16(len(boot)))
 	data = append(data, boot...)
 	sum := sha256.Sum256(data)
 	data = append(data, sum[:]...)
+	return s.publish(ctx, s.path(boot), data)
+}
+
+// publish links a fsynced temporary file to path. An existing file must hold
+// identical bytes; conflicting facts are never overwritten.
+func (s *Retirements) publish(ctx context.Context, path string, data []byte) error {
 	f, err := os.CreateTemp(s.dir, ".retirement-")
 	if err != nil {
 		return errRetirement
@@ -81,7 +102,6 @@ func (s *Retirements) Record(ctx context.Context, proof runtime.RetiredBoot) err
 	if err = ctx.Err(); err != nil {
 		return err
 	}
-	path := s.path(boot)
 	if err = os.Link(f.Name(), path); err != nil {
 		if !errors.Is(err, os.ErrExist) {
 			return errRetirement
@@ -91,14 +111,8 @@ func (s *Retirements) Record(ctx context.Context, proof runtime.RetiredBoot) err
 			return errRetirement
 		}
 	}
-	dir, err := os.Open(s.dir)
-	if err != nil {
-		return errRetirement
-	}
-	syncErr = dir.Sync()
-	closeErr = dir.Close()
-	if errors.Join(syncErr, closeErr) != nil {
-		return errRetirement
+	if err = syncDir(s.dir); err != nil {
+		return err
 	}
 	return ctx.Err()
 }
@@ -113,6 +127,12 @@ func (s *Retirements) Quiesce(ctx context.Context, o contract.Owner) error {
 		return err
 	}
 	if o.Validate() != nil || o.NodeID != s.nodeID {
+		return runtime.ErrOwnerUnknown
+	}
+	s.mu.Lock()
+	current := s.current
+	s.mu.Unlock()
+	if current != "" && o.BootID == current {
 		return runtime.ErrOwnerUnknown
 	}
 	data, err := readRetirement(s.path(o.BootID))
