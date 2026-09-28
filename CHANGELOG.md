@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Removed MQTT source bindings are now actually retired by background maintenance; previously they left the recovery index and were never rediscovered. Unprovable retirements back off from 1 second up to 10 minutes. / 后台维护现在会真正回收已移除的 MQTT 来源绑定；此前这些行离开恢复索引后不会再被发现。暂时无法证明可回收时，从 1 秒起退避，最长 10 分钟。
+
 - Concurrent MQTT SUBSCRIBE requests to the same group no longer disconnect with an unclassified failure; per-request Channel metadata application now waits for a contended shard lock within the request deadline instead of failing as not ready. / 多个客户端同时订阅同一群时，不再因未分类错误被断开；按请求应用频道元数据时，遇到分片锁竞争会在请求时限内等待，而不是直接返回未就绪。
 
 - Persistent MQTT Sessions now resume immediately after the owning node process crashes (SIGKILL, OOM, power loss) and restarts; a data-directory lock proves the previous boot is gone. A second process on the same data directory cannot start MQTT. / 持有 MQTT 持久会话的节点进程崩溃（SIGKILL、OOM、断电）重启后，会话可立即恢复；数据目录锁用于证明上一个进程已退出，同一数据目录的第二个进程无法启动 MQTT。
