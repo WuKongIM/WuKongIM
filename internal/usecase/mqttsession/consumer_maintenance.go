@@ -82,8 +82,12 @@ func (c *ConsumerMaintenance) Maintain(parent context.Context, k meta.MQTTSource
 	if err != nil {
 		return out, err
 	}
-	if r.Session != nil || len(r.Subscriptions) != 0 || len(r.Bindings) != 1 {
+	if r.Session != nil || len(r.Subscriptions) != 0 || len(r.Bindings) > 1 {
 		return out, ErrEvidence
+	}
+	if len(r.Bindings) == 0 {
+		// Only retirement deletes binding rows; its fence keeps the key closed.
+		return out, nil
 	}
 	b := r.Bindings[0]
 	if meta.ValidateMQTTSourceBinding(b) != nil || b.Key != k {
