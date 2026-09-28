@@ -43,8 +43,9 @@ var mqttSessionTable = registerMetaTable(TableSpec[MQTTSession]{
 		{ID: 27, Name: "outbound_inflight", Type: schema.TypeUint64},
 		{ID: 28, Name: "window_limit", Type: schema.TypeUint64},
 		{ID: 29, Name: "last_lifecycle_digest", Type: schema.TypeString},
+		{ID: 30, Name: "reclaimed_through_generation", Type: schema.TypeUint64},
 	},
-	Families: []schema.Family{{ID: 0, Name: "primary", Columns: []uint16{3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 29}}},
+	Families: []schema.Family{{ID: 0, Name: "primary", Columns: []uint16{3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 29, 30}}},
 	Primary: PrimarySpec[MQTTSession]{IndexID: 1, Name: "pk_mqtt_session", Columns: []uint16{1, 2}, Layout: KeyLayout{KeyString, KeyString}, Key: func(r MQTTSession) KeyParts {
 		return mqttSessionPrimaryKey(r.Namespace, r.ClientID)
 	}},
@@ -91,6 +92,9 @@ func encodeMQTTSessionRow(key []byte, r MQTTSession) ([]byte, error) {
 	_ = w.Uint64(27, uint64(r.OutboundInflight))
 	_ = w.Uint64(28, uint64(r.WindowLimit))
 	_ = w.String(29, r.LastLifecycleDigest)
+	if r.ReclaimedThroughGeneration != 0 {
+		_ = w.Uint64(30, r.ReclaimedThroughGeneration)
+	}
 	return rowcodec.Wrap(key, mqttSessionValueVersion, rowcodec.CodecColumns, rowcodec.FlagChecksum, w.Bytes()), nil
 }
 
@@ -186,6 +190,8 @@ func decodeMQTTSessionRow(key []byte, pk KeyParts, value []byte) (MQTTSession, e
 			r.TerminationReason = MQTTSessionEndReason(small)
 		case 25:
 			r.UpdatedAtMS, err = s.Int64()
+		case 30:
+			r.ReclaimedThroughGeneration, err = s.Uint64()
 		case 29:
 			r.LastLifecycleDigest, err = s.String()
 		case 27, 28:
@@ -222,7 +228,8 @@ func inspectMQTTSessionRow(r MQTTSession) InspectRow {
 		"quota_messages": r.QuotaMessages, "quota_bytes": r.QuotaBytes,
 		"will_generation": r.WillGeneration, "termination_reason": uint8(r.TerminationReason),
 		"updated_at_ms": r.UpdatedAtMS, "deadline_ms": mqttSessionDeadline(r),
-		"last_lifecycle_digest": r.LastLifecycleDigest,
-		"outbound_inflight":     uint64(r.OutboundInflight), "window_limit": uint64(r.WindowLimit),
+		"last_lifecycle_digest":        r.LastLifecycleDigest,
+		"reclaimed_through_generation": r.ReclaimedThroughGeneration,
+		"outbound_inflight":            uint64(r.OutboundInflight), "window_limit": uint64(r.WindowLimit),
 	}
 }

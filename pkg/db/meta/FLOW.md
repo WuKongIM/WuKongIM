@@ -41,7 +41,7 @@ It does not own product business policy or expose engine-specific APIs.
    even after failure. Late misses cannot fill a newer generation. Replica slices
    are cloned on return, and authority/routing checks remain outside storage.
 7. MQTT sessions separate lifetime/owner generations, revision and deadline pages;
-   ended rows retain UID binding. Subscription writes fence owner/revision and
+   ended rows retain UID binding. Optional Session column 30 records child reclamation; bounded intent pages precede atomic cursor/accounting/inflight range deletion. Same-batch range masks preserve replay grouping independence; newer lifetimes, source tombstones and Will remain. Subscription writes fence owner/revision and
    preserve generation on option replacement; child receipts prove exact retries.
    Delivery cursors separate backlog accounting, window admission and completion.
    Explicit cancellation Init and offline window release require closed intent; admission/ACK remain active-only and ordinary Init/Account keep their fences.

@@ -591,6 +591,11 @@ func (t Table[R]) loadBatchValue(state *batchCommitState, primaryKey []byte) ([]
 		}
 		return overlay.value, true, nil
 	}
+	for _, span := range state.tableDeletes {
+		if bytes.Compare(primaryKey, span.Start) >= 0 && bytes.Compare(primaryKey, span.End) < 0 {
+			return nil, false, nil
+		}
+	}
 	return state.db.get(primaryKey)
 }
 
@@ -639,6 +644,11 @@ func (t Table[R]) loadBatchRow(state *batchCommitState, hashSlot HashSlot, pk Ke
 			return zero, false, err
 		}
 		return row, true, nil
+	}
+	for _, span := range state.tableDeletes {
+		if bytes.Compare(primaryKey, span.Start) >= 0 && bytes.Compare(primaryKey, span.End) < 0 {
+			return zero, false, nil
+		}
 	}
 	return t.getByPrimaryKey(state.db, hashSlot, pk)
 }

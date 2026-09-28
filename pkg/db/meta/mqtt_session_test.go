@@ -237,9 +237,8 @@ func TestMQTTSessionRejectsInvalidRowsAndCorruptValues(t *testing.T) {
 		_, err := mqttSessionTable.decodeValue(key, pk, corrupt)
 		require.Error(t, err)
 	}
-	// Column 29 is the last known field; column 31 remains an optional future field.
-	// A new optional uint8 column 27
-	// must not change old fields or require a value-envelope version bump.
+	// This zero-marker row ends at column 29; optional column 30 is omitted.
+	// Unknown uint8 column 31 must not change old fields or require an envelope bump.
 	future := append(append([]byte(nil), env.Payload...), 0x26, 7)
 	got, err = mqttSessionTable.decodeValue(key, pk, rowcodec.Wrap(key, 1, env.Codec, env.Flags, future))
 	require.NoError(t, err)

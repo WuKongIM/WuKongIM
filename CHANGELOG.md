@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add bounded, replicated cleanup of ended MQTT Session children with a durable completion marker, retaining ClientID binding, newer lifetimes, source fences and independent Wills. Automatic scheduling remains under development. / 新增已结束 MQTT 会话子记录的有界复制清理及持久完成标记，保留 ClientID 绑定、新代会话、来源屏障和独立 Will；自动调度仍在开发。
+
 - MQTT subscription preparation now waits within its existing bound when read-only replay planning is temporarily unready or backpressured; cancellation still stops the request and all-replica confirmation remains required. / MQTT 订阅准备遇到只读回放规划暂未就绪或容量压力时，在既有时限内等待；取消仍会终止请求，且保持全部副本确认要求。
 
 - MQTT now exposes fixed SUBSCRIBE/UNSUBSCRIBE failure counters to distinguish closure paths without recording client identities or message content.

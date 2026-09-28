@@ -49,6 +49,9 @@ type MQTTSession struct {
 	UID string `json:"uid"`
 	// Generation identifies the durable subscription/cursor/inflight lifetime.
 	Generation uint64 `json:"generation"`
+	// ReclaimedThroughGeneration proves local child deletion through this lifetime.
+	// Only reclamation advances it; missing optional column 30 means zero.
+	ReclaimedThroughGeneration uint64 `json:"reclaimed_through_generation,omitempty"`
 	// Revision is the independent CAS version of this row.
 	Revision uint64 `json:"revision"`
 	// OwnerGeneration fences every connection incarnation, including resumed sessions.
@@ -143,6 +146,9 @@ func ValidateMQTTSession(r MQTTSession) error {
 		r.QuotaMessages == 0 || r.QuotaBytes == 0 || r.UpdatedAtMS <= 0 || r.LeaseUntilMS < 0 || r.OfflineExpiresAtMS < 0 {
 		return dberrors.ErrInvalidArgument
 	}
+	if r.ReclaimedThroughGeneration > r.Generation || r.ReclaimedThroughGeneration == r.Generation && (r.State != MQTTSessionEnded || r.PendingMessages != 0 || r.PendingBytes != 0 || r.OutboundInflight != 0) {
+		return dberrors.ErrInvalidArgument
+	}
 	switch r.State {
 	case MQTTSessionActive:
 		if r.LeaseUntilMS <= 0 || r.OfflineExpiresAtMS != 0 || r.TerminationReason != 0 {
@@ -195,7 +201,7 @@ func (b *Batch) CompareAndSwapMQTTSession(slot HashSlot, expected uint64, row MQ
 			if old.Revision != expected || !validMQTTSessionTransition(old, row) || !validMQTTSessionGenericWillChange(old, row) {
 				return nil
 			}
-		} else if row.WillGeneration != 0 || row.LastLifecycleDigest != "" || expected != 0 || row.Generation != 1 || row.OwnerGeneration != 1 || row.State != MQTTSessionActive || row.PendingMessages != 0 || row.PendingBytes != 0 || row.OutboundInflight != 0 {
+		} else if row.ReclaimedThroughGeneration != 0 || row.WillGeneration != 0 || row.LastLifecycleDigest != "" || expected != 0 || row.Generation != 1 || row.OwnerGeneration != 1 || row.State != MQTTSessionActive || row.PendingMessages != 0 || row.PendingBytes != 0 || row.OutboundInflight != 0 {
 			return nil
 		}
 		if err := stageUpdateRow(mqttSessionTable, state, batch, slot, row); err != nil {
@@ -208,7 +214,7 @@ func (b *Batch) CompareAndSwapMQTTSession(slot HashSlot, expected uint64, row MQ
 }
 
 func validMQTTSessionTransition(old, next MQTTSession) bool {
-	if old.UID != next.UID || next.Generation < old.Generation || next.Generation-old.Generation > 1 ||
+	if old.ReclaimedThroughGeneration != next.ReclaimedThroughGeneration || old.UID != next.UID || next.Generation < old.Generation || next.Generation-old.Generation > 1 ||
 		next.OwnerGeneration < old.OwnerGeneration || next.OwnerGeneration-old.OwnerGeneration > 1 {
 		return false
 	}

@@ -207,6 +207,7 @@ type commandDecoder func(data []byte) (command, error)
 // a corresponding encode function, a decoder, and register it here.
 var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeMessageUpdate:                       decodeMessageUpdateCommand,
+	cmdTypeMQTTSessionReclamation:              decodeMQTTSessionReclamationCommand,
 	cmdTypeMQTTInboxAdmissionCAS:               decodeMQTTInboxAdmissionCASCommand,
 	cmdTypeMQTTLifecycleMutation:               decodeMQTTLifecycleCommand,
 	cmdTypeMQTTWillCAS:                         decodeMQTTWillCASCommand,

@@ -280,3 +280,44 @@ func (s *Store) CompareAndSwapMQTTInboxAdmission(ctx context.Context, expected u
 	}
 	return out, nil
 }
+
+// ReclaimMQTTSession routes bounded ended-lifetime cleanup to Session authority.
+// Partial pages require fresh revisions. A completion witness may survive later
+// Session changes, unlike an exact CAS retry receipt.
+func (s *Store) ReclaimMQTTSession(ctx context.Context, m metadb.MQTTSessionReclamation) (out metadb.MQTTSessionReclamationResult, err error) {
+	cmd, err := metafsm.EncodeMQTTSessionReclamationCommand(m)
+	if err != nil {
+		return out, err
+	}
+	key, err := MQTTSessionRoutingKey(m.Namespace, m.ClientID)
+	if err != nil {
+		return out, err
+	}
+	if err = s.proposeMQTT(ctx, key, cmd, &out); err == nil {
+		err = validateMQTTReclamationResult(m, out)
+	}
+	if err != nil {
+		return metadb.MQTTSessionReclamationResult{}, err
+	}
+	return out, nil
+}
+func validateMQTTReclamationResult(m metadb.MQTTSessionReclamation, r metadb.MQTTSessionReclamationResult) error {
+	if r.RemovedSubscriptions < 0 || r.RemovedSubscriptions > 64 {
+		return metadb.ErrCorruptValue
+	}
+	switch r.Status {
+	case metadb.MQTTSessionCASApplied:
+		if r.CurrentRevision == m.ExpectedRevision+1 && (r.Done && r.ReclaimedThroughGeneration == m.ThroughGeneration || !r.Done && r.ReclaimedThroughGeneration < m.ThroughGeneration) {
+			return nil
+		}
+	case metadb.MQTTSessionCASUnchanged:
+		if r.CurrentRevision > 0 && r.Done && r.RemovedSubscriptions == 0 && r.ReclaimedThroughGeneration >= m.ThroughGeneration {
+			return nil
+		}
+	case metadb.MQTTSessionCASConflict:
+		if !r.Done && r.RemovedSubscriptions == 0 && r.ReclaimedThroughGeneration < m.ThroughGeneration && (r.CurrentRevision != 0 || r.ReclaimedThroughGeneration == 0) {
+			return nil
+		}
+	}
+	return metadb.ErrCorruptValue
+}

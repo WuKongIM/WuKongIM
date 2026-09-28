@@ -26,6 +26,8 @@ func TestMQTTMetadataNodeForegroundGates(t *testing.T) {
 		require.ErrorIs(t, err, tc.err)
 		_, err = tc.node.ApplyMQTTLifecycle(ctx, metadb.MQTTLifecycleMutation{})
 		require.ErrorIs(t, err, tc.err)
+		_, err = tc.node.ReclaimMQTTSession(ctx, metadb.MQTTSessionReclamation{})
+		require.ErrorIs(t, err, tc.err)
 		_, err = tc.node.MutateMQTTSubscription(ctx, metadb.MQTTSubscriptionMutation{})
 		require.ErrorIs(t, err, tc.err)
 		_, err = tc.node.MutateMQTTDeliveryCursor(ctx, metadb.MQTTDeliveryCursorMutation{})

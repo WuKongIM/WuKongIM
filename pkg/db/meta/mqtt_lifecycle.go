@@ -185,7 +185,7 @@ func validMQTTLifecycleSession(old MQTTSession, found bool, m MQTTLifecycleMutat
 	n := m.Session
 	at := n.UpdatedAtMS
 	if !found {
-		return m.Event == MQTTLifecycleConnect && n.Generation == 1 && n.OwnerGeneration == 1 && n.State == MQTTSessionActive && n.LeaseUntilMS > at && n.PendingMessages == 0 && n.PendingBytes == 0 && n.OutboundInflight == 0 && n.NextPacketID == 1 && n.NextDeliveryOrder == 1
+		return n.ReclaimedThroughGeneration == 0 && m.Event == MQTTLifecycleConnect && n.Generation == 1 && n.OwnerGeneration == 1 && n.State == MQTTSessionActive && n.LeaseUntilMS > at && n.PendingMessages == 0 && n.PendingBytes == 0 && n.OutboundInflight == 0 && n.NextPacketID == 1 && n.NextDeliveryOrder == 1
 	}
 	if at < old.UpdatedAtMS || !validMQTTSessionTransition(old, n) {
 		return false

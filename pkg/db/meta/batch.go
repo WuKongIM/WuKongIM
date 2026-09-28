@@ -51,8 +51,10 @@ type metaBatchOp struct {
 }
 
 type batchCommitState struct {
-	db             *MetaDB
-	tableRows      map[string]tableRowOverlay
+	db        *MetaDB
+	tableRows map[string]tableRowOverlay
+	// tableDeletes masks disk rows after bounded range deletion in this apply batch.
+	tableDeletes   []engine.Span
 	tableCreates   map[string]struct{}
 	runtimeMeta    map[string]runtimeMetaOverlay
 	migrationTasks map[string]migrationTaskOverlay

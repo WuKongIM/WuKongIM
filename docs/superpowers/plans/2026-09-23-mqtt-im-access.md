@@ -8,6 +8,8 @@
 
 ## 当前进度
 
+- 已建立 [旧会话子记录回收事务](../../specs/mqtt-session-reclamation.md)：Session 可选列 30、Slot 命令 75 和 Node 路由，分批清理旧订阅/索引后原子释放游标、计量和交换记录；保留新代会话、来源屏障和独立 Will。已修正同批与分批重放的结果差异；自动发现、隔离编排和后台调度仍待接通。验证证据见 [报告](../../reports/mqtt-session-reclamation.json)。
+
 - 回放只读规划的就绪分类已按测试先行修复：初次及嵌套规划仅将明确的 NotReady/Backpressured 保持为有界 pending，取消优先，未知/陈旧/损坏结果及锚点写入不增加重试。16 项定向用例、三个相关包完整 race、FLOW 检查以及订阅/退订中断共 16 项真实进程场景通过。修复前的启动型探针两种环境各 20 次通过，未捕获自然断连，不能用来证明该修复解释了历史故障。见 [证据](../../reports/mqtt-plan-readiness.json)。
 
 - 已补订阅断连的固定分类指标及测试。三个相关包 race、FLOW 检查通过；候选在三节点群首次 SUBSCRIBE 重现约 919ms 断连，入口指标捕获 `subscribe/unconfirmed`，随后十轮阶段探针运行通过但未捕获底层错误，不能宣称修复；已增加单集群 64 个新群/新持久会话的首次订阅覆盖；无探针候选和阶段探针各 64 次通过，但未重现间歇失败，进程冷启动条件仍待区分。见 [诊断合同](../../specs/mqtt-subscription-diagnostics.md)。

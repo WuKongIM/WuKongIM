@@ -19,6 +19,10 @@ slice. No storage primitive by itself authorizes a cluster session or proves an
 old connection fenced. Product activation remains disabled until the complete
 replication, recovery and source-protection chain passes acceptance.
 
+Ended-lifetime child cleanup adds optional Session column 30 and Slot command 75;
+see [the reclamation contract](mqtt-session-reclamation.md). Automatic discovery
+and scheduling remain required.
+
 ## Session row, first slice
 
 `mqtt_session` uses new metadata table ID **22**, primary index **1**, family

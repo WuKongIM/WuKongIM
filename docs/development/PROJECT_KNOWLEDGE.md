@@ -290,6 +290,13 @@ specification, runbook, report, or module documentation; link to them when neede
   a successor, and gives the next connection a fresh lifetime. Expired active
   owners first record the original disconnect; automatic ending/cleanup scheduling
   remains required.
+  [Session child reclamation](../specs/mqtt-session-reclamation.md) uses command 75
+  and optional table-22 column 30. It deletes at most 64 intents/indexes per step,
+  then atomically clears old cursor/accounting/inflight spans. Range masks make
+  results independent of Raft apply grouping. The retained parent prevents old
+  child recreation; source tombstones and detached Wills remain separate. The
+  completion marker proves no owner isolation or shared-content GC. Automatic
+  discovery must cover older rows without assuming a new index is populated.
   The [connection sender](../specs/mqtt-sender.md) serializes recovery before new
   admission, makes fresh permission the final authoritative read before enqueue,
   and invokes End for definitive denial after releasing owner scopes. It keeps

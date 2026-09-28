@@ -108,3 +108,13 @@ func (n *Node) CompareAndSwapMQTTInboxAdmission(ctx context.Context, expected ui
 	}
 	return s.CompareAndSwapMQTTInboxAdmission(ctx, expected, row)
 }
+
+// ReclaimMQTTSession removes ended-lifetime children at their Session authority.
+// Its completion receipt proves neither owner isolation nor source retirement.
+func (n *Node) ReclaimMQTTSession(ctx context.Context, m metadb.MQTTSessionReclamation) (metadb.MQTTSessionReclamationResult, error) {
+	s, err := n.mqttMetadataStore()
+	if err != nil {
+		return metadb.MQTTSessionReclamationResult{}, err
+	}
+	return s.ReclaimMQTTSession(ctx, m)
+}

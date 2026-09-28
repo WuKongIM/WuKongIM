@@ -17,7 +17,9 @@ One existing lifecycle End command atomically ends the Session and makes any liv
 Will ready; detached/cancelled work is preserved. Delivery counters, allocators,
 children and source bindings remain until their separately verified cleanup.
 Connecting again gives Session Present=false and a new lifetime, while retaining
-the ClientID-to-UID binding. End does not publish a Will or authorize source GC.
+the ClientID-to-UID binding. End does not publish a Will or authorize source GC. The separate
+[child reclamation transaction](mqtt-session-reclamation.md) now preserves that
+boundary; automatic discovery and isolation orchestration remain required.
 
 Capture the observation before isolation. A concurrent admitted write may advance
 the timestamp; drain completion cannot restart that observation. If the active
