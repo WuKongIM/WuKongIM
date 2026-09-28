@@ -199,6 +199,26 @@ func (s *Store) RetireMQTTSourceBinding(ctx context.Context, key metadb.MQTTSour
 	return out, nil
 }
 
+// ClearMQTTReplayMarker removes one Channel owner's replay-discovery marker on
+// the owner's Slot. Conflict means no marker or a binding row still exists.
+func (s *Store) ClearMQTTReplayMarker(ctx context.Context, owner metadb.MQTTBindingOwner) (out metadb.MQTTSourceBindingResult, err error) {
+	cmd, err := metafsm.EncodeMQTTReplayMarkerClearCommand(owner)
+	if err != nil {
+		return out, err
+	}
+	route, err := MQTTSourceRoutingKey(owner)
+	if err != nil {
+		return out, err
+	}
+	if err = s.proposeMQTT(ctx, route, cmd, &out); err == nil && out.Status != metadb.MQTTSessionCASApplied && out.Status != metadb.MQTTSessionCASConflict {
+		err = metadb.ErrCorruptValue
+	}
+	if err != nil {
+		return metadb.MQTTSourceBindingResult{}, err
+	}
+	return out, nil
+}
+
 // CompareAndSwapMQTTWill retains detached obligations on the original Session
 // Slot, even when that Session no longer exists or has a newer lifetime.
 func (s *Store) CompareAndSwapMQTTWill(ctx context.Context, expected uint64, row metadb.MQTTWill) (out metadb.MQTTWillResult, err error) {

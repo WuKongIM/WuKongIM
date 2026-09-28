@@ -44,3 +44,16 @@ func TestMQTTSourceBindingRetireRoutesToOwnerAndFencesResurrection(t *testing.T)
 	_, err = s.RetireMQTTSourceBinding(ctx, r.Key, 3, 0)
 	require.Error(t, err)
 }
+
+func TestMQTTReplayMarkerClearRoutesToOwnerAndRemovesDiscovery(t *testing.T) {
+	ctx := context.Background()
+	nodes := startTwoNodeHashSlotStores(t, 256)
+	s := nodes[1].store
+	r := metadb.MQTTSourceBinding{Key: metadb.MQTTSourceBindingKey{Owner: metadb.MQTTBindingOwner{Kind: metadb.MQTTBindingChannel, ID: "2:group", Generation: "g"}, Namespace: "main", ClientID: "c", SessionGeneration: 1, SubscriptionGeneration: 2}, UID: "alice", Topic: "topic", Revision: 1, IntentRevision: 2, AuthorizationVersion: 1, OperationID: "subscribe", Stage: metadb.MQTTBindingPreparing, RecoveryAtMS: 1}
+	_, err := s.ClearMQTTReplayMarker(ctx, metadb.MQTTBindingOwner{})
+	require.Error(t, err)
+	res, err := s.ClearMQTTReplayMarker(ctx, r.Key.Owner)
+	require.NoError(t, err)
+	require.Equal(t, metadb.MQTTSessionCASConflict, res.Status)
+	_ = r
+}

@@ -100,6 +100,15 @@ func (n *Node) RetireMQTTSourceBinding(ctx context.Context, key metadb.MQTTSourc
 	return s.RetireMQTTSourceBinding(ctx, key, expected, closedThrough)
 }
 
+// ClearMQTTReplayMarker removes one owner's replay marker on its owner Slot.
+func (n *Node) ClearMQTTReplayMarker(ctx context.Context, owner metadb.MQTTBindingOwner) (metadb.MQTTSourceBindingResult, error) {
+	s, err := n.mqttMetadataStore()
+	if err != nil {
+		return metadb.MQTTSourceBindingResult{}, err
+	}
+	return s.ClearMQTTReplayMarker(ctx, owner)
+}
+
 // CompareAndSwapMQTTWill preserves obligations beyond the current Session lifetime.
 func (n *Node) CompareAndSwapMQTTWill(ctx context.Context, expected uint64, row metadb.MQTTWill) (metadb.MQTTWillResult, error) {
 	s, err := n.mqttMetadataStore()
