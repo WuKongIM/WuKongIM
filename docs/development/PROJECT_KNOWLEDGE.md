@@ -299,7 +299,16 @@ specification, runbook, report, or module documentation; link to them when neede
   index 3 and read kind 23, rejecting missing/incomplete System-1 coverage.
   Command 76 backfills at most 64 historical rows and its cursor atomically;
   ordinary writes maintain eligibility behind the cursor. Matched writers are
-  required. Owner isolation, scheduling and process acceptance remain required.
+  required. The shared consumer cohort now builds coverage and schedules one
+  cleanup page per fresh turn. Current Ended lifetimes require exact-owner End
+  and a matching reread; replaced lifetimes never close the live successor.
+  Three cursors/one coverage hint per Slot remain bounded, and public reclamation
+  confirmations count observations rather than unique Sessions or physical GC.
+  Fresh CONNECT must retain the reclamation marker when resetting delivery state;
+  otherwise its lifecycle CAS rejects the attempted marker regression.
+  CONNECT also rebases at most three definite revision rejections under the same
+  isolated Owner/UID and unchanged lifetime decision, rechecking authorization
+  while retaining one candidate and its original lease. Unknown outcomes never retry.
   The [connection sender](../specs/mqtt-sender.md) serializes recovery before new
   admission, makes fresh permission the final authoritative read before enqueue,
   and invokes End for definitive denial after releasing owner scopes. It keeps

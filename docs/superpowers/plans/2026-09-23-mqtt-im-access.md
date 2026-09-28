@@ -8,6 +8,7 @@
 
 ## 当前进度
 
+- 已装配旧会话自动回收：复用消费者任务池并发/容量，第三条扫描流补建覆盖后发现候选；当前 Ended 会话先确认精确 Owner 隔离，新代会话保持运行。固定聚合指标记录补建行数和回收确认，失败/取消/未知回包均保留任务，见 [调度证据](../../reports/mqtt-reclamation-worker.json)。源端 tombstone 安全退役、完整故障及规模验收仍未完成。
 - 已接通旧会话回收的有界发现：table 22 新增索引 3 和 System 1 覆盖进度，命令 76 每批补建最多 64 行；读取类型 23 拒绝未完成覆盖，三节点重启后续建并核验候选。自动调度与 Owner 隔离编排仍待接通，见 [发现报告](../../reports/mqtt-reclamation-discovery.json)。
 - 已建立 [旧会话子记录回收事务](../../specs/mqtt-session-reclamation.md)：Session 可选列 30、Slot 命令 75 和 Node 路由，分批清理旧订阅/索引后原子释放游标、计量和交换记录；保留新代会话、来源屏障和独立 Will。已修正同批与分批重放的结果差异；自动发现、隔离编排和后台调度仍待接通。验证证据见 [报告](../../reports/mqtt-session-reclamation.json)。
 

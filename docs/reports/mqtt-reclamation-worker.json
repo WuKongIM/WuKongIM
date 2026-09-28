@@ -1,0 +1,489 @@
+{
+  "schema_version": 1,
+  "status": "autonomous_session_child_reclamation_implemented_and_bounded_process_acceptance_passed; full_mqtt_objective_incomplete",
+  "recorded_at_utc": "2026-09-28T02:18:54.164862+00:00",
+  "source": {
+    "source_commit": "e80ac1f7645a818e17513c4bbb03741a63090c30",
+    "instructions": {
+      "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+      "internal/usecase/mqttsession/FLOW.md": "d969eac62cfc9e1356e592b77b3e56ad5093caa19c6ce96125444a3cba44a03e",
+      "internal/runtime/mqttsession/FLOW.md": "5f61cca4475b652f61c893afeae4d7d721258072158504b92c78749971e6c29d",
+      "internal/app/FLOW.md": "4bb9604d0bd903734ff86dda0b209478f8cbd90848112cfb2329d4d360bb5f91",
+      "test/e2e/AGENTS.md": "48f15665655f25a457196623e1ceca69bf82ef079d85bec2a2ebf93e5e2784bb",
+      "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+      "internal/access/mqtt/FLOW.md": "9f0bd03bff4491b69344d25d17a312ee679866ebf43970a5d9c4821d9714d445",
+      "test/e2e/mqtt/will/AGENTS.md": "0e307f7ea301f3ccac1e40323d3a503871123c6d884d700dbfbff686654789ae"
+    }
+  },
+  "failure_inventory": [
+    "Failure inventory before usecase/worker/product implementation:",
+    "1. A stale identity hint deletes current live children or quiesces the successor; absent/no-debt work invents completion.",
+    "2. Durable Ended alone grants isolation; isolation failure/panic/late completion or changed Owner/UID permits cleanup.",
+    "3. Reads accept partial/extra/invalid authority; clock regression, overflow, cancellation or late writes report completion or trigger retry.",
+    "4. Cleanup follows newer lifetimes or retries ambiguous writes; partial/conflicting/forged receipts claim completion.",
+    "5. Historical coverage is assumed ready; partial/failed/late/panicking build dispatches candidates or monopolizes a turn.",
+    "6. Candidate pages admit before whole-page validation; encoded order/terminal cursors/pressure skip work; lost ownership retains unbounded hints.",
+    "7. Reclamation uses a second cohort, carries revision/time into dedup keys, starves existing streams or exceeds 256-Slot bounds.",
+    "8. Panic/late executor outcome leaks admission or counts confirmation; Stop cannot join and restart overlaps old work.",
+    "9. Product composition omits Ender or authoritative index ports; fixed metric labels omit reclamation or retain identifiers.",
+    "10. Real cluster autonomous discovery/cleanup does not progress, harms newer lifetime, or destroys source/Will obligations. Full process MQTT acceptance is separately required.",
+    "Observed process failure before repair: four zero/offline-expiry scenarios received EOF on reconnect after public reclamation confirmation. Fresh CONNECT reconstructs Session from a zero struct; unlike resume it may drop the persistent reclamation marker required by the lifecycle FSM. A separate three-node Clean Start CONNECT also returned EOF before confirmation; do not infer the same cause without evidence. Add a real acquisition/storage regression across all fresh-lifetime triggers before any repair.",
+    "",
+    "Captured Clean Start diagnosis: temporary fixed-shape probe recorded phase=commit, definite status=3, expected=3/current=4, old Active generation=1/reclaimed=0. A real normal Disconnect injected before the new lifecycle proposal reproduces both resume and Clean Start rejection. Rebase regressions precede repair: maximum three definite proposals, same isolated Owner/UID/lifetime decision, original candidate and deadline, unknown-write stop, successor protection, freshness-change refusal, cancellation and clock/lease expiry."
+  ],
+  "implementation": {
+    "new_tables": [],
+    "new_columns": [],
+    "new_rpc_ids": [],
+    "existing_slot_commands": [
+      75,
+      76
+    ],
+    "existing_read_kind": 23,
+    "cohort": "existing ConsumerWorker",
+    "max_cursors_per_hash_slot": 3,
+    "max_coverage_hints_per_hash_slot": 1,
+    "hash_slots": 256,
+    "default_shared_workers": 16,
+    "max_shared_workers": 128,
+    "discovery_pages_per_turn": 32,
+    "discovery_rows_per_page": 16,
+    "backfill_rows_per_command": 64,
+    "cleanup_intents_per_command": 64,
+    "execution_timeout_ms": 5000,
+    "connect_max_definite_proposals": 3,
+    "connect_candidate_and_deadline_reused": true,
+    "metrics": [
+      "reclamation_confirmed",
+      "reclamation_index_rows"
+    ]
+  },
+  "checks": [
+    {
+      "path": "/tmp/mqtt-reclamation-usecase-red.log",
+      "sha256": "7d6dc9216e8a8e5f9a90e8d48fd6d583728aed4e38832fd0b74f8640e9d0c074",
+      "outcome": "expected_compile_failure",
+      "scope": "New SessionReclamation contract absent before implementation.",
+      "results": []
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-usecase-green.log",
+      "sha256": "e9eed0e85476ff0a5209df7080d7d5c9e6f9f21d246b1de98ab624350319971b",
+      "outcome": "pass",
+      "scope": "Initial failure-first usecase checks with real metadata and controlled ports, race enabled.",
+      "results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/mqttsession\t5.068s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-worker-red.log",
+      "sha256": "d4e090abd87ab56694ff445214c97d1bb18c6c45daa8710e27ffb8b3bdf36c73",
+      "outcome": "expected_compile_failure",
+      "scope": "New worker contracts absent before implementation.",
+      "results": []
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-metrics-red.log",
+      "sha256": "47d8d996d1f87f12f73732fa39274b1807184c06b9ffd4275327c82a020ba7d6",
+      "outcome": "expected_behavioral_failure",
+      "scope": "New fixed events absent before instrumentation.",
+      "results": []
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-worker-green.log",
+      "sha256": "59efd988f247d664fad458d6875c0151176406fd68b4cb3afe524ffa10444002",
+      "outcome": "pass",
+      "scope": "Focused runtime/metrics race checks after correcting missing allocator fields in test fixture; no production relaxation.",
+      "results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/runtime/mqttsession\t1.800s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/metrics\t1.953s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-worker-integration-red.log",
+      "sha256": "7849a6933fe8f0053ef47de0e35c7239aa82f5821638ae5f0bd171467490ba7d",
+      "outcome": "expected_failure",
+      "scope": "Runtime contract compile failure plus real three-node App composition failing to reclaim automatically before wiring.",
+      "results": []
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-worker-integration-green.log",
+      "sha256": "20a7d551aa6cd6166a88c166d31e69758e94534a9c003f3be56e027a43f90b88",
+      "outcome": "pass",
+      "scope": "Three-node TCP/disk App composition, 256 hash Slots: automatic old-intent deletion and running successor; controlled initial preparation, no product listener. Runtime joined cohort checks also pass. Before later CONNECT repairs.",
+      "results": [
+        "--- PASS: TestConsumerReclamationSharesCohortAndJoinsStop (0.00s)",
+        "--- PASS: TestConsumerReclamationLateAndPanicDoNotConfirmOrLeakAdmission (0.04s)",
+        "    --- PASS: TestConsumerReclamationLateAndPanicDoNotConfirmOrLeakAdmission/panic (0.01s)",
+        "    --- PASS: TestConsumerReclamationLateAndPanicDoNotConfirmOrLeakAdmission/late (0.02s)",
+        "    --- PASS: TestConsumerReclamationLateAndPanicDoNotConfirmOrLeakAdmission/success (0.01s)",
+        "--- PASS: TestConsumerReclamationRotatesAllStreamsAndBoundsBuilds (0.00s)",
+        "--- PASS: TestConsumerReclamationWaitsForCoverageAndRejectsLateOrBadBuild (0.00s)",
+        "    --- PASS: TestConsumerReclamationWaitsForCoverageAndRejectsLateOrBadBuild/partial (0.00s)",
+        "    --- PASS: TestConsumerReclamationWaitsForCoverageAndRejectsLateOrBadBuild/error (0.00s)",
+        "    --- PASS: TestConsumerReclamationWaitsForCoverageAndRejectsLateOrBadBuild/cancel (0.00s)",
+        "    --- PASS: TestConsumerReclamationWaitsForCoverageAndRejectsLateOrBadBuild/panic (0.00s)",
+        "    --- PASS: TestConsumerReclamationWaitsForCoverageAndRejectsLateOrBadBuild/negative (0.00s)",
+        "    --- PASS: TestConsumerReclamationWaitsForCoverageAndRejectsLateOrBadBuild/oversize (0.00s)",
+        "    --- PASS: TestConsumerReclamationWaitsForCoverageAndRejectsLateOrBadBuild/incomplete (0.00s)",
+        "--- PASS: TestConsumerReclamationRetainsPressureCursorAndRebuildsAfterReadFailure (0.00s)",
+        "--- PASS: TestConsumerReclamationRejectsWholeInvalidPage (0.00s)",
+        "    --- PASS: TestConsumerReclamationRejectsWholeInvalidPage/order (0.00s)",
+        "    --- PASS: TestConsumerReclamationRejectsWholeInvalidPage/duplicate (0.00s)",
+        "    --- PASS: TestConsumerReclamationRejectsWholeInvalidPage/current_live (0.00s)",
+        "    --- PASS: TestConsumerReclamationRejectsWholeInvalidPage/done_marker (0.00s)",
+        "    --- PASS: TestConsumerReclamationRejectsWholeInvalidPage/cursor (0.00s)",
+        "    --- PASS: TestConsumerReclamationRejectsWholeInvalidPage/extra (0.00s)",
+        "    --- PASS: TestConsumerReclamationRejectsWholeInvalidPage/partial_empty (0.00s)",
+        "    --- PASS: TestConsumerReclamationRejectsWholeInvalidPage/oversize (0.00s)",
+        "    --- PASS: TestConsumerReclamationRejectsWholeInvalidPage/cancel (0.00s)",
+        "--- PASS: TestConsumerReclamationRequiresCompletePorts (0.00s)",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/runtime/mqttsession\t0.338s",
+        "--- PASS: TestMQTTGroupSourcePreparationThreeNodeRecovery (32.39s)",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/app\t32.974s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-worker-cohort-race.log",
+      "sha256": "f26abdea30e4e00b25a3ead4630ea3f2645ee6370366ea9fd5f79926b555527f",
+      "outcome": "pass",
+      "scope": "Integration race checks for all three shared work kinds, bounded admission, failed/panicking/late callbacks and joined shutdown.",
+      "results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/runtime/mqttsession\t1.899s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-worker-full-race.log",
+      "sha256": "9631327ea53aad3450e05a28ae14288eee03624065ee890e2ce85ecd9b0f830e",
+      "outcome": "pass",
+      "scope": "Full usecase/runtime/app/metrics race suites before reconnect regressions were found.",
+      "results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/mqttsession\t140.029s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/runtime/mqttsession\t1.808s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/app\t4.769s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/metrics\t3.169s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-worker-process-red.log",
+      "sha256": "d65c9538a53a81ad7cb94311420ecda521dee23da8fedb423a902f96b8b92c75",
+      "outcome": "observed_failure",
+      "scope": "Initial product-process suite: four reconnect EOFs after reclamation confirmation, plus one three-node Clean Start EOF before confirmation; one single-node Clean Start passed.",
+      "results": [
+        "    --- PASS: TestSessionReclamationPreservesNewLifetime/1-node-cluster/clean-start (24.94s)"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-connect-red.log",
+      "sha256": "3052d026d1a3431ff96995943e22c6b6fb1bb877940dfd3cd84dfe47f33051be",
+      "outcome": "expected_behavioral_failure",
+      "scope": "Four real acquisition/storage fresh-lifetime triggers reject resetting the durable reclamation marker; regression precedes repair.",
+      "results": []
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-connect-green.log",
+      "sha256": "9de3fbbff0b76e81f2f58768e1c53fda4bc2376c66891cbecf3fc811260700e8",
+      "outcome": "pass",
+      "scope": "Marker preservation and reclamation focused race checks.",
+      "results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/mqttsession\t4.644s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-worker-fixed-race.log",
+      "sha256": "d8b81b601ec782573dc000fa3ecc3c05a08d359cb85e38d74ed5aae7ca3b7e65",
+      "outcome": "pass",
+      "scope": "Full usecase/App race suites after marker repair, before later definite-conflict rebase repair.",
+      "results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/mqttsession\t140.876s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/app\t4.701s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-worker-process-green.log",
+      "sha256": "deca79c3eac25c3831a7ce4693eca4a37323ec0a9ee67504b3ebb6915ffda8bc",
+      "outcome": "observed_failure",
+      "scope": "Despite filename, FAILED: marker repair fixes four zero/offline-expiry cases; Clean Start fails in both topologies. Not final acceptance.",
+      "results": [
+        "    --- PASS: TestSessionReclamationPreservesNewLifetime/1-node-cluster/zero-expiry (25.79s)",
+        "    --- PASS: TestSessionReclamationPreservesNewLifetime/1-node-cluster/expiry (25.07s)",
+        "    --- PASS: TestSessionReclamationPreservesNewLifetime/3-node-cluster/zero-expiry (24.77s)",
+        "    --- PASS: TestSessionReclamationPreservesNewLifetime/3-node-cluster/expiry (26.25s)"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-connect-probe.log",
+      "sha256": "ff6da90d8dfa878593dd17a313768ea025ccf7ccd04d80bd484740e8c03b05eb",
+      "outcome": "pass_without_failure_capture",
+      "scope": "One single-node Clean Start with temporary fixed-shape acquisition probe; cannot establish a fix.",
+      "results": [
+        "--- PASS: TestSessionReclamationPreservesNewLifetime (24.72s)",
+        "    --- PASS: TestSessionReclamationPreservesNewLifetime/1-node-cluster/clean-start (24.72s)",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/test/e2e/mqtt/reclamation\t25.534s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-connect-probe-repeat.log",
+      "sha256": "f133698d3d16e03e4774eb6e0ea46dd8ca97237ff388cdaef670cf8bd9953d8c",
+      "outcome": "observed_failure",
+      "scope": "Three bounded single-node repeats: one failure captured definite revision 3-to-4 rejection at commit; two passes. Probe absent from repository and final candidate.",
+      "results": [
+        "--- PASS: TestSessionReclamationPreservesNewLifetime (24.66s)",
+        "    --- PASS: TestSessionReclamationPreservesNewLifetime/1-node-cluster/clean-start (24.65s)",
+        "--- PASS: TestSessionReclamationPreservesNewLifetime (24.23s)",
+        "    --- PASS: TestSessionReclamationPreservesNewLifetime/1-node-cluster/clean-start (24.23s)"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-connect-rebase-red.log",
+      "sha256": "916d4f7a8b2cb623129c83f06bb2021d0efa12c3736fbad831febb0217a7d2a9",
+      "outcome": "expected_behavioral_failure",
+      "scope": "Real normal Disconnect between read/proposal fails resume and Clean Start; maximum-three retry regression also fails before repair.",
+      "results": []
+    },
+    {
+      "path": "/tmp/mqtt-connect-rebase-green.log",
+      "sha256": "114cc3a54b3f1290ea294d7ad4ba76284a6a2f244d5e2a0a8c64d20988caf773",
+      "outcome": "pass",
+      "scope": "All Connect tests and new reclamation checks with race enabled; original lease/candidate, successor and unknown-write boundaries.",
+      "results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/mqttsession\t8.102s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-rebase-process.log",
+      "sha256": "b82af153814efe6c2e36dee14aa3d0ead490afecbb20b782e02a62636e38d35d",
+      "outcome": "pass",
+      "scope": "Final six real-process cases across 1/3 nodes and 256 hash Slots: disconnect zero-expiry, offline expiry, Clean Start; public cleanup/qualification confirmations and new-lifetime source delivery.",
+      "results": [
+        "--- PASS: TestSessionReclamationPreservesNewLifetime (162.39s)",
+        "    --- PASS: TestSessionReclamationPreservesNewLifetime/1-node-cluster/zero-expiry (27.12s)",
+        "    --- PASS: TestSessionReclamationPreservesNewLifetime/1-node-cluster/expiry (25.58s)",
+        "    --- PASS: TestSessionReclamationPreservesNewLifetime/1-node-cluster/clean-start (24.44s)",
+        "    --- PASS: TestSessionReclamationPreservesNewLifetime/3-node-cluster/zero-expiry (26.99s)",
+        "    --- PASS: TestSessionReclamationPreservesNewLifetime/3-node-cluster/expiry (31.18s)",
+        "    --- PASS: TestSessionReclamationPreservesNewLifetime/3-node-cluster/clean-start (27.08s)",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/test/e2e/mqtt/reclamation\t163.137s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-rebase-will.log",
+      "sha256": "0a2b9b2ad5800e9b428f8ddd494124f28cea1f484595167f69aaab407d15fb79",
+      "outcome": "pass",
+      "scope": "Final real-process Will Delay and normal-cancellation regression in both topologies; not crash/uncertain redispatch acceptance.",
+      "results": [
+        "--- PASS: TestWillPublicationAndNormalCancellation (52.46s)",
+        "    --- PASS: TestWillPublicationAndNormalCancellation/1-node-cluster (19.62s)",
+        "    --- PASS: TestWillPublicationAndNormalCancellation/3-node-cluster (32.84s)",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/test/e2e/mqtt/will\t53.384s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-rebase-full-race.log",
+      "sha256": "18ad448ae0729ed355a88ccbb1ca441bce70b4a890c5d3173ec99bb919784221",
+      "outcome": "pass",
+      "scope": "Final full usecase/access/App race suites after definite-conflict repair; runtime/metrics unchanged since their earlier race gates.",
+      "results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/mqttsession\t160.909s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/access/mqtt\t1.951s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/app\t5.578s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-worker-flow.log",
+      "sha256": "518c3c03df7eb5d31ffef78aaf4666017b3054bf4e16f65a227b11efc525cf09",
+      "outcome": "pass",
+      "scope": "Named flow-doc-contracts from .github/review-agent/policy.json: 87 compliant, 0 invalid, 9 existing length warnings.",
+      "results": [
+        "flowcheck: 87 FLOW files; 87 compliant; 0 invalid; 9 warnings"
+      ]
+    }
+  ],
+  "final_binary": {
+    "path": "/tmp/wukongim-mqtt-reclamation-rebase",
+    "sha256": "5790446de8e1a34861d6881cddfe68399b3f5cf4e6e1f86572a2c7697958f63a",
+    "command": "GOWORK=off go build -o /tmp/wukongim-mqtt-reclamation-rebase ./cmd/wukongim",
+    "temporary_probe": false
+  },
+  "process_commands": [
+    "WK_E2E_BINARY=/tmp/wukongim-mqtt-reclamation-rebase WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-reclamation-rebase-process-reports GOWORK=off go test -p 2 -tags=e2e ./test/e2e/mqtt/reclamation -count=1 -timeout=6m -v",
+    "WK_E2E_BINARY=/tmp/wukongim-mqtt-reclamation-rebase WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-reclamation-rebase-will-reports GOWORK=off go test -p 2 -tags=e2e ./test/e2e/mqtt/will -count=1 -timeout=4m -v"
+  ],
+  "artifacts": [
+    {
+      "path": "/tmp/mqtt-reclamation-rebase-process-reports/mqtt-reclamation-clean-start-1.json",
+      "sha256": "b3433407f60ff53148475c4bbb192199751044f7fdb1542fbbad7c5a79a40699",
+      "assertions": {
+        "cleanup_observed_via": "fixed public completion counter",
+        "direct_table_inspection": false,
+        "hash_slots": 256,
+        "mode": "clean-start",
+        "new_lifetime_preserved": true,
+        "new_source_delivered": true,
+        "nodes": 1,
+        "passed": true,
+        "qualification_removed_confirmations": 1,
+        "reclamation_confirmations": 1,
+        "scenario": "session-reclamation"
+      }
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-rebase-process-reports/mqtt-reclamation-clean-start-3.json",
+      "sha256": "c0929de0182661c1e5382eff29991b258c5df0b9225c09fb6d49360bc88a9c3b",
+      "assertions": {
+        "cleanup_observed_via": "fixed public completion counter",
+        "direct_table_inspection": false,
+        "hash_slots": 256,
+        "mode": "clean-start",
+        "new_lifetime_preserved": true,
+        "new_source_delivered": true,
+        "nodes": 3,
+        "passed": true,
+        "qualification_removed_confirmations": 1,
+        "reclamation_confirmations": 1,
+        "scenario": "session-reclamation"
+      }
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-rebase-process-reports/mqtt-reclamation-expiry-1.json",
+      "sha256": "d6e6eab804af30ce1bfbda110c88a5a0abe59bcb7c78d2b54c34d3b79dd0e237",
+      "assertions": {
+        "cleanup_observed_via": "fixed public completion counter",
+        "direct_table_inspection": false,
+        "hash_slots": 256,
+        "mode": "expiry",
+        "new_lifetime_preserved": true,
+        "new_source_delivered": true,
+        "nodes": 1,
+        "passed": true,
+        "qualification_removed_confirmations": 1,
+        "reclamation_confirmations": 1,
+        "scenario": "session-reclamation"
+      }
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-rebase-process-reports/mqtt-reclamation-expiry-3.json",
+      "sha256": "1ea53587d95a255645e1dc0b7616230652370475c49570750cb56c071037ba03",
+      "assertions": {
+        "cleanup_observed_via": "fixed public completion counter",
+        "direct_table_inspection": false,
+        "hash_slots": 256,
+        "mode": "expiry",
+        "new_lifetime_preserved": true,
+        "new_source_delivered": true,
+        "nodes": 3,
+        "passed": true,
+        "qualification_removed_confirmations": 1,
+        "reclamation_confirmations": 1,
+        "scenario": "session-reclamation"
+      }
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-rebase-process-reports/mqtt-reclamation-zero-expiry-1.json",
+      "sha256": "e30b7c3f466f059c803e6e2895aef66d4f6b0dc349d5b59a061e01fd9d0d1e37",
+      "assertions": {
+        "cleanup_observed_via": "fixed public completion counter",
+        "direct_table_inspection": false,
+        "hash_slots": 256,
+        "mode": "zero-expiry",
+        "new_lifetime_preserved": true,
+        "new_source_delivered": true,
+        "nodes": 1,
+        "passed": true,
+        "qualification_removed_confirmations": 1,
+        "reclamation_confirmations": 1,
+        "scenario": "session-reclamation"
+      }
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-rebase-process-reports/mqtt-reclamation-zero-expiry-3.json",
+      "sha256": "71db760403febd1591f87992cbdb2b3dbf67edba35396b9c0678570f6ab81186",
+      "assertions": {
+        "cleanup_observed_via": "fixed public completion counter",
+        "direct_table_inspection": false,
+        "hash_slots": 256,
+        "mode": "zero-expiry",
+        "new_lifetime_preserved": true,
+        "new_source_delivered": true,
+        "nodes": 3,
+        "passed": true,
+        "qualification_removed_confirmations": 1,
+        "reclamation_confirmations": 1,
+        "scenario": "session-reclamation"
+      }
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-rebase-will-reports/mqtt-will-1.json",
+      "sha256": "9a29f364d524eb6dbf0093241ed8036973c109e5077acb730259d7d4385d479b",
+      "assertions": {
+        "abnormal_close_published": true,
+        "delay_seconds": 2,
+        "hash_slots": 256,
+        "message_id": "2104394518840217600",
+        "nodes": 1,
+        "normal_close_cancelled": true,
+        "passed": true,
+        "scenario": "mqtt-will"
+      }
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-rebase-will-reports/mqtt-will-3.json",
+      "sha256": "bfbf41c26cd0f18703ae630d6032915efc3fc05db128b8c322f1c55407e7e2bf",
+      "assertions": {
+        "abnormal_close_published": true,
+        "delay_seconds": 2,
+        "hash_slots": 256,
+        "message_id": "2104394649148854272",
+        "nodes": 3,
+        "normal_close_cancelled": true,
+        "passed": true,
+        "scenario": "mqtt-will"
+      }
+    }
+  ],
+  "candidate_files_sha256": {
+    "CHANGELOG.md": "82d9a25edb87dfc99071f0472caf89db545b2396b739b81f9dea9a907a055717",
+    "docs/development/PROJECT_KNOWLEDGE.md": "05add0c777cd4c0f3f49abf31f68888c5c0c407cbc7de3736e3d57247b4650c5",
+    "docs/specs/mqtt-consumer-maintenance.md": "3f5017cacd2edc4c60d0aa64dc3f53fbb3dc27454e67904429ee5d5854f2bdb1",
+    "docs/specs/mqtt-product-runtime.md": "0be146f80bed2d57e475a286fad692f6cda6d82aa35a5102d76073ac037b6b87",
+    "docs/specs/mqtt-session-acquisition.md": "736ac2e86f67b78713540b2177655fe541baf87293564521e208b62e24ef308d",
+    "docs/specs/mqtt-session-reclamation.md": "1fe6a2070b86366189201cd17960d330d0f59ea3f524c783b0c7d2f5ad766fbc",
+    "docs/superpowers/plans/2026-09-23-mqtt-im-access.md": "3cafe067c6f11b308114f30e1b2aa6b930c9bbc093b88eef6a4609607ff64a5d",
+    "internal/app/FLOW.md": "10ea4c29ba685a3a0cce4ad0effbe68def184b8a608dcb4187f74b6464d61f9d",
+    "internal/app/mqtt_consumers.go": "3b28b32e283a31173180d1609f93c1005365e6449f5b1d28ee76436cf0721366",
+    "internal/app/mqtt_reclamation_integration_test.go": "1e36718025d171fa3de5e6f199a8b60436fbec091d27f1877465c727e5ab4a8d",
+    "internal/app/mqtt_source_preparation_integration_test.go": "5924a6c0f45825bc04b8834b450f68282c82522ffaa31b640f6b2e7339e75f06",
+    "internal/runtime/mqttsession/FLOW.md": "f9d29022b0c63a9b6bc4f6aa0cabe54acb1b0dde2b18c493e6e43050d1f457b2",
+    "internal/runtime/mqttsession/consumer_reclamation.go": "240df7acc420d8ec554e2ea550810f02339f7791c555dd95c4962d558daa019a",
+    "internal/runtime/mqttsession/consumer_reclamation_integration_test.go": "aaed39090b72479a1d3ca350fe6215458dd59d358ee937ab2eda8d0479a72d5e",
+    "internal/runtime/mqttsession/consumer_reclamation_test.go": "363463663ecaa9ecb0c4ba8fb1372953e18f0284a8eae83a91c889ca56c08dc1",
+    "internal/runtime/mqttsession/consumer_scan.go": "8e33f904d7610a50dd377ff2b4b9b9f3b860bd74cdcff5fd97e2dc52d4047864",
+    "internal/runtime/mqttsession/consumer_worker.go": "e526e7e53772437cb3f310404f417f8419d8f8d33574334fef86f76e3b21fbb4",
+    "internal/usecase/mqttsession/FLOW.md": "bc66d9753b67f8cd02d5a782db4545ea8a0754310c2f884beb7e0302d26ca2ae",
+    "internal/usecase/mqttsession/connect.go": "4001a479d7b51962e2dcff8c819da650b25b148faab1cc1aaadf06054f3088de",
+    "internal/usecase/mqttsession/reclamation.go": "31a54f85dffe2c219e458ca71de048150fa089f620a0bb1e3755c4d774b2557c",
+    "internal/usecase/mqttsession/reclamation_test.go": "8731056dc6db87585ae586d3522f673c236b59a8496098e99b0e134b92301c5f",
+    "pkg/metrics/mqtt.go": "6a6bd1e471bbd8eee311491d652b63b167e4e1129cf7c3b6de1e02f55871c4b3",
+    "pkg/metrics/mqtt_test.go": "34b7a8ac79dead8d8a967678910d4b9694200d98ac6fa37c904585fc2272c308",
+    "test/e2e/AGENTS.md": "9a60583202a8d5cf6ce753f85db312ce2e06bc6dd455cec4f157afb7bc0d55c2",
+    "test/e2e/mqtt/reclamation/AGENTS.md": "8c718074c3707db636de5aba34188c6cfe48cbdec2adf3a2164f093781f9a347",
+    "test/e2e/mqtt/reclamation/reclamation_test.go": "fb2ac1504bdedd14a9348ae30f7867a5d38f1e7a9149d26d0e0a0ce8ec4489c9"
+  },
+  "scope_notes": [
+    "Process reclamation observes fixed public completion counters and subsequent functional delivery; it never inspects tables and does not measure physical compaction.",
+    "Lower-level storage/App tests separately assert exact deleted children and retained source/Will records; integration preparation is controlled.",
+    "Captured Clean Start version conflict and marker regression are separate repairs. They do not explain historical initial-SUBSCRIBE disconnect or post-PUBACK EOF.",
+    "No sleeps, timeout increases or foreground retry loops were added to the product-process scenario.",
+    "Matched writers and pre-feature rollback backup remain required; MQTT remains opt-in.",
+    "Darwin LC_DYSYMTAB linker warnings were nonfatal."
+  ],
+  "remaining": [
+    "safe source-binding tombstone retirement with durable anti-resurrection floor",
+    "historical initial-SUBSCRIBE and post-PUBACK EOF causal diagnosis",
+    "abrupt-crash/unavailable-owner and unresolved-effect isolation",
+    "safe Started-unknown Will redispatch and retained receipt transfer",
+    "business-channel/restore fences and fresh restore-generation reentry",
+    "MQTT JSONL/CLI transfer and complete rollout/capacity/pressure controls",
+    "all approved fault families and 100k-group/high-rate/many-channel performance qualification"
+  ]
+}

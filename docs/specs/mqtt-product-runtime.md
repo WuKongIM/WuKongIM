@@ -128,3 +128,14 @@ Preparing dispatch, final activation and definite-revocation ending no longer
 require foreground resubscription; the captured Owner and complete intent remain
 fixed. Product-process acceptance uses controlled failures and public metrics;
 it does not prove crash isolation, unknown-effect recovery or full reclamation.
+
+## Subsequent Session-child reclamation
+
+[Session reclamation](mqtt-session-reclamation.md) shares the consumer cohort and
+its product lifecycle. It backfills historical coverage through Slot command 76,
+discovers kind-23 candidates and invokes one command-75 cleanup page only after
+fresh authority and any required exact-owner isolation. Newer live generations
+remain admitted. Public fixed events expose reclamation confirmations/indexed rows.
+Source tombstones, detached Will obligations, crash/restore recovery and full scale
+acceptance remain separate requirements; enabling MQTT still requires matched
+writers and the existing rollback plan.

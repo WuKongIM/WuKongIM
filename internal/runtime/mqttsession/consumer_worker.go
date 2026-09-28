@@ -39,6 +39,7 @@ type ConsumerSubscriptionWork struct {
 // consumerWorkKey is a tagged primary identity. Exactly one field is set;
 // subscription timestamps are cleared so scan updates cannot defeat deduplication.
 type consumerWorkKey struct {
+	session      meta.MQTTSessionCursor
 	binding      meta.MQTTSourceBindingKey
 	subscription meta.MQTTSubscriptionRecoveryCursor
 }
@@ -52,6 +53,9 @@ type ConsumerWorkerOptions struct {
 	// Subscriptions optionally shares this cohort with pending intent completion.
 	// Product MQTT composition supplies it for both target kinds.
 	Subscriptions ConsumerSubscriptionMaintenance
+	// Reclamation and its index port are supplied together and share this cohort.
+	Reclamation      ConsumerSessionReclamation
+	ReclamationIndex ConsumerReclamationIndex
 	// Registry owns the scanner and bounded execution pool.
 	Registry *gr.Registry
 	// HashSlotCount matches the deployment; zero selects 256.
@@ -77,6 +81,8 @@ type ConsumerWorkerOptions struct {
 
 // ConsumerWork carries only proved per-turn outcomes; it contains no identity or body.
 type ConsumerWork struct {
+	// ReclamationConfirmed counts timely observed completion, including retries.
+	ReclamationConfirmed bool
 	// SubscriptionEstablishmentConfirmed counts observed activation, including retries.
 	SubscriptionEstablishmentConfirmed bool
 	// SubscriptionRemovalConfirmed counts observed completion, including retries.
@@ -86,6 +92,7 @@ type ConsumerWork struct {
 
 // ConsumerObservation excludes keys, bodies, errors and other unbounded labels.
 type ConsumerObservation struct {
+	ReclamationConfirmed, ReclamationIndexRows              int
 	SubscriptionEstablishmentConfirmed                      int
 	SubscriptionRemovalConfirmed                            int
 	QualificationRemoved                                    int
@@ -143,7 +150,7 @@ func NewConsumerWorker(o ConsumerWorkerOptions) (*ConsumerWorker, error) {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
-	if o.Source == nil || o.Maintainer == nil || o.Workers < 1 || o.Workers > 128 || o.Interval < 10*time.Millisecond || o.Interval > time.Minute || o.ScanTimeout <= 0 || o.ScanTimeout > time.Minute || o.CallTimeout <= 0 || o.CallTimeout > o.ScanTimeout || o.ExecutionTimeout <= 0 || o.ExecutionTimeout > 5*time.Second || o.PagesPerTurn < 1 || o.PagesPerTurn > 32 || o.PageSize < 1 || o.PageSize > 16 {
+	if (o.Reclamation == nil) != (o.ReclamationIndex == nil) || o.Source == nil || o.Maintainer == nil || o.Workers < 1 || o.Workers > 128 || o.Interval < 10*time.Millisecond || o.Interval > time.Minute || o.ScanTimeout <= 0 || o.ScanTimeout > time.Minute || o.CallTimeout <= 0 || o.CallTimeout > o.ScanTimeout || o.ExecutionTimeout <= 0 || o.ExecutionTimeout > 5*time.Second || o.PagesPerTurn < 1 || o.PagesPerTurn > 32 || o.PageSize < 1 || o.PageSize > 16 {
 		return nil, ErrConsumerWorkerInvalid
 	}
 	return &ConsumerWorker{opts: o}, nil
@@ -176,7 +183,9 @@ func (w *ConsumerWorker) Start(ctx context.Context) error {
 		call, done := context.WithTimeout(r.ctx, w.opts.ExecutionTimeout)
 		var work ConsumerWork
 		var err error
-		if k.subscription != (meta.MQTTSubscriptionRecoveryCursor{}) {
+		if k.session != (meta.MQTTSessionCursor{}) {
+			work.ReclamationConfirmed, err = w.reclaimSession(call, k.session)
+		} else if k.subscription != (meta.MQTTSubscriptionRecoveryCursor{}) {
 			var outcome ConsumerSubscriptionWork
 			outcome, err = w.opts.Subscriptions.MaintainSubscription(call, k.subscription)
 			work.SubscriptionEstablishmentConfirmed = outcome.Established
@@ -189,6 +198,7 @@ func (w *ConsumerWorker) Start(ctx context.Context) error {
 			err = call.Err()
 		}
 		if err != nil {
+			work.ReclamationConfirmed = false
 			work.SubscriptionRemovalConfirmed = false
 			work.SubscriptionEstablishmentConfirmed = false
 			if k.subscription != (meta.MQTTSubscriptionRecoveryCursor{}) {
@@ -261,6 +271,9 @@ func (w *ConsumerWorker) loop(r *consumerWorkerRun) {
 			case result := <-r.results:
 				delete(admitted, result.key)
 				out.Completed++
+				if result.work.ReclamationConfirmed {
+					out.ReclamationConfirmed++
+				}
 				if result.work.SubscriptionEstablishmentConfirmed {
 					out.SubscriptionEstablishmentConfirmed++
 				}
@@ -312,6 +325,7 @@ func (w *ConsumerWorker) loop(r *consumerWorkerRun) {
 			})
 			out.Pages, out.Visited, out.Scheduled, out.Duration = scan.Pages, scan.Visited, scan.Scheduled, scan.Duration
 			out.Failures += scan.Failures
+			out.ReclamationIndexRows += scan.ReclamationIndexRows
 		}
 		if w.opts.Observe != nil {
 			out.Admitted, out.Capacity = len(admitted), w.opts.Workers

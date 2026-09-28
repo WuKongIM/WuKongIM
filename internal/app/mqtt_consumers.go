@@ -50,14 +50,18 @@ func (a *App) wireMQTTConsumers(node *cluster.Node, auth sessioncase.Subscriptio
 	if err != nil {
 		return nil, err
 	}
-	opts := runtime.ConsumerWorkerOptions{Source: node, Maintainer: mqttConsumerMaintenance{maintenance}, Subscriptions: mqttSubscriptionMaintenance{removal: pending, establishment: establishing}, Registry: a.goroutines, Workers: a.cfg.MQTT.Workers, HashSlotCount: defaultClusterConfig(a.cfg).Slots.HashSlotCount}
+	reclamation, err := sessioncase.NewSessionReclamation(sessioncase.SessionReclamationOptions{Store: node, Ender: ender})
+	if err != nil {
+		return nil, err
+	}
+	opts := runtime.ConsumerWorkerOptions{Source: node, ReclamationIndex: node, Reclamation: mqttSessionReclamation{reclamation}, Maintainer: mqttConsumerMaintenance{maintenance}, Subscriptions: mqttSubscriptionMaintenance{removal: pending, establishment: establishing}, Registry: a.goroutines, Workers: a.cfg.MQTT.Workers, HashSlotCount: defaultClusterConfig(a.cfg).Slots.HashSlotCount}
 	if a.metrics != nil {
 		opts.Observe = func(o runtime.ConsumerObservation) {
 			m := a.metrics.MQTT
 			for _, e := range []struct {
 				name  string
 				count int
-			}{{"pages", o.Pages}, {"visited", o.Visited}, {"scheduled", o.Scheduled}, {"completed", o.Completed}, {"failures", o.Failures}, {"accounted", o.Accounted}, {"projected", o.Projected}, {"removed", o.Removed}, {"quota_end_confirmed", o.QuotaEnded}, {"revocation_end_confirmed", o.RevokedEnded}, {"qualification_removed", o.QualificationRemoved}, {"subscription_removal_confirmed", o.SubscriptionRemovalConfirmed}, {"subscription_establishment_confirmed", o.SubscriptionEstablishmentConfirmed}} {
+			}{{"pages", o.Pages}, {"visited", o.Visited}, {"scheduled", o.Scheduled}, {"completed", o.Completed}, {"failures", o.Failures}, {"accounted", o.Accounted}, {"projected", o.Projected}, {"removed", o.Removed}, {"quota_end_confirmed", o.QuotaEnded}, {"revocation_end_confirmed", o.RevokedEnded}, {"qualification_removed", o.QualificationRemoved}, {"subscription_removal_confirmed", o.SubscriptionRemovalConfirmed}, {"subscription_establishment_confirmed", o.SubscriptionEstablishmentConfirmed}, {"reclamation_confirmed", o.ReclamationConfirmed}, {"reclamation_index_rows", o.ReclamationIndexRows}} {
 				m.ObserveConsumer(e.name, uint64(e.count))
 			}
 			m.SetConsumerWork(o.Admitted, o.Capacity)
@@ -98,4 +102,15 @@ func (m mqttSubscriptionMaintenance) MaintainSubscription(ctx context.Context, k
 		return runtime.ConsumerSubscriptionWork{}, nil
 	}
 	return runtime.ConsumerSubscriptionWork{Removed: completed}, err
+}
+
+// mqttSessionReclamation adapts only the usecase outcome; runtime hints grant
+// neither isolation nor release authority for other consumers or shared data.
+type mqttSessionReclamation struct {
+	reclamation *sessioncase.SessionReclamation
+}
+
+func (m mqttSessionReclamation) ReclaimSession(ctx context.Context, k meta.MQTTSessionCursor) (bool, error) {
+	r, err := m.reclamation.Reconcile(ctx, k)
+	return r.Completed, err
 }

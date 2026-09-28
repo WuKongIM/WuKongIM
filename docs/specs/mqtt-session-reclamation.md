@@ -2,8 +2,9 @@
 
 Status: the storage transaction, Slot command and Node facade are implemented.
 Bounded indexed discovery and durable historical-row backfill are also implemented.
-Owner-quiescence orchestration, background scheduling and product process acceptance
-remain required. This is part of the
+Exact-owner orchestration and shared background scheduling are now composed;
+process acceptance and its scope are recorded below. Source-tombstone retirement
+remains separate full-objective work. This is part of the
 approved [MQTT design](mqtt-im-access.md), not completion of its cleanup contract.
 
 ## Authority and scope
@@ -103,10 +104,9 @@ controlled lifetime decisions; it is not a process-level MQTT scenario, abrupt
 crash/partition proof or automatic discovery test. Exact results and source hashes
 are retained in [the report](../reports/mqtt-session-reclamation.json).
 
-Indexed discovery now includes historical rows through the coverage contract
-below. Scheduling must rotate 256 hash Slots under bounded work and preserve
-unresolved owner duties. Product acceptance must demonstrate autonomous cleanup
-and continued source/Will recovery. Source-tombstone retirement, full JSONL/restore
+Indexed discovery includes historical rows through the coverage contract below.
+The composed scheduler rotates 256 hash Slots under bounded work and preserves
+unresolved owner duties. Source/Will recovery remains independently responsible. Source-tombstone retirement, full JSONL/restore
 composition and scale qualification remain part of the full objective.
 
 ## Indexed discovery and historical coverage
@@ -149,3 +149,80 @@ in pages of 64 and 1 across graceful full-cluster reconstruction, checks reads f
 all nodes and confirms reclamation withdraws a candidate. It is not process-level
 MQTT or automatic scheduling acceptance; missing historical indexes are tested in
 storage. See [discovery evidence](../reports/mqtt-reclamation-discovery.json).
+
+## Autonomous Session-child cleanup
+
+`SessionReclamation` accepts only a namespace/ClientID hint, reads fresh complete
+Session authority and captures one ended-generation boundary. If the boundary is
+the current Ended generation, it calls the existing exact-owner `End` with the
+trusted Explicit cleanup trigger. That port still quiesces an already-ended row
+and preserves its original reason and detached Wills. A second read must retain
+the same Owner, UID and Ended state. If the boundary belongs to a replaced
+lifetime, it never quiesces or follows the live successor.
+
+One turn submits at most one command-75 page under fresh revision/time, bounded
+by five seconds. Changed authority, invalid evidence, regressing clocks, panics,
+cancellation and uncertain writes stop without inline retry or completion.
+Applied results require the next revision and exact marker; partial progress must
+remove 64 intents without changing the marker. Unchanged is only a monotonic
+completion witness. All errors clear returned outcome flags.
+
+The existing `ConsumerWorker` cohort now rotates a third stream per led hash
+Slot. It retains at most three cursors and one coverage hint per Slot (768 cursors
+and 256 hints at the default topology), independent of Session count. Before first
+discovery it proposes one bounded backfill page; incomplete pages yield, and a
+completed build permits a strict kind-23 read. Failed reads discard the coverage
+hint; authoritative storage still checks coverage on every read. Lost leadership
+and joined restart clear process hints, not durable progress.
+
+Reclamation keys contain no generation/revision/time or body. They share the
+existing `mqtt.workers` admission bound across queued and executing binding,
+subscription and reclamation work. Whole-page validation precedes admission;
+terminal cursors remain exact for kind 23. Pressure retains the last admitted
+identity; unfinished rows remain indexed and retry after wrap. Stop joins the
+same scanner and cohort before dependencies close. Callback panic and late success
+produce a failed result rather than leaking admission or counting confirmation.
+
+Product composition supplies the Node for discovery/backfill/cleanup and the
+existing exact-owner Ender for isolation. Fixed metrics add `reclamation_confirmed`
+and `reclamation_index_rows` to the existing 15-event consumer family. They count
+observations, including possible retries, not unique Sessions or physical disk
+reclamation. All existing stream bounds and configuration remain unchanged.
+
+Failure-first checks cover isolation/authority changes, clocks, malformed reads
+and receipts, ambiguous writes, 256-Slot rotation, incomplete/failed backfill,
+pressure, lost leadership, late callbacks, panic and joined cohort shutdown. Real
+three-node App composition autonomously removes old intents for both Ended and
+replaced lifetimes while the successor can still begin execution. Process-level
+scenarios use public completion/qualification metrics and fresh Paho/WKProto
+traffic for zero-expiry disconnect, offline expiry and Clean Start in both cluster
+topologies. They do not inspect tables or prove abrupt-crash isolation, physical
+compaction, source-tombstone retirement or scale capacity. The final six process cases passed in 163.137 seconds; both Will regressions
+passed in 53.384 seconds. Full usecase/access/App race checks passed after the
+acquisition fixes; runtime/metrics and joined-cohort race checks passed on their
+unchanged implementation. Results and bounded artifacts are retained in [worker evidence](../reports/mqtt-reclamation-worker.json).
+
+### Reconnect regression found by process acceptance
+
+The initial process run reached public cleanup confirmation, then received EOF
+when reconnecting zero-expiry and expired Sessions. A focused acquisition test
+using real lifecycle/storage calls reproduced four fresh-lifetime triggers: Ended,
+Clean Start after older-generation cleanup, expired Offline and zero-expiry Active.
+CONNECT constructed a fresh Session with a zero reclamation marker; the existing
+lifecycle guard correctly rejected that regression. The fix preserves the durable
+ClientID marker when resetting delivery counters and allocators. The failing
+regression preceded the fix; no lifecycle validation was weakened.
+
+Clean Start also intermittently received EOF before cleanup confirmation. A
+bounded temporary probe captured a definite commit rejection from revision 3 to
+4 under the same generation (the observed row was still Active); a real lifecycle
+regression then reproduced a normal DISCONNECT completing between CONNECT's read
+and proposal. Both resume and Clean Start failed at that seam before repair.
+CONNECT now permits at most three definite-rejection proposals after strict
+same-Owner/UID/revision/decision revalidation, rechecking authorization without
+reserving another candidate or extending the initial lease. Unknown writes,
+successors, changed lifetime decisions, cancellation and clock/lease failure do
+not retry. The probe is absent from the repository and final candidate binary.
+
+These repairs concern the captured acquisition failures. They do not establish a
+cause for the older initial-SUBSCRIBE or post-PUBACK connection failures.

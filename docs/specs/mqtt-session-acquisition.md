@@ -83,8 +83,15 @@ milliseconds record Session/Will lifecycle time, but
 are never remote isolation evidence. Clock regression against the current row,
 invalid monotonic time, timestamp overflow and delayed lease installation fail.
 Default expiry policy is capped at 86,400 seconds; lifetime quotas are fixed at
-creation and preserved on resume. A concurrent CAS conflict asks the client or
-worker to retry a new request; it does not allocate another local candidate.
+creation and preserved on resume. Fresh lifetimes retain the ClientID reclamation
+marker while resetting delivery state. After a definite committed rejection that
+reports a newer revision, CONNECT may make at most three proposals in total.
+Every reread must retain the exact isolated Owner and UID, advance the observed
+revision, and preserve the original resume-versus-replacement decision. Each
+attempt rechecks credentials/Will permission and clock bounds, reuses one local
+candidate and keeps its original lease deadline. A successor, missing row,
+unchanged revision, changed lifetime decision or uncertain write stops without
+another proposal or owner eviction. No result-less retry is permitted.
 
 Disconnect callers must first release their own admitted operation scope. A
 nonblocking local Fence may be used by close callbacks before scheduling durable

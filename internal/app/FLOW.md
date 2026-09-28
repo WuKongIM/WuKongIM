@@ -72,7 +72,7 @@ Stop or startup rollback
   closed; fresh restore-generation reactivation remains outstanding.
   WillExecutor freezes hook output before first dispatch and only recovers positive
   receipts for uncertain started work. Its managed scanner and four-turn cohort now
-  publish detached due work. Consumer recovery also completes disconnected Preparing/Removing intent before a first binding. Concrete group/inbox offline preparation ports are composed before that shared cohort; fresh permission denial routes through exact Session ending. Safe uncertain redispatch, unavailable-owner recovery, ended-record reclamation,
+  publish detached due work. Consumer recovery also completes disconnected Preparing/Removing intent before a first binding. Concrete group/inbox offline preparation ports are composed before that shared cohort; fresh permission denial routes through exact Session ending. That cohort also builds historical reclamation coverage and invokes exact-owner Session-child cleanup; fixed metrics expose completion and indexed rows. Safe uncertain redispatch, unavailable-owner recovery, source-tombstone retirement,
   complete failure acceptance and scale qualification remain required. See
   [product composition](../../docs/specs/mqtt-product-runtime.md) and the linked
   module contracts; successful online interop is not complete MQTT delivery.

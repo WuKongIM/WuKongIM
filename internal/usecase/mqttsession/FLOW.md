@@ -27,7 +27,7 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
 2. Expired owners record abnormal disconnect at their execution deadline; recovery never restarts Will/offline clocks.
 3. Recheck credentials/Will permission, reserve a bounded local candidate, capture
    its monotonic deadline before proposal, atomically commit Session/Will and
-   then activate. Any failed candidate is fenced and given bounded close cleanup.
+   then activate. At most three proposals may rebase definite newer-revision rejection under the identical isolated Owner/UID and lifetime decision; authorization is rechecked, candidate/deadline stay fixed, and unknown writes stop. Any failed candidate is fenced and given bounded close cleanup.
 4. Renew inside an admitted scope, preserve delivery/Will state, commit exact
    revision and install the original deadline. Confirmed loss/clock failure
    fences immediately; unconfirmed writes cannot extend local execution.
@@ -35,7 +35,7 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
    Original zero expiry cannot extend. Queued cleanup may supply a trusted monotonic observation;
    wall-only or future values fail before isolation and are never client input.
    [End](end.go) requires exact isolation even for ended rows, then atomically ends Session/Will while retaining delivery/source debt.
-   Neither follows a successor. End retains the first reason; expired active owners record the original disconnect first.
+   SessionReclamation rereads authority, repeats exact-owner End for the current ended lifetime, then proposes at most one old-child cleanup page. Replaced lifetimes never quiesce the live successor; conflict/unknown/late results grant no completion or inline retry. Neither follows a successor. End retains the first reason; expired active owners record the original disconnect first.
 6. Reconcile one complete-owner deadline candidate against current authority.
    Active expiry still requires exact isolated disconnect; offline Will Delay and
    expiry use one coherent Session/Will read and at most one lifecycle commit.
@@ -71,7 +71,7 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
 ## Invariants and Failure Semantics
 
 - ClientID stays UID-bound through expiry/Clean Start. Different IDs coexist. Resume preserves counters/allocators and lifetime quotas; a new lifetime
-  resets them. A lower Receive Maximum does not delete old inflight exchanges.
+  resets them while retaining the ClientID reclamation marker. A lower Receive Maximum does not delete old inflight exchanges.
 - Local deadlines retain monotonic time. Stored milliseconds round upward so
   the local gate does not outlive its recorded upper bound; neither is remote
   isolation evidence. Clock regression, overflow and late installation fail.
@@ -92,7 +92,7 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
   an active subscription silently; delivery/revocation ordering remains required.
 - Group preparation bounds reads and grants no subscription, release or SUBACK authority. ACK survives unsubscribe; entry binds sent exchanges first.
 - ReceiveAuthorization reads a fresh coherent Slot channel/member/sequence view; group grants use join incarnation, self inbox uses admitted UID. Send mutes do not deny receiving; ambiguous evidence cannot revoke.
-- App now composes an opt-in product listener with process-level interop coverage. Will and consumer scheduling invoke existing policy; pending-removal recovery now shares the consumer cohort; ended-record reclamation and full failure/scale acceptance remain required.
+- App now composes an opt-in product listener with process-level interop coverage. Will and consumer scheduling invoke existing policy; pending-removal recovery now shares the consumer cohort; old Session-child reclamation shares it too; source-tombstone retirement and full failure/scale acceptance remain required.
 
 ## Read First
 - [Contracts](types.go), [Acquisition](connect.go), [Lifecycle](lifecycle.go), [Subscriptions](subscriptions.go), [Replay](replay.go)

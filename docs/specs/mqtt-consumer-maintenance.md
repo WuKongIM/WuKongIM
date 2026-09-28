@@ -51,14 +51,18 @@ Slots. Defaults are 32 pages per scan, 16 rows per page, 200 ms cadence, a two-s
 scan budget, 250 ms per read and five seconds per execution. Configured
 `mqtt.workers` bounds queued plus executing keys (default 16, maximum 128).
 There is no per-Session goroutine, payload queue or unbounded discovery map.
-Product composition scans two streams per Slot, bounding retained cursors at twice the configured hash-Slot count, normally 512.
+Product composition now includes [Session reclamation](mqtt-session-reclamation.md):
+three streams per Slot, at most 768 cursors plus 256 coverage hints by default.
+One bounded historical-index build page precedes first Session discovery. All
+three work kinds share the same cohort capacity and joined Stop.
 A full cohort retains the last admitted row cursor; failed rows retry on wrap.
 This is eventual maintenance, not a promised quota-enforcement latency at scale.
 
 App starts maintenance after cluster readiness and joins it before closing its
 dependencies. Cancellation cannot substitute for joining admitted effects.
 Two fixed task labels register scheduler and worker ownership. Metrics expose
-`wukongim_mqtt_consumer_events_total{event}` with twelve predeclared outcomes (including subsequent UID retirement and subscription-removal confirmation) and
+`wukongim_mqtt_consumer_events_total{event}` with fifteen predeclared outcomes (including subscription establishment/removal,
+Session reclamation confirmation and indexed-row observations) and
 `wukongim_mqtt_consumer_work{state}` with admitted/capacity series. No ClientID,
 UID, source, payload or raw error becomes a label. End confirmations can repeat.
 

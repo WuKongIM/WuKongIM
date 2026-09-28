@@ -38,7 +38,7 @@ func TestMQTTConsumerMetricsBoundLabelsAndMaterializeZero(t *testing.T) {
 	f, e := r.Gather()
 	require.NoError(t, e)
 	events := requireMetricFamily(t, f, "wukongim_mqtt_consumer_events_total")
-	require.Len(t, events.Metric, 13)
+	require.Len(t, events.Metric, 15)
 	require.Zero(t, findMetricByLabels(t, events, map[string]string{"event": "subscription_removal_confirmed"}).GetCounter().GetValue())
 	require.Zero(t, findMetricByLabels(t, events, map[string]string{"event": "subscription_establishment_confirmed"}).GetCounter().GetValue())
 	r.MQTT.ObserveConsumer("subscription_establishment_confirmed", 4)
@@ -84,4 +84,17 @@ func TestMQTTSubscriptionClosuresHaveFixedZeroSeries(t *testing.T) {
 	}
 	var disabled *MQTTMetrics
 	disabled.ObserveSubscriptionClose("subscribe", "unknown")
+}
+
+func TestMQTTReclamationMetricsUseFixedAggregateEvents(t *testing.T) {
+	r := New(1, "node")
+	r.MQTT.ObserveConsumer("reclamation_confirmed", 2)
+	r.MQTT.ObserveConsumer("reclamation_index_rows", 64)
+	r.MQTT.ObserveConsumer("client-secret", 7)
+	families, err := r.Gather()
+	require.NoError(t, err)
+	events := requireMetricFamily(t, families, "wukongim_mqtt_consumer_events_total")
+	require.Len(t, events.Metric, 15)
+	require.Equal(t, float64(2), findMetricByLabels(t, events, map[string]string{"event": "reclamation_confirmed"}).GetCounter().GetValue())
+	require.Equal(t, float64(64), findMetricByLabels(t, events, map[string]string{"event": "reclamation_index_rows"}).GetCounter().GetValue())
 }

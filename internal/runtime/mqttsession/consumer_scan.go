@@ -12,6 +12,8 @@ import (
 type consumerScanState struct {
 	next    uint32
 	cursors map[uint32]meta.MQTTReadCursor
+	// indexReady is a bounded process hint; reads still require durable coverage.
+	indexReady map[uint16]bool
 }
 
 // sweep advances only past visited/skipped or accepted keys. Each attempted
@@ -44,8 +46,22 @@ func (w *ConsumerWorker) sweep(parent context.Context, state *consumerScanState,
 		}
 		led[uint16(h)] = true
 	}
+	// Preserve the two existing stream IDs; reclamation occupies one disjoint
+	// range after them. There are at most three cursors per led Slot.
+	reclamationBase := uint32(w.opts.HashSlotCount) * 2
+	slotOf := func(stream uint32) uint16 {
+		if stream >= reclamationBase {
+			return uint16(stream - reclamationBase)
+		}
+		return uint16(stream / 2)
+	}
+	for h := range state.indexReady {
+		if !led[h] {
+			delete(state.indexReady, h)
+		}
+	}
 	for h := range state.cursors {
-		if !led[uint16(h/2)] {
+		if !led[slotOf(h)] {
 			delete(state.cursors, h)
 		}
 	}
@@ -56,13 +72,21 @@ func (w *ConsumerWorker) sweep(parent context.Context, state *consumerScanState,
 	if state.cursors == nil {
 		state.cursors = make(map[uint32]meta.MQTTReadCursor)
 	}
-	// Each led Slot owns at most two independent continuations. Rotation uses
-	// (Slot, stream) order, so a pressured source cannot starve pending intent.
-	streams := make([]uint32, 0, len(slots)*2)
+	// Sorted streams rotate fairly across all enabled kinds, including failed
+	// builds and cohort pressure. A turn attempts at most one page per stream.
+	streams := make([]uint32, 0, len(slots)*3)
 	for _, h := range slots {
 		streams = append(streams, uint32(h)*2)
 		if w.opts.Subscriptions != nil {
 			streams = append(streams, uint32(h)*2+1)
+		}
+	}
+	if w.opts.Reclamation != nil {
+		if state.indexReady == nil {
+			state.indexReady = make(map[uint16]bool)
+		}
+		for _, h := range slots {
+			streams = append(streams, reclamationBase+uint32(h))
 		}
 	}
 	index := sort.Search(len(streams), func(i int) bool { return streams[i] >= state.next })
@@ -71,15 +95,31 @@ func (w *ConsumerWorker) sweep(parent context.Context, state *consumerScanState,
 	}
 	for page := 0; page < min(w.opts.PagesPerTurn, len(streams)) && ctx.Err() == nil; page++ {
 		stream := streams[index]
-		slot := uint16(stream / 2)
+		slot := slotOf(stream)
 		state.next = stream + 1
 		index = (index + 1) % len(streams)
 		kind := meta.MQTTReadSourceRecovery
-		if stream%2 == 1 {
+		if stream >= reclamationBase {
+			kind = meta.MQTTReadSessionReclamation
+		} else if stream%2 == 1 {
 			kind = meta.MQTTReadSubscriptionRecovery
 		}
 		q := meta.MQTTRead{Kind: kind, Limit: w.opts.PageSize, After: state.cursors[stream]}
 		out.Pages++
+		if kind == meta.MQTTReadSessionReclamation && !state.indexReady[slot] {
+			call, done = context.WithTimeout(ctx, w.opts.CallTimeout)
+			built, buildErr := w.buildReclamationIndex(call, slot)
+			done()
+			if buildErr != nil {
+				out.Failures++
+				continue
+			}
+			out.ReclamationIndexRows += built.Scanned
+			if !built.Done {
+				continue
+			}
+			state.indexReady[slot] = true
+		}
 		call, done = context.WithTimeout(ctx, w.opts.CallTimeout)
 		r, e := w.opts.Source.ReadMQTTRecovery(call, slot, q)
 		if e == nil {
@@ -87,12 +127,17 @@ func (w *ConsumerWorker) sweep(parent context.Context, state *consumerScanState,
 		}
 		done()
 		if e != nil {
+			if kind == meta.MQTTReadSessionReclamation {
+				delete(state.indexReady, slot)
+			}
 			out.Failures++
 			continue
 		}
 		// Validate every witness before admitting any key from this page.
 		var candidates []meta.MQTTReadCursor
-		if kind == meta.MQTTReadSubscriptionRecovery {
+		if kind == meta.MQTTReadSessionReclamation {
+			candidates, e = consumerReclamationCandidates(q, r)
+		} else if kind == meta.MQTTReadSubscriptionRecovery {
 			candidates, e = consumerSubscriptionCandidates(q, r)
 		} else {
 			candidates, e = consumerCandidates(q, r)
@@ -116,7 +161,10 @@ func (w *ConsumerWorker) sweep(parent context.Context, state *consumerScanState,
 			out.Visited++
 			due := candidate.SourceRecovery.RecoveryAtMS
 			key := consumerWorkKey{binding: candidate.SourceRecovery.Key}
-			if kind == meta.MQTTReadSubscriptionRecovery {
+			if kind == meta.MQTTReadSessionReclamation {
+				due = 0
+				key = consumerWorkKey{session: candidate.Session}
+			} else if kind == meta.MQTTReadSubscriptionRecovery {
 				due = candidate.Subscription.RecoveryAtMS
 				key = consumerWorkKey{subscription: candidate.Subscription}
 				key.subscription.RecoveryAtMS = 0

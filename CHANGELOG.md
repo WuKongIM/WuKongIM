@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Automatically reclaim ended MQTT Session children through the bounded consumer task pool, confirming exact-owner isolation when required and preserving successor lifetimes. Preserve cleanup markers on reconnect and tolerate definite same-owner disconnect races within the original acquisition bound. Add fixed aggregate backfill/completion metrics. / 已结束 MQTT 会话子记录可由有界消费者任务池自动回收，必要时确认准确 Owner 已停止执行，并保留新代会话；重连保留回收标记，并在原准入边界内处理同一 Owner 断开引起的明确版本冲突；新增固定维度补建及完成指标。
+
 - Add resumable MQTT reclamation-index backfill and authoritative bounded discovery, including historical Sessions; incomplete coverage cannot appear empty. Matched writers are required and automatic scheduling remains under development. / MQTT 回收索引支持持久补建进度和有界权威发现，覆盖历史会话，未完成补建不会被当成空结果；要求匹配版本写入节点，自动调度仍在开发。
 
 - Add bounded, replicated cleanup of ended MQTT Session children with a durable completion marker, retaining ClientID binding, newer lifetimes, source fences and independent Wills. Automatic scheduling remains under development. / 新增已结束 MQTT 会话子记录的有界复制清理及持久完成标记，保留 ClientID 绑定、新代会话、来源屏障和独立 Will；自动调度仍在开发。

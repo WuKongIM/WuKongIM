@@ -302,6 +302,7 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 	verifyMQTTSourceDrain(t, ctx, nodes, owners, sessions, authorize, adapter)
 	verifyMQTTPendingRemoval(t, ctx, nodes, owners, sessions, authorize)
 	verifyMQTTPendingEstablishment(t, ctx, nodes, owners, sessions, authorize)
+	verifyMQTTSessionReclamation(t, ctx, nodes, owners, sessions, authorize)
 	verifyMQTTGroupProjection(t, ctx, nodes, owners, sessions, authorize, ids)
 	verifyMQTTReceiveRejoin(t, ctx, nodes, owners, sessions, replayWorkers, ids)
 	require.NoError(t, nodes[0].RemoveChannelSubscribers(ctx, id.ID, 2, []string{"alice"}, 2))
