@@ -49,6 +49,9 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 			"broker_namespace": p.Key.Namespace, "client_id": p.Key.ClientID, "session_generation": p.Key.SessionGeneration,
 			"subscription_generation": p.Key.SubscriptionGeneration, "expected_revision": p.ExpectedRevision, "closed_through": p.ClosedThrough,
 		}), nil
+	case *mqttReplayMarkerClearCmd:
+		o := typed.payload.Owner
+		return simpleInspection("mqtt_replay_marker_clear", map[string]any{"owner_kind": uint8(o.Kind), "owner_id": o.ID, "owner_generation": o.Generation}), nil
 	case *mqttReclamationIndexCmd:
 		return simpleInspection("mqtt_reclamation_index", map[string]any{"page_limit": 64}), nil
 	case *mqttReclamationCmd:

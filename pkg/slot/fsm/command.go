@@ -214,6 +214,7 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeMQTTWillCAS:                         decodeMQTTWillCASCommand,
 	cmdTypeMQTTSourceBindingCAS:                decodeMQTTSourceBindingCASCommand,
 	cmdTypeMQTTSourceBindingRetire:             decodeMQTTSourceBindingRetireCommand,
+	cmdTypeMQTTReplayMarkerClear:               decodeMQTTReplayMarkerClearCommand,
 	cmdTypeMQTTSessionCAS:                      decodeMQTTSessionCASCommand,
 	cmdTypeMQTTWindowMutation:                  decodeMQTTWindowCommand,
 	cmdTypeMQTTDeliveryCursorMutation:          decodeMQTTDeliveryCursorCommand,

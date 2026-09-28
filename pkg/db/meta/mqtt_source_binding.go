@@ -116,6 +116,9 @@ func validateMQTTBindingOwner(o MQTTBindingOwner) error {
 }
 
 // ValidateMQTTSourceBindingKey checks one binding key shape for command codecs.
+// ValidateMQTTBindingOwner exposes owner shape checks to command codecs.
+func ValidateMQTTBindingOwner(o MQTTBindingOwner) error { return validateMQTTBindingOwner(o) }
+
 func ValidateMQTTSourceBindingKey(k MQTTSourceBindingKey) error {
 	return validateMQTTSourceBindingKey(k)
 }

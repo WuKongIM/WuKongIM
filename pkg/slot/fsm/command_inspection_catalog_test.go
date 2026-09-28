@@ -34,6 +34,7 @@ func TestCommandInspectionCoversRegisteredDecoders(t *testing.T) {
 		data []byte
 	}{
 		{"mqtt_reclamation_index", EncodeMQTTReclamationIndexCommand()},
+		{"mqtt_replay_marker_clear", checked(EncodeMQTTReplayMarkerClearCommand(mqttSourceBindingCommandFixture().Key.Owner))},
 		{"mqtt_source_binding_retire", checked(EncodeMQTTSourceBindingRetireCommand(mqttSourceBindingCommandFixture().Key, 3, 1))},
 		{"mqtt_session_reclamation", checked(EncodeMQTTSessionReclamationCommand(mqttReclamationCommandFixture()))},
 		{"mqtt_inbox_admission", checked(EncodeMQTTInboxAdmissionCommand(0, mqttInboxAdmissionCommandFixture()))},
