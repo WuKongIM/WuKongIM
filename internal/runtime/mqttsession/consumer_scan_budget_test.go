@@ -52,21 +52,21 @@ func TestConsumerWorkerFocusesBudgetOnBackloggedStream(t *testing.T) {
 	w := consumerWorkerFixture(t, s)
 	var state consumerScanState
 	admitAll := func(consumerWorkKey) bool { return true }
-	// Nine turns read every empty stream once, so all of them are cooling.
-	for range 9 {
-		require.Equal(t, 32, w.sweep(context.Background(), &state, admitAll).Pages)
+	// The backlog gets at least half of every turn from the first turn on;
+	// the rest keeps rotating through (and cooling) empty streams.
+	for turn := range 20 {
+		s.visited = nil
+		o := w.sweep(context.Background(), &state, admitAll)
+		require.Equal(t, 32, o.Pages, "turn %d", turn)
+		require.GreaterOrEqual(t, countVisits(s.visited, 7), 16, "turn %d: budget follows the backlog", turn)
+		require.Equal(t, countVisits(s.visited, 7)*16, o.Scheduled, "turn %d", turn)
 	}
-	s.visited = nil
-	o := w.sweep(context.Background(), &state, admitAll)
-	require.Equal(t, 32, o.Pages)
-	require.Equal(t, 32, countVisits(s.visited, 7), "budget follows the backlog")
-	require.Equal(t, 32*16, o.Scheduled)
 
 	// Cohort pressure stops continuation; the rest of the budget is not
 	// spent re-reading the same refused page.
 	s.visited = nil
 	refused := 0
-	o = w.sweep(context.Background(), &state, func(consumerWorkKey) bool { refused++; return refused <= 8 })
+	o := w.sweep(context.Background(), &state, func(consumerWorkKey) bool { refused++; return refused <= 8 })
 	require.Equal(t, 1, countVisits(s.visited, 7))
 	require.Equal(t, 8, o.Scheduled)
 
@@ -76,4 +76,24 @@ func TestConsumerWorkerFocusesBudgetOnBackloggedStream(t *testing.T) {
 		w.sweep(context.Background(), &state, admitAll)
 	}
 	require.Positive(t, countVisits(s.visited, 3), "idle stream must be reread")
+}
+
+// When idle streams alone exceed the per-turn budget (768 product streams at
+// 32 pages), a stream with an unfinished cursor must still get half the budget
+// every turn instead of waiting a full rotation.
+func TestConsumerWorkerServesUnfinishedStreamWhenIdleStreamsExceedBudget(t *testing.T) {
+	s := busyStreamSource(7)
+	w := consumerWorkerFixture(t, s)
+	w.opts.PagesPerTurn = 8 // 256 streams / 16-turn cooldown = 16 idle pages > 8
+	var state consumerScanState
+	admitAll := func(consumerWorkKey) bool { return true }
+	for range 40 {
+		w.sweep(context.Background(), &state, admitAll)
+	}
+	s.visited = nil
+	for range 10 {
+		w.sweep(context.Background(), &state, admitAll)
+	}
+	require.GreaterOrEqual(t, countVisits(s.visited, 7), 40, "unfinished stream gets half of each turn")
+	require.Positive(t, len(s.visited)-countVisits(s.visited, 7), "rotation still reads idle streams")
 }

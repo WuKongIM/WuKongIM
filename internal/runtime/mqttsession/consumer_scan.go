@@ -114,10 +114,33 @@ func (w *ConsumerWorker) sweep(parent context.Context, state *consumerScanState,
 	}
 	state.turn++
 	budget := w.opts.PagesPerTurn
+	// Streams with an unfinished cursor have known backlog. Up to half of the
+	// turn continues them first, so idle streams outnumbering the budget cannot
+	// delay a backlog by a whole rotation. Rotation skips streams that yielded here.
+	served := make(map[uint32]bool, len(state.cursors))
+	reserved := budget / 2
+	for _, stream := range streams {
+		if reserved <= 0 || ctx.Err() != nil {
+			break
+		}
+		if _, ok := state.cursors[stream]; !ok || state.idle[stream] > state.turn {
+			continue
+		}
+		// A stream that yielded (pressure, failure, terminal page) is done for
+		// this turn; one still admitting may continue in rotation.
+		for reserved > 0 && ctx.Err() == nil {
+			reserved--
+			budget--
+			if !w.sweepPage(ctx, state, stream, slotOf(stream), stream >= reclamationBase, admit, &out) {
+				served[stream] = true
+				break
+			}
+		}
+	}
 	for examined := 0; examined < len(streams) && budget > 0 && ctx.Err() == nil; examined++ {
 		stream := streams[index]
 		index = (index + 1) % len(streams)
-		if state.idle[stream] > state.turn {
+		if served[stream] || state.idle[stream] > state.turn {
 			continue
 		}
 		state.next = stream + 1
