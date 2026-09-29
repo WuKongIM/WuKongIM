@@ -4840,3 +4840,34 @@ Validation (2026-09-28):
 Remaining: scale acceptance, production receive-authority adapter, fair
 scheduling, partition/unavailable-node owner isolation, replay marker clearing
 and full process/load acceptance. Product MQTT is not enabled by default.
+
+## Group scale acceptance (partial)
+
+Design: `docs/specs/mqtt-scale-acceptance.md`; E2E `test/e2e/mqtt/scale`.
+Fixes found by the scenario:
+
+- `7ca74cc95`: request-owned Channel metadata applies (MQTT source, replay,
+  anchor, retirement, Will receipt, prepared append) now wait for a contended
+  shard lock within the request deadline instead of failing as not ready,
+  which closed concurrent same-group SUBSCRIBE as `unconfirmed`.
+- `356ebc031`, `264cae694`: Removed source bindings stay in the recovery index
+  while scheduled, so background maintenance actually retires them; unprovable
+  retirement backs off from 1s to 10min.
+- `05908c513`, `34138e6d9`: consumer scan continues a stream while its full
+  page is wholly admitted, cools empty streams for 16 turns, and reserves half
+  of each turn for streams with an unfinished cursor. Previously 768 streams
+  at 32 pages/turn left one Slot's backlog waiting a full rotation.
+
+Validation (2026-09-29): 2,000 members / 500 persistent subscribers / 10
+churned subscribers passed (`/tmp/mqtt-scale-500d/mqtt-scale.json`): 0
+duplicates/missing/reordered/wrong identity, `retired_delta` 10 of 10.
+Before `34138e6d9` the same run retired 0 in 4 minutes (3 of 3 runs).
+
+Open:
+- Delivery latency is far too high: fanout p50 59s / max 65s for 2 messages
+  to 500 subscribers; post-churn delivery 41s. Not yet diagnosed.
+- The default 100,000-member / 500-subscriber run has not passed; one earlier
+  attempt closed one SUBSCRIBE as `unconfirmed` after `7ca74cc95`, not
+  reproduced in 4 later 500-connection runs.
+- `unsubscribe_recovery` cold-subscribe tests fail intermittently on the
+  pre-change baseline too (known, unresolved).
