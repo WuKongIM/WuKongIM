@@ -6,6 +6,7 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add `wukongim_slot_read_barrier_duration_seconds{result}` to show how long Slot linearizable reads wait for ReadIndex and durable apply, labeled only by a fixed result set. / 新增 `wukongim_slot_read_barrier_duration_seconds{result}`，按固定结果类别展示 Slot 线性一致读等待 ReadIndex 与持久应用的耗时。
 - Removed MQTT source bindings are now actually retired by background maintenance; previously they left the recovery index and were never rediscovered. Unprovable retirements back off from 1 second up to 10 minutes. / 后台维护现在会真正回收已移除的 MQTT 来源绑定；此前这些行离开恢复索引后不会再被发现。暂时无法证明可回收时，从 1 秒起退避，最长 10 分钟。
 
 - Concurrent MQTT SUBSCRIBE requests to the same group no longer disconnect with an unclassified failure; per-request Channel metadata application now waits for a contended shard lock within the request deadline instead of failing as not ready. / 多个客户端同时订阅同一群时，不再因未分类错误被断开；按请求应用频道元数据时，遇到分片锁竞争会在请求时限内等待，而不是直接返回未就绪。
