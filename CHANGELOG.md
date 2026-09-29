@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- `wukongim config init` now writes `node.data_dir = "/var/lib/wukongim/data"` so node data no longer shares the package state root with the service home and plugin directories; the stricter data-format check otherwise rejects that root as unregistered existing data on first start. Existing configurations are unchanged. / `wukongim config init` 生成的 `node.data_dir` 改为 `/var/lib/wukongim/data`，节点数据不再与服务主目录、插件目录共用软件包状态根目录，否则更严格的数据格式检查会在首次启动时把该根目录当作未登记的已有数据而拒绝。已有配置不受影响。
+
 - Bound Slot startup snapshot installation memory with verified streaming and crash-retry fencing; print throttled recovery stages, byte/record progress, and committed-log replay completion. / Slot 启动快照采用校验后的流式分批安装，降低恢复内存峰值并保护中断重试；输出限频的恢复阶段、字节/条目进度和已提交日志重放完成信息。
 - Reuse certified Slot metadata on restart after verifying database continuity and exact Raft history; fall back to snapshot restoration when evidence is incompatible and log the selected recovery path. / 重启时校验数据库连续性及准确的 Raft 历史，复用有持久化证明的 Slot 元数据；证明不匹配时回退快照恢复，并记录所选恢复路径。
 
