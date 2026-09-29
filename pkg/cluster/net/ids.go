@@ -127,6 +127,8 @@ const (
 	RPCSlotMessageUpdates
 	// RPCMessageUpdateHint delivers body-free edit hints to exact owner sessions.
 	RPCMessageUpdateHint
+	// RPCNodeSendPermissions multiplexes authoritative Slot permission reads per node.
+	RPCNodeSendPermissions
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -249,6 +251,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "message event append"
 	case RPCSlotMessageUpdates:
 		return "slot message updates"
+	case RPCNodeSendPermissions:
+		return "node send permissions"
 	case RPCMessageUpdateHint:
 		return "message update hint"
 	default:

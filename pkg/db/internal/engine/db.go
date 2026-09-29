@@ -2,13 +2,16 @@ package engine
 
 import (
 	"errors"
+	"io"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 	"github.com/cockroachdb/pebble/v2"
 	"github.com/cockroachdb/pebble/v2/bloom"
+	"github.com/cockroachdb/pebble/v2/vfs"
 )
 
 const (
@@ -36,6 +39,9 @@ type Options struct {
 	ReadOnly bool
 	// Logger receives structured Pebble diagnostics; routine recovery details are debug-only.
 	Logger wklog.Logger
+	// DiskSlowThreshold reports disk operations slower than this duration into
+	// DiskSlow metrics. Zero keeps Pebble's built-in 5s health-check threshold.
+	DiskSlowThreshold time.Duration
 }
 
 // DB wraps a Pebble database without exposing Pebble types to domain packages.
@@ -44,6 +50,12 @@ type DB struct {
 	// sealMu serializes sequence-certified writes only when recovery sealing is enabled.
 	sealMu sync.Mutex
 	seal   *recoverySeal
+	// stalls aggregates Pebble write stalls for MetricsSnapshot.
+	stalls *stallRecorder
+	// disk aggregates Pebble slow-disk reports for MetricsSnapshot.
+	disk *diskSlowRecorder
+	// diskHealth stops the owned health-check FS when a custom threshold is set.
+	diskHealth io.Closer
 }
 
 // Open opens a Pebble-backed engine at path.
@@ -51,11 +63,23 @@ func Open(path string, opts Options) (*DB, error) {
 	if path == "" {
 		return nil, dberrors.ErrInvalidArgument
 	}
-	pdb, err := pebble.Open(path, pebbleOptions(opts))
+	stalls := newStallRecorder(time.Now)
+	disk := newDiskSlowRecorder()
+	popts := pebbleOptions(opts, stalls)
+	popts.EventListener.DiskSlow = disk.observe
+	var diskHealth io.Closer
+	if opts.DiskSlowThreshold > 0 {
+		// Setting FS bypasses Pebble's default 5s wrapper, so this FS is the only health checker.
+		popts.FS, diskHealth = vfs.WithDiskHealthChecks(vfs.Default, opts.DiskSlowThreshold, nil, disk.observe)
+	}
+	pdb, err := pebble.Open(path, popts)
 	if err != nil {
+		if diskHealth != nil {
+			_ = diskHealth.Close()
+		}
 		return nil, err
 	}
-	return &DB{pdb: pdb}, nil
+	return &DB{pdb: pdb, stalls: stalls, disk: disk, diskHealth: diskHealth}, nil
 }
 
 // Close closes the underlying engine.
@@ -65,7 +89,12 @@ func (e *DB) Close() error {
 	}
 	pdb := e.pdb
 	e.pdb = nil
-	return pdb.Close()
+	err := pdb.Close()
+	if e.diskHealth != nil {
+		err = errors.Join(err, e.diskHealth.Close())
+		e.diskHealth = nil
+	}
+	return err
 }
 
 // IsClosed reports whether this handle can still serve storage reads. Like the
@@ -133,7 +162,7 @@ func pebbleIterOptions(span Span, _ IterOptions) *pebble.IterOptions {
 	return options
 }
 
-func pebbleOptions(opts Options) *pebble.Options {
+func pebbleOptions(opts Options, stalls *stallRecorder) *pebble.Options {
 	if opts.CacheSize <= 0 {
 		opts.CacheSize = defaultCacheSize
 	}
@@ -166,6 +195,12 @@ func pebbleOptions(opts Options) *pebble.Options {
 	popts.Experimental.L0CompactionConcurrency = defaultL0CompactionConcurrency
 	popts.Experimental.CompactionDebtConcurrency =
 		uint64(opts.CompactionDebtConcurrencyBytes)
+	if stalls != nil {
+		popts.EventListener = &pebble.EventListener{
+			WriteStallBegin: stalls.begin,
+			WriteStallEnd:   stalls.end,
+		}
+	}
 	if opts.Logger != nil {
 		popts.Logger = wklog.NewDependencyLogger(opts.Logger, "pebble")
 	}

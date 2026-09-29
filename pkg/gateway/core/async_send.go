@@ -45,11 +45,12 @@ type sendExecutor struct {
 	shardCapacity int
 	// queueMu linearizes aggregate queue occupancy with its publication revision.
 	queueMu sync.Mutex
-	// queued tracks SEND tasks accepted by gateway but not yet entering dispatch.
+	// queued tracks reserved SEND records. Joined handlers release at dispatch;
+	// deferred handlers retain executing and unpublished records in the same budget.
 	queued int64
 	// queueRevision orders absolute observations across executor generations.
 	queueRevision uint64
-	// shardQueued tracks per-shard accepted tasks before dispatch begins.
+	// shardQueued mirrors those reservations per ordering shard.
 	shardQueued []atomic.Int64
 	// closed prevents new send admission after shutdown.
 	closed atomic.Bool
@@ -65,6 +66,8 @@ type sendExecutor struct {
 	// closeOnce releases the mailbox only after the accepted-work drain. It
 	// prevents Stop callers with expired release budgets from canceling work.
 	closeOnce sync.Once
+	// deferred retains optional cross-batch publication state within original budgets.
+	deferred []deferredSendShard
 	// mailbox owns shard-local scheduling and worker execution.
 	mailbox *workqueue.ShardedMailbox[asyncDispatchTask]
 	// releaseTimeout bounds graceful mailbox pool release.
@@ -90,6 +93,10 @@ func newSendExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*sendExecutor
 		panicC:         make(chan any, 1),
 		drained:        make(chan struct{}),
 		goroutines:     opts.Goroutines,
+	}
+
+	if s != nil && s.dispatcher.deferredHandler != nil {
+		e.deferred = make([]deferredSendShard, shards)
 	}
 
 	mailbox, err := workqueue.NewShardedMailbox[asyncDispatchTask](workqueue.ShardedMailboxConfig{
@@ -306,6 +313,10 @@ func (e *sendExecutor) reserveShard(shard int) bool {
 
 func (e *sendExecutor) handleMailboxBatch(_ context.Context, batch workqueue.MailboxBatch[asyncDispatchTask]) error {
 	if e == nil || len(batch.Items) == 0 {
+		return nil
+	}
+	if e.deferred != nil {
+		e.dispatchDeferredMailboxBatch(batch.Shard, batch.Items)
 		return nil
 	}
 	e.consumeShard(batch.Shard, len(batch.Items))

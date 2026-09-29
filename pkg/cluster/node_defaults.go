@@ -182,6 +182,7 @@ func (n *Node) newDefaultChannelStore() *channelstore.MessageDBFactory {
 			CommitMaxBytes:    n.cfg.Storage.CommitMaxBytes,
 			CommitShards:      n.cfg.Storage.CommitShards,
 			CommitObserver:    n.cfg.Storage.CommitObserver,
+			DiskSlowThreshold: n.cfg.Storage.DiskSlowThreshold,
 			Logger:            namedLogger(n.cfg.Logger, "message_db"),
 		},
 	)

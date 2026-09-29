@@ -11,6 +11,30 @@ move those entries into a version section named for that exact tag.
 - Bound Slot startup snapshot installation memory with verified streaming and crash-retry fencing; print throttled recovery stages, byte/record progress, and committed-log replay completion. / Slot 启动快照采用校验后的流式分批安装，降低恢复内存峰值并保护中断重试；输出限频的恢复阶段、字节/条目进度和已提交日志重放完成信息。
 - Reuse certified Slot metadata on restart after verifying database continuity and exact Raft history; fall back to snapshot restoration when evidence is incompatible and log the selected recovery path. / 重启时校验数据库连续性及准确的 Raft 历史，复用有持久化证明的 Slot 元数据；证明不匹配时回退快照恢复，并记录所选恢复路径。
 
+- Export Pebble write-stall, WAL fsync latency and slow-disk metrics (`wukongim_storage_pebble_write_stall*`, `wukongim_storage_pebble_wal_fsync_*`, `wukongim_storage_pebble_disk_slow_*`) with Grafana panels. New `cluster.storage_disk_slow_threshold` (`WK_CLUSTER_STORAGE_DISK_SLOW_THRESHOLD`, default `1s`) sets when message-DB disk operations count as slow; observation only, durability is unchanged. / 导出 Pebble 写停顿、WAL fsync 延迟和慢盘指标，并新增 Grafana 面板。新增配置 `cluster.storage_disk_slow_threshold`（环境变量 `WK_CLUSTER_STORAGE_DISK_SLOW_THRESHOLD`，默认 `1s`），用于判定消息库磁盘慢操作；仅用于观测，不改变持久化语义。
+
+- Add SENDACK reason code `ReasonSystemBusy` (30). An overflowing gateway SEND (async send queue or shard full) and a saturated permission-read admission now return it instead of closing the connection or reporting `ReasonNodeNotMatch`; a stopping or missing executor still closes the session. Clients should retry with backoff by ClientMsgNo; ordering across a rejected SEND is not preserved by the gateway. Older clients see an unknown reason code. / 新增 SENDACK 原因码 `ReasonSystemBusy`（30）。网关异步发送队列或分片已满、权限读准入繁忙时返回该码，不再断开连接或返回 `ReasonNodeNotMatch`；执行器停止或缺失时仍关闭会话。客户端应按 ClientMsgNo 退避重试，网关不保证被拒消息前后的顺序；旧客户端会看到未知原因码。
+
+- Pipeline gateway SEND preparation and durable completion, coalescing queued independent appends within existing batch targets while preserving fresh permissions, Channel order and per-session ACK order; configured admission budgets now retain executing and unpublished SEND records, and shutdown/restore join them before replacing dependencies. / 网关发送准备与持久化完成分离，按现有批次上限合并排队中的独立追加，保留最新权限、频道顺序和会话 ACK 顺序；准入预算持续覆盖执行中及尚未发布的消息，停机和恢复维护会先排空这些任务。
+
+- Release send-permission waiting positions atomically when handing off execution permits, preventing false busy responses before an assigned caller resumes; cancellation and existing capacity limits remain enforced. / 发送权限执行名额移交时原子释放等待位置，避免已获准请求恢复执行前误报 busy，并保留取消和现有容量限制。
+
+- Avoid retaining duplicate message payloads in the legacy pull cache after durable-quorum commits; replication and repair remain owned by the quorum runtime. / quorum 持久化提交后不再向旧拉取缓存重复保留消息，复制与修复仍由 quorum 运行时负责。
+
+- Stop replication workers from repeatedly scheduling empty batches while their Channels are already in flight; wake blocked work when exchanges complete, retaining ordering and capacity limits. / 复制队列中的频道均在交换中时不再反复调度空批次；交换完成后唤醒等待工作，保留顺序和容量限制。
+
+- Absorb brief send-permission read bursts with at most 16 waiting envelopes and a 100 ms wait bound, retaining 16 executing envelopes, caller cancellation and fresh authority checks. Overflow still fails closed. / 发送权限读取增加最多 16 个、最长 100 ms 的等待位置以吸收短时突发；执行并发仍为 16，保留取消和最新权威读取，超限继续拒绝。
+
+- Preserve ready gateway SEND prefixes as batches, retaining directory barriers, hook order, per-Channel append order and session ACK order to avoid per-message durable waits in the use case. / 网关已就绪的连续 SEND 保持批量提交，保留目录屏障、hook 顺序、同频道追加顺序和会话 ACK 顺序，避免用例层逐条等待持久化。
+
+- Expose fixed transport lane payload-byte counters to distinguish Raft from other cluster traffic without changing aggregate byte metrics. / 新增按固定传输优先级划分的 payload 字节指标，区分 Raft 与其他集群流量，并保留原有总字节指标。
+
+- Batch ordinary membership projections by physical Slot to reduce large-group setup proposals, preserving ownership, durability, source versions and bounded concurrency. Matching cluster binaries are required. / 普通成员索引按物理 Slot 批量提交，减少大群创建提案数，保留所有权、持久化、版本与并发边界；集群须使用匹配版本。
+
+- Preserve backup management read-your-writes when a forwarded Controller mutation precedes local replica visibility; report temporary send-permission authority/admission failures as retryable. Fresh data roots may contain a pre-mounted backup repository, while unregistered live databases remain rejected. / 备份管理等待已成功转发的修改在本机可见，避免读旧状态遗漏操作锁；发送权限路由变化和临时过载返回可重试错误。新数据目录允许预挂载备份仓库，仍拒绝未登记的旧业务数据库。
+
+- Separate user-wide and source-channel send bans, add versioned management APIs, and batch fresh permission reads by leader node. Person-channel bans affect both directions; credential changes preserve bans. Requires data format 2 and matching server/CLI binaries; no old-data migration or mixed-version deployment is supported. / 用户全局禁发与实际频道禁发分离，新增带版本的管理接口，按 Leader 节点聚合权威权限查询；私聊频道禁发双向生效，凭证更新保留禁令。要求数据格式 2 及配套服务端/CLI，不支持旧数据迁移或新旧版本混部。
+
 - Bound cloud deployment readiness commands by the shared deadline and publish consistent failure receipts for local repair and GitHub Actions, including interrupted probes. / 本地修复与 GitHub Actions 共用部署执行入口，readiness 命令受统一截止时间约束，中断与失败均保留一致的结构化结果。
 
 - Add bounded Linux host/network sampling and monotonic RPC timeline correlation, with explicit missing data and sampling overhead. / 新增有界 Linux 主机、网络采样与 RPC 单调时钟对齐，显式保留缺失指标和采样开销。
@@ -47,6 +71,8 @@ move those entries into a version section named for that exact tag.
 - Add text-message editing to the embedded Demo for sent messages in direct and group chats, with conflict/draft handling and live message/preview updates. / 内嵌 Demo 支持编辑本人已发送的单聊、群聊文本，处理冲突与草稿，并实时更新正文及会话摘要。
 
 ### 🐛 Bug Fixes / 问题修复
+
+- Return a plugin host RPC error with the public SEND reason when a plugin-origin message is rejected, including user/channel send bans, instead of acknowledging success with a zero message ID. / 插件发送被用户或频道禁令等规则拒绝时，返回带协议原因码的宿主 RPC 错误，修复成功状态携带零消息 ID 的误导反馈。
 
 - Preserve message settings, including read-receipt flags, topics, and expiration during online delivery for persistent and non-persistent messages. / 修复持久化和非持久化消息在线下发时丢失 setting（含已读回执标记）、topic 和 expire 的问题。
 

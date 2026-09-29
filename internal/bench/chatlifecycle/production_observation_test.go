@@ -11,6 +11,30 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/bench/target"
 )
 
+func TestSchedLatencyMeanNanosUsesOnlyValidCumulativeDeltas(t *testing.T) {
+	previous := target.MetricsSnapshot{GoSchedLatencySumSeconds: 1, GoSchedLatencyCount: 1000}
+	for _, test := range []struct {
+		name     string
+		previous target.MetricsSnapshot
+		current  target.MetricsSnapshot
+		want     uint64
+		ok       bool
+	}{
+		{name: "delta mean", previous: previous, current: target.MetricsSnapshot{GoSchedLatencySumSeconds: 1.5, GoSchedLatencyCount: 1500}, want: uint64(time.Millisecond), ok: true},
+		{name: "first scrape", current: previous},
+		{name: "family absent", previous: previous},
+		{name: "no new samples", previous: previous, current: previous},
+		{name: "counter reset", previous: previous, current: target.MetricsSnapshot{GoSchedLatencySumSeconds: 0.1, GoSchedLatencyCount: 10}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, ok := schedLatencyMeanNanos(test.previous, test.current)
+			if got != test.want || ok != test.ok {
+				t.Fatalf("schedLatencyMeanNanos() = %d, %v; want %d, %v", got, ok, test.want, test.ok)
+			}
+		})
+	}
+}
+
 func TestProductionObservationCollectsOneCompleteForcedGCRound(t *testing.T) {
 	cfg := LocalConfig()
 	start := time.Date(2030, time.March, 17, 17, 0, 0, 0, time.UTC)

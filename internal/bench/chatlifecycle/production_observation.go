@@ -403,6 +403,7 @@ func (s *ProductionObservationSource) commitRound(
 	next.Sequence++
 	next.At = observationAt
 	next.Resources = append(next.Resources[:0], resources[:]...)
+	previousMetrics := s.snapshot.Metrics
 	next.Metrics = cloneProductionMetrics(round.metrics)
 	var activationTotal uint64
 	for index := 0; index < coordinatorWorkerCount; index++ {
@@ -423,6 +424,11 @@ func (s *ProductionObservationSource) commitRound(
 		node.DataFilesystemAvailableBytes = uint64(filesystem.AvailableBytes)
 		node.QueueCurrent = uint64(resource.QueueDepth)
 		node.InflightCurrent = uint64(resource.Inflight)
+		mean, schedOK := schedLatencyMeanNanos(previousMetrics[index], round.metrics[index])
+		node.SchedLatencyMeanNanos = mean
+		if schedOK {
+			node.SchedLatencyMeanPeakNanos = max(node.SchedLatencyMeanPeakNanos, mean)
+		}
 		if !sample.At.After(s.start.Add(s.cfg.Thresholds.Timeline.Warmup)) {
 			node.QueueBaseline = max(node.QueueBaseline, node.QueueCurrent)
 			node.InflightBaseline = max(node.InflightBaseline, node.InflightCurrent)
@@ -974,6 +980,25 @@ func addProductionGauges(left, right float64) (uint64, bool) {
 		return 0, false
 	}
 	return leftValue + rightValue, true
+}
+
+// schedLatencyMeanNanos derives the mean scheduler delay between two cumulative
+// scrapes. Absent families, counter resets after a restart, or invalid deltas
+// yield no sample so diagnostics never report a fabricated value.
+func schedLatencyMeanNanos(previous, current target.MetricsSnapshot) (uint64, bool) {
+	if previous.GoSchedLatencyCount == 0 {
+		return 0, false
+	}
+	count := current.GoSchedLatencyCount - previous.GoSchedLatencyCount
+	sum := current.GoSchedLatencySumSeconds - previous.GoSchedLatencySumSeconds
+	if !(count > 0) || !(sum >= 0) || math.IsInf(sum, 0) || math.IsInf(count, 0) {
+		return 0, false
+	}
+	mean := sum / count * float64(time.Second)
+	if !(mean >= 0) || mean >= math.MaxUint64 {
+		return 0, false
+	}
+	return uint64(mean), true
 }
 
 func cloneProductionMetrics(source [coordinatorWorkerCount]target.MetricsSnapshot) [coordinatorWorkerCount]target.MetricsSnapshot {

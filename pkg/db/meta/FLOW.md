@@ -84,6 +84,12 @@ It does not own product business policy or expose engine-specific APIs.
 
 - Channel-owned message-update tables store latest payload/index, head/incarnation and replica activation proof, idempotency results, and separate body-free pending checkpoints. CAS and notification progress use same-batch overlays. Pinned reads bind head/index/body; a bounded Slot group shares one request-scoped snapshot across its logical shards after the caller establishes its fresh authority/apply barrier; an update sequence of zero proves dependent rows empty only within that snapshot, allowing exact-ID reads to stop before unused point lookups; channel deletion removes every edit span, and bounded retention-index cleanup removes target payloads, requests and pending state after the original retention floor.
 
+- User and source-Channel send policies have independent apply-time CAS versions.
+  Dedicated policy and optional Channel-info mutations observe same-batch state;
+  ordinary user/channel upserts preserve policy. Permission snapshots return
+  policy-only user projections and point membership facts. Format 2 requires
+  matching binaries; offline transfers preserve exact policy values and versions.
+
 ## Read First
 
 - [Metadata database](db.go)

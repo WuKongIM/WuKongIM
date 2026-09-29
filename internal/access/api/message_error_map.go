@@ -61,6 +61,8 @@ func mapMessageReason(reason messageusecase.Reason) frame.ReasonCode {
 		return frame.ReasonDisband
 	case messageusecase.ReasonSendBan:
 		return frame.ReasonSendBan
+	case messageusecase.ReasonSystemBusy:
+		return frame.ReasonSystemBusy
 	case messageusecase.ReasonInvalidRequest, messageusecase.ReasonUnsupported:
 		return frame.ReasonPayloadDecodeError
 	default:

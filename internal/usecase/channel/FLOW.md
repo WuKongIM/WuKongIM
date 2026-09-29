@@ -44,6 +44,11 @@ It does not own entry protocols, concrete storage, cluster transport, or caches.
 - First allowlist or denylist add may create its derived channel; removal from
   a missing list is a zero-change no-op.
 
+- Source-Channel send-ban operations validate canonical person identity and
+  reject CMD-derived keys. Channel-info updates preserve an omitted send_ban at
+  apply and atomically version explicit changes; existing-only Manager patches
+  retain directory and membership state. Disband cannot be reversed.
+
 ## Read First
 
 - [Application service](app.go)

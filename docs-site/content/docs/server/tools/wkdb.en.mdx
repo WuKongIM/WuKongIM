@@ -33,7 +33,7 @@ wkcli db --data-dir ./node-1 --format json info
 wkcli db --config ./wukongim.toml info
 ```
 
-Every fresh empty node directory receives `DATA-FORMAT.json`. Migration targets receive it too, with the migration tool as their creator. `format` (currently `wukongim-v3`) and `format_version` (currently `1`) identify data compatibility. `created_by` records the program, version, commit, and build source; `created_at` records creation time. Ordinary software upgrades and repeated imports preserve these fields.
+Every fresh empty node directory receives `DATA-FORMAT.json`. Migration targets receive it too, with the migration tool as their creator. `format` (currently `wukongim-v3`) and `format_version` (currently `2`) identify data compatibility. `created_by` records the program, version, commit, and build source; `created_at` records creation time. Ordinary software upgrades and repeated imports preserve these fields.
 
 | Status | Meaning |
 | --- | --- |
@@ -43,7 +43,13 @@ Every fresh empty node directory receives `DATA-FORMAT.json`. Migration targets 
 
 `info` opens no database or database lock, creates no directory, and writes nothing. It can run while a node is online. Missing paths and corrupt markers fail; a successful read is not verification of business data. Supply the node root or config, without `--meta-path`, `--message-path`, or `--hash-slot-count`.
 
-Existing nonempty directories, including external Controller state, are not automatically registered and retain existing storage checks. Preserve the file in full directory backups, snapshots, and migration distribution. Logical bundles and cluster backups use their own format versions; restoration retains the target node's creation record. Older servers unaware of this marker cannot guarantee safe rollback based on it.
+Format 2 includes user/channel send policies and their versions. Format 1 and
+nonempty unregistered data directories are rejected before opening stores; this
+change does not migrate old data. Use matching server/CLI binaries and new or
+explicitly imported compatible directories. Do not change the marker to bypass
+the check. Preserve the marker in full directory backups; restoring an archive
+keeps the target node's creation identity. Older binaries cannot use this marker
+to guarantee safe rollback.
 
 ## Locate storage
 

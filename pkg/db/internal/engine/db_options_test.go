@@ -6,7 +6,7 @@ import (
 )
 
 func TestPebbleOptionsEnableBloomFiltersAtEveryLevel(t *testing.T) {
-	opts := pebbleOptions(Options{})
+	opts := pebbleOptions(Options{}, nil)
 	if len(opts.Levels) < 2 {
 		t.Fatalf("Pebble levels = %d, want multiple levels", len(opts.Levels))
 	}
@@ -18,7 +18,7 @@ func TestPebbleOptionsEnableBloomFiltersAtEveryLevel(t *testing.T) {
 }
 
 func TestPebbleOptionsAvoidFrequentFullSSTableSyncsOnDarwin(t *testing.T) {
-	opts := pebbleOptions(Options{})
+	opts := pebbleOptions(Options{}, nil)
 	opts.EnsureDefaults()
 	want := 512 << 10
 	if runtime.GOOS == "darwin" {
@@ -30,7 +30,7 @@ func TestPebbleOptionsAvoidFrequentFullSSTableSyncsOnDarwin(t *testing.T) {
 }
 
 func TestPebbleOptionsStartFourthCompactionBeforeL0WriteStop(t *testing.T) {
-	opts := pebbleOptions(Options{})
+	opts := pebbleOptions(Options{}, nil)
 	opts.EnsureDefaults()
 	lower, upper := opts.CompactionConcurrencyRange()
 	if lower != 1 || upper != 4 {
@@ -50,7 +50,7 @@ func TestPebbleOptionsStartFourthCompactionBeforeL0WriteStop(t *testing.T) {
 }
 
 func TestPebbleOptionsAllowDebtTriggeredFourthCompaction(t *testing.T) {
-	opts := pebbleOptions(Options{})
+	opts := pebbleOptions(Options{}, nil)
 	opts.EnsureDefaults()
 	wantDebtStep := uint64(4) * opts.MemTableSize
 	if opts.Experimental.CompactionDebtConcurrency != wantDebtStep {
@@ -64,7 +64,7 @@ func TestPebbleOptionsAllowDebtTriggeredFourthCompaction(t *testing.T) {
 
 func TestPebbleOptionsHonorExplicitCompactionDebtStep(t *testing.T) {
 	const want = 128 << 20
-	opts := pebbleOptions(Options{CompactionDebtConcurrencyBytes: want})
+	opts := pebbleOptions(Options{CompactionDebtConcurrencyBytes: want}, nil)
 	opts.EnsureDefaults()
 	if got := opts.Experimental.CompactionDebtConcurrency; got != want {
 		t.Fatalf("CompactionDebtConcurrency = %d, want explicit %d", got, want)

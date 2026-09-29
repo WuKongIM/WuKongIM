@@ -3,6 +3,7 @@ package channel
 import (
 	"context"
 	"errors"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -56,7 +57,9 @@ type CommittedTailReader interface {
 
 // Options contains dependencies for the channel usecase.
 type Options struct {
-	Store Store
+	// CommandChannelSuffix reserves derived command identities from management.
+	CommandChannelSuffix string
+	Store                Store
 	// MembershipIndex receives ordinary subscriber membership projections.
 	MembershipIndex MembershipIndex
 	// CommittedTail supplies the join visibility boundary for ordinary membership writes.
@@ -74,6 +77,7 @@ type Options struct {
 // App coordinates legacy channel management actions without depending on an
 // entry protocol.
 type App struct {
+	commandChannels               channelid.CommandCodec
 	store                         Store
 	membershipIndex               MembershipIndex
 	committedTail                 CommittedTailReader
@@ -98,6 +102,7 @@ func New(opts Options) *App {
 		now = time.Now
 	}
 	return &App{
+		commandChannels:               channelid.CommandCodec{Suffix: opts.CommandChannelSuffix},
 		store:                         opts.Store,
 		membershipIndex:               opts.MembershipIndex,
 		committedTail:                 opts.CommittedTail,
@@ -145,6 +150,18 @@ func (a *App) UpdateInfo(ctx context.Context, info Info) error {
 	if err := a.requireStore(); err != nil {
 		return err
 	}
+	if store, ok := a.store.(channelInfoStore); ok {
+		q := metadb.ChannelInfoMutation{ChannelID: info.ChannelID, ChannelType: int64(info.ChannelType), Ban: boolToInt64(info.Ban), Disband: boolToInt64(info.Disband), AllowStranger: boolToInt64(info.AllowStranger), Large: boolToInt64(info.Large)}
+		if info.SendBanSet || info.SendBan {
+			if err := a.validateSendBanKey(ChannelKey{ChannelID: info.ChannelID, ChannelType: info.ChannelType}); err != nil {
+				return err
+			}
+			v := boolToInt64(info.SendBan)
+			q.SendBan = &v
+		}
+		return channelInfoResult(store.UpdateChannelInfo(ctx, q))
+	}
+
 	channel := metadb.Channel{
 		ChannelID:     info.ChannelID,
 		ChannelType:   int64(info.ChannelType),
@@ -189,6 +206,13 @@ func (a *App) CreateMetadata(ctx context.Context, info Info) error {
 		Disband:     boolToInt64(info.Disband),
 		SendBan:     boolToInt64(info.SendBan),
 	}
+	if info.SendBan {
+		if err := a.validateSendBanKey(ChannelKey{ChannelID: info.ChannelID, ChannelType: info.ChannelType}); err != nil {
+			return err
+		}
+		channel.SendBanVersion = 1
+	}
+
 	store, ok := a.store.(conditionalChannelStore)
 	if !ok {
 		return ErrStoreRequired
@@ -201,6 +225,18 @@ func (a *App) PatchMetadataFlags(ctx context.Context, key ChannelKey, flags Busi
 	if err := a.requireStore(); err != nil {
 		return err
 	}
+	if store, ok := a.store.(channelInfoStore); ok {
+		q := metadb.ChannelInfoMutation{ChannelID: key.ChannelID, ChannelType: int64(key.ChannelType), Ban: boolToInt64(flags.Ban), Disband: boolToInt64(flags.Disband), ExistingOnly: true, FlagsOnly: true}
+		if flags.SendBanSet || flags.SendBan {
+			if err := a.validateSendBanKey(key); err != nil {
+				return err
+			}
+			v := boolToInt64(flags.SendBan)
+			q.SendBan = &v
+		}
+		return channelInfoResult(store.UpdateChannelInfo(ctx, q))
+	}
+
 	store, ok := a.store.(conditionalChannelStore)
 	if !ok {
 		return ErrStoreRequired
@@ -240,7 +276,7 @@ func (a *App) Delete(ctx context.Context, key ChannelKey) error {
 	return store.PatchChannelBusinessFlags(ctx, key.ChannelID, int64(key.ChannelType), metadb.ChannelBusinessFlags{
 		Ban:     channel.Ban,
 		Disband: 1,
-		SendBan: channel.SendBan,
+		SendBan: channel.SendBan, PreserveSendBan: true,
 	})
 }
 

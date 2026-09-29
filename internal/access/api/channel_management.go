@@ -17,7 +17,7 @@ type channelInfoRequest struct {
 	Large         int    `json:"large"`
 	Ban           int    `json:"ban"`
 	Disband       int    `json:"disband"`
-	SendBan       int    `json:"send_ban"`
+	SendBan       *int   `json:"send_ban"`
 	AllowStranger int    `json:"allow_stranger"`
 }
 
@@ -100,6 +100,10 @@ func (s *Server) handleChannelUpsert(c *gin.Context) {
 func (s *Server) handleChannelInfo(c *gin.Context) {
 	var req channelInfoRequest
 	if !bindJSON(c, &req) {
+		return
+	}
+	if req.SendBan != nil && *req.SendBan != 0 && *req.SendBan != 1 {
+		writeJSONError(c, "send_ban must be 0 or 1")
 		return
 	}
 	if err := s.requireChannelUsecase(); err != nil {
@@ -393,7 +397,8 @@ func (r channelInfoRequest) toInfo() channelusecase.Info {
 		Large:         r.Large == 1,
 		Ban:           r.Ban == 1,
 		Disband:       r.Disband == 1,
-		SendBan:       r.SendBan == 1,
+		SendBan:       r.SendBan != nil && *r.SendBan == 1,
+		SendBanSet:    r.SendBan != nil,
 		AllowStranger: r.AllowStranger == 1,
 	}
 }
@@ -419,6 +424,9 @@ func (r channelMemberRequest) toMemberCommand() channelusecase.MemberCommand {
 }
 
 func validateChannelUpsert(req channelUpsertRequest) string {
+	if req.SendBan != nil && *req.SendBan != 0 && *req.SendBan != 1 {
+		return "send_ban must be 0 or 1"
+	}
 	if strings.TrimSpace(req.ChannelID) == "" {
 		return "频道ID不能为空！"
 	}

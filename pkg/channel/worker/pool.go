@@ -143,6 +143,11 @@ type Pool struct {
 	// inflightObservationMu linearizes absolute current/peak publications. A
 	// delayed older worker samples the latest physical state before publishing.
 	inflightObservationMu sync.Mutex
+	// deferred counts accepted quorum commits whose worker returned before the
+	// durable result; they keep the original queued+executing budget.
+	deferred atomic.Int64
+	// deferredWG joins deferred completions before Close returns.
+	deferredWG sync.WaitGroup
 	// rpcGroupTurn rotates same-kind RPC target groups between bounded batches.
 	rpcGroupTurn atomic.Uint64
 }
@@ -241,7 +246,7 @@ func (p *Pool) Submit(ctx context.Context, task Task) error {
 		p.observeQueueDepth()
 		return err
 	}
-	if p.runtime.QueueDepth() >= p.runtime.QueueCapacity() {
+	if p.runtime.QueueDepth() >= p.runtime.QueueCapacity() || p.deferredQuorumFull() {
 		p.observeAdmission("full")
 		p.observeAdmissionKind(task.Kind, "full")
 		p.observeQueueDepth()
@@ -270,7 +275,10 @@ func (p *Pool) Close() error {
 	if p.runtime == nil {
 		return nil
 	}
-	return p.runtime.Close(context.Background())
+	// Runtime close cancels the pool context, which terminates deferred rounds.
+	err := p.runtime.Close(context.Background())
+	p.deferredWG.Wait()
+	return err
 }
 
 // Name returns the configured pool name.

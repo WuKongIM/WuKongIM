@@ -98,6 +98,11 @@ management, plugins, diagnostics, and bounded operations observations.
 
 - Message-update storage maps a narrow usecase port to authoritative Slot operations. Read adapters preserve edit version/time and byte-limited continuation after content growth; committed history and persisted previews retain separate base-read semantics.
 
+- Send-policy adapters map narrow user/channel mutations and mixed permission
+  facts to Slot-owned commands and fresh node-batched reads. User policy results
+  omit credentials; message policy remains in the usecase. Both scalar and batch
+  reads map stale authority and saturated admission to typed retryable failures.
+
 ## Read First
 - [Append adapter](channel_append.go)
 - [Metadata adapter](channel_metadata.go)

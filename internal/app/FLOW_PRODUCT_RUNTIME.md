@@ -309,3 +309,26 @@ The composite Channel observer forwards optional persisted-read admission and
 completion signals into the conversation metrics. Fixed heads/recents kinds
 separate immediate shared-limit refusals, in-flight batches, sampled occupancy
 and slot-hold duration without Channel/UID labels or a new serving-node queue.
+
+Gateway SEND preparation and completion have separate owners in the default
+product composition. The access wrapper calls the message usecase's deferred
+batch port inline, preserving permission/hook preparation order. Prepared
+appends enter one node-owned OrderedSubmitter over the existing Router, with
+canonical Channel FIFO dependencies. Core retains each original Gateway record
+reservation through ordered physical-session ACK publication; completing
+preparation does not release admission capacity. There is no per-SEND goroutine.
+Workers are min(normalized async_send_workers, async_send_queue_capacity),
+record capacity is async_send_queue_capacity, and payload capacity is the larger
+of workers * async_send_batch_max_bytes and max_inbound_bytes (overflow rejected).
+These are separate bounded stages, not additive Gateway ingress allowances.
+Stop first joins Gateway publications, then closes submission workers, then
+drains Group durable/effect ownership. Restore pauses submissions and joins
+callbacks before Group reset, and resumes only after dependencies recover.
+A canceled maintenance drain must also be joined before a failed suspension can
+resume; it cannot restart dependencies under still-running callbacks.
+
+The ordered submitter also receives the existing normalized Gateway micro-batch
+record/payload targets. After a durable wait, ready independent jobs can share
+one routed batch instead of permanently occupying one worker per original small
+job. Only already-queued ready work is merged; there is no batching timer. Each
+original completion and Channel dependency retires separately after its callback.

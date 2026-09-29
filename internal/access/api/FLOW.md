@@ -110,6 +110,11 @@ bench or debug request
   envelope/status. Errors publish no partial rows or next cursor. CMD and batch
   responses are unchanged.
 
+- User/channel send-ban POST and GET routes expose policy values and decimal
+  CAS versions through the existing management boundary. Strict bounded bodies
+  reject missing/invalid flags; legacy channel-info DTOs distinguish an omitted
+  send_ban from an explicit zero.
+
 ## Read First
 
 - [server.go](server.go)

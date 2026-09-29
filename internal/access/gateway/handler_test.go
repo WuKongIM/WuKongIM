@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
@@ -646,6 +647,8 @@ func TestOnFrameMapsMessageErrorsToSendackReasons(t *testing.T) {
 		{name: "stale route", err: message.ErrStaleRoute, want: frame.ReasonNodeNotMatch},
 		{name: "send deadline exceeded", err: context.DeadlineExceeded, want: frame.ReasonNodeNotMatch},
 		{name: "channel missing", err: message.ErrChannelNotFound, want: frame.ReasonChannelNotExist},
+		{name: "backpressured", err: message.ErrBackpressured, want: frame.ReasonSystemBusy},
+		{name: "busy wins over route not ready", err: fmt.Errorf("%w: %w", message.ErrRouteNotReady, message.ErrBackpressured), want: frame.ReasonSystemBusy},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

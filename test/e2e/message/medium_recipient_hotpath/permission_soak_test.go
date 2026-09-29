@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"math"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -36,6 +37,9 @@ const (
 	mediumPermissionSoakMaxLatency     = 10 * time.Second
 	mediumPermissionSoakDrainAllowance = 30 * time.Second
 	mediumPermissionSoakHeartbeat      = 30 * time.Second
+	// Use the product default leader append capacity for the sustained policy
+	// workload; the independent mixed-recipient fixture retains its own setting.
+	mediumPermissionSoakAppendWorkers = 128
 )
 
 type permissionSoakConfig struct {
@@ -43,6 +47,9 @@ type permissionSoakConfig struct {
 	duration      time.Duration
 	offeredQPS    int
 	groupChannels int
+	// faultInjected marks a run with an external storage fault window. Such runs
+	// prove liveness and delivery; latency gates apply only to control runs.
+	faultInjected bool
 }
 
 // permissionSoakStageLatencyEvidence attributes end-to-end SENDACK latency to
@@ -74,6 +81,16 @@ type permissionSoakStageLatencyEvidence struct {
 // permissionSoakEvidence is the bounded, machine-readable result of the
 // long-running public-protocol permission pressure gate.
 type permissionSoakEvidence struct {
+	StoreAppendWorkers int     `json:"store_append_workers"`
+	SendackP95MS       float64 `json:"sendack_p95_ms"`
+	TransportSentBytes float64 `json:"transport_sent_bytes"`
+	RaftEnvelopeCalls  float64 `json:"raft_envelope_calls"`
+	// Raft bytes count outbound transport payload only; missing node series remain nil.
+	RaftBytes               *float64 `json:"raft_bytes"`
+	RaftBytesScope          string   `json:"raft_bytes_scope"`
+	AggregateCPUPercentMean *float64 `json:"aggregate_cpu_percent_mean"`
+	AggregateCPUSamples     int      `json:"aggregate_cpu_samples"`
+
 	Schema                           string                             `json:"schema"`
 	ConfiguredDurationMS             float64                            `json:"configured_duration_ms"`
 	SendLoopDurationMS               float64                            `json:"send_loop_duration_ms"`
@@ -135,6 +152,8 @@ type permissionSoakEvidence struct {
 	MaxPermissionSlotRPCInflight     float64                            `json:"max_permission_slot_rpc_inflight"`
 	PermissionBatchStarted           float64                            `json:"permission_batch_started"`
 	PermissionBatchPanics            float64                            `json:"permission_batch_panics"`
+	SendPermissionAdmissionBusy      float64                            `json:"send_permission_admission_busy"`
+	SendackSystemBusy                uint64                             `json:"sendack_system_busy"`
 	MaxPermissionBatchActive         float64                            `json:"max_permission_batch_active"`
 	MembershipMutationRows           float64                            `json:"membership_mutation_rows"`
 	MaxAdvancePoolUtil               float64                            `json:"max_advance_pool_utilization"`
@@ -193,6 +212,17 @@ type permissionSoakEvidence struct {
 // permissionSoakFailureEvidence preserves bounded public-metric evidence when
 // the long-running gate fails before it can emit its complete acceptance row.
 type permissionSoakFailureEvidence struct {
+	StoreAppendWorkers int     `json:"store_append_workers"`
+	SendackP50MS       float64 `json:"sendack_p50_ms"`
+	SendackP95MS       float64 `json:"sendack_p95_ms"`
+	TransportSentBytes float64 `json:"transport_sent_bytes"`
+	RaftEnvelopeCalls  float64 `json:"raft_envelope_calls"`
+	// Raft bytes count outbound transport payload only; missing node series remain nil.
+	RaftBytes               *float64 `json:"raft_bytes"`
+	RaftBytesScope          string   `json:"raft_bytes_scope"`
+	AggregateCPUPercentMean *float64 `json:"aggregate_cpu_percent_mean"`
+	AggregateCPUSamples     int      `json:"aggregate_cpu_samples"`
+
 	Schema                           string                             `json:"schema"`
 	Phase                            string                             `json:"phase"`
 	Error                            string                             `json:"error"`
@@ -245,6 +275,8 @@ type permissionSoakFailureEvidence struct {
 	MaxPermissionSlotRPCInflight     float64                            `json:"max_permission_slot_rpc_inflight"`
 	PermissionBatchStarted           float64                            `json:"permission_batch_started"`
 	PermissionBatchPanics            float64                            `json:"permission_batch_panics"`
+	SendPermissionAdmissionBusy      float64                            `json:"send_permission_admission_busy"`
+	SendackSystemBusy                uint64                             `json:"sendack_system_busy"`
 	MaxPermissionBatchActive         float64                            `json:"max_permission_batch_active"`
 	MembershipMutationRows           float64                            `json:"membership_mutation_rows"`
 	MaxAdvancePoolUtil               float64                            `json:"max_advance_pool_utilization"`
@@ -348,13 +380,23 @@ func (h *boundedLatencyHistogram) maximum() time.Duration {
 type permissionSoakMessageStart struct {
 	startedAt time.Time
 	remaining atomic.Int32
+	acked     atomic.Bool
+	// packet is retained so a retryable system-busy SENDACK can resend it.
+	packet *frame.SendPacket
+	// retries counts system-busy resends and drives exponential backoff.
+	retries atomic.Int32
 }
 
 type permissionSoakTracker struct {
-	starts   sync.Map
-	pending  atomic.Int64
+	starts  sync.Map
+	pending atomic.Int64
+	// driver optionally distinguishes generator stalls from server-side waits.
+	driver   *permissionSoakDriverProbe
+	stall    *permissionSoakStallProbe
 	sendacks *boundedLatencyHistogram
 	recvs    *boundedLatencyHistogram
+	// systemBusy counts retryable per-SEND overload rejections.
+	systemBusy atomic.Uint64
 }
 
 type permissionSoakReceiverProgress struct {
@@ -379,8 +421,8 @@ func TestCloudMediumPermissionSoak(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cluster := startMediumCluster(t, mediumChannelRPCBatchMaxItems)
-	verifyMediumRenderedRuntime(t, cluster, mediumChannelRPCBatchMaxItems)
+	cluster := startMediumCluster(t, mediumChannelRPCBatchMaxItems, mediumPermissionSoakAppendWorkers)
+	verifyMediumRenderedRuntime(t, cluster, mediumChannelRPCBatchMaxItems, mediumPermissionSoakAppendWorkers)
 	setupTimeout := 2 * time.Minute
 	if config.groupChannels > 500 {
 		setupTimeout = 5 * time.Minute
@@ -414,7 +456,11 @@ func TestCloudMediumPermissionSoak(t *testing.T) {
 	}
 	primeHotPathChannels(t, setupCtx, cluster, primeMessages, []byte("prime"))
 
-	senders := connectSenders(t, cluster)
+	var driver *permissionSoakDriverProbe
+	if os.Getenv("WK_E2E_MEDIUM_RECIPIENT_DRIVER_DIAGNOSTICS") == "1" {
+		driver = &permissionSoakDriverProbe{}
+	}
+	senders := connectPermissionSoakSenders(t, cluster, driver)
 	defer closeClients(senders)
 	recipients := connectPermissionSoakRecipients(t, cluster)
 	defer closeClients(recipients)
@@ -431,6 +477,7 @@ func TestCloudMediumPermissionSoak(t *testing.T) {
 		receiverCounts[clientIndex]++
 	}
 	tracker := newPermissionSoakTracker()
+	tracker.driver = driver
 	receiverProgress := newPermissionSoakReceiverProgress(len(recipients))
 	receiverDeadline := time.Now().Add(config.duration + mediumPermissionSoakDrainAllowance)
 	heartbeatClients := make([]*suite.WKProtoClient, 0, len(senders)+len(recipients))
@@ -452,8 +499,14 @@ func TestCloudMediumPermissionSoak(t *testing.T) {
 		receiverProgress,
 	)
 	sampler := newPressureSampler(cluster, mediumMetricSampleInterval)
+	if os.Getenv("WK_E2E_MEDIUM_RECIPIENT_STORAGE_HISTORY") == "1" {
+		sampler.storageHistory = &permissionSoakStorageHistory{}
+	}
 	sampler.start()
-	defer sampler.stop()
+	defer func() {
+		sampler.stop()
+		sampler.storageHistory.log(t)
+	}()
 	counterStart := mustCaptureHotPathCounters(t, cluster)
 	stageLatencyStart := mustCapturePermissionSoakStageLatencySnapshot(t, cluster)
 	profileDir := os.Getenv("WK_E2E_MEDIUM_RECIPIENT_PROFILE_DIR")
@@ -462,6 +515,12 @@ func TestCloudMediumPermissionSoak(t *testing.T) {
 	payload := bytes.Repeat([]byte("s"), mediumPayloadBytes)
 
 	measuredStart := time.Now()
+	driver.start(measuredStart)
+	defer driver.logEvidence(t)
+	if os.Getenv("WK_E2E_MEDIUM_RECIPIENT_STALL_DIAGNOSTICS") == "1" {
+		tracker.stall = startPermissionSoakStallProbe(cluster, tracker, channels, measuredStart)
+		defer tracker.stall.logEvidence(t)
+	}
 	for index := 0; index < messageCount; index++ {
 		if index < messageCount-len(senders) {
 			for _, source := range []struct {
@@ -500,14 +559,24 @@ func TestCloudMediumPermissionSoak(t *testing.T) {
 		paceMessage(measuredStart, index, config.offeredQPS)
 		clientIndex := index % mediumSenderConnections
 		clientMsgNo := fmt.Sprintf("wkrc-permission-soak-%09d", index+1)
-		tracker.begin(clientMsgNo, 1)
-		if err := senders[clientIndex].SendFrame(&frame.SendPacket{
+		packet := &frame.SendPacket{
 			ChannelID:   channels[index%len(channels)],
 			ChannelType: frame.ChannelTypeGroup,
 			ClientSeq:   uint64(index + 1),
 			ClientMsgNo: clientMsgNo,
 			Payload:     payload,
-		}); err != nil {
+		}
+		tracker.beginPacket(clientMsgNo, 1, packet)
+		var enqueueStarted time.Time
+		if driver != nil {
+			enqueueStarted = time.Now()
+		}
+		sendErr := senders[clientIndex].SendFrame(packet)
+		if driver != nil {
+			target := measuredStart.Add(time.Duration(int64(index) * int64(time.Second) / int64(config.offeredQPS)))
+			driver.observeEnqueue(clientIndex, target, enqueueStarted, time.Now(), sendErr)
+		}
+		if sendErr != nil {
 			logPermissionSoakFailureEvidence(
 				t,
 				cluster,
@@ -520,15 +589,15 @@ func TestCloudMediumPermissionSoak(t *testing.T) {
 				"send",
 				index,
 				time.Since(measuredStart),
-				err,
+				sendErr,
 			)
 			logPermissionSoakFailureRuntimeDiagnostics(t, cluster, profileDir, duringLoadDiagnostics)
-			t.Fatalf("permission soak send %s: %v\n%s", clientMsgNo, err, cluster.DumpDiagnostics())
+			t.Fatalf("permission soak send %s: %v\n%s", clientMsgNo, sendErr, cluster.DumpDiagnostics())
 		}
 		if index > 0 && index%(config.offeredQPS*60) == 0 {
 			commitDelta, commitErr := capturePermissionSoakCommitDelta(cluster, counterStart)
 			t.Logf(
-				"WKRC-PERMISSION-SOAK-MINUTE elapsed=%s pending=%d sendacks=%d recvs=%d recipients=%v delivery=%+v pressure=%+v channel_rpc_admission=%+v commits=%+v commit_error=%v",
+				"WKRC-PERMISSION-SOAK-MINUTE elapsed=%s pending=%d sendacks=%d recvs=%d recipients=%v delivery=%+v pressure=%+v channel_rpc_admission=%+v commits=%+v commit_error=%v cgroup_cpu=%s",
 				time.Since(measuredStart).Round(time.Second),
 				tracker.pending.Load(),
 				tracker.sendacks.count.Load(),
@@ -539,6 +608,7 @@ func TestCloudMediumPermissionSoak(t *testing.T) {
 				commitDelta.channelRPCAdmissionSummary(),
 				commitDelta.messageCommitSummary(),
 				commitErr,
+				readPermissionSoakCgroupCPU(),
 			)
 		}
 	}
@@ -571,6 +641,7 @@ func TestCloudMediumPermissionSoak(t *testing.T) {
 		}
 	}
 	measuredDuration := time.Since(measuredStart)
+	driver.logEvidence(t)
 	stageP99MS := permissionSoakStageLatencyEvidence{}
 	stageP999MS := permissionSoakStageLatencyEvidence{}
 	gatewayBatchRecordsP99 := float64(0)
@@ -578,6 +649,7 @@ func TestCloudMediumPermissionSoak(t *testing.T) {
 	stageLatencyCtx, stageLatencyCancel := context.WithTimeout(context.Background(), 3*time.Second)
 	stageLatencyEnd, stageLatencyErr := capturePermissionSoakStageLatencySnapshot(stageLatencyCtx, cluster)
 	stageLatencyCancel()
+	logPermissionSoakReplicationStages(t, stageLatencyStart, stageLatencyEnd, stageLatencyErr)
 	if stageLatencyErr != nil {
 		stageLatencyCaptureError = stageLatencyErr.Error()
 	} else {
@@ -616,6 +688,15 @@ func TestCloudMediumPermissionSoak(t *testing.T) {
 		processContinuous = processContinuous && node.Process.Running()
 	}
 	evidence := permissionSoakEvidence{
+		StoreAppendWorkers:      mediumPermissionSoakAppendWorkers,
+		SendackP95MS:            milliseconds(tracker.sendacks.percentile(0.95)),
+		TransportSentBytes:      counterDelta.transportSentBytes,
+		RaftEnvelopeCalls:       counterDelta.raftEnvelopeCalls,
+		RaftBytes:               counterEnd.raftByteDelta(counterStart, len(cluster.Nodes)),
+		RaftBytesScope:          "outbound_raft_lane_payload_excludes_wire_headers",
+		AggregateCPUPercentMean: pressure.meanAggregateCPU(),
+		AggregateCPUSamples:     pressure.aggregateCPUSamples,
+
 		Schema:                           mediumPermissionSoakEvidenceSchema,
 		ConfiguredDurationMS:             milliseconds(config.duration),
 		SendLoopDurationMS:               milliseconds(sendLoopDuration),
@@ -677,6 +758,8 @@ func TestCloudMediumPermissionSoak(t *testing.T) {
 		MaxPermissionSlotRPCInflight:     pressure.maxPermissionSlotRPCInflight,
 		PermissionBatchStarted:           counterDelta.permissionBatchStarted,
 		PermissionBatchPanics:            counterDelta.permissionBatchPanics,
+		SendPermissionAdmissionBusy:      counterDelta.sendPermissionAdmissionBusy,
+		SendackSystemBusy:                tracker.systemBusy.Load(),
 		MaxPermissionBatchActive:         pressure.maxPermissionBatchActive,
 		MembershipMutationRows:           counterDelta.membershipMutationRows,
 		MaxAdvancePoolUtil:               pressure.maxAdvancePoolUtil,
@@ -821,6 +904,10 @@ func capturePermissionSoakStageLatencySnapshot(
 			if !isPermissionSoakStageLatencyBucket(sample.Name) {
 				continue
 			}
+			if strings.HasPrefix(sample.Name, "wukongim_channelv2_replication_stage_duration_seconds_") {
+				// Preserve the queried node even if a target omits its node label.
+				sample.Labels["probe_node_id"] = strconv.FormatUint(node.Spec.ID, 10)
+			}
 			snapshot.Samples = append(snapshot.Samples, benchmetrics.PrometheusSample{
 				Name: sample.Name, Labels: sample.Labels, Value: sample.Value,
 			})
@@ -832,6 +919,9 @@ func capturePermissionSoakStageLatencySnapshot(
 func isPermissionSoakStageLatencyBucket(name string) bool {
 	switch name {
 	case "wukongim_gateway_async_send_dispatch_wait_duration_seconds_bucket",
+		"wukongim_channelv2_replication_stage_duration_seconds_bucket",
+		"wukongim_channelv2_replication_stage_duration_seconds_count",
+		"wukongim_channelv2_replication_stage_duration_seconds_sum",
 		"wukongim_gateway_async_send_batch_records_bucket",
 		"wukongim_gateway_frame_handle_duration_seconds_bucket",
 		"wukongim_channelappend_router_duration_seconds_bucket",
@@ -984,6 +1074,8 @@ func logPermissionSoakFailureEvidence(
 	failure error,
 ) {
 	t.Helper()
+	tracker.driver.logEvidence(t)
+	tracker.stall.logEvidence(t)
 	pressure := sampler.snapshot()
 	counterDelta := hotPathCounters{}
 	counterCaptureError := ""
@@ -1002,6 +1094,7 @@ func logPermissionSoakFailureEvidence(
 	stageLatencyCtx, stageLatencyCancel := context.WithTimeout(context.Background(), 3*time.Second)
 	stageLatencyEnd, stageLatencyErr := capturePermissionSoakStageLatencySnapshot(stageLatencyCtx, cluster)
 	stageLatencyCancel()
+	logPermissionSoakReplicationStages(t, stageLatencyStart, stageLatencyEnd, stageLatencyErr)
 	if stageLatencyErr != nil {
 		stageLatencyCaptureError = stageLatencyErr.Error()
 	} else {
@@ -1018,6 +1111,16 @@ func logPermissionSoakFailureEvidence(
 		ingressPerSecond = float64(completedSendCalls) / elapsed.Seconds()
 	}
 	evidence := permissionSoakFailureEvidence{
+		StoreAppendWorkers:      mediumPermissionSoakAppendWorkers,
+		SendackP50MS:            milliseconds(tracker.sendacks.percentile(0.50)),
+		SendackP95MS:            milliseconds(tracker.sendacks.percentile(0.95)),
+		TransportSentBytes:      counterDelta.transportSentBytes,
+		RaftEnvelopeCalls:       counterDelta.raftEnvelopeCalls,
+		RaftBytes:               counterEnd.raftByteDelta(counterStart, len(cluster.Nodes)),
+		RaftBytesScope:          "outbound_raft_lane_payload_excludes_wire_headers",
+		AggregateCPUPercentMean: pressure.meanAggregateCPU(),
+		AggregateCPUSamples:     pressure.aggregateCPUSamples,
+
 		Schema:                           mediumPermissionSoakFailureSchema,
 		Phase:                            phase,
 		Error:                            failure.Error(),
@@ -1070,6 +1173,8 @@ func logPermissionSoakFailureEvidence(
 		MaxPermissionSlotRPCInflight:     pressure.maxPermissionSlotRPCInflight,
 		PermissionBatchStarted:           counterDelta.permissionBatchStarted,
 		PermissionBatchPanics:            counterDelta.permissionBatchPanics,
+		SendPermissionAdmissionBusy:      counterDelta.sendPermissionAdmissionBusy,
+		SendackSystemBusy:                tracker.systemBusy.Load(),
 		MaxPermissionBatchActive:         pressure.maxPermissionBatchActive,
 		MembershipMutationRows:           counterDelta.membershipMutationRows,
 		MaxAdvancePoolUtil:               pressure.maxAdvancePoolUtil,
@@ -1233,12 +1338,22 @@ func startPermissionSoakSenderReaders(
 		client := client
 		count := counts[index]
 		go func() {
-			for range count {
+			for accepted := 0; accepted < count; {
 				sendack, err := client.ReadSendAck()
 				if err != nil {
 					results <- err
 					return
 				}
+				// Rate limit is per-SEND backpressure on a live session:
+				// resend the same message after a short backoff.
+				if sendack.ReasonCode == frame.ReasonSystemBusy {
+					if err := tracker.retrySystemBusy(client, sendack.ClientMsgNo); err != nil {
+						results <- err
+						return
+					}
+					continue
+				}
+				accepted++
 				if sendack.ReasonCode != frame.ReasonSuccess {
 					results <- fmt.Errorf("SENDACK %s reason=%v", sendack.ClientMsgNo, sendack.ReasonCode)
 					return
@@ -1402,6 +1517,45 @@ func (t *permissionSoakTracker) begin(clientMsgNo string, expectedReceives int) 
 	t.pending.Add(1)
 }
 
+func (t *permissionSoakTracker) beginPacket(clientMsgNo string, expectedReceives int, packet *frame.SendPacket) {
+	t.begin(clientMsgNo, expectedReceives)
+	if value, ok := t.starts.Load(clientMsgNo); ok {
+		value.(*permissionSoakMessageStart).packet = packet
+	}
+}
+
+// Rate-limit resends back off exponentially per message so overload retries
+// do not re-offer load faster than the saturated path drains it.
+const (
+	permissionSoakSystemBusyBackoff    = 20 * time.Millisecond
+	permissionSoakSystemBusyBackoffMax = 500 * time.Millisecond
+)
+
+// permissionSoakRetryBackoff returns the capped delay for the given retry
+// attempt (1-based) with up to 50% random jitter to spread resend bursts.
+func permissionSoakRetryBackoff(attempt int32) time.Duration {
+	delay := permissionSoakSystemBusyBackoff
+	for i := int32(1); i < attempt && delay < permissionSoakSystemBusyBackoffMax; i++ {
+		delay *= 2
+	}
+	delay = min(delay, permissionSoakSystemBusyBackoffMax)
+	return delay/2 + time.Duration(rand.Int64N(int64(delay/2)+1))
+}
+
+func (t *permissionSoakTracker) retrySystemBusy(client permissionSoakHeartbeatClient, clientMsgNo string) error {
+	value, ok := t.starts.Load(clientMsgNo)
+	if !ok || value.(*permissionSoakMessageStart).packet == nil {
+		return fmt.Errorf("permission soak system-busy message %s has no retained packet", clientMsgNo)
+	}
+	t.systemBusy.Add(1)
+	start := value.(*permissionSoakMessageStart)
+	packet := start.packet
+	time.AfterFunc(permissionSoakRetryBackoff(start.retries.Add(1)), func() {
+		_ = client.SendFrame(packet)
+	})
+	return nil
+}
+
 func (t *permissionSoakTracker) observeSendack(clientMsgNo string) (time.Duration, error) {
 	return t.observe(clientMsgNo, t.sendacks)
 }
@@ -1416,6 +1570,9 @@ func (t *permissionSoakTracker) observe(clientMsgNo string, histogram *boundedLa
 		return 0, fmt.Errorf("permission soak message %s has no send start", clientMsgNo)
 	}
 	start := value.(*permissionSoakMessageStart)
+	if histogram == t.sendacks {
+		start.acked.Store(true)
+	}
 	latency := time.Since(start.startedAt)
 	histogram.observe(latency)
 	remaining := start.remaining.Add(-1)
@@ -1435,6 +1592,7 @@ func permissionSoakConfigFromEnv() (permissionSoakConfig, error) {
 		duration:      mediumPermissionSoakDuration,
 		offeredQPS:    mediumOfferedQPS,
 		groupChannels: mediumPermissionSoakGroupChannels,
+		faultInjected: os.Getenv("WK_E2E_MEDIUM_RECIPIENT_FAULT_INJECTED") == "1",
 	}
 	if raw := strings.TrimSpace(os.Getenv("WK_E2E_MEDIUM_RECIPIENT_SOAK_DURATION")); raw != "" {
 		duration, err := time.ParseDuration(raw)
@@ -1516,9 +1674,9 @@ func permissionSoakAcceptanceError(evidence permissionSoakEvidence, config permi
 		return fmt.Errorf("permission soak offered QPS = %d, want %d", evidence.OfferedQPS, config.offeredQPS)
 	case evidence.IngressPerSecond < minimumIngress:
 		return fmt.Errorf("permission soak ingress = %.3f/s, want at least %.3f/s", evidence.IngressPerSecond, minimumIngress)
-	case evidence.SendackP99MS > milliseconds(time.Second):
+	case !config.faultInjected && evidence.SendackP99MS > milliseconds(time.Second):
 		return fmt.Errorf("permission soak SENDACK P99 = %.3fms, want at most 1000ms", evidence.SendackP99MS)
-	case evidence.RecvP99MS > 2_000:
+	case !config.faultInjected && evidence.RecvP99MS > 2_000:
 		return fmt.Errorf("permission soak RECV P99 = %.3fms, want at most 2000ms", evidence.RecvP99MS)
 	case evidence.ChannelRPCAdmissionFull != 0:
 		return fmt.Errorf("permission soak Channel RPC admission full = %.0f, want 0", evidence.ChannelRPCAdmissionFull)
@@ -1540,6 +1698,8 @@ func permissionSoakAcceptanceError(evidence permissionSoakEvidence, config permi
 		return fmt.Errorf("permission soak permission Slot RPC queue ratio = %.6f, want below 1", evidence.MaxPermissionSlotRPCQueueRatio)
 	case evidence.PermissionSlotRPCAdmissionErrors != 0:
 		return fmt.Errorf("permission soak permission Slot RPC admission errors = %.0f, want 0", evidence.PermissionSlotRPCAdmissionErrors)
+	case evidence.SendPermissionAdmissionBusy != 0:
+		return fmt.Errorf("permission soak permission admission busy = %.0f, want 0", evidence.SendPermissionAdmissionBusy)
 	case evidence.PermissionBatchStarted <= 0:
 		return fmt.Errorf("permission soak permission batch started = %.0f, want positive", evidence.PermissionBatchStarted)
 	case evidence.PermissionBatchPanics != 0:
@@ -1570,4 +1730,29 @@ func permissionSoakAcceptanceError(evidence permissionSoakEvidence, config permi
 		return fmt.Errorf("permission soak process continuity failed")
 	}
 	return nil
+}
+
+// readPermissionSoakCgroupCPU reports cumulative cgroup v2 CPU throttling for
+// the harness cgroup, which contains every node process in the Linux lab. It
+// separates CPU-quota starvation from coordinator queueing in minute snapshots.
+func readPermissionSoakCgroupCPU() string {
+	data, err := os.ReadFile("/sys/fs/cgroup/cpu.stat")
+	if err != nil {
+		return "unavailable"
+	}
+	var fields []string
+	for _, line := range strings.Split(string(data), "\n") {
+		key, value, ok := strings.Cut(strings.TrimSpace(line), " ")
+		if !ok {
+			continue
+		}
+		switch key {
+		case "usage_usec", "nr_periods", "nr_throttled", "throttled_usec":
+			fields = append(fields, key+"="+value)
+		}
+	}
+	if len(fields) == 0 {
+		return "unavailable"
+	}
+	return strings.Join(fields, ",")
 }

@@ -640,6 +640,21 @@ func (c *topCollector) observeStorageMetrics() {
 			CompactionEstimatedDebtBytes:   store.Engine.CompactionEstimatedDebtBytes,
 			CompactionInProgressBytes:      store.Engine.CompactionInProgressBytes,
 			CompactionsInProgress:          store.Engine.CompactionsInProgress,
+			WriteStallMemTableCount:        store.Engine.WriteStallMemTableCount,
+			WriteStallL0Count:              store.Engine.WriteStallL0Count,
+			WriteStallOtherCount:           store.Engine.WriteStallOtherCount,
+			WriteStallTotalNanos:           store.Engine.WriteStallTotalNanos,
+			WriteStallMaxNanos:             store.Engine.WriteStallMaxNanos,
+			WriteStallActive:               store.Engine.WriteStallActive,
+			WALFsyncCount:                  store.Engine.WALFsyncCount,
+			WALFsyncSumNanos:               store.Engine.WALFsyncSumNanos,
+			WALFsyncOver100ms:              store.Engine.WALFsyncOver100ms,
+			WALFsyncOver1s:                 store.Engine.WALFsyncOver1s,
+			WALFsyncOver5s:                 store.Engine.WALFsyncOver5s,
+			DiskSlowWALEvents:              store.Engine.DiskSlowWALEvents,
+			DiskSlowWALMaxNanos:            store.Engine.DiskSlowWALMaxNanos,
+			DiskSlowOtherEvents:            store.Engine.DiskSlowOtherEvents,
+			DiskSlowOtherMaxNanos:          store.Engine.DiskSlowOtherMaxNanos,
 		})
 		if store.Store == "channel_log" {
 			metrics.SetChannelEntryMetrics(obsmetrics.StorageChannelEntryObservation{

@@ -460,6 +460,7 @@ func TestPermissionSoakAcceptanceError(t *testing.T) {
 		{name: "permission Slot RPC error", edit: func(e *permissionSoakEvidence) { e.PermissionSlotRPCErrors = 1 }, want: "permission Slot RPC errors"},
 		{name: "permission Slot RPC queue saturated", edit: func(e *permissionSoakEvidence) { e.MaxPermissionSlotRPCQueueRatio = 1 }, want: "permission Slot RPC queue ratio"},
 		{name: "permission Slot RPC admission error", edit: func(e *permissionSoakEvidence) { e.PermissionSlotRPCAdmissionErrors = 1 }, want: "permission Slot RPC admission errors"},
+		{name: "permission domain admission busy", edit: func(e *permissionSoakEvidence) { e.SendPermissionAdmissionBusy = 1 }, want: "permission admission busy"},
 		{name: "permission workers", edit: func(e *permissionSoakEvidence) { e.PermissionBatchStarted = 0 }, want: "permission batch started"},
 		{name: "permission panic", edit: func(e *permissionSoakEvidence) { e.PermissionBatchPanics = 1 }, want: "permission batch panics"},
 		{name: "membership mutation", edit: func(e *permissionSoakEvidence) { e.MembershipMutationRows = 1 }, want: "membership mutation"},
@@ -988,5 +989,137 @@ func TestBoundedPositiveEnvInt(t *testing.T) {
 	t.Setenv(name, "120")
 	if got := boundedPositiveEnvInt(t, name, 80, 1, 200); got != 120 {
 		t.Fatalf("parsed = %d, want 120", got)
+	}
+}
+
+// The read transport moved from per-Slot envelopes to a node envelope. The
+// pressure sampler must count both protocols for revision-neutral comparisons.
+func TestPermissionPressureRecognizesNodeBatchedService(t *testing.T) {
+	if !isPermissionSlotRPCServiceLabel("node send permissions") {
+		t.Fatal("node permission service is missing from pressure evidence")
+	}
+	var counters hotPathCounters
+	observeHotPathCounterSample(&counters, suite.MetricSample{Name: "wukongim_transport_rpc_total", Labels: map[string]string{"service": "node send permissions", "result": "ok"}, Value: 7})
+	if counters.permissionSlotRPCCalls != 7 {
+		t.Fatalf("permission node calls = %v", counters.permissionSlotRPCCalls)
+	}
+}
+
+func TestPermissionComparisonResourceEvidence(t *testing.T) {
+	var counters hotPathCounters
+	for _, sample := range []suite.MetricSample{
+		{Name: "wukongim_transport_sent_bytes_total", Labels: map[string]string{"msg_type": "rpc_request"}, Value: 100},
+		{Name: "wukongim_transport_sent_bytes_total", Labels: map[string]string{"msg_type": "rpc_response"}, Value: 25},
+		{Name: "wukongim_transport_rpc_total", Labels: map[string]string{"service": "slot raft", "result": "ok"}, Value: 9},
+		{Name: "wukongim_transport_rpc_total", Labels: map[string]string{"service": "slot raft batch", "result": "ok"}, Value: 8},
+		{Name: "wukongim_transport_rpc_total", Labels: map[string]string{"service": "controller raft", "result": "ok"}, Value: 7},
+		{Name: "wukongim_transport_rpc_total", Labels: map[string]string{"service": "manager slot raft", "result": "ok"}, Value: 99},
+	} {
+		observeHotPathCounterSample(&counters, sample)
+	}
+	delta := counters.subtract(hotPathCounters{transportSentBytes: 20, raftEnvelopeCalls: 4})
+	if delta.transportSentBytes != 105 || delta.raftEnvelopeCalls != 20 {
+		t.Fatalf("wrong measured delta: %+v", delta)
+	}
+	if counters.permissionSlotRPCCalls != 0 {
+		t.Fatal("Raft envelopes were counted as permission reads")
+	}
+	values := metricValues([]suite.MetricSample{{Name: "wukongim_node_cpu_percent", Value: 120}})
+	sampler := &pressureSampler{}
+	sampler.observeAggregateCPU([]hotPathMetricValues{values, values, {cpuPercent: 60, cpuPresent: true}})
+	sampler.observeAggregateCPU([]hotPathMetricValues{values, values, {}})
+	if sampler.state.aggregateCPUSamples != 1 || sampler.state.aggregateCPUSum != 300 {
+		t.Fatalf("missing CPU must not be fabricated as zero: %+v", sampler.state)
+	}
+}
+
+func TestRaftPayloadEvidenceRequiresEveryNodeAndBothSnapshots(t *testing.T) {
+	sample := func(value float64) suite.MetricSample {
+		return suite.MetricSample{Name: "wukongim_transport_lane_payload_bytes_total", Labels: map[string]string{"direction": "send", "priority": "raft"}, Value: value}
+	}
+	capture := func(rows [][]suite.MetricSample) hotPathCounters {
+		var c hotPathCounters
+		for i, row := range rows {
+			c.observeRaftNodeSnapshot(uint64(i+1), row)
+		}
+		return c
+	}
+	before := capture([][]suite.MetricSample{{sample(10)}, {sample(10)}, {sample(10)}})
+	after := capture([][]suite.MetricSample{{sample(30)}, {sample(30)}, {sample(30)}})
+	if got := after.raftByteDelta(before, 3); got == nil || *got != 60 {
+		t.Fatalf("outbound delta = %v, want 60", got)
+	}
+	cases := []struct {
+		name string
+		rows [][]suite.MetricSample
+	}{
+		{"old binary", nil},
+		{"missing node", [][]suite.MetricSample{{sample(30)}, {sample(30)}}},
+		{"duplicate hides missing", [][]suite.MetricSample{{sample(30), sample(30)}, {}, {sample(30)}}},
+		{"node reset hidden by other growth", [][]suite.MetricSample{{sample(5)}, {sample(50)}, {sample(50)}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if capture(tc.rows).raftByteDelta(before, 3) != nil {
+				t.Fatal("incomplete or reset evidence must retain null")
+			}
+		})
+	}
+	wrongLane := sample(900)
+	wrongLane.Labels = map[string]string{"direction": "receive", "priority": "raft"}
+	rpc := sample(700)
+	rpc.Labels = map[string]string{"direction": "send", "priority": "rpc"}
+	c := capture([][]suite.MetricSample{{sample(30), wrongLane, rpc}, {sample(30)}, {sample(30)}})
+	if got := c.raftByteDelta(before, 3); got == nil || *got != 60 {
+		t.Fatalf("non-outbound-Raft included: %v", got)
+	}
+	var other hotPathCounters
+	other.observeRaftNodeSnapshot(4, []suite.MetricSample{sample(30)})
+	other.observeRaftNodeSnapshot(2, []suite.MetricSample{sample(30)})
+	other.observeRaftNodeSnapshot(3, []suite.MetricSample{sample(30)})
+	if other.raftByteDelta(before, 3) != nil {
+		t.Fatal("different node set must retain null")
+	}
+}
+
+// Failure diagnostics must retain admission/barrier outcomes without expanding
+// into every histogram bucket or accepting arbitrary similarly named families.
+func TestHotPathPermissionFailureMetricsAreBounded(t *testing.T) {
+	for _, name := range []string{
+		"wukongim_message_permission_counts_total",
+		"wukongim_message_permission_duration_seconds_count",
+		"wukongim_message_permission_duration_seconds_sum",
+		"wukongim_message_permission_inflight",
+	} {
+		if !isHotPathDiagnosticMetric(name) {
+			t.Errorf("missing permission failure evidence: %s", name)
+		}
+	}
+	for _, name := range []string{
+		"wukongim_message_permission_duration_seconds_bucket",
+		"wukongim_message_permission_duration_seconds_count_unbounded",
+		"wukongim_message_permission_private_identity",
+	} {
+		if isHotPathDiagnosticMetric(name) {
+			t.Errorf("unexpected permission failure evidence: %s", name)
+		}
+	}
+}
+
+func TestSendPermissionAdmissionBusyCounterIsSeparateFromTransport(t *testing.T) {
+	var before, after hotPathCounters
+	add := func(c *hotPathCounters, stage, result string, value float64) {
+		observeHotPathCounterSample(c, suite.MetricSample{Name: "wukongim_message_permission_duration_seconds_count", Labels: map[string]string{"stage": stage, "result": result}, Value: value})
+	}
+	add(&before, "admission", "busy", 3)
+	add(&after, "admission", "busy", 7)
+	add(&after, "admission", "ok", 50)
+	add(&after, "rpc", "busy", 20)
+	delta := after.subtract(before)
+	if delta.sendPermissionAdmissionBusy != 4 {
+		t.Fatalf("admission busy delta = %v, want 4", delta.sendPermissionAdmissionBusy)
+	}
+	if delta.permissionSlotRPCAdmissionErrors != 0 {
+		t.Fatal("domain admission was relabeled as transport rejection")
 	}
 }

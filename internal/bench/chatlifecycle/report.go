@@ -153,10 +153,16 @@ type ReportResourceNodeEvidence struct {
 	HeapEndBytes                 uint64 `json:"heap_end_bytes"`
 	GoroutineStart               uint64 `json:"goroutine_start"`
 	GoroutineEnd                 uint64 `json:"goroutine_end"`
-	QueueBaseline                uint64 `json:"queue_baseline"`
-	QueueCurrent                 uint64 `json:"queue_current"`
-	InflightBaseline             uint64 `json:"inflight_baseline"`
-	InflightCurrent              uint64 `json:"inflight_current"`
+	// SchedLatencyMeanNanos is the latest between-round mean goroutine run-queue
+	// delay (zero when the latest round had no valid delta), and
+	// SchedLatencyMeanPeakNanos its maximum over the run. Both stay zero until
+	// two scrapes expose go_sched_latencies_seconds.
+	SchedLatencyMeanNanos     uint64 `json:"sched_latency_mean_nanos"`
+	SchedLatencyMeanPeakNanos uint64 `json:"sched_latency_mean_peak_nanos"`
+	QueueBaseline             uint64 `json:"queue_baseline"`
+	QueueCurrent              uint64 `json:"queue_current"`
+	InflightBaseline          uint64 `json:"inflight_baseline"`
+	InflightCurrent           uint64 `json:"inflight_current"`
 }
 
 const productionHostCount = coordinatorWorkerCount + 1

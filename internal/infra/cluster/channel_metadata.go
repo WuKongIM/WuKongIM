@@ -325,7 +325,14 @@ func (s *ChannelMetadataStore) ReadPermissionsBatch(ctx context.Context, reads [
 	if len(proxyReads) == 0 {
 		return results
 	}
-	proxyResults := node.ReadPermissionMetadataBatchAuthoritative(ctx, proxyReads)
+	var proxyResults []slotproxy.PermissionMetadataReadResult
+	if fresh, ok := s.node.(interface {
+		ReadSendPermissionMetadataBatch(context.Context, []slotproxy.PermissionMetadataRead) []slotproxy.PermissionMetadataReadResult
+	}); ok {
+		proxyResults = fresh.ReadSendPermissionMetadataBatch(ctx, proxyReads)
+	} else {
+		proxyResults = node.ReadPermissionMetadataBatchAuthoritative(ctx, proxyReads)
+	}
 	if len(proxyResults) != len(proxyReads) {
 		err := mapChannelPermissionReadError(fmt.Errorf("permission metadata batch returned %d results for %d reads", len(proxyResults), len(proxyReads)))
 		for proxyIndex := range proxyReads {
@@ -343,10 +350,11 @@ func (s *ChannelMetadataStore) ReadPermissionsBatch(ctx context.Context, reads [
 			resultIndex = resultIndexes[proxyIndex]
 		}
 		results[resultIndex] = messageusecase.PermissionReadResult{
-			Channel: result.Channel,
-			Found:   result.Found,
-			Value:   result.Value,
-			Err:     mapChannelPermissionReadError(result.Err),
+			Channel:    result.Channel,
+			UserPolicy: result.UserPolicy,
+			Found:      result.Found,
+			Value:      result.Value,
+			Err:        mapChannelPermissionReadError(result.Err),
 		}
 	}
 	return results
@@ -354,6 +362,8 @@ func (s *ChannelMetadataStore) ReadPermissionsBatch(ctx context.Context, reads [
 
 func permissionReadKindToProxy(kind messageusecase.PermissionReadKind) (slotproxy.PermissionMetadataReadKind, bool) {
 	switch kind {
+	case messageusecase.PermissionReadUserSendPolicy:
+		return slotproxy.PermissionMetadataReadUserSendPolicy, true
 	case messageusecase.PermissionReadChannel:
 		return slotproxy.PermissionMetadataReadChannel, true
 	case messageusecase.PermissionReadSubscriberContains:
@@ -592,7 +602,12 @@ func mapChannelPermissionReadError(err error) error {
 		return nil
 	}
 	switch {
+	case errors.Is(err, slotproxy.ErrPermissionBusy):
+		// Keep the retryable route classification and mark it as admission pressure.
+		return fmt.Errorf("%w: %w: %w", channelappend.ErrRouteNotReady, channelappend.ErrBackpressured, err)
 	case errors.Is(err, clusterpkg.ErrRouteNotReady),
+		errors.Is(err, slotproxy.ErrReadStaleRoute),
+		errors.Is(err, slotproxy.ErrNoLeader),
 		errors.Is(err, clusterpkg.ErrNoSlotLeader),
 		errors.Is(err, clusterpkg.ErrNotStarted),
 		errors.Is(err, clusterpkg.ErrStopping),

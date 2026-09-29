@@ -41,6 +41,36 @@ type StorageEngineMetrics struct {
 	CompactionInProgressBytes int64
 	// CompactionsInProgress is the current number of compactions in progress.
 	CompactionsInProgress int64
+	// WriteStallMemTableCount counts Pebble write stalls caused by the memtable stop-writes threshold.
+	WriteStallMemTableCount int64
+	// WriteStallL0Count counts Pebble write stalls caused by the L0 stop-writes threshold.
+	WriteStallL0Count int64
+	// WriteStallOtherCount counts Pebble write stalls with any other reason.
+	WriteStallOtherCount int64
+	// WriteStallTotalNanos is the cumulative write-stall duration, including an open stall.
+	WriteStallTotalNanos int64
+	// WriteStallMaxNanos is the longest single write stall, including an open stall.
+	WriteStallMaxNanos int64
+	// WriteStallActive reports whether writes are stalled at snapshot time.
+	WriteStallActive bool
+	// WALFsyncCount is the number of WAL fsyncs observed since the store opened.
+	WALFsyncCount uint64
+	// WALFsyncSumNanos is the cumulative WAL fsync duration.
+	WALFsyncSumNanos int64
+	// WALFsyncOver100ms counts WAL fsyncs slower than 100ms at histogram bucket resolution.
+	WALFsyncOver100ms uint64
+	// WALFsyncOver1s counts WAL fsyncs slower than 1s at histogram bucket resolution.
+	WALFsyncOver1s uint64
+	// WALFsyncOver5s counts WAL fsyncs slower than 5s at histogram bucket resolution.
+	WALFsyncOver5s uint64
+	// DiskSlowWALEvents counts slow-disk reports on WAL files.
+	DiskSlowWALEvents int64
+	// DiskSlowWALMaxNanos is the longest reported WAL disk operation.
+	DiskSlowWALMaxNanos int64
+	// DiskSlowOtherEvents counts slow-disk reports on SST, manifest and other files.
+	DiskSlowOtherEvents int64
+	// DiskSlowOtherMaxNanos is the longest reported non-WAL disk operation.
+	DiskSlowOtherMaxNanos int64
 }
 
 // StoreMetricsSnapshot describes one named physical store.
@@ -89,6 +119,21 @@ func storageEngineMetricsFromMessageEngine(snapshot message.EngineMetricsSnapsho
 		CompactionEstimatedDebtBytes:   snapshot.CompactionEstimatedDebtBytes,
 		CompactionInProgressBytes:      snapshot.CompactionInProgressBytes,
 		CompactionsInProgress:          snapshot.CompactionsInProgress,
+		WriteStallMemTableCount:        snapshot.WriteStallMemTableCount,
+		WriteStallL0Count:              snapshot.WriteStallL0Count,
+		WriteStallOtherCount:           snapshot.WriteStallOtherCount,
+		WriteStallTotalNanos:           snapshot.WriteStallTotalNanos,
+		WriteStallMaxNanos:             snapshot.WriteStallMaxNanos,
+		WriteStallActive:               snapshot.WriteStallActive,
+		WALFsyncCount:                  snapshot.WALFsyncCount,
+		WALFsyncSumNanos:               snapshot.WALFsyncSumNanos,
+		WALFsyncOver100ms:              snapshot.WALFsyncOver100ms,
+		WALFsyncOver1s:                 snapshot.WALFsyncOver1s,
+		WALFsyncOver5s:                 snapshot.WALFsyncOver5s,
+		DiskSlowWALEvents:              snapshot.DiskSlowWALEvents,
+		DiskSlowWALMaxNanos:            snapshot.DiskSlowWALMaxNanos,
+		DiskSlowOtherEvents:            snapshot.DiskSlowOtherEvents,
+		DiskSlowOtherMaxNanos:          snapshot.DiskSlowOtherMaxNanos,
 	}
 }
 
@@ -109,5 +154,20 @@ func storageEngineMetricsFromEngine(snapshot engine.MetricsSnapshot) StorageEngi
 		CompactionEstimatedDebtBytes: snapshot.CompactionEstimatedDebtBytes,
 		CompactionInProgressBytes:    snapshot.CompactionInProgressBytes,
 		CompactionsInProgress:        snapshot.CompactionsInProgress,
+		WriteStallMemTableCount:      snapshot.WriteStalls.MemTableStalls,
+		WriteStallL0Count:            snapshot.WriteStalls.L0Stalls,
+		WriteStallOtherCount:         snapshot.WriteStalls.OtherStalls,
+		WriteStallTotalNanos:         snapshot.WriteStalls.TotalNanos,
+		WriteStallMaxNanos:           snapshot.WriteStalls.MaxNanos,
+		WriteStallActive:             snapshot.WriteStalls.Active,
+		WALFsyncCount:                snapshot.WALFsync.Count,
+		WALFsyncSumNanos:             snapshot.WALFsync.SumNanos,
+		WALFsyncOver100ms:            snapshot.WALFsync.Over100ms,
+		WALFsyncOver1s:               snapshot.WALFsync.Over1s,
+		WALFsyncOver5s:               snapshot.WALFsync.Over5s,
+		DiskSlowWALEvents:            snapshot.DiskSlow.WALEvents,
+		DiskSlowWALMaxNanos:          snapshot.DiskSlow.WALMaxNanos,
+		DiskSlowOtherEvents:          snapshot.DiskSlow.OtherEvents,
+		DiskSlowOtherMaxNanos:        snapshot.DiskSlow.OtherMaxNanos,
 	}
 }

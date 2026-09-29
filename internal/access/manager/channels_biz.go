@@ -109,9 +109,9 @@ type businessChannelCreateBody struct {
 }
 
 type businessChannelUpdateBody struct {
-	Ban     bool `json:"ban"`
-	Disband bool `json:"disband"`
-	SendBan bool `json:"send_ban"`
+	Ban     bool  `json:"ban"`
+	Disband bool  `json:"disband"`
+	SendBan *bool `json:"send_ban"`
 }
 
 type mutateBusinessChannelMembersBody struct {
@@ -228,7 +228,7 @@ func (s *Server) handleBusinessChannelUpdate(c *gin.Context) {
 	}
 	detail, err := s.management.UpdateBusinessChannel(c.Request.Context(), managementusecase.UpdateBusinessChannelRequest{
 		ChannelID: channelID, ChannelType: channelType,
-		Ban: body.Ban, Disband: body.Disband, SendBan: body.SendBan,
+		Ban: body.Ban, Disband: body.Disband, SendBan: body.SendBan != nil && *body.SendBan, SendBanSet: body.SendBan != nil,
 	})
 	if err != nil {
 		writeBusinessChannelError(c, err)

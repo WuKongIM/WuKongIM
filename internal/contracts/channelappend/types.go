@@ -37,6 +37,8 @@ const (
 	ReasonDisband
 	// ReasonSendBan means the sender is send-banned.
 	ReasonSendBan
+	// ReasonSystemBusy means bounded admission is saturated and the send may be retried.
+	ReasonSystemBusy
 )
 
 // CommitMode controls when durable append completes.

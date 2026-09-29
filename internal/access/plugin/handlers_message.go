@@ -1,6 +1,12 @@
 package plugin
 
-import "github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
+import (
+	"errors"
+	"fmt"
+
+	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
+	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
+)
 
 func (s *Server) handleSendMessage(c rpcContext) {
 	var req pluginproto.SendReq
@@ -11,7 +17,12 @@ func (s *Server) handleSendMessage(c rpcContext) {
 	defer cancel()
 	resp, err := s.usecase.SendMessage(ctx, &req, c.Uid())
 	if err != nil {
-		c.WriteErr(err)
+		var rejected *pluginusecase.SendRejectedError
+		if errors.As(err, &rejected) {
+			c.WriteErr(fmt.Errorf("message send rejected: reason=%d", mapSendReason(rejected.Reason)))
+		} else {
+			c.WriteErr(err)
+		}
 		return
 	}
 	s.writeProto(c, resp)

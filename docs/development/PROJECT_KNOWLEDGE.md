@@ -216,7 +216,103 @@ specification, runbook, report, or module documentation; link to them when neede
   comparisons when restore changes `X-WK-Content-Epoch`. See the
   [message-update contract](../specs/message-update-api.md).
 
+- Large-group setup projects ordinary UID memberships in bounded physical-Slot
+  commands (128 rows, 256 KiB, 64 KiB UID bytes, two concurrent proposals).
+  Logical Hash Slots keep their ownership checks and migration filtering;
+  batching must not replace upsert/rejoin semantics with person ensure.
+
 ## Delivery and extension boundaries
+
+- Replication peer queue length is not runnable work: Channel in-flight ownership
+  and earlier exchange kinds may block every item. Scheduling checks the same
+  selection barriers as batching, and exchange release wakes blocked classes.
+  Otherwise empty owners can repeatedly reschedule and allocate without sending.
+
+- [User/Channel Send Ban](../specs/user-channel-send-ban.md) separates UID-owned
+  global restrictions from source-Channel restrictions (both person directions).
+  Mandatory policies use fresh Slot barriers and request-scoped node-batched
+  reads; TTL applies only to auxiliary membership facts. System identities and
+  plugins cannot bypass bans. Explicit policy writes are atomic, versioned and
+  independent; credential/ordinary metadata writes preserve them. Format 2
+  requires matching binaries and new/imported data; no old-data migration is
+  included. Cross-ingress, non-replica, leader loss and isolated-leader rejection
+  and single/three-node restore have process-level evidence. Real plugin processes
+  also verify bans, restricted hook mutation and the in-flight boundary. The PDK
+  SendResp has no reason field: rejected SENDs return RPC errors with public
+  protocol reason codes, not successful zero-ID responses. Remaining fault-matrix
+  and performance qualification remain pending. See the [implementation report](../reports/2026-09-24-send-ban-implementation.md).
+
+- A full SEND shard can coexist with low aggregate gateway queue pressure.
+  The natural failure's single-session shards retained32 active records for
+  about1.25s; another225–228 admissions exactly filled the256-item queue.
+  Native waits were for append results. Preserve unfinished waits and freeze
+  admission evidence before teardown; completed-only maxima miss active work.
+  Linux engine `BytesPerSync=0` selects Pebble's512KiB default, not disabled
+  range writeback. See the [shard timeline](../reports/2026-09-27-send-ban-shard-timeline.md).
+
+- A same-binary 5,000-Channel / 4,500-SEND/s diagnostic passed with no injected
+  delay and reproduced EOF 1.59 seconds into repeated 380-ms message-WAL
+  completion holds. The rejected shard's 38 queued + 218 new admissions exactly
+  reached 256 while a 32-record batch remained occupied. Real syncs still ran;
+  injected sleeps and native syscalls are separate evidence. This establishes
+  sufficiency of slow completion, not the physical cause of natural sync stalls
+  or a production repair. See the [controlled window](../reports/2026-09-28-send-ban-sync-window.md).
+
+- A full 30-minute kernel-observed SEND run passed despite sampled message-WAL
+  page-writeback, journal and block-I/O waits. Bounded thread/FD snapshots locate
+  kernel wait stages, but repeated snapshots can be different syscalls and the
+  selected pressure peaks are not a whole-run latency distribution. A wait symbol
+  alone does not establish the earlier EOF cause or qualify an uninstrumented
+  run. See the [kernel observations](../reports/2026-09-28-send-ban-kernel-waits.md).
+
+- Raising SEND batch cap from32 to128 did not remove the controlled WAL-hold
+  EOF. Both runs kept256 queued records per shard; the larger active batch
+  increases total outstanding work and is not an original-load qualification.
+  Rejected32-arm batches held only15/18 records, while128-arm batches held128;
+  all exact queue balances reached256 during occupied handlers. Individual Go
+  wait spans are not entire handler durations. See the [batch boundary](../reports/2026-09-28-send-ban-batch-boundary.md).
+
+- Compaction throughput alone does not explain sustained gateway queue closure.
+  A same-binary diagnostic control completed30minutes, while16MiB/s compaction
+  pacing still failed with slow WAL and a full session shard. Pacing also changed
+  background progress; do not promote it as a repair or infer causality from one
+  pair. Keep original-load, uninstrumented qualification separate. See the
+  [controlled comparison](../reports/2026-09-27-send-ban-compaction-pace.md).
+
+- Exact proposal phases locate a controlled slow round at about 1.145 seconds:
+  about 378 ms before peer exchange, then 767 ms in exchange; local storage
+  proceeds concurrently. All twelve selected peer submissions find sixteen
+  observed open flights, and eighteen matched store calls spend 97.5–99.9% in
+  commit-coordinator result waits. Such waits include queued and executing time,
+  not a proven sequence of particular physical commits. There is no separate
+  foreground HW disk commit after quorum. Any pipeline repair must count queued,
+  executing and unpublished results in one fixed outstanding budget and retain
+  fresh permission, Channel order, ACK order and durable-before-success. The
+  natural physical I/O cause and R2/R6 qualification remain open. See the
+  [proposal dependency evidence](../reports/2026-09-28-send-ban-durable-phases.md).
+
+- Separating routed admission from result publication does not transfer all
+  ownership to one drain. OrderedSubmitter joins delegated calls and callbacks;
+  Group still owns writes that outlive a canceled routing result, while Gateway
+  must retain capacity for completed results awaiting ordered ACK publication.
+  The optional ordered module is not wired into product entries yet; its
+  contract tests do not qualify the original SEND pressure run.
+
+- Permission envelope admission is shared by local and remote reads. A typed
+  busy result can travel in a successful transport RPC; transport error counters
+  alone cannot prove admission success. Pressure evidence must separately retain
+  the permission admission/busy histogram count delta. The 5,000-channel
+  diagnostic has reproduced these rejections; sustained qualification is pending.
+  Admission now permits at most 16 executing and 16 waiting envelopes. Waiting
+  precedes decoding, lasts at most 100 ms or caller cancellation, and never reuses
+  a pre-wait policy result or adds RPC retries. Full saturation still returns busy.
+
+- Backup Controller CAS reads must observe this adapter's completed mutations
+  before lease cleanup: a follower's older local snapshot can hide a committed
+  archive-operation lease. The adapter waits boundedly for local visibility,
+  without another RPC, and preserves no-op revisions and caller cancellation.
+  A fresh format-2 data root may contain only a pre-mounted `backup-repository`
+  directory/symlink; this exception never adopts an unregistered live database.
 
 - Send permissions belong in `internal/usecase/message` before append;
   `pkg/channel` stays business-rule free. Mutable recipient metadata and delivery
@@ -628,6 +724,11 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## RPC host diagnostics
 
+- Durable-quorum Channel commits do not populate the reactor's legacy
+  recent-record cache. Quorum replication/repair owns its payload retention;
+  compatibility Pull cache misses use durable storage. Legacy append caching
+  remains enabled. This removes duplication, not the quorum retry evidence.
+
 - Host-sampled RPC runs are diagnostic evidence, not repeatability qualification.
   `scripts/transport-perf` records monotonic measurement anchors; cross-host
   origins differ and need the existing boundary RPC brackets plus an explicit
@@ -636,3 +737,74 @@ specification, runbook, report, or module documentation; link to them when neede
   host. Keep counter deltas on their sampled intervals, missing values explicit,
   and surviving-thread scheduler deltas labeled as lower bounds. A correlation
   does not establish a transport defect or infrastructure root cause.
+
+- Transport byte observations preserve frame kind and scheduling lane through
+  batched writes and the bounded observer drain. Fixed direction/lane counters
+  separate outbound Slot/Controller Raft payload bytes from other traffic;
+  they exclude wire/network overhead. Pressure evidence requires the Raft
+  series from every node at both measured-window boundaries; older binaries
+  retain null rather than relabeling total transport traffic.
+
+- Gateway SEND batching retains each session's contiguous directory-ready prefix
+  in input order. A cold head fences later items, hooks retain that order, and
+  terminal results publish through the session chain. The append runtime owns
+  same-Channel order and bounded parallel work across independent Channels;
+  usecase scheduling must not fragment a ready prefix into durable single-item
+  waits. The gateway joins a batch before dispatching that session's next batch.
+
+- Gateway ordering-shard count depends on worker count, total queue capacity
+  and SEND batch cap. Lowering only the batch cap can increase shard count and
+  shrink each session's burst budget. Validate the full configuration together;
+  a lower-cap pressure pass does not qualify changing the default cap alone.
+
+- Send-permission admission assigns execution capacity and removes the waiting
+  position under one mutex before waking the caller. A runnable assigned caller
+  already owns an execution position; cancellation/timeout must return it even
+  when the caller never enters decoding. Keep sixteen executing and sixteen
+  waiting envelopes, the 100 ms wait budget, and fresh barriers unchanged.
+
+- Optional message `SubmitBatchEach` joins permission/directory/hook preparation
+  before returning and transfers only append completion. Its injected admission
+  must bound accepted work and preserve canonical Channel order. Preparation
+  advances on submission, not completion; deadlines close only after preparation
+  and all results join. Callers still own cross-batch ACK order and reservations.
+  Default Gateway composition now wires this port through the bounded submitter.
+
+- Optional Gateway deferred handlers retain configured global/shard reservations
+  through preparation return, completion/error handling and actual session-ordered
+  publication across batches. Results waiting for an earlier ACK remain counted.
+  Per-session chains never hold the shard mutex while writing, clear completed
+  links and retire empty lanes. Default product composition activates this port.
+
+- Default Gateway SEND composition separates ordered permission preparation from
+  durable completion. The node-owned Channel submitter serializes overlapping
+  canonical Channels; Gateway retains its original record/byte reservations
+  until ordered physical-session ACK publication. Stop/restore must join both
+  owners before closing or restarting append dependencies. This mechanism alone
+  is not evidence that the 5,000-channel/4,500-SEND/s qualification passes.
+
+- Ordered submission can coalesce already-ready independent jobs within existing
+  micro-batch targets. One execution counts as one busy worker; original callbacks
+  retain their capacity and canonical Channel dependency until return. Both the
+  pipeline-only and coalescing candidates still fail the controlled WAL-stall
+  scenario; neither is evidence that the original high-load EOF is repaired.
+
+- First-rejection diagnostics must include published records awaiting release
+  fences, not only active ACK lanes. Under the controlled 380ms WAL floor, exact
+  retained Gateway heads joined to queued quorum jobs and Coordinator waits;
+  254–255 of 256 records awaited results. This rules out ACK ordering as the
+  dominant retained population in that capture, not the cause of natural I/O
+  stalls. A separate zero-hold permission-admission failure remains unresolved.
+
+- Gateway SEND batch caps are not physical commit caps. The exact physical
+  diagnostic found unlimited configured commit group counts/bytes, nearly empty
+  post-collection coordinator queues, and full quorum-worker execution while
+  hundreds of accepted proposals had not begun. Moving admitted work through a
+  bounded completion owner must retain original record/byte budgets and durable
+  quorum proof; increasing group caps does not address that observed boundary.
+
+- Durable-round continuations share the synchronous round's proof state machine.
+  Terminal publication waits for all planned submissions to transfer ownership;
+  duplicate/late callbacks never add votes. The round has no waiting goroutine
+  per proposal. Callers must retain bounded admission through completion; the
+  current log/worker still uses the synchronous wrapper until explicit wiring.

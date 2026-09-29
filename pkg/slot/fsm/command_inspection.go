@@ -42,6 +42,10 @@ func DecodeCommandInspection(data []byte) (CommandInspection, error) {
 
 func inspectCommand(cmd command) (CommandInspection, error) {
 	switch typed := cmd.(type) {
+	case *channelInfoCmd:
+		return simpleInspection("update_channel_info", map[string]any{"channel_id": typed.mutation.ChannelID, "channel_type": typed.mutation.ChannelType, "send_ban": typed.mutation.SendBan}), nil
+	case *sendBanCmd:
+		return simpleInspection("set_send_ban", map[string]any{"uid": typed.mutation.UID, "channel_id": typed.mutation.ChannelID, "channel_type": typed.mutation.ChannelType, "send_ban": typed.mutation.SendBan, "expected_version": typed.mutation.ExpectedVersion}), nil
 	case *messageUpdateCmd:
 		q := typed.mutation
 		return simpleInspection("message_update", map[string]any{"operation": q.Op, "channel_id": q.ChannelID, "channel_type": q.ChannelType, "message_id": q.MessageID, "message_seq": q.MessageSeq, "expected_version": q.ExpectedVersion, "payload_bytes": len(q.Payload)}), nil
@@ -89,6 +93,13 @@ func inspectCommand(cmd command) (CommandInspection, error) {
 			}
 		}
 		return simpleInspection("admit_person_directory_task_batch", map[string]any{"items": items}), nil
+	case *upsertUserChannelMembershipBatchCmd:
+		items := make([]map[string]any, len(typed.items))
+		for i, item := range typed.items {
+			items[i] = userChannelMembershipPayload(item.Membership)
+			items[i]["hash_slot"] = item.HashSlot
+		}
+		return simpleInspection("upsert_user_channel_membership_batch", map[string]any{"items": items}), nil
 	case *ensureUserChannelMembershipBatchCmd:
 		items := make([]map[string]any, len(typed.items))
 		for i, item := range typed.items {

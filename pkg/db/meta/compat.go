@@ -1023,11 +1023,24 @@ func (b *WriteBatch) PatchChannelBusinessFlags(hashSlot uint16, channelID string
 		if !exists {
 			return nil
 		}
+		wasDisbanded := channel.Disband != 0
 		channel.Ban = flags.Ban
 		if flags.Disband != 0 {
 			channel.Disband = 1
 		}
-		channel.SendBan = flags.SendBan
+		if !flags.PreserveSendBan {
+			if flags.SendBan != 0 && flags.SendBan != 1 {
+				return ErrInvalidArgument
+			}
+			if wasDisbanded && channel.SendBan != flags.SendBan {
+				return ErrStaleMeta
+			}
+			r := nextSendBan(SendBanResult{Status: "ok", SendBan: channel.SendBan, Version: channel.SendBanVersion}, flags.SendBan, nil)
+			if r.Status != "ok" {
+				return ErrStaleMeta
+			}
+			channel.SendBan, channel.SendBanVersion = r.SendBan, r.Version
+		}
 		shard := &Shard{db: state.db, hashSlot: hs}
 		if err := shard.stageChannel(batch, primaryKey, channel); err != nil {
 			return err

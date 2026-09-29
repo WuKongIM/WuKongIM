@@ -66,6 +66,7 @@ const expectedReasonCodeNames = [
   'ReasonProtocolUpgradeRequired',
   'ReasonIdempotencyConflict',
   'ReasonMessageSeqExhausted',
+  'ReasonSystemBusy',
 ];
 
 function parseGoReasonCodeAuthority(source: string): Array<{ name: string; value: number }> {
@@ -311,7 +312,8 @@ const (
     const reasons = renderReasonCodeMarkdown('en');
     expect(reasons).toContain('| 0 | `ReasonUnknown` |');
     expect(reasons).toContain('| 29 | `ReasonMessageSeqExhausted` |');
-    expect(reasons.match(/\n\| \d+ \|/g)).toHaveLength(30);
+    expect(reasons).toContain('| 30 | `ReasonSystemBusy` |');
+    expect(reasons.match(/\n\| \d+ \|/g)).toHaveLength(31);
 
     const quickstart = renderDeveloperContractSupplement('en', [
       'sdk',

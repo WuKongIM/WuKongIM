@@ -207,8 +207,8 @@ func TestCloudMediumScaledRecipientHotPath(t *testing.T) {
 		t.Fatalf("acceptance offered QPS = %d, want at least %d", offeredQPS, expectedAcceptanceQPS)
 	}
 
-	cluster := startMediumCluster(t, rpcBatchMaxItems)
-	verifyMediumRenderedRuntime(t, cluster, rpcBatchMaxItems)
+	cluster := startMediumCluster(t, rpcBatchMaxItems, 8)
+	verifyMediumRenderedRuntime(t, cluster, rpcBatchMaxItems, 8)
 	setupTimeout := 2 * time.Minute
 	if groupChannelCount > 500 {
 		setupTimeout = 5 * time.Minute
@@ -898,7 +898,7 @@ func proveWarmupSend(t *testing.T, cluster *suite.StartedCluster, sender *suite.
 	t.Logf("WKRC-HIFI-WARMUP duration=%s", time.Since(start))
 }
 
-func startMediumCluster(t *testing.T, rpcBatchMaxItems int) *suite.StartedCluster {
+func startMediumCluster(t *testing.T, rpcBatchMaxItems, storeAppendWorkers int) *suite.StartedCluster {
 	t.Helper()
 	overrides := map[string]string{
 		"WK_CLUSTER_INITIAL_SLOT_COUNT":                              "10",
@@ -909,11 +909,12 @@ func startMediumCluster(t *testing.T, rpcBatchMaxItems int) *suite.StartedCluste
 		"WK_CLUSTER_SLOT_ELECTION_TICK":                              strconv.Itoa(mediumSlotElectionTick),
 		"WK_CLUSTER_CHANNEL_REPLICA_N":                               "3",
 		"WK_CLUSTER_CHANNEL_REACTOR_COUNT":                           "4",
-		"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS":                    "8",
+		"WK_CLUSTER_CHANNEL_STORE_APPEND_WORKERS":                    strconv.Itoa(storeAppendWorkers),
 		"WK_CLUSTER_CHANNEL_STORE_APPLY_WORKERS":                     "8",
 		"WK_CLUSTER_CHANNEL_RPC_WORKERS":                             strconv.Itoa(mediumChannelRPCWorkers),
 		"WK_CLUSTER_CHANNEL_RPC_BATCH_MAX_ITEMS":                     strconv.Itoa(rpcBatchMaxItems),
 		"WK_CLUSTER_COMMIT_COORDINATOR_SHARDS":                       strconv.Itoa(mediumCommitCoordinatorShards),
+		"WK_GATEWAY_TOKEN_AUTH_ON":                                   "false", // Controlled tokenless pressure clients; SEND policies remain enabled.
 		"WK_GATEWAY_GNET_MULTICORE":                                  "true",
 		"WK_GATEWAY_GNET_NUM_EVENT_LOOP":                             "4",
 		"WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS":                      "128",
@@ -937,16 +938,20 @@ func startMediumCluster(t *testing.T, rpcBatchMaxItems int) *suite.StartedCluste
 	return suite.New(t).StartThreeNodeCluster(options...)
 }
 
-func verifyMediumRenderedRuntime(t *testing.T, cluster *suite.StartedCluster, rpcBatchMaxItems int) {
+func verifyMediumRenderedRuntime(t *testing.T, cluster *suite.StartedCluster, rpcBatchMaxItems, storeAppendWorkers int) {
 	t.Helper()
 	type clusterRuntime struct {
 		Cluster struct {
+			StoreAppendWorkers      int    `toml:"channel_store_append_workers"`
 			SlotTickInterval        string `toml:"slot_tick_interval"`
 			SlotHeartbeatTick       int    `toml:"slot_heartbeat_tick"`
 			SlotElectionTick        int    `toml:"slot_election_tick"`
 			ChannelRPCBatchMaxItems int    `toml:"channel_rpc_batch_max_items"`
 			CommitCoordinatorShards int    `toml:"commit_coordinator_shards"`
 		} `toml:"cluster"`
+		Gateway struct {
+			TokenAuthOn *bool `toml:"token_auth_on"`
+		} `toml:"gateway"`
 	}
 	for _, node := range cluster.Nodes {
 		data, err := os.ReadFile(node.Spec.ConfigPath)
@@ -956,6 +961,12 @@ func verifyMediumRenderedRuntime(t *testing.T, cluster *suite.StartedCluster, rp
 		var runtime clusterRuntime
 		if err := toml.Unmarshal(data, &runtime); err != nil {
 			t.Fatalf("decode node %d rendered config: %v", node.Spec.ID, err)
+		}
+		if runtime.Gateway.TokenAuthOn == nil || *runtime.Gateway.TokenAuthOn {
+			t.Fatalf("node %d tokenless pressure fixture requires explicit token_auth_on=false", node.Spec.ID)
+		}
+		if runtime.Cluster.StoreAppendWorkers != storeAppendWorkers {
+			t.Fatalf("node %d store append workers = %d, want %d", node.Spec.ID, runtime.Cluster.StoreAppendWorkers, storeAppendWorkers)
 		}
 		if runtime.Cluster.SlotTickInterval != mediumSlotTickInterval.String() ||
 			runtime.Cluster.SlotHeartbeatTick != mediumSlotHeartbeatTick ||
@@ -1486,6 +1497,8 @@ func milliseconds(value time.Duration) float64 {
 }
 
 type pressureSnapshot struct {
+	aggregateCPUSum                  float64
+	aggregateCPUSamples              int
 	maxGatewayQueueRatio             float64
 	maxRecipientQueueRatio           float64
 	maxRecipientWorkerRatio          float64
@@ -1528,12 +1541,13 @@ type pressureSnapshot struct {
 }
 
 type pressureSampler struct {
-	cluster  *suite.StartedCluster
-	interval time.Duration
-	stopC    chan struct{}
-	doneC    chan struct{}
-	mu       sync.Mutex
-	state    pressureSnapshot
+	storageHistory *permissionSoakStorageHistory
+	cluster        *suite.StartedCluster
+	interval       time.Duration
+	stopC          chan struct{}
+	doneC          chan struct{}
+	mu             sync.Mutex
+	state          pressureSnapshot
 }
 
 func newPressureSampler(cluster *suite.StartedCluster, interval time.Duration) *pressureSampler {
@@ -1586,8 +1600,12 @@ func (s *pressureSampler) sample() {
 	transportRPCMetricNodes := 0
 	heapValues := make([]hotPathMetricValues, 0, len(s.cluster.Nodes))
 	for _, node := range s.cluster.Nodes {
+		fetchStarted := time.Now()
 		samples, err := fetchPressureMetricSamples(node.APIAddr())
 		s.mu.Lock()
+		if s.storageHistory != nil {
+			s.storageHistory.record(node.Spec.ID, fetchStarted, time.Since(fetchStarted), samples, err)
+		}
 		if err != nil {
 			s.state.sampleErrors++
 			s.mu.Unlock()
@@ -1608,6 +1626,7 @@ func (s *pressureSampler) sample() {
 	s.mu.Lock()
 	if len(heapValues) == len(s.cluster.Nodes) {
 		s.observeAggregateHeap(heapValues)
+		s.observeAggregateCPU(heapValues)
 	}
 	if channelRPCMetricNodes > s.state.maxChannelRPCMetricNodes {
 		s.state.maxChannelRPCMetricNodes = channelRPCMetricNodes
@@ -1616,6 +1635,23 @@ func (s *pressureSampler) sample() {
 		s.state.maxTransportRPCMetricNodes = transportRPCMetricNodes
 	}
 	s.mu.Unlock()
+}
+
+// Each complete scrape contributes one aggregate process CPU percentage;
+// 100 means one fully busy CPU. A missing node metric invalidates that sample.
+func (s *pressureSampler) observeAggregateCPU(values []hotPathMetricValues) {
+	if len(values) == 0 {
+		return
+	}
+	var sum float64
+	for _, value := range values {
+		if !value.cpuPresent {
+			return
+		}
+		sum += value.cpuPercent
+	}
+	s.state.aggregateCPUSum += sum
+	s.state.aggregateCPUSamples++
 }
 
 func fetchPressureMetricSamples(
@@ -1690,6 +1726,8 @@ func (s *pressureSampler) observeAggregateHeap(values []hotPathMetricValues) {
 }
 
 type hotPathMetricValues struct {
+	cpuPercent                     float64
+	cpuPresent                     bool
 	gatewayQueueDepth              float64
 	gatewayQueueCapacity           float64
 	recipientQueueDepth            float64
@@ -1897,6 +1935,9 @@ func metricValues(samples []suite.MetricSample) hotPathMetricValues {
 			}
 		case "go_memstats_heap_alloc_bytes":
 			values.heapBytes = sample.Value
+		case "wukongim_node_cpu_percent":
+			values.cpuPercent = sample.Value
+			values.cpuPresent = true
 		}
 	}
 	for key, depth := range mailboxDepths {
@@ -1974,10 +2015,14 @@ func isPermissionSlotRPCQueueSample(sample suite.MetricSample) bool {
 func isPermissionSlotRPCServiceLabel(label string) bool {
 	return label == "slot channel metadata" ||
 		label == "slot subscriber metadata" ||
-		label == "slot permission metadata batch"
+		label == "slot permission metadata batch" || label == "node send permissions"
 }
 
 type hotPathCounters struct {
+	raftPayloadByNode                   map[uint64]float64
+	raftPayloadInvalid                  bool
+	transportSentBytes                  float64
+	raftEnvelopeCalls                   float64
 	allocatedBytes                      float64
 	gcCount                             float64
 	channelRPCAdmissionFull             float64
@@ -2011,6 +2056,7 @@ type hotPathCounters struct {
 	transportRPCRejected                float64
 	permissionBatchStarted              float64
 	permissionBatchPanics               float64
+	sendPermissionAdmissionBusy         float64
 	permissionSlotRPCCalls              float64
 	permissionSlotRPCErrors             float64
 	permissionSlotRPCAdmissionErrors    float64
@@ -2033,8 +2079,47 @@ type hotPathCounters struct {
 	messageIdempotencyPointReads        float64
 }
 
+// observeRaftNodeSnapshot records exactly one outbound Raft series per node.
+func (c *hotPathCounters) observeRaftNodeSnapshot(nodeID uint64, samples []suite.MetricSample) {
+	if c.raftPayloadByNode == nil {
+		c.raftPayloadByNode = make(map[uint64]float64)
+	}
+	if _, exists := c.raftPayloadByNode[nodeID]; exists {
+		c.raftPayloadInvalid = true
+	}
+	count := 0
+	for _, sample := range samples {
+		if sample.Name == "wukongim_transport_lane_payload_bytes_total" && sample.Labels["direction"] == "send" && sample.Labels["priority"] == "raft" {
+			count++
+			c.raftPayloadByNode[nodeID] = sample.Value
+		}
+	}
+	if count != 1 {
+		c.raftPayloadInvalid = true
+	}
+}
+
+// raftByteDelta requires the same complete node set at both boundaries.
+// Missing or duplicate series and per-node counter resets remain unknown.
+func (c hotPathCounters) raftByteDelta(start hotPathCounters, nodes int) *float64 {
+	if nodes <= 0 || c.raftPayloadInvalid || start.raftPayloadInvalid || len(c.raftPayloadByNode) != nodes || len(start.raftPayloadByNode) != nodes {
+		return nil
+	}
+	var delta float64
+	for id, end := range c.raftPayloadByNode {
+		before, ok := start.raftPayloadByNode[id]
+		if !ok || end < before {
+			return nil
+		}
+		delta += end - before
+	}
+	return &delta
+}
+
 func (c hotPathCounters) subtract(start hotPathCounters) hotPathCounters {
 	return hotPathCounters{
+		transportSentBytes:                  c.transportSentBytes - start.transportSentBytes,
+		raftEnvelopeCalls:                   c.raftEnvelopeCalls - start.raftEnvelopeCalls,
 		allocatedBytes:                      c.allocatedBytes - start.allocatedBytes,
 		gcCount:                             c.gcCount - start.gcCount,
 		channelRPCAdmissionFull:             c.channelRPCAdmissionFull - start.channelRPCAdmissionFull,
@@ -2068,6 +2153,7 @@ func (c hotPathCounters) subtract(start hotPathCounters) hotPathCounters {
 		transportRPCRejected:                c.transportRPCRejected - start.transportRPCRejected,
 		permissionBatchStarted:              c.permissionBatchStarted - start.permissionBatchStarted,
 		permissionBatchPanics:               c.permissionBatchPanics - start.permissionBatchPanics,
+		sendPermissionAdmissionBusy:         c.sendPermissionAdmissionBusy - start.sendPermissionAdmissionBusy,
 		permissionSlotRPCCalls:              c.permissionSlotRPCCalls - start.permissionSlotRPCCalls,
 		permissionSlotRPCErrors:             c.permissionSlotRPCErrors - start.permissionSlotRPCErrors,
 		permissionSlotRPCAdmissionErrors:    c.permissionSlotRPCAdmissionErrors - start.permissionSlotRPCAdmissionErrors,
@@ -2203,6 +2289,7 @@ func captureHotPathCounters(ctx context.Context, cluster *suite.StartedCluster) 
 		if err != nil {
 			return hotPathCounters{}, fmt.Errorf("node %d metrics: %w", node.Spec.ID, err)
 		}
+		counters.observeRaftNodeSnapshot(uint64(node.Spec.ID), samples)
 		for _, sample := range samples {
 			observeHotPathCounterSample(&counters, sample)
 			switch sample.Name {
@@ -2274,7 +2361,17 @@ func captureHotPathCounters(ctx context.Context, cluster *suite.StartedCluster) 
 
 func observeHotPathCounterSample(counters *hotPathCounters, sample suite.MetricSample) {
 	switch sample.Name {
+	case "wukongim_message_permission_duration_seconds_count":
+		if sample.Labels["stage"] == "admission" && sample.Labels["result"] == "busy" {
+			counters.sendPermissionAdmissionBusy += sample.Value
+		}
+	case "wukongim_transport_sent_bytes_total":
+		counters.transportSentBytes += sample.Value
 	case "wukongim_transport_rpc_total":
+		switch sample.Labels["service"] {
+		case "slot raft", "slot raft batch", "controller raft":
+			counters.raftEnvelopeCalls += sample.Value
+		}
 		if !isPermissionSlotRPCCounterSample(sample) {
 			return
 		}
@@ -2608,7 +2705,22 @@ func hotPathRuntimeDiagnostics(cluster *suite.StartedCluster) string {
 }
 
 func isHotPathDiagnosticMetric(name string) bool {
+	// Preserve fixed permission-stage evidence from the existing failure scrape.
+	// Exact names exclude bucket expansion and similarly prefixed new families.
+	switch name {
+	case "wukongim_message_permission_counts_total",
+		"wukongim_message_permission_duration_seconds_count",
+		"wukongim_message_permission_duration_seconds_sum",
+		"wukongim_message_permission_inflight":
+		return true
+	}
 	for _, prefix := range []string{
+		"wukongim_storage_pebble_write_stall",
+		"wukongim_storage_pebble_wal_fsync_",
+		"wukongim_storage_pebble_disk_slow_",
+		"wukongim_storage_commit_",
+		"go_sched_latencies_seconds",
+		"wukongim_gateway_connection_closes_total",
 		"wukongim_gateway_messages_received_total",
 		"wukongim_gateway_sendacks_total",
 		"wukongim_gateway_async_send_queue_",
@@ -2684,8 +2796,13 @@ func hotPathBottleneckGoroutineDiagnostics(cluster *suite.StartedCluster) string
 		"pkg/channel/reactor",
 		"pkg/channel/service",
 		"pkg/channel/worker",
+		// Include the independent executors, not only callers awaiting quorum.
+		"pkg/channel/replication",
+		"pkg/db/message",
+		"pkg/db/internal",
+		"github.com/cockroachdb/pebble/v2",
 		"internal/runtime/delivery",
-	}, 64<<10)
+	}, 256<<10)
 }
 
 func hotPathGoroutineDiagnosticsMatching(cluster *suite.StartedCluster, matches []string, maxOutputBytes int) string {
@@ -2703,11 +2820,19 @@ func hotPathGoroutineDiagnosticsMatching(cluster *suite.StartedCluster, matches 
 			fmt.Fprintf(&out, "node-%d fetch=%v\n", node.Spec.ID, err)
 			continue
 		}
-		body, readErr := io.ReadAll(io.LimitReader(response.Body, maxProfileBytes))
+		body, readErr := io.ReadAll(io.LimitReader(response.Body, maxProfileBytes+1))
 		_ = response.Body.Close()
 		if readErr != nil {
 			fmt.Fprintf(&out, "node-%d read=%v\n", node.Spec.ID, readErr)
 			continue
+		}
+		truncated := len(body) > maxProfileBytes
+		fmt.Fprintf(&out, "node-%d status=%d input_bytes=%d input_truncated=%t\n", node.Spec.ID, response.StatusCode, len(body), truncated)
+		if response.StatusCode != http.StatusOK {
+			continue
+		}
+		if truncated {
+			body = body[:maxProfileBytes]
 		}
 		for _, block := range strings.Split(string(body), "\n\n") {
 			if !goroutineBlockMatches(block, matches) {
@@ -2715,7 +2840,8 @@ func hotPathGoroutineDiagnosticsMatching(cluster *suite.StartedCluster, matches 
 			}
 			fmt.Fprintf(&out, "node-%d\n%s\n\n", node.Spec.ID, block)
 			if out.Len() >= maxOutputBytes {
-				return out.String()[:maxOutputBytes]
+				const marker = "\nfiltered_output_truncated=true\n"
+				return out.String()[:maxOutputBytes-len(marker)] + marker
 			}
 		}
 	}
@@ -2756,4 +2882,13 @@ func diagnosticMetricKey(sample suite.MetricSample) string {
 	}
 	out.WriteByte('}')
 	return out.String()
+}
+
+// meanAggregateCPU preserves missing evidence as null in JSON, not zero CPU.
+func (p pressureSnapshot) meanAggregateCPU() *float64 {
+	if p.aggregateCPUSamples == 0 {
+		return nil
+	}
+	mean := p.aggregateCPUSum / float64(p.aggregateCPUSamples)
+	return &mean
 }

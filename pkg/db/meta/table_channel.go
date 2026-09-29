@@ -32,8 +32,10 @@ type Channel struct {
 	Ban int64
 	// Disband marks the channel as disbanded.
 	Disband int64
-	// SendBan marks the channel as send-banned.
+	// SendBan blocks every sender into this source Channel.
 	SendBan int64
+	// SendBanVersion advances only when the sending restriction changes.
+	SendBanVersion uint64
 	// AllowStranger records whether non-subscribers may access the channel.
 	AllowStranger int64
 	// Large marks the channel as a large-group channel.
@@ -52,9 +54,11 @@ type Channel struct {
 
 // ChannelBusinessFlags contains the Manager-editable channel flags.
 type ChannelBusinessFlags struct {
-	Ban     int64
-	Disband int64
-	SendBan int64
+	// PreserveSendBan makes unrelated mutations retain the apply-time policy.
+	PreserveSendBan bool
+	Ban             int64
+	Disband         int64
+	SendBan         int64
 }
 
 // ChannelConditionalMutationResult is populated after a conditional batch commit.
@@ -371,7 +375,8 @@ func encodeChannelValue(channel Channel) []byte {
 	value = appendValueUint64(value, channel.SubscriberCount)
 	value = appendValueInt64(value, channel.Large)
 	value = appendValueInt64(value, int64(channel.DirectoryProjectionState))
-	return appendValueUint64(value, channel.DirectoryProjectionGeneration)
+	value = appendValueUint64(value, channel.DirectoryProjectionGeneration)
+	return appendValueUint64(value, channel.SendBanVersion)
 }
 
 func decodeChannelValue(channelID string, channelType int64, value []byte) (Channel, error) {
@@ -408,7 +413,11 @@ func decodeChannelValue(channelID string, channelType int64, value []byte) (Chan
 		return Channel{}, err
 	}
 	directoryGeneration, rest, err := readValueUint64(rest)
-	if err != nil || len(rest) != 0 || directoryState < int64(DirectoryProjectionNone) || directoryState > int64(DirectoryProjectionReady) ||
+	if err != nil {
+		return Channel{}, err
+	}
+	sendBanVersion, rest, err := readValueUint64(rest)
+	if err != nil || (sendBan != 0 && sendBan != 1) || len(rest) != 0 || directoryState < int64(DirectoryProjectionNone) || directoryState > int64(DirectoryProjectionReady) ||
 		(directoryState == int64(DirectoryProjectionNone)) != (directoryGeneration == 0) {
 		return Channel{}, dberrors.ErrCorruptValue
 	}
@@ -418,6 +427,7 @@ func decodeChannelValue(channelID string, channelType int64, value []byte) (Chan
 		Ban:                           ban,
 		Disband:                       disband,
 		SendBan:                       sendBan,
+		SendBanVersion:                sendBanVersion,
 		AllowStranger:                 allowStranger,
 		Large:                         large,
 		SubscriberMutationVersion:     version,

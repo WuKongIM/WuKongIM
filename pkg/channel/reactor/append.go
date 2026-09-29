@@ -217,7 +217,7 @@ func (r *Reactor) handleQuorumCommitResult(result worker.Result) {
 	decision := rc.state.ApplyQuorumCommitted(committed)
 	if commitErr == nil {
 		r.markAppendHWAdvanced(rc, oldHW, rc.state.HW, now)
-		r.afterSuccessfulQuorumCommit(rc, result.Fence.OpID, now)
+		r.afterSuccessfulQuorumCommit(rc, now)
 	}
 	r.completeReplies(rc, decision.Replies, nil)
 	r.finishAppendInflightBatch(rc, commitErr, now)
@@ -256,8 +256,9 @@ func (r *Reactor) afterSuccessfulLeaderAppendStored(rc *runtimeChannel, batchOpI
 	r.scheduleLaggingFollowerResumeHints(rc, now)
 }
 
-func (r *Reactor) afterSuccessfulQuorumCommit(rc *runtimeChannel, batchOpID ch.OpID, now time.Time) {
-	rc.recentRecords.append(rc.appendInflightRecords(batchOpID))
+func (r *Reactor) afterSuccessfulQuorumCommit(rc *runtimeChannel, now time.Time) {
+	// Durable quorum owns replication and repair. Do not duplicate its payloads
+	// in the legacy pull cache; compatibility pulls can read the durable store.
 	r.markAppendActivity(rc, now)
 	rc.lifecycle.version = rc.state.LEO
 	r.scheduleLifecycleFromState(rc, now)

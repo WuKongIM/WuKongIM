@@ -11,3 +11,10 @@ workflow:
 5. prove the post-backup data disappeared while the backed-up data remains.
 
 Keep polling bounded and include process diagnostics on failure.
+
+The checkpoint includes user, group and canonical person-channel send bans.
+Change them after publication, create a later-only user ban, then assert restore
+reinstates exact values/versions and removes the later row. Warm auxiliary
+permission caches with a one-hour TTL and reject new sends after restore.
+`WK_E2E_SEND_BAN_RESTORE_REPORT` selects the JSON artifact base; this scenario
+appends `-1-node.json`.
