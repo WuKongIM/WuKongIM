@@ -34,7 +34,7 @@ func TestSendPermissionHandoffDoesNotRejectAvailableWaitPosition(t *testing.T) {
 		workers.Wait()
 	})
 	for range sendPermissionMaxExecuting {
-		release, err := s.acquireSendPermissionEnvelope(ctx)
+		release, err := s.acquireSendPermissionEnvelope(ctx, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -44,14 +44,14 @@ func TestSendPermissionHandoffDoesNotRejectAvailableWaitPosition(t *testing.T) {
 		workers.Add(1)
 		go func() {
 			defer workers.Done()
-			release, err := s.acquireSendPermissionEnvelope(ctx)
+			release, err := s.acquireSendPermissionEnvelope(ctx, 0)
 			if err == nil {
 				<-finish
 				release()
 			}
 		}()
 	}
-	deadline := time.Now().Add(50 * time.Millisecond)
+	deadline := time.Now().Add(5 * time.Second)
 	for s.permissionWaiting.Load() != sendPermissionMaxWaiting {
 		if time.Now().After(deadline) {
 			t.Fatal("waiting queue did not fill before its deadline")
@@ -69,7 +69,7 @@ func TestSendPermissionHandoffDoesNotRejectAvailableWaitPosition(t *testing.T) {
 		stop()
 	}()
 	defer func() { stop(); <-stopped }()
-	release, err := s.acquireSendPermissionEnvelope(arrival)
+	release, err := s.acquireSendPermissionEnvelope(arrival, 0)
 	if release != nil {
 		release()
 	}
@@ -93,7 +93,7 @@ func TestSendPermissionCanceledHandoffReturnsPermit(t *testing.T) {
 		}
 	})
 	for range sendPermissionMaxExecuting {
-		release, err := s.acquireSendPermissionEnvelope(context.Background())
+		release, err := s.acquireSendPermissionEnvelope(context.Background(), 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -103,7 +103,7 @@ func TestSendPermissionCanceledHandoffReturnsPermit(t *testing.T) {
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		release, err := s.acquireSendPermissionEnvelope(ctx)
+		release, err := s.acquireSendPermissionEnvelope(ctx, 0)
 		if release != nil {
 			release()
 		}
@@ -131,7 +131,7 @@ func TestSendPermissionCanceledHandoffReturnsPermit(t *testing.T) {
 		}
 	}
 	for range sendPermissionMaxExecuting {
-		release, err := s.acquireSendPermissionEnvelope(context.Background())
+		release, err := s.acquireSendPermissionEnvelope(context.Background(), 0)
 		if err != nil {
 			t.Fatalf("permit leaked after canceled handoff: %v", err)
 		}

@@ -19,11 +19,13 @@ type Store struct {
 	permissionGateMu    sync.Mutex
 	permissionExecuting int
 	permissionWaiters   []*sendPermissionWaiter
-	permissionWaiting   atomic.Int64
-	permissionInflight  atomic.Int64
-	permissionObserver  SendPermissionObserver
-	cluster             Cluster
-	db                  *metadb.DB
+	// permissionWaitingBytes sums queued remote envelope sizes; guarded by permissionGateMu.
+	permissionWaitingBytes int
+	permissionWaiting      atomic.Int64
+	permissionInflight     atomic.Int64
+	permissionObserver     SendPermissionObserver
+	cluster                Cluster
+	db                     *metadb.DB
 	// messageUpdateObserver observes serving edit reads; nil disables timing.
 	messageUpdateObserver MessageUpdateReadObserver
 }

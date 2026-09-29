@@ -303,9 +303,12 @@ specification, runbook, report, or module documentation; link to them when neede
   alone cannot prove admission success. Pressure evidence must separately retain
   the permission admission/busy histogram count delta. The 5,000-channel
   diagnostic has reproduced these rejections; sustained qualification is pending.
-  Admission now permits at most 16 executing and 16 waiting envelopes. Waiting
-  precedes decoding, lasts at most 100 ms or caller cancellation, and never reuses
-  a pre-wait policy result or adds RPC retries. Full saturation still returns busy.
+  Admission now permits at most 16 executing and 1024 waiting envelopes, with
+  queued undecoded bytes capped at 16 MiB. Every concurrent send issues its own
+  envelope, so the waiting count must cover a full worker burst (256 unpaced
+  senders overflowed a 16-slot queue at 500 SEND/s in CI). Waiting precedes
+  decoding, lasts at most 2 s or caller cancellation, and never reuses a pre-wait
+  policy result or adds RPC retries. Full saturation still returns busy.
 
 - Backup Controller CAS reads must observe this adapter's completed mutations
   before lease cleanup: a follower's older local snapshot can hide a committed
@@ -760,8 +763,8 @@ specification, runbook, report, or module documentation; link to them when neede
 - Send-permission admission assigns execution capacity and removes the waiting
   position under one mutex before waking the caller. A runnable assigned caller
   already owns an execution position; cancellation/timeout must return it even
-  when the caller never enters decoding. Keep sixteen executing and sixteen
-  waiting envelopes, the 100 ms wait budget, and fresh barriers unchanged.
+  when the caller never enters decoding. Keep sixteen executing envelopes, the
+  waiting count/byte/time bounds, and fresh barriers unchanged together.
 
 - Optional message `SubmitBatchEach` joins permission/directory/hook preparation
   before returning and transfers only append completion. Its injected admission

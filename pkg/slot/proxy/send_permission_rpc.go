@@ -19,11 +19,15 @@ import (
 const sendPermissionRPCServiceID = clusternet.RPCNodeSendPermissions
 const sendPermissionMaxBytes = 1 << 20
 
-// Waiting absorbs short bursts without increasing decoding/barrier concurrency.
-// Every waiter has the same wire-size bound and a finite local wait budget.
+// Waiting absorbs send bursts without increasing decoding/barrier concurrency.
+// Each sender issues its own envelope, so a burst of N concurrent sends queues
+// up to N envelopes; the count bound covers that burst, the byte bound caps the
+// undecoded wire bytes queued remote envelopes retain (the former worst case of
+// 16 max-size envelopes), and every waiter has a finite local wait budget.
 const sendPermissionMaxExecuting = 16
-const sendPermissionMaxWaiting = 16
-const sendPermissionMaxWait = 100 * time.Millisecond
+const sendPermissionMaxWaiting = 1024
+const sendPermissionMaxWaitingBytes = 16 * sendPermissionMaxBytes
+const sendPermissionMaxWait = 2 * time.Second
 
 var ErrPermissionBusy = errors.New("permission read admission busy")
 
@@ -350,7 +354,7 @@ func (s *Store) handleSendPermissionRPC(ctx context.Context, raw []byte) ([]byte
 	if len(raw) > sendPermissionMaxBytes {
 		return nil, metadb.ErrInvalidArgument
 	}
-	release, err := s.acquireSendPermissionEnvelope(ctx)
+	release, err := s.acquireSendPermissionEnvelope(ctx, len(raw))
 	if errors.Is(err, ErrPermissionBusy) {
 		return []byte(`{"format":1,"error":"busy","groups":[]}`), nil
 	}
@@ -377,9 +381,11 @@ func (s *Store) handleSendPermissionRPC(ctx context.Context, raw []byte) ([]byte
 }
 
 // acquireSendPermissionEnvelope bounds decoding and execution for remote and
-// local envelopes together. Waiting is separately bounded by count and time;
-// queued work cannot decode or establish a read barrier until it owns a permit.
-func (s *Store) acquireSendPermissionEnvelope(ctx context.Context) (func(), error) {
+// local envelopes together. Waiting is separately bounded by count, retained
+// bytes and time; queued work cannot decode or establish a read barrier until
+// it owns a permit. waitBytes is the undecoded size a remote envelope keeps
+// while queued; local callers pass zero because their request is already owned.
+func (s *Store) acquireSendPermissionEnvelope(ctx context.Context, waitBytes int) (func(), error) {
 	started := s.permissionStart()
 	fail := func(err error) (func(), error) {
 		s.permissionStage("admission", sendPermissionErrorClass(err), started)
@@ -393,12 +399,14 @@ func (s *Store) acquireSendPermissionEnvelope(ctx context.Context) (func(), erro
 		s.permissionExecuting++
 		s.permissionGateMu.Unlock()
 	} else {
-		if len(s.permissionWaiters) == sendPermissionMaxWaiting {
+		if len(s.permissionWaiters) == sendPermissionMaxWaiting ||
+			s.permissionWaitingBytes+waitBytes > sendPermissionMaxWaitingBytes {
 			s.permissionGateMu.Unlock()
 			return fail(ErrPermissionBusy)
 		}
-		waiter := &sendPermissionWaiter{ready: make(chan struct{})}
+		waiter := &sendPermissionWaiter{ready: make(chan struct{}), bytes: waitBytes}
 		s.permissionWaiters = append(s.permissionWaiters, waiter)
+		s.permissionWaitingBytes += waitBytes
 		s.permissionWaiting.Add(1)
 		timer := time.NewTimer(sendPermissionMaxWait)
 		s.permissionGateMu.Unlock()
@@ -454,11 +462,15 @@ func (s *Store) acquireSendPermissionEnvelope(ctx context.Context) (func(), erro
 type sendPermissionWaiter struct {
 	ready   chan struct{}
 	granted bool
+	// bytes is the queued wire size charged to permissionWaitingBytes.
+	bytes int
 }
 
-// removeSendPermissionWaiterLocked releases a queue position before waking its
-// owner. The queue has at most sixteen entries and retains no removed pointers.
+// removeSendPermissionWaiterLocked releases a queue position and its bytes
+// before waking its owner. The queue is bounded by sendPermissionMaxWaiting and
+// retains no removed pointers.
 func (s *Store) removeSendPermissionWaiterLocked(index int) {
+	s.permissionWaitingBytes -= s.permissionWaiters[index].bytes
 	copy(s.permissionWaiters[index:], s.permissionWaiters[index+1:])
 	last := len(s.permissionWaiters) - 1
 	s.permissionWaiters[last] = nil
@@ -487,7 +499,7 @@ func (s *Store) releaseSendPermissionPermitLocked() {
 }
 
 func (s *Store) serveSendPermissions(ctx context.Context, q sendPermissionRequest) (sendPermissionReply, error) {
-	release, err := s.acquireSendPermissionEnvelope(ctx)
+	release, err := s.acquireSendPermissionEnvelope(ctx, 0)
 	if err != nil {
 		return sendPermissionReply{}, err
 	}

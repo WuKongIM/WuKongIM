@@ -19,8 +19,8 @@ func TestSendPermissionBoundedWait(t *testing.T) {
 	hold := func(t *testing.T, s *Store) []func() {
 		t.Helper()
 		var releases []func()
-		for range 16 {
-			release, err := s.acquireSendPermissionEnvelope(context.Background())
+		for range sendPermissionMaxExecuting {
+			release, err := s.acquireSendPermissionEnvelope(context.Background(), 0)
 			require.NoError(t, err)
 			var once sync.Once
 			owned := func() { once.Do(release) }
@@ -78,7 +78,7 @@ func TestSendPermissionBoundedWait(t *testing.T) {
 		require.NoError(t, validateSendPermissionReply(q, reply))
 		require.EqualValues(t, 1, reply.Groups[0].Results[0].Fact.UserPolicy.SendBan)
 		require.Zero(t, s.permissionWaiting.Load())
-		require.EqualValues(t, 15, s.permissionInflight.Load())
+		require.EqualValues(t, sendPermissionMaxExecuting-1, s.permissionInflight.Load())
 	})
 	t.Run("queue-cap-cancellation-and-permit-reuse", func(t *testing.T) {
 		s := New(newBoundaryCluster(2), boundaryDB(t))
@@ -94,7 +94,7 @@ func TestSendPermissionBoundedWait(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				release, err := s.acquireSendPermissionEnvelope(ctx)
+				release, err := s.acquireSendPermissionEnvelope(ctx, 0)
 				if err == nil {
 					release()
 				}
@@ -103,45 +103,45 @@ func TestSendPermissionBoundedWait(t *testing.T) {
 			return done
 		}
 		pending := []<-chan error{launch(first)}
-		for range 15 {
+		for range sendPermissionMaxWaiting - 1 {
 			pending = append(pending, launch(ctx))
 		}
-		require.Eventually(t, func() bool { return s.permissionWaiting.Load() == 16 }, 50*time.Millisecond, time.Millisecond)
+		require.Eventually(t, func() bool { return s.permissionWaiting.Load() == sendPermissionMaxWaiting }, 5*time.Second, time.Millisecond)
 		body, err := s.handleSendPermissionRPC(ctx, []byte("invalid JSON"))
 		require.NoError(t, err, "full queue rejects before decoding")
 		var busy sendPermissionReply
 		require.NoError(t, decodeSendPermissionJSON(body, &busy))
 		require.ErrorIs(t, validateSendPermissionReply(sendPermissionRequest{}, busy), ErrPermissionBusy)
-		require.EqualValues(t, 16, s.permissionInflight.Load())
+		require.EqualValues(t, sendPermissionMaxExecuting, s.permissionInflight.Load())
 		cancelFirst()
 		require.ErrorIs(t, <-pending[0], context.Canceled)
-		require.EqualValues(t, 15, s.permissionWaiting.Load())
+		require.EqualValues(t, sendPermissionMaxWaiting-1, s.permissionWaiting.Load())
 		replacement := launch(ctx)
-		require.Eventually(t, func() bool { return s.permissionWaiting.Load() == 16 }, 50*time.Millisecond, time.Millisecond)
+		require.Eventually(t, func() bool { return s.permissionWaiting.Load() == sendPermissionMaxWaiting }, 5*time.Second, time.Millisecond)
 		releases[0]()
 		for _, done := range pending[1:] {
 			require.NoError(t, <-done)
 		}
 		require.NoError(t, <-replacement)
 		require.Zero(t, s.permissionWaiting.Load())
-		require.EqualValues(t, 15, s.permissionInflight.Load())
+		require.EqualValues(t, sendPermissionMaxExecuting-1, s.permissionInflight.Load())
 	})
 	t.Run("wait-deadline-and-caller-deadline", func(t *testing.T) {
 		s := New(newBoundaryCluster(2), boundaryDB(t))
 		hold(t, s)
 		started := time.Now()
-		release, err := s.acquireSendPermissionEnvelope(context.Background())
+		release, err := s.acquireSendPermissionEnvelope(context.Background(), 0)
 		require.Nil(t, release)
 		require.ErrorIs(t, err, ErrPermissionBusy)
-		require.GreaterOrEqual(t, time.Since(started), 90*time.Millisecond)
-		require.Less(t, time.Since(started), time.Second)
+		require.GreaterOrEqual(t, time.Since(started), sendPermissionMaxWait-10*time.Millisecond)
+		require.Less(t, time.Since(started), sendPermissionMaxWait+time.Second)
 		require.Zero(t, s.permissionWaiting.Load())
 		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 		defer cancel()
-		release, err = s.acquireSendPermissionEnvelope(ctx)
+		release, err = s.acquireSendPermissionEnvelope(ctx, 0)
 		require.Nil(t, release)
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 		require.Zero(t, s.permissionWaiting.Load())
-		require.EqualValues(t, 16, s.permissionInflight.Load())
+		require.EqualValues(t, sendPermissionMaxExecuting, s.permissionInflight.Load())
 	})
 }
