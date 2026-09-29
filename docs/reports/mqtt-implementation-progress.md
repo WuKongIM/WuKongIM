@@ -4871,3 +4871,27 @@ Open:
   reproduced in 4 later 500-connection runs.
 - `unsubscribe_recovery` cold-subscribe tests fail intermittently on the
   pre-change baseline too (known, unresolved).
+
+## Group delivery latency diagnosis (in progress)
+
+`152b6dcbe`: a fresh delivery cursor whose start is newer than the latest
+replay anchor now yields `ErrNotReady` from accounting (a regressed anchor after
+accounting still returns `ErrEvidence`), and window admission before the first
+accounting receipt is idle instead of `ErrConflict`. These removed most failed
+turns on the traced clients but did not change delivery latency.
+
+500 subscribers / 2,000 members (single-node cluster, 256 hash Slots), SEND ack
+to last receipt:
+
+- 16 delivery workers (default): p50 49–82 s across three runs.
+- 64 workers (`WK_MQTT_WORKERS=64`, experiment only): p50 30.3 s, max 37.6 s;
+  exactly-once/order/identity and 10/10 retirements still held.
+
+Breakdown (traced clients, debug build): the replay worker revisits the group
+source about every 6.4 s, so a new message waits roughly 3–13 s for an anchor.
+Delivery then continues for ~40 s: the gap between one client's turns is p50
+1.0 s but p90 15.2 s, and turn stages have near-zero p50 with p90 tails of
+36–76 ms (Session/recovery/select reads), 258 ms (accounting) and 208 ms
+(enqueue). Quadrupling workers roughly halved latency, so both scheduling
+throughput and contended per-turn reads contribute. Delivery is never woken by
+Channel commits; turns rely on the 1 s idle poll.
