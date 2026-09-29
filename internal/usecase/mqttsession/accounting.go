@@ -174,6 +174,11 @@ func (a *Accounting) Account(parent context.Context, key meta.MQTTDeliveryCursor
 		return out, ch.ErrNotReady
 	}
 	if plan.Anchor.Anchor.Through < cursor.AccountedThrough {
+		// A fresh cursor starts at its protected boundary, which may precede the
+		// next anchor. Once accounting advanced, a lower anchor is a regression.
+		if cursor.AccountedThrough == cursor.StartAfter {
+			return out, ch.ErrNotReady
+		}
 		return out, ErrEvidence
 	}
 	if plan.Anchor.Anchor.Through == cursor.AccountedThrough {

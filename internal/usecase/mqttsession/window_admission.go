@@ -117,7 +117,9 @@ func (w *WindowAdmission) Prepare(parent context.Context, o contract.Owner, key 
 	if meta.ValidateMQTTDeliveryCursor(cursor) != nil || cursor.Key != key || cursor.Revision > session.Revision || cursor.PendingMessages > session.PendingMessages || cursor.PendingBytes > session.PendingBytes || cursor.InflightCount > session.OutboundInflight || meta.ValidateMQTTAccountingHead(cursor, head) != nil {
 		return out, ErrEvidence
 	}
-	if cursor.AccountingVersion != 1 {
+	// Before the first accounting receipt (version 0) there is nothing to
+	// admit; all evidence checks below still run before the idle result.
+	if cursor.AccountingVersion != 1 && !(cursor.AccountingVersion == 0 && cursor.WindowThrough == cursor.AccountedThrough) {
 		return out, ErrConflict
 	}
 	r, err = w.read(ctx, op, meta.MQTTRead{Kind: meta.MQTTReadSubscription, Namespace: key.Namespace, ClientID: key.ClientID, SessionGeneration: key.SessionGeneration, Topic: cursor.Topic})
