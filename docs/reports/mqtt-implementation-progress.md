@@ -4895,3 +4895,13 @@ Delivery then continues for ~40 s: the gap between one client's turns is p50
 (enqueue). Quadrupling workers roughly halved latency, so both scheduling
 throughput and contended per-turn reads contribute. Delivery is never woken by
 Channel commits; turns rely on the 1 s idle poll.
+
+### Slot read barrier measurement
+
+`e912935e7` adds `wukongim_slot_read_barrier_duration_seconds{result}`. One
+500-subscriber run (2000 members) recorded 398,746 `ok` barriers, mean 8.1 ms:
+58% within 0.5 ms, 33% in 10-25 ms, 6% in 25-50 ms, none above 0.5 s, and 4
+`deadline`. A second run measured 14,893 barriers/s while 500 subscribers were
+idle but only 2,765/s during group fanout. Barrier volume is high, yet fanout
+throughput is not bounded by barrier issue rate; the fanout bottleneck is still
+unidentified. Barrier coalescing is not justified by this evidence yet.
