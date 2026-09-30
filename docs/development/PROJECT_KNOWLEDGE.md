@@ -261,12 +261,6 @@ specification, runbook, report, or module documentation; link to them when neede
   protocol reason codes, not successful zero-ID responses. Remaining fault-matrix
   and performance qualification remain pending. See the [implementation report](../reports/2026-09-24-send-ban-implementation.md).
 
-- Permission envelope counters describe caller-side local/RPC dispatch, while
-  Slot-group and barrier-stage histogram counts describe owner-side reads.
-  One envelope may contain several independently fenced Slots. Compare closed
-  per-node before/after cuts after joining all replies; barrier-stage counts are
-  barrier calls, not Raft wire-message counts or proof of a CPU bottleneck.
-
 - A full SEND shard can coexist with low aggregate gateway queue pressure.
   The natural failure's single-session shards retained32 active records for
   about1.25s; another225–228 admissions exactly filled the256-item queue.

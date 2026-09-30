@@ -47,6 +47,13 @@ black-box e2e coverage for `cmd/wukongim` and internal behavior only.
 
 ## Catalog
 
+The opt-in send-ban sequential diagnostics use a frozen binary and exactly one
+of `WK_E2E_PERMISSION_TIMELINE_SEQUENTIAL=1` or
+`WK_E2E_PERMISSION_SEQUENTIAL_PROFILES=1`. Run
+`TestPermissionSequentialDiagnostics/same-slot-remote`; consult the scenario
+instructions for fixed capture bounds, sampling limits and full-history checks.
+Diagnostic timing never replaces unprofiled performance qualification.
+
 | Domain | Scenario path | Purpose | Run |
 | --- | --- | --- | --- |
 | `message` | `test/e2e/message/message_updates` | Opt-in concurrent edits and reads with abrupt Channel/physical Slot leader termination, restart, strict public retry codes, CAS/idempotency and final incremental-cache convergence in a 256-Hash-Slot three-node cluster. | `WK_E2E_MESSAGE_UPDATE_STABILITY=1 WK_E2E_MESSAGE_UPDATE_STABILITY_REPORT=/tmp/message-update-stability.json GOWORK=off go test -tags=e2e ./test/e2e/message/message_updates -count=1 -timeout=8m -v` |
@@ -97,3 +104,17 @@ These characterization results do not replace the unchanged 500 SEND/s gates.
 `WK_E2E_SEND_BAN_100K=1` enables `TestHundredKGroupSendBan` (six-minute test bound)
 and the `.100k.json` companion report. Backup restore scenarios also checkpoint
 both policy scopes; `WK_E2E_SEND_BAN_RESTORE_REPORT` sets their artifact base.
+
+The same fixed experiment has an opt-in candidate mode:
+`WK_E2E_PERMISSION_COHORTS=1 WK_E2E_BINARY=/absolute/frozen/candidate WK_E2E_PERMISSION_COHORT_REPORT=/absolute/cohorts.json GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -run '^TestPermissionCallerCohorts$' -count=1 -timeout=4m -p=1 -v`.
+It requires lower burst RPC/local-envelope and fresh-barrier counts, unchanged
+sequential counts, independently drained public cohort ownership metrics,
+completed ban/unban controls and exact full history. Historical baseline mode
+remains executable with its frozen old binary. Source/build identity, whole-node
+resource cuts and diagnostic limits remain the same; capacity gates are unchanged.
+
+The quorum-loss admission companion keeps 192 failed-closed sends but separates
+arrivals by 5 ms so sealed cohorts actually accumulate. Require positive receiver
+or ingress-cohort busy, record both scopes separately, sample both hard ownership
+bounds and drain to zero, then verify exact complete recovery history. This fault
+fixture never changes the 500 SEND/s performance gates.

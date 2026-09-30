@@ -30,12 +30,16 @@ import (
 type permissionBaselineCut map[uint64]map[string]float64
 
 type permissionBaselineAck struct {
-	ID        string `json:"client_msg_no"`
-	Reason    uint8  `json:"reason"`
-	MessageID int64  `json:"message_id"`
-	Seq       uint64 `json:"message_seq"`
-	Micros    int64  `json:"elapsed_us"`
-	Error     string `json:"error,omitempty"`
+	ID               string    `json:"client_msg_no"`
+	Reason           uint8     `json:"reason"`
+	MessageID        int64     `json:"message_id"`
+	Seq              uint64    `json:"message_seq"`
+	Micros           int64     `json:"elapsed_us"`
+	Error            string    `json:"error,omitempty"`
+	PendingStartedAt time.Time `json:"pending_started_at,omitempty"`
+	WriteStartedAt   time.Time `json:"write_started_at,omitempty"`
+	DecodedAt        time.Time `json:"decoded_at,omitempty"`
+	BridgeAt         time.Time `json:"bridge_at,omitempty"`
 }
 
 // TestPermissionCallerBaseline characterizes today's independent callers. It
@@ -44,6 +48,19 @@ func TestPermissionCallerBaseline(t *testing.T) {
 	if os.Getenv("WK_E2E_PERMISSION_BASELINE") != "1" {
 		t.Skip("opt-in fixed permission baseline")
 	}
+	runPermissionCallerExperiment(t, false)
+}
+
+// TestPermissionCallerCohorts uses the identical fixed inputs but requires
+// actual cross-caller reduction, fresh policy controls and exact history.
+func TestPermissionCallerCohorts(t *testing.T) {
+	if os.Getenv("WK_E2E_PERMISSION_COHORTS") != "1" {
+		t.Skip("opt-in fixed permission cohort comparison")
+	}
+	runPermissionCallerExperiment(t, true)
+}
+
+func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 	started := time.Now().UTC()
 	report := map[string]any{
 		"started_at": started, "nodes": 3, "hash_slots": 256, "physical_slots": 12,
@@ -56,8 +73,23 @@ func TestPermissionCallerBaseline(t *testing.T) {
 		"resource_scope":           "whole node; scrape cuts include scrape overhead; CPU/RSS gauges are periodic; allocation counters may be scrape-cached; profiles use a separate window",
 		"fixture_scope":            "system UID; two mandatory facts; no auxiliary membership reads or recipient fanout; one-voter metadata routing proof, not HA",
 	}
+	report["cohort_candidate"] = cohorts
+	timeline := os.Getenv("WK_E2E_PERMISSION_TIMELINE") == "1"
+	report["request_timeline_enabled"] = timeline
+	sequentialTimeline := os.Getenv("WK_E2E_PERMISSION_TIMELINE_SEQUENTIAL") == "1"
+	sequentialProfiles := os.Getenv("WK_E2E_PERMISSION_SEQUENTIAL_PROFILES") == "1"
+	require.False(t, sequentialTimeline && !timeline, "sequential timeline requires timeline mode")
+	require.False(t, sequentialProfiles && timeline, "profiles and timelines require separate fixtures")
+	report["sequential_timeline_enabled"], report["sequential_profiles_enabled"] = sequentialTimeline, sequentialProfiles
+	if sequentialProfiles {
+		report["profile_scope"] = "three owned nodes; separate 256-SEND sequential phase; four-second CPU/allocation captures may cover only part of traffic; allocation sampling applies throughout this diagnostic fixture; no timing qualifies performance"
+		report["memory_profile_rate_bytes"] = 4096
+	}
 	var cases []map[string]any
 	path := os.Getenv("WK_E2E_PERMISSION_BASELINE_REPORT")
+	if cohorts {
+		path = os.Getenv("WK_E2E_PERMISSION_COHORT_REPORT")
+	}
 	if path == "" {
 		path = filepath.Join(os.TempDir(), "wukongim-permission-baseline.json")
 	}
@@ -90,9 +122,33 @@ func TestPermissionCallerBaseline(t *testing.T) {
 	_, harness, _, ok := runtime.Caller(0)
 	require.True(t, ok)
 	report["harness_sha256"] = permissionBaselineHash(t, harness)
+	report["harness_sources"] = map[string]string{
+		"permission_baseline_test.go":            permissionBaselineHash(t, harness),
+		"permission_timeline_test.go":            permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_timeline_test.go")),
+		"suite/wkproto_client.go":                permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "../../suite/wkproto_client.go")),
+		"permission_cpu_probe_test.go":           permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_cpu_probe_test.go")),
+		"fixtures/permission-cpu-darwin.c":       permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "fixtures/permission-cpu-darwin.c")),
+		"permission_sequential_test.go":          permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_sequential_test.go")),
+		"permission_sequential_profiles_test.go": permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_sequential_profiles_test.go")),
+	}
+	cpuProbe := os.Getenv("WK_E2E_PERMISSION_CPU_PROBE")
+	if cpuProbe != "" {
+		report["cpu_probe_sha256"] = permissionBaselineHash(t, cpuProbe)
+		report["cpu_scope"] = "three owned node processes; public cumulative user+system CPU converted from raw Mach ticks; cuts enclose SEND window plus bounded snapshot/scrape scheduling overhead; no CPU profile"
+	}
 
 	opts := []suite.Option{suite.WithManagerHTTP()}
 	for id := uint64(1); id <= 3; id++ {
+		if sequentialProfiles {
+			opts = append(opts, suite.WithNodeEnv(id, "GODEBUG=memprofilerate=4096"))
+		}
+		if timeline {
+			opts = append(opts, suite.WithNodeConfigOverrides(id, map[string]string{
+				"WK_DIAGNOSTICS_ENABLE": "true", "WK_DIAGNOSTICS_BUFFER_SIZE": "8192",
+				"WK_DIAGNOSTICS_SAMPLE_RATE": "1", "WK_DIAGNOSTICS_DEEP_SAMPLE_RATE": "1",
+				"WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH": "16",
+			}))
+		}
 		opts = append(opts, suite.WithNodeConfigOverrides(id, map[string]string{
 			"WK_CLUSTER_HASH_SLOT_COUNT": "256", "WK_CLUSTER_INITIAL_SLOT_COUNT": "12",
 			"WK_CLUSTER_SLOT_REPLICA_N": "1", "WK_CLUSTER_CHANNEL_REPLICA_N": "3", "WK_GATEWAY_TOKEN_AUTH_ON": "false",
@@ -100,6 +156,15 @@ func TestPermissionCallerBaseline(t *testing.T) {
 		}), suite.WithNodeEnv(id, "GOMAXPROCS=4"))
 	}
 	cluster := suite.New(t).StartThreeNodeCluster(opts...)
+	var cpuPIDs []int
+	if cpuProbe != "" {
+		for id := uint64(1); id <= 3; id++ {
+			node := cluster.MustNode(id)
+			require.NotNil(t, node.Process.Cmd.Process)
+			cpuPIDs = append(cpuPIDs, node.Process.Cmd.Process.Pid)
+		}
+		report["cpu_node_pids_in_id_order"] = cpuPIDs
+	}
 	configs := map[uint64]any{}
 	for _, node := range cluster.Nodes {
 		configs[node.Spec.ID] = map[string]any{"sha256": permissionBaselineHash(t, node.Spec.ConfigPath), "overrides": node.Spec.ConfigOverrides}
@@ -194,17 +259,41 @@ func TestPermissionCallerBaseline(t *testing.T) {
 				windows = append(windows, window)
 				before := permissionBaselineMetrics(t, ctx, cluster)
 				window["before"] = before
+				sampleCtx, stopSamples := context.WithCancel(ctx)
+				sampled := permissionCohortOwnershipSamples(sampleCtx, ingress.APIAddr())
+				joined := false
+				joinSamples := func() {
+					if !joined {
+						stopSamples()
+						window["cohort_ownership_samples"] = <-sampled
+						joined = true
+					}
+				}
+				// Fatal CPU/query evidence failures must still join this sampler
+				// before the parent writes its partial receipt.
+				defer joinSamples()
+				var cpuBefore permissionCPUCut
+				if cpuProbe != "" {
+					cpuBefore = permissionCPUQuery(t, ctx, cpuPIDs)
+					window["cpu_before"] = cpuBefore
+				}
 				begin := time.Now()
 				acks := permissionBaselineWave(ctx, clients[:concurrency], channel, fmt.Sprintf("%s-c%d", name, concurrency), 64)
 				end := time.Now()
 				window["acks"], window["started_at"], window["finished_at"] = acks, begin.UTC(), end.UTC()
 				window["elapsed_ms"] = end.Sub(begin).Milliseconds()
+				if cpuProbe != "" {
+					cpuAfter := permissionCPUQuery(t, ctx, cpuPIDs)
+					window["cpu_after"] = cpuAfter
+					window["cluster_cpu_ns"] = permissionCPUInterval(t, cpuBefore, cpuAfter)
+				}
+				joinSamples()
 				require.NoError(t, ctx.Err())
 				require.Len(t, acks, 64, "stopped baseline retains partial responses")
 				after := permissionBaselineMetrics(t, ctx, cluster)
 				window["after"] = after
 				counts := map[string]float64{}
-				for _, key := range []string{"plans", "messages", "users", "channels", "facts", "facts_before", "node_envelopes", "local_envelopes", "slot_groups", "request_bytes", "response_bytes", "barrier_ok", "barrier_failed", "admission_busy"} {
+				for _, key := range []string{"plans", "messages", "users", "channels", "facts", "facts_before", "node_envelopes", "local_envelopes", "slot_groups", "request_bytes", "response_bytes", "barrier_ok", "barrier_failed", "admission_busy", "cohorts", "cohort_requests", "cohort_facts", "cohort_busy"} {
 					counts[key] = permissionBaselineDelta(before, after, key)
 				}
 				latencies := make([]int64, len(acks))
@@ -213,6 +302,15 @@ func TestPermissionCallerBaseline(t *testing.T) {
 				}
 				sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
 				window["counts"], window["sendack_p99_us"], window["sendack_max_us"] = counts, latencies[int(math.Ceil(float64(len(latencies))*.99))-1], latencies[len(latencies)-1]
+				timelineConcurrency := 32
+				if sequentialTimeline {
+					timelineConcurrency = 1
+				}
+				if timeline && name == "same-slot-remote" && concurrency == timelineConcurrency {
+					var timelines []map[string]any
+					window["request_timelines"] = &timelines
+					permissionRequestTimeline(t, ctx, cluster, ingressID, acks, &timelines)
+				}
 				for _, ack := range acks {
 					require.Empty(t, ack.Error)
 					require.Equal(t, uint8(frame.ReasonSuccess), ack.Reason)
@@ -232,13 +330,32 @@ func TestPermissionCallerBaseline(t *testing.T) {
 				require.EqualValues(t, 64, counts["messages"])
 				require.EqualValues(t, 64, counts["plans"])
 				require.EqualValues(t, 128, counts["facts"])
-				require.Equal(t, envelopes, counts["node_envelopes"])
-				require.Equal(t, groups, counts["slot_groups"])
-				require.Equal(t, groups, counts["barrier_ok"])
+				if cohorts && concurrency == 32 {
+					if envelopes > 0 {
+						require.Less(t, counts["node_envelopes"], envelopes, "independent callers must reduce actual RPC envelopes")
+					} else {
+						require.Zero(t, counts["node_envelopes"])
+						require.Less(t, permissionBaselineDelta(before, after, "local_envelopes"), float64(64))
+					}
+					require.Positive(t, counts["barrier_ok"])
+					require.Less(t, counts["barrier_ok"], groups, "independent callers must share sealed fresh reads")
+					require.Equal(t, counts["slot_groups"], counts["barrier_ok"])
+				} else {
+					require.Equal(t, envelopes, counts["node_envelopes"])
+					require.Equal(t, groups, counts["slot_groups"])
+					require.Equal(t, groups, counts["barrier_ok"])
+				}
 				require.Zero(t, counts["barrier_failed"])
 				require.Zero(t, counts["admission_busy"])
 				for _, node := range after {
 					require.Zero(t, node["inflight"])
+					if cohorts {
+						for _, kind := range []string{"calls", "cohorts", "budget_bytes"} {
+							value, ok := node["cohort_owned_"+kind]
+							require.True(t, ok, "candidate ownership metric missing")
+							require.Zero(t, value, "cohort ownership must drain after joined ACKs")
+						}
+					}
 				}
 				window["completed"] = true
 			}
@@ -266,6 +383,23 @@ func TestPermissionCallerBaseline(t *testing.T) {
 				require.Positive(t, ack.MessageID)
 				require.Positive(t, ack.Seq)
 				expected = append(expected, ack.ID)
+			}
+			if sequentialProfiles && name == "same-slot-remote" {
+				profileAcks, profiles := permissionSequentialProfiles(ctx, cluster, path, func() []permissionBaselineAck {
+					return permissionBaselineWave(ctx, clients[:1], channel, name+"-sequential-profile", 256)
+				})
+				caseEvidence["sequential_profile_acks"], caseEvidence["sequential_profiles"] = profileAcks, profiles
+				for _, profile := range profiles {
+					if profile.ErrorCode != "" {
+						t.Errorf("sequential profile node %d kind %s: %s", profile.NodeID, profile.Kind, profile.ErrorCode)
+					}
+				}
+				require.Len(t, profileAcks, 256)
+				for _, ack := range profileAcks {
+					require.Empty(t, ack.Error)
+					require.Equal(t, uint8(frame.ReasonSuccess), ack.Reason)
+					expected = append(expected, ack.ID)
+				}
 			}
 			if os.Getenv("WK_E2E_PERMISSION_BASELINE_PROFILES") == "1" && name == "two-slots-one-remote-leader" {
 				owner := cluster.MustNode(userSlot.Runtime.LeaderID)
@@ -350,7 +484,10 @@ func permissionBaselineSend(ctx context.Context, client *suite.WKProtoClient, ch
 	}
 	err := client.SendFrame(&frame.SendPacket{ChannelID: channel, ChannelType: 2, ClientMsgNo: id, ClientSeq: seq, Payload: []byte("permission-baseline-fixed-payload")})
 	if err == nil {
-		ack, readErr := client.ReadSendAck()
+		ack, observation, readErr := client.ReadSendAckWithTiming()
+		if os.Getenv("WK_E2E_PERMISSION_TIMELINE") == "1" {
+			out.PendingStartedAt, out.WriteStartedAt, out.DecodedAt, out.BridgeAt = observation.PendingStartedAt.UTC(), observation.WriteStartedAt.UTC(), observation.ObservedAt.UTC(), time.Now().UTC()
+		}
 		err = readErr
 		if ack != nil {
 			out.Reason, out.MessageID, out.Seq = uint8(ack.ReasonCode), ack.MessageID, ack.MessageSeq
@@ -403,7 +540,7 @@ func permissionBaselineMetrics(t *testing.T, ctx context.Context, cluster *suite
 		samples, err := suite.FetchMetricSamples(ctx, cluster.MustNode(id).APIAddr())
 		require.NoError(t, err)
 		values := map[string]float64{}
-		for _, kind := range []string{"messages", "users", "channels", "facts", "facts_before", "slot_groups", "node_envelopes", "local_envelopes", "request_bytes", "response_bytes"} {
+		for _, kind := range []string{"messages", "users", "channels", "facts", "facts_before", "slot_groups", "node_envelopes", "local_envelopes", "request_bytes", "response_bytes", "cohorts", "cohort_requests", "cohort_facts", "cohort_busy"} {
 			values[kind] = suite.SumMetricSamples(samples, "wukongim_message_permission_counts_total", map[string]string{"kind": kind})
 		}
 		values["barrier_ok"] = suite.SumMetricSamples(samples, "wukongim_message_permission_duration_seconds_count", map[string]string{"stage": "barrier", "result": "ok"})
@@ -412,14 +549,53 @@ func permissionBaselineMetrics(t *testing.T, ctx context.Context, cluster *suite
 		values["admission_busy"] = suite.SumMetricSamples(samples, "wukongim_message_permission_duration_seconds_count", map[string]string{"stage": "admission", "result": "busy"})
 		values["inflight"] = suite.SumMetricSamples(samples, "wukongim_message_permission_inflight", nil)
 		for _, sample := range samples {
+			if sample.Name == "wukongim_message_permission_cohort_owned" {
+				values["cohort_owned_"+sample.Labels["kind"]] = sample.Value
+			}
+		}
+		for _, sample := range samples {
 			switch sample.Name {
 			case "process_cpu_seconds_total", "process_resident_memory_bytes", "wukongim_node_cpu_percent", "wukongim_node_memory_rss_bytes", "go_memstats_alloc_bytes_total", "go_memstats_alloc_bytes", "go_memstats_heap_inuse_bytes", "go_goroutines":
 				values[sample.Name] = sample.Value
+			}
+			// Optional diagnosis preserves fixed public histogram families in the
+			// same boundary scrape. It adds no in-window sampling or product hooks.
+			if os.Getenv("WK_E2E_PERMISSION_STAGES") == "1" && permissionDiagnosticStageSample(sample.Name) {
+				keys := make([]string, 0, len(sample.Labels))
+				for key := range sample.Labels {
+					if key != "node_id" && key != "node_name" {
+						keys = append(keys, key)
+					}
+				}
+				sort.Strings(keys)
+				key := "stage_cut|" + sample.Name
+				for _, label := range keys {
+					key += "|" + label + "=" + sample.Labels[label]
+				}
+				values[key] = sample.Value
 			}
 		}
 		out[id] = values
 	}
 	return out
+}
+
+// These existing bounded-label stages distinguish fact reads from subsequent
+// append/replication/storage waits. Missing series stay absent in each node cut.
+func permissionDiagnosticStageSample(name string) bool {
+	for _, family := range []string{
+		"wukongim_message_permission_duration_seconds",
+		"wukongim_channelv2_append_stage_duration_seconds",
+		"wukongim_channelv2_append_wait_stage_duration_seconds",
+		"wukongim_channelv2_replication_stage_duration_seconds",
+		"wukongim_storage_commit_batch_duration_seconds",
+		"wukongim_storage_commit_request_duration_seconds",
+	} {
+		if name == family+"_count" || name == family+"_sum" || name == family+"_bucket" {
+			return true
+		}
+	}
+	return false
 }
 
 func permissionBaselineDelta(before, after permissionBaselineCut, key string) float64 {
@@ -457,4 +633,40 @@ func permissionBaselineProfile(ctx context.Context, addr, endpoint, path string)
 		return fmt.Errorf("profile exceeds 8 MiB")
 	}
 	return os.WriteFile(path, body, 0644)
+}
+
+// Sample one ingress at a fixed 20 ms cadence during both old/new experiments.
+// The bounded public scrape measures conservative proxy credits, not allocator
+// memory. Missing old-binary gauges stay absent. Every sampler is canceled/joined.
+func permissionCohortOwnershipSamples(ctx context.Context, addr string) <-chan []map[string]any {
+	done := make(chan []map[string]any, 1)
+	go func() {
+		ticker := time.NewTicker(20 * time.Millisecond)
+		defer ticker.Stop()
+		observations := make([]map[string]any, 0, 200)
+		for len(observations) < 200 {
+			select {
+			case <-ctx.Done():
+				done <- observations
+				return
+			case <-ticker.C:
+			}
+			samples, err := suite.FetchMetricSamples(ctx, addr)
+			if err != nil {
+				if ctx.Err() == nil {
+					observations = append(observations, map[string]any{"at": time.Now().UTC(), "error": err.Error()})
+				}
+				continue
+			}
+			owned := map[string]float64{}
+			for _, sample := range samples {
+				if sample.Name == "wukongim_message_permission_cohort_owned" {
+					owned[sample.Labels["kind"]] = sample.Value
+				}
+			}
+			observations = append(observations, map[string]any{"at": time.Now().UTC(), "owned": owned})
+		}
+		done <- observations
+	}()
+	return done
 }

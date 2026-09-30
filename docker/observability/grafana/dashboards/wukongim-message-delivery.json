@@ -1755,7 +1755,7 @@
       ],
       "title": "Send permission envelopes in flight",
       "type": "timeseries",
-      "description": "Active local and remote permission envelopes share the limit of 16, including decoding."
+      "description": "Active local and remote permission envelopes share the limit of 64, including decoding. Receiver waiting and ingress cohort ownership have separate bounds."
     },
     {
       "datasource": "Prometheus",
@@ -1882,6 +1882,90 @@
       "title": "Send permission wire bytes",
       "type": "timeseries",
       "description": "Outbound permission request and response payloads, separate from Raft and protocol framing."
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "min": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 106
+      },
+      "id": 43,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (node_name, kind) (wukongim_message_permission_cohort_owned{node_name=~\"$node_name\",kind=~\"calls|cohorts\"})",
+          "legendFormat": "{{node_name}} {{kind}}"
+        }
+      ],
+      "title": "Send permission cohort calls and batches",
+      "type": "timeseries",
+      "description": "Retained ingress calls (limit 1024) and collecting/executing cohorts (limit 64), held until joined work and result transfer. Separate from receiver envelopes."
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "min": 0,
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 106
+      },
+      "id": 44,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (node_name, kind) (wukongim_message_permission_cohort_owned{node_name=~\"$node_name\",kind=\"budget_bytes\"})",
+          "legendFormat": "{{node_name}} {{kind}}"
+        }
+      ],
+      "title": "Send permission cohort memory credits",
+      "type": "timeseries",
+      "description": "Conservative retained-input/result/index memory credits, limited to 16 MiB per ingress Store. These are neither allocator bytes nor receiver undecoded queue bytes."
     }
   ],
   "refresh": "10s",
