@@ -149,3 +149,18 @@ families in the existing before/after node scrapes. It adds no scrape or product
 hook. Keep full label identities and absent series; histogram bucket bounds
 describe scoped completed populations, not per-SEND spans or time spent waiting
 before stage entry. Use the flag identically for old/new comparisons.
+
+`WK_E2E_PERMISSION_TIMELINE=1` is a separate diagnostic mode. Select only the
+`same-slot-remote` subtest with the baseline or cohort command above. It enables
+the existing 8192-event diagnostics ring and fixed 100% ordinary/deep sampling
+(16 detail items per batch), preserving pkg/client pending/write-start/decode
+and harness bridge-return times. Write-start is not socket completion or server
+receipt. After the window, query exactly 64 requests at each of three nodes,
+with a two-second/64-KiB/32-event bound per query. Reject truncation, foreign
+request identities, exposed sender/payload fields and missing ingress queue,
+permission, admitted-append wait, message or ACK stages. Node-local absent events stay explicit;
+nested/shared spans are not added, and process wall-clock gaps are diagnostic.
+Original products without `message.permission` intentionally fail stage coverage
+while retaining functional ACK/policy/full-history results. An identically
+instrumented clean old/new pair may diagnose that gap; traced latency does not
+qualify p99/CPU or change the unprofiled gates.

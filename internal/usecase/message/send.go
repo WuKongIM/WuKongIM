@@ -107,7 +107,14 @@ func (a *App) Send(ctx context.Context, cmd SendCommand) (SendResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	var permissionStartedAt time.Time
+	if cmd.TraceID != "" {
+		permissionStartedAt = time.Now()
+	}
 	cmd, reason, err := a.checkSendPermission(ctx, cmd)
+	if !permissionStartedAt.IsZero() {
+		recordSendPermissionTrace(cmd, permissionStartedAt, time.Now(), reason, err)
+	}
 	if err != nil {
 		return SendResult{Reason: reason}, err
 	}
@@ -237,7 +244,14 @@ func (a *App) sendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 			break
 		}
 	}
-	permissionDuration := time.Since(permissionStartedAt)
+	permissionEndedAt := time.Now()
+	permissionDuration := permissionEndedAt.Sub(permissionStartedAt)
+	for groupIndex, group := range permissionGroups {
+		outcome := permissionOutcomes[groupIndex]
+		for _, index := range group.indexes {
+			recordSendPermissionTrace(items[index].Command, permissionStartedAt, permissionEndedAt, outcome.reason, outcome.err)
+		}
+	}
 	a.observeSendBatchStage(sendBatchStagePermission, permissionResult, len(items), permissionDuration)
 	for i := range items {
 		if !allowedItems[i] {
@@ -388,7 +402,9 @@ func (a *App) sendBatchEachOne(item SendBatchItem, emit func(int, SendBatchItemR
 	if outcome.err != nil {
 		permissionResult = sendBatchStageResultErr
 	}
-	permissionDuration := time.Since(permissionStartedAt)
+	permissionEndedAt := time.Now()
+	permissionDuration := permissionEndedAt.Sub(permissionStartedAt)
+	recordSendPermissionTrace(item.Command, permissionStartedAt, permissionEndedAt, outcome.reason, outcome.err)
 	a.observeSendBatchStage(sendBatchStagePermission, permissionResult, 1, permissionDuration)
 	if outcome.err != nil || outcome.reason != ReasonSuccess {
 		return emit(0, SendBatchItemResult{

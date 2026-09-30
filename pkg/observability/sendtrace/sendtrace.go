@@ -14,6 +14,8 @@ const (
 	StageGatewayAsyncDispatchWait      Stage = "gateway.async_dispatch_wait"
 	StageGatewayMessagesSend           Stage = "gateway.messages_send"
 	StageGatewayWriteSendack           Stage = "gateway.write_sendack"
+	StageMessagePermission             Stage = "message.permission"
+	StageMessageAppendAdmissionWait    Stage = "message.append_admission_wait"
 	StageMessageSendDurable            Stage = "message.send_durable"
 	StageChannelAppendLocal            Stage = "channel.append.local"
 	StageChannelAppendForward          Stage = "channel.append.forward"

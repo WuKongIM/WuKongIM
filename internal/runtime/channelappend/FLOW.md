@@ -96,6 +96,9 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
   write neither Channel logs nor directory membership.
 - Observability is aggregate and low-cardinality: never label Channel, UID,
   Slot, route, or authority identities.
+  The existing bounded SEND diagnostics sink can retain admitted-to-dispatch
+  wait spans, including Channel dependencies and worker scheduling, separately
+  from durable append. These spans do not change deadlines or ownership.
   Pool pressure republishes after the final running count decrement so a
   terminal zero is observable without later traffic.
 

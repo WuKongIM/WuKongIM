@@ -175,3 +175,9 @@ families in the existing before/after node scrapes. It adds no scrape or product
 hook. Keep full label identities and absent series; histogram bucket bounds
 describe scoped completed populations, not per-SEND spans or time spent waiting
 before stage entry. Use the flag identically for old/new comparisons.
+
+`WK_E2E_PERMISSION_TIMELINE=1` enables the bounded same-remote-Slot diagnostic
+in the fixed baseline/cohort experiment. It preserves matched client timing and
+queries all three public diagnostics endpoints after the 64-SEND burst. See the
+scenario bounds and required stage-coverage failures; timings with tracing are
+diagnostic and never replace the unchanged unprofiled qualification.

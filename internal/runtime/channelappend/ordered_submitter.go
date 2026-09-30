@@ -5,8 +5,10 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
@@ -77,6 +79,9 @@ type orderedSubmitJob struct {
 	items        []SendBatchItem
 	complete     func([]SendBatchItemResult)
 	payloadBytes int
+	// admittedAt measures retained dependency/ready wait only when SEND diagnostics
+	// are active. It never changes admission, Channel ordering or caller deadlines.
+	admittedAt time.Time
 	// links contain one FIFO dependency per distinct canonical Channel in this batch.
 	links   []orderedSubmitLink
 	blocked int
@@ -170,6 +175,9 @@ func (s *OrderedSubmitter) Submit(items []SendBatchItem, complete func([]SendBat
 	s.records += len(items)
 	s.queuedRecords += len(items)
 	s.payloadBytes += payloadBytes
+	if sendtrace.Enabled() {
+		job.admittedAt = time.Now()
+	}
 	if job.blocked == 0 {
 		s.enqueueReady(job)
 	}
@@ -256,6 +264,9 @@ func (s *OrderedSubmitter) run() {
 		}
 		// Preserve the registry's critical Router panic policy. Never invent successful
 		// results or a completed drain after a routing or publication panic.
+		for job := first; job != nil; job = job.next {
+			recordOrderedSubmissionWait(job)
+		}
 		results := normalizeRouterGroupResults(records, s.sender.SendBatch(items))
 		offset := 0
 		for job := first; job != nil; {
@@ -269,6 +280,28 @@ func (s *OrderedSubmitter) run() {
 			s.finish(job, next == nil)
 			job = next
 		}
+	}
+}
+
+// recordOrderedSubmissionWait marks dispatch of one already-admitted job. Its
+// enclosing wait includes FIFO dependencies and worker scheduling, not durable
+// append or completion callback time. Retention uses the existing bounded sink.
+func recordOrderedSubmissionWait(job *orderedSubmitJob) {
+	if job.admittedAt.IsZero() || !sendtrace.Enabled() {
+		return
+	}
+	end := time.Now()
+	for _, item := range job.items {
+		cmd := item.Command
+		if cmd.TraceID == "" {
+			continue
+		}
+		sendtrace.Record(sendtrace.Event{
+			Stage: sendtrace.StageMessageAppendAdmissionWait, At: end,
+			Duration: sendtrace.Elapsed(job.admittedAt, end), TraceID: cmd.TraceID,
+			ClientMsgNo: cmd.ClientMsgNo, ChannelKey: cmd.ChannelKey, FromUID: cmd.FromUID,
+			Result: sendtrace.ResultOK, RequestCount: 1,
+		})
 	}
 }
 

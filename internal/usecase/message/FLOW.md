@@ -70,6 +70,8 @@ depending on their frames, JSON, or concrete cluster runtimes.
   failures remain item-local; batch order and cardinality are preserved.
 - Permission and directory concurrency, batch sync size, page limits, event
   enrichment, and observer data are bounded. No identity enters metric labels.
+  The existing SEND diagnostics sink may retain a per-item `message.permission`
+  enclosing-call span; shared batch spans overlap and are not disjoint waits.
   Submitter deadline errors preserve the original cause while attaching only
   permission, pre-append, submitter, and pre-submit-budget timings for the
   entry adapter's single existing diagnostic record.

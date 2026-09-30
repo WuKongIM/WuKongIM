@@ -867,3 +867,10 @@ specification, runbook, report, or module documentation; link to them when neede
   budget_bytes, which are conservative proxy credits rather than allocator bytes
   or the receiver's undecoded transport queue. Counts alone do not qualify CPU
   savings or SEND capacity; the original 500 SEND/s gates remain authoritative.
+
+- Request-correlated SEND diagnostics reuse the existing sampled ring. Permission
+  spans enclose a caller/batch; ordered-append admission spans end at dispatch
+  and include Channel dependencies and scheduling. Shared/nested spans must not
+  be summed. The permission timeline E2E retains exact client pending/write-start/
+  decode instants and bounded post-window queries; traced timings are diagnostic,
+  while unchanged unprofiled comparisons remain performance acceptance evidence.

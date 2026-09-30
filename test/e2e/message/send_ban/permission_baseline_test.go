@@ -30,12 +30,16 @@ import (
 type permissionBaselineCut map[uint64]map[string]float64
 
 type permissionBaselineAck struct {
-	ID        string `json:"client_msg_no"`
-	Reason    uint8  `json:"reason"`
-	MessageID int64  `json:"message_id"`
-	Seq       uint64 `json:"message_seq"`
-	Micros    int64  `json:"elapsed_us"`
-	Error     string `json:"error,omitempty"`
+	ID               string    `json:"client_msg_no"`
+	Reason           uint8     `json:"reason"`
+	MessageID        int64     `json:"message_id"`
+	Seq              uint64    `json:"message_seq"`
+	Micros           int64     `json:"elapsed_us"`
+	Error            string    `json:"error,omitempty"`
+	PendingStartedAt time.Time `json:"pending_started_at,omitempty"`
+	WriteStartedAt   time.Time `json:"write_started_at,omitempty"`
+	DecodedAt        time.Time `json:"decoded_at,omitempty"`
+	BridgeAt         time.Time `json:"bridge_at,omitempty"`
 }
 
 // TestPermissionCallerBaseline characterizes today's independent callers. It
@@ -70,6 +74,8 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 		"fixture_scope":            "system UID; two mandatory facts; no auxiliary membership reads or recipient fanout; one-voter metadata routing proof, not HA",
 	}
 	report["cohort_candidate"] = cohorts
+	timeline := os.Getenv("WK_E2E_PERMISSION_TIMELINE") == "1"
+	report["request_timeline_enabled"] = timeline
 	var cases []map[string]any
 	path := os.Getenv("WK_E2E_PERMISSION_BASELINE_REPORT")
 	if cohorts {
@@ -107,9 +113,21 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 	_, harness, _, ok := runtime.Caller(0)
 	require.True(t, ok)
 	report["harness_sha256"] = permissionBaselineHash(t, harness)
+	report["harness_sources"] = map[string]string{
+		"permission_baseline_test.go": permissionBaselineHash(t, harness),
+		"permission_timeline_test.go": permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_timeline_test.go")),
+		"suite/wkproto_client.go":     permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "../../suite/wkproto_client.go")),
+	}
 
 	opts := []suite.Option{suite.WithManagerHTTP()}
 	for id := uint64(1); id <= 3; id++ {
+		if timeline {
+			opts = append(opts, suite.WithNodeConfigOverrides(id, map[string]string{
+				"WK_DIAGNOSTICS_ENABLE": "true", "WK_DIAGNOSTICS_BUFFER_SIZE": "8192",
+				"WK_DIAGNOSTICS_SAMPLE_RATE": "1", "WK_DIAGNOSTICS_DEEP_SAMPLE_RATE": "1",
+				"WK_DIAGNOSTICS_DEEP_MAX_ITEMS_PER_BATCH": "16",
+			}))
+		}
 		opts = append(opts, suite.WithNodeConfigOverrides(id, map[string]string{
 			"WK_CLUSTER_HASH_SLOT_COUNT": "256", "WK_CLUSTER_INITIAL_SLOT_COUNT": "12",
 			"WK_CLUSTER_SLOT_REPLICA_N": "1", "WK_CLUSTER_CHANNEL_REPLICA_N": "3", "WK_GATEWAY_TOKEN_AUTH_ON": "false",
@@ -234,6 +252,9 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 				}
 				sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
 				window["counts"], window["sendack_p99_us"], window["sendack_max_us"] = counts, latencies[int(math.Ceil(float64(len(latencies))*.99))-1], latencies[len(latencies)-1]
+				if timeline && name == "same-slot-remote" && concurrency == 32 {
+					window["request_timelines"] = permissionRequestTimeline(t, ctx, cluster, ingressID, acks)
+				}
 				for _, ack := range acks {
 					require.Empty(t, ack.Error)
 					require.Equal(t, uint8(frame.ReasonSuccess), ack.Reason)
@@ -390,7 +411,10 @@ func permissionBaselineSend(ctx context.Context, client *suite.WKProtoClient, ch
 	}
 	err := client.SendFrame(&frame.SendPacket{ChannelID: channel, ChannelType: 2, ClientMsgNo: id, ClientSeq: seq, Payload: []byte("permission-baseline-fixed-payload")})
 	if err == nil {
-		ack, readErr := client.ReadSendAck()
+		ack, observation, readErr := client.ReadSendAckWithTiming()
+		if os.Getenv("WK_E2E_PERMISSION_TIMELINE") == "1" {
+			out.PendingStartedAt, out.WriteStartedAt, out.DecodedAt, out.BridgeAt = observation.PendingStartedAt.UTC(), observation.WriteStartedAt.UTC(), observation.ObservedAt.UTC(), time.Now().UTC()
+		}
 		err = readErr
 		if ack != nil {
 			out.Reason, out.MessageID, out.Seq = uint8(ack.ReasonCode), ack.MessageID, ack.MessageSeq
