@@ -132,3 +132,7 @@ sequential counts, independently drained public cohort ownership metrics,
 completed ban/unban controls and exact full history. Historical baseline mode
 remains executable with its frozen old binary. Source/build identity, whole-node
 resource cuts and diagnostic limits remain the same; capacity gates are unchanged.
+
+Fixed old/new comparison windows also sample the ingress ownership gauges every
+20 ms (at most 200 samples, canceled/joined). Missing old metrics remain absent;
+sampled peaks are lower bounds, and scrape overhead belongs to both comparisons.

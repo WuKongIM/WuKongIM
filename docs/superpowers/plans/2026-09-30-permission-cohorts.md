@@ -55,3 +55,7 @@ The process-level test reuses the fixed baseline experiment, adds a candidate
 mode and actual reduction assertions, and retains source/fixture/counters/ACKs/
 history/resource evidence. Existing all-ingress ban/unban, delivery, non-replica,
 leader-transfer, parallel and overload/recovery E2E scenarios remain mandatory.
+
+Fixed old/new comparison windows also sample the ingress ownership gauges every
+20 ms (at most 200 samples, canceled/joined). Missing old metrics remain absent;
+sampled peaks are lower bounds, and scrape overhead belongs to both comparisons.

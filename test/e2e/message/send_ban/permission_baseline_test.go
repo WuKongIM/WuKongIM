@@ -211,9 +211,13 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 				windows = append(windows, window)
 				before := permissionBaselineMetrics(t, ctx, cluster)
 				window["before"] = before
+				sampleCtx, stopSamples := context.WithCancel(ctx)
+				sampled := permissionCohortOwnershipSamples(sampleCtx, ingress.APIAddr())
 				begin := time.Now()
 				acks := permissionBaselineWave(ctx, clients[:concurrency], channel, fmt.Sprintf("%s-c%d", name, concurrency), 64)
 				end := time.Now()
+				stopSamples()
+				window["cohort_ownership_samples"] = <-sampled
 				window["acks"], window["started_at"], window["finished_at"] = acks, begin.UTC(), end.UTC()
 				window["elapsed_ms"] = end.Sub(begin).Milliseconds()
 				require.NoError(t, ctx.Err())
@@ -221,7 +225,7 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 				after := permissionBaselineMetrics(t, ctx, cluster)
 				window["after"] = after
 				counts := map[string]float64{}
-				for _, key := range []string{"plans", "messages", "users", "channels", "facts", "facts_before", "node_envelopes", "local_envelopes", "slot_groups", "request_bytes", "response_bytes", "barrier_ok", "barrier_failed", "admission_busy"} {
+				for _, key := range []string{"plans", "messages", "users", "channels", "facts", "facts_before", "node_envelopes", "local_envelopes", "slot_groups", "request_bytes", "response_bytes", "barrier_ok", "barrier_failed", "admission_busy", "cohorts", "cohort_requests", "cohort_facts", "cohort_busy"} {
 					counts[key] = permissionBaselineDelta(before, after, key)
 				}
 				latencies := make([]int64, len(acks))
@@ -498,4 +502,40 @@ func permissionBaselineProfile(ctx context.Context, addr, endpoint, path string)
 		return fmt.Errorf("profile exceeds 8 MiB")
 	}
 	return os.WriteFile(path, body, 0644)
+}
+
+// Sample one ingress at a fixed 20 ms cadence during both old/new experiments.
+// The bounded public scrape measures conservative proxy credits, not allocator
+// memory. Missing old-binary gauges stay absent. Every sampler is canceled/joined.
+func permissionCohortOwnershipSamples(ctx context.Context, addr string) <-chan []map[string]any {
+	done := make(chan []map[string]any, 1)
+	go func() {
+		ticker := time.NewTicker(20 * time.Millisecond)
+		defer ticker.Stop()
+		observations := make([]map[string]any, 0, 200)
+		for len(observations) < 200 {
+			select {
+			case <-ctx.Done():
+				done <- observations
+				return
+			case <-ticker.C:
+			}
+			samples, err := suite.FetchMetricSamples(ctx, addr)
+			if err != nil {
+				if ctx.Err() == nil {
+					observations = append(observations, map[string]any{"at": time.Now().UTC(), "error": err.Error()})
+				}
+				continue
+			}
+			owned := map[string]float64{}
+			for _, sample := range samples {
+				if sample.Name == "wukongim_message_permission_cohort_owned" {
+					owned[sample.Labels["kind"]] = sample.Value
+				}
+			}
+			observations = append(observations, map[string]any{"at": time.Now().UTC(), "owned": owned})
+		}
+		done <- observations
+	}()
+	return done
 }
