@@ -11,7 +11,8 @@ Runtime: `ec21c1a586941ffd74cfb497f0da4522941bc1a4`; its binary explicitly binds
 the worktree Git directory and reports `vcs.modified=false`. The predetermined
 three-pair driver is `2a4a1f4e57a8cb3d5586f10bb1585717c37ea0ab`, with all Go
 harness hashes recorded. Original old product: `424d03eb298b972ec572261d617972eecb5523c5`.
-Later placement diagnostics use driver `713871701` and are kept separate.
+Later placement diagnostics use driver
+`713871701b440bab6e8ab5536e5a0a1621c37984` and are kept separate.
 
 An identically traced old/new same-remote-Slot diagnostic measured mean permission
 spans of 0.165 / 1.471 ms. A one-variable 1-ms-to-1-ns probe measured 0.200 ms but
@@ -64,7 +65,8 @@ Burst p99 changes range -92.51% to -81.25%; whole-node CPU changes range -92.30%
 32-ms maxima in several remote two-Slot windows. Subsequent traced two-Slot
 permission means were 0.200 / 0.193 ms and admitted waits were a few microseconds;
 the original 32-ms spikes did not recur in that diagnostic. An additional traced
-window with native CPU cuts also did not reproduce them. An unchanged-main623
+window with native CPU cuts also did not reproduce them. An unchanged-main
+`623091def1951fea6746bd9ac3b63a8a9ba30208`
 control had sequential maxima 24–44 ms. These controls narrow the evidence but do
 not explain away any failed qualification or establish the remaining cause.
 Shared-Darwin unpaced 64-SEND p99 equals the maximum; one-voter metadata placement
@@ -76,7 +78,11 @@ The protected Review Agent accepts only `main` bases and charges complete change
 file contents, rather than diff hunk sizes. Runtime #981 is 27 files,
 1,012,614 bytes / 20,252 lines. Driver/report metadata #980 is a separate bounded
 scope. Raw historical evidence lives in #984, #985, #986, #987 and #988; current
-sequential evidence is delivered separately. Policy/workflows were not changed.
+sequential evidence lives in #989 and #990. The [layout and reconstruction
+guide](2026-10-01-permission-evidence-layout.md),
+[manifest](2026-10-01-permission-sequential-manifest.json) and
+[archive receipt](2026-10-01-permission-sequential-archive.json) bind the unchanged
+archive bytes. Policy/workflows were not changed.
 
 #980 must land before #981 and the runtime branch must then integrate that main
 head. Complete send-ban validation uses the independently frozen driver against
@@ -86,5 +92,14 @@ No merge, formal Review Agent command, release, paid resource or failed-CI retry
 was authorized or performed. All PRs remain Draft.
 
 Full composite 281 go-unit/go-vet and format/FLOW checks passed; final runtime
-cohort/idle race and format/FLOW checks passed. Full send-ban E2E and exact-runtime
-first-attempt Linux/native CI results are recorded separately when complete.
+cohort/idle race and format/FLOW checks passed. Full send-ban E2E passed in
+339.485 seconds, producing ten passed JSON reports
+against the frozen runtime binary and driver. Exact-runtime first-attempt Linux
+[run 36759581740](https://github.com/WuKongIM/WuKongIM/actions/runs/36759581740)
+passed all nine 60-second 500-SEND/s windows: each completed 30,000
+requests with zero errors/drops; maximum scheduled-to-completion p99 was
+178.226873 ms (unchanged 400-ms budget). Merge preview
+`e9909fa320e1c8a6f8be1bd8efd8ceb232078ebf` has the exact runtime source tree.
+Manager Chromium and Ubuntu/Debian/Rocky/Alma native preview checks also passed.
+Skipped nightly/diagnosis jobs are not pass or capacity evidence. These absolute
+Linux gates do not replace the failed sequential comparative gate.
