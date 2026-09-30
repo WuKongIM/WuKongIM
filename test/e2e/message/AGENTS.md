@@ -181,3 +181,9 @@ in the fixed baseline/cohort experiment. It preserves matched client timing and
 queries all three public diagnostics endpoints after the 64-SEND burst. See the
 scenario bounds and required stage-coverage failures; timings with tracing are
 diagnostic and never replace the unchanged unprofiled qualification.
+
+The fixed permission comparison optionally uses a prebuilt Darwin native CPU
+probe for its three owned PIDs. The scenario instructions require getrusage
+calibration, source identities, raw counters/timebase, same-process interval
+validation and all retained old/new outcomes. Whole-node CPU integrals include
+background work; this helper never changes the workload or performance gates.

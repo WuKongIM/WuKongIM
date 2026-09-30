@@ -114,9 +114,16 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 	require.True(t, ok)
 	report["harness_sha256"] = permissionBaselineHash(t, harness)
 	report["harness_sources"] = map[string]string{
-		"permission_baseline_test.go": permissionBaselineHash(t, harness),
-		"permission_timeline_test.go": permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_timeline_test.go")),
-		"suite/wkproto_client.go":     permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "../../suite/wkproto_client.go")),
+		"permission_baseline_test.go":      permissionBaselineHash(t, harness),
+		"permission_timeline_test.go":      permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_timeline_test.go")),
+		"suite/wkproto_client.go":          permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "../../suite/wkproto_client.go")),
+		"permission_cpu_probe_test.go":     permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_cpu_probe_test.go")),
+		"fixtures/permission-cpu-darwin.c": permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "fixtures/permission-cpu-darwin.c")),
+	}
+	cpuProbe := os.Getenv("WK_E2E_PERMISSION_CPU_PROBE")
+	if cpuProbe != "" {
+		report["cpu_probe_sha256"] = permissionBaselineHash(t, cpuProbe)
+		report["cpu_scope"] = "three owned node processes; public cumulative user+system CPU converted from raw Mach ticks; cuts enclose SEND window plus bounded snapshot/scrape scheduling overhead; no CPU profile"
 	}
 
 	opts := []suite.Option{suite.WithManagerHTTP()}
@@ -135,6 +142,15 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 		}), suite.WithNodeEnv(id, "GOMAXPROCS=4"))
 	}
 	cluster := suite.New(t).StartThreeNodeCluster(opts...)
+	var cpuPIDs []int
+	if cpuProbe != "" {
+		for id := uint64(1); id <= 3; id++ {
+			node := cluster.MustNode(id)
+			require.NotNil(t, node.Process.Cmd.Process)
+			cpuPIDs = append(cpuPIDs, node.Process.Cmd.Process.Pid)
+		}
+		report["cpu_node_pids_in_id_order"] = cpuPIDs
+	}
 	configs := map[uint64]any{}
 	for _, node := range cluster.Nodes {
 		configs[node.Spec.ID] = map[string]any{"sha256": permissionBaselineHash(t, node.Spec.ConfigPath), "overrides": node.Spec.ConfigOverrides}
@@ -231,9 +247,19 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 				window["before"] = before
 				sampleCtx, stopSamples := context.WithCancel(ctx)
 				sampled := permissionCohortOwnershipSamples(sampleCtx, ingress.APIAddr())
+				var cpuBefore permissionCPUCut
+				if cpuProbe != "" {
+					cpuBefore = permissionCPUQuery(t, ctx, cpuPIDs)
+					window["cpu_before"] = cpuBefore
+				}
 				begin := time.Now()
 				acks := permissionBaselineWave(ctx, clients[:concurrency], channel, fmt.Sprintf("%s-c%d", name, concurrency), 64)
 				end := time.Now()
+				if cpuProbe != "" {
+					cpuAfter := permissionCPUQuery(t, ctx, cpuPIDs)
+					window["cpu_after"] = cpuAfter
+					window["cluster_cpu_ns"] = permissionCPUInterval(t, cpuBefore, cpuAfter)
+				}
 				stopSamples()
 				window["cohort_ownership_samples"] = <-sampled
 				window["acks"], window["started_at"], window["finished_at"] = acks, begin.UTC(), end.UTC()

@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Coalesce already-admitted hot-Channel append prefixes within existing batch targets, preserving item and callback order, cross-Channel dependencies and capacity through completion. / 在既有批次上限内合并热点频道已准入的追加前缀，保留消息与回调顺序、跨频道依赖及完成前的容量约束。
+
 - Include per-SEND permission and admitted-append wait stages in the existing sampled diagnostics, helping operators distinguish preparation and queueing from durable append. / 现有采样诊断补充逐条 SEND 的权限调用与已准入追加等待阶段，帮助区分准备、排队和持久化追加耗时。
 
 - Coalesce concurrent SEND permission facts within bounded 1 ms collection windows, reducing duplicate node queries and Slot reads while retaining fresh ban/unban checks, independent cancellation and explicit backpressure; expose retained-call and memory-budget metrics. / 并发 SEND 权限事实在有界的 1 ms 收集窗口内合并，减少重复节点查询和 Slot 读取，保留禁言与解禁的新鲜度、独立取消和明确背压，并提供保留调用及内存预算指标。

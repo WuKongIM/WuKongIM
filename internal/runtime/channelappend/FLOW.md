@@ -78,6 +78,9 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
   Resume requires idle ownership and cannot reopen a closed owner. Dependency
   links occupy at most one entry per distinct admitted Channel key; completed
   keys leave no historical cache. Fixed workers may merge an already-ready prefix
+  or a pure same-Channel admitted prefix when no other job is ready, stopping at
+  every multi-Channel fence. Routing preserves item order and original callbacks
+  remain FIFO; selected successors cannot be scheduled twice. Coalescing stays
   within record/payload targets, without splitting original jobs or waiting to
   fill a batch. Each callback retains its own aligned results and reservation;
   completed payload references are cleared before returning that budget.

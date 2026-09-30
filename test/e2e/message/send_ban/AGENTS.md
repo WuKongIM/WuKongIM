@@ -164,3 +164,14 @@ Original products without `message.permission` intentionally fail stage coverage
 while retaining functional ACK/policy/full-history results. An identically
 instrumented clean old/new pair may diagnose that gap; traced latency does not
 qualify p99/CPU or change the unprofiled gates.
+
+On Darwin, prebuild `fixtures/permission-cpu-darwin.c` with
+`cc -O2 -Wall -Wextra -Werror fixtures/permission-cpu-darwin.c -lproc -o /absolute/permission-cpu-darwin`.
+Set `WK_E2E_PERMISSION_CPU_PROBE` to that path, run
+`TestPermissionCPUProbeCalibration` first, then use the same binary for all fixed
+old/new windows. It observes only three owned node PIDs via public OS counters,
+preserves start identity, raw CPU ticks, timebase, cut times and source/binary
+hashes, and fails unavailable/reused/regressing samples. The whole-node user+
+system integral encloses the SEND window and bounded snapshot/scrape scheduling
+overhead; compilation and profiles remain outside it. Retain all three pairs;
+do not replace failed observations or present periodic gauges as CPU integrals.

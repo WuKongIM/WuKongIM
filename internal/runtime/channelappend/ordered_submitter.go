@@ -28,7 +28,8 @@ type OrderedSubmitterOptions struct {
 	// PayloadCapacity counts borrowed payload bytes through completion callback return.
 	// Protocol metadata remains bounded by the caller's frame and record limits.
 	PayloadCapacity int
-	// BatchMaxRecords and BatchMaxBytes bound coalescing of already-ready jobs.
+	// BatchMaxRecords and BatchMaxBytes bound coalescing of already-ready jobs
+	// or an admitted same-Channel prefix when no other job is ready.
 	// Zero disables coalescing. One admitted job is never split to meet a target.
 	// Bytes count immutable payloads, while record capacity bounds descriptors.
 	BatchMaxRecords int
@@ -86,6 +87,9 @@ type orderedSubmitJob struct {
 	links   []orderedSubmitLink
 	blocked int
 	next    *orderedSubmitJob
+	// dispatched fences successors selected into the predecessor's routing batch
+	// from being enqueued again when FIFO completion releases their dependency.
+	dispatched bool
 }
 
 // NewOrderedSubmitter starts a fixed number of node-owned workers. It does not
@@ -252,6 +256,23 @@ func (s *OrderedSubmitter) run() {
 		if s.head == nil {
 			s.tail = nil
 		}
+		// A sole ready job may own an admitted pure-Channel prefix. Routing that
+		// prefix together preserves item order; callbacks still join in FIFO order.
+		// Never cross multi-Channel dependencies or displace independent ready work.
+		if first == last && s.head == nil && len(first.links) == 1 && s.opts.BatchMaxRecords > 0 && s.opts.BatchMaxBytes > 0 {
+			for link := first.links[0].next; link != nil; link = link.next {
+				next := link.job
+				if len(next.links) != 1 || next.blocked != 1 || next.dispatched || len(next.items) > s.opts.BatchMaxRecords-records || next.payloadBytes > s.opts.BatchMaxBytes-payloadBytes {
+					break
+				}
+				records += len(next.items)
+				payloadBytes += next.payloadBytes
+				last.next, last = next, next
+			}
+		}
+		for job := first; job != nil; job = job.next {
+			job.dispatched = true
+		}
 		s.queuedRecords -= records
 		s.busyTasks++
 		s.mu.Unlock()
@@ -322,7 +343,7 @@ func (s *OrderedSubmitter) finish(job *orderedSubmitJob, batchDone bool) {
 		} else {
 			next := lane.head.job
 			next.blocked--
-			if next.blocked == 0 {
+			if next.blocked == 0 && !next.dispatched {
 				s.enqueueReady(next)
 			}
 		}

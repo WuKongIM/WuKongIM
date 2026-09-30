@@ -46,3 +46,33 @@ preselected unprofiled old/new pairs with the same original inputs and retain
 all outcomes; enforce at most 5% p99/CPU regression without replacing previous
 failed receipts. Missing CPU integrals remain unverified. Run directly related
 correctness, race and named checks, and obtain separate Standards/Spec review.
+
+## Evidence and bounded repair experiment
+
+The source-bound instrumented old 49aac13 and candidate c6bd20 pair use identical
+harness hashes. Both pass all stage coverage, 64 burst ACKs, policy controls and
+161-item exact histories. Their slowest ingress requests retain admission-wait
+spans of 570.748/469.645 ms, permission spans of 0.419/1.219 ms and ACK writes of
+0.011/0.011 ms. This establishes a dominant queue wait in this fixture, not the
+cause of every earlier regression or a qualified improvement.
+
+Before changing the owner, write integration failure cases for already-admitted
+same-Channel bursts, record/byte targets, per-item contexts/deadlines, multi-key
+fences, FIFO callbacks, duplicate dispatch, capacity retention and Close joins.
+Keep the existing independent-ready-prefix tests unchanged. Experiment with an
+already-admitted same-key prefix only when the ready list has exactly one job;
+never cross a multi-key job, reorder independent ready jobs, split an original
+job, wait to fill, or add a timer. Submit selected items in FIFO order in one
+routed batch; publish each original callback in FIFO order and retain its full
+reservation through return. Mark selected successors under the owner lock so
+completion never dispatches them twice. The final callback still fences later
+same-key routing. Bounds and source identity must precede performance claims.
+
+The Darwin acceptance probe is an opt-in, prebuilt harness fixture using public
+proc_pid_rusage for exactly the three owned node PIDs. Preserve process start
+identity, raw CPU ticks, Mach timebase and both cuts; calibrate against getrusage
+before use. No compilation or profiles occur in a measured window. Missing,
+reused, regressing or malformed process samples fail evidence rather than
+becoming zero. Whole-node CPU includes background and scrape work. Three fixed
+old/new pairs retain every sequential/burst placement outcome; no selection or
+replacement of a failed pair is permitted.

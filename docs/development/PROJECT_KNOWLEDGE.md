@@ -874,3 +874,17 @@ specification, runbook, report, or module documentation; link to them when neede
   be summed. The permission timeline E2E retains exact client pending/write-start/
   decode instants and bounded post-window queries; traced timings are diagnostic,
   while unchanged unprofiled comparisons remain performance acceptance evidence.
+
+- Ordered append may coalesce a pure same-Channel admitted prefix only when the
+  ready list has one job. Multi-Channel jobs and existing record/payload targets
+  stop it; no fill timer or original-job splitting is permitted. Items and
+  callbacks remain FIFO, selected successors cannot be re-enqueued, and each
+  callback retains its original reservation. This removes singleton hot-lane
+  routing waits without changing permission freshness or durable ownership.
+
+- Nested repository worktree builds must bind GIT_DIR and GIT_WORK_TREE to that
+  exact checkout and verify clean vcs.revision/vcs.modified build information;
+  a root-checkout stamp cannot certify a candidate. The optional Darwin permission
+  CPU probe preserves process-start identity and raw Mach ticks/timebase for
+  three owned PIDs, calibrates against getrusage, and records whole-node CPU
+  intervals independently from periodic CPU gauges or profiles.
