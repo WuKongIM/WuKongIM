@@ -175,7 +175,7 @@ infra 将去重事实解析为路由：用户事实用 UID，频道事实用实�
 
 既有 Leader 本机缓存可在满足 fresh barrier 且与 snapshot/apply generation 一致时作为解码优化；首版可直接读 snapshot，避免跨批次缓存正确性复杂度。
 
-不同 Slot 的 barrier 相互独立。并发只读请求若要合并 barrier，必须在 barrier 发起之前封闭 cohort；新加入的请求不能使用发起于它之前的旧 barrier。首版仅做一个请求/Slot 内共享。#977 后续实现让空闲 ingress Slot proxy 的一个或两个不同事实同步执行；并发工作存在时，在固定的 1 ms 收集窗口内合并独立调用；到达截止时间、64 个调用或 4096 个输入事实时封口，封口后调用必须进入新 cohort。每个 Store 最多保留 64 个收集/执行 cohort、1024 个调用和 16 MiB 保守内存预算，不额外排队或重试。取消保留独立结果，最后取消及 Node Stop 会取消并 join 已开始的读取；调用预算按各自截止时间判定，共享执行使用仍在 cohort 中的最长预算并最多 30 s。该预算指标不是实际 allocator/transport 队列字节。
+不同 Slot 的 barrier 相互独立。并发只读请求若要合并 barrier，必须在 barrier 发起之前封闭 cohort；新加入的请求不能使用发起于它之前的旧 barrier。首版仅做一个请求/Slot 内共享，不另建跨请求合并调度器。
 
 ### 7.3 生效承诺
 

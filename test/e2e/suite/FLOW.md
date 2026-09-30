@@ -47,8 +47,6 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
 - WKProto clients may inject a Dialer to observe public socket bytes. Their
   synthetic future ACK bridge is not wire-order evidence; ordering probes must
   capture decoded ACKs directly from the TCP read stream.
-  `ReadSendAckWithTiming` preserves matched pending/write-start/decode instants
-  from the shared client; write-start is not socket completion or server receipt.
 - WebSocket gateway opt-in publishes only the allocated loopback listener;
   TCP WKProto remains the readiness authority for the started node.
 - Diagnostics expose bounded paths and tails. TOML is re-encoded only after

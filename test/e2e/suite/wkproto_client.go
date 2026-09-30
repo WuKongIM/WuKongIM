@@ -177,17 +177,9 @@ func (c *WKProtoClient) ReadFrame() (frame.Frame, error) {
 
 // ReadSendAck reads one send-ack packet.
 func (c *WKProtoClient) ReadSendAck() (*frame.SendackPacket, error) {
-	ack, _, err := c.ReadSendAckWithTiming()
-	return ack, err
-}
-
-// ReadSendAckWithTiming retains the shared client's process-local pending,
-// socket-write-start and decoded-ACK observations for the same matched SEND.
-// The returned packet is still the synthetic future bridge, not wire-order proof.
-func (c *WKProtoClient) ReadSendAckWithTiming() (*frame.SendackPacket, wkclient.SendResult, error) {
 	_, ackCh, _, closeCh, err := c.session()
 	if err != nil {
-		return nil, wkclient.SendResult{}, err
+		return nil, err
 	}
 	timer := time.NewTimer(c.operationTimeout)
 	defer timer.Stop()
@@ -195,16 +187,16 @@ func (c *WKProtoClient) ReadSendAckWithTiming() (*frame.SendackPacket, wkclient.
 	select {
 	case result := <-ackCh:
 		if result.err != nil {
-			return nil, result.observation, result.err
+			return nil, result.err
 		}
 		if result.ack == nil {
-			return nil, result.observation, fmt.Errorf("wkproto client: sendack result is empty")
+			return nil, fmt.Errorf("wkproto client: sendack result is empty")
 		}
-		return result.ack, result.observation, nil
+		return result.ack, nil
 	case <-closeCh:
-		return nil, wkclient.SendResult{}, fmt.Errorf("wkproto client: not connected")
+		return nil, fmt.Errorf("wkproto client: not connected")
 	case <-timer.C:
-		return nil, wkclient.SendResult{}, context.DeadlineExceeded
+		return nil, context.DeadlineExceeded
 	}
 }
 
@@ -301,7 +293,7 @@ func publishSendAck(future *wkclient.SendFuture, ackCh chan<- sendAckResult, clo
 		err = nil
 	}
 	select {
-	case ackCh <- sendAckResult{ack: ack, observation: result, err: err}:
+	case ackCh <- sendAckResult{ack: ack, err: err}:
 	case <-closeCh:
 	}
 }
@@ -336,9 +328,8 @@ func sendResultToPacket(result wkclient.SendResult) *frame.SendackPacket {
 }
 
 type sendAckResult struct {
-	ack         *frame.SendackPacket
-	observation wkclient.SendResult
-	err         error
+	ack *frame.SendackPacket
+	err error
 }
 
 type recvResult struct {

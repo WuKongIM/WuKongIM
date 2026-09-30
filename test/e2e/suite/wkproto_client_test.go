@@ -74,12 +74,8 @@ func TestWKProtoClientReadSendAckSkipsInterleavedRecv(t *testing.T) {
 		Payload:     []byte("hello sendack"),
 	}))
 
-	ack, timing, err := client.ReadSendAckWithTiming()
+	ack, err := client.ReadSendAck()
 	require.NoError(t, err)
-	require.False(t, timing.PendingStartedAt.IsZero())
-	require.False(t, timing.WriteStartedAt.Before(timing.PendingStartedAt))
-	require.False(t, timing.ObservedAt.Before(timing.WriteStartedAt))
-	require.False(t, time.Now().Before(timing.ObservedAt))
 	require.Equal(t, uint64(3), ack.ClientSeq)
 	require.Equal(t, "e2e-send-ack", ack.ClientMsgNo)
 	require.Equal(t, int64(99), ack.MessageID)

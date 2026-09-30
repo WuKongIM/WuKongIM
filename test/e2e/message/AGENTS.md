@@ -72,11 +72,6 @@ profiles afterward; see the scenario instructions for the fixed comparison.
 cache freshness, WKProto and HTTP admission, atomic changes and CAS.
 Run `GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -count=1 -timeout=8m -p=1 -v`.
 The scenario writes a JSON report (override with `WK_E2E_SEND_BAN_REPORT`).
-The separate opt-in `TestPermissionCallerBaseline` characterizes Issue #977
-using fixed independent WKProto sessions, public per-node metric cuts and exact
-history across four actual Slot/leader placements. See `send_ban/AGENTS.md` for
-the frozen-binary invocation, resource limitations and separate profile phase;
-it does not alter the existing 500 SEND/s gate or implement cross-caller cohorts.
 Its independent `WK_E2E_SEND_BAN_100K=1` opt-in runs `TestHundredKGroupSendBan`
 with a six-minute test bound and writes a `.100k.json` companion report. A setup
 timeout is failed evidence, not a smaller-scale pass.
@@ -155,46 +150,3 @@ These cumulative snapshots must not be presented as measured-window deltas.
 
 The single-node SEND smoke registers a device Token through `/user/token` and
 connects with it while retaining production-default gateway authentication.
-
-The same fixed experiment has an opt-in candidate mode:
-`WK_E2E_PERMISSION_COHORTS=1 WK_E2E_BINARY=/absolute/frozen/candidate WK_E2E_PERMISSION_COHORT_REPORT=/absolute/cohorts.json GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -run '^TestPermissionCallerCohorts$' -count=1 -timeout=4m -p=1 -v`.
-It requires lower burst RPC/local-envelope and fresh-barrier counts, unchanged
-sequential counts, independently drained public cohort ownership metrics,
-completed ban/unban controls and exact full history. Historical baseline mode
-remains executable with its frozen old binary. Source/build identity, whole-node
-resource cuts and diagnostic limits remain the same; capacity gates are unchanged.
-
-The quorum-loss admission companion keeps 192 failed-closed sends but separates
-arrivals by 5 ms so sealed cohorts actually accumulate. Require positive receiver
-or ingress-cohort busy, record both scopes separately, sample both hard ownership
-bounds and drain to zero, then verify exact complete recovery history. This fault
-fixture never changes the 500 SEND/s performance gates.
-
-`WK_E2E_PERMISSION_STAGES=1` optionally retains count/sum/bucket samples for six
-fixed public permission, append/wait, replication and storage-commit histogram
-families in the existing before/after node scrapes. It adds no scrape or product
-hook. Keep full label identities and absent series; histogram bucket bounds
-describe scoped completed populations, not per-SEND spans or time spent waiting
-before stage entry. Use the flag identically for old/new comparisons.
-
-`WK_E2E_PERMISSION_TIMELINE=1` enables the bounded same-remote-Slot diagnostic
-in the fixed baseline/cohort experiment. It preserves matched client timing and
-queries all three public diagnostics endpoints after the 64-SEND burst. See the
-scenario bounds and required stage-coverage failures; timings with tracing are
-diagnostic and never replace the unchanged unprofiled qualification.
-
-The fixed permission comparison optionally uses a prebuilt Darwin native CPU
-probe for its three owned PIDs. The scenario instructions require getrusage
-calibration, source identities, raw counters/timebase, same-process interval
-validation and all retained old/new outcomes. Whole-node CPU integrals include
-background work; this helper never changes the workload or performance gates.
-
-The timeline negative receipt probe intentionally fails a post-window public
-query, retaining all completed ACKs, safe partial outcomes and history. CPU
-evidence failure paths also join ownership sampling and preserve partial receipts.
-
-The opt-in `TestPermissionSequentialDiagnostics/same-slot-remote` separately
-captures 64 sequential request timelines or six bounded three-node CPU/allocation
-profiles during 256 additional sequential SENDs. See the scenario instructions
-for mutually exclusive flags, sampling/overlap limits and exact history checks.
-These diagnostic fixtures never qualify the unprofiled performance gates.

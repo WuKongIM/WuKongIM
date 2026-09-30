@@ -106,16 +106,7 @@ func TestRemotePermissionOverloadFailsClosed(t *testing.T) {
 			results <- result{index: index, response: response, err: err, started: at, finished: time.Now().UTC()}
 		}(i)
 	}
-	// Separate arrivals beyond the fixed collection window. A same-fact
-	// simultaneous burst now coalesces and cannot prove actual saturation.
-	arrivals := time.NewTicker(5 * time.Millisecond)
-	for i := 0; i < requests; i++ {
-		<-arrivals.C
-		gate <- struct{}{}
-	}
-	arrivals.Stop()
 	close(gate)
-	evidence = append(evidence, map[string]any{"requests": requests, "arrival_separation_ms": 5, "kind": "quorum-loss backpressure fault; not a throughput gate"})
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 	peak := float64(0)
@@ -136,12 +127,6 @@ func TestRemotePermissionOverloadFailsClosed(t *testing.T) {
 			active := suite.SumMetricSamples(samples, "wukongim_message_permission_inflight", nil)
 			peak = max(peak, active)
 			require.LessOrEqual(t, active, float64(64))
-			ingressSamples, sampleErr := suite.FetchMetricSamples(ctx, ingress.APIAddr())
-			require.NoError(t, sampleErr)
-			for kind, limit := range map[string]float64{"calls": 1024, "cohorts": 64, "budget_bytes": 16 << 20} {
-				owned := suite.SumMetricSamples(ingressSamples, "wukongim_message_permission_cohort_owned", map[string]string{"kind": kind})
-				require.LessOrEqual(t, owned, limit)
-			}
 		case <-ctx.Done():
 			t.Fatal(ctx.Err())
 		}
@@ -153,27 +138,14 @@ func TestRemotePermissionOverloadFailsClosed(t *testing.T) {
 	busyLabels := map[string]string{"stage": "admission", "result": "busy"}
 	busy := suite.SumMetricSamples(afterOwner, "wukongim_message_permission_duration_seconds_count", busyLabels) - suite.SumMetricSamples(beforeOwner, "wukongim_message_permission_duration_seconds_count", busyLabels)
 	envelopes := suite.SumMetricSamples(afterIngress, "wukongim_message_permission_counts_total", map[string]string{"kind": "node_envelopes"}) - suite.SumMetricSamples(beforeIngress, "wukongim_message_permission_counts_total", map[string]string{"kind": "node_envelopes"})
-	cohortBusy := suite.SumMetricSamples(afterIngress, "wukongim_message_permission_counts_total", map[string]string{"kind": "cohort_busy"}) - suite.SumMetricSamples(beforeIngress, "wukongim_message_permission_counts_total", map[string]string{"kind": "cohort_busy"})
-	require.Positive(t, busy+cohortBusy, "the fault must actually saturate permission admission")
+	require.Positive(t, busy)
 	require.Positive(t, envelopes)
 	require.Positive(t, peak)
 	require.Eventually(t, func() bool {
 		samples, err := suite.FetchMetricSamples(ctx, owner.APIAddr())
-		if err != nil || suite.SumMetricSamples(samples, "wukongim_message_permission_inflight", nil) != 0 {
-			return false
-		}
-		samples, err = suite.FetchMetricSamples(ctx, ingress.APIAddr())
-		if err != nil {
-			return false
-		}
-		for _, kind := range []string{"calls", "cohorts", "budget_bytes"} {
-			if suite.SumMetricSamples(samples, "wukongim_message_permission_cohort_owned", map[string]string{"kind": kind}) != 0 {
-				return false
-			}
-		}
-		return true
+		return err == nil && suite.SumMetricSamples(samples, "wukongim_message_permission_inflight", nil) == 0
 	}, 10*time.Second, 100*time.Millisecond)
-	evidence = append(evidence, map[string]any{"remote_node_envelopes": envelopes, "owner_admission_busy": busy, "ingress_cohort_busy": cohortBusy, "sampled_peak_inflight": peak, "terminal_inflight": 0})
+	evidence = append(evidence, map[string]any{"remote_node_envelopes": envelopes, "owner_admission_busy": busy, "sampled_peak_inflight": peak, "terminal_inflight": 0})
 	require.NoError(t, cluster.StartStoppedNode(peerID))
 	require.NoError(t, cluster.WaitHTTPReady(ctx))
 	_, err = cluster.WaitSlotLeadersStable(ctx, time.Second)
