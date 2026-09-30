@@ -2,7 +2,7 @@
 
 Reviewed implementation: `fc0905c06f80399635aef0779a5c3e6006bf99c7` →
 clean `d1deec2b3bc916764699ad9fcf6b9a590c183d10` (four commits, 25 files).
-The [code-review skill](/Users/tt/.agents/skills/code-review/SKILL.md) required
+The code-review skill required
 independent Standards and Spec reviewers. Exact-revision instruction digests
 and full reviewer reports are preserved in the evidence bundle.
 

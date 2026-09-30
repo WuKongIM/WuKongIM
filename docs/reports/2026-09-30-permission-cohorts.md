@@ -120,7 +120,9 @@ neither a latency cause nor the earlier 4500 SEND/s capacity repair.
   here. This unrelated baseline drift remains unresolved and recorded.
 - Standards and Spec code reviews each have zero confirmed findings. Fresh
   automatic Linux three-node correctness and all three 500 SEND/s seam verdicts
-  are pending publication of this candidate; no gate is relaxed or retried.
+  were pending when these receipts were recorded. Their current exact-revision
+  verdicts are available on [Draft PR #981](https://github.com/WuKongIM/WuKongIM/pull/981);
+  no gate is relaxed or retried.
 
 [Evidence bundle](assets/permission-cohorts-evidence.tar.gz) preserves raw JSON,
 logs, profile companions and both failed and passing observations.
