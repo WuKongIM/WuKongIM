@@ -82,8 +82,8 @@ func (r *Runtime) Stop(ctx context.Context) error {
 		return err
 	}
 	r.stopRefreshLoop()
-	if r.raft != nil {
-		return r.raft.Stop()
+	if service := r.raftService(); service != nil {
+		return service.Stop()
 	}
 	return nil
 }
@@ -124,10 +124,11 @@ func (r *Runtime) ProbePropose(ctx context.Context) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
-	if r == nil || r.raft == nil {
+	service := r.raftService()
+	if service == nil {
 		return ErrNotStarted
 	}
-	return r.raft.ProbePropose(ctx)
+	return service.ProbePropose(ctx)
 }
 
 // ControllerRaftStatus returns the local Controller Raft status snapshot.
@@ -135,10 +136,11 @@ func (r *Runtime) ControllerRaftStatus(ctx context.Context) (RaftStatus, error) 
 	if err := ctxErr(ctx); err != nil {
 		return RaftStatus{}, err
 	}
-	if r == nil || r.raft == nil {
+	service := r.raftService()
+	if service == nil {
 		return RaftStatus{}, ErrNotStarted
 	}
-	return r.raft.Status(), nil
+	return service.Status(), nil
 }
 
 // CompactControllerRaftLog forces local Controller Raft log compaction.
@@ -146,10 +148,11 @@ func (r *Runtime) CompactControllerRaftLog(ctx context.Context) (LogCompactionRe
 	if err := ctxErr(ctx); err != nil {
 		return LogCompactionResult{}, err
 	}
-	if r == nil || r.raft == nil {
+	service := r.raftService()
+	if service == nil {
 		return LogCompactionResult{}, ErrNotStarted
 	}
-	return r.raft.CompactLog(ctx)
+	return service.CompactLog(ctx)
 }
 
 // Step applies an inbound Controller Raft message to the local Raft service.
@@ -159,9 +162,7 @@ func (r *Runtime) Step(ctx context.Context, msg raftpb.Message) error {
 	}
 	// Transport starts before the Controller. Snapshot its published service
 	// without holding the state lock while the bounded Step queue waits.
-	r.mu.RLock()
-	service := r.raft
-	r.mu.RUnlock()
+	service := r.raftService()
 	if service == nil {
 		return nil
 	}
@@ -199,4 +200,15 @@ func ctxErr(ctx context.Context) error {
 		return nil
 	}
 	return ctx.Err()
+}
+
+// raftService snapshots the published service before any protocol or proposal
+// work. Each caller retains one generation and releases the lock before waiting.
+func (r *Runtime) raftService() *controllerraft.Service {
+	if r == nil {
+		return nil
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.raft
 }

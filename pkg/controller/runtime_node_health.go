@@ -46,7 +46,8 @@ func (r *Runtime) ReportNodeHealth(ctx context.Context, req ReportNodeHealthRequ
 	if err := ctxErr(ctx); err != nil {
 		return ReportNodeHealthResult{}, err
 	}
-	if r == nil || r.raft == nil {
+	service := r.raftService()
+	if service == nil {
 		return ReportNodeHealthResult{}, ErrNotStarted
 	}
 	// gofail: var wkReportNodeHealthFault string
@@ -69,7 +70,7 @@ func (r *Runtime) ReportNodeHealth(ctx context.Context, req ReportNodeHealthRequ
 		ReportedAtUnixMilli:     now.UTC().UnixMilli(),
 		ErrorCode:               req.ErrorCode,
 	}
-	result, err := r.raft.ProposeResult(ctx, command.Command{
+	result, err := service.ProposeResult(ctx, command.Command{
 		Kind:       command.KindReportNodeHealth,
 		IssuedAt:   now.UTC(),
 		NodeHealth: &report,

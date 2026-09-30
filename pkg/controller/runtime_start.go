@@ -49,9 +49,9 @@ func (r *Runtime) startVoter(ctx context.Context) error {
 		_ = service.Stop()
 		return err
 	}
-	r.server = srv
 	syncServer := r.newStateSyncServer()
 	r.mu.Lock()
+	r.server = srv
 	r.syncServer = syncServer
 	r.mu.Unlock()
 	if len(r.cfg.Voters) > 1 {
@@ -92,8 +92,8 @@ func (r *Runtime) startMirror(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	r.server = srv
 	r.mu.Lock()
+	r.server = srv
 	r.syncClient = client
 	r.mu.Unlock()
 	if err := srv.SyncOnce(ctx); err != nil {

@@ -95,7 +95,8 @@ func (r *Runtime) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeRe
 	if err := ctxErr(ctx); err != nil {
 		return JoinNodeResult{}, err
 	}
-	if r == nil || r.raft == nil {
+	service := r.raftService()
+	if service == nil {
 		return JoinNodeResult{}, ErrNotStarted
 	}
 	st, err := r.LocalState(ctx)
@@ -110,7 +111,7 @@ func (r *Runtime) JoinNode(ctx context.Context, req JoinNodeRequest) (JoinNodeRe
 		return JoinNodeResult{Created: false, Node: node, Revision: st.Revision}, nil
 	}
 	expectedRevision := st.Revision
-	proposal, err := r.raft.ProposeResult(ctx, command.Command{
+	proposal, err := service.ProposeResult(ctx, command.Command{
 		Kind:             command.KindUpsertNode,
 		IssuedAt:         r.cfg.Now().UTC(),
 		ExpectedRevision: &expectedRevision,
@@ -138,7 +139,8 @@ func (r *Runtime) ActivateNode(ctx context.Context, req ActivateNodeRequest) (Ac
 	if err := ctxErr(ctx); err != nil {
 		return ActivateNodeResult{}, err
 	}
-	if r == nil || r.raft == nil {
+	service := r.raftService()
+	if service == nil {
 		return ActivateNodeResult{}, ErrNotStarted
 	}
 	st, err := r.LocalState(ctx)
@@ -153,7 +155,7 @@ func (r *Runtime) ActivateNode(ctx context.Context, req ActivateNodeRequest) (Ac
 		return ActivateNodeResult{Changed: false, Node: node, Revision: st.Revision}, nil
 	}
 	expectedRevision := st.Revision
-	proposal, err := r.raft.ProposeResult(ctx, command.Command{
+	proposal, err := service.ProposeResult(ctx, command.Command{
 		Kind:             command.KindUpsertNode,
 		IssuedAt:         r.cfg.Now().UTC(),
 		ExpectedRevision: &expectedRevision,
@@ -181,7 +183,8 @@ func (r *Runtime) MarkNodeLeaving(ctx context.Context, req MarkNodeLeavingReques
 	if err := ctxErr(ctx); err != nil {
 		return MarkNodeLeavingResult{}, err
 	}
-	if r == nil || r.raft == nil {
+	service := r.raftService()
+	if service == nil {
 		return MarkNodeLeavingResult{}, ErrNotStarted
 	}
 	st, err := r.LocalState(ctx)
@@ -196,7 +199,7 @@ func (r *Runtime) MarkNodeLeaving(ctx context.Context, req MarkNodeLeavingReques
 		return MarkNodeLeavingResult{Changed: false, Node: node, Revision: st.Revision}, nil
 	}
 	expectedRevision := st.Revision
-	proposal, err := r.raft.ProposeResult(ctx, command.Command{
+	proposal, err := service.ProposeResult(ctx, command.Command{
 		Kind:             command.KindUpsertNode,
 		IssuedAt:         r.cfg.Now().UTC(),
 		ExpectedRevision: &expectedRevision,
@@ -224,7 +227,8 @@ func (r *Runtime) MarkNodeRemoved(ctx context.Context, req MarkNodeRemovedReques
 	if err := ctxErr(ctx); err != nil {
 		return MarkNodeRemovedResult{}, err
 	}
-	if r == nil || r.raft == nil {
+	service := r.raftService()
+	if service == nil {
 		return MarkNodeRemovedResult{}, ErrNotStarted
 	}
 	st, err := r.LocalState(ctx)
@@ -242,7 +246,7 @@ func (r *Runtime) MarkNodeRemoved(ctx context.Context, req MarkNodeRemovedReques
 		return MarkNodeRemovedResult{}, ErrExpectedRevisionMismatch
 	}
 	expectedRevision := st.Revision
-	proposal, err := r.raft.ProposeResult(ctx, command.Command{
+	proposal, err := service.ProposeResult(ctx, command.Command{
 		Kind:             command.KindUpsertNode,
 		IssuedAt:         r.cfg.Now().UTC(),
 		ExpectedRevision: &expectedRevision,

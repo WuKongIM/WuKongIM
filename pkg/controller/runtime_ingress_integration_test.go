@@ -5,6 +5,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"fmt"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -62,6 +63,20 @@ func TestRuntimeIngressDuringVoterStartAndRestart(t *testing.T) {
 					return
 				}
 				_ = r.LeaderID()
+				// Task-result and control-write RPC also remain registered during
+				// startup. With no quorum, these requests must fail closed; race
+				// instrumentation verifies their service-pointer reads too.
+				writeCtx, writeCancel := context.WithTimeout(ctx, 250*time.Millisecond)
+				taskErr := r.CompleteTask(writeCtx, TaskResult{TaskID: "startup-task", SlotID: 1, TaskKind: TaskKindBootstrap, ConfigEpoch: 1, FinishedAt: time.Now().UTC()})
+				_, healthErr := r.ReportNodeHealth(writeCtx, ReportNodeHealthRequest{NodeID: 1, Status: NodeStatusAlive, ReportSeq: 1})
+				writeCancel()
+				if taskErr == nil || healthErr == nil {
+					select {
+					case failures <- fmt.Errorf("write succeeded without Controller quorum: task=%v health=%v", taskErr, healthErr):
+					default:
+					}
+					return
+				}
 				requests.Add(1)
 				runtime.Gosched()
 			}

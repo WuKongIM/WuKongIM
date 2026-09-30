@@ -206,3 +206,17 @@ established by the reason count. Preserve the artifact and failed-job receipt;
 do not describe this as a P99 threshold failure or reuse the previous head's
 green performance result. Draft status remains until current validation permits
 review. No qualification threshold or scenario is changed.
+
+Standards review traced two other registered ingress routes: task-result RPC
+and health control-write RPC reached facade methods with unlocked Raft pointer
+reads. Extending the same failure-first integration to those requests caught
+four further race reports on `78f9e504b` in 0.18 seconds. Valid fenced task/health
+request shapes also assert that this quorum-less fixture never accepts writes.
+The common short-lock service snapshot now covers every facade Raft reader,
+including other control-write branches and diagnostics. Resource publication,
+prepared-voter inspection and cleanup share the same lock; no queue, proposal,
+Raft stop or FSM work runs while holding it. The broadened regression passed
+twenty repetitions, and Controller integration plus related unit-race passed.
+Its evidence is in `controller-all-ingress-validation.json`. The full cluster
+and process acceptance at `78f9e504b` passed but remain separate from this final
+entrypoint coverage correction; final exact-source receipts follow separately.

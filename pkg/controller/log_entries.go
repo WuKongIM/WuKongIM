@@ -7,8 +7,9 @@ func (r *Runtime) LogEntries(ctx context.Context, opts LogEntriesOptions) (LogEn
 	if err := ctxErr(ctx); err != nil {
 		return LogEntries{}, err
 	}
-	if r == nil || r.raft == nil {
+	service := r.raftService()
+	if service == nil {
 		return LogEntries{}, ErrNotStarted
 	}
-	return r.raft.LogEntries(ctx, opts)
+	return service.LogEntries(ctx, opts)
 }
