@@ -2,9 +2,10 @@ package mqttsession
 
 import (
 	"context"
+	"slices"
+
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
-	"slices"
 )
 
 // readAnchoredOriginals proves a bounded original range for a durable cursor.
@@ -31,35 +32,56 @@ func readAnchoredOriginals(ctx context.Context, metadata ReplayMetadata, channel
 	if err = ctx.Err(); err != nil {
 		return empty, err
 	}
-	plan, err := channels.PlanChannelMQTTReplay(ctx, request)
-	if err != nil {
-		return empty, err
-	}
-	if err = ctx.Err(); err != nil {
-		return empty, err
-	}
-	if !plan.ValidFor(request) || plan.Source.StartAfter > cursor.StartAfter || plan.Source.CommittedThrough < cursor.AccountedThrough {
-		return empty, ErrEvidence
-	}
-	if !plan.HasAnchor {
-		return empty, ch.ErrNotReady
-	}
-	if plan.Anchor.Anchor.Through < cursor.AccountedThrough {
-		return empty, ErrEvidence
-	}
-	q := ch.MQTTReplayConsumerRequest{AnchorPosition: plan.Anchor.Manifest.LastOffset, Request: ch.MQTTReplayRequest{ChannelID: request.ChannelID, ExpectedChannelEpoch: request.ExpectedChannelEpoch, ExpectedLeaderEpoch: request.ExpectedLeaderEpoch, ExpectedRouteGeneration: request.ExpectedRouteGeneration, Range: ch.MQTTReplayRange{Generation: cursor.Key.SourceGeneration, From: from, Through: through, Limit: limit, MaxBytes: maxBytes}}}
-	if !q.Valid() {
-		return empty, ErrInvalid
-	}
-	page, err := channels.ReadChannelMQTTReplay(ctx, q)
-	if err != nil {
-		return empty, err
-	}
-	if err = ctx.Err(); err != nil {
-		return empty, err
-	}
-	if !page.ValidFor(request.ChannelID, q.Request.Range) || page.Before.StartAfter != plan.Source.StartAfter || (page.After.Through == plan.Anchor.Anchor.Through && page.After != plan.Anchor.Prefix()) {
-		return empty, ErrEvidence
+	var page ch.MQTTReplayConsumerPage
+	if reader, ok := channels.(interface {
+		ReadChannelMQTTOriginals(context.Context, ch.MQTTReplayOriginalRequest) (ch.MQTTReplayOriginalResult, error)
+	}); ok {
+		q := ch.MQTTReplayOriginalRequest{Request: ch.MQTTReplayRequest{ChannelID: request.ChannelID, ExpectedChannelEpoch: request.ExpectedChannelEpoch, ExpectedLeaderEpoch: request.ExpectedLeaderEpoch, ExpectedRouteGeneration: request.ExpectedRouteGeneration, Range: ch.MQTTReplayRange{Generation: cursor.Key.SourceGeneration, From: from, Through: through, Limit: limit, MaxBytes: maxBytes}}, StartAfter: cursor.StartAfter, AccountedThrough: cursor.AccountedThrough}
+		if !q.Valid() {
+			return empty, ErrInvalid
+		}
+		result, readErr := reader.ReadChannelMQTTOriginals(ctx, q)
+		if readErr != nil {
+			return empty, readErr
+		}
+		if err = ctx.Err(); err != nil {
+			return empty, err
+		}
+		if !result.ValidFor(q) {
+			return empty, ErrEvidence
+		}
+		page = result.Page
+	} else {
+		plan, err := channels.PlanChannelMQTTReplay(ctx, request)
+		if err != nil {
+			return empty, err
+		}
+		if err = ctx.Err(); err != nil {
+			return empty, err
+		}
+		if !plan.ValidFor(request) || plan.Source.StartAfter > cursor.StartAfter || plan.Source.CommittedThrough < cursor.AccountedThrough {
+			return empty, ErrEvidence
+		}
+		if !plan.HasAnchor {
+			return empty, ch.ErrNotReady
+		}
+		if plan.Anchor.Anchor.Through < cursor.AccountedThrough {
+			return empty, ErrEvidence
+		}
+		q := ch.MQTTReplayConsumerRequest{AnchorPosition: plan.Anchor.Manifest.LastOffset, Request: ch.MQTTReplayRequest{ChannelID: request.ChannelID, ExpectedChannelEpoch: request.ExpectedChannelEpoch, ExpectedLeaderEpoch: request.ExpectedLeaderEpoch, ExpectedRouteGeneration: request.ExpectedRouteGeneration, Range: ch.MQTTReplayRange{Generation: cursor.Key.SourceGeneration, From: from, Through: through, Limit: limit, MaxBytes: maxBytes}}}
+		if !q.Valid() {
+			return empty, ErrInvalid
+		}
+		page, err = channels.ReadChannelMQTTReplay(ctx, q)
+		if err != nil {
+			return empty, err
+		}
+		if err = ctx.Err(); err != nil {
+			return empty, err
+		}
+		if !page.ValidFor(request.ChannelID, q.Request.Range) || page.Before.StartAfter != plan.Source.StartAfter || (page.After.Through == plan.Anchor.Anchor.Through && page.After != plan.Anchor.Prefix()) {
+			return empty, ErrEvidence
+		}
 	}
 	current, err := metadata.ResolveChannelMetaFresh(ctx, request.ChannelID)
 	if err != nil {

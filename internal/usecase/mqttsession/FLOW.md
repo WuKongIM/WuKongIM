@@ -54,6 +54,9 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
    Fenced turns only recover existing anchors; absent anchors yield without copying.
    Confirmation captures one anchor, checks every replica and rechecks placement; partial recovery remains pending. Read-only planning, pre-anchor copy and direct/nested replica-recovery readiness/pressure yield explicit pending within the existing request bound; cancellation wins, unknown errors and anchor failures are not retried. Recovery preserves target rotation and rechecks committed storage. Maintenance grants no consumer GC or SUBACK authority.
 10. Accounting reads bounded anchored originals for online/offline debt, preserving QoS/No Local/expiry and exact revisions; quota ending proves no owner isolation.
+    WindowAdmission and ExchangeRecovery prefer the optional compound plan/original
+    port, retaining outer fresh placement, complete accounted-anchor coverage and
+    final Owner/receive checks. Other providers retain separate plan/read calls.
     WindowAdmission checks originals/options and exact charges; original QoS 0 preclaims once. ExchangeRecovery reads begun exchanges across unsubscribe with original authorization/content identity.
     Sender serializes old recovery before new admission and checks final receive permission; ambiguity closes without retry. Only its private proved-enqueued QoS-0 token may rebase completion across unrelated revisions.
     [DeliveryCoordinator](delivery_coordinator.go) rotates one subscription/source per turn, then accounts and sends; bounded body-free hints survive source failures. Revocation/quota cleanup runs after scopes release, including lost quota replies.

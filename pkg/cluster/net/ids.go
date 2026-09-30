@@ -153,6 +153,8 @@ const (
 	RPCChannelMQTTConsumerRead
 	// RPCChannelWillReceipt reads retained publication proof under current authority.
 	RPCChannelWillReceipt
+	// RPCChannelMQTTOriginals plans and reads one bounded anchored page.
+	RPCChannelMQTTOriginals
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -301,6 +303,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "channel mqtt consumer read"
 	case RPCChannelWillReceipt:
 		return "channel will receipt"
+	case RPCChannelMQTTOriginals:
+		return "channel mqtt originals"
 	case RPCChannelMQTTReplay:
 		return "channel mqtt replay"
 	default:

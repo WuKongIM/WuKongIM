@@ -19,7 +19,6 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 - Controller, Slot, Channel, transport and storage stay behind public facades and neutral errors.
 
 ## Main Flows
-
 1. Node construction records format identity only for fresh directories; startup rechecks
    supported markers before writable runtimes. Lifecycle starts transport and Controller, installs control routes, reconciles
    Slots/Channels and exposes readiness. Stop rejects work and reverses ownership.
@@ -34,6 +33,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    recheck fresh Slot authority, caller fences and the serving node across gateway swaps.
    RPCs 95–101 bind copying, anchors/retirement, planning, selection and repair to fresh authority; copy/recovery receivers verify their own committed HW before source reads or anchor planning. Lag yields without changing checkpoints. Retirement/retries and anchored plans schedule bounded native propagation to idle voters before final authority checks; hints grant no recovery proof.
    RPC 97/99 permit stable fences; plan reply v2 proves maintenance tails; recovery v2 releases sources and v3 applies retirement. RPC 102 v2 reads anchored typed messages; RPC 103 reads retained Will proof through the recovered reactor. Each uses fresh authority and separate four-slot admission; absence never authorizes Will republication.
+   RPC 104 combines plan/original reads under fresh authority, retains native propagation, shares RPC 102's four-reader admission and binds consumer boundaries; it follows caller cancellation and requires matched peers.
    Active repair probes verify follower durability; leaders checkpoint recovered HW and request native tail propagation.
    Fresh placement/fence checks bind optional replay coverage; diagnostics stay observational.
    Planned transfers and replacement require fresh coverage at cutover and fence clearing.

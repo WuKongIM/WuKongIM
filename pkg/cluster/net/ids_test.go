@@ -179,3 +179,13 @@ func TestMQTTRetirementServicesHaveStableIDsAndForegroundPolicy(t *testing.T) {
 		t.Fatal("selection service lost exact ID or foreground policy")
 	}
 }
+
+func TestMQTTOriginalsServiceIdentityAndCancellation(t *testing.T) {
+	if RPCChannelMQTTOriginals != 104 || transportServiceAlias(RPCChannelMQTTOriginals) != "channel mqtt originals" || !isForegroundChannelMutationService(RPCChannelMQTTOriginals) {
+		t.Fatal("compound originals lost its reserved identity or bounded foreground policy")
+	}
+	s := &TransportServer{}
+	if !s.serviceOptions(RPCChannelMQTTOriginals).CancelRunning {
+		t.Fatal("bounded original reads must follow caller cancellation")
+	}
+}

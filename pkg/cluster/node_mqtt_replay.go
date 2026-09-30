@@ -43,3 +43,22 @@ func (n *Node) ReadChannelMQTTReplay(ctx context.Context, req ch.MQTTReplayConsu
 	}
 	return reader.ReadMQTTReplay(ctx, req)
 }
+
+// ReadChannelMQTTOriginals routes a bounded compound plan/content read through
+// foreground admission. Final product Owner and permission checks stay above Node.
+func (n *Node) ReadChannelMQTTOriginals(ctx context.Context, req ch.MQTTReplayOriginalRequest) (ch.MQTTReplayOriginalResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return ch.MQTTReplayOriginalResult{}, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return ch.MQTTReplayOriginalResult{}, err
+	}
+	if n.channels == nil {
+		return ch.MQTTReplayOriginalResult{}, ErrNotStarted
+	}
+	reader, ok := n.channels.(ch.MQTTReplayOriginalReader)
+	if !ok {
+		return ch.MQTTReplayOriginalResult{}, ch.ErrInvalidConfig
+	}
+	return reader.ReadMQTTOriginals(ctx, req)
+}

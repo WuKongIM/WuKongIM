@@ -12,6 +12,11 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Cluster and authority
 
+- MQTT original reads must prove anchor coverage through the complete accounted
+  cursor, including a single-position exchange recovery. The compound plan/page
+  port shares fresh Channel authority only within one call; final Session Owner,
+  receive authorization and outer placement checks remain independent.
+
 - MQTT subscription admission derives dependency contexts from the admitted
   Owner operation, preserving its cancellation and the minimum caller/operation
   deadline; synchronous scope checks separately cover the parent. Caller context

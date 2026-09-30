@@ -11,13 +11,14 @@ import (
 
 type consumerReadStore struct {
 	channelstore.ChannelStore
-	page  ch.MQTTReplayConsumerPage
-	calls int
+	page    ch.MQTTReplayConsumerPage
+	calls   int
+	failure error
 }
 
 func (s *consumerReadStore) ReadMQTTReplayAnchor(context.Context, uint64, ch.MQTTReplayRange) (ch.MQTTReplayConsumerPage, error) {
 	s.calls++
-	return s.page, nil
+	return s.page, s.failure
 }
 func (s *consumerReadStore) Close() error { return nil }
 

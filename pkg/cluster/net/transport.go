@@ -352,7 +352,7 @@ func (s *TransportServer) serviceOptions(serviceID uint8) transport.ServiceOptio
 	// Mutations and mixed-purpose services keep running after caller cancellation;
 	// these read-only services may cooperatively stop once their caller is gone.
 	switch serviceID {
-	case RPCChannelLastVisible, RPCChannelConversationHeads, RPCChannelCommittedReads, RPCSlotStatus, RPCSlotMQTTMetadata, RPCChannelMQTTConsumerRead, RPCChannelWillReceipt:
+	case RPCChannelLastVisible, RPCChannelConversationHeads, RPCChannelCommittedReads, RPCSlotStatus, RPCSlotMQTTMetadata, RPCChannelMQTTConsumerRead, RPCChannelWillReceipt, RPCChannelMQTTOriginals:
 		opts.CancelRunning = true
 	}
 	return opts
@@ -369,7 +369,7 @@ func isOrderedRaftService(serviceID uint8) bool {
 
 func isForegroundChannelMutationService(serviceID uint8) bool {
 	switch serviceID {
-	case RPCChannelAppend, RPCChannelAppendBatch, RPCChannelAuthoritySend, RPCMessageEventAppend, RPCChannelQuorumExchange, RPCChannelMQTTSource, RPCChannelMQTTReplay, RPCChannelMQTTCopy, RPCChannelMQTTAnchor, RPCChannelMQTTPlan, RPCChannelMQTTRepair, RPCChannelMQTTRecovery, RPCChannelMQTTRetirement, RPCChannelMQTTRetirementSelection, RPCChannelMQTTConsumerRead, RPCChannelWillReceipt:
+	case RPCChannelAppend, RPCChannelAppendBatch, RPCChannelAuthoritySend, RPCMessageEventAppend, RPCChannelQuorumExchange, RPCChannelMQTTSource, RPCChannelMQTTReplay, RPCChannelMQTTCopy, RPCChannelMQTTAnchor, RPCChannelMQTTPlan, RPCChannelMQTTRepair, RPCChannelMQTTRecovery, RPCChannelMQTTRetirement, RPCChannelMQTTRetirementSelection, RPCChannelMQTTConsumerRead, RPCChannelWillReceipt, RPCChannelMQTTOriginals:
 		return true
 	default:
 		return false

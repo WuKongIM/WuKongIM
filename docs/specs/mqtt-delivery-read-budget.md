@@ -89,8 +89,13 @@ It must retain native committed propagation and the existing stable-fence,
 anchor, retention and generation proofs. Do not cache authority between turns
 or remove final receive authorization. First implement a regression seam for
 the actual routed plan/read chain, then establish a sequential ordinary-binary
-comparison before adopting any optimization. No compound operation is implemented
-or proven faster by this report.
+comparison before adopting any optimization. The compound candidate now has a test-first routed read-budget regression: the
+original real Service chain reads metadata five times; the compound path reads
+it twice. It retains outer placement and final Owner/permission checks, native
+propagation and the same four-reader admission. RPC 104 binds the complete
+consumer boundary and accounted frontier; old peers fail closed. Ordinary-binary
+measurements and the unchanged full acceptance determine its measured benefit;
+fewer reads alone do not prove a performance repair.
 
 Failure cases to write **before** that implementation:
 

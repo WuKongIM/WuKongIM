@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Combine MQTT delivery replay planning and anchored original reads under one fresh Channel authority, reducing repeated Slot barriers while retaining final ownership/permission checks and bounded read admission. Matched cluster binaries are required. / 合并 MQTT 投递的 replay 规划与锚定原文读取，减少重复 Slot 屏障，同时保留最终所有权、权限校验和有界读取准入；集群需使用匹配版本。
+
 - Avoid MQTT disconnects during concurrent fanout and resubscription: retain nested recovery pressure as pending, bound preparation retries under exact intent/Owner checks, and yield on valid newer drain snapshots. Unknown outcomes remain failures. / 修复并发投递与重新订阅时的 MQTT 断连：嵌套恢复背压保留待确认状态，准备阶段在完整意图和 Owner 检查下有限重试，退订遇到有效新快照时保留待清理状态；未知结果仍失败关闭。
 
 - MQTT subscription activation and removal tolerate bounded Session revision contention from renewal or progress, while preserving exact subscription/Owner checks and rejecting unknown commit outcomes. / MQTT 订阅激活和移除可在既有边界内处理续租或进度写入导致的明确版本拒绝；保留完整订阅与 Owner 检查，未知提交结果仍失败关闭。
