@@ -37,6 +37,9 @@ the complete MQTT implementation.
 
 There are at most six point reads, two binding CAS writes, one cancellation
 initialization and one window mutation; known cursors need fewer operations.
+A definite sealing CAS rejection may use three additional point reads to qualify
+monotonic progress or an identical seal as bounded pending; it makes no inline
+write retry. See [contention proof](mqtt-source-drain-contention.md).
 Each call shares one deadline and joins its owner scope before returning. A
 binding already removed as Drained can complete a retry whose earlier unsubscribe
 reply was lost. When a newer subscription proves closure, its exact revision may

@@ -1323,3 +1323,10 @@ specification, runbook, report, or module documentation; link to them when neede
   retains the first durable protected boundary. SourceDrain validates a newer
   coherent accounting snapshot before yielding, preserving its frozen end and
   rejecting regression, foreign identity or corrupt charges.
+
+- MQTT SourceDrain sealing contention uses no inline write retry. Only a definite
+  source CAS rejection followed by three fresh point reads may retain pending
+  removal: strict same-binding progress or the identical fixed seal, unchanged
+  full Removing child/Owner and nonregressing cursor with the same accounting
+  frontier. Unknown effects, changed intent and release/retirement remain failures.
+  See [sealing contention](../specs/mqtt-source-drain-contention.md).

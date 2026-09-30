@@ -17,6 +17,9 @@ import (
 // or a coherent newer snapshot; it never confirms a stale accounting mutation.
 var ErrSourceDrainPending = errors.New("mqttsession: source drain pending")
 
+// Only a definite source CAS rejection permits fresh contention qualification.
+var errSourceDrainBindingRejected = errors.New("mqttsession: source drain binding CAS rejected")
+
 // SourceDrainMetadata keeps sealing on the source Slot and window/accounting
 // mutations on the Session Slot, both through current foreground authority.
 type SourceDrainMetadata interface {
@@ -124,12 +127,16 @@ func (p *SourceDrain) seal(ctx context.Context, op *closedIntentScope, o contrac
 		}
 	}
 	if !b.EndKnown {
+		before := b
 		next := b
 		next.Stage, next.IntentRevision = meta.MQTTBindingRemoving, sub.Revision
 		next.EndKnown, next.EndThrough = true, cursor.AccountedThrough
 		next.CompletedThrough, next.ProgressRevision = cursor.CompletedThrough, cursor.Revision
 		b, err = p.sealBinding(ctx, op, b, next)
 		if err != nil {
+			if errors.Is(err, errSourceDrainBindingRejected) {
+				return out, p.pendingSeal(ctx, op, o, before, sub, cursor, s.Revision)
+			}
 			return out, err
 		}
 	}
@@ -382,7 +389,7 @@ func (p *SourceDrain) sealBinding(ctx context.Context, op *closedIntentScope, ol
 		return meta.MQTTSourceBinding{}, err
 	}
 	if r.Status == meta.MQTTSessionCASConflict {
-		return meta.MQTTSourceBinding{}, ErrConflict
+		return meta.MQTTSourceBinding{}, errors.Join(ErrConflict, errSourceDrainBindingRejected)
 	}
 	if (r.Status != meta.MQTTSessionCASApplied && r.Status != meta.MQTTSessionCASUnchanged) || r.CurrentRevision != next.Revision {
 		return meta.MQTTSourceBinding{}, ErrEvidence

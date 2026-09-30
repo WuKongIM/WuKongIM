@@ -1,0 +1,98 @@
+2026/09/30 19:41:05 Found 0 WALs
+2026/09/30 19:41:05 Found 0 WALs
+2026/09/30 19:41:05 Found 0 WALs
+2026/09/30 19:41:05 Found 0 WALs
+2026/09/30 19:41:05 Found 0 WALs
+2026/09/30 19:41:05 Found 0 WALs
+2026/09/30 19:41:06 Found 0 WALs
+2026/09/30 19:41:06 Found 0 WALs
+2026/09/30 19:41:06 Found 0 WALs
+2026/09/30 19:41:06 Found 0 WALs
+2026/09/30 19:41:07 Found 0 WALs
+2026/09/30 19:41:07 Found 0 WALs
+2026/09/30 19:41:07 Found 0 WALs
+2026/09/30 19:41:07 Found 0 WALs
+2026/09/30 19:41:08 Found 0 WALs
+2026/09/30 19:41:08 Found 0 WALs
+2026/09/30 19:41:08 Found 0 WALs
+2026/09/30 19:41:08 Found 0 WALs
+2026/09/30 19:41:08 Found 0 WALs
+2026/09/30 19:41:09 Found 0 WALs
+2026/09/30 19:41:09 Found 0 WALs
+2026/09/30 19:41:09 Found 0 WALs
+2026/09/30 19:41:09 Found 0 WALs
+2026/09/30 19:41:09 Found 0 WALs
+2026/09/30 19:41:10 Found 0 WALs
+2026/09/30 19:41:10 Found 0 WALs
+2026/09/30 19:41:10 Found 0 WALs
+2026/09/30 19:41:10 Found 0 WALs
+2026/09/30 19:41:11 Found 0 WALs
+2026/09/30 19:41:11 Found 0 WALs
+2026/09/30 19:41:11 Found 0 WALs
+2026/09/30 19:41:11 Found 0 WALs
+2026/09/30 19:41:11 Found 0 WALs
+2026/09/30 19:41:11 Found 0 WALs
+2026/09/30 19:41:12 Found 0 WALs
+2026/09/30 19:41:12 Found 0 WALs
+--- FAIL: TestSourceDrainProgressBeforeSealDoesNotClose (7.42s)
+    --- FAIL: TestSourceDrainProgressBeforeSealDoesNotClose/progress (0.33s)
+        source_drain_contention_test.go:125: 
+            	Error Trace:	<workspace>/internal/usecase/mqttsession/source_drain_contention_test.go:125
+            	Error:      	Target error should be in err chain:
+            	            	expected: "mqttsession: source drain pending"
+            	            	in chain: "mqttsession: subscription intent remains unconfirmed\nmqttsession: concurrent lifecycle decision"
+            	            		"mqttsession: subscription intent remains unconfirmed"
+            	            		"mqttsession: concurrent lifecycle decision"
+            	Test:       	TestSourceDrainProgressBeforeSealDoesNotClose/progress
+            	Messages:   	competing monotonic source progress retains bounded pending removal
+    --- FAIL: TestSourceDrainProgressBeforeSealDoesNotClose/competing-drain (0.34s)
+        source_drain_contention_test.go:125: 
+            	Error Trace:	<workspace>/internal/usecase/mqttsession/source_drain_contention_test.go:125
+            	Error:      	Target error should be in err chain:
+            	            	expected: "mqttsession: source drain pending"
+            	            	in chain: "mqttsession: subscription intent remains unconfirmed\nmqttsession: concurrent lifecycle decision"
+            	            		"mqttsession: subscription intent remains unconfirmed"
+            	            		"mqttsession: concurrent lifecycle decision"
+            	Test:       	TestSourceDrainProgressBeforeSealDoesNotClose/competing-drain
+            	Messages:   	competing monotonic source progress retains bounded pending removal
+    --- FAIL: TestSourceDrainProgressBeforeSealDoesNotClose/progress-denied (0.40s)
+        source_drain_contention_test.go:125: 
+            	Error Trace:	<workspace>/internal/usecase/mqttsession/source_drain_contention_test.go:125
+            	Error:      	Target error should be in err chain:
+            	            	expected: "mqttsession: source drain pending"
+            	            	in chain: "mqttsession: subscription intent remains unconfirmed\nmqttsession: concurrent lifecycle decision"
+            	            		"mqttsession: subscription intent remains unconfirmed"
+            	            		"mqttsession: concurrent lifecycle decision"
+            	Test:       	TestSourceDrainProgressBeforeSealDoesNotClose/progress-denied
+            	Messages:   	competing monotonic source progress retains bounded pending removal
+    --- FAIL: TestSourceDrainProgressBeforeSealDoesNotClose/progress-with-exchange (0.50s)
+        source_drain_contention_test.go:125: 
+            	Error Trace:	<workspace>/internal/usecase/mqttsession/source_drain_contention_test.go:125
+            	Error:      	Target error should be in err chain:
+            	            	expected: "mqttsession: source drain pending"
+            	            	in chain: "mqttsession: subscription intent remains unconfirmed\nmqttsession: concurrent lifecycle decision"
+            	            		"mqttsession: subscription intent remains unconfirmed"
+            	            		"mqttsession: concurrent lifecycle decision"
+            	Test:       	TestSourceDrainProgressBeforeSealDoesNotClose/progress-with-exchange
+            	Messages:   	competing monotonic source progress retains bounded pending removal
+    --- FAIL: TestSourceDrainProgressBeforeSealDoesNotClose/read-unavailable (0.41s)
+        source_drain_contention_test.go:118: 
+            	Error Trace:	<workspace>/internal/usecase/mqttsession/source_drain_contention_test.go:118
+            	Error:      	Target error should be in err chain:
+            	            	expected: "source reply unavailable"
+            	            	in chain: "mqttsession: subscription intent remains unconfirmed\nmqttsession: concurrent lifecycle decision"
+            	            		"mqttsession: subscription intent remains unconfirmed"
+            	            		"mqttsession: concurrent lifecycle decision"
+            	Test:       	TestSourceDrainProgressBeforeSealDoesNotClose/read-unavailable
+    --- FAIL: TestSourceDrainProgressBeforeSealDoesNotClose/canceled (0.33s)
+        source_drain_contention_test.go:121: 
+            	Error Trace:	<workspace>/internal/usecase/mqttsession/source_drain_contention_test.go:121
+            	Error:      	Target error should be in err chain:
+            	            	expected: "context canceled"
+            	            	in chain: "mqttsession: subscription intent remains unconfirmed\nmqttsession: concurrent lifecycle decision"
+            	            		"mqttsession: subscription intent remains unconfirmed"
+            	            		"mqttsession: concurrent lifecycle decision"
+            	Test:       	TestSourceDrainProgressBeforeSealDoesNotClose/canceled
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession	7.880s
+FAIL
