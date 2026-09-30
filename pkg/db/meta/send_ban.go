@@ -22,6 +22,15 @@ type SendBanResult struct {
 	Status  string `json:"status"`
 	SendBan int64  `json:"send_ban"`
 	Version uint64 `json:"send_ban_version"`
+	// Previous is captured inside atomic mutation apply for audit only. Reads
+	// omit it; transport or commit errors do not prove either state is durable.
+	Previous *SendBanPolicy `json:"previous_policy,omitempty"`
+}
+
+// SendBanPolicy is a credential-free policy value and its independent version.
+type SendBanPolicy struct {
+	SendBan int64  `json:"send_ban"`
+	Version uint64 `json:"send_ban_version"`
 }
 
 // ValidateSendBanMutation rejects ambiguous routing and nonboolean flags.
@@ -97,6 +106,7 @@ func (b *WriteBatch) ApplySendBan(hashSlot uint16, q SendBanMutation) (*SendBanR
 		if err != nil {
 			return err
 		}
+		result.Previous = &SendBanPolicy{SendBan: result.SendBan, Version: result.Version}
 		if q.UID == "" && !exists && q.ChannelType != 1 {
 			result.Status = "not_found"
 			return nil

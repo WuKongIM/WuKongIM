@@ -2,6 +2,7 @@ package channel
 
 import (
 	"context"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/sendbanaudit"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"strings"
@@ -26,11 +27,12 @@ func (a *App) validateSendBanKey(k ChannelKey) error {
 }
 
 // SetSendBan changes only the actual source Channel's sending restriction.
-func (a *App) SetSendBan(ctx context.Context, k ChannelKey, value int64, expected *uint64) (metadb.SendBanResult, error) {
+func (a *App) SetSendBan(ctx context.Context, k ChannelKey, value int64, expected *uint64) (result metadb.SendBanResult, err error) {
+	q := metadb.SendBanMutation{ChannelID: k.ChannelID, ChannelType: int64(k.ChannelType), SendBan: value, ExpectedVersion: expected}
+	defer func() { sendbanaudit.RecordMutation(ctx, a.sendBanAudit, q, result, err) }()
 	if err := a.validateSendBanKey(k); err != nil {
 		return metadb.SendBanResult{}, err
 	}
-	q := metadb.SendBanMutation{ChannelID: k.ChannelID, ChannelType: int64(k.ChannelType), SendBan: value, ExpectedVersion: expected}
 	if err := metadb.ValidateSendBanMutation(q); err != nil {
 		return metadb.SendBanResult{}, err
 	}

@@ -69,7 +69,7 @@ profiles afterward; see the scenario instructions for the fixed comparison.
 
 `send_ban` verifies independent user/source-Channel restrictions, cross-ingress
 cache freshness, WKProto and HTTP admission, atomic changes and CAS.
-Run `GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -count=1 -timeout=5m -p=1 -v`.
+Run `GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -count=1 -timeout=8m -p=1 -v`.
 The scenario writes a JSON report (override with `WK_E2E_SEND_BAN_REPORT`).
 Its independent `WK_E2E_SEND_BAN_100K=1` opt-in runs `TestHundredKGroupSendBan`
 with a six-minute test bound and writes a `.100k.json` companion report. A setup

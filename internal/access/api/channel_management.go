@@ -90,7 +90,7 @@ func (s *Server) handleChannelUpsert(c *gin.Context) {
 		writeJSONError(c, err.Error())
 		return
 	}
-	writeMutationResult(c, s.channels.Upsert(c.Request.Context(), channelusecase.UpsertCommand{
+	writeMutationResult(c, s.channels.Upsert(sendBanManagementContext(c), channelusecase.UpsertCommand{
 		Info:        req.toInfo(),
 		Reset:       req.Reset == 1,
 		Subscribers: req.Subscribers,
@@ -110,7 +110,7 @@ func (s *Server) handleChannelInfo(c *gin.Context) {
 		writeJSONError(c, err.Error())
 		return
 	}
-	writeMutationResult(c, s.channels.UpdateInfo(c.Request.Context(), req.toInfo()))
+	writeMutationResult(c, s.channels.UpdateInfo(sendBanManagementContext(c), req.toInfo()))
 }
 
 func (s *Server) handleChannelDelete(c *gin.Context) {

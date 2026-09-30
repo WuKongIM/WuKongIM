@@ -5,7 +5,7 @@ HTTP and WKProto in 256-Hash-Slot single-node and three-node clusters with
 12 initial physical Slots. A separate three-node, one-replica scenario proves
 non-replica ingress never reads a missing local policy as an allow.
 
-Run: `GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -count=1 -timeout=5m -p=1 -v`.
+Run: `GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -count=1 -timeout=8m -p=1 -v`.
 Set `WK_E2E_SEND_BAN_REPORT` to a JSON output path to retain the verdict and observations.
 
 Keep assertions black-box. Cover cached admission, cross-ingress changes, both
@@ -98,3 +98,10 @@ separate, unchanged direct admission-counter checks; potentially buffered
 transport counters cannot establish continuity. Require two remote envelopes,
 HTTP 503, drain, restored quorum and exact complete history with successful
 controls. This proves real network overlap, not a throughput speedup or HA.
+
+The management-audit companion uses a real authenticated Manager and backend
+HTTP in a single-node cluster. Verify atomic previous/current values, no-op and
+CAS conflict outcomes, explicit versus omitted legacy fields, verified Manager
+actor and credential-free structured logs. Its `.audit.json` artifact contains
+only selected audit events. The eight-minute package timeout covers all sequential
+scenarios; individual scenario deadlines and assertions remain unchanged.

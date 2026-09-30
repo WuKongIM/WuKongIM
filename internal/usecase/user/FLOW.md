@@ -48,6 +48,8 @@ It does not own HTTP, gateway frames, concrete storage, or cluster transport.
 - UID-owned send-ban reads and atomic versioned mutations expose policy only,
   without credential data. Restricting sends does not reject login, receiving or
   protocol acknowledgments; credential initialization preserves the restriction.
+  Mutation audit observers receive apply-time old/new policies and explicit
+  unknown outcomes, without credentials or message data.
 
 ## Read First
 

@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/sendbanaudit"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"strings"
 )
@@ -12,8 +13,9 @@ type sendBanStore interface {
 }
 
 // SetSendBan changes only the user's global application-send restriction.
-func (a *App) SetSendBan(ctx context.Context, uid string, value int64, expected *uint64) (metadb.SendBanResult, error) {
+func (a *App) SetSendBan(ctx context.Context, uid string, value int64, expected *uint64) (result metadb.SendBanResult, err error) {
 	q := metadb.SendBanMutation{UID: uid, SendBan: value, ExpectedVersion: expected}
+	defer func() { sendbanaudit.RecordMutation(ctx, a.sendBanAudit, q, result, err) }()
 	if strings.TrimSpace(uid) != uid || len(uid) > 512 {
 		return metadb.SendBanResult{}, metadb.ErrInvalidArgument
 	}

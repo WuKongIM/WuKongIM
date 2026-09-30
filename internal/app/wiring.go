@@ -345,6 +345,7 @@ func (a *App) wireChannels() {
 			metadata := a.ensureChannelAppendMetadataCache()
 			store := clusterinfra.NewChannelMetadataStore(node, metadata, a.goroutines)
 			channelOptions := channelusecase.Options{
+				SendBanAudit:                  a.sendBanAuditObserver,
 				CommandChannelSuffix:          a.cfg.Message.CMDChannelSuffix,
 				Store:                         store,
 				LargeGroupSubscriberThreshold: a.cfg.Channel.LargeGroupSubscriberThreshold,
@@ -686,6 +687,7 @@ func (a *App) wireUsers() {
 				systemUIDs = clusterinfra.NewChannelMetadataStore(channelNode, nil, a.goroutines)
 			}
 			a.users = userusecase.New(userusecase.Options{
+				SendBanAudit: a.sendBanAuditObserver,
 				Users:        userStore,
 				Devices:      userStore,
 				DeviceReader: userStore,

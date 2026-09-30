@@ -81,7 +81,7 @@ func (s *Server) handleSendBan(c *gin.Context, user, write bool) {
 			return
 		}
 		if write {
-			out, err = usecase.SetSendBan(c.Request.Context(), req.UID, *req.SendBan, expected)
+			out, err = usecase.SetSendBan(sendBanManagementContext(c), req.UID, *req.SendBan, expected)
 		} else {
 			out, err = usecase.GetSendBan(c.Request.Context(), req.UID)
 		}
@@ -93,7 +93,7 @@ func (s *Server) handleSendBan(c *gin.Context, user, write bool) {
 		}
 		key := channelusecase.ChannelKey{ChannelID: req.ChannelID, ChannelType: req.ChannelType}
 		if write {
-			out, err = usecase.SetSendBan(c.Request.Context(), key, *req.SendBan, expected)
+			out, err = usecase.SetSendBan(sendBanManagementContext(c), key, *req.SendBan, expected)
 		} else {
 			out, err = usecase.GetSendBan(c.Request.Context(), key)
 		}

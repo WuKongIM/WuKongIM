@@ -3,6 +3,7 @@ package channel
 import (
 	"context"
 	"errors"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/sendbanaudit"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"time"
 
@@ -57,6 +58,8 @@ type CommittedTailReader interface {
 
 // Options contains dependencies for the channel usecase.
 type Options struct {
+	// SendBanAudit receives explicit policy attempts with atomic old/new state.
+	SendBanAudit sendbanaudit.Observer
 	// CommandChannelSuffix reserves derived command identities from management.
 	CommandChannelSuffix string
 	Store                Store
@@ -77,6 +80,8 @@ type Options struct {
 // App coordinates legacy channel management actions without depending on an
 // entry protocol.
 type App struct {
+	// sendBanAudit records management policy changes, never message payloads.
+	sendBanAudit                  sendbanaudit.Observer
 	commandChannels               channelid.CommandCodec
 	store                         Store
 	membershipIndex               MembershipIndex
@@ -102,6 +107,7 @@ func New(opts Options) *App {
 		now = time.Now
 	}
 	return &App{
+		sendBanAudit:                  opts.SendBanAudit,
 		commandChannels:               channelid.CommandCodec{Suffix: opts.CommandChannelSuffix},
 		store:                         opts.Store,
 		membershipIndex:               opts.MembershipIndex,
@@ -159,7 +165,11 @@ func (a *App) UpdateInfo(ctx context.Context, info Info) error {
 			v := boolToInt64(info.SendBan)
 			q.SendBan = &v
 		}
-		return channelInfoResult(store.UpdateChannelInfo(ctx, q))
+		result, err := store.UpdateChannelInfo(ctx, q)
+		if q.SendBan != nil {
+			sendbanaudit.RecordMutation(ctx, a.sendBanAudit, metadb.SendBanMutation{ChannelID: q.ChannelID, ChannelType: q.ChannelType, SendBan: *q.SendBan}, result, err)
+		}
+		return channelInfoResult(result, err)
 	}
 
 	channel := metadb.Channel{
@@ -195,7 +205,17 @@ func (a *App) GetMetadata(ctx context.Context, key ChannelKey) (metadb.Channel, 
 }
 
 // CreateMetadata creates a channel and fails when it already exists.
-func (a *App) CreateMetadata(ctx context.Context, info Info) error {
+func (a *App) CreateMetadata(ctx context.Context, info Info) (err error) {
+	defer func() {
+		result := metadb.SendBanResult{}
+		if err == nil {
+			result = metadb.SendBanResult{Status: "ok", SendBan: boolToInt64(info.SendBan), Previous: &metadb.SendBanPolicy{}}
+			if info.SendBan {
+				result.Version = 1
+			}
+		}
+		sendbanaudit.RecordMutation(ctx, a.sendBanAudit, metadb.SendBanMutation{ChannelID: info.ChannelID, ChannelType: int64(info.ChannelType), SendBan: boolToInt64(info.SendBan)}, result, err)
+	}()
 	if err := a.requireStore(); err != nil {
 		return err
 	}
@@ -234,7 +254,11 @@ func (a *App) PatchMetadataFlags(ctx context.Context, key ChannelKey, flags Busi
 			v := boolToInt64(flags.SendBan)
 			q.SendBan = &v
 		}
-		return channelInfoResult(store.UpdateChannelInfo(ctx, q))
+		result, err := store.UpdateChannelInfo(ctx, q)
+		if q.SendBan != nil {
+			sendbanaudit.RecordMutation(ctx, a.sendBanAudit, metadb.SendBanMutation{ChannelID: q.ChannelID, ChannelType: q.ChannelType, SendBan: *q.SendBan}, result, err)
+		}
+		return channelInfoResult(result, err)
 	}
 
 	store, ok := a.store.(conditionalChannelStore)

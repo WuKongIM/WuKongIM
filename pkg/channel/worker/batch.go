@@ -199,6 +199,7 @@ func (p *Pool) runTaskGroup(ctx context.Context, group []queuedTask) {
 			return
 		}
 	}
+	defer p.outstanding.Add(-int64(len(group)))
 	for _, queued := range group {
 		p.observeWait(queued.task.Kind, time.Since(queued.enqueuedAt))
 	}

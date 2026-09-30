@@ -113,7 +113,8 @@ bench or debug request
 - User/channel send-ban POST and GET routes expose policy values and decimal
   CAS versions through the existing management boundary. Strict bounded bodies
   reject missing/invalid flags; legacy channel-info DTOs distinguish an omitted
-  send_ban from an explicit zero.
+  send_ban from an explicit zero. Audit attribution labels backend writes with
+  an unknown operator and the actual socket peer, without trusting headers.
 
 ## Read First
 

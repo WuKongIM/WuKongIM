@@ -143,9 +143,9 @@ type Pool struct {
 	// inflightObservationMu linearizes absolute current/peak publications. A
 	// delayed older worker samples the latest physical state before publishing.
 	inflightObservationMu sync.Mutex
-	// deferred counts accepted quorum commits whose worker returned before the
-	// durable result; they keep the original queued+executing budget.
-	deferred atomic.Int64
+	// outstanding reserves one slot before enqueue for every accepted task,
+	// through execution and final result publication, including deferred commits.
+	outstanding atomic.Int64
 	// deferredWG joins deferred completions before Close returns.
 	deferredWG sync.WaitGroup
 	// rpcGroupTurn rotates same-kind RPC target groups between bounded batches.
@@ -246,7 +246,7 @@ func (p *Pool) Submit(ctx context.Context, task Task) error {
 		p.observeQueueDepth()
 		return err
 	}
-	if p.runtime.QueueDepth() >= p.runtime.QueueCapacity() || p.deferredQuorumFull() {
+	if p.runtime.QueueDepth() >= p.runtime.QueueCapacity() || !p.reserveOutstanding() {
 		p.observeAdmission("full")
 		p.observeAdmissionKind(task.Kind, "full")
 		p.observeQueueDepth()
@@ -254,6 +254,9 @@ func (p *Pool) Submit(ctx context.Context, task Task) error {
 	}
 	queued := queuedTask{task: task, enqueuedAt: time.Now()}
 	err := p.runtime.Submit(ctx, queued)
+	if err != nil {
+		p.outstanding.Add(-1)
+	}
 	p.observeAdmissionKind(task.Kind, workerAdmissionResultFromSubmit(err))
 	switch {
 	case err == nil:
@@ -264,6 +267,21 @@ func (p *Pool) Submit(ctx context.Context, task Task) error {
 		return ch.ErrClosed
 	default:
 		return err
+	}
+}
+
+// reserveOutstanding atomically charges queued, executing, and unpublished
+// tasks to one fixed budget before the runtime can accept or execute them.
+func (p *Pool) reserveOutstanding() bool {
+	limit := int64(p.cfg.Workers) + int64(p.cfg.QueueSize)
+	for {
+		current := p.outstanding.Load()
+		if current >= limit {
+			return false
+		}
+		if p.outstanding.CompareAndSwap(current, current+1) {
+			return true
+		}
 	}
 }
 
@@ -439,10 +457,14 @@ func (p *Pool) rpcBatchMaxItems() int {
 }
 
 func (p *Pool) completeQueuedClosed(queued queuedTask, err error) {
+	if p == nil {
+		return
+	}
+	defer p.outstanding.Add(-1)
 	if queued.task.Kind == TaskStoreClose && queued.task.StoreClose != nil {
 		_ = queued.task.StoreClose.finalize()
 	}
-	if p == nil || p.sink == nil {
+	if p.sink == nil {
 		return
 	}
 	if err == nil || errors.Is(err, workqueue.ErrClosed) {

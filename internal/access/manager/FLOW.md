@@ -69,7 +69,9 @@ remote node read or action
   owner. `/manager/mcp*` remains the separately authenticated admin surface.
 
 - Business-channel patches preserve an omitted send_ban; an explicit false is
-  carried as policy intent to the atomic Channel-info command.
+  carried as policy intent to the atomic Channel-info command. Policy creation
+  and patch audit attribution uses the authenticated Manager principal; disabled
+  authentication leaves that identity explicitly unknown.
 
 ## Read First
 

@@ -112,7 +112,9 @@ Stop or startup rollback
   before dependencies close or restart; timed-out drains retain their fence.
 - Composition wires UID/source-Channel policy mutations, unified send facts,
   and bounded permission-stage/RPC/ban-scope observers through existing ports.
-  Every topology follows the same cluster-authoritative admission path.
+  Every topology follows the same cluster-authoritative admission path. Policy
+  mutation observers write credential-free structured audits; proposal errors
+  retain an unknown outcome rather than reporting tentative state as durable.
 
 ## Read First
 - [app.go](app.go)

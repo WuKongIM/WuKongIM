@@ -8,6 +8,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Atomically reserve Channel worker ownership through queued, executing and unpublished work so concurrent SENDs and blocked quorum completion callbacks retain the configured budget. / 频道 worker 从入队到结果发布结束原子持有统一预算，避免并发 SEND 和被阻塞的 quorum 完成回调超额准入。
+
+- Record structured user/channel send-ban management audits with authenticated Manager attribution, atomic old/new values and versions, and explicit unknown outcomes; omit credentials, payloads and raw errors. / 用户及频道禁言管理写入新增结构化审计，记录 Manager 已认证操作者、原子旧新值及版本；不确定结果明确标记，排除凭据、消息内容和原始错误。
+
 - `wukongim config init` now writes `node.data_dir = "/var/lib/wukongim/data"` so node data no longer shares the package state root with the service home and plugin directories; the stricter data-format check otherwise rejects that root as unregistered existing data on first start. Existing configurations are unchanged. / `wukongim config init` 生成的 `node.data_dir` 改为 `/var/lib/wukongim/data`，节点数据不再与服务主目录、插件目录共用软件包状态根目录，否则更严格的数据格式检查会在首次启动时把该根目录当作未登记的已有数据而拒绝。已有配置不受影响。
 
 - Bound Slot startup snapshot installation memory with verified streaming and crash-retry fencing; print throttled recovery stages, byte/record progress, and committed-log replay completion. / Slot 启动快照采用校验后的流式分批安装，降低恢复内存峰值并保护中断重试；输出限频的恢复阶段、字节/条目进度和已提交日志重放完成信息。

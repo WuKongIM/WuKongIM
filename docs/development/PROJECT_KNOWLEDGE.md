@@ -811,3 +811,13 @@ specification, runbook, report, or module documentation; link to them when neede
   duplicate/late callbacks never add votes. The round has no waiting goroutine
   per proposal. Callers must retain bounded admission through completion; the
   current log/worker still uses the synchronous wrapper until explicit wiring.
+
+- Channel worker ownership is atomically reserved before enqueue and retained
+  through result publication for every task sharing an asynchronous quorum pool.
+  Sampling deferred plus queue depth cannot enforce the shared bound under
+  concurrent admission or during queue-to-executor handoff.
+- Send-policy management audits use atomic apply results for previous/current
+  values and versions, never a preceding GET. Manager attribution uses its verified
+  principal; backend APIs record an unknown operator plus actual socket peer.
+  Timeout/unavailability records `outcome_unknown` without policy proof. Logs
+  omit credentials, payloads and raw downstream errors.

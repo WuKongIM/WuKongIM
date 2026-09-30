@@ -60,6 +60,9 @@ func (b *WriteBatch) ApplyChannelInfo(hashSlot uint16, q ChannelInfoMutation) (*
 			return err
 		}
 		*out = SendBanResult{Status: "ok", SendBan: ch.SendBan, Version: ch.SendBanVersion}
+		if q.SendBan != nil {
+			out.Previous = &SendBanPolicy{SendBan: ch.SendBan, Version: ch.SendBanVersion}
+		}
 		if !exists && q.ExistingOnly {
 			out.Status = "not_found"
 			return nil
