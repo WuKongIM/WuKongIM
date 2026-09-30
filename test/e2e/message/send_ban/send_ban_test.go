@@ -431,7 +431,9 @@ func TestHundredKGroupSendBan(t *testing.T) {
 	for i := 1; i < len(members); i++ {
 		members[i] = fmt.Sprintf("send-ban-100k-%06d", i)
 	}
+	setupStarted := time.Now()
 	require.NoError(t, suite.PostChannel(ctx, node.APIAddr(), map[string]any{"channel_id": room, "channel_type": 2, "subscribers": members}))
+	evidence = append(evidence, map[string]any{"label": "100k-setup", "requested_members": len(members), "elapsed_us": time.Since(setupStarted).Microseconds()})
 	metrics := func() []suite.MetricSample {
 		t.Helper()
 		samples, err := suite.FetchMetricSamples(ctx, node.APIAddr())
@@ -459,6 +461,7 @@ func TestHundredKGroupSendBan(t *testing.T) {
 	}
 	first := send("100k-before-ban", frame.ReasonSuccess)
 	suite.RequireMetricAtLeastEventually(t, *node, "wukongim_delivery_recipient_worker_process_recipients_sum", map[string]string{"result": "ok"}, 100000)
+	evidence = append(evidence, map[string]any{"label": "100k-fanout-positive-control", "processed_recipient_rows": suite.SumMetricSamples(metrics(), "wukongim_delivery_recipient_worker_process_recipients_sum", map[string]string{"result": "ok"})})
 	_, err := suite.SetUserSendBan(ctx, node.APIAddr(), sender, 1)
 	require.NoError(t, err)
 	send("100k-user-rejected", frame.ReasonSendBan)
@@ -487,6 +490,7 @@ func TestHundredKGroupSendBan(t *testing.T) {
 		numbers = append(numbers, message.ClientMsgNo)
 	}
 	require.ElementsMatch(t, []string{"100k-before-ban", "100k-after-unban"}, numbers)
+	evidence = append(evidence, map[string]any{"label": "100k-complete-history", "more": history.More, "client_msg_numbers": numbers})
 }
 
 func TestUserAndChannelSendBan(t *testing.T) {
@@ -533,7 +537,7 @@ func TestUserAndChannelSendBan(t *testing.T) {
 				cluster = c
 				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 				defer cancel()
-				require.NoError(t, c.WaitClusterReady(ctx))
+				require.NoError(t, c.WaitClusterReady(ctx), c.DumpDiagnostics())
 				_, err := c.WaitSlotLeadersStable(ctx, time.Second)
 				require.NoError(t, err, c.DumpDiagnostics())
 				nodes = []*suite.StartedNode{c.MustNode(1), c.MustNode(2), c.MustNode(3)}

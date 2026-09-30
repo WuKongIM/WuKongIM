@@ -32,6 +32,9 @@ fixed permission-fact counts and zero recipient processing for both ban scopes,
 then exact committed-history checks after unban. Its `.100k.json` artifact must
 remain failed if setup exceeds its five-minute budget; do not reduce cardinality
 or treat incomplete setup as permission-scale evidence.
+Its artifact retains the requested setup cardinality, observed successful
+recipient-processing control and exact complete history. Initial three-node
+readiness failures include bounded process diagnostics.
 
 The main scenario also keeps two distinct devices of one UID connected before
 ban and through unban, covering every additional declared source Channel type
