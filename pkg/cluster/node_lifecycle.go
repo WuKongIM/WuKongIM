@@ -58,14 +58,14 @@ func (n *Node) Start(ctx context.Context) error {
 			_ = n.group.Stop(ctx)
 			return err
 		}
-		n.startWatchLoop()
 	}
+	n.started.Store(true)
 	n.startTaskReconcileLoop()
+	n.startWatchLoop()
 	n.startPreferredLeaderReconcileLoop()
 	n.startSlotLeaderLoop()
 	n.markChannelsReady(n.channels != nil)
 	n.startChannelTickLoop()
-	n.started.Store(true)
 	n.startHealthReportLoop()
 	n.startChannelRetentionGCLoop()
 	n.startChannelMigrationLoop()

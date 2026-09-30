@@ -172,8 +172,11 @@ type Node struct {
 	taskReconcileMu         sync.Mutex
 	taskReconcileCancel     context.CancelFunc
 	taskReconcileWG         sync.WaitGroup
-	preferredLeaderCancel   context.CancelFunc
-	preferredLeaderWG       sync.WaitGroup
+	// taskReconcileWake coalesces notifications without retaining stale snapshots.
+	// Its channel identity is immutable after allocation under mu.
+	taskReconcileWake     chan struct{}
+	preferredLeaderCancel context.CancelFunc
+	preferredLeaderWG     sync.WaitGroup
 	// preferredLeaderInterval is a test override for the idle background interval.
 	preferredLeaderInterval time.Duration
 	// preferredLeaderIntentMu protects the currently published Controller-intent

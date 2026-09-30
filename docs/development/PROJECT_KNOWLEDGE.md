@@ -20,6 +20,11 @@ specification, runbook, report, or module documentation; link to them when neede
   older logical revisions before maintenance, placement or task side effects.
   Watch notifications trigger a current Controller read rather than replaying
   queued task progress.
+  Reconciled routes, Slot readiness and committed health publish before initial
+  task setup. After startup, task changes wake the existing background owner
+  through one coalesced notification; it reads fresh Controller state and retains
+  serialized execution/cancellation. Task writes cannot hold snapshot publication
+  or readiness probes, and Stop joins the owner before storage closes.
   Equal revisions still refresh health and Controller leadership; logical revision
   does not version every health observation.
 - Controller owns placement intent; observed Raft leadership is authoritative.

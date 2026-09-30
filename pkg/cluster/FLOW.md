@@ -69,14 +69,14 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    pages transfer without another deep copy; caller isolation remains required.
    Read RPCs preserve typed temporary transport failures from nested authority
    reads using the existing not-ready code; unknown error text stays unknown.
-5. `LocalControlSnapshot` exposes the latest fully Node-applied control state;
-   delayed snapshots older than that applied revision are ignored before any
-   maintenance, placement or task side effects. Equal revisions still refresh
-   Controller leadership and node health. Watch events trigger a current
-   Controller read so queued task progress is not replayed. Revision-fenced
-   management adapters may use `LocalControllerSnapshot` to read
-   Controller-visible state without waiting for runtime task reconciliation.
-   Repair also reads this fresh health snapshot so a stalled task cannot hide failures.
+5. `LocalControlSnapshot` exposes the latest Node-applied control state;
+   older revisions are ignored before maintenance, placement or task side effects.
+   Equal revisions refresh leadership/health; watch events read current state.
+   Reconciled routes, Slot readiness and health publish before initial task setup.
+   After startup, one coalesced wake drives the existing serialized executor over
+   fresh Controller state. Task writes cannot block snapshot publication/readiness;
+   Stop joins that owner. Revision-fenced management and repair may use
+   `LocalControllerSnapshot` for fresh Controller state before task reconciliation.
 6. Controller-backed management mutations, including Slot leader-transfer task
    creation, preserve semantic CAS errors and task identity through typed RPC;
    task-result RPC carries executor progress and terminal observations.

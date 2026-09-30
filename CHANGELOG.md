@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Publish reconciled cluster readiness and committed node health before Controller task progress writes, and run subsequent tasks through the existing bounded background owner so slow writes cannot block startup readiness. / 集群就绪状态与已提交的节点健康信息先于 Controller 任务进度写入发布，后续任务由现有有界后台执行者处理，避免慢写入阻塞启动就绪检查。
+
 - Atomically reserve Channel worker ownership through queued, executing and unpublished work so concurrent SENDs and blocked quorum completion callbacks retain the configured budget. / 频道 worker 从入队到结果发布结束原子持有统一预算，避免并发 SEND 和被阻塞的 quorum 完成回调超额准入。
 
 - Record structured user/channel send-ban management audits with authenticated Manager attribution, atomic old/new values and versions, and explicit unknown outcomes; omit credentials, payloads and raw errors. / 用户及频道禁言管理写入新增结构化审计，记录 Manager 已认证操作者、原子旧新值及版本；不确定结果明确标记，排除凭据、消息内容和原始错误。

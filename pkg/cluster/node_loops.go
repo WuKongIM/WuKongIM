@@ -192,6 +192,12 @@ func (n *Node) startTaskReconcileLoop() {
 	}
 	fastInterval := n.taskReconcileFastInterval()
 	idleInterval := taskReconcileIdleInterval(fastInterval)
+	n.mu.Lock()
+	if n.taskReconcileWake == nil {
+		n.taskReconcileWake = make(chan struct{}, 1)
+	}
+	wake := n.taskReconcileWake
+	n.mu.Unlock()
 	ctx, cancel := context.WithCancel(context.Background())
 	n.taskReconcileCancel = cancel
 	n.taskReconcileWG.Add(1)
@@ -203,33 +209,50 @@ func (n *Node) startTaskReconcileLoop() {
 			select {
 			case <-ctx.Done():
 				return
+			case <-wake:
 			case <-timer.C:
-				nextInterval := idleInterval
-				snapshot, err := n.control.LocalSnapshot(ctx)
-				if err != nil {
-					n.recordTaskReconcileError("snapshot", err)
-					if n.hasCachedControlTasks() {
-						nextInterval = fastInterval
-					}
-					timer.Reset(nextInterval)
-					continue
-				}
-				if len(snapshot.Tasks) != 0 {
+			}
+			timer.Stop()
+			nextInterval := idleInterval
+			snapshot, err := n.control.LocalSnapshot(ctx)
+			if err != nil {
+				n.recordTaskReconcileError("snapshot", err)
+				if n.hasCachedControlTasks() {
 					nextInterval = fastInterval
-				} else {
-					n.clearTaskReconcileError()
-					timer.Reset(nextInterval)
-					continue
-				}
-				if err := n.reconcileTasks(ctx, snapshot); err != nil {
-					n.recordTaskReconcileError("reconcile", err)
-				} else {
-					n.clearTaskReconcileError()
 				}
 				timer.Reset(nextInterval)
+				continue
 			}
+			if len(snapshot.Tasks) != 0 {
+				nextInterval = fastInterval
+			} else {
+				n.clearTaskReconcileError()
+				timer.Reset(nextInterval)
+				continue
+			}
+			if err := n.reconcileTasks(ctx, snapshot); err != nil {
+				n.recordTaskReconcileError("reconcile", err)
+			} else {
+				n.clearTaskReconcileError()
+			}
+			timer.Reset(nextInterval)
 		}
 	})
+}
+
+// requestTaskReconcile wakes the existing owner; the owner reads current
+// Controller state after it finishes any executing task, never a queued payload.
+func (n *Node) requestTaskReconcile() {
+	if n == nil || n.stopping.Load() {
+		return
+	}
+	n.mu.RLock()
+	wake := n.taskReconcileWake
+	n.mu.RUnlock()
+	select {
+	case wake <- struct{}{}:
+	default:
+	}
 }
 
 func (n *Node) taskReconcileFastInterval() time.Duration {

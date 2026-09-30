@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,101 @@ import (
 	"github.com/WuKongIM/WuKongIM/test/e2e/suite"
 	"github.com/stretchr/testify/require"
 )
+
+// TestThreeNodeFreshStartupReadiness retains the send-ban fixture's original
+// startup deadline and records each fresh process generation independently.
+func TestThreeNodeFreshStartupReadiness(t *testing.T) {
+	var attempts []map[string]any
+	t.Cleanup(func() {
+		path := os.Getenv("WK_E2E_STARTUP_READINESS_REPORT")
+		if path == "" {
+			path = filepath.Join(os.TempDir(), "wukongim-startup-readiness.json")
+		}
+		report := map[string]any{"passed": !t.Failed(), "source_revision": os.Getenv("WK_E2E_SOURCE_REVISION"),
+			"nodes": 3, "hash_slots": 256, "physical_slots": 12, "deadline_seconds": 30, "attempts": attempts,
+			"performance_qualified": false}
+		raw, err := json.MarshalIndent(report, "", "  ")
+		require.NoError(t, err)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+		require.NoError(t, os.WriteFile(path, append(raw, '\n'), 0600))
+		t.Logf("startup readiness artifact: %s", path)
+	})
+	for attempt := 1; attempt <= 3; attempt++ {
+		t.Run(fmt.Sprintf("attempt-%d", attempt), func(t *testing.T) {
+			started := time.Now().UTC()
+			overrides := map[string]string{"WK_CLUSTER_HASH_SLOT_COUNT": "256", "WK_CLUSTER_INITIAL_SLOT_COUNT": "12", "WK_GATEWAY_TOKEN_AUTH_ON": "false", "WK_MESSAGE_PERMISSION_CACHE_TTL": "1h"}
+			cluster := suite.New(t).StartThreeNodeCluster(suite.WithManagerHTTP(),
+				suite.WithNodeConfigOverrides(1, overrides), suite.WithNodeConfigOverrides(2, overrides), suite.WithNodeConfigOverrides(3, overrides))
+			record := map[string]any{"attempt": attempt, "started_at": started}
+			t.Cleanup(func() {
+				record["passed"] = !t.Failed()
+				record["diagnostics"] = cluster.DumpDiagnostics()
+				var logs []map[string]any
+				for _, node := range cluster.Nodes {
+					logs = append(logs, startupReadinessLog(node))
+				}
+				record["startup_logs"] = logs
+				attempts = append(attempts, record)
+			})
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			err := cluster.WaitClusterReady(ctx)
+			record["ready_elapsed_ms"] = time.Since(started).Milliseconds()
+			if err != nil {
+				record["error"] = err.Error()
+			}
+			require.NoError(t, err, cluster.DumpDiagnostics())
+			_, err = cluster.WaitSlotLeadersStable(ctx, time.Second)
+			if err != nil {
+				record["error"] = err.Error()
+			}
+			require.NoError(t, err, cluster.DumpDiagnostics())
+		})
+	}
+}
+
+// startupReadinessLog retains only fixed lifecycle/Raft/recovery fields from a
+// bounded log prefix; arbitrary log messages and credential fields are omitted.
+func startupReadinessLog(node suite.StartedNode) map[string]any {
+	out := map[string]any{"node_id": node.Spec.ID}
+	file, err := os.Open(filepath.Join(node.Spec.LogDir, "app.log"))
+	if err != nil {
+		out["error"] = err.Error()
+		return out
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, 64<<10+1))
+	if err != nil {
+		out["error"] = err.Error()
+		return out
+	}
+	out["truncated"] = len(data) > 64<<10
+	data = data[:min(len(data), 64<<10)]
+	var events []map[string]any
+	for _, line := range strings.Split(string(data), "\n") {
+		index := strings.IndexByte(line, '{')
+		if index < 0 || len(events) >= 128 {
+			continue
+		}
+		var fields map[string]any
+		if json.Unmarshal([]byte(line[index:]), &fields) != nil {
+			continue
+		}
+		event, _ := fields["event"].(string)
+		if event != "internal.app.starting" && event != "internal.app.started" && event != "slot.recovery.progress" && !(event == "raft.log" && fields["raftEvent"] == "leader_change") {
+			continue
+		}
+		selected := map[string]any{"event": event, "timestamp": strings.SplitN(line, "\t", 2)[0]}
+		for _, key := range []string{"nodeID", "slotID", "stage", "elapsed", "startupDuration", "raftScope", "raftEvent"} {
+			if value, ok := fields[key]; ok {
+				selected[key] = value
+			}
+		}
+		events = append(events, selected)
+	}
+	out["events"] = events
+	return out
+}
 
 func TestStartupRecoveryPreservesSnapshotAndSuffixCredentials(t *testing.T) {
 	for _, slots := range []int{1, 12} {

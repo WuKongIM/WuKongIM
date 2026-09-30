@@ -6,6 +6,15 @@ Never read or mutate live storage internals. Snapshot creation uses the
 public Manager Slot compaction endpoint. Verify device credentials both
 from the snapshot and from the committed suffix after restart.
 
+`TestThreeNodeFreshStartupReadiness` starts three independent fresh generations
+with three nodes, 256 hash slots and 12 physical Slots. Keep the original shared
+30-second readiness/convergence deadline, explicit tokenless send-ban fixture
+and 1h auxiliary permission TTL. It always emits a passed/failed JSON report
+with bounded diagnostics and selected startup log fields. Run with
+`WK_E2E_STARTUP_READINESS_REPORT=/tmp/startup-readiness.json GOWORK=off go test -tags=e2e ./test/e2e/cluster/startup_recovery -run TestThreeNodeFreshStartupReadiness -count=1 -timeout=3m -p=1 -v`.
+Use an eight-minute bound when running the complete package. These functional
+startup timings are not a qualified performance benchmark.
+
 Also cover certified reuse in a three-node cluster and after moving a replica
 to a fourth node, with explicit public credentials. A frozen older binary is
 opted in through `WK_E2E_STARTUP_OLDER_BINARY` to verify safe fallback after writes.
