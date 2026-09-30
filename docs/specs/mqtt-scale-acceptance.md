@@ -1,7 +1,8 @@
 # MQTT group scale acceptance
 
-A black-box process scenario on a single-node cluster with 256 hash Slots. It
-checks that MQTT group consumers stay correct and bounded when the group has
+A black-box process scenario on a single-node cluster with 256 hash Slots and
+twelve initial physical Raft groups, matching the product default. It checks
+that MQTT group consumers stay correct and bounded when the group has
 100,000 members, and that subscription churn creates retirable tombstones
 instead of unbounded metadata. It is one part of full process/load acceptance.
 It makes no capacity claim beyond the recorded sizes.
@@ -44,3 +45,7 @@ It makes no capacity claim beyond the recorded sizes.
 per-phase durations, end-to-end delivery latency p50/p99/max (SEND ack to last
 subscriber receipt), duplicate/missing/out-of-order counts and the retired
 counter delta. No credentials or payloads.
+The artifact also records a ten-second post-fanout idle barrier window. The
+quiet cost must stay below ten successful Slot barriers per subscriber per
+second; this is an aggregate node measurement including maintenance, not a
+claim that each read comes from a particular caller.

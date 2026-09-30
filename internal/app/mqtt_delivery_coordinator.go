@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"time"
 
 	access "github.com/WuKongIM/WuKongIM/internal/access/mqtt"
 	contract "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession"
@@ -56,5 +57,5 @@ func newMQTTDeliveryCoordinator(node *cluster.Node, owners *runtime.Owners, auth
 	if err != nil {
 		return nil, err
 	}
-	return sessioncase.NewDeliveryCoordinator(sessioncase.DeliveryCoordinatorOptions{Sender: sender, Accounting: accounting, MaxSubscriptions: maxSubscriptions})
+	return sessioncase.NewDeliveryCoordinator(sessioncase.DeliveryCoordinatorOptions{Sender: sender, Accounting: accounting, MaxSubscriptions: maxSubscriptions, IdleRefresh: 10 * time.Second})
 }

@@ -1,0 +1,28 @@
+{
+  "scenario": "mqtt-group-scale",
+  "date": "2026-09-30",
+  "passed": false,
+  "nodes": 1,
+  "hash_slots": 256,
+  "initial_slots": 12,
+  "configured": {
+    "members": 100000,
+    "connections": 500,
+    "messages": 20,
+    "churn_subscribers": 200,
+    "churn_rounds": 3
+  },
+  "failed_phase": "provision_members",
+  "failure": "public HTTP subscriber_add context deadline exceeded at the 12-minute scenario deadline",
+  "observed": {
+    "confirmed_members_lower_bound": 95000,
+    "unconfirmed_batch_from": 95000,
+    "unconfirmed_batch_size": 5000,
+    "mqtt_subscribe_phase_started": false
+  },
+  "duration_seconds": 726.31,
+  "candidate_binary_sha256": "04789255bf115d29c6678316b47a05d0e8530d5d034c6d83ed9d8562aaf3ff12",
+  "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-idle-final WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-idle-scale-full GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/scale -count=1 -timeout=15m -v",
+  "interpretation": "Incomplete scale acceptance; this run observed no MQTT delivery workload. The last HTTP batch may have partial effects; 95000 is a confirmed lower bound, not an exact stored-member count.",
+  "evidence_log": "/tmp/mqtt-idle-scale-full.log"
+}

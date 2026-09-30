@@ -759,6 +759,9 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 				opts.RecipientAuthorityResolver = resolver
 			}
 			opts.PersistAfterEnqueuer = composePersistAfterEnqueuers(a.pluginPersistAfter, a.webhookNotify)
+			if a.cfg.MQTT.Enabled {
+				opts.PersistAfterEnqueuer = composePersistAfterEnqueuers(mqttPostCommitWake{notify: a.wakeMQTTSource}, opts.PersistAfterEnqueuer)
+			}
 			var observer deliveryMessageObserver
 			if _, topEnabled := a.topProvider.(*topCollector); a.cfg.Delivery.Enabled || a.metrics != nil || topEnabled {
 				observer = deliveryMessageObserver{app: a}

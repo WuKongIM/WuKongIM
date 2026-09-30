@@ -78,7 +78,7 @@ func (a *App) wireMQTT(nodeID uint64) error {
 	if err != nil {
 		return err
 	}
-	m.deliveries, err = runtime.NewDeliveries(runtime.DeliveryOptions{Owners: owners, Registry: a.goroutines, Workers: c.Workers})
+	m.deliveries, err = runtime.NewDeliveries(runtime.DeliveryOptions{Owners: owners, Registry: a.goroutines, Workers: c.Workers, MaxSourcesPerTask: c.MaxSubscriptions})
 	if err != nil {
 		return err
 	}
@@ -127,7 +127,7 @@ func (a *App) wireMQTT(nodeID uint64) error {
 		return err
 	}
 	hashSlots := defaultClusterConfig(a.cfg).Slots.HashSlotCount
-	m.replay, err = newMQTTReplayWorker(node, a.messageIDs, runtime.ReplayWorkerOptions{Registry: a.goroutines, HashSlotCount: hashSlots})
+	m.replay, err = newMQTTReplayWorker(node, a.messageIDs, runtime.ReplayWorkerOptions{Registry: a.goroutines, HashSlotCount: hashSlots}, a.wakeMQTTSource)
 	if err != nil {
 		return err
 	}

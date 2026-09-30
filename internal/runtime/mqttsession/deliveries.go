@@ -23,7 +23,17 @@ var (
 // DeliveryWork contains scheduling hints, never durable delivery evidence.
 // Again yields to other due Owners before another turn. Done releases the task
 // only when its usecase no longer needs this connection's volatile continuation.
-type DeliveryWork struct{ Again, Done bool }
+type DeliveryWork struct {
+	Again, Done bool
+	// Sources replaces the bounded source-interest set after a complete pass.
+	// Nil retains the prior set; an empty nonnil slice clears it. No body or
+	// generation authority belongs here; notifications only accelerate polling.
+	Sources []string
+}
+
+// DeliveryNotifier atomically invalidates a task's quiet hint. NotifyDelivery
+// must not block, panic, call the scheduler or acquire the task's turn gate.
+type DeliveryNotifier interface{ NotifyDelivery() }
 
 // DeliveryTask is bound to one exact Owner and retains no publication queue.
 // Turn owns authority checks and bounded usecase work, including terminal cleanup
@@ -39,6 +49,8 @@ type DeliveryOptions struct {
 	Registry *gr.Registry
 	// Capacity includes scheduled, queued and executing tasks. Zero uses Owners.
 	Capacity int
+	// MaxSourcesPerTask bounds the reverse source index; default 128, max 1024.
+	MaxSourcesPerTask int
 	// Workers defaults to 16, with at most 128 and one cohort of queued turns.
 	Workers int
 	// TurnTimeout bounds a joined turn, default five seconds, maximum one minute.
@@ -57,6 +69,7 @@ type Deliveries struct {
 	mu                sync.Mutex
 	started, stopping bool
 	entries           map[contract.Owner]*deliveryEntry
+	bySource          map[string]map[*deliveryEntry]struct{}
 	due               deliveryHeap
 	wake              chan struct{}
 	done              chan struct{}
@@ -67,11 +80,12 @@ type Deliveries struct {
 }
 
 type deliveryEntry struct {
-	owner contract.Owner
-	task  DeliveryTask
-	due   time.Time
-	index int // -1 while queued or executing; the record remains capacity-charged.
-	woken bool
+	owner   contract.Owner
+	task    DeliveryTask
+	due     time.Time
+	index   int // -1 while queued or executing; the record remains capacity-charged.
+	woken   bool
+	sources []string
 	// notBefore prevents notification floods from defeating failure backoff.
 	notBefore time.Time
 }
@@ -93,6 +107,9 @@ func NewDeliveries(o DeliveryOptions) (*Deliveries, error) {
 	if o.Workers == 0 {
 		o.Workers = 16
 	}
+	if o.MaxSourcesPerTask == 0 {
+		o.MaxSourcesPerTask = 128
+	}
 	if o.TurnTimeout == 0 {
 		o.TurnTimeout = 5 * time.Second
 	}
@@ -102,10 +119,10 @@ func NewDeliveries(o DeliveryOptions) (*Deliveries, error) {
 	if o.Retry == 0 {
 		o.Retry = 250 * time.Millisecond
 	}
-	if o.Capacity < 1 || o.Capacity > 1_000_000 || o.Workers < 1 || o.Workers > 128 || o.TurnTimeout <= 0 || o.TurnTimeout > time.Minute || o.IdleInterval < time.Millisecond || o.IdleInterval > time.Minute || o.Retry < time.Millisecond || o.Retry > time.Minute {
+	if o.Capacity < 1 || o.Capacity > 1_000_000 || o.MaxSourcesPerTask < 1 || o.MaxSourcesPerTask > 1024 || o.Workers < 1 || o.Workers > 128 || o.TurnTimeout <= 0 || o.TurnTimeout > time.Minute || o.IdleInterval < time.Millisecond || o.IdleInterval > time.Minute || o.Retry < time.Millisecond || o.Retry > time.Minute {
 		return nil, ErrDeliveriesInvalid
 	}
-	return &Deliveries{options: o, entries: make(map[contract.Owner]*deliveryEntry), wake: make(chan struct{}, 1), done: make(chan struct{})}, nil
+	return &Deliveries{options: o, entries: make(map[contract.Owner]*deliveryEntry), bySource: make(map[string]map[*deliveryEntry]struct{}), wake: make(chan struct{}, 1), done: make(chan struct{})}, nil
 }
 
 // Start checks its caller but owns a separate lifetime, joined by terminal Stop.
@@ -176,6 +193,34 @@ func (s *Deliveries) Wake(owner contract.Owner) error {
 	if e == nil {
 		return ErrOwnerUnknown
 	}
+	s.wakeEntry(e)
+	s.signal()
+	return nil
+}
+
+// WakeSource visits only tasks indexed for this Channel source. It performs no
+// durable reads and grants no content/receive authority. Missing registrations
+// and remote commits remain recoverable by the task's bounded full refresh.
+func (s *Deliveries) WakeSource(source string) error {
+	if s == nil || source == "" {
+		return ErrDeliveriesInvalid
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.started || s.stopping {
+		return ErrDeliveriesStopped
+	}
+	for e := range s.bySource[source] {
+		s.wakeEntry(e)
+	}
+	s.signal()
+	return nil
+}
+
+func (s *Deliveries) wakeEntry(e *deliveryEntry) {
+	if task, ok := e.task.(DeliveryNotifier); ok {
+		task.NotifyDelivery()
+	}
 	if e.index < 0 {
 		e.woken = true
 	} else {
@@ -188,7 +233,39 @@ func (s *Deliveries) Wake(owner contract.Owner) error {
 			heap.Fix(&s.due, e.index)
 		}
 	}
-	s.signal()
+}
+
+func (s *Deliveries) clearSources(e *deliveryEntry) {
+	for _, source := range e.sources {
+		delete(s.bySource[source], e)
+		if len(s.bySource[source]) == 0 {
+			delete(s.bySource, source)
+		}
+	}
+	e.sources = nil
+}
+
+func (s *Deliveries) replaceSources(e *deliveryEntry, sources []string) error {
+	if len(sources) > s.options.MaxSourcesPerTask {
+		return ErrDeliveriesInvalid
+	}
+	for _, source := range sources {
+		if source == "" || len(source) > 4098 {
+			return ErrDeliveriesInvalid
+		}
+	}
+	s.clearSources(e)
+	for _, source := range sources {
+		entries := s.bySource[source]
+		if entries == nil {
+			entries = make(map[*deliveryEntry]struct{})
+			s.bySource[source] = entries
+		}
+		if _, exists := entries[e]; !exists {
+			entries[e] = struct{}{}
+			e.sources = append(e.sources, source)
+		}
+	}
 	return nil
 }
 
@@ -240,6 +317,7 @@ func (s *Deliveries) run() {
 		_ = s.queue.Close(context.Background())
 		s.mu.Lock()
 		clear(s.entries)
+		clear(s.bySource)
 		s.due = nil
 		s.mu.Unlock()
 	}()
@@ -294,6 +372,15 @@ func (s *Deliveries) execute(_ context.Context, e *deliveryEntry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.stats.Turns++
+	if err == nil && out.Sources != nil {
+		err = s.replaceSources(e, out.Sources)
+		if err != nil {
+			s.clearSources(e)
+			if task, ok := e.task.(DeliveryNotifier); ok {
+				task.NotifyDelivery()
+			}
+		}
+	}
 	if err != nil {
 		s.stats.Failures++
 	}
@@ -301,6 +388,7 @@ func (s *Deliveries) execute(_ context.Context, e *deliveryEntry) error {
 		return nil
 	}
 	if out.Done && err == nil {
+		s.clearSources(e)
 		delete(s.entries, e.owner)
 		s.stats.Completed++
 		return nil

@@ -76,6 +76,10 @@ Stop or startup rollback
   complete failure acceptance and scale qualification remain required. See
   [product composition](../../docs/specs/mqtt-product-runtime.md) and the linked
   module contracts; successful online interop is not complete MQTT delivery.
+- MQTT delivery quiet hints are bounded to ten seconds. Ordinary durable
+  post-commit envelopes and timely replay anchors wake only indexed Channel
+  interests in the existing scheduler. Remote/lost hints recover through full
+  refresh; no cached permission or local cluster bypass is introduced.
 - Command-channel suffixes are injected across send, delivery, CMD sync, plugin
   projection and Manager filtering without process-global state.
 - The normalized message system UID is injected consistently into user

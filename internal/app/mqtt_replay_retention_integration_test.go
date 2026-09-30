@@ -44,7 +44,7 @@ func verifyMQTTReplayRetention(t *testing.T, ctx context.Context, nodes []*clust
 				attempts.Add(int32(o.Attempts))
 				decisions.Add(int32(o.RetirementCommits))
 				completions.Add(int32(o.Completed))
-			}})
+			}}, nil)
 			require.NoError(t, e)
 			deferStop = append(deferStop, w)
 			require.NoError(t, w.Start(ctx))

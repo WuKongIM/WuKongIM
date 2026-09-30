@@ -41,7 +41,7 @@ func newMQTTReplayRetirement(node *cluster.Node, ids interface{ Next() uint64 })
 
 // newMQTTReplayWorker binds the managed loop to real discovery and turn ports.
 // The caller owns start/stop/restore ordering relative to Node and its allocator.
-func newMQTTReplayWorker(node *cluster.Node, ids interface{ Next() uint64 }, options runtime.ReplayWorkerOptions) (*runtime.ReplayWorker, error) {
+func newMQTTReplayWorker(node *cluster.Node, ids interface{ Next() uint64 }, options runtime.ReplayWorkerOptions, wake func(string)) (*runtime.ReplayWorker, error) {
 	coordinator, err := newMQTTReplayCoordinator(node, ids)
 	if err != nil {
 		return nil, err
@@ -55,5 +55,8 @@ func newMQTTReplayWorker(node *cluster.Node, ids interface{ Next() uint64 }, opt
 		return nil, err
 	}
 	options.Source, options.Stepper = node, maintenance
+	if wake != nil {
+		options.Stepper = mqttReplayWake{stepper: maintenance, notify: wake}
+	}
 	return runtime.NewReplayWorker(options)
 }

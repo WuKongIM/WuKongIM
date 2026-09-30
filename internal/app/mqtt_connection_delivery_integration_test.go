@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"net"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -84,7 +85,12 @@ func testMQTTConnectionDeliveryPaho(t *testing.T, existingMessage bool, protocol
 	require.NoError(t, err)
 	subscriptions, err := sessioncase.NewSubscriptions(sessioncase.SubscriptionOptions{Store: node, Owners: owners, Authorization: authorization, Projection: projection})
 	require.NoError(t, err)
-	replay, err := newMQTTReplayWorker(node, a.messageIDs, runtime.ReplayWorkerOptions{HashSlotCount: 256, Interval: 20 * time.Millisecond, PagesPerTurn: 32})
+	var deliveryScheduler atomic.Pointer[runtime.Deliveries]
+	replay, err := newMQTTReplayWorker(node, a.messageIDs, runtime.ReplayWorkerOptions{HashSlotCount: 256, Interval: 20 * time.Millisecond, PagesPerTurn: 32}, func(source string) {
+		if scheduler := deliveryScheduler.Load(); scheduler != nil {
+			_ = scheduler.WakeSource(source)
+		}
+	})
 	require.NoError(t, err)
 	require.NoError(t, replay.Start(ctx))
 	t.Cleanup(func() {
@@ -148,6 +154,7 @@ func testMQTTConnectionDeliveryPaho(t *testing.T, existingMessage bool, protocol
 	}
 	deliveries, err := runtime.NewDeliveries(runtime.DeliveryOptions{Owners: owners, Workers: 2, IdleInterval: idle, Retry: 20 * time.Millisecond})
 	require.NoError(t, err)
+	deliveryScheduler.Store(deliveries)
 	require.NoError(t, deliveries.Start(ctx))
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

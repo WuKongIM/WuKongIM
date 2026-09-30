@@ -114,7 +114,7 @@ func TestGroupScaleDeliveryAndChurnRetirement(t *testing.T) {
 	require.Less(t, conns, members, "member 0 is the sender")
 	require.LessOrEqual(t, churners, conns)
 	addr := suite.ReserveLoopbackPorts(t).GatewayAddr
-	n := suite.New(t).StartSingleNodeCluster(suite.WithNodeConfigOverrides(1, map[string]string{"WK_CLUSTER_HASH_SLOT_COUNT": "256", "WK_GATEWAY_TOKEN_AUTH_ON": "true", "WK_MQTT_ENABLE": "true", "WK_MQTT_LISTEN_ADDR": addr}))
+	n := suite.New(t).StartSingleNodeCluster(suite.WithNodeConfigOverrides(1, map[string]string{"WK_CLUSTER_HASH_SLOT_COUNT": "256", "WK_CLUSTER_INITIAL_SLOT_COUNT": "12", "WK_GATEWAY_TOKEN_AUTH_ON": "true", "WK_MQTT_ENABLE": "true", "WK_MQTT_LISTEN_ADDR": addr}))
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
 	defer cancel()
 	api := n.APIAddr()
@@ -246,6 +246,22 @@ func TestGroupScaleDeliveryAndChurnRetirement(t *testing.T) {
 	}
 	awaitAll(messages, 3*time.Minute)
 	mark("fanout", start)
+	// Measure quiet cost only after the initial fanout has established replay
+	// coverage. Include a complete ten-second refresh window, with no SENDs.
+	barriers := func() float64 {
+		call, done := context.WithTimeout(ctx, 2*time.Second)
+		defer done()
+		v, err := suite.FetchMetricValue(call, api, "wukongim_slot_read_barrier_duration_seconds_count", map[string]string{"result": "ok"})
+		require.NoError(t, err)
+		return v
+	}
+	time.Sleep(2 * time.Second) // Drain pending PUBACK and progress work.
+	start = time.Now()
+	idleBefore := barriers()
+	time.Sleep(10 * time.Second)
+	idleRate := (barriers() - idleBefore) / time.Since(start).Seconds()
+	mark("idle_measurement", start)
+	t.Logf("idle Slot barriers/s=%.1f per subscriber/s=%.2f", idleRate, idleRate/float64(conns))
 
 	retired := func() float64 {
 		call, done := context.WithTimeout(ctx, 2*time.Second)
@@ -327,11 +343,12 @@ func TestGroupScaleDeliveryAndChurnRetirement(t *testing.T) {
 	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
 	passed := duplicates == 0 && missing == 0 && reordered == 0 && wrongID == 0 && extra == 0 && len(seqs) == messages+1
 	report := map[string]any{
-		"scenario": "mqtt-group-scale", "nodes": 1, "hash_slots": 256, "passed": passed,
+		"scenario": "mqtt-group-scale", "nodes": 1, "hash_slots": 256, "initial_slots": 12, "passed": passed && idleRate/float64(conns) < 10,
 		"configured":    map[string]int{"members": members, "connections": conns, "messages": messages, "churn_subscribers": churners, "churn_rounds": rounds},
 		"observed":      map[string]int{"subscribers": len(subs), "messages_sent": len(seqs), "duplicates": duplicates, "missing": missing, "reordered": reordered, "wrong_identity": wrongID, "unexpected": extra},
 		"retired_delta": retiredDelta, "retired_expected_min": want, "phase_ms": phases,
-		"delivery_latency_ms": map[string]int64{"p50": percentile(latencies, 0.5).Milliseconds(), "p99": percentile(latencies, 0.99).Milliseconds(), "max": percentile(latencies, 1).Milliseconds()},
+		"delivery_latency_ms":      map[string]int64{"p50": percentile(latencies, 0.5).Milliseconds(), "p99": percentile(latencies, 0.99).Milliseconds(), "max": percentile(latencies, 1).Milliseconds()},
+		"idle_barriers_per_second": idleRate, "idle_barriers_per_subscriber_second": idleRate / float64(conns),
 	}
 	if dir := os.Getenv("WK_E2E_MQTT_REPORT_DIR"); dir != "" {
 		require.NoError(t, os.MkdirAll(dir, 0700))
@@ -348,4 +365,5 @@ func TestGroupScaleDeliveryAndChurnRetirement(t *testing.T) {
 	require.Zero(t, reordered, "reordered")
 	require.Zero(t, wrongID, "wrong identity")
 	require.Zero(t, extra, "unexpected publications")
+	require.Less(t, idleRate/float64(conns), float64(10), "quiet subscribers must not saturate Slot reads")
 }

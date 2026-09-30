@@ -97,7 +97,7 @@ func TestMQTTInboxSourceOfflineFirstPersonSingleNodeCluster(t *testing.T) {
 	sent, err := a.Messages().Send(ctx, message.SendCommand{FromUID: "bob", DeviceFlag: 1, ChannelID: channel.ID, ChannelType: 1, ClientMsgNo: "first-person", Payload: []byte("first offline person message"), Origin: message.SendOriginClient})
 	require.NoError(t, err)
 	require.Greater(t, sent.MessageSeq, prepared.Cursor.StartAfter)
-	replay, err := newMQTTReplayWorker(node, a.messageIDs, runtime.ReplayWorkerOptions{HashSlotCount: 256, Interval: 20 * time.Millisecond, PagesPerTurn: 32})
+	replay, err := newMQTTReplayWorker(node, a.messageIDs, runtime.ReplayWorkerOptions{HashSlotCount: 256, Interval: 20 * time.Millisecond, PagesPerTurn: 32}, nil)
 	require.NoError(t, err)
 	require.NoError(t, replay.Start(ctx))
 	t.Cleanup(func() {

@@ -4905,3 +4905,38 @@ Channel commits; turns rely on the 1 s idle poll.
 idle but only 2,765/s during group fanout. Barrier volume is high, yet fanout
 throughput is not bounded by barrier issue rate; the fanout bottleneck is still
 unidentified. Barrier coalescing is not justified by this evidence yet.
+
+## Bounded idle delivery and source wakes
+
+Design and failure inventory: [mqtt-idle-delivery](../specs/mqtt-idle-delivery.md).
+ConnectionDelivery now skips Slot reads after a full quiet pass for at most ten
+seconds, checking exact local Owner execution first. Atomic wake invalidation
+survives running turns; pressure, errors, unfinished scans and pending children
+cannot install a quiet hint. All actual delivery/permission checks remain fresh.
+
+The existing scheduler bounds a reverse Channel-source interest index and
+coalesces targeted wakes without another task map, worker or publication queue.
+Post-commit envelopes and timely confirmed replay anchors wake interested local
+connections. Over-limit inbox sets fall back to ordinary polling. Lost/remote
+hints recover through full refresh. Scale now explicitly uses twelve initial
+Raft groups and 256 hash Slots, and records/asserts post-fanout quiet read cost.
+
+Validation (2026-09-30): unit suites, focused race checks, real scheduler and
+single-node/three-node app delivery passed; process interop, persistent
+reconnect/future inbox/takeover, graceful restart/shutdown and SIGKILL recovery
+passed. The subscription-entry fixture needed the same real anchor-wake port as
+product composition; its unchanged three-second delivery assertion then passed.
+The final 2,000-member/500-subscriber run passed with 10/10 churn retirements,
+zero delivery discrepancies, 2,178.71 idle barriers/s and last-receipt p50 27.783s.
+See [500-subscriber artifact](mqtt-idle-scale-500.json).
+Detailed commands/limits are in the design's validation evidence.
+
+The final default 100,000-member run stopped in public HTTP member preparation
+after 726.31s: 95,000 members' batches confirmed, the last 5,000 unconfirmed at
+the twelve-minute deadline, MQTT subscription/delivery not reached. See
+[failure artifact](mqtt-idle-scale-full.json). Full scale acceptance is incomplete.
+An old-binary reproduction
+attempt at each of 500/100/32 connections stopped at cold SUBSCRIBE as
+`unconfirmed`, before the performance window; no matched latency comparison or
+repair of that intermittent problem is claimed. Delivery latency and complete
+MQTT failure/scale acceptance remain open.

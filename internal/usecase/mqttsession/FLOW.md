@@ -57,6 +57,11 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
     WindowAdmission checks originals/options and exact charges; original QoS 0 preclaims once. ExchangeRecovery reads begun exchanges across unsubscribe with original authorization/content identity.
     Sender serializes old recovery before new admission and checks final receive permission; ambiguity closes without retry. Only its private proved-enqueued QoS-0 token may rebase completion across unrelated revisions.
     [DeliveryCoordinator](delivery_coordinator.go) rotates one subscription/source per turn, then accounts and sends; bounded body-free hints survive source failures. Revocation/quota cleanup runs after scopes release, including lost quota replies.
+    An optional quiet hint skips Slot reads for at most ten seconds after a full
+    idle pass, checking exact local Owner execution first. Wakes invalidate it
+    atomically, including during a pass. Busy/error/partial work cannot arm it;
+    oversized source sets retain ordinary polling. Full refresh and all actual
+    send checks remain authoritative; interests and hints never grant permission.
     ConsumerMaintenance accounts Channel debt independently of online/window state, drains closed sources through owner-independent ReconcileClosed, then projects or removes. Quota/revocation cleanup targets the captured Owner, including lost replies. UID work projects only explicit ended/new lifetimes; separate removal retains discovery/drain evidence and grants no Channel release.
     Consumer progress reads one binding and a pinned Session/cursor, projecting only contiguous completion with one CAS. Acknowledgements checks current owner and exact PacketID/order before command-70 commit; at most three proposals share one scope after definite rejection, requiring a newer parent and the same immutable exchange. Unknown outcomes never retry; absent exchanges cause no writes.
     Explicit lifetime end retains Removing without fabricating source release; offline/absent state cannot discharge responsibility or authorize content GC.

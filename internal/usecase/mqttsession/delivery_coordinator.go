@@ -3,7 +3,10 @@ package mqttsession
 import (
 	"context"
 	"errors"
+	"sort"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	runtime "github.com/WuKongIM/WuKongIM/internal/runtime/mqttsession"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -16,6 +19,11 @@ type DeliveryCoordinatorOptions struct {
 	// MaxSubscriptions bounds retained source continuations, matching subscription
 	// admission's limit. Zero defaults to 128; the maximum is 1024.
 	MaxSubscriptions int
+	// IdleRefresh bounds skipped Slot reads after a completely quiet pass.
+	// Zero disables the optimization; product composition uses ten seconds.
+	IdleRefresh time.Duration
+	// Now supplies monotonic hint time only; it grants no distributed authority.
+	Now func() time.Time
 }
 
 // DeliveryCoordinator discovers current sources and composes bounded accounting
@@ -33,6 +41,14 @@ type ConnectionDelivery struct {
 	sources       map[uint64]deliverySourceHint
 	roundProgress bool
 	done          bool
+	// Quiet hints store no content or permission. Wakes invalidate atomically
+	// without waiting for this connection's active turn or its gate.
+	wakeVersion                  atomic.Uint64
+	passWakeVersion, idleVersion uint64
+	idleSince, idleUntil         time.Time
+	quietPass                    bool
+	observedSources              map[string]struct{}
+	sourceOverflow               bool
 }
 
 type deliverySourceHint struct {
@@ -42,13 +58,17 @@ type deliverySourceHint struct {
 type deliverySelection struct {
 	key     meta.MQTTDeliveryCursorKey
 	wrapped bool
+	quiet   bool // No Preparing/Removing subscription was encountered.
 }
 
 func NewDeliveryCoordinator(o DeliveryCoordinatorOptions) (*DeliveryCoordinator, error) {
 	if o.MaxSubscriptions == 0 {
 		o.MaxSubscriptions = 128
 	}
-	if o.Sender == nil || o.Sender.window == nil || o.Sender.recovery == nil || o.Sender.ender == nil || o.Accounting == nil || o.Accounting.options.Store == nil || o.MaxSubscriptions < 1 || o.MaxSubscriptions > 1024 {
+	if o.Now == nil {
+		o.Now = time.Now
+	}
+	if o.Sender == nil || o.Sender.window == nil || o.Sender.recovery == nil || o.Sender.ender == nil || o.Accounting == nil || o.Accounting.options.Store == nil || o.MaxSubscriptions < 1 || o.MaxSubscriptions > 1024 || o.IdleRefresh < 0 || o.IdleRefresh > 10*time.Second {
 		return nil, ErrInvalid
 	}
 	return &DeliveryCoordinator{options: o}, nil
@@ -63,8 +83,12 @@ func (c *DeliveryCoordinator) Open(ctx context.Context, connection Connection, s
 	if err != nil {
 		return nil, err
 	}
-	return &ConnectionDelivery{coordinator: c, stream: s, pass: 1, sources: make(map[uint64]deliverySourceHint)}, nil
+	return &ConnectionDelivery{coordinator: c, stream: s, pass: 1, quietPass: true, sources: make(map[uint64]deliverySourceHint), observedSources: make(map[string]struct{})}, nil
 }
+
+// NotifyDelivery invalidates quiet state even when a wake races a running pass.
+// It must remain atomic-only: the scheduler may hold its own index lock.
+func (s *ConnectionDelivery) NotifyDelivery() { s.wakeVersion.Add(1) }
 
 // Turn recovers first, then visits at most one subscription and source, accounts
 // one protected page and attempts one enqueue. Busy/idle sources yield; no body
@@ -81,14 +105,35 @@ func (s *ConnectionDelivery) Turn(parent context.Context) (out runtime.DeliveryW
 		if recover() != nil {
 			out, err = runtime.DeliveryWork{}, ErrDeliveryCallback
 		}
+		if err != nil {
+			s.idleUntil = time.Time{}
+			s.quietPass = false
+		}
 	}()
 	ctx, cancel := context.WithTimeout(parent, s.stream.sender.window.options.Timeout)
 	defer cancel()
+	if err = ctx.Err(); err != nil {
+		return out, err
+	}
 	if s.done {
 		return runtime.DeliveryWork{Done: true}, nil
 	}
 	if s.stream.closed {
 		return s.finishClosed(parent)
+	}
+	now := s.coordinator.options.Now()
+	if !s.idleUntil.IsZero() && !now.Before(s.idleSince) && now.Before(s.idleUntil) && s.idleVersion == s.wakeVersion.Load() {
+		// A hint may skip distributed reads, never exact local execution fencing.
+		op, e := s.stream.sender.window.options.Owners.Begin(ctx, s.stream.connection.Owner)
+		if e != nil {
+			return s.resolveFailure(parent, out, e)
+		}
+		op.Done()
+		return out, ctx.Err()
+	}
+	s.idleUntil = time.Time{}
+	if s.afterTopic == "" {
+		s.passWakeVersion = s.wakeVersion.Load()
 	}
 	state, err := s.connectionState(ctx)
 	if err != nil {
@@ -107,6 +152,7 @@ func (s *ConnectionDelivery) Turn(parent context.Context) (out runtime.DeliveryW
 		return runtime.DeliveryWork{Done: true}, nil
 	}
 	if err != nil || !recovered.Idle {
+		s.quietPass = false
 		return s.resolveFailure(parent, runtime.DeliveryWork{Again: recovered.Enqueued || recovered.Advanced}, err)
 	}
 	selected, err := s.selectSource(ctx)
@@ -114,8 +160,10 @@ func (s *ConnectionDelivery) Turn(parent context.Context) (out runtime.DeliveryW
 		return s.resolveFailure(parent, out, err)
 	}
 	if selected.key == (meta.MQTTDeliveryCursorKey{}) {
-		return s.continueRotation(false, selected.wrapped), nil
+		s.quietPass = s.quietPass && selected.quiet
+		return s.finishRotation(s.continueRotation(false, selected.wrapped), selected.wrapped, now), nil
 	}
+	s.observeSource(selected.key.SourceID)
 	accounted, err := s.account(ctx, selected.key)
 	if err != nil {
 		return s.resolveFailure(parent, out, err)
@@ -128,8 +176,50 @@ func (s *ConnectionDelivery) Turn(parent context.Context) (out runtime.DeliveryW
 		s.done = true
 		return runtime.DeliveryWork{Done: true}, nil
 	}
+	s.quietPass = s.quietPass && accounted.Idle && delivered.Idle
 	out = s.continueRotation(accounted.Changed || delivered.Enqueued || delivered.Advanced, selected.wrapped)
+	if err == nil {
+		out = s.finishRotation(out, selected.wrapped, now)
+	}
 	return s.resolveFailure(parent, out, err)
+}
+
+func (s *ConnectionDelivery) observeSource(source string) {
+	if s.coordinator.options.IdleRefresh == 0 || s.sourceOverflow {
+		return
+	}
+	if _, exists := s.observedSources[source]; exists {
+		return
+	}
+	if len(s.observedSources) == s.coordinator.options.MaxSubscriptions {
+		s.sourceOverflow = true
+		clear(s.observedSources)
+		return
+	}
+	s.observedSources[source] = struct{}{}
+}
+
+// finishRotation publishes only a complete bounded interest set. An oversized
+// inbox retains ordinary polling; it can never sleep on an incomplete index.
+func (s *ConnectionDelivery) finishRotation(out runtime.DeliveryWork, wrapped bool, started time.Time) runtime.DeliveryWork {
+	if !wrapped || len(s.sources) != 0 {
+		return out
+	}
+	o := s.coordinator.options
+	if o.IdleRefresh > 0 {
+		out.Sources = make([]string, 0, len(s.observedSources))
+		for source := range s.observedSources {
+			out.Sources = append(out.Sources, source)
+		}
+		sort.Strings(out.Sources)
+		if !out.Again && s.quietPass && !s.sourceOverflow && s.passWakeVersion == s.wakeVersion.Load() {
+			// Bound staleness from turn start, including a slow discovery pass.
+			s.idleSince, s.idleUntil, s.idleVersion = started, started.Add(o.IdleRefresh), s.passWakeVersion
+		}
+	}
+	clear(s.observedSources)
+	s.quietPass, s.sourceOverflow = true, false
+	return out
 }
 
 // connectionState detects durable quota ending even after its commit reply was
@@ -256,11 +346,13 @@ func (s *ConnectionDelivery) selectSource(parent context.Context) (out deliveryS
 	out.wrapped = r.Done
 	defer s.advanceSubscription(after, r.Done)
 	if len(r.Subscriptions) == 0 {
+		out.quiet = true
 		return out, nil
 	}
 	sub := r.Subscriptions[0]
 	if sub.Stage != meta.MQTTSubscriptionActive {
 		delete(s.sources, sub.Generation)
+		out.quiet = sub.Stage == meta.MQTTSubscriptionRemoved
 		return out, nil
 	}
 	hint, retained := s.sources[sub.Generation]
@@ -292,6 +384,7 @@ func (s *ConnectionDelivery) selectSource(parent context.Context) (out deliveryS
 		return deliverySelection{wrapped: out.wrapped}, ErrEvidence
 	}
 	if r.Done {
+		out.quiet = true
 		delete(s.sources, sub.Generation)
 	} else {
 		if !retained && len(s.sources) >= s.coordinator.options.MaxSubscriptions {

@@ -125,6 +125,11 @@ script summarizes these in `channelappend_metrics_summary.tsv` and
 by the single-writer invariant even when different channels run through
 different shards or workers.
 The foreground SEND path waits only for channel-authority durable append.
+When MQTT is enabled, its body-free post-commit adapter wakes locally indexed
+Channel consumers; replay maintenance wakes them again after a confirmed anchor.
+The connection coordinator can skip quiet Slot reads for at most ten seconds,
+with exact local Owner fencing and unchanged authoritative send checks. Lost or
+remote notifications recover on the bounded full refresh.
 Ordinary message storage writes the message row and sender-sequence index in the
 same storage batch. Subscriber scan, recipient authority grouping, and delivery
 enqueue run after SENDACK in the authority writer's bounded post-commit

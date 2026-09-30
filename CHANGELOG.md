@@ -6,6 +6,7 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Reduce idle MQTT delivery reads with bounded quiet hints, and wake interested connections after durable Channel commits and confirmed replay anchors. Full refresh and receive authorization remain enforced. / MQTT 空闲投递轮次通过有界提示减少读取，频道持久提交及 replay anchor 确认后定向唤醒连接；保留定期权威复查和发送授权检查。
 - Add `wukongim_slot_read_barrier_duration_seconds{result}` to show how long Slot linearizable reads wait for ReadIndex and durable apply, labeled only by a fixed result set. / 新增 `wukongim_slot_read_barrier_duration_seconds{result}`，按固定结果类别展示 Slot 线性一致读等待 ReadIndex 与持久应用的耗时。
 - Removed MQTT source bindings are now actually retired by background maintenance; previously they left the recovery index and were never rediscovered. Unprovable retirements back off from 1 second up to 10 minutes. / 后台维护现在会真正回收已移除的 MQTT 来源绑定；此前这些行离开恢复索引后不会再被发现。暂时无法证明可回收时，从 1 秒起退避，最长 10 分钟。
 

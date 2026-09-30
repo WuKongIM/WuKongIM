@@ -124,7 +124,7 @@ func TestMQTTReplayWorkerRetiresSourceWithOnlyTombstones(t *testing.T) {
 		w, e := newMQTTReplayWorker(n, ids, runtime.ReplayWorkerOptions{Interval: 20 * time.Millisecond, PagesPerTurn: 32, Observe: func(o runtime.ReplayObservation) {
 			decisions.Add(int32(o.RetirementCommits))
 			completions.Add(int32(o.Completed))
-		}})
+		}}, nil)
 		require.NoError(t, e)
 		workers = append(workers, w)
 		require.NoError(t, w.Start(ctx))

@@ -70,7 +70,7 @@ func runMQTTInboxFirstPerson(t *testing.T, automatic, establish, remove bool) {
 	require.NoError(t, err)
 	auth, err := newMQTTReceiveAuthorization(node)
 	require.NoError(t, err)
-	replay, err := newMQTTReplayWorker(node, a.messageIDs, runtime.ReplayWorkerOptions{HashSlotCount: 256, Interval: 20 * time.Millisecond, PagesPerTurn: 32})
+	replay, err := newMQTTReplayWorker(node, a.messageIDs, runtime.ReplayWorkerOptions{HashSlotCount: 256, Interval: 20 * time.Millisecond, PagesPerTurn: 32}, nil)
 	require.NoError(t, err)
 	require.NoError(t, replay.Start(ctx))
 	t.Cleanup(func() {

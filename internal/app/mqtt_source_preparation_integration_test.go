@@ -201,7 +201,7 @@ func TestMQTTGroupSourcePreparationThreeNodeRecovery(t *testing.T) {
 			completed.Add(int32(o.Completed))
 			attempts.Add(int32(o.Attempts))
 			failures.Add(int32(o.Failures))
-		}})
+		}}, nil)
 		require.NoError(t, e)
 		replayWorkers = append(replayWorkers, w)
 		require.NoError(t, w.Start(ctx))
