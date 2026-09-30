@@ -1,84 +1,57 @@
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color-scheme: light;
+  --text: #202b3d;
+  --muted: #788598;
+  --surface: #ffffff;
+  --sidebar: #fcfcfd;
+  --chat-background: #f6f8fb;
+  --line: #e7ebf1;
+  --hover: #f0f3f8;
+  --accent: #4469d4;
+  --accent-soft: #edf2fd;
+  --sent: #e6edfd;
+  --danger: #c34b54;
+  --notice: #fff4df;
+  --notice-text: #875d20;
+  --shadow: 0 8px 30px #1b2b4b14;
+  color: var(--text);
+  background: var(--chat-background);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
 }
-
-html {
-  overflow: hidden;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-height: 100vh;
-  overflow: hidden;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-.card {
-  padding: 2em;
-}
-
-#app {
-  margin: 0 auto;
-  text-align: center;
-  width: 100%;
-  overflow: hidden;
-}
-
-@media (prefers-color-scheme: light) {
+* { box-sizing: border-box; }
+html, body, #app { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+#app { height: 100dvh; }
+button, input, textarea { font-family: inherit; }
+button { color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer; line-height: 1.4; }
+button:hover, a:hover { background-color: var(--hover); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.primary { background: var(--accent); color: #ffffff; border-color: transparent; }
+button.primary:hover:not(:disabled) { filter: brightness(1.08); }
+input[type="text"], input[type="password"], input[type="url"] { color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 16px; }
+input::placeholder, textarea::placeholder { color: var(--muted); opacity: .75; }
+a { color: var(--accent); text-decoration: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (prefers-color-scheme: dark) {
   :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
+    color-scheme: dark;
+    --text: #e1e7f0;
+    --muted: #8e9aae;
+    --surface: #1e2634;
+    --sidebar: #1a2230;
+    --chat-background: #151d29;
+    --line: #303c4e;
+    --hover: #2b3546;
+    --accent: #5d83ed;
+    --accent-soft: #273752;
+    --sent: #293c61;
+    --danger: #f38f95;
+    --notice: #3d3322;
+    --notice-text: #ebc685;
+    --shadow: 0 8px 30px #00000035;
   }
 }

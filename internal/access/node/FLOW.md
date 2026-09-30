@@ -84,6 +84,8 @@ scheduled backup or restore
 
 - Message-update hint RPC validates its format and bounded route page, then delegates exact owner-local writes. It never routes again or transports message payloads.
 
+- Stream EVENT service uses an independent version-1, 256 KiB envelope with at most 512 owner routes. It delegates exact session writes and never reuses the body-free edit notification wire contract.
+
 ## Read First
 
 - [presence_rpc.go](presence_rpc.go)

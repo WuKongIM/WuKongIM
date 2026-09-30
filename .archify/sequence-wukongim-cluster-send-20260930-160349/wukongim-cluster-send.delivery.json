@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "947a6098-65a2-4def-85c2-7d82df06e824",
+  "status": "current",
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/sequence-wukongim-cluster-send-20260930-160349/candidate.json",
+  "output": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/sequence-wukongim-cluster-send-20260930-160349/wukongim-cluster-send.html",
+  "specification": {
+    "sha256": "cb4fba4bad40cf1625a284a11b2202d98cd89b71b81aa923ea7b7ea3a964bcf8",
+    "bytes": 13914
+  },
+  "artifact": {
+    "sha256": "2b2feb370989019e8c223f47af2c61b14b8a4c9eee17d78f2c86eb33d41c0b1a",
+    "bytes": 778628
+  }
+}

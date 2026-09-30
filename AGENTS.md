@@ -237,5 +237,11 @@ authorization, Review Agent evidence, retry, and monitoring contracts.
 | `scripts/` | Repository automation, E2E gates, and cloud-simulation helpers. |
 | `docker/` | Development clusters, simulation, and observability configurations. |
 | `web/` | Manager React/Vite source. |
+| `demo/` | One-command loopback Demo launcher and process-level acceptance. |
+| `demo/shared/` | Shared catalog navigation and link styles for the four Demo frontends. |
 | `demo/chatdemo/` | Embedded chat demo Vue/Vite source. |
+| `demo/home/` | Dependency-free Demo catalog, embedded bundle build and loopback preview. |
+| `demo/agentdemo/` | Task assistant UI, bounded tool-calling backend and process-level acceptance. |
+| `demo/streamdemo/` | Embedded EasySDK streaming chat demo, local model relay, and browser acceptance. |
+| `demo/supportdemo/` | Embedded customer support UI, loopback Demo business backend, and process-level acceptance. |
 | `resources/` | Repository resources used by product and tooling. |

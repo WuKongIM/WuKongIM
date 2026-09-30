@@ -242,12 +242,18 @@ describe('documentation navigation contract', () => {
       ['android/getting-started', 'published'],
       ['flutter/getting-started', 'published'],
       ['javascript/getting-started', 'published'],
+      ['agent-streaming', 'published'],
       ['rust/getting-started', 'published'],
       ['csharp/getting-started', 'published'],
       ['cpp/getting-started', 'published'],
       ['python/getting-started', 'published'],
     ]);
     for (const page of easy?.children ?? []) {
+      if (page.slug === 'agent-streaming') {
+        expect(page.description.zh).toContain('EasySDK');
+        expect(page.description.en).toContain('real model');
+        continue;
+      }
       if (page.slug === 'examples') {
         expect(page.description.zh).toContain('八个平台');
         expect(page.description.en).toContain('eight platforms');
@@ -561,6 +567,7 @@ describe('documentation navigation contract', () => {
         `/${locale}/sdk/easy/android/getting-started`,
         `/${locale}/sdk/easy/flutter/getting-started`,
         `/${locale}/sdk/easy/javascript/getting-started`,
+        `/${locale}/sdk/easy/agent-streaming`,
         `/${locale}/sdk/easy/rust/getting-started`,
         `/${locale}/sdk/easy/csharp/getting-started`,
         `/${locale}/sdk/easy/cpp/getting-started`,

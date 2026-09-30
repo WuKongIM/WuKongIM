@@ -39,7 +39,7 @@ export const clientProtocolFrames: readonly ClientProtocolFrameDefinition[] = [
   protocolFrame(9, 'DISCONNECT', 'bidirectional', 'codec-only', '双向 codec 合同；当前产品 Gateway 未发布客户端入站或服务端发送语义。', 'Bidirectional codec contract; the current product Gateway publishes neither client ingress nor server emission.'),
   protocolFrame(10, 'SUB', 'client-to-server', 'codec-only', '存在编解码器；当前产品 Gateway 入站未支持。', 'Codec exists; current product Gateway ingress does not support it.'),
   protocolFrame(11, 'SUBACK', 'server-to-client', 'codec-only', 'SUB 的编解码响应；当前产品入口未发布。', 'Codec response for SUB; current product entry is unpublished.'),
-  protocolFrame(12, 'EVENT', 'bidirectional', 'reserved', '当前产品 Gateway 仅用于 benchmark terminal-fence 请求与确认；不是应用事件 API。', 'The current product Gateway uses it only for benchmark terminal-fence request and acknowledgement; it is not an application event API.'),
+  protocolFrame(12, 'EVENT', 'bidirectional', 'public-core', '服务端向客户端投递公开 stream.* 消息事件；客户端入站仅接受 benchmark terminal-fence 工具请求。', 'The server delivers public stream.* message events to clients; client ingress accepts only benchmark terminal-fence tooling requests.'),
 ];
 
 /** Source-aligned limits used by the concise client-protocol reference. */

@@ -28,7 +28,7 @@ curl -sS http://127.0.0.1:5001/message/send \
 
 Wait for `reason=1` before appending events. It proves that the base message reached Channel quorum commit, not that model generation, client rendering, or the product task completed.
 
-`/message/event` does not currently perform a routed existence check for the base message; `message_id` in an event request is response context only. The product service must preserve the exact Channel identity and `client_msg_no`, and must not create an orphan event projection after a failed base send.
+The current product path verifies that the base is committed, has the stream setting, and matches the event identity. Preserve the exact Channel, sender, and `client_msg_no`; the base must not be NoPersist or SyncOnce. See [Agent Streaming Replies](/en/sdk/easy/agent-streaming) for the complete SDK and real-model tutorial.
 
 ## AI: append deltas and finish
 
@@ -78,7 +78,7 @@ curl -sS http://127.0.0.1:5001/message/event \
     "client_msg_no":"ai-answer-req-42",
     "event_id":"ai-answer-req-42-finish",
     "event_type":"stream.finish",
-    "payload":{"end_reason":3}
+    "payload":{"snapshot":{"kind":"text","text":"Hello"}}
   }'
 ```
 
@@ -102,7 +102,7 @@ curl -sS http://127.0.0.1:5001/channel/messagesync \
   }'
 ```
 
-The response can include `event_meta`, completion state, and the final snapshot. There is no current public `/message/eventsync`, and `/message/event` does not itself push every delta to connected client Sessions. A token-by-token UI therefore needs a product-owned stream or another explicitly designed message path with backpressure, ordering, and recovery; WuKongIM event projection supplies terminal and reconnect state.
+The response can include `event_meta`, completion state, and the final snapshot. A server containing online event delivery sends public increments to online Sessions as EVENT; EasySDK-JS receives them through `WKIMEvent.CustomEvent`. Do not poll history online; `/message/eventsync` is unnecessary. Offline recovery calls `/channel/messagesync` through the BFF. An older release with an event endpoint is not proof of live delivery support; see the deployment requirements in [Agent Streaming Replies](/en/sdk/easy/agent-streaming).
 
 ## IoT: send bounded telemetry
 

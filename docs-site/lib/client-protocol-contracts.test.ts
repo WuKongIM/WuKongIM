@@ -71,13 +71,13 @@ describe('client protocol contracts', () => {
   test('separates the public core from codec-only and reserved frames', () => {
     expect(
       clientProtocolFrames.filter((item) => item.scope === 'public-core').map((item) => item.name),
-    ).toEqual(['CONNECT', 'CONNACK', 'SEND', 'SENDACK', 'RECV', 'RECVACK', 'PING', 'PONG']);
+    ).toEqual(['CONNECT', 'CONNACK', 'SEND', 'SENDACK', 'RECV', 'RECVACK', 'PING', 'PONG', 'EVENT']);
     expect(
       clientProtocolFrames.filter((item) => item.scope === 'codec-only').map((item) => item.name),
     ).toEqual(['DISCONNECT', 'SUB', 'SUBACK']);
     expect(
       clientProtocolFrames.filter((item) => item.scope === 'reserved').map((item) => item.name),
-    ).toEqual(['UNKNOWN', 'EVENT']);
+    ).toEqual(['UNKNOWN']);
   });
 
   test('calibrates codec-only and reserved scopes against Go codec and terminal authorities', async () => {
@@ -104,7 +104,7 @@ describe('client protocol contracts', () => {
       'TerminalFenceEventType is the reserved bench-only client request type.',
     );
     expect(handler).toMatch(/pkt == nil \|\| pkt\.Type != frame\.TerminalFenceEventType/u);
-    expect(clientProtocolFrames.find((item) => item.name === 'EVENT')?.scope).toBe('reserved');
+    expect(clientProtocolFrames.find((item) => item.name === 'EVENT')?.scope).toBe('public-core');
   });
 
   test('keeps DISCONNECT direction separate from its unpublished product scope', async () => {
@@ -259,7 +259,7 @@ describe('client protocol contracts', () => {
 
     expect(zh).toContain('| 0 | `UNKNOWN` | — | 保留 |');
     expect(zh).toContain('| 9 | `DISCONNECT` | 客户端 ↔ 服务端 | 仅编解码 |');
-    expect(zh).toContain('| 12 | `EVENT` | 客户端 ↔ 服务端 | 保留 |');
+    expect(zh).toContain('| 12 | `EVENT` | 客户端 ↔ 服务端 | 公共核心 |');
     expect(en).toContain('| 1 | `CONNECT` | Client → Server | Public core |');
     expect(en).toContain('Protocol v6 uses a 64-bit `message_seq`');
   });

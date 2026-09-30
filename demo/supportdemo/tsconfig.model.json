@@ -1,0 +1,1 @@
+{"compilerOptions":{"target":"ES2022","module":"ES2022","lib":["ES2022","DOM"],"strict":true,"skipLibCheck":true,"outDir":".runtime","rootDir":"../streamdemo/src"},"include":["../streamdemo/src/model.ts"]}

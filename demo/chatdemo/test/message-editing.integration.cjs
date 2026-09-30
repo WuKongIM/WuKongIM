@@ -80,7 +80,7 @@ dir = "${evidence}/logs"
             await page.getByPlaceholder('Enter an existing user UID').fill(uid);
             await page.getByPlaceholder('Enter the existing Web token').fill(`${uid}-demo-test`);
             await page.getByRole('button', { name: 'Log in', exact: true }).click();
-            await page.getByText(new RegExp(`${uid} \\(Connected`)).waitFor();
+            await page.locator('[data-testid="connection-status"][data-state="connected"]').waitFor();
         }
         await open(alice, 'bob'); await open(bob, 'alice');
         await hasBody(alice, 'older original'); await hasBody(bob, 'tail original');
@@ -141,7 +141,7 @@ dir = "${evidence}/logs"
         await row(alice, 'group original').getByRole('button', { name: 'Edit', exact: true }).click();
         await alice.getByRole('textbox', { name: 'Editing message', exact: true }).fill('group edited');
         await alice.getByRole('button', { name: 'Save changes', exact: true }).click(); await hasBody(bob, 'group edited');
-        await bob.reload(); await bob.getByText(/bob \(Connected/).waitFor(); await open(bob, 'edit-group'); await hasBody(bob, 'group edited');
+        await bob.reload(); await bob.locator('[data-testid="connection-status"][data-state="connected"]').waitFor(); await open(bob, 'edit-group'); await hasBody(bob, 'group edited');
         // Fresh SENDACK messages also need an exact ID and first-edit version calibration.
         await draft.fill('sent from the composer');
         await alice.getByRole('button', { name: 'Send', exact: true }).click();

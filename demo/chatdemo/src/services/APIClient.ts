@@ -152,7 +152,6 @@ export default class APIClient {
             start_message_seq: opts.startMessageSeq,
             end_message_seq: opts.endMessageSeq,
             pull_mode: opts.pullMode,
-            stream_v2:1,
             limit: limit
         }, opts.signal))
         const resp = response.data
@@ -216,12 +215,6 @@ export default class APIClient {
           })
     }
 
-    messageStreamStart = (param:any) => {
-       return APIClient.shared.post('/streammessage/start',param)
-    }
-    messageStreamEnd = (param:any) => {
-        return APIClient.shared.post('/streammessage/end',param)
-     }
 }
 
 export class RequestConfig {

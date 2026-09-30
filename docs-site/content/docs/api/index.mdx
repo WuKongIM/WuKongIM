@@ -23,6 +23,6 @@ description: 查阅 Product HTTP、运维 HTTP、Webhook、WKProto 与内部接�
 
 - Product HTTP 仅供受信后端调用，不应直接暴露给浏览器或移动端。
 - Operations HTTP 与 Manager 仅应位于隔离的运维网络；两者不是同一合同。
-- JSON-RPC 支持固定 EasySDK 的 CONNECT、Ping 与在线 SEND/SENDACK、RECV/RECVACK；batch、订阅、离线同步和通用 RPC 不在该合同内。
+- JSON-RPC 支持固定 EasySDK 的 CONNECT、Ping 与在线 SEND/SENDACK、RECV/RECVACK 与服务端出站公开 stream.* EVENT；batch、订阅、离线同步和通用 RPC 不在该合同内。
 - HTTP 状态、端点响应与 CONNACK/SENDACK Reason Code 属于不同层，需分别处理。
 - 版本和验证范围见 [API 兼容性](/zh/api/compatibility)，错误处理见 [错误响应](/zh/api/product-http/errors)。
