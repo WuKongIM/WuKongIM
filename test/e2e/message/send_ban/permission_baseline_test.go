@@ -461,10 +461,44 @@ func permissionBaselineMetrics(t *testing.T, ctx context.Context, cluster *suite
 			case "process_cpu_seconds_total", "process_resident_memory_bytes", "wukongim_node_cpu_percent", "wukongim_node_memory_rss_bytes", "go_memstats_alloc_bytes_total", "go_memstats_alloc_bytes", "go_memstats_heap_inuse_bytes", "go_goroutines":
 				values[sample.Name] = sample.Value
 			}
+			// Optional diagnosis preserves fixed public histogram families in the
+			// same boundary scrape. It adds no in-window sampling or product hooks.
+			if os.Getenv("WK_E2E_PERMISSION_STAGES") == "1" && permissionDiagnosticStageSample(sample.Name) {
+				keys := make([]string, 0, len(sample.Labels))
+				for key := range sample.Labels {
+					if key != "node_id" && key != "node_name" {
+						keys = append(keys, key)
+					}
+				}
+				sort.Strings(keys)
+				key := "stage_cut|" + sample.Name
+				for _, label := range keys {
+					key += "|" + label + "=" + sample.Labels[label]
+				}
+				values[key] = sample.Value
+			}
 		}
 		out[id] = values
 	}
 	return out
+}
+
+// These existing bounded-label stages distinguish fact reads from subsequent
+// append/replication/storage waits. Missing series stay absent in each node cut.
+func permissionDiagnosticStageSample(name string) bool {
+	for _, family := range []string{
+		"wukongim_message_permission_duration_seconds",
+		"wukongim_channelv2_append_stage_duration_seconds",
+		"wukongim_channelv2_append_wait_stage_duration_seconds",
+		"wukongim_channelv2_replication_stage_duration_seconds",
+		"wukongim_storage_commit_batch_duration_seconds",
+		"wukongim_storage_commit_request_duration_seconds",
+	} {
+		if name == family+"_count" || name == family+"_sum" || name == family+"_bucket" {
+			return true
+		}
+	}
+	return false
 }
 
 func permissionBaselineDelta(before, after permissionBaselineCut, key string) float64 {

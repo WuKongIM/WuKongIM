@@ -168,3 +168,10 @@ arrivals by 5 ms so sealed cohorts actually accumulate. Require positive receive
 or ingress-cohort busy, record both scopes separately, sample both hard ownership
 bounds and drain to zero, then verify exact complete recovery history. This fault
 fixture never changes the 500 SEND/s performance gates.
+
+`WK_E2E_PERMISSION_STAGES=1` optionally retains count/sum/bucket samples for six
+fixed public permission, append/wait, replication and storage-commit histogram
+families in the existing before/after node scrapes. It adds no scrape or product
+hook. Keep full label identities and absent series; histogram bucket bounds
+describe scoped completed populations, not per-SEND spans or time spent waiting
+before stage entry. Use the flag identically for old/new comparisons.
