@@ -1,0 +1,122 @@
+{
+  "go_version": "go1.25.11 darwin/arm64",
+  "GOWORK": "off",
+  "gates": [
+    {
+      "check": "replay-race",
+      "command": "go test -race ./internal/usecase/mqttsession -run TestReplay -count=1",
+      "passed": true,
+      "results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/mqttsession\t1.844s"
+      ],
+      "raw_output_sha256": "509b47e927e989a0fcb8ec823df7e8ba65f9d186c17d990b48d11750a37e7476"
+    },
+    {
+      "check": "related-race",
+      "command": "go test -race ./internal/app ./internal/usecase/mqttsession ./internal/access/mqtt ./internal/runtime/mqttsession -count=1",
+      "passed": true,
+      "results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/app\t6.009s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/mqttsession\t127.410s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/access/mqtt\t2.091s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/runtime/mqttsession\t2.609s"
+      ],
+      "raw_output_sha256": "c3d9aa75fc018a40181d320998136492f21e9d2f534d9b0a1aa4250a4635f234"
+    },
+    {
+      "check": "request-integration",
+      "command": "go test -race -tags=integration ./internal/usecase/mqttsession -run ^TestSubscriptionRequests -count=1",
+      "passed": true,
+      "results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/mqttsession\t2.899s"
+      ],
+      "raw_output_sha256": "b7e70a92580000c156f31d69596bc83a2dabc82c65008ced9df2449dbf70cbe7"
+    },
+    {
+      "check": "flow-doc-contracts",
+      "command": "named check flow-doc-contracts",
+      "passed": true,
+      "results": [
+        "flowcheck: 87 FLOW files; 87 compliant; 0 invalid; 11 warnings"
+      ],
+      "raw_output_sha256": "bff15f6cd58aea6a08f568f4affee57b3683fda2d33802e99414cf0c2bb7d870"
+    },
+    {
+      "check": "related-and-supervisor-race",
+      "command": "go test -race ./internal/app ./internal/usecase/mqttsession ./internal/access/mqtt ./internal/runtime/mqttsession ./pkg/goroutine -count=1",
+      "passed": true,
+      "results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/app\t5.289s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/mqttsession\t137.946s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/access/mqtt\t2.026s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/runtime/mqttsession\t2.622s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/goroutine\t3.102s"
+      ],
+      "raw_output_sha256": "7126fd34e81366eb28fba72a242871eb164e70989c3ac140ab9e33e0fe800f14"
+    },
+    {
+      "check": "supervised-flow-doc-contracts",
+      "command": "named check flow-doc-contracts",
+      "passed": true,
+      "results": [
+        "flowcheck: 87 FLOW files; 87 compliant; 0 invalid; 11 warnings"
+      ],
+      "raw_output_sha256": "bff15f6cd58aea6a08f568f4affee57b3683fda2d33802e99414cf0c2bb7d870"
+    },
+    {
+      "check": "subscribe-recovery-e2e",
+      "passed": true,
+      "cases": 10,
+      "results": [
+        "--- PASS: TestReplayConfirmationRejectsMixedReplicaFailures (62.62s)",
+        "--- PASS: TestInterruptedSubscribeBackgroundRecovery (271.20s)",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/test/e2e/mqtt/subscribe_recovery\t334.626s"
+      ],
+      "raw_output_sha256": "9bc4e2e9d49a0df8fc1e7f710168f789f022f978db09ec9de44dbc18ca8e4959"
+    },
+    {
+      "check": "first-subscribe-matrix-e2e",
+      "passed": true,
+      "cases": 80,
+      "results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/test/e2e/mqtt/subscribe_admission\t967.374s"
+      ],
+      "raw_output_sha256": "fe8ef1dc63729c01b29ca48412b10a60caca61843ad3e22a3ed6caa46964e03a"
+    },
+    {
+      "check": "independent-supervised-cold-starts",
+      "passed": true,
+      "cases": 20,
+      "empty_history_cases": 10,
+      "existing_history_cases": 10,
+      "results": [
+        "all first packets and future message identities passed"
+      ],
+      "raw_outputs_sha256": {
+        "empty": "3d6791756bed14c44268e064be659498c6c04b0807fcfe9da6373b249fe05c6a",
+        "existing": "bf47c6e66f0a6db3314aa95e00ca538b618849eb93171b209917e6be869d45c1"
+      }
+    }
+  ],
+  "foreground_subscribe_deadline_seconds": 5,
+  "foreground_retries": 0,
+  "red_contracts": [
+    {
+      "case": "captured-plan reread count",
+      "expected": 1,
+      "actual_before": 2
+    },
+    {
+      "case": "post-anchor rejection before duplicate Step read",
+      "cases": 10,
+      "expected_copy_and_anchor": 1,
+      "actual_before": 0
+    },
+    {
+      "case": "public supervision metric before task registration",
+      "process_cases": 1,
+      "observed": "metric sample not found",
+      "expected": "at least 3 fixed MQTT burst task starts"
+    }
+  ]
+}

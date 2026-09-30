@@ -43,9 +43,10 @@ func NewSubscriptionRequests(o SubscriptionRequestOptions) (*SubscriptionRequest
 
 // Subscribe returns Active only after the existing replicated projection proof.
 func (s *SubscriptionRequests) Subscribe(ctx context.Context, o contract.Owner, r SubscriptionRequest) (out meta.MQTTSubscription, err error) {
+	var preparation subscriptionPreparation
 	err = s.await(ctx, ErrReplayPending, func(ctx context.Context) error {
 		var e error
-		out, e = s.options.Subscriptions.Subscribe(ctx, o, r)
+		out, e = s.options.Subscriptions.subscribe(ctx, o, r, &preparation)
 		return e
 	})
 	if err != nil {

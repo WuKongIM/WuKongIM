@@ -53,6 +53,21 @@ type SubscriptionProjectionRequest struct {
 	Owner        contract.Owner
 	UID          string
 	Subscription meta.MQTTSubscription
+	// preparation belongs to one sequential foreground wait loop; it never
+	// persists or supplies permission, placement or confirmation authority.
+	preparation *subscriptionPreparation
+}
+
+// subscriptionPreparation retains only positively prepared immutable group
+// identity. A different packet, Owner, UID or complete child must prepare anew.
+type subscriptionPreparation struct{ group *preparedGroupProjection }
+
+type preparedGroupProjection struct {
+	owner      contract.Owner
+	uid        string
+	child      meta.MQTTSubscription
+	source     meta.MQTTBindingOwner
+	startAfter uint64
 }
 
 // SubscriptionProjectionReceipt identifies exactly the intent proven by the

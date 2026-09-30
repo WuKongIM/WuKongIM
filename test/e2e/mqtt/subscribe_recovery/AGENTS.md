@@ -11,5 +11,12 @@ another SUBSCRIBE and verify original message identity, the first source boundar
 and future delivery. Emit bounded JSON without credentials or payloads. These
 controlled request failures do not prove abrupt crash or partition isolation.
 
+`TestReplayConfirmationRejectsMixedReplicaFailures` combines a hard evidence or
+callback failure on replica 1 with a temporary yield on replica 2, using inert
+comment-only failpoints in the joined confirmation cohort. Require at least
+three hits, the fixed hard-error closure counter and no establishment completion
+before disabling faults. Resume without SUBSCRIBE and verify the same original
+boundary plus offline/future identity. Never manufacture a successful receipt.
+
 Build: `scripts/build-gofail-binary.sh --package internal/usecase/mqttsession --out /tmp/wukongim-mqtt-gofail`
 Run: `WK_E2E_BINARY=/tmp/wukongim-mqtt-gofail WK_E2E_GOFAIL_MQTT=1 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-subscribe-fault-reports GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/subscribe_recovery -count=1 -timeout=10m -v`

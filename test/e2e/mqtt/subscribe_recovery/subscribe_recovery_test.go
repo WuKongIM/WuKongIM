@@ -23,6 +23,18 @@ import (
 const intentFault = "wkMQTTSubscribeAfterIntent"
 const completionFault = "wkMQTTSubscriptionEstablishmentBeforeCommit"
 const completionEvent = "subscription_establishment_confirmed"
+const confirmationFault = "wkMQTTReplayConfirmationMixedResult"
+
+// Every replica result must be joined before classifying a temporary yield.
+// A different replica's hard failure cannot become a retryable pending result.
+func TestReplayConfirmationRejectsMixedReplicaFailures(t *testing.T) {
+	if os.Getenv("WK_E2E_GOFAIL_MQTT") != "1" {
+		t.Skip("requires a temporary gofail product binary")
+	}
+	for _, failure := range []string{"evidence", "callback"} {
+		t.Run(failure, func(t *testing.T) { runRecovery(t, 3, "group", "mixed-"+failure) })
+	}
+}
 
 func TestInterruptedSubscribeBackgroundRecovery(t *testing.T) {
 	if os.Getenv("WK_E2E_GOFAIL_MQTT") != "1" {
@@ -67,7 +79,11 @@ func runRecovery(t *testing.T, count int, target, cut string) {
 	defer cancel()
 	for _, f := range faults {
 		call, done := context.WithTimeout(ctx, 3*time.Second)
-		_, err := f.WaitListed(call, intentFault, completionFault)
+		names := []string{intentFault, completionFault}
+		if strings.HasPrefix(cut, "mixed-") {
+			names = append(names, confirmationFault)
+		}
+		_, err := f.WaitListed(call, names...)
 		done()
 		require.NoError(t, err)
 	}
@@ -142,7 +158,19 @@ func runRecovery(t *testing.T, count int, target, cut string) {
 		}
 		require.NoError(t, err)
 	}
-	toggle(faults[count-1], intentFault, true)
+	mixed := strings.HasPrefix(cut, "mixed-")
+	faultName := intentFault
+	if mixed {
+		faultName = confirmationFault
+		for _, f := range faults {
+			call, done := context.WithTimeout(ctx, 2*time.Second)
+			err := f.Enable(call, confirmationFault, `return("`+strings.TrimPrefix(cut, "mixed-")+`")`)
+			done()
+			require.NoError(t, err)
+		}
+	} else {
+		toggle(faults[count-1], intentFault, true)
+	}
 	if cut == "before-completion" {
 		for _, f := range faults {
 			toggle(f, completionFault, true)
@@ -156,7 +184,7 @@ func runRecovery(t *testing.T, count int, target, cut string) {
 		t.Fatal("interrupted foreground transport did not close")
 	}
 	call, done := context.WithTimeout(ctx, 2*time.Second)
-	hits, err := faults[count-1].Count(call, intentFault)
+	hits, err := faults[count-1].Count(call, faultName)
 	done()
 	require.NoError(t, err)
 	if hits == 0 {
@@ -167,6 +195,24 @@ func runRecovery(t *testing.T, count int, target, cut string) {
 	require.Positive(t, hits)
 	gateHits := 0
 	var offline *frame.SendackPacket
+	if mixed {
+		require.GreaterOrEqual(t, hits, 3, "every replica entered the joined cohort")
+		call, done := context.WithTimeout(ctx, 2*time.Second)
+		started, err := suite.FetchMetricValue(call, nodes[count-1].APIAddr(), "wukongim_goroutines_started_total", map[string]string{"module": "mqtt", "task": "replay_confirmation", "kind": "burst"})
+		done()
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, started, float64(3), "confirmation calls belong to the process supervisor")
+		call, done = context.WithTimeout(ctx, 2*time.Second)
+		v, err := suite.FetchMetricValue(call, nodes[count-1].APIAddr(), "wukongim_mqtt_subscription_closures_total", map[string]string{"operation": "subscribe", "reason": strings.TrimPrefix(cut, "mixed-")})
+		done()
+		require.NoError(t, err)
+		require.EqualValues(t, 1, v, "pending must not hide a hard replica failure or cause deadline retries")
+		require.Equal(t, baseline, eventCount())
+		offline = send(2, "offline-pending")
+		for _, f := range faults {
+			toggle(f, confirmationFault, false)
+		}
+	}
 	if cut == "before-completion" {
 		require.Eventually(t, func() bool {
 			gateHits = 0
@@ -211,6 +257,10 @@ func runRecovery(t *testing.T, count int, target, cut string) {
 	}
 	require.NoError(t, os.MkdirAll(dir, 0755))
 	report := map[string]any{"scenario": "interrupted-subscribe", "target": target, "cut": cut, "nodes": count, "hash_slots": 256, "passed": true, "intent_fault_hits": hits, "completion_fault_hits": gateHits, "background_completion_before_reconnect": true, "foreground_subscribe_retries": 0, "session_present": true, "message_identity_preserved": true, "original_start_preserved": true, "offline_and_fresh_delivery": true, "failure_kind": "controlled-request-failure-and-connection-close"}
+	if mixed {
+		delete(report, "intent_fault_hits")
+		report["confirmation_fault_hits"], report["hard_failure_preserved"], report["partial_suback_refused"] = hits, true, true
+	}
 	data, err := json.MarshalIndent(report, "", "  ")
 	require.NoError(t, err)
 	path := filepath.Join(dir, fmt.Sprintf("mqtt-subscribe-%s-%s-%d.json", target, cut, count))

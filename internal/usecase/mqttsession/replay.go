@@ -38,6 +38,9 @@ type ReplayCoordinatorOptions struct {
 	Timeout time.Duration
 	// PageSize and MaxBytes bound one copy to at most 256 rows and 16 MiB.
 	PageSize, MaxBytes int
+	// ConfirmWorkers opts a concurrent-safe Channels provider into joined replica
+	// confirmation. Zero defaults to serial; at most four calls may run at once.
+	ConfirmWorkers int
 }
 
 // Shared body-free scheduling DTOs avoid a runtime-to-usecase dependency.
@@ -45,7 +48,8 @@ type ReplayTargetCursor = contract.ReplayTargetCursor
 type ReplayCursor = contract.ReplayCursor
 type ReplayStepResult = contract.ReplayStepResult
 
-// ReplayCoordinator owns no workers, payloads or mutable per-source state.
+// ReplayCoordinator owns no persistent workers, payloads or mutable per-source
+// state. Opted-in confirmation cohorts join within each bounded call.
 type ReplayCoordinator struct{ options ReplayCoordinatorOptions }
 
 func NewReplayCoordinator(o ReplayCoordinatorOptions) (*ReplayCoordinator, error) {
@@ -61,7 +65,10 @@ func NewReplayCoordinator(o ReplayCoordinatorOptions) (*ReplayCoordinator, error
 	if o.MaxBytes == 0 {
 		o.MaxBytes = 16 << 20
 	}
-	if o.Metadata == nil || o.Channels == nil || o.MessageIDs == nil || o.Timeout <= 0 || o.Timeout > time.Minute || o.PageSize < 1 || o.PageSize > 256 || o.MaxBytes < 1 || o.MaxBytes > 16<<20 {
+	if o.ConfirmWorkers == 0 {
+		o.ConfirmWorkers = 1
+	}
+	if o.Metadata == nil || o.Channels == nil || o.MessageIDs == nil || o.Timeout <= 0 || o.Timeout > time.Minute || o.PageSize < 1 || o.PageSize > 256 || o.MaxBytes < 1 || o.MaxBytes > 16<<20 || o.ConfirmWorkers < 1 || o.ConfirmWorkers > 4 {
 		return nil, ErrInvalid
 	}
 	return &ReplayCoordinator{options: o}, nil
@@ -133,8 +140,17 @@ func (c *ReplayCoordinator) Step(parent context.Context, source meta.MQTTBinding
 	if !hasCopy {
 		return out, nil
 	}
+	return c.copyAndAnchor(ctx, m, plan, rangeToCopy, out)
+}
+
+// copyAndAnchor consumes a fresh validated plan shared by Step and Confirm.
+// Infrastructure rechecks captured authority around every effect. One call
+// copies at most one bounded page and submits at most one anchor; unknown
+// outcomes never authorize a second attempt or source release.
+func (c *ReplayCoordinator) copyAndAnchor(ctx context.Context, m ch.Meta, plan ch.MQTTReplayPlan, rangeToCopy ch.MQTTReplayRange, out ReplayStepResult) (ReplayStepResult, error) {
+	var err error
 	out.Next.RepairNext = true
-	request := ch.MQTTReplayRequest{ChannelID: q.ChannelID, ExpectedChannelEpoch: q.ExpectedChannelEpoch, ExpectedLeaderEpoch: q.ExpectedLeaderEpoch, ExpectedRouteGeneration: q.ExpectedRouteGeneration, Range: rangeToCopy}
+	request := ch.MQTTReplayRequest{ChannelID: m.ID, ExpectedChannelEpoch: m.Epoch, ExpectedLeaderEpoch: m.LeaderEpoch, ExpectedRouteGeneration: m.RouteGeneration, Range: rangeToCopy}
 	if err = ctx.Err(); err != nil {
 		return out, err
 	}
@@ -151,7 +167,7 @@ func (c *ReplayCoordinator) Step(parent context.Context, source meta.MQTTBinding
 		}
 		return out, err
 	}
-	before := ch.MQTTReplayPrefix{Generation: source.Generation, StartAfter: plan.Source.StartAfter, Through: plan.Source.StartAfter}
+	before := ch.MQTTReplayPrefix{Generation: plan.Source.Generation, StartAfter: plan.Source.StartAfter, Through: plan.Source.StartAfter}
 	if plan.HasAnchor {
 		before = plan.Anchor.Prefix()
 	}
@@ -183,7 +199,7 @@ func (c *ReplayCoordinator) Step(parent context.Context, source meta.MQTTBinding
 	accepted.Source.CommittedThrough = max(accepted.Source.CommittedThrough, proof.Manifest.LastOffset)
 	prefix := proof.Prefix()
 	idle := prefix == copy.Before && prefix.Through+1 == proof.Manifest.LastOffset && proof.Manifest.LastOffset == copy.After.Through
-	if !accepted.ValidFor(q) || (prefix != copy.After && !idle) {
+	if !accepted.ValidFor(ch.MQTTReplayPlanRequest{ChannelID: m.ID, Generation: plan.Source.Generation, ExpectedChannelEpoch: m.Epoch, ExpectedLeaderEpoch: m.LeaderEpoch, ExpectedRouteGeneration: m.RouteGeneration}) || (prefix != copy.After && !idle) {
 		return out, ErrEvidence
 	}
 	out.Anchored = true

@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Nested confirmation can observe maintenance's new anchor after its first
-// planning read. Every recovery route must retain intent without granting proof.
+// Confirmation checks fresh progress after its bounded copy and anchor commit.
+// A rejected replica retains intent without granting proof or repeating copy.
 func TestReplayRecoveryYieldRetainsIntentAcrossRoutes(t *testing.T) {
-	for _, route := range []string{"nested-confirm", "repair-next", "idle-tail", "write-fenced"} {
+	for _, route := range []string{"post-anchor-confirm", "repair-next", "idle-tail", "write-fenced"} {
 		for _, tc := range []struct {
 			name            string
 			failure         error
@@ -34,7 +34,7 @@ func TestReplayRecoveryYieldRetainsIntentAcrossRoutes(t *testing.T) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				cursor := ReplayCursor{}
-				if route == "nested-confirm" {
+				if route == "post-anchor-confirm" {
 					f.planRead = func(context.Context, ch.MQTTReplayPlanRequest) (ch.MQTTReplayPlan, error) {
 						if f.plans == 2 {
 							f.plan.HasAnchor, f.plan.Anchor, f.plan.Source.CommittedThrough = true, f.proof, 3
@@ -58,7 +58,7 @@ func TestReplayRecoveryYieldRetainsIntentAcrossRoutes(t *testing.T) {
 					return ch.MQTTReplayRecoveryResult{}, tc.failure
 				}
 				var err error
-				if route == "nested-confirm" {
+				if route == "post-anchor-confirm" {
 					err = c.Confirm(ctx, source, 2)
 					require.Equal(t, 2, f.plans)
 				} else {
@@ -80,9 +80,13 @@ func TestReplayRecoveryYieldRetainsIntentAcrossRoutes(t *testing.T) {
 					require.NotErrorIs(t, err, ErrReplayPending)
 				}
 				require.Equal(t, 1, f.repairs, "each turn admits at most one recovery call")
-				require.Zero(t, f.copies)
-				require.Zero(t, f.commits)
-				if route != "nested-confirm" || !tc.pending {
+				copies := 0
+				if route == "post-anchor-confirm" {
+					copies = 1
+				}
+				require.Equal(t, copies, f.copies)
+				require.Equal(t, copies, f.commits)
+				if route != "post-anchor-confirm" || !tc.pending {
 					return
 				}
 				f.planRead = nil
@@ -92,8 +96,8 @@ func TestReplayRecoveryYieldRetainsIntentAcrossRoutes(t *testing.T) {
 				}
 				require.NoError(t, c.Confirm(ctx, source, 2))
 				require.Equal(t, 4, f.repairs, "a later confirmation must still prove every replica")
-				require.Zero(t, f.copies)
-				require.Zero(t, f.commits)
+				require.Equal(t, 1, f.copies, "the next attempt must reuse the committed anchor")
+				require.Equal(t, 1, f.commits)
 			})
 		}
 	}

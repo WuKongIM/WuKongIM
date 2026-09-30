@@ -15,6 +15,7 @@ func newMQTTReplayCoordinator(node *cluster.Node, ids interface{ Next() uint64 }
 	}
 	return sessioncase.NewReplayCoordinator(sessioncase.ReplayCoordinatorOptions{
 		Metadata: channels.NewSlotMetaSource(node), Channels: node, MessageIDs: ids,
+		ConfirmWorkers: 4, // Node's fenced replica operations support concurrent callers.
 	})
 }
 

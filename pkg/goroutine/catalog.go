@@ -149,6 +149,7 @@ const (
 	TaskMQTTDeadlineWorker               TaskID = "mqtt/deadline_worker"
 	TaskMQTTOwnerSweeper                 TaskID = "mqtt/owner_sweeper"
 	TaskMQTTReplayWorker                 TaskID = "mqtt/replay_worker"
+	TaskMQTTReplayConfirmation           TaskID = "mqtt/replay_confirmation"
 	TaskMQTTConnectionScheduler          TaskID = "mqtt/connection_scheduler"
 	TaskMQTTConnectionWorker             TaskID = "mqtt/connection_worker"
 	TaskMQTTDeliveryScheduler            TaskID = "mqtt/delivery_scheduler"
@@ -263,6 +264,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskMQTTDeadlineWorker, Module: ModuleMQTT, Name: "deadline_worker", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskMQTTOwnerSweeper, Module: ModuleMQTT, Name: "owner_sweeper", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskMQTTReplayWorker, Module: ModuleMQTT, Name: "replay_worker", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskMQTTReplayConfirmation, Module: ModuleMQTT, Name: "replay_confirmation", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMQTTConnectionScheduler, Module: ModuleMQTT, Name: "connection_scheduler", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskMQTTConnectionWorker, Module: ModuleMQTT, Name: "connection_worker", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMQTTDeliveryScheduler, Module: ModuleMQTT, Name: "delivery_scheduler", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},

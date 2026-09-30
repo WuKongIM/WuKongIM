@@ -93,14 +93,30 @@ func (p *GroupProjection) project(parent context.Context, r SubscriptionProjecti
 		return out, err
 	}
 	if establish {
-		prepared, e := p.sources.Prepare(ctx, r.Owner, r.Subscription.Topic)
-		if e != nil {
-			return out, e
+		var prepared *preparedGroupProjection
+		if r.preparation != nil {
+			prepared = r.preparation.group
+		}
+		if prepared == nil || prepared.owner != r.Owner || prepared.uid != r.UID || prepared.child != r.Subscription {
+			if r.preparation != nil {
+				r.preparation.group = nil
+			}
+			source, e := p.sources.Prepare(ctx, r.Owner, r.Subscription.Topic)
+			if e != nil {
+				return out, e
+			}
+			prepared = &preparedGroupProjection{owner: r.Owner, uid: r.UID, child: r.Subscription, source: source.Binding.Key.Owner, startAfter: source.Binding.StartAfter}
+			if r.preparation != nil {
+				r.preparation.group = prepared
+			}
+		} else if err = p.sources.authorize(ctx, scope, r.Subscription); err != nil {
+			// The retained source boundary is never a cached receive grant.
+			return out, err
 		}
 		if err = checkSubscriptionScope(ctx, op); err != nil {
 			return out, err
 		}
-		if err = p.replay.Confirm(ctx, prepared.Binding.Key.Owner, prepared.Binding.StartAfter); err != nil {
+		if err = p.replay.Confirm(ctx, prepared.source, prepared.startAfter); err != nil {
 			return out, err
 		}
 	} else {

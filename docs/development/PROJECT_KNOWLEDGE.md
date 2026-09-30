@@ -1290,6 +1290,17 @@ specification, runbook, report, or module documentation; link to them when neede
   error is still unreproduced by this focused loop, so process-startup conditions
   remain an open distinction. See [evidence](../reports/mqtt-cold-subscribe-admission.json).
 
+- [First-startup subscription admission](../specs/mqtt-first-subscribe-admission.md)
+  reproduces the initial three-node empty-group five-second timeout. Stage probes
+  identify serial replica waits and repeated positively completed preparation and
+  replay-plan reads within one packet. One request now retains only the prepared
+  source/start under its exact Owner, UID and full Preparing child; every turn
+  rereads intent and authorization. Confirm uses its fresh validated plan for
+  one effect-fenced copy/anchor and fresh coverage, then joins at most four
+  supervised replica calls before the final placement check. Every replica is
+  still required, hard errors do not become pending through mixed results, and
+  a new packet prepares again. See [evidence](../reports/mqtt-first-subscribe-admission/README.md).
+
 - Replay planning is a read-only admission boundary. Confirm and nested Step now
   preserve typed NotReady/Backpressured as bounded pending, with synchronous
   cancellation taking precedence. Unknown, stale, corrupt and anchor-write

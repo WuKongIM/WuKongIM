@@ -1,0 +1,2706 @@
+{
+  "candidates": [
+    {
+      "phase": "parallel-only",
+      "topologies": [
+        {
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 1,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 783,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 0,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 790,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 1,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 820,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 1,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 270,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 2,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 808,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 2,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 271,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 3,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 813,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 3,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 327,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 4,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 866,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 4,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 309,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 5,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 822,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 5,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 210,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 6,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 735,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 6,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 210,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 7,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 735,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 7,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 210,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 8,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 729,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 8,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 207,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 9,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 733,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 9,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 213,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 10,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 729,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 10,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 236,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 11,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 742,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 11,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 211,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 12,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 730,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 12,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 216,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 13,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 731,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 13,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 240,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 14,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 730,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 14,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 214,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 15,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 721,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 15,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 204,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 16,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 731,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 16,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 205,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 17,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 733,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 17,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 210,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 18,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 736,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 18,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 227,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 19,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 744,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 19,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 205,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 40,
+          "session_expiry_sec": 86400
+        },
+        {
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "subscribe",
+              "subscribe_ms": 5000,
+              "passed": false,
+              "error_kind": "deadline",
+              "closure_counts": {
+                "canceled": 0,
+                "conflict": 0,
+                "deadline": 0,
+                "evidence": 0,
+                "fenced": 0,
+                "owner_limit": 0,
+                "pending": 0,
+                "unconfirmed": 0,
+                "unknown": 0
+              }
+            },
+            {
+              "history": "existing",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 739,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 1,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 984,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 1,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 457,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 2,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 967,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 2,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 453,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 3,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 972,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 3,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 422,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 4,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 1094,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 4,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 401,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 5,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 1015,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 5,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 498,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 6,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 963,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 6,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 445,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 7,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 942,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 7,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 407,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 8,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 935,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 8,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 415,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 9,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 963,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 9,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 412,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 10,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 1011,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 10,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 485,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 11,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 949,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 11,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 419,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 12,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 936,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 12,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 440,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 13,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 954,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 13,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 416,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 14,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 1152,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 14,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 532,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 15,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 965,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 15,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 432,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 16,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 976,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 16,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 394,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 17,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 947,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 17,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 412,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 18,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 1037,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 18,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 406,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 19,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 947,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 19,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 428,
+              "passed": true
+            }
+          ],
+          "passed": false,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 40,
+          "session_expiry_sec": 86400
+        }
+      ]
+    },
+    {
+      "phase": "successful-anchor-only",
+      "topologies": [
+        {
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 1,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 719,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 0,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 731,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 1,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 709,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 1,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 172,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 2,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 706,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 2,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 181,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 3,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 711,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 3,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 189,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 4,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 718,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 4,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 182,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 5,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 719,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 5,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 179,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 6,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 711,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 6,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 174,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 7,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 713,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 7,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 180,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 8,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 736,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 8,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 175,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 9,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 705,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 9,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 188,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 10,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 729,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 10,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 181,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 11,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 705,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 11,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 181,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 12,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 706,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 12,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 360,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 13,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 727,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 13,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 176,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 14,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 851,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 14,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 256,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 15,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 715,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 15,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 182,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 16,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 775,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 16,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 263,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 17,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 986,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 17,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 546,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 18,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 726,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 18,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 170,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 19,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 719,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 19,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 199,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 40,
+          "session_expiry_sec": 86400
+        },
+        {
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "subscribe",
+              "subscribe_ms": 5000,
+              "passed": false,
+              "error_kind": "deadline",
+              "closure_counts": {
+                "canceled": 0,
+                "conflict": 0,
+                "deadline": 0,
+                "evidence": 0,
+                "fenced": 0,
+                "owner_limit": 0,
+                "pending": 0,
+                "unconfirmed": 0,
+                "unknown": 0
+              }
+            },
+            {
+              "history": "existing",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 2770,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 1,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 1054,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 1,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 403,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 2,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 927,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 2,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 395,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 3,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 918,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 3,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 446,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 4,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 943,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 4,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 498,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 5,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 1050,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 5,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 402,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 6,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 964,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 6,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 476,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 7,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 938,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 7,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 407,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 8,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 929,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 8,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 443,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 9,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 1044,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 9,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 406,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 10,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 943,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 10,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 380,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 11,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 938,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 11,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 406,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 12,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 951,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 12,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 379,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 13,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 966,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 13,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 381,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 14,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 943,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 14,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 382,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 15,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 943,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 15,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 385,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 16,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 1037,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 16,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 442,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 17,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 1031,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 17,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 613,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 18,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 966,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 18,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 384,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 19,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 929,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 19,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 546,
+              "passed": true
+            }
+          ],
+          "passed": false,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 40,
+          "session_expiry_sec": 86400
+        }
+      ]
+    },
+    {
+      "phase": "captured-plan-before-supervisor-registration",
+      "provenance": "captured-plan-candidate-provenance.json",
+      "topologies": [
+        {
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 1,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 776,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 0,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 985,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 1,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 773,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 1,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 243,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 2,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 789,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 2,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 261,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 3,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 709,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 3,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 184,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 4,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 726,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 4,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 184,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 5,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 729,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 5,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 176,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 6,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 714,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 6,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 182,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 7,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 715,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 7,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 186,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 8,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 738,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 8,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 189,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 9,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 714,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 9,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 175,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 10,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 699,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 10,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 183,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 11,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 725,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 11,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 187,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 12,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 710,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 12,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 181,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 13,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 703,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 13,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 179,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 14,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 713,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 14,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 218,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 15,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 714,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 15,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 188,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 16,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 712,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 16,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 186,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 17,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 711,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 17,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 184,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 18,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 716,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 18,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 175,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 19,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 712,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 19,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 175,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 40,
+          "session_expiry_sec": 86400
+        },
+        {
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3610,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 403,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 1,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 1099,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 1,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 387,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 2,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 929,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 2,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 397,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 3,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 980,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 3,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 387,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 4,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 929,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 4,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 542,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 5,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 996,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 5,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 376,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 6,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 924,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 6,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 454,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 7,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 944,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 7,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 379,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 8,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 934,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 8,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 399,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 9,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 1090,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 9,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 371,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 10,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 915,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 10,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 381,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 11,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 920,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 11,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 382,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 12,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 921,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 12,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 384,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 13,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 937,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 13,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 382,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 14,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 915,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 14,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 389,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 15,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 924,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 15,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 498,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 16,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 924,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 16,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 384,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 17,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 921,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 17,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 370,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 18,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 938,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 18,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 380,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 19,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 912,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 19,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 388,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 40,
+          "session_expiry_sec": 86400
+        }
+      ]
+    },
+    {
+      "phase": "captured-plan-supervised",
+      "provenance": "candidate-provenance.json",
+      "topologies": [
+        {
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 1,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 715,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 0,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 741,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 1,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 705,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 1,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 190,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 2,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 724,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 2,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 186,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 3,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 705,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 3,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 183,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 4,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 711,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 4,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 182,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 5,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 718,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 5,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 190,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 6,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 708,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 6,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 179,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 7,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 703,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 7,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 190,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 8,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 743,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 8,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 185,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 9,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 713,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 9,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 182,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 10,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 724,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 10,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 188,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 11,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 710,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 11,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 183,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 12,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 714,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 12,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 185,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 13,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 707,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 13,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 176,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 14,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 702,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 14,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 185,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 15,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 707,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 15,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 180,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 16,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 715,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 16,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 177,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 17,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 711,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 17,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 179,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 18,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 708,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 18,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 189,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 19,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 722,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 19,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 184,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 40,
+          "session_expiry_sec": 86400
+        },
+        {
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3672,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 362,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 1,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 1021,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 1,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 385,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 2,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 934,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 2,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 382,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 3,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 947,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 3,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 385,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 4,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 932,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 4,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 389,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 5,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 957,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 5,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 385,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 6,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 922,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 6,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 388,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 7,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 1072,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 7,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 413,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 8,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 941,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 8,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 375,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 9,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 950,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 9,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 453,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 10,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 969,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 10,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 381,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 11,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 940,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 11,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 394,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 12,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 928,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 12,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 384,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 13,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 931,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 13,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 375,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 14,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 946,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 14,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 376,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 15,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 912,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 15,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 424,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 16,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 1059,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 16,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 359,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 17,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 917,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 17,
+              "ingress": 2,
+              "phase": "complete",
+              "subscribe_ms": 376,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 18,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 1053,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 18,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 350,
+              "passed": true
+            },
+            {
+              "history": "empty",
+              "round": 19,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 921,
+              "passed": true
+            },
+            {
+              "history": "existing",
+              "round": 19,
+              "ingress": 1,
+              "phase": "complete",
+              "subscribe_ms": 394,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 40,
+          "session_expiry_sec": 86400
+        }
+      ]
+    }
+  ]
+}

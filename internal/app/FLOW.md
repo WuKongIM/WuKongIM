@@ -84,6 +84,9 @@ Stop or startup rollback
   post-commit envelopes and timely replay anchors wake only indexed Channel
   interests in the existing scheduler. Remote/lost hints recover through full
   refresh; no cached permission or local cluster bypass is introduced.
+- Product MQTT replay confirmation opts the concurrent-safe cluster Node into
+  four joined replica calls; all-replica proof and final fresh placement remain
+  required before subscription activation.
 - Command-channel suffixes are injected across send, delivery, CMD sync, plugin
   projection and Manager filtering without process-global state.
 - The normalized message system UID is injected consistently into user

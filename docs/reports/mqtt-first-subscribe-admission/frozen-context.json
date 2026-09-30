@@ -1,0 +1,25 @@
+{
+  "source_revision": "49c74b1c065a83628027de7f82d480c07e4050a4",
+  "files": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "test/e2e/AGENTS.md": "c7549d2041f05ecad0d61f7273232c468462292bb7eb4c7022fddaafaafcdb37",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "test/e2e/suite/FLOW.md": "d3622c9c10477f973a9aea2dd060657c98781c845f82bc92c160999f4359ddac",
+    "internal/access/mqtt/FLOW.md": "9f0bd03bff4491b69344d25d17a312ee679866ebf43970a5d9c4821d9714d445",
+    "internal/usecase/mqttsession/FLOW.md": "1513d18d9751a59439aedd2f7055d19f07016ce82ba7f397b6b4fd2b1f40ff69",
+    "internal/runtime/mqttsession/FLOW.md": "570eedc2c82c4339336124c294774d748c37a595d43541c3ce8196cce6ce6e98",
+    "internal/app/FLOW.md": "772afd4742737c7ad6d78b238a3474ab8b619615c3e981e0851fb16792aff02a",
+    "pkg/cluster/FLOW.md": "1990e76d80ceac3eaf82beece4f2c9e86a388f1871fe086597b886de5a055584",
+    "internal/infra/cluster/FLOW.md": "b96d4741b47a3b59a094eb83de316b2080004f4c2cc06f579060d6451c052c30",
+    "internal/app/FLOW_PRODUCT_RUNTIME.md": "8f0e88691cc2aa88f839b138177197faa29d03ad898c477a916edeba5795bde0",
+    "test/e2e/mqtt/subscribe_recovery/AGENTS.md": "ddbb484760671984a1c307fd744b5b39c4331eaf742c35fdfc11ef54aea79ef1",
+    "test/e2e/mqtt/unsubscribe_recovery/AGENTS.md": "b012055ada3d66fe79369df3c34f29a44ba59715bb07eee0210365aca4f173bc",
+    "pkg/goroutine/FLOW.md": "4b41163742391ad48e2b3f2f79d88805b3101cf059d7debf9a81a17c1cd89765"
+  },
+  "approved_seams": [
+    "Product HTTP provisioning/send",
+    "independent Paho MQTT 5",
+    "fixed public metrics"
+  ],
+  "worktree_reused": "codex/mqtt-design"
+}

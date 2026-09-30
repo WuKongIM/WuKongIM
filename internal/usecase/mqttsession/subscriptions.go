@@ -24,6 +24,12 @@ var errSubscriptionCapacityChanged = errors.New("mqttsession: subscription capac
 // Subscribe persists one filter at a time, granting QoS at most one. Success
 // describes authoritative Active intent; entry still owns its SUBACK enqueue.
 func (s *Subscriptions) Subscribe(parent context.Context, o contract.Owner, r SubscriptionRequest) (out meta.MQTTSubscription, err error) {
+	return s.subscribe(parent, o, r, nil)
+}
+
+// subscribe keeps optional caller-owned preparation within the same bounded
+// packet. Its fresh intent, permission and final CAS checks remain unchanged.
+func (s *Subscriptions) subscribe(parent context.Context, o contract.Owner, r SubscriptionRequest, preparation *subscriptionPreparation) (out meta.MQTTSubscription, err error) {
 	if !validSubscriptionRequest(r) {
 		return out, ErrInvalid
 	}
@@ -58,7 +64,7 @@ func (s *Subscriptions) Subscribe(parent context.Context, o contract.Owner, r Su
 			if !subscriptionOptionsEqual(old, r) {
 				return out, ErrConflict
 			}
-			return s.complete(ctx, op, o, old)
+			return s.completePrepared(ctx, op, o, old, preparation)
 		case meta.MQTTSubscriptionActive:
 			if subscriptionOptionsEqual(old, r) {
 				return old, nil
@@ -81,7 +87,7 @@ func (s *Subscriptions) Subscribe(parent context.Context, o contract.Owner, r Su
 	// if wkMQTTSubscribeAfterIntent {
 	//  return out, context.DeadlineExceeded
 	// }
-	return s.complete(ctx, op, o, next)
+	return s.completePrepared(ctx, op, o, next, preparation)
 }
 
 // startPreparation rechecks quota and permission after definite non-admission.
@@ -233,10 +239,14 @@ func (s *Subscriptions) Reconcile(parent context.Context, o contract.Owner, topi
 // complete accepts only projection evidence for the exact persisted child.
 // A concurrent parent renewal is harmless; a changed child or owner is not.
 func (s *Subscriptions) complete(ctx context.Context, op *subscriptionOperation, o contract.Owner, row meta.MQTTSubscription) (meta.MQTTSubscription, error) {
+	return s.completePrepared(ctx, op, o, row, nil)
+}
+
+func (s *Subscriptions) completePrepared(ctx context.Context, op *subscriptionOperation, o contract.Owner, row meta.MQTTSubscription, preparation *subscriptionPreparation) (meta.MQTTSubscription, error) {
 	if err := checkSubscriptionScope(ctx, op); err != nil {
 		return meta.MQTTSubscription{}, err
 	}
-	request := SubscriptionProjectionRequest{Owner: o, UID: op.UID(), Subscription: row}
+	request := SubscriptionProjectionRequest{Owner: o, UID: op.UID(), Subscription: row, preparation: preparation}
 	var receipt SubscriptionProjectionReceipt
 	var err error
 	switch row.Stage {

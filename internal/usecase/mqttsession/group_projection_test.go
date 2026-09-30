@@ -101,3 +101,73 @@ func TestGroupProjectionRejectsChangedOrForgedIntent(t *testing.T) {
 		})
 	}
 }
+
+// Pending turns may reuse a positively committed original boundary within one
+// request, while permission, ownership, cancellation and unknown results remain
+// live fences. This is not a cross-request preparation cache.
+func TestGroupProjectionRetainsPreparationOnlyWithinCurrentRequest(t *testing.T) {
+	for _, mode := range []string{"complete", "renewed", "permission_changed", "unknown", "canceled", "fenced", "new_request"} {
+		t.Run(mode, func(t *testing.T) {
+			f := setupGroupSource(t)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			calls := 0
+			projection, err := app.NewGroupProjection(app.GroupProjectionOptions{Store: &drainStore{progressStore: &progressStore{groupSourceStore: f.store}}, Owners: f.owners, Authorization: f.opts.Authorization, Sources: f.opts.Sources, Now: func() time.Time { return f.now }, Replay: groupReplayConfirmation(func(_ context.Context, _ meta.MQTTBindingOwner, start uint64) error {
+				calls++
+				require.EqualValues(t, 10, start)
+				if calls == 1 {
+					f.tail = 20
+					var err error
+					switch mode {
+					case "renewed":
+						_, err = f.service.Renew(ctx, f.connection.Owner)
+					case "permission_changed":
+						f.version++
+					case "canceled":
+						cancel()
+					case "fenced":
+						err = f.owners.Fence(f.connection.Owner)
+					}
+					require.NoError(t, err)
+					return app.ErrReplayPending
+				}
+				if mode == "unknown" {
+					return app.ErrSubscriptionCallback
+				}
+				return nil
+			})})
+			require.NoError(t, err)
+			f.options.Projection = projection
+			subs, err := app.NewSubscriptions(f.options)
+			require.NoError(t, err)
+			attempts := 3
+			if mode == "new_request" {
+				attempts = 1
+			}
+			requests, err := app.NewSubscriptionRequests(app.SubscriptionRequestOptions{Subscriptions: subs, Attempts: attempts, Retry: time.Millisecond})
+			require.NoError(t, err)
+			row, err := requests.Subscribe(ctx, f.connection.Owner, subscriptionRequest())
+			switch mode {
+			case "complete", "renewed":
+				require.NoError(t, err)
+				require.Equal(t, meta.MQTTSubscriptionActive, row.Stage)
+			case "new_request":
+				require.ErrorIs(t, err, app.ErrReplayPending)
+				require.Equal(t, 2, f.calls)
+				row, err = requests.Subscribe(ctx, f.connection.Owner, subscriptionRequest())
+				require.NoError(t, err)
+				require.Equal(t, meta.MQTTSubscriptionActive, row.Stage)
+			default:
+				require.Error(t, err)
+				require.Zero(t, row)
+				require.Equal(t, meta.MQTTSubscriptionPreparing, f.subscription(t, f.intent.Topic).Stage)
+			}
+			want := 2
+			if mode == "new_request" {
+				want = 3
+			}
+			require.Equal(t, want, f.calls, "same-request replay readiness must not repeat source preparation")
+			require.Zero(t, f.owners.Snapshot().Operations)
+		})
+	}
+}

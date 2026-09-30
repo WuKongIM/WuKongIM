@@ -52,6 +52,8 @@ closure, dependency order, and restart policy.
   burst identity instead of untracked request-scoped workers.
 - MQTT shared-copy confirmation uses a Cluster burst identity, at most four joined
   workers per admitted coordinator, and separate no-queue receiver admission.
+- MQTT replay coverage confirmation uses a separate MQTT burst identity, with
+  at most four joined calls per request and no persistent worker or queue.
 - Plugin owner initialization uses one fixed Plugin burst identity with at most
   16 initializers per batch; the caller owns cancellation and joins all work.
 - Manager Prometheus queries use one fixed burst identity for the bounded
