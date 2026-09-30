@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Add source-linked interactive diagrams for the system architecture, message sending, and multi-node replication and online delivery, with validated specifications and browser evidence. / 新增带源码引用的系统架构、消息发送及多节点复制与在线投递交互图，附验证后的图形规格和浏览器检查记录。
+
 - Publish reconciled cluster readiness and committed node health before Controller task progress writes, and run subsequent tasks through the existing bounded background owner so slow writes cannot block startup readiness. / 集群就绪状态与已提交的节点健康信息先于 Controller 任务进度写入发布，后续任务由现有有界后台执行者处理，避免慢写入阻塞启动就绪检查。
 
 - Atomically reserve Channel worker ownership through queued, executing and unpublished work so concurrent SENDs and blocked quorum completion callbacks retain the configured budget. / 频道 worker 从入队到结果发布结束原子持有统一预算，避免并发 SEND 和被阻塞的 quorum 完成回调超额准入。
