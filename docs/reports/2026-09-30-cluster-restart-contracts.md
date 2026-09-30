@@ -102,12 +102,12 @@ and validation receipts.
   length-target warnings remain advisory. Cluster FLOW remains above the
   100-line target to preserve its existing cross-domain navigation, within the
   mandatory 150-line limit. Its generated index is updated.
-- The latest full integration run still fails the unchanged
+- The first completed repair run failed the unchanged
   `TestThreeNodeSlotElectsAfterControllerAndSlotLeaderStops` three-second election
   deadline. The same failure reproduces on exact main: Controller leadership
   recovers while Slot observers still report the stopped leader at that deadline.
   All other cases pass and no data race is detected. The main comparison is
-  retained separately; this report does not claim a fully green integration
+  retained separately; that initial validation did not establish a fully green integration
   suite or qualified throughput.
 
 `precommit-validation.json` records the tested cluster Go-source tree hash and
@@ -117,3 +117,51 @@ the full-suite limitation. For committed-source acceptance, use one clean
 [Controller bootstrap scenario](../../test/e2e/control/bootstrap_task/AGENTS.md).
 Preserve their public protocol/HTTP gates and the original startup deadline;
 record the exact revision, binary SHA-256 and outcomes in `final-validation.json`.
+
+## Follow-up: randomized election window
+
+After delivery, the operator asked to continue with the remaining failover
+failure. The existing test reproduced three failures in ten runs at clean
+`5428aa57811201e20a35a10fce0f1c000c01938b`. A bounded diagnostic retained the
+original three-second verdict while observing recovery for up to five seconds.
+Three of ten runs recovered after the original deadline at 3.196, 3.584 and
+3.273 seconds. At three seconds, direct `FreshStatus` on the owning Raft worker
+matched the cached status, excluding stale publication in those observations.
+
+The pinned `go.etcd.io/raft/v3` v3.6.0 implementation uses
+`ElectionTick + random(ElectionTick)` before campaigning. Slot defaults of
+50 ms and 40 ticks therefore wait between 2 and 3.95 seconds; a three-second
+test deadline is inside the legal window. The symptom is an obsolete fixture
+budget, rather than evidence requiring a production election-timing change.
+These observations do not establish that runtime scheduling has no delays.
+
+The integration now derives its recovery bound from two election intervals plus
+one bounded second for voting, publication and durable apply (five seconds for
+current defaults). It keeps real default Slot timing and uses 256 hash slots.
+Recovery must also complete a normal Node proposal in a newer term, capture its
+committed target through bounded owned-worker `FreshStatus`, and advance
+committed/applied indexes on both surviving replicas within the same deadline;
+leader IDs alone are insufficient. Its existing lifecycle reporter retains
+bounded before-stop, after-stop and post-quorum facts.
+
+Follow-up evidence is retained in `tmp/slot-failover-repair-20260930/`: exact
+instruction digests, unchanged-repeat receipts, diagnostic probe/diff, and the
+updated validation receipts. The temporary diagnostic was removed. An initial
+strengthened-test attempt omitted the normal proposal envelope and failed with
+`proposal payload too short`; that invalid test setup is preserved separately,
+then corrected to use the normal Node proposal boundary. It is not product-bug
+evidence. The first follow-up gate passed twenty race-enabled repetitions in
+2.064–3.591 seconds per recovery and the full cluster integration suite (365
+parent cases, 288.673 seconds), including the original nine regressions, plus
+cluster/dataformat unit-race tests.
+
+Spec review then identified that async apply can resolve a proposal before the
+worker refreshes cached commit status. Using that cached commit index as the
+quorum target could accept a follower that applied only the election entry.
+The final proof reads `FreshStatus` on the owning worker after the successful
+normal proposal, ensuring the target includes that proposal. This is an
+acceptance-test correction, not evidence of another production defect. The
+initial Spec finding and validation are retained; final repeated/full-suite
+results and committed-binary process acceptance are recorded separately in the
+follow-up `precommit-validation.json` and `final-validation.json`. No throughput
+qualification is claimed.

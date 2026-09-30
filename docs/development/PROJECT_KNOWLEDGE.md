@@ -16,6 +16,10 @@ specification, runbook, report, or module documentation; link to them when neede
   reactor partitions. Shipped initialization creates 12 logical groups; omitted
   or zero `cluster.initial_slot_count` derives one. Existing clusters use the
   persisted Controller count; changing this setting does not resize them.
+- Slot Raft randomizes election waiting from `ElectionTick` through
+  `2*ElectionTick-1` ticks. Defaults (50 ms, 40 ticks) therefore allow 2–3.95 s
+  before campaigning; failover tests must cover this window plus bounded voting
+  and durable-apply time rather than treating three seconds as an upper bound.
 - Node snapshot application serializes watches and readiness probes, rejecting
   older logical revisions before maintenance, placement or task side effects.
   Watch notifications trigger a current Controller read rather than replaying
