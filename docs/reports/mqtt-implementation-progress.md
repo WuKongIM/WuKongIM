@@ -4993,3 +4993,24 @@ and five confirmed producer heartbeats. [Reduced delivery/full churn artifact](m
 This validates the fixture heartbeat and full churn shape at its recorded size;
 it does not replace the 100,000-member/twenty-message acceptance. Full scale and
 the intermittent subscription conflicts/deadlines remain open.
+
+## Subscription final CAS contention
+
+A deterministic test-first reproduction independently confirmed a completion
+CAS bug: renewal after projection's final read left the exact child unchanged
+but made activation/removal fail. The nineteen-case failure matrix covers both
+stages, changed Owner/child, repeated renewal, no parent advance, port errors,
+lost applied replies, cancellation, receive revocation and another remover's
+exact final commit. Final completion now makes at most three proposals after
+definite rejection, rereading exact Owner/full child and parent progress while
+retaining the original projection receipt. Activation reauthorizes each time;
+unknown outcomes still fail without another proposal.
+
+Focused race checks passed (6.721s), the full usecase unit suite passed
+(119.501s), real single-node cluster subscription/request integration with race
+passed (app 5.245s, usecase 3.438s), and vet/FLOW checks passed. This fixes the
+proven completion race; it does not identify every previous process conflict.
+Temporary source-location diagnostics also observed `channel: backpressured`
+at one cold subscription, and another diagnostic attempt exceeded the unchanged
+three-minute fanout wait. Neither is claimed repaired. The final full workload
+will be recorded separately.

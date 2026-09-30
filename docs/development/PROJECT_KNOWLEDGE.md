@@ -1292,3 +1292,9 @@ specification, runbook, report, or module documentation; link to them when neede
   call; cancellation joins admitted writes and accounting includes their confirmed
   completions. This accelerates provisioning without changing source-version or
   join visibility semantics; see [proposal scheduling](../specs/ordinary-membership-proposal-scheduling.md).
+
+- MQTT subscription completion retains the captured projection receipt and uses
+  at most three proposals after definite CAS rejection by an advanced parent
+  revision, with fresh same-Owner/full-child evidence and activation permission.
+  Port errors/lost replies never retry; only exact Removed intent confirms a
+  competing remover's completion. See [orchestration](../specs/mqtt-subscription-orchestration.md).

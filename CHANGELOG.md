@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- MQTT subscription activation and removal tolerate bounded Session revision contention from renewal or progress, while preserving exact subscription/Owner checks and rejecting unknown commit outcomes. / MQTT 订阅激活和移除可在既有边界内处理续租或进度写入导致的明确版本拒绝；保留完整订阅与 Owner 检查，未知提交结果仍失败关闭。
+
 - Group member preparation overlaps ordinary UID membership projection with eight bounded Slot proposal workers, preserving durable completion and cancellation cleanup. / 群成员准备通过最多 8 个受控 Slot 提案提交者并行投影 UID 成员索引，保留持久化确认和取消清理语义。
 - Reduce idle MQTT delivery reads with bounded quiet hints, and wake interested connections after durable Channel commits and confirmed replay anchors. Full refresh and receive authorization remain enforced. / MQTT 空闲投递轮次通过有界提示减少读取，频道持久提交及 replay anchor 确认后定向唤醒连接；保留定期权威复查和发送授权检查。
 - Add `wukongim_slot_read_barrier_duration_seconds{result}` to show how long Slot linearizable reads wait for ReadIndex and durable apply, labeled only by a fixed result set. / 新增 `wukongim_slot_read_barrier_duration_seconds{result}`，按固定结果类别展示 Slot 线性一致读等待 ReadIndex 与持久应用的耗时。

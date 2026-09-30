@@ -240,19 +240,45 @@ func (s *Subscriptions) complete(ctx context.Context, op *subscriptionOperation,
 	if !found || current != row {
 		return meta.MQTTSubscription{}, ErrConflict
 	}
-	if row.Stage == meta.MQTTSubscriptionPreparing {
-		version, err := s.authorize(ctx, op, subscriptionRequestFromRow(row))
-		if err != nil {
-			return meta.MQTTSubscription{}, err
+	// The projection receipt stays pinned to row. Only a definite rejection
+	// permits rebasing its final write across unrelated parent progress; neither
+	// changed intent nor an unknown outcome can authorize another proposal.
+	for attempt := 0; ; attempt++ {
+		next := row
+		if row.Stage == meta.MQTTSubscriptionPreparing {
+			version, err := s.authorize(ctx, op, subscriptionRequestFromRow(row))
+			if err != nil {
+				return meta.MQTTSubscription{}, err
+			}
+			if version != row.AuthorizationVersion {
+				return meta.MQTTSubscription{}, ErrSubscriptionRevoked
+			}
+			next.Stage = meta.MQTTSubscriptionActive
+		} else {
+			next.Stage = meta.MQTTSubscriptionRemoved
 		}
-		if version != row.AuthorizationVersion {
-			return meta.MQTTSubscription{}, ErrSubscriptionRevoked
+		completed, writeErr := s.mutate(ctx, op, o, session, next)
+		if writeErr == nil {
+			return completed, nil
 		}
-		row.Stage = meta.MQTTSubscriptionActive
-	} else {
-		row.Stage = meta.MQTTSubscriptionRemoved
+		if !errors.Is(writeErr, errSubscriptionCASRejected) {
+			return meta.MQTTSubscription{}, writeErr
+		}
+		currentParent, current, found, readErr := s.read(ctx, op, o, row.Topic)
+		if readErr != nil {
+			return meta.MQTTSubscription{}, readErr
+		}
+		if found && sameRemovedIntent(row, current) {
+			return current, nil
+		}
+		if !found || current != row || currentParent.Revision <= session.Revision {
+			return meta.MQTTSubscription{}, ErrConflict
+		}
+		if attempt == 2 {
+			return meta.MQTTSubscription{}, writeErr
+		}
+		session = currentParent
 	}
-	return s.mutate(ctx, op, o, session, row)
 }
 
 // subscriptionOperation checks parent cancellation synchronously as well as the

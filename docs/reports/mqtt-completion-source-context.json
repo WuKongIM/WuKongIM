@@ -1,0 +1,14 @@
+{
+  "revision": "95a8b291e78fc62fb1710815058ef0184cd8d519",
+  "files": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "internal/usecase/mqttsession/FLOW.md": "677a3df0183e3df1f37f177b5ad0893179f976fcb5f4ee5f0c2b68b4887118b0",
+    "internal/runtime/mqttsession/FLOW.md": "570eedc2c82c4339336124c294774d748c37a595d43541c3ce8196cce6ce6e98",
+    "internal/access/mqtt/FLOW.md": "9f0bd03bff4491b69344d25d17a312ee679866ebf43970a5d9c4821d9714d445",
+    "pkg/db/FLOW.md": "33c7ba81c18ed8cb377e9bef541526028ef31e64dd03becc7ac1ea6cc14fb10a",
+    "pkg/db/meta/FLOW.md": "a4a97d06003f3ceccb186f967f1dffb554b1fe31740cc9ece0d68e0560b187f6",
+    "test/e2e/AGENTS.md": "956f8da22c2f6c1796a75cb2fa754fafdc14fce23895dfb507b58eca26835460",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "test/e2e/mqtt/scale/AGENTS.md": "5ae714d509a8e2768e9052c5022897ddffe3c059743d423715c364ef680e5f12"
+  }
+}

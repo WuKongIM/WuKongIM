@@ -96,3 +96,34 @@ Source `2a0e94b0a`; SHA-256:
 - `internal/contracts/mqttsession/FLOW.md`: `5bd4d98da6fa4d59615b62f31f98056add1127274a29816c8d5a181015329841`
 - `pkg/db/FLOW.md`: `8b723e6f1402c2361a872e3a6e4021ac4146782ebc9b416cb7b9cc9787bb9d75`
 - `pkg/db/meta/FLOW.md`: `e05d11e22fc0c4afa0898a9e6498b45b9cc7f594fd4b8529587056cd784ecbb7`
+
+## Completion CAS contention failure inventory (2026-09-30)
+
+The full process workload has shown both subscribe and unsubscribe conflict
+closures after fanout. The fixed-point unit reproduction independently proves
+that renewal between completion's fresh read and final CAS rejects an otherwise
+identical child. This does not identify every process closure's origin.
+
+Before changing completion, cover these failures for Preparing-to-Active and
+Removing-to-Removed: one unrelated renewal prevents completion; repeated renewal
+creates an unbounded retry; changed child options or Owner are adopted; a conflict
+without a newer parent is blindly retried; a port error or lost applied reply is
+mistaken for definite rejection; cancellation admits another write; receive
+revocation is ignored on establishment or blocks removal; and another remover's
+exact final commit is rejected as an ambiguous replacement.
+
+Only the private definite-CAS-rejection classification permits at most three
+completion proposals inside the original scope/deadline. Fresh same-Owner reads
+must preserve the complete captured child and advance the parent revision.
+Projection is not repeated and its original receipt remains pinned. Establishment
+reauthorizes the identical incarnation before each proposal. Removal may confirm
+only the identical already-Removed child, including after a definite rejection.
+Unknown writes/errors never enter this path. New-intent admission, quota scans
+and source-binding/cursor conflicts retain their existing rules.
+
+Test-first validation: the baseline failed bounded renewal completion and
+exact competing removal confirmation. The new nineteen-case matrix and existing
+subscription/removal checks passed with race; the full usecase suite and real
+single-node cluster subscription/request integration passed. The `flow-doc-contracts`
+named check and vet passed. Full load results remain separate from this narrowly
+proved contention behavior.
