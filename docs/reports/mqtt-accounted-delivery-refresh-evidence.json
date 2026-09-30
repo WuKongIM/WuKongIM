@@ -1,0 +1,79 @@
+{
+  "source_revision": "dd8e49bb9ffb284666791d8d937f09e2ced7af13",
+  "source_context": "mqtt-scale-churn-final-provenance.json",
+  "original_full_failure": "mqtt-full-dd8e-boundaries-provenance.json",
+  "failure_inventory": "mqtt-accounted-delivery-experiment.md",
+  "profile": {
+    "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-churn-final WK_E2E_MQTT_SCALE_MEMBERS=2000 WK_E2E_MQTT_SCALE_PROFILE=1 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-delivery-dd8e-profile GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/scale -run '^TestGroupScaleDeliveryAndChurnRetirement$' -count=1 -timeout=8m -v",
+    "binary_sha256": "1010392cb47f76a8620744c25f6cf209507a48b524330b4c1fbaa4961ba4cfc5",
+    "cpu_profile": "mqtt-delivery-dd8e-cpu.pprof",
+    "cpu_sha256": "6a6ffdd3aeecec0cf8f25733103dc5eb02341440788387b02b34b766747cb447",
+    "duration_seconds": 20.15,
+    "total_cpu_samples_seconds": 10.66,
+    "successful_barriers_interval": 70756,
+    "barrier_duration_sum_seconds": 413.4210941740539,
+    "mean_barrier_ms": 5.842912179519106,
+    "worker_goroutine_sample": {
+      "accounting_read_barrier": 10,
+      "window_read_barrier": 4,
+      "window_proposal_future": 2,
+      "scheduler": "waiting for queue space"
+    },
+    "profile_workload_result": "initial receipts complete in 160145ms, then churn round1 resubscribe deadline; 500clients20messages2000members; diagnostic only",
+    "failed_artifact": "mqtt-delivery-dd8e-profile-failure.json",
+    "test_elapsed_seconds": 233.21,
+    "package_elapsed_seconds": 233.854,
+    "qualification": "single goroutine/20sec CPU sample; does not establish all-time task attribution or production capacity"
+  },
+  "regression": {
+    "command": "GOWORK=off go test ./internal/usecase/mqttsession -run '^TestAccountedDeliveryRefresh' -count=1",
+    "cases": 13,
+    "baseline_failing_cases": 3,
+    "red": "confirmed prefix scanned once per enqueue (3 vs1); skipped deadline and recovery after unknown read also repeat scans",
+    "fixture_correction": "deadline controls renew the same Owner before10s because fixture original lease is10s; fencing is allowed to finish local close while durable Session remains Active",
+    "green_command": "GOWORK=off go test -race ./internal/usecase/mqttsession -run 'Test(AccountedDeliveryRefresh|DeliveryCoordinator|ConnectionDelivery|Sender|WindowAdmission)' -count=1",
+    "green_result": "pass",
+    "green_elapsed_seconds": 17.47
+  },
+  "candidate_validation": {
+    "binary_sha256": "1e30ca5ff357bee8d5495017662ed220be0fc9649076cf0e7c6a2572bd5f406c",
+    "source_sha256": "1984a644dd49cd93aa4bdfe03beac8e776569e7be3df7bcc4d7f851b504ee70b",
+    "ordinary_500": {
+      "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-accounted-refresh WK_E2E_MQTT_SCALE_MEMBERS=2000 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-accounted-refresh-2000 GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/scale -run '^TestGroupScaleDeliveryAndChurnRetirement$' -count=1 -timeout=8m -v",
+      "status": "failed unchanged180s receipt wait",
+      "closed_clients": 0,
+      "complete_clients": 94,
+      "incomplete_clients": 406,
+      "test_elapsed_seconds": 206.83,
+      "package_elapsed_seconds": 207.669,
+      "failure_artifact": "mqtt-accounted-refresh-500-failure.json",
+      "receipt_artifact": "mqtt-accounted-refresh-500-receipts.json",
+      "qualification": "no throughput improvement established"
+    },
+    "vet": "pass",
+    "flow_doc_contracts": "87compliant0invalid11existing warnings; mqttsession decreased110to109lines",
+    "paired_64": {
+      "baseline": {
+        "fanout_ms": 29467,
+        "idle_barriers_per_client_per_second": 10.241107566563835,
+        "result": "failed idle criterion after completing all receipts/192 retirements",
+        "failure_artifact": "mqtt-accounted-baseline-64-failure.json",
+        "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-churn-final WK_E2E_MQTT_SCALE_MEMBERS=2000 WK_E2E_MQTT_SCALE_CONNECTIONS=64 WK_E2E_MQTT_SCALE_CHURN=64 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-accounted-baseline-64 GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/scale -run '^TestGroupScaleDeliveryAndChurnRetirement$' -count=1 -timeout=4m -v"
+      },
+      "candidate": {
+        "fanout_ms": 30471,
+        "idle_barriers_per_client_per_second": 11.1,
+        "result": "failed round0 unsubscribe/conflict,63active owners",
+        "failure_artifact": "mqtt-accounted-candidate-64-failure.json",
+        "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-accounted-refresh WK_E2E_MQTT_SCALE_MEMBERS=2000 WK_E2E_MQTT_SCALE_CONNECTIONS=64 WK_E2E_MQTT_SCALE_CHURN=64 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-accounted-candidate-64 GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/scale -run '^TestGroupScaleDeliveryAndChurnRetirement$' -count=1 -timeout=4m -v"
+      },
+      "qualification": "single sequential pair on shared developer machine; no performance benefit or full acceptance established"
+    }
+  },
+  "decision": {
+    "status": "not adopted",
+    "reason": "no measured throughput improvement and no passing process comparison; do not add production scheduling complexity without demonstrated benefit",
+    "prototype_archive": "/tmp/mqtt-accounted-delivery-experiment",
+    "production_sources_restored_to": "dd8e49bb9ffb284666791d8d937f09e2ced7af13"
+  }
+}

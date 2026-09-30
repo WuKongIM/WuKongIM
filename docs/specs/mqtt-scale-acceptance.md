@@ -74,6 +74,13 @@ record the heartbeat count.
 The workload logs completed phase durations and writes `mqtt-scale-failure.json`
 with its failed phase, configuration and confirmed member count on a workload
 failure. Startup diagnostics remain owned by the process harness.
+After successful initial subscription, a failed workload also records a bounded
+receipt histogram and independent Paho closed/incomplete counts in
+`mqtt-scale-delivery-failure.json`, then emits the harness process dump before
+cleanup. A closed incomplete persistent client ends the wait as a failure: it
+cannot receive the required future publication. Open clients keep the original
+three-minute receipt bound, and all successful receipt/identity/churn assertions
+remain unchanged.
 `WK_E2E_MQTT_SCALE_PROFILE=1` enables only loopback profiling for diagnostic
 reproductions, and the artifact records that flag. Acceptance runs leave it off.
 
@@ -110,3 +117,29 @@ separate twenty-message diagnostic attempt stopped at the unchanged three-minute
 receipt wait. [Probe bounds](../reports/mqtt-stage-diagnostic-evidence.json).
 These measurements do not replace the required full workload or establish the
 origin of the remaining subscription closures.
+
+After the four independently reproduced churn repairs at `dd8e49bb9`, the
+ordinary in-flight probe passes all 500 fresh receipts and 600 retirements with
+zero subscription closure observations. The original unprofiled full workload
+then confirms 100,000 members in 123.791s and all 500 subscriptions in 13.403s,
+but exhausts its unchanged three-minute initial receipt wait. Public owner gauges
+show 497 active/held owners; closure origin was not captured and churn was not
+reached. [Failed full artifact](../reports/mqtt-scale-churn-final-failure.json),
+[exact source/binary/command provenance](../reports/mqtt-scale-churn-final-provenance.json).
+Full acceptance remains incomplete.
+
+A temporary terminal-error overlay with 2,000 members and the same 500 clients
+and twenty messages reaches every initial receipt in 148.785s, then fails on
+one unsubscribe/conflict. A two-message/three-round probe passes, while increasing
+only rounds to ten fails on round 8 resubscription with two subscribe/deadline
+closures. These different failures do not identify or repair the full fanout
+failure. [Diagnostic dimensions and artifacts](../reports/mqtt-fanout-closure-evidence.json).
+
+The original-size terminal-boundary overlay subsequently repeats the fanout
+timeout with all 500 clients open and 13–19 observed receipts each. This shows
+the unchanged deadline can fail without a closed client, but leaves the earlier
+three lost owners unexplained. [Boundary evidence](../reports/mqtt-full-dd8e-boundaries-provenance.json).
+A bounded Accounting deferral experiment is not adopted because no measured
+throughput benefit or complete passing comparison is established.
+[Experiment](mqtt-accounted-delivery-experiment.md). Full scale acceptance,
+intermittent unsubscribe/conflict and their remaining causes stay unresolved.

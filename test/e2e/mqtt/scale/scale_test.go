@@ -241,6 +241,45 @@ func TestGroupScaleDeliveryAndChurnRetirement(t *testing.T) {
 		go s.drain(drainCtx)
 	}
 	mark("connect_subscribe", start)
+	defer func() {
+		if !t.Failed() {
+			return
+		}
+		histogram := map[int]int{}
+		closed, incomplete, closedIncomplete := 0, 0, 0
+		want := messages
+		if phase == "post_churn_delivery" || phase == "retirement" || phase == "verify" {
+			want++
+		}
+		for _, s := range subs {
+			count := len(s.snapshot())
+			histogram[count]++
+			missing := count < want
+			if missing {
+				incomplete++
+			}
+			select {
+			case <-s.c.Client.Done():
+				closed++
+				if missing {
+					closedIncomplete++
+				}
+			default:
+			}
+		}
+		report := map[string]any{"phase": phase, "receipt_histogram": histogram, "closed_clients": closed, "incomplete_clients": incomplete, "closed_incomplete_clients": closedIncomplete, "expected_per_client": want, "configured_members": members, "connections": conns}
+		dir := os.Getenv("WK_E2E_MQTT_REPORT_DIR")
+		if dir == "" {
+			dir = n.Spec.RootDir
+		}
+		require.NoError(t, os.MkdirAll(dir, 0700))
+		data, err := json.MarshalIndent(report, "", "  ")
+		require.NoError(t, err)
+		path := filepath.Join(dir, "mqtt-scale-delivery-failure.json")
+		require.NoError(t, os.WriteFile(path, append(data, '\n'), 0600))
+		t.Logf("delivery failure artifact: %s", path)
+		t.Log(n.DumpDiagnostics())
+	}()
 	phase = "fanout"
 	sender, err := suite.NewWKProtoClient()
 	require.NoError(t, err)
@@ -295,14 +334,22 @@ func TestGroupScaleDeliveryAndChurnRetirement(t *testing.T) {
 	// awaitAll waits until every subscriber holds want receipts; it never
 	// accepts fewer, so a silently smaller run cannot pass.
 	awaitAll := func(want int, within time.Duration) {
+		closedIncomplete := false
 		require.Eventually(t, func() bool {
+			all := true
 			for _, s := range subs {
 				if len(s.snapshot()) < want {
-					return false
+					all = false
+					select {
+					case <-s.c.Client.Done():
+						closedIncomplete = true
+					default:
+					}
 				}
 			}
-			return true
+			return all || closedIncomplete
 		}, within, 200*time.Millisecond, "every subscriber must receive %d messages", want)
+		require.False(t, closedIncomplete, "a closed persistent subscriber cannot receive the workload's future publications")
 	}
 
 	start = time.Now()

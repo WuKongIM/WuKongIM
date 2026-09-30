@@ -98,3 +98,9 @@ Parallel supplementary checks failed at cold three-node SUBSCRIBE and old-intent
 reclamation. Isolated reruns pass all 64 cold admissions (93.186s) and the selected
 single-node/three-node app composition gates (38.161s). Retain both outcomes;
 these runs do not prove performance under concurrent test-suite load.
+
+The original unprofiled full run at `dd8e49bb9` subsequently fails its unchanged
+three-minute initial receipt wait, before churn. All 100,000 members and 500
+subscriptions confirmed; public owner gauges show 497 active/held owners at
+failure. Their closure origin was not captured. Retain this failure independently
+of the passing in-flight probe: [full result and provenance](../reports/mqtt-scale-churn-final-provenance.json).

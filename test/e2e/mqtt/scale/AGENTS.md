@@ -23,6 +23,12 @@ diagnostic attempt; keep profiling disabled in acceptance measurements.
 
 Scale logs each completed phase and emits `mqtt-scale-failure.json` on failure
 with confirmed member count and configured workload, without credentials.
+After all initial subscriptions succeed, failures also emit
+`mqtt-scale-delivery-failure.json` with bounded receipt histograms and independent
+Paho closed/incomplete counts, followed by a bounded harness process dump before
+cleanup. A closed incomplete persistent client fails the workload early because
+it cannot receive future publications; open clients retain the original receipt
+deadline. Never reduce the receipt count or reconnect a failed client.
 `WK_E2E_MQTT_SCALE_PROFILE=1` enables loopback debug profiling only for separate
 diagnostic runs; full acceptance must leave it unset.
 

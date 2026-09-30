@@ -1,0 +1,70 @@
+{
+  "production_revision": "dd8e49bb9ffb284666791d8d937f09e2ced7af13",
+  "full_failure": "mqtt-scale-churn-final-failure.json",
+  "full_provenance": "mqtt-scale-churn-final-provenance.json",
+  "temporary_overlay": "/tmp/mqtt-fanout-dd8e-overlay",
+  "diagnostic_binary_sha256": "28c030ce82f85dd73117395d967422396cef45a8e480bd4d629e455285f87531",
+  "fixture_changes": "bounded receipt histogram/client Done observations and harness dump on failure; early failure for a closed persistent client, original receipt bound and workload remain",
+  "fixture_sha256": "3c2bea1e96b318b2c3a822f31488405330c0abd84ae59a60fcecef5f5d729d65",
+  "diagnostic_result": {
+    "members": 2000,
+    "connections": 500,
+    "messages": 20,
+    "fanout_ms": 148785,
+    "initial_receipt_count": 10000,
+    "histogram_artifact": "mqtt-fanout-dd8e-diagnostic-2000-receipts.json",
+    "failed_phase": "churn",
+    "closure": "one unsubscribe/conflict",
+    "terminal_ack_sender_renewal_stages_captured": false,
+    "qualification": "does not reproduce or repair the prior full fanout failure; exact identity verification/post-churn/retirement not reached"
+  },
+  "followup_probes": [
+    {
+      "members": 2000,
+      "connections": 500,
+      "messages": 2,
+      "churn_subscribers": 200,
+      "rounds": 3,
+      "status": "passed",
+      "binary_sha256": "74c8cdd738240db02d671b39af1f160d83b35dbe4ddd7412d528ebf7bed77d69",
+      "artifact": "mqtt-churn-dd8e-diagnostic-2msg.json",
+      "test_elapsed_seconds": 102.78,
+      "package_elapsed_seconds": 103.411,
+      "qualification": "diagnostic overlay only; cannot replace original unprofiled 100000-member workload"
+    },
+    {
+      "members": 2000,
+      "connections": 500,
+      "messages": 2,
+      "churn_subscribers": 200,
+      "rounds": 10,
+      "status": "failed",
+      "binary_sha256": "39c077516fe80e8a313798f2c787524d9652e51ea8bed8ea98baefdb65e4cf02",
+      "artifact": "mqtt-churn-dd8e-diagnostic-10round-failure.json",
+      "receipts": "mqtt-churn-dd8e-diagnostic-10round-receipts.json",
+      "test_elapsed_seconds": 125.21,
+      "package_elapsed_seconds": 125.552,
+      "failure": "round 8 resubscribe context deadline exceeded; 2 subscribe/deadline closures, 498 active owners",
+      "qualification": "all 500 clients received initial 2 messages; does not reproduce previous unsubscribe/conflict or full fanout failure",
+      "instrumentation_gap": "entry checks deadline before inspecting usecase error; stage Sender replacement lacked terminal log; next overlay repairs both probes"
+    }
+  ],
+  "full_size_boundary_probe": "mqtt-full-dd8e-boundaries-provenance.json",
+  "profiling_and_rejected_experiment": "mqtt-accounted-delivery-refresh-evidence.json",
+  "unsubscribe_probe_64": {
+    "binary_sha256": "9ce12c106fda71bb9232aba52d2d14ac08cf6e92c4ce1d1324662060ae3811c1",
+    "overlay_provenance": "mqtt-full-dd8e-boundaries-provenance.json",
+    "members": 2000,
+    "connections": 64,
+    "messages": 20,
+    "rounds": 3,
+    "churn_subscribers": 64,
+    "result": "all initial/fresh receipt counts, exact identities and192 retirements completed; failed unchanged idle criterion; no unsubscribe conflict reproduced",
+    "test_elapsed_seconds": 66.12,
+    "package_elapsed_seconds": 66.909,
+    "success_shaped_artifact": "mqtt-unsubscribe-dd8e-boundaries-64.json",
+    "failure_artifact": "mqtt-unsubscribe-dd8e-boundaries-64-failure.json",
+    "qualification": "no pass or unsubscribe repair claimed; prior intermittent unsubscribe/conflict remains unconfirmed in origin",
+    "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-full-dd8e-boundaries WK_E2E_MQTT_SCALE_MEMBERS=2000 WK_E2E_MQTT_SCALE_CONNECTIONS=64 WK_E2E_MQTT_SCALE_CHURN=64 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-unsubscribe-dd8e-boundaries-64 GOWORK=off go test -overlay=/tmp/mqtt-full-dd8e-boundaries-overlay/overlay.json -p 1 -tags=e2e ./test/e2e/mqtt/scale -run '^TestGroupScaleDeliveryAndChurnRetirement$' -count=1 -timeout=4m -v"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "closed_clients": 2,
+  "closed_incomplete_clients": 0,
+  "configured_members": 2000,
+  "connections": 500,
+  "expected_per_client": 2,
+  "incomplete_clients": 0,
+  "phase": "churn",
+  "receipt_histogram": {
+    "2": 500
+  }
+}

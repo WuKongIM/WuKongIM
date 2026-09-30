@@ -44,7 +44,12 @@
     "candidate_result": "pass",
     "unknown_anchor_negative_controls": "existing TestReplayConfirmationClassifiesCopyYieldBeforeAnchor passes; no new pending classification for anchor failures"
   },
-  "full_scale_acceptance": "pending; these narrower probes do not qualify 100000-member full acceptance",
+  "full_scale_acceptance": {
+    "status": "failed at dd8e49bb9 before churn; does not negate narrower proven repairs or qualify full acceptance",
+    "failure": "mqtt-scale-churn-final-failure.json",
+    "provenance": "mqtt-scale-churn-final-provenance.json",
+    "diagnosis": "mqtt-fanout-closure-evidence.json"
+  },
   "preparation_regression": {
     "cases": 27,
     "baseline_failing_cases": 7,

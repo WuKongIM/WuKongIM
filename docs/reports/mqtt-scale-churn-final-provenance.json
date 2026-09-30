@@ -1,0 +1,55 @@
+{
+  "revision": "dd8e49bb9ffb284666791d8d937f09e2ced7af13",
+  "binary_sha256": "1010392cb47f76a8620744c25f6cf209507a48b524330b4c1fbaa4961ba4cfc5",
+  "binary_path": "/tmp/wukongim-mqtt-churn-final",
+  "build_command": "GOWORK=off go build -o /tmp/wukongim-mqtt-churn-final ./cmd/wukongim",
+  "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-churn-final WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-scale-churn-final GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/scale -run '^TestGroupScaleDeliveryAndChurnRetirement$' -count=1 -timeout=15m -v",
+  "workload": {
+    "members": 100000,
+    "connections": 500,
+    "messages": 20,
+    "churn_subscribers": 200,
+    "churn_rounds": 3,
+    "nodes": 1,
+    "hash_slots": 256,
+    "initial_slots": 12
+  },
+  "profile_enabled": false,
+  "concurrent_agent_test_workloads": false,
+  "instruction_context": {
+    "revision": "dd8e49bb9ffb284666791d8d937f09e2ced7af13",
+    "files": {
+      "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+      "internal/usecase/mqttsession/FLOW.md": "2ea5f9cfb518eba2ab1ff9cb7b4cf519912067e8cd34f53adb852732e23a9281",
+      "internal/runtime/mqttsession/FLOW.md": "570eedc2c82c4339336124c294774d748c37a595d43541c3ce8196cce6ce6e98",
+      "internal/access/mqtt/FLOW.md": "9f0bd03bff4491b69344d25d17a312ee679866ebf43970a5d9c4821d9714d445",
+      "internal/infra/cluster/FLOW.md": "b96d4741b47a3b59a094eb83de316b2080004f4c2cc06f579060d6451c052c30",
+      "pkg/cluster/FLOW.md": "59223cacec27b53b0ced20fa4b0d75e0e3737794dfffc75974bb46109baf111e",
+      "pkg/channel/FLOW.md": "89e78216341b55d381f48ae59c05aaa9266c8894b4cb0052de1b7948161aef95",
+      "pkg/channel/reactor/FLOW.md": "cbd879f918374a76551e07b31af481df028951d737f38a9d9ebb4916d2dd0172",
+      "pkg/db/FLOW.md": "33c7ba81c18ed8cb377e9bef541526028ef31e64dd03becc7ac1ea6cc14fb10a",
+      "pkg/db/meta/FLOW.md": "a4a97d06003f3ceccb186f967f1dffb554b1fe31740cc9ece0d68e0560b187f6",
+      "test/e2e/AGENTS.md": "f354e1f14f9237eb8c2d49835b6890716ab5f7466beb899eba19fc81130deda7",
+      "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+      "test/e2e/mqtt/scale/AGENTS.md": "c3c09aa5cb36a6965811acac40516c50afe90c14a612e07c08412a8b22ea034d",
+      "test/e2e/suite/FLOW.md": "fdf3576f99b00cfdb878ea5623e7f39a576a75bb7ebf5b6fa8de031ae9561add",
+      "internal/app/FLOW.md": "a3066e65d5c8c1480bdd5f972df28148d626df77404f59e1fe4e3840c9071c24",
+      "test/e2e/mqtt/unsubscribe_recovery/AGENTS.md": "b012055ada3d66fe79369df3c34f29a44ba59715bb07eee0210365aca4f173bc"
+    }
+  },
+  "status": "failed",
+  "artifact": "mqtt-scale-churn-final-failure.json",
+  "result": {
+    "failed_phase": "fanout",
+    "test_elapsed_seconds": 327.47,
+    "package_elapsed_seconds": 328.115,
+    "initial_receipt_wait_seconds": 180,
+    "owners_at_failure": {
+      "active": 497,
+      "held": 497,
+      "deadlines": 497
+    },
+    "closure_origin": "not captured; ACK, Sender, renewal and transport hypotheses remain unconfirmed",
+    "churn_and_post_churn_verified": false
+  }
+}

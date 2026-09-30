@@ -5053,5 +5053,58 @@ closure observations. [Probe artifact](mqtt-churn-repairs-500.json),
 [failure locations, bounds and provenance](mqtt-recovery-yield-evidence.json).
 Isolated three-node 64-cold-admission and single-node/three-node app composition
 gates pass (93.186s and 38.161s); preceding parallel deadline failures remain
-recorded without a causal claim. Full 100,000-member acceptance remains pending
-at this stage; historical failures above remain evidence of earlier revisions.
+recorded without a causal claim. The full run at `dd8e49bb9` subsequently fails
+initial fanout; its evidence and diagnosis follow below. Historical failures
+above remain evidence of earlier revisions.
+
+
+## Full fanout failure evidence
+
+The unprofiled full run at `dd8e49bb9` confirms all 100,000 members in 123.791s
+and all 500 subscriptions in 13.403s, then exhausts the unchanged three-minute
+initial receipt wait. Public owner gauges show 497 active/held owners at failure.
+Closure origin was not captured; churn, post-churn delivery and retirement were
+not verified. [Failure artifact](mqtt-scale-churn-final-failure.json),
+[exact source/binary/command provenance](mqtt-scale-churn-final-provenance.json).
+The four deterministic churn repairs and narrower passing probes remain valid;
+full scale acceptance is incomplete.
+
+The fixture now preserves bounded receipt histograms, independent Paho closed/
+incomplete counts and the harness process dump before cleanup on failure. A
+closed incomplete persistent client fails early because it cannot receive future
+publications; open clients retain the original receipt timeout and every success
+assertion remains unchanged. The [failure inventory](../specs/mqtt-fanout-closure.md)
+precedes these diagnostic changes.
+
+A temporary terminal-error overlay with 2,000 members, 500 clients and twenty
+messages reaches all 10,000 initial receipts in 148.785s, then fails at one
+unsubscribe/conflict. Reducing only messages to two passes three churn rounds
+and all 600 retirements; increasing only rounds to ten fails on round 8
+resubscription with two subscribe/deadline closures. These different outcomes
+do not reproduce or repair the original full fanout failure.
+[Diagnostic artifacts, bounds and provenance](mqtt-fanout-closure-evidence.json).
+
+
+The original-size terminal-boundary overlay repeats the initial receipt timeout
+with all 500 clients open and 13–19 observed receipts each; terminal ACK, Sender,
+renewal, gateway and control probes capture no closure error. This identifies
+a throughput failure independent of transport closure in that run, without
+explaining the earlier three lost owners.
+[Full boundary evidence](mqtt-full-dd8e-boundaries-provenance.json).
+
+A separate 20-second CPU/goroutine profile records 70,756 successful Slot barriers
+with 413.421s aggregate wait and 10.66s CPU samples. One goroutine sample places
+ten of sixteen delivery workers in Accounting read barriers, four in window
+read barriers and two in proposal futures; the scheduler waits for queue space.
+A bounded repeated-accounting deferral passes thirteen isolated safety cases,
+but shows no throughput benefit at 500 clients or in a sequential 64-client pair.
+The implementation and test prototype are archived outside the repository,
+and product behavior, FLOW and release notes retain their original semantics.
+[Rejected experiment and artifacts](mqtt-accounted-delivery-refresh-evidence.json).
+
+The original-product 64-client terminal-boundary probe completes every initial
+and fresh receipt, exact identities/order and 192 retirements, then fails its
+unchanged idle threshold (10.80 barriers/client/s). No unsubscribe conflict
+recurs. This is another failed diagnostic scenario, not complete scale
+acceptance or a repair of the intermittent conflict.
+[Result](mqtt-unsubscribe-dd8e-boundaries-64.json).
