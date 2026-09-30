@@ -76,6 +76,15 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 	report["cohort_candidate"] = cohorts
 	timeline := os.Getenv("WK_E2E_PERMISSION_TIMELINE") == "1"
 	report["request_timeline_enabled"] = timeline
+	sequentialTimeline := os.Getenv("WK_E2E_PERMISSION_TIMELINE_SEQUENTIAL") == "1"
+	sequentialProfiles := os.Getenv("WK_E2E_PERMISSION_SEQUENTIAL_PROFILES") == "1"
+	require.False(t, sequentialTimeline && !timeline, "sequential timeline requires timeline mode")
+	require.False(t, sequentialProfiles && timeline, "profiles and timelines require separate fixtures")
+	report["sequential_timeline_enabled"], report["sequential_profiles_enabled"] = sequentialTimeline, sequentialProfiles
+	if sequentialProfiles {
+		report["profile_scope"] = "three owned nodes; separate 256-SEND sequential phase; four-second CPU/allocation captures may cover only part of traffic; allocation sampling applies throughout this diagnostic fixture; no timing qualifies performance"
+		report["memory_profile_rate_bytes"] = 4096
+	}
 	var cases []map[string]any
 	path := os.Getenv("WK_E2E_PERMISSION_BASELINE_REPORT")
 	if cohorts {
@@ -114,11 +123,13 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 	require.True(t, ok)
 	report["harness_sha256"] = permissionBaselineHash(t, harness)
 	report["harness_sources"] = map[string]string{
-		"permission_baseline_test.go":      permissionBaselineHash(t, harness),
-		"permission_timeline_test.go":      permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_timeline_test.go")),
-		"suite/wkproto_client.go":          permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "../../suite/wkproto_client.go")),
-		"permission_cpu_probe_test.go":     permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_cpu_probe_test.go")),
-		"fixtures/permission-cpu-darwin.c": permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "fixtures/permission-cpu-darwin.c")),
+		"permission_baseline_test.go":            permissionBaselineHash(t, harness),
+		"permission_timeline_test.go":            permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_timeline_test.go")),
+		"suite/wkproto_client.go":                permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "../../suite/wkproto_client.go")),
+		"permission_cpu_probe_test.go":           permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_cpu_probe_test.go")),
+		"fixtures/permission-cpu-darwin.c":       permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "fixtures/permission-cpu-darwin.c")),
+		"permission_sequential_test.go":          permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_sequential_test.go")),
+		"permission_sequential_profiles_test.go": permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_sequential_profiles_test.go")),
 	}
 	cpuProbe := os.Getenv("WK_E2E_PERMISSION_CPU_PROBE")
 	if cpuProbe != "" {
@@ -128,6 +139,9 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 
 	opts := []suite.Option{suite.WithManagerHTTP()}
 	for id := uint64(1); id <= 3; id++ {
+		if sequentialProfiles {
+			opts = append(opts, suite.WithNodeEnv(id, "GODEBUG=memprofilerate=4096"))
+		}
 		if timeline {
 			opts = append(opts, suite.WithNodeConfigOverrides(id, map[string]string{
 				"WK_DIAGNOSTICS_ENABLE": "true", "WK_DIAGNOSTICS_BUFFER_SIZE": "8192",
@@ -288,7 +302,11 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 				}
 				sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
 				window["counts"], window["sendack_p99_us"], window["sendack_max_us"] = counts, latencies[int(math.Ceil(float64(len(latencies))*.99))-1], latencies[len(latencies)-1]
-				if timeline && name == "same-slot-remote" && concurrency == 32 {
+				timelineConcurrency := 32
+				if sequentialTimeline {
+					timelineConcurrency = 1
+				}
+				if timeline && name == "same-slot-remote" && concurrency == timelineConcurrency {
 					var timelines []map[string]any
 					window["request_timelines"] = &timelines
 					permissionRequestTimeline(t, ctx, cluster, ingressID, acks, &timelines)
@@ -365,6 +383,23 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 				require.Positive(t, ack.MessageID)
 				require.Positive(t, ack.Seq)
 				expected = append(expected, ack.ID)
+			}
+			if sequentialProfiles && name == "same-slot-remote" {
+				profileAcks, profiles := permissionSequentialProfiles(ctx, cluster, path, func() []permissionBaselineAck {
+					return permissionBaselineWave(ctx, clients[:1], channel, name+"-sequential-profile", 256)
+				})
+				caseEvidence["sequential_profile_acks"], caseEvidence["sequential_profiles"] = profileAcks, profiles
+				for _, profile := range profiles {
+					if profile.ErrorCode != "" {
+						t.Errorf("sequential profile node %d kind %s: %s", profile.NodeID, profile.Kind, profile.ErrorCode)
+					}
+				}
+				require.Len(t, profileAcks, 256)
+				for _, ack := range profileAcks {
+					require.Empty(t, ack.Error)
+					require.Equal(t, uint8(frame.ReasonSuccess), ack.Reason)
+					expected = append(expected, ack.ID)
+				}
 			}
 			if os.Getenv("WK_E2E_PERMISSION_BASELINE_PROFILES") == "1" && name == "two-slots-one-remote-leader" {
 				owner := cluster.MustNode(userSlot.Runtime.LeaderID)

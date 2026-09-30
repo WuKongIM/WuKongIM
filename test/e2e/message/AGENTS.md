@@ -192,3 +192,9 @@ background work; this helper never changes the workload or performance gates.
 The timeline negative receipt probe intentionally fails a post-window public
 query, retaining all completed ACKs, safe partial outcomes and history. CPU
 evidence failure paths also join ownership sampling and preserve partial receipts.
+
+The opt-in `TestPermissionSequentialDiagnostics/same-slot-remote` separately
+captures 64 sequential request timelines or six bounded three-node CPU/allocation
+profiles during 256 additional sequential SENDs. See the scenario instructions
+for mutually exclusive flags, sampling/overlap limits and exact history checks.
+These diagnostic fixtures never qualify the unprofiled performance gates.

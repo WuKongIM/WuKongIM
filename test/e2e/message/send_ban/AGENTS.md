@@ -186,3 +186,18 @@ with JSON whitespace or escaped keys; unsafe replies are never retained.
 report options above. It intentionally injects HTTP 503 on the second diagnostics
 query and exits failed; its outer receipt verifier must require all 64 ACKs,
 64 three-node outcomes, one explicit failure and exact completed history.
+
+`TestPermissionSequentialDiagnostics/same-slot-remote` requires exactly one of
+`WK_E2E_PERMISSION_TIMELINE_SEQUENTIAL=1` or
+`WK_E2E_PERMISSION_SEQUENTIAL_PROFILES=1`, a frozen binary and the baseline or
+cohort report path above. Run with `-count=1 -timeout=4m -p=1 -v`.
+The timeline mode queries the 64 sequential SENDs instead of the burst; all
+existing identity, stage, response-size and history checks still apply.
+The profile mode uses a separate 256-SEND sequential phase and joins four-second
+CPU/allocation captures at all three owned nodes. Each HTTP request is bounded
+to eight seconds and 8 MiB. It records request/return bounds, safe failures and
+all 417 committed messages. `GODEBUG=memprofilerate=4096` applies throughout this
+diagnostic fixture. Endpoint request time does not certify sampling start or
+complete traffic overlap. Use identical settings for old/new diagnosis; neither
+profiled nor traced windows qualify performance. Preserve outer coverage-test
+failures separately from the original experiment's functional verdict.

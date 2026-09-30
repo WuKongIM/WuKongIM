@@ -47,6 +47,13 @@ black-box e2e coverage for `cmd/wukongim` and internal behavior only.
 
 ## Catalog
 
+The opt-in send-ban sequential diagnostics use a frozen binary and exactly one
+of `WK_E2E_PERMISSION_TIMELINE_SEQUENTIAL=1` or
+`WK_E2E_PERMISSION_SEQUENTIAL_PROFILES=1`. Run
+`TestPermissionSequentialDiagnostics/same-slot-remote`; consult the scenario
+instructions for fixed capture bounds, sampling limits and full-history checks.
+Diagnostic timing never replaces unprofiled performance qualification.
+
 | Domain | Scenario path | Purpose | Run |
 | --- | --- | --- | --- |
 | `message` | `test/e2e/message/message_updates` | Opt-in concurrent edits and reads with abrupt Channel/physical Slot leader termination, restart, strict public retry codes, CAS/idempotency and final incremental-cache convergence in a 256-Hash-Slot three-node cluster. | `WK_E2E_MESSAGE_UPDATE_STABILITY=1 WK_E2E_MESSAGE_UPDATE_STABILITY_REPORT=/tmp/message-update-stability.json GOWORK=off go test -tags=e2e ./test/e2e/message/message_updates -count=1 -timeout=8m -v` |
