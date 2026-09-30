@@ -165,3 +165,44 @@ initial Spec finding and validation are retained; final repeated/full-suite
 results and committed-binary process acceptance are recorded separately in the
 follow-up `precommit-validation.json` and `final-validation.json`. No throughput
 qualification is claimed.
+
+## Follow-up: Controller ingress during startup
+
+The final-source full race suite at `2ea30c11a` did not pass. One run hit the
+existing 20-second startup bound in the Channel repair fixture; its isolated
+three repetitions passed without changing the bound. The next full run passed
+364 parent cases but caught Controller startup publication races in
+`TestMessageUpdateThreeNodeQuorumAndLeaderTransfer`. Its standalone ten-repeat
+loop reproduced the same races once, retaining the actual failure.
+
+The restarted node is reconstructed after Stop completes, and its replacement
+transport starts before Controller.Start. Incoming Raft Step therefore reads
+the runtime service pointer while startup assigns it; the pointer also exposes
+constructor fields without a synchronization boundary. A tighter integration
+written before the repair delivers bounded Step, state-sync and leader reads
+while eight sequential real voter Start/Stop cycles reopen durable Raft state.
+It reported thirteen races in about 0.2 seconds, including state-sync endpoint
+publication and the FSM pointer read by its existing callbacks.
+
+The repair uses the existing Controller state lock to publish resource pointers
+and snapshot ingress pointers. Each call releases it before queue waits or FSM
+snapshots, preserving their cancellation and concurrency. Mirror client
+publication and voter preparation cleanup use the same boundary. There is no
+new global mutex, transport ordering change, election timing change or parallel
+Start/Stop contract. State-sync callbacks still reject an absent current FSM;
+they no longer read its pointer without synchronization.
+
+Exact repair checks in `controller-race-repair-validation.json` passed twenty
+ingress repetitions (160 reopen cycles), ten original message-update repetitions,
+all 90 Controller integration parent cases with race enabled, and the cluster,
+Controller and dataformat unit-race suites. Full cluster and committed-binary
+process acceptance are retained separately after this additional product fix.
+The earlier passing binary receipts belong to `2ea30c11a`, not this repair.
+
+The automatic mixed-send CI at `2ea30c11a` failed during warmup with 82
+ReasonNodeNotMatch SENDACKs, before the measured performance phase. This code
+can map multiple transient failures to that reason; its root cause is not
+established by the reason count. Preserve the artifact and failed-job receipt;
+do not describe this as a P99 threshold failure or reuse the previous head's
+green performance result. Draft status remains until current validation permits
+review. No qualification threshold or scenario is changed.

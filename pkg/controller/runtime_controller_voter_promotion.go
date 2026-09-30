@@ -192,10 +192,12 @@ func (r *Runtime) PrepareControllerVoter(ctx context.Context, req PrepareControl
 	r.cfg.Role = RuntimeRoleVoter
 	r.cfg.Voters = copyVoters(req.NextVoters)
 	r.cfg.AllowBootstrap = false
+	r.mu.Lock()
 	r.server = nil
 	r.syncServer = nil
 	r.syncClient = nil
 	r.sm = nil
+	r.mu.Unlock()
 	r.store = statefile.New(filepath.Join(r.cfg.StateDir, "cluster-state.json"))
 	if err := r.startVoter(ctx); err != nil {
 		r.clearControllerVoterRuntimeFields()
@@ -407,10 +409,12 @@ func (r *Runtime) clearControllerVoterRuntimeFields() {
 	if r.raft != nil {
 		_ = r.raft.Stop()
 	}
+	r.mu.Lock()
 	r.sm = nil
 	r.raft = nil
 	r.server = nil
 	r.syncServer = nil
+	r.mu.Unlock()
 }
 
 func copyOptionalUint64s(in []uint64) []uint64 {

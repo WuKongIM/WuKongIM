@@ -37,6 +37,10 @@ specification, runbook, report, or module documentation; link to them when neede
   transport server and must be registered again when that server is recreated.
   Recreated Slot proxies replace pending handlers before server registration;
   registering the previous handlers first would retain a closed metadata store.
+- Controller Raft and state-sync ingress can arrive while its runtime starts.
+  Resource publication and ingress pointer reads use the same state lock,
+  released before Raft queue waits or FSM snapshots. Runtime Start/Stop calls
+  remain sequential; inbound transport need not wait for Start to complete.
 - Controller owns placement intent; observed Raft leadership is authoritative.
   `PreferredLeader` is not proof of the current leader, quorum, or replica health.
   Missing live evidence remains unknown. Controller planning writes use Raft proposals.

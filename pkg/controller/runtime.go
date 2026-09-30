@@ -20,6 +20,7 @@ import (
 type Runtime struct {
 	cfg RuntimeConfig
 
+	// mu protects visible state and resource publication to startup ingress.
 	mu    sync.RWMutex
 	state ClusterState
 	watch chan StateEvent
@@ -99,11 +100,14 @@ func (r *Runtime) LocalState(ctx context.Context) (ClusterState, error) {
 
 // LeaderID returns the best-known Controller leader ID.
 func (r *Runtime) LeaderID() uint64 {
-	if r.raft != nil {
-		return r.raft.LeaderID()
+	r.mu.RLock()
+	service, client := r.raft, r.syncClient
+	r.mu.RUnlock()
+	if service != nil {
+		return service.LeaderID()
 	}
-	if r.syncClient != nil {
-		if leaderID := r.syncClient.LeaderID(); leaderID != 0 {
+	if client != nil {
+		if leaderID := client.LeaderID(); leaderID != 0 {
 			return leaderID
 		}
 	}
@@ -150,18 +154,32 @@ func (r *Runtime) CompactControllerRaftLog(ctx context.Context) (LogCompactionRe
 
 // Step applies an inbound Controller Raft message to the local Raft service.
 func (r *Runtime) Step(ctx context.Context, msg raftpb.Message) error {
-	if r == nil || r.raft == nil {
+	if r == nil {
 		return nil
 	}
-	return r.raft.Step(ctx, msg)
+	// Transport starts before the Controller. Snapshot its published service
+	// without holding the state lock while the bounded Step queue waits.
+	r.mu.RLock()
+	service := r.raft
+	r.mu.RUnlock()
+	if service == nil {
+		return nil
+	}
+	return service.Step(ctx, msg)
 }
 
 // GetState serves Controller state sync requests from local voter state.
 func (r *Runtime) GetState(ctx context.Context, req GetStateRequest) (GetStateResponse, error) {
-	if r == nil || r.syncServer == nil {
+	if r == nil {
 		return GetStateResponse{NotReady: true}, nil
 	}
-	return r.syncServer.GetState(ctx, req)
+	r.mu.RLock()
+	syncServer := r.syncServer
+	r.mu.RUnlock()
+	if syncServer == nil {
+		return GetStateResponse{NotReady: true}, nil
+	}
+	return syncServer.GetState(ctx, req)
 }
 
 // Watch returns state update events.

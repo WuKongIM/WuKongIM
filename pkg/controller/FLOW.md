@@ -28,6 +28,9 @@ not depend on `pkg/cluster`.
   persistence, applied boundaries, or task semantics.
 - Watch events are wakeups. Consumers needing exact current state read
   `LocalState`.
+- Transport can deliver Raft and state-sync ingress before Controller startup
+  completes. Runtime resource pointers publish and snapshot under the existing
+  state lock; queue waits and FSM snapshots run after that lock is released.
 
 ## Main Flows
 
