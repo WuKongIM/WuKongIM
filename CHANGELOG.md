@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Document all four user/source-Channel send-ban HTTP operations, strict flags and decimal-string CAS versions, and include permission RPC 91 in the transport catalog. / 补齐用户与源频道发送限制的四个 HTTP 操作、严格标志与十进制字符串 CAS 版本，并在传输目录中登记权限 RPC 91。
+
 - Safely publish Controller Raft and state-sync resources while transport is already receiving traffic, preventing startup and restart data races. / 传输已接收流量时安全发布 Controller Raft 与状态同步资源，修复启动和重启期间的数据竞争。
 
 - Publish reconciled cluster readiness and committed node health before Controller task progress writes, and run subsequent tasks through the existing bounded background owner so slow writes cannot block startup readiness. / 集群就绪状态与已提交的节点健康信息先于 Controller 任务进度写入发布，后续任务由现有有界后台执行者处理，避免慢写入阻塞启动就绪检查。

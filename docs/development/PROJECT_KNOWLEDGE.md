@@ -849,3 +849,5 @@ specification, runbook, report, or module documentation; link to them when neede
   and reply. Independent slow-barrier local/remote burst regressions preserve
   each caller's fresh barrier and cancellation. Queue count/bytes and the two-second
   wait bound remain unchanged; cross-caller aggregation is tracked by #977.
+
+- Complete Product HTTP documentation covers 48 runtime GET/POST registrations, including independent UID/source-Channel send policies. Dedicated policy writes are strict single JSON objects capped at 4096 bytes; `expected_version` is a canonical decimal uint64 string or null/omitted. Legacy Channel metadata preserves omitted/null `send_ban` and accepts only explicit 0/1. Permission RPC 91 must appear in both the shared transport test registry and documentation catalog.

@@ -14,4 +14,6 @@ description: 设备 Token、在线状态与系统身份。
 <Card href="/zh/api/product-http/users/listSystemUIDs" title="列出全部系统 UID" description="把完整持久化系统 UID 集合聚合为一个无界响应。" />
 <Card href="/zh/api/product-http/users/addSystemUIDsToLocalCache" title="添加节点本地系统 UID 缓存" description="只修改当前进程缓存，不持久化也不复制该变更。" />
 <Card href="/zh/api/product-http/users/removeSystemUIDsFromLocalCache" title="移除节点本地系统 UID 缓存" description="只修改当前进程缓存，不改变持久化系统身份。" />
+<Card href="/zh/api/product-http/users/getUserSendBan" title="读取用户全局发送限制" description="读取当前 Slot 权威发送策略，不返回凭据。" />
+<Card href="/zh/api/product-http/users/setUserSendBan" title="设置用户全局发送限制" description="在 Slot 应用内原子变更发送策略，支持字符串 CAS；相同值保留版本。" />
 </Cards>

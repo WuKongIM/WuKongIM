@@ -178,12 +178,12 @@ function jsonFieldsForStruct(file: string, typeName: string, seen = new Set<stri
 }
 
 describe('complete Product HTTP OpenAPI contract', () => {
-  test('matches all and only the 44 runtime Product HTTP registrations', async () => {
+  test('matches all and only the 48 runtime Product HTTP registrations', async () => {
     const registered = await registeredProductOperations();
     const contracted = operationKeys().sort();
 
-    expect(registered).toHaveLength(44);
-    expect(contracted).toHaveLength(44);
+    expect(registered).toHaveLength(48);
+    expect(contracted).toHaveLength(48);
     expect(contracted).toEqual(registered);
   });
 
