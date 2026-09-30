@@ -5012,5 +5012,23 @@ passed (app 5.245s, usecase 3.438s), and vet/FLOW checks passed. This fixes the
 proven completion race; it does not identify every previous process conflict.
 Temporary source-location diagnostics also observed `channel: backpressured`
 at one cold subscription, and another diagnostic attempt exceeded the unchanged
-three-minute fanout wait. Neither is claimed repaired. The final full workload
-will be recorded separately.
+three-minute fanout wait. Neither is claimed repaired. The final unprofiled full workload at `bc41096de`
+prepared all 100,000 members in 129.668s, subscribed all 500 clients in 14.821s,
+and reached all initial receipt counts in 166.175s. Quiet barriers were
+1,835.4/s (3.67/subscriber/s). Round 0 resubscription still caused three
+`subscribe/conflict` closures, before post-churn delivery/retirement verification.
+[Failure artifact](mqtt-scale-completion-failure.json) and [repeat command/binary provenance](mqtt-scale-completion-provenance.json).
+The isolated completion race is repaired; other subscription contention and
+full scale acceptance remain open.
+
+The final fixed-position diagnostic build of the same product revision passed
+a 2,000-member/500-connection/two-message/600-churn workload: all 600 tombstones
+retired, no delivery discrepancies, and five confirmed publisher heartbeats.
+[Diagnostic churn artifact](mqtt-stage-churn-600.json). With twenty initial
+messages, a separate attempt exhausted the unchanged three-minute receipt wait
+before churn, without capturing a new subscription error position.
+[Diagnostic failure](mqtt-stage-fanout-failure.json),
+[exact probe bounds/provenance](mqtt-stage-diagnostic-evidence.json).
+Temporary wrappers were built through a Go overlay outside the repository and
+are absent from the product source. Full scale acceptance, the remaining
+subscription conflicts/backpressure and fanout latency remain unresolved.

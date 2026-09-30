@@ -95,3 +95,18 @@ A separate 2,000-member/500-connection/two-message run passed every receipt and
 all 600 retirements, recording five producer heartbeats and no profiling.
 [Reduced delivery/full churn artifact](../reports/mqtt-scale-churn-600.json).
 It qualifies only the recorded workload and does not replace full acceptance.
+
+After the independently proved final-completion CAS fix, the unprofiled full
+run at `bc41096de` prepared all members in 129.668s, completed 500 subscriptions
+in 14.821s and reached all initial receipt counts in 166.175s. Quiet barriers
+were 1,835.4/s (3.67/subscriber/s). Round 0 resubscription still produced three
+conflict closures. Full scale acceptance is incomplete; this does not prove
+the origin of every process conflict. [Failure artifact](../reports/mqtt-scale-completion-failure.json),
+[command and exact binary provenance](../reports/mqtt-scale-completion-provenance.json).
+
+A fixed-position diagnostic build of the same revision also passed the reduced
+2,000-member/two-message workload with 500 clients and all 600 retirements. A
+separate twenty-message diagnostic attempt stopped at the unchanged three-minute
+receipt wait. [Probe bounds](../reports/mqtt-stage-diagnostic-evidence.json).
+These measurements do not replace the required full workload or establish the
+origin of the remaining subscription closures.

@@ -1,0 +1,14 @@
+{
+  "revision": "bc41096de863e0dad7f1398a894769dc33b96947",
+  "working_tree_clean_at_start": true,
+  "binary_sha256": "a3e9295febe1e79ffa0b8ef77b0ea519ca799b0689bc733b592f10c387b7f8fd",
+  "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-completion-final WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-scale-completion-final GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/scale -run TestGroupScaleDeliveryAndChurnRetirement -count=1 -timeout=15m -v",
+  "platform": "Darwin arm64",
+  "profile_enabled": false,
+  "context_timeout_seconds": 720,
+  "go_timeout_seconds": 900,
+  "fanout_timeout_seconds": 180,
+  "retirement_timeout_seconds": 240,
+  "environment": "Shared developer host; single-node cluster; no production capacity claim",
+  "recorded_at_utc": "2026-09-30T05:33:05.671315+00:00"
+}
