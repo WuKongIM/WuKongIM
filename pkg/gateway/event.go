@@ -30,3 +30,6 @@ type TransportPressureEvent = gatewaytypes.TransportPressureEvent
 type TransportWriteEvent = gatewaytypes.TransportWriteEvent
 type AsyncSendBatchEvent = gatewaytypes.AsyncSendBatchEvent
 type AsyncSendDispatchWaitEvent = gatewaytypes.AsyncSendDispatchWaitEvent
+
+// DeferredSendBatchHandler separates preparation and ordered result publication.
+type DeferredSendBatchHandler = gatewaytypes.DeferredSendBatchHandler

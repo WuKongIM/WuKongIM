@@ -34,6 +34,8 @@ const (
 	PermissionMetadataReadSubscriberHasAny
 	// PermissionMetadataReadConversation reads lifecycle and runtime routing at one owner.
 	PermissionMetadataReadConversation
+	// PermissionMetadataReadUserSendPolicy reads the UID-owned sending restriction.
+	PermissionMetadataReadUserSendPolicy
 )
 
 // PermissionMetadataRead is one channel-owned authoritative lookup.
@@ -46,7 +48,8 @@ type PermissionMetadataRead struct {
 
 // PermissionMetadataReadResult aligns with one PermissionMetadataRead.
 type PermissionMetadataReadResult struct {
-	Channel metadb.Channel
+	UserPolicy metadb.SendBanResult
+	Channel    metadb.Channel
 	// Runtime is present only for an existing runtime in a conversation metadata read.
 	Runtime *metadb.ChannelRuntimeMeta
 	Found   bool

@@ -3,6 +3,8 @@ package backup
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
+	"time"
 
 	backupcontract "github.com/WuKongIM/WuKongIM/internal/contracts/backup"
 	backupusecase "github.com/WuKongIM/WuKongIM/internal/usecase/backup"
@@ -20,6 +22,9 @@ type ScheduledBackupController interface {
 // ScheduledControllerStateStore persists bounded backup state through Controller Raft.
 type ScheduledControllerStateStore struct {
 	controller ScheduledBackupController
+	// minimumRevision preserves read-your-writes after a forwarded CAS returns
+	// before this node's Controller mirror has published the committed revision.
+	minimumRevision atomic.Uint64
 }
 
 // NewScheduledControllerStateStore creates a Controller-backed scheduled state store.
@@ -41,12 +46,41 @@ func (s *ScheduledControllerStateStore) Load(
 	if err != nil {
 		return backupcontract.SystemState{}, err
 	}
+	if clusterState.Revision < s.minimumRevision.Load() {
+		clusterState, err = s.waitForVisibleControllerState(ctx)
+		if err != nil {
+			return backupcontract.SystemState{}, err
+		}
+	}
 	if clusterState.ScheduledBackup == nil {
 		return backupcontract.SystemState{Revision: clusterState.Revision}, nil
 	}
 	result := scheduledStateFromController(*clusterState.ScheduledBackup)
 	result.Revision = clusterState.Revision
 	return result, nil
+}
+
+// waitForVisibleControllerState only polls this node's mirror. Normal reads
+// allocate no timer or RPC; lagging reads retain cancellation and a fixed bound.
+func (s *ScheduledControllerStateStore) waitForVisibleControllerState(ctx context.Context) (controller.ClusterState, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return controller.ClusterState{}, ctx.Err()
+		case <-ticker.C:
+		}
+		current, err := s.controller.LocalState(ctx)
+		if err != nil {
+			return controller.ClusterState{}, err
+		}
+		if current.Revision >= s.minimumRevision.Load() {
+			return current, nil
+		}
+	}
 }
 
 // CompareAndSwap replaces the complete scheduled state only at the expected
@@ -73,6 +107,18 @@ func (s *ScheduledControllerStateStore) CompareAndSwap(
 			return backupusecase.ErrStateConflict
 		}
 		return err
+	}
+	// Usecase mutations advance next.Revision; these cannot be Controller no-ops.
+	// A caller repeating an unchanged revision must not wait for a nonexistent
+	// increment. Concurrent writes may finish out of order, so the floor never falls.
+	minimum := expectedRevision
+	if next.Revision > expectedRevision {
+		minimum++
+	}
+	for previous := s.minimumRevision.Load(); previous < minimum; previous = s.minimumRevision.Load() {
+		if s.minimumRevision.CompareAndSwap(previous, minimum) {
+			break
+		}
 	}
 	return nil
 }

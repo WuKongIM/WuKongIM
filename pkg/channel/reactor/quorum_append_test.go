@@ -9,8 +9,47 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
 	"github.com/stretchr/testify/require"
 )
+
+func TestQuorumCommitDoesNotRetainLegacyPullPayloads(t *testing.T) {
+	factory := store.NewMemoryFactory()
+	log := &reactorCaptureQuorumLog{}
+	sink := captureCompletionSink{results: make(chan worker.Result, 8)}
+	pools, err := worker.NewPools(worker.PoolsConfig{
+		StoreAppend: worker.PoolConfig{Name: "append", Workers: 1, QueueSize: 8},
+		StoreRead:   worker.PoolConfig{Name: "read", Workers: 1, QueueSize: 8},
+		StoreApply:  worker.PoolConfig{Name: "apply", Workers: 1, QueueSize: 8},
+		RPC:         worker.PoolConfig{Name: "rpc", Workers: 1, QueueSize: 8},
+	}, worker.Deps{LocalNode: 1, Stores: factory, QuorumLog: log}, sink)
+	require.NoError(t, err)
+	defer pools.Close()
+	r := NewReactor(ReactorConfig{LocalNode: 1, Store: factory, Pools: pools,
+		QuorumLog: log, MailboxSize: 16, AppendBatchMaxRecords: 1,
+		LeaderRecentRecordCacheSize: 128, LeaderRecentRecordCacheBytes: 64 << 10})
+	meta := testMeta("quorum-no-legacy-cache", 1, 1)
+	meta.RouteGeneration = 7
+	meta.Replicas, meta.ISR, meta.MinISR = []ch.NodeID{1, 2, 3}, []ch.NodeID{1, 2, 3}, 2
+	installed := NewFuture()
+	r.handleApplyMeta(Event{Kind: EventApplyMeta, Key: meta.Key, Meta: meta, Future: installed})
+	r.handleQuorumInstallResult(sink.awaitResultKind(t, worker.TaskQuorumInstall))
+	require.NoError(t, awaitFutureResult(t, installed).Err)
+	for i := uint64(1); i <= 3; i++ {
+		future := NewFuture()
+		event := appendEventWithFuture(meta, i, "durable quorum owns replication", future)
+		event.Append.CommitMode = ch.CommitModeQuorum
+		r.handleAppend(event)
+		r.handleQuorumCommitResult(sink.awaitResultKind(t, worker.TaskQuorumCommit))
+		result := awaitFutureResult(t, future)
+		require.NoError(t, result.Err)
+		require.Equal(t, i, result.AppendBatch.Items[0].MessageSeq)
+		rc := r.channels[meta.Key]
+		require.Equal(t, i, rc.state.HW)
+		require.Empty(t, rc.recentRecords.records, "quorum commits must not retain payloads for disabled legacy follower pulls")
+		require.Zero(t, rc.recentRecords.bytes)
+	}
+}
 
 func TestQuorumLeaderActivationAndAppendBypassPullAckHotPath(t *testing.T) {
 	log := &reactorCaptureQuorumLog{}

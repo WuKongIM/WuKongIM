@@ -26,6 +26,8 @@ DTOs, and `worker` bounds blocking I/O.
   or transport I/O. Typed workers execute that work and return fenced results.
 - Recent-record caches, PullHint, batching, and benchmark controls are
   performance or observation mechanisms, never sources of durable truth.
+  Durable-quorum commits do not duplicate payloads in the legacy pull cache;
+  the quorum runtime owns replication and repair.
 
 ## Main Flows
 
@@ -64,6 +66,9 @@ DTOs, and `worker` bounds blocking I/O.
   same-authority, missing, or malformed evidence remains a conflict.
 - The node-owned replication runtime bounds local mutation batches, per-target
   exchange, recovery probes, and follower repair without per-Channel goroutines.
+  Peer owners are scheduled only for executable queue items, preserving the
+  first exchange kind and per-Channel ordering barriers. Releasing in-flight
+  ownership wakes blocked classes; blocked-only queues do not reschedule empty owners.
   Install preserves every observed suffix, proves compatible voter tails on one
   exact hash chain, and copies at most one bounded page before yielding for a fresh proof. Probe rounds
   consume arrived evidence plus the local result, then use a quorum without waiting

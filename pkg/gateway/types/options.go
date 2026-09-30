@@ -75,7 +75,8 @@ type RuntimeOptions struct {
 	Goroutines *goruntimeregistry.Registry
 	// AsyncSendWorkers sets the worker count used to dispatch SEND frames asynchronously.
 	AsyncSendWorkers int
-	// AsyncSendQueueCapacity sets the maximum queued SEND frame count before admission fails.
+	// AsyncSendQueueCapacity bounds reserved SEND records. Deferred handlers count
+	// queued, executing and completed-but-unpublished frames in the same budget.
 	AsyncSendQueueCapacity int
 	// AsyncAuthWorkers sets the worker count used to process CONNECT authentication asynchronously.
 	AsyncAuthWorkers int

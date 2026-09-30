@@ -65,8 +65,7 @@ reads to the current Slot leader. Durable rows live in `pkg/db/meta`.
   Multi-hash-Slot batches are allowed only by explicit command contracts and
   validate every embedded row.
   Runtime-meta batches are canonical, identity-unique, and bounded to 64;
-  person membership/ready batches are bounded to 128. The combined prepare
-  command returns aligned create results but never publishes ready.
+  person membership/ready batches are bounded to 128. Ordinary membership upsert batches also cap at 128 rows/256 KiB/64 KiB UID bytes, validate every owned shard atomically, preserve upsert source-version/rejoin semantics, and filter migration replay to the requested shard. The combined prepare command returns aligned create results but never publishes ready.
 - Entity routing keys are stable: UID-owned rows use UID; Channel-owned rows use
   Channel identity. Caller-supplied Slot IDs never override derived ownership.
 - FSM batches are atomic. Expected conditional conflicts and migration races
@@ -89,6 +88,7 @@ reads to the current Slot leader. Durable rows live in `pkg/db/meta`.
 - Ordinary and CMD membership progress is monotonic and UID-owned. Removed
   conversation table IDs stay reserved and must not be reused.
 - Message edits atomically resolve CAS/idempotency and maintain latest-state indexes through the Slot FSM. Reads group at most 200 targets by physical Slot with eight managed workers and a fresh local-only safe ReadIndex plus durable-apply barrier per group, followed by one shared database snapshot for that group (noop fallback for embedding ports without ReadIndex). Replica capability activation is persisted in each channel head; later quorum writes reuse it unless the replica set changes. JSON RPC format, row counts and bytes are bounded; read DTOs omit default zero fields while preserving field names, aligned pages and legacy decoding; matched binaries remain a rollout requirement. Read assembly revalidates Slot mapping and authority with a dedicated retryable read-route cause, distinct from database/CAS conflicts. ReadIndex requires a durable current-term commit; unconfirmed/canceled reads remain counted up to 256 per Slot until confirmation or Raft reset.
+- Send-permission facts use a separate node-scoped typed RPC: same-leader Slots share one envelope, but each Slot retains its own route fence, fresh required ReadIndex/apply barrier and snapshot. Maintenance admission spans the entire read. Local leaders use the same path without loopback. Requests cap at 4096 facts/1 MiB, four workers and sixty-four executing envelopes (at most 256 Slot workers). At most 1024 additional envelopes (16 MiB of undecoded bytes) may wait before decoding for up to 2 s or caller cancellation; overflow/timeout is typed busy, with no extra RPC retry. One stale-route retry touches only failed groups. Policy/Channel-info commands preserve omitted flags and increment send-policy versions only on actual changes.
 
 ## Read First
 

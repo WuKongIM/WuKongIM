@@ -5,368 +5,246 @@ import (
 	"fmt"
 
 	channelmembers "github.com/WuKongIM/WuKongIM/internal/contracts/channelmembers"
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	runtimechannelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 )
 
-type groupPermissionReadPlan struct {
-	command        SendCommand
-	trusted        bool
-	senderChannel  int
-	groupChannel   int
-	denied         int
-	subscriber     int
-	hasAllowlist   int
-	allowlistEntry int
+// permissionFacts exists for one sealed admission batch only. It evaluates the
+// same scalar policy without any network fallback or cross-request cache.
+type permissionFacts struct {
+	indexes map[PermissionRead]int
+	results []PermissionReadResult
 }
 
-type personPermissionReadPlan struct {
-	command         SendCommand
-	planErr         error
-	trusted         bool
-	systemDevice    bool
-	receiverTrusted bool
-	senderChannel   int
-	terminalChannel int
-	denied          int
-	allowlistEntry  int
-	receiverChannel int
+func (f *permissionFacts) get(q PermissionRead) (PermissionReadResult, error) {
+	i, ok := f.indexes[q]
+	if !ok || i >= len(f.results) {
+		return PermissionReadResult{}, fmt.Errorf("message: missing permission fact")
+	}
+	r := f.results[i]
+	return r, r.Err
+}
+func (f *permissionFacts) GetUserSendPolicy(_ context.Context, uid string) (metadb.SendBanResult, error) {
+	r, err := f.get(PermissionRead{Kind: PermissionReadUserSendPolicy, UID: uid})
+	return r.UserPolicy, err
+}
+func (f *permissionFacts) GetChannelForPermission(_ context.Context, id string, kind int64) (metadb.Channel, error) {
+	r, err := f.get(PermissionRead{Kind: PermissionReadChannel, ChannelID: id, ChannelType: kind})
+	if err != nil {
+		return metadb.Channel{}, err
+	}
+	if !r.Found {
+		return metadb.Channel{}, metadb.ErrNotFound
+	}
+	return r.Channel, nil
+}
+func (f *permissionFacts) ContainsChannelSubscriber(_ context.Context, id string, kind int64, uid string) (bool, error) {
+	r, err := f.get(PermissionRead{Kind: PermissionReadSubscriberContains, ChannelID: id, ChannelType: kind, UID: uid})
+	return r.Value, err
+}
+func (f *permissionFacts) HasChannelSubscribers(_ context.Context, id string, kind int64) (bool, error) {
+	r, err := f.get(PermissionRead{Kind: PermissionReadSubscriberHasAny, ChannelID: id, ChannelType: kind})
+	return r.Value, err
 }
 
-func (a *App) checkGroupSendPermissionsBatch(
-	ctx context.Context,
-	items []SendBatchItem,
-	groups []sendBatchPermissionGroup,
-	groupIndexes []int,
-) []sendBatchPermissionOutcome {
-	reads := make([]PermissionRead, 0, len(groupIndexes)*5)
-	readIndexes := make(map[PermissionRead]int, len(groupIndexes)*5)
-	addRead := func(read PermissionRead) int {
-		if index, ok := readIndexes[read]; ok {
-			return index
+// checkSendPermissionsBatch collects user, source-Channel and auxiliary facts in
+// one plan, including mixed channel types and explicit-recipient commands.
+func (a *App) checkSendPermissionsBatch(ctx context.Context, items []SendBatchItem, groups []sendBatchPermissionGroup, indexes []int) []sendBatchPermissionOutcome {
+	const maxPlanGroups = 512 // at most six facts per ordinary group, below the 4096 fact cap
+	if len(indexes) > maxPlanGroups {
+		out := make([]sendBatchPermissionOutcome, 0, len(indexes))
+		for start := 0; start < len(indexes); start += maxPlanGroups {
+			out = append(out, a.checkSendPermissionsBatch(ctx, items, groups, indexes[start:min(start+maxPlanGroups, len(indexes))])...)
 		}
-		index := len(reads)
-		readIndexes[read] = index
-		reads = append(reads, read)
-		return index
+		return out
 	}
-	plans := make([]groupPermissionReadPlan, len(groupIndexes))
-	for i, groupIndex := range groupIndexes {
-		cmd := items[groups[groupIndex].representative].Command
-		sourceChannelID, _ := a.commandChannels.FromCommandChannel(cmd.ChannelID)
-		channelType := int64(cmd.ChannelType)
-		plan := groupPermissionReadPlan{
-			command:        cmd,
-			senderChannel:  -1,
-			groupChannel:   -1,
-			denied:         -1,
-			subscriber:     -1,
-			hasAllowlist:   -1,
-			allowlistEntry: -1,
-		}
-		plan.groupChannel = addRead(PermissionRead{
-			Kind: PermissionReadChannel, ChannelID: sourceChannelID, ChannelType: channelType,
-		})
-		plan.trusted = a.systemUIDs != nil && a.systemUIDs.IsSystemUID(cmd.FromUID)
-		if !plan.trusted {
-			plan.senderChannel = addRead(PermissionRead{
-				Kind: PermissionReadChannel, ChannelID: cmd.FromUID, ChannelType: int64(channelTypePerson),
-			})
-			if a.systemDeviceID != "" && cmd.DeviceID == a.systemDeviceID {
-				plan.trusted = true
-			} else {
-				key := channelmembers.ChannelKey{ChannelID: sourceChannelID, ChannelType: cmd.ChannelType}
-				allowID := channelmembers.AllowlistChannelID(key)
-				plan.denied = addRead(PermissionRead{
-					Kind: PermissionReadSubscriberContains, ChannelID: channelmembers.DenylistChannelID(key), ChannelType: channelType, UID: cmd.FromUID,
-				})
-				plan.subscriber = addRead(PermissionRead{
-					Kind: PermissionReadSubscriberContains, ChannelID: sourceChannelID, ChannelType: channelType, UID: cmd.FromUID,
-				})
-				plan.hasAllowlist = addRead(PermissionRead{
-					Kind: PermissionReadSubscriberHasAny, ChannelID: allowID, ChannelType: channelType,
-				})
-				// Read the point entry in the same authoritative round. Evaluation
-				// ignores it when the allowlist is empty.
-				plan.allowlistEntry = addRead(PermissionRead{
-					Kind: PermissionReadSubscriberContains, ChannelID: allowID, ChannelType: channelType, UID: cmd.FromUID,
-				})
-			}
-		}
-		plans[i] = plan
-	}
-
-	readResults := a.permissionBatch.ReadPermissionsBatch(ctx, reads)
-	if len(readResults) != len(reads) {
-		err := fmt.Errorf("message: permission batch returned %d results for %d reads", len(readResults), len(reads))
-		outcomes := make([]sendBatchPermissionOutcome, len(plans))
-		for i, plan := range plans {
-			outcomes[i] = sendBatchPermissionOutcome{channelID: plan.command.ChannelID, reason: ReasonSystemError, err: err}
-		}
-		return outcomes
-	}
-
-	outcomes := make([]sendBatchPermissionOutcome, len(plans))
-	for i, plan := range plans {
-		outcomes[i] = evaluateGroupPermissionReadPlan(plan, readResults)
-	}
-	return outcomes
-}
-
-func evaluateGroupPermissionReadPlan(plan groupPermissionReadPlan, results []PermissionReadResult) sendBatchPermissionOutcome {
-	outcome := sendBatchPermissionOutcome{channelID: plan.command.ChannelID, reason: ReasonSuccess}
-	read := func(index int) (PermissionReadResult, bool) {
-		if index < 0 {
-			return PermissionReadResult{}, false
-		}
-		return results[index], true
-	}
-	if sender, ok := read(plan.senderChannel); ok {
-		if sender.Err != nil {
-			outcome.reason, outcome.err = ReasonSystemError, sender.Err
-			return outcome
-		}
-		if sender.Found && sender.Channel.SendBan != 0 {
-			outcome.reason = ReasonSendBan
-			return outcome
+	planStarted := a.permissionStart()
+	beforeCount := 0
+	reads := make([]PermissionRead, 0, len(indexes)*6)
+	facts := &permissionFacts{indexes: make(map[PermissionRead]int, len(indexes)*6)}
+	add := func(q PermissionRead) {
+		beforeCount++
+		if _, ok := facts.indexes[q]; !ok {
+			facts.indexes[q] = len(reads)
+			reads = append(reads, q)
 		}
 	}
-	group, _ := read(plan.groupChannel)
-	if group.Err != nil {
-		outcome.reason, outcome.err = ReasonSystemError, group.Err
-		return outcome
+	channel := func(id string, kind uint8) {
+		add(PermissionRead{Kind: PermissionReadChannel, ChannelID: id, ChannelType: int64(kind)})
 	}
-	if !group.Found {
-		if !plan.trusted {
-			outcome.reason = ReasonChannelNotExist
+	member := func(id string, kind uint8, uid string) {
+		add(PermissionRead{Kind: PermissionReadSubscriberContains, ChannelID: id, ChannelType: int64(kind), UID: uid})
+	}
+	common := func(id string, kind uint8, uid string) {
+		k := channelmembers.ChannelKey{ChannelID: id, ChannelType: kind}
+		member(channelmembers.DenylistChannelID(k), kind, uid)
+		member(id, kind, uid)
+		allow := channelmembers.AllowlistChannelID(k)
+		add(PermissionRead{Kind: PermissionReadSubscriberHasAny, ChannelID: allow, ChannelType: int64(kind)})
+		member(allow, kind, uid)
+	}
+	out := make([]sendBatchPermissionOutcome, len(indexes))
+	sources := make([]string, len(indexes))
+	for i, index := range indexes {
+		cmd := items[groups[index].representative].Command
+		out[i].channelID = cmd.ChannelID
+		add(PermissionRead{Kind: PermissionReadUserSendPolicy, UID: cmd.FromUID})
+		if cmd.RequestScoped || (len(cmd.MessageScopedUIDs) > 0 && cmd.ChannelID == "") {
+			continue
 		}
-		return outcome
-	}
-	if plan.trusted {
-		if group.Channel.Disband != 0 {
-			outcome.reason = ReasonDisband
-		}
-		return outcome
-	}
-	if group.Channel.Ban != 0 {
-		outcome.reason = ReasonBan
-		return outcome
-	}
-	if group.Channel.Disband != 0 {
-		outcome.reason = ReasonDisband
-		return outcome
-	}
-	denied, _ := read(plan.denied)
-	if denied.Err != nil {
-		outcome.reason, outcome.err = ReasonSystemError, denied.Err
-		return outcome
-	}
-	if denied.Value {
-		outcome.reason = ReasonInBlacklist
-		return outcome
-	}
-	subscriber, _ := read(plan.subscriber)
-	if subscriber.Err != nil {
-		outcome.reason, outcome.err = ReasonSystemError, subscriber.Err
-		return outcome
-	}
-	if !subscriber.Value {
-		outcome.reason = ReasonSubscriberNotExist
-		return outcome
-	}
-	hasAllowlist, _ := read(plan.hasAllowlist)
-	if hasAllowlist.Err != nil {
-		outcome.reason, outcome.err = ReasonSystemError, hasAllowlist.Err
-		return outcome
-	}
-	if !hasAllowlist.Value {
-		return outcome
-	}
-	allowlistEntry, _ := read(plan.allowlistEntry)
-	if allowlistEntry.Err != nil {
-		outcome.reason, outcome.err = ReasonSystemError, allowlistEntry.Err
-		return outcome
-	}
-	if !allowlistEntry.Value {
-		outcome.reason = ReasonNotInWhitelist
-	}
-	return outcome
-}
-
-func (a *App) checkPersonSendPermissionsBatch(
-	ctx context.Context,
-	items []SendBatchItem,
-	groups []sendBatchPermissionGroup,
-	groupIndexes []int,
-) []sendBatchPermissionOutcome {
-	reads := make([]PermissionRead, 0, len(groupIndexes)*5)
-	readIndexes := make(map[PermissionRead]int, len(groupIndexes)*5)
-	addRead := func(read PermissionRead) int {
-		if index, ok := readIndexes[read]; ok {
-			return index
-		}
-		index := len(reads)
-		readIndexes[read] = index
-		reads = append(reads, read)
-		return index
-	}
-	plans := make([]personPermissionReadPlan, len(groupIndexes))
-	for i, groupIndex := range groupIndexes {
-		cmd := items[groups[groupIndex].representative].Command
-		sourceChannelID, commandChannel := a.commandChannels.FromCommandChannel(cmd.ChannelID)
-		cmd.ChannelID = sourceChannelID
-		if cmd.NormalizePersonChannel {
-			normalized, err := runtimechannelid.NormalizePersonChannel(cmd.FromUID, cmd.ChannelID)
+		id, _ := a.commandChannels.FromCommandChannel(cmd.ChannelID)
+		if cmd.ChannelType == channelTypePerson && cmd.NormalizePersonChannel {
+			var err error
+			id, err = runtimechannelid.NormalizePersonChannel(cmd.FromUID, id)
 			if err != nil {
-				plans[i] = personPermissionReadPlan{command: cmd, planErr: err}
+				out[i].err = err
 				continue
 			}
-			cmd.ChannelID = normalized
 		}
-		if commandChannel {
-			cmd.ChannelID = a.commandChannels.ToCommandChannel(cmd.ChannelID)
-		}
-		plan := personPermissionReadPlan{
-			command:         cmd,
-			senderChannel:   -1,
-			terminalChannel: -1,
-			denied:          -1,
-			allowlistEntry:  -1,
-			receiverChannel: -1,
-		}
-		permissionChannelID, _ := a.commandChannels.FromCommandChannel(cmd.ChannelID)
-		plan.terminalChannel = addRead(PermissionRead{
-			Kind: PermissionReadChannel, ChannelID: permissionChannelID, ChannelType: int64(channelTypePerson),
-		})
-		plan.trusted = a.systemUIDs != nil && a.systemUIDs.IsSystemUID(cmd.FromUID)
-		if plan.trusted {
-			plans[i] = plan
+		sources[i] = id
+		channel(id, cmd.ChannelType)
+		if a.systemUIDs != nil && a.systemUIDs.IsSystemUID(cmd.FromUID) || a.systemDeviceID != "" && cmd.DeviceID == a.systemDeviceID {
 			continue
 		}
-		plan.senderChannel = addRead(PermissionRead{
-			Kind: PermissionReadChannel, ChannelID: cmd.FromUID, ChannelType: int64(channelTypePerson),
-		})
-		plan.systemDevice = a.systemDeviceID != "" && cmd.DeviceID == a.systemDeviceID
-		if plan.systemDevice {
-			plans[i] = plan
-			continue
-		}
-		left, right, err := runtimechannelid.DecodePersonChannel(permissionChannelID)
-		if err != nil {
-			plan.planErr = err
-			plans[i] = plan
-			continue
-		}
-		receiver := right
-		if cmd.FromUID == right {
-			receiver = left
-		}
-		plan.receiverTrusted = a.systemUIDs != nil && a.systemUIDs.IsSystemUID(receiver)
-		if plan.receiverTrusted {
-			plans[i] = plan
-			continue
-		}
-		key := channelmembers.ChannelKey{ChannelID: receiver, ChannelType: channelTypePerson}
-		plan.denied = addRead(PermissionRead{
-			Kind: PermissionReadSubscriberContains, ChannelID: channelmembers.DenylistChannelID(key), ChannelType: int64(channelTypePerson), UID: cmd.FromUID,
-		})
-		if a.personWhitelistEnabled {
-			plan.allowlistEntry = addRead(PermissionRead{
-				Kind: PermissionReadSubscriberContains, ChannelID: channelmembers.AllowlistChannelID(key), ChannelType: int64(channelTypePerson), UID: cmd.FromUID,
-			})
-			plan.receiverChannel = addRead(PermissionRead{
-				Kind: PermissionReadChannel, ChannelID: receiver, ChannelType: int64(channelTypePerson),
-			})
-		}
-		plans[i] = plan
-	}
-
-	readResults := a.permissionBatch.ReadPermissionsBatch(ctx, reads)
-	if len(readResults) != len(reads) {
-		err := fmt.Errorf("message: permission batch returned %d results for %d reads", len(readResults), len(reads))
-		outcomes := make([]sendBatchPermissionOutcome, len(plans))
-		for i, plan := range plans {
-			outcomes[i] = sendBatchPermissionOutcome{channelID: plan.command.ChannelID, reason: ReasonSystemError, err: err}
-		}
-		return outcomes
-	}
-
-	outcomes := make([]sendBatchPermissionOutcome, len(plans))
-	for i, plan := range plans {
-		outcome := evaluatePersonPermissionReadPlan(plan, readResults)
-		if plan.terminalChannel >= 0 && plan.terminalChannel < len(readResults) {
-			terminal := readResults[plan.terminalChannel]
-			if terminal.Err == nil {
-				outcome.personDirectoryFact = &PersonDirectoryChannelFact{
-					Found: terminal.Found, Channel: terminal.Channel,
-				}
+		switch cmd.ChannelType {
+		case channelTypeGroup:
+			common(id, cmd.ChannelType, cmd.FromUID)
+		case channelTypeVisitors:
+			if cmd.FromUID != id {
+				common(id, channelTypeCustomerService, cmd.FromUID)
+			}
+		case channelTypePerson:
+			left, right, err := runtimechannelid.DecodePersonChannel(id)
+			if err != nil {
+				out[i].err = err
+				continue
+			}
+			receiver := right
+			if cmd.FromUID == right {
+				receiver = left
+			}
+			if a.systemUIDs != nil && a.systemUIDs.IsSystemUID(receiver) {
+				continue
+			}
+			key := channelmembers.ChannelKey{ChannelID: receiver, ChannelType: channelTypePerson}
+			member(channelmembers.DenylistChannelID(key), channelTypePerson, cmd.FromUID)
+			if a.personWhitelistEnabled {
+				member(channelmembers.AllowlistChannelID(key), channelTypePerson, cmd.FromUID)
+				channel(receiver, channelTypePerson)
 			}
 		}
-		outcomes[i] = outcome
 	}
-	return outcomes
+	users, channels, messages := 0, 0, 0
+	for _, q := range reads {
+		switch q.Kind {
+		case PermissionReadUserSendPolicy:
+			users++
+		case PermissionReadChannel:
+			channels++
+		}
+	}
+	for _, i := range indexes {
+		messages += max(1, len(groups[i].indexes))
+	}
+	a.permissionCount("messages", messages)
+	a.permissionCount("users", users)
+	a.permissionCount("channels", channels)
+	a.permissionCount("facts_before", beforeCount)
+	a.permissionCount("facts", len(reads))
+	a.permissionStage("plan", "ok", planStarted)
+	facts.results = a.readPermissionFacts(ctx, reads)
+	if len(facts.results) != len(reads) {
+		err := fmt.Errorf("message: permission batch returned %d facts for %d reads", len(facts.results), len(reads))
+		for i := range out {
+			out[i].reason = ReasonSystemError
+			out[i].err = err
+		}
+		return out
+	}
+	evaluateStarted := a.permissionStart()
+	defer a.permissionStage("evaluate", "ok", evaluateStarted)
+	evaluator := *a
+	evaluator.permissionObserver = nil
+	evaluator.permissionBatch = nil
+	evaluator.permissions = facts
+	evaluator.permissionAuthority = facts
+	for i, index := range indexes {
+		if out[i].err != nil {
+			continue
+		}
+		item := items[groups[index].representative]
+		if item.Context != nil && item.Context.Err() != nil {
+			out[i].reason = ReasonSystemError
+			out[i].err = item.Context.Err()
+			continue
+		}
+		cmd, reason, err := evaluator.checkSendPermission(ctx, item.Command)
+		out[i].channelID, out[i].reason, out[i].err = cmd.ChannelID, reason, err
+		if err == nil && reason == ReasonSendBan {
+			scope := "channel"
+			policy, policyErr := facts.GetUserSendPolicy(ctx, item.Command.FromUID)
+			if policyErr == nil && policy.SendBan != 0 {
+				scope = "user"
+			}
+			a.observeSendBan(scope, max(1, len(groups[index].indexes)))
+		}
+		if item.Command.ChannelType == channelTypePerson && sources[i] != "" {
+			r, e := facts.get(PermissionRead{Kind: PermissionReadChannel, ChannelID: sources[i], ChannelType: int64(channelTypePerson)})
+			if e == nil {
+				out[i].personDirectoryFact = &PersonDirectoryChannelFact{Found: r.Found, Channel: r.Channel}
+			}
+		}
+	}
+	return out
 }
 
-func evaluatePersonPermissionReadPlan(plan personPermissionReadPlan, results []PermissionReadResult) sendBatchPermissionOutcome {
-	outcome := sendBatchPermissionOutcome{channelID: plan.command.ChannelID, reason: ReasonSuccess}
-	if plan.planErr != nil {
-		outcome.err = plan.planErr
-		return outcome
-	}
-	read := func(index int) (PermissionReadResult, bool) {
-		if index < 0 {
-			return PermissionReadResult{}, false
-		}
-		return results[index], true
-	}
-	if sender, ok := read(plan.senderChannel); ok {
-		if sender.Err != nil {
-			outcome.reason, outcome.err = ReasonSystemError, sender.Err
-			return outcome
-		}
-		if sender.Found && sender.Channel.SendBan != 0 {
-			outcome.reason = ReasonSendBan
-			return outcome
-		}
-	}
-	terminal, _ := read(plan.terminalChannel)
-	if terminal.Err != nil {
-		outcome.reason, outcome.err = ReasonSystemError, terminal.Err
-		return outcome
-	}
-	if terminal.Found && terminal.Channel.Disband != 0 {
-		outcome.reason = ReasonDisband
-		return outcome
-	}
-	if plan.trusted || plan.systemDevice || plan.receiverTrusted {
-		return outcome
-	}
-	denied, _ := read(plan.denied)
-	if denied.Err != nil {
-		outcome.reason, outcome.err = ReasonSystemError, denied.Err
-		return outcome
-	}
-	if denied.Value {
-		outcome.reason = ReasonInBlacklist
-		return outcome
-	}
-	allowlistEntry, ok := read(plan.allowlistEntry)
+// readPermissionFacts merges cache misses into the same fresh read as mandatory
+// user/channel policy. Only auxiliary set facts can cross request boundaries.
+func (a *App) readPermissionFacts(ctx context.Context, reads []PermissionRead) []PermissionReadResult {
+	cache, ok := a.permissions.(*permissionCache)
 	if !ok {
-		return outcome
+		return a.permissionBatch.ReadPermissionsBatch(ctx, reads)
 	}
-	if allowlistEntry.Err != nil {
-		outcome.reason, outcome.err = ReasonSystemError, allowlistEntry.Err
-		return outcome
+	out := make([]PermissionReadResult, len(reads))
+	misses := make([]PermissionRead, 0, len(reads))
+	indexes := make([]int, 0, len(reads))
+	generations := make([]uint64, len(reads))
+	now := cache.now()
+	for i, q := range reads {
+		hit := false
+		switch q.Kind {
+		case PermissionReadSubscriberContains:
+			value, err, found, generation := permissionCacheGet(cache, cache.contains, permissionCacheContainsKey{q.ChannelID, q.ChannelType, q.UID}, now)
+			out[i] = PermissionReadResult{Value: value, Err: err}
+			hit = found
+			generations[i] = generation
+		case PermissionReadSubscriberHasAny:
+			value, err, found, generation := permissionCacheGet(cache, cache.hasAny, permissionCacheChannelKey{q.ChannelID, q.ChannelType}, now)
+			out[i] = PermissionReadResult{Value: value, Err: err}
+			hit = found
+			generations[i] = generation
+		}
+		if !hit {
+			indexes = append(indexes, i)
+			misses = append(misses, q)
+		}
 	}
-	if allowlistEntry.Value {
-		return outcome
+	fresh := a.permissionBatch.ReadPermissionsBatch(ctx, misses)
+	if len(fresh) != len(misses) {
+		return nil
 	}
-	receiver, _ := read(plan.receiverChannel)
-	if receiver.Err != nil {
-		outcome.reason, outcome.err = ReasonSystemError, receiver.Err
-		return outcome
+	for j, i := range indexes {
+		out[i] = fresh[j]
+		if out[i].Err != nil {
+			continue
+		}
+		q := reads[i]
+		switch q.Kind {
+		case PermissionReadSubscriberContains:
+			permissionCachePut(cache, cache.contains, permissionCacheContainsKey{q.ChannelID, q.ChannelType, q.UID}, out[i].Value, nil, now.Add(cache.ttl), generations[i])
+		case PermissionReadSubscriberHasAny:
+			permissionCachePut(cache, cache.hasAny, permissionCacheChannelKey{q.ChannelID, q.ChannelType}, out[i].Value, nil, now.Add(cache.ttl), generations[i])
+		}
 	}
-	if !receiver.Found || receiver.Channel.AllowStranger == 0 {
-		outcome.reason = ReasonNotInWhitelist
-	}
-	return outcome
+	return out
 }

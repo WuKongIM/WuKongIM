@@ -38,8 +38,15 @@ func TestInitCreatesValidatedSingleNodeClusterConfig(t *testing.T) {
 	if _, err := app.NormalizeConfig(cfg); err != nil {
 		t.Fatalf("NormalizeConfig() error = %v", err)
 	}
-	if cfg.NodeID != 1 || cfg.DataDir != "/var/lib/wukongim" {
+	// The package state root also holds the service home and plugin dirs, so node
+	// data needs its own subdirectory to stay empty until first registration.
+	if cfg.NodeID != 1 || cfg.DataDir != "/var/lib/wukongim/data" {
 		t.Fatalf("node config = id %d data %q", cfg.NodeID, cfg.DataDir)
+	}
+	for _, dir := range []string{cfg.Plugin.Dir, cfg.Plugin.SandboxDir, cfg.Plugin.StateDir} {
+		if dir == cfg.DataDir || strings.HasPrefix(dir, cfg.DataDir+"/") {
+			t.Fatalf("plugin dir %q is inside data dir %q", dir, cfg.DataDir)
+		}
 	}
 	if cfg.Cluster.Slots.InitialSlotCount != 12 || cfg.Cluster.Slots.HashSlotCount != 256 || cfg.Cluster.Slots.ReplicaCount != 1 || cfg.Cluster.Channel.ReplicaCount != 1 {
 		t.Fatalf("cluster slots/channel = %#v/%#v", cfg.Cluster.Slots, cfg.Cluster.Channel)

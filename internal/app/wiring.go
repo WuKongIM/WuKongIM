@@ -345,6 +345,8 @@ func (a *App) wireChannels() {
 			metadata := a.ensureChannelAppendMetadataCache()
 			store := clusterinfra.NewChannelMetadataStore(node, metadata, a.goroutines)
 			channelOptions := channelusecase.Options{
+				SendBanAudit:                  a.sendBanAuditObserver,
+				CommandChannelSuffix:          a.cfg.Message.CMDChannelSuffix,
 				Store:                         store,
 				LargeGroupSubscriberThreshold: a.cfg.Channel.LargeGroupSubscriberThreshold,
 				SubscriberMutationObserver:    channelAppendSubscriberMutationObserver{app: a},
@@ -685,6 +687,7 @@ func (a *App) wireUsers() {
 				systemUIDs = clusterinfra.NewChannelMetadataStore(channelNode, nil, a.goroutines)
 			}
 			a.users = userusecase.New(userusecase.Options{
+				SendBanAudit: a.sendBanAuditObserver,
 				Users:        userStore,
 				Devices:      userStore,
 				DeviceReader: userStore,
@@ -767,6 +770,11 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 			})
 			a.channelAppends = group
 			a.channelAppendRouter = router
+			if a.messages == nil && a.gateway == nil && a.handler == nil && len(a.cfg.Gateway.Listeners) > 0 {
+				if err := a.wireChannelSubmissions(router); err != nil {
+					return err
+				}
+			}
 			if registrar, ok := a.cluster.(nodeRPCRegistrar); ok {
 				adapter := accessnode.NewChannelAppendAdapter(accessnode.ChannelAppendOptions{
 					ChannelAppend: channelAppendAuthorityLocal{group: group},
@@ -797,6 +805,7 @@ func (a *App) wireMessages() {
 			SystemDeviceID:         a.cfg.Message.SystemDeviceID,
 			PermissionCacheTTL:     a.cfg.Message.PermissionCacheTTL,
 			SendBatchObserver:      deliveryMessageObserver{app: a},
+			PermissionObserver:     deliveryMessageObserver{app: a},
 		}
 		if a.plugins != nil {
 			messageOpts.SendHook = a.plugins
@@ -831,7 +840,13 @@ func (a *App) wireMessages() {
 			messageOpts.ContentEpoch = a.messageContentEpoch
 		}
 		a.wireMessageUpdateHints(&messageOpts)
+		if a.channelSubmissions != nil {
+			messageOpts.BatchAdmission = a.channelSubmissions
+		}
 		a.messages = message.New(messageOpts)
+		if a.channelSubmissions != nil {
+			a.deferredGatewayMessages = a.messages
+		}
 		a.wireMessageUpdateWorker()
 	}
 }
@@ -1289,7 +1304,7 @@ func managerPermissionConfigs(permissions []ManagerPermissionConfig) []accessman
 func (a *App) wireGateway(nodeID uint64) error {
 	if a.gateway == nil && len(a.cfg.Gateway.Listeners) > 0 {
 		gw, err := gateway.New(gateway.Options{
-			Handler:        a.handler,
+			Handler:        a.gatewayHandler(),
 			Authenticator:  a.newGatewayAuthenticator(nodeID),
 			Listeners:      a.cfg.Gateway.Listeners,
 			DefaultSession: a.cfg.Gateway.Session,

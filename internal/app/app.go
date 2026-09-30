@@ -94,14 +94,18 @@ type App struct {
 	// opsMCPEndpoint serves stateless MCP on every configured Manager listener.
 	opsMCPEndpoint *accessops.Endpoint
 	// opsMCPCalls owns node-local rate budgets and rotated audit output.
-	opsMCPCalls           *runtimeops.CallControl
-	gateway               GatewayRuntime
-	handler               *accessgateway.Handler
-	messages              *message.App
-	apiMessages           accessapi.MessageUsecase
-	channelAppends        *channelappend.Group
-	channelAppendRouter   *channelappend.Router
-	channelAppendMetadata *clusterinfra.ChannelAppendMetadataCache
+	opsMCPCalls         *runtimeops.CallControl
+	gateway             GatewayRuntime
+	handler             *accessgateway.Handler
+	messages            *message.App
+	apiMessages         accessapi.MessageUsecase
+	channelAppends      *channelappend.Group
+	channelAppendRouter *channelappend.Router
+	// channelSubmissions owns bounded gateway routing until ordered completion.
+	channelSubmissions *channelappend.OrderedSubmitter
+	// deferredGatewayMessages is set only for the default, fully wired usecase.
+	deferredGatewayMessages accessgateway.DeferredMessageUsecase
+	channelAppendMetadata   *clusterinfra.ChannelAppendMetadataCache
 	// benchTerminal owns the one-shot terminal drain and opaque grant for one
 	// benchmark product-process generation.
 	benchTerminal *benchterminal.Controller

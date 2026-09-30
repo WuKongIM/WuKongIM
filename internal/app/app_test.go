@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	slotproxy "github.com/WuKongIM/WuKongIM/pkg/slot/proxy"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -7650,4 +7651,29 @@ func (f *fakePresenceCluster) ReadChannelPersistedBatch(ctx context.Context, rea
 }
 func (f *fakeManagerCluster) ReadChannelPersistedBatch(ctx context.Context, reads []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {
 	return f.ReadChannelCommittedBatch(ctx, reads)
+}
+
+func (c *terminalPermissionCluster) ReadSendPermissionMetadataBatch(_ context.Context, reads []slotproxy.PermissionMetadataRead) []slotproxy.PermissionMetadataReadResult {
+	out := make([]slotproxy.PermissionMetadataReadResult, len(reads))
+	for i, q := range reads {
+		switch q.Kind {
+		case slotproxy.PermissionMetadataReadUserSendPolicy:
+			out[i].UserPolicy = metadb.SendBanResult{Status: "ok"}
+		case slotproxy.PermissionMetadataReadChannel:
+			out[i].Channel, out[i].Found = c.channels[metadb.ChannelKey{ChannelID: q.ChannelID, ChannelType: q.ChannelType}]
+		case slotproxy.PermissionMetadataReadSubscriberContains:
+			out[i].Value = true
+		}
+	}
+	return out
+}
+func (c *terminalPermissionCluster) SetSendBanMetadata(context.Context, metadb.SendBanMutation) (metadb.SendBanResult, error) {
+	return metadb.SendBanResult{}, errors.New("unexpected mutation")
+}
+func (n *recordingDeliveryMetaNode) UpdateChannelInfoMetadata(ctx context.Context, q metadb.ChannelInfoMutation) (metadb.SendBanResult, error) {
+	ch := metadb.Channel{ChannelID: q.ChannelID, ChannelType: q.ChannelType, Ban: q.Ban, Disband: q.Disband, AllowStranger: q.AllowStranger, Large: q.Large}
+	if q.SendBan != nil {
+		ch.SendBan = *q.SendBan
+	}
+	return metadb.SendBanResult{Status: "ok"}, n.UpsertChannelMetadata(ctx, ch)
 }

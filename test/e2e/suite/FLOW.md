@@ -42,6 +42,11 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
 - Managed-process WKProto readiness registers a dedicated device token through
   Product HTTP, then proves a real authenticated handshake. Registration errors
   remain bounded and never echo credentials; readiness does not disable auth.
+- WKProto clients accept explicit registered device Tokens without changing
+  server authentication; tokenless fixtures remain explicit.
+- WKProto clients may inject a Dialer to observe public socket bytes. Their
+  synthetic future ACK bridge is not wire-order evidence; ordering probes must
+  capture decoded ACKs directly from the TCP read stream.
 - WebSocket gateway opt-in publishes only the allocated loopback listener;
   TCP WKProto remains the readiness authority for the started node.
 - Diagnostics expose bounded paths and tails. TOML is re-encoded only after
@@ -51,6 +56,9 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
   limits/OOM counters and joins its sampler; public profiles are size/time bounded.
 - Message-send recovery retries only exact public
   `503 {"error":"retry required"}` with one stable body and idempotency key.
+- A bounded HTTP fault proxy may forward one real POST and withhold its response
+  until the caller deadline. It records only the upstream status, joins its
+  canceled handler, and leaves commit verification to subsequent public reads.
 - `WaitClusterReady` proves availability only. `WaitSlotLeadersStable` proves
   closed cross-node inventories, voters, quorum, actual Raft leader agreement,
   and a stable fingerprint; PreferredLeader is not authority.

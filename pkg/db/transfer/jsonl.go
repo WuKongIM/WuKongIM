@@ -89,6 +89,9 @@ func decodeRecord(kind FileKind, line []byte) (any, error) {
 		if err := requireString("uid", record.UID); err != nil {
 			return nil, err
 		}
+		if record.SendBan != 0 && record.SendBan != 1 {
+			return nil, fmt.Errorf("%w: send_ban must be 0 or 1", ErrValidation)
+		}
 		return record, nil
 	case FileKindMetaDevices:
 		var record DeviceRecord
@@ -106,6 +109,9 @@ func decodeRecord(kind FileKind, line []byte) (any, error) {
 		}
 		if err := requireString("channel_id", record.ChannelID); err != nil {
 			return nil, err
+		}
+		if record.SendBan != 0 && record.SendBan != 1 {
+			return nil, fmt.Errorf("%w: send_ban must be 0 or 1", ErrValidation)
 		}
 		return record, nil
 	case FileKindMetaSubscribers:

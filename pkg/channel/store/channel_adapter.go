@@ -69,6 +69,9 @@ type MessageDBFactoryOptions struct {
 	CommitObserver messagedb.CommitCoordinatorObserver
 	// Logger receives structured diagnostics from the shared message DB engine.
 	Logger wklog.Logger
+	// DiskSlowThreshold reports disk operations slower than this duration into
+	// slow-disk metrics. Zero keeps Pebble's built-in 5s threshold.
+	DiskSlowThreshold time.Duration
 }
 
 // RestoreChannelBoundary is one authenticated full cursor installed before a
@@ -92,7 +95,7 @@ func NewMessageDBFactoryWithOptions(path string, opts MessageDBFactoryOptions) *
 	if opts.CommitShards == 0 {
 		opts.CommitShards = DefaultCommitShards
 	}
-	engine, err := messagedb.OpenWithLogger(path, opts.Logger)
+	engine, err := messagedb.OpenWithOptions(path, messagedb.OpenOptions{Logger: opts.Logger, DiskSlowThreshold: opts.DiskSlowThreshold})
 	if err != nil {
 		return &MessageDBFactory{}
 	}

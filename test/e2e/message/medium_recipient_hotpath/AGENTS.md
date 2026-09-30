@@ -46,7 +46,14 @@ Allocation acceptance separates a 360,000-byte/message budget from a bounded
 that allowance and hide a product-path allocation regression.
 
 The permission soak defaults to the reviewed 30-minute, 4,500-QPS, 5,000-group
-shape and permits only bounded diagnostic overrides: duration 10 seconds to 30
+shape with 128 Store append workers, matching the current product default.
+Verify the rendered worker count on every node and report it in both success
+and failure evidence. Keep the historical 8-worker failures as failed evidence;
+this does not claim that configuration passed. All comparison arms must use
+the same 128-worker configuration. The separate mixed-recipient scenario retains
+its existing eight append workers. Replication workers, batch size, apply workers,
+durability, workload, latency and zero-rejection gates remain unchanged.
+It permits only bounded diagnostic overrides: duration 10 seconds to 30
 minutes, QPS 500 to 20,000, and 25 to 5,000 group channels in multiples of 25.
 It uses 25 sender/receiver pairs across all three nodes and naturally hashed
 channels, and it requires both local and remote permission routes. Its latency
@@ -96,7 +103,10 @@ longer acceptance gates; changing it must not weaken same-session ordering.
 
 - Keep the scenario black-box through real `cmd/wukongim` processes, public
   WKProto sockets, public channel APIs, and public Prometheus metrics.
-- Preserve 256 physical hash slots, 10 logical Slot groups, and three replicas.
+- Preserve 256 Hash Slots, 10 physical Slots, and three replicas.
+- Explicitly disable Gateway Token authentication for these controlled tokenless
+  load clients and verify the rendered setting. This fixture does not qualify
+  SDK authentication; message send permissions remain enabled.
 - Preserve the reviewed 96-worker, 8-item Channel replication RPC envelope and
   one commit-coordinator shard per physical message database.
 - Keep the 250-message / 19,650-recipient-row / 2,545-online-route slice exact;
@@ -116,3 +126,77 @@ longer acceptance gates; changing it must not weaken same-session ordering.
 - Do not treat absolute local throughput as cloud capacity. Compare exact
   revisions on the same host and preserve raw evidence.
 - Keep the scenario opt-in and bounded. It is e2e evidence, not a unit test.
+
+Revision-neutral permission RPC counters include both old per-Slot services and
+the node-batched service. Soak evidence also reports P50/P95/P99, total outbound
+transport bytes, Raft handler envelope counts, and complete-scrape aggregate CPU
+mean (100% is one CPU). These Raft counts are envelopes, not embedded messages.
+Current binaries expose fixed transport lane payload counters. Report the measured
+outbound Raft-lane byte delta only when every node has the series at both
+window boundaries; old/missing series or counter rollback remains null. These
+bytes exclude wire headers, TCP/IP, TLS and network retransmission overhead.
+Do not relabel total transport bytes as Raft bytes. Missing CPU remains null.
+
+Keep `send_permission_admission_busy` separate from transport RPC admission
+errors: the permission service can reject work in a successful RPC response or
+on the local leader path. Count the public permission histogram's admission/busy
+observations in both completed and failed windows; sustained acceptance requires
+zero. Transport success alone is not evidence of successful permission reads.
+
+Failure runtime diagnostics retain existing bounded gateway connection-close
+reason counters to distinguish server overload closure from other EOF causes.
+These snapshots do not claim per-shard queue telemetry or alter acceptance.
+
+`WK_E2E_MEDIUM_RECIPIENT_DRIVER_DIAGNOSTICS=1` adds optional load-generator
+timing through an observing socket Dialer. It separates scheduling lag,
+SendFrame queue admission, and socket Write duration. The fixed 100-bin,
+100-ms ring retains only the last ten seconds plus cumulative counts/maxima;
+it retains no payload or user identity. Freeze it before failure-report HTTP
+calls and emit `WKRC-PERMISSION-SOAK-DRIVER` once on success or failure.
+Socket bytes include control frames and mean local TCP acceptance, not peer
+receipt or SENDACK; fixed-bin maxima are diagnostic, not exact arrival bursts.
+Keep pacing, timeout, workload, production configuration and acceptance gates
+unchanged. Do not mix a probe-enabled run into an uninstrumented comparison.
+
+`WK_E2E_MEDIUM_RECIPIENT_STALL_DIAGNOSTICS=1` adds a separate E2E-only
+250-ms observer of the oldest unacknowledged SEND ordinal per sender. RECV
+completion does not clear SENDACK pending state. Retain at most 32 samples
+from the final eight seconds and only numeric sender/channel indices. The
+first nonempty sample verifies the existing public channel-runtime probe;
+later rounds probe at most 25 channels on each of three nodes only when an
+oldest SENDACK age reaches 750 ms. One round at a time and a two-second
+per-node deadline bound observer work. Freeze, cancel and join before failure
+HTTP diagnostics or cleanup. Concurrent tracker cuts and node HTTP reads are
+not atomic; LEO/HW do not identify a pending request's exact append phase.
+Keep this diagnostic out of uninstrumented performance comparisons.
+
+Failure goroutine diagnostics include independent Channel replication,
+MessageDB, and commit/engine executor stacks as well as the quorum waiters.
+The filtered output has a 256-KiB aggregate cap and reads at most 2 MiB per
+node under the existing three-second request budget. Record node coverage and
+truncation when interpreting it; these later snapshots do not prove a precise
+pre-failure request phase. In unprofiled permission-soak runs, this collection
+occurs after failure, not during SEND; the existing explicit profile mode may
+also request a scheduled diagnostic and must remain separately identified.
+
+The failure filter also retains Pebble-owned background goroutines. Every
+fetched node reports HTTP status, input byte count, and whether the 2-MiB
+input bound truncated it; filtered output saturation emits an explicit marker.
+`WK_E2E_MEDIUM_RECIPIENT_REPLICATION_DIAGNOSTICS=1` preserves replication-stage
+bucket/count/sum rows from the existing pre/post window scrapes, with the exact
+queried node ID. It adds no mid-window request. Each boundary permits at most
+4096 rows; overflow or capture failure stays explicit. The runtime samples
+these completed stages, so histogram deltas cannot identify an in-flight
+request or include a still-blocked operation's eventual duration.
+
+`WK_E2E_MEDIUM_RECIPIENT_STORAGE_HISTORY=1` retains at most 180 node snapshots
+from the existing one-second pressure sampler, restricted to fixed Pebble
+metrics for channel_log/meta. Missing series stay absent and scrape failure
+is explicit. The history logs after the sampler joins, including fatal exits;
+wall-clock sample starts and fetch durations permit correlation but are not
+an atomic cross-node snapshot or individual disk-operation timings.
+
+Existing failure scrapes also retain exact permission count, duration count/sum,
+and inflight families, including cold-prime failures before pressure sampling.
+Do not expand this capture to histogram buckets or arbitrary name prefixes.
+These cumulative failure snapshots are not measured-window deltas.

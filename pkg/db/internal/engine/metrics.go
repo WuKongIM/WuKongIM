@@ -44,6 +44,12 @@ type MetricsSnapshot struct {
 	CompactionInProgressBytes int64
 	// CompactionsInProgress is the current number of compactions in progress.
 	CompactionsInProgress int64
+	// WriteStalls aggregates Pebble write stalls since this engine opened.
+	WriteStalls StallSnapshot
+	// WALFsync summarizes WAL fsync latency since open.
+	WALFsync WALFsyncSnapshot
+	// DiskSlow aggregates slow disk operation reports since open.
+	DiskSlow DiskSlowSnapshot
 }
 
 // MetricsSnapshot returns a stable storage-engine metrics snapshot.
@@ -91,5 +97,8 @@ func (e *DB) MetricsSnapshot() MetricsSnapshot {
 		CompactionEstimatedDebtBytes: metrics.Compact.EstimatedDebt,
 		CompactionInProgressBytes:    metrics.Compact.InProgressBytes,
 		CompactionsInProgress:        metrics.Compact.NumInProgress,
+		WriteStalls:                  e.stalls.snapshot(),
+		WALFsync:                     walFsyncSummary(metrics.LogWriter.FsyncLatency),
+		DiskSlow:                     e.disk.snapshot(),
 	}
 }

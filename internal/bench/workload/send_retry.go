@@ -171,7 +171,7 @@ func retriableGenericSendackReason(reason frame.ReasonCode) bool {
 	switch reason {
 	case frame.ReasonUnknown, frame.ReasonUserNotOnNode, frame.ReasonForwardSendPacketError,
 		frame.ReasonSystemError, frame.ReasonNodeMatchError, frame.ReasonNodeNotMatch,
-		frame.ReasonRateLimit:
+		frame.ReasonRateLimit, frame.ReasonSystemBusy:
 		return true
 	default:
 		return false

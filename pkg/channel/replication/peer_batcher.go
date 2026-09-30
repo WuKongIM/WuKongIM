@@ -301,17 +301,19 @@ func (b *peerBatcher) ensureTargetWorkersLocked(node ch.NodeID, target *peerTarg
 	}
 	var scheduleErr error
 	urgentWasScheduled := target.urgentWorkers > 0
-	if len(target.urgent) > 0 && target.urgentWorkers == 0 && target.workerCount() < b.cfg.MaxTargetFlight {
+	urgentReady := peerQueueHasReadyItem(target.urgent, target.inflight)
+	backgroundReady := peerQueueHasReadyItem(target.background, target.inflight)
+	if urgentReady && target.urgentWorkers == 0 && target.workerCount() < b.cfg.MaxTargetFlight {
 		if err := b.scheduleTargetLocked(node, target, peerWorkUrgent); err != nil {
 			scheduleErr = errors.Join(scheduleErr, err)
 		}
 	}
-	if b.cfg.MaxTargetFlight > 1 && len(target.background) > 0 && target.backgroundWorkers == 0 && target.workerCount() < b.cfg.MaxTargetFlight {
+	if b.cfg.MaxTargetFlight > 1 && backgroundReady && target.backgroundWorkers == 0 && target.workerCount() < b.cfg.MaxTargetFlight {
 		if err := b.scheduleTargetLocked(node, target, peerWorkBackground); err != nil {
 			scheduleErr = errors.Join(scheduleErr, err)
 		}
 	}
-	if b.cfg.MaxTargetFlight == 1 && len(target.urgent) == 0 && len(target.background) > 0 && target.backgroundWorkers == 0 && target.workerCount() == 0 {
+	if b.cfg.MaxTargetFlight == 1 && len(target.urgent) == 0 && backgroundReady && target.backgroundWorkers == 0 && target.workerCount() == 0 {
 		if err := b.scheduleTargetLocked(node, target, peerWorkBackground); err != nil {
 			scheduleErr = errors.Join(scheduleErr, err)
 		}
@@ -320,7 +322,7 @@ func (b *peerBatcher) ensureTargetWorkersLocked(node ch.NodeID, target *peerTarg
 	if target.backgroundWorkers > 0 || len(target.background) > 0 {
 		urgentLimit--
 	}
-	if urgentWasScheduled && len(target.urgent) > 0 && len(target.inflight) > 0 &&
+	if urgentWasScheduled && urgentReady && len(target.inflight) > 0 &&
 		target.urgentWorkers < urgentLimit && target.workerCount() < b.cfg.MaxTargetFlight {
 		if err := b.scheduleTargetLocked(node, target, peerWorkUrgent); err != nil {
 			scheduleErr = errors.Join(scheduleErr, err)
@@ -389,6 +391,35 @@ func (b *peerBatcher) finishTargetWorker(node ch.NodeID, class peerWorkClass) {
 	}
 }
 
+// peerQueueHasReadyItem mirrors takeBatch's first-item kind and per-Channel
+// ordering barriers. Callers hold b.mu, so in-flight ownership cannot change
+// during the scan. A same-kind queue blocked only by in-flight work allocates
+// nothing and must await release instead of continuously rescheduling owners.
+func peerQueueHasReadyItem(queue []queuedPeerItem, inflight map[ch.ChannelKey]struct{}) bool {
+	if len(queue) == 0 {
+		return false
+	}
+	kind := queue[0].kind
+	var blocked map[ch.ChannelKey]struct{}
+	for _, item := range queue {
+		key := item.channelKey()
+		if _, busy := inflight[key]; busy {
+			continue
+		}
+		if item.kind != kind {
+			if blocked == nil {
+				blocked = make(map[ch.ChannelKey]struct{})
+			}
+			blocked[key] = struct{}{}
+			continue
+		}
+		if _, earlierKind := blocked[key]; !earlierKind {
+			return true
+		}
+	}
+	return false
+}
+
 func (b *peerBatcher) takeBatch(node ch.NodeID, class peerWorkClass) []queuedPeerItem {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -400,7 +431,7 @@ func (b *peerBatcher) takeBatch(node ch.NodeID, class peerWorkClass) []queuedPee
 	if class == peerWorkBackground {
 		queue = target.background
 	}
-	if len(queue) == 0 {
+	if !peerQueueHasReadyItem(queue, target.inflight) {
 		return nil
 	}
 	kind := queue[0].kind
@@ -412,10 +443,6 @@ func (b *peerBatcher) takeBatch(node ch.NodeID, class peerWorkClass) []queuedPee
 		item := queue[index]
 		channelKey := item.channelKey()
 		if _, busy := target.inflight[channelKey]; busy {
-			if blockedChannels == nil {
-				blockedChannels = make(map[ch.ChannelKey]struct{})
-			}
-			blockedChannels[channelKey] = struct{}{}
 			remaining = append(remaining, item)
 			continue
 		}
@@ -596,4 +623,7 @@ func (b *peerBatcher) release(node ch.NodeID, items []queuedPeerItem) {
 		b.ownedItems--
 		b.ownedBytes -= item.bytes
 	}
+	// An owner for the other class may have retired while this Channel was
+	// in flight. Releasing ownership is the event that makes it runnable again.
+	_ = b.ensureTargetWorkersLocked(node, target)
 }

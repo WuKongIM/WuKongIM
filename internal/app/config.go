@@ -310,10 +310,11 @@ type MessageConfig struct {
 	// callers omit a sender. It defaults to ____system and must be identical on every node.
 	SystemUID string
 	// SystemDeviceID identifies trusted gateway sessions that bypass channel-type-specific
-	// send permissions after sender SendBan has passed.
+	// membership permissions after user and source-channel restrictions pass.
 	SystemDeviceID string
-	// PermissionCacheTTL enables a bounded read-through cache for permission channel,
-	// membership, and missing-channel reads. Zero keeps permission reads uncached.
+	// PermissionCacheTTL caches auxiliary membership facts. User SendBan, source
+	// Channel SendBan and Disband always use fresh Slot authority. Zero disables
+	// caching; this setting never delays a committed ban or unban.
 	PermissionCacheTTL time.Duration
 }
 

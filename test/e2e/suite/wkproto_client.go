@@ -19,6 +19,8 @@ const defaultWKProtoTimeout = 5 * time.Second
 type WKProtoClient struct {
 	// operationTimeout bounds handshake, SENDACK, RECV, and control operations.
 	operationTimeout time.Duration
+	// dialer optionally observes public socket traffic without changing protocol handling.
+	dialer wkclient.Dialer
 	// mu protects the active pkg/client session and bridge channels.
 	mu sync.Mutex
 	// inner owns the WKProto TCP session, crypto state, writer, and reader.
@@ -44,6 +46,16 @@ func NewWKProtoClientWithTimeout(timeout time.Duration) (*WKProtoClient, error) 
 	return &WKProtoClient{operationTimeout: timeout}, nil
 }
 
+// NewWKProtoClientWithDialer uses an explicit socket adapter for black-box wire evidence.
+func NewWKProtoClientWithDialer(timeout time.Duration, dialer wkclient.Dialer) (*WKProtoClient, error) {
+	c, err := NewWKProtoClientWithTimeout(timeout)
+	if err != nil {
+		return nil, err
+	}
+	c.dialer = dialer
+	return c, nil
+}
+
 // Connect opens the TCP connection and completes the WKProto handshake.
 func (c *WKProtoClient) Connect(addr, uid, deviceID string) error {
 	_, err := c.ConnectContext(context.Background(), addr, uid, deviceID)
@@ -52,6 +64,11 @@ func (c *WKProtoClient) Connect(addr, uid, deviceID string) error {
 
 // ConnectContext opens the TCP connection and returns the successful Connack.
 func (c *WKProtoClient) ConnectContext(ctx context.Context, addr, uid, deviceID string) (*frame.ConnackPacket, error) {
+	return c.ConnectWithTokenContext(ctx, addr, uid, deviceID, "")
+}
+
+// ConnectWithTokenContext performs a real handshake using a previously registered device token.
+func (c *WKProtoClient) ConnectWithTokenContext(ctx context.Context, addr, uid, deviceID, token string) (*frame.ConnackPacket, error) {
 	if c == nil {
 		return nil, fmt.Errorf("wkproto client: nil client")
 	}
@@ -62,6 +79,7 @@ func (c *WKProtoClient) ConnectContext(ctx context.Context, addr, uid, deviceID 
 
 	inner, err := wkclient.New(wkclient.Config{
 		Addr:                   addr,
+		Dialer:                 c.dialer,
 		OperationTimeout:       c.operationTimeout,
 		AckTimeout:             c.operationTimeout,
 		InboundFrameBufferSize: 1024,
@@ -73,6 +91,7 @@ func (c *WKProtoClient) ConnectContext(ctx context.Context, addr, uid, deviceID 
 		UID:        uid,
 		DeviceID:   deviceID,
 		DeviceFlag: frame.APP,
+		Token:      token,
 	})
 	if err != nil {
 		_ = inner.Close()

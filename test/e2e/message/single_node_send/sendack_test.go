@@ -20,7 +20,7 @@ func TestWukongIMSingleNodeClusterSendProjectsConversationList(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
 
-	require.NoError(t, client.Connect(node.GatewayAddr(), "e2e-sender", "e2e-sender-device"), node.DumpDiagnostics())
+	connectAuthenticated(t, *node, client, "e2e-sender", "e2e-sender-device")
 
 	const (
 		clientSeq   uint64 = 1
@@ -78,7 +78,7 @@ func TestWukongIMPersonDirectoryReadyMakesLaterSendMembershipWriteFree(t *testin
 	client, err := suite.NewWKProtoClient()
 	require.NoError(t, err)
 	defer func() { _ = client.Close() }()
-	require.NoError(t, client.Connect(node.GatewayAddr(), "directory-ready-alice", "directory-ready-device"), node.DumpDiagnostics())
+	connectAuthenticated(t, *node, client, "directory-ready-alice", "directory-ready-device")
 
 	first := sendPersonMessage(t, *node, client, "directory-ready-bob", 1, "directory-ready-first")
 	requireSingleConversationEventually(t, *node, "directory-ready-alice", "directory-ready-bob", func(item suite.ConversationListItem) error {
@@ -150,4 +150,18 @@ func requireSingleConversationEventually(t *testing.T, node suite.StartedNode, u
 		}
 		return check(page.Conversations[0])
 	})
+}
+
+// connectAuthenticated keeps production-default authentication in the SEND smoke scenario.
+func connectAuthenticated(t *testing.T, node suite.StartedNode, client *suite.WKProtoClient, uid, deviceID string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	const token = "single-node-send-test-token"
+	_, err := suite.PostJSON(ctx, "http://"+node.APIAddr()+"/user/token", map[string]any{
+		"uid": uid, "token": token, "device_flag": int(frame.APP), "device_level": 0,
+	}, nil)
+	require.NoError(t, err, node.DumpDiagnostics())
+	_, err = client.ConnectWithTokenContext(ctx, node.GatewayAddr(), uid, deviceID, token)
+	require.NoError(t, err, node.DumpDiagnostics())
 }

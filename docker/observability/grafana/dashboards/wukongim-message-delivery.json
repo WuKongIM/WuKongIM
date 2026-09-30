@@ -1630,6 +1630,258 @@
       "title": "Conversation persisted read batch size p95",
       "type": "timeseries",
       "description": "Requested items per admitted batch, observed at completion and grouped by serving node and read kind."
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "min": 0,
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 92
+      },
+      "id": 37,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (node_name, kind) (rate(wukongim_message_permission_counts_total{node_name=~\"$node_name\",kind!~\".*_bytes\"}[$__rate_interval]))",
+          "legendFormat": "{{node_name}} {{kind}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Send permission work rate",
+      "type": "timeseries",
+      "description": "Messages, deduplicated facts, Slot reads and node envelopes; Raft traffic remains separate."
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "min": 0,
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 92
+      },
+      "id": 38,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, node_name, stage, result) (rate(wukongim_message_permission_duration_seconds_bucket{node_name=~\"$node_name\"}[$__rate_interval])))",
+          "legendFormat": "{{node_name}} {{stage}} {{result}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Send permission stage latency p99",
+      "type": "timeseries",
+      "description": "Fresh quorum barriers, snapshots, planning and RPC execution are measured separately."
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "min": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 92
+      },
+      "id": 39,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (node_name) (wukongim_message_permission_inflight{node_name=~\"$node_name\"})",
+          "legendFormat": "{{node_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Send permission envelopes in flight",
+      "type": "timeseries",
+      "description": "Active local and remote permission envelopes share the limit of 16, including decoding."
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "min": 0,
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 99
+      },
+      "id": 40,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (node_name, scope) (rate(wukongim_message_send_ban_rejections_total{node_name=~\"$node_name\"}[$__rate_interval]))",
+          "legendFormat": "{{node_name}} {{scope}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Send bans by scope",
+      "type": "timeseries",
+      "description": "Independent user and source Channel restrictions. No identity labels are exported."
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "min": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 99
+      },
+      "id": 41,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (node_name) (rate(wukongim_message_permission_counts_total{node_name=~\"$node_name\",kind=\"node_envelopes\"}[$__rate_interval])) / clamp_min(sum by (node_name) (rate(wukongim_message_permission_counts_total{node_name=~\"$node_name\",kind=\"messages\"}[$__rate_interval])), 0.001)",
+          "legendFormat": "{{node_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Send permission RPC per message",
+      "type": "timeseries",
+      "description": "Business permission queries per admitted message plan. Local leader groups have no loopback RPC; retries and chunks count as additional envelopes."
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "min": 0,
+          "unit": "Bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 99
+      },
+      "id": 42,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (node_name, kind) (rate(wukongim_message_permission_counts_total{node_name=~\"$node_name\",kind=~\".*_bytes\"}[$__rate_interval]))",
+          "legendFormat": "{{node_name}} {{kind}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Send permission wire bytes",
+      "type": "timeseries",
+      "description": "Outbound permission request and response payloads, separate from Raft and protocol framing."
     }
   ],
   "refresh": "10s",

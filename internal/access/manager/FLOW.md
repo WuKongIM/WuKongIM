@@ -68,6 +68,11 @@ remote node read or action
   browser origins, and forwards only to the Controller-selected execution
   owner. `/manager/mcp*` remains the separately authenticated admin surface.
 
+- Business-channel patches preserve an omitted send_ban; an explicit false is
+  carried as policy intent to the atomic Channel-info command. Policy creation
+  and patch audit attribution uses the authenticated Manager principal; disabled
+  authentication leaves that identity explicitly unknown.
+
 ## Read First
 
 - [server.go](server.go)

@@ -65,6 +65,9 @@ user, message, and operations concerns while keeping one stable usecase API.
 - Observers receive bounded classifications and durations only; node, UID,
   Channel, task, address, and credential identities are not metric labels.
 
+- Business-channel send-ban updates carry field presence separately from the
+  boolean value so other Manager edits cannot accidentally lift a restriction.
+
 ## Read First
 
 - [App and dependency groups](nodes.go)

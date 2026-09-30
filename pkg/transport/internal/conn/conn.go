@@ -246,7 +246,7 @@ func (c *Conn) readLoop() {
 			c.shutdown(err)
 			return
 		}
-		c.observeBytes("received_bytes", frame.Header.Kind, frame.Body.Len())
+		c.observeBytes("received_bytes", frame.Header.Kind, frame.Header.Priority, frame.Body.Len())
 		if frame.Header.Kind == core.FrameKindRPCResponse {
 			c.handleRPCResponse(frame)
 			continue
@@ -342,7 +342,7 @@ func (c *Conn) writeOutbound(outbound Outbound) error {
 	if err := wire.WriteFrame(c.raw, outbound.toFrame(), c.cfg.Limits.MaxFrameBodyBytes); err != nil {
 		return err
 	}
-	c.observeBytes("sent_bytes", outbound.Kind, outbound.Payload.Len())
+	c.observeBytes("sent_bytes", outbound.Kind, outbound.Priority, outbound.Payload.Len())
 	return nil
 }
 
@@ -365,14 +365,16 @@ func (c *Conn) writeOutboundBatch(items []sched.Item, outbounds []Outbound, fram
 			releaseOutbounds(outbounds)
 			return err
 		}
-		var sentBytesByKind [core.FrameKindRPCCancel + 1]int
+		var sentBytesByKind [core.FrameKindRPCCancel + 1][core.PriorityBulk + 1]int
 		for _, outbound := range outbounds {
-			sentBytesByKind[outbound.Kind] += outbound.Payload.Len()
+			sentBytesByKind[outbound.Kind][outbound.Priority] += outbound.Payload.Len()
 			outbound.Payload.Release()
 		}
 		c.observeWriteBatch(len(outbounds), batchBytes)
 		for kind := core.FrameKindData; kind <= core.FrameKindRPCCancel; kind++ {
-			c.observeBytes("sent_bytes", kind, sentBytesByKind[kind])
+			for priority := core.Priority(0); priority <= core.PriorityBulk; priority++ {
+				c.observeBytes("sent_bytes", kind, priority, sentBytesByKind[kind][priority])
+			}
 		}
 		outbounds = outbounds[:0]
 		frames = frames[:0]
@@ -487,7 +489,7 @@ func (c *Conn) observePendingRPC(result string) {
 	})
 }
 
-func (c *Conn) observeBytes(name string, kind core.FrameKind, bytes int) {
+func (c *Conn) observeBytes(name string, kind core.FrameKind, priority core.Priority, bytes int) {
 	if c.cfg.Observer == nil || bytes <= 0 {
 		return
 	}
@@ -496,6 +498,7 @@ func (c *Conn) observeBytes(name string, kind core.FrameKind, bytes int) {
 		NodeID:   c.cfg.NodeID,
 		SourceID: c.cfg.SourceID,
 		Kind:     kind,
+		Priority: priority,
 		Bytes:    bytes,
 	})
 }

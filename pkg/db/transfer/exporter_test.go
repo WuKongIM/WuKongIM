@@ -22,8 +22,9 @@ func TestExportBundleRoundTripsCurrentStores(t *testing.T) {
 
 	seedStore, seedOptions := openExportNodeStore(t, t.TempDir())
 	if err := seedStore.Meta().HashSlot(userSlot).UpsertUser(ctx, metadb.User{
-		UID:         "u1",
-		Token:       "user-token",
+		UID:     "u1",
+		Token:   "user-token",
+		SendBan: 1, SendBanVersion: 17,
 		DeviceFlag:  1,
 		DeviceLevel: 2,
 	}); err != nil {
@@ -38,7 +39,8 @@ func TestExportBundleRoundTripsCurrentStores(t *testing.T) {
 		t.Fatalf("UpsertDevice(): %v", err)
 	}
 	if err := seedStore.Meta().HashSlot(channelSlot).UpsertChannel(ctx, metadb.Channel{
-		ChannelID:                 "g1",
+		ChannelID: "g1",
+		SendBan:   1, SendBanVersion: 23,
 		ChannelType:               2,
 		AllowStranger:             1,
 		Large:                     1,
@@ -155,14 +157,14 @@ func TestExportBundleRoundTripsCurrentStores(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("GetUser() ok=%v err=%v, want ok", ok, err)
 	}
-	if user.Token != "user-token" || user.DeviceLevel != 2 {
+	if user.Token != "user-token" || user.DeviceLevel != 2 || user.SendBan != 1 || user.SendBanVersion != 17 {
 		t.Fatalf("user = %+v, want exported user fields", user)
 	}
 	channel, ok, err := target.Meta().HashSlot(channelSlot).GetChannel(ctx, "g1", 2)
 	if err != nil || !ok {
 		t.Fatalf("GetChannel() ok=%v err=%v, want ok", ok, err)
 	}
-	if channel.SubscriberCount != 1 || channel.Large != 1 {
+	if channel.SubscriberCount != 1 || channel.Large != 1 || channel.SendBan != 1 || channel.SendBanVersion != 23 {
 		t.Fatalf("channel = %+v, want subscriber count and large flag", channel)
 	}
 	personChannel, ok, err := target.Meta().HashSlot(personChannelSlot).GetChannel(ctx, personChannelID, 1)

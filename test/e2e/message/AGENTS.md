@@ -64,3 +64,85 @@ profiles afterward; see the scenario instructions for the fixed comparison.
 - The Channel failover fixture uses 256 Hash Slots and explicitly disables Token authentication for its existing tokenless readiness client. SDK acceptance keeps Token authentication enabled.
 - The `chat_lifecycle` fixture explicitly disables Token authentication for its
   tokenless lifecycle clients; its ordering and reheat results do not qualify SDK authentication.
+
+## User and Channel send bans
+
+`send_ban` verifies independent user/source-Channel restrictions, cross-ingress
+cache freshness, WKProto and HTTP admission, atomic changes and CAS.
+Run `GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -count=1 -timeout=8m -p=1 -v`.
+The scenario writes a JSON report (override with `WK_E2E_SEND_BAN_REPORT`).
+Its independent `WK_E2E_SEND_BAN_100K=1` opt-in runs `TestHundredKGroupSendBan`
+with a six-minute test bound and writes a `.100k.json` companion report. A setup
+timeout is failed evidence, not a smaller-scale pass.
+
+The medium recipient pressure fixture explicitly disables Token authentication
+for its existing tokenless clients, verifies that rendered setting, and reports
+outbound Raft-lane payload bytes separately from total transport bytes. Missing
+per-node coverage remains null; these bytes exclude framing/network overhead.
+
+Chat lifecycle burst checks also retain exact per-sender message and session ACK
+order for person/group traffic and emit `WKRC-SESSION-ORDER` evidence.
+
+The send-ban matrix covers two already connected devices across all additional
+source Channel types (3–12), with exact committed-history rejection checks.
+
+Permission pressure evidence separately counts domain admission busy responses,
+including local reads; a successful transport RPC cannot hide a rejected fact read.
+
+The non-replica send-ban companion records missing/ban/allow transitions and
+exact successful history with a 1h auxiliary cache; the trusted-device control
+must also observe the Channel ban. Permission soak uses and verifies the current
+product default of 128 append workers; the separate mixed-recipient gate remains
+at eight, and historical eight-worker failures remain failed evidence.
+
+Send-ban delivery evidence keeps a live receiver across user/Channel restrictions
+and quorum loss, with positive controls and exact histories. Gateway distribution
+evidence records one/many UID and Channel bursts, actual batch histograms and
+per-request allow/deny alignment; these functional runs are not performance gates.
+
+The send-ban remote admission fault uses three processes and two voters per
+Slot to keep a non-replica ingress alive while UID quorum is lost. It records
+192 failed-closed requests, bounded execution, busy responses and exact recovery.
+
+The send-ban leader-transfer companion moves the user and Channel policy Slots
+through public Manager operations, keeps concurrent sends closed, then verifies
+cross-ingress unban/re-ban freshness and complete successful history.
+
+Failure runtime diagnostics retain existing bounded gateway connection-close
+reason counters to distinguish server overload closure from other EOF causes.
+These snapshots do not claim per-shard queue telemetry or alter acceptance.
+
+The permission-soak driver timing probe is opt-in and E2E-only. It separately
+records scheduling lag, client enqueue time and socket write time, freezing
+its bounded ten-second ring before failure diagnostics. Socket completion is
+not server receipt; no workload or acceptance changes accompany this probe.
+
+The send-ban parallel companion uses five real nodes and disjoint two-voter
+Slots to observe concurrent permission envelopes on two remote leaders under
+quorum loss. It retains direct admission-counter continuity, failed-closed
+HTTP results and exact recovery history; its timings are not performance gates.
+
+The permission-soak stall diagnostic records bounded oldest SENDACK ordinals
+per connection and existing public channel-runtime LEO/HW snapshots. It is
+opt-in, independent of the producer, canceled/joined before failure diagnostics,
+and does not infer exact append phases from non-atomic observations.
+
+Permission-soak failure stack filtering includes independent replication and
+storage/commit workers with a fixed 256-KiB output bound; all-node coverage and
+truncation must be checked before attributing a wait to one component.
+
+The same diagnostic can retain Pebble background stacks with explicit input
+and output truncation markers, and opt-in raw replication-stage histograms
+from the two existing boundary scrapes. These remain sampled completed-stage
+evidence, not a request trace; incomplete collection never becomes zero cost.
+
+Permission-soak storage history is opt-in and reuses existing pressure scrapes;
+it retains fixed metric/store selectors and 180 snapshots, with missing/error
+states and sample times preserved. Host I/O correlation remains diagnostic.
+
+Existing pressure/prime failure scrapes retain exact permission count,
+duration count/sum and inflight families without additional requests or buckets.
+These cumulative snapshots must not be presented as measured-window deltas.
+
+The single-node SEND smoke registers a device Token through `/user/token` and
+connects with it while retaining production-default gateway authentication.

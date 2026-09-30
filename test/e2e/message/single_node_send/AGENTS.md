@@ -19,3 +19,6 @@ GOWORK=off go test -tags=e2e ./test/e2e/message/single_node_send -count=1
 - Validate `SENDACK`, membership-backed conversation construction, and actual
   membership mutation metrics around later person SENDs. Delivery and `RECV`
   belong to delivery-specific scenarios.
+
+The single-node SEND smoke registers a device Token through `/user/token` and
+connects with it while retaining production-default gateway authentication.

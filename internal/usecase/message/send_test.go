@@ -405,8 +405,11 @@ func TestSendBatchCoalescesEquivalentPermissionScopes(t *testing.T) {
 	if !reflect.DeepEqual(results, batchResults) {
 		t.Fatalf("SendBatch() = %#v, want item-aligned delegated results", results)
 	}
-	if got := store.getChannelCalls.Load(); got != 2 {
-		t.Fatalf("GetChannelForPermission calls = %d, want sender and group checked once", got)
+	if got := store.getUserCalls.Load(); got != 1 {
+		t.Fatalf("user policy reads = %d, want 1", got)
+	}
+	if got := store.getChannelCalls.Load(); got != 1 {
+		t.Fatalf("GetChannelForPermission calls = %d, want group checked once", got)
 	}
 	if got := store.containsCalls.Load(); got != 2 {
 		t.Fatalf("ContainsChannelSubscriber calls = %d, want denylist and membership checked once", got)
@@ -489,7 +492,7 @@ func TestSendBatchPermissionReadPlanMatchesSingleSendPolicy(t *testing.T) {
 			name: "sender send ban precedes group state",
 			cmd:  SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup},
 			configure: func(store *fakePermissionStore) {
-				store.channels[permissionKey("u1", int64(channelTypePerson))] = metadb.Channel{SendBan: 1}
+				store.userPolicies["u1"] = metadb.SendBanResult{SendBan: 1}
 				store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{Ban: 1}
 			},
 			want: ReasonSendBan,
@@ -581,7 +584,7 @@ func TestSendBatchPermissionReadPlanMatchesSingleSendPolicy(t *testing.T) {
 			name: "person sender send ban precedes terminal state",
 			cmd:  SendCommand{FromUID: "u1", ChannelID: "u2", ChannelType: channelTypePerson, NormalizePersonChannel: true},
 			configure: func(store *fakePermissionStore) {
-				store.channels[permissionKey("u1", int64(channelTypePerson))] = metadb.Channel{SendBan: 1}
+				store.userPolicies["u1"] = metadb.SendBanResult{SendBan: 1}
 				store.channels[permissionKey("u1@u2", int64(channelTypePerson))] = metadb.Channel{Disband: 1}
 			},
 			want: ReasonSendBan,
@@ -1159,7 +1162,7 @@ func TestSendAppliesLegacyPermissionChecksBeforeSubmitter(t *testing.T) {
 			name: "sender send ban wins before channel checks",
 			cmd:  SendCommand{FromUID: "u1", ChannelID: "g1", ChannelType: channelTypeGroup, Payload: []byte("hi")},
 			configure: func(store *fakePermissionStore) {
-				store.channels[permissionKey("u1", int64(channelTypePerson))] = metadb.Channel{ChannelID: "u1", ChannelType: int64(channelTypePerson), SendBan: 1}
+				store.userPolicies["u1"] = metadb.SendBanResult{SendBan: 1}
 			},
 			want: ReasonSendBan,
 		},
@@ -1378,10 +1381,9 @@ func TestSendAllowsLegacyPermissionPassesAndBypasses(t *testing.T) {
 			wantID: 10,
 		},
 		{
-			name: "system uid bypasses nonterminal permission checks",
+			name: "system uid bypasses ordinary membership checks",
 			cmd:  SendCommand{FromUID: "sys", ChannelID: "g1", ChannelType: channelTypeGroup, Payload: []byte("hi")},
 			configure: func(store *fakePermissionStore) {
-				store.channels[permissionKey("sys", int64(channelTypePerson))] = metadb.Channel{ChannelID: "sys", ChannelType: int64(channelTypePerson), SendBan: 1}
 				store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{ChannelID: "g1", ChannelType: int64(channelTypeGroup)}
 			},
 			opts: func(opts *Options) {
@@ -1492,7 +1494,7 @@ func TestSendBatchFiltersPermissionRejectedItemsAndDelegatesAllowedItems(t *test
 	store := newFakePermissionStore()
 	store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{ChannelID: "g1", ChannelType: int64(channelTypeGroup)}
 	store.members[permissionKey("g1", int64(channelTypeGroup))] = map[string]bool{"u1": true}
-	store.channels[permissionKey("u2", int64(channelTypePerson))] = metadb.Channel{ChannelID: "u2", ChannelType: int64(channelTypePerson), SendBan: 1}
+	store.userPolicies["u2"] = metadb.SendBanResult{SendBan: 1}
 	submitter := &recordingSubmitter{
 		batchResults: []SendBatchItemResult{
 			{Result: SendResult{MessageID: 21, MessageSeq: 3, Reason: ReasonSuccess}},
@@ -1575,7 +1577,7 @@ func TestSendBatchHookResultsRemainItemAligned(t *testing.T) {
 	store := newFakePermissionStore()
 	store.channels[permissionKey("g1", int64(channelTypeGroup))] = metadb.Channel{ChannelID: "g1", ChannelType: int64(channelTypeGroup)}
 	store.members[permissionKey("g1", int64(channelTypeGroup))] = map[string]bool{"u1": true}
-	store.channels[permissionKey("u2", int64(channelTypePerson))] = metadb.Channel{ChannelID: "u2", ChannelType: int64(channelTypePerson), SendBan: 1}
+	store.userPolicies["u2"] = metadb.SendBanResult{SendBan: 1}
 	hook := &recordingSendHook{
 		mutate: func(cmd SendCommand) (SendCommand, Reason, error) {
 			if string(cmd.Payload) == "reject" {
@@ -2044,6 +2046,8 @@ func wantDelegatedCommand(cmd SendCommand) SendCommand {
 }
 
 type fakePermissionStore struct {
+	userPolicies    map[string]metadb.SendBanResult
+	getUserCalls    atomic.Int64
 	channels        map[string]metadb.Channel
 	channelErrs     map[string]error
 	members         map[string]map[string]bool
@@ -2094,6 +2098,8 @@ func (s *recordingPermissionBatchStore) ReadPermissionsBatch(_ context.Context, 
 	for i, read := range reads {
 		key := permissionKey(read.ChannelID, read.ChannelType)
 		switch read.Kind {
+		case PermissionReadUserSendPolicy:
+			results[i].UserPolicy, results[i].Found = s.base.userPolicies[read.UID]
 		case PermissionReadChannel:
 			if err, ok := s.base.channelErrs[key]; ok {
 				results[i].Err = err
@@ -2115,15 +2121,29 @@ func (s *recordingPermissionBatchStore) ReadPermissionsBatch(_ context.Context, 
 
 func newFakePermissionStore() *fakePermissionStore {
 	return &fakePermissionStore{
-		channels:    make(map[string]metadb.Channel),
-		channelErrs: make(map[string]error),
-		members:     make(map[string]map[string]bool),
-		hasAny:      make(map[string]bool),
+		userPolicies: make(map[string]metadb.SendBanResult),
+		channels:     make(map[string]metadb.Channel),
+		channelErrs:  make(map[string]error),
+		members:      make(map[string]map[string]bool),
+		hasAny:       make(map[string]bool),
 	}
 }
 
 func permissionKey(channelID string, channelType int64) string {
 	return channelID + "#" + strconv.FormatInt(channelType, 10)
+}
+
+func (s *fakePermissionStore) GetUserSendPolicy(_ context.Context, uid string) (metadb.SendBanResult, error) {
+	s.getUserCalls.Add(1)
+	return s.userPolicies[uid], nil
+}
+
+func (s *recordingPermissionBatchStore) GetUserSendPolicy(ctx context.Context, uid string) (metadb.SendBanResult, error) {
+	return s.base.GetUserSendPolicy(ctx, uid)
+}
+
+func (*blockingBatchPermissionStore) GetUserSendPolicy(context.Context, string) (metadb.SendBanResult, error) {
+	return metadb.SendBanResult{}, nil
 }
 
 func (s *fakePermissionStore) GetChannelForPermission(_ context.Context, channelID string, channelType int64) (metadb.Channel, error) {

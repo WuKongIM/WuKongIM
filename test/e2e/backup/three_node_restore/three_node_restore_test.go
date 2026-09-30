@@ -10,10 +10,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/test/e2e/suite"
 	"github.com/stretchr/testify/require"
@@ -98,10 +101,11 @@ func TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeState(
 	}})
 	require.NoError(t, err)
 	overrides := map[string]string{
-		"WK_CLUSTER_HASH_SLOT_COUNT": "256",
-		"WK_MANAGER_AUTH_ON":         "true",
-		"WK_MANAGER_JWT_SECRET":      "three-node-backup-restore-e2e-secret",
-		"WK_MANAGER_USERS":           string(managerUsers),
+		"WK_CLUSTER_HASH_SLOT_COUNT":      "256",
+		"WK_MESSAGE_PERMISSION_CACHE_TTL": "1h",
+		"WK_MANAGER_AUTH_ON":              "true",
+		"WK_MANAGER_JWT_SECRET":           "three-node-backup-restore-e2e-secret",
+		"WK_MANAGER_USERS":                string(managerUsers),
 	}
 	cluster := suite.New(t).StartThreeNodeCluster(
 		suite.WithManagerHTTP(),
@@ -136,6 +140,7 @@ func TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeState(
 		firstClientMsg, "before backup",
 	)
 
+	policyFixture := seedSendBanCheckpoint(t, ctx, cluster.Nodes)
 	configureDailyFileBackup(t, ctx, cluster, *managerNode, token)
 	waitForActiveBackupProgress(t, ctx, cluster, *managerNode, token)
 	sendBackupMessage(
@@ -171,6 +176,7 @@ func TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeState(
 	)
 	require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
 
+	changeSendBanCheckpoint(t, ctx, cluster.Nodes, policyFixture)
 	sendBackupMessage(
 		t, ctx, cluster, *managerNode, channelID,
 		secondClientMsg, "after backup",
@@ -187,6 +193,10 @@ func TestThreeNodeBackupSurvivesLeaderFailoverAndRestoresPointInTimeState(
 	t.Logf("three-node restore admitted: %s", admitted.ID)
 
 	waitForRestoreSuccess(t, ctx, cluster, *managerNode, &token)
+	// The Controller terminal record can precede a peer applying maintenance
+	// release. Prove public readiness before reading restored business state.
+	require.NoError(t, cluster.WaitClusterReady(ctx), cluster.DumpDiagnostics())
+	verifySendBanCheckpoint(t, ctx, cluster.Nodes, policyFixture, archiveID)
 	requireMessageClientNumbers(
 		t, ctx, cluster, *managerNode, channelID,
 		[]string{firstClientMsg},
@@ -668,4 +678,93 @@ func statusCode(err error) int {
 		return status.StatusCode
 	}
 	return 0
+}
+
+// The checkpoint includes preexisting user/group/person bans and a later-only
+// user row, so restore must both reinstate restrictions and remove newer ones.
+type sendBanCheckpoint struct {
+	person       string
+	observations []map[string]any
+	started      time.Time
+}
+
+func seedSendBanCheckpoint(t *testing.T, ctx context.Context, nodes []suite.StartedNode) *sendBanCheckpoint {
+	t.Helper()
+	person, err := channelid.NormalizePersonChannel("restore-policy-left", "restore-policy-right")
+	require.NoError(t, err)
+	f := &sendBanCheckpoint{person: person, started: time.Now().UTC()}
+	t.Cleanup(func() {
+		base := os.Getenv("WK_E2E_SEND_BAN_RESTORE_REPORT")
+		if base == "" {
+			base = filepath.Join(os.TempDir(), "wukongim-send-ban-restore")
+		}
+		path := fmt.Sprintf("%s-%d-node.json", base, len(nodes))
+		raw, e := json.MarshalIndent(map[string]any{"passed": !t.Failed(), "started_at": f.started, "finished_at": time.Now().UTC(), "nodes": len(nodes), "hash_slots": 256, "permission_cache_ttl": "1h", "source_revision": os.Getenv("WK_E2E_SOURCE_REVISION"), "observations": f.observations}, "", "  ")
+		require.NoError(t, e)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+		require.NoError(t, os.WriteFile(path, append(raw, '\n'), 0644))
+		t.Logf("send-ban restore evidence: %s", path)
+	})
+	addr := nodes[0].APIAddr()
+	require.NoError(t, suite.PostChannel(ctx, addr, map[string]any{"channel_id": "restore-policy-group", "channel_type": 2, "subscribers": []string{"backup-sender"}}))
+	user, e := suite.SetUserSendBan(ctx, addr, "restore-policy-user", 1)
+	require.NoError(t, e)
+	require.Equal(t, suite.SendBanPolicy{Value: 1, Version: "1"}, user)
+	for id, kind := range map[string]uint8{"restore-policy-group": 2, person: 1} {
+		p, e := suite.SetChannelSendBan(ctx, addr, id, kind, 1)
+		require.NoError(t, e)
+		require.Equal(t, user, p)
+	}
+	readSendBanCheckpoint(t, ctx, nodes, f, "before-backup", suite.SendBanPolicy{Value: 1, Version: "1"}, suite.SendBanPolicy{Value: 0, Version: "0"})
+	return f
+}
+func changeSendBanCheckpoint(t *testing.T, ctx context.Context, nodes []suite.StartedNode, f *sendBanCheckpoint) {
+	t.Helper()
+	addr := nodes[len(nodes)-1].APIAddr()
+	_, e := suite.SetUserSendBan(ctx, addr, "restore-policy-user", 0)
+	require.NoError(t, e)
+	_, e = suite.SetUserSendBan(ctx, addr, "restore-policy-later", 1)
+	require.NoError(t, e)
+	for id, kind := range map[string]uint8{"restore-policy-group": 2, f.person: 1} {
+		_, e = suite.SetChannelSendBan(ctx, addr, id, kind, 0)
+		require.NoError(t, e)
+	}
+	readSendBanCheckpoint(t, ctx, nodes, f, "after-backup", suite.SendBanPolicy{Value: 0, Version: "2"}, suite.SendBanPolicy{Value: 1, Version: "1"})
+}
+func readSendBanCheckpoint(t *testing.T, ctx context.Context, nodes []suite.StartedNode, f *sendBanCheckpoint, phase string, want, late suite.SendBanPolicy) {
+	t.Helper()
+	for _, n := range nodes {
+		state, e := suite.GetUserSendBan(ctx, n.APIAddr(), "restore-policy-user")
+		require.NoError(t, e)
+		require.Equal(t, want, state)
+		state, e = suite.GetUserSendBan(ctx, n.APIAddr(), "restore-policy-later")
+		require.NoError(t, e)
+		require.Equal(t, late, state)
+		for id, kind := range map[string]uint8{"restore-policy-group": 2, f.person: 1} {
+			state, e = suite.GetChannelSendBan(ctx, n.APIAddr(), id, kind)
+			require.NoError(t, e)
+			require.Equal(t, want, state)
+		}
+		f.observations = append(f.observations, map[string]any{"phase": phase, "node": n.Spec.ID, "at": time.Now().UTC(), "user_and_channel_policy": want, "later_user_policy": late})
+	}
+}
+func verifySendBanCheckpoint(t *testing.T, ctx context.Context, nodes []suite.StartedNode, f *sendBanCheckpoint, archiveID string) {
+	t.Helper()
+	readSendBanCheckpoint(t, ctx, nodes, f, "restored", suite.SendBanPolicy{Value: 1, Version: "1"}, suite.SendBanPolicy{Value: 0, Version: "0"})
+	for _, n := range nodes {
+		for _, q := range []struct {
+			from, to string
+			kind     int
+		}{
+			{"restore-policy-user", "missing-group", 2}, {"backup-sender", "restore-policy-group", 2},
+			{"restore-policy-left", "restore-policy-right", 1}, {"restore-policy-right", "restore-policy-left", 1},
+		} {
+			got, e := suite.PostMessageSend(ctx, n.APIAddr(), map[string]any{"from_uid": q.from, "channel_id": q.to, "channel_type": q.kind, "client_msg_no": fmt.Sprintf("restored-ban-%d-%s", n.Spec.ID, q.from), "payload": base64.StdEncoding.EncodeToString([]byte("must remain blocked"))})
+			require.NoError(t, e)
+			require.Equal(t, uint8(frame.ReasonSendBan), got.Reason)
+			require.Zero(t, got.MessageID)
+			require.Zero(t, got.MessageSeq)
+		}
+	}
+	f.observations = append(f.observations, map[string]any{"phase": "restored-send-rejection", "archive_id": archiveID, "nodes": len(nodes), "at": time.Now().UTC()})
 }

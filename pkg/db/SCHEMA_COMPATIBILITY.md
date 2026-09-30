@@ -22,6 +22,18 @@ Every existing-table field change must define what remains compatible:
 If any of these cannot be true, the change is not a simple field add. Treat it
 as a format migration and gate it behind an explicit rollout plan.
 
+## Send-policy format 2
+
+User SendBan/SendBanVersion and Channel SendBanVersion use strict appended
+fields in directory format 2. This feature explicitly excludes old-data migration
+and mixed binaries: format 1 and nonempty unregistered directories are rejected
+before opening writable stores. Never edit the marker to bypass this check.
+Use new directories or an explicitly prepared compatible import. No cleanup
+script may delete existing data automatically. Snapshots and JSONL transfers
+preserve both policy values and revisions. Slot commands 67 and 68 are permanent.
+Generic online FSM upserts retain existing policy; exact low-level Shard upserts
+remain offline import primitives and must not become online policy writers.
+
 ## Stable Durable IDs
 
 Message editing adds metadata tables 18–21 (latest content, channel heads,

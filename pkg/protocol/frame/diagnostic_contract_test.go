@@ -68,6 +68,7 @@ func TestWireEnumsHaveStableDiagnosticNames(t *testing.T) {
 		{ReasonProtocolUpgradeRequired, "ReasonProtocolUpgradeRequired"},
 		{ReasonIdempotencyConflict, "ReasonIdempotencyConflict"},
 		{ReasonMessageSeqExhausted, "ReasonMessageSeqExhausted"},
+		{ReasonSystemBusy, "ReasonSystemBusy"},
 	}
 	for _, tt := range reasons {
 		if got := tt.value.String(); got != tt.name {
