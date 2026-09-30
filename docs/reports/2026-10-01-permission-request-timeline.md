@@ -1,6 +1,8 @@
 # Request timeline and hot-Channel append repair
 #977 / Draft PR #981; evidence recorded across 2026-09-30 and 2026-10-01.
 
+This is the source-bound `5b8379497` evidence and `639b7c35f` delivery snapshot. Subsequent main integration, fresh comparisons and exact-source CI are recorded in the [main-integration supplement](2026-10-01-permission-main-integration.md); these historical measurements are not relabeled for later source.
+
 The source-bound diagnostic establishes dominant admitted-append waiting in the fixed hotspot fixture. A bounded same-Channel queue-prefix repair and independent deadline repair are implemented at clean `5b8379497f1127c2e298d27925888fb701167f58`. All twelve concurrency-32 comparisons pass the unchanged ≤5% p99/whole-node CPU regression threshold. **Sequential controls still contain regressions; this does not establish overall non-regression, capacity, HA or Issue #977 completion.** Prior failures remain retained.
 
 ## Diagnosis and source identity
