@@ -1,0 +1,11 @@
+{
+  "kind": "byte-preserving slice, not an independent tar archive",
+  "part": 1,
+  "parts": 2,
+  "part_sha256": "02da4bf495ede324e09dd30c3a6028eaea95da8eb354f276ab4d0806ce057f05",
+  "part_bytes": 540480,
+  "original_sha256": "002d1505d1713d415a4294fe55b31ef144f8a091f03dbe3185d2fd640eac66d3",
+  "original_bytes": 1080961,
+  "recombine": "cat docs/reports/2026-10-01-permission-request-timeline-evidence.tar.gz.part-01 docs/reports/2026-10-01-permission-request-timeline-evidence.tar.gz.part-02 > /tmp/2026-10-01-permission-request-timeline-evidence.tar.gz; shasum -a 256 /tmp/2026-10-01-permission-request-timeline-evidence.tar.gz",
+  "original_source": "281fb8654e0547e8518643a32b928adbe415df40"
+}
