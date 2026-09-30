@@ -97,6 +97,16 @@ run_bounded() {
   return "$status"
 }
 
+# Each failure probe has a five-second command deadline and a 64 KiB output cap.
+# A failed or blocked probe must not suppress later evidence or container cleanup.
+failure_diagnostic() {
+  local label="$1"
+  shift
+  echo "$label:" >&2
+  run_bounded 5 "$@" 2>&1 | head -c 65536 >&2 || true
+  echo >&2
+}
+
 cleanup() {
   status=$?
   trap - EXIT HUP INT TERM
@@ -112,14 +122,14 @@ cleanup() {
     fi
   done
   if ((status != 0)) && run_bounded 10 docker inspect "$container_name" >/dev/null 2>&1; then
-    echo "native package lifecycle container logs:" >&2
-    run_bounded 15 docker logs --tail 300 "$container_name" >&2 || true
-    if run_bounded 10 docker exec "$container_name" test -x /usr/bin/systemctl >/dev/null 2>&1; then
-      echo "wukongim service status:" >&2
-      run_bounded 15 docker exec "$container_name" systemctl status --no-pager wukongim.service >&2 || true
-      echo "wukongim service journal:" >&2
-      run_bounded 15 docker exec "$container_name" journalctl --no-pager -u wukongim.service -n 300 >&2 || true
-    fi
+    failure_diagnostic "native package lifecycle container logs" docker logs --tail 300 "$container_name"
+    failure_diagnostic "native package bootstrap stage" docker exec "$container_name" cat /run/wk-native-bootstrap-stage
+    failure_diagnostic "native package PID 1" docker exec "$container_name" /bin/sh -ec 'cat /proc/1/comm; tr "\000" " " </proc/1/cmdline; printf "\n"'
+    failure_diagnostic "native package systemd state" docker exec "$container_name" systemctl --no-pager status
+    failure_diagnostic "native package systemd jobs" docker exec "$container_name" systemctl --no-pager list-jobs
+    failure_diagnostic "native package system journal" docker exec "$container_name" journalctl --no-pager -b -n 100
+    failure_diagnostic "wukongim service status" docker exec "$container_name" systemctl status --no-pager wukongim.service
+    failure_diagnostic "wukongim service journal" docker exec "$container_name" journalctl --no-pager -u wukongim.service -n 300
   fi
   run_bounded 30 docker rm --force --volumes "$container_name" >/dev/null 2>&1 || true
   exit "$status"
@@ -301,6 +311,10 @@ require_operator_state() {
 }
 
 bootstrap_command="set -eu
+bootstrap_stage() {
+  printf '%s\\n' \"\$1\" >/run/wk-native-bootstrap-stage
+  printf 'native package bootstrap stage=%s\\n' \"\$1\" >&2
+}
 if [ -n \"\${NATIVE_PACKAGE_TEST_APT_MIRROR:-}\" ] && [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
   sed -i -e \"s#http://archive.ubuntu.com/ubuntu/#\${NATIVE_PACKAGE_TEST_APT_MIRROR}/#\" -e \"s#http://security.ubuntu.com/ubuntu/#\${NATIVE_PACKAGE_TEST_APT_MIRROR}/#\" /etc/apt/sources.list.d/ubuntu.sources
 fi
@@ -308,8 +322,11 @@ if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
   sed -i 's/^Components:.*/Components: main/' /etc/apt/sources.list.d/ubuntu.sources
 fi
 # Reuse this fresh container metadata during the later reinstall lifecycle.
+bootstrap_stage package-update
 $bootstrap_update_command
+bootstrap_stage package-install
 $install_command
+bootstrap_stage systemd-exec
 if [ -x /lib/systemd/systemd ]; then exec /lib/systemd/systemd; fi
 if [ -x /usr/lib/systemd/systemd ]; then exec /usr/lib/systemd/systemd; fi
 echo 'systemd executable is missing after package installation' >&2

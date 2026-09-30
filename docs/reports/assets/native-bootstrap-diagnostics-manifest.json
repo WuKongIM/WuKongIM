@@ -1,0 +1,11 @@
+{
+  "source_base": "424d03eb298b972ec572261d617972eecb5523c5",
+  "scope": "Controlled shell diagnostic fixtures; not a real distribution boot",
+  "files": {
+    "followup-frozen-instructions.json": "6c91e0b04b4ff2fd198c7f6f2dd109583ab656e8ab53082ae5cdb5540d1614dc",
+    "native-diagnostics-red.log": "31fa5ed1df4dd783eed2a5e1770ec1d1cc6ae8c48e4884659f013d7d0943f222",
+    "native-progress-red.log": "1a6ce237da85ef3bd0d38871c055cc4172e5920d64c09d767147843fae3393b6",
+    "native-diagnostics-green.log": "8dd82c2a1f0453504ffef7f3f655e6e9eaa661aef8c09a0807ee019a758efde3",
+    "native-contracts-green.log": "8a635adbdaa015b28cf1710cde9fd7e3aa2bb4e3847f20345e8f15edc00dfb49"
+  }
+}

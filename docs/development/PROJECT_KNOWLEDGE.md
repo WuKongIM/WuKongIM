@@ -849,3 +849,5 @@ specification, runbook, report, or module documentation; link to them when neede
   and reply. Independent slow-barrier local/remote burst regressions preserve
   each caller's fresh barrier and cancellation. Queue count/bytes and the two-second
   wait bound remain unchanged; cross-caller aggregation is tracked by #977.
+
+- Native package lifecycle bootstrap includes package installation before systemd PID 1. A bootstrap timeout does not prove a service start or installed package. Failure probes retain stage, PID 1, jobs and journals with five-second command bounds and 64 KiB output caps; unchanged 300-second bootstrap/900-second main validation deadlines remain separate from failure cleanup.
