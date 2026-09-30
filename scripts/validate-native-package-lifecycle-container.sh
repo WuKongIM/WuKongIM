@@ -69,12 +69,15 @@ run_bounded() {
   active_timeout_marker="$marker"
   (
     timer_pid=0
+    # Output collection may close its pipe at the byte cap. Timeout reporting
+    # must never terminate this owner before it sends TERM and KILL.
+    trap '' PIPE
     trap 'if [[ "$timer_pid" =~ ^[1-9][0-9]*$ ]]; then kill -TERM "$timer_pid" >/dev/null 2>&1 || true; fi; exit 0' TERM INT
     sleep "$timeout_seconds" &
     timer_pid=$!
     wait "$timer_pid" || exit 0
     if [[ -e "$marker" ]] && kill -0 "$command_pid" >/dev/null 2>&1; then
-      echo "command timed out after ${timeout_seconds}s: $1" >&2
+      echo "command timed out after ${timeout_seconds}s: $1" >&2 || true
       kill -TERM "$command_pid" >/dev/null 2>&1 || true
       sleep 5
       kill -KILL "$command_pid" >/dev/null 2>&1 || true

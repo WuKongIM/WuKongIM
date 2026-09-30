@@ -16,7 +16,7 @@ import (
 // Exercise the real launcher and its cleanup with a controlled Docker boundary.
 // This proves diagnostic ownership and bounds, not that a distro boots systemd.
 func TestNativePackageBootstrapFailureDiagnostics(t *testing.T) {
-	for _, mode := range []string{"installer", "systemd", "probe-failure", "probe-timeout", "large-output"} {
+	for _, mode := range []string{"installer", "systemd", "probe-failure", "probe-timeout", "large-output", "cap-and-timeout"} {
 		t.Run(mode, func(t *testing.T) {
 			root := t.TempDir()
 			bin := filepath.Join(root, "bin")
@@ -36,6 +36,11 @@ inspect) if [[ "$*" == *--format* ]]; then echo false; else echo '{}'; fi; exit 
 rm) exit 0 ;;
 logs)
   echo 'installer-output-retained'
+  if [[ "$FIXTURE_MODE" == cap-and-timeout ]]; then
+    trap '' PIPE TERM
+    head -c 131072 /dev/zero | tr '\0' x || true
+    exec sleep 60
+  fi
   if [[ "$FIXTURE_MODE" == large-output ]]; then
     head -c 131072 /dev/zero | tr '\0' x
     echo 'diagnostic-overflow-tail'
@@ -80,7 +85,7 @@ exit 18
 			text := string(output)
 			for _, marker := range []string{"systemd container stopped while booting", "native package bootstrap stage:", "native package PID 1:", "native package systemd state:", "native package systemd jobs:", "native package system journal:", "installer-output-retained"} {
 				if !strings.Contains(text, marker) {
-					t.Errorf("missing %q in %s", marker, text)
+					t.Errorf("missing %q in %d output bytes", marker, len(output))
 				}
 			}
 			if mode == "probe-timeout" && !strings.Contains(text, "command timed out after 5s") {
@@ -88,6 +93,9 @@ exit 18
 			}
 			if mode == "large-output" && (len(output) > 70000 || strings.Contains(text, "diagnostic-overflow-tail")) {
 				t.Error("diagnostic output was not capped")
+			}
+			if mode == "cap-and-timeout" && len(output) > 70000 {
+				t.Error("blocked diagnostic output was not capped")
 			}
 			calls, err := os.ReadFile(filepath.Join(root, "calls"))
 			if err != nil {

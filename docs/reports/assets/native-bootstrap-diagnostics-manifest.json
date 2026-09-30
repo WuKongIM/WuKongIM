@@ -1,11 +1,18 @@
 {
   "source_base": "424d03eb298b972ec572261d617972eecb5523c5",
-  "scope": "Controlled shell diagnostic fixtures; not a real distribution boot",
+  "first_diagnostic_revision": "77b515144ff924fa37369141929bb045d57e4cf1",
+  "scope": "Controlled shell fixtures plus exact-source automatic native preview; prior Rocky failure cause unconfirmed",
   "files": {
     "followup-frozen-instructions.json": "6c91e0b04b4ff2fd198c7f6f2dd109583ab656e8ab53082ae5cdb5540d1614dc",
     "native-diagnostics-red.log": "31fa5ed1df4dd783eed2a5e1770ec1d1cc6ae8c48e4884659f013d7d0943f222",
     "native-progress-red.log": "1a6ce237da85ef3bd0d38871c055cc4172e5920d64c09d767147843fae3393b6",
     "native-diagnostics-green.log": "8dd82c2a1f0453504ffef7f3f655e6e9eaa661aef8c09a0807ee019a758efde3",
-    "native-contracts-green.log": "8a635adbdaa015b28cf1710cde9fd7e3aa2bb4e3847f20345e8f15edc00dfb49"
+    "native-contracts-green.log": "8a635adbdaa015b28cf1710cde9fd7e3aa2bb4e3847f20345e8f15edc00dfb49",
+    "native-cap-timeout-red.log": "c177c91bd2910b82100aedf96848c362660cd7ed39dc4e4ac43eec663591cc31",
+    "native-diagnostics-final.log": "00261ec03ae15bec6857a2fd27f0044ccb93dd046e5aa22e4e99c5408349e1e6",
+    "native-named-checks.json": "cdda07144003b6325284a9d4c61129d8e6c84f3e2022115cf03776522fa2645a",
+    "native-go-format.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-workflow-contracts.log": "aa03a00128cafbb92d64b1474b0b5bdfb2c1aee3c290b3595ba7f5978e8a1792",
+    "native-ci-runs-initial.json": "59d40bfe2a52b8ad1f3079e388799a575b9043dc7002fae44efd510aead339f5"
   }
 }
