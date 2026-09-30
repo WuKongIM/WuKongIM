@@ -306,7 +306,7 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 				if sequentialTimeline {
 					timelineConcurrency = 1
 				}
-				if timeline && name == "same-slot-remote" && concurrency == timelineConcurrency {
+				if timeline && (name == "same-slot-remote" || sequentialTimeline) && concurrency == timelineConcurrency {
 					var timelines []map[string]any
 					window["request_timelines"] = &timelines
 					permissionRequestTimeline(t, ctx, cluster, ingressID, acks, &timelines)

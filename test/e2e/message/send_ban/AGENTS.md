@@ -193,6 +193,8 @@ query and exits failed; its outer receipt verifier must require all 64 ACKs,
 cohort report path above. Run with `-count=1 -timeout=4m -p=1 -v`.
 The timeline mode queries the 64 sequential SENDs instead of the burst; all
 existing identity, stage, response-size and history checks still apply.
+Sequential timeline mode also accepts exactly one of the other three fixed
+placement subtests, retaining the same 64-request/three-node capture bounds.
 The profile mode uses a separate 256-SEND sequential phase and joins four-second
 CPU/allocation captures at all three owned nodes. Each HTTP request is bounded
 to eight seconds and 8 MiB. It records request/return bounds, safe failures and

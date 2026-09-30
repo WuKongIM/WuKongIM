@@ -50,7 +50,7 @@ func TestPermissionSequentialDiagnostics(t *testing.T) {
 		} `json:"cases"`
 	}
 	require.NoError(t, json.Unmarshal(raw, &report))
-	require.Len(t, report.Cases, 1, "select only same-slot-remote")
+	require.Len(t, report.Cases, 1, "select exactly one placement")
 	if timeline {
 		require.Len(t, report.Cases[0].Windows, 2)
 		require.Equal(t, 1, report.Cases[0].Windows[0].Concurrency)
