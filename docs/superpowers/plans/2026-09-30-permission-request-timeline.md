@@ -76,3 +76,26 @@ reused, regressing or malformed process samples fail evidence rather than
 becoming zero. Whole-node CPU includes background and scrape work. Three fixed
 old/new pairs retain every sequential/burst placement outcome; no selection or
 replacement of a failed pair is permitted.
+
+## Review-driven correctness repair
+
+The first fixed three-pair set targets 4a5f667 and is retained in full. Parallel
+review found that the preexisting Router authority lookup used only its first
+item context; the new hot-lane merging exposes cross-caller deadline poisoning.
+Before repair, controlled integration checks reproduce a live peer losing its
+lookup and all item-only deadlines failing to stop lookup. Reuse the existing
+all-items context per canonical Channel, join its terminal watchers, and retain
+each expired caller's own deadline result. No new resolver or retry abstraction.
+
+Negative black-box receipt probes also reproduce loss of all timelines on the
+second query's HTTP 503 and loss of 64 completed ACKs on a failed CPU after-cut.
+Save ACKs first, guarantee sampler join and attach safe partial query outcomes
+before validation. Preserve explicit failed markers and complete policy/history
+controls where possible. These negative probes must remain failed scenarios;
+an outer verifier certifies retained evidence, not healthy product behavior.
+
+4a5f667 observations cannot qualify the corrected source. After the correctness
+repair and review, preselect a new exact-source three-pair set with the same
+original burst table and unchanged 5% p99/CPU threshold. Keep sequential controls
+and their timings explicitly (some 4a5f667 sequential intervals regress); neither
+selection of favorable observations nor deletion of the superseded set is allowed.

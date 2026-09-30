@@ -187,3 +187,7 @@ probe for its three owned PIDs. The scenario instructions require getrusage
 calibration, source identities, raw counters/timebase, same-process interval
 validation and all retained old/new outcomes. Whole-node CPU integrals include
 background work; this helper never changes the workload or performance gates.
+
+The timeline negative receipt probe intentionally fails a post-window public
+query, retaining all completed ACKs, safe partial outcomes and history. CPU
+evidence failure paths also join ownership sampling and preserve partial receipts.

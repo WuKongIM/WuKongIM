@@ -175,3 +175,14 @@ hashes, and fails unavailable/reused/regressing samples. The whole-node user+
 system integral encloses the SEND window and bounded snapshot/scrape scheduling
 overhead; compilation and profiles remain outside it. Retain all three pairs;
 do not replace failed observations or present periodic gauges as CPU integrals.
+
+CPU evidence failures still retain completed ACKs/window timestamps and cancel+
+join ownership sampling. Timeline query/validation failures retain all safe
+partial replies, explicit failed-node markers and continue the fixed policy/
+history controls. A decoded-key check rejects sender/payload/token fields even
+with JSON whitespace or escaped keys; unsafe replies are never retained.
+`WK_E2E_PERMISSION_TIMELINE_FAILURE_PROBE=1` selects
+`TestPermissionTimelinePartialFailureReceipt/same-slot-remote` with timeline and
+report options above. It intentionally injects HTTP 503 on the second diagnostics
+query and exits failed; its outer receipt verifier must require all 64 ACKs,
+64 three-node outcomes, one explicit failure and exact completed history.

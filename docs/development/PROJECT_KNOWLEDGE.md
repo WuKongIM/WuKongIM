@@ -888,3 +888,13 @@ specification, runbook, report, or module documentation; link to them when neede
   CPU probe preserves process-start identity and raw Mach ticks/timebase for
   three owned PIDs, calibrates against getrusage, and records whole-node CPU
   intervals independently from periodic CPU gauges or profiles.
+
+- Same-Channel append authority lookup must use the existing all-items context,
+  including item-only deadlines, rather than the first caller's context. Fresh
+  recipient metadata lookup is part of this shared preparation; one caller's
+  timeout cannot poison a live peer. All-terminal lookup is canceled and each
+  expired item keeps its own deadline result before admission.
+- Evidence validation may fail independently of completed SENDs. Save ACKs and
+  window times before CPU validation, guarantee sampler cancellation/join, and
+  attach partial timeline outcomes before querying. Keep safe explicit failures;
+  never retain unsafe raw replies or replace absent counters with zeros.

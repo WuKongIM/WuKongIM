@@ -64,6 +64,9 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
   bounds only that caller's wait and never discards admitted work.
 - Per-item result order and cardinality are preserved across routing, append,
   retry, and remote forwarding.
+- Shared same-Channel authority resolution uses the existing all-items lifetime:
+  one expired caller cannot cancel a live peer, all-terminal items stop lookup,
+  and expired items are excluded before append admission.
 - Backlog, worker pools, router concurrency, recipient pages, owner fanout, and
   post-commit handoff are all bounded. Saturation fails before append with a
   typed busy/backpressure result; acknowledged commits are never dropped.

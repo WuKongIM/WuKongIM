@@ -247,6 +247,17 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 				window["before"] = before
 				sampleCtx, stopSamples := context.WithCancel(ctx)
 				sampled := permissionCohortOwnershipSamples(sampleCtx, ingress.APIAddr())
+				joined := false
+				joinSamples := func() {
+					if !joined {
+						stopSamples()
+						window["cohort_ownership_samples"] = <-sampled
+						joined = true
+					}
+				}
+				// Fatal CPU/query evidence failures must still join this sampler
+				// before the parent writes its partial receipt.
+				defer joinSamples()
 				var cpuBefore permissionCPUCut
 				if cpuProbe != "" {
 					cpuBefore = permissionCPUQuery(t, ctx, cpuPIDs)
@@ -255,15 +266,14 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 				begin := time.Now()
 				acks := permissionBaselineWave(ctx, clients[:concurrency], channel, fmt.Sprintf("%s-c%d", name, concurrency), 64)
 				end := time.Now()
+				window["acks"], window["started_at"], window["finished_at"] = acks, begin.UTC(), end.UTC()
+				window["elapsed_ms"] = end.Sub(begin).Milliseconds()
 				if cpuProbe != "" {
 					cpuAfter := permissionCPUQuery(t, ctx, cpuPIDs)
 					window["cpu_after"] = cpuAfter
 					window["cluster_cpu_ns"] = permissionCPUInterval(t, cpuBefore, cpuAfter)
 				}
-				stopSamples()
-				window["cohort_ownership_samples"] = <-sampled
-				window["acks"], window["started_at"], window["finished_at"] = acks, begin.UTC(), end.UTC()
-				window["elapsed_ms"] = end.Sub(begin).Milliseconds()
+				joinSamples()
 				require.NoError(t, ctx.Err())
 				require.Len(t, acks, 64, "stopped baseline retains partial responses")
 				after := permissionBaselineMetrics(t, ctx, cluster)
@@ -279,7 +289,9 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 				sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
 				window["counts"], window["sendack_p99_us"], window["sendack_max_us"] = counts, latencies[int(math.Ceil(float64(len(latencies))*.99))-1], latencies[len(latencies)-1]
 				if timeline && name == "same-slot-remote" && concurrency == 32 {
-					window["request_timelines"] = permissionRequestTimeline(t, ctx, cluster, ingressID, acks)
+					var timelines []map[string]any
+					window["request_timelines"] = &timelines
+					permissionRequestTimeline(t, ctx, cluster, ingressID, acks, &timelines)
 				}
 				for _, ack := range acks {
 					require.Empty(t, ack.Error)

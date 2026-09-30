@@ -349,7 +349,18 @@ func (r *Router) resolvePending(items []SendBatchItem, routeChannels []ChannelID
 		if len(indexes) == 0 {
 			return
 		}
-		target, err := r.resolver.ResolveAppendAuthority(routerItemContext(items[indexes[0]]), channelID)
+		channelItems := items[indexes[0] : indexes[0]+1]
+		if len(indexes) > 1 {
+			channelItems = make([]SendBatchItem, len(indexes))
+			for i, index := range indexes {
+				channelItems[i] = items[index]
+			}
+		}
+		// Authority lookup is shared only while at least one Channel item is
+		// live. One caller's deadline cannot cancel another caller's preparation.
+		ctx, cancel := routerAllItemsContext(channelItems)
+		defer cancel()
+		target, err := r.resolver.ResolveAppendAuthority(ctx, channelID)
 		if err == nil {
 			target, err = normalizeRouterTarget(channelID, target)
 		}
@@ -368,7 +379,7 @@ func (r *Router) resolvePending(items []SendBatchItem, routeChannels []ChannelID
 					nextPending = append(nextPending, index)
 					continue
 				}
-				results[index] = SendBatchItemResult{Err: err}
+				results[index] = rewriteTerminalRouterError(item, SendBatchItemResult{Err: err}, time.Now())
 			}
 			continue
 		}
