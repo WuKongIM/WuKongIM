@@ -4940,3 +4940,29 @@ attempt at each of 500/100/32 connections stopped at cold SUBSCRIBE as
 `unconfirmed`, before the performance window; no matched latency comparison or
 repair of that intermittent problem is claimed. Delivery latency and complete
 MQTT failure/scale acceptance remain open.
+
+## Ordinary member preparation concurrency
+
+[Design/evidence](../specs/ordinary-membership-proposal-scheduling.md). Profiling
+found the two ordinary UID projection submitters waiting on Slot Future.Wait;
+a ten-second CPU profile had 0.69s of samples. The opt-in 10,000-member process
+probe first failed its 30-second HTTP setup budget. Changing only the supervised
+proposal limit from two to eight passed without profiling: 12.000s preparation,
+10,000 confirmed projected rows, unchanged logical command count and three
+public conversation samples. Cancellation/failure tests were written first;
+they verify joining admitted commands, accounting confirmed rows and preserving
+the original error. Focused race and the cluster unit suite passed.
+
+The original 100,000-member/500-connection/20-message/600-churn workload now
+confirmed all member-preparation requests, then stopped in cold SUBSCRIBE
+(214.45s total): 2 deadline and 13 canceled closures, 485 active owners at failure.
+Active owners do not prove successful SUBACKs; MQTT fanout and churn were not
+reached. See [failure artifact](mqtt-scale-membership-8-failure.json). Complete
+scale acceptance remains open. The former twelve-minute member-preparation
+timeout was removed in this observed run; the subscription failure remains
+unrepaired.
+
+Multi-node public directory/recipient checks also passed, including UID requests
+from a non-replica ingress. One initial pagination SEND returned HTTP 408;
+the unchanged focused rerun passed. This timeout is not claimed repaired.
+`go vet` and the named FLOW contract check passed.

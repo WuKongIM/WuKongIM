@@ -1,0 +1,32 @@
+{
+  "batches": [
+    {
+      "confirmed": true,
+      "elapsed_ms": 6084,
+      "from": 0,
+      "projected_rows_delta": 5000,
+      "size": 5000,
+      "slot_proposals_delta": 1287
+    },
+    {
+      "confirmed": true,
+      "elapsed_ms": 5915,
+      "from": 5000,
+      "projected_rows_delta": 10000,
+      "size": 5000,
+      "slot_proposals_delta": 2572
+    }
+  ],
+  "budget_seconds": 30,
+  "elapsed_ms": 12593,
+  "hash_slots": 256,
+  "initial_slots": 12,
+  "members": 10000,
+  "nodes": 1,
+  "passed": true,
+  "profile_enabled": false,
+  "projected_rows_delta": 10000,
+  "provision_ms": 12000,
+  "scenario": "mqtt-member-provisioning",
+  "slot_proposals_delta": 2573
+}

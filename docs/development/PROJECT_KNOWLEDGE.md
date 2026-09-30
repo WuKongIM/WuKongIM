@@ -1286,3 +1286,9 @@ specification, runbook, report, or module documentation; link to them when neede
   physical tombstone retirement needs a durable rejection boundary for delayed
   creates. Session child cleanup, detached Wills and ClientID/UID binding have
   separate retention obligations; current code has not implemented that cleanup.
+
+- Ordinary group member preparation projects UID-owned membership through
+  logical Hash-Slot commands with at most eight supervised proposal workers per
+  call; cancellation joins admitted writes and accounting includes their confirmed
+  completions. This accelerates provisioning without changing source-version or
+  join visibility semantics; see [proposal scheduling](../specs/ordinary-membership-proposal-scheduling.md).

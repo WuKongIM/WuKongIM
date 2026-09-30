@@ -49,3 +49,15 @@ The artifact also records a ten-second post-fanout idle barrier window. The
 quiet cost must stay below ten successful Slot barriers per subscriber per
 second; this is an aggregate node measurement including maintenance, not a
 claim that each read comes from a particular caller.
+
+## Preparation regression
+
+The opt-in `TestGroupMembershipProvisioningBudget` isolates the public HTTP
+setup deadline at 10,000 members and a 30-second preparation budget. It retains
+256 logical Hash Slots and twelve initial physical groups, checks the exact
+public projected-row delta and three sampled committed conversation views, and
+records bounded per-batch timing/proposal counts in `mqtt-membership.json`.
+It emits a failed artifact if preparation times out; a timed-out batch may have
+partial durable effects. Profile-enabled attempts are diagnostic measurements
+only. See [ordinary membership proposal scheduling](ordinary-membership-proposal-scheduling.md)
+for the failure inventory, baseline and unprofiled validation.

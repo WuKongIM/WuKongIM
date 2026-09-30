@@ -367,3 +367,84 @@ func TestGroupScaleDeliveryAndChurnRetirement(t *testing.T) {
 	require.Zero(t, extra, "unexpected publications")
 	require.Less(t, idleRate/float64(conns), float64(10), "quiet subscribers must not saturate Slot reads")
 }
+
+// TestGroupMembershipProvisioningBudget isolates the HTTP setup that previously
+// exhausted the full MQTT scale deadline, retaining real Slot/Raft persistence.
+func TestGroupMembershipProvisioningBudget(t *testing.T) {
+	if os.Getenv("WK_E2E_MQTT_MEMBERSHIP_PROBE") != "1" {
+		t.Skip("set WK_E2E_MQTT_MEMBERSHIP_PROBE=1 for the bounded preparation probe")
+	}
+	const members = 10000
+	overrides := map[string]string{"WK_CLUSTER_HASH_SLOT_COUNT": "256", "WK_CLUSTER_INITIAL_SLOT_COUNT": "12"}
+	if os.Getenv("WK_E2E_MQTT_MEMBERSHIP_PROFILE") == "1" {
+		overrides["WK_DEBUG_API_ENABLE"] = "true"
+	}
+	n := suite.New(t).StartSingleNodeCluster(suite.WithNodeConfigOverrides(1, overrides))
+	t.Logf("provisioning probe API: %s", n.APIAddr())
+	metrics := func() []suite.MetricSample {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		samples, err := suite.FetchMetricSamples(ctx, n.APIAddr())
+		require.NoError(t, err)
+		return samples
+	}
+	before := metrics()
+	rowLabels := map[string]string{"directory": "ordinary", "operation": "upsert"}
+	rowsBefore := suite.SumMetricSamples(before, "wukongim_conversation_membership_mutation_rows_total", rowLabels)
+	proposalsBefore := suite.SumMetricSamples(before, "wukongim_slot_proposals_total", nil)
+	report := map[string]any{"scenario": "mqtt-member-provisioning", "members": members, "nodes": 1, "hash_slots": 256, "initial_slots": 12, "budget_seconds": 30, "profile_enabled": os.Getenv("WK_E2E_MQTT_MEMBERSHIP_PROFILE") == "1"}
+	var batches []map[string]any
+	start := time.Now()
+	defer func() {
+		after := metrics()
+		report["passed"] = !t.Failed()
+		report["elapsed_ms"] = time.Since(start).Milliseconds()
+		report["batches"] = batches
+		report["projected_rows_delta"] = suite.SumMetricSamples(after, "wukongim_conversation_membership_mutation_rows_total", rowLabels) - rowsBefore
+		report["slot_proposals_delta"] = suite.SumMetricSamples(after, "wukongim_slot_proposals_total", nil) - proposalsBefore
+		if dir := os.Getenv("WK_E2E_MQTT_REPORT_DIR"); dir != "" {
+			require.NoError(t, os.MkdirAll(dir, 0700))
+			data, err := json.MarshalIndent(report, "", "  ")
+			require.NoError(t, err)
+			path := filepath.Join(dir, "mqtt-membership.json")
+			require.NoError(t, os.WriteFile(path, append(data, '\n'), 0600))
+			t.Logf("result artifact: %s", path)
+		}
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	const channelID = "membership-budget-group"
+	uid := func(i int) string { return fmt.Sprintf("budget-member-%06d", i) }
+	for from := 0; from < members; from += 5000 {
+		ids := make([]string, 5000)
+		for i := range ids {
+			ids[i] = uid(from + i)
+		}
+		batchStart := time.Now()
+		var err error
+		if from == 0 {
+			err = suite.PostChannel(ctx, n.APIAddr(), map[string]any{"channel_id": channelID, "channel_type": frame.ChannelTypeGroup, "subscribers": ids})
+		} else {
+			_, err = suite.PostJSON(ctx, "http://"+n.APIAddr()+"/channel/subscriber_add", map[string]any{"channel_id": channelID, "channel_type": frame.ChannelTypeGroup, "subscribers": ids}, nil)
+		}
+		samples := metrics()
+		batches = append(batches, map[string]any{"from": from, "size": len(ids), "elapsed_ms": time.Since(batchStart).Milliseconds(), "confirmed": err == nil, "projected_rows_delta": suite.SumMetricSamples(samples, "wukongim_conversation_membership_mutation_rows_total", rowLabels) - rowsBefore, "slot_proposals_delta": suite.SumMetricSamples(samples, "wukongim_slot_proposals_total", nil) - proposalsBefore})
+		require.NoError(t, err, "prepare %d members within the 30-second setup budget", members)
+	}
+	report["provision_ms"] = time.Since(start).Milliseconds()
+	require.Equal(t, float64(members), suite.SumMetricSamples(metrics(), "wukongim_conversation_membership_mutation_rows_total", rowLabels)-rowsBefore)
+	verify, done := context.WithTimeout(context.Background(), 15*time.Second)
+	defer done()
+	sent, err := suite.PostMessageSend(verify, n.APIAddr(), map[string]any{"from_uid": uid(0), "channel_id": channelID, "channel_type": frame.ChannelTypeGroup, "client_msg_no": "budget-one", "payload": base64.StdEncoding.EncodeToString([]byte("membership proof"))})
+	require.NoError(t, err)
+	require.Equal(t, uint8(frame.ReasonSuccess), sent.Reason)
+	for _, i := range []int{0, members / 2, members - 1} {
+		suite.RequireConversationEventually(t, *n, uid(i), channelID, func(item suite.ConversationListItem) error {
+			if item.LastMessage == nil || item.LastMessage.MessageID != uint64(sent.MessageID) || item.LastMessage.MessageSeq != sent.MessageSeq {
+				return fmt.Errorf("sampled membership cannot hydrate committed publication")
+			}
+			return nil
+		})
+	}
+	require.Equal(t, float64(members), suite.SumMetricSamples(metrics(), "wukongim_conversation_membership_mutation_rows_total", rowLabels)-rowsBefore, "SEND must not mutate ordinary memberships")
+}

@@ -17,9 +17,11 @@ import (
 )
 
 const (
-	maxChannelLatestBatchItems            = 512
-	maxMembershipBatchItems               = 512
-	maxMembershipProposalConcurrency      = 2
+	maxChannelLatestBatchItems = 512
+	maxMembershipBatchItems    = 512
+	// Eight supervised workers overlap durable waits for ordinary UID projection
+	// without spawning a worker per logical Hash Slot or changing command scope.
+	maxMembershipProposalConcurrency      = 8
 	maxPersonDirectoryProposalConcurrency = 10
 )
 

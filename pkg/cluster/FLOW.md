@@ -116,9 +116,9 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   identities coalesce, unique work is bounded and canonical-sorted, placement
   comes from one current revision; every create rereads committed versions, including
   wholly successful batches. Uncertain proposals retry only authoritatively missing rows.
-- UID-owned membership fanout and person-directory batches have fixed
-  concurrency. Directory-ready can never hide missing UID membership or
-  missing append runtime metadata.
+- Ordinary UID projection joins at most eight supervised proposal workers per call,
+  retaining logical Slot scope and durability after cancellation/failure. Person-directory
+  concurrency is separate; directory-ready cannot hide missing memberships/runtime metadata.
 - Lifecycle, fanout, retries, scans, repairs, tasks and diagnostics stay bounded.
   Repair scans rotate Slots with row cursors under tick/task budgets. Slot
   leadership loss drops its cursor; newly unavailable nodes restart owned Slot

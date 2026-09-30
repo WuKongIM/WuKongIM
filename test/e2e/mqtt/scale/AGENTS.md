@@ -12,3 +12,11 @@ Run: `WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-scale-reports GOWORK=off go test -p 1 -ta
 Sizes: `WK_E2E_MQTT_SCALE_MEMBERS`, `_CONNECTIONS`, `_MESSAGES`, `_CHURN`,
 `_ROUNDS`. The artifact records configured and observed sizes; it is not a
 capacity claim beyond them.
+
+The bounded preparation regression is opt-in and isolates public HTTP setup:
+`WK_E2E_MQTT_MEMBERSHIP_PROBE=1 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-membership GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/scale -run TestGroupMembershipProvisioningBudget -count=1 -timeout=2m -v`.
+It prepares exactly 10,000 members within 30 seconds, verifies public membership
+row metrics and sampled conversation hydration, and emits `mqtt-membership.json`
+on success or failure. It does not qualify MQTT delivery or production capacity.
+`WK_E2E_MQTT_MEMBERSHIP_PROFILE=1` enables loopback debug profiling for a separate
+diagnostic attempt; keep profiling disabled in acceptance measurements.
