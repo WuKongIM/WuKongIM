@@ -28,3 +28,15 @@ func (s *Store) permissionCount(kind string, n int) {
 		s.permissionObserver.ObserveSendPermissionCount(kind, n)
 	}
 }
+
+// SendPermissionCohortObserver optionally reports conservative retained-memory
+// credits and owned calls/cohorts using only fixed dimensions.
+type SendPermissionCohortObserver interface {
+	ObserveSendPermissionCohortOwned(kind string, delta int)
+}
+
+func (s *Store) permissionCohortOwned(kind string, delta int) {
+	if o, ok := s.permissionObserver.(SendPermissionCohortObserver); ok {
+		o.ObserveSendPermissionCohortOwned(kind, delta)
+	}
+}

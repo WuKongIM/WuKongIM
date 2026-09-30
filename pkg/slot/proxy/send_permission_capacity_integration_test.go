@@ -15,7 +15,7 @@ import (
 
 // Failure cases: independent local or remote callers queue behind slow fresh
 // barriers until their SEND deadline expires; capacity must not reuse old facts,
-// omit a caller's barrier, or leave admission owned after completion.
+// admit a late caller to an already-started barrier, or leak admission.
 func TestSendPermissionBurstWithSlowFreshBarriers(t *testing.T) {
 	for _, remote := range []bool{false, true} {
 		name := "local"
@@ -75,7 +75,8 @@ func TestSendPermissionBurstWithSlowFreshBarriers(t *testing.T) {
 			require.Zero(t, serving.permissionWaiting.Load())
 			require.Zero(t, owner.admitted.Load())
 			require.Zero(t, failed, "slow fresh barriers must not exhaust the independent burst's caller budgets")
-			require.EqualValues(t, burst, owner.barriers.Load(), "every caller must obtain its own fresh barrier")
+			require.Positive(t, owner.barriers.Load())
+			require.Less(t, owner.barriers.Load(), int64(burst), "independent callers must share only pre-sealed fresh barriers")
 		})
 	}
 }

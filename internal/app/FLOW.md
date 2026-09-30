@@ -116,6 +116,10 @@ Stop or startup rollback
   mutation observers write credential-free structured audits; proposal errors
   retain an unknown outcome rather than reporting tentative state as durable.
 
+- The Channel observer forwards optional fixed-dimension permission cohort ownership
+  gauges (calls, cohorts and conservative memory credits) into Message metrics,
+  including through composed observers. They are distinct from receiver admission.
+
 ## Read First
 - [app.go](app.go)
 - [FLOW_PRODUCT_RUNTIME.md](FLOW_PRODUCT_RUNTIME.md)

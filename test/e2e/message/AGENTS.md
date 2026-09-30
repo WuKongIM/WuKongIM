@@ -154,3 +154,11 @@ These cumulative snapshots must not be presented as measured-window deltas.
 
 The single-node SEND smoke registers a device Token through `/user/token` and
 connects with it while retaining production-default gateway authentication.
+
+The same fixed experiment has an opt-in candidate mode:
+`WK_E2E_PERMISSION_COHORTS=1 WK_E2E_BINARY=/absolute/frozen/candidate WK_E2E_PERMISSION_COHORT_REPORT=/absolute/cohorts.json GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -run '^TestPermissionCallerCohorts$' -count=1 -timeout=4m -p=1 -v`.
+It requires lower burst RPC/local-envelope and fresh-barrier counts, unchanged
+sequential counts, independently drained public cohort ownership metrics,
+completed ban/unban controls and exact full history. Historical baseline mode
+remains executable with its frozen old binary. Source/build identity, whole-node
+resource cuts and diagnostic limits remain the same; capacity gates are unchanged.

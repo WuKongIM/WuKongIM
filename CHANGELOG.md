@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Coalesce concurrent SEND permission facts within bounded 1 ms collection windows, reducing duplicate node queries and Slot reads while retaining fresh ban/unban checks, independent cancellation and explicit backpressure; expose retained-call and memory-budget metrics. / 并发 SEND 权限事实在有界的 1 ms 收集窗口内合并，减少重复节点查询和 Slot 读取，保留禁言与解禁的新鲜度、独立取消和明确背压，并提供保留调用及内存预算指标。
+
 - Safely publish Controller Raft and state-sync resources while transport is already receiving traffic, preventing startup and restart data races. / 传输已接收流量时安全发布 Controller Raft 与状态同步资源，修复启动和重启期间的数据竞争。
 
 - Publish reconciled cluster readiness and committed node health before Controller task progress writes, and run subsequent tasks through the existing bounded background owner so slow writes cannot block startup readiness. / 集群就绪状态与已提交的节点健康信息先于 Controller 任务进度写入发布，后续任务由现有有界后台执行者处理，避免慢写入阻塞启动就绪检查。

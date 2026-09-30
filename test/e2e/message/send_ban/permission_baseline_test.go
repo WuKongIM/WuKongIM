@@ -44,6 +44,19 @@ func TestPermissionCallerBaseline(t *testing.T) {
 	if os.Getenv("WK_E2E_PERMISSION_BASELINE") != "1" {
 		t.Skip("opt-in fixed permission baseline")
 	}
+	runPermissionCallerExperiment(t, false)
+}
+
+// TestPermissionCallerCohorts uses the identical fixed inputs but requires
+// actual cross-caller reduction, fresh policy controls and exact history.
+func TestPermissionCallerCohorts(t *testing.T) {
+	if os.Getenv("WK_E2E_PERMISSION_COHORTS") != "1" {
+		t.Skip("opt-in fixed permission cohort comparison")
+	}
+	runPermissionCallerExperiment(t, true)
+}
+
+func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 	started := time.Now().UTC()
 	report := map[string]any{
 		"started_at": started, "nodes": 3, "hash_slots": 256, "physical_slots": 12,
@@ -56,8 +69,12 @@ func TestPermissionCallerBaseline(t *testing.T) {
 		"resource_scope":           "whole node; scrape cuts include scrape overhead; CPU/RSS gauges are periodic; allocation counters may be scrape-cached; profiles use a separate window",
 		"fixture_scope":            "system UID; two mandatory facts; no auxiliary membership reads or recipient fanout; one-voter metadata routing proof, not HA",
 	}
+	report["cohort_candidate"] = cohorts
 	var cases []map[string]any
 	path := os.Getenv("WK_E2E_PERMISSION_BASELINE_REPORT")
+	if cohorts {
+		path = os.Getenv("WK_E2E_PERMISSION_COHORT_REPORT")
+	}
 	if path == "" {
 		path = filepath.Join(os.TempDir(), "wukongim-permission-baseline.json")
 	}
@@ -232,13 +249,32 @@ func TestPermissionCallerBaseline(t *testing.T) {
 				require.EqualValues(t, 64, counts["messages"])
 				require.EqualValues(t, 64, counts["plans"])
 				require.EqualValues(t, 128, counts["facts"])
-				require.Equal(t, envelopes, counts["node_envelopes"])
-				require.Equal(t, groups, counts["slot_groups"])
-				require.Equal(t, groups, counts["barrier_ok"])
+				if cohorts && concurrency == 32 {
+					if envelopes > 0 {
+						require.Less(t, counts["node_envelopes"], envelopes, "independent callers must reduce actual RPC envelopes")
+					} else {
+						require.Zero(t, counts["node_envelopes"])
+						require.Less(t, permissionBaselineDelta(before, after, "local_envelopes"), float64(64))
+					}
+					require.Positive(t, counts["barrier_ok"])
+					require.Less(t, counts["barrier_ok"], groups, "independent callers must share sealed fresh reads")
+					require.Equal(t, counts["slot_groups"], counts["barrier_ok"])
+				} else {
+					require.Equal(t, envelopes, counts["node_envelopes"])
+					require.Equal(t, groups, counts["slot_groups"])
+					require.Equal(t, groups, counts["barrier_ok"])
+				}
 				require.Zero(t, counts["barrier_failed"])
 				require.Zero(t, counts["admission_busy"])
 				for _, node := range after {
 					require.Zero(t, node["inflight"])
+					if cohorts {
+						for _, kind := range []string{"calls", "cohorts", "budget_bytes"} {
+							value, ok := node["cohort_owned_"+kind]
+							require.True(t, ok, "candidate ownership metric missing")
+							require.Zero(t, value, "cohort ownership must drain after joined ACKs")
+						}
+					}
 				}
 				window["completed"] = true
 			}
@@ -403,7 +439,7 @@ func permissionBaselineMetrics(t *testing.T, ctx context.Context, cluster *suite
 		samples, err := suite.FetchMetricSamples(ctx, cluster.MustNode(id).APIAddr())
 		require.NoError(t, err)
 		values := map[string]float64{}
-		for _, kind := range []string{"messages", "users", "channels", "facts", "facts_before", "slot_groups", "node_envelopes", "local_envelopes", "request_bytes", "response_bytes"} {
+		for _, kind := range []string{"messages", "users", "channels", "facts", "facts_before", "slot_groups", "node_envelopes", "local_envelopes", "request_bytes", "response_bytes", "cohorts", "cohort_requests", "cohort_facts", "cohort_busy"} {
 			values[kind] = suite.SumMetricSamples(samples, "wukongim_message_permission_counts_total", map[string]string{"kind": kind})
 		}
 		values["barrier_ok"] = suite.SumMetricSamples(samples, "wukongim_message_permission_duration_seconds_count", map[string]string{"stage": "barrier", "result": "ok"})
@@ -411,6 +447,11 @@ func permissionBaselineMetrics(t *testing.T, ctx context.Context, cluster *suite
 		values["barrier_failed"] = suite.SumMetricSamples(samples, "wukongim_message_permission_duration_seconds_count", map[string]string{"stage": "barrier"}) - values["barrier_ok"]
 		values["admission_busy"] = suite.SumMetricSamples(samples, "wukongim_message_permission_duration_seconds_count", map[string]string{"stage": "admission", "result": "busy"})
 		values["inflight"] = suite.SumMetricSamples(samples, "wukongim_message_permission_inflight", nil)
+		for _, sample := range samples {
+			if sample.Name == "wukongim_message_permission_cohort_owned" {
+				values["cohort_owned_"+sample.Labels["kind"]] = sample.Value
+			}
+		}
 		for _, sample := range samples {
 			switch sample.Name {
 			case "process_cpu_seconds_total", "process_resident_memory_bytes", "wukongim_node_cpu_percent", "wukongim_node_memory_rss_bytes", "go_memstats_alloc_bytes_total", "go_memstats_alloc_bytes", "go_memstats_heap_inuse_bytes", "go_goroutines":

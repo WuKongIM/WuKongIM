@@ -139,7 +139,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   may follow caller cancellation, while started mutations keep independent
   execution. Ready frames batch without an idle coalescing delay.
 - Routed committed and persisted message batches and conversation heads hydrate latest payload replacements through Slot authority. Cross-channel record chunks preserve batching above 200 total recent records; replacement growth respects each page byte budget and retains continuation. Matching skips empty pages, scans at most eight updates directly, and indexes larger pages without copying payload-bearing structs. The Slot ReadIndex/apply barrier is request-scoped, separate from readiness proof reuse; serving edit proposals check the content epoch under restore admission, including forwarded commands; local raw log/backup reads remain immutable.
-- Send-permission routing projects one immutable authority publication into node-batched Slot queries with caller cancellation. Every group holds foreground/maintenance admission through a fresh Slot barrier, pinned metadata snapshot and final authority check. The node does not evaluate send-ban business rules.
+- Send-permission routing projects one immutable authority publication into node-batched Slot queries with caller cancellation. Every group holds foreground/maintenance admission through a fresh Slot barrier, pinned metadata snapshot and final authority check. The node does not evaluate send-ban business rules. Its owned Slot proxy seals bounded ingress fact cohorts before routing/barriers, preserves independent caller cancellation, and cancels/joins them during Stop before closing transport or metadata storage; restart constructs a fresh proxy.
 
 ## Read First
 

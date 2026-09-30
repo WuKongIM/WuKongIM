@@ -853,5 +853,17 @@ specification, runbook, report, or module documentation; link to them when neede
   rate. The 500 SEND/s CI exposed deadline exhaustion with sixteen envelopes
   when barriers slowed; sixty-four remain bounded, with 1 MiB per wire request
   and reply. Independent slow-barrier local/remote burst regressions preserve
-  each caller's fresh barrier and cancellation. Queue count/bytes and the two-second
-  wait bound remain unchanged; cross-caller aggregation is tracked by #977.
+  a fresh barrier for each sealed cohort and independent caller cancellation.
+  Receiver queue count/bytes and the two-second wait bound remain unchanged.
+
+- SEND permission cohorts belong to the existing ingress Slot proxy. Collection
+  closes before route resolution and any barrier; an executing cohort cannot
+  accept a late caller. No result survives its cohort. Distinct physical Slots
+  retain separate full route fences, quorum/apply barriers and snapshots.
+  Cohorts deduplicate raw facts while preserving per-caller indexes and deadlines;
+  last cancellation and Node Stop join execution. Global retained-call and
+  conservative memory-credit bounds apply until work joins and results transfer.
+  `wukongim_message_permission_cohort_owned{kind}` reports calls/cohorts/
+  budget_bytes, which are conservative proxy credits rather than allocator bytes
+  or the receiver's undecoded transport queue. Counts alone do not qualify CPU
+  savings or SEND capacity; the original 500 SEND/s gates remain authoritative.

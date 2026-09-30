@@ -2796,3 +2796,16 @@ func (o multiChannelObserver) ObserveSendPermissionInflight(delta int) {
 		}
 	}
 }
+
+func (o channelMetricsObserver) ObserveSendPermissionCohortOwned(kind string, delta int) {
+	if o.metrics != nil {
+		o.metrics.Message.ObserveSendPermissionCohortOwned(kind, delta)
+	}
+}
+func (o multiChannelObserver) ObserveSendPermissionCohortOwned(kind string, delta int) {
+	for _, child := range o {
+		if v, ok := child.(slotproxy.SendPermissionCohortObserver); ok {
+			v.ObserveSendPermissionCohortOwned(kind, delta)
+		}
+	}
+}
