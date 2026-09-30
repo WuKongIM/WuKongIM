@@ -14,6 +14,7 @@ description: 把身份、Channel、消息、会话与规模约束组合成可落
   <Card title="群聊与超大群" description="完成群成员维护、群消息、成员变更与十万成员容量边界。" href="/zh/guide/tutorials/large-groups" />
   <Card title="消息推送" description="用离线 Webhook、业务 Outbox 和推送厂商完成可恢复通知。" href="/zh/guide/tutorials/push" />
   <Card title="AI 与 IoT 通信" description="组合 AI 流式投影、设备遥测、持久命令与业务回执。" href="/zh/guide/tutorials/ai-and-iot" />
+  <Card title="Agent 流式回复" description="用 EasySDK 与真实模型构建在线流式聊天，处理取消、失败和重连恢复。" href="/zh/sdk/easy/agent-streaming" />
 </Cards>
 
 ## 如何选择
@@ -24,7 +25,7 @@ description: 把身份、Channel、消息、会话与规模约束组合成可落
 | 普通群聊 | [群聊与超大群](/zh/guide/tutorials/large-groups) | 业务系统维护群生命周期和成员，WuKongIM 维护消息日志 |
 | 十万成员社区或房间 | [群聊与超大群](/zh/guide/tutorials/large-groups#扩展到十万成员) | 成员分批协调、提交后分页 Fan-out、热点容量验证 |
 | 离线移动通知 | [消息推送](/zh/guide/tutorials/push) | Webhook 只产生候选，业务 Outbox 和厂商回执负责可靠性 |
-| AI 流式回答 | [AI 与 IoT 通信](/zh/guide/tutorials/ai-and-iot#ai创建持久流锚点) | 基础消息先提交，终态投影持久化，实时 Token 流由业务侧拥有 |
+| AI 流式回答 | [Agent 流式回复](/zh/sdk/easy/agent-streaming) | 基础消息先提交，SDK 实时事件更新正文，终态快照负责离线恢复 |
 | 设备遥测与控制 | [AI 与 IoT 通信](/zh/guide/tutorials/ai-and-iot#iot发送有界遥测) | 命令同步游标不等于设备业务执行成功 |
 
 ## 所有教程共用的成功模型

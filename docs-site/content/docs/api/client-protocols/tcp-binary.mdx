@@ -43,7 +43,7 @@ PING/PONG = fixed_header:u8
 | 9 | `DISCONNECT` 双向 / codec-only | `reason_code:u8`, `reason:str16be` |
 | 10 | `SUB` C→S / codec-only | `setting:u8`, `sub_no:str16be`, `channel_id:str16be`, `channel_type:u8`, `action:u8`, `param:str16be` |
 | 11 | `SUBACK` S→C / codec-only | `sub_no:str16be`, `channel_id:str16be`, `channel_type:u8`, `action:u8`, `reason_code:u8` |
-| 12 | `EVENT` 双向 / tooling-only | `id:str16be`, `type:str16be`, `timestamp:i64be`, `data:bytes-rest` |
+| 12 | `EVENT` 双向 / 出站 stream.* | `id:str16be`, `type:str16be`, `timestamp:i64be`, `data:bytes-rest` |
 
 `seq(v)` 在 v5 及以下是 `u32be`，v6 是 `u64be`。当前 SENDACK 解码器还接受兼容顺序：`message_id, client_seq, client_msg_no, message_seq, reason_code`；新编码器始终使用表中主顺序。
 
@@ -54,7 +54,7 @@ PING/PONG = fixed_header:u8
 - Setting 位：`Receipt=0x80`、`Signal=0x20`、`NoEncrypt=0x10`、`Topic=0x08`、`Stream=0x02`。
 
 <Callout type="warn" title="Codec 枚举不等于产品入口">
-  产品 Gateway 的公共入站面只处理 `PING`、`SEND`、`RECVACK`；`CONNECT` 必须是唯一首包并由连接阶段处理。普通 `DISCONNECT`、`SUB`、`SUBACK` 不受支持，`EVENT` 只服务 benchmark terminal-fence 工具流程。
+  产品 Gateway 的公共入站面只处理 `PING`、`SEND`、`RECVACK`；`CONNECT` 必须是唯一首包并由连接阶段处理。普通 `DISCONNECT`、`SUB`、`SUBACK` 不受支持，客户端 `EVENT` 入站只服务 benchmark terminal-fence 工具流程；服务端 `EVENT` 出站也投递公开流式消息事件。
 </Callout>
 
 连接状态与心跳见[连接生命周期](/zh/api/client-protocols/connection-lifecycle)，数值含义见[公共数据字典](/zh/api/dictionaries)。

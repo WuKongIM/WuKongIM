@@ -840,6 +840,7 @@ func (a *App) wireMessages() {
 			messageOpts.ContentEpoch = a.messageContentEpoch
 		}
 		a.wireMessageUpdateHints(&messageOpts)
+		a.wireMessageEvents(&messageOpts)
 		if a.channelSubmissions != nil {
 			messageOpts.BatchAdmission = a.channelSubmissions
 		}

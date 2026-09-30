@@ -4,7 +4,7 @@ description: Product Gateway's JSON-RPC support matrix and limits for the pinned
 ---
 
 <Callout type="info" title="EasySDK core path supported">
-  Product Gateway supports the pinned EasySDK CONNECT-first authentication lifecycle, ping, online SEND/SENDACK, and RECV/RECVACK. General-purpose JSON-RPC, batches, subscriptions, offline sync, and push remain outside this contract.
+  Product Gateway supports the pinned EasySDK CONNECT-first authentication lifecycle, ping, online SEND/SENDACK, RECV/RECVACK, and server-to-client public stream.* EVENT delivery. General-purpose JSON-RPC, batches, subscriptions, and automatic SDK offline sync remain outside this contract.
 </Callout>
 
 ## wsmux selection
@@ -27,6 +27,10 @@ WebSocket `wsmux` selects JSON-RPC when the first non-whitespace byte is `{` or 
 | response | any structurally valid response | decoded to a generic response | frame bridge missing |
 
 Successful CONNACK and SENDACK responses include both camelCase and Android snake_case fields; clients ignore the unused aliases. A non-success Reason Code becomes a JSON-RPC `error`, preventing EasySDK from mistaking failure for success. RECV is an ID-less `recv` notification that always contains `header: {}`. Valid JSON-object payload bytes are emitted as an object; non-object bytes fall back to Base64. The Android `v1.0.5` README example still passes its already-encoded JSON message as a text string, while the protocol boundary also accepts direct objects and Base64 strings; normal JSON message bytes are emitted on RECV as an object for all four pinned profiles.
+
+## Online streaming events
+
+Server `EVENT` becomes an ID-less `event` notification with `{id,type,timestamp,data}` parameters; valid JSON data is emitted as an object. EasySDK-JS receives public `stream.*` events through `WKIMEvent.CustomEvent`. This requires the server online event delivery implementation and is separate from older core-message acceptance. Events are best effort without RECVACK replay; final snapshots recover through message history. See [Agent Streaming Replies](/en/sdk/easy/agent-streaming).
 
 ## Verified scope
 

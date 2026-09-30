@@ -8,6 +8,22 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Add visible home links to all four Demos, including chat login; return to the actual catalog address across dynamically assigned ports and reloads. / 四个 Demo 及聊天登录页新增可见的“返回首页”入口，动态端口和刷新后仍返回实际首页。
+
+- Start all four Demos with `node demo/start.mjs`, including an isolated single-node cluster, automatic dependency preparation, readiness checks, free ports and coordinated shutdown. / 新增 `node demo/start.mjs` 一键启动四个 Demo：独立单节点集群、自动准备依赖、就绪检查、空闲端口与统一退出。
+
+- Add a unified Demo homepage at `/demos/` with visual previews and entrances for chat, streaming, support and Agent scenarios; the Product HTTP root opens this catalog. / 新增统一 Demo 首页 `/demos/`，通过界面预览介绍聊天、流式、客服和 Agent 四种场景；访问 Product HTTP 根地址即可进入首页。
+
+- Add an Agent task Demo with visible tool calls, explicit todo approval, pause/cancel, real model tool calling and SDK streaming/history recovery. / 新增 Agent 任务 Demo：可见工具调用、待办确认、暂停取消、真实模型工具调用及 SDK 流式回复与历史恢复。
+
+- Add a customer support Demo with AI streaming, multiple visitor conversations, manual handoff, read-only closed history and new consultations; the separate loopback business backend fences AI writes before human acceptance. / 新增在线客服 Demo：AI 流式接待、多访客会话、手动接管、结束后只读历史与重新咨询；独立本机业务后端在人工接入前关闭 AI 写入。
+
+- Refresh the chat demo with responsive conversation navigation, a compact tools menu, preserved history reading position and same-identity send retries. / 优化聊天 Demo：适配电脑与手机、收拢演示工具、保留历史阅读位置，并支持复用消息标识重试发送。
+
+- Add a bilingual developer topic for Agent streaming replies with WuKongEasySDK-JS, real model integration, terminal states, and offline recovery. / 新增中英文 Agent 流式回复开发者专题，讲解 WuKongEasySDK-JS、真实模型接入、终态与离线恢复。
+
+- Add an independent EasySDK streaming chat demo at `/streamdemo/`, with configurable OpenAI-compatible models, a local model proxy, real online EVENT delivery, completion/cancellation/failure and offline history recovery; remove streaming UI from the chat demo. / 新增独立 EasySDK 流式聊天演示 `/streamdemo/`，可配置 OpenAI 兼容模型并通过本地代理调用，支持真实在线事件、完成/取消/失败与离线历史恢复；聊天 Demo 移除流式界面。
+
 - Add source-linked interactive diagrams for the system architecture, message sending, and multi-node replication and online delivery, with validated specifications and browser evidence. / 新增带源码引用的系统架构、消息发送及多节点复制与在线投递交互图，附验证后的图形规格和浏览器检查记录。
 
 - Safely publish Controller Raft and state-sync resources while transport is already receiving traffic, preventing startup and restart data races. / 传输已接收流量时安全发布 Controller Raft 与状态同步资源，修复启动和重启期间的数据竞争。

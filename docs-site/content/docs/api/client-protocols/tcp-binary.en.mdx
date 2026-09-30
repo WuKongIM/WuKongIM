@@ -43,7 +43,7 @@ PING/PONG = fixed_header:u8
 | 9 | `DISCONNECT` bidirectional / codec-only | `reason_code:u8`, `reason:str16be` |
 | 10 | `SUB` C→S / codec-only | `setting:u8`, `sub_no:str16be`, `channel_id:str16be`, `channel_type:u8`, `action:u8`, `param:str16be` |
 | 11 | `SUBACK` S→C / codec-only | `sub_no:str16be`, `channel_id:str16be`, `channel_type:u8`, `action:u8`, `reason_code:u8` |
-| 12 | `EVENT` bidirectional / tooling-only | `id:str16be`, `type:str16be`, `timestamp:i64be`, `data:bytes-rest` |
+| 12 | `EVENT` bidirectional / outbound stream.* | `id:str16be`, `type:str16be`, `timestamp:i64be`, `data:bytes-rest` |
 
 `seq(v)` is `u32be` through v5 and `u64be` in v6. The current SENDACK decoder also accepts the compatibility order `message_id, client_seq, client_msg_no, message_seq, reason_code`; new encoders use the primary order above.
 
@@ -54,7 +54,7 @@ PING/PONG = fixed_header:u8
 - Setting bits are `Receipt=0x80`, `Signal=0x20`, `NoEncrypt=0x10`, `Topic=0x08`, and `Stream=0x02`.
 
 <Callout type="warn" title="A codec enum is not a product entry point">
-  The public product Gateway accepts only `PING`, `SEND`, and `RECVACK` after open; `CONNECT` must be the sole first packet and is handled during connection setup. Ordinary `DISCONNECT`, `SUB`, and `SUBACK` input is unsupported. `EVENT` is reserved for the benchmark terminal-fence tooling flow.
+  The public product Gateway accepts only `PING`, `SEND`, and `RECVACK` after open; `CONNECT` must be the sole first packet and is handled during connection setup. Ordinary `DISCONNECT`, `SUB`, and `SUBACK` input is unsupported. Client `EVENT` ingress is reserved for benchmark terminal-fence tooling; server `EVENT` output also delivers public streaming message events.
 </Callout>
 
 See [Connection Lifecycle](/en/api/client-protocols/connection-lifecycle) for session state and heartbeat, and [Shared Dictionaries](/en/api/dictionaries) for numeric meanings.

@@ -19,9 +19,9 @@ description: 查阅当前 Gateway 连接生命周期与 WKProto 数据包边界�
 
 ## 当前边界
 
-- 公共核心只包含 CONNECT/CONNACK、SEND/SENDACK、RECV/RECVACK 和 PING/PONG。
+- 公共核心包含 CONNECT/CONNACK、SEND/SENDACK、RECV/RECVACK、PING/PONG 与服务端出站 stream.* EVENT。
 - `DISCONNECT`、`SUB`、`SUBACK` 目前只是 codec 合同，不代表产品 Gateway 已发布对应入口。
-- 当前产品 Gateway 仅为 benchmark terminal-fence 请求与确认保留 `EVENT`；它不是应用事件 API。
+- 服务端可通过 `EVENT` 投递公开流式消息事件；任意客户端 EVENT 入站仍不支持，入站只接受 benchmark terminal-fence 工具请求。
 - WebSocket 可承载 WKProto bytes；JSON-RPC bridge 支持固定 EasySDK 的核心在线路径，其余方法仍按矩阵标为实验性或缺失。
 
 数值含义见 [公共数据字典](/zh/api/dictionaries)，生产信任边界见[认证与安全](/zh/api/authentication)。

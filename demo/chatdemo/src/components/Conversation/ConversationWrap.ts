@@ -74,22 +74,6 @@ export class ConversationWrap {
             return ""
         }
         if (this.lastMessage.contentStale) return t('staleMessage')
-        // 尝试从流文本中获取摘要
-        if (this.lastMessage.streamText) {
-            const raw = this.lastMessage.streamText.trim()
-            // spec/代码块内容 → 显示为卡片消息
-            if (raw.startsWith('```')) {
-                return t('cardDigest')
-            }
-            // 普通文本：去除HTML标签后截取摘要
-            const text = raw.replace(/<[^>]*>/g, '').trim()
-            if (text) {
-                return text.length > 30 ? text.substring(0, 30) + '...' : text
-            }
-        }
-        if(this.lastMessage.setting.streamOn) {
-            return t('streamDigest')
-        }
         const content = this.lastMessage.content
         // SDK-generated labels are localized by type, never by matching user text.
         if (content?.contentType === MessageContentType.image) {

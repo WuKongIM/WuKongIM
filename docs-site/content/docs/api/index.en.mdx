@@ -23,6 +23,6 @@ This section classifies every current source interface by audience and protocol.
 
 - Product HTTP is for trusted backends only; do not expose it directly to browsers or mobile clients.
 - Operations HTTP and Manager belong on an isolated operator network; they are separate contracts.
-- JSON-RPC supports CONNECT, ping, online SEND/SENDACK, and RECV/RECVACK for the pinned EasySDKs; batches, subscriptions, offline sync, and general-purpose RPC are outside that contract.
+- JSON-RPC supports CONNECT, ping, online SEND/SENDACK, RECV/RECVACK, and server-to-client public stream.* EVENT for EasySDK; batches, subscriptions, offline sync, and general-purpose RPC are outside that contract.
 - HTTP status, endpoint responses, and CONNACK/SENDACK Reason Codes belong to separate layers and must be handled separately.
 - See [API Compatibility](/en/api/compatibility) for version coverage and [Error Responses](/en/api/product-http/errors) for failure handling.
