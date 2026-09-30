@@ -1,0 +1,31 @@
+{
+  "scope": "Unchanged historical evidence; diagnostic/correctness/performance limits remain in reports. No new qualification or product behavior.",
+  "group": "baseline",
+  "original_composite_source": "281fb8654e0547e8518643a32b928adbe415df40",
+  "files": [
+    {
+      "path": "docs/reports/assets/permission-caller-baseline-run-1.json",
+      "bytes": 505897,
+      "sha256": "d5102dbbf2d5923fffb42f078cce92536d2153879f3332330261d44eec584674",
+      "original_source": "281fb8654e0547e8518643a32b928adbe415df40"
+    },
+    {
+      "path": "docs/reports/assets/permission-caller-baseline-run-2.json",
+      "bytes": 388063,
+      "sha256": "981f91a146f6f067f044cbbb6de69f4246e89c596a9e4c5f4a60e39267d18dc0",
+      "original_source": "281fb8654e0547e8518643a32b928adbe415df40"
+    },
+    {
+      "path": "docs/reports/assets/permission-caller-baseline.cpu.pprof",
+      "bytes": 7797,
+      "sha256": "8518e7baaa9dca5470e4ffe2651d72cec83baa7b6d7e613a044d356859661fae",
+      "original_source": "281fb8654e0547e8518643a32b928adbe415df40"
+    },
+    {
+      "path": "docs/reports/assets/permission-caller-baseline.heap.pprof",
+      "bytes": 32611,
+      "sha256": "6ec737db1e1e399b56b3de11050fa019063b6d292e8c011d726b5a74c071f991",
+      "original_source": "281fb8654e0547e8518643a32b928adbe415df40"
+    }
+  ]
+}
