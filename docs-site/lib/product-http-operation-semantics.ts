@@ -46,7 +46,7 @@ export const productHTTPOperationSemantics = {
   },
   'GET /channel/send_ban': {
     scope: text('实际源 Channel 发送限制；个人 ID 必须规范编码，CMD 派生键不可用；不影响登录、接收或协议 ACK。', 'Restriction for the actual source Channel; person IDs must be canonical and CMD-derived keys are invalid; login, receiving and protocol ACKs remain allowed.'),
-    success: text('读取当前 Slot 权威策略；未知 UID 或缺失个人 Channel 返回允许、版本 0，缺失非个人 Channel 返回 404。', 'Reads current Slot authority; unknown UIDs or missing person Channels return allow/version 0, missing non-person Channels return 404.'),
+    success: text('读取当前 Channel Slot 权威策略；缺失个人 Channel 返回允许、版本 0，缺失非个人 Channel 返回 404。', 'Reads current Channel Slot authority; a missing person Channel returns allow/version 0, a missing non-person Channel returns 404.'),
     recovery: text('503 时保持策略未知并退避重读，不能把权威不可用当作允许。', 'On 503, keep the policy unknown and retry reads with backoff; unavailable authority is not evidence of allow.'),
   },
   'POST /message/update': {

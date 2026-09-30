@@ -86,7 +86,7 @@ _openapi:
 
 - **Caller**: Trusted backend only
 - **Scope**: Restriction for the actual source Channel; person IDs must be canonical and CMD-derived keys are invalid; login, receiving and protocol ACKs remain allowed.
-- **Success**: Reads current Slot authority; unknown UIDs or missing person Channels return allow/version 0, missing non-person Channels return 404.
+- **Success**: Reads current Channel Slot authority; a missing person Channel returns allow/version 0, a missing non-person Channel returns 404.
 - **Recovery**: On 503, keep the policy unknown and retry reads with backoff; unavailable authority is not evidence of allow.
 
 </Callout>

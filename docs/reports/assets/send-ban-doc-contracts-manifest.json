@@ -1,0 +1,61 @@
+{
+  "runtime_base": "424d03eb298b972ec572261d617972eecb5523c5",
+  "browser_receipt_verified_revision": "4533b8f66e173bdb5f6199ec29e9583378d6c98b",
+  "browser_raw_receipt_retained": false,
+  "browser_receipt_removal": "Named helper validates then removes its temporary receipt directory; verification log retained",
+  "runtime_business_code_changed": false,
+  "files": {
+    "docs-frozen-instructions.json": {
+      "sha256": "5a831d5095f9a3eca24dacc487d94a53716ad71067dbf24120b7ffd3a3cb5fd0",
+      "bytes": 870
+    },
+    "docs-contract-red.log": {
+      "sha256": "ae5d88d4dfab8414ade39823fa22f127bf3cbd41da21f1038a51ba08ddc9006e",
+      "bytes": 7576
+    },
+    "docs-schema-red-reviewed.log": {
+      "sha256": "6136f6612e5c4764abf51461ecffdcf66687f75f8b2e7393072c43fe409238a7",
+      "bytes": 2875
+    },
+    "docs-contracts-followup.log": {
+      "sha256": "6cadea9a7df50f8c7e77d5a8a98abd0334403583f5c539291919ab6549d0aab8",
+      "bytes": 32918
+    },
+    "docs-contracts-reviewed.log": {
+      "sha256": "844d946687d34858f02e503a665a7e2fcc74e20586939b8cd72f13a072eb92c2",
+      "bytes": 33253
+    },
+    "docs-contracts-final.log": {
+      "sha256": "8355df6525ae2b27f6f277f0281e1aa93006ad468593f9f290e91e80abbdd5cc",
+      "bytes": 32650
+    },
+    "docs-contracts-clean.log": {
+      "sha256": "6ce04f4261cf5073bb8478e6ad3520bdc359968c82eb1d2088dab8d8a6b737f7",
+      "bytes": 35603
+    },
+    "docs-contracts-verified.log": {
+      "sha256": "c5ae025d641eb3df464b3120bb5cf4c170d66905769c864a793f8226bf04cc61",
+      "bytes": 34761
+    },
+    "docs-contracts-verified.json": {
+      "sha256": "b02acbf7a8afbbac8a79b74bfaef6f0d8350653998300c00f248d1cbfa4b0181",
+      "bytes": 189
+    },
+    "docs-integration-final.log": {
+      "sha256": "28bdc50ae9bde91ea6db67c373f0079cab94a95d5e37181a409a7ab2b2def6d9",
+      "bytes": 28285
+    },
+    "docs-integration-clean.log": {
+      "sha256": "993f14dab310352950264ebee092d49b568a9a7a46998793d0cd22a48bba25d7",
+      "bytes": 29804
+    },
+    "docs-clean-checks.json": {
+      "sha256": "43f04540f21e5a51baf1d2b807b980b36e995215dc3181eb234f8ab6a80c9307",
+      "bytes": 689
+    },
+    "docs-rpc-contracts.log": {
+      "sha256": "1b33aa17be6663d24c61fce304ddeb6f5b614a8c2b7461909b67ab26e75f8087",
+      "bytes": 57
+    }
+  }
+}

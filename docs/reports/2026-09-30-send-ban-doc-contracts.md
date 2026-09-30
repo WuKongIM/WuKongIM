@@ -1,0 +1,13 @@
+# Send-ban documentation contract repair
+
+The complete Product HTTP OpenAPI contract now covers all 48 current GET/POST registrations, including independent UID and source-Channel send-ban operations. The shared transport catalog and uniqueness fixture cover all 61 named IDs, including permission RPC 91. Exact source/catalog parity assertions remain enforced. Runtime business code and numeric IDs are unchanged.
+
+Both languages publish strict 0/1 policy flags, 4096-byte single-object input limits, unknown-field rejection, canonical decimal uint64 CAS strings (including values above 2^53), nullable/omitted unconditional CAS, credential-free response envelopes and typed failure/recovery behavior. UID and Channel outcomes are explained separately. Legacy Channel metadata documentation now reflects omitted/null `send_ban` preservation rather than claiming a zero default or loose compatibility flag. JSON Schema character limits do not replace documented UTF-8 byte limits or Go integer lexical decoding.
+
+The four new operations produce eight generated reference pages, both locale indexes, navigation entries, search/static output and downloadable contracts through the existing generator. No documentation deployment or release publication was performed.
+
+Original route/RPC equality checks and new schema checks failed before the repair. The focused schema/catalog tests and all 212 docs tests passed after repair. The full named `docs-contracts` check then passed with pinned Node22.12.0, including samples, generation parity, lint, types, production build and static-output checks. Relevant Go RPC uniqueness/alias tests and Go format also passed. Initial attempts retained old-count/copy/navigation/type failures; none were suppressed.
+
+The named `docs-integration` check passed on clean commit `4533b8f66e173bdb5f6199ec29e9583378d6c98b`: real 256-Hash-Slot single-node cluster plus pinned Chromium/npm SDK, bidirectional SEND/SENDACK, receiving, reconnect and offline sync. The helper verified its exact source-bound receipt and then removed the temporary receipt directory; the verification log and full source revision are retained. Later edits only correct test TypeScript annotations and Channel-only explanatory text; final clean-source check status is recorded on the PR and in local delivery receipts. An earlier dirty-tree attestation refusal is retained as a failure, not accepted as proof.
+
+See the [raw evidence archive](assets/send-ban-doc-contracts-evidence.tar.gz) and [hash manifest](assets/send-ban-doc-contracts-manifest.json) for source identities, frozen instruction digests, red/green logs and the browser receipt verification log.

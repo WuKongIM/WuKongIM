@@ -4,10 +4,10 @@ import document from '../contracts/product-http.openapi.json';
 
 const validator = new Ajv2020({ strict: false });
 const schemas = document.components.schemas as Record<string, unknown>;
-const paths = document.paths as Record<string, Record<string, {
+const paths = document.paths as unknown as Record<string, Record<string, {
   security?: unknown[];
   requestBody?: { $ref?: string };
-  parameters?: { name: string; required?: boolean }[];
+  parameters?: { name?: string; required?: boolean }[];
   responses: Record<string, unknown>;
 }>>;
 
@@ -63,7 +63,7 @@ test('documents precise send-ban response fields without numeric policy versions
 
 test('legacy channel metadata describes omitted versus explicit strict send-ban', () => {
   for (const name of ['ChannelUpsertRequest', 'ChannelInfoRequest']) {
-    const schema = schemas[name] as { properties: Record<string, { enum?: number[]; default?: number }> };
+    const schema = schemas[name] as { properties: Record<string, { enum?: (number | null)[]; default?: number }> };
     expect(schema.properties.send_ban?.enum).toEqual([0, 1, null]);
     expect(schema.properties.send_ban).not.toHaveProperty('default');
   }
