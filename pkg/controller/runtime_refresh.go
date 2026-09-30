@@ -48,7 +48,7 @@ func (r *Runtime) controlTick(ctx context.Context) error {
 	st := r.sm.Snapshot(ctx)
 	if st.Revision == 0 {
 		if r.cfg.AllowBootstrap && r.isLocalLeader() {
-			if err := r.raft.Propose(ctx, r.initCommand()); err != nil && !errors.Is(err, controllerraft.ErrNotLeader) {
+			if err := r.raftService().Propose(ctx, r.initCommand()); err != nil && !errors.Is(err, controllerraft.ErrNotLeader) {
 				return err
 			}
 		}

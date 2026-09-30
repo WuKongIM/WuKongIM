@@ -17,7 +17,8 @@ func (r *Runtime) ReplaceScheduledBackupState(
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
-	if r == nil || r.raft == nil {
+	service := r.raftService()
+	if service == nil {
 		return ErrNotStarted
 	}
 	nowFunc := r.cfg.Now
@@ -25,7 +26,7 @@ func (r *Runtime) ReplaceScheduledBackupState(
 		nowFunc = time.Now
 	}
 	value := replacement.Clone()
-	_, err := r.raft.ProposeResult(ctx, command.Command{
+	_, err := service.ProposeResult(ctx, command.Command{
 		Kind:             command.KindReplaceScheduledBackupState,
 		IssuedAt:         nowFunc().UTC(),
 		ExpectedRevision: &expectedRevision,

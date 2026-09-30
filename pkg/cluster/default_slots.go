@@ -109,6 +109,7 @@ func (n *Node) ensureDefaultSlots() error {
 				Observer:   n.cfg.Slots.ReplicaMoveObserver,
 			}),
 		)
+		n.defaultTaskExecutor = true
 	}
 	if n.preferredLeaderReconciler == nil && n.control != nil {
 		n.preferredLeaderReconciler = tasks.NewPreferredLeaderReconciler(tasks.PreferredLeaderReconcilerConfig{

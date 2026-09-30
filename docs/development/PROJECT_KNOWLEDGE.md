@@ -16,6 +16,10 @@ specification, runbook, report, or module documentation; link to them when neede
   reactor partitions. Shipped initialization creates 12 logical groups; omitted
   or zero `cluster.initial_slot_count` derives one. Existing clusters use the
   persisted Controller count; changing this setting does not resize them.
+- Slot Raft randomizes election waiting from `ElectionTick` through
+  `2*ElectionTick-1` ticks. Defaults (50 ms, 40 ticks) therefore allow 2–3.95 s
+  before campaigning; failover tests must cover this window plus bounded voting
+  and durable-apply time rather than treating three seconds as an upper bound.
 - Node snapshot application serializes watches and readiness probes, rejecting
   older logical revisions before maintenance, placement or task side effects.
   Watch notifications trigger a current Controller read rather than replaying
@@ -27,6 +31,16 @@ specification, runbook, report, or module documentation; link to them when neede
   or readiness probes, and Stop joins the owner before storage closes.
   Equal revisions still refresh health and Controller leadership; logical revision
   does not version every health observation.
+- Node Stop and failed-start rollback release owned proposal/task adapters and
+  Slot status readers with their runtimes. A subsequent Start rebuilds them;
+  caller-injected adapters remain borrowed. Quorum RPC gateways belong to one
+  transport server and must be registered again when that server is recreated.
+  Recreated Slot proxies replace pending handlers before server registration;
+  registering the previous handlers first would retain a closed metadata store.
+- Controller Raft, state-sync and control/task ingress can arrive during startup.
+  Resource publication and ingress pointer reads use the same state lock,
+  released before Raft queue waits or FSM snapshots. Runtime Start/Stop calls
+  remain sequential; inbound transport need not wait for Start to complete.
 - Controller owns placement intent; observed Raft leadership is authoritative.
   `PreferredLeader` is not proof of the current leader, quorum, or replica health.
   Missing live evidence remains unknown. Controller planning writes use Raft proposals.
@@ -380,6 +394,8 @@ specification, runbook, report, or module documentation; link to them when neede
   whole-cluster maintenance operation requiring all current replicas to stage and
   verify data before activation. See [backup and restore](BACKUP_AND_RESTORE.md).
 - `DATA-FORMAT.json` identifies immutable node-root format and creator provenance;
+  nonempty unregistered directories are rejected before writable engines open
+  and must never be automatically adopted or rewritten.
   it does not certify all proposal/RPC capabilities. Format-changing features need
   matching runtimes and feature-specific deployment checks. Where required,
   rollback restores the complete previous generation, not old writers on new rows.

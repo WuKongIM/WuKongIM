@@ -15,16 +15,22 @@ func (r *Runtime) newStateSyncServer() *cv2sync.Server {
 		ClusterID: r.cfg.ClusterID,
 		LeaderID:  r.LeaderID,
 		Ready: func() bool {
-			if r.sm == nil {
+			r.mu.RLock()
+			sm := r.sm
+			r.mu.RUnlock()
+			if sm == nil {
 				return false
 			}
-			return r.sm.Snapshot(context.Background()).Revision != 0
+			return sm.Snapshot(context.Background()).Revision != 0
 		},
 		Snapshot: func(ctx context.Context) (state.ClusterState, error) {
-			if r.sm == nil {
+			r.mu.RLock()
+			sm := r.sm
+			r.mu.RUnlock()
+			if sm == nil {
 				return state.ClusterState{}, ErrNotStarted
 			}
-			return r.sm.Snapshot(ctx), nil
+			return sm.Snapshot(ctx), nil
 		},
 	})
 }
