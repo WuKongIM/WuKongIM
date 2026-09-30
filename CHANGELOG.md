@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Avoid MQTT disconnects during concurrent fanout and resubscription: retain nested recovery pressure as pending, bound preparation retries under exact intent/Owner checks, and yield on valid newer drain snapshots. Unknown outcomes remain failures. / 修复并发投递与重新订阅时的 MQTT 断连：嵌套恢复背压保留待确认状态，准备阶段在完整意图和 Owner 检查下有限重试，退订遇到有效新快照时保留待清理状态；未知结果仍失败关闭。
+
 - MQTT subscription activation and removal tolerate bounded Session revision contention from renewal or progress, while preserving exact subscription/Owner checks and rejecting unknown commit outcomes. / MQTT 订阅激活和移除可在既有边界内处理续租或进度写入导致的明确版本拒绝；保留完整订阅与 Owner 检查，未知提交结果仍失败关闭。
 
 - Group member preparation overlaps ordinary UID membership projection with eight bounded Slot proposal workers, preserving durable completion and cancellation cleanup. / 群成员准备通过最多 8 个受控 Slot 提案提交者并行投影 UID 成员索引，保留持久化确认和取消清理语义。

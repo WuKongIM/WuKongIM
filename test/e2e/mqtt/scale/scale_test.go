@@ -519,3 +519,212 @@ func TestGroupMembershipProvisioningBudget(t *testing.T) {
 	}
 	require.Equal(t, float64(members), suite.SumMetricSamples(metrics(), "wukongim_conversation_membership_mutation_rows_total", rowLabels)-rowsBefore, "SEND must not mutate ordinary memberships")
 }
+
+// TestGroupChurnWithInFlightDelivery isolates control contention before fanout
+// drains. It does not require old unadmitted messages after subscription removal.
+func TestGroupChurnWithInFlightDelivery(t *testing.T) {
+	if os.Getenv("WK_E2E_MQTT_CHURN_PROBE") != "1" {
+		t.Skip("set WK_E2E_MQTT_CHURN_PROBE=1 for the bounded contention probe")
+	}
+	conns := envInt(t, "WK_E2E_MQTT_CHURN_PROBE_CONNECTIONS", 500)
+	churners := min(200, conns)
+	const members, messages, rounds = 2000, 20, 3
+	require.Less(t, conns, members)
+	addr := suite.ReserveLoopbackPorts(t).GatewayAddr
+	overrides := map[string]string{"WK_CLUSTER_HASH_SLOT_COUNT": "256", "WK_CLUSTER_INITIAL_SLOT_COUNT": "12", "WK_GATEWAY_TOKEN_AUTH_ON": "true", "WK_MQTT_ENABLE": "true", "WK_MQTT_LISTEN_ADDR": addr}
+	profile := os.Getenv("WK_E2E_MQTT_CHURN_PROBE_PROFILE") == "1"
+	if profile {
+		overrides["WK_DEBUG_API_ENABLE"] = "true"
+	}
+	n := suite.New(t).StartSingleNodeCluster(suite.WithNodeConfigOverrides(1, overrides))
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	defer cancel()
+	started := time.Now()
+	api := n.APIAddr()
+	t.Logf("churn probe API: %s", api)
+	phase := "setup"
+	var confirmedSubscribes, confirmedUnsubscribes atomic.Uint64
+	subs := make([]*subscriber, conns)
+	initialAtChurn := 0
+	var freshSeq uint64
+	report := map[string]any{"scenario": "mqtt-churn-in-flight", "nodes": 1, "hash_slots": 256, "initial_slots": 12, "members": members, "connections": conns, "messages": messages, "churn_subscribers": churners, "rounds": rounds, "profile_enabled": profile, "foreground_retries": 0}
+	defer func() {
+		report["passed"], report["phase"], report["elapsed_ms"] = !t.Failed(), phase, time.Since(started).Milliseconds()
+		report["confirmed_subscribes"], report["confirmed_unsubscribes"] = confirmedSubscribes.Load(), confirmedUnsubscribes.Load()
+		report["initial_receipts_at_churn"], report["initial_receipts_expected"] = initialAtChurn, conns*messages
+		freshReceipts := 0
+		if freshSeq != 0 {
+			for _, s := range subs {
+				if s != nil {
+					for _, r := range s.snapshot() {
+						if r.seq == freshSeq {
+							freshReceipts++
+						}
+					}
+				}
+			}
+		}
+		report["fresh_receipts"] = freshReceipts
+		call, done := context.WithTimeout(context.Background(), 2*time.Second)
+		samples, err := suite.FetchMetricSamples(call, api)
+		done()
+		closures := map[string]float64{}
+		if err == nil {
+			for _, s := range samples {
+				if s.Name == "wukongim_mqtt_subscription_closures_total" && s.Value != 0 {
+					closures[s.Labels["operation"]+"/"+s.Labels["reason"]] += s.Value
+				}
+			}
+		}
+		report["closures"] = closures
+		dir := os.Getenv("WK_E2E_MQTT_REPORT_DIR")
+		if dir == "" {
+			dir = n.Spec.RootDir
+		}
+		require.NoError(t, os.MkdirAll(dir, 0700))
+		data, err := json.MarshalIndent(report, "", "  ")
+		require.NoError(t, err)
+		path := filepath.Join(dir, "mqtt-churn-in-flight.json")
+		require.NoError(t, os.WriteFile(path, append(data, '\n'), 0600))
+		t.Logf("churn result artifact: %s", path)
+	}()
+	uid := func(i int) string { return fmt.Sprintf("p%06d", i) }
+	ids := make([]string, members)
+	for i := range ids {
+		ids[i] = uid(i)
+	}
+	require.NoError(t, suite.PostChannel(ctx, api, map[string]any{"channel_id": group, "channel_type": frame.ChannelTypeGroup, "reset": 1, "subscribers": ids}))
+	require.NoError(t, parallel(conns+1, 32, func(i int) error {
+		_, err := suite.PostJSON(ctx, "http://"+api+"/user/token", map[string]any{"uid": uid(i), "token": uid(i) + "-probe", "device_flag": 1, "device_level": 1}, nil)
+		return err
+	}))
+	topic := "wk/v1/groups/" + base64.RawURLEncoding.EncodeToString([]byte(group)) + "/messages"
+	subscribe := func(c *suite.MQTTClient) error {
+		ack, err := c.Client.Subscribe(ctx, &paho.Subscribe{Subscriptions: []paho.SubscribeOptions{{Topic: topic, QoS: 1}}})
+		if err != nil {
+			return err
+		}
+		if len(ack.Reasons) != 1 || ack.Reasons[0] != 1 {
+			return fmt.Errorf("SUBACK reasons %v", ack.Reasons)
+		}
+		confirmedSubscribes.Add(1)
+		return nil
+	}
+	unsubscribe := func(c *suite.MQTTClient) error {
+		ack, err := c.Client.Unsubscribe(ctx, &paho.Unsubscribe{Topics: []string{topic}})
+		if err != nil {
+			return err
+		}
+		if len(ack.Reasons) != 1 || ack.Reasons[0] != 0 {
+			return fmt.Errorf("UNSUBACK reasons %v", ack.Reasons)
+		}
+		confirmedUnsubscribes.Add(1)
+		return nil
+	}
+	drainCtx, stopDrain := context.WithCancel(ctx)
+	defer stopDrain()
+	require.NoError(t, parallel(conns, 32, func(i int) error {
+		u := uid(i + 1)
+		c, err := suite.ConnectMQTT(ctx, addr, u, u+"-probe", "probe-"+u, false, 600)
+		if err != nil {
+			return fmt.Errorf("connect %d: %w", i, err)
+		}
+		t.Cleanup(func() { _ = c.Abort() })
+		if err = subscribe(c); err != nil {
+			return fmt.Errorf("subscribe %d: %w", i, err)
+		}
+		s := &subscriber{uid: u, c: c}
+		subs[i] = s
+		go s.drain(drainCtx)
+		return nil
+	}), n.DumpDiagnostics())
+	sender, err := suite.NewWKProtoClient()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sender.Close() })
+	_, err = sender.ConnectAuthenticatedContext(ctx, n.GatewayAddr(), uid(0), "probe-sender", uid(0)+"-probe", frame.WEB)
+	require.NoError(t, err)
+	sentIDs := map[uint64]string{}
+	var clientSeq uint64
+	send := func() uint64 {
+		clientSeq++
+		require.NoError(t, sender.SendFrame(&frame.SendPacket{ChannelID: group, ChannelType: frame.ChannelTypeGroup, ClientSeq: clientSeq, ClientMsgNo: fmt.Sprintf("probe-%d", clientSeq), Payload: []byte("probe")}))
+		ack, err := sender.ReadSendAck()
+		require.NoError(t, err)
+		require.Equal(t, frame.ReasonSuccess, ack.ReasonCode)
+		sentIDs[ack.MessageSeq] = strconv.FormatInt(ack.MessageID, 10)
+		return ack.MessageSeq
+	}
+	metricRetired := func() float64 {
+		call, done := context.WithTimeout(ctx, 2*time.Second)
+		defer done()
+		v, err := suite.FetchMetricValue(call, api, "wukongim_mqtt_consumer_events_total", map[string]string{"event": "retired"})
+		require.NoError(t, err)
+		return v
+	}
+	retiredBefore := metricRetired()
+	phase = "send_initial"
+	for range messages {
+		send()
+	}
+	for _, s := range subs {
+		initialAtChurn += len(s.snapshot())
+	}
+	require.Less(t, initialAtChurn, conns*messages, "probe must overlap pending initial deliveries")
+	phase = "churn"
+	for round := range rounds {
+		require.NoError(t, sender.SendFrame(&frame.PingPacket{}))
+		require.NoError(t, parallel(churners, 32, func(i int) error {
+			if err := unsubscribe(subs[i].c); err != nil {
+				return fmt.Errorf("round %d unsubscribe %d: %w", round, i, err)
+			}
+			if err := subscribe(subs[i].c); err != nil {
+				return fmt.Errorf("round %d resubscribe %d: %w", round, i, err)
+			}
+			return nil
+		}), n.DumpDiagnostics())
+	}
+	phase = "fresh_delivery"
+	require.NoError(t, sender.SendFrame(&frame.PingPacket{}))
+	freshSeq = send()
+	require.Eventually(t, func() bool {
+		for _, s := range subs {
+			found := false
+			for _, r := range s.snapshot() {
+				if r.seq == freshSeq {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return false
+			}
+		}
+		return true
+	}, 2*time.Minute, 200*time.Millisecond, "every subscriber must receive the fresh publication")
+	phase = "retirement"
+	var retiredDelta float64
+	require.Eventually(t, func() bool {
+		retiredDelta = metricRetired() - retiredBefore
+		return retiredDelta >= float64(churners*rounds)
+	}, time.Minute, time.Second)
+	report["retired_delta"] = retiredDelta
+	phase = "verify"
+	time.Sleep(2 * time.Second)
+	stopDrain()
+	for i, s := range subs {
+		seen := map[uint64]bool{}
+		var prev uint64
+		for _, r := range s.snapshot() {
+			expected, ok := sentIDs[r.seq]
+			require.True(t, ok, "unexpected publication for %d", i)
+			require.Equal(t, expected, r.id, "publication identity for %d", i)
+			require.False(t, seen[r.seq], "duplicate publication for %d", i)
+			require.Greater(t, r.seq, prev, "publication order for %d", i)
+			seen[r.seq], prev = true, r.seq
+		}
+		require.True(t, seen[freshSeq], "fresh publication for %d", i)
+	}
+	require.EqualValues(t, conns+churners*rounds, confirmedSubscribes.Load())
+	require.EqualValues(t, churners*rounds, confirmedUnsubscribes.Load())
+	phase = "complete"
+}

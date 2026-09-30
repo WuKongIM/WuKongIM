@@ -165,7 +165,7 @@ func (p *GroupSources) prepare(ctx context.Context, op *preparationScope, o cont
 	if hasCursor && existing.StartAfter != binding.StartAfter {
 		return out, ErrEvidence
 	}
-	session, cursor, hasCursor, err := p.readCursor(ctx, op, o, sub, cursorKey)
+	_, cursor, hasCursor, err := p.readCursor(ctx, op, o, sub, cursorKey)
 	if err != nil {
 		return out, err
 	}
@@ -173,40 +173,9 @@ func (p *GroupSources) prepare(ctx context.Context, op *preparationScope, o cont
 		if binding.Stage == meta.MQTTBindingActive {
 			return out, ErrEvidence
 		}
-		session, err = p.current(ctx, op, o, sub)
+		cursor, err = p.initCursor(ctx, op, o, sub, cursorKey, binding.StartAfter)
 		if err != nil {
 			return out, err
-		}
-		if session.Revision == math.MaxUint64 {
-			return out, ErrEvidence
-		}
-		now, e := p.guard.now()
-		if e != nil {
-			return out, e
-		}
-		mutation := meta.MQTTDeliveryCursorMutation{Key: cursorKey, ExpectedRevision: session.Revision, OwnerGeneration: o.OwnerGeneration, OwnerNodeID: o.NodeID, OwnerBootID: o.BootID, ConnectionID: o.ConnectionID, Op: meta.MQTTCursorInit, Topic: sub.Topic, AuthorizationVersion: sub.AuthorizationVersion, Through: binding.StartAfter, UpdatedAtMS: now.UnixMilli()}
-		if e = op.check(ctx); e != nil {
-			return out, e
-		}
-		receipt, e := p.options.Store.MutateMQTTDeliveryCursor(ctx, mutation)
-		if e != nil {
-			return out, e
-		}
-		if e = op.check(ctx); e != nil {
-			return out, e
-		}
-		if receipt.Status == meta.MQTTSessionCASConflict {
-			return out, ErrConflict
-		}
-		if (receipt.Status != meta.MQTTSessionCASApplied && receipt.Status != meta.MQTTSessionCASUnchanged) || receipt.CurrentRevision != session.Revision+1 || receipt.SessionState != session.State || receipt.TerminationReason != 0 {
-			return out, ErrEvidence
-		}
-		_, cursor, hasCursor, err = p.readCursor(ctx, op, o, sub, cursorKey)
-		if err != nil {
-			return out, err
-		}
-		if !hasCursor || cursor.Revision < receipt.CurrentRevision {
-			return out, ErrEvidence
 		}
 	}
 	if cursor.StartAfter != binding.StartAfter || cursor.CompletedThrough < binding.CompletedThrough || cursor.Revision < binding.ProgressRevision {

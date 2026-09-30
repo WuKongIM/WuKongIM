@@ -18,6 +18,9 @@ import (
 // Only a definite CAS receipt carries this private retry classification.
 var errSubscriptionCASRejected = errors.New("mqttsession: subscription CAS rejected")
 
+// This read-only yield cannot classify a possible write or a changed child.
+var errSubscriptionCapacityChanged = errors.New("mqttsession: subscription capacity revision changed")
+
 // Subscribe persists one filter at a time, granting QoS at most one. Success
 // describes authoritative Active intent; entry still owns its SUBACK enqueue.
 func (s *Subscriptions) Subscribe(parent context.Context, o contract.Owner, r SubscriptionRequest) (out meta.MQTTSubscription, err error) {
@@ -68,17 +71,7 @@ func (s *Subscriptions) Subscribe(parent context.Context, o contract.Owner, r Su
 			return out, ErrConflict
 		}
 	}
-	if err = s.checkCapacity(ctx, op, o, session); err != nil {
-		return out, err
-	}
-	if session.Revision == math.MaxUint64 {
-		return out, ErrClock
-	}
-	next := meta.MQTTSubscription{Namespace: o.Key.Namespace, ClientID: o.Key.ClientID, SessionGeneration: o.SessionGeneration, Topic: r.Topic, TargetKind: r.TargetKind, TargetID: r.TargetID, Generation: session.Revision + 1, AuthorizationVersion: version, Stage: meta.MQTTSubscriptionPreparing}
-	next.OperationID = subscriptionOperationID(next)
-	setSubscriptionOptions(&next, r)
-	unconfirmed = true
-	next, err = s.mutate(ctx, op, o, session, next)
+	next, err := s.startPreparation(ctx, op, o, session, old, found, r, version, &unconfirmed)
 	if err != nil {
 		return out, err
 	}
@@ -89,6 +82,47 @@ func (s *Subscriptions) Subscribe(parent context.Context, o contract.Owner, r Su
 	//  return out, context.DeadlineExceeded
 	// }
 	return s.complete(ctx, op, o, next)
+}
+
+// startPreparation rechecks quota and permission after definite non-admission.
+// It pins the original absent/Removed child and admits at most three proposals;
+// no unknown write or changed child can authorize a new subscription generation.
+func (s *Subscriptions) startPreparation(ctx context.Context, op *subscriptionOperation, o contract.Owner, session meta.MQTTSession, before meta.MQTTSubscription, found bool, r SubscriptionRequest, version uint64, possible *bool) (meta.MQTTSubscription, error) {
+	for attempt := 0; ; attempt++ {
+		err := s.checkCapacity(ctx, op, o, session)
+		if err == nil {
+			if session.Revision == math.MaxUint64 {
+				return meta.MQTTSubscription{}, ErrClock
+			}
+			next := meta.MQTTSubscription{Namespace: o.Key.Namespace, ClientID: o.Key.ClientID, SessionGeneration: o.SessionGeneration, Topic: r.Topic, TargetKind: r.TargetKind, TargetID: r.TargetID, Generation: session.Revision + 1, AuthorizationVersion: version, Stage: meta.MQTTSubscriptionPreparing}
+			next.OperationID = subscriptionOperationID(next)
+			setSubscriptionOptions(&next, r)
+			*possible = true
+			var row meta.MQTTSubscription
+			row, err = s.mutate(ctx, op, o, session, next)
+			if err == nil {
+				return row, nil
+			}
+		}
+		if attempt == 2 || (!errors.Is(err, errSubscriptionCapacityChanged) && !errors.Is(err, errSubscriptionCASRejected)) {
+			return meta.MQTTSubscription{}, err
+		}
+		parent, child, exists, err := s.read(ctx, op, o, r.Topic)
+		if err != nil {
+			return meta.MQTTSubscription{}, err
+		}
+		if exists != found || (found && child != before) || parent.Revision <= session.Revision {
+			return meta.MQTTSubscription{}, ErrConflict
+		}
+		currentVersion, err := s.authorize(ctx, op, r)
+		if err != nil {
+			return meta.MQTTSubscription{}, err
+		}
+		if currentVersion != version {
+			return meta.MQTTSubscription{}, ErrSubscriptionRevoked
+		}
+		session = parent
+	}
 }
 
 // Unsubscribe needs ownership, not receive permission. It never deletes inflight
@@ -450,6 +484,9 @@ func (s *Subscriptions) checkCapacity(ctx context.Context, op *subscriptionOpera
 			return err
 		}
 		if result.Session.Revision != session.Revision {
+			if result.Session.Revision > session.Revision {
+				return errors.Join(ErrConflict, errSubscriptionCapacityChanged)
+			}
 			return ErrConflict
 		}
 		if len(result.Subscriptions) > 64 || !result.Done && len(result.Subscriptions) == 0 {

@@ -13,8 +13,8 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
-// ErrSourceDrainPending means one bounded range was released; the persisted
-// Removing intent and fixed end retain the remaining cleanup responsibility.
+// ErrSourceDrainPending retains the fixed Removing range after bounded progress
+// or a coherent newer snapshot; it never confirms a stale accounting mutation.
 var ErrSourceDrainPending = errors.New("mqttsession: source drain pending")
 
 // SourceDrainMetadata keeps sealing on the source Slot and window/accounting
@@ -151,8 +151,23 @@ func (p *SourceDrain) seal(ctx context.Context, op *closedIntentScope, o contrac
 			if e = p.checkDrainSession(ctx, op, o, r.Session); e != nil {
 				return out, e
 			}
-			if r.Session.Revision != s.Revision || len(r.DeliveryCursors) != 1 || r.DeliveryCursors[0] != cursor || len(r.Bindings) != 0 || len(r.Subscriptions) != 0 || meta.ValidateMQTTAccountingHead(cursor, r.Accounting) != nil {
+			if len(r.DeliveryCursors) != 1 || len(r.Bindings) != 0 || len(r.Subscriptions) != 0 {
 				return out, ErrEvidence
+			}
+			current := r.DeliveryCursors[0]
+			if meta.ValidateMQTTDeliveryCursor(current) != nil || current.Key != cursor.Key || current.Topic != cursor.Topic ||
+				current.AuthorizationVersion != cursor.AuthorizationVersion || current.StartAfter != cursor.StartAfter || current.AccountingVersion != cursor.AccountingVersion ||
+				current.Revision > r.Session.Revision || meta.ValidateMQTTAccountingHead(current, r.Accounting) != nil {
+				return out, ErrEvidence
+			}
+			if r.Session.Revision != s.Revision || current != cursor {
+				if r.Session.Revision <= s.Revision || current.Revision < cursor.Revision || (current != cursor && current.Revision == cursor.Revision) ||
+					current.AccountedThrough != cursor.AccountedThrough || current.CompletedThrough < cursor.CompletedThrough || current.WindowThrough < cursor.WindowThrough {
+					return out, ErrEvidence
+				}
+				// Renewal, ACK or another bounded drain advanced valid evidence.
+				// Keep the frozen end and reread on a later turn before releasing.
+				return out, ErrSourceDrainPending
 			}
 			m.ReleasedMessages, m.ReleasedBytes = 0, 0
 			if r.Accounting != nil {

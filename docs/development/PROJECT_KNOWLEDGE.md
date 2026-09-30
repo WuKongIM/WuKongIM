@@ -1298,3 +1298,16 @@ specification, runbook, report, or module documentation; link to them when neede
   revision, with fresh same-Owner/full-child evidence and activation permission.
   Port errors/lost replies never retry; only exact Removed intent confirms a
   competing remover's completion. See [orchestration](../specs/mqtt-subscription-orchestration.md).
+
+- [MQTT in-flight churn](../specs/mqtt-churn-pressure.md) reproduced nested
+  confirmation receiver pressure after a newer anchor appeared between planning
+  reads. Direct and nested replica recovery both retain pending intent on typed
+  readiness/backpressure; cancellation takes precedence. A later turn rereads
+  authority and storage, while anchor/unknown failures grant no retry signal.
+
+- MQTT new-intent quota/proposal and group cursor Init contention is bounded to
+  three attempts. Only read-only newer parent evidence or definite CAS rejection
+  permits fresh same-Owner/exact-child checks; unknown outcomes stop. Cursor Init
+  retains the first durable protected boundary. SourceDrain validates a newer
+  coherent accounting snapshot before yielding, preserving its frozen end and
+  rejecting regression, foreign identity or corrupt charges.

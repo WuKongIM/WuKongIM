@@ -5032,3 +5032,26 @@ before churn, without capturing a new subscription error position.
 Temporary wrappers were built through a Go overlay outside the repository and
 are absent from the product source. Full scale acceptance, the remaining
 subscription conflicts/backpressure and fanout latency remain unresolved.
+
+## In-flight churn contention
+
+The new opt-in [in-flight probe](../specs/mqtt-churn-pressure.md) tightens the
+remaining failure loop by churning before initial delivery drains. It captures
+nested replica-recovery receiver pressure, quota-scan parent changes, rejected
+group cursor Init and valid newer accounting snapshots during drain. Repairs
+retain typed recovery pending, allow at most three preparation attempts after
+definite/read-only rejection under the exact original child/Owner, and yield
+before any stale drain mutation. Unknown errors and anchor outcomes never gain
+a retry signal. The first protected source boundary stays fixed.
+
+Seventy-six new route/preparation/drain cases include deterministic real renewal
+and ACK interleavings, unknown/lost replies, cancellation and corruption. Focused
+race checks pass in 8.173s; the full usecase race suite passes in 176.921s. The
+ordinary 2,000-member/twenty-message/500-connection probe passes 1,100 subscriptions,
+600 removals, 500 exact fresh receipts and every retirement with zero subscription
+closure observations. [Probe artifact](mqtt-churn-repairs-500.json),
+[failure locations, bounds and provenance](mqtt-recovery-yield-evidence.json).
+Isolated three-node 64-cold-admission and single-node/three-node app composition
+gates pass (93.186s and 38.161s); preceding parallel deadline failures remain
+recorded without a causal claim. Full 100,000-member acceptance remains pending
+at this stage; historical failures above remain evidence of earlier revisions.

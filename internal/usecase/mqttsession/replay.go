@@ -206,10 +206,16 @@ func (c *ReplayCoordinator) recover(ctx context.Context, source ch.MQTTReplayPla
 		return out, err
 	}
 	r, err := c.options.Channels.StepChannelMQTTReplayRecovery(ctx, q)
-	if err != nil {
-		return out, err
+	if stopped := ctx.Err(); stopped != nil {
+		return out, stopped
 	}
-	if err = ctx.Err(); err != nil {
+	if err != nil {
+		// Recovery admits no new anchor. Receiver pressure or checkpoint lag
+		// yields the pinned target; a later turn rereads authority and the store
+		// independently revalidates committed coverage, import and release.
+		if errors.Is(err, ch.ErrNotReady) || errors.Is(err, ch.ErrBackpressured) {
+			return out, errors.Join(ErrReplayPending, err)
+		}
 		return out, err
 	}
 	if !r.ValidFor(q) || (r.DonorAfter != 0 && !slices.ContainsFunc(out.Next.Targets, func(t ReplayTargetCursor) bool { return t.NodeID == r.DonorAfter })) {
