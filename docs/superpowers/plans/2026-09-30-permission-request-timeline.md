@@ -84,7 +84,7 @@ review found that the preexisting Router authority lookup used only its first
 item context; the new hot-lane merging exposes cross-caller deadline poisoning.
 Before repair, controlled integration checks reproduce a live peer losing its
 lookup and all item-only deadlines failing to stop lookup. Reuse the existing
-all-items context per canonical Channel, join its terminal watchers, and retain
+all-items context per canonical Channel, stop/release its terminal watcher registrations, and retain
 each expired caller's own deadline result. No new resolver or retry abstraction.
 
 Negative black-box receipt probes also reproduce loss of all timelines on the
