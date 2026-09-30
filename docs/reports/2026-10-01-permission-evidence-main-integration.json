@@ -1,0 +1,7 @@
+{
+  "kind": "unchanged historical main-integration evidence; no new qualification",
+  "bytes": 553514,
+  "sha256": "4b0c82f5195f77937f6697b17981e9c1e29576ff5d19af053e99e5e6bccb981c",
+  "original_source": "281fb8654e0547e8518643a32b928adbe415df40",
+  "scope": "Exact a991/3ef prior source; current ec sequential gates remain independent"
+}
