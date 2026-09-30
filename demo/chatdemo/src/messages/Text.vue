@@ -13,14 +13,5 @@ const props = defineProps<{
 </script>
 
 <style scoped>
-
- .text {
-    display: flex;
-    text-align: left;
-    font-size: 14px;
-    max-width: 250px;
-    word-break: break-all;
-    white-space: pre-wrap;
-}
-
+.text { text-align: left; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; white-space: pre-wrap; }
 </style>

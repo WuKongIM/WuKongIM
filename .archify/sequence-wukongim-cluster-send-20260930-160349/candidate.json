@@ -1,0 +1,499 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "WuKongIM 多节点协作：持久化发送与在线投递",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "output": ".archify/sequence-wukongim-cluster-send-20260930-160349/wukongim-cluster-send.html",
+    "repository": {
+      "url": "https://github.com/WuKongIM/WuKongIM.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "77c8c71dd394402035641d1c42faf164f3155f27"
+    }
+  },
+  "participants": [
+    {
+      "id": "sender",
+      "type": "frontend",
+      "label": "发送端",
+      "sublabel": "已认证连接",
+      "sources": [
+        {
+          "path": "internal/access/gateway/mapper.go",
+          "line": 18,
+          "end_line": 55,
+          "label": "SEND 映射"
+        },
+        {
+          "path": "internal/access/gateway/mapper.go",
+          "line": 72,
+          "end_line": 89,
+          "label": "SENDACK 回包"
+        }
+      ]
+    },
+    {
+      "id": "ingress",
+      "type": "backend",
+      "label": "节点 A",
+      "sublabel": "接入 Gateway",
+      "sources": [
+        {
+          "path": "internal/access/gateway/mapper.go",
+          "line": 18,
+          "end_line": 55,
+          "label": "发送方 Session 身份"
+        },
+        {
+          "path": "internal/usecase/message/send.go",
+          "line": 385,
+          "end_line": 419,
+          "label": "发送准入与写前准备"
+        },
+        {
+          "path": "internal/access/node/channel_append_rpc.go",
+          "line": 88,
+          "end_line": 140,
+          "label": "转发到 Channel Leader"
+        }
+      ]
+    },
+    {
+      "id": "slot",
+      "type": "security",
+      "label": "节点 B",
+      "sublabel": "Slot 权威",
+      "sources": [
+        {
+          "path": "pkg/slot/proxy/send_permission_rpc.go",
+          "line": 313,
+          "end_line": 336,
+          "label": "远端权限事实 RPC"
+        },
+        {
+          "path": "pkg/cluster/node_defaults.go",
+          "line": 517,
+          "end_line": 525,
+          "label": "Slot Channel 元数据读取"
+        },
+        {
+          "path": "internal/infra/cluster/presence.go",
+          "line": 359,
+          "end_line": 465,
+          "label": "按权威节点查询在线路由"
+        }
+      ]
+    },
+    {
+      "id": "leader",
+      "type": "backend",
+      "label": "节点 C",
+      "sublabel": "Channel Leader",
+      "sources": [
+        {
+          "path": "internal/runtime/channelappend/writer.go",
+          "line": 492,
+          "end_line": 576,
+          "label": "提交结果与派生效果分离"
+        },
+        {
+          "path": "internal/app/channel_append.go",
+          "line": 32,
+          "end_line": 57,
+          "label": "Slot 权威群成员分页"
+        },
+        {
+          "path": "internal/runtime/delivery/runtime.go",
+          "line": 514,
+          "end_line": 608,
+          "label": "在线路由与 Owner 分组推送"
+        }
+      ]
+    },
+    {
+      "id": "replica_d",
+      "type": "database",
+      "label": "节点 D",
+      "sublabel": "投票副本",
+      "sources": [
+        {
+          "path": "pkg/channel/replication/durability_dispatcher.go",
+          "line": 63,
+          "end_line": 116,
+          "label": "Quorum Replicate 请求与回执"
+        },
+        {
+          "path": "pkg/channel/replication/exchange_server.go",
+          "line": 143,
+          "end_line": 177,
+          "label": "副本 Sync 落盘后回执"
+        },
+        {
+          "path": "pkg/channel/replication/quorum_round_state.go",
+          "line": 214,
+          "end_line": 268,
+          "label": "本地耐久与不同副本法定人数"
+        }
+      ]
+    },
+    {
+      "id": "replica_e",
+      "type": "database",
+      "label": "节点 E",
+      "sublabel": "投票副本",
+      "sources": [
+        {
+          "path": "pkg/channel/replication/quorum_round_state.go",
+          "line": 58,
+          "end_line": 107,
+          "label": "首轮副本与延迟 Hedge"
+        },
+        {
+          "path": "pkg/channel/replication/quorum_round_state.go",
+          "line": 237,
+          "end_line": 268,
+          "label": "法定人数满足后后台副本收敛"
+        },
+        {
+          "path": "pkg/channel/replication/exchange_server.go",
+          "line": 65,
+          "end_line": 91,
+          "label": "前台与后台复制类别"
+        }
+      ]
+    },
+    {
+      "id": "owner",
+      "type": "cloud",
+      "label": "节点 F",
+      "sublabel": "连接 Owner",
+      "sources": [
+        {
+          "path": "internal/access/node/delivery_rpc.go",
+          "line": 48,
+          "end_line": 82,
+          "label": "远端 OwnerPush RPC"
+        },
+        {
+          "path": "internal/infra/delivery/local_session_writer.go",
+          "line": 55,
+          "end_line": 118,
+          "label": "精确 Session 校验与写入"
+        },
+        {
+          "path": "internal/runtime/delivery/runtime.go",
+          "line": 905,
+          "end_line": 921,
+          "label": "Owner 本地 RECVACK 状态"
+        }
+      ]
+    },
+    {
+      "id": "receiver",
+      "type": "frontend",
+      "label": "接收端",
+      "sublabel": "连接位于 F",
+      "sources": [
+        {
+          "path": "internal/infra/delivery/local_session_writer.go",
+          "line": 126,
+          "end_line": 149,
+          "label": "RECV 帧构造"
+        },
+        {
+          "path": "internal/access/gateway/handler.go",
+          "line": 431,
+          "end_line": 444,
+          "label": "接收端确认入口"
+        },
+        {
+          "path": "internal/access/node/presence_rpc.go",
+          "line": 626,
+          "end_line": 645,
+          "label": "在线 Session 注册与提交 RPC"
+        }
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "from": 148,
+      "to": 235,
+      "label": "① 前置：F 持有连接，B 管理在线路由"
+    },
+    {
+      "from": 252,
+      "to": 520,
+      "label": "② A → B → C：准入与权威路由"
+    },
+    {
+      "from": 532,
+      "to": 750,
+      "label": "③ C ↔ D/E：复制确认，再返回 SENDACK"
+    },
+    {
+      "from": 770,
+      "to": 1124,
+      "label": "④ C → B → F：异步投递，与 ACK 回传并行"
+    }
+  ],
+  "messages": [
+    {
+      "id": "presence-register",
+      "from": "owner",
+      "to": "slot",
+      "y": 168,
+      "label": "注册 / Commit 在线端点",
+      "variant": "security",
+      "note": "发送前已完成：UID → Owner F / Session / 身份 Fence"
+    },
+    {
+      "id": "presence-ready",
+      "from": "slot",
+      "to": "owner",
+      "y": 208,
+      "label": "在线路由已生效",
+      "variant": "return"
+    },
+    {
+      "id": "client-send",
+      "from": "sender",
+      "to": "ingress",
+      "y": 270,
+      "label": "SEND",
+      "variant": "emphasis",
+      "note": "携带 Channel、Payload、ClientMsgNo"
+    },
+    {
+      "id": "permission-read",
+      "from": "ingress",
+      "to": "slot",
+      "y": 314,
+      "label": "权限事实 RPC",
+      "variant": "security",
+      "note": "按相关 Slot Leader 批量读取，建立新鲜读屏障"
+    },
+    {
+      "id": "permission-facts",
+      "from": "slot",
+      "to": "ingress",
+      "y": 358,
+      "label": "权威权限事实",
+      "variant": "return",
+      "note": "节点 A 评估发送资格，按需执行目录与写前 Hook"
+    },
+    {
+      "id": "channel-meta-read",
+      "from": "ingress",
+      "to": "slot",
+      "y": 402,
+      "label": "Channel 元数据",
+      "variant": "default",
+      "note": "仅缓存未命中 / 权威失效时读取 Slot 权威"
+    },
+    {
+      "id": "channel-meta-result",
+      "from": "slot",
+      "to": "ingress",
+      "y": 446,
+      "label": "Leader C + Fence",
+      "variant": "return",
+      "note": "携带 Channel Epoch / LeaderEpoch / RouteGeneration"
+    },
+    {
+      "id": "forward-send",
+      "from": "ingress",
+      "to": "leader",
+      "y": 490,
+      "label": "准入通过：ForwardSendBatch RPC",
+      "variant": "emphasis",
+      "note": "C 校验本节点权威，按 Channel 排序与幂等处理"
+    },
+    {
+      "id": "replicate-d",
+      "from": "leader",
+      "to": "replica_d",
+      "y": 548,
+      "label": "Quorum Replicate",
+      "variant": "emphasis",
+      "note": "C 同时本地落盘；D 校验 Manifest / Fence 后落盘"
+    },
+    {
+      "id": "durable-d",
+      "from": "replica_d",
+      "to": "leader",
+      "y": 592,
+      "label": "durable 回执",
+      "variant": "return",
+      "note": "三投票副本示例：C 本地耐久 + D 耐久，满足 2/3"
+    },
+    {
+      "id": "replicate-e",
+      "from": "leader",
+      "to": "replica_e",
+      "y": 636,
+      "label": "后台副本复制",
+      "variant": "dashed",
+      "note": "本例 E 延后追赶；慢副本场景也可提前 Hedge"
+    },
+    {
+      "id": "send-result",
+      "from": "leader",
+      "to": "ingress",
+      "y": 680,
+      "label": "发送结果：ID / Seq / Reason",
+      "variant": "return",
+      "note": "满足本地耐久与法定人数即可返回；不等待 E 全部追平"
+    },
+    {
+      "id": "client-sendack",
+      "from": "ingress",
+      "to": "sender",
+      "y": 724,
+      "label": "SENDACK",
+      "variant": "return",
+      "note": "不等待接收方 RECVACK"
+    },
+    {
+      "id": "subscriber-page",
+      "from": "leader",
+      "to": "slot",
+      "y": 786,
+      "label": "群成员分页 RPC",
+      "variant": "dashed",
+      "note": "提交后且 delivery.enabled：群成员分页；单聊直接解析双方"
+    },
+    {
+      "id": "subscriber-results",
+      "from": "slot",
+      "to": "leader",
+      "y": 830,
+      "label": "一页接收人 UID",
+      "variant": "return"
+    },
+    {
+      "id": "presence-lookup",
+      "from": "leader",
+      "to": "slot",
+      "y": 874,
+      "label": "Presence 批量 RPC",
+      "variant": "dashed",
+      "note": "按各 UID 的 Slot 权威分组；携带完整路由 Fence"
+    },
+    {
+      "id": "presence-routes",
+      "from": "slot",
+      "to": "leader",
+      "y": 918,
+      "label": "在线 Owner / Session",
+      "variant": "return",
+      "note": "本例目标在 F；若分散在多个 Owner，C 分组并行推送"
+    },
+    {
+      "id": "owner-push",
+      "from": "leader",
+      "to": "owner",
+      "y": 962,
+      "label": "OwnerPush RPC：消息 + 精确会话",
+      "variant": "dashed",
+      "note": "仅启用在线投递；有界批次与重试，跳过发送方原 Session"
+    },
+    {
+      "id": "client-recv",
+      "from": "owner",
+      "to": "receiver",
+      "y": 1006,
+      "label": "RECV",
+      "variant": "emphasis",
+      "note": "F 校验 Owner / UID / Session，预留 ACK 后写真实连接"
+    },
+    {
+      "id": "owner-push-result",
+      "from": "owner",
+      "to": "leader",
+      "y": 1050,
+      "label": "推送结果：Accepted / Retryable / Dropped",
+      "variant": "return",
+      "note": "这是 Owner 的写入结果，独立于接收端的 RECVACK"
+    },
+    {
+      "id": "client-recvack",
+      "from": "receiver",
+      "to": "owner",
+      "y": 1094,
+      "label": "RECVACK",
+      "variant": "return",
+      "note": "F 清理匹配的待确认状态，无需回传到 A 或 Channel Leader"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "ingress",
+      "from": 270,
+      "to": 735,
+      "type": "backend"
+    },
+    {
+      "participant": "leader",
+      "from": 490,
+      "to": 692,
+      "type": "backend"
+    },
+    {
+      "participant": "leader",
+      "from": 786,
+      "to": 1062,
+      "type": "messagebus"
+    },
+    {
+      "participant": "replica_d",
+      "from": 548,
+      "to": 605,
+      "type": "database"
+    },
+    {
+      "participant": "replica_e",
+      "from": 636,
+      "to": 698,
+      "type": "database"
+    },
+    {
+      "participant": "owner",
+      "from": 962,
+      "to": 1110,
+      "type": "cloud"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "六个节点，职责按对象分布",
+      "items": [
+        "A～F 是示例节点身份，不是固定机器分工。相同物理节点可同时承载 Gateway、Slot Leader、Channel Leader、副本和连接 Owner。",
+        "默认按 256 个 Hash Slots 路由到配置的物理 Slot；图中相关元数据和 UID 权威集中画在 B，实际可分布在多个 Slot Leader。",
+        "Slot 权威维护策略、Channel 元数据与在线路由；Channel Leader 执行消息复制和投递派生，连接 Owner 持有真实客户端连接。"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "复制与确认的边界",
+      "items": [
+        "示例 Channel 的投票副本为 C、D、E；成功须 C 本地耐久并有不同投票副本达到法定人数。本例由 C+D 达到 2/3。",
+        "E 的后台复制不阻塞 SENDACK；若首选副本迟缓，可 Hedge 或切换剩余副本，不能用期望副本数代替耐久证据。",
+        "SENDACK 回传链为 C→A→发送端；RECVACK 确认链为接收端→F，两条链相互独立。"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "并发投递与失败处理",
+      "items": [
+        "图中按两条链展开：持久化确认后的投递派生可以与结果回传同时进行，不要求 SENDACK 先于 RECV。",
+        "大群按页扫描接收人，在线端点按 Slot 权威批量查询，再按 Owner 分组、有界并发投递；离线用户仅触发已配置的 Durable 离线观察。",
+        "权威变化时重新解析并有界重试；会话已变化或失效时，Owner 只对精确会话报告 Retryable / Dropped。",
+        "本图展示持久化路径；NoPersist 跳过消息日志复制，在线计划入队成功后返回 seq=0，不产生离线事件。"
+      ]
+    }
+  ]
+}

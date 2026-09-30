@@ -1,0 +1,40 @@
+{
+  "diagram_type": "sequence",
+  "title": "WuKongIM 多节点协作：持久化发送与在线投递",
+  "repository_revision": "77c8c71dd394402035641d1c42faf164f3155f27",
+  "scope": "示例节点 A～F，三投票副本 C/D/E，启用在线投递的持久化发送路径。",
+  "specification": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/sequence-wukongim-cluster-send-20260930-160349/candidate.json",
+    "sha256": "cb4fba4bad40cf1625a284a11b2202d98cd89b71b81aa923ea7b7ea3a964bcf8",
+    "bytes": 13914
+  },
+  "artifact": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/sequence-wukongim-cluster-send-20260930-160349/wukongim-cluster-send.html",
+    "sha256": "2b2feb370989019e8c223f47af2c61b14b8a4c9eee17d78f2c86eb33d41c0b1a",
+    "bytes": 778628
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "finalize_receipt": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/sequence-wukongim-cluster-send-20260930-160349/wukongim-cluster-send.finalize-summary.json",
+  "browser_evidence": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/sequence-wukongim-cluster-send-20260930-160349/wukongim-cluster-send.browser-check.json",
+  "visual_review": {
+    "status": "pass",
+    "reviewer": "Codex",
+    "inspected_screenshots": [
+      "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/sequence-wukongim-cluster-send-20260930-160349/visual-check/wukongim-cluster-send.visual-check.1440x900.dark.png",
+      "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/sequence-wukongim-cluster-send-20260930-160349/visual-check/wukongim-cluster-send.visual-check.1440x900.light.png",
+      "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/sequence-wukongim-cluster-send-20260930-160349/visual-check/wukongim-cluster-send.visual-check.2048x1320.dark.png",
+      "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/sequence-wukongim-cluster-send-20260930-160349/visual-check/wukongim-cluster-send.visual-check.2048x1320.light.png"
+    ],
+    "observations": [
+      "深浅主题和两个桌面尺寸均已检查。",
+      "主图的节点、消息箭头和标签未见重叠或横向溢出。",
+      "1440×900 使用页面纵向滚动；2048×1320 展示完整主图。",
+      "消息补充条件可在交互详情查看，说明卡位于主图下方。"
+    ]
+  }
+}

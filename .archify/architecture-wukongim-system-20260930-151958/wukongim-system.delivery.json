@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "7df5f7cf-7c4b-4fc7-80d7-ccfbf8ca281f",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/architecture-wukongim-system-20260930-151958/candidate.json",
+  "output": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/architecture-wukongim-system-20260930-151958/wukongim-system.html",
+  "specification": {
+    "sha256": "daffbefb5d130a82b47ddc20bce39ea3a66912adea45b92bb89e1f25e3e546dd",
+    "bytes": 14320
+  },
+  "artifact": {
+    "sha256": "33904bd85246976fdb66d1d16c99541489f942714446deabcb05205c4c091772",
+    "bytes": 785370
+  }
+}

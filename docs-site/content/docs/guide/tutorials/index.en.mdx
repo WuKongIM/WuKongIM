@@ -14,6 +14,7 @@ Scenario tutorials begin with a product outcome and connect the product service,
   <Card title="Groups & Large Groups" description="Connect group membership, group messages, churn, and 100,000-member capacity boundaries." href="/en/guide/tutorials/large-groups" />
   <Card title="Message Push" description="Build recoverable notifications with offline webhooks, a product outbox, and providers." href="/en/guide/tutorials/push" />
   <Card title="AI & IoT Communication" description="Combine AI stream projections, telemetry, durable commands, and business receipts." href="/en/guide/tutorials/ai-and-iot" />
+  <Card title="Agent Streaming Replies" description="Build live streaming chat with EasySDK and a real model, including cancellation, failure, and reconnect recovery." href="/en/sdk/easy/agent-streaming" />
 </Cards>
 
 ## Choose a path
@@ -24,7 +25,7 @@ Scenario tutorials begin with a product outcome and connect the product service,
 | Ordinary group chat | [Groups & Large Groups](/en/guide/tutorials/large-groups) | The product owns group lifecycle and membership; WuKongIM owns the message log |
 | A 100,000-member community or room | [Groups & Large Groups](/en/guide/tutorials/large-groups#scale-to-100000-members) | Batched reconciliation, paged post-commit fanout, and hotspot capacity testing |
 | Offline mobile notification | [Message Push](/en/guide/tutorials/push) | The webhook produces candidates; the product outbox and provider receipts own reliability |
-| Streaming AI answer | [AI & IoT Communication](/en/guide/tutorials/ai-and-iot#ai-create-a-durable-stream-anchor) | Commit the base first, persist terminal projection, and keep live token streaming product-owned |
+| Streaming AI answer | [Agent Streaming Replies](/en/sdk/easy/agent-streaming) | Commit the base, update through SDK events, and recover offline from terminal snapshots |
 | Device telemetry and control | [AI & IoT Communication](/en/guide/tutorials/ai-and-iot#iot-send-bounded-telemetry) | A command-sync cursor is not proof of business execution |
 
 ## Shared success model

@@ -37,6 +37,11 @@ type Options struct {
 	Memberships SyncMembershipStore
 	// ChannelState rejects terminally disbanded channels during ordinary pulls.
 	ChannelState SyncChannelStateStore
+	// EventNotifications and EventSubscribers deliver accepted public stream events.
+	EventNotifications EventNotificationSender
+	EventSubscribers   UpdateSubscribers
+	// EventNotificationResult observes incomplete fanout without publishing identities.
+	EventNotificationResult func(error)
 	// EventStore owns durable message event projection reads and writes.
 	EventStore MessageEventStore
 	// PermissionStore provides authoritative membership and channel reads for send authorization.
@@ -76,16 +81,21 @@ type App struct {
 	updateSubscribers  UpdateSubscribers
 	updateCommitted    func(metadb.MessageUpdate)
 	// commandChannels applies the deployment suffix without process-global state.
-	commandChannels runtimechannelid.CommandCodec
-	submitter       Submitter
-	batchAdmission  BatchAdmission
-	reader          ChannelMessageReader
-	persistedReader ChannelMessageBatchReader
-	lookupReader    CommittedMessageReader
-	memberships     SyncMembershipStore
-	channelState    SyncChannelStateStore
-	eventStore      MessageEventStore
-	permissions     PermissionStore
+	commandChannels         runtimechannelid.CommandCodec
+	submitter               Submitter
+	batchAdmission          BatchAdmission
+	reader                  ChannelMessageReader
+	persistedReader         ChannelMessageBatchReader
+	lookupReader            CommittedMessageReader
+	memberships             SyncMembershipStore
+	channelState            SyncChannelStateStore
+	eventStore              MessageEventStore
+	eventNotifications      EventNotificationSender
+	eventSubscribers        UpdateSubscribers
+	eventNotificationResult func(error)
+	// eventNotificationSlots caps active request-owned fanouts; there is no waiting queue.
+	eventNotificationSlots chan struct{}
+	permissions            PermissionStore
 	// permissionBatch performs one authoritative, batch-scoped metadata read
 	// including mandatory policies regardless of the auxiliary cache TTL.
 	permissionBatch PermissionBatchStore
@@ -113,27 +123,31 @@ func New(opts Options) *App {
 		updates:            opts.Updates,
 		contentEpoch:       opts.ContentEpoch,
 		updateHints:        opts.UpdateHints, updateSubscribers: opts.UpdateSubscribers,
-		updateCommitted:        opts.UpdateCommitted,
-		commandChannels:        runtimechannelid.CommandCodec{Suffix: opts.CommandChannelSuffix},
-		submitter:              opts.Submitter,
-		batchAdmission:         opts.BatchAdmission,
-		reader:                 opts.Reader,
-		persistedReader:        opts.PersistedReader,
-		lookupReader:           opts.LookupReader,
-		memberships:            opts.Memberships,
-		channelState:           opts.ChannelState,
-		eventStore:             opts.EventStore,
-		permissions:            permissions,
-		permissionBatch:        permissionBatch,
-		permissionAuthority:    opts.PermissionStore,
-		personDirectory:        opts.PersonDirectory,
-		sendHook:               opts.SendHook,
-		beforeSendWebhook:      opts.BeforeSendWebhook,
-		systemUIDs:             opts.SystemUIDs,
-		personWhitelistEnabled: opts.PersonWhitelistEnabled,
-		systemDeviceID:         opts.SystemDeviceID,
-		now:                    opts.Now,
-		sendBatchObserver:      opts.SendBatchObserver,
+		updateCommitted:         opts.UpdateCommitted,
+		commandChannels:         runtimechannelid.CommandCodec{Suffix: opts.CommandChannelSuffix},
+		submitter:               opts.Submitter,
+		batchAdmission:          opts.BatchAdmission,
+		reader:                  opts.Reader,
+		persistedReader:         opts.PersistedReader,
+		lookupReader:            opts.LookupReader,
+		memberships:             opts.Memberships,
+		channelState:            opts.ChannelState,
+		eventStore:              opts.EventStore,
+		eventNotifications:      opts.EventNotifications,
+		eventSubscribers:        opts.EventSubscribers,
+		eventNotificationResult: opts.EventNotificationResult,
+		eventNotificationSlots:  make(chan struct{}, 4),
+		permissions:             permissions,
+		permissionBatch:         permissionBatch,
+		permissionAuthority:     opts.PermissionStore,
+		personDirectory:         opts.PersonDirectory,
+		sendHook:                opts.SendHook,
+		beforeSendWebhook:       opts.BeforeSendWebhook,
+		systemUIDs:              opts.SystemUIDs,
+		personWhitelistEnabled:  opts.PersonWhitelistEnabled,
+		systemDeviceID:          opts.SystemDeviceID,
+		now:                     opts.Now,
+		sendBatchObserver:       opts.SendBatchObserver,
 	}
 }
 

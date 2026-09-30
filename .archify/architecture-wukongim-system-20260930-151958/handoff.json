@@ -1,0 +1,60 @@
+{
+  "diagram_type": "architecture",
+  "output": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/architecture-wukongim-system-20260930-151958/wukongim-system.html",
+  "repository_revision": "77c8c71dd394402035641d1c42faf164f3155f27",
+  "specification": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/architecture-wukongim-system-20260930-151958/candidate.json",
+    "sha256": "daffbefb5d130a82b47ddc20bce39ea3a66912adea45b92bb89e1f25e3e546dd",
+    "bytes": 14320
+  },
+  "artifact": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/architecture-wukongim-system-20260930-151958/wukongim-system.html",
+    "sha256": "33904bd85246976fdb66d1d16c99541489f942714446deabcb05205c4c091772",
+    "bytes": 785370
+  },
+  "validation": {
+    "status": "passed",
+    "gates": {
+      "validate": "pass",
+      "deliver": "pass",
+      "check": "pass",
+      "browser-check": "pass"
+    },
+    "errors": 0,
+    "warnings": 0
+  },
+  "browser_evidence": "passed",
+  "visual_review": {
+    "status": "passed",
+    "reviewer": "Codex image inspection",
+    "viewports": [
+      [
+        1440,
+        900
+      ],
+      [
+        2048,
+        1320
+      ]
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "scope": "Default READ diagram, component text, arrow directions, route labels, crossover bridges, storage boundary, legend and viewer controls.",
+    "notes": [
+      "All diagram components and route labels remain visible.",
+      "Four crossover bridges preserve separate route identities.",
+      "The 1440x900 view uses page-level vertical scrolling as accepted by the browser gate."
+    ],
+    "correction_rounds": 1,
+    "placement_result": "The alternate placement failed its boundary check; the original passing placement was restored and finalized."
+  },
+  "evidence": {
+    "finalize": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/architecture-wukongim-system-20260930-151958/review-3/wukongim-system.finalize.json",
+    "summary": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/architecture-wukongim-system-20260930-151958/review-3/wukongim-system.finalize-summary.json",
+    "browser": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/architecture-wukongim-system-20260930-151958/review-3/wukongim-system.browser-check.json",
+    "captures": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/architecture-wukongim-system-20260930-151958/visual-check/wukongim-system.visual-check.json"
+  },
+  "workspace_scope": "Read-only repository analysis; generated artifacts are kept under .archify without changes to repository source."
+}

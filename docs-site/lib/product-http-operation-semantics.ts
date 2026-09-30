@@ -212,8 +212,12 @@ export const productHTTPOperationSemantics = {
   },
   'POST /message/event': {
     scope: text(
-      'visibility 作为事件元数据保存；普通消息同步不会用它做访问控制过滤；eventsync 按 include_private 筛选，但不验证调用方权限。',
-      'visibility is stored as event metadata; ordinary message synchronization does not use it as an access-control filter; eventsync filters by include_private without checking caller permissions.',
+      '要求已提交且身份匹配的持久流式基础消息；公开事件尽力投递到在线 Session，private/restricted 不广播。普通消息同步不按 visibility 做访问控制；只能由受信后端授权并筛选。',
+      'Requires a committed persistent stream base with matching identity. Public events are delivered best effort to online Sessions; private/restricted events are not broadcast. Ordinary message sync does not enforce visibility access control; a trusted backend must authorize and filter.',
+    ),
+    success: text(
+      '成功只确认投影接受，不保证在线展示；终态完整 snapshot 与离线消息同步负责恢复。结果未知时重试完全相同的 event_id 与 Payload。',
+      'Success confirms projection acceptance, not online display. Complete terminal snapshots and offline message sync provide recovery. Retry an uncertain write with the exact same event_id and payload.',
     ),
   },
   'POST /channel/messagesync': {

@@ -129,6 +129,8 @@ const (
 	RPCMessageUpdateHint
 	// RPCNodeSendPermissions multiplexes authoritative Slot permission reads per node.
 	RPCNodeSendPermissions
+	// RPCMessageEventDelivery delivers accepted stream events to exact owner sessions.
+	RPCMessageEventDelivery
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -255,6 +257,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "node send permissions"
 	case RPCMessageUpdateHint:
 		return "message update hint"
+	case RPCMessageEventDelivery:
+		return "message event delivery"
 	default:
 		return "unknown service"
 	}

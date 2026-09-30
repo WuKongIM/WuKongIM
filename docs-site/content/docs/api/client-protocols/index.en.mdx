@@ -19,9 +19,9 @@ Clients establish long-lived connections through Gateway TCP or WebSocket listen
 
 ## Current boundary
 
-- The public core contains only CONNECT/CONNACK, SEND/SENDACK, RECV/RECVACK, and PING/PONG.
+- The public core contains CONNECT/CONNACK, SEND/SENDACK, RECV/RECVACK, PING/PONG, and outbound server stream.* EVENT.
 - `DISCONNECT`, `SUB`, and `SUBACK` are currently codec contracts, not published product Gateway entry points.
-- The current product Gateway reserves `EVENT` only for benchmark terminal-fence request and acknowledgement; it is not an application event API.
+- The server can deliver public streaming message events through `EVENT`. Arbitrary client EVENT ingress remains unsupported; ingress accepts only benchmark terminal-fence tooling requests.
 - WebSocket can carry WKProto bytes. The JSON-RPC bridge supports the pinned EasySDK core online path; the matrix marks every other method experimental or missing.
 
 See [Shared Dictionaries](/en/api/dictionaries) for numeric meanings and [Authentication & Security](/en/api/authentication) for the production trust boundary.

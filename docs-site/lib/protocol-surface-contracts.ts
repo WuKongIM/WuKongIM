@@ -157,7 +157,7 @@ export const wkprotoWirePackets: readonly WKProtoWirePacket[] = [
     field('action', 'u8'),
     field('reason_code', 'u8'),
   ]),
-  packet(12, 'EVENT', 'bidirectional', 'tooling-only', [
+  packet(12, 'EVENT', 'bidirectional', 'public-core', [
     field('id', 'str16be'),
     field('type', 'str16be'),
     field('timestamp', 'i64be'),
@@ -206,7 +206,7 @@ export const jsonRPCOutboundSurface: readonly JSONRPCOutboundSurface[] = [
   { frame: 'SENDACK', shape: 'correlated send result or error', productBoundary: 'reachable on an authenticated JSON-RPC session' },
   { frame: 'SUBACK', shape: 'correlated subscription result or error', productBoundary: 'codec mapping only; the product Gateway rejects inbound SUB frames' },
   { frame: 'RECV', shape: 'recv notification with header object and object payload', productBoundary: 'online delivery only; offline sync is outside EasySDK' },
-  { frame: 'EVENT', shape: 'event notification', productBoundary: 'tooling-only EVENT scope' },
+  { frame: 'EVENT', shape: 'event notification', productBoundary: 'server-to-client public stream.* delivery; arbitrary client EVENT ingress remains unsupported' },
   { frame: 'DISCONNECT', shape: 'disconnect notification', productBoundary: 'no published product emission contract' },
   {
     frame: 'PONG',
