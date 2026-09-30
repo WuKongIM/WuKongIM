@@ -97,8 +97,8 @@ Counter deltas include all related work in their public scope; do not interpret
 aggregate Slot groups as only the mandatory policy reads or claim timing gates.
 
 The `.network-admission.json` companion uses two voters per Slot, verifies
-owner/non-replica placement, stops the other voter, and gates 192 HTTP SENDs.
-Require remote envelopes, owner admission-busy evidence, at most 64 sampled
+owner/non-replica placement, stops the other voter, and paces 192 HTTP SENDs 5 ms apart beyond the cohort collection window.
+Require remote envelopes, positive receiver or ingress-cohort admission-busy evidence, at most 64 sampled
 executing envelopes, drain to zero, all 503/zero identifiers and exact recovery
 history. This topology is a controlled quorum-loss fault, not an HA claim.
 
@@ -136,3 +136,9 @@ resource cuts and diagnostic limits remain the same; capacity gates are unchange
 Fixed old/new comparison windows also sample the ingress ownership gauges every
 20 ms (at most 200 samples, canceled/joined). Missing old metrics remain absent;
 sampled peaks are lower bounds, and scrape overhead belongs to both comparisons.
+
+The quorum-loss admission companion keeps 192 failed-closed sends but separates
+arrivals by 5 ms so sealed cohorts actually accumulate. Require positive receiver
+or ingress-cohort busy, record both scopes separately, sample both hard ownership
+bounds and drain to zero, then verify exact complete recovery history. This fault
+fixture never changes the 500 SEND/s performance gates.

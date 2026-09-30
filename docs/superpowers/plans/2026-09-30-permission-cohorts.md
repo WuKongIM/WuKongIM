@@ -59,3 +59,19 @@ leader-transfer, parallel and overload/recovery E2E scenarios remain mandatory.
 Fixed old/new comparison windows also sample the ingress ownership gauges every
 20 ms (at most 200 samples, canceled/joined). Missing old metrics remain absent;
 sampled peaks are lower bounds, and scrape overhead belongs to both comparisons.
+
+The original 192 simultaneous identical-request overload fixture failed its
+positive-busy assertion on the candidate: cohorts reduced the work below receiver
+saturation. Keep all 192 requests and failure/history assertions, but release
+arrivals 5 ms apart so new cohorts accumulate behind the unavailable quorum.
+Require positive typed domain backpressure from receiver admission or the new
+ingress cohort admission, recording both separately. Observe and drain both
+ownership domains; no 500 SEND/s qualification workload/threshold changes.
+
+The named go-vet check also exposed a pre-existing slab test that copied
+sync.Pool through range iteration; the exact frozen baseline reproduces it.
+Use index/pointer iteration in that existing test to keep the required gate
+meaningful. No transport product behavior changes. Full go-unit initially also
+failed the new exported-metric dashboard contract; add explicit count/credit
+operator panels. Alibaba SDK fake-loopback tests passed with proxy variables
+cleared for the child test process, without changing SDK or test semantics.

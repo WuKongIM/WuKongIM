@@ -121,6 +121,11 @@ func TestSendPermissionCohorts(t *testing.T) {
 					want = context.Canceled
 				}
 				require.ErrorIs(t, out[0].Err, want)
+				s.permissionCohortMu.Lock()
+				ownedCalls, ownedBytes := s.permissionCohortRequests, s.permissionCohortBytes
+				s.permissionCohortMu.Unlock()
+				require.Equal(t, 2, ownedCalls, "canceled caller must remain charged while shared work is blocked")
+				require.Greater(t, ownedBytes, 2*1024, "both retained requests keep their memory credits")
 				select {
 				case <-long:
 					t.Fatal("one caller poisoned the other")

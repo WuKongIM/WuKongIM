@@ -104,3 +104,9 @@ sequential counts, independently drained public cohort ownership metrics,
 completed ban/unban controls and exact full history. Historical baseline mode
 remains executable with its frozen old binary. Source/build identity, whole-node
 resource cuts and diagnostic limits remain the same; capacity gates are unchanged.
+
+The quorum-loss admission companion keeps 192 failed-closed sends but separates
+arrivals by 5 ms so sealed cohorts actually accumulate. Require positive receiver
+or ingress-cohort busy, record both scopes separately, sample both hard ownership
+bounds and drain to zero, then verify exact complete recovery history. This fault
+fixture never changes the 500 SEND/s performance gates.
