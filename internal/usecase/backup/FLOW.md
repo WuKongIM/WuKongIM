@@ -33,6 +33,9 @@ It does not own entry protocols, concrete repositories, or cluster transport.
 3. Restore fully verifies an archive, enters maintenance, stages and verifies
    every current replica, switches only after all Slots pass, and shares one
    durable rollback path for cancellation, timeout, or failure.
+   Admission rereads the unchanged plan and complete unexpired archive lease,
+   then atomically publishes ActiveRestore and consumes that exact lease.
+   Known admission needs no later cleanup; unknown writes remain unknown.
 
 ## Invariants and Failure Semantics
 
@@ -44,6 +47,9 @@ It does not own entry protocols, concrete repositories, or cluster transport.
   the single durable active job and unfinished attempts.
 - Dashboard and errors are bounded and secret-safe. Blank replacement secrets
   preserve credentials only for the unchanged object provider.
+- Failed restore admission releases only unchanged captured lease authority.
+  A secondary cleanup failure preserves the primary error classification and
+  never turns an unknown admission into definite conflict/retry proof.
 - Restore success increments `manager_session_epoch` while preserving restored
   client authentication tokens.
 

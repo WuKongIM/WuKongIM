@@ -857,6 +857,12 @@ specification, runbook, report, or module documentation; link to them when neede
   schedulable. `COMPLETE` publishes an archive. Restore is a same-identity,
   whole-cluster maintenance operation requiring all current replicas to stage and
   verify data before activation. See [backup and restore](BACKUP_AND_RESTORE.md).
+- Restore admission consumes its complete unchanged, unexpired archive lease in
+  the same Controller CAS that publishes ActiveRestore. The active job protects
+  its source archive through the existing in-use gate. Failed admission cleans
+  up only unchanged captured lease authority; a secondary cleanup failure cannot
+  turn an unknown commit into a definite conflict or mutation-retry permission.
+  See [response contract](../specs/restore-admission-response.md).
 - `DATA-FORMAT.json` identifies immutable node-root format and creator provenance;
   it does not certify all proposal/RPC capabilities. Format-changing features need
   matching runtimes and feature-specific deployment checks. Where required,

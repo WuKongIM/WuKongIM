@@ -17,3 +17,12 @@ Reusable public backup client support belongs in `test/e2e/suite`. Reports must
 contain bounded public assertions/counts without credentials or payloads.
 
 Run: `WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-restore-reports GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/restore -count=1 -timeout=25m -v`
+
+The opt-in unavailable-cleanup case uses a temporary backup gofail build. Enable
+the inert archive-lease release failure after backup, preserve an erroneous
+restore response, and observe public ActiveRestore without retrying a mutation.
+Successful admission must consume its exact lease atomically: the old cleanup
+fault stays uncalled while both restore/MQTT cycles complete. Controlled failure
+proves this response contract, not the cause of earlier unobserved HTTP 503s.
+Build with `scripts/build-gofail-binary.sh --package internal/usecase/backup`;
+run with `WK_E2E_GOFAIL_MQTT=1` and the explicit binary/report paths.

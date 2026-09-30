@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Admit restores and release their exact archive lease in one transaction, so later cleanup cannot report a confirmed job as failed. Preserve unknown commit outcomes and foreign lease authority. / 恢复任务准入与其归档租约释放合并为一次事务，避免后续清理把已提交任务误报为失败；未知提交仍保持未知，不清除其他操作的租约。
+
 - Reduce first MQTT group subscription waits by retaining completed preparation within one request, using its fresh replay plan for one fenced copy/anchor, and confirming replicas through a bounded joined cohort. Every replica and final authority remain required within the existing packet deadline. / 首次 MQTT 群订阅在同一请求内复用已完成的准备，使用本轮新规划进行一次受栅栏保护的复制与 anchor 提交，并有界并发确认副本；仍要求全部副本和最终权威确认，保持既有报文期限。
 
 - MQTT automatically reactivates after backup restore without a process restart, using fresh Owner registries and workers while preserving persistent subscriptions and unfinished QoS 1 exchanges. Maintenance keeps connections fenced and old callbacks bound to their original runtime. / MQTT 备份恢复后可自动重新启用，无需重启进程；重建 Owner 注册表和工作器，保留持久订阅及未完成 QoS 1 交换，恢复期间关闭连接准入，旧回调仍绑定原运行时。

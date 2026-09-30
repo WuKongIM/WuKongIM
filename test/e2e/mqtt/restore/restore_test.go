@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,21 +24,39 @@ import (
 // process across two restore boundaries, including an exchange saved in flight.
 func TestRestoreReactivatesPersistentMQTTWithoutProcessRestart(t *testing.T) {
 	for _, count := range []int{1, 3} {
-		t.Run(fmt.Sprintf("%d-node-cluster", count), func(t *testing.T) { testRestoreReactivation(t, count) })
+		t.Run(fmt.Sprintf("%d-node-cluster", count), func(t *testing.T) { testRestoreReactivation(t, count, false) })
 	}
 }
 
-func testRestoreReactivation(t *testing.T, count int) {
+const releaseFault = "wkRestoreArchiveLeaseReleaseUnavailable"
+
+// A positive job receipt cannot depend on another lease-cleanup transaction.
+// Both restore cycles must finish while that old cleanup path is unavailable.
+func TestRestoreAdmissionSurvivesUnavailableArchiveLeaseCleanup(t *testing.T) {
+	if os.Getenv("WK_E2E_GOFAIL_MQTT") != "1" {
+		t.Skip("requires a temporary backup gofail product binary")
+	}
+	for _, count := range []int{1, 3} {
+		t.Run(fmt.Sprintf("%d-node-cluster", count), func(t *testing.T) { testRestoreReactivation(t, count, true) })
+	}
+}
+
+func testRestoreReactivation(t *testing.T, count int, unavailableCleanup bool) {
 	const username, password = "mqtt-restore-admin", "mqtt-restore-password"
 	users, err := json.Marshal([]map[string]any{{"username": username, "password": password, "permissions": []map[string]any{{"resource": "cluster.backup", "actions": []string{"r", "w"}}, {"resource": "cluster.restore", "actions": []string{"w"}}}}})
 	require.NoError(t, err)
 	addrs := make([]string, count)
+	faults := make([]suite.GofailEndpoint, count)
 	opts := []suite.Option{suite.WithManagerHTTP(), suite.WithSharedBackupRepository()}
 	if reportRoot := os.Getenv("WK_E2E_MQTT_REPORT_DIR"); reportRoot != "" {
-		opts = append(opts, suite.WithNodeLogRootDir(filepath.Join(reportRoot, fmt.Sprintf("%d-node-logs", count))))
+		opts = append(opts, suite.WithNodeLogRootDir(filepath.Join(reportRoot, fmt.Sprintf("%d-node-logs", count))), suite.WithWorkspaceRootDir(filepath.Join(reportRoot, "workspaces")))
 	}
 	for i := range count {
 		addrs[i] = suite.ReserveLoopbackPorts(t).GatewayAddr
+		if unavailableCleanup {
+			faults[i] = suite.ReserveGofailEndpoint(t)
+			opts = append(opts, suite.WithNodeEnv(uint64(i+1), faults[i].Env()))
+		}
 		opts = append(opts, suite.WithNodeConfigOverrides(uint64(i+1), map[string]string{"WK_CLUSTER_HASH_SLOT_COUNT": "256", "WK_GATEWAY_TOKEN_AUTH_ON": "true", "WK_MQTT_ENABLE": "true", "WK_MQTT_LISTEN_ADDR": addrs[i], "WK_MANAGER_AUTH_ON": "true", "WK_MANAGER_JWT_SECRET": "mqtt-restore-jwt-secret", "WK_MANAGER_USERS": string(users)}))
 	}
 	s := suite.New(t)
@@ -67,12 +86,22 @@ func testRestoreReactivation(t *testing.T, count int) {
 	defer cancel()
 	phase := "provision"
 	cycles, refusals := 0, 0
+	failedResponseAdmitted, releaseFaultHits := false, 0
+	failedResponseStatus := 0
 	reportDir := os.Getenv("WK_E2E_MQTT_REPORT_DIR")
 	if reportDir == "" {
 		reportDir = n.Spec.RootDir
 	}
 	defer func() {
 		report := map[string]any{"scenario": "mqtt-restore-reactivation", "nodes": count, "hash_slots": 256, "passed": !t.Failed(), "last_phase": phase, "restore_cycles": cycles, "maintenance_refusals": refusals, "process_restarts": 0}
+		if unavailableCleanup {
+			report["scenario"] = "restore-admission-with-unavailable-archive-cleanup"
+			report["lease_cleanup_fault_enabled"] = true
+			report["lease_cleanup_fault_hits"] = releaseFaultHits
+			report["failed_response_restore_observed"] = failedResponseAdmitted
+			report["failed_response_http_status"] = failedResponseStatus
+			report["restore_mutation_retries"] = 0
+		}
 		if !t.Failed() {
 			for _, assertion := range []string{"session_present", "packet_id_preserved", "dup_on_resume", "original_identity_preserved", "old_connection_closed", "post_backup_state_removed", "fresh_delivery_once"} {
 				report[assertion] = true
@@ -82,7 +111,11 @@ func testRestoreReactivation(t *testing.T, count int) {
 		data, e := json.MarshalIndent(report, "", "  ")
 		require.NoError(t, e)
 		require.NoError(t, os.MkdirAll(reportDir, 0755))
-		path := filepath.Join(reportDir, fmt.Sprintf("mqtt-restore-reactivation-%d.json", count))
+		name := "mqtt-restore-reactivation"
+		if unavailableCleanup {
+			name = "restore-admission-unavailable-cleanup"
+		}
+		path := filepath.Join(reportDir, fmt.Sprintf("%s-%d.json", name, count))
 		require.NoError(t, os.WriteFile(path, append(data, '\n'), 0600))
 		t.Logf("result artifact: %s", path)
 	}()
@@ -165,6 +198,17 @@ func testRestoreReactivation(t *testing.T, count int) {
 	})
 	t.Log("backup published")
 	archive := d.Archives[0].ID
+	if unavailableCleanup {
+		for _, fault := range faults {
+			call, stop := context.WithTimeout(ctx, 3*time.Second)
+			_, err := fault.WaitListed(call, releaseFault)
+			if err == nil {
+				err = fault.Enable(call, releaseFault, "return(true)")
+			}
+			stop()
+			require.NoError(t, err)
+		}
+	}
 	epoch := d.State.ManagerSessionEpoch
 	late := connect("restore-post-backup-bob")
 	require.False(t, late.Connack.SessionPresent)
@@ -199,6 +243,25 @@ func testRestoreReactivation(t *testing.T, count int) {
 		}
 		job, err := backup.Restore(ctx, archive)
 		if err != nil {
+			var httpFailure *suite.HTTPStatusError
+			if errors.As(err, &httpFailure) {
+				failedResponseStatus = httpFailure.StatusCode
+			}
+			if unavailableCleanup {
+				observe, stop := context.WithTimeout(ctx, 10*time.Second)
+				for observe.Err() == nil {
+					view, readErr := backup.Dashboard(observe)
+					if readErr == nil && view.State.ActiveRestore != nil {
+						failedResponseAdmitted = true
+						break
+					}
+					select {
+					case <-observe.Done():
+					case <-time.After(100 * time.Millisecond):
+					}
+				}
+				stop()
+			}
 			observed, readErr := backup.Dashboard(ctx)
 			active := observed.State.ActiveRestore
 			status := "none"
@@ -207,7 +270,17 @@ func testRestoreReactivation(t *testing.T, count int) {
 			}
 			t.Logf("restore response error: observed_active_restore=%t status=%s dashboard_read_error=%t; request not retried", active != nil, status, readErr != nil)
 		}
+		if unavailableCleanup {
+			call, stop := context.WithTimeout(ctx, 3*time.Second)
+			hits, readErr := faults[0].Count(call, releaseFault)
+			stop()
+			require.NoError(t, readErr)
+			releaseFaultHits = hits
+		}
 		require.NoError(t, err, diagnostics())
+		if unavailableCleanup {
+			require.Zero(t, releaseFaultHits, "known admission consumes the lease in the same transaction")
+		}
 		require.NotEmpty(t, job.ID)
 		awaitDashboard(t, ctx, backup, n, phaseTimeout, func(d suite.BackupDashboard) bool {
 			return d.State.ActiveRestore != nil && d.State.ActiveRestore.ID == job.ID && d.State.ActiveRestore.MaintenanceEntered

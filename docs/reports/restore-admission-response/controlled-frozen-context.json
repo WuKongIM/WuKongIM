@@ -1,0 +1,25 @@
+{
+  "source_revision": "ab8b19a988788917648bf5cae2b406fc59ee5c93",
+  "files": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "test/e2e/AGENTS.md": "ec53887c0b38c60b1e2f005bce7859e68ecc5bb598589087ee9624bb3511c49d",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "test/e2e/mqtt/restore/AGENTS.md": "3880484721ddf408c6fc1b9773350ba09989af7d7ddcf361fd98b0c849bc31b4",
+    "internal/usecase/backup/FLOW.md": "bc4af8cafab40dfcbb870ada610254d94d433ecdeda8ed3f32e3a6817ca89461",
+    "internal/infra/backup/FLOW.md": "947cfcd5236f2be457d0fc776fc18380d3f125b983d07dbe94168cf7b1377df8",
+    "internal/contracts/backup/FLOW.md": "9ab71c2a1ad5eefa3685fae801c7eaab1ed93bd0c5a6a627b84323c578a72856",
+    "internal/runtime/backup/FLOW.md": "78b5ba665c690921ca5507951936ee2e9c4bb83804954571379970870fb3a117",
+    "internal/access/manager/FLOW.md": "e6a9a79d4a6e601ff009e0acc6367390f361436018e7a09e05afbedacb7d5202",
+    "internal/app/FLOW.md": "6564b27dad44e2808376ad6ac957789a6c58678fa7abc5fe04d07a882c17479e",
+    "internal/app/FLOW_PRODUCT_RUNTIME.md": "8f0e88691cc2aa88f839b138177197faa29d03ad898c477a916edeba5795bde0",
+    "test/e2e/suite/FLOW.md": "d3622c9c10477f973a9aea2dd060657c98781c845f82bc92c160999f4359ddac",
+    "pkg/cluster/FLOW.md": "1990e76d80ceac3eaf82beece4f2c9e86a388f1871fe086597b886de5a055584"
+  },
+  "approved_seams": [
+    "authenticated Manager backup/restore/dashboard HTTP",
+    "independent Paho MQTT 5",
+    "Product HTTP provisioning/send"
+  ],
+  "controlled_failure_seam": "temporary-build archive-lease release failure after committed restore admission",
+  "no_ambiguous_mutation_retry": true
+}
