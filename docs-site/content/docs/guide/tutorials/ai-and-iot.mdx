@@ -28,7 +28,7 @@ curl -sS http://127.0.0.1:5001/message/send \
 
 等待 `reason=1` 后再写事件。这证明基础消息已达到 Channel quorum commit，但不表示模型生成、客户端渲染或业务任务已完成。
 
-`/message/event` 当前不会路由查询并验证基础消息是否存在；事件请求中的 `message_id` 只是响应上下文。业务服务必须保持完全相同的 Channel 身份和 `client_msg_no`，不能在基础发送失败时孤立地创建事件投影。
+当前产品路径会校验基础消息已提交、带 stream setting 且身份匹配。业务服务仍须保持完全相同的 Channel、发送者与 `client_msg_no`；基础消息不能是 NoPersist 或 SyncOnce。面向 SDK 和真实模型的完整教程见 [Agent 流式回复](/zh/sdk/easy/agent-streaming)。
 
 ## AI：追加增量并完成
 
@@ -78,7 +78,7 @@ curl -sS http://127.0.0.1:5001/message/event \
     "client_msg_no":"ai-answer-req-42",
     "event_id":"ai-answer-req-42-finish",
     "event_type":"stream.finish",
-    "payload":{"end_reason":3}
+    "payload":{"snapshot":{"kind":"text","text":"Hello"}}
   }'
 ```
 
@@ -102,7 +102,7 @@ curl -sS http://127.0.0.1:5001/channel/messagesync \
   }'
 ```
 
-响应可包含 `event_meta`、完成状态和最终 snapshot。当前没有公开 `/message/eventsync`，而 `/message/event` 本身不会把每个 delta 推送到在线客户端 Session。需要逐 Token 实时 UI 时，使用业务自有流连接，或先明确设计另一条有背压、顺序和恢复语义的消息路径；WuKongIM 的事件投影用于终态与重连恢复。
+响应可包含 `event_meta`、完成状态和最终 snapshot。包含在线事件投递实现的服务端会把公开增量作为 EVENT 发给在线 Session；EasySDK-JS 用 `WKIMEvent.CustomEvent` 接收。在线不轮询历史、不需要 `/message/eventsync`；离线恢复由 BFF 调用 `/channel/messagesync`。旧发布版本不能仅因有事件接口而视为支持在线推送，部署要求见 [Agent 流式回复](/zh/sdk/easy/agent-streaming)。
 
 ## IoT：发送有界遥测
 

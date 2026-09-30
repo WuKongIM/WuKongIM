@@ -626,6 +626,11 @@ specification, runbook, report, or module documentation; link to them when neede
 - The opt-in `demo/chatdemo` `test:integration` needs an explicitly supplied
   freshly built server and Playwright installation.
 
+- Chat Demo send retries reuse the original SDK `SendPacket` and `clientMsgNo`
+  only after an explicit failed SENDACK; a missing acknowledgement remains pending.
+  Mobile Back preserves the message view and draft in page memory. Drafts are not
+  durable, and reconnect retry ownership remains with the SDK.
+
 ## RPC host diagnostics
 
 - Host-sampled RPC runs are diagnostic evidence, not repeatability qualification.
@@ -636,3 +641,33 @@ specification, runbook, report, or module documentation; link to them when neede
   host. Keep counter deltas on their sampled intervals, missing values explicit,
   and surviving-thread scheduler deltas labeled as lower bounds. A correlation
   does not establish a transport defect or infrastructure root cause.
+
+- The independent `/streamdemo/` uses pinned `easyjssdk@2.0.5`: online `Message` and `CustomEvent` only, with one full `/channel/messagesync` read on connection/reconnection for offline recovery. `/message/eventsync` is not its live transport. The chat demo has no streaming UI; its stream-message edit exclusion remains a server contract.
+- `/supportdemo/` embeds only its read-only UI. Its separate loopback Node business
+  process owns support sessions and generation leases; handoff joins cancelled
+  stream snapshots before allowing human acceptance. Support ownership is not a
+  built-in Channel permission or a Product HTTP authentication guarantee.
+- Real model generation is a demo-owned OpenAI-compatible SSE producer; its local Node relay is loopback-only and separate from the Product API. API keys are request-scoped and omitted from storage/logs/history. Model deltas still pass through `/message/event` and SDK EVENT delivery, with complete snapshots on finish, cancellation and failure.
+- Product stream EVENT dispatch first proves the committed stream base identity, then publishes accepted public events to authoritative current subscribers and exact fenced owner sessions. Four request-owned fanouts, 128-member pages, 512-route pages, 256 KiB RPC frames and a five-second dispatch budget bound pressure; no token queues, per-member goroutines, RECVACK state or offline token log are created. Producers serialize events within each message and clients deduplicate event IDs; UTF-8 `text_offset` reconciles deltas with recovered snapshots. Delivery failures cannot undo accepted event storage; finished projections reject late reopening and final history remains the recovery source.
+
+- `/agentdemo/` embeds only its read-only task assistant UI. The loopback Node
+  backend bounds task execution, validates a three-tool allowlist and requires
+  explicit approval before creating demo todos. SDK messages persist tool traces;
+  real-time reply deltas use SDK events, with history reads only on load/reconnect.
+  Business state and model keys remain in memory; a process restart requires a
+  new demo session.
+
+- Product HTTP `/` redirects to `/demos/`, a stateless embedded catalog linking
+  `/demo/`, `/streamdemo/`, `/supportdemo/` and `/agentdemo/`. The catalog does
+  not create sessions, connect an SDK or invoke models. Its loopback preview
+  redirects each entrance to the independently running Demo process.
+
+- `node demo/start.mjs` owns a fresh loopback-only 256-hash-slot single-node
+  cluster and the Demo business processes. It uses a new run directory, strips
+  inherited product overrides, and stops only its own child process groups.
+  Startup health probes do not create user credentials or model requests.
+
+- All four Demo UIs expose a home link. Catalog redirects carry a `home`
+  parameter across origins and reloads; it accepts only the same origin or
+  loopback catalog URLs. Direct embedded entries use their same-origin catalog;
+  direct Node entries publish the configured Product API catalog in page metadata.

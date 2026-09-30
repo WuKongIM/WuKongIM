@@ -127,6 +127,8 @@ const (
 	RPCSlotMessageUpdates
 	// RPCMessageUpdateHint delivers body-free edit hints to exact owner sessions.
 	RPCMessageUpdateHint
+	// RPCMessageEventDelivery delivers accepted stream events to exact owner sessions.
+	RPCMessageEventDelivery
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -251,6 +253,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "slot message updates"
 	case RPCMessageUpdateHint:
 		return "message update hint"
+	case RPCMessageEventDelivery:
+		return "message event delivery"
 	default:
 		return "unknown service"
 	}

@@ -27,9 +27,33 @@ func (a *App) AppendMessageEvent(ctx context.Context, event MessageEventAppend) 
 		}
 		event.UpdatedAt = now().UnixMilli()
 	}
+	var base SyncedMessage
+	if a.eventNotifications != nil && a.eventSubscribers != nil {
+		select {
+		case a.eventNotificationSlots <- struct{}{}:
+			defer func() { <-a.eventNotificationSlots }()
+		default:
+			return MessageEventAppendResult{}, ErrStreamEventBusy
+		}
+		base, err = a.streamEventBase(ctx, event)
+		if err != nil {
+			return MessageEventAppendResult{}, err
+		}
+		// A retry arriving after finish must not recreate an open cache overlay.
+		// Return the authoritative terminal projection without another mutation
+		// or broadcast. This also makes lost finish acknowledgments retryable.
+		if completed, ok, e := a.finishedStreamResult(ctx, event, base); e != nil {
+			return MessageEventAppendResult{}, e
+		} else if ok {
+			return completed, nil
+		}
+	}
 	result, err := a.eventStore.AppendMessageEvent(ctx, event)
 	if err != nil {
 		return MessageEventAppendResult{}, err
+	}
+	if a.eventNotifications != nil && a.eventSubscribers != nil {
+		a.notifyStreamEvent(ctx, base, event, result)
 	}
 	result.FromUID = event.FromUID
 	result.MessageID = event.MessageID

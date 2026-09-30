@@ -831,6 +831,7 @@ func (a *App) wireMessages() {
 			messageOpts.ContentEpoch = a.messageContentEpoch
 		}
 		a.wireMessageUpdateHints(&messageOpts)
+		a.wireMessageEvents(&messageOpts)
 		a.messages = message.New(messageOpts)
 		a.wireMessageUpdateWorker()
 	}

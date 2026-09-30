@@ -107,15 +107,13 @@ test('conversation directory keeps all pages and explicit deletions without mixi
     } }), convert), { code: 'cursor_not_advancing' })
 })
 
-test('Demo conversion retains edit identity/version, exclusion headers and stream snapshot', () => {
+test('Demo conversion retains edit identity/version, exclusion headers', () => {
     const row = { message_idstr: '18446744073709551614', message_seq: 10, from_uid: 'alice',
         channel_id: 'bob', channel_type: 1, version: '12345678901234567890', updated_at_ms: 123,
-        header: { no_persist: 1, sync_once: 1 }, payload: Buffer.from('{"type":1,"content":"text"}').toString('base64'),
-        event_meta: { events: [{ event_key: 'main', snapshot: { kind: 'text', text: 'stream text' } }] } }
+        header: { no_persist: 1, sync_once: 1 }, payload: Buffer.from('{"type":1,"content":"text"}').toString('base64') }
     const m = Convert.toMessage(row)
     assert.equal(m.messageID, row.message_idstr); assert.equal(m.contentVersion, row.version)
     assert.equal(m.updatedAtMs, 123); assert.equal(m.header.noPersist, true); assert.equal(m.header.syncOnce, true)
-    assert.equal(m.streamText, 'stream text')
 })
 
 for (const retryReload of [false, true]) {

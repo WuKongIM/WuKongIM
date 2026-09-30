@@ -44,7 +44,7 @@ export function initDataSource() {
 
 }
 
-// Reuse SDK writes/feed while preserving stream history and the complete directory.
+// Reuse SDK writes/feed while preserving message identity and the complete directory.
 export function enableMessageEditing(onError: (error: Error) => void) {
     const sdk = WKSDK.shared()
     const history = sdk.config.provider.syncMessagesCallback

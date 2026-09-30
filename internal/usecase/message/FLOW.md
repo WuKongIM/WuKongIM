@@ -96,6 +96,8 @@ depending on their frames, JSON, or concrete cluster runtimes.
 
 - Successful edit CAS/idempotency responses optionally schedule their returned identity/version through a nonblocking post-commit callback. Notification failures never change the committed edit result; the worker uses the same authoritative dispatcher and durable progress checkpoints.
 
+- Public stream events validate the committed base identity, then dispatch through an optional narrow sender with four request-owned admission slots, 128-member authoritative pages and a five-second fanout budget. Post-acceptance delivery failures never undo storage; non-public events are not broadcast. Producers serialize events per message and clients deduplicate EVENT IDs; UTF-8 text offsets support snapshot recovery.
+
 ## Read First
 
 - [Permission policy](permission.go)

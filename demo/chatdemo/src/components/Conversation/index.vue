@@ -1,64 +1,42 @@
-
-
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue';
-import { CMDContent, Channel, ChannelInfo, ChannelTypePerson, ConnectStatus, ConnectStatusListener, Conversation, ConversationAction, Message, WKSDK } from 'wukongimjssdk';
-import { ConversationWrap } from './ConversationWrap';
-import APIClient, { CMDType } from '../../services/APIClient';
+import { onMounted, onUnmounted, ref, shallowRef } from 'vue'
+import { CMDContent, Channel, ConnectStatus, Conversation, ConversationAction, Message, WKSDK } from 'wukongimjssdk'
+import { ConversationWrap } from './ConversationWrap'
+import APIClient, { CMDType } from '../../services/APIClient'
+import { t } from '../../i18n'
+import { avatarURLForUID } from '../../services/avatar'
 
-const conversationWraps = ref<ConversationWrap[]>() // 本地最近会话列表
-
-const selectedChannel = ref<Channel>() // 选中的频道
-
-const onSelectChannel = defineProps<{ onSelectChannel: (channel: Channel) => boolean }>()
-
-// 监听连接状态
-const connectStatusListener = async (status: ConnectStatus) => {
-    console.log("connectStatusListener", status)
-    if (status === ConnectStatus.Connected) {
-        const remoteConversations = await WKSDK.shared().conversationManager.sync().catch(() => []) // 同步最近会话列表
-        if (remoteConversations && remoteConversations.length > 0) {
-            conversationWraps.value = sortConversations(remoteConversations.map(conversation => new ConversationWrap(conversation)))
-        }
+const props = defineProps<{ onSelectChannel: (channel: Channel) => boolean, selectedChannel: Channel }>()
+const conversationWraps = shallowRef<ConversationWrap[]>([])
+const loading = ref(false)
+const syncFailed = ref(false)
+let disposed = false
+let syncGeneration = 0
+const sortConversations = (items: ConversationWrap[]) => [...items].sort((a, b) =>
+    (b.timestamp + (b.extra?.top === 1 ? 1e12 : 0)) - (a.timestamp + (a.extra?.top === 1 ? 1e12 : 0)))
+// Fetch metadata when the directory changes, never as a template render side effect.
+const wrapConversation = (conversation: Conversation) => {
+    const manager = WKSDK.shared().channelManager
+    if (!manager.getChannelInfo(conversation.channel)) void manager.fetchChannelInfo(conversation.channel).catch(() => {})
+    return new ConversationWrap(conversation)
+}
+const syncChats = async () => {
+    const generation = ++syncGeneration
+    loading.value = true
+    syncFailed.value = false
+    try {
+        const remote = await WKSDK.shared().conversationManager.sync()
+        if (disposed || generation !== syncGeneration) return
+        conversationWraps.value = sortConversations(remote.map(wrapConversation))
+    } catch {
+        if (!disposed && generation === syncGeneration) syncFailed.value = true
+    } finally {
+        if (!disposed && generation === syncGeneration) loading.value = false
     }
 }
-
-// 监听cmd消息  
-const cmdListener = (msg: Message) => {
-    console.log("收到CMD：", msg)
-    const cmdContent = msg.content as CMDContent
-    if (cmdContent.cmd === CMDType.CMDTypeClearUnread) {
-        const clearChannel = new Channel(cmdContent.param.channelID, cmdContent.param.channelType)
-        clearConversationUnread(clearChannel)
-    }
+const connectStatusListener = (status: ConnectStatus) => {
+    if (status === ConnectStatus.Connected) void syncChats()
 }
-
-// 监听最近会话列表的变化
-const conversationListener = (conversation: Conversation, action: ConversationAction) => { // 监听最近会话列表的变化
-    if (action === ConversationAction.add) {
-        conversationWraps.value = [new ConversationWrap(conversation), ...(conversationWraps.value || [])]
-    } else if (action === ConversationAction.update) {
-        const index = conversationWraps.value?.findIndex(item => item.channel.channelID === conversation.channel.channelID && item.channel.channelType === conversation.channel.channelType)
-        if (index !== undefined && index >= 0) {
-            conversationWraps.value![index] = new ConversationWrap(conversation)
-            conversationWraps.value = sortConversations()
-        }
-    } else if (action === ConversationAction.remove) {
-        const index = conversationWraps.value?.findIndex(item => item.channel.channelID === conversation.channel.channelID && item.channel.channelType === conversation.channel.channelType)
-        if (index !== undefined && index >= 0) {
-            conversationWraps.value?.splice(index, 1)
-        }
-    }
-}
-
-const channelInfoListener = (channelInfo: ChannelInfo) => {
-    conversationWraps.value = [...conversationWraps.value || []] // 强制刷新
-    // const index = conversationWraps.value?.findIndex(item => item.channel.channelID === channelInfo.channel.channelID && item.channel.channelType === channelInfo.channel.channelType)
-    // if (index !== undefined && index >= 0) {
-    //     conversationWraps.value![index].channelInfo = channelInfo
-    // }
-}
-
 const clearConversationUnread = (channel: Channel) => {
     const conversation = WKSDK.shared().conversationManager.findConversation(channel)
     if (conversation) {
@@ -66,224 +44,62 @@ const clearConversationUnread = (channel: Channel) => {
         WKSDK.shared().conversationManager.notifyConversationListeners(conversation, ConversationAction.update)
     }
 }
-
-
-onMounted(async () => {
-
-    WKSDK.shared().connectManager.addConnectStatusListener(connectStatusListener) // 监听连接状态
-    WKSDK.shared().conversationManager.addConversationListener(conversationListener) // 监听最近会话列表的变化
-    WKSDK.shared().chatManager.addCMDListener(cmdListener) // 监听cmd消息
-    WKSDK.shared().channelManager.addListener(channelInfoListener) // 监听频道信息变化
+const cmdListener = (message: Message) => {
+    const content = message.content as CMDContent
+    if (content.cmd === CMDType.CMDTypeClearUnread) clearConversationUnread(new Channel(content.param.channelID, content.param.channelType))
+}
+const conversationListener = (conversation: Conversation, action: ConversationAction) => {
+    const items = conversationWraps.value.filter(item => !item.channel.isEqual(conversation.channel))
+    if (action !== ConversationAction.remove) items.push(wrapConversation(conversation))
+    conversationWraps.value = sortConversations(items)
+}
+const channelInfoListener = () => { conversationWraps.value = [...conversationWraps.value] }
+const selectChannel = (channel: Channel) => {
+    if (!props.onSelectChannel(channel)) return
+    void APIClient.shared.clearUnread(channel)
+    clearConversationUnread(channel)
+}
+onMounted(() => {
+    WKSDK.shared().connectManager.addConnectStatusListener(connectStatusListener)
+    WKSDK.shared().conversationManager.addConversationListener(conversationListener)
+    WKSDK.shared().chatManager.addCMDListener(cmdListener)
+    WKSDK.shared().channelManager.addListener(channelInfoListener)
 })
-
 onUnmounted(() => {
-    WKSDK.shared().conversationManager.removeConversationListener(conversationListener)
+    disposed = true
+    syncGeneration++
     WKSDK.shared().connectManager.removeConnectStatusListener(connectStatusListener)
+    WKSDK.shared().conversationManager.removeConversationListener(conversationListener)
     WKSDK.shared().chatManager.removeCMDListener(cmdListener)
     WKSDK.shared().channelManager.removeListener(channelInfoListener)
 })
-
-// 排序最近会话列表
-const sortConversations = (conversations?: Array<ConversationWrap>) => {
-    let newConversations = conversations;
-    if (!newConversations) {
-        newConversations = conversationWraps.value
-    }
-    if (!newConversations || newConversations.length <= 0) {
-        return [];
-    }
-    let sortAfter = newConversations.sort((a, b) => {
-        let aScore = a.timestamp;
-        let bScore = b.timestamp;
-        if (a.extra?.top === 1) {
-            aScore += 1000000000000;
-        }
-        if (b.extra?.top === 1) {
-            bScore += 1000000000000;
-        }
-        return bScore - aScore;
-    });
-    return sortAfter
-}
-
-const onSelectChannelClick = (channel: Channel) => {
-    if (!onSelectChannel.onSelectChannel(channel)) return
-    selectedChannel.value = channel
-    APIClient.shared.clearUnread(channel)
-    clearConversationUnread(channel)
-}
-
-const getConversationItemCss = (conversationWrap: ConversationWrap) => {
-    if (!selectedChannel.value) {
-        return 'conversation-item'
-    }
-    if (selectedChannel.value.isEqual(conversationWrap.channel)) {
-        return 'conversation-item selected'
-    }
-    return 'conversation-item'
-}
-
-const fetchChannelInfoIfNeed = (channel: Channel) => {
-    const channelInfo = WKSDK.shared().channelManager.getChannelInfo(channel)
-    if (!channelInfo) {
-        WKSDK.shared().channelManager.fetchChannelInfo(channel)
-    }
-
-}
-
 </script>
 
-
 <template>
-    <div class="conversations">
-        <div :class="getConversationItemCss(conversationWrap)" v-for="conversationWrap in conversationWraps" :onClick="() => {
-            onSelectChannelClick(conversationWrap.channel)
-        }">
-            {{ fetchChannelInfoIfNeed(conversationWrap.channel) }}
-            <div class="item-content">
-                <div class="left">
-                    <div class="avatar" style="width: 48px;height: 48px;"
-                        v-if="conversationWrap.channel.channelType === ChannelTypePerson">
-                        <img :src="conversationWrap.channelInfo?.logo" style="width: 48px;height: 48px;" />
-                    </div>
-                    <div class="avatar" style="width: 48px;height: 48px;" v-else>
-                        {{ conversationWrap.channelInfo?.title }}
-                    </div>
-                </div>
-                <div class="right">
-                    <div class="right-item1">
-                        <div class="title">
-                            {{ conversationWrap.channel.channelID }}
-                        </div>
-                        <div class="time">
-                            {{ conversationWrap.timestampString }}
-                        </div>
-                    </div>
-                    <div class="right-item2">
-                        <div class="last-msg">
-                            {{ conversationWrap.conversationDigest }}
-                        </div>
-                        <div v-if="conversationWrap.unread > 0" className="reddot">
-                            {{ conversationWrap.unread }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="conversations" :aria-busy="loading">
+        <div v-if="syncFailed" class="directory-notice" role="alert"><p>{{ t('chatsSyncFailed') }}</p><button @click="syncChats">{{ t('retryEdit') }}</button></div>
+        <div v-else-if="!conversationWraps.length" class="directory-notice"><p>{{ t(loading ? 'loadingMessages' : 'emptyChats') }}</p><small v-if="!loading">{{ t('emptyChatsHint') }}</small></div>
+        <button v-for="item in conversationWraps" :key="`${item.channel.channelType}:${item.channel.channelID}`" class="conversation-item" :class="{ selected: selectedChannel.isEqual(item.channel) }" :aria-current="selectedChannel.isEqual(item.channel) ? 'true' : undefined" @click="selectChannel(item.channel)">
+            <img class="avatar" :src="item.channelInfo?.logo || avatarURLForUID(item.channel.channelID)" alt="" />
+            <div class="item-content"><div class="right-item1"><span class="title">{{ item.channel.channelID }}</span><time>{{ item.timestampString }}</time></div><div class="right-item2"><span class="last-msg">{{ item.conversationDigest || t('firstMessageHint') }}</span><span v-if="item.unread > 0" class="reddot">{{ item.unread > 99 ? '99+' : item.unread }}</span></div></div>
+        </button>
     </div>
 </template>
 
 <style scoped>
-.conversations {
-    width: 100%;
-    height: 100%;
-    overflow-y: auto;
-}
-
-.item-content {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    width: 100%;
-    text-align: left;
-}
-
-.conversation-item {
-    display: flex;
-    height: 80px;
-    width: 100%;
-    background-color: white;
-    cursor: pointer;
-    overflow: hidden;
-}
-
-.left {
-    height: 100%;
-    display: flex;
-    align-items: center;
-    margin-left: 10px;
-}
-
-.right {
-    margin-left: 10px;
-    height: 100%;
-    width: calc(300px - 100px);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
-
-.right-item1 {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-
-}
-
-
-.right-item2 {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-}
-
-.reddot {
-    width: 20px;
-    height: 20px;
-    border-radius: 10px;
-    background-color: rgb(228, 98, 64);
-    color: white;
-    font-size: 12px;
-    text-align: center;
-    line-height: 20px;
-    margin-right: 10px;
-}
-
-
-
-.right-item1 .title {
-    font-size: 16px;
-    font-weight: bold;
-    max-width: 100px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    display: block;
-}
-
-.last-msg {
-    font-size: 14px;
-    color: #999999;
-    margin-top: 4px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    display: block;
-
-}
-
-.time {
-    font-size: 12px;
-    color: #999999;
-    margin-right: 10px;
-}
-
-.selected {
-    background-color: #eee;
-}
-
-.avatar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    background-color: rgb(228, 98, 64);
-    color: white;
-    font-size: 20px;
-    text-align: center;
-}
+.conversations { flex: 1; overflow-y: auto; min-height: 0; padding: 0 10px 12px; }
+.conversation-item { display: flex; align-items: center; width: 100%; gap: 12px; padding: 14px 10px; border: 0; background: transparent; border-radius: 12px; text-align: left; margin: 3px 0; }
+.conversation-item:hover { background: var(--hover); }
+.conversation-item.selected { background: var(--accent-soft); }
+.avatar { width: 42px; height: 42px; border-radius: 13px; flex-shrink: 0; }
+.item-content { flex: 1; min-width: 0; }
+.right-item1, .right-item2 { display: flex; align-items: center; gap: 8px; }
+.right-item1 { margin-bottom: 5px; }
+.title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 14px; }
+time { font-size: 10px; color: var(--muted); flex-shrink: 0; }
+.last-msg { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
+.reddot { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 10px; background: var(--accent); color: white; text-align: center; line-height: 18px; font-size: 10px; }
+.directory-notice { text-align: center; margin: 30px 12px; color: var(--muted); font-size: 13px; }
+.directory-notice small { font-size: 12px; }
+@media (max-width: 700px) { .conversations { padding-top: 14px; } }
 </style>

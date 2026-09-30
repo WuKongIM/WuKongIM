@@ -102,6 +102,8 @@ Stop or startup rollback
 - Message edits wire Slot storage, online hints and one bounded repair worker. Start/stop and restore maintenance join the worker before its dependencies close; resume restarts it with fresh scan cursors. HTTP content epochs and edit cursors reuse the Controller successful-restore generation. A packed atomic maintenance-transition stamp fences response assembly across successful and failed restore cycles without an extra distributed read.
 - Successful edit commits enqueue body-free identities through a nonblocking callback into that same worker. Its bounded volatile queue accelerates authoritative dispatch; stop/restore clears it and durable pending scans remain the recovery source.
 
+- Stream EVENT dispatch is wired only with the complete base reader, event store, authoritative subscribers, presence, owner registry and peer RPC. Fanouts are synchronous request-owned work with bounded admission; entry shutdown joins them without a separate token worker or queue.
+
 ## Read First
 - [app.go](app.go)
 - [FLOW_PRODUCT_RUNTIME.md](FLOW_PRODUCT_RUNTIME.md)

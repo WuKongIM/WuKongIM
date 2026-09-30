@@ -30,8 +30,20 @@ import (
 
 const versionV1 = "bench/v1"
 
+// DemoHomePath is the catalog linking the four independent Demo scenarios.
+const DemoHomePath = "/demos/"
+
 // DemoPath is the canonical route for the embedded chat Demo.
 const DemoPath = "/demo/"
+
+// StreamDemoPath serves the independent EasySDK streaming demonstration.
+const StreamDemoPath = "/streamdemo/"
+
+// SupportDemoPath serves the customer support UI backed by its Demo process.
+const SupportDemoPath = "/supportdemo/"
+
+// AgentDemoPath serves the task assistant UI backed by its Demo process.
+const AgentDemoPath = "/agentdemo/"
 
 // ErrListenAddrRequired reports that the HTTP API listen address is empty.
 var ErrListenAddrRequired = errors.New("internal/access/api: listen address required")
@@ -430,13 +442,17 @@ func (s *Server) restoreMaintenanceMiddleware() gin.HandlerFunc {
 
 func restoreMaintenanceAllowedPath(path string) bool {
 	switch path {
-	case "/healthz", "/readyz", "/metrics", "/top/v1/snapshot":
+	case "/", "/healthz", "/readyz", "/metrics", "/top/v1/snapshot":
 		return true
 	}
 	return strings.HasPrefix(path, "/debug/") ||
 		path == "/debug" ||
+		strings.HasPrefix(path, DemoHomePath) || path == strings.TrimSuffix(DemoHomePath, "/") ||
 		strings.HasPrefix(path, DemoPath) ||
-		path == strings.TrimSuffix(DemoPath, "/")
+		path == strings.TrimSuffix(DemoPath, "/") ||
+		strings.HasPrefix(path, StreamDemoPath) || path == strings.TrimSuffix(StreamDemoPath, "/") ||
+		strings.HasPrefix(path, SupportDemoPath) || path == strings.TrimSuffix(SupportDemoPath, "/") ||
+		strings.HasPrefix(path, AgentDemoPath) || path == strings.TrimSuffix(AgentDemoPath, "/")
 }
 
 func cloneLegacyRouteNodes(nodes map[uint64]LegacyRouteNodeAddresses) map[uint64]LegacyRouteNodeAddresses {
@@ -592,24 +608,37 @@ func (s *Server) registerRoutes() {
 	bench.POST("/channels/subscribers/remove", s.handleBenchSubscriberRemovals)
 }
 
-// registerDemoRoutes mounts the embedded chat Demo below the product API.
+// registerDemoRoutes mounts read-only embedded Demo bundles below the product API.
 func (s *Server) registerDemoRoutes() {
-	demoPrefix := strings.TrimSuffix(DemoPath, "/")
-	handler := http.StripPrefix(demoPrefix, demoui.Handler())
-	redirect := func(c *gin.Context) {
-		target := DemoPath
+	rootRedirect := func(c *gin.Context) {
+		target := DemoHomePath
 		if c.Request.URL.RawQuery != "" {
 			target += "?" + c.Request.URL.RawQuery
 		}
 		http.Redirect(c.Writer, c.Request, target, http.StatusPermanentRedirect)
 	}
-	serve := func(c *gin.Context) {
-		handler.ServeHTTP(c.Writer, c.Request)
+	s.engine.GET("/", rootRedirect)
+	s.engine.HEAD("/", rootRedirect)
+	for _, bundle := range []struct {
+		path    string
+		handler http.Handler
+	}{{DemoHomePath, demoui.HomeHandler()}, {DemoPath, demoui.Handler()}, {StreamDemoPath, demoui.StreamHandler()}, {SupportDemoPath, demoui.SupportHandler()}, {AgentDemoPath, demoui.AgentHandler()}} {
+		prefix := strings.TrimSuffix(bundle.path, "/")
+		handler := http.StripPrefix(prefix, bundle.handler)
+		redirect := func(c *gin.Context) {
+			target := bundle.path
+			if c.Request.URL.RawQuery != "" {
+				target += "?" + c.Request.URL.RawQuery
+			}
+			http.Redirect(c.Writer, c.Request, target, http.StatusPermanentRedirect)
+		}
+		serve := func(c *gin.Context) { handler.ServeHTTP(c.Writer, c.Request) }
+		s.engine.GET(prefix, redirect)
+		s.engine.HEAD(prefix, redirect)
+		s.engine.GET(prefix+"/*path", serve)
+		s.engine.HEAD(prefix+"/*path", serve)
 	}
-	s.engine.GET(demoPrefix, redirect)
-	s.engine.HEAD(demoPrefix, redirect)
-	s.engine.GET(demoPrefix+"/*path", serve)
-	s.engine.HEAD(demoPrefix+"/*path", serve)
+
 }
 
 func (s *Server) requireBenchToken(c *gin.Context) {

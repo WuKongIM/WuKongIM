@@ -433,6 +433,13 @@ function publishedEasySDKGroup(): NavigationGroup {
         `Install exactly easyjssdk v${easySdkReleases.javascript.version} for Alice/Bob browser messaging with credentials from your backend.`,
       ),
       publishedPage(
+        'agent-streaming',
+        'Agent 流式回复',
+        'Agent Streaming Replies',
+        '使用 EasySDK 与真实模型实现逐段回复、取消、失败和离线恢复。',
+        'Build incremental replies with EasySDK and a real model, including cancellation, failures, and offline recovery.',
+      ),
+      publishedPage(
         'rust/getting-started',
         'Rust 快速接入',
         'Rust quickstart',

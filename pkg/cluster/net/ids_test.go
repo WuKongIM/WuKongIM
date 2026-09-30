@@ -66,6 +66,7 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"message_event_append":           RPCMessageEventAppend,
 		"slot_message_updates":           RPCSlotMessageUpdates,
 		"message_update_hint":            RPCMessageUpdateHint,
+		"message_event_delivery":         RPCMessageEventDelivery,
 		"scheduled_backup_messages":      RPCScheduledBackupMessages,
 		"scheduled_backup_slot":          RPCScheduledBackupSlot,
 		"scheduled_backup_probe":         RPCScheduledBackupRepositoryProbe,
