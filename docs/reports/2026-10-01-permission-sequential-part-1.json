@@ -1,0 +1,12 @@
+{
+  "kind": "Byte-preserving current evidence slice; not independently extractable",
+  "part": 1,
+  "parts": 2,
+  "bytes": 757422,
+  "sha256": "b9b12f39b3cccb6307d29c52acf400cb27eeb0f3e52db73a08dea62b00e7ba31",
+  "original_bytes": 1514844,
+  "original_sha256": "2eb068e94ce358e333bd43691d546895449a8cb907c1e12bb94f9b0b1e219c5f",
+  "runtime_revision": "ec21c1a586941ffd74cfb497f0da4522941bc1a4",
+  "comparative_gate": "FAILED: sequential6/12 over5%; burst12/12 pass",
+  "recombine": "cat docs/reports/2026-10-01-permission-sequential-evidence.tar.gz.part-01 docs/reports/2026-10-01-permission-sequential-evidence.tar.gz.part-02 > /tmp/2026-10-01-permission-sequential-evidence.tar.gz; shasum -a256 /tmp/2026-10-01-permission-sequential-evidence.tar.gz"
+}
