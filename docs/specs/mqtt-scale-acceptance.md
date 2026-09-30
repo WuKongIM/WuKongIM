@@ -9,14 +9,21 @@ It makes no capacity claim beyond the recorded sizes.
 
 ## Latest ordinary result
 
-The compound plan/original-read candidate at `838222fcf` passes the original
-100,000-member/500-client/twenty-message workload once, including the fresh
-post-churn publication, exact identities/order and all 600 retirements. Fanout
-is 151.982s and quiet barriers are 4.149/client/s. A sequential 2,000-member
-candidate run still fails zero-based round 2 unsubscribe with one conflict
-closure. This pass does not erase that intermittent failure or qualify broader
-MQTT recovery. [Passing artifact and retained comparison failures](../reports/mqtt-compound-originals/README.md).
-The earlier results below remain historical failure evidence.
+The sealing-contention candidate at `fd9ba0012` passes two sequential ordinary
+2,000-member runs, then the original 100,000-member/500-client/twenty-message
+acceptance. Each completes all 600 churn retirements and exact message/order
+assertions including the fresh post-churn publication. Full fanout is 165.206s,
+churn 20.126s and quiet barriers 4.086/client/s. No original bounds or assertions
+change. [Passing artifacts and retained diagnostic failures](../reports/mqtt-unsubscribe-sealing/README.md).
+
+The preceding compound-read candidate at `838222fcf` passes one full run but
+still has a smaller unsubscribe/conflict failure. A subsequent bounded process
+probe localizes one control closure to source sealing CAS; real progress/closed-
+drain interleavings regress it before the current narrowly qualified pending
+repair. The winning writer of every earlier failure is not identified. The
+older receipt deadline/owner-loss failures remain historical evidence, and these
+passes do not qualify all MQTT crash/unavailable-owner/restore behavior.
+[Earlier compound-read comparison](../reports/mqtt-compound-originals/README.md).
 
 ## Shape
 

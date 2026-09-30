@@ -1,11 +1,17 @@
 # MQTT fanout closure diagnosis
 
-The compound plan/original-read candidate at `838222fcf` now passes one ordinary
-original-size acceptance, with 151.982s fanout and all post-churn identity/order
-and 600-retirement assertions. Its smaller sequential comparison still produces
-one unsubscribe/conflict in zero-based round 2. The earlier failure and closure
-origins below remain evidence, not resolved causes.
-[Passing artifact and retained failures](../reports/mqtt-compound-originals/README.md).
+The sealing-contention candidate at `fd9ba0012` passes two sequential ordinary
+2,000-member workloads and one original 100,000-member acceptance, each with
+500 persistent clients, twenty initial publications, a fresh post-churn
+publication and all 600 retirements. The bounded control probe localizes one
+unsubscribe closure to source sealing CAS; exact progress/closed-drain regression
+cases precede the qualified pending repair. No broader historical owner-loss or
+initial receipt deadline cause is inferred from these passes.
+[Repair, acceptance and retained failures](../reports/mqtt-unsubscribe-sealing/README.md).
+
+The preceding compound-read candidate at `838222fcf` passes once at original
+size but still has a smaller unsubscribe/conflict closure. Its earlier comparison
+remains [historical evidence](../reports/mqtt-compound-originals/README.md).
 
 The unprofiled full workload at `dd8e49bb9` prepares 100,000 members and confirms
 500 subscriptions, then fails its unchanged three-minute initial receipt wait.

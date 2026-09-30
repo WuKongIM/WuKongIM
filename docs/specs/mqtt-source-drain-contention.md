@@ -51,3 +51,10 @@ not enter this path. Final projection and subscription checks remain unchanged.
 
 [Reproduction and validation artifacts](../reports/mqtt-unsubscribe-sealing/README.md)
 freeze the applicable instructions from the exact source revision.
+
+The uninstrumented committed candidate passes two sequential 2,000-member
+workloads and the unchanged 100,000-member full acceptance. Each has 500 clients,
+twenty initial messages plus one fresh publication, all 600 control cycles and
+retirements, exact identities/order and bounded idle reads. The smaller runs'
+34 public closure series are zero at the recorded snapshots. These outcomes
+cover the recorded scenarios, not every interleaving or broader failure mode.

@@ -13,7 +13,7 @@
     "source_progress.go"
   ],
   "max_conflict_records": 512,
-  "foregound_context_marker_carried_through_owner_begin": true,
+  "foreground_context_marker_carried_through_owner_begin": true,
   "profile_enabled": false,
   "acceptance_bounds_changed": false,
   "phase1_command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-unsubscribe-diagnostic WK_E2E_MQTT_SCALE_MEMBERS=2000 WK_E2E_MQTT_SCALE_CONNECTIONS=500 WK_E2E_MQTT_SCALE_MESSAGES=20 WK_E2E_MQTT_SCALE_CHURN=200 WK_E2E_MQTT_SCALE_ROUNDS=10 WK_E2E_MQTT_REPORT_DIR=<attempt-directory> GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/scale -run ^TestGroupScaleDeliveryAndChurnRetirement$ -count=1 -timeout=15m -v",
