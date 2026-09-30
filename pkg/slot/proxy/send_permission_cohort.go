@@ -49,9 +49,9 @@ type sendPermissionCohortMember struct {
 	charged  bool
 }
 
-// ReadSendPermissionMetadataBatch admits bounded independent callers into a
-// short collection window. Seal always precedes routing and fresh barriers;
-// late arrivals start another cohort and cannot consume an executing result.
+// ReadSendPermissionMetadataBatch reads an idle one/two-fact request immediately
+// and collects concurrent callers in a bounded short window. Seal always precedes
+// fresh barriers; late arrivals cannot consume an already executing result.
 func (s *Store) ReadSendPermissionMetadataBatch(ctx context.Context, reads []PermissionMetadataRead) []PermissionMetadataReadResult {
 	fail := func(err error) []PermissionMetadataReadResult {
 		return permissionMetadataErrorResults(make([]PermissionMetadataReadResult, len(reads)), err)
@@ -107,6 +107,48 @@ func (s *Store) ReadSendPermissionMetadataBatch(ctx context.Context, reads []Per
 		c = nil
 	}
 	fresh := c == nil
+	// Ordinary sequential SENDs have two distinct mandatory facts. With no
+	// concurrent work there is nothing to share, so keep bounded ownership but
+	// avoid a timer, worker, copied inputs and result realignment. An explicit
+	// test collection window continues to exercise the shared-cohort path.
+	if fresh && len(s.permissionCohorts) == 0 && s.permissionCohortWindow == 0 &&
+		(len(reads) == 1 || len(reads) == 2 && reads[0] != reads[1]) {
+		execution, cancel := context.WithTimeout(ctx, sendPermissionCohortMaxExecution)
+		c = &sendPermissionCohort{ctx: execution, cancel: cancel, sealed: true}
+		if s.permissionCohorts == nil {
+			s.permissionCohorts = make(map[*sendPermissionCohort]struct{})
+		}
+		s.permissionCohorts[c] = struct{}{}
+		s.permissionCohortWG.Add(1)
+		s.permissionCohortRequests++
+		s.permissionCohortBytes += cost
+		s.permissionCohortOwned("cohorts", 1)
+		s.permissionCohortOwned("calls", 1)
+		s.permissionCohortOwned("budget_bytes", cost)
+		s.permissionCohortMu.Unlock()
+		defer func() {
+			cancel()
+			s.permissionCohortMu.Lock()
+			delete(s.permissionCohorts, c)
+			s.permissionCohortRequests--
+			s.permissionCohortBytes -= cost
+			s.permissionCohortOwned("cohorts", -1)
+			s.permissionCohortOwned("calls", -1)
+			s.permissionCohortOwned("budget_bytes", -cost)
+			s.permissionCohortMu.Unlock()
+			s.permissionCohortWG.Done()
+		}()
+		s.permissionCount("cohorts", 1)
+		s.permissionCount("cohort_requests", 1)
+		s.permissionCount("cohort_facts", len(reads))
+		// Borrowed inputs remain caller-owned until this synchronous reader joins.
+		// Close cancels this sealed owner and waits on the same ownership group.
+		out := s.readSendPermissionMetadataBatch(execution, reads)
+		if err := execution.Err(); err != nil {
+			return fail(err)
+		}
+		return out
+	}
 	if fresh {
 		root, cancel := context.WithCancel(context.Background())
 		c = &sendPermissionCohort{ctx: root, cancel: cancel, seal: make(chan struct{}), done: make(chan struct{}), collectUntil: time.Now().Add(window)}

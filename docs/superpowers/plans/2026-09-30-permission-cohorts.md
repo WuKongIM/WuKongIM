@@ -35,7 +35,9 @@ Failure cases below precede tests and product implementation.
 ## Implementation and test seam
 
 Use only the existing Store's SEND-fact entry, existing node RPC and per-Slot
-reader. Collect for at most 1 ms, then seal; at most 64 calls and 4096 input facts
+reader. Idle one/two-distinct-fact reads execute synchronously with the same
+owned credits, cancellation/Close join and 30-second ceiling; concurrent work
+collects for at most 1 ms, then seals; at most 64 calls and 4096 input facts
 per cohort, 64 collecting/executing cohorts, 1024 retained calls and 16 MiB of
 conservative memory credits per Store. There is no additional execution queue
 or retry. Existing receiver admission remains independent (64 executing,
@@ -49,7 +51,8 @@ barrier entry and cancellation: public E2E APIs do not expose these instants.
 They exercise the production proxy, codec, real database snapshot and managed
 worker, retain a verdict artifact, and do not qualify real Raft/network capacity.
 The private collection-window setting exists only for deterministic integration
-scheduling; the product constructor uses the fixed 1 ms bound.
+scheduling and forces the shared path; production uses immediate idle reads
+and the fixed 1 ms collection bound for concurrent work.
 
 The process-level test reuses the fixed baseline experiment, adds a candidate
 mode and actual reduction assertions, and retains source/fixture/counters/ACKs/

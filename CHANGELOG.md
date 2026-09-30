@@ -12,7 +12,7 @@ move those entries into a version section named for that exact tag.
 
 - Include per-SEND permission and admitted-append wait stages in the existing sampled diagnostics, helping operators distinguish preparation and queueing from durable append. / 现有采样诊断补充逐条 SEND 的权限调用与已准入追加等待阶段，帮助区分准备、排队和持久化追加耗时。
 
-- Coalesce concurrent SEND permission facts within bounded 1 ms collection windows, reducing duplicate node queries and Slot reads while retaining fresh ban/unban checks, independent cancellation and explicit backpressure; expose retained-call and memory-budget metrics. / 并发 SEND 权限事实在有界的 1 ms 收集窗口内合并，减少重复节点查询和 Slot 读取，保留禁言与解禁的新鲜度、独立取消和明确背压，并提供保留调用及内存预算指标。
+- Read idle SEND permission facts immediately and coalesce concurrent facts within bounded 1 ms collection windows, reducing duplicate node queries and Slot reads while retaining fresh ban/unban checks, independent cancellation and explicit backpressure; expose retained-call and memory-budget metrics. / 空闲时立即读取 SEND 权限事实，并发时在有界的 1 ms 收集窗口内合并，减少重复节点查询和 Slot 读取，保留禁言与解禁的新鲜度、独立取消和明确背压，并提供保留调用及内存预算指标。
 
 - Add visible home links to all four Demos, including chat login; return to the actual catalog address across dynamically assigned ports and reloads. / 四个 Demo 及聊天登录页新增可见的“返回首页”入口，动态端口和刷新后仍返回实际首页。
 

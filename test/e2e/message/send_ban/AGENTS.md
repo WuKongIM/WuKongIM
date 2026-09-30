@@ -201,3 +201,8 @@ diagnostic fixture. Endpoint request time does not certify sampling start or
 complete traffic overlap. Use identical settings for old/new diagnosis; neither
 profiled nor traced windows qualify performance. Preserve outer coverage-test
 failures separately from the original experiment's functional verdict.
+
+`WK_E2E_PERMISSION_SEQUENTIAL_NO_WAIT=1` adds a minimized diagnostic assertion
+to sequential timeline mode: all 64 ingress permission spans must average less
+than 800 microseconds, detecting the former forced 1-ms collection floor. This
+assertion is separate from the three unprofiled old/new p99/CPU pairs.

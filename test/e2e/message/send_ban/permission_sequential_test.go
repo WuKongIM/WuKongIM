@@ -56,6 +56,33 @@ func TestPermissionSequentialDiagnostics(t *testing.T) {
 		require.Equal(t, 1, report.Cases[0].Windows[0].Concurrency)
 		require.Len(t, report.Cases[0].Windows[0].Timelines, 64)
 		require.Empty(t, report.Cases[0].Windows[1].Timelines)
+		if os.Getenv("WK_E2E_PERMISSION_SEQUENTIAL_NO_WAIT") == "1" {
+			var total int64
+			for _, raw := range report.Cases[0].Windows[0].Timelines {
+				var row struct {
+					Nodes map[string]struct {
+						Events []struct {
+							Stage    string `json:"stage"`
+							Duration int64  `json:"duration"`
+						} `json:"events"`
+					} `json:"nodes"`
+				}
+				require.NoError(t, json.Unmarshal(raw, &row))
+				count := 0
+				for _, node := range row.Nodes {
+					for _, event := range node.Events {
+						if event.Stage == "message.permission" {
+							total += event.Duration
+							count++
+						}
+					}
+				}
+				require.Equal(t, 1, count)
+			}
+			// The forced 1-ms collection floor is the minimized symptom.
+			// This diagnostic assertion does not replace old/new p99/CPU gates.
+			require.Less(t, total/64, int64(800_000), "idle sequential permission reads must not pay the collection floor")
+		}
 	}
 	if profiles {
 		require.Len(t, report.Cases[0].History, 417, "profile traffic must retain exact committed history")

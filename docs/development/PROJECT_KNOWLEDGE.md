@@ -891,7 +891,10 @@ specification, runbook, report, or module documentation; link to them when neede
   a fresh barrier for each sealed cohort and independent caller cancellation.
   Receiver queue count/bytes and the two-second wait bound remain unchanged.
 
-- SEND permission cohorts belong to the existing ingress Slot proxy. Collection
+- SEND permission cohorts belong to the existing ingress Slot proxy. An idle
+  one/two-distinct-fact read executes synchronously with the same owned credits,
+  cancellation, 30-second ceiling and Close join; concurrent arrivals still
+  collect for at most 1 ms and cannot share that already-started read. Collection
   closes before route resolution and any barrier; an executing cohort cannot
   accept a late caller. No result survives its cohort. Distinct physical Slots
   retain separate full route fences, quorum/apply barriers and snapshots.
