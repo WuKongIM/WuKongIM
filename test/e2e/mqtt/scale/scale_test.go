@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -114,13 +115,40 @@ func TestGroupScaleDeliveryAndChurnRetirement(t *testing.T) {
 	require.Less(t, conns, members, "member 0 is the sender")
 	require.LessOrEqual(t, churners, conns)
 	addr := suite.ReserveLoopbackPorts(t).GatewayAddr
-	n := suite.New(t).StartSingleNodeCluster(suite.WithNodeConfigOverrides(1, map[string]string{"WK_CLUSTER_HASH_SLOT_COUNT": "256", "WK_CLUSTER_INITIAL_SLOT_COUNT": "12", "WK_GATEWAY_TOKEN_AUTH_ON": "true", "WK_MQTT_ENABLE": "true", "WK_MQTT_LISTEN_ADDR": addr}))
+	overrides := map[string]string{"WK_CLUSTER_HASH_SLOT_COUNT": "256", "WK_CLUSTER_INITIAL_SLOT_COUNT": "12", "WK_GATEWAY_TOKEN_AUTH_ON": "true", "WK_MQTT_ENABLE": "true", "WK_MQTT_LISTEN_ADDR": addr}
+	profileEnabled := os.Getenv("WK_E2E_MQTT_SCALE_PROFILE") == "1"
+	if profileEnabled {
+		overrides["WK_DEBUG_API_ENABLE"] = "true"
+	}
+	n := suite.New(t).StartSingleNodeCluster(suite.WithNodeConfigOverrides(1, overrides))
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
 	defer cancel()
 	api := n.APIAddr()
 	uid := func(i int) string { return fmt.Sprintf("m%06d", i) }
 	phases := map[string]int64{}
-	mark := func(name string, start time.Time) { phases[name] = time.Since(start).Milliseconds() }
+	mark := func(name string, start time.Time) {
+		phases[name] = time.Since(start).Milliseconds()
+		t.Logf("phase %s completed in %d ms", name, phases[name])
+	}
+	t.Logf("scale API: %s", api)
+	phase := "provision_members"
+	confirmedMembers := 0
+	defer func() {
+		if !t.Failed() {
+			return
+		}
+		dir := os.Getenv("WK_E2E_MQTT_REPORT_DIR")
+		if dir == "" {
+			dir = n.Spec.RootDir
+		}
+		report := map[string]any{"scenario": "mqtt-group-scale", "passed": false, "failed_phase": phase, "profile_enabled": profileEnabled, "nodes": 1, "hash_slots": 256, "initial_slots": 12, "configured": map[string]int{"members": members, "connections": conns, "messages": messages, "churn_subscribers": churners, "churn_rounds": rounds}, "phase_ms": phases, "confirmed_members": confirmedMembers}
+		require.NoError(t, os.MkdirAll(dir, 0700))
+		data, err := json.MarshalIndent(report, "", "  ")
+		require.NoError(t, err)
+		path := filepath.Join(dir, "mqtt-scale-failure.json")
+		require.NoError(t, os.WriteFile(path, append(data, '\n'), 0600))
+		t.Logf("failed result artifact: %s", path)
+	}()
 
 	start := time.Now()
 	const batch = 5000
@@ -136,8 +164,10 @@ func TestGroupScaleDeliveryAndChurnRetirement(t *testing.T) {
 			_, err = suite.PostJSON(ctx, "http://"+api+"/channel/subscriber_add", map[string]any{"channel_id": group, "channel_type": frame.ChannelTypeGroup, "subscribers": ids}, nil)
 		}
 		require.NoError(t, err, "provision members from %d", from)
+		confirmedMembers += len(ids)
 	}
 	mark("provision_members", start)
+	phase = "provision_tokens"
 	topic := "wk/v1/groups/" + base64.RawURLEncoding.EncodeToString([]byte(group)) + "/messages"
 	subscribe := func(c *suite.MQTTClient) error {
 		ack, err := c.Client.Subscribe(ctx, &paho.Subscribe{Subscriptions: []paho.SubscribeOptions{{Topic: topic, QoS: 1}}})
@@ -168,6 +198,7 @@ func TestGroupScaleDeliveryAndChurnRetirement(t *testing.T) {
 		return err
 	}))
 	mark("provision_tokens", start)
+	phase = "connect_subscribe"
 	start = time.Now()
 	drainCtx, stopDrain := context.WithCancel(ctx)
 	defer stopDrain()
@@ -210,15 +241,49 @@ func TestGroupScaleDeliveryAndChurnRetirement(t *testing.T) {
 		go s.drain(drainCtx)
 	}
 	mark("connect_subscribe", start)
+	phase = "fanout"
 	sender, err := suite.NewWKProtoClient()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = sender.Close() })
 	_, err = sender.ConnectAuthenticatedContext(ctx, n.GatewayAddr(), uid(0), "scale-sender", uid(0)+"-scale", frame.WEB)
 	require.NoError(t, err)
+	// The publisher waits through long fanout/churn windows. Gateway idle time
+	// depends on inbound traffic, so keep this authenticated client alive through
+	// real PING/PONG without reconnecting or replacing publication identities.
+	heartbeatCtx, stopHeartbeat := context.WithCancel(ctx)
+	heartbeatDone := make(chan struct{})
+	heartbeatErr := make(chan error, 1)
+	var heartbeatCount atomic.Uint64
+	go func() {
+		defer close(heartbeatDone)
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-heartbeatCtx.Done():
+				return
+			case <-ticker.C:
+				if err := sender.SendFrame(&frame.PingPacket{}); err != nil {
+					heartbeatErr <- err
+					return
+				}
+				heartbeatCount.Add(1)
+			}
+		}
+	}()
+	defer func() { stopHeartbeat(); <-heartbeatDone }()
+	checkHeartbeat := func() {
+		select {
+		case err := <-heartbeatErr:
+			require.NoError(t, err, "WKProto publisher heartbeat")
+		default:
+		}
+	}
 	sentAt := map[uint64]time.Time{}
 	ids := map[uint64]string{}
 	var clientSeq uint64
 	send := func(label string) {
+		checkHeartbeat()
 		clientSeq++
 		at := time.Now()
 		require.NoError(t, sender.SendFrame(&frame.SendPacket{ChannelID: group, ChannelType: frame.ChannelTypeGroup, ClientSeq: clientSeq, ClientMsgNo: fmt.Sprintf("scale-%s-%d", label, clientSeq), Payload: []byte(label)}))
@@ -246,6 +311,7 @@ func TestGroupScaleDeliveryAndChurnRetirement(t *testing.T) {
 	}
 	awaitAll(messages, 3*time.Minute)
 	mark("fanout", start)
+	phase = "idle_measurement"
 	// Measure quiet cost only after the initial fanout has established replay
 	// coverage. Include a complete ten-second refresh window, with no SENDs.
 	barriers := func() float64 {
@@ -261,6 +327,7 @@ func TestGroupScaleDeliveryAndChurnRetirement(t *testing.T) {
 	time.Sleep(10 * time.Second)
 	idleRate := (barriers() - idleBefore) / time.Since(start).Seconds()
 	mark("idle_measurement", start)
+	phase = "churn"
 	t.Logf("idle Slot barriers/s=%.1f per subscriber/s=%.2f", idleRate, idleRate/float64(conns))
 
 	retired := func() float64 {
@@ -284,10 +351,12 @@ func TestGroupScaleDeliveryAndChurnRetirement(t *testing.T) {
 		}), n.DumpDiagnostics())
 	}
 	mark("churn", start)
+	phase = "post_churn_delivery"
 	start = time.Now()
 	send("after-churn")
 	awaitAll(messages+1, 3*time.Minute)
 	mark("post_churn_delivery", start)
+	phase = "retirement"
 	start = time.Now()
 	want := float64(churners * rounds)
 	var retiredDelta float64
@@ -296,6 +365,7 @@ func TestGroupScaleDeliveryAndChurnRetirement(t *testing.T) {
 		return retiredDelta >= want
 	}, 4*time.Minute, time.Second, "churn tombstones must be retired")
 	mark("retirement", start)
+	phase = "verify"
 	// Late or duplicate publications arrive within this quiet window.
 	time.Sleep(2 * time.Second)
 	stopDrain()
@@ -341,12 +411,13 @@ func TestGroupScaleDeliveryAndChurnRetirement(t *testing.T) {
 		latencies = append(latencies, lastReceipt[seq].Sub(sentAt[seq]))
 	}
 	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
+	checkHeartbeat()
 	passed := duplicates == 0 && missing == 0 && reordered == 0 && wrongID == 0 && extra == 0 && len(seqs) == messages+1
 	report := map[string]any{
-		"scenario": "mqtt-group-scale", "nodes": 1, "hash_slots": 256, "initial_slots": 12, "passed": passed && idleRate/float64(conns) < 10,
+		"scenario": "mqtt-group-scale", "nodes": 1, "hash_slots": 256, "initial_slots": 12, "profile_enabled": profileEnabled, "passed": passed && idleRate/float64(conns) < 10,
 		"configured":    map[string]int{"members": members, "connections": conns, "messages": messages, "churn_subscribers": churners, "churn_rounds": rounds},
 		"observed":      map[string]int{"subscribers": len(subs), "messages_sent": len(seqs), "duplicates": duplicates, "missing": missing, "reordered": reordered, "wrong_identity": wrongID, "unexpected": extra},
-		"retired_delta": retiredDelta, "retired_expected_min": want, "phase_ms": phases,
+		"retired_delta": retiredDelta, "retired_expected_min": want, "phase_ms": phases, "wkproto_heartbeat_count": heartbeatCount.Load(),
 		"delivery_latency_ms":      map[string]int64{"p50": percentile(latencies, 0.5).Milliseconds(), "p99": percentile(latencies, 0.99).Milliseconds(), "max": percentile(latencies, 1).Milliseconds()},
 		"idle_barriers_per_second": idleRate, "idle_barriers_per_subscriber_second": idleRate / float64(conns),
 	}

@@ -20,3 +20,14 @@ row metrics and sampled conversation hydration, and emits `mqtt-membership.json`
 on success or failure. It does not qualify MQTT delivery or production capacity.
 `WK_E2E_MQTT_MEMBERSHIP_PROFILE=1` enables loopback debug profiling for a separate
 diagnostic attempt; keep profiling disabled in acceptance measurements.
+
+Scale logs each completed phase and emits `mqtt-scale-failure.json` on failure
+with confirmed member count and configured workload, without credentials.
+`WK_E2E_MQTT_SCALE_PROFILE=1` enables loopback debug profiling only for separate
+diagnostic runs; full acceptance must leave it unset.
+
+The authenticated WKProto sender issues real PING/PONG every 15 seconds while
+waiting through fanout/churn/retirement, because Gateway closes connections after
+three minutes without inbound activity. Join the one bounded heartbeat loop on
+cleanup, fail on heartbeat errors and record its count. Never reconnect or change
+message identity to mask a broken sender.

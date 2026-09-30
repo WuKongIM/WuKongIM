@@ -4966,3 +4966,30 @@ Multi-node public directory/recipient checks also passed, including UID requests
 from a non-replica ingress. One initial pagination SEND returned HTTP 408;
 the unchanged focused rerun passed. This timeout is not claimed repaired.
 `go vet` and the named FLOW contract check passed.
+
+## Scale producer lifecycle and failure evidence
+
+The scale fixture now reports completed phases and a bounded failed-phase JSON.
+A separate diagnostic full run prepared 100,000 members in 122.664s, subscribed
+500 clients in 13.088s, received the twenty initial publications in 174.186s,
+and finished all three 200-subscriber churn rounds in 19.374s. It then failed
+at the WKProto producer's post-churn SEND because the fixture sent no heartbeat
+during more than three minutes of inbound inactivity.
+[Diagnostic failure artifact](mqtt-scale-profile-sender-failure.json); the
+profile flag is explicit and this is not accepted as a full pass.
+
+The authenticated producer now sends real PING/PONG every fifteen seconds with
+one canceled/joined loop. Heartbeat errors fail the test; it never reconnects or
+changes SEND identity. The original deadlines, sizes, delivery assertions and
+retirement bounds remain intact. The unprofiled full run prepared 100,000 members
+in 119.072s, subscribed 500 clients in 13.772s and reached every initial receipt
+in 142.207s, with 1,975.1 idle barriers/s (3.95/subscriber/s). It failed during
+round 2 resubscription with twelve `subscribe/conflict` closures; post-churn
+delivery and retirement were not reached. [Failed artifact](mqtt-scale-churn-conflict-failure.json).
+
+A separate unprofiled 2,000-member/500-connection/two-message run passed all
+600 churn retirements with zero missing/duplicate/reordered/incorrect identities
+and five confirmed producer heartbeats. [Reduced delivery/full churn artifact](mqtt-scale-churn-600.json).
+This validates the fixture heartbeat and full churn shape at its recorded size;
+it does not replace the 100,000-member/twenty-message acceptance. Full scale and
+the intermittent subscription conflicts/deadlines remain open.
