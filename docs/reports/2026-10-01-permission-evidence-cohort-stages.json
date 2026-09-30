@@ -1,0 +1,19 @@
+{
+  "scope": "Unchanged historical evidence; diagnostic/correctness/performance limits remain in reports. No new qualification or product behavior.",
+  "group": "cohort-stages",
+  "original_composite_source": "281fb8654e0547e8518643a32b928adbe415df40",
+  "files": [
+    {
+      "path": "docs/reports/assets/permission-cohorts-evidence.tar.gz",
+      "bytes": 483172,
+      "sha256": "6cb748cf565df5b540bd17df9377416ae99bff2bb787812012d5337791ff7d75",
+      "original_source": "281fb8654e0547e8518643a32b928adbe415df40"
+    },
+    {
+      "path": "docs/reports/assets/permission-stage-diagnosis-evidence.tar.gz",
+      "bytes": 433585,
+      "sha256": "3e937fa1852d4359c52ea4ab5d72ba0e1fdaab03bd431c198e5a9b1a64201145",
+      "original_source": "281fb8654e0547e8518643a32b928adbe415df40"
+    }
+  ]
+}
