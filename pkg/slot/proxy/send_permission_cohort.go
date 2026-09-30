@@ -144,7 +144,7 @@ func (s *Store) ReadSendPermissionMetadataBatch(ctx context.Context, reads []Per
 		// Borrowed inputs remain caller-owned until this synchronous reader joins.
 		// Close cancels this sealed owner and waits on the same ownership group.
 		out := s.readSendPermissionMetadataBatch(execution, reads)
-		if err := execution.Err(); err != nil {
+		if err := ctx.Err(); err != nil {
 			return fail(err)
 		}
 		return out

@@ -5,6 +5,7 @@ package proxy
 import (
 	"context"
 	"testing"
+	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/slot/multiraft"
@@ -30,7 +31,10 @@ func TestSendPermissionIdleOwnership(t *testing.T) {
 				return ctx.Err()
 			}
 			store := New(cluster, db)
-			t.Cleanup(store.CloseSendPermissionReads)
+			t.Cleanup(func() {
+				closeBoundaryGate(gate)
+				store.CloseSendPermissionReads()
+			})
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			reads := []PermissionMetadataRead{{Kind: PermissionMetadataReadUserSendPolicy, UID: "u"}}
@@ -68,6 +72,54 @@ func TestSendPermissionIdleOwnership(t *testing.T) {
 			}
 			requireCohortDrained(t, store)
 		})
+	}
+}
+
+// A completed Slot fact must survive an internal Close cancellation of another
+// Slot while the caller's context remains live. Known bans retain their priority.
+func TestSendPermissionIdleClosePreservesCompletedSlot(t *testing.T) {
+	db := boundaryDB(t)
+	wb := db.NewWriteBatch()
+	_, err := wb.ApplySendBan(1, metadb.SendBanMutation{UID: "u", SendBan: 1})
+	require.NoError(t, err)
+	require.NoError(t, wb.Commit())
+	require.NoError(t, wb.Close())
+	cluster := newBoundaryCluster(2)
+	entered := make(chan struct{}, 1)
+	cluster.barrier = func(ctx context.Context, slot multiraft.SlotID) error {
+		if slot == 1 {
+			return nil
+		}
+		entered <- struct{}{}
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	store := New(cluster, db)
+	t.Cleanup(store.CloseSendPermissionReads)
+	completed := make(chan struct{}, 1)
+	store.SetSendPermissionObserver(idleSnapshotObserver{completed: completed})
+	reads := []PermissionMetadataRead{{Kind: PermissionMetadataReadUserSendPolicy, UID: "u"}, {Kind: PermissionMetadataReadChannel, ChannelID: "g", ChannelType: 2}}
+	result := launchCohortRead(store, context.Background(), reads)
+	awaitBoundaryEvent(t, entered)
+	awaitBoundaryEvent(t, completed)
+	store.CloseSendPermissionReads()
+	out := awaitBoundaryResult(t, result)
+	require.NoError(t, out[0].Err)
+	require.EqualValues(t, 1, out[0].UserPolicy.SendBan)
+	require.Error(t, out[1].Err)
+	requireCohortDrained(t, store)
+}
+
+type idleSnapshotObserver struct{ completed chan<- struct{} }
+
+func (idleSnapshotObserver) ObserveSendPermissionCount(string, int) {}
+func (idleSnapshotObserver) ObserveSendPermissionInflight(int)      {}
+func (o idleSnapshotObserver) ObserveSendPermissionStage(stage, result string, _ time.Duration) {
+	if stage == "snapshot" && result == "ok" {
+		select {
+		case o.completed <- struct{}{}:
+		default:
+		}
 	}
 }
 
