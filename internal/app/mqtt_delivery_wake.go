@@ -23,9 +23,7 @@ func (e mqttPostCommitWake) EnqueuePersistAfter(_ context.Context, event channel
 // wakeMQTTSource can be bound before MQTT construction. By admission time the
 // scheduler exists; constructor/Stop misses remain harmless polling hints.
 func (a *App) wakeMQTTSource(source string) {
-	if a.mqtt != nil && a.mqtt.deliveries != nil {
-		_ = a.mqtt.deliveries.WakeSource(source)
-	}
+	a.mqtt.wakeSource(source)
 }
 
 // mqttReplayWake repeats an early commit wake only after a timely confirmed

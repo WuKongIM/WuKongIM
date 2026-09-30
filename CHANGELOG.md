@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- MQTT automatically reactivates after backup restore without a process restart, using fresh Owner registries and workers while preserving persistent subscriptions and unfinished QoS 1 exchanges. Maintenance keeps connections fenced and old callbacks bound to their original runtime. / MQTT 备份恢复后可自动重新启用，无需重启进程；重建 Owner 注册表和工作器，保留持久订阅及未完成 QoS 1 交换，恢复期间关闭连接准入，旧回调仍绑定原运行时。
+
 - MQTT unsubscribe keeps the same removal pending when a definite source sealing CAS loses to verified progress or an identical seal, preserving the first boundary and unfinished exchanges. Unknown commits and changed ownership/intent still fail closed. / MQTT 退订封口遇到明确 CAS 拒绝时，若新证据确认仅有进度推进或同意图封口，则保留待清理状态，保持原边界与未完成交换；未知提交及所有权、意图变化仍失败关闭。
 
 - Combine MQTT delivery replay planning and anchored original reads under one fresh Channel authority, reducing repeated Slot barriers while retaining final ownership/permission checks and bounded read admission. Matched cluster binaries are required. / 合并 MQTT 投递的 replay 规划与锚定原文读取，减少重复 Slot 屏障，同时保留最终所有权、权限校验和有界读取准入；集群需使用匹配版本。

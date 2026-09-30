@@ -373,6 +373,7 @@ func (a *App) Stop(ctx context.Context) error {
 	defer a.lifecycleMu.Unlock()
 
 	a.stopped = true
+	a.stopRestoreAdmission()
 	if a.handler != nil {
 		a.handler.BeginPlannedShutdown()
 	}

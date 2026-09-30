@@ -21,7 +21,7 @@ owned here. Runtime decides when terminal owner quiescence is proved.
 2. Sync its temporary file, publish an immutable hard link, then sync the directory.
    Equal retries succeed; conflicts never replace facts.
 3. Recover runs before any owner, RPC, listener or worker: it holds an exclusive
-   `LOCK` flock for the process lifetime, mints MaxUint64-bound receipts for
+   `LOCK` flock for the active Owner generation lifetime, mints MaxUint64-bound receipts for
    started boots without receipts (proven dead by the lock), removes proven
    markers, then writes the current boot's started marker. Record removes that
    marker after its receipt; Close releases the lock after Record.
@@ -35,8 +35,9 @@ owned here. Runtime decides when terminal owner quiescence is proved.
 - No UID, ClientID, token, payload, per-owner cache or past-boot scan exists.
 - One file per nonempty graceful boot remains indefinitely; time is not authority
   to delete receipts still referenced by old durable Sessions.
-- Crash proofs are node-local and lock-based; unavailable-node, partition, restore
-  or uncertain-effect fencing is not provided. Corrupt or foreign markers fail
+- Crash proofs are node-local and lock-based. App may release/reacquire only after
+  joined generation retirement during restore; no restored-row or unavailable-node
+  isolation is inferred. Corrupt or foreign markers fail
   Recover closed, so MQTT does not start.
 
 ## Read First

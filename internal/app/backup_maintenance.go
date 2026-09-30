@@ -54,6 +54,9 @@ func (a *App) applyRestoreGatewayMaintenance(enabled bool) {
 	if a == nil {
 		return
 	}
+	a.restoreAdmissionMu.Lock()
+	defer a.restoreAdmissionMu.Unlock()
+	enabled = enabled || a.restoreAdmissionStopped
 	// Publish the complete read fence before data/cache replacement or entry resume.
 	for {
 		previous := a.restoreReadFence.Load()
@@ -73,6 +76,17 @@ func (a *App) applyRestoreGatewayMaintenance(enabled bool) {
 	gateway.SetAcceptingNewSessions(!enabled)
 	if enabled {
 		gateway.DisconnectAll()
+	}
+}
+
+// stopRestoreAdmission serializes shutdown fencing with a late restore observer.
+// It takes no side-effect/runtime lock, so transport callbacks can still drain.
+func (a *App) stopRestoreAdmission() {
+	a.restoreAdmissionMu.Lock()
+	defer a.restoreAdmissionMu.Unlock()
+	a.restoreAdmissionStopped = true
+	if gateway, ok := a.gateway.(restoreGatewayRuntime); ok {
+		gateway.SetAcceptingNewSessions(false)
 	}
 }
 
@@ -98,7 +112,7 @@ func (a *App) suspendRestoreSideEffects(ctx context.Context) error {
 	// idempotent stops on every call so a later startup pass cannot escape a
 	// maintenance fence merely because an earlier pass saw closed workers.
 	a.restoreSideEffectsSuspended = true
-	if err := a.mqtt.Stop(ctx); err != nil {
+	if err := a.mqtt.Suspend(ctx); err != nil {
 		return err
 	}
 	var resultErr error
@@ -149,11 +163,6 @@ func (a *App) resumeRestoreSideEffects(ctx context.Context) error {
 	if !a.restoreSideEffectsSuspended {
 		return nil
 	}
-	// MQTT owner registries are terminal after Stop. Keep admission closed until
-	// fresh restore-generation composition is available; never reuse old owners.
-	if a.mqtt != nil {
-		return errors.New("internal/app: MQTT restore reactivation requires process restart")
-	}
 	var resultErr error
 	// Clear again after the durable logical activation. The first reset at
 	// maintenance entry drains pre-restore state; this second reset prevents
@@ -186,6 +195,11 @@ func (a *App) resumeRestoreSideEffects(ctx context.Context) error {
 	}
 	if resultErr != nil {
 		return resultErr
+	}
+	// Publish MQTT's fresh boot and complete worker cohort while the cluster
+	// maintenance fence still excludes clients. A failed rebuild stays retryable.
+	if err := a.mqtt.Resume(ctx); err != nil {
+		return err
 	}
 	if a.channelAppends != nil {
 		a.channelAppends.ResumeAfterRestore()

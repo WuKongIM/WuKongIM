@@ -1,0 +1,10 @@
+{
+  "hash_slots": 256,
+  "last_phase": "restore-completion-1",
+  "maintenance_refusals": 1,
+  "nodes": 1,
+  "passed": false,
+  "process_restarts": 0,
+  "restore_cycles": 0,
+  "scenario": "mqtt-restore-reactivation"
+}

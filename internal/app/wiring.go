@@ -1325,7 +1325,7 @@ func (a *App) wireGateway(nodeID uint64) error {
 			Logger:    a.logger.Named("gateway"),
 		}
 		if a.mqtt != nil {
-			options.PacketHandler = a.mqtt.handler
+			options.PacketHandler = a.mqtt
 			options.PacketProtocols = append(options.PacketProtocols, newMQTTProtocol(mqttwire.Limits{MaxPacketBytes: int(a.cfg.MQTT.MaxPacketBytes)}))
 		}
 		gw, err := gateway.New(options)

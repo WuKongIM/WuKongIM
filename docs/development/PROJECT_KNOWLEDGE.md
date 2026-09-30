@@ -1222,8 +1222,14 @@ specification, runbook, report, or module documentation; link to them when neede
 - [MQTT product composition](../specs/mqtt-product-runtime.md) reuses the Gateway
   and starts bounded Session, replay and delivery workers after cluster readiness.
   `mqtt.enable` also enables future person-source preparation on shared native
-  sends. Incomplete Stop retains message/cluster dependencies; restore leaves
-  entry admission closed because terminal owner registries cannot be reused.
+  sends. Incomplete Stop retains message/cluster dependencies. Restore joins
+  CONNECT acquisition, workers and Owners, persists exact boot retirement, then
+  [reconstructs a fresh MQTT generation](../specs/mqtt-restore-reactivation.md)
+  before maintenance clears. Stable Gateway/RPC dispatch uses atomic generation
+  publication; accepted connections pin their original handler. Terminal Owner,
+  connection and delivery runtimes are never reused; unknown effects block join.
+  Restore teardown proves local Owner quiescence without issuing a new durable
+  Session disconnect against fenced peers; ordinary Stop keeps that mutation.
   Configuration and online interop do not establish unavailable-owner recovery,
   safe uncertain Will redispatch, full storage reclamation or scale readiness.
 

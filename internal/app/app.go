@@ -197,7 +197,11 @@ type App struct {
 	// restoreSideEffectsMu serializes drain/suspend/resume around one restore.
 	restoreSideEffectsMu        sync.Mutex
 	restoreSideEffectsSuspended bool
-	logger                      wklog.Logger
+	// restoreAdmissionMu orders maintenance reopen against terminal shutdown.
+	// Once stopped, an observer can never admit a new Gateway connection.
+	restoreAdmissionMu      sync.Mutex
+	restoreAdmissionStopped bool
+	logger                  wklog.Logger
 	// startupConsole renders the human-facing startup lifecycle when console output is enabled.
 	startupConsole *startupConsole
 

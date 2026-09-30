@@ -28,17 +28,19 @@ func TestMQTTOwnerSweepProductSingleNodeCluster(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	require.NoError(t, a.Start(ctx))
+	generation := a.mqtt.current.Load()
+	require.NotNil(t, generation)
 	closed := make(chan struct{})
-	_, err = a.mqtt.owners.Reserve(runtime.Claim{Key: contract.Key{Namespace: "main", ClientID: "abandoned"}, UID: "alice", SessionGeneration: 1, OwnerGeneration: 1}, func(context.Context) error { close(closed); return nil })
+	_, err = generation.owners.Reserve(runtime.Claim{Key: contract.Key{Namespace: "main", ClientID: "abandoned"}, UID: "alice", SessionGeneration: 1, OwnerGeneration: 1}, func(context.Context) error { close(closed); return nil })
 	require.NoError(t, err)
-	require.Equal(t, 1, a.mqtt.owners.Snapshot().Pending)
-	require.Zero(t, a.mqtt.connections.Snapshot().Tracked)
+	require.Equal(t, 1, generation.owners.Snapshot().Pending)
+	require.Zero(t, generation.connections.Snapshot().Tracked)
 	select {
 	case <-closed:
 	case <-time.After(7 * time.Second):
 		t.Fatal("product never swept an expired unregistered reservation")
 	}
-	require.Eventually(t, func() bool { return a.mqtt.owners.Snapshot().Held == 0 }, time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return generation.owners.Snapshot().Held == 0 }, time.Second, 10*time.Millisecond)
 	require.Eventually(t, func() bool {
 		families, err := a.metrics.Gather()
 		if err != nil {
@@ -60,6 +62,6 @@ func TestMQTTOwnerSweepProductSingleNodeCluster(t *testing.T) {
 	}, time.Second, 10*time.Millisecond, "app must publish aggregate cleanup observations")
 	require.NoError(t, a.Stop(ctx))
 	require.NoError(t, a.goroutines.Group(gr.ModuleMQTT).Wait(ctx))
-	require.Zero(t, a.mqtt.owners.Snapshot().Deadlines)
+	require.Zero(t, generation.owners.Snapshot().Deadlines)
 	t.Log("mqtt_owner_sweep: hash_slots=256 product_pending_cleanup=true connection_registration=false joined_shutdown=true")
 }

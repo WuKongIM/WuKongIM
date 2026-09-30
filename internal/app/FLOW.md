@@ -68,8 +68,12 @@ Stop or startup rollback
   Paho/WKProto interop passes in single-node and three-node 256-hash-Slot clusters.
   Stop closes admission, joins MQTT work/Owners while transport callbacks and message/cluster dependencies remain alive,
   then persists proved boot retirement before Gateway shutdown. Incomplete cleanup retains dependencies.
-  Exact-owner RPC can use that node's older-boot receipt after graceful restart; no crash/unknown-effect isolation is inferred. Restore keeps admission
-  closed; fresh restore-generation reactivation remains outstanding.
+  Exact-owner RPC uses persisted node-local retirement/crashed-boot facts. Restore
+  joins CONNECT handoffs, workers and Owners before fresh generation construction;
+  atomic publication switches stable Gateway/RPC dispatch only after full startup.
+  Restore connection teardown requires exact local isolation without new Session
+  mutations against already-fenced replicas; ordinary Stop keeps durable disconnect.
+  Connections pin the original handler; shutdown prevents observer admission reopen.
   WillExecutor freezes hook output before first dispatch and only recovers positive
   receipts for uncertain started work. Its managed scanner and four-turn cohort now
   publish detached due work. Consumer recovery also completes disconnected Preparing/Removing intent before a first binding. Concrete group/inbox offline preparation ports are composed before that shared cohort; fresh permission denial routes through exact Session ending. That cohort also builds historical reclamation coverage and invokes exact-owner Session-child cleanup; fixed metrics expose completion and indexed rows. Safe uncertain redispatch, unavailable-owner recovery, source-tombstone retirement,

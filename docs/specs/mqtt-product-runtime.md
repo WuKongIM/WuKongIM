@@ -56,9 +56,9 @@ joins MQTT producers/owners before stopping Gateway's physical-close callbacks.
 Any incomplete cleanup retains transport/cluster/message dependencies for retry.
 Successful join records a [graceful boot retirement](mqtt-owner-retirement.md)
 for exact older-owner RPC recovery after process restart.
-Restore stops the same terminal runtime and currently keeps admission closed;
-fresh restore-generation reactivation is still required. No old registry is
-reactivated and no unavailable owner is assumed isolated.
+Restore stops the same terminal runtime and keeps admission closed until a
+[fresh generation](mqtt-restore-reactivation.md) is constructed and fully started.
+No old registry is reactivated and no unavailable owner is assumed isolated.
 
 ## Product evidence
 
@@ -139,3 +139,13 @@ remain admitted. Public fixed events expose reclamation confirmations/indexed ro
 Source tombstones, detached Will obligations, crash/restore recovery and full scale
 acceptance remain separate requirements; enabling MQTT still requires matched
 writers and the existing rollback plan.
+
+## Subsequent restore reactivation
+
+[Restore reactivation](mqtt-restore-reactivation.md) now rebuilds fresh Owner,
+connection, delivery, scanner and worker components after joined old-generation
+retirement. Stable Gateway/RPC entries publish only a fully started generation;
+accepted connections pin their original handler and CONNECT handoffs join before
+storage replacement. The node-resume barrier reconstructs while maintenance still
+fences clients; no process restart or reuse of terminal registries is required.
+Unknown effects and unavailable-node isolation retain their original limits.

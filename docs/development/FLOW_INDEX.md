@@ -24,7 +24,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [internal/access/opsmcp/FLOW.md](../../internal/access/opsmcp/FLOW.md) | `package` | Authenticates and routes the embedded closed-world Operations MCP while revalidating owner, revision, credential, and admission fences. | 49 | ok |
 | [internal/access/reviewagentcheckmcp/FLOW.md](../../internal/access/reviewagentcheckmcp/FLOW.md) | `package` | Exposes only protected named Review Agent checks and trusted generation-bound evidence through local stdio MCP. | 44 | ok |
 | [internal/access/reviewagentcli/FLOW.md](../../internal/access/reviewagentcli/FLOW.md) | `package` | Exposes Review Agent control operations and model-result normalization through strict bounded JSON process contracts. | 45 | ok |
-| [internal/app/FLOW.md](../../internal/app/FLOW.md) | `package` | Composes product and Agent runtimes and owns their dependency-safe lifecycle ordering. | 136 | warning |
+| [internal/app/FLOW.md](../../internal/app/FLOW.md) | `package` | Composes product and Agent runtimes and owns their dependency-safe lifecycle ordering. | 140 | warning |
 | [internal/bench/FLOW.md](../../internal/bench/FLOW.md) | `subtree` | Implements deterministic black-box benchmark planning, workers, traffic, and evidence. | 121 | warning |
 | [internal/bench/chatlifecycle/FLOW.md](../../internal/bench/chatlifecycle/FLOW.md) | `package` | Runs the fenced chat-lifecycle workload, evidence pipeline, and aged-data capacity proof. | 100 | ok |
 | [internal/contracts/backup/FLOW.md](../../internal/contracts/backup/FLOW.md) | `package` | Defines bounded entry-independent backup, repository, export, restore, and Controller coordination DTOs without policy or I/O. | 54 | ok |
@@ -40,7 +40,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [internal/infra/cluster/FLOW.md](../../internal/infra/cluster/FLOW.md) | `package` | Adapts internal ports to cluster, channel, metadata, node-RPC, and operations runtimes without owning business policy. | 124 | warning |
 | [internal/infra/delivery/FLOW.md](../../internal/infra/delivery/FLOW.md) | `package` | Adapts presence lookup and owner-local session writes for canonical online delivery. | 52 | ok |
 | [internal/infra/issueagentgithub/FLOW.md](../../internal/infra/issueagentgithub/FLOW.md) | `package` | Implements bounded GitHub reads and fenced writes for the serverless Issue Agent. | 52 | ok |
-| [internal/infra/mqttowner/FLOW.md](../../internal/infra/mqttowner/FLOW.md) | `package` | Persists immutable node-local proofs of gracefully retired or crashed MQTT owner boots. | 50 | ok |
+| [internal/infra/mqttowner/FLOW.md](../../internal/infra/mqttowner/FLOW.md) | `package` | Persists immutable node-local proofs of gracefully retired or crashed MQTT owner boots. | 51 | ok |
 | [internal/infra/reviewagentgithub/FLOW.md](../../internal/infra/reviewagentgithub/FLOW.md) | `package` | Implements exact-head GitHub reads, state refs, review publication, checks, and merge for the Review Agent. | 52 | ok |
 | [internal/log/FLOW.md](../../internal/log/FLOW.md) | `package` | Provides internal application log construction, rotation, console filtering, synchronization, and bounded reads. | 55 | ok |
 | [internal/observability/taskaudit/FLOW.md](../../internal/observability/taskaudit/FLOW.md) | `package` | Persists and projects bounded Controller task audit history for manager queries. | 47 | ok |
@@ -94,4 +94,4 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [pkg/slot/FLOW.md](../../pkg/slot/FLOW.md) | `subtree` | Implements Multi-Raft Slot metadata, atomic FSM commands, authoritative leader reads, snapshots, and distributed metadata proxies. | 100 | ok |
 | [pkg/workqueue/FLOW.md](../../pkg/workqueue/FLOW.md) | `package` | Provides bounded pools, batch pools, direct worker queues, sharded mailboxes, ownership, shutdown, and observations. | 56 | ok |
 | [scripts/cloud-deployment/FLOW.md](../../scripts/cloud-deployment/FLOW.md) | `package` | Executes shared local and Action deployment activation, bounded readiness, and typed outcomes through host adapters. | 59 | ok |
-| [test/e2e/suite/FLOW.md](../../test/e2e/suite/FLOW.md) | `package` | Provides reusable black-box process, workspace, configuration, protocol, HTTP, diagnostics, and convergence helpers for E2E tests. | 74 | ok |
+| [test/e2e/suite/FLOW.md](../../test/e2e/suite/FLOW.md) | `package` | Provides reusable black-box process, workspace, configuration, protocol, HTTP, diagnostics, and convergence helpers for E2E tests. | 77 | ok |

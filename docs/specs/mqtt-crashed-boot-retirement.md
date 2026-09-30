@@ -9,8 +9,10 @@ and every persistent Session it owned is refused (CONNACK 0x88) until expiry.
 
 1. Before the MQTT listener or any worker starts, `Retirements.Recover` takes an
    exclusive advisory lock on `<data>/mqtt/retired-owners/LOCK` and holds it
-   for the process lifetime. A held lock proves no earlier process of this data
-   directory still runs, so it cannot open sockets or run local owner work.
+   for the active Owner generation lifetime. Normally that is the process
+   lifetime; restore may release it only after CONNECT, producers and Owners
+   have joined and the old generation is permanently closed. A held lock proves
+   no earlier unretired generation can still admit sockets or local owner work.
 2. Under the lock, every `<hash>.started` marker whose boot has no receipt is a
    crashed boot. Recover mints a receipt for it with the connection bound
    `MaxUint64` (every ID it could have issued), fsyncs it, then removes the
