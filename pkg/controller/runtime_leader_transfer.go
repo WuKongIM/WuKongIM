@@ -38,7 +38,8 @@ func (r *Runtime) RequestSlotLeaderTransfer(ctx context.Context, req SlotLeaderT
 	if err := ctxErr(ctx); err != nil {
 		return SlotLeaderTransferResult{}, err
 	}
-	if r == nil || r.raft == nil {
+	service := r.raftService()
+	if service == nil {
 		return SlotLeaderTransferResult{}, ErrNotStarted
 	}
 	expectedRevision := req.StateRevision

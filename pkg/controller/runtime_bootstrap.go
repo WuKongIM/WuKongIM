@@ -22,7 +22,7 @@ func (r *Runtime) bootstrapIfNeeded(ctx context.Context) error {
 	if err := r.waitLocalLeader(ctx); err != nil {
 		return err
 	}
-	if err := r.raft.Propose(ctx, r.initCommand()); err != nil {
+	if err := r.raftService().Propose(ctx, r.initCommand()); err != nil {
 		return err
 	}
 	return r.runBootstrapPlanner(ctx)
@@ -46,7 +46,8 @@ func (r *Runtime) runBootstrapPlanner(ctx context.Context) error {
 }
 
 func (r *Runtime) isLocalLeader() bool {
-	return r.raft != nil && (r.raft.LeaderID() == r.cfg.NodeID || r.raft.Status().Role == controllerraft.RoleLeader)
+	service := r.raftService()
+	return service != nil && (service.LeaderID() == r.cfg.NodeID || service.Status().Role == controllerraft.RoleLeader)
 }
 
 func (r *Runtime) waitLocalLeader(ctx context.Context) error {

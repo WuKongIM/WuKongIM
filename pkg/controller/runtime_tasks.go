@@ -50,7 +50,8 @@ func (r *Runtime) proposeTaskCommand(ctx context.Context, cmd command.Command) e
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
-	if r == nil || r.raft == nil {
+	service := r.raftService()
+	if service == nil {
 		return ErrNotStarted
 	}
 	if cmd.IssuedAt.IsZero() {
@@ -58,5 +59,5 @@ func (r *Runtime) proposeTaskCommand(ctx context.Context, cmd command.Command) e
 	} else {
 		cmd.IssuedAt = cmd.IssuedAt.UTC()
 	}
-	return r.raft.Propose(ctx, cmd)
+	return service.Propose(ctx, cmd)
 }

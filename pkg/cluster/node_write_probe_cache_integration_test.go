@@ -42,6 +42,18 @@ func TestNodeProbeWriteReadySingleNodeClusterReusesCommittedNoop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A route hint can precede the durable empty entry from leader election.
+	// Anchor the probe delta only after that entry is committed and applied.
+	waitUntil(t, func() bool {
+		entries, err := node.LocalSlotLogEntries(ctx, 1, LogEntriesOptions{})
+		if err != nil || len(entries.Items) == 0 || entries.Items[0].Type != "normal" ||
+			entries.Items[0].DataSize != 0 || entries.CommitIndex != entries.LastIndex ||
+			entries.AppliedIndex != entries.LastIndex {
+			return false
+		}
+		before = entries
+		return true
+	})
 	for range 20 {
 		if err := node.ProbeWriteReady(ctx); err != nil {
 			t.Fatal(err)

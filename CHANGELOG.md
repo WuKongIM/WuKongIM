@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Safely publish Controller Raft and state-sync resources while transport is already receiving traffic, preventing startup and restart data races. / 传输已接收流量时安全发布 Controller Raft 与状态同步资源，修复启动和重启期间的数据竞争。
+
 - Publish reconciled cluster readiness and committed node health before Controller task progress writes, and run subsequent tasks through the existing bounded background owner so slow writes cannot block startup readiness. / 集群就绪状态与已提交的节点健康信息先于 Controller 任务进度写入发布，后续任务由现有有界后台执行者处理，避免慢写入阻塞启动就绪检查。
 
 - Atomically reserve Channel worker ownership through queued, executing and unpublished work so concurrent SENDs and blocked quorum completion callbacks retain the configured budget. / 频道 worker 从入队到结果发布结束原子持有统一预算，避免并发 SEND 和被阻塞的 quorum 完成回调超额准入。
@@ -79,6 +81,8 @@ move those entries into a version section named for that exact tag.
 - Add text-message editing to the embedded Demo for sent messages in direct and group chats, with conflict/draft handling and live message/preview updates. / 内嵌 Demo 支持编辑本人已发送的单聊、群聊文本，处理冲突与草稿，并实时更新正文及会话摘要。
 
 ### 🐛 Bug Fixes / 问题修复
+
+- Rebuild Node-owned Slot proposal, task and quorum RPC dependencies after Stop or failed startup, preserving injected adapters and durable messages across repeated starts. / 停机或启动失败后重新构建 Node 自建的 Slot 提案、任务及 quorum RPC 依赖，保留注入适配器与消息持久化状态，修复同一 Node 重复启动无法写入的问题。
 
 - Return a plugin host RPC error with the public SEND reason when a plugin-origin message is rejected, including user/channel send bans, instead of acknowledging success with a zero message ID. / 插件发送被用户或频道禁令等规则拒绝时，返回带协议原因码的宿主 RPC 错误，修复成功状态携带零消息 ID 的误导反馈。
 

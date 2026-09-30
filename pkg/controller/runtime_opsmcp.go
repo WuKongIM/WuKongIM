@@ -12,7 +12,8 @@ func (r *Runtime) ReplaceOpsMCPState(ctx context.Context, expectedRevision uint6
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
-	if r == nil || r.raft == nil {
+	service := r.raftService()
+	if service == nil {
 		return ErrNotStarted
 	}
 	nowFunc := r.cfg.Now
@@ -20,7 +21,7 @@ func (r *Runtime) ReplaceOpsMCPState(ctx context.Context, expectedRevision uint6
 		nowFunc = time.Now
 	}
 	opsMCP := replacement.Clone()
-	_, err := r.raft.ProposeResult(ctx, command.Command{
+	_, err := service.ProposeResult(ctx, command.Command{
 		Kind:             command.KindReplaceOpsMCPState,
 		IssuedAt:         nowFunc().UTC(),
 		ExpectedRevision: &expectedRevision,

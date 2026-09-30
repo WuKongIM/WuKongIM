@@ -19,11 +19,8 @@ func (n *Node) Start(ctx context.Context) error {
 	if err := dataformat.Check(n.cfg.DataDir); err != nil {
 		return err
 	}
-	createdDefaultChannels, err := n.ensureDefaultRuntime()
-	if err != nil {
-		return err
-	}
 	started := false
+	createdDefaultChannels := false
 	defer func() {
 		if !started && createdDefaultChannels {
 			n.discardDefaultChannels()
@@ -31,10 +28,19 @@ func (n *Node) Start(ctx context.Context) error {
 		}
 		if !started {
 			n.discardDefaultSlots()
+			if n.defaultProposer {
+				n.proposer = nil
+				n.defaultProposer = false
+			}
 			n.discardDefaultControl()
 			n.discardDefaultTransport()
 		}
 	}()
+	var err error
+	createdDefaultChannels, err = n.ensureDefaultRuntime()
+	if err != nil {
+		return err
+	}
 	n.invalidateWriteProbeProof()
 	n.stopping.Store(false)
 	resources := n.startResources()
@@ -172,12 +178,21 @@ func (n *Node) Stop(ctx context.Context) error {
 		}
 		n.defaultSlotProxy = nil
 		n.defaultSlotProposer = nil
+		n.slotStatusRuntime = nil
 		n.slots = nil
+		if n.defaultTaskExecutor {
+			n.tasks = nil
+			n.defaultTaskExecutor = false
+		}
 		if n.defaultPreferredLeaderReconciler {
 			n.preferredLeaderReconciler = nil
 			n.defaultPreferredLeaderReconciler = false
 		}
 		n.defaultSlots = false
+	}
+	if n.defaultProposer {
+		n.proposer = nil
+		n.defaultProposer = false
 	}
 	n.discardDefaultControl()
 	n.discardDefaultTransport()

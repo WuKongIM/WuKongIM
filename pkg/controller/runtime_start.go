@@ -35,9 +35,13 @@ func (r *Runtime) startVoter(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	r.mu.Lock()
 	r.sm, r.raft = sm, service
+	r.mu.Unlock()
 	if err := service.Start(ctx); err != nil {
+		r.mu.Lock()
 		r.sm, r.raft = nil, nil
+		r.mu.Unlock()
 		return err
 	}
 	srv, err := server.New(server.Config{StateSource: sm, Proposer: service, Now: r.cfg.Now})
@@ -45,8 +49,11 @@ func (r *Runtime) startVoter(ctx context.Context) error {
 		_ = service.Stop()
 		return err
 	}
+	syncServer := r.newStateSyncServer()
+	r.mu.Lock()
 	r.server = srv
-	r.syncServer = r.newStateSyncServer()
+	r.syncServer = syncServer
+	r.mu.Unlock()
 	if len(r.cfg.Voters) > 1 {
 		if st := sm.Snapshot(ctx); st.Revision != 0 && len(st.Slots) >= int(r.cfg.InitialSlotCount) {
 			if err := r.publishFromState(ctx); err != nil {
@@ -85,8 +92,10 @@ func (r *Runtime) startMirror(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	r.mu.Lock()
 	r.server = srv
 	r.syncClient = client
+	r.mu.Unlock()
 	if err := srv.SyncOnce(ctx); err != nil {
 		return err
 	}

@@ -24,7 +24,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    Slots/Channels and exposes readiness. Default metadata enables its sequence seal
    before Slot construction. Only initial Node.Start permits certified FSM reuse or
    bounded installation with admission closed; live placement and maintenance reloads
-   retain atomic restore. Stop rejects work and reverses ownership.
+   retain atomic restore. Stop and failed-start rollback release owned proposal/task/status
+   references; Start rebuilds them while preserving injected adapters. Quorum gateways register anew per transport server.
 2. Slot proposals and metadata facades resolve one immutable route snapshot,
    expose bounded exact-key UID membership reads and group Channel- or UID-owned
    work by physical Slot, execute locally or
@@ -82,8 +83,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    task-result RPC carries executor progress and terminal observations.
 
 ## Invariants and Failure Semantics
-- `pkg/dataformat` owns immutable format/creator metadata; missing markers stay unregistered.
-  Corrupt or unsupported markers fail before storage opens.
+- `pkg/dataformat` owns immutable format/creator metadata; nonempty unregistered
+  directories and corrupt or unsupported markers fail before storage opens.
 - Offline generation seals reject incomplete imports and mismatched bootstrap
   configuration before native startup.
 - Event sequence reads route to the Slot leader and include durable projections.
