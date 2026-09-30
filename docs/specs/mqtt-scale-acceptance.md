@@ -7,6 +7,17 @@ that MQTT group consumers stay correct and bounded when the group has
 instead of unbounded metadata. It is one part of full process/load acceptance.
 It makes no capacity claim beyond the recorded sizes.
 
+## Latest ordinary result
+
+The compound plan/original-read candidate at `838222fcf` passes the original
+100,000-member/500-client/twenty-message workload once, including the fresh
+post-churn publication, exact identities/order and all 600 retirements. Fanout
+is 151.982s and quiet barriers are 4.149/client/s. A sequential 2,000-member
+candidate run still fails zero-based round 2 unsubscribe with one conflict
+closure. This pass does not erase that intermittent failure or qualify broader
+MQTT recovery. [Passing artifact and retained comparison failures](../reports/mqtt-compound-originals/README.md).
+The earlier results below remain historical failure evidence.
+
 ## Shape
 
 - Group `scale-group`: 100,000 members, provisioned through public HTTP in

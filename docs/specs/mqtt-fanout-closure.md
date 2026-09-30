@@ -1,5 +1,12 @@
 # MQTT fanout closure diagnosis
 
+The compound plan/original-read candidate at `838222fcf` now passes one ordinary
+original-size acceptance, with 151.982s fanout and all post-churn identity/order
+and 600-retirement assertions. Its smaller sequential comparison still produces
+one unsubscribe/conflict in zero-based round 2. The earlier failure and closure
+origins below remain evidence, not resolved causes.
+[Passing artifact and retained failures](../reports/mqtt-compound-originals/README.md).
+
 The unprofiled full workload at `dd8e49bb9` prepares 100,000 members and confirms
 500 subscriptions, then fails its unchanged three-minute initial receipt wait.
 Public owner gauges show 497 live/held owners at failure. This does not yet prove
@@ -39,7 +46,7 @@ A separate bounded CPU/goroutine/metric profile finds fourteen of sixteen
 delivery workers waiting on fresh read barriers, including ten in Accounting,
 and two on proposal futures. A scheduling experiment passes thirteen isolated
 safety cases but shows no benefit in the 500-client run or sequential 64-client
-pair. It is not adopted; product code remains at `dd8e49bb9`.
+pair. That experiment was not adopted; its product baseline remained at `dd8e49bb9`.
 [Rejected experiment and measurement limits](mqtt-accounted-delivery-experiment.md).
 
 The baseline 64-client boundary probe completes twenty initial publications,

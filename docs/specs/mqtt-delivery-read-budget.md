@@ -1,5 +1,17 @@
 # MQTT delivery read budget diagnosis
 
+## Implemented seam and current acceptance
+
+The bounded compound operation is implemented at `838222fcf`. Its test-first
+real Service regression reduces fresh metadata calls from five to two, keeping
+outer placement and final Owner/permission checks. One ordinary original-size
+acceptance passes all receipt, identity/order, churn and retirement assertions:
+fanout is 151.982s for 100,000 members and 500 clients. The smaller candidate
+comparison still exposes one unsubscribe/conflict in zero-based round 2; no
+repair of that intermittent race or percentage speedup is claimed.
+[Ordinary results, exact provenance and retained failures](../reports/mqtt-compound-originals/README.md).
+The diagnostic measurements below describe the earlier product baseline.
+
 ## Measured result
 
 Two sequential diagnostic runs at `5dfa36d8871c0c606246f610c4c80339f1360bec`
@@ -93,9 +105,9 @@ comparison before adopting any optimization. The compound candidate now has a te
 original real Service chain reads metadata five times; the compound path reads
 it twice. It retains outer placement and final Owner/permission checks, native
 propagation and the same four-reader admission. RPC 104 binds the complete
-consumer boundary and accounted frontier; old peers fail closed. Ordinary-binary
-measurements and the unchanged full acceptance determine its measured benefit;
-fewer reads alone do not prove a performance repair.
+consumer boundary and accounted frontier; old peers fail closed. The linked ordinary-binary comparison and passing original-size acceptance
+record the current evidence. Fewer reads alone do not qualify broad performance
+or resolve the separately reproduced unsubscribe conflict.
 
 Failure cases to write **before** that implementation:
 

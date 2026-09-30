@@ -1,6 +1,6 @@
 # MQTT connection delivery scheduling
 
-Status: bounded runtime implemented and tested; the product listener remains unavailable.
+Status: bounded runtime and the opt-in product listener are implemented. The current original-size pass and remaining intermittent churn failure are recorded in [scale acceptance](mqtt-scale-acceptance.md).
 This is the bounded execution part of the approved [IM design](mqtt-im-access.md),
 not a substitute for source discovery, offline accounting or process acceptance.
 
