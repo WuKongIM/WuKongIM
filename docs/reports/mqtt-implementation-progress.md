@@ -5108,3 +5108,36 @@ unchanged idle threshold (10.80 barriers/client/s). No unsubscribe conflict
 recurs. This is another failed diagnostic scenario, not complete scale
 acceptance or a repair of the intermittent conflict.
 [Result](mqtt-unsubscribe-dd8e-boundaries-64.json).
+
+
+## Delivery stage/read budget diagnosis (source 5dfa36d88)
+
+No product optimization is adopted. Four serial diagnostic scenarios retain
+original worker, retry, deadline and receipt settings. The original-size v1
+attempt confirms 100,000 members but fails initial SUBSCRIBE before fanout;
+a 2,000-member v1 run fails fanout with eight closed incomplete clients. v1
+read attribution is invalid because Owner operation context derivation drops
+caller diagnostic labels. Corrected overlays explicitly carry only that marker.
+
+The v2 2,000-member/500-client/twenty-message run repeats the three-minute
+receipt timeout with all 500 clients open (8,821 observed receipts). The v3
+run receives all 10,000 initial publications in 141.029s, then fails round 2
+unsubscribe with two public unsubscribe/conflict closures; it does not verify
+post-churn delivery or complete retirement. These are failed scenarios.
+
+Two corrected steady windows attribute about 84% of aggregate delivery
+execution to actual Slot ReadBarrier waits. WindowAdmission takes 55.56% and
+56.80%, Accounting 28.64% and 29.38%, recovery 4.12% and 3.04%. Window/auth
+read waits take about 74% of window wall time. Normalized online barriers
+are 39.24 and 29.13 per accepted gateway enqueue, including failed attempts;
+an enqueue remains distinct from a Paho receipt or durable acknowledgement.
+The v3 steady window has 379 typed Channel backpressure and 48 window conflicts;
+all 17,219 exchange-recovery calls return empty. v2's other errors remain unknown.
+
+This evidence prioritizes a bounded compound routed Channel plan/original-read
+regression seam over another Accounting hint or an unmeasured worker increase.
+No new port, protocol, cache or product behavior is implemented. Existing
+focused race validation passes; copied overlay source, fixed raw aggregates,
+exact commands, binary hashes and frozen instruction digests are preserved.
+[Measurement and pre-implementation failure inventory](../specs/mqtt-delivery-read-budget.md),
+[repeatable artifacts](mqtt-delivery-stage-diagnostic/README.md).

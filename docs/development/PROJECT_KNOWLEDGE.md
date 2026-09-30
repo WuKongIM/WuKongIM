@@ -12,6 +12,13 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Cluster and authority
 
+- MQTT subscription admission derives dependency contexts from the admitted
+  Owner operation, preserving its cancellation and the minimum caller/operation
+  deadline; synchronous scope checks separately cover the parent. Caller context
+  values must not be assumed to survive this boundary. Diagnostic tracing must
+  carry its own marker explicitly without replacing the Owner context or its
+  fencing/cancellation behavior.
+
 - All deployments use cluster semantics, including a single-node cluster.
   Distinguish 256 physical hash slots from logical Slot Raft Groups and node-local
   reactor partitions. Shipped initialization creates 12 logical groups; omitted

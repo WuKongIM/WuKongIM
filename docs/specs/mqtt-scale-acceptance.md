@@ -143,3 +143,12 @@ A bounded Accounting deferral experiment is not adopted because no measured
 throughput benefit or complete passing comparison is established.
 [Experiment](mqtt-accounted-delivery-experiment.md). Full scale acceptance,
 intermittent unsubscribe/conflict and their remaining causes stay unresolved.
+
+Subsequent bounded stage probes retain all deadlines, workers and expected
+receipts. The original-size attempt fails initial SUBSCRIBE before fanout.
+Corrected 2,000-member/500-client/twenty-message probes attribute about 84% of
+delivery execution to actual Slot read-barrier waits, principally window
+preparation. One repeats the all-clients-open receipt timeout; another receives
+every initial publication in 141.029s but fails round 2 unsubscribe with two
+conflict closures. No diagnostic run qualifies full acceptance or supplies an
+adopted optimization. See [read budget evidence](mqtt-delivery-read-budget.md).

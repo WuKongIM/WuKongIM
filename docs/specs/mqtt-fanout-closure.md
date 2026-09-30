@@ -47,3 +47,13 @@ one fresh publication and 192 retirements with correct identities/order, but
 fails its unchanged idle criterion (10.80 barriers/client/s). It does not
 reproduce unsubscribe/conflict or qualify full acceptance. The conflict and
 earlier three-owner closure origin remain unconfirmed.
+
+Two subsequent corrected stage probes keep 500 clients/twenty publications
+with 2,000 members. Actual Slot read-barrier waits account for about 84% of
+delivery execution; window preparation accounts for 56–57%, Accounting 29%,
+and empty exchange recovery 3–4%. One probe repeats a receipt timeout with
+all clients open; another reaches all initial receipts in 141.029s and fails
+on round 2 unsubscribe, with two public conflict closures. These measurements
+do not localize those conflicts or establish a repair. The preceding original-size
+probe fails initial SUBSCRIBE before fanout and cannot supply throughput data.
+[Stage evidence and next regression seam](mqtt-delivery-read-budget.md).
