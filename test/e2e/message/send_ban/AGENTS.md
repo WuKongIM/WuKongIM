@@ -78,8 +78,8 @@ Counter deltas include all related work in their public scope; do not interpret
 aggregate Slot groups as only the mandatory policy reads or claim timing gates.
 
 The `.network-admission.json` companion uses two voters per Slot, verifies
-owner/non-replica placement, stops the other voter, and gates 48 HTTP SENDs.
-Require remote envelopes, owner admission-busy evidence, at most 16 sampled
+owner/non-replica placement, stops the other voter, and gates 192 HTTP SENDs.
+Require remote envelopes, owner admission-busy evidence, at most 64 sampled
 executing envelopes, drain to zero, all 503/zero identifiers and exact recovery
 history. This topology is a controlled quorum-loss fault, not an HA claim.
 

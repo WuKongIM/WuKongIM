@@ -385,7 +385,7 @@ func TestSendPermissionRPCBoundaries(t *testing.T) {
 		db := boundaryDB(t)
 		c := newBoundaryCluster(2)
 		gate := boundaryGate(t)
-		entered := make(chan struct{}, 32)
+		entered := make(chan struct{}, 2*sendPermissionMaxExecuting)
 		var active, peak atomic.Int64
 		c.barrier = func(ctx context.Context, _ multiraft.SlotID) error {
 			n := active.Add(1)
@@ -418,11 +418,11 @@ func TestSendPermissionRPCBoundaries(t *testing.T) {
 		}
 		var pending []<-chan answer
 		pending = append(pending, launch(first))
-		for range 15 {
+		for range sendPermissionMaxExecuting - 1 {
 			pending = append(pending, launch(ctx))
 		}
 		// Cancel and join before the database cleanup, even if an assertion fails.
-		var joined [17]bool
+		var joined [sendPermissionMaxExecuting + 1]bool
 		t.Cleanup(func() {
 			cancel()
 			closeBoundaryGate(gate)
@@ -436,11 +436,11 @@ func TestSendPermissionRPCBoundaries(t *testing.T) {
 				}
 			}
 		})
-		for range 16 {
+		for range sendPermissionMaxExecuting {
 			awaitBoundaryEvent(t, entered)
 		}
-		require.EqualValues(t, 16, s.permissionInflight.Load())
-		require.EqualValues(t, 16, c.admitted.Load())
+		require.EqualValues(t, sendPermissionMaxExecuting, s.permissionInflight.Load())
+		require.EqualValues(t, sendPermissionMaxExecuting, c.admitted.Load())
 		body, err := s.handleSendPermissionRPC(ctx, raw)
 		require.NoError(t, err)
 		var busy sendPermissionReply
@@ -448,7 +448,7 @@ func TestSendPermissionRPCBoundaries(t *testing.T) {
 		require.ErrorIs(t, validateSendPermissionReply(q, busy), ErrPermissionBusy)
 		_, err = s.serveSendPermissions(ctx, q)
 		require.ErrorIs(t, err, ErrPermissionBusy)
-		require.EqualValues(t, 16, active.Load())
+		require.EqualValues(t, sendPermissionMaxExecuting, active.Load())
 		cancelFirst()
 		var canceled answer
 		select {
@@ -461,10 +461,10 @@ func TestSendPermissionRPCBoundaries(t *testing.T) {
 		var canceledReply sendPermissionReply
 		require.NoError(t, decodeSendPermissionJSON(canceled.body, &canceledReply))
 		require.Equal(t, "unavailable", canceledReply.Groups[0].Status)
-		require.EqualValues(t, 15, s.permissionInflight.Load())
+		require.EqualValues(t, sendPermissionMaxExecuting-1, s.permissionInflight.Load())
 		pending = append(pending, launch(ctx))
 		awaitBoundaryEvent(t, entered)
-		require.EqualValues(t, 16, s.permissionInflight.Load())
+		require.EqualValues(t, sendPermissionMaxExecuting, s.permissionInflight.Load())
 		closeBoundaryGate(gate)
 		for i, ch := range pending {
 			if joined[i] {
@@ -482,7 +482,7 @@ func TestSendPermissionRPCBoundaries(t *testing.T) {
 				t.Fatal("envelope did not complete")
 			}
 		}
-		require.EqualValues(t, 16, peak.Load())
+		require.EqualValues(t, sendPermissionMaxExecuting, peak.Load())
 		require.Zero(t, s.permissionInflight.Load())
 		require.Zero(t, c.admitted.Load())
 		require.Zero(t, active.Load())

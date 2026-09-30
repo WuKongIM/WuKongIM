@@ -102,7 +102,7 @@ per-request allow/deny alignment; these functional runs are not performance gate
 
 The send-ban remote admission fault uses three processes and two voters per
 Slot to keep a non-replica ingress alive while UID quorum is lost. It records
-48 failed-closed requests, bounded execution, busy responses and exact recovery.
+192 failed-closed requests, bounded execution, busy responses and exact recovery.
 
 The send-ban leader-transfer companion moves the user and Channel policy Slots
 through public Manager operations, keeps concurrent sends closed, then verifies

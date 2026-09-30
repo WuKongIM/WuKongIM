@@ -29,7 +29,7 @@ move those entries into a version section named for that exact tag.
 
 - Stop replication workers from repeatedly scheduling empty batches while their Channels are already in flight; wake blocked work when exchanges complete, retaining ordering and capacity limits. / 复制队列中的频道均在交换中时不再反复调度空批次；交换完成后唤醒等待工作，保留顺序和容量限制。
 
-- Absorb send-permission read bursts with at most 1024 waiting envelopes (16 MiB of queued request bytes) and a 2 s wait bound, retaining 16 executing envelopes, caller cancellation and fresh authority checks. Overflow still fails closed with `ReasonSystemBusy`. / 发送权限读取最多排队 1024 个请求（排队字节上限 16 MiB）、最长等待 2 s 以吸收突发；执行并发仍为 16，保留取消和最新权威读取，超限继续以 `ReasonSystemBusy` 拒绝。
+- Absorb send-permission read bursts with at most 1024 waiting envelopes (16 MiB of queued request bytes) and a 2 s wait bound, with at most 64 executing envelopes (256 Slot workers), caller cancellation and fresh authority checks. Overflow still fails closed with `ReasonSystemBusy`. / 发送权限读取最多排队 1024 个请求（排队字节上限 16 MiB）、最长等待 2 s 以吸收突发；执行最多 64 个信封（256 个 Slot worker），保留取消和最新权威读取，超限继续以 `ReasonSystemBusy` 拒绝。
 
 - Preserve ready gateway SEND prefixes as batches, retaining directory barriers, hook order, per-Channel append order and session ACK order to avoid per-message durable waits in the use case. / 网关已就绪的连续 SEND 保持批量提交，保留目录屏障、hook 顺序、同频道追加顺序和会话 ACK 顺序，避免用例层逐条等待持久化。
 

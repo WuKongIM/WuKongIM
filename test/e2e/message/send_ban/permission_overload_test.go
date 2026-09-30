@@ -93,7 +93,7 @@ func TestRemotePermissionOverloadFailsClosed(t *testing.T) {
 		err               error
 		started, finished time.Time
 	}
-	const requests = 48
+	const requests = 192
 	gate := make(chan struct{})
 	results := make(chan result, requests)
 	for i := 0; i < requests; i++ {
@@ -126,7 +126,7 @@ func TestRemotePermissionOverloadFailsClosed(t *testing.T) {
 			require.NoError(t, err)
 			active := suite.SumMetricSamples(samples, "wukongim_message_permission_inflight", nil)
 			peak = max(peak, active)
-			require.LessOrEqual(t, active, float64(16))
+			require.LessOrEqual(t, active, float64(64))
 		case <-ctx.Done():
 			t.Fatal(ctx.Err())
 		}
