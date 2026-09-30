@@ -1,0 +1,9 @@
+{
+  "bytes": 178212,
+  "sha256": "69e410606acfbea708811c5125eb459bcdff3da36b52f36882ffd270c69b1ee2",
+  "members": 42,
+  "primary_archive_sha256": "2eb068e94ce358e333bd43691d546895449a8cb907c1e12bb94f9b0b1e219c5f",
+  "comparative_acceptance": "FAILED",
+  "driver_revision": "c0e95b5a45babbd1907c590a9dcdab83e74634a9",
+  "runtime_revision": "ec21c1a586941ffd74cfb497f0da4522941bc1a4"
+}
