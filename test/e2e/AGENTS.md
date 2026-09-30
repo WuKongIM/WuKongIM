@@ -89,6 +89,10 @@ black-box e2e coverage for `cmd/wukongim` and internal behavior only.
 cache freshness, WKProto and HTTP admission, atomic changes and CAS.
 Run `GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -count=1 -timeout=8m -p=1 -v`.
 The scenario writes a JSON report (override with `WK_E2E_SEND_BAN_REPORT`).
+`send_ban` also contains the opt-in Issue #977 independent-caller baseline;
+see its scenario instructions for frozen-binary execution, actual placement,
+counter/resource cuts, optional separate profiles and exact complete history.
+These characterization results do not replace the unchanged 500 SEND/s gates.
 `WK_E2E_SEND_BAN_100K=1` enables `TestHundredKGroupSendBan` (six-minute test bound)
 and the `.100k.json` companion report. Backup restore scenarios also checkpoint
 both policy scopes; `WK_E2E_SEND_BAN_RESTORE_REPORT` sets their artifact base.

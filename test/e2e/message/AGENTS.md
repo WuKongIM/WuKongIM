@@ -71,6 +71,11 @@ profiles afterward; see the scenario instructions for the fixed comparison.
 cache freshness, WKProto and HTTP admission, atomic changes and CAS.
 Run `GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -count=1 -timeout=8m -p=1 -v`.
 The scenario writes a JSON report (override with `WK_E2E_SEND_BAN_REPORT`).
+The separate opt-in `TestPermissionCallerBaseline` characterizes Issue #977
+using fixed independent WKProto sessions, public per-node metric cuts and exact
+history across four actual Slot/leader placements. See `send_ban/AGENTS.md` for
+the frozen-binary invocation, resource limitations and separate profile phase;
+it does not alter the existing 500 SEND/s gate or implement cross-caller cohorts.
 Its independent `WK_E2E_SEND_BAN_100K=1` opt-in runs `TestHundredKGroupSendBan`
 with a six-minute test bound and writes a `.100k.json` companion report. A setup
 timeout is failed evidence, not a smaller-scale pass.

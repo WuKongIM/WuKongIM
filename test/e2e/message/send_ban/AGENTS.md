@@ -25,6 +25,22 @@ Optional WK_E2E_SOURCE_REVISION and WK_E2E_SOURCE_FINGERPRINT identify the teste
 source; the non-replica scenario writes a .non-replica.json companion artifact.
 These functional timings are not a qualified throughput/latency benchmark.
 
+The independent Issue #977 characterization is opt-in:
+`WK_E2E_PERMISSION_BASELINE=1 WK_E2E_BINARY=/absolute/frozen/wukongim WK_E2E_PERMISSION_BASELINE_REPORT=/absolute/baseline.json GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -run '^TestPermissionCallerBaseline$' -count=1 -timeout=4m -p=1 -v`.
+Use 32 separate system-UID devices, 64 sequential SENDs and two waves of 32
+independent callers per placement. One-voter metadata Slots prove non-replica
+routing only; they do not qualify quorum cost or HA. Keep actual all-node
+placement, topology fingerprints, binary/build and harness identities, per-node
+metric cuts, exact envelope/Slot/barrier counts, ACKs, ban/unban controls and
+complete More/sequence-paginated Product HTTP sync history for an offline
+subscriber. Pin three message-data replicas independently of the one-voter
+metadata fixture; a Slot owner is not proof of complete node-local message data.
+Resource cuts describe whole nodes; missing
+samples and queue bytes stay unknown. Do not infer a CPU bottleneck from counts.
+`WK_E2E_PERMISSION_BASELINE_PROFILES=1` captures bounded CPU/heap profiles in a
+separate 256-SEND phase, excluded from unprofiled latency. This baseline neither
+implements cohorts nor changes/replaces the 500 SEND/s qualification gates.
+
 Run the independent 100,000-member proof with
 `WK_E2E_SEND_BAN_100K=1 GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -run TestHundredKGroupSendBan -count=1 -timeout=6m -p=1 -v`.
 It requires the full public-API group setup, a successful fanout positive control,
