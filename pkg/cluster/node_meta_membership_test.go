@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/control"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -311,6 +312,17 @@ func TestUpsertUserChannelMembershipsBoundsIndependentSlotConcurrency(t *testing
 	proposer := newControlledMembershipProposer(3)
 	defer proposer.releaseAll()
 	node := newStartedSlotProxyPortNode(t, proposer)
+	// Three physical owners keep this a three-job concurrency test after
+	// logical shards sharing one owner are coalesced.
+	snapshot := node.controlSnapshot
+	snapshot.Revision++
+	snapshot.Slots = append(snapshot.Slots, control.SlotAssignment{SlotID: 3, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 1, PreferredLeader: 1})
+	snapshot.HashSlots.Revision++
+	snapshot.HashSlots.Ranges = []control.HashSlotRange{{From: 0, To: 0, SlotID: 1}, {From: 1, To: 1, SlotID: 3}, {From: 2, To: 3, SlotID: 2}}
+	if err := node.router.UpdateControlSnapshot(snapshot); err != nil {
+		t.Fatal(err)
+	}
+	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1}, {SlotID: 2, Leader: 2}, {SlotID: 3, Leader: 1}})
 	u0 := keyForNodeHashSlot(t, 4, 0)
 	u1 := keyForNodeHashSlot(t, 4, 1)
 	u3 := keyForNodeHashSlot(t, 4, 3)

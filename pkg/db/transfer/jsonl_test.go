@@ -110,3 +110,18 @@ func assertInt64Field(t *testing.T, name string, got any, want int64) {
 		t.Fatalf("%s = %d, want %d", name, value, want)
 	}
 }
+
+func TestSendBanImportRejectsInvalidFlags(t *testing.T) {
+	for _, tc := range []struct {
+		kind FileKind
+		row  string
+	}{
+		{FileKindMetaUsers, `{"hash_slot":1,"uid":"u","send_ban":2}`},
+		{FileKindMetaChannels, `{"hash_slot":1,"channel_id":"g","channel_type":2,"send_ban":-1}`},
+	} {
+		err := readJSONL(context.Background(), strings.NewReader(tc.row), tc.kind, func(any) error { t.Fatal("invalid flag reached importer"); return nil })
+		if err == nil {
+			t.Fatal("invalid send ban accepted")
+		}
+	}
+}

@@ -18,6 +18,7 @@ GOWORK=off go test -tags=e2e ./test/e2e/message/terminal_disband -count=1 -timeo
 - At least one bypass send must use `sync_once` so the command-channel append
   path proves it resolves the terminal state of the source channel.
 - A disbanded channel must remain discoverable as a conversation delete and
-  must reject ordinary and CMD message pulls.
+  must reject ordinary message pulls. Global CMD sync must skip confirmed
+  terminal sources without failing unrelated bindings.
 - Snapshot ordinary and CMD membership-mutation counters immediately before
   disband and prove the terminal mutation does not synchronously fan out rows.

@@ -36,6 +36,8 @@ func mapReason(reason message.Reason) frame.ReasonCode {
 		return frame.ReasonDisband
 	case message.ReasonSendBan:
 		return frame.ReasonSendBan
+	case message.ReasonSystemBusy:
+		return frame.ReasonSystemBusy
 	case message.ReasonInvalidRequest, message.ReasonUnsupported:
 		return frame.ReasonPayloadDecodeError
 	default:
@@ -49,6 +51,9 @@ func reasonForError(err error) message.Reason {
 		return message.ReasonSuccess
 	case errors.Is(err, message.ErrChannelNotFound):
 		return message.ReasonChannelNotExist
+	case errors.Is(err, message.ErrBackpressured):
+		// Admission pressure is not a routing problem; report it distinctly.
+		return message.ReasonSystemBusy
 	case errors.Is(err, message.ErrNotLeader), errors.Is(err, message.ErrStaleRoute), errors.Is(err, message.ErrRouteNotReady):
 		return message.ReasonNodeNotMatch
 	case errors.Is(err, message.ErrInvalidCommand):

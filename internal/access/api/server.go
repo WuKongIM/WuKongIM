@@ -581,6 +581,7 @@ func (s *Server) registerRoutes() {
 	s.registerDemoRoutes()
 	s.registerChannelRoutes()
 	s.registerUserRoutes()
+	s.registerSendBanRoutes()
 	s.registerMessageRoutes()
 	s.registerConversationRoutes()
 	s.engine.Any("/plugins/:plugin_no/*path", s.handlePluginRoute)

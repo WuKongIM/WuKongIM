@@ -9,7 +9,6 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 `Node` composes cluster runtimes and owns lifecycle, readiness and bounded snapshots.
 
 ## Boundaries
-
 - `control` adapts Controller state, writes, Raft transport, and snapshots;
   `routing` publishes hash-Slot authority; `slots` and `propose` own Slot
   Multi-Raft lifecycle and proposals; `channels` hosts Channel runtimes; `net`
@@ -25,7 +24,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    Slots/Channels and exposes readiness. Default metadata enables its sequence seal
    before Slot construction. Only initial Node.Start permits certified FSM reuse or
    bounded installation with admission closed; live placement and maintenance reloads
-   retain atomic restore. Stop rejects work and reverses ownership.
+   retain atomic restore. Stop and failed-start rollback release owned proposal/task/status
+   references; Start rebuilds them while preserving injected adapters. Quorum gateways register anew per transport server.
 2. Slot proposals and metadata facades resolve one immutable route snapshot,
    expose bounded exact-key UID membership reads and group Channel- or UID-owned
    work by physical Slot, execute locally or
@@ -70,22 +70,21 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    pages transfer without another deep copy; caller isolation remains required.
    Read RPCs preserve typed temporary transport failures from nested authority
    reads using the existing not-ready code; unknown error text stays unknown.
-5. `LocalControlSnapshot` exposes the latest fully Node-applied control state;
-   delayed snapshots older than that applied revision are ignored before any
-   maintenance, placement or task side effects. Equal revisions still refresh
-   Controller leadership and node health. Watch events trigger a current
-   Controller read so queued task progress is not replayed. Revision-fenced
-   management adapters may use `LocalControllerSnapshot` to read
-   Controller-visible state without waiting for runtime task reconciliation.
-   Repair also reads this fresh health snapshot so a stalled task cannot hide failures.
+5. `LocalControlSnapshot` exposes the latest Node-applied control state;
+   older revisions are ignored before maintenance, placement or task side effects.
+   Equal revisions refresh leadership/health; watch events read current state.
+   Reconciled routes, Slot readiness and health publish before initial task setup.
+   After startup, one coalesced wake drives the existing serialized executor over
+   fresh Controller state. Task writes cannot block snapshot publication/readiness;
+   Stop joins that owner. Revision-fenced management and repair may use
+   `LocalControllerSnapshot` for fresh Controller state before task reconciliation.
 6. Controller-backed management mutations, including Slot leader-transfer task
    creation, preserve semantic CAS errors and task identity through typed RPC;
    task-result RPC carries executor progress and terminal observations.
 
 ## Invariants and Failure Semantics
-
-- `pkg/dataformat` owns immutable format/creator metadata; missing markers stay unregistered.
-  Corrupt or unsupported markers fail before storage opens.
+- `pkg/dataformat` owns immutable format/creator metadata; nonempty unregistered
+  directories and corrupt or unsupported markers fail before storage opens.
 - Offline generation seals reject incomplete imports and mismatched bootstrap
   configuration before native startup.
 - Event sequence reads route to the Slot leader and include durable projections.
@@ -117,8 +116,9 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   identities coalesce, unique work is bounded and canonical-sorted, placement
   comes from one current revision, and uncertain proposals retry only rows an
   authoritative reread proves missing.
-- UID-owned membership fanout and person-directory batches have fixed
-  concurrency. Directory-ready can never hide missing UID membership or
+- Ordinary UID membership upserts deduplicate one immutable route publication into physical-Slot proposals.
+  Caps are 128 rows/256 KiB/64 KiB UID bytes with two concurrent proposals; byte-heavy groups split before submission.
+  Directory-ready can never hide missing UID membership or
   missing append runtime metadata.
 - Lifecycle, fanout, retries, scans, repairs, tasks and diagnostics stay bounded.
   Repair scans rotate Slots with row cursors under tick/task budgets. Slot
@@ -138,8 +138,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   48 hours for complete backup/restore operations); read-only handlers
   may follow caller cancellation, while started mutations keep independent
   execution. Ready frames batch without an idle coalescing delay.
-
 - Routed committed and persisted message batches and conversation heads hydrate latest payload replacements through Slot authority. Cross-channel record chunks preserve batching above 200 total recent records; replacement growth respects each page byte budget and retains continuation. Matching skips empty pages, scans at most eight updates directly, and indexes larger pages without copying payload-bearing structs. The Slot ReadIndex/apply barrier is request-scoped, separate from readiness proof reuse; serving edit proposals check the content epoch under restore admission, including forwarded commands; local raw log/backup reads remain immutable.
+- Send-permission routing projects one immutable authority publication into node-batched Slot queries with caller cancellation. Every group holds foreground/maintenance admission through a fresh Slot barrier, pinned metadata snapshot and final authority check. The node does not evaluate send-ban business rules.
 
 ## Read First
 

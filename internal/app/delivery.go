@@ -222,3 +222,19 @@ func (a *App) recordDeliveryError(err error) {
 		}
 	}
 }
+
+func (o deliveryMessageObserver) ObserveSendPermissionCount(kind string, n int) {
+	if o.app != nil && o.app.metrics != nil {
+		o.app.metrics.Message.ObserveSendPermissionCount(kind, n)
+	}
+}
+func (o deliveryMessageObserver) ObserveSendPermissionStage(stage, result string, d time.Duration) {
+	if o.app != nil && o.app.metrics != nil {
+		o.app.metrics.Message.ObserveSendPermissionStage(stage, result, d)
+	}
+}
+func (o deliveryMessageObserver) ObserveSendBanRejection(scope string, n int) {
+	if o.app != nil && o.app.metrics != nil {
+		o.app.metrics.Message.ObserveSendBanRejection(scope, n)
+	}
+}

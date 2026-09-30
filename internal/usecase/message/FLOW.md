@@ -33,7 +33,13 @@ depending on their frames, JSON, or concrete cluster runtimes.
    larger batches coalesce equivalent raw permission reads. Both evaluate the
    same legacy policy, establish each accepted person directory once, run hooks
    in original order, and copy aligned `channelappend` results to original
-   indexes.
+   indexes. Each session submits its contiguous directory-ready prefix in input
+   order; a cold head fences later items. Independent Channel completions may
+   arrive out of order, while final publication follows the session chain.
+   Optional `SubmitBatchEach` joins the same preparation, then transfers append
+   completion to an injected bounded admission owner. Admission progress never
+   reads completion state; serialized publication and deadline cleanup join both
+   preparation and all results. Callers own cross-batch order and reservations.
 2. Single and batch sync validate membership and visibility, canonicalize
    Channel IDs, and pass page intent plus an independent visibility floor to
    `PageReader`. It owns latest-page selection, scan bounds, bounded lookahead,
@@ -97,6 +103,14 @@ depending on their frames, JSON, or concrete cluster runtimes.
 - Successful edit CAS/idempotency responses optionally schedule their returned identity/version through a nonblocking post-commit callback. Notification failures never change the committed edit result; the worker uses the same authoritative dispatcher and durable progress checkpoints.
 
 - Public stream events validate the committed base identity, then dispatch through an optional narrow sender with four request-owned admission slots, 128-member authoritative pages and a five-second fanout budget. Post-acceptance delivery failures never undo storage; non-public events are not broadcast. Producers serialize events per message and clients deduplicate EVENT IDs; UTF-8 text offsets support snapshot recovery.
+
+- UID SendBan and actual source-Channel SendBan/Disband precede all system
+  identity, system-device and plugin exemptions. Person policy applies to the
+  canonical pair in both directions; CMD inherits the source. Explicit-recipient
+  sends check only UID policy. One mixed-type plan deduplicates mandatory and
+  auxiliary facts; only membership/list facts may use TTL. Equal-budget requests
+  share sealed reads while retaining independent cancellation outcomes; hook
+  identity changes require fresh authorization and target directory admission.
 
 ## Read First
 

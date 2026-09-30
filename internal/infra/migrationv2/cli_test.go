@@ -117,7 +117,7 @@ func testMigrationCLIProcessesSyntheticCompatibleSource(t *testing.T, reuse bool
 	// it cannot turn a new generation into an accepted legacy unregistered one.
 	require.NoError(t, os.Remove(filepath.Join(plan.Target.Nodes[0].DataDir, dataformat.FileName)))
 	require.NotZero(t, run(append([]string{"verify"}, portable...)...))
-	require.Contains(t, diagnostics.String(), "changed")
+	require.Contains(t, diagnostics.String(), "unregistered nonempty directory")
 	require.NoError(t, os.WriteFile(filepath.Join(plan.Target.Nodes[0].DataDir, dataformat.FileName), before, 0600))
 
 	require.False(t, verified.CutoverReady)

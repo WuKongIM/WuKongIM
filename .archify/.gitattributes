@@ -1,0 +1,3 @@
+# Preserve generated HTML bytes covered by the Archify receipt hashes.
+*.html -text whitespace=-blank-at-eol linguist-generated=true
+*.png -text

@@ -216,7 +216,10 @@ func renderInitialConfig(clusterID, joinToken, jwtSecret, adminPassword string, 
 		gatewayHost = "0.0.0.0"
 	}
 	document := initialConfigDocument{
-		Node: initialNodeConfig{ID: 1, DataDir: "/var/lib/wukongim"},
+		// The package state root /var/lib/wukongim is also the service home and
+		// holds plugin dirs; node data gets its own subdirectory so the data
+		// format check sees an empty root on first start.
+		Node: initialNodeConfig{ID: 1, DataDir: "/var/lib/wukongim/data"},
 		Cluster: initialClusterConfig{
 			ListenAddr:      "127.0.0.1:7001",
 			ID:              clusterID,

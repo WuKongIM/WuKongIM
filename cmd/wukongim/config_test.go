@@ -1036,6 +1036,7 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS", "512")
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES", "262144")
 	t.Setenv("WK_CLUSTER_COMMIT_COORDINATOR_SHARDS", "8")
+	t.Setenv("WK_CLUSTER_STORAGE_DISK_SLOW_THRESHOLD", "750ms")
 	t.Setenv("WK_GATEWAY_GNET_NUM_EVENT_LOOP", "5")
 	t.Setenv("WK_GATEWAY_RUNTIME_ASYNC_SEND_WORKERS", "256")
 	t.Setenv("WK_GATEWAY_RUNTIME_ASYNC_SEND_QUEUE_CAPACITY", "8192")
@@ -1151,6 +1152,9 @@ func TestLoadConfigEnvOverridesFile(t *testing.T) {
 	}
 	if cfg.Cluster.Storage.CommitFlushWindow != time.Millisecond {
 		t.Fatalf("Storage.CommitFlushWindow = %s, want 1ms", cfg.Cluster.Storage.CommitFlushWindow)
+	}
+	if cfg.Cluster.Storage.DiskSlowThreshold != 750*time.Millisecond {
+		t.Fatalf("Storage.DiskSlowThreshold = %s, want 750ms", cfg.Cluster.Storage.DiskSlowThreshold)
 	}
 	if cfg.Cluster.Storage.CommitMaxRequests != 32 || cfg.Cluster.Storage.CommitMaxRecords != 512 || cfg.Cluster.Storage.CommitMaxBytes != 262144 || cfg.Cluster.Storage.CommitShards != 8 {
 		t.Fatalf("Storage commit env override = requests:%d records:%d bytes:%d shards:%d", cfg.Cluster.Storage.CommitMaxRequests, cfg.Cluster.Storage.CommitMaxRecords, cfg.Cluster.Storage.CommitMaxBytes, cfg.Cluster.Storage.CommitShards)
@@ -1548,6 +1552,8 @@ func TestLoadConfigRejectsInvalidValues(t *testing.T) {
 		{name: "commit coordinator max records negative", line: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS=-1", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS"},
 		{name: "commit coordinator max bytes", line: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=many", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES"},
 		{name: "commit coordinator max bytes negative", line: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES=-1", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES"},
+		{name: "storage disk slow threshold", line: "WK_CLUSTER_STORAGE_DISK_SLOW_THRESHOLD=soon", wantKey: "WK_CLUSTER_STORAGE_DISK_SLOW_THRESHOLD"},
+		{name: "storage disk slow threshold zero", line: "WK_CLUSTER_STORAGE_DISK_SLOW_THRESHOLD=0s", wantKey: "WK_CLUSTER_STORAGE_DISK_SLOW_THRESHOLD"},
 		{name: "commit coordinator shards", line: "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=many", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS"},
 		{name: "commit coordinator shards negative", line: "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS=-1", wantKey: "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS"},
 		{name: "cluster nodes json", line: "WK_CLUSTER_NODES=not-json", wantKey: "WK_CLUSTER_NODES"},

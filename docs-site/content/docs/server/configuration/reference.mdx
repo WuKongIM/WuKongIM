@@ -86,6 +86,7 @@ description: 可搜索的 WuKongIM 配置手册，逐项说明全部公开 TOML 
 | `cluster.commit_coordinator_max_records` | `WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS` | `int` | 一次物理提交可合并的消息记录上限；`0` 表示不按记录数限制。 |
 | `cluster.commit_coordinator_max_bytes` | `WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES` | `int` | 一次物理提交可合并的近似负载字节上限；`0` 表示不按字节数限制。 |
 | `cluster.commit_coordinator_shards` | `WK_CLUSTER_COMMIT_COORDINATOR_SHARDS` | `int` | 消息数据库独立提交协调器数量；`0` 使用 `1`，增加前应针对存储进行压测。 |
+| `cluster.storage_disk_slow_threshold` | `WK_CLUSTER_STORAGE_DISK_SLOW_THRESHOLD` | `duration` | 消息数据库磁盘操作超过该时长即计入慢盘指标（`wukongim_storage_pebble_disk_slow_*`）；默认 `1s`，显式值必须大于 `0`。仅用于观测，不改变持久化语义。 |
 
 ## 频道迁移
 

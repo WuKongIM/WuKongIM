@@ -481,7 +481,15 @@ func exportUserRecord(slot uint16, row metadb.InspectRow) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return UserRecord{HashSlot: slot, UID: uid, Token: token, DeviceFlag: deviceFlag, DeviceLevel: deviceLevel}, nil
+	sendBan, err := rowInt64(row, "send_ban")
+	if err != nil {
+		return nil, err
+	}
+	version, err := rowUint64(row, "send_ban_version")
+	if err != nil {
+		return nil, err
+	}
+	return UserRecord{SendBan: sendBan, SendBanVersion: Uint64(version), HashSlot: slot, UID: uid, Token: token, DeviceFlag: deviceFlag, DeviceLevel: deviceLevel}, nil
 }
 
 func exportDeviceRecord(slot uint16, row metadb.InspectRow) (any, error) {
@@ -548,7 +556,11 @@ func exportChannelRecord(slot uint16, row metadb.InspectRow) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ChannelRecord{
+	version, err := rowUint64(row, "send_ban_version")
+	if err != nil {
+		return nil, err
+	}
+	return ChannelRecord{SendBanVersion: Uint64(version),
 		HashSlot:                      slot,
 		ChannelID:                     channelID,
 		ChannelType:                   channelType,

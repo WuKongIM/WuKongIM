@@ -1,0 +1,617 @@
+{
+  "contract": "readable-v2",
+  "viewBox": [
+    1199,
+    954
+  ],
+  "requiredViewBox": [
+    1199,
+    954
+  ],
+  "columns": [
+    114,
+    297.6,
+    486,
+    698.4,
+    886.8,
+    1070.3999999999999
+  ],
+  "nodes": [
+    {
+      "id": "sender",
+      "lane": "entry",
+      "col": 0,
+      "x": 48,
+      "y": 86,
+      "width": 132,
+      "height": 68
+    },
+    {
+      "id": "gateway",
+      "lane": "entry",
+      "col": 1,
+      "x": 231.60000000000002,
+      "y": 86,
+      "width": 132,
+      "height": 68
+    },
+    {
+      "id": "sendack",
+      "lane": "entry",
+      "col": 5,
+      "x": 1004.3999999999999,
+      "y": 86,
+      "width": 132,
+      "height": 68
+    },
+    {
+      "id": "permission",
+      "lane": "admission",
+      "col": 1,
+      "x": 231.60000000000002,
+      "y": 212,
+      "width": 132,
+      "height": 68
+    },
+    {
+      "id": "prepare",
+      "lane": "admission",
+      "col": 2,
+      "x": 420,
+      "y": 212,
+      "width": 132,
+      "height": 68
+    },
+    {
+      "id": "route",
+      "lane": "admission",
+      "col": 3,
+      "x": 632.4,
+      "y": 212,
+      "width": 132,
+      "height": 68
+    },
+    {
+      "id": "writer",
+      "lane": "channel",
+      "col": 3,
+      "x": 632.4,
+      "y": 422,
+      "width": 132,
+      "height": 68
+    },
+    {
+      "id": "durable",
+      "lane": "channel",
+      "col": 4,
+      "x": 820.8,
+      "y": 338,
+      "width": 132,
+      "height": 68
+    },
+    {
+      "id": "transient",
+      "lane": "channel",
+      "col": 4,
+      "x": 820.8,
+      "y": 506,
+      "width": 132,
+      "height": 68
+    },
+    {
+      "id": "result",
+      "lane": "channel",
+      "col": 5,
+      "x": 1004.3999999999999,
+      "y": 422,
+      "width": 132,
+      "height": 68
+    },
+    {
+      "id": "recvack",
+      "lane": "delivery",
+      "col": 0,
+      "x": 48,
+      "y": 632,
+      "width": 132,
+      "height": 68
+    },
+    {
+      "id": "receiver",
+      "lane": "delivery",
+      "col": 1,
+      "x": 231.60000000000002,
+      "y": 632,
+      "width": 132,
+      "height": 68
+    },
+    {
+      "id": "owner",
+      "lane": "delivery",
+      "col": 2,
+      "x": 420,
+      "y": 632,
+      "width": 132,
+      "height": 68
+    },
+    {
+      "id": "presence",
+      "lane": "delivery",
+      "col": 3,
+      "x": 632.4,
+      "y": 632,
+      "width": 132,
+      "height": 68
+    },
+    {
+      "id": "recipients",
+      "lane": "delivery",
+      "col": 4,
+      "x": 820.8,
+      "y": 632,
+      "width": 132,
+      "height": 68
+    },
+    {
+      "id": "postcommit",
+      "lane": "delivery",
+      "col": 5,
+      "x": 1004.3999999999999,
+      "y": 632,
+      "width": 132,
+      "height": 68
+    },
+    {
+      "id": "offline",
+      "lane": "offline",
+      "col": 3,
+      "x": 632.4,
+      "y": 758,
+      "width": 132,
+      "height": 68
+    }
+  ],
+  "edges": [
+    {
+      "id": "durable-result",
+      "from": "durable",
+      "to": "result",
+      "points": [
+        [
+          952.8,
+          372
+        ],
+        [
+          1070.3999999999999,
+          372
+        ],
+        [
+          1070.3999999999999,
+          422
+        ]
+      ]
+    },
+    {
+      "id": "entry-permission",
+      "from": "gateway",
+      "to": "permission",
+      "points": [
+        [
+          297.6,
+          154
+        ],
+        [
+          297.6,
+          212
+        ]
+      ]
+    },
+    {
+      "id": "owner-receiver",
+      "from": "owner",
+      "to": "receiver",
+      "points": [
+        [
+          420,
+          666
+        ],
+        [
+          363.6,
+          666
+        ]
+      ]
+    },
+    {
+      "id": "permission-prepare",
+      "from": "permission",
+      "to": "prepare",
+      "points": [
+        [
+          363.6,
+          246
+        ],
+        [
+          420,
+          246
+        ]
+      ]
+    },
+    {
+      "id": "postcommit-recipients",
+      "from": "postcommit",
+      "to": "recipients",
+      "points": [
+        [
+          1004.3999999999999,
+          666
+        ],
+        [
+          952.8,
+          666
+        ]
+      ]
+    },
+    {
+      "id": "prepare-route",
+      "from": "prepare",
+      "to": "route",
+      "points": [
+        [
+          552,
+          246
+        ],
+        [
+          632.4,
+          246
+        ]
+      ]
+    },
+    {
+      "id": "presence-offline",
+      "from": "presence",
+      "to": "offline",
+      "points": [
+        [
+          698.4,
+          700
+        ],
+        [
+          698.4,
+          758
+        ]
+      ]
+    },
+    {
+      "id": "presence-owner",
+      "from": "presence",
+      "to": "owner",
+      "points": [
+        [
+          632.4,
+          666
+        ],
+        [
+          552,
+          666
+        ]
+      ]
+    },
+    {
+      "id": "receiver-recvack",
+      "from": "receiver",
+      "to": "recvack",
+      "points": [
+        [
+          231.60000000000002,
+          666
+        ],
+        [
+          180,
+          666
+        ]
+      ]
+    },
+    {
+      "id": "recipients-presence",
+      "from": "recipients",
+      "to": "presence",
+      "points": [
+        [
+          820.8,
+          666
+        ],
+        [
+          764.4,
+          666
+        ]
+      ]
+    },
+    {
+      "id": "result-postcommit",
+      "from": "result",
+      "to": "postcommit",
+      "points": [
+        [
+          1070.3999999999999,
+          490
+        ],
+        [
+          1070.3999999999999,
+          632
+        ]
+      ]
+    },
+    {
+      "id": "result-sendack",
+      "from": "result",
+      "to": "sendack",
+      "points": [
+        [
+          1136.3999999999999,
+          456
+        ],
+        [
+          1180.8,
+          456
+        ],
+        [
+          1180.8,
+          120
+        ],
+        [
+          1136.3999999999999,
+          120
+        ]
+      ]
+    },
+    {
+      "id": "route-writer",
+      "from": "route",
+      "to": "writer",
+      "points": [
+        [
+          698.4,
+          280
+        ],
+        [
+          698.4,
+          422
+        ]
+      ]
+    },
+    {
+      "id": "send-entry",
+      "from": "sender",
+      "to": "gateway",
+      "points": [
+        [
+          180,
+          120
+        ],
+        [
+          231.60000000000002,
+          120
+        ]
+      ]
+    },
+    {
+      "id": "transient-recipients",
+      "from": "transient",
+      "to": "recipients",
+      "points": [
+        [
+          886.8,
+          574
+        ],
+        [
+          886.8,
+          632
+        ]
+      ]
+    },
+    {
+      "id": "transient-result",
+      "from": "transient",
+      "to": "result",
+      "points": [
+        [
+          952.8,
+          540
+        ],
+        [
+          1058.3999999999999,
+          540
+        ],
+        [
+          1058.3999999999999,
+          490
+        ]
+      ]
+    },
+    {
+      "id": "writer-durable",
+      "from": "writer",
+      "to": "durable",
+      "points": [
+        [
+          710.4,
+          422
+        ],
+        [
+          710.4,
+          372
+        ],
+        [
+          820.8,
+          372
+        ]
+      ]
+    },
+    {
+      "id": "writer-transient",
+      "from": "writer",
+      "to": "transient",
+      "points": [
+        [
+          764.4,
+          456
+        ],
+        [
+          886.8,
+          456
+        ],
+        [
+          886.8,
+          506
+        ]
+      ]
+    }
+  ],
+  "labels": [
+    {
+      "edge": "durable-result",
+      "label": "已确认 / 幂等结果",
+      "x": 1011.5999999999999,
+      "y": 362,
+      "width": 91.6,
+      "height": 14
+    },
+    {
+      "edge": "entry-permission",
+      "label": "业务命令",
+      "x": 297.6,
+      "y": 183,
+      "width": 48.4,
+      "height": 14
+    },
+    {
+      "edge": "owner-receiver",
+      "label": "RECV",
+      "x": 391.8,
+      "y": 656,
+      "width": 30,
+      "height": 14
+    },
+    {
+      "edge": "permission-prepare",
+      "label": "准入通过",
+      "x": 391.8,
+      "y": 236,
+      "width": 48.4,
+      "height": 14
+    },
+    {
+      "edge": "postcommit-recipients",
+      "label": "Durable",
+      "x": 978.5999999999999,
+      "y": 656,
+      "width": 43.6,
+      "height": 14
+    },
+    {
+      "edge": "prepare-route",
+      "label": "写前检查通过",
+      "x": 592.2,
+      "y": 236,
+      "width": 67.6,
+      "height": 14
+    },
+    {
+      "edge": "presence-offline",
+      "label": "无在线路由",
+      "x": 698.4,
+      "y": 729,
+      "width": 58,
+      "height": 14
+    },
+    {
+      "edge": "presence-owner",
+      "label": "按 Owner 分组",
+      "x": 592.2,
+      "y": 656,
+      "width": 72.4,
+      "height": 14
+    },
+    {
+      "edge": "receiver-recvack",
+      "label": "RECVACK",
+      "x": 205.8,
+      "y": 656,
+      "width": 43.6,
+      "height": 14
+    },
+    {
+      "edge": "recipients-presence",
+      "label": "计划消费",
+      "x": 792.5999999999999,
+      "y": 656,
+      "width": 48.4,
+      "height": 14
+    },
+    {
+      "edge": "result-postcommit",
+      "label": "已提交新消息",
+      "x": 1070.3999999999999,
+      "y": 561,
+      "width": 67.6,
+      "height": 14
+    },
+    {
+      "edge": "result-sendack",
+      "label": "返回结果",
+      "x": 1158.6,
+      "y": 446,
+      "width": 48.4,
+      "height": 14
+    },
+    {
+      "edge": "route-writer",
+      "label": "本地 / Node RPC",
+      "x": 698.4,
+      "y": 351,
+      "width": 82,
+      "height": 14
+    },
+    {
+      "edge": "send-entry",
+      "label": "SEND",
+      "x": 205.8,
+      "y": 110,
+      "width": 30,
+      "height": 14
+    },
+    {
+      "edge": "transient-recipients",
+      "label": "Transient 计划",
+      "x": 886.8,
+      "y": 603,
+      "width": 77.2,
+      "height": 14
+    },
+    {
+      "edge": "transient-result",
+      "label": "入队成功",
+      "x": 1005.5999999999999,
+      "y": 530,
+      "width": 48.4,
+      "height": 14
+    },
+    {
+      "edge": "writer-durable",
+      "label": "需持久化",
+      "x": 765.5999999999999,
+      "y": 362,
+      "width": 48.4,
+      "height": 14
+    },
+    {
+      "edge": "writer-transient",
+      "label": "NoPersist",
+      "x": 825.5999999999999,
+      "y": 446,
+      "width": 53.199999999999996,
+      "height": 14
+    }
+  ],
+  "diagnostics": []
+}

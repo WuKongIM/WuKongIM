@@ -195,7 +195,7 @@ func TestDecodeAdvanceChannelRetentionThroughSeqCommand(t *testing.T) {
 func TestEncodeDecodeEdgeCases(t *testing.T) {
 	tests := []metadb.User{
 		{UID: "", Token: "", DeviceFlag: 0, DeviceLevel: 0},
-		{UID: "u", Token: "t", DeviceFlag: 0, DeviceLevel: 0},
+		{UID: "u", Token: "t", DeviceFlag: 0, DeviceLevel: 0, SendBan: 1, SendBanVersion: math.MaxUint64},
 		{UID: "u", Token: "t", DeviceFlag: math.MaxInt64, DeviceLevel: math.MaxInt64},
 		{UID: "u", Token: "t", DeviceFlag: math.MinInt64, DeviceLevel: -1},
 		{UID: strings.Repeat("x", 1024), Token: strings.Repeat("y", 2048), DeviceFlag: 1, DeviceLevel: 2},
@@ -213,7 +213,7 @@ func TestEncodeDecodeEdgeCases(t *testing.T) {
 }
 
 func TestEncodeDecodeChannelStatusFlags(t *testing.T) {
-	want := metadb.Channel{ChannelID: "c-status", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, AllowStranger: 1, Large: 1}
+	want := metadb.Channel{ChannelID: "c-status", ChannelType: 2, Ban: 1, Disband: 1, SendBan: 1, SendBanVersion: math.MaxUint64, AllowStranger: 1, Large: 1}
 	decoded, err := decodeCommand(EncodeUpsertChannelCommand(want))
 	if err != nil {
 		t.Fatalf("decodeCommand(): %v", err)

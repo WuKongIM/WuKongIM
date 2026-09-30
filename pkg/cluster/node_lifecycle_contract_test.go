@@ -48,6 +48,30 @@ func TestNodeStopStopsResourcesInReverseOrder(t *testing.T) {
 	}
 }
 
+// Node must release its constructed adapters without replacing borrowed ports.
+func TestNodeStopPreservesInjectedProposerAndTaskExecutor(t *testing.T) {
+	proposer := &recordingProposer{}
+	executor := &snapshotNotificationExecutor{snapshots: make(chan control.Snapshot, 1)}
+	snapshot := nodeControlSnapshot()
+	snapshot.HashSlots.Count = 256
+	snapshot.HashSlots.Ranges[0].To = 255
+	node, err := New(validNodeConfig(t), WithProposer(proposer),
+		withController(control.NewStaticController(snapshot)), withTaskExecutor(executor))
+	if err != nil {
+		t.Fatal(err)
+	}
+	node.channels = noopChannelService{}
+	if err := node.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := node.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if node.proposer != proposer || node.tasks != executor {
+		t.Fatal("Stop replaced borrowed proposer or task executor")
+	}
+}
+
 func TestNodeStopKeepsReadinessInvalidWhenResourceShutdownFails(t *testing.T) {
 	var calls []string
 	transportErr := errors.New("transport stop")

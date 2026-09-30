@@ -159,11 +159,14 @@ const (
 	ReasonRateLimit             // 速率限制
 	ReasonNotSupportChannelType // 不支持的频道类型
 	ReasonDisband               // 频道已解散
-	ReasonSendBan               // 发送被封禁
+	ReasonSendBan               // 用户或目标频道禁止发送
 	ReasonChannelDeleting       // 频道删除中
 	ReasonProtocolUpgradeRequired
 	ReasonIdempotencyConflict
 	ReasonMessageSeqExhausted
+	// ReasonSystemBusy means bounded server admission is saturated; the request
+	// was not accepted and may be retried with backoff and the same ClientMsgNo.
+	ReasonSystemBusy
 )
 
 func (r ReasonCode) String() string {
@@ -228,6 +231,8 @@ func (r ReasonCode) String() string {
 		return "ReasonIdempotencyConflict"
 	case ReasonMessageSeqExhausted:
 		return "ReasonMessageSeqExhausted"
+	case ReasonSystemBusy:
+		return "ReasonSystemBusy"
 	}
 	return fmt.Sprintf("UNKNOWN[%d]", r)
 }

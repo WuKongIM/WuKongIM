@@ -109,12 +109,17 @@ func TestTerminalDisbandFencesOrdinarySystemAndSystemDeviceSends(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, statusErr.StatusCode)
 	require.Contains(t, strings.ToLower(statusErr.Body), "channel disbanded")
 
+	// Global CMD sync already skips confirmed terminal sources (a9dfc3223);
+	// it must not deliver the old source message or fail unrelated bindings.
+	var afterDeleteCMD []struct {
+		ClientMsgNo string `json:"client_msg_no"`
+	}
 	_, err = suite.PostJSON(ctx, "http://"+node.APIAddr()+"/message/sync", map[string]any{
 		"uid": memberUID, "message_seq": 0, "limit": 10,
-	}, nil)
-	require.ErrorAs(t, err, &statusErr)
-	require.Equal(t, http.StatusBadRequest, statusErr.StatusCode)
-	require.Contains(t, strings.ToLower(statusErr.Body), "channel disbanded")
+	}, &afterDeleteCMD)
+	require.NoError(t, err)
+	require.NotContains(t, clientMessageNumbers(afterDeleteCMD), initialCMDNo)
+
 	require.Equal(t, ordinaryMutationsBefore, membershipMutationRows(t, ctx, node, "ordinary"), "disband must not fan out ordinary membership mutations")
 	require.Equal(t, cmdMutationsBefore, membershipMutationRows(t, ctx, node, "cmd"), "disband must not fan out CMD membership mutations")
 }

@@ -193,6 +193,13 @@ func (p *Pool) runTaskGroup(ctx context.Context, group []queuedTask) {
 	if len(group) == 0 {
 		return
 	}
+	if q := group[0].task; len(group) == 1 && q.Kind == TaskQuorumCommit && q.QuorumCommit != nil {
+		if submitter, ok := p.deps.QuorumLog.(quorumSubmitter); ok {
+			p.runDeferredQuorumCommit(ctx, group[0], submitter)
+			return
+		}
+	}
+	defer p.outstanding.Add(-int64(len(group)))
 	for _, queued := range group {
 		p.observeWait(queued.task.Kind, time.Since(queued.enqueuedAt))
 	}

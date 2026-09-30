@@ -141,6 +141,10 @@ type UserRecord struct {
 	DeviceFlag int64 `json:"device_flag"`
 	// DeviceLevel describes the device trust or login level.
 	DeviceLevel int64 `json:"device_level"`
+	// SendBan is the UID-wide sending restriction.
+	SendBan int64 `json:"send_ban"`
+	// SendBanVersion preserves the exact policy CAS revision.
+	SendBanVersion Uint64 `json:"send_ban_version"`
 }
 
 // DeviceRecord represents one imported user device metadata row.
@@ -171,6 +175,8 @@ type ChannelRecord struct {
 	Disband int64 `json:"disband"`
 	// SendBan is the numeric 0/1 flag that marks whether sending is disabled for the channel.
 	SendBan int64 `json:"send_ban"`
+	// SendBanVersion preserves the exact policy CAS revision.
+	SendBanVersion Uint64 `json:"send_ban_version"`
 	// AllowStranger is the numeric 0/1 flag that marks whether non-subscribers may interact with the channel.
 	AllowStranger int64 `json:"allow_stranger"`
 	// Large is the numeric 0/1 flag that marks whether the channel should use large-channel behavior.

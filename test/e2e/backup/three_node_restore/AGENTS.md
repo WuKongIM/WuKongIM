@@ -11,3 +11,12 @@ Manager and business APIs:
 
 Do not inspect node data directories or repository objects to decide success.
 Keep failure polling bounded and include cluster diagnostics.
+
+Checkpoint user, group and canonical person-channel bans before publication;
+mutate them and create a later-only user ban before restore. All three ingress
+nodes must observe the restored values/versions and reject prohibited sends,
+with one-hour auxiliary caches enabled. The artifact base is configurable with
+`WK_E2E_SEND_BAN_RESTORE_REPORT`; this scenario appends `-3-node.json`.
+After Controller success, require public readiness on every node before policy
+assertions: a peer may still be applying maintenance release. Do not poll stale
+policy values until they happen to match.

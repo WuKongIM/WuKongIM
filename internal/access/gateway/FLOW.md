@@ -20,7 +20,8 @@ It does not own reusable message, presence, delivery, or storage policy.
 - This package may import gateway/frame contracts but not concrete cluster or
   Channel runtimes.
 - Gateway core already owns asynchronous bounded SEND admission; this adapter
-  remains synchronous and creates no second queue.
+  creates no second queue. With a composed deferred port it prepares inline and
+  transfers result closures to core for ordered publication.
 
 ## Main Flows
 
@@ -29,7 +30,8 @@ It does not own reusable message, presence, delivery, or storage policy.
    published; close deactivates and independently reports delivery closure.
 2. Single or batched SEND maps immutable packet/session fields, calls one
    aligned message batch, records optional trace stages, and writes one SENDACK
-   for every input item.
+   for every input item. Deferred batches use the same mapping and prechecks,
+   but core alone runs ACK closures in physical-session order across batches.
 3. Control frames map PING and RECVACK to best-effort presence/delivery work.
    The reserved terminal EVENT is strictly parsed into redacting proof values,
    validated, and sealed with its ACK under the exact session write lock;
@@ -45,9 +47,15 @@ It does not own reusable message, presence, delivery, or storage policy.
   error. Malformed/stale RECVACK is ignored without protocol noise.
 - Gateway maps ACK and close events directly to runtime feedback DTOs. The
   composition root supplies the optional port; disabled delivery is a no-op.
-- Batched result cardinality and order must match inputs.
+- Batched result cardinality and indices must match inputs. Deferred emissions
+  are serialized by the message port; missing/duplicate/invalid indices fail
+  completion. Immediate admission failure transfers no completion callback.
+- The deferred wrapper embeds the original handler, preserving its presence,
+  terminal-fence binding and planned-shutdown state.
 - Business rejection codes 128–255 pass through SENDACK unchanged; system reasons
-  retain explicit mapping.
+  retain explicit mapping. Backpressure (`ErrBackpressured`, including
+  permission-read admission busy) maps to `ReasonSystemBusy` before route
+  classification.
 - Send hooks run after permission inside the message usecase, uniformly across
   all entries. Payload ownership remains immutable until lower durable/async
   boundaries copy it.

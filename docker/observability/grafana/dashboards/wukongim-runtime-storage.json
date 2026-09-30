@@ -2711,6 +2711,211 @@
       ],
       "title": "Pebble Storage Activity",
       "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 132
+      },
+      "id": 45,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (store, reason) (wukongim_storage_pebble_write_stalls{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "stalls {{store}} {{reason}}",
+          "refId": "A"
+        },
+        {
+          "expr": "max by (store) (wukongim_storage_pebble_write_stall_seconds{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "stall seconds {{store}}",
+          "refId": "B"
+        },
+        {
+          "expr": "max by (store) (wukongim_storage_pebble_write_stall_max_seconds{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "max stall seconds {{store}}",
+          "refId": "C"
+        },
+        {
+          "expr": "max by (store) (wukongim_storage_pebble_write_stall_active{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "stall active {{store}}",
+          "refId": "D"
+        }
+      ],
+      "title": "Pebble Write Stalls",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 132
+      },
+      "id": 46,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (store) (rate(wukongim_storage_pebble_wal_fsync_count{node_name=~\"$node_name\", store=~\"$store\"}[$__rate_interval]))",
+          "legendFormat": "fsync/s {{store}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (store) (rate(wukongim_storage_pebble_wal_fsync_seconds{node_name=~\"$node_name\", store=~\"$store\"}[$__rate_interval])) / clamp_min(sum by (store) (rate(wukongim_storage_pebble_wal_fsync_count{node_name=~\"$node_name\", store=~\"$store\"}[$__rate_interval])), 1)",
+          "legendFormat": "mean fsync seconds {{store}}",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (store, threshold) (wukongim_storage_pebble_wal_fsync_slow{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "slow fsync {{store}} >{{threshold}}",
+          "refId": "C"
+        },
+        {
+          "expr": "sum by (store, file) (wukongim_storage_pebble_disk_slow_events{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "slow disk {{store}} {{file}}",
+          "refId": "D"
+        },
+        {
+          "expr": "max by (store, file) (wukongim_storage_pebble_disk_slow_max_seconds{node_name=~\"$node_name\", store=~\"$store\"})",
+          "legendFormat": "max slow disk seconds {{store}} {{file}}",
+          "refId": "E"
+        }
+      ],
+      "title": "Pebble WAL Fsync And Slow Disk",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",

@@ -125,6 +125,10 @@ type Node struct {
 	channelStoreFactory channelstore.Factory
 	// defaultSlots reports whether Node constructed the local Slot runtime.
 	defaultSlots bool
+	// defaultProposer owns the service bound to the current Slot runtime and transport.
+	defaultProposer bool
+	// defaultTaskExecutor owns task handlers bound to the current Slot runtime and Controller.
+	defaultTaskExecutor bool
 	// defaultPreferredLeaderReconciler reports whether Node constructed the idle placement reconciler.
 	defaultPreferredLeaderReconciler bool
 	// defaultSlotRuntime owns the Node-created Slot Multi-Raft runtime.
@@ -172,8 +176,11 @@ type Node struct {
 	taskReconcileMu         sync.Mutex
 	taskReconcileCancel     context.CancelFunc
 	taskReconcileWG         sync.WaitGroup
-	preferredLeaderCancel   context.CancelFunc
-	preferredLeaderWG       sync.WaitGroup
+	// taskReconcileWake coalesces notifications without retaining stale snapshots.
+	// Its channel identity is immutable after allocation under mu.
+	taskReconcileWake     chan struct{}
+	preferredLeaderCancel context.CancelFunc
+	preferredLeaderWG     sync.WaitGroup
 	// preferredLeaderInterval is a test override for the idle background interval.
 	preferredLeaderInterval time.Duration
 	// preferredLeaderIntentMu protects the currently published Controller-intent
@@ -227,7 +234,7 @@ type preferredLeaderIntentGeneration struct {
 }
 
 // New validates cfg, records format identity for a fresh directory, and creates a node.
-// Existing unregistered directories retain their historical startup behavior.
+// Nonempty unregistered directories are rejected before writable runtimes open.
 func New(cfg Config, opts ...Option) (*Node, error) {
 	cfg = cfg.WithDefaults()
 	if err := cfg.validate(); err != nil {

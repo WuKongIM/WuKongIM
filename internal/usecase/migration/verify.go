@@ -267,7 +267,7 @@ func verifyNode(ctx context.Context, node uint64, selection SourceSelection, w W
 			if facts.User.PluginNo != "" {
 				return errors.New("legacy user plugin binding requires a verified compatibility mapping")
 			}
-			return check("user", id.UID, map[string]any{"uid": id.UID}, map[string]any{"uid": id.UID, "token": "", "device_flag": 0, "device_level": 0})
+			return check("user", id.UID, map[string]any{"uid": id.UID}, map[string]any{"uid": id.UID, "token": "", "device_flag": 0, "device_level": 0, "send_ban": 0, "send_ban_version": 0})
 		case facts.Device != nil:
 			d := facts.Device
 			return check("device", d.UID, map[string]any{"uid": d.UID, "device_flag": d.Flag}, map[string]any{"uid": d.UID, "device_flag": d.Flag, "device_level": d.Level, "token": d.Token})
@@ -420,7 +420,7 @@ func verifyNode(ctx context.Context, node uint64, selection SourceSelection, w W
 			return err
 		}
 		key := map[string]any{"channel_id": id.ID, "channel_type": id.Type}
-		return check("channel", id.ID, key, map[string]any{"channel_id": id.ID, "channel_type": id.Type, "ban": boolInt(flags.Ban), "disband": boolInt(flags.Disband), "send_ban": boolInt(flags.SendBan), "allow_stranger": boolInt(flags.AllowStranger), "large": boolInt(flags.Large), "subscriber_mutation_version": 1, "subscriber_count": count, "directory_projection_state": 0, "directory_projection_generation": 0})
+		return check("channel", id.ID, key, map[string]any{"channel_id": id.ID, "channel_type": id.Type, "ban": boolInt(flags.Ban), "disband": boolInt(flags.Disband), "send_ban": boolInt(flags.SendBan), "send_ban_version": 0, "allow_stranger": boolInt(flags.AllowStranger), "large": boolInt(flags.Large), "subscriber_mutation_version": 1, "subscriber_count": count, "directory_projection_state": 0, "directory_projection_generation": 0})
 	})
 	if err != nil {
 		return report, err

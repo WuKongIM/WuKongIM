@@ -122,6 +122,7 @@ var schemaFields = []fieldSpec{
 	{TOMLPath: "cluster.commit_coordinator_max_records", EnvKey: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS", Kind: kindInt, Group: "cluster", Label: "Commit coordinator max records"},
 	{TOMLPath: "cluster.commit_coordinator_max_bytes", EnvKey: "WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES", Kind: kindInt, Group: "cluster", Label: "Commit coordinator max bytes"},
 	{TOMLPath: "cluster.commit_coordinator_shards", EnvKey: "WK_CLUSTER_COMMIT_COORDINATOR_SHARDS", Kind: kindInt, Group: "cluster", Label: "Commit coordinator shards"},
+	{TOMLPath: "cluster.storage_disk_slow_threshold", EnvKey: "WK_CLUSTER_STORAGE_DISK_SLOW_THRESHOLD", Kind: kindDuration, Group: "cluster", Label: "Storage disk slow threshold"},
 
 	{TOMLPath: "channel_migration.enable", EnvKey: "WK_CHANNEL_MIGRATION_ENABLE", Kind: kindBool, Group: "channel_migration", Label: "Channel migration enable"},
 	{TOMLPath: "channel_migration.scan_interval", EnvKey: "WK_CHANNEL_MIGRATION_SCAN_INTERVAL", Kind: kindDuration, Group: "channel_migration", Label: "Channel migration scan interval"},
@@ -329,6 +330,7 @@ func supportedConfigKeysForBuilder() []string {
 		"WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS",
 		"WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES",
 		"WK_CLUSTER_COMMIT_COORDINATOR_SHARDS",
+		"WK_CLUSTER_STORAGE_DISK_SLOW_THRESHOLD",
 		"WK_API_LISTEN_ADDR",
 		"WK_MANAGER_LISTEN_ADDR",
 		"WK_MANAGER_AUTH_ON",

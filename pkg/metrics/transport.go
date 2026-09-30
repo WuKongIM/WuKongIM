@@ -19,15 +19,18 @@ type TransportMetrics struct {
 	dialTotal         *prometheus.CounterVec
 	sentBytes         *prometheus.CounterVec
 	receivedBytes     *prometheus.CounterVec
-	writeBatches      prometheus.Counter
-	writeFrames       prometheus.Counter
-	writePayloadBytes prometheus.Counter
-	writeSingleFrames prometheus.Counter
-	writeFrameLimit   prometheus.Counter
-	poolActive        *prometheus.GaugeVec
-	poolIdle          *prometheus.GaugeVec
-	poolMu            sync.Mutex
-	poolPeers         map[string]struct{}
+	// Immutable fixed-lane handles attribute payload traffic without peer labels.
+	lanePayloadBytes   *prometheus.CounterVec
+	lanePayloadHandles map[transportLaneKey]prometheus.Counter
+	writeBatches       prometheus.Counter
+	writeFrames        prometheus.Counter
+	writePayloadBytes  prometheus.Counter
+	writeSingleFrames  prometheus.Counter
+	writeFrameLimit    prometheus.Counter
+	poolActive         *prometheus.GaugeVec
+	poolIdle           *prometheus.GaugeVec
+	poolMu             sync.Mutex
+	poolPeers          map[string]struct{}
 	// Handle caches avoid repeated Vec label lookups on stable transport hot paths.
 	rpcDurationHandles       sync.Map
 	rpcTotalHandles          sync.Map
@@ -42,6 +45,8 @@ type TransportMetrics struct {
 	poolActiveHandles        sync.Map
 	poolIdleHandles          sync.Map
 }
+
+type transportLaneKey struct{ direction, priority string }
 
 type transportRPCResultKey struct {
 	service string
@@ -126,6 +131,11 @@ func newTransportMetrics(registry prometheus.Registerer, labels prometheus.Label
 			Help:        "Total inbound transport payload bytes.",
 			ConstLabels: labels,
 		}, []string{"msg_type"}),
+		lanePayloadBytes: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "wukongim_transport_lane_payload_bytes_total",
+			Help:        "Successful transport payload bytes by direction and scheduling lane; excludes wire headers and network overhead.",
+			ConstLabels: labels,
+		}, []string{"direction", "priority"}),
 		writeBatches: prometheus.NewCounter(prometheus.CounterOpts{
 			Name:        "wukongim_transport_write_batches_total",
 			Help:        "Total observed successful transport write batches.",
@@ -164,6 +174,15 @@ func newTransportMetrics(registry prometheus.Registerer, labels prometheus.Label
 		poolPeers: make(map[string]struct{}),
 	}
 
+	// Materialize zero series so a missing node's metric cannot look like no traffic.
+	m.lanePayloadHandles = make(map[transportLaneKey]prometheus.Counter, 10)
+	for _, direction := range []string{"send", "receive"} {
+		for _, priority := range []string{"raft", "control", "rpc", "bulk", "none"} {
+			key := transportLaneKey{direction, priority}
+			m.lanePayloadHandles[key] = m.lanePayloadBytes.WithLabelValues(direction, priority)
+		}
+	}
+
 	registry.MustRegister(
 		m.observerDropped, m.rpcDuration,
 		m.rpcTotal,
@@ -175,6 +194,7 @@ func newTransportMetrics(registry prometheus.Registerer, labels prometheus.Label
 		m.dialTotal,
 		m.sentBytes,
 		m.receivedBytes,
+		m.lanePayloadBytes,
 		m.writeBatches,
 		m.writeFrames,
 		m.writePayloadBytes,
@@ -457,4 +477,15 @@ func (m *TransportMetrics) poolIdleHandle(peer string) prometheus.Gauge {
 	handle := m.poolIdle.WithLabelValues(peer)
 	value, _ := m.poolIdleHandles.LoadOrStore(peer, handle)
 	return value.(prometheus.Gauge)
+}
+
+// ObserveLanePayloadBytes records already-aggregated successful payload bytes.
+// Unknown labels are ignored to keep cardinality fixed and totals nonnegative.
+func (m *TransportMetrics) ObserveLanePayloadBytes(direction, priority string, bytes int) {
+	if m == nil || bytes <= 0 {
+		return
+	}
+	if counter := m.lanePayloadHandles[transportLaneKey{direction, priority}]; counter != nil {
+		counter.Add(float64(bytes))
+	}
 }

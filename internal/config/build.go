@@ -554,6 +554,16 @@ func buildConfig(values map[string]string) (app.Config, error) {
 		}
 		cfg.Cluster.Storage.CommitShards = shards
 	}
+	if raw := configValue(values, "WK_CLUSTER_STORAGE_DISK_SLOW_THRESHOLD"); raw != "" {
+		threshold, err := parseDuration("WK_CLUSTER_STORAGE_DISK_SLOW_THRESHOLD", raw)
+		if err != nil {
+			return app.Config{}, err
+		}
+		if threshold <= 0 {
+			return app.Config{}, fmt.Errorf("parse WK_CLUSTER_STORAGE_DISK_SLOW_THRESHOLD: value must be > 0")
+		}
+		cfg.Cluster.Storage.DiskSlowThreshold = threshold
+	}
 	cfg.API.ListenAddr = configValue(values, "WK_API_LISTEN_ADDR")
 	cfg.API.ExternalTCPAddr = configValue(values, "WK_EXTERNAL_TCPADDR")
 	cfg.API.ExternalWSAddr = configValue(values, "WK_EXTERNAL_WSADDR")

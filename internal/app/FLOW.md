@@ -45,6 +45,7 @@ Start
 Stop or startup rollback
   -> mark the gateway handler's planned-shutdown warning fence
   -> close entry admission
+  -> drain Gateway deferred publications, then close ordered submissions
   -> drain Channel append and accepted post-commit work
   -> stop side-effect, presence, and cluster dependencies in reverse order
 ```
@@ -92,7 +93,9 @@ Stop or startup rollback
   UIDs, Channel IDs, client message IDs, addresses, or secret material.
   Transport publishes exact bounded-label counter batches and one-in-32 latency
   samples, separating handler, service-queue and complete client RPC time. Its
-  retained-memory gauge includes queued and executing request owners.
+  retained-memory gauge includes queued and executing request owners. Fixed
+  direction/lane payload-byte counters retain Raft versus non-Raft traffic;
+  they exclude wire headers and network overhead and materialize zero series.
   Channel-create coalescer gauges and closed delivery/post-commit terminal
   result partitions must materialize true zero series rather than imply them.
 - A Slot replica match index may exceed commit while replication is pending;
@@ -103,6 +106,17 @@ Stop or startup rollback
 - Successful edit commits enqueue body-free identities through a nonblocking callback into that same worker. Its bounded volatile queue accelerates authoritative dispatch; stop/restore clears it and durable pending scans remain the recovery source.
 
 - Stream EVENT dispatch is wired only with the complete base reader, event store, authoritative subscribers, presence, owner registry and peer RPC. Fanouts are synchronous request-owned work with bounded admission; entry shutdown joins them without a separate token worker or queue.
+
+- Default product Gateway/message composition owns one bounded ordered Channel
+  submitter, using the existing Router and normalized Gateway record/worker/byte
+  settings. Injected handlers/usecases retain their explicit execution behavior.
+  Constructor rollback, Stop and restore maintenance join accepted callbacks
+  before dependencies close or restart; timed-out drains retain their fence.
+- Composition wires UID/source-Channel policy mutations, unified send facts,
+  and bounded permission-stage/RPC/ban-scope observers through existing ports.
+  Every topology follows the same cluster-authoritative admission path. Policy
+  mutation observers write credential-free structured audits; proposal errors
+  retain an unknown outcome rather than reporting tentative state as durable.
 
 ## Read First
 - [app.go](app.go)

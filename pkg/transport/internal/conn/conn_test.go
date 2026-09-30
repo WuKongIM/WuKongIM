@@ -167,7 +167,7 @@ func TestWriteOutboundBatchAggregatesTrafficAndObservesWriteShape(t *testing.T) 
 	limits := testLimits()
 	c := New(newDeadlineConn(), Config{Limits: limits, Observer: observer, NodeID: 12, SourceID: 77}, nil)
 	items := []sched.Item{
-		{Bytes: 3, Value: Outbound{Kind: core.FrameKindRPCRequest, Priority: core.PriorityRPC, Payload: core.CopyOwnedBuffer([]byte("one"))}},
+		{Bytes: 3, Value: Outbound{Kind: core.FrameKindRPCRequest, Priority: core.PriorityRaft, Payload: core.CopyOwnedBuffer([]byte("one"))}},
 		{Bytes: 3, Value: Outbound{Kind: core.FrameKindRPCRequest, Priority: core.PriorityRPC, Payload: core.CopyOwnedBuffer([]byte("two"))}},
 		{Bytes: 5, Value: Outbound{Kind: core.FrameKindRPCResponse, Priority: core.PriorityRPC, Payload: core.CopyOwnedBuffer([]byte("three"))}},
 	}
@@ -195,15 +195,20 @@ func TestWriteOutboundBatchAggregatesTrafficAndObservesWriteShape(t *testing.T) 
 		batch.Bytes != 11 || batch.BytesCapacity != int64(limits.MaxBatchBytes) {
 		t.Fatalf("write_batch = %+v, want node/source and 3 frames/11 bytes with configured limits", batch)
 	}
-	if len(sentBytes) != 2 {
-		t.Fatalf("sent_bytes event count = %d, want one per frame kind; events=%#v", len(sentBytes), events)
+	if len(sentBytes) != 3 {
+		t.Fatalf("sent_bytes event count = %d, want one per frame kind/lane; events=%#v", len(sentBytes), events)
 	}
+	bytesByLane := make(map[core.Priority]int)
 	bytesByKind := make(map[core.FrameKind]int, len(sentBytes))
 	for _, event := range sentBytes {
+		bytesByLane[event.Priority] += event.Bytes
 		bytesByKind[event.Kind] += event.Bytes
 	}
 	if bytesByKind[core.FrameKindRPCRequest] != 6 || bytesByKind[core.FrameKindRPCResponse] != 5 {
 		t.Fatalf("sent bytes by kind = %#v, want request=6 response=5", bytesByKind)
+	}
+	if bytesByLane[core.PriorityRaft] != 3 || bytesByLane[core.PriorityRPC] != 8 {
+		t.Fatalf("mixed batch lost lane identity: %#v", bytesByLane)
 	}
 }
 
@@ -428,6 +433,7 @@ func TestConnObservesTransportBytes(t *testing.T) {
 			event.NodeID == 12 &&
 			event.SourceID == 77 &&
 			event.Kind == core.FrameKindData &&
+			event.Priority == core.PriorityRPC &&
 			event.Bytes == len("hello")
 	})
 
@@ -446,6 +452,7 @@ func TestConnObservesTransportBytes(t *testing.T) {
 			event.NodeID == 12 &&
 			event.SourceID == 77 &&
 			event.Kind == core.FrameKindNotify &&
+			event.Priority == core.PriorityControl &&
 			event.Bytes == len("notify")
 	})
 }

@@ -24,6 +24,9 @@ const (
 	minDefaultChannelReactorCount      = 4
 	defaultChannelRPCWorkers           = worker.DefaultRPCWorkers
 	defaultCommitCoordinatorShardCount = channelstore.DefaultCommitShards
+	// defaultStorageDiskSlowThreshold sits below the 5s client ACK timeout so
+	// slow WAL syncs are visible before they surface as SENDACK timeouts.
+	defaultStorageDiskSlowThreshold = time.Second
 )
 
 // Config contains cluster runtime configuration.
@@ -281,6 +284,9 @@ type StorageConfig struct {
 	CommitShards int
 	// CommitObserver receives message DB group-commit measurements.
 	CommitObserver messagedb.CommitCoordinatorObserver
+	// DiskSlowThreshold reports message DB disk operations slower than this
+	// duration into slow-disk metrics. Zero uses defaultStorageDiskSlowThreshold.
+	DiskSlowThreshold time.Duration
 }
 
 // TransportConfig contains default cluster node-to-node transport observation.
@@ -406,6 +412,9 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Storage.CommitShards == 0 {
 		c.Storage.CommitShards = defaultCommitCoordinatorShardCount
+	}
+	if c.Storage.DiskSlowThreshold == 0 {
+		c.Storage.DiskSlowThreshold = defaultStorageDiskSlowThreshold
 	}
 	c.applyControlDefaults()
 	c.applySlotDefaults()
@@ -561,6 +570,9 @@ func (c Config) validate() error {
 		return ErrInvalidConfig
 	}
 	if c.Storage.CommitShards < 0 {
+		return ErrInvalidConfig
+	}
+	if c.Storage.DiskSlowThreshold < 0 {
 		return ErrInvalidConfig
 	}
 	if c.Channel.AppendBatchMaxRecords < 0 {

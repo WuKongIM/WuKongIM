@@ -1526,10 +1526,36 @@ func TestStorageMetricsTrackPebbleEngineSnapshot(t *testing.T) {
 		CompactionsInProgress:          2,
 		IdempotencyNegativeFilterSkips: 1234,
 		IdempotencyPointReads:          56,
+		WALFsyncCount:                  90,
+		WALFsyncSumNanos:               3_500_000_000,
+		WALFsyncOver100ms:              9,
+		WALFsyncOver1s:                 4,
+		WALFsyncOver5s:                 1,
+		DiskSlowWALEvents:              3,
+		DiskSlowWALMaxNanos:            4_500_000_000,
+		DiskSlowOtherEvents:            2,
+		DiskSlowOtherMaxNanos:          1_250_000_000,
 	})
 
 	families, err := reg.Gather()
 	require.NoError(t, err)
+
+	store := map[string]string{"store": "channel_log"}
+	fsyncCount := requireMetricFamily(t, families, "wukongim_storage_pebble_wal_fsync_count")
+	require.Equal(t, float64(90), findMetricByLabels(t, fsyncCount, store).GetGauge().GetValue())
+	fsyncSeconds := requireMetricFamily(t, families, "wukongim_storage_pebble_wal_fsync_seconds")
+	require.Equal(t, 3.5, findMetricByLabels(t, fsyncSeconds, store).GetGauge().GetValue())
+	fsyncSlow := requireMetricFamily(t, families, "wukongim_storage_pebble_wal_fsync_slow")
+	for threshold, want := range map[string]float64{"100ms": 9, "1s": 4, "5s": 1} {
+		got := findMetricByLabels(t, fsyncSlow, map[string]string{"store": "channel_log", "threshold": threshold}).GetGauge().GetValue()
+		require.Equal(t, want, got, threshold)
+	}
+	diskSlow := requireMetricFamily(t, families, "wukongim_storage_pebble_disk_slow_events")
+	require.Equal(t, float64(3), findMetricByLabels(t, diskSlow, map[string]string{"store": "channel_log", "file": "wal"}).GetGauge().GetValue())
+	require.Equal(t, float64(2), findMetricByLabels(t, diskSlow, map[string]string{"store": "channel_log", "file": "other"}).GetGauge().GetValue())
+	diskSlowMax := requireMetricFamily(t, families, "wukongim_storage_pebble_disk_slow_max_seconds")
+	require.Equal(t, 4.5, findMetricByLabels(t, diskSlowMax, map[string]string{"store": "channel_log", "file": "wal"}).GetGauge().GetValue())
+	require.Equal(t, 1.25, findMetricByLabels(t, diskSlowMax, map[string]string{"store": "channel_log", "file": "other"}).GetGauge().GetValue())
 
 	usage := requireMetricFamily(t, families, "wukongim_storage_pebble_disk_usage_bytes")
 	require.Equal(t, float64(1024), findMetricByLabels(t, usage, map[string]string{"store": "channel_log"}).GetGauge().GetValue())
@@ -2528,4 +2554,20 @@ func TestConversationMetricsExposeZeroMembershipWritesAfterRestart(t *testing.T)
 	for _, metric := range family.GetMetric() {
 		require.Zero(t, metric.GetCounter().GetValue())
 	}
+}
+
+// Scheduler latency separates CPU starvation from storage queueing: a goroutine
+// that is runnable but not running shows up here, not in commit stage timings.
+func TestFreshRegistryScrapeExposesGoSchedulerLatency(t *testing.T) {
+	reg := New(8, "node-8")
+	recorder := httptest.NewRecorder()
+	reg.Handler().ServeHTTP(recorder, httptest.NewRequest("GET", "/metrics", nil))
+	require.Equal(t, 200, recorder.Code)
+
+	scrape := recorder.Body.String()
+	require.Contains(t, scrape, "go_sched_latencies_seconds_bucket{")
+	require.Contains(t, scrape, "go_sched_latencies_seconds_count")
+	// Default Go runtime families stay available for existing dashboards.
+	require.Contains(t, scrape, "go_goroutines ")
+	require.Contains(t, scrape, "go_memstats_alloc_bytes ")
 }

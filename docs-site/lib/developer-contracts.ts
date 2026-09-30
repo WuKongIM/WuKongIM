@@ -408,6 +408,7 @@ export const reasonCodes: ReasonCodeDefinition[] = [
   reason(27, 'ReasonProtocolUpgradeRequired', 'CONNECT', 'upgrade-client', 'compatibility', '网关保留该连接失败分类；当前默认认证路径未发出该值。', 'The gateway retains this connection-failure classification; the current default authenticator does not emit it.'),
   reason(28, 'ReasonIdempotencyConflict', 'SEND', 'do-not-retry', 'reserved', '保留的幂等冲突结果；当前产品路径未发出该值。', 'Reserved idempotency-conflict result; no current product path emits this value.'),
   reason(29, 'ReasonMessageSeqExhausted', 'SEND', 'do-not-retry', 'reserved', '保留的消息序号耗尽结果；当前产品路径未发出该值。', 'Reserved message-sequence-exhausted result; no current product path emits this value.'),
+  reason(30, 'ReasonSystemBusy', 'SEND', 'retry-with-backoff', 'active', '服务端有界准入已满（网关发送队列或权限读准入），请求未被接受；连接保持，使用同一 ClientMsgNo 退避重试。', 'Bounded server admission is saturated (gateway send queue or permission-read admission) and the request was not accepted; the connection stays open, so retry with backoff and the same ClientMsgNo.'),
 ];
 
 type DeveloperContractLocale = 'zh' | 'en';

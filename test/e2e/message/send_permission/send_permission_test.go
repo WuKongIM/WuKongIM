@@ -88,11 +88,8 @@ func TestWukongIMHTTPMessageSendEnforcesLegacyPermissions(t *testing.T) {
 	})
 
 	t.Run("sender send ban wins before group lookup", func(t *testing.T) {
-		require.NoError(t, suite.PostChannel(ctx, node.APIAddr(), map[string]any{
-			"channel_id":   "perm-sendban-sender",
-			"channel_type": frame.ChannelTypePerson,
-			"send_ban":     1,
-		}), node.DumpDiagnostics())
+		_, err := suite.PostJSON(ctx, "http://"+node.APIAddr()+"/user/send_ban", map[string]any{"uid": "perm-sendban-sender", "send_ban": 1}, nil)
+		require.NoError(t, err, node.DumpDiagnostics())
 
 		assertSendReason(t, "perm-sendban-sender", "perm-sendban-missing-group", frame.ReasonSendBan)
 	})

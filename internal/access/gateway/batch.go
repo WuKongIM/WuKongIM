@@ -6,7 +6,6 @@ import (
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	coregateway "github.com/WuKongIM/WuKongIM/pkg/gateway"
-	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 )
 
 type gatewayBatchSessionKey struct {
@@ -27,54 +26,18 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 		return nil
 	}
 
-	contexts := make([]coregateway.Context, len(items))
-	prechecked := make([]bool, len(items))
-	precheckResults := make([]message.SendResult, len(items))
-	precheckSources := make([]string, len(items))
-	precheckClasses := make([]string, len(items))
-	validIndexes := make([]int, 0, len(items))
-	validItems := make([]message.SendBatchItem, 0, len(items))
-	deadline := time.Now().Add(h.sendTimeout)
-	var traceIDGenerator TraceIDGenerator
-	var traceFields []sendTraceFields
-	if sendtrace.Enabled() {
-		traceIDGenerator = h.traceIDGenerator
-		traceFields = make([]sendTraceFields, len(items))
+	batch, err := h.prepareSendBatch(items)
+	if err != nil {
+		return err
 	}
-
-	for i := range items {
-		item := items[i]
-		contexts[i] = item.Context
-		if item.ReplyToken != "" {
-			contexts[i].ReplyToken = item.ReplyToken
-		}
-		ctx := &contexts[i]
-		cmd, err := mapSendCommandWithPayload(ctx, item.Frame, h.ownerNodeID, traceIDGenerator)
-		if err != nil {
-			if errors.Is(err, ErrUnauthenticatedSession) {
-				prechecked[i] = true
-				precheckResults[i].Reason = message.ReasonAuthFail
-				precheckSources[i] = sendackSourceBatchPrecheck
-				precheckClasses[i] = sendackErrorClassUnauthenticated
-				continue
-			}
-			h.logSendMappingFailure(ctx, item.Frame, err)
-			return err
-		}
-		if traceFields != nil {
-			traceFields[i] = sendTraceFieldsFromCommand(cmd)
-		}
-		if ctx.RequestContext == nil {
-			prechecked[i] = true
-			precheckResults[i].Reason = message.ReasonSystemError
-			precheckSources[i] = sendackSourceBatchMissingRequestContext
-			precheckClasses[i] = sendackErrorClassMissingRequestContext
-			h.logMissingRequestContext(ctx, item.Frame, sendackSourceBatchMissingRequestContext)
-			continue
-		}
-		validIndexes = append(validIndexes, i)
-		validItems = append(validItems, message.SendBatchItem{Context: ctx.RequestContext, Deadline: deadline, Command: cmd})
-	}
+	contexts := batch.contexts
+	prechecked := batch.prechecked
+	precheckResults := batch.precheckResults
+	precheckSources := batch.precheckSources
+	precheckClasses := batch.precheckClasses
+	validIndexes := batch.validIndexes
+	validItems := batch.validItems
+	traceFields := batch.traceFields
 	nextInSession := make([]int, len(items))
 	for i := range nextInSession {
 		nextInSession[i] = -1
@@ -155,24 +118,7 @@ func (h *Handler) OnSendBatch(items []coregateway.SendBatchItem) error {
 			}
 			emitted[j] = true
 			emittedCount++
-			index := validIndexes[j]
-			result := batchResult.Result
-			source := sendackSourceBatchResult
-			class := sendackErrorClassNone
-			if batchResult.Err != nil {
-				result.Reason = reasonForError(batchResult.Err)
-				source = sendackSourceBatchResultError
-				class = sendackErrorClassForError(batchResult.Err)
-				h.logSendFailure(validItems[j].Command, source, class, batchResult.Err)
-			}
-			if traceFields != nil {
-				recordGatewayMessagesSend(validItems[j].Command, result, class, sendtraceElapsedSince(startedAt))
-			}
-			var trace sendTraceFields
-			if traceFields != nil {
-				trace = traceFields[index]
-			}
-			return complete(index, gatewayBatchSendack{result: result, source: source, class: class, trace: trace})
+			return complete(validIndexes[j], h.sendBatchCompletion(batch, j, batchResult, startedAt))
 		})
 		if batchErr != nil {
 			if errors.Is(batchErr, ErrSendBatchResultCountMismatch) {

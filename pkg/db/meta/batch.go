@@ -106,7 +106,30 @@ func (b *Batch) CreateUser(hashSlot HashSlot, user User) error {
 
 // UpsertUser stages a user upsert.
 func (b *Batch) UpsertUser(hashSlot HashSlot, user User) error {
-	return userTable.StageUpsert(b, hashSlot, user)
+	if err := b.ensureOpen(); err != nil {
+		return err
+	}
+	if err := validateKeyString(user.UID); err != nil {
+		return err
+	}
+	key := encodeUserRowKey(hashSlot, user.UID, userPrimaryFamilyID)
+	b.addOp(hashSlot, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
+		next := user
+		old, exists, err := state.loadUser(key, user.UID)
+		if err != nil {
+			return err
+		}
+		if exists {
+			next.SendBan, next.SendBanVersion = old.SendBan, old.SendBanVersion
+		}
+		value := encodeUserValue(next)
+		if err := batch.Set(key, value); err != nil {
+			return err
+		}
+		state.tableRows[string(key)] = tableRowOverlay{value: value, exists: true}
+		return nil
+	})
+	return nil
 }
 
 // UpsertChannel stages a channel upsert and publishes the channel cache after commit.
@@ -129,6 +152,11 @@ func (b *Batch) UpsertChannel(hashSlot HashSlot, channel Channel) error {
 			return err
 		}
 		if err == nil && exists {
+			next.SendBan, next.SendBanVersion = existing.SendBan, existing.SendBanVersion
+			if existing.Disband != 0 {
+				next.Disband = 1
+			}
+			next.SubscriberMutationVersion = max(next.SubscriberMutationVersion, existing.SubscriberMutationVersion)
 			next.SubscriberCount = existing.SubscriberCount
 			if existing.DirectoryProjectionState > next.DirectoryProjectionState {
 				next.DirectoryProjectionState = existing.DirectoryProjectionState

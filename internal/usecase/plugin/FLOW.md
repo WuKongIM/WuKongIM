@@ -46,6 +46,10 @@ behind narrow ports.
 - Send hooks fail closed unless `FailOpen` is explicitly configured; a plugin
   may change payload or reject, but cannot replace sender, Channel, session, or
   routing identity.
+- Plugin-origin SEND rejects non-success message outcomes through a typed error;
+  the host RPC adapter maps its internal reason to the public protocol reason.
+  The legacy SendResp is returned only on success, never as MessageId zero for
+  a policy rejection.
 - Origin and hook-depth controls prevent unbounded plugin-send recursion while
   retaining the normal message path.
 - Receive skips transient, command, scoped, incomplete, system-origin, and

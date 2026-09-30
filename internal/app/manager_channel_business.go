@@ -39,7 +39,7 @@ func (o managerChannelBusinessOperator) CreateMetadata(ctx context.Context, info
 
 func (o managerChannelBusinessOperator) PatchMetadataFlags(ctx context.Context, key managementusecase.BusinessChannelKey, flags managementusecase.BusinessChannelFlags) error {
 	return normalizeManagerChannelBusinessError(o.channels.PatchMetadataFlags(ctx, channelBusinessKey(key), channelusecase.BusinessFlags{
-		Ban: flags.Ban, Disband: flags.Disband, SendBan: flags.SendBan,
+		Ban: flags.Ban, Disband: flags.Disband, SendBan: flags.SendBan, SendBanSet: flags.SendBanSet,
 	}))
 }
 

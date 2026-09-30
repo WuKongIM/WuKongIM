@@ -3,6 +3,7 @@ package message
 import (
 	"context"
 	"errors"
+	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -44,6 +45,7 @@ type sendPermissionScope struct {
 // sendBatchPermissionGroupKey prevents one item's deadline from becoming the
 // representative context for otherwise coalescible items with another budget.
 type sendBatchPermissionGroupKey struct {
+	done        <-chan struct{}
 	scope       sendPermissionScope
 	deadline    time.Time
 	hasDeadline bool
@@ -151,46 +153,23 @@ func (a *App) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 	if len(items) == 1 {
 		return a.sendBatchEachOne(items[0], emit)
 	}
+	return a.sendBatchEach(items, emit, nil, nil)
+}
+
+// sendBatchEach joins preparation in the caller. Only the injected admission
+// transfers append completion; preparation and publication own separate state.
+func (a *App) sendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemResult) error, admission BatchAdmission, complete func(error)) error {
 	items, cancelItemDeadlines := bindSendBatchItemDeadlines(items)
-	defer cancelItemDeadlines()
+	publication := newSendBatchPublication(items, emit, cancelItemDeadlines, complete)
 	permissionStartedAt := time.Now()
 	results := make([]SendBatchItemResult, len(items))
-	terminal := make([]bool, len(items))
-	nextInSession := make([]int, len(items))
-	for i := range nextInSession {
-		nextInSession[i] = -1
+	nextInSession := publication.next
+	submissionHeads := make(map[sendBatchSessionKey]int, len(publication.heads))
+	for key, head := range publication.heads {
+		submissionHeads[key] = head
 	}
-	sessionKeys := make([]sendBatchSessionKey, len(items))
-	emissionHeads := make(map[sendBatchSessionKey]int, len(items))
-	submissionHeads := make(map[sendBatchSessionKey]int, len(items))
-	tails := make(map[sendBatchSessionKey]int, len(items))
-	for i, item := range items {
-		key := sendBatchSessionKeyFor(i, item.Command)
-		sessionKeys[i] = key
-		if tail, ok := tails[key]; ok {
-			nextInSession[tail] = i
-		} else {
-			emissionHeads[key] = i
-			submissionHeads[key] = i
-		}
-		tails[key] = i
-	}
-	var emitErr error
 	var invariantErr error
-	finalize := func(index int) {
-		if index < 0 || index >= len(results) || terminal[index] {
-			invariantErr = ErrSendBatchEmissionMismatch
-			return
-		}
-		terminal[index] = true
-		key := sessionKeys[index]
-		for head := emissionHeads[key]; head >= 0 && terminal[head]; head = emissionHeads[key] {
-			if emitErr == nil {
-				emitErr = emit(head, results[head])
-			}
-			emissionHeads[key] = nextInSession[head]
-		}
-	}
+	finalize := publication.finishItem
 	prepared := make([]SendBatchItem, len(items))
 	contexts := make([]context.Context, len(items))
 	allowedItems := make([]bool, len(items))
@@ -208,6 +187,7 @@ func (a *App) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 		if itemCtx == nil {
 			itemCtx = context.Background()
 		}
+		key.done = itemCtx.Done()
 		if deadline, ok := itemCtx.Deadline(); ok {
 			key.deadline = deadline.Round(0).UTC()
 			key.hasDeadline = true
@@ -261,7 +241,7 @@ func (a *App) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 	a.observeSendBatchStage(sendBatchStagePermission, permissionResult, len(items), permissionDuration)
 	for i := range items {
 		if !allowedItems[i] {
-			finalize(i)
+			finalize(i, results[i])
 		}
 	}
 
@@ -272,12 +252,22 @@ func (a *App) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 		for {
 			indexes := make([]int, 0, len(submissionHeads))
 			for key, head := range submissionHeads {
-				for head >= 0 && terminal[head] {
+				for head >= 0 && (submitted[head] || !allowedItems[head]) {
 					head = nextInSession[head]
 					submissionHeads[key] = head
 				}
-				if head >= 0 && readyForSubmit[head] && !submitted[head] {
-					indexes = append(indexes, head)
+				// Admit the contiguous ready prefix in input order. Waiting for
+				// each item's durable result here would destroy gateway batching.
+				// A cold directory still fences later items in this session;
+				// finalize separately keeps terminal publication in session order.
+				for index := head; index >= 0; index = nextInSession[index] {
+					if submitted[index] || !allowedItems[index] {
+						continue
+					}
+					if !readyForSubmit[index] {
+						break
+					}
+					indexes = append(indexes, index)
 				}
 			}
 			if len(indexes) == 0 {
@@ -287,7 +277,7 @@ func (a *App) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 			for _, index := range indexes {
 				submitted[index] = true
 			}
-			a.submitSendBatchLane(prepared, contexts, allowedItems, indexes, results, permissionDuration, preAppendStartedAt, preAppendResult, finalize)
+			a.submitSendBatchLane(prepared, contexts, allowedItems, indexes, results, permissionDuration, preAppendStartedAt, preAppendResult, admission, finalize)
 		}
 	}
 	directoryGroups := make([]sendBatchDirectoryGroup, 0, len(items))
@@ -336,7 +326,7 @@ func (a *App) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 				for _, index := range group.indexes {
 					results[index] = SendBatchItemResult{Result: SendResult{Reason: ReasonSystemError}, Err: outcome.err}
 					allowedItems[index] = false
-					finalize(index)
+					finalize(index, results[index])
 				}
 			}
 			drainReady(wavePreAppendResult)
@@ -372,13 +362,13 @@ func (a *App) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchItemR
 			submitDirectoryWave(a.admitPersonDirectoryGroups(prepared, contexts, directoryFacts, coldDirectoryGroups))
 		}
 	}
-	for i := range terminal {
-		if !terminal[i] {
+	for i := range items {
+		if allowedItems[i] && !submitted[i] {
 			invariantErr = ErrSendBatchEmissionMismatch
 			break
 		}
 	}
-	return errors.Join(emitErr, invariantErr)
+	return publication.finishPreparation(invariantErr)
 }
 
 // sendBatchEachOne preserves the batch permission, directory, and submitter
@@ -462,16 +452,8 @@ func bindSendBatchItemDeadline(item SendBatchItem) (SendBatchItem, context.Cance
 func noopContextCancel() {}
 
 func (a *App) resolveSingleSendPermission(ctx context.Context, item SendBatchItem) sendBatchPermissionOutcome {
-	if a != nil && a.permissionBatch != nil && !item.Command.RequestScoped && len(item.Command.MessageScopedUIDs) == 0 {
-		items := []SendBatchItem{item}
-		groups := []sendBatchPermissionGroup{{representative: 0, indexes: []int{0}}}
-		indexes := []int{0}
-		switch item.Command.ChannelType {
-		case channelTypeGroup:
-			return a.checkGroupSendPermissionsBatch(ctx, items, groups, indexes)[0]
-		case channelTypePerson:
-			return a.checkPersonSendPermissionsBatch(ctx, items, groups, indexes)[0]
-		}
+	if a != nil && a.permissionBatch != nil {
+		return a.checkSendPermissionsBatch(ctx, []SendBatchItem{item}, []sendBatchPermissionGroup{{representative: 0}}, []int{0})[0]
 	}
 	cmd, reason, err := a.checkSendPermission(ctx, item.Command)
 	return sendBatchPermissionOutcome{channelID: cmd.ChannelID, reason: reason, err: err}
@@ -634,13 +616,14 @@ func (a *App) submitSendBatchLane(
 	permissionDuration time.Duration,
 	preAppendStartedAt time.Time,
 	preAppendResult string,
-	finalize func(int),
+	admission BatchAdmission,
+	finalize func(int, SendBatchItemResult),
 ) {
 	allowed := make([]SendBatchItem, 0, len(indexes))
 	allowedIndexes := make([]int, 0, len(indexes))
 	for _, i := range indexes {
 		if !allowedItems[i] {
-			finalize(i)
+			finalize(i, results[i])
 			continue
 		}
 		item := prepared[i]
@@ -650,12 +633,12 @@ func (a *App) submitSendBatchLane(
 		if err != nil {
 			results[i] = SendBatchItemResult{Result: SendResult{Reason: reason}, Err: err}
 			preAppendResult = sendBatchStageResultErr
-			finalize(i)
+			finalize(i, results[i])
 			continue
 		}
 		if reason != ReasonSuccess {
 			results[i] = SendBatchItemResult{Result: SendResult{Reason: reason}}
-			finalize(i)
+			finalize(i, results[i])
 			continue
 		}
 		item.Command = cmd
@@ -668,6 +651,10 @@ func (a *App) submitSendBatchLane(
 		return
 	}
 	submitterStartedAt := time.Now()
+	if admission != nil {
+		a.admitSendBatchLane(admission, allowed, allowedIndexes, permissionDuration, preAppendDuration, submitterStartedAt, finalize)
+		return
+	}
 	if a == nil || a.submitter == nil {
 		for allowedIndex, index := range allowedIndexes {
 			results[index].Err = annotateSendBatchTimeout(ErrRouteNotReady, SendBatchFailureDiagnostics{
@@ -677,7 +664,7 @@ func (a *App) submitSendBatchLane(
 		}
 		a.observeSendBatchStage(sendBatchStageSubmitter, sendBatchStageResultErr, len(allowed), time.Since(submitterStartedAt))
 		for _, index := range allowedIndexes {
-			finalize(index)
+			finalize(index, results[index])
 		}
 		return
 	}
@@ -701,7 +688,7 @@ func (a *App) submitSendBatchLane(
 			})
 			originalIndex := allowedIndexes[index]
 			results[originalIndex] = result
-			finalize(originalIndex)
+			finalize(originalIndex, results[originalIndex])
 		})
 		submitterDuration := time.Since(submitterStartedAt)
 		for index, wasEmitted := range emitted {
@@ -715,7 +702,7 @@ func (a *App) submitSendBatchLane(
 				Submitter:                  submitterDuration,
 				DeadlineBudgetBeforeSubmit: sendBatchDeadlineBudget(allowed[index].Deadline, submitterStartedAt),
 			})
-			finalize(originalIndex)
+			finalize(originalIndex, results[originalIndex])
 		}
 		a.observeSendBatchStage(sendBatchStageSubmitter, submitterResult, len(allowed), submitterDuration)
 		return
@@ -755,7 +742,7 @@ func (a *App) submitSendBatchLane(
 		}
 	}
 	for _, index := range allowedIndexes {
-		finalize(index)
+		finalize(index, results[index])
 	}
 }
 
@@ -776,65 +763,38 @@ func (a *App) observeSendBatchStage(stage, result string, items int, duration ti
 }
 
 func (a *App) resolveSendBatchPermissions(items []SendBatchItem, groups []sendBatchPermissionGroup, permissionWorkers int) []sendBatchPermissionOutcome {
-	outcomes := make([]sendBatchPermissionOutcome, len(groups))
-	batchedGroups := make([]int, 0, len(groups))
-	batchedPersons := make([]int, 0, len(groups))
-	fallbackGroups := make([]int, 0, len(groups))
-	for groupIndex, group := range groups {
-		cmd := items[group.representative].Command
-		if a != nil && a.permissionBatch != nil && !cmd.RequestScoped && len(cmd.MessageScopedUIDs) == 0 {
-			switch cmd.ChannelType {
-			case channelTypeGroup:
-				batchedGroups = append(batchedGroups, groupIndex)
-				continue
-			case channelTypePerson:
-				batchedPersons = append(batchedPersons, groupIndex)
-				continue
+	out := make([]sendBatchPermissionOutcome, len(groups))
+	if len(groups) == 0 {
+		return out
+	}
+	if a != nil && a.permissionBatch != nil {
+		indexes := make([]int, len(groups))
+		for i := range indexes {
+			indexes[i] = i
+		}
+		if ctx, shared := sharedSendBatchPermissionContext(items, groups, indexes); shared {
+			return a.checkSendPermissionsBatch(ctx, items, groups, indexes)
+		}
+		for _, cohort := range sendBatchPermissionDeadlineCohorts(items, groups, indexes) {
+			ctx, cancel := permissionCohortContext(items, groups, cohort)
+			values := a.checkSendPermissionsBatch(ctx, items, groups, cohort.groupIndexes)
+			cancel()
+			for i, g := range cohort.groupIndexes {
+				out[g] = values[i]
 			}
 		}
-		fallbackGroups = append(fallbackGroups, groupIndex)
+		return out
 	}
-	if len(batchedGroups) > 0 {
-		if ctx, shared := sharedSendBatchPermissionContext(items, groups, batchedGroups); shared {
-			batched := a.checkGroupSendPermissionsBatch(ctx, items, groups, batchedGroups)
-			for i, groupIndex := range batchedGroups {
-				outcomes[groupIndex] = batched[i]
-			}
-		} else {
-			for _, cohort := range sendBatchPermissionDeadlineCohorts(items, groups, batchedGroups) {
-				batched := a.checkGroupSendPermissionsBatch(cohort.ctx, items, groups, cohort.groupIndexes)
-				for i, groupIndex := range cohort.groupIndexes {
-					outcomes[groupIndex] = batched[i]
-				}
-			}
-		}
-	}
-	if len(batchedPersons) > 0 {
-		if ctx, shared := sharedSendBatchPermissionContext(items, groups, batchedPersons); shared {
-			batched := a.checkPersonSendPermissionsBatch(ctx, items, groups, batchedPersons)
-			for i, groupIndex := range batchedPersons {
-				outcomes[groupIndex] = batched[i]
-			}
-		} else {
-			for _, cohort := range sendBatchPermissionDeadlineCohorts(items, groups, batchedPersons) {
-				batched := a.checkPersonSendPermissionsBatch(cohort.ctx, items, groups, cohort.groupIndexes)
-				for i, groupIndex := range cohort.groupIndexes {
-					outcomes[groupIndex] = batched[i]
-				}
-			}
-		}
-	}
-	runMessageBatchWorkers(goruntimeregistry.TaskMessagePermissionBatch, len(fallbackGroups), permissionWorkers, func(index int) {
-		groupIndex := fallbackGroups[index]
-		item := items[groups[groupIndex].representative]
+	runMessageBatchWorkers(goruntimeregistry.TaskMessagePermissionBatch, len(groups), permissionWorkers, func(i int) {
+		item := items[groups[i].representative]
 		ctx := item.Context
 		if ctx == nil {
 			ctx = context.Background()
 		}
 		cmd, reason, err := a.checkSendPermission(ctx, item.Command)
-		outcomes[groupIndex] = sendBatchPermissionOutcome{channelID: cmd.ChannelID, reason: reason, err: err}
+		out[i] = sendBatchPermissionOutcome{channelID: cmd.ChannelID, reason: reason, err: err}
 	})
-	return outcomes
+	return out
 }
 
 func sharedSendBatchPermissionContext(items []SendBatchItem, groups []sendBatchPermissionGroup, groupIndexes []int) (context.Context, bool) {
@@ -849,7 +809,7 @@ func sharedSendBatchPermissionContext(items []SendBatchItem, groups []sendBatchP
 			candidate = context.Background()
 		}
 		candidateDeadline, candidateHasDeadline := candidate.Deadline()
-		if candidateHasDeadline != hasDeadline || hasDeadline && !candidateDeadline.Equal(deadline) {
+		if candidate.Done() != ctx.Done() || candidateHasDeadline != hasDeadline || hasDeadline && !candidateDeadline.Equal(deadline) {
 			return nil, false
 		}
 	}
@@ -890,7 +850,7 @@ func sendBatchPermissionDeadlineCohorts(items []SendBatchItem, groups []sendBatc
 
 func permissionScopeForBatch(cmd SendCommand) (sendPermissionScope, bool) {
 	// Request-scoped delivery can depend on the complete target slice and is
-	// already permission-free. Keep it out of ordinary permission coalescing.
+	// independently scoped. Its user fact is still deduplicated in the read plan.
 	if cmd.RequestScoped || len(cmd.MessageScopedUIDs) > 0 {
 		return sendPermissionScope{}, false
 	}
@@ -966,6 +926,7 @@ func (a *App) beforePluginSendHook(ctx context.Context, cmd SendCommand) (SendCo
 		}
 		cmd.HookDepth++
 	}
+	originalRecipients := slices.Clone(cmd.MessageScopedUIDs)
 	mutated, reason, err := a.sendHook.BeforeSend(ctx, cmd)
 	if err != nil {
 		if reason != 0 {
@@ -976,5 +937,57 @@ func (a *App) beforePluginSendHook(ctx context.Context, cmd SendCommand) (SendCo
 	if reason != 0 && reason != ReasonSuccess {
 		return mutated, reason, nil
 	}
+	if cmd.FromUID != mutated.FromUID || cmd.DeviceID != mutated.DeviceID || cmd.ChannelID != mutated.ChannelID || cmd.ChannelType != mutated.ChannelType || cmd.NormalizePersonChannel != mutated.NormalizePersonChannel || cmd.RequestScoped != mutated.RequestScoped || !slices.Equal(originalRecipients, mutated.MessageScopedUIDs) {
+		// A hook cannot carry admission to another sender or source Channel.
+		checked, reason, err := a.checkSendPermission(ctx, mutated)
+		if err != nil || reason != ReasonSuccess {
+			return checked, reason, err
+		}
+		if err := a.ensurePersonDirectory(ctx, checked); err != nil {
+			return checked, ReasonSystemError, err
+		}
+		mutated = checked
+	}
 	return mutated, ReasonSuccess, nil
+}
+
+// permissionCohortContext seals equal-budget reads without making one item's
+// cancellation authoritative for its siblings. Results still use each item's
+// original context; shared work stops on the common deadline or final cancel.
+func permissionCohortContext(items []SendBatchItem, groups []sendBatchPermissionGroup, cohort sendBatchPermissionDeadlineCohort) (context.Context, context.CancelFunc) {
+	if ctx, shared := sharedSendBatchPermissionContext(items, groups, cohort.groupIndexes); shared {
+		return ctx, func() {}
+	}
+	base := context.WithoutCancel(cohort.ctx)
+	var ctx context.Context
+	var cancel context.CancelFunc
+	if cohort.hasDeadline {
+		ctx, cancel = context.WithDeadline(base, cohort.deadline)
+	} else {
+		ctx, cancel = context.WithCancel(base)
+	}
+	unique := make(map[<-chan struct{}]context.Context, len(cohort.groupIndexes))
+	for _, i := range cohort.groupIndexes {
+		parent := items[groups[i].representative].Context
+		if parent == nil || parent.Done() == nil {
+			return ctx, cancel
+		}
+		unique[parent.Done()] = parent
+	}
+	var remaining atomic.Int64
+	remaining.Store(int64(len(unique)))
+	stops := make([]func() bool, 0, len(unique))
+	for _, parent := range unique {
+		stops = append(stops, context.AfterFunc(parent, func() {
+			if remaining.Add(-1) == 0 {
+				cancel()
+			}
+		}))
+	}
+	return ctx, func() {
+		for _, stop := range stops {
+			stop()
+		}
+		cancel()
+	}
 }

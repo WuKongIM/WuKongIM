@@ -36,8 +36,10 @@ type Info struct {
 	Ban bool
 	// Disband terminally closes a channel; it cannot be cleared or reused.
 	Disband bool
-	// SendBan blocks sending while allowing receives; currently accepted for compatibility.
+	// SendBan blocks every sender into the actual source channel.
 	SendBan bool
+	// SendBanSet distinguishes an explicit false from an omitted policy.
+	SendBanSet bool
 	// AllowStranger permits stranger sends to person channels when personal whitelist enforcement is enabled.
 	AllowStranger bool
 }
@@ -50,6 +52,8 @@ type BusinessFlags struct {
 	Disband bool
 	// SendBan blocks sends while preserving receive semantics.
 	SendBan bool
+	// SendBanSet distinguishes an explicit false from an omitted policy.
+	SendBanSet bool
 }
 
 // UpsertCommand updates channel metadata and optionally applies subscribers.

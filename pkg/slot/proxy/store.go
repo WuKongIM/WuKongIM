@@ -3,6 +3,8 @@ package proxy
 import (
 	"context"
 	"errors"
+	"sync"
+	"sync/atomic"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
@@ -12,8 +14,18 @@ import (
 // Store provides business-level distributed storage APIs
 // built on top of the cluster metadata proposal port.
 type Store struct {
-	cluster Cluster
-	db      *metadb.DB
+	// permissionGateMu makes permit assignment and waiting-position release atomic.
+	// Assigned callers occupy execution capacity even before they resume.
+	permissionGateMu    sync.Mutex
+	permissionExecuting int
+	permissionWaiters   []*sendPermissionWaiter
+	// permissionWaitingBytes sums queued remote envelope sizes; guarded by permissionGateMu.
+	permissionWaitingBytes int
+	permissionWaiting      atomic.Int64
+	permissionInflight     atomic.Int64
+	permissionObserver     SendPermissionObserver
+	cluster                Cluster
+	db                     *metadb.DB
 	// messageUpdateObserver observes serving edit reads; nil disables timing.
 	messageUpdateObserver MessageUpdateReadObserver
 }
@@ -38,6 +50,7 @@ func NewChannelMetadataStore(cluster Cluster, db *metadb.DB, observers ...Messag
 		{serviceID: subscriberRPCServiceID, handler: store.handleSubscriberRPC},
 		{serviceID: channelRPCServiceID, handler: store.handleChannelRPC},
 		{serviceID: permissionBatchRPCServiceID, handler: store.handlePermissionBatchRPC},
+		{serviceID: sendPermissionRPCServiceID, handler: store.handleSendPermissionRPC},
 		{serviceID: membershipRPCServiceID, handler: store.handleMembershipRPC},
 		{serviceID: messageUpdateRPCServiceID, handler: store.handleMessageUpdateReadRPC},
 	})

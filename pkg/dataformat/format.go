@@ -17,7 +17,7 @@ const (
 	FileName      = "DATA-FORMAT.json"
 	CurrentFormat = "wukongim-v3"
 	// CurrentVersion changes only when the directory format requires a migration.
-	CurrentVersion = 1
+	CurrentVersion = 2
 	maxBytes       = 16 << 10
 )
 
@@ -99,7 +99,8 @@ func Inspect(dir string) (Report, error) {
 }
 
 // Check rejects unsupported/corrupt markers before writable stores are opened.
-// Legacy directories remain usable without falsely registering historical data.
+// Unregistered live data requires an explicit compatible import. An archive-only
+// backup-repository mount does not register or adopt any live database state.
 func Check(dir string) error {
 	r, err := Inspect(dir)
 	if errors.Is(err, os.ErrNotExist) {
@@ -108,34 +109,82 @@ func Check(dir string) error {
 	if err != nil {
 		return err
 	}
+	if r.Status == "unregistered" {
+		empty, err := emptyDataRoot(dir)
+		if err != nil {
+			return err
+		}
+		if !empty {
+			return fmt.Errorf("%w: unregistered nonempty directory", ErrUnsupported)
+		}
+	}
 	if r.Status == "unsupported" {
 		return fmt.Errorf("%w: %s version %d", ErrUnsupported, r.Metadata.Format, r.Metadata.FormatVersion)
 	}
 	return nil
 }
 
-// EnsureFresh registers only empty/new roots whose other durable paths are empty.
-// Existing data, including an external Controller state directory, stays unregistered.
+// EnsureFresh registers fresh roots whose other durable paths are empty.
+// Existing live data, including external Controller state, is rejected without
+// a supported marker. A pre-mounted backup repository contains archives only.
 func EnsureFresh(dir string, build Build, durablePaths ...string) error {
 	if err := Check(dir); err != nil {
 		return err
 	}
-	for _, p := range append([]string{dir}, durablePaths...) {
+	for i, p := range append([]string{dir}, durablePaths...) {
 		if p == "" {
 			continue
 		}
-		empty, err := emptyDirectory(p)
+		var empty bool
+		var err error
+		if i == 0 {
+			empty, err = emptyDataRoot(p)
+		} else {
+			empty, err = emptyDirectory(p)
+		}
 		if err != nil {
 			return err
 		}
 		if !empty {
-			return nil
+			if r, err := Inspect(dir); err == nil && r.Status == "registered" {
+				return nil
+			}
+			return fmt.Errorf("%w: unregistered durable state", ErrUnsupported)
 		}
 	}
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
 	return InitializeOwned(dir, build)
+}
+
+// emptyDataRoot permits an archive-only mount prepared before first startup.
+// Every other entry denotes an unregistered live generation and stays rejected.
+// Read at most two names; repository contents are never read or adopted.
+func emptyDataRoot(path string) (bool, error) {
+	f, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	entries, err := f.ReadDir(2)
+	if err != nil && err != io.EOF {
+		return false, err
+	}
+	if len(entries) == 0 {
+		return true, nil
+	}
+	if len(entries) != 1 || entries[0].Name() != "backup-repository" {
+		return false, nil
+	}
+	info, err := os.Stat(filepath.Join(path, "backup-repository"))
+	if err != nil {
+		return false, err
+	}
+	return info.IsDir(), nil
 }
 
 func emptyDirectory(path string) (bool, error) {
