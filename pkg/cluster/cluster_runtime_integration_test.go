@@ -80,8 +80,16 @@ func TestClusterSingleNodeChannelSubscriberMetadataFacade(t *testing.T) {
 }
 
 func TestClusterThreeNodeDefaultChannelsReplicateQuorumAppend(t *testing.T) {
+	record := recordNodeRestartEvidence(t)
 	channelID := channelruntime.ChannelID{ID: "room-default-quorum", Type: 1}
 	nodes := newDefaultThreeNodeCluster(t)
+	for _, node := range nodes {
+		node.cfg.Slots.HashSlotCount = 256
+		// Renew fixture health well within its existing five-second readiness budget.
+		node.cfg.HealthReport.Interval = 100 * time.Millisecond
+		// Native quorum exchange must provide replica durability across restart.
+		node.cfg.Channel.TickInterval = time.Hour
+	}
 	startNodes(t, nodes...)
 	t.Cleanup(func() { stopNodes(t, nodes...) })
 	waitClusterReady(t, nodes...)
@@ -104,6 +112,33 @@ func TestClusterThreeNodeDefaultChannelsReplicateQuorumAppend(t *testing.T) {
 	for _, node := range nodes {
 		requireChannelMessage(t, node, channelID, res.MessageSeq, 1001, []byte("hello-default"))
 	}
+	record("initial-quorum-durable", nodes...)
+	stopNodes(t, nodes...)
+	record("all-stopped", nodes...)
+	startNodes(t, nodes...)
+	// Same-object restart must recreate Slot ownership and the real TCP quorum
+	// endpoint; new processes would not expose retained dependency references.
+	record("all-restarted", nodes...)
+	t.Cleanup(func() { record("restart-final-state", nodes...) })
+	waitClusterReady(t, nodes...)
+	waitNodeWriteReady(t, nodes[0])
+	restartCtx, restartCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer restartCancel()
+	second, err := nodes[0].AppendChannel(restartCtx, channelruntime.AppendRequest{
+		ChannelID: channelID, CommitMode: channelruntime.CommitModeQuorum,
+		Message: channelruntime.Message{MessageID: 1002, Payload: []byte("after-quorum-restart")},
+	})
+	if err != nil {
+		t.Fatalf("AppendChannel(after same-object restart) error = %v", err)
+	}
+	if second.MessageSeq != res.MessageSeq+1 {
+		t.Fatalf("restarted sequence = %d, want %d", second.MessageSeq, res.MessageSeq+1)
+	}
+	for _, node := range nodes {
+		requireChannelMessage(t, node, channelID, res.MessageSeq, 1001, []byte("hello-default"))
+		requireChannelMessage(t, node, channelID, second.MessageSeq, 1002, []byte("after-quorum-restart"))
+	}
+	record("restarted-quorum-durable", nodes...)
 }
 
 func TestClusterThreeNodeDefaultChannelsReplicateToFollowerStore(t *testing.T) {

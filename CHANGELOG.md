@@ -80,6 +80,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Rebuild Node-owned Slot proposal, task and quorum RPC dependencies after Stop or failed startup, preserving injected adapters and durable messages across repeated starts. / 停机或启动失败后重新构建 Node 自建的 Slot 提案、任务及 quorum RPC 依赖，保留注入适配器与消息持久化状态，修复同一 Node 重复启动无法写入的问题。
+
 - Return a plugin host RPC error with the public SEND reason when a plugin-origin message is rejected, including user/channel send bans, instead of acknowledging success with a zero message ID. / 插件发送被用户或频道禁令等规则拒绝时，返回带协议原因码的宿主 RPC 错误，修复成功状态携带零消息 ID 的误导反馈。
 
 - Preserve message settings, including read-receipt flags, topics, and expiration during online delivery for persistent and non-persistent messages. / 修复持久化和非持久化消息在线下发时丢失 setting（含已读回执标记）、topic 和 expire 的问题。
