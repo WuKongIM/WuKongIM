@@ -943,3 +943,5 @@ specification, runbook, report, or module documentation; link to them when neede
   window times before CPU validation, guarantee sampler cancellation/join, and
   attach partial timeline outcomes before querying. Keep safe explicit failures;
   never retain unsafe raw replies or replace absent counters with zeros.
+
+- Prometheus scrapes retain promhttp gathering, aliases, content negotiation and plain-text errors. Successful gzip responses stream through a pooled `gzip.BestSpeed` writer; each response owns its writer, and pooling detaches the prior response. No metric or response-body cache is added. The original permission performance gate still includes all full-metrics sampling CPU.

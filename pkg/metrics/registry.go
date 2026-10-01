@@ -105,7 +105,7 @@ func (r *Registry) Handler() http.Handler {
 	if r == nil || r.registry == nil {
 		return promhttp.Handler()
 	}
-	return promhttp.HandlerFor(channelRuntimeAliasGatherer{base: r.registry}, promhttp.HandlerOpts{})
+	return metricsScrapeHandler(channelRuntimeAliasGatherer{base: r.registry})
 }
 
 func (r *Registry) ChannelExecutionMetrics() *ChannelMetrics {
