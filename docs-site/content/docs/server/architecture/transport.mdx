@@ -3,9 +3,34 @@ title: Transport 网络层
 description: 区分客户端 Gateway 与节点间 Transport，并理解 RPC、优先级、队列和背压。
 ---
 
-WuKongIM 有两个容易混淆的网络边界：客户端通过 Gateway 的 TCP/WebSocket 接入，集群节点通过独立的节点 Transport 交换 Controller、Slot、Channel 和内部 RPC 流量。它们使用不同端口、协议、身份和容量限制。
+客户端走 Gateway，集群节点间走 Transport。两者的端口、协议、身份和容量限制各自独立。
 
 ## 两个网络平面
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  client["客户端 SDK / 应用"] --> gateway["Gateway<br/>TCP / WebSocket"]
+```
+
+</div>
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  node["WuKongIM 节点"] --> transport["节点 Transport<br/>内部 framed TCP"]
+```
+
+</div>
+
+Gateway 与节点 Transport 的端口、协议、身份和容量限制独立。HTTP API 与 Manager 是另外的入口；客户端 Token、Manager JWT、Join Token 和节点发现地址各有用途。
+
+<details>
+  <summary>完整网络平面与协议对照</summary>
+
+WuKongIM 有两个容易混淆的网络边界：客户端通过 Gateway 的 TCP/WebSocket 接入，集群节点通过独立的节点 Transport 交换 Controller、Slot、Channel 和内部 RPC 流量。它们使用不同端口、协议、身份和容量限制。
 
 | 平面 | 对端 | 主要协议 | 入口 |
 | --- | --- | --- | --- |
@@ -14,7 +39,25 @@ WuKongIM 有两个容易混淆的网络边界：客户端通过 Gateway 的 TCP/
 
 HTTP API 与 Manager 又是独立的服务入口。不要把客户端 Token、Manager JWT、Join Token 和节点发现地址当成同一套认证材料。
 
+</details>
+
 ## 节点间传输结构
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  target["节点与 service<br/>调用目标"] --> pool["peer 发现<br/>连接池"]
+  pool --> queue["有界队列<br/>framed TCP"]
+  queue --> handler["远端服务<br/>有界执行"]
+```
+
+</div>
+
+`Call` 是请求/响应，`Send` 是单向通知，Raft 使用有序 lane。固定 service ID 选择集群能力，通用 Transport 不解释业务 payload。送达远端 service **不证明状态机已提交**。
+
+<details>
+  <summary>完整 RPC、通知与有序 lane 结构图</summary>
 
 ```mermaid
 flowchart TD
@@ -31,7 +74,14 @@ flowchart TD
 
 每个 frame 带有 kind、priority、service ID、request ID 和 body length。Cluster adapter 把 Controller Raft、Slot Raft、状态同步、Channel 复制、前台 append、在线 owner push 等能力分配到固定 service ID；通用 Transport 不解释业务 payload。
 
+</details>
+
 ## 监听地址与发布地址
+
+`listen_addr` 绑定本节点；`advertise_addr` 或静态 peer 地址必须稳定且可被其他节点访问。发现层将 node ID 解析到有界连接池；seed/static 地址辅助启动，Controller 快照提供持续成员视图。配置见[网络与客户端接入](/zh/server/configuration/networking)。
+
+<details>
+  <summary>完整监听、发布与发现规则</summary>
 
 - `listen_addr` 决定本节点绑定的位置，可以使用 `0.0.0.0` 或 `[::]` 接受连接。
 - `advertise_addr` 或静态节点表地址必须是其他节点能够实际访问的稳定端点。
@@ -40,15 +90,29 @@ flowchart TD
 
 把绑定地址发布为 peer 地址会产生“本机能监听、其他节点无法连接”的故障。配置细节见[网络与客户端接入](/zh/server/configuration/networking)。
 
+</details>
+
 ## 有界队列是正确性边界
 
-Transport 限制单 frame body、单连接排队条目/字节、batch frame/字节、服务队列、处理并发和写超时。达到边界时返回 backpressure 或关闭失败连接，让等待中的 RPC 明确醒来。
+帧大小、排队条目/字节、批次、处理并发和写超时都有上限。达到上限返回背压或关闭失败连接，让等待 RPC 明确醒来。
 
 <Callout type="warn" title="没有无限缓冲">
   扩大网络队列会增加突发吸收能力，也会增加内存和最坏排队时间。持续过载必须降低输入、扩容或修复慢服务，不能通过无界 queue 隐藏。
 </Callout>
 
+<details>
+  <summary>完整队列、批次与写入限制</summary>
+
+Transport 限制单 frame body、单连接排队条目/字节、batch frame/字节、服务队列、处理并发和写超时。达到边界时返回 backpressure 或关闭失败连接，让等待中的 RPC 明确醒来。
+
+</details>
+
 ## 优先级与顺序
+
+Raft/控制消息保持低等待，Raft handler 保持顺序。前台 append 并发与同目标 Pull 批次仍有界，保留逐项结果与 fence。优先级只改变调度，不跳过权威检查，也不确定超时请求的执行结果。
+
+<details>
+  <summary>完整优先级、合并与顺序规则</summary>
 
 - Raft 与控制消息保持低等待，不参与普通 RPC 的短时 coalescing。
 - 前台 Channel append 服务可以使用更高的有界处理并发，但仍受 payload 和 queue 限制。
@@ -57,7 +121,14 @@ Transport 限制单 frame body、单连接排队条目/字节、batch frame/字�
 
 优先级只影响调度，不会让消息跳过权威检查，也不会把超时请求自动视为未执行。
 
+</details>
+
 ## 失败语义
+
+背压时限流或有界重试。RPC 超时可能结果未知，只按操作的幂等/fence 契约重试；未知 service 或版本不匹配要检查兼容性。Slot/Channel 重新解析权威，Transport 不猜测另一 Leader。
+
+<details>
+  <summary>完整失败语义与调用方处理</summary>
 
 | 失败 | 调用方应做什么 |
 | --- | --- |
@@ -70,6 +141,8 @@ Transport 限制单 frame body、单连接排队条目/字节、batch frame/字�
 
 Slot 与 Channel 上层会重新解析 Leader 或 epoch 后决定是否重试。Transport 自己不会猜测新的权威节点。
 
+</details>
+
 ## 安全边界
 
 节点 Transport 应只暴露在受控集群网络中，地址必须由可信配置或 Controller 状态提供。当前节点传输是内部 framed TCP，不应直接暴露到互联网；需要跨不可信网络时，应在外层提供经过审核的私网、隧道或等效保护。
@@ -77,6 +150,11 @@ Slot 与 Channel 上层会重新解析 Leader 或 epoch 后决定是否重试。
 浏览器和客户端不得访问节点 Transport。产品 HTTP、Manager、Gateway、Operations MCP 和 Debug 各自需要独立的入口与最小权限控制，详见[安全与权限](/zh/server/configuration/security)。
 
 ## 观察什么
+
+观察 peer 连接、队列条目/字节与等待、RPC 延迟/超时、执行容量，以及分层 Raft/复制错误；入口见[诊断能力](/zh/server/tools/diagnostics)。远端 service 送达属于传输证据，状态机 commit 要另行证明。
+
+<details>
+  <summary>完整分层信号与诊断边界</summary>
 
 - peer 连接数、重连和 dial failure；
 - scheduler queue 条目与字节、batch 大小和等待；
@@ -86,7 +164,14 @@ Slot 与 Channel 上层会重新解析 Leader 或 epoch 后决定是否重试。
 
 诊断时把“Transport 已送达远端 service”和“远端状态机已经 commit”分开。前者不能证明后者。
 
+</details>
+
 ## 源码入口
+
+继续阅读[消息发送链路](/zh/server/architecture/message-flow)，查看前台 append 和提交后投递如何跨越这些网络边界。
+
+<details>
+  <summary>实现模块与源码路径</summary>
 
 | 目标 | 入口 |
 | --- | --- |
@@ -95,4 +180,4 @@ Slot 与 Channel 上层会重新解析 Leader 或 epoch 后决定是否重试。
 | Gateway 客户端 Transport | `pkg/gateway/transport` |
 | Controller/Slot/Channel 适配 | `pkg/cluster/control`, `pkg/cluster`, `pkg/cluster/channels` |
 
-继续阅读[消息发送链路](/zh/server/architecture/message-flow)，查看前台 append 和提交后投递如何跨越这些网络边界。
+</details>
