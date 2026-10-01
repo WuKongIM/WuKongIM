@@ -718,6 +718,11 @@ specification, runbook, report, or module documentation; link to them when neede
   E2E metric reads explicitly negotiate identity and reject non-200, empty or
   malformed snapshots. Same-response receipts bind status, logical bytes/hash
   and observation bounds; family completeness still needs scenario assertions.
+  Use monotonic durations for scheduling, elapsed time and CPU-query deadline
+  bounds. UTC timestamps can adjust during a window; keep them as evidence and
+  retain inconsistencies rather than using wall-clock subtraction to qualify
+  latency or silently clamping a negative deadline gap. Native cumulative CPU
+  and process identity remain independently verifiable.
 
 - Five-second worker cuts retain configured hot SENDACK P99 threshold counts.
   Interval counts can trigger one independent diagnostic profile after an earlier
