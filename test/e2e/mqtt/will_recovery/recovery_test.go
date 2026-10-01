@@ -18,6 +18,9 @@ import (
 )
 
 const startedCut = "wkMQTTWillAfterStarted"
+const admittedCut = "wkMQTTWillAfterAdmitted"
+const appendCut = "wkMQTTWillBeforeAppendAdmission"
+const issuedCut = "wkMQTTWillAfterAppendAdmission"
 const publishedCut = "wkMQTTWillAfterPublication"
 const publishAttempt = "wkMQTTWillPublicationAttempt"
 const acceptedDelay = "wkMQTTWillAcceptedAppendDelay"
@@ -29,13 +32,24 @@ func TestStartedWillRecoveryPreservesOnePublication(t *testing.T) {
 	}
 	require.NotEmpty(t, os.Getenv("WK_E2E_BINARY"))
 	for _, count := range []int{1, 3} {
-		for _, cut := range []string{"undispatched", "published", "admitted"} {
+		for _, cut := range []string{"undispatched", "pre-send", "pre-append", "issued", "legacy-admitted", "published", "admitted"} {
 			t.Run(fmt.Sprintf("%d-node-cluster/%s", count, cut), func(t *testing.T) { runRecovery(t, count, cut) })
 		}
 	}
 }
 
 func runRecovery(t *testing.T, count int, cut string) {
+	candidateBinary := os.Getenv("WK_E2E_BINARY")
+	var legacyLaunchPath string
+	if cut == "legacy-admitted" {
+		legacy := os.Getenv("WK_E2E_MQTT_LEGACY_BINARY")
+		if legacy == "" {
+			t.Skip("requires the frozen version-1 journal binary")
+		}
+		legacyLaunchPath = filepath.Join(t.TempDir(), "wukongim")
+		require.NoError(t, os.Symlink(legacy, legacyLaunchPath))
+		t.Setenv("WK_E2E_BINARY", legacyLaunchPath)
+	}
 	phase := "startup"
 	report := map[string]any{"scenario": "mqtt-started-will-recovery", "nodes": count, "hash_slots": 256, "cut": cut, "resubscriptions": 0, "connect_retries": 0}
 	dir := os.Getenv("WK_E2E_MQTT_REPORT_DIR")
@@ -57,7 +71,7 @@ func runRecovery(t *testing.T, count int, cut string) {
 	for i := range count {
 		addrs[i] = suite.ReserveLoopbackPorts(t).GatewayAddr
 		faults[i] = suite.ReserveGofailEndpoint(t)
-		opts = append(opts, suite.WithNodeEnv(uint64(i+1), faults[i].Env()), suite.WithNodeConfigOverrides(uint64(i+1), map[string]string{"WK_CLUSTER_HASH_SLOT_COUNT": "256", "WK_GATEWAY_TOKEN_AUTH_ON": "true", "WK_MQTT_ENABLE": "true", "WK_MQTT_LISTEN_ADDR": addrs[i]}))
+		opts = append(opts, suite.WithNodeEnv(uint64(i+1), faults[i].Env(), "GOFAIL_FAILPOINTS="+publishAttempt+"=return(true)"), suite.WithNodeConfigOverrides(uint64(i+1), map[string]string{"WK_CLUSTER_HASH_SLOT_COUNT": "256", "WK_GATEWAY_TOKEN_AUTH_ON": "true", "WK_MQTT_ENABLE": "true", "WK_MQTT_LISTEN_ADDR": addrs[i]}))
 	}
 	s := suite.New(t)
 	cluster := s.StartStaticCluster(count, append(opts, suite.WithManagerHTTP())...)
@@ -74,7 +88,7 @@ func runRecovery(t *testing.T, count int, cut string) {
 	ready()
 	for _, f := range faults {
 		call, done := context.WithTimeout(ctx, 3*time.Second)
-		_, err := f.WaitListed(call, startedCut, publishedCut, publishAttempt, acceptedDelay)
+		_, err := f.WaitListed(call, startedCut, admittedCut, appendCut, issuedCut, publishedCut, publishAttempt, acceptedDelay)
 		done()
 		require.NoError(t, err)
 	}
@@ -94,7 +108,13 @@ func runRecovery(t *testing.T, count int, cut string) {
 	require.NoError(t, err)
 	require.Equal(t, []byte{1}, sub.Reasons)
 	faultName, expression := startedCut, `sleep(60000)`
-	if cut == "published" {
+	if cut == "pre-send" || cut == "legacy-admitted" {
+		faultName = admittedCut
+	} else if cut == "pre-append" {
+		faultName = appendCut
+	} else if cut == "issued" {
+		faultName = issuedCut
+	} else if cut == "published" {
 		faultName = publishedCut
 	} else if cut == "admitted" {
 		faultName, expression = acceptedDelay, `return(30000)`
@@ -179,6 +199,12 @@ func runRecovery(t *testing.T, count int, cut string) {
 			t.Fatal("executor process did not exit")
 		}
 		_ = executor.Process.Stop()
+		if cut == "legacy-admitted" {
+			// Switch only this case-owned launch alias; running peers retain the
+			// original binary and the harness restarts the exact stopped group.
+			require.NoError(t, os.Symlink(candidateBinary, legacyLaunchPath+".next"))
+			require.NoError(t, os.Rename(legacyLaunchPath+".next", legacyLaunchPath))
+		}
 		require.NoError(t, cluster.StartStoppedNode(uint64(cutNode+1)), cluster.DumpDiagnostics())
 		first = cluster.MustNode(1)
 		ready()
@@ -186,6 +212,22 @@ func runRecovery(t *testing.T, count int, cut string) {
 		_ = bob.Abort() // The executor crash may already have closed this transport.
 		bob = connectRecipient()
 		require.True(t, bob.Connack.SessionPresent, "recovery must preserve its existing subscription")
+	}
+	if cut == "issued" || cut == "legacy-admitted" {
+		phase = "unknown-after-restart"
+		quiet(bob, 21*time.Second)
+		var attempts int
+		for _, f := range faults {
+			n, e := f.Count(ctx, publishAttempt)
+			require.NoError(t, e)
+			attempts += n
+		}
+		require.Zero(t, attempts, "unknown issued or legacy admission cannot grant another publication")
+		report["attempts_after_restart"], report["unknown_effect_window_ms"] = attempts, 21000
+		report["business_publications"], report["unexpected_deliveries"] = 0, 0
+		report["legacy_journal_retained"] = cut == "legacy-admitted"
+		phase = "complete"
+		return
 	}
 	phase = "original-will-delivery"
 	p := receive(bob)

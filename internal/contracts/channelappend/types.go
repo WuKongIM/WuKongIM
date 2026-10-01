@@ -176,6 +176,10 @@ type SendBatchItem struct {
 	Deadline time.Time
 	// Command is the SEND command.
 	Command SendCommand
+	// AppendAdmission is trusted origin-only permission, never wire metadata.
+	// Router invokes it before every local/remote submission, including retries,
+	// then strips it before handing off accepted work. Failure forbids submission.
+	AppendAdmission func(context.Context) error
 }
 
 // Clone returns an independent copy of the batch item.

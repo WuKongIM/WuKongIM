@@ -1,0 +1,402 @@
+{
+  "source_revision": "68eb337c50267fb2e0114130ef2b028760d17555",
+  "host": "darwin/arm64",
+  "go_version": "go1.25.11 darwin/arm64",
+  "final_matrix": {
+    "passed": 14,
+    "failed": 0,
+    "seconds": 681.229,
+    "hash_slots": 256,
+    "nodes": [
+      1,
+      3
+    ],
+    "cuts": [
+      "undispatched",
+      "pre-send",
+      "pre-append",
+      "issued",
+      "legacy-admitted",
+      "published",
+      "admitted"
+    ]
+  },
+  "validation_source": "validation-source.json",
+  "checks": [
+    {
+      "name": "red-tracer",
+      "status": "expected-failure",
+      "exit_code": 1,
+      "repeat_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-append-baseline-gofail WK_E2E_MQTT_REPORT_DIR=<red-directory> GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_recovery -run 'TestStartedWillRecoveryPreservesOnePublication/1-node-cluster/pre-send$' -count=1 -timeout=3m -v",
+      "log": "/tmp/mqtt-will-append-red.log",
+      "log_sha256": "c595b4497f45cef20fc3ae996c5689879f20a231ebddc6284cf192ba4d80c058",
+      "package_durations": [],
+      "note": "Verified cut, exact restart, then original receipt deadline; 52.962 seconds. Initial test hash in baseline-source.json."
+    },
+    {
+      "name": "red-repeat",
+      "status": "expected-failure",
+      "exit_code": 1,
+      "repeat_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-append-baseline-gofail WK_E2E_MQTT_REPORT_DIR=<red-directory> GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_recovery -run 'TestStartedWillRecoveryPreservesOnePublication/1-node-cluster/pre-send$' -count=1 -timeout=3m -v",
+      "log": "/tmp/mqtt-will-append-red-repeat.log",
+      "log_sha256": "d3e6bac92bf0cad511429b4c4e99571fdb73f92ed0c8d040d4bc80c28ec80cfa",
+      "package_durations": [],
+      "note": "Repeated against the same binary; 51.847 seconds. Preflight/build errors were not counted as RED evidence."
+    },
+    {
+      "name": "green-tracer",
+      "status": "passed",
+      "exit_code": 0,
+      "repeat_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-append-candidate-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-append-green GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_recovery -run 'TestStartedWillRecoveryPreservesOnePublication/1-node-cluster/pre-send$' -count=1 -timeout=3m -v",
+      "log": "/tmp/mqtt-will-append-green.log",
+      "log_sha256": "0f79939e32619d8506690426c2e4407153cc033c6ee0375af3ec877eadf38d49",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_recovery",
+          "seconds": 52.772
+        }
+      ],
+      "note": "52.772 seconds; initial test hash in validation-source.json."
+    },
+    {
+      "name": "initial-matrix",
+      "status": "harness-failure",
+      "exit_code": 1,
+      "repeat_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-append-candidate-gofail WK_E2E_MQTT_LEGACY_BINARY=/tmp/wukongim-will-append-baseline-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-append-matrix GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_recovery -count=1 -timeout=18m -v",
+      "log": "/tmp/mqtt-will-append-matrix.log",
+      "log_sha256": "26a38fa2fcdbb690cdd5354fbc740ae07000ea694e8a5040a6a79eab1af7e334",
+      "package_durations": [],
+      "note": "10 passed; four new unknown-window cases failed in instrumentation/upgrade setup: counter disabled after restart, or Restart called after a joined SIGKILL. Startup counter and case-owned atomic binary alias repair these harness defects; production Go unchanged."
+    },
+    {
+      "name": "final-matrix",
+      "status": "passed",
+      "exit_code": 0,
+      "repeat_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-append-candidate-gofail WK_E2E_MQTT_LEGACY_BINARY=/tmp/wukongim-will-append-baseline-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-append-final GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_recovery -count=1 -timeout=18m -v",
+      "log": "/tmp/mqtt-will-append-final.log",
+      "log_sha256": "92fc035c3b136904bc9ce2746e6fde8b127cf814f9e891be828b44d3c7be342f",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_recovery",
+          "seconds": 681.229
+        }
+      ],
+      "note": "14/14 case receipts emitted after owned client/process cleanup. Corrected test SHA-256 in validation-source.json."
+    },
+    {
+      "name": "ordinary-will-regression",
+      "status": "passed",
+      "exit_code": 0,
+      "repeat_command": "WK_E2E_BINARY=/tmp/wukongim-will-append-ordinary GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will -count=1 -timeout=4m -v",
+      "log": "/tmp/mqtt-will-append-ordinary-regression.log",
+      "log_sha256": "937db26b9d72e46c936d994834eb84a9cdea749c68342238d7bede65f2c4aa73",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will",
+          "seconds": 53.298
+        }
+      ],
+      "note": "Two topologies. Existing suite wrote artifacts to case-owned temporary node roots; the passing log is retained, those temporary roots are cleaned."
+    },
+    {
+      "name": "reclamation-regression",
+      "status": "passed",
+      "exit_code": 0,
+      "repeat_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-append-candidate-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-append-reclamation GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_reclamation -count=1 -timeout=6m -v",
+      "log": "/tmp/mqtt-will-append-reclamation.log",
+      "log_sha256": "98baa7158b56f5772e611b86a8f04d5b80f5b683f3126a901722a130c1215cbd",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation",
+          "seconds": 136.575
+        }
+      ],
+      "note": "Two controlled cap=2 cases; not a 1,024-record stress run."
+    },
+    {
+      "name": "app-wiring",
+      "status": "passed",
+      "exit_code": 0,
+      "repeat_command": "GOWORK=off go test -tags=integration -p 1 ./internal/app -run TestMQTTWillExecution -count=1 -timeout=3m",
+      "log": "/tmp/mqtt-will-append-wiring.log",
+      "log_sha256": "4c141a1bc6f7fbb58cb59b2ee9146aaad71ba68959331f3d9dff5345a30253f4",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/app",
+          "seconds": 16.751
+        }
+      ]
+    },
+    {
+      "name": "related-race",
+      "status": "environment-interruption",
+      "exit_code": 1,
+      "repeat_command": "GOWORK=off go test -race -p 1 ./internal/usecase/mqttsession ./internal/usecase/message ./internal/runtime/channelappend ./internal/contracts/channelappend ./internal/infra/mqttwill ./internal/app -count=1 -timeout=5m",
+      "log": "/tmp/mqtt-will-append-race.log",
+      "log_sha256": "29f9c2a7e515e28ca70752543efd08b041678f04d2513b6243b2eb3f371c5f2d",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession",
+          "seconds": 124.984
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/usecase/message",
+          "seconds": 1.841
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/runtime/channelappend",
+          "seconds": 2.271
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/contracts/channelappend",
+          "seconds": 1.281
+        }
+      ],
+      "note": "First five packages passed. Shared module files disappeared during internal/app compilation; no cause is inferred. The complete internal/app race suite was rerun against a private verified module cache."
+    },
+    {
+      "name": "app-race-recovery",
+      "status": "passed",
+      "exit_code": 0,
+      "repeat_command": "GOWORK=off go test -race -p 1 ./internal/app -count=1 -timeout=5m",
+      "log": "/tmp/mqtt-will-append-app-race.log",
+      "log_sha256": "86615c643c4c33816440f9b6cf012d05b241a13446051c16c4f5c54c84edf87a",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/app",
+          "seconds": 4.548
+        }
+      ]
+    },
+    {
+      "name": "module-integrity",
+      "status": "passed",
+      "exit_code": 0,
+      "repeat_command": "GOWORK=off go mod verify",
+      "log": "/tmp/mqtt-will-append-module-verify.log",
+      "log_sha256": "b4537ed75f533f993f371954de47e42a793b8e5b0587577de7e27fb3e50696bd",
+      "package_durations": [],
+      "note": "all modules verified; root requirements were restored to the private cache only after their ZIP h1 checks matched go.sum."
+    },
+    {
+      "name": "flow-doc-contracts",
+      "status": "passed",
+      "exit_code": 0,
+      "repeat_command": "GOWORK=off go run ./scripts/flowcheck --mode check",
+      "log": "/tmp/mqtt-will-append-flow-check.log",
+      "log_sha256": "712b0d00c884c879b2cce5695f7c753e8b77e926f42a262132c69db816723b64",
+      "package_durations": [],
+      "note": "Named check resolved from .github/review-agent/policy.json: 88 compliant, zero invalid, 11 pre-existing length warnings."
+    },
+    {
+      "name": "ordinary-build-info",
+      "status": "passed",
+      "exit_code": 0,
+      "repeat_command": "go version -m /tmp/wukongim-will-append-ordinary",
+      "log": "/tmp/mqtt-will-append-ordinary-build-info.log",
+      "log_sha256": "22fcccf4a12c4a747bfd6aa509cf4dce048b4ef9829831544bf3067a372409bf",
+      "package_durations": [],
+      "note": "No go.etcd.io/gofail dependency in the ordinary binary."
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "cases/mqtt-will-recovery-1-undispatched.json",
+      "sha256": "992a32b7289f2a7af1b2741c27add9ce6b8a24249fcc46064cdcaeee8d925e2d",
+      "passed": true,
+      "nodes": 1,
+      "cut": "undispatched",
+      "last_phase": "complete"
+    },
+    {
+      "path": "cases/mqtt-will-recovery-1-pre-send.json",
+      "sha256": "951271bb31fc671851a9d33911a9a86de2ef9fed90ebe58a6b2f4c341e3d8dab",
+      "passed": true,
+      "nodes": 1,
+      "cut": "pre-send",
+      "last_phase": "complete"
+    },
+    {
+      "path": "cases/mqtt-will-recovery-1-pre-append.json",
+      "sha256": "f53814116fd77f42e42c7a0a4b455e1a5e0088e50763f77de13e376aca11834b",
+      "passed": true,
+      "nodes": 1,
+      "cut": "pre-append",
+      "last_phase": "complete"
+    },
+    {
+      "path": "cases/mqtt-will-recovery-1-issued.json",
+      "sha256": "1ffe1ec76e7d27da0b9d015ae9a50a20e0e7e8bb869c3e34d68415d45f581bb4",
+      "passed": true,
+      "nodes": 1,
+      "cut": "issued",
+      "last_phase": "complete"
+    },
+    {
+      "path": "cases/mqtt-will-recovery-1-legacy-admitted.json",
+      "sha256": "83483fa66e81a908c89245e6a6319595014eceeb04c565a9e0c86c7b6d6e0acd",
+      "passed": true,
+      "nodes": 1,
+      "cut": "legacy-admitted",
+      "last_phase": "complete"
+    },
+    {
+      "path": "cases/mqtt-will-recovery-1-published.json",
+      "sha256": "e88aefe9a82f7cf99b51443f9da3f8c9962bf30ccb1e59a1f42997bf82c4450e",
+      "passed": true,
+      "nodes": 1,
+      "cut": "published",
+      "last_phase": "complete"
+    },
+    {
+      "path": "cases/mqtt-will-recovery-1-admitted.json",
+      "sha256": "e775b0d860742a4b9f08a0a4feecb460d839ce3d4cfdd5a7f6ddbade63f434ee",
+      "passed": true,
+      "nodes": 1,
+      "cut": "admitted",
+      "last_phase": "complete"
+    },
+    {
+      "path": "cases/mqtt-will-recovery-3-undispatched.json",
+      "sha256": "fbf84432aa36e6cf0b2b445b8370a766dda15545b9331838ee35b40003d83489",
+      "passed": true,
+      "nodes": 3,
+      "cut": "undispatched",
+      "last_phase": "complete"
+    },
+    {
+      "path": "cases/mqtt-will-recovery-3-pre-send.json",
+      "sha256": "a2ec2b061eec829d4f073b90dfc26110934669f13f0c8cd75f607fa4ff77a9b4",
+      "passed": true,
+      "nodes": 3,
+      "cut": "pre-send",
+      "last_phase": "complete"
+    },
+    {
+      "path": "cases/mqtt-will-recovery-3-pre-append.json",
+      "sha256": "f5c77355ac2948baee0c2d1ac4648cf66bfec5d090961bde1ba651e87859bad5",
+      "passed": true,
+      "nodes": 3,
+      "cut": "pre-append",
+      "last_phase": "complete"
+    },
+    {
+      "path": "cases/mqtt-will-recovery-3-issued.json",
+      "sha256": "1cc3bea6ac6f8a812fe58aaa8898e211eb1b448e3cad86b74aa60f7d18b7181b",
+      "passed": true,
+      "nodes": 3,
+      "cut": "issued",
+      "last_phase": "complete"
+    },
+    {
+      "path": "cases/mqtt-will-recovery-3-legacy-admitted.json",
+      "sha256": "6b7ac1f66e6d46a819bb6446f2f1930d1a9d35b55ac7397aeca2785f5f35ac8e",
+      "passed": true,
+      "nodes": 3,
+      "cut": "legacy-admitted",
+      "last_phase": "complete"
+    },
+    {
+      "path": "cases/mqtt-will-recovery-3-published.json",
+      "sha256": "e43584e2f5650efa2f64ee2973d65080ca7af12f02c59be0b1c94e1c4cbf29e5",
+      "passed": true,
+      "nodes": 3,
+      "cut": "published",
+      "last_phase": "complete"
+    },
+    {
+      "path": "cases/mqtt-will-recovery-3-admitted.json",
+      "sha256": "d19368cbcc342b9ca7a1a048bcb5e8be2ab2d9ba851ccc9fea2907a91255009e",
+      "passed": true,
+      "nodes": 3,
+      "cut": "admitted",
+      "last_phase": "complete"
+    },
+    {
+      "path": "red/mqtt-will-recovery-1-pre-send.json",
+      "sha256": "adbc282e852949f0f1f3542d6ff261165c13587e90ed231ed44c9d360f134476",
+      "passed": false,
+      "nodes": 1,
+      "cut": "pre-send",
+      "last_phase": "original-will-delivery"
+    },
+    {
+      "path": "red-repeat/mqtt-will-recovery-1-pre-send.json",
+      "sha256": "adbc282e852949f0f1f3542d6ff261165c13587e90ed231ed44c9d360f134476",
+      "passed": false,
+      "nodes": 1,
+      "cut": "pre-send",
+      "last_phase": "original-will-delivery"
+    },
+    {
+      "path": "green-tracer/mqtt-will-recovery-1-pre-send.json",
+      "sha256": "951271bb31fc671851a9d33911a9a86de2ef9fed90ebe58a6b2f4c341e3d8dab",
+      "passed": true,
+      "nodes": 1,
+      "cut": "pre-send",
+      "last_phase": "complete"
+    },
+    {
+      "path": "reclamation-regression/mqtt-will-reclamation-1.json",
+      "sha256": "ddb74d9e55ebd470442af9407b6fe58a397226d1f59bf12ed2c29f6f442251ff",
+      "passed": true,
+      "nodes": 1,
+      "cut": null,
+      "last_phase": "complete"
+    },
+    {
+      "path": "initial-harness-failures/mqtt-will-recovery-1-issued.json",
+      "sha256": "447d25eea38465f8a989fd294c9f20eb3a85283f0e6c2e90edac3869d36d5606",
+      "passed": false,
+      "nodes": 1,
+      "cut": "issued",
+      "last_phase": "unknown-after-restart"
+    },
+    {
+      "path": "initial-harness-failures/mqtt-will-recovery-1-legacy-admitted.json",
+      "sha256": "1fc631836e9d3989c879ff3a5ef802f5d9994632b4262434340a2647eca676c2",
+      "passed": false,
+      "nodes": 1,
+      "cut": "legacy-admitted",
+      "last_phase": "executor-crash-and-restart"
+    },
+    {
+      "path": "reclamation-regression/mqtt-will-reclamation-3.json",
+      "sha256": "9c4c40b5d8fe74cc0ac81f7cb7250b8985a9da079516a640711f6b08b0caa8c1",
+      "passed": true,
+      "nodes": 3,
+      "cut": null,
+      "last_phase": "complete"
+    },
+    {
+      "path": "initial-harness-failures/mqtt-will-recovery-3-issued.json",
+      "sha256": "f02d3b831cba9a21917ca397ab4ba4a3dd3cd11007f0cfea53063f295ceb3e5b",
+      "passed": false,
+      "nodes": 3,
+      "cut": "issued",
+      "last_phase": "unknown-after-restart"
+    },
+    {
+      "path": "initial-harness-failures/mqtt-will-recovery-3-legacy-admitted.json",
+      "sha256": "a8ad18b03a78c5c9df0035ab4daa1491c94a2f9f26c0d89c77ae0ef6c75fe60f",
+      "passed": false,
+      "nodes": 3,
+      "cut": "legacy-admitted",
+      "last_phase": "executor-crash-and-restart"
+    }
+  ],
+  "review": {
+    "standards_findings": 0,
+    "spec_findings": 0,
+    "supplement_findings": 0,
+    "scope": "review-scope.json",
+    "supplement_scope": "review-supplement-scope.json",
+    "limitation": "Read-only scoped review; not a full MQTT branch qualification."
+  },
+  "limits": [
+    "No Linux execution in this round.",
+    "Issued permission and version-1 Admitted without a positive receipt remain pending; timeout grants no redispatch.",
+    "Full 1,024-record capacity stress, delayed CAS/reclamation races, partitions, lost/corrupt journals and complete unknown-effect terminal recovery remain unqualified.",
+    "Aggregate shared-storage admission and the complete MQTT target remain open."
+  ]
+}

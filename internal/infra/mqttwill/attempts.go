@@ -22,10 +22,10 @@ var ErrCapacity = contract.ErrWillAttemptCapacity
 
 const attemptLimit = 1024
 const recordLimit = contract.MaxWillAttemptBytes + 6 + sha256.Size
-const reserved, admitted, sealed byte = 1, 2, 3
+const reserved, admitted, sealed, appendIssued, legacyAdmitted byte = 1, 2, 3, 4, 5
 
 // GenerationProof belongs to the existing exclusive MQTT generation lock. A
-// retirement alone cannot prove nonpublication; an exact Reserved record must join it.
+// retirement alone cannot prove nonpublication; an exact unissued record must join it.
 type GenerationProof interface {
 	OwnsGeneration(uint64, string) bool
 	BootRetired(context.Context, string) error
@@ -150,8 +150,8 @@ func (s *Attempts) PrepareAttempt(ctx context.Context, a contract.WillAttempt) e
 	return err
 }
 
-// BeginDispatch and SealUndispatched compete for the same durable Reserved row.
-// Only the winner may grant admission or proof; missing evidence grants neither.
+// BeginDispatch admits a Reserved turn without issuing append permission.
+// It competes with sealing; missing evidence grants neither admission nor proof.
 func (s *Attempts) BeginDispatch(ctx context.Context, a contract.WillAttempt) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -169,6 +169,36 @@ func (s *Attempts) BeginDispatch(ctx context.Context, a contract.WillAttempt) er
 	return err
 }
 
+// BeginAppend competes with sealing before the origin submits locally or remotely.
+// Issued permission is irrevocable and reusable only by the exact original attempt.
+func (s *Attempts) BeginAppend(ctx context.Context, a contract.WillAttempt) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.valid(ctx, a); err != nil {
+		return err
+	}
+	if a.BootID != s.boot {
+		return ErrUnknown
+	}
+	stage, err := s.read(a)
+	if err != nil {
+		return ErrUnknown
+	}
+	if stage == appendIssued {
+		if err := syncDirectory(s.dir); err != nil {
+			return err
+		}
+		return ctx.Err()
+	}
+	if stage != admitted {
+		return ErrUnknown
+	}
+	_, err = s.write(ctx, a, appendIssued)
+	return err
+}
+
+// SealUndispatched durably forbids all future submission from an unissued attempt.
+// Version-1 Admitted lacks the submission boundary and remains positive-only.
 func (s *Attempts) SealUndispatched(ctx context.Context, a contract.WillAttempt) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -181,7 +211,7 @@ func (s *Attempts) SealUndispatched(ctx context.Context, a contract.WillAttempt)
 		}
 	}
 	stage, err := s.read(a)
-	if err != nil || stage == admitted {
+	if err != nil || stage == appendIssued || stage == legacyAdmitted {
 		return ErrUnknown
 	}
 	if stage == sealed {
@@ -310,7 +340,10 @@ func (s *Attempts) readPath(path string) (contract.WillAttempt, byte, error) {
 	}
 	data, readErr := io.ReadAll(io.LimitReader(f, recordLimit+1))
 	closeErr := f.Close()
-	if readErr != nil || closeErr != nil || len(data) < 7+sha256.Size || len(data) > recordLimit || string(data[:4]) != "MQWA" || data[4] != 1 || data[5] < reserved || data[5] > sealed {
+	if readErr != nil || closeErr != nil || len(data) < 7+sha256.Size || len(data) > recordLimit || string(data[:4]) != "MQWA" || data[5] < reserved {
+		return zero, 0, ErrUnknown
+	}
+	if data[4] != 1 && data[4] != 2 || data[4] == 1 && data[5] > sealed || data[4] == 2 && data[5] > appendIssued {
 		return zero, 0, ErrUnknown
 	}
 	body := data[:len(data)-sha256.Size]
@@ -319,7 +352,11 @@ func (s *Attempts) readPath(path string) (contract.WillAttempt, byte, error) {
 	if err != nil || !bytes.Equal(data[len(body):], sum[:]) {
 		return zero, 0, ErrUnknown
 	}
-	return identity, data[5], nil
+	stage := data[5]
+	if data[4] == 1 && stage == admitted {
+		stage = legacyAdmitted
+	}
+	return identity, stage, nil
 }
 
 // write atomically replaces one fsynced exact record, then syncs its directory.
@@ -329,7 +366,7 @@ func (s *Attempts) write(ctx context.Context, a contract.WillAttempt, stage byte
 	if err != nil {
 		return false, ErrUnknown
 	}
-	data := append([]byte{'M', 'Q', 'W', 'A', 1, stage}, identity...)
+	data := append([]byte{'M', 'Q', 'W', 'A', 2, stage}, identity...)
 	sum := sha256.Sum256(data)
 	data = append(data, sum[:]...)
 	f, err := os.CreateTemp(s.dir, ".attempt-")

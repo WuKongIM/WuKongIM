@@ -35,7 +35,8 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
 
 1. The router performs side-effect-safe checks, derives canonical Channels,
    resolves authority, groups by target, and submits locally or forwards once
-   per bounded lane.
+   per bounded lane. Trusted origin-only guards run immediately before local or
+   remote submission and are stripped from accepted work; failures stay aligned.
 2. The local shard creates one writer per Channel key; that writer prepares and
    orders items, performs fenced append, applies completions in sequence, and
    recovers only content-proven committed retries. MQTT content comparison
@@ -84,7 +85,6 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
   Slot, route, or authority identities.
   Pool pressure republishes after the final running count decrement so a
   terminal zero is observable without later traffic.
-
 ## Read First
 
 - [Runtime contracts](contracts.go)

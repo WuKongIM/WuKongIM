@@ -15,6 +15,9 @@ type WillSendCommand struct {
 	FromUID, TargetID, ClientMsgNo string
 	TargetType                     uint8
 	Payload, PublicationMetadata   []byte
+	// AppendAdmission is trusted origin-only submission permission. Preparation
+	// never invokes it; the authority router must honor it before any append call.
+	AppendAdmission func(context.Context) error
 }
 
 // PrepareWill checks current policy and runs transformations without appending.
@@ -64,7 +67,14 @@ func (a *App) SendPreparedWill(ctx context.Context, q WillSendCommand) (SendResu
 	if a.submitter == nil {
 		return SendResult{}, ErrRouteNotReady
 	}
-	return a.submitter.Send(ctx, cmd)
+	if q.AppendAdmission == nil {
+		return a.submitter.Send(ctx, cmd)
+	}
+	results := a.submitter.SendBatch([]SendBatchItem{{Context: ctx, Command: cmd, AppendAdmission: q.AppendAdmission}})
+	if len(results) != 1 {
+		return SendResult{}, ErrSendBatchEmissionMismatch
+	}
+	return results[0].Result, results[0].Err
 }
 
 func (a *App) authorizeWillSend(ctx context.Context, q WillSendCommand) (SendCommand, Reason, error) {

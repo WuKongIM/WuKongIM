@@ -578,11 +578,32 @@ func (r *Router) submitGroup(group routerBatchGroup) []SendBatchItemResult {
 		return finishActive(routerErrorResults(len(activeItems), ctx.Err()))
 	}
 	defer r.releaseGroup()
-	if group.target.LeaderNodeID == r.localNodeID {
+	local := group.target.LeaderNodeID == r.localNodeID
+	if local {
 		path = "local"
 		if r.local == nil {
 			return finishActive(routerErrorResults(len(activeItems), ErrRouteNotReady))
 		}
+	} else {
+		if r.remote == nil {
+			return finishActive(routerErrorResults(len(activeItems), ErrRouteNotReady))
+		}
+		if !r.acquireOutbound(group.target.LeaderNodeID) {
+			return finishActive(routerErrorResults(len(activeItems), ErrBackpressured))
+		}
+		defer r.releaseOutbound(group.target.LeaderNodeID)
+	}
+	beforeAdmission := len(activeItems)
+	activeItems, activePositions = admitRouterGroupItems(activeItems, activePositions, results)
+	if len(activeItems) == 0 {
+		return finish()
+	}
+	if len(activeItems) != beforeAdmission {
+		cancel()
+		ctx, cancel = routerAllItemsContext(activeItems)
+		defer cancel()
+	}
+	if local {
 		future, err := r.local.SubmitLocal(ctx, group.target, activeItems)
 		if err != nil {
 			return finishActive(routerErrorResults(len(activeItems), err))
@@ -597,13 +618,6 @@ func (r *Router) submitGroup(group routerBatchGroup) []SendBatchItemResult {
 		activeResults = rewriteTerminalRouterErrors(activeItems, activeResults, time.Now())
 		return finishActive(activeResults)
 	}
-	if r.remote == nil {
-		return finishActive(routerErrorResults(len(activeItems), ErrRouteNotReady))
-	}
-	if !r.acquireOutbound(group.target.LeaderNodeID) {
-		return finishActive(routerErrorResults(len(activeItems), ErrBackpressured))
-	}
-	defer r.releaseOutbound(group.target.LeaderNodeID)
 	activeResults := r.forwardBatch(ctx, group.target, activeItems)
 	activeResults = rewriteTerminalRouterErrors(activeItems, activeResults, time.Now())
 	return finishActive(activeResults)
@@ -626,11 +640,41 @@ func (r *Router) submitSingleTarget(target AuthorityTarget, item SendBatchItem) 
 		return finish(rewriteTerminalRouterError(item, SendBatchItemResult{Err: ctx.Err()}, time.Now()))
 	}
 	defer r.releaseGroup()
-	if target.LeaderNodeID == r.localNodeID {
+	local := target.LeaderNodeID == r.localNodeID
+	if local {
 		path = "local"
 		if r.local == nil {
 			return finish(SendBatchItemResult{Err: ErrRouteNotReady})
 		}
+	} else {
+		if r.remote == nil {
+			return finish(SendBatchItemResult{Err: ErrRouteNotReady})
+		}
+		if !r.acquireOutbound(target.LeaderNodeID) {
+			return finish(SendBatchItemResult{Err: ErrBackpressured})
+		}
+		defer r.releaseOutbound(target.LeaderNodeID)
+	}
+	{
+		// gofail: var wkMQTTWillBeforeAppendAdmission bool
+		// if wkMQTTWillBeforeAppendAdmission {
+		//     return finish(SendBatchItemResult{Err: context.DeadlineExceeded})
+		// }
+	}
+	if item.AppendAdmission != nil {
+		var admissionErr error
+		item, admissionErr = admitRouterAppend(item)
+		if admissionErr != nil {
+			return finish(SendBatchItemResult{Err: admissionErr})
+		}
+	}
+	{
+		// gofail: var wkMQTTWillAfterAppendAdmission bool
+		// if wkMQTTWillAfterAppendAdmission {
+		//     return finish(SendBatchItemResult{Err: context.DeadlineExceeded})
+		// }
+	}
+	if local {
 		future, err := r.local.SubmitLocal(ctx, target, []SendBatchItem{item})
 		if err != nil {
 			return finish(SendBatchItemResult{Err: err})
@@ -648,13 +692,6 @@ func (r *Router) submitSingleTarget(target AuthorityTarget, item SendBatchItem) 
 		result := rewriteTerminalRouterError(item, activeResults[0], time.Now())
 		return finish(result)
 	}
-	if r.remote == nil {
-		return finish(SendBatchItemResult{Err: ErrRouteNotReady})
-	}
-	if !r.acquireOutbound(target.LeaderNodeID) {
-		return finish(SendBatchItemResult{Err: ErrBackpressured})
-	}
-	defer r.releaseOutbound(target.LeaderNodeID)
 	activeResults := r.forwardBatch(ctx, target, []SendBatchItem{item})
 	if len(activeResults) != 1 {
 		return finish(SendBatchItemResult{Err: ErrAppendResultMissing})
@@ -882,6 +919,59 @@ func routerItemDeadline(item SendBatchItem) (time.Time, bool) {
 		}
 	}
 	return deadline, ok
+}
+
+// admitRouterAppend consumes trusted origin permission before either submission
+// path. The callback is never retained by a writer or transported to another node.
+func admitRouterAppend(item SendBatchItem) (SendBatchItem, error) {
+	if err := routerItemError(item, time.Now()); err != nil {
+		return item, err
+	}
+	if item.AppendAdmission == nil {
+		return item, nil
+	}
+	ctx := routerItemContext(item)
+	if !item.Deadline.IsZero() {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, item.Deadline)
+		defer cancel()
+	}
+	if err := item.AppendAdmission(ctx); err != nil {
+		return item, err
+	}
+	if err := ctx.Err(); err != nil {
+		return item, err
+	}
+	if err := routerItemError(item, time.Now()); err != nil {
+		return item, err
+	}
+	item.AppendAdmission = nil
+	return item, nil
+}
+
+// admitRouterGroupItems preserves aligned failures while compacting admitted
+// items in the router-owned scratch, never in the caller's immutable batch.
+func admitRouterGroupItems(items []SendBatchItem, positions []int, results []SendBatchItemResult) ([]SendBatchItem, []int) {
+	first := 0
+	for first < len(items) && items[first].AppendAdmission == nil {
+		first++
+	}
+	if first == len(items) {
+		return items, positions
+	}
+	admitted, admittedPositions := items[:first], positions[:first]
+	for i := first; i < len(items); i++ {
+		item := items[i]
+		position := positions[i]
+		item, err := admitRouterAppend(item)
+		if err != nil {
+			results[position] = SendBatchItemResult{Err: err}
+			continue
+		}
+		admitted = append(admitted, item)
+		admittedPositions = append(admittedPositions, position)
+	}
+	return admitted, admittedPositions
 }
 
 func activeRouterGroupItems(items []SendBatchItem, results []SendBatchItemResult, now time.Time) ([]SendBatchItem, []int) {

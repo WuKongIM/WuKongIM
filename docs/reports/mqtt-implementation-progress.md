@@ -92,9 +92,10 @@ receipts and limits. Complete MQTT delivery remains unqualified.
 [Started Will non-dispatch recovery](mqtt-will-started-recovery/README.md) now
 adds an exact bounded Reserved/Admitted/Sealed journal before dispatch, owning-node
 boot proof and successor CAS. Positive receipts retain original identity. This
-narrows the Started gap only for provably never-admitted work: Admitted-before-SEND,
-legacy/lost-journal terminal recovery, journal orphan reclamation and aggregate
-shared-storage admission remain outstanding. The final six-case process matrix
+initially narrowed the Started gap only for provably never-admitted work.
+The append-admission and reclamation extensions below address additional bounded
+windows; legacy/lost-journal terminal recovery and aggregate shared-storage
+admission remain outstanding. That milestone's six-case process matrix
 passes in 317.404 seconds, with one publication per case and no unexpected
 delivery, CONNECT retry or resubscription. These bounded cases do not complete MQTT.
 [Bounded attempt reclamation](mqtt-will-attempt-reclamation/README.md) now narrows
@@ -104,6 +105,19 @@ The two-topology process matrix passes in 131.333 seconds with three original
 publications, exact capacity refusal and retained current recovery per case;
 missing-row reclamation,
 delayed unknown-claim races and the broader terminal/admission gaps remain open.
+
+[Append admission recovery](mqtt-will-append-admission/README.md) now separates
+version-2 Admitted from irreversible AppendIssued at the actual origin submission
+boundary. A durably sealed unissued attempt can recover through fresh policy and
+a definite successor Slot CAS. Version-1 Admitted and issued unknown effects stay
+positive-only. The final 14-case single-node/three-node process matrix passes in
+681.229 seconds, including safe pre-send/pre-append crashes, issued unknown,
+version-1 upgrade and unchanged committed/accepted-append behavior. Ordinary Will
+and cap=2 reclamation regressions, app integration, related race and FLOW checks
+pass; scoped Standards and Spec reviews each report zero findings. Full 1,024-record
+pressure and delayed CAS/reclamation races are the next bounded qualification;
+complete terminal unknown-effect recovery, partitions and shared-storage admission
+remain open. This extends the Started slice without claiming complete MQTT.
 
 Historical sections below record the narrower evidence available at each step.
 

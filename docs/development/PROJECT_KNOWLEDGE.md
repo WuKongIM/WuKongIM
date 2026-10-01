@@ -766,17 +766,21 @@ specification, runbook, report, or module documentation; link to them when neede
   Real cluster coverage verifies empty QoS 0/1 commits/retries and frozen empty
   Will receipts after lost replies and permission revocation.
   [Started non-dispatch recovery](../specs/mqtt-will-started-recovery.md) joins an
-  exact Reserved -> Sealed journal transition with the owning node generation
+  exact unissued -> Sealed journal transition with the owning node generation
   lock/older-boot fact, then fresh permission and a definite successor Slot CAS.
   [Attempt reclamation](../specs/mqtt-will-attempt-reclamation.md) runs only on
   journal pressure: one nonwaiting 16-attempt/750ms page requires fresh exact
   Published/Rejected or strictly newer execution rows. Missing, current and
   unknown records stay; cleanup supplies no retry proof and yields to a new turn.
-  Fresh target absence alone grants nothing. Admitted/legacy execution only
-  recovers positive content-matched receipts; later denial or absence cannot resolve an unknown
-  append. Single-node cluster composition verifies original identity/time after
+  [Append admission](../specs/mqtt-will-append-admission.md) adds version-2
+  Admitted -> AppendIssued at the origin router before local admission or remote
+  forwarding. Its trusted callback never crosses RPC or reaches accepted writers;
+  routing retries reuse only the exact issued attempt. Reserved/version-2 Admitted
+  may seal; AppendIssued/version-1 Admitted remain positive-only, including after
+  source death. Fresh target absence, later denial and elapsed grants resolve no
+  unknown append. Single-node cluster composition verifies original identity/time after
   lost observation and revocation, including real Webhook replacement. Uncertain
-  redispatch, automatic scheduling,
+  append-issued terminal recovery,
   replica receipt transfer and whole-channel deletion/restore remain pending.
   The optional `store.WillReceiptLookup` exposes
   checkpoint-pinned `channel.WillReceipt` values, including after trim/reopen;

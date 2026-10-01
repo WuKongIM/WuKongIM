@@ -35,6 +35,9 @@ It does not perform permission checks, durable append, routing, or delivery.
 - Publication metadata follows the same immutable ownership through commands,
   messages and committed envelopes. Retry queries borrow body and metadata;
   their comparison excludes only the server-assigned ingress clock.
+- A trusted process-local item callback grants append submission only at the origin
+  router, including retries. It is stripped before local handoff and never encoded
+  in node RPC or stored as publication metadata. Cloning preserves the same callback.
 - Authority target carries complete route generation and observed write-fence
   state. Route generation orders cache projection and the durable quorum authority.
 - Append requests carry expected authority/leader epochs and an optional exact durable route.

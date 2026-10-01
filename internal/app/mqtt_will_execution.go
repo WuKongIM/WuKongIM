@@ -59,7 +59,7 @@ func (p mqttWillPublications) PrepareWillPublication(ctx context.Context, q mqtt
 }
 
 func mqttWillSendCommand(q mqttsession.WillPublication) message.WillSendCommand {
-	return message.WillSendCommand{FromUID: q.UID, ClientMsgNo: q.ClientMsgNo, TargetID: q.Target.TargetID, TargetType: q.Target.TargetType, Payload: q.Payload, PublicationMetadata: q.PublicationMetadata}
+	return message.WillSendCommand{FromUID: q.UID, ClientMsgNo: q.ClientMsgNo, TargetID: q.Target.TargetID, TargetType: q.Target.TargetType, Payload: q.Payload, PublicationMetadata: q.PublicationMetadata, AppendAdmission: q.AppendAdmission}
 }
 
 // newMQTTWillExecutor composes frozen preparation, dispatch and positive recovery with

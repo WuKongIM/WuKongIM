@@ -31,7 +31,7 @@ depending on their frames, JSON, or concrete cluster runtimes.
 
 `CheckPublishPermission` reuses person/group policy with uncached authority reads
 and a narrow UID/ordinary-target query. It fails without authority and performs no
-SEND hooks, directory writes or append; delayed publications must authorize again. PrepareWill runs payload-only hooks; SendPreparedWill rechecks fresh policy and delegates frozen output through ordinary directory/append without rerunning transformations.
+SEND hooks, directory writes or append; delayed publications must authorize again. PrepareWill runs payload-only hooks; SendPreparedWill rechecks fresh policy and delegates frozen output through ordinary directory/append without rerunning transformations. A trusted Will admission callback stays on the origin batch item, outside hooks and wire metadata, for the router to consume.
 
 1. `SendBatchEach` uses an allocation-tight single-item path at cardinality one;
    larger batches coalesce equivalent raw permission reads. Both evaluate the

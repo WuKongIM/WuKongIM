@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Recover MQTT Wills interrupted after admission but before append submission using a durable origin submission fence; keep already-issued and older-version unknown attempts pending. / MQTT Will 在准入后、append 提交前中断时，可凭持久化提交栅栏安全恢复；已获提交许可及旧版未知执行继续待确认。
+
 - Reclaim retained MQTT Will dispatch records on journal capacity pressure only after fresh Slot evidence proves terminal or superseded execution, preserving current and uncertain recovery records. / MQTT Will 派发日志容量不足时，凭新的 Slot 终态或更新执行代次证据有界回收残留记录，保留当前任务和未知结果的恢复证明。
 
 - Recover MQTT Wills interrupted after Started and before dispatch when their exact executor supplies durable sealed non-dispatch proof. Preserve original committed identity and keep admitted unknown effects pending; matched cluster nodes are required. / MQTT Will 在 Started 后、派发前中断时，可凭原执行器的持久封存未派发证明恢复；保留已提交消息身份，已准入但结果未知的任务继续待确认，集群需使用匹配版本。

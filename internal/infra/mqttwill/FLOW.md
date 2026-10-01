@@ -7,8 +7,8 @@ summary: Persists bounded exact Will reservation/admission/seal transitions unde
 
 ## Responsibility
 
-Persist body-free exact dispatch attempts; arbitrate Reserved -> Admitted versus
-Reserved -> Sealed without a worker, queue or publication policy.
+Persist body-free exact dispatch attempts; arbitrate Reserved -> Admitted -> AppendIssued versus
+unissued -> Sealed without a worker, queue or publication policy.
 
 ## Boundaries
 
@@ -19,10 +19,10 @@ positive receipts and exact successor/terminal cleanup. Node RPC carries identit
 
 1. Open after owner retirement recovery, inventory at most 1,024 attempt records
    and eight interrupted staging files, then remove staging files under the lock.
-2. Prepare a checksummed version-1 Reserved record before Started/successor CAS.
-3. Serialize admission and sealing: fsync a temporary file, rename, sync directory.
+2. Prepare a checksummed version-2 Reserved record before Started/successor CAS.
+3. Serialize turn admission, append permission and sealing: fsync a temporary file, rename, sync directory.
    Only a definite durable winner grants dispatch or non-dispatch proof.
-4. Another boot additionally requires the owning node's retirement fact. Admitted,
+4. Another boot additionally requires the owning node's retirement fact. AppendIssued, version-1 Admitted,
    absent, corrupt, unsupported or oversized records never grant negative proof.
 5. Remove only captured tuples after a definite successor/terminal decision.
    Unknown writes/cleanup retain bounded capacity; cap exhaustion fails closed.
@@ -36,7 +36,8 @@ positive receipts and exact successor/terminal cleanup. Node RPC carries identit
 - Point reads reject symlinks and are capped at 2,342 bytes.
 - Missing records block late admission; removed tuples cannot be recycled by an
   earlier boot. Directory-sync/cancellation errors never grant proof or dispatch.
-- An Admitted record cannot prove an accepted append stopped after a crash.
+- Version-2 Admitted can be sealed only before append permission is issued.
+  AppendIssued and version-1 Admitted cannot prove an accepted append stopped.
 - Reclamation requires a fresh exact terminal/newer-execution Will row in usecases.
   Missing/current/uncertain records stay; no age-based GC or background worker.
 

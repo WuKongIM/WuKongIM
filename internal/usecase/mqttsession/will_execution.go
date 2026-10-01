@@ -37,6 +37,9 @@ type WillPublication struct {
 	UID, ClientMsgNo             string
 	Target                       WillTarget
 	Payload, PublicationMetadata []byte
+	// AppendAdmission must be honored synchronously at the origin router before
+	// local admission or remote forwarding; it must never cross a node RPC.
+	AppendAdmission func(context.Context) error
 }
 
 // WillPublicationReceipt preserves the original committed source append time.
@@ -60,6 +63,9 @@ type WillPublications interface {
 type WillDispatchFence interface {
 	PrepareAttempt(context.Context, contract.WillAttempt) error
 	BeginDispatch(context.Context, contract.WillAttempt) error
+	// BeginAppend irreversibly issues exact submission permission. Routing retries
+	// reuse that permission; issued attempts cannot grant non-dispatch proof.
+	BeginAppend(context.Context, contract.WillAttempt) error
 	SealUndispatched(context.Context, contract.WillAttempt) error
 	ReleaseAttempt(context.Context, contract.WillAttempt) error
 }
@@ -387,10 +393,24 @@ func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (ou
 				return out, err
 			}
 		}
+		// gofail: var wkMQTTWillAfterAdmitted bool
+		// if wkMQTTWillAfterAdmitted {
+		//     return out, context.DeadlineExceeded
+		// }
 		if err := check(); err != nil {
 			return out, err
 		}
+		if e.opts.DispatchFence != nil {
+			attempt := willAttempt(w)
+			q.AppendAdmission = func(call context.Context) error {
+				if err := check(); err != nil {
+					return err
+				}
+				return e.opts.DispatchFence.BeginAppend(call, attempt)
+			}
+		}
 		publishErr = e.opts.Publications.PublishWill(ctx, q)
+		q.AppendAdmission = nil
 		// gofail: var wkMQTTWillAfterPublication bool
 		// if wkMQTTWillAfterPublication {
 		//     return out, context.DeadlineExceeded
