@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Redesign the bilingual documentation homepage with a messaging code preview, platform shortcuts, guided first-message steps and common references, with responsive light and dark themes. / 重新设计中英文文档首页，新增消息代码预览、平台快捷入口、首条消息引导和常用参考，适配移动端及深浅主题。
+
 - Add visible home links to all four Demos, including chat login; return to the actual catalog address across dynamically assigned ports and reloads. / 四个 Demo 及聊天登录页新增可见的“返回首页”入口，动态端口和刷新后仍返回实际首页。
 
 - Start all four Demos with `node demo/start.mjs`, including an isolated single-node cluster, automatic dependency preparation, readiness checks, free ports and coordinated shutdown. / 新增 `node demo/start.mjs` 一键启动四个 Demo：独立单节点集群、自动准备依赖、就绪检查、空闲端口与统一退出。

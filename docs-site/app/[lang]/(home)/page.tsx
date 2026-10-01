@@ -1,16 +1,20 @@
 import { domains, parseLocale } from '@/lib/navigation';
 import { canonicalUrl, getRobotsMetadata } from '@/lib/shared';
+import { FullSearchTrigger } from 'fumadocs-ui/layouts/shared/slots/search-trigger';
 import {
   ArrowRight,
+  ArrowUpRight,
   Blocks,
   BookOpenText,
   Braces,
+  Check,
   Code2,
-  RadioTower,
+  GitBranch,
+  MessageSquare,
+  Radio,
+  Server,
   ServerCog,
-  ShieldCheck,
-  Smartphone,
-  Wrench,
+  Terminal,
 } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -22,77 +26,212 @@ const domainIcons = {
   sdk: Blocks,
   api: Braces,
 };
+const domainCategories = {
+  guide: { zh: '了解与入门', en: 'LEARN' },
+  server: { zh: '部署与运维', en: 'DEPLOY' },
+  sdk: { zh: '连接与集成', en: 'INTEGRATE' },
+  api: { zh: '接口与协议', en: 'REFERENCE' },
+};
+const platforms = [
+  { label: 'JavaScript / Web', slug: 'javascript' },
+  { label: 'Android', slug: 'android' },
+  { label: 'iOS', slug: 'ios' },
+  { label: 'Flutter', slug: 'flutter' },
+  { label: 'HarmonyOS', slug: 'harmonyos' },
+];
 
 const copy = {
   zh: {
-    eyebrow: 'WuKongIM v3 · 公开文档',
-    title: '从第一条消息，走向可靠的大规模通信',
+    eyebrow: 'WuKongIM 开发者文档',
+    title: '让每一条消息，',
+    titleAccent: '可靠抵达。',
     description:
-      '启动集群、连接两个用户并验证消息收发，再按你的平台和部署环境完成业务接入。',
-    quickstart: '开始 JavaScript / Web 接入',
-    browseApi: '浏览 API 文档',
-    domainsTitle: '按工作内容进入',
-    domainsDescription: '从应用接入、服务端部署、客户端 SDK 或接口查询开始。',
-    rolesTitle: '按你的角色开始',
-    roles: [
+      '为你的应用构建实时通信。从第一条消息开始，探索客户端接入、集群部署和完整的 API。',
+    quickstart: '开始接入',
+    overview: '认识 WuKongIM',
+    search: '搜索文档',
+    searchHint: '查找概念、配置或 API',
+    codeComment: '// 连接成功后，向 Bob 发送消息',
+    codeCaption: 'SDK 代码片段',
+    codeGuide: '查看完整接入流程',
+    sender: '发送端',
+    cluster: '集群',
+    receiver: '接收端',
+    flowNote: '分别验证服务器发送结果与接收端消息事件',
+    platforms: '选择你的平台',
+    exploreEyebrow: 'EXPLORE THE DOCS',
+    exploreTitle: '找到你的下一步',
+    exploreDescription: '从了解概念到上线运行，每一步都有清晰的路径。',
+    exploreLink: '阅读文档',
+    startEyebrow: 'YOUR FIRST MESSAGE',
+    startTitle: '第一次使用？\n先跑通一条消息。',
+    startDescription: '用两个测试用户完成一次消息收发，再逐步接入你的业务。',
+    startLink: '打开快速开始',
+    steps: [
       {
-        title: '应用开发者',
-        description: '理解消息模型，选择 SDK，并完成身份、连接和消息收发。',
-        href: '/zh/sdk/javascript/quickstart',
-        icon: Smartphone,
+        title: '启动集群',
+        description: '准备环境，运行你的单节点集群。',
+        path: 'guide/quick-start/single-node-cluster',
+        icon: Terminal,
       },
       {
-        title: '服务端部署者',
-        description: '选择部署方式，规划集群配置，并完成生产检查。',
-        href: '/zh/server/deployment',
-        icon: RadioTower,
+        title: '连接客户端',
+        description: '准备用户身份，用 SDK 建立连接。',
+        path: 'sdk/javascript/quickstart',
+        icon: Radio,
       },
       {
-        title: '运维人员',
-        description: '通过监控、备份、扩缩容和诊断工具维护集群。',
-        href: '/zh/server/operations',
-        icon: Wrench,
+        title: '发送第一条消息',
+        description: '让两个用户互发消息，验证收发结果。',
+        path: 'guide/quick-start/first-message',
+        icon: MessageSquare,
       },
     ],
-    trustTitle: '为生产环境规划',
-    trustDescription: '所有部署都遵循集群语义，文档默认考虑 256 个 Hash Slot 和高规模业务负载。',
-    github: '查看 GitHub',
+    resourcesEyebrow: 'KEEP BUILDING',
+    resourcesTitle: '开发时，常用这些',
+    resources: [
+      {
+        title: '核心概念',
+        description: '消息、频道、用户与会话',
+        path: 'guide/core-concepts',
+        icon: BookOpenText,
+      },
+      {
+        title: 'Docker 部署',
+        description: '镜像、配置与持久化存储',
+        path: 'server/deployment/docker',
+        icon: Server,
+      },
+      {
+        title: 'Agent 流式回复',
+        description: '实时事件、模型接入与历史恢复',
+        path: 'sdk/easy/agent-streaming',
+        icon: MessageSquare,
+      },
+      {
+        title: '配置参考',
+        description: 'TOML、环境变量与默认值',
+        path: 'server/configuration/reference',
+        icon: ServerCog,
+      },
+      {
+        title: '健康检查与监控',
+        description: '就绪状态、指标与告警',
+        path: 'server/operations/health-and-monitoring',
+        icon: Radio,
+      },
+      {
+        title: 'Product HTTP API',
+        description: '服务端接口与请求示例',
+        path: 'api/product-http',
+        icon: Braces,
+      },
+    ],
+    openSource: '开源。可自托管。为你的应用而构建。',
+    openSourceDescription: '从单节点集群到多节点部署，沿着同一套集群模型扩展。',
+    github: '在 GitHub 上探索',
+    footer: 'WuKongIM · 实时通信基础设施',
+    footerGuide: '文档',
+    footerDemo: '聊天演示',
+    footerReleases: '版本发布',
   },
   en: {
-    eyebrow: 'WuKongIM v3 · Public Documentation',
-    title: 'From the first message to dependable communication at scale',
+    eyebrow: 'WuKongIM Developer Docs',
+    title: 'Every message.',
+    titleAccent: 'Delivered reliably.',
     description:
-      'Start a cluster, connect two users, and exchange messages. Then integrate your application for the platforms and deployment environment you use.',
-    quickstart: 'Start the JavaScript / Web quickstart',
-    browseApi: 'Browse the API docs',
-    domainsTitle: 'Choose your area',
-    domainsDescription:
-      'Start with application integration, server deployment, client SDKs, or API lookup.',
-    rolesTitle: 'Start from your role',
-    roles: [
+      'Build real-time communication into your application. Start with your first message, then explore client SDKs, cluster deployment, and the complete API.',
+    quickstart: 'Start building',
+    overview: 'Meet WuKongIM',
+    search: 'Search documentation',
+    searchHint: 'Find a concept, setting, or API',
+    codeComment: '// Once connected, send a message to Bob',
+    codeCaption: 'SDK code excerpt',
+    codeGuide: 'Read the full quickstart',
+    sender: 'SENDER',
+    cluster: 'CLUSTER',
+    receiver: 'RECIPIENT',
+    flowNote: 'Verify the server send result and recipient event separately',
+    platforms: 'CHOOSE YOUR PLATFORM',
+    exploreEyebrow: 'EXPLORE THE DOCS',
+    exploreTitle: 'Find your next step',
+    exploreDescription:
+      'A clear path from learning the concepts to running in production.',
+    exploreLink: 'Explore docs',
+    startEyebrow: 'YOUR FIRST MESSAGE',
+    startTitle: 'New here?\nStart with one message.',
+    startDescription:
+      'Exchange a message between two test users, then bring the same flow into your application.',
+    startLink: 'Open the quick start',
+    steps: [
       {
-        title: 'Application developer',
-        description: 'Learn the message model, choose an SDK, and implement identity, connection, and messaging.',
-        href: '/en/sdk/javascript/quickstart',
-        icon: Smartphone,
+        title: 'Start a cluster',
+        description: 'Prepare your environment and run a single-node cluster.',
+        path: 'guide/quick-start/single-node-cluster',
+        icon: Terminal,
       },
       {
-        title: 'Server deployer',
-        description: 'Choose a deployment, plan cluster configuration, and complete production checks.',
-        href: '/en/server/deployment',
-        icon: RadioTower,
+        title: 'Connect a client',
+        description: 'Prepare a user identity and connect through the SDK.',
+        path: 'sdk/javascript/quickstart',
+        icon: Radio,
       },
       {
-        title: 'Operator',
-        description: 'Maintain clusters with monitoring, backups, scaling, and diagnostic tools.',
-        href: '/en/server/operations',
-        icon: Wrench,
+        title: 'Send your first message',
+        description:
+          'Exchange messages between two users and verify the results.',
+        path: 'guide/quick-start/first-message',
+        icon: MessageSquare,
       },
     ],
-    trustTitle: 'Planned for production',
-    trustDescription:
-      'Every deployment follows cluster semantics, with documentation designed around 256 hash slots and high-scale workloads.',
-    github: 'View on GitHub',
+    resourcesEyebrow: 'KEEP BUILDING',
+    resourcesTitle: 'Keep these within reach',
+    resources: [
+      {
+        title: 'Core concepts',
+        description: 'Messages, channels, users, and conversations',
+        path: 'guide/core-concepts',
+        icon: BookOpenText,
+      },
+      {
+        title: 'Docker deployment',
+        description: 'Images, configuration, and persistent storage',
+        path: 'server/deployment/docker',
+        icon: Server,
+      },
+      {
+        title: 'Agent streaming replies',
+        description: 'Live events, model integration, and history recovery',
+        path: 'sdk/easy/agent-streaming',
+        icon: MessageSquare,
+      },
+      {
+        title: 'Configuration reference',
+        description: 'TOML, environment variables, and defaults',
+        path: 'server/configuration/reference',
+        icon: ServerCog,
+      },
+      {
+        title: 'Health & monitoring',
+        description: 'Readiness, metrics, and alerts',
+        path: 'server/operations/health-and-monitoring',
+        icon: Radio,
+      },
+      {
+        title: 'Product HTTP API',
+        description: 'Server endpoints and request examples',
+        path: 'api/product-http',
+        icon: Braces,
+      },
+    ],
+    openSource: 'Open source. Self-hosted. Built for your app.',
+    openSourceDescription:
+      'Grow from a single-node cluster to multiple nodes with the same cluster model.',
+    github: 'Explore on GitHub',
+    footer: 'WuKongIM · Real-time communication infrastructure',
+    footerGuide: 'Documentation',
+    footerDemo: 'Chat demo',
+    footerReleases: 'Releases',
   },
 } as const;
 
@@ -101,10 +240,8 @@ export async function generateMetadata({
 }: {
   params: Promise<{ lang: string }>;
 }): Promise<Metadata> {
-  const values = await params;
-  const locale = parseLocale(values.lang);
+  const locale = parseLocale((await params).lang);
   if (!locale) notFound();
-
   return {
     title: locale === 'zh' ? 'WuKongIM v3 文档' : 'WuKongIM v3 Documentation',
     description: copy[locale].description,
@@ -116,116 +253,310 @@ export async function generateMetadata({
   };
 }
 
-export default async function HomePage({ params }: { params: Promise<{ lang: string }> }) {
-  const value = (await params).lang;
-  const locale = parseLocale(value);
+export default async function HomePage({
+  params,
+}: {
+  params: Promise<{ lang: string }>;
+}) {
+  const locale = parseLocale((await params).lang);
   if (!locale) notFound();
   const content = copy[locale];
 
   return (
-    <div className="overflow-hidden">
-      <section className="relative border-b border-fd-border">
-        <div className="docs-grid absolute inset-0 opacity-60" aria-hidden="true" />
-        <div className="relative mx-auto max-w-6xl px-6 py-20 sm:py-28 lg:px-8 lg:py-32">
-          <div className="max-w-4xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-orange-700 dark:border-orange-900 dark:bg-orange-950/70 dark:text-orange-300">
-              <span className="size-1.5 rounded-full bg-orange-500" />
-              {content.eyebrow}
-            </div>
-            <h1 className="mt-7 max-w-4xl text-balance text-5xl font-bold tracking-[-0.04em] sm:text-6xl lg:text-7xl">
-              {content.title}
-            </h1>
-            <p className="mt-6 max-w-2xl text-pretty text-lg leading-8 text-fd-muted-foreground">
-              {content.description}
-            </p>
-            <div className="mt-9 flex flex-wrap gap-3">
-              <Link
-                href={`/${locale}/sdk/javascript/quickstart`}
-                className="inline-flex items-center gap-2 rounded-full bg-fd-primary px-5 py-3 text-sm font-semibold text-fd-primary-foreground transition hover:-translate-y-0.5 hover:shadow-lg"
-              >
-                {content.quickstart}
-                <ArrowRight className="size-4" />
-              </Link>
-              <Link
-                href={`/${locale}/api`}
-                className="inline-flex items-center gap-2 rounded-full border border-fd-border bg-fd-card/80 px-5 py-3 text-sm font-semibold backdrop-blur transition hover:-translate-y-0.5 hover:bg-fd-accent"
-              >
-                {content.browseApi}
-                <Braces className="size-4" />
-              </Link>
-            </div>
+    <div className="docs-home">
+      <section
+        className="home-hero home-container"
+        aria-labelledby="home-title"
+      >
+        <div className="home-hero-copy">
+          <p className="home-eyebrow">
+            <span className="home-brand-dot" />
+            {content.eyebrow}
+            <span className="home-version">v3 Beta</span>
+          </p>
+          <h1 id="home-title">
+            {content.title}
+            <span>{content.titleAccent}</span>
+          </h1>
+          <p className="home-hero-description">{content.description}</p>
+          <div className="home-actions">
+            <Link
+              className="home-button home-button-primary"
+              href={`/${locale}/sdk/javascript/quickstart`}
+            >
+              {content.quickstart}
+              <ArrowRight size={17} aria-hidden="true" />
+            </Link>
+            <Link
+              className="home-button home-button-secondary"
+              href={`/${locale}/guide/product-overview`}
+            >
+              <BookOpenText size={17} aria-hidden="true" />
+              {content.overview}
+            </Link>
+          </div>
+          <div className="home-search-wrap">
+            <FullSearchTrigger
+              className="home-search"
+              aria-label={content.search}
+            />
+            <span>{content.searchHint}</span>
           </div>
         </div>
+
+        <figure className="home-preview">
+          <div className="home-preview-backdrop" aria-hidden="true" />
+          <div className="home-code-window">
+            <div className="home-window-header">
+              <div className="home-window-dots" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </div>
+              <span>first-message.ts</span>
+              <span className="home-language">TypeScript</span>
+            </div>
+            <div className="home-code-body">
+              <div className="home-code-label">
+                <Code2 size={14} aria-hidden="true" />
+                {content.codeCaption}
+              </div>
+              <pre>
+                <code>
+                  <span className="home-syntax-comment">
+                    {content.codeComment}
+                  </span>
+                  {'\n\n'}
+                  <span className="home-syntax-purple">await</span>
+                  {' sdk.chatManager.'}
+                  <span className="home-syntax-blue">send</span>
+                  {'(\n  '}
+                  <span className="home-syntax-purple">new</span>{' '}
+                  <span className="home-syntax-yellow">MessageText</span>
+                  {'('}
+                  <span className="home-syntax-green">
+                    &apos;Hello, WuKongIM!&apos;
+                  </span>
+                  {'),\n  '}
+                  <span className="home-syntax-purple">new</span>{' '}
+                  <span className="home-syntax-yellow">Channel</span>
+                  {'('}
+                  <span className="home-syntax-green">&apos;bob&apos;</span>
+                  {', ChannelTypePerson),\n);'}
+                </code>
+              </pre>
+              <Link
+                className="home-code-guide"
+                href={`/${locale}/sdk/javascript/quickstart`}
+              >
+                {content.codeGuide}
+                <ArrowUpRight size={14} aria-hidden="true" />
+              </Link>
+            </div>
+            <div className="home-message-flow">
+              <div className="home-flow-endpoint">
+                <span className="home-avatar">A</span>
+                <strong>Alice</strong>
+                <span>{content.sender}</span>
+              </div>
+              <div className="home-flow-line" aria-hidden="true">
+                <span />
+                <ArrowRight size={14} />
+              </div>
+              <div className="home-flow-cluster">
+                <span>
+                  <GitBranch size={22} aria-hidden="true" />
+                </span>
+                <strong>WuKongIM</strong>
+                <span>{content.cluster}</span>
+              </div>
+              <div className="home-flow-line" aria-hidden="true">
+                <span />
+                <ArrowRight size={14} />
+              </div>
+              <div className="home-flow-endpoint">
+                <span className="home-avatar home-avatar-bob">B</span>
+                <strong>Bob</strong>
+                <span>{content.receiver}</span>
+              </div>
+            </div>
+          </div>
+          <figcaption>
+            <Check size={14} aria-hidden="true" />
+            {content.flowNote}
+          </figcaption>
+        </figure>
       </section>
 
-      <section className="mx-auto max-w-6xl px-6 py-18 lg:px-8">
-        <div className="max-w-2xl">
-          <h2 className="text-3xl font-bold tracking-tight">{content.domainsTitle}</h2>
-          <p className="mt-3 text-fd-muted-foreground">{content.domainsDescription}</p>
+      <div className="home-platforms home-container">
+        <span>{content.platforms}</span>
+        <div>
+          {platforms.map((platform) => (
+            <Link
+              key={platform.slug}
+              href={`/${locale}/sdk/${platform.slug}/quickstart`}
+            >
+              {platform.label}
+              <ArrowUpRight size={12} aria-hidden="true" />
+            </Link>
+          ))}
         </div>
-        <div className="mt-8 grid gap-4 md:grid-cols-2">
-          {domains.map((domain) => {
+      </div>
+
+      <section
+        className="home-explore home-container"
+        aria-labelledby="home-explore-title"
+      >
+        <div className="home-section-heading">
+          <div>
+            <p className="home-eyebrow">{content.exploreEyebrow}</p>
+            <h2 id="home-explore-title">{content.exploreTitle}</h2>
+          </div>
+          <p>{content.exploreDescription}</p>
+        </div>
+        <div className="home-domain-grid">
+          {domains.map((domain, index) => {
             const Icon = domainIcons[domain.key];
             return (
               <Link
+                className="home-domain-card"
                 key={domain.key}
                 href={`/${locale}/${domain.key}`}
-                className="group relative overflow-hidden rounded-2xl border border-fd-border bg-fd-card p-6 transition hover:-translate-y-1 hover:border-orange-300 hover:shadow-xl hover:shadow-orange-950/5 dark:hover:border-orange-800"
               >
-                <div className="flex items-start justify-between gap-6">
-                  <div className="flex size-11 items-center justify-center rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-950 dark:text-orange-300">
-                    <Icon className="size-5" />
-                  </div>
-                  <ArrowRight className="size-5 text-fd-muted-foreground transition group-hover:translate-x-1 group-hover:text-orange-500" />
+                <div className="home-domain-top">
+                  <span className="home-domain-icon">
+                    <Icon size={22} aria-hidden="true" />
+                  </span>
+                  <span className="home-card-number">0{index + 1}</span>
                 </div>
-                <h3 className="mt-8 text-xl font-semibold">{domain.label[locale]}</h3>
-                <p className="mt-2 text-sm leading-6 text-fd-muted-foreground">
+                <p className="home-domain-category">
+                  {domainCategories[domain.key][locale]}
+                </p>
+                <h3>{domain.label[locale]}</h3>
+                <p className="home-domain-description">
                   {domain.description[locale]}
                 </p>
+                <span className="home-card-link">
+                  {content.exploreLink}
+                  <ArrowRight size={16} aria-hidden="true" />
+                </span>
               </Link>
             );
           })}
         </div>
       </section>
 
-      <section className="border-y border-fd-border bg-fd-muted/40">
-        <div className="mx-auto max-w-6xl px-6 py-18 lg:px-8">
-          <h2 className="text-3xl font-bold tracking-tight">{content.rolesTitle}</h2>
-          <div className="mt-8 grid gap-4 lg:grid-cols-3">
-            {content.roles.map((role) => {
-              const Icon = role.icon;
-              return (
-                <Link
-                  key={role.title}
-                  href={role.href}
-                  className="rounded-2xl border border-fd-border bg-fd-background p-6 transition hover:border-orange-300 dark:hover:border-orange-800"
-                >
-                  <Icon className="size-5 text-orange-500" />
-                  <h3 className="mt-5 font-semibold">{role.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-fd-muted-foreground">{role.description}</p>
+      <section
+        className="home-start home-container"
+        aria-labelledby="home-start-title"
+      >
+        <div className="home-start-intro">
+          <span className="home-start-icon">
+            <Terminal size={24} aria-hidden="true" />
+          </span>
+          <p className="home-eyebrow">{content.startEyebrow}</p>
+          <h2 id="home-start-title">{content.startTitle}</h2>
+          <p>{content.startDescription}</p>
+          <Link
+            className="home-text-link"
+            href={`/${locale}/guide/quick-start`}
+          >
+            {content.startLink}
+            <ArrowRight size={17} aria-hidden="true" />
+          </Link>
+        </div>
+        <ol className="home-steps">
+          {content.steps.map((step, index) => {
+            const Icon = step.icon;
+            return (
+              <li key={step.path}>
+                <Link href={`/${locale}/${step.path}`}>
+                  <span className="home-step-number">0{index + 1}</span>
+                  <div>
+                    <h3>{step.title}</h3>
+                    <p>{step.description}</p>
+                  </div>
+                  <Icon
+                    className="home-step-icon"
+                    size={20}
+                    aria-hidden="true"
+                  />
+                  <ArrowUpRight
+                    className="home-step-arrow"
+                    size={18}
+                    aria-hidden="true"
+                  />
                 </Link>
-              );
-            })}
+              </li>
+            );
+          })}
+        </ol>
+      </section>
+
+      <section
+        className="home-resources home-container"
+        aria-labelledby="home-resources-title"
+      >
+        <div className="home-section-heading">
+          <div>
+            <p className="home-eyebrow">{content.resourcesEyebrow}</p>
+            <h2 id="home-resources-title">{content.resourcesTitle}</h2>
           </div>
+        </div>
+        <div className="home-resource-grid">
+          {content.resources.map((resource) => {
+            const Icon = resource.icon;
+            return (
+              <Link
+                className="home-resource"
+                key={resource.path}
+                href={`/${locale}/${resource.path}`}
+              >
+                <Icon size={20} aria-hidden="true" />
+                <div>
+                  <h3>{resource.title}</h3>
+                  <p>{resource.description}</p>
+                </div>
+                <ArrowUpRight
+                  className="home-resource-arrow"
+                  size={17}
+                  aria-hidden="true"
+                />
+              </Link>
+            );
+          })}
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-6xl gap-6 px-6 py-18 lg:grid-cols-[1fr_auto] lg:items-center lg:px-8">
+      <section
+        className="home-community home-container"
+        aria-labelledby="home-community-title"
+      >
+        <div className="home-community-mark" aria-hidden="true">
+          <GitBranch size={26} />
+        </div>
         <div>
-          <div className="flex size-11 items-center justify-center rounded-xl bg-orange-50 text-orange-600 dark:bg-orange-950 dark:text-orange-300">
-            <ShieldCheck className="size-5" />
-          </div>
-          <h2 className="mt-5 text-2xl font-bold tracking-tight">{content.trustTitle}</h2>
-          <p className="mt-3 max-w-2xl text-fd-muted-foreground">{content.trustDescription}</p>
+          <h2 id="home-community-title">{content.openSource}</h2>
+          <p>{content.openSourceDescription}</p>
         </div>
         <Link
+          className="home-button home-button-secondary"
           href="https://github.com/WuKongIM/WuKongIM"
-          className="inline-flex w-fit items-center gap-2 rounded-full border border-fd-border px-5 py-3 text-sm font-semibold transition hover:bg-fd-accent"
         >
-          <Code2 className="size-4" />
           {content.github}
+          <ArrowUpRight size={16} aria-hidden="true" />
         </Link>
       </section>
+      <footer className="home-footer home-container">
+        <span>{content.footer}</span>
+        <nav aria-label={locale === 'zh' ? '页脚导航' : 'Footer navigation'}>
+          <Link href={`/${locale}/guide`}>{content.footerGuide}</Link>
+          <a href="https://demo.githubim.com/">{content.footerDemo}</a>
+          <a href="https://github.com/WuKongIM/WuKongIM/releases">
+            {content.footerReleases}
+          </a>
+        </nav>
+      </footer>
     </div>
   );
 }
