@@ -89,6 +89,15 @@ safe completion of Started Wills without a receipt, and aggregate node/cluster
 shared-storage admission. Its two Standards findings are repaired and validated;
 the review is not a full branch line audit. See the same report for scope,
 receipts and limits. Complete MQTT delivery remains unqualified.
+[Started Will non-dispatch recovery](mqtt-will-started-recovery/README.md) now
+adds an exact bounded Reserved/Admitted/Sealed journal before dispatch, owning-node
+boot proof and successor CAS. Positive receipts retain original identity. This
+narrows the Started gap only for provably never-admitted work: Admitted-before-SEND,
+legacy/lost-journal terminal recovery, journal orphan reclamation and aggregate
+shared-storage admission remain outstanding. The final six-case process matrix
+passes in 317.404 seconds, with one publication per case and no unexpected
+delivery, CONNECT retry or resubscription. These bounded cases do not complete MQTT.
+
 Historical sections below record the narrower evidence available at each step.
 
 ## Frozen starting context

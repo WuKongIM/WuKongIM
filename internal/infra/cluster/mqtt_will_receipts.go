@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession"
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
@@ -57,6 +58,11 @@ func (a *MQTTWillReceipts) LookupWillPublication(ctx context.Context, q mqttsess
 		}
 	}
 	m, err := a.metadata.ResolveChannelMetaFresh(ctx, id)
+	if errors.Is(err, ch.ErrChannelNotFound) {
+		// Fresh Slot target absence remains an error. Only an independent exact
+		// sealed dispatch attempt may let the usecase resume before first SEND.
+		return zero, false, mqttsession.ErrWillReceiptTargetMissing
+	}
 	if err != nil {
 		return zero, false, err
 	}

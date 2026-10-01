@@ -101,6 +101,16 @@ func (e appendEffect) run(runtimeCtx context.Context, ports appendPorts) appendC
 
 	batch := newIdempotentAppendBatch(active)
 	req := appendRequest(e.target, batch.items, appendInitialAttempt)
+	// gofail: var wkMQTTWillAcceptedAppendDelay int
+	// if wkMQTTWillAcceptedAppendDelay > 0 {
+	//     for _, item := range batch.items {
+	//         md, err := publication.Decode(item.Command.PublicationMetadata)
+	//         if err == nil && md.Source == publication.SourceWill {
+	//             time.Sleep(time.Duration(wkMQTTWillAcceptedAppendDelay) * time.Millisecond)
+	//             break
+	//         }
+	//     }
+	// }
 	ctx, cancel := appendBatchContext(runtimeCtx)
 	startedAt := time.Now()
 	res, err := ports.appender.AppendBatch(ctx, req)

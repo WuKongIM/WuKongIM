@@ -155,6 +155,8 @@ const (
 	RPCChannelWillReceipt
 	// RPCChannelMQTTOriginals plans and reads one bounded anchored page.
 	RPCChannelMQTTOriginals
+	// RPCMQTTWillDispatch seals body-free exact-node non-dispatch evidence.
+	RPCMQTTWillDispatch
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -305,6 +307,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "channel will receipt"
 	case RPCChannelMQTTOriginals:
 		return "channel mqtt originals"
+	case RPCMQTTWillDispatch:
+		return "mqtt will dispatch"
 	case RPCChannelMQTTReplay:
 		return "channel mqtt replay"
 	default:

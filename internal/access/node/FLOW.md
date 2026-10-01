@@ -7,9 +7,8 @@ summary: Adapts versioned node RPC frames to local authority, runtime, and manag
 
 ## Responsibility
 
-This package owns internal node RPC handlers, clients, bounded codecs, versions
-and stable statuses for presence, delivery, append, lifecycle, backup, diagnostics,
-management and Operations MCP. Routing, retries and business policy live elsewhere.
+This package owns node RPC handlers, clients, bounded codecs and stable statuses
+for product, management and Operations MCP. Routing, retries and business policy live elsewhere.
 
 ## Boundaries
 
@@ -60,6 +59,8 @@ scheduled backup or restore
 - MQTT owner RPC 92 uses bounded `WKMQ`/`WKMq` format 1 and echoes the complete
   owner identity. Only a completed local quiescence returns success; unknown
   boots, missing support, malformed replies and transport failure prove nothing.
+- Will dispatch RPC 105 uses bounded `WKWF`/`WKwf` format 1 with operation/exact-attempt echo; seal/cleanup mutations run independently.
+  Missing support, unknown status, malformed echoes and transport loss grant no proof.
 - Transport cancellation and unavailable-target failures map to stable typed
   caller errors without reordering active aligned items.
 - Manager latest-message RPC preserves bounded scan saturation as its stable
@@ -88,9 +89,8 @@ scheduled backup or restore
 
 ## Read First
 
-- [Presence](presence_rpc.go), [Channel append](channel_append_rpc.go)
-- [Backup](scheduled_backup_rpc.go), [Manager connections](manager_connection_rpc.go)
-- [opsmcp_rpc.go](opsmcp_rpc.go)
+- [Presence](presence_rpc.go), [Channel append](channel_append_rpc.go), [Backup](scheduled_backup_rpc.go)
+- [Manager connections](manager_connection_rpc.go), [Operations MCP](opsmcp_rpc.go)
 
 ## Update Triggers
 

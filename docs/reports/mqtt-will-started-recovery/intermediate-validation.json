@@ -1,0 +1,10 @@
+{
+  "initial_matrix_duration_seconds": 314.284,
+  "pinned_cut_matrix_duration_seconds": 307.066,
+  "pinned_cut_baseline_red_duration_seconds": 54.262,
+  "baseline_binary_sha256": "0d65f63b91a83f21d976d852e8fed85c235a9fe988904dabe0a54e5354bf2b58",
+  "pinned_cut_baseline_log_sha256": "c8a5fdde53b0f9567795730fdad5eef71ae554f9b98554b35a076571bebd9401",
+  "pinned_cut_candidate_sha256": "ab14ebca636638c7c06b5b8bcc90db63d194cbe712a1d0028d6a0ad50d1540ab",
+  "pinned_cut_candidate_log_sha256": "5e05d58ba540b893dc862049119e669ec7212d5000ebb21b893fed3138eb6ae7",
+  "qualification": "Intermediate receipt before conservative equal-tuple reservation retention hardening; final-provenance.json identifies the delivered candidate."
+}

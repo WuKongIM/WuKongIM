@@ -1,0 +1,282 @@
+// Package mqttwill persists exact, body-free Will dispatch fences.
+package mqttwill
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+
+	contract "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession"
+)
+
+var ErrUnknown = errors.New("mqttwill: dispatch proof unavailable")
+var ErrCapacity = errors.New("mqttwill: dispatch journal capacity exhausted")
+
+const attemptLimit = 1024
+const recordLimit = contract.MaxWillAttemptBytes + 6 + sha256.Size
+const reserved, admitted, sealed byte = 1, 2, 3
+
+// GenerationProof belongs to the existing exclusive MQTT generation lock. A
+// retirement alone cannot prove nonpublication; an exact Reserved record must join it.
+type GenerationProof interface {
+	OwnsGeneration(uint64, string) bool
+	BootRetired(context.Context, string) error
+}
+
+// Attempts owns no worker, body cache or waiting queue. mu serializes bounded
+// point transitions and Close; the external generation lock prevents old writers.
+type Attempts struct {
+	mu     sync.Mutex
+	dir    string
+	node   uint64
+	boot   string
+	proof  GenerationProof
+	count  int
+	closed bool
+}
+
+// Open inventories at most the fixed record cap plus interrupted staging files.
+// App must already hold the generation lock and must close us before releasing it.
+func Open(dir string, node uint64, boot string, proof GenerationProof) (*Attempts, error) {
+	if dir == "" || proof == nil || !proof.OwnsGeneration(node, boot) {
+		return nil, ErrUnknown
+	}
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return nil, ErrUnknown
+	}
+	f, err := os.Open(dir)
+	if err != nil {
+		return nil, ErrUnknown
+	}
+	entries, readErr := f.ReadDir(attemptLimit + 9)
+	closeErr := f.Close()
+	if readErr != nil && !errors.Is(readErr, io.EOF) || closeErr != nil || len(entries) > attemptLimit+8 {
+		return nil, ErrCapacity
+	}
+	staging := 0
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".attempt-") {
+			staging++
+		}
+	}
+	if staging > 8 {
+		return nil, ErrCapacity
+	}
+	s := &Attempts{dir: dir, node: node, boot: boot, proof: proof}
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".attempt-") && e.Type().IsRegular() {
+			if err := os.Remove(filepath.Join(dir, e.Name())); err != nil {
+				return nil, ErrUnknown
+			}
+			continue
+		}
+		name := strings.TrimSuffix(e.Name(), ".attempt")
+		if !strings.HasSuffix(e.Name(), ".attempt") || len(name) != 64 || e.Type() != 0 {
+			return nil, ErrUnknown
+		}
+		if _, err := hex.DecodeString(name); err != nil {
+			return nil, ErrUnknown
+		}
+		s.count++
+	}
+	if s.count > attemptLimit {
+		return nil, ErrCapacity
+	}
+	if err := syncDirectory(dir); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+func (s *Attempts) valid(ctx context.Context, a contract.WillAttempt) error {
+	if ctx == nil || a.Validate() != nil || a.NodeID != s.node || s.closed || !s.proof.OwnsGeneration(s.node, s.boot) {
+		return ErrUnknown
+	}
+	return ctx.Err()
+}
+
+func (s *Attempts) path(a contract.WillAttempt) string {
+	b, _ := a.MarshalBinary()
+	sum := sha256.Sum256(b)
+	return filepath.Join(s.dir, hex.EncodeToString(sum[:])+".attempt")
+}
+
+// PrepareAttempt persists a Reserved fence before Started or a successor claim.
+// Existing admitted/sealed tuples cannot be recycled into another dispatch grant.
+func (s *Attempts) PrepareAttempt(ctx context.Context, a contract.WillAttempt) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.valid(ctx, a); err != nil {
+		return err
+	}
+	if a.BootID != s.boot {
+		return ErrUnknown
+	}
+	stage, err := s.read(a)
+	if err == nil {
+		if stage != reserved {
+			return ErrUnknown
+		}
+		return syncDirectory(s.dir)
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		return ErrUnknown
+	}
+	if s.count >= attemptLimit {
+		return ErrCapacity
+	}
+	// Count a created record even when directory sync or cancellation is uncertain.
+	created, err := s.write(ctx, a, reserved)
+	if created {
+		s.count++
+	}
+	return err
+}
+
+// BeginDispatch and SealUndispatched compete for the same durable Reserved row.
+// Only the winner may grant admission or proof; missing evidence grants neither.
+func (s *Attempts) BeginDispatch(ctx context.Context, a contract.WillAttempt) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.valid(ctx, a); err != nil {
+		return err
+	}
+	if a.BootID != s.boot {
+		return ErrUnknown
+	}
+	stage, err := s.read(a)
+	if err != nil || stage != reserved {
+		return ErrUnknown
+	}
+	_, err = s.write(ctx, a, admitted)
+	return err
+}
+
+func (s *Attempts) SealUndispatched(ctx context.Context, a contract.WillAttempt) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.valid(ctx, a); err != nil {
+		return err
+	}
+	if a.BootID != s.boot {
+		if err := s.proof.BootRetired(ctx, a.BootID); err != nil {
+			return ErrUnknown
+		}
+	}
+	stage, err := s.read(a)
+	if err != nil || stage == admitted {
+		return ErrUnknown
+	}
+	if stage == sealed {
+		return syncDirectory(s.dir)
+	}
+	_, err = s.write(ctx, a, sealed)
+	return err
+}
+
+// ReleaseAttempt is exact-key cleanup after a definite successor/terminal CAS.
+// Deletion supplies no proof: late BeginDispatch calls then fail closed on absence.
+func (s *Attempts) ReleaseAttempt(ctx context.Context, a contract.WillAttempt) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.valid(ctx, a); err != nil {
+		return err
+	}
+	if _, err := s.read(a); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return ErrUnknown
+	}
+	if err := os.Remove(s.path(a)); err != nil {
+		return ErrUnknown
+	}
+	s.count--
+	return syncDirectory(s.dir)
+}
+
+// Close joins journal transitions before the generation lock may be released.
+func (s *Attempts) Close() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.closed = true
+}
+
+func (s *Attempts) read(a contract.WillAttempt) (byte, error) {
+	path := s.path(a)
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, os.ErrNotExist
+	}
+	if err != nil || !info.Mode().IsRegular() || info.Size() > recordLimit {
+		return 0, ErrUnknown
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, ErrUnknown
+	}
+	data, readErr := io.ReadAll(io.LimitReader(f, recordLimit+1))
+	closeErr := f.Close()
+	if readErr != nil || closeErr != nil || len(data) < 7+sha256.Size || len(data) > recordLimit || string(data[:4]) != "MQWA" || data[4] != 1 || data[5] < reserved || data[5] > sealed {
+		return 0, ErrUnknown
+	}
+	body := data[:len(data)-sha256.Size]
+	sum := sha256.Sum256(body)
+	identity, err := contract.DecodeWillAttempt(body[6:])
+	if err != nil || identity != a || !bytes.Equal(data[len(body):], sum[:]) {
+		return 0, ErrUnknown
+	}
+	return data[5], nil
+}
+
+// write atomically replaces one fsynced exact record, then syncs its directory.
+// A failed/late reply never grants proof even when the new state reached disk.
+func (s *Attempts) write(ctx context.Context, a contract.WillAttempt, stage byte) (bool, error) {
+	identity, err := a.MarshalBinary()
+	if err != nil {
+		return false, ErrUnknown
+	}
+	data := append([]byte{'M', 'Q', 'W', 'A', 1, stage}, identity...)
+	sum := sha256.Sum256(data)
+	data = append(data, sum[:]...)
+	f, err := os.CreateTemp(s.dir, ".attempt-")
+	if err != nil {
+		return false, ErrUnknown
+	}
+	defer os.Remove(f.Name())
+	_, writeErr := f.Write(data)
+	syncErr := f.Sync()
+	closeErr := f.Close()
+	if errors.Join(writeErr, syncErr, closeErr) != nil {
+		return false, ErrUnknown
+	}
+	if err = ctx.Err(); err != nil {
+		return false, err
+	}
+	if err = os.Rename(f.Name(), s.path(a)); err != nil {
+		return false, ErrUnknown
+	}
+	if err = syncDirectory(s.dir); err != nil {
+		return true, err
+	}
+	return true, ctx.Err()
+}
+
+func syncDirectory(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return ErrUnknown
+	}
+	syncErr := f.Sync()
+	closeErr := f.Close()
+	if errors.Join(syncErr, closeErr) != nil {
+		return ErrUnknown
+	}
+	return nil
+}

@@ -34,6 +34,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    RPCs 95–101 bind copying, anchors/retirement, planning, selection and repair to fresh authority; copy/recovery receivers verify their own committed HW before source reads or anchor planning. Lag yields without changing checkpoints. Retirement/retries and anchored plans schedule bounded native propagation to idle voters before final authority checks; hints grant no recovery proof.
    RPC 97/99 permit stable fences; plan reply v2 proves maintenance tails; recovery v2 releases sources and v3 applies retirement. RPC 102 v2 reads anchored typed messages; RPC 103 reads retained Will proof through the recovered reactor. Each uses fresh authority and separate four-slot admission; absence never authorizes Will republication.
    RPC 104 combines plan/original reads under fresh authority, retains native propagation, shares RPC 102's four-reader admission and binds consumer boundaries; it follows caller cancellation and requires matched peers.
+   Exact-node RPC 105 seals/cleans body-free Will attempts through the product
+   adapter; it grants no Slot/Channel authority or proof on uncertain replies.
    Active repair probes verify follower durability; leaders checkpoint recovered HW and request native tail propagation.
    Fresh placement/fence checks bind optional replay coverage; diagnostics stay observational.
    Planned transfers and replacement require fresh coverage at cutover and fence clearing.
@@ -141,10 +143,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 
 ## Read First
 
-- [Public API](api.go), [Node ownership](node.go), [Lifecycle](node_lifecycle.go)
-- [Routing publication](routing/router.go), [Channel hosting](channels/service.go)
+- [Public API](api.go), [Node ownership](node.go), [Lifecycle](node_lifecycle.go), [Routing](routing/router.go), [Channels](channels/service.go)
 
 ## Update Triggers
 
-Update when lifecycle, readiness, ownership, route/authority publication,
-typed RPC policy, or maintenance/backup semantics change.
+Update for lifecycle, readiness, ownership, route/authority, typed RPC or maintenance/backup changes.

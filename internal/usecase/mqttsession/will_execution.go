@@ -6,9 +6,11 @@ import (
 	"errors"
 	"math"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
+	contract "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession"
 	"github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/publication"
 )
@@ -16,6 +18,8 @@ import (
 var (
 	// ErrWillPending retains an obligation whose publication is not yet proved.
 	ErrWillPending = errors.New("mqttsession: Will publication outcome pending")
+	// ErrWillReceiptTargetMissing describes fresh target absence, never nonpublication.
+	ErrWillReceiptTargetMissing = errors.New("mqttsession: Will receipt target absent")
 	// ErrWillBusy rejects a turn before creating a waiter or retaining its body.
 	ErrWillBusy = errors.New("mqttsession: Will execution capacity exhausted")
 )
@@ -51,11 +55,22 @@ type WillPublications interface {
 	PublishWill(context.Context, WillPublication) error
 }
 
+// WillDispatchFence persists admission before calling publication and can seal
+// only the captured attempt's non-dispatch. No absence/lease inference is allowed.
+type WillDispatchFence interface {
+	PrepareAttempt(context.Context, contract.WillAttempt) error
+	BeginDispatch(context.Context, contract.WillAttempt) error
+	SealUndispatched(context.Context, contract.WillAttempt) error
+	ReleaseAttempt(context.Context, contract.WillAttempt) error
+}
+
 type WillExecutionOptions struct {
 	// Store rereads obligations and conditionally commits through current Slot authority.
 	Store WillExecutionStore
 	// Publications preserves server-domain content and independently resolves its receipt.
 	Publications WillPublications
+	// DispatchFence is required by product wiring; absence retains positive-only recovery.
+	DispatchFence WillDispatchFence
 	// Authorizer evaluates current policy before resumable preparation/dispatch.
 	Authorizer WillAuthorizer
 	// NodeID and BootID identify this executor process, never a connection owner.
@@ -74,6 +89,9 @@ type WillExecutionOptions struct {
 type WillExecutor struct {
 	opts      WillExecutionOptions
 	admission chan struct{}
+	// active pins at most four body-free keys, preventing equal local reservations.
+	mu     sync.Mutex
+	active map[meta.MQTTWillKey]struct{}
 }
 
 type WillExecutionResult struct {
@@ -89,7 +107,7 @@ func NewWillExecutor(o WillExecutionOptions) (*WillExecutor, error) {
 	if o.Store == nil || o.Publications == nil || o.Authorizer == nil || o.NodeID == 0 || o.BootID == "" || len(o.BootID) > 128 || !utf8.ValidString(o.BootID) || strings.ContainsRune(o.BootID, 0) || o.LeaseDuration < time.Millisecond || o.LeaseDuration > time.Minute || o.LeaseDuration%time.Millisecond != 0 || o.TurnTimeout <= 0 || o.TurnTimeout > 5*time.Second {
 		return nil, ErrInvalid
 	}
-	e := &WillExecutor{opts: o, admission: make(chan struct{}, 4)}
+	e := &WillExecutor{opts: o, admission: make(chan struct{}, 4), active: make(map[meta.MQTTWillKey]struct{}, 4)}
 	if _, err := e.now(); err != nil {
 		return nil, err
 	}
@@ -105,8 +123,8 @@ func (e *WillExecutor) now() (time.Time, error) {
 }
 
 // Execute rereads an exact key and persists hook output before dispatch. Only a
-// definite Started transition may publish; an existing Started/legacy attempt
-// requires positive proof and cannot redispatch on absence or lease expiry.
+// definite Started transition may publish. Existing Started work also needs an
+// exact sealed non-dispatch; legacy work remains positive-receipt-only.
 func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (out WillExecutionResult, err error) {
 	if e == nil || parent == nil || meta.ValidateMQTTRead(meta.MQTTRead{Kind: meta.MQTTReadWill, WillKey: key}) != nil {
 		return out, ErrInvalid
@@ -119,6 +137,18 @@ func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (ou
 		defer func() { <-e.admission }()
 	default:
 		return out, ErrWillBusy
+	}
+	if e.opts.DispatchFence != nil {
+		e.mu.Lock()
+		_, busy := e.active[key]
+		if !busy {
+			e.active[key] = struct{}{}
+		}
+		e.mu.Unlock()
+		if busy {
+			return out, ErrWillBusy
+		}
+		defer func() { e.mu.Lock(); delete(e.active, key); e.mu.Unlock() }()
 	}
 	ctx, cancel := context.WithTimeout(parent, e.opts.TurnTimeout)
 	defer cancel()
@@ -157,6 +187,39 @@ func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (ou
 	if w.Revision > math.MaxUint64-4 || w.ExecutionGeneration == math.MaxUint64 {
 		return out, ErrEvidence
 	}
+	previous := willAttempt(w)
+	var recoveredReceipt WillPublicationReceipt
+	resumeDispatch := false
+	if e.opts.DispatchFence != nil && w.Stage == meta.MQTTWillExecuting && (w.DispatchStage == meta.MQTTWillDispatchStarted || w.DispatchStage == meta.MQTTWillDispatchLegacy) {
+		receipt, found, lookupErr := e.opts.Publications.LookupWillPublication(ctx, q)
+		if lookupErr != nil && !errors.Is(lookupErr, ErrWillReceiptTargetMissing) {
+			return out, lookupErr
+		}
+		if found {
+			if lookupErr != nil || !validWillReceipt(receipt) {
+				return out, ErrEvidence
+			}
+			recoveredReceipt = receipt
+		} else {
+			if receipt != (WillPublicationReceipt{}) {
+				return out, ErrEvidence
+			}
+			if w.DispatchStage != meta.MQTTWillDispatchStarted {
+				return out, ErrWillPending
+			}
+			if sealErr := e.opts.DispatchFence.SealUndispatched(ctx, previous); sealErr != nil {
+				// Preserve the original attempt tuple until proof exists; claiming on
+				// absence would erase the only identity its owning node can verify.
+				return out, errors.Join(ErrWillPending, sealErr)
+			}
+			if err := e.opts.Authorizer.AuthorizeWill(ctx, w.UID, q.Target); err != nil {
+				// Started cannot be rejected by the existing Slot schema. Retain the
+				// sealed obligation on denial instead of inventing a terminal proof.
+				return out, errors.Join(ErrWillPending, err)
+			}
+			resumeDispatch = true
+		}
+	}
 	first := w.Stage == meta.MQTTWillReady
 	next := w
 	next.Stage = meta.MQTTWillExecuting
@@ -175,15 +238,28 @@ func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (ou
 	if err = ctx.Err(); err != nil {
 		return out, err
 	}
+	if resumeDispatch {
+		if err := e.opts.DispatchFence.PrepareAttempt(ctx, willAttempt(next)); err != nil {
+			return out, err
+		}
+	}
 	claimed, err := e.opts.Store.CompareAndSwapMQTTWill(ctx, w.Revision, next)
 	if err != nil {
 		return out, err
 	}
 	if err = willExecutionCAS(claimed, next.Revision); err != nil {
+		// An equal local tuple may have been reserved by an earlier unknown
+		// claim that applies late. Even this call's definite conflict cannot
+		// discard that attempt's recovery evidence.
 		return out, err
 	}
 	if claimed.Status != meta.MQTTSessionCASApplied {
 		return out, ErrWillPending
+	}
+	if e.opts.DispatchFence != nil && previous.Validate() == nil {
+		// The definite successor claim consumes sealed proof or positively known
+		// publication, or fences an old pre-Started reservation. Cleanup is exact.
+		_ = e.opts.DispatchFence.ReleaseAttempt(ctx, previous)
 	}
 	w = next
 	out = willExecutionResult(w)
@@ -224,10 +300,16 @@ func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (ou
 		if err = willExecutionCAS(r, next.Revision); err != nil {
 			return out, err
 		}
+		if e.opts.DispatchFence != nil {
+			_ = e.opts.DispatchFence.ReleaseAttempt(ctx, willAttempt(w))
+		}
 		return willExecutionResult(next), nil
 	}
 	if err = check(); err != nil {
 		return out, err
+	}
+	if recoveredReceipt != (WillPublicationReceipt{}) {
+		return finish(meta.MQTTWillPublished, recoveredReceipt)
 	}
 	var publishErr error
 	if w.DispatchStage == meta.MQTTWillDispatchPreparing || w.DispatchStage == meta.MQTTWillDispatchPrepared {
@@ -277,13 +359,38 @@ func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (ou
 				return out, err
 			}
 		}
+		if e.opts.DispatchFence != nil {
+			if err := e.opts.DispatchFence.PrepareAttempt(ctx, willAttempt(w)); err != nil {
+				return out, err
+			}
+		}
 		if err := phase(meta.MQTTWillDispatchStarted, w.DispatchPayload); err != nil {
 			return out, err
+		}
+		// gofail: var wkMQTTWillAfterStarted bool
+		// if wkMQTTWillAfterStarted {
+		//     return out, context.DeadlineExceeded
+		// }
+		resumeDispatch = true
+	}
+	if resumeDispatch {
+		if err := check(); err != nil {
+			return out, err
+		}
+		if e.opts.DispatchFence != nil {
+			if err := e.opts.DispatchFence.BeginDispatch(ctx, willAttempt(w)); err != nil {
+				return out, err
+			}
 		}
 		if err := check(); err != nil {
 			return out, err
 		}
 		publishErr = e.opts.Publications.PublishWill(ctx, q)
+		// gofail: var wkMQTTWillAfterPublication bool
+		// if wkMQTTWillAfterPublication {
+		//     return out, context.DeadlineExceeded
+		// }
+
 		// Even an error may follow a committed append; resolve positive evidence
 		// before preserving the original error for the next recovery turn.
 	}
@@ -300,7 +407,7 @@ func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (ou
 		}
 		return out, errors.Join(publishErr, ErrWillPending)
 	}
-	if receipt.MessageID == 0 || receipt.MessageSeq == 0 || receipt.PublishedAtMS <= 0 {
+	if !validWillReceipt(receipt) {
 		return out, ErrEvidence
 	}
 	return finish(meta.MQTTWillPublished, receipt)
@@ -339,4 +446,12 @@ func willPublication(w meta.MQTTWill) (WillPublication, error) {
 		body = w.DispatchPayload
 	}
 	return WillPublication{UID: w.UID, ClientMsgNo: w.ClientMsgNo, Target: WillTarget{Topic: w.Topic, TargetID: w.TargetID, TargetType: w.TargetType}, Payload: bytes.Clone(body), PublicationMetadata: encoded}, nil
+}
+
+func willAttempt(w meta.MQTTWill) contract.WillAttempt {
+	return contract.WillAttempt{Key: contract.Key{Namespace: w.Key.Namespace, ClientID: w.Key.ClientID}, SessionGeneration: w.Key.SessionGeneration, WillGeneration: w.Key.WillGeneration, NodeID: w.ExecutorNodeID, BootID: w.ExecutorBootID, ExecutionGeneration: w.ExecutionGeneration}
+}
+
+func validWillReceipt(r WillPublicationReceipt) bool {
+	return r.MessageID != 0 && r.MessageSeq != 0 && r.PublishedAtMS > 0
 }

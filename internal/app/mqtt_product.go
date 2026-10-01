@@ -14,6 +14,7 @@ import (
 	access "github.com/WuKongIM/WuKongIM/internal/access/mqtt"
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
 	"github.com/WuKongIM/WuKongIM/internal/infra/mqttowner"
+	"github.com/WuKongIM/WuKongIM/internal/infra/mqttwill"
 	runtime "github.com/WuKongIM/WuKongIM/internal/runtime/mqttsession"
 	sessioncase "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -44,7 +45,9 @@ type mqttGeneration struct {
 	replay      *runtime.ReplayWorker
 	wills       *runtime.WillWorker
 	retirements *mqttowner.Retirements
-	consumers   *runtime.ConsumerWorker
+	// dispatches shares the exclusive MQTT generation lock and precedes Started.
+	dispatches *mqttwill.Attempts
+	consumers  *runtime.ConsumerWorker
 }
 
 func (a *App) wireMQTT(nodeID uint64) error {
@@ -63,6 +66,7 @@ func (a *App) wireMQTT(nodeID uint64) error {
 		return err
 	}
 	node.RegisterRPC(accessnode.MQTTOwnerRPCServiceID, accessnode.MQTTOwnerRPC{Owners: m})
+	node.RegisterRPC(accessnode.MQTTWillRPCServiceID, accessnode.MQTTWillRPC{Attempts: m})
 	a.cfg.Gateway.Listeners = append(a.cfg.Gateway.Listeners, gateway.ListenerOptions{Name: "mqtt", Network: "tcp", Transport: "gnet", Protocol: "mqtt", Address: a.cfg.MQTT.ListenAddr})
 	return nil
 }
@@ -96,6 +100,10 @@ func (a *App) newMQTTGeneration(ctx context.Context, node *cluster.Node, nodeID 
 	cancelRecover()
 	if err != nil {
 		return m, fmt.Errorf("mqtt: recover owner retirements: %w", err)
+	}
+	m.dispatches, err = mqttwill.Open(filepath.Join(defaultClusterConfig(a.cfg).DataDir, "mqtt", "will-dispatches"), nodeID, hex.EncodeToString(boot[:]), m.retirements)
+	if err != nil {
+		return m, fmt.Errorf("mqtt: open Will dispatch journal: %w", err)
 	}
 	sessions, err := sessioncase.New(sessioncase.Options{Store: node, Owners: owners, Isolation: accessnode.NewMQTTOwnerClient(node), Tokens: a.users, Wills: mqttWillAuthorizer{messages: a.messages}, LeaseDuration: 30 * time.Second, CleanupTimeout: time.Second, SessionExpiryLimitSec: c.SessionExpiryLimitSec, QuotaMessages: c.QuotaMessages, QuotaBytes: c.QuotaBytes, WindowLimit: c.WindowLimit})
 	if err != nil {
@@ -162,7 +170,7 @@ func (a *App) newMQTTGeneration(ctx context.Context, node *cluster.Node, nodeID 
 	if err != nil {
 		return m, err
 	}
-	executor, err := newMQTTWillExecutor(node, a.messages, sessioncase.WillExecutionOptions{NodeID: nodeID, BootID: hex.EncodeToString(boot[:]), LeaseDuration: 10 * time.Second, TurnTimeout: 5 * time.Second})
+	executor, err := newMQTTWillExecutor(node, a.messages, sessioncase.WillExecutionOptions{DispatchFence: mqttWillDispatches{Attempts: m.dispatches, remote: accessnode.NewMQTTWillClient(node)}, NodeID: nodeID, BootID: hex.EncodeToString(boot[:]), LeaseDuration: 10 * time.Second, TurnTimeout: 5 * time.Second})
 	if err != nil {
 		return m, err
 	}
@@ -221,6 +229,9 @@ func (m *mqttGeneration) Stop(ctx context.Context) error {
 	result = errors.Join(result, m.owners.Close(ctx))
 	if result != nil || m.retirements == nil {
 		return result
+	}
+	if m.dispatches != nil {
+		m.dispatches.Close()
 	}
 	// Persist only after every producer and owner has joined. A later process
 	// may reuse this proof without guessing from the old Session state or lease.

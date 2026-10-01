@@ -765,7 +765,11 @@ specification, runbook, report, or module documentation; link to them when neede
   nil replacement preserves it, and native payload validation remains unchanged.
   Real cluster coverage verifies empty QoS 0/1 commits/retries and frozen empty
   Will receipts after lost replies and permission revocation.
-  Started/legacy execution only recovers positive content-matched receipts; later denial or absence cannot resolve an unknown
+  [Started non-dispatch recovery](../specs/mqtt-will-started-recovery.md) joins an
+  exact Reserved -> Sealed journal transition with the owning node generation
+  lock/older-boot fact, then fresh permission and a definite successor Slot CAS.
+  Fresh target absence alone grants nothing. Admitted/legacy execution only
+  recovers positive content-matched receipts; later denial or absence cannot resolve an unknown
   append. Single-node cluster composition verifies original identity/time after
   lost observation and revocation, including real Webhook replacement. Uncertain
   redispatch, automatic scheduling,

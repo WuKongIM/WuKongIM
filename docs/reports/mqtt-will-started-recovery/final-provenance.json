@@ -1,0 +1,56 @@
+{
+  "source_kind": "14386ca24a4eb00e7a4d4ebf5899023736e2c70a plus exact working-copy files",
+  "base_revision": "14386ca24a4eb00e7a4d4ebf5899023736e2c70a",
+  "go_version": "go1.25.11 darwin/arm64",
+  "product_changes": [
+    {
+      "path": "internal/access/node/mqtt_will_rpc.go",
+      "sha256": "60bc0450733b249ad87fc946dd00e103d950fdd68ffbc77c6f441104bde6f4d4"
+    },
+    {
+      "path": "internal/app/mqtt_product.go",
+      "sha256": "0e6f38ab8f739156b1a7813ac3220f9f97ab8272246a916cc91b3f1eb35a79e2"
+    },
+    {
+      "path": "internal/app/mqtt_will_execution.go",
+      "sha256": "a0a21c55875571049ba8949b0c10e541b1df24910b42094606ba1f5bfe04734b"
+    },
+    {
+      "path": "internal/contracts/mqttsession/will_attempt.go",
+      "sha256": "327c364fa990b843ef0c6289ad8098b15af2b78f5d8ebe30ef9ae5b1b52d8fe7"
+    },
+    {
+      "path": "internal/infra/cluster/mqtt_will_receipts.go",
+      "sha256": "a7506be65c8bf6899e8fc31431825515d5804dd763d943080ce908ec0ed11d2c"
+    },
+    {
+      "path": "internal/infra/mqttowner/retirements.go",
+      "sha256": "1f10ea58976296eaf7c7c5d287ec786aa73da1de5440e34daa7260a8b3bf981e"
+    },
+    {
+      "path": "internal/infra/mqttwill/attempts.go",
+      "sha256": "f72c0ba3d76daaaeb696b6f6b514b85833749f01113a5ab9653edeaee674c64b"
+    },
+    {
+      "path": "internal/runtime/channelappend/append.go",
+      "sha256": "57c0161e1254c8afd6fdb499431e303083341175249c59cea8aee9c6cdfb1830"
+    },
+    {
+      "path": "internal/usecase/mqttsession/will_execution.go",
+      "sha256": "a67900d8a4eb1de1fac9574e68f34f31fb8cedd208b2235affc974961c1458dd"
+    },
+    {
+      "path": "pkg/cluster/net/ids.go",
+      "sha256": "a22bafb0483383730165ded69dc1edf50324efb1789c5823864ea17298fa0a49"
+    }
+  ],
+  "test_sha256": "87b1fd06805fe76332ea8b38e84b4c3dec7a52f1008c6b0730df3a7fcb3a02df",
+  "ordinary_binary_sha256": "2d63bffa9d18bf73684e895bdf25908e52b7d7d56ee56605628abe9fb90807d6",
+  "instrumented_binary_sha256": "2dbfcf1c09915c6d6f70fe7b1365bec445acc91ac0a37f4bcc2bf73d018f9e57",
+  "gofail": "go.etcd.io/gofail@v0.2.0, enabled in temporary copy only",
+  "build_command": "scripts/build-gofail-binary.sh --out /tmp/wukongim-will-started-verified-gofail --package internal/usecase/mqttsession --package internal/app --package internal/runtime/channelappend",
+  "test_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-started-verified-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-started-verified-matrix GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_recovery -count=1 -timeout=12m -v",
+  "ordinary_build": "go build -buildvcs=false -o /tmp/wukongim-will-started-verified ./cmd/wukongim",
+  "instrumented_cut": "Started/published sleep(60000) until SIGKILL; admitted append delay return(30000) before native append budget",
+  "post_review_hardening": "Failed successor claims preserve their new reservation, including definite conflicts that may follow an earlier unknown equal-tuple claim."
+}

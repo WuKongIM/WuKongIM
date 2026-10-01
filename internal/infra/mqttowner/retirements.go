@@ -135,26 +135,64 @@ func (s *Retirements) Quiesce(ctx context.Context, o contract.Owner) error {
 	if current != "" && o.BootID == current {
 		return runtime.ErrOwnerUnknown
 	}
-	data, err := readRetirement(s.path(o.BootID))
+	bound, err := s.retiredBound(ctx, o.BootID)
 	if err != nil {
-		return runtime.ErrOwnerUnknown
-	}
-	if err = ctx.Err(); err != nil {
 		return err
 	}
-	if len(data) < 24+1+sha256.Size || !bytes.Equal(data[:6], []byte{'M', 'Q', 'O', 'R', 0, 1}) {
+	if o.ConnectionID > bound {
 		return runtime.ErrOwnerUnknown
+	}
+	return nil
+}
+
+// OwnsGeneration verifies that the caller's node/boot still holds the exclusive
+// data-directory lock. App closes dispatch journals before releasing this lock.
+func (s *Retirements) OwnsGeneration(node uint64, boot string) bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return !s.closed && s.lock != nil && s.nodeID == node && s.current == boot
+}
+
+// BootRetired proves only that this node's earlier MQTT generation has joined or
+// crashed. It does not prove that already-admitted local/remote appends stopped.
+func (s *Retirements) BootRetired(ctx context.Context, boot string) error {
+	if s == nil || ctx == nil || !contract.ValidIdentity(boot, 128) {
+		return runtime.ErrOwnerUnknown
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed || s.lock == nil || s.current == "" || boot == s.current {
+		return runtime.ErrOwnerUnknown
+	}
+	_, err := s.retiredBound(ctx, boot)
+	return err
+}
+
+func (s *Retirements) retiredBound(ctx context.Context, boot string) (uint64, error) {
+	data, err := readRetirement(s.path(boot))
+	if err != nil {
+		return 0, runtime.ErrOwnerUnknown
+	}
+	if err = ctx.Err(); err != nil {
+		return 0, err
+	}
+	if len(data) < 24+1+sha256.Size || !bytes.Equal(data[:6], []byte{'M', 'Q', 'O', 'R', 0, 1}) {
+		return 0, runtime.ErrOwnerUnknown
 	}
 	body := data[:len(data)-sha256.Size]
 	sum := sha256.Sum256(body)
 	if !bytes.Equal(data[len(body):], sum[:]) {
-		return runtime.ErrOwnerUnknown
+		return 0, runtime.ErrOwnerUnknown
 	}
 	bootLen := int(binary.BigEndian.Uint16(body[22:24]))
-	if bootLen != len(body)-24 || string(body[24:]) != o.BootID || binary.BigEndian.Uint64(body[6:14]) != o.NodeID || o.ConnectionID > binary.BigEndian.Uint64(body[14:22]) {
-		return runtime.ErrOwnerUnknown
+	bound := binary.BigEndian.Uint64(body[14:22])
+	if bootLen != len(body)-24 || string(body[24:]) != boot || binary.BigEndian.Uint64(body[6:14]) != s.nodeID || bound == 0 {
+		return 0, runtime.ErrOwnerUnknown
 	}
-	return nil
+	return bound, nil
 }
 
 func readRetirement(path string) ([]byte, error) {

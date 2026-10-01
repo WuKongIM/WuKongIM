@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
+	contract "github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession"
 	clusterinfra "github.com/WuKongIM/WuKongIM/internal/infra/cluster"
+	"github.com/WuKongIM/WuKongIM/internal/infra/mqttwill"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster"
@@ -26,6 +29,8 @@ type mqttWillPublications struct {
 var _ mqttsession.WillPublications = mqttWillPublications{}
 
 func (p mqttWillPublications) PublishWill(ctx context.Context, q mqttsession.WillPublication) error {
+	// gofail: var wkMQTTWillPublicationAttempt bool
+	// _ = wkMQTTWillPublicationAttempt
 	r, err := p.messages.SendPreparedWill(ctx, mqttWillSendCommand(q))
 	if err != nil {
 		return err
@@ -72,4 +77,42 @@ func newMQTTWillExecutor(node *cluster.Node, messages *message.App, opts mqttses
 	opts.Authorizer = mqttWillAuthorizer{messages: messages}
 	opts.Publications = mqttWillPublications{MQTTWillReceipts: receipts, messages: messages}
 	return mqttsession.NewWillExecutor(opts)
+}
+
+// mqttWillDispatches keeps reservation/admission local and sends proof/cleanup
+// to the captured owning node, without resolving through Slot routing.
+type mqttWillDispatches struct {
+	*mqttwill.Attempts
+	remote *accessnode.MQTTWillClient
+}
+
+func (p mqttWillDispatches) SealUndispatched(ctx context.Context, a contract.WillAttempt) error {
+	return p.remote.SealUndispatched(ctx, a)
+}
+func (p mqttWillDispatches) ReleaseAttempt(ctx context.Context, a contract.WillAttempt) error {
+	return p.remote.ReleaseAttempt(ctx, a)
+}
+
+// SealUndispatched pins one published generation; a closed journal never grants
+// proof during Stop/restore, even while old RPC callbacks still reference it.
+func (m *mqttProduct) SealUndispatched(ctx context.Context, a contract.WillAttempt) error {
+	if m == nil {
+		return mqttwill.ErrUnknown
+	}
+	g := m.current.Load()
+	if g == nil || g.dispatches == nil {
+		return mqttwill.ErrUnknown
+	}
+	return g.dispatches.SealUndispatched(ctx, a)
+}
+
+func (m *mqttProduct) ReleaseAttempt(ctx context.Context, a contract.WillAttempt) error {
+	if m == nil {
+		return mqttwill.ErrUnknown
+	}
+	g := m.current.Load()
+	if g == nil || g.dispatches == nil {
+		return mqttwill.ErrUnknown
+	}
+	return g.dispatches.ReleaseAttempt(ctx, a)
 }

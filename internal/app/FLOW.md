@@ -74,8 +74,11 @@ Stop or startup rollback
   Restore connection teardown requires exact local isolation without new Session
   mutations against already-fenced replicas; ordinary Stop keeps durable disconnect.
   Connections pin the original handler; shutdown prevents observer admission reopen.
-  WillExecutor freezes hook output before first dispatch and only recovers positive
-  receipts for uncertain started work. Its managed scanner and four-turn cohort now
+  WillExecutor freezes hook output before first dispatch. A bounded local journal
+  is reserved before Started and admitted before publication; exact-node RPC 105
+  seals only proved non-dispatch. The existing generation lock and retired-boot
+  facts fence older journals; Stop joins Will workers and closes the journal
+  before releasing that lock. Admitted/legacy work remains positive-receipt-only. Its managed scanner and four-turn cohort now
   publish detached due work. Consumer recovery also completes disconnected Preparing/Removing intent before a first binding. Concrete group/inbox offline preparation ports are composed before that shared cohort; fresh permission denial routes through exact Session ending. That cohort also builds historical reclamation coverage, invokes exact-owner Session-child cleanup and retires qualified source tombstones; fixed metrics expose completion and indexed rows.
   Safe uncertain Will redispatch and the full partition/failure/workload matrix
   remain unqualified; completed process and group-scale scenarios cover only their

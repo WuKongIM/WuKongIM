@@ -90,7 +90,7 @@ management, plugins, diagnostics, and bounded operations observations.
   budgets include metadata; append mappings preserve independent ownership.
 - Keyed Wills select a required server-domain lookup capability; absence cannot
   fall back to client numbers. Original committed proof remains mandatory.
-- MQTTWillReceipts separately reads retained proof through fresh Slot metadata and the routed recovered Channel port. It uses SEND person normalization and verifies the complete content hash/HW; unavailable authority stays an error and absence grants no redispatch.
+- MQTTWillReceipts separately reads retained proof through fresh Slot metadata and the routed recovered Channel port. It uses SEND person normalization and verifies the complete content hash/HW; unavailable authority stays an error and absence grants no redispatch. Fresh Slot target absence has a distinct usecase error, permitting a separate exact sealed non-dispatch query before first SEND, never retry by itself.
 - MQTT source protection maps exact source identity through fresh Slot runtime
   metadata to routed Channel admission, using the app's message-ID allocator.
   Confirmed runtime absence uses the existing bounded Channel initializer, then

@@ -25,7 +25,9 @@ owned here. Runtime decides when terminal owner quiescence is proved.
    started boots without receipts (proven dead by the lock), removes proven
    markers, then writes the current boot's started marker. Record removes that
    marker after its receipt; Close releases the lock after Record.
-4. Hash the exact node/boot for a point lookup capped at 1 KiB, verify format,
+4. OwnsGeneration and BootRetired expose only the held node/boot lock and an
+   exact older-boot fact for Will journals; they do not prove remote effects stopped.
+5. Hash the exact node/boot for a point lookup capped at 1 KiB, verify format,
    checksum and identity/bound, then return proof or fail closed.
 
 ## Invariants and Failure Semantics
