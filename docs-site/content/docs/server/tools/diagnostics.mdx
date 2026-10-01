@@ -3,9 +3,23 @@ title: 诊断能力
 description: 在日志、指标、Top、Manager、保留诊断、pprof 和 Operations MCP 之间选择有界证据。
 ---
 
-诊断不是一个万能端点，而是一组成本、视角和权限不同的证据面。先提出精确问题，再选择能回答它的最低成本能力；不要把诊断输出连接到自动修复或拓扑写操作。
+先确定问题、节点和时间窗，再选能回答它的低成本证据。诊断结果不能直接触发自动修复或拓扑写入。
 
 ## 选择证据面
+
+<Cards>
+<Card title="就绪与故障现象" href="/zh/server/operations/troubleshooting">先看 health、ready 与 reason。</Card>
+<Card title="趋势与运行压力" href="/zh/server/operations/health-and-monitoring">对齐指标、日志与有界 Top。</Card>
+<Card title="CPU / 内存热点" href="/zh/server/tools/diagnostics#debug-与-pprof">先隔离访问，再限时采集。</Card>
+<Card title="MCP 精确点查" href="/zh/server/tools/diagnostics#operations-mcp">使用专用凭据与查询 ID。</Card>
+</Cards>
+
+`/healthz` 只说明进程存活；`/readyz` 失败保留 503 与完整 reason。日志不可信，Top 不是全局一致快照，采样事件可能缺失；空图或未命中保持未知。Manager 属于特权管理边界，状态提示不是操作审批。[配置与成本](/zh/server/configuration/observability)。
+
+<details>
+  <summary>完整证据面比较</summary>
+
+诊断不是一个万能端点，而是一组成本、视角和权限不同的证据面。先提出精确问题，再选择能回答它的最低成本能力；不要把诊断输出连接到自动修复或拓扑写操作。
 
 | 能力 | 最适合回答 | 关键边界 |
 | --- | --- | --- |
@@ -21,7 +35,31 @@ description: 在日志、指标、Top、Manager、保留诊断、pprof 和 Opera
 
 配置与成本见[日志与可观测性](/zh/server/configuration/observability)，按现象的顺序见[故障排查](/zh/server/operations/troubleshooting)。
 
+</details>
+
 ## 日志、指标与 Top
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  scope["同一节点<br/>同一时间窗"] --> trend["指标与有界 Top<br/>定位变化点"]
+  trend --> explain["日志与采样事件<br/>解释变化、记录缺失"]
+```
+
+</div>
+
+用单次或有限刷新补充状态，保留查询、游标、采样间隔与缺失区间。空图、零序列或日志未命中不表示健康，不执行日志文本。
+
+```bash
+wkcli top \
+  --server \
+  http://127.0.0.1:5001 \
+  --once --json
+```
+
+<details>
+  <summary>完整时间对齐步骤与 Top 命令</summary>
 
 三者需要使用相同时间范围和节点标识：
 
@@ -37,7 +75,24 @@ wkcli top --server http://127.0.0.1:5001 --once --json
 
 监控缺失本身就是未知状态。不要把空图、零序列或没有日志命中解释为健康。
 
+</details>
+
 ## Debug 与 pprof
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  isolate["隔离访问<br/>明确一种 profile"] --> capture["限时采集<br/>观察额外开销"]
+  capture --> close["关闭临时 Debug<br/>验证端点不可访问"]
+```
+
+</div>
+
+HTTP `/debug/pprof/*` 位于 API Listener，需 `observability.debug_api_enable = true`；限制网络与人员，制品按敏感数据处理。MCP `pprof_analyze` 是另一条主动采集路径，只返回解析后 top rows：CPU 最长 30 秒，heap/goroutine 时长为 0，集群同时一个 profile，节点完成后冷却 60 秒；并发、大小、所有者与修订门槛仍生效。
+
+<details>
+  <summary>完整采集访问与成本边界</summary>
 
 HTTP pprof 只在 `observability.debug_api_enable = true` 时通过 API Listener 的 `/debug/pprof/*` 开放。临时使用时必须：
 
@@ -49,13 +104,22 @@ HTTP pprof 只在 `observability.debug_api_enable = true` 时通过 API Listener
 
 Operations MCP 的 `pprof_analyze` 是另一条受控路径：它只返回解析后的 top rows，不返回原始 profile。CPU 最长 30 秒，heap/goroutine 的 duration 必须为 0；集群同一时间只允许一个 profile，每个节点完成后有 60 秒冷却，并受并发、大小和所有者修订门槛约束。
 
+</details>
+
 ## Operations MCP
 
-每个已配置的 Manager Listener 都挂载相同的 `POST /mcp`。它是无状态 JSON Streamable HTTP MCP 服务，使用专用 `wko_*` bearer credential；Manager JWT 不能代替它。跨不受信任网络必须使用 TLS。
+Manager Listener 提供无状态 JSON Streamable HTTP `POST /mcp`。使用专用 `wko_*` bearer credential，Manager JWT 不能替代；跨不可信网络使用 TLS。12 个工具执行固定有界读取，`pprof_analyze` 另含主动采集；不接受任意 URL、路径、命令、PromQL、SQL 或 Controller 写入，不提供 Resources、Prompts、Sampling、Roots、SSE。缺失返回 `unavailable` / `unknown`。
 
 <Callout type="warn" title="不是浏览器 API">
   `/mcp` 拒绝任何非空 `Origin`，没有 CORS 授权。请求体上限 64 KiB，响应上限 1 MiB；认证、速率、并发、所有者或状态变化失败会返回稳定错误，而不是降级为匿名或本地执行。
 </Callout>
+
+<details>
+  <summary>完整 12 个工具与协议边界</summary>
+
+每个已配置的 Manager Listener 都挂载相同的 `POST /mcp`。它是无状态 JSON Streamable HTTP MCP 服务，使用专用 `wko_*` bearer credential；Manager JWT 不能代替它。跨不受信任网络必须使用 TLS。
+
+
 
 冻结的 12 个工具是：
 
@@ -75,7 +139,14 @@ Operations MCP 的 `pprof_analyze` 是另一条受控路径：它只返回解析
 
 除 `pprof_analyze` 的主动采集外，工具都只读。服务不接受任意 URL、文件路径、命令、PromQL、SQL 或通用 Controller 写入，也不提供 Resources、Prompts、Sampling、Roots、SSE 或写工具。缺失证据返回 `unavailable` / `unknown`，不会伪装成零或健康。
 
+</details>
+
 ## 使用边界
+
+凭据限制工具、节点与有效期，不记录 Token、不执行原始日志。指标用服务端查询 ID 并限制时间/点数；频道必须有 ID 与类型，不扫描目录。pprof/日志/诊断不缓存，短清单与配置可能缓存，保留观察时间。审计不留原始 Token、完整参数结果或日志关键词。
+
+<details>
+  <summary>完整凭据、查询、缓存与审计限制</summary>
 
 - 为事件创建最小范围的专用凭据，限制可用工具、节点和有效期；不要记录完整 Token。
 - 日志工具只返回有界原始行，并明确标记为不可信；不要把内容放入 shell 或提示词控制通道。
@@ -83,6 +154,8 @@ Operations MCP 的 `pprof_analyze` 是另一条受控路径：它只返回解析
 - 精确频道点查需要频道 ID 与类型，不支持全目录扫描。
 - pprof、日志与诊断不缓存；短清单和脱敏配置可能短暂缓存，事件记录要保存观察时间。
 - MCP 审计只保留低基数摘要；它不会保存原始 Token、完整参数、结果或日志关键词。
+
+</details>
 
 ## 关闭临时诊断
 
