@@ -1,11 +1,49 @@
 ---
 title: Webhooks
-description: Consume message and online-status events securely and idempotently.
+description: Choose a callback, connect your business service, and verify the result in three steps.
 ---
 
-Webhooks support synchronous business decisions before sending and asynchronous notifications for committed messages, offline recipients, and presence changes. The business service receives callbacks over HTTP.
+Goal: make a decision before sending, or receive business notifications after a message commits.
 
-## Before-send business callback
+## 1. Choose the callback
+
+| Callback | Purpose and result |
+| --- | --- |
+| Before-send<br/>`msg.before_send` | Allow, replace, or reject before submission; return an explicit JSON decision |
+| Async notification | Consume committed messages or status events; HTTP `200` acknowledges the callback request |
+
+For a default persistent message, the order is:
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  send["Send attempt"] --> before["Before-send (optional)<br/>allow / replace / reject"]
+  before -->|allow| commit["Durable message commit"]
+  commit --> notify["Async notify (optional)<br/>business handles event"]
+```
+
+</div>
+
+**Before-send allowance does not prove commit.** Explicit denial prevents submission; asynchronous failure does not undo a committed message.
+
+## 2. Connect your business service
+
+For synchronous decisions, start the [Go example](https://github.com/WuKongIM/WuKongIM/tree/main/docs-site/examples/go-webhook) from the repository root. It needs Go 1.22+ and no SDK or database:
+
+```bash
+cd docs-site/examples/go-webhook
+go run .
+```
+
+For asynchronous notifications, implement a receiver that validates the source, parses `event`, and durably deduplicates accepted events before returning HTTP `200`.
+
+**Callbacks have no built-in signature or shared-secret header.** Establish trust through HTTPS and a private network, service mesh, or protected proxy. Client Token authentication does not authenticate callback requests.
+
+The Go example listens only on same-host loopback. In another host or container, `127.0.0.1` refers to that environment; use a reachable trusted endpoint.
+
+<details>
+  <summary>Before-send configuration, payload, and failure policy</summary>
 
 `msg.before_send` runs synchronously after permission checks and Send plugins, before message submission. It defaults to disabled and is independent of asynchronous Webhook `http_addr`, `focus_events`, and plugin enablement. Configure every sending ingress node consistently; changes require a restart.
 
@@ -65,16 +103,56 @@ Client retries may repeat callbacks. Deduplicate by sender, source channel, and 
 
 Monitor `wukongim_webhook_before_send_total{result}` and `wukongim_webhook_before_send_duration_seconds{result}` for `allow`, `reject`, `timeout_allow`, `timeout_deny`, `error_allow`, `error_deny`, `overloaded`, `invalid_request`, and `canceled`. Labels contain no UID, channel, endpoint, or message content. The client sets only Content-Type, with no built-in signature or authentication header; establish callback trust through a controlled network or proxy.
 
-## Run the Go business callback example
+</details>
 
-The repository includes a [complete Go example](https://github.com/WuKongIM/WuKongIM/tree/main/docs-site/examples/go-webhook) using only the Go 1.22+ standard library. It is a separate business HTTP service with no SDK or database dependency. You can also copy `main.go` elsewhere and run `go run main.go`.
+<details>
+  <summary>Asynchronous notification configuration</summary>
 
-Start from a source checkout containing this feature:
+Configure `wukongim.toml`:
 
-```bash
-cd docs-site/examples/go-webhook
-go run .
+```toml
+[webhook]
+http_addr = "https://events.example.com/wukongim"
+focus_events = ["msg.notify", "msg.offline", "user.onlinestatus"]
+queue_size = 1024
+workers = 16
+request_timeout = "5s"
+retry_max_attempts = 3
 ```
+
+The server puts the event name in the query string:
+
+```text
+POST https://events.example.com/wukongim?event=msg.notify
+Content-Type: application/json
+```
+
+Only HTTP 200 is success. Connection errors, timeouts, and other status codes receive a finite number of attempts within the current in-memory job.
+
+</details>
+
+## 3. Verify the result
+
+Restart the single-node cluster or all ingress nodes after changing callback configuration; keep production settings consistent across nodes.
+
+Send these three texts through the Go before-send example:
+
+| Text | Expected result |
+| --- | --- |
+| `hello` | Allow unchanged; reception matches history |
+| `[replace] hello` | Receive `Reviewed: hello`; history stores the replacement |
+| `[reject] hello` | Send `reason=200`; no history row for the denied message |
+
+For async notifications, commit a test message and verify receipt plus HTTP `200`; confirm business processing separately. Consume duplicates idempotently and test bounded retries and event-loss behavior when the receiver fails.
+
+**Inspect the send result as well as reception and history.** The example's rejection code `200` is a send reason, not an HTTP status. Before-send timeout and error policies default to `deny`; retries may repeat callbacks, so retain the same sender/source/`client_msg_no` identity.
+
+<Callout type="warn" title="Webhook delivery is bounded and best effort">
+  Queue saturation, process exit, request cancellation, or retry exhaustion can lose an event. The current runtime has no disk-backed webhook outbox or crash replay. A webhook failure does not change an already-successful SENDACK or durable append.
+</Callout>
+
+<details>
+  <summary>Go example requests, replacement rules, and customization</summary>
 
 The default endpoint is `http://127.0.0.1:8090/webhook`. Change the port with `go run . -addr 127.0.0.1:8091`; stop with Ctrl+C. First try the callback from another terminal:
 
@@ -110,47 +188,10 @@ Customize `evaluate` in `main.go`. Its current rules have no side effects or cac
 
 The example accepts only loopback bind addresses for processes on the same host. `127.0.0.1` inside another host or container refers to that host or container; remote use needs a reachable trusted proxy and source authentication. Client Token authentication and business callback authentication are separate boundaries.
 
-## Validate before-send callbacks on your computer
+</details>
 
-Run from a source checkout containing this feature, with the Go toolchain required by `go.mod`. The test builds the current source and starts three real server processes plus a controllable callback on a loopback address. Docker, cloud servers, and an external Webhook URL are not required.
-
-```bash
-GOWORK=off go test -tags=e2e ./test/e2e/message/webhook \
-  -run '^TestBeforeSendWebhookAuthenticatedFaults$' -count=1 -timeout 2m -p=1 -v
-```
-
-This scenario enables client Token authentication and uses 256 hash slots, two Slot replicas, and two concurrent callbacks per node. The callback timeout is three seconds. Nodes intentionally use different failure policies to check denial, timeout-open, and error-open behavior separately; actual deployments must configure nodes consistently.
-
-The test checks authentication, allowance, Payload replacement, business denial, a 100 ms slow response, timeout, HTTP 503, malformed JSON, redirects, and connection failure. With both callback slots occupied on one node, 16 additional sends must reject without invoking the callback. Another node must remain available, and the saturated node must recover after release. Received content must match committed history, denied messages must be absent, and callback counts and public metric deltas must match the decisions.
-
-Verbose output records send latency, peak callback concurrency, and before/after heap and goroutine snapshots. If the platform lacks the process CPU metric, it reports `unavailable`. These observations describe a finite fault scenario, not throughput capacity, latency percentiles, or long-term memory stability. The test stops its processes and removes temporary data on completion.
-
-The callback uses test rules and does not validate your business logic or Webhook signature authentication. Repeat the allow, replace, reject, and failure-policy cases against your actual business service when it is available.
-
-## Enable asynchronous notifications webhooks
-
-Configure `wukongim.toml`:
-
-```toml
-[webhook]
-http_addr = "https://events.example.com/wukongim"
-focus_events = ["msg.notify", "msg.offline", "user.onlinestatus"]
-queue_size = 1024
-workers = 16
-request_timeout = "5s"
-retry_max_attempts = 3
-```
-
-The server puts the event name in the query string:
-
-```text
-POST https://events.example.com/wukongim?event=msg.notify
-Content-Type: application/json
-```
-
-Only HTTP 200 is success. Connection errors, timeouts, and other status codes receive a finite number of attempts within the current in-memory job.
-
-## Supported events
+<details>
+  <summary>Event payloads and online-status parsing</summary>
 
 | Event | Request body | Typical use |
 | --- | --- | --- |
@@ -190,11 +231,10 @@ Each `user.onlinestatus` item has this form:
 
 The counts cover active sessions on the UID owner's current node only. They are not cluster-global presence and the event stream is neither complete nor ordered. A UID may contain `-`; parse the final five numeric fields from the right and treat the remaining prefix as the UID.
 
-## Asynchronous notification reliability
+</details>
 
-<Callout type="warn" title="Webhook delivery is bounded and best effort">
-  Queue saturation, process exit, request cancellation, or retry exhaustion can lose an event. The current runtime has no disk-backed webhook outbox or crash replay. A webhook failure does not change an already-successful SENDACK or durable append.
-</Callout>
+<details>
+  <summary>Receiver persistence and idempotency flow</summary>
 
 Recommended receiver flow:
 
@@ -218,7 +258,10 @@ Suggested idempotency keys:
 - `msg.offline`: `event + message_id + uid`, deduplicated per recipient;
 - `user.onlinestatus`: deduplicate the complete string and treat it only as a local-session hint, never global online truth.
 
-## Security
+</details>
+
+<details>
+  <summary>Production source authentication</summary>
 
 The current HTTP sender sets only `Content-Type: application/json`; it **does not add a signature or shared-secret header**. Build a trusted boundary around it in production:
 
@@ -229,7 +272,10 @@ The current HTTP sender sets only `Content-Type: application/json`; it **does no
 - never expose the callback as an anonymous public write endpoint;
 - avoid logging complete sensitive payloads.
 
-## Capacity and failure handling
+</details>
+
+<details>
+  <summary>Queue limits, metrics, and failure handling</summary>
 
 - `queue_size` is the bounded in-memory capacity for each event queue.
 - `workers` controls concurrent sends per event queue.
@@ -238,3 +284,27 @@ The current HTTP sender sets only `Content-Type: application/json`; it **does no
 - `retry_max_attempts` is the total number of attempts, not additional retries after the first.
 
 If the receiver fails continuously, repair or isolate it instead of growing WuKongIM's memory queues without bound. Critical product state must remain reconstructable from the product database or message history.
+
+</details>
+
+<details>
+  <summary>Optional source fault test</summary>
+
+Run from a source checkout containing this feature, with the Go toolchain required by `go.mod`. The test builds the current source and starts three real server processes plus a controllable callback on a loopback address. Docker, cloud servers, and an external Webhook URL are not required.
+
+```bash
+GOWORK=off go test -tags=e2e ./test/e2e/message/webhook \
+  -run '^TestBeforeSendWebhookAuthenticatedFaults$' -count=1 -timeout 2m -p=1 -v
+```
+
+This scenario enables client Token authentication and uses 256 hash slots, two Slot replicas, and two concurrent callbacks per node. The callback timeout is three seconds. Nodes intentionally use different failure policies to check denial, timeout-open, and error-open behavior separately; actual deployments must configure nodes consistently.
+
+The test checks authentication, allowance, Payload replacement, business denial, a 100 ms slow response, timeout, HTTP 503, malformed JSON, redirects, and connection failure. With both callback slots occupied on one node, 16 additional sends must reject without invoking the callback. Another node must remain available, and the saturated node must recover after release. Received content must match committed history, denied messages must be absent, and callback counts and public metric deltas must match the decisions.
+
+Verbose output records send latency, peak callback concurrency, and before/after heap and goroutine snapshots. If the platform lacks the process CPU metric, it reports `unavailable`. These observations describe a finite fault scenario, not throughput capacity, latency percentiles, or long-term memory stability. The test stops its processes and removes temporary data on completion.
+
+The callback uses test rules and does not validate your business logic or Webhook signature authentication. Repeat the allow, replace, reject, and failure-policy cases against your actual business service when it is available.
+
+</details>
+
+Next: [release checks](/en/guide/integration/acceptance). Look up [event payloads](/en/api/webhooks/payloads) and [reliability boundaries](/en/api/webhooks/reliability-and-security) when implementing your receiver.

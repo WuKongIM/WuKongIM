@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Make bilingual Webhook, direct-chat, and group tutorials easier to follow with compact task diagrams, verified chat/recovery captures, explicit expected results, and expandable code and large-group details; keep callback trust, event loss, and partial membership changes visible. / 中英文 Webhook、单聊与群聊教程新增简洁步骤图、实测收发与恢复截图、预期结果和可展开代码，大群说明按需查看，回调信任、事件丢失和成员部分完成等关键限制保持可见。
+
 - Simplify bilingual authentication, messaging, and release checks with illustrated steps and SDK-specific recovery criteria; document backend-owned token expiry and align OpenAPI with all 48 Product HTTP operations, including four send-ban endpoints. / 精简中英文身份认证、消息收发与上线检查，采用图示步骤并按 SDK 验收恢复能力；明确 Token 有效期由业务后端管理，OpenAPI 补齐四个禁言接口，与全部 48 个 Product HTTP 操作对齐。
 
 - Illustrate bilingual Channel and Conversation concepts, shorten the Web EasySDK tutorial with expandable code and verified example captures, and add a three-step Manager guide that distinguishes logical Slots from 256 Hash Slots. / 中英文频道与会话增加概念图，Web EasySDK 教程采用可展开代码与实测截图，Manager 改为三步图文并区分逻辑 Slot 与 256 个 Hash Slot。

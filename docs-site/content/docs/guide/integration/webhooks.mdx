@@ -1,11 +1,49 @@
 ---
 title: Webhook
-description: 安全、幂等地消费消息和在线状态事件。
+description: 三步选择回调、接入业务服务并核对结果，配置与完整示例按需展开。
 ---
 
-Webhook 支持发送前的同步业务决策，以及已提交消息、离线接收者和在线状态变化的异步通知。业务端通过 HTTP 接收回调。
+目标：发送前由业务决定放行、修改或拒绝；消息提交后由业务接收异步通知。
 
-## 发送前业务回调
+## 1. 选择回调类型
+
+| 回调 | 用途与结果 |
+| --- | --- |
+| 发送前<br/>`msg.before_send` | 提交前放行、改写或拒绝，返回明确 JSON 决定 |
+| 异步通知 | 消费已提交消息或状态事件；HTTP `200` 确认回调请求 |
+
+以默认持久消息为例，顺序如下：
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  send["发送尝试"] --> before["发送前回调（可选）<br/>放行 / 修改 / 拒绝"]
+  before -->|放行| commit["消息持久化提交"]
+  commit --> notify["异步通知（可选）<br/>业务独立处理"]
+```
+
+</div>
+
+**发送前放行不代表消息已提交。** 明确拒绝会阻止提交；异步通知失败不会撤销已提交消息。
+
+## 2. 接入业务服务
+
+同步决策可先运行[完整 Go 示例](https://github.com/WuKongIM/WuKongIM/tree/main/docs-site/examples/go-webhook)。从仓库根目录启动，需要 Go 1.22+，无需 SDK 或数据库：
+
+```bash
+cd docs-site/examples/go-webhook
+go run .
+```
+
+异步通知则由业务实现接收端：验证来源、解析 `event`，对已收到的事件持久化去重后返回 HTTP `200`。
+
+**回调没有内置签名或共享密钥 Header。** 先通过 HTTPS、私网、服务网格或受保护代理建立来源信任；客户端 Token 鉴权不等于业务回调鉴权。
+
+Go 示例只监听同机回环地址。另一主机或容器里的 `127.0.0.1` 指向它自身；跨环境接入需使用可达的可信端点。
+
+<details>
+  <summary>发送前回调：配置、Payload 与失败策略</summary>
 
 `msg.before_send` 是同步回调，在权限检查和 Send 插件之后、消息提交之前执行。默认关闭；独立于异步 Webhook 的 `http_addr`、`focus_events` 和插件开关。各发送入口节点必须部署一致配置，重启后生效。
 
@@ -65,16 +103,56 @@ Content-Type: application/json
 
 监控 `wukongim_webhook_before_send_total{result}` 和 `wukongim_webhook_before_send_duration_seconds{result}`，区分 `allow`、`reject`、`timeout_allow`、`timeout_deny`、`error_allow`、`error_deny`、`overloaded`、`invalid_request`、`canceled`。指标不包含 UID、频道、回调地址或消息内容。当前只发送 Content-Type，无内置签名或鉴权头；应通过受控网络或代理建立业务端对回调来源的信任。
 
-## 运行 Go 业务回调示例
+</details>
 
-仓库提供[完整 Go 示例](https://github.com/WuKongIM/WuKongIM/tree/main/docs-site/examples/go-webhook)，只依赖 Go 1.22+ 标准库。它是独立的业务 HTTP 服务，不需要 SDK 或数据库；也可以单独复制 `main.go` 后执行 `go run main.go`。
+<details>
+  <summary>异步通知：配置与成功响应</summary>
 
-从包含此功能的源码仓库根目录启动：
+在 `wukongim.toml` 中配置：
 
-```bash
-cd docs-site/examples/go-webhook
-go run .
+```toml
+[webhook]
+http_addr = "https://events.example.com/wukongim"
+focus_events = ["msg.notify", "msg.offline", "user.onlinestatus"]
+queue_size = 1024
+workers = 16
+request_timeout = "5s"
+retry_max_attempts = 3
 ```
+
+服务端会把事件名放在查询参数中：
+
+```text
+POST https://events.example.com/wukongim?event=msg.notify
+Content-Type: application/json
+```
+
+只有 HTTP 200 被视为成功。连接错误、超时或其他状态码会在本次内存任务中有限重试。
+
+</details>
+
+## 3. 核对实际结果
+
+修改回调配置后，重启单节点集群或所有发送入口节点；生产环境各节点保持一致。
+
+Go 发送前示例分别发送以下三种文本：
+
+| 发送内容 | 预期结果 |
+| --- | --- |
+| `hello` | 原样放行，接收与历史内容一致 |
+| `[replace] hello` | 收到 `Reviewed: hello`，历史保存改写内容 |
+| `[reject] hello` | 发送 `reason=200`，拒绝消息不进入历史 |
+
+异步通知：提交一条测试消息，确认接收端得到事件并返回 HTTP `200`；业务处理结果另行核对。重复事件应幂等消费，接收端失败时核对有限重试与丢失边界。
+
+**发送结果、对端接收和历史记录分别检查。** 示例拒绝码 `200` 是发送原因码，与 HTTP 状态码无关。发送前超时与错误默认 `deny`；重试可能重复回调，保留相同发送者、源频道和 `client_msg_no`。
+
+<Callout type="warn" title="Webhook 是有界、尽力而为的">
+  队列满、进程退出、请求取消或重试耗尽都可能丢失事件。当前运行时没有磁盘级 Webhook Outbox 或崩溃重放。Webhook 失败不会影响已经成功的 SENDACK 和消息持久化。
+</Callout>
+
+<details>
+  <summary>Go 示例：请求、改写规则与自定义</summary>
 
 默认地址是 `http://127.0.0.1:8090/webhook`。可用 `go run . -addr 127.0.0.1:8091` 修改端口；按 Ctrl+C 停止。先在另一个终端验证回调：
 
@@ -110,47 +188,10 @@ max_in_flight = 64
 
 此示例仅接受回环监听地址，用于同机进程联调。其他主机或容器中的 `127.0.0.1` 指向它们自身；跨主机接入需要可达的可信代理及来源鉴权。客户端 Token 鉴权与业务回调鉴权是两件事。
 
-## 在本机验证发送前回调
+</details>
 
-从包含此功能的源码仓库根目录运行，需要 `go.mod` 指定的 Go 工具链。测试会构建当前源码，自动启动真实三节点集群和回环地址上的可控回调服务；无需 Docker、云服务器或外部 Webhook 地址。
-
-```bash
-GOWORK=off go test -tags=e2e ./test/e2e/message/webhook \
-  -run '^TestBeforeSendWebhookAuthenticatedFaults$' -count=1 -timeout 2m -p=1 -v
-```
-
-此场景启用客户端 Token 鉴权，使用 256 个 Hash Slot、2 个 Slot 副本和每节点 2 个回调并发。回调超时为 3 秒；三节点故意使用不同失败策略，逐项验证 `deny`、超时放行和错误放行。实际部署应保持各节点配置一致。
-
-测试核对客户端鉴权、放行、Payload 替换、业务拒绝、100 ms 慢响应、超时、HTTP 503、无效 JSON、重定向和连接失败。占满一个节点的两个回调名额后，16 次额外发送必须被拒绝且不能进入回调；其他节点仍可发送，释放后原节点也应恢复。成功消息的接收内容与历史记录必须一致，拒绝消息不能进入历史，回调次数与公开指标增量必须符合预期。
-
-`-v` 输出发送延迟、回调并发峰值及测试前后的堆内存和 goroutine 快照。若平台没有进程 CPU 指标，会输出 `unavailable`。这些是有限故障场景的观察值，不是吞吐容量、延迟分位数或长期内存稳定性结论。测试结束会停止进程并清理临时数据。
-
-本机回调使用测试规则，不验证实际业务逻辑，也不验证 Webhook 签名鉴权。接入真实业务服务后，应复用放行、修改、拒绝和失败策略用例验收。
-
-## 启用异步通知
-
-在 `wukongim.toml` 中配置：
-
-```toml
-[webhook]
-http_addr = "https://events.example.com/wukongim"
-focus_events = ["msg.notify", "msg.offline", "user.onlinestatus"]
-queue_size = 1024
-workers = 16
-request_timeout = "5s"
-retry_max_attempts = 3
-```
-
-服务端会把事件名放在查询参数中：
-
-```text
-POST https://events.example.com/wukongim?event=msg.notify
-Content-Type: application/json
-```
-
-只有 HTTP 200 被视为成功。连接错误、超时或其他状态码会在本次内存任务中有限重试。
-
-## 支持的事件
+<details>
+  <summary>事件 Payload 与在线状态解析</summary>
 
 | 事件 | 请求体 | 用途 |
 | --- | --- | --- |
@@ -190,11 +231,10 @@ JSON 中的 `payload` 是 Base64。`msg.offline` 在 UID 数量较小时使用 `
 
 这些计数只来自 UID Owner 当前节点上的活跃 Session，不是集群全局 Presence，也不保证事件完整或有序。UID 可以含 `-`；需要解析时从右侧取最后五个数字段，其余前缀才是 UID。
 
-## 异步通知的可靠性边界
+</details>
 
-<Callout type="warn" title="Webhook 是有界、尽力而为的">
-  队列满、进程退出、请求取消或重试耗尽都可能丢失事件。当前运行时没有磁盘级 Webhook Outbox 或崩溃重放。Webhook 失败不会影响已经成功的 SENDACK 和消息持久化。
-</Callout>
+<details>
+  <summary>接收端持久化与幂等流程</summary>
 
 推荐的接收端流程：
 
@@ -218,7 +258,10 @@ flowchart TD
 - `msg.offline`：`event + message_id + uid`，逐个接收者去重；
 - `user.onlinestatus`：按完整字符串去重，仅作为本地会话提示；不要据此构建全局在线真值。
 
-## 安全
+</details>
+
+<details>
+  <summary>生产来源鉴权</summary>
 
 当前 HTTP Sender 只设置 `Content-Type: application/json`，**不会添加签名或共享密钥 Header**。生产环境必须在它之外建立可信边界：
 
@@ -229,7 +272,10 @@ flowchart TD
 - 不把回调端点暴露为匿名公网写入口；
 - 不在日志中记录完整敏感 Payload。
 
-## 容量与失败处理
+</details>
+
+<details>
+  <summary>队列上限、指标与失败处理</summary>
 
 - `queue_size` 是每类事件内存队列的有界容量。
 - `workers` 控制每类队列并发发送数。
@@ -238,3 +284,27 @@ flowchart TD
 - `retry_max_attempts` 是总尝试次数，不是首次之后的额外次数。
 
 接收端持续失败时，应先修复或隔离接收端，而不是无限增大 WuKongIM 内存队列。关键业务数据应能从业务数据库或消息历史重新构建。
+
+</details>
+
+<details>
+  <summary>源码故障测试（可选）</summary>
+
+从包含此功能的源码仓库根目录运行，需要 `go.mod` 指定的 Go 工具链。测试会构建当前源码，自动启动真实三节点集群和回环地址上的可控回调服务；无需 Docker、云服务器或外部 Webhook 地址。
+
+```bash
+GOWORK=off go test -tags=e2e ./test/e2e/message/webhook \
+  -run '^TestBeforeSendWebhookAuthenticatedFaults$' -count=1 -timeout 2m -p=1 -v
+```
+
+此场景启用客户端 Token 鉴权，使用 256 个 Hash Slot、2 个 Slot 副本和每节点 2 个回调并发。回调超时为 3 秒；三节点故意使用不同失败策略，逐项验证 `deny`、超时放行和错误放行。实际部署应保持各节点配置一致。
+
+测试核对客户端鉴权、放行、Payload 替换、业务拒绝、100 ms 慢响应、超时、HTTP 503、无效 JSON、重定向和连接失败。占满一个节点的两个回调名额后，16 次额外发送必须被拒绝且不能进入回调；其他节点仍可发送，释放后原节点也应恢复。成功消息的接收内容与历史记录必须一致，拒绝消息不能进入历史，回调次数与公开指标增量必须符合预期。
+
+`-v` 输出发送延迟、回调并发峰值及测试前后的堆内存和 goroutine 快照。若平台没有进程 CPU 指标，会输出 `unavailable`。这些是有限故障场景的观察值，不是吞吐容量、延迟分位数或长期内存稳定性结论。测试结束会停止进程并清理临时数据。
+
+本机回调使用测试规则，不验证实际业务逻辑，也不验证 Webhook 签名鉴权。接入真实业务服务后，应复用放行、修改、拒绝和失败策略用例验收。
+
+</details>
+
+下一步：[上线检查](/zh/guide/integration/acceptance)。实现接收端时查阅[事件 Payload](/zh/api/webhooks/payloads)与[可靠性边界](/zh/api/webhooks/reliability-and-security)。

@@ -1,11 +1,35 @@
 ---
 title: Groups & Large Groups
-description: Implement a group Channel, membership reconciliation, group messages, churn, and 100,000-member workload boundaries.
+description: Verify a three-member group in four steps; expand membership and large-group details when needed.
 ---
 
-This tutorial creates an ordinary group first, then scales the same model to 100,000 members. The product system always owns group profiles, roles, invitation approval, moderation, content governance, and the membership database. WuKongIM stores the Channel members needed for permission checks and delivery, along with ordered Channel message history.
+Goal: Alice sends to `team-42`, Bob and Carol each receive it, then you verify the leave boundary.
 
-## 1. Create a group Channel
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  create["1. Create team-42<br/>Alice, Bob, Carol"] --> send["2. Alice sends<br/>group ID, type = 2"]
+  send --> receive["3. Bob + Carol receive"]
+  receive --> leave["4. Remove Carol<br/>check sends + delivery"]
+```
+
+</div>
+
+## 1. Prepare the three-member group
+
+Connect Alice, Bob, and Carol in independent clients with credentials from your backend. The backend creates stable group ID `team-42` with all three as ordinary subscribers.
+
+Your product owns profiles, roles, approvals, moderation, and the membership database. **Membership and send HTTP routes belong behind a trusted backend:** clients call your business API, which checks roles before changing WuKongIM state.
+
+**Check:** verify the exact three members through the authenticated, paginated [Manager](/en/server/operations/manager) subscriber query.
+
+<Callout type="warn" title="Reset replaces members; requests can partially complete">
+  `reset=1` replaces the old member list. Use it for a fresh test group or a confirmed desired snapshot. Metadata writes, removal, insertion, and large-group refresh are not one transaction; after failure, retain successful progress and reconcile from the business snapshot.
+</Callout>
+
+<details>
+  <summary>Create the group: complete backend request</summary>
 
 Choose a stable, non-recycled product group ID such as `team-42`. Create the Channel from a trusted service network and verify it with a small initial member set:
 
@@ -22,29 +46,16 @@ curl -sS http://127.0.0.1:5001/channel \
 
 The compatible success response is `{"status":200}`. `channel_type=2` identifies a group Channel. This subscriber list does not replace the product membership database; the server uses it for messaging permission, synchronization, and delivery.
 
-<Callout type="warn" title="Membership routes are a trusted control plane">
-  Current product HTTP routes have no general product authentication. End users should call your product API first; the product service validates roles and approval policy before mutating WuKongIM membership.
-</Callout>
+</details>
 
-## 2. Reconcile membership changes
+## 2. Send to the group ID
 
-Add members:
+Alice uses `channel_id=team-42`, `channel_type=2`, a stable `client_msg_no`, and the SDK text format. The sender must satisfy current membership and send permissions.
 
-```bash
-curl -sS http://127.0.0.1:5001/channel/subscriber_add \
-  -H 'Content-Type: application/json' \
-  -d '{"channel_id":"team-42","channel_type":2,"subscribers":["dave","erin"]}'
-```
+**Check:** SENDACK or HTTP `reason=1` confirms the default message's durable commit. It does not prove reception by every member or completion of conversation synchronization.
 
-Use `/channel/subscriber_remove` with the same request shape to remove members. Membership changes are de-duplicated and update each user's Channel relationship. The product service still needs the desired member list, version, and operation log so it can reconcile and compensate from successful progress after a failure.
-
-<Callout type="warn" title="A single request can partially complete">
-  `/channel` and subscriber add with `reset=1` execute metadata write, old-member removal, chunked insertion, and `large` refresh in sequence; list set also removes before adding. These stages are not transactional. After a timeout or error, replay the product membership snapshot as desired state instead of assuming that none of the request took effect.
-</Callout>
-
-Product HTTP has no symmetric read route for ordinary subscribers, the denylist, or temporary subscribers. For strict verification, use the authenticated Manager `GET /manager/channels/:channel_type/:channel_id/subscribers` bounded paging query. Product HTTP can read the allowlist, but that legacy route returns the whole list at once and is unsuitable for large-group inspection.
-
-## 3. Send and verify a group message
+<details>
+  <summary>Backend send and history query</summary>
 
 The sender must satisfy current group permission and membership policy. A client SDK uses `channel_id=team-42` and `channel_type=2`; a trusted server-side example is:
 
@@ -87,13 +98,65 @@ curl -sS http://127.0.0.1:5001/channel/messagesync \
 
 `message_seq` defines one order inside the group. Member online delivery, RECVACK, unread state, and reconnect recovery remain separate observations.
 
-## 4. Verify the leave boundary
+</details>
+
+## 3. Check both receivers
+
+| Client | Expected result |
+| --- | --- |
+| Bob | Receives `hello team`, shown once |
+| Carol | Independently receives the same text, shown once |
+| Reconnected receiver | Missing persistent messages recover through full-SDK sync or your backend history path |
+
+`message_seq` orders this group only. Online delivery, RECVACK, unread, and recovery are separate checks; EasySDK does not automatically supply offline history or conversation recovery.
+
+## 4. Verify removal
+
+Commit the product membership decision, then remove Carol through the trusted subscriber route. Retain the operation result and reconcile partial failure. After the change converges, verify Carol's later send permissions and delivery behavior against your product policy.
+
+**Check:** removal does not erase committed history or client caches. Define former-member history visibility and the starting point on rejoin.
+
+<details>
+  <summary>Remove Carol: complete backend request</summary>
+
+```bash
+curl -sS http://127.0.0.1:5001/channel/subscriber_remove \
+  -H 'Content-Type: application/json' \
+  -d '{"channel_id":"team-42","channel_type":2,"subscribers":["carol"]}'
+```
+
+</details>
+
+<details>
+  <summary>Add members and verify the desired membership</summary>
+
+Add members:
+
+```bash
+curl -sS http://127.0.0.1:5001/channel/subscriber_add \
+  -H 'Content-Type: application/json' \
+  -d '{"channel_id":"team-42","channel_type":2,"subscribers":["dave","erin"]}'
+```
+
+Use `/channel/subscriber_remove` with the same request shape to remove members. Membership changes are de-duplicated and update each user's Channel relationship. The product service still needs the desired member list, version, and operation log so it can reconcile and compensate from successful progress after a failure.
+
+
+
+Product HTTP has no symmetric read route for ordinary subscribers, the denylist, or temporary subscribers. For strict verification, use the authenticated Manager `GET /manager/channels/:channel_type/:channel_id/subscribers` bounded paging query. Product HTTP can read the allowlist, but that legacy route returns the whole list at once and is unsuitable for large-group inspection.
+
+</details>
+
+<details>
+  <summary>Leave and rejoin policy</summary>
 
 The product service commits its membership decision, calls the trusted subscriber-removal route, and records a retryable task. Removal affects later permission and delivery plans, but it does not delete the existing Channel log or automatically define product database, client-cache, and historical-conversation policy.
 
 Decide which historical sequence a former member may view, whether local records are removed, and where a returning member resumes. Those product rules cannot be inferred solely from “the subscriber row is gone.”
 
-## Scale to 100,000 members
+</details>
+
+<details>
+  <summary>Advanced: reconcile 100,000 members in bounded batches</summary>
 
 Do not place 100,000 UIDs into one `/channel` or `subscriber_add` JSON request. Use a product-owned coordinator:
 
@@ -113,7 +176,10 @@ flowchart TD
 - After a large-group message is committed, the server pages through members, resolves online devices, and dispatches by destination node. Channel history retains one message instead of separate logs for all 100,000 members.
 - SENDACK confirms durable commit without waiting for delivery to every receiving device. If the product needs “everyone processed it,” build a separate business acknowledgement and aggregation flow.
 
-## Capacity validation
+</details>
+
+<details>
+  <summary>Advanced: capacity validation</summary>
 
 Before launch, measure separately:
 
@@ -124,3 +190,7 @@ Before launch, measure separately:
 5. CPU, memory, disk, network, queue depth, rejection, and end-to-end tail latency.
 
 Do not infer 100,000-member capacity from average QPS alone. Continue with [Channel Concepts](/en/guide/core-concepts/channels), [Cluster Configuration](/en/server/configuration/cluster), and [Benchmark Tooling](/en/server/tools/wkbench).
+
+</details>
+
+Next: [Channel Concepts](/en/guide/core-concepts/channels) and [release checks](/en/guide/integration/acceptance). Use [Benchmark Tooling](/en/server/tools/wkbench) to measure your actual target load.
