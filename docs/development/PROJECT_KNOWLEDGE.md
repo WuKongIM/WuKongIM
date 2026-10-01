@@ -777,6 +777,15 @@ specification, runbook, report, or module documentation; link to them when neede
   races. The latter retains the 750ms page limit with a separate 60s completion
   observation; one receipt takes 41.631s. No latency SLO, delayed uncommitted
   apply or failed authority-read starvation is qualified by these cases.
+  [Proposal/commit/apply qualification](../reports/mqtt-will-raft-recovery/README.md)
+  separates queued-before-RawNode, persisted-above-quorum-commit (three-node
+  only), and committed-before-FSM Started commands. An unknown old claim grants
+  no dispatch; a definite newer Started CAS may authorize one original while
+  the old proposal remains queued. Captured-executor apply evidence and killed
+  process counter prefixes remain distinct from other replicas and restarted
+  counters. The cap-two/12-group fixture preserves 256 hash Slots; pressure is
+  exercised after delayed FSM resolution, not concurrently against an in-flight
+  older row. Direct successor cuts and failed-read fairness remain unqualified.
   [Append admission](../specs/mqtt-will-append-admission.md) adds version-2
   Admitted -> AppendIssued at the origin router before local admission or remote
   forwarding. Its trusted callback never crosses RPC or reaches accepted writers;

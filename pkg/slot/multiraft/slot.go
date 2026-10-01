@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -471,6 +472,15 @@ func (g *slot) processControls(ctx context.Context) bool {
 			g.issueReadBarrier(action.readBarrier)
 		case controlPropose:
 			action.future.observeStageSince("meta_create_slot_control_wait", nil, action.future.createdAt)
+			// Temporary-copy controls select opaque command bytes without adding
+			// product command knowledge or changing ordinary proposal admission.
+			pauseMatch := ""
+			// gofail: var wkSlotProposalPauseMatch string
+			// pauseMatch = wkSlotProposalPauseMatch
+			if pauseMatch != "" && matchesSlotFaultCommand(action.data, pauseMatch) {
+				// gofail: var wkSlotBeforeRawProposal bool
+				// _ = wkSlotBeforeRawProposal
+			}
 			if err := g.rawNode.Propose(action.data); err != nil {
 				action.future.resolveAndDispatch(Result{}, classifyRawProposalError(err, g.rawNode.BasicStatus()))
 				continue
@@ -804,6 +814,19 @@ func (g *slot) processReady(ctx context.Context, transport Transport) (bool, boo
 	if err != nil {
 		g.failPending(err)
 		return true, false
+	}
+	// A reached temporary marker proves persistence before quorum commit; it
+	// deliberately does not fire for already-committed single-node entries.
+	persistMatch := ""
+	// gofail: var wkSlotPersistedCommandMatch string
+	// persistMatch = wkSlotPersistedCommandMatch
+	if persistMatch != "" {
+		for _, entry := range ready.Entries {
+			if matchesSlotFaultCommand(entry.Data, persistMatch) && entry.Index > g.rawNode.BasicStatus().Commit {
+				// gofail: var wkSlotPersistedUncommitted bool
+				// _ = wkSlotPersistedUncommitted
+			}
+		}
 	}
 	requiresSyncApply := readyRequiresSynchronousApply(ready)
 	if requiresSyncApply {
@@ -2167,6 +2190,14 @@ func (g *slot) observeSlotProposal(fut *future) {
 	observer.ObserveSlotProposal(g.id, time.Since(fut.createdAt))
 }
 
+// matchesSlotFaultCommand accepts a temporary hex selector because gofail v0.2
+// string parsing cannot preserve escaped quotes in opaque JSON command bytes.
+// Empty ordinary selectors never invoke it. Invalid selectors match no command.
+func matchesSlotFaultCommand(data []byte, selector string) bool {
+	needle, err := hex.DecodeString(selector)
+	return err == nil && len(needle) > 0 && bytes.Contains(data, needle)
+}
+
 func wrapMessages(slotID SlotID, messages []raftpb.Message) []Envelope {
 	return wrapMessagesInto(nil, slotID, messages)
 }
@@ -2186,7 +2217,27 @@ func transportOwnsReadyMessagePayloads(transport Transport) bool {
 
 func wrapMessagesIntoWithPayloadMode(dst []Envelope, slotID SlotID, messages []raftpb.Message, clonePayloads bool) []Envelope {
 	out := dst[:0]
+	// Exact temporary command loss keeps heartbeats, voting and the ordinary
+	// Raft retry path. The empty ordinary selector adds no payload inspection.
+	dropMatch := ""
+	// gofail: var wkSlotAppendDropMatch string
+	// dropMatch = wkSlotAppendDropMatch
 	for _, msg := range messages {
+		matched := false
+		if dropMatch != "" && msg.Type == raftpb.MsgApp {
+			for _, entry := range msg.Entries {
+				if matchesSlotFaultCommand(entry.Data, dropMatch) {
+					matched = true
+					break
+				}
+			}
+		}
+		if matched {
+			// gofail: var wkSlotDroppedAppend bool
+			// if wkSlotDroppedAppend {
+			//     continue
+			// }
+		}
 		out = append(out, Envelope{
 			SlotID:  slotID,
 			Message: cloneMessage(msg, clonePayloads),

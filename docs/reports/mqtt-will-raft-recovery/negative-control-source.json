@@ -1,0 +1,9 @@
+{
+  "scope": "private generated instrumented source only; exact-current nonterminal is incorrectly treated as retired",
+  "source_directory": "/tmp/wukongim-will-raft-negative-source",
+  "source_file": "internal/usecase/mqttsession/will_attempt_reclamation.go",
+  "candidate_source_sha256": "fe0754d5dfd43a78ce8e5e70393ceaeba4915da536d97777052d20ea97951886",
+  "negative_source_sha256": "5d15cd439a123a22e196008e0292d6da9f83e3c2ca8e57a433b22be9d24a2f4b",
+  "expected_failure": "current original cannot recover after pressure erased its exact sealed proof; capacity refusal must be reached first",
+  "initial_control_disposition": "The initial >= comparison was overridden by the exact-current terminal-stage guard and did not weaken its decision; its passing run is not sensitivity evidence."
+}

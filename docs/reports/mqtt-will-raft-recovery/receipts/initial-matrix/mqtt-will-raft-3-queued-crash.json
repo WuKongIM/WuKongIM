@@ -1,0 +1,17 @@
+{
+  "connect_retries": 0,
+  "cut_node": 2,
+  "elapsed_ms": 61363,
+  "hash_slots": 256,
+  "instrumented_journal_capacity": 2,
+  "last_phase": "expired-caller-and-grant",
+  "logical_slots": 12,
+  "nodes": 3,
+  "outcome": "crash",
+  "passed": false,
+  "resubscriptions": 0,
+  "retained_terminal_node": 2,
+  "scenario": "mqtt-will-raft-recovery",
+  "state": "queued",
+  "state_cut_reached": true
+}

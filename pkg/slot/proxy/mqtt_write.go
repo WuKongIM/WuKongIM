@@ -245,6 +245,12 @@ func (s *Store) CompareAndSwapMQTTWill(ctx context.Context, expected uint64, row
 	if err != nil {
 		return out, err
 	}
+	// Capture the originating executor before submission, separately from a
+	// follower's committed apply. This does not assert a successful proposal.
+	if row.Stage == metadb.MQTTWillExecuting && row.DispatchStage == metadb.MQTTWillDispatchStarted && row.ExecutionGeneration == 1 {
+		// gofail: var wkMQTTWillBeforeStartedCAS bool
+		// _ = wkMQTTWillBeforeStartedCAS
+	}
 	if err = s.proposeMQTT(ctx, key, cmd, &out); err == nil {
 		err = validateMQTTCASResult(out.Status, out.CurrentRevision, expected)
 	}

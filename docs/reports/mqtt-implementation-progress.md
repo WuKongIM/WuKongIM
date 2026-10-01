@@ -129,6 +129,23 @@ Delayed uncommitted Raft apply, failed authority-read starvation, complete termi
 unknown-effect recovery, partitions and shared-storage admission remain open.
 This extends the Started slice without claiming complete MQTT.
 
+[Proposal/commit/apply recovery](mqtt-will-raft-recovery/README.md) separates
+queued-before-RawNode, genuinely persisted uncommitted replication (three-node
+only), and committed-before-FSM Started commands. All ten delivered-fixture
+late/crash cases now have passing evidence: the full run passes nine in 758.215s,
+with one startup-only readiness failure; that exact case passes unchanged in
+85.454s. This is combined case coverage, not one clean full-matrix run.
+The cap-two journal retains terminal/current attempts across 12 logical groups
+and 256 hash Slots. Delayed-resolution pressure proves actual full refusal and
+current recovery. Three-node queued takeover separately proves a real definite
+successor CAS and preserves unfinished original PacketID/identity/DUP through
+persistent reconnect. Corrected private unsafe-reclamation controls fail the
+original business receipt after real refusal; earlier ineffective controls and
+failed fixtures remain disclosed. Ordinary Will, focused race and FLOW gates
+pass. Product changes are inert temporary controls; direct successor-CAS cuts,
+independent pressure against in-flight older rows, failed-read fairness,
+issued-effect terminal recovery and shared-storage admission remain open.
+
 Historical sections below record the narrower evidence available at each step.
 
 ## Frozen starting context

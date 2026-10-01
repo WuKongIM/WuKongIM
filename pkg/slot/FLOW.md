@@ -51,7 +51,7 @@ plugin, migration, message projections, and MQTT session state.
    advances task and runtime metadata together through guarded phases.
 4. Bounded/versioned MQTT commands persist Session children, sources and Will.
    Overflow and Session/Will lifecycle update state atomically; ACK preserves gaps;
-   tombstones fence stale work. Rows/indexes/applied progress retain exact receipts. Temporary-copy gofail controls can delay applied Will CAS replies; ordinary proposals stay unchanged.
+   tombstones fence stale work. Rows/indexes/applied progress retain exact receipts. Temporary-copy gofail controls select opaque proposals before RawNode, observe persisted uncommitted entries, lose matched MsgApp batches, pause Started before FSM mutation, or delay applied Will CAS replies; ordinary proposals stay unchanged.
    Command 75 routes bounded ended-Session child reclamation and its durable completion witness; command 76 resumes a 64-row historical index build, and read kind 23 rejects uncertified coverage. Isolation/scheduling remain caller work. Command 72 preserves optional Will preparation phases/frozen bodies within 320 KiB. Authentication, owner isolation and publication execution remain caller work.
    The distributed facade hashes a versioned namespace/ClientID tuple for Session
    children; source bindings retain ordinary Channel-ID/UID routing. RPC 91 uses

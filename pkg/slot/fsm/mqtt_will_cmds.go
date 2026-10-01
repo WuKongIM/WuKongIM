@@ -29,6 +29,12 @@ type mqttWillCASCmd struct {
 }
 
 func (c *mqttWillCASCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
+	// This temporary-copy cut runs only after Raft commit and before any
+	// Started mutation is staged; an ordinary build has no pause or dependency.
+	if c.payload.Will.Stage == metadb.MQTTWillExecuting && c.payload.Will.DispatchStage == metadb.MQTTWillDispatchStarted && c.payload.Will.ExecutionGeneration == 1 {
+		// gofail: var wkMQTTWillBeforeStartedApply bool
+		// _ = wkMQTTWillBeforeStartedApply
+	}
 	var err error
 	c.result, err = wb.CompareAndSwapMQTTWill(hashSlot, c.payload.ExpectedRevision, c.payload.Will)
 	return err
