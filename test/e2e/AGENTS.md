@@ -118,3 +118,17 @@ arrivals by 5 ms so sealed cohorts actually accumulate. Require positive receive
 or ingress-cohort busy, record both scopes separately, sample both hard ownership
 bounds and drain to zero, then verify exact complete recovery history. This fault
 fixture never changes the 500 SEND/s performance gates.
+
+The opt-in `TestPermissionSequentialPrefixDiagnostics` keeps all four original
+placements in order and diagnoses only `two-slots-one-remote-leader`. Set
+`WK_E2E_PERMISSION_PREFIX_DIAGNOSTICS=1` with exactly one of the existing
+sequential timeline/profile flags, a frozen product and a report path. Profile
+mode retains 417 exact messages in that placement and 161 in the others;
+timeline mode retains 161 in every placement and queries only its 64 sequential
+requests. Existing capture, privacy, history, counts and policy bounds apply.
+`WK_E2E_PERMISSION_PROFILE_OWNERSHIP=1` additionally runs the unchanged bounded
+20-ms ingress ownership sampler only during the separate profile traffic phase,
+retaining its observations and joining it at traffic completion. Paired captures
+with that option absent diagnose the full public metrics scrape cost; they do
+not subtract overhead or replace original unprofiled p99/whole-node CPU gates.
+Missing old-product timeline stages remain independent failed coverage evidence.

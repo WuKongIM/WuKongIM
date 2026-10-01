@@ -78,6 +78,18 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 	report["request_timeline_enabled"] = timeline
 	sequentialTimeline := os.Getenv("WK_E2E_PERMISSION_TIMELINE_SEQUENTIAL") == "1"
 	sequentialProfiles := os.Getenv("WK_E2E_PERMISSION_SEQUENTIAL_PROFILES") == "1"
+	diagnosticPlacement := os.Getenv("WK_E2E_PERMISSION_DIAGNOSTIC_PLACEMENT")
+	if diagnosticPlacement == "" {
+		diagnosticPlacement = "same-slot-remote"
+	} else {
+		require.True(t, sequentialTimeline || sequentialProfiles, "placement selection is diagnostic-only")
+		require.Contains(t, []string{"same-slot-remote", "two-slots-one-remote-leader", "two-remote-leaders", "two-slots-local-leader"}, diagnosticPlacement)
+	}
+	profileOwnership := sequentialProfiles && os.Getenv("WK_E2E_PERMISSION_PROFILE_OWNERSHIP") == "1"
+	if sequentialTimeline || sequentialProfiles {
+		report["diagnostic_placement"] = diagnosticPlacement
+		report["sequential_profile_ownership_enabled"] = profileOwnership
+	}
 	require.False(t, sequentialTimeline && !timeline, "sequential timeline requires timeline mode")
 	require.False(t, sequentialProfiles && timeline, "profiles and timelines require separate fixtures")
 	report["sequential_timeline_enabled"], report["sequential_profiles_enabled"] = sequentialTimeline, sequentialProfiles
@@ -130,6 +142,7 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 		"fixtures/permission-cpu-darwin.c":       permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "fixtures/permission-cpu-darwin.c")),
 		"permission_sequential_test.go":          permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_sequential_test.go")),
 		"permission_sequential_profiles_test.go": permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_sequential_profiles_test.go")),
+		"permission_prefix_test.go":              permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_prefix_test.go")),
 	}
 	cpuProbe := os.Getenv("WK_E2E_PERMISSION_CPU_PROBE")
 	if cpuProbe != "" {
@@ -306,7 +319,7 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 				if sequentialTimeline {
 					timelineConcurrency = 1
 				}
-				if timeline && name == "same-slot-remote" && concurrency == timelineConcurrency {
+				if timeline && name == diagnosticPlacement && concurrency == timelineConcurrency {
 					var timelines []map[string]any
 					window["request_timelines"] = &timelines
 					permissionRequestTimeline(t, ctx, cluster, ingressID, acks, &timelines)
@@ -384,9 +397,21 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 				require.Positive(t, ack.Seq)
 				expected = append(expected, ack.ID)
 			}
-			if sequentialProfiles && name == "same-slot-remote" {
+			if sequentialProfiles && name == diagnosticPlacement {
 				profileAcks, profiles := permissionSequentialProfiles(ctx, cluster, path, func() []permissionBaselineAck {
-					return permissionBaselineWave(ctx, clients[:1], channel, name+"-sequential-profile", 256)
+					profileStarted := time.Now().UTC()
+					caseEvidence["sequential_profile_traffic_started_at"] = profileStarted
+					if profileOwnership {
+						sampleCtx, cancelSamples := context.WithCancel(ctx)
+						sampled := permissionCohortOwnershipSamples(sampleCtx, ingress.APIAddr())
+						defer func() {
+							cancelSamples()
+							caseEvidence["sequential_profile_ownership_samples"] = <-sampled
+						}()
+					}
+					acks := permissionBaselineWave(ctx, clients[:1], channel, name+"-sequential-profile", 256)
+					caseEvidence["sequential_profile_traffic_finished_at"] = time.Now().UTC()
+					return acks
 				})
 				caseEvidence["sequential_profile_acks"], caseEvidence["sequential_profiles"] = profileAcks, profiles
 				for _, profile := range profiles {
