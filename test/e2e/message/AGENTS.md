@@ -204,3 +204,8 @@ same-remote-leader placement. See `send_ban/AGENTS.md` for the eight-minute boun
 fixed 30-second arrivals plus two-second drain, exact 32 full scrape receipts,
 calibrated cumulative process CPU and complete history controls. Historical
 64-SEND characterization and existing 500 SEND/s gates remain independent.
+
+The separate `TestPermissionCallerFixedLoadV2` fixes the diagnostic input and
+evidence gaps with one worker/eight queued ordinals per caller, monotonic phase
+offsets, raw metrics/TOML retention and strict native CPU cut bounds. Consult
+`send_ban/AGENTS.md` for invocation; original V1/64-SEND verdicts remain unchanged.

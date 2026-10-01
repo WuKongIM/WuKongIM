@@ -432,6 +432,14 @@ specification, runbook, report, or module documentation; link to them when neede
   rejected windows, missing telemetry, OOMs, or process restarts cannot establish
   production capacity or release qualification. Keep exact source/artifact identity
   and required workload evidence; see [performance triage](PERF_TRIAGE.md).
+- Fixed-arrival diagnostics must retain every planned ordinal, including driver
+  queue residence, rejected dispatch and incomplete work. Bounded queues keep
+  transient connection occupancy from silently changing the offered population;
+  scheduled-to-completion monotonic latency still includes all queue delay.
+  Preserve actual rendered TOML and full metric bodies for independent replay,
+  normalizing only predeclared exact fixture addresses/paths. A failed same-binary
+  repeatability control prevents attributing a candidate comparison; keep failed
+  populations and original performance thresholds unchanged.
 - Mixed SEND benchmark `stage-*` and `channel-*` diagnostics subtract registry
   snapshots taken after warmup and after measured handlers complete, before
   projector drain. `ResetTimer` alone never resets Prometheus counters. These

@@ -62,6 +62,7 @@ func TestPermissionCallerCohorts(t *testing.T) {
 
 func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 	fixed := os.Getenv("WK_E2E_PERMISSION_FIXED_LOAD") == "1"
+	fixedV2 := fixed && os.Getenv("WK_E2E_PERMISSION_FIXED_LOAD_V2") == "1"
 	started := time.Now().UTC()
 	report := map[string]any{
 		"started_at": started, "nodes": 3, "hash_slots": 256, "physical_slots": 12,
@@ -85,6 +86,13 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 		report["fixed_predeclared_pair_order"] = []string{"A1", "B1", "B2", "A2", "A3", "B3"}
 		report["fixed_predeclared_run_order"] = []string{"AA1", "AA2", "A1", "B1", "B2", "A2", "A3", "B3"}
 		report["resource_scope"] = "whole owned node processes; raw cumulative CPU cuts enclose fixed 32-second window and bounded query scheduling overhead; observation/background CPU included without subtraction"
+	}
+	if fixedV2 {
+		report["fixed_load_protocol"] = "permission-fixed-load/v2"
+		report["fixed_arrival_admission"] = "one persistent worker plus eight queued FIFO ordinals per connection; scheduled-to-worker expiry is 400ms; no SEND retry/catch-up; fixed two-second drain"
+		report["fixed_observation"] = "32 complete identity ingress responses with monotonic acquisition offsets; raw bodies are fully validated and retained after CPUAfter"
+		report["fixed_latency_clock"] = "monotonic relative-to-window-start nanoseconds; UTC companions are corroborating only"
+		report["actual_cpu_cut_gap_limit_ns"] = int64(20 * time.Millisecond)
 	}
 	timeline := os.Getenv("WK_E2E_PERMISSION_TIMELINE") == "1"
 	report["request_timeline_enabled"] = timeline
@@ -153,6 +161,11 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 			"suite/metrics.go":                permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "../../suite/metrics.go")),
 		}
 	}
+	if fixedV2 {
+		for _, name := range []string{"permission_fixed_load_v2_test.go", "permission_fixed_driver_v2_test.go", "permission_fixed_config_v2_test.go", "permission_observer_cost_test.go"} {
+			report["fixed_driver_sources"].(map[string]string)[name] = permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), name))
+		}
+	}
 	cpuProbe := os.Getenv("WK_E2E_PERMISSION_CPU_PROBE")
 	if fixed {
 		require.NotEmpty(t, cpuProbe, "fixed protocol requires the original calibrated owned-process CPU probe")
@@ -179,6 +192,9 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 			"WK_CLUSTER_SLOT_REPLICA_N": "1", "WK_CLUSTER_CHANNEL_REPLICA_N": "3", "WK_GATEWAY_TOKEN_AUTH_ON": "false",
 			"WK_MESSAGE_PERMISSION_CACHE_TTL": "1h", "WK_DEBUG_API_ENABLE": "true",
 		}), suite.WithNodeEnv(id, "GOMAXPROCS=4"))
+		if fixedV2 {
+			opts = append(opts, suite.WithNodeEnv(id, "GOGC=100"))
+		}
 	}
 	cluster := suite.New(t).StartThreeNodeCluster(opts...)
 	var cpuPIDs []int
@@ -195,6 +211,9 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 		configs[node.Spec.ID] = map[string]any{"sha256": permissionBaselineHash(t, node.Spec.ConfigPath), "overrides": node.Spec.ConfigOverrides}
 	}
 	report["node_configs"] = configs
+	if fixedV2 {
+		permissionFixedV2RetainConfigs(t, cluster, path, report)
+	}
 	t.Cleanup(func() {
 		if t.Failed() {
 			t.Log(cluster.DumpDiagnostics())
@@ -294,7 +313,9 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 				before := permissionBaselineMetrics(t, ctx, cluster)
 				window["before"] = before
 				var acks []permissionBaselineAck
-				if fixed {
+				if fixedV2 {
+					acks = permissionFixedV2Window(t, ctx, cluster, ingressID, clients[:concurrency], channel, name, fmt.Sprintf("%s-c%d", name, concurrency), window, cpuPIDs, cohorts, path)
+				} else if fixed {
 					acks = permissionFixedWindow(t, ctx, cluster, ingressID, clients[:concurrency], channel, name, fmt.Sprintf("%s-c%d", name, concurrency), window, cpuPIDs, cohorts)
 				} else {
 					sampleCtx, stopSamples := context.WithCancel(ctx)

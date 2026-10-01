@@ -231,3 +231,28 @@ of 250 ms invalidates the fixed protocol. Preserve ownership bounds, all joins,
 predeclared 158-page bound and hard 200-page cap. Retain all failures and source,
 binary, config and process identities. This diagnostic supplements spec section
 11 and never changes historical 64-SEND receipts or their acceptance verdict.
+
+The separate v2 fixed-arrival diagnostic is opt-in:
+`GOMAXPROCS=4 GOGC=100 WK_E2E_PERMISSION_FIXED_LOAD_V2=1 WK_E2E_BINARY=/absolute/frozen/wukongim WK_E2E_PERMISSION_CPU_PROBE=/absolute/calibrated/permission-cpu-darwin WK_E2E_PERMISSION_FIXED_V2_REPORT=/absolute/new-v2.json GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -run '^TestPermissionCallerFixedLoadV2$/two-slots-one-remote-leader$' -count=1 -timeout=8m -p=1 -v`.
+Use a clean inherited product environment (no ambient `WK_*` settings), fixed
+Go runtime defaults and the same external product/probe pins for each pair.
+Candidate count assertions still require `WK_E2E_PERMISSION_FIXED_COHORTS=1`.
+
+V2 preserves the exact 750/14,976 arrivals and fixed 32-second CPU windows, but
+each connection has one worker and an eight-entry queued FIFO. Scheduler lateness
+of one interval, queue saturation, scheduled-to-worker delay reaching 400ms,
+failed ACKs or unfinished work fails the whole window. No retry/catch-up or
+window extension is allowed. Keep every ordinal and monotonic offered/worker/
+completion offsets. The full-population scheduled-to-completion P99 includes
+queue residence; successful-subset P99 cannot qualify a failed population.
+
+Keep actual monotonic native-query boundaries strictly below 20ms and native
+inner/outer spans in [32s,32.04s). Full-node CPU includes all background/observer
+work. Exactly 32 full identity responses retain raw bytes plus monotonic network
+offsets; full parsing, hashing and exclusive file writes occur after CPUAfter.
+Retain actual process TOML bytes and canonical copies; normalize only explicit,
+exact fixture coordinates, preserving every substantive setting. Calibration,
+ownership/fresh-read counts, ban/unban, complete history, joins and process
+cleanup remain required. Same-binary AA controls precede candidate isolation;
+failed controls prohibit causal qualification. Historical V1 and 64-SEND
+failures and the existing 500 SEND/s qualification remain independent.

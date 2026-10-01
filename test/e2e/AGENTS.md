@@ -124,3 +124,8 @@ real-process scaffold. `send_ban/AGENTS.md` records its frozen-binary command,
 eight-minute bound, exact arrival/observation counts, full response identities,
 calibrated process CPU, failure receipts and complete history. It supplements
 the historical characterization without changing its acceptance or capacity gates.
+
+The separate fixed-load v2 uses `TestPermissionCallerFixedLoadV2` and retains
+bounded caller FIFO residence, monotonic phase offsets, exact raw metrics/TOML
+and canonical config identities. See `message/send_ban/AGENTS.md`; V1 remains
+separately executable and its failures retain their original meaning.
