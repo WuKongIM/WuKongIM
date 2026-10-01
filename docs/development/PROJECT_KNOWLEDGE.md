@@ -945,3 +945,5 @@ specification, runbook, report, or module documentation; link to them when neede
   never retain unsafe raw replies or replace absent counters with zeros.
 
 - Prometheus scrapes retain promhttp gathering, aliases, content negotiation and plain-text errors. Successful gzip responses stream through a pooled `gzip.BestSpeed` writer; each response owns its writer, and pooling detaches the prior response. No metric or response-body cache is added. The original permission performance gate still includes all full-metrics sampling CPU.
+
+- The experimental fastest-gzip Issue #977 candidate `38d53d3dc555361e1b72bde6ea49a6dd34586f17` is rejected as a performance repair: nine of twelve original sequential comparisons fail. See root `EXPERIMENT_STATUS.md`; original thresholds and prior failures are retained.
