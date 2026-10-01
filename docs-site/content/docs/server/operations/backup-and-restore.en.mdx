@@ -1,11 +1,45 @@
 ---
 title: Backup & Restore
-description: Follow one example to back up and restore data in Manager.
+description: Follow separate backup and maintenance restore flows; check expected outcomes and expand complete actions.
 ---
 
 Open **Manager → Cluster → Backups**. No `wukongim.toml` change is needed.
 
+<Cards>
+  <Card title="Create a verified backup" description="Test storage, complete the task, then verify the archive." href="/en/server/operations/backup-and-restore#backup" />
+  <Card title="Restore during maintenance" description="Confirm the archive, restore, then test before traffic." href="/en/server/operations/backup-and-restore#restore" />
+</Cards>
+
+Permissions: backup `cluster.backup:w`; restore explicit `cluster.restore:w`. Archives are unencrypted; enable storage-side encryption.
+
+<section id="backup" className="scroll-m-28">
+
 ## Backup exercise
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  setup["①Settings +<br/>storage test"] --> run["②Back up<br/>256 Hash Slots"]
+  run --> archive["③Verify + hold<br/>the archive"]
+```
+
+</div>
+
+Keep automatic backup off until verification succeeds.
+
+| Action | Expected result |
+| --- | --- |
+| Save settings → Test storage | Settings saved; storage **Verified** |
+| Back up now | `256/256 Hash Slots`; recent task **Succeeded** |
+| Verify → Hold | Archive `healthy`; **Archive verification succeeded** |
+
+<Callout type="warn" title="Every node must share the backup directory">
+  Every node's `data_dir/backup-repository` must point to the same shared storage. Without shared storage, choose OSS, COS, or S3.
+</Callout>
+
+<details>
+  <summary>Example settings and complete backup actions</summary>
 
 Leave **Enable automatic backup** off and enter these example values:
 
@@ -30,7 +64,42 @@ Leave **Enable automatic backup** off and enter these example values:
 
 **Done when:** the archive is `healthy` and the page says **Archive verification succeeded**. Enable and save **Automatic backup** when you want scheduled runs.
 
+</details>
+
+</section>
+
+<section id="restore" className="scroll-m-28">
+
 ## Restore exercise
+
+<Callout type="warn" title="Restore replaces current data">
+  Messages and changes after the archive's completion time will be lost, and clients will disconnect. Use a maintenance window.
+</Callout>
+
+**Before starting:** Every `/readyz` returns 200, no other admin task runs, and the archive is freshly verified. Per-node free space: **current data + twice the archive's logical size + 1 GiB**.
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  check["①Confirm archive<br/>+ maintenance"] --> restore["②Confirm + restore"]
+  restore --> test["③Readiness +<br/>product checks"]
+```
+
+</div>
+
+Check the cluster, archive time, and size; confirm with the current administrator password and `RESTORE <archive ID>`. Keep nodes running; make no other changes.
+
+**Before traffic:** The task succeeds, every `/readyz` returns 200, and history, sign-in, send/receive, reconnect, webhooks, and plugins pass.
+
+<Callout type="warn" title="Same cluster only">
+  Restore only to the archive's original cluster, never into a new cluster or as a v2 → v3 migration.
+</Callout>
+
+**On failure:** Preserve task/errors; do not repeat restore. See [Troubleshooting](/en/server/operations/troubleshooting#maintenance).
+
+<details>
+  <summary>Complete restore actions and permission requirements</summary>
 
 <Callout type="warn" title="Restore replaces current data">
   Messages and changes after the archive's completion time will be lost, and clients will disconnect. Use a maintenance window.
@@ -51,3 +120,7 @@ Before starting, confirm that every `/readyz` returns 200, no other administrati
 </Callout>
 
 On failure, preserve the task and error details instead of repeatedly starting restore. Backup requires `cluster.backup:w`; restore requires explicit `cluster.restore:w`. WuKongIM does not encrypt archive contents, so enable storage-side encryption.
+
+</details>
+
+</section>
