@@ -1,0 +1,46 @@
+{
+  "full": {
+    "name": "permission-proposal-wal-full.tar.gz",
+    "bytes": 6015743,
+    "sha256": "52b7bb9193380659e6217c1c6642f6d2f7ee700cb82af10350608a3611da9803",
+    "members": 115,
+    "mode": "full"
+  },
+  "selected": {
+    "name": "permission-proposal-wal-selected.tar.gz",
+    "bytes": 628964,
+    "sha256": "d4f4db6e0c35f26c4b1c3d9f8585c9b6404b65a9467450f777ab27f74af6e0fd",
+    "members": 103,
+    "mode": "selected"
+  },
+  "bounds_note": "Selected archive contains positive exact proposal/physical/WAL lineage and complete E2E reports; no raw trace or complete-capture cap/coverage claim. Full archive contains every raw trace, all custom events, scheduling evidence and source deltas. Trace text decodes are deliberately omitted and reproducible.",
+  "selected_repository_path": "docs/reports/2026-10-01-permission-proposal-wal-diagnostics.tar.gz",
+  "full_local_artifact": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/tmp/issue-977-proposal-wal-20261001/permission-proposal-wal-full.tar.gz",
+  "source_revisions": {
+    "old": {
+      "revision": "69015d536b0ba3d4ee88059963f33d706f8c7823",
+      "base": "424d03eb298b972ec572261d617972eecb5523c5",
+      "diff_sha256": "a379c55cd0e9956a1fd1a4107df5b6c9007bda13b85affe7f5be91ddfdbca7e5"
+    },
+    "candidate": {
+      "revision": "8ab25b60817671da3871c0c9f155454f5f2dc230",
+      "base": "ec21c1a586941ffd74cfb497f0da4522941bc1a4",
+      "diff_sha256": "a379c55cd0e9956a1fd1a4107df5b6c9007bda13b85affe7f5be91ddfdbca7e5"
+    },
+    "driver": {
+      "revision": "b4edb947210a243a73b070cae899f86a6b56b8d5",
+      "base": "c0e95b5a45babbd1907c590a9dcdab83e74634a9",
+      "diff_sha256": "fb5331c223ad31a775a80e5c02593be8f950a20f9dd73d0826f6de053db126f4"
+    }
+  },
+  "no_candidate_change": true,
+  "qualification": "Original six sequential failures remain; diagnostic quartet and documentation CI cannot qualify candidate ec21c1a.",
+  "independent_raw_replay": {
+    "passed": true,
+    "raw_traces_redecoded": 12,
+    "all_custom_events_exact_match": true,
+    "all_scheduling_exact_match": true,
+    "summary_exact_match": true,
+    "full_archive_sha256": "52b7bb9193380659e6217c1c6642f6d2f7ee700cb82af10350608a3611da9803"
+  }
+}

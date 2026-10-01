@@ -884,3 +884,11 @@ specification, runbook, report, or module documentation; link to them when neede
   and reply. Independent slow-barrier local/remote burst regressions preserve
   each caller's fresh barrier and cancellation. Queue count/bytes and the two-second
   wait bound remain unchanged; cross-caller aggregation is tracked by #977.
+
+- Issue #977 exact-proposal WAL diagnosis uses identical isolated old/candidate
+  instrumentation to join proposal, physical DB sequence and covered WAL sync.
+  Its fixed four-fixture cadence contrast does not establish an improvement;
+  the original six sequential p99/whole-node CPU failures remain. Foreground
+  and post-quorum background work must be distinguished by actual wire
+  priority and identity; see
+  `docs/reports/2026-10-01-permission-proposal-wal-stages.md`.
