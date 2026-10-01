@@ -1,22 +1,8 @@
---- a/internal/usecase/mqttsession/will_execution.go
-+++ b/internal/usecase/mqttsession/will_execution.go
-@@ -387,6 +387,10 @@
- 				return out, err
- 			}
- 		}
-+		// gofail: var wkMQTTWillAfterAdmitted bool
-+		// if wkMQTTWillAfterAdmitted {
-+		//     return out, context.DeadlineExceeded
-+		// }
- 		if err := check(); err != nil {
- 			return out, err
- 		}
+diff --git a/internal/runtime/channelappend/router.go b/internal/runtime/channelappend/router.go
+index 41fbaf461..8471f4391 100644
 --- a/internal/runtime/channelappend/router.go
 +++ b/internal/runtime/channelappend/router.go
-@@ -626,6 +626,18 @@
- 		return finish(rewriteTerminalRouterError(item, SendBatchItemResult{Err: ctx.Err()}, time.Now()))
- 	}
- 	defer r.releaseGroup()
+@@ -628,0 +629,12 @@ func (r *Router) submitSingleTarget(target AuthorityTarget, item SendBatchItem)
 +	{
 +		// gofail: var wkMQTTWillBeforeAppendAdmission bool
 +		// if wkMQTTWillBeforeAppendAdmission {
@@ -29,33 +15,27 @@
 +		//     return finish(SendBatchItemResult{Err: context.DeadlineExceeded})
 +		// }
 +	}
- 	if target.LeaderNodeID == r.localNodeID {
- 		path = "local"
- 		if r.local == nil {
+diff --git a/internal/usecase/mqttsession/will_execution.go b/internal/usecase/mqttsession/will_execution.go
+index 259866556..249dcc761 100644
+--- a/internal/usecase/mqttsession/will_execution.go
++++ b/internal/usecase/mqttsession/will_execution.go
+@@ -389,0 +390,4 @@ func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (ou
++		// gofail: var wkMQTTWillAfterAdmitted bool
++		// if wkMQTTWillAfterAdmitted {
++		//     return out, context.DeadlineExceeded
++		// }
+diff --git a/test/e2e/mqtt/will_recovery/recovery_test.go b/test/e2e/mqtt/will_recovery/recovery_test.go
+index 064b0f962..801a5c45f 100644
 --- a/test/e2e/mqtt/will_recovery/recovery_test.go
 +++ b/test/e2e/mqtt/will_recovery/recovery_test.go
-@@ -18,6 +18,9 @@
- )
- 
- const startedCut = "wkMQTTWillAfterStarted"
+@@ -20,0 +21,3 @@ const startedCut = "wkMQTTWillAfterStarted"
 +const admittedCut = "wkMQTTWillAfterAdmitted"
 +const appendCut = "wkMQTTWillBeforeAppendAdmission"
 +const issuedCut = "wkMQTTWillAfterAppendAdmission"
- const publishedCut = "wkMQTTWillAfterPublication"
- const publishAttempt = "wkMQTTWillPublicationAttempt"
- const acceptedDelay = "wkMQTTWillAcceptedAppendDelay"
-@@ -29,13 +32,21 @@
- 	}
- 	require.NotEmpty(t, os.Getenv("WK_E2E_BINARY"))
- 	for _, count := range []int{1, 3} {
+@@ -32 +35 @@ func TestStartedWillRecoveryPreservesOnePublication(t *testing.T) {
 -		for _, cut := range []string{"undispatched", "published", "admitted"} {
 +		for _, cut := range []string{"undispatched", "pre-send", "pre-append", "issued", "legacy-admitted", "published", "admitted"} {
- 			t.Run(fmt.Sprintf("%d-node-cluster/%s", count, cut), func(t *testing.T) { runRecovery(t, count, cut) })
- 		}
- 	}
- }
- 
- func runRecovery(t *testing.T, count int, cut string) {
+@@ -38,0 +42,8 @@ func runRecovery(t *testing.T, count int, cut string) {
 +	candidateBinary := os.Getenv("WK_E2E_BINARY")
 +	if cut == "legacy-admitted" {
 +		legacy := os.Getenv("WK_E2E_MQTT_LEGACY_BINARY")
@@ -64,22 +44,10 @@
 +		}
 +		t.Setenv("WK_E2E_BINARY", legacy)
 +	}
- 	phase := "startup"
- 	report := map[string]any{"scenario": "mqtt-started-will-recovery", "nodes": count, "hash_slots": 256, "cut": cut, "resubscriptions": 0, "connect_retries": 0}
- 	dir := os.Getenv("WK_E2E_MQTT_REPORT_DIR")
-@@ -74,7 +85,7 @@
- 	ready()
- 	for _, f := range faults {
- 		call, done := context.WithTimeout(ctx, 3*time.Second)
+@@ -77 +88 @@ func runRecovery(t *testing.T, count int, cut string) {
 -		_, err := f.WaitListed(call, startedCut, publishedCut, publishAttempt, acceptedDelay)
 +		_, err := f.WaitListed(call, startedCut, admittedCut, appendCut, issuedCut, publishedCut, publishAttempt, acceptedDelay)
- 		done()
- 		require.NoError(t, err)
- 	}
-@@ -94,7 +105,13 @@
- 	require.NoError(t, err)
- 	require.Equal(t, []byte{1}, sub.Reasons)
- 	faultName, expression := startedCut, `sleep(60000)`
+@@ -97 +108,7 @@ func runRecovery(t *testing.T, count int, cut string) {
 -	if cut == "published" {
 +	if cut == "pre-send" || cut == "legacy-admitted" {
 +		faultName = admittedCut
@@ -88,26 +56,14 @@
 +	} else if cut == "issued" {
 +		faultName = issuedCut
 +	} else if cut == "published" {
- 		faultName = publishedCut
- 	} else if cut == "admitted" {
- 		faultName, expression = acceptedDelay, `return(30000)`
-@@ -179,13 +196,33 @@
- 			t.Fatal("executor process did not exit")
- 		}
- 		_ = executor.Process.Stop()
+@@ -182 +199,5 @@ func runRecovery(t *testing.T, count int, cut string) {
 -		require.NoError(t, cluster.StartStoppedNode(uint64(cutNode+1)), cluster.DumpDiagnostics())
 +		if cut == "legacy-admitted" {
 +			require.NoError(t, executor.Restart(candidateBinary), cluster.DumpDiagnostics())
 +		} else {
 +			require.NoError(t, cluster.StartStoppedNode(uint64(cutNode+1)), cluster.DumpDiagnostics())
 +		}
- 		first = cluster.MustNode(1)
- 		ready()
- 		report["executor_restarts"] = 1
- 		_ = bob.Abort() // The executor crash may already have closed this transport.
- 		bob = connectRecipient()
- 		require.True(t, bob.Connack.SessionPresent, "recovery must preserve its existing subscription")
-+	}
+@@ -189,0 +211,16 @@ func runRecovery(t *testing.T, count int, cut string) {
 +	if cut == "issued" || cut == "legacy-admitted" {
 +		phase = "unknown-after-restart"
 +		quiet(bob, 21*time.Second)
@@ -123,6 +79,4 @@
 +		report["legacy_journal_retained"] = cut == "legacy-admitted"
 +		phase = "complete"
 +		return
- 	}
- 	phase = "original-will-delivery"
- 	p := receive(bob)
++	}

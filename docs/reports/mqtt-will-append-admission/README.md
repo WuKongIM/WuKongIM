@@ -81,8 +81,8 @@ GOFLAGS=-buildvcs=false GOWORK=off scripts/build-gofail-binary.sh \
 ```
 
 To build the version-1/RED binary, check out the frozen source revision in a
-separate temporary worktree, apply the saved baseline overlay there, and run the
-same builder with output `/tmp/wukongim-will-append-baseline-gofail`. It changes
+separate temporary worktree, apply the saved zero-context baseline overlay with
+`git apply --unidiff-zero`, and run the same builder with output `/tmp/wukongim-will-append-baseline-gofail`. It changes
 only product cut comments and the failure-first process fixture.
 
 ```sh

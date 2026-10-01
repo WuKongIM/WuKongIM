@@ -398,5 +398,13 @@
     "Issued permission and version-1 Admitted without a positive receipt remain pending; timeout grants no redispatch.",
     "Full 1,024-record capacity stress, delayed CAS/reclamation races, partitions, lost/corrupt journals and complete unknown-effect terminal recovery remain unqualified.",
     "Aggregate shared-storage admission and the complete MQTT target remain open."
-  ]
+  ],
+  "baseline_overlay": {
+    "path": "baseline-cut-overlay.patch",
+    "sha256": "bf060e7daecb013bda5ddb447b72fac89aba4d4cacfaa0ee61c52e376e596dcc",
+    "apply_arguments": [
+      "--unidiff-zero"
+    ],
+    "reconstruction": "Verified all three baseline-source.json file SHA-256 hashes through a temporary Git index."
+  }
 }
