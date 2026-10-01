@@ -3137,12 +3137,15 @@ func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared 
 			nextLEO:    item.nextLEO,
 		})
 	}
+	diagnosticPrepared("submit", prepared, lane, nil)
+	defer diagnosticPrepared("submit_end", prepared, lane, nil)
 	request := commit.Request{
 		Lane:      commit.Lane{Name: commitRowsLaneName(lane), Priority: commitRowsPriority(lane)},
 		Partition: preparedRowsPartition(prepared, lane),
 		Records:   preparedRowsRecordCount(prepared),
 		Bytes:     preparedRowsBytes(prepared),
 		Build: func(batch *engine.Batch) error {
+			diagnosticPrepared("build", prepared, lane, batch)
 			for _, mutation := range mutations {
 				if err := mutation.entry.stageCommitRows(batch, mutation.rows, mutation.checkpoint, mutation.point, mutation.proposals, mutation.entries); err != nil {
 					return err
@@ -3151,6 +3154,7 @@ func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared 
 			return nil
 		},
 		Publish: func() error {
+			diagnosticPrepared("publish", prepared, lane, nil)
 			for _, mutation := range mutations {
 				mutation.entry.publishCommittedRows(mutation.rows, mutation.nextLEO, mutation.proposals, mutation.entries)
 			}

@@ -415,12 +415,14 @@ func (l *runtimeLocalDurability) submitLocal(ctx context.Context, proposal durab
 	if l.runtime.closed.Load() {
 		return ch.ErrClosed
 	}
+	diagnosticProposal("local_enqueue", proposal.manifest, proposal.records, 0, 0, 0)
 	return l.runtime.localPool.Submit(ctx, localDurabilityItem{proposal: proposal.freeze(), complete: complete, submittedAt: time.Now()})
 }
 
 func (l *runtimeLocalDurability) runBatch(_ context.Context, items []localDurabilityItem) error {
 	batchStartedAt := time.Now()
 	for _, item := range items {
+		diagnosticProposal("local_run", item.proposal.manifest, item.proposal.records, 0, 0, 0)
 		observeReplicationStage(l.observer, stageQuorumLocalQueue, nil, batchStartedAt.Sub(item.submittedAt))
 	}
 	mutations := make([]Mutation, len(items))
@@ -465,6 +467,7 @@ func (l *runtimeLocalDurability) runBatch(_ context.Context, items []localDurabi
 			completion = durabilityCompletion{outcome: ch.AppendOutcomeUnknown, err: errInvalidExchangeResult}
 		}
 		observeReplicationStage(l.observer, stageQuorumLocalEndToEnd, completion.err, time.Since(item.submittedAt))
+		diagnosticProposal("local_complete", item.proposal.manifest, item.proposal.records, 0, 0, 0)
 		item.complete(completion)
 	}
 	return nil

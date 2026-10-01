@@ -25,6 +25,7 @@ func (p *Pool) runDeferredQuorumCommit(ctx context.Context, queued queuedTask, s
 	task := queued.task
 	p.observeWait(task.Kind, time.Since(queued.enqueuedAt))
 	taskCtx, cancel := taskContext(ctx, task.Context)
+	replication.DiagnosticBoundary("worker_run", task.QuorumCommit.Proposal.CommandID, task.QuorumCommit.Proposal.Records, nil)
 	started := time.Now()
 	p.deferredWG.Add(1)
 	var once sync.Once
@@ -36,7 +37,9 @@ func (p *Pool) runDeferredQuorumCommit(ctx context.Context, queued queuedTask, s
 			cancel()
 			res.Duration = nonNegativeDuration(time.Since(started))
 			p.observeTask(res.Kind, res.Err, res.Duration)
+			replication.DiagnosticBoundary("worker_complete", task.QuorumCommit.Proposal.CommandID, task.QuorumCommit.Proposal.Records, res.Err)
 			p.sink.Complete(res)
+			replication.DiagnosticBoundary("worker_sink_return", task.QuorumCommit.Proposal.CommandID, task.QuorumCommit.Proposal.Records, res.Err)
 		})
 	}
 	err := func() (err error) {

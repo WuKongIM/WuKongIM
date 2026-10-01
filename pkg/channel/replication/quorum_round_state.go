@@ -81,6 +81,7 @@ func startDurableRound(ctx context.Context, local ch.NodeID, voters []ch.NodeID,
 		followers = append(append(make([]ch.NodeID, 0, len(followers)), followers[start:]...), followers[:start]...)
 	}
 	r := &durableRound{ctx: ctx, workCtx: context.WithoutCancel(ctx), local: local, quorum: quorum, proposal: proposal.freeze(), dispatcher: dispatcher, followers: followers, completed: make(map[ch.NodeID]bool, len(voters)), result: durableRoundResult{outcome: ch.AppendOutcomeDefinitelyNotWritten}, starting: true, complete: complete}
+	diagnosticProposal("round_begin", r.proposal.manifest, r.proposal.records, 0, 0, 0)
 	writes := []roundWrite{r.reserveLocked(local, roundWriteDirect)}
 	for r.nextFollower < len(followers) && r.nextFollower < quorum-1 {
 		writes = append(writes, r.reserveLocked(followers[r.nextFollower], roundWriteDirect))
@@ -227,6 +228,7 @@ func (r *durableRound) onResult(voter ch.NodeID, c durabilityCompletion) {
 	} else if validRepair {
 		r.result.repairs = append(r.result.repairs, followerRepairFor(r.proposal, c.follower, c.needFrom))
 	}
+	diagnosticRound("vote", r.proposal, voter, c.outcome, r.result, r.quorum, c.err)
 	var writes []roundWrite
 	if local && c.outcome == ch.AppendOutcomeConflict {
 		r.result.outcome = ch.AppendOutcomeConflict
@@ -288,5 +290,8 @@ func (r *durableRound) finishLocked() func() {
 		r.stopCancel()
 	}
 	result, err, complete := r.result, r.terminalErr, r.complete
-	return func() { complete(result, err) }
+	return func() {
+		diagnosticRound("round_terminal", r.proposal, 0, result.outcome, result, r.quorum, err)
+		complete(result, err)
+	}
 }
