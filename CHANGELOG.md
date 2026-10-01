@@ -8,6 +8,9 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Preserve the rejected fastest-gzip metrics experiment with complete permission-performance results; all nine sequential failures remain visible.
+- 保留未通过验收的最快 gzip 指标压缩实验及完整权限性能结果，明确记录九个顺序窗口失败。
+
 - Document request-correlated durable-quorum and WAL rotation evidence, including replayable bounds and unresolved sequential performance failures. / 补充请求关联的持久化 quorum 与 WAL rotation 证据、可复验边界和仍未解决的顺序性能失败。
 
 - Add visible home links to all four Demos, including chat login; return to the actual catalog address across dynamically assigned ports and reloads. / 四个 Demo 及聊天登录页新增可见的“返回首页”入口，动态端口和刷新后仍返回实际首页。
