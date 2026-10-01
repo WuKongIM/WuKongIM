@@ -29,65 +29,113 @@ import (
 )
 
 const (
-	permissionObserverRequests     = 200
-	permissionObserverCadence      = 20 * time.Millisecond
-	permissionObserverWindow       = permissionObserverRequests * permissionObserverCadence
-	permissionObserverTimeout      = 250 * time.Millisecond
-	permissionObserverMaxBody      = 8 << 20
-	permissionObserverMaxBlockWire = 64 << 20
+	permissionObserverRequests = 200
+	permissionObserverCadence  = 20 * time.Millisecond
+	permissionObserverWindow   = permissionObserverRequests * permissionObserverCadence
+	permissionObserverTimeout  = 250 * time.Millisecond
+	permissionObserverMaxBody  = 8 << 20
+	// V1 observed 581,107-byte identity bodies: 200 need 110.84MiB.
+	// This fixed bound admits the complete workload with over 2x headroom.
+	permissionObserverMaxBlockWire = 256 << 20
 )
 
 // permissionObserverResponse owns the complete encoded entity body on disk;
 // headers are retained separately and HTTP transfer framing is excluded.
 type permissionObserverResponse struct {
-	Ordinal             int         `json:"ordinal"`
-	ScheduledAt         time.Time   `json:"scheduled_at"`
-	StartedAt           time.Time   `json:"started_at"`
-	NetworkFinishedAt   time.Time   `json:"network_finished_at"`
-	FinishedAt          time.Time   `json:"finished_at"`
-	ScheduledLatenessNS int64       `json:"scheduled_lateness_ns"`
-	Status              int         `json:"status"`
-	Headers             http.Header `json:"headers"`
-	WirePath            string      `json:"wire_path,omitempty"`
-	WireBytes           int         `json:"wire_bytes"`
-	ObservedWireBytes   int         `json:"observed_wire_bytes"`
-	WireTruncated       bool        `json:"wire_truncated"`
-	WireSHA256          string      `json:"wire_sha256,omitempty"`
-	LogicalBytes        int         `json:"logical_bytes"`
-	LogicalSHA256       string      `json:"logical_sha256,omitempty"`
-	FamilyCount         int         `json:"family_count"`
-	MetricCount         int         `json:"metric_count"`
-	SampleCount         int         `json:"sample_count"`
-	WireSavedAt         time.Time   `json:"wire_saved_at"`
-	WireRetained        bool        `json:"wire_retained"`
-	Completed           bool        `json:"completed"`
-	Error               string      `json:"error,omitempty"`
+	Ordinal                int         `json:"ordinal"`
+	ScheduledAt            time.Time   `json:"scheduled_at"`
+	StartedAt              time.Time   `json:"started_at"`
+	NetworkFinishedAt      time.Time   `json:"network_finished_at"`
+	FetchFinishedAt        time.Time   `json:"fetch_finished_at"`
+	ValidationStartedAt    time.Time   `json:"validation_started_at"`
+	ValidationFinishedAt   time.Time   `json:"validation_finished_at"`
+	ScheduledLatenessNS    int64       `json:"scheduled_lateness_ns"`
+	Status                 int         `json:"status"`
+	Headers                http.Header `json:"headers"`
+	WirePath               string      `json:"wire_path,omitempty"`
+	WireBytes              int         `json:"wire_bytes"`
+	ObservedWireBytes      int         `json:"observed_wire_bytes"`
+	WireTruncated          bool        `json:"wire_truncated"`
+	WireSHA256             string      `json:"wire_sha256,omitempty"`
+	LogicalBytes           int         `json:"logical_bytes"`
+	LogicalSHA256          string      `json:"logical_sha256,omitempty"`
+	FamilyCount            int         `json:"family_count"`
+	MetricCount            int         `json:"metric_count"`
+	SampleCount            int         `json:"sample_count"`
+	WireSavedAt            time.Time   `json:"wire_saved_at"`
+	WireRetentionStartedAt time.Time   `json:"wire_retention_started_at"`
+	WireRetained           bool        `json:"wire_retained"`
+	NetworkCompleted       bool        `json:"network_completed"`
+	Validated              bool        `json:"validated"`
+	Completed              bool        `json:"completed"`
+	Error                  string      `json:"error,omitempty"`
 	// Encoded bytes remain bounded in memory until the enclosing CPU cut ends.
 	wire []byte
+	// The monotonic complete-read boundary determines absolute cadence.
+	networkFinished time.Time
 }
 
 type permissionObserverBlock struct {
-	Ordinal             int                          `json:"ordinal"`
-	Encoding            string                       `json:"accept_encoding"`
-	ExpectedRequests    int                          `json:"expected_requests"`
-	StartedAt           time.Time                    `json:"started_at"`
-	ScheduledFinishedAt time.Time                    `json:"scheduled_finished_at"`
-	FinishedAt          time.Time                    `json:"finished_at"`
-	WallNS              int64                        `json:"wall_ns"`
-	CPUAfterLatenessNS  int64                        `json:"cpu_after_lateness_ns"`
-	CPUBefore           permissionCPUCut             `json:"cpu_before"`
-	CPUAfter            permissionCPUCut             `json:"cpu_after"`
-	ClusterCPUNS        float64                      `json:"cluster_cpu_ns"`
-	RawWireBytes        int                          `json:"raw_wire_bytes"`
-	Responses           []permissionObserverResponse `json:"responses"`
-	Completed           bool                         `json:"completed"`
-	Error               string                       `json:"error,omitempty"`
+	Ordinal             int       `json:"ordinal"`
+	Encoding            string    `json:"accept_encoding"`
+	ExpectedRequests    int       `json:"expected_requests"`
+	StartedAt           time.Time `json:"started_at"`
+	ScheduledFinishedAt time.Time `json:"scheduled_finished_at"`
+	FinishedAt          time.Time `json:"finished_at"`
+	WallNS              int64     `json:"wall_ns"`
+	UTCWallNS           int64     `json:"utc_wall_ns"`
+	UTCWallDriftNS      int64     `json:"utc_wall_drift_ns"`
+	CPUAfterLatenessNS  int64     `json:"cpu_after_lateness_ns"`
+	// Query gaps retain signed UTC evidence from the unchanged native helper.
+	CPUBeforeQueryStartGapNS  int64 `json:"cpu_before_query_start_gap_ns"`
+	CPUBeforeQueryFinishGapNS int64 `json:"cpu_before_query_finish_gap_ns"`
+	CPUBeforeQueryDurationNS  int64 `json:"cpu_before_query_duration_ns"`
+	CPUAfterQueryStartGapNS   int64 `json:"cpu_after_query_start_gap_ns"`
+	CPUAfterQueryFinishGapNS  int64 `json:"cpu_after_query_finish_gap_ns"`
+	CPUAfterQueryDurationNS   int64 `json:"cpu_after_query_duration_ns"`
+	// Call gaps/durations use the outer time.Now values' monotonic component.
+	CPUBeforeCallStartedAt   time.Time `json:"cpu_before_call_started_at"`
+	CPUBeforeCallFinishedAt  time.Time `json:"cpu_before_call_finished_at"`
+	CPUAfterCallStartedAt    time.Time `json:"cpu_after_call_started_at"`
+	CPUAfterCallFinishedAt   time.Time `json:"cpu_after_call_finished_at"`
+	CPUBeforeCallStartGapNS  int64     `json:"cpu_before_call_start_gap_ns"`
+	CPUBeforeCallFinishGapNS int64     `json:"cpu_before_call_finish_gap_ns"`
+	CPUBeforeCallDurationNS  int64     `json:"cpu_before_call_duration_ns"`
+	CPUAfterCallStartGapNS   int64     `json:"cpu_after_call_start_gap_ns"`
+	CPUAfterCallFinishGapNS  int64     `json:"cpu_after_call_finish_gap_ns"`
+	CPUAfterCallDurationNS   int64     `json:"cpu_after_call_duration_ns"`
+	CPUBeforeCallUTCDriftNS  int64     `json:"cpu_before_call_utc_drift_ns"`
+	CPUAfterCallUTCDriftNS   int64     `json:"cpu_after_call_utc_drift_ns"`
+	CPUBeforeGapUTCDriftNS   int64     `json:"cpu_before_gap_utc_drift_ns"`
+	CPUAfterGapUTCDriftNS    int64     `json:"cpu_after_gap_utc_drift_ns"`
+	CPUBeforeUTCBoundsValid  bool      `json:"cpu_before_utc_bounds_valid"`
+	CPUAfterUTCBoundsValid   bool      `json:"cpu_after_utc_bounds_valid"`
+	UTCClockInconsistent     bool      `json:"utc_clock_inconsistent"`
+	NativeCPUSpanNS          uint64    `json:"native_cpu_span_ns"`
+	NativeCPUInnerSpanNS     uint64    `json:"native_cpu_inner_span_ns"`
+	NativeCPUSpanValid       bool      `json:"native_cpu_span_valid"`
+	CPUBeforeBoundsValid     bool      `json:"cpu_before_bounds_valid"`
+	CPUAfterBoundsValid      bool      `json:"cpu_after_bounds_valid"`
+	CPUCutBoundsValid        bool      `json:"cpu_cut_bounds_valid"`
+	// CPUValid becomes true only after native interval validation and both
+	// monotonic call/native envelopes pass; deferred partial analysis cannot set it.
+	CPUValid           bool                         `json:"cpu_valid"`
+	CPUBefore          permissionCPUCut             `json:"cpu_before"`
+	CPUAfter           permissionCPUCut             `json:"cpu_after"`
+	ClusterCPUNS       float64                      `json:"cluster_cpu_ns"`
+	RawWireBytes       int                          `json:"raw_wire_bytes"`
+	AnalysisStartedAt  time.Time                    `json:"analysis_started_at"`
+	AnalysisFinishedAt time.Time                    `json:"analysis_finished_at"`
+	Responses          []permissionObserverResponse `json:"responses"`
+	Completed          bool                         `json:"completed"`
+	Error              string                       `json:"error,omitempty"`
 }
 
-// TestPermissionObserverCostDiagnostic isolates observation encoding cost with
-// fixed request counts and whole-node CPU windows; it never qualifies SEND CPU.
-func TestPermissionObserverCostDiagnostic(t *testing.T) {
-	if os.Getenv("WK_E2E_PERMISSION_OBSERVER_COST") != "1" {
+// TestPermissionObserverCostDiagnosticV2 isolates server encoding work with fixed
+// raw acquisition windows. Complete client validation follows CPUAfter.
+// Whole-node CPU includes background work and never qualifies SEND CPU.
+func TestPermissionObserverCostDiagnosticV2(t *testing.T) {
+	if os.Getenv("WK_E2E_PERMISSION_OBSERVER_V2") != "1" {
 		t.Skip("opt-in observer-only compression diagnosis")
 	}
 	require.Equal(t, "darwin", runtime.GOOS)
@@ -100,18 +148,23 @@ func TestPermissionObserverCostDiagnostic(t *testing.T) {
 	require.NoError(t, os.Mkdir(rawDir, 0755), "do not overwrite retained raw responses")
 	var blocks []*permissionObserverBlock
 	report := map[string]any{
-		"started_at": time.Now().UTC(), "diagnostic_only": true, "performance_qualified": false,
+		"started_at": time.Now().UTC(), "diagnostic_only": true, "performance_qualified": false, "diagnostic_version": 2,
 		"nodes": 3, "hash_slots": 256, "physical_slots": 12, "metadata_replicas": 1,
 		"host_os": runtime.GOOS, "host_arch": runtime.GOARCH, "host_cpus": runtime.NumCPU(), "driver_gomaxprocs": runtime.GOMAXPROCS(0),
 		"message_replicas": 3, "node_gomaxprocs": 4, "warm_sends": 1, "measured_sends": 0,
 		"block_order":        []string{"gzip", "identity", "identity", "gzip"},
 		"requests_per_block": permissionObserverRequests, "cadence_ns": int64(permissionObserverCadence),
 		"window_ns": int64(permissionObserverWindow), "request_timeout_ns": int64(permissionObserverTimeout),
+		"actual_cpu_cut_gap_limit_ns":    int64(permissionObserverCadence),
+		"actual_cpu_cut_clock_basis":     "outer time.Now monotonic call gaps/durations and native CLOCK_MONOTONIC spans; signed UTC evidence is reported independently",
 		"max_wire_or_logical_body_bytes": permissionObserverMaxBody, "max_block_raw_wire_bytes": permissionObserverMaxBlockWire, "raw_directory": rawDir,
-		"wire_scope":              "HTTP entity body before Content-Encoding decoding; transfer framing excluded; headers separate",
-		"cpu_scope":               "three owned node user+system counters; fixed four-second observer-only blocks plus native cut overhead; no subtraction or SEND qualification",
-		"calibration_requirement": "outer runner executes TestPermissionCPUProbeCalibration first with this exact native probe",
-		"transport_scope":         "same fresh-connection transport in all blocks to prevent implicit reused-connection GET retries",
+		"wire_scope":                     "HTTP entity body before Content-Encoding decoding; transfer framing excluded; headers separate",
+		"cpu_scope":                      "three owned node user+system counters; fixed four-second observer-only blocks plus native cut overhead; no subtraction or SEND qualification",
+		"calibration_requirement":        "outer runner executes TestPermissionCPUProbeCalibration first with this exact native probe",
+		"transport_scope":                "same fresh-connection transport in all blocks to prevent implicit reused-connection GET retries",
+		"acquisition_scope":              "fresh GET and complete bounded raw read plus status/header/budget checks; no hash, decoding, expfmt or file writes inside CPU windows",
+		"validation_scope":               "after CPUAfter, fully decode/hash/parse/retain each body; analysis failures stay failed; v1 and product/fixed-load thresholds unchanged",
+		"previous_failed_receipt_sha256": "9bfda7d0da76a85a4530edfbcdd878320ba897f645122bdcacaf01fb6b904b53",
 	}
 	defer func() {
 		report["passed"], report["finished_at"], report["blocks"] = !t.Failed(), time.Now().UTC(), blocks
@@ -230,11 +283,34 @@ func TestPermissionObserverCostDiagnostic(t *testing.T) {
 		blocks = append(blocks, block)
 		// Even fatal native-cut failures retain already-read wire bytes before
 		// the outer deferred JSON receipt; normal completion drains this early.
-		defer permissionObserverRetainRaw(block)
+		defer permissionObserverAnalyzeAndRetain(block)
+		beforeCallStarted := time.Now()
+		block.CPUBeforeCallStartedAt = beforeCallStarted.UTC()
 		block.CPUBefore = permissionCPUQuery(t, ctx, pids)
+		beforeCallFinished := time.Now()
+		block.CPUBeforeCallFinishedAt = beforeCallFinished.UTC()
 		begin := time.Now()
 		end := begin.Add(permissionObserverWindow)
 		block.StartedAt, block.ScheduledFinishedAt = begin.UTC(), end.UTC()
+		// Preserve signed UTC evidence, including rollback; it cannot determine
+		// actual elapsed cut bounds independently of the monotonic clock.
+		block.CPUBeforeQueryStartGapNS = block.StartedAt.Sub(block.CPUBefore.QueryStartedAt).Nanoseconds()
+		block.CPUBeforeQueryFinishGapNS = block.StartedAt.Sub(block.CPUBefore.QueryFinishedAt).Nanoseconds()
+		block.CPUBeforeQueryDurationNS = block.CPUBefore.QueryFinishedAt.Sub(block.CPUBefore.QueryStartedAt).Nanoseconds()
+		block.CPUBeforeUTCBoundsValid = !block.CPUBefore.QueryStartedAt.IsZero() && !block.CPUBefore.QueryFinishedAt.IsZero() &&
+			block.CPUBeforeQueryStartGapNS >= 0 && block.CPUBeforeQueryStartGapNS < int64(permissionObserverCadence) &&
+			block.CPUBeforeQueryFinishGapNS >= 0 && block.CPUBeforeQueryFinishGapNS < int64(permissionObserverCadence) &&
+			block.CPUBeforeQueryDurationNS >= 0 && block.CPUBeforeQueryDurationNS < int64(permissionObserverCadence)
+		block.CPUBeforeCallStartGapNS = begin.Sub(beforeCallStarted).Nanoseconds()
+		block.CPUBeforeCallFinishGapNS = begin.Sub(beforeCallFinished).Nanoseconds()
+		block.CPUBeforeCallDurationNS = beforeCallFinished.Sub(beforeCallStarted).Nanoseconds()
+		block.CPUBeforeBoundsValid = !beforeCallStarted.IsZero() && !beforeCallFinished.IsZero() &&
+			block.CPUBeforeCallStartGapNS >= 0 && block.CPUBeforeCallStartGapNS < int64(permissionObserverCadence) &&
+			block.CPUBeforeCallFinishGapNS >= 0 && block.CPUBeforeCallFinishGapNS < int64(permissionObserverCadence) &&
+			block.CPUBeforeCallDurationNS >= 0 && block.CPUBeforeCallDurationNS < int64(permissionObserverCadence)
+		block.CPUBeforeCallUTCDriftNS = block.CPUBeforeCallFinishedAt.Sub(block.CPUBeforeCallStartedAt).Nanoseconds() - block.CPUBeforeCallDurationNS
+		block.CPUBeforeGapUTCDriftNS = block.StartedAt.Sub(block.CPUBeforeCallStartedAt).Nanoseconds() - block.CPUBeforeCallStartGapNS
+		block.UTCClockInconsistent = block.CPUBeforeCallUTCDriftNS != 0 || block.CPUBeforeGapUTCDriftNS != 0 || !block.CPUBeforeUTCBoundsValid
 		for ordinal := 0; ordinal < permissionObserverRequests; ordinal++ {
 			scheduled := begin.Add(time.Duration(ordinal) * permissionObserverCadence)
 			if err := permissionObserverWaitUntil(ctx, scheduled); err != nil {
@@ -243,7 +319,7 @@ func TestPermissionObserverCostDiagnostic(t *testing.T) {
 			}
 			remaining := permissionObserverMaxBlockWire - block.RawWireBytes
 			if remaining <= 0 {
-				block.Error = "block raw wire exceeds 64MiB; no replacement requests"
+				block.Error = "block raw wire exceeds 256MiB; no replacement requests"
 				break
 			}
 			response := permissionObserverFetch(ctx, httpClient, ingress.APIAddr(), encoding, rawDir, index+1, ordinal, scheduled, remaining)
@@ -253,7 +329,7 @@ func TestPermissionObserverCostDiagnostic(t *testing.T) {
 				block.Error = response.Error
 				break
 			}
-			if !time.Now().Before(scheduled.Add(permissionObserverCadence)) {
+			if !response.networkFinished.Before(scheduled.Add(permissionObserverCadence)) {
 				block.Error = fmt.Sprintf("request %d missed next absolute cadence slot; no catch-up", ordinal)
 				break
 			}
@@ -263,14 +339,52 @@ func TestPermissionObserverCostDiagnostic(t *testing.T) {
 		}
 		finished := time.Now()
 		block.FinishedAt, block.WallNS, block.CPUAfterLatenessNS = finished.UTC(), finished.Sub(begin).Nanoseconds(), finished.Sub(end).Nanoseconds()
+		block.UTCWallNS = block.FinishedAt.Sub(block.StartedAt).Nanoseconds()
+		block.UTCWallDriftNS = block.UTCWallNS - block.WallNS
+		block.UTCClockInconsistent = block.UTCClockInconsistent || block.UTCWallDriftNS != 0
 		if finished.Sub(end) >= permissionObserverCadence {
 			block.Error += " closing lateness reached 20ms"
 		}
+		afterCallStarted := time.Now()
+		block.CPUAfterCallStartedAt = afterCallStarted.UTC()
 		block.CPUAfter = permissionCPUQuery(t, ctx, pids)
+		afterCallFinished := time.Now()
+		block.CPUAfterCallFinishedAt = afterCallFinished.UTC()
+		block.CPUAfterQueryStartGapNS = block.CPUAfter.QueryStartedAt.Sub(block.ScheduledFinishedAt).Nanoseconds()
+		block.CPUAfterQueryFinishGapNS = block.CPUAfter.QueryFinishedAt.Sub(block.ScheduledFinishedAt).Nanoseconds()
+		block.CPUAfterQueryDurationNS = block.CPUAfter.QueryFinishedAt.Sub(block.CPUAfter.QueryStartedAt).Nanoseconds()
+		block.CPUAfterUTCBoundsValid = !block.CPUAfter.QueryStartedAt.IsZero() && !block.CPUAfter.QueryFinishedAt.IsZero() &&
+			block.CPUAfterQueryStartGapNS >= 0 && block.CPUAfterQueryStartGapNS < int64(permissionObserverCadence) &&
+			block.CPUAfterQueryFinishGapNS >= 0 && block.CPUAfterQueryFinishGapNS < int64(permissionObserverCadence) &&
+			block.CPUAfterQueryDurationNS >= 0 && block.CPUAfterQueryDurationNS < int64(permissionObserverCadence)
+		// The untouched time.Now values preserve monotonic subtraction across
+		// a wall-clock step and include all native helper call overhead.
+		block.CPUAfterCallStartGapNS = afterCallStarted.Sub(end).Nanoseconds()
+		block.CPUAfterCallFinishGapNS = afterCallFinished.Sub(end).Nanoseconds()
+		block.CPUAfterCallDurationNS = afterCallFinished.Sub(afterCallStarted).Nanoseconds()
+		block.CPUAfterBoundsValid = !afterCallStarted.IsZero() && !afterCallFinished.IsZero() &&
+			block.CPUAfterCallStartGapNS >= 0 && block.CPUAfterCallStartGapNS < int64(permissionObserverCadence) &&
+			block.CPUAfterCallFinishGapNS >= 0 && block.CPUAfterCallFinishGapNS < int64(permissionObserverCadence) &&
+			block.CPUAfterCallDurationNS >= 0 && block.CPUAfterCallDurationNS < int64(permissionObserverCadence)
+		block.CPUAfterCallUTCDriftNS = block.CPUAfterCallFinishedAt.Sub(block.CPUAfterCallStartedAt).Nanoseconds() - block.CPUAfterCallDurationNS
+		block.CPUAfterGapUTCDriftNS = block.CPUAfterCallFinishedAt.Sub(block.ScheduledFinishedAt).Nanoseconds() - block.CPUAfterCallFinishGapNS
+		block.UTCClockInconsistent = block.UTCWallDriftNS != 0 || block.CPUBeforeCallUTCDriftNS != 0 || block.CPUAfterCallUTCDriftNS != 0 ||
+			block.CPUBeforeGapUTCDriftNS != 0 || block.CPUAfterGapUTCDriftNS != 0 || !block.CPUBeforeUTCBoundsValid || !block.CPUAfterUTCBoundsValid
+		if block.CPUAfter.End >= block.CPUBefore.Begin && block.CPUAfter.Begin >= block.CPUBefore.End {
+			block.NativeCPUSpanNS = block.CPUAfter.End - block.CPUBefore.Begin
+			block.NativeCPUInnerSpanNS = block.CPUAfter.Begin - block.CPUBefore.End
+			minSpan, maxSpan := uint64(permissionObserverWindow), uint64(permissionObserverWindow+2*permissionObserverCadence)
+			block.NativeCPUSpanValid = block.NativeCPUSpanNS >= minSpan && block.NativeCPUSpanNS < maxSpan &&
+				block.NativeCPUInnerSpanNS >= minSpan && block.NativeCPUInnerSpanNS < maxSpan
+		}
+		block.CPUCutBoundsValid = block.CPUBeforeBoundsValid && block.CPUAfterBoundsValid && block.NativeCPUSpanValid
+		if !block.CPUCutBoundsValid {
+			block.Error += " monotonic/native CPU bounds are missing, reversed or outside the strict cut limits"
+		}
 		block.ClusterCPUNS = permissionCPUInterval(t, block.CPUBefore, block.CPUAfter)
-		// Persist all success/failure bytes only after native CPU observation ends.
-		permissionObserverRetainRaw(block)
-		block.Completed = block.Error == "" && len(block.Responses) == permissionObserverRequests
+		block.CPUValid = block.CPUCutBoundsValid
+		// Client analysis and raw retention start only after native CPUAfter.
+		permissionObserverAnalyzeAndRetain(block)
 		if !block.Completed {
 			t.Errorf("observer block %d %s incomplete: %d/%d responses: %s", index+1, encoding, len(block.Responses), permissionObserverRequests, block.Error)
 		}
@@ -309,12 +423,25 @@ func permissionObserverWaitUntil(ctx context.Context, deadline time.Time) error 
 	return ctx.Err()
 }
 
-func permissionObserverRetainRaw(block *permissionObserverBlock) {
+// permissionObserverAnalyzeAndRetain validates and persists after CPUAfter only.
+// The deferred call also preserves bytes when a native after-cut fails fatally.
+func permissionObserverAnalyzeAndRetain(block *permissionObserverBlock) {
+	if !block.AnalysisFinishedAt.IsZero() {
+		return
+	}
+	block.AnalysisStartedAt = time.Now().UTC()
+	if !block.CPUValid && block.Error == "" {
+		block.Error = "native CPU interval or actual cut bounds invalid/incomplete"
+	}
+	allComplete := len(block.Responses) == permissionObserverRequests
 	for i := range block.Responses {
 		response := &block.Responses[i]
 		if response.WirePath == "" || response.wire == nil {
+			allComplete = false
 			continue
 		}
+		permissionObserverValidate(response, block.Encoding)
+		response.WireRetentionStartedAt = time.Now().UTC()
 		file, err := os.OpenFile(response.WirePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 		if err == nil {
 			_, err = file.Write(response.wire)
@@ -327,20 +454,29 @@ func permissionObserverRetainRaw(block *permissionObserverBlock) {
 		response.wire = nil
 		if err != nil {
 			block.Error += " raw response retention failed: " + err.Error()
-			block.Completed = false
 		} else {
 			response.WireRetained = true
 		}
+		response.Completed = response.NetworkCompleted && response.Validated && response.WireRetained && response.Error == ""
+		if !response.Completed {
+			allComplete = false
+			if response.Error != "" {
+				block.Error += fmt.Sprintf(" response %d failed validation/acquisition: %s", response.Ordinal, response.Error)
+			}
+		}
 	}
+	block.AnalysisFinishedAt = time.Now().UTC()
+	block.Completed = block.Error == "" && allComplete && block.CPUAfter.End != 0 && block.CPUValid &&
+		block.CPUBeforeBoundsValid && block.CPUAfterBoundsValid && block.NativeCPUSpanValid && block.CPUCutBoundsValid
 }
 
-// permissionObserverFetch retains failure bytes as well as successful responses.
-// It never delegates decoding to net/http or silently drops malformed families.
+// permissionObserverFetch acquires raw bytes only. Complete body hashing,
+// decoding, expfmt validation and raw retention follow the CPUAfter cut.
 func permissionObserverFetch(ctx context.Context, client *http.Client, addr, encoding, rawDir string, block, ordinal int, scheduled time.Time, remaining int) (out permissionObserverResponse) {
 	start := time.Now()
 	out.Ordinal, out.ScheduledAt, out.StartedAt = ordinal, scheduled.UTC(), start.UTC()
 	out.ScheduledLatenessNS = max(int64(0), start.Sub(scheduled).Nanoseconds())
-	defer func() { out.FinishedAt = time.Now().UTC() }()
+	defer func() { out.FetchFinishedAt = time.Now().UTC() }()
 	if start.Sub(scheduled) >= permissionObserverCadence {
 		out.Error = "request start lateness reached 20ms; no catch-up"
 		return
@@ -370,13 +506,14 @@ func permissionObserverFetch(ctx context.Context, client *http.Client, addr, enc
 	}
 	wire, readErr := io.ReadAll(io.LimitReader(resp.Body, int64(limit+1)))
 	closeErr := resp.Body.Close()
-	out.NetworkFinishedAt = time.Now().UTC()
+	out.networkFinished = time.Now()
+	out.NetworkFinishedAt = out.networkFinished.UTC()
 	out.ObservedWireBytes = len(wire)
 	if len(wire) > limit {
 		out.WireTruncated = true
 		wire = wire[:limit]
 	}
-	out.WireBytes, out.WireSHA256 = len(wire), fmt.Sprintf("%x", sha256.Sum256(wire))
+	out.WireBytes = len(wire)
 	out.WirePath = filepath.Join(rawDir, fmt.Sprintf("block-%d-%s-%03d.metrics", block, encoding, ordinal))
 	out.wire = wire
 	if readErr != nil {
@@ -388,7 +525,7 @@ func permissionObserverFetch(ctx context.Context, client *http.Client, addr, enc
 		return
 	}
 	if out.WireTruncated {
-		out.Error = "encoded metrics exceed 8MiB body/64MiB block budget; bounded raw prefix retained"
+		out.Error = "encoded metrics exceed 8MiB body/256MiB block budget; bounded raw prefix retained"
 		return
 	}
 	if resp.StatusCode != http.StatusOK || resp.Uncompressed {
@@ -404,14 +541,37 @@ func permissionObserverFetch(ctx context.Context, client *http.Client, addr, enc
 		out.Error = "unexpected metrics media type"
 		return
 	}
-	logical := wire
 	contentEncoding := strings.ToLower(strings.TrimSpace(resp.Header.Get("Content-Encoding")))
 	if encoding == "gzip" {
 		if contentEncoding != "gzip" {
 			out.Error = "explicit gzip response missing gzip encoding"
 			return
 		}
-		reader, err := gzip.NewReader(bytes.NewReader(wire))
+	} else if contentEncoding != "" && contentEncoding != "identity" {
+		out.Error = "identity response is compressed"
+		return
+	}
+	if time.Since(start) >= permissionObserverTimeout {
+		out.Error = "network response processing exceeds 250ms"
+		return
+	}
+	out.NetworkCompleted = true
+	return
+}
+
+// permissionObserverValidate verifies a complete acquired body after CPUAfter.
+// Failed acquisition bytes still receive their raw hash for independent replay.
+func permissionObserverValidate(out *permissionObserverResponse, encoding string) {
+	start := time.Now()
+	out.ValidationStartedAt = start.UTC()
+	defer func() { out.ValidationFinishedAt = time.Now().UTC() }()
+	out.WireSHA256 = fmt.Sprintf("%x", sha256.Sum256(out.wire))
+	if !out.NetworkCompleted || out.Error != "" {
+		return
+	}
+	logical := out.wire
+	if encoding == "gzip" {
+		reader, err := gzip.NewReader(bytes.NewReader(out.wire))
 		if err != nil {
 			out.Error = err.Error()
 			return
@@ -427,26 +587,23 @@ func permissionObserverFetch(ctx context.Context, client *http.Client, addr, enc
 			return
 		}
 		logical = decoded
-	} else if contentEncoding != "" && contentEncoding != "identity" {
-		out.Error = "identity response is compressed"
-		return
 	}
 	out.LogicalBytes, out.LogicalSHA256 = len(logical), fmt.Sprintf("%x", sha256.Sum256(logical))
 	if len(logical) > permissionObserverMaxBody {
 		out.Error = "decoded metrics exceed 8MiB"
 		return
 	}
+	var err error
 	out.FamilyCount, out.MetricCount, out.SampleCount, err = permissionObserverParseFamilies(logical)
 	if err != nil {
 		out.Error = err.Error()
 		return
 	}
 	if time.Since(start) >= permissionObserverTimeout {
-		out.Error = "complete response processing exceeds 250ms"
+		out.Error = "post-cut complete validation exceeds 250ms"
 		return
 	}
-	out.Completed = true
-	return
+	out.Validated = true
 }
 
 func permissionObserverParseFamilies(body []byte) (int, int, int, error) {
