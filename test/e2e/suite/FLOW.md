@@ -46,7 +46,7 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
   and deadlines. Queue overflow fails the observation instead of dropping a
   message silently. Explicit WK fixture credentials preserve token-auth behavior;
   no helper provisions credentials or makes application retry decisions. Optional
-  Will fields, manual PUBACK, Receive Maximum and TCP abort exercise Paho behavior.
+  Will fields, manual PUBACK, Receive Maximum and joined TCP abort exercise Paho behavior.
 - BackupClient uses authenticated public Manager HTTP with bounded response reads;
   only explicit 401 refreshes login and definite plan-revision conflicts reread.
   Archive selection and convergence assertions belong to the scenario.
@@ -55,6 +55,7 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
 - Diagnostics expose bounded paths and tails. TOML is re-encoded only after
   schema validation; invalid structure is fully omitted, and sensitive leaves
   plus nested secret-like keys are redacted.
+- Optional enabled debug API stack capture writes at most 1 MiB to a private file.
 - Message-send recovery retries only exact public
   `503 {"error":"retry required"}` with one stable body and idempotency key.
 - `WaitClusterReady` proves availability only. `WaitSlotLeadersStable` proves

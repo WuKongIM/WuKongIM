@@ -120,3 +120,21 @@ func (c *MQTTClient) Close() error {
 
 // Abort closes TCP without DISCONNECT, preserving the server's abnormal-close path.
 func (c *MQTTClient) Abort() error { return c.conn.Close() }
+
+// AbortAndWait closes TCP without DISCONNECT and joins Paho's owned workers.
+// A canceled wait does not establish that client shutdown has completed.
+func (c *MQTTClient) AbortAndWait(ctx context.Context) error {
+	if c == nil {
+		return nil
+	}
+	err := c.Abort()
+	if errors.Is(err, net.ErrClosed) {
+		err = nil
+	}
+	select {
+	case <-c.Client.Done():
+		return err
+	case <-ctx.Done():
+		return errors.Join(err, ctx.Err())
+	}
+}

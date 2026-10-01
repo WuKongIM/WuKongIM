@@ -80,6 +80,10 @@ func (e *WillExecutor) reclaimAttempts(parent context.Context) error {
 			retired = w.Stage == meta.MQTTWillPublished || w.Stage == meta.MQTTWillRejected
 		}
 		if retired {
+			// gofail: var wkMQTTWillReclamationBeforeRelease bool
+			// if wkMQTTWillReclamationBeforeRelease {
+			//     return ErrEvidence
+			// }
 			failures = errors.Join(failures, e.opts.ReclamationJournal.ReleaseAttempt(ctx, a))
 		}
 	}

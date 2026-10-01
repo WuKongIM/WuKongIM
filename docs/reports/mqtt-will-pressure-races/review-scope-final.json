@@ -1,0 +1,69 @@
+{
+  "base_revision": "a8559a6bad3f48337315f814dc664b3c221e76b6",
+  "diff_command": "git diff HEAD",
+  "commit_list": [],
+  "files": [
+    {
+      "path": "internal/usecase/mqttsession/FLOW.md",
+      "sha256": "bee4e0f7f9d04e23a13f51fb29913d68ca35051cf7dac8893dfcf9b7e0acd6fe"
+    },
+    {
+      "path": "internal/usecase/mqttsession/will_attempt_reclamation.go",
+      "sha256": "2c9bba12d5dabffc0c73b0874df18800376df702ed6023daac61c6978d423f23"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "sha256": "97b5aa5b8f7865d6846d12a2906c9f6f4d5fc001a0370923d026a6dfcb016a79"
+    },
+    {
+      "path": "pkg/slot/proxy/mqtt_write.go",
+      "sha256": "1c7970d4cffff62ed7accd25eed42c1f56a5d35a29f1d7306863960d4366f922"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "b9974d3e7a77a5369553b0dd3914edb6ae43bea4c1cd1e546701728cd7e2bdab"
+    },
+    {
+      "path": "test/e2e/mqtt/will_reclamation/AGENTS.md",
+      "sha256": "7916793e91d384cbb82747c73ef7d86c47a80a9971c4d60f415e8c9165d71c97"
+    },
+    {
+      "path": "test/e2e/mqtt/will_reclamation/reclamation_test.go",
+      "sha256": "bc4ed69c8f5f3a0c36899539c5a41f3b7ffa799e4337519695b14630fbaf1738"
+    },
+    {
+      "path": "test/e2e/suite/FLOW.md",
+      "sha256": "2d1cf3189770c928e41ead7f9b4c38d63929d3d77988d395df0bfd4835f3c454"
+    },
+    {
+      "path": "test/e2e/suite/mqtt_client.go",
+      "sha256": "8c1f6b61ff2be10e432cb23567a0482b62419ec609831956888d0d0cbc030eb6"
+    },
+    {
+      "path": "docs/reports/mqtt-will-pressure-races/README.md",
+      "sha256": "a7ced376c40220a3f7fd3d0785ea1f5e29454e2286417f5dd907c9287593bc6c"
+    },
+    {
+      "path": "docs/reports/mqtt-will-pressure-races/negative-control-source.json",
+      "sha256": "53b555c73d30fe6a945d67797861b5b334102f10511aae719bff20caa2e3c0dd"
+    },
+    {
+      "path": "docs/reports/mqtt-will-pressure-races/source-context.json",
+      "sha256": "6b1249bac97afe6c61af6d7b09c3709a33b885482322fd34351a8c1d1453a8bf"
+    },
+    {
+      "path": "docs/specs/mqtt-will-pressure-races.md",
+      "sha256": "69b687bd85416c5b8f3644394d6f5b7320593f9a4dfbb871e601392a90f5fefa"
+    },
+    {
+      "path": "test/e2e/mqtt/will_reclamation_races/AGENTS.md",
+      "sha256": "e2a53807cf6f948cc06c66e67c07d7d5f8c1758660d3046be670a1ddc57c5d4a"
+    },
+    {
+      "path": "test/e2e/mqtt/will_reclamation_races/races_test.go",
+      "sha256": "d1e006b0c87aa5c22677f9225af0cd616110e72608027f2515b330bc863036c6"
+    }
+  ],
+  "spec": "docs/specs/mqtt-will-pressure-races.md",
+  "runtime_state": "Joined tracer plus same-source repeated single-node late-release -count2 pass; final6 matrix still running at second case. Negative final expected failure at late-page-retains-capacity. Initial timeout cause not causally identified; no product fix claimed."
+}

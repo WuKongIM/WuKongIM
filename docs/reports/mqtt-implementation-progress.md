@@ -114,10 +114,20 @@ positive-only. The final 14-case single-node/three-node process matrix passes in
 681.229 seconds, including safe pre-send/pre-append crashes, issued unknown,
 version-1 upgrade and unchanged committed/accepted-append behavior. Ordinary Will
 and cap=2 reclamation regressions, app integration, related race and FLOW checks
-pass; scoped Standards and Spec reviews each report zero findings. Full 1,024-record
-pressure and delayed CAS/reclamation races are the next bounded qualification;
-complete terminal unknown-effect recovery, partitions and shared-storage admission
-remain open. This extends the Started slice without claiming complete MQTT.
+pass; scoped Standards and Spec reviews each report zero findings for that slice.
+
+[Production capacity and applied CAS reply acceptance](mqtt-will-pressure-races/README.md)
+now passes both default 1,024-record journal cases and all six applied
+Started/successor/terminal reply and canceled-page races. Each full-cap case
+retains 1,023 terminal attempts plus one current attempt, proves actual refusal
+and bounded fresh-evidence reclamation, then recovers the current original.
+Four cancellation-ignoring negative runs fail the intended second-page assertion.
+Clients and processes join before body-free artifacts are written. One receipt
+needs 41.631s, so the final correctness fixture uses a recorded 60s completion
+window; no latency SLO is qualified. Product changes are inert temporary controls.
+Delayed uncommitted Raft apply, failed authority-read starvation, complete terminal
+unknown-effect recovery, partitions and shared-storage admission remain open.
+This extends the Started slice without claiming complete MQTT.
 
 Historical sections below record the narrower evidence available at each step.
 

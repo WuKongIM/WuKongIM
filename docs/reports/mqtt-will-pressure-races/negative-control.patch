@@ -1,0 +1,4 @@
+--- a/internal/infra/mqttwill/attempts.go
++++ b/internal/infra/mqttwill/attempts.go
+@@ -226,0 +227 @@
++	ctx = context.WithoutCancel(ctx) // Negative control: deliberately ignore cleanup cancellation.

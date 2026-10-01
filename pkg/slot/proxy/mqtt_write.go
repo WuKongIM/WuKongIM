@@ -251,6 +251,21 @@ func (s *Store) CompareAndSwapMQTTWill(ctx context.Context, expected uint64, row
 	if err != nil {
 		return metadb.MQTTWillResult{}, err
 	}
+	if out.Status == metadb.MQTTSessionCASApplied {
+		if row.Stage == metadb.MQTTWillExecuting && row.DispatchStage == metadb.MQTTWillDispatchStarted {
+			if row.ExecutionGeneration == 1 {
+				// gofail: var wkMQTTWillStartedCASReply bool
+				// _ = wkMQTTWillStartedCASReply
+			} else {
+				// gofail: var wkMQTTWillSuccessorCASReply bool
+				// _ = wkMQTTWillSuccessorCASReply
+			}
+		}
+		if row.Stage == metadb.MQTTWillPublished {
+			// gofail: var wkMQTTWillTerminalCASReply bool
+			// _ = wkMQTTWillTerminalCASReply
+		}
+	}
 	return out, nil
 }
 

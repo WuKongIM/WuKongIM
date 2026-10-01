@@ -772,6 +772,11 @@ specification, runbook, report, or module documentation; link to them when neede
   journal pressure: one nonwaiting 16-attempt/750ms page requires fresh exact
   Published/Rejected or strictly newer execution rows. Missing, current and
   unknown records stay; cleanup supplies no retry proof and yields to a new turn.
+  [Process acceptance](../reports/mqtt-will-pressure-races/README.md) covers the
+  default 1,024-record cap in both topologies and applied CAS reply/canceled-page
+  races. The latter retains the 750ms page limit with a separate 60s completion
+  observation; one receipt takes 41.631s. No latency SLO, delayed uncommitted
+  apply or failed authority-read starvation is qualified by these cases.
   [Append admission](../specs/mqtt-will-append-admission.md) adds version-2
   Admitted -> AppendIssued at the origin router before local admission or remote
   forwarding. Its trusted callback never crosses RPC or reaches accepted writers;

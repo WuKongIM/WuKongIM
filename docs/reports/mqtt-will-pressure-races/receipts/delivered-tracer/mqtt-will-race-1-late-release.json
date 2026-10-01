@@ -1,0 +1,35 @@
+{
+  "after_pressure_receipt_bound_ms": 60000,
+  "after_pressure_wait_ms": 41693,
+  "business_publications": 3,
+  "connect_retries": 0,
+  "current_attempt_preserved": true,
+  "current_cut_reached": true,
+  "cut": "late-release",
+  "elapsed_ms": 104555,
+  "executor_capacity_refusal": true,
+  "executor_restarts": 1,
+  "expired_page_preserved_capacity": true,
+  "final_control_counts": [
+    {
+      "wkMQTTWillAfterAppendAdmission": 1,
+      "wkMQTTWillAfterPublication": 1,
+      "wkMQTTWillBeforeAppendAdmission": 1,
+      "wkMQTTWillJournalFull": 0,
+      "wkMQTTWillPublicationAttempt": 1
+    }
+  ],
+  "hash_slots": 256,
+  "instrumented_journal_cap": 2,
+  "last_phase": "complete",
+  "nodes": 1,
+  "original_exchange_replayed": false,
+  "passed": true,
+  "publication_attempts_after_last_restart": 1,
+  "publications_while_current_unknown": 2,
+  "resubscriptions": 0,
+  "scenario": "mqtt-will-reclamation-race",
+  "terminal_reply_cut_reached": true,
+  "unexpected_deliveries": 0,
+  "unknown_window_ms": 21000
+}

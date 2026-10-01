@@ -19,7 +19,7 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
   its port. A stored state, lease expiry, foreign boot or RPC error is not proof.
 - Will reservation pressure runs one nonwaiting 750ms reclamation page of at most
   16 local attempts. Fresh exact Published/Rejected or strictly newer execution
-  rows permit cleanup; missing/current/unknown rows stay. Cleanup yields without retry.
+  rows permit cleanup; missing/current/unknown rows stay. Cleanup yields without retry. A temporary-copy gofail cut after retirement reads verifies that expired pages retain capacity.
 - App owns composition, bounded contexts, renewal/sweep scheduling and unavailable-owner/restore fencing before product admission.
 
 ## Main Flows
