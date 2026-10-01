@@ -35,6 +35,16 @@ func (c *mqttWillCASCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
 		// gofail: var wkMQTTWillBeforeStartedApply bool
 		// _ = wkMQTTWillBeforeStartedApply
 	}
+	// Keep the real successor cut independent from the initial Started command.
+	if c.payload.Will.Stage == metadb.MQTTWillExecuting && c.payload.Will.DispatchStage == metadb.MQTTWillDispatchStarted && c.payload.Will.ExecutionGeneration == 2 {
+		applyMatch := ""
+		// gofail: var wkMQTTWillSecondApplyMatch string
+		// applyMatch = wkMQTTWillSecondApplyMatch
+		if c.payload.Will.Key.ClientID == applyMatch {
+			// gofail: var wkMQTTWillBeforeSecondApply bool
+			// _ = wkMQTTWillBeforeSecondApply
+		}
+	}
 	var err error
 	c.result, err = wb.CompareAndSwapMQTTWill(hashSlot, c.payload.ExpectedRevision, c.payload.Will)
 	return err

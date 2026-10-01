@@ -51,6 +51,10 @@ func (e *WillExecutor) reclaimAttempts(parent context.Context) error {
 		}
 		seen[a] = struct{}{}
 	}
+	// Temporary observers describe actual bounded pages and read decisions,
+	// never synthesize authority or change the journal's retirement policy.
+	// gofail: var wkMQTTWillReclamationPage bool
+	// _ = wkMQTTWillReclamationPage
 	var failures error
 	for _, a := range attempts {
 		if err := ctx.Err(); err != nil {
@@ -64,6 +68,14 @@ func (e *WillExecutor) reclaimAttempts(parent context.Context) error {
 		}
 		done()
 		if readErr != nil {
+			if a.ExecutionGeneration == 1 {
+				// gofail: var wkMQTTWillReclamationFirstUnconfirmed bool
+				// _ = wkMQTTWillReclamationFirstUnconfirmed
+			}
+			if a.ExecutionGeneration == 2 {
+				// gofail: var wkMQTTWillReclamationSecondUnconfirmed bool
+				// _ = wkMQTTWillReclamationSecondUnconfirmed
+			}
 			failures = errors.Join(failures, readErr)
 			continue
 		}
@@ -78,6 +90,16 @@ func (e *WillExecutor) reclaimAttempts(parent context.Context) error {
 		retired := w.ExecutionGeneration > a.ExecutionGeneration
 		if w.ExecutionGeneration == a.ExecutionGeneration && willAttempt(w) == a {
 			retired = w.Stage == meta.MQTTWillPublished || w.Stage == meta.MQTTWillRejected
+		}
+		if !retired {
+			if a.ExecutionGeneration == 1 {
+				// gofail: var wkMQTTWillReclamationFirstRetained bool
+				// _ = wkMQTTWillReclamationFirstRetained
+			}
+			if a.ExecutionGeneration == 2 {
+				// gofail: var wkMQTTWillReclamationSecondRetained bool
+				// _ = wkMQTTWillReclamationSecondRetained
+			}
 		}
 		if retired {
 			// gofail: var wkMQTTWillReclamationBeforeRelease bool

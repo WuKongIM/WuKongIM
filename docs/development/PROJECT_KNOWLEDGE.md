@@ -785,7 +785,20 @@ specification, runbook, report, or module documentation; link to them when neede
   process counter prefixes remain distinct from other replicas and restarted
   counters. The cap-two/12-group fixture preserves 256 hash Slots; pressure is
   exercised after delayed FSM resolution, not concurrently against an in-flight
-  older row. Direct successor cuts and failed-read fairness remain unqualified.
+  older row. That slice leaves direct successor cuts and failed-read fairness
+  unqualified. [Successor-CAS acceptance](../reports/mqtt-will-successor-recovery/README.md)
+  adds exact second-generation queued, persisted/uncommitted and pre-FSM cuts,
+  plus independent ClientIDs reaching actual full refusal/reclamation pages
+  while the captured old/new reservations remain unresolved. Unknown reads retain
+  evidence; this does not qualify failed-read fairness. Captured cap-two admission
+  stays closed through killed-process counter collection and joined exit; only
+  then may surviving nodes and the replacement boot use ordinary admission.
+  Late pressure restores ordinary capacity after its unknown observation, so no
+  liveness guarantee at a full unreclaimable journal follows. Paho manual ACKs
+  flush in receive order: withholding an original also holds later pressure ACKs.
+  Record that exact unfinished set and verify identity/PacketID/DUP on reconnect
+  before final healthy quiet. Setup/convergence bounds are separate from runtime
+  grant bounds and establish no latency SLO.
   [Append admission](../specs/mqtt-will-append-admission.md) adds version-2
   Admitted -> AppendIssued at the origin router before local admission or remote
   forwarding. Its trusted callback never crosses RPC or reaches accepted writers;

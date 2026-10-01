@@ -1,0 +1,8 @@
+--- a/internal/usecase/mqttsession/will_attempt_reclamation.go
++++ b/internal/usecase/mqttsession/will_attempt_reclamation.go
+@@ -59,0 +60,5 @@
++		// Private unsafe control: erase unresolved second-generation evidence.
++		if a.ExecutionGeneration == 2 {
++			failures = errors.Join(failures, e.opts.ReclamationJournal.ReleaseAttempt(ctx, a))
++			continue
++		}

@@ -1,0 +1,224 @@
+{
+  "base_revision": "423187b33b2784c2d79ffaff5621ee4c8629dabe",
+  "seams": [
+    "Paho MQTT 5",
+    "public Product provisioning",
+    "public Manager Slot observations",
+    "exact owned SIGKILL/restart",
+    "temporary-copy loopback gofail at real reservation/proposal/persistence/apply/reclamation decisions"
+  ],
+  "frozen_files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "e8ce221d79dca0f8e44824da604df83021f6981da9a811a3719385ef19d449a8"
+    },
+    {
+      "path": "test/e2e/mqtt/AGENTS.md",
+      "sha256": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "sha256": "0a2c48a62c201597bc019849e9d209dc4bb27b2c5370f3bf2d967e837c3481ac"
+    },
+    {
+      "path": "internal/usecase/mqttsession/FLOW.md",
+      "sha256": "bee4e0f7f9d04e23a13f51fb29913d68ca35051cf7dac8893dfcf9b7e0acd6fe"
+    },
+    {
+      "path": "internal/infra/mqttwill/FLOW.md",
+      "sha256": "4f2cf342ce24df876ea34b56609e5b44241b967de1e241c5e66de70cdfa1c9af"
+    },
+    {
+      "path": "internal/infra/cluster/FLOW.md",
+      "sha256": "f1bc902452e3c6c80d57b206f96775c611221ffd02f6b5efbeee336fba4fbcd2"
+    },
+    {
+      "path": "internal/runtime/mqttsession/FLOW.md",
+      "sha256": "570eedc2c82c4339336124c294774d748c37a595d43541c3ce8196cce6ce6e98"
+    },
+    {
+      "path": "internal/contracts/mqttsession/FLOW.md",
+      "sha256": "96e6f581f00853177cab5928583efd507ca7c776c72c0742227231685490f799"
+    },
+    {
+      "path": "test/e2e/suite/FLOW.md",
+      "sha256": "75aaacde354f6902998ec9b0fb66aa6a3f05c06be7d4cde88e8b06b78da7948d"
+    },
+    {
+      "path": "CONTEXT.md",
+      "sha256": "9a23711303665d9e555c4b4329c9e3b32d85da87f7a410b539f46e0c2e8fbade"
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "sha256": "07cc58f3ccdc395a1b12017e4e80a37df634c78d65ff00119aa9e672941ad3ab"
+    },
+    {
+      "path": "test/e2e/mqtt/will/AGENTS.md",
+      "sha256": "0e307f7ea301f3ccac1e40323d3a503871123c6d884d700dbfbff686654789ae"
+    }
+  ],
+  "new_instructions_sha256": "9d947e04a07b9bda0bb7de59f8baf1bc58487ce65be3e1c79e3e75b41ab35a9a",
+  "toolchain": {
+    "go": "1.25.11",
+    "gofail": "v0.2.0",
+    "GOWORK": "off",
+    "GOMODCACHE": "/Users/tt/.codex/will-append-runtime/gomod"
+  },
+  "first_tracer_fixture": {
+    "path": "/tmp/mqtt-will-successor-tracer-fixture-v1.go",
+    "sha256": "6d24566942d8b5e490511a83a7e34f876ebf8695c0dfaaa3dc16421b90a4c38e"
+  },
+  "first_candidate": {
+    "path": "/tmp/wukongim-will-successor-gofail",
+    "sha256": "7bf00b3c9a047816d85e1f4812527b42f2bb53714a08db743c2e837bbed62369",
+    "generated_source": "/tmp/wukongim-will-successor-source",
+    "generated_files": [
+      {
+        "path": "pkg/slot/proxy/mqtt_write.go",
+        "sha256": "5161b085cad4251fcbfd3c54cb2e9ec175cf4b679276e7c47425fdc03befb41a"
+      },
+      {
+        "path": "pkg/slot/fsm/mqtt_will_cmds.go",
+        "sha256": "f4b6cdcc0f7ca3bad9069915c368afb4c97bf92f090ff93f9389770eff7b0467"
+      },
+      {
+        "path": "pkg/slot/fsm/statemachine.go",
+        "sha256": "c53e00f173673cd0da68e81b64155f730ec54a48b925988ae29e07bcc6529b36"
+      },
+      {
+        "path": "internal/usecase/mqttsession/will_attempt_reclamation.go",
+        "sha256": "fe0754d5dfd43a78ce8e5e70393ceaeba4915da536d97777052d20ea97951886"
+      }
+    ]
+  },
+  "cut_tracer_fixture": {
+    "path": "/tmp/mqtt-will-successor-cuts-fixture-v2.go",
+    "sha256": "17eec96b53d2755d2497ec3ab46985b686422ab1cae1b53b4f2ad0ae41bca14c"
+  },
+  "pressure_gap_fixture": {
+    "path": "/tmp/mqtt-will-successor-pressure-fixture-v3.go",
+    "sha256": "3ac512a700fbd864c123e09bd5597f52d898d855bd3da8a267e1a76872a5af43"
+  },
+  "matched_candidate": {
+    "path": "/tmp/wukongim-will-successor-matched-gofail",
+    "sha256": "fd436c6b34ec588aa0366a684e40ea57b08d41252746d7ca95ac755f711b3fb1",
+    "generated_source": "/tmp/wukongim-will-successor-matched-source",
+    "generated_files": [
+      {
+        "path": "pkg/slot/proxy/mqtt_write.go",
+        "sha256": "6255225ff7872f3a6e42762cf85913474f3c2659dd6d3162cee3ca744fdde27a"
+      },
+      {
+        "path": "pkg/slot/fsm/mqtt_will_cmds.go",
+        "sha256": "1938a13001a37b1019090799b3eac7f75a173ffbd4bf901024fa31cee91122b8"
+      },
+      {
+        "path": "pkg/slot/fsm/statemachine.go",
+        "sha256": "465d15f1bc67ce279687c2c31fee386772759f297a84a218cbde252e20a56e51"
+      },
+      {
+        "path": "internal/usecase/mqttsession/will_attempt_reclamation.go",
+        "sha256": "ee6af0a3000dd107d20a4c2d8b3d1d0d48beacffbf7b9470c1fd2970c3464c6b"
+      },
+      {
+        "path": "internal/app/mqtt_will_execution.go",
+        "sha256": "695a8cd98e588d7bb1b13cbf055b01c162447735e6efef5a717ebb6c4180bfc5"
+      }
+    ]
+  },
+  "pressure_original_completion_fixture": {
+    "path": "/tmp/mqtt-will-successor-matched-fixture-v4.go",
+    "sha256": "5b6b8764b6ed0361fd3bfc4f82398a99969b80bc30a5c155f0bceaed3907ddde"
+  },
+  "completion_fixture": {
+    "path": "/tmp/mqtt-will-successor-completion-fixture-v5.go",
+    "sha256": "986a1d627a139428c0712ccc3a2f6a015f961634b09c0e225b8f701a0a6d3be9"
+  },
+  "tested_sources": [
+    {
+      "path": "pkg/slot/proxy/mqtt_write.go",
+      "sha256": "61d75d1cfa497233d3f9fe900579305070daf616c00c78f9bcfbc101d00783f3"
+    },
+    {
+      "path": "pkg/slot/fsm/mqtt_will_cmds.go",
+      "sha256": "553de8edf3c421db0b6b6c6e6d6f52d0e700c6ac086e9def4441ed81e51d7b7c"
+    },
+    {
+      "path": "pkg/slot/fsm/statemachine.go",
+      "sha256": "0fbd536ed7f613a4c2ebf1f9554e9a5e6e56e6009cff29a6ed97ca757859da5f"
+    },
+    {
+      "path": "internal/usecase/mqttsession/will_attempt_reclamation.go",
+      "sha256": "3afec0a5978870d1fbebf6d309d5492c9e1a64807466fd4e276b33f406dadd73"
+    },
+    {
+      "path": "test/e2e/mqtt/will_successor_recovery/recovery_test.go",
+      "sha256": "cca7209041dcf6d9a4e8621249b8e473898a0b9215174742298bf10e30358654"
+    }
+  ],
+  "diagnostic_fixture": {
+    "path": "/tmp/mqtt-will-successor-diagnostic-fixture-v6.go",
+    "sha256": "e44f5e7483a575db852c2363c176eb48a0d74237fccca48a8996ddccbee98ef4"
+  },
+  "ordinary_binary": {
+    "path": "/tmp/wukongim-will-successor-ordinary",
+    "sha256": "f7963e8c81b91c49244e79ff21cfadc0fe612f2d190f4a2cf993a40e7adc4647",
+    "gofail_dependency_absent": true,
+    "metadata_audit": {
+      "build_info_path": "/tmp/mqtt-will-successor-ordinary-buildinfo.log",
+      "build_info_sha256": "c6f31f6a55ac7d38b55afba908a1513210263d5f503804a5fa8924696f10e2d6",
+      "symbols_path": "/tmp/mqtt-will-successor-ordinary-symbols.log",
+      "symbols_sha256": "4cc8545ddc96186c22b4a9ba42e0d66bfff4c553a8e709a6fa5728cf445846b1",
+      "gofail_dependency_absent": true,
+      "successor_reclamation_controls_absent": true
+    }
+  },
+  "ack_window_fixture": {
+    "path": "/tmp/mqtt-will-successor-ack-window-fixture-v7.go",
+    "sha256": "66e536bdd76cba941237d9cdc3b71e6a29784ad34768a72d6e4522865cb2e5ea"
+  },
+  "ordered_ack_fixture": {
+    "path": "/tmp/mqtt-will-successor-ordered-acks-fixture-v8.go",
+    "sha256": "5e778accc933ad26827e1d6d085610478abb712ddb3b0af3313c96193f919507"
+  },
+  "paho_ack_evidence": [
+    {
+      "path": "/Users/tt/.codex/will-append-runtime/gomod/github.com/eclipse/paho.golang@v0.23.0/paho/client.go",
+      "sha256": "db59122ad3706b93b1d8681733e0e24960b0ae22c53776c832eae315d1cd6802"
+    },
+    {
+      "path": "/Users/tt/.codex/will-append-runtime/gomod/github.com/eclipse/paho.golang@v0.23.0/paho/acks_tracker.go",
+      "sha256": "4b9e07fe471f8f1caea77e005dda6030a225adeb09e5d501b40e38ebeaa367e4"
+    }
+  ],
+  "captured_cap_fixture": {
+    "path": "/tmp/mqtt-will-successor-captured-cap-fixture-v9.go",
+    "sha256": "852ee4f16a2ef078466e98073aed1415496a73dc16eb483364efa088f1297855"
+  },
+  "negative_binary": {
+    "path": "/tmp/wukongim-will-successor-negative-gofail",
+    "sha256": "7785add0a29a70a972374672a426234254d48dd345b1f81e595626307d4d660e"
+  },
+  "platform": {
+    "goos": "darwin",
+    "goarch": "arm64",
+    "host": "local process laboratory"
+  },
+  "live_pressure_ack_fixture": {
+    "path": "/tmp/mqtt-will-successor-live-pressure-ack-fixture-v10.go",
+    "sha256": "5cf3d028fdc6d8466951d5cfc22dd1f77222ab172fe919c2a0dc52bfdf901676"
+  },
+  "final_fixture": {
+    "path": "/tmp/mqtt-will-successor-readiness-fixture-v11.go",
+    "sha256": "cca7209041dcf6d9a4e8621249b8e473898a0b9215174742298bf10e30358654"
+  },
+  "existing_publication_observer": {
+    "source_file": "internal/app/mqtt_will_execution.go",
+    "source_sha256": "5d811085882d7f7ef34ee75916b2ef98e33ba8e2d6bda4ca54ad43d6e048358a",
+    "meaning": "before actual SendPreparedWill call; publication attempt observation is not by itself a successful receipt"
+  }
+}

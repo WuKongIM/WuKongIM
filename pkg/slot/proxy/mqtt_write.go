@@ -251,6 +251,17 @@ func (s *Store) CompareAndSwapMQTTWill(ctx context.Context, expected uint64, row
 		// gofail: var wkMQTTWillBeforeStartedCAS bool
 		// _ = wkMQTTWillBeforeStartedCAS
 	}
+	// A second-generation origin has reserved its exact successor attempt;
+	// submission and definite apply remain separate temporary observations.
+	if row.Stage == metadb.MQTTWillExecuting && row.DispatchStage == metadb.MQTTWillDispatchStarted && row.ExecutionGeneration == 2 {
+		originMatch := ""
+		// gofail: var wkMQTTWillSecondOriginMatch string
+		// originMatch = wkMQTTWillSecondOriginMatch
+		if row.Key.ClientID == originMatch {
+			// gofail: var wkMQTTWillBeforeSecondCAS bool
+			// _ = wkMQTTWillBeforeSecondCAS
+		}
+	}
 	if err = s.proposeMQTT(ctx, key, cmd, &out); err == nil {
 		err = validateMQTTCASResult(out.Status, out.CurrentRevision, expected)
 	}
@@ -263,6 +274,19 @@ func (s *Store) CompareAndSwapMQTTWill(ctx context.Context, expected uint64, row
 				// gofail: var wkMQTTWillStartedCASReply bool
 				// _ = wkMQTTWillStartedCASReply
 			} else {
+				// Scope temporary evidence to one ClientID while independent
+				// pressure traffic exercises other real Will executions.
+				replyMatch := ""
+				// gofail: var wkMQTTWillSecondReplyMatch string
+				// replyMatch = wkMQTTWillSecondReplyMatch
+				if row.Key.ClientID == replyMatch {
+					if row.ExecutionGeneration == 2 {
+						// gofail: var wkMQTTWillSecondCASReply bool
+						// _ = wkMQTTWillSecondCASReply
+					}
+					// gofail: var wkMQTTWillSelectedSuccessorReply bool
+					// _ = wkMQTTWillSelectedSuccessorReply
+				}
 				// gofail: var wkMQTTWillSuccessorCASReply bool
 				// _ = wkMQTTWillSuccessorCASReply
 			}

@@ -142,9 +142,25 @@ successor CAS and preserves unfinished original PacketID/identity/DUP through
 persistent reconnect. Corrected private unsafe-reclamation controls fail the
 original business receipt after real refusal; earlier ineffective controls and
 failed fixtures remain disclosed. Ordinary Will, focused race and FLOW gates
-pass. Product changes are inert temporary controls; direct successor-CAS cuts,
-independent pressure against in-flight older rows, failed-read fairness,
-issued-effect terminal recovery and shared-storage admission remain open.
+pass. Product changes are inert temporary controls. At that fixed milestone,
+direct successor-CAS cuts and independent pressure against in-flight older rows
+remained open, alongside failed-read fairness, issued-effect terminal recovery and
+shared-storage admission.
+
+[Successor-CAS and independent in-flight pressure](mqtt-will-successor-recovery/README.md)
+adds direct second-generation proposal/persistence/pre-FSM cuts and twelve
+independent ClientIDs reaching actual refusal/reclamation pages on the captured
+full journal before resolution. The final fourteen-case fixture passes 14/14 in 1272.474s;
+the delivered unsafe-reclamation negative correctly fails the real publication
+attempt assertion with seven premature attempts. Failed fixtures remain retained.
+Ordered Paho manual ACKs require the exact held pressure exchange set to replay
+with original identity/PacketID/DUP alongside the deliberately unfinished Will,
+before strict final quiet. Crash cases hold captured admission through the effect
+prefix and joined kill, then restore ordinary capacity. Late pressure likewise
+restores ordinary admission after its unknown window; no full-unreclaimable-cap
+progress guarantee or latency SLO is claimed. Ordinary Will, focused race and
+FLOW gates pass. Source Standards/Spec reviews have no open findings; the broader
+fairness, terminal unknown-effect and shared-storage obligations remain open.
 
 Historical sections below record the narrower evidence available at each step.
 
