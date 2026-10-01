@@ -1,5 +1,12 @@
 # Project Knowledge
 
+- Darwin storage full syncs must use a scheduler-aware syscall boundary without
+  weakening `F_FULLFSYNC`, EINTR retry or ENOTSUP-only fallback. Go 1.25.11's
+  internal fcntl can block while runtime trace still reports Running; that state
+  is not measured CPU. Keep native descriptors pinned through RawConn and retain
+  disk-health ownership. Permission performance still requires all original
+  unprofiled p99 and whole-node CPU comparisons; syscall visibility is not a pass.
+
 Keep only stable, cross-module facts that prevent incorrect designs or unsafe
 operations. Repository rules belong in [AGENTS.md](../../AGENTS.md), domain terms
 in [CONTEXT.md](../../CONTEXT.md), and module navigation in the applicable

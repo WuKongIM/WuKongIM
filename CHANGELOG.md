@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Release the Go scheduler during macOS storage full syncs while preserving full-sync durability, unsupported-mount fallback and disk-health reporting. / macOS 存储完整同步期间释放 Go 调度器，保留完整同步持久性、不支持挂载点的回退及磁盘健康报告。
+
 - Add visible home links to all four Demos, including chat login; return to the actual catalog address across dynamically assigned ports and reloads. / 四个 Demo 及聊天登录页新增可见的“返回首页”入口，动态端口和刷新后仍返回实际首页。
 
 - Start all four Demos with `node demo/start.mjs`, including an isolated single-node cluster, automatic dependency preparation, readiness checks, free ports and coordinated shutdown. / 新增 `node demo/start.mjs` 一键启动四个 Demo：独立单节点集群、自动准备依赖、就绪检查、空闲端口与统一退出。
