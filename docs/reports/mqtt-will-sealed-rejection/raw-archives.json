@@ -1,0 +1,197 @@
+{
+  "format": "gzip, mtime=0; lossless original byte hashes",
+  "files": [
+    {
+      "original_path": "build-full-gofail.log.txt",
+      "original_bytes": 622,
+      "original_sha256": "887a6ee5ea026b08e46341a16f342806da55df7726685b832ff57543bd5f8c62",
+      "archive_path": "build-full-gofail.log.txt.gz",
+      "archive_bytes": 283,
+      "archive_sha256": "69267ef098c64e868fca4b18646ee53b0732831f580b0d7e124d315009726178"
+    },
+    {
+      "original_path": "build-gofail.log.txt",
+      "original_bytes": 589,
+      "original_sha256": "da55df3d7722d540a36e65b5af7fb9ec99cd99589401a9632df3346caa8c862b",
+      "archive_path": "build-gofail.log.txt.gz",
+      "archive_bytes": 271,
+      "archive_sha256": "c578e5b983b36d82b9b9069548a1144e24bfe64511b80314f55e95938814015c"
+    },
+    {
+      "original_path": "build-info.log.txt",
+      "original_bytes": 44038,
+      "original_sha256": "68a3fa9477a5536038d2b7b3b94aeb5bc16d833d30d4c0375ae374ab684c5e61",
+      "archive_path": "build-info.log.txt.gz",
+      "archive_bytes": 5405,
+      "archive_sha256": "75ebd1d239e2f92b598ec31f7ec6d2033bae5f2e6cb6b0cdb169c847bbc17d65"
+    },
+    {
+      "original_path": "build-ordinary.log.txt",
+      "original_bytes": 0,
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "archive_path": "build-ordinary.log.txt.gz",
+      "archive_bytes": 20,
+      "archive_sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+    },
+    {
+      "original_path": "build-recovery-gofail.log.txt",
+      "original_bytes": 607,
+      "original_sha256": "6aac3977afa2f91a41304c494494f9ca730b40c802266f092e13a9c36a60e001",
+      "archive_path": "build-recovery-gofail.log.txt.gz",
+      "archive_bytes": 275,
+      "archive_sha256": "b20cfce19b645d911d6e121798cb54e4022ad9de237877545003ea37250c6f04"
+    },
+    {
+      "original_path": "final.log.txt",
+      "original_bytes": 1672,
+      "original_sha256": "ca3400861c9439cc2077635f8c486c628c55d6f2cfc89dc679bad2aee0441b6c",
+      "archive_path": "final.log.txt.gz",
+      "archive_bytes": 359,
+      "archive_sha256": "295becf02791edbbd0140bbd50820c025bed79339d12ccd9e1d38cd483b3cedf"
+    },
+    {
+      "original_path": "flow-check.log.txt",
+      "original_bytes": 783,
+      "original_sha256": "9dc745ac51fbdc7ee77a8b0db2eed0e4d41b6b654d2fafcf15180b4821395f1f",
+      "archive_path": "flow-check.log.txt.gz",
+      "archive_bytes": 238,
+      "archive_sha256": "6d868b2a21d39b3a1e6aa58d1434479190852ee6b0c225855f2da45773cc6c65"
+    },
+    {
+      "original_path": "flow-render.log.txt",
+      "original_bytes": 48,
+      "original_sha256": "5ca49956b23d02062de121518c2742d33bfb3768463081d8e438c87de41d5854",
+      "archive_path": "flow-render.log.txt.gz",
+      "archive_bytes": 68,
+      "archive_sha256": "c0c4d848173fa5a9578ade350f7be0a37f934d4d2c5228700d03833c420b5b93"
+    },
+    {
+      "original_path": "generated-source/matrix/internal/usecase/mqttsession/will_execution.go.txt",
+      "original_bytes": 19423,
+      "original_sha256": "436ac995cf71133c4d5006607ad879c179e082f02d7356cccbca3fd5943a4d93",
+      "archive_path": "generated-source/matrix/internal/usecase/mqttsession/will_execution.go.txt.gz",
+      "archive_bytes": 5200,
+      "archive_sha256": "9d7741ce7ef21f5045740e9ce12f96b2e3285562cf1979d4987bee244e64cc6d"
+    },
+    {
+      "original_path": "generated-source/matrix/pkg/db/meta/mqtt_will.go.txt",
+      "original_bytes": 19196,
+      "original_sha256": "fc1b3c6a92c49683e024b468f902f73f764ad1fffaa2fef3b83f78b9cb8e73c5",
+      "archive_path": "generated-source/matrix/pkg/db/meta/mqtt_will.go.txt.gz",
+      "archive_bytes": 4841,
+      "archive_sha256": "25d8c8cbbd2f18a1bd11b9695da95ad1ef0f5d4493a7e7a848bfc0de2dbcc854"
+    },
+    {
+      "original_path": "generated-source/related-recovery/internal/usecase/mqttsession/will_execution.go.txt",
+      "original_bytes": 19423,
+      "original_sha256": "436ac995cf71133c4d5006607ad879c179e082f02d7356cccbca3fd5943a4d93",
+      "archive_path": "generated-source/related-recovery/internal/usecase/mqttsession/will_execution.go.txt.gz",
+      "archive_bytes": 5200,
+      "archive_sha256": "9d7741ce7ef21f5045740e9ce12f96b2e3285562cf1979d4987bee244e64cc6d"
+    },
+    {
+      "original_path": "generated-source/related-recovery/pkg/db/meta/mqtt_will.go.txt",
+      "original_bytes": 19196,
+      "original_sha256": "fc1b3c6a92c49683e024b468f902f73f764ad1fffaa2fef3b83f78b9cb8e73c5",
+      "archive_path": "generated-source/related-recovery/pkg/db/meta/mqtt_will.go.txt.gz",
+      "archive_bytes": 4841,
+      "archive_sha256": "25d8c8cbbd2f18a1bd11b9695da95ad1ef0f5d4493a7e7a848bfc0de2dbcc854"
+    },
+    {
+      "original_path": "green-storage-tracer.log.txt",
+      "original_bytes": 53,
+      "original_sha256": "c13285a9ad6fece9ca468c604a8fa73a13d0f93b34ba1bd125595c94c3fbe967",
+      "archive_path": "green-storage-tracer.log.txt.gz",
+      "archive_bytes": 64,
+      "archive_sha256": "e17816f61cbedddc8630a40a9744e317cc88c89152ff2d75294d27c2b34cdcdf"
+    },
+    {
+      "original_path": "green-tracer.log.txt",
+      "original_bytes": 574,
+      "original_sha256": "cc8aa70f77b531d2e0a5692632e2a9a82e399826d9cc12107a16c1f5cb90d7ca",
+      "archive_path": "green-tracer.log.txt.gz",
+      "archive_bytes": 289,
+      "archive_sha256": "073b567c2ca87834410b357d5c96fd83ad1cad25dc93388da6d465861e8cad0a"
+    },
+    {
+      "original_path": "ordinary-will.log.txt",
+      "original_bytes": 815,
+      "original_sha256": "e58d1053416e4e1e82efa4826e41f923b0d2e3c742f3603adefd48ba99022417",
+      "archive_path": "ordinary-will.log.txt.gz",
+      "archive_bytes": 295,
+      "archive_sha256": "106ab7e114a28726350cf493dfd75f4b1f8ed6b677017f29dad195691fef501d"
+    },
+    {
+      "original_path": "red-storage.log.txt",
+      "original_bytes": 583,
+      "original_sha256": "b75bf14636bfbf86617f041c2dc6f45e1d1e7ff40fdab1369af5b9bd5cb734a6",
+      "archive_path": "red-storage.log.txt.gz",
+      "archive_bytes": 336,
+      "archive_sha256": "49ae7c55974e628dea3c4c3c697607cba33a13e5235c9a25bc34a53eec3a4e70"
+    },
+    {
+      "original_path": "red.log.txt",
+      "original_bytes": 6569,
+      "original_sha256": "43c9a6174b8d2cf5116c5469ba5e641774bb8fff7684cceccba5f70119205639",
+      "archive_path": "red.log.txt.gz",
+      "archive_bytes": 1369,
+      "archive_sha256": "2119210305991ab654f4888c96e2a1e439bff823c707a533610d3580dfdfec31"
+    },
+    {
+      "original_path": "related-race.log.txt",
+      "original_bytes": 1368,
+      "original_sha256": "7a123e62928354c4f057545ed652b567b4839b92bacd9d197d178eb3ba844990",
+      "archive_path": "related-race.log.txt.gz",
+      "archive_bytes": 349,
+      "archive_sha256": "7534b9f5410e0a3b1401ac247806adb2862139cdb3c8bc955568fd2ae2656eea"
+    },
+    {
+      "original_path": "related-recovery-instrumentation-failure-v2.log.txt",
+      "original_bytes": 12039,
+      "original_sha256": "ebb0b85c1877eaffc9a5f105e044808d50f4d7b520a6e24991275478fbfa9cd9",
+      "archive_path": "related-recovery-instrumentation-failure-v2.log.txt.gz",
+      "archive_bytes": 1083,
+      "archive_sha256": "a8c92e5c53797b9d77712cd588889b0104996a0071fb1fa85a00b690c205474e"
+    },
+    {
+      "original_path": "related-recovery-instrumentation-failure.log.txt",
+      "original_bytes": 12141,
+      "original_sha256": "6c38baa47cb651226253654570cf862ac26e3002ce3ff0caf0db30a1641222c9",
+      "archive_path": "related-recovery-instrumentation-failure.log.txt.gz",
+      "archive_bytes": 1115,
+      "archive_sha256": "58fbbf3ea0cdda8254197fe069e54bb7357ce7be7066f51a72a2aec5a05591ce"
+    },
+    {
+      "original_path": "related-recovery.log.txt",
+      "original_bytes": 2510,
+      "original_sha256": "abe77a88cda8c186bf00c4a4caacc300a970db492abb5d4a588b5cdc6fd089c2",
+      "archive_path": "related-recovery.log.txt.gz",
+      "archive_bytes": 400,
+      "archive_sha256": "32ae70c551e12d26e296445d99bee1c18c21db3ddcaff014fbfba53b75d5a0f2"
+    },
+    {
+      "original_path": "wiring-full-repeat.log.txt",
+      "original_bytes": 4424,
+      "original_sha256": "97f50cdaf463fe71af278f110e66bf377c19ea610769a0980c01fa142c0dbf9f",
+      "archive_path": "wiring-full-repeat.log.txt.gz",
+      "archive_bytes": 974,
+      "archive_sha256": "527ce97ebe89a8159c37b1e3cb042fd02eb62e5301407bdd9f84e71e56678699"
+    },
+    {
+      "original_path": "wiring-integration.log.txt",
+      "original_bytes": 5585,
+      "original_sha256": "48cf13138f5121b084b584d7cf8a0cf5cd1bb98b5d061d5e7beb5896eb1c551a",
+      "archive_path": "wiring-integration.log.txt.gz",
+      "archive_bytes": 1266,
+      "archive_sha256": "7278628f9e5e7cdf42b94dafe4c792ada8855dc21d162baa44acfd191123708e"
+    },
+    {
+      "original_path": "wiring-isolated-repeat.log.txt",
+      "original_bytes": 1478,
+      "original_sha256": "1bb8433482f05b674b7d4776aae5bc64668b36f760d4f11ecefb9aad6e7e2b99",
+      "archive_path": "wiring-isolated-repeat.log.txt.gz",
+      "archive_bytes": 774,
+      "archive_sha256": "0731398523ebfc59722c765232a6efc407e6443945b2c55fe5987ed6bee1fd2f"
+    }
+  ]
+}

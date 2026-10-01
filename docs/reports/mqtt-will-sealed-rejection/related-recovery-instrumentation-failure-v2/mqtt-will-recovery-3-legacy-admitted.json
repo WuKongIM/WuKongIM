@@ -1,0 +1,17 @@
+{
+  "attempts_after_restart": 0,
+  "business_publications": 0,
+  "connect_retries": 0,
+  "cut": "legacy-admitted",
+  "cut_reached": true,
+  "executor_restarts": 1,
+  "hash_slots": 256,
+  "last_phase": "complete",
+  "legacy_journal_retained": true,
+  "nodes": 3,
+  "passed": true,
+  "resubscriptions": 0,
+  "scenario": "mqtt-started-will-recovery",
+  "unexpected_deliveries": 0,
+  "unknown_effect_window_ms": 21000
+}

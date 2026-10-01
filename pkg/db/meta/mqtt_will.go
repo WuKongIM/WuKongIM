@@ -60,6 +60,9 @@ const (
 	MQTTWillDispatchPreparing
 	MQTTWillDispatchPrepared
 	MQTTWillDispatchStarted
+	// MQTTWillDispatchSealed witnesses terminal denial after the exact Started
+	// attempt was durably sealed. It never grants execution or append permission.
+	MQTTWillDispatchSealed
 )
 
 // MQTTWill owns bounded publication content and a durable execution receipt.
@@ -144,7 +147,10 @@ func MQTTWillIdempotencyKey(k MQTTWillKey) (string, error) {
 // ValidateMQTTWill checks storage shape; it cannot authenticate a remote Session
 // decision, infer elapsed time, or authorize a publication from a local row.
 func ValidateMQTTWill(r MQTTWill) error {
-	if r.DispatchStage > MQTTWillDispatchStarted || len(r.DispatchPayload) > 65535 || r.DispatchStage < MQTTWillDispatchPrepared && len(r.DispatchPayload) != 0 || r.DispatchStage != MQTTWillDispatchLegacy && r.Stage != MQTTWillExecuting && r.Stage != MQTTWillPublished && r.Stage != MQTTWillRejected {
+	if r.DispatchStage > MQTTWillDispatchSealed || len(r.DispatchPayload) > 65535 || r.DispatchStage < MQTTWillDispatchPrepared && len(r.DispatchPayload) != 0 || r.DispatchStage != MQTTWillDispatchLegacy && r.Stage != MQTTWillExecuting && r.Stage != MQTTWillPublished && r.Stage != MQTTWillRejected {
+		return dberrors.ErrInvalidArgument
+	}
+	if r.DispatchStage == MQTTWillDispatchSealed && (r.Stage != MQTTWillRejected || r.RejectReason != MQTTWillPermissionRevoked) {
 		return dberrors.ErrInvalidArgument
 	}
 	if r.DispatchStage != MQTTWillDispatchLegacy && (r.Stage == MQTTWillPublished && r.DispatchStage != MQTTWillDispatchStarted || r.Stage == MQTTWillRejected && r.DispatchStage == MQTTWillDispatchStarted) {
@@ -331,6 +337,11 @@ func validMQTTWillTransition(old, next MQTTWill) bool {
 			}
 			return old.ExecutionGeneration != math.MaxUint64 && next.ExecutionGeneration == old.ExecutionGeneration+1 && next.UpdatedAtMS >= old.LeaseUntilMS
 		}
+		if next.DispatchStage == MQTTWillDispatchSealed {
+			// Sealing forbids the old attempt's effects; this terminal decision
+			// consumes no new execution grant and preserves its exact identity.
+			return sameMQTTWillExecutor(old, next) && next.UpdatedAtMS >= old.LeaseUntilMS
+		}
 		return (next.Stage == MQTTWillPublished || next.Stage == MQTTWillRejected) && sameMQTTWillExecutor(old, next) && next.UpdatedAtMS < old.LeaseUntilMS
 	default:
 		return false
@@ -344,6 +355,11 @@ func sameMQTTWillDispatch(a, b MQTTWill) bool {
 // Dispatch phase evidence cannot be invented for an old uncertain execution.
 // Executor/lease/revision checks remain in the enclosing transition reducer.
 func validMQTTWillDispatchTransition(old, next MQTTWill) bool {
+	if next.DispatchStage == MQTTWillDispatchSealed {
+		return old.Stage == MQTTWillExecuting && old.DispatchStage == MQTTWillDispatchStarted &&
+			next.Stage == MQTTWillRejected && next.RejectReason == MQTTWillPermissionRevoked &&
+			sameMQTTWillExecutor(old, next) && bytes.Equal(old.DispatchPayload, next.DispatchPayload)
+	}
 	if old.DispatchStage == MQTTWillDispatchLegacy {
 		return sameMQTTWillDispatch(old, next) || old.Stage == MQTTWillReady && next.Stage == MQTTWillExecuting && next.DispatchStage == MQTTWillDispatchPreparing
 	}

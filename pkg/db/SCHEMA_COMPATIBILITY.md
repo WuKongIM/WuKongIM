@@ -220,8 +220,15 @@ MQTT groundwork adds metadata tables 22 (`mqtt_session`), 23
 (`mqtt_subscription`), 24 (`mqtt_delivery_cursor`), 25 (`mqtt_inflight`), 26
 (`mqtt_source_binding`) and 27 (`mqtt_will`), with Slot commands 67–74.
 Table 27 optional columns 35/36 preserve dispatch phase and frozen hook payload.
+Phase 4 (`Sealed`) records only Rejected/PermissionRevoked after a trusted exact
+durable non-dispatch seal. It retains the original Started executor/body and
+has no receipt/lease; legacy/preparation/executable rows cannot adopt it.
+Row/command bounds, indexes and envelopes stay unchanged. Older binaries reject
+this value: matched runtimes/tools and pre-feature rollback data are required;
+no mixed-version rollout or backfill is supported. See
+[sealed rejection](../../docs/specs/mqtt-will-sealed-rejection.md).
 Unmarked rows retain their exact previous encoding; marked rows separate safe
-Preparing/Prepared continuation from Started outcomes requiring positive proof.
+Preparing/Prepared continuation from Started outcomes requiring independent proof.
 Both original and transformed payloads remain bounded at 65,535 bytes; row decoding
 is capped at 192 KiB and command 72 at 320 KiB including escaped identities.
 Snapshots and typed reads retain both bodies; inspection reports lengths only.

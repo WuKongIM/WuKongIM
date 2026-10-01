@@ -407,9 +407,15 @@ and a definite Started CAS precedes dispatch. Takeover retains phase/content;
 Published requires Started and Rejected requires no Started uncertainty. Legacy
 Executing rows cannot acquire a phase retrospectively. Command 72 is bounded to
 320 KiB including both payloads and JSON-escaped identities. Ambiguous Started
-execution currently recovers positive receipts only; safe redispatch still needs
-its incarnation/restore/receipt-transfer contract. Future retries must retain the
-same frozen publication and server-owned idempotency identity.
+execution recovers positive receipts; an independently sealed Reserved/version-2
+Admitted attempt can resume under [append admission](mqtt-will-append-admission.md).
+Current definite denial after that exact seal can instead finish Rejected/Sealed
+(dispatch phase 4), preserving the original expired execution tuple/body and
+reserving no successor. Only this terminal shape admits Sealed; old binaries
+reject it and all runtimes/tools must match, with pre-feature rollback data.
+See [sealed rejection](mqtt-will-sealed-rejection.md). Issued/legacy/missing-journal
+unknown effects remain positive-only. Complete incarnation/restore/receipt-transfer
+recovery remains required; retries retain the same publication/server identity.
 The identity is `mqtt-will-v1:` plus SHA-256 of the version-1 canonical key JSON;
 it is **not** an ordinary client `ClientMsgNo`. Published metadata version 2
 binds this key, and message unique index 8 provides the separate server domain.

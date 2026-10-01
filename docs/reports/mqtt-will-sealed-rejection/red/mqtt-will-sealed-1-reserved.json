@@ -1,0 +1,15 @@
+{
+  "captured_capacity_refusal": true,
+  "connect_retries": 0,
+  "cut": "reserved",
+  "executor_node": 1,
+  "hash_slots": 256,
+  "journal_capacity": 1,
+  "last_phase": "legal-will-after-sealed-rejection",
+  "logical_slot_groups": 1,
+  "nodes": 1,
+  "passed": false,
+  "public_permission_revoked": true,
+  "resubscriptions": 0,
+  "scenario": "mqtt-will-sealed-rejection"
+}

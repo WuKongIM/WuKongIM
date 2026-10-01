@@ -3,6 +3,9 @@
 This records the original version-1 journal behavior;
 [append admission](mqtt-will-append-admission.md) extends safe sealing to
 version-2 Admitted while preserving unknown version-1 Admitted and AppendIssued.
+[Sealed rejection](mqtt-will-sealed-rejection.md) adds terminal completion after
+exact durable sealing and explicit current permission denial; the original
+limitations below describe this milestone's earlier schema.
 
 Source revision: `14386ca24a4eb00e7a4d4ebf5899023736e2c70a`.
 The operator approved crash-window acceptance and safe recovery after the

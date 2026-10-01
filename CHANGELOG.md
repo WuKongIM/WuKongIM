@@ -6,6 +6,12 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Reclaim MQTT Will capacity after an unissued Started attempt is durably sealed
+  and current permission is revoked. Preserve unknown issued/legacy effects;
+  matched cluster runtimes and tools are required. / MQTT Will 已进入 Started
+  但尚未签发追加许可时，可在持久封口且当前权限明确撤销后安全终止并释放容量；
+  已签发或旧格式的未知结果继续保留，集群运行时与工具需使用匹配版本。
+
 - Recover MQTT Wills interrupted after admission but before append submission using a durable origin submission fence; keep already-issued and older-version unknown attempts pending. / MQTT Will 在准入后、append 提交前中断时，可凭持久化提交栅栏安全恢复；已获提交许可及旧版未知执行继续待确认。
 
 - Reclaim retained MQTT Will dispatch records on journal capacity pressure only after fresh Slot evidence proves terminal or superseded execution, preserving current and uncertain recovery records. / MQTT Will 派发日志容量不足时，凭新的 Slot 终态或更新执行代次证据有界回收残留记录，保留当前任务和未知结果的恢复证明。

@@ -224,8 +224,9 @@ func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (ou
 				return out, errors.Join(ErrWillPending, sealErr)
 			}
 			if err := e.opts.Authorizer.AuthorizeWill(ctx, w.UID, q.Target); err != nil {
-				// Started cannot be rejected by the existing Slot schema. Retain the
-				// sealed obligation on denial instead of inventing a terminal proof.
+				if errors.Is(err, ErrWillDenied) {
+					return e.rejectSealed(ctx, w, started)
+				}
 				return out, errors.Join(ErrWillPending, err)
 			}
 			resumeDispatch = true
@@ -436,6 +437,37 @@ func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (ou
 		return out, ErrEvidence
 	}
 	return finish(meta.MQTTWillPublished, receipt)
+}
+
+// rejectSealed consumes the exact durable non-dispatch proof and current denial
+// without reserving a successor. Unknown/late writes retain the captured journal.
+func (e *WillExecutor) rejectSealed(ctx context.Context, w meta.MQTTWill, observed time.Time) (WillExecutionResult, error) {
+	out := willExecutionResult(w)
+	now, err := e.now()
+	if err != nil {
+		return out, err
+	}
+	if now.Before(observed) || now.UnixMilli() < observed.UnixMilli() {
+		return out, ErrClock
+	}
+	if err := ctx.Err(); err != nil {
+		return out, err
+	}
+	next := w
+	next.Stage, next.DispatchStage, next.RejectReason = meta.MQTTWillRejected, meta.MQTTWillDispatchSealed, meta.MQTTWillPermissionRevoked
+	next.Revision, next.UpdatedAtMS, next.LeaseUntilMS = w.Revision+1, now.UnixMilli(), 0
+	r, err := e.opts.Store.CompareAndSwapMQTTWill(ctx, w.Revision, next)
+	if err != nil {
+		return out, err
+	}
+	if err := willExecutionCAS(r, next.Revision); err != nil {
+		return out, err
+	}
+	if err := ctx.Err(); err != nil {
+		return out, err
+	}
+	_ = e.opts.DispatchFence.ReleaseAttempt(ctx, willAttempt(w))
+	return willExecutionResult(next), nil
 }
 
 func willExecutionCAS(r meta.MQTTWillResult, revision uint64) error {

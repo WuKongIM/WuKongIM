@@ -8,6 +8,16 @@ Real-process Paho/WKProto authenticated interop passes on single-node and three-
 clusters with 256 hash Slots. TOML/env configuration and the complete app/config
 unit suites pass with the race detector.
 
+[Sealed Started rejection](mqtt-will-sealed-rejection/README.md) now finishes
+exact Reserved/version-2 Admitted non-dispatch after current permission denial,
+without reserving a successor even at full journal capacity. Four process cases
+pass across single-node/three-node clusters and both unissued phases: the
+captured executor refuses its cap-one journal, releases the denied attempt,
+publishes a legal Will and never revives the old one after permission restoration
+and exact restart. Phase 4 is terminal-only and requires matched runtimes/tools
+with pre-feature rollback data. Issued/legacy/lost-journal unknown effects and
+aggregate shared-storage admission remain open; full MQTT acceptance is in progress.
+
 A bounded Will scanner and four-turn cohort now publish due detached work.
 Real process Will Delay/abnormal closure/normal cancellation passes in both
 topologies; that test exposed and fixed normal-intent loss during cancelled

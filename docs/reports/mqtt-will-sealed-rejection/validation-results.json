@@ -1,0 +1,557 @@
+{
+  "checks": {
+    "red.log.txt": {
+      "expected_result": "FAIL",
+      "go_package_summaries": [
+        "FAIL\nFAIL\tgithub.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_sealed_rejection\t101.246s",
+        "FAIL\n"
+      ],
+      "case_results": [
+        "--- FAIL: TestSealedStartedRejectionReleasesCapacity (100.53s)",
+        "    --- FAIL: TestSealedStartedRejectionReleasesCapacity/single-node-cluster/reserved (100.53s)"
+      ]
+    },
+    "red-storage.log.txt": {
+      "expected_result": "FAIL",
+      "go_package_summaries": [
+        "FAIL\nFAIL\tgithub.com/WuKongIM/WuKongIM/pkg/db/meta\t0.773s",
+        "FAIL\n"
+      ],
+      "case_results": [
+        "--- FAIL: TestMQTTWillSealedRejectionPreservesExactAttemptAndSnapshot (0.08s)"
+      ]
+    },
+    "green-storage-tracer.log.txt": {
+      "expected_result": "ok",
+      "go_package_summaries": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/db/meta\t1.041s"
+      ],
+      "case_results": []
+    },
+    "green-tracer.log.txt": {
+      "expected_result": "PASS",
+      "go_package_summaries": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_sealed_rejection\t76.843s"
+      ],
+      "case_results": [
+        "--- PASS: TestSealedStartedRejectionReleasesCapacity (76.05s)",
+        "    --- PASS: TestSealedStartedRejectionReleasesCapacity/single-node-cluster/reserved (76.05s)"
+      ]
+    },
+    "final.log.txt": {
+      "expected_result": "PASS",
+      "go_package_summaries": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_sealed_rejection\t330.445s"
+      ],
+      "case_results": [
+        "--- PASS: TestSealedStartedRejectionReleasesCapacity (329.65s)",
+        "    --- PASS: TestSealedStartedRejectionReleasesCapacity/single-node-cluster/reserved (76.14s)",
+        "    --- PASS: TestSealedStartedRejectionReleasesCapacity/single-node-cluster/admitted (76.78s)",
+        "    --- PASS: TestSealedStartedRejectionReleasesCapacity/three-node-cluster/reserved (88.13s)",
+        "    --- PASS: TestSealedStartedRejectionReleasesCapacity/three-node-cluster/admitted (88.60s)"
+      ]
+    },
+    "related-race.log.txt": {
+      "expected_result": "ok",
+      "go_package_summaries": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/db/meta\t40.357s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/slot/fsm\t17.452s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/mqttsession\t154.720s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/app\t5.962s"
+      ],
+      "case_results": []
+    },
+    "ordinary-will.log.txt": {
+      "expected_result": "PASS",
+      "go_package_summaries": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/test/e2e/mqtt/will\t54.386s"
+      ],
+      "case_results": [
+        "--- PASS: TestWillPublicationAndNormalCancellation (53.59s)",
+        "    --- PASS: TestWillPublicationAndNormalCancellation/1-node-cluster (21.70s)",
+        "    --- PASS: TestWillPublicationAndNormalCancellation/3-node-cluster (31.90s)"
+      ]
+    },
+    "wiring-integration.log.txt": {
+      "expected_result": "FAIL",
+      "go_package_summaries": [
+        "FAIL\nFAIL\tgithub.com/WuKongIM/WuKongIM/internal/app\t19.438s",
+        "FAIL\n"
+      ],
+      "case_results": [
+        "--- PASS: TestMQTTWillExecutionSingleNodeClusterRecoversBeforeRevocation (4.68s)",
+        "--- PASS: TestMQTTWillExecutionSingleNodeClusterFreezesWebhookBeforeRecovery (3.72s)",
+        "--- PASS: TestMQTTWillExecutionEmptyBodySingleNodeCluster (6.45s)",
+        "--- FAIL: TestMQTTWillExecutionEmptyWebhookBodySingleNodeCluster (3.64s)"
+      ]
+    },
+    "wiring-isolated-repeat.log.txt": {
+      "expected_result": "PASS",
+      "go_package_summaries": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/app\t5.240s"
+      ],
+      "case_results": [
+        "--- PASS: TestMQTTWillExecutionEmptyWebhookBodySingleNodeCluster (3.54s)"
+      ]
+    },
+    "wiring-full-repeat.log.txt": {
+      "expected_result": "PASS",
+      "go_package_summaries": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/app\t16.516s"
+      ],
+      "case_results": [
+        "--- PASS: TestMQTTWillExecutionSingleNodeClusterRecoversBeforeRevocation (3.08s)",
+        "--- PASS: TestMQTTWillExecutionSingleNodeClusterFreezesWebhookBeforeRecovery (3.29s)",
+        "--- PASS: TestMQTTWillExecutionEmptyBodySingleNodeCluster (4.12s)",
+        "--- PASS: TestMQTTWillExecutionEmptyWebhookBodySingleNodeCluster (4.29s)"
+      ]
+    },
+    "related-recovery.log.txt": {
+      "expected_result": "PASS",
+      "go_package_summaries": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_recovery\t245.726s"
+      ],
+      "case_results": [
+        "--- PASS: TestStartedWillRecoveryPreservesOnePublication (244.89s)",
+        "    --- PASS: TestStartedWillRecoveryPreservesOnePublication/1-node-cluster/issued (37.93s)",
+        "    --- PASS: TestStartedWillRecoveryPreservesOnePublication/1-node-cluster/legacy-admitted (38.03s)",
+        "    --- PASS: TestStartedWillRecoveryPreservesOnePublication/1-node-cluster/published (42.95s)",
+        "    --- PASS: TestStartedWillRecoveryPreservesOnePublication/3-node-cluster/issued (41.77s)",
+        "    --- PASS: TestStartedWillRecoveryPreservesOnePublication/3-node-cluster/legacy-admitted (42.87s)",
+        "    --- PASS: TestStartedWillRecoveryPreservesOnePublication/3-node-cluster/published (41.34s)"
+      ]
+    },
+    "related-recovery-instrumentation-failure.log.txt": {
+      "expected_result": "FAIL",
+      "go_package_summaries": [
+        "FAIL\nFAIL\tgithub.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_recovery\t137.282s",
+        "FAIL\n"
+      ],
+      "case_results": [
+        "--- FAIL: TestStartedWillRecoveryPreservesOnePublication (136.92s)",
+        "    --- FAIL: TestStartedWillRecoveryPreservesOnePublication/1-node-cluster/issued (7.34s)",
+        "    --- PASS: TestStartedWillRecoveryPreservesOnePublication/1-node-cluster/legacy-admitted (39.31s)",
+        "    --- FAIL: TestStartedWillRecoveryPreservesOnePublication/1-node-cluster/published (7.86s)",
+        "    --- FAIL: TestStartedWillRecoveryPreservesOnePublication/3-node-cluster/issued (17.84s)",
+        "    --- PASS: TestStartedWillRecoveryPreservesOnePublication/3-node-cluster/legacy-admitted (46.64s)",
+        "    --- FAIL: TestStartedWillRecoveryPreservesOnePublication/3-node-cluster/published (17.92s)"
+      ]
+    },
+    "related-recovery-instrumentation-failure-v2.log.txt": {
+      "expected_result": "FAIL",
+      "go_package_summaries": [
+        "FAIL\nFAIL\tgithub.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_recovery\t124.738s",
+        "FAIL\n"
+      ],
+      "case_results": [
+        "--- FAIL: TestStartedWillRecoveryPreservesOnePublication (124.01s)",
+        "    --- FAIL: TestStartedWillRecoveryPreservesOnePublication/1-node-cluster/issued (8.83s)",
+        "    --- PASS: TestStartedWillRecoveryPreservesOnePublication/1-node-cluster/legacy-admitted (36.31s)",
+        "    --- FAIL: TestStartedWillRecoveryPreservesOnePublication/1-node-cluster/published (7.04s)",
+        "    --- FAIL: TestStartedWillRecoveryPreservesOnePublication/3-node-cluster/issued (14.67s)",
+        "    --- PASS: TestStartedWillRecoveryPreservesOnePublication/3-node-cluster/legacy-admitted (43.58s)",
+        "    --- FAIL: TestStartedWillRecoveryPreservesOnePublication/3-node-cluster/published (13.59s)"
+      ]
+    }
+  },
+  "case_receipts": {
+    "final/mqtt-will-sealed-1-admitted.json": {
+      "business_publications": 1,
+      "captured_capacity_refusal": true,
+      "captured_publication_attempts": 1,
+      "connect_retries": 0,
+      "cut": "admitted",
+      "executor_node": 1,
+      "executor_restarts": 1,
+      "hash_slots": 256,
+      "journal_capacity": 1,
+      "last_phase": "complete",
+      "legal_message_id": "2105692573942157312",
+      "logical_slot_groups": 1,
+      "nodes": 1,
+      "passed": true,
+      "post_restart_quiet_ms": 21000,
+      "public_permission_revoked": true,
+      "resubscriptions": 0,
+      "scenario": "mqtt-will-sealed-rejection",
+      "unexpected_deliveries": 0
+    },
+    "final/mqtt-will-sealed-1-reserved.json": {
+      "business_publications": 1,
+      "captured_capacity_refusal": true,
+      "captured_publication_attempts": 1,
+      "connect_retries": 0,
+      "cut": "reserved",
+      "executor_node": 1,
+      "executor_restarts": 1,
+      "hash_slots": 256,
+      "journal_capacity": 1,
+      "last_phase": "complete",
+      "legal_message_id": "2105692249533714432",
+      "logical_slot_groups": 1,
+      "nodes": 1,
+      "passed": true,
+      "post_restart_quiet_ms": 21000,
+      "public_permission_revoked": true,
+      "resubscriptions": 0,
+      "scenario": "mqtt-will-sealed-rejection",
+      "unexpected_deliveries": 0
+    },
+    "final/mqtt-will-sealed-3-admitted.json": {
+      "business_publications": 1,
+      "captured_capacity_refusal": true,
+      "captured_publication_attempts": 1,
+      "connect_retries": 0,
+      "cut": "admitted",
+      "executor_node": 2,
+      "executor_restarts": 1,
+      "hash_slots": 256,
+      "journal_capacity": 1,
+      "last_phase": "complete",
+      "legal_message_id": "2105693301301583872",
+      "logical_slot_groups": 1,
+      "nodes": 3,
+      "passed": true,
+      "post_restart_quiet_ms": 21000,
+      "public_permission_revoked": true,
+      "resubscriptions": 0,
+      "scenario": "mqtt-will-sealed-rejection",
+      "unexpected_deliveries": 0
+    },
+    "final/mqtt-will-sealed-3-reserved.json": {
+      "business_publications": 1,
+      "captured_capacity_refusal": true,
+      "captured_publication_attempts": 1,
+      "connect_retries": 0,
+      "cut": "reserved",
+      "executor_node": 2,
+      "executor_restarts": 1,
+      "hash_slots": 256,
+      "journal_capacity": 1,
+      "last_phase": "complete",
+      "legal_message_id": "2105692924548227072",
+      "logical_slot_groups": 1,
+      "nodes": 3,
+      "passed": true,
+      "post_restart_quiet_ms": 21000,
+      "public_permission_revoked": true,
+      "resubscriptions": 0,
+      "scenario": "mqtt-will-sealed-rejection",
+      "unexpected_deliveries": 0
+    },
+    "green-tracer/mqtt-will-sealed-1-reserved.json": {
+      "business_publications": 1,
+      "captured_capacity_refusal": true,
+      "captured_publication_attempts": 1,
+      "connect_retries": 0,
+      "cut": "reserved",
+      "executor_node": 1,
+      "executor_restarts": 1,
+      "hash_slots": 256,
+      "journal_capacity": 1,
+      "last_phase": "complete",
+      "legal_message_id": "2105691600440004608",
+      "logical_slot_groups": 1,
+      "nodes": 1,
+      "passed": true,
+      "post_restart_quiet_ms": 21000,
+      "public_permission_revoked": true,
+      "resubscriptions": 0,
+      "scenario": "mqtt-will-sealed-rejection",
+      "unexpected_deliveries": 0
+    },
+    "ordinary/mqtt-will-1.json": {
+      "abnormal_close_published": true,
+      "delay_seconds": 2,
+      "hash_slots": 256,
+      "message_id": "2105693391613333504",
+      "nodes": 1,
+      "normal_close_cancelled": true,
+      "passed": true,
+      "scenario": "mqtt-will"
+    },
+    "ordinary/mqtt-will-3.json": {
+      "abnormal_close_published": true,
+      "delay_seconds": 2,
+      "hash_slots": 256,
+      "message_id": "2105693526174994432",
+      "nodes": 3,
+      "normal_close_cancelled": true,
+      "passed": true,
+      "scenario": "mqtt-will"
+    },
+    "red/mqtt-will-sealed-1-reserved.json": {
+      "captured_capacity_refusal": true,
+      "connect_retries": 0,
+      "cut": "reserved",
+      "executor_node": 1,
+      "hash_slots": 256,
+      "journal_capacity": 1,
+      "last_phase": "legal-will-after-sealed-rejection",
+      "logical_slot_groups": 1,
+      "nodes": 1,
+      "passed": false,
+      "public_permission_revoked": true,
+      "resubscriptions": 0,
+      "scenario": "mqtt-will-sealed-rejection"
+    },
+    "related-recovery/mqtt-will-recovery-1-issued.json": {
+      "attempts_after_restart": 0,
+      "business_publications": 0,
+      "connect_retries": 0,
+      "cut": "issued",
+      "cut_reached": true,
+      "executor_restarts": 1,
+      "hash_slots": 256,
+      "last_phase": "complete",
+      "legacy_journal_retained": false,
+      "nodes": 1,
+      "passed": true,
+      "resubscriptions": 0,
+      "scenario": "mqtt-started-will-recovery",
+      "unexpected_deliveries": 0,
+      "unknown_effect_window_ms": 21000
+    },
+    "related-recovery/mqtt-will-recovery-1-legacy-admitted.json": {
+      "attempts_after_restart": 0,
+      "business_publications": 0,
+      "connect_retries": 0,
+      "cut": "legacy-admitted",
+      "cut_reached": true,
+      "executor_restarts": 1,
+      "hash_slots": 256,
+      "last_phase": "complete",
+      "legacy_journal_retained": true,
+      "nodes": 1,
+      "passed": true,
+      "resubscriptions": 0,
+      "scenario": "mqtt-started-will-recovery",
+      "unexpected_deliveries": 0,
+      "unknown_effect_window_ms": 21000
+    },
+    "related-recovery/mqtt-will-recovery-1-published.json": {
+      "business_publications": 1,
+      "connect_retries": 0,
+      "cut": "published",
+      "cut_reached": true,
+      "executor_restarts": 1,
+      "hash_slots": 256,
+      "last_phase": "complete",
+      "nodes": 1,
+      "original_exchange_preserved": true,
+      "passed": true,
+      "resubscriptions": 0,
+      "scenario": "mqtt-started-will-recovery",
+      "unexpected_deliveries": 0
+    },
+    "related-recovery/mqtt-will-recovery-3-issued.json": {
+      "attempts_after_restart": 0,
+      "business_publications": 0,
+      "connect_retries": 0,
+      "cut": "issued",
+      "cut_reached": true,
+      "executor_restarts": 1,
+      "hash_slots": 256,
+      "last_phase": "complete",
+      "legacy_journal_retained": false,
+      "nodes": 3,
+      "passed": true,
+      "resubscriptions": 0,
+      "scenario": "mqtt-started-will-recovery",
+      "unexpected_deliveries": 0,
+      "unknown_effect_window_ms": 21000
+    },
+    "related-recovery/mqtt-will-recovery-3-legacy-admitted.json": {
+      "attempts_after_restart": 0,
+      "business_publications": 0,
+      "connect_retries": 0,
+      "cut": "legacy-admitted",
+      "cut_reached": true,
+      "executor_restarts": 1,
+      "hash_slots": 256,
+      "last_phase": "complete",
+      "legacy_journal_retained": true,
+      "nodes": 3,
+      "passed": true,
+      "resubscriptions": 0,
+      "scenario": "mqtt-started-will-recovery",
+      "unexpected_deliveries": 0,
+      "unknown_effect_window_ms": 21000
+    },
+    "related-recovery/mqtt-will-recovery-3-published.json": {
+      "business_publications": 1,
+      "connect_retries": 0,
+      "cut": "published",
+      "cut_reached": true,
+      "executor_restarts": 1,
+      "hash_slots": 256,
+      "last_phase": "complete",
+      "nodes": 3,
+      "original_exchange_preserved": true,
+      "passed": true,
+      "resubscriptions": 0,
+      "scenario": "mqtt-started-will-recovery",
+      "unexpected_deliveries": 0
+    },
+    "related-recovery-instrumentation-failure/mqtt-will-recovery-1-issued.json": {
+      "connect_retries": 0,
+      "cut": "issued",
+      "hash_slots": 256,
+      "last_phase": "startup",
+      "nodes": 1,
+      "passed": false,
+      "resubscriptions": 0,
+      "scenario": "mqtt-started-will-recovery"
+    },
+    "related-recovery-instrumentation-failure/mqtt-will-recovery-1-legacy-admitted.json": {
+      "attempts_after_restart": 0,
+      "business_publications": 0,
+      "connect_retries": 0,
+      "cut": "legacy-admitted",
+      "cut_reached": true,
+      "executor_restarts": 1,
+      "hash_slots": 256,
+      "last_phase": "complete",
+      "legacy_journal_retained": true,
+      "nodes": 1,
+      "passed": true,
+      "resubscriptions": 0,
+      "scenario": "mqtt-started-will-recovery",
+      "unexpected_deliveries": 0,
+      "unknown_effect_window_ms": 21000
+    },
+    "related-recovery-instrumentation-failure/mqtt-will-recovery-1-published.json": {
+      "connect_retries": 0,
+      "cut": "published",
+      "hash_slots": 256,
+      "last_phase": "startup",
+      "nodes": 1,
+      "passed": false,
+      "resubscriptions": 0,
+      "scenario": "mqtt-started-will-recovery"
+    },
+    "related-recovery-instrumentation-failure/mqtt-will-recovery-3-issued.json": {
+      "connect_retries": 0,
+      "cut": "issued",
+      "hash_slots": 256,
+      "last_phase": "startup",
+      "nodes": 3,
+      "passed": false,
+      "resubscriptions": 0,
+      "scenario": "mqtt-started-will-recovery"
+    },
+    "related-recovery-instrumentation-failure/mqtt-will-recovery-3-legacy-admitted.json": {
+      "attempts_after_restart": 0,
+      "business_publications": 0,
+      "connect_retries": 0,
+      "cut": "legacy-admitted",
+      "cut_reached": true,
+      "executor_restarts": 1,
+      "hash_slots": 256,
+      "last_phase": "complete",
+      "legacy_journal_retained": true,
+      "nodes": 3,
+      "passed": true,
+      "resubscriptions": 0,
+      "scenario": "mqtt-started-will-recovery",
+      "unexpected_deliveries": 0,
+      "unknown_effect_window_ms": 21000
+    },
+    "related-recovery-instrumentation-failure/mqtt-will-recovery-3-published.json": {
+      "connect_retries": 0,
+      "cut": "published",
+      "hash_slots": 256,
+      "last_phase": "startup",
+      "nodes": 3,
+      "passed": false,
+      "resubscriptions": 0,
+      "scenario": "mqtt-started-will-recovery"
+    },
+    "related-recovery-instrumentation-failure-v2/mqtt-will-recovery-1-issued.json": {
+      "connect_retries": 0,
+      "cut": "issued",
+      "hash_slots": 256,
+      "last_phase": "startup",
+      "nodes": 1,
+      "passed": false,
+      "resubscriptions": 0,
+      "scenario": "mqtt-started-will-recovery"
+    },
+    "related-recovery-instrumentation-failure-v2/mqtt-will-recovery-1-legacy-admitted.json": {
+      "attempts_after_restart": 0,
+      "business_publications": 0,
+      "connect_retries": 0,
+      "cut": "legacy-admitted",
+      "cut_reached": true,
+      "executor_restarts": 1,
+      "hash_slots": 256,
+      "last_phase": "complete",
+      "legacy_journal_retained": true,
+      "nodes": 1,
+      "passed": true,
+      "resubscriptions": 0,
+      "scenario": "mqtt-started-will-recovery",
+      "unexpected_deliveries": 0,
+      "unknown_effect_window_ms": 21000
+    },
+    "related-recovery-instrumentation-failure-v2/mqtt-will-recovery-1-published.json": {
+      "connect_retries": 0,
+      "cut": "published",
+      "hash_slots": 256,
+      "last_phase": "startup",
+      "nodes": 1,
+      "passed": false,
+      "resubscriptions": 0,
+      "scenario": "mqtt-started-will-recovery"
+    },
+    "related-recovery-instrumentation-failure-v2/mqtt-will-recovery-3-issued.json": {
+      "connect_retries": 0,
+      "cut": "issued",
+      "hash_slots": 256,
+      "last_phase": "startup",
+      "nodes": 3,
+      "passed": false,
+      "resubscriptions": 0,
+      "scenario": "mqtt-started-will-recovery"
+    },
+    "related-recovery-instrumentation-failure-v2/mqtt-will-recovery-3-legacy-admitted.json": {
+      "attempts_after_restart": 0,
+      "business_publications": 0,
+      "connect_retries": 0,
+      "cut": "legacy-admitted",
+      "cut_reached": true,
+      "executor_restarts": 1,
+      "hash_slots": 256,
+      "last_phase": "complete",
+      "legacy_journal_retained": true,
+      "nodes": 3,
+      "passed": true,
+      "resubscriptions": 0,
+      "scenario": "mqtt-started-will-recovery",
+      "unexpected_deliveries": 0,
+      "unknown_effect_window_ms": 21000
+    },
+    "related-recovery-instrumentation-failure-v2/mqtt-will-recovery-3-published.json": {
+      "connect_retries": 0,
+      "cut": "published",
+      "hash_slots": 256,
+      "last_phase": "startup",
+      "nodes": 3,
+      "passed": false,
+      "resubscriptions": 0,
+      "scenario": "mqtt-started-will-recovery"
+    }
+  },
+  "flow_doc_contracts": {
+    "result": "PASS",
+    "compliant": 88,
+    "invalid": 0,
+    "existing_line_target_warnings": 11
+  },
+  "limits": [
+    "cap-one with one logical group, no production-cap or multi-group qualification",
+    "Darwin only",
+    "issued/legacy/lost-journal terminal unknown effects remain open",
+    "shared-storage and full MQTT acceptance remain open"
+  ]
+}

@@ -3,6 +3,9 @@
 Will hooks run before append. Their transformed payload must be durably frozen
 before dispatch so a lost SEND reply can be resolved against the actual content.
 The original Will configuration remains immutable and available for audit.
+[Sealed rejection](mqtt-will-sealed-rejection.md) extends the original phase
+contract below with terminal phase 4 after independent non-dispatch proof;
+Started uncertainty by itself still grants no rejection.
 
 ## Failure inventory before implementation
 

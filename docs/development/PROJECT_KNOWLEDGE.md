@@ -12,6 +12,14 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Cluster and authority
 
+- An MQTT Started Will can finish Rejected/Sealed only after its exact owning
+  node durably forbids unissued append and current policy explicitly denies it.
+  The terminal CAS keeps the original executor tuple/frozen body and reserves
+  no successor, so a full journal does not block this safe discharge. Missing
+  receipt, lease expiry, failed reads and issued/legacy/lost journals grant none
+  of that proof. Phase 4 requires matched runtimes/tools and pre-feature rollback
+  data; see [the contract](../specs/mqtt-will-sealed-rejection.md).
+
 - MQTT original reads must prove anchor coverage through the complete accounted
   cursor, including a single-position exchange recovery. The compound plan/page
   port shares fresh Channel authority only within one call; final Session Owner,

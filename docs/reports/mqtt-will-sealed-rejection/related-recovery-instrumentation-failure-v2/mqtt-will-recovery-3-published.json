@@ -1,0 +1,10 @@
+{
+  "connect_retries": 0,
+  "cut": "published",
+  "hash_slots": 256,
+  "last_phase": "startup",
+  "nodes": 3,
+  "passed": false,
+  "resubscriptions": 0,
+  "scenario": "mqtt-started-will-recovery"
+}
