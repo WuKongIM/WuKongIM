@@ -144,6 +144,12 @@ specification, runbook, report, or module documentation; link to them when neede
   consumption; use nested storage/runtime evidence before attributing it to disk.
   Preserve all original performance observations when diagnosing a relocated
   boundary; see the [bounded WAL diagnosis](../reports/2026-10-01-permission-wal-rotation.md).
+- Durable-quorum SEND joins local durability with distinct-voter proof; either
+  path may complete last. Pebble commit publication waits
+  for ordered publication and WAL sync; a log-writer wakeup identifies the final
+  dependency, not exclusive `fsync` time. Runtime follower/peer stacks omit
+  proposal identity, so temporal overlap alone cannot prove quorum ownership;
+  see the [three-node diagnosis](../reports/2026-10-01-permission-three-node-durability.md).
 
 ## History, conversations, and commands
 

@@ -1,0 +1,83 @@
+{
+  "archives": [
+    {
+      "scope": "full",
+      "file": "permission-remote-three-node-full.tar.gz",
+      "bytes": 2790479,
+      "sha256": "756e39b8c42cb0780b50d03feed8ad76b9119ff20ce5776abbaf2f9d75464060",
+      "members": 60,
+      "retained_raw_runtime_traces": 6,
+      "omissions": [],
+      "roundtrip_verifier_exit_code": 0,
+      "roundtrip_verifier_output": "{\"functional_runs_passed\": 2, \"placements_checked\": 8, \"raw_trace_hashes_verified\": 6, \"bounded_scope\": false, \"original_comparative_verdict\": \"FAILED: 6/12 sequential rows\", \"performance_qualified\": false}"
+    },
+    {
+      "scope": "bounded",
+      "file": "permission-remote-three-node-bounded.tar.gz",
+      "bytes": 127764,
+      "sha256": "244d4438a2fee7192f7c6b99c4adb97fb5fc5d684a4b5d87bd4282bb5f4a70ed",
+      "members": 30,
+      "retained_raw_runtime_traces": 0,
+      "omissions": [
+        "Six raw runtime traces and full analyses; excerpts cannot certify whole-capture absence/coverage."
+      ],
+      "roundtrip_verifier_exit_code": 0,
+      "roundtrip_verifier_output": "{\"functional_runs_passed\": 2, \"placements_checked\": 8, \"raw_trace_hashes_verified\": 0, \"bounded_scope\": true, \"original_comparative_verdict\": \"FAILED: 6/12 sequential rows\", \"performance_qualified\": false}"
+    }
+  ],
+  "distribution": {
+    "bounded": "Draft PR #991; raw traces explicitly omitted.",
+    "full": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/tmp/issue-977-remote-three-node-20261001/permission-remote-three-node-full.tar.gz"
+  },
+  "comparative_verdict": "FAILED: 6/12 original sequential rows",
+  "performance_qualified": false,
+  "full_trace_replay": {
+    "trace_checks": [
+      {
+        "label": "old",
+        "node_id": 1,
+        "analysis_sha256": "0e6a880778595c413b5e443b3d5e9659959667aff44b5c20157eab899600e38f",
+        "raw_trace_redecoded": true,
+        "analysis_exact_match": true
+      },
+      {
+        "label": "old",
+        "node_id": 2,
+        "analysis_sha256": "f1c324c0ba50e2b1dcf6ec5b3015063213e1e8dc55b90c66d5a1c166cb78d577",
+        "raw_trace_redecoded": true,
+        "analysis_exact_match": true
+      },
+      {
+        "label": "old",
+        "node_id": 3,
+        "analysis_sha256": "baac5e44f008145208dedbde0509cf58bc655ce741926fe835299ce61c5cd462",
+        "raw_trace_redecoded": true,
+        "analysis_exact_match": true
+      },
+      {
+        "label": "new",
+        "node_id": 1,
+        "analysis_sha256": "acc4abb843aeef01e17ce95916b42d333cd35dd5a76d0fcf23d47033f8dce8f4",
+        "raw_trace_redecoded": true,
+        "analysis_exact_match": true
+      },
+      {
+        "label": "new",
+        "node_id": 2,
+        "analysis_sha256": "44599886931dd54b02cfa63d9a5ee435aba354508c5c40348e7a9ba795f083e1",
+        "raw_trace_redecoded": true,
+        "analysis_exact_match": true
+      },
+      {
+        "label": "new",
+        "node_id": 3,
+        "analysis_sha256": "fbc86fb68d5af19e2862bf24de0e3b14ff4ce9caef3e4bdc43ad2feb33c3be95",
+        "raw_trace_redecoded": true,
+        "analysis_exact_match": true
+      }
+    ],
+    "summary_exact_match": true,
+    "archive_inputs_modified": false,
+    "archive_full_verifier_exit_code": 0
+  }
+}
