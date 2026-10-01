@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Simplify bilingual tool selection, wkcli, and offline database tutorials with task cards, bounded inspection and import diagrams, and expandable complete commands; keep write, offline, format, and restore gates visible and correct the physical/logical Slot names in the tools overview. / 中英文工具首页、wkcli 和离线数据库教程增加任务卡片、有界检查与导入图，完整命令按需展开；写入、离线、格式与恢复门槛保持可见，并修正工具首页物理哈希槽与逻辑 Slot 的名称。
+
 - Illustrate bilingual cluster, storage, and observability configuration with join-model and hash-slot diagrams, exclusive-storage examples, tuning steps, and monitoring/diagnostic layers; retain complete references in disclosures and keep readiness, persistence, GC, and access limits visible. / 中英文节点集群、存储和可观测性配置增加加入方式与哈希槽关系图、独占存储示意、调优步骤和监控诊断分层；完整参考可展开，就绪、持久化、GC 与访问限制保持可见。
 
 - Make bilingual configuration guides task-oriented with four common-setting entries, a TOML-to-restart flow, and separate CONNECT/Manager/Product HTTP trust diagrams; preserve complete defaults and examples in disclosures while keeping override, authentication, and validation rules visible. / 中英文配置教程增加四类常用任务、TOML 到重启流程及独立 CONNECT、Manager、产品 HTTP 鉴权图，完整默认值与示例可展开，覆盖、鉴权和验收规则保持可见。
