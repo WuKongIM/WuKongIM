@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "scope": "Diagnosis only; unchanged original acceptance remains rejected",
+  "selected": {
+    "file": "2026-10-01-permission-sequential-remainder.tar.gz",
+    "bytes": 813310,
+    "sha256": "1632489f523a899e51ba9eefff446db41068375314bf6736b0c1b869644e1a5c",
+    "members": 83,
+    "independent_replay": {
+      "archive": "permission-remaining-sequential-selected.tar.gz",
+      "verified_members": 83,
+      "diagnostic_replay": "pass",
+      "native_tick_controls": 6,
+      "diagnostic_corruption_controls": 10,
+      "original_performance_exit": 1,
+      "original_sequential_rejects": 6,
+      "original_burst_passes": 12
+    }
+  },
+  "local": {
+    "file": "permission-remaining-sequential-local.tar.gz",
+    "bytes": 45834598,
+    "sha256": "939d05ca1b32f05cf67d16969ae988c8059f682ddb6fcea3218872c506c8fbb2",
+    "members": 153,
+    "independent_replay": {
+      "archive": "permission-remaining-sequential-local.tar.gz",
+      "verified_members": 153,
+      "diagnostic_replay": "pass",
+      "native_tick_controls": 6,
+      "diagnostic_corruption_controls": 10,
+      "original_performance_exit": 1,
+      "original_sequential_rejects": 6,
+      "original_burst_passes": 12
+    }
+  },
+  "delivery_base": "623091def1951fea6746bd9ac3b63a8a9ba30208",
+  "diagnostic_driver": "2975d2106921e70f818117b563253038e116cb69",
+  "delivery_root_instructions_sha256": "6df6655788a5dc019c78c330728aee6a21e7183ebbec9f2583d7f318a26df2df",
+  "root_main_preserved": "38157974fb6dd731ad162c815ddaa5bd7ea768a9",
+  "selected_scope": "All original acceptance inputs and six diagnostics; four ingress CPU files and compact red coverage receipt. Eight other CPU files,12 allocation files and full red report/executables are local-only."
+}

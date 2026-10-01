@@ -1,5 +1,13 @@
 # Project Knowledge
 
+- In the DurableQuorumLog SEND path, legacy `replica.leader.local_durable`
+  encloses the submitted quorum task until its exact receipt reaches the reactor;
+  `replica.leader.quorum_wait` covers subsequent publication. Neither isolates
+  local fsync or peer wait, and zero queue timing does not establish an empty queue.
+  Full-prefix Issue #977 profiles locate substantial ingress `/metrics` gzip work;
+  whole-node acceptance still includes it. See the
+  [remaining sequential diagnosis](../reports/2026-10-01-permission-sequential-remainder.md).
+
 Keep only stable, cross-module facts that prevent incorrect designs or unsafe
 operations. Repository rules belong in [AGENTS.md](../../AGENTS.md), domain terms
 in [CONTEXT.md](../../CONTEXT.md), and module navigation in the applicable
