@@ -206,6 +206,13 @@ func (b *peerBatcher) enqueue(ctx context.Context, node ch.NodeID, item queuedPe
 	}
 	item.requestID = b.nextID.Add(1)
 	item.queuedAt = time.Now()
+	if item.kind == ExchangeReplicate {
+		p := ExchangePriorityForeground
+		if deferred {
+			p = ExchangePriorityBackground
+		}
+		diagnosticProposal("peer_enqueue", item.replicate.Manifest, item.replicate.Records, uint8(p), uint64(node), item.requestID)
+	}
 	if deferred {
 		target.deferred = append(target.deferred, item)
 	} else {
@@ -507,7 +514,9 @@ func (b *peerBatcher) exchange(node ch.NodeID, class peerWorkClass, items []queu
 		}
 	}
 	ctx, cancel := context.WithTimeout(b.cfg.OwnerContext, b.cfg.ExchangeTimeout)
+	diagnosticPeer("peer_begin", node, priority, items)
 	response, err := callPeerExchange(ctx, b.cfg.Link, node, batch)
+	diagnosticPeer("peer_end", node, priority, items)
 	cancel()
 	if err != nil {
 		for index := range items {

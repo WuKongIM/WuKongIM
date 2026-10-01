@@ -144,3 +144,6 @@ require (
 	golang.org/x/text v0.41.0 // indirect
 	gopkg.in/ini.v1 v1.67.2 // indirect
 )
+
+// Owned bounded diagnosis only; never a product dependency change.
+replace github.com/cockroachdb/pebble/v2 => /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/tmp/issue-977-quorum-boundaries-20261001/pebble

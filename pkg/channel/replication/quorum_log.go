@@ -357,6 +357,7 @@ func (l *quorumLog) SubmitCommit(ctx context.Context, proposal Proposal, complet
 	state.inflight = true
 	state.mu.Unlock()
 	err = startDurableRound(ctx, l.cfg.Local, authority.Voters, authority.WriteQuorum, round.proposal, l.cfg.Durability, func(result durableRoundResult, err error) {
+		diagnosticProposal("quorum_callback", round.proposal.manifest, round.proposal.records, 0, 0, 0)
 		state.mu.Lock()
 		var receipt Receipt
 		if state.authority.ID != authority.ID {
@@ -366,6 +367,7 @@ func (l *quorumLog) SubmitCommit(ctx context.Context, proposal Proposal, complet
 		}
 		state.inflight = false
 		state.mu.Unlock()
+		diagnosticProposal("quorum_receipt", round.proposal.manifest, round.proposal.records, 0, 0, 0)
 		complete(receipt, err)
 	})
 	if err != nil {

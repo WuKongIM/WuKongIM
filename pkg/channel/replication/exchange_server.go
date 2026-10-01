@@ -38,6 +38,20 @@ func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch Excha
 	if err := ctx.Err(); err != nil {
 		return ExchangeBatchResult{}, err
 	}
+	for _, item := range batch.Items {
+		if item.Replicate != nil {
+			r := item.Replicate
+			diagnosticProposal("receive", r.Manifest, r.Records, uint8(batch.Priority), uint64(from), item.RequestID)
+		}
+	}
+	defer func() {
+		for _, item := range batch.Items {
+			if item.Replicate != nil {
+				r := item.Replicate
+				diagnosticProposal("receive_end", r.Manifest, r.Records, uint8(batch.Priority), uint64(from), item.RequestID)
+			}
+		}
+	}()
 	seen := make(map[uint64]struct{}, len(batch.Items))
 	type channelOperationKey struct {
 		key ch.ChannelKey

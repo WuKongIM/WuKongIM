@@ -7,6 +7,7 @@ import (
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/machine"
+	"github.com/WuKongIM/WuKongIM/pkg/channel/replication"
 	"github.com/WuKongIM/WuKongIM/pkg/channel/worker"
 )
 
@@ -191,6 +192,7 @@ func (r *Reactor) handleQuorumCommitResult(result worker.Result) {
 	if !current {
 		return
 	}
+	replication.DiagnosticBoundary("reactor_result", batch.commandID, batch.records, result.Err)
 	commitErr := result.Err
 	var committed machine.QuorumCommittedResult
 	committed.Fence = result.Fence
@@ -219,6 +221,7 @@ func (r *Reactor) handleQuorumCommitResult(result worker.Result) {
 		r.markAppendHWAdvanced(rc, oldHW, rc.state.HW, now)
 		r.afterSuccessfulQuorumCommit(rc, now)
 	}
+	replication.DiagnosticBoundary("reactor_publish", batch.commandID, batch.records, commitErr)
 	r.completeReplies(rc, decision.Replies, nil)
 	r.finishAppendInflightBatch(rc, commitErr, now)
 }

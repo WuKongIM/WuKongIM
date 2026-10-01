@@ -7,6 +7,8 @@ import (
 
 // Batch stages multiple writes for atomic commit.
 type Batch struct {
+	// diagnosticID is private to this isolated trace probe.
+	diagnosticID         uint64
 	batch                *pebble.Batch
 	db                   *DB
 	preserveCertificates bool
@@ -62,6 +64,8 @@ func (b *Batch) Commit(sync bool) error {
 	if b == nil || b.batch == nil {
 		return dberrors.ErrClosed
 	}
+	b.diagnosticCommit("commit_begin")
+	defer b.diagnosticCommit("commit_end")
 	opts := pebble.NoSync
 	if sync {
 		opts = pebble.Sync

@@ -220,6 +220,14 @@ func validProbeEntryChain(entries []EntryProbe) bool {
 }
 
 func (a *storeAdapter) Sync(ctx context.Context, mutations []Mutation) []MutationResult {
+	for _, m := range mutations {
+		diagnosticProposal("store_begin", m.Manifest, m.Records, uint8(m.Class), 0, 0)
+	}
+	defer func() {
+		for _, m := range mutations {
+			diagnosticProposal("store_end", m.Manifest, m.Records, uint8(m.Class), 0, 0)
+		}
+	}()
 	results := make([]MutationResult, len(mutations))
 	if a == nil || ctx == nil || len(mutations) == 0 || len(mutations) > a.cfg.MaxBatchItems {
 		return rejectMutations(results, ch.ErrInvalidConfig)
