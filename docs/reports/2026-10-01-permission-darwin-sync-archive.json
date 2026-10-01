@@ -1,0 +1,22 @@
+{
+  "selected": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/tmp/issue-977-darwin-sync-20261001/permission-darwin-sync-selected.tar.gz",
+    "bytes": 299667,
+    "members": 48,
+    "sha256": "50937eb49c1e717a449be180443d55873ba75dd899b8664f2479430e6b1010e7",
+    "persistent_path": "/Users/tt/.codex/artifacts/issue-977-darwin-sync-20261001/permission-darwin-sync-selected.tar.gz",
+    "tracked_path": "docs/reports/2026-10-01-permission-darwin-sync-candidate.tar.gz"
+  },
+  "local": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/tmp/issue-977-darwin-sync-20261001/permission-darwin-sync-local.tar.gz",
+    "bytes": 139058331,
+    "members": 77,
+    "sha256": "58b9ba1c230b1b0c277eb43de235cd31a1fa24b5b16ed9f57cdf7697a4bec58f",
+    "persistent_path": "/Users/tt/.codex/artifacts/issue-977-darwin-sync-20261001/permission-darwin-sync-local.tar.gz"
+  },
+  "measured_revision": "c03fa6cc1712e886d9359822e23be716fdb4534e",
+  "capacity_qualified": false,
+  "sequential_failed_rows": 6,
+  "burst_failed_rows": 0,
+  "original_archive_sha256": "2eb068e94ce358e333bd43691d546895449a8cb907c1e12bb94f9b0b1e219c5f"
+}
