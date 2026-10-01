@@ -710,6 +710,15 @@ specification, runbook, report, or module documentation; link to them when neede
   makes normal coordinator stop lose terminal evidence; unrelated read errors
   must still fail even when cancellation happens concurrently.
 
+- Full-registry observation can perturb SEND tails. A sampler that stops when
+  a closed-loop SEND wave finishes performs more observations in slower windows,
+  so equal cadence does not imply equal observer work or comparable whole-node
+  CPU. Keep fixed offered arrivals, fixed CPU duration and fixed full-snapshot
+  counts for an independent comparison; retain historical failed verdicts.
+  E2E metric reads explicitly negotiate identity and reject non-200, empty or
+  malformed snapshots. Same-response receipts bind status, logical bytes/hash
+  and observation bounds; family completeness still needs scenario assertions.
+
 - Five-second worker cuts retain configured hot SENDACK P99 threshold counts.
   Interval counts can trigger one independent diagnostic profile after an earlier
   throughput dip; profiles serialize per cluster and retain the original trigger

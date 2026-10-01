@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Read complete E2E metrics snapshots without implicit gzip compression, reject failed or empty responses, and retain same-response observation receipts. / E2E 指标抓取显式使用未压缩的完整快照，拒绝失败或空响应，并记录同一次响应的观测凭据。
+
 - Add visible home links to all four Demos, including chat login; return to the actual catalog address across dynamically assigned ports and reloads. / 四个 Demo 及聊天登录页新增可见的“返回首页”入口，动态端口和刷新后仍返回实际首页。
 
 - Start all four Demos with `node demo/start.mjs`, including an isolated single-node cluster, automatic dependency preparation, readiness checks, free ports and coordinated shutdown. / 新增 `node demo/start.mjs` 一键启动四个 Demo：独立单节点集群、自动准备依赖、就绪检查、空闲端口与统一退出。
