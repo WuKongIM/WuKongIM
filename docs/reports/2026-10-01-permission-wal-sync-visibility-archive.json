@@ -1,0 +1,51 @@
+{
+  "schema": "wk977-wal-sync-visibility/v1",
+  "prior_source": "db6a5e65e11748cf86e621aebe328442e25516f4",
+  "probe_source_sha256": "f876816da65609895801e5df4d2945724ccc531a1943213af9794578fd14b060",
+  "probe_binary_sha256": "2d4a87a5eec3c011dbc2d6c2ee14d10f95de7c9c1150aa60b4185244c7342132",
+  "archives": [
+    {
+      "mode": "selected",
+      "members": 61,
+      "bytes": 100656,
+      "sha256": "dd53c4082f1828b1589ed79775a1426bd262f9aa1bf06cdf9878310d8097bc43",
+      "roundtrip_byte_identical": true,
+      "verification": {
+        "passed": true,
+        "prior_selected_input": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/tmp/issue-977-sync-syscall-20261001/selected",
+        "exact_wal_intervals": 12,
+        "probe_syncs": 32,
+        "linux_histogram_rows": 12,
+        "original_sequential_failed_rows": 6,
+        "scope": "Selected positive state evidence and retained receipts. Prior raw proposal traces remain unavailable; this bundle cannot re-decode them."
+      }
+    },
+    {
+      "mode": "local",
+      "members": 67,
+      "bytes": 5919611,
+      "sha256": "b42fbacce77bf18e46e444e0049e3c0a91ff92f7eb38283f0cc33d4380cb8b46",
+      "roundtrip_byte_identical": true,
+      "verification": {
+        "passed": true,
+        "prior_selected_input": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/tmp/issue-977-sync-syscall-20261001/selected",
+        "exact_wal_intervals": 12,
+        "probe_syncs": 32,
+        "linux_histogram_rows": 12,
+        "original_sequential_failed_rows": 6,
+        "scope": "Selected positive state evidence and retained receipts. Prior raw proposal traces remain unavailable; this bundle cannot re-decode them."
+      }
+    }
+  ],
+  "persistent_local_bundle": "/Users/tt/.codex/artifacts/issue-977-sync-20261001/permission-sync-visibility-local.tar.gz",
+  "prior_proposal_full_trace_available": false,
+  "recovered_original_comparison_sha256": "2eb068e94ce358e333bd43691d546895449a8cb907c1e12bb94f9b0b1e219c5f",
+  "product_fix": false,
+  "qualification_replacement": false,
+  "limitations": "Complete inputs for this follow-up; prior proposal raw traces are absent. Not a restored prior full-capture archive.",
+  "delivery_validation": {
+    "go-format": "passed",
+    "flow-doc-contracts": "passed after restoring absent pinned goldmark v1.8.2; first offline-cache failure retained",
+    "formal_review_agent_dispatched": false
+  }
+}

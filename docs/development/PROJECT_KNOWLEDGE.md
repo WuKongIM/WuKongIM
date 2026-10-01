@@ -892,3 +892,10 @@ specification, runbook, report, or module documentation; link to them when neede
   and post-quorum background work must be distinguished by actual wire
   priority and identity; see
   `docs/reports/2026-10-01-permission-proposal-wal-stages.md`.
+
+- Go 1.25.11 Darwin's default full-sync path can remain `Running` in runtime
+  trace while blocked in `runtime.fcntl`; state elapsed time is not CPU time.
+  Issue #977's same-command file probe confirms this visibility difference,
+  without proving a cluster performance repair. Preserve full-sync semantics
+  and the original paired gates; see
+  `docs/reports/2026-10-01-permission-wal-sync-visibility.md`.
