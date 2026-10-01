@@ -44,7 +44,10 @@ It does not own product policy or expose Pebble-specific APIs to callers.
   later writes and compactions may proceed while the view streams.
 - Metrics must not race root shutdown or a direct message-domain close.
 - Darwin uses 16 MiB `BytesPerSync` to avoid compaction range-sync full-file
-  fsync behavior.
+  fsync behavior. Native file syncs use x/sys's scheduler-aware `F_FULLFSYNC`
+  with Go's existing EINTR retry and ENOTSUP-only fsync fallback. RawConn pins
+  descriptors across concurrent close; the adapter sits below the owned
+  default/custom disk-health checker. Other platforms retain upstream defaults.
 - The durable commit coordinator defaults to one shard and a 500-microsecond
   collection window; synchronous durability is unchanged. Metadata can opt into
   one isolated rebuild after a neighboring request rejects a group before any

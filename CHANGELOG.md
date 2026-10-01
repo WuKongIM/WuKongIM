@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Release the Go scheduler during macOS storage full syncs while preserving full-sync durability, unsupported-mount fallback and disk-health reporting. / macOS 存储完整同步期间释放 Go 调度器，保留完整同步持久性、不支持挂载点的回退及磁盘健康报告。
+
 - Coalesce already-admitted hot-Channel append prefixes within existing batch targets, preserving item and callback order, cross-Channel dependencies and capacity through completion. / 在既有批次上限内合并热点频道已准入的追加前缀，保留消息与回调顺序、跨频道依赖及完成前的容量约束。
 
 - Include per-SEND permission and admitted-append wait stages in the existing sampled diagnostics, helping operators distinguish preparation and queueing from durable append. / 现有采样诊断补充逐条 SEND 的权限调用与已准入追加等待阶段，帮助区分准备、排队和持久化追加耗时。

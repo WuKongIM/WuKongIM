@@ -54,7 +54,7 @@ type DB struct {
 	stalls *stallRecorder
 	// disk aggregates Pebble slow-disk reports for MetricsSnapshot.
 	disk *diskSlowRecorder
-	// diskHealth stops the owned health-check FS when a custom threshold is set.
+	// diskHealth stops the owned health-check FS when the platform or threshold requires one.
 	diskHealth io.Closer
 }
 
@@ -68,9 +68,17 @@ func Open(path string, opts Options) (*DB, error) {
 	popts := pebbleOptions(opts, stalls)
 	popts.EventListener.DiskSlow = disk.observe
 	var diskHealth io.Closer
-	if opts.DiskSlowThreshold > 0 {
+	fs := platformFS()
+	if fs != nil || opts.DiskSlowThreshold > 0 {
+		if fs == nil {
+			fs = vfs.Default
+		}
+		threshold := opts.DiskSlowThreshold
+		if threshold <= 0 {
+			threshold = 5 * time.Second
+		}
 		// Setting FS bypasses Pebble's default 5s wrapper, so this FS is the only health checker.
-		popts.FS, diskHealth = vfs.WithDiskHealthChecks(vfs.Default, opts.DiskSlowThreshold, nil, disk.observe)
+		popts.FS, diskHealth = vfs.WithDiskHealthChecks(fs, threshold, nil, disk.observe)
 	}
 	pdb, err := pebble.Open(path, popts)
 	if err != nil {
