@@ -76,6 +76,9 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 	report["cohort_candidate"] = cohorts
 	timeline := os.Getenv("WK_E2E_PERMISSION_TIMELINE") == "1"
 	report["request_timeline_enabled"] = timeline
+	quorumTrace := os.Getenv("WK_E2E_PERMISSION_QUORUM_TRACE") == "1"
+	report["quorum_trace_enabled"] = quorumTrace
+	require.False(t, quorumTrace && (timeline || os.Getenv("WK_E2E_PERMISSION_SEQUENTIAL_PROFILES") == "1"), "quorum traces require a separate diagnostic fixture")
 	sequentialTimeline := os.Getenv("WK_E2E_PERMISSION_TIMELINE_SEQUENTIAL") == "1"
 	sequentialProfiles := os.Getenv("WK_E2E_PERMISSION_SEQUENTIAL_PROFILES") == "1"
 	diagnosticPlacement := os.Getenv("WK_E2E_PERMISSION_DIAGNOSTIC_PLACEMENT")
@@ -143,6 +146,8 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 		"permission_sequential_test.go":          permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_sequential_test.go")),
 		"permission_sequential_profiles_test.go": permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_sequential_profiles_test.go")),
 		"permission_prefix_test.go":              permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_prefix_test.go")),
+		"permission_quorum_trace_test.go":        permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_quorum_trace_test.go")),
+		"permission_quorum_capture_test.go":      permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_quorum_capture_test.go")),
 	}
 	cpuProbe := os.Getenv("WK_E2E_PERMISSION_CPU_PROBE")
 	if cpuProbe != "" {
@@ -270,6 +275,11 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 			for _, concurrency := range []int{1, 32} {
 				window := map[string]any{"concurrency": concurrency, "completed": false}
 				windows = append(windows, window)
+				var joinTraces func() []permissionSequentialProfile
+				if quorumTrace && name == "two-slots-one-remote-leader" && concurrency == 1 {
+					joinTraces = permissionQuorumTraces(ctx, cluster, path)
+					defer func() { window["quorum_traces"] = joinTraces() }()
+				}
 				before := permissionBaselineMetrics(t, ctx, cluster)
 				window["before"] = before
 				sampleCtx, stopSamples := context.WithCancel(ctx)
@@ -301,6 +311,9 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 					window["cluster_cpu_ns"] = permissionCPUInterval(t, cpuBefore, cpuAfter)
 				}
 				joinSamples()
+				if joinTraces != nil {
+					window["quorum_traces"] = joinTraces()
+				}
 				require.NoError(t, ctx.Err())
 				require.Len(t, acks, 64, "stopped baseline retains partial responses")
 				after := permissionBaselineMetrics(t, ctx, cluster)
@@ -510,7 +523,7 @@ func permissionBaselineSend(ctx context.Context, client *suite.WKProtoClient, ch
 	err := client.SendFrame(&frame.SendPacket{ChannelID: channel, ChannelType: 2, ClientMsgNo: id, ClientSeq: seq, Payload: []byte("permission-baseline-fixed-payload")})
 	if err == nil {
 		ack, observation, readErr := client.ReadSendAckWithTiming()
-		if os.Getenv("WK_E2E_PERMISSION_TIMELINE") == "1" {
+		if os.Getenv("WK_E2E_PERMISSION_TIMELINE") == "1" || os.Getenv("WK_E2E_PERMISSION_QUORUM_TRACE") == "1" {
 			out.PendingStartedAt, out.WriteStartedAt, out.DecodedAt, out.BridgeAt = observation.PendingStartedAt.UTC(), observation.WriteStartedAt.UTC(), observation.ObservedAt.UTC(), time.Now().UTC()
 		}
 		err = readErr

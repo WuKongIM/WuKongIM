@@ -212,3 +212,14 @@ retaining its observations and joining it at traffic completion. Paired captures
 with that option absent diagnose the full public metrics scrape cost; they do
 not subtract overhead or replace original unprofiled p99/whole-node CPU gates.
 Missing old-product timeline stages remain independent failed coverage evidence.
+
+The opt-in `TestPermissionQuorumTracePrefix` uses
+`WK_E2E_PERMISSION_QUORUM_TRACE=1` with a frozen old/baseline or new/cohort
+binary and report path. It preserves all four placements, original counters,
+20-ms ownership sampling, policy controls and 161 exact messages per placement.
+Only the two-Slot same-remote-Leader sequential window captures three public
+four-second runtime traces, each bounded to six seconds and 16 MiB and joined
+on failure. A fixed 150-ms headroom is not a capture-start proof; the offline
+contract requires all 64 target proposals and their actual quorum/WAL/publication
+lineage. Trace timing is diagnostic and cannot qualify p99/whole-node CPU.
+Do not combine this flag with the other timeline/profile modes or select subtests.
