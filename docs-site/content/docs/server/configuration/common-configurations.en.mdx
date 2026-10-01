@@ -1,15 +1,75 @@
 ---
 title: Common Configurations
-description: Frequently used WuKongIM settings, with their purpose, default behavior, and key constraints.
+description: Find settings by startup, client access, Manager, and logging; expand complete defaults when needed.
 ---
 
-This page keeps only the settings most often consulted for startup, client access, and daily operations. Each setting can be provided through TOML or an environment variable; when both are present, the environment variable overrides the file value. See the [Configuration Reference](/en/server/configuration/reference) for every field and its exact semantics.
+Choose a task first. `WK_` environment values override TOML; expand the complete field, environment, and defaults reference below.
 
 <Callout type="info" title="Every deployment is a cluster">
   A one-node deployment is a single-node cluster. Every scenario requires `node.id`, `node.data_dir`, and `cluster.listen_addr`; configuration changes usually require a node restart.
 </Callout>
 
+<Cards>
+  <Card title="Start a node" description="Identity, storage, and peers." href="/en/server/configuration/common-configurations#startup" />
+  <Card title="Connect clients" description="Gateway, API, and tokens." href="/en/server/configuration/common-configurations#client-access" />
+  <Card title="Open Manager" description="Listener, JWT, and access." href="/en/server/configuration/common-configurations#manager-access" />
+  <Card title="Inspect logs" description="Levels and cleanup after diagnosis." href="/en/server/configuration/common-configurations#logging" />
+</Cards>
+
 ## Frequently used settings
+
+<section id="startup" className="scroll-m-28">
+
+### Start a node
+
+| <span className="whitespace-nowrap">Use</span> | Setting and result |
+| --- | --- |
+| <span className="whitespace-nowrap">Identity</span> | `node.id`: Non-zero and unique; never change after data exists |
+| <span className="whitespace-nowrap">Storage</span> | `node.data_dir`: Exclusive, writable storage on a persistent, backed-up disk |
+| <span className="whitespace-nowrap">Peers</span> | `cluster.listen_addr`: Local listener; peers need real reachable addresses, never wildcards |
+
+Choose static `cluster.nodes` or non-empty `cluster.seeds`. JSON environment lists **replace the whole list**.
+
+</section>
+
+<section id="client-access" className="scroll-m-28">
+
+### Connect clients
+
+| <span className="whitespace-nowrap">Use</span> | Setting and result |
+| --- | --- |
+| <span className="whitespace-nowrap">Clients</span> | `gateway.listeners`: Omission listens on all interfaces: TCP `5100` / WSMux `5200`; an explicit empty list disables Gateway |
+| <span className="whitespace-nowrap">API</span> | `api.listen_addr`: Omitted or empty disables Product HTTP; configure Gateway and Manager separately |
+
+Keep `gateway.token_auth_on=true`. CONNECT exactly matches the stored device token for the same `UID + device_flag`; empty, missing, or mismatched tokens return `ReasonAuthFail`. Product HTTP still needs a trusted network or external auth.
+
+</section>
+
+<section id="manager-access" className="scroll-m-28">
+
+### Open Manager
+
+| <span className="whitespace-nowrap">Use</span> | Setting and result |
+| --- | --- |
+| <span className="whitespace-nowrap">Listener</span> | `manager.listen_addr`: omitted or empty disables Manager; use loopback / private networks with SSH or HTTPS |
+| <span className="whitespace-nowrap">JWT</span> | `manager.auth_on`: omission defaults to `false`; set `true` in production with `manager.jwt_secret` and `manager.users` |
+
+**Verify:** replace example credentials, sign in, and grant only required resources and actions.
+
+</section>
+
+<section id="logging" className="scroll-m-28">
+
+### Inspect logs
+
+`log.level` defaults to `info`; choices are `debug`, `info`, `warn`, and `error`. Use `debug` temporarily for diagnosis, then restore the previous level.
+
+</section>
+
+<details>
+  <summary>Complete common fields, defaults, and environment mappings</summary>
+
+This page keeps only the settings most often consulted for startup, client access, and daily operations. Each setting can be provided through TOML or an environment variable; when both are present, the environment variable overrides the file value. See the [Configuration Reference](/en/server/configuration/reference) for every field and its exact semantics.
 
 | Setting (TOML / environment) | Purpose | Defaults and cautions |
 | --- | --- | --- |
@@ -24,6 +84,8 @@ This page keeps only the settings most often consulted for startup, client acces
 | [`manager.listen_addr`](/en/server/configuration/security)<br />`WK_MANAGER_LISTEN_ADDR` | Listens for the separate Manager administration service. | Omission or an empty value disables Manager; bind loopback or a management address, use SSH tunneling or a private HTTPS proxy, and enable authentication. |
 | [`manager.auth_on`](/en/server/configuration/security)<br />`WK_MANAGER_AUTH_ON` | Requires JWT login authentication for Manager routes. | Omission is `false`; when `true`, both `manager.jwt_secret` and `manager.users` are required. |
 | [`log.level`](/en/server/configuration/observability)<br />`WK_LOG_LEVEL` | Sets the minimum application log level that is recorded. | Defaults to `info`; allowed values are `debug`, `info`, `warn`, and `error`. Avoid leaving `debug` enabled after production troubleshooting. |
+
+</details>
 
 ## Continue reading
 
