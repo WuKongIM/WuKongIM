@@ -61,6 +61,7 @@ func TestPermissionCallerCohorts(t *testing.T) {
 }
 
 func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
+	fixed := os.Getenv("WK_E2E_PERMISSION_FIXED_LOAD") == "1"
 	started := time.Now().UTC()
 	report := map[string]any{
 		"started_at": started, "nodes": 3, "hash_slots": 256, "physical_slots": 12,
@@ -74,12 +75,26 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 		"fixture_scope":            "system UID; two mandatory facts; no auxiliary membership reads or recipient fanout; one-voter metadata routing proof, not HA",
 	}
 	report["cohort_candidate"] = cohorts
+	if fixed {
+		report["fixed_load_protocol"] = "permission-fixed-load/v1"
+		report["fixed_cpu_window_ms"], report["fixed_arrival_window_ms"] = permissionFixedCPUWindow.Milliseconds(), permissionFixedArrivalWindow.Milliseconds()
+		report["sends_per_window"] = map[string]int{"1": 750, "32": 14976}
+		report["fixed_observation"] = "32 full identity-encoded ingress responses at offsets 0.5s..31.5s; one-second period; each finishes within scheduled slot+250ms"
+		report["fixed_arrival_admission"] = "one persistent unqueued worker per connection; busy or >=one arrival interval late is a recorded drop; no SEND retry/catch-up; two-second fixed drain"
+		report["fixed_run_label"] = os.Getenv("WK_E2E_PERMISSION_FIXED_RUN_LABEL")
+		report["fixed_predeclared_pair_order"] = []string{"A1", "B1", "B2", "A2", "A3", "B3"}
+		report["fixed_predeclared_run_order"] = []string{"AA1", "AA2", "A1", "B1", "B2", "A2", "A3", "B3"}
+		report["resource_scope"] = "whole owned node processes; raw cumulative CPU cuts enclose fixed 32-second window and bounded query scheduling overhead; observation/background CPU included without subtraction"
+	}
 	timeline := os.Getenv("WK_E2E_PERMISSION_TIMELINE") == "1"
 	report["request_timeline_enabled"] = timeline
 	sequentialTimeline := os.Getenv("WK_E2E_PERMISSION_TIMELINE_SEQUENTIAL") == "1"
 	sequentialProfiles := os.Getenv("WK_E2E_PERMISSION_SEQUENTIAL_PROFILES") == "1"
 	require.False(t, sequentialTimeline && !timeline, "sequential timeline requires timeline mode")
 	require.False(t, sequentialProfiles && timeline, "profiles and timelines require separate fixtures")
+	if fixed {
+		require.False(t, timeline || sequentialTimeline || sequentialProfiles || os.Getenv("WK_E2E_PERMISSION_BASELINE_PROFILES") == "1", "fixed CPU diagnostic requires an unprofiled, untraced fixture")
+	}
 	report["sequential_timeline_enabled"], report["sequential_profiles_enabled"] = sequentialTimeline, sequentialProfiles
 	if sequentialProfiles {
 		report["profile_scope"] = "three owned nodes; separate 256-SEND sequential phase; four-second CPU/allocation captures may cover only part of traffic; allocation sampling applies throughout this diagnostic fixture; no timing qualifies performance"
@@ -131,7 +146,17 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 		"permission_sequential_test.go":          permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_sequential_test.go")),
 		"permission_sequential_profiles_test.go": permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_sequential_profiles_test.go")),
 	}
+	if fixed {
+		report["fixed_driver_sources"] = map[string]string{
+			"permission_fixed_load_test.go":   permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_fixed_load_test.go")),
+			"permission_fixed_driver_test.go": permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "permission_fixed_driver_test.go")),
+			"suite/metrics.go":                permissionBaselineHash(t, filepath.Join(filepath.Dir(harness), "../../suite/metrics.go")),
+		}
+	}
 	cpuProbe := os.Getenv("WK_E2E_PERMISSION_CPU_PROBE")
+	if fixed {
+		require.NotEmpty(t, cpuProbe, "fixed protocol requires the original calibrated owned-process CPU probe")
+	}
 	if cpuProbe != "" {
 		report["cpu_probe_sha256"] = permissionBaselineHash(t, cpuProbe)
 		report["cpu_scope"] = "three owned node processes; public cumulative user+system CPU converted from raw Mach ticks; cuts enclose SEND window plus bounded snapshot/scrape scheduling overhead; no CPU profile"
@@ -175,7 +200,11 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 			t.Log(cluster.DumpDiagnostics())
 		}
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	fixtureTimeout := 3 * time.Minute
+	if fixed {
+		fixtureTimeout = 8 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), fixtureTimeout)
 	defer cancel()
 	require.NoError(t, cluster.WaitClusterReady(ctx))
 	stable, err := cluster.WaitSlotLeadersStable(ctx, time.Second)
@@ -196,7 +225,12 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 	require.NotZero(t, userSlot.Runtime.LeaderID)
 	require.Len(t, userSlot.Runtime.CurrentVoters, 1)
 
-	for _, name := range []string{"same-slot-remote", "two-slots-one-remote-leader", "two-remote-leaders", "two-slots-local-leader"} {
+	layouts := []string{"same-slot-remote", "two-slots-one-remote-leader", "two-remote-leaders", "two-slots-local-leader"}
+	if fixed {
+		layouts = []string{"two-slots-one-remote-leader"}
+		report["fixed_layouts"] = layouts
+	}
+	for _, name := range layouts {
 		t.Run(name, func(t *testing.T) {
 			var channel string
 			var channelSlot suite.SlotDTO
@@ -259,49 +293,63 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 				windows = append(windows, window)
 				before := permissionBaselineMetrics(t, ctx, cluster)
 				window["before"] = before
-				sampleCtx, stopSamples := context.WithCancel(ctx)
-				sampled := permissionCohortOwnershipSamples(sampleCtx, ingress.APIAddr())
-				joined := false
-				joinSamples := func() {
-					if !joined {
-						stopSamples()
-						window["cohort_ownership_samples"] = <-sampled
-						joined = true
+				var acks []permissionBaselineAck
+				if fixed {
+					acks = permissionFixedWindow(t, ctx, cluster, ingressID, clients[:concurrency], channel, name, fmt.Sprintf("%s-c%d", name, concurrency), window, cpuPIDs, cohorts)
+				} else {
+					sampleCtx, stopSamples := context.WithCancel(ctx)
+					sampled := permissionCohortOwnershipSamples(sampleCtx, ingress.APIAddr())
+					joined := false
+					joinSamples := func() {
+						if !joined {
+							stopSamples()
+							window["cohort_ownership_samples"] = <-sampled
+							joined = true
+						}
 					}
+					// Fatal CPU/query evidence failures must still join this sampler
+					// before the parent writes its partial receipt.
+					defer joinSamples()
+					var cpuBefore permissionCPUCut
+					if cpuProbe != "" {
+						cpuBefore = permissionCPUQuery(t, ctx, cpuPIDs)
+						window["cpu_before"] = cpuBefore
+					}
+					begin := time.Now()
+					acks = permissionBaselineWave(ctx, clients[:concurrency], channel, fmt.Sprintf("%s-c%d", name, concurrency), 64)
+					end := time.Now()
+					window["acks"], window["started_at"], window["finished_at"] = acks, begin.UTC(), end.UTC()
+					window["elapsed_ms"] = end.Sub(begin).Milliseconds()
+					if cpuProbe != "" {
+						cpuAfter := permissionCPUQuery(t, ctx, cpuPIDs)
+						window["cpu_after"] = cpuAfter
+						window["cluster_cpu_ns"] = permissionCPUInterval(t, cpuBefore, cpuAfter)
+					}
+					joinSamples()
+					require.NoError(t, ctx.Err())
+					require.Len(t, acks, 64, "stopped baseline retains partial responses")
 				}
-				// Fatal CPU/query evidence failures must still join this sampler
-				// before the parent writes its partial receipt.
-				defer joinSamples()
-				var cpuBefore permissionCPUCut
-				if cpuProbe != "" {
-					cpuBefore = permissionCPUQuery(t, ctx, cpuPIDs)
-					window["cpu_before"] = cpuBefore
-				}
-				begin := time.Now()
-				acks := permissionBaselineWave(ctx, clients[:concurrency], channel, fmt.Sprintf("%s-c%d", name, concurrency), 64)
-				end := time.Now()
-				window["acks"], window["started_at"], window["finished_at"] = acks, begin.UTC(), end.UTC()
-				window["elapsed_ms"] = end.Sub(begin).Milliseconds()
-				if cpuProbe != "" {
-					cpuAfter := permissionCPUQuery(t, ctx, cpuPIDs)
-					window["cpu_after"] = cpuAfter
-					window["cluster_cpu_ns"] = permissionCPUInterval(t, cpuBefore, cpuAfter)
-				}
-				joinSamples()
-				require.NoError(t, ctx.Err())
-				require.Len(t, acks, 64, "stopped baseline retains partial responses")
 				after := permissionBaselineMetrics(t, ctx, cluster)
 				window["after"] = after
 				counts := map[string]float64{}
 				for _, key := range []string{"plans", "messages", "users", "channels", "facts", "facts_before", "node_envelopes", "local_envelopes", "slot_groups", "request_bytes", "response_bytes", "barrier_ok", "barrier_failed", "admission_busy", "cohorts", "cohort_requests", "cohort_facts", "cohort_busy"} {
 					counts[key] = permissionBaselineDelta(before, after, key)
 				}
-				latencies := make([]int64, len(acks))
-				for i, ack := range acks {
-					latencies[i] = ack.Micros
+				latencies := make([]int64, 0, len(acks))
+				for _, ack := range acks {
+					if !fixed || (ack.Error == "" && ack.Reason == uint8(frame.ReasonSuccess) && ack.MessageID > 0 && ack.Seq > 0) {
+						latencies = append(latencies, ack.Micros)
+					}
 				}
 				sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
-				window["counts"], window["sendack_p99_us"], window["sendack_max_us"] = counts, latencies[int(math.Ceil(float64(len(latencies))*.99))-1], latencies[len(latencies)-1]
+				window["counts"] = counts
+				if len(latencies) > 0 {
+					window["sendack_p99_us"], window["sendack_max_us"] = latencies[int(math.Ceil(float64(len(latencies))*.99))-1], latencies[len(latencies)-1]
+				}
+				if fixed {
+					window["latency_population"] = len(latencies)
+					window["latency_population_scope"] = "successful matched ACKs; protocol fails unless every scheduled arrival succeeds by fixed cutoff"
+				}
 				timelineConcurrency := 32
 				if sequentialTimeline {
 					timelineConcurrency = 1
@@ -311,53 +359,64 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 					window["request_timelines"] = &timelines
 					permissionRequestTimeline(t, ctx, cluster, ingressID, acks, &timelines)
 				}
-				for _, ack := range acks {
-					require.Empty(t, ack.Error)
-					require.Equal(t, uint8(frame.ReasonSuccess), ack.Reason)
-					require.Positive(t, ack.MessageID)
-					require.Positive(t, ack.Seq)
-					expected = append(expected, ack.ID)
-				}
-				groups, envelopes := float64(128), float64(64)
-				if name == "same-slot-remote" {
-					groups = 64
-				}
-				if name == "two-remote-leaders" {
-					envelopes = 128
-				} else if name == "two-slots-local-leader" {
-					envelopes = 0
-				}
-				require.EqualValues(t, 64, counts["messages"])
-				require.EqualValues(t, 64, counts["plans"])
-				require.EqualValues(t, 128, counts["facts"])
-				if cohorts && concurrency == 32 {
-					if envelopes > 0 {
-						require.Less(t, counts["node_envelopes"], envelopes, "independent callers must reduce actual RPC envelopes")
-					} else {
-						require.Zero(t, counts["node_envelopes"])
-						require.Less(t, permissionBaselineDelta(before, after, "local_envelopes"), float64(64))
-					}
-					require.Positive(t, counts["barrier_ok"])
-					require.Less(t, counts["barrier_ok"], groups, "independent callers must share sealed fresh reads")
-					require.Equal(t, counts["slot_groups"], counts["barrier_ok"])
-				} else {
-					require.Equal(t, envelopes, counts["node_envelopes"])
-					require.Equal(t, groups, counts["slot_groups"])
-					require.Equal(t, groups, counts["barrier_ok"])
-				}
-				require.Zero(t, counts["barrier_failed"])
-				require.Zero(t, counts["admission_busy"])
-				for _, node := range after {
-					require.Zero(t, node["inflight"])
-					if cohorts {
-						for _, kind := range []string{"calls", "cohorts", "budget_bytes"} {
-							value, ok := node["cohort_owned_"+kind]
-							require.True(t, ok, "candidate ownership metric missing")
-							require.Zero(t, value, "cohort ownership must drain after joined ACKs")
+				if fixed {
+					for _, ack := range acks {
+						if ack.Error == "" && ack.Reason == uint8(frame.ReasonSuccess) && ack.MessageID > 0 && ack.Seq > 0 {
+							expected = append(expected, ack.ID)
 						}
 					}
+					functional := permissionFixedValidateWindow(t, cohorts, concurrency, name, acks, counts, before, after)
+					window["functional_counts_passed"] = functional
+					window["completed"] = functional && window["fixed_protocol_passed"] == true
+				} else {
+					for _, ack := range acks {
+						require.Empty(t, ack.Error)
+						require.Equal(t, uint8(frame.ReasonSuccess), ack.Reason)
+						require.Positive(t, ack.MessageID)
+						require.Positive(t, ack.Seq)
+						expected = append(expected, ack.ID)
+					}
+					groups, envelopes := float64(128), float64(64)
+					if name == "same-slot-remote" {
+						groups = 64
+					}
+					if name == "two-remote-leaders" {
+						envelopes = 128
+					} else if name == "two-slots-local-leader" {
+						envelopes = 0
+					}
+					require.EqualValues(t, 64, counts["messages"])
+					require.EqualValues(t, 64, counts["plans"])
+					require.EqualValues(t, 128, counts["facts"])
+					if cohorts && concurrency == 32 {
+						if envelopes > 0 {
+							require.Less(t, counts["node_envelopes"], envelopes, "independent callers must reduce actual RPC envelopes")
+						} else {
+							require.Zero(t, counts["node_envelopes"])
+							require.Less(t, permissionBaselineDelta(before, after, "local_envelopes"), float64(64))
+						}
+						require.Positive(t, counts["barrier_ok"])
+						require.Less(t, counts["barrier_ok"], groups, "independent callers must share sealed fresh reads")
+						require.Equal(t, counts["slot_groups"], counts["barrier_ok"])
+					} else {
+						require.Equal(t, envelopes, counts["node_envelopes"])
+						require.Equal(t, groups, counts["slot_groups"])
+						require.Equal(t, groups, counts["barrier_ok"])
+					}
+					require.Zero(t, counts["barrier_failed"])
+					require.Zero(t, counts["admission_busy"])
+					for _, node := range after {
+						require.Zero(t, node["inflight"])
+						if cohorts {
+							for _, kind := range []string{"calls", "cohorts", "budget_bytes"} {
+								value, ok := node["cohort_owned_"+kind]
+								require.True(t, ok, "candidate ownership metric missing")
+								require.Zero(t, value, "cohort ownership must drain after joined ACKs")
+							}
+						}
+					}
+					window["completed"] = true
 				}
-				window["completed"] = true
 			}
 			// The next independent calls must observe completed writes, even with
 			// one-hour auxiliary TTL. These controls are outside measured windows.
@@ -428,7 +487,18 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 			cursor := uint64(0)
 			var historyPages []any
 			caseEvidence["history_pages"] = &historyPages
-			for page := 0; page < 8; page++ {
+			pageLimit := 8
+			if fixed {
+				plannedHistory := 1 + 32
+				for _, concurrency := range []int{1, 32} {
+					_, count, _ := permissionFixedPlan(concurrency)
+					plannedHistory += count
+				}
+				pageLimit = (plannedHistory + 99) / 100
+				require.LessOrEqual(t, pageLimit, permissionFixedHistoryCap, "fixed complete history cannot exceed hard page cap")
+				caseEvidence["planned_history_messages"], caseEvidence["history_page_limit"] = plannedHistory, pageLimit
+			}
+			for page := 0; page < pageLimit; page++ {
 				var history struct {
 					More     int `json:"more"`
 					Messages []struct {
@@ -447,7 +517,7 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 				if history.More == 0 {
 					break
 				}
-				require.Less(t, page, 7, "complete history exceeds eight-page bound")
+				require.Less(t, page, pageLimit-1, "complete history exceeds predeclared page bound")
 				require.Greater(t, history.Messages[0].MessageSeq, uint64(1))
 				next := history.Messages[0].MessageSeq - 1
 				if cursor != 0 {

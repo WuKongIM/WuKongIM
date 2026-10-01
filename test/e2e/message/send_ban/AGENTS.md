@@ -206,3 +206,28 @@ failures separately from the original experiment's functional verdict.
 to sequential timeline mode: all 64 ingress permission spans must average less
 than 800 microseconds, detecting the former forced 1-ms collection floor. This
 assertion is separate from the three unprofiled old/new p99/CPU pairs.
+
+The Issue #977 fixed-arrival diagnostic is separate and opt-in:
+`WK_E2E_PERMISSION_FIXED_LOAD=1 WK_E2E_BINARY=/absolute/frozen/wukongim WK_E2E_PERMISSION_CPU_PROBE=/absolute/calibrated/permission-cpu-darwin WK_E2E_PERMISSION_FIXED_REPORT=/absolute/fixed.json GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -run '^TestPermissionCallerFixedLoad$/two-slots-one-remote-leader$' -count=1 -timeout=8m -p=1 -v`.
+Set `WK_E2E_PERMISSION_FIXED_COHORTS=1` only for candidate count assertions;
+`WK_E2E_PERMISSION_FIXED_RUN_LABEL` records the predeclared A1/B1/B2/A2/A3/B3
+run label. Initially measure only the same-remote-leader placement; run the
+original four-layout functional modes separately. Keep tracing/profiles disabled.
+
+Each window offers arrivals for 30 seconds and has a fixed two-second drain:
+750 sequential arrivals at 25/s, or 468 bursts of 32 at 64 ms intervals, exactly
+14,976 arrivals and 499.2/s with floor rounding. One persistent unqueued worker
+per connection retains every ordinal. Busy or at least one interval late work
+is a recorded drop; unfinished/error/drop/late work fails the protocol. Never
+retry, catch up, add workers or extend the drain to manufacture success.
+
+Keep the original full before/after node cuts and native Darwin cumulative CPU
+probe. Record exactly 32 full ingress scrapes at offsets 0.5s through 31.5s,
+with identity encoding and a 250 ms deadline from each scheduled offset; preserve
+response byte count/hash, status, start/finish, misses and errors. Raw CPU cuts
+include background and observer work without subtraction. Query/window drift
+of 250 ms invalidates the fixed protocol. Preserve ownership bounds, all joins,
+750/14,976 raw ACKs, 32 ban and 32 unban controls, and complete history with a
+predeclared 158-page bound and hard 200-page cap. Retain all failures and source,
+binary, config and process identities. This diagnostic supplements spec section
+11 and never changes historical 64-SEND receipts or their acceptance verdict.

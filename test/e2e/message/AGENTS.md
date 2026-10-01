@@ -198,3 +198,9 @@ captures 64 sequential request timelines or six bounded three-node CPU/allocatio
 profiles during 256 additional sequential SENDs. See the scenario instructions
 for mutually exclusive flags, sampling/overlap limits and exact history checks.
 These diagnostic fixtures never qualify the unprofiled performance gates.
+
+Issue #977 also has the separate opt-in `TestPermissionCallerFixedLoad` at the
+same-remote-leader placement. See `send_ban/AGENTS.md` for the eight-minute bound,
+fixed 30-second arrivals plus two-second drain, exact 32 full scrape receipts,
+calibrated cumulative process CPU and complete history controls. Historical
+64-SEND characterization and existing 500 SEND/s gates remain independent.

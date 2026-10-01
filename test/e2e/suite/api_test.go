@@ -467,7 +467,7 @@ func TestFetchMetricSamplesReturnsOnePublicSnapshot(t *testing.T) {
 		_, _ = w.Write([]byte(`# HELP ignored comment
 wukongim_ants_pool_waiting{component="channelappend",pool="advance"} 3
 wukongim_delivery_recipient_worker_queue_depth 7
-malformed
+# unrelated comment
 `))
 	}))
 	defer server.Close()

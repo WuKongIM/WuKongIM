@@ -118,3 +118,9 @@ arrivals by 5 ms so sealed cohorts actually accumulate. Require positive receive
 or ingress-cohort busy, record both scopes separately, sample both hard ownership
 bounds and drain to zero, then verify exact complete recovery history. This fault
 fixture never changes the 500 SEND/s performance gates.
+
+The send-ban Issue #977 fixed-arrival diagnostic is opt-in and uses the existing
+real-process scaffold. `send_ban/AGENTS.md` records its frozen-binary command,
+eight-minute bound, exact arrival/observation counts, full response identities,
+calibrated process CPU, failure receipts and complete history. It supplements
+the historical characterization without changing its acceptance or capacity gates.
