@@ -5,29 +5,15 @@ description: 用三步搭建 WuKongIM 多节点集群，并检查每个节点是
 
 多节点集群可以简单理解为：**多台服务器运行同一套 WuKongIM，并互相保存数据副本。** 下面以 3 台服务器为例。
 
+<div className="tutorial-diagram">
+
 ```mermaid
-flowchart TB
-  Client["客户端"]
-  Admin["管理员"]
-  Nginx["Nginx 统一入口<br/>TCP 5100 / WSS 443<br/>Manager 内网 HTTPS 5301"]
-
-  subgraph Cluster["WuKongIM 集群（3 台独立服务器）"]
-    Node1["节点 1<br/>10.0.0.11<br/>独立磁盘"]
-    Node2["节点 2<br/>10.0.0.12<br/>独立磁盘"]
-    Node3["节点 3<br/>10.0.0.13<br/>独立磁盘"]
-    Network(["节点内网<br/>7000 端口，仅节点间开放"])
-
-    Node1 -.- Network
-    Node2 -.- Network
-    Node3 -.- Network
-  end
-
-  Client --> Nginx
-  Admin -->|管理内网或 VPN| Nginx
-  Nginx --> Node1
-  Nginx --> Node2
-  Nginx --> Node3
+flowchart TD
+  client["客户端"] --> edge["受控入口<br/>TCP 5100 / WSS 443"]
+  edge --> nodes["节点 1、2、3<br/>每台独立磁盘<br/>内网 7000 双向互通"]
 ```
+
+</div>
 
 ## 1. 准备 3 台服务器
 
@@ -44,6 +30,16 @@ flowchart TB
 - 三台服务器可以通过内网互相访问 `7000` 端口。
 
 ## 2. 复制同一份集群配置
+
+| 配置项 | 三台服务器如何填写 |
+| --- | --- |
+| `node.id` | 分别是 `1`、`2`、`3` |
+| `[cluster]` | 全部相同；替换为同一个随机 `join_token`，256 哈希槽，三副本 |
+| 本机监听 | `0.0.0.0:7000` 可用 |
+| 节点互连 | 填真实内网地址；不能用 `0.0.0.0` 或 `127.0.0.1` |
+
+<details>
+  <summary>完整集群 TOML 与复制步骤</summary>
 
 把下面两段放入每台服务器的 `wukongim.toml`。这是服务器 1 的配置：
 
@@ -70,11 +66,33 @@ nodes = [
 
 `listen_addr` 表示“本机监听”，所以可以写 `0.0.0.0`。`nodes` 里的地址表示“其他服务器怎样找到我”，必须填写真实内网 IP，不能写 `0.0.0.0` 或 `127.0.0.1`。其他配置见[节点与集群](/zh/server/configuration/cluster)。
 
+</details>
+
+<Callout type="warn" title="3 台服务器没有备用节点">
+  停一台后，已有频道仅在满足多数派和运行时条件时可继续提交；新频道仍可能放置失败，其他节点 `/readyz` 可能返回 `503`。已有频道收发与新频道放置须分别验收。要求停一台后仍能新建三副本频道并满足完整就绪条件，请至少准备 **4 台**。
+</Callout>
+
+<details>
+  <summary>三副本故障演练的完整限制</summary>
+
 <Callout type="warn" title="3 台服务器没有备用节点">
   三副本频道的目标副本集合包含 3 个节点。停掉一台后，已有频道在仍满足多数派及运行时条件时可以继续提交；但新频道放置仍要求足够的可用节点，`/readyz` 也检查这一条件，因此其他节点可能返回 `503`。故障演练应分别验证已有频道收发和新频道放置，不能用其中一项代替另一项。如果要求停掉一台后仍能创建三副本频道并满足完整就绪条件，请至少准备 4 台服务器。
 </Callout>
 
+</details>
+
 ## 3. 启动并检查
+
+按 [Docker](/zh/server/deployment/docker) 或 [Linux](/zh/server/deployment/linux) 方式启动三台，再逐项验收：
+
+| 检查 | 必须看到的结果 |
+| --- | --- |
+| 三台各自 `/readyz` | 全部返回 `200` 与 `{"ready":true}` |
+| 两个客户端测试 | 一方发送，另一方收到；重连后能同步 |
+| 负载均衡后端池 | 只转发给 `/readyz` 成功的节点 |
+
+<details>
+  <summary>逐台检查命令与消息验收</summary>
 
 按 [Docker](/zh/server/deployment/docker) 或 [Linux](/zh/server/deployment/linux) 部署方式启动三台服务器，然后逐台执行：
 
@@ -86,7 +104,14 @@ curl --fail http://10.0.0.13:5001/readyz
 
 三台都返回 `200` 和 `{"ready":true}` 后，再发送一条测试消息，确认另一客户端能收到并能在重连后同步。最后让负载均衡只把流量转发给 `/readyz` 成功的节点。
 
+</details>
+
 ### 打开管理后台
+
+三台的 JWT 密钥、管理员密码与认证配置保持相同，保留 `auth_on = true`。通过管理内网或 VPN 打开 Manager；节点 `5301` 只允许代理和授权管理来源，禁止公网访问。
+
+<details>
+  <summary>完整 Manager 配置与登录方式</summary>
 
 三台节点使用同一份 Manager 认证配置，否则 Nginx 转发到另一台节点后会登录失败：
 
@@ -100,7 +125,16 @@ users = [{ username = "admin", password = "replace-with-the-same-strong-password
 
 把 `jwt_secret` 和密码替换为强随机值，并在三台节点上保持完全相同。下方 Nginx 生效后，打开 `https://manager.internal.example.com:5301`，使用 `admin` 和配置的密码登录。更多说明见 [Manager 管理后台](/zh/server/operations/manager)。
 
+</details>
+
 ### 接入 Nginx
+
+配置 TCP / WSS 入口、内部 Manager 入口与三台相同的对外地址，再验证并重载 Nginx。Stream / Stream SSL 模块必需，`stream` 放在顶层。
+
+**接流条件：** 开源 Nginx 不会主动检查 `/readyz`，未就绪节点须移出 `upstream`。单台 Nginx 是单点；生产使用双代理统一入口或托管负载均衡。
+
+<details>
+  <summary>完整 Nginx、对外地址与重载步骤</summary>
 
 下面的 Nginx 配置会分发客户端 TCP、WSS 和 Manager 连接。它需要 Nginx Stream 和 Stream SSL 模块；把 `stream` 放在 `nginx.conf` 的顶层，不能放进 `http` 内：
 
@@ -164,4 +198,11 @@ external_wss_addr = "wss://im.example.com"
 
 将 `im.example.com` 解析到客户端入口；`manager.internal.example.com` 仅通过内部 DNS 解析到 Nginx 管理内网地址 `10.0.0.10`。管理员通过内网或 VPN 访问，节点 `5301` 仅允许该代理和授权管理来源，禁止公网访问。替换管理地址与证书路径后，执行 `sudo nginx -t && sudo systemctl reload nginx`。这里的开源 Nginx 只能在连接失败后临时跳过节点，不会主动检查 `/readyz`；上线系统还需要在节点未就绪时自动或手动把它移出 `upstream`。示例假设 `443` 端口专门用于 WuKongIM；一台 Nginx 也会成为单点，生产环境应使用两台 Nginx 加一个统一入口，或使用托管负载均衡。
 
+</details>
+
 已有数据后，不要直接修改集群 ID、节点 ID、`hash_slot_count` 或副本数。增减节点请阅读[扩容与缩容](/zh/server/operations/scaling)。
+
+<Cards>
+  <Card title="核对网络与客户端地址" description="从真实客户端网络验证连接。" href="/zh/server/configuration/networking" />
+  <Card title="检查集群就绪" description="查看健康指标与 Manager 状态。" href="/zh/server/operations/health-and-monitoring" />
+</Cards>

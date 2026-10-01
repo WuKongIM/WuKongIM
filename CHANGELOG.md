@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Simplify bilingual Linux deployment, networking, and multi-node guides with compact connection flows, expected results, and expandable complete commands/configurations; keep readiness, private access, address rules, and three-node failure limits visible. / 中英文 Linux 部署、网络接入与多节点教程改为简洁连接图、预期结果和可展开完整命令配置，就绪、内网访问、地址规则与三节点故障限制保持可见。
+
 - Turn bilingual backup/restore, scaling, and upgrade guides into compact illustrated flows with expected outcomes and expandable full actions; keep archive verification, safe node removal, compatibility, rollback, and traffic-admission gates visible. / 中英文备份恢复、扩缩容与升级教程改为简洁流程图、预期结果和可展开完整步骤，保留归档验证、安全移除、版本兼容、回滚与接流条件。
 
 - Make bilingual health checks and troubleshooting easier to follow with compact readiness diagrams, recorded Manager captures, six symptom paths, and expandable commands/PromQL; show a five-step operations change flow while keeping readiness, data safety, and stop conditions visible. / 中英文健康检查与排障改为简洁判断图、已记录 Manager 实图、六类故障入口和可展开命令/PromQL；运维首页增加五步变更图，保留就绪、数据安全与停止条件。
