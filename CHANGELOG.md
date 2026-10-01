@@ -6,6 +6,13 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Bound MQTT shared replay responsibilities by node and cluster storage capacity,
+  preserve accepted replay at exhaustion, and reopen admission after proved
+  retirement. Recovery barriers no longer appear as MQTT messages. Matched cluster
+  nodes/tools and a cold rollout are required. / MQTT 共享回放增加节点与集群容量上限，
+  容量满时保留已接收消息，确认回收后恢复接收；重启恢复记录不再误投递为 MQTT 消息。
+  部署需使用匹配版本的节点和工具，并停机升级。
+
 - Reclaim MQTT Will capacity after an unissued Started attempt is durably sealed
   and current permission is revoked. Preserve unknown issued/legacy effects;
   matched cluster runtimes and tools are required. / MQTT Will 已进入 Started

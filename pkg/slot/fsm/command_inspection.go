@@ -42,6 +42,9 @@ func DecodeCommandInspection(data []byte) (CommandInspection, error) {
 
 func inspectCommand(cmd command) (CommandInspection, error) {
 	switch typed := cmd.(type) {
+	case *mqttStorageCmd:
+		q := typed.query
+		return simpleInspection("mqtt_storage", map[string]any{"node_id": q.NodeID, "expected_revision": q.ExpectedRevision, "expected_bytes": q.ExpectedBytes, "target_bytes": q.TargetBytes, "cluster_limit": q.ClusterLimit}), nil
 	case *mqttSourceBindingRetireCmd:
 		p := typed.payload
 		return simpleInspection("mqtt_source_binding_retire", map[string]any{

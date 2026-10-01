@@ -33,6 +33,7 @@ func TestCommandInspectionCoversRegisteredDecoders(t *testing.T) {
 		name string
 		data []byte
 	}{
+		{"mqtt_storage", checked(EncodeMQTTStorageCommand(metadb.MQTTStorageAdjustment{NodeID: 1, MembershipRevision: 1, ClusterLimit: 8192, Members: []uint64{1}, InitialDebt: new(uint64)}))},
 		{"mqtt_reclamation_index", EncodeMQTTReclamationIndexCommand()},
 		{"mqtt_replay_marker_clear", checked(EncodeMQTTReplayMarkerClearCommand(mqttSourceBindingCommandFixture().Key.Owner))},
 		{"mqtt_source_binding_retire", checked(EncodeMQTTSourceBindingRetireCommand(mqttSourceBindingCommandFixture().Key, 3, 1))},

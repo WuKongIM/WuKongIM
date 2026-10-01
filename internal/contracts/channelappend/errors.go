@@ -3,6 +3,9 @@ package channelappend
 import "errors"
 
 var (
+	// ErrAppendNotSubmitted proves the complete origin invocation dispatched no original.
+	// Generic errors and late negative retries must never wrap this capability.
+	ErrAppendNotSubmitted = errors.New("internal/message: original append not submitted")
 	// ErrInvalidCommand reports a malformed send command.
 	ErrInvalidCommand = errors.New("internal/message: invalid command")
 	// ErrRequestSubscribersRequireSyncOnce reports that request-scoped sends must be sync_once.

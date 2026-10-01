@@ -1,0 +1,15 @@
+{
+  "cluster_bytes": 8192,
+  "granted": [
+    5120
+  ],
+  "hash_slots": 256,
+  "initial_successes": 1,
+  "nodes": 1,
+  "passed": true,
+  "rejected_source_quiet": true,
+  "reserved": [
+    5006
+  ],
+  "winner": 1
+}

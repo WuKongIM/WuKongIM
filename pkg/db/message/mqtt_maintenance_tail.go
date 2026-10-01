@@ -25,6 +25,8 @@ func mqttMaintenanceOnly(ctx context.Context, view proposalReadView, key Channel
 			return false, err
 		}
 		switch manifest.Version {
+		case quorumlog.RecoveryBarrierProposalManifestVersion:
+			// The committed native identity independently binds the closed control format.
 		case quorumlog.MQTTReplayAnchorProposalManifestVersion:
 			p, found, err := loadMQTTReplayAnchorFrom(view, key, position)
 			if err != nil {

@@ -416,7 +416,7 @@ func appendBatchErrorCompletionsOrRecoveries(ctx context.Context, items []prepar
 	if ports.idempotency == nil {
 		return appendBatchErrorCompletions(items, err), IdempotencyRecoveryObservation{}
 	}
-	if !errors.Is(err, ErrAppendFailed) {
+	if !errors.Is(err, ErrAppendFailed) && !errors.Is(err, ErrAppendNotSubmitted) {
 		return appendBatchErrorCompletions(items, err), IdempotencyRecoveryObservation{UnresolvedItems: len(items)}
 	}
 	if ctx == nil {
@@ -454,7 +454,7 @@ func appendBatchErrorCompletionsOrRecoveriesAndRetry(
 	err error,
 	ports appendPorts,
 ) ([]appendItemCompletion, time.Duration, IdempotencyRecoveryObservation) {
-	if !errors.Is(err, ErrAppendFailed) || ports.idempotency == nil {
+	if (!errors.Is(err, ErrAppendFailed) && !errors.Is(err, ErrAppendNotSubmitted)) || ports.idempotency == nil {
 		return appendBatchErrorCompletions(items, err), 0, IdempotencyRecoveryObservation{}
 	}
 	if ctx == nil {
@@ -535,6 +535,7 @@ func appendBatchErrorCompletionsOrRecoveriesAndRetry(
 		}
 	}
 	for offset, index := range retryIndexes {
+		retryCompletions[offset].result.Err = suppressNonSubmission(retryCompletions[offset].result.Err)
 		out[index] = retryCompletions[offset]
 	}
 	return out, retryDur, recovery

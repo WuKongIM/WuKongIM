@@ -192,6 +192,8 @@ const (
 	TableIDMQTTSourceBinding uint32 = 26
 	// TableIDMQTTWill retains configuration, obligations and execution receipts.
 	TableIDMQTTWill uint32 = 27
+	// TableIDMQTTStorageLedger retains non-expiring cluster capacity grants.
+	TableIDMQTTStorageLedger uint32 = 28
 )
 
 const (

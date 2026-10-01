@@ -61,5 +61,17 @@ func loadMQTTConfig(values map[string]string) (app.MQTTConfig, error) {
 			return c, err
 		}
 	}
+	if raw := configValue(values, "WK_MQTT_STORAGE_NODE_BYTES"); raw != "" {
+		c.StorageNodeBytes, err = parseUint64("WK_MQTT_STORAGE_NODE_BYTES", raw)
+		if err != nil {
+			return c, err
+		}
+	}
+	if raw := configValue(values, "WK_MQTT_STORAGE_CLUSTER_BYTES"); raw != "" {
+		c.StorageClusterBytes, err = parseUint64("WK_MQTT_STORAGE_CLUSTER_BYTES", raw)
+		if err != nil {
+			return c, err
+		}
+	}
 	return app.NormalizeMQTTConfig(c)
 }

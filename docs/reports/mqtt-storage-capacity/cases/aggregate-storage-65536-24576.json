@@ -1,0 +1,28 @@
+{
+  "accepted_message_id": 2105769965020778496,
+  "bob_reason": 1,
+  "carol_reason": 15,
+  "cluster_bytes": 24576,
+  "fault": "",
+  "hash_slots": 256,
+  "legacy_debt": false,
+  "node_bytes": 65536,
+  "node_roots": [
+    "/tmp/mqtt-capacity-final-owned/TestThreeNodeStorageLimits-cluster-1557122764/node-1",
+    "/tmp/mqtt-capacity-final-owned/TestThreeNodeStorageLimits-cluster-1557122764/node-2",
+    "/tmp/mqtt-capacity-final-owned/TestThreeNodeStorageLimits-cluster-1557122764/node-3"
+  ],
+  "nodes": 3,
+  "passed": true,
+  "payload_bytes": 2048,
+  "reserved_after_denial": [
+    4988,
+    4988,
+    4988
+  ],
+  "reserved_before_denial": [
+    4988,
+    4988,
+    4988
+  ]
+}

@@ -92,6 +92,8 @@ It does not own product business policy or expose engine-specific APIs.
 
 - Channel-owned message-update tables store latest payload/index, head/incarnation and replica activation proof, idempotency results, and separate body-free pending checkpoints. CAS and notification progress use same-batch overlays. Pinned reads bind head/index/body; a bounded Slot group shares one request-scoped snapshot across its logical shards after the caller establishes its fresh authority/apply barrier; an update sequence of zero proves dependent rows empty only within that snapshot, allowing exact-ID reads to stop before unused point lookups; channel deletion removes every edit span, and bounded retention-index cleanup removes target payloads, requests and pending state after the original retention floor.
 
+Metadata table 28 stores the one bounded, body-free MQTT storage ledger. Encoded/decoded rows share a 256 KiB limit for at most 1,024 historical nodes; exact CAS results preserve bootstrap debt and membership revision. `mqtt_storage.go` owns ledger validation and transaction semantics.
+
 ## Read First
 
 - [Metadata database](db.go), [Schema registry](schema.go), [Transaction helpers](tx_helpers.go), [Snapshots](snapshot.go)

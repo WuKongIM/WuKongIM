@@ -261,6 +261,11 @@ func (s *ChannelStore) ReplaceRecoverySuffix(ctx context.Context, req ReplaceRec
 		err = toChannelError(err)
 		return recoveryReplaceError(err), err
 	}
+	storageChange, err := s.log.channelEntry.stageMQTTStorageReplacement(ctx, batch, req.KeepThrough, prepared.rows, prepared.proposals)
+	if err != nil {
+		return recoveryReplaceError(err), err
+	}
+	defer storageChange.cancel()
 	if err := s.log.channelEntry.stageCommitRows(
 		batch, prepared.rows, &checkpoint, nil, prepared.proposals, prepared.entries, req.KeepThrough,
 	); err != nil {
@@ -272,6 +277,7 @@ func (s *ChannelStore) ReplaceRecoverySuffix(ctx context.Context, req ReplaceRec
 			return recoveryReplaceError(err), err
 		}
 	}
+	storageChange.submitted = true
 	if err := batch.Commit(true); err != nil {
 		err = toChannelError(err)
 		return ReplaceRecoverySuffixResult{Outcome: quorumlog.AppendOutcomeUnknown}, err
@@ -291,6 +297,9 @@ func (s *ChannelStore) ReplaceRecoverySuffix(ctx context.Context, req ReplaceRec
 				s.log.idempotencyMembership.add(cache.idempotencyIndexKey(row.FromUID, row.ClientMsgNo))
 			}
 		}
+	}
+	if err := storageChange.finish(ctx); err != nil {
+		return ReplaceRecoverySuffixResult{LastOffset: finalOffset, Outcome: quorumlog.AppendOutcomeDurable}, nil
 	}
 	return ReplaceRecoverySuffixResult{LastOffset: finalOffset, Outcome: quorumlog.AppendOutcomeDurable}, nil
 }

@@ -112,7 +112,7 @@ func TestExpirationProposalBindsLifetimeWithoutReinterpretingLegacyDigests(t *te
 			t.Fatalf("changed expiration %d verified", expire)
 		}
 	}
-	if VersionForRecords(nil) != ProposalManifestVersion || SupportedProposalVersion(0) || SupportedProposalVersion(7) {
+	if VersionForRecords(nil) != ProposalManifestVersion || SupportedProposalVersion(0) || SupportedProposalVersion(8) {
 		t.Fatal("unsupported format accepted")
 	}
 }

@@ -24,6 +24,33 @@ as a format migration and gate it behind an explicit rollout plan.
 
 ## Stable Durable IDs
 
+MQTT aggregate storage adds metadata table 28 (`mqtt_storage_ledger`) and Slot
+command 79. One hash-Slot row holds at most 1,024 non-expiring node grants with
+revision/bytes CAS, startup debt and Controller roster revision. Key-bound v1
+checksummed fixed JSON has a symmetric 256 KiB bound. Native metadata snapshots
+and inspect catalog include the table. No old business column is reinterpreted.
+
+Message table 1 System 17 contains derived v1 fixed uint64 per-position charges;
+System 18 contains one strict bounded v1 JSON exact manifest/nonce funding ticket
+(Prepared, Consumed or Canceled). Native snapshots preserve them; factory reopen
+rebuilds charges from canonical source/replay state before product admission.
+Replica exchange version 7 carries separate funding prepare/cancel kinds, never
+Channel durability votes. Channel append replies add closed `not_submitted`
+evidence and reject contradictory successful identities.
+
+Native proposal/entry format 7 explicitly binds one recovery barrier to its
+complete authority fence. Its digest has a distinct v7 domain. Formats 1–6 keep
+their existing digests; historical untyped v1 barriers are never inferred from
+payload spelling. MQTT internal classification and capacity exemption require
+verified native formats 4–7. Ordinary SyncOnce business content is charged.
+
+All cluster writers and recovery/transfer tools must match before activation:
+older writers bypass funding and reject new exchange/native formats. Perform a
+cold coordinated upgrade and preserve a pre-feature backup for rollback.
+Existing protected debt above new limits remains readable/deliverable and closes
+new admission until proved retirement; this is not a physical disk quota.
+See [the capacity contract](../../docs/specs/mqtt-storage-capacity.md).
+
 MQTT Session table 22 adds index 3, `idx_mqtt_session_reclamation`, in primary
 namespace/ClientID encoded order. Eligibility means an ended generation exceeds
 the existing column-30 reclamation marker. All ordinary Session writes maintain

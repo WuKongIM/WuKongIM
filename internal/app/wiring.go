@@ -195,6 +195,7 @@ func (a *App) configureObservability(clusterCfg *cluster.Config) {
 			metrics: a.metrics,
 			workers: commitCoordinatorWorkerCount(clusterCfg.Storage.CommitShards),
 		})
+		clusterCfg.Storage.MQTTStorageObserver = combineMQTTStorageObservers(clusterCfg.Storage.MQTTStorageObserver, a.metrics.MQTT)
 		clusterCfg.Transport.Observer = combineTransportObservers(clusterCfg.Transport.Observer, &transportMetricsObserver{metrics: a.metrics})
 		clusterCfg.MessageEvent.Observer = combineMessageEventObservers(clusterCfg.MessageEvent.Observer, messageEventMetricsObserver{metrics: a.metrics})
 		clusterCfg.MembershipObserver = combineMembershipMutationObservers(clusterCfg.MembershipObserver, membershipMutationMetricsObserver{metrics: a.metrics})
@@ -1349,4 +1350,29 @@ func (a *App) newGatewayAuthenticator(nodeID uint64) gateway.Authenticator {
 		}
 	}
 	return gateway.NewWKProtoAuthenticator(opts)
+}
+
+// mqttStorageObserver keeps product wiring independent of the storage adapter.
+type mqttStorageObserver interface {
+	ObserveMQTTStorage(used, granted, nodeLimit, clusterLimit uint64)
+	ObserveMQTTStorageEvent(string)
+}
+type combinedMQTTStorageObservers struct{ first, second mqttStorageObserver }
+
+func (o combinedMQTTStorageObservers) ObserveMQTTStorage(used, granted, nodeLimit, clusterLimit uint64) {
+	o.first.ObserveMQTTStorage(used, granted, nodeLimit, clusterLimit)
+	o.second.ObserveMQTTStorage(used, granted, nodeLimit, clusterLimit)
+}
+func (o combinedMQTTStorageObservers) ObserveMQTTStorageEvent(event string) {
+	o.first.ObserveMQTTStorageEvent(event)
+	o.second.ObserveMQTTStorageEvent(event)
+}
+func combineMQTTStorageObservers(first, second mqttStorageObserver) mqttStorageObserver {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return combinedMQTTStorageObservers{first, second}
 }

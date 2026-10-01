@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	accessnode "github.com/WuKongIM/WuKongIM/internal/access/node"
@@ -32,6 +33,9 @@ func (p mqttWillPublications) PublishWill(ctx context.Context, q mqttsession.Wil
 	// gofail: var wkMQTTWillPublicationAttempt bool
 	// _ = wkMQTTWillPublicationAttempt
 	r, err := p.messages.SendPreparedWill(ctx, mqttWillSendCommand(q))
+	if errors.Is(err, message.ErrAppendNotSubmitted) {
+		return mqttsession.ErrWillNotSubmitted
+	}
 	if err != nil {
 		return err
 	}

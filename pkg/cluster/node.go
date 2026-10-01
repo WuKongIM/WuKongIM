@@ -163,6 +163,8 @@ type Node struct {
 	mu              sync.RWMutex
 	snapshot        Snapshot
 	controlSnapshot control.Snapshot
+	// mqttStorageMemberIDs changes only with the durable storage roster.
+	mqttStorageMemberIDs []uint64
 	// controlApplyMu serializes control snapshot application from startup, watches, and probes.
 	controlApplyMu sync.Mutex
 	// routeAuthorityPublishMu serializes low-frequency Router mutations with

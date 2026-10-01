@@ -47,7 +47,6 @@ Compatibility maps Channel records/offsets and pinned retained Will receipts wit
    and physical engine ownership consistent.
 
 ## Invariants and Failure Semantics
-
 - Offline helpers preserve optional publication column 21 and verify proposal
   formats 1–6. Format 2 binds Expire; format 3 also binds publication metadata;
   format 4 exclusively binds one canonical internal source activation record.
@@ -140,8 +139,9 @@ Compatibility maps Channel records/offsets and pinned retained Will receipts wit
   Native/full/pruned/Will-receipt backups use versions 1/2/3/4. Byte and streaming imports share preflight for chains, originals/trim proof and immutable target receipts; allocation high-water statistics include receipts.
   Restore rebuilds meters without global IDs, publishing baseline/frontier together after the suffix; legacy header frontiers wait until then.
 
-## Read First
+Message System 17 stores derived source-shared original plus future replay charges; System 18 stores one exact prepared/consumed/canceled funding ticket per Channel. Preparation/cancellation and charge rows commit atomically. One node-owned unknown physical proof survives handle reclamation; only exact charge witnesses or canceled/deleted proof settles it. Periodic exact cancellation skips busy locks, shares normal original-presence checks and transfers locks/pins to the existing managed commit owner; caller expiry retains charged proof. Suffix replacement excludes an unresolved refund on the same Channel. Restart/restore scans canonical sources in bounded pages, rebuilds charges and retains unknown debt. Only independently verified native control formats 4–7 are uncharged; ordinary SyncOnce content is charged.
 
+## Read First
 - [Database lifecycle](db.go), [Channel lease](channel_log.go), [Atomic append](append.go), [Indexes](indexes.go), [Snapshots](snapshot.go)
 
 ## Update Triggers

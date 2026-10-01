@@ -78,7 +78,7 @@ Stop or startup rollback
   is reserved before Started, admitted before publication and append-issued at the origin router; exact-node RPC 105
   seals only proved non-dispatch. The existing generation lock and retired-boot
   facts fence older journals; Stop joins Will workers and closes the journal
-  before releasing that lock. AppendIssued/version-1 Admitted work remains positive-receipt-only. Its managed scanner and four-turn cohort
+  before releasing that lock. Unknown AppendIssued/version-1 Admitted work remains positive-receipt-only; exact synchronous non-submission can seal same-boot issued work. Its managed scanner and four-turn cohort
   publish detached due work and share bounded journal pressure reclamation through foreground Will reads, with no new worker.
   Consumer recovery also completes disconnected Preparing/Removing intent before a first binding. Concrete group/inbox offline preparation ports are composed before that shared cohort; fresh permission denial routes through exact Session ending. That cohort also builds historical reclamation coverage, invokes exact-owner Session-child cleanup and retires qualified source tombstones; fixed metrics expose completion and indexed rows.
   Safe uncertain Will redispatch and the full partition/failure/workload matrix
@@ -136,6 +136,8 @@ Stop or startup rollback
 - Message edits wire Slot storage, online hints and one bounded repair worker. Start/stop and restore maintenance join the worker before its dependencies close; resume restarts it with fresh scan cursors. HTTP content epochs and edit cursors reuse the Controller successful-restore generation. A packed atomic maintenance-transition stamp fences response assembly across successful and failed restore cycles without an extra distributed read.
 - Successful edit commits enqueue body-free identities through a nonblocking callback into that same worker. Its bounded volatile queue accelerates authoritative dispatch; stop/restore clears it and durable pending scans remain the recovery source.
 
+The app configures aggregate MQTT storage on every product node, including when the MQTT listener is disabled. It composes fixed capacity metrics with any injected observer. Cluster factory reopen rebuilds canonical capacity before restore admission resumes. Will publications promote only the typed whole-invocation non-submission capability to same-boot journal sealing.
+
 ## Read First
 - [app.go](app.go)
 - [FLOW_PRODUCT_RUNTIME.md](FLOW_PRODUCT_RUNTIME.md)
@@ -143,7 +145,6 @@ Stop or startup rollback
 - [issue_agent.go](issue_agent.go)
 - [review_agent.go](review_agent.go)
 ## Update Triggers
-
 - Dependency ownership or the sole-composition-root boundary changes.
 - Product startup, readiness, rollback, drain, or shutdown ordering changes.
 - Restore maintenance, side-effect fencing, optional wiring, or Agent authority changes.

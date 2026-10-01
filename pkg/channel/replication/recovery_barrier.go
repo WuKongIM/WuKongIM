@@ -7,6 +7,7 @@ import (
 	"math"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 )
 
 const recoveryBarrierDomain = "wukongim/channel-recovery-barrier/v1\x00"
@@ -35,7 +36,7 @@ func writeCurrentTermBarrier(ctx context.Context, authority Authority, recovered
 	}
 	commandID, record := recoveryBarrierContent(authority)
 	manifest, entries, ok := ch.SealProposalManifest(ch.ProposalManifest{
-		Version:      ch.ProposalManifestVersion,
+		Version:      quorumlog.RecoveryBarrierProposalManifestVersion,
 		ChannelEpoch: authority.ID.ChannelEpoch, LeaderTerm: authority.ID.LeaderTerm, FenceVersion: authority.ID.FenceVersion,
 		CommandID: commandID, BaseOffset: recovered.LEO, LastOffset: recovered.LEO + 1,
 		PreviousTerm: recovered.TailIdentity.LeaderTerm, PreviousIndex: recovered.LEO,

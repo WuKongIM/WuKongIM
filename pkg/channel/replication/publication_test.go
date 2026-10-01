@@ -26,7 +26,7 @@ func TestPublicationExchangeCarriesOwnedMetadataAndRejectsOldVersion(t *testing.
 		t.Fatal(err)
 	}
 	r := publicationRequest(t, metadata)
-	batch := replication.ExchangeBatch{Version: 6, Items: []replication.ExchangeItem{{RequestID: 1, Kind: replication.ExchangeReplicate, Replicate: &r}}}
+	batch := replication.ExchangeBatch{Version: replication.ExchangeVersion, Items: []replication.ExchangeItem{{RequestID: 1, Kind: replication.ExchangeReplicate, Replicate: &r}}}
 	data, err := replication.EncodeExchangeBatch(batch)
 	if err != nil {
 		t.Fatal(err)
@@ -39,7 +39,7 @@ func TestPublicationExchangeCarriesOwnedMetadataAndRejectsOldVersion(t *testing.
 	if !bytes.Equal(got.Items[0].Replicate.Records[0].PublicationMetadata, metadata) {
 		t.Fatal("request decoder borrowed metadata")
 	}
-	result := replication.ExchangeBatchResult{Version: 6, Items: []replication.ExchangeItemResult{{RequestID: 1, Fetch: replication.FetchResult{Proposals: []replication.RecoveryProposal{{Manifest: r.Manifest, Records: r.Records}}}}}}
+	result := replication.ExchangeBatchResult{Version: replication.ExchangeVersion, Items: []replication.ExchangeItemResult{{RequestID: 1, Fetch: replication.FetchResult{Proposals: []replication.RecoveryProposal{{Manifest: r.Manifest, Records: r.Records}}}}}}
 	data, err = replication.EncodeExchangeBatchResult(result)
 	if err != nil {
 		t.Fatal(err)
@@ -54,11 +54,11 @@ func TestPublicationExchangeCarriesOwnedMetadataAndRejectsOldVersion(t *testing.
 		}
 	}
 	old := bytes.Clone(data)
-	old[0] = 5
+	old[0] = byte(replication.ExchangeVersion - 1)
 	if _, err := replication.DecodeExchangeBatchResult(old); err == nil {
 		t.Fatal("lossy exchange version accepted")
 	}
-	batch.Version = 5
+	batch.Version = replication.ExchangeVersion - 1
 	if _, err := replication.EncodeExchangeBatch(batch); err == nil {
 		t.Fatal("publication encoded for an older peer")
 	}
@@ -74,7 +74,7 @@ func TestPublicationExchangeRejectsInvalidMetadataAndUnderstatedSize(t *testing.
 		if r.Valid() {
 			t.Fatal("a digest does not make malformed publication metadata valid")
 		}
-		result := replication.ExchangeBatchResult{Version: 6, Items: []replication.ExchangeItemResult{{RequestID: 1, Fetch: replication.FetchResult{Proposals: []replication.RecoveryProposal{{Manifest: r.Manifest, Records: r.Records}}}}}}
+		result := replication.ExchangeBatchResult{Version: replication.ExchangeVersion, Items: []replication.ExchangeItemResult{{RequestID: 1, Fetch: replication.FetchResult{Proposals: []replication.RecoveryProposal{{Manifest: r.Manifest, Records: r.Records}}}}}}
 		if _, err := replication.EncodeExchangeBatchResult(result); err == nil {
 			t.Fatal("malformed metadata emitted in a recovery response")
 		}

@@ -87,6 +87,8 @@ scheduled backup or restore
 
 - Message-update hint RPC validates its format and bounded route page, then delegates exact owner-local writes. It never routes again or transports message payloads.
 
+Channel append replies have a closed `not_submitted` error code. Decoder rejects it alongside any successful receipt or nonzero message identity; older peers reject the new code. The code is whole-invocation evidence, not a generic backpressure classification.
+
 ## Read First
 
 - [Presence](presence_rpc.go), [Channel append](channel_append_rpc.go), [Backup](scheduled_backup_rpc.go)

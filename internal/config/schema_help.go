@@ -15,6 +15,8 @@ var schemaHelp = map[string]fieldHelp{
 	"mqtt.session_expiry_limit_sec": {EN: "Maximum requested offline Session lifetime in seconds; default 24 hours.", ZH: "允许请求的离线会话有效期上限，单位秒；默认 24 小时。"},
 	"mqtt.quota_messages":           {EN: "Logical per-Session backlog count limit; candidate default 10000, not a scale guarantee.", ZH: "每会话逻辑积压条数上限；候选默认值 10000，不代表容量保证。"},
 	"mqtt.quota_bytes":              {EN: "Logical per-Session backlog byte limit; candidate default 64 MiB.", ZH: "每会话逻辑积压字节上限；候选默认值 64 MiB。"},
+	"mqtt.storage_node_bytes":       {EN: "Aggregate node reservation limit for protected originals and future shared replay; excludes physical engine amplification. Default 8 GiB.", ZH: "节点受保护原始消息和共享回放预留容量总上限；不含存储引擎物理放大，默认 8 GiB。"},
+	"mqtt.storage_cluster_bytes":    {EN: "Aggregate replica reservation limit across the cluster; every storage node, including MQTT-disabled nodes, must agree. Default 64 GiB.", ZH: "集群所有副本的预留容量总上限；所有存储节点必须一致，包括未启用 MQTT 的节点，默认 64 GiB。"},
 	"mqtt.window_limit":             {EN: "Maximum durable QoS 1 exchanges; 1 to 1024, further limited by peer Receive Maximum.", ZH: "持久 QoS 1 交换上限；范围 1 至 1024，同时受对端 Receive Maximum 限制。"},
 	"node.id": {
 		EN: "Stable, non-zero node ID unique within the cluster; do not change it after data exists. Required at startup.",

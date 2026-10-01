@@ -50,9 +50,10 @@ func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch Excha
 	loadPositions := make([]int, 0, len(batch.Items))
 	fetches := make([]FetchRange, 0, len(batch.Items))
 	fetchPositions := make([]int, 0, len(batch.Items))
+	fundingPositions := make([]int, 0, len(batch.Items))
 	totalBytes := 0
 	for index, item := range batch.Items {
-		if item.RequestID == 0 {
+		if item.RequestID == 0 || item.Kind != ExchangeStoragePrepare && item.Kind != ExchangeStorageCancel && item.FundingNonce != 0 {
 			return ExchangeBatchResult{}, ch.ErrInvalidConfig
 		}
 		if _, exists := seen[item.RequestID]; exists {
@@ -62,7 +63,7 @@ func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch Excha
 		itemBytes := 0
 		var operationKey channelOperationKey
 		switch item.Kind {
-		case ExchangeReplicate:
+		case ExchangeReplicate, ExchangeStoragePrepare, ExchangeStorageCancel:
 			if item.Replicate == nil || item.Probe != nil || item.Fetch != nil {
 				return ExchangeBatchResult{}, ch.ErrInvalidConfig
 			}
@@ -72,6 +73,16 @@ func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch Excha
 			}
 			itemBytes = estimateReplicateRequestBytes(request)
 			operationKey = channelOperationKey{key: request.ChannelKey, id: request.ChannelID}
+			if item.Kind != ExchangeReplicate {
+				if batch.Priority != ExchangePriorityForeground || item.FundingNonce == 0 {
+					return ExchangeBatchResult{}, ch.ErrInvalidConfig
+				}
+				fundingPositions = append(fundingPositions, index)
+				break
+			}
+			if item.FundingNonce != 0 {
+				return ExchangeBatchResult{}, ch.ErrInvalidConfig
+			}
 			class := MutationClassFollowerQuorum
 			if batch.Priority == ExchangePriorityBackground {
 				class = MutationClassTrailing
@@ -128,6 +139,28 @@ func (s *ExchangeServer) Handle(ctx context.Context, from ch.NodeID, batch Excha
 	response := ExchangeBatchResult{Version: ExchangeVersion, Items: make([]ExchangeItemResult, len(batch.Items))}
 	for index, item := range batch.Items {
 		response.Items[index].RequestID = item.RequestID
+	}
+	if len(fundingPositions) > 0 {
+		funding, ok := s.cfg.Store.(storageFundingStore)
+		if !ok {
+			return ExchangeBatchResult{}, ch.ErrInvalidConfig
+		}
+		for _, position := range fundingPositions {
+			item := batch.Items[position]
+			request := *item.Replicate
+			mutation := Mutation{ChannelKey: request.ChannelKey, ChannelID: request.ChannelID, Manifest: request.Manifest, Records: request.Records, Committed: request.Committed, Class: MutationClassFollowerQuorum, ServerAllocatedMessageIDs: request.ServerAllocatedMessageIDs}
+			out, err := funding.prepareStorage(ctx, mutation, item.FundingNonce, item.Kind == ExchangeStorageCancel)
+			result := StorageFundingResult{Nonce: item.FundingNonce}
+			if err == nil {
+				result.Prepared, result.Canceled = out.Prepared, out.Canceled
+				if result.Prepared || result.Canceled {
+					result.Proof = replicateProofFor(request)
+				}
+			} else {
+				result.NeedFrom = out.NeedFrom
+			}
+			response.Items[position].Funding = result
+		}
 	}
 	if len(loads) > 0 {
 		loaded, err := s.cfg.Store.Load(ctx, LoadBatch{Items: loads})

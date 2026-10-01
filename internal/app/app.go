@@ -243,6 +243,8 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.applyOptions(opts)
 	app.mqttInboxWrites = app.mqttInboxWrites || app.cfg.MQTT.Enabled
 	clusterCfg := defaultClusterConfig(app.cfg)
+	clusterCfg.Storage.MQTTNodeBytes = app.cfg.MQTT.StorageNodeBytes
+	clusterCfg.Storage.MQTTClusterBytes = app.cfg.MQTT.StorageClusterBytes
 	clusterCfg.CreatedBy = app.buildIdentity
 	clusterCfg.CreatedBy.Version = app.buildVersion
 	// Inspect freshness before a nested log directory can make the root nonempty.

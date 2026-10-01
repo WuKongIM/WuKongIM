@@ -2,6 +2,7 @@ package replication
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"sync"
 	"time"
@@ -25,6 +26,7 @@ type quorumLogConfig struct {
 	Store      ReplicaStore
 	Recovery   recoveryDispatcher
 	Durability durabilityDispatcher
+	Funding    storageFundingDispatcher
 	// RepairAuthorities fences retained follower repair work whenever Channel
 	// authority advances, including an advance whose recovery later fails.
 	RepairAuthorities followerRepairAuthorityOwner
@@ -53,7 +55,8 @@ type quorumLog struct {
 }
 
 // quorumChannel serializes one authority generation. pending is immutable
-// until a definite conflict or exact durability proof resolves it.
+// until every admitted write is definitely absent, a definite conflict,
+// or an exact durability proof resolves it.
 type quorumChannel struct {
 	mu sync.Mutex
 
@@ -296,10 +299,20 @@ func (l *quorumLog) commitLocked(ctx context.Context, state *quorumChannel, prop
 	if err != nil {
 		return Receipt{}, err
 	}
+	if l.cfg.Funding != nil && !proposal.MQTTSourceActivation && !proposal.MQTTReplayAnchor && !proposal.MQTTReplayRetirement {
+		if err := l.cfg.Funding.fundStorage(ctx, state.authority, durable); err != nil {
+			return Receipt{}, errors.Join(ch.ErrAppendNotSubmitted, err)
+		}
+	}
 	pending := retainedProposal{proposal: durable}
 	state.pending = &pending
 	result, err := runDurableRound(ctx, l.cfg.Local, state.authority.Voters, state.authority.WriteQuorum, durable, l.cfg.Durability)
 	if err != nil {
+		// A completed round of exclusively negative writes has no durable debt.
+		// Preserve pending ownership for any durable or uncertain admitted write.
+		if result.outcome == ch.AppendOutcomeDefinitelyNotWritten {
+			state.pending = nil
+		}
 		if result.outcome == ch.AppendOutcomeConflict {
 			state.pending = nil
 			return l.reconcileCommandConflict(ctx, state, proposal)
@@ -387,6 +400,11 @@ func (l *quorumLog) loadRetainedProposal(ctx context.Context, state *quorumChann
 func (l *quorumLog) retryPending(ctx context.Context, state *quorumChannel, retained retainedProposal) (Receipt, error) {
 	result, err := runDurableRound(ctx, l.cfg.Local, state.authority.Voters, state.authority.WriteQuorum, retained.proposal, l.cfg.Durability)
 	if err != nil {
+		// A completed round of exclusively negative writes has no durable debt.
+		// Preserve pending ownership for any durable or uncertain admitted write.
+		if result.outcome == ch.AppendOutcomeDefinitelyNotWritten {
+			state.pending = nil
+		}
 		if result.outcome == ch.AppendOutcomeConflict {
 			state.pending = nil
 			return l.reconcileCommandConflict(ctx, state, Proposal{

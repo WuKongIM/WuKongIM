@@ -141,6 +141,7 @@ func (l *ChannelLog) importMQTTReplayLocked(ctx context.Context, expected MQTTRe
 	batch := view.NewBatch()
 	defer batch.Close()
 	prefix := page.Before
+	var capacityRows []messageRow
 	for _, r := range page.Records {
 		if err := ctxErr(ctx); err != nil {
 			return MQTTReplayState{}, err
@@ -152,6 +153,9 @@ func (l *ChannelLog) importMQTTReplayLocked(ctx context.Context, expected MQTTRe
 		entry, _, err := mqttReplayCommittedEntry(view, l.key, r.Position, evidence.checkpoint.HW)
 		if err != nil {
 			return MQTTReplayState{}, err
+		}
+		if l.db.mqttStorage != nil {
+			capacityRows = append(capacityRows, row)
 		}
 		if !verifyBackupRowIdentity(entry, row) {
 			return MQTTReplayState{}, dberrors.ErrCorruptState
@@ -202,6 +206,20 @@ func (l *ChannelLog) importMQTTReplayLocked(ctx context.Context, expected MQTTRe
 	if err := l.stageCatalog(batch); err != nil {
 		return MQTTReplayState{}, err
 	}
+	charges, reserved, err := l.prepareMQTTStorageBooking(ctx, capacityRows, nil)
+	if err != nil {
+		return MQTTReplayState{}, err
+	}
+	submitted := false
+	defer func() {
+		if !submitted {
+			l.db.mqttStorage.cancelReservation(reserved)
+		}
+	}()
+	if err = stageMQTTStorageCharges(batch, l.key, charges); err != nil {
+		return MQTTReplayState{}, err
+	}
+	submitted = true
 	if err := batch.Commit(true); err != nil {
 		return MQTTReplayState{}, err
 	}

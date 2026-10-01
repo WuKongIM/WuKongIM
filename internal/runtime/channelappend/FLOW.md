@@ -85,6 +85,8 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
   Slot, route, or authority identities.
   Pool pressure republishes after the final running count decrement so a
   terminal zero is observable without later traffic.
+The router retains submission uncertainty monotonically across route retries and removes a later non-submission capability after an ambiguous earlier call. Private uncertainty wrappers do not change terminal error identity. Both batch error recovery paths still check positive committed idempotency for a funding refusal; a miss retains the exact refusal. Sibling retries cannot erase earlier unknown submission.
+
 ## Read First
 
 - [Runtime contracts](contracts.go)

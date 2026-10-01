@@ -31,6 +31,8 @@ App registers delivery after connection open and composes group/inbox subscripti
 5. Confirm a committed result before QoS 1 PUBACK; retain the scope through reply
    enqueue. Definite rejection maps to a valid MQTT reason. Uncertain Send fences
    closure and marks unresolved owner work before releasing the local scope.
+   Typed whole-invocation non-submission with no identity adds no owner uncertainty;
+   it cannot erase unknown work retained by another operation.
 6. Acquire and register CONNECT ownership, hold an operation across CONNACK,
    check admission immediately before reply, then release on open or rollback.
    Open registers one bound delivery task with a bounded context after scope release;

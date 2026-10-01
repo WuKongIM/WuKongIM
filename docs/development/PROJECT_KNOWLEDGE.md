@@ -12,6 +12,21 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Cluster and authority
 
+- MQTT aggregate storage counts one original plus reserved future replay body per
+  protected source on each storage replica, independently of Session quotas.
+  Funding covers all voters/learners before original dispatch; capacity receipts
+  never vote for durability. Startup/restore debt closes admission until every
+  storage node registers. Cancellation and retirement require exact durable
+  evidence, including unknown outcomes. This is logical responsibility capacity,
+  so operators still need WAL/compaction/metadata disk headroom. Only typed native
+  controls are exempt; ordinary SyncOnce flags grant no exemption. See
+  [the capacity contract](../specs/mqtt-storage-capacity.md).
+
+- A Will origin journal may seal an issued same-boot attempt only after a
+  synchronous whole-invocation proof that no original was submitted. Earlier
+  ambiguous routing/storage effects invalidate the proof; positive committed
+  receipts still win. Generic pressure, absent receipts and timeouts grant none.
+
 - An MQTT Started Will can finish Rejected/Sealed only after its exact owning
   node durably forbids unissued append and current policy explicitly denies it.
   The terminal CAS keeps the original executor tuple/frozen body and reserves
@@ -822,8 +837,9 @@ specification, runbook, report, or module documentation; link to them when neede
   Admitted -> AppendIssued at the origin router before local admission or remote
   forwarding. Its trusted callback never crosses RPC or reaches accepted writers;
   routing retries reuse only the exact issued attempt. Reserved/version-2 Admitted
-  may seal; AppendIssued/version-1 Admitted remain positive-only, including after
-  source death. Fresh target absence, later denial and elapsed grants resolve no
+  may seal; unknown AppendIssued/version-1 Admitted remain positive-only, including after
+  source death. Only trusted synchronous whole-invocation non-submission can seal
+  an exact same-boot issued attempt. Fresh target absence, later denial and elapsed grants resolve no
   unknown append. Single-node cluster composition verifies original identity/time after
   lost observation and revocation, including real Webhook replacement. Uncertain
   append-issued terminal recovery,

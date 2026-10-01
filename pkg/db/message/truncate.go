@@ -49,13 +49,19 @@ func (l *ChannelLog) TruncateFrom(ctx context.Context, fromSeq uint64) error {
 	if err := l.stageCatalog(batch); err != nil {
 		return err
 	}
+	storageChange, err := l.channelEntry.stageMQTTStorageReplacement(ctx, batch, fromSeq-1, nil, nil)
+	if err != nil {
+		return err
+	}
+	defer storageChange.cancel()
+	storageChange.submitted = true
 	if err := batch.Commit(true); err != nil {
 		return err
 	}
 	l.leo.Store(fromSeq - 1)
 	l.loaded.Store(true)
 	l.clearDurableProposalTailLocked()
-	return nil
+	return storageChange.finish(ctx)
 }
 
 func (l *ChannelLog) stageDeleteMessage(batch *engine.Batch, msg Message) error {

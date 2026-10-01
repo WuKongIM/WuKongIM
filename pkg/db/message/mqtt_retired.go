@@ -182,10 +182,14 @@ func (l *ChannelLog) RetireMQTTReplay(ctx context.Context, generation string, po
 		if err = ctxErr(ctx); err != nil {
 			return empty, err
 		}
-		return out, nil
+		return out, l.db.mqttStorage.release(ctx, 0)
 	}
 	batch := view.NewBatch()
 	defer batch.Close()
+	released, err := l.stageMQTTStorageRelease(ctx, batch, selected.deletedThrough+1, deletedThrough)
+	if err != nil {
+		return empty, err
+	}
 	if deletedThrough > selected.deletedThrough {
 		if err = batch.DeleteRange(engine.Span{Start: mqttReplayPositionKey(l.key, generation, selected.deletedThrough+1), End: mqttReplayPositionKey(l.key, generation, deletedThrough+1)}); err != nil {
 			return empty, err
@@ -206,10 +210,10 @@ func (l *ChannelLog) RetireMQTTReplay(ctx context.Context, generation string, po
 	if err = ctxErr(ctx); err != nil {
 		return empty, err
 	}
-	if err = batch.Commit(true); err != nil {
+	if err = l.channelEntry.commitMQTTStorageRetirement(ctx, batch, selected.proof, deletedThrough, released); err != nil {
 		return empty, err
 	}
-	return out, nil
+	return out, l.db.mqttStorage.release(ctx, 0)
 }
 
 func mqttReplayPositionKey(key ChannelKey, generation string, position uint64) []byte {

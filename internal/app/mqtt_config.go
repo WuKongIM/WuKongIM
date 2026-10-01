@@ -31,6 +31,13 @@ type MQTTConfig struct {
 	// Defaults are 10,000 messages and 64 MiB, pending scale qualification.
 	QuotaMessages uint64
 	QuotaBytes    uint64
+	// StorageNodeBytes caps aggregate protected source/replay reservations on
+	// one node, including future replay space; default 8 GiB. It excludes
+	// ordinary history and physical engine amplification.
+	StorageNodeBytes uint64
+	// StorageClusterBytes caps replica reservations across the cluster,
+	// default 64 GiB. Every storage node, including MQTT-disabled nodes, must agree.
+	StorageClusterBytes uint64
 	// WindowLimit bounds durable QoS 1 exchanges, default 64, maximum 1024.
 	WindowLimit uint16
 }
@@ -66,6 +73,12 @@ func NormalizeMQTTConfig(c MQTTConfig) (MQTTConfig, error) {
 	}
 	if c.WindowLimit == 0 {
 		c.WindowLimit = 64
+	}
+	if c.StorageNodeBytes == 0 {
+		c.StorageNodeBytes = 8 << 30
+	}
+	if c.StorageClusterBytes == 0 {
+		c.StorageClusterBytes = 64 << 30
 	}
 	_, port, err := net.SplitHostPort(c.ListenAddr)
 	n, portErr := strconv.ParseUint(port, 10, 16)

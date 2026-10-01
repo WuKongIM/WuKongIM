@@ -206,6 +206,7 @@ type commandDecoder func(data []byte) (command, error)
 // To add a new command type, create a struct implementing command,
 // a corresponding encode function, a decoder, and register it here.
 var commandDecoders = map[uint8]commandDecoder{
+	cmdTypeMQTTStorage:                         decodeMQTTStorageCommand,
 	cmdTypeMessageUpdate:                       decodeMessageUpdateCommand,
 	cmdTypeMQTTReclamationIndex:                decodeMQTTReclamationIndexCommand,
 	cmdTypeMQTTSessionReclamation:              decodeMQTTSessionReclamationCommand,

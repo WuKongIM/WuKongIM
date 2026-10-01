@@ -172,6 +172,11 @@ func (p *Publisher) Publish(gateway gt.Context, connection sessioncase.Connectio
 		ClientMsgNo:            input.ClientMsgNo, Payload: input.Payload, PublicationMetadata: input.Metadata,
 		Origin: message.SendOriginClient,
 	})
+	if errors.Is(err, message.ErrAppendNotSubmitted) && result.MessageID == 0 && result.MessageSeq == 0 {
+		// Whole-invocation proof covers this operation only. It does not clear
+		// unresolved work previously retained by another owner operation.
+		uncertainSend = false
+	}
 	if err == nil {
 		_, definiteRejection := publishRejection(result.Reason)
 		committed := result.Reason == message.ReasonSuccess && result.MessageID != 0 && result.MessageSeq != 0

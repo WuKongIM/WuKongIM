@@ -45,6 +45,8 @@ It does not perform permission checks, durable append, routing, or delivery.
 - Server-allocated message-ID proof applies to every item and skips only
   existing-ID reads; sender/client idempotency remains mandatory.
 
+`ErrAppendNotSubmitted` proves this complete origin invocation dispatched no new original mutation. It grants no positive publication receipt and must be suppressed after any prior ambiguous submission; error text and deadlines cannot supply it.
+
 ## Read First
 
 - [Contract types](types.go)

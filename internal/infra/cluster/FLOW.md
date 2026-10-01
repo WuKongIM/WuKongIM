@@ -109,6 +109,8 @@ management, plugins, diagnostics, and bounded operations observations.
 
 - Message-update storage maps a narrow usecase port to authoritative Slot operations. Read adapters preserve edit version/time and byte-limited continuation after content growth; committed history and persisted previews retain separate base-read semantics.
 
+The append adapter promotes storage non-submission evidence only with `errors.Is`, never string matching. The closed result remains distinct from a durability receipt and can enter ordinary positive idempotency recovery.
+
 ## Read First
 - [Append adapter](channel_append.go)
 - [Metadata adapter](channel_metadata.go)

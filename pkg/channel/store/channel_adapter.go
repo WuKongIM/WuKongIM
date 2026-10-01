@@ -55,6 +55,8 @@ type MessageDBFactory struct {
 
 // MessageDBFactoryOptions configures the message DB adapter.
 type MessageDBFactoryOptions struct {
+	// MQTTStorage supplies aggregate replica escrow before durable publication.
+	MQTTStorage messagedb.MQTTStorageOptions
 	// CommitFlushWindow is the maximum delay for grouping adjacent channel append commits.
 	CommitFlushWindow time.Duration
 	// CommitMaxRequests caps logical append requests in one grouped physical commit.
@@ -104,6 +106,7 @@ func NewMessageDBFactoryWithOptions(path string, opts MessageDBFactoryOptions) *
 		Shards:      opts.CommitShards,
 		Observer:    opts.CommitObserver,
 	})
+	engine.ConfigureMQTTStorage(opts.MQTTStorage)
 	return &MessageDBFactory{engine: engine}
 }
 
@@ -1574,4 +1577,35 @@ func (a *messageDBChannelStoreAdapter) PlanMQTTReplayRepair(ctx context.Context,
 		return ch.MQTTReplayRepairPlan{}, ch.ErrLogConflict
 	}
 	return out, nil
+}
+
+// MQTTStorageEnabled advertises finite product storage admission.
+func (f *MessageDBFactory) MQTTStorageEnabled() bool {
+	return f != nil && f.engine.MQTTStorageEnabled()
+}
+func (a *messageDBChannelStoreAdapter) PrepareMQTTStorage(ctx context.Context, manifest ch.ProposalManifest, records []ch.Record, committed, nonce uint64, cancel bool) (MQTTStoragePreparation, error) {
+	if err := a.ensureOpen(); err != nil {
+		return MQTTStoragePreparation{}, err
+	}
+	converted, err := a.encodeRecords(records)
+	if err != nil {
+		return MQTTStoragePreparation{}, err
+	}
+	out, err := a.store.PrepareMQTTStorage(ctx, manifest, converted, committed, nonce, cancel)
+	return MQTTStoragePreparation{Nonce: out.Nonce, Prepared: out.Prepared, Canceled: out.Canceled, NeedFrom: out.NeedFrom}, a.mapError(err)
+}
+func (a *messageDBChannelStoreAdapter) MQTTStorageProtection(ctx context.Context) (bool, error) {
+	if err := a.ensureOpen(); err != nil {
+		return false, err
+	}
+	found, err := a.store.MQTTStorageProtection(ctx)
+	return found, a.mapError(err)
+}
+
+// MaintainMQTTStorage is driven by the existing cluster periodic owner.
+func (f *MessageDBFactory) MaintainMQTTStorage(ctx context.Context) error {
+	if f == nil || f.engine == nil {
+		return nil
+	}
+	return f.engine.MaintainMQTTStorage(ctx)
 }

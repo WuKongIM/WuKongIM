@@ -91,6 +91,8 @@ var schemaFields = []fieldSpec{
 	{TOMLPath: "mqtt.session_expiry_limit_sec", EnvKey: "WK_MQTT_SESSION_EXPIRY_LIMIT_SEC", Kind: kindUint32, Group: "mqtt", Label: "MQTT session expiry limit sec"},
 	{TOMLPath: "mqtt.quota_messages", EnvKey: "WK_MQTT_QUOTA_MESSAGES", Kind: kindUint64, Group: "mqtt", Label: "MQTT quota messages"},
 	{TOMLPath: "mqtt.quota_bytes", EnvKey: "WK_MQTT_QUOTA_BYTES", Kind: kindUint64, Group: "mqtt", Label: "MQTT quota bytes"},
+	{TOMLPath: "mqtt.storage_node_bytes", EnvKey: "WK_MQTT_STORAGE_NODE_BYTES", Kind: kindUint64, Group: "mqtt", Label: "MQTT node storage reservation bytes"},
+	{TOMLPath: "mqtt.storage_cluster_bytes", EnvKey: "WK_MQTT_STORAGE_CLUSTER_BYTES", Kind: kindUint64, Group: "mqtt", Label: "MQTT cluster storage reservation bytes"},
 	{TOMLPath: "mqtt.window_limit", EnvKey: "WK_MQTT_WINDOW_LIMIT", Kind: kindUint16, Group: "mqtt", Label: "MQTT window limit"},
 	{TOMLPath: "node.id", EnvKey: "WK_NODE_ID", Kind: kindUint64, Group: "node", Label: "Node ID", Required: true},
 	{TOMLPath: "node.data_dir", EnvKey: "WK_NODE_DATA_DIR", Kind: kindString, Group: "node", Label: "Data directory", Required: true},
@@ -299,6 +301,8 @@ func supportedConfigKeysForBuilder() []string {
 		"WK_MQTT_SESSION_EXPIRY_LIMIT_SEC",
 		"WK_MQTT_QUOTA_MESSAGES",
 		"WK_MQTT_QUOTA_BYTES",
+		"WK_MQTT_STORAGE_NODE_BYTES",
+		"WK_MQTT_STORAGE_CLUSTER_BYTES",
 		"WK_MQTT_WINDOW_LIMIT",
 
 		"WK_NODE_ID",

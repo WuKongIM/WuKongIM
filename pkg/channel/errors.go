@@ -11,6 +11,9 @@ const (
 )
 
 var (
+	// ErrAppendNotSubmitted proves this fresh proposal failed before original dispatch.
+	// Callers must suppress it after any earlier uncertain attempt.
+	ErrAppendNotSubmitted = errors.New("channel: original append not submitted")
 	// ErrInvalidConfig reports invalid construction or authoritative metadata.
 	ErrInvalidConfig = errors.New("channel: invalid config")
 	// ErrBackpressured reports that a bounded queue rejected new work.

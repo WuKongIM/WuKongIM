@@ -133,11 +133,11 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
 - Write fencing rejects new append admission without discarding already
   accepted work. Lifecycle eviction requires no pending work and current
   fenced checkpoint/replica evidence.
-
 - Message version and update time are transient read overlays only. Immutable stored/replicated message encodings do not include edit state; raw log/backup reads remain original records.
 
-## Read First
+Protected original proposals first fund all voters and learners through the existing bounded peer owner. Exact manifest/nonce storage prepare/cancel receipts never vote for durability. Only successful complete funding enters original dispatch; failure cancels exact funding under a separate bounded context and grants a fresh non-submission capability. Explicit recovery barriers use native format 7; business SyncOnce flags alone grant no maintenance exemption.
 
+## Read First
 - [Public contracts](channel.go)
 - [Core types](types.go)
 - [Service facade](service/service.go)

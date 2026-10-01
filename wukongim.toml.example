@@ -292,5 +292,11 @@ session_expiry_limit_sec = 86400
 quota_messages = 10000
 # Logical per-Session backlog byte limit; candidate default 64 MiB.
 quota_bytes = 67108864
+# Aggregate node reservations for protected originals and future shared replay.
+# This excludes ordinary history, WAL/compaction and other physical amplification.
+storage_node_bytes = 8589934592
+# Aggregate replica reservations; every storage node must agree, even with MQTT disabled.
+# A body shared by many Sessions is charged once on each retaining replica.
+storage_cluster_bytes = 68719476736
 # Maximum durable QoS 1 exchanges; 1 to 1024, further limited by peer Receive Maximum.
 window_limit = 64

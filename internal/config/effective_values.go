@@ -16,6 +16,8 @@ func effectiveConfigValues(cfg app.Config) map[string]any {
 		"WK_MQTT_SESSION_EXPIRY_LIMIT_SEC":                           cfg.MQTT.SessionExpiryLimitSec,
 		"WK_MQTT_QUOTA_MESSAGES":                                     cfg.MQTT.QuotaMessages,
 		"WK_MQTT_QUOTA_BYTES":                                        cfg.MQTT.QuotaBytes,
+		"WK_MQTT_STORAGE_NODE_BYTES":                                 cfg.MQTT.StorageNodeBytes,
+		"WK_MQTT_STORAGE_CLUSTER_BYTES":                              cfg.MQTT.StorageClusterBytes,
 		"WK_MQTT_WINDOW_LIMIT":                                       cfg.MQTT.WindowLimit,
 		"WK_NODE_ID":                                                 cfg.NodeID,
 		"WK_NODE_DATA_DIR":                                           cfg.DataDir,

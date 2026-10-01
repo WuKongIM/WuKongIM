@@ -76,7 +76,7 @@ func (s *ChannelStore) ReadMQTTReplayMessages(ctx context.Context, generation st
 		internal := false
 		switch manifest.Version {
 		case quorumlog.ProposalManifestVersion, quorumlog.ExpirationProposalManifestVersion, quorumlog.PublicationProposalManifestVersion:
-		case quorumlog.MQTTSourceProposalManifestVersion, quorumlog.MQTTReplayAnchorProposalManifestVersion, quorumlog.MQTTReplayRetirementProposalManifestVersion:
+		case quorumlog.MQTTSourceProposalManifestVersion, quorumlog.MQTTReplayAnchorProposalManifestVersion, quorumlog.MQTTReplayRetirementProposalManifestVersion, quorumlog.RecoveryBarrierProposalManifestVersion:
 			internal = true
 		default:
 			return empty, toChannelError(dberrors.ErrCorruptState)

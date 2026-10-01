@@ -24,7 +24,20 @@ func (l *ChannelLog) Append(ctx context.Context, records []Record, opts AppendOp
 	batch := l.db.engine.NewBatch()
 	defer batch.Close()
 
-	result, err := l.prepareAndStageAppendLocked(ctx, batch, records, opts)
+	var result AppendResult
+	var err error
+	if l.db.mqttStorage != nil {
+		var rows []messageRow
+		rows, result, err = l.prepareAppendRowsLocked(ctx, records, opts)
+		if err == nil && result.Count > 0 {
+			_, _, err = l.prepareMQTTStorage(ctx, rows, nil)
+		}
+		if err == nil {
+			err = l.stageMessageRows(ctx, batch, rows)
+		}
+	} else {
+		result, err = l.prepareAndStageAppendLocked(ctx, batch, records, opts)
+	}
 	if err != nil || result.Count == 0 {
 		return AppendResult{}, err
 	}

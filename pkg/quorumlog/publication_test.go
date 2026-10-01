@@ -58,7 +58,7 @@ func TestPublicationProposalBindsMetadataAndForbidsLossyOldFormats(t *testing.T)
 			t.Fatal("new proposal chose a lossy format")
 		}
 	}
-	if quorumlog.VersionForRecords([]quorumlog.Record{plain}) != 1 || quorumlog.VersionForRecords([]quorumlog.Record{plain, expiring}) != 2 || !quorumlog.SupportedProposalVersion(3) || quorumlog.SupportedProposalVersion(7) {
+	if quorumlog.VersionForRecords([]quorumlog.Record{plain}) != 1 || quorumlog.VersionForRecords([]quorumlog.Record{plain, expiring}) != 2 || !quorumlog.SupportedProposalVersion(3) || quorumlog.SupportedProposalVersion(8) {
 		t.Fatal("version selection changed native behavior")
 	}
 }

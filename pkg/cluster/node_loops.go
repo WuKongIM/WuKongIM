@@ -114,6 +114,16 @@ func (n *Node) reportNodeHealth(ctx context.Context, reporter *observe.Reporter)
 	if n.channelDataPlaneLease != nil && report.RuntimeReady {
 		n.channelDataPlaneLease.MarkVisible(attemptStartedAt)
 	}
+	// Preserve the health budget and skip competing restore/snapshot ownership.
+	// Capacity maintenance has its own bounded context and no additional goroutine.
+	if n.controlApplyMu.TryLock() {
+		if !n.stopping.Load() && !n.maintenance.Load() && n.defaultChannelStore != nil {
+			capacityCtx, done := context.WithTimeout(ctx, min(2*time.Second, healthReportTimeout(n.cfg.HealthReport.Interval, n.cfg.HealthReport.TTL)/3))
+			_ = n.defaultChannelStore.MaintainMQTTStorage(capacityCtx)
+			done()
+		}
+		n.controlApplyMu.Unlock()
+	}
 	return nil
 }
 

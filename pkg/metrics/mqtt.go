@@ -6,6 +6,8 @@ import "github.com/prometheus/client_golang/prometheus"
 // observations, including repeated confirmations, not unique Sessions/messages.
 type MQTTMetrics struct {
 	subscriptionClosures                   map[[2]string]prometheus.Counter
+	storageBytes                           map[string]prometheus.Gauge
+	storageEvents                          map[string]prometheus.Counter
 	events                                 map[string]prometheus.Counter
 	admitted, capacity                     prometheus.Gauge
 	ownerTurns, ownerVisits, ownerFailures prometheus.Counter
@@ -33,7 +35,17 @@ func newMQTTMetrics(reg prometheus.Registerer, labels prometheus.Labels) *MQTTMe
 			m.subscriptionClosures[[2]string{operation, reason}] = closure.WithLabelValues(operation, reason)
 		}
 	}
-	reg.MustRegister(v, g, s, w, closure)
+	capacity := prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "wukongim_mqtt_storage_bytes", Help: "Source-shared original plus future replay reservations and durable node escrow; excludes ordinary history and physical disk amplification.", ConstLabels: labels}, []string{"state"})
+	m.storageBytes = make(map[string]prometheus.Gauge, 4)
+	for _, state := range []string{"reserved", "granted", "node_limit", "cluster_limit"} {
+		m.storageBytes[state] = capacity.WithLabelValues(state)
+	}
+	events := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "wukongim_mqtt_storage_events_total", Help: "Fixed aggregate storage admission and proved retirement observations; retries may repeat.", ConstLabels: labels}, []string{"event"})
+	m.storageEvents = make(map[string]prometheus.Counter, 5)
+	for _, event := range []string{"node_full", "full", "config_mismatch", "retired", "rebuild_failed"} {
+		m.storageEvents[event] = events.WithLabelValues(event)
+	}
+	reg.MustRegister(v, g, s, w, closure, capacity, events)
 	return m
 }
 
@@ -84,6 +96,27 @@ func (m *MQTTMetrics) ObserveSubscriptionClose(operation, reason string) {
 		return
 	}
 	if c := m.subscriptionClosures[[2]string{operation, reason}]; c != nil {
+		c.Inc()
+	}
+}
+
+// ObserveMQTTStorage samples only node aggregates, without source or Session labels.
+func (m *MQTTMetrics) ObserveMQTTStorage(used, granted, nodeLimit, clusterLimit uint64) {
+	if m == nil {
+		return
+	}
+	m.storageBytes["reserved"].Set(float64(used))
+	m.storageBytes["granted"].Set(float64(granted))
+	m.storageBytes["node_limit"].Set(float64(nodeLimit))
+	m.storageBytes["cluster_limit"].Set(float64(clusterLimit))
+}
+
+// ObserveMQTTStorageEvent ignores any name outside the closed catalog.
+func (m *MQTTMetrics) ObserveMQTTStorageEvent(event string) {
+	if m == nil {
+		return
+	}
+	if c := m.storageEvents[event]; c != nil {
 		c.Inc()
 	}
 }

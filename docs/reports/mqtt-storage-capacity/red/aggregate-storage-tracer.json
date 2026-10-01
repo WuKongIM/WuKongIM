@@ -1,0 +1,11 @@
+{
+  "accepted_message_id": 2105708680849657856,
+  "bob_reason": 1,
+  "carol_reason": 1,
+  "cluster_bytes": 8192,
+  "hash_slots": 256,
+  "node_bytes": 8192,
+  "nodes": 1,
+  "passed": false,
+  "payload_bytes": 2048
+}

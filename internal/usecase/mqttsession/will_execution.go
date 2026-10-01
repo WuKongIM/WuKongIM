@@ -16,6 +16,8 @@ import (
 )
 
 var (
+	// ErrWillNotSubmitted is trusted whole-invocation proof, never inferred from text.
+	ErrWillNotSubmitted = errors.New("mqttsession: Will original not submitted")
 	// ErrWillPending retains an obligation whose publication is not yet proved.
 	ErrWillPending = errors.New("mqttsession: Will publication outcome pending")
 	// ErrWillReceiptTargetMissing describes fresh target absence, never nonpublication.
@@ -63,11 +65,18 @@ type WillPublications interface {
 type WillDispatchFence interface {
 	PrepareAttempt(context.Context, contract.WillAttempt) error
 	BeginDispatch(context.Context, contract.WillAttempt) error
-	// BeginAppend irreversibly issues exact submission permission. Routing retries
-	// reuse that permission; issued attempts cannot grant non-dispatch proof.
+	// BeginAppend durably issues exact submission permission. Routing retries
+	// reuse it; retirement or receipt absence cannot prove non-submission.
+	// Only a trusted synchronous result may subsequently seal this exact attempt.
 	BeginAppend(context.Context, contract.WillAttempt) error
 	SealUndispatched(context.Context, contract.WillAttempt) error
 	ReleaseAttempt(context.Context, contract.WillAttempt) error
+}
+
+// willNonSubmissionFence accepts only trusted synchronous negative evidence.
+// It is optional so uncertain and legacy providers remain positive-only.
+type willNonSubmissionFence interface {
+	ConfirmAppendNotSubmitted(context.Context, contract.WillAttempt) error
 }
 
 type WillExecutionOptions struct {
@@ -412,6 +421,14 @@ func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (ou
 		}
 		publishErr = e.opts.Publications.PublishWill(ctx, q)
 		q.AppendAdmission = nil
+		if errors.Is(publishErr, ErrWillNotSubmitted) {
+			if fence, ok := e.opts.DispatchFence.(willNonSubmissionFence); ok {
+				sealErr := fence.ConfirmAppendNotSubmitted(ctx, willAttempt(w))
+				if sealErr != nil {
+					return out, errors.Join(ErrWillPending, sealErr)
+				}
+			}
+		}
 		// gofail: var wkMQTTWillAfterPublication bool
 		// if wkMQTTWillAfterPublication {
 		//     return out, context.DeadlineExceeded

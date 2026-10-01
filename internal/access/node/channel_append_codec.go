@@ -19,6 +19,9 @@ var (
 const maxChannelAppendCollectionLen = 4096
 
 const (
+	channelAppendErrCodeNotSubmitted            = "not_submitted"
+	channelAppendErrCodeNotSubmittedNotReady    = "not_submitted_not_ready"
+	channelAppendErrCodeNotSubmittedPressure    = "not_submitted_pressure"
 	channelAppendErrCodeNotLeader               = "not_leader"
 	channelAppendErrCodeStaleRoute              = "stale_route"
 	channelAppendErrCodeRouteNotReady           = "route_not_ready"
@@ -384,6 +387,15 @@ func readChannelAppendResults(body []byte, offset int) ([]channelappend.SendBatc
 }
 
 func appendChannelAppendResult(dst []byte, result channelappend.SendBatchItemResult) []byte {
+	// Error completions use an empty result whose zero reason equals Success.
+	// Normalize that empty default to failure before emitting negative proof.
+	// Actual successful identities remain contradictory and decode fails closed.
+	if errors.Is(result.Err, channelappend.ErrAppendNotSubmitted) && result.Result == (channelappend.SendResult{}) {
+		result.Result.Reason = channelappend.ReasonSystemError
+	}
+	if errors.Is(result.Err, channelappend.ErrAppendNotSubmitted) && result.Result.MessageSeq == 0 && result.Result.Reason != channelappend.ReasonSuccess {
+		result.Result.MessageID = 0
+	}
 	dst = appendChannelAppendSendResult(dst, result.Result)
 	return appendChannelAppendResultError(dst, result.Err)
 }
@@ -396,6 +408,9 @@ func readChannelAppendResult(body []byte, offset int) (channelappend.SendBatchIt
 	}
 	if result.Err, offset, err = readChannelAppendResultError(body, offset); err != nil {
 		return channelappend.SendBatchItemResult{}, offset, err
+	}
+	if errors.Is(result.Err, channelappend.ErrAppendNotSubmitted) && (result.Result.MessageID != 0 || result.Result.MessageSeq != 0 || result.Result.Reason == channelappend.ReasonSuccess) {
+		return channelappend.SendBatchItemResult{}, offset, fmt.Errorf("internal/access/node: contradictory non-submission result")
 	}
 	return result, offset, nil
 }
@@ -446,6 +461,12 @@ func readChannelAppendResultError(body []byte, offset int) (error, int, error) {
 	switch code {
 	case rpcStatusOK:
 		return nil, offset, nil
+	case channelAppendErrCodeNotSubmitted:
+		return channelappend.ErrAppendNotSubmitted, offset, nil
+	case channelAppendErrCodeNotSubmittedNotReady:
+		return errors.Join(channelappend.ErrAppendNotSubmitted, channelappend.ErrRouteNotReady), offset, nil
+	case channelAppendErrCodeNotSubmittedPressure:
+		return errors.Join(channelappend.ErrAppendNotSubmitted, channelappend.ErrBackpressured), offset, nil
 	case channelAppendErrCodeNotLeader:
 		return channelappend.ErrNotLeader, offset, nil
 	case channelAppendErrCodeNotChannelAuthority:
@@ -478,6 +499,14 @@ func channelAppendErrorCode(err error) string {
 	switch {
 	case err == nil:
 		return rpcStatusOK
+	case errors.Is(err, channelappend.ErrAppendNotSubmitted):
+		if errors.Is(err, channelappend.ErrRouteNotReady) {
+			return channelAppendErrCodeNotSubmittedNotReady
+		}
+		if errors.Is(err, channelappend.ErrBackpressured) {
+			return channelAppendErrCodeNotSubmittedPressure
+		}
+		return channelAppendErrCodeNotSubmitted
 	case errors.Is(err, channelappend.ErrNotLeader):
 		return channelAppendErrCodeNotLeader
 	case errors.Is(err, channelappend.ErrNotChannelAuthority):

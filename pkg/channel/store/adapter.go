@@ -503,3 +503,16 @@ type MQTTReplayReadinessReader interface {
 type MQTTSourceReleaser interface {
 	ReleaseMQTTSourceAtAnchor(context.Context, string, uint64) error
 }
+
+// MQTTStoragePreparation is a capacity receipt, never a durable log vote.
+type MQTTStoragePreparation struct {
+	Nonce              uint64
+	Prepared, Canceled bool
+	NeedFrom           uint64
+}
+
+// MQTTStoragePreparer reserves or cancels one exact proposal before original
+// dispatch. Nonce zero is valid only for allocating the local leader's nonce.
+type MQTTStoragePreparer interface {
+	PrepareMQTTStorage(context.Context, ch.ProposalManifest, []ch.Record, uint64, uint64, bool) (MQTTStoragePreparation, error)
+}

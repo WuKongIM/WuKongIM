@@ -359,4 +359,6 @@ Session 的 `RemoteAddr` 使用声明的客户端地址，`LocalAddr` 保留实�
 | `mqtt.session_expiry_limit_sec` | `WK_MQTT_SESSION_EXPIRY_LIMIT_SEC` | `uint32` | 允许请求的离线会话有效期上限，单位秒；默认 24 小时。 |
 | `mqtt.quota_messages` | `WK_MQTT_QUOTA_MESSAGES` | `uint64` | 每会话逻辑积压条数上限；候选默认值 10000，不代表容量保证。 |
 | `mqtt.quota_bytes` | `WK_MQTT_QUOTA_BYTES` | `uint64` | 每会话逻辑积压字节上限；候选默认值 64 MiB。 |
+| `mqtt.storage_node_bytes` | `WK_MQTT_STORAGE_NODE_BYTES` | `uint64` | 单节点共享正文及未来回放副本预留上限；默认 8 GiB，独立于会话配额。 |
+| `mqtt.storage_cluster_bytes` | `WK_MQTT_STORAGE_CLUSTER_BYTES` | `uint64` | 各节点副本预留合计上限；默认 64 GiB，所有存储节点必须一致，包括未启用 MQTT 监听器的节点。不包含普通历史、WAL 与物理放大。 |
 | `mqtt.window_limit` | `WK_MQTT_WINDOW_LIMIT` | `uint16` | 持久 QoS 1 交换上限；范围 1 至 1024，同时受对端 Receive Maximum 限制。 |

@@ -81,6 +81,8 @@ func InspectScan(ctx context.Context, db *MetaDB, req InspectScanRequest) (Inspe
 	}
 
 	switch req.Table {
+	case "mqtt_storage_ledger":
+		return inspectScanTable(ctx, db, req, slots, mqttStorageTable, inspectMQTTStorageRow)
 	case "mqtt_will":
 		return inspectScanTable(ctx, db, req, slots, mqttWillTable, inspectMQTTWillRow)
 	case "mqtt_source_binding":

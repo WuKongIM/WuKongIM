@@ -92,6 +92,8 @@ plugin, migration, message projections, and MQTT session state.
 
 - Message edits atomically resolve CAS/idempotency and maintain latest-state indexes through the Slot FSM. Reads group at most 200 targets by physical Slot with eight managed workers and a fresh local-only safe ReadIndex plus durable-apply barrier per group, followed by one shared database snapshot for that group (noop fallback for embedding ports without ReadIndex). Replica capability activation is persisted in each channel head; later quorum writes reuse it unless the replica set changes. JSON RPC format, row counts and bytes are bounded; read DTOs omit default zero fields while preserving field names, aligned pages and legacy decoding; matched binaries remain a rollout requirement. Read assembly revalidates Slot mapping and authority with a dedicated retryable read-route cause, distinct from database/CAS conflicts. ReadIndex requires a durable current-term commit; unconfirmed/canceled reads remain counted up to 256 per Slot until confirmation or Raft reset.
 
+Command 79 adjusts the exact node MQTT storage escrow using revision/bytes CAS, complete Controller roster and cluster limit. Grants remain at zero to prevent ABA. Mismatched limits, stale roster revisions, incomplete startup debt and growth over the cluster sum fail closed. This allocation does not certify Channel content.
+
 ## Read First
 
 - [Boundary](BOUNDARY.md), [Multi-Raft API](multiraft/api.go), [Raft worker](multiraft/slot.go), [FSM](fsm/statemachine.go), [Proxy](proxy/store.go)

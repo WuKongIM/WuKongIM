@@ -197,6 +197,29 @@ func (s *Attempts) BeginAppend(ctx context.Context, a contract.WillAttempt) erro
 	return err
 }
 
+// ConfirmAppendNotSubmitted consumes trusted whole-invocation negative evidence.
+// Only the same-boot origin may call it after synchronous publication returns;
+// earlier uncertain submissions, error text, absence and deadlines grant no proof.
+func (s *Attempts) ConfirmAppendNotSubmitted(ctx context.Context, a contract.WillAttempt) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.valid(ctx, a); err != nil {
+		return err
+	}
+	if a.BootID != s.boot {
+		return ErrUnknown
+	}
+	stage, err := s.read(a)
+	if err != nil || (stage != appendIssued && stage != sealed) {
+		return ErrUnknown
+	}
+	if stage == sealed {
+		return syncDirectory(s.dir)
+	}
+	_, err = s.write(ctx, a, sealed)
+	return err
+}
+
 // SealUndispatched durably forbids all future submission from an unissued attempt.
 // Version-1 Admitted lacks the submission boundary and remains positive-only.
 func (s *Attempts) SealUndispatched(ctx context.Context, a contract.WillAttempt) error {

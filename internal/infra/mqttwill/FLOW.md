@@ -8,7 +8,7 @@ summary: Persists bounded exact Will reservation/admission/seal transitions unde
 ## Responsibility
 
 Persist body-free exact dispatch attempts; arbitrate Reserved -> Admitted -> AppendIssued versus
-unissued -> Sealed without a worker, queue or publication policy.
+proved non-submission -> Sealed without a worker, queue or publication policy.
 
 ## Boundaries
 
@@ -39,7 +39,11 @@ positive receipts and exact successor/terminal cleanup. Node RPC carries identit
 - Missing records block late admission; removed tuples cannot be recycled by an
   earlier boot. Directory-sync/cancellation errors never grant proof or dispatch.
 - Version-2 Admitted can be sealed only before append permission is issued.
-  AppendIssued and version-1 Admitted cannot prove an accepted append stopped.
+  AppendIssued cannot be sealed from absence or timeout. A synchronous trusted
+  whole-origin-invocation non-submission capability can seal its exact same-boot
+  issued attempt after all submission paths return; directory sync must succeed.
+  Any earlier ambiguous route/storage attempt removes that capability.
+  Version-1 Admitted remains positive-only.
 - Reclamation requires a fresh exact terminal/newer-execution Will row in usecases.
   Missing/current/uncertain records stay; no age-based GC or background worker.
 

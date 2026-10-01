@@ -145,6 +145,8 @@ type SubscriberMutationUpdate struct {
 var (
 	// ErrNotChannelAuthority reports that the local node is not the channel authority.
 	ErrNotChannelAuthority = contract.ErrNotChannelAuthority
+	// ErrAppendNotSubmitted proves no new original was dispatched by this invocation.
+	ErrAppendNotSubmitted = contract.ErrAppendNotSubmitted
 	// ErrBackpressured reports bounded runtime pressure.
 	ErrBackpressured = contract.ErrBackpressured
 	// ErrChannelBusy reports that channel-level write flow control is saturated.

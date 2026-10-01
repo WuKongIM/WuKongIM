@@ -2739,6 +2739,12 @@ func (s *ChannelStore) truncateLocked(ctx context.Context, to uint64, truncateHi
 	if err := s.log.stageCatalog(batch); err != nil {
 		return toChannelError(err)
 	}
+	storageChange, err := s.log.channelEntry.stageMQTTStorageReplacement(ctx, batch, to, nil, nil)
+	if err != nil {
+		return toChannelError(err)
+	}
+	defer storageChange.cancel()
+	storageChange.submitted = true
 	if err := batch.Commit(true); err != nil {
 		return toChannelError(err)
 	}
@@ -2747,7 +2753,7 @@ func (s *ChannelStore) truncateLocked(ctx context.Context, to uint64, truncateHi
 		s.log.loaded.Store(true)
 		s.log.clearDurableProposalTailLocked()
 	}
-	return nil
+	return toChannelError(storageChange.finish(ctx))
 }
 
 // StoreSnapshotPayload stores snapshot payload bytes.
@@ -3122,8 +3128,30 @@ func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared 
 		unlockCommitEntries(appendEntries, checkpointEntries)
 		return commit.SubmitResult{Outcome: commit.OutcomeDefinitelyNotCommitted, Err: channel.ErrClosed}
 	}
+	type storageReservation struct {
+		entry   *channelEntry
+		charges []mqttStorageCharge
+		bytes   uint64
+	}
+	reservations := make([]storageReservation, 0, len(prepared))
+	cancelStorage := func() {
+		for _, r := range reservations {
+			r.entry.db.mqttStorage.cancelReservation(r.bytes)
+		}
+	}
+	for _, item := range prepared {
+		e := item.store.log.channelEntry
+		charges, n, err := e.prepareMQTTStorage(ctx, item.rows, item.proposals)
+		if err != nil {
+			cancelStorage()
+			unlockCommitEntries(appendEntries, checkpointEntries)
+			return commit.SubmitResult{Outcome: commit.OutcomeDefinitelyNotCommitted, Err: toChannelError(err)}
+		}
+		reservations = append(reservations, storageReservation{e, charges, n})
+	}
 	ownership, err := newCommitOwnership(appendEntries[0].db.registry, appendEntries, checkpointEntries)
 	if err != nil {
+		cancelStorage()
 		return commit.SubmitResult{Outcome: commit.OutcomeDefinitelyNotCommitted, Err: toChannelError(err)}
 	}
 	mutations := make([]preparedCommitMutation, 0, len(prepared))
@@ -3144,8 +3172,14 @@ func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared 
 		Records:   preparedRowsRecordCount(prepared),
 		Bytes:     preparedRowsBytes(prepared),
 		Build: func(batch *engine.Batch) error {
-			for _, mutation := range mutations {
+			for i, mutation := range mutations {
 				if err := mutation.entry.stageCommitRows(batch, mutation.rows, mutation.checkpoint, mutation.point, mutation.proposals, mutation.entries, ^uint64(0)); err != nil {
+					return err
+				}
+				if err := mutation.entry.stageMQTTStorageConsumption(batch, mutation.proposals); err != nil {
+					return err
+				}
+				if err := stageMQTTStorageCharges(batch, mutation.entry.key, reservations[i].charges); err != nil {
 					return err
 				}
 			}
@@ -3161,6 +3195,9 @@ func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared 
 	}
 	if committer != nil {
 		result := committer.SubmitWithOutcome(ctx, request)
+		if result.Outcome == commit.OutcomeDefinitelyNotCommitted {
+			cancelStorage()
+		}
 		result.Err = toChannelError(result.Err)
 		return result
 	}
@@ -3168,6 +3205,7 @@ func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared 
 	batch := physical.NewBatch()
 	defer batch.Close()
 	if err := request.Build(batch); err != nil {
+		cancelStorage()
 		return commit.SubmitResult{Outcome: commit.OutcomeDefinitelyNotCommitted, Err: err}
 	}
 	if err := batch.Commit(true); err != nil {

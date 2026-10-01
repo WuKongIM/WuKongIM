@@ -369,4 +369,6 @@ Disabled by default. Full MQTT acceptance is in progress; these settings support
 | `mqtt.session_expiry_limit_sec` | `WK_MQTT_SESSION_EXPIRY_LIMIT_SEC` | `uint32` | Maximum requested offline Session lifetime in seconds; default 24 hours. |
 | `mqtt.quota_messages` | `WK_MQTT_QUOTA_MESSAGES` | `uint64` | Logical per-Session backlog count limit; candidate default 10000, not a scale guarantee. |
 | `mqtt.quota_bytes` | `WK_MQTT_QUOTA_BYTES` | `uint64` | Logical per-Session backlog byte limit; candidate default 64 MiB. |
+| `mqtt.storage_node_bytes` | `WK_MQTT_STORAGE_NODE_BYTES` | `uint64` | Per-node reservations for shared originals and future replay copies; default 8 GiB, independent of Session quotas. |
+| `mqtt.storage_cluster_bytes` | `WK_MQTT_STORAGE_CLUSTER_BYTES` | `uint64` | Sum of replica reservations across nodes; default 64 GiB, identical on every storage node, including nodes with MQTT disabled. Excludes ordinary history, WAL and physical amplification. |
 | `mqtt.window_limit` | `WK_MQTT_WINDOW_LIMIT` | `uint16` | Maximum durable QoS 1 exchanges; 1 to 1024, further limited by peer Receive Maximum. |

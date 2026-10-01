@@ -3,6 +3,7 @@ package channelappend
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -25,6 +26,17 @@ const (
 	// wave while reserving downstream RPC and store-worker headroom.
 	defaultRouterMaxConcurrentGroupsPerBatch = 96
 )
+
+// errRouterSubmissionUnknown is process-local; it never supplies wire proof.
+var errRouterSubmissionUnknown = errors.New("channelappend: prior submission not disproved")
+
+// routerSubmissionError carries uncertainty between internal route attempts.
+// Terminal results unwrap it so existing error identity remains unchanged.
+type routerSubmissionError struct{ cause error }
+
+func (e *routerSubmissionError) Error() string        { return e.cause.Error() }
+func (e *routerSubmissionError) Unwrap() error        { return e.cause }
+func (e *routerSubmissionError) Is(target error) bool { return target == errRouterSubmissionUnknown }
 
 var errRouterForwardTimeout = errors.New("channelappend: remote forwarding attempt timed out")
 
@@ -185,9 +197,13 @@ func (r *Router) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchIt
 	startedAt := time.Now()
 	results := make([]SendBatchItemResult, len(items))
 	finalized := make([]bool, len(items))
+	submissionUnknown := make([]bool, len(items))
 	finalize := func(index int, result SendBatchItemResult) {
 		if index < 0 || index >= len(results) || finalized[index] {
 			return
+		}
+		if submissionUnknown[index] {
+			result.Err = suppressNonSubmission(result.Err)
 		}
 		results[index] = result
 		finalized[index] = true
@@ -242,6 +258,7 @@ func (r *Router) SendBatchEach(items []SendBatchItem, emit func(int, SendBatchIt
 			invalidate := false
 			for i, result := range normalizeRouterGroupResults(len(group.indexes), groupResults) {
 				index := group.indexes[i]
+				submissionUnknown[index] = submissionUnknown[index] || errors.Is(result.Err, errRouterSubmissionUnknown)
 				invalidate = invalidate || shouldInvalidateRouterAuthority(result.Err)
 				if shouldRetryRouterError(result.Err) && canRetryRouterItem(items[index], attempts[index], r.maxRouteAttempts, time.Now()) {
 					nextPending = append(nextPending, index)
@@ -272,6 +289,7 @@ func (r *Router) sendSingle(item SendBatchItem) SendBatchItemResult {
 		return result
 	}
 	attempts := 0
+	submissionUnknown := false
 	for {
 		attempts++
 		if err := routerItemError(prepared, time.Now()); err != nil {
@@ -293,12 +311,16 @@ func (r *Router) sendSingle(item SendBatchItem) SendBatchItemResult {
 			return SendBatchItemResult{Err: err}
 		}
 		result = r.submitSingleTarget(target, prepared)
+		submissionUnknown = submissionUnknown || errors.Is(result.Err, errRouterSubmissionUnknown)
 		if shouldInvalidateRouterAuthority(result.Err) {
 			r.invalidateAppendAuthority(routeChannel, target)
 		}
 		if shouldRetryRouterError(result.Err) && canRetryRouterItem(prepared, attempts, r.maxRouteAttempts, time.Now()) {
 			r.waitBeforeRetry([]SendBatchItem{prepared}, []int{0})
 			continue
+		}
+		if submissionUnknown {
+			result.Err = suppressNonSubmission(result.Err)
 		}
 		return result
 	}
@@ -557,6 +579,7 @@ func (r *Router) resolvedGroupLanes(groups []routerBatchGroup) []routerBatchLane
 
 func (r *Router) submitGroup(group routerBatchGroup) []SendBatchItemResult {
 	startedAt := time.Now()
+	submitted := false
 	path := "remote"
 	results := make([]SendBatchItemResult, len(group.items))
 	activeItems, activePositions := activeRouterGroupItems(group.items, results, time.Now())
@@ -565,6 +588,14 @@ func (r *Router) submitGroup(group routerBatchGroup) []SendBatchItemResult {
 		return results
 	}
 	finishActive := func(activeResults []SendBatchItemResult) []SendBatchItemResult {
+		if submitted {
+			activeResults = normalizeRouterGroupResults(len(activeItems), activeResults)
+			for i := range activeResults {
+				if activeResults[i].Err != nil && !errors.Is(activeResults[i].Err, ErrAppendNotSubmitted) {
+					activeResults[i].Err = &routerSubmissionError{cause: activeResults[i].Err}
+				}
+			}
+		}
 		results = mergeActiveRouterResults(activePositions, activeResults, results)
 		return finish()
 	}
@@ -603,6 +634,7 @@ func (r *Router) submitGroup(group routerBatchGroup) []SendBatchItemResult {
 		ctx, cancel = routerAllItemsContext(activeItems)
 		defer cancel()
 	}
+	submitted = true
 	if local {
 		future, err := r.local.SubmitLocal(ctx, group.target, activeItems)
 		if err != nil {
@@ -625,8 +657,12 @@ func (r *Router) submitGroup(group routerBatchGroup) []SendBatchItemResult {
 
 func (r *Router) submitSingleTarget(target AuthorityTarget, item SendBatchItem) SendBatchItemResult {
 	startedAt := time.Now()
+	submitted := false
 	path := "remote"
 	finish := func(result SendBatchItemResult) SendBatchItemResult {
+		if submitted && result.Err != nil && !errors.Is(result.Err, ErrAppendNotSubmitted) {
+			result.Err = &routerSubmissionError{cause: result.Err}
+		}
 		observeRouterGroup(r.observer, RouterObservation{Path: path, Result: resultClass(result), Items: 1, Duration: time.Since(startedAt)})
 		return result
 	}
@@ -674,6 +710,7 @@ func (r *Router) submitSingleTarget(target AuthorityTarget, item SendBatchItem) 
 		//     return finish(SendBatchItemResult{Err: context.DeadlineExceeded})
 		// }
 	}
+	submitted = true
 	if local {
 		future, err := r.local.SubmitLocal(ctx, target, []SendBatchItem{item})
 		if err != nil {
@@ -1214,4 +1251,16 @@ func (r *Router) releaseOutbound(nodeID uint64) {
 		return
 	}
 	r.outbound[nodeID]--
+}
+
+// suppressNonSubmission preserves uncertainty from any prior submitted call.
+// Formatting, rather than wrapping, deliberately removes the negative capability.
+func suppressNonSubmission(err error) error {
+	if errors.Is(err, ErrAppendNotSubmitted) {
+		return fmt.Errorf("%w: earlier submission unresolved; later response: %s", ErrAppendFailed, err)
+	}
+	if internal, ok := err.(*routerSubmissionError); ok {
+		return internal.cause
+	}
+	return err
 }

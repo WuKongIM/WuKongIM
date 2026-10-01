@@ -138,11 +138,11 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   Operations MCP, five minutes for repository probes, 48 hours for backup/restore).
   Read-only handlers may follow caller cancellation; started mutations execute
   independently. Ready frames batch without an idle coalescing delay.
-
 - Routed committed and persisted history and conversation heads hydrate latest payload replacements through Slot authority. Explicit original committed reads omit edits but retain Leader/HW/retention fences for retry proof. Cross-channel chunks preserve batching above 200 recents; replacement growth respects page budgets and continuation. Matching skips empty pages, scans at most eight updates directly, and indexes larger pages without copying payload-bearing structs. The request-scoped Slot ReadIndex/apply barrier is separate from readiness proof reuse; serving edit proposals check the restore content epoch, including forwarded commands. Local log/backup reads remain immutable.
 
-## Read First
+Aggregate MQTT capacity uses one hash-Slot escrow row and immutable Controller storage rosters, including joining/leaving data nodes. Startup debt must be registered on every required node before growth. The existing periodic health owner reports health first, then maintains/refunds capacity with a separate bounded context and nonwaiting restore/apply ownership; no per-Channel task is added.
 
+## Read First
 - [Public API](api.go), [Node ownership](node.go), [Lifecycle](node_lifecycle.go), [Routing](routing/router.go), [Channels](channels/service.go)
 
 ## Update Triggers

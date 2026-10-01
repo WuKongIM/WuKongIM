@@ -254,8 +254,12 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 		local: cfg.LocalNode, ownerContext: ctx, localTimeout: cfg.LocalTimeout,
 		store: cfg.Store, peers: peers, executor: executor,
 	}
+	var funding storageFundingDispatcher
+	if port, ok := cfg.Store.(storageFundingStore); ok {
+		funding = &runtimeStorageFunding{store: port, peers: peers, timeout: cfg.RecoveryTimeout, repairs: repairs}
+	}
 	log, err := newQuorumLog(quorumLogConfig{
-		Local: cfg.LocalNode, Store: cfg.Store, Recovery: recovery, Durability: dispatcher,
+		Local: cfg.LocalNode, Store: cfg.Store, Recovery: recovery, Durability: dispatcher, Funding: funding,
 		RepairAuthorities: repairs,
 		RecoveryTimeout:   cfg.RecoveryTimeout, RecoveryPageBytes: cfg.RecoveryPageBytes,
 		MaxChannels: cfg.MaxChannels, MaxVoters: cfg.MaxVoters, MaxProposalRecords: cfg.BatchItems,
