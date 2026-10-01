@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Illustrate bilingual cluster, storage, and observability configuration with join-model and hash-slot diagrams, exclusive-storage examples, tuning steps, and monitoring/diagnostic layers; retain complete references in disclosures and keep readiness, persistence, GC, and access limits visible. / 中英文节点集群、存储和可观测性配置增加加入方式与哈希槽关系图、独占存储示意、调优步骤和监控诊断分层；完整参考可展开，就绪、持久化、GC 与访问限制保持可见。
+
 - Make bilingual configuration guides task-oriented with four common-setting entries, a TOML-to-restart flow, and separate CONNECT/Manager/Product HTTP trust diagrams; preserve complete defaults and examples in disclosures while keeping override, authentication, and validation rules visible. / 中英文配置教程增加四类常用任务、TOML 到重启流程及独立 CONNECT、Manager、产品 HTTP 鉴权图，完整默认值与示例可展开，覆盖、鉴权和验收规则保持可见。
 
 - Simplify bilingual Linux deployment, networking, and multi-node guides with compact connection flows, expected results, and expandable complete commands/configurations; keep readiness, private access, address rules, and three-node failure limits visible. / 中英文 Linux 部署、网络接入与多节点教程改为简洁连接图、预期结果和可展开完整命令配置，就绪、内网访问、地址规则与三节点故障限制保持可见。
