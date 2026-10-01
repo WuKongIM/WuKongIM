@@ -1,15 +1,37 @@
 ---
 title: 故障排查
-description: 从故障现象开始，用低风险检查逐步找到问题范围。
+description: 按六类现象选择检查路径，核对证据与结果，完整命令和进阶工具按需展开。
 ---
 
-排障不是看到错误就重启，而是先回答三个问题：**什么时候开始、影响了谁、哪一层先出现异常**。先做只读检查，证据足够后再决定是否需要变更。
+先记录时间、影响与最近变更，再选择故障现象。
 
-<Callout type="warn" title="看不清状态时不要盲目操作">
-  如果节点、Controller、Slot、Channel 或任务状态缺失、过期或互相矛盾，应先停止发布和拓扑变更。不要只凭一条日志或一次成功请求重启所有节点、迁移 Leader 或删除数据。
+<Cards>
+  <Card title="就绪失败" description="进程能响应，但 /readyz 返回 503。" href="/zh/server/operations/troubleshooting#not-ready" />
+  <Card title="连不上或反复重连" description="检查协议、发布地址、网络与网关。" href="/zh/server/operations/troubleshooting#connectivity" />
+  <Card title="发送失败或积压" description="比较错误、延迟、队列与热点节点。" href="/zh/server/operations/troubleshooting#messaging" />
+  <Card title="集群状态异常" description="核对节点、Controller、Slot 与任务证据。" href="/zh/server/operations/troubleshooting#cluster-state" />
+  <Card title="磁盘或数据异常" description="先记录磁盘与数据路径，再做离线只读检查。" href="/zh/server/operations/troubleshooting#storage" />
+  <Card title="备份或升级失败" description="保存任务与归档，按停止条件处理。" href="/zh/server/operations/troubleshooting#maintenance" />
+</Cards>
+
+<Callout type="warn" title="状态不清楚，先暂停变更">
+  节点、Controller、Slot、Channel 或任务状态缺失、过期、矛盾时，暂停发布和拓扑变更。保存证据，避免批量重启、迁移 Leader 或删除数据。
 </Callout>
 
 ## 故障发生后的前十分钟
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  pause["①暂停并行变更"] --> capture["②记录影响<br/>保存 /readyz"]
+  capture --> compare["③对齐 Manager<br/>指标与日志"]
+```
+
+</div>
+
+<details>
+  <summary>完整收集顺序与只读命令</summary>
 
 1. **暂停其他变化**：暂停发布、扩缩容、恢复和同时进行的集群操作，记录当前正在运行的任务。
 2. **记录影响**：记下开始时间、受影响的用户、频道、节点和入口（TCP、WebSocket 或 HTTP）。
@@ -27,9 +49,20 @@ wkcli top --server http://127.0.0.1:5001 --once --json
 
 指标名称、可复制的 PromQL 和结果解释见[健康检查与监控](/zh/server/operations/health-and-monitoring)。先检查采集是否正常，再比较同一节点、同一时间段的数据。
 
+</details>
+
 ## 根据现象继续检查
 
+<section id="not-ready" className="scroll-m-28">
+
 ### `/healthz` 成功，但 `/readyz` 返回 503
+
+保存 `/readyz` 完整响应与 `reason`，在 Manager 检查维护、Controller、Slot 和运行中任务，再比较其他节点。
+
+**核对：** 找到就绪失败的具体原因；恢复、扩缩容或升级的停止条件未解除前，不接回流量。
+
+<details>
+  <summary>就绪失败：完整核对清单</summary>
 
 1. 保存 `/readyz` 的完整响应和 `reason`。
 2. 在 Manager 检查维护状态、Controller、Slot 和正在运行的恢复或控制任务。
@@ -37,7 +70,20 @@ wkcli top --server http://127.0.0.1:5001 --once --json
 
 不要把流量接回这个节点，也不要绕过恢复、扩缩容或升级流程里的安全检查。
 
+</details>
+
+</section>
+
+<section id="connectivity" className="scroll-m-28">
+
 ### 客户端连不上，或者反复重连
+
+确认客户端实际使用的协议与发布地址，再检查 DNS、负载均衡、TLS、防火墙和同一时间段网关日志。
+
+**核对：** 缩小到具体入口、节点或连接步骤，保留失败证据；不要在证据不足时批量断开或重启。
+
+<details>
+  <summary>连接故障：完整核对清单</summary>
 
 1. 确认用户使用的是 TCP、WebSocket 还是 HTTP 入口，不要把 Manager 地址当作客户端地址。
 2. 检查发布地址、DNS、负载均衡、TLS 和防火墙。
@@ -45,7 +91,20 @@ wkcli top --server http://127.0.0.1:5001 --once --json
 
 不要在证据不足时批量断开连接或同时重启所有节点。
 
+</details>
+
+</section>
+
+<section id="messaging" className="scroll-m-28">
+
 ### 消息发送失败、变慢或出现积压
+
+先看发送错误与高分位延迟，再按节点比较队列，已知频道 ID 时做精确查询。
+
+**核对：** 定位具体节点或频道热点；消息提交、对端接收与历史恢复分别检查，平均值不能代替高分位。
+
+<details>
+  <summary>消息故障：完整核对清单</summary>
 
 1. 先看发送错误率和高分位延迟，再看 Channel、投递和推送队列是否持续增长。
 2. 比较每个节点，确认是否只有一台机器或一个大群形成热点。
@@ -54,7 +113,20 @@ wkcli top --server http://127.0.0.1:5001 --once --json
 
 完整消息路径见[消息发送链路](/zh/server/architecture/message-flow)。大群和高消息率下，平均值可能看起来正常，最大值和高分位却已经异常。
 
+</details>
+
+</section>
+
+<section id="cluster-state" className="scroll-m-28">
+
 ### Controller、Slot 或节点状态异常
+
+保存状态更新时间、控制版本、`blocked_reasons`、任务和 Slot 证据；缺失、过期或矛盾时暂停变更。
+
+**核对：** 诊断建议不是写操作授权；移除节点仍必须等待 `safe_to_remove=true`。
+
+<details>
+  <summary>集群异常：只读诊断命令</summary>
 
 ```bash
 wkcli node ls --context production
@@ -63,17 +135,52 @@ wkcli node diagnose 4 --context production --json
 
 保存命令输出里的状态更新时间、控制版本、`blocked_reasons`、任务和 Slot 证据。诊断建议不是执行写操作的授权；移除节点仍必须等待 `safe_to_remove=true`。处理步骤见[扩容与缩容](/zh/server/operations/scaling)。
 
+</details>
+
+</section>
+
+<section id="storage" className="scroll-m-28">
+
 ### 磁盘不足或数据看起来不一致
+
+记录磁盘空间、IO、错误、节点 ID 与数据路径，不通过删除数据文件或未知日志腾空间。
+
+**核对：** `wkcli db` 只读查看已停止节点、快照或复制目录；`import` 写入必须指向明确离线目标，不能替代备份恢复。
+
+<details>
+  <summary>磁盘与数据：离线检查边界</summary>
 
 先记录磁盘空间、IO 延迟、错误、节点 ID、数据路径和配置。不要通过删除数据文件或未知日志来腾空间。
 
 `wkcli db` 只能查看已停止节点、文件系统快照或复制出的数据目录。先使用只读的 `query`、`diff` 或 `export`。`import` 会写入数据，只能指向明确离线的目标，也不能替代 Manager 的备份恢复。
 
+</details>
+
+</section>
+
+<section id="maintenance" className="scroll-m-28">
+
 ### 备份、恢复或升级失败
+
+保存 Manager 任务与审计、归档清单、物理 Slot 验证结果，以及版本与摘要，回到对应任务的停止条件。
+
+**核对：** 恢复期间 `/healthz` 成功不代表能接流量；版本混合运行必须有发布说明依据。
+
+<details>
+  <summary>维护任务失败：归档与停止条件</summary>
 
 保存 Manager 任务与审计、归档清单、256 个物理 Slot 的验证结果、程序版本与摘要。不要因为恢复时 `/healthz` 成功就接回流量，也不要假设升级失败后任意版本都能混合运行。回到[备份与恢复](/zh/server/operations/backup-and-restore)或[升级与迁移](/zh/server/operations/upgrade-and-migration)的停止条件处理。
 
+</details>
+
+</section>
+
 ## 工具应该按什么顺序使用
+
+先用 `/readyz`、Manager、同一时段指标与日志，再定位一个节点或精确 Slot、Channel、任务。pprof 限时限目标，结束后关闭 Debug；`wkcli bench` 只在隔离测试集群使用。
+
+<details>
+  <summary>完整工具顺序与使用边界</summary>
 
 1. 先看 `/readyz` 和 Manager，它们成本最低。
 2. 再看同一时间段的 Prometheus 指标和错误日志。
@@ -84,7 +191,14 @@ wkcli node diagnose 4 --context production --json
 
 前一步已经能解释问题时，就不要继续使用成本更高的工具。
 
+</details>
+
 ## 请求他人协助时提供什么
+
+提供时间、影响、版本与脱敏配置、完整就绪响应、同一时段指标与少量日志。分享前去除密码、完整 Token 和用户消息正文。
+
+<details>
+  <summary>协助排查：完整证据清单</summary>
 
 - 故障开始时间、影响范围和最近的变更；
 - 节点清单、版本、集群身份和脱敏后的相关配置；
@@ -96,3 +210,7 @@ wkcli node diagnose 4 --context production --json
 不要发送密码、完整 Token、用户消息正文或未经检查的完整配置文件。
 
 只有业务恢复、队列受控、节点重新通过 `/readyz`、监控恢复，并且临时 Debug、采样和测试流量都已关闭后，排障才算结束。
+
+</details>
+
+**结束条件：** 业务恢复、队列受控、各节点通过 `/readyz`、监控恢复，并关闭临时 Debug、采样和测试流量。

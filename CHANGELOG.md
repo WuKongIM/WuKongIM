@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Make bilingual health checks and troubleshooting easier to follow with compact readiness diagrams, recorded Manager captures, six symptom paths, and expandable commands/PromQL; show a five-step operations change flow while keeping readiness, data safety, and stop conditions visible. / 中英文健康检查与排障改为简洁判断图、已记录 Manager 实图、六类故障入口和可展开命令/PromQL；运维首页增加五步变更图，保留就绪、数据安全与停止条件。
+
 - Simplify bilingual push and AI/IoT tutorials into illustrated tasks with expandable requests, separate AI and device learning paths, and six scenario cards; restore large-group section links and improve dark-theme text contrast while keeping delivery, recovery, and execution limits visible. / 精简中英文推送与 AI/IoT 教程，采用图示步骤与可展开请求，分开 AI 和设备学习路径，场景首页改为六张目标卡片；修复大群章节链接并提高深色文字对比度，保留送达、恢复和执行边界。
 
 - Make bilingual Webhook, direct-chat, and group tutorials easier to follow with compact task diagrams, verified chat/recovery captures, explicit expected results, and expandable code and large-group details; keep callback trust, event loss, and partial membership changes visible. / 中英文 Webhook、单聊与群聊教程新增简洁步骤图、实测收发与恢复截图、预期结果和可展开代码，大群说明按需查看，回调信任、事件丢失和成员部分完成等关键限制保持可见。

@@ -6,7 +6,9 @@ SVG fits narrow screens. Each screenshot has a short numbered caption,
 descriptive alt text, and a link to its original size through
 `TutorialScreenshot`. Chat captures use the actual Chinese and English UIs;
 the catalog and Web examples share captures with translated HTML captions.
-Manager captures also use its Chinese and English UIs. The direct-chat tutorial
+Manager captures also use its Chinese and English UIs. The health/monitoring
+guide reuses the nodes capture to locate health and freshness fields; it does
+not attest current readiness or Prometheus collection. The direct-chat tutorial
 reuses the exchange and full Web SDK recovery captures below; these images do
 not certify automatic EasySDK history recovery.
 

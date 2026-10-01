@@ -1,11 +1,38 @@
 ---
 title: Health & Monitoring
-description: Use three endpoints to tell whether the process is alive, the node can accept traffic, and where a problem may be.
+description: Check readiness, product messaging, and monitoring in three steps; expand full commands and PromQL as needed.
 ---
 
-When checking WuKongIM, start with `/readyz` and then inspect monitoring. Do not only check whether the process is running.
+Goal: check readiness on every node, then verify product behavior and monitoring separately.
 
-## Run these three commands first
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  ready["①Check each node<br/>/readyz"] --> result["②200: verify business<br/>503: hold traffic"]
+  result --> observe["③Nodes + metrics"]
+```
+
+</div>
+
+## 1. Check readiness on every node
+
+Use the actual API address from the management network or a protected loopback entry:
+
+```bash
+curl -sS -i http://127.0.0.1:5001/readyz
+```
+
+| Result | Next action |
+| --- | --- |
+| HTTP `200`, `ready: true` | Use as a traffic-admission gate, then verify product messaging |
+| HTTP `503` | Hold traffic to this node; save the full response and `reason` |
+| Connection failure | Check the entry and network through [Troubleshooting](/en/server/operations/troubleshooting#connectivity) |
+
+**`/healthz` proves only process liveness.** During restore or maintenance it may succeed while `/readyz` fails; that does not permit restoring product traffic.
+
+<details id="run-these-three-commands-first" className="scroll-m-28">
+  <summary>Complete liveness, readiness, and metrics checks</summary>
 
 ```bash
 curl -sS -i http://127.0.0.1:5001/healthz
@@ -27,20 +54,50 @@ Remember one rule: **a successful `/healthz` only means that the process is aliv
   During restore or other maintenance, `/healthz`, monitoring, and diagnostics may still work while `/readyz` remains failed. Do not restore product traffic just because the process is alive.
 </Callout>
 
-## The minimum monitoring set
+</details>
+
+## 2. Check node state and product behavior
+
+In [Manager](/en/server/operations/manager), inspect health, readiness, and data freshness. Then verify client connection, message sending, independent receipt, and history recovery.
+
+**Check:** Inspect every node in a multi-node cluster. Preserve stale or conflicting state and pause changes. One readiness success does not verify messaging and recovery.
+
+<TutorialScreenshot
+  src="/tutorials/manager/nodes-en.jpg"
+  alt="Manager node list showing live-node count, node health, and data freshness"
+  width={1280}
+  height={720}
+  marks={[{ x: 33, y: 55 }, { x: 48, y: 66 }]}
+>
+  ① Live-node count. ② Health, readiness, and data freshness. This reuses the recorded-version single-node cluster capture to show where to look; actual admission still checks `/readyz` per node. Click for the original.
+</TutorialScreenshot>
+
+## 3. Verify collection and alerts
+
+Enable metrics, then have Prometheus scrape every node's `/metrics`. Check `up{job="wukongim"}=1` before comparing trends, alerts, and logs over the same interval. Use your own job name and cluster label.
+
+**Successful collection does not prove readiness.** An empty result may mean an unconfigured target, disabled metrics, or an event that has not occurred; do not treat it as a healthy zero.
+
+Cover connections and errors, queues and delivery, cluster state, and machine resources. Compare per-node maximums and high percentiles; assign an alert responder.
+
+<details id="the-minimum-monitoring-set" className="scroll-m-28">
+  <summary>Four monitoring groups: signals and problems</summary>
 
 Start with these four groups. You do not need a complicated dashboard on day one.
 
-| Group | Watch | Typical problem |
-| --- | --- | --- |
-| Traffic and connections | Connections, send errors, request rate, latency, reconnects | Users cannot connect or messages become slow |
-| Queues and delivery | Queue depth, rejection, drops, retries, webhook/plugin failures | Messages back up or downstream delivery fails |
-| Cluster state | Controller, Slot leaders, replicas, ISR, and tasks | The process is running but cluster state is unhealthy |
-| Machine resources | CPU, memory, goroutines, file descriptors, disk, and network | Resource exhaustion makes the service unstable |
+| Group | Signals and problems |
+| --- | --- |
+| Traffic and connections | **Watch:** Connections, send errors, request rate, latency, reconnects<br/>**Problem:** Users cannot connect or messages become slow |
+| Queues and delivery | **Watch:** Queue depth, rejection, drops, retries, webhook/plugin failures<br/>**Problem:** Messages back up or downstream delivery fails |
+| Cluster state | **Watch:** Controller, Slot leaders, replicas, ISR, and tasks<br/>**Problem:** The process is running but cluster state is unhealthy |
+| Machine resources | **Watch:** CPU, memory, goroutines, file descriptors, disk, and network<br/>**Problem:** Resource exhaustion makes the service unstable |
 
 Manager Realtime and Top are useful for a quick view of one node. Prometheus shows trends over time. They complement one another, but neither replaces `/readyz`.
 
-## Connect an existing Prometheus
+</details>
+
+<details id="connect-an-existing-prometheus" className="scroll-m-28">
+  <summary>Prometheus: download, merge, and validate</summary>
 
 Download [prometheus.yml](/examples/monitoring/prometheus.yml) and [alerts.yml](/examples/monitoring/alerts.yml) into one directory. Replace the three private node endpoints, keep one target for a single-node cluster, and set a unique `cluster` label. Enable node metrics through [Observability](/en/server/configuration/observability).
 
@@ -53,9 +110,13 @@ promtool check rules alerts.yml
 
 Confirm every target is UP in Prometheus Targets. For an existing configuration, merge only the relevant `scrape_configs` and `rule_files`; do not overwrite other jobs or scrape the same node twice. Configure notification receivers through your existing Prometheus/Alertmanager setup.
 
-## Four queries to start with
+</details>
+
+<details id="four-queries-to-start-with" className="scroll-m-28">
+  <summary>Four PromQL queries: labels, units, and interpretation</summary>
 
 These queries use the sample's `job="wukongim"` and scrape-added `cluster` label; `node_id` comes from each node. Replace the selector if your job name differs. Check `up{job="wukongim"}` first: `0` means collection failed, while `1` only means a successful scrape, not successful `/readyz`. An empty result can mean an unconfigured target, disabled metrics, or an event that has not occurred; do not automatically interpret it as a healthy zero.
+
 
 ### Connections: compare nodes
 
@@ -95,7 +156,10 @@ The unit is queued delivery batches, not unread messages or undelivered users. F
 
 The downloadable rules cover scrape failures, unsuccessful SENDACKs, and sustained delivery backlogs. The `2m`, `10m`, and `80%` thresholds are starter examples to tune against your baseline; they do not cover all readiness, storage, or cluster failures.
 
-## Create these alerts first
+</details>
+
+<details id="create-these-alerts-first" className="scroll-m-28">
+  <summary>Alerts: complete starter list and threshold principles</summary>
 
 - `/readyz` keeps returning 503 or repeatedly changes state.
 - Send errors or latency keep rising.
@@ -106,10 +170,10 @@ The downloadable rules cover scrape failures, unsuccessful SENDACKs, and sustain
 
 Do not copy alert numbers from another environment. Observe the normal range for this version under a real product peak, then set thresholds. Large groups, high message rates, and many connections can create one-node or one-channel hot spots, so inspect maximums and high-percentile latency as well as averages.
 
+</details>
+
 ## What to do after an alert
 
-1. Record the start time, impact, and complete `/readyz` response.
-2. Align metrics, Manager state, and error logs from the same time range.
-3. If they do not explain the problem, follow [Troubleshooting](/en/server/operations/troubleshooting) and add Top, diagnostics, or pprof one step at a time.
+Record time, impact, and the complete `/readyz` response. Align metrics, Manager, and logs; continue through [Troubleshooting](/en/server/operations/troubleshooting) when needed.
 
-See [Logs & Observability](/en/server/configuration/observability) for monitoring and logging settings. Never let an alert automatically move leaders, delete nodes, or perform another topology change.
+**Alerts must not automatically move leaders, delete nodes, or change topology.** Settings are in [Logs & Observability](/en/server/configuration/observability).
