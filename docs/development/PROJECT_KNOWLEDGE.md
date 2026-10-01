@@ -137,6 +137,13 @@ specification, runbook, report, or module documentation; link to them when neede
 - `pkg/db` owns node-local storage: `message` owns Channel logs and `meta` owns
   hash-slot metadata. Borrowed decoder/iterator buffers must become owned before
   escaping or advancing the iterator; checksum and corruption checks remain intact.
+- Pebble starts a writable engine with at most a 256-KiB memtable and grows it
+  toward the configured size through synchronous WAL rotation. Append coalescing
+  can move that boundary within a short SEND fixture. A Channel
+  `replica.leader.local_durable` trace spans quorum task submission through result
+  consumption; use nested storage/runtime evidence before attributing it to disk.
+  Preserve all original performance observations when diagnosing a relocated
+  boundary; see the [bounded WAL diagnosis](../reports/2026-10-01-permission-wal-rotation.md).
 
 ## History, conversations, and commands
 
