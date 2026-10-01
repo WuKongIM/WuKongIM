@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Simplify bilingual push and AI/IoT tutorials into illustrated tasks with expandable requests, separate AI and device learning paths, and six scenario cards; restore large-group section links and improve dark-theme text contrast while keeping delivery, recovery, and execution limits visible. / 精简中英文推送与 AI/IoT 教程，采用图示步骤与可展开请求，分开 AI 和设备学习路径，场景首页改为六张目标卡片；修复大群章节链接并提高深色文字对比度，保留送达、恢复和执行边界。
+
 - Make bilingual Webhook, direct-chat, and group tutorials easier to follow with compact task diagrams, verified chat/recovery captures, explicit expected results, and expandable code and large-group details; keep callback trust, event loss, and partial membership changes visible. / 中英文 Webhook、单聊与群聊教程新增简洁步骤图、实测收发与恢复截图、预期结果和可展开代码，大群说明按需查看，回调信任、事件丢失和成员部分完成等关键限制保持可见。
 
 - Simplify bilingual authentication, messaging, and release checks with illustrated steps and SDK-specific recovery criteria; document backend-owned token expiry and align OpenAPI with all 48 Product HTTP operations, including four send-ban endpoints. / 精简中英文身份认证、消息收发与上线检查，采用图示步骤并按 SDK 验收恢复能力；明确 Token 有效期由业务后端管理，OpenAPI 补齐四个禁言接口，与全部 48 个 Product HTTP 操作对齐。

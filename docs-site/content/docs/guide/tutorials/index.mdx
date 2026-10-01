@@ -1,43 +1,41 @@
 ---
 title: 场景教程
-description: 把身份、Channel、消息、会话与规模约束组合成可落地的业务流程。
+description: 按业务目标选择单聊、群聊、推送、AI 或设备控制教程。
 ---
 
-场景教程从业务目标出发，把业务服务、客户端 SDK 与 WuKongIM 集群串成端到端路径。它们不是 API 字段全集，而是帮助你确定职责、顺序、成功条件和故障补偿。
-
-<Callout type="warn" title="先建立受信边界">
-  教程中的 HTTP 命令只应由本地开发环境或受信业务服务调用。当前产品 HTTP 路由没有通用业务鉴权中间件，浏览器和移动端不能直接持有这些管理能力。
-</Callout>
+选择目标，按教程的步骤核对结果。
 
 <Cards>
-  <Card title="单聊" description="完成身份接入、个人 Channel 消息、离线恢复、会话未读与多设备验证。" href="/zh/guide/tutorials/direct-chat" />
-  <Card title="群聊与超大群" description="完成群成员维护、群消息、成员变更与十万成员容量边界。" href="/zh/guide/tutorials/large-groups" />
-  <Card title="消息推送" description="用离线 Webhook、业务 Outbox 和推送厂商完成可恢复通知。" href="/zh/guide/tutorials/push" />
-  <Card title="AI 与 IoT 通信" description="组合 AI 流式投影、设备遥测、持久命令与业务回执。" href="/zh/guide/tutorials/ai-and-iot" />
-  <Card title="Agent 流式回复" description="用 EasySDK 与真实模型构建在线流式聊天，处理取消、失败和重连恢复。" href="/zh/sdk/easy/agent-streaming" />
+  <Card title="两人互发消息" description="连接 Alice 与 Bob，检查双向收发和断网恢复。" href="/zh/guide/tutorials/direct-chat" />
+  <Card title="建立群聊" description="准备三人群，分别检查接收，再验证移除成员。" href="/zh/guide/tutorials/large-groups" />
+  <Card title="发送离线通知" description="设备登记 → 离线回调 → 厂商推送 → 点击后恢复。" href="/zh/guide/tutorials/push" />
+  <Card title="AI 流式回复" description="运行真实模型 Demo，验证持续更新、取消与恢复。" href="/zh/sdk/easy/agent-streaming" />
+  <Card title="设备遥测与控制" description="上报状态、发送可恢复命令，核对独立执行回执。" href="/zh/guide/tutorials/ai-and-iot#iot发送有界遥测" />
+  <Card title="十万成员群" description="按有界批次协调成员，验证热点与投递容量。" href="/zh/guide/tutorials/large-groups#扩展到十万成员" />
 </Cards>
 
-## 如何选择
+<Callout type="warn" title="先建立受信边界">
+  当前 Product HTTP 没有通用业务鉴权。教程里的 HTTP 管理请求只由受信业务后端或受保护的测试环境执行。
+</Callout>
 
-| 目标 | 从这里开始 | 最重要的边界 |
-| --- | --- | --- |
-| 两个用户互发消息 | [单聊](/zh/guide/tutorials/direct-chat) | 使用对端 UID，canonical person Channel 由服务端生成 |
-| 普通群聊 | [群聊与超大群](/zh/guide/tutorials/large-groups) | 业务系统维护群生命周期和成员，WuKongIM 维护消息日志 |
-| 十万成员社区或房间 | [群聊与超大群](/zh/guide/tutorials/large-groups#扩展到十万成员) | 成员分批协调、提交后分页 Fan-out、热点容量验证 |
-| 离线移动通知 | [消息推送](/zh/guide/tutorials/push) | Webhook 只产生候选，业务 Outbox 和厂商回执负责可靠性 |
-| AI 流式回答 | [Agent 流式回复](/zh/sdk/easy/agent-streaming) | 基础消息先提交，SDK 实时事件更新正文，终态快照负责离线恢复 |
-| 设备遥测与控制 | [AI 与 IoT 通信](/zh/guide/tutorials/ai-and-iot#iot发送有界遥测) | 命令同步游标不等于设备业务执行成功 |
+**分别核对：** 消息提交、对端接收、恢复与业务完成。未读更新、推送厂商受理或命令同步游标，都不能代替业务结果。
 
-## 所有教程共用的成功模型
+<details>
+  <summary>所有教程共用的成功模型</summary>
+
+<div className="tutorial-diagram">
 
 ```mermaid
 flowchart TD
-  Policy["业务授权 / 成员状态"] --> Send["SDK SEND 或受信 HTTP send"]
-  Send --> Commit["Channel quorum commit"] --> Ack["SENDACK / reason=1"]
-  Commit -.-> Effects["在线投递 / Webhook / 插件"]
-  Commit -.-> Recovery["重连后按持久日志同步"]
+  policy["业务授权<br/>成员状态"] --> send["SDK SEND<br/>受信 HTTP"]
+  send --> commit["消息持久提交<br/>SENDACK / reason=1"]
+  commit -.-> effects["另行核对<br/>接收 / 回调 / 恢复"]
 ```
 
-把“消息已提交”“某个 Session 已在线收到”“用户会话未读已更新”和“业务动作已完成”作为四种不同结果。需要强一致业务结果时，由业务服务使用自己的数据库、幂等键和补偿流程完成。
+</div>
 
-继续阅读[适用场景](/zh/guide/product-overview/use-cases)、[集成架构](/zh/guide/integration/architecture)和[消息收发](/zh/guide/integration/messaging)，把示例收敛为自己的业务协议与可靠性目标。
+需要强一致业务结果时，由业务服务使用自己的数据库、幂等键和补偿流程完成。
+
+</details>
+
+继续阅读[集成架构](/zh/guide/integration/architecture)与[上线检查](/zh/guide/integration/acceptance)。
