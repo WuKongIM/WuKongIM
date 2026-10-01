@@ -41,7 +41,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [internal/infra/delivery/FLOW.md](../../internal/infra/delivery/FLOW.md) | `package` | Adapts presence lookup and owner-local session writes for canonical online delivery. | 52 | ok |
 | [internal/infra/issueagentgithub/FLOW.md](../../internal/infra/issueagentgithub/FLOW.md) | `package` | Implements bounded GitHub reads and fenced writes for the serverless Issue Agent. | 52 | ok |
 | [internal/infra/mqttowner/FLOW.md](../../internal/infra/mqttowner/FLOW.md) | `package` | Persists immutable node-local proofs of gracefully retired or crashed MQTT owner boots. | 53 | ok |
-| [internal/infra/mqttwill/FLOW.md](../../internal/infra/mqttwill/FLOW.md) | `package` | Persists bounded exact Will reservation/admission/seal transitions under the existing MQTT generation lock. | 51 | ok |
+| [internal/infra/mqttwill/FLOW.md](../../internal/infra/mqttwill/FLOW.md) | `package` | Persists bounded exact Will reservation/admission/seal transitions under the existing MQTT generation lock. | 53 | ok |
 | [internal/infra/reviewagentgithub/FLOW.md](../../internal/infra/reviewagentgithub/FLOW.md) | `package` | Implements exact-head GitHub reads, state refs, review publication, checks, and merge for the Review Agent. | 52 | ok |
 | [internal/log/FLOW.md](../../internal/log/FLOW.md) | `package` | Provides internal application log construction, rotation, console filtering, synchronization, and bounded reads. | 55 | ok |
 | [internal/observability/taskaudit/FLOW.md](../../internal/observability/taskaudit/FLOW.md) | `package` | Persists and projects bounded Controller task audit history for manager queries. | 47 | ok |

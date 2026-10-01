@@ -1,0 +1,81 @@
+{
+  "base_revision": "7583a33fb27706349ec77ea9113a70e95cf76204",
+  "fixture_path": "test/e2e/mqtt/will_reclamation_fairness/fairness_test.go",
+  "fixture_sha256": "d78e08ce5631fee67e449afa929a703813cd568e7443fa8dc29a61b9d3f03feb",
+  "candidate_binary": {
+    "path": "/tmp/wukongim-will-fairness-gofail-v3",
+    "sha256": "6cabb8c44a6f23a76c77ca95acf67c76468bc7716442029a07baa5b122e46c6e"
+  },
+  "negative_binary": {
+    "path": "/tmp/wukongim-will-fairness-negative-gofail",
+    "sha256": "c675b969e4b8fe6a2a616fff8b439ff1951b16d2fece0a295245bb4056fb40d4"
+  },
+  "ordinary_binary": {
+    "path": "/tmp/wukongim-will-fairness-ordinary",
+    "sha256": "42a704f1fe122d2b014dfd22b8d091776077f753c06d87488b51575c8460e5a1"
+  },
+  "control_sources": [
+    {
+      "path": "internal/usecase/mqttsession/will_attempt_reclamation.go",
+      "sha256": "8f2f8a962c2e409be5a98f26d322c441c1a4c78d4b9617976dee9d5d96d69d91",
+      "snapshot": "docs/reports/mqtt-will-read-fairness/evidence/source-will_attempt_reclamation.txt"
+    },
+    {
+      "path": "internal/infra/mqttwill/attempts.go",
+      "sha256": "3eebae3b4229e6b913fd1446506ccebbf19dd6ca39d79480e42e60e0117f64aa",
+      "snapshot": "docs/reports/mqtt-will-read-fairness/evidence/source-attempts.txt"
+    }
+  ],
+  "final_source_snapshots": [
+    {
+      "path": "docs/specs/mqtt-will-read-fairness.md",
+      "sha256": "675459e8b320fee24693857a1857136fe0335923582bdea520e8973934ed1ee5"
+    },
+    {
+      "path": "test/e2e/mqtt/will_reclamation_fairness/AGENTS.md",
+      "sha256": "0d3d2b13a2009c70960ba63081b4006112ba83c5b91fb560a0c50c4c41478d9a"
+    }
+  ],
+  "qualification_limits": [
+    "cap32; one logical group; 256 hash slots",
+    "darwin arm64; no Linux execution",
+    "actual context errors, not healthy latency or general partition",
+    "no full-unreclaimable-cap, missing/corrupt or issued unknown journal progress",
+    "no shared-storage admission or complete MQTT acceptance"
+  ],
+  "build_command": "GOFLAGS=-buildvcs=false scripts/build-gofail-binary.sh --out /tmp/wukongim-will-fairness-gofail-v3 --work-dir /tmp/wukongim-will-fairness-source-v3 --keep-work --package internal/usecase/mqttsession --package internal/app --package internal/infra/mqttwill --package pkg/slot/multiraft --package pkg/slot/fsm --package pkg/slot/proxy",
+  "generated_source_tree_identity": "evidence/negative-provenance.json",
+  "runtime_environment": {
+    "PATH": "/tmp/will-admission-toolchain/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin",
+    "GOMODCACHE": "/Users/tt/.codex/will-append-runtime/gomod",
+    "GOPROXY": "https://goproxy.cn,direct",
+    "GOTOOLCHAIN": "local",
+    "GOWORK": "off"
+  },
+  "candidate_binary_build_stage": "v3: actual Store error observers before the late-response guard",
+  "earlier_candidates": [
+    {
+      "stage": "baseline previous-task binary",
+      "path": "/tmp/wukongim-will-successor-matched-gofail",
+      "sha256": "fd436c6b34ec588aa0366a684e40ea57b08d41252746d7ca95ac755f711b3fb1",
+      "result": "v1 instrumentation prerequisite FAIL, not product RED"
+    },
+    {
+      "stage": "v2",
+      "path": "/tmp/wukongim-will-fairness-gofail",
+      "sha256": "67fe670154a1f2ac0da8d0879acf0377efd99297e2b146de526e2f58d4a1ee47",
+      "result": "serial fill/15s membership probe observation failure"
+    }
+  ],
+  "fixture_version": "v5",
+  "fixture_history": {
+    "v4": "source reviewed; single-node tracer PASS, negative qualified; full three-node run discovers non-idempotent survivor control DELETE",
+    "v5": "clear exactly the three survivor-active controls; four exact-v5 positive cases PASS and matched negative fails the intended business receipt"
+  },
+  "fixture_precompiled_binary": {
+    "path": "/tmp/will-fairness-v5.test",
+    "sha256": "fea88bf5812d19d99f6187cd43427b19e9e0af324c275368464303380cad2d39",
+    "purpose": "dependency-only recovery/precompile; executed qualification still uses normal go test commands"
+  },
+  "dependency_recovery": "GODEBUG=http2client=0 on go mod download and go test -c only; no GODEBUG change on executed Go tests or product processes; go.mod/go.sum unchanged"
+}

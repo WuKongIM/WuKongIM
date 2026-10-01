@@ -1,0 +1,3 @@
+# github.com/WuKongIM/WuKongIM/internal/app.test
+ld: warning: '/private/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/go-link-1462397548/000058.o' has malformed LC_DYSYMTAB, expected 98 undefined symbols to start at index 1626, found 95 undefined symbols starting at index 1626
+ok  	github.com/WuKongIM/WuKongIM/internal/app	1.830s

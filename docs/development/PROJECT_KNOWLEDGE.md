@@ -799,6 +799,17 @@ specification, runbook, report, or module documentation; link to them when neede
   Record that exact unfinished set and verify identity/PacketID/DUP on reconnect
   before final healthy quiet. Setup/convergence bounds are separate from runtime
   grant bounds and establish no latency SLO.
+  [Failed authority-read fairness](../reports/mqtt-will-read-fairness/README.md)
+  qualifies the existing overlapping cursor under actual Store deadline/canceled
+  errors: a held 16-candidate page retains capacity; resuming cursor advancement
+  reaches an independently calibrated page-external terminal and ordinary pending
+  publication without restoring reads. Four cap-32/one-group cases keep 256 hash
+  Slots, preserve current recovery and original PacketID/DUP replay, and retain
+  killed-process effect prefixes. The exact private nonadvancing-cursor negative
+  fails the business receipt after continued full refusal/errors. Completion
+  observations do not extend runtime deadlines. This is not default-cap or
+  multi-group scheduling, full-unreclaimable-cap liveness, issued terminal recovery
+  or shared-storage admission; no business repair was needed.
   [Append admission](../specs/mqtt-will-append-admission.md) adds version-2
   Admitted -> AppendIssued at the origin router before local admission or remote
   forwarding. Its trusted callback never crosses RPC or reaches accepted writers;

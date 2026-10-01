@@ -1,0 +1,13 @@
+copying source to /tmp/wukongim-will-fairness-source
+installing go.etcd.io/gofail@v0.2.0
+enabling failpoints: pkg/transport internal/usecase/mqttsession internal/app internal/infra/mqttwill
+postprocessing generated failpoint packages
+pinning failpoint runtime: go.etcd.io/gofail/runtime@v0.2.0
+go: added go.etcd.io/gofail v0.2.0
+building failpoint binary: /tmp/wukongim-will-fairness-gofail
+# github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession
+internal/usecase/mqttsession/will_attempt_reclamation.go:73:223: goto __badTypewkMQTTWillReclamationReadMatch jumps over declaration of wkMQTTWillReclamationPage at internal/usecase/mqttsession/will_attempt_reclamation.go:77:16
+internal/usecase/mqttsession/will_attempt_reclamation.go:75:4: label gofail defined and not used
+internal/usecase/mqttsession/will_attempt_reclamation.go:77:4: label gofail already defined at internal/usecase/mqttsession/will_attempt_reclamation.go:75:4
+internal/usecase/mqttsession/will_attempt_reclamation.go:89:235: goto __badTypewkMQTTWillReclamationReadDeadline jumps over declaration of wkMQTTWillReclamationReadCancel at internal/usecase/mqttsession/will_attempt_reclamation.go:93:18
+internal/usecase/mqttsession/will_attempt_reclamation.go:93:6: label gofail already defined at internal/usecase/mqttsession/will_attempt_reclamation.go:75:4

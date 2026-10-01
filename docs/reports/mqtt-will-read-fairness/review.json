@@ -1,0 +1,38 @@
+{
+  "base_revision": "7583a33fb27706349ec77ea9113a70e95cf76204",
+  "diff_commands": [
+    "git diff HEAD",
+    "git ls-files --others --exclude-standard; inspect matching new scenario/spec/report files"
+  ],
+  "commit_list": [],
+  "spec": "docs/specs/mqtt-will-read-fairness.md",
+  "standards_sources": [
+    "AGENTS.md",
+    "test/e2e/AGENTS.md",
+    "test/e2e/mqtt/AGENTS.md",
+    "test/e2e/mqtt/will_reclamation_fairness/AGENTS.md",
+    "internal/usecase/mqttsession/FLOW.md",
+    "internal/infra/mqttwill/FLOW.md"
+  ],
+  "axes": {
+    "standards": {
+      "findings": 0,
+      "source_review": "complete",
+      "final_evidence_review": "complete, zero open findings"
+    },
+    "spec": {
+      "findings": 0,
+      "source_review": "complete",
+      "final_evidence_review": "complete, zero open findings; metadata and lossless archive resolution verified"
+    }
+  },
+  "approval_scope": "authorized failed-authority-read fairness task and local commit; no publication",
+  "resolved_fixture_findings": [
+    "v4 survivor control cleanup was not idempotent; v5 disables only the three controls still enabled there"
+  ],
+  "resolved_evidence_findings": [
+    "provenance fixture_history.v5 updated from underway to completed",
+    "README topology labels expanded to single-node cluster/three-node cluster"
+  ],
+  "delivery_steps": "manifest verification and local commit"
+}

@@ -1,0 +1,12 @@
+docs-site/FLOW.md: 103 lines exceeds the 100-line target
+internal/access/api/FLOW.md: 126 lines exceeds the 100-line target
+internal/app/FLOW.md: 149 lines exceeds the 100-line target
+internal/bench/FLOW.md: 121 lines exceeds the 100-line target
+internal/infra/cluster/FLOW.md: 124 lines exceeds the 100-line target
+internal/runtime/mqttsession/FLOW.md: 102 lines exceeds the 100-line target
+internal/usecase/message/FLOW.md: 116 lines exceeds the 100-line target
+internal/usecase/mqttsession/FLOW.md: 121 lines exceeds the 100-line target
+pkg/channel/FLOW.md: 150 lines exceeds the 100-line target
+pkg/cluster/FLOW.md: 150 lines exceeds the 100-line target
+pkg/db/message/FLOW.md: 150 lines exceeds the 100-line target
+flowcheck: 88 FLOW files; 88 compliant; 0 invalid; 11 warnings

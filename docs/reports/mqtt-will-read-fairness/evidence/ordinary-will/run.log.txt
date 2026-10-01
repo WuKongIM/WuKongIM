@@ -1,0 +1,10 @@
+=== RUN   TestWillPublicationAndNormalCancellation
+=== RUN   TestWillPublicationAndNormalCancellation/1-node-cluster
+    will_test.go:88: result artifact: /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestWillPublicationAndNormalCancellation1-node-cluster2807981695/001/node-1/mqtt-will-1.json
+=== RUN   TestWillPublicationAndNormalCancellation/3-node-cluster
+    will_test.go:88: result artifact: /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestWillPublicationAndNormalCancellation3-node-cluster3905375403/001/node-1/mqtt-will-3.json
+--- PASS: TestWillPublicationAndNormalCancellation (50.45s)
+    --- PASS: TestWillPublicationAndNormalCancellation/1-node-cluster (21.50s)
+    --- PASS: TestWillPublicationAndNormalCancellation/3-node-cluster (28.94s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will	50.780s

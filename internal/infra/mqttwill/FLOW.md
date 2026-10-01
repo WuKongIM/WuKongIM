@@ -28,6 +28,8 @@ positive receipts and exact successor/terminal cleanup. Node RPC carries identit
    Unknown writes/cleanup retain bounded capacity; cap exhaustion fails closed.
    Capacity pressure offers at most 16 checksummed identities; overlapping filename
    pages make each record first within one wrap. Authority reads run outside locks.
+   Temporary-copy gofail may pin cursor advancement for actual-page calibration;
+   its progress observer fires only after the cursor really changes.
 6. Close after Will workers join and before releasing the generation lock.
 
 ## Invariants and Failure Semantics

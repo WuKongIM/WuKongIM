@@ -162,6 +162,21 @@ progress guarantee or latency SLO is claimed. Ordinary Will, focused race and
 FLOW gates pass. Source Standards/Spec reviews have no open findings; the broader
 fairness, terminal unknown-effect and shared-storage obligations remain open.
 
+[Failed authority-read fairness](mqtt-will-read-fairness/README.md) now qualifies
+the existing cursor with actual deadline/canceled Store errors. The delivered v5
+matrix passes 4/4 across two clean topology commands (772.504s and 656.326s).
+Cap 32, one logical group and 256 hash Slots isolate captured journal pressure;
+healthy held-page quiet precedes page-external retirement and ordinary publication
+without restoring reads. Current recovery/replay passes with old 32 + live 1
+effect counts. The same-fixture private cursor-removal negative fails the intended
+business receipt after continued refusal/errors (576.552s). Earlier fixtures,
+non-idempotent survivor-control cleanup, dependency setup failures and the initial
+unmodified audit-test failure remain disclosed. Ordinary Will/cap-two regressions,
+related race repeats and named FLOW validation pass. This adds temporary controls
+and acceptance, with no business repair or runtime deadline change; production-cap
+fairness, multi-group scheduling, full-unreclaimable-cap liveness, issued terminal
+unknown-effect recovery and shared-storage admission remain unqualified.
+
 Historical sections below record the narrower evidence available at each step.
 
 ## Frozen starting context
