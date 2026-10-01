@@ -262,6 +262,11 @@ specification, runbook, report, or module documentation; link to them when neede
   registries, unknown effects, crash, elapsed leases and old Session state never
   supply that proof. Receipt files use version 1 below `mqtt/retired-owners/`;
   no existing table or RPC changes, and pre-feature boots have no implicit proof.
+  [Crashed-boot recovery](../specs/mqtt-crashed-boot-retirement.md) can mint an
+  older-boot receipt only under the owning node's exclusive generation lock.
+  Other nodes still require its exact-owner RPC; unavailability or elapsed lease
+  supplies no proof. [Process-outage acceptance](../specs/mqtt-owner-outage-acceptance.md)
+  distinguishes refused takeover from quorum or general admission failure.
   [Qualified accounting](../specs/mqtt-qualified-accounting.md) preserves original
   charge membership/bytes when options or expiry later change: cursor table 24
   System 1 stores bounded ranges, optional columns 25–27 hold version/head/tail,

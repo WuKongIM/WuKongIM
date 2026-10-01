@@ -68,12 +68,27 @@ the saved baseline and an unfenced nested-source negative control.
 These are projection ports only: pending establishment dispatch, final activation,
 revocation orchestration and process fault acceptance still remain to be wired.
 
-These product milestones are not complete MQTT delivery.
-Safe uncertain dispatch recovery, unavailable-owner
-isolation, pending establishment/ended-record/cursor/inflight cleanup, restore reactivation and
-full failure/scale acceptance remain outstanding. Restore currently joins MQTT
-and retains closed admission because its terminal runtime cannot be reused.
-See [product composition and evidence](../specs/mqtt-product-runtime.md).
+Later work now reconstructs fresh MQTT generations after restore, with two
+restores per single-node and three-node cluster and no resubscription. First
+group subscription admission and confirmed restore-response semantics have
+their own bounded acceptance. See [restore evidence](mqtt-restore-reactivation/README.md),
+[first subscription](mqtt-first-subscribe-admission/README.md) and
+[restore admission](restore-admission-response/README.md). The original full
+single-node group workload also has a passing [scale result](../specs/mqtt-scale-acceptance.md).
+
+These milestones do not complete MQTT acceptance. Safe uncertain dispatch
+recovery, partition/asymmetric-link isolation and the remaining failure/workload
+matrix retain their explicit limits. The three-node process-outage scenario
+separately checks refused takeover against surviving quorum/independent admission
+controls and resumes the original exchange after reachable exact-owner proof;
+it does not qualify network partitions. See [outage evidence](mqtt-owner-outage/README.md).
+The current ordinary product also repeats the unchanged 100,000-member,
+500-connection workload with zero delivery anomalies and all 600 retirements.
+The bounded pre-merge review records two open P1 target-contract gaps:
+safe completion of Started Wills without a receipt, and aggregate node/cluster
+shared-storage admission. Its two Standards findings are repaired and validated;
+the review is not a full branch line audit. See the same report for scope,
+receipts and limits. Complete MQTT delivery remains unqualified.
 Historical sections below record the narrower evidence available at each step.
 
 ## Frozen starting context

@@ -1,0 +1,11 @@
+{
+  "source_base": "633b044b671d82e6464fd1e3d236993366c743ab",
+  "production_changes": false,
+  "ordinary_binary_sha256": "df03a8ad2369a9e764314b6df7faf0e1e0de2143a4742ef26fbb4e710ef43e5c",
+  "baseline_fixture_sha256": "80b8306e52f5904909661a6073a5a5dbc5abc0264e14ee9c8af85c7baf331e76",
+  "go_version": "go1.25.11 darwin/arm64",
+  "buildvcs": false,
+  "final_fixture_sha256": "606a5efdbc38b986728af768f9b37e63bb306fa3e7e0146f48522bd2d5845a99",
+  "full_scale_fixture_sha256": "485d1eccd201b9f16ce929f00b7223c397af4059ef07b952bf3733bfffcef4c7",
+  "full_scale_command": "env -u WK_E2E_MQTT_SCALE_MEMBERS -u WK_E2E_MQTT_SCALE_CONNECTIONS -u WK_E2E_MQTT_SCALE_MESSAGES -u WK_E2E_MQTT_SCALE_CHURN -u WK_E2E_MQTT_SCALE_ROUNDS -u WK_E2E_MQTT_SCALE_PROFILE WK_E2E_BINARY=/tmp/wukongim-mqtt-owner-outage-candidate WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-owner-outage-full-scale GOMODCACHE=/tmp/mqtt-originals-gomodcache GOTOOLCHAIN=local GOWORK=off /Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go test -p 1 -tags=e2e ./test/e2e/mqtt/scale -run '^TestGroupScaleDeliveryAndChurnRetirement$' -count=1 -timeout=15m -v"
+}

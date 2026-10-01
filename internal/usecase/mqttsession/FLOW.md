@@ -106,7 +106,11 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
   an active subscription silently; delivery/revocation ordering remains required.
 - Group preparation bounds reads and grants no subscription, release or SUBACK authority. ACK survives unsubscribe; entry binds sent exchanges first.
 - ReceiveAuthorization reads a fresh coherent Slot channel/member/sequence view; group grants use join incarnation, self inbox uses admitted UID. Send mutes do not deny receiving; ambiguous evidence cannot revoke.
-- App now composes an opt-in product listener with process-level interop coverage. Will and consumer scheduling invoke existing policy; pending-removal recovery now shares the consumer cohort; old Session-child reclamation shares it too; source-tombstone retirement and full failure/scale acceptance remain required.
+- App composes an opt-in product listener with process-level interop coverage.
+  Will and consumer scheduling invoke existing policy. Pending-removal recovery,
+  old Session-child reclamation and qualified source-tombstone retirement share
+  the consumer cohort. Safe uncertain Will redispatch and the full
+  partition/failure/workload acceptance matrix remain unqualified.
 
 ## Read First
 - [Contracts](types.go), [Acquisition](connect.go), [Lifecycle](lifecycle.go), [Subscriptions](subscriptions.go), [Replay](replay.go)

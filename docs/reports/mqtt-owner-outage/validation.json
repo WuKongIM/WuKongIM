@@ -1,0 +1,71 @@
+{
+  "checks": [
+    {
+      "check": "baseline-three-node-suspend-and-crash",
+      "passed": true,
+      "results": [
+        "--- PASS: TestUnavailableOwnerRefusesTakeoverAndPreservesPersistentSession (155.32s)",
+        "    --- PASS: TestUnavailableOwnerRefusesTakeoverAndPreservesPersistentSession/suspend (83.10s)",
+        "    --- PASS: TestUnavailableOwnerRefusesTakeoverAndPreservesPersistentSession/crash (72.22s)",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/test/e2e/mqtt/owner_outage\t156.072s"
+      ],
+      "raw_output_sha256": "651eb72f162c1257950a72dcc60780545d9cbb02f5c913bedfe7d0b2b1cd3a01"
+    },
+    {
+      "check": "final-three-node-suspend-and-crash-harness-race",
+      "passed": true,
+      "results": [
+        "--- PASS: TestUnavailableOwnerRefusesTakeoverAndPreservesPersistentSession (155.05s)",
+        "--- PASS: TestUnavailableOwnerRefusesTakeoverAndPreservesPersistentSession/suspend (82.77s)",
+        "--- PASS: TestUnavailableOwnerRefusesTakeoverAndPreservesPersistentSession/crash (72.28s)",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/test/e2e/mqtt/owner_outage\t156.880s"
+      ],
+      "raw_output_sha256": "88d626b9c530f0591af5b5df268b65f84b4c0f788b3c5c75753bba4ecbc0f079",
+      "fixture_sha256": "606a5efdbc38b986728af768f9b37e63bb306fa3e7e0146f48522bd2d5845a99",
+      "server_binary_race_instrumented": false
+    },
+    {
+      "check": "unchanged-original-full-scale-current-product",
+      "passed": true,
+      "results": [
+        "--- PASS: TestGroupScaleDeliveryAndChurnRetirement (380.13s)",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/test/e2e/mqtt/scale\t380.964s"
+      ],
+      "raw_output_sha256": "135060b162df426b114c6927ea1843db1a671d0c622be7a9b9d3df381b166c13",
+      "fixture_sha256": "485d1eccd201b9f16ce929f00b7223c397af4059ef07b952bf3733bfffcef4c7",
+      "server_binary_race_instrumented": false,
+      "workload_overrides": false,
+      "profile_enabled": false
+    },
+    {
+      "check": "moved-real-time-contention-integration-race-five-repeats",
+      "passed": true,
+      "results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/cluster/channels\t2.029s"
+      ],
+      "raw_output_sha256": "85c93cf10f4e98df2bd1be343713c8c1956c67e171812d66e78b5a042ba97a7d",
+      "fixture_sha256": "c4396d7604fb6e6c0618909d019336065ee38aa6ea9540e2e5903822d8e304cc"
+    },
+    {
+      "check": "flow-doc-contracts",
+      "passed": true,
+      "results": [
+        "flowcheck: 87 FLOW files; 87 compliant; 0 invalid; 11 warnings"
+      ],
+      "raw_output_sha256": "53ca1bf82f427e3697f1bcf46afa6f1a6565f7bbd330c948c49d86d9f11c3682",
+      "existing_length_warnings": 11,
+      "initial_stale_index_fixed": true
+    },
+    {
+      "check": "unsafe-expiry-fallback-negative-control",
+      "passed": true,
+      "expected_e2e_exit_code": 1,
+      "observed_expected_failure": true,
+      "phase": "refusal-after-expiry",
+      "product_defect_claimed": false,
+      "provenance": "expiry-negative-provenance.json"
+    }
+  ],
+  "product_repair_claimed": false,
+  "network_partition_qualified": false
+}

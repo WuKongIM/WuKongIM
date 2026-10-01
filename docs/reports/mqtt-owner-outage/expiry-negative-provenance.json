@@ -1,0 +1,11 @@
+{
+  "source_base": "633b044b671d82e6464fd1e3d236993366c743ab",
+  "controlled_change": "external overlay deliberately skips exact-owner isolation only after stored lease expiry",
+  "production_source_sha256": "4001a479d7b51962e2dcff8c819da650b25b148faab1cc1aaadf06054f3088de",
+  "negative_overlay_sha256": "d8b0b3b07cea1ab8deb432a6153586332ae69842ec4c375fc58477585ded06a1",
+  "repository_production_source_unchanged": true,
+  "negative_binary_sha256": "34ce22c98c646aab24899d76687dc06a76224a9469c2e053bcd0afa6d746dcbf",
+  "fixture_sha256": "606a5efdbc38b986728af768f9b37e63bb306fa3e7e0146f48522bd2d5845a99",
+  "raw_output_sha256": "1d7e2c90d9d6b6fa44d9b1f34d043dbfee0ad94e96a7ba9a0bae11e90fbace90",
+  "expected_failure_observed": true
+}
