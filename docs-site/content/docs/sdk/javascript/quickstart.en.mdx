@@ -5,6 +5,10 @@ description: Install wukongimjssdk 1.3.5, connect a user, and exchange the first
 
 This page has one goal: exchange a text message between two online browser sessions.
 
+<TutorialScreenshot src="/tutorials/web-sdk/exchange.jpg" alt="Alice and Bob are connected: 1 successful server SENDACK, 2 the recipient's RECEIVED event. Open the full-size image." width={1280} height={720} marks={[{ x: 4, y: 94 }, { x: 51, y: 98 }]}>
+  **① SENDACK** is the server send result. **② RECEIVED** is the recipient's incoming event. Run this example first, then integrate the code into your app. Click images to enlarge them.
+</TutorialScreenshot>
+
 ## Run the two-user example first
 
 Install Git, Node.js 20.11 or newer, and npm. If you do not yet have an application backend, the example includes a loopback-only Node.js service (BFF) that prepares development identities and discovers connection endpoints.
@@ -13,6 +17,9 @@ Install Git, Node.js 20.11 or newer, and npm. If you do not yet have an applicat
 
 Follow [Docker Deployment](/en/server/deployment/docker) or [Start a Single-node Cluster](/en/guide/quick-start/single-node-cluster).
 
+<details>
+<summary>Using a remote server? Set up SSH forwarding first</summary>
+
 If WuKongIM runs on a remote Linux server, open another terminal on your computer and keep this SSH tunnel running:
 
 ```bash
@@ -20,6 +27,8 @@ ssh -N -L 127.0.0.1:5001:127.0.0.1:5001 -L 127.0.0.1:5200:127.0.0.1:5200 <user>@
 ```
 
 This path requires the test server's `/route` to return the browser-reachable `ws://127.0.0.1:5200`. For another endpoint, configure `api.external_ws_addr` using [Networking](/en/server/configuration/networking) and restart. Tunnels forward ports; they do not rewrite route responses.
+
+</details>
 
 Check readiness from the computer running Node.js before starting the example:
 
@@ -43,6 +52,11 @@ If you already have the repository, enter the same example directory. Open [http
 3. Disconnect Bob and send another message from Alice.
 4. Reconnect Bob; confirm the missing message is restored and displayed once.
 
+The first history sync may briefly be empty; the example retries within a finite budget.
+
+<details>
+<summary>Retry details and a different API endpoint</summary>
+
 Person membership is projected asynchronously after a successful SENDACK, so the first history sync can briefly return HTTP 200 with an empty page. The example backend retries an empty latest page (both sequence bounds zero) up to 20 attempts, 250 ms apart. Nonempty results and ordinary cursor pages return immediately. A genuinely empty chat returns an empty list after at most 19 waits: 4.75 seconds plus HTTP request time. Other errors still fail; production integrations need their own consistency and request-deadline policy.
 
 
@@ -52,11 +66,27 @@ Node.js uses `http://127.0.0.1:5001` by default. Set `WK_DOCS_QUICKSTART_PRODUCT
 WK_DOCS_QUICKSTART_PRODUCT_HTTP_URL=http://127.0.0.1:15001 npm run dev
 ```
 
+</details>
+
 The browser calls only the example's `/api/development/identity` and `/api/messages/sync`; the BFF calls Product HTTP. In production, replace development identity provisioning with your login and authorization system. Clients do not call `/user/token` directly.
+
+<details>
+<summary>See the reconnect recovery result</summary>
+
+<TutorialScreenshot src="/tutorials/web-sdk/recovery.jpg" alt="Alice sends while Bob is offline. After reconnecting, Bob shows SYNCED and Sync complete with one recovered message. Open the full-size image." width={1280} height={720} marks={[{ x: 53, y: 78 }, { x: 53, y: 83 }]}>
+  **① SYNCED** identifies the restored message. **② Sync complete · 1 recovered** confirms recovery finished; display the same message only once.
+</TutorialScreenshot>
+
+</details>
 
 ## Integrate your own frontend
 
 The following explains installation, identity, listeners, and sending. Use two independent tabs, iframes, or browser contexts: `WKSDK.shared()` is a singleton, so do not sign in two users in one page context. The build tool must support npm and TypeScript.
+
+```mermaid
+flowchart LR
+  Identity["Backend: UID, token, endpoint"] --> Listen["Register listeners"] --> Connect["Connected"] --> Send["Send and receive"] --> Cleanup["Remove listeners · disconnect"]
+```
 
 ### 1. Install
 
@@ -98,6 +128,9 @@ sdk.config.debug = false
 
 ### 3. Register listeners first
 
+<details>
+<summary>Show complete listeners: connection, incoming messages, and send results</summary>
+
 ```typescript
 const onConnect = (status: ConnectStatus, reasonCode?: number) => {
   if (status === ConnectStatus.Connected) {
@@ -130,6 +163,8 @@ sdk.chatManager.addMessageStatusListener(onMessageStatus)
 ```
 
 Keep the function references so the page can remove the same listeners during cleanup.
+
+</details>
 
 ### 4. Connect and send
 

@@ -1,35 +1,58 @@
 ---
 title: 消息收发
-description: 串联连接、发送、接收、确认、重连和离线恢复。
+description: 用图示与实图区分发送、服务端确认和对方接收，再处理重试与恢复。
 ---
 
-业务系统通常同时使用客户端长连接与服务端 HTTP 入口。二者会进入同一个消息用例和频道权威写入路径。
+目标：Alice 发出消息，确认服务端结果，再在 Bob 的独立客户端验证接收。
 
-## 客户端消息路径
+## 1. 发送前确认目标
+
+两端都已连接。单聊目标是**对方 UID**；群聊使用稳定群 ID 和正确 Channel Type，成员与发送权限由业务后端维护。
+
+## 2. 分别核对发送与接收
+
+<div className="tutorial-diagram">
 
 ```mermaid
-flowchart LR
-  SDK["SDK SEND"] --> Gateway
-  Gateway --> Permission["消息权限检查"]
-  Permission --> Authority["解析频道写入权威节点"]
-  Authority --> Commit["Channel 持久化提交"]
-  Commit --> Ack["SENDACK"]
-  Commit -.->|提交后| Delivery["在线投递"]
-  Delivery --> Receive["接收端 RECV / RECVACK"]
+flowchart TD
+  send["Alice 发送<br/>保存 client_msg_no"] --> result["检查服务端结果<br/>成功 / 拒绝 / 不确定"]
+  result -->|成功| receive["Bob 独立验证<br/>收到且只显示一次"]
 ```
 
-关键语义：
+</div>
 
-- 同一频道的 `message_seq` 是频道内顺序位置，不是全局顺序。
-- `message_id` 是服务端分配的消息标识。
-- `client_msg_no` 由发送方生成并保存，用于请求关联和重试跟踪。
-- 发送方必须检查 SENDACK 或 HTTP 响应中的 `reason`，不能只看传输是否成功。
-- 对默认持久化消息，在线投递和其他提交后副作用不延长已经完成的持久化确认。
-- 普通和命令式 `NoPersist` 均进入瞬时在线投递，分配消息 ID，序号为零；两者都没有持久历史或离线恢复，详见 [Message Flags](/zh/api/dictionaries/message-flags)。
+| 观察到什么 | 能证明什么 |
+| --- | --- |
+| 默认持久消息的 SENDACK 成功 | 服务端已经持久化提交 |
+| Bob 收到消息 | 在线投递到 Bob |
+| Bob 已读或处理 | 需要产品自己的回执或业务结果 |
 
-## 服务端发送
+**SENDACK 不代表对方已读，HTTP 200 也不代表协议成功。** 检查 SENDACK 或 HTTP 的 `reason`；EasySDK 按所选版本的发送结果处理，接口见[各平台教程](/zh/sdk/easy)。
 
-受信业务服务可调用 [`POST /message/send`](/zh/api/product-http/message-send/sendChannelMessage)。`payload` 必须是 Base64：
+<TutorialScreenshot
+  src="/tutorials/first-message/exchange.jpg"
+  alt="本地 main 聊天 Demo 的 Bob 页面收到 hello from alice，并回复 hello from bob"
+  width={1280}
+  height={280}
+  marks={[{ x: 42, y: 57 }, { x: 81, y: 82 }]}
+>
+  ① Bob 收到 Alice 的消息。② Bob 回发。截图验证实际双向收发，不提供对方已读证明。
+</TutorialScreenshot>
+
+## 3. 处理失败与恢复
+
+| 情况 | 做法 |
+| --- | --- |
+| 明确拒绝 | 按 [Reason Code](/zh/api/dictionaries/reason-codes)修正身份、权限或参数 |
+| 超时或结果不确定 | 保留原消息标识，先核对结果，再按 SDK 支持的重试方式处理 |
+| 断网或重连 | 完整版 SDK 同步缺失的持久消息；EasySDK 的历史与会话补齐需业务另行实现 |
+
+`message_id` 是服务端消息标识，`message_seq` 只表示**一个频道内的顺序**，不是全局顺序。`client_msg_no` 由发送方生成并保存，用于关联请求和重试。
+
+<details>
+  <summary>业务后端发送：HTTP 示例</summary>
+
+仅受信后端调用 [`POST /message/send`](/zh/api/product-http/message-send/sendChannelMessage)，不把此接口直接交给浏览器或移动端。Product HTTP 没有通用业务鉴权，应通过私网或受保护代理访问；`payload` 使用 Base64。
 
 ```bash
 curl -sS http://127.0.0.1:5001/message/send \
@@ -43,7 +66,7 @@ curl -sS http://127.0.0.1:5001/message/send \
   }'
 ```
 
-成功提交的兼容响应示例：
+成功提交的响应示例：
 
 ```json
 {
@@ -53,15 +76,14 @@ curl -sS http://127.0.0.1:5001/message/send \
 }
 ```
 
-<Callout type="warn" title="HTTP 200 不等于业务成功">
-  `reason` 是协议 Reason Code。调用方必须把成功值与可重试、拒绝和路由变化分别处理，并使用完整的 [Reason Code 字典](/zh/api/dictionaries/reason-codes)。
-</Callout>
+HTTP 200 时仍检查 `reason`，区分成功、可重试、拒绝与路由变化。
 
-不要让浏览器或移动端直接调用这个服务端接口。当前产品 HTTP 路由没有业务鉴权中间件，应由受信业务服务通过私网或受保护代理调用。
+</details>
 
-## Payload 约定
+<details>
+  <summary>Payload：版本与安全降级</summary>
 
-WuKongIM 传递字节 Payload，不替你的产品定义业务结构。建议使用带版本的信封：
+WuKongIM 传递字节，业务系统定义消息结构。使用带版本的信封：
 
 ```json
 {
@@ -74,32 +96,28 @@ WuKongIM 传递字节 Payload，不替你的产品定义业务结构。建议使
 }
 ```
 
-接收端必须能够忽略未知字段，并为未知 `type` 提供安全降级。不要把服务端密钥、访问 Token 或不必要的个人数据放入消息 Payload。
+忽略未知字段，为未知 `type` 提供安全降级；不要放入服务端密钥、访问 Token 或不必要的个人数据。
 
-## 确认与副作用边界
+</details>
 
-持久化消息 SENDACK 成功后，以下工作仍可能独立执行：
+<details>
+  <summary>持久化、副作用与 NoPersist</summary>
 
-- 在线接收者投递；
-- 会话活跃状态更新；
-- Webhook 入队和发送；
-- 已启用插件的提交后 Hook。
+客户端长连接和服务端 HTTP 都进入同一个消息用例与频道写入路径。默认持久消息提交后，在线投递、会话相关更新、Webhook 入队与发送、插件 Hook 可以独立执行；失败不会撤销已持久化的消息，也不延长已完成的确认。
 
-这些副作用失败不会撤销已经持久化的消息。需要强业务一致性的动作应由业务服务根据自己的数据库和幂等键编排，不要假设 Webhook 与 SENDACK 是同一个事务。
+强业务一致性由业务服务用自己的数据库和幂等键编排；Webhook 与 SENDACK 不是同一事务。
 
-## 重连与离线恢复
+普通与命令式 `NoPersist` 都是瞬时在线投递：有消息 ID，序号为零，没有持久历史与离线恢复，见 [Message Flags](/zh/api/dictionaries/message-flags)。
 
-客户端 SDK 应负责连接状态机、退避重连和消息同步：
+</details>
 
-```mermaid
-flowchart TD
-  Save["保存最后确认或展示的频道序号"] --> Disconnect["连接断开"]
-  Disconnect --> Route["重新发现 Gateway 路由"]
-  Route --> Connect["重新 CONNECT"]
-  Connect --> Sync["同步缺失的持久消息"]
-  Sync --> Merge["按消息标识和频道序号合并、去重"]
-  Merge --> Ack["处理完成后发送 RECVACK"]
-  Ack --> Save
-```
+<details>
+  <summary>完整版 SDK 的恢复检查</summary>
 
-下一步配置[Webhook](/zh/guide/integration/webhooks)，把异步业务事件送入可靠的业务处理链路。
+保存频道同步进度，断线后重新发现路由并 CONNECT，补齐缺失持久消息，按消息标识与频道序号合并去重，并正确处理 RECVACK。会话目录与频道消息使用不同游标。具体连接状态、退避和同步 API 见[完整版 SDK](/zh/sdk/wukongim)。
+
+EasySDK 不自动提供这套历史、会话与未读恢复；业务需要时通过自己的后端补齐。
+
+</details>
+
+继续配置 [Webhook](/zh/guide/integration/webhooks)，最后完成[上线检查](/zh/guide/integration/acceptance)。

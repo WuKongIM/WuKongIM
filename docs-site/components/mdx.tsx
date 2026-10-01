@@ -12,6 +12,7 @@ import {
 } from './developer-contracts';
 import { ClientProtocolPacketTable } from './client-protocol-contracts';
 import { Mermaid } from './mermaid';
+import { TutorialScreenshot } from './tutorial-screenshot';
 
 function ScrollableTable(props: ComponentProps<'table'>) {
   return (
@@ -36,6 +37,7 @@ export function getMDXComponents(components?: MDXComponents) {
     JavaScriptCapabilityMatrix,
     MessageFlagTable,
     Mermaid,
+    TutorialScreenshot,
     ReasonCodeTable,
     ...components,
   } satisfies MDXComponents;

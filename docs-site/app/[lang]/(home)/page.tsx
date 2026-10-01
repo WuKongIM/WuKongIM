@@ -47,8 +47,8 @@ const copy = {
     titleAccent: '可靠抵达。',
     description:
       '为你的应用构建实时通信。从第一条消息开始，探索客户端接入、集群部署和完整的 API。',
-    quickstart: '开始接入',
-    overview: '认识 WuKongIM',
+    quickstart: '体验 Demo',
+    overview: '接入应用',
     search: '搜索文档',
     searchHint: '查找概念、配置或 API',
     codeComment: '// 连接成功后，向 Bob 发送消息',
@@ -70,20 +70,20 @@ const copy = {
     steps: [
       {
         title: '启动集群',
-        description: '准备环境，运行你的单节点集群。',
-        path: 'guide/quick-start/single-node-cluster',
+        description: '用 Docker 在电脑上启动单节点集群。',
+        path: 'server/deployment/docker',
         icon: Terminal,
       },
       {
-        title: '连接客户端',
-        description: '准备用户身份，用 SDK 建立连接。',
-        path: 'sdk/javascript/quickstart',
+        title: '体验消息收发',
+        description: '打开内嵌 Demo，让 Alice 和 Bob 互发消息。',
+        path: 'guide/quick-start/first-message',
         icon: Radio,
       },
       {
-        title: '发送第一条消息',
-        description: '让两个用户互发消息，验证收发结果。',
-        path: 'guide/quick-start/first-message',
+        title: '接入你的应用',
+        description: '选择平台 SDK，复用已经跑通的收发流程。',
+        path: 'sdk',
         icon: MessageSquare,
       },
     ],
@@ -103,9 +103,9 @@ const copy = {
         icon: Server,
       },
       {
-        title: 'Agent 流式回复',
-        description: '实时事件、模型接入与历史恢复',
-        path: 'sdk/easy/agent-streaming',
+        title: '体验四个 Demo',
+        description: '聊天、流式回复、客服与 Agent',
+        path: 'guide/quick-start/chat-demo',
         icon: MessageSquare,
       },
       {
@@ -141,8 +141,8 @@ const copy = {
     titleAccent: 'Delivered reliably.',
     description:
       'Build real-time communication into your application. Start with your first message, then explore client SDKs, cluster deployment, and the complete API.',
-    quickstart: 'Start building',
-    overview: 'Meet WuKongIM',
+    quickstart: 'Try the demo',
+    overview: 'Integrate your app',
     search: 'Search documentation',
     searchHint: 'Find a concept, setting, or API',
     codeComment: '// Once connected, send a message to Bob',
@@ -166,21 +166,21 @@ const copy = {
     steps: [
       {
         title: 'Start a cluster',
-        description: 'Prepare your environment and run a single-node cluster.',
-        path: 'guide/quick-start/single-node-cluster',
+        description: 'Start a single-node cluster on your computer with Docker.',
+        path: 'server/deployment/docker',
         icon: Terminal,
       },
       {
-        title: 'Connect a client',
-        description: 'Prepare a user identity and connect through the SDK.',
-        path: 'sdk/javascript/quickstart',
+        title: 'Try messaging',
+        description: 'Open the embedded Demo and exchange messages as Alice and Bob.',
+        path: 'guide/quick-start/first-message',
         icon: Radio,
       },
       {
-        title: 'Send your first message',
+        title: 'Integrate your app',
         description:
-          'Exchange messages between two users and verify the results.',
-        path: 'guide/quick-start/first-message',
+          'Choose a platform SDK and bring the working flow into your app.',
+        path: 'sdk',
         icon: MessageSquare,
       },
     ],
@@ -200,9 +200,9 @@ const copy = {
         icon: Server,
       },
       {
-        title: 'Agent streaming replies',
-        description: 'Live events, model integration, and history recovery',
-        path: 'sdk/easy/agent-streaming',
+        title: 'Try the four Demos',
+        description: 'Chat, streaming replies, support, and Agent',
+        path: 'guide/quick-start/chat-demo',
         icon: MessageSquare,
       },
       {
@@ -282,14 +282,14 @@ export default async function HomePage({
           <div className="home-actions">
             <Link
               className="home-button home-button-primary"
-              href={`/${locale}/sdk/javascript/quickstart`}
+              href={`/${locale}/guide/quick-start`}
             >
               {content.quickstart}
               <ArrowRight size={17} aria-hidden="true" />
             </Link>
             <Link
               className="home-button home-button-secondary"
-              href={`/${locale}/guide/product-overview`}
+              href={`/${locale}/sdk`}
             >
               <BookOpenText size={17} aria-hidden="true" />
               {content.overview}

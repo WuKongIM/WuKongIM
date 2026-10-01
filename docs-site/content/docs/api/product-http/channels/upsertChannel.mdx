@@ -47,7 +47,8 @@ _openapi:
 
           disband `integer` default: `0` 终态解散兼容标志；仅 1 表示启用，其他整数均表示关闭。
 
-          send_ban `integer` default: `0` 禁止发送兼容标志；仅 1 表示启用，其他整数均表示关闭。
+          send_ban `integer | null` enum: `0`, `1`, `null` 可选严格 0/1 发送限制；省略或
+          null 保留原值，显式 0 清除。
 
           allow_stranger `integer` default: `0` 允许陌生人发送兼容标志；仅 1 表示启用，其他整数均表示关闭。
 

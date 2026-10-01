@@ -380,6 +380,11 @@ specification, runbook, report, or module documentation; link to them when neede
   identity and authorization. Manager, Debug, Bench, and MCP are separate privileged
   surfaces. Bench setup uses gated `/bench/v1/*` APIs and a bearer capability when
   remotely reachable. Operations MCP uses its own token and read-only tool boundary.
+- Gateway token authentication compares the stored UID/device Token exactly;
+  Product HTTP credential updates have no expiry field and JWT `exp` is not
+  interpreted. Application backends own expiry, rotation, and revocation. Device
+  quit clears the stored Token and schedules matching handling-node connections
+  for closure; verify revocation and live connection closure separately.
 - Gateway direct/PROXY v1/v2 auto-detection accepts unverified peer address assertions
   when `proxy_protocol_trusted_cidrs` is empty. A nonempty list admits only configured
   proxy peers. These addresses are diagnostic inputs, not built-in token or message
@@ -459,6 +464,10 @@ specification, runbook, report, or module documentation; link to them when neede
   Publish bilingual routes together and derive current versions from their canonical
   manifests/Changelog. Historical SDK or benchmark receipts do not certify newer
   artifacts. Keep public contracts separate from private interface inventories.
+- Public onboarding follows Docker single-node cluster → Chat Demo exchange →
+  platform SDK integration. Tutorial screenshots depict real versioned runs;
+  keep original captures and bilingual numbered captions aligned through
+  [the capture guide](../../docs-site/TUTORIAL_SCREENSHOTS.md).
 - Channel read RPCs classify typed temporary dependency transport failures before
   serialization using the existing not-ready code. Nested Slot-authority connection
   loss must not degrade into generic text and ordinary HTTP 400; unknown text,

@@ -44,6 +44,53 @@ a:focus-visible {
   }
 }
 
+.tutorial-diagram svg {
+  max-width: 100% !important;
+}
+
+.tutorial-screenshot {
+  margin-block: 1.5rem;
+  margin-inline: auto;
+  overflow: hidden;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 12px;
+  background: var(--color-fd-card);
+}
+.tutorial-screenshot-image {
+  position: relative;
+  display: block;
+  cursor: zoom-in;
+}
+.tutorial-screenshot-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.tutorial-screenshot-mark {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: clamp(20px, 3vw, 28px);
+  height: clamp(20px, 3vw, 28px);
+  transform: translate(-50%, -50%);
+  border: 2px solid white;
+  border-radius: 50%;
+  background: #bd4725;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 1px 5px #0004;
+}
+.tutorial-screenshot figcaption {
+  padding: 12px 16px;
+  color: var(--color-fd-foreground);
+  font-size: 13px;
+  line-height: 1.8;
+}
+.tutorial-screenshot figcaption p {
+  margin: 0;
+}
+
 /* Home-page tokens are scoped so document reading layouts keep their theme. */
 .docs-home {
   --home-accent: #bf4826;

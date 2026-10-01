@@ -8,6 +8,12 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Simplify bilingual authentication, messaging, and release checks with illustrated steps and SDK-specific recovery criteria; document backend-owned token expiry and align OpenAPI with all 48 Product HTTP operations, including four send-ban endpoints. / 精简中英文身份认证、消息收发与上线检查，采用图示步骤并按 SDK 验收恢复能力；明确 Token 有效期由业务后端管理，OpenAPI 补齐四个禁言接口，与全部 48 个 Product HTTP 操作对齐。
+
+- Illustrate bilingual Channel and Conversation concepts, shorten the Web EasySDK tutorial with expandable code and verified example captures, and add a three-step Manager guide that distinguishes logical Slots from 256 Hash Slots. / 中英文频道与会话增加概念图，Web EasySDK 教程采用可展开代码与实测截图，Manager 改为三步图文并区分逻辑 Slot 与 256 个 Hash Slot。
+
+- Simplify bilingual onboarding around Docker → Chat Demo → SDK, with current-source chat screenshots, a four-Demo launcher guide, Web SDK recovery illustrations, and expandable advanced details. / 精简中英文入门路线为 Docker → Chat Demo → SDK，补充最新版聊天截图、四个 Demo 一键启动指南与 Web SDK 恢复图示，高级细节按需展开。
+
 - Redesign the bilingual documentation homepage with a messaging code preview, platform shortcuts, guided first-message steps and common references, with responsive light and dark themes. / 重新设计中英文文档首页，新增消息代码预览、平台快捷入口、首条消息引导和常用参考，适配移动端及深浅主题。
 
 - Add visible home links to all four Demos, including chat login; return to the actual catalog address across dynamically assigned ports and reloads. / 四个 Demo 及聊天登录页新增可见的“返回首页”入口，动态端口和刷新后仍返回实际首页。

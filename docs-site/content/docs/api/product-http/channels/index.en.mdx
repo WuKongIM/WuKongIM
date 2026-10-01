@@ -22,4 +22,6 @@ description: Channel metadata, subscribers, and list administration.
 <Card href="/en/api/product-http/channels/removeChannelAllowlistMembers" title="Remove Channel allowlist members" description="Removes non-blank UIDs from the derived Channel allowlist." />
 <Card href="/en/api/product-http/channels/removeAllChannelAllowlistMembers" title="Remove all Channel allowlist members" description="Clears the derived allowlist through bounded internal traversal." />
 <Card href="/en/api/product-http/channels/listChannelAllowlistMembers" title="List all Channel allowlist members" description="Returns an unbounded full list; missing or invalid channel_type is silently treated as 0." />
+<Card href="/en/api/product-http/channels/getChannelSendBan" title="Read channel send restriction" description="Read one current Slot-owned send policy without returning credentials." />
+<Card href="/en/api/product-http/channels/setChannelSendBan" title="Set channel send restriction" description="Atomically set one send policy with optional decimal-string CAS; unchanged values retain the version." />
 </Cards>
