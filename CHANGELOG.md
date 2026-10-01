@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Simplify bilingual architecture onboarding with responsibility cards, separate durable-send and post-commit delivery diagrams, and a compact ISR/HW replication flow; retain complete diagrams and references in disclosures while keeping authority, NoPersist, ordering, backpressure and failover limits visible. / 中英文架构入门增加职责卡片、独立的持久化发送与提交后投递图，以及简洁 ISR/HW 复制流程；完整架构图与参考按需展开，权威、NoPersist、顺序、背压与故障切换边界保持可见。
+
 - Simplify bilingual benchmark and diagnostic tutorials with bounded run/profile diagrams, task entries and expandable complete references; keep load, preflight, delivery, cleanup and MCP access limits visible, and correct the implemented report command. / 中英文压测与诊断教程增加有界运行/采集图、任务入口和可展开完整参考；负载、预检、送达、清理与 MCP 访问限制保持可见，并修正已实现的 report 命令说明。
 
 - Simplify bilingual tool selection, wkcli, and offline database tutorials with task cards, bounded inspection and import diagrams, and expandable complete commands; keep write, offline, format, and restore gates visible and correct the physical/logical Slot names in the tools overview. / 中英文工具首页、wkcli 和离线数据库教程增加任务卡片、有界检查与导入图，完整命令按需展开；写入、离线、格式与恢复门槛保持可见，并修正工具首页物理哈希槽与逻辑 Slot 的名称。
