@@ -884,3 +884,11 @@ specification, runbook, report, or module documentation; link to them when neede
   and reply. Independent slow-barrier local/remote burst regressions preserve
   each caller's fresh barrier and cancellation. Queue count/bytes and the two-second
   wait bound remain unchanged; cross-caller aggregation is tracked by #977.
+
+### Sequential durable-quorum boundary evidence (2026-10-01)
+
+- In DurableQuorumLog mode, submitted tasks include local persistence, required voter persistence and result publication. Legacy leader `local_durable`/`quorum_wait` trace labels do not isolate those phases.
+- A fixed full-prefix old/Darwin-adapter pair binds 128 requests through 384 node proposal/physical/WAL lineages. Both selected tails cross WAL rotation; the candidate required follower has 16.2 ms rotation and 8.47 ms current-record sync, with 0.027 ms terminal-to-reactor delivery. This is captured attribution, not proof of the comparative regression or a repair.
+- Pebble rotation synchronizes the old WAL EOF trailer, creates/reuses the next WAL and synchronizes its directory before the current append. Its 256-KiB initial memtable grows toward the configured limit; raising that limit alone is not an initial-size control. Durability and restart fences must remain intact in any optimization.
+- Multiple exact exchanges can belong to one proposal; match request IDs and wire classes and count only valid distinct durable votes. Late trailing persistence is not automatically a quorum vote. Runtime goroutine states measure elapsed states, not process CPU.
+- All six raw traces survive in the sealed local artifact and were independently re-decoded; the Git selected archive replays decoded evidence and the unchanged six original sequential failures. See [actual quorum boundary report](../reports/2026-10-01-permission-quorum-boundaries.md).

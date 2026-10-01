@@ -1,0 +1,29 @@
+{
+  "created_at": "2026-10-01T10:43:22.298908+00:00",
+  "selected": {
+    "mode": "selected",
+    "archive_sha256": "7114cfebb89cb347e74a183dafaa96cb01e2ffce57de786b1bf6f9c7e780869f",
+    "bytes": 573108,
+    "members": 138,
+    "exit_code": 0,
+    "at": "2026-10-01T10:39:27.661123+00:00"
+  },
+  "full_local": {
+    "mode": "full",
+    "archive_sha256": "5ed5bdf5518d2655c037c548f863c72fb1a6b4f80421e0269d7b2dd5855ffdd6",
+    "bytes": 2833349,
+    "members": 144,
+    "exit_code": 0,
+    "at": "2026-10-01T10:39:44.344436+00:00"
+  },
+  "selected_scope": "All custom events, decoded WAL states/rotation stacks,128 exact proposal derivations, full eight-placement functional reports, pre-implementation red/negative and failed verifier receipts, frozen sources/patches,12 mutation rejections and unchanged original six-report failure replay. Raw trace decoding requires full local bundle.",
+  "full_local_path": "/Users/tt/.codex/artifacts/issue-977-quorum-boundaries-20261001/quorum-boundaries-full-final.tar.gz",
+  "raw_traces_redecoded": 6,
+  "raw_trace_products": "old424 vs newc03, identical bounded probes; no performance qualification",
+  "persistent_binaries": {
+    "old-wukongim": "f7ffc81fa063d32dca68e8090a02853c9c58be831d2b229ea35d2549a1d24746",
+    "new-wukongim": "9a6b504421553d3f244a78f409c2162b5bfd880c6d14cb6386e1e3d092c0f585",
+    "permission-driver": "ac783194aabd00230aacc143b9fb2275560f3bfe40069580d6f1b6a1c44f0d17",
+    "driver-red": "87b2017211b14e94457d8bdf26ccd879e3cd872c1be340fea6f9a616c2ff083d"
+  }
+}
