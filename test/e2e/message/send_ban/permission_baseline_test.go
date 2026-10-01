@@ -196,6 +196,9 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 			opts = append(opts, suite.WithNodeEnv(id, "GOGC=100"))
 		}
 	}
+	if fixedV2 {
+		opts = append(opts, suite.WithConfigFileOnly())
+	}
 	cluster := suite.New(t).StartThreeNodeCluster(opts...)
 	var cpuPIDs []int
 	if cpuProbe != "" {

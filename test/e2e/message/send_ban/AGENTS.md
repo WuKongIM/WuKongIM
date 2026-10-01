@@ -237,6 +237,9 @@ The separate v2 fixed-arrival diagnostic is opt-in:
 Use a clean inherited product environment (no ambient `WK_*` settings), fixed
 Go runtime defaults and the same external product/probe pins for each pair.
 Candidate count assertions still require `WK_E2E_PERMISSION_FIXED_COHORTS=1`.
+The V2 fixture uses `suite.WithConfigFileOnly` so the retained TOML is not also
+mirrored into generated `WK_*` process variables; actual child `WK_*` settings
+must remain absent. Explicit Go runtime controls remain visible in the receipt.
 
 V2 preserves the exact 750/14,976 arrivals and fixed 32-second CPU windows, but
 each connection has one worker and an eight-entry queued FIFO. Scheduler lateness
