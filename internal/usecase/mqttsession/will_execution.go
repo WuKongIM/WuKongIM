@@ -71,6 +71,9 @@ type WillExecutionOptions struct {
 	Publications WillPublications
 	// DispatchFence is required by product wiring; absence retains positive-only recovery.
 	DispatchFence WillDispatchFence
+	// ReclamationJournal supplies captured local attempts only on capacity pressure.
+	// Cleanup requires an independent authoritative row and grants no retry proof.
+	ReclamationJournal WillReclamationJournal
 	// Authorizer evaluates current policy before resumable preparation/dispatch.
 	Authorizer WillAuthorizer
 	// NodeID and BootID identify this executor process, never a connection owner.
@@ -92,6 +95,8 @@ type WillExecutor struct {
 	// active pins at most four body-free keys, preventing equal local reservations.
 	mu     sync.Mutex
 	active map[meta.MQTTWillKey]struct{}
+	// reclamation admits one pressure page without queuing another executor turn.
+	reclamation chan struct{}
 }
 
 type WillExecutionResult struct {
@@ -104,10 +109,10 @@ func NewWillExecutor(o WillExecutionOptions) (*WillExecutor, error) {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
-	if o.Store == nil || o.Publications == nil || o.Authorizer == nil || o.NodeID == 0 || o.BootID == "" || len(o.BootID) > 128 || !utf8.ValidString(o.BootID) || strings.ContainsRune(o.BootID, 0) || o.LeaseDuration < time.Millisecond || o.LeaseDuration > time.Minute || o.LeaseDuration%time.Millisecond != 0 || o.TurnTimeout <= 0 || o.TurnTimeout > 5*time.Second {
+	if o.Store == nil || o.Publications == nil || o.Authorizer == nil || o.ReclamationJournal != nil && o.DispatchFence == nil || o.NodeID == 0 || o.BootID == "" || len(o.BootID) > 128 || !utf8.ValidString(o.BootID) || strings.ContainsRune(o.BootID, 0) || o.LeaseDuration < time.Millisecond || o.LeaseDuration > time.Minute || o.LeaseDuration%time.Millisecond != 0 || o.TurnTimeout <= 0 || o.TurnTimeout > 5*time.Second {
 		return nil, ErrInvalid
 	}
-	e := &WillExecutor{opts: o, admission: make(chan struct{}, 4), active: make(map[meta.MQTTWillKey]struct{}, 4)}
+	e := &WillExecutor{opts: o, admission: make(chan struct{}, 4), active: make(map[meta.MQTTWillKey]struct{}, 4), reclamation: make(chan struct{}, 1)}
 	if _, err := e.now(); err != nil {
 		return nil, err
 	}
@@ -239,7 +244,7 @@ func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (ou
 		return out, err
 	}
 	if resumeDispatch {
-		if err := e.opts.DispatchFence.PrepareAttempt(ctx, willAttempt(next)); err != nil {
+		if err := e.prepareAttempt(ctx, willAttempt(next)); err != nil {
 			return out, err
 		}
 	}
@@ -360,7 +365,7 @@ func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (ou
 			}
 		}
 		if e.opts.DispatchFence != nil {
-			if err := e.opts.DispatchFence.PrepareAttempt(ctx, willAttempt(w)); err != nil {
+			if err := e.prepareAttempt(ctx, willAttempt(w)); err != nil {
 				return out, err
 			}
 		}

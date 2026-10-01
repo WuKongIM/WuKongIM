@@ -97,6 +97,13 @@ legacy/lost-journal terminal recovery, journal orphan reclamation and aggregate
 shared-storage admission remain outstanding. The final six-case process matrix
 passes in 317.404 seconds, with one publication per case and no unexpected
 delivery, CONNECT retry or resubscription. These bounded cases do not complete MQTT.
+[Bounded attempt reclamation](mqtt-will-attempt-reclamation/README.md) now narrows
+the journal gap: capacity pressure may remove an exact attempt only after a fresh
+terminal or strictly newer execution row. Missing/current/unknown rows remain.
+The two-topology process matrix passes in 131.333 seconds with three original
+publications, exact capacity refusal and retained current recovery per case;
+missing-row reclamation,
+delayed unknown-claim races and the broader terminal/admission gaps remain open.
 
 Historical sections below record the narrower evidence available at each step.
 

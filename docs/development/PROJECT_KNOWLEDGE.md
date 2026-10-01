@@ -768,6 +768,10 @@ specification, runbook, report, or module documentation; link to them when neede
   [Started non-dispatch recovery](../specs/mqtt-will-started-recovery.md) joins an
   exact Reserved -> Sealed journal transition with the owning node generation
   lock/older-boot fact, then fresh permission and a definite successor Slot CAS.
+  [Attempt reclamation](../specs/mqtt-will-attempt-reclamation.md) runs only on
+  journal pressure: one nonwaiting 16-attempt/750ms page requires fresh exact
+  Published/Rejected or strictly newer execution rows. Missing, current and
+  unknown records stay; cleanup supplies no retry proof and yields to a new turn.
   Fresh target absence alone grants nothing. Admitted/legacy execution only
   recovers positive content-matched receipts; later denial or absence cannot resolve an unknown
   append. Single-node cluster composition verifies original identity/time after

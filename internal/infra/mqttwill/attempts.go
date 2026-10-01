@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
@@ -17,7 +18,7 @@ import (
 )
 
 var ErrUnknown = errors.New("mqttwill: dispatch proof unavailable")
-var ErrCapacity = errors.New("mqttwill: dispatch journal capacity exhausted")
+var ErrCapacity = contract.ErrWillAttemptCapacity
 
 const attemptLimit = 1024
 const recordLimit = contract.MaxWillAttemptBytes + 6 + sha256.Size
@@ -40,6 +41,8 @@ type Attempts struct {
 	proof  GenerationProof
 	count  int
 	closed bool
+	// scanAfter is a bounded volatile fairness hint, never cleanup authority.
+	scanAfter string
 }
 
 // Open inventories at most the fixed record cap plus interrupted staging files.
@@ -129,7 +132,14 @@ func (s *Attempts) PrepareAttempt(ctx context.Context, a contract.WillAttempt) e
 	if !errors.Is(err, os.ErrNotExist) {
 		return ErrUnknown
 	}
-	if s.count >= attemptLimit {
+	limit := attemptLimit
+	// gofail: var wkMQTTWillJournalLimit int
+	// if wkMQTTWillJournalLimit > 0 && wkMQTTWillJournalLimit <= attemptLimit {
+	//     limit = wkMQTTWillJournalLimit
+	// }
+	if s.count >= limit {
+		// gofail: var wkMQTTWillJournalFull bool
+		// _ = wkMQTTWillJournalFull
 		return ErrCapacity
 	}
 	// Count a created record even when directory sync or cancellation is uncertain.
@@ -189,6 +199,10 @@ func (s *Attempts) ReleaseAttempt(ctx context.Context, a contract.WillAttempt) e
 	if err := s.valid(ctx, a); err != nil {
 		return err
 	}
+	// gofail: var wkMQTTWillReleaseFailure bool
+	// if wkMQTTWillReleaseFailure {
+	//     return ErrUnknown
+	// }
 	if _, err := s.read(a); errors.Is(err, os.ErrNotExist) {
 		return nil
 	} else if err != nil {
@@ -209,30 +223,103 @@ func (s *Attempts) Close() {
 }
 
 func (s *Attempts) read(a contract.WillAttempt) (byte, error) {
-	path := s.path(a)
+	identity, stage, err := s.readPath(s.path(a))
+	if err != nil {
+		return 0, err
+	}
+	if identity != a {
+		return 0, ErrUnknown
+	}
+	return stage, nil
+}
+
+// ReclamationCandidates captures at most one page without holding a lock across
+// authority reads. Invalid records consume scan budget and retain their capacity.
+func (s *Attempts) ReclamationCandidates(ctx context.Context) ([]contract.WillAttempt, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ctx == nil || s.closed || !s.proof.OwnsGeneration(s.node, s.boot) {
+		return nil, ErrUnknown
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if s.count == 0 {
+		return nil, nil
+	}
+	f, err := os.Open(s.dir)
+	if err != nil {
+		return nil, ErrUnknown
+	}
+	entries, readErr := f.ReadDir(attemptLimit + 9)
+	closeErr := f.Close()
+	if readErr != nil && !errors.Is(readErr, io.EOF) || closeErr != nil || len(entries) > attemptLimit {
+		return nil, ErrUnknown
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		name := strings.TrimSuffix(entry.Name(), ".attempt")
+		if !strings.HasSuffix(entry.Name(), ".attempt") || len(name) != 64 || entry.Type() != 0 {
+			return nil, ErrUnknown
+		}
+		if _, err := hex.DecodeString(name); err != nil {
+			return nil, ErrUnknown
+		}
+		names = append(names, entry.Name())
+	}
+	sort.Strings(names)
+	start := sort.SearchStrings(names, s.scanAfter)
+	for start < len(names) && names[start] <= s.scanAfter {
+		start++
+	}
+	if start == len(names) {
+		start = 0
+	}
+	end := min(start+contract.MaxWillAttemptReclamation, len(names))
+	if start < len(names) {
+		// Overlap pages so a deadline after early authority reads cannot forever
+		// skip later candidates: every record becomes the first within one wrap.
+		s.scanAfter = names[start]
+	}
+	out := make([]contract.WillAttempt, 0, end-start)
+	for _, name := range names[start:end] {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		path := filepath.Join(s.dir, name)
+		a, _, err := s.readPath(path)
+		if err == nil && a.NodeID == s.node && s.path(a) == path {
+			out = append(out, a)
+		}
+	}
+	return out, nil
+}
+
+func (s *Attempts) readPath(path string) (contract.WillAttempt, byte, error) {
+	var zero contract.WillAttempt
 	info, err := os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return 0, os.ErrNotExist
+		return zero, 0, os.ErrNotExist
 	}
 	if err != nil || !info.Mode().IsRegular() || info.Size() > recordLimit {
-		return 0, ErrUnknown
+		return zero, 0, ErrUnknown
 	}
 	f, err := os.Open(path)
 	if err != nil {
-		return 0, ErrUnknown
+		return zero, 0, ErrUnknown
 	}
 	data, readErr := io.ReadAll(io.LimitReader(f, recordLimit+1))
 	closeErr := f.Close()
 	if readErr != nil || closeErr != nil || len(data) < 7+sha256.Size || len(data) > recordLimit || string(data[:4]) != "MQWA" || data[4] != 1 || data[5] < reserved || data[5] > sealed {
-		return 0, ErrUnknown
+		return zero, 0, ErrUnknown
 	}
 	body := data[:len(data)-sha256.Size]
 	sum := sha256.Sum256(body)
 	identity, err := contract.DecodeWillAttempt(body[6:])
-	if err != nil || identity != a || !bytes.Equal(data[len(body):], sum[:]) {
-		return 0, ErrUnknown
+	if err != nil || !bytes.Equal(data[len(body):], sum[:]) {
+		return zero, 0, ErrUnknown
 	}
-	return data[5], nil
+	return identity, data[5], nil
 }
 
 // write atomically replaces one fsynced exact record, then syncs its directory.

@@ -1,6 +1,15 @@
 package mqttsession
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"errors"
+)
+
+// ErrWillAttemptCapacity requests bounded cleanup without granting dispatch.
+var ErrWillAttemptCapacity = errors.New("mqttwill: dispatch journal capacity exhausted")
+
+// MaxWillAttemptReclamation bounds captured identities in one pressure page.
+const MaxWillAttemptReclamation = 16
 
 // WillAttempt identifies one exact dispatch grant, independently of a connection
 // Owner. Its canonical encoding carries no body, credential or lease deadline.

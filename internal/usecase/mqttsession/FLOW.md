@@ -17,6 +17,9 @@ This package coordinates Session lifecycle, Owners, subscriptions and delivery; 
 - WillExecutor rereads detached work and claims one exact revision. Applied claims resume Preparing/Prepared work through current policy and freeze hook output before a definite Started CAS grants dispatch. Positive receipt recovery precedes new policy decisions. Started work may also resume its frozen body after its exact owning node durably seals a Reserved attempt, followed by fresh permission, a preclaimed new reservation and a definite successor CAS. Admitted, missing or legacy attempts remain positive-only; no absence/lease inference or rejection is granted. Four turns run concurrently without a waiting queue; local deadlines precede CAS and gate subsequent effects.
 - Isolation requires exact owner quiescence or another valid proof supplied by
   its port. A stored state, lease expiry, foreign boot or RPC error is not proof.
+- Will reservation pressure runs one nonwaiting 750ms reclamation page of at most
+  16 local attempts. Fresh exact Published/Rejected or strictly newer execution
+  rows permit cleanup; missing/current/unknown rows stay. Cleanup yields without retry.
 - App owns composition, bounded contexts, renewal/sweep scheduling and unavailable-owner/restore fencing before product admission.
 
 ## Main Flows

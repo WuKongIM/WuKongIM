@@ -24,6 +24,8 @@ runtime. It owns no storage, routing, packet or socket behavior.
 3. Preserve node, unique registry boot and non-reused connection ID for isolation.
    WillAttempt instead binds the Will and execution generations; its canonical
    identity has no connection ID, body, token or lease and grants no proof alone.
+   A shared capacity error and 16-attempt reclamation bound grant cleanup opportunity,
+   never dispatch or deletion authority.
 4. Carry bounded per-replica scan hints and cold scheduling passes without turning
    them into durable evidence; explicit target completion confirms original-source
    release, never shared-content GC, readiness or subscription admission.

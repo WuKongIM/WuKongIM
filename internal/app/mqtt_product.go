@@ -170,7 +170,7 @@ func (a *App) newMQTTGeneration(ctx context.Context, node *cluster.Node, nodeID 
 	if err != nil {
 		return m, err
 	}
-	executor, err := newMQTTWillExecutor(node, a.messages, sessioncase.WillExecutionOptions{DispatchFence: mqttWillDispatches{Attempts: m.dispatches, remote: accessnode.NewMQTTWillClient(node)}, NodeID: nodeID, BootID: hex.EncodeToString(boot[:]), LeaseDuration: 10 * time.Second, TurnTimeout: 5 * time.Second})
+	executor, err := newMQTTWillExecutor(node, a.messages, sessioncase.WillExecutionOptions{DispatchFence: mqttWillDispatches{Attempts: m.dispatches, remote: accessnode.NewMQTTWillClient(node)}, ReclamationJournal: m.dispatches, NodeID: nodeID, BootID: hex.EncodeToString(boot[:]), LeaseDuration: 10 * time.Second, TurnTimeout: 5 * time.Second})
 	if err != nil {
 		return m, err
 	}

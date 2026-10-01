@@ -26,6 +26,8 @@ positive receipts and exact successor/terminal cleanup. Node RPC carries identit
    absent, corrupt, unsupported or oversized records never grant negative proof.
 5. Remove only captured tuples after a definite successor/terminal decision.
    Unknown writes/cleanup retain bounded capacity; cap exhaustion fails closed.
+   Capacity pressure offers at most 16 checksummed identities; overlapping filename
+   pages make each record first within one wrap. Authority reads run outside locks.
 6. Close after Will workers join and before releasing the generation lock.
 
 ## Invariants and Failure Semantics
@@ -35,7 +37,8 @@ positive receipts and exact successor/terminal cleanup. Node RPC carries identit
 - Missing records block late admission; removed tuples cannot be recycled by an
   earlier boot. Directory-sync/cancellation errors never grant proof or dispatch.
 - An Admitted record cannot prove an accepted append stopped after a crash.
-- Unreferenced uncertain records are conservatively retained; no age-based GC.
+- Reclamation requires a fresh exact terminal/newer-execution Will row in usecases.
+  Missing/current/uncertain records stay; no age-based GC or background worker.
 
 ## Read First
 

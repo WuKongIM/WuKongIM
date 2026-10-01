@@ -1,0 +1,38 @@
+{
+  "base_revision": "3f8f0960af900492032b09feeaaf9bcfc73c4449",
+  "source_kind": "Exact base plus the product source hashes below",
+  "go_version": "go1.25.11 darwin/arm64",
+  "product_changes": [
+    {
+      "path": "internal/app/mqtt_product.go",
+      "sha256": "0b8cb6270d86724e50144102f39c3a6c62dd900f72ba7bb56b6d2e71395f66b6"
+    },
+    {
+      "path": "internal/contracts/mqttsession/will_attempt.go",
+      "sha256": "3d544860211165c7c3619ec5ef46fc83c0a150ac194c4c256cb8615eab07a5b5"
+    },
+    {
+      "path": "internal/infra/mqttwill/attempts.go",
+      "sha256": "e0e7121906e2bbb1d98cde45699c33ede8a38d341c5cf7911598b76f1de599a5"
+    },
+    {
+      "path": "internal/usecase/mqttsession/will_attempt_reclamation.go",
+      "sha256": "40b019eef31a8d085514f154babcb21708b423f656e2edf3d6badb0273ab45b8"
+    },
+    {
+      "path": "internal/usecase/mqttsession/will_execution.go",
+      "sha256": "a704e5b65963a76021fb47eefb9f8007b6a4bb1b52256747a3a5052b3dc89a45"
+    }
+  ],
+  "test_sha256": "db47b59c06e343bc2830a882118b26543f7697e2c3d86cbde5ea19fe3e75b248",
+  "original_recovery_test_sha256": "87b1fd06805fe76332ea8b38e84b4c3dec7a52f1008c6b0730df3a7fcb3a02df",
+  "ordinary_binary_sha256": "aee68cbb0d18f4702e4a89acd6cda5e257b4e9dfac5a0ce5809b0d45610678e9",
+  "instrumented_binary_sha256": "e9f3eb94e6f16b3d6f5cf4d8bf2db0413709ad83fd7cada32f8b065b1889b9a2",
+  "baseline_instrumented_binary_sha256": "ccd99ba2550252349a25bcd10138bd7739a68a709789b42f1d4130771813560e",
+  "gofail": "go.etcd.io/gofail@v0.2.0; temporary source copy only",
+  "build_command": "scripts/build-gofail-binary.sh --out /tmp/wukongim-will-reclamation-candidate-gofail --package internal/usecase/mqttsession --package internal/app --package internal/infra/mqttwill --package internal/runtime/channelappend",
+  "ordinary_build_command": "go build -buildvcs=false -o /tmp/wukongim-will-reclamation-ordinary ./cmd/wukongim",
+  "matrix_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-reclamation-candidate-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-reclamation-matrix GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_reclamation -count=1 -timeout=6m -v",
+  "baseline_qualification": "Base plus inert gofail limit/capacity-refusal/cleanup-failure controls. No reclamation repair.",
+  "fixture_adjustment": "After the initial RED, add a healthy precrash 3-second quiet observation for Paho manual PUBACK batching; receipt bound unchanged. Baseline repeats the same pressure-receipt failure before this new window."
+}
