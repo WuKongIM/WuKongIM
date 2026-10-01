@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,7 +22,7 @@ func permissionQuorumTraces(ctx context.Context, cluster *suite.StartedCluster, 
 	done := make(chan permissionSequentialProfile, 3)
 	for _, node := range cluster.Nodes {
 		go func(id uint64, addr string) {
-			out := permissionSequentialProfile{NodeID: id, Kind: "trace", Seconds: 4, Path: fmt.Sprintf("%s.node-%d.trace", path, id), Requested: time.Now().UTC()}
+			out := permissionSequentialProfile{NodeID: id, Kind: "trace", Seconds: 4, Path: fmt.Sprintf("%s.node-%d.trace", strings.TrimSuffix(path, ".json"), id), Requested: time.Now().UTC()}
 			if err := permissionQuorumTrace(ctx, addr, out.Path); err != nil {
 				out.ErrorCode = "capture_unavailable_or_oversized"
 			}
