@@ -485,10 +485,12 @@ digest to all three public repositories:
 - `docker.io/wukongim/wukongim`;
 - `registry.cn-shanghai.aliyuncs.com/wukongim/wukongim`.
 
-The mirror-copy step uses HTTPS with HTTP/1.1 (`GODEBUG=http2client=0`) to
-avoid observed HTTP/2 peer stream protocol failures during blob transfer.
-Registry authentication and exact digest, source, and platform verification
-remain required.
+The mirror-copy step uses checksum-pinned [Crane v0.22.1](https://github.com/google/go-containerregistry/releases/tag/v0.22.1)
+with one concurrent layer transfer and `--no-clobber`. It copies the canonical
+runtime index and both platform manifests over HTTPS with HTTP/1.1
+(`GODEBUG=http2client=0`), after HTTP/2 peer stream failures and stalled bulk
+copies. Detached attestations remain on canonical GHCR. Registry authentication
+and exact digest, source, and platform verification remain required.
 
 The exact Docker tag removes the Git `v` prefix. A stable `v3.1.2` may advance
 `3.1`, `3`, and `latest` only when it is the highest stable repository SemVer

@@ -35,6 +35,7 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 				Run  string            `yaml:"run"`
 				Uses string            `yaml:"uses"`
 				With map[string]string `yaml:"with"`
+				Env  map[string]string `yaml:"env"`
 			} `yaml:"steps"`
 		} `yaml:"jobs"`
 	}
@@ -179,6 +180,23 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 		require.Greater(t, position, previous, step)
 		previous = position
 	}
+
+	mirrorRun := ""
+	for _, step := range publish.Steps {
+		if step.Name == "Mirror immutable exact tag" {
+			require.Equal(t, "http2client=0", step.Env["GODEBUG"])
+			require.Equal(t, "v0.22.1", step.Env["CRANE_VERSION"])
+			require.Equal(t, "0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0", step.Env["CRANE_ARCHIVE_SHA256"])
+			mirrorRun = step.Run
+			break
+		}
+	}
+	require.Contains(t, mirrorRun, "https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz")
+	require.Contains(t, mirrorRun, "sha256sum --check --status")
+	require.Contains(t, mirrorRun, "--platform all copy --jobs 1 --no-clobber")
+	require.Contains(t, mirrorRun, `"$CANONICAL_IMAGE@$CANONICAL_DIGEST" "$ref"`)
+	require.NotContains(t, mirrorRun, "--insecure")
+	require.Less(t, strings.Index(mirrorRun, "sha256sum --check --status"), strings.Index(mirrorRun, "tar -xzf"))
 
 	changelogRun := ""
 	for _, step := range publish.Steps {
