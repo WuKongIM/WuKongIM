@@ -1,27 +1,31 @@
 ---
 title: 快速开始
-description: 在 Linux 上启动单节点集群，并完成第一次双向消息验证。
+description: 用 Docker 启动单节点集群，在 Chat Demo 中互发消息，再选择 SDK 接入应用。
 ---
 
-这条路径面向第一次使用 WuKongIM 的读者。完成后，你会在一台 Linux 服务器上运行单节点集群，并通过 Manager 和 Chat Demo 验证消息收发。
+先在自己的电脑上跑通 Alice 与 Bob 的双向消息。需要 Docker 和浏览器，预计 5～10 分钟，不含下载时间。
 
-<Callout type="warn" title="先用于学习和测试">
-  当前 Linux 软件源是 Preview 通道。本指南适合功能验证，不是完整的生产部署方案。
-</Callout>
+```mermaid
+flowchart LR
+  Start["① Docker 启动集群"] --> Demo["② Demo 双向收发"] --> SDK["③ SDK 接入应用"]
+```
 
-## 操作顺序
+<Cards>
+  <Card title="1. 启动集群" description="创建配置，运行 Docker，检查 /readyz。" href="/zh/server/deployment/docker" />
+  <Card title="2. 发送第一条消息" description="跟着截图登录两个测试用户，互发一条消息。" href="/zh/guide/quick-start/first-message" />
+  <Card title="3. 接入自己的应用" description="按所需能力选择 SDK，再进入目标平台教程。" href="/zh/sdk" />
+</Cards>
 
-1. [检查环境](/zh/guide/quick-start/prerequisites)：准备受支持的 Linux 服务器、sudo、curl 和 SSH。
-2. [启动单节点集群](/zh/guide/quick-start/single-node-cluster)：安装软件包、初始化配置并启动 systemd 服务。
-3. [发送第一条消息](/zh/guide/quick-start/first-message)：用两个测试 UID 验证双向消息。
-4. [了解 Chat Demo](/zh/guide/quick-start/chat-demo)：了解演示功能与生产接入的区别。
-5. [选择下一步](/zh/guide/quick-start/next-steps)：继续配置、SDK、API 或运维文档。
+想体验最新版的流式回复、在线客服和 Agent？查看[四个 Demo 的源码一键启动](/zh/guide/quick-start/chat-demo)。
 
 ## 完成标准
 
-- `http://127.0.0.1:5001/readyz` 返回成功；
-- `http://127.0.0.1:5301` 能打开 Manager；
-- `http://127.0.0.1:5001/demo/` 能连接两个测试用户；
-- 两个测试用户可以互相发送和接收消息。
+- `/readyz` 返回 `{"ready":true}`；
+- Alice 与 Bob 都显示已连接状态；
+- 双方分别收到 `hello from alice` 和 `hello from bob`。
 
-预计需要 5～10 分钟，不包含服务器和系统软件下载时间。
+<Callout type="warn" title="仅用于学习和测试">
+  示例使用测试凭据。接入生产前，需要替换凭据，配置 TLS、业务鉴权、备份和故障恢复，详见[安全配置](/zh/server/configuration/security)。
+</Callout>
+
+还没有准备好 Docker？查看[环境准备](/zh/guide/quick-start/prerequisites)。需要直接安装在 Linux 主机上？使用[Linux 安装路径](/zh/guide/quick-start/single-node-cluster)。

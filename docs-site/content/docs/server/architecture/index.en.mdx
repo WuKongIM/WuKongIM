@@ -3,13 +3,30 @@ title: Architecture
 description: Understand WuKongIM cluster boundaries through Controller, Slot, Channel, Transport, and online routing.
 ---
 
-WuKongIM places low-frequency cluster intent, sharded metadata, ordered message logs, and high-frequency connection state behind different boundaries. Those boundaries matter more than memorizing one function or in-process call graph: failover, scaling, and diagnosis all depend on which component is authoritative for which state.
+Start with three responsibilities: Controller plans the cluster, Slot owns metadata, and Channel owns ordered message logs. Gateway, online routing and Transport complete client communication.
 
 <Callout type="warn" title="Every deployment is a cluster">
   A one-node deployment is a single-node cluster and still follows Controller, Slot, Channel, and routing semantics. The default route table keeps 256 stable physical hash-slot fences. They map onto a potentially different number of logical Slot Raft Groups and are not the same concept.
 </Callout>
 
 ## Architecture map
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  controller["Controller<br/>Nodes / assignments"] -->|intent| slot["Slot<br/>Users / Channel metadata"]
+  slot -->|metadata constrains writes| channel["Channel<br/>Ordered message logs"]
+```
+
+</div>
+
+These arrows show assignment and metadata constraints. The per-message SEND path is explained in [Message Send Flow](/en/server/architecture/message-flow); online delivery runs after commit.
+
+<details>
+  <summary>Full architecture map and both planes</summary>
+
+WuKongIM places low-frequency cluster intent, sharded metadata, ordered message logs, and high-frequency connection state behind different boundaries. Those boundaries matter more than memorizing one function or in-process call graph: failover, scaling, and diagnosis all depend on which component is authoritative for which state.
 
 ```mermaid
 flowchart TB
@@ -29,7 +46,20 @@ flowchart TB
 
 The diagram contains two distinct paths: Controller and Slot provide control and metadata authority, while Channel provides message-log authority. Online delivery runs after commit and is not part of Channel quorum commit.
 
+</details>
+
 ## Five primary boundaries
+
+<Cards>
+<Card title="Controller: plans" href="/en/server/architecture/controller">Node assignments and controlled tasks.</Card>
+<Card title="Slot: metadata" href="/en/server/architecture/slots">Users, Channels and subscriptions.</Card>
+<Card title="Channel: messages" href="/en/server/architecture/channels">Order, replication and committed reads.</Card>
+<Card title="Gateway and online routes" href="/en/server/architecture/user-routing">Sessions, presence and owner-node delivery.</Card>
+<Card title="Transport: node traffic" href="/en/server/architecture/transport">Bounded Raft, RPC and replication transport.</Card>
+</Cards>
+
+<details>
+  <summary>Full responsibility and authority comparison</summary>
 
 | Boundary | Authoritative state | Main responsibility | Does not own |
 | --- | --- | --- | --- |
@@ -39,7 +69,14 @@ The diagram contains two distinct paths: Controller and Slot provide control and
 | Gateway and online runtime | connection owner node and the UID Presence Authority | client sessions, online endpoints, cross-node delivery | durable presence or message-commit decisions |
 | Transport | bounded connections, queues, and service entry points | node Raft, RPC, replication, and notification transport | business authorization or unlimited retries |
 
+</details>
+
 ## Four layers of authority in one route
+
+Controller declares desired assignments; the live Slot Leader/term/configuration epoch governs metadata, while Channel Leader/ISR/epochs govern message writes. Only the owner of the concrete Session can write to that client. `PreferredLeader` is intent; missing live authority or freshness stays unknown.
+
+<details>
+  <summary>All four authority layers and freshness rules</summary>
 
 A business request can encounter four kinds of authority, and none substitutes for another:
 
@@ -50,7 +87,14 @@ A business request can encounter four kinds of authority, and none substitutes f
 
 `PreferredLeader` is Controller intent. The observed Raft Leader is the runtime authority. If Manager or diagnostics lack a live term, configuration epoch, or freshness evidence, preserve an unknown result instead of filling the gap from intent.
 
+</details>
+
 ## Where data lives
+
+Plans live in Controller Raft, metadata in Slot storage and messages in Channel replicas. Sessions/presence, queues and caches live in memory; they follow leases, bounded capacity and rebuildable lifecycles.
+
+<details>
+  <summary>Complete storage and lifecycle table</summary>
 
 | Data | Typical location | Lifecycle |
 | --- | --- | --- |
@@ -60,7 +104,14 @@ A business request can encounter four kinds of authority, and none substitutes f
 | Connections and online endpoints | owner node and Presence Authority memory | high-frequency, lease- and Session-bound |
 | Transport queues and runtime caches | node process memory | bounded, rebuildable, protected by backpressure |
 
+</details>
+
 ## Continue reading
+
+Follow a message in [Message Send Flow](/en/server/architecture/message-flow), find a Session in [User Connection Routing](/en/server/architecture/user-routing), or investigate an incident with [Troubleshooting](/en/server/operations/troubleshooting) and [Diagnostics](/en/server/tools/diagnostics).
+
+<details>
+  <summary>Complete architecture reading list</summary>
 
 - [Controller Layer](/en/server/architecture/controller): cluster intent, materialized state, and task fences.
 - [Slot Metadata Layer](/en/server/architecture/slots): how 256 physical hash slots map to logical Raft Groups.
@@ -70,3 +121,5 @@ A business request can encounter four kinds of authority, and none substitutes f
 - [User Connection Routing](/en/server/architecture/user-routing): local Sessions, Presence Authority, and cross-node push.
 
 To apply these boundaries to an incident, continue with [Troubleshooting](/en/server/operations/troubleshooting) and [Diagnostics](/en/server/tools/diagnostics).
+
+</details>

@@ -47,6 +47,8 @@ runs its fast unit tests from the documentation-site root and is part of `verify
   learning order, and writing contract.
 - `EASY_SDK_DOCUMENTATION_SPEC.md` defines the eight EasySDK quickstarts,
   example-first learning path, and separate engineering validation history.
+- [Tutorial screenshots](TUTORIAL_SCREENSHOTS.md) records capture versions and
+  the process for refreshing real screenshots and bilingual numbered captions.
 - `lib/easy-sdk-releases.json` is the sole current EasySDK version manifest.
   After validating a compatible released package against its tutorial, update
   that platform's `version`. Source checkouts default to `v<version>`; optional

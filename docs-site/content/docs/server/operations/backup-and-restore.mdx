@@ -1,11 +1,45 @@
 ---
 title: 备份与恢复
-description: 跟着示例在 Manager 中完成一次备份和恢复。
+description: 分开完成备份和维护窗口恢复，按图核对结果，完整设置与点击步骤按需展开。
 ---
 
 入口：**Manager → 集群 → 备份**。不需要修改 `wukongim.toml`。
 
+<Cards>
+  <Card title="创建可验证备份" description="先测试存储，再完成任务并验证归档。" href="/zh/server/operations/backup-and-restore#backup" />
+  <Card title="在维护窗口恢复" description="确认归档，恢复后验收业务再接回流量。" href="/zh/server/operations/backup-and-restore#restore" />
+</Cards>
+
+权限：备份 `cluster.backup:w`；恢复单独授予 `cluster.restore:w`。归档未加密，须开启存储侧加密。
+
+<section id="backup" className="scroll-m-28">
+
 ## 备份实操
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  setup["①设置并测试存储"] --> run["②备份<br/>256 个 Hash Slots"]
+  run --> archive["③验证并保护归档"]
+```
+
+</div>
+
+先关闭自动备份，归档验证成功后再开启。
+
+| 操作 | 预期结果 |
+| --- | --- |
+| 保存设置 → 测试存储 | 设置已保存；存储“已验证” |
+| 立即备份 | `256/256 Hash Slots`；最近任务“成功” |
+| 验证 → 保护 | 归档 `healthy`；“备份文件验证成功” |
+
+<Callout type="warn" title="多节点必须共享备份目录">
+  所有节点的 `data_dir/backup-repository` 必须指向同一个共享存储。没有共享存储时，选择 OSS、COS 或 S3。
+</Callout>
+
+<details>
+  <summary>示例设置与完整备份步骤</summary>
 
 先不要开启“自动备份”，填写下面的示例值：
 
@@ -30,7 +64,42 @@ description: 跟着示例在 Manager 中完成一次备份和恢复。
 
 **完成标准：** 归档状态为 `healthy`，页面提示“备份文件验证成功”。需要定时执行时，再开启“自动备份”并保存。
 
+</details>
+
+</section>
+
+<section id="restore" className="scroll-m-28">
+
 ## 恢复实操
+
+<Callout type="warn" title="恢复会覆盖当前数据">
+  归档完成时间之后的消息和变更会丢失，客户端也会断开。只在维护窗口执行。
+</Callout>
+
+**开始前：** 各节点 `/readyz` 为 200、无其他管理任务、归档刚验证成功。每节点可用空间：**当前数据 + 归档逻辑大小 × 2 + 1 GiB**。
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  check["①确认归档<br/>与维护窗口"] --> restore["②确认并恢复"]
+  restore --> test["③就绪 + 业务验收"]
+```
+
+</div>
+
+核对集群、归档时间与大小，用当前管理员密码和 `RESTORE <归档 ID>` 确认。期间不停节点、不做其他变更。
+
+**接回流量前：** 任务成功、各节点 `/readyz` 为 200；历史、登录、收发、重连、Webhook 与插件验收通过。
+
+<Callout type="warn" title="只能恢复到原集群">
+  归档只恢复到原集群，不能导入新集群或用于 v2 → v3 迁移。
+</Callout>
+
+**失败时：** 留存任务与错误，不重复恢复；见[故障排查](/zh/server/operations/troubleshooting#maintenance)。
+
+<details>
+  <summary>完整恢复步骤与权限要求</summary>
 
 <Callout type="warn" title="恢复会覆盖当前数据">
   归档完成时间之后的消息和变更会丢失，客户端也会断开。只在维护窗口执行。
@@ -51,3 +120,7 @@ description: 跟着示例在 Manager 中完成一次备份和恢复。
 </Callout>
 
 失败时保留任务和错误信息，不要反复点击恢复。备份需要 `cluster.backup:w`；恢复必须单独授予 `cluster.restore:w`。WuKongIM 不加密归档内容，请开启存储侧加密。
+
+</details>
+
+</section>

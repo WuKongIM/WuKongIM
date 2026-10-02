@@ -16,6 +16,9 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
   artifacts; they do not import app, use cases, or storage internals.
 - `WK_E2E_*` is harness-only and is removed from spawned nodes. Real product
   variables must be passed explicitly through `NodeSpec.Env`.
+- Rendered TOML is also mirrored into product environment variables by default.
+  `WithConfigFileOnly` omits that generated mirror across startup, seed join and
+  stopped-node reconfiguration; explicit `WithNodeEnv` controls remain caller-owned.
 - Unix socket placement uses a short independent workspace path.
 
 ## Main Flows

@@ -1,11 +1,33 @@
 ---
 title: Networking & Client Access
-description: Separate node Transport, HTTP, Gateway, Manager, and client-advertised addresses.
+description: Use a connection diagram to separate listeners, published addresses, and private management access.
 ---
 
-A node serves several traffic planes. A listen address answers where this process accepts connections; an advertised address answers where another system should connect. They are different contracts.
+**Listen address: where this node accepts connections. Published address: where others connect.** Match domains, ports, and TLS to the actual network path.
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  client["Client<br/>Address from /route"] --> edge["Edge proxy<br/>im.example.com:443<br/>TLS"]
+  edge --> node["Node Gateway<br/>0.0.0.0:5200<br/>WS listener"]
+```
+
+</div>
+
+This example terminates WSS at a TLS proxy and forwards WS upstream. Route the external `/ws` path correctly. The trusted backend accesses the Product API to obtain client routing.
 
 ## Traffic planes
+
+| Who connects | Entry to use |
+| --- | --- |
+| Clients | Controlled TCP / WS / WSS edge; reachable from client networks |
+| Business backend | Product API on a trusted network or behind external auth |
+| Peer nodes | Private Transport with bidirectional reachability |
+| Admins and collectors | SSH / private Manager access; metrics and diagnostics restricted |
+
+<details>
+  <summary>Complete traffic, field, and production-boundary reference</summary>
 
 | Traffic | Primary configuration | Consumer | Production boundary |
 | --- | --- | --- | --- |
@@ -16,7 +38,20 @@ A node serves several traffic planes. A listen address answers where this proces
 | Manager | `manager.listen_addr` | Administrators and automation | Loopback or management network only; use SSH tunneling or a private HTTPS proxy and keep authentication enabled |
 | Prometheus | `prometheus.listen_addr` or an external service | Manager and collectors | Never expose directly to the Internet |
 
+</details>
+
 ## Listen is not advertise
+
+| Address purpose | Value in this example |
+| --- | --- |
+| Node WS listener | `0.0.0.0:5200` |
+| Client WSS address | `wss://im.example.com/ws` |
+| Peer address | Real private host and port; never wildcard or loopback |
+
+Static peers use `nodes[].addr`; seed joining uses `cluster.advertise_addr`. Client fields `api.external_*` may point to a proxy; configure its reachable ports and TLS separately.
+
+<details>
+  <summary>Complete TOML example and TLS forwarding notes</summary>
 
 `0.0.0.0` and `[::]` are useful wildcard listeners, but they are not routable peer or client destinations. Static clusters use `nodes[].addr` for peer connections; seed joining uses `cluster.advertise_addr`. Those values need stable, resolvable, reachable hosts and ports.
 
@@ -37,14 +72,40 @@ listeners = [
 
 The names and ports are structural examples. If a load balancer, reverse proxy, or service mesh terminates TLS, still verify the external WSS address, certificate, host and path forwarding, and upstream protocol together.
 
+</details>
+
 ## Exposure policy
+
+<Callout type="warn" title="Product API needs an external trust boundary">
+  Product HTTP routes do not validate general business identity. Use a trusted network or external auth. Public ingress contains only required client ports and a protected API. Keep Manager auth on; use loopback, private networking, or SSH.
+</Callout>
+
+Restrict Transport, metrics, debug, benchmark, and diagnostics separately. A shared HTTP listener does not imply equal trust.
+
+<details>
+  <summary>Full exposure policy and health-check distinction</summary>
 
 - Public ingress should contain only required client ports and a protected product API.
 - Give node Transport, Manager, `/metrics`, `/top/v1/*`, `/debug/pprof/*`, Benchmark, and diagnostics separate network policies. Sharing an HTTP listener does not give them the same trust level.
 - WuKongIM product HTTP routes do not provide general business identity validation. Establish that boundary with a trusted network, API gateway, or external authentication proxy.
 - Load balancers must use `/readyz` for traffic admission. `/healthz` only proves process liveness and cannot prove the node is ready to serve.
 
+</details>
+
 ## Validate before publishing
+
+| Check | Required result |
+| --- | --- |
+| Peer network | Every peer-advertised address is reachable both ways |
+| Backend and client networks | Backend reaches the API; clients reach every `/route` result |
+| Handshake and proxy | TCP / WS / WSS, TLS chain, host / path, and idle timeouts work |
+| Unauthorized networks | Manager, metrics, debug, benchmark, and diagnostics stay unreachable |
+| Each node | `/readyz` returns `200` with `ready: true` before pool admission |
+
+`/healthz` proves only process liveness; it cannot replace readiness checks.
+
+<details>
+  <summary>Full validation steps before publishing</summary>
 
 1. Test bidirectional Transport connections from each node to every peer-advertised address.
 2. Reach the HTTP API from the business network and every `/route` result from the target client network.
@@ -52,4 +113,11 @@ The names and ports are structural examples. If a load balancer, reverse proxy, 
 4. Confirm Manager, metrics, debug, benchmark, and diagnostic endpoints are unreachable from unauthorized networks.
 5. Check `/readyz` per node and admit only nodes returning `200` with `ready: true`.
 
+</details>
+
 Once paths are explicit, use [Security & Access](/en/server/configuration/security) to constrain credentials and administrative surfaces.
+
+<Cards>
+  <Card title="Deploy a multi-node cluster" description="Check configuration, readiness, and ingress per node." href="/en/server/deployment/multi-node" />
+  <Card title="Troubleshoot a failed connection" description="Follow symptoms to inspect routing and connectivity." href="/en/server/operations/troubleshooting" />
+</Cards>

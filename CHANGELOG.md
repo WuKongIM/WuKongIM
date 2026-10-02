@@ -8,7 +8,38 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
-- Read complete E2E metrics snapshots without implicit gzip compression, reject failed or empty responses, and retain same-response observation receipts. / E2E 指标抓取显式使用未压缩的完整快照，拒绝失败或空响应，并记录同一次响应的观测凭据。
+- Simplify bilingual Controller and Slot architecture guides with compact materialization, staged-task, key-routing and metadata-write diagrams; retain complete references in disclosures while keeping physical/logical Slot, observed authority, single-node Raft/FSM, proof, recovery and bounded-capacity rules visible. / 中英文 Controller 与 Slot 架构文档增加简洁的物化、阶段任务、键路由与元数据写入图；完整参考按需展开，物理槽/逻辑 Group、实时权威、单节点 Raft/FSM、证明、恢复与有界容量规则保持可见。
+
+- Simplify bilingual connection routing and Transport guides with short activation, delivery and reconnect diagrams plus separate client/node network views; retain complete technical references in disclosures and keep lease, Session identity, device-conflict, backpressure, timeout, commit and private-network boundaries visible. / 中英文用户连接路由与 Transport 文档增加简洁的激活、投递、重连图和客户端/节点网络对照；完整技术参考按需展开，租约、Session 身份、设备冲突、背压、超时、提交与私网边界保持可见。
+
+- Simplify bilingual architecture onboarding with responsibility cards, separate durable-send and post-commit delivery diagrams, and a compact ISR/HW replication flow; retain complete diagrams and references in disclosures while keeping authority, NoPersist, ordering, backpressure and failover limits visible. / 中英文架构入门增加职责卡片、独立的持久化发送与提交后投递图，以及简洁 ISR/HW 复制流程；完整架构图与参考按需展开，权威、NoPersist、顺序、背压与故障切换边界保持可见。
+
+- Simplify bilingual benchmark and diagnostic tutorials with bounded run/profile diagrams, task entries and expandable complete references; keep load, preflight, delivery, cleanup and MCP access limits visible, and correct the implemented report command. / 中英文压测与诊断教程增加有界运行/采集图、任务入口和可展开完整参考；负载、预检、送达、清理与 MCP 访问限制保持可见，并修正已实现的 report 命令说明。
+
+- Simplify bilingual tool selection, wkcli, and offline database tutorials with task cards, bounded inspection and import diagrams, and expandable complete commands; keep write, offline, format, and restore gates visible and correct the physical/logical Slot names in the tools overview. / 中英文工具首页、wkcli 和离线数据库教程增加任务卡片、有界检查与导入图，完整命令按需展开；写入、离线、格式与恢复门槛保持可见，并修正工具首页物理哈希槽与逻辑 Slot 的名称。
+
+- Illustrate bilingual cluster, storage, and observability configuration with join-model and hash-slot diagrams, exclusive-storage examples, tuning steps, and monitoring/diagnostic layers; retain complete references in disclosures and keep readiness, persistence, GC, and access limits visible. / 中英文节点集群、存储和可观测性配置增加加入方式与哈希槽关系图、独占存储示意、调优步骤和监控诊断分层；完整参考可展开，就绪、持久化、GC 与访问限制保持可见。
+
+- Make bilingual configuration guides task-oriented with four common-setting entries, a TOML-to-restart flow, and separate CONNECT/Manager/Product HTTP trust diagrams; preserve complete defaults and examples in disclosures while keeping override, authentication, and validation rules visible. / 中英文配置教程增加四类常用任务、TOML 到重启流程及独立 CONNECT、Manager、产品 HTTP 鉴权图，完整默认值与示例可展开，覆盖、鉴权和验收规则保持可见。
+
+- Simplify bilingual Linux deployment, networking, and multi-node guides with compact connection flows, expected results, and expandable complete commands/configurations; keep readiness, private access, address rules, and three-node failure limits visible. / 中英文 Linux 部署、网络接入与多节点教程改为简洁连接图、预期结果和可展开完整命令配置，就绪、内网访问、地址规则与三节点故障限制保持可见。
+
+- Turn bilingual backup/restore, scaling, and upgrade guides into compact illustrated flows with expected outcomes and expandable full actions; keep archive verification, safe node removal, compatibility, rollback, and traffic-admission gates visible. / 中英文备份恢复、扩缩容与升级教程改为简洁流程图、预期结果和可展开完整步骤，保留归档验证、安全移除、版本兼容、回滚与接流条件。
+
+- Make bilingual health checks and troubleshooting easier to follow with compact readiness diagrams, recorded Manager captures, six symptom paths, and expandable commands/PromQL; show a five-step operations change flow while keeping readiness, data safety, and stop conditions visible. / 中英文健康检查与排障改为简洁判断图、已记录 Manager 实图、六类故障入口和可展开命令/PromQL；运维首页增加五步变更图，保留就绪、数据安全与停止条件。
+
+- Simplify bilingual push and AI/IoT tutorials into illustrated tasks with expandable requests, separate AI and device learning paths, and six scenario cards; restore large-group section links and improve dark-theme text contrast while keeping delivery, recovery, and execution limits visible. / 精简中英文推送与 AI/IoT 教程，采用图示步骤与可展开请求，分开 AI 和设备学习路径，场景首页改为六张目标卡片；修复大群章节链接并提高深色文字对比度，保留送达、恢复和执行边界。
+
+- Make bilingual Webhook, direct-chat, and group tutorials easier to follow with compact task diagrams, verified chat/recovery captures, explicit expected results, and expandable code and large-group details; keep callback trust, event loss, and partial membership changes visible. / 中英文 Webhook、单聊与群聊教程新增简洁步骤图、实测收发与恢复截图、预期结果和可展开代码，大群说明按需查看，回调信任、事件丢失和成员部分完成等关键限制保持可见。
+
+- Simplify bilingual authentication, messaging, and release checks with illustrated steps and SDK-specific recovery criteria; document backend-owned token expiry and align OpenAPI with all 48 Product HTTP operations, including four send-ban endpoints. / 精简中英文身份认证、消息收发与上线检查，采用图示步骤并按 SDK 验收恢复能力；明确 Token 有效期由业务后端管理，OpenAPI 补齐四个禁言接口，与全部 48 个 Product HTTP 操作对齐。
+
+- Illustrate bilingual Channel and Conversation concepts, shorten the Web EasySDK tutorial with expandable code and verified example captures, and add a three-step Manager guide that distinguishes logical Slots from 256 Hash Slots. / 中英文频道与会话增加概念图，Web EasySDK 教程采用可展开代码与实测截图，Manager 改为三步图文并区分逻辑 Slot 与 256 个 Hash Slot。
+
+- Simplify bilingual onboarding around Docker → Chat Demo → SDK, with current-source chat screenshots, a four-Demo launcher guide, Web SDK recovery illustrations, and expandable advanced details. / 精简中英文入门路线为 Docker → Chat Demo → SDK，补充最新版聊天截图、四个 Demo 一键启动指南与 Web SDK 恢复图示，高级细节按需展开。
+
+- Redesign the bilingual documentation homepage with a messaging code preview, platform shortcuts, guided first-message steps and common references, with responsive light and dark themes. / 重新设计中英文文档首页，新增消息代码预览、平台快捷入口、首条消息引导和常用参考，适配移动端及深浅主题。
+- Add a separate opt-in permission fixed-load diagnostic with bounded per-connection queues, monotonic arrival-to-ACK timing and complete configuration/metrics artifacts; retain historical failed verdicts and performance thresholds. / 新增独立权限固定负载诊断：每连接有界排队、单调时钟到达至 ACK 计时及完整配置/指标证据，保留历史失败结论和性能门槛。
 
 - Add visible home links to all four Demos, including chat login; return to the actual catalog address across dynamically assigned ports and reloads. / 四个 Demo 及聊天登录页新增可见的“返回首页”入口，动态端口和刷新后仍返回实际首页。
 

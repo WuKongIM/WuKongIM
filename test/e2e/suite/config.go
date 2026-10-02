@@ -33,7 +33,9 @@ type NodeSpec struct {
 	LogDir        string
 	// ConfigOverrides appends or replaces rendered WK_* config keys for one node.
 	ConfigOverrides map[string]string
-	// Env appends process environment variables for this node after rendered config values.
+	// ConfigFileOnly prevents mirroring rendered TOML into product environment variables.
+	ConfigFileOnly bool
+	// Env appends explicit process controls after any generated config environment.
 	Env []string
 }
 

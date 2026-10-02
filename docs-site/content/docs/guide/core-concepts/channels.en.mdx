@@ -1,54 +1,61 @@
 ---
 title: Channel
-description: Understand how a Channel represents a message target and organizes direct chat, group chat, membership, and history.
+description: Use direct and group chat diagrams to understand message targets, Channel identity, and membership.
 ---
 
-A Channel is the message “address” or “room.” Every message belongs to one Channel, which determines where the message goes, who may receive it, and the scope in which messages remain ordered.
-
-The combination of `channel_id` and `channel_type` identifies a Channel. The same ID under another type is a different Channel.
+A Channel is a message “address.” Its complete identity is **`channel_id + channel_type`**. The same ID with a different type identifies a different Channel.
 
 ## Why Channels matter
 
-- **Select a target:** Sending to a person or a group is fundamentally selecting a Channel.
-- **Organize participants:** Channel type and membership together determine who may send and receive.
-- **Hold continuous history:** Each Channel numbers, orders, and recovers its ordinary persistent messages without mixing unrelated chats.
-- **Reuse communication primitives:** Notifications, support, live interaction, communities, and Agents can also build on Channels.
+Choose a Channel before sending. It defines the recipient scope and numbers, orders, and recovers its ordinary persistent messages. Notifications, support, live interaction, and Agents can reuse this entry point.
 
 ## Relationship to other concepts
 
-- Sending a **Message** identifies a target Channel; ordinary persistent message order is scoped to that Channel.
-- A **User** participates in direct, group, or other communication through Channels.
-- A **Device** is only an endpoint through which a user accesses a Channel; it does not change Channel identity.
-- A **Conversation** is one user's entry to a Channel. The same Channel has user-specific unread and visibility state.
+<div className="tutorial-diagram">
 
-## The two most common Channel types
+```mermaid
+flowchart TD
+  user["User + Device<br/>send a Message"] --> channel["Channel<br/>target + ordered history"]
+  channel --> conversation["Conversation<br/>personal chat-list entry"]
+```
 
-| Scenario | Choosing the Channel ID | Who owns participation |
-| --- | --- | --- |
-| Direct chat | Use the other user's UID when sending | The product system owns contact, stranger, and other send policy |
-| Group chat | Use a stable group ID from the product system | The product system creates the group and synchronizes members, deny/allow lists, and related state to WuKongIM |
+</div>
 
-When Alice sends directly to Bob, Alice uses Bob's UID as the target. Bob uses Alice's UID when replying. WuKongIM normalizes those two viewpoints to one internal direct-chat history; applications do not construct that internal Channel ID.
+A Device does not change Channel identity. Users can have different unread and visibility state in their Conversations.
 
-WuKongIM also defines specialized types for communities, feeds, live interaction, visitors, and Agents. Use one only when the server, selected SDK, and complete product flow support it. See [Channel Types](/en/api/dictionaries/channel-types) for the current values.
+## Direct chat: send to the peer UID
 
-## A Channel is not the same as a product group
+<div className="tutorial-diagram">
 
-A group chat often shares a group ID with its Channel, but the responsibilities differ:
+```mermaid
+flowchart TD
+  alice["Alice<br/>target: bob"] --> history[Direct-chat history]
+  bob["Bob<br/>target: alice"] --> history
+```
 
-| Product system owns | WuKongIM owns |
+</div>
+
+Callers always use the **peer UID**. WuKongIM normalizes both viewpoints internally. Do not construct the internal Channel ID or write it back as a contact ID.
+
+## Group chat: send to a stable group ID
+
+| Task | Owner |
 | --- | --- |
-| Group name, avatar, announcement, and roles | Channel identity, message routing, and per-Channel order |
-| Who may create, join, invite, or leave | Membership and Channel policy synchronized by trusted services |
-| Content rules, tenant isolation, and moderation | Message persistence, realtime delivery, and offline recovery |
+| Choose the Channel ID | The product supplies a stable group ID |
+| Create, invite, or leave | The product decides; a trusted backend synchronizes membership and policy |
+| Persist, order, and deliver messages | WuKongIM |
 
-After creating a product group, a trusted backend must still synchronize membership and policy with WuKongIM. Knowing a Channel ID alone does not grant permission to join or send.
+**Knowing the group ID does not grant send permission.** Channel Type is not authorization. The product owns membership, roles, deny/allow lists, and content policy.
 
-## Remember when building
+<details>
+  <summary>Group metadata, specialized types, and large groups</summary>
 
-- Store `channel_id + channel_type` as the complete Channel key, never the ID alone.
-- For direct chat, send to the peer UID; do not write the server's normalized internal identity back as a product contact ID.
-- Channel Type is not authorization. The product system still owns membership, roles, and content policy.
-- For 100,000-member groups, use bounded membership updates and paged delivery work as described in the [Large Groups tutorial](/en/guide/tutorials/large-groups).
+The product owns group names, avatars, announcements, roles, tenant isolation, and moderation. WuKongIM stores synchronized membership and policy and provides message persistence, realtime delivery, and offline recovery.
 
-Continue with [User](/en/guide/core-concepts/users) and [Conversation](/en/guide/core-concepts/conversations). For replicas, commit, and migration, read the [Channel Messaging Layer](/en/server/architecture/channels).
+The product also owns contact, stranger, and send policy for direct chats. Use specialized community, feed, live, visitor, or Agent types only when the server, selected SDK, and product flow support them. Values are listed in [Channel Types](/en/api/dictionaries/channel-types).
+
+For 100,000-member groups, bound membership updates and online delivery work and use paging. See [Large Groups](/en/guide/tutorials/large-groups).
+
+</details>
+
+Continue with [User](/en/guide/core-concepts/users) and [Conversation](/en/guide/core-concepts/conversations). For replicas, commit, and migration, see the [Channel Messaging Layer](/en/server/architecture/channels).

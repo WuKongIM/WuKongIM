@@ -3,11 +3,11 @@
   "info": {
     "title": "WuKongIM Product HTTP Runtime API",
     "version": "3.0.0-beta-snapshot",
-    "description": "The 43 core Product HTTP JSON operations, plus the plugin-defined ANY route in x-wukongim-extension-routes. Routes have no built-in authentication.",
+    "description": "The 48 core Product HTTP JSON operations, plus the plugin-defined ANY route in x-wukongim-extension-routes. Routes have no built-in authentication.",
     "x-i18n": {
       "zh": {
         "title": "WuKongIM Product HTTP 运行时 API",
-        "description": "与当前运行时的 43 个核心 Product HTTP JSON 操作对齐；插件定义的 ANY 路由见 x-wukongim-extension-routes。这些路由没有内建鉴权。"
+        "description": "与当前运行时的 48 个核心 Product HTTP JSON 操作对齐；插件定义的 ANY 路由见 x-wukongim-extension-routes。这些路由没有内建鉴权。"
       }
     }
   },
@@ -1941,6 +1941,348 @@
           }
         }
       }
+    },
+    "/user/send_ban": {
+      "get": {
+        "operationId": "getUserSendBan",
+        "summary": "Read user send restriction",
+        "description": "Read one current Slot-owned send policy without returning credentials.",
+        "x-i18n": {
+          "zh": {
+            "summary": "读取用户全局发送限制",
+            "description": "读取当前 Slot 权威发送策略，不返回凭据。"
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "responses": {
+          "200": {
+            "description": "Authoritative policy / 权威策略",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSendBanResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, identity, flag or version / 无效请求",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendBanError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authority unavailable or restore maintenance / 权威不可用或恢复维护",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SendBanError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MaintenanceError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "query",
+            "required": true,
+            "description": "UID with no surrounding whitespace; runtime limits its UTF-8 encoding to 512 bytes.",
+            "x-i18n": {
+              "zh": {
+                "description": "UID 不得含首尾空白；运行时将 UTF-8 编码限制为 512 字节。"
+              }
+            },
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512,
+              "pattern": "^\\S(?:[\\s\\S]*\\S)?$",
+              "description": "UID with no surrounding whitespace; runtime limits its UTF-8 encoding to 512 bytes.",
+              "x-i18n": {
+                "zh": {
+                  "description": "UID 不得含首尾空白；运行时将 UTF-8 编码限制为 512 字节。"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "setUserSendBan",
+        "summary": "Set user send restriction",
+        "description": "Atomically set one send policy with optional decimal-string CAS; unchanged values retain the version.",
+        "x-i18n": {
+          "zh": {
+            "summary": "设置用户全局发送限制",
+            "description": "在 Slot 应用内原子变更发送策略，支持字符串 CAS；相同值保留版本。"
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "responses": {
+          "200": {
+            "description": "Authoritative policy / 权威策略",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserSendBanResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, identity, flag or version / 无效请求",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendBanError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authority unavailable or restore maintenance / 权威不可用或恢复维护",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SendBanError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MaintenanceError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict or exhaustion / 版本冲突或耗尽",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendBanError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "$ref": "#/components/requestBodies/UserSendBan"
+        }
+      }
+    },
+    "/channel/send_ban": {
+      "get": {
+        "operationId": "getChannelSendBan",
+        "summary": "Read channel send restriction",
+        "description": "Read one current Slot-owned send policy without returning credentials.",
+        "x-i18n": {
+          "zh": {
+            "summary": "读取源 Channel发送限制",
+            "description": "读取当前 Slot 权威发送策略，不返回凭据。"
+          }
+        },
+        "tags": [
+          "Channels"
+        ],
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "responses": {
+          "200": {
+            "description": "Authoritative policy / 权威策略",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelSendBanResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, identity, flag or version / 无效请求",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendBanError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authority unavailable or restore maintenance / 权威不可用或恢复维护",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SendBanError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MaintenanceError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Non-person Channel not found / 非个人 Channel 不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendBanError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "channel_id",
+            "in": "query",
+            "required": true,
+            "description": "Actual source Channel ID, at most 1024 UTF-8 bytes; person IDs must be canonical and CMD-derived IDs are rejected.",
+            "x-i18n": {
+              "zh": {
+                "description": "实际源 Channel ID，最多 1024 个 UTF-8 字节；个人 Channel ID 必须是规范编码，拒绝 CMD 派生 ID。"
+              }
+            },
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "pattern": "^\\S(?:[\\s\\S]*\\S)?$",
+              "description": "Actual source Channel ID, at most 1024 UTF-8 bytes; person IDs must be canonical and CMD-derived IDs are rejected.",
+              "x-i18n": {
+                "zh": {
+                  "description": "实际源 Channel ID，最多 1024 个 UTF-8 字节；个人 Channel ID 必须是规范编码，拒绝 CMD 派生 ID。"
+                }
+              }
+            }
+          },
+          {
+            "name": "channel_type",
+            "in": "query",
+            "required": true,
+            "description": "Source Channel type; 1 denotes a canonical person Channel, 2 a group.",
+            "x-i18n": {
+              "zh": {
+                "description": "源 Channel 类型；1 为规范个人 Channel，2 为群组。"
+              }
+            },
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 255,
+              "description": "Source Channel type; 1 denotes a canonical person Channel, 2 a group.",
+              "x-i18n": {
+                "zh": {
+                  "description": "源 Channel 类型；1 为规范个人 Channel，2 为群组。"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "setChannelSendBan",
+        "summary": "Set channel send restriction",
+        "description": "Atomically set one send policy with optional decimal-string CAS; unchanged values retain the version.",
+        "x-i18n": {
+          "zh": {
+            "summary": "设置源 Channel发送限制",
+            "description": "在 Slot 应用内原子变更发送策略，支持字符串 CAS；相同值保留版本。"
+          }
+        },
+        "tags": [
+          "Channels"
+        ],
+        "security": [],
+        "x-wukongim-trust": "trusted-backend-only",
+        "responses": {
+          "200": {
+            "description": "Authoritative policy / 权威策略",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelSendBanResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, identity, flag or version / 无效请求",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendBanError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Authority unavailable or restore maintenance / 权威不可用或恢复维护",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SendBanError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MaintenanceError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Non-person Channel not found / 非个人 Channel 不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendBanError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Version conflict/exhaustion or Channel disbanded / 版本冲突、耗尽或 Channel 已解散",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendBanError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "$ref": "#/components/requestBodies/ChannelSendBan"
+        }
+      }
     }
   },
   "components": {
@@ -2360,6 +2702,38 @@
         "x-i18n": {
           "zh": {
             "description": "先用空游标获取基线，再加载历史；拉完 more 分页，在同一事务中合并版本并保存游标。此接口返回最新状态。"
+          }
+        }
+      },
+      "UserSendBan": {
+        "description": "Strict bounded policy mutation.",
+        "x-i18n": {
+          "zh": {
+            "description": "严格、有界的策略变更。"
+          }
+        },
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/UserSendBanRequest"
+            }
+          }
+        }
+      },
+      "ChannelSendBan": {
+        "description": "Strict bounded policy mutation.",
+        "x-i18n": {
+          "zh": {
+            "description": "严格、有界的策略变更。"
+          }
+        },
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ChannelSendBanRequest"
+            }
           }
         }
       }
@@ -2855,8 +3229,21 @@
             "default": 0
           },
           "send_ban": {
-            "type": "integer",
-            "default": 0
+            "type": [
+              "integer",
+              "null"
+            ],
+            "enum": [
+              0,
+              1,
+              null
+            ],
+            "description": "Optional strict flag: 0 clears and 1 sets the policy. Omitted or null preserves its current value at atomic apply; new Channels start unrestricted.",
+            "x-i18n": {
+              "zh": {
+                "description": "可选严格标志：0 清除，1 设置策略；省略或 null 在原子应用时保留当前值，新 Channel 默认为允许。"
+              }
+            }
           },
           "allow_stranger": {
             "type": "integer",
@@ -2896,8 +3283,21 @@
             "default": 0
           },
           "send_ban": {
-            "type": "integer",
-            "default": 0
+            "type": [
+              "integer",
+              "null"
+            ],
+            "enum": [
+              0,
+              1,
+              null
+            ],
+            "description": "Optional strict flag: 0 clears and 1 sets the policy. Omitted or null preserves its current value at atomic apply; new Channels start unrestricted.",
+            "x-i18n": {
+              "zh": {
+                "description": "可选严格标志：0 清除，1 设置策略；省略或 null 在原子应用时保留当前值，新 Channel 默认为允许。"
+              }
+            }
           },
           "allow_stranger": {
             "type": "integer",
@@ -5420,6 +5820,400 @@
         "x-i18n": {
           "zh": {
             "description": "修改或临时读取失败；不返回部分结果。"
+          }
+        }
+      },
+      "UserSendBanRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "uid",
+          "send_ban"
+        ],
+        "properties": {
+          "uid": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "pattern": "^\\S(?:[\\s\\S]*\\S)?$",
+            "description": "UID with no surrounding whitespace; runtime limits its UTF-8 encoding to 512 bytes.",
+            "x-i18n": {
+              "zh": {
+                "description": "UID 不得含首尾空白；运行时将 UTF-8 编码限制为 512 字节。"
+              }
+            }
+          },
+          "channel_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "",
+              null
+            ],
+            "description": "Must be absent, empty or null for a user policy.",
+            "x-i18n": {
+              "zh": {
+                "description": "用户策略须省略此字段，或传空字符串、null。"
+              }
+            }
+          },
+          "channel_type": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "enum": [
+              0,
+              null
+            ],
+            "description": "Must be absent, zero or null for a user policy.",
+            "x-i18n": {
+              "zh": {
+                "description": "用户策略须省略此字段，或传 0、null。"
+              }
+            }
+          },
+          "send_ban": {
+            "type": "integer",
+            "enum": [
+              0,
+              1
+            ],
+            "description": "Required integer flag: 1 restricts application SEND, 0 clears it. Login, receiving and protocol ACKs remain allowed.",
+            "x-i18n": {
+              "zh": {
+                "description": "必填整数标志：1 限制应用 SEND，0 解除限制；登录、接收和协议 ACK 仍允许。"
+              }
+            }
+          },
+          "expected_version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]{1}|1844674407370955161[0-4]|18446744073709551615)$",
+            "description": "Optional apply-time CAS version; omitted or null means unconditional. Overflow, leading zeros and signs are rejected.",
+            "x-i18n": {
+              "zh": {
+                "description": "可选的应用时 CAS 版本；省略或 null 表示无条件写入，拒绝溢出、前导零和符号。"
+              }
+            }
+          }
+        },
+        "description": "One strict JSON object, at most 4096 bytes. Unknown fields and trailing JSON are rejected; numeric fields use Go integer syntax.",
+        "x-i18n": {
+          "zh": {
+            "description": "严格单个 JSON 对象，最多 4096 字节；拒绝未知字段和尾随 JSON，数值字段须符合 Go 整数语法。"
+          }
+        }
+      },
+      "UserSendBanResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "integer",
+            "const": 200,
+            "description": "HTTP status repeated in the body.",
+            "x-i18n": {
+              "zh": {
+                "description": "响应体重复的 HTTP 状态。"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "uid",
+              "send_ban",
+              "send_ban_version"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "uid": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512,
+                "pattern": "^\\S(?:[\\s\\S]*\\S)?$",
+                "description": "UID with no surrounding whitespace; runtime limits its UTF-8 encoding to 512 bytes.",
+                "x-i18n": {
+                  "zh": {
+                    "description": "UID 不得含首尾空白；运行时将 UTF-8 编码限制为 512 字节。"
+                  }
+                }
+              },
+              "send_ban": {
+                "type": "integer",
+                "enum": [
+                  0,
+                  1
+                ],
+                "description": "Required integer flag: 1 restricts application SEND, 0 clears it. Login, receiving and protocol ACKs remain allowed.",
+                "x-i18n": {
+                  "zh": {
+                    "description": "必填整数标志：1 限制应用 SEND，0 解除限制；登录、接收和协议 ACK 仍允许。"
+                  }
+                }
+              },
+              "send_ban_version": {
+                "type": "string",
+                "pattern": "^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]{1}|1844674407370955161[0-4]|18446744073709551615)$",
+                "description": "Canonical decimal uint64 policy version; keep it as a string, including above 2^53.",
+                "x-i18n": {
+                  "zh": {
+                    "description": "规范十进制 uint64 策略版本；保持字符串表示，包括超过 2^53 的值。"
+                  }
+                }
+              }
+            },
+            "description": "Authoritative policy without credential fields.",
+            "x-i18n": {
+              "zh": {
+                "description": "权威策略，不包含凭据字段。"
+              }
+            }
+          }
+        },
+        "description": "Policy response. Versions are independent for UID and source Channel.",
+        "x-i18n": {
+          "zh": {
+            "description": "策略响应；UID 与源 Channel 的版本相互独立。"
+          }
+        }
+      },
+      "ChannelSendBanRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "channel_id",
+          "channel_type",
+          "send_ban"
+        ],
+        "properties": {
+          "channel_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "pattern": "^\\S(?:[\\s\\S]*\\S)?$",
+            "description": "Actual source Channel ID, at most 1024 UTF-8 bytes; person IDs must be canonical and CMD-derived IDs are rejected.",
+            "x-i18n": {
+              "zh": {
+                "description": "实际源 Channel ID，最多 1024 个 UTF-8 字节；个人 Channel ID 必须是规范编码，拒绝 CMD 派生 ID。"
+              }
+            }
+          },
+          "channel_type": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 255,
+            "description": "Source Channel type; 1 denotes a canonical person Channel, 2 a group.",
+            "x-i18n": {
+              "zh": {
+                "description": "源 Channel 类型；1 为规范个人 Channel，2 为群组。"
+              }
+            }
+          },
+          "uid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "",
+              null
+            ],
+            "description": "Must be absent, empty or null for a Channel policy.",
+            "x-i18n": {
+              "zh": {
+                "description": "Channel 策略须省略此字段，或传空字符串、null。"
+              }
+            }
+          },
+          "send_ban": {
+            "type": "integer",
+            "enum": [
+              0,
+              1
+            ],
+            "description": "Required integer flag: 1 restricts application SEND, 0 clears it. Login, receiving and protocol ACKs remain allowed.",
+            "x-i18n": {
+              "zh": {
+                "description": "必填整数标志：1 限制应用 SEND，0 解除限制；登录、接收和协议 ACK 仍允许。"
+              }
+            }
+          },
+          "expected_version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]{1}|1844674407370955161[0-4]|18446744073709551615)$",
+            "description": "Optional apply-time CAS version; omitted or null means unconditional. Overflow, leading zeros and signs are rejected.",
+            "x-i18n": {
+              "zh": {
+                "description": "可选的应用时 CAS 版本；省略或 null 表示无条件写入，拒绝溢出、前导零和符号。"
+              }
+            }
+          }
+        },
+        "description": "One strict JSON object, at most 4096 bytes. Unknown fields and trailing JSON are rejected; numeric fields use Go integer syntax.",
+        "x-i18n": {
+          "zh": {
+            "description": "严格单个 JSON 对象，最多 4096 字节；拒绝未知字段和尾随 JSON，数值字段须符合 Go 整数语法。"
+          }
+        }
+      },
+      "ChannelSendBanResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "integer",
+            "const": 200,
+            "description": "HTTP status repeated in the body.",
+            "x-i18n": {
+              "zh": {
+                "description": "响应体重复的 HTTP 状态。"
+              }
+            }
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "channel_id",
+              "channel_type",
+              "send_ban",
+              "send_ban_version"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "channel_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "pattern": "^\\S(?:[\\s\\S]*\\S)?$",
+                "description": "Actual source Channel ID, at most 1024 UTF-8 bytes; person IDs must be canonical and CMD-derived IDs are rejected.",
+                "x-i18n": {
+                  "zh": {
+                    "description": "实际源 Channel ID，最多 1024 个 UTF-8 字节；个人 Channel ID 必须是规范编码，拒绝 CMD 派生 ID。"
+                  }
+                }
+              },
+              "channel_type": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 255,
+                "description": "Source Channel type; 1 denotes a canonical person Channel, 2 a group.",
+                "x-i18n": {
+                  "zh": {
+                    "description": "源 Channel 类型；1 为规范个人 Channel，2 为群组。"
+                  }
+                }
+              },
+              "send_ban": {
+                "type": "integer",
+                "enum": [
+                  0,
+                  1
+                ],
+                "description": "Required integer flag: 1 restricts application SEND, 0 clears it. Login, receiving and protocol ACKs remain allowed.",
+                "x-i18n": {
+                  "zh": {
+                    "description": "必填整数标志：1 限制应用 SEND，0 解除限制；登录、接收和协议 ACK 仍允许。"
+                  }
+                }
+              },
+              "send_ban_version": {
+                "type": "string",
+                "pattern": "^(?:0|[1-9][0-9]{0,18}|1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]{1}|1844674407370955161[0-4]|18446744073709551615)$",
+                "description": "Canonical decimal uint64 policy version; keep it as a string, including above 2^53.",
+                "x-i18n": {
+                  "zh": {
+                    "description": "规范十进制 uint64 策略版本；保持字符串表示，包括超过 2^53 的值。"
+                  }
+                }
+              }
+            },
+            "description": "Authoritative policy without credential fields.",
+            "x-i18n": {
+              "zh": {
+                "description": "权威策略，不包含凭据字段。"
+              }
+            }
+          }
+        },
+        "description": "Policy response. Versions are independent for UID and source Channel.",
+        "x-i18n": {
+          "zh": {
+            "description": "策略响应；UID 与源 Channel 的版本相互独立。"
+          }
+        }
+      },
+      "SendBanError": {
+        "type": "object",
+        "required": [
+          "status",
+          "code",
+          "msg"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "integer",
+            "enum": [
+              400,
+              404,
+              409,
+              503
+            ],
+            "description": "HTTP failure status.",
+            "x-i18n": {
+              "zh": {
+                "description": "HTTP 失败状态。"
+              }
+            }
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "invalid_request",
+              "channel_not_found",
+              "version_conflict",
+              "channel_disbanded",
+              "version_exhausted",
+              "temporarily_unavailable"
+            ],
+            "description": "Typed policy failure; no current policy or version is included.",
+            "x-i18n": {
+              "zh": {
+                "description": "类型化策略错误，不包含当前策略或版本。"
+              }
+            }
+          },
+          "msg": {
+            "type": "string",
+            "description": "Error message; invalid input may use the generic invalid send ban request message.",
+            "x-i18n": {
+              "zh": {
+                "description": "错误消息；无效输入可能使用通用 invalid send ban request 消息。"
+              }
+            }
+          }
+        },
+        "description": "Policy error envelope; maintenance uses the separate MaintenanceError envelope.",
+        "x-i18n": {
+          "zh": {
+            "description": "策略错误响应；维护状态使用独立 MaintenanceError 响应。"
           }
         }
       }

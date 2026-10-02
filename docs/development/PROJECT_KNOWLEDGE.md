@@ -380,6 +380,11 @@ specification, runbook, report, or module documentation; link to them when neede
   identity and authorization. Manager, Debug, Bench, and MCP are separate privileged
   surfaces. Bench setup uses gated `/bench/v1/*` APIs and a bearer capability when
   remotely reachable. Operations MCP uses its own token and read-only tool boundary.
+- Gateway token authentication compares the stored UID/device Token exactly;
+  Product HTTP credential updates have no expiry field and JWT `exp` is not
+  interpreted. Application backends own expiry, rotation, and revocation. Device
+  quit clears the stored Token and schedules matching handling-node connections
+  for closure; verify revocation and live connection closure separately.
 - Gateway direct/PROXY v1/v2 auto-detection accepts unverified peer address assertions
   when `proxy_protocol_trusted_cidrs` is empty. A nonempty list admits only configured
   proxy peers. These addresses are diagnostic inputs, not built-in token or message
@@ -432,6 +437,14 @@ specification, runbook, report, or module documentation; link to them when neede
   rejected windows, missing telemetry, OOMs, or process restarts cannot establish
   production capacity or release qualification. Keep exact source/artifact identity
   and required workload evidence; see [performance triage](PERF_TRIAGE.md).
+- Fixed-arrival diagnostics must retain every planned ordinal, including driver
+  queue residence, rejected dispatch and incomplete work. Bounded queues keep
+  transient connection occupancy from silently changing the offered population;
+  scheduled-to-completion monotonic latency still includes all queue delay.
+  Preserve actual rendered TOML and full metric bodies for independent replay,
+  normalizing only predeclared exact fixture addresses/paths. A failed same-binary
+  repeatability control prevents attributing a candidate comparison; keep failed
+  populations and original performance thresholds unchanged.
 - Mixed SEND benchmark `stage-*` and `channel-*` diagnostics subtract registry
   snapshots taken after warmup and after measured handlers complete, before
   projector drain. `ResetTimer` alone never resets Prometheus counters. These
@@ -459,6 +472,10 @@ specification, runbook, report, or module documentation; link to them when neede
   Publish bilingual routes together and derive current versions from their canonical
   manifests/Changelog. Historical SDK or benchmark receipts do not certify newer
   artifacts. Keep public contracts separate from private interface inventories.
+- Public onboarding follows Docker single-node cluster → Chat Demo exchange →
+  platform SDK integration. Tutorial screenshots depict real versioned runs;
+  keep original captures and bilingual numbered captions aligned through
+  [the capture guide](../../docs-site/TUTORIAL_SCREENSHOTS.md).
 - Channel read RPCs classify typed temporary dependency transport failures before
   serialization using the existing not-ready code. Nested Slot-authority connection
   loss must not degrade into generic text and ordinary HTTP 400; unknown text,
@@ -709,20 +726,6 @@ specification, runbook, report, or module documentation; link to them when neede
   header requests already do. Turning canceled reads into generic target failures
   makes normal coordinator stop lose terminal evidence; unrelated read errors
   must still fail even when cancellation happens concurrently.
-
-- Full-registry observation can perturb SEND tails. A sampler that stops when
-  a closed-loop SEND wave finishes performs more observations in slower windows,
-  so equal cadence does not imply equal observer work or comparable whole-node
-  CPU. Keep fixed offered arrivals, fixed CPU duration and fixed full-snapshot
-  counts for an independent comparison; retain historical failed verdicts.
-  E2E metric reads explicitly negotiate identity and reject non-200, empty or
-  malformed snapshots. Same-response receipts bind status, logical bytes/hash
-  and observation bounds; family completeness still needs scenario assertions.
-  Use monotonic durations for scheduling, elapsed time and CPU-query deadline
-  bounds. UTC timestamps can adjust during a window; keep them as evidence and
-  retain inconsistencies rather than using wall-clock subtraction to qualify
-  latency or silently clamping a negative deadline gap. Native cumulative CPU
-  and process identity remain independently verifiable.
 
 - Five-second worker cuts retain configured hot SENDACK P99 threshold counts.
   Interval counts can trigger one independent diagnostic profile after an earlier

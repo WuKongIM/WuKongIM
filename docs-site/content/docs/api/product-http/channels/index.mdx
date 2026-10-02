@@ -22,4 +22,6 @@ description: Channel 元数据、订阅者与名单管理。
 <Card href="/zh/api/product-http/channels/removeChannelAllowlistMembers" title="移除 Channel 允许列表成员" description="从派生 Channel 允许列表移除非空白 UID。" />
 <Card href="/zh/api/product-http/channels/removeAllChannelAllowlistMembers" title="移除全部 Channel 允许列表成员" description="通过内部有界遍历清空派生允许列表。" />
 <Card href="/zh/api/product-http/channels/listChannelAllowlistMembers" title="列出全部 Channel 允许列表成员" description="返回无界完整列表；channel_type 缺失或无效时会静默视为 0。" />
+<Card href="/zh/api/product-http/channels/getChannelSendBan" title="读取源 Channel发送限制" description="读取当前 Slot 权威发送策略，不返回凭据。" />
+<Card href="/zh/api/product-http/channels/setChannelSendBan" title="设置源 Channel发送限制" description="在 Slot 应用内原子变更发送策略，支持字符串 CAS；相同值保留版本。" />
 </Cards>

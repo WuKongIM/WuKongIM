@@ -1,9 +1,41 @@
 ---
-title: 运行聊天演示
-description: 理解内嵌 Chat Demo 的入口、工作方式和生产安全边界。
+title: 体验四个 Demo
+description: 一键启动即时聊天、流式回复、在线客服和 Agent，选择场景开始体验。
 ---
 
-Chat Demo 是随 `wukongim` 软件包提供的浏览器应用。Linux 服务启动后，无需单独运行前端服务。
+## 1. 一键启动
+
+准备 **Go 1.25+、Node.js 22.12+（或 20.19+）和 npm**。在当前仓库根目录运行：
+
+```bash
+node demo/start.mjs
+```
+
+启动器会准备一个 **256 hash slots 的单节点集群**和所需业务服务，自动打开首页。首次需要下载依赖；默认模拟模型无需 Key。
+
+首页默认是 `http://127.0.0.1:5174/demos/`，占用时使用空闲端口。**以终端输出和自动打开的地址为准**；各 Demo 已自动连接本次集群。按 `Ctrl+C` 关闭本次全部进程。
+
+<TutorialScreenshot src="/tutorials/demos/catalog.jpg" alt="最新源码 Demo 首页包含即时聊天、流式回复、在线客服和 Agent 四个场景。点击查看原图。" width={1280} height={1717}>
+  从首页选一个场景；每个 Demo 顶部都有“返回首页”。截图来自本地 `main`，发布镜像中的入口取决于其版本。
+</TutorialScreenshot>
+
+## 2. 选一个场景
+
+| Demo | 先做什么 | 可以体验 |
+| --- | --- | --- |
+| 即时聊天 | [登录 Alice 与 Bob](/zh/guide/quick-start/first-message) | 单聊、群聊、消息编辑、历史恢复 |
+| 流式回复 | 创建演示账号并连接，发送一个问题 | 逐段回复、取消、失败与恢复 |
+| 在线客服 | 开始演示，访客提问后转人工，客服接入 | AI 接待、人工接管、多访客会话 |
+| Agent | 开始演示，发起任务并查看工具卡片 | 工具调用、待办确认、暂停与取消 |
+
+这四个 Demo 来自当前源码；**只启动 Docker 容器不会启动客服或 Agent 的 Node 业务后端**。完整体验使用上面的一键启动。源码及独立运行方式见 [demo/README.md](https://github.com/WuKongIM/WuKongIM/blob/main/demo/README.md)。
+
+<Callout type="warn" title="仅用于本机测试">
+  启动器只监听本机。聊天 Demo 的“创建或更新演示凭据”会写入测试 UID 的 Token；已有账号与迁移验收保持不勾选。生产身份与权限应由受信任的业务后端管理。
+</Callout>
+
+<details>
+<summary>已有 Linux / Docker 集群：访问 Chat Demo</summary>
 
 ## 访问方式
 
@@ -44,6 +76,12 @@ Demo 先调用 `/route` 获取客户端 WebSocket 地址，再使用 JavaScript 
 
 相同 UID 和相同设备标记的主设备连接可能互相替换。并行测试时请使用不同 UID，或使用独立浏览器会话。
 
+
+</details>
+
+<details>
+<summary>生产接入的边界</summary>
+
 ## 生产边界
 
 <Callout type="error" title="不要暴露演示认证流程">
@@ -58,3 +96,5 @@ Demo 先调用 `/route` 获取客户端 WebSocket 地址，再使用 JavaScript 
 - 选择合适的客户端 SDK，并处理重连、离线同步和本地消息状态。
 
 如果双向消息已经成功，继续阅读[下一步](/zh/guide/quick-start/next-steps)。
+
+</details>
