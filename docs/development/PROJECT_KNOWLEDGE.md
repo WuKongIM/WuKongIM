@@ -1432,3 +1432,11 @@ specification, runbook, report, or module documentation; link to them when neede
   full Removing child/Owner and nonregressing cursor with the same accounting
   frontier. Unknown effects, changed intent and release/retirement remain failures.
   See [sealing contention](../specs/mqtt-source-drain-contention.md).
+- [MQTT storage partition acceptance](../reports/mqtt-storage-partition/README.md)
+  uses live three-node, 256-hash-Slot clusters and test-owned bidirectional TCP
+  relays. Node-local TCP/public listeners remain live. Reserved gauges precede
+  physical preparation; only the positive-charge post-commit witness can prove
+  that the delayed commit finished before the reply path was healed. Completion
+  requires persistent replay, independent ACK protection and zero debt after
+  retirement/reopened delivery. This finite scenario does not qualify membership
+  changes, arbitrary corruption, all partition permutations or other platforms.

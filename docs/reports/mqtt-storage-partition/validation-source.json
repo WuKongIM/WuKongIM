@@ -1,0 +1,73 @@
+{
+  "base": "eb4c70b270193b22a520b8fe06b44ec72b19f333",
+  "platform": {
+    "system": "Darwin",
+    "machine": "arm64",
+    "macos": "15.1"
+  },
+  "go_version": "go1.25.11",
+  "production_go_files": 3758,
+  "production_go_sha256": "d6ce43c86911f73cb63d09a5bc53f7f38700786a70d5886556ac417ec4a111eb",
+  "module_files": {
+    "go.mod": "cdc5ca406087d0a8376ea3770c05dc4a7df7544ce746b64aa9048c0e6d9eed1d",
+    "go.sum": "68ffe83def79e0889fffa722ac7d0a18d7bce52e01e8d8395da56da1e96975fb"
+  },
+  "changed_files": [
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "sha256": "09ff16629864863979601173e10eec2d81dc0ad3359d5f58e4a67e2b4d3f7fa0"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "sha256": "d118ba59a275122008d41e80cf4caad0dc3e7a2b34b10e4a0b3febc3916c1443"
+    },
+    {
+      "path": "docs/specs/mqtt-storage-partition.md",
+      "sha256": "30dcdc5804da1580c9459b567e4409a4781e7cb54a2e52e537493a1354c3bebb"
+    },
+    {
+      "path": "pkg/db/message/mqtt_storage_refund.go",
+      "sha256": "76d9646c8b442a747faeb841b832d0eb17e9134da23959edd4fe68420081adb7"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "efced202c1317c668dfb2cc4899277e01a79d18be1a081b62110874b9fd79da3"
+    },
+    {
+      "path": "test/e2e/mqtt/storage_partition/AGENTS.md",
+      "sha256": "af14d165fa6a1e8e88dbff2143bf86696035b20bd4e06a564287f1d4cf848c9a"
+    },
+    {
+      "path": "test/e2e/mqtt/storage_partition/partition_test.go",
+      "sha256": "ca0ffafc2b239631b6b12756b1cd7cf8062b1c219381d674e1cba58a5ab32709"
+    },
+    {
+      "path": "test/e2e/mqtt/storage_partition/unknown_test.go",
+      "sha256": "1398e313f3a3c982e38dbc47ed2874dbe1ae856c0eba4525935526954d7a5db2"
+    },
+    {
+      "path": "test/e2e/suite/FLOW.md",
+      "sha256": "5454091dd967518b37ea041a0598f8164dd6b688624641f8d10c9b8ebde31d66"
+    },
+    {
+      "path": "test/e2e/suite/runtime.go",
+      "sha256": "e157ff87031324ae1ac4cf6b33b5bc4ac64820f6ac2323decf1c3ee378c4043c"
+    },
+    {
+      "path": "test/e2e/suite/tcp_partition.go",
+      "sha256": "9e51c0e81f9652b46c637568272ddbe8eedf6f67484aad4aefd46d8c5653a5cd"
+    }
+  ],
+  "binaries": [
+    {
+      "path": "/tmp/wukongim-storage-partition-final",
+      "sha256": "b1091f6901cf03ae9dfb5f809e68b45a29dcad520f693fc3db4f5ad17baaca36",
+      "instrumented": false
+    },
+    {
+      "path": "/tmp/wukongim-storage-partition-final-gofail",
+      "sha256": "14ed0af090c67b58923f6c9eeffb13aea0bcad50f5d7bd53c53e6a7e64ea51a4",
+      "instrumented": true
+    }
+  ]
+}

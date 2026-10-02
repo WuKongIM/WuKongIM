@@ -1,0 +1,43 @@
+{
+  "base": "eb4c70b270193b22a520b8fe06b44ec72b19f333",
+  "source_context": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "f28d0dc3b26d8eec22253ecc7bdae1c8d590f54110a2cd8f2332e6ed18099a57"
+    },
+    {
+      "path": "test/e2e/mqtt/AGENTS.md",
+      "sha256": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f"
+    },
+    {
+      "path": "test/e2e/suite/FLOW.md",
+      "sha256": "75aaacde354f6902998ec9b0fb66aa6a3f05c06be7d4cde88e8b06b78da7948d"
+    },
+    {
+      "path": "pkg/cluster/FLOW.md",
+      "sha256": "33ad01b86572f004efefb77e2b2d2cb85157ae262cff7edc565958656e4cabc2"
+    },
+    {
+      "path": "pkg/controller/FLOW.md",
+      "sha256": "f514c03f26f91d0fd43b96505bb3c9da5d5fd1fb186cadfba09cd93d58f34d89"
+    },
+    {
+      "path": "pkg/db/FLOW.md",
+      "sha256": "33c7ba81c18ed8cb377e9bef541526028ef31e64dd03becc7ac1ea6cc14fb10a"
+    },
+    {
+      "path": "pkg/db/message/FLOW.md",
+      "sha256": "c287c8b95022894a1c1211cd6fd3b03d449d0cc31df2a0048f0cc838cfa41917"
+    }
+  ],
+  "introduced_context": [
+    {
+      "path": "test/e2e/mqtt/storage_partition/AGENTS.md",
+      "sha256": "af14d165fa6a1e8e88dbff2143bf86696035b20bd4e06a564287f1d4cf848c9a"
+    }
+  ]
+}

@@ -1,0 +1,196 @@
+{
+  "status": "passed",
+  "base": "eb4c70b270193b22a520b8fe06b44ec72b19f333",
+  "environment": {
+    "platform": "macOS 15.1 arm64",
+    "go_version": "go1.25.11",
+    "PATH": "/tmp/will-admission-toolchain/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin",
+    "GOMODCACHE": "/Users/tt/.codex/will-append-runtime/gomod",
+    "GOPROXY": "https://goproxy.cn,direct",
+    "GOTOOLCHAIN": "local",
+    "GOWORK": "off"
+  },
+  "commands": [
+    {
+      "name": "ordinary-product-final-build",
+      "command": "go build -p 1 -buildvcs=false -o /tmp/wukongim-storage-partition-final ./cmd/wukongim",
+      "exit_code": 0,
+      "log": "logs/mqtt-partition-final-rebuild.log.gz"
+    },
+    {
+      "name": "fault-product-final-build",
+      "source": "/tmp/wk-mqtt-partition-final-fault-source",
+      "steps": [
+        "copy final pkg/db/message/mqtt_storage_refund.go into the previously materialized temporary gofail source",
+        "/tmp/mqtt-capacity-gofail enable pkg/db/message/mqtt_storage_refund.go",
+        "scripts/gofail-postprocess-generated.sh /tmp/wk-mqtt-partition-final-fault-source pkg/db/message:message",
+        "go build -p 1 -buildvcs=false -o /tmp/wukongim-storage-partition-final-gofail ./cmd/wukongim"
+      ],
+      "exit_code": 0,
+      "log": "logs/mqtt-partition-final-gofail-rebuild.log.gz"
+    },
+    {
+      "name": "accepted-live-partition",
+      "command": "WK_E2E_BINARY=/tmp/wukongim-storage-partition-final WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-storage-partition-final-normal go test -p 1 -race -tags=e2e ./test/e2e/mqtt/storage_partition -run '^TestPartitionRetainsAcceptedStorageAndReopensAfterRecovery$' -count=1 -timeout=5m -v",
+      "exit_code": 0,
+      "case_seconds": 109.8,
+      "package_seconds": 111.873,
+      "log": "logs/mqtt-partition-final-normal-race.log.gz",
+      "receipt": "cases/mqtt-storage-partition-accepted.json"
+    },
+    {
+      "name": "unknown-physical-preparation",
+      "command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-storage-partition-final-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-storage-partition-final-unknown go test -p 1 -race -tags=e2e ./test/e2e/mqtt/storage_partition -run '^TestPartitionRetainsUnknownPreparationUntilResolved$' -count=1 -timeout=5m -v",
+      "exit_code": 0,
+      "case_seconds": 99.06,
+      "package_seconds": 100.738,
+      "log": "logs/mqtt-partition-final-unknown-race.log.gz",
+      "receipt": "cases/mqtt-storage-partition-unknown.json"
+    },
+    {
+      "name": "suite-helper-race",
+      "command": "go test -p 1 -race -tags=e2e ./test/e2e/suite -count=1 -timeout=3m",
+      "exit_code": 0,
+      "package_seconds": 32.394,
+      "log": "logs/mqtt-partition-final-suite-race.log.gz"
+    },
+    {
+      "name": "related-message-store",
+      "command": "go test -p 1 ./pkg/db/message -count=1 -timeout=3m",
+      "exit_code": 0,
+      "package_seconds": 37.881,
+      "log": "logs/mqtt-partition-final-message-unit.log.gz"
+    },
+    {
+      "name": "flow-doc-contracts",
+      "command": "go run ./scripts/flowcheck --mode check",
+      "exit_code": 0,
+      "compliant": 88,
+      "invalid": 0,
+      "preexisting_advisory_warnings": 16,
+      "log": "logs/mqtt-partition-final-flow-check.log.gz"
+    }
+  ],
+  "qualification": {
+    "processes": 3,
+    "hash_slots": 256,
+    "slot_replicas": 3,
+    "channel_replicas": 3,
+    "partition": "bidirectional TCP close/refuse around live node 3; node-local and public TCP preserved",
+    "race_scope": "E2E driver, relay and suite helpers; product binaries were not built with -race",
+    "unknown_commit_evidence": "exactly one positive-charge successful after-commit witness while isolated; reserved gauges alone do not qualify",
+    "candidate_patch_reverse_check": "passed",
+    "product_behavior_defect_established": false,
+    "external_publication": false,
+    "limits": [
+      "Recorded macOS arm64 only",
+      "Fixed partition shape and placements, no arbitrary packet delay or loss",
+      "No large-workload, full MQTT, membership-change or release qualification"
+    ]
+  },
+  "reviews": {
+    "spec": "no remaining actionable findings",
+    "standards": "no remaining actionable findings",
+    "mode": "read-only source reviews"
+  },
+  "setup_failures": [
+    {
+      "log": "prerequisites/mqtt-partition-unknown.log.gz",
+      "reason": "disabled gofail counter was queried; harness corrected before final qualification"
+    },
+    {
+      "log": "prerequisites/mqtt-partition-compile2.log.gz",
+      "reason": "unused fmt import prevented test compilation; removed before final qualification"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "README.md",
+      "sha256": "f39420f278534638cef7b7d55236c87ab67c3fb50eced5034fa067c258738f58"
+    },
+    {
+      "path": "candidate.patch.gz",
+      "sha256": "0e1bcd386e1160ec2055d3786f119dc256147f038e2e43efc45216b7621dee39"
+    },
+    {
+      "path": "cases/mqtt-storage-partition-accepted.json",
+      "sha256": "46fabe8e5dc298af4568f1e5431ac78d53b09fa1158e05fdad8b12ba1ba40497"
+    },
+    {
+      "path": "cases/mqtt-storage-partition-unknown.json",
+      "sha256": "238ba28386a7d7fbf1d963988ee285ef54a7ee7f2a0e287d58909d87d88d3493"
+    },
+    {
+      "path": "frozen-context.json",
+      "sha256": "e7eb3fb2ce09bb45f4de470d2369870e152747f2c45ed8ef900aaa4bc1b7f1f1"
+    },
+    {
+      "path": "logs/mqtt-partition-final-build.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+    },
+    {
+      "path": "logs/mqtt-partition-final-flow-check.log.gz",
+      "sha256": "cc4188736b914ebe58bab4f9c807072c95584b3132d73cc515f953a77b52fca6"
+    },
+    {
+      "path": "logs/mqtt-partition-final-gofail-build.log.gz",
+      "sha256": "9c5ab22bf62b619326de5588fc69ea4cb4e05c688ff13a92b5f7a5bdae702248"
+    },
+    {
+      "path": "logs/mqtt-partition-final-gofail-buildinfo.log.gz",
+      "sha256": "a18f3e411dcd008c7105fed0df4ef774cc165a8bc5a012dfd2e43e275245021d"
+    },
+    {
+      "path": "logs/mqtt-partition-final-gofail-rebuild.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+    },
+    {
+      "path": "logs/mqtt-partition-final-message-unit.log.gz",
+      "sha256": "94777a2ac1aac05112b2c5b69bd5809abe3f194052914c83864657e4fde60ad6"
+    },
+    {
+      "path": "logs/mqtt-partition-final-normal-buildinfo.log.gz",
+      "sha256": "86a671e5ee50ebfdccbe9ae8e3420b96501458513eb3f2a0914070b483906c59"
+    },
+    {
+      "path": "logs/mqtt-partition-final-normal-race.log.gz",
+      "sha256": "ae07d33816fdee01b3e721596f720c01bcbc699f37bd5ee368b28cac75f2dfa9"
+    },
+    {
+      "path": "logs/mqtt-partition-final-rebuild.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+    },
+    {
+      "path": "logs/mqtt-partition-final-suite-race.log.gz",
+      "sha256": "e7980cbb96782e50a7ef90a90c8e3878664f861e94ade6824f04c9bbe76d4048"
+    },
+    {
+      "path": "logs/mqtt-partition-final-unknown-race.log.gz",
+      "sha256": "35877294a2449f2a65efb4284e408eb8b5cf7a258df204b81ef37e81e65ac95f"
+    },
+    {
+      "path": "prerequisites/mqtt-partition-compile2.log.gz",
+      "sha256": "8b363175afbfceead88d070d229be8a81ba37499f360e2b4e326f3bd1ca670a8"
+    },
+    {
+      "path": "prerequisites/mqtt-partition-unknown.log.gz",
+      "sha256": "fc3f6d8b775d1c2a5e6bdc38488a30b12ec50d1875f351207992f22d1af43e10"
+    },
+    {
+      "path": "spec-review.md",
+      "sha256": "08ade81b69f8c9d1c0ed817a0efa4b7e82b81ef9c16cf805758cf9cc693cce50"
+    },
+    {
+      "path": "standards-review.md",
+      "sha256": "db47273c68e75f47c7e7c00a1fe2a79b9688a8ff7d304e381ff4bdb1582c5960"
+    },
+    {
+      "path": "validation-source.json",
+      "sha256": "4b106d336d42956f34d4cdcb057896eaee2790f74d3737d505f5452b09b1b03f"
+    },
+    {
+      "path": "verify.py",
+      "sha256": "1ac815075e5533a2e4489a9330e8b2e9e98462c570004c9a2863eeb552157060"
+    }
+  ]
+}

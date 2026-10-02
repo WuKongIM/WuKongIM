@@ -32,6 +32,10 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
    process-group cleanup completes.
 4. Cleanup stops static nodes concurrently, joins repeated stops, escalates
    TERM to KILL for remaining descendants, and waits for complete group cleanup.
+5. Optional static-cluster TCP relays publish membership endpoints separately
+   from product listeners. Bounded socket/PID evidence identifies exact owned
+   senders; partition cuts both directed links, retains node-local/public TCP,
+   refuses reconnects and joins relay workers after product cleanup.
 
 ## Invariants and Failure Semantics
 
@@ -75,4 +79,4 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
 ## Update Triggers
 
 Update this file when workspace isolation, binary caching, process ownership,
-environment filtering, cleanup, diagnostics, HTTP retry, or convergence changes.
+environment filtering, cleanup, diagnostics, HTTP retry, convergence or TCP partition changes.

@@ -207,6 +207,12 @@ func (e *channelEntry) commitMQTTStoragePreparation(ctx context.Context, batch *
 		}
 		return true, err
 	}
+	if n > 0 {
+		// Temporary-copy E2E instrumentation witnesses successful charged funding;
+		// reserved gauges predate commit, and zero-byte maintenance is not evidence.
+		// gofail: var wkMQTTStoragePrepareAfterCommit bool
+		// _ = wkMQTTStoragePrepareAfterCommit
+	}
 	return true, nil
 }
 
