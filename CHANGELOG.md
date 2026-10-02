@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Clarify bilingual v2-to-v3 migration with five-step, multi-node and acceptance diagrams, task-based reference lookup and expandable commands; correct physical hash-slot versus logical Slot Group terminology while keeping cutover, retry and rollback gates visible. / 中英文 v2 到 v3 迁移文档增加五步、多节点与验收流程图，参考按任务查阅、完整命令按需展开；统一物理哈希槽与逻辑 Slot Group 术语，切换、重试和回滚边界保持可见。
+
 - Simplify bilingual Controller and Slot architecture guides with compact materialization, staged-task, key-routing and metadata-write diagrams; retain complete references in disclosures while keeping physical/logical Slot, observed authority, single-node Raft/FSM, proof, recovery and bounded-capacity rules visible. / 中英文 Controller 与 Slot 架构文档增加简洁的物化、阶段任务、键路由与元数据写入图；完整参考按需展开，物理槽/逻辑 Group、实时权威、单节点 Raft/FSM、证明、恢复与有界容量规则保持可见。
 
 - Simplify bilingual connection routing and Transport guides with short activation, delivery and reconnect diagrams plus separate client/node network views; retain complete technical references in disclosures and keep lease, Session identity, device-conflict, backpressure, timeout, commit and private-network boundaries visible. / 中英文用户连接路由与 Transport 文档增加简洁的激活、投递、重连图和客户端/节点网络对照；完整技术参考按需展开，租约、Session 身份、设备冲突、背压、超时、提交与私网边界保持可见。

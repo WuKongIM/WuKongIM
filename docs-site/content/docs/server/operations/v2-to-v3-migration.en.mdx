@@ -3,11 +3,34 @@ title: v2 → v3 Offline Migration
 description: Follow a single-node cluster example through cold backup, planning, migration, startup, acceptance, and cutover.
 ---
 
+Move into a fresh v3 single-node cluster in five steps. For multi-node deployments, plugins or compatibility issues, start with the [migration reference](/en/server/operations/v2-to-v3-migration-reference).
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  n0["1 Cold backup"] --> n1["2 Save plan"]
+  n1["2 Save plan"] --> n2["3 Offline migration"]
+  n2["3 Offline migration"] --> n3["4 Start and test"]
+  n3["4 Start and test"] --> n4["5 Production cutover"]
+```
+
+</div>
+
+## The environment for this example
+
+The source is original `v2.2.5-20260422` (node `1001`, DB shards `8`); the migration machine also runs target v3 (node `1`). Substitute actual source values. This example excludes plugins and external integrations.
+
+- **Stop writes and all source nodes; use a fresh empty target cluster.** v3 cannot open v2 directories; online incremental migration is unsupported.
+- Use matching `wkcli` and `wukongim` binaries and verify delivery digests. Assess other versions, custom builds and required capabilities first.
+- Rehearse in isolation to measure full duration and peak space for complete backups, workspaces, the archive, target replicas and pre-start snapshots.
+
+<details>
+<summary>Full environment, example values and prerequisites</summary>
+
 This walkthrough migrates users, credentials, conversations, and messages from original v2 into a fresh v3 single-node cluster. Follow the steps in order: **back up → write a plan → migrate → start and test → cut over**.
 
 For multi-node clusters, use the [three-node plan in the migration reference](/en/server/operations/v2-to-v3-migration-reference#2-fill-in-one-planjson). Include every source node and run the migration centrally on one machine; do not take just one node's data from a multi-node cluster.
-
-## The environment for this example
 
 This example uses a separate Linux migration machine that also runs v3 after migration. It excludes plugins and external integrations. Rehearse in isolation first.
 
@@ -29,7 +52,16 @@ Confirm three things before starting:
 - Follow [wkcli installation](/en/server/tools/wkcli) to obtain matching `wkcli` and `wukongim` binaries and verify the delivered checksums. The current documentation version is `WK_CURRENT_RELEASE_TAG`. For other v2 versions, custom builds, plugins, or external integrations, read the [compatibility requirements](/en/server/operations/v2-to-v3-migration-reference#1-collect-backups-and-install-the-tools) first.
 - Allow disk space for complete cold backups, workspaces, the archive, target data, and pre-start snapshots. Rehearse to measure peak space and total duration before scheduling the production maintenance window.
 
+</details>
+
 ## 1. Take a complete cold backup
+
+Stop write ingress; drain log application, topology changes and notification queues, then stop v2 gracefully and disable automatic restarts. Copy the full directory including hidden files; retain old binaries, configuration and environment variables. Never copy a running database.
+
+**Pass:** `rsync` verification exits `0` with no differences; `-n` only checks and deletes nothing. If v2 writes resume after rehearsal, production migration needs fresh backups and new working directories.
+
+<details>
+<summary>Backup, copy verification and rehearsal commands</summary>
 
 On the original deployment, stop business write ingress, wait for log application, topology changes, and notification queues to drain, then stop v2 gracefully and disable automatic restarts. Preserve the old binaries, configuration, and environment variables. **The directory copied below must no longer be changing. Do not copy a running database.**
 
@@ -53,7 +85,16 @@ rsync -anc --numeric-ids --delete --itemize-changes \
 
 You can restore original v2 service after taking the rehearsal backup. For production cutover, stop writes and all sources again, take a fresh backup, and repeat the remaining steps in new working directories. Writes made during rehearsal do not automatically enter the earlier migration output.
 
+</details>
+
 ## 2. Save the migration plan
+
+Both binaries must share `version`, `commit` and `build_source`. Plan paths are absolute paths on the migration machine; sources, workspaces, archive and targets must not contain one another.
+
+**Pass:** `plan.json` is saved in a new working directory and `targets/node1` does not yet exist. The example uses **12 logical Slot Raft Groups, 256 physical hash slots and one replica**, matching startup configuration. `source_commit` selects reader rules; it cannot declare arbitrary old data compatible. Deduplication, omissions and renumbering stay off by default.
+
+<details>
+<summary>Tool checks, directory commands and single-node plan.json</summary>
 
 First check the tools:
 
@@ -91,11 +132,31 @@ Save this as `/srv/wkmigrate/plan.json`, updating the source node, shard count, 
 }
 ```
 
-`source_commit` selects the supported v2 reader schema. Keep this value; it is not a guessed image version. The target uses 12 physical Slots, 256 hash slots, and one replica. All paths are absolute paths on the migration machine and must not contain one another. **Do not create `targets/node1` beforehand.**
+`source_commit` selects the supported v2 reader schema. Keep this value; it is not a guessed image version. The target uses 12 logical Slot Raft Groups, 256 physical hash slots, and one replica. All paths are absolute paths on the migration machine and must not contain one another. **Do not create `targets/node1` beforehand.**
 
 This plan does not enable deduplication, CMD/stream exclusion, or sequence renumbering. If compatibility checks block migration, use the troubleshooting section below rather than applying data-discard policies just to pass validation.
 
+</details>
+
 ## 3. Run migration and reach offline_verified
+
+Keep v3 stopped. Run the four stages in order on one migration machine; stop on failure and read that stage’s report.
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  n0["prepare<br/>prepared"] --> n1["export<br/>COMPLETE"]
+  n1["export<br/>COMPLETE"] --> n2["import<br/>imported"]
+  n2["import<br/>imported"] --> n3["verify<br/>offline_verified"]
+```
+
+</div>
+
+**Pass:** every stage exits `0`, ending in `offline_verified`. **`cutover_ready: false` is expected:** runtime and business acceptance still follow. Retain cold backups, archive, plan and all reports.
+
+<details>
+<summary>Expand and run: all four stages and report requirements</summary>
 
 Keep v3 stopped. Run this command block once on the migration machine. A failed stage stops the block immediately; reports are saved under `reports`.
 
@@ -128,7 +189,18 @@ Keep v3 stopped. Run this command block once on the migration machine. A failed 
 
 **`cutover_ready: false` is expected.** Offline data verification has passed; runtime and business acceptance still follow. Preserve the cold backups, archive, plan, and all reports.
 
+</details>
+
 ## 4. Start v3 and test real business behavior
+
+First startup changes the databases. **Save a full, verified target snapshot before any first start.** Match configuration to the plan, retain generated secrets and check `WK_` overrides. Keep `gateway.token_auth_on=true`; adapt the original v2 person-whitelist setting separately.
+
+**Pass:** `/readyz` returns `200` and `ready: true`, then test original UID/Token with the same device_flag (reject bad tokens; never overwrite credentials), early/recent/paged history and read/unread state, new sequences and retry deduplication, and persistence after restart. Plugins and external integrations need separate acceptance.
+
+Run write tests on isolated rehearsal copies. Production targets receive no business writes before cutover. **Started directories cannot be verified as the initial import state or overwritten by another `import`.**
+
+<details>
+<summary>Snapshot, configuration, startup and full business acceptance</summary>
 
 First startup changes the databases. Save a snapshot of the verified targets before they have ever started. In this example, check that the snapshot path does not exist, then run:
 
@@ -169,7 +241,29 @@ After `/readyz` succeeds, test these four areas with your actual client or the [
 
 Write acceptance in this example is for rehearsal. Production migration also requires acceptance, but run write tests on isolated copies and keep production targets free of business writes until cutover. **Started directories cannot be verified as the initial import state or overwritten by another `import`.**
 
+</details>
+
 ## 5. Cut over production
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  n0["Fresh full backups<br/>New workspace"] --> n1["Offline verification<br/>Runtime + client tests"]
+  n1["Offline verification<br/>Runtime + client tests"] --> n2["One write ingress<br/>Gradual traffic"]
+```
+
+</div>
+
+Keep v2 writes stopped. Run v3 under a service manager with the verified configuration and same data directory. Switch backend/client routes only after all acceptance passes. If renumbering, handle drafts and unsent messages first, retain login credentials, then handle old caches and sync cursors; the tool never clears client caches automatically.
+
+**Pass:** only one cluster accepts writes for the same business.
+
+- Before new v3 production writes: close new ingress and restore original v2 data, binaries and routes using the rehearsed procedure.
+- After new v3 production writes: never switch directly back to old v2 and lose new data. There is no reverse incremental v3 → v2 migration.
+
+<details>
+<summary>Full production cutover and rollback boundaries</summary>
 
 After rehearsal, repeat migration during the production maintenance window using fresh complete cold backups and new working directories. Complete offline verification and runtime/client acceptance. Keep original v2 writes stopped. Run v3 under a service manager following [Linux deployment](/en/server/deployment/linux), confirming it uses the verified configuration and the same data directory. Then point business backend and client connection/routing endpoints to v3 and gradually restore traffic.
 
@@ -177,7 +271,18 @@ If you enabled sequence renumbering from the reference, also handle client histo
 
 **v2 and v3 must never accept writes for the same business simultaneously.** Before v3 accepts new production writes, you can close v3 ingress and restore original v2 data, binaries, and routing using the rehearsed procedure. Afterward, switching directly back to old v2 would lose new data. The tool has no reverse incremental v3 → v2 migration.
 
+</details>
+
 ## If a step fails
+
+Read the stage’s `.stderr` and JSON report first. Preserve the failed attempt; never overwrite logs, delete source rows or change markers to force a pass.
+
+- No output or `context canceled`: check the original process, stage logs, disk and outer timeouts; never start a second concurrent migration.
+- Existing target or retries: follow the [retry gates](/en/server/operations/v2-to-v3-migration-reference#migration-retries). Changed sources, target, policy or tools require new workspaces, archive and targets.
+- Multiple nodes, plugins or data conflicts: use the [migration reference](/en/server/operations/v2-to-v3-migration-reference) and resolve each issue without automatically applying discard policies.
+
+<details>
+<summary>Report commands, failure lookup and retry reference</summary>
 
 For example, if `prepare` fails, read these two files first:
 
@@ -196,3 +301,5 @@ Use the corresponding filenames for other stages. Preserve the failed attempt an
 | Multi-node, Docker, or deployment to other servers | Use the plans, directory distribution, and startup configuration in the [migration reference](/en/server/operations/v2-to-v3-migration-reference) |
 
 The [migration reference](/en/server/operations/v2-to-v3-migration-reference) contains full retry conditions, plugin policies, data transformations, and business acceptance checks. Consult it for the situation you encounter.
+
+</details>
