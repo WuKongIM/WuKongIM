@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+## [v3.0.0-beta.23] - 2026-10-02
+
 ### 🚀 New Features / 新功能
 
 - Add a live product-launch Demo to the one-command catalog, with real SDK
