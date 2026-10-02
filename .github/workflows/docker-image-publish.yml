@@ -602,6 +602,8 @@ jobs:
       - name: Mirror immutable exact tag
         shell: bash
         env:
+          # Keep blob copies on HTTP/1.1 after HTTP/2 peer stream failures.
+          GODEBUG: http2client=0
           IMAGE_VERSION: ${{ steps.identity.outputs.image_version }}
           CANONICAL_DIGEST: ${{ steps.artifact.outputs.digest }}
         run: |

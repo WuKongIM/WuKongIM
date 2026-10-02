@@ -6,6 +6,12 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🐛 Bug Fixes / 问题修复
+
+- Copy release image mirrors over HTTPS with HTTP/1.1 to avoid HTTP/2 stream
+  protocol failures during registry transfer. / 发布镜像同步使用 HTTPS 与 HTTP/1.1，
+  避免镜像仓库传输中的 HTTP/2 流协议错误。
+
 ## [v3.0.0-beta.23] - 2026-10-02
 
 ### 🚀 New Features / 新功能
