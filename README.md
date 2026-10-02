@@ -74,6 +74,7 @@ The launcher builds the server, prepares the demo backends, and opens the demo h
 | **Streaming replies** | Incremental replies, model integration, cancellation, and failures | [Streaming Demo](./demo/streamdemo/README.md) |
 | **Customer support** | AI reception, human takeover, and multiple visitor conversations | [Support Demo](./demo/supportdemo/README.md) |
 | **Agent** | Tool calls, task confirmation, pause, and cancellation | [Agent Demo](./demo/agentdemo/README.md) |
+| **MQTT smart store** | Freezer alarms, remote cooling, device receipts, offline alerts, and IM collaboration | [MQTT Demo](./demo/mqttdemo/README.md) |
 
 <details>
 <summary><strong>Preview the current demos</strong> — streaming replies, customer support, Agent, and mobile chat</summary>

@@ -13,9 +13,45 @@ description: 配置一致的集群入口，理解逻辑配额，按公开信号�
 
 单节点集群同样使用 256 个 hash slots。多节点部署仍需 Slot quorum 和内部通信；负载均衡不替代接管隔离证明。旧 Owner 无法证明停止时，即使其他 Slot 有 quorum，新 CONNECT 仍可能失败。
 
-默认监听 `0.0.0.0:1883`；教程限制在回环地址。对外使用上游 TLS 终止，保护明文后端网络。`mqtts://` 指向 TLS 代理，`mqtt://` 指向原始 TCP，不能关闭证书验证。当前没有 MQTT WebSocket；已有 WKProto `/ws` 不能接收 MQTT 帧。
+默认监听 `0.0.0.0:1883`；教程限制在回环地址。对外使用上游 TLS 终止，保护明文后端网络。`mqtts://` 指向 TLS 代理，`mqtt://` 指向原始 TCP，不能关闭证书验证。MQTT WebSocket 使用独立监听；已有 WKProto / JSON-RPC 监听不能接收 MQTT 帧。
 
 字段、环境变量和范围统一维护在[配置参考](/zh/server/configuration/reference)。同时保留[认证配置](/zh/server/configuration/security)。
+
+## 浏览器 WebSocket 接入
+
+保持 `mqtt.enable=true`，在原有 `gateway.listeners` 数组中追加：
+
+```toml
+{ name = "mqtt-ws", network = "websocket", address = "127.0.0.1:1884", transport = "gnet", protocol = "mqtt", path = "/mqtt" }
+```
+
+这是数组中的一个内联表项，不是完整 TOML 文件。每个监听使用独立地址。`WK_GATEWAY_LISTENERS` 以 JSON 替换整个数组，需保留仍使用的 WKProto 监听。MQTT WebSocket 共用 TCP 的认证、Topic、限额和持久会话；切换传输不会创建新的 MQTT namespace。IM `/route` 响应不发布该地址，由业务后端提供 URL。
+
+安装 MQTT.js 5.16.0 的浏览器应用可使用后端签发的凭证连接：
+
+```js
+import mqtt from 'mqtt';
+
+const client = mqtt.connect('ws://127.0.0.1:1884/mqtt', {
+  protocolVersion: 5,
+  clientId: 'alice-browser-01',
+  username: credentials.uid,
+  password: credentials.token,
+  clean: true,
+  reconnectPeriod: 0,
+  properties: {
+    sessionExpiryInterval: 0,
+    userProperties: { 'wk.device_flag': '1' },
+  },
+});
+client.on('error', () => console.error('MQTT connection failed'));
+```
+
+`credentials` 来自可信业务后端，后端登记相同 WEB 设备类别的 Token。先注册接收事件，再发送；Topic 和确认规则见[快速开始](/zh/guide/tutorials/mqtt)。持久恢复需保留稳定 ClientID 并遵守[会话与 QoS 条件](/zh/api/client-protocols/mqtt/sessions-and-qos)。
+
+MQTT.js 自动提供大小写敏感的 `mqtt` WebSocket 子协议并发送二进制数据。监听返回 `mqtt`；缺少或不匹配的子协议返回 HTTP 400，错误路径返回 HTTP 404。文本数据会关闭连接；支持二进制 continuation、跨消息拆包和单消息合包。控制 ping/pong/close 帧保留普通 WebSocket 行为。这些要求来自 [MQTT 5 第 6 节](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html)。
+
+HTTPS 页面通过 TLS 代理使用 `wss://`。代理需转发 `/mqtt`、HTTP Upgrade 和子协议头，并保护明文后端监听。该传输不提供原生 TLS 或 WebSocket 压缩。
 
 ## 备份与迁移
 
@@ -43,6 +79,7 @@ description: 配置一致的集群入口，理解逻辑配额，按公开信号�
 | 现象 | 先检查 |
 | --- | --- |
 | TCP 拒绝或超时 | MQTT 开关、监听、TLS 代理和网络；浏览器是否误用 TCP |
+| WebSocket 握手拒绝 | 精确路径、大小写敏感的 `mqtt` 子协议、TLS 代理 Upgrade 转发 |
 | CONNECT 被拒绝 | MQTT 5、UID/Token/设备类别、ClientID、恰好一个 `wk.device_flag` |
 | SUBACK 拒绝 | 规范 base64url、自己收件箱、群成员资格、是否使用通配符 |
 | 发布失败或关闭 | `wk.client_msg_no`、保留属性、Retain/QoS、权限、大小、逻辑配额 |

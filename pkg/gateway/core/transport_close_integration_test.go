@@ -75,7 +75,9 @@ func TestPhysicalTransportCloseProofTCPAndWebSocket(t *testing.T) {
 				require.Equal(t, []byte{0x20, 3, 0, 0, 0}, ack)
 				peerClosed = func() error { _, err := conn.Read(make([]byte, 1)); return err }
 			} else {
-				conn, _, err := websocket.DefaultDialer.DialContext(ctx, "ws://"+server.ListenerAddr("mqtt"), nil)
+				dialer := *websocket.DefaultDialer
+				dialer.Subprotocols = []string{"mqtt"}
+				conn, _, err := dialer.DialContext(ctx, "ws://"+server.ListenerAddr("mqtt"), nil)
 				require.NoError(t, err)
 				defer conn.Close()
 				deadline, _ := ctx.Deadline()

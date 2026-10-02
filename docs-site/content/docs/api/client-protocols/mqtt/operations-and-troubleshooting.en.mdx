@@ -13,9 +13,45 @@ Enable `mqtt.enable` on every MQTT ingress node, use matching candidate binaries
 
 A single-node cluster also uses 256 hash slots. Multi-node deployments still need Slot quorum and internal communication. Load balancing does not replace takeover isolation proof. A new CONNECT can fail when the old Owner cannot be proved stopped, even if other Slots retain quorum.
 
-The default listener is `0.0.0.0:1883`; the tutorial restricts it to loopback. Public access needs upstream TLS termination and a protected plaintext backend network. `mqtts://` targets the TLS proxy; `mqtt://` targets raw TCP. Do not disable certificate verification. There is no MQTT WebSocket listener; existing WKProto `/ws` cannot accept MQTT packets.
+The default listener is `0.0.0.0:1883`; the tutorial restricts it to loopback. Public access needs upstream TLS termination and a protected plaintext backend network. `mqtts://` targets the TLS proxy; `mqtt://` targets raw TCP. Do not disable certificate verification. MQTT WebSocket uses a separate listener; the existing WKProto / JSON-RPC listener cannot accept MQTT packets.
 
 Fields, environment variables and ranges are maintained in the [configuration reference](/en/server/configuration/reference). Keep the [authentication configuration](/en/server/configuration/security) as well.
+
+## Browser WebSocket access
+
+Keep `mqtt.enable=true` and append this listener to your existing `gateway.listeners` list:
+
+```toml
+{ name = "mqtt-ws", network = "websocket", address = "127.0.0.1:1884", transport = "gnet", protocol = "mqtt", path = "/mqtt" }
+```
+
+This is one inline-table entry, not a complete TOML file. Use a unique address for each listener. `WK_GATEWAY_LISTENERS` replaces the entire list as JSON, so preserve the WKProto listeners you still need. MQTT WebSocket shares the same authentication, topics, limits and durable sessions as TCP; changing transport does not create a new MQTT namespace. It is not advertised by the IM `/route` response; your backend supplies its URL.
+
+A browser application with the MQTT.js 5.16.0 package can connect with backend-issued credentials:
+
+```js
+import mqtt from 'mqtt';
+
+const client = mqtt.connect('ws://127.0.0.1:1884/mqtt', {
+  protocolVersion: 5,
+  clientId: 'alice-browser-01',
+  username: credentials.uid,
+  password: credentials.token,
+  clean: true,
+  reconnectPeriod: 0,
+  properties: {
+    sessionExpiryInterval: 0,
+    userProperties: { 'wk.device_flag': '1' },
+  },
+});
+client.on('error', () => console.error('MQTT connection failed'));
+```
+
+`credentials` comes from your trusted business backend, which registers the corresponding WEB device token. Install reception listeners before publishing and use the topic and acknowledgement rules in the [quickstart](/en/guide/tutorials/mqtt). For persistent recovery, keep the ClientID stable and follow [sessions and QoS](/en/api/client-protocols/mqtt/sessions-and-qos).
+
+MQTT.js offers the case-sensitive `mqtt` WebSocket subprotocol and sends binary data automatically. The listener returns `mqtt`, rejects missing or different subprotocols with HTTP 400, and rejects a wrong path with HTTP 404. Text data closes the connection; binary continuation frames, packets split across messages and multiple packets in one message are supported. Control ping/pong/close frames retain normal WebSocket behavior. These requirements follow [MQTT 5 section 6](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html).
+
+Use `wss://` behind your TLS proxy for HTTPS pages. Forward `/mqtt`, HTTP Upgrade and the subprotocol header; protect the plaintext backend listener. Native TLS and WebSocket compression are not provided by this transport.
 
 ## Backup and migration
 
@@ -43,6 +79,7 @@ For large groups, observe member count, online client count, message rate, ACK l
 | Symptom | First checks |
 | --- | --- |
 | TCP refusal/timeout | MQTT enabled, listener, TLS proxy and network; browser incorrectly using TCP |
+| WebSocket handshake rejected | Exact path, case-sensitive `mqtt` subprotocol, TLS proxy Upgrade forwarding |
 | CONNECT rejected | MQTT 5, UID/token/device category, ClientID, exactly one `wk.device_flag` |
 | SUBACK rejection | Canonical base64url, own inbox, group membership, unsupported wildcards |
 | Publication rejected/connection closes | `wk.client_msg_no`, reserved properties, retain/QoS, permission, size and quotas |

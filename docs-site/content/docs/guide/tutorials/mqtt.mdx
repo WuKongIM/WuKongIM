@@ -5,8 +5,8 @@ description: 使用 Node.js 和 MQTT.js 连接 Alice、Bob，完成认证、订�
 
 目标：Alice、Bob 各自连接 MQTT，订阅自己的收件箱，再双向发送 SDK 文本格式的消息。检查真实接收内容和稳定服务端消息身份。
 
-<Callout type="warn" title="开发预览：MQTT 5 TCP">
-  默认关闭，需使用包含 MQTT 实现的匹配开发候选。现有正式发布的镜像和安装包不能据此视为支持 MQTT；完整 Linux、故障和负载验收仍未完成。本教程运行在 Node.js，浏览器不能直接连接原始 TCP，也没有 MQTT WebSocket 入口。
+<Callout type="warn" title="开发预览：MQTT 5">
+  默认关闭，需使用包含 MQTT 实现的匹配开发候选。现有正式发布的镜像和安装包不能据此视为支持 MQTT；完整 Linux、故障和负载验收仍未完成。本教程运行在 Node.js；浏览器通过独立的 MQTT WebSocket 监听接入，配置见[部署与排障](/zh/api/client-protocols/mqtt/operations-and-troubleshooting)。
 </Callout>
 
 ## 1. 准备单节点集群
@@ -82,7 +82,7 @@ Topic 编码是无填充 base64url。上行 payload 是 `{"type":1,"content":"he
 
 ## 6. 出错时检查
 
-- 连接失败：检查监听、版本、UID/Token 与设备类别；Node.js 示例不连接浏览器 WebSocket。
+- 连接失败：检查监听、版本、UID/Token 与设备类别；此命令使用原始 TCP；浏览器需配置独立的 MQTT WebSocket 监听及 `ws://` 或 `wss://` URL。
 - 订阅失败：检查自己的收件箱和 base64url 编码；群订阅需要已有成员资格。
 - 收发超时：检查服务端日志、权限、配额、接收端连接和 ACK，保留原业务编号排查未知结果。
 

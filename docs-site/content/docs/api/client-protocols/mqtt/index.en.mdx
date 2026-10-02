@@ -1,12 +1,12 @@
 ---
 title: MQTT
-description: Access existing users, channels and messages over MQTT 5 TCP, with explicit preview boundaries.
+description: Access existing users, channels and messages over MQTT 5 TCP or WebSocket, with explicit preview boundaries.
 ---
 
 MQTT is an IM entry protocol for WuKongIM. It shares UIDs, device tokens, channels, membership permissions and messages with HTTP and WKProto SDKs. Your application still owns login, business authorization and payload formats.
 
 <Callout type="warn" title="Development preview">
-  The MQTT listener is disabled by default and supports MQTT 5 TCP only. Complete Linux, fault and load qualification remains outstanding. Use a matching development candidate containing the MQTT implementation; do not assume current released packages or images support it.
+  The MQTT listener is disabled by default and supports MQTT 5 TCP and an optional separate WebSocket listener. Complete Linux, fault and load qualification remains outstanding. Use a matching development candidate containing the MQTT implementation; do not assume current released packages or images support it.
 </Callout>
 
 ## Start here
@@ -25,8 +25,8 @@ MQTT is an IM entry protocol for WuKongIM. It shares UIDs, device tokens, channe
 
 | Capability | Current behavior |
 | --- | --- |
-| Version and transport | MQTT 5.0 over raw TCP; other versions unsupported; TLS terminates upstream |
-| Browsers | No MQTT WebSocket listener; use existing WKProto / JSON-RPC paths |
+| Version and transport | MQTT 5.0 over raw TCP or WebSocket; other versions unsupported; TLS terminates upstream |
+| Browsers | MQTT.js can connect directly to a separate `/mqtt` listener; the `mqtt` subprotocol and binary messages are required |
 | Publish QoS | 0 and 1; no QoS 2 publication |
 | Subscription QoS | 0 and 1; a request for 2 may be granted 1; inspect SUBACK |
 | Topics | Exact personal inbox and group-message topics; no arbitrary business topics |

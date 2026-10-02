@@ -1634,7 +1634,7 @@ specification, runbook, report, or module documentation; link to them when neede
   new demo session.
 
 - Product HTTP `/` redirects to `/demos/`, a stateless embedded catalog linking
-  `/demo/`, `/streamdemo/`, `/supportdemo/` and `/agentdemo/`. The catalog does
+  `/demo/`, `/streamdemo/`, `/supportdemo/`, `/agentdemo/` and `/mqttdemo/`. The catalog does
   not create sessions, connect an SDK or invoke models. Its loopback preview
   redirects each entrance to the independently running Demo process.
 
@@ -1643,10 +1643,19 @@ specification, runbook, report, or module documentation; link to them when neede
   inherited product overrides, and stops only its own child process groups.
   Startup health probes do not create user credentials or model requests.
 
-- All four Demo UIs expose a home link. Catalog redirects carry a `home`
+- All five Demo UIs expose a home link. Catalog redirects carry a `home`
   parameter across origins and reloads; it accepts only the same origin or
   loopback catalog URLs. Direct embedded entries use their same-origin catalog;
   direct Node entries publish the configured Product API catalog in page metadata.
+
+- The MQTT smart-store Demo keeps independent device and staff MQTT clients
+  inside the browser, connected directly to the Product MQTT WebSocket listener.
+  Its loopback backend provisions identities and Channel membership only. Alarms
+  and recovery use the store group; commands use the device's person topic and
+  execution receipts target the authenticated sender. A PUBACK proves commitment,
+  not execution. Persistent group subscriptions recover offline alerts without
+  HTTP history substitution. SDK-compatible text payloads carry bounded business
+  metadata; stable message IDs and command IDs deduplicate distinct responsibilities.
 
 - Transport byte observations preserve frame kind and scheduling lane through
   batched writes and the bounded observer drain. Fixed direction/lane counters

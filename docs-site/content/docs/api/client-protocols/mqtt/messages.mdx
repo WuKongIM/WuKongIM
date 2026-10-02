@@ -4,7 +4,7 @@ description: 保持 IM payload 字节，使用稳定幂等键，并区分提交�
 ---
 
 <Callout type="warn" title="开发预览">
-  本页描述 MQTT 5 TCP 开发实现，能力和验收范围见[概览](/zh/api/client-protocols/mqtt)。
+  本页描述 MQTT 5 TCP / WebSocket 开发实现，能力和验收范围见[概览](/zh/api/client-protocols/mqtt)。
 </Callout>
 
 ## 上行 PUBLISH
@@ -62,7 +62,7 @@ client.on('message', (topic, bytes, packet) => {
 
 ## 顺序、过期和大小
 
-`message_seq` 只在单个频道内有顺序意义。个人收件箱汇集多个单聊来源，没有跨频道总顺序。QoS 1 可能重复，按稳定 MessageID 去重，不能以 Packet Identifier 去重。
+`message_seq` 只在单个频道内有顺序意义。个人收件箱汇集多个单聊来源，包含同一单聊频道双方发送的消息，因此发送者也可能收到自身回显。用 `wk.from_uid` 区分发送方，按业务角色处理；没有跨频道总顺序。QoS 1 可能重复，按稳定 MessageID 去重，不能以 Packet Identifier 去重。
 
 Message Expiry Interval 控制消息有效期，剩余时间随投递和重投减少；过期消息不是永久离线存档。普通历史查询与 MQTT 会话回放是不同接口。
 

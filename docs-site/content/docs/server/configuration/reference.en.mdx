@@ -362,7 +362,7 @@ See the [MQTT topic](/en/api/client-protocols/mqtt) and [quickstart](/en/guide/t
 
 | Key | Environment variable | Type | Description |
 | --- | --- | --- | --- |
-| `mqtt.enable` | `WK_MQTT_ENABLE` | `bool` | Open the MQTT 5 TCP listener; default false. MQTT product acceptance remains in progress. |
+| `mqtt.enable` | `WK_MQTT_ENABLE` | `bool` | Enable MQTT business handling and the default TCP listener; additional WebSocket listeners use `gateway.listeners` with `protocol="mqtt"`. Default false; MQTT product acceptance remains in progress. |
 | `mqtt.listen_addr` | `WK_MQTT_LISTEN_ADDR` | `string` | TCP bind address with a nonzero port; TLS terminates upstream. |
 | `mqtt.namespace` | `WK_MQTT_NAMESPACE` | `string` | Stable broker ClientID namespace; use the same value on every cluster node. |
 | `mqtt.max_connections` | `WK_MQTT_MAX_CONNECTIONS` | `int` | Maximum retained owners including pending and closing connections; 1 to 1000000. |

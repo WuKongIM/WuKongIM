@@ -17,9 +17,10 @@ const (
 )
 
 const (
-	wsCloseNormalClosure = 1000
-	wsCloseProtocolError = 1002
-	wsCloseInvalidData   = 1007
+	wsCloseNormalClosure   = 1000
+	wsCloseProtocolError   = 1002
+	wsCloseUnsupportedData = 1003
+	wsCloseInvalidData     = 1007
 )
 
 const wsMaxFrameHeaderBytes = 14

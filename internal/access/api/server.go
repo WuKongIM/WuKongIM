@@ -30,7 +30,7 @@ import (
 
 const versionV1 = "bench/v1"
 
-// DemoHomePath is the catalog linking the four independent Demo scenarios.
+// DemoHomePath is the catalog linking the five independent Demo scenarios.
 const DemoHomePath = "/demos/"
 
 // DemoPath is the canonical route for the embedded chat Demo.
@@ -44,6 +44,9 @@ const SupportDemoPath = "/supportdemo/"
 
 // AgentDemoPath serves the task assistant UI backed by its Demo process.
 const AgentDemoPath = "/agentdemo/"
+
+// MQTTDemoPath serves the smart-store UI backed by browser MQTT clients.
+const MQTTDemoPath = "/mqttdemo/"
 
 // ErrListenAddrRequired reports that the HTTP API listen address is empty.
 var ErrListenAddrRequired = errors.New("internal/access/api: listen address required")
@@ -452,7 +455,8 @@ func restoreMaintenanceAllowedPath(path string) bool {
 		path == strings.TrimSuffix(DemoPath, "/") ||
 		strings.HasPrefix(path, StreamDemoPath) || path == strings.TrimSuffix(StreamDemoPath, "/") ||
 		strings.HasPrefix(path, SupportDemoPath) || path == strings.TrimSuffix(SupportDemoPath, "/") ||
-		strings.HasPrefix(path, AgentDemoPath) || path == strings.TrimSuffix(AgentDemoPath, "/")
+		strings.HasPrefix(path, AgentDemoPath) || path == strings.TrimSuffix(AgentDemoPath, "/") ||
+		strings.HasPrefix(path, MQTTDemoPath) || path == strings.TrimSuffix(MQTTDemoPath, "/")
 }
 
 func cloneLegacyRouteNodes(nodes map[uint64]LegacyRouteNodeAddresses) map[uint64]LegacyRouteNodeAddresses {
@@ -623,7 +627,7 @@ func (s *Server) registerDemoRoutes() {
 	for _, bundle := range []struct {
 		path    string
 		handler http.Handler
-	}{{DemoHomePath, demoui.HomeHandler()}, {DemoPath, demoui.Handler()}, {StreamDemoPath, demoui.StreamHandler()}, {SupportDemoPath, demoui.SupportHandler()}, {AgentDemoPath, demoui.AgentHandler()}} {
+	}{{DemoHomePath, demoui.HomeHandler()}, {DemoPath, demoui.Handler()}, {StreamDemoPath, demoui.StreamHandler()}, {SupportDemoPath, demoui.SupportHandler()}, {AgentDemoPath, demoui.AgentHandler()}, {MQTTDemoPath, demoui.MQTTHandler()}} {
 		prefix := strings.TrimSuffix(bundle.path, "/")
 		handler := http.StripPrefix(prefix, bundle.handler)
 		redirect := func(c *gin.Context) {

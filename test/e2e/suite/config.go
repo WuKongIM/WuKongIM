@@ -28,9 +28,11 @@ type NodeSpec struct {
 	GatewayAddr string
 	// WebSocketAddr is an optional loopback WKProto-over-WebSocket listener.
 	WebSocketAddr string
-	APIAddr       string
-	ManagerAddr   string
-	LogDir        string
+	// MQTTWebSocketAddr is an optional independent MQTT-over-WebSocket listener.
+	MQTTWebSocketAddr string
+	APIAddr           string
+	ManagerAddr       string
+	LogDir            string
 	// ConfigOverrides appends or replaces rendered WK_* config keys for one node.
 	ConfigOverrides map[string]string
 	// ConfigFileOnly prevents mirroring rendered TOML into product environment variables.
@@ -65,7 +67,7 @@ func RenderClusterConfig(local NodeSpec, nodes []NodeSpec) string {
 		{key: "WK_CLUSTER_SLOT_REPLICA_N", value: fmt.Sprintf("%d", replicaN)},
 		{key: "WK_API_LISTEN_ADDR", value: local.APIAddr},
 		{key: "WK_METRICS_ENABLE", value: "true"},
-		{key: "WK_GATEWAY_LISTENERS", value: renderGatewayListeners(local.GatewayAddr, local.WebSocketAddr)},
+		{key: "WK_GATEWAY_LISTENERS", value: renderGatewayListenersWithMQTT(local.GatewayAddr, local.WebSocketAddr, local.MQTTWebSocketAddr)},
 		{key: "WK_GATEWAY_SEND_TIMEOUT", value: "5s"},
 		{key: "WK_PLUGIN_ENABLE", value: "false"},
 	}
@@ -113,7 +115,7 @@ func RenderSeedJoinNodeConfig(local NodeSpec, cfg SeedJoinNodeConfig) string {
 		{key: "WK_CLUSTER_SLOT_REPLICA_N", value: "3"},
 		{key: "WK_API_LISTEN_ADDR", value: local.APIAddr},
 		{key: "WK_METRICS_ENABLE", value: "true"},
-		{key: "WK_GATEWAY_LISTENERS", value: renderGatewayListeners(local.GatewayAddr, local.WebSocketAddr)},
+		{key: "WK_GATEWAY_LISTENERS", value: renderGatewayListenersWithMQTT(local.GatewayAddr, local.WebSocketAddr, local.MQTTWebSocketAddr)},
 		{key: "WK_GATEWAY_SEND_TIMEOUT", value: "5s"},
 		{key: "WK_PLUGIN_ENABLE", value: "false"},
 	}
@@ -132,12 +134,19 @@ func RenderSeedJoinNodeConfig(local NodeSpec, cfg SeedJoinNodeConfig) string {
 }
 
 func renderGatewayListeners(gatewayAddr, webSocketAddr string) string {
-	tcpListener := fmt.Sprintf(`{"name":"tcp-wkproto","network":"tcp","address":"%s","transport":"gnet","protocol":"wkproto"}`, gatewayAddr)
-	if strings.TrimSpace(webSocketAddr) == "" {
-		return "[" + tcpListener + "]"
+	return renderGatewayListenersWithMQTT(gatewayAddr, webSocketAddr, "")
+}
+
+func renderGatewayListenersWithMQTT(gatewayAddr, webSocketAddr, mqttWebSocketAddr string) string {
+	listeners := []map[string]string{{"name": "tcp-wkproto", "network": "tcp", "address": gatewayAddr, "transport": "gnet", "protocol": "wkproto"}}
+	if strings.TrimSpace(webSocketAddr) != "" {
+		listeners = append(listeners, map[string]string{"name": "ws-wkproto", "network": "websocket", "address": webSocketAddr, "path": "/ws", "transport": "gnet", "protocol": "wsmux"})
 	}
-	webSocketListener := fmt.Sprintf(`{"name":"ws-wkproto","network":"websocket","address":"%s","path":"/ws","transport":"gnet","protocol":"wsmux"}`, webSocketAddr)
-	return "[" + tcpListener + "," + webSocketListener + "]"
+	if strings.TrimSpace(mqttWebSocketAddr) != "" {
+		listeners = append(listeners, map[string]string{"name": "mqtt-ws", "network": "websocket", "address": mqttWebSocketAddr, "path": "/mqtt", "transport": "gnet", "protocol": "mqtt"})
+	}
+	body, _ := json.Marshal(listeners)
+	return string(body)
 }
 
 func browserWebSocketURL(webSocketAddr string) string {

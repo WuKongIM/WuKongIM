@@ -30,6 +30,12 @@ type wsHandshakeFailure struct {
 }
 
 func parseWSHandshake(buf []byte, expectedPath string) (*wsHandshakeResult, *wsHandshakeFailure, bool) {
+	return parseWSHandshakeProtocol(buf, expectedPath, "")
+}
+
+// parseWSHandshakeProtocol negotiates a required wire subprotocol without
+// interpreting protocol payloads or product authentication.
+func parseWSHandshakeProtocol(buf []byte, expectedPath, subprotocol string) (*wsHandshakeResult, *wsHandshakeFailure, bool) {
 	headerEnd := bytes.Index(buf, []byte("\r\n\r\n"))
 	if headerEnd < 0 {
 		if len(buf) > wsMaxHeaderSize {
@@ -85,13 +91,29 @@ func parseWSHandshake(buf []byte, expectedPath string) (*wsHandshakeResult, *wsH
 		}, fmt.Sprintf("unsupported websocket version %q", version)), true
 	}
 
+	headers := map[string]string{
+		"Upgrade":              "websocket",
+		"Connection":           "Upgrade",
+		"Sec-WebSocket-Accept": computeWSAccept(key),
+	}
+	if subprotocol != "" {
+		offered := false
+		for _, value := range req.Header.Values("Sec-WebSocket-Protocol") {
+			for _, token := range strings.Split(value, ",") {
+				if strings.TrimSpace(token) == subprotocol {
+					offered = true
+				}
+			}
+		}
+		if !offered {
+			return nil, failWSHandshake(http.StatusBadRequest, nil, "required websocket subprotocol not offered"), true
+		}
+		headers["Sec-WebSocket-Protocol"] = subprotocol
+	}
+
 	return &wsHandshakeResult{
 		consumed: headerEnd + 4,
-		response: buildHTTPResponse(http.StatusSwitchingProtocols, map[string]string{
-			"Upgrade":              "websocket",
-			"Connection":           "Upgrade",
-			"Sec-WebSocket-Accept": computeWSAccept(key),
-		}, nil),
+		response: buildHTTPResponse(http.StatusSwitchingProtocols, headers, nil),
 	}, nil, true
 }
 

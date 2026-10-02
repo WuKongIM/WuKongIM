@@ -6,6 +6,16 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🚀 New Features / 新功能
+
+- Add MQTT 5 over WebSocket for direct browser clients, with an independent
+  listener, negotiated `mqtt` subprotocol and binary messaging. / 新增 MQTT 5
+  WebSocket 接入，浏览器可直连独立监听器，协商 `mqtt` 子协议并使用二进制消息。
+- Add the MQTT smart-store Demo to the one-command catalog: simulate a freezer
+  alarm, issue a cooling command, observe device receipts and recovery, resume
+  offline alerts, and collaborate with an IM colleague. / 一键 Demo 首页新增 MQTT
+  智能门店场景，体验冷柜告警、远程制冷、设备回执与恢复、离线告警和 IM 同事协作。
+
 ## [v3.0.0-beta.22] - 2026-10-02
 
 ### 🚀 New Features / 新功能

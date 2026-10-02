@@ -352,7 +352,7 @@ Session 的 `RemoteAddr` 使用声明的客户端地址，`LocalAddr` 保留实�
 
 | 配置项 | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `mqtt.enable` | `WK_MQTT_ENABLE` | `bool` | 开启 MQTT 5 TCP 监听，默认关闭；完整产品验收仍在进行。 |
+| `mqtt.enable` | `WK_MQTT_ENABLE` | `bool` | 开启 MQTT 业务与默认 TCP 监听，允许额外配置 MQTT WebSocket 监听；默认关闭；完整产品验收仍在进行。 |
 | `mqtt.listen_addr` | `WK_MQTT_LISTEN_ADDR` | `string` | TCP 监听地址，端口须非零；TLS 由上游终止。 |
 | `mqtt.namespace` | `WK_MQTT_NAMESPACE` | `string` | 稳定的 broker ClientID 命名空间；所有集群节点必须一致。 |
 | `mqtt.max_connections` | `WK_MQTT_MAX_CONNECTIONS` | `int` | 保留的 owner 上限，包含准备中和关闭中的连接；范围 1 至 1000000。 |

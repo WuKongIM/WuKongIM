@@ -74,6 +74,7 @@ type suiteOptions struct {
 	nodeLogRootDir         string
 	managerHTTP            bool
 	webSocketGateway       bool
+	mqttWebSocketGateway   bool
 	sharedBackupRepository bool
 	configFileOnly         bool
 	dynamicJoinToken       string
@@ -108,6 +109,12 @@ func WithWebSocketGateway() Option {
 	return optionFunc(func(options *suiteOptions) {
 		options.webSocketGateway = true
 	})
+}
+
+// WithMQTTWebSocketGateway adds an independent /mqtt listener while keeping
+// WKProto TCP readiness and any existing /ws wsmux listener. Enable MQTT explicitly.
+func WithMQTTWebSocketGateway() Option {
+	return optionFunc(func(options *suiteOptions) { options.mqttWebSocketGateway = true })
 }
 
 // WithSharedBackupRepository mounts one workspace-scoped file repository at
@@ -594,6 +601,14 @@ func (n StartedNode) WebSocketURL() string {
 	return browserWebSocketURL(n.Spec.WebSocketAddr)
 }
 
+// MQTTWebSocketURL returns the independently allocated MQTT /mqtt endpoint.
+func (n StartedNode) MQTTWebSocketURL() string {
+	if n.Spec.MQTTWebSocketAddr == "" {
+		return ""
+	}
+	return "ws://" + n.Spec.MQTTWebSocketAddr + "/mqtt"
+}
+
 // DumpDiagnostics returns diagnostics for the started node process.
 func (n StartedNode) DumpDiagnostics() string {
 	if n.Process != nil {
@@ -691,23 +706,28 @@ func buildNodeSpec(nodeID uint64, ports PortSet, workspace Workspace, options su
 	if options.webSocketGateway {
 		webSocketAddr = ports.WebSocketAddr
 	}
+	mqttWebSocketAddr := ""
+	if options.mqttWebSocketGateway {
+		mqttWebSocketAddr = ports.MQTTWebSocketAddr
+	}
 	return NodeSpec{
-		ID:              nodeID,
-		Name:            "node-" + strconv.FormatUint(nodeID, 10),
-		RootDir:         workspace.NodeRootDir(nodeID),
-		DataDir:         workspace.NodeDataDir(nodeID),
-		ConfigPath:      workspace.NodeConfigPath(nodeID),
-		StdoutPath:      workspace.NodeStdoutPath(nodeID),
-		StderrPath:      workspace.NodeStderrPath(nodeID),
-		ClusterAddr:     ports.ClusterAddr,
-		GatewayAddr:     ports.GatewayAddr,
-		WebSocketAddr:   webSocketAddr,
-		APIAddr:         ports.APIAddr,
-		ManagerAddr:     managerAddr,
-		LogDir:          workspace.NodeLogDir(nodeID),
-		ConfigOverrides: configOverrides,
-		ConfigFileOnly:  options.configFileOnly,
-		Env:             cloneEnv(options.nodeEnv[nodeID]),
+		ID:                nodeID,
+		Name:              "node-" + strconv.FormatUint(nodeID, 10),
+		RootDir:           workspace.NodeRootDir(nodeID),
+		DataDir:           workspace.NodeDataDir(nodeID),
+		ConfigPath:        workspace.NodeConfigPath(nodeID),
+		StdoutPath:        workspace.NodeStdoutPath(nodeID),
+		StderrPath:        workspace.NodeStderrPath(nodeID),
+		ClusterAddr:       ports.ClusterAddr,
+		GatewayAddr:       ports.GatewayAddr,
+		WebSocketAddr:     webSocketAddr,
+		MQTTWebSocketAddr: mqttWebSocketAddr,
+		APIAddr:           ports.APIAddr,
+		ManagerAddr:       managerAddr,
+		LogDir:            workspace.NodeLogDir(nodeID),
+		ConfigOverrides:   configOverrides,
+		ConfigFileOnly:    options.configFileOnly,
+		Env:               cloneEnv(options.nodeEnv[nodeID]),
 	}
 }
 

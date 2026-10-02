@@ -84,6 +84,8 @@ type listenerRuntime struct {
 	factory       transport.Factory
 	adapter       protocol.Adapter
 	packetAdapter protocol.PacketAdapter
+	// webSocket declares protocol wire requirements for the transport binding.
+	webSocket protocol.WebSocketPolicy
 	// auth declares the selected wire protocol's CONNECT handshake requirement.
 	auth    protocol.ConnectAuthenticationPolicy
 	tracker protocol.ReplyTokenTracker
@@ -200,6 +202,11 @@ func NewServer(registry *Registry, opts *gatewaytypes.Options) (*Server, error) 
 			packetAdapter: packetAdapter,
 			eventNetwork:  connectionEventNetwork(listener.Network),
 			eventProtocol: connectionEventProtocol(listener.Network),
+		}
+		if policy, ok := packetAdapter.(protocol.WebSocketPolicyProvider); ok {
+			runtime.webSocket = policy.WebSocketPolicy()
+		} else if policy, ok := adapter.(protocol.WebSocketPolicyProvider); ok {
+			runtime.webSocket = policy.WebSocketPolicy()
 		}
 		if tracker, ok := adapter.(protocol.ReplyTokenTracker); ok {
 			runtime.tracker = tracker
@@ -320,6 +327,8 @@ func (s *Server) buildListeners(runtimes []*listenerRuntime) error {
 					Network:                   runtime.options.Network,
 					Address:                   runtime.options.Address,
 					Path:                      runtime.options.Path,
+					WebSocketSubprotocol:      runtime.webSocket.Subprotocol,
+					WebSocketBinaryOnly:       runtime.webSocket.BinaryOnly,
 					ProxyProtocolTrustedCIDRs: runtime.options.ProxyProtocolTrustedCIDRs,
 					MaxPendingBytes:           s.options.DefaultSession.MaxInboundBytes,
 					MaxOutboundBytes:          int64(s.options.DefaultSession.MaxOutboundBytes),
@@ -1367,6 +1376,9 @@ func (s *Server) writePayloadDirectObserved(state *sessionState, payload []byte,
 func webSocketMessageTypeForState(state *sessionState) transport.WebSocketMessageType {
 	if state == nil || state.listener == nil || state.listener.options.Network != "websocket" {
 		return transport.WebSocketMessageUnknown
+	}
+	if state.listener.webSocket.BinaryOnly {
+		return transport.WebSocketMessageBinary
 	}
 
 	protocolName := state.listener.options.Protocol

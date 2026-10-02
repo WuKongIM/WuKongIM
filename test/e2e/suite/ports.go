@@ -35,11 +35,12 @@ var processLoopbackPortLease struct {
 
 // PortSet groups the external listener addresses reserved for one e2e node.
 type PortSet struct {
-	ClusterAddr   string
-	GatewayAddr   string
-	WebSocketAddr string
-	APIAddr       string
-	ManagerAddr   string
+	ClusterAddr       string
+	GatewayAddr       string
+	WebSocketAddr     string
+	MQTTWebSocketAddr string
+	APIAddr           string
+	ManagerAddr       string
 }
 
 // ReserveLoopbackPorts reserves distinct loopback listener addresses for one node.
@@ -47,11 +48,12 @@ func ReserveLoopbackPorts(t testing.TB) PortSet {
 	t.Helper()
 
 	return PortSet{
-		ClusterAddr:   reserveLoopbackAddr(t),
-		GatewayAddr:   reserveLoopbackAddr(t),
-		WebSocketAddr: reserveLoopbackAddr(t),
-		APIAddr:       reserveLoopbackAddr(t),
-		ManagerAddr:   reserveLoopbackAddr(t),
+		ClusterAddr:       reserveLoopbackAddr(t),
+		GatewayAddr:       reserveLoopbackAddr(t),
+		WebSocketAddr:     reserveLoopbackAddr(t),
+		MQTTWebSocketAddr: reserveLoopbackAddr(t),
+		APIAddr:           reserveLoopbackAddr(t),
+		ManagerAddr:       reserveLoopbackAddr(t),
 	}
 }
 

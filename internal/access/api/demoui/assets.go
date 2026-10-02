@@ -2,7 +2,7 @@ package demoui
 
 import "embed"
 
-// embeddedHomeDist contains the read-only catalog for all four Demo scenarios.
+// embeddedHomeDist contains the read-only catalog for all five Demo scenarios.
 //
 //go:embed all:homedist
 var embeddedHomeDist embed.FS
@@ -26,3 +26,8 @@ var embeddedSupportDist embed.FS
 //
 //go:embed all:agentdist
 var embeddedAgentDist embed.FS
+
+// embeddedMQTTDist contains the smart-store UI; MQTT clients run in the browser.
+//
+//go:embed all:mqttdist
+var embeddedMQTTDist embed.FS

@@ -4,7 +4,7 @@ description: Preserve IM payload bytes, keep stable idempotency keys, and distin
 ---
 
 <Callout type="warn" title="Development preview">
-  This describes the MQTT 5 TCP development implementation. See the [overview](/en/api/client-protocols/mqtt) for capabilities and qualification boundaries.
+  This describes the MQTT 5 TCP / WebSocket development implementation. See the [overview](/en/api/client-protocols/mqtt) for capabilities and qualification boundaries.
 </Callout>
 
 ## Inbound PUBLISH
@@ -62,7 +62,7 @@ This fragment does not acknowledge durable application processing. MQTT.js handl
 
 ## Ordering, expiry and size
 
-`message_seq` orders one channel. A personal inbox combines multiple direct-message sources and has no cross-channel total order. QoS 1 can duplicate; deduplicate by stable MessageID, not Packet Identifier.
+`message_seq` orders one channel. A personal inbox combines multiple direct-message sources, including both directions of a person Channel, so a sender can receive its own projection. Use `wk.from_uid` to distinguish the sender and apply business roles; there is no cross-channel total order. QoS 1 can duplicate; deduplicate by stable MessageID, not Packet Identifier.
 
 Message Expiry Interval limits validity, and remaining lifetime decreases during delivery and replay. Expired messages are not permanent offline archives. Ordinary history queries and MQTT session replay are separate interfaces.
 

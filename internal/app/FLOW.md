@@ -63,7 +63,10 @@ Stop or startup rollback
 - Optional features are wired only when all required ports exist; unavailable
   capabilities stay explicit instead of receiving partial implementations.
 - Opt-in MQTT composition shares the existing Gateway and device-token verifier,
-  without WK device-conflict actions. Exact-owner RPC, connection renewal,
+  without WK device-conflict actions. Additional independent WebSocket MQTT
+  listeners are selected through existing `gateway.listeners` configuration and
+  reuse the same packet handler, device-token verifier and MQTT runtime as TCP.
+  They require `mqtt.enable`; IM route discovery does not publish their URL. Exact-owner RPC, connection renewal,
   group/inbox projection, future person-source admission, replay maintenance,
   delivery, ACKs, owner sweeps, offline accounting/closed-source drain/progress, pending-subscription completion and Channel/ended-UID removal are wired before admission. Real process
   Paho/WKProto interop passes in single-node and three-node 256-hash-Slot clusters.

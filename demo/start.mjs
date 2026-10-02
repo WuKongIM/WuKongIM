@@ -107,14 +107,14 @@ async function prepareRuntime(name) {
   try {
     installed=(await readFile(stamp,'utf8'))===digest;
     const require=createRequire(join(cwd,'package.json'));
-    require.resolve('easyjssdk');require.resolve('typescript');
+    for (const dependency of name==='mqtt'?['mqtt','easyjssdk']:['easyjssdk','typescript']) require.resolve(dependency);
   } catch {installed=false;}
   if(!installed) {
     console.log('准备 '+name+' 依赖…');
     await command(name+'-install',process.platform==='win32'?'npm.cmd':'npm',['ci','--no-audit','--no-fund'],cwd);
     await writeFile(stamp,digest);
   }
-  await command(name+'-runtime',process.execPath,['node_modules/typescript/bin/tsc','-p','tsconfig.model.json'],cwd);
+  if(name!=='mqtt') await command(name+'-runtime',process.execPath,['node_modules/typescript/bin/tsc','-p','tsconfig.model.json'],cwd);
 }
 async function openHome(url) {
   const executable=process.platform==='darwin'?'open':process.platform==='win32'?'explorer.exe':'xdg-open';
@@ -142,10 +142,10 @@ try {
   const explicit=process.env.WK_DEMO_HOME_PORT;
   if(explicit && (!/^\d+$/.test(explicit) || Number(explicit)<1 || Number(explicit)>65535)) throw Error('WK_DEMO_HOME_PORT 必须为 1–65535 的端口。');
   const homePort=await reserve(Number(explicit||5174),!!explicit);
-  const [http,raft,ws,manager,stream,support,agent]=await Promise.all(Array.from({length:7},()=>reserve()));
+  const [http,raft,ws,manager,stream,support,agent,mqttTcp,mqttWs,mqtt]=await Promise.all(Array.from({length:10},()=>reserve()));
   const supplied=process.env.WK_DEMO_SERVER_BIN;
   if(supplied) {try {await access(resolve(supplied),constants.X_OK);} catch {throw Error('WK_DEMO_SERVER_BIN 必须指向可执行的 WuKongIM 二进制。');}}
-  for(const bundle of ['homedist','dist','streamdist','supportdist','agentdist']) {
+  for(const bundle of ['homedist','dist','streamdist','supportdist','agentdist','mqttdist']) {
     try {await access(join(root,'internal/access/api/demoui',bundle,'index.html'));} catch {throw Error('缺少 '+bundle+' 页面资源，请按 demo/README.md 构建。');}
   }
   await mkdir(resolve(directory,'..'),{recursive:true});
@@ -153,27 +153,29 @@ try {
   created=true;
   report.api=`http://127.0.0.1:${http.port}`;
   report.home=`http://127.0.0.1:${homePort.port}/demos/`;
-  report.demos={chat:report.api+'/demo/',stream:`http://127.0.0.1:${stream.port}/streamdemo/`,support:`http://127.0.0.1:${support.port}/supportdemo/`,agent:`http://127.0.0.1:${agent.port}/agentdemo/`};
+  report.mqttWs=`ws://127.0.0.1:${mqttWs.port}/mqtt`;
+  report.mqttTcp=`tcp://127.0.0.1:${mqttTcp.port}`;
+  report.demos={chat:report.api+'/demo/',stream:`http://127.0.0.1:${stream.port}/streamdemo/`,support:`http://127.0.0.1:${support.port}/supportdemo/`,agent:`http://127.0.0.1:${agent.port}/agentdemo/`,mqtt:`http://127.0.0.1:${mqtt.port}/mqttdemo/`};
   await saveReport('starting'); console.log('运行目录：'+directory);
   const binary=supplied?resolve(supplied):join(directory,process.platform==='win32'?'wukongim.exe':'wukongim');
   if(!supplied) {console.log('构建 WuKongIM…');await command('build','go',['build','-o',binary,'./cmd/wukongim'],root,{GOWORK:'off'});}
-  await prepareRuntime('support');await prepareRuntime('agent');
-  const config=`[node]\nid = 1\ndata_dir = ${JSON.stringify(join(directory,'data'))}\n[cluster]\nid = "demo-${randomUUID()}"\nlisten_addr = "127.0.0.1:${raft.port}"\nnodes = [{id = 1, addr = "127.0.0.1:${raft.port}"}]\ninitial_slot_count = 8\nhash_slot_count = 256\nslot_replica_n = 1\n[api]\nlisten_addr = "127.0.0.1:${http.port}"\nexternal_ws_addr = "ws://127.0.0.1:${ws.port}"\n[manager]\nlisten_addr = "127.0.0.1:${manager.port}"\n[gateway]\ntoken_auth_on = true\nlisteners = [{name = "ws", network = "websocket", address = "127.0.0.1:${ws.port}", transport = "gnet", protocol = "wsmux"}]\n[plugin]\nenable = false\n[log]\nlevel = "warn"\ndir = ${JSON.stringify(join(directory,'app-logs'))}\n`;
+  await prepareRuntime('support');await prepareRuntime('agent');await prepareRuntime('mqtt');
+  const config=`[node]\nid = 1\ndata_dir = ${JSON.stringify(join(directory,'data'))}\n[cluster]\nid = "demo-${randomUUID()}"\nlisten_addr = "127.0.0.1:${raft.port}"\nnodes = [{id = 1, addr = "127.0.0.1:${raft.port}"}]\ninitial_slot_count = 8\nhash_slot_count = 256\nslot_replica_n = 1\n[api]\nlisten_addr = "127.0.0.1:${http.port}"\nexternal_ws_addr = "ws://127.0.0.1:${ws.port}"\n[manager]\nlisten_addr = "127.0.0.1:${manager.port}"\n[gateway]\ntoken_auth_on = true\nlisteners = [{name = "ws", network = "websocket", address = "127.0.0.1:${ws.port}", transport = "gnet", protocol = "wsmux"}, {name = "mqtt-ws", network = "websocket", address = "127.0.0.1:${mqttWs.port}", path = "/mqtt", transport = "gnet", protocol = "mqtt"}]\n[mqtt]\nenable = true\nlisten_addr = "127.0.0.1:${mqttTcp.port}"\nnamespace = "demo"\n[plugin]\nenable = false\n[log]\nlevel = "warn"\ndir = ${JSON.stringify(join(directory,'app-logs'))}\n`;
   await writeFile(join(directory,'wukongim.toml'),config);
-  for(const port of [http,raft,ws,manager]) await port.release();
+  for(const port of [http,raft,ws,manager,mqttTcp,mqttWs]) await port.release();
   start('wukongim',binary,['-config',join(directory,'wukongim.toml')],root,{},true,report.api);
   await ready('wukongim',report.api+'/readyz',async r=>(await r.json()).ready===true);
   const route=await fetch(report.api+'/route?uid=demo-launcher',{signal:AbortSignal.timeout(3000)}).then(r=>r.json());
   if(route.ws_addr!==`ws://127.0.0.1:${ws.port}`) throw Error('WuKongIM 未发布本次演示的 WebSocket 地址。');
-  for(const [name,port] of [['stream',stream],['support',support],['agent',agent]]) {
+  for(const [name,port] of [['stream',stream],['support',support],['agent',agent],['mqtt',mqtt]]) {
     await port.release();
-    start(name,process.execPath,['server.mjs'],join(root,'demo',name+'demo'),{WK_DEMO_PORT:String(port.port),WK_DEMO_API_URL:report.api},true,report.demos[name]);
+    start(name,process.execPath,['server.mjs'],join(root,'demo',name+'demo'),{WK_DEMO_PORT:String(port.port),WK_DEMO_API_URL:report.api,...(name==='mqtt'?{WK_DEMO_MQTT_WS_URL:report.mqttWs}:{})},true,report.demos[name]);
     const health=name==='stream'?report.demos[name]:report.demos[name]+'api/health';
     await ready(name,health,name==='stream'?async r=>(await r.text()).includes('wk-model-proxy'):async r=>(await r.json()).ready===true);
   }
   await homePort.release();
-  start('home',process.execPath,['server.mjs'],join(root,'demo/home'),{WK_DEMO_PORT:String(homePort.port),WK_DEMO_CHAT_URL:report.demos.chat,WK_DEMO_STREAM_URL:report.demos.stream,WK_DEMO_SUPPORT_URL:report.demos.support,WK_DEMO_AGENT_URL:report.demos.agent},true,report.home);
-  await ready('home',report.home,async r=>(await r.text()).includes('data-demo="agent"'));
+  start('home',process.execPath,['server.mjs'],join(root,'demo/home'),{WK_DEMO_PORT:String(homePort.port),WK_DEMO_CHAT_URL:report.demos.chat,WK_DEMO_STREAM_URL:report.demos.stream,WK_DEMO_SUPPORT_URL:report.demos.support,WK_DEMO_AGENT_URL:report.demos.agent,WK_DEMO_MQTT_URL:report.demos.mqtt},true,report.home);
+  await ready('home',report.home,async r=>(await r.text()).includes('data-demo="mqtt"'));
   interrupted(); await saveReport('ready');
   console.log('\n全部 Demo 已就绪：'+report.home+'\n按 Ctrl+C 退出；日志与数据保留在运行目录。');
   if(!args.includes('--no-open')) await openHome(report.home);

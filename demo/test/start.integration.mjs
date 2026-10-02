@@ -2,6 +2,8 @@
 // Failure cases: missing binary, occupied explicit port, stale run directory,
 // invalid options, startup child exit, runtime child exit, and interrupted cleanup.
 // Successful setup must reach real 256-hash-slot cluster readiness and SDK delivery.
+// MQTT failures: missing listener/provisioning process, wrong published address,
+// absent scene entrance, or a ready scene that cannot deliver a real MQTT message.
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
@@ -27,7 +29,8 @@ async function until(fn, label, timeout = 30000) {
 }
 async function json(url, body, token) {
   const response = await fetch(url, {method: body === undefined ? 'GET' : 'POST', headers: {'content-type':'application/json', ...(token ? {authorization:'Bearer '+token} : {})}, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15000)});
-  assert(response.ok, url + ': HTTP ' + response.status); return response.json();
+  if(!response.ok) throw Error(url + ': HTTP ' + response.status + ' ' + (await response.text()).slice(0,1024));
+  return response.json();
 }
 function launch(name, extra = {}, args = ['--no-open']) {
   const directory = join(evidence, name);
@@ -71,13 +74,16 @@ try {
   const run = launch('success', {WK_NODE_ID:'999', WK_CLUSTER_NODES:'invalid inherited config'});
   let report;
   await until(async () => {try {report = await run.report();return report.status === 'ready';} catch {return false;}}, 'all services ready', 120000);
-  check('every_owned_service_is_ready', report.services.length === 5 && report.services.every(s => s.ready && alive(s.pid)));
+  check('every_owned_service_is_ready', report.services.length === 6 && report.services.every(s => s.ready && alive(s.pid)));
   check('occupied_default_home_port_uses_free_port', new URL(report.home).port !== '5174');
   check('real_cluster_ready', (await json(report.api+'/readyz')).ready === true);
   check('isolated_256_hash_slot_single_node_cluster', report.hashSlots === 256 && report.topology === 'single-node cluster' && (await readFile(join(run.directory,'wukongim.toml'),'utf8')).includes('id = 1'));
   const home = await fetch(report.home).then(r=>r.text());
-  check('four_cards_on_launched_home', [...home.matchAll(/data-demo="/g)].length === 4);
-  for (const [name,path] of [['chat','/demo/'],['stream','/streamdemo/'],['support','/supportdemo/'],['agent','/agentdemo/']]) {
+  check('five_cards_on_launched_home', [...home.matchAll(/data-demo="/g)].length === 5);
+  check('mqtt_ws_address_is_loopback', new URL(report.mqttWs).hostname === '127.0.0.1' && new URL(report.mqttWs).pathname === '/mqtt');
+  const toml = await readFile(join(run.directory,'wukongim.toml'),'utf8');
+  check('mqtt_enabled_with_independent_websocket', toml.includes('[mqtt]') && toml.includes('protocol = "mqtt"') && toml.includes('path = "/mqtt"'));
+  for (const [name,path] of [['chat','/demo/'],['stream','/streamdemo/'],['support','/supportdemo/'],['agent','/agentdemo/'],['mqtt','/mqttdemo/']]) {
     const response = await fetch(new URL(path,report.home), {redirect:'manual'});
     const destination = response.headers.get('location');
     const entrance = new URL(destination);
@@ -87,8 +93,32 @@ try {
     check(name+'_page_and_assets_work', page.ok && (await Promise.all([...html.matchAll(/(?:src|href)="(\/[^\"]+\/assets\/[^\"]+)"/g)].map(async ([,asset]) => (await fetch(new URL(asset,destination))).ok))).every(Boolean));
     if(name !== 'chat') check(name+'_standalone_catalog_fallback', html.includes(`name="wk-demo-home" content="${report.api}/demos/"`));
     if(name === 'stream') check('stream_has_api_and_model_proxy', html.includes(report.api) && html.includes('wk-model-proxy'));
-    if(name === 'support' || name === 'agent') check(name+'_uses_same_origin_backend', html.includes(`wk-${name}-backend`));
+    if(['support','agent','mqtt'].includes(name)) check(name+'_uses_same_origin_backend', html.includes(`wk-${name}-backend`));
   }
+  const mqttSession = await json(new URL('/mqttdemo/api/session',report.demos.mqtt),{});
+  check('mqtt_provisioning_publishes_owned_listener', mqttSession.mqttWsUrl === report.mqttWs);
+  const {connectAsync} = createRequire(join(root,'demo/mqttdemo/package.json'))('mqtt');
+  const mqttConnect = identity => connectAsync(mqttSession.mqttWsUrl, {
+    protocolVersion:5,clientId:identity.clientId,username:identity.uid,password:identity.token,
+    clean:true,reconnectPeriod:0,connectTimeout:15000,
+    properties:{userProperties:{'wk.device_flag':'1'}},
+  });
+  const staffMqtt = await mqttConnect(mqttSession.staff);
+  clients.push({destroy:()=>staffMqtt.end(true)});
+  const deviceMqtt = await mqttConnect(mqttSession.device);
+  clients.push({destroy:()=>deviceMqtt.end(true)});
+  const topic = 'wk/v1/groups/'+Buffer.from(mqttSession.groupId).toString('base64url')+'/messages';
+  const receivedMqtt = [];
+  staffMqtt.on('message',(_topic,payload,packet)=>receivedMqtt.push({text:payload.toString(),packet}));
+  const granted = await staffMqtt.subscribeAsync(topic,{qos:1});
+  check('mqtt_websocket_subscription_ready', granted[0].qos === 1);
+  const mqttClientNumber = randomUUID();
+  await deviceMqtt.publishAsync(topic,JSON.stringify({type:1,content:'launcher MQTT check'}),{
+    qos:1,properties:{userProperties:{'wk.client_msg_no':mqttClientNumber}},
+  });
+  await until(()=>receivedMqtt.some(m=>m.text.includes('launcher MQTT check')), 'launcher MQTT group delivery');
+  const packet = receivedMqtt.find(m=>m.text.includes('launcher MQTT check')).packet;
+  check('mqtt_real_group_delivery_identity', /^\d+$/.test(packet.properties.userProperties['wk.message_id']) && packet.properties.userProperties['wk.from_uid'] === mqttSession.device.uid && packet.properties.userProperties['wk.client_msg_no'] === mqttClientNumber);
   const {WKIM, WKIMEvent} = createRequire(join(root,'demo/agentdemo/package.json'))('easyjssdk');
   const messages = [], events = [];
   const session = await json(new URL('/agentdemo/api/session',report.demos.agent), {});

@@ -51,6 +51,10 @@ Message, presence, Channel, and Controller business policy stays outside gateway
    reply is enqueued; earlier failure invokes the returned rollback once.
    Optional CheckReply revalidates accepted activation immediately before enqueue;
    rejection or panic skips the reply and rolls back without opening the session.
+   Optional protocol WebSocket policies declare an exact Upgrade subprotocol and
+   binary-only data contract. MQTT selects `mqtt`, rejects text, and writes explicit
+   binary messages; packet boundaries remain independent of WebSocket messages.
+   Existing WSMux selection and control/continuation transport handling stay shared.
 3. Close cancels request work, removes indexes, releases protocol and transport
    state, and orders error/close callbacks after open completion; drain rejects
    only new sessions and reports existing session state for safety checks.

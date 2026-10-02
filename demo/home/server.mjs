@@ -12,6 +12,7 @@ const destinations = new Map([
   ['/streamdemo/', process.env.WK_DEMO_STREAM_URL || 'http://127.0.0.1:5175/streamdemo/'],
   ['/supportdemo/', process.env.WK_DEMO_SUPPORT_URL || 'http://127.0.0.1:5177/supportdemo/'],
   ['/agentdemo/', process.env.WK_DEMO_AGENT_URL || 'http://127.0.0.1:5178/agentdemo/'],
+  ['/mqttdemo/', process.env.WK_DEMO_MQTT_URL || 'http://127.0.0.1:5179/mqttdemo/'],
 ]);
 for (const [path, value] of destinations) {
   const url = new URL(value);

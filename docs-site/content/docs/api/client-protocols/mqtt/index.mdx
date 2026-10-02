@@ -1,12 +1,12 @@
 ---
 title: MQTT
-description: 通过 MQTT 5 TCP 接入现有用户、频道和消息，了解能力与开发预览范围。
+description: 通过 MQTT 5 TCP 或 WebSocket 接入现有用户、频道和消息，了解能力与开发预览范围。
 ---
 
 MQTT 是 WuKongIM 的一种 IM 接入协议。MQTT 客户端与 HTTP、WKProto SDK 共用 UID、设备 Token、频道、成员权限和消息；应用仍负责账号登录、业务授权及 payload 格式。
 
 <Callout type="warn" title="开发预览">
-  当前 MQTT 入口默认关闭，只提供 MQTT 5 TCP。完整 Linux、故障和负载验收仍未完成。请使用包含 MQTT 实现的匹配开发候选；现有正式发布的安装包或镜像不能据此视为支持 MQTT。
+  当前 MQTT 入口默认关闭，提供 MQTT 5 TCP 和可选的独立 WebSocket 入口。完整 Linux、故障和负载验收仍未完成。请使用包含 MQTT 实现的匹配开发候选；现有正式发布的安装包或镜像不能据此视为支持 MQTT。
 </Callout>
 
 ## 从哪里开始
@@ -25,8 +25,8 @@ MQTT 是 WuKongIM 的一种 IM 接入协议。MQTT 客户端与 HTTP、WKProto S
 
 | 能力 | 当前行为 |
 | --- | --- |
-| 协议和传输 | MQTT 5.0，原始 TCP；其他版本不支持。TLS 在上游终止 |
-| 浏览器 | 没有 MQTT WebSocket 入口；浏览器使用现有 WKProto / JSON-RPC 路径 |
+| 协议和传输 | MQTT 5.0，原始 TCP 或 WebSocket；其他版本不支持。TLS 在上游终止 |
+| 浏览器 | 配置独立 `/mqtt` WebSocket 监听后可用 MQTT.js 直连；必须协商 `mqtt` 子协议并使用二进制消息 |
 | 发布 QoS | 0、1；不支持 QoS 2 发布 |
 | 订阅 QoS | 0、1；请求 2 时可授予 1，必须检查 SUBACK |
 | Topic | 精确个人收件箱和群消息 Topic；没有任意业务 Topic |

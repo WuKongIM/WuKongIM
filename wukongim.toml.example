@@ -170,6 +170,11 @@ token_auth_on = true
 # Preface detection must finish within 5s of accept; v1 is capped at 107 bytes and
 # v2 at 4096 bytes including TLVs. The proxy must prepend its own PROXY header;
 # HTTP X-Forwarded-For and TLS termination are separate capabilities.
+# Optional MQTT WebSocket access requires mqtt.enable = true. Append a separate
+# listener with network = "websocket", transport = "gnet", protocol = "mqtt",
+# address = "127.0.0.1:1884" and path = "/mqtt". Listener addresses must be unique;
+# the existing wsmux listener does not dispatch MQTT. Clients offer subprotocol
+# "mqtt" and send binary messages. TLS for wss:// terminates upstream.
 listeners = [{ name = "tcp-wkproto", network = "tcp", address = "0.0.0.0:5100", transport = "gnet", protocol = "wkproto" }, { name = "ws-gateway", network = "websocket", address = "0.0.0.0:5200", transport = "gnet", protocol = "wsmux" }]
 # Four multicore event loops and 1,000 bounded SEND preparation workers.
 # Product SEND retains the 131,072-record budget through execution and ordered
@@ -284,7 +289,9 @@ persist_after_workers = 16
 
 # Optional MQTT 5 access. Complete recovery/scale acceptance remains in progress.
 [mqtt]
-# Open the MQTT 5 TCP listener; default false. MQTT product acceptance remains in progress.
+# Enable MQTT product handling and the default TCP listener; default false.
+# Additional WebSocket listeners use gateway.listeners with protocol = "mqtt".
+# MQTT product acceptance remains in progress.
 enable = false
 # TCP bind address with a nonzero port; TLS terminates upstream.
 listen_addr = "0.0.0.0:1883"

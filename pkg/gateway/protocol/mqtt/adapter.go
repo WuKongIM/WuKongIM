@@ -53,6 +53,11 @@ func (*Adapter) Name() string                  { return Name }
 func (*Adapter) OnOpen(session.Session) error  { return nil }
 func (*Adapter) OnClose(session.Session) error { return nil }
 
+// WebSocketPolicy enforces the MQTT 5 WebSocket binding's wire contract.
+func (*Adapter) WebSocketPolicy() protocol.WebSocketPolicy {
+	return protocol.WebSocketPolicy{Subprotocol: Name, BinaryOnly: true}
+}
+
 func (a *Adapter) DecodePackets(sess session.Session, in []byte) ([]protocol.InboundPacket, int, error) {
 	var out []protocol.InboundPacket
 	consumed := 0

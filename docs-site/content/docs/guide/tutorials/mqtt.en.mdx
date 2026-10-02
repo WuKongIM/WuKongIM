@@ -5,8 +5,8 @@ description: Connect Alice and Bob with Node.js and MQTT.js, authenticate, subsc
 
 Goal: Alice and Bob connect to MQTT, subscribe to their own inboxes, and exchange SDK text-format messages in both directions. Verify actual recipient content and stable server message identities.
 
-<Callout type="warn" title="Development preview: MQTT 5 TCP">
-  Disabled by default; use a matching development candidate containing MQTT. Do not assume current released packages/images include it. Complete Linux, fault and load qualification remains outstanding. This tutorial runs in Node.js. Browsers cannot connect directly to raw TCP, and there is no MQTT WebSocket listener.
+<Callout type="warn" title="Development preview: MQTT 5">
+  Disabled by default; use a matching development candidate containing MQTT. Do not assume current released packages/images include it. Complete Linux, fault and load qualification remains outstanding. This tutorial runs in Node.js. Browsers use the separate MQTT WebSocket listener; see [Operations and Troubleshooting](/en/api/client-protocols/mqtt/operations-and-troubleshooting) for configuration.
 </Callout>
 
 ## 1. Prepare a single-node cluster
@@ -82,7 +82,7 @@ A new run creates new sessions and does not establish offline recovery. Follow [
 
 ## 6. Troubleshooting
 
-- Connection fails: inspect listener, version, UID/token and device category. This Node.js example does not connect to browser WebSocket.
+- Connection fails: inspect listener, version, UID/token and device category. This command uses raw TCP; browsers need a separate MQTT WebSocket listener and a `ws://` or `wss://` URL.
 - Subscription fails: inspect own-inbox topic and base64url. Group subscriptions require existing membership.
 - Exchange times out: inspect logs, permissions, quotas, recipient connection and ACKs. Preserve the original application key when investigating an uncertain result.
 

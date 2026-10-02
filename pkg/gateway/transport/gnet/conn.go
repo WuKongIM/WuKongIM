@@ -370,7 +370,7 @@ func (s *connState) appendWSInbound(data []byte) bool {
 }
 
 func (s *connState) consumeWSHandshake() (*wsHandshakeResult, *wsHandshakeFailure, bool) {
-	result, failure, complete := parseWSHandshake(s.wsInbound, s.runtime.opts.Path)
+	result, failure, complete := parseWSHandshakeProtocol(s.wsInbound, s.runtime.opts.Path, s.runtime.opts.WebSocketSubprotocol)
 	if !complete {
 		return nil, nil, false
 	}
@@ -454,6 +454,14 @@ func (s *connState) nextWSResult() (wsTrafficResult, bool) {
 			}
 			return wsTrafficResult{payload: payload, opcode: opcode}, true
 		case wsOpcodeText, wsOpcodeBinary:
+			if frame.opcode == wsOpcodeText && s.runtime != nil && s.runtime.opts.WebSocketBinaryOnly {
+				err := newWSProtocolError(wsCloseUnsupportedData, "websocket protocol requires binary data messages")
+				return wsTrafficResult{
+					closeWrite: buildWSCloseFrame(wsCloseCodeForErr(err), err.Error()),
+					closeNow:   true,
+					closeErr:   err,
+				}, true
+			}
 			if s.wsOpcode != 0 {
 				err := newWSProtocolError(wsCloseProtocolError, "websocket message started before fragmented message completed")
 				return wsTrafficResult{
