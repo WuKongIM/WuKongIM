@@ -1,0 +1,146 @@
+{
+  "source_commit": "d4319c99b4254c78daf201e99dacc875f3f23122",
+  "source_rules_sha256": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "internal/access/mqtt/FLOW.md": "da87411d7f48fb9b39def7e4baab5cb73dcea1e3c4db7917dad41eb24ae5ff5f",
+    "internal/usecase/mqttsession/FLOW.md": "a213bc228de4ca962800031252b5ad58d87b457fcd2c80c79264b741c84f6209",
+    "internal/runtime/mqttsession/FLOW.md": "5f61cca4475b652f61c893afeae4d7d721258072158504b92c78749971e6c29d",
+    "internal/app/FLOW.md": "9f2d53b995b2b5885a4e2a66574fbefb685e7911467d8baac4d0b811000b0331",
+    "test/e2e/AGENTS.md": "386f70c7f300d4b40c874d09b0e67858757f0a02f19a9efd3f41d6f91c71e91a",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "test/e2e/mqtt/unsubscribe_recovery/AGENTS.md": "e4c319825fefcfa011e1d61e8e1b2b48bfec156e6e3e965f71a12107b60f434c"
+  },
+  "status": "entry_signal_verified_underlying_dependency_open",
+  "full_goal_status": "in_progress",
+  "behavior": {
+    "metric": "wukongim_mqtt_subscription_closures_total",
+    "labels": [
+      "operation",
+      "reason"
+    ],
+    "fixed_series_per_node": 34,
+    "no_identity_or_error_text": true,
+    "changes_retry_policy": false,
+    "scope": "Entry close requests while processing SUB/UNSUB; excludes delivery, renewal and gateway-originated closes."
+  },
+  "test_first": {
+    "inventory": "docs/specs/mqtt-subscription-diagnostics.md",
+    "unit_red": {
+      "path": "/tmp/mqtt-subscription-diagnostics-red.log",
+      "sha256": "742c506cd8f1c3df35b8f1135b9bb694ca1bebd1244c6e54fe7fc1dd10e08af5"
+    },
+    "process_old_binary_red": {
+      "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-ack-concurrency-gofail WK_E2E_GOFAIL_MQTT=1 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-subscription-diagnostics-old-reports GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/unsubscribe_recovery -run 'TestInterruptedUnsubscribeBackgroundRecovery/3-node-cluster/group/before-completion$' -count=1 -timeout=2m -v",
+      "log": {
+        "path": "/tmp/mqtt-subscription-diagnostics-process-red.log",
+        "sha256": "a09c3ec34c69457287a419eeca659562da1b564b24b57773506fe1a13a1303a7"
+      },
+      "exit_code": 1,
+      "failure": "metric sample not found; old binary has no closure observation"
+    }
+  },
+  "validation": [
+    {
+      "command": "GOWORK=off go test -race -p 2 ./internal/access/mqtt ./pkg/metrics ./internal/app -count=1",
+      "log": {
+        "path": "/tmp/mqtt-subscription-diagnostics-full-race.log",
+        "sha256": "247fefe0968ccf0776dd6a2d6f1d1f1cc1db00558d793d92b685aa0ecce26469"
+      },
+      "exit_code": 0
+    },
+    {
+      "named_check": "flow-doc-contracts",
+      "log": {
+        "path": "/tmp/mqtt-subscription-diagnostics-flow.log",
+        "sha256": "518c3c03df7eb5d31ffef78aaf4666017b3054bf4e16f65a227b11efc525cf09"
+      },
+      "exit_code": 0,
+      "result": "87 compliant, 0 invalid, 9 existing length warnings"
+    }
+  ],
+  "candidate_go_sha256": {
+    "internal/access/mqtt/handler.go": "b52139c66132d7dface2a2ea492f24257d47b968dc59c95ef4bdf33b8c464c6f",
+    "internal/access/mqtt/subscriptions.go": "9277721cfcbbdfba7b706abf163fe30388e0c3db7bba91189d9f6f30ae9937e8",
+    "internal/access/mqtt/subscriptions_test.go": "7b2a909f82c3e86da11a57bc70afd0402e51367697f86161df6ea2cfc4cc150c",
+    "internal/app/mqtt_product.go": "7659877d0eb51b3df067f5b51b5c25653ce1df66f7eb26f369622b0c4ef0d321",
+    "pkg/metrics/mqtt.go": "4c63171835f92a67db4e8207310d1108b7e042f9e7ec6eb9c6bd3faf66f220b6",
+    "pkg/metrics/mqtt_test.go": "18282772b2e20af9ad2bf2484dcf4f5d494bdde18d0a149a76ad6bd35179c0db",
+    "test/e2e/mqtt/unsubscribe_recovery/unsubscribe_recovery_test.go": "c4bdd14f033b2343a946997a8f268bbcb1b479976fb5c714720ffd55fe7ec05f"
+  },
+  "candidate_binary": {
+    "path": "/tmp/wukongim-mqtt-subscription-diagnostics-gofail",
+    "sha256": "41a3be98c9f52fc1558c8ca2dc168c42bb98bd155a37ab7f11210a498b9ef830",
+    "build_command": "GOPROXY=https://proxy.golang.org,direct scripts/build-gofail-binary.sh --package internal/usecase/mqttsession --out /tmp/wukongim-mqtt-subscription-diagnostics-gofail",
+    "build_log": {
+      "path": "/tmp/mqtt-subscription-diagnostics-build.log",
+      "sha256": "843d6850ef2c66b3d6fe736730f75eff1e44f2934f166c118e6f36d4e43f370a"
+    }
+  },
+  "natural_failure": {
+    "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-subscription-diagnostics-gofail WK_E2E_GOFAIL_MQTT=1 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-subscription-diagnostics-reports GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/unsubscribe_recovery -run 'TestInterruptedUnsubscribeBackgroundRecovery/3-node-cluster/group/before-completion$' -count=10 -failfast -timeout=7m -v",
+    "exit_code": 1,
+    "log": {
+      "path": "/tmp/mqtt-subscription-diagnostics-process.log",
+      "sha256": "e794fd42c4e6ae91f872cf0f25fbdebe602b28a077640edfa544550d1b5ac8a7"
+    },
+    "executed_repetitions": 1,
+    "elapsed_subscribe_ms": 918.62775,
+    "ingress_metric": {
+      "operation": "subscribe",
+      "reason": "unconfirmed",
+      "count": 1
+    },
+    "stage": "Initial SUBSCRIBE, before any publication/ACK or enabled fault.",
+    "conclusion": "Captured entry failure outside the known error classes. Underlying dependency and cause unconfirmed."
+  },
+  "stage_probe": {
+    "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-subscription-stage-probe WK_E2E_GOFAIL_MQTT=1 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-subscription-stage-probe-reports GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/unsubscribe_recovery -run 'TestInterruptedUnsubscribeBackgroundRecovery/3-node-cluster/group/before-completion$' -count=10 -failfast -timeout=7m -v",
+    "binary": {
+      "path": "/tmp/wukongim-mqtt-subscription-stage-probe",
+      "sha256": "8a865bff1ac7fdae2dc4e1a3faff60d1f0637c6f37834865d0b570c87fbc8da2"
+    },
+    "build_log": {
+      "path": "/tmp/mqtt-subscription-stage-probe-build-2.log",
+      "sha256": "bd81c957bbd95d6303161b76558c18c895ace0f0d10d6a03c91a716a2009d01f"
+    },
+    "log": {
+      "path": "/tmp/mqtt-subscription-stage-probe.log",
+      "sha256": "155313a0feea08894a88a22f6c1539913d28dfbdaed7c8d910f10ae14e8eecac"
+    },
+    "status": "terminal",
+    "exit_code": 0,
+    "passed_repetitions": 10,
+    "probe_scope": "Error-only group projection and replay-confirmation stages, fixed sentinel booleans only; no identities/error text. Probe source removed immediately after build.",
+    "captured_error_probe": false,
+    "last_passing_artifact": {
+      "path": "/tmp/mqtt-subscription-stage-probe-reports/mqtt-unsubscribe-group-before-completion-3.json",
+      "sha256": "278137cb3c81cf59f3fb73b2e129a37c65ed6117f1b22895ae69260e169e7ab8",
+      "result": {
+        "background_completion_before_reconnect": true,
+        "completion_fault_hits": 1,
+        "cut": "before-completion",
+        "dup_on_resume": true,
+        "failure_kind": "controlled-request-failure-and-connection-close",
+        "foreground_unsubscribe_retries": 0,
+        "hash_slots": 256,
+        "intent_fault_hits": 1,
+        "message_identity_preserved": true,
+        "nodes": 3,
+        "packet_id_preserved": true,
+        "passed": true,
+        "resubscribe_delivers_only_fresh": true,
+        "scenario": "interrupted-unsubscribe",
+        "session_present": true,
+        "subscription_closure_observations": 1,
+        "target": "group"
+      },
+      "note": "Repeated runs overwrite this same path; terminal log records all repetition verdicts."
+    }
+  },
+  "limitations": [
+    "Initial SUBSCRIBE underlying dependency still unconfirmed; passing probe repetitions are not a repair.",
+    "Historical post-resume EOF has no confirmed failing close-path observation.",
+    "Candidate binary has not passed the full unsubscribe fault matrix in this milestone.",
+    "Abrupt crash isolation, uncertain Will recovery, ended-record reclamation, restore reentry and full fault/scale qualification remain incomplete."
+  ]
+}

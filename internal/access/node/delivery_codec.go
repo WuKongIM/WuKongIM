@@ -4,11 +4,13 @@ import (
 	"fmt"
 
 	runtimedelivery "github.com/WuKongIM/WuKongIM/internal/runtime/delivery"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/publication"
 )
 
 var (
-	deliveryRPCRequestMagic  = [...]byte{'W', 'K', 'V', 'D', 1}
-	deliveryRPCResponseMagic = [...]byte{'W', 'K', 'V', 'd', 1}
+	deliveryRPCRequestMagic        = [...]byte{'W', 'K', 'V', 'D', 1}
+	deliveryRPCContentRequestMagic = [...]byte{'W', 'K', 'V', 'D', 2}
+	deliveryRPCResponseMagic       = [...]byte{'W', 'K', 'V', 'd', 1}
 )
 
 const maxDeliveryRPCCollectionLen = 4096
@@ -28,20 +30,30 @@ type deliveryPushResponse struct {
 }
 
 func encodeDeliveryPushRequest(req deliveryPushRequest) ([]byte, error) {
+	magic := deliveryRPCRequestMagic
+	env := req.Command.Envelope
+	if len(env.PublicationMetadata) != 0 {
+		if _, err := publication.Decode(env.PublicationMetadata); err != nil {
+			return nil, err
+		}
+	}
+	if env.Setting != 0 || env.Topic != "" || env.Expire != 0 || env.ServerTimestampMS != 0 || env.SyncOnce || len(env.PublicationMetadata) != 0 {
+		magic = deliveryRPCContentRequestMagic
+	}
 	dst := make([]byte, 0, 128)
-	dst = append(dst, deliveryRPCRequestMagic[:]...)
-	dst = appendDeliveryPushCommand(dst, req.Command)
+	dst = append(dst, magic[:]...)
+	dst = appendDeliveryPushCommand(dst, req.Command, magic[4])
 	return dst, nil
 }
 
 func decodeDeliveryPushRequest(body []byte) (deliveryPushRequest, error) {
-	if !hasMagic(body, deliveryRPCRequestMagic[:]) {
+	if !hasMagic(body, deliveryRPCRequestMagic[:]) && !hasMagic(body, deliveryRPCContentRequestMagic[:]) {
 		return deliveryPushRequest{}, fmt.Errorf("internal/access/node: invalid delivery request codec")
 	}
 	offset := len(deliveryRPCRequestMagic)
 	var req deliveryPushRequest
 	var err error
-	if req.Command, offset, err = readDeliveryPushCommand(body, offset); err != nil {
+	if req.Command, offset, err = readDeliveryPushCommand(body, offset, body[4]); err != nil {
 		return deliveryPushRequest{}, err
 	}
 	if offset != len(body) {
@@ -77,19 +89,19 @@ func decodeDeliveryPushResponse(body []byte) (deliveryPushResponse, error) {
 	return resp, nil
 }
 
-func appendDeliveryPushCommand(dst []byte, cmd runtimedelivery.PushCommand) []byte {
+func appendDeliveryPushCommand(dst []byte, cmd runtimedelivery.PushCommand, version byte) []byte {
 	dst = appendUvarint(dst, cmd.OwnerNodeID)
-	dst = appendDeliveryEnvelope(dst, cmd.Envelope)
+	dst = appendDeliveryEnvelope(dst, cmd.Envelope, version)
 	return appendDeliveryRoutes(dst, cmd.Routes)
 }
 
-func readDeliveryPushCommand(body []byte, offset int) (runtimedelivery.PushCommand, int, error) {
+func readDeliveryPushCommand(body []byte, offset int, version byte) (runtimedelivery.PushCommand, int, error) {
 	var cmd runtimedelivery.PushCommand
 	var err error
 	if cmd.OwnerNodeID, offset, err = readUvarint(body, offset); err != nil {
 		return runtimedelivery.PushCommand{}, offset, err
 	}
-	if cmd.Envelope, offset, err = readDeliveryEnvelope(body, offset); err != nil {
+	if cmd.Envelope, offset, err = readDeliveryEnvelope(body, offset, version); err != nil {
 		return runtimedelivery.PushCommand{}, offset, err
 	}
 	if cmd.Routes, offset, err = readDeliveryRoutes(body, offset); err != nil {
@@ -98,7 +110,7 @@ func readDeliveryPushCommand(body []byte, offset int) (runtimedelivery.PushComma
 	return cmd, offset, nil
 }
 
-func appendDeliveryEnvelope(dst []byte, env runtimedelivery.Envelope) []byte {
+func appendDeliveryEnvelope(dst []byte, env runtimedelivery.Envelope, version byte) []byte {
 	dst = appendUvarint(dst, env.MessageID)
 	dst = appendUvarint(dst, env.MessageSeq)
 	dst = appendString(dst, env.ChannelID)
@@ -113,10 +125,19 @@ func appendDeliveryEnvelope(dst []byte, env runtimedelivery.Envelope) []byte {
 		dst = append(dst, 0)
 	}
 	dst = appendBytes(dst, env.Payload)
-	return appendStringSlice(dst, env.MessageScopedUIDs)
+	dst = appendStringSlice(dst, env.MessageScopedUIDs)
+	if version == 2 {
+		dst = append(dst, env.Setting)
+		dst = appendString(dst, env.Topic)
+		dst = appendUvarint(dst, uint64(env.Expire))
+		dst = appendVarint(dst, env.ServerTimestampMS)
+		dst = appendBoolByte(dst, env.SyncOnce)
+		dst = appendBytes(dst, env.PublicationMetadata)
+	}
+	return dst
 }
 
-func readDeliveryEnvelope(body []byte, offset int) (runtimedelivery.Envelope, int, error) {
+func readDeliveryEnvelope(body []byte, offset int, version byte) (runtimedelivery.Envelope, int, error) {
 	var env runtimedelivery.Envelope
 	var redDot byte
 	var err error
@@ -160,6 +181,31 @@ func readDeliveryEnvelope(body []byte, offset int) (runtimedelivery.Envelope, in
 	}
 	if env.MessageScopedUIDs, offset, err = readStringSlice(body, offset, "delivery message scoped uids"); err != nil {
 		return runtimedelivery.Envelope{}, offset, err
+	}
+	if version == 2 {
+		if env.Setting, offset, err = readByte(body, offset, "delivery setting"); err != nil {
+			return runtimedelivery.Envelope{}, offset, err
+		}
+		if env.Topic, offset, err = readString(body, offset); err != nil {
+			return runtimedelivery.Envelope{}, offset, err
+		}
+		expire, next, err := readUvarint(body, offset)
+		if err != nil {
+			return runtimedelivery.Envelope{}, offset, err
+		}
+		if expire > uint64(^uint32(0)) {
+			return runtimedelivery.Envelope{}, offset, fmt.Errorf("internal/access/node: delivery expire overflows uint32")
+		}
+		env.Expire, offset = uint32(expire), next
+		if env.ServerTimestampMS, offset, err = readVarint(body, offset); err != nil {
+			return runtimedelivery.Envelope{}, offset, err
+		}
+		if env.SyncOnce, offset, err = readBoolByte(body, offset, "delivery sync once"); err != nil {
+			return runtimedelivery.Envelope{}, offset, err
+		}
+		if env.PublicationMetadata, offset, err = readPublicationBytes(body, offset); err != nil {
+			return runtimedelivery.Envelope{}, offset, err
+		}
 	}
 	return env, offset, nil
 }

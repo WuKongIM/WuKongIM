@@ -1,0 +1,14 @@
+{
+  "business_publications": 1,
+  "connect_retries": 0,
+  "cut": "pre-send",
+  "cut_reached": true,
+  "executor_restarts": 1,
+  "hash_slots": 256,
+  "last_phase": "complete",
+  "nodes": 3,
+  "passed": true,
+  "resubscriptions": 0,
+  "scenario": "mqtt-started-will-recovery",
+  "unexpected_deliveries": 0
+}

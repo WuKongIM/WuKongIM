@@ -1,0 +1,50 @@
+---
+title: MQTT and HTTP / SDK Interoperability
+description: Share users, channels, permissions and payloads; convert HTTP Base64 and MQTT raw bytes correctly.
+---
+
+<Callout type="warn" title="Development preview and backend boundary">
+  MQTT requires a development candidate containing its implementation. WuKongIM HTTP API calls belong only in a trusted backend or protected test environment. Clients cannot manage users or membership directly.
+</Callout>
+
+## One message, three entry protocols
+
+| Entry | Personal target | Body | Successful commit acknowledgement |
+| --- | --- | --- | --- |
+| MQTT | `wk/v1/users/Ym9i/messages` (bob) | Raw IM bytes | Successful QoS 1 PUBACK |
+| HTTP | `channel_id=bob`, `channel_type=1` | Ordinary Base64 of the raw bytes | Response `reason=1` |
+| WKProto / SDK | Peer UID, person channel type 1 | SDK-encoded bytes | Successful SENDACK |
+
+Groups use the group ID, channel type 2 and `wk/v1/groups/{base64url(groupID)}/messages`, under existing IM permissions. A personal inbox combines direct-message sources; identify original message channels using outbound properties.
+
+Topic **base64url** and HTTP payload **ordinary Base64** are different encodings. Confusing them can reject a topic or corrupt its payload.
+
+## HTTP → MQTT
+
+Prepare credentials through the [quickstart](/en/guide/tutorials/mqtt), then have Bob subscribe to `wk/v1/users/Ym9i/messages`. The trusted backend sends an SDK text message:
+
+```bash
+curl -sS http://127.0.0.1:5001/message/send \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "from_uid":"alice",
+    "channel_id":"bob",
+    "channel_type":1,
+    "client_msg_no":"http-to-mqtt-0001",
+    "payload":"eyJ0eXBlIjoxLCJjb250ZW50IjoiaGVsbG8gQm9iIn0="
+  }'
+```
+
+Decoded Base64 is the UTF-8 bytes of `{"type":1,"content":"hello Bob"}`. Check HTTP `reason=1`, then independently inspect Bob's MQTT PUBLISH: identical bytes, `wk.from_uid=alice`, `wk.client_msg_no=http-to-mqtt-0001`, and MessageID identifying that commit. HTTP 2xx alone does not establish a successful business send.
+
+## MQTT → SDK
+
+Bob logs in through an SDK and listens for messages. Alice publishes the same UTF-8 JSON bytes to Bob's topic with QoS 1, `retain=false` and an independent application number. The built-in text format is SDK-decodable. Custom JSON or binary formats require matching message types and decoders.
+
+MQTT payloads do not contain encrypted WKProto frames or HTTP JSON request bodies. A raw `hello Bob` string is readable by MQTT clients, but does not guarantee SDK text rendering.
+
+See [JavaScript Messaging](/en/sdk/javascript/messages) and [Custom Messages](/en/sdk/javascript/advanced/custom-messages). One UID can use distinct MQTT ClientIDs and a WKProto connection concurrently. MQTT does not evict another connection under WKProto master-device rules.
+
+## Acceptance checks
+
+For HTTP → MQTT, SDK → MQTT and MQTT → SDK, check commit, actual recipient content, sender and stable identity separately. Then check denied permissions, disconnects and duplicates. Persistent recovery requires the [session conditions](/en/api/client-protocols/mqtt/sessions-and-qos); online interoperability does not establish offline recovery for every SDK.

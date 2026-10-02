@@ -25,7 +25,8 @@ func TestReplicaReplaceExecutorRunsNonLeaderSourcePhaseOrder(t *testing.T) {
 		probes: map[uint64][]ch.RuntimeProbeChannel{
 			4: {
 				{ChannelID: id, ChannelEpoch: 11, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 8, LEO: 8, CheckpointHW: 8},
-				{ChannelID: id, ChannelEpoch: 11, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 9, LEO: 9, CheckpointHW: 9},
+				{ChannelID: id, ChannelEpoch: 11, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 9, LEO: 9, CheckpointHW: 9, WriteFence: ch.WriteFence{Token: task.TaskID, Version: 1}},
+				{ChannelID: id, ChannelEpoch: 11, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 9, LEO: 9, CheckpointHW: 9, WriteFence: ch.WriteFence{Token: task.TaskID, Version: 1}},
 				{
 					ChannelID: id, ChannelEpoch: 12, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 9, LEO: 9, CheckpointHW: 9,
 					WriteFence: ch.WriteFence{Token: task.TaskID, Version: 1, Reason: ch.WriteFenceReasonReplicaReplace},
@@ -61,7 +62,7 @@ func TestReplicaReplaceExecutorRunsNonLeaderSourcePhaseOrder(t *testing.T) {
 		"promote_learner",
 		"clear_fence",
 	}, store.ops)
-	require.Equal(t, []string{"apply_meta:1", "apply_meta:4", "probe:4", "apply_meta:1", "apply_meta:4", "drain:1", "probe:4", "apply_meta:1", "apply_meta:4", "probe:4"}, runtime.ops)
+	require.Equal(t, []string{"apply_meta:1", "apply_meta:4", "probe:4", "apply_meta:1", "apply_meta:4", "drain:1", "probe:4", "probe:4", "apply_meta:1", "apply_meta:4", "probe:4"}, runtime.ops)
 	require.Equal(t, []uint64{1, 2, 4}, meta.Replicas)
 	require.Equal(t, []uint64{1, 2, 4}, meta.ISR)
 }
@@ -218,7 +219,7 @@ func TestReplicaReplaceExecutorRetriesLaggingFinalTarget(t *testing.T) {
 			4: {
 				{ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 9, LEO: 9, CheckpointHW: 9},
 				{ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 9, LEO: 10, CheckpointHW: 9},
-				{ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 10, LEO: 10, CheckpointHW: 10},
+				{ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 10, LEO: 10, CheckpointHW: 10, WriteFence: ch.WriteFence{Token: task.TaskID, Version: 4}},
 			},
 		},
 	}

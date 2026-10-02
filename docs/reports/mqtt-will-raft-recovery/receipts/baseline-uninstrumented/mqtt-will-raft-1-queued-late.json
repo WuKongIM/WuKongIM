@@ -1,0 +1,12 @@
+{
+  "connect_retries": 0,
+  "elapsed_ms": 7386,
+  "hash_slots": 256,
+  "last_phase": "startup",
+  "nodes": 1,
+  "outcome": "late",
+  "passed": false,
+  "resubscriptions": 0,
+  "scenario": "mqtt-will-raft-recovery",
+  "state": "queued"
+}

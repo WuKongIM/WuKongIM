@@ -41,6 +41,8 @@ type ChannelCursor struct {
 
 // Subscriber stores one durable channel subscriber.
 type Subscriber struct {
+	// Incarnation changes only on a new join; 1 identifies legacy empty rows.
+	Incarnation uint64
 	ChannelID   string
 	ChannelType int64
 	UID         string
@@ -1080,15 +1082,7 @@ func (b *WriteBatch) DeleteChannelRuntimeMeta(hashSlot uint16, channelID string,
 	if err := b.ensure(); err != nil {
 		return err
 	}
-	if err := validateKeyString(channelID); err != nil {
-		return err
-	}
-	key := encodeChannelRuntimeMetaRowKey(HashSlot(hashSlot), channelID, channelType, channelRuntimeMetaPrimaryFamilyID)
-	b.batch.addOp(HashSlot(hashSlot), func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
-		state.runtimeMeta[string(key)] = runtimeMetaOverlay{exists: false}
-		return batch.Delete(key)
-	})
-	return nil
+	return b.batch.deleteChannelRuntimeMeta(HashSlot(hashSlot), channelID, channelType, false)
 }
 
 func (b *WriteBatch) AdvanceChannelRetentionThroughSeq(hashSlot uint16, req ChannelRetentionAdvance) error {
@@ -1258,6 +1252,7 @@ func (b *WriteBatch) stageSubscribers(hashSlot uint16, channelID string, channel
 	result := &SubscriberMutationResult{RequestedCount: len(normalized)}
 	hs := HashSlot(hashSlot)
 	b.batch.addOp(hs, func(ctx context.Context, state *batchCommitState, batch *engine.Batch) error {
+		result.ChangedCount = 0 // Commit group rebuilds start from fresh durable state.
 		primaryKey := encodeChannelRowKey(hs, channelID, channelType, channelPrimaryFamilyID)
 		channel, channelExists, err := state.loadChannel(ctx, primaryKey, channelID, channelType)
 		if err != nil {
@@ -1283,11 +1278,19 @@ func (b *WriteBatch) stageSubscribers(hashSlot uint16, channelID string, channel
 			}
 			if add {
 				if !exists {
+					incarnation, err := allocateSubscriberIncarnation(state, hs)
+					if err != nil {
+						return err
+					}
+					value, err := encodeSubscriberValue(key, Subscriber{Incarnation: incarnation})
+					if err != nil {
+						return err
+					}
+					if err = batch.Set(key, value); err != nil {
+						return err
+					}
 					channel.SubscriberCount++
 					result.ChangedCount++
-				}
-				if err := batch.Set(key, nil); err != nil {
-					return err
 				}
 				state.subscriberRows[string(key)] = true
 			} else {
@@ -1301,6 +1304,11 @@ func (b *WriteBatch) stageSubscribers(hashSlot uint16, channelID string, channel
 					return err
 				}
 				state.subscriberRows[string(key)] = false
+			}
+		}
+		if add && result.ChangedCount > 0 {
+			if err := flushSubscriberSequence(state, batch, hs); err != nil {
+				return err
 			}
 		}
 		if channelExists || mutationVersion > 0 {
@@ -1862,7 +1870,11 @@ func (b *WriteBatch) stageChannelMigrationTaskAndMeta(hashSlot uint16, guard Cha
 		// Migration mutations bypass the ordinary runtime-meta upsert path, so
 		// advance the complete-route generation whenever the projected route,
 		// authority, membership, retention, or write-fence state changes.
-		nextMeta = bumpRuntimeRoute(meta, nextMeta, true)
+		var routeResult MonotonicResult
+		nextMeta, routeResult = bumpRuntimeRoute(meta, nextMeta, true)
+		if routeResult == MonotonicConflict {
+			return dberrors.ErrConflict
+		}
 		if !guard.matches(task) || !runtimeGuard.matches(meta) {
 			if task == nextTask && channelRuntimeMetaEqual(meta, nextMeta) {
 				return nil

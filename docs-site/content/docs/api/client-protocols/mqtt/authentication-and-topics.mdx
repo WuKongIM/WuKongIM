@@ -1,0 +1,68 @@
+---
+title: MQTT 认证与 Topic
+description: 配置 UID、设备 Token、ClientID、保留属性和规范 base64url Topic。
+---
+
+<Callout type="warn" title="开发预览">
+  当前入口为 MQTT 5 TCP。先准备包含 MQTT 实现的开发候选，见[快速开始](/zh/guide/tutorials/mqtt)。
+</Callout>
+
+## CONNECT 身份
+
+| 字段 | 填写方式 |
+| --- | --- |
+| User Name | 精确 UID，与业务后端登记的用户一致 |
+| Password | 现有设备 Token，与 UID 和设备类别匹配 |
+| ClientID | 非空、稳定的会话标识；不是凭证 |
+| User Property `wk.device_flag` | 恰好一项，字符串 `"0"`（APP）、`"1"`（WEB）或 `"2"`（PC） |
+
+设备类别是凭证的一部分；Node.js 示例使用 `"1"`，后端须登记 `device_flag=1`。它不是运行环境自动检测。客户端不能选择 SYSTEM 类别或 DeviceLevel，也不能用 ClientID 代替 Token。
+
+UID、ClientID 最多 1024 个 UTF-8 字节，Token 最多 16 KiB。全空白身份被拒绝；有效身份不会自动 trim。生产后端负责 Token 发放、轮换和撤销，客户端不调用 WuKongIM HTTP API 管理接口。
+
+```js
+import mqtt from 'mqtt';
+
+const client = mqtt.connect('mqtt://127.0.0.1:1883', {
+  protocolVersion: 5,
+  clientId: 'alice-device-01',
+  username: 'alice',
+  password: process.env.MQTT_ALICE_TOKEN,
+  clean: true,
+  reconnectPeriod: 0,
+  properties: {
+    sessionExpiryInterval: 0,
+    userProperties: { 'wk.device_flag': '1' },
+  },
+});
+client.on('error', () => console.error('MQTT connection failed'));
+```
+
+这是连接参数片段。完整示例含输入检查、接收监听和清理，见[快速开始](/zh/guide/tutorials/mqtt)。
+
+## Topic 与授权
+
+| 目标 | Topic | PUBLISH | SUBSCRIBE |
+| --- | --- | --- | --- |
+| 个人 | `wk/v1/users/{id}/messages` | 向目标 UID 发送，接受既有单聊权限检查 | 只有该 UID 能订阅自己的收件箱 |
+| 群 | `wk/v1/groups/{id}/messages` | 向已有群发送，要求成员资格和发送权限 | 要求已有成员资格 |
+
+`{id}` 是业务 ID 的 UTF-8 字节经过**无填充、规范 base64url** 编码的结果，不是普通 Base64，也不是 URL 百分号编码。
+
+```js
+function topic(kind, id) {
+  return `wk/v1/${kind}/${Buffer.from(id, 'utf8').toString('base64url')}/messages`;
+}
+topic('users', 'bob'); // wk/v1/users/Ym9i/messages
+topic('groups', 'g1'); // wk/v1/groups/ZzE/messages
+```
+
+解码后的 ID 必须非空、是合法 UTF-8、不含 NUL，最多 1024 字节。空段、尾部 `=` 和非规范编码被拒绝。个人发布 Topic 使用接收方 UID，不使用内部单聊规范频道 ID。
+
+SUBSCRIBE 不加入群，UNSUBSCRIBE 不退出群。群创建、增删成员由可信后端执行；成员资格与 MQTT 订阅是两件事。退订也不撤销已经开始的 QoS 1 交换，见[持久会话](/zh/api/client-protocols/mqtt/sessions-and-qos)。
+
+## 保留 User Property
+
+`wk.` 命名空间归服务端所有。CONNECT 只允许客户端提供 `wk.device_flag`；PUBLISH 和 Will 只允许提供 `wk.client_msg_no`。重复保留属性、伪造 `wk.from_uid` 等属性会失败。
+
+非保留 User Properties 可以重复，服务端保留其顺序；客户端库可能把重复值表示为数组，不能误读为单个字符串。每次 PUBLISH 和 Will 均需恰好一个 `wk.client_msg_no`，详见[消息契约](/zh/api/client-protocols/mqtt/messages)。业务后端信任边界见[身份认证](/zh/guide/integration/authentication)。

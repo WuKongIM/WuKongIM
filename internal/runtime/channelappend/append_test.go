@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -424,7 +425,7 @@ func TestAppendBatchAppendFailedRecoversCommittedIdempotencyHit(t *testing.T) {
 	}
 	if gotQueries := idempotency.queriesSnapshot(); len(gotQueries) != 1 {
 		t.Fatalf("idempotency queries = %d, want only post-append recovery hit", len(gotQueries))
-	} else if gotQueries[0] != (IdempotencyQuery{FromUID: "u1", ClientMsgNo: "u1-payload", ChannelID: "room", ChannelType: 2, PayloadHash: idempotencyPayloadHash([]byte("payload"))}) {
+	} else if !reflect.DeepEqual(gotQueries[0], IdempotencyQuery{FromUID: "u1", ClientMsgNo: "u1-payload", ChannelID: "room", ChannelType: 2, PayloadHash: idempotencyPayloadHash([]byte("payload"))}) {
 		t.Fatalf("recovery query = %#v, want canonical sender/client/channel", gotQueries[0])
 	}
 	recoveryEvents := observer.IdempotencyRecoveryEvents()

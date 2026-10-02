@@ -1,0 +1,159 @@
+{
+  "fixture_version": "v5",
+  "positive_matrix_status": "4/4 PASS",
+  "tracer": {
+    "passed": true,
+    "package_seconds": 433.844,
+    "case_seconds": 433.14,
+    "artifact": "evidence/v4-tracer/mqtt-will-fairness-1-deadline.json",
+    "fixture_version": "v4"
+  },
+  "negative": {
+    "fixture_version": "v5",
+    "qualified_expected_failure": true,
+    "topology": "single-node-cluster",
+    "mode": "deadline",
+    "package_seconds": 576.552,
+    "case_seconds": 575.79,
+    "failed_assertion": "required business receipt: after-pressure; context deadline exceeded",
+    "actual_full_refusals": 49,
+    "actual_returned_deadline_errors": 126,
+    "actual_cursor_advances": 0,
+    "selected_retirements": 0,
+    "publication_attempts": 31,
+    "artifact": "evidence/v5-negative/mqtt-will-fairness-1-deadline.json"
+  },
+  "related_checks": {
+    "ordinary_Will": {
+      "passed": true,
+      "package_seconds": 50.78
+    },
+    "cap_two_regression": {
+      "passed": true,
+      "package_seconds": 130.339
+    },
+    "usecase_race": {
+      "passed": true,
+      "package_seconds": 120.843
+    },
+    "infra_contract_race": {
+      "compiled": true,
+      "test_files": false
+    },
+    "initial_app_race": {
+      "passed": false,
+      "failure": "unmodified TestControllerTaskAuditRuntimeObservesTransitionsAndServesManagementReads observed only the first audit transition"
+    },
+    "audit_race_repeat": {
+      "passed": true,
+      "package_seconds": 1.83
+    },
+    "full_app_race_repeat": {
+      "passed": true,
+      "package_seconds": 4.759
+    },
+    "flow-doc-contracts": {
+      "passed": true,
+      "files": 88,
+      "invalid": 0,
+      "existing_line_target_warnings": 11
+    }
+  },
+  "failed_fixtures": [
+    {
+      "version": "v1",
+      "reason": "missing instrumentation prerequisite; no product RED"
+    },
+    {
+      "version": "v2",
+      "reason": "serial terminal fill plus insufficient ordinary-page observation; no product RED"
+    },
+    {
+      "version": "v3",
+      "reason": "one completed membership probe at 15s deadline, two required; no product RED"
+    },
+    {
+      "version": "v4",
+      "reason": "three-node survivor DELETE on already-disabled/never-enabled controls; fixture failure after business progress, no product RED"
+    }
+  ],
+  "runtime_business_repair": false,
+  "normal_limits_changed": false,
+  "dependency_setup_failures": {
+    "count": 3,
+    "stage": "v5 Go test package setup, no E2E entered",
+    "reason": "goproxy.cn Pebble HTTP/2 PROTOCOL_ERROR",
+    "retained": true,
+    "recovery": "standalone HTTP/1 dependency download/precompile completed; same source tests restarted"
+  },
+  "earlier_negative": {
+    "qualified_expected_failure": true,
+    "topology": "single-node-cluster",
+    "mode": "deadline",
+    "package_seconds": 553.652,
+    "case_seconds": 552.95,
+    "failed_assertion": "required business receipt: after-pressure; context deadline exceeded",
+    "actual_full_refusals": 47,
+    "actual_returned_deadline_errors": 126,
+    "actual_cursor_advances": 0,
+    "selected_retirements": 0,
+    "publication_attempts": 31,
+    "artifact": "evidence/v4-negative/mqtt-will-fairness-1-deadline.json",
+    "fixture_version": "v4"
+  },
+  "positive_cases": [
+    {
+      "nodes": 1,
+      "mode": "deadline",
+      "passed": true,
+      "case_seconds": 357.85,
+      "progress_ms": 209430,
+      "cursor_advances": 18,
+      "selected_retirements": 1,
+      "old_prefix": 32,
+      "live_attempts": 1,
+      "artifact": "evidence/v5-matrix/mqtt-will-fairness-1-deadline.json"
+    },
+    {
+      "nodes": 1,
+      "mode": "canceled",
+      "passed": true,
+      "case_seconds": 413.35,
+      "progress_ms": 197062,
+      "cursor_advances": 17,
+      "selected_retirements": 1,
+      "old_prefix": 32,
+      "live_attempts": 1,
+      "artifact": "evidence/v5-matrix/mqtt-will-fairness-1-canceled.json"
+    },
+    {
+      "nodes": 3,
+      "mode": "deadline",
+      "passed": true,
+      "case_seconds": 441.77,
+      "progress_ms": 281944,
+      "cursor_advances": 24,
+      "selected_retirements": 1,
+      "old_prefix": 32,
+      "live_attempts": 1,
+      "artifact": "evidence/v5-matrix/mqtt-will-fairness-3-deadline.json"
+    },
+    {
+      "nodes": 3,
+      "mode": "canceled",
+      "passed": true,
+      "case_seconds": 213.54,
+      "progress_ms": 38569,
+      "cursor_advances": 2,
+      "selected_retirements": 1,
+      "old_prefix": 32,
+      "live_attempts": 1,
+      "artifact": "evidence/v5-matrix/mqtt-will-fairness-3-canceled.json"
+    }
+  ],
+  "positive_topology_package_seconds": {
+    "single-node": 772.504,
+    "three-node": 656.326
+  },
+  "coverage_form": "two exact-v5 topology invocations, each clean 2/2 PASS; all four case artifacts verified; not one combined invocation"
+}

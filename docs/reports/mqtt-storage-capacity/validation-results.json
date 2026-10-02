@@ -1,0 +1,571 @@
+{
+  "base_revision": "1aff256b2bd9bc71a69cf5e365553357a69c3bc9",
+  "status": "qualified within recorded finite bounds",
+  "toolchain": "go1.25.11 darwin/arm64",
+  "process_case_receipts": 26,
+  "source": "validation-source.json",
+  "source_patch": "candidate.patch.gz",
+  "frozen_context": "frozen-context.json",
+  "runs": [
+    {
+      "name": "final normal capacity",
+      "status": "passed",
+      "passed_cases": 9,
+      "seconds": 308.239,
+      "binary": "/tmp/wukongim-capacity-final-normal",
+      "command": "WK_E2E_BINARY=/tmp/wukongim-capacity-final-normal WK_E2E_MQTT_STORAGE_LEGACY_BINARY=/tmp/wukongim-capacity-config-baseline WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-capacity-final-cases WK_E2E_MQTT_CAPACITY_WORKSPACE=/tmp/mqtt-capacity-final-owned GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/storage_capacity -run '^(TestIngressAndSharedConsumersUseOneStorageBudget|TestAggregate|TestThreeNodeStorageLimits|TestThreeNodeRegistersLegacyDebtBeforeAdmission|TestConcurrentSources)' -count=1 -timeout=8m -v",
+      "log": "logs/mqtt-capacity-final-normal-e2e.log.gz"
+    },
+    {
+      "name": "final physical capacity faults",
+      "status": "passed",
+      "passed_cases": 3,
+      "seconds": 57.464,
+      "binary": "/tmp/wukongim-capacity-final-gofail",
+      "command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-capacity-final-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-capacity-final-fault-cases WK_E2E_MQTT_CAPACITY_WORKSPACE=/tmp/mqtt-capacity-final-fault-owned GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/storage_capacity -run '^TestUnknown' -count=1 -timeout=3m -v",
+      "log": "logs/mqtt-capacity-final-fault-e2e.log.gz"
+    },
+    {
+      "name": "ordinary interop and Will",
+      "status": "passed",
+      "passed_cases": 4,
+      "package_seconds": [
+        38.912,
+        51.243
+      ],
+      "binary": "/tmp/wukongim-capacity-ordinary",
+      "command": "WK_E2E_BINARY=/tmp/wukongim-capacity-ordinary WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-capacity-ordinary-regression-cases GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/interop ./test/e2e/mqtt/will -count=1 -timeout=5m -v",
+      "log": "logs/mqtt-capacity-ordinary-regression.log.gz"
+    },
+    {
+      "name": "selected Will interruptions",
+      "status": "passed",
+      "passed_cases": 8,
+      "skipped_cases": 2,
+      "skip_reason": "legacy-admitted suffix matches; frozen legacy binary not configured; no full 14-case or mixed-version claim",
+      "seconds": 383.935,
+      "binary": "/tmp/wukongim-capacity-final-help-gofail",
+      "command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-capacity-final-help-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-capacity-will-final-cases GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_recovery -run '^TestStartedWillRecoveryPreservesOnePublication/(1|3)-node-cluster/(pre-append|issued|published|admitted)$' -count=1 -timeout=12m -v",
+      "log": "logs/mqtt-capacity-will-final-regression.log.gz"
+    },
+    {
+      "name": "three-node online restore twice",
+      "status": "passed",
+      "passed_cases": 1,
+      "seconds": 710.79,
+      "binary": "/tmp/wukongim-capacity-delivery",
+      "qualification": "pre-periodic-repair candidate; not the final managed cancellation path",
+      "command": "WK_E2E_BINARY=/tmp/wukongim-capacity-delivery WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-capacity-restore-final-reports GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/restore -run '^TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/3-node-cluster$' -count=1 -timeout=15m -v",
+      "log": "logs/mqtt-capacity-restore-final-e2e.log.gz"
+    },
+    {
+      "name": "original one/three-node restore matrix",
+      "status": "failed",
+      "passed_cases": 1,
+      "failed_cases": 1,
+      "seconds": 765.302,
+      "qualification": "single-node two-cycle restore passed 283.41s; three-node failed NeedFrom HTTP500, fixed error family before passing rerun",
+      "log": "logs/mqtt-capacity-restore-e2e.log.gz",
+      "historical_invocation": "Full restore package; complete original command/binary not retained. Passing single-node artifact and failing three-node driver log are retained; final three-node rerun has exact command/binary."
+    },
+    {
+      "name": "final related unit packages",
+      "status": "passed",
+      "command": "GOWORK=off go test -p 1 ./pkg/db/message ./internal/access/mqtt ./internal/access/node ./internal/infra/cluster ./pkg/channel/replication ./pkg/quorumlog -count=1 -timeout=6m",
+      "log": "logs/mqtt-capacity-final-related-unit.log.gz"
+    },
+    {
+      "name": "final config wording unit",
+      "status": "passed",
+      "seconds": 0.869,
+      "command": "GOWORK=off go test -p 1 ./internal/config -count=1 -timeout=3m",
+      "log": "logs/mqtt-capacity-final-config-unit.log.gz"
+    },
+    {
+      "name": "failure-first periodic lock and managed physical commit integration",
+      "status": "passed",
+      "seconds": 1.84,
+      "command": "GOWORK=off go test -p 1 -tags=integration ./pkg/db/message -run '^TestMQTTStoragePeriodicCancellation' -count=1 -timeout=30s -v",
+      "log": "logs/mqtt-capacity-periodic-green.log.gz"
+    },
+    {
+      "name": "periodic ownership integration race",
+      "status": "passed",
+      "seconds": 2.97,
+      "command": "GOWORK=off go test -p 1 -race -tags=integration ./pkg/db/message -run '^TestMQTTStoragePeriodicCancellation' -count=1 -timeout=90s -v",
+      "log": "logs/mqtt-capacity-periodic-race.log.gz"
+    },
+    {
+      "name": "initial broad related unit gate",
+      "status": "failed then corrected/rechecked",
+      "qualification": "NilEngine maintenance contract corrected; mqttsession 5m timeout under concurrent process workload; isolated full mqttsession+message pass and final related units pass",
+      "log": "logs/mqtt-capacity-final-unit.log.gz"
+    },
+    {
+      "name": "isolated full usecase/store recheck",
+      "status": "passed",
+      "package_seconds": [
+        132.046,
+        41.638
+      ],
+      "command": "GOWORK=off go test -p 1 ./internal/usecase/mqttsession ./pkg/db/message -count=1 -timeout=12m",
+      "log": "logs/mqtt-capacity-final-unit-recheck.log.gz"
+    },
+    {
+      "name": "flow-doc-contracts",
+      "status": "passed",
+      "compliant": 88,
+      "invalid": 0,
+      "length_warnings": 16,
+      "command": "GOWORK=off go run ./scripts/flowcheck --mode check",
+      "log": "logs/mqtt-capacity-flow-check-final.log.gz"
+    },
+    {
+      "name": "module verification",
+      "status": "passed",
+      "command": "GOWORK=off go mod verify",
+      "log": "logs/mqtt-capacity-mod-verify.log.gz"
+    },
+    {
+      "name": "final artifact/source/patch/whitespace and owned-process verification",
+      "status": "passed",
+      "log": "logs/final-verification.log.gz"
+    }
+  ],
+  "failure_first_evidence": [
+    {
+      "name": "config-only baseline accepted unaffordable second source",
+      "status": "product RED",
+      "seconds": 6.729,
+      "log": "red/config-shim-red.log.gz"
+    },
+    {
+      "name": "partial original before full placement funding",
+      "status": "product RED",
+      "seconds": 34.741,
+      "log": "logs/mqtt-capacity-three-red2.log.gz"
+    },
+    {
+      "name": "restart admission stuck",
+      "status": "product RED",
+      "seconds": 34.1,
+      "log": "logs/mqtt-capacity-restart-red3.log.gz"
+    },
+    {
+      "name": "native recovery barrier interrupted MQTT",
+      "status": "product RED",
+      "seconds": 28.62,
+      "log": "logs/mqtt-capacity-barrier-closed-red-e2e.log.gz"
+    },
+    {
+      "name": "unknown canceled floor left volatile ghost debit",
+      "status": "product RED",
+      "seconds": 28.754,
+      "log": "logs/mqtt-capacity-cancel-red-e2e.log.gz"
+    },
+    {
+      "name": "definite refusal stranded producer owner",
+      "status": "product RED",
+      "seconds": 12.007,
+      "log": "logs/mqtt-capacity-producer-red-e2e.log.gz"
+    },
+    {
+      "name": "periodic owner blocked on append/checkpoint",
+      "status": "product RED before isolated repair",
+      "seconds": 3.154,
+      "log": "logs/mqtt-capacity-periodic-lock-red.log.gz"
+    },
+    {
+      "name": "periodic physical commit bypassed managed owner",
+      "status": "product RED before isolated repair",
+      "seconds": 0.839,
+      "log": "logs/mqtt-capacity-periodic-commit-red.log.gz"
+    }
+  ],
+  "reviews": {
+    "standards": "standards-review.md",
+    "spec": "spec-review.md",
+    "remaining_actionable_findings": 0,
+    "reviewers_executed_tests": false
+  },
+  "limits": "README.md#operational-limits",
+  "artifacts": [
+    {
+      "path": "README.md",
+      "sha256": "fff635ad92605193e8b96c44f93cc01118516b5053eac0fc4a14a769be6fc66e",
+      "bytes": 10093
+    },
+    {
+      "path": "candidate.patch.gz",
+      "sha256": "7de6bce1358c7f56e2c22d4f569a8acc6bff39bc2a8ea04b70ec7ff0ca63da0b",
+      "bytes": 64314
+    },
+    {
+      "path": "cases/aggregate-storage-65536-24576.json",
+      "sha256": "7fd73507d368388f27af01503c6eb6d372dbde01d36e2574573e8f9a88365240",
+      "bytes": 678
+    },
+    {
+      "path": "cases/aggregate-storage-8192-98304.json",
+      "sha256": "478e620f9695b9fd8b5e348caf474b530482a2dd7a0301c5df11cd768100a84d",
+      "bytes": 668
+    },
+    {
+      "path": "cases/aggregate-storage-concurrent-1.json",
+      "sha256": "6c14ba7900b6651e05bc555dbdc6b9f4c245c6a21fea90a3cac06d3d60d83e13",
+      "bytes": 214
+    },
+    {
+      "path": "cases/aggregate-storage-concurrent-3.json",
+      "sha256": "8552571bfae108e412b04fb257ce81c9eebfe6baf07f44cc2ae59fa5f26a5948",
+      "bytes": 255
+    },
+    {
+      "path": "cases/aggregate-storage-ingress-1.json",
+      "sha256": "70f5c1535492851866f9c3218ffb0f3c4151e9628c2e7f09cd8c180591dde149",
+      "bytes": 402
+    },
+    {
+      "path": "cases/aggregate-storage-ingress-3.json",
+      "sha256": "3c08fb495164ac5460421783091598a4900ed42e7e8bb9d252da49ac0a5f2c25",
+      "bytes": 422
+    },
+    {
+      "path": "cases/aggregate-storage-legacy-bootstrap.json",
+      "sha256": "868f67f7ada7aa8f85a1a207a106fafb6fd775cc205cbefb6aa84b0ef80d658b",
+      "bytes": 772
+    },
+    {
+      "path": "cases/aggregate-storage-restart.json",
+      "sha256": "6a27bacd473d6b52508471a912ac3a845ee834b6826dcb864d5c113a7811f7e0",
+      "bytes": 655
+    },
+    {
+      "path": "cases/aggregate-storage-tracer.json",
+      "sha256": "f7b151f9dbf5aa92eeab6cd49a801ae82a1726d7afe080da01dd799077d4a3e2",
+      "bytes": 454
+    },
+    {
+      "path": "cases/aggregate-storage-wkMQTTStorageCancelAfterCommit.json",
+      "sha256": "a1af7bb55535b6d5638a0deb69ecbf0c836dcbc53c366d8eb8f4d3490296333b",
+      "bytes": 885
+    },
+    {
+      "path": "cases/aggregate-storage-wkMQTTStoragePrepareBeforeCommit.json",
+      "sha256": "1f9ab513ef436a050b4495f14531becf9358792cd87ab41eda9f855ab382e73d",
+      "bytes": 636
+    },
+    {
+      "path": "cases/aggregate-storage-wkMQTTStorageRetirementAfterCommit.json",
+      "sha256": "1dc15a722e17334bf12401aa788ca90a09f86b19cfc57faa271a9e088fe9dd18",
+      "bytes": 725
+    },
+    {
+      "path": "cases/mqtt-interop-1.json",
+      "sha256": "3e68c94f8550ca08ef912b6fbacb1c63079156eb5788cae5c7f8e70da01d3ef4",
+      "bytes": 175
+    },
+    {
+      "path": "cases/mqtt-interop-3.json",
+      "sha256": "44678e4ac7385f9846df4155f3bb3e6a204d0be10a2cc15c45dde6fa699f64f7",
+      "bytes": 175
+    },
+    {
+      "path": "cases/mqtt-restore-reactivation-1.json",
+      "sha256": "dc815cb900320c2228eb83adb2d5b41ed878836e3424346b8c28c46a3da04ec8",
+      "bytes": 476
+    },
+    {
+      "path": "cases/mqtt-restore-reactivation-3.json",
+      "sha256": "4166033c11a69f2782347111563c199132e04a838c702d50bf4676cd30f428c0",
+      "bytes": 476
+    },
+    {
+      "path": "cases/mqtt-will-1.json",
+      "sha256": "2dce65689e06f6c4644a8a848b182ae8c50ce0b1f5be66a4bb66f1b0b49142b3",
+      "bytes": 214
+    },
+    {
+      "path": "cases/mqtt-will-3.json",
+      "sha256": "be97955f60bc43b8599c130b19ca058c4947ee0b51c9fcabece2d6298a0b663b",
+      "bytes": 214
+    },
+    {
+      "path": "cases/mqtt-will-recovery-1-admitted.json",
+      "sha256": "e775b0d860742a4b9f08a0a4feecb460d839ce3d4cfdd5a7f6ddbade63f434ee",
+      "bytes": 387
+    },
+    {
+      "path": "cases/mqtt-will-recovery-1-issued.json",
+      "sha256": "1ffe1ec76e7d27da0b9d015ae9a50a20e0e7e8bb869c3e34d68415d45f581bb4",
+      "bytes": 408
+    },
+    {
+      "path": "cases/mqtt-will-recovery-1-pre-append.json",
+      "sha256": "f53814116fd77f42e42c7a0a4b455e1a5e0088e50763f77de13e376aca11834b",
+      "bytes": 308
+    },
+    {
+      "path": "cases/mqtt-will-recovery-1-published.json",
+      "sha256": "e88aefe9a82f7cf99b51443f9da3f8c9962bf30ccb1e59a1f42997bf82c4450e",
+      "bytes": 346
+    },
+    {
+      "path": "cases/mqtt-will-recovery-3-admitted.json",
+      "sha256": "d19368cbcc342b9ca7a1a048bcb5e8be2ab2d9ba851ccc9fea2907a91255009e",
+      "bytes": 387
+    },
+    {
+      "path": "cases/mqtt-will-recovery-3-issued.json",
+      "sha256": "1cc3bea6ac6f8a812fe58aaa8898e211eb1b448e3cad86b74aa60f7d18b7181b",
+      "bytes": 408
+    },
+    {
+      "path": "cases/mqtt-will-recovery-3-pre-append.json",
+      "sha256": "f5c77355ac2948baee0c2d1ac4648cf66bfec5d090961bde1ba651e87859bad5",
+      "bytes": 308
+    },
+    {
+      "path": "cases/mqtt-will-recovery-3-published.json",
+      "sha256": "e43584e2f5650efa2f64ee2973d65080ca7af12f02c59be0b1c94e1c4cbf29e5",
+      "bytes": 346
+    },
+    {
+      "path": "frozen-context.json",
+      "sha256": "4eba0165283d272ab2f110619ff4862a23b8cb5d46181341b9b56eff6bfd5ce4",
+      "bytes": 4194
+    },
+    {
+      "path": "logs/final-verification.log.gz",
+      "sha256": "f2c20b9edec0bad9e618bac33e3ea03edd2e72d5116b675be58dcc95bd3f3523",
+      "bytes": 166
+    },
+    {
+      "path": "logs/mqtt-capacity-barrier-closed-red-e2e.log.gz",
+      "sha256": "642b8d9aa21575480b333770cbef48cd79df3804ca00814d9888e97e535f35f8",
+      "bytes": 442
+    },
+    {
+      "path": "logs/mqtt-capacity-barrier-green-e2e.log.gz",
+      "sha256": "de2f60ac5df978a78159d1136f374c107e2f5fee4f1b29155b299166e52cb09b",
+      "bytes": 252
+    },
+    {
+      "path": "logs/mqtt-capacity-cancel-red-e2e.log.gz",
+      "sha256": "5c12f7d4810fb24b4e57b4ebb8a82e59b6f0d464136e316c15242b4f812288c9",
+      "bytes": 551
+    },
+    {
+      "path": "logs/mqtt-capacity-delivery-e2e.log.gz",
+      "sha256": "0226869f2102e89308b08f151b2261563771727888687c778e0cffb3df49f495",
+      "bytes": 512
+    },
+    {
+      "path": "logs/mqtt-capacity-error-unit.log.gz",
+      "sha256": "a3159896fb82533cfbbe664b701a4ddca8082d2bfb0a1c0493e43abada2957d2",
+      "bytes": 137
+    },
+    {
+      "path": "logs/mqtt-capacity-final-config-unit.log.gz",
+      "sha256": "5765dd1098dbf5fb4778b63df2e339b36e285e7d369668ed3aa278b7d04b6177",
+      "bytes": 68
+    },
+    {
+      "path": "logs/mqtt-capacity-final-fault-e2e.log.gz",
+      "sha256": "ba463a9bbf44a7fc69e6af1c85394c3db8956f97a91ae399e9e1b0e786851d68",
+      "bytes": 310
+    },
+    {
+      "path": "logs/mqtt-capacity-final-gofail-build.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "logs/mqtt-capacity-final-help-build-info.log.gz",
+      "sha256": "d14d632c383a7734a5d0433dbef2b27964360c0998f8e09d09b10c180eb592b0",
+      "bytes": 4937
+    },
+    {
+      "path": "logs/mqtt-capacity-final-help-gofail-build.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "logs/mqtt-capacity-final-help-ordinary-build.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "logs/mqtt-capacity-final-normal-build.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "logs/mqtt-capacity-final-normal-e2e.log.gz",
+      "sha256": "974d801f1f28fc7ad2c7aad62ad7f9c263a866ea2b52d9aaf6799f93729fe559",
+      "bytes": 561
+    },
+    {
+      "path": "logs/mqtt-capacity-final-related-unit.log.gz",
+      "sha256": "0867fa06270099b40a29657c81d600a756ad2f9645c0a871328c768b84d644d7",
+      "bytes": 163
+    },
+    {
+      "path": "logs/mqtt-capacity-final-unit-recheck.log.gz",
+      "sha256": "180d721394f26f73bef64442caefc43d9597ccd44e3fe95d73ff676b83769f17",
+      "bytes": 109
+    },
+    {
+      "path": "logs/mqtt-capacity-final-unit.log.gz",
+      "sha256": "d9af789d783d9c4b32f1e96dabb3793c4089e10559db8af1cbd41256024cb8c7",
+      "bytes": 44136
+    },
+    {
+      "path": "logs/mqtt-capacity-flow-check-final.log.gz",
+      "sha256": "cc4188736b914ebe58bab4f9c807072c95584b3132d73cc515f953a77b52fca6",
+      "bytes": 265
+    },
+    {
+      "path": "logs/mqtt-capacity-flow-render-final.log.gz",
+      "sha256": "c0c4d848173fa5a9578ade350f7be0a37f934d4d2c5228700d03833c420b5b93",
+      "bytes": 68
+    },
+    {
+      "path": "logs/mqtt-capacity-matched-fault-e2e.log.gz",
+      "sha256": "46066633829571f938483a837e6a38808682989f01774831ac8e3293513f23e8",
+      "bytes": 313
+    },
+    {
+      "path": "logs/mqtt-capacity-mod-verify.log.gz",
+      "sha256": "4699dce40a065353f016ef7eb2c309ee9dee73281263a6b29287016349618a1b",
+      "bytes": 41
+    },
+    {
+      "path": "logs/mqtt-capacity-ordinary-build-info.log.gz",
+      "sha256": "82096ea181a32cea9c4b44d101609d5e43249b1d24bfae35c2f00acc9a331741",
+      "bytes": 4930
+    },
+    {
+      "path": "logs/mqtt-capacity-ordinary-build.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "logs/mqtt-capacity-ordinary-regression.log.gz",
+      "sha256": "871b78d35eae84475730bc5d579e7627d876df12aeab9db5fa2fbf2d75d7c13a",
+      "bytes": 349
+    },
+    {
+      "path": "logs/mqtt-capacity-periodic-commit-red.log.gz",
+      "sha256": "baf5f2243c7a3999cae20c22615f74db04a9f91b9830d6d838d31ba6b0631d12",
+      "bytes": 251
+    },
+    {
+      "path": "logs/mqtt-capacity-periodic-green.log.gz",
+      "sha256": "2074fd2e9298b690ea3117f0c4637b27a1bd8b51bd455e1fbf879b8e42eafc91",
+      "bytes": 262
+    },
+    {
+      "path": "logs/mqtt-capacity-periodic-lock-red.log.gz",
+      "sha256": "f07bce493eb7ac275dc14ddce0c24572eed582b14d789bb66a27d80078758e66",
+      "bytes": 317
+    },
+    {
+      "path": "logs/mqtt-capacity-periodic-race.log.gz",
+      "sha256": "105d1594847aa4d8a0bf4e002713b9e00e2d33ab7f4298f928406ced6337037c",
+      "bytes": 429
+    },
+    {
+      "path": "logs/mqtt-capacity-producer-red-e2e.log.gz",
+      "sha256": "78adcceddc72b25772c4e74a9e85827afdc803e7bf4560ab7b57eee95d1198ab",
+      "bytes": 1064
+    },
+    {
+      "path": "logs/mqtt-capacity-producer-unit.log.gz",
+      "sha256": "37b11721b26788f141d7a80b151661d269cb636ea01b5ed4451311540055a3fb",
+      "bytes": 132
+    },
+    {
+      "path": "logs/mqtt-capacity-proof-unit.log.gz",
+      "sha256": "dca33ae4ba26c6a787ef6d895b2a3fe5de560a896a41e83bb6a78546fc2972f4",
+      "bytes": 124
+    },
+    {
+      "path": "logs/mqtt-capacity-restart-red3.log.gz",
+      "sha256": "cc6816cc7a44bb50e697b6bd2feaaf542171dbd319eaa756f92e6bd3ebbdfae6",
+      "bytes": 359
+    },
+    {
+      "path": "logs/mqtt-capacity-restore-e2e.log.gz",
+      "sha256": "f62f54b3941f5d8dcf878cb37b6d2e7a6d1666b2aea8756e64b4625f50c9e072",
+      "bytes": 2345
+    },
+    {
+      "path": "logs/mqtt-capacity-restore-final-e2e.log.gz",
+      "sha256": "1219d3e56831462d5f8cd951b1a1ca4350a2ee07ecffbfaf42cebd02b1670551",
+      "bytes": 346
+    },
+    {
+      "path": "logs/mqtt-capacity-three-red2.log.gz",
+      "sha256": "9da9bfed290e1bcf40feb00c769974095948a6346b683aa8e4096abc1972bbf7",
+      "bytes": 483
+    },
+    {
+      "path": "logs/mqtt-capacity-will-final-regression.log.gz",
+      "sha256": "625c86fb2d487ad0529a15c29c756e4bc5672bef9124268eecbac8bc09322a75",
+      "bytes": 454
+    },
+    {
+      "path": "post-validation-help.patch.gz",
+      "sha256": "00861d017bd5aa64f20a521722867d1d6297ccc503d032c80ef8eb361626c02b",
+      "bytes": 1245
+    },
+    {
+      "path": "prerequisites/initial-config-help-missing.log.gz",
+      "sha256": "2af7bc2aa66573e2712eb251d081f221f1ff178f718c5084e4492dc43060c405",
+      "bytes": 743
+    },
+    {
+      "path": "red/aggregate-storage-tracer.json",
+      "sha256": "c88add1c1eead9257c002d392d5186fbc8310848c56e080f2448887146b3b03a",
+      "bytes": 215
+    },
+    {
+      "path": "red/config-shim-red.log.gz",
+      "sha256": "52196367dcfaf12f497be9410c4e71208744412c870589ac27509a4b6d186bd6",
+      "bytes": 353
+    },
+    {
+      "path": "red/config-shim.patch.gz",
+      "sha256": "fafb1f4ff9e94c685fae3c9f4cd2643db2436e6154615e86180c0114304822ac",
+      "bytes": 2606
+    },
+    {
+      "path": "spec-review.md",
+      "sha256": "21e2c68f71039d89c01ef64763d011afaa68ad8d679e009b9896a3a3517dba6c",
+      "bytes": 1347
+    },
+    {
+      "path": "standards-review.md",
+      "sha256": "acd17fa98e13a38701899e25fc84cc28f6ae3936e751f0d2275b392c2de59366",
+      "bytes": 1371
+    },
+    {
+      "path": "validation-source.json",
+      "sha256": "f5c9c8663ceb94a71e43b2165eefb1b691d490d92dbf6b5f5d264b0e86094ba8",
+      "bytes": 12865
+    },
+    {
+      "path": "verify.py",
+      "sha256": "c3ea20a4f25e9e96c4e39ad83f8c7c3494a247f49b47029999e29747eabf61a7",
+      "bytes": 2423
+    }
+  ],
+  "prerequisite_failures": [
+    {
+      "name": "initial baseline config shim missing field help",
+      "status": "prerequisite failure, not product RED",
+      "log": "prerequisites/initial-config-help-missing.log.gz"
+    }
+  ]
+}

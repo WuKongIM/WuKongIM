@@ -1,0 +1,50 @@
+---
+title: MQTT 与 HTTP / SDK 互通
+description: 共用用户、频道、权限和 payload，正确转换 HTTP Base64 与 MQTT 原始字节。
+---
+
+<Callout type="warn" title="开发预览与后端边界">
+  MQTT 需要包含实现的开发候选。WuKongIM HTTP API 操作只由可信业务后端或受保护测试环境执行；客户端不能直接管理用户和成员。
+</Callout>
+
+## 同一条消息，三个入口
+
+| 入口 | 个人目标 | 消息体 | 成功提交确认 |
+| --- | --- | --- | --- |
+| MQTT | `wk/v1/users/Ym9i/messages`（bob） | 原始 IM 字节 | QoS 1 成功 PUBACK |
+| HTTP | `channel_id=bob`、`channel_type=1` | 原始字节的普通 Base64 字符串 | 响应 `reason=1` |
+| WKProto / SDK | 对方 UID、个人频道类型 1 | SDK 编码的消息字节 | SENDACK 成功 |
+
+群使用群 ID、频道类型 2 和 `wk/v1/groups/{base64url(groupID)}/messages`，沿用 IM 权限规则。个人收件箱聚合不同单聊来源，用下行属性识别原消息频道。
+
+Topic 的 **base64url** 与 HTTP payload 的**普通 Base64**不同；用错可能导致 Topic 拒绝或内容损坏。
+
+## HTTP → MQTT
+
+先按[快速开始](/zh/guide/tutorials/mqtt)准备凭证，让 Bob 订阅 `wk/v1/users/Ym9i/messages`。可信后端发送 SDK 文本消息：
+
+```bash
+curl -sS http://127.0.0.1:5001/message/send \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "from_uid":"alice",
+    "channel_id":"bob",
+    "channel_type":1,
+    "client_msg_no":"http-to-mqtt-0001",
+    "payload":"eyJ0eXBlIjoxLCJjb250ZW50IjoiaGVsbG8gQm9iIn0="
+  }'
+```
+
+Base64 解码后是 `{"type":1,"content":"hello Bob"}` 的 UTF-8 字节。检查 HTTP `reason=1`，再核对 Bob 的 MQTT PUBLISH：内容字节相同，`wk.from_uid=alice`、`wk.client_msg_no=http-to-mqtt-0001`，MessageID 对应同一次提交。HTTP 2xx 本身不证明业务发送成功。
+
+## MQTT → SDK
+
+Bob 用 SDK 登录并监听消息，Alice 发布相同 UTF-8 JSON 字节到 Bob Topic，设置 QoS 1、`retain=false` 和独立业务编号。内置文本格式可由 SDK 解码；自定义 JSON 或二进制需要匹配消息类型与解码器。
+
+MQTT payload 不承载 WKProto 加密帧或 HTTP JSON 请求体。原始字符串 `hello Bob` 可由 MQTT 客户端读取，但不能据此保证 SDK 文本渲染。
+
+监听和格式见 [JavaScript 消息收发](/zh/sdk/javascript/messages)、[自定义消息](/zh/sdk/javascript/advanced/custom-messages)。同一 UID 可同时使用不同 MQTT ClientID 和 WKProto 连接；MQTT 不按 WKProto 主设备规则踢出另一连接。
+
+## 接入验收
+
+对 HTTP → MQTT、SDK → MQTT、MQTT → SDK 分别核对提交、接收内容、发送方和稳定消息身份，再测试权限拒绝、断线及重复消息。持久恢复须满足[会话条件](/zh/api/client-protocols/mqtt/sessions-and-qos)，不能从在线互通推断所有 SDK 的离线恢复也已完成。

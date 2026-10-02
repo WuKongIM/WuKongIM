@@ -1,0 +1,44 @@
+{
+  "configured": {
+    "churn_rounds": 3,
+    "churn_subscribers": 200,
+    "connections": 500,
+    "members": 2000,
+    "messages": 20
+  },
+  "delivery_latency_ms": {
+    "max": 171737,
+    "p50": 125833,
+    "p99": 170920
+  },
+  "hash_slots": 256,
+  "idle_barriers_per_second": 1815.9958009042905,
+  "idle_barriers_per_subscriber_second": 3.631991601808581,
+  "initial_slots": 12,
+  "nodes": 1,
+  "observed": {
+    "duplicates": 0,
+    "messages_sent": 21,
+    "missing": 0,
+    "reordered": 0,
+    "subscribers": 500,
+    "unexpected": 0,
+    "wrong_identity": 0
+  },
+  "passed": true,
+  "phase_ms": {
+    "churn": 19421,
+    "connect_subscribe": 22415,
+    "fanout": 172219,
+    "idle_measurement": 10034,
+    "post_churn_delivery": 34816,
+    "provision_members": 5761,
+    "provision_tokens": 2958,
+    "retirement": 11
+  },
+  "profile_enabled": false,
+  "retired_delta": 600,
+  "retired_expected_min": 600,
+  "scenario": "mqtt-group-scale",
+  "wkproto_heartbeat_count": 16
+}

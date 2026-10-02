@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/gateway/protocol"
 	gatewaytypes "github.com/WuKongIM/WuKongIM/pkg/gateway/types"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
@@ -166,33 +167,57 @@ func asyncSendLogicalShardCount(workers, totalCapacity, minShardCapacity int) in
 }
 
 func (e *sendExecutor) submit(state *sessionState, replyToken string, send *frame.SendPacket) bool {
-	if e == nil || e.mailbox == nil || send == nil || e.shards <= 0 {
+	if send == nil {
 		return false
+	}
+	shard, ok := e.admit(state)
+	if !ok {
+		return false
+	}
+	// Preserve allocation-free WK rejection: no interface or retained frame is
+	// created until both global and shard admission succeed.
+	return e.enqueue(shard, asyncDispatchTask{state: state, replyToken: replyToken, frame: cloneAsyncSendFrame(send, stateOwnsDecodedFrames(state))})
+}
+func (e *sendExecutor) submitPacket(state *sessionState, packet protocol.InboundPacket) bool {
+	if e == nil || e.server == nil || !e.server.reservePacketBytes(packet.Bytes) {
+		return false
+	}
+	shard, ok := e.admit(state)
+	if !ok {
+		e.server.releasePacketBytes(packet.Bytes)
+		return false
+	}
+	if !e.enqueue(shard, asyncDispatchTask{state: state, packet: &packet}) {
+		e.server.releasePacketBytes(packet.Bytes)
+		return false
+	}
+	return true
+}
+func (e *sendExecutor) admit(state *sessionState) (int, bool) {
+	if e == nil || e.mailbox == nil || state == nil || e.shards <= 0 {
+		return 0, false
 	}
 	e.admissionMu.Lock()
 	if e.closed.Load() {
 		e.admissionMu.Unlock()
-		return false
+		return 0, false
 	}
 	e.admitted.Add(1)
 	e.admissionMu.Unlock()
-	shard := asyncSendShardIndex(state, send, e.shards)
+	shard := asyncSendShardIndex(state, nil, e.shards)
 	if !e.reserve() {
 		e.completeAdmission()
-		return false
+		return 0, false
 	}
 	if !e.reserveShard(shard) {
 		e.consume(1)
 		e.completeAdmission()
-		return false
+		return 0, false
 	}
-
-	task := asyncDispatchTask{
-		state:      state,
-		replyToken: replyToken,
-		frame:      cloneAsyncSendFrame(send, stateOwnsDecodedFrames(state)),
-		enqueuedAt: time.Now(),
-	}
+	return shard, true
+}
+func (e *sendExecutor) enqueue(shard int, task asyncDispatchTask) bool {
+	task.enqueuedAt = time.Now()
 	if err := e.mailbox.SubmitHash(context.Background(), uint64(shard), task); err != nil {
 		e.consumeShard(shard, 1)
 		e.consume(1)
@@ -319,15 +344,25 @@ func (e *sendExecutor) handleMailboxBatch(_ context.Context, batch workqueue.Mai
 		e.dispatchDeferredMailboxBatch(batch.Shard, batch.Items)
 		return nil
 	}
-	e.consumeShard(batch.Shard, len(batch.Items))
-	e.consume(len(batch.Items))
+	e.dispatchJoinedMailboxBatch(batch.Shard, batch.Items)
+	return nil
+}
+
+// dispatchJoinedMailboxBatch retains packet ownership until its ordered callback joins.
+// WK deferred batches use their own completion fence on the same admission budget.
+func (e *sendExecutor) dispatchJoinedMailboxBatch(shard int, items []asyncDispatchTask) {
+	e.consumeShard(shard, len(items))
+	e.consume(len(items))
 	defer func() {
-		for range batch.Items {
+		for _, task := range items {
+			if task.packet != nil {
+				task.packet.Value = nil
+				e.server.releasePacketBytes(task.packet.Bytes)
+			}
 			e.completeAdmission()
 		}
 	}()
-	e.dispatchMailboxBatch(batch.Items)
-	return nil
+	e.dispatchMailboxBatch(items)
 }
 
 func (e *sendExecutor) dispatchMailboxBatch(items []asyncDispatchTask) {
@@ -381,6 +416,13 @@ func (e *sendExecutor) dispatchBatch(batch []asyncDispatchTask) {
 		return
 	}
 	for _, task := range batch {
+		if task.packet != nil {
+			e.server.recordAsyncDispatchWait(task)
+			if err := e.server.dispatchPacket(task.state, *task.packet); err != nil {
+				e.server.handleHandlerError(task.state, err)
+			}
+			continue
+		}
 		e.server.recordAsyncDispatchWait(task)
 		if err := e.server.dispatchFrame(task.state, task.replyToken, task.frame); err != nil {
 			e.server.handleHandlerError(task.state, err)

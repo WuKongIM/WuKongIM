@@ -5,19 +5,24 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/pkg/gateway/protocol"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
 	"github.com/WuKongIM/WuKongIM/pkg/wklog"
 )
 
 type Options struct {
-	Handler        Handler
-	Authenticator  Authenticator
-	Observer       Observer
-	DefaultSession SessionOptions
-	Runtime        RuntimeOptions
-	Transport      TransportOptions
-	Listeners      []ListenerOptions
-	Logger         wklog.Logger
+	Handler Handler
+	// PacketHandler owns independent protocol entry callbacks; nil keeps those listeners unavailable.
+	PacketHandler PacketHandler
+	// PacketProtocols registers independent wire adapters before listener construction.
+	PacketProtocols []protocol.PacketAdapter
+	Authenticator   Authenticator
+	Observer        Observer
+	DefaultSession  SessionOptions
+	Runtime         RuntimeOptions
+	Transport       TransportOptions
+	Listeners       []ListenerOptions
+	Logger          wklog.Logger
 }
 
 // TransportOptions groups transport-specific gateway runtime tuning.
@@ -82,6 +87,9 @@ type RuntimeOptions struct {
 	AsyncAuthWorkers int
 	// AsyncAuthQueueCapacity sets the maximum queued CONNECT authentication count before admission fails.
 	AsyncAuthQueueCapacity int
+	// AsyncPacketMaxBytes caps independent protocol bytes retained by auth and
+	// ordered dispatch, including executing work. Zero defaults to 64 MiB.
+	AsyncPacketMaxBytes int
 	// AsyncPoolReleaseTimeout bounds how long async worker pools wait for graceful release.
 	AsyncPoolReleaseTimeout time.Duration
 }
@@ -116,6 +124,7 @@ func DefaultRuntimeOptions() RuntimeOptions {
 		AsyncSendQueueCapacity:  defaultAsyncSendQueueCapacity,
 		AsyncAuthWorkers:        defaultAsyncAuthWorkers,
 		AsyncAuthQueueCapacity:  defaultAsyncAuthQueueCapacity,
+		AsyncPacketMaxBytes:     64 << 20,
 		AsyncPoolReleaseTimeout: defaultAsyncPoolReleaseTimeout,
 	}
 }
@@ -170,7 +179,7 @@ func (o *Options) Validate() error {
 			return ErrListenerProtocolEmpty
 		}
 	}
-	if o.Handler == nil {
+	if o.Handler == nil && o.PacketHandler == nil {
 		return ErrNilHandler
 	}
 	return nil
@@ -220,6 +229,9 @@ func NormalizeRuntimeOptions(opt RuntimeOptions) RuntimeOptions {
 	}
 	if opt.AsyncAuthWorkers <= 0 {
 		opt.AsyncAuthWorkers = def.AsyncAuthWorkers
+	}
+	if opt.AsyncPacketMaxBytes <= 0 {
+		opt.AsyncPacketMaxBytes = def.AsyncPacketMaxBytes
 	}
 	if opt.AsyncAuthQueueCapacity <= 0 {
 		opt.AsyncAuthQueueCapacity = def.AsyncAuthQueueCapacity

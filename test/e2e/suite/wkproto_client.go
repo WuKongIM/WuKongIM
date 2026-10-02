@@ -64,11 +64,17 @@ func (c *WKProtoClient) Connect(addr, uid, deviceID string) error {
 
 // ConnectContext opens the TCP connection and returns the successful Connack.
 func (c *WKProtoClient) ConnectContext(ctx context.Context, addr, uid, deviceID string) (*frame.ConnackPacket, error) {
-	return c.ConnectWithTokenContext(ctx, addr, uid, deviceID, "")
+	return c.ConnectAuthenticatedContext(ctx, addr, uid, deviceID, "", frame.APP)
 }
 
-// ConnectWithTokenContext performs a real handshake using a previously registered device token.
+// ConnectWithTokenContext uses the same authenticated handshake with the default device flag.
 func (c *WKProtoClient) ConnectWithTokenContext(ctx context.Context, addr, uid, deviceID, token string) (*frame.ConnackPacket, error) {
+	return c.ConnectAuthenticatedContext(ctx, addr, uid, deviceID, token, frame.APP)
+}
+
+// ConnectAuthenticatedContext uses a provisioned device token without disabling
+// product authentication. The harness never logs or persists token input.
+func (c *WKProtoClient) ConnectAuthenticatedContext(ctx context.Context, addr, uid, deviceID, token string, flag frame.DeviceFlag) (*frame.ConnackPacket, error) {
 	if c == nil {
 		return nil, fmt.Errorf("wkproto client: nil client")
 	}
@@ -90,7 +96,7 @@ func (c *WKProtoClient) ConnectWithTokenContext(ctx context.Context, addr, uid, 
 	connack, err := inner.Connect(ctx, wkclient.ConnectOptions{
 		UID:        uid,
 		DeviceID:   deviceID,
-		DeviceFlag: frame.APP,
+		DeviceFlag: flag,
 		Token:      token,
 	})
 	if err != nil {

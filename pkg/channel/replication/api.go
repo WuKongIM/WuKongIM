@@ -28,8 +28,8 @@ type Authority struct {
 	WriteFence  ch.WriteFence
 }
 
-// Proposal is one retry-stable immutable business append. The durable quorum
-// log assigns its exact contiguous range before physical I/O.
+// Proposal is one retry-stable immutable append or explicit source activation.
+// The durable quorum log assigns its exact contiguous range before physical I/O.
 type Proposal struct {
 	Key       ch.ChannelKey
 	Expected  AuthorityID
@@ -40,6 +40,15 @@ type Proposal struct {
 	PayloadsImmutable bool
 	// ServerAllocatedMessageIDs proves every record ID came from the node-scoped allocator.
 	ServerAllocatedMessageIDs bool
+	// MQTTSourceActivation explicitly selects the protected-source control
+	// format. It requires one canonical internal record and capable replicas.
+	MQTTSourceActivation bool
+	// MQTTReplayAnchor selects one canonical content-checkpoint control. It is
+	// mutually exclusive with other controls; business callers leave all false.
+	MQTTReplayAnchor bool
+	// MQTTReplayRetirement selects one canonical accepted-anchor retirement.
+	// Its caller must establish consumer permission before entering the sequencer.
+	MQTTReplayRetirement bool
 }
 
 // Receipt proves that one exact proposal is durable on the local leader and

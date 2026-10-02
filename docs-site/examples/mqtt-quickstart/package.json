@@ -1,0 +1,12 @@
+{
+  "name": "@wukongim/docs-mqtt-quickstart",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20.11" },
+  "scripts": {
+    "start": "node quickstart.mjs",
+    "check": "node --check quickstart.mjs"
+  },
+  "dependencies": { "mqtt": "5.16.0" }
+}

@@ -322,6 +322,23 @@ commandLoop:
 		if decoded != nil {
 			// Conditional mutation outcomes are resolved while the batch commits.
 			results[i] = commandApplyResult(decoded)
+			// Observe a real durable resolution, including a definite conflict,
+			// separately from a caller that already abandoned its proposal future.
+			if will, ok := decoded.(*mqttWillCASCmd); ok && will.payload.Will.Stage == metadb.MQTTWillExecuting && will.payload.Will.DispatchStage == metadb.MQTTWillDispatchStarted && will.payload.Will.ExecutionGeneration == 1 {
+				// gofail: var wkMQTTWillStartedFSMComplete bool
+				// _ = wkMQTTWillStartedFSMComplete
+			}
+			// Count durable second-generation resolution, including conflict,
+			// without interpreting the abandoned caller as a dispatch grant.
+			if will, ok := decoded.(*mqttWillCASCmd); ok && will.payload.Will.Stage == metadb.MQTTWillExecuting && will.payload.Will.DispatchStage == metadb.MQTTWillDispatchStarted && will.payload.Will.ExecutionGeneration == 2 {
+				completeMatch := ""
+				// gofail: var wkMQTTWillSecondCompleteMatch string
+				// completeMatch = wkMQTTWillSecondCompleteMatch
+				if will.payload.Will.Key.ClientID == completeMatch {
+					// gofail: var wkMQTTWillSecondFSMComplete bool
+					// _ = wkMQTTWillSecondFSMComplete
+				}
+			}
 		}
 	}
 	return results, nil

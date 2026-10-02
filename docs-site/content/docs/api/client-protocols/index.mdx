@@ -1,9 +1,9 @@
 ---
 title: 客户端协议
-description: 查阅当前 Gateway 连接生命周期与 WKProto 数据包边界。
+description: 查阅 WKProto、JSON-RPC 与 MQTT 开发预览接入契约。
 ---
 
-客户端通过 Gateway 的 TCP 或 WebSocket Listener 建立长连接。当前公共基线是同一组 WKProto 语义：连接协商、发送、接收确认和心跳。
+客户端通过 Gateway 的 TCP 或 WebSocket Listener 建立长连接。WKProto 公共基线包含连接协商、发送、接收确认和心跳。MQTT 使用独立的 MQTT 5 TCP 入口，共用 IM 用户、频道和消息。
 
 <Callout type="info" title="协议不是 HTTP API">
   TCP 二进制帧和 WebSocket 消息不属于 OpenAPI。这里记录 Wire 与 Gateway 行为，不虚构 HTTP 路径。
@@ -15,12 +15,13 @@ description: 查阅当前 Gateway 连接生命周期与 WKProto 数据包边界�
   <Card title="TCP 二进制协议" description="固定头、Remaining Length、字段顺序与版本边界。" href="/zh/api/client-protocols/tcp-binary" />
   <Card title="加密与安全" description="X25519、AES-CBC、msg_key 与安全限制。" href="/zh/api/client-protocols/encryption" />
   <Card title="EasySDK JSON-RPC" description="核心在线路径、四端 wire 兼容矩阵与实验边界。" href="/zh/api/client-protocols/json-rpc" />
+  <Card title="MQTT（开发预览）" description="MQTT 5 TCP、认证、Topic、持久会话、遗嘱与互通。" href="/zh/api/client-protocols/mqtt" />
 </Cards>
 
 ## 当前边界
 
 - 公共核心包含 CONNECT/CONNACK、SEND/SENDACK、RECV/RECVACK、PING/PONG 与服务端出站 stream.* EVENT。
-- `DISCONNECT`、`SUB`、`SUBACK` 目前只是 codec 合同，不代表产品 Gateway 已发布对应入口。
+- WKProto 的 `DISCONNECT`、`SUB`、`SUBACK` 目前只是 codec 合同，不代表产品 Gateway 已发布对应入口。
 - 服务端可通过 `EVENT` 投递公开流式消息事件；任意客户端 EVENT 入站仍不支持，入站只接受 benchmark terminal-fence 工具请求。
 - WebSocket 可承载 WKProto bytes；JSON-RPC bridge 支持固定 EasySDK 的核心在线路径，其余方法仍按矩阵标为实验性或缺失。
 

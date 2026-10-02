@@ -921,6 +921,14 @@ func (o slotMetricsObserver) ObserveSlotProposal(slotID multiraft.SlotID, d time
 	o.metrics.Slot.ObserveProposal(uint32(slotID), d)
 }
 
+// ObserveSlotReadBarrier records one Slot read barrier wait.
+func (o slotMetricsObserver) ObserveSlotReadBarrier(result string, d time.Duration) {
+	if o.metrics == nil {
+		return
+	}
+	o.metrics.Slot.ObserveReadBarrier(result, d)
+}
+
 func (o slotMetricsObserver) ObserveSlotProposalAdmission(_ multiraft.SlotID, class multiraft.ProposalClass, result string) {
 	if o.metrics == nil {
 		return
@@ -2241,6 +2249,15 @@ func (o multiSlotObserver) ObserveSlotProposal(slotID multiraft.SlotID, d time.D
 	}
 }
 
+// ObserveSlotReadBarrier fans one read barrier wait out to capable children.
+func (o multiSlotObserver) ObserveSlotReadBarrier(result string, d time.Duration) {
+	for _, observer := range o {
+		if readObserver, ok := observer.(multiraft.ReadBarrierObserver); ok {
+			readObserver.ObserveSlotReadBarrier(result, d)
+		}
+	}
+}
+
 func (o multiSlotObserver) ObserveSlotProposalAdmission(slotID multiraft.SlotID, class multiraft.ProposalClass, result string) {
 	for _, observer := range o {
 		admissionObserver, ok := observer.(multiraft.ProposalAdmissionObserver)
@@ -2627,6 +2644,7 @@ var _ clusterchannels.AppendStageObserver = channelMetricsObserver{}
 var _ clusterchannels.MetaCreateObserver = channelMetricsObserver{}
 var _ multiraft.SchedulerObserver = slotMetricsObserver{}
 var _ multiraft.ProposalObserver = slotMetricsObserver{}
+var _ multiraft.ReadBarrierObserver = slotMetricsObserver{}
 var _ multiraft.ProposalAdmissionObserver = slotMetricsObserver{}
 var _ multiraft.ApplyStateObserver = slotMetricsObserver{}
 var _ cluster.PreferredLeaderObserver = slotMetricsObserver{}
@@ -2660,6 +2678,7 @@ var _ clusterchannels.AppendStageObserver = multiChannelObserver{}
 var _ clusterchannels.MetaCreateObserver = multiChannelObserver{}
 var _ multiraft.SchedulerObserver = multiSlotObserver{}
 var _ multiraft.ProposalObserver = multiSlotObserver{}
+var _ multiraft.ReadBarrierObserver = multiSlotObserver{}
 var _ multiraft.ProposalAdmissionObserver = multiSlotObserver{}
 var _ multiraft.ApplyStateObserver = multiSlotObserver{}
 var _ cluster.PreferredLeaderObserver = multiPreferredLeaderObserver{}

@@ -1,0 +1,82 @@
+diff --git a/internal/runtime/channelappend/router.go b/internal/runtime/channelappend/router.go
+index 41fbaf461..8471f4391 100644
+--- a/internal/runtime/channelappend/router.go
++++ b/internal/runtime/channelappend/router.go
+@@ -628,0 +629,12 @@ func (r *Router) submitSingleTarget(target AuthorityTarget, item SendBatchItem)
++	{
++		// gofail: var wkMQTTWillBeforeAppendAdmission bool
++		// if wkMQTTWillBeforeAppendAdmission {
++		//     return finish(SendBatchItemResult{Err: context.DeadlineExceeded})
++		// }
++	}
++	{
++		// gofail: var wkMQTTWillAfterAppendAdmission bool
++		// if wkMQTTWillAfterAppendAdmission {
++		//     return finish(SendBatchItemResult{Err: context.DeadlineExceeded})
++		// }
++	}
+diff --git a/internal/usecase/mqttsession/will_execution.go b/internal/usecase/mqttsession/will_execution.go
+index 259866556..249dcc761 100644
+--- a/internal/usecase/mqttsession/will_execution.go
++++ b/internal/usecase/mqttsession/will_execution.go
+@@ -389,0 +390,4 @@ func (e *WillExecutor) Execute(parent context.Context, key meta.MQTTWillKey) (ou
++		// gofail: var wkMQTTWillAfterAdmitted bool
++		// if wkMQTTWillAfterAdmitted {
++		//     return out, context.DeadlineExceeded
++		// }
+diff --git a/test/e2e/mqtt/will_recovery/recovery_test.go b/test/e2e/mqtt/will_recovery/recovery_test.go
+index 064b0f962..801a5c45f 100644
+--- a/test/e2e/mqtt/will_recovery/recovery_test.go
++++ b/test/e2e/mqtt/will_recovery/recovery_test.go
+@@ -20,0 +21,3 @@ const startedCut = "wkMQTTWillAfterStarted"
++const admittedCut = "wkMQTTWillAfterAdmitted"
++const appendCut = "wkMQTTWillBeforeAppendAdmission"
++const issuedCut = "wkMQTTWillAfterAppendAdmission"
+@@ -32 +35 @@ func TestStartedWillRecoveryPreservesOnePublication(t *testing.T) {
+-		for _, cut := range []string{"undispatched", "published", "admitted"} {
++		for _, cut := range []string{"undispatched", "pre-send", "pre-append", "issued", "legacy-admitted", "published", "admitted"} {
+@@ -38,0 +42,8 @@ func runRecovery(t *testing.T, count int, cut string) {
++	candidateBinary := os.Getenv("WK_E2E_BINARY")
++	if cut == "legacy-admitted" {
++		legacy := os.Getenv("WK_E2E_MQTT_LEGACY_BINARY")
++		if legacy == "" {
++			t.Skip("requires the frozen version-1 journal binary")
++		}
++		t.Setenv("WK_E2E_BINARY", legacy)
++	}
+@@ -77 +88 @@ func runRecovery(t *testing.T, count int, cut string) {
+-		_, err := f.WaitListed(call, startedCut, publishedCut, publishAttempt, acceptedDelay)
++		_, err := f.WaitListed(call, startedCut, admittedCut, appendCut, issuedCut, publishedCut, publishAttempt, acceptedDelay)
+@@ -97 +108,7 @@ func runRecovery(t *testing.T, count int, cut string) {
+-	if cut == "published" {
++	if cut == "pre-send" || cut == "legacy-admitted" {
++		faultName = admittedCut
++	} else if cut == "pre-append" {
++		faultName = appendCut
++	} else if cut == "issued" {
++		faultName = issuedCut
++	} else if cut == "published" {
+@@ -182 +199,5 @@ func runRecovery(t *testing.T, count int, cut string) {
+-		require.NoError(t, cluster.StartStoppedNode(uint64(cutNode+1)), cluster.DumpDiagnostics())
++		if cut == "legacy-admitted" {
++			require.NoError(t, executor.Restart(candidateBinary), cluster.DumpDiagnostics())
++		} else {
++			require.NoError(t, cluster.StartStoppedNode(uint64(cutNode+1)), cluster.DumpDiagnostics())
++		}
+@@ -189,0 +211,16 @@ func runRecovery(t *testing.T, count int, cut string) {
++	if cut == "issued" || cut == "legacy-admitted" {
++		phase = "unknown-after-restart"
++		quiet(bob, 21*time.Second)
++		var attempts int
++		for _, f := range faults {
++			n, e := f.Count(ctx, publishAttempt)
++			require.NoError(t, e)
++			attempts += n
++		}
++		require.Zero(t, attempts, "unknown issued or legacy admission cannot grant another publication")
++		report["attempts_after_restart"], report["unknown_effect_window_ms"] = attempts, 21000
++		report["business_publications"], report["unexpected_deliveries"] = 0, 0
++		report["legacy_journal_retained"] = cut == "legacy-admitted"
++		phase = "complete"
++		return
++	}

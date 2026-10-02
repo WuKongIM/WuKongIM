@@ -1,0 +1,126 @@
+{
+  "source_revision": "e3cb492e7668a7b10586a70f023dcc714bbc3279",
+  "source_context": "mqtt-churn-pressure-source-context.json",
+  "probe_source_sha256": "499e69042922435fd5842849fbeaecfd556ab91c989decc6eb6f877906894350",
+  "production_change": "ReplayCoordinator.recover classifies only typed readiness/pressure as pending; cancellation wins; anchor submission unchanged",
+  "diagnostic": {
+    "temporary_overlay": "/tmp/mqtt-churn-e3-overlay",
+    "binary_sha256": "eed11d572c9f97950e8d5909b9f1513b9b81b8342108be3cf321f997d28a0aec",
+    "source_matches_frozen_revision_except_fixed_error_wrappers": true,
+    "trace": [
+      "Subscriptions.Subscribe",
+      "GroupProjection.Project",
+      "ReplayCoordinator.Confirm",
+      "ReplayCoordinator.Step",
+      "ReplayCoordinator.recover",
+      "channels.Service.StepMQTTReplayRecovery: receiver admission"
+    ],
+    "failure": "channel: backpressured",
+    "baseline_artifact": "mqtt-churn-recovery-baseline-64.json",
+    "minimization": "64 connections reproduce churn; 16 connections completed without this failure. Load timing remains nondeterministic; no claim of an exhaustive smallest input.",
+    "subsequent_stages": {
+      "binary_sha256": "2abb1bcef4e20533782f5eacee47f8016aad1d9a8371b58e3fc9d0dafc90da2b",
+      "source": "frozen revision plus recovery yield repair and fixed error-only wrappers",
+      "artifact": "mqtt-churn-preparation-diagnostic-500.json",
+      "locations": [
+        "GroupSources.prepare cursor Init CASConflict",
+        "Subscriptions.checkCapacity parent revision mismatch",
+        "SourceDrain.seal accounting snapshot mismatch"
+      ],
+      "intermittency": "a later diagnostic attempt passed; stage wrappers change timing, so only source location is evidence"
+    }
+  },
+  "candidate": {
+    "binary_sha256": "7350f7657f036e7bf7fedc3bb4ba268ffb9eae14ab31c7e4740db13fe8f24c78",
+    "replay_source_sha256": "de5a1272a843e3e0f7d500b538660ba8f93300712d2c8679f89c8de2ccfb9204",
+    "artifact_64": "mqtt-churn-recovery-candidate-64.json",
+    "artifact_500_before_preparation_repairs": "mqtt-churn-recovery-candidate-500-failure.json"
+  },
+  "regression": {
+    "command": "GOWORK=off go test -race ./internal/usecase/mqttsession -run 'TestReplay(Recovery|Confirmation|Coordinator)' -count=1",
+    "cases": 40,
+    "baseline_failing_cases": 16,
+    "baseline": "original replay.go from frozen revision via Go overlay; corrected repair-next fixture uses Pass=1 so bindReplayCursor selects recovery",
+    "candidate_result": "pass",
+    "unknown_anchor_negative_controls": "existing TestReplayConfirmationClassifiesCopyYieldBeforeAnchor passes; no new pending classification for anchor failures"
+  },
+  "full_scale_acceptance": {
+    "status": "failed at dd8e49bb9 before churn; does not negate narrower proven repairs or qualify full acceptance",
+    "failure": "mqtt-scale-churn-final-failure.json",
+    "provenance": "mqtt-scale-churn-final-provenance.json",
+    "diagnosis": "mqtt-fanout-closure-evidence.json"
+  },
+  "preparation_regression": {
+    "cases": 27,
+    "baseline_failing_cases": 7,
+    "failure_inventory": "mqtt-churn-pressure.md",
+    "command": "GOWORK=off go test -race ./internal/usecase/mqttsession -run 'Test(SubscriptionPreparationRebases|GroupCursorInitRebases)' -count=1",
+    "result": "pass"
+  },
+  "drain_snapshot_regression": {
+    "cases": 9,
+    "baseline_failing_cases": 2,
+    "real_interleavings": [
+      "renewal",
+      "ACK of original begun exchange"
+    ],
+    "negative_controls": [
+      "regressed parent",
+      "foreign cursor",
+      "corrupt unadmitted charge",
+      "changed cursor without newer parent",
+      "foreign owner",
+      "dependency cancellation",
+      "unknown read"
+    ],
+    "result": "pass"
+  },
+  "artifact_field_semantics": {
+    "foreground_retries": "MQTT client sends each control packet once; server bounded CAS/pending attempts are not counted"
+  },
+  "final_candidate": {
+    "binary_sha256": "2ec294ab86c3cf715a624d3e9504f9079919e39c5370016c2725cbc43d50aff5",
+    "artifact_500": "mqtt-churn-repairs-500.json",
+    "production_sources": {
+      "internal/usecase/mqttsession/replay.go": "de5a1272a843e3e0f7d500b538660ba8f93300712d2c8679f89c8de2ccfb9204",
+      "internal/usecase/mqttsession/subscriptions.go": "7a28deb4dbe9acfe74153b82c32966bd7ca00117aef7bdb300626485fde3b6fb",
+      "internal/usecase/mqttsession/group_sources.go": "46ec12f6444ed3756cab21dac1f50b6605285ac6560934bf2c018f30e682b7c9",
+      "internal/usecase/mqttsession/group_source_cursor.go": "cb3cb062c80f1c1c8df7e18ef5d9cf7dafc2c09add099a4d54e4220fc1d0da77",
+      "internal/usecase/mqttsession/source_drain.go": "079be9ad8ddaf68e7efb48226099333b7c00691f8e6212af71edb5acf3ca1e65"
+    },
+    "probe_result": "passed 500 fresh receipts, 1100 SUBACK, 600 UNSUBACK, 600 retirements; zero fixed subscription closure events",
+    "focused_race": "passed 8.173s"
+  },
+  "validation": {
+    "full_usecase_race": {
+      "command": "GOWORK=off go test -race ./internal/usecase/mqttsession -count=1 -timeout=6m",
+      "result": "pass",
+      "elapsed_seconds": 176.921
+    },
+    "focused_race": {
+      "result": "pass",
+      "elapsed_seconds": 8.173
+    },
+    "vet": "pass",
+    "flow_doc_contracts": "87 compliant, 0 invalid, 11 preexisting line-target warnings",
+    "parallel_supplementary": {
+      "app": "three-node old-intent reclamation 20s wait failed; all earlier source/drain/establishment phases passed",
+      "cold_e2e": "attempt 0 hit unchanged five-second SUBSCRIBE packet deadline",
+      "qualification": "not counted as passes; serial reruns pending",
+      "cold_artifact": "mqtt-churn-cold-parallel-failure.json"
+    },
+    "cold_serial": {
+      "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-churn-repairs WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-churn-repairs-cold-serial GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/unsubscribe_recovery -run '^TestColdGroupSubscriptionAdmission$' -count=1 -timeout=3m -v",
+      "result": "pass",
+      "elapsed_seconds": 93.186,
+      "artifact": "mqtt-churn-cold-serial.json",
+      "qualification": "64 successful fresh sessions/groups in one three-node cluster; preceding parallel timeout remains recorded and is not causally assigned"
+    },
+    "app_serial": {
+      "command": "GOWORK=off go test -race -tags=integration ./internal/app -run 'TestMQTTSubscriptionIntentSingleNodeCluster|TestMQTTGroupSourcePreparationThreeNodeRecovery' -count=1 -timeout=3m",
+      "result": "pass",
+      "elapsed_seconds": 38.161,
+      "qualification": "single-node intent and three-node source/replay/drain/pending establishment/removal/reclamation composition; preceding parallel reclamation timeout remains recorded"
+    }
+  }
+}

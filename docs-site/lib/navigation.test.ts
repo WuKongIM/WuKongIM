@@ -124,6 +124,7 @@ describe('documentation navigation contract', () => {
       ['large-groups', 'published'],
       ['push', 'published'],
       ['ai-and-iot', 'published'],
+      ['mqtt', 'published'],
     ]);
   });
 
@@ -473,6 +474,7 @@ describe('documentation navigation contract', () => {
         `/${locale}/guide/tutorials/large-groups`,
         `/${locale}/guide/tutorials/push`,
         `/${locale}/guide/tutorials/ai-and-iot`,
+        `/${locale}/guide/tutorials/mqtt`,
         `/${locale}/server`,
         `/${locale}/server/deployment`,
         `/${locale}/server/deployment/docker`,
@@ -601,6 +603,13 @@ describe('documentation navigation contract', () => {
         `/${locale}/api/client-protocols/tcp-binary`,
         `/${locale}/api/client-protocols/json-rpc`,
         `/${locale}/api/client-protocols/encryption`,
+        `/${locale}/api/client-protocols/mqtt`,
+        `/${locale}/api/client-protocols/mqtt/authentication-and-topics`,
+        `/${locale}/api/client-protocols/mqtt/messages`,
+        `/${locale}/api/client-protocols/mqtt/sessions-and-qos`,
+        `/${locale}/api/client-protocols/mqtt/will`,
+        `/${locale}/api/client-protocols/mqtt/interop`,
+        `/${locale}/api/client-protocols/mqtt/operations-and-troubleshooting`,
         `/${locale}/api/dictionaries`,
         `/${locale}/api/dictionaries/channel-types`,
         `/${locale}/api/dictionaries/device-flags`,

@@ -1,0 +1,49 @@
+---
+title: MQTT
+description: 通过 MQTT 5 TCP 接入现有用户、频道和消息，了解能力与开发预览范围。
+---
+
+MQTT 是 WuKongIM 的一种 IM 接入协议。MQTT 客户端与 HTTP、WKProto SDK 共用 UID、设备 Token、频道、成员权限和消息；应用仍负责账号登录、业务授权及 payload 格式。
+
+<Callout type="warn" title="开发预览">
+  当前 MQTT 入口默认关闭，只提供 MQTT 5 TCP。完整 Linux、故障和负载验收仍未完成。请使用包含 MQTT 实现的匹配开发候选；现有正式发布的安装包或镜像不能据此视为支持 MQTT。
+</Callout>
+
+## 从哪里开始
+
+<Cards>
+  <Card title="发送第一条消息" description="用 Node.js 和固定版本 MQTT.js 跑通 Alice、Bob 双向收发。" href="/zh/guide/tutorials/mqtt" />
+  <Card title="认证与 Topic" description="准备 Token、设备标识、ClientID 和规范编码的 Topic。" href="/zh/api/client-protocols/mqtt/authentication-and-topics" />
+  <Card title="消息契约" description="payload、消息属性、幂等键与确认边界。" href="/zh/api/client-protocols/mqtt/messages" />
+  <Card title="持久会话与 QoS" description="恢复订阅、处理重复、检查 Session Present。" href="/zh/api/client-protocols/mqtt/sessions-and-qos" />
+  <Card title="遗嘱消息" description="异常断开、Will Delay、取消与授权。" href="/zh/api/client-protocols/mqtt/will" />
+  <Card title="HTTP / SDK 互通" description="共用频道与消息体，转换 HTTP Base64。" href="/zh/api/client-protocols/mqtt/interop" />
+  <Card title="部署与排障" description="集群一致性、逻辑配额和接入故障定位。" href="/zh/api/client-protocols/mqtt/operations-and-troubleshooting" />
+</Cards>
+
+## 支持范围
+
+| 能力 | 当前行为 |
+| --- | --- |
+| 协议和传输 | MQTT 5.0，原始 TCP；其他版本不支持。TLS 在上游终止 |
+| 浏览器 | 没有 MQTT WebSocket 入口；浏览器使用现有 WKProto / JSON-RPC 路径 |
+| 发布 QoS | 0、1；不支持 QoS 2 发布 |
+| 订阅 QoS | 0、1；请求 2 时可授予 1，必须检查 SUBACK |
+| Topic | 精确个人收件箱和群消息 Topic；没有任意业务 Topic |
+| Retain | 不支持；CONNACK 的 Retain Available 为 0 |
+| 通配符与共享订阅 | 不支持 `+`、`#`、`$share/` |
+| Topic Alias | 不支持；Topic Alias Maximum 为 0，发送完整 Topic |
+| 认证 | CONNECT 的 User Name / Password；不支持增强 AUTH 协商 |
+| 会话 | Clean Start、Session Expiry、Session Present；最长离线有效期 24 小时，可配置更低上限 |
+| 订阅选项 | 支持 No Local 和 Subscription Identifier；Identifier 不得为 0 或重复 |
+| 遗嘱 | QoS 0/1、Will Delay；不支持 Retain，执行时重新检查权限 |
+
+连接后检查 CONNACK 的能力属性；单个订阅以 SUBACK 为准。客户端库支持某功能，不表示服务端也支持。
+
+## 接入模型
+
+可信业务后端先准备用户 Token 和群成员，客户端再连接并订阅精确 Topic。SUBSCRIBE 只建立当前 ClientID 的接收意图，不创建账号，也不加入群。
+
+成功 PUBACK、SDK SENDACK 和 HTTP `reason=1` 是消息提交确认，均不能代替对方收到、已读或业务执行完成的确认。所有部署保留集群语义；单节点集群同样使用 Slot 和持久化路径，默认 256 个 hash slots。
+
+基础报文定义见 [OASIS MQTT 5.0](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html)。本专题补充 WuKongIM 的认证、Topic 和 IM 映射约定。

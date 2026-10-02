@@ -73,6 +73,11 @@ func encodeMessageHeader(key []byte, row messageRow) ([]byte, error) {
 	if err := w.Int64(messageColumnIDServerTimestampMS, row.ServerTimestampMS); err != nil {
 		return nil, err
 	}
+	if len(row.PublicationMetadata) != 0 {
+		if err := w.RawBytes(messageColumnIDPublicationMetadata, row.PublicationMetadata); err != nil {
+			return nil, err
+		}
+	}
 	return rowcodec.Wrap(key, messageValueVersion, rowcodec.CodecColumns, rowcodec.FlagChecksum, w.Bytes()), nil
 }
 
@@ -99,6 +104,9 @@ func encodedMessageHeaderLen(row messageRow) int {
 	payloadLen += encodedUint64ColumnLen(&last, messageColumnIDPayloadSize, row.PayloadSize)
 	payloadLen += encodedBytesColumnLen(&last, messageColumnIDPayload, row.Payload)
 	payloadLen += encodedInt64ColumnLen(&last, messageColumnIDServerTimestampMS, row.ServerTimestampMS)
+	if len(row.PublicationMetadata) != 0 {
+		payloadLen += encodedBytesColumnLen(&last, messageColumnIDPublicationMetadata, row.PublicationMetadata)
+	}
 	return rowcodec.EnvelopeLen(payloadLen)
 }
 
@@ -132,6 +140,9 @@ func encodeMessageHeaderTo(dst []byte, key []byte, row messageRow) error {
 	pos = putUint64Column(payload, pos, &last, messageColumnIDPayloadSize, row.PayloadSize)
 	pos = putBytesColumn(payload, pos, &last, messageColumnIDPayload, row.Payload)
 	pos = putInt64Column(payload, pos, &last, messageColumnIDServerTimestampMS, row.ServerTimestampMS)
+	if len(row.PublicationMetadata) != 0 {
+		pos = putBytesColumn(payload, pos, &last, messageColumnIDPublicationMetadata, row.PublicationMetadata)
+	}
 	if pos != len(payload) {
 		return dberrors.ErrInvalidArgument
 	}
@@ -158,8 +169,8 @@ func decodeMessageHeader(key []byte, value []byte, row *messageRow) error {
 	if err := s.Err(); err != nil {
 		return err
 	}
-	if row.MessageID == 0 {
-		return fmt.Errorf("%w: missing message_id", dberrors.ErrCorruptValue)
+	if err := row.validate(); err != nil {
+		return fmt.Errorf("%w: invalid message header", dberrors.ErrCorruptValue)
 	}
 	return nil
 }
@@ -237,6 +248,10 @@ func decodeMessageHeaderColumn(s *rowcodec.Scanner, row *messageRow) error {
 	case messageColumnIDPayload:
 		value, err := s.Bytes()
 		row.Payload = value
+		return err
+	case messageColumnIDPublicationMetadata:
+		value, err := s.Bytes()
+		row.PublicationMetadata = value
 		return err
 	case messageColumnIDServerTimestampMS:
 		value, err := s.Int64()

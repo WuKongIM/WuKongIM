@@ -213,6 +213,21 @@ func (c *TransportClient) Notify(ctx context.Context, node ch.NodeID, req channe
 
 // ForwardAppend sends a client append request to node.
 func (c *TransportClient) ForwardAppend(ctx context.Context, node ch.NodeID, req ch.AppendRequest) (ch.AppendResult, error) {
+	if req.ExpectedRouteGeneration != 0 {
+		payload, err := encodeAppendRequest(req)
+		if err != nil {
+			return ch.AppendResult{}, err
+		}
+		// Prepared authority cannot fall back to a format that drops its fence.
+		resp, err := c.callShard(ctx, uint64(node), clusternet.RPCChannelAppend, channelForwardShardKey(req.ChannelID), payload)
+		if err != nil {
+			return ch.AppendResult{}, err
+		}
+		if len(resp) == 0 || resp[0] != codecVersion {
+			return ch.AppendResult{}, errInvalidCodecFrame
+		}
+		return decodeAppendResponse(resp)
+	}
 	resp, err := c.callShardVersioned(ctx, uint64(node), clusternet.RPCChannelAppend, channelForwardShardKey(req.ChannelID), func(version uint8) ([]byte, error) {
 		return encodeAppendRequestVersion(req, version)
 	})
@@ -224,6 +239,21 @@ func (c *TransportClient) ForwardAppend(ctx context.Context, node ch.NodeID, req
 
 // ForwardAppendBatch sends a client append batch request to node.
 func (c *TransportClient) ForwardAppendBatch(ctx context.Context, node ch.NodeID, req ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
+	if req.ExpectedRouteGeneration != 0 {
+		payload, err := encodeAppendBatchRequest(req)
+		if err != nil {
+			return ch.AppendBatchResult{}, err
+		}
+		// Prepared authority cannot fall back to a format that drops its fence.
+		resp, err := c.callShard(ctx, uint64(node), clusternet.RPCChannelAppendBatch, channelForwardShardKey(req.ChannelID), payload)
+		if err != nil {
+			return ch.AppendBatchResult{}, err
+		}
+		if len(resp) == 0 || resp[0] != codecVersion {
+			return ch.AppendBatchResult{}, errInvalidCodecFrame
+		}
+		return decodeAppendBatchResponse(resp)
+	}
 	resp, err := c.callShardVersioned(ctx, uint64(node), clusternet.RPCChannelAppendBatch, channelForwardShardKey(req.ChannelID), func(version uint8) ([]byte, error) {
 		return encodeAppendBatchRequestVersion(req, version)
 	})
@@ -330,7 +360,7 @@ func (c *TransportClient) callCompatible(node uint64, requireCurrent bool, encod
 		return response, err
 	}
 	if err == nil {
-		if requireCurrent && (len(response) == 0 || (response[0] != codecVersion && response[0] != legacyCodecVersionV9 && response[0] != legacyCodecVersionV8 && response[0] != legacyCodecVersionV7 && response[0] != legacyCodecVersionV6)) {
+		if requireCurrent && (len(response) == 0 || (response[0] != codecVersion && response[0] != legacyCodecVersionV10 && response[0] != legacyCodecVersionV9 && response[0] != legacyCodecVersionV8 && response[0] != legacyCodecVersionV7 && response[0] != legacyCodecVersionV6)) {
 			// Authority reads require at least a v6 response. A v5 success frame
 			// omits retention and write-fence fields.
 			state.applyLegacy(requestGeneration, time.Now().Add(legacyCodecProbeInterval))
@@ -354,7 +384,7 @@ func (c *TransportClient) callCompatible(node uint64, requireCurrent bool, encod
 		if legacyErr != nil {
 			return legacyResponse, legacyErr
 		}
-		if len(legacyResponse) == 0 || (legacyResponse[0] != legacyCodecVersionV6 && legacyResponse[0] != legacyCodecVersionV9 && legacyResponse[0] != legacyCodecVersionV8 && legacyResponse[0] != legacyCodecVersionV7 && legacyResponse[0] != codecVersion) {
+		if len(legacyResponse) == 0 || (legacyResponse[0] != legacyCodecVersionV6 && legacyResponse[0] != legacyCodecVersionV9 && legacyResponse[0] != legacyCodecVersionV8 && legacyResponse[0] != legacyCodecVersionV7 && legacyResponse[0] != legacyCodecVersionV10 && legacyResponse[0] != codecVersion) {
 			return nil, errInvalidCodecFrame
 		}
 		return legacyResponse, nil
@@ -377,7 +407,7 @@ func pullBatchNeedsMeta(req channeltransport.PullBatchRequest) bool {
 }
 
 func validateAuthorityCodec(payload []byte, needMeta bool) error {
-	if needMeta && (len(payload) == 0 || (payload[0] != legacyCodecVersionV6 && payload[0] != legacyCodecVersionV9 && payload[0] != legacyCodecVersionV8 && payload[0] != legacyCodecVersionV7 && payload[0] != codecVersion)) {
+	if needMeta && (len(payload) == 0 || (payload[0] != legacyCodecVersionV6 && payload[0] != legacyCodecVersionV9 && payload[0] != legacyCodecVersionV8 && payload[0] != legacyCodecVersionV7 && payload[0] != legacyCodecVersionV10 && payload[0] != codecVersion)) {
 		return errInvalidCodecFrame
 	}
 	return nil
@@ -563,6 +593,18 @@ type serviceRPCServer interface {
 // underlying runtime must be rebuilt without replacing transport services.
 func RegisterServiceHandlersOn(registrar HandlerRegistrar, service serviceRPCServer) {
 	RegisterHandlersOn(registrar, service.Server())
+	registerMQTTSourceHandler(registrar, service)
+	registerMQTTReplayHandler(registrar, service)
+	registerMQTTConsumerReadHandler(registrar, service)
+	registerMQTTOriginalsHandler(registrar, service)
+	registerWillReceiptHandler(registrar, service)
+	registerMQTTCopyHandler(registrar, service)
+	registerMQTTAnchorHandler(registrar, service)
+	registerMQTTPlanHandler(registrar, service)
+	registerMQTTRepairHandler(registrar, service)
+	registerMQTTRecoveryHandler(registrar, service)
+	registerMQTTRetirementHandler(registrar, service)
+	registerMQTTRetirementSelectionHandler(registrar, service)
 	registrar.Register(clusternet.RPCChannelAppend, clusternet.HandlerFunc(func(ctx context.Context, payload []byte) ([]byte, error) {
 		started := time.Now()
 		req, err := decodeAppendRequest(payload)

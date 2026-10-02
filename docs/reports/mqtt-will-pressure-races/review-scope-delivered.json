@@ -1,0 +1,93 @@
+{
+  "base_revision": "a8559a6bad3f48337315f814dc664b3c221e76b6",
+  "diff_command": "git diff HEAD",
+  "commit_list": [],
+  "files": [
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "sha256": "8386fe682512ff1d29cb83be676de4302b308c99de84f8340d2e597b93393b2b"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "sha256": "856fadc1f0d6007f32c06d5003d0fcd1391fac0dafe4d740ae516a344081cdc8"
+    },
+    {
+      "path": "docs/reports/mqtt-implementation-progress.md",
+      "sha256": "66b976a41071c65296afa6c3d595d8074dfbe0307c7d6daeafd4ec4e5d6b802d"
+    },
+    {
+      "path": "internal/usecase/mqttsession/FLOW.md",
+      "sha256": "bee4e0f7f9d04e23a13f51fb29913d68ca35051cf7dac8893dfcf9b7e0acd6fe"
+    },
+    {
+      "path": "internal/usecase/mqttsession/will_attempt_reclamation.go",
+      "sha256": "2c9bba12d5dabffc0c73b0874df18800376df702ed6023daac61c6978d423f23"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "sha256": "97b5aa5b8f7865d6846d12a2906c9f6f4d5fc001a0370923d026a6dfcb016a79"
+    },
+    {
+      "path": "pkg/slot/proxy/mqtt_write.go",
+      "sha256": "1c7970d4cffff62ed7accd25eed42c1f56a5d35a29f1d7306863960d4366f922"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "6471a7e3c24cd39d92637a959ff5d3f1f0566de6c416d0c5d6e9c96b7f7f4b2e"
+    },
+    {
+      "path": "test/e2e/mqtt/will_reclamation/AGENTS.md",
+      "sha256": "7916793e91d384cbb82747c73ef7d86c47a80a9971c4d60f415e8c9165d71c97"
+    },
+    {
+      "path": "test/e2e/mqtt/will_reclamation/reclamation_test.go",
+      "sha256": "d69109a02c59b12c79e19c1fbbbefae23d784b9954fa50c79cc54a98aa5f378d"
+    },
+    {
+      "path": "test/e2e/suite/FLOW.md",
+      "sha256": "75aaacde354f6902998ec9b0fb66aa6a3f05c06be7d4cde88e8b06b78da7948d"
+    },
+    {
+      "path": "test/e2e/suite/mqtt_client.go",
+      "sha256": "8c1f6b61ff2be10e432cb23567a0482b62419ec609831956888d0d0cbc030eb6"
+    },
+    {
+      "path": "docs/reports/mqtt-will-pressure-races/README.md",
+      "sha256": "0aa4763d973f63024df4359b4a73f886583f5983779098ae5e20a746c0d18239"
+    },
+    {
+      "path": "docs/reports/mqtt-will-pressure-races/negative-control-source.json",
+      "sha256": "25de7e3bd4811444d0965f761f05cf65d528c2d27b1da060f97beff695d84c36"
+    },
+    {
+      "path": "docs/reports/mqtt-will-pressure-races/negative-control.patch",
+      "sha256": "3787c2ccf5ca413a78588804778d258b565f16f5697c35babf6b787c30647f96"
+    },
+    {
+      "path": "docs/reports/mqtt-will-pressure-races/source-context.json",
+      "sha256": "2b7e481c90e7efbd57cb0212bc07e8305e813322f477b77d416b812e6e243be6"
+    },
+    {
+      "path": "docs/reports/mqtt-will-pressure-races/validation-results.json",
+      "sha256": "2de411993dd87b8bd368e0f47cdb5c0a8e15c5c3e0aa1e85b0209850dcc9da0c"
+    },
+    {
+      "path": "docs/specs/mqtt-will-pressure-races.md",
+      "sha256": "f595583be47a8a4fccb299f0370c7ec01f04d59b96cc2edea8e6bff982caff2a"
+    },
+    {
+      "path": "test/e2e/mqtt/will_reclamation_races/AGENTS.md",
+      "sha256": "e2a53807cf6f948cc06c66e67c07d7d5f8c1758660d3046be670a1ddc57c5d4a"
+    },
+    {
+      "path": "test/e2e/mqtt/will_reclamation_races/races_test.go",
+      "sha256": "ab0493bb2015cd3491fe49cf124d19851a600a58474a08e4ddb0ebdfc365755a"
+    },
+    {
+      "path": "test/e2e/suite/goroutine_profile.go",
+      "sha256": "b119a370cc2c06d5372c3bd69da0897b0291abef4393336145f44fe9766f7079"
+    }
+  ],
+  "runtime_state": "Final6 matrix PASS638.060s at matrix fixtureCCD; delivered fixture onlyextractsreceivefailurepprofoperation to sharedsuite, focusedlate-releasePASS105.977s; directhelperprocesscapturePASS946209bytes. Exact1024bothPASS749.098/467.413, cap2both144.938, ordinary2PASS55.116, relatedrace40.347/6.292, flow88/0/11. FourunsafeCancelnegativesexpectedFAIL. Receipt41.631s exceedsold35s fixturegate; exactlatencycauseunqualified. No businessrepairclaim.",
+  "spec": "docs/specs/mqtt-will-pressure-races.md"
+}

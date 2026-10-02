@@ -1,0 +1,66 @@
+{
+  "candidate_source_revision": "fd9ba0012da0c9575c5f87f079544601d3482216",
+  "candidate_binary_sha256": "8eabdb9f9509ccbd16ab43bafffa0424e1a3d3f877140a83800b63c447513846",
+  "execution_order": [
+    "candidate-scale-1",
+    "candidate-scale-2",
+    "candidate-full"
+  ],
+  "concurrent_task_tests_or_builds_during_ordinary_workloads": false,
+  "runtime_overlay": false,
+  "profile_enabled": false,
+  "scale_fixture_changed": false,
+  "request_attempts_or_deadlines_changed": false,
+  "acceptance_assertions_changed": false,
+  "configured_control_cycles": 1800,
+  "confirmed_retirement_sum": 1800,
+  "commands": {
+    "candidate-scale-1": "WK_E2E_BINARY=/tmp/wukongim-mqtt-sealing-candidate WK_E2E_MQTT_SCALE_MEMBERS=2000 WK_E2E_MQTT_SCALE_CONNECTIONS=500 WK_E2E_MQTT_SCALE_MESSAGES=20 WK_E2E_MQTT_SCALE_CHURN=200 WK_E2E_MQTT_SCALE_ROUNDS=3 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-sealing-candidate-scale-1 GOMODCACHE=/tmp/mqtt-originals-gomodcache GOTOOLCHAIN=local GOWORK=off /Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go test -p 1 -tags=e2e ./test/e2e/mqtt/scale -run '^TestGroupScaleDeliveryAndChurnRetirement$' -count=1 -timeout=15m -v",
+    "candidate-scale-2": "env -u WK_E2E_MQTT_SCALE_PROFILE WK_E2E_BINARY=/tmp/wukongim-mqtt-sealing-candidate WK_E2E_MQTT_SCALE_MEMBERS=2000 WK_E2E_MQTT_SCALE_CONNECTIONS=500 WK_E2E_MQTT_SCALE_MESSAGES=20 WK_E2E_MQTT_SCALE_CHURN=200 WK_E2E_MQTT_SCALE_ROUNDS=3 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-sealing-candidate-scale-2 GOMODCACHE=/tmp/mqtt-originals-gomodcache GOTOOLCHAIN=local GOWORK=off /Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go test -p 1 -tags=e2e ./test/e2e/mqtt/scale -run '^TestGroupScaleDeliveryAndChurnRetirement$' -count=1 -timeout=15m -v",
+    "candidate-full": "env -u WK_E2E_MQTT_SCALE_PROFILE WK_E2E_BINARY=/tmp/wukongim-mqtt-sealing-candidate WK_E2E_MQTT_SCALE_MEMBERS=100000 WK_E2E_MQTT_SCALE_CONNECTIONS=500 WK_E2E_MQTT_SCALE_MESSAGES=20 WK_E2E_MQTT_SCALE_CHURN=200 WK_E2E_MQTT_SCALE_ROUNDS=3 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-sealing-candidate-full GOMODCACHE=/tmp/mqtt-originals-gomodcache GOTOOLCHAIN=local GOWORK=off /Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go test -p 1 -tags=e2e ./test/e2e/mqtt/scale -run '^TestGroupScaleDeliveryAndChurnRetirement$' -count=1 -timeout=15m -v"
+  },
+  "closure_evidence": {
+    "candidate-scale-1": "34 public fixed series all zero in a snapshot near churn completion",
+    "candidate-scale-2": "34 public fixed series all zero after churn completion",
+    "candidate-full": "All original SUB/UNSUB response assertions and final fresh receipt per persistent client pass; no separate public closure-counter snapshot was captured for this run."
+  },
+  "limits": [
+    "This is two sequential 2,000-member runs and one original-size run on a shared macOS arm64 developer host, not an all-interleaving proof or production capacity claim.",
+    "Preserved baseline failures remain historical evidence; this repair does not identify the winning writer in every old closure or eliminate all initial receipt deadline failures.",
+    "Freshness/authority, owner, unknown-effect and broader crash/restore qualification remain separate contracts.",
+    "No percentage performance improvement is inferred from these runs."
+  ],
+  "artifact_sha256": {
+    "README.md": "2447cb7c7dbb7fd9677c6a11ef4b48a6090fa154eb667ad801ebfae71c57727a",
+    "app-integration.txt": "6e915b52c86853d0bf7fb1c8745011151ff5c25aed221ee0d9158b5abbdaaba9",
+    "baseline-inflight.json": "cf10b4f11439de700bd6f5f45fffe32930a57163543209362136b7f5aa3827dc",
+    "baseline-scale-10round-failure.json": "d010e4ca330a5aee3598a81835877c2f119fcd36f6e1d9dfe8ac4190ead6d662",
+    "baseline-scale-10round-receipts.json": "435701b5877ca303853c3b722327a8c7ffda6e73aa67b16e4c5c374e131c596c",
+    "baseline-scale-2000-pass.json": "3880a4e6735ca803af4221f911b3d3182557c08ba2f6f4a93a6f62d5940292bb",
+    "baseline-seal-conflicts.txt": "4d84b0a216a211be065d331b65bbe6e628f506da81e6f3eef7e8cede22c580fe",
+    "candidate-build.json": "cfcabcf241b97f240e2153259174424674b5b1d83d5bad99f12cbc8abece7fd8",
+    "candidate-full-phases.txt": "4c2dcce8bfe30623e7b905449550213d45e950dbad1532599c3aaa1e6ed0bb5a",
+    "candidate-full.json": "434c066aea60ba3318081a25ee33e51afb248017d9ad91ce440a3d050834218f",
+    "candidate-scale-1-closures.json": "9204c055c627e1697d0740a41499d334bf257a0fbfe6306578f4871a268819ed",
+    "candidate-scale-1-phases.txt": "24df9e52394d4679feaa6dd27a8bb5f47054698a0744645820de380ac52bf6cb",
+    "candidate-scale-1.json": "67de6bdb35a237ede81f30bb32674f92e54c16ffd6302d4f61dedf16b2fd43fe",
+    "candidate-scale-2-closures.json": "b8a51264b0380d828c2a1d0b2ab482b0c72761db3119a01556c10fed51911ca8",
+    "candidate-scale-2-phases.txt": "b46b11538c658b6c07dd459685b85032f74646cd7a64769a2679643600e66de0",
+    "candidate-scale-2.json": "2af399069de37db7ac7bfa9726aec1d1a1bec9c258b3d5c9f045fb432ac901a3",
+    "contention-matrix-green.txt": "4d37a9fb3fce8920ef6f9358507097b800fd860def2137817e04d8524077f3c5",
+    "contention-matrix-red.txt": "d25d30178277aab057cc848e49b46a046ca26d3d895340a368594408bab5869c",
+    "diagnostic-generator.txt": "aee87eb03733678d9c71429b90df98ece9e80de802a0d76bdf6a1169bea6066d",
+    "diagnostic-probe.txt": "373454eae619d15adc85f9ccc60ff74056de0f8cef506b191c662f5c4f3a83d6",
+    "diagnostic-provenance.json": "147ee19fff277684d3b21d773c1d3d96c2c59340410c692d550b0b72b7fb2db5",
+    "failure-inventory.txt": "2f110d5290d4b1138df462bbb5388759d8d2d8e967fc3d42bd269d4fb8401f0b",
+    "final-race.txt": "23479f754b80150f5fae3ebff360ef8a25136c3276018e956a3ca4fa75b20d14",
+    "final-three-node.txt": "690a7e2451bfc3a17fa57d14e80d4240ddc018e902ebc75a969ccfe1a56e3050",
+    "flow-contracts.txt": "bdeddb736d46976e6272f8b494c989583f0e0f5dc11466907de6fb97828820d8",
+    "frozen-context.json": "587d72cc5e3f396f185a25aba5ab24a9d59f715b3186c8cc1e2e6607baa8f970",
+    "related-race.txt": "e646bb6188473d334f93c52b715d84069ad6d463fab0c6c46f431ac5c64bdac4",
+    "winner-probe-fanout-failure.json": "b0fdbdcabf4b10d6e4a28f498f02847bb8386399bb0a39846adc2b1e4ad2dfb2",
+    "winner-probe-fanout-receipts.json": "de773e6f88adacdbd7ffae603a77a20d873a0822e3c95ccfaef0a633dd639adb"
+  },
+  "final_three_node_command": "GOMODCACHE=/tmp/mqtt-originals-gomodcache GOTOOLCHAIN=local GOWORK=off /Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go test -p 1 -tags=integration ./internal/app -run '^TestMQTTGroupSourcePreparationThreeNodeRecovery$' -count=1 -timeout=4m",
+  "final_three_node_source_revision": "fd9ba0012da0c9575c5f87f079544601d3482216"
+}

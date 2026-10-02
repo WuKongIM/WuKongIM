@@ -1,0 +1,15 @@
+{
+  "failed_response_http_status": 503,
+  "failed_response_restore_observed": true,
+  "hash_slots": 256,
+  "last_phase": "maintenance-1",
+  "lease_cleanup_fault_enabled": true,
+  "lease_cleanup_fault_hits": 1,
+  "maintenance_refusals": 0,
+  "nodes": 1,
+  "passed": false,
+  "process_restarts": 0,
+  "restore_cycles": 0,
+  "restore_mutation_retries": 0,
+  "scenario": "restore-admission-with-unavailable-archive-cleanup"
+}

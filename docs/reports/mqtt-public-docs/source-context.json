@@ -1,0 +1,42 @@
+{
+  "source_revision": "2613a01cc6f9dc9cecdf3d90e481d17c0b7f2b51",
+  "instruction_sha256": {
+    "AGENTS.md": "6df6655788a5dc019c78c330728aee6a21e7183ebbec9f2583d7f318a26df2df",
+    "docs-site/FLOW.md": "404dd7fb8995b22c050af42033e8032262cfb0f4195eb8085c673b3673bcd62f",
+    "test/e2e/AGENTS.md": "bad1b2229e6b475ec40f3a7f22cf3ce953be4c4df48cc75292e22db72d914c0e",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "internal/access/mqtt/FLOW.md": "60b6f850521a41142055530b7040137f41de4f0ac07820ba76c536699699c3d5",
+    "test/e2e/suite/FLOW.md": "f29ec5e4416fb120e12554a82945265edb0c45879f7b438c0868f6a96395d25c",
+    "internal/access/node/FLOW.md": "1a7bd010a2cd275c9cadc87f33a593e02b3b887f62a85ee1f4c846bdf7216c6d",
+    "pkg/cluster/FLOW.md": "877b7b6dc036cb32d910f822d931b9193aec09415f5c1934d979c2d323defc6c"
+  },
+  "decisions": {
+    "audience": "integration developers and operators",
+    "languages": [
+      "zh",
+      "en"
+    ],
+    "client": "Node.js with MQTT.js",
+    "tutorial": "MQTT to MQTT first; HTTP and SDK interop separately"
+  },
+  "failure_inventory": [
+    "Missing bilingual publication, navigation or generated/search/Markdown output",
+    "Wrong protocol, credentials, device flag, canonical topic or reserved property",
+    "Payload wrapper or JavaScript Number corrupts identity",
+    "PUBACK mistaken for recipient delivery; subscriber not ready before send",
+    "Live Node example silently drops inbound data or leaves connections alive",
+    "Failed authentication exposes credentials or never terminates",
+    "Development candidate claimed to be a released or fully qualified broker"
+  ],
+  "product_binary": {
+    "path": "/tmp/wukongim-pr998-merged-v2",
+    "race": false,
+    "sha256": "f0d71f30ef61ebe6d943545d0d8f6433b4316c5efd74d48af7dc90c12c22537f"
+  },
+  "product_source_revision": "0c1a24e0415ca716fa7332e7fd29b27c0043e562",
+  "node_version": "v22.12.0",
+  "bun_version": "1.3.11",
+  "scenario_instruction_sha256": "8fb264eedfa1f4435026983afee5ec2de253a1a81516f88b62fa0bcab3e9b99b",
+  "mqttjs_installed_version": "5.16.0",
+  "npm_version": "11.3.0"
+}

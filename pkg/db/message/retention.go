@@ -101,6 +101,8 @@ func (l *ChannelLog) trimPrefixThroughLimit(ctx context.Context, throughSeq uint
 
 	l.appendMu.Lock()
 	defer l.appendMu.Unlock()
+	l.checkpointMu.Lock()
+	defer l.checkpointMu.Unlock()
 
 	leo, err := l.loadLEOLocked(ctx)
 	if err != nil {
@@ -116,6 +118,27 @@ func (l *ChannelLog) trimPrefixThroughLimit(ctx context.Context, throughSeq uint
 	if !adoptBoundary && throughSeq > state.LocalRetentionThroughSeq {
 		return RetentionTrimResult{}, dberrors.ErrCorruptState
 	}
+	requestedThrough := throughSeq
+	activation, err := readMQTTActivationEvidence(l.db.engine, l.key)
+	if err != nil {
+		return RetentionTrimResult{}, err
+	}
+	if activation.present && !activation.sourcePresent {
+		if state.PhysicalRetentionThroughSeq > activation.manifest.BaseOffset {
+			return RetentionTrimResult{}, dberrors.ErrCorruptState
+		}
+		throughSeq = min(throughSeq, activation.manifest.BaseOffset)
+	}
+	protection, protected, err := l.channelEntry.loadMQTTSourceState(ctx)
+	if err != nil {
+		return RetentionTrimResult{}, err
+	}
+	if protected {
+		if state.PhysicalRetentionThroughSeq > protection.CopiedThrough {
+			return RetentionTrimResult{}, dberrors.ErrCorruptState
+		}
+		throughSeq = min(throughSeq, protection.CopiedThrough)
+	}
 
 	startSeq := state.PhysicalRetentionThroughSeq + 1
 	if startSeq == 0 {
@@ -126,9 +149,14 @@ func (l *ChannelLog) trimPrefixThroughLimit(ctx context.Context, throughSeq uint
 	if opts.MaxMessages > 0 {
 		readOpts.Limit = opts.MaxMessages + 1
 	}
-	rows, err := l.readRows(ctx, startSeq, throughSeq, readOpts)
-	if err != nil {
-		return RetentionTrimResult{}, err
+	var rows []messageRow
+	// A zero protected boundary means no rows are eligible. readRows uses zero
+	// as an unbounded upper limit, so never pass that sentinel to a trim scan.
+	if throughSeq >= startSeq {
+		rows, err = l.readRows(ctx, startSeq, throughSeq, readOpts)
+		if err != nil {
+			return RetentionTrimResult{}, err
+		}
 	}
 	deleteRows := rows
 	result := RetentionTrimResult{}
@@ -141,11 +169,11 @@ func (l *ChannelLog) trimPrefixThroughLimit(ctx context.Context, throughSeq uint
 	}
 
 	next := state
-	if adoptBoundary && throughSeq > next.LocalRetentionThroughSeq {
-		next.LocalRetentionThroughSeq = throughSeq
+	if adoptBoundary && requestedThrough > next.LocalRetentionThroughSeq {
+		next.LocalRetentionThroughSeq = requestedThrough
 	}
-	if adoptBoundary && throughSeq > next.RetainedMaxSeq {
-		next.RetainedMaxSeq = throughSeq
+	if adoptBoundary && requestedThrough > next.RetainedMaxSeq {
+		next.RetainedMaxSeq = requestedThrough
 	}
 	if leo > next.RetainedMaxSeq {
 		next.RetainedMaxSeq = leo
@@ -155,7 +183,7 @@ func (l *ChannelLog) trimPrefixThroughLimit(ctx context.Context, throughSeq uint
 	defer batch.Close()
 	for _, row := range deleteRows {
 		msg := messageFromRow(row)
-		if err := l.stageDeleteMessage(batch, msg); err != nil {
+		if err := l.stageMessageDeletion(batch, msg, true); err != nil {
 			return RetentionTrimResult{}, err
 		}
 		result.DeletedThroughSeq = msg.MessageSeq

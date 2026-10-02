@@ -1,0 +1,143 @@
+RUN mqtt-restore-red-bounded.log
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart
+    restore_test.go:100: starting backup with unacknowledged exchange
+    restore_test.go:105: backup published
+    restore_test.go:115: starting restore cycle 1
+            Error:          Received unexpected error:
+    restore_test.go:51: result artifact: <external report>
+--- FAIL: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart (187.81s)
+FAIL
+FAIL    github.com/WuKongIM/WuKongIM/test/e2e/mqtt/restore  188.176s
+FAIL
+RUN mqtt-restore-green-2.log
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart
+    restore_test.go:100: starting backup with unacknowledged exchange
+    restore_test.go:105: backup published
+    restore_test.go:115: starting restore cycle 1
+    restore_test.go:187: restore cycle 1 completed; checking MQTT replay
+    restore_test.go:115: starting restore cycle 2
+    restore_test.go:187: restore cycle 2 completed; checking MQTT replay
+    restore_test.go:51: result artifact: <external report>
+--- PASS: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart (234.65s)
+PASS
+ok      github.com/WuKongIM/WuKongIM/test/e2e/mqtt/restore  235.473s
+RUN mqtt-restore-final-three.log
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/3-node-cluster
+            Error:          Received unexpected error:
+    restore_test.go:75: result artifact: <external report>
+--- FAIL: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart (29.94s)
+    --- FAIL: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/3-node-cluster (29.94s)
+FAIL
+FAIL    github.com/WuKongIM/WuKongIM/test/e2e/mqtt/restore  30.665s
+FAIL
+RUN mqtt-restore-probe-result-3.log
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/3-node-cluster
+    restore_test.go:140: starting backup with unacknowledged exchange
+    restore_test.go:153: backup published
+    restore_test.go:163: starting restore cycle 1
+            Error:          Not equal:
+    restore_test.go:79: result artifact: <external report>
+--- FAIL: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart (142.47s)
+    --- FAIL: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/3-node-cluster (142.47s)
+FAIL
+FAIL    github.com/WuKongIM/WuKongIM/test/e2e/mqtt/restore  143.218s
+FAIL
+RUN mqtt-restore-probe-result-4.log
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/3-node-cluster
+    restore_test.go:109: initial subscribe closure reason=conflict value=0 metric_error=<nil>
+    restore_test.go:109: initial subscribe closure reason=deadline value=0 metric_error=<nil>
+    restore_test.go:109: initial subscribe closure reason=canceled value=0 metric_error=<nil>
+    restore_test.go:109: initial subscribe closure reason=unconfirmed value=0 metric_error=<nil>
+    restore_test.go:109: initial subscribe closure reason=unknown value=0 metric_error=<nil>
+    restore_test.go:109: initial subscribe closure reason=evidence value=0 metric_error=<nil>
+    restore_test.go:109: initial subscribe closure reason=fenced value=0 metric_error=<nil>
+            Error:          Received unexpected error:
+    restore_test.go:83: result artifact: <external report>
+--- FAIL: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart (15.75s)
+    --- FAIL: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/3-node-cluster (15.75s)
+FAIL
+FAIL    github.com/WuKongIM/WuKongIM/test/e2e/mqtt/restore  16.535s
+FAIL
+RUN mqtt-restore-probe-result-5.log
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/3-node-cluster
+    restore_test.go:144: starting backup with unacknowledged exchange
+    restore_test.go:157: backup published
+    restore_test.go:167: starting restore cycle 1
+            Error:          Received unexpected error:
+    restore_test.go:83: result artifact: <external report>
+--- FAIL: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart (352.98s)
+    --- FAIL: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/3-node-cluster (352.98s)
+FAIL
+FAIL    github.com/WuKongIM/WuKongIM/test/e2e/mqtt/restore  353.774s
+FAIL
+RUN mqtt-restore-preflight-result.log
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/3-node-cluster
+    restore_test.go:151: starting backup with unacknowledged exchange
+    restore_test.go:182: starting restore cycle 1
+    restore_test.go:254: restore cycle 1 completed; checking MQTT replay
+--- FAIL: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart (408.80s)
+    --- FAIL: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/3-node-cluster (408.80s)
+FAIL
+FAIL    github.com/WuKongIM/WuKongIM/test/e2e/mqtt/restore  409.621s
+FAIL
+RUN mqtt-restore-connect-result.log
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/3-node-cluster
+    restore_test.go:166: starting backup with unacknowledged exchange
+    restore_test.go:197: starting restore cycle 1
+    restore_test.go:278: restore cycle 1 completed; checking MQTT replay
+    restore_test.go:197: starting restore cycle 2
+    restore_test.go:278: restore cycle 2 completed; checking MQTT replay
+    restore_test.go:112: diagnostic-only later CONNECT succeeded=true; first failure retained
+--- FAIL: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart (793.37s)
+    --- FAIL: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/3-node-cluster (793.37s)
+FAIL
+FAIL    github.com/WuKongIM/WuKongIM/test/e2e/mqtt/restore  793.876s
+FAIL
+RUN mqtt-restore-ready-three.log
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/3-node-cluster
+--- FAIL: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart (23.13s)
+    --- FAIL: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/3-node-cluster (23.13s)
+FAIL
+FAIL    github.com/WuKongIM/WuKongIM/test/e2e/mqtt/restore  23.582s
+FAIL
+RUN mqtt-restore-ready-single.log
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/1-node-cluster
+    restore_test.go:151: starting backup with unacknowledged exchange
+    restore_test.go:182: starting restore cycle 1
+--- FAIL: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart (265.56s)
+    --- FAIL: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/1-node-cluster (265.56s)
+FAIL
+FAIL    github.com/WuKongIM/WuKongIM/test/e2e/mqtt/restore  266.267s
+FAIL
+RUN mqtt-restore-ready-three-serial.log
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/3-node-cluster
+    restore_test.go:151: starting backup with unacknowledged exchange
+    restore_test.go:182: starting restore cycle 1
+    restore_test.go:274: restore cycle 1 completed; checking MQTT replay
+    restore_test.go:182: starting restore cycle 2
+    restore_test.go:274: restore cycle 2 completed; checking MQTT replay
+--- PASS: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart (718.41s)
+    --- PASS: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/3-node-cluster (718.41s)
+PASS
+ok      github.com/WuKongIM/WuKongIM/test/e2e/mqtt/restore  719.220s
+RUN mqtt-restore-ready-single-final.log
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart
+=== RUN   TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/1-node-cluster
+    restore_test.go:153: starting backup with unacknowledged exchange
+    restore_test.go:184: starting restore cycle 1
+    restore_test.go:276: restore cycle 1 completed; checking MQTT replay
+    restore_test.go:184: starting restore cycle 2
+    restore_test.go:276: restore cycle 2 completed; checking MQTT replay
+--- PASS: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart (194.28s)
+    --- PASS: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/1-node-cluster (194.28s)
+PASS
+ok      github.com/WuKongIM/WuKongIM/test/e2e/mqtt/restore  195.025s

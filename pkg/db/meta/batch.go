@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"bytes"
 	"context"
 	"errors"
 
@@ -52,14 +53,19 @@ type metaBatchOp struct {
 }
 
 type batchCommitState struct {
-	db               *MetaDB
-	tableRows        map[string]tableRowOverlay
-	tableCreates     map[string]struct{}
-	runtimeMeta      map[string]runtimeMetaOverlay
-	migrationTasks   map[string]migrationTaskOverlay
-	subscriberRows   map[string]bool
-	channelPublishes map[string]Channel
-	channelDeletes   map[string]struct{}
+	db        *MetaDB
+	tableRows map[string]tableRowOverlay
+	// tableDeletes masks disk rows after bounded range deletion in this apply batch.
+	tableDeletes   []engine.Span
+	tableCreates   map[string]struct{}
+	runtimeMeta    map[string]runtimeMetaOverlay
+	migrationTasks map[string]migrationTaskOverlay
+	subscriberRows map[string]bool
+	// subscriberDeletes bounds range tombstones to channels touched by this batch.
+	subscriberDeletes   [][]byte
+	subscriberSequences map[HashSlot]uint64
+	channelPublishes    map[string]Channel
+	channelDeletes      map[string]struct{}
 }
 
 type tableRowOverlay struct {
@@ -230,6 +236,11 @@ func (b *Batch) UpsertChannelRuntimeMeta(hashSlot HashSlot, meta ChannelRuntimeM
 		if err != nil {
 			return err
 		}
+		if !exists {
+			if err := rejectRetiredRuntimeUpsert(state, hashSlot, meta); err != nil {
+				return err
+			}
+		}
 		next, result := resolveMonotonicChannelRuntimeMeta(existing, exists, meta)
 		switch result {
 		case MonotonicIgnoredStale:
@@ -270,14 +281,18 @@ func (b *Batch) CreateChannelRuntimeMeta(hashSlot HashSlot, meta ChannelRuntimeM
 		if exists {
 			return nil
 		}
-		value, err := channelRuntimeMetaTable.encodeValue(key, staged)
+		next, err := newRuntimeIncarnation(state, hashSlot, staged)
+		if err != nil {
+			return err
+		}
+		value, err := channelRuntimeMetaTable.encodeValue(key, next)
 		if err != nil {
 			return err
 		}
 		if err := batch.Set(key, value); err != nil {
 			return err
 		}
-		state.runtimeMeta[string(key)] = runtimeMetaOverlay{meta: staged, exists: true}
+		state.runtimeMeta[string(key)] = runtimeMetaOverlay{meta: next, exists: true}
 		result.Created = true
 		return nil
 	})
@@ -466,6 +481,11 @@ func (state *batchCommitState) loadChannel(ctx context.Context, key []byte, chan
 func (state *batchCommitState) loadSubscriberExists(key []byte) (bool, error) {
 	if exists, ok := state.subscriberRows[string(key)]; ok {
 		return exists, nil
+	}
+	for _, prefix := range state.subscriberDeletes {
+		if bytes.HasPrefix(key, prefix) {
+			return false, nil
+		}
 	}
 	_, exists, err := state.db.get(key)
 	return exists, err

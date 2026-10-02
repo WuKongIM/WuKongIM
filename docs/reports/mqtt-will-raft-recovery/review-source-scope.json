@@ -1,0 +1,144 @@
+{
+  "base_revision": "dcaaaa8b315b1805ffef42d8bfbfcb1719edc4ca",
+  "scope": "current approved working-copy source slice; prior branch commits excluded; final validation/doc follow-up required",
+  "diff_commands": [
+    "git diff HEAD -- pkg/slot test/e2e/AGENTS.md",
+    "git ls-files --others --exclude-standard; inspect the frozen files"
+  ],
+  "commits": [],
+  "spec": "docs/specs/mqtt-will-raft-recovery.md",
+  "files": [
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/README.md",
+      "sha256": "5d2d51110d9ce09dd5ac5e0ca13b23c5a307da2a77d2572bd31101eddd84581d"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/negative-control-source.json",
+      "sha256": "9bd5628a5f191d5075b51decc36bed078cbcdceb519f2b77c1970691bd29f4c9"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/negative-control.patch",
+      "sha256": "43e899e139c73694fe34baa61f7c6adb442eb9860b74a1cce5c559055635d8c7"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/negative-initial-ineffective.patch",
+      "sha256": "79d0b3e789c4804870aecca5c717a23a7dc7ca13a3bec6065ff235ad52c97bf8"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/receipts/baseline-uninstrumented/mqtt-will-raft-1-queued-late.json",
+      "sha256": "b9f9f3f9fc56186683a2ea7d9768fec2aa113d837dca13f561dfed2c2220928e"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/receipts/completion-tracer/mqtt-will-raft-1-queued-late.json",
+      "sha256": "0364e527b2dc826ef025c814eb2b8375bbbd892d3c226b1679308737b4968f65"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/receipts/ineffective-negative/mqtt-will-raft-1-queued-late.json",
+      "sha256": "86823f1bf14c148a06dcda27b142e21fe18b9855f4a52e0d0461ecfcf69fc64e"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/receipts/initial-matrix/mqtt-will-raft-1-committed-unapplied-crash.json",
+      "sha256": "74382a266ed59f7c1fcc785aebe1e1b7e66b2798fd017e1e6d55dbd181ca5124"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/receipts/initial-matrix/mqtt-will-raft-1-committed-unapplied-late.json",
+      "sha256": "a13179d9bf5d8a9be3c26a3facc353aa791b90afbb10e07394fc390dcda41fdd"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/receipts/initial-matrix/mqtt-will-raft-1-queued-crash.json",
+      "sha256": "284aae9a4859cd1801e6484585f8714fca1a910c5e38ddbf093f83e0fdfbaf80"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/receipts/initial-matrix/mqtt-will-raft-1-queued-late.json",
+      "sha256": "d973ee2f09f756693903d1de155e475b4514d27c9f186430088e6d72111fbb75"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/receipts/initial-matrix/mqtt-will-raft-3-committed-unapplied-crash.json",
+      "sha256": "79bb0274fa1b8dc03fbdd6d1e33885d8b09f1e8546c7a185110807e9b4dea77f"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/receipts/initial-matrix/mqtt-will-raft-3-committed-unapplied-late.json",
+      "sha256": "a75b5720f47ce67f39a17ac1e99020fdfd66a89d04bdd99ab7abc0d624a1023b"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/receipts/initial-matrix/mqtt-will-raft-3-persisted-uncommitted-crash.json",
+      "sha256": "204f1afbd7d2853f28ae161e5c2477413b10c43d609862fa82392a39ce1085f3"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/receipts/initial-matrix/mqtt-will-raft-3-persisted-uncommitted-late.json",
+      "sha256": "4e20750663167bbd12955aeef91ce32efca4d99c3cdf8638831aa0477b383332"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/receipts/initial-matrix/mqtt-will-raft-3-queued-crash.json",
+      "sha256": "313d26d634de8d1a301bc43fec8a585a6e2a666fa60a6e8affa2430c4931c079"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/receipts/initial-matrix/mqtt-will-raft-3-queued-late.json",
+      "sha256": "77047602954eaf1d4cbfb667e313defbf20c3a34937a225588f53ab4ab6240b6"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/receipts/initial-selector/mqtt-will-raft-1-queued-late.json",
+      "sha256": "f25ce78b9862b19d65997e8741af3070293c5ed7153800471aa1b18d188c7187"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/receipts/negative-current/mqtt-will-raft-1-queued-late.json",
+      "sha256": "6536e844fb4e55875c3a5ec04a19d5d57eb509f7281c08cf91953be1a44650a0"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/receipts/scattered-tracer/mqtt-will-raft-1-queued-late.json",
+      "sha256": "6147968bc038787de9d0921d4c6f6436307a2083d870146a6fc72f0856d9a87f"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/receipts/single-group-pressure/mqtt-will-raft-1-queued-late.json",
+      "sha256": "21e15d649b72ff4c42223d517549a9b6ed808c102a3cd921e2aae418a1de40aa"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/receipts/single-group-tracer/mqtt-will-raft-1-queued-late.json",
+      "sha256": "b83d4d8c0d8cd71fc26222c4363c7a27db3ec5095ff2157772f53edf29f42e9c"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/receipts/successor-tracer/mqtt-will-raft-3-queued-late.json",
+      "sha256": "4d05dd6e7405643acb90be53734b8757034cfeccace3622f4f172261019c657c"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/source-context.json",
+      "sha256": "3962654d934cbcd389edbcc3970a7f29c9902f7ed6b8fa0be48617e9d9ab8320"
+    },
+    {
+      "path": "docs/specs/mqtt-will-raft-recovery.md",
+      "sha256": "1f7edba4077418a5205ebd97209e700518fd8291ff84f92b41604cc13b7e651d"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "sha256": "0a2c48a62c201597bc019849e9d209dc4bb27b2c5370f3bf2d967e837c3481ac"
+    },
+    {
+      "path": "pkg/slot/fsm/mqtt_will_cmds.go",
+      "sha256": "207e8beed3f7e2af05c1a5f0891dcfee36832395d7fcba089c512ceb08facc4c"
+    },
+    {
+      "path": "pkg/slot/fsm/statemachine.go",
+      "sha256": "1d6485a293e438ed84490d0f5d55fa3935728bb40ec10c1eeb29245150baad52"
+    },
+    {
+      "path": "pkg/slot/multiraft/slot.go",
+      "sha256": "f3d0a40b6034b743aa0499afe6b08239e2a7ead90c7d6ce705536028306df5ef"
+    },
+    {
+      "path": "pkg/slot/proxy/mqtt_write.go",
+      "sha256": "44346f8eb8b07bae8f06fc9bcdfb561485d48f347507b15d76d41fe5f68b6958"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "e8ce221d79dca0f8e44824da604df83021f6981da9a811a3719385ef19d449a8"
+    },
+    {
+      "path": "test/e2e/mqtt/will_raft_recovery/AGENTS.md",
+      "sha256": "2aa44735b3088ddcacb07d4fd2ce1e6b58fb3f44cdb1f7fc77db7b17de462536"
+    },
+    {
+      "path": "test/e2e/mqtt/will_raft_recovery/recovery_test.go",
+      "sha256": "cb09120a63aa80b7dfdc9d48324a2355ccf2391e15fe5d5b3be25772ad984ad5"
+    }
+  ]
+}

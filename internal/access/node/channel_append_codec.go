@@ -7,16 +7,21 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/channelappend"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/publication"
 )
 
 var (
-	channelAppendRequestMagic  = [...]byte{'W', 'K', 'V', 'A', 2}
-	channelAppendResponseMagic = [...]byte{'W', 'K', 'V', 'a', 1}
+	channelAppendPublicationRequestMagic = [...]byte{'W', 'K', 'V', 'A', 3}
+	channelAppendRequestMagic            = [...]byte{'W', 'K', 'V', 'A', 2}
+	channelAppendResponseMagic           = [...]byte{'W', 'K', 'V', 'a', 1}
 )
 
 const maxChannelAppendCollectionLen = 4096
 
 const (
+	channelAppendErrCodeNotSubmitted            = "not_submitted"
+	channelAppendErrCodeNotSubmittedNotReady    = "not_submitted_not_ready"
+	channelAppendErrCodeNotSubmittedPressure    = "not_submitted_pressure"
 	channelAppendErrCodeNotLeader               = "not_leader"
 	channelAppendErrCodeStaleRoute              = "stale_route"
 	channelAppendErrCodeRouteNotReady           = "route_not_ready"
@@ -54,15 +59,25 @@ type channelAppendResponse struct {
 }
 
 func encodeChannelAppendRequest(req channelAppendRequest) ([]byte, error) {
+	magic := channelAppendRequestMagic
+	for _, item := range req.Items {
+		if len(item.Command.PublicationMetadata) == 0 {
+			continue
+		}
+		if _, err := publication.Decode(item.Command.PublicationMetadata); err != nil {
+			return nil, err
+		}
+		magic = channelAppendPublicationRequestMagic
+	}
 	dst := make([]byte, 0, 128)
-	dst = append(dst, channelAppendRequestMagic[:]...)
+	dst = append(dst, magic[:]...)
 	dst = appendChannelAppendTarget(dst, req.Target)
-	dst = appendChannelAppendItems(dst, req.Items)
+	dst = appendChannelAppendItems(dst, req.Items, magic[4])
 	return dst, nil
 }
 
 func decodeChannelAppendRequest(body []byte) (channelAppendRequest, error) {
-	if !hasMagic(body, channelAppendRequestMagic[:]) {
+	if !hasMagic(body, channelAppendRequestMagic[:]) && !hasMagic(body, channelAppendPublicationRequestMagic[:]) {
 		return channelAppendRequest{}, fmt.Errorf("internal/access/node: invalid channel append request codec")
 	}
 	offset := len(channelAppendRequestMagic)
@@ -71,7 +86,7 @@ func decodeChannelAppendRequest(body []byte) (channelAppendRequest, error) {
 	if req.Target, offset, err = readChannelAppendTarget(body, offset); err != nil {
 		return channelAppendRequest{}, err
 	}
-	if req.Items, offset, err = readChannelAppendItems(body, offset); err != nil {
+	if req.Items, offset, err = readChannelAppendItems(body, offset, body[4]); err != nil {
 		return channelAppendRequest{}, err
 	}
 	if offset != len(body) {
@@ -152,15 +167,15 @@ func readChannelAppendTarget(body []byte, offset int) (channelappend.AuthorityTa
 	return target, offset, nil
 }
 
-func appendChannelAppendItems(dst []byte, items []channelAppendItem) []byte {
+func appendChannelAppendItems(dst []byte, items []channelAppendItem, version byte) []byte {
 	dst = appendUvarint(dst, uint64(len(items)))
 	for _, item := range items {
-		dst = appendChannelAppendItem(dst, item)
+		dst = appendChannelAppendItem(dst, item, version)
 	}
 	return dst
 }
 
-func readChannelAppendItems(body []byte, offset int) ([]channelAppendItem, int, error) {
+func readChannelAppendItems(body []byte, offset int, version byte) ([]channelAppendItem, int, error) {
 	count, next, err := readUvarint(body, offset)
 	if err != nil {
 		return nil, offset, err
@@ -175,7 +190,7 @@ func readChannelAppendItems(body []byte, offset int) ([]channelAppendItem, int, 
 	items := make([]channelAppendItem, 0, int(count))
 	for i := uint64(0); i < count; i++ {
 		var item channelAppendItem
-		if item, offset, err = readChannelAppendItem(body, offset); err != nil {
+		if item, offset, err = readChannelAppendItem(body, offset, version); err != nil {
 			return nil, offset, err
 		}
 		items = append(items, item)
@@ -183,16 +198,16 @@ func readChannelAppendItems(body []byte, offset int) ([]channelAppendItem, int, 
 	return items, offset, nil
 }
 
-func appendChannelAppendItem(dst []byte, item channelAppendItem) []byte {
-	dst = appendChannelAppendSendCommand(dst, item.Command)
+func appendChannelAppendItem(dst []byte, item channelAppendItem, version byte) []byte {
+	dst = appendChannelAppendSendCommand(dst, item.Command, version)
 	return appendVarint(dst, int64(item.Timeout))
 }
 
-func readChannelAppendItem(body []byte, offset int) (channelAppendItem, int, error) {
+func readChannelAppendItem(body []byte, offset int, version byte) (channelAppendItem, int, error) {
 	var item channelAppendItem
 	var timeout int64
 	var err error
-	if item.Command, offset, err = readChannelAppendSendCommand(body, offset); err != nil {
+	if item.Command, offset, err = readChannelAppendSendCommand(body, offset, version); err != nil {
 		return channelAppendItem{}, offset, err
 	}
 	if timeout, offset, err = readVarint(body, offset); err != nil {
@@ -205,7 +220,7 @@ func readChannelAppendItem(body []byte, offset int) (channelAppendItem, int, err
 	return item, offset, nil
 }
 
-func appendChannelAppendSendCommand(dst []byte, cmd channelappend.SendCommand) []byte {
+func appendChannelAppendSendCommand(dst []byte, cmd channelappend.SendCommand, version byte) []byte {
 	dst = appendString(dst, cmd.FromUID)
 	dst = appendString(dst, cmd.DeviceID)
 	dst = append(dst, cmd.DeviceFlag)
@@ -231,10 +246,14 @@ func appendChannelAppendSendCommand(dst []byte, cmd channelappend.SendCommand) [
 	dst = append(dst, cmd.ProtocolVersion)
 	dst = appendString(dst, string(cmd.Origin))
 	dst = appendVarint(dst, int64(cmd.HookDepth))
-	return appendChannelAppendBool(dst, cmd.SkipPluginHooks)
+	dst = appendChannelAppendBool(dst, cmd.SkipPluginHooks)
+	if version == 3 {
+		dst = appendBytes(dst, cmd.PublicationMetadata)
+	}
+	return dst
 }
 
-func readChannelAppendSendCommand(body []byte, offset int) (channelappend.SendCommand, int, error) {
+func readChannelAppendSendCommand(body []byte, offset int, version byte) (channelappend.SendCommand, int, error) {
 	var cmd channelappend.SendCommand
 	var err error
 	if cmd.FromUID, offset, err = readString(body, offset); err != nil {
@@ -328,6 +347,11 @@ func readChannelAppendSendCommand(body []byte, offset int) (channelappend.SendCo
 	if cmd.SkipPluginHooks, offset, err = readChannelAppendBool(body, offset, "channel append skip plugin hooks"); err != nil {
 		return channelappend.SendCommand{}, offset, err
 	}
+	if version == 3 {
+		if cmd.PublicationMetadata, offset, err = readPublicationBytes(body, offset); err != nil {
+			return channelappend.SendCommand{}, offset, err
+		}
+	}
 	return cmd, offset, nil
 }
 
@@ -363,6 +387,15 @@ func readChannelAppendResults(body []byte, offset int) ([]channelappend.SendBatc
 }
 
 func appendChannelAppendResult(dst []byte, result channelappend.SendBatchItemResult) []byte {
+	// Error completions use an empty result whose zero reason equals Success.
+	// Normalize that empty default to failure before emitting negative proof.
+	// Actual successful identities remain contradictory and decode fails closed.
+	if errors.Is(result.Err, channelappend.ErrAppendNotSubmitted) && result.Result == (channelappend.SendResult{}) {
+		result.Result.Reason = channelappend.ReasonSystemError
+	}
+	if errors.Is(result.Err, channelappend.ErrAppendNotSubmitted) && result.Result.MessageSeq == 0 && result.Result.Reason != channelappend.ReasonSuccess {
+		result.Result.MessageID = 0
+	}
 	dst = appendChannelAppendSendResult(dst, result.Result)
 	return appendChannelAppendResultError(dst, result.Err)
 }
@@ -375,6 +408,9 @@ func readChannelAppendResult(body []byte, offset int) (channelappend.SendBatchIt
 	}
 	if result.Err, offset, err = readChannelAppendResultError(body, offset); err != nil {
 		return channelappend.SendBatchItemResult{}, offset, err
+	}
+	if errors.Is(result.Err, channelappend.ErrAppendNotSubmitted) && (result.Result.MessageID != 0 || result.Result.MessageSeq != 0 || result.Result.Reason == channelappend.ReasonSuccess) {
+		return channelappend.SendBatchItemResult{}, offset, fmt.Errorf("internal/access/node: contradictory non-submission result")
 	}
 	return result, offset, nil
 }
@@ -425,6 +461,12 @@ func readChannelAppendResultError(body []byte, offset int) (error, int, error) {
 	switch code {
 	case rpcStatusOK:
 		return nil, offset, nil
+	case channelAppendErrCodeNotSubmitted:
+		return channelappend.ErrAppendNotSubmitted, offset, nil
+	case channelAppendErrCodeNotSubmittedNotReady:
+		return errors.Join(channelappend.ErrAppendNotSubmitted, channelappend.ErrRouteNotReady), offset, nil
+	case channelAppendErrCodeNotSubmittedPressure:
+		return errors.Join(channelappend.ErrAppendNotSubmitted, channelappend.ErrBackpressured), offset, nil
 	case channelAppendErrCodeNotLeader:
 		return channelappend.ErrNotLeader, offset, nil
 	case channelAppendErrCodeNotChannelAuthority:
@@ -457,6 +499,14 @@ func channelAppendErrorCode(err error) string {
 	switch {
 	case err == nil:
 		return rpcStatusOK
+	case errors.Is(err, channelappend.ErrAppendNotSubmitted):
+		if errors.Is(err, channelappend.ErrRouteNotReady) {
+			return channelAppendErrCodeNotSubmittedNotReady
+		}
+		if errors.Is(err, channelappend.ErrBackpressured) {
+			return channelAppendErrCodeNotSubmittedPressure
+		}
+		return channelAppendErrCodeNotSubmitted
 	case errors.Is(err, channelappend.ErrNotLeader):
 		return channelAppendErrCodeNotLeader
 	case errors.Is(err, channelappend.ErrNotChannelAuthority):

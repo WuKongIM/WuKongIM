@@ -56,7 +56,7 @@ func newAuthExecutor(s *Server, opts gatewaytypes.RuntimeOptions) (*authExecutor
 }
 
 func (e *authExecutor) submit(task asyncAuthTask) bool {
-	if e == nil || e.queue == nil || task.state == nil || task.connect == nil {
+	if e == nil || e.queue == nil || task.state == nil || (task.connect == nil && task.packet == nil) {
 		return false
 	}
 
@@ -105,6 +105,7 @@ func (e *authExecutor) workerCount() int {
 }
 
 func (e *authExecutor) handle(_ context.Context, task asyncAuthTask) error {
+	defer task.packetReservation.release()
 	defer func() {
 		if v := recover(); v != nil {
 			if task.state != nil {

@@ -1,0 +1,10 @@
+{
+  "abnormal_close_published": true,
+  "delay_seconds": 2,
+  "hash_slots": 256,
+  "message_id": "2105609485740412928",
+  "nodes": 1,
+  "normal_close_cancelled": true,
+  "passed": true,
+  "scenario": "mqtt-will"
+}

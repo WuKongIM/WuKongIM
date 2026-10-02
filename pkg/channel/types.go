@@ -112,7 +112,8 @@ type Meta struct {
 	// LeaderEpoch fences leader changes within an epoch.
 	LeaderEpoch uint64
 	// RouteGeneration is the authoritative version of the complete routing record.
-	// It is a cache/version fence and is not part of the Channel state machine.
+	// The reactor also uses it as the durable-quorum fence version; the pure
+	// Channel state machine does not own this routing record.
 	RouteGeneration uint64
 	// Leader is the authoritative leader node.
 	Leader NodeID
@@ -158,6 +159,8 @@ type Message struct {
 	// RedDot preserves the protocol unread-badge flag through storage and replication.
 	RedDot  bool
 	Payload []byte
+	// PublicationMetadata is optional bounded immutable publication content.
+	PublicationMetadata []byte
 }
 
 // OpID identifies an asynchronous operation inside one channel generation.
@@ -196,7 +199,9 @@ type Record struct {
 	RedDot bool
 	// Payload is the encoded message body in v0 memory and store adapters.
 	Payload []byte
-	// SizeBytes is used by batching and read budgets.
+	// PublicationMetadata follows Payload through every replica and recovery copy.
+	PublicationMetadata []byte
+	// SizeBytes counts Payload plus PublicationMetadata for batching/read budgets.
 	SizeBytes int
 }
 
@@ -212,6 +217,9 @@ type AppendRequest struct {
 	CommitMode           CommitMode
 	ExpectedChannelEpoch uint64
 	ExpectedLeaderEpoch  uint64
+	// ExpectedRouteGeneration binds optional preparation to exact durable authority.
+	// Nonzero requires both epochs and quorum commit; zero preserves ordinary append.
+	ExpectedRouteGeneration uint64
 }
 
 // AppendResult is the committed result for one append.
@@ -227,7 +235,8 @@ type AppendBatchRequest struct {
 	Messages  []Message
 	// PayloadsImmutable lets an adapter transfer payload buffers that it owns and
 	// promises never to mutate. False keeps the public borrowed-buffer behavior
-	// and makes the Channel runtime clone payloads at admission.
+	// and makes the Channel runtime clone content at admission. This promise
+	// includes both payload and publication metadata buffers.
 	PayloadsImmutable bool
 
 	// TraceID correlates diagnostics events for this append batch.
@@ -240,7 +249,9 @@ type AppendBatchRequest struct {
 	CommitMode           CommitMode
 	ExpectedChannelEpoch uint64
 	ExpectedLeaderEpoch  uint64
-	OmitResultPayload    bool
+	// ExpectedRouteGeneration has the same exact-authority contract as AppendRequest.
+	ExpectedRouteGeneration uint64
+	OmitResultPayload       bool
 	// ServerAllocatedMessageIDs proves all message IDs came from a node-scoped globally unique allocator.
 	// Stores may skip only the existing-message-ID lookup when this is true.
 	ServerAllocatedMessageIDs bool

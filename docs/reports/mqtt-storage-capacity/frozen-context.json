@@ -1,0 +1,123 @@
+{
+  "source_revision": "1aff256b2bd9bc71a69cf5e365553357a69c3bc9",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "f28d0dc3b26d8eec22253ecc7bdae1c8d590f54110a2cd8f2332e6ed18099a57"
+    },
+    {
+      "path": "test/e2e/mqtt/AGENTS.md",
+      "sha256": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f"
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "sha256": "07cc58f3ccdc395a1b12017e4e80a37df634c78d65ff00119aa9e672941ad3ab"
+    },
+    {
+      "path": "internal/infra/cluster/FLOW.md",
+      "sha256": "f1bc902452e3c6c80d57b206f96775c611221ffd02f6b5efbeee336fba4fbcd2"
+    },
+    {
+      "path": "internal/usecase/message/FLOW.md",
+      "sha256": "8363ede3c09831c218f1822d55beb2aa119c045ee41d519388baad2e54655e02"
+    },
+    {
+      "path": "internal/usecase/mqttsession/FLOW.md",
+      "sha256": "b67a89b034ddb71b1d052924631dddf435d3c047d384b9466b5a5c84cfb79ac3"
+    },
+    {
+      "path": "internal/runtime/channelappend/FLOW.md",
+      "sha256": "490bb59e609f11fca0d09382afe8eafc426453b41e399538ad08c133871b9a86"
+    },
+    {
+      "path": "internal/contracts/mqttsession/FLOW.md",
+      "sha256": "96e6f581f00853177cab5928583efd507ca7c776c72c0742227231685490f799"
+    },
+    {
+      "path": "pkg/channel/FLOW.md",
+      "sha256": "c810f72a72a11b3a8ae578a44baa3e96bc35cbddf96dea91180bd84a1307bd72"
+    },
+    {
+      "path": "pkg/channel/reactor/FLOW.md",
+      "sha256": "cbd879f918374a76551e07b31af481df028951d737f38a9d9ebb4916d2dd0172"
+    },
+    {
+      "path": "pkg/channel/worker/FLOW.md",
+      "sha256": "58dd232820ecc509943228ad1888afe64409ad558b74bd3bf67dae60ecef94b1"
+    },
+    {
+      "path": "pkg/cluster/FLOW.md",
+      "sha256": "3f5aff2c839515cb3e17a19f5c68ace5667c193d174492862036ef09ba6aecf9"
+    },
+    {
+      "path": "pkg/db/FLOW.md",
+      "sha256": "33c7ba81c18ed8cb377e9bef541526028ef31e64dd03becc7ac1ea6cc14fb10a"
+    },
+    {
+      "path": "pkg/db/meta/FLOW.md",
+      "sha256": "a885f6df242e7b78fa9fca9e67e68d3f533f89d8c2e3157f16e67367a4ee55bf"
+    },
+    {
+      "path": "pkg/db/message/FLOW.md",
+      "sha256": "bebe270dbea585057f562be6b0fd549bba59c6038388c313899ec0b06c9d133b"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "sha256": "7012e0f10365275715271cf102be2ef60082c8d992e6b2534020aa4d14561d1c"
+    },
+    {
+      "path": "test/e2e/suite/FLOW.md",
+      "sha256": "75aaacde354f6902998ec9b0fb66aa6a3f05c06be7d4cde88e8b06b78da7948d"
+    },
+    {
+      "path": "docs-site/FLOW.md",
+      "sha256": "4ded69664a276fa7159959d2f282394c3042960a4c367f43be77e357522f1c6b"
+    },
+    {
+      "path": "internal/contracts/channelappend/FLOW.md",
+      "sha256": "9207cf07e73e09126ade43514e1f853b8edf93939d4a9c6cd10095da74f9b336"
+    },
+    {
+      "path": "internal/access/node/FLOW.md",
+      "sha256": "fa01240cb33e302e301e47d99e5f40d575dde6d24c38bbbdd97a661da6a57af6"
+    },
+    {
+      "path": "internal/infra/mqttwill/FLOW.md",
+      "sha256": "866f99386811a04fecd1928a5c2eadc6df69c709c03d203048a1e37152d0bfb8"
+    },
+    {
+      "path": "internal/runtime/mqttsession/FLOW.md",
+      "sha256": "570eedc2c82c4339336124c294774d748c37a595d43541c3ce8196cce6ce6e98"
+    },
+    {
+      "path": "test/e2e/mqtt/restore/AGENTS.md",
+      "sha256": "8abcf079c35be6db5d707bbe5c6dc2db2c0eb73dcffecc0295d5a68c26661fd3"
+    },
+    {
+      "path": "internal/access/mqtt/FLOW.md",
+      "sha256": "9f0bd03bff4491b69344d25d17a312ee679866ebf43970a5d9c4821d9714d445"
+    },
+    {
+      "path": "test/e2e/mqtt/interop/AGENTS.md",
+      "sha256": "5fa2142bd32e6202f4feaa6fc86bf81fa0e11a24e7ea1664558b79952449bc8e"
+    },
+    {
+      "path": "test/e2e/mqtt/will/AGENTS.md",
+      "sha256": "0e307f7ea301f3ccac1e40323d3a503871123c6d884d700dbfbff686654789ae"
+    },
+    {
+      "path": "test/e2e/mqtt/will_recovery/AGENTS.md",
+      "sha256": "8b56546bd3ec71c43ea703c45320748f0f7c6022b73c462f0eca9e89d7286ff0"
+    }
+  ],
+  "introduced_rules": [
+    {
+      "path": "test/e2e/mqtt/storage_capacity/AGENTS.md",
+      "sha256": "f3dcdedae82be2cb00df16c79c9fd4cb2ec1f988b5a16b440deb988cfa38a94a"
+    }
+  ]
+}

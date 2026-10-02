@@ -8,6 +8,7 @@ type SendBatchHandler = gatewaytypes.SendBatchHandler
 type SessionActivator = gatewaytypes.SessionActivator
 type SessionActivationRollbacker = gatewaytypes.SessionActivationRollbacker
 type Context = gatewaytypes.Context
+type TransportCloser = gatewaytypes.TransportCloser
 type Observer = gatewaytypes.Observer
 type SessionErrorObserver = gatewaytypes.SessionErrorObserver
 type AsyncSendObserver = gatewaytypes.AsyncSendObserver

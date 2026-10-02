@@ -1,0 +1,19 @@
+{
+  "base_revision": "3f64b984eebb07035091dc11381f79796cbf1f66",
+  "commit_list": [],
+  "working_copy_diff": "git diff 3f64b984eebb07035091dc11381f79796cbf1f66",
+  "untracked_discovery": "git ls-files --others --exclude-standard",
+  "spec": "docs/specs/mqtt-will-sealed-rejection.md",
+  "standards": {
+    "agent": "/root/will_sealed_standards",
+    "documented_violations": 0,
+    "actionable_smells": 0,
+    "worst": null
+  },
+  "spec_review": {
+    "agent": "/root/will_sealed_spec",
+    "actionable_findings": 0,
+    "worst": null
+  },
+  "final_evidence_rechecked": true
+}

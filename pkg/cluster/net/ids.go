@@ -131,6 +131,40 @@ const (
 	RPCNodeSendPermissions
 	// RPCMessageEventDelivery delivers accepted stream events to exact owner sessions.
 	RPCMessageEventDelivery
+	// RPCChannelMQTTSource establishes source protection on the exact Channel leader.
+	RPCChannelMQTTSource
+	// RPCChannelMQTTReplay prepares bounded shared content on the current leader.
+	RPCChannelMQTTReplay
+	// RPCChannelMQTTCopy confirms independently derived current-voter shared content.
+	RPCChannelMQTTCopy
+	// RPCChannelMQTTAnchor admits a replay copy checkpoint through the leader reactor.
+	RPCChannelMQTTAnchor
+	// RPCChannelMQTTPlan reads a coherent source and accepted-prefix planning view.
+	RPCChannelMQTTPlan
+	// RPCChannelMQTTRepair transfers one independently anchored replay interval.
+	RPCChannelMQTTRepair
+	// RPCChannelMQTTRecovery executes one bounded target-owned replay recovery step.
+	RPCChannelMQTTRecovery
+	// RPCChannelMQTTRetirement admits whole-anchor retirement on the current leader.
+	RPCChannelMQTTRetirement
+	// RPCChannelMQTTRetirementSelection reads a bounded historical anchor page.
+	RPCChannelMQTTRetirementSelection
+	// RPCChannelMQTTConsumerRead serves bounded anchored consumer content.
+	RPCChannelMQTTConsumerRead
+	// RPCChannelWillReceipt reads retained publication proof under current authority.
+	RPCChannelWillReceipt
+	// RPCChannelMQTTOriginals plans and reads one bounded anchored page.
+	RPCChannelMQTTOriginals
+	// RPCMQTTWillDispatch seals body-free exact-node non-dispatch evidence.
+	RPCMQTTWillDispatch
+)
+
+// MQTT metadata and owner services occupy new IDs; main already owns 91/92.
+const (
+	// RPCSlotMQTTMetadata serves bounded authoritative MQTT metadata reads.
+	RPCSlotMQTTMetadata uint8 = 106 + iota
+	// RPCMQTTOwner requests exact MQTT owner execution quiescence.
+	RPCMQTTOwner
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -257,6 +291,36 @@ func transportServiceAlias(serviceID uint8) string {
 		return "node send permissions"
 	case RPCMessageUpdateHint:
 		return "message update hint"
+	case RPCSlotMQTTMetadata:
+		return "slot mqtt metadata"
+	case RPCMQTTOwner:
+		return "mqtt owner"
+	case RPCChannelMQTTSource:
+		return "channel mqtt source"
+	case RPCChannelMQTTCopy:
+		return "channel mqtt copy"
+	case RPCChannelMQTTAnchor:
+		return "channel mqtt anchor"
+	case RPCChannelMQTTRepair:
+		return "channel mqtt repair"
+	case RPCChannelMQTTRecovery:
+		return "channel mqtt recovery"
+	case RPCChannelMQTTRetirement:
+		return "channel mqtt retirement"
+	case RPCChannelMQTTRetirementSelection:
+		return "channel mqtt retirement selection"
+	case RPCChannelMQTTPlan:
+		return "channel mqtt plan"
+	case RPCChannelMQTTConsumerRead:
+		return "channel mqtt consumer read"
+	case RPCChannelWillReceipt:
+		return "channel will receipt"
+	case RPCChannelMQTTOriginals:
+		return "channel mqtt originals"
+	case RPCMQTTWillDispatch:
+		return "mqtt will dispatch"
+	case RPCChannelMQTTReplay:
+		return "channel mqtt replay"
 	case RPCMessageEventDelivery:
 		return "message event delivery"
 	default:

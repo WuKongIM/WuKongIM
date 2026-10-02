@@ -1,0 +1,19 @@
+{
+  "dup_on_resume": true,
+  "extra_deliveries": 0,
+  "fresh_delivery_once": true,
+  "hash_slots": 256,
+  "last_phase": "complete",
+  "maintenance_refusals": 2,
+  "nodes": 3,
+  "old_connection_closed": true,
+  "original_identity_preserved": true,
+  "packet_id_preserved": true,
+  "passed": true,
+  "post_backup_state_removed": true,
+  "process_restarts": 0,
+  "restore_cycles": 2,
+  "resubscriptions": 0,
+  "scenario": "mqtt-restore-reactivation",
+  "session_present": true
+}

@@ -1,0 +1,26 @@
+{
+  "candidate_source_revision": "fd9ba0012da0c9575c5f87f079544601d3482216",
+  "production_sources": {
+    "internal/usecase/mqttsession/source_drain.go": "5ad4921fcaa6f93fdfe35c48f436dcf758454e0eda277a6139f02f89b06f0483",
+    "internal/usecase/mqttsession/source_drain_contention.go": "0ea7f6ecc4e7f289e72a1dd12d1c24850f4068ec8651e79690c773370667d87a",
+    "internal/usecase/mqttsession/source_drain_contention_test.go": "256eb28b82c16a40c88b568f93d925333bb8bfb0ebf8155706aff4566f395fc2"
+  },
+  "binary_path": "/tmp/wukongim-mqtt-sealing-candidate",
+  "binary_sha256": "8eabdb9f9509ccbd16ab43bafffa0424e1a3d3f877140a83800b63c447513846",
+  "go_environment": {
+    "GOMODCACHE": "/tmp/mqtt-originals-gomodcache",
+    "GOTOOLCHAIN": "local",
+    "GOWORK": "off",
+    "go_binary": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go"
+  },
+  "build_command": "GOWORK=off go build -o /tmp/wukongim-mqtt-sealing-candidate ./cmd/wukongim",
+  "runtime_overlay": false,
+  "profile_enabled": false,
+  "new_workers": 0,
+  "original_deadlines_changed": false,
+  "source_instruction_manifest": "docs/reports/mqtt-unsubscribe-sealing/frozen-context.json",
+  "embedded_vcs_revision_observed": "1982a56b51394973c5ca456c851397adfdaa1398",
+  "embedded_vcs_note": "The Go binary embeds the primary checkout revision, not the worktree source. Source provenance relies on the clean worktree commit, exact source hashes and explicit build command; the embedded stamp is not source proof.",
+  "frozen_scale_fixture_sha256": "485d1eccd201b9f16ce929f00b7223c397af4059ef07b952bf3733bfffcef4c7",
+  "scale_fixture_changed_since_baseline": false
+}

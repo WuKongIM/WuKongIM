@@ -1,0 +1,34 @@
+{
+  "source_base": "aab707786ddec960289f6582027bdd962d96911f",
+  "files": {
+    "internal/app/app.go": "0aa2fdde6b7e1da44664317d7a69c4aba90f40866f270e987a954207f5a1fc8f",
+    "internal/app/backup_maintenance.go": "d6b575070c286022a8d52d59ec58cc96840e75e0c648530a94e0f62aa47b2e79",
+    "internal/app/lifecycle.go": "8b3436185e56f0d64c108703b1231b5e0ced9bc36223d8ea8190fac95c2d4b14",
+    "internal/app/mqtt_product.go": "62d515e747647a1b634fb22243e0379229d69246f9c2dcf1a9f5a9a012807dd7",
+    "internal/app/mqtt_lifecycle.go": "1cd5ca2cd812e9c875ed8de75aa7023ababaf259b98c20ace59c944c84ac33b8",
+    "internal/app/mqtt_connections.go": "e537e34f11a2726efda01f273fee70d78c759a9cd96b6460fa780dcd20ae8f44",
+    "internal/app/mqtt_delivery_wake.go": "da977ee9cc955e27eaffcd1761c1562cc9bae2723fa09dc4ad9dfb4b51515d74",
+    "internal/app/wiring.go": "441adf9d70bd31b1bb608158ad6c6de88f543c8ee5b3966501870ccd773ea7e3",
+    "test/e2e/mqtt/restore/restore_test.go": "27d02afada31edd3b47639df82b34b0af4c6b7f98819d228da369b3a4dad1ad4",
+    "test/e2e/suite/backup_client.go": "6f986b04f5744d57eaa273db6d5da87de6da0491566bb37d2c10935328e032b9",
+    "internal/app/mqtt_owner_sweep_integration_test.go": "45ffe15a21110741343a34e6a1f6fa83b3295d52277192479f83051198b51c77"
+  },
+  "build_command": "go build -buildvcs=false -o /tmp/wukongim-mqtt-restore-candidate ./cmd/wukongim",
+  "go_version": "go1.25.11 darwin/arm64",
+  "binary_path": "/tmp/wukongim-mqtt-restore-candidate",
+  "binary_sha256": "8aa360f18e81affb1fd8a743dd600e74274121f30252c95ba46b3b4f01d37caa",
+  "acceptance_runs": {
+    "three_node": {
+      "fixture_sha256": "2382c812c9028a54fdc5c166b7fa6c5ca3db6460825e521314c110ee70834c06",
+      "binary_sha256": "8aa360f18e81affb1fd8a743dd600e74274121f30252c95ba46b3b4f01d37caa",
+      "elapsed_seconds": 718.41,
+      "result": "passed"
+    },
+    "single_node": {
+      "fixture_sha256": "27d02afada31edd3b47639df82b34b0af4c6b7f98819d228da369b3a4dad1ad4",
+      "binary_sha256": "8aa360f18e81affb1fd8a743dd600e74274121f30252c95ba46b3b4f01d37caa",
+      "elapsed_seconds": 194.28,
+      "result": "passed"
+    }
+  }
+}

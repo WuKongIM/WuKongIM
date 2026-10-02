@@ -104,11 +104,7 @@ func (c *cluster) HandlePullBatch(ctx context.Context, req transport.PullBatchRe
 			}
 			observation.Records += len(item.Response.Records)
 			for _, record := range item.Response.Records {
-				if record.SizeBytes > 0 {
-					observation.PayloadBytes += record.SizeBytes
-					continue
-				}
-				observation.PayloadBytes += len(record.Payload)
+				observation.PayloadBytes += max(record.SizeBytes, len(record.Payload)+len(record.PublicationMetadata))
 			}
 		}
 		observer.ObservePullBatch(observation)

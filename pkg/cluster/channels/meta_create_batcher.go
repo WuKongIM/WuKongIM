@@ -458,13 +458,9 @@ func (o *metaCreateSlotOwner) submit(batch []*metaCreateEntry) map[metadb.Channe
 		createErr = validateRuntimeMetaCreateResults(items, created)
 	}
 	o.observeStage(channelMetaStageCreatePropose, createErr, createStarted)
-	if createErr == nil && allRuntimeMetaCreatesInserted(created) {
-		for i, item := range items {
-			results[batch[i].key] = metaCreateEnsureResult{meta: item.Meta}
-		}
-		o.observeBatch("ok", len(items))
-		return results
-	}
+	// Created proves insertion, not verbatim candidate versions: a retired
+	// identity receives a newer incarnation during Slot apply. Read the actual
+	// authority once per bounded batch before exposing it to append admission.
 	readStarted := time.Now()
 	reads, readErr := o.batcher.store.BatchGetChannelRuntimeMetas(ctx, routes[0], items)
 	if readErr == nil && len(reads) != len(items) {
@@ -510,18 +506,6 @@ func (o *metaCreateSlotOwner) submit(batch []*metaCreateEntry) map[metadb.Channe
 	}
 	o.observeBatch(result, len(items))
 	return results
-}
-
-func allRuntimeMetaCreatesInserted(results []RuntimeMetaCreateResult) bool {
-	if len(results) == 0 {
-		return false
-	}
-	for _, result := range results {
-		if !result.Created {
-			return false
-		}
-	}
-	return true
 }
 
 func (o *metaCreateSlotOwner) observeStage(stage string, err error, started time.Time) {

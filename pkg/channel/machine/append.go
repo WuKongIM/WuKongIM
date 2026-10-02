@@ -368,6 +368,7 @@ func appendItemsForRecords(id ch.ChannelID, records []ch.Record, omitPayload boo
 		}
 		if !omitPayload {
 			msg.Payload = cloneBytes(record.Payload)
+			msg.PublicationMetadata = cloneBytes(record.PublicationMetadata)
 		}
 		items[i] = ch.AppendBatchItemResult{MessageID: record.ID, MessageSeq: record.Index, Message: msg}
 	}
@@ -379,6 +380,7 @@ func cloneRecords(in []ch.Record) []ch.Record {
 	copy(out, in)
 	for i := range out {
 		out[i].Payload = cloneBytes(out[i].Payload)
+		out[i].PublicationMetadata = cloneBytes(out[i].PublicationMetadata)
 	}
 	return out
 }

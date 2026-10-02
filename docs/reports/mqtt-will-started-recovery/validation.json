@@ -1,0 +1,198 @@
+{
+  "go_version": "go1.25.11 darwin/arm64",
+  "environment": {
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "GOMODCACHE": "/tmp/mqtt-originals-gomodcache"
+  },
+  "final_provenance": "final-provenance.json",
+  "product_test_and_binary_hashes_verified": true,
+  "cases": [
+    {
+      "path": "cases/mqtt-will-recovery-1-undispatched.json",
+      "sha256": "992a32b7289f2a7af1b2741c27add9ce6b8a24249fcc46064cdcaeee8d925e2d",
+      "nodes": 1,
+      "cut": "undispatched",
+      "passed": true
+    },
+    {
+      "path": "cases/mqtt-will-recovery-1-published.json",
+      "sha256": "e88aefe9a82f7cf99b51443f9da3f8c9962bf30ccb1e59a1f42997bf82c4450e",
+      "nodes": 1,
+      "cut": "published",
+      "passed": true
+    },
+    {
+      "path": "cases/mqtt-will-recovery-1-admitted.json",
+      "sha256": "e775b0d860742a4b9f08a0a4feecb460d839ce3d4cfdd5a7f6ddbade63f434ee",
+      "nodes": 1,
+      "cut": "admitted",
+      "passed": true
+    },
+    {
+      "path": "cases/mqtt-will-recovery-3-undispatched.json",
+      "sha256": "fbf84432aa36e6cf0b2b445b8370a766dda15545b9331838ee35b40003d83489",
+      "nodes": 3,
+      "cut": "undispatched",
+      "passed": true
+    },
+    {
+      "path": "cases/mqtt-will-recovery-3-published.json",
+      "sha256": "e43584e2f5650efa2f64ee2973d65080ca7af12f02c59be0b1c94e1c4cbf29e5",
+      "nodes": 3,
+      "cut": "published",
+      "passed": true
+    },
+    {
+      "path": "cases/mqtt-will-recovery-3-admitted.json",
+      "sha256": "d19368cbcc342b9ca7a1a048bcb5e8be2ab2d9ba851ccc9fea2907a91255009e",
+      "nodes": 3,
+      "cut": "admitted",
+      "passed": true
+    }
+  ],
+  "receipts": [
+    {
+      "source_scope": "Exact product/test hashes in final-provenance.json after equal-tuple retention hardening.",
+      "exit_code": 0,
+      "log_sha256": "44ad913e32caeff59ad34eb00c5981dc5a3f2f5788e88c6237ab23c73b8311c3",
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_recovery",
+          "duration_seconds": 317.404
+        }
+      ],
+      "case_count": 6,
+      "repeat_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-started-verified-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-started-verified-matrix GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_recovery -count=1 -timeout=12m -v"
+    },
+    {
+      "source_scope": "Exact product/test hashes in final-provenance.json after equal-tuple retention hardening.",
+      "exit_code": 0,
+      "log_sha256": "5726726756e8ab2b81f58aab07456a95320963c2fb862aed5222b35ba079ca14",
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will",
+          "duration_seconds": 51.446
+        }
+      ],
+      "repeat_command": "WK_E2E_BINARY=/tmp/wukongim-will-started-verified GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will -count=1 -timeout=6m -v"
+    },
+    {
+      "source_scope": "Exact product/test hashes in final-provenance.json after equal-tuple retention hardening.",
+      "exit_code": 0,
+      "log_sha256": "38d8556f8ec0251b0f14fa04ebf1828b7ebb41ad9c6ac31ccc35695011203ca6",
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession",
+          "duration_seconds": 16.948
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/infra/mqttowner",
+          "duration_seconds": 1.483
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/infra/cluster",
+          "duration_seconds": 1.367
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/access/node",
+          "duration_seconds": 1.363
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/app",
+          "duration_seconds": 1.949
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/cluster/net",
+          "duration_seconds": 1.333
+        }
+      ],
+      "repeat_command": "GOWORK=off go test -race -p 2 ./internal/usecase/mqttsession ./internal/infra/mqttowner ./internal/infra/cluster ./internal/access/node ./internal/app ./pkg/cluster/net -run 'Will|MQTTOwner|Retirement|CrashedBoot' -count=1"
+    },
+    {
+      "source_scope": "Exact product/test hashes in final-provenance.json after equal-tuple retention hardening.",
+      "exit_code": 0,
+      "log_sha256": "5c69f65f70d525ab404fc2db240252f95ffd46017268d8d9ca19c6bc40062e2a",
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/runtime/channelappend",
+          "duration_seconds": 2.118
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/runtime/mqttsession",
+          "duration_seconds": 1.567
+        }
+      ],
+      "repeat_command": "GOWORK=off go test -race -p 2 ./internal/runtime/channelappend ./internal/runtime/mqttsession -run 'Will|Append|MQTT' -count=1"
+    },
+    {
+      "source_scope": "Completed before final conservative conflict-path reservation retention change; related exact final race and process receipts follow separately.",
+      "exit_code": 0,
+      "log_sha256": "290ae4ecb392d015c700139f2ce81203f952edd051b13aea9138a8c94469bcea",
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/infra/mqttowner",
+          "duration_seconds": 0.847
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession",
+          "duration_seconds": 116.307
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/access/node",
+          "duration_seconds": 0.323
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/app",
+          "duration_seconds": 3.005
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/cluster/net",
+          "duration_seconds": 0.332
+        }
+      ],
+      "repeat_command": "GOWORK=off go test ./internal/contracts/mqttsession ./internal/infra/mqttowner ./internal/infra/mqttwill ./internal/usecase/mqttsession ./internal/access/node ./internal/app ./pkg/cluster/net -count=1"
+    },
+    {
+      "source_scope": "Completed before final conservative conflict-path reservation retention change; related exact final race and process receipts follow separately.",
+      "exit_code": 0,
+      "log_sha256": "ea7c019054c3c109b1dedaa909992ff82a89cef7594894e7d92c910d1538d7a3",
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/app",
+          "duration_seconds": 15.305
+        }
+      ],
+      "repeat_command": "GOWORK=off go test -race -p 2 -tags=integration ./internal/app -run 'TestMQTTWillExecution|TestMQTTWillEmpty' -count=1 -timeout=4m"
+    },
+    {
+      "source_scope": "Completed before final conservative conflict-path reservation retention change; related exact final race and process receipts follow separately.",
+      "exit_code": 0,
+      "log_sha256": "65a6315eae8f366bd31ae0d4c7c5239abc6c449883db323019637f48d45aacdb",
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will",
+          "duration_seconds": 53.419
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/session",
+          "duration_seconds": 131.269
+        }
+      ],
+      "repeat_command": "GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will ./test/e2e/mqtt/session -count=1 -timeout=9m -v"
+    },
+    {
+      "source_scope": "Final FLOW documents and generated index; non-FLOW receipt prose finalized afterward.",
+      "exit_code": 0,
+      "log_sha256": "8420682ec4ac3f52c0625c62a177a6fcc85893805bcdd9ddbd39ef3f0b2ba43a",
+      "packages": [],
+      "named_check": "flow-doc-contracts",
+      "flow_files": 88,
+      "compliant": 88,
+      "invalid": 0,
+      "warnings": 11,
+      "repeat_command": "GOWORK=off go run ./scripts/flowcheck --mode check"
+    }
+  ],
+  "limits": "Six controlled windows and finite quiet observations only; see README.md and the recovery contract. Existing macOS race linker warnings did not fail checks. FLOW length warnings pre-exist this slice."
+}

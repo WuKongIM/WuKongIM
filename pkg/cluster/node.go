@@ -167,6 +167,8 @@ type Node struct {
 	mu              sync.RWMutex
 	snapshot        Snapshot
 	controlSnapshot control.Snapshot
+	// mqttStorageMemberIDs changes only with the durable storage roster.
+	mqttStorageMemberIDs []uint64
 	// controlApplyMu serializes control snapshot application from startup, watches, and probes.
 	controlApplyMu sync.Mutex
 	// routeAuthorityPublishMu serializes low-frequency Router mutations with
@@ -888,6 +890,20 @@ func (n *Node) ReadChannelCommitted(ctx context.Context, id channelruntime.Chann
 // ReadChannelCommittedBatch delegates aligned committed-message reads to the
 // Channel service, which groups remote calls by exact Channel Leader.
 func (n *Node) ReadChannelCommittedBatch(ctx context.Context, reads []channels.CommittedRead) ([]channels.CommittedReadResult, error) {
+	results, err := n.ReadChannelOriginalCommittedBatch(ctx, reads)
+	if err != nil {
+		return nil, err
+	}
+	if err := n.overlayMessageReads(ctx, reads, results); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+// ReadChannelOriginalCommittedBatch proves original publication content through
+// the current Channel Leader without applying later payload edits. It preserves
+// authority, HW and retention fences; it cannot bypass history retention.
+func (n *Node) ReadChannelOriginalCommittedBatch(ctx context.Context, reads []channels.CommittedRead) ([]channels.CommittedReadResult, error) {
 	if err := ctxErr(ctx); err != nil {
 		return nil, err
 	}
@@ -900,14 +916,7 @@ func (n *Node) ReadChannelCommittedBatch(ctx context.Context, reads []channels.C
 	if !ok {
 		return nil, ErrNotStarted
 	}
-	results, err := reader.ReadCommittedBatch(ctx, reads)
-	if err != nil {
-		return nil, err
-	}
-	if err := n.overlayMessageReads(ctx, reads, results); err != nil {
-		return nil, err
-	}
-	return results, nil
+	return reader.ReadCommittedBatch(ctx, reads)
 }
 
 // ReadChannelPersistedBatch routes conversation recents to current-Leader disk state.
@@ -1075,6 +1084,19 @@ func localLeaderCommitsOwnLEO(meta metadb.ChannelRuntimeMeta, localNodeID uint64
 
 // LookupChannelIdempotency reads one local Channel idempotency index entry.
 func (n *Node) LookupChannelIdempotency(ctx context.Context, id channelruntime.ChannelID, fromUID string, clientMsgNo string) (channelstore.IdempotencyHit, bool, error) {
+	return n.lookupChannelIdempotency(ctx, id, fromUID, clientMsgNo, "")
+}
+
+// LookupChannelWillIdempotency reads one local server-domain candidate. The
+// caller must prove visibility through the current Leader's committed log.
+func (n *Node) LookupChannelWillIdempotency(ctx context.Context, id channelruntime.ChannelID, fromUID, serverKey string) (channelstore.IdempotencyHit, bool, error) {
+	if serverKey == "" {
+		return channelstore.IdempotencyHit{}, false, channelruntime.ErrInvalidConfig
+	}
+	return n.lookupChannelIdempotency(ctx, id, fromUID, "", serverKey)
+}
+
+func (n *Node) lookupChannelIdempotency(ctx context.Context, id channelruntime.ChannelID, fromUID, clientMsgNo, serverKey string) (channelstore.IdempotencyHit, bool, error) {
 	if err := ctxErr(ctx); err != nil {
 		return channelstore.IdempotencyHit{}, false, err
 	}
@@ -1090,6 +1112,13 @@ func (n *Node) LookupChannelIdempotency(ctx context.Context, id channelruntime.C
 		return channelstore.IdempotencyHit{}, false, err
 	}
 	defer func() { _ = store.Close() }()
+	if serverKey != "" {
+		lookup, ok := store.(channelstore.WillIdempotencyLookup)
+		if !ok {
+			return channelstore.IdempotencyHit{}, false, channelruntime.ErrInvalidConfig
+		}
+		return lookup.LookupWillIdempotency(ctx, fromUID, serverKey)
+	}
 	lookup, ok := store.(channelstore.IdempotencyLookup)
 	if !ok {
 		return channelstore.IdempotencyHit{}, false, channelruntime.ErrInvalidConfig

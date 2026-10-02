@@ -1,0 +1,26 @@
+{
+  "accepted_message_id": 2105770036596576256,
+  "bob_reason": 1,
+  "cluster_bytes": 24576,
+  "fault": "",
+  "hash_slots": 256,
+  "joined_restart": true,
+  "legacy_debt": true,
+  "node_bytes": 65536,
+  "node_roots": [
+    "/tmp/mqtt-capacity-final-owned/TestThreeNodeRegistersLegacyDebtBeforeAdmission-2575789107/node-1",
+    "/tmp/mqtt-capacity-final-owned/TestThreeNodeRegistersLegacyDebtBeforeAdmission-2575789107/node-2",
+    "/tmp/mqtt-capacity-final-owned/TestThreeNodeRegistersLegacyDebtBeforeAdmission-2575789107/node-3"
+  ],
+  "nodes": 3,
+  "passed": true,
+  "payload_bytes": 4096,
+  "reopened_message_id": 2105770193627123712,
+  "replayed_message_id": "2105770036596576256",
+  "reserved_after_retirement": [
+    0,
+    0,
+    0
+  ],
+  "safe_retirement": true
+}

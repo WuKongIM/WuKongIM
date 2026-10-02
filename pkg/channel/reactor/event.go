@@ -50,6 +50,14 @@ const (
 	// EventLeaderEvictReady performs the final normal-priority leader eviction recheck.
 	EventLeaderEvictReady
 	EventClose
+	// EventMQTTSource captures committed progress and confirms source protection.
+	EventMQTTSource
+	// EventMQTTReplay prepares bounded shared content under recovered authority.
+	EventMQTTReplay
+	// EventMQTTPlan captures a coherent source and accepted-prefix view.
+	EventMQTTPlan
+	// EventWillReceipt reads retained proof below reactor-captured HW.
+	EventWillReceipt
 )
 
 // Event is the mailbox envelope consumed by reactors.
@@ -79,6 +87,17 @@ type Event struct {
 	RuntimeChannelIDs []ch.ChannelID
 	// LeaderEvictAppendSeq fences final leader eviction behind same-channel Append submissions.
 	LeaderEvictAppendSeq uint64
+	// MQTTSource fences source confirmation and explicit control append admission.
+	MQTTSource  ch.MQTTSourceRequest
+	MQTTReplay  ch.MQTTReplayRequest
+	MQTTPlan    ch.MQTTReplayPlanRequest
+	WillReceipt ch.WillReceiptRequest
+	// MQTTSourceActivation selects a canonical control only on EventAppend.
+	MQTTSourceActivation bool
+	// MQTTAnchor selects typed anchor admission on the ordinary append queue.
+	MQTTAnchor *ch.MQTTReplayAnchorRequest
+	// MQTTRetirement selects a verified whole-anchor retirement on the append queue.
+	MQTTRetirement *ch.MQTTReplayRetirementRequest
 }
 
 func eventKindName(kind EventKind) string {
@@ -121,6 +140,14 @@ func eventKindName(kind EventKind) string {
 		return "EventLeaderEvictReady"
 	case EventClose:
 		return "EventClose"
+	case EventMQTTSource:
+		return "EventMQTTSource"
+	case EventMQTTReplay:
+		return "EventMQTTReplay"
+	case EventMQTTPlan:
+		return "EventMQTTPlan"
+	case EventWillReceipt:
+		return "EventWillReceipt"
 	default:
 		return "EventUnknown"
 	}

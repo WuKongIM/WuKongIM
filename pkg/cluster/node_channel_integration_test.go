@@ -10,6 +10,7 @@ import (
 
 	channelruntime "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	"github.com/WuKongIM/WuKongIM/pkg/cluster/channels"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 )
 
@@ -131,6 +132,12 @@ func TestNodeReadChannelCommittedHonorsRetentionThroughSeq(t *testing.T) {
 	}
 	if got := tracking.Closed(); got != 2 {
 		t.Fatalf("ChannelStore closes = %d, want 2", got)
+	}
+	// Original-content proof is routed and still obeys the history retention
+	// fence. It is not the protected MQTT replay source reader.
+	original, err := node.ReadChannelOriginalCommittedBatch(ctx, []channels.CommittedRead{{ChannelID: id, Request: channelstore.ReadCommittedRequest{FromSeq: 1, MaxSeq: 4, Limit: 10, MaxBytes: 1024}}})
+	if err != nil || len(original) != 1 || original[0].Err != nil || !equalNodeMessageSeqs(nodeMessageSeqs(original[0].Read.Messages), []uint64{3, 4}) {
+		t.Fatalf("original committed read = %+v, err=%v", original, err)
 	}
 }
 

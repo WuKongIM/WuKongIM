@@ -24,10 +24,12 @@ func TestLeaderTransferExecutorRunsPhaseOrder(t *testing.T) {
 		probes: map[uint64][]ch.RuntimeProbeChannel{
 			1: {
 				{ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 20, Role: ch.RoleLeader, Status: ch.StatusActive, HW: 9, LEO: 9, CheckpointHW: 9},
+				{ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 20, Role: ch.RoleLeader, Status: ch.StatusActive, HW: 9, LEO: 9, CheckpointHW: 9, WriteFence: ch.WriteFence{Token: task.TaskID, Version: 1}},
 			},
 			3: {
 				{ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 9, LEO: 9, CheckpointHW: 9},
-				{ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 9, LEO: 9, CheckpointHW: 9},
+				{ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 9, LEO: 9, CheckpointHW: 9, WriteFence: ch.WriteFence{Token: task.TaskID, Version: 1}},
+				{ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 9, LEO: 9, CheckpointHW: 9, WriteFence: ch.WriteFence{Token: task.TaskID, Version: 1}},
 				{
 					ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 21, Role: ch.RoleLeader, Status: ch.StatusActive, HW: 9, LEO: 9, CheckpointHW: 9,
 					WriteFence: ch.WriteFence{Token: task.TaskID, Version: 1, Reason: ch.WriteFenceReasonLeaderTransfer},
@@ -62,7 +64,7 @@ func TestLeaderTransferExecutorRunsPhaseOrder(t *testing.T) {
 		"commit_leader",
 		"clear_fence",
 	}, store.ops)
-	require.Equal(t, []string{"probe:1", "probe:3", "drain:1", "probe:3", "apply_meta:3", "probe:3"}, runtime.ops)
+	require.Equal(t, []string{"probe:1", "probe:3", "apply_meta:1", "probe:1", "drain:1", "probe:3", "probe:3", "apply_meta:3", "probe:3"}, runtime.ops)
 	require.Equal(t, uint64(9), store.lastProof.CutoverLEO)
 	require.Equal(t, uint64(9), store.lastProof.CutoverHW)
 	require.Equal(t, uint64(1), store.lastProof.DrainedLeaderNode)
@@ -73,7 +75,7 @@ func TestLeaderTransferExecutorRunsPhaseOrder(t *testing.T) {
 	require.Equal(t, uint64(21), meta.LeaderEpoch)
 }
 
-func TestLeaderTransferExecutorBlocksLaggingFinalTarget(t *testing.T) {
+func TestLeaderTransferExecutorWaitsForLaggingFinalTarget(t *testing.T) {
 	ctx := context.Background()
 	now := time.UnixMilli(1750000200000).UTC()
 	id := ch.ChannelID{ID: "executor-leader-lagging", Type: 1}
@@ -115,13 +117,14 @@ func TestLeaderTransferExecutorBlocksLaggingFinalTarget(t *testing.T) {
 
 	require.NoError(t, executor.RunOnce(ctx))
 
-	require.Equal(t, metadb.ChannelMigrationStatusBlocked, store.task.Status)
+	require.Equal(t, metadb.ChannelMigrationStatusRunning, store.task.Status)
 	require.Equal(t, metadb.ChannelMigrationPhaseFinalTargetCatchUp, store.task.Phase)
-	require.Equal(t, "target_lagging", store.lastReason)
+	require.Empty(t, store.lastReason)
+	require.Empty(t, store.ops)
 	require.Equal(t, []string{"probe:3"}, runtime.ops)
 }
 
-func TestLeaderTransferExecutorBlocksPreFenceLaggingTarget(t *testing.T) {
+func TestLeaderTransferExecutorWaitsForPreFenceLaggingTarget(t *testing.T) {
 	ctx := context.Background()
 	now := time.UnixMilli(1750000210000).UTC()
 	id := ch.ChannelID{ID: "executor-leader-prefence-lagging", Type: 1}
@@ -151,9 +154,10 @@ func TestLeaderTransferExecutorBlocksPreFenceLaggingTarget(t *testing.T) {
 
 	require.NoError(t, executor.RunOnce(ctx))
 
-	require.Equal(t, metadb.ChannelMigrationStatusBlocked, store.task.Status)
+	require.Equal(t, metadb.ChannelMigrationStatusRunning, store.task.Status)
 	require.Equal(t, metadb.ChannelMigrationPhaseProbeTarget, store.task.Phase)
-	require.Equal(t, "target_lagging", store.lastReason)
+	require.Empty(t, store.lastReason)
+	require.Empty(t, store.ops)
 	require.Equal(t, []string{"probe:1", "probe:3"}, runtime.ops)
 }
 
@@ -173,7 +177,7 @@ func TestMigrationExecutorObservesBlockedPhaseAndActiveCounts(t *testing.T) {
 	runtime := &fakeMigrationExecutorRuntime{
 		probes: map[uint64][]ch.RuntimeProbeChannel{
 			1: {{ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 20, Role: ch.RoleLeader, Status: ch.StatusActive, HW: 10, LEO: 10, CheckpointHW: 10}},
-			3: {{ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 20, Role: ch.RoleFollower, Status: ch.StatusActive, HW: 9, LEO: 9, CheckpointHW: 9}},
+			3: {{ChannelID: id, ChannelEpoch: 10, LeaderEpoch: 20, Role: ch.RoleLeader, Status: ch.StatusActive, HW: 9, LEO: 9, CheckpointHW: 9}},
 		},
 	}
 	observer := &fakeMigrationObserver{}
@@ -191,7 +195,7 @@ func TestMigrationExecutorObservesBlockedPhaseAndActiveCounts(t *testing.T) {
 
 	require.Equal(t, []int{1}, observer.activeTaskCounts)
 	require.Equal(t, []int{0}, observer.writeFenceActiveCounts)
-	require.Equal(t, []string{"target_lagging"}, observer.blockedReasons)
+	require.Equal(t, []string{"target_not_ready"}, observer.blockedReasons)
 	require.Len(t, observer.durations, 1)
 	require.Equal(t, metadb.ChannelMigrationKindLeaderTransfer, observer.durations[0].kind)
 	require.Equal(t, metadb.ChannelMigrationPhaseProbeTarget, observer.durations[0].phase)
@@ -672,6 +676,11 @@ func (r *fakeMigrationExecutorRuntime) ProbeChannel(_ context.Context, nodeID ui
 	}
 	probe := queue[0]
 	r.probes[nodeID] = queue[1:]
+	// These pre-existing scenarios model native channels with no replay source.
+	// MQTT admission tests use a separate runtime preserving absent evidence.
+	if probe.ReplayReadiness == nil {
+		probe.ReplayReadiness = &ch.MQTTReplayReadiness{CommittedThrough: probe.HW, Covered: true}
+	}
 	return probe, nil
 }
 

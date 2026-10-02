@@ -32,6 +32,12 @@ wkcli db --data-dir ./node-new --hash-slot-count 256 import --input ./wkdb-dump 
 
 Export examples:
 
+JSONL export does not preserve MQTT Session bindings, subscriptions, exchanges,
+Wills, shared replay or capacity state. It refuses sources containing that state
+before creating or overwriting output, even after disabling MQTT or ending a
+Session. Preserve the source; use native backup/restore with matching versions.
+Publication metadata on ordinary message rows alone remains supported.
+
 ```bash
 # Export the current node-local store into the same bundle format accepted by import.
 wkcli db --data-dir ./node-1 --hash-slot-count 256 export --output ./wkdb-dump

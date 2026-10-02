@@ -1,0 +1,32 @@
+{
+  "captured_executor_node": 1,
+  "connect_retries": 0,
+  "executor_capacity_refusal": true,
+  "fill_duration_ms": 19474,
+  "final_executor_counts": {
+    "wkMQTTWillJournalFull": 2,
+    "wkMQTTWillPublicationAttempt": 31,
+    "wkMQTTWillReclamationCancelObserved": 0,
+    "wkMQTTWillReclamationCursorAdvanced": 0,
+    "wkMQTTWillReclamationDeadlineObserved": 0,
+    "wkMQTTWillReclamationPage": 2,
+    "wkMQTTWillReclamationProbePage": 1,
+    "wkMQTTWillReclamationProbeSeen": 0,
+    "wkMQTTWillReclamationSelectedRetired": 0
+  },
+  "final_observers_reachable": true,
+  "hash_slots": 256,
+  "journal_capacity": 32,
+  "last_phase": "full-refusal-and-page-calibration",
+  "logical_slot_groups": 1,
+  "mode": "deadline",
+  "nodes": 1,
+  "page_bound": 16,
+  "page_deadline_ms": 750,
+  "passed": false,
+  "read_deadline_ms": 250,
+  "resubscriptions": 0,
+  "scenario": "mqtt-will-failed-read-fairness",
+  "terminal_cleanup_failed": true,
+  "terminal_receipts": 31
+}

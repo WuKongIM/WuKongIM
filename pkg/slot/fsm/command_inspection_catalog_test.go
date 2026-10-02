@@ -33,6 +33,19 @@ func TestCommandInspectionCoversRegisteredDecoders(t *testing.T) {
 		name string
 		data []byte
 	}{
+		{"mqtt_storage", checked(EncodeMQTTStorageCommand(metadb.MQTTStorageAdjustment{NodeID: 1, MembershipRevision: 1, ClusterLimit: 8192, Members: []uint64{1}, InitialDebt: new(uint64)}))},
+		{"mqtt_reclamation_index", EncodeMQTTReclamationIndexCommand()},
+		{"mqtt_replay_marker_clear", checked(EncodeMQTTReplayMarkerClearCommand(mqttSourceBindingCommandFixture().Key.Owner))},
+		{"mqtt_source_binding_retire", checked(EncodeMQTTSourceBindingRetireCommand(mqttSourceBindingCommandFixture().Key, 3, 1))},
+		{"mqtt_session_reclamation", checked(EncodeMQTTSessionReclamationCommand(mqttReclamationCommandFixture()))},
+		{"mqtt_inbox_admission", checked(EncodeMQTTInboxAdmissionCommand(0, mqttInboxAdmissionCommandFixture()))},
+		{"mqtt_lifecycle", checked(EncodeMQTTLifecycleCommand(mqttLifecycleCommandFixture()))},
+		{"mqtt_will", checked(EncodeMQTTWillCommand(0, mqttWillCommandFixture()))},
+		{"mqtt_source_binding", checked(EncodeMQTTSourceBindingCommand(0, mqttSourceBindingCommandFixture()))},
+		{"mqtt_session_cas", checked(EncodeMQTTSessionCASCommand(0, mqttSessionCommandFixture()))},
+		{"mqtt_subscription_mutation", checked(EncodeMQTTSubscriptionCommand(mqttSubscriptionCommandFixture()))},
+		{"mqtt_delivery_cursor", checked(EncodeMQTTDeliveryCursorCommand(mqttDeliveryCursorCommandFixture()))},
+		{"mqtt_window", checked(EncodeMQTTWindowCommand(mqttWindowCommandFixture()))},
 		{"message_update", checked(EncodeMessageUpdateCommand(metadb.MessageUpdateMutation{Op: "init", ChannelID: "g1", ChannelType: 2, Generation: "generation"}))},
 		{"noop", EncodeNoopCommand()},
 		{"upsert_user", EncodeUpsertUserCommand(user)},

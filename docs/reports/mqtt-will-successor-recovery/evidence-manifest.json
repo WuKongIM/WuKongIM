@@ -1,0 +1,386 @@
+{
+  "base_revision": "423187b33b2784c2d79ffaff5621ee4c8629dabe",
+  "scope": "final delivered evidence and reviewed sources; manifest itself excluded to avoid a recursive checksum",
+  "files": [
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 106011,
+      "sha256": "22832ef913d72d81956519670ae509620c0a2ecb9142bd83d04eac4348675ca6"
+    },
+    {
+      "path": "docs/reports/mqtt-implementation-progress.md",
+      "bytes": 336356,
+      "sha256": "fe82c46d3db959c36285f870d60cd96c71ddb2ec16f2f9462ef833eb6b404f51"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/README.md",
+      "bytes": 7718,
+      "sha256": "900f558efa63207d77757492b052c23c9e5dcd42887780a9aaf378da5eaf4805"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/final-matrix/mqtt-will-successor-1-committed-unapplied-crash-pressure-0.json",
+      "bytes": 1685,
+      "sha256": "425848ae9c73c2effe1da3e593ee668e5c14aa288a2c21ed8255dd0d3ebd7781"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/final-matrix/mqtt-will-successor-1-committed-unapplied-late-pressure-0.json",
+      "bytes": 1554,
+      "sha256": "bda84aef87aaa7bd5dc797730d1dca1871f13c3685a79a027e767145beff0e1e"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/final-matrix/mqtt-will-successor-1-queued-crash-pressure-0.json",
+      "bytes": 1570,
+      "sha256": "050b1ff333723f7c719400c9d49b5d9e83829fa434e3bcb9d36db3d64811060b"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/final-matrix/mqtt-will-successor-1-queued-crash-pressure-12.json",
+      "bytes": 1788,
+      "sha256": "ce3704d4370b60af2b809646e1b89819c05fefe9bc26b29e9b6aa31233824215"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/final-matrix/mqtt-will-successor-1-queued-late-pressure-0.json",
+      "bytes": 1439,
+      "sha256": "909ab484493089c33b018ff674b91ff369d687a3188591172c1b92c76e3baa31"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/final-matrix/mqtt-will-successor-1-queued-late-pressure-12.json",
+      "bytes": 1724,
+      "sha256": "47ea9a3189e8a2e2ca9bf1d7304976fe060129f4c684f98d2cdc3a97e47923b8"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/final-matrix/mqtt-will-successor-3-committed-unapplied-crash-pressure-0.json",
+      "bytes": 2725,
+      "sha256": "cf574980c9e591a2ce3303d45efa2ae2c9021c060d2b1cd7305f6c099cb6a6cf"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/final-matrix/mqtt-will-successor-3-committed-unapplied-late-pressure-0.json",
+      "bytes": 2595,
+      "sha256": "a061ddb5081f3c7e59c44c23a4ec52d436eb8de864a42f28d9daa95df24812a6"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/final-matrix/mqtt-will-successor-3-persisted-uncommitted-crash-pressure-0.json",
+      "bytes": 2659,
+      "sha256": "0f515a2e12d2112d270a16384c04aeb51ae54baf4df031f41a1b179136fe8598"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/final-matrix/mqtt-will-successor-3-persisted-uncommitted-crash-pressure-12.json",
+      "bytes": 2875,
+      "sha256": "7fde43d8acc1621753f53f3bcdc710f5a4312b931795ed64e830e9b4d7ed09fd"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/final-matrix/mqtt-will-successor-3-persisted-uncommitted-late-pressure-0.json",
+      "bytes": 2528,
+      "sha256": "c1a62dcf721dd116629412989ff806f6661126a041d35d3e53e34b191af48306"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/final-matrix/mqtt-will-successor-3-persisted-uncommitted-late-pressure-12.json",
+      "bytes": 2813,
+      "sha256": "d7d3d8459dbad444e2922810f07aafa1be6bc375d60740c1debf8ce24d82ea05"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/final-matrix/mqtt-will-successor-3-queued-crash-pressure-0.json",
+      "bytes": 2609,
+      "sha256": "a66a0903281c65e3aadec4fb8f0e6c385db1ea4807f43f79af0e2e65f26267fc"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/final-matrix/mqtt-will-successor-3-queued-late-pressure-0.json",
+      "bytes": 2488,
+      "sha256": "f362e335b3016b2ab10e6bf7899e425b9ac3c17d9ba853a493cdd3ccdd331c30"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/negative-control-source.json",
+      "bytes": 775,
+      "sha256": "28720b129e8262b8dfd0fd9d263b46d4158f67dd8dc8827b57365fe85fe6ff13"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/negative-control.patch",
+      "bytes": 359,
+      "sha256": "39eb07c4324c7d8dbffb35daa6e5bd65ac7c3bd78aaa4c61ac51ddb46dc90f33"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/negative-final/mqtt-will-successor-1-queued-late-pressure-12.json",
+      "bytes": 1053,
+      "sha256": "ef5d574b60e121849825841f827a7f1f2d25ffd8d1f13e7934f77524ed6db7b4"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/negative-initial/mqtt-will-successor-1-queued-late-pressure-12.json",
+      "bytes": 1053,
+      "sha256": "6e1f75e4e46c334c1734d88fb39afd7cc5a1cd90cab3371a48bf28d38b25f461"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/negative-v11-final/mqtt-will-successor-1-queued-late-pressure-12.json",
+      "bytes": 1092,
+      "sha256": "cf517f5b6e7450f43fefc39e0c217f0b85f1bccd4714fc1d58194d545aa81551"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/ordinary-regression/mqtt-will-1.json",
+      "bytes": 214,
+      "sha256": "6977b41806f63938d0e6afe4febfe0e161185d78d0bd00d74653a564bf980246"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/ordinary-regression/mqtt-will-3.json",
+      "bytes": 214,
+      "sha256": "f9647dbc896c0ad14ed136611475b6cf1ed28a6f70b2c8a133e6c7baf167794d"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/pressure-ack-wait-ineffective/mqtt-will-successor-1-queued-late-pressure-12.json",
+      "bytes": 1719,
+      "sha256": "9ecc14480eff2a2ca39a486d9328ffae9b23287119460c09b1a9e6e56cfdd2d7"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/pressure-live-ack-tracer/mqtt-will-successor-3-persisted-uncommitted-crash-pressure-12.json",
+      "bytes": 2836,
+      "sha256": "aa3f6b3e4a312fe2fe0cc2c774e669c1a118d69ea70a580bc87733947a3680c8"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/pressure-ordered-ack-tracer/mqtt-will-successor-1-queued-late-pressure-12.json",
+      "bytes": 1685,
+      "sha256": "74cdb2ec12aca20476d58d268bf26d3a3c74190c66653c27c0cdc696fcc2c166"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/pressure-persisted-tracer/mqtt-will-successor-3-persisted-uncommitted-crash-pressure-12.json",
+      "bytes": 2578,
+      "sha256": "b72e2f8db826bd8eab245a5071831ef903ce3036c791ef7d2a81d53cd78b3966"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/pressure-persisted-tracer/mqtt-will-successor-3-persisted-uncommitted-late-pressure-12.json",
+      "bytes": 2774,
+      "sha256": "f918d52cf35f0039094f4a81e759326ee5e43c943087f8d04fabf36bd0638ffa"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/pressure-quiet-diagnostic/mqtt-will-successor-1-queued-late-pressure-12.json",
+      "bytes": 1680,
+      "sha256": "0d143709d2f9aab7e5fba9be449e5623f250f70270a9b9c9248d82f7eaeb0096"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/pressure-quiet-failure/mqtt-will-successor-1-queued-late-pressure-12.json",
+      "bytes": 1518,
+      "sha256": "e6554147fd439d553c9f909b50888bfb37b1ae0858bc9f98f48b435bae3306ad"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/receipts/baseline-instrumentation-gap/mqtt-will-successor-1-queued-late.json",
+      "bytes": 502,
+      "sha256": "dba7ea319157b9ccdba4b7e8f9007c22b53c4b5e8afa8dd914c76e653b79a883"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/receipts/cut-tracers/mqtt-will-successor-1-committed-unapplied-late.json",
+      "bytes": 1213,
+      "sha256": "93c3573587e71677cf7c6e31f7a33a56443781f800a340c99b817ed85618f931"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/receipts/cut-tracers/mqtt-will-successor-1-queued-crash.json",
+      "bytes": 1188,
+      "sha256": "0456c8607ef6d4e42c5ced0c1590bdf44efbc2d9383e44e190c88a2482000b38"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/receipts/cut-tracers/mqtt-will-successor-3-committed-unapplied-late.json",
+      "bytes": 1776,
+      "sha256": "281f5fa6374d170eaff2c6e7cefea2895f9cb993f1be4a46c792f4fee708b780"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/receipts/cut-tracers/mqtt-will-successor-3-persisted-uncommitted-late.json",
+      "bytes": 1709,
+      "sha256": "83ea1640735544f2550a77eea3092a29e6ab7a30729dfe779ac1f6645e7c736e"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/receipts/cut-tracers/mqtt-will-successor-3-queued-crash.json",
+      "bytes": 1749,
+      "sha256": "d97684623cbb05ea3ad76eda4b730d65cbd5b71b76e0688857de239fa4f63b3e"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/receipts/first-tracer/mqtt-will-successor-1-queued-late.json",
+      "bytes": 1098,
+      "sha256": "60ce751f81ea49f936b7860b9936c444f31d0d6aee106b9a72f2f2e35626075a"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/receipts/pressure-instrumentation-gap/mqtt-will-successor-1-queued-late-pressure-12.json",
+      "bytes": 643,
+      "sha256": "68c6b5d6777d81b7ba795f1b53a7674e4ce5e3b74702cb62578124d840889d12"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/receipts/pressure-old-completion-bound/mqtt-will-successor-1-queued-late-pressure-12.json",
+      "bytes": 1356,
+      "sha256": "03cec0df3b2bbe8c5da049f9cfb786eb8f2fb719bda9c8f4f6452b419c708f17"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/review-captured-cap-source-scope.json",
+      "bytes": 2240,
+      "sha256": "f78876f48305dbd278bed5d36367f03955c5cf5c65c958331bc5d50b4f1648ce"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/review-final-scope.json",
+      "bytes": 22375,
+      "sha256": "5120acdbd50fbc8b7ce7df2efa2bcee3a5d3b36fc96e1f28d2cf7d198cd7f385"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/review-final-source-scope.json",
+      "bytes": 2240,
+      "sha256": "c01fac78d7673fbe41fcddbbc1af8bfecd761f1d8c92634a2389778409bdc3dd"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/review-history.md",
+      "bytes": 1864,
+      "sha256": "bfb0c048734e3d6668c767b5eb058ece5a7b77e01f67896c0c0dc9c73b92cd7e"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/review-live-pressure-source-scope.json",
+      "bytes": 2240,
+      "sha256": "9ca0cba18e19c83517b4a0f56dc2d9fe6cd20b07c30386e129ebdbb211e5d740"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/review-ordered-ack-source-scope.json",
+      "bytes": 2240,
+      "sha256": "7555ca062b3c449e9576810968df6d1c263ef3f4481b95c244210e7f1ab3384e"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/review-source-scope.json",
+      "bytes": 2255,
+      "sha256": "d3e8ca6ccb75178886543ad937577286a6e0506a3910ed76b20cc9c0e1983a2a"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/review.md",
+      "bytes": 3702,
+      "sha256": "8b86e85edae4beb8cb0ef08f6ea0af4c8206c75a2057b1ec33672404521cc79c"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/source-context.json",
+      "bytes": 8795,
+      "sha256": "31a2bce8d60805011bb8e6f1db23ef005373e970590f8fe9b41720588ffc3c00"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/spec-review.md",
+      "bytes": 1713,
+      "sha256": "b1129f44f983d99ae566faeb814c74511d6916bf72e8400fbba4d3557851e137"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/standards-review.md",
+      "bytes": 1639,
+      "sha256": "bd84b6bdce64ea18f0873b8f344d1f88a2b59799380bb06e7267e34dc11e6802"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/v9-exploratory-matrix/mqtt-will-successor-1-committed-unapplied-crash-pressure-0.json",
+      "bytes": 1646,
+      "sha256": "993e843470ebb2e2cb9a610c3d650dcc25b784434dae72f0fdb18d1b098df5d7"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/v9-exploratory-matrix/mqtt-will-successor-1-committed-unapplied-late-pressure-0.json",
+      "bytes": 1515,
+      "sha256": "8de72a26e8fbd4ee343c9cf2cdcdcdcc11eebe1d14dadb46a707e83fe9c25f23"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/v9-exploratory-matrix/mqtt-will-successor-1-queued-crash-pressure-0.json",
+      "bytes": 1531,
+      "sha256": "91d9ac169b5f13ead1635dd39948b0e29bac945c2192180ce5f657c241305aa1"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/v9-exploratory-matrix/mqtt-will-successor-1-queued-crash-pressure-12.json",
+      "bytes": 1749,
+      "sha256": "3b2c5a8acc827750814c77d17a3bfd2f8cb4a6a6df74fd038639713e29047005"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/v9-exploratory-matrix/mqtt-will-successor-1-queued-late-pressure-0.json",
+      "bytes": 1400,
+      "sha256": "5f9dfc42bfb75905eabf087c67307a6508eaa57c0f83e45cc562266cec4d6076"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/v9-exploratory-matrix/mqtt-will-successor-1-queued-late-pressure-12.json",
+      "bytes": 1685,
+      "sha256": "be473a682af601fc1d48fce8bf7809a9f23e3ecd3f5692500aefa948c724c680"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/v9-exploratory-matrix/mqtt-will-successor-3-committed-unapplied-crash-pressure-0.json",
+      "bytes": 2686,
+      "sha256": "3af26584c3461f0b108a83bfd08991cf3cbc996ba66a89f88d31534a475b8914"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/v9-exploratory-matrix/mqtt-will-successor-3-committed-unapplied-late-pressure-0.json",
+      "bytes": 1934,
+      "sha256": "438bd933e3a1e9b3d3188e8f0c7ce8d5725c99a37ed1de705d2d87ca5a042b1d"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/v9-exploratory-matrix/mqtt-will-successor-3-persisted-uncommitted-crash-pressure-0.json",
+      "bytes": 2620,
+      "sha256": "69717e1291cf39c6347db2b1a8818897c797be4a8fb2e6ac40bda644fbe7d9c3"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/v9-exploratory-matrix/mqtt-will-successor-3-persisted-uncommitted-crash-pressure-12.json",
+      "bytes": 2837,
+      "sha256": "46efc5420bdf8f09875826165c06330acccf6556a13713d9f4a9bec7d6b263a5"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/v9-exploratory-matrix/mqtt-will-successor-3-persisted-uncommitted-late-pressure-0.json",
+      "bytes": 2489,
+      "sha256": "54beb93246b15f9a0aa65e99203e43460b300daa7e71867fedce11c7da50b51e"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/v9-exploratory-matrix/mqtt-will-successor-3-persisted-uncommitted-late-pressure-12.json",
+      "bytes": 2774,
+      "sha256": "cb34dc0f67428870af783b4e8f9a62d2cf972bbd20223ed187ac74cba8b8a6cb"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/v9-exploratory-matrix/mqtt-will-successor-3-queued-crash-pressure-0.json",
+      "bytes": 2570,
+      "sha256": "2b63a9c2d4d56ce4be8d25b6313be63d1fc6254c60f5c8cdae6bf18162e3da67"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/v9-exploratory-matrix/mqtt-will-successor-3-queued-late-pressure-0.json",
+      "bytes": 2448,
+      "sha256": "fb4c3c29917925d4567a77fb9e8d6a937637259c4c3939679cca228a833852e8"
+    },
+    {
+      "path": "docs/reports/mqtt-will-successor-recovery/validation-results.json",
+      "bytes": 16452,
+      "sha256": "c3350fc11fb0aac4253e4fc074fedc33255bc61b329579a0c7f8122a66d985bf"
+    },
+    {
+      "path": "docs/specs/mqtt-will-successor-recovery.md",
+      "bytes": 7294,
+      "sha256": "856c6272a854898694e7c2b801cfe4df78f44a21ecf230f995636951ccd7cf1f"
+    },
+    {
+      "path": "internal/usecase/mqttsession/FLOW.md",
+      "bytes": 16283,
+      "sha256": "48ddfa8c06eaa34fbc6c285b9995dfe6d6f87842fc72970ed952a079cf06ad55"
+    },
+    {
+      "path": "internal/usecase/mqttsession/will_attempt_reclamation.go",
+      "bytes": 4065,
+      "sha256": "3afec0a5978870d1fbebf6d309d5492c9e1a64807466fd4e276b33f406dadd73"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "bytes": 8312,
+      "sha256": "7012e0f10365275715271cf102be2ef60082c8d992e6b2534020aa4d14561d1c"
+    },
+    {
+      "path": "pkg/slot/fsm/mqtt_will_cmds.go",
+      "bytes": 3568,
+      "sha256": "553de8edf3c421db0b6b6c6e6d6f52d0e700c6ac086e9def4441ed81e51d7b7c"
+    },
+    {
+      "path": "pkg/slot/fsm/statemachine.go",
+      "bytes": 31221,
+      "sha256": "0fbd536ed7f613a4c2ebf1f9554e9a5e6e56e6009cff29a6ed97ca757859da5f"
+    },
+    {
+      "path": "pkg/slot/proxy/mqtt_write.go",
+      "bytes": 15643,
+      "sha256": "61d75d1cfa497233d3f9fe900579305070daf616c00c78f9bcfbc101d00783f3"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "bytes": 23351,
+      "sha256": "6f67d2958390180b939d11812afdfcc2a0323ce88518fb19de9128b9ea695e4f"
+    },
+    {
+      "path": "test/e2e/mqtt/will_successor_recovery/AGENTS.md",
+      "bytes": 1057,
+      "sha256": "9d947e04a07b9bda0bb7de59f8baf1bc58487ce65be3e1c79e3e75b41ab35a9a"
+    },
+    {
+      "path": "test/e2e/mqtt/will_successor_recovery/recovery_test.go",
+      "bytes": 25931,
+      "sha256": "cca7209041dcf6d9a4e8621249b8e473898a0b9215174742298bf10e30358654"
+    }
+  ]
+}

@@ -10,10 +10,8 @@ summary: Implements the reusable multi-reactor Channel log runtime, replication,
 metadata fences, per-Channel ordering, leader append, durable-quorum commits, follower pull replication,
 committed progress, retention, lifecycle, and synchronous reactor facades.
 
-`machine` holds pure transitions, `reactor` owns state and scheduling,
-`replication` holds protocol decisions, `service`
-is the synchronous facade, `store` defines persistence, `transport` defines RPC
-DTOs, and `worker` bounds blocking I/O.
+`machine` holds pure transitions; `reactor` owns scheduling; `replication` owns protocol decisions.
+`service` is the facade, `store` defines persistence, `transport` defines RPC, and `worker` bounds blocking I/O.
 
 ## Boundaries
 - Product permission, authority selection, subscriber fanout, and SENDACK
@@ -32,9 +30,9 @@ DTOs, and `worker` bounds blocking I/O.
 ## Main Flows
 
 1. The service reserves a Channel key and submits an append; the reactor fences
-   role, epochs, write admission, and capacity, while store workers durably
+   role, epochs, optional exact durable route, write admission and capacity, while workers durably
    append in order and local or quorum progress completes aligned futures.
-   Borrowed public payloads are cloned at admission; an adapter-owned append
+   Borrowed payload and publication-metadata bytes are cloned at admission; an adapter-owned append
    may explicitly transfer immutable payloads that downstream state, quorum,
    and storage submissions share while copying record metadata.
    With `DurableQuorumLog`, leader activation first installs a recovered
@@ -45,7 +43,7 @@ DTOs, and `worker` bounds blocking I/O.
    checkpointed stop before either runtime can be evicted.
    In durable-log mode, authority installation seeds non-voting learner catch-up
    from the quorum-proved frontier; fixed repair workers retain one-page progress.
-   Tail growth preserves that cursor; new gap evidence and authority replacement fence it.
+   Tail growth preserves that cursor; new gap/authority fence it. Unavailable prefixes resume only after a bounded peer probe matches the local exact tail identity under an unchanged frontier.
 3. Committed reads expose only HW-covered records above the logical retention
    floor. Runtime probes distinguish a loaded Leader from completed quorum
    recovery, including when a durable write fence permits only reads. Optional
@@ -57,18 +55,11 @@ DTOs, and `worker` bounds blocking I/O.
 - Channel epoch, leader epoch, leader ID, write fence, generation, and worker op
   identity fence every relevant transition and completion.
 - Durable quorum success requires local durability plus a distinct-voter quorum.
-  Exact manifests and closed durable/already-durable/absent/conflict/unknown
-  outcomes make ambiguous commits safely retryable after cancellation or
-  restart; caller cancellation cannot revoke admitted durability. A definitive
-  local conflict reaches durable command lookup without waiting for missing
-  peers or retaining an impossible local pending proposal. A valid newer durable
-  authority invalidates a resumed former leader and returns stale metadata;
-  same-authority, missing, or malformed evidence remains a conflict.
+  Exact manifests and closed durable/already-durable/absent/conflict/unknown outcomes make ambiguous commits safely retryable after cancellation or restart; caller cancellation cannot revoke admitted durability. A definitive local conflict reaches durable command lookup without waiting for missing peers or retaining an impossible local pending proposal. A valid newer durable authority invalidates a resumed former leader and returns stale metadata; same-authority, missing, or malformed evidence remains a conflict.
 - The node-owned replication runtime bounds local mutation batches, per-target
   exchange, recovery probes, and follower repair without per-Channel goroutines.
-  Peer owners are scheduled only for executable queue items, preserving the
-  first exchange kind and per-Channel ordering barriers. Releasing in-flight
-  ownership wakes blocked classes; blocked-only queues do not reschedule empty owners.
+  On-demand committed replica refresh replays the installed sequencer's tail through existing repair workers, including under an unchanged write fence. Exact authority is required; caller HW and scheduling supply no durability receipt.
+  Peer owners are scheduled only for executable queue items, preserving the first exchange kind and per-Channel ordering barriers. Releasing in-flight ownership wakes blocked classes; blocked-only queues do not reschedule empty owners.
   Install preserves every observed suffix, proves compatible voter tails on one
   exact hash chain, and copies at most one bounded page before yielding for a fresh proof. Probe rounds
   consume arrived evidence plus the local result, then use a quorum without waiting
@@ -85,13 +76,50 @@ DTOs, and `worker` bounds blocking I/O.
    so upper layers may transfer them without another deep copy.
    The optional persisted-frontier port reads LEO without an unused checkpoint;
    committed reads keep the full Load contract and quorum boundary.
-- New proposals containing a nonzero message lifetime use exact proposal format 2,
-  binding Expire in the digest; legacy format-1 hashes remain unchanged.
-  Channel RPC 9 and quorum exchange 5 preserve lifetimes during replication and
-  recovery. Deploy matched runtimes before emitting format 2; binary-only rollback
-  and lossy older message encodings are unsupported.
+- Nonzero lifetimes require exact proposal format 2; publication metadata
+  requires format 3 and message record codec 2. Native hashes remain unchanged.
+  Channel RPC 11 and quorum exchange 6 preserve metadata; opt-in append RPC 12 also preserves exact route fences;
+  all content budgets include it. Older lossy encodings fail explicitly.
+  Exchange 6 requires matched replicas even before MQTT activation. Binary-only
+  rollback after new-format writes is unsupported.
+- Explicit MQTT source activation uses one format-4 control with a separate hash
+  domain. Replica stores must advertise atomic pending protection/materialization;
+  unsupported factories reject append and recovery. Quorum, restart and learner
+  repair carry the exact control. The first activation survives repeated controls;
+  reactor admission orders it with business appends. The optional source facade
+  confirms captured HW through checkpoint workers and rechecks current fences;
+  existing protection avoids another control. Subscription projection and
+  shared-copy transfer remain separate; this receipt is not SUBACK authority.
+  Format-5 journals retain full-content checkpoints; exact retry, recovery and learner transfer preserve control intent.
+  Unsupported stores reject it; neither the payload nor its journal authorizes GC.
+  Typed format-6 retirement verifies current sequencer authority and independently reloads committed anchors; stable commands preserve pending identities and reuse newer decisions.
+  It preserves whole-anchor decisions through replica recovery and uses the bounded reactor append queue; fresh cluster routing binds placement, while ordered product consumer admission remains separate.
+  The optional retirement store port materializes verified baselines and bounded cleanup, preserving suffix repair/readiness after body removal.
+  The optional retirement selector verifies historical whole anchors below a captured consumer floor in bounded reverse pages.
+  Typed anchor admission shares the durable sequencer, checks exact installed
+  membership and chains the latest accepted prefix. Stable source/Through commands
+  reuse committed proofs after restart or original trim; pending retries keep the
+  original row. Anchor-only tails stay idle. The service now reserves the append
+  queue and uses typed workers; control completion advances durable progress even
+  after observer cancellation, without inserting request identities into caches.
+  Cluster entry adds fresh Slot routing; source-release admission remains separate.
+  Read-only planning pins HW and the exact write fence through checkpoint workers;
+  next ranges use accepted progress, skip verified bounded anchor/retirement tails and ignore copy-ahead.
+  The compound-original port binds plan, consumer boundary and accounted frontier to one bounded page under fresh cluster authority; it grants no admission or release. The consumer store port returns bounded typed messages and native control classification within a verified committed anchor; the repair port exports/imports complete anchor intervals;
+  each side verifies its own committed journal, with no sender-supplied expected
+  digest. Store planning selects from durable coverage and at most 64 journals,
+  validates continuation hints and completes only an exact target. Cluster recovery
+  steps route to that target, try at most four donors with separate deadlines and
+  return scan/import/retry/completion under fresh metadata; explicit retirement first applies committed baselines with bounded cleanup.
+  Import keeps the pre-import plan; the next read verifies completion. Active migration
+  probes bind coverage to captured HW; explicit source release independently verifies committed/local proofs through an optional store port.
+  Replay preparation uses the same recovered leader/route admission and bounded
+  checkpoint workers. It captures HW, verifies protection and returns owned
+  local content after rechecking fences; it cannot release the original source.
 - Same-Channel append ordering survives batching and worker concurrency.
   Quorum success requires replicated progress; desired replicas never imply it.
+- Original server Will lookup remains a candidate in its separate identity domain.
+  Retained receipt reads use recovered reactor authority and captured-HW checkpoint workers with lifecycle/cancellation fences; the optional store pins original-or-trim proof, while fresh Slot authority remains above this facade.
 - Unloaded state is absence from the reactor map. Cold PullHint activation must
   resolve authoritative metadata and prove local replica membership before
   opening storage.
@@ -100,11 +128,11 @@ DTOs, and `worker` bounds blocking I/O.
 - Write fencing rejects new append admission without discarding already
   accepted work. Lifecycle eviction requires no pending work and current
   fenced checkpoint/replica evidence.
-
 - Message version and update time are transient read overlays only. Immutable stored/replicated message encodings do not include edit state; raw log/backup reads remain original records.
 
-## Read First
+Protected original proposals first fund all voters and learners through the existing bounded peer owner. Exact manifest/nonce storage prepare/cancel receipts never vote for durability. Only successful complete funding enters original dispatch; failure cancels exact funding under a separate bounded context and grants a fresh non-submission capability. Explicit recovery barriers use native format 7; business SyncOnce flags alone grant no maintenance exemption.
 
+## Read First
 - [Public contracts](channel.go)
 - [Core types](types.go)
 - [Service facade](service/service.go)
@@ -113,6 +141,5 @@ DTOs, and `worker` bounds blocking I/O.
 
 ## Update Triggers
 
-Update this file when subtree ownership changes, append or quorum semantics
-change, a new blocking-I/O path is added, metadata fencing changes, lifecycle
+Update when subtree ownership, append/quorum semantics, blocking-I/O paths, metadata fencing or lifecycle
 states change, or committed-read and retention guarantees change.

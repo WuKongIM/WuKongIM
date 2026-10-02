@@ -1,0 +1,19 @@
+{
+  "source_revision": "68eb337c50267fb2e0114130ef2b028760d17555",
+  "only_product_changes": "inert cut comments",
+  "files": [
+    {
+      "path": "internal/usecase/mqttsession/will_execution.go",
+      "sha256": "cefce9bbd18f8e393a665add891bf3011bd6db9042253cd74368f0302d582163"
+    },
+    {
+      "path": "internal/runtime/channelappend/router.go",
+      "sha256": "7476f0cdf14a81eee824a7234cd6d208816177264c3341286fa27a41fbfc3d4b"
+    },
+    {
+      "path": "test/e2e/mqtt/will_recovery/recovery_test.go",
+      "sha256": "83de1847c715b82091c0b84c160100f85c4386d36f092798f372e0c4f63fc050"
+    }
+  ],
+  "binary_sha256": "7a022bd1be7426a2b65a2b3c1c59e9acaf61627ecd83af11ea4b96e0cf0fdba7"
+}

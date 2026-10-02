@@ -18,8 +18,9 @@
     "types:check": "fumadocs-mdx && next typegen && tsc --noEmit",
     "postinstall": "fumadocs-mdx",
     "lint": "eslint",
-    "verify": "bun run sample:check && bun run sample:go-webhook:check && bun run test && bun run navigation:check && bun run openapi:check && bun run lint && bun run types:check && bun run build && bun run test:output",
-    "sample:go-webhook:check": "cd examples/go-webhook && GOWORK=off go test . -count=1 -timeout=30s"
+    "verify": "bun run sample:check && bun run sample:go-webhook:check && bun run sample:mqtt:check && bun run test && bun run navigation:check && bun run openapi:check && bun run lint && bun run types:check && bun run build && bun run test:output",
+    "sample:go-webhook:check": "cd examples/go-webhook && GOWORK=off go test . -count=1 -timeout=30s",
+    "sample:mqtt:check": "npm --prefix examples/mqtt-quickstart ci --ignore-scripts --no-audit --no-fund && npm --prefix examples/mqtt-quickstart run check"
   },
   "dependencies": {
     "@fumadocs/language": "0.2.4",

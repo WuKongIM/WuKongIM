@@ -33,6 +33,9 @@ func ExportBundle(ctx context.Context, root string, store *inspect.Store, opts E
 	if opts.HashSlotCount == 0 {
 		return stats, fmt.Errorf("%w: export hash slot count is required", ErrValidation)
 	}
+	if err := rejectMQTTExport(ctx, store); err != nil {
+		return stats, err
+	}
 	if err := prepareExportRoot(root, opts.Overwrite); err != nil {
 		return stats, err
 	}
@@ -56,6 +59,30 @@ func ExportBundle(ctx context.Context, root string, store *inspect.Store, opts E
 		return stats, err
 	}
 	return stats, nil
+}
+
+// rejectMQTTExport fails before output preparation: bundle v1 cannot preserve
+// MQTT bindings, recovery evidence or capacity debt, including ended/orphan state.
+func rejectMQTTExport(ctx context.Context, store *inspect.Store) error {
+	if store.Meta() == nil || store.Messages() == nil {
+		return fmt.Errorf("%w: export requires open metadata and message stores", ErrValidation)
+	}
+	for _, domain := range []struct {
+		name  string
+		check func(context.Context) (bool, error)
+	}{
+		{"metadata", store.Meta().HasMQTTState},
+		{"message", store.Messages().HasMQTTState},
+	} {
+		found, err := domain.check(ctx)
+		if err != nil {
+			return fmt.Errorf("%w: inspect %s MQTT state: %w", ErrValidation, domain.name, err)
+		}
+		if found {
+			return fmt.Errorf("%w: JSONL export does not support persistent MQTT state; use native backup/restore with matching versions", ErrValidation)
+		}
+	}
+	return nil
 }
 
 func normalizeExportOptions(opts ExportOptions) ExportOptions {
@@ -133,7 +160,14 @@ func exportMetaFiles(ctx context.Context, root string, meta *metadb.MetaDB, opts
 		specs = append(specs, exportMetaSpec{table: table, path: "meta/" + table + ".jsonl", kind: FileKindMetaMessageUpdates, convert: exportMessageUpdateRecord(table)})
 	}
 
-	entries := make([]FileEntry, 0, len(specs))
+	entries := make([]FileEntry, 0, len(specs)+1)
+	sequenceEntry, err := exportSubscriberSequences(ctx, root, meta, opts, stats)
+	if err != nil {
+		return nil, err
+	}
+	if sequenceEntry != nil {
+		entries = append(entries, *sequenceEntry)
+	}
 	for _, spec := range specs {
 		entry, err := exportMetaFile(ctx, root, meta, opts, spec, stats)
 		if err != nil {
@@ -616,7 +650,14 @@ func exportSubscriberRecord(slot uint16, row metadb.InspectRow) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return SubscriberRecord{HashSlot: slot, ChannelID: channelID, ChannelType: channelType, UID: uid}, nil
+	incarnation, err := rowUint64(row, "incarnation")
+	if err != nil {
+		return nil, err
+	}
+	if incarnation == 1 {
+		incarnation = 0
+	} // Keep legacy bundle row bytes stable.
+	return SubscriberRecord{HashSlot: slot, ChannelID: channelID, ChannelType: channelType, UID: uid, Incarnation: Uint64(incarnation)}, nil
 }
 
 func exportUserChannelMembershipRecord(slot uint16, row metadb.InspectRow) (any, error) {
@@ -804,14 +845,19 @@ func exportMessageRecord(channelKey string, row msgdb.InspectMessageRow) (Messag
 	if err != nil {
 		return MessageRecord{}, err
 	}
+	metadata, err := inspectPublicationMetadata(row)
+	if err != nil {
+		return MessageRecord{}, err
+	}
 	return MessageRecord{
-		ChannelKey:        channelKey,
-		MessageSeq:        Uint64(messageSeq),
-		MessageID:         Uint64(messageID),
-		ClientMsgNo:       clientMsgNo,
-		FromUID:           fromUID,
-		ServerTimestampMS: serverTimestampMS,
-		PayloadB64:        base64.StdEncoding.EncodeToString(payload),
+		ChannelKey:             channelKey,
+		MessageSeq:             Uint64(messageSeq),
+		MessageID:              Uint64(messageID),
+		ClientMsgNo:            clientMsgNo,
+		FromUID:                fromUID,
+		ServerTimestampMS:      serverTimestampMS,
+		PayloadB64:             base64.StdEncoding.EncodeToString(payload),
+		PublicationMetadataB64: base64.StdEncoding.EncodeToString(metadata),
 	}, nil
 }
 

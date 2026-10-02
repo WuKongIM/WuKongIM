@@ -1,0 +1,22 @@
+=== RUN   TestFirstGroupSubscriptionAdmission
+=== RUN   TestFirstGroupSubscriptionAdmission/3-node-cluster
+=== RUN   TestFirstGroupSubscriptionAdmission/3-node-cluster/empty/00
+[DEBUG-first-subscribe] phase=authorize ms=32 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=preparing ms=89 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=source_prepare ms=1682 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=replay_confirm ms=687 error=true deadline=false canceled=false pending=true conflict=false limit=false
+[DEBUG-first-subscribe] phase=projection ms=2434 error=true deadline=false canceled=false pending=true conflict=false limit=false
+[DEBUG-first-subscribe] phase=read ms=34 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=authorize ms=8 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=source_prepare ms=445 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=replay_confirm ms=704 error=true deadline=false canceled=false pending=true conflict=false limit=false
+[DEBUG-first-subscribe] phase=projection ms=1215 error=true deadline=false canceled=false pending=true conflict=false limit=false
+[DEBUG-first-subscribe] phase=read ms=26 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=authorize ms=11 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=source_prepare ms=441 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=replay_confirm ms=584 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=projection ms=1081 error=true deadline=false canceled=true pending=false conflict=false limit=false
+--- FAIL: TestFirstGroupSubscriptionAdmission (15.64s)
+FAIL
+FAIL    github.com/WuKongIM/WuKongIM/test/e2e/mqtt/subscribe_admission  16.646s
+FAIL

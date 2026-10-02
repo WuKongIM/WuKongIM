@@ -7,19 +7,13 @@ summary: Adapts versioned node RPC frames to local authority, runtime, and manag
 
 ## Responsibility
 
-This package owns internal node-to-node RPC handlers, clients, bounded codecs,
-version negotiation, and stable status mapping. It transports presence,
-delivery, Channel append, lifecycle, backup, diagnostics, management, and
-Operations MCP commands to local ports. It does not own routing, conflict,
-retry, lifecycle-safety, or business policy.
+This package owns node RPC handlers, clients, bounded codecs and stable statuses
+for product, management and Operations MCP. Routing, retries and business policy live elsewhere.
 
 ## Boundaries
 
-RPC service IDs come from the cluster transport. Request and response DTOs
-adapt narrow contracts from use cases and runtimes; local implementations are
-injected by `internal/app`. Origin-side orchestration chooses the target. The
-receiver revalidates only local authority and fences required by the operation,
-then calls the configured local port.
+Cluster assigns service IDs. DTOs adapt narrow ports injected by `internal/app`.
+Origins select targets; receivers revalidate local authority/fences before calling ports.
 
 ## Main Flows
 
@@ -58,6 +52,15 @@ scheduled backup or restore
   service 88 is explicitly unsupported, while transport failures remain unavailable.
 - Channel append RPC never resolves routes, creates proxy Channel state,
   appends outside local authority, or runs post-commit effects elsewhere.
+- Channel append request 3 carries bounded publication metadata. Native-only
+  requests retain version-2 bytes; invalid metadata fails before dispatch.
+- Owner-push request 2 preserves publication metadata, original timestamp and
+  message settings. Empty extensions keep version-1 bytes; lossy downgrade is forbidden.
+- MQTT owner RPC 107 uses bounded `WKMQ`/`WKMq` format 1 and echoes the complete
+  owner identity. Only a completed local quiescence returns success; unknown
+  boots, missing support, malformed replies and transport failure prove nothing.
+- Will dispatch RPC 105 uses bounded `WKWF`/`WKwf` format 1 with operation/exact-attempt echo; seal/cleanup mutations run independently.
+  Missing support, unknown status, malformed echoes and transport loss grant no proof.
 - Transport cancellation and unavailable-target failures map to stable typed
   caller errors without reordering active aligned items.
 - Manager latest-message RPC preserves bounded scan saturation as its stable
@@ -84,15 +87,13 @@ scheduled backup or restore
 
 - Message-update hint RPC validates its format and bounded route page, then delegates exact owner-local writes. It never routes again or transports message payloads.
 
+Channel append replies have a closed `not_submitted` error code. Decoder rejects it alongside any successful receipt or nonzero message identity; older peers reject the new code. The code is whole-invocation evidence, not a generic backpressure classification.
 - Stream EVENT service uses an independent version-1, 256 KiB envelope with at most 512 owner routes. It delegates exact session writes and never reuses the body-free edit notification wire contract.
 
 ## Read First
 
-- [presence_rpc.go](presence_rpc.go)
-- [channel_append_rpc.go](channel_append_rpc.go)
-- [scheduled_backup_rpc.go](scheduled_backup_rpc.go)
-- [manager_connection_rpc.go](manager_connection_rpc.go)
-- [opsmcp_rpc.go](opsmcp_rpc.go)
+- [Presence](presence_rpc.go), [Channel append](channel_append_rpc.go), [Backup](scheduled_backup_rpc.go)
+- [Manager connections](manager_connection_rpc.go), [Operations MCP](opsmcp_rpc.go)
 
 ## Update Triggers
 

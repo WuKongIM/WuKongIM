@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "status": "offline_projection_ports_verified",
+  "full_goal_status": "in_progress",
+  "source_revision": "ed6ffda90666d63f0ba3511dade20a257a417e0a",
+  "source_rules_sha256": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "internal/usecase/mqttsession/FLOW.md": "5e8abc0fa954577b42e9117530aa6cff01de56ea63f9e6304132a8b45860d24a",
+    "internal/runtime/mqttsession/FLOW.md": "8774dd9734f74e53e5dbb45bc22dd7a0d27e525e1a66f38578b990b0e90f213f",
+    "internal/app/FLOW.md": "466997951355cc94e2fe6dfb9ca3a391184e9840b9afc29c7a4ac10203229fe1",
+    "pkg/db/FLOW.md": "33c7ba81c18ed8cb377e9bef541526028ef31e64dd03becc7ac1ea6cc14fb10a",
+    "pkg/db/meta/FLOW.md": "2b3d6b203dd8c722c4e0dd5aafcddc289b5b30e50e477d5ad22385f9de0c66e7"
+  },
+  "candidate_go_sha256": {
+    "internal/usecase/mqttsession/group_projection.go": "30430c00c67947b132cf63d35581b2807d9358dc9a2912874cae0864aaba37e3",
+    "internal/usecase/mqttsession/group_sources.go": "15dde071e4342df6c5514708a9eb62c63d32e2e214ab5c75ddf855d9d8266e6f",
+    "internal/usecase/mqttsession/inbox_establishment.go": "3ca75dfdc126d151dd8f65f3db5dd7d3c507776453927b9251b20e99e4c429a7",
+    "internal/usecase/mqttsession/inbox_establishment_state.go": "494427901ea3a5de9d44ab9468fa75719ffc565370e231cffe62010522594c50",
+    "internal/usecase/mqttsession/inbox_establishment_test.go": "80ba1db20db76aef57410bbd74377761f5ff7e6a352891aab5c210b847f0c9a9",
+    "internal/usecase/mqttsession/inbox_source_state.go": "4dcdbce0311ef51aaaed55038ba0cf4b81a729790b8a95168bc9d6af9a2d2897",
+    "internal/usecase/mqttsession/inbox_sources.go": "d4fa815eeb1625ae4d391edda9ab5cc375d41d5ecc7ed83d801fe8328b17048a",
+    "internal/usecase/mqttsession/offline_establishment_test.go": "efde125d52549bd77a3787e5bc0d0b35e2759bc69a4cc317b49892cf6db98a47",
+    "internal/usecase/mqttsession/preparation_scope.go": "ab5fab1196846f5b7cdbd201e197d0c991d1bad2874d66affbb7abdc82112599",
+    "internal/usecase/mqttsession/subscription_types.go": "08458f4abdcbee3c9b5f6f86b0f964842566e4376ef1fe0404102e26afaf2f4b"
+  },
+  "test_first": {
+    "inventory": "docs/specs/mqtt-pending-establishment-recovery.md",
+    "tests_written_before_production": true,
+    "baseline": {
+      "command": "GOPROXY=https://proxy.golang.org,direct GOWORK=off go test -overlay /tmp/mqtt-offline-establishment-baseline/overlay.json -p 2 ./internal/usecase/mqttsession -run \"^TestOffline.*Establishment\" -count=1",
+      "exit_code": 1,
+      "log": "/tmp/mqtt-offline-establishment-red.log",
+      "sha256": "1834d1d685e6679d8ede871f3d4962f31391d7b399f35de70b882517ed885ce6",
+      "result": "Missing EstablishOffline methods at frozen source revision; compile-time RED, not runtime failure.",
+      "method": "Before production edits, git show HEAD saved six affected source files and the overlay hid the new preparation_scope.go. Dependencies delayed executing this saved-baseline check until after implementation. New tests remain visible."
+    },
+    "negative_control": {
+      "command": "GOWORK=off go test -overlay /tmp/mqtt-offline-establishment-baseline/unfenced-overlay.json -p 2 ./internal/usecase/mqttsession -run \"^TestOfflineInboxEstablishmentDoesNotRecaptureOwnerInsideSourcePreparation$\" -count=1",
+      "exit_code": 1,
+      "log": "/tmp/mqtt-offline-establishment-fence-negative-control.log",
+      "sha256": "21f51428e01f939d909727fc686688f92e8e7d6de911f201489092c0eb03b6b8",
+      "result": "Removing only nested captured-Owner/child checks allows a second source-protection call after takeover. The prewritten regression fails as expected.",
+      "method": "Post-implementation temporary overlay; candidate source was not modified. This is a negative control, not a pre-implementation runtime RED."
+    }
+  },
+  "validation": [
+    {
+      "name": "focused_race",
+      "command": "GOPROXY=https://proxy.golang.org,direct GOWORK=off go test -race -p 2 ./internal/usecase/mqttsession -run \"TestOffline.*Establishment|TestGroupProjection|TestMQTTGroupSource|TestMQTTInbox\" -count=1",
+      "exit_code": 0,
+      "log": "/tmp/mqtt-offline-establishment-green.log",
+      "log_sha256": "fc78a59b8a51b44cca641c26e23dfe00452cd976b2187f73b9c3cf6eb34e413d",
+      "result": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/mqttsession\t35.481s"
+      ]
+    },
+    {
+      "name": "all_usecase_race",
+      "command": "GOPROXY=https://proxy.golang.org,direct GOWORK=off go test -race -p 2 ./internal/usecase/mqttsession -count=1 -timeout=5m",
+      "exit_code": 0,
+      "log": "/tmp/mqtt-offline-establishment-full-race.log",
+      "log_sha256": "bc18525ef731120e30c2067bcf20cd770295f121f39ea3d84a810d8da3855991",
+      "result": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/mqttsession\t126.260s"
+      ]
+    },
+    {
+      "name": "late_callback_integration",
+      "command": "GOPROXY=https://proxy.golang.org,direct GOWORK=off go test -race -p 2 -tags=integration ./internal/usecase/mqttsession -run \"^TestMQTTInboxEstablishmentDeadline\" -count=1 -timeout=2m",
+      "exit_code": 0,
+      "log": "/tmp/mqtt-offline-establishment-deadline.log",
+      "log_sha256": "4765e7ea04404a677db943389283e8ef9e2fe20a2a79c84beacbde56cc2fbb0a",
+      "result": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/mqttsession\t4.567s"
+      ]
+    },
+    {
+      "name": "existing_real_cluster_composition",
+      "command": "GOPROXY=https://proxy.golang.org,direct GOWORK=off go test -race -p 2 -tags=integration ./internal/app -run \"^TestMQTTInboxEstablishmentExistingAndFutureOfflinePersonSingleNodeCluster$\" -count=1 -timeout=3m",
+      "exit_code": 0,
+      "log": "/tmp/mqtt-offline-establishment-app.log",
+      "log_sha256": "753e0d8de37229987d2177dcf0e34a6427e69e60a00e05f116cbec2d270c92e1",
+      "result": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/app\t6.455s"
+      ]
+    },
+    {
+      "name": "flow-doc-contracts",
+      "command": "GOWORK=off go run ./scripts/flowcheck --mode check",
+      "exit_code": 0,
+      "log": "/tmp/mqtt-offline-establishment-flow.log",
+      "log_sha256": "518c3c03df7eb5d31ffef78aaf4666017b3054bf4e16f65a227b11efc525cf09",
+      "result": "87 compliant; 0 invalid; 9 pre-existing length warnings"
+    }
+  ],
+  "coverage": [
+    "Group recovery before registration and after unknown/boundary/cursor/active/replay interruptions; known starts retained across a newer tail.",
+    "Inbox qualification, per-source discovery, completion and replay interruptions; one bounded directory page per turn.",
+    "Active/Ended/expired/missing Sessions, regressed clocks, changed Owner/UID/intent/authorization, cancelled or panicking callbacks and malformed reads reject receipts.",
+    "Nested inbox preparation cannot recapture a replacement Owner; foreground APIs retain live admission.",
+    "Projection alone preserves Preparing intent and offline expiry; all-replica confirmation remains a required port."
+  ],
+  "limits": [
+    "No background Preparing dispatch, final activation or revocation orchestration yet; current consumer worker still skips Preparing.",
+    "Existing cluster integration exercises foreground composition with the stricter nested port; offline recovery tests use real metadata and controlled ports, not product-process fault injection.",
+    "No new table, encoding, RPC, config, metric, worker or queue in this milestone.",
+    "Abrupt-crash isolation, uncertain Will dispatch, ended-record reclamation, restore reactivation, full process failures and scale acceptance remain required for the full MQTT goal."
+  ],
+  "environment": {
+    "dependency_download_failures_not_product_red": true,
+    "resolution": "curl fetched original official Go proxy minlz and segmentio/encoding ZIPs; Go imported them through a temporary file proxy and verified the module sums. No dependency files or global Go settings changed.",
+    "interrupted_logs": [
+      "/tmp/mqtt-offline-establishment-dependencies-interrupted.log",
+      "/tmp/mqtt-offline-establishment-download-stalled.log",
+      "/tmp/mqtt-offline-establishment-download-eof.log",
+      "/tmp/mqtt-offline-establishment-baseline-dependencies-interrupted.log",
+      "/tmp/mqtt-offline-establishment-app-dependencies-interrupted.log"
+    ]
+  }
+}

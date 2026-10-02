@@ -1,0 +1,25 @@
+{
+  "source_base": "49c74b1c065a83628027de7f82d480c07e4050a4",
+  "go_version": "go1.25.11 darwin/arm64",
+  "binary": {
+    "sha256": "4cdd67913fa9bace2463284d0abfee311a492c8df8b6356ffe90f33ec8a3d4c1",
+    "buildvcs": false,
+    "diagnostic_overlay": false
+  },
+  "binary_source_files": {
+    "internal/app/mqtt_replay.go": "f98ee26cd52292a9944bf50981235b6a7549ecb04ba3e610a9236857f6d68c5e",
+    "internal/usecase/mqttsession/replay.go": "f4a30661e3f1d1183f6e08842657d196cefa4ae42524016ea39ed4fb662556af",
+    "internal/usecase/mqttsession/replay_confirmation.go": "2bca5522012168f60ff8ceac62bf44466262f4614dfc86836d14d0d0f705dfdf",
+    "internal/usecase/mqttsession/group_projection.go": "8f9c347be14538b9e34d6c4f79afec92180a5c02fbd24c41f7ced13d5bce9ff4",
+    "internal/usecase/mqttsession/subscription_requests.go": "1e894cd346dd1377c6a43797d5730e756c814891531d092e93e859a850d5ecfe",
+    "internal/usecase/mqttsession/subscription_types.go": "7fb8902185ee605a4a1ab106503d9145a1d9f368253fe52dab0ebde5060b518d",
+    "internal/usecase/mqttsession/subscriptions.go": "935eabe5b48a79da66cc1a3687a8489ae887fe6a691f051cf7b1362f114e180c"
+  },
+  "fixture": {
+    "path": "test/e2e/mqtt/subscribe_admission/admission_test.go",
+    "sha256": "67db18382a64a567b91859f4227fd95f39aaa3f0a71fa18d35e8f0533ed4871d"
+  },
+  "foreground_subscribe_deadline_seconds": 5,
+  "foreground_retries": 0,
+  "phase": "request-owned positive preparation, captured-plan bounded copy/anchor, joined complete replica proof"
+}

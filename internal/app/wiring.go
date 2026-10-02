@@ -37,6 +37,7 @@ import (
 	obsmetrics "github.com/WuKongIM/WuKongIM/pkg/metrics"
 	"github.com/WuKongIM/WuKongIM/pkg/observability/sendtrace"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
+	mqttwire "github.com/WuKongIM/WuKongIM/pkg/protocol/mqtt"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -53,6 +54,10 @@ func (a *App) applyConfigDefaults() error {
 // without constructing runtimes or touching the filesystem.
 func NormalizeConfig(cfg Config) (Config, error) {
 	var err error
+	cfg.MQTT, err = NormalizeMQTTConfig(cfg.MQTT)
+	if err != nil {
+		return Config{}, err
+	}
 	cfg.Gateway = defaultGatewayConfig(cfg.Gateway)
 	cfg.Manager = defaultManagerConfig(cfg.Manager)
 	if err := validateManagerConfig(cfg.Manager); err != nil {
@@ -190,6 +195,7 @@ func (a *App) configureObservability(clusterCfg *cluster.Config) {
 			metrics: a.metrics,
 			workers: commitCoordinatorWorkerCount(clusterCfg.Storage.CommitShards),
 		})
+		clusterCfg.Storage.MQTTStorageObserver = combineMQTTStorageObservers(clusterCfg.Storage.MQTTStorageObserver, a.metrics.MQTT)
 		clusterCfg.Transport.Observer = combineTransportObservers(clusterCfg.Transport.Observer, &transportMetricsObserver{metrics: a.metrics})
 		clusterCfg.MessageEvent.Observer = combineMessageEventObservers(clusterCfg.MessageEvent.Observer, messageEventMetricsObserver{metrics: a.metrics})
 		clusterCfg.MembershipObserver = combineMembershipMutationObservers(clusterCfg.MembershipObserver, membershipMutationMetricsObserver{metrics: a.metrics})
@@ -702,6 +708,12 @@ func (a *App) wireUsers() {
 }
 
 func (a *App) wireChannelAppend(nodeID uint64) error {
+	if a.mqttInboxWrites {
+		node, ok := a.cluster.(*cluster.Node)
+		if !ok || node == nil || a.personDirectoryProjector == nil || a.channelAppends != nil {
+			return fmt.Errorf("internal/app: inbox append requires real cluster, directory projector and owned appender")
+		}
+	}
 	if a.channelAppends == nil {
 		appendNode, hasAppendNode := a.cluster.(clusterinfra.ChannelAppendNode)
 		authorityNode, hasAuthorityNode := a.cluster.(clusterinfra.ChannelAppendAuthorityNode)
@@ -716,10 +728,18 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 				}
 				a.messageIDs = messageIDs
 			}
+			var durableAppender channelappend.Appender = clusterinfra.NewChannelAppender(appendNode, a.logger.Named("cluster.append"))
+			if a.mqttInboxWrites {
+				var err error
+				durableAppender, err = newMQTTInboxAppender(a.cluster.(*cluster.Node), messageIDs, durableAppender, a.personDirectoryProjector.Wake)
+				if err != nil {
+					return fmt.Errorf("internal/app: wire inbox append: %w", err)
+				}
+			}
 			opts := channelappend.Options{
 				CommandChannelSuffix:   a.cfg.Message.CMDChannelSuffix,
 				LocalNodeID:            nodeID,
-				Appender:               clusterinfra.NewChannelAppender(appendNode, a.logger.Named("cluster.append")),
+				Appender:               durableAppender,
 				MessageID:              messageIDs,
 				AuthorityShardCount:    a.cfg.ChannelAppend.AuthorityShardCount,
 				AdvancePoolSize:        a.cfg.ChannelAppend.AdvancePoolSize,
@@ -743,6 +763,9 @@ func (a *App) wireChannelAppend(nodeID uint64) error {
 				opts.RecipientAuthorityResolver = resolver
 			}
 			opts.PersistAfterEnqueuer = composePersistAfterEnqueuers(a.pluginPersistAfter, a.webhookNotify)
+			if a.cfg.MQTT.Enabled {
+				opts.PersistAfterEnqueuer = composePersistAfterEnqueuers(mqttPostCommitWake{notify: a.wakeMQTTSource}, opts.PersistAfterEnqueuer)
+			}
 			var observer deliveryMessageObserver
 			if _, topEnabled := a.topProvider.(*topCollector); a.cfg.Delivery.Enabled || a.metrics != nil || topEnabled {
 				observer = deliveryMessageObserver{app: a}
@@ -1304,7 +1327,7 @@ func managerPermissionConfigs(permissions []ManagerPermissionConfig) []accessman
 
 func (a *App) wireGateway(nodeID uint64) error {
 	if a.gateway == nil && len(a.cfg.Gateway.Listeners) > 0 {
-		gw, err := gateway.New(gateway.Options{
+		options := gateway.Options{
 			Handler:        a.gatewayHandler(),
 			Authenticator:  a.newGatewayAuthenticator(nodeID),
 			Listeners:      a.cfg.Gateway.Listeners,
@@ -1317,7 +1340,12 @@ func (a *App) wireGateway(nodeID uint64) error {
 			Transport: a.cfg.Gateway.Transport,
 			Observer:  a.gatewayObserver(),
 			Logger:    a.logger.Named("gateway"),
-		})
+		}
+		if a.mqtt != nil {
+			options.PacketHandler = a.mqtt
+			options.PacketProtocols = append(options.PacketProtocols, newMQTTProtocol(mqttwire.Limits{MaxPacketBytes: int(a.cfg.MQTT.MaxPacketBytes)}))
+		}
+		gw, err := gateway.New(options)
 		if err != nil {
 			return err
 		}
@@ -1338,4 +1366,29 @@ func (a *App) newGatewayAuthenticator(nodeID uint64) gateway.Authenticator {
 		}
 	}
 	return gateway.NewWKProtoAuthenticator(opts)
+}
+
+// mqttStorageObserver keeps product wiring independent of the storage adapter.
+type mqttStorageObserver interface {
+	ObserveMQTTStorage(used, granted, nodeLimit, clusterLimit uint64)
+	ObserveMQTTStorageEvent(string)
+}
+type combinedMQTTStorageObservers struct{ first, second mqttStorageObserver }
+
+func (o combinedMQTTStorageObservers) ObserveMQTTStorage(used, granted, nodeLimit, clusterLimit uint64) {
+	o.first.ObserveMQTTStorage(used, granted, nodeLimit, clusterLimit)
+	o.second.ObserveMQTTStorage(used, granted, nodeLimit, clusterLimit)
+}
+func (o combinedMQTTStorageObservers) ObserveMQTTStorageEvent(event string) {
+	o.first.ObserveMQTTStorageEvent(event)
+	o.second.ObserveMQTTStorageEvent(event)
+}
+func combineMQTTStorageObservers(first, second mqttStorageObserver) mqttStorageObserver {
+	if first == nil {
+		return second
+	}
+	if second == nil {
+		return first
+	}
+	return combinedMQTTStorageObservers{first, second}
 }

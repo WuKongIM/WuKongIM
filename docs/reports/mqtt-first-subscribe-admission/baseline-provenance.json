@@ -1,0 +1,7 @@
+{
+  "source_revision": "49c74b1c0",
+  "fixture_sha256": "66e8efa0eb34aacde2f55d6c7f5b1a55a74aec66c632b63859d9017a01c458c0",
+  "binary_sha256": "8aa360f18e81affb1fd8a743dd600e74274121f30252c95ba46b3b4f01d37caa",
+  "elapsed_seconds": 309.86,
+  "unknown_setup_or_future_delivery_failures": "retained separately from first SUBSCRIBE verdict"
+}

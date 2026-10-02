@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "baseline_source_revision": "437f7297c0d18bb2083f41b6e75d4bc838afb89f",
+  "candidate_source_revision": "838222fcfc4f4a94ed957056c6802dcf9b0ef749",
+  "frozen_instruction_revision": "437f7297c",
+  "frozen_instruction_sha256": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "pkg/channel/FLOW.md": "89e78216341b55d381f48ae59c05aaa9266c8894b4cb0052de1b7948161aef95",
+    "pkg/cluster/FLOW.md": "59223cacec27b53b0ced20fa4b0d75e0e3737794dfffc75974bb46109baf111e",
+    "internal/usecase/mqttsession/FLOW.md": "2ea5f9cfb518eba2ab1ff9cb7b4cf519912067e8cd34f53adb852732e23a9281",
+    "internal/app/FLOW.md": "a3066e65d5c8c1480bdd5f972df28148d626df77404f59e1fe4e3840c9071c24",
+    "test/e2e/AGENTS.md": "962a9ea716c7e700d43af9710b57898270ac09ab2b3e97411ea36a108c898a76",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "test/e2e/mqtt/scale/AGENTS.md": "cc0bb291ac174615fac752ba16b334213c0a11f39dc07b25c2998403b495a807",
+    "test/e2e/suite/FLOW.md": "fdf3576f99b00cfdb878ea5623e7f39a576a75bb7ebf5b6fa8de031ae9561add"
+  },
+  "candidate_changed_production_sha256": {
+    "internal/usecase/mqttsession/originals.go": "3d4be01ce8e89ff07081fbd1015f313413cc144de70a8ac84a199a807338101f",
+    "pkg/channel/mqtt_originals.go": "6c346d67536913444b2c204109264edc1962a9dc83e4033dce40bcefc95d938a",
+    "pkg/cluster/channels/mqtt_originals.go": "d4ffc1123f880c95d9dd8bf2a693ebe413417feb8fbda9ede725e58fcf67ce11",
+    "pkg/cluster/channels/mqtt_originals_rpc.go": "d9aef51cf3958a0f484f82cfb5b4cead5695acc60fdbb69c7d95fe4953104a35",
+    "pkg/cluster/channels/transport.go": "10af50aeae0a788082accf769c524e3f64e362fbf3186222f40cf6c188e048d1",
+    "pkg/cluster/net/ids.go": "b93d0448aa0fa1e535dacfe33979a73b5b47ef622f4d752aff2b9dfd588905e8",
+    "pkg/cluster/net/transport.go": "820f7a6f47de178518a8c172448ee097949774f8528fbb8e788e126984c0d59d",
+    "pkg/cluster/node_mqtt_replay.go": "7b461f4062be6ad7eee148a85b9d40675cc158ef0f91cba0355e4502b3eeb5ef"
+  },
+  "binary_sha256": {
+    "wukongim-mqtt-originals-baseline-437f": "8cc9d64411ffb18f092a307e5a7f783d8228474f932bf99988bcee36d1231028",
+    "wukongim-mqtt-originals-candidate": "a2d6c4f5cb5e4f6fd061174e05862f00201bc3faa9c979b73ac570535a3feede"
+  },
+  "test_fixture_sha256": "485d1eccd201b9f16ce929f00b7223c397af4059ef07b952bf3733bfffcef4c7",
+  "profiling_enabled": false,
+  "runtime_diagnostic_overlay": false,
+  "worker_configuration_changed": false,
+  "receipt_deadlines_or_assertions_changed": false,
+  "concurrent_task_builds_tests_or_profiles_during_workload": false,
+  "go_version": "go1.25.11 darwin/arm64",
+  "build_vcs_metadata_used_as_source_proof": false,
+  "build_vcs_metadata_note": "Both binaries embed primary-checkout revision 1982a56b51394973c5ca456c851397adfdaa1398. Source provenance uses explicit worktree build commands, restored/excluded overlay files and file hashes; candidate-only symbols are present in the candidate and absent in the baseline.",
+  "launch_preparation_note": "Candidate launch did not reach an E2E phase while default proxy downloaded the missing toolchain. Its exact task-owned stderr was verified before termination; Go 1.25.11 and fixed go.sum dependencies were then prepared through proxy.golang.org. No workload deadline or assertion was changed.",
+  "candidate_harness_environment": {
+    "GOMODCACHE": "/tmp/mqtt-originals-gomodcache",
+    "GOPROXY": "file:///tmp/mqtt-originals-localproxy|https://goproxy.cn|https://proxy.golang.org|direct",
+    "GOTOOLCHAIN": "local",
+    "go_executable": "/Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go"
+  },
+  "dependency_preparation": "Task-private APFS cache clone plus exact original zip/mod/info files for three fixed go.sum dependencies. Curl completed bytes after native Go transfer stalled; go mod download validated them before the workload.",
+  "shared_host_limit": "Other independent Go builds/tests and a language-server module operation were observed during dependency preparation. They were not stopped. This is one local sequential pair, with no quantified host-noise control; it is not a causal speedup estimate or capacity qualification.",
+  "baseline_build_overlay": {
+    "restored_sha256": {
+      "internal/usecase/mqttsession/originals.go": "0983fa2495d9e40d24345923a286d758a2a7f17a239bdfe970bdaf1c5292ecbb",
+      "pkg/cluster/channels/transport.go": "c4e7412561c039d27ab4eb684e11a80dedbda5fbb59bf7976f0b7f5ca73d719e",
+      "pkg/cluster/net/ids.go": "505cd3d305b6489625ffb6c771a6934525295396f7bead206c6adeb207c4ec0d",
+      "pkg/cluster/net/ids_test.go": "bb872729d46f32d6a5af7e96a6345269630093bde8583b77193a12464818abf9",
+      "pkg/cluster/net/transport.go": "2817542403a41184ed5212dd54210e3babb758dee6704358e07b4b9d69e2038a",
+      "pkg/cluster/node_mqtt_replay.go": "f1b0873bed47cd16810d3e4a898c6358e6f264f3e27acf3a13b3de6d7458f70c"
+    },
+    "excluded_new_files": [
+      "internal/usecase/mqttsession/originals_compound_test.go",
+      "pkg/channel/mqtt_originals.go",
+      "pkg/cluster/channels/mqtt_originals.go",
+      "pkg/cluster/channels/mqtt_originals_rpc.go",
+      "pkg/cluster/channels/mqtt_originals_test.go"
+    ]
+  },
+  "build_commands": [
+    "GOWORK=off go build -overlay=/tmp/mqtt-compound-baseline-overlay/overlay.json -o /tmp/wukongim-mqtt-originals-baseline-437f ./cmd/wukongim",
+    "GOWORK=off go build -o /tmp/wukongim-mqtt-originals-candidate ./cmd/wukongim"
+  ],
+  "runs": [
+    {
+      "name": "baseline-2000",
+      "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-originals-baseline-437f WK_E2E_MQTT_SCALE_MEMBERS=2000 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-originals-baseline-2000 GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/scale -run '^TestGroupScaleDeliveryAndChurnRetirement$' -count=1 -timeout=15m -v",
+      "exit_code": 1,
+      "artifact": "baseline-2000-failure.json",
+      "test_verdict": "--- FAIL: TestGroupScaleDeliveryAndChurnRetirement (205.67s)",
+      "observed_receipt_count_in_failure_snapshot": 9862,
+      "receipts_capture_limit": "Deferred failure snapshot, after the receipt deadline/error; not an exact timestamped deadline sample."
+    },
+    {
+      "name": "candidate-2000",
+      "command": "GOMODCACHE=/tmp/mqtt-originals-gomodcache GOPROXY='file:///tmp/mqtt-originals-localproxy|https://goproxy.cn|https://proxy.golang.org|direct' GOTOOLCHAIN=local GOWORK=off WK_E2E_BINARY=/tmp/wukongim-mqtt-originals-candidate WK_E2E_MQTT_SCALE_MEMBERS=2000 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-originals-candidate-2000 /Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go test -p 1 -tags=e2e ./test/e2e/mqtt/scale -run '^TestGroupScaleDeliveryAndChurnRetirement$' -count=1 -timeout=15m -v",
+      "exit_code": 1,
+      "artifact": "candidate-2000-failure.json",
+      "test_verdict": "--- FAIL: TestGroupScaleDeliveryAndChurnRetirement (210.57s)",
+      "observed_receipt_count_in_failure_snapshot": 10000,
+      "receipts_capture_limit": "Deferred failure snapshot, after the receipt deadline/error; not an exact timestamped deadline sample.",
+      "fixed_closure_observation": {
+        "operation": "unsubscribe",
+        "reason": "conflict",
+        "count": 1,
+        "round_zero_based": 2
+      },
+      "remaining_acceptance": "Post-churn publication, final identity/order assertions and retirement are not reached."
+    },
+    {
+      "name": "candidate-full",
+      "command": "env -u WK_E2E_MQTT_SCALE_PROFILE GOMODCACHE=/tmp/mqtt-originals-gomodcache GOPROXY='file:///tmp/mqtt-originals-localproxy|https://goproxy.cn|https://proxy.golang.org|direct' GOTOOLCHAIN=local GOWORK=off WK_E2E_BINARY=/tmp/wukongim-mqtt-originals-candidate WK_E2E_MQTT_SCALE_MEMBERS=100000 WK_E2E_MQTT_SCALE_CONNECTIONS=500 WK_E2E_MQTT_SCALE_MESSAGES=20 WK_E2E_MQTT_SCALE_CHURN=200 WK_E2E_MQTT_SCALE_ROUNDS=3 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-originals-candidate-full /Users/tt/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin/go test -p 1 -tags=e2e ./test/e2e/mqtt/scale -run '^TestGroupScaleDeliveryAndChurnRetirement$' -count=1 -timeout=15m -v",
+      "exit_code": 0,
+      "artifact": "candidate-full.json",
+      "test_verdict": "--- PASS: TestGroupScaleDeliveryAndChurnRetirement (370.84s)"
+    }
+  ],
+  "ordinary_comparison_limits": "One local pair. Baseline never completes fanout; no baseline completion latency or percentage speedup is available. Candidate-only full pass does not erase the failed candidate churn reproduction.",
+  "unarchived_launch_limit": "An initial unsuccessful launch has no preserved terminal stderr or workload artifact and is excluded. Later dependency-preparation launches were explicitly interrupted before a test phase; workload runs listed here have captured phase output and verdicts.",
+  "validation": [
+    {
+      "name": "related-race",
+      "command": "GOWORK=off go test -race ./pkg/channel ./pkg/cluster/channels ./pkg/cluster/net ./internal/usecase/mqttsession -run 'MQTT|WindowAdmission|ExchangeRecovery|DeliveryCoordinator|ConnectionDelivery|DeliveryIdle|Sender|ReceiveAuthorization' -count=1 -timeout=6m",
+      "passed": true
+    },
+    {
+      "name": "final-race",
+      "command": "GOWORK=off go test -race ./pkg/cluster/channels ./pkg/cluster ./internal/usecase/mqttsession -run 'Test(MQTTOriginals|MQTTReplayNodeForegroundGates|MQTTAnchorNodeForegroundGates|WindowAdmissionCompound)' -count=1 -timeout=2m",
+      "passed": true
+    },
+    {
+      "name": "app-integration",
+      "command": "GOWORK=off go test -p 1 -tags=integration ./internal/app -run 'TestMQTT(GroupSourcePreparationThreeNodeRecovery|ConnectionDeliveryPahoSingleNodeCluster|InboxRemovalRetainsExchangeAfterUnsubscribeSingleNodeCluster)$' -count=1 -timeout=4m",
+      "passed": true
+    },
+    {
+      "name": "flow-doc-contracts",
+      "command": "GOWORK=off go run ./scripts/flowcheck --mode check",
+      "passed": true,
+      "summary": "87 compliant; 0 invalid; 11 existing soft-length warnings"
+    }
+  ],
+  "artifact_sha256": {
+    "README.md": "43a293507b0f5a1baaa46f1f0d0c94af1f2241db47b39bbd9e13c69118d9ba59",
+    "app-integration.txt": "138d756f91a717027bb6e582bb198eb1781852f97f4ceb3f43487aa6d8af9412",
+    "baseline-2000-failure.json": "293e31ef9963cc855ec4b9834c639122c37426e62d13be5ffeea53be09a30ef0",
+    "baseline-2000-phases.txt": "eb3773bf6374f60337d872e9108a1d49c75ef266968c95ef887610eced2c704f",
+    "baseline-2000-receipts.json": "68e7689fa1cbfe261529df2f1f08041f0cfc6a66373b3b85a206a47fad6e0b48",
+    "candidate-2000-failure.json": "19cb85260ba2bc30ae104e288b62996e8ab0ca23df3870d827ccd1d96799d8b7",
+    "candidate-2000-phases.txt": "7edf246265162fc6afa1039fabd7c979001645b70aa59bf325e4dbc266170422",
+    "candidate-2000-receipts.json": "435701b5877ca303853c3b722327a8c7ffda6e73aa67b16e4c5c374e131c596c",
+    "candidate-full-phases.txt": "7af0356b43a5a9e23493231b9ed3f64532f66286c9148b4cfa103465f9c7dee5",
+    "candidate-full.json": "a61e76d24f8f09ccec1cdbca58be784f08e2128a87e5319debdd4f0a1cffaf3e",
+    "final-race.txt": "fd54d4e893b4852134d099168cb61a73b65f1d222d0ff7768b3691c5ba435936",
+    "flow-contracts.txt": "bdeddb736d46976e6272f8b494c989583f0e0f5dc11466907de6fb97828820d8",
+    "read-budget-red.txt": "3aa0f161fd31c0c7ca99839a838dd2420dfda4802d15f5491726ad962392b32e",
+    "related-race.txt": "129e1babf0fcccf0915ed950171a3c8b441f6227bb882a4b66242ef6d06d692f",
+    "storage-error-red.txt": "c323eb884c5d78c93e5679a04f76c930db9a493060dfd1d9aa8618d366067b00"
+  }
+}

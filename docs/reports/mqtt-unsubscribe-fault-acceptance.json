@@ -1,0 +1,344 @@
+{
+  "source": "632c2ec871ec55ded1a1c3f22c92f3ffe54e9063",
+  "digests": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "internal/usecase/mqttsession/FLOW.md": "d846c6d77083aaee84d20933b121f204741b8422f4b6946ba8e756a317d8aa6b",
+    "internal/access/mqtt/FLOW.md": "da87411d7f48fb9b39def7e4baab5cb73dcea1e3c4db7917dad41eb24ae5ff5f",
+    "internal/runtime/mqttsession/FLOW.md": "2db6dcc6c17d65e5dfee17ef0e3e92e6a494309bb12c5caa7cc07ccbce4611b0",
+    "internal/app/FLOW.md": "466997951355cc94e2fe6dfb9ca3a391184e9840b9afc29c7a4ac10203229fe1",
+    "test/e2e/AGENTS.md": "cd13514f93a552e2f9d4cc0b46f85848477e38dccd07840bcfe7d343170b8876",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "test/e2e/suite/FLOW.md": "fdf3576f99b00cfdb878ea5623e7f39a576a75bb7ebf5b6fa8de031ae9561add",
+    "internal/infra/cluster/FLOW.md": "b96d4741b47a3b59a094eb83de316b2080004f4c2cc06f579060d6451c052c30",
+    "pkg/cluster/FLOW.md": "f20e23043a7e5a9016a34624cd6cf9a342aedbceca3335a3d41b3597bad06d16",
+    "pkg/channel/FLOW.md": "89e78216341b55d381f48ae59c05aaa9266c8894b4cb0052de1b7948161aef95",
+    "pkg/db/FLOW.md": "33c7ba81c18ed8cb377e9bef541526028ef31e64dd03becc7ac1ea6cc14fb10a",
+    "pkg/db/message/FLOW.md": "bebe270dbea585057f562be6b0fd549bba59c6038388c313899ec0b06c9d133b"
+  },
+  "date": "2026-09-27",
+  "scope": "Interrupted unsubscribe process acceptance, bounded confirmation metric and subscription readiness/CAS repairs; full MQTT implementation remains active",
+  "scenario_rules_sha256": "e4c319825fefcfa011e1d61e8e1b2b48bfec156e6e3e965f71a12107b60f434c",
+  "process_artifacts": [
+    {
+      "file": "mqtt-unsubscribe-inbox-after-intent-1.json",
+      "sha256": "18eb14e9f514bfac54d6d9c671d6aae07209fc9ef97f4741c87c12adf5f0dda4",
+      "assertions": {
+        "background_completion_before_reconnect": true,
+        "completion_fault_hits": 0,
+        "cut": "after-intent",
+        "dup_on_resume": true,
+        "failure_kind": "controlled-request-failure-and-connection-close",
+        "foreground_unsubscribe_retries": 0,
+        "hash_slots": 256,
+        "intent_fault_hits": 1,
+        "message_identity_preserved": true,
+        "nodes": 1,
+        "packet_id_preserved": true,
+        "passed": true,
+        "resubscribe_delivers_only_fresh": true,
+        "scenario": "interrupted-unsubscribe",
+        "session_present": true,
+        "target": "inbox"
+      }
+    },
+    {
+      "file": "mqtt-unsubscribe-inbox-before-completion-1.json",
+      "sha256": "574d523d4a27bd5133743adf43cca450cbf831f31d718ec0baf653791cdbe92a",
+      "assertions": {
+        "background_completion_before_reconnect": true,
+        "completion_fault_hits": 1,
+        "cut": "before-completion",
+        "dup_on_resume": true,
+        "failure_kind": "controlled-request-failure-and-connection-close",
+        "foreground_unsubscribe_retries": 0,
+        "hash_slots": 256,
+        "intent_fault_hits": 1,
+        "message_identity_preserved": true,
+        "nodes": 1,
+        "packet_id_preserved": true,
+        "passed": true,
+        "resubscribe_delivers_only_fresh": true,
+        "scenario": "interrupted-unsubscribe",
+        "session_present": true,
+        "target": "inbox"
+      }
+    },
+    {
+      "file": "mqtt-unsubscribe-group-after-intent-1.json",
+      "sha256": "9df57a9ee8956fcc58086e23188797dcc93e598eeb6484fd0f2d7867db39d2bb",
+      "assertions": {
+        "background_completion_before_reconnect": true,
+        "completion_fault_hits": 0,
+        "cut": "after-intent",
+        "dup_on_resume": true,
+        "failure_kind": "controlled-request-failure-and-connection-close",
+        "foreground_unsubscribe_retries": 0,
+        "hash_slots": 256,
+        "intent_fault_hits": 1,
+        "message_identity_preserved": true,
+        "nodes": 1,
+        "packet_id_preserved": true,
+        "passed": true,
+        "resubscribe_delivers_only_fresh": true,
+        "scenario": "interrupted-unsubscribe",
+        "session_present": true,
+        "target": "group"
+      }
+    },
+    {
+      "file": "mqtt-unsubscribe-group-before-completion-1.json",
+      "sha256": "e7ae254a0ecc4dad54bde755ede90503b53a11062cff7a2912dceb53b74218b0",
+      "assertions": {
+        "background_completion_before_reconnect": true,
+        "completion_fault_hits": 1,
+        "cut": "before-completion",
+        "dup_on_resume": true,
+        "failure_kind": "controlled-request-failure-and-connection-close",
+        "foreground_unsubscribe_retries": 0,
+        "hash_slots": 256,
+        "intent_fault_hits": 1,
+        "message_identity_preserved": true,
+        "nodes": 1,
+        "packet_id_preserved": true,
+        "passed": true,
+        "resubscribe_delivers_only_fresh": true,
+        "scenario": "interrupted-unsubscribe",
+        "session_present": true,
+        "target": "group"
+      }
+    },
+    {
+      "file": "mqtt-unsubscribe-inbox-after-intent-3.json",
+      "sha256": "72ad82cca0498c2226d35c529c298ce1b3d84925feae7f9479b7116ff1ffb24e",
+      "assertions": {
+        "background_completion_before_reconnect": true,
+        "completion_fault_hits": 0,
+        "cut": "after-intent",
+        "dup_on_resume": true,
+        "failure_kind": "controlled-request-failure-and-connection-close",
+        "foreground_unsubscribe_retries": 0,
+        "hash_slots": 256,
+        "intent_fault_hits": 1,
+        "message_identity_preserved": true,
+        "nodes": 3,
+        "packet_id_preserved": true,
+        "passed": true,
+        "resubscribe_delivers_only_fresh": true,
+        "scenario": "interrupted-unsubscribe",
+        "session_present": true,
+        "target": "inbox"
+      }
+    },
+    {
+      "file": "mqtt-unsubscribe-inbox-before-completion-3.json",
+      "sha256": "069a85b214d98cc8f3517073d438bc013f2fc5c36975f1c45d8ed5ed99686e88",
+      "assertions": {
+        "background_completion_before_reconnect": true,
+        "completion_fault_hits": 1,
+        "cut": "before-completion",
+        "dup_on_resume": true,
+        "failure_kind": "controlled-request-failure-and-connection-close",
+        "foreground_unsubscribe_retries": 0,
+        "hash_slots": 256,
+        "intent_fault_hits": 1,
+        "message_identity_preserved": true,
+        "nodes": 3,
+        "packet_id_preserved": true,
+        "passed": true,
+        "resubscribe_delivers_only_fresh": true,
+        "scenario": "interrupted-unsubscribe",
+        "session_present": true,
+        "target": "inbox"
+      }
+    },
+    {
+      "file": "mqtt-unsubscribe-group-after-intent-3.json",
+      "sha256": "f4258d9b4d31516cc18e446d67e7dd1a5eb4e15ff58e02f410422d0831822c3d",
+      "assertions": {
+        "background_completion_before_reconnect": true,
+        "completion_fault_hits": 0,
+        "cut": "after-intent",
+        "dup_on_resume": true,
+        "failure_kind": "controlled-request-failure-and-connection-close",
+        "foreground_unsubscribe_retries": 0,
+        "hash_slots": 256,
+        "intent_fault_hits": 1,
+        "message_identity_preserved": true,
+        "nodes": 3,
+        "packet_id_preserved": true,
+        "passed": true,
+        "resubscribe_delivers_only_fresh": true,
+        "scenario": "interrupted-unsubscribe",
+        "session_present": true,
+        "target": "group"
+      }
+    },
+    {
+      "file": "mqtt-unsubscribe-group-before-completion-3.json",
+      "sha256": "aad2ee68dc0a0cbf1432978e09cea9187692fc70b01c216aed2b32e0e53bc53a",
+      "assertions": {
+        "background_completion_before_reconnect": true,
+        "completion_fault_hits": 1,
+        "cut": "before-completion",
+        "dup_on_resume": true,
+        "failure_kind": "controlled-request-failure-and-connection-close",
+        "foreground_unsubscribe_retries": 0,
+        "hash_slots": 256,
+        "intent_fault_hits": 1,
+        "message_identity_preserved": true,
+        "nodes": 3,
+        "packet_id_preserved": true,
+        "passed": true,
+        "resubscribe_delivers_only_fresh": true,
+        "scenario": "interrupted-unsubscribe",
+        "session_present": true,
+        "target": "group"
+      }
+    }
+  ],
+  "checks": [
+    {
+      "check": "new confirmation series RED",
+      "result": "RED: fixed-series test expected 12 but saw 11",
+      "log_sha256": "e9d4198df973f6562461c649dbede11b7ce4d2c6be16ac51b40ef09bd0b1ef48"
+    },
+    {
+      "check": "worker outcome contract RED",
+      "result": "RED: error-only maintenance port could not return confirmed removal",
+      "log_sha256": "5bd3e5c8d55edd83c89ca9f5385725c791302b199c9b8164852f3442d6d3c611"
+    },
+    {
+      "check": "fault injection capability RED",
+      "result": "RED: baseline binary had no MQTT failpoint endpoint; not evidence of a business failure",
+      "log_sha256": "e00735328e5cbfe2a484f2bba6b6187440511889f83ad1fbf50ce30eede68d10"
+    },
+    {
+      "check": "initial process matrix",
+      "result": "FAIL: six of eight passed; both three-node group cases disconnected on initial SUBSCRIBE",
+      "log_sha256": "f7efcbddc7234f37242dcc4f089a50b03258103e6072b30839161db346a7808d"
+    },
+    {
+      "check": "copy checkpoint diagnosis",
+      "result": "FAIL: receiver had LEO=1/HW=0 for boundary 1; healthy local read, strict source-reader conflict",
+      "log_sha256": "c1d4d8b7816014caeda55c08ceb228b29aa801e6930ac29c9650147d27384d4d"
+    },
+    {
+      "check": "copy yield classification RED",
+      "result": "RED: copy readiness/pressure were not pending; cancellation precedence failed",
+      "log_sha256": "d14db85f7711eaa4d12417dfcf1427140d0289898c6955b4b4e17cacf0cda36c"
+    },
+    {
+      "check": "copy receiver checkpoint RED",
+      "result": "RED: lag mapped to conflict; failed/canceled local checkpoint read was not consulted",
+      "log_sha256": "cb75b6f1a4a247ac22fd5948c2e0ccc2c751b733b1323ea17b9d41157fc2626d"
+    },
+    {
+      "check": "first copy repair full race",
+      "result": "PASS: usecase 99.544s and cluster/channels 7.589s; before subsequent recovery and unsubscribe CAS repairs",
+      "log_sha256": "38824121bed5944cd96527eb58a21edbfa23db1ad8c7ff5717501733d2374c4f",
+      "command": "GOWORK=off go test -race -p 2 ./internal/usecase/mqttsession ./pkg/cluster/channels -count=1"
+    },
+    {
+      "check": "recovery checkpoint diagnosis",
+      "result": "FAIL: receiver had LEO=2/HW=1 for target anchor 2; the second attempt passed, demonstrating the timing window",
+      "log_sha256": "fbaa34438a9326ef91f82c6434dd534e2e62847792e6de8d635f850d21e70b2c"
+    },
+    {
+      "check": "recovery gate/confirmation RED",
+      "result": "RED: lag/read-error/cancel checks and explicit pending classification absent",
+      "log_sha256": "1929ef9e7a32f085841fef461142280ec32debea70d67d92fc3af1abc36dfd46"
+    },
+    {
+      "check": "copy and recovery final regressions",
+      "result": "PASS: cluster/channels 2.562s and usecase 19.492s; later unsubscribe-only changes validated separately",
+      "log_sha256": "0006ccc926a39f4f5a6e5aca94adf097040973c93beb97118d3e56c15675b281",
+      "command": "GOWORK=off go test -race -p 2 ./pkg/cluster/channels ./internal/usecase/mqttsession -run \"TestMQTT|TestReplay\" -count=1"
+    },
+    {
+      "check": "unsubscribe CAS diagnosis",
+      "result": "FAIL: one of three runs missed injection after definite Removing CAS rejection, expected parent revision 7/current 8; two passed",
+      "log_sha256": "04e6dae34e21d50c9397dc0dfe6a103c898de52b6a6b4744b5d219cbbab5c920"
+    },
+    {
+      "check": "unsubscribe CAS RED",
+      "result": "RED: one renewal prevented unsubscribe; continuously changing parent had no bounded rebase",
+      "log_sha256": "bb8b85f74f9ca1d0192d0b806f062bd2f425354658df0aa46703be99642bfc0d"
+    },
+    {
+      "check": "unsubscribe and pending removal final race",
+      "result": "PASS: 8.698s; exact-child/Owner checks, bounded attempts and unknown-result non-retry",
+      "log_sha256": "07f338cc8895bd0f894659a2446e2ac14f9305c2ef3356c0ac1f49a41bf6ddab",
+      "command": "GOWORK=off go test -race -p 2 ./internal/usecase/mqttsession -run \"TestUnsubscribe|TestSubscriptions|TestPendingRemoval\" -count=1"
+    },
+    {
+      "check": "bounded subscription request regression",
+      "result": "PASS; existing attempt/deadline and unknown-result non-retry contracts",
+      "log_sha256": "d4bcc9cba2c29d23b8c8449d54085b83c24c328537664c6b2bda602d98366251",
+      "command": "GOWORK=off go test -race -p 2 -tags=integration ./internal/usecase/mqttsession -run \"^TestSubscriptionRequests\" -count=1 -timeout=2m"
+    },
+    {
+      "check": "consumer/app/metrics race",
+      "result": "PASS: runtime 2.019s, app 4.681s, metrics 3.183s; metric code unchanged afterward",
+      "log_sha256": "cfb506390073e3230454f4e3546138f2208b67bdd9be825f84578d265f4766bf",
+      "command": "GOWORK=off go test -race -p 2 ./internal/runtime/mqttsession ./internal/app ./pkg/metrics -count=1"
+    },
+    {
+      "check": "shared worker integration",
+      "result": "PASS: 2.047s; bounded cohort and joined shutdown",
+      "log_sha256": "d89dcc5a0af9e61cd8073761f3abc8fdae015f2c231407a5ed9fa4d93a85fe75",
+      "command": "GOWORK=off go test -race -p 2 -tags=integration ./internal/runtime/mqttsession -run TestConsumerWorker -count=1 -timeout=2m -v"
+    },
+    {
+      "check": "complete process matrix",
+      "result": "PASS: eight scenarios; detailed timings below",
+      "log_sha256": "8016162ac4ce0efc494caed522762a0faf4baad741ef7f2fa80738d791a5c572",
+      "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-gofail WK_E2E_GOFAIL_MQTT=1 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-unsubscribe-acceptance-reports GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/unsubscribe_recovery -count=1 -timeout=10m -v"
+    },
+    {
+      "check": "flow-doc-contracts",
+      "result": "PASS: 87 compliant, zero invalid, nine existing length warnings",
+      "log_sha256": "518c3c03df7eb5d31ffef78aaf4666017b3054bf4e16f65a227b11efc525cf09",
+      "command": "GOWORK=off go run ./scripts/flowcheck --mode check"
+    }
+  ],
+  "process_results": [
+    "--- PASS: TestInterruptedUnsubscribeBackgroundRecovery (224.02s)",
+    "--- PASS: TestInterruptedUnsubscribeBackgroundRecovery/1-node-cluster/inbox/after-intent (25.31s)",
+    "--- PASS: TestInterruptedUnsubscribeBackgroundRecovery/1-node-cluster/inbox/before-completion (24.81s)",
+    "--- PASS: TestInterruptedUnsubscribeBackgroundRecovery/1-node-cluster/group/after-intent (41.83s)",
+    "--- PASS: TestInterruptedUnsubscribeBackgroundRecovery/1-node-cluster/group/before-completion (41.64s)",
+    "--- PASS: TestInterruptedUnsubscribeBackgroundRecovery/3-node-cluster/inbox/after-intent (22.05s)",
+    "--- PASS: TestInterruptedUnsubscribeBackgroundRecovery/3-node-cluster/inbox/before-completion (22.23s)",
+    "--- PASS: TestInterruptedUnsubscribeBackgroundRecovery/3-node-cluster/group/after-intent (23.38s)",
+    "--- PASS: TestInterruptedUnsubscribeBackgroundRecovery/3-node-cluster/group/before-completion (22.76s)",
+    "ok  \tgithub.com/WuKongIM/WuKongIM/test/e2e/mqtt/unsubscribe_recovery\t224.552s"
+  ],
+  "build_isolation": {
+    "ordinary_build_has_gofail": false,
+    "module_diff": "",
+    "instrumented_binary_sha256": "3c534a3c667a4fda2b9429cd754e64cdaf207c605dc0ad9743ac9003e9c9b096"
+  },
+  "candidate_go_sha256": {
+    "internal/app/mqtt_consumers.go": "6f2738a40b5bfd415f229f3372795fe3e042a4c12f0bc78adc9cf8ddbce12469",
+    "internal/runtime/mqttsession/consumer_subscriptions_test.go": "8856ca93e80552f8096dc114011c0bdaee2f58f26f03b0a2cfa4649708beab67",
+    "internal/runtime/mqttsession/consumer_worker.go": "05a8ca17310e10aa04206b7434653a422657a653dcc74b733f3aa7c9ae50dddf",
+    "internal/usecase/mqttsession/pending_removal.go": "e8ae069ab34ae770b3cf42c52b9cfab90ea5fb112b06b9b05e53c23b383ba987",
+    "internal/usecase/mqttsession/replay.go": "eace3746012f3403bb8edeaed701a230b6351ff346d2f2c822ee159265ba7560",
+    "internal/usecase/mqttsession/replay_confirmation.go": "4a0852ba7aa132b43963ffa87ae783548b67dd20eec08a4abfecba89925324df",
+    "internal/usecase/mqttsession/replay_confirmation_test.go": "c95e9c86a41f1ec0b17d1bdddf3d422cfa3703ff466cdb237627c38df212b29e",
+    "internal/usecase/mqttsession/subscriptions.go": "7cc7ff343a8f5bf32326a5159473d48d4829c98092c4b780fda68ac25e895fe5",
+    "internal/usecase/mqttsession/unsubscribe_conflict_test.go": "a06bce188342c40ae893142922e6c7beba4c61b5e1e287dd3b8443c83e21171d",
+    "pkg/cluster/channels/mqtt_copy.go": "bd3b5f53e84dee58930c0283121fc0291999755894e8173c857286c910e8a1a1",
+    "pkg/cluster/channels/mqtt_copy_test.go": "567de6cb6c780de3c69abc02c870be123df43f43978deb77927aefccd0a89f65",
+    "pkg/cluster/channels/mqtt_recovery.go": "c11eddf79c5b0fb9678d057250423a618f1e0e0397da499ad287800203ce1359",
+    "pkg/cluster/channels/mqtt_recovery_step_test.go": "06a9423480b64ca22a659116b2b7190787a61883f3070777500fea14860399ec",
+    "pkg/metrics/mqtt.go": "3ec2c8522cb39d26db78304e5c27059b97bf056ef56a714869ba9fa248055fe7",
+    "pkg/metrics/mqtt_test.go": "aab0c60c22adf2da38ed216aea9f89062e7939a3b5bb77f376d9d25d88cf90c3",
+    "test/e2e/mqtt/unsubscribe_recovery/unsubscribe_recovery_test.go": "c119135d5da38500ac047232923c4e2bc2677f01ca5c1a495db77616cdb701a7"
+  },
+  "limitations": [
+    "Faults are controlled request failures and connection closure, not abrupt process crashes or network partitions.",
+    "The metric counts timely confirmation turns, including retries; it is neither durable audit state nor a unique subscription count.",
+    "Unavailable-owner isolation, pending establishment/ended-record cleanup, safe uncertain Will dispatch, restore reactivation, tooling and complete failure/100k-scale qualification remain required."
+  ]
+}

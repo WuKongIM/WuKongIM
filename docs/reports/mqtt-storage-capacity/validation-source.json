@@ -1,0 +1,358 @@
+{
+  "base_revision": "1aff256b2bd9bc71a69cf5e365553357a69c3bc9",
+  "toolchain": "go1.25.11 darwin/arm64",
+  "production_go_count": 3758,
+  "production_go_sha256": "832dc69c6da9f6970f60f4987c7d384545592bdc4c0a5074b13476deee43d95b",
+  "e2e_go_count": 147,
+  "e2e_go_sha256": "efd7cae01e7e54415eab41e4feedaba18e8066db43d9e84c949a67d66ed50ea9",
+  "changed_go_files": [
+    {
+      "path": "internal/access/mqtt/publisher.go",
+      "sha256": "1878f298799907cff77b2e6bd5563ae2f30e5e66af44d6cd1d49fcec2c1afa98"
+    },
+    {
+      "path": "internal/access/node/channel_append_codec.go",
+      "sha256": "ab8651f0d569473276a3603b78706054612a5a6a35b81a08007e31ab23bfb71c"
+    },
+    {
+      "path": "internal/app/app.go",
+      "sha256": "839bfd3355ae3dab8a7b66d21c25ed5aa57c881c5a731cd870b85a9993573236"
+    },
+    {
+      "path": "internal/app/mqtt_config.go",
+      "sha256": "72faa86916fa57265776555f5014003f0a8cf88cc52aab3d7cb37e2ea3f8223a"
+    },
+    {
+      "path": "internal/app/mqtt_will_execution.go",
+      "sha256": "6cae3bf2c1095dda993c69b7ded06b03b1f11aeec49a94a41c4b4c9f6112e793"
+    },
+    {
+      "path": "internal/app/wiring.go",
+      "sha256": "480310c2bb9a6750d5de3e158f1bec13b195e4657651ed1b4e2902d7222a1c8f"
+    },
+    {
+      "path": "internal/config/effective_values.go",
+      "sha256": "6d267382a7a4d73beb80af0d777a783e3b7846d973efcd14fccc6f59d682943c"
+    },
+    {
+      "path": "internal/config/mqtt.go",
+      "sha256": "5ea7bb2915521e97dae93232d956b2521d08fe5571b7e79d6cff095f2bb7dbe1"
+    },
+    {
+      "path": "internal/config/schema.go",
+      "sha256": "7b58c6e6bbdd311f5fe1b2d41f4aebbbed613ca23e640ce76379b8764bde4d15"
+    },
+    {
+      "path": "internal/config/schema_help.go",
+      "sha256": "47443a0793c67b1a3effdddbc5d0c086d32dd67d5642277c48aaeb6dc13b574f"
+    },
+    {
+      "path": "internal/contracts/channelappend/errors.go",
+      "sha256": "0eeffbafb2d80b4aa6e3238d38f32a2103b1c1881e833a3bc3962111af3831cd"
+    },
+    {
+      "path": "internal/infra/cluster/error_map.go",
+      "sha256": "fc1750b172289937667a5f5130ad702fc7ab63e4536e4caeca7d25f2bf608948"
+    },
+    {
+      "path": "internal/infra/mqttwill/attempts.go",
+      "sha256": "e164250fe9318c0517ba6ca1d23fb51fe2e1f4cfa917cc99462f9ab0449c8c6e"
+    },
+    {
+      "path": "internal/runtime/channelappend/append.go",
+      "sha256": "d04cb2a4e30d72ccf4ac481718ade3b43000f6f621056f82bae37bf3c86144ca"
+    },
+    {
+      "path": "internal/runtime/channelappend/contracts.go",
+      "sha256": "76041fdd9c9ef0caec9e37734862ec6c453ac39a30dd4f6ce7ededd5ebc7e373"
+    },
+    {
+      "path": "internal/runtime/channelappend/router.go",
+      "sha256": "659d8927fdbffe98b4331b24c1879dc4205b51cdddfe87a99e635d1cbf504e41"
+    },
+    {
+      "path": "internal/usecase/message/errors.go",
+      "sha256": "edef0a2c7e6a0ce0a9622d31bed82158377fdf65ec3ba8fe0258b785e8d8617b"
+    },
+    {
+      "path": "internal/usecase/mqttsession/will_execution.go",
+      "sha256": "08e1d688d7c4d3cac4e6705d90f904a815ebed0c4c3da94dfb7b2ac3e30ea325"
+    },
+    {
+      "path": "pkg/channel/errors.go",
+      "sha256": "d6dba7eaccf31cfa472ba4b01b346c307dfcd5a2b6aba5a60b52116654b5808f"
+    },
+    {
+      "path": "pkg/channel/replication/codec.go",
+      "sha256": "ae2de28df21eef6bd1c53e228c617e48757b836360f161f5f1320ba9a3cdaf81"
+    },
+    {
+      "path": "pkg/channel/replication/exchange.go",
+      "sha256": "50a64ea3042bc43c3b4288d6bd6014d119183f8320468d1722d65359036b1448"
+    },
+    {
+      "path": "pkg/channel/replication/exchange_server.go",
+      "sha256": "1f26cd903764497b927203b32efcd8311b7e4d323df6ccc04bf9f2d04cfc252a"
+    },
+    {
+      "path": "pkg/channel/replication/peer_batcher.go",
+      "sha256": "5725471db5899de6637f394b5fb95acce3f1670d1aea7f5e3a01c401c6385ad3"
+    },
+    {
+      "path": "pkg/channel/replication/publication_test.go",
+      "sha256": "d92e4ba172d05d9f9c12970782de04270a7514e4c2fe7b66beb5eb40a0103152"
+    },
+    {
+      "path": "pkg/channel/replication/quorum_log.go",
+      "sha256": "c3f6a94a257ba814fcc1e4911d5b3171eff44fa4cbd4464fbbed862e7cc1753b"
+    },
+    {
+      "path": "pkg/channel/replication/recovery_barrier.go",
+      "sha256": "b7c340d3af98b9f78fa65e4e36424e17ca64fdb9f57872e5a755a852cd9777d1"
+    },
+    {
+      "path": "pkg/channel/replication/runtime.go",
+      "sha256": "fc78609cce23a75cf9f4bf77b7f9501800840e1c8d6e7d3faee69f75535f4712"
+    },
+    {
+      "path": "pkg/channel/replication/storage_funding.go",
+      "sha256": "137e7ac3c20cca26ef94e89333f0e76f8d8527373a52734c90d5c45f14525e52"
+    },
+    {
+      "path": "pkg/channel/replication/storage_funding_store.go",
+      "sha256": "f21309996bf848287271908b925b91128e54380e0c3202e7a4ce714e953bd8b4"
+    },
+    {
+      "path": "pkg/channel/store/adapter.go",
+      "sha256": "db0ad0b205a1604bc759a0621c8ed923ded7f0e338c1cd832e3e1852262bef90"
+    },
+    {
+      "path": "pkg/channel/store/channel_adapter.go",
+      "sha256": "d11fb89f918ae2390df385110255b6ff8c5a7ab43fceb6da2d9e41d4a2ad978b"
+    },
+    {
+      "path": "pkg/cluster/config.go",
+      "sha256": "c8fea8503926de45614a2ddc8194ab6796435ae29a9f26d95356aa51b3518355"
+    },
+    {
+      "path": "pkg/cluster/node.go",
+      "sha256": "fc1a01ea0c2ec2c39b9e2210cf444f855082ba18fc0d77b77d02ba462be87bab"
+    },
+    {
+      "path": "pkg/cluster/node_defaults.go",
+      "sha256": "49b8950ce02acc6d57e1aadc6f46da3fa0b625a8c2db7586ef65d7c996f2314a"
+    },
+    {
+      "path": "pkg/cluster/node_loops.go",
+      "sha256": "c5c24c3ac4eadd2c7a117c1094cf998dc9f23803efdeb9c6b632c8658eba0fe3"
+    },
+    {
+      "path": "pkg/cluster/node_mqtt_storage.go",
+      "sha256": "95eb0b65cf5e8071dac20d249068132a6c2b81f00a484a08561b546badbe0a9d"
+    },
+    {
+      "path": "pkg/cluster/node_snapshot.go",
+      "sha256": "eba0897cf7d13c0595bbc6bba962c907e40e3a9105bae87371a9a7a902ba06a6"
+    },
+    {
+      "path": "pkg/db/message/append.go",
+      "sha256": "f99183ba3f1ed0ea592846784d2839a9dd372ff8fd4f095c1fa83d299c05bf9b"
+    },
+    {
+      "path": "pkg/db/message/compat.go",
+      "sha256": "e372d8d1e373e667e0812f8293d93a47ebc5edc78c1a9e24498821205e711440"
+    },
+    {
+      "path": "pkg/db/message/db.go",
+      "sha256": "238393ac321f7272021990e46c8d6fec14c5fc8986104b2333eec0235d19efea"
+    },
+    {
+      "path": "pkg/db/message/mqtt_consumer_messages.go",
+      "sha256": "2d1956795f883be1fc95c043edcd4a44037d3a7b5f2fb40b716dbe0a3a82e75c"
+    },
+    {
+      "path": "pkg/db/message/mqtt_maintenance_tail.go",
+      "sha256": "ad9f9103c48368fa117b933f73f52f711688e8731e55846ec6febdb3be4b82ed"
+    },
+    {
+      "path": "pkg/db/message/mqtt_replay_transfer.go",
+      "sha256": "97620306f208560ca1c6da4c6321f34ecb45869406f8135031c5007817c0a91e"
+    },
+    {
+      "path": "pkg/db/message/mqtt_retired.go",
+      "sha256": "c99d3ea83c8eaec90a15390f072fca0c30aed0e77536a95fe7f943d846fed214"
+    },
+    {
+      "path": "pkg/db/message/mqtt_storage.go",
+      "sha256": "ecac7b864751126c73a8a4cdbc88221539076d6a84bea7fa7b9d42f185154237"
+    },
+    {
+      "path": "pkg/db/message/mqtt_storage_mutation.go",
+      "sha256": "289b1579d688a192702db28f4c7622ab0cd23e47c2c03644233cca9d94dcf4be"
+    },
+    {
+      "path": "pkg/db/message/mqtt_storage_periodic_integration_test.go",
+      "sha256": "eac2f3d2a548b105fd0274c4f0ed9950b80f4781dcfd08c6e2ff8df3f623baf1"
+    },
+    {
+      "path": "pkg/db/message/mqtt_storage_preparation.go",
+      "sha256": "d639abb216309f649babd567874c586eceb38491359d2144d303a7d944ade3d5"
+    },
+    {
+      "path": "pkg/db/message/mqtt_storage_refund.go",
+      "sha256": "258ebc3d7f0f94c5ca809f80057e0b1e2c90975c467bf7035f326f136bf882b8"
+    },
+    {
+      "path": "pkg/db/message/recovery_replace.go",
+      "sha256": "30cdad4c7166715f353b1d53114985b5daae81395d70585e2a2cf0ec7877b754"
+    },
+    {
+      "path": "pkg/db/message/schema.go",
+      "sha256": "b4517e8a9883bd20eedad443757f2b92678d00cd66b3e536b8b0631370233e18"
+    },
+    {
+      "path": "pkg/db/message/truncate.go",
+      "sha256": "0cdeab14fada3fadc1cabefa78709dc158418d7906711d32b22cb95c8b36541b"
+    },
+    {
+      "path": "pkg/db/meta/inspect.go",
+      "sha256": "738fea4d4b3197b3dfe9cf1afa4bb2a0a79aafa8124c51d466fec1785924ff73"
+    },
+    {
+      "path": "pkg/db/meta/mqtt_storage.go",
+      "sha256": "7bf17501a371354cad31cae87a3763867b00f02c61e01694427dd84348763352"
+    },
+    {
+      "path": "pkg/db/meta/types.go",
+      "sha256": "8153e3eeb491d8243308091d0db6bc61ad714b2c5db49d7f4761834e58036093"
+    },
+    {
+      "path": "pkg/metrics/mqtt.go",
+      "sha256": "1c69e546f291c5dca1c05688773900f9ca27fcf72e1868cdde3b5411622ea21f"
+    },
+    {
+      "path": "pkg/quorumlog/proposal.go",
+      "sha256": "866136dc4baa712da86381c3be3e462cc1a656646b2ff665670e03fcbf613d33"
+    },
+    {
+      "path": "pkg/quorumlog/proposal_test.go",
+      "sha256": "9f9e00859ee5ae5883bb1824cca513d0e52fe99ec73c0ce01f28d570a2fb031d"
+    },
+    {
+      "path": "pkg/quorumlog/publication_test.go",
+      "sha256": "44c0d854e9942d0f5519b47e68acc8a1769984d114481e3ff8b9514521a3369d"
+    },
+    {
+      "path": "pkg/quorumlog/recovery_barrier.go",
+      "sha256": "f602499c7457a2743c491e16fcbe019fc18caddd346b9e5aa085b4bcf6f91c2c"
+    },
+    {
+      "path": "pkg/slot/fsm/command.go",
+      "sha256": "a8c0a6bc118c21bf8ec4950538083aef414ded4adcd78a8277180604b5d6bd5b"
+    },
+    {
+      "path": "pkg/slot/fsm/command_inspection.go",
+      "sha256": "64fed7be586346b8be19aeacc34f361701df4603b1d4b7023d52ec4cbc1929b2"
+    },
+    {
+      "path": "pkg/slot/fsm/command_inspection_catalog_test.go",
+      "sha256": "3d8040c9620ae622d6f74cc5914e921e89022acc7352a0633fcbe1633cf9fc4b"
+    },
+    {
+      "path": "pkg/slot/fsm/mqtt_storage_cmds.go",
+      "sha256": "6cb37e486cf335cd46228d044e51c618d3517f6e6d21295616e07232d5e6a1b4"
+    },
+    {
+      "path": "pkg/slot/proxy/mqtt_storage.go",
+      "sha256": "f11b6c6565d2bd722a12745f6eb4bf6c13e7c295cc6a9d4652fdca01afb8e48c"
+    },
+    {
+      "path": "test/e2e/mqtt/storage_capacity/ingress_test.go",
+      "sha256": "7f03877ede7d66ff46cc9e3b273ceb18fbbee8dd40608663ffe5ec6112da1569"
+    },
+    {
+      "path": "test/e2e/mqtt/storage_capacity/storage_capacity_test.go",
+      "sha256": "d791cb26546c3f8c6a722354ed2e75a2d7a113a62c4aeec61d5be499b8fbebc7"
+    }
+  ],
+  "module_files": [
+    {
+      "path": "go.mod",
+      "sha256": "cdc5ca406087d0a8376ea3770c05dc4a7df7544ce746b64aa9048c0e6d9eed1d"
+    },
+    {
+      "path": "go.sum",
+      "sha256": "68ffe83def79e0889fffa722ac7d0a18d7bce52e01e8d8395da56da1e96975fb"
+    }
+  ],
+  "binaries": [
+    {
+      "path": "/tmp/wukongim-capacity-final-normal",
+      "sha256": "ad38e64b65923ab1b6ccb03f4b3933318aeaeea5c8fa0d1d05efd2a3d90dc107"
+    },
+    {
+      "path": "/tmp/wukongim-capacity-final-gofail",
+      "sha256": "74005b5a35286377bc35d0de5ad1696179ab62fb2d2f7af6e874240a8fef68b5"
+    },
+    {
+      "path": "/tmp/wukongim-capacity-delivery",
+      "sha256": "7d10bd4d42035e4034989803ce476637b2101a2f9a509b65e76bcd1239b5ea94"
+    },
+    {
+      "path": "/tmp/wukongim-capacity-config-baseline",
+      "sha256": "6c3798415807b6621df13771a110f4b67c78f333013313961760a7c422fa59fb"
+    },
+    {
+      "path": "/tmp/wukongim-will-append-baseline-gofail",
+      "sha256": "7a022bd1be7426a2b65a2b3c1c59e9acaf61627ecd83af11ea4b96e0cf0fdba7"
+    },
+    {
+      "path": "/tmp/wukongim-capacity-ordinary",
+      "sha256": "c96eb7f439137152a787b706695497ee6fed14c750634849ef8a3d5f37e8623a"
+    },
+    {
+      "path": "/tmp/wukongim-capacity-final-help-ordinary",
+      "sha256": "f4a65977904ea33bebf57071be8e72466976f605234f66ec5dfc28682be6f2bb",
+      "production_source_sha256": "832dc69c6da9f6970f60f4987c7d384545592bdc4c0a5074b13476deee43d95b"
+    },
+    {
+      "path": "/tmp/wukongim-capacity-final-help-gofail",
+      "sha256": "ac8dce930b72b51d39148c91a9a7e0de64c9ec74d418c8c46cb136655965f4f5",
+      "production_source_sha256": "832dc69c6da9f6970f60f4987c7d384545592bdc4c0a5074b13476deee43d95b"
+    }
+  ],
+  "builds": [
+    {
+      "binary": "/tmp/wukongim-capacity-final-normal",
+      "tags": [
+        "e2e"
+      ],
+      "gofail": false
+    },
+    {
+      "binary": "/tmp/wukongim-capacity-final-gofail",
+      "tags": [
+        "e2e"
+      ],
+      "gofail": true,
+      "version": "v0.2.0",
+      "instrumented_packages": [
+        "pkg/db/message",
+        "internal/usecase/mqttsession",
+        "internal/app",
+        "internal/runtime/channelappend",
+        "internal/infra/mqttwill"
+      ]
+    },
+    {
+      "binary": "/tmp/wukongim-capacity-ordinary",
+      "tags": [],
+      "gofail": false
+    }
+  ],
+  "post_matrix_change": {
+    "patch": "post-validation-help.patch.gz",
+    "scope": "Config help, field comment and example clarify all storage nodes, including MQTT-disabled nodes. Capacity/runtime behavior unchanged.",
+    "matrix_production_go_sha256": "39fe26d9519e3a3ec204b8f9c5e1cb145e4cbd120782ece49986a301ec4189ea"
+  }
+}

@@ -1,0 +1,220 @@
+node-1 [DEBUG-mqtt-restore-stage] observer enabled=true
+node-1 [DEBUG-mqtt-restore-stage] owner-admission closed
+node-1 [DEBUG-mqtt-restore-stage] phase=authentication started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=authentication completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=sweeper started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=sweeper completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=deliveries started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=deliveries completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=consumers started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=consumers completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=wills started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=wills completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=deadlines started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=deadlines completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=replay started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=replay completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=connections started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=connections completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=owners started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=owners completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] owner-admission closed
+node-1 [DEBUG-mqtt-restore-stage] phase=authentication started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=authentication completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=sweeper started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=sweeper completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=deliveries started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=deliveries completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=consumers started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=consumers completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=wills started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=wills completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=deadlines started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=deadlines completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=replay started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=replay completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=connections started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=connections completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=owners started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=owners completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] owner-admission closed
+node-1 [DEBUG-mqtt-restore-stage] phase=authentication started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=authentication completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=sweeper started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=sweeper completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=deliveries started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=deliveries completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=consumers started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=consumers completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=wills started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=wills completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=deadlines started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=deadlines completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=replay started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=replay completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=connections started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=connections completed=true error=false
+node-1 [DEBUG-mqtt-restore-stage] phase=owners started=true
+node-1 [DEBUG-mqtt-restore-stage] phase=owners completed=true error=false
+node-2 [DEBUG-mqtt-restore-rpc] action=prepare inactive=false coordinator=false quiescence=false deadline=false canceled=false
+node-2 [DEBUG-mqtt-restore-rpc] action=prepare inactive=false coordinator=false quiescence=false deadline=false canceled=false
+node-2 [DEBUG-mqtt-restore-rpc] action=prepare inactive=false coordinator=false quiescence=false deadline=false canceled=false
+node-2 [DEBUG-mqtt-restore-stage] observer enabled=true
+node-2 [DEBUG-mqtt-restore-stage] owner-admission closed
+node-2 [DEBUG-mqtt-restore-stage] phase=authentication started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=authentication completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=sweeper started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=sweeper completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=deliveries started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=deliveries completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=consumers started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=consumers completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=wills started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=wills completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=deadlines started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=deadlines completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=replay started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=replay completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=connections started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=connections completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=owners started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=owners completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] owner-admission closed
+node-2 [DEBUG-mqtt-restore-stage] phase=authentication started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=authentication completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=sweeper started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=sweeper completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=deliveries started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=deliveries completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=consumers started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=consumers completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=wills started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=wills completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=deadlines started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=deadlines completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=replay started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=replay completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=connections started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=connections completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=owners started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=owners completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] owner-admission closed
+node-2 [DEBUG-mqtt-restore-stage] phase=authentication started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=authentication completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=sweeper started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=sweeper completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=deliveries started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=deliveries completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=consumers started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=consumers completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=wills started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=wills completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=deadlines started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=deadlines completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=replay started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=replay completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=connections started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=connections completed=true error=false
+node-2 [DEBUG-mqtt-restore-stage] phase=owners started=true
+node-2 [DEBUG-mqtt-restore-stage] phase=owners completed=true error=false
+node-3 [DEBUG-mqtt-restore-stage] observer enabled=true
+node-3 [DEBUG-mqtt-restore-stage] owner-admission closed
+node-3 [DEBUG-mqtt-restore-stage] phase=authentication started=true
+node-3 [DEBUG-mqtt-restore-stage] phase=authentication completed=true error=false
+node-3 [DEBUG-mqtt-restore-stage] phase=sweeper started=true
+node-3 [DEBUG-mqtt-restore-stage] phase=sweeper completed=true error=false
+node-3 [DEBUG-mqtt-restore-stage] phase=deliveries started=true
+node-3 [DEBUG-mqtt-restore-stage] phase=deliveries completed=true error=false
+node-3 [DEBUG-mqtt-restore-stage] phase=consumers started=true
+node-3 [DEBUG-mqtt-restore-stage] phase=consumers completed=true error=false
+node-3 [DEBUG-mqtt-restore-stage] phase=wills started=true
+node-3 [DEBUG-mqtt-restore-stage] phase=wills completed=true error=false
+node-3 [DEBUG-mqtt-restore-stage] phase=deadlines started=true
+node-3 [DEBUG-mqtt-restore-stage] phase=deadlines completed=true error=false
+node-3 [DEBUG-mqtt-restore-stage] phase=replay started=true
+node-3 [DEBUG-mqtt-restore-stage] phase=replay completed=true error=false
+node-3 [DEBUG-mqtt-restore-stage] phase=connections started=true
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore] disconnect maintenance=false fenced=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-rpc] action=prepare inactive=true coordinator=false quiescence=false deadline=false canceled=false
+node-3 [DEBUG-mqtt-restore-stage] phase=connections completed=true error=true
+node-3 [DEBUG-mqtt-restore] stop connections deadline=true canceled=false
+node-3 [DEBUG-mqtt-restore-stage] phase=owners started=true
+node-3 [DEBUG-mqtt-restore-stage] phase=owners completed=true error=true
+node-3 [DEBUG-mqtt-restore-stage] owner-admission closed
+node-3 [DEBUG-mqtt-restore-stage] phase=authentication started=true
+node-3 [DEBUG-mqtt-restore-stage] phase=authentication completed=true error=false
+node-3 [DEBUG-mqtt-restore-stage] phase=sweeper started=true
+node-3 [DEBUG-mqtt-restore-stage] phase=sweeper completed=true error=false
+node-3 [DEBUG-mqtt-restore-stage] phase=deliveries started=true
+node-3 [DEBUG-mqtt-restore-stage] phase=deliveries completed=true error=false
+node-3 [DEBUG-mqtt-restore-stage] phase=consumers started=true
+node-3 [DEBUG-mqtt-restore-stage] phase=consumers completed=true error=false
+node-3 [DEBUG-mqtt-restore-stage] phase=wills started=true
+node-3 [DEBUG-mqtt-restore-stage] phase=wills completed=true error=false
+node-3 [DEBUG-mqtt-restore-stage] phase=deadlines started=true
+node-3 [DEBUG-mqtt-restore-stage] phase=deadlines completed=true error=false
+node-3 [DEBUG-mqtt-restore-stage] phase=replay started=true
+node-3 [DEBUG-mqtt-restore-stage] phase=replay completed=true error=false
+node-3 [DEBUG-mqtt-restore-stage] phase=connections started=true

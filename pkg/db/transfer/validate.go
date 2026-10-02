@@ -50,6 +50,9 @@ func ValidateBundle(ctx context.Context, root string, opts ImportOptions) (Impor
 			return stats, err
 		}
 	}
+	if err := validator.finishSubscriberSequences(); err != nil {
+		return stats, err
+	}
 	if err := validateMessageEntries(ctx, root, messageChannelEntries, messageEntries, &stats); err != nil {
 		return stats, err
 	}
@@ -71,16 +74,27 @@ type bundleValidator struct {
 
 	haveSubscriberOrder bool
 	subscriberOrder     subscriberOrder
+	subscriberMax       map[uint16]uint64
+	subscriberSequences map[uint16]uint64
 }
 
 func newBundleValidator(hashSlotCount uint16) *bundleValidator {
 	return &bundleValidator{
-		hashSlotCount: hashSlotCount,
+		hashSlotCount:       hashSlotCount,
+		subscriberMax:       make(map[uint16]uint64),
+		subscriberSequences: make(map[uint16]uint64),
 	}
 }
 
 func (v *bundleValidator) Visit(kind FileKind, record any) error {
 	switch kind {
+	case FileKindMetaSubscriberSequences:
+		row := record.(SubscriberSequenceRecord)
+		if row.HashSlot >= v.hashSlotCount || row.Sequence < 2 || v.subscriberSequences[row.HashSlot] != 0 {
+			return fmt.Errorf("%w: invalid or duplicate subscriber sequence", ErrValidation)
+		}
+		v.subscriberSequences[row.HashSlot] = uint64(row.Sequence)
+		return nil
 	case FileKindMetaMessageUpdates:
 		row := record.(MessageUpdateRecord)
 		key, err := metadb.ValidateMessageUpdateImport(row.MessageUpdateImport)
@@ -107,6 +121,9 @@ func (v *bundleValidator) Visit(kind FileKind, record any) error {
 		row := record.(SubscriberRecord)
 		if err := v.validateHashSlot("subscribers", row.ChannelID, row.HashSlot); err != nil {
 			return err
+		}
+		if uint64(row.Incarnation) > v.subscriberMax[row.HashSlot] {
+			v.subscriberMax[row.HashSlot] = uint64(row.Incarnation)
 		}
 		return v.validateSubscriberOrder(row)
 	case FileKindMetaUserChannelMemberships:

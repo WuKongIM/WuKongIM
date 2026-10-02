@@ -24,7 +24,20 @@ func (l *ChannelLog) Append(ctx context.Context, records []Record, opts AppendOp
 	batch := l.db.engine.NewBatch()
 	defer batch.Close()
 
-	result, err := l.prepareAndStageAppendLocked(ctx, batch, records, opts)
+	var result AppendResult
+	var err error
+	if l.db.mqttStorage != nil {
+		var rows []messageRow
+		rows, result, err = l.prepareAppendRowsLocked(ctx, records, opts)
+		if err == nil && result.Count > 0 {
+			_, _, err = l.prepareMQTTStorage(ctx, rows, nil)
+		}
+		if err == nil {
+			err = l.stageMessageRows(ctx, batch, rows)
+		}
+	} else {
+		result, err = l.prepareAndStageAppendLocked(ctx, batch, records, opts)
+	}
 	if err != nil || result.Count == 0 {
 		return AppendResult{}, err
 	}
@@ -128,18 +141,33 @@ func (l *channelEntry) stageMessageRows(ctx context.Context, batch *engine.Batch
 }
 
 func (l *channelEntry) stageMessageRow(batch *engine.Batch, row messageRow, cache *appendKeyCache) error {
+	identity, err := rowIdempotencyKey(row.FromUID, row.ClientMsgNo, row.PublicationMetadata)
+	if err != nil {
+		return err
+	}
 	if err := l.stageMessageHeaderRow(batch, row, cache); err != nil {
 		return err
 	}
 	if err := l.stageGlobalMessageIDIndexRow(batch, row); err != nil {
 		return err
 	}
-	if row.ClientMsgNo != "" && row.FromUID == "" {
+	if row.ClientMsgNo != "" && (row.FromUID == "" || identity.ServerWillKey != "") {
 		if err := l.stageClientMsgNoIndexRow(batch, row, cache); err != nil {
 			return err
 		}
 	}
-	if row.FromUID != "" && row.ClientMsgNo != "" {
+	if identity.ServerWillKey != "" {
+		if err := l.stageWillReceipt(batch, row, identity); err != nil {
+			return err
+		}
+		value, err := encodeIdempotencyIndexValue(row)
+		if err != nil {
+			return err
+		}
+		if err := batch.Set(encodeMessageWillIdempotencyIndexKey(l.key, row.FromUID, identity.ServerWillKey), value); err != nil {
+			return err
+		}
+	} else if row.FromUID != "" && row.ClientMsgNo != "" {
 		if err := l.stageIdempotencyIndexRow(batch, row, cache); err != nil {
 			return err
 		}
@@ -257,9 +285,35 @@ func (l *ChannelLog) validateAppendRow(ctx context.Context, row messageRow, seen
 	if row.FromUID == "" || row.ClientMsgNo == "" {
 		return nil
 	}
-	key := IdempotencyKey{FromUID: row.FromUID, ClientMsgNo: row.ClientMsgNo}
+	key, err := rowIdempotencyKey(row.FromUID, row.ClientMsgNo, row.PublicationMetadata)
+	if err != nil {
+		return err
+	}
 	if seen.rememberIdempotencyKey(key) {
 		return fmt.Errorf("%w: duplicate idempotency key", dberrors.ErrConflict)
+	}
+	if key.ServerWillKey != "" {
+		// Wills use durable point proofs even on followers. They never enter the
+		// native negative filter, so reopening cannot mistake them for absent.
+		l.db.idempotencyPointReads.Add(1)
+		receipt, present, err := loadWillReceipt(l.db.engine, l.key, key)
+		if err != nil {
+			return err
+		}
+		if present {
+			expected, err := willReceiptFromRow(row)
+			if err != nil || receipt != expected {
+				return dberrors.ErrConflict
+			}
+		}
+		hit, ok, err := l.lookupIdempotencyByKey(ctx, key, l.idempotencyStorageKey(key))
+		if err != nil {
+			return err
+		}
+		if ok && hit.MessageSeq != row.MessageSeq {
+			return fmt.Errorf("%w: Will identity already stored at seq %d", dberrors.ErrConflict, hit.MessageSeq)
+		}
+		return nil
 	}
 	scratch.idempotencyIndexKey = cache.idempotencyIndexKeyTo(scratch.idempotencyIndexKey, key.FromUID, key.ClientMsgNo)
 	if mode == AppendTrustedContiguous {
@@ -297,14 +351,15 @@ func (l *ChannelLog) recordToRow(seq uint64, record Record, defaultServerTimesta
 		serverTimestampMS = defaultServerTimestampMS
 	}
 	row := messageRow{
-		MessageSeq:        seq,
-		MessageID:         record.ID,
-		ClientMsgNo:       record.ClientMsgNo,
-		FromUID:           record.FromUID,
-		ChannelID:         l.id.ID,
-		ChannelType:       l.id.Type,
-		Payload:           record.Payload,
-		ServerTimestampMS: serverTimestampMS,
+		MessageSeq:          seq,
+		MessageID:           record.ID,
+		ClientMsgNo:         record.ClientMsgNo,
+		FromUID:             record.FromUID,
+		ChannelID:           l.id.ID,
+		ChannelType:         l.id.Type,
+		Payload:             record.Payload,
+		PublicationMetadata: record.PublicationMetadata,
+		ServerTimestampMS:   serverTimestampMS,
 	}
 	if record.SizeBytes > 0 {
 		row.PayloadSize = uint64(record.SizeBytes)

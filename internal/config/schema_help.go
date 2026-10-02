@@ -5,6 +5,19 @@ type fieldHelp struct{ EN, ZH string }
 
 // schemaHelp stays next to the schema so all configuration views share field meaning and constraints.
 var schemaHelp = map[string]fieldHelp{
+	"mqtt.enable":                   {EN: "Open the MQTT 5 TCP listener; default false. MQTT product acceptance remains in progress.", ZH: "开启 MQTT 5 TCP 监听，默认关闭；完整产品验收仍在进行。"},
+	"mqtt.listen_addr":              {EN: "TCP bind address with a nonzero port; TLS terminates upstream.", ZH: "TCP 监听地址，端口须非零；TLS 由上游终止。"},
+	"mqtt.namespace":                {EN: "Stable broker ClientID namespace; use the same value on every cluster node.", ZH: "稳定的 broker ClientID 命名空间；所有集群节点必须一致。"},
+	"mqtt.max_connections":          {EN: "Maximum retained owners including pending and closing connections; 1 to 1000000.", ZH: "保留的 owner 上限，包含准备中和关闭中的连接；范围 1 至 1000000。"},
+	"mqtt.max_subscriptions":        {EN: "Maximum pending, active and removing subscriptions per Session; 1 to 1024.", ZH: "每个会话准备中、活跃及移除中的订阅总上限；范围 1 至 1024。"},
+	"mqtt.workers":                  {EN: "Workers in each bounded connection/delivery cohort; 1 to 128.", ZH: "连接和投递各自的有界 worker 数；范围 1 至 128。"},
+	"mqtt.max_packet_bytes":         {EN: "Maximum inbound packet bytes; default and ceiling 1 MiB.", ZH: "入站报文最大字节数；默认及上限为 1 MiB。"},
+	"mqtt.session_expiry_limit_sec": {EN: "Maximum requested offline Session lifetime in seconds; default 24 hours.", ZH: "允许请求的离线会话有效期上限，单位秒；默认 24 小时。"},
+	"mqtt.quota_messages":           {EN: "Logical per-Session backlog count limit; candidate default 10000, not a scale guarantee.", ZH: "每会话逻辑积压条数上限；候选默认值 10000，不代表容量保证。"},
+	"mqtt.quota_bytes":              {EN: "Logical per-Session backlog byte limit; candidate default 64 MiB.", ZH: "每会话逻辑积压字节上限；候选默认值 64 MiB。"},
+	"mqtt.storage_node_bytes":       {EN: "Aggregate node reservation limit for protected originals and future shared replay; excludes physical engine amplification. Default 8 GiB.", ZH: "节点受保护原始消息和共享回放预留容量总上限；不含存储引擎物理放大，默认 8 GiB。"},
+	"mqtt.storage_cluster_bytes":    {EN: "Aggregate replica reservation limit across the cluster; every storage node, including MQTT-disabled nodes, must agree. Default 64 GiB.", ZH: "集群所有副本的预留容量总上限；所有存储节点必须一致，包括未启用 MQTT 的节点，默认 64 GiB。"},
+	"mqtt.window_limit":             {EN: "Maximum durable QoS 1 exchanges; 1 to 1024, further limited by peer Receive Maximum.", ZH: "持久 QoS 1 交换上限；范围 1 至 1024，同时受对端 Receive Maximum 限制。"},
 	"node.id": {
 		EN: "Stable, non-zero node ID unique within the cluster; do not change it after data exists. Required at startup.",
 		ZH: "节点在集群中的稳定、非零唯一 ID；创建数据后不要更改。启动必填。",

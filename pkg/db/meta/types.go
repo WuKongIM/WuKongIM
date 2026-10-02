@@ -180,6 +180,20 @@ const (
 	TableIDMessageUpdateRequest uint32 = 20
 	// TableIDMessageUpdatePending stores body-free notification checkpoints.
 	TableIDMessageUpdatePending uint32 = 21
+	// TableIDMQTTSession stores broker-scoped ClientID bindings and session fences.
+	TableIDMQTTSession uint32 = 22
+	// TableIDMQTTSubscription stores owner-fenced subscription intents and recovery stages.
+	TableIDMQTTSubscription uint32 = 23
+	// TableIDMQTTDeliveryCursor stores per-subscription source progress and backlog accounting.
+	TableIDMQTTDeliveryCursor uint32 = 24
+	// TableIDMQTTInflight stores only the bounded unacknowledged exchange window.
+	TableIDMQTTInflight uint32 = 25
+	// TableIDMQTTSourceBinding stores source-owned subscription projections.
+	TableIDMQTTSourceBinding uint32 = 26
+	// TableIDMQTTWill retains configuration, obligations and execution receipts.
+	TableIDMQTTWill uint32 = 27
+	// TableIDMQTTStorageLedger retains non-expiring cluster capacity grants.
+	TableIDMQTTStorageLedger uint32 = 28
 )
 
 const (

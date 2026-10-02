@@ -1,0 +1,69 @@
+{
+  "base_revision": "a8559a6bad3f48337315f814dc664b3c221e76b6",
+  "diff_command": "git diff HEAD",
+  "commit_list": [],
+  "files": [
+    {
+      "path": "internal/usecase/mqttsession/FLOW.md",
+      "sha256": "bee4e0f7f9d04e23a13f51fb29913d68ca35051cf7dac8893dfcf9b7e0acd6fe",
+      "untracked": false
+    },
+    {
+      "path": "internal/usecase/mqttsession/will_attempt_reclamation.go",
+      "sha256": "2c9bba12d5dabffc0c73b0874df18800376df702ed6023daac61c6978d423f23",
+      "untracked": false
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "sha256": "97b5aa5b8f7865d6846d12a2906c9f6f4d5fc001a0370923d026a6dfcb016a79",
+      "untracked": false
+    },
+    {
+      "path": "pkg/slot/proxy/mqtt_write.go",
+      "sha256": "1c7970d4cffff62ed7accd25eed42c1f56a5d35a29f1d7306863960d4366f922",
+      "untracked": false
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "b9974d3e7a77a5369553b0dd3914edb6ae43bea4c1cd1e546701728cd7e2bdab",
+      "untracked": false
+    },
+    {
+      "path": "test/e2e/mqtt/will_reclamation/AGENTS.md",
+      "sha256": "7916793e91d384cbb82747c73ef7d86c47a80a9971c4d60f415e8c9165d71c97",
+      "untracked": false
+    },
+    {
+      "path": "test/e2e/mqtt/will_reclamation/reclamation_test.go",
+      "sha256": "0daef4cb39b9a9e5fedc1fd7f3094dec18ecbb022b83aed1dd2cc9f8115d707e",
+      "untracked": false
+    },
+    {
+      "path": "docs/reports/mqtt-will-pressure-races/negative-control-source.json",
+      "sha256": "53b555c73d30fe6a945d67797861b5b334102f10511aae719bff20caa2e3c0dd",
+      "untracked": true
+    },
+    {
+      "path": "docs/reports/mqtt-will-pressure-races/source-context.json",
+      "sha256": "323efa8720351ded5583abd7bcde989ab7c316a15cda6e383fbdd96bb783c782",
+      "untracked": true
+    },
+    {
+      "path": "docs/specs/mqtt-will-pressure-races.md",
+      "sha256": "358638a72f229226983bfc707c386ed21782685ccb86a1f3f4aef3f2467351a8",
+      "untracked": true
+    },
+    {
+      "path": "test/e2e/mqtt/will_reclamation_races/AGENTS.md",
+      "sha256": "8bba7e6556b0aa658ec88fa3667a85af256a5cbb5b3ad0585cc5954e81186429",
+      "untracked": true
+    },
+    {
+      "path": "test/e2e/mqtt/will_reclamation_races/races_test.go",
+      "sha256": "4456f6e1c0a2f072fa0e6cda3bd2a5bd47eff25c1a8d1f654ea243a9f5506983",
+      "untracked": true
+    }
+  ],
+  "spec": "docs/specs/mqtt-will-pressure-races.md",
+  "runtime_state": "Full 1024 capacity both topologies passed; applied reply matrix5/6 passed with1-node late-release receipt timeout under diagnosis; negative control twice failed at second-page capacity assertion as expected. No final six-case qualification yet."
+}

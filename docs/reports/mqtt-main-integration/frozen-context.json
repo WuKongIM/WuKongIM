@@ -1,0 +1,1180 @@
+{
+  "source_revisions": {
+    "candidate": "9314a16310b87af64250fd91a6d1c9a2d7cfd3e7",
+    "main": "6e60587d637025ea7e2179e84112351305540919"
+  },
+  "source_context": {
+    "candidate": [
+      {
+        "path": "AGENTS.md",
+        "sha256": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade"
+      },
+      {
+        "path": "cmd/wkcloudanalysisbridge/FLOW.md",
+        "sha256": "de86e4862c53d2836d3bad9b51d7991f3faa1d683148fcc810b98b8fd02e2d5d"
+      },
+      {
+        "path": "cmd/wkcloudbundle/FLOW.md",
+        "sha256": "516c8e00b02e1f0ccac34b5297a7eea607f5a228c9b9aeda17ab56e30eb39f75"
+      },
+      {
+        "path": "cmd/wkcloudlease/FLOW.md",
+        "sha256": "adb3ca83b4a7571d40ec40d0089a13841acb1b4ff9e05f3842c3574aef50cec1"
+      },
+      {
+        "path": "cmd/wkcloudleaseoidc/FLOW.md",
+        "sha256": "c937e8574d203aa0a460e8a95be67af6c6913763614e960dac2b336276dde363"
+      },
+      {
+        "path": "docs-site/FLOW.md",
+        "sha256": "4ded69664a276fa7159959d2f282394c3042960a4c367f43be77e357522f1c6b"
+      },
+      {
+        "path": "docs/wiki/AGENTS.md",
+        "sha256": "d4744dbf2a261b20383152e30d4dbc29898edfffbbb74c3d21f2a0c51a4545b5"
+      },
+      {
+        "path": "internal/access/api/FLOW.md",
+        "sha256": "e8a94f2abce17f87a4cf4da851ebc95304f16478cca1e52f4ae6784c48f0f8a4"
+      },
+      {
+        "path": "internal/access/cloudanalysismcp/FLOW.md",
+        "sha256": "2443e338a61d1e2118e96ccf1332f6ce94194abf0812fdd1ff5490f7ef0173b1"
+      },
+      {
+        "path": "internal/access/cloudview/FLOW.md",
+        "sha256": "880f4cdb227f11919d8f88b08bbf79e7a32132a23fae78668346c0b6b44a8f5e"
+      },
+      {
+        "path": "internal/access/gateway/FLOW.md",
+        "sha256": "6bf420811d461cd32d096894a4f68e8e51a1c0d6bb574e032c2812e8a2ed1643"
+      },
+      {
+        "path": "internal/access/issueagentcli/FLOW.md",
+        "sha256": "0bc188c69b253a3ef72a2c0512af81880e7d533528cbb545b00c2c71a845ea0b"
+      },
+      {
+        "path": "internal/access/manager/FLOW.md",
+        "sha256": "e6a9a79d4a6e601ff009e0acc6367390f361436018e7a09e05afbedacb7d5202"
+      },
+      {
+        "path": "internal/access/mqtt/FLOW.md",
+        "sha256": "60b6f850521a41142055530b7040137f41de4f0ac07820ba76c536699699c3d5"
+      },
+      {
+        "path": "internal/access/node/FLOW.md",
+        "sha256": "08ddaf2d4b4e1cbcef7979512d4913d1b1ecf59e417a3ce6ca3928c4e182c5bf"
+      },
+      {
+        "path": "internal/access/opsmcp/FLOW.md",
+        "sha256": "b7a98a6a0cd800ca8bc3f18faf1ed693e6ff56c0d71d783f6a96616b67ff018b"
+      },
+      {
+        "path": "internal/access/reviewagentcheckmcp/FLOW.md",
+        "sha256": "317416f6b19661ead9d4f6878a9ca83c9ab8390f21ace982344677e6ce199c4f"
+      },
+      {
+        "path": "internal/access/reviewagentcli/FLOW.md",
+        "sha256": "f7d7149d53b41ca531e91dd6fca69ec7720fcc7111ff4fb19ae41f8fbf45ecbd"
+      },
+      {
+        "path": "internal/app/FLOW.md",
+        "sha256": "1381759469d77d4ea71280894b53a55b90034f4887cf652664f0be974e1d91b4"
+      },
+      {
+        "path": "internal/bench/FLOW.md",
+        "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+      },
+      {
+        "path": "internal/bench/chatlifecycle/FLOW.md",
+        "sha256": "6b893772755c3de94575fd2396a71fa22a3a0675ff1d33d3ef751ebbb688ec56"
+      },
+      {
+        "path": "internal/contracts/backup/FLOW.md",
+        "sha256": "9ab71c2a1ad5eefa3685fae801c7eaab1ed93bd0c5a6a627b84323c578a72856"
+      },
+      {
+        "path": "internal/contracts/channelappend/FLOW.md",
+        "sha256": "7b428a0ee4f2779c62f12afeb90f0d02ac844d5de13c7de34854c8580369f3f7"
+      },
+      {
+        "path": "internal/contracts/issueagent/FLOW.md",
+        "sha256": "3737c5ff2520ffa40d0d5432ca023f91e0fc9b1450f4585bc734f06c173e5bec"
+      },
+      {
+        "path": "internal/contracts/mqttsession/FLOW.md",
+        "sha256": "96e6f581f00853177cab5928583efd507ca7c776c72c0742227231685490f799"
+      },
+      {
+        "path": "internal/contracts/onlinedelivery/FLOW.md",
+        "sha256": "2cc41f85c4c704d69cd888115356a44ef9aab3265a1c72dd0abaef1f62c7b8de"
+      },
+      {
+        "path": "internal/contracts/reviewagent/FLOW.md",
+        "sha256": "f8990607d5b24d842fe839734f94183d4bc0bc005eb42129bd8377512f5e7b4b"
+      },
+      {
+        "path": "internal/infra/backup/FLOW.md",
+        "sha256": "947cfcd5236f2be457d0fc776fc18380d3f125b983d07dbe94168cf7b1377df8"
+      },
+      {
+        "path": "internal/infra/cloudanalysis/FLOW.md",
+        "sha256": "2b793dfccedbd8c2ff769eae311598cf55333118494243b10f241134af177869"
+      },
+      {
+        "path": "internal/infra/clouddeploy/FLOW.md",
+        "sha256": "b5405ce2d1b14e140202ddaee651143f5e5d550a5a032a991bf888a1fbf61245"
+      },
+      {
+        "path": "internal/infra/cloudlease/alibaba/FLOW.md",
+        "sha256": "d4372bf9bda8ab65a7eb82626ede922b5b1af97dda3e2fa7c849562eeead0c28"
+      },
+      {
+        "path": "internal/infra/cluster/FLOW.md",
+        "sha256": "c36162541e7df83ee11765e916798e49066f8b0d5b6c9ed2f09fcf804e6d5eb5"
+      },
+      {
+        "path": "internal/infra/delivery/FLOW.md",
+        "sha256": "b5002802377a9f7d0738fa5c5253dec8ec51efbd937ff063c33002a6d67602dd"
+      },
+      {
+        "path": "internal/infra/issueagentgithub/FLOW.md",
+        "sha256": "356f8cb6f5cbace294a331ccd431552d6428e71d8d03298d2f81521ea590f085"
+      },
+      {
+        "path": "internal/infra/mqttowner/FLOW.md",
+        "sha256": "efc5c779bfb7777a949f62b452e4766de4df135c5814fe846de4a29b981ab402"
+      },
+      {
+        "path": "internal/infra/mqttwill/FLOW.md",
+        "sha256": "08e892a80e8ac85fc12e16ed75f3081fd6146a791e906164e410015e45de076c"
+      },
+      {
+        "path": "internal/infra/reviewagentgithub/FLOW.md",
+        "sha256": "66c5375a7efae1706e2ff275718c618d479df848f76254936bba192f7487f8d2"
+      },
+      {
+        "path": "internal/log/FLOW.md",
+        "sha256": "6553111e60374135c039ab75d0036ab4c741d7970ee00e1080d53197d592f7a7"
+      },
+      {
+        "path": "internal/observability/taskaudit/FLOW.md",
+        "sha256": "b92ae1ef20f155286a0eee3bf746982aeb9f3c33efbf1e81c081db923d0db38d"
+      },
+      {
+        "path": "internal/runtime/backup/FLOW.md",
+        "sha256": "78b5ba665c690921ca5507951936ee2e9c4bb83804954571379970870fb3a117"
+      },
+      {
+        "path": "internal/runtime/channelappend/FLOW.md",
+        "sha256": "942304b9bfdfea52b135db26c89b1f916b947ab6e862250d9f81be4cfea3fc46"
+      },
+      {
+        "path": "internal/runtime/cloudviewstate/FLOW.md",
+        "sha256": "7900ad65fc5f7c3b4e8aea9ea1ae0e4dc1a0fe7c21d9d03ff4fbaa43adfbcad5"
+      },
+      {
+        "path": "internal/runtime/delivery/FLOW.md",
+        "sha256": "42f8e33eb80ec87b730b26be30dc8f57206417dd35763ee4cf34400328d78704"
+      },
+      {
+        "path": "internal/runtime/issueagentverify/FLOW.md",
+        "sha256": "18e092fe80c9151255cb60b5de19e41599e116d467b6b4eef4438c9824ec458a"
+      },
+      {
+        "path": "internal/runtime/messageupdates/FLOW.md",
+        "sha256": "40382a1fd0ebcc3e96f8049564d8841ff619dcb553c75fe62792f701548ec46b"
+      },
+      {
+        "path": "internal/runtime/mqttsession/FLOW.md",
+        "sha256": "570eedc2c82c4339336124c294774d748c37a595d43541c3ce8196cce6ce6e98"
+      },
+      {
+        "path": "internal/runtime/online/FLOW.md",
+        "sha256": "c7233cdcec9976b5f237194ad7fd211c96e961702ce7621d7e759250a5dbf246"
+      },
+      {
+        "path": "internal/runtime/opsmcp/FLOW.md",
+        "sha256": "5d95f87d4b678434909e5823daa221cf091f86d3ee33fab8b7427d35b57e2e83"
+      },
+      {
+        "path": "internal/runtime/presence/FLOW.md",
+        "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee"
+      },
+      {
+        "path": "internal/runtime/readavailability/FLOW.md",
+        "sha256": "c2377f3d87f4f1b3c5e247ff4ce6a4981e7cb71e930428b2a543e871f07a233c"
+      },
+      {
+        "path": "internal/runtime/reviewagentverify/FLOW.md",
+        "sha256": "3c90cf7db36c3edba4411bfa7b0253cc3c247e8f1bb9e4aff078ab995963d33c"
+      },
+      {
+        "path": "internal/runtime/webhook/FLOW.md",
+        "sha256": "5ac939f1cca4809a8ca479a25a56696c2709140259e42e653c84973836ef0313"
+      },
+      {
+        "path": "internal/usecase/backup/FLOW.md",
+        "sha256": "2ce0a95a5288c7f8f6adfa662778e8bcb7a57b29cc9a41a1222b1a2a419e8e01"
+      },
+      {
+        "path": "internal/usecase/benchterminal/FLOW.md",
+        "sha256": "ac2d7b750d6064f5773c23c2b95f7d197397368037585991a3416e8dd3a6c855"
+      },
+      {
+        "path": "internal/usecase/channel/FLOW.md",
+        "sha256": "236063af07952a21973145e30077a010ab7309c2a14fc6b76af3c94a70bec556"
+      },
+      {
+        "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+        "sha256": "ab301c7579d789e4eadc41c833b3856b7b2b64c5c1c365f75dd11599b70bcf7f"
+      },
+      {
+        "path": "internal/usecase/cloudanalysis/FLOW.md",
+        "sha256": "12af4c8838afb0ce2b0870f36c8bf8ed51c2ce987c0c6170ecd652eea6486105"
+      },
+      {
+        "path": "internal/usecase/clouddeploy/FLOW.md",
+        "sha256": "3f82641fef13b0d52a513247f02f8ae4955f70a3cd47df4a1c62acf4e91af7b8"
+      },
+      {
+        "path": "internal/usecase/cloudlease/FLOW.md",
+        "sha256": "1d58607795cb0a700b6c0a0d23188f06f2036b82109f9a3e76368f355abf5368"
+      },
+      {
+        "path": "internal/usecase/cloudsim/FLOW.md",
+        "sha256": "9d5146648e8e70c5c3bd7911fe178cbf7765dd0ef3ef3f882cb35a239e7ccf73"
+      },
+      {
+        "path": "internal/usecase/conversation/FLOW.md",
+        "sha256": "e395927ea87e90445380325d59f7fc51c1b17ecd283c91f0d40d93ff4e330484"
+      },
+      {
+        "path": "internal/usecase/issueagent/FLOW.md",
+        "sha256": "5a15856e3dbefd572b5fe03fecd3dbb968f0fb0efebced6251db3aa165d63cb8"
+      },
+      {
+        "path": "internal/usecase/management/FLOW.md",
+        "sha256": "5c0dbf390a03d4620b84122d4c0defaab3a020028535deecc4f60faa835d0fa4"
+      },
+      {
+        "path": "internal/usecase/message/FLOW.md",
+        "sha256": "8363ede3c09831c218f1822d55beb2aa119c045ee41d519388baad2e54655e02"
+      },
+      {
+        "path": "internal/usecase/mqttsession/FLOW.md",
+        "sha256": "b38814db409920eb7f2c5f53c6a5538f3dc6ac25ff8312c13ed1a2dd4ef40728"
+      },
+      {
+        "path": "internal/usecase/opsobserve/FLOW.md",
+        "sha256": "866e87d25765d0a3692169ce6ec62cb9ce4786d131215e052e63f78e0ec0f058"
+      },
+      {
+        "path": "internal/usecase/plugin/FLOW.md",
+        "sha256": "649ee4c69e656f62bc4c14de8a0f71466bf03fafc1f1dc28c166d4d8cdc20b50"
+      },
+      {
+        "path": "internal/usecase/presence/FLOW.md",
+        "sha256": "aab89d6a9ebf83940b575c99522bd169413276810c59f2214cdd288c8560a1b2"
+      },
+      {
+        "path": "internal/usecase/reviewagent/FLOW.md",
+        "sha256": "6640b2695cbb74f2448bbf6710a1a3b3517ca33386eba576b0c65470e2dba08f"
+      },
+      {
+        "path": "internal/usecase/user/FLOW.md",
+        "sha256": "74c5249e1f0c6424f5ba63a059ba28d2d08d7fa3af3ec75a43fa5c978e22455c"
+      },
+      {
+        "path": "pkg/backup/FLOW.md",
+        "sha256": "f8702514cbeccba1364c2f573aaa97fb373c8d6840876d15879b3a6cdd57c011"
+      },
+      {
+        "path": "pkg/bench/model/FLOW.md",
+        "sha256": "2779ef22050c0ac91f9523c8889d8ca8095ba145504497b43fdd3c0d8ed0ccb8"
+      },
+      {
+        "path": "pkg/channel/FLOW.md",
+        "sha256": "2b7ba26c03c4e2bd633933980530741f7afbd5767133d5759f39ad32de97212d"
+      },
+      {
+        "path": "pkg/channel/reactor/FLOW.md",
+        "sha256": "cbd879f918374a76551e07b31af481df028951d737f38a9d9ebb4916d2dd0172"
+      },
+      {
+        "path": "pkg/channel/worker/FLOW.md",
+        "sha256": "58dd232820ecc509943228ad1888afe64409ad558b74bd3bf67dae60ecef94b1"
+      },
+      {
+        "path": "pkg/client/FLOW.md",
+        "sha256": "401df3fb9feb42b6c5ea97ee098a8664e7bc77eaf9ba3b7c8ca5eeb127008508"
+      },
+      {
+        "path": "pkg/cluster/FLOW.md",
+        "sha256": "33ad01b86572f004efefb77e2b2d2cb85157ae262cff7edc565958656e4cabc2"
+      },
+      {
+        "path": "pkg/controller/FLOW.md",
+        "sha256": "f514c03f26f91d0fd43b96505bb3c9da5d5fd1fb186cadfba09cd93d58f34d89"
+      },
+      {
+        "path": "pkg/db/FLOW.md",
+        "sha256": "33c7ba81c18ed8cb377e9bef541526028ef31e64dd03becc7ac1ea6cc14fb10a"
+      },
+      {
+        "path": "pkg/db/message/FLOW.md",
+        "sha256": "c287c8b95022894a1c1211cd6fd3b03d449d0cc31df2a0048f0cc838cfa41917"
+      },
+      {
+        "path": "pkg/db/meta/FLOW.md",
+        "sha256": "ab5d2bd7597ca1f55a317b78d395bf1288d093a5d2276c107ac5bdcb24a5bb36"
+      },
+      {
+        "path": "pkg/flowdoc/FLOW.md",
+        "sha256": "c749d048b57dc3747e747c325a0334590ecf2d5c2a66304ec1c420fd6b77ebe0"
+      },
+      {
+        "path": "pkg/gateway/FLOW.md",
+        "sha256": "66fa9904a664b72c01d9bd37079f45773e64e7efdd6e99addd2697a986b7b03e"
+      },
+      {
+        "path": "pkg/goroutine/FLOW.md",
+        "sha256": "6022581d073726daea7dbe92349f5edd212330d762193942f68201f0305ae94d"
+      },
+      {
+        "path": "pkg/hashslot/FLOW.md",
+        "sha256": "2b063ca18eff7b21e9fd541feca9e0004c423a65abb266ca86f82633d937c94d"
+      },
+      {
+        "path": "pkg/protocol/publication/FLOW.md",
+        "sha256": "b596f85ca3bd1c73ba3a278c8a5638da46d37ef3ef7d95c26ddb78fb8823e03b"
+      },
+      {
+        "path": "pkg/slot/FLOW.md",
+        "sha256": "1154b44b01cf5e3c85c8b7c4c2a41c20d75fd69a87d5eec7b174d04c5691b917"
+      },
+      {
+        "path": "pkg/workqueue/FLOW.md",
+        "sha256": "6720c38d539f939cab8d64daecc539484fe2023aa3e5a5260d52f18260a6d5cd"
+      },
+      {
+        "path": "scripts/cloud-deployment/FLOW.md",
+        "sha256": "633c4673faadbc362e0b6e2156edd60e9c113fc5a2feec9cd7f4f0df1be64c80"
+      },
+      {
+        "path": "test/e2e/AGENTS.md",
+        "sha256": "efced202c1317c668dfb2cc4899277e01a79d18be1a081b62110874b9fd79da3"
+      },
+      {
+        "path": "test/e2e/backup/AGENTS.md",
+        "sha256": "85483753c7ebe2d3c6bed62748104bb02b424b3b9d12f01552809d198960b188"
+      },
+      {
+        "path": "test/e2e/backup/scheduled_restore/AGENTS.md",
+        "sha256": "fde20f57a9103e9b1fea99c7a5f954f38a242a9a0b717617cd9022299fa5be37"
+      },
+      {
+        "path": "test/e2e/backup/three_node_restore/AGENTS.md",
+        "sha256": "671afb28267ec8984a08890ce5544dfad362251c6043f9597e05b3c24b870161"
+      },
+      {
+        "path": "test/e2e/cluster/AGENTS.md",
+        "sha256": "aa488009c9b40493a31ac380ec783655090fc8c8a491c644b181d9fdc803be22"
+      },
+      {
+        "path": "test/e2e/cluster/controller_voter_promotion/AGENTS.md",
+        "sha256": "686e3526a9b3381480d8356915592a75646ae71d9925c120700566b465b46160"
+      },
+      {
+        "path": "test/e2e/cluster/dynamic_node_faults/AGENTS.md",
+        "sha256": "4a93e00efbb4fbe8dfcd54d3b32871d3d944de7ca53cdc3b26ae7ba0d5f102ea"
+      },
+      {
+        "path": "test/e2e/cluster/dynamic_node_join/AGENTS.md",
+        "sha256": "e4a33eacaf6258ffd41a5e05037bd8a73beff3a82947de902be84ce441799f01"
+      },
+      {
+        "path": "test/e2e/cluster/dynamic_node_operations/AGENTS.md",
+        "sha256": "c9785b96c4c5ba50b09f8fa8bd1fea15acaa22370ff5efb02a893e87b6f4b128"
+      },
+      {
+        "path": "test/e2e/cluster/dynamic_node_readiness/AGENTS.md",
+        "sha256": "03001ec6c7e75e91cd38db2d3c8199dd4d7cfd2cc9f98f37a033289dea6c58c1"
+      },
+      {
+        "path": "test/e2e/cluster/goroutine_monitor/AGENTS.md",
+        "sha256": "f6b908aeb4e0faf787e25868a2ff1193735ee21680bc933ed0d801da79425119"
+      },
+      {
+        "path": "test/e2e/cluster/manager_browser_smoke/AGENTS.md",
+        "sha256": "ec7359334bf160e9385bf2fbf2229fa13ffc838495e5908e9e41192951c40055"
+      },
+      {
+        "path": "test/e2e/control/AGENTS.md",
+        "sha256": "79fe64c0c590cfe613f72bb2180e0e604020df821c8dcf5f70917e5e3c70496e"
+      },
+      {
+        "path": "test/e2e/control/bootstrap_task/AGENTS.md",
+        "sha256": "a9e68525d4199ccec63fe7e3313a218ac8c2828f17e42149bca32f4741f6fb55"
+      },
+      {
+        "path": "test/e2e/control/slot_leader_transfer/AGENTS.md",
+        "sha256": "b7c3a78a33e63ed407db7fb7c6e4c7fecba425704e0f9ea9d4623cf404b30d22"
+      },
+      {
+        "path": "test/e2e/issue_agent/AGENTS.md",
+        "sha256": "e1f078ae85d84cd394e4e3ccb3355adc66c664fefa9329f685da3ce4fa4db0b1"
+      },
+      {
+        "path": "test/e2e/message/AGENTS.md",
+        "sha256": "2664881171d19b585833cde5a1c3d6d5e6cab7636bfdbb6658b478366671b27c"
+      },
+      {
+        "path": "test/e2e/message/bench_churn/AGENTS.md",
+        "sha256": "c94ba32e1d81e6b8428824aa40005581e5999a5e694e806a12ff7985b005b6ae"
+      },
+      {
+        "path": "test/e2e/message/channel_failover/AGENTS.md",
+        "sha256": "baabc5d6fdf6427057b1fe182a1263cc5d2675355724db0dfe3a1e28ef48b99e"
+      },
+      {
+        "path": "test/e2e/message/chat_lifecycle/AGENTS.md",
+        "sha256": "1d5d8febcfbde78d4b896e4a0d8905059d9b0a728d7a41aa2d9666fd00fcdb4b"
+      },
+      {
+        "path": "test/e2e/message/cmd_sync/AGENTS.md",
+        "sha256": "c0dc3c19730ecc1ca452d5b4da3d17ffb01e33c98f709b94b1564bc39450148b"
+      },
+      {
+        "path": "test/e2e/message/conversation_directory/AGENTS.md",
+        "sha256": "1721837561906cb77fd96cf2f192f067373160eac41add5c6fd649f32e24136c"
+      },
+      {
+        "path": "test/e2e/message/conversation_directory_multi_node/AGENTS.md",
+        "sha256": "beb4f72ab8a6efad23dfd717c8feec532bdb3e7b43d290ef263e178cf168359d"
+      },
+      {
+        "path": "test/e2e/message/conversation_qps/AGENTS.md",
+        "sha256": "098bf4f18cfec5843ebd20bd2c7f38170d51c4a65671ca8c7ef7f7e8b63aa288"
+      },
+      {
+        "path": "test/e2e/message/cross_node_delivery/AGENTS.md",
+        "sha256": "cb1f7f326966af0ebd0739f3b4eb9ad09b4efdc6ec3e34510be1e09233b3160c"
+      },
+      {
+        "path": "test/e2e/message/easy_sdk_docs_release/AGENTS.md",
+        "sha256": "9c19a0ac7c328fbace1a880a63fa0324541e887ddb3865e6232b47e9b0645c92"
+      },
+      {
+        "path": "test/e2e/message/easy_sdk_jsonrpc/AGENTS.md",
+        "sha256": "a2d10fa8ed880ed551870641ea66fe5cb81d93223a3036b731776fb82208de76"
+      },
+      {
+        "path": "test/e2e/message/javascript_web_quickstart/AGENTS.md",
+        "sha256": "61f7e9b249e856b507e4ec3c58429b17b2a8a54abd0203fa196ffe0b326a795f"
+      },
+      {
+        "path": "test/e2e/message/legacy_conversation_sync/AGENTS.md",
+        "sha256": "5504cbf60ae73637e6f98338497067f43a1eab9d9088d55f3953886e1ce48b1f"
+      },
+      {
+        "path": "test/e2e/message/medium_recipient_hotpath/AGENTS.md",
+        "sha256": "bb26be44a68ead4c68212ae32274fd2b0f3552ccae2b897361e159081b20f471"
+      },
+      {
+        "path": "test/e2e/message/message_event_stream/AGENTS.md",
+        "sha256": "6240e2ad66ed38d54217352f9966f11710c01c1e1df0ee4c268b6c2ba0231b34"
+      },
+      {
+        "path": "test/e2e/message/message_retention/AGENTS.md",
+        "sha256": "8f53daa6049796f15f5ed868f1d175ef636589cef6e81a5ac1a82dda8a9304d2"
+      },
+      {
+        "path": "test/e2e/message/message_updates/AGENTS.md",
+        "sha256": "5efc496d0a981977de405594b81e222c7ed9f970e41964a8a3b8abaac4486904"
+      },
+      {
+        "path": "test/e2e/message/no_persist/AGENTS.md",
+        "sha256": "8a4ce75eb34fb02c6b0dc6407fed2f7453f1027f44444cf8b1c96ec4871b8e0e"
+      },
+      {
+        "path": "test/e2e/message/recipient_authority/AGENTS.md",
+        "sha256": "05c3b8393b8e4560a7721939be469195e513556a97b81f5f2bf421a25b737bd6"
+      },
+      {
+        "path": "test/e2e/message/send_permission/AGENTS.md",
+        "sha256": "1df48f1dbf56adee1518d5b547a14ab3a23d849bb18560fecd64fbcb8c6956b3"
+      },
+      {
+        "path": "test/e2e/message/single_node_send/AGENTS.md",
+        "sha256": "eb1c1d0e4ab1015117734022dfe238e9b91bc64a1adf8d120dd79802794f3a03"
+      },
+      {
+        "path": "test/e2e/message/terminal_disband/AGENTS.md",
+        "sha256": "a059036f62ba2f64cb7a468ff19b685ee7330c967b9231511fb7bac3528ec0dd"
+      },
+      {
+        "path": "test/e2e/message/webhook/AGENTS.md",
+        "sha256": "25ff11ad2a409d94ad457c7afc3501e71a1de080267bc278167f946760dab22b"
+      },
+      {
+        "path": "test/e2e/migration/AGENTS.md",
+        "sha256": "ada2ef6c7b39c62b09e7d5d26a9d6f2ddf2de344765d09ae9fa34490cf2d15c6"
+      },
+      {
+        "path": "test/e2e/migration/ordinary_history/AGENTS.md",
+        "sha256": "b2ef4332477bb1663eeeb6abe2e280d7753304f1e97cde42a113af3b494cee32"
+      },
+      {
+        "path": "test/e2e/migration/original_v2/AGENTS.md",
+        "sha256": "e05c288247860bae0299605ba8febd50396f4fb40f87da7fdea5351ba7cdb0a1"
+      },
+      {
+        "path": "test/e2e/mqtt/AGENTS.md",
+        "sha256": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f"
+      },
+      {
+        "path": "test/e2e/mqtt/crash_recovery/AGENTS.md",
+        "sha256": "4a0e3ee2938cb7563c938def1e08580af4f97bec77f8fd901f60211774a0f091"
+      },
+      {
+        "path": "test/e2e/mqtt/interop/AGENTS.md",
+        "sha256": "5fa2142bd32e6202f4feaa6fc86bf81fa0e11a24e7ea1664558b79952449bc8e"
+      },
+      {
+        "path": "test/e2e/mqtt/owner_outage/AGENTS.md",
+        "sha256": "abef297ca07d095afe27c68cbd72be1493d87bf3d71658d741959e2403fbc5e9"
+      },
+      {
+        "path": "test/e2e/mqtt/qualification/AGENTS.md",
+        "sha256": "b312b83671b462facf73296f49aea5c559af74bb28adfa782d5c36767c1ab018"
+      },
+      {
+        "path": "test/e2e/mqtt/quota/AGENTS.md",
+        "sha256": "75089add54b1f205ebb8bb8d3382695a63bb98ea3f1a091677b66386de436034"
+      },
+      {
+        "path": "test/e2e/mqtt/reclamation/AGENTS.md",
+        "sha256": "8c718074c3707db636de5aba34188c6cfe48cbdec2adf3a2164f093781f9a347"
+      },
+      {
+        "path": "test/e2e/mqtt/restore/AGENTS.md",
+        "sha256": "8abcf079c35be6db5d707bbe5c6dc2db2c0eb73dcffecc0295d5a68c26661fd3"
+      },
+      {
+        "path": "test/e2e/mqtt/scale/AGENTS.md",
+        "sha256": "cc0bb291ac174615fac752ba16b334213c0a11f39dc07b25c2998403b495a807"
+      },
+      {
+        "path": "test/e2e/mqtt/session/AGENTS.md",
+        "sha256": "f35cc835e01232c6719ece1f429cc9227d792e3e11f431a88cbed74a6e9f7799"
+      },
+      {
+        "path": "test/e2e/mqtt/storage_capacity/AGENTS.md",
+        "sha256": "f3dcdedae82be2cb00df16c79c9fd4cb2ec1f988b5a16b440deb988cfa38a94a"
+      },
+      {
+        "path": "test/e2e/mqtt/storage_partition/AGENTS.md",
+        "sha256": "af14d165fa6a1e8e88dbff2143bf86696035b20bd4e06a564287f1d4cf848c9a"
+      },
+      {
+        "path": "test/e2e/mqtt/subscribe_admission/AGENTS.md",
+        "sha256": "effb8bf3d09e66061ef1af56ec19bdeb3cc533c74c81796fcb32df8b299fedcb"
+      },
+      {
+        "path": "test/e2e/mqtt/subscribe_recovery/AGENTS.md",
+        "sha256": "9a744b9ac2841dd67b787935c4b0bc70b1647b38f81225c03fe8b81f0fdc465b"
+      },
+      {
+        "path": "test/e2e/mqtt/unsubscribe_recovery/AGENTS.md",
+        "sha256": "b012055ada3d66fe79369df3c34f29a44ba59715bb07eee0210365aca4f173bc"
+      },
+      {
+        "path": "test/e2e/mqtt/will/AGENTS.md",
+        "sha256": "0e307f7ea301f3ccac1e40323d3a503871123c6d884d700dbfbff686654789ae"
+      },
+      {
+        "path": "test/e2e/mqtt/will_raft_recovery/AGENTS.md",
+        "sha256": "2aa44735b3088ddcacb07d4fd2ce1e6b58fb3f44cdb1f7fc77db7b17de462536"
+      },
+      {
+        "path": "test/e2e/mqtt/will_reclamation/AGENTS.md",
+        "sha256": "7916793e91d384cbb82747c73ef7d86c47a80a9971c4d60f415e8c9165d71c97"
+      },
+      {
+        "path": "test/e2e/mqtt/will_reclamation_fairness/AGENTS.md",
+        "sha256": "0d3d2b13a2009c70960ba63081b4006112ba83c5b91fb560a0c50c4c41478d9a"
+      },
+      {
+        "path": "test/e2e/mqtt/will_reclamation_races/AGENTS.md",
+        "sha256": "e2a53807cf6f948cc06c66e67c07d7d5f8c1758660d3046be670a1ddc57c5d4a"
+      },
+      {
+        "path": "test/e2e/mqtt/will_recovery/AGENTS.md",
+        "sha256": "8b56546bd3ec71c43ea703c45320748f0f7c6022b73c462f0eca9e89d7286ff0"
+      },
+      {
+        "path": "test/e2e/mqtt/will_sealed_rejection/AGENTS.md",
+        "sha256": "71441a90ef71e4db2bc55014d6f28ac36b835cbe2d9b41cdc71342fe04d16c46"
+      },
+      {
+        "path": "test/e2e/mqtt/will_successor_recovery/AGENTS.md",
+        "sha256": "9d947e04a07b9bda0bb7de59f8baf1bc58487ce65be3e1c79e3e75b41ab35a9a"
+      },
+      {
+        "path": "test/e2e/opsmcp/AGENTS.md",
+        "sha256": "0f5c85d1d0bb960abbf18ebac981c1090437234b29d9430f854742ac3a60433f"
+      },
+      {
+        "path": "test/e2e/opsmcp/three_node/AGENTS.md",
+        "sha256": "89ca691b7259bd215a77a7cf4a82085b07181709999b248b03a1179a6e8a8498"
+      },
+      {
+        "path": "test/e2e/plugin/AGENTS.md",
+        "sha256": "f1ffd51ccae650b978ac41b566b7acd052fdb30e90fea2cfd726fa8b54783058"
+      },
+      {
+        "path": "test/e2e/plugin/http_forward/AGENTS.md",
+        "sha256": "ccac5be13b93594d9a9fb66a7e57990b42ca9beff0bbf313c28cac1efe89fed3"
+      },
+      {
+        "path": "test/e2e/suite/FLOW.md",
+        "sha256": "5454091dd967518b37ea041a0598f8164dd6b688624641f8d10c9b8ebde31d66"
+      }
+    ],
+    "main": [
+      {
+        "path": "AGENTS.md",
+        "sha256": "6df6655788a5dc019c78c330728aee6a21e7183ebbec9f2583d7f318a26df2df"
+      },
+      {
+        "path": "cmd/wkcloudanalysisbridge/FLOW.md",
+        "sha256": "de86e4862c53d2836d3bad9b51d7991f3faa1d683148fcc810b98b8fd02e2d5d"
+      },
+      {
+        "path": "cmd/wkcloudbundle/FLOW.md",
+        "sha256": "516c8e00b02e1f0ccac34b5297a7eea607f5a228c9b9aeda17ab56e30eb39f75"
+      },
+      {
+        "path": "cmd/wkcloudlease/FLOW.md",
+        "sha256": "adb3ca83b4a7571d40ec40d0089a13841acb1b4ff9e05f3842c3574aef50cec1"
+      },
+      {
+        "path": "cmd/wkcloudleaseoidc/FLOW.md",
+        "sha256": "c937e8574d203aa0a460e8a95be67af6c6913763614e960dac2b336276dde363"
+      },
+      {
+        "path": "docs-site/FLOW.md",
+        "sha256": "404dd7fb8995b22c050af42033e8032262cfb0f4195eb8085c673b3673bcd62f"
+      },
+      {
+        "path": "docs/wiki/AGENTS.md",
+        "sha256": "d4744dbf2a261b20383152e30d4dbc29898edfffbbb74c3d21f2a0c51a4545b5"
+      },
+      {
+        "path": "internal/access/api/FLOW.md",
+        "sha256": "f0a737603e1cc7710b980544da62b684725c80c2ac0524eea9796f95802eedac"
+      },
+      {
+        "path": "internal/access/cloudanalysismcp/FLOW.md",
+        "sha256": "2443e338a61d1e2118e96ccf1332f6ce94194abf0812fdd1ff5490f7ef0173b1"
+      },
+      {
+        "path": "internal/access/cloudview/FLOW.md",
+        "sha256": "880f4cdb227f11919d8f88b08bbf79e7a32132a23fae78668346c0b6b44a8f5e"
+      },
+      {
+        "path": "internal/access/gateway/FLOW.md",
+        "sha256": "617a64aafd4d1e60aef670770f2ac22dd7cdfcd537f1f5cb3a00b98218eefb31"
+      },
+      {
+        "path": "internal/access/issueagentcli/FLOW.md",
+        "sha256": "0bc188c69b253a3ef72a2c0512af81880e7d533528cbb545b00c2c71a845ea0b"
+      },
+      {
+        "path": "internal/access/manager/FLOW.md",
+        "sha256": "285bdea4d9333317e56be99a5b9e65d8b0ddf8e9933d955d516add187bd93868"
+      },
+      {
+        "path": "internal/access/node/FLOW.md",
+        "sha256": "833e3c7318ef7145879dbcbc64d1c69c9486fc85bf6670606291f5fc8968496b"
+      },
+      {
+        "path": "internal/access/opsmcp/FLOW.md",
+        "sha256": "b7a98a6a0cd800ca8bc3f18faf1ed693e6ff56c0d71d783f6a96616b67ff018b"
+      },
+      {
+        "path": "internal/access/reviewagentcheckmcp/FLOW.md",
+        "sha256": "317416f6b19661ead9d4f6878a9ca83c9ab8390f21ace982344677e6ce199c4f"
+      },
+      {
+        "path": "internal/access/reviewagentcli/FLOW.md",
+        "sha256": "f7d7149d53b41ca531e91dd6fca69ec7720fcc7111ff4fb19ae41f8fbf45ecbd"
+      },
+      {
+        "path": "internal/app/FLOW.md",
+        "sha256": "8b0b359ebbb955b6552268342393f9048ad2ff89076b500f34ee7a4439ea0f44"
+      },
+      {
+        "path": "internal/bench/FLOW.md",
+        "sha256": "038bc550839e6601ee1669e950de73bc4e9a4d72a607f39ce7009eadd913b76f"
+      },
+      {
+        "path": "internal/bench/chatlifecycle/FLOW.md",
+        "sha256": "6b893772755c3de94575fd2396a71fa22a3a0675ff1d33d3ef751ebbb688ec56"
+      },
+      {
+        "path": "internal/contracts/backup/FLOW.md",
+        "sha256": "9ab71c2a1ad5eefa3685fae801c7eaab1ed93bd0c5a6a627b84323c578a72856"
+      },
+      {
+        "path": "internal/contracts/channelappend/FLOW.md",
+        "sha256": "c186be06331770c1e287e9f374b322dc3d7f8008316776b9b0bfaca436de43c6"
+      },
+      {
+        "path": "internal/contracts/issueagent/FLOW.md",
+        "sha256": "3737c5ff2520ffa40d0d5432ca023f91e0fc9b1450f4585bc734f06c173e5bec"
+      },
+      {
+        "path": "internal/contracts/onlinedelivery/FLOW.md",
+        "sha256": "2cc41f85c4c704d69cd888115356a44ef9aab3265a1c72dd0abaef1f62c7b8de"
+      },
+      {
+        "path": "internal/contracts/reviewagent/FLOW.md",
+        "sha256": "f8990607d5b24d842fe839734f94183d4bc0bc005eb42129bd8377512f5e7b4b"
+      },
+      {
+        "path": "internal/infra/backup/FLOW.md",
+        "sha256": "f0663302195f34c3c9c4d010bab2d28065271f9113fa6eda106b845ac8f1cb19"
+      },
+      {
+        "path": "internal/infra/cloudanalysis/FLOW.md",
+        "sha256": "2b793dfccedbd8c2ff769eae311598cf55333118494243b10f241134af177869"
+      },
+      {
+        "path": "internal/infra/clouddeploy/FLOW.md",
+        "sha256": "b5405ce2d1b14e140202ddaee651143f5e5d550a5a032a991bf888a1fbf61245"
+      },
+      {
+        "path": "internal/infra/cloudlease/alibaba/FLOW.md",
+        "sha256": "d4372bf9bda8ab65a7eb82626ede922b5b1af97dda3e2fa7c849562eeead0c28"
+      },
+      {
+        "path": "internal/infra/cluster/FLOW.md",
+        "sha256": "120dcfbe2165191ab14d3263c356eed290b30385e202138f5d32454373e874a5"
+      },
+      {
+        "path": "internal/infra/delivery/FLOW.md",
+        "sha256": "060a4a2e615f43bc0178d70aa5f069221ec1552379744dcee07c3462b2cd8363"
+      },
+      {
+        "path": "internal/infra/issueagentgithub/FLOW.md",
+        "sha256": "356f8cb6f5cbace294a331ccd431552d6428e71d8d03298d2f81521ea590f085"
+      },
+      {
+        "path": "internal/infra/reviewagentgithub/FLOW.md",
+        "sha256": "66c5375a7efae1706e2ff275718c618d479df848f76254936bba192f7487f8d2"
+      },
+      {
+        "path": "internal/log/FLOW.md",
+        "sha256": "6553111e60374135c039ab75d0036ab4c741d7970ee00e1080d53197d592f7a7"
+      },
+      {
+        "path": "internal/observability/taskaudit/FLOW.md",
+        "sha256": "b92ae1ef20f155286a0eee3bf746982aeb9f3c33efbf1e81c081db923d0db38d"
+      },
+      {
+        "path": "internal/runtime/backup/FLOW.md",
+        "sha256": "78b5ba665c690921ca5507951936ee2e9c4bb83804954571379970870fb3a117"
+      },
+      {
+        "path": "internal/runtime/channelappend/FLOW.md",
+        "sha256": "e44b4319e8337fb0a4dee2ef8864a6814faaadf627a442e187d79f3bc2ada084"
+      },
+      {
+        "path": "internal/runtime/cloudviewstate/FLOW.md",
+        "sha256": "7900ad65fc5f7c3b4e8aea9ea1ae0e4dc1a0fe7c21d9d03ff4fbaa43adfbcad5"
+      },
+      {
+        "path": "internal/runtime/delivery/FLOW.md",
+        "sha256": "82ce3526ea629c78e67abb809b56ba2606ec40756c64fc5021e853b5e4bd008b"
+      },
+      {
+        "path": "internal/runtime/issueagentverify/FLOW.md",
+        "sha256": "18e092fe80c9151255cb60b5de19e41599e116d467b6b4eef4438c9824ec458a"
+      },
+      {
+        "path": "internal/runtime/messageupdates/FLOW.md",
+        "sha256": "40382a1fd0ebcc3e96f8049564d8841ff619dcb553c75fe62792f701548ec46b"
+      },
+      {
+        "path": "internal/runtime/online/FLOW.md",
+        "sha256": "c7233cdcec9976b5f237194ad7fd211c96e961702ce7621d7e759250a5dbf246"
+      },
+      {
+        "path": "internal/runtime/opsmcp/FLOW.md",
+        "sha256": "5d95f87d4b678434909e5823daa221cf091f86d3ee33fab8b7427d35b57e2e83"
+      },
+      {
+        "path": "internal/runtime/presence/FLOW.md",
+        "sha256": "6c2543c49cb149194d9ca66e4244bf08b5a5b3e45210ebfdee477de33cd9bdee"
+      },
+      {
+        "path": "internal/runtime/readavailability/FLOW.md",
+        "sha256": "c2377f3d87f4f1b3c5e247ff4ce6a4981e7cb71e930428b2a543e871f07a233c"
+      },
+      {
+        "path": "internal/runtime/reviewagentverify/FLOW.md",
+        "sha256": "3c90cf7db36c3edba4411bfa7b0253cc3c247e8f1bb9e4aff078ab995963d33c"
+      },
+      {
+        "path": "internal/runtime/webhook/FLOW.md",
+        "sha256": "5ac939f1cca4809a8ca479a25a56696c2709140259e42e653c84973836ef0313"
+      },
+      {
+        "path": "internal/usecase/backup/FLOW.md",
+        "sha256": "bc4af8cafab40dfcbb870ada610254d94d433ecdeda8ed3f32e3a6817ca89461"
+      },
+      {
+        "path": "internal/usecase/benchterminal/FLOW.md",
+        "sha256": "ac2d7b750d6064f5773c23c2b95f7d197397368037585991a3416e8dd3a6c855"
+      },
+      {
+        "path": "internal/usecase/channel/FLOW.md",
+        "sha256": "a1b7d72b18766420104ccd7fa2f10f0617528075685708dd4209f0c9a7666535"
+      },
+      {
+        "path": "internal/usecase/chatlifecyclerun/FLOW.md",
+        "sha256": "ab301c7579d789e4eadc41c833b3856b7b2b64c5c1c365f75dd11599b70bcf7f"
+      },
+      {
+        "path": "internal/usecase/cloudanalysis/FLOW.md",
+        "sha256": "12af4c8838afb0ce2b0870f36c8bf8ed51c2ce987c0c6170ecd652eea6486105"
+      },
+      {
+        "path": "internal/usecase/clouddeploy/FLOW.md",
+        "sha256": "3f82641fef13b0d52a513247f02f8ae4955f70a3cd47df4a1c62acf4e91af7b8"
+      },
+      {
+        "path": "internal/usecase/cloudlease/FLOW.md",
+        "sha256": "1d58607795cb0a700b6c0a0d23188f06f2036b82109f9a3e76368f355abf5368"
+      },
+      {
+        "path": "internal/usecase/cloudsim/FLOW.md",
+        "sha256": "9d5146648e8e70c5c3bd7911fe178cbf7765dd0ef3ef3f882cb35a239e7ccf73"
+      },
+      {
+        "path": "internal/usecase/conversation/FLOW.md",
+        "sha256": "e395927ea87e90445380325d59f7fc51c1b17ecd283c91f0d40d93ff4e330484"
+      },
+      {
+        "path": "internal/usecase/issueagent/FLOW.md",
+        "sha256": "5a15856e3dbefd572b5fe03fecd3dbb968f0fb0efebced6251db3aa165d63cb8"
+      },
+      {
+        "path": "internal/usecase/management/FLOW.md",
+        "sha256": "e839e251ef68216f38137e698f5f3aee867173c0d406d217a9ad91aaaea4968f"
+      },
+      {
+        "path": "internal/usecase/message/FLOW.md",
+        "sha256": "fed0601963c9029769fa893cad66b93222cfe096c51826a4097a22ce2f4ce7bb"
+      },
+      {
+        "path": "internal/usecase/opsobserve/FLOW.md",
+        "sha256": "866e87d25765d0a3692169ce6ec62cb9ce4786d131215e052e63f78e0ec0f058"
+      },
+      {
+        "path": "internal/usecase/plugin/FLOW.md",
+        "sha256": "a805527e31dae7fcbfb0adbb2e658ac728edafaf957cf511d66f2b1de8c8ced9"
+      },
+      {
+        "path": "internal/usecase/presence/FLOW.md",
+        "sha256": "aab89d6a9ebf83940b575c99522bd169413276810c59f2214cdd288c8560a1b2"
+      },
+      {
+        "path": "internal/usecase/reviewagent/FLOW.md",
+        "sha256": "6640b2695cbb74f2448bbf6710a1a3b3517ca33386eba576b0c65470e2dba08f"
+      },
+      {
+        "path": "internal/usecase/user/FLOW.md",
+        "sha256": "b82782e2e59a5eba70c42458a1063c6283bdf81cd825d79e3c91bf978b314b6b"
+      },
+      {
+        "path": "pkg/backup/FLOW.md",
+        "sha256": "f8702514cbeccba1364c2f573aaa97fb373c8d6840876d15879b3a6cdd57c011"
+      },
+      {
+        "path": "pkg/bench/model/FLOW.md",
+        "sha256": "2779ef22050c0ac91f9523c8889d8ca8095ba145504497b43fdd3c0d8ed0ccb8"
+      },
+      {
+        "path": "pkg/channel/FLOW.md",
+        "sha256": "9fb4cf215dd2f06c3eb50e0e79e6178b8d65f875091000141e2b9aaf819bedba"
+      },
+      {
+        "path": "pkg/channel/reactor/FLOW.md",
+        "sha256": "4249ba2b2f809f26e0e8b9c05dafe956a1b8d2d3b807e7c869e0aa27d74558de"
+      },
+      {
+        "path": "pkg/channel/worker/FLOW.md",
+        "sha256": "bb0ebbdc87035308da19f57bda4a60f38a15ff783a7541b5f836d36dfcc40db0"
+      },
+      {
+        "path": "pkg/client/FLOW.md",
+        "sha256": "401df3fb9feb42b6c5ea97ee098a8664e7bc77eaf9ba3b7c8ca5eeb127008508"
+      },
+      {
+        "path": "pkg/cluster/FLOW.md",
+        "sha256": "bc080de28cd0367435c9630d64f364a054a1eb89d773467c2d5266ce03c45166"
+      },
+      {
+        "path": "pkg/controller/FLOW.md",
+        "sha256": "3fbe3b78908eb6022c20dff44ccdbeca8c2e4262877ac3fe13a5b91121b4e844"
+      },
+      {
+        "path": "pkg/db/FLOW.md",
+        "sha256": "7d4efcb4280d755938455d705a91882a00d84dd6d35610f523fdf51953ffac65"
+      },
+      {
+        "path": "pkg/db/message/FLOW.md",
+        "sha256": "ac910f21296d227ca70b6a6410501e12aab4efb4d5d0233a7176e8b6e8c2415d"
+      },
+      {
+        "path": "pkg/db/meta/FLOW.md",
+        "sha256": "5ac4dd50b15f99af41155f6fdd04aa39211a1b0abf3329fc156af6265c60b9e5"
+      },
+      {
+        "path": "pkg/flowdoc/FLOW.md",
+        "sha256": "c749d048b57dc3747e747c325a0334590ecf2d5c2a66304ec1c420fd6b77ebe0"
+      },
+      {
+        "path": "pkg/gateway/FLOW.md",
+        "sha256": "c00003d3ab12e42bcac6cdbe9bdf40e47c0a4829c36cb449736fa271e0b27ef2"
+      },
+      {
+        "path": "pkg/goroutine/FLOW.md",
+        "sha256": "5f0a454e44782554d37b6f8ed9cba1eb1662d7a1ba482320cfb9f9f975d5e36e"
+      },
+      {
+        "path": "pkg/hashslot/FLOW.md",
+        "sha256": "2b063ca18eff7b21e9fd541feca9e0004c423a65abb266ca86f82633d937c94d"
+      },
+      {
+        "path": "pkg/slot/FLOW.md",
+        "sha256": "783e82bffe38ed0b930aedb774ee4d59b5050928a4facbc0c1348d5c8944412f"
+      },
+      {
+        "path": "pkg/workqueue/FLOW.md",
+        "sha256": "6720c38d539f939cab8d64daecc539484fe2023aa3e5a5260d52f18260a6d5cd"
+      },
+      {
+        "path": "scripts/cloud-deployment/FLOW.md",
+        "sha256": "633c4673faadbc362e0b6e2156edd60e9c113fc5a2feec9cd7f4f0df1be64c80"
+      },
+      {
+        "path": "test/e2e/AGENTS.md",
+        "sha256": "4362b8bb1e4450014db8156acdf3641154e4784b5270d83159543edbb028cbaa"
+      },
+      {
+        "path": "test/e2e/backup/AGENTS.md",
+        "sha256": "85483753c7ebe2d3c6bed62748104bb02b424b3b9d12f01552809d198960b188"
+      },
+      {
+        "path": "test/e2e/backup/scheduled_restore/AGENTS.md",
+        "sha256": "8eca45b0bda3f7b8390c0de4425d987eff17723cce37eec071d27acb7d085464"
+      },
+      {
+        "path": "test/e2e/backup/three_node_restore/AGENTS.md",
+        "sha256": "a87c34e0f43bc55e7d6078895079db5f02d3bd4d7446bc42a05a35aa88b1d952"
+      },
+      {
+        "path": "test/e2e/cluster/AGENTS.md",
+        "sha256": "60abfb59be886aa3b584dd63aadf9f01894b80cc67caa169b78f6c0c6652bdd2"
+      },
+      {
+        "path": "test/e2e/cluster/controller_voter_promotion/AGENTS.md",
+        "sha256": "686e3526a9b3381480d8356915592a75646ae71d9925c120700566b465b46160"
+      },
+      {
+        "path": "test/e2e/cluster/dynamic_node_faults/AGENTS.md",
+        "sha256": "4a93e00efbb4fbe8dfcd54d3b32871d3d944de7ca53cdc3b26ae7ba0d5f102ea"
+      },
+      {
+        "path": "test/e2e/cluster/dynamic_node_join/AGENTS.md",
+        "sha256": "e4a33eacaf6258ffd41a5e05037bd8a73beff3a82947de902be84ce441799f01"
+      },
+      {
+        "path": "test/e2e/cluster/dynamic_node_operations/AGENTS.md",
+        "sha256": "c9785b96c4c5ba50b09f8fa8bd1fea15acaa22370ff5efb02a893e87b6f4b128"
+      },
+      {
+        "path": "test/e2e/cluster/dynamic_node_readiness/AGENTS.md",
+        "sha256": "03001ec6c7e75e91cd38db2d3c8199dd4d7cfd2cc9f98f37a033289dea6c58c1"
+      },
+      {
+        "path": "test/e2e/cluster/goroutine_monitor/AGENTS.md",
+        "sha256": "f6b908aeb4e0faf787e25868a2ff1193735ee21680bc933ed0d801da79425119"
+      },
+      {
+        "path": "test/e2e/cluster/manager_browser_smoke/AGENTS.md",
+        "sha256": "ec7359334bf160e9385bf2fbf2229fa13ffc838495e5908e9e41192951c40055"
+      },
+      {
+        "path": "test/e2e/cluster/startup_recovery/AGENTS.md",
+        "sha256": "2bbf070ba1b5a6b068f903a14573d3328462dcdb6f52f167dec297d528bcd42d"
+      },
+      {
+        "path": "test/e2e/control/AGENTS.md",
+        "sha256": "79fe64c0c590cfe613f72bb2180e0e604020df821c8dcf5f70917e5e3c70496e"
+      },
+      {
+        "path": "test/e2e/control/bootstrap_task/AGENTS.md",
+        "sha256": "a9e68525d4199ccec63fe7e3313a218ac8c2828f17e42149bca32f4741f6fb55"
+      },
+      {
+        "path": "test/e2e/control/slot_leader_transfer/AGENTS.md",
+        "sha256": "b7c3a78a33e63ed407db7fb7c6e4c7fecba425704e0f9ea9d4623cf404b30d22"
+      },
+      {
+        "path": "test/e2e/issue_agent/AGENTS.md",
+        "sha256": "e1f078ae85d84cd394e4e3ccb3355adc66c664fefa9329f685da3ce4fa4db0b1"
+      },
+      {
+        "path": "test/e2e/message/AGENTS.md",
+        "sha256": "b4f6013694121a60e8afa8d53e5309edbbf61597d66c3e62f3f3abd4109c26ac"
+      },
+      {
+        "path": "test/e2e/message/bench_churn/AGENTS.md",
+        "sha256": "c94ba32e1d81e6b8428824aa40005581e5999a5e694e806a12ff7985b005b6ae"
+      },
+      {
+        "path": "test/e2e/message/channel_failover/AGENTS.md",
+        "sha256": "baabc5d6fdf6427057b1fe182a1263cc5d2675355724db0dfe3a1e28ef48b99e"
+      },
+      {
+        "path": "test/e2e/message/chat_lifecycle/AGENTS.md",
+        "sha256": "1dd37527f4a24f1d0913435b73381103f66cdbc48801ffab53bcf33ee0fb924a"
+      },
+      {
+        "path": "test/e2e/message/cmd_sync/AGENTS.md",
+        "sha256": "c0dc3c19730ecc1ca452d5b4da3d17ffb01e33c98f709b94b1564bc39450148b"
+      },
+      {
+        "path": "test/e2e/message/conversation_directory/AGENTS.md",
+        "sha256": "1721837561906cb77fd96cf2f192f067373160eac41add5c6fd649f32e24136c"
+      },
+      {
+        "path": "test/e2e/message/conversation_directory_multi_node/AGENTS.md",
+        "sha256": "beb4f72ab8a6efad23dfd717c8feec532bdb3e7b43d290ef263e178cf168359d"
+      },
+      {
+        "path": "test/e2e/message/conversation_qps/AGENTS.md",
+        "sha256": "098bf4f18cfec5843ebd20bd2c7f38170d51c4a65671ca8c7ef7f7e8b63aa288"
+      },
+      {
+        "path": "test/e2e/message/cross_node_delivery/AGENTS.md",
+        "sha256": "cb1f7f326966af0ebd0739f3b4eb9ad09b4efdc6ec3e34510be1e09233b3160c"
+      },
+      {
+        "path": "test/e2e/message/easy_sdk_docs_release/AGENTS.md",
+        "sha256": "9c19a0ac7c328fbace1a880a63fa0324541e887ddb3865e6232b47e9b0645c92"
+      },
+      {
+        "path": "test/e2e/message/easy_sdk_jsonrpc/AGENTS.md",
+        "sha256": "a2d10fa8ed880ed551870641ea66fe5cb81d93223a3036b731776fb82208de76"
+      },
+      {
+        "path": "test/e2e/message/javascript_web_quickstart/AGENTS.md",
+        "sha256": "61f7e9b249e856b507e4ec3c58429b17b2a8a54abd0203fa196ffe0b326a795f"
+      },
+      {
+        "path": "test/e2e/message/legacy_conversation_sync/AGENTS.md",
+        "sha256": "5504cbf60ae73637e6f98338497067f43a1eab9d9088d55f3953886e1ce48b1f"
+      },
+      {
+        "path": "test/e2e/message/medium_recipient_hotpath/AGENTS.md",
+        "sha256": "25cff63b699c2a87e36687b2b0e7d8f894e567a33aab4fdaf7d1151b82e148f9"
+      },
+      {
+        "path": "test/e2e/message/message_event_stream/AGENTS.md",
+        "sha256": "6240e2ad66ed38d54217352f9966f11710c01c1e1df0ee4c268b6c2ba0231b34"
+      },
+      {
+        "path": "test/e2e/message/message_retention/AGENTS.md",
+        "sha256": "8f53daa6049796f15f5ed868f1d175ef636589cef6e81a5ac1a82dda8a9304d2"
+      },
+      {
+        "path": "test/e2e/message/message_updates/AGENTS.md",
+        "sha256": "5efc496d0a981977de405594b81e222c7ed9f970e41964a8a3b8abaac4486904"
+      },
+      {
+        "path": "test/e2e/message/no_persist/AGENTS.md",
+        "sha256": "8a4ce75eb34fb02c6b0dc6407fed2f7453f1027f44444cf8b1c96ec4871b8e0e"
+      },
+      {
+        "path": "test/e2e/message/recipient_authority/AGENTS.md",
+        "sha256": "05c3b8393b8e4560a7721939be469195e513556a97b81f5f2bf421a25b737bd6"
+      },
+      {
+        "path": "test/e2e/message/send_ban/AGENTS.md",
+        "sha256": "07ccaab33e914c51bfbb46cb3f708d7f4eaf13dbaa910a9ede822175eb4ed9e4"
+      },
+      {
+        "path": "test/e2e/message/send_permission/AGENTS.md",
+        "sha256": "1df48f1dbf56adee1518d5b547a14ab3a23d849bb18560fecd64fbcb8c6956b3"
+      },
+      {
+        "path": "test/e2e/message/single_node_send/AGENTS.md",
+        "sha256": "8b34b113b4013c6af9d3364f6375cb347bfc932044a7f46f863e2e20a5404aa2"
+      },
+      {
+        "path": "test/e2e/message/stream_online/AGENTS.md",
+        "sha256": "db2a9c72e1419577d59cdc2d8808b0766a9e5324946aabe1c90a0aad97b3e129"
+      },
+      {
+        "path": "test/e2e/message/terminal_disband/AGENTS.md",
+        "sha256": "471a1d603ea961e86557ed12b82972c599f71622c15a3c0c9575ab30cfbc13f6"
+      },
+      {
+        "path": "test/e2e/message/webhook/AGENTS.md",
+        "sha256": "25ff11ad2a409d94ad457c7afc3501e71a1de080267bc278167f946760dab22b"
+      },
+      {
+        "path": "test/e2e/migration/AGENTS.md",
+        "sha256": "ada2ef6c7b39c62b09e7d5d26a9d6f2ddf2de344765d09ae9fa34490cf2d15c6"
+      },
+      {
+        "path": "test/e2e/migration/ordinary_history/AGENTS.md",
+        "sha256": "b2ef4332477bb1663eeeb6abe2e280d7753304f1e97cde42a113af3b494cee32"
+      },
+      {
+        "path": "test/e2e/migration/original_v2/AGENTS.md",
+        "sha256": "e05c288247860bae0299605ba8febd50396f4fb40f87da7fdea5351ba7cdb0a1"
+      },
+      {
+        "path": "test/e2e/opsmcp/AGENTS.md",
+        "sha256": "0f5c85d1d0bb960abbf18ebac981c1090437234b29d9430f854742ac3a60433f"
+      },
+      {
+        "path": "test/e2e/opsmcp/three_node/AGENTS.md",
+        "sha256": "89ca691b7259bd215a77a7cf4a82085b07181709999b248b03a1179a6e8a8498"
+      },
+      {
+        "path": "test/e2e/plugin/AGENTS.md",
+        "sha256": "f1ffd51ccae650b978ac41b566b7acd052fdb30e90fea2cfd726fa8b54783058"
+      },
+      {
+        "path": "test/e2e/plugin/http_forward/AGENTS.md",
+        "sha256": "ccac5be13b93594d9a9fb66a7e57990b42ca9beff0bbf313c28cac1efe89fed3"
+      },
+      {
+        "path": "test/e2e/plugin/send_ban/AGENTS.md",
+        "sha256": "5b2c6f234fdb2327bf4d5121ba592049620dad294fc4660eb5d92bf1b42cc8d0"
+      },
+      {
+        "path": "test/e2e/suite/FLOW.md",
+        "sha256": "cf3746d34eb852ba250351c5c092556058e47c039d9b0ffa3c5411eb129eec59"
+      }
+    ]
+  }
+}

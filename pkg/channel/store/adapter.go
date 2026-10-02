@@ -180,6 +180,19 @@ type IdempotencyLookup interface {
 	LookupIdempotency(ctx context.Context, fromUID string, clientMsgNo string) (IdempotencyHit, bool, error)
 }
 
+// WillIdempotencyLookup selects the server Will domain independently of client
+// numbers. Like IdempotencyLookup, a hit still requires current committed proof.
+type WillIdempotencyLookup interface {
+	LookupWillIdempotency(ctx context.Context, fromUID, serverKey string) (IdempotencyHit, bool, error)
+}
+
+// WillReceiptLookup pins one local receipt with its stored committed boundary
+// and original/trim evidence. Current Channel authority is the caller's duty;
+// absence is not proof of nonpublication after an uncertain append.
+type WillReceiptLookup interface {
+	LookupWillReceipt(ctx context.Context, fromUID, serverKey string) (ch.WillReceipt, bool, error)
+}
+
 // OrdinaryMessageCounter counts non-SyncOnce positions in (after, through].
 // Callers supply committed and retention-aware bounds from the current authority.
 type OrdinaryMessageCounter interface {
@@ -383,4 +396,123 @@ type ReadLogRequest struct {
 // ReadLogResult contains raw log records for follower catch-up.
 type ReadLogResult struct {
 	Records []ch.Record
+}
+
+// MQTTSourceActivationFactory attests that exact format-4 appends atomically
+// protect their pending prefix and checkpoint commits materialize source state.
+// Implementations without this capability must reject activation/recovery.
+type MQTTSourceActivationFactory interface {
+	SupportsMQTTSourceActivation() bool
+}
+
+// MQTTSourceReader verifies one committed activation/source/checkpoint view.
+// Leader callers first persist captured reactor HW; replica callers require an
+// existing checkpoint and must never advance it from requested coverage. This
+// read supplies no independent current-leader or subscription authority.
+type MQTTSourceReader interface {
+	LoadCommittedMQTTSource(context.Context, uint64) (ch.MQTTSourceSnapshot, bool, error)
+}
+
+// MQTTReplayPreparer creates/reads bounded local shared content after the worker
+// has persisted captured HW and verified source protection. It owns result bytes.
+type MQTTReplayPreparer interface {
+	PrepareMQTTReplay(context.Context, ch.MQTTReplayRange) (ch.MQTTReplayPage, error)
+}
+
+// MQTTReplayAnchorFactory attests atomic format-5 journal persistence, suffix
+// cleanup, committed proof reads and portable backup preservation.
+type MQTTReplayAnchorFactory interface{ SupportsMQTTReplayAnchors() bool }
+
+// MQTTReplayRetirementFactory attests atomic format-6 decision journaling,
+// committed anchor verification, suffix cleanup and backup preservation.
+type MQTTReplayRetirementFactory interface{ SupportsMQTTReplayRetirements() bool }
+
+// MQTTReplayRetirementReader verifies the committed decision and its original
+// anchor in the replica's own journal. It does not delete shared content.
+type MQTTReplayRetirementReader interface {
+	LoadMQTTReplayRetirement(context.Context, uint64) (ch.MQTTReplayRetirementProof, bool, error)
+}
+
+// MQTTReplayLatestRetirementReader pins the source, native HW and latest covered
+// decision. It supplies no caller-selected retirement floor and changes no state.
+type MQTTReplayLatestRetirementReader interface {
+	LoadLatestMQTTReplayRetirement(context.Context, string) (ch.MQTTReplayRetirementProof, bool, error)
+}
+
+// MQTTReplayRetirementSelector selects a whole accepted prefix within the
+// captured consumer floor, with bounded reverse scans and verified continuations.
+// It neither grants retirement authority nor mutates replica-local coverage.
+type MQTTReplayRetirementSelector interface {
+	SelectMQTTReplayRetirementAnchor(context.Context, ch.MQTTReplayRetirementScan) (ch.MQTTReplayRetirementSelection, error)
+}
+
+// MQTTReplayRetirer independently verifies its committed retirement, atomically
+// materializes the cumulative baseline and removes at most limit primary rows
+// with their meters. Retries may finish a newer already materialized decision.
+type MQTTReplayRetirer interface {
+	RetireMQTTReplay(context.Context, string, uint64, int) (ch.MQTTReplayRetirementResult, error)
+}
+
+// MQTTReplayAnchorReader reads an independently committed exact control proof;
+// neither original-row retention nor a donor-supplied digest is its authority.
+type MQTTReplayAnchorReader interface {
+	LoadMQTTReplayAnchor(context.Context, uint64) (ch.MQTTReplayAnchorProof, bool, error)
+}
+
+// MQTTReplayAnchorStateReader returns source/latest/exact-command evidence from
+// one snapshot at already persisted HW; it must not mutate committed progress.
+// A zero command skips only the optional exact retry lookup.
+type MQTTReplayAnchorStateReader interface {
+	ReadMQTTReplayAnchors(context.Context, uint64, ch.CommandID) (ch.MQTTReplayAnchorState, error)
+}
+
+// MQTTReplayAnchorTransfer repairs shared content using an anchor committed on
+// each replica independently. Export must reach that anchor's complete prefix;
+// import obtains its expected digest from the receiver's own journal. Neither
+// operation changes HW, source release, original history or learner readiness.
+type MQTTReplayAnchorTransfer interface {
+	ExportMQTTReplayAnchor(context.Context, uint64, ch.MQTTReplayRange) (ch.MQTTReplayPage, error)
+	// The caller must keep the page immutable until import returns.
+	ImportMQTTReplayAnchor(context.Context, uint64, ch.MQTTReplayPage) (ch.MQTTReplayPrefix, error)
+}
+
+// MQTTReplayConsumerReader returns typed original messages within a locally
+// committed anchor, including verified native control classification. Pages may
+// end before the anchor; routing, permissions and accounting remain above storage.
+type MQTTReplayConsumerReader interface {
+	ReadMQTTReplayAnchor(context.Context, uint64, ch.MQTTReplayRange) (ch.MQTTReplayConsumerPage, error)
+}
+
+// MQTTReplayRepairPlanner selects at most one next anchored interval from a
+// pinned replica-local frontier. It never advances a checkpoint or infers cluster
+// readiness. A scan cursor is revalidated against already covered content.
+type MQTTReplayRepairPlanner interface {
+	PlanMQTTReplayRepair(context.Context, ch.MQTTReplayRepairScan) (ch.MQTTReplayRepairPlan, error)
+}
+
+// MQTTReplayReadinessReader verifies local shared coverage at a captured native
+// frontier in one pinned view. It cannot grant source release or consumer GC.
+type MQTTReplayReadinessReader interface {
+	ReadMQTTReplayReadiness(context.Context, uint64) (ch.MQTTReplayReadiness, error)
+}
+
+// MQTTSourceReleaser independently verifies its own committed anchor and shared
+// content before advancing the original-source cleanup watermark. Success means
+// at least that anchor's prefix is released; it never advances HW or reclaims
+// shared replay. Implementations revalidate evidence on exact and older retries.
+type MQTTSourceReleaser interface {
+	ReleaseMQTTSourceAtAnchor(context.Context, string, uint64) error
+}
+
+// MQTTStoragePreparation is a capacity receipt, never a durable log vote.
+type MQTTStoragePreparation struct {
+	Nonce              uint64
+	Prepared, Canceled bool
+	NeedFrom           uint64
+}
+
+// MQTTStoragePreparer reserves or cancels one exact proposal before original
+// dispatch. Nonce zero is valid only for allocating the local leader's nonce.
+type MQTTStoragePreparer interface {
+	PrepareMQTTStorage(context.Context, ch.ProposalManifest, []ch.Record, uint64, uint64, bool) (MQTTStoragePreparation, error)
 }

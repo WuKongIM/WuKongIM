@@ -20,6 +20,7 @@ require (
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/cockroachdb/pebble v1.0.0
 	github.com/cockroachdb/pebble/v2 v2.1.4
+	github.com/eclipse/paho.golang v0.23.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/gizak/termui/v3 v3.1.0

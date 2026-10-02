@@ -1,0 +1,121 @@
+{
+  "base_revision": "68eb337c50267fb2e0114130ef2b028760d17555",
+  "diff_command": "git diff HEAD",
+  "commit_list": [],
+  "tracked_paths": [
+    "CHANGELOG.md",
+    "docs/development/FLOW_INDEX.md",
+    "docs/development/PROJECT_KNOWLEDGE.md",
+    "docs/specs/mqtt-will-started-recovery.md",
+    "internal/app/FLOW.md",
+    "internal/app/mqtt_will_execution.go",
+    "internal/contracts/channelappend/FLOW.md",
+    "internal/contracts/channelappend/types.go",
+    "internal/infra/mqttwill/FLOW.md",
+    "internal/infra/mqttwill/attempts.go",
+    "internal/runtime/channelappend/FLOW.md",
+    "internal/runtime/channelappend/router.go",
+    "internal/usecase/message/FLOW.md",
+    "internal/usecase/message/will_send.go",
+    "internal/usecase/mqttsession/FLOW.md",
+    "internal/usecase/mqttsession/will_execution.go",
+    "test/e2e/AGENTS.md",
+    "test/e2e/mqtt/will_recovery/AGENTS.md",
+    "test/e2e/mqtt/will_recovery/recovery_test.go"
+  ],
+  "untracked_paths": [
+    "docs/reports/mqtt-will-append-admission/baseline-source.json",
+    "docs/reports/mqtt-will-append-admission/source-context.json",
+    "docs/specs/mqtt-will-append-admission.md"
+  ],
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "fc395583d7f12e5130d3d8d27f44fdf64d6870a007b6957db3fa8a56de012d99"
+    },
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "sha256": "a6a1d5e2dc0d3902bd8f19bd54e292abd3340b49c79c1b69aea8853d6698c24d"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "sha256": "c0041db2e435b2d7f6f2ef14d63ecb5f331dd975288cc3d43754c52d13118df7"
+    },
+    {
+      "path": "docs/reports/mqtt-will-append-admission/baseline-source.json",
+      "sha256": "5aa0b46b89523ce70ce4fb3e8fbd813ff225daeff674e309d2dc81b40b73f865"
+    },
+    {
+      "path": "docs/reports/mqtt-will-append-admission/source-context.json",
+      "sha256": "1c740ab3d57e817c43d6b0f84e9fb6153e0aca675e3e543efa21bfdcaa3f2834"
+    },
+    {
+      "path": "docs/specs/mqtt-will-append-admission.md",
+      "sha256": "42f8dfa31d99ba1c0235a55c4b330613690d274c39d76e02be8a6d1c6309ca10"
+    },
+    {
+      "path": "docs/specs/mqtt-will-started-recovery.md",
+      "sha256": "aa3e59fb2a9ae036efe5a27636163a44ef9bd4173cfd92d794417e74f6dc26de"
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "sha256": "07cc58f3ccdc395a1b12017e4e80a37df634c78d65ff00119aa9e672941ad3ab"
+    },
+    {
+      "path": "internal/app/mqtt_will_execution.go",
+      "sha256": "5d811085882d7f7ef34ee75916b2ef98e33ba8e2d6bda4ca54ad43d6e048358a"
+    },
+    {
+      "path": "internal/contracts/channelappend/FLOW.md",
+      "sha256": "9207cf07e73e09126ade43514e1f853b8edf93939d4a9c6cd10095da74f9b336"
+    },
+    {
+      "path": "internal/contracts/channelappend/types.go",
+      "sha256": "a7c974a4328fe4c7983d1795fb12d60b214c4316aa4597cce133a31bd09e4e1c"
+    },
+    {
+      "path": "internal/infra/mqttwill/FLOW.md",
+      "sha256": "4f2cf342ce24df876ea34b56609e5b44241b967de1e241c5e66de70cdfa1c9af"
+    },
+    {
+      "path": "internal/infra/mqttwill/attempts.go",
+      "sha256": "6cf948763a304aaf9d1e6dc964b651e4f779d894157ec92710348305e397442c"
+    },
+    {
+      "path": "internal/runtime/channelappend/FLOW.md",
+      "sha256": "d68b88b6ba41f3bfe763f180f8feaa4235763f2a7704ab09597f590db934eda8"
+    },
+    {
+      "path": "internal/runtime/channelappend/router.go",
+      "sha256": "be0b4130a3748843ee0adbcb6a6c7197915901f6e5c448ddc8821cae342fd183"
+    },
+    {
+      "path": "internal/usecase/message/FLOW.md",
+      "sha256": "8363ede3c09831c218f1822d55beb2aa119c045ee41d519388baad2e54655e02"
+    },
+    {
+      "path": "internal/usecase/message/will_send.go",
+      "sha256": "649931b905f880fcb4dc86e83c2b371b6a92f31170f8b0c0073aa1383a7ebef7"
+    },
+    {
+      "path": "internal/usecase/mqttsession/FLOW.md",
+      "sha256": "21b43e3e232cd94c298754153c1107f5dd9ef10504f5c172a2e3ed1a3e38a288"
+    },
+    {
+      "path": "internal/usecase/mqttsession/will_execution.go",
+      "sha256": "121caa965d1121cd4b8d7f6828da01b35034ed12353d338cfaa05e7c92321b9f"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "fd02f200e7c0ce7ce075518c4ec5c99a167535d865d963721186d712efd00a71"
+    },
+    {
+      "path": "test/e2e/mqtt/will_recovery/AGENTS.md",
+      "sha256": "8b56546bd3ec71c43ea703c45320748f0f7c6022b73c462f0eca9e89d7286ff0"
+    },
+    {
+      "path": "test/e2e/mqtt/will_recovery/recovery_test.go",
+      "sha256": "83de1847c715b82091c0b84c160100f85c4386d36f092798f372e0c4f63fc050"
+    }
+  ]
+}

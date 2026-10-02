@@ -1,0 +1,5 @@
+--- a/internal/usecase/mqttsession/will_attempt_reclamation.go
++++ b/internal/usecase/mqttsession/will_attempt_reclamation.go
+@@ -78 +78 @@
+-		retired := w.ExecutionGeneration > a.ExecutionGeneration
++		retired := w.ExecutionGeneration >= a.ExecutionGeneration

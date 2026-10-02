@@ -1,0 +1,397 @@
+{
+  "base_revision": "7583a33fb27706349ec77ea9113a70e95cf76204",
+  "scope": "authorized Will failed-read fairness task only",
+  "sha256_definition": "exact Git/file bytes; compressed archives separately map original decompressed hashes",
+  "files": [
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "bytes": 19322,
+      "sha256": "28ba673915bc269b0f064d79c7a060649906cb8d326da7168ba699cfd81e7d5e"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "bytes": 106876,
+      "sha256": "bcf437e29fe2bc5f193624ee76f0cd328554f56ea3923275e655fc2e31fb1fc3"
+    },
+    {
+      "path": "docs/reports/mqtt-implementation-progress.md",
+      "bytes": 337486,
+      "sha256": "72e66676ffe9dbbaf7e381ab1c4d5afea1a655643a7f4694e3bb009f64876f89"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/README.md",
+      "bytes": 9137,
+      "sha256": "2782cd42030f320582f658b9d2a450931b1fd2817a77b3d06faa7e2cafd259a1"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/commands.json",
+      "bytes": 2190,
+      "sha256": "84870dc474eae67f7e36ab4f0b501e05ccf74e60e26b8a9c163d623850e00648"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/app-audit-race-repeat.log.txt",
+      "bytes": 334,
+      "sha256": "e9b1c92bd19cc292d410d6c1bc0aa984ec03bbe0d292c6a1e8aa852c504bb7d8"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/app-race-repeat.log.txt",
+      "bytes": 333,
+      "sha256": "5ffa3dae8036f082246c55d48cefa46f8b4ae9208e5c3d425e99cc4929ba80cf"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/candidate-attempts-generated.txt.gz",
+      "bytes": 3793,
+      "sha256": "50d6e799854dff7728e027be13fb6894e72e3df813457ef3561b09bc4f392f45"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/candidate-attempts.fail.go.txt",
+      "bytes": 638,
+      "sha256": "112b60fbc1c389df81c0436074ed12e679024f58db6501a6bd7b2a1a3e667e00"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/candidate-build-v2.log.txt",
+      "bytes": 515,
+      "sha256": "e04aeabce64fd77a2958ea8e7a501d8da4028a1421dbfadacca0af2c4699ab47"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/candidate-build-v3.log.txt",
+      "bytes": 568,
+      "sha256": "7d3ce9fa2f5c1d1cec0f5426e1105e1519a8967eeec9401888c59d21e55b288a"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/candidate-build.log.txt",
+      "bytes": 1327,
+      "sha256": "0160cc67e3f28110f75a54f38a7b350305b231d5be84b992a9cc5c2e23c3e371"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/candidate-will_attempt_reclamation-generated.txt.gz",
+      "bytes": 2662,
+      "sha256": "b7fb2bf4dece915b59b636bae24848d7366f3c92046e8ccc7a1f3554b19b1c76"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/candidate-will_attempt_reclamation.fail.go.txt",
+      "bytes": 2045,
+      "sha256": "2ebafa4b8ad27628325fb2a6d53813c06429291b0f543753171ecde3fda25a29"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/cap-two-regression/mqtt-will-reclamation-1.json",
+      "bytes": 504,
+      "sha256": "5718a1f8cc512e45cfd060066b81ba1f35db635d7f19012fa998e951b4b1135e"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/cap-two-regression/mqtt-will-reclamation-3.json",
+      "bytes": 504,
+      "sha256": "e0df93ae136cbe527cdfb217d9dce05598f06b1d28d04d262ef60c469bcde44f"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/cap-two-regression/run.log.txt",
+      "bytes": 941,
+      "sha256": "a9702eceef8a984fccec2f2e464892cda5a9445c404ca600084552c1891037c0"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/cursor-negative.patch",
+      "bytes": 156,
+      "sha256": "6d195da789618167af2e815142f1b371e587397c6e750bb5d6dedaa085a679e1"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/dependency-recovery.log.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/fixture-v1.txt",
+      "bytes": 12867,
+      "sha256": "5f074afaa854c7a8baf0027014acc30d4281a68a3af8d71036b643189d0da3ac"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/fixture-v2.txt",
+      "bytes": 13551,
+      "sha256": "be0d5e67a9082e24308012684102fc66f718fb55f987193d7803432b8e96ebe0"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/fixture-v3.txt",
+      "bytes": 14597,
+      "sha256": "7ba5d0794a8ea195b92bfdd036d8551df4c55551d53d93fd9c86ef0705755895"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/fixture-v4.txt",
+      "bytes": 14661,
+      "sha256": "fa002d44db0c2c1a46cdc89e6d01ca820de527655b22d49708c2fd997198e79f"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/fixture-v5-bootstrap.log.txt",
+      "bytes": 1301,
+      "sha256": "9cb25f82393d9bd41d9079ce1801b714abf7c49b70a65f3feeda3c3e8a823c3a"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/fixture-v5.txt",
+      "bytes": 14838,
+      "sha256": "d78e08ce5631fee67e449afa929a703813cd568e7443fa8dc29a61b9d3f03feb"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/flow-doc-contracts-final.log.txt",
+      "bytes": 783,
+      "sha256": "712b0d00c884c879b2cce5695f7c753e8b77e926f42a262132c69db816723b64"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/flow-doc-contracts.log.txt",
+      "bytes": 865,
+      "sha256": "72b146fa52fb740317ef08b0009e5d40c00edcdd95adad8d1206cce4c72653ff"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/flow-index-render.log.txt",
+      "bytes": 48,
+      "sha256": "5ca49956b23d02062de121518c2742d33bfb3768463081d8e438c87de41d5854"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/focused-race.log.txt",
+      "bytes": 11691,
+      "sha256": "602ac7737c23a45b7c2ee5038dad7d88a4be2dddb57ddb232d35092b85b98e7d"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/initial-scenario-instructions.txt",
+      "bytes": 1195,
+      "sha256": "3b8eb9557c7eda8bf4476582878583ddbb5a1219fc2aea893aedd57defc3f050"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/negative-attempts-generated.txt.gz",
+      "bytes": 3785,
+      "sha256": "bd7bdb7203a466d353097af6109e2849c703e60a45ec48349812afc11d9d3937"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/negative-build.log.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/negative-provenance.json",
+      "bytes": 566,
+      "sha256": "3bf00f720dfd814df8e8ccfac44b0b336d0571f27c861aeafa29bdbe023914e1"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/negative-will_attempt_reclamation-generated.txt.gz",
+      "bytes": 2662,
+      "sha256": "b7fb2bf4dece915b59b636bae24848d7366f3c92046e8ccc7a1f3554b19b1c76"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/ordinary-build.log.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/ordinary-will/run.log.txt",
+      "bytes": 827,
+      "sha256": "3338380658fa41ef705fa50ecdc105b90cd934ffe8b8dee48f7184b38e81b36a"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/source-attempts.txt",
+      "bytes": 11943,
+      "sha256": "3eebae3b4229e6b913fd1446506ccebbf19dd6ca39d79480e42e60e0117f64aa"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/source-will_attempt_reclamation.txt",
+      "bytes": 6028,
+      "sha256": "8f2f8a962c2e409be5a98f26d322c441c1a4c78d4b9617976dee9d5d96d69d91"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v1-baseline/mqtt-will-fairness-1-deadline.json",
+      "bytes": 330,
+      "sha256": "b6c1a9254e4a2de8ad3e87f382fc6fab9d27f46cb848e7fb465ea09a846f5190"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v1-baseline/run.log.txt.gz",
+      "bytes": 939,
+      "sha256": "5976ec16630b5d92c305dace1b1e2798c8f6c6023877ef827424a2b0b9ad6441"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v2-tracer/mqtt-will-fairness-1-deadline.json",
+      "bytes": 960,
+      "sha256": "7edcd9cbfbffbed0ecf9c008d8fa884067594aec03477a44a706a5e00e65b5fc"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v2-tracer/run.log.txt.gz",
+      "bytes": 539,
+      "sha256": "0f76633cc7880088bea9a6dcd234eddadaf36bb67d9770710629a9f02fb67990"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v3-positive/mqtt-will-fairness-1-deadline.json",
+      "bytes": 962,
+      "sha256": "63826c13045f52a39916ff0c5350259c86c83e236ab2dafdcf0002c284fc8b61"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v3-positive/run.log.txt.gz",
+      "bytes": 437,
+      "sha256": "6ee68bb55b907acc0e2d1d562d0ce9f0bb4694463cef2386006665be30fa1628"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v4-matrix/mqtt-will-fairness-1-canceled.json",
+      "bytes": 1081,
+      "sha256": "dd869d5b8ab716589634223538003583034d5a34dcad7162f5df81755b7201d5"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v4-matrix/mqtt-will-fairness-1-deadline.json",
+      "bytes": 1083,
+      "sha256": "269632332f4ada8cafb4bc02b0d3c881d854011e112f72f4e6b4ad89b6d45fbb"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v4-matrix/mqtt-will-fairness-3-canceled.json",
+      "bytes": 951,
+      "sha256": "d928c9dece6773f2fdfb724adbfdbc44cb65ccda41499994dca2969f61c319fd"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v4-matrix/mqtt-will-fairness-3-deadline.json",
+      "bytes": 951,
+      "sha256": "70dde6f4978209ac53d4e3537a8121bf11c4ac582befb10b00813aee568c6791"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v4-matrix/single-node.log.txt",
+      "bytes": 1666,
+      "sha256": "a7f7cfa1370b6449862cd935f4e7dbf5f262bd560f14e75788900dbd2fd008c4"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v4-matrix/three-node.log.txt.gz",
+      "bytes": 689,
+      "sha256": "777db6df35ecc01617dadf9b21a01dfdd7561f7845f0b11bb7d76e99f15a2196"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v4-negative/mqtt-will-fairness-1-deadline.json",
+      "bytes": 1157,
+      "sha256": "5e4a478ade3fa7cfc3acd6ba9a103cdbc897dc293c3195f38e2edd59e0eceba4"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v4-negative/run.log.txt.gz",
+      "bytes": 1504,
+      "sha256": "3e1b47871cb965262ae166140d0c71844aa5bc755749d5929b6997501ea2bcb2"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v4-tracer/mqtt-will-fairness-1-deadline.json",
+      "bytes": 1083,
+      "sha256": "ecafeda0ebb1c11e200072ff1d91e153ac8ee0cea08e9edc65797413a9175cc4"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v4-tracer/run.log.txt",
+      "bytes": 930,
+      "sha256": "3e67f1ca0df45548f379643b12c9d5e9644602e570d43565f67d9812fff8f1da"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v5-matrix/mqtt-will-fairness-1-canceled.json",
+      "bytes": 1084,
+      "sha256": "3eaf7f0c9f1b838fdae5a1869a3b5a828a407f74d205b19061aca1a5f1ef6ff6"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v5-matrix/mqtt-will-fairness-1-deadline.json",
+      "bytes": 1083,
+      "sha256": "24a3724ef60eae714e113496bb8bd23ffecb28be1600a1574ce47749b5aa1c6c"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v5-matrix/mqtt-will-fairness-3-canceled.json",
+      "bytes": 1082,
+      "sha256": "42731a457097e0e7d119f43c2fc4dacf23024463934bbdb11219392130180a1d"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v5-matrix/mqtt-will-fairness-3-deadline.json",
+      "bytes": 1083,
+      "sha256": "225a78a6ddf1bf2194aed1eb7ec9b68c260864f7b596bec4c645f6dcb47f48ce"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v5-matrix/single-node-dependency-setup-failure.log.txt",
+      "bytes": 2569,
+      "sha256": "3497f46a0cd444543c3cb4c1c5a8e9e71490cea5217f1ada1594751a7700b607"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v5-matrix/single-node.log.txt",
+      "bytes": 1666,
+      "sha256": "2a5b8b6a2f447299a74f988df53e7b91a8ceb6808bd5c4ebfe13d7b0bf5b5f26"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v5-matrix/three-node-dependency-setup-failure.log.txt",
+      "bytes": 3143,
+      "sha256": "e8f7697cd9f7d703755903f85beddaed1ba221af4d86239175d54c3a1c9b1b71"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v5-matrix/three-node.log.txt",
+      "bytes": 1662,
+      "sha256": "f0c9d8f7e4430221aafef186a53359112b31181c437663492ff465787c6c4670"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v5-negative/dependency-setup-failure.log.txt",
+      "bytes": 2781,
+      "sha256": "af2250e6d77d970203660d6255c9c6cd3ac0480b780bfe8bb26f4cd2e1195229"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v5-negative/mqtt-will-fairness-1-deadline.json",
+      "bytes": 1158,
+      "sha256": "29e564bd513563bad792d13b857994afd4b127294658c67570bf08e2d5b1de7d"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/evidence/v5-negative/run.log.txt.gz",
+      "bytes": 1505,
+      "sha256": "2ebec29166dd1d5a2d7cdeb0a800617918cf0439babe16fbe4fa3d953ce540a1"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/provenance.json",
+      "bytes": 4160,
+      "sha256": "dc3af5e437db67ef5f81ad257f63bbabd802005326425e0a46a8d49cf2ff9b29"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/qualification.json",
+      "bytes": 4779,
+      "sha256": "c27d907608fbebd03e7bf7f7fde20c8af4313db37c19ec615b0c858e4335d2dc"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/raw-archives.json",
+      "bytes": 3355,
+      "sha256": "b14254e24b26f2e9573a7221aa2849577ee8ec08434cb15c72004087ce841576"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/review.json",
+      "bytes": 1378,
+      "sha256": "f91cb76164f22c461f6fe7f8bd42a861ebcceef49cfe19e71ec3f8b5df464936"
+    },
+    {
+      "path": "docs/reports/mqtt-will-read-fairness/source-context.json",
+      "bytes": 1989,
+      "sha256": "e4ec09af2b647d3faf790763b649b9768bc7e866725bf180658bddbced61ea99"
+    },
+    {
+      "path": "docs/specs/mqtt-will-read-fairness.md",
+      "bytes": 5620,
+      "sha256": "675459e8b320fee24693857a1857136fe0335923582bdea520e8973934ed1ee5"
+    },
+    {
+      "path": "internal/infra/mqttwill/FLOW.md",
+      "bytes": 2586,
+      "sha256": "866f99386811a04fecd1928a5c2eadc6df69c709c03d203048a1e37152d0bfb8"
+    },
+    {
+      "path": "internal/infra/mqttwill/attempts.go",
+      "bytes": 11943,
+      "sha256": "3eebae3b4229e6b913fd1446506ccebbf19dd6ca39d79480e42e60e0117f64aa"
+    },
+    {
+      "path": "internal/usecase/mqttsession/FLOW.md",
+      "bytes": 16462,
+      "sha256": "e50003a0b424cda696d433a5d87c9a6a28429869b6ebfc828ffc217f13964d2e"
+    },
+    {
+      "path": "internal/usecase/mqttsession/will_attempt_reclamation.go",
+      "bytes": 6028,
+      "sha256": "8f2f8a962c2e409be5a98f26d322c441c1a4c78d4b9617976dee9d5d96d69d91"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "bytes": 23917,
+      "sha256": "d26614e7a4a510c5c67faafde81754bc9f1b335ae953720facecab16c2aef832"
+    },
+    {
+      "path": "test/e2e/mqtt/will_reclamation_fairness/AGENTS.md",
+      "bytes": 1198,
+      "sha256": "0d3d2b13a2009c70960ba63081b4006112ba83c5b91fb560a0c50c4c41478d9a"
+    },
+    {
+      "path": "test/e2e/mqtt/will_reclamation_fairness/fairness_test.go",
+      "bytes": 14838,
+      "sha256": "d78e08ce5631fee67e449afa929a703813cd568e7443fa8dc29a61b9d3f03feb"
+    }
+  ]
+}

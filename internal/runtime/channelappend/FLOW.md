@@ -7,11 +7,9 @@ summary: Owns routed local Channel append admission, ordered durable writes, ite
 
 ## Responsibility
 
-`internal/runtime/channelappend` routes SEND batches to the current Channel
-append authority. On the local authority it validates and prepares items,
-allocates message IDs, serializes per-Channel durable append, completes aligned
-futures, and hands committed messages to bounded best-effort delivery and
-side-effect runtimes.
+This package routes SEND batches to Channel authority, validates and prepares
+local items, allocates IDs, serializes durable append, completes aligned futures,
+and hands committed messages to bounded best-effort delivery and side effects.
 
 `NoPersist` sends use the same authority and recipient machinery but create no
 Channel log or membership state. Ordinary sends retain the source Channel;
@@ -42,10 +40,13 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
 
 1. The router performs side-effect-safe checks, derives canonical Channels,
    resolves authority, groups by target, and submits locally or forwards once
-   per bounded lane.
+   per bounded lane. Trusted origin-only guards run immediately before local or
+   remote submission and are stripped from accepted work; failures stay aligned.
 2. The local shard creates one writer per Channel key; that writer prepares and
    orders items, performs fenced append, applies completions in sequence, and
-   recovers only payload-hash-proven committed retries.
+   recovers only content-proven committed retries. MQTT content comparison
+   includes publication metadata and exact body; clock-only retries retain the
+   first committed record and never duplicate post-commit effects.
 3. Fresh commits retain bounded delivery-handoff ownership until a terminal
    enqueue result. Subscriber pages reuse only page-local authority-planning
    scratch; each enqueued delivery plan owns its grouped recipient storage.
@@ -60,8 +61,10 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
   one.
 - Expected Channel and leader epochs fence every durable write. A canonical
   target mismatch is stale routing and creates no state.
-- Accepted work is not canceled by later caller cancellation. A timed-out Stop
-  bounds only that caller's wait and never discards admitted work.
+- Invalid metadata and unkeyed Will templates fail before routing or IDs, including
+  transient sends. Valid MQTT metadata permits empty bodies; native sends still require a body. Owned envelopes preserve original metadata.
+- Temporary gofail builds can delay accepted Will appends before the native budget; ordinary controls are inert.
+- Accepted work survives caller cancellation; a timed-out Stop bounds its wait and never discards admitted work.
 - Per-item result order and cardinality are preserved across routing, append,
   retry, and remote forwarding.
 - Backlog, worker pools, router concurrency, recipient pages, owner fanout, and
@@ -98,6 +101,7 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
   Slot, route, or authority identities.
   Pool pressure republishes after the final running count decrement so a
   terminal zero is observable without later traffic.
+The router retains submission uncertainty monotonically across route retries and removes a later non-submission capability after an ambiguous earlier call. Private uncertainty wrappers do not change terminal error identity. Both batch error recovery paths still check positive committed idempotency for a funding refusal; a miss retains the exact refusal. Sibling retries cannot erase earlier unknown submission.
 
 ## Read First
 

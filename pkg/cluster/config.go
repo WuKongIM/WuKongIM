@@ -272,6 +272,16 @@ type HealthReportConfig struct {
 
 // StorageConfig contains node-local store tuning for cluster-owned runtimes.
 type StorageConfig struct {
+	// MQTTNodeBytes and MQTTClusterBytes fund protected originals and future
+	// replay replicas before new durable publication. Zero disables this port
+	// for embedding callers; product composition always supplies finite limits.
+	MQTTNodeBytes    uint64
+	MQTTClusterBytes uint64
+	// MQTTStorageObserver samples fixed aggregate reservation evidence only.
+	MQTTStorageObserver interface {
+		ObserveMQTTStorage(uint64, uint64, uint64, uint64)
+		ObserveMQTTStorageEvent(string)
+	}
 	// CommitFlushWindow is the maximum delay for grouping adjacent channel append commits.
 	CommitFlushWindow time.Duration
 	// CommitMaxRequests caps logical append requests in one grouped physical commit.

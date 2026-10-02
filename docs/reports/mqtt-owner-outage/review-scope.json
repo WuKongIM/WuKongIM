@@ -1,0 +1,49 @@
+{
+  "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/mqtt-design",
+  "base": "64f73d99b3b0cb8960d40825f76053f5a0000dbd",
+  "head": "633b044b671d82e6464fd1e3d236993366c743ab",
+  "commit_count": 174,
+  "branch_diff_command": "git diff 64f73d99b3b0cb8960d40825f76053f5a0000dbd 633b044b671d82e6464fd1e3d236993366c743ab",
+  "working_copy_command_at_capture": "git diff HEAD",
+  "working_copy_diff": "working-copy.diff",
+  "untracked_list": "untracked.txt",
+  "frozen_working_copy": "working-copy/",
+  "issue_references": [],
+  "coverage_limit": "One review pass across a large feature branch; does not replace the complete target acceptance matrix.",
+  "branch_changed_files": 1191,
+  "snapshot_manifest_sha256": "1f36a3545371089dd7aa3df7b15165b10c3d903b770097f1051c6b32d2717c3b",
+  "working_copy_diff_sha256": "91998d69f1029f9b96ea373797ce660bcee8a344e24d25f7a9989afd4481ac6a",
+  "commit_list_sha256": "39e8326b4bc52c127bb2d9be3d453fc10e18ac8f98deb8ec807d560c7e2e6871",
+  "reviewed_boundaries": [
+    "dependency directions",
+    "CONNECT and exact Owner isolation",
+    "crashed-boot facts",
+    "Will execution",
+    "receive permissions",
+    "restore lifecycle",
+    "latest replay and restore repairs",
+    "configuration and Changelog",
+    "fixed metrics",
+    "test structure",
+    "frozen Owner outage acceptance"
+  ],
+  "post_snapshot_changes": [
+    "completed full-scale evidence and provenance",
+    "existing real-time test moved unchanged to integration tier",
+    "two stale FLOW status descriptions corrected with regenerated index",
+    "review findings and validation recorded"
+  ],
+  "standards": {
+    "original_findings": 2,
+    "worst_original": "P2",
+    "resolved": 2,
+    "remaining": 0
+  },
+  "spec": {
+    "findings": 2,
+    "worst": "P1",
+    "resolved": 0,
+    "remaining": 2,
+    "known_contract_gaps": true
+  }
+}

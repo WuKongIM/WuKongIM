@@ -1,0 +1,237 @@
+{
+  "base_revision": "a8559a6bad3f48337315f814dc664b3c221e76b6",
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "1854c2f4847dcbfb41090f2dff7eae7bb767f5c92b1a380ff2cbe630c9f050d9"
+    },
+    {
+      "path": "negative-control-source.json",
+      "sha256": "25de7e3bd4811444d0965f761f05cf65d528c2d27b1da060f97beff695d84c36"
+    },
+    {
+      "path": "negative-control.patch",
+      "sha256": "3787c2ccf5ca413a78588804778d258b565f16f5697c35babf6b787c30647f96"
+    },
+    {
+      "path": "receipts/capacity-1/mqtt-will-reclamation-1-1024.json",
+      "sha256": "316e60e1c173fc18566957905450f8a7444d019831b6de45e466610d9f6a36f3"
+    },
+    {
+      "path": "receipts/capacity-3/mqtt-will-reclamation-3-1024.json",
+      "sha256": "3cbbe0bfc4038b8466eae65a975f8892ab25d2d6d3b8d71546aedf75c0c3fd02"
+    },
+    {
+      "path": "receipts/capacity-final-1/mqtt-will-reclamation-1-1024.json",
+      "sha256": "28ec84562d4317738c288242105082c8c7723d147acf82e7975097bd954a4091"
+    },
+    {
+      "path": "receipts/capacity-final-3/mqtt-will-reclamation-3-1024.json",
+      "sha256": "da89aa0be8e3920cd7c798d129b194d22f43af92108813c74edf7caba909b555"
+    },
+    {
+      "path": "receipts/corrected-fixture-matrix/mqtt-will-race-1-late-release.json",
+      "sha256": "be1cf1bdbd1f31babba2f374c0818402d3b5558b860d7f1f1f1726b24fe23816"
+    },
+    {
+      "path": "receipts/corrected-fixture-matrix/mqtt-will-race-1-started-reply.json",
+      "sha256": "0a2931aae5d53c476ffc5995fa0bcc1deaf2984107617742bce442bb382e3b2f"
+    },
+    {
+      "path": "receipts/corrected-fixture-matrix/mqtt-will-race-1-successor-reply.json",
+      "sha256": "a82ed27c1faa850481405675aa911ee7234f025e0c1c22e26ecd2f700740f4b2"
+    },
+    {
+      "path": "receipts/corrected-fixture-matrix/mqtt-will-race-3-late-release.json",
+      "sha256": "835da984636d9dd5aaf6f9d0cde99fdb83e6f05bc0d9a7047e41848f12d09f92"
+    },
+    {
+      "path": "receipts/corrected-fixture-matrix/mqtt-will-race-3-started-reply.json",
+      "sha256": "c94aa69c442fad7e1a4f6f5342ddbeac6dd473527077bb7227dbe8def85a54ed"
+    },
+    {
+      "path": "receipts/corrected-fixture-matrix/mqtt-will-race-3-successor-reply.json",
+      "sha256": "57f958c6fba98ba8f4d57d20437188a8fbfd602657e153fbff4a5193b4c7358c"
+    },
+    {
+      "path": "receipts/delivered-tracer/mqtt-will-race-1-late-release.json",
+      "sha256": "43487f470eedf1cfb332e6750e469e429daa47f627b1f054503933b40b61f910"
+    },
+    {
+      "path": "receipts/final-matrix/mqtt-will-race-1-late-release.json",
+      "sha256": "ab7db2428dcb181f8abd5e9cd3d2809609f8b963626982af574d5bc809d83bca"
+    },
+    {
+      "path": "receipts/final-matrix/mqtt-will-race-1-started-reply.json",
+      "sha256": "3209ce2f45cd0d9c572542b112d1021110f3298093d07c5b3a6087417c34a488"
+    },
+    {
+      "path": "receipts/final-matrix/mqtt-will-race-1-successor-reply.json",
+      "sha256": "200a17888d0977ad363a40a98b97165a1a29e5017518aa31f069b979a595d2c1"
+    },
+    {
+      "path": "receipts/final-matrix/mqtt-will-race-3-late-release.json",
+      "sha256": "75eb266e8d7230c9a39ff055dbc95a92f12d3444a63cca2cb974ffd30d7f9dca"
+    },
+    {
+      "path": "receipts/final-matrix/mqtt-will-race-3-started-reply.json",
+      "sha256": "80c68584f9026990c744e29c9ba09111bca747ba25d74030aaf5bb52198d23ed"
+    },
+    {
+      "path": "receipts/final-matrix/mqtt-will-race-3-successor-reply.json",
+      "sha256": "54037da784ab622b349b4b4efbbcfdaa6ead0af305b5fa967e27727e79710f47"
+    },
+    {
+      "path": "receipts/initial-fixture-matrix/mqtt-will-race-1-late-release.json",
+      "sha256": "be1cf1bdbd1f31babba2f374c0818402d3b5558b860d7f1f1f1726b24fe23816"
+    },
+    {
+      "path": "receipts/initial-fixture-matrix/mqtt-will-race-1-started-reply.json",
+      "sha256": "2d24e94a02a25e2a21a2d6ecfa0da040a139f45db0f02d10c43630fbb8aec3a3"
+    },
+    {
+      "path": "receipts/initial-fixture-matrix/mqtt-will-race-1-successor-reply.json",
+      "sha256": "5e04d8a315dd8778045e5639a07bb9f0a55fcbe66a42f2f87347057bb0d50c84"
+    },
+    {
+      "path": "receipts/initial-fixture-matrix/mqtt-will-race-3-late-release.json",
+      "sha256": "7c2d8d9f446d5a8f65d6399a0cf49074c7069b82b539267d5f5dddbc7d95a772"
+    },
+    {
+      "path": "receipts/initial-fixture-matrix/mqtt-will-race-3-started-reply.json",
+      "sha256": "eea2a9d8ec8020dfa8e126a23c1a01696f550d4d1c31cd6abdfa9b3133777199"
+    },
+    {
+      "path": "receipts/initial-fixture-matrix/mqtt-will-race-3-successor-reply.json",
+      "sha256": "1b50714f366713f272bb326a98b3f34bab0aad6cc54af590b30eded58286fd73"
+    },
+    {
+      "path": "receipts/joined-fixture-matrix/mqtt-will-race-1-late-release.json",
+      "sha256": "b6ee065d0ca6141345928d8c230a2fb1394bade259e198a312d8e81d173f882c"
+    },
+    {
+      "path": "receipts/joined-fixture-matrix/mqtt-will-race-1-started-reply.json",
+      "sha256": "c7b22708c4552cfde931836625ed63194555f5c33184233b1c8e0841c1681dd0"
+    },
+    {
+      "path": "receipts/joined-fixture-matrix/mqtt-will-race-1-successor-reply.json",
+      "sha256": "93d9b28c5fe94500600a96b8160682e9837a9ba1d6d7bbe10e1d2ce898ee5c35"
+    },
+    {
+      "path": "receipts/joined-fixture-matrix/mqtt-will-race-3-late-release.json",
+      "sha256": "65a1790cdf89d36eaee8c20a1f0d7572b53d7df95bc5079c5225b8ca83418860"
+    },
+    {
+      "path": "receipts/joined-fixture-matrix/mqtt-will-race-3-started-reply.json",
+      "sha256": "b51fbf2ec1ad42d8f04638f66108f64155150b9e80f97a6fd4faf42696692960"
+    },
+    {
+      "path": "receipts/joined-fixture-matrix/mqtt-will-race-3-successor-reply.json",
+      "sha256": "cfde1d4d8c8ed59db03686aaef3f1339c77a2a67395eabe33bafec605a1ac96f"
+    },
+    {
+      "path": "receipts/joined-late-repeat/mqtt-will-race-1-late-release.json",
+      "sha256": "a0c44d87ca2480ca8b301387b279fddaf33ef468a42186f6b980fcf9fef0b651"
+    },
+    {
+      "path": "receipts/late-fixture-diagnostic/mqtt-will-race-1-late-release.json",
+      "sha256": "2df605cbdc8f31f34ae80d333dd0702e6284415127f0596560aaed306208594c"
+    },
+    {
+      "path": "receipts/late-fixture-repeat/mqtt-will-race-1-late-release.json",
+      "sha256": "be1cf1bdbd1f31babba2f374c0818402d3b5558b860d7f1f1f1726b24fe23816"
+    },
+    {
+      "path": "receipts/late-joined-tracer/mqtt-will-race-1-late-release.json",
+      "sha256": "71dc2c5af338713a0a4d9ee277fedbf71ab4b414464aedb8198a5e6b583608a2"
+    },
+    {
+      "path": "receipts/negative-delivered/mqtt-will-race-1-late-release.json",
+      "sha256": "6e69e6a91e36f84a127ec8ef8b68c7ff21dea9f166254186c67328d7bef10c3b"
+    },
+    {
+      "path": "receipts/negative-final/mqtt-will-race-1-late-release.json",
+      "sha256": "8a3e444149676b22808dd83bbed3ec648ad65ea5d893569d0409c3acd5585a96"
+    },
+    {
+      "path": "receipts/negative-initial/mqtt-will-race-1-late-release.json",
+      "sha256": "08c9ef076c939aa8aa7b5ab058753caf29f31ad8f2d3ea0bb3a92f679be914c0"
+    },
+    {
+      "path": "receipts/negative-repeat/mqtt-will-race-1-late-release.json",
+      "sha256": "08c9ef076c939aa8aa7b5ab058753caf29f31ad8f2d3ea0bb3a92f679be914c0"
+    },
+    {
+      "path": "receipts/ordinary-regression/mqtt-will-1.json",
+      "sha256": "362fcd3008ce54c30339f173b45ea5a7ac5f8e94d0549b6e3b99b6d08e15bc06"
+    },
+    {
+      "path": "receipts/ordinary-regression/mqtt-will-3.json",
+      "sha256": "6e1a9174dd2e8ff5ab0cb3946c099e13c0e129e8ace78b35a560e4c5337b4945"
+    },
+    {
+      "path": "receipts/single-diagnostic/mqtt-will-race-1-late-release.json",
+      "sha256": "b7dfd590c60ab1b8cd3c1cd45663f924f8cf7a156a7b688f0bf30c51cbfcbf4a"
+    },
+    {
+      "path": "receipts/single-diagnostic/mqtt-will-race-1-started-reply.json",
+      "sha256": "1939439b81a20db670003c412ce2dbb45b5175f7caf3575ee6dd1d10190bbddf"
+    },
+    {
+      "path": "receipts/single-diagnostic/mqtt-will-race-1-successor-reply.json",
+      "sha256": "99f54cf2a74db97a6b8e5c9dd090bca9fcdc50cbb73af52820298d1673d14ec6"
+    },
+    {
+      "path": "receipts/small-final/mqtt-will-reclamation-1.json",
+      "sha256": "5718a1f8cc512e45cfd060066b81ba1f35db635d7f19012fa998e951b4b1135e"
+    },
+    {
+      "path": "receipts/small-final/mqtt-will-reclamation-3.json",
+      "sha256": "e0df93ae136cbe527cdfb217d9dce05598f06b1d28d04d262ef60c469bcde44f"
+    },
+    {
+      "path": "receipts/small-regression/mqtt-will-reclamation-1.json",
+      "sha256": "5718a1f8cc512e45cfd060066b81ba1f35db635d7f19012fa998e951b4b1135e"
+    },
+    {
+      "path": "receipts/small-regression/mqtt-will-reclamation-3.json",
+      "sha256": "e0df93ae136cbe527cdfb217d9dce05598f06b1d28d04d262ef60c469bcde44f"
+    },
+    {
+      "path": "review-scope-completion-window.json",
+      "sha256": "afaffb114c00ff4edd49798d4f39521e58180beac7d468f5cc1795d495760adf"
+    },
+    {
+      "path": "review-scope-delivered.json",
+      "sha256": "5cb7b9d89d26802b81fbe1cb63b2f9ae42bf1bf64c250e4cfdd9c9a0a923be5c"
+    },
+    {
+      "path": "review-scope-final.json",
+      "sha256": "1a26e2233ecc3b76fffe5ed97a1e534d335cf7838cd1468a7462c3762f63d065"
+    },
+    {
+      "path": "review-scope.json",
+      "sha256": "c19d0ac364575a559ad047d14f1cd00e09629708227a303c467f0fe2d61a6d14"
+    },
+    {
+      "path": "review.md",
+      "sha256": "138d147be1e0a094a131a436b58ff2b3c9cf0dd14a6b99031c94793620ef9ac8"
+    },
+    {
+      "path": "source-context.json",
+      "sha256": "2b7e481c90e7efbd57cb0212bc07e8305e813322f477b77d416b812e6e243be6"
+    },
+    {
+      "path": "spec-review.md",
+      "sha256": "96310e47992687d6de66416cdf390387fd609683c1306f66d7e14f9507172f58"
+    },
+    {
+      "path": "standards-review.md",
+      "sha256": "9691432cd6bc4e962f5af20c5382ca9f0ad7b0b27fbab25358694722519cd10c"
+    },
+    {
+      "path": "validation-results.json",
+      "sha256": "d79ddc2abbde71cc0c8e1493b81c32efd12c5373b94ad0ae6a0916f45fa331c8"
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "base_revision": "7583a33fb27706349ec77ea9113a70e95cf76204",
+  "seams": [
+    "Paho MQTT5",
+    "public Product/Manager HTTP",
+    "exact owned SIGKILL/restart",
+    "temporary-copy loopback gofail at actual cursor/page/read/release decisions"
+  ],
+  "frozen_files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "6f67d2958390180b939d11812afdfcc2a0323ce88518fb19de9128b9ea695e4f"
+    },
+    {
+      "path": "test/e2e/mqtt/AGENTS.md",
+      "sha256": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f"
+    },
+    {
+      "path": "internal/usecase/mqttsession/FLOW.md",
+      "sha256": "48ddfa8c06eaa34fbc6c285b9995dfe6d6f87842fc72970ed952a079cf06ad55"
+    },
+    {
+      "path": "internal/infra/mqttwill/FLOW.md",
+      "sha256": "4f2cf342ce24df876ea34b56609e5b44241b967de1e241c5e66de70cdfa1c9af"
+    },
+    {
+      "path": "internal/contracts/mqttsession/FLOW.md",
+      "sha256": "96e6f581f00853177cab5928583efd507ca7c776c72c0742227231685490f799"
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "sha256": "07cc58f3ccdc395a1b12017e4e80a37df634c78d65ff00119aa9e672941ad3ab"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "sha256": "7012e0f10365275715271cf102be2ef60082c8d992e6b2534020aa4d14561d1c"
+    },
+    {
+      "path": "test/e2e/suite/FLOW.md",
+      "sha256": "75aaacde354f6902998ec9b0fb66aa6a3f05c06be7d4cde88e8b06b78da7948d"
+    },
+    {
+      "path": "CONTEXT.md",
+      "sha256": "9a23711303665d9e555c4b4329c9e3b32d85da87f7a410b539f46e0c2e8fbade"
+    }
+  ],
+  "new_instructions_sha256": "3b8eb9557c7eda8bf4476582878583ddbb5a1219fc2aea893aedd57defc3f050",
+  "toolchain": {
+    "go": "1.25.11",
+    "gofail": "v0.2.0",
+    "GOWORK": "off",
+    "GOMODCACHE": "/Users/tt/.codex/will-append-runtime/gomod"
+  },
+  "platform": "darwin/arm64",
+  "status": "failure inventory frozen before tests/product controls"
+}

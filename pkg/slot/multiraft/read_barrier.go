@@ -3,7 +3,9 @@ package multiraft
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"sync/atomic"
+	"time"
 
 	raft "go.etcd.io/raft/v3"
 )
@@ -27,9 +29,46 @@ func (r *readBarrierRequest) finish(err error) {
 	}
 }
 
+// ReadBarrierObserver optionally receives the caller-visible wait of each
+// read barrier with a fixed result label; implementations must not block.
+type ReadBarrierObserver interface {
+	ObserveSlotReadBarrier(result string, d time.Duration)
+}
+
+// observeReadBarrier maps err onto a fixed label set so series stay bounded.
+func observeReadBarrier(observer SchedulerObserver, err error, d time.Duration) {
+	o, ok := observer.(ReadBarrierObserver)
+	if !ok || o == nil {
+		return
+	}
+	if d < 0 {
+		d = 0
+	}
+	result := "error"
+	switch {
+	case err == nil:
+		result = "ok"
+	case errors.Is(err, ErrNotLeader):
+		result = "not_leader"
+	case errors.Is(err, ErrSlotBusy):
+		result = "busy"
+	case errors.Is(err, context.Canceled):
+		result = "canceled"
+	case errors.Is(err, context.DeadlineExceeded):
+		result = "deadline"
+	}
+	o.ObserveSlotReadBarrier(result, d)
+}
+
 // ReadBarrier obtains a fresh quorum read index from the local leader and waits
 // for durable application. It neither forwards nor appends a log entry.
-func (r *Runtime) ReadBarrier(ctx context.Context, slotID SlotID) error {
+func (r *Runtime) ReadBarrier(ctx context.Context, slotID SlotID) (err error) {
+	started := time.Now()
+	defer func() { observeReadBarrier(r.opts.Observer, err, time.Since(started)) }()
+	return r.readBarrier(ctx, slotID)
+}
+
+func (r *Runtime) readBarrier(ctx context.Context, slotID SlotID) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}

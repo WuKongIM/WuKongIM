@@ -1,0 +1,22 @@
+{
+  "connect_retries": 0,
+  "elapsed_ms": 10000,
+  "final_control_counts": [
+    {
+      "wkMQTTWillJournalFull": 0,
+      "wkMQTTWillPublicationAttempt": 0,
+      "wkMQTTWillSuccessorCASReply": 0,
+      "wkSlotPersistedUncommitted": 0
+    }
+  ],
+  "hash_slots": 256,
+  "instrumented_journal_capacity": 2,
+  "last_phase": "startup",
+  "logical_slots": 12,
+  "nodes": 1,
+  "outcome": "late",
+  "passed": false,
+  "resubscriptions": 0,
+  "scenario": "mqtt-will-successor-recovery",
+  "state": "queued"
+}

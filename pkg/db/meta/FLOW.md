@@ -6,9 +6,7 @@ summary: Owns Hash-Slot-scoped metadata tables, deterministic batches, membershi
 # Metadata Storage Flow
 
 ## Responsibility
-
-This package stores Channel-owned and UID-owned metadata on shared internal DB
-primitives. It exposes stable `Shard` handles and must not import Pebble directly.
+This package stores entity-owned metadata on shared DB primitives through stable `Shard` handles; it must not import Pebble directly.
 It does not own product business policy or expose engine-specific APIs.
 
 ## Boundaries
@@ -42,6 +40,26 @@ It does not own product business policy or expose engine-specific APIs.
    hits/fills while active, advancing Hash-Slot generations on entry and exit
    even after failure. Late misses cannot fill a newer generation. Replica slices
    are cloned on return, and authority/routing checks remain outside storage.
+7. MQTT sessions separate lifetime/owner generations, revision and deadline pages;
+   ended rows retain UID binding. Optional Session column 30 records child reclamation; bounded intent pages precede atomic cursor/accounting/inflight range deletion. Index 3 discovers ended generations only after bounded historical backfill certifies table-22 System-1 coverage; kind 23 pins and strictly checks candidates. Same-batch range masks preserve replay grouping independence; newer lifetimes, source tombstones and Will remain. Subscription writes fence owner/revision and
+   preserve generation on option replacement; child receipts prove exact retries.
+   Delivery cursors separate backlog accounting, window admission and completion.
+   Explicit cancellation Init and offline window release require closed intent; admission/ACK remain active-only and ordinary Init/Account keep their fences.
+   Qualified charge receipts use cursor System 1; append/debit and quota ending commit atomically.
+   Read kind 18 pins the head; consumption verifies head/successor before unlinking. The bounded inflight
+   list preserves earliest ACK gaps; exchange/cursor/session updates are atomic,
+   and recovery uses immutable references in original send order.
+   Source/UID bindings retain tombstones and discovery/recovery indexes; unknown boundaries block retention. UID-only optional drain columns 29–32 retain a separate monotonic closed-cursor scan; ordinary UID removal requires completed drain proof, while explicit lifetime ending remains separate.
+   Retention and candidate pages pin at most limit+1 strict primary/index witnesses, rejecting missing or stale entries.
+   Active-source discovery seeks retention-index prefixes; replay discovery also retains primary tombstones.
+   Each pinned scan checks at most 65 owner witnesses, skipping whole subscriber prefixes.
+   Tombstones keep cleanup discoverable without restoring consumer responsibility or proving GC.
+   Will records outlive Session replacement. Session transitions and quota endings
+   resolve old Will atomically; new ownership may install a new configuration.
+   Delays, execution leases and receipts are distinct; optional Will columns 35/36 retain Preparing/Prepared/Started and frozen hook output. Exact live executors advance phases; takeover preserves them. Rejected/Sealed alone may finish an expired exact Started tuple from trusted durable seal/current-denial proofs, without changing its frozen body. Terminal shapes are strict and bodies are bounded/redacted.
+   Bounded MQTT reads pin Session, children and indexes; kind 19 pins channel/member/sequence without the live channel cache.
+   Kind 20 scans stable UID directory primary keys, including hidden/tombstoned and non-person candidates; UID binding checkpoints share its 4096-byte ID bound.
+   Kind 21 pins person directory/runtime/admission progress; table 26 System 1 retains monotonic invalidations on runtime deletion. Kind 22 pins runtime plus table 3 System 1 retirement without live-cache reads. Private snapshots never replace writable shards; evidence grants no policy or redispatch authority.
 
 7. Startup-only snapshot installation validates the complete immutable stream
    before deletion, writes at most 8 MiB or 65,536 records per batch (one larger
@@ -71,19 +89,25 @@ It does not own product business policy or expose engine-specific APIs.
   preserves source version and rejects tombstones.
 - Command-channel membership is a separate UID table with start/ACK sequence
   and no ordinary activation, read, or delete fields.
-- Subscriber rows, count, and mutation version change atomically after UID sort
-  and deduplication.
-- Runtime metadata, Channel latest sequence, and event reducers stay monotonic
-  and idempotent; create-only runtime batches never overwrite existing rows.
+- Subscriber rows, count, mutation version and join incarnations commit after UID sort/deduplication.
+  Re-add preserves incarnation; removal/rejoin allocates from table 5 System 1; deletion retains its high water.
+  Range tombstones fence staged/disk rows. Legacy empty rows mean 1; snapshots/JSONL preserve identity.
+- Person directory incarnation changes atomically advance the runtime append route, rejecting overflow. Runtime metadata, Channel latest sequence and event reducers stay monotonic
+  and idempotent; runtime deletion retains table 3 System 1 authority floors and atomically withdraws person-directory tasks/readiness. Only explicit create reopens a retired identity above its floor; cold callers must reread assigned versions. Create-only batches never overwrite existing rows.
+- MQTT session CAS cannot rebind UID or regress generations. Snapshot/inspection
+  includes the row and deadline index; storage CAS alone proves no owner fencing.
+  Product MQTT is default-off and opt-in as a development preview; full rollout qualification remains pending.
+  Offline `HasMQTTState` seeks whole registered MQTT row/index/system keyspaces,
+  including retained/orphan fences, independently of caller Slot ranges.
 - The Channel read cache is capacity-bounded, independently locked from shard
   lookup, and exposes current entries and capacity through `MetricsSnapshot`.
-
 - An imported `conversation_hidden_through_seq` is list-only state. Optional
   fixed-value tails preserve old rows; marked rows require matching binaries.
   Same-generation projections preserve it, while a new source generation replaces it.
 
 - Channel-owned message-update tables store latest payload/index, head/incarnation and replica activation proof, idempotency results, and separate body-free pending checkpoints. CAS and notification progress use same-batch overlays. Pinned reads bind head/index/body; a bounded Slot group shares one request-scoped snapshot across its logical shards after the caller establishes its fresh authority/apply barrier; an update sequence of zero proves dependent rows empty only within that snapshot, allowing exact-ID reads to stop before unused point lookups; channel deletion removes every edit span, and bounded retention-index cleanup removes target payloads, requests and pending state after the original retention floor.
 
+Metadata table 28 stores the one bounded, body-free MQTT storage ledger. Encoded/decoded rows share a 256 KiB limit for at most 1,024 historical nodes; exact CAS results preserve bootstrap debt and membership revision. `mqtt_storage.go` owns ledger validation and transaction semantics.
 - User and source-Channel send policies have independent apply-time CAS versions.
   Dedicated policy and optional Channel-info mutations return the previous policy
   from atomic same-batch apply for audit, without changing persisted rows; they observe same-batch state;
@@ -93,12 +117,7 @@ It does not own product business policy or expose engine-specific APIs.
 
 ## Read First
 
-- [Metadata database](db.go)
-- [Schema registry](schema.go)
-- [Transaction helpers](tx_helpers.go)
-- [Snapshots](snapshot.go)
+- [Metadata database](db.go), [Schema registry](schema.go), [Transaction helpers](tx_helpers.go), [Snapshots](snapshot.go)
 
 ## Update Triggers
-
-Update this file when table ownership, batching, memberships, indexes, source
-fences, runtime metadata, event state, snapshots, restore, or caches change.
+Update when ownership, batches, memberships, indexes, source fences, runtime/event state, snapshots, restore or caches change.

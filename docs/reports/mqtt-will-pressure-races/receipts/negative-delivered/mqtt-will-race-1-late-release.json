@@ -1,0 +1,25 @@
+{
+  "connect_retries": 0,
+  "current_cut_reached": true,
+  "cut": "late-release",
+  "elapsed_ms": 39255,
+  "executor_capacity_refusal": true,
+  "final_control_counts": [
+    {
+      "wkMQTTWillAfterAppendAdmission": 2,
+      "wkMQTTWillAfterPublication": 2,
+      "wkMQTTWillBeforeAppendAdmission": 2,
+      "wkMQTTWillJournalFull": 1,
+      "wkMQTTWillPublicationAttempt": 2,
+      "wkMQTTWillReclamationBeforeRelease": 1
+    }
+  ],
+  "hash_slots": 256,
+  "instrumented_journal_cap": 2,
+  "last_phase": "late-page-retains-capacity",
+  "nodes": 1,
+  "passed": false,
+  "resubscriptions": 0,
+  "scenario": "mqtt-will-reclamation-race",
+  "terminal_reply_cut_reached": true
+}

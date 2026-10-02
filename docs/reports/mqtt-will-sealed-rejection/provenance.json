@@ -1,0 +1,81 @@
+{
+  "source_revision": "3f64b984eebb07035091dc11381f79796cbf1f66",
+  "platform": "macOS-15.1-arm64-arm-64bit-Mach-O",
+  "toolchain": "go1.25.11 darwin/arm64",
+  "go_environment": {
+    "GOWORK": "off",
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "https://goproxy.cn,direct",
+    "GOMODCACHE": "/Users/tt/.codex/will-append-runtime/gomod",
+    "GOFLAGS_build_only": "-buildvcs=false"
+  },
+  "commands": {
+    "red": "PATH=/tmp/will-admission-toolchain/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin GOMODCACHE=/Users/tt/.codex/will-append-runtime/gomod GOPROXY=https://goproxy.cn,direct GOTOOLCHAIN=local GOWORK=off WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-fairness-gofail-v3 WK_E2E_MQTT_REPORT_DIR=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/mqtt-design/docs/reports/mqtt-will-sealed-rejection/red go test -p 1 -tags=e2e ./test/e2e/mqtt/will_sealed_rejection -run 'TestSealedStartedRejectionReleasesCapacity/single-node-cluster/reserved' -count=1 -timeout=5m -v",
+    "green_tracer": "PATH=/tmp/will-admission-toolchain/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin GOMODCACHE=/Users/tt/.codex/will-append-runtime/gomod GOPROXY=https://goproxy.cn,direct GOTOOLCHAIN=local GOWORK=off WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-sealed-gofail WK_E2E_MQTT_REPORT_DIR=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/mqtt-design/docs/reports/mqtt-will-sealed-rejection/green-tracer go test -p 1 -tags=e2e ./test/e2e/mqtt/will_sealed_rejection -run 'TestSealedStartedRejectionReleasesCapacity/single-node-cluster/reserved' -count=1 -timeout=5m -v",
+    "final": "PATH=/tmp/will-admission-toolchain/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin GOMODCACHE=/Users/tt/.codex/will-append-runtime/gomod GOPROXY=https://goproxy.cn,direct GOTOOLCHAIN=local GOWORK=off WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-sealed-gofail WK_E2E_MQTT_REPORT_DIR=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/mqtt-design/docs/reports/mqtt-will-sealed-rejection/final go test -p 1 -tags=e2e ./test/e2e/mqtt/will_sealed_rejection -count=1 -timeout=15m -v",
+    "related_race": "PATH=/tmp/will-admission-toolchain/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin GOMODCACHE=/Users/tt/.codex/will-append-runtime/gomod GOPROXY=https://goproxy.cn,direct GOTOOLCHAIN=local GOWORK=off go test -race -p 2 ./pkg/db/meta ./pkg/slot/fsm ./internal/usecase/mqttsession ./internal/app -count=1 -timeout=8m",
+    "related_recovery": "PATH=/tmp/will-admission-toolchain/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin GOMODCACHE=/Users/tt/.codex/will-append-runtime/gomod GOPROXY=https://goproxy.cn,direct GOTOOLCHAIN=local GOWORK=off WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-sealed-full-gofail WK_E2E_MQTT_LEGACY_BINARY=/tmp/wukongim-will-append-baseline-gofail WK_E2E_MQTT_REPORT_DIR=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/mqtt-design/docs/reports/mqtt-will-sealed-rejection/related-recovery go test -p 1 -tags=e2e ./test/e2e/mqtt/will_recovery -run 'TestStartedWillRecoveryPreservesOnePublication/.*/(issued|legacy-admitted|published)$' -count=1 -timeout=8m -v",
+    "wiring": "PATH=/tmp/will-admission-toolchain/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin GOMODCACHE=/Users/tt/.codex/will-append-runtime/gomod GOPROXY=https://goproxy.cn,direct GOTOOLCHAIN=local GOWORK=off go test -race -tags=integration ./internal/app -run ^TestMQTTWillExecution -count=1 -timeout=4m -v",
+    "wiring_isolated_repeat": "PATH=/tmp/will-admission-toolchain/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin GOMODCACHE=/Users/tt/.codex/will-append-runtime/gomod GOPROXY=https://goproxy.cn,direct GOTOOLCHAIN=local GOWORK=off go test -race -tags=integration ./internal/app -run ^TestMQTTWillExecutionEmptyWebhookBodySingleNodeCluster$ -count=1 -timeout=2m -v",
+    "ordinary": "PATH=/tmp/will-admission-toolchain/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin GOMODCACHE=/Users/tt/.codex/will-append-runtime/gomod GOPROXY=https://goproxy.cn,direct GOTOOLCHAIN=local GOWORK=off WK_E2E_BINARY=/tmp/wukongim-will-sealed-ordinary WK_E2E_MQTT_REPORT_DIR=/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/mqtt-design/docs/reports/mqtt-will-sealed-rejection/ordinary go test -p 1 -tags=e2e ./test/e2e/mqtt/will -count=1 -timeout=4m -v",
+    "storage_tracer": "PATH=/tmp/will-admission-toolchain/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin GOMODCACHE=/Users/tt/.codex/will-append-runtime/gomod GOPROXY=https://goproxy.cn,direct GOTOOLCHAIN=local GOWORK=off go test ./pkg/db/meta -run ^TestMQTTWillSealed -count=1"
+  },
+  "source_files_sha256": {
+    "internal/usecase/mqttsession/will_execution.go": "5975929340e579cfa2b625733c666e08e01d7b159a2a357d7292c5f6c2851b3d",
+    "pkg/db/meta/mqtt_will.go": "fc1b3c6a92c49683e024b468f902f73f764ad1fffaa2fef3b83f78b9cb8e73c5",
+    "pkg/db/meta/mqtt_will_sealed_test.go": "f5bdb292b26067b279a1b84e80ef58aa6099931ee4293b5af7a227fe183a42ec",
+    "test/e2e/mqtt/will_sealed_rejection/rejection_test.go": "fd79d3263314800f70196a4214bd5980b13633d4941a4019fb63dac2c62661d1"
+  },
+  "binary_sha256": {
+    "baseline_red": {
+      "path": "/tmp/wukongim-will-fairness-gofail-v3",
+      "sha256": "6cabb8c44a6f23a76c77ca95acf67c76468bc7716442029a07baa5b122e46c6e"
+    },
+    "sealed_matrix": {
+      "path": "/tmp/wukongim-will-sealed-gofail",
+      "sha256": "368ee3ca85f1a4fb5d5637a8ef945eff1a9bcc6181ca4ef439101c2214ab6737"
+    },
+    "recovery_instrumentation_failure_v2": {
+      "path": "/tmp/wukongim-will-sealed-recovery-gofail",
+      "sha256": "d1679ccad80680dcde2aabc583d3742d449ef5b59c45d19be276129914909f03"
+    },
+    "related_recovery": {
+      "path": "/tmp/wukongim-will-sealed-full-gofail",
+      "sha256": "157604eb8ccdfaab8d59880bf841d1a626058eef66f2bdb6403afc66a4cdbc80"
+    },
+    "ordinary": {
+      "path": "/tmp/wukongim-will-sealed-ordinary",
+      "sha256": "2b5b0663d4a8cd0a89af46b273b9d5fe1a8cac712996fb6564ad990e992976b2"
+    },
+    "legacy_v1": {
+      "path": "/tmp/wukongim-will-append-baseline-gofail",
+      "sha256": "7a022bd1be7426a2b65a2b3c1c59e9acaf61627ecd83af11ea4b96e0cf0fdba7"
+    }
+  },
+  "initial_red_fixture_sha256": "96102289e6f6845c27541ccbac062462025d05c6ff175d86cc4234ec9078e648",
+  "limits": [
+    "cap-one, one logical Slot group, 256 hash Slots",
+    "bounded Darwin process acceptance",
+    "no partition, sustained throughput, arbitrary restore, full-capacity or shared-storage qualification",
+    "unknown issued/legacy/lost-journal effects remain positive-only"
+  ],
+  "named_checks": {
+    "flow-doc-contracts": {
+      "authority": ".github/review-agent/policy.json",
+      "arguments": [
+        "go",
+        "run",
+        "./scripts/flowcheck",
+        "--mode",
+        "check"
+      ],
+      "working_dir": ".",
+      "timeout_seconds": 60
+    }
+  },
+  "build_commands": {
+    "matrix": "PATH=/tmp/will-admission-toolchain/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin GOMODCACHE=/Users/tt/.codex/will-append-runtime/gomod GOPROXY=https://goproxy.cn,direct GOTOOLCHAIN=local GOWORK=off GOFLAGS=-buildvcs=false scripts/build-gofail-binary.sh --out /tmp/wukongim-will-sealed-gofail --work-dir /tmp/wukongim-will-sealed-source --keep-work --package internal/usecase/mqttsession --package internal/app --package internal/infra/mqttwill --package pkg/slot/multiraft --package pkg/slot/fsm --package pkg/slot/proxy",
+    "related_recovery": "PATH=/tmp/will-admission-toolchain/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin GOMODCACHE=/Users/tt/.codex/will-append-runtime/gomod GOPROXY=https://goproxy.cn,direct GOTOOLCHAIN=local GOWORK=off GOFLAGS=-buildvcs=false scripts/build-gofail-binary.sh --out /tmp/wukongim-will-sealed-full-gofail --work-dir /tmp/wukongim-will-sealed-full-source --keep-work --package internal/usecase/mqttsession --package internal/app --package internal/runtime/channelappend --package internal/infra/cluster --package internal/infra/mqttwill --package pkg/slot/multiraft --package pkg/slot/fsm --package pkg/slot/proxy",
+    "ordinary": "PATH=/tmp/will-admission-toolchain/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin GOMODCACHE=/Users/tt/.codex/will-append-runtime/gomod GOPROXY=https://goproxy.cn,direct GOTOOLCHAIN=local GOWORK=off GOFLAGS=-buildvcs=false go build -o /tmp/wukongim-will-sealed-ordinary ./cmd/wukongim"
+  }
+}

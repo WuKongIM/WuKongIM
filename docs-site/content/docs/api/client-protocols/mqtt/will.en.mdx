@@ -1,0 +1,54 @@
+---
+title: MQTT Will Messages
+description: Configure Will topics, payloads, application numbers and delay; verify triggering, cancellation and current permissions.
+---
+
+<Callout type="warn" title="Development preview">
+  Will supports QoS 0/1 and Will Delay, without retain. When cluster execution is uncertain, responsibility remains retained. Wall-clock time cannot establish that a message has been published.
+</Callout>
+
+## Configure a Will
+
+A Will is registered in CONNECT. It uses the same personal/group topics and existing IM payload bytes, with exactly one `wk.client_msg_no`.
+
+```js
+const will = {
+  topic: 'wk/v1/groups/ZzE/messages', // alice must already be a member of g1.
+  payload: Buffer.from(JSON.stringify({ type: 1, content: 'alice disconnected' }), 'utf8'),
+  qos: 1,
+  retain: false,
+  properties: {
+    willDelayInterval: 10,
+    userProperties: { 'wk.client_msg_no': 'alice-presence-0001' },
+  },
+};
+// Add will to the CONNECT options from the session example.
+```
+
+Use a stable ClientID and nonzero session expiry to check reconnection during the delay; see [persistent sessions](/en/api/client-protocols/mqtt/sessions-and-qos). A trusted backend prepares group membership. SUBSCRIBE cannot supply missing permission.
+
+## Triggering and cancellation
+
+| Action | Check |
+| --- | --- |
+| Abnormal disconnect or heartbeat timeout | Will may enter execution; detecting the failure takes time |
+| Will Delay | Seconds; session ending and actual cluster processing also matter |
+| Normal DISCONNECT (Reason Code 0) | Cancels this connection's Will |
+| DISCONNECT with Will Message (Reason Code 4) | Explicitly requests publication; not a cancellation path |
+| Resume the same session during the delay | Check cancellation of the old Will; the new Will belongs to a new connection generation |
+| Permission revoked after disconnect | Current send permission is rechecked at execution; setup permission does not guarantee publication |
+
+Ordinary MQTT.js `endAsync(false)` performs normal cleanup. Closing TCP, forcing process exit and normal DISCONNECT are different experiments. A Will disconnection signal cannot replace actual user presence, task results or business transactions.
+
+## Numbers and deduplication
+
+The Will's `wk.client_msg_no` is metadata. The server executes with a generation-bound idempotency identity. Reusing a number cannot control another Will's ownership. Receivers still deduplicate by stable `wk.message_id`. Commit does not establish delivery to all subscribers; see [acknowledgement boundaries](/en/api/client-protocols/mqtt/messages).
+
+## Verify your integration
+
+1. Connect an authorized observer, subscribe to the target group and inspect SUBACK.
+2. Register a Will from a valid member, disconnect abnormally, wait for detection and delay, and verify content, sender and MessageID.
+3. Register a new Will and disconnect normally; verify the observer receives no Will for that connection.
+4. Test reconnection within the delay and permission revocation, checking old-generation cancellation and current authorization separately.
+
+Use bounded waits and independent application numbers. Preserve evidence for uncertain outcomes; do not clear sessions or storage to force success. See [operations and troubleshooting](/en/api/client-protocols/mqtt/operations-and-troubleshooting).

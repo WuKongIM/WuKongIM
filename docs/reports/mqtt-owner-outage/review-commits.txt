@@ -1,0 +1,174 @@
+633b044b671d82e6464fd1e3d236993366c743ab fix(backup): atomically transfer archive lease on restore admission
+ab8b19a988788917648bf5cae2b406fc59ee5c93 fix(mqtt): bound first subscription replay confirmation
+49c74b1c065a83628027de7f82d480c07e4050a4 fix(mqtt): reactivate fresh runtime generations after restore
+aab707786ddec960289f6582027bdd962d96911f docs(mqtt): record sealing repair repeats and full-scale acceptance
+fd9ba0012da0c9575c5f87f079544601d3482216 fix(mqtt): qualify unsubscribe sealing contention before yielding
+c3f4ac4aa04d252cf5a8e81fb350549602d49f8d docs(mqtt): record passing original-size compound-read acceptance
+838222fcfc4f4a94ed957056c6802dcf9b0ef749 perf(mqtt): combine replay planning and anchored original reads
+437f7297c0d18bb2083f41b6e75d4bc838afb89f docs(mqtt): attribute delivery cost to fresh Slot read waits
+5dfa36d8871c0c606246f610c4c80339f1360bec test(mqtt): preserve scale receipt failures and rejected performance probes
+dd8e49bb9ffb284666791d8d937f09e2ced7af13 fix(mqtt): preserve bounded preparation and drain under churn
+e3cb492e7668a7b10586a70f023dcc714bbc3279 docs(mqtt): preserve bounded load and remaining failure evidence
+bc41096de863e0dad7f1398a894769dc33b96947 fix(mqtt): bound subscription completion CAS rebasing
+95a8b291e78fc62fb1710815058ef0184cd8d519 test(mqtt): keep scale publisher alive and report failed phases
+d6a2950c24b65de298ff1c1a0d782e04c4785524 perf(cluster): overlap bounded ordinary membership proposals
+c4afe729dbedf25836d6f51f7f7395f1026c9c94 perf(mqtt): bound quiet delivery reads and wake source consumers
+a1454d5f144b884c679c20833d94a051514cfd84 docs(mqtt): record slot read barrier measurement
+e912935e7aa60157b3ba1f2d0e16de19e96f9c9a feat(slot): observe read barrier wait by fixed result
+f263922c3573c1e4ac9566ae66d891335218b9d9 docs(mqtt): record group delivery latency diagnosis
+152b6dcbeb294dd2d8be7c9d02f859059979dfa7 fix(mqtt): classify fresh delivery cursors as not ready or idle
+95569d3af1247db5cdf4e9ebdf3d00e3747a0fac docs(mqtt): record partial group scale acceptance
+34138e6d9342cbea3f0abf0cd02a5c3e0562cbc8 perf(mqtt): reserve consumer scan budget for streams with known backlog
+05908c5132037bfe0fac0e7c5e705ad7bb97653c perf(mqtt): spend consumer scan budget on backlogged streams
+5e127f0d5a6859171566e6bf53c89a8ef6a4ffd3 test(mqtt): add group scale delivery and churn retirement E2E
+264cae6944d46d799616eb358ffcf14f002d3a88 fix(mqtt): discover Removed source tombstones for retirement
+356ebc03139e1f47225824752f497c5d634d047e feat(mqtt): keep scheduled source tombstones in the recovery index
+7ca74cc95c2ca5033068d55eddfd5df59147efc3 fix(mqtt): wait for contended channel meta apply within request deadline
+a5548c811b051a58f7e0e59623e4c1da458559ed docs(mqtt): record crashed-boot retirement progress
+4a8eae1cee5d3f3c021ef83805990017ea7ecf3d feat(mqtt): resume persistent sessions after owner process crash
+77424e4eed5b822e2a3020f04a41edf66bd04614 docs(mqtt): record live-session tombstone retirement progress
+b3e169389d75de4932089fc80d3a7dcb17a2412d feat(mqtt): retire unsubscribe tombstones of live sessions
+a151221d93489b3be512fc161f4b0f4307c0678b feat(mqtt): route live-session tombstone retirement to owner slot
+357f9f70836ce57cbdc85e40afa981bbf601be18 feat(mqtt): add live-session watermark to source binding retire command
+090e542fa80278c1647994dd6af0aae53c7e8a36 feat(mqtt): fence ended subscriptions of live sessions on tombstone retirement
+f39a03efe69b6ea4c202475ff0aaa4f1bc0df8c2 docs(mqtt): record tombstone retirement progress
+af3da23c8bbb341f2c14e9babd5380b2f4dbc182 feat(mqtt): count tombstone retirements and defer replay marker clearing
+059a26f62206bae8da722840053b4f6940d6033e feat(mqtt): route replay marker clear to owner slot
+b209b39efbdfeb4943425e568ba407de10fefc00 feat(mqtt): add replay marker clear slot command
+e2a53e9f132d769ca69c4bfe1e1e98349222554d feat(mqtt): clear replay discovery markers for owners without bindings
+21c0858f17cdb40dc3278a89d314b04fae6c04b2 test(mqtt): cover tombstone retirement in consumer maintenance
+dc960bbdcde4ccbdb40ca0e3bb96a7248b1426cd feat(mqtt): run tombstone retirement in consumer maintenance
+f34640044b3332a8c2a79dfebc6b305148eef4fb feat(mqtt): retire source tombstones after proven lifetime end
+e4d9d280ae7b052259aacddc9a7c534b75c56881 feat(mqtt): route source binding tombstone retirement to owner slot
+47bf1084ad6417eedef3e9fdd9949ffc486aab93 feat(mqtt): retire acknowledged source binding tombstones behind lifetime fences
+f3463c650195fce199a493ba2d524f9165f22d8b feat(mqtt): reclaim obsolete session children in bounded consumer workers
+e80ac1f7645a818e17513c4bbb03741a63090c30 feat(mqtt): discover reclaimable sessions with durable index backfill
+4548bd7e5a1cc3b4729a2f221d20620be25a3163 feat(mqtt): reclaim ended session children through slot authority
+a56ab8ea68e6f9d2f1bf09e6b0a651c9346813bd fix(mqtt): retain pending intent on replay planning yields
+34c43e6c1967402e362110486844a2623e4e0351 test(mqtt): isolate cold group subscription admission
+34de77eb62e3468e3ce969d0cbff1b3db3a3a533 feat(mqtt): classify subscription closure observations
+d4319c99b4254c78daf201e99dacc875f3f23122 fix(mqtt): bound ACK retries to unchanged exchange
+919f4023da5d991d4358bb6c2708ac47362154da feat(mqtt): resume disconnected subscription establishment
+8a92a1556a9dd4c8a1a3267ae22c68bae9d9bdca feat(mqtt): prepare offline subscriptions under captured authority
+ed6ffda90666d63f0ba3511dade20a257a417e0a fix(mqtt): preserve subscriptions through replica checkpoint lag
+632c2ec871ec55ded1a1c3f22c92f3ffe54e9063 feat(mqtt): recover pending subscription removal in shared cohort
+74d3c9ad5063154028216b5c365955692dbeacc9 feat(mqtt): resume closed-source draining without live owner admission
+bd37bcc4c2e0d80d10ccd45c0c3292b56424b32c feat(mqtt): allow fenced offline cleanup of closed subscriptions
+fe6d74ee02a6cb637ab7d78c4a7e52a51a563896 feat(mqtt): schedule bounded owner expiry and cleanup retries
+d336c259ef107681afdaec46dd1c836bebc6e00f feat(mqtt): retire ended inbox qualifications in consumer maintenance
+c4657980e7ad1dd971cb4ba060bd665227dd899e feat(mqtt): maintain offline consumer quotas and source progress
+5579e764f427915d46bf0e433f535f4090135e9d feat(mqtt): resume sessions after proved graceful owner retirement
+1c88a8a7d34e3299c88b1cc04caba56dd7aac482 feat(mqtt): schedule durable Wills and preserve normal disconnect intent
+9f2861e6348b000d0135103dac048c432e6294dc feat(mqtt): wire optional product gateway and session runtimes
+f17f2d964f3002e1acd318fe13001fc08c8f2711 fix(mqtt): admit empty publication bodies through shared sends
+a7dd5fb3dcbe98c965b2d6b3dafd1ef8a1cc0528 feat(mqtt): read coherent physical runtime identity
+6dca54d07730d20ae815f13f21d739fdfb72937d feat(mqtt): freeze Will hook output before dispatch
+700ed65a382c150f02002e018ed3cfe7548f716e fix(cluster): retain authority across runtime recreation
+9d5977d394f4ce23f408e6d7dd394bedc4b9422a feat(mqtt): execute first Will dispatch and recover committed receipts
+2e2bd625e818ee65e73643699dd50b86556e8ba5 feat(mqtt): route retained Will receipts through recovered authority
+746ac7418471fe2470ee035dd3a796693d610890 feat(mqtt): expose retained Will proof through Channel stores
+f063d2bbe6b2b683e5fc3a89e727e5b893732bdb feat(mqtt): retain Will receipts across history cleanup
+6d80678a4dc3efcd96bc6989b637476dcb8b3d5a docs(mqtt): record Will execution recovery gaps
+d9f660450b4c85ee20d8e966807af6adf307f8ff feat(mqtt): drain inbox subscriptions with durable progress
+a1f373414ec673566241e0e766f355856615f290 feat(mqtt): establish inbox subscriptions through durable discovery
+477d2fce8aba6bd1cce1298a0e7f841bb44a396c fix(mqtt): preserve full native inbox discovery cursor bounds
+93e09bc3d7b6e3e3a7bfc2d97c54eb574d709d43 feat(mqtt): prepare inbox sources before shared person append
+634e762f36be35599d82de1448898508653fa223 feat(mqtt): preserve prepared append authority through durable writes
+020ccd4e9e4d47707de19b1acee44778e3fba307 feat(mqtt): advance bounded future inbox admission
+08280bd387d266d2b21976513355775460276073 feat(mqtt): persist inbox admission checkpoints
+24d94f1a18dbca177279fe5fc4a280c17c375b0e feat(mqtt): prepare inbox sources for offline sessions
+a13a91b82d0f7407b1f80974c9e2f891e0bdb666 feat(mqtt): add authoritative inbox directory discovery
+6c190fc65afb0d17e9771550f015c3a5f26cba52 feat(mqtt): complete bounded subscription requests through gateway
+9fbadb4491d07e0de09712ca80a4a4e272c71170 fix(mqtt): prepare protected sources for empty group channels
+0f37f38acd17868a4fd64da75dd2daa380b1ecb4 feat(mqtt): bind scheduled delivery to gateway connections
+5e3de162c6bdcfce9c1c579b64d1190732405ec5 feat(mqtt): discover and account connection delivery sources
+b57528137fc816fc2dcb18abb350ccfd1c112101 feat(mqtt): schedule bounded fair connection delivery turns
+ab6625539699138d03bba1081b4fa73b19e15eeb feat(mqtt): authorize receiving through coherent Slot membership
+698d8750b350b8cdd99dbe8d930dec61f952a106 feat(storage): preserve subscriber join incarnations for MQTT authority
+cda07052e060fcd6eeffa098229d15fedd880ed1 feat(mqtt): orchestrate bounded connection delivery and gateway sink
+4ee4ece2104a6cb298a1ac42cea03bfdc337cb22 feat(mqtt): end exact owner sessions with atomic Will resolution
+5e6e1819c5cd9cc434069b43ae2f1d0aa1a66678 fix(mqtt): claim original QoS 0 before exposing delivery
+db1f9bccdf57413e81ccbf8616fbb280c7bcf563 feat(mqtt): recover existing exchanges from anchored original content
+0c18d5fdb89dfe8a9adf072c24f69c37c75ebf44 feat(mqtt): enqueue QoS 0 with bounded outbound property headroom
+3150751579ea0bd54e9963c7f41aff4326b4a13a feat(mqtt): prepare outbound windows from anchored original messages
+882dd81a9860b1e21a621dd6b6a50501d147c935 feat(mqtt): account qualified backlog from anchored original messages
+bf602b1da0daf3ddf6120ab13107a107b6a8699c feat(mqtt): persist qualified backlog charges and bounded debits
+bbd46deb2db0a3b80307efbe6bef48dc76e8f259 Bind MQTT outbound exchanges to gateway PUBACK
+7a072161c26d6ad9e45946275e300bf070fc0527 feat(mqtt): acknowledge exact outbound exchanges through owner gates
+de769a11c2baf4999101d8896c32a98707c1a837 feat(mqtt): expose verified typed consumer messages
+ee982d2427ad2c320dbc473555ef77ab8d6fe542 feat(mqtt): route anchored consumer content pages
+7913d76f2fe7f6a62929f723885b170f2db14a16 feat(mqtt): compose group projection with replica replay confirmation
+1f147678bfee57baf59163ebda824e6a975b02b4 feat(mqtt): recover group cancellation before first binding
+dc49297bfb56b640260c80d8af38f6b9d929e2c4 feat(mqtt): seal unsubscribe ranges and release unadmitted backlog
+ac2b1fbaf087a09796ff210f9e64cd38e6d6dd04 feat(mqtt): complete revision-fenced consumer binding removal
+703f493f3af27b2952b7ba3c221acaf43890da9b fix(mqtt): retain replay cleanup discovery after final consumer removal
+e7bd33e476e47057ec0fc1b3cd371ae9ec946386 feat(mqtt): schedule bounded replay retirement and resume pruned learner repair
+ac70e33dbfe59c4776db2826d137e861be1686a2 feat(mqtt): produce retirement from ordered consumer permission
+6feac9205dd40d8172d699bdc14671e0e065c146 fix(mqtt): propagate retirement commits to idle voters
+f1feb6929d04bf354b995a9e5ab7821cd9a1e0f1 feat(mqtt): route retirement decisions with fresh slot authority
+24884ff7a60ff3d94f54c0efcdb835c42e309996 feat(mqtt): order retirement commits through channel reactor
+80d9e39fc87ee5bd75e3226ddf2b2b4cd907de34 feat(mqtt): admit typed replay retirement through native quorum
+58b8647fb868699c3c9ad5aab3524b8e4158a8ea fix(mqtt): keep maintenance-only replay tails idle
+51afeffe294641216bec6ec71929914652e6e2d6 feat(mqtt): apply committed retirement before replica recovery
+22c055699d08d64211cbd74fd14dbe3c6538f46b feat(mqtt): reclaim retired replay with recoverable baselines
+a2cea920f585c548aae5cfae98f1df54fbefde58 feat(mqtt): select bounded historical retirement anchors
+b825be9df8bfad5509fd0bed205c5ca657682139 feat(mqtt): persist replicated replay retirement decisions
+6d3c73899f5dd889703402035c127693d8a2cb6f feat(mqtt): plan retention from coherent consumer floors
+c9e4858f6e2f60ffe1a4e595c92b76953f56032f feat(mqtt): project durable consumer completion into source bindings
+c7469eadf3df727b6e780a69f549249cfa0182cf feat(mqtt): release source prefixes through replay recovery
+a4c3f7e42d979b8733dbafbf4a84998d2630985b feat(mqtt): derive source release from committed replay anchors
+35441d1c396126a8bd9b7804fb4e0792ae57cef3 fix(cluster): refresh cached leader after failed dial
+63909fb73b3a283d5906e52406e0b2bfa60fc39a feat(mqtt): gate channel migration on replay coverage
+66285fd62e0cbd70fd5aa87ffbd495ece0ae18e9 feat(mqtt): recover replay content under stable migration fences
+d1028ad67aaa62627911ff2c694e14fe05c56a0f feat(mqtt): expose replica-local replay readiness evidence
+9279d4d722916153ecb02b3d1b9684862c8cd111 feat(mqtt): schedule replay work with bounded per-slot state
+45183397e093bc517a90f9bc4b845e14274dbe34 feat(mqtt): coordinate bounded replay copying and replica recovery
+31903e7c6b1c1240e4ca9787623ea1c2e9de02a3 feat(mqtt): discover distinct replay sources through authoritative pages
+66675e290f1ea58e93c8a1003f9af0122c562af4 feat(mqtt): add bounded target-owned replay recovery steps
+3f965b6b573a5c277456003b6fd4a3e9194f58f7 feat(mqtt): select bounded repair intervals from durable replica progress
+cb65b5e725f28ea315a14566ffdd52de8d9c6b76 feat(mqtt): route anchored replay repair across current replicas
+7b0dcab9285f57536810ffd2d07e78c523825c3d feat(mqtt): verify replay repair against receiver committed anchors
+8e425b3c2956a702f443ceaf7a514ac7c2f92a84 feat(mqtt): plan replay from committed anchors across the cluster
+7ac762878486587823639bddc63643edb2972e81 feat(mqtt): route replay anchors through fresh cluster authority
+0e039062a3a207aaa8b0d31ace929bfaa524c48c feat(mqtt): sequence replay anchor admission through Channel reactor
+38e19e0356eaea2639adbbdbeb9cb7acc2b34c27 feat(mqtt): admit replay anchors through the durable sequencer
+f97570cac1cf8c657b2c2b8772348fc0fcf4840f feat(mqtt): persist replicated replay content anchors
+776a843a0da8175abd91d2b310d904d31261413f feat(mqtt): confirm shared replay on current voter quorum
+736e46d7dbe6ffdd071e16e75b7b458850ba7c8e feat(mqtt): route replay preparation through fresh cluster authority
+5dea2b8f14259f001aa6d24cc9947ed605176a2c feat(mqtt): prepare shared replay through fenced Channel admission
+330690f90a3da68b80ade4dbd55c884934ac4252 feat(mqtt): import bounded shared replay against accepted content proofs
+c71e102bed38818d95d9f081b8523c131af35259 feat(mqtt): recover group source bindings and initial cursors
+c4586d078e3e9fedece8b33124045240e6e6dc01 feat(mqtt): route source protection through fresh cluster authority
+2a6fceea2eb5ca2e0ccc89757cd7da91e39689fd feat(mqtt): admit source protection through the Channel facade
+2354eaab9929279c41eac5e0e76cd336ab00bb05 feat(mqtt): replicate source activation through the channel log
+9625f6ba3a5921a92bf2d118e13d8002ecb94475 fix(mqtt): preserve protected source checkpoint integrity
+6d462a58218b02a34de743c8826500589d947f35 feat(mqtt): orchestrate recoverable subscription intents
+2a0e94b0aa4aa073d8e1b9ab61ebaa1d6485b0c4 feat(mqtt): bind gateway handshake and disconnect lifecycle
+ffdf821a9ff5fe5a6a64638b21d09d8eb1fb502c feat(mqtt): supervise bounded connection renewal and disconnect cleanup
+f9a926c81e01a85a4e0aed6e443078ec2e9e78bb feat(mqtt): bridge authenticated publish with committed acknowledgments
+62129e7bb2db8c5f5204253fc16c8c4c32e5c5ec feat(mqtt): schedule bounded durable deadline reconciliation
+065ff2174cc62671a142ae30f9068e9b2b1778c8 feat(mqtt): reconcile Session expiry and delayed Will decisions
+4c329e59552773a8e8ba7f075bd16720f9f36d78 feat(mqtt): authorize Will setup with current IM permissions
+21e808f9c88e7e24421a0de8b608df7ea18df2f8 feat(mqtt): acquire and renew authenticated durable sessions
+571963d33480f76419ca9c6f45c986bbdb6c2310 feat(gateway): expose physical close completion for owner isolation
+0ddb2489028b2d73912672232194aaadd324a85f feat(mqtt): fence owner execution and prove local quiescence
+ec03675943079923284d6d55dadc9737f90a8434 feat(mqtt): route durable session metadata through Slot authority
+9f031e9aef021970fb832fbf7725fc9c35406477 feat(mqtt): persist shared replay content and portable recovery
+7d53fd4c49763527156fb98831f107b42f17c968 feat(mqtt): guard protected source content during retention
+c8f7eb474c959def31d0961fa13219b5d5cff48e feat(mqtt): isolate Will append identity from client message keys
+84b99eb1df7d7a0a1d7fe1437794b1913f71e540 feat(mqtt): preserve publication metadata in offline transfer and verification
+1ab735c2594472e361c02fc2beed961add85cfa1 feat(mqtt): preserve full publication content in owner push RPC
+d2975716bfe9acd584c681911186b03cd32761c7 feat(mqtt): preserve send metadata and original committed retry identity
+80429926943a0dc2d5e21cffa4e2850d14a87c2a feat(mqtt): preserve publication metadata through Channel replication
+9f39a4ce28b25e6f1fb722b49c1b2ac3104239cb feat(mqtt): persist versioned publication metadata and exact identities
+d5f6ee1a6333b4ef1d565d4c8376e6b79d9da11c feat(mqtt): atomically resolve Session and Will lifecycle
+eaa9290477d2b72b9500782d950ff13ea3b74d01 feat(mqtt): persist bounded Will obligations and execution receipts
+934300b18827ee00a08a68be3179a75eeb35ba21 feat(mqtt): persist fenced source-owned subscription bindings
+9fec94c0bdafbb7867a229f3e75fa76cd12e8e44 feat(mqtt): persist bounded QoS window and gap-safe acknowledgements
+a69d4ce94e93a639d47f626711958c5f028e7350 feat(mqtt): account durable backlog by subscription source
+55bff9dec2c572a80ea616d8a2cb019543b7f5d9 feat(mqtt): persist owner-fenced subscription intents
+c19e28c46573cb6192d70473d8fa445b1b532f3b feat(mqtt): persist session bindings through revision-fenced Slot commands
+bd4a003781bf8f3d4de410ad3450656f22c9fa8d feat(gateway): add bounded independent MQTT packet path
+ac1d2ac1c2dcd5155ba6bf1496808cb9c4e443e5 test(mqtt): establish process interop acceptance before gateway wiring
+e346e1ea6a40a562cdea3697dd86054115862807 feat(mqtt): add bounded MQTT 5 wire codec and application mapping
+227c7815a881c7d7bb028f3a83390b19e90b81d3 docs: define approved MQTT IM access design

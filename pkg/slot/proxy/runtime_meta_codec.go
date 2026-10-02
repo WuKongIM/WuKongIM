@@ -23,6 +23,7 @@ const (
 	runtimeMetaRPCBatchGetID
 	runtimeMetaRPCListID
 	runtimeMetaRPCScanPageID
+	runtimeMetaRPCGetFreshID
 )
 
 // encodeRuntimeMetaRPCRequestBinary encodes runtime meta requests without JSON reflection.
@@ -35,6 +36,9 @@ func encodeRuntimeMetaRPCRequestBinary(req runtimeMetaRPCRequest) ([]byte, error
 		return nil, err
 	}
 	codecVersion := runtimeMetaRPCCodecVersionOrLatest(req.CodecVersion)
+	if req.Op == runtimeMetaRPCGetFresh && (codecVersion != 3 || !validRuntimeMetaFreshRequest(req)) {
+		return nil, metadb.ErrInvalidArgument
+	}
 	requestMagic, err := runtimeMetaRPCRequestMagicForVersion(codecVersion)
 	if err != nil {
 		return nil, err
@@ -64,6 +68,11 @@ func decodeRuntimeMetaRPCRequest(body []byte) (runtimeMetaRPCRequest, error) {
 	if err != nil {
 		return runtimeMetaRPCRequest{}, err
 	}
+	// Bound fresh point-read frames before the shared batch decoder allocates
+	// collections or decodes the channel identity.
+	if op == runtimeMetaRPCGetFresh && (requestVersion != 3 || len(body) > 4096) {
+		return runtimeMetaRPCRequest{}, metadb.ErrInvalidArgument
+	}
 	offset++
 
 	var req runtimeMetaRPCRequest
@@ -89,6 +98,9 @@ func decodeRuntimeMetaRPCRequest(body []byte) (runtimeMetaRPCRequest, error) {
 	}
 	if offset != len(body) {
 		return runtimeMetaRPCRequest{}, fmt.Errorf("metastore: trailing runtime meta request bytes")
+	}
+	if req.Op == runtimeMetaRPCGetFresh && (requestVersion != 3 || !validRuntimeMetaFreshRequest(req)) {
+		return runtimeMetaRPCRequest{}, metadb.ErrInvalidArgument
 	}
 	return req, nil
 }
@@ -235,6 +247,8 @@ func runtimeMetaOpID(op string) (byte, error) {
 	switch op {
 	case runtimeMetaRPCGet:
 		return runtimeMetaRPCGetID, nil
+	case runtimeMetaRPCGetFresh:
+		return runtimeMetaRPCGetFreshID, nil
 	case runtimeMetaRPCBatchGet:
 		return runtimeMetaRPCBatchGetID, nil
 	case runtimeMetaRPCList:
@@ -250,6 +264,8 @@ func runtimeMetaOpFromID(op byte) (string, error) {
 	switch op {
 	case runtimeMetaRPCGetID:
 		return runtimeMetaRPCGet, nil
+	case runtimeMetaRPCGetFreshID:
+		return runtimeMetaRPCGetFresh, nil
 	case runtimeMetaRPCBatchGetID:
 		return runtimeMetaRPCBatchGet, nil
 	case runtimeMetaRPCListID:

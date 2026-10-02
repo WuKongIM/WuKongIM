@@ -1,0 +1,64 @@
+package cluster
+
+import (
+	"context"
+
+	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+)
+
+// PrepareChannelMQTTReplay routes shared-content preparation while preserving
+// foreground admission and caller-selected fences. It returns no quorum receipt.
+func (n *Node) PrepareChannelMQTTReplay(ctx context.Context, req ch.MQTTReplayRequest) (ch.MQTTReplayPage, error) {
+	if err := ctxErr(ctx); err != nil {
+		return ch.MQTTReplayPage{}, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return ch.MQTTReplayPage{}, err
+	}
+	if n.channels == nil {
+		return ch.MQTTReplayPage{}, ErrNotStarted
+	}
+	preparer, ok := n.channels.(ch.MQTTReplayPreparer)
+	if !ok {
+		return ch.MQTTReplayPage{}, ch.ErrInvalidConfig
+	}
+	return preparer.PrepareMQTTReplay(ctx, req)
+}
+
+// ReadChannelMQTTReplay routes an immutable, anchored consumer page through
+// foreground admission. It neither prepares content nor advances a consumer.
+func (n *Node) ReadChannelMQTTReplay(ctx context.Context, req ch.MQTTReplayConsumerRequest) (ch.MQTTReplayConsumerPage, error) {
+	if err := ctxErr(ctx); err != nil {
+		return ch.MQTTReplayConsumerPage{}, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return ch.MQTTReplayConsumerPage{}, err
+	}
+	if n.channels == nil {
+		return ch.MQTTReplayConsumerPage{}, ErrNotStarted
+	}
+	reader, ok := n.channels.(ch.MQTTReplayConsumerReader)
+	if !ok {
+		return ch.MQTTReplayConsumerPage{}, ch.ErrInvalidConfig
+	}
+	return reader.ReadMQTTReplay(ctx, req)
+}
+
+// ReadChannelMQTTOriginals routes a bounded compound plan/content read through
+// foreground admission. Final product Owner and permission checks stay above Node.
+func (n *Node) ReadChannelMQTTOriginals(ctx context.Context, req ch.MQTTReplayOriginalRequest) (ch.MQTTReplayOriginalResult, error) {
+	if err := ctxErr(ctx); err != nil {
+		return ch.MQTTReplayOriginalResult{}, err
+	}
+	if err := n.ensureForeground(); err != nil {
+		return ch.MQTTReplayOriginalResult{}, err
+	}
+	if n.channels == nil {
+		return ch.MQTTReplayOriginalResult{}, ErrNotStarted
+	}
+	reader, ok := n.channels.(ch.MQTTReplayOriginalReader)
+	if !ok {
+		return ch.MQTTReplayOriginalResult{}, ch.ErrInvalidConfig
+	}
+	return reader.ReadMQTTOriginals(ctx, req)
+}

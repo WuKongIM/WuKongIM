@@ -37,6 +37,7 @@ Route: `/{lang}/guide`
   - **群聊与超大群 / Groups & Large Groups** `/{lang}/guide/tutorials/large-groups` — 实现群成员维护和群消息，并说明十万级成员约束。 / Implements group membership and messaging with constraints for 100,000-member groups.
   - **消息推送 / Message Push** `/{lang}/guide/tutorials/push` — 实现通知、系统消息、离线设备处理和失败恢复。 / Implements notifications, system messages, offline-device handling, and recovery.
   - **AI 与 IoT 通信 / AI & IoT Communication** `/{lang}/guide/tutorials/ai-and-iot` — 展示流式 AI 回复、设备上报和服务端指令。 / Demonstrates streaming AI replies, device telemetry, and server commands.
+  - **MQTT 快速开始 / MQTT Quickstart** `/{lang}/guide/tutorials/mqtt` — 用 Node.js 和 MQTT.js 完成认证、订阅和双向消息验证。 / Authenticates, subscribes and verifies a two-way exchange using Node.js and MQTT.js.
 
 ## 服务端 / Server
 
@@ -228,12 +229,19 @@ Route: `/{lang}/api`
   - **事件类型 / Event Types** `/{lang}/api/webhooks/events` — 列出消息、在线状态和其他受支持事件。 / Lists messages, presence, and other supported events.
   - **请求结构 / Payloads** `/{lang}/api/webhooks/payloads` — 定义三种事件负载，并明确请求体没有通用信封。 / Defines the three event payloads and the absence of a common envelope.
   - **安全与可靠性 / Security & Reliability** `/{lang}/api/webhooks/reliability-and-security` — 说明签名、重试、顺序、幂等和失败处理。 / Covers signatures, retries, ordering, idempotency, and failure handling.
-- **客户端协议 / Client Protocols** `/{lang}/api/client-protocols` — 说明当前连接生命周期与 WKProto 数据包范围。 / Documents the current connection lifecycle and WKProto packet scope.
+- **客户端协议 / Client Protocols** `/{lang}/api/client-protocols` — 说明 WKProto、JSON-RPC 和 MQTT 开发预览的接入契约。 / Documents WKProto, JSON-RPC and MQTT development-preview entry contracts.
   - **连接生命周期 / Connection Lifecycle** `/{lang}/api/client-protocols/connection-lifecycle` — 说明 CONNECT 认证、CONNACK、心跳、关闭和恢复边界。 / Covers CONNECT authentication, CONNACK, heartbeat, close, and recovery boundaries.
   - **数据包类型 / Packet Types** `/{lang}/api/client-protocols/packet-types` — 列出当前 Frame Type、方向、支持范围和版本差异。 / Lists current Frame Types, directions, support scope, and version differences.
   - **TCP 二进制协议 / TCP Binary Protocol** `/{lang}/api/client-protocols/tcp-binary` — 定义帧格式、编码、标志位和包边界。 / Defines frame format, encoding, flags, and packet boundaries.
   - **WebSocket JSON-RPC / WebSocket JSON-RPC** `/{lang}/api/client-protocols/json-rpc` — 定义方法、参数、结果、通知和请求关联。 / Defines methods, parameters, results, notifications, and request correlation.
   - **加密与安全 / Encryption & Security** `/{lang}/api/client-protocols/encryption` — 说明握手密钥、负载保护和协议安全约束。 / Covers handshake keys, payload protection, and protocol security constraints.
+  - **MQTT / MQTT** `/{lang}/api/client-protocols/mqtt` — MQTT 5 TCP 开发预览：认证、消息、会话、遗嘱和互通。 / MQTT 5 TCP development preview: authentication, messages, sessions, Wills and interop.
+    - **认证与 Topic / Authentication and Topics** `/{lang}/api/client-protocols/mqtt/authentication-and-topics` — 配置 UID、Token、设备标识与精确 Topic。 / Configures UIDs, tokens, device flags and exact topics.
+    - **消息契约 / Message Contract** `/{lang}/api/client-protocols/mqtt/messages` — 说明原始 payload、幂等、消息属性与提交确认。 / Defines raw payloads, idempotency, message properties and commit acknowledgements.
+    - **持久会话与 QoS / Persistent Sessions and QoS** `/{lang}/api/client-protocols/mqtt/sessions-and-qos` — 核对会话恢复、QoS、重复和背压。 / Checks session recovery, QoS, duplicates and backpressure.
+    - **遗嘱消息 / Will Messages** `/{lang}/api/client-protocols/mqtt/will` — 说明 Will 配置、触发、取消和当前授权。 / Explains Will setup, triggering, cancellation and current authorization.
+    - **HTTP / SDK 互通 / HTTP / SDK Interoperability** `/{lang}/api/client-protocols/mqtt/interop` — 共用 IM 消息，区分 Topic 与 payload 的编码。 / Shares IM messages and distinguishes topic from payload encoding.
+    - **部署与排障 / Operations and Troubleshooting** `/{lang}/api/client-protocols/mqtt/operations-and-troubleshooting` — 核对集群配置、逻辑配额和公开诊断信号。 / Checks cluster configuration, logical quotas and public diagnostic signals.
 - **公共数据字典 / Shared Dictionaries** `/{lang}/api/dictionaries` — 发布源码校准的 Channel、设备、消息标志与 Reason Code 字典。 / Publishes source-aligned Channel, device, message-flag, and Reason Code dictionaries.
   - **Channel Type / Channel Type** `/{lang}/api/dictionaries/channel-types` — 列出当前 1–12 Channel Type，并标注基础、专用和旧类型边界。 / Lists current Channel Types 1–12 with baseline, specialized, and legacy boundaries.
   - **Device Flag / Device Flag** `/{lang}/api/dictionaries/device-flags` — 列出 APP、WEB、PC、SYSTEM 与 Device Level 冲突策略。 / Lists APP, WEB, PC, SYSTEM, and Device Level conflict policies.

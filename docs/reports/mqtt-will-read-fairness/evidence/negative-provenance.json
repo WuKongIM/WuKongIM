@@ -1,0 +1,11 @@
+{
+  "candidate_source": "/tmp/wukongim-will-fairness-source-v3",
+  "negative_source": "/tmp/wukongim-will-fairness-negative-source",
+  "compared_files": 7034,
+  "changed_files": [
+    "internal/infra/mqttwill/attempts.go"
+  ],
+  "mutation": "remove the one actual cursor advance; all ordinary reads, limits, controls and publication paths retained",
+  "candidate_generated_adapter_sha256": "0a73d5613927c5e43ba22f13a6af54f2ece237d316d95a9e741021e0f1ab6d9a",
+  "negative_generated_adapter_sha256": "2ed71f71519193eb3c09cecaf4840453e2f816f9f7b1dde6e206b2f72790382d"
+}

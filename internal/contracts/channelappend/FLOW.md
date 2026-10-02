@@ -32,12 +32,20 @@ It does not perform permission checks, durable append, routing, or delivery.
 
 - Hot-path payload and scoped-recipient slices may be borrowed only while every
   participant treats them as immutable; concrete durable/async owners copy.
+- Publication metadata follows the same immutable ownership through commands,
+  messages and committed envelopes. Retry queries borrow body and metadata;
+  their comparison excludes only the server-assigned ingress clock.
+- A trusted process-local item callback grants append submission only at the origin
+  router, including retries. It is stripped before local handoff and never encoded
+  in node RPC or stored as publication metadata. Cloning preserves the same callback.
 - Authority target carries complete route generation and observed write-fence
-  state. Route generation orders cache projection, not Channel machine state.
-- Append requests carry expected authority and leader epochs to reject stale
-  writes without reinterpreting caller intent.
+  state. Route generation orders cache projection and the durable quorum authority.
+- Append requests carry expected authority/leader epochs and an optional exact durable route.
+  Nonzero routes require complete epochs and quorum commit; adapters cannot rewrite intent.
 - Server-allocated message-ID proof applies to every item and skips only
   existing-ID reads; sender/client idempotency remains mandatory.
+
+`ErrAppendNotSubmitted` proves this complete origin invocation dispatched no new original mutation. It grants no positive publication receipt and must be suppressed after any prior ambiguous submission; error text and deadlines cannot supply it.
 
 ## Read First
 

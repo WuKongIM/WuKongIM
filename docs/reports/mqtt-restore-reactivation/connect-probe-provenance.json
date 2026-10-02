@@ -1,0 +1,9 @@
+{
+  "instrumentation": "external Go overlays, bounded fixed-label errors only; no product source instrumentation",
+  "files": {
+    "/tmp/mqtt-restore-connect-probe/overlay.json": "ec8a8dd35733da36bce48ce88367033372cc560bd1bf5cd4e83b7544ebd54c57",
+    "/tmp/mqtt-restore-connect-probe/handler.go": "38394267f33291da4ba8707087fa929a8694bf701664d5a03d270dd3d19c7620",
+    "/tmp/mqtt-restore-connect-probe/mqtt_lifecycle.go": "4e0ed0217a51cd8d046efd6f22590168205620c3a6888778901de5b459740ca6",
+    "/tmp/mqtt-restore-connect-probe/wukongim": "7724800c417c5809e9c1c32af213d74c15d4704c8d3abfb95333577b537ab964"
+  }
+}

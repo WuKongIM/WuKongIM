@@ -1,0 +1,13 @@
+process=node-1
+[DEBUG-restore-preflight] phase=node_call error=false available_bytes=5350809600 current_bytes=27059029 staging_bytes=1073789030
+[DEBUG-restore-preflight] phase=node_call error=false available_bytes=5350805504 current_bytes=27059040 staging_bytes=1073789030
+[DEBUG-restore-preflight] phase=node_call error=false available_bytes=5350805504 current_bytes=27057835 staging_bytes=1073789030
+[DEBUG-restore-preflight] phase=latest_topology error=false health=false conflict=false deadline=false canceled=false
+[DEBUG-restore-admission] phase=release_lease admitted=true error=false conflict=false deadline=false canceled=false
+[DEBUG-restore-admission] phase=admitted ms=2837 admitted=true error=false conflict=false deadline=false canceled=false
+[DEBUG-restore-preflight] phase=node_call error=false available_bytes=5282390016 current_bytes=48494208 staging_bytes=1073789030
+[DEBUG-restore-preflight] phase=node_call error=false available_bytes=5282390016 current_bytes=48495411 staging_bytes=1073789030
+[DEBUG-restore-preflight] phase=node_call error=false available_bytes=5282390016 current_bytes=48492809 staging_bytes=1073789030
+[DEBUG-restore-preflight] phase=latest_topology error=false health=false conflict=false deadline=false canceled=false
+[DEBUG-restore-admission] phase=release_lease admitted=true error=false conflict=false deadline=false canceled=false
+[DEBUG-restore-admission] phase=admitted ms=2192 admitted=true error=false conflict=false deadline=false canceled=false

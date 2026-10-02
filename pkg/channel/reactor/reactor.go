@@ -193,7 +193,7 @@ type runtimeChannel struct {
 	lifecycle channelRuntimeLifecycle
 	// pullWaiters maps leader-side async pull op ids to request futures.
 	pullWaiters map[ch.OpID]*pullWaiter
-	// lookupWaiters maps async committed-message lookup op ids to request futures.
+	// lookupWaiters owns message/source query futures and their lifecycle guards.
 	lookupWaiters map[ch.OpID]*lookupWaiter
 	// retentionWaiters maps async retention apply op ids to request futures.
 	retentionWaiters map[ch.OpID]*retentionWaiter

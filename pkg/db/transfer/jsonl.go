@@ -114,6 +114,15 @@ func decodeRecord(kind FileKind, line []byte) (any, error) {
 			return nil, fmt.Errorf("%w: send_ban must be 0 or 1", ErrValidation)
 		}
 		return record, nil
+	case FileKindMetaSubscriberSequences:
+		var record SubscriberSequenceRecord
+		if err := decodeStrict(line, &record); err != nil {
+			return nil, err
+		}
+		if record.Sequence < 2 {
+			return nil, fmt.Errorf("%w: invalid subscriber sequence", ErrValidation)
+		}
+		return record, nil
 	case FileKindMetaSubscribers:
 		var record SubscriberRecord
 		if err := decodeStrict(line, &record); err != nil {
@@ -214,6 +223,11 @@ func decodeRecord(kind FileKind, line []byte) (any, error) {
 		}
 		record.PayloadB64 = *wire.PayloadB64
 		record.Payload = payload
+		record.PublicationMetadata, err = decodePublicationMetadata(wire.PublicationMetadataB64, record.ServerTimestampMS)
+		if err != nil {
+			return nil, err
+		}
+		record.PublicationMetadataB64 = wire.PublicationMetadataB64
 		return record, nil
 	default:
 		return nil, fmt.Errorf("unknown kind %q", kind)
@@ -248,13 +262,14 @@ func (w channelLatestRecordWire) record() ChannelLatestRecord {
 }
 
 type messageRecordWire struct {
-	ChannelKey        string  `json:"channel_key"`
-	MessageSeq        Uint64  `json:"message_seq"`
-	MessageID         Uint64  `json:"message_id"`
-	ClientMsgNo       string  `json:"client_msg_no"`
-	FromUID           string  `json:"from_uid"`
-	ServerTimestampMS int64   `json:"server_timestamp_ms"`
-	PayloadB64        *string `json:"payload_b64"`
+	ChannelKey             string  `json:"channel_key"`
+	MessageSeq             Uint64  `json:"message_seq"`
+	MessageID              Uint64  `json:"message_id"`
+	ClientMsgNo            string  `json:"client_msg_no"`
+	FromUID                string  `json:"from_uid"`
+	ServerTimestampMS      int64   `json:"server_timestamp_ms"`
+	PayloadB64             *string `json:"payload_b64"`
+	PublicationMetadataB64 string  `json:"publication_metadata_b64,omitempty"`
 }
 
 func (w messageRecordWire) record() MessageRecord {

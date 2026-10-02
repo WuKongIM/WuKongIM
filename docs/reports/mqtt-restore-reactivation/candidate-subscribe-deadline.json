@@ -1,0 +1,15 @@
+{
+  "hash_slots": 256,
+  "last_phase": "initial-subscription",
+  "maintenance_refusals": 0,
+  "nodes": 3,
+  "passed": false,
+  "process_restarts": 0,
+  "restore_cycles": 0,
+  "scenario": "mqtt-restore-reactivation",
+  "elapsed_seconds": 23.13,
+  "binary_kind": "ordinary candidate",
+  "fixture_sha256": "2382c812c9028a54fdc5c166b7fa6c5ca3db6460825e521314c110ee70834c06",
+  "observation": "Initial existing-history group SUBSCRIBE closed with one deadline metric; backup/restore had not begun. Run overlapped a single-node acceptance workload.",
+  "root_cause": "unconfirmed"
+}

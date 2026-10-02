@@ -1,6 +1,7 @@
 package message
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
@@ -15,7 +16,7 @@ import (
 
 const (
 	// DurableProposalManifestVersion identifies the original proposal format.
-	// Readers also accept the explicitly versioned lifetime-binding format 2.
+	// Readers also accept lifetime 2, publication 3, source 4 and replay anchor 5.
 	DurableProposalManifestVersion = quorumlog.ProposalManifestVersion
 	durableProposalRecordSize      = 154
 	durableEntryIdentitySize       = 146
@@ -66,7 +67,7 @@ func deriveDurableProposalEntries(manifest DurableProposalManifest, records []ch
 			ID: row.MessageID, Index: row.MessageSeq, Epoch: records[index].Epoch,
 			Setting: row.Setting, FromUID: row.FromUID, ClientMsgNo: row.ClientMsgNo,
 			ServerTimestampMS: row.ServerTimestampMS, SyncOnce: row.FramerFlags&4 != 0, Expire: uint32(row.Expire),
-			Payload: row.Payload,
+			Payload: row.Payload, PublicationMetadata: row.PublicationMetadata,
 		}
 	})
 }
@@ -336,6 +337,7 @@ func sameDurableProposal(left, right durableProposalRecord) bool {
 }
 
 func validateBackupProposalSystemEntries(channelKey ChannelKey, hw uint64, entries []backupRawEntry) error {
+	sourceKey := mqttSourceKey(channelKey)
 	byLast := make(map[uint64]durableProposalRecord)
 	byCommand := make(map[quorumlog.CommandID]durableProposalRecord)
 	entryIdentities := make(map[uint64]quorumlog.EntryIdentity)
@@ -345,6 +347,18 @@ func validateBackupProposalSystemEntries(channelKey ChannelKey, hw uint64, entri
 			return dberrors.ErrCorruptState
 		}
 		seenKeys[string(raw.Key)] = struct{}{}
+		if bytes.HasPrefix(raw.Key, willReceiptPrefix(channelKey)) {
+			r, err := decodeWillReceipt(channelKey, raw.Key, raw.Value)
+			if err != nil || r.MessageSeq > hw {
+				return dberrors.ErrCorruptState
+			}
+		}
+		if bytes.Equal(raw.Key, sourceKey) {
+			state, err := decodeMQTTSourceState(raw.Key, raw.Value)
+			if err != nil || state.CopiedThrough > hw {
+				return dberrors.ErrCorruptState
+			}
+		}
 		if lastOffset, ok := decodeProposalByLastKey(channelKey, raw.Key); ok {
 			record, err := decodeDurableProposalRecord(raw.Value)
 			if err != nil || record.manifest.LastOffset != lastOffset || lastOffset > hw {
@@ -391,7 +405,7 @@ func validateBackupProposalSystemEntries(channelKey ChannelKey, hw uint64, entri
 		previousDigest := record.manifest.PreviousDigest
 		for index := record.manifest.BaseOffset + 1; ; index++ {
 			entry, ok := entryIdentities[index]
-			if !ok || entry.ChannelEpoch != record.manifest.ChannelEpoch || entry.LeaderTerm != record.manifest.LeaderTerm ||
+			if !ok || entry.Version != record.manifest.Version || entry.ChannelEpoch != record.manifest.ChannelEpoch || entry.LeaderTerm != record.manifest.LeaderTerm ||
 				entry.FenceVersion != record.manifest.FenceVersion || entry.CommandID != record.manifest.CommandID ||
 				entry.PreviousTerm != previousTerm || entry.PreviousIndex != previousIndex || entry.PreviousDigest != previousDigest {
 				return dberrors.ErrCorruptState
@@ -409,7 +423,13 @@ func validateBackupProposalSystemEntries(channelKey ChannelKey, hw uint64, entri
 	if len(byLast) != len(byCommand) || len(coveredEntries) != len(entryIdentities) {
 		return dberrors.ErrCorruptState
 	}
-	return nil
+	if err := validateMQTTActivationBackup(channelKey, hw, entries, byLast); err != nil {
+		return err
+	}
+	if err := validateMQTTReplayAnchorBackup(channelKey, hw, entries, byLast, entryIdentities); err != nil {
+		return err
+	}
+	return validateMQTTRetirementBackup(channelKey, hw, entries, byLast, entryIdentities)
 }
 
 func backupEntryIdentityMap(channelKey ChannelKey, entries []backupRawEntry) (map[uint64]quorumlog.EntryIdentity, error) {
@@ -436,7 +456,7 @@ func verifyBackupRowIdentity(entry quorumlog.EntryIdentity, row messageRow) bool
 		ID: row.MessageID, Index: row.MessageSeq, Epoch: entry.ChannelEpoch,
 		Setting: row.Setting, FromUID: row.FromUID, ClientMsgNo: row.ClientMsgNo,
 		ServerTimestampMS: row.ServerTimestampMS, SyncOnce: row.FramerFlags&4 != 0, Expire: uint32(row.Expire),
-		Payload: row.Payload,
+		Payload: row.Payload, PublicationMetadata: row.PublicationMetadata,
 	})
 }
 
@@ -478,6 +498,12 @@ func (e *channelEntry) validateDurableProposalCommandIndex(ctx context.Context) 
 // stageTruncateDurableProposals removes only complete suffix proposals and
 // their entry identities in the caller's synchronous message mutation batch.
 func (e *channelEntry) stageTruncateDurableProposals(ctx context.Context, batch *engine.Batch, to uint64) error {
+	if err := e.validateMQTTSourceTruncation(ctx, to); err != nil {
+		return err
+	}
+	if err := e.stageMQTTActivation(batch, nil, nil, to); err != nil {
+		return err
+	}
 	if err := e.validateDurableProposalCommandIndex(ctx); err != nil {
 		return err
 	}
@@ -529,6 +555,12 @@ func (e *channelEntry) stageTruncateDurableProposals(ctx context.Context, batch 
 	}
 	if to == ^uint64(0) {
 		return nil
+	}
+	if err := e.stageTruncateMQTTReplayAnchors(batch, to); err != nil {
+		return err
+	}
+	if err := e.stageTruncateMQTTReplayRetirements(batch, to); err != nil {
+		return err
 	}
 	entrySpan := keycodec.NewPrefixSpan(encodeEntryIdentityPrefix(e.key))
 	return batch.DeleteRange(engine.Span{Start: encodeEntryIdentityKey(e.key, to+1), End: entrySpan.End})

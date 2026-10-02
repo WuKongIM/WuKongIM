@@ -1,0 +1,16 @@
+{
+  "attempts_while_unknown": 1,
+  "business_publications": 1,
+  "connect_retries": 0,
+  "cut": "admitted",
+  "cut_reached": true,
+  "hash_slots": 256,
+  "independent_connect_control": true,
+  "last_phase": "complete",
+  "nodes": 1,
+  "passed": true,
+  "resubscriptions": 0,
+  "scenario": "mqtt-started-will-recovery",
+  "unexpected_deliveries": 0,
+  "unknown_effect_window_ms": 21000
+}

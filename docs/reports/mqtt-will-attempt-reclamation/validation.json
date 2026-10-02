@@ -1,0 +1,133 @@
+{
+  "go_version": "go1.25.11 darwin/arm64",
+  "environment": {
+    "GOTOOLCHAIN": "local",
+    "GOMODCACHE": "/tmp/mqtt-originals-gomodcache",
+    "GOWORK": "off"
+  },
+  "final_provenance": "final-provenance.json",
+  "source_scope": "All final positive receipts use the exact final source and relevant binary/test hashes. Baseline is deliberately before repair plus inert temporary fault controls.",
+  "artifacts": [
+    {
+      "path": "cases/mqtt-will-reclamation-1.json",
+      "sha256": "ddb74d9e55ebd470442af9407b6fe58a397226d1f59bf12ed2c29f6f442251ff"
+    },
+    {
+      "path": "cases/mqtt-will-reclamation-3.json",
+      "sha256": "9c4c40b5d8fe74cc0ac81f7cb7250b8985a9da079516a640711f6b08b0caa8c1"
+    },
+    {
+      "path": "ordinary-regression/mqtt-will-1.json",
+      "sha256": "61347473654484ac837d0fb5227c44dc4f29ed390e167f5bad7bd9ec29a5a283"
+    },
+    {
+      "path": "ordinary-regression/mqtt-will-3.json",
+      "sha256": "37dbdd8fc38203d1d1870463ff58c2af3eb40383273d06e8f5b49163c72a6abc"
+    },
+    {
+      "path": "recovery-regression/mqtt-will-recovery-1-admitted.json",
+      "sha256": "e775b0d860742a4b9f08a0a4feecb460d839ce3d4cfdd5a7f6ddbade63f434ee"
+    },
+    {
+      "path": "recovery-regression/mqtt-will-recovery-1-published.json",
+      "sha256": "e88aefe9a82f7cf99b51443f9da3f8c9962bf30ccb1e59a1f42997bf82c4450e"
+    },
+    {
+      "path": "recovery-regression/mqtt-will-recovery-1-undispatched.json",
+      "sha256": "992a32b7289f2a7af1b2741c27add9ce6b8a24249fcc46064cdcaeee8d925e2d"
+    },
+    {
+      "path": "recovery-regression/mqtt-will-recovery-3-admitted.json",
+      "sha256": "d19368cbcc342b9ca7a1a048bcb5e8be2ab2d9ba851ccc9fea2907a91255009e"
+    },
+    {
+      "path": "recovery-regression/mqtt-will-recovery-3-published.json",
+      "sha256": "e43584e2f5650efa2f64ee2973d65080ca7af12f02c59be0b1c94e1c4cbf29e5"
+    },
+    {
+      "path": "recovery-regression/mqtt-will-recovery-3-undispatched.json",
+      "sha256": "fbf84432aa36e6cf0b2b445b8370a766dda15545b9331838ee35b40003d83489"
+    }
+  ],
+  "receipts": [
+    {
+      "repeat_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-reclamation-baseline-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-reclamation-final-red GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_reclamation -run 'TestWillJournalPressurePreservesCurrentRecovery/1-node-cluster' -count=1 -timeout=4m -v",
+      "exit_code": 1,
+      "log_sha256": "2f8ab3e2d41b2e4cb57711a205f0d68cdbba1d12b126a4b3508c9d76de4fe0bd",
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation",
+          "duration_seconds": 55.646
+        }
+      ],
+      "expected_result": "RED: exact executor capacity refusal, then third Will receipt context deadline exceeded."
+    },
+    {
+      "repeat_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-reclamation-candidate-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-reclamation-matrix GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_reclamation -count=1 -timeout=6m -v",
+      "exit_code": 0,
+      "log_sha256": "eedfa8ee318bf8d3150f8d798602ddc5410ab02b80f9adc6839d932d0573c38b",
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation",
+          "duration_seconds": 131.333
+        }
+      ],
+      "case_count": 2
+    },
+    {
+      "repeat_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-reclamation-candidate-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-reclamation-recovery-regression GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_recovery -count=1 -timeout=12m -v",
+      "exit_code": 0,
+      "log_sha256": "cf90322bbbf6d59836c519256f4eb9e1ff8595dfed599051dbd32b688fbf8dee",
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_recovery",
+          "duration_seconds": 313.697
+        }
+      ],
+      "case_count": 6
+    },
+    {
+      "repeat_command": "WK_E2E_BINARY=/tmp/wukongim-will-reclamation-ordinary WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-reclamation-ordinary-regression GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will -count=1 -timeout=4m -v",
+      "exit_code": 0,
+      "log_sha256": "8d9a43be12f16664a0f74b8d69ff734765429f62856cb498cc70e835cad530f9",
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will",
+          "duration_seconds": 54.538
+        }
+      ],
+      "case_count": 2
+    },
+    {
+      "repeat_command": "GOWORK=off go test -race -p 1 ./internal/usecase/mqttsession ./internal/infra/mqttwill ./internal/contracts/mqttsession ./internal/app -run 'Will|MQTT' -count=1 -timeout=4m",
+      "exit_code": 0,
+      "log_sha256": "99b8883ad17201c24a259203aef00d7b36acf3c9e6a9d073c4e9362a2ccd7ed2",
+      "packages": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession",
+          "duration_seconds": 34.548
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/app",
+          "duration_seconds": 1.667
+        }
+      ]
+    },
+    {
+      "repeat_command": "GOWORK=off go run ./scripts/flowcheck --mode check",
+      "exit_code": 0,
+      "log_sha256": "712b0d00c884c879b2cce5695f7c753e8b77e926f42a262132c69db816723b64",
+      "packages": [],
+      "named_check": "flow-doc-contracts",
+      "flow_files": 88,
+      "compliant": 88,
+      "invalid": 0,
+      "warnings": 11
+    }
+  ],
+  "initial_infrastructure_failure": {
+    "log_sha256": "743da12372edac8102ed627300e4911cf34400f36d2ed5d5b300269fa61187bd",
+    "result": "App race link failed with ENOSPC; preceding usecase checks passed. Removed only task-owned obsolete intermediate binaries/download ZIP, then repeated the complete focused race command successfully."
+  },
+  "limitations": "New pressure matrix uses a temporary cap of two; see README.md for unqualified production-cap stress and other recovery gaps."
+}

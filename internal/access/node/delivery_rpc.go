@@ -71,8 +71,8 @@ func (c *Client) PushBatch(ctx context.Context, nodeID uint64, cmd runtimedelive
 	}
 }
 
-// PushOwner forwards a canonical owner push through the stable version-one
-// delivery wire format.
+// PushOwner forwards a canonical owner push through the lossless delivery wire
+// version selected for its content. It never downgrades an extended envelope.
 func (c *Client) PushOwner(ctx context.Context, cmd onlinedelivery.OwnerPush) (onlinedelivery.OwnerPushResult, error) {
 	result, err := c.PushBatch(ctx, cmd.OwnerNodeID, legacyDeliveryPushFromOnline(cmd))
 	if err != nil {

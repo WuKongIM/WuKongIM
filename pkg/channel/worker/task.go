@@ -38,6 +38,18 @@ const (
 	TaskQuorumInstall
 	// TaskQuorumCommit executes one exact durable quorum proposal.
 	TaskQuorumCommit
+	// TaskStoreMQTTSource persists admitted HW and confirms source activation.
+	TaskStoreMQTTSource
+	// TaskStoreMQTTReplay prepares bounded shared content below captured HW.
+	TaskStoreMQTTReplay
+	// TaskQuorumMQTTAnchor admits one control through the durable sequencer.
+	TaskQuorumMQTTAnchor
+	// TaskStoreMQTTPlan checkpoints captured HW and reads one accepted-prefix view.
+	TaskStoreMQTTPlan
+	// TaskQuorumMQTTRetirement admits one whole-anchor retirement through quorum.
+	TaskQuorumMQTTRetirement
+	// TaskStoreWillReceipt checkpoints captured HW before a retained publication read.
+	TaskStoreWillReceipt
 )
 
 // Task describes blocking work submitted to a bounded pool.
@@ -54,7 +66,13 @@ type Task struct {
 	StoreLookupMessage *StoreLookupMessageTask
 	StoreApply         *StoreApplyTask
 	// StoreCheckpoint persists a checkpoint before runtime eviction.
-	StoreCheckpoint *StoreCheckpointTask
+	StoreCheckpoint      *StoreCheckpointTask
+	StoreMQTTSource      *StoreMQTTSourceTask
+	StoreMQTTReplay      *StoreMQTTReplayTask
+	QuorumMQTTAnchor     *QuorumMQTTAnchorTask
+	QuorumMQTTRetirement *QuorumMQTTRetirementTask
+	StoreMQTTPlan        *StoreMQTTPlanTask
+	StoreWillReceipt     *StoreWillReceiptTask
 	// StoreClose releases a store handle after the reactor has detached it.
 	StoreClose *StoreCloseTask
 	// StoreRetention adopts a logical retention boundary and optionally trims a safe prefix.
@@ -224,6 +242,14 @@ func (t Task) Run(ctx context.Context, deps Deps) Result {
 		res = runStoreApply(ctx, deps, t)
 	case TaskStoreCheckpoint:
 		res = runStoreCheckpoint(ctx, deps, t)
+	case TaskStoreMQTTSource:
+		res = runStoreMQTTSource(ctx, deps, t)
+	case TaskStoreMQTTReplay:
+		res = runStoreMQTTReplay(ctx, deps, t)
+	case TaskStoreMQTTPlan:
+		res = runStoreMQTTPlan(ctx, deps, t)
+	case TaskStoreWillReceipt:
+		res = runStoreWillReceipt(ctx, deps, t)
 	case TaskStoreClose:
 		res = runStoreClose(ctx, deps, t)
 	case TaskStoreRetention:
@@ -242,6 +268,10 @@ func (t Task) Run(ctx context.Context, deps Deps) Result {
 		res = runQuorumInstall(ctx, deps, t)
 	case TaskQuorumCommit:
 		res = runQuorumCommit(ctx, deps, t)
+	case TaskQuorumMQTTAnchor:
+		res = runQuorumMQTTAnchor(ctx, deps, t)
+	case TaskQuorumMQTTRetirement:
+		res = runQuorumMQTTRetirement(ctx, deps, t)
 	default:
 		res = invalidResult(t)
 	}

@@ -1,0 +1,13 @@
+{
+  "connect_retries": 0,
+  "current_cut_reached": true,
+  "cut": "successor-reply",
+  "executor_restarts": 1,
+  "hash_slots": 256,
+  "instrumented_journal_cap": 2,
+  "last_phase": "retain-terminal-CAS-reply",
+  "nodes": 3,
+  "passed": false,
+  "resubscriptions": 0,
+  "scenario": "mqtt-will-reclamation-race"
+}

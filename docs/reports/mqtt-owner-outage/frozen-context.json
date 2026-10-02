@@ -1,0 +1,29 @@
+{
+  "source_revision": "633b044b671d82e6464fd1e3d236993366c743ab",
+  "files": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "test/e2e/AGENTS.md": "ec53887c0b38c60b1e2f005bce7859e68ecc5bb598589087ee9624bb3511c49d",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "test/e2e/suite/FLOW.md": "d3622c9c10477f973a9aea2dd060657c98781c845f82bc92c160999f4359ddac",
+    "internal/usecase/mqttsession/FLOW.md": "10e214bd0d4c59e04f207beccf5d80300041bf98b3f36fb43b9c4ebe834e5b53",
+    "internal/runtime/mqttsession/FLOW.md": "570eedc2c82c4339336124c294774d748c37a595d43541c3ce8196cce6ce6e98",
+    "internal/access/mqtt/FLOW.md": "9f0bd03bff4491b69344d25d17a312ee679866ebf43970a5d9c4821d9714d445",
+    "internal/contracts/mqttsession/FLOW.md": "ae9101a196195e04bf9e45c9c5242b0de9c17bb334dd80d9d1fb46764b534424",
+    "internal/app/FLOW.md": "6564b27dad44e2808376ad6ac957789a6c58678fa7abc5fe04d07a882c17479e",
+    "internal/infra/mqttowner/FLOW.md": "fa252f9938bce6a830caa820cabdfc4b14ef9a7730d072d357ce8ce5980f53e3",
+    "internal/infra/cluster/FLOW.md": "b96d4741b47a3b59a094eb83de316b2080004f4c2cc06f579060d6451c052c30",
+    "pkg/cluster/FLOW.md": "1990e76d80ceac3eaf82beece4f2c9e86a388f1871fe086597b886de5a055584",
+    "pkg/db/FLOW.md": "33c7ba81c18ed8cb377e9bef541526028ef31e64dd03becc7ac1ea6cc14fb10a",
+    "pkg/db/message/FLOW.md": "bebe270dbea585057f562be6b0fd549bba59c6038388c313899ec0b06c9d133b"
+  },
+  "approved_seams": [
+    "independent Paho MQTT 5",
+    "Product HTTP and native WKProto",
+    "public Manager Slot inventory",
+    "fixed public metrics",
+    "harness-owned process signals"
+  ],
+  "process_unavailability_only": true,
+  "no_internal_table_inspection": true,
+  "no_automatic_target_connect_retry": true
+}

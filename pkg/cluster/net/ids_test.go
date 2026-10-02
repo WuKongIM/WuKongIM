@@ -3,6 +3,9 @@ package clusternet
 import "testing"
 
 func TestRPCServiceIDsAreUniqueAndNonZero(t *testing.T) {
+	if RPCNodeSendPermissions != 91 || RPCMessageEventDelivery != 92 {
+		t.Fatal("main permission and stream RPC identities must remain stable")
+	}
 	ids := rpcServiceIDsForTest()
 	seen := make(map[uint8]string, len(ids))
 	for name, id := range ids {
@@ -66,6 +69,9 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"message_event_append":           RPCMessageEventAppend,
 		"slot_message_updates":           RPCSlotMessageUpdates,
 		"message_update_hint":            RPCMessageUpdateHint,
+		"slot_mqtt_metadata":             RPCSlotMQTTMetadata,
+		"mqtt_owner":                     RPCMQTTOwner,
+		"mqtt_source":                    RPCChannelMQTTSource,
 		"node_send_permissions":          RPCNodeSendPermissions,
 		"message_event_delivery":         RPCMessageEventDelivery,
 		"scheduled_backup_messages":      RPCScheduledBackupMessages,
@@ -80,6 +86,15 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"slot_permission_metadata_batch": RPCSlotPermissionMetadataBatch,
 		"channel_quorum_exchange":        RPCChannelQuorumExchange,
 		"slot_identity_metadata":         RPCSlotIdentityMetadata,
+	}
+}
+
+func TestMQTTMetadataServiceIdentity(t *testing.T) {
+	if RPCSlotMQTTMetadata != 106 || transportServiceAlias(RPCSlotMQTTMetadata) != "slot mqtt metadata" {
+		t.Fatal("MQTT metadata service must preserve its reserved ID and alias")
+	}
+	if RPCMQTTOwner != 107 || transportServiceAlias(RPCMQTTOwner) != "mqtt owner" {
+		t.Fatal("MQTT owner service must preserve its ID and alias")
 	}
 }
 
@@ -104,5 +119,78 @@ func TestRPCManagerNodeConfigServiceAlias(t *testing.T) {
 	}
 	if got := transportServiceAlias(RPCManagerNodeConfigDocument); got != "manager node config document" {
 		t.Fatalf("node config document service alias = %q, want manager node config document", got)
+	}
+}
+
+func TestMQTTSourceServiceIdentity(t *testing.T) {
+	if RPCChannelMQTTSource != 93 || transportServiceAlias(RPCChannelMQTTSource) != "channel mqtt source" {
+		t.Fatal("MQTT source service identity changed")
+	}
+	if !isForegroundChannelMutationService(RPCChannelMQTTSource) {
+		t.Fatal("source activation must use bounded mutation admission")
+	}
+}
+
+func TestMQTTReplayServiceIdentity(t *testing.T) {
+	if RPCChannelMQTTReplay != 94 || transportServiceAlias(RPCChannelMQTTReplay) != "channel mqtt replay" {
+		t.Fatal("MQTT replay service identity changed")
+	}
+	if !isForegroundChannelMutationService(RPCChannelMQTTReplay) {
+		t.Fatal("replay preparation must use bounded mutation admission")
+	}
+}
+
+func TestMQTTCopyServiceIdentity(t *testing.T) {
+	if RPCChannelMQTTCopy != 95 || transportServiceAlias(RPCChannelMQTTCopy) != "channel mqtt copy" {
+		t.Fatal("MQTT copy service identity changed")
+	}
+	if !isForegroundChannelMutationService(RPCChannelMQTTCopy) {
+		t.Fatal("MQTT copy must preserve maintenance admission")
+	}
+}
+
+func TestMQTTAnchorServiceIdentity(t *testing.T) {
+	if RPCChannelMQTTAnchor != 96 || transportServiceAlias(RPCChannelMQTTAnchor) != "channel mqtt anchor" {
+		t.Fatal("MQTT anchor service identity changed")
+	}
+	if !isForegroundChannelMutationService(RPCChannelMQTTAnchor) {
+		t.Fatal("MQTT anchor must preserve foreground mutation admission")
+	}
+}
+
+func TestMQTTPlanServiceIdentity(t *testing.T) {
+	if RPCChannelMQTTPlan != 97 || transportServiceAlias(RPCChannelMQTTPlan) != "channel mqtt plan" {
+		t.Fatal("MQTT planning identity changed")
+	}
+	if !isForegroundChannelMutationService(RPCChannelMQTTPlan) {
+		t.Fatal("planning checkpoint must preserve foreground mutation admission")
+	}
+}
+
+func TestMQTTRecoveryServiceIdentity(t *testing.T) {
+	if RPCChannelMQTTRecovery != 99 || transportServiceAlias(RPCChannelMQTTRecovery) != "channel mqtt recovery" {
+		t.Fatal("MQTT recovery service identity changed")
+	}
+	if !isForegroundChannelMutationService(RPCChannelMQTTRecovery) {
+		t.Fatal("MQTT recovery must preserve foreground mutation admission")
+	}
+}
+
+func TestMQTTRetirementServicesHaveStableIDsAndForegroundPolicy(t *testing.T) {
+	if RPCChannelMQTTRetirement != 100 || transportServiceAlias(RPCChannelMQTTRetirement) != "channel mqtt retirement" || !isForegroundChannelMutationService(RPCChannelMQTTRetirement) {
+		t.Fatal("retirement service lost exact ID or mutation policy")
+	}
+	if RPCChannelMQTTRetirementSelection != 101 || transportServiceAlias(RPCChannelMQTTRetirementSelection) != "channel mqtt retirement selection" || !isForegroundChannelMutationService(RPCChannelMQTTRetirementSelection) {
+		t.Fatal("selection service lost exact ID or foreground policy")
+	}
+}
+
+func TestMQTTOriginalsServiceIdentityAndCancellation(t *testing.T) {
+	if RPCChannelMQTTOriginals != 104 || transportServiceAlias(RPCChannelMQTTOriginals) != "channel mqtt originals" || !isForegroundChannelMutationService(RPCChannelMQTTOriginals) {
+		t.Fatal("compound originals lost its reserved identity or bounded foreground policy")
+	}
+	s := &TransportServer{}
+	if !s.serviceOptions(RPCChannelMQTTOriginals).CancelRunning {
+		t.Fatal("bounded original reads must follow caller cancellation")
 	}
 }

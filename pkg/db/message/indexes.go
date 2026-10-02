@@ -44,7 +44,7 @@ func (l *ChannelLog) listByClientMsgNo(ctx context.Context, clientMsgNo string, 
 	return l.listByClientMsgNoBounded(ctx, clientMsgNo, beforeSeq, limit, 0, 0, 0)
 }
 
-// listByClientMsgNoBounded additionally bounds inspected index entries and payload
+// listByClientMsgNoBounded additionally bounds inspected index entries and content
 // materialization for remote exact lookups. Exhaustion fails without partial data.
 func (l *ChannelLog) listByClientMsgNoBounded(ctx context.Context, clientMsgNo string, beforeSeq uint64, limit int, minSeq uint64, maxEntries, maxBytes int) (MessagePage, error) {
 	if err := ctx.Err(); err != nil {
@@ -100,8 +100,8 @@ func (l *ChannelLog) listByClientMsgNoBounded(ctx context.Context, clientMsgNo s
 		return MessagePage{}, err
 	}
 
-	// Sender-less records cannot participate in idempotency, so they retain
-	// the sequence-suffixed client index without adding a write to normal sends.
+	// Sender-less records and server-keyed Wills use the sequence-suffixed
+	// client index without adding a write to normal client-domain sends.
 	legacyPrefix := encodeMessageClientMsgNoIndexPrefix(l.key, clientMsgNo)
 	legacySpan := keycodec.NewPrefixSpan(legacyPrefix)
 	legacyIter, err := l.db.engine.NewIter(engine.Span{Start: legacySpan.Start, End: legacySpan.End}, engine.IterOptions{})
@@ -149,7 +149,7 @@ func (l *ChannelLog) listByClientMsgNoBounded(ctx context.Context, clientMsgNo s
 		if !ok || row.ClientMsgNo != clientMsgNo {
 			return MessagePage{}, fmt.Errorf("%w: stale client message number index", dberrors.ErrCorruptState)
 		}
-		usedBytes += len(row.Payload)
+		usedBytes += len(row.Payload) + len(row.PublicationMetadata)
 		if maxBytes > 0 && usedBytes > maxBytes {
 			return MessagePage{}, dberrors.ErrInvalidArgument
 		}

@@ -399,6 +399,21 @@ export const nodeTransportServices: readonly NodeTransportService[] = [
   nodeService(90, 'RPCMessageUpdateHint', 'message_update_hint'),
   nodeService(91, 'RPCNodeSendPermissions', 'node_send_permissions'),
   nodeService(92, 'RPCMessageEventDelivery', 'message_event_delivery'),
+  nodeService(93, 'RPCChannelMQTTSource', 'mqtt_source'),
+  nodeService(94, 'RPCChannelMQTTReplay', 'channel_mqtt_replay'),
+  nodeService(95, 'RPCChannelMQTTCopy', 'channel_mqtt_copy'),
+  nodeService(96, 'RPCChannelMQTTAnchor', 'channel_mqtt_anchor'),
+  nodeService(97, 'RPCChannelMQTTPlan', 'channel_mqtt_plan'),
+  nodeService(98, 'RPCChannelMQTTRepair', 'channel_mqtt_repair'),
+  nodeService(99, 'RPCChannelMQTTRecovery', 'channel_mqtt_recovery'),
+  nodeService(100, 'RPCChannelMQTTRetirement', 'channel_mqtt_retirement'),
+  nodeService(101, 'RPCChannelMQTTRetirementSelection', 'channel_mqtt_retirement_selection'),
+  nodeService(102, 'RPCChannelMQTTConsumerRead', 'channel_mqtt_consumer_read'),
+  nodeService(103, 'RPCChannelWillReceipt', 'channel_will_receipt'),
+  nodeService(104, 'RPCChannelMQTTOriginals', 'channel_mqtt_originals'),
+  nodeService(105, 'RPCMQTTWillDispatch', 'mqtt_will_dispatch'),
+  nodeService(106, 'RPCSlotMQTTMetadata', 'slot_mqtt_metadata'),
+  nodeService(107, 'RPCMQTTOwner', 'mqtt_owner'),
 ];
 
 export const nodeTransportBoundary =

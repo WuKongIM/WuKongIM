@@ -106,6 +106,11 @@ type App struct {
 	// deferredGatewayMessages is set only for the default, fully wired usecase.
 	deferredGatewayMessages accessgateway.DeferredMessageUsecase
 	channelAppendMetadata   *clusterinfra.ChannelAppendMetadataCache
+	// mqtt owns the optional entry and its joined runtime lifecycle.
+	mqtt *mqttProduct
+	// mqttInboxWrites enables full-cluster preparation for future person sources.
+	// Product MQTT and focused module integrations share the same appender gate.
+	mqttInboxWrites bool
 	// benchTerminal owns the one-shot terminal drain and opaque grant for one
 	// benchmark product-process generation.
 	benchTerminal *benchterminal.Controller
@@ -196,7 +201,11 @@ type App struct {
 	// restoreSideEffectsMu serializes drain/suspend/resume around one restore.
 	restoreSideEffectsMu        sync.Mutex
 	restoreSideEffectsSuspended bool
-	logger                      wklog.Logger
+	// restoreAdmissionMu orders maintenance reopen against terminal shutdown.
+	// Once stopped, an observer can never admit a new Gateway connection.
+	restoreAdmissionMu      sync.Mutex
+	restoreAdmissionStopped bool
+	logger                  wklog.Logger
 	// startupConsole renders the human-facing startup lifecycle when console output is enabled.
 	startupConsole *startupConsole
 
@@ -236,7 +245,10 @@ func New(cfg Config, opts ...Option) (*App, error) {
 		return nil, err
 	}
 	app.applyOptions(opts)
+	app.mqttInboxWrites = app.mqttInboxWrites || app.cfg.MQTT.Enabled
 	clusterCfg := defaultClusterConfig(app.cfg)
+	clusterCfg.Storage.MQTTNodeBytes = app.cfg.MQTT.StorageNodeBytes
+	clusterCfg.Storage.MQTTClusterBytes = app.cfg.MQTT.StorageClusterBytes
 	clusterCfg.CreatedBy = app.buildIdentity
 	clusterCfg.CreatedBy.Version = app.buildVersion
 	// Inspect freshness before a nested log directory can make the root nonempty.
@@ -317,6 +329,9 @@ func New(cfg Config, opts ...Option) (*App, error) {
 	app.wireCMDSync()
 	app.wireAPIMessageFacade()
 	app.wireGatewayHandler(clusterCfg.NodeID)
+	if err := app.wireMQTT(clusterCfg.NodeID); err != nil {
+		return nil, err
+	}
 	if err := app.wireGateway(clusterCfg.NodeID); err != nil {
 		return nil, err
 	}

@@ -1,0 +1,102 @@
+package fsm
+
+import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"math"
+
+	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
+)
+
+const (
+	cmdTypeMQTTWillCAS     uint8 = 72
+	mqttWillCommandVersion       = 1
+	// Two bounded payloads plus metadata and worst-case escaped identities fit
+	// this fixed command budget; legacy unprepared encodings stay unchanged.
+	maxMQTTWillCommandBytes = 320 << 10
+)
+
+type mqttWillCASPayload struct {
+	Version          uint8           `json:"version"`
+	ExpectedRevision uint64          `json:"expected_revision"`
+	Will             metadb.MQTTWill `json:"will"`
+}
+
+type mqttWillCASCmd struct {
+	payload mqttWillCASPayload
+	result  *metadb.MQTTWillResult
+}
+
+func (c *mqttWillCASCmd) apply(wb *metadb.WriteBatch, hashSlot uint16) error {
+	// This temporary-copy cut runs only after Raft commit and before any
+	// Started mutation is staged; an ordinary build has no pause or dependency.
+	if c.payload.Will.Stage == metadb.MQTTWillExecuting && c.payload.Will.DispatchStage == metadb.MQTTWillDispatchStarted && c.payload.Will.ExecutionGeneration == 1 {
+		// gofail: var wkMQTTWillBeforeStartedApply bool
+		// _ = wkMQTTWillBeforeStartedApply
+	}
+	// Keep the real successor cut independent from the initial Started command.
+	if c.payload.Will.Stage == metadb.MQTTWillExecuting && c.payload.Will.DispatchStage == metadb.MQTTWillDispatchStarted && c.payload.Will.ExecutionGeneration == 2 {
+		applyMatch := ""
+		// gofail: var wkMQTTWillSecondApplyMatch string
+		// applyMatch = wkMQTTWillSecondApplyMatch
+		if c.payload.Will.Key.ClientID == applyMatch {
+			// gofail: var wkMQTTWillBeforeSecondApply bool
+			// _ = wkMQTTWillBeforeSecondApply
+		}
+	}
+	var err error
+	c.result, err = wb.CompareAndSwapMQTTWill(hashSlot, c.payload.ExpectedRevision, c.payload.Will)
+	return err
+}
+
+func (c *mqttWillCASCmd) applyResult() []byte {
+	data, _ := json.Marshal(c.result)
+	return data
+}
+
+// EncodeMQTTWillCommand preserves the complete row and expected revision.
+// Route by the broker-scoped ClientID. Current authorization and atomic Session
+// lifecycle decisions remain separate requirements before product activation.
+// This CAS command preserves old obligations after the live Session is replaced.
+func EncodeMQTTWillCommand(expected uint64, row metadb.MQTTWill) ([]byte, error) {
+	payload := mqttWillCASPayload{Version: mqttWillCommandVersion, ExpectedRevision: expected, Will: row}
+	if err := validateMQTTWillCASPayload(payload); err != nil {
+		return nil, err
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	if len(body) > maxMQTTWillCommandBytes-headerSize {
+		return nil, metadb.ErrInvalidArgument
+	}
+	return append([]byte{commandVersion, cmdTypeMQTTWillCAS}, body...), nil
+}
+
+func decodeMQTTWillCASCommand(data []byte) (command, error) {
+	if len(data) > maxMQTTWillCommandBytes-headerSize {
+		return nil, metadb.ErrInvalidArgument
+	}
+	d := json.NewDecoder(bytes.NewReader(data))
+	d.DisallowUnknownFields()
+	var payload mqttWillCASPayload
+	if err := d.Decode(&payload); err != nil {
+		return nil, metadb.ErrInvalidArgument
+	}
+	var extra any
+	if err := d.Decode(&extra); err != io.EOF {
+		return nil, metadb.ErrInvalidArgument
+	}
+	if err := validateMQTTWillCASPayload(payload); err != nil {
+		return nil, err
+	}
+	return &mqttWillCASCmd{payload: payload}, nil
+}
+
+func validateMQTTWillCASPayload(p mqttWillCASPayload) error {
+	if p.Version != mqttWillCommandVersion || p.ExpectedRevision == math.MaxUint64 || p.Will.Revision != p.ExpectedRevision+1 {
+		return metadb.ErrInvalidArgument
+	}
+	return metadb.ValidateMQTTWill(p.Will)
+}

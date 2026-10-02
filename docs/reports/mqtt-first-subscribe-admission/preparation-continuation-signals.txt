@@ -1,0 +1,16 @@
+process=node-1
+[DEBUG-first-subscribe] phase=copy ms=204 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=anchor_commit ms=51 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=copy ms=10 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=anchor_commit ms=13 error=false deadline=false canceled=false pending=false conflict=false limit=false
+process=node-3
+[DEBUG-preparation-cache] holder=true prepared=false owner=false uid=false child=false
+[DEBUG-first-subscribe] phase=source_prepare ms=2240 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=copy ms=327 error=true deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=replay_confirm ms=734 error=true deadline=false canceled=false pending=true conflict=false limit=false
+[DEBUG-first-subscribe] phase=projection ms=3090 error=true deadline=false canceled=false pending=true conflict=false limit=false
+[DEBUG-preparation-cache] holder=true prepared=true owner=true uid=true child=true
+[DEBUG-first-subscribe] phase=copy ms=294 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=anchor_commit ms=136 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=replay_confirm ms=1173 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=projection ms=1310 error=false deadline=false canceled=false pending=false conflict=false limit=false

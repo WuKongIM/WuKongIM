@@ -21,7 +21,7 @@ func TestMetadataValueCodecsRoundTripCompleteRows(t *testing.T) {
 		DirectoryProjectionState: DirectoryProjectionPending, DirectoryProjectionGeneration: 5,
 	}, nil)
 	assertMetadataTableRoundTrip(t, "subscriber", subscriberTable, 7, Subscriber{
-		ChannelID: "c1", ChannelType: 2, UID: "u1",
+		ChannelID: "c1", ChannelType: 2, UID: "u1", Incarnation: 37,
 	}, nil)
 	assertMetadataTableRoundTrip(t, "runtime meta", channelRuntimeMetaTable, 7, ChannelRuntimeMeta{
 		ChannelID: "c1", ChannelType: 2, ChannelEpoch: 3, LeaderEpoch: 4,

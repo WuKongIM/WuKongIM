@@ -1,0 +1,18 @@
+{
+  "hash_slots": 256,
+  "http_denied": true,
+  "independent_acks_and_retirement": true,
+  "mqtt_retry_required": true,
+  "nodes": 3,
+  "passed": true,
+  "rejected_producer_reconnected": true,
+  "scenario": "all-ingress-shared-body",
+  "shared_body_reserved": [
+    5128,
+    5128,
+    5128
+  ],
+  "shared_message_id": "2105769437025013760",
+  "will_reopened_message_id": "2105769581254545408",
+  "wk_denied_reason": 15
+}

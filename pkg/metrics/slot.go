@@ -17,6 +17,9 @@ type SlotMetrics struct {
 	replicaLag                *prometheus.GaugeVec
 	preferredLeaderDecisions  *prometheus.CounterVec
 	preferredLeaderStrictWait *prometheus.HistogramVec
+	// readBarrierDuration records caller-visible ReadIndex/apply waits by a
+	// fixed result label only; per-Slot series would not scale to 256 Slots.
+	readBarrierDuration *prometheus.HistogramVec
 }
 
 func newSlotMetrics(registry prometheus.Registerer, labels prometheus.Labels) *SlotMetrics {
@@ -68,6 +71,12 @@ func newSlotMetrics(registry prometheus.Registerer, labels prometheus.Labels) *S
 			ConstLabels: labels,
 			Buckets:     gatewayFrameDurationBuckets,
 		}, []string{"decision"}),
+		readBarrierDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "wukongim_slot_read_barrier_duration_seconds",
+			Help:        "Slot linearizable read barrier wait (ReadIndex plus durable apply) in seconds by fixed result.",
+			ConstLabels: labels,
+			Buckets:     gatewayFrameDurationBuckets,
+		}, []string{"result"}),
 	}
 
 	registry.MustRegister(
@@ -80,6 +89,7 @@ func newSlotMetrics(registry prometheus.Registerer, labels prometheus.Labels) *S
 		m.replicaLag,
 		m.preferredLeaderDecisions,
 		m.preferredLeaderStrictWait,
+		m.readBarrierDuration,
 	)
 
 	return m
@@ -110,6 +120,23 @@ func normalizePreferredLeaderDecision(decision string) string {
 	default:
 		return "unknown"
 	}
+}
+
+// ObserveReadBarrier records one read barrier wait. Unknown results fold into
+// "error" so callers cannot create unbounded series.
+func (m *SlotMetrics) ObserveReadBarrier(result string, d time.Duration) {
+	if m == nil {
+		return
+	}
+	switch result {
+	case "ok", "not_leader", "busy", "canceled", "deadline":
+	default:
+		result = "error"
+	}
+	if d < 0 {
+		d = 0
+	}
+	m.readBarrierDuration.WithLabelValues(result).Observe(d.Seconds())
 }
 
 func (m *SlotMetrics) ObserveProposal(slotID uint32, dur time.Duration) {

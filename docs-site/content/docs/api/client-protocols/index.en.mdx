@@ -1,9 +1,9 @@
 ---
 title: Client Protocols
-description: Reference the current Gateway lifecycle and WKProto packet boundary.
+description: Reference WKProto, JSON-RPC and MQTT development-preview entry contracts.
 ---
 
-Clients establish long-lived connections through Gateway TCP or WebSocket listeners. The current public baseline uses the same WKProto semantics for negotiation, send, receive acknowledgement, and heartbeat.
+Clients establish long-lived connections through Gateway TCP or WebSocket listeners. The WKProto baseline covers negotiation, send, receive acknowledgement and heartbeat. MQTT uses a separate MQTT 5 TCP entry while sharing IM users, channels and messages.
 
 <Callout type="info" title="A protocol is not an HTTP API">
   TCP binary frames and WebSocket messages do not belong in OpenAPI. This section records wire and Gateway behavior without inventing HTTP paths.
@@ -15,12 +15,13 @@ Clients establish long-lived connections through Gateway TCP or WebSocket listen
   <Card title="TCP Binary Protocol" description="Fixed header, Remaining Length, field order, and version boundaries." href="/en/api/client-protocols/tcp-binary" />
   <Card title="Encryption & Security" description="X25519, AES-CBC, msg_key, and security limits." href="/en/api/client-protocols/encryption" />
   <Card title="EasySDK JSON-RPC" description="Core online path, four-client wire compatibility, and experimental boundaries." href="/en/api/client-protocols/json-rpc" />
+  <Card title="MQTT (development preview)" description="MQTT 5 TCP, authentication, topics, persistent sessions, Wills and interop." href="/en/api/client-protocols/mqtt" />
 </Cards>
 
 ## Current boundary
 
 - The public core contains CONNECT/CONNACK, SEND/SENDACK, RECV/RECVACK, PING/PONG, and outbound server stream.* EVENT.
-- `DISCONNECT`, `SUB`, and `SUBACK` are currently codec contracts, not published product Gateway entry points.
+- WKProto `DISCONNECT`, `SUB`, and `SUBACK` are currently codec contracts, not published product Gateway entry points.
 - The server can deliver public streaming message events through `EVENT`. Arbitrary client EVENT ingress remains unsupported; ingress accepts only benchmark terminal-fence tooling requests.
 - WebSocket can carry WKProto bytes. The JSON-RPC bridge supports the pinned EasySDK core online path; the matrix marks every other method experimental or missing.
 
