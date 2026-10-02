@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+## [v3.0.0-beta.22] - 2026-10-02
+
 ### 🚀 New Features / 新功能
 
 - Add bilingual MQTT development-preview guides for authentication, topics, messages,
