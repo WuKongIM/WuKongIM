@@ -1,0 +1,68 @@
+---
+title: MQTT Authentication and Topics
+description: Configure UIDs, device tokens, ClientIDs, reserved properties and canonical base64url topics.
+---
+
+<Callout type="warn" title="Development preview">
+  The entry is MQTT 5 TCP. Start with a development candidate containing MQTT; see the [quickstart](/en/guide/tutorials/mqtt).
+</Callout>
+
+## CONNECT identity
+
+| Field | Value |
+| --- | --- |
+| User Name | Exact UID registered by your business backend |
+| Password | Existing device token matching the UID and device category |
+| ClientID | Nonempty, stable session identifier; not a credential |
+| User Property `wk.device_flag` | Exactly one string: `"0"` (APP), `"1"` (WEB) or `"2"` (PC) |
+
+The device category is part of the credential. The Node.js example uses `"1"`, so register `device_flag=1` on the backend. It is not automatic runtime detection. Clients cannot select SYSTEM or DeviceLevel, or replace the token with a ClientID.
+
+UIDs and ClientIDs are limited to 1024 UTF-8 bytes; tokens to 16 KiB. Whitespace-only identities are rejected; valid values are not automatically trimmed. Your production backend owns token issuance, rotation and revocation. Clients must not call Product HTTP management directly.
+
+```js
+import mqtt from 'mqtt';
+
+const client = mqtt.connect('mqtt://127.0.0.1:1883', {
+  protocolVersion: 5,
+  clientId: 'alice-device-01',
+  username: 'alice',
+  password: process.env.MQTT_ALICE_TOKEN,
+  clean: true,
+  reconnectPeriod: 0,
+  properties: {
+    sessionExpiryInterval: 0,
+    userProperties: { 'wk.device_flag': '1' },
+  },
+});
+client.on('error', () => console.error('MQTT connection failed'));
+```
+
+This is a connection-options fragment. The [quickstart](/en/guide/tutorials/mqtt) includes input validation, reception listeners and cleanup.
+
+## Topics and authorization
+
+| Target | Topic | PUBLISH | SUBSCRIBE |
+| --- | --- | --- | --- |
+| Person | `wk/v1/users/{id}/messages` | Send to the target UID under existing direct-message permissions | Only that UID may subscribe to its own inbox |
+| Group | `wk/v1/groups/{id}/messages` | Send to an existing group with membership and send permission | Existing membership required |
+
+`{id}` is the business ID's UTF-8 bytes encoded as **canonical, unpadded base64url**. It is neither ordinary Base64 nor percent encoding.
+
+```js
+function topic(kind, id) {
+  return `wk/v1/${kind}/${Buffer.from(id, 'utf8').toString('base64url')}/messages`;
+}
+topic('users', 'bob'); // wk/v1/users/Ym9i/messages
+topic('groups', 'g1'); // wk/v1/groups/ZzE/messages
+```
+
+The decoded ID must be nonempty, valid UTF-8, contain no NUL, and fit in 1024 bytes. Empty segments, trailing `=` and noncanonical encodings are rejected. Personal publication topics use the recipient UID, not an internal canonical person Channel ID.
+
+SUBSCRIBE does not join a group; UNSUBSCRIBE does not leave it. A trusted backend creates groups and changes members. Membership and MQTT subscription are separate. Unsubscribe also does not cancel QoS 1 exchanges already begun; see [persistent sessions](/en/api/client-protocols/mqtt/sessions-and-qos).
+
+## Reserved User Properties
+
+The server owns the `wk.` namespace. CONNECT accepts only `wk.device_flag` from clients; PUBLISH and Will accept only `wk.client_msg_no`. Duplicated reserved properties or forged properties such as `wk.from_uid` fail.
+
+Unreserved User Properties may repeat, and the server preserves their order. A client library may represent repeated values as arrays; do not treat those as single strings. Every PUBLISH and Will requires exactly one `wk.client_msg_no`; see the [message contract](/en/api/client-protocols/mqtt/messages). See [Authentication](/en/guide/integration/authentication) for the business-backend trust boundary.

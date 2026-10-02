@@ -1742,3 +1742,10 @@ specification, runbook, report, or module documentation; link to them when neede
   Use pre-MQTT data or a separately verified migration; matched peers/tools and
   the existing cold rollout remain required. See
   [integration evidence](../reports/mqtt-main-integration/README.md).
+
+- Public MQTT documentation lives in `docs-site` as a bilingual first-message
+  tutorial and `/api/client-protocols/mqtt` topic. Its Node.js/MQTT.js example
+  verifies actual two-way reception separately from PUBACK. Topic IDs use
+  canonical unpadded base64url; HTTP payloads use ordinary Base64 of the same
+  raw IM bytes. Pages retain default-off development-preview and incomplete
+  Linux/fault/load qualification boundaries; configuration stays in one reference.

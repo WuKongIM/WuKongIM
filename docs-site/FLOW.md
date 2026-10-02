@@ -67,6 +67,14 @@ summary: Owns the bilingual static v3 documentation site, shared navigation, pub
 9. Direct Pages API and content GETs gate bounded CDN refreshes. Migration runs
    skip refresh, and refresh failure does not undo a successful deployment.
 
+The MQTT learning path starts at `/guide/tutorials/mqtt` with Node.js/MQTT.js,
+then `/api/client-protocols/mqtt` covers authentication/topics, raw payloads,
+sessions/QoS, Wills, HTTP/SDK interop and operations. It explicitly remains a
+default-off MQTT 5 TCP development preview; it does not claim released-package
+availability or complete Linux/fault/load qualification. Configuration fields
+stay in the shared configuration reference. The exact pinned example is checked
+through process-level single-node and three-node clusters with 256 hash slots.
+
 ## Invariants and Failure Semantics
 
 - Chinese and English share one menu; publication requires both locale variants.

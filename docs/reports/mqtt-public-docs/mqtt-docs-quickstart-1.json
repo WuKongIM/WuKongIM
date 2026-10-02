@@ -1,0 +1,28 @@
+{
+  "client": {
+    "passed": true,
+    "client_version": "5.16.0",
+    "exchanges": [
+      {
+        "from_uid": "alice",
+        "message_id": "2105911488697864192",
+        "message_seq": "2"
+      },
+      {
+        "from_uid": "bob",
+        "message_id": "2105911528673775616",
+        "message_seq": "4"
+      }
+    ]
+  },
+  "example_sha256": {
+    "package-lock.json": "e14e06fefcae3b4486e8bca36718bde6f2e7f06c27fc16c49b3ed015fc6c0e7a",
+    "quickstart.mjs": "ab7b4b3b482c09b343105fd6f33bd5d863d2b8e9845cd39b9957b2551c34abbc"
+  },
+  "hash_slots": 256,
+  "invalid_token_checked": true,
+  "invalid_token_rejected": true,
+  "nodes": 1,
+  "passed": true,
+  "scenario": "mqtt-js-docs-quickstart"
+}

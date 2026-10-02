@@ -1,0 +1,54 @@
+---
+title: MQTT 遗嘱消息
+description: 配置 Will 的 Topic、payload、业务编号和延迟，核对触发、取消与当前授权。
+---
+
+<Callout type="warn" title="开发预览">
+  Will 支持 QoS 0/1 和 Will Delay，不支持 Retain。集群无法确认结果时保留未知责任，不能按墙钟时间承诺消息一定已发出。
+</Callout>
+
+## 配置 Will
+
+Will 在 CONNECT 中登记，Topic 使用同一套个人或群映射，payload 是现有 IM 字节，恰好提供一个 `wk.client_msg_no`。
+
+```js
+const will = {
+  topic: 'wk/v1/groups/ZzE/messages', // alice must already be a member of g1.
+  payload: Buffer.from(JSON.stringify({ type: 1, content: 'alice disconnected' }), 'utf8'),
+  qos: 1,
+  retain: false,
+  properties: {
+    willDelayInterval: 10,
+    userProperties: { 'wk.client_msg_no': 'alice-presence-0001' },
+  },
+};
+// Add will to the CONNECT options from the session example.
+```
+
+配合稳定 ClientID 和非零会话有效期检查延迟内重连，见[持久会话](/zh/api/client-protocols/mqtt/sessions-and-qos)。群成员由可信后端准备；SUBSCRIBE 不能补足权限。
+
+## 触发和取消
+
+| 行为 | 检查点 |
+| --- | --- |
+| 异常断开、心跳超时 | Will 可进入执行；故障被发现需要时间 |
+| Will Delay | 单位为秒，仍受会话结束与实际集群处理影响 |
+| 正常 DISCONNECT（Reason Code 0） | 取消这次连接的 Will |
+| DISCONNECT with Will Message（Reason Code 4） | 显式请求发布 Will，不能作为取消路径 |
+| 延迟内恢复同一会话 | 检查旧 Will 取消；新连接的 Will 属于新连接代次 |
+| 断开后撤销权限 | 执行时重新检查当前发送权限，不保证按登记时权限发布 |
+
+普通 MQTT.js `endAsync(false)` 用于正常清理。关闭 TCP、强制退出和正常 DISCONNECT 是不同实验，不能互相替代。Will 的离线信号也不能替代真实用户在线状态、任务结果或业务事务。
+
+## 编号和业务去重
+
+Will 的 `wk.client_msg_no` 是元数据。服务端使用绑定连接代次的幂等身份执行 Will；客户端不能靠复用编号控制另一次 Will 的所有权。接收端仍按稳定 `wk.message_id` 去重。提交成功不等于所有订阅者收到，见[消息确认边界](/zh/api/client-protocols/mqtt/messages)。
+
+## 验证接入
+
+1. 连接有权限的观察者，订阅目标群并检查 SUBACK。
+2. 用合法成员的 CONNECT 登记 Will，异常断开，等待断开判定和延迟，核对内容、发送方与 MessageID。
+3. 重新登记 Will，正常 DISCONNECT，确认观察者没有收到这次 Will。
+4. 测试延迟内恢复和权限撤销，分别核对旧代次取消与当前授权行为。
+
+使用有界等待和独立消息编号。未知结果需要保留证据，不能通过清空会话或存储强制得到成功。见[部署与排障](/zh/api/client-protocols/mqtt/operations-and-troubleshooting)。

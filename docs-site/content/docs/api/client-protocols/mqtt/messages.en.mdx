@@ -1,0 +1,69 @@
+---
+title: MQTT Message Contract
+description: Preserve IM payload bytes, keep stable idempotency keys, and distinguish commit from reception.
+---
+
+<Callout type="warn" title="Development preview">
+  This describes the MQTT 5 TCP development implementation. See the [overview](/en/api/client-protocols/mqtt) for capabilities and qualification boundaries.
+</Callout>
+
+## Inbound PUBLISH
+
+Publish to an exact personal or group topic with QoS 0 or 1, `retain=false`, and exactly one nonempty `wk.client_msg_no` User Property, limited to 1024 UTF-8 bytes.
+
+```js
+const payload = Buffer.from(JSON.stringify({ type: 1, content: 'hello Bob' }), 'utf8');
+const clientMsgNo = 'alice-bob-0001'; // Preserve with the original body for an uncertain retry.
+await client.publishAsync('wk/v1/users/Ym9i/messages', payload, {
+  qos: 1,
+  retain: false,
+  properties: { userProperties: { 'wk.client_msg_no': clientMsgNo } },
+});
+```
+
+The payload is the existing IM message's raw bytes. The server adds no MQTT JSON envelope. This example uses the SDK text format. MQTT-only applications can define a binary format, but other SDKs need a matching decoder; see [interoperability](/en/api/client-protocols/mqtt/interop).
+
+For a business retry of the same logical send, preserve `wk.client_msg_no`, target and body. Use a new number for a new message. Packet Identifier and DUP do not replace application idempotency. Do not interpret a timeout as proof of noncommit and resend under a new number.
+
+## Success and uncertain outcomes
+
+| Observation | What it establishes |
+| --- | --- |
+| Successful QoS 1 PUBACK | Server confirmed durable commit and assumed responsibility |
+| Failure PUBACK Reason Code | No successful confirmation; inspect permission or capacity failure |
+| Timeout/disconnect without successful PUBACK | Outcome may be unknown; retain the original key and body |
+| Recipient receives PUBLISH | Its connection received the message; not reading or business completion |
+| Recipient sends PUBACK | QoS 1 protocol exchange completed; not an application read receipt |
+
+An uncertain commit produces no successful PUBACK. QoS 0 has no PUBACK; its local publish callback cannot prove durable commit. QoS 0 also does not automatically set the IM NoPersist flag.
+
+## Outbound User Properties
+
+| Property | Meaning |
+| --- | --- |
+| `wk.message_id` | Stable server MessageID, unchanged across reconnect or QoS 1 redelivery |
+| `wk.message_seq` | Sequence within the message's channel |
+| `wk.from_uid` | Authenticated sender UID |
+| `wk.channel_id` | IM Channel identity; do not infer the original channel from a personal inbox topic |
+| `wk.channel_type` | Current person/group mapping, as a decimal string |
+| `wk.client_msg_no` | Original application number; see [Will messages](/en/api/client-protocols/mqtt/will) for Will semantics |
+
+Numeric values are decimal strings. Never pass MessageID through JavaScript `Number` before storing it; large values lose precision.
+
+```js
+client.on('message', (topic, bytes, packet) => {
+  const props = packet.properties.userProperties;
+  const messageId = props['wk.message_id']; // Keep the decimal string.
+  // Persist/deduplicate by messageId before applying business effects.
+});
+```
+
+This fragment does not acknowledge durable application processing. MQTT.js handles protocol ACKs by default. For reliable business processing, control ACK timing with the `handleMessage` completion callback and persist deduplication records. Returning a Promise from an asynchronous `message` listener does not defer protocol ACK.
+
+## Ordering, expiry and size
+
+`message_seq` orders one channel. A personal inbox combines multiple direct-message sources and has no cross-channel total order. QoS 1 can duplicate; deduplicate by stable MessageID, not Packet Identifier.
+
+Message Expiry Interval limits validity, and remaining lifetime decreases during delivery and replay. Expired messages are not permanent offline archives. Ordinary history queries and MQTT session replay are separate interfaces.
+
+The default inbound packet limit is 1 MiB including encoding overhead, leaving less space for payload. Publication metadata has a separate 32 KiB limit including identity and format overhead; excess is rejected without truncation. Outbound delivery also respects the client's Maximum Packet Size and Receive Maximum. See the [configuration reference](/en/server/configuration/reference).

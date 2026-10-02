@@ -6,6 +6,11 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+- Add bilingual MQTT development-preview guides for authentication, topics, messages,
+  persistent sessions, Wills, HTTP/SDK interoperability and troubleshooting, with a
+  pinned Node.js first-message example. / 新增 MQTT 开发预览中英双语专题及固定版本
+  Node.js 收发示例，覆盖认证、Topic、消息、持久会话、遗嘱、互通与排障。
+
 - Keep main's send-policy/stream RPC and Slot command identities when integrating
   MQTT: metadata/owner RPCs use 106/107 and Session/subscription/cursor commands use 80/81/82.
   Pre-integration MQTT development Raft logs are not an upgrade source; start from

@@ -1,0 +1,55 @@
+---
+title: MQTT Operations and Troubleshooting
+description: Configure consistent cluster entrypoints, understand logical quotas and diagnose public observations.
+---
+
+<Callout type="warn" title="Development preview">
+  MQTT is disabled by default. Complete Linux, fault and load qualification remains outstanding. Logical quotas are not guarantees of hardware capacity, throughput or concurrent users.
+</Callout>
+
+## Deployment requirements
+
+Enable `mqtt.enable` on every MQTT ingress node, use matching candidate binaries/tools and keep namespace consistent. Namespace is a stable ClientID namespace; changing it arbitrarily is not session cleanup. Follow the candidate's cold-rollout constraints. Pre-integration MQTT development data is not a supported direct upgrade source; use pre-MQTT data or a separately verified migration.
+
+A single-node cluster also uses 256 hash slots. Multi-node deployments still need Slot quorum and internal communication. Load balancing does not replace takeover isolation proof. A new CONNECT can fail when the old Owner cannot be proved stopped, even if other Slots retain quorum.
+
+The default listener is `0.0.0.0:1883`; the tutorial restricts it to loopback. Public access needs upstream TLS termination and a protected plaintext backend network. `mqtts://` targets the TLS proxy; `mqtt://` targets raw TCP. Do not disable certificate verification. There is no MQTT WebSocket listener; existing WKProto `/ws` cannot accept MQTT packets.
+
+Fields, environment variables and ranges are maintained in the [configuration reference](/en/server/configuration/reference). Keep the [authentication configuration](/en/server/configuration/security) as well.
+
+## Quotas
+
+| Boundary | Default | Operational meaning |
+| --- | --- | --- |
+| Per-session logical backlog | 10000 messages / 64 MiB | Slow ACKs, offline delivery and replay retain responsibility; not physical disk usage |
+| Durable QoS 1 window | 64 | Further limited by the client's Receive Maximum |
+| Per-node shared storage reservation | 8 GiB | Logical reservation for shared originals and future replay copies |
+| Aggregate cluster replica reservation | 64 GiB | Every storage node must agree, including nodes with MQTT listener disabled |
+| Inbound packet | 1 MiB | Includes encoding overhead; client outbound size limit is separate |
+| Offline session lifetime | At most 24 hours | Configurable downward; requests exceeding configured/hard limits fail |
+
+A body shared by multiple sessions is counted once per retaining replica. Ordinary history, WAL, compaction and physical amplification are outside these logical limits. Exhaustion restricts new responsibility while preserving accepted replay and uncertain outcomes. Reservation retires only after proof; deleting data or closing a connection cannot establish reclamation.
+
+For large groups, observe member count, online client count, message rate, ACK latency, backlog and disk headroom together. A 100,000-member group does not imply 100,000 online connections. Demonstrations or partial results cannot become general capacity guarantees.
+
+## Diagnose by symptom
+
+| Symptom | First checks |
+| --- | --- |
+| TCP refusal/timeout | MQTT enabled, listener, TLS proxy and network; browser incorrectly using TCP |
+| CONNECT rejected | MQTT 5, UID/token/device category, ClientID, exactly one `wk.device_flag` |
+| SUBACK rejection | Canonical base64url, own inbox, group membership, unsupported wildcards |
+| Publication rejected/connection closes | `wk.client_msg_no`, reserved properties, retain/QoS, permission, size and quotas |
+| Successful PUBACK but no reception | Receiver connection/subscription, permission, QoS, expiry, window and ACK; commit is not reception |
+| Reconnect lacks subscriptions | Original UID/ClientID/namespace, `clean=false`, nonzero expiry, Session Present |
+| Duplicate messages | Expected with QoS 1; inspect MessageID deduplication and changed application keys on retry |
+| Missing Will | Normal DISCONNECT cancellation, delay/detection, current permission, generation, uncertain responsibility |
+| CONNECT fails after partition | Old Owner isolation evidence, communication, Slot authority and recovery; avoid endless reconnect pressure |
+
+Retain time bounds, node, redacted ClientID, topic, Reason Code, Session Present, MessageID and public metrics. Do not log tokens or sensitive payloads. Business retries follow the [idempotency contract](/en/api/client-protocols/mqtt/messages).
+
+## Public observations
+
+With metrics enabled, inspect `/metrics` for `wukongim_mqtt_subscription_closures_total`, `wukongim_mqtt_storage_bytes`, `wukongim_mqtt_storage_events_total`, `wukongim_mqtt_owner_work` and `wukongim_mqtt_consumer_work`. Counters can count repeated attempts; they are not unique connection/message counts or reclamation proof.
+
+Correlate metrics and client observations before reading bounded logs. See [Health and Monitoring](/en/server/operations/health-and-monitoring) and [Troubleshooting](/en/server/operations/troubleshooting).

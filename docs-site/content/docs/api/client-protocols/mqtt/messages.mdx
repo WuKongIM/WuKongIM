@@ -1,0 +1,69 @@
+---
+title: MQTT 消息契约
+description: 保持 IM payload 字节，使用稳定幂等键，并区分提交确认与接收确认。
+---
+
+<Callout type="warn" title="开发预览">
+  本页描述 MQTT 5 TCP 开发实现，能力和验收范围见[概览](/zh/api/client-protocols/mqtt)。
+</Callout>
+
+## 上行 PUBLISH
+
+向精确个人或群 Topic 发布，使用 QoS 0 或 1、`retain=false`，提供恰好一个非空 `wk.client_msg_no` User Property；最多 1024 个 UTF-8 字节。
+
+```js
+const payload = Buffer.from(JSON.stringify({ type: 1, content: 'hello Bob' }), 'utf8');
+const clientMsgNo = 'alice-bob-0001'; // Preserve with the original body for an uncertain retry.
+await client.publishAsync('wk/v1/users/Ym9i/messages', payload, {
+  qos: 1,
+  retain: false,
+  properties: { userProperties: { 'wk.client_msg_no': clientMsgNo } },
+});
+```
+
+payload 是现有 IM 消息的原始字节，服务端不添加 MQTT JSON 信封。上例使用 SDK 文本格式；纯 MQTT 应用可约定二进制格式，但其他 SDK 需要对应解码器，见[协议互通](/zh/api/client-protocols/mqtt/interop)。
+
+同一逻辑发送业务重试时，保留相同 `wk.client_msg_no`、目标和消息体；新消息使用新编号。Packet Identifier 和 DUP 不替代业务幂等键。不要把超时解释为没有提交，再生成新编号重发。
+
+## 成功与未知结果
+
+| 观察 | 可以得出的结论 |
+| --- | --- |
+| QoS 1 成功 PUBACK | 服务端确认持久提交，接管消息责任 |
+| PUBACK 失败 Reason Code | 没有成功确认；检查具体权限或容量问题 |
+| 超时或断线，没有成功 PUBACK | 结果可能未知；保留原幂等键和消息体 |
+| 对方收到 PUBLISH | 对方连接收到消息；不代表已读或业务完成 |
+| 对方回 PUBACK | QoS 1 协议交换完成；不是应用已读回执 |
+
+未知提交不会返回成功 PUBACK。QoS 0 没有 PUBACK，其本地发布回调不能证明持久提交；QoS 0 也不会自动设置 IM NoPersist 标志。
+
+## 下行 User Properties
+
+| 属性 | 含义 |
+| --- | --- |
+| `wk.message_id` | 稳定服务端消息 ID，重连或 QoS 1 重投保持一致 |
+| `wk.message_seq` | 当前频道消息序号 |
+| `wk.from_uid` | 认证后的发送方 UID |
+| `wk.channel_id` | IM 频道标识；不能由个人收件箱 Topic 推断原始频道 |
+| `wk.channel_type` | 当前映射的个人或群类型，十进制字符串 |
+| `wk.client_msg_no` | 原业务编号；Will 的编号语义见[遗嘱消息](/zh/api/client-protocols/mqtt/will) |
+
+数值使用十进制字符串。保存 MessageID 时不要先转为 JavaScript `Number`，否则大整数会丢失精度。
+
+```js
+client.on('message', (topic, bytes, packet) => {
+  const props = packet.properties.userProperties;
+  const messageId = props['wk.message_id']; // Keep the decimal string.
+  // Persist/deduplicate by messageId before applying business effects.
+});
+```
+
+这个片段不提供应用持久处理确认。MQTT.js 默认处理协议 ACK；需要可靠业务处理时，使用 `handleMessage` 完成回调控制 ACK 时机，并持久化业务去重记录。异步 `message` 监听器返回 Promise 不等于推迟协议 ACK。
+
+## 顺序、过期和大小
+
+`message_seq` 只在单个频道内有顺序意义。个人收件箱汇集多个单聊来源，没有跨频道总顺序。QoS 1 可能重复，按稳定 MessageID 去重，不能以 Packet Identifier 去重。
+
+Message Expiry Interval 控制消息有效期，剩余时间随投递和重投减少；过期消息不是永久离线存档。普通历史查询与 MQTT 会话回放是不同接口。
+
+默认入站报文上限为 1 MiB，包含编码开销；payload 可用空间更小。发布元数据独立限制为 32 KiB，包含身份和格式开销；超限拒绝，不截断。下行另受客户端 Maximum Packet Size、Receive Maximum 限制。见[完整配置参考](/zh/server/configuration/reference)。

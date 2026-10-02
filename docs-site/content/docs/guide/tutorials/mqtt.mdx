@@ -1,0 +1,89 @@
+---
+title: MQTT 快速开始
+description: 使用 Node.js 和 MQTT.js 连接 Alice、Bob，完成认证、订阅、双向收发与清理。
+---
+
+目标：Alice、Bob 各自连接 MQTT，订阅自己的收件箱，再双向发送 SDK 文本格式的消息。检查真实接收内容和稳定服务端消息身份。
+
+<Callout type="warn" title="开发预览：MQTT 5 TCP">
+  默认关闭，需使用包含 MQTT 实现的匹配开发候选。现有正式发布的镜像和安装包不能据此视为支持 MQTT；完整 Linux、故障和负载验收仍未完成。本教程运行在 Node.js，浏览器不能直接连接原始 TCP，也没有 MQTT WebSocket 入口。
+</Callout>
+
+## 1. 准备单节点集群
+
+需要 Go 1.25.11、Node.js 20.11 或更高版本、npm，以及包含 MQTT 实现的源码。业务后端、服务端和客户端的职责见[集成架构](/zh/guide/integration/architecture)。以下为回环地址上的开发验证，保留单节点集群和 256 hash slots。
+
+在候选源码根目录执行：
+
+```bash
+go build -o ./bin/wukongim-mqtt ./cmd/wukongim
+mkdir -p ./tmp/mqtt-quickstart
+cp wukongim.toml.example ./tmp/mqtt-quickstart/wukongim.toml
+WK_NODE_DATA_DIR=./tmp/mqtt-quickstart/data \
+WK_MQTT_ENABLE=true \
+WK_MQTT_LISTEN_ADDR=127.0.0.1:1883 \
+WK_GATEWAY_TOKEN_AUTH_ON=true \
+WK_GATEWAY_LISTENERS='[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5100","transport":"gnet","protocol":"wkproto"}]' \
+./bin/wukongim-mqtt -config ./tmp/mqtt-quickstart/wukongim.toml
+```
+
+保持这个终端运行，等待节点完成启动。检查启动日志无配置错误、1883 正在监听。示例配置的 Product HTTP 为 `127.0.0.1:5001`；端口被占用时，修改配置及客户端连接地址。MQTT 全部配置见[配置参考](/zh/server/configuration/reference)。
+
+## 2. 由后端准备用户凭证
+
+在另一个终端、源码根目录执行。以下 Token 仅用于受保护的开发验证。Product HTTP 没有通用业务鉴权，不能暴露给不可信客户端；生产环境由业务后端验证登录后发放凭证。
+
+```bash
+curl -sS http://127.0.0.1:5001/user/token \
+  -H 'Content-Type: application/json' \
+  -d '{"uid":"alice","token":"alice-local-only","device_flag":1,"device_level":1}'
+curl -sS http://127.0.0.1:5001/user/token \
+  -H 'Content-Type: application/json' \
+  -d '{"uid":"bob","token":"bob-local-only","device_flag":1,"device_level":1}'
+```
+
+确认两次登记请求成功。客户端使用对应 UID、Token 和 `wk.device_flag="1"`，ClientID 不是密码。详见[认证与 Topic](/zh/api/client-protocols/mqtt/authentication-and-topics)。
+
+## 3. 安装并运行完整示例
+
+源码附带 `docs-site/examples/mqtt-quickstart/quickstart.mjs`，依赖锁定为 MQTT.js 5.16.0。使用锁文件安装：
+
+```bash
+cd docs-site/examples/mqtt-quickstart
+npm ci --no-audit --no-fund
+MQTT_URL=mqtt://127.0.0.1:1883 \
+MQTT_ALICE_TOKEN=alice-local-only \
+MQTT_BOB_TOKEN=bob-local-only \
+npm start
+```
+
+客户端先安装监听器，然后 CONNECT；用 `protocolVersion=5`，每次运行生成不同 ClientID，`clean=true`、Session Expiry 为 0。双方成功订阅后才发布：
+
+| 客户端 | 订阅收件箱 | 发送目标 |
+| --- | --- | --- |
+| Alice | `wk/v1/users/YWxpY2U/messages` | Bob 的 `wk/v1/users/Ym9i/messages` |
+| Bob | `wk/v1/users/Ym9i/messages` | Alice 的 `wk/v1/users/YWxpY2U/messages` |
+
+Topic 编码是无填充 base64url。上行 payload 是 `{"type":1,"content":"hello Bob"}` 等 JSON 的 UTF-8 字节，没有额外 MQTT 信封。每条发布带独立、稳定的 `wk.client_msg_no`。
+
+## 4. 核对双向收发
+
+成功时示例输出 JSON，`passed=true`，`client_version="5.16.0"`，`exchanges` 含 Alice 和 Bob 两个发送方及其 `message_id`、`message_seq` 字符串，然后正常断开退出。
+
+示例分别等待成功 PUBACK 和对方实际 PUBLISH，核对字节、发送方、业务编号与频道类型，不打印 Token 或消息体。数字身份保持字符串，避免 JavaScript 大整数精度损失。成功 PUBACK 表示服务端确认持久提交，不表示用户已读或业务完成。
+
+例子订阅和发布确认最多等待 10 秒，每次接收最多等待 20 秒，整体最多 60 秒；失败以非零状态退出。它是第一条消息验证，不是性能测试。实际产品需要自己的消息处理、去重和重连策略，见[消息契约](/zh/api/client-protocols/mqtt/messages)。
+
+## 5. 清理和恢复检查
+
+示例自动发送正常 DISCONNECT、关闭两条连接；不保留离线会话。验证结束后在服务端终端按 Ctrl+C 停止开发集群。不要删除运行中数据。
+
+再次运行会建立新会话；它不证明离线恢复。后续按[持久会话与 QoS](/zh/api/client-protocols/mqtt/sessions-and-qos)使用稳定 ClientID、非零有效期和 `clean=false`，核对 Session Present。
+
+## 6. 出错时检查
+
+- 连接失败：检查监听、版本、UID/Token 与设备类别；Node.js 示例不连接浏览器 WebSocket。
+- 订阅失败：检查自己的收件箱和 base64url 编码；群订阅需要已有成员资格。
+- 收发超时：检查服务端日志、权限、配额、接收端连接和 ACK，保留原业务编号排查未知结果。
+
+详细定位见[部署与排障](/zh/api/client-protocols/mqtt/operations-and-troubleshooting)。跑通后阅读[HTTP / SDK 互通](/zh/api/client-protocols/mqtt/interop)与[遗嘱消息](/zh/api/client-protocols/mqtt/will)。客户端 API 见 [MQTT.js 官方文档](https://github.com/mqttjs/MQTT.js/blob/v5.16.0/README.md)。

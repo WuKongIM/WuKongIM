@@ -39,6 +39,13 @@ See its `README.md` for direct callback requests, server configuration, business
 rules, and Product HTTP send/history checks. `bun run sample:go-webhook:check`
 runs its fast unit tests from the documentation-site root and is part of `verify`.
 
+The MQTT development-preview example is a separate Node.js >=20.11 project
+in `examples/mqtt-quickstart`, pinned to MQTT.js. See its `README.md` for
+candidate startup and backend credential preparation. `bun run sample:mqtt:check`
+checks installation and syntax; the real-process `test/e2e/mqtt/docs_quickstart`
+scenario verifies both directions in single-node and three-node clusters. It
+does not establish persistent-session, Will or performance acceptance.
+
 ## Content workflow
 
 - `lib/navigation.ts` is the bilingual publication registry. Add both `.mdx`

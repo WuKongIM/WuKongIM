@@ -1,0 +1,34 @@
+{
+  "docs_verify": "PASS",
+  "content_contracts": 212,
+  "flow_doc_contracts": "PASS",
+  "flow_files": 88,
+  "flow_invalid": 0,
+  "flow_advisory_warnings": 19,
+  "bilingual_mqtt_pages": 16,
+  "javascript_fragments_parse": 12,
+  "rsc_url_count": 444,
+  "live_example": {
+    "single_node_cluster": "PASS",
+    "three_node_cluster": "PASS",
+    "elapsed_seconds": 53.03,
+    "product_race_build": false
+  },
+  "browser_preview": [
+    "zh/guide/tutorials/mqtt",
+    "en/api/client-protocols/mqtt"
+  ],
+  "retained_log_sha256": {
+    "docs-verify-final.log.gz": "40d9fa4038c0b906601edb8c6647d6058e36c335c948dfa6ed16d3165a45330b",
+    "mqtt-js-final.log.gz": "2d4e7329d844dc8fb6eff2f24eb62799e58b9018c7d189a05aeeef08205e707b",
+    "flow-check.log.gz": "1e573d9b5068a4193c29de7a87a3a0d44994fecbd94611dc6e57ec972e88d6bc",
+    "navigation-red.log.gz": "d8fd1436c60a747590d20b1d4edb48e3bb43bb7bb2717c9fa3d8b6b7b02982ac",
+    "quickstart-missing-red.log.gz": "2689b9abd07a6487c9a560c42eb35aca48d591519263afc548b18c3d2b80b2c1"
+  },
+  "limits": [
+    "Prior concurrent three-node nonconfirmation remains unexplained; retained incomplete result",
+    "No full Linux/fault/load qualification",
+    "No Node persistent-session or Will acceptance claim",
+    "No released package or public TLS deployment claim"
+  ]
+}

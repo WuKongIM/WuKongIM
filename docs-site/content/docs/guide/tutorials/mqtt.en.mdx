@@ -1,0 +1,89 @@
+---
+title: MQTT Quickstart
+description: Connect Alice and Bob with Node.js and MQTT.js, authenticate, subscribe, exchange and clean up.
+---
+
+Goal: Alice and Bob connect to MQTT, subscribe to their own inboxes, and exchange SDK text-format messages in both directions. Verify actual recipient content and stable server message identities.
+
+<Callout type="warn" title="Development preview: MQTT 5 TCP">
+  Disabled by default; use a matching development candidate containing MQTT. Do not assume current released packages/images include it. Complete Linux, fault and load qualification remains outstanding. This tutorial runs in Node.js. Browsers cannot connect directly to raw TCP, and there is no MQTT WebSocket listener.
+</Callout>
+
+## 1. Prepare a single-node cluster
+
+You need Go 1.25.11, Node.js 20.11 or newer, npm, and source containing MQTT. See [Integration Architecture](/en/guide/integration/architecture) for responsibilities. This loopback development check retains single-node cluster semantics and 256 hash slots.
+
+From the candidate source root:
+
+```bash
+go build -o ./bin/wukongim-mqtt ./cmd/wukongim
+mkdir -p ./tmp/mqtt-quickstart
+cp wukongim.toml.example ./tmp/mqtt-quickstart/wukongim.toml
+WK_NODE_DATA_DIR=./tmp/mqtt-quickstart/data \
+WK_MQTT_ENABLE=true \
+WK_MQTT_LISTEN_ADDR=127.0.0.1:1883 \
+WK_GATEWAY_TOKEN_AUTH_ON=true \
+WK_GATEWAY_LISTENERS='[{"name":"tcp-wkproto","network":"tcp","address":"127.0.0.1:5100","transport":"gnet","protocol":"wkproto"}]' \
+./bin/wukongim-mqtt -config ./tmp/mqtt-quickstart/wukongim.toml
+```
+
+Keep this terminal running and wait for startup. Check for configuration errors and that port 1883 is listening. The example Product HTTP address is `127.0.0.1:5001`. If ports are occupied, change the configuration and client URL. See the [configuration reference](/en/server/configuration/reference) for MQTT fields.
+
+## 2. Prepare credentials from the backend
+
+In another terminal at the source root, register development-only tokens. Product HTTP lacks general product authentication and must not be exposed to untrusted clients. Production credentials are issued by your backend after authenticating login.
+
+```bash
+curl -sS http://127.0.0.1:5001/user/token \
+  -H 'Content-Type: application/json' \
+  -d '{"uid":"alice","token":"alice-local-only","device_flag":1,"device_level":1}'
+curl -sS http://127.0.0.1:5001/user/token \
+  -H 'Content-Type: application/json' \
+  -d '{"uid":"bob","token":"bob-local-only","device_flag":1,"device_level":1}'
+```
+
+Check that both registration requests succeed. Each client uses its matching UID, token and `wk.device_flag="1"`. ClientID is not a password. See [Authentication and Topics](/en/api/client-protocols/mqtt/authentication-and-topics).
+
+## 3. Install and run the complete example
+
+The source includes `docs-site/examples/mqtt-quickstart/quickstart.mjs`, pinned to MQTT.js 5.16.0. Install using its lockfile:
+
+```bash
+cd docs-site/examples/mqtt-quickstart
+npm ci --no-audit --no-fund
+MQTT_URL=mqtt://127.0.0.1:1883 \
+MQTT_ALICE_TOKEN=alice-local-only \
+MQTT_BOB_TOKEN=bob-local-only \
+npm start
+```
+
+The clients install listeners before CONNECT, set `protocolVersion=5`, generate distinct ClientIDs per run, and use `clean=true` with Session Expiry 0. They publish only after both subscriptions succeed:
+
+| Client | Inbox subscription | Publish target |
+| --- | --- | --- |
+| Alice | `wk/v1/users/YWxpY2U/messages` | Bob's `wk/v1/users/Ym9i/messages` |
+| Bob | `wk/v1/users/Ym9i/messages` | Alice's `wk/v1/users/YWxpY2U/messages` |
+
+Topic encoding is unpadded base64url. Payloads are UTF-8 JSON bytes such as `{"type":1,"content":"hello Bob"}`, without an extra MQTT envelope. Each publication carries an independent, stable `wk.client_msg_no`.
+
+## 4. Check both directions
+
+Success produces JSON with `passed=true`, `client_version="5.16.0"`, and two `exchanges` containing Alice/Bob sender UIDs and decimal-string `message_id` / `message_seq`. It then disconnects normally and exits.
+
+The example waits independently for successful PUBACK and actual recipient PUBLISH. It checks bytes, sender, application number and channel type without printing tokens or payloads. Numeric identities remain strings to avoid JavaScript precision loss. Successful PUBACK establishes server durable commit, not reading or business completion.
+
+Subscription and publish acknowledgement waits are limited to 10 seconds, each receive wait to 20 seconds, and the complete run to 60 seconds. Failure exits nonzero. This verifies a first exchange, not performance. Production applications need their own processing, deduplication and reconnect strategy; see the [message contract](/en/api/client-protocols/mqtt/messages).
+
+## 5. Cleanup and recovery checks
+
+The program sends normal DISCONNECT and closes both connections without keeping offline sessions. After validation, press Ctrl+C in the server terminal to stop the development cluster. Do not delete live data.
+
+A new run creates new sessions and does not establish offline recovery. Follow [Persistent Sessions and QoS](/en/api/client-protocols/mqtt/sessions-and-qos) with a stable ClientID, nonzero expiry and `clean=false`, then inspect Session Present.
+
+## 6. Troubleshooting
+
+- Connection fails: inspect listener, version, UID/token and device category. This Node.js example does not connect to browser WebSocket.
+- Subscription fails: inspect own-inbox topic and base64url. Group subscriptions require existing membership.
+- Exchange times out: inspect logs, permissions, quotas, recipient connection and ACKs. Preserve the original application key when investigating an uncertain result.
+
+See [Operations and Troubleshooting](/en/api/client-protocols/mqtt/operations-and-troubleshooting). Next, read [HTTP / SDK Interoperability](/en/api/client-protocols/mqtt/interop) and [Will Messages](/en/api/client-protocols/mqtt/will). Client APIs are documented in the [official MQTT.js README](https://github.com/mqttjs/MQTT.js/blob/v5.16.0/README.md).
