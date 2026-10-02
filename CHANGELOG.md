@@ -8,10 +8,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
-- Serialize exact-digest release image copies over HTTPS with HTTP/1.1 and
-  protect existing tags, avoiding HTTP/2 stream failures and stalled bulk
-  transfers. / 发布镜像按精确摘要串行同步，使用 HTTPS 与 HTTP/1.1 并保护已有标签，
-  避免 HTTP/2 流错误及批量传输停滞。
+- Serialize exact-digest release image copies over HTTPS with HTTP/1.1,
+  upload Alibaba Cloud layers in bounded chunks, and protect existing tags,
+  avoiding interrupted bulk transfers. / 发布镜像按精确摘要串行同步，使用 HTTPS 与
+  HTTP/1.1，对阿里云镜像层分块上传并保护已有标签，避免大层传输中断。
 
 ## [v3.0.0-beta.23] - 2026-10-02
 

@@ -489,8 +489,13 @@ The mirror-copy step uses checksum-pinned [Crane v0.22.1](https://github.com/goo
 with one concurrent layer transfer and `--no-clobber`. It copies the canonical
 runtime index and both platform manifests over HTTPS with HTTP/1.1
 (`GODEBUG=http2client=0`), after HTTP/2 peer stream failures and stalled bulk
-copies. Detached attestations remain on canonical GHCR. Registry authentication
-and exact digest, source, and platform verification remain required.
+copies. For Alibaba Cloud, checksum-pinned [regctl v0.11.6](https://github.com/regclient/regclient/releases/tag/v0.11.6)
+first prepares that same index by digest with 1 MiB upload chunks and one
+concurrent target request. This preparation creates no tag; Crane then creates
+the absent exact tag with its no-clobber guard. Chunking prevents repeated
+whole-layer uploads when a long request is interrupted. Detached attestations
+remain on canonical GHCR. Registry authentication and exact digest, source,
+and platform verification remain required.
 
 The exact Docker tag removes the Git `v` prefix. A stable `v3.1.2` may advance
 `3.1`, `3`, and `latest` only when it is the highest stable repository SemVer
