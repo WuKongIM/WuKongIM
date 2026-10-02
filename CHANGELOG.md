@@ -39,6 +39,7 @@ move those entries into a version section named for that exact tag.
 - Simplify bilingual onboarding around Docker → Chat Demo → SDK, with current-source chat screenshots, a four-Demo launcher guide, Web SDK recovery illustrations, and expandable advanced details. / 精简中英文入门路线为 Docker → Chat Demo → SDK，补充最新版聊天截图、四个 Demo 一键启动指南与 Web SDK 恢复图示，高级细节按需展开。
 
 - Redesign the bilingual documentation homepage with a messaging code preview, platform shortcuts, guided first-message steps and common references, with responsive light and dark themes. / 重新设计中英文文档首页，新增消息代码预览、平台快捷入口、首条消息引导和常用参考，适配移动端及深浅主题。
+- Add a separate opt-in permission fixed-load diagnostic with bounded per-connection queues, monotonic arrival-to-ACK timing and complete configuration/metrics artifacts; retain historical failed verdicts and performance thresholds. / 新增独立权限固定负载诊断：每连接有界排队、单调时钟到达至 ACK 计时及完整配置/指标证据，保留历史失败结论和性能门槛。
 
 - Add visible home links to all four Demos, including chat login; return to the actual catalog address across dynamically assigned ports and reloads. / 四个 Demo 及聊天登录页新增可见的“返回首页”入口，动态端口和刷新后仍返回实际首页。
 

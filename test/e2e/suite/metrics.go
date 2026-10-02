@@ -4,6 +4,7 @@ package suite
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/prometheus/common/model"
 )
 
 // MetricSample is one parsed public Prometheus text sample.
@@ -27,6 +30,26 @@ type MetricSample struct {
 type MetricHistogramSnapshot struct {
 	Count float64
 	Sum   float64
+}
+
+// MetricScrapeReceipt identifies one public metrics observation without keeping
+// its body or metric labels. A failed read's body hash describes only its prefix.
+type MetricScrapeReceipt struct {
+	// StatusCode is absent until an HTTP response is received.
+	StatusCode int `json:"status_code,omitempty"`
+	// RequestedEncoding records this observer's explicit identity negotiation.
+	RequestedEncoding string `json:"requested_encoding"`
+	// ReceivedEncoding is identity for a plain response, and absent before one.
+	ReceivedEncoding string `json:"received_encoding,omitempty"`
+	// BodyBytes is unknown before a logical body read and may describe a prefix.
+	BodyBytes *int64 `json:"body_bytes,omitempty"`
+	// BodySHA256 binds the same logical bytes returned by that read.
+	BodySHA256 string `json:"body_sha256,omitempty"`
+	// StartedAt and FinishedAt bound the entire observation in UTC.
+	StartedAt  time.Time `json:"started_at"`
+	FinishedAt time.Time `json:"finished_at"`
+	// DurationNS uses the monotonic clock across the entire observation.
+	DurationNS int64 `json:"duration_ns"`
 }
 
 // RequireMetricAtLeastEventually waits for one public /metrics sample to reach at least want.
@@ -67,29 +90,67 @@ func FetchMetricValue(ctx context.Context, apiAddr, name string, labels map[stri
 	return 0, fmt.Errorf("metric sample not found")
 }
 
-// FetchMetricSamples reads and parses one public /metrics snapshot.
+// FetchMetricSamples reads one complete, fresh public /metrics snapshot without
+// asking the observed node to compress it. Failed snapshots return no samples.
 func FetchMetricSamples(ctx context.Context, apiAddr string) ([]MetricSample, error) {
+	samples, _, err := FetchMetricSamplesWithReceipt(ctx, apiAddr)
+	return samples, err
+}
+
+// FetchMetricSamplesWithReceipt binds samples and safe metadata to the same
+// full HTTP request. On failure, available metadata remains but samples are nil.
+func FetchMetricSamplesWithReceipt(ctx context.Context, apiAddr string) (samples []MetricSample, receipt MetricScrapeReceipt, err error) {
+	started := time.Now()
+	receipt.StartedAt = started.UTC()
+	receipt.RequestedEncoding = "identity"
+	defer func() {
+		finished := time.Now()
+		receipt.FinishedAt = finished.UTC()
+		receipt.DurationNS = finished.Sub(started).Nanoseconds()
+	}()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+apiAddr+"/metrics", nil)
 	if err != nil {
-		return nil, err
+		return nil, receipt, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	req.Header.Set("Accept-Encoding", "identity")
+	// Reuse the caller's transport and pool, but never turn one observation
+	// into another request through an HTTP redirect.
+	client := *http.DefaultClient
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, receipt, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+	receipt.StatusCode = resp.StatusCode
+	receipt.ReceivedEncoding = strings.ToLower(strings.TrimSpace(resp.Header.Get("Content-Encoding")))
+	if receipt.ReceivedEncoding == "" {
+		receipt.ReceivedEncoding = "identity"
 	}
-	samples := make([]MetricSample, 0, 64)
-	for _, line := range strings.Split(string(body), "\n") {
-		if strings.HasPrefix(line, "#") || strings.TrimSpace(line) == "" {
+	if receipt.ReceivedEncoding != "identity" {
+		return nil, receipt, fmt.Errorf("metrics response is not identity encoded")
+	}
+	body, err := io.ReadAll(resp.Body)
+	bodyBytes := int64(len(body))
+	receipt.BodyBytes = &bodyBytes
+	receipt.BodySHA256 = fmt.Sprintf("%x", sha256.Sum256(body))
+	if err != nil {
+		return nil, receipt, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, receipt, fmt.Errorf("metrics HTTP status %d", resp.StatusCode)
+	}
+	samples = make([]MetricSample, 0, 64)
+	for lineNumber, line := range strings.Split(string(body), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "#") || line == "" {
 			continue
 		}
 		metricName, metricLabels, value, ok := parseMetricSample(line)
-		if !ok {
-			continue
+		if !ok || !model.IsValidMetricName(model.LabelValue(metricName)) {
+			return nil, receipt, fmt.Errorf("invalid metrics sample at line %d", lineNumber+1)
 		}
 		samples = append(samples, MetricSample{
 			Name:   metricName,
@@ -97,7 +158,10 @@ func FetchMetricSamples(ctx context.Context, apiAddr string) ([]MetricSample, er
 			Value:  value,
 		})
 	}
-	return samples, nil
+	if len(samples) == 0 {
+		return nil, receipt, fmt.Errorf("metrics snapshot contains no samples")
+	}
+	return samples, receipt, nil
 }
 
 // SumMetricSamples returns the sum of one metric family matching the requested label subset.

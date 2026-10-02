@@ -73,6 +73,7 @@ type suiteOptions struct {
 	managerHTTP            bool
 	webSocketGateway       bool
 	sharedBackupRepository bool
+	configFileOnly         bool
 	dynamicJoinToken       string
 	nodeConfigOverrides    map[uint64]map[string]string
 	nodeEnv                map[uint64][]string
@@ -153,6 +154,14 @@ func WithNodeEnv(nodeID uint64, env ...string) Option {
 	})
 }
 
+// WithConfigFileOnly keeps rendered configuration in TOML without duplicating
+// it as WK_* process variables. Explicit WithNodeEnv runtime controls remain.
+func WithConfigFileOnly() Option {
+	return optionFunc(func(options *suiteOptions) {
+		options.configFileOnly = true
+	})
+}
+
 // NewWorkspace creates a temp workspace with a default node-1 tree.
 func NewWorkspace(t *testing.T, opts ...Option) Workspace {
 	t.Helper()
@@ -201,7 +210,9 @@ func (s *Suite) StartSingleNodeCluster(opts ...Option) *StartedNode {
 	}
 	renderedConfig := RenderSingleNodeConfig(spec)
 	require.NoError(s.t, os.WriteFile(spec.ConfigPath, []byte(renderedConfig), 0o644))
-	spec.Env = append(envFromConfig(renderedConfig), spec.Env...)
+	if !spec.ConfigFileOnly {
+		spec.Env = append(envFromConfig(renderedConfig), spec.Env...)
+	}
 
 	process := &NodeProcess{
 		Spec:       spec,
@@ -252,7 +263,9 @@ func (s *Suite) StartStaticCluster(nodeCount int, opts ...Option) *StartedCluste
 	for i := range specs {
 		renderedConfig := RenderClusterConfig(specs[i], specs)
 		require.NoError(s.t, os.WriteFile(specs[i].ConfigPath, []byte(renderedConfig), 0o644))
-		specs[i].Env = append(envFromConfig(renderedConfig), specs[i].Env...)
+		if !specs[i].ConfigFileOnly {
+			specs[i].Env = append(envFromConfig(renderedConfig), specs[i].Env...)
+		}
 	}
 
 	cluster := &StartedCluster{
@@ -356,7 +369,9 @@ func (c *StartedCluster) StartSeedJoinNodeNoWait(t testing.TB, cfg SeedJoinNodeC
 	}
 	renderedConfig := RenderSeedJoinNodeConfig(spec, cfg)
 	require.NoError(t, os.WriteFile(spec.ConfigPath, []byte(renderedConfig), 0o644))
-	spec.Env = append(envFromConfig(renderedConfig), spec.Env...)
+	if !spec.ConfigFileOnly {
+		spec.Env = append(envFromConfig(renderedConfig), spec.Env...)
+	}
 
 	process := &NodeProcess{Spec: spec, BinaryPath: c.binaryPath}
 	require.NoError(t, process.Start())
@@ -526,7 +541,10 @@ func (c *StartedCluster) ReconfigureStoppedNodes(overrides map[uint64]map[string
 			return fmt.Errorf("write node %d config: %w", specs[index].ID, err)
 		}
 		externalEnv := nonConfigEnvironment(specs[index].Env, schema)
-		specs[index].Env = append(envFromConfig(rendered), externalEnv...)
+		specs[index].Env = externalEnv
+		if !specs[index].ConfigFileOnly {
+			specs[index].Env = append(envFromConfig(rendered), externalEnv...)
+		}
 		c.Nodes[index].Spec = specs[index]
 	}
 	c.lastReadyz = make(map[uint64]HTTPObservation, len(c.Nodes))
@@ -679,6 +697,7 @@ func buildNodeSpec(nodeID uint64, ports PortSet, workspace Workspace, options su
 		ManagerAddr:     managerAddr,
 		LogDir:          workspace.NodeLogDir(nodeID),
 		ConfigOverrides: configOverrides,
+		ConfigFileOnly:  options.configFileOnly,
 		Env:             cloneEnv(options.nodeEnv[nodeID]),
 	}
 }
