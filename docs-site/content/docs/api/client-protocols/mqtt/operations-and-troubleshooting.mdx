@@ -17,6 +17,12 @@ description: 配置一致的集群入口，理解逻辑配额，按公开信号�
 
 字段、环境变量和范围统一维护在[配置参考](/zh/server/configuration/reference)。同时保留[认证配置](/zh/server/configuration/security)。
 
+## 备份与迁移
+
+`wkcli db export` 的 JSONL 格式尚不支持 MQTT 持久状态，包括 ClientID/UID 绑定、订阅、未完成交换、Will、共享回放和容量记录。发现这些数据时，导出在创建或覆盖输出目录前拒绝操作。关闭 MQTT 开关或等待 Session 过期不会解除这一限制。
+
+保留原数据，使用匹配版本的原生备份与恢复流程。不要通过删除 MQTT 表、回放或恢复记录来绕过拒绝；这些数据可能仍承担投递责任或保存身份绑定。
+
 ## 配额如何生效
 
 | 边界 | 默认值 | 运维含义 |

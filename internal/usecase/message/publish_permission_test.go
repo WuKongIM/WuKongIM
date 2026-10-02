@@ -38,15 +38,17 @@ func TestPublishPermissionUsesCurrentAuthorityDespiteWarmSendCache(t *testing.T)
 	store.members[permissionKey(channelmembers.DenylistChannelID(key), 2)] = map[string]bool{"alice": true}
 	assert(ReasonInBlacklist)
 	delete(store.members[permissionKey(channelmembers.DenylistChannelID(key), 2)], "alice")
-	store.channels[permissionKey("alice", 1)] = metadb.Channel{SendBan: 1}
+	store.userPolicies["alice"] = metadb.SendBanResult{SendBan: 1}
 	assert(ReasonSendBan)
-	delete(store.channels, permissionKey("alice", 1))
+	delete(store.userPolicies, "alice")
 	store.hasAny[permissionKey(channelmembers.AllowlistChannelID(key), 2)] = true
 	assert(ReasonNotInWhitelist)
 	store.members[permissionKey(channelmembers.AllowlistChannelID(key), 2)] = map[string]bool{"alice": true}
 	assert(ReasonSuccess)
-	store.channels[permissionKey("group", 2)] = metadb.Channel{Ban: 1, Disband: 1}
+	store.channels[permissionKey("group", 2)] = metadb.Channel{Ban: 1}
 	assert(ReasonBan)
+	store.channels[permissionKey("group", 2)] = metadb.Channel{Ban: 1, Disband: 1}
+	assert(ReasonDisband)
 	store.channels[permissionKey("group", 2)] = metadb.Channel{Disband: 1}
 	assert(ReasonDisband)
 	delete(store.channels, permissionKey("group", 2))
@@ -137,7 +139,7 @@ func TestPublishPermissionFailsClosedAndPreservesInfrastructureErrors(t *testing
 		t.Fatal("invalid/canceled input reached authority")
 	}
 	failure := errors.New("authority unavailable")
-	store.channelErrs[permissionKey("alice", 1)] = failure
+	store.channelErrs[permissionKey("group", 2)] = failure
 	if reason, err := a.CheckPublishPermission(context.Background(), q); reason != ReasonSystemError || !errors.Is(err, failure) {
 		t.Fatalf("authority failure = %d, %v", reason, err)
 	}

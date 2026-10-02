@@ -422,8 +422,11 @@ specification, runbook, report, or module documentation; link to them when neede
   with extended fields need upgraded owners, including native sends with time.
   Message JSONL carries optional metadata; preflight validates its source clock,
   import budgets count it, and both verify modes bind its exact SHA-256. Native
-  JSONL/digests remain unchanged. MQTT state transfer, restore fencing and
-  capability gates remain before activation.
+  JSONL/digests remain unchanged. Complete MQTT state transfer is unsupported:
+  offline JSONL export rejects MQTT metadata, replay, Will and capacity evidence
+  before preparing output, including ended/orphan state outside a requested Slot range.
+  Preserve the source and use matched native backup/restore; publication metadata
+  alone on ordinary message rows remains transferable.
   See the [publication contract](../specs/mqtt-publication-metadata.md).
   The local MQTT owner registry bounds pending/active/closing reservations and
   admitted scopes. Begin synchronously checks its monotonic lease; cancellation

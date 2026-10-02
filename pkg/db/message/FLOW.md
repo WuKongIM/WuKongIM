@@ -132,7 +132,7 @@ Compatibility maps Channel records/offsets and pinned retained Will receipts wit
   path, and invalidates before and after every attempted mutation. Ordinary
   append does not invalidate unchanged retention state; cancellation, close and
   durable decoding errors remain visible.
-- Close drains admitted operations/pins and closes the engine once; one lease cannot close another.
+- Close drains admitted operations/pins and closes the engine once; one lease cannot close another. Offline `HasMQTTState` skips ordinary keyspaces and detects replay/source/funding/Will evidence even without a catalog or Session.
 - Backup count and content come from one pinned view; restore is exact-retry
   idempotent, conflicts with different state, and cleans partial rows in bounded
   batches before retry.

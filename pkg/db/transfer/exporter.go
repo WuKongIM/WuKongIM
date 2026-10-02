@@ -33,6 +33,9 @@ func ExportBundle(ctx context.Context, root string, store *inspect.Store, opts E
 	if opts.HashSlotCount == 0 {
 		return stats, fmt.Errorf("%w: export hash slot count is required", ErrValidation)
 	}
+	if err := rejectMQTTExport(ctx, store); err != nil {
+		return stats, err
+	}
 	if err := prepareExportRoot(root, opts.Overwrite); err != nil {
 		return stats, err
 	}
@@ -56,6 +59,30 @@ func ExportBundle(ctx context.Context, root string, store *inspect.Store, opts E
 		return stats, err
 	}
 	return stats, nil
+}
+
+// rejectMQTTExport fails before output preparation: bundle v1 cannot preserve
+// MQTT bindings, recovery evidence or capacity debt, including ended/orphan state.
+func rejectMQTTExport(ctx context.Context, store *inspect.Store) error {
+	if store.Meta() == nil || store.Messages() == nil {
+		return fmt.Errorf("%w: export requires open metadata and message stores", ErrValidation)
+	}
+	for _, domain := range []struct {
+		name  string
+		check func(context.Context) (bool, error)
+	}{
+		{"metadata", store.Meta().HasMQTTState},
+		{"message", store.Messages().HasMQTTState},
+	} {
+		found, err := domain.check(ctx)
+		if err != nil {
+			return fmt.Errorf("%w: inspect %s MQTT state: %w", ErrValidation, domain.name, err)
+		}
+		if found {
+			return fmt.Errorf("%w: JSONL export does not support persistent MQTT state; use native backup/restore with matching versions", ErrValidation)
+		}
+	}
+	return nil
 }
 
 func normalizeExportOptions(opts ExportOptions) ExportOptions {

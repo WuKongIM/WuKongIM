@@ -96,7 +96,9 @@ It does not own product business policy or expose engine-specific APIs.
   and idempotent; runtime deletion retains table 3 System 1 authority floors and atomically withdraws person-directory tasks/readiness. Only explicit create reopens a retired identity above its floor; cold callers must reread assigned versions. Create-only batches never overwrite existing rows.
 - MQTT session CAS cannot rebind UID or regress generations. Snapshot/inspection
   includes the row and deadline index; storage CAS alone proves no owner fencing.
-  Product MQTT remains disabled pending its complete recovery/rollout contract.
+  Product MQTT is default-off and opt-in as a development preview; full rollout qualification remains pending.
+  Offline `HasMQTTState` seeks whole registered MQTT row/index/system keyspaces,
+  including retained/orphan fences, independently of caller Slot ranges.
 - The Channel read cache is capacity-bounded, independently locked from shard
   lookup, and exposes current entries and capacity through `MetricsSnapshot`.
 - An imported `conversation_hidden_through_seq` is list-only state. Optional

@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🚀 New Features / 新功能
+
 - Add bilingual MQTT development-preview guides for authentication, topics, messages,
   persistent sessions, Wills, HTTP/SDK interoperability and troubleshooting, with a
   pinned Node.js first-message example. / 新增 MQTT 开发预览中英双语专题及固定版本
@@ -412,6 +414,10 @@ move those entries into a version section named for that exact tag.
 - Add text-message editing to the embedded Demo for sent messages in direct and group chats, with conflict/draft handling and live message/preview updates. / 内嵌 Demo 支持编辑本人已发送的单聊、群聊文本，处理冲突与草稿，并实时更新正文及会话摘要。
 
 ### 🐛 Bug Fixes / 问题修复
+
+- Refuse JSONL exports containing persistent MQTT bindings, replay, Will or capacity evidence before touching the output directory; preserve the source and existing bundles. Use matching native backup/restore tools for MQTT data. / JSONL 导出在写入或覆盖输出目录前拒绝含 MQTT 持久绑定、回放、遗嘱或容量证明的数据，保留原数据与已有导出文件；MQTT 数据需使用匹配版本的原生备份恢复工具。
+
+- Include MQTT maintenance, storage and subscription-closure metrics plus Slot read-barrier latency in the runtime/storage Grafana dashboard. / 运行与存储 Grafana 面板补齐 MQTT 维护、容量、订阅关闭指标及 Slot 读屏障延迟。
 
 - Rebuild Node-owned Slot proposal, task and quorum RPC dependencies after Stop or failed startup, preserving injected adapters and durable messages across repeated starts. / 停机或启动失败后重新构建 Node 自建的 Slot 提案、任务及 quorum RPC 依赖，保留注入适配器与消息持久化状态，修复同一 Node 重复启动无法写入的问题。
 

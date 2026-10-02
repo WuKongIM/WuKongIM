@@ -51,8 +51,18 @@ func TestWillPreparationFreezesOnlyPayloadAndPreparedSendRechecksPolicy(t *testi
 	require.Equal(t, 2, steps)
 	store.members[permissionKey("group", 2)]["alice"] = true
 	hook.mutate = func(c SendCommand) (SendCommand, Reason, error) { c.FromUID = "system"; return c, ReasonSuccess, nil }
+	body, reason, err = a.PrepareWill(ctx, q)
+	require.NoError(t, err)
+	require.Equal(t, ReasonSubscriberNotExist, reason, "changed hook identity must authorize again")
+	require.Nil(t, body)
+	// Even an otherwise authorized replacement cannot change a frozen Will identity.
+	store.members[permissionKey("group", 2)]["authorized"] = true
+	hook.mutate = func(c SendCommand) (SendCommand, Reason, error) {
+		c.FromUID = "authorized"
+		return c, ReasonSuccess, nil
+	}
 	_, reason, err = a.PrepareWill(ctx, q)
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrInvalidCommand)
 	require.Equal(t, ReasonInvalidRequest, reason)
 	q.PublicationMetadata = nil
 	_, _, err = a.PrepareWill(ctx, q)

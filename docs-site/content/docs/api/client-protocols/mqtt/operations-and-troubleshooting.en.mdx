@@ -17,6 +17,12 @@ The default listener is `0.0.0.0:1883`; the tutorial restricts it to loopback. P
 
 Fields, environment variables and ranges are maintained in the [configuration reference](/en/server/configuration/reference). Keep the [authentication configuration](/en/server/configuration/security) as well.
 
+## Backup and migration
+
+The JSONL format used by `wkcli db export` does not yet support persistent MQTT state: ClientID/UID bindings, subscriptions, unfinished exchanges, Wills, shared replay and capacity records. Export refuses sources containing that state before creating or overwriting the output directory. Disabling MQTT or waiting for Session expiry does not remove this restriction.
+
+Preserve the source and use native backup and restore with matching versions. Do not delete MQTT tables, replay or recovery records to bypass refusal; they may still retain delivery obligations or identity bindings.
+
 ## Quotas
 
 | Boundary | Default | Operational meaning |
