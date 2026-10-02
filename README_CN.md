@@ -37,7 +37,7 @@ WuKongIM 负责连接、消息存储、同步、在线状态与在线投递。�
 | **自带存储的通信核心** | 消息、元数据和复制日志存储内置，减少部署与运维所需的外部服务。 |
 | **统一的集群模型** | 从单节点集群起步，多节点部署沿用相同的消息模型，默认采用 256 个 Hash Slot。 |
 | **完整的消息基础能力** | 频道内有序消息、离线同步、多设备会话，以及个人、群组和自定义频道。 |
-| **开箱可用的工具** | 四个可运行的 Demo，以及内嵌 Manager、指标、诊断和备份工具。 |
+| **开箱可用的工具** | 六个可运行的 Demo，以及内嵌 Manager、指标、诊断和备份工具。 |
 
 > [!NOTE]
 > **v3 目前处于 beta 阶段。** API、配置和持久化格式仍可能变化。更换版本前请阅读[升级指南](https://docs.githubim.com/zh/server/operations/upgrade-and-migration/)，安装软件包后使用 `wukongim version` 确认版本。
@@ -74,6 +74,8 @@ node demo/start.mjs
 | **流式回复** | 逐段回复、模型接入、取消与失败处理 | [流式 Demo](./demo/streamdemo/README.md) |
 | **在线客服** | AI 接待、人工接管与多访客会话 | [客服 Demo](./demo/supportdemo/README.md) |
 | **Agent** | 工具调用、任务确认、暂停与取消 | [Agent Demo](./demo/agentdemo/README.md) |
+| **MQTT 智能门店** | 冷柜告警、远程制冷、设备回执、离线告警与 IM 协作 | [MQTT Demo](./demo/mqttdemo/README.md) |
+| **直播新品发布会** | 实时弹幕、点赞、置顶公告、房间禁言与重连恢复 | [直播 Demo](./demo/livedemo/README.md) |
 
 <details>
 <summary><strong>预览当前 Demo 界面</strong>：流式回复、在线客服、Agent 与手机聊天</summary>

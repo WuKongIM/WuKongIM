@@ -37,7 +37,7 @@ WuKongIM handles connections, message storage, synchronization, presence, and on
 | **Self-contained messaging core** | Built-in message, metadata, and replication storage; fewer services to deploy and operate. |
 | **One cluster model** | Start with a single-node cluster, then deploy multiple nodes using the same messaging model. 256 hash slots by default. |
 | **Messaging building blocks** | Per-channel ordering, offline synchronization, multi-device sessions, and personal, group, or custom channels. |
-| **Tools you can use immediately** | Four runnable demos, an embedded Manager, metrics, diagnostics, and backup tools. |
+| **Tools you can use immediately** | Six runnable demos, an embedded Manager, metrics, diagnostics, and backup tools. |
 
 > [!NOTE]
 > **v3 is in beta.** APIs, configuration, and durable formats may change. Review the [upgrade guidance](https://docs.githubim.com/en/server/operations/upgrade-and-migration/) before changing versions; check installed packages with `wukongim version`.
@@ -75,6 +75,7 @@ The launcher builds the server, prepares the demo backends, and opens the demo h
 | **Customer support** | AI reception, human takeover, and multiple visitor conversations | [Support Demo](./demo/supportdemo/README.md) |
 | **Agent** | Tool calls, task confirmation, pause, and cancellation | [Agent Demo](./demo/agentdemo/README.md) |
 | **MQTT smart store** | Freezer alarms, remote cooling, device receipts, offline alerts, and IM collaboration | [MQTT Demo](./demo/mqttdemo/README.md) |
+| **Live product launch** | Real-time barrage, likes, pinned announcements, per-room moderation, and reconnect recovery | [Live Demo](./demo/livedemo/README.md) |
 
 <details>
 <summary><strong>Preview the current demos</strong> — streaming replies, customer support, Agent, and mobile chat</summary>

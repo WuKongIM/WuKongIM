@@ -182,3 +182,19 @@ h1 span::after { content: ""; position: absolute; z-index: -1; background: #ffdf
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+.live-card { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; }
+.live-preview { height: 100%; min-height: 250px; background: #e7ede5; border-bottom: 0; border-right: 1px solid #e1e7dc; padding: 28px 32px; display: flex; align-items: center; }
+.mini-live-stage { position: relative; width: 100%; min-height: 186px; padding: 12px; background: #183329; border-radius: 12px; box-shadow: 0 12px 28px #18332916; color: #dce8d5; }
+.mini-live-heading { display: flex; justify-content: space-between; font-size: 9px; }
+.mini-live-heading small { color: #91ad93; font-size: 7px; }
+.mini-product { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 127px; }
+.mini-product svg { width: 43px; height: 43px; stroke: #b4cdb0; fill: none; stroke-width: 1; }
+.mini-product strong { font-size: 17px; letter-spacing: 1px; }
+.mini-barrage { position: absolute; padding: 4px 8px; font-size: 8px; border-radius: 10px; color: #dce8d5; background: #345d48; }
+.barrage-one { top: 44px; left: 22px; }
+.barrage-two { top: 76px; right: 13px; }
+.mini-live-notice { font-size: 7px; color: #c9d9bd; background: #2c4737; padding: 6px 8px; border-radius: 5px; }
+@media (max-width: 680px) {
+  .live-card { grid-template-columns: 1fr; }
+  .live-preview { min-height: 236px; border-right: 0; border-bottom: 1px solid #e1e7dc; padding: 24px 22px; }
+}

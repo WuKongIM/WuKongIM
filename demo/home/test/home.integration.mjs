@@ -1,5 +1,5 @@
-// Process-level acceptance: the catalog and all five embedded Demo entrances.
-// MQTT failures: missing scene card/bundle/assets or a cross-port return link.
+// Process-level acceptance: the catalog and all six embedded Demo entrances.
+// Live failures: missing sixth scene, readonly bundle/assets or cross-port return link.
 // Checks are declared before implementing the catalog; no model calls are made.
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
@@ -49,7 +49,7 @@ try {
   check('catalog_redirect_preserves_query', redirect.status === 308 && redirect.headers.get('location') === '/demos/?from=test');
   const response = await fetch(api + '/demos/'), html = await response.text();
   check('catalog_is_embedded', response.ok && html.includes('WuKongIM Demo'));
-  check('five_scenario_cards', [...html.matchAll(/data-demo="[^"]+"/g)].length === 5);
+  check('six_scenario_cards', [...html.matchAll(/data-demo="[^"]+"/g)].length === 6);
   check('index_revalidates', response.headers.get('cache-control') === 'no-cache' && !!response.headers.get('etag'));
   check('conditional_index_304', (await fetch(api + '/demos/', { headers: { 'If-None-Match': response.headers.get('etag') } })).status === 304);
   const head = await fetch(api + '/demos/', { method: 'HEAD' });
@@ -60,7 +60,7 @@ try {
     const asset = await fetch(api + path);
     check('home_asset_immutable', asset.ok && asset.headers.get('cache-control')?.includes('immutable'));
   }
-  const demos = [['chat', '/demo/'], ['stream', '/streamdemo/'], ['support', '/supportdemo/'], ['agent', '/agentdemo/'], ['mqtt', '/mqttdemo/']];
+  const demos = [['chat', '/demo/'], ['stream', '/streamdemo/'], ['support', '/supportdemo/'], ['agent', '/agentdemo/'], ['mqtt', '/mqttdemo/'], ['live', '/livedemo/']];
   for (const [name, path] of demos) {
     check(name + '_card_destination', html.includes(`href="${path}"`));
     const page = await fetch(api + path), index = await page.text();
@@ -70,7 +70,7 @@ try {
   check('missing_asset_is_404', (await fetch(api + '/demos/assets/missing.css')).status === 404);
   check('catalog_has_no_mutation_endpoint', (await fetch(api + '/demos/', { method: 'POST' })).status === 405);
   start('preview', process.execPath, ['server.mjs'], {
-    ...env, WK_DEMO_PORT: String(preview), WK_DEMO_CHAT_URL: api + '/demo/', WK_DEMO_STREAM_URL: api + '/streamdemo/', WK_DEMO_SUPPORT_URL: api + '/supportdemo/', WK_DEMO_AGENT_URL: api + '/agentdemo/', WK_DEMO_MQTT_URL: api + '/mqttdemo/',
+    ...env, WK_DEMO_PORT: String(preview), WK_DEMO_CHAT_URL: api + '/demo/', WK_DEMO_STREAM_URL: api + '/streamdemo/', WK_DEMO_SUPPORT_URL: api + '/supportdemo/', WK_DEMO_AGENT_URL: api + '/agentdemo/', WK_DEMO_MQTT_URL: api + '/mqttdemo/', WK_DEMO_LIVE_URL: api + '/livedemo/',
   });
   await ready(base + '/demos/');
   check('preview_home_works', (await fetch(base + '/demos/')).ok);

@@ -1634,7 +1634,7 @@ specification, runbook, report, or module documentation; link to them when neede
   new demo session.
 
 - Product HTTP `/` redirects to `/demos/`, a stateless embedded catalog linking
-  `/demo/`, `/streamdemo/`, `/supportdemo/`, `/agentdemo/` and `/mqttdemo/`. The catalog does
+  `/demo/`, `/streamdemo/`, `/supportdemo/`, `/agentdemo/`, `/mqttdemo/` and `/livedemo/`. The catalog does
   not create sessions, connect an SDK or invoke models. Its loopback preview
   redirects each entrance to the independently running Demo process.
 
@@ -1643,7 +1643,7 @@ specification, runbook, report, or module documentation; link to them when neede
   inherited product overrides, and stops only its own child process groups.
   Startup health probes do not create user credentials or model requests.
 
-- All five Demo UIs expose a home link. Catalog redirects carry a `home`
+- All six Demo UIs expose a home link. Catalog redirects carry a `home`
   parameter across origins and reloads; it accepts only the same origin or
   loopback catalog URLs. Direct embedded entries use their same-origin catalog;
   direct Node entries publish the configured Product API catalog in page metadata.
@@ -1656,6 +1656,17 @@ specification, runbook, report, or module documentation; link to them when neede
   not execution. Persistent group subscriptions recover offline alerts without
   HTTP history substitution. SDK-compatible text payloads carry bounded business
   metadata; stable message IDs and command IDs deduplicate distinct responsibilities.
+
+- The [live Demo](../../demo/livedemo/README.md) uses ordinary group type 2,
+  provisioned membership and room denylist operations; Live type 9 and SDK SUB
+  do not supply that room contract. Browser SDK barrage/likes use NoPersist and
+  no SyncOnce; self ACK and independent audience delivery are separate evidence.
+  The loopback BFF owns role capabilities and versioned current snapshots. Unknown
+  mute writes retain immutable intent before any opposite action; confirmed policy
+  and pending status remain separate. Notification progress is private metadata,
+  with a distinct stable event ID per public snapshot version. Failed notification
+  does not roll back saved state; reconnect restores state without history replay.
+  Bounded in-memory rooms and credentials expire or become invalid after restart.
 
 - Transport byte observations preserve frame kind and scheduling lane through
   batched writes and the bounded observer drain. Fixed direction/lane counters

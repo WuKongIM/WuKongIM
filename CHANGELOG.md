@@ -8,6 +8,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🚀 New Features / 新功能
 
+- Add a live product-launch Demo to the one-command catalog, with real SDK
+  barrage and likes, host announcements, per-room viewer mute/unmute, and current
+  state recovery without offline barrage replay. / 一键 Demo 首页新增新品发布会
+  直播场景，支持真实 SDK 弹幕与点赞、主播公告、房间禁言/解除，重连恢复当前状态而不补播旧弹幕。
 - Add MQTT 5 over WebSocket for direct browser clients, with an independent
   listener, negotiated `mqtt` subprotocol and binary messaging. / 新增 MQTT 5
   WebSocket 接入，浏览器可直连独立监听器，协商 `mqtt` 子协议并使用二进制消息。

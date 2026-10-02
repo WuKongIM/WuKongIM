@@ -48,6 +48,9 @@ const AgentDemoPath = "/agentdemo/"
 // MQTTDemoPath serves the smart-store UI backed by browser MQTT clients.
 const MQTTDemoPath = "/mqttdemo/"
 
+// LiveDemoPath serves the live-room UI backed by browser SDK clients.
+const LiveDemoPath = "/livedemo/"
+
 // ErrListenAddrRequired reports that the HTTP API listen address is empty.
 var ErrListenAddrRequired = errors.New("internal/access/api: listen address required")
 
@@ -456,7 +459,8 @@ func restoreMaintenanceAllowedPath(path string) bool {
 		strings.HasPrefix(path, StreamDemoPath) || path == strings.TrimSuffix(StreamDemoPath, "/") ||
 		strings.HasPrefix(path, SupportDemoPath) || path == strings.TrimSuffix(SupportDemoPath, "/") ||
 		strings.HasPrefix(path, AgentDemoPath) || path == strings.TrimSuffix(AgentDemoPath, "/") ||
-		strings.HasPrefix(path, MQTTDemoPath) || path == strings.TrimSuffix(MQTTDemoPath, "/")
+		strings.HasPrefix(path, MQTTDemoPath) || path == strings.TrimSuffix(MQTTDemoPath, "/") ||
+		strings.HasPrefix(path, LiveDemoPath) || path == strings.TrimSuffix(LiveDemoPath, "/")
 }
 
 func cloneLegacyRouteNodes(nodes map[uint64]LegacyRouteNodeAddresses) map[uint64]LegacyRouteNodeAddresses {
@@ -627,7 +631,7 @@ func (s *Server) registerDemoRoutes() {
 	for _, bundle := range []struct {
 		path    string
 		handler http.Handler
-	}{{DemoHomePath, demoui.HomeHandler()}, {DemoPath, demoui.Handler()}, {StreamDemoPath, demoui.StreamHandler()}, {SupportDemoPath, demoui.SupportHandler()}, {AgentDemoPath, demoui.AgentHandler()}, {MQTTDemoPath, demoui.MQTTHandler()}} {
+	}{{DemoHomePath, demoui.HomeHandler()}, {DemoPath, demoui.Handler()}, {StreamDemoPath, demoui.StreamHandler()}, {SupportDemoPath, demoui.SupportHandler()}, {AgentDemoPath, demoui.AgentHandler()}, {MQTTDemoPath, demoui.MQTTHandler()}, {LiveDemoPath, demoui.LiveHandler()}} {
 		prefix := strings.TrimSuffix(bundle.path, "/")
 		handler := http.StripPrefix(prefix, bundle.handler)
 		redirect := func(c *gin.Context) {

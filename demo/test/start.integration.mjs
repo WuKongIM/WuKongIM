@@ -4,6 +4,8 @@
 // Successful setup must reach real 256-hash-slot cluster readiness and SDK delivery.
 // MQTT failures: missing listener/provisioning process, wrong published address,
 // absent scene entrance, or a ready scene that cannot deliver a real MQTT message.
+// Live failures: missing sixth entrance/backend, shared viewer identity, wrong
+// route or a success ACK without actual transient SDK delivery to another viewer.
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
@@ -74,16 +76,16 @@ try {
   const run = launch('success', {WK_NODE_ID:'999', WK_CLUSTER_NODES:'invalid inherited config'});
   let report;
   await until(async () => {try {report = await run.report();return report.status === 'ready';} catch {return false;}}, 'all services ready', 120000);
-  check('every_owned_service_is_ready', report.services.length === 6 && report.services.every(s => s.ready && alive(s.pid)));
+  check('every_owned_service_is_ready', report.services.length === 7 && report.services.every(s => s.ready && alive(s.pid)));
   check('occupied_default_home_port_uses_free_port', new URL(report.home).port !== '5174');
   check('real_cluster_ready', (await json(report.api+'/readyz')).ready === true);
   check('isolated_256_hash_slot_single_node_cluster', report.hashSlots === 256 && report.topology === 'single-node cluster' && (await readFile(join(run.directory,'wukongim.toml'),'utf8')).includes('id = 1'));
   const home = await fetch(report.home).then(r=>r.text());
-  check('five_cards_on_launched_home', [...home.matchAll(/data-demo="/g)].length === 5);
+  check('six_cards_on_launched_home', [...home.matchAll(/data-demo="/g)].length === 6);
   check('mqtt_ws_address_is_loopback', new URL(report.mqttWs).hostname === '127.0.0.1' && new URL(report.mqttWs).pathname === '/mqtt');
   const toml = await readFile(join(run.directory,'wukongim.toml'),'utf8');
   check('mqtt_enabled_with_independent_websocket', toml.includes('[mqtt]') && toml.includes('protocol = "mqtt"') && toml.includes('path = "/mqtt"'));
-  for (const [name,path] of [['chat','/demo/'],['stream','/streamdemo/'],['support','/supportdemo/'],['agent','/agentdemo/'],['mqtt','/mqttdemo/']]) {
+  for (const [name,path] of [['chat','/demo/'],['stream','/streamdemo/'],['support','/supportdemo/'],['agent','/agentdemo/'],['mqtt','/mqttdemo/'],['live','/livedemo/']]) {
     const response = await fetch(new URL(path,report.home), {redirect:'manual'});
     const destination = response.headers.get('location');
     const entrance = new URL(destination);
@@ -93,7 +95,7 @@ try {
     check(name+'_page_and_assets_work', page.ok && (await Promise.all([...html.matchAll(/(?:src|href)="(\/[^\"]+\/assets\/[^\"]+)"/g)].map(async ([,asset]) => (await fetch(new URL(asset,destination))).ok))).every(Boolean));
     if(name !== 'chat') check(name+'_standalone_catalog_fallback', html.includes(`name="wk-demo-home" content="${report.api}/demos/"`));
     if(name === 'stream') check('stream_has_api_and_model_proxy', html.includes(report.api) && html.includes('wk-model-proxy'));
-    if(['support','agent','mqtt'].includes(name)) check(name+'_uses_same_origin_backend', html.includes(`wk-${name}-backend`));
+    if(['support','agent','mqtt','live'].includes(name)) check(name+'_uses_same_origin_backend', html.includes(`wk-${name}-backend`));
   }
   const mqttSession = await json(new URL('/mqttdemo/api/session',report.demos.mqtt),{});
   check('mqtt_provisioning_publishes_owned_listener', mqttSession.mqttWsUrl === report.mqttWs);
@@ -120,6 +122,20 @@ try {
   const packet = receivedMqtt.find(m=>m.text.includes('launcher MQTT check')).packet;
   check('mqtt_real_group_delivery_identity', /^\d+$/.test(packet.properties.userProperties['wk.message_id']) && packet.properties.userProperties['wk.from_uid'] === mqttSession.device.uid && packet.properties.userProperties['wk.client_msg_no'] === mqttClientNumber);
   const {WKIM, WKIMEvent} = createRequire(join(root,'demo/agentdemo/package.json'))('easyjssdk');
+  const live = await json(new URL('/livedemo/api/rooms',report.demos.live),{});
+  const livePeer = await json(new URL('/livedemo/api/join',report.demos.live),{roomId:live.roomId,invite:live.invite});
+  check('live_independent_viewer_identity', live.viewer.uid !== livePeer.viewer.uid && live.viewerKey !== livePeer.viewerKey && !livePeer.ownerKey);
+  const liveMessages = [];
+  const liveClient = bootstrap => WKIM.init(bootstrap.wsUrl,{uid:bootstrap.viewer.uid,token:bootstrap.viewer.token,deviceFlag:1},{singleton:false});
+  const liveA = liveClient(live), liveB = liveClient(livePeer); clients.push(liveA,liveB);
+  liveB.on(WKIMEvent.Message,m=>liveMessages.push(m));
+  await Promise.all([liveA.connect(),liveB.connect()]);
+  const liveEvent = randomUUID();
+  await liveA.send(live.roomId,2,{type:1,content:'launcher live check',live_demo:{kind:'barrage',roomId:live.roomId,eventId:liveEvent}},{header:{noPersist:true,syncOnce:false},clientMsgNo:liveEvent});
+  await until(()=>liveMessages.some(m=>m.payload?.live_demo?.eventId===liveEvent),'launcher live viewer reception',60000);
+  const liveReceived = liveMessages.find(m=>m.payload?.live_demo?.eventId===liveEvent);
+  check('live_real_transient_delivery',liveReceived.fromUid===live.viewer.uid && liveReceived.channelId===live.roomId && Number(liveReceived.messageSeq)===0);
+  await json(new URL('/livedemo/api/close',report.demos.live),{roomId:live.roomId},live.ownerKey);
   const messages = [], events = [];
   const session = await json(new URL('/agentdemo/api/session',report.demos.agent), {});
   const sdk = WKIM.init(session.wsUrl,{uid:session.user.uid,token:session.user.token,deviceFlag:1},{singleton:false}); clients.push(sdk);

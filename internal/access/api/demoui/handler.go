@@ -16,6 +16,7 @@ var embeddedStreamHandler = newBundleHandler(embeddedStreamDist, "streamdist")
 var embeddedSupportHandler = newBundleHandler(embeddedSupportDist, "supportdist")
 var embeddedAgentHandler = newBundleHandler(embeddedAgentDist, "agentdist")
 var embeddedMQTTHandler = newBundleHandler(embeddedMQTTDist, "mqttdist")
+var embeddedLiveHandler = newBundleHandler(embeddedLiveDist, "livedist")
 
 // HomeHandler returns the stateless catalog without starting Demo business work.
 func HomeHandler() http.Handler { return embeddedHomeHandler }
@@ -31,6 +32,9 @@ func AgentHandler() http.Handler { return embeddedAgentHandler }
 
 // MQTTHandler serves the UI; identity provisioning stays in the Demo backend.
 func MQTTHandler() http.Handler { return embeddedMQTTHandler }
+
+// LiveHandler serves the UI; room management stays in the Demo backend.
+func LiveHandler() http.Handler { return embeddedLiveHandler }
 
 // Handler returns the read-only HTTP handler for the embedded chat Demo.
 func Handler() http.Handler {

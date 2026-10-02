@@ -41,7 +41,7 @@ bench or debug request
   -> bounded runtime/read-model port or strict terminal-fence prepare
   -> low-cardinality response, opaque grant, or stable failure
 
-/demos/* and the five Demo bundles
+/demos/* and the six Demo bundles
   -> embedded immutable asset or revalidated index
   -> same-origin product APIs and /route discovery
 ```
@@ -111,7 +111,7 @@ bench or debug request
   responses are unchanged.
 
 - `/streamdemo/*` serves a separate embedded EasySDK demo bundle with the same immutable-asset/index-revalidation policy as the chat demo. It remains reachable during maintenance.
-- `/` redirects to the read-only `/demos/` catalog; it lists five existing Demo
+- `/` redirects to the read-only `/demos/` catalog; it lists six existing Demo
   entrances without starting sessions or models. Both remain available during maintenance.
 - `/agentdemo/*` serves the task assistant UI with the same read-only bundle
   policy. Tool approvals, task control and model calls stay in the separate
@@ -122,6 +122,9 @@ bench or debug request
 - `/mqttdemo/*` serves the smart-store UI. Browser clients connect directly to
   the MQTT WebSocket listener; identity and group provisioning stay in the
   separate loopback Demo process. The static bundle remains available in maintenance.
+- `/livedemo/*` serves the live-room UI; browser SDK clients send transient
+  interactions, while the loopback Demo process owns identities, room snapshots
+  and moderation. Static assets remain available during maintenance.
 
 - User/channel send-ban POST and GET routes expose policy values and decimal
   CAS versions through the existing management boundary. Strict bounded bodies
