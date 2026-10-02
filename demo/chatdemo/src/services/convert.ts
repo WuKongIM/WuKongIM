@@ -3,43 +3,12 @@ import BigNumber from "bignumber.js";
 import { Buffer } from 'buffer';
 export class Convert {
     static toMessage(msgMap: any): Message {
-        // Keep SDK identity/version validation and the Demo's stream/extra fields together.
+        // Keep SDK identity/version validation and the Demo's extra fields together.
         const message = messageFromHTTP(msgMap);
         message.clientSeq = msgMap.client_seq;
         if (msgMap.revoke) message.remoteExtra.revoke = msgMap.revoke === 1;
         if (msgMap.message_extra) message.remoteExtra = this.toMessageExtra(msgMap.message_extra);
 
-        // 解析 event_meta（新协议）
-        const eventMeta = msgMap["event_meta"]
-        if (eventMeta) {
-            (message as any).eventMeta = eventMeta
-            if (eventMeta.completed) {
-                (message as any).completed = true
-            }
-        }
-
-        // 从 event_meta snapshot 或 legacy stream_data 中提取流文本
-        let streamTextResolved = false
-        if (eventMeta && eventMeta.events && eventMeta.events.length > 0) {
-            for (const ek of eventMeta.events) {
-                if (ek.event_key === "main" || eventMeta.events.length === 1) {
-                    const snapshot = ek.snapshot
-                    if (snapshot && snapshot.kind === "text" && snapshot.text) {
-                        message.streamText = snapshot.text
-                        streamTextResolved = true
-                        break
-                    }
-                }
-            }
-        }
-        if (!streamTextResolved) {
-            const streamBase64Data = msgMap["stream_data"]
-            if (streamBase64Data) {
-                const streamText = Buffer.from(streamBase64Data, 'base64')
-                message.streamText = streamText.toString('utf8')
-            }
-        }
-       
         message.isDeleted = msgMap["is_deleted"] === 1
 
         return message

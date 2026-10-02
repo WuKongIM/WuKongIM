@@ -412,7 +412,7 @@ func (db *MetaDB) importHashSlotSnapshot(ctx context.Context, snap SlotSnapshot,
 	if err != nil {
 		return err
 	}
-	decoded, err := decodeSlotSnapshotPayload(snap.Data)
+	decoded, body, err := parseSlotSnapshotPayload(snap.Data)
 	if err != nil {
 		return err
 	}
@@ -431,10 +431,13 @@ func (db *MetaDB) importHashSlotSnapshot(ctx context.Context, snap SlotSnapshot,
 			}
 		}
 	}
-	for _, entry := range decoded.Entries {
-		if err := db.stageSlotSnapshotEntry(batch, entry, normalized, preserveMigrationMeta); err != nil {
+	if err := visitParsedSlotSnapshotPayload(decoded, body, func(key, value []byte) error {
+		if err := contextErr(ctx); err != nil {
 			return err
 		}
+		return db.stageSlotSnapshotEntry(batch, snapshotEntry{Key: key, Value: value}, normalized, preserveMigrationMeta)
+	}); err != nil {
+		return err
 	}
 	if err := batch.Commit(true); err != nil {
 		return err

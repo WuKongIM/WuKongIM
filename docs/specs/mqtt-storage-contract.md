@@ -75,7 +75,7 @@ or cross-node persistence are implemented.
 
 ## Slot command for the session CAS
 
-New Slot command ID **67** carries one expected revision and one bounded session
+New Slot command ID **80** carries one expected revision and one bounded session
 row. The existing command header remains version 1; this command's JSON body has
 its own explicit version 1, rejects unknown fields/versions/trailing values, and
 is bounded to 32 KiB including the header. No MQTT command is proposed by product
@@ -100,7 +100,7 @@ Columns 1–4 are the primary tuple. The checksum column envelope
 is version 1; all initial value fields are required. Target kinds are user inbox
 (1) and group (2); the use case validates canonical topic/target correspondence.
 
-Slot command **68** has a version-1 JSON body, rejects unknown fields and trailing
+Slot command **81** has a version-1 JSON body, rejects unknown fields and trailing
 values, and is bounded to 32 KiB including its existing version-1 command header.
 It atomically checks the session revision and full
 owner identity, mutates the subscription and increments session revision. It
@@ -163,7 +163,7 @@ not entered the bounded inflight window. It does not authorize content GC or
 confirm network delivery. Future window/ACK commands must preserve gaps and
 atomically maintain the cursor, exchange records and session counters.
 
-Slot command **69** initially supports cursor initialization and forward backlog
+Slot command **82** initially supports cursor initialization and forward backlog
 accounting. It checks the complete session owner and expected revision, current
 session/subscription generation and captured authorization version. Cursor,
 session revision/counters and applied watermark share one commit. New cursors
@@ -176,7 +176,7 @@ Quota overflow persists the cursor and explicitly ends the session with the quot
 reason in the same commit, preserving the reason and revision for exact retry.
 No wall clock, access check or cross-Slot source proof is inferred by storage.
 
-Command 69 also supports explicit **CancelInit (3)** for interrupted preparation.
+Command 82 also supports explicit **CancelInit (3)** for interrupted preparation.
 It initializes only a missing empty cursor under an exact non-ended Session owner,
 after the same subscription generation is Removing/Removed with matching
 authorization, or a newer generation replaced it. Ordinary Init (1) and Account
@@ -186,7 +186,7 @@ proofs. Old peers reject operation 3. Row encodings and the bounded version-1
 command envelope are unchanged; all participating nodes must match. See
 [source drain](mqtt-source-drain.md) for the usecase and failure inventory.
 
-Command 69 **AccountQualified (4)** adds bounded original charge receipts in
+Command 82 **AccountQualified (4)** adds bounded original charge receipts in
 cursor table **24**, System **1**, keyed by full cursor tuple and range From.
 Optional columns **25/26/27** store accounting version/head/tail; they are all
 absent for legacy version 0 or all present with version 1. A receipt spans at
@@ -506,7 +506,7 @@ Window Advance (command 70 operation 3) now also accepts Offline Sessions only
 when the same subscription generation is Removing/Removed with matching
 authorization, or a strictly newer generation proves the old intent closed.
 Owner tuple, lifetime and exact parent revision still fence every mutation.
-Offline admission and ACK remain forbidden. CancelInit (command 69 operation 3)
+Offline admission and ACK remain forbidden. CancelInit (command 82 operation 3)
 also permits Offline under its existing closed-intent witness; ended lifetimes
 remain rejected. No command, column, index or row encoding changes, but matched
 FSM binaries are required because acceptance semantics changed. See

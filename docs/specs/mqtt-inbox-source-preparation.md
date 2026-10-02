@@ -15,7 +15,7 @@
   Protection is reconfirmed after registration. A changed generation, regressed
   source, missing cursor behind an active binding or conflicting boundaries fails.
 - Cursor initialization uses the current Session revision and full stored owner
-  tuple through command 69. Concurrent takeover/renewal is fenced by that CAS;
+  tuple through command 82. Concurrent takeover/renewal is fenced by that CAS;
   retries may follow a new owner within the same lifetime, never a new lifetime.
 - Lost replies at unknown registration, boundary fixation, cursor initialization
   or activation retain recoverable work. A cursor reread must be at least as new

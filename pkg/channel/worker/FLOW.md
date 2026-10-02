@@ -41,6 +41,11 @@ It does not own reactor state machines, business retries, or dependency policy.
    checkpoint pool, retaining bounded maintenance-tail proofs with identical lease cleanup and no body transfer.
    Retained Will receipt reads use the same checkpoint pool and captured HW;
    unsupported stores fail before checkpointing and every acquired lease closes.
+   When the log offers `SubmitCommit`, a commit releases its worker after submission but keeps its
+   queued+executing budget, task context, and a Close join slot until the one
+   terminal callback finishes publishing its result. Admission atomically reserves
+   one shared outstanding slot before enqueue for every task in the pool;
+   rejection, queued cancellation and completed publication release it.
 3. Close admission, resolve queued accepted tasks as closed when configured,
    cancel the runtime for active dependency calls, wait for handlers, and
    release the executor.

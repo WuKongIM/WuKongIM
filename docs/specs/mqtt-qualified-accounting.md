@@ -19,7 +19,7 @@ Cursor optional columns **25/26/27** store accounting version/head/tail. The opt
 retains legacy semantics; version 1 requires receipts. Existing inflight work may
 remain during the upgrade, but no unadmitted legacy backlog may be guessed.
 
-Command 69 operation **4** (AccountQualified) installs receipts, counters and quota
+Command 82 operation **4** (AccountQualified) installs receipts, counters and quota
 termination in one existing Session-Slot commit. It checks exact subscription
 revision as well as owner/parent fences. The caller proves protected committed
 coverage and qualification. Receipt totals must exactly match count/byte additions;

@@ -28,7 +28,7 @@ constant throughout the following live runtime's ordinary updates.
 
 MQTT read kind 22 adds optional `runtime_channel` query and `runtime` result.
 The key is a bounded ordinary Channel ID/type. Routing uses that Channel ID,
-not the Will's ClientID. Existing RPC 91 supplies the fresh ReadIndex/apply barrier
+not the Will's ClientID. Existing RPC 106 supplies the fresh ReadIndex/apply barrier
 and rechecks leadership/mapping after reading one snapshot. The view includes the
 exact key, optional live runtime, and `retired_through` from table 3 System 1.
 Zero retirement denotes no retained deletion witness; it is not missing runtime.

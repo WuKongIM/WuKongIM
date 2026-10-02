@@ -1070,8 +1070,10 @@ func (o *transportMetricsObserver) ObserveTransport(event transport.Event) {
 	switch event.Name {
 	case "sent_bytes":
 		o.metrics.Transport.ObserveSentBytes(transportFrameKindLabel(event.Kind), event.Bytes)
+		o.metrics.Transport.ObserveLanePayloadBytes("send", transportPriorityLabel(event.Priority), event.Bytes)
 	case "received_bytes":
 		o.metrics.Transport.ObserveReceivedBytes(transportFrameKindLabel(event.Kind), event.Bytes)
+		o.metrics.Transport.ObserveLanePayloadBytes("receive", transportPriorityLabel(event.Priority), event.Bytes)
 	case "write_batch":
 		o.metrics.Transport.ObserveWriteBatches(transportEventCount(event), event.Items, event.Bytes, event.Capacity)
 	case "pending_rpc":
@@ -2775,4 +2777,41 @@ func (o multiChannelObserver) MessageUpdateReadObservationEnabled() bool {
 		}
 	}
 	return false
+}
+
+func (o channelMetricsObserver) ObserveSendPermissionCount(kind string, n int) {
+	if o.metrics != nil {
+		o.metrics.Message.ObserveSendPermissionCount(kind, n)
+	}
+}
+func (o channelMetricsObserver) ObserveSendPermissionStage(stage, result string, d time.Duration) {
+	if o.metrics != nil {
+		o.metrics.Message.ObserveSendPermissionStage(stage, result, d)
+	}
+}
+func (o channelMetricsObserver) ObserveSendPermissionInflight(delta int) {
+	if o.metrics != nil {
+		o.metrics.Message.ObserveSendPermissionInflight(delta)
+	}
+}
+func (o multiChannelObserver) ObserveSendPermissionCount(kind string, n int) {
+	for _, child := range o {
+		if v, ok := child.(slotproxy.SendPermissionObserver); ok {
+			v.ObserveSendPermissionCount(kind, n)
+		}
+	}
+}
+func (o multiChannelObserver) ObserveSendPermissionStage(stage, result string, d time.Duration) {
+	for _, child := range o {
+		if v, ok := child.(slotproxy.SendPermissionObserver); ok {
+			v.ObserveSendPermissionStage(stage, result, d)
+		}
+	}
+}
+func (o multiChannelObserver) ObserveSendPermissionInflight(delta int) {
+	for _, child := range o {
+		if v, ok := child.(slotproxy.SendPermissionObserver); ok {
+			v.ObserveSendPermissionInflight(delta)
+		}
+	}
 }

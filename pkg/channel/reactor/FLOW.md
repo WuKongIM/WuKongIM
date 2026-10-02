@@ -54,6 +54,8 @@ typed bounded workers and returns as `EventWorkerResult`.
   completes directly from its exact quorum-commit receipt, without hot-path
   PullHint or AckOffset signals. Metadata projects ISR voters separately from
   non-voting replica learners into the native replication owner.
+  Quorum completions do not populate the legacy recent-record cache; any
+  compatibility pull falls back to the durable store on a cache miss.
 - One loaded runtime has one lifecycle controller. Hot follower replication
   remains separate but exposes pending-work evidence to lifecycle guards.
 - Cold activation is not loaded state and does not consume `MaxChannels` until

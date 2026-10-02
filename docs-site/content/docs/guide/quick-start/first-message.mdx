@@ -1,56 +1,80 @@
 ---
 title: 发送第一条消息
-description: 使用内嵌 Chat Demo 创建两个测试身份并验证双向消息收发。
+description: 跟着截图连接 Alice 与 Bob，完成第一次双向消息收发。
 ---
 
-开始前，请确认单节点集群的[就绪检查](/zh/guide/quick-start/single-node-cluster)已经成功。
+先完成 [Docker 部署](/zh/server/deployment/docker)中的 `/readyz` 检查，或[一键启动源码中的四个 Demo](/zh/guide/quick-start/chat-demo)。下面是新版 Chat Demo 的 Bob 页面：左侧收到 Alice 的消息，右侧是 Bob 的回复。点击图片可放大。
 
-## 1. 登录第一个测试用户
+<TutorialScreenshot src="/tutorials/first-message/exchange.jpg" alt="Bob 已连接：左侧收到 hello from alice，右侧发送 hello from bob。点击查看原图。" width={1280} height={280} marks={[{ x: 28, y: 55 }, { x: 83, y: 81 }]}>
+  **① 收到消息**：`hello from alice`。**② 回复消息**：`hello from bob`，Alice 也应收到它。
+</TutorialScreenshot>
 
-1. 在浏览器打开 `http://127.0.0.1:5001/demo/`。
-2. 保持 API 基地址为 `http://127.0.0.1:5001`。
-3. 登录账号输入一个唯一 UID，例如 `quickstart-alice`。
-4. 登录 Token 输入一个仅用于本地测试的值，例如 `alice-local-token`。
-5. 为这个新测试账号勾选“创建或更新演示凭据”，再点击登录，等待页头显示“连接成功”。
-   已有账号的迁移验收不要勾选该项，应填写原有 Web Token。
+## 1. 登录 Alice
 
-## 2. 登录第二个测试用户
+Docker 用户打开 [Chat Demo](http://127.0.0.1:5001/demo/)；源码用户从启动后自动打开的首页选择“即时聊天”。填写下面的测试身份：
 
-使用另一个浏览器配置文件、隐私窗口或不同浏览器，再次打开 Chat Demo：
+| 字段 | 值 |
+| --- | --- |
+| API 基地址 | 保持自动填写；Docker 默认为 `http://127.0.0.1:5001` |
+| 登录账号 | `quickstart-alice` |
+| 登录 Token | `alice-local-token` |
 
-- UID：`quickstart-bob`
-- Token：`bob-local-token`
+<TutorialScreenshot src="/tutorials/first-message/login.jpg" alt="登录表单：1 API 基地址，2 测试用户 UID 和 Token，3 仅为新测试账号创建演示凭据。点击查看原图。" width={420} height={420} marks={[{ x: 3, y: 14 }, { x: 3, y: 36 }, { x: 3, y: 79 }]}>
+  **① 保持本机 API 地址。② 填写 UID 和 Token。③ 为新测试账号勾选创建演示凭据，再点击登录。**
+</TutorialScreenshot>
 
-为第二个新测试账号同样勾选“创建或更新演示凭据”，登录后等待页面显示“连接成功”。使用独立浏览器会话可以避免两个测试身份覆盖彼此的页面状态。
-
-## 3. 从 Alice 发送给 Bob
-
-1. 回到 `quickstart-alice` 页面。
-2. 点击右上角“与谁会话？”。
-3. 选择“单聊”，对方登录名填写 `quickstart-bob`。
-4. 输入 `hello from alice` 并发送。
-5. 确认 Alice 页面不再显示“发送中”，Bob 页面出现相同消息。
-
-## 4. 验证反向消息
-
-在 Bob 页面选择与 `quickstart-alice` 单聊，回复 `hello from bob`。Alice 收到回复后，第一次双向消息验证完成。
-
-<Callout type="info" title="这次验证覆盖了什么">
-  这条路径经过演示 Token 写入、默认的 CONNECT Token 精确匹配、路由发现、WebSocket 连接、频道消息提交和在线投递。它证明本地开发链路可用，但不替代生产账号鉴权、Token 过期与重放策略、TLS、容量、故障恢复和持久性验证。
+<Callout type="warn" title="只为专用测试账号创建凭据">
+  “创建或更新演示凭据”会写入这个 UID 的 Web Token。已有账号或迁移验收请保持不勾选，并填写原有 Web Token；默认登录不会修改凭据。
 </Callout>
 
-## 常见问题
+## 2. 登录 Bob，选择单聊
 
-### 页面一直显示未连接
+在另一个浏览器配置文件、隐私窗口或不同浏览器中打开 Demo。使用 `quickstart-bob` / `bob-local-token`，同样只为这个新测试账号勾选创建演示凭据。
 
-重新检查 `/readyz` 和 SSH 转发中的 `5200` 端口，再运行 `sudo journalctl -u wukongim -n 100 --no-pager` 查看错误。
+等待双方页头都显示“已连接”。回到 Alice，点击聊天列表右上角 `＋`（或“开始聊天”），选择“单聊”，填写 `quickstart-bob` 并确定。
 
-### 发送后对方没有收到
+<TutorialScreenshot src="/tutorials/first-message/recipient.jpg" alt="新版单聊表单：1 选择单聊，2 对方 UID 填 quickstart-bob，3 确定。点击查看原图。" width={420} height={275} marks={[{ x: 3, y: 37 }, { x: 3, y: 62 }, { x: 92, y: 81 }]}>
+  **① 选择单聊。② 填写对方的 UID。③ 点击确定。**
+</TutorialScreenshot>
 
-确认双方页面都显示连接成功，对方 UID 与登录 UID 完全一致，并且当前会话选择了“单聊”。
+<details>
+<summary>Docker 发布版界面与截图不同？</summary>
 
-### 两个页面互相顶掉
+截图来自本地 `main` 的新版聊天 Demo。较早的发布镜像可能显示“连接成功”和“与谁会话？”：点击右上角“与谁会话？”，选择“单聊”，填写对方 UID。登录身份与收发检查相同。要体验与截图一致的四个 Demo，使用[源码一键启动](/zh/guide/quick-start/chat-demo)。
 
-使用不同浏览器配置文件或隐私会话，并为两个用户使用不同 UID。
+</details>
 
-下一步：[了解 Chat Demo 的边界](/zh/guide/quick-start/chat-demo)。
+## 3. 互发一条消息
+
+1. Alice 发送 `hello from alice`；等待“发送中”消失，并在 Bob 页面打开与 `quickstart-alice` 的单聊，确认相同消息出现。
+2. Bob 回复 `hello from bob`；确认 Alice 收到回复。
+
+## 成功检查
+
+- 两个 UID 都已连接；
+- Alice 的发送状态成功，Bob 看到了原文；
+- Bob 的回复也出现在 Alice 页面。
+
+<details>
+<summary>按现象排查</summary>
+
+| 现象 | 先检查 |
+| --- | --- |
+| 一直未连接 | `/readyz`、WebSocket `5200` 端口、`docker logs --tail 100 wukongim` |
+| 对方没有收到 | 双方是否在线、目标 UID 是否完全相同、是否选择“单聊” |
+| 两个页面互相顶掉 | 使用不同 UID 和独立浏览器会话 |
+
+Linux 软件包部署时，用 `sudo journalctl -u wukongim -n 100 --no-pager` 查看日志。
+
+</details>
+
+<details>
+<summary>这次验证覆盖了什么？</summary>
+
+它经过演示 Token 写入、CONNECT Token 精确匹配、路由发现、WebSocket 连接、频道消息提交和在线投递。发送成功与对方收到是两个结果，需要分别核对。
+
+它验证开发链路可用。生产仍需账号鉴权、Token 过期与重放策略、TLS、容量、故障恢复和持久性验证，详见 [Chat Demo 的边界](/zh/guide/quick-start/chat-demo)。
+
+</details>
+
+下一步：[选择 SDK，接入自己的应用](/zh/sdk)。

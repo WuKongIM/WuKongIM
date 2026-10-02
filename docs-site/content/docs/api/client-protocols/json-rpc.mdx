@@ -4,7 +4,7 @@ description: 说明 Product Gateway 对固定 EasySDK 核心在线路径的 JSON
 ---
 
 <Callout type="info" title="EasySDK 核心路径已支持">
-  Product Gateway 已支持固定 EasySDK 的 CONNECT-first 鉴权生命周期、Ping、在线 SEND/SENDACK 与 RECV/RECVACK。通用 JSON-RPC、batch、订阅、离线同步和推送仍不在该合同内。
+  Product Gateway 已支持固定 EasySDK 的 CONNECT-first 鉴权生命周期、Ping、在线 SEND/SENDACK、RECV/RECVACK 与服务端向客户端的公开 stream.* EVENT。通用 JSON-RPC、batch、订阅和 SDK 自动离线同步仍不在该合同内。
 </Callout>
 
 ## wsmux 选择规则
@@ -27,6 +27,10 @@ WebSocket `wsmux` 在首个非空白字节为 `{` 或 `[` 时选择 JSON-RPC，�
 | response | 任意合法 response | 仅解码为 generic response | 缺少 frame bridge |
 
 CONNACK 与 SENDACK 成功时同时输出 camelCase 与 Android snake_case 字段，客户端可忽略另一套别名；非成功 Reason Code 输出为 JSON-RPC `error`，避免 EasySDK 把失败误判为成功。RECV 是无 ID 的 `recv` notification，始终包含 `header: {}`；有效 JSON 对象 Payload 直接输出对象，非对象字节回退为 Base64。Android `v1.0.5` README 示例仍把已编码的 JSON 消息作为文本字符串传入，协议边界也兼容直接 JSON 对象和 Base64 字符串；服务端对四个固定 profile 的常规 JSON 消息字节都以对象形式输出 RECV。
+
+## 在线流式事件
+
+服务端 `EVENT` 编码为无 ID 的 `event` notification，参数是 `{id,type,timestamp,data}`；`data` 的有效 JSON 直接输出对象。EasySDK-JS 通过 `WKIMEvent.CustomEvent` 接收公开 `stream.*` 事件。此能力要求包含在线事件投递实现的服务端，不能归入旧版本的核心消息验收范围。事件尽力投递，无 RECVACK 重放；最终快照通过消息历史恢复。详见 [Agent 流式回复](/zh/sdk/easy/agent-streaming)。
 
 ## 已验证范围
 

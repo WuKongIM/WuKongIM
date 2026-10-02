@@ -40,6 +40,15 @@ type StorageMetrics struct {
 	pebbleCompactionEstimatedDebt   *prometheus.GaugeVec
 	pebbleCompactionInProgressBytes *prometheus.GaugeVec
 	pebbleCompactionsInProgress     *prometheus.GaugeVec
+	pebbleWriteStalls               *prometheus.GaugeVec
+	pebbleWriteStallSeconds         *prometheus.GaugeVec
+	pebbleWriteStallMaxSeconds      *prometheus.GaugeVec
+	pebbleWriteStallActive          *prometheus.GaugeVec
+	pebbleWALFsyncCount             *prometheus.GaugeVec
+	pebbleWALFsyncSeconds           *prometheus.GaugeVec
+	pebbleWALFsyncSlow              *prometheus.GaugeVec
+	pebbleDiskSlowEvents            *prometheus.GaugeVec
+	pebbleDiskSlowMaxSeconds        *prometheus.GaugeVec
 	messageExactFreshAppends        *prometheus.GaugeVec
 	messagePredecessorCacheHits     *prometheus.GaugeVec
 	messagePredecessorValidations   *prometheus.GaugeVec
@@ -138,6 +147,36 @@ type StoragePebbleObservation struct {
 	CompactionInProgressBytes int64
 	// CompactionsInProgress is the current number of compactions in progress.
 	CompactionsInProgress int64
+	// WriteStallMemTableCount counts Pebble write stalls caused by the memtable stop-writes threshold.
+	WriteStallMemTableCount int64
+	// WriteStallL0Count counts Pebble write stalls caused by the L0 stop-writes threshold.
+	WriteStallL0Count int64
+	// WriteStallOtherCount counts Pebble write stalls with any other reason.
+	WriteStallOtherCount int64
+	// WriteStallTotalNanos is the cumulative write-stall duration, including an open stall.
+	WriteStallTotalNanos int64
+	// WriteStallMaxNanos is the longest single write stall, including an open stall.
+	WriteStallMaxNanos int64
+	// WriteStallActive reports whether writes are stalled at snapshot time.
+	WriteStallActive bool
+	// WALFsyncCount is the number of WAL fsyncs observed since the store opened.
+	WALFsyncCount uint64
+	// WALFsyncSumNanos is the cumulative WAL fsync duration.
+	WALFsyncSumNanos int64
+	// WALFsyncOver100ms counts WAL fsyncs slower than 100ms at histogram bucket resolution.
+	WALFsyncOver100ms uint64
+	// WALFsyncOver1s counts WAL fsyncs slower than 1s at histogram bucket resolution.
+	WALFsyncOver1s uint64
+	// WALFsyncOver5s counts WAL fsyncs slower than 5s at histogram bucket resolution.
+	WALFsyncOver5s uint64
+	// DiskSlowWALEvents counts slow-disk reports on WAL files.
+	DiskSlowWALEvents int64
+	// DiskSlowWALMaxNanos is the longest reported WAL disk operation.
+	DiskSlowWALMaxNanos int64
+	// DiskSlowOtherEvents counts slow-disk reports on SST, manifest and other files.
+	DiskSlowOtherEvents int64
+	// DiskSlowOtherMaxNanos is the longest reported non-WAL disk operation.
+	DiskSlowOtherMaxNanos int64
 }
 
 // StorageChannelEntryObservation describes aggregate ownership for the channel_log registry.
@@ -264,6 +303,51 @@ func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 			Help:        "Pebble compactions currently in progress by storage subsystem.",
 			ConstLabels: labels,
 		}, []string{"store"}),
+		pebbleWriteStalls: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_write_stalls",
+			Help:        "Pebble write stalls since the store opened by storage subsystem and reason (memtable, l0, other).",
+			ConstLabels: labels,
+		}, []string{"store", "reason"}),
+		pebbleWriteStallSeconds: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_write_stall_seconds",
+			Help:        "Cumulative Pebble write-stall seconds since the store opened, including an open stall.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleWriteStallMaxSeconds: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_write_stall_max_seconds",
+			Help:        "Longest single Pebble write stall since the store opened, including an open stall.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleWriteStallActive: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_write_stall_active",
+			Help:        "1 when Pebble writes are stalled at sample time by storage subsystem.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleWALFsyncCount: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_wal_fsync_count",
+			Help:        "Pebble WAL fsyncs since the store opened by storage subsystem.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleWALFsyncSeconds: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_wal_fsync_seconds",
+			Help:        "Cumulative Pebble WAL fsync seconds since the store opened.",
+			ConstLabels: labels,
+		}, []string{"store"}),
+		pebbleWALFsyncSlow: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_wal_fsync_slow",
+			Help:        "Pebble WAL fsyncs slower than threshold (100ms, 1s, 5s) since the store opened, at histogram bucket resolution.",
+			ConstLabels: labels,
+		}, []string{"store", "threshold"}),
+		pebbleDiskSlowEvents: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_disk_slow_events",
+			Help:        "Pebble slow-disk reports since the store opened by file class (wal, other); one slow operation may be reported on several health ticks.",
+			ConstLabels: labels,
+		}, []string{"store", "file"}),
+		pebbleDiskSlowMaxSeconds: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name:        "wukongim_storage_pebble_disk_slow_max_seconds",
+			Help:        "Longest reported Pebble slow-disk operation since the store opened by file class (wal, other).",
+			ConstLabels: labels,
+		}, []string{"store", "file"}),
 		messageExactFreshAppends: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name:        "wukongim_storage_message_exact_fresh_appends",
 			Help:        "Allocator-proven fresh exact message appends since the message store opened.",
@@ -390,6 +474,15 @@ func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 		m.pebbleCompactionEstimatedDebt,
 		m.pebbleCompactionInProgressBytes,
 		m.pebbleCompactionsInProgress,
+		m.pebbleWriteStalls,
+		m.pebbleWriteStallSeconds,
+		m.pebbleWriteStallMaxSeconds,
+		m.pebbleWriteStallActive,
+		m.pebbleWALFsyncCount,
+		m.pebbleWALFsyncSeconds,
+		m.pebbleWALFsyncSlow,
+		m.pebbleDiskSlowEvents,
+		m.pebbleDiskSlowMaxSeconds,
 		m.messageExactFreshAppends,
 		m.messagePredecessorCacheHits,
 		m.messagePredecessorValidations,
@@ -475,6 +568,25 @@ func (m *StorageMetrics) SetPebbleMetrics(store string, obs StoragePebbleObserva
 	m.pebbleCompactionEstimatedDebt.WithLabelValues(store).Set(float64(obs.CompactionEstimatedDebtBytes))
 	m.pebbleCompactionInProgressBytes.WithLabelValues(store).Set(float64(obs.CompactionInProgressBytes))
 	m.pebbleCompactionsInProgress.WithLabelValues(store).Set(float64(obs.CompactionsInProgress))
+	m.pebbleWriteStalls.WithLabelValues(store, "memtable").Set(float64(obs.WriteStallMemTableCount))
+	m.pebbleWriteStalls.WithLabelValues(store, "l0").Set(float64(obs.WriteStallL0Count))
+	m.pebbleWriteStalls.WithLabelValues(store, "other").Set(float64(obs.WriteStallOtherCount))
+	m.pebbleWriteStallSeconds.WithLabelValues(store).Set(float64(obs.WriteStallTotalNanos) / 1e9)
+	m.pebbleWriteStallMaxSeconds.WithLabelValues(store).Set(float64(obs.WriteStallMaxNanos) / 1e9)
+	stallActive := 0.0
+	if obs.WriteStallActive {
+		stallActive = 1
+	}
+	m.pebbleWriteStallActive.WithLabelValues(store).Set(stallActive)
+	m.pebbleWALFsyncCount.WithLabelValues(store).Set(float64(obs.WALFsyncCount))
+	m.pebbleWALFsyncSeconds.WithLabelValues(store).Set(float64(obs.WALFsyncSumNanos) / 1e9)
+	m.pebbleWALFsyncSlow.WithLabelValues(store, "100ms").Set(float64(obs.WALFsyncOver100ms))
+	m.pebbleWALFsyncSlow.WithLabelValues(store, "1s").Set(float64(obs.WALFsyncOver1s))
+	m.pebbleWALFsyncSlow.WithLabelValues(store, "5s").Set(float64(obs.WALFsyncOver5s))
+	m.pebbleDiskSlowEvents.WithLabelValues(store, "wal").Set(float64(obs.DiskSlowWALEvents))
+	m.pebbleDiskSlowEvents.WithLabelValues(store, "other").Set(float64(obs.DiskSlowOtherEvents))
+	m.pebbleDiskSlowMaxSeconds.WithLabelValues(store, "wal").Set(float64(obs.DiskSlowWALMaxNanos) / 1e9)
+	m.pebbleDiskSlowMaxSeconds.WithLabelValues(store, "other").Set(float64(obs.DiskSlowOtherMaxNanos) / 1e9)
 	m.messageExactFreshAppends.WithLabelValues(store).Set(float64(obs.SequencedExactFreshAppends))
 	m.messagePredecessorCacheHits.WithLabelValues(store).Set(float64(obs.DurablePredecessorCacheHits))
 	m.messagePredecessorValidations.WithLabelValues(store).Set(float64(obs.DurablePredecessorValidations))

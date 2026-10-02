@@ -9,23 +9,26 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 `Node` composes cluster runtimes and owns lifecycle, readiness and bounded snapshots.
 
 ## Boundaries
-
 - `control` adapts Controller state, writes, Raft transport, and snapshots;
   `routing` publishes hash-Slot authority; `slots` and `propose` own Slot
   Multi-Raft lifecycle and proposals; `channels` hosts Channel runtimes; `net`
   transports typed node RPC; `observe` runs low-frequency reporting.
 - `Node` delegates validated intents; Manager policy, drain safety, DTOs and response shaping stay in `internal`.
-- Typed RPC routes opaque DTOs by registered service; cluster may fence maintenance/ownership but does not absorb delivery or Manager logic. Service 92 reserves exact MQTT owner quiescence for the access/runtime adapter; it never substitutes for Slot ownership.
+- Typed RPC routes opaque DTOs by registered service; cluster may fence maintenance/ownership but does not absorb delivery or Manager logic. Service 107 reserves exact MQTT owner quiescence for the access/runtime adapter; it never substitutes for Slot ownership.
 - Controller, Slot, Channel, transport and storage stay behind public facades and neutral errors.
 
 ## Main Flows
 1. Node construction records format identity only for fresh directories; startup rechecks
    supported markers before writable runtimes. Lifecycle starts transport and Controller, installs control routes, reconciles
-   Slots/Channels and exposes readiness. Stop rejects work and reverses ownership.
+   Slots/Channels and exposes readiness. Default metadata enables its sequence seal
+   before Slot construction. Only initial Node.Start permits certified FSM reuse or
+   bounded installation with admission closed; live placement and maintenance reloads
+   retain atomic restore. Stop and failed-start rollback release owned proposal/task/status
+   references; Start rebuilds them while preserving injected adapters. Quorum gateways register anew per transport server.
 2. Slot proposals and metadata facades resolve one immutable route snapshot,
    expose bounded exact-key UID membership reads and group Channel- or UID-owned
    work by physical Slot, execute locally or forward, and recheck leadership.
-   Person-directory prepare joins UID membership/runtime metadata before publishing directory-ready. MQTT RPC 91 uses fresh Slot barriers and bounded snapshots; read kind 17 retains tombstone-source discovery after the last consumer leaves; kind 18 pins a qualified accounting head/cursor; kind 19 pins channel/member/incarnation evidence. Source/UID routing stays independent of Session routing. ReclaimMQTTSession retains foreground/maintenance gates and routes command 75 by the Session tuple; completion concerns local children only. BuildMQTTReclamationIndex routes command 76 under current logical Slot ownership; kind 23 discovers candidates only after durable coverage completion.
+   Person-directory prepare joins UID membership/runtime metadata before publishing directory-ready. MQTT RPC 106 uses fresh Slot barriers and bounded snapshots; read kind 17 retains tombstone-source discovery after the last consumer leaves; kind 18 pins a qualified accounting head/cursor; kind 19 pins channel/member/incarnation evidence. Source/UID routing stays independent of Session routing. ReclaimMQTTSession retains foreground/maintenance gates and routes command 75 by the Session tuple; completion concerns local children only. BuildMQTTReclamationIndex routes command 76 under current logical Slot ownership; kind 23 discovers candidates only after durable coverage completion.
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to
    the exact leader. Explicit prepared appends require fresh Slot reads and preserve exact route through RPC 12; ordinary cached dial failure gets one fresh-route retry;
@@ -50,11 +53,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    recover first; loaded Leaders still installing authority cannot serve HW.
    Indexed committed reads use a distinct RPC kind, retaining HW, retention,
    and authority fences; older nodes reject it instead of serving a range.
-   Disk-only conversation previews use a distinct RPC request kind and current
-   Leader metadata, read through persisted LEO without runtime probes/activation,
-   and share a 16-batch serving-node admission limit with no waiting queue.
-   Bounded heads/recents metrics expose admission, occupied slots, in-flight
-   batches and slot-hold duration separately from origin routing/RPC latency.
+   Disk-only conversation previews use a distinct RPC request kind and current Leader metadata, read through persisted LEO without runtime probes/activation, and share a 16-batch serving-node admission limit with no waiting queue. Bounded heads/recents metrics expose admission, occupied slots, in-flight batches and slot-hold duration separately from origin routing/RPC latency.
    Origin previews combine Channel lifecycle/runtime facts in one authoritative
    Slot batch and pass request-scoped metadata to Channel reads. Remote Leaders
    revalidate independently; other providers keep the original lookup path.
@@ -71,22 +70,21 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    pages transfer without another deep copy; caller isolation remains required.
    Read RPCs preserve typed temporary transport failures from nested authority
    reads using the existing not-ready code; unknown error text stays unknown.
-5. `LocalControlSnapshot` exposes the latest fully Node-applied control state;
-   delayed snapshots older than that applied revision are ignored before any
-   maintenance, placement or task side effects. Equal revisions still refresh
-   Controller leadership and node health. Watch events trigger a current
-   Controller read so queued task progress is not replayed. Revision-fenced
-   management adapters may use `LocalControllerSnapshot` to read
-   Controller-visible state without waiting for runtime task reconciliation.
-   Repair also reads this fresh health snapshot so a stalled task cannot hide failures.
+5. `LocalControlSnapshot` exposes the latest Node-applied control state;
+   older revisions are ignored before maintenance, placement or task side effects.
+   Equal revisions refresh leadership/health; watch events read current state.
+   Reconciled routes, Slot readiness and health publish before initial task setup.
+   After startup, one coalesced wake drives the existing serialized executor over
+   fresh Controller state. Task writes cannot block snapshot publication/readiness;
+   Stop joins that owner. Revision-fenced management and repair may use
+   `LocalControllerSnapshot` for fresh Controller state before task reconciliation.
 6. Controller-backed management mutations, including Slot leader-transfer task
    creation, preserve semantic CAS errors and task identity through typed RPC;
    task-result RPC carries executor progress and terminal observations.
 
 ## Invariants and Failure Semantics
-
-- `pkg/dataformat` owns immutable format/creator metadata; missing markers stay unregistered.
-  Corrupt or unsupported markers fail before storage opens.
+- `pkg/dataformat` owns immutable format/creator metadata; nonempty unregistered
+  directories and corrupt or unsupported markers fail before storage opens.
 - Offline generation seals reject incomplete imports and mismatched bootstrap
   configuration before native startup.
 - Event sequence reads route to the Slot leader and include durable projections.
@@ -118,9 +116,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   identities coalesce, unique work is bounded and canonical-sorted, placement
   comes from one current revision; every create rereads committed versions, including
   wholly successful batches. Uncertain proposals retry only authoritatively missing rows.
-- Ordinary UID projection joins at most eight supervised proposal workers per call,
-  retaining logical Slot scope and durability after cancellation/failure. Person-directory
-  concurrency is separate; directory-ready cannot hide missing memberships/runtime metadata.
+- Ordinary UID membership upserts coalesce one immutable route publication into physical-Slot proposals with 128-row/256-KiB/64-KiB-UID limits and at most eight supervised workers. Byte-heavy groups split before submission; admitted work joins after cancellation. Directory-ready cannot hide missing UID membership or append runtime metadata.
 - Lifecycle, fanout, retries, scans, repairs, tasks and diagnostics stay bounded.
   Repair scans rotate Slots with row cursors under tick/task budgets. Slot
   leadership loss drops its cursor; newly unavailable nodes restart owned Slot
@@ -141,6 +137,9 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 - Routed committed and persisted history and conversation heads hydrate latest payload replacements through Slot authority. Explicit original committed reads omit edits but retain Leader/HW/retention fences for retry proof. Cross-channel chunks preserve batching above 200 recents; replacement growth respects page budgets and continuation. Matching skips empty pages, scans at most eight updates directly, and indexes larger pages without copying payload-bearing structs. The request-scoped Slot ReadIndex/apply barrier is separate from readiness proof reuse; serving edit proposals check the restore content epoch, including forwarded commands. Local log/backup reads remain immutable.
 
 Aggregate MQTT capacity uses one hash-Slot escrow row and immutable Controller storage rosters, including joining/leaving data nodes. Startup debt must be registered on every required node before growth. The existing periodic health owner reports health first, then maintains/refunds capacity with a separate bounded context and nonwaiting restore/apply ownership; no per-Channel task is added.
+
+- Send-permission routing projects one immutable authority publication into node-batched Slot queries with caller cancellation. Every group holds foreground/maintenance admission through a fresh Slot barrier, pinned metadata snapshot and final authority check. The node does not evaluate send-ban business rules.
+
 
 ## Read First
 - [Public API](api.go), [Node ownership](node.go), [Lifecycle](node_lifecycle.go), [Routing](routing/router.go), [Channels](channels/service.go)

@@ -294,6 +294,15 @@ func Open(path string) (*Engine, error) {
 const messageEngineMemTableSize = 64 << 20
 const messageEngineCompactionDebtStep = 128 << 20
 
+// OpenOptions configures a message DB engine opened by OpenWithOptions.
+type OpenOptions struct {
+	// Logger receives structured Pebble diagnostics.
+	Logger wklog.Logger
+	// DiskSlowThreshold reports disk operations slower than this duration into
+	// slow-disk metrics. Zero keeps Pebble's built-in 5s threshold.
+	DiskSlowThreshold time.Duration
+}
+
 func messageEngineOptions(logger wklog.Logger) engine.Options {
 	return engine.Options{
 		// Message appends are the sustained high-write workload. A larger
@@ -307,7 +316,14 @@ func messageEngineOptions(logger wklog.Logger) engine.Options {
 
 // OpenWithLogger opens a message DB and routes Pebble diagnostics through logger.
 func OpenWithLogger(path string, logger wklog.Logger) (*Engine, error) {
-	eng, err := engine.Open(path, messageEngineOptions(logger))
+	return OpenWithOptions(path, OpenOptions{Logger: logger})
+}
+
+// OpenWithOptions opens a message DB with engine diagnostics options.
+func OpenWithOptions(path string, opts OpenOptions) (*Engine, error) {
+	engineOpts := messageEngineOptions(opts.Logger)
+	engineOpts.DiskSlowThreshold = opts.DiskSlowThreshold
+	eng, err := engine.Open(path, engineOpts)
 	if err != nil {
 		return nil, err
 	}

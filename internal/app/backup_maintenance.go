@@ -117,7 +117,9 @@ func (a *App) suspendRestoreSideEffects(ctx context.Context) error {
 	}
 	var resultErr error
 	if err := a.pauseRestoreAdmissions(ctx); err != nil {
-		resultErr = errors.Join(resultErr, err)
+		// Accepted submissions still call append/storage. Preserve those dependencies
+		// and the same maintenance fence for the next bounded drain attempt.
+		return err
 	}
 	if a.channelAppends != nil {
 		a.channelAppends.PauseForRestore()
@@ -163,6 +165,13 @@ func (a *App) resumeRestoreSideEffects(ctx context.Context) error {
 	if !a.restoreSideEffectsSuspended {
 		return nil
 	}
+	// A failed suspension may still own routing callbacks. Join that same fence
+	// before restarting dependencies or reopening either append admission.
+	if a.channelSubmissions != nil {
+		if err := a.channelSubmissions.Pause(ctx); err != nil {
+			return err
+		}
+	}
 	var resultErr error
 	// Clear again after the durable logical activation. The first reset at
 	// maintenance entry drains pre-restore state; this second reset prevents
@@ -207,6 +216,11 @@ func (a *App) resumeRestoreSideEffects(ctx context.Context) error {
 	if runtime, ok := a.cluster.(interface{ ResumeLocalRestoreRuntime() }); ok {
 		runtime.ResumeLocalRestoreRuntime()
 	}
+	if a.channelSubmissions != nil {
+		if err := a.channelSubmissions.Resume(); err != nil {
+			return err
+		}
+	}
 	a.restoreSideEffectsSuspended = false
 	return nil
 }
@@ -229,12 +243,15 @@ func (a *App) resetRestoreSensitiveCaches() {
 	}
 }
 
-func (a *App) pauseRestoreAdmissions(_ context.Context) error {
+func (a *App) pauseRestoreAdmissions(ctx context.Context) error {
 	if a == nil {
 		return nil
 	}
 	if a.channelAppends != nil {
 		a.channelAppends.PauseForRestore()
+	}
+	if a.channelSubmissions != nil {
+		return a.channelSubmissions.Pause(ctx)
 	}
 	return nil
 }

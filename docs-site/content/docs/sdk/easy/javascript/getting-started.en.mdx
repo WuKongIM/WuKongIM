@@ -1,38 +1,58 @@
 ---
 title: Web quickstart
-description: Install the pinned SDK version, obtain credentials from your backend, exchange online messages, and clean up.
+description: Follow real official-example screenshots to exchange online messages, then expand application integration code as needed.
 ---
 
-This tutorial uses **WK_EASYSDK_JAVASCRIPT_VERSION** to exchange online messages between Alice and Bob in separate clients. WebSocket JSON-RPC CONNECT authenticates the connection.
+Use **WK_EASYSDK_JAVASCRIPT_VERSION** to exchange online messages between Alice and Bob in separate clients.
 
 ## 1. Prepare
 
-Prepare the following:
+| Item | Requirement |
+| --- | --- |
+| Browser | WebSocket, `TextEncoder`, and `TextDecoder` |
+| WuKongIM cluster | Single-node or multi-node cluster; healthy `/readyz` and a browser-reachable WebSocket Gateway |
+| Application BFF | Validates the product session and returns the current user's `uid`, short-lived `token`, and `websocketUrl`; same origin or deliberate cross-origin policy |
 
-- A modern browser with native WebSocket, `TextEncoder`, and `TextDecoder`.
-- A WuKongIM single-node cluster or multi-node cluster whose `/readyz` is healthy and whose WebSocket Gateway is browser-reachable.
-- A same-origin product BFF (your application backend), or one with a deliberately configured cross-origin policy.
-- A BFF that validates the product session and returns `uid`, a short-lived `token`, and `websocketUrl` for the current user.
+Start the test page through [the official example](/en/sdk/easy/examples#javascript). Use temporary test accounts and separate Alice and Bob clients. The code below integrates your own application.
 
-Read [Identity & Token](/en/guide/integration/authentication) first. Production pages and WebSockets use HTTPS/WSS, and tokens never belong in URLs, Local Storage, logs, or analytics events.
+<TutorialScreenshot
+  src="/tutorials/easy-web/connect.jpg"
+  alt="Official Web EasySDK test page with a loopback WebSocket address, Alice test UID, and temporary token"
+  width={1240}
+  height={281}
+  marks={[{ x: 97, y: 22 }, { x: 97, y: 47 }, { x: 21, y: 88 }]}
+>
+  ① WebSocket address. ② Current UID, with its matching temporary token. ③ Connect. This is the official test tool; production applications obtain credentials from a BFF.
+</TutorialScreenshot>
 
-To see messages first, follow [the official example](/en/sdk/easy/examples#javascript) with two clients. The steps below integrate the SDK into your application.
-
-The default device category is **WEB `1`**. Store the Token with the same `device_flag` on your backend: APP is `0`, WEB is `1`, and PC is `2`.
+Read [Identity & Token](/en/guide/integration/authentication). Use HTTPS/WSS in production and keep tokens out of URLs, Local Storage, logs, and analytics. The default device category is **WEB `1`**; backend `device_flag` must match (APP `0`, PC `2`).
 
 ## 2. Install the SDK
 
-Run this in an existing Vite, Next.js, or other bundled application:
+Run in a bundled application such as Vite or Next.js, then commit the lockfile:
 
 ```bash
 npm install --save-exact easyjssdk@WK_EASYSDK_JAVASCRIPT_VERSION
 ```
 
-Commit `package-lock.json`. This tutorial does not use a floating CDN version that could silently replace the SDK after a page refresh.
-
 ## 3. Connect and listen
 
-`/api/im/bootstrap` below is your product route, not WuKongIM Product HTTP. The BFF validates the server-side login session, issues a short-lived token, and safely selects the WebSocket address returned by `/route`:
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  bff["BFF validates session<br/>returns credentials"] --> listen["Register listeners first<br/>Connect + Message"]
+  listen --> connect["CONNECT authentication<br/>full wait: 10-second limit"]
+```
+
+</div>
+
+`/api/im/bootstrap` is **your product route**, not WuKongIM Product HTTP. The browser never calls `/user/token` or `/route` directly; server credentials, route selection, and response filtering stay in the BFF.
+
+Place the following three code blocks in one TS module, in order: fetch connection material, create the connection owner, then bind the page.
+
+<details>
+  <summary>① Fetch BFF connection material</summary>
 
 ```ts
 interface IMBootstrap {
@@ -52,9 +72,10 @@ async function fetchIMBootstrap(): Promise<IMBootstrap> {
 }
 ```
 
-The browser never calls `/user/token` or `/route` directly. Their management boundary, server credential, and response filtering remain inside the BFF.
+</details>
 
-`on` receives a function reference; `off` must receive the same reference. This example disables global-singleton mode so hot reload, tests, or a multi-instance page cannot silently destroy another client:
+<details>
+  <summary>② Complete connection wrapper: listeners, 10-second limit, and destruction</summary>
 
 ```ts
 import { WKIM, WKIMChannelType, WKIMEvent, type RecvMessage } from 'easyjssdk';
@@ -141,13 +162,42 @@ export class EasyChatClient {
 }
 ```
 
-`debugLogging: false` matches the SDK default and is written explicitly here so production configuration can be reviewed. Set it to `true` only during a controlled diagnostic window; the SDK still emits only sanitized operational metadata, and application callbacks or collectors must not log complete events, results, or payloads.
+</details>
 
-An application normally creates one `EasyChatClient`. The SDK has an internal timeout for the CONNECT JSON-RPC request, but the WebSocket-open phase can still hang; `connectWithin` bounds the complete wait at 10 seconds and calls `destroy` after failure. React can keep the client in a root-level Provider and call `stop()` from an Effect cleanup. Vue and Svelte use the corresponding component or application unmount hook.
+`on` and `off` use the same function reference. `singleton: false` prevents hot reload or multiple instances from destroying each other's connections. The full connection wait is bounded at 10 seconds and calls `destroy` on failure. An application normally owns one `EasyChatClient`.
+
+<details>
+  <summary>Component lifecycle and diagnostic logging</summary>
+
+React can hold the client in a root Provider and call `stop()` during Effect cleanup. Vue/Svelte use component or application unmount hooks. CONNECT has an internal request timeout, but WebSocket opening can still hang, so bound the full wait.
+
+`debugLogging: false` is the default. Enable it only during controlled diagnosis. The SDK emits sanitized operational metadata; application callbacks and collectors must not log complete events, results, or payloads.
+
+</details>
 
 ## 4. Exchange the first message
 
-Add a button and receive area to the page. Click send after both clients connect; on Bob’s page change the target from `bob` to `alice`. The UI displays only the latest message, without retaining an unbounded history.
+1. Confirm **Connected** on both clients.
+2. Alice sends to Bob; confirm **Message sent successfully** on the sender.
+3. Confirm **Message received** on Bob; official test logs show only sequence and Channel type.
+4. Bob replies to Alice; verify reception in the reverse direction.
+
+<TutorialScreenshot
+  src="/tutorials/easy-web/exchange.jpg"
+  alt="Alice's connected official EasySDK test page shows a successful send with sequence 1 followed by Bob's received reply with sequence 2"
+  width={1280}
+  height={1079}
+  marks={[{ x: 3, y: 39 }, { x: 35, y: 78.5 }, { x: 44, y: 80 }]}
+>
+  ① Target the peer UID. ② Alice's send request succeeds. ③ Alice receives Bob's reply. Check sending and peer reception separately.
+</TutorialScreenshot>
+
+A resolved send Promise means the server returned a send result, **not that the peer read or processed it**. This page verifies online exchange; see [SDK selection](/en/sdk) for offline recovery, conversations, and unread state.
+
+<details>
+  <summary>③ Complete page button and receive-area example</summary>
+
+Send after both clients connect. Alice targets `bob`; Bob changes it to `alice`. These represent your product UIDs and must match the BFF identities. In your own Message callback, check `fromUid`, `channelId`, `messageId`, and payload. Show only the latest message to avoid an unbounded history.
 
 ```html
 <button id="send-message" disabled>Send</button>
@@ -184,28 +234,32 @@ button.onclick = async () => {
 };
 ```
 
-Alice's resolved Promise means the send request received a server result. Bob must still observe the message in an independent page through `WKIMEvent.Message`. Do not render Alice's send result as proof that Bob read or processed it.
-
-1. Open two independent browser profiles or isolated browser contexts and sign in as Alice and Bob.
-2. Both sides obtain connection material from their own product session and observe `WKIMEvent.Connect`.
-3. Have Alice send to the person Channel `bob`, retaining the send result.
-4. On Bob, verify `fromUid`, `channelId`, `messageId`, and payload.
-5. Have Bob send back to Alice and prove the reverse direction.
-6. Use an unreachable address and confirm failure plus `destroy` within 10 seconds, rather than leaving the page in Connecting forever.
-7. Refresh, close, or sign out and confirm that the old instance called `off` and `destroy`, leaving no duplicate connection.
+</details>
 
 ## 5. Clean up
 
-Call `chat.stop()` on logout, application unmount, or page exit. It removes callbacks with the same function references and calls `destroy()`. Page subscribers remove their handlers; the connection owner destroys the instance.
+Call `chat.stop()` on logout, unmount, or page exit: `off` with the original callbacks, then `destroy()`. Page subscribers remove their handlers; the connection owner destroys the instance.
+
+<details>
+  <summary>Additional verification: unreachable address and refresh</summary>
+
+Confirm failure and destruction within 10 seconds with an unreachable address, without a permanent Connecting state. Refresh, close, or sign out and confirm the old instance removes listeners and is destroyed, leaving no duplicate connection.
+
+</details>
 
 ## 6. Troubleshooting
 
-- **The page says WebSocket or encoding APIs are missing:** confirm the browser and build environment provide WebSocket, `TextEncoder`, and `TextDecoder`; do not infer Mini Program support from the browser path.
-- **Connection is rejected before ready:** inspect the BFF-returned WSS address, token lifetime, certificate, proxy Upgrade, and Gateway reachability.
-- **Messages duplicate after refresh:** do not call `on` during every component render; retain callbacks and call `off`/`destroy` during unmount.
-- **The console still contains a token or payload:** first use the lockfile and browser bundle to confirm that `easyjssdk@WK_EASYSDK_JAVASCRIPT_VERSION` is actually shipped, then inspect application event callbacks, error handling, and collectors for complete-object logging. SDK diagnostics are off by default and should emit only sanitized operational metadata when explicitly enabled. Reproduce with the npm artifact and retain only low-sensitivity evidence before filing an issue.
-- **You need an executable Web scenario path:** use the [WuKongIMJSSDK Web tutorial](/en/sdk/javascript), which has the site's protected verification flow, and review the current build and runtime boundaries under [API Versions & Compatibility](/en/api/compatibility). Do not mix method names between the two SDKs.
+| Symptom | Check first |
+| --- | --- |
+| Missing WebSocket or encoding APIs | Browser and build environment; browser support does not imply Mini Program support |
+| Connection rejected | BFF-returned WSS address, token lifetime, certificate, proxy Upgrade, and Gateway reachability |
+| Duplicate messages after refresh | Avoid `on` on every render; call `off` / `destroy` on unmount |
+| Token or payload in Console | The actual SDK version in lockfile and bundle, plus application callbacks, error handling, and collectors |
+
+Reproduce logging problems with the pinned npm artifact and retain only low-sensitivity evidence. SDK diagnostics are off by default and emit only sanitized operational metadata when enabled.
 
 ## Next
 
-Continue with [messaging](/en/guide/integration/messaging) and [production checks](/en/guide/integration/acceptance). For offline recovery, conversations, unread counts, or push, see [SDK selection](/en/sdk). [Versions and validation records](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#javascript) retain the exact environments and scope of past runs.
+Continue with [messaging](/en/guide/integration/messaging) and [production checks](/en/guide/integration/acceptance). [Versions and validation records](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#javascript) retain historical environments and scope; see [API Versions & Compatibility](/en/api/compatibility) for current boundaries.
+
+Connecting a model? Follow [Agent Streaming Replies](/en/sdk/easy/agent-streaming) to update one reply and keep model keys on your backend.

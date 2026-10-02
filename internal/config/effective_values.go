@@ -59,6 +59,7 @@ func effectiveConfigValues(cfg app.Config) map[string]any {
 		"WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS":                  cfg.Cluster.Storage.CommitMaxRecords,
 		"WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES":                    cfg.Cluster.Storage.CommitMaxBytes,
 		"WK_CLUSTER_COMMIT_COORDINATOR_SHARDS":                       cfg.Cluster.Storage.CommitShards,
+		"WK_CLUSTER_STORAGE_DISK_SLOW_THRESHOLD":                     cfg.Cluster.Storage.DiskSlowThreshold,
 		"WK_CHANNEL_MIGRATION_ENABLE":                                cfg.Cluster.ChannelMigration.Enabled,
 		"WK_CHANNEL_MIGRATION_SCAN_INTERVAL":                         cfg.Cluster.ChannelMigration.ScanInterval,
 		"WK_CHANNEL_MIGRATION_SCAN_LIMIT":                            cfg.Cluster.ChannelMigration.ScanLimit,

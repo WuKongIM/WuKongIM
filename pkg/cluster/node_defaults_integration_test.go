@@ -34,19 +34,8 @@ func TestNodeDefaultControllerThreeVotersConvergeOverTransport(t *testing.T) {
 		nodes = append(nodes, node)
 	}
 
-	startCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	startErrs := make(chan error, len(nodes))
-	for _, node := range nodes {
-		node := node
-		go func() { startErrs <- node.Start(startCtx) }()
-		t.Cleanup(func() { _ = node.Stop(context.Background()) })
-	}
-	for range nodes {
-		if err := <-startErrs; err != nil {
-			t.Fatalf("Start() error = %v", err)
-		}
-	}
+	startNodes(t, nodes...)
+	t.Cleanup(func() { stopNodes(t, nodes...) })
 
 	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer readyCancel()
@@ -137,19 +126,8 @@ func TestNodeDefaultSeedJoinMirrorSyncsThroughFollowerSeedRedirect(t *testing.T)
 		}
 		nodes = append(nodes, node)
 	}
-	startCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	startErrs := make(chan error, len(nodes))
-	for _, node := range nodes {
-		node := node
-		go func() { startErrs <- node.Start(startCtx) }()
-		t.Cleanup(func() { _ = node.Stop(context.Background()) })
-	}
-	for range nodes {
-		if err := <-startErrs; err != nil {
-			t.Fatalf("Start(seed cluster) error = %v", err)
-		}
-	}
+	startNodes(t, nodes...)
+	t.Cleanup(func() { stopNodes(t, nodes...) })
 	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer readyCancel()
 	if err := WaitControllerWriteReady(readyCtx, nodes...); err != nil {
@@ -265,19 +243,8 @@ func TestNodeDefaultControllerForwardsControlWriteOverTransport(t *testing.T) {
 		nodes = append(nodes, node)
 	}
 
-	startCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	startErrs := make(chan error, len(nodes))
-	for _, node := range nodes {
-		node := node
-		go func() { startErrs <- node.Start(startCtx) }()
-		t.Cleanup(func() { _ = node.Stop(context.Background()) })
-	}
-	for range nodes {
-		if err := <-startErrs; err != nil {
-			t.Fatalf("Start() error = %v", err)
-		}
-	}
+	startNodes(t, nodes...)
+	t.Cleanup(func() { stopNodes(t, nodes...) })
 
 	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	err := WaitControllerWriteReady(readyCtx, nodes...)

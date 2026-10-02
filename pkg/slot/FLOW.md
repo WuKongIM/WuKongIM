@@ -44,8 +44,14 @@ plugin, migration, message projections, and MQTT session state.
 2. A Multi-Raft worker persists Ready state, sends messages, batches normal
    entries, flushes before configuration changes, and atomically applies an
    ownership-validated FSM batch before persisting apply and completing futures.
-   Durable storage owns snapshot bytes; Raft memory keeps the index, term and
-   membership boundary, loading payload only for a lagging peer's snapshot transfer.
+   Durable Slot storage owns snapshot payload bytes; the Raft memory view keeps
+   only the matching index, term, and membership boundary and loads the payload
+   from durable storage only when a lagging peer needs snapshot transfer.
+   Fenced startup verifies pinned snapshots and optional FSM proofs against engine
+   continuity, identity, ownership and exact Raft history. Valid proofs skip rewriting;
+   otherwise bounded installation publishes its watermark before registration.
+   Open reserves identity before mutation; close joins constructors. INFO
+   `slot.recovery.progress` throttles same-stage counters to five seconds; suffix completion requires durable apply.
 3. Maintenance and migration controls use the same fenced worker/FSM path:
    snapshots and backup prove an applied boundary, while Channel migration
    advances task and runtime metadata together through guarded phases.
@@ -54,13 +60,13 @@ plugin, migration, message projections, and MQTT session state.
    tombstones fence stale work. Rows/indexes/applied progress retain exact receipts. Temporary-copy gofail controls select opaque proposals before RawNode, observe persisted uncommitted entries, lose matched MsgApp batches, pause first/second-generation Started before FSM mutation, distinguish originating/applied successor claims, or delay applied Will CAS replies; ordinary proposals stay unchanged.
    Command 75 routes bounded ended-Session child reclamation and its durable completion witness; command 76 resumes a 64-row historical index build, and read kind 23 rejects uncertified coverage. Isolation/scheduling remain caller work. Command 72 preserves optional Will preparation phases/frozen bodies within 320 KiB. Authentication, owner isolation and publication execution remain caller work.
    The distributed facade hashes a versioned namespace/ClientID tuple for Session
-   children; source bindings retain ordinary Channel-ID/UID routing. RPC 91 uses
+   children; source bindings retain ordinary Channel-ID/UID routing. RPC 106 uses
    a fresh local ReadIndex/apply barrier then one pinned primary/index snapshot,
    revalidating routing/authority before return. Recovery pages select a logical
    hash Slot; writes require exact committed results without result-less fallback.
    Read kind 16 discovers active Channel sources; kind 17 includes retained tombstones for replay cleanup.
    Both use bounded encoded-order cursors and unchanged older JSON; old peers reject kind 17, and discovery authorizes no GC.
-   Matched nodes use command 69 operation 4 for qualified charges and read kind 18 for pinned Session/cursor/head.
+   Matched nodes use command 82 operation 4 for qualified charges and read kind 18 for pinned Session/cursor/head.
    Kind 19 pins Channel flags/member/incarnation; kind 20 pages stable UID directory keys.
    Command 74 and kind 21 persist/read person admission progress with runtime-incarnation fencing. Kind 22 routes by Channel ID and pins runtime/retirement together. Command 71 preserves optional UID drain progress across apply/snapshot/replay. Matched peers are required; absent optional fields preserve older JSON.
 
@@ -70,8 +76,7 @@ plugin, migration, message projections, and MQTT session state.
   Multi-hash-Slot batches are allowed only by explicit command contracts and
   validate every embedded row.
   Runtime-meta batches are canonical, identity-unique, and bounded to 64;
-  person membership/ready batches are bounded to 128. The combined prepare
-  command returns aligned create results but never publishes ready.
+  person membership/ready batches are bounded to 128. Ordinary membership upsert batches also cap at 128 rows/256 KiB/64 KiB UID bytes, validate every owned shard atomically, preserve upsert source-version/rejoin semantics, and filter migration replay to the requested shard. The combined prepare command returns aligned create results but never publishes ready.
 - Entity routing keys are stable: UID-owned rows use UID; Channel-owned rows use
   Channel identity. Caller-supplied Slot IDs never override derived ownership.
 - FSM batches are atomic. Expected conditional conflicts and migration races
@@ -83,14 +88,18 @@ plugin, migration, message projections, and MQTT session state.
 - Migration cutover requires task, epoch, leader, fence, drain, replica, ISR,
   and phase proof from the same authoritative state. Irreversible commit or
   promotion cannot later be labeled aborted.
-- Losing leadership fails pending futures. Transport ownership, queues, apply
-  batches, subscriber commands, scans, snapshots and results remain bounded.
-- Recovery restores the persisted snapshot boundary then replays its committed
-  suffix; a later applied marker must never skip replay.
+- Losing leadership fails pending proposal/configuration futures. Transport
+  payload ownership, queues, apply batches, subscriber commands, scans,
+  snapshots, and result payloads remain bounded.
+- Recovery starts at a verified snapshot/certified FSM boundary and replays its
+  committed suffix; a watermark alone cannot skip replay. Unknown or migration writes invalidate
+  all proofs; disjoint FSM writes invalidate only their own. Compaction reanchors
+  after durable snapshot publication. Snapshotless legacy
+  recovery keeps watermark semantics without certifying unknown state.
 - Ordinary and CMD membership progress is monotonic and UID-owned. Removed
   conversation table IDs stay reserved and must not be reused.
-
 - Message edits atomically resolve CAS/idempotency and maintain latest-state indexes through the Slot FSM. Reads group at most 200 targets by physical Slot with eight managed workers and a fresh local-only safe ReadIndex plus durable-apply barrier per group, followed by one shared database snapshot for that group (noop fallback for embedding ports without ReadIndex). Replica capability activation is persisted in each channel head; later quorum writes reuse it unless the replica set changes. JSON RPC format, row counts and bytes are bounded; read DTOs omit default zero fields while preserving field names, aligned pages and legacy decoding; matched binaries remain a rollout requirement. Read assembly revalidates Slot mapping and authority with a dedicated retryable read-route cause, distinct from database/CAS conflicts. ReadIndex requires a durable current-term commit; unconfirmed/canceled reads remain counted up to 256 per Slot until confirmation or Raft reset.
+- Send-permission facts use a separate node-scoped typed RPC: same-leader Slots share one envelope, but each Slot retains its own route fence, fresh required ReadIndex/apply barrier and snapshot. Maintenance admission spans the entire read. Local leaders use the same path without loopback. Requests cap at 4096 facts/1 MiB, four workers and sixty-four executing envelopes (at most 256 Slot workers). At most 1024 additional envelopes (16 MiB of undecoded bytes) may wait before decoding for up to 2 s or caller cancellation; overflow/timeout is typed busy, with no extra RPC retry. One stale-route retry touches only failed groups. Policy/Channel-info commands preserve omitted flags and increment send-policy versions only on actual changes.
 
 Command 79 adjusts the exact node MQTT storage escrow using revision/bytes CAS, complete Controller roster and cluster limit. Grants remain at zero to prevent ABA. Mismatched limits, stale roster revisions, incomplete startup debt and growth over the cluster sum fail closed. This allocation does not certify Channel content.
 

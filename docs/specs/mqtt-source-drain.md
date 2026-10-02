@@ -45,7 +45,7 @@ binding already removed as Drained can complete a retry whose earlier unsubscrib
 reply was lost. When a newer subscription proves closure, its exact revision may
 become the binding's IntentRevision; equality on reread is valid, regression is not.
 
-Slot command 69 gains explicit operation 3 (CancelInit), preserving the version-1
+Slot command 82 gains explicit operation 3 (CancelInit), preserving the version-1
 envelope and row format. Older nodes reject it; participants must run matching
 binaries. The concrete protector owns native source-generation encoding; the
 usecase validates the returned exact incarnation through its existing contract.

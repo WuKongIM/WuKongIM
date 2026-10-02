@@ -37,6 +37,19 @@ type SendBatchHandler interface {
 	OnSendBatch(items []SendBatchItem) error
 }
 
+// DeferredSendBatchHandler optionally joins preparation while transferring result
+// completion. publish admits one nonnil publication per index; core invokes it
+// in session order across batches. Publication must use normal Session writes so
+// terminal seals remain authoritative. publish reports callback-admission errors;
+// core handles write failures against the owning session. complete runs once on successful
+// admission, after all publish calls; it may run inline. A returned error transfers
+// no callbacks. Core owns descriptors/capacity through preparation return, complete,
+// and ordered publication. Neither callback may be retained beyond completion.
+// Publishers must not recursively invoke callbacks for the same batch/session.
+type DeferredSendBatchHandler interface {
+	OnSendBatchDeferred(items []SendBatchItem, publish func(int, func() error) error, complete func(error)) error
+}
+
 type SessionActivator interface {
 	OnSessionActivate(ctx *Context) (*frame.ConnackPacket, error)
 }

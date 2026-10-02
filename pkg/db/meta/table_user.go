@@ -7,12 +7,16 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/schema"
 )
 
-// User stores token defaults for a UID.
+// User stores identity defaults and the global sending restriction for a UID.
 type User struct {
-	UID         string
-	Token       string
-	DeviceFlag  int64
-	DeviceLevel int64
+	// SendBan blocks application sends without changing authentication or receiving.
+	SendBan int64
+	// SendBanVersion advances only when SendBan changes.
+	SendBanVersion uint64
+	UID            string
+	Token          string
+	DeviceFlag     int64
+	DeviceLevel    int64
 }
 
 var userTable = registerMetaTable(TableSpec[User]{
@@ -97,7 +101,8 @@ func encodeUserValue(user User) []byte {
 	value := appendValueString(nil, user.Token)
 	value = appendValueInt64(value, user.DeviceFlag)
 	value = appendValueInt64(value, user.DeviceLevel)
-	return value
+	value = appendValueInt64(value, user.SendBan)
+	return appendValueUint64(value, user.SendBanVersion)
 }
 
 func decodeUserValue(uid string, value []byte) (User, error) {
@@ -113,8 +118,13 @@ func decodeUserValue(uid string, value []byte) (User, error) {
 	if err != nil {
 		return User{}, err
 	}
-	if len(rest) != 0 {
+	sendBan, rest, err := readValueInt64(rest)
+	if err != nil {
+		return User{}, err
+	}
+	version, rest, err := readValueUint64(rest)
+	if err != nil || len(rest) != 0 || (sendBan != 0 && sendBan != 1) {
 		return User{}, dberrors.ErrCorruptValue
 	}
-	return User{UID: uid, Token: token, DeviceFlag: deviceFlag, DeviceLevel: deviceLevel}, nil
+	return User{UID: uid, Token: token, DeviceFlag: deviceFlag, DeviceLevel: deviceLevel, SendBan: sendBan, SendBanVersion: version}, nil
 }

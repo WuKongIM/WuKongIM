@@ -61,7 +61,20 @@ It does not own product business policy or expose engine-specific APIs.
    Kind 20 scans stable UID directory primary keys, including hidden/tombstoned and non-person candidates; UID binding checkpoints share its 4096-byte ID bound.
    Kind 21 pins person directory/runtime/admission progress; table 26 System 1 retains monotonic invalidations on runtime deletion. Kind 22 pins runtime plus table 3 System 1 retirement without live-cache reads. Private snapshots never replace writable shards; evidence grants no policy or redispatch authority.
 
+7. Startup-only snapshot installation validates the complete immutable stream
+   before deletion, writes at most 8 MiB or 65,536 records per batch (one larger
+   valid record may occupy its own batch), and fences incomplete installs with
+   a physical-Slot global marker. Completion atomically publishes the snapshot
+   applied index and removes the marker. The caller must keep the Slot absent
+   until installation succeeds; ordinary runtime replacement remains atomic.
+
 ## Invariants and Failure Semantics
+
+- Recovery certificates share the FSM mutation batch and applied watermark.
+  Database incarnation, sequence seal and incomplete-install state fence reuse.
+  A stale live anchor cannot revive a certificate after an unclassified write.
+  Known disjoint FSM writes and fenced startup installs invalidate their own
+  certificate, preserving neighboring Slots even without a snapshot anchor.
 - Event sequence pages scan a pinned native iterator and retain a bounded heap,
   so event-key order cannot truncate results before the sequence cursor.
 - Offline event import installs one exact historical projection, its last event
@@ -93,6 +106,12 @@ It does not own product business policy or expose engine-specific APIs.
 - Channel-owned message-update tables store latest payload/index, head/incarnation and replica activation proof, idempotency results, and separate body-free pending checkpoints. CAS and notification progress use same-batch overlays. Pinned reads bind head/index/body; a bounded Slot group shares one request-scoped snapshot across its logical shards after the caller establishes its fresh authority/apply barrier; an update sequence of zero proves dependent rows empty only within that snapshot, allowing exact-ID reads to stop before unused point lookups; channel deletion removes every edit span, and bounded retention-index cleanup removes target payloads, requests and pending state after the original retention floor.
 
 Metadata table 28 stores the one bounded, body-free MQTT storage ledger. Encoded/decoded rows share a 256 KiB limit for at most 1,024 historical nodes; exact CAS results preserve bootstrap debt and membership revision. `mqtt_storage.go` owns ledger validation and transaction semantics.
+- User and source-Channel send policies have independent apply-time CAS versions.
+  Dedicated policy and optional Channel-info mutations return the previous policy
+  from atomic same-batch apply for audit, without changing persisted rows; they observe same-batch state;
+  ordinary user/channel upserts preserve policy. Permission snapshots return
+  policy-only user projections and point membership facts. Format 2 requires
+  matching binaries; offline transfers preserve exact policy values and versions.
 
 ## Read First
 

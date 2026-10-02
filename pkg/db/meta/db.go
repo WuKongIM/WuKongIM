@@ -14,6 +14,10 @@ const channelCacheCapacity = 8192
 type MetaDB struct {
 	engine    *engine.DB
 	committer *commit.Coordinator
+	// Recovery setup runs once before admission; certificate reads are startup-only.
+	recoveryEnabled bool
+	recoverySealed  bool
+	recoveryDBID    [16]byte
 
 	mu         sync.Mutex
 	shards     map[HashSlot]*Shard

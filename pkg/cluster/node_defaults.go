@@ -23,7 +23,6 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 		if err := n.ensureDefaultTransport(); err != nil {
 			return false, err
 		}
-		n.registerPendingRPCHandlers()
 		controlPeers := n.defaultControlRuntimePeers()
 		raftTransport := control.NewRaftTransportWithOptions(n.transportClient, control.RaftTransportOptions{Observer: n.cfg.Transport.Observer})
 		runtime, err := control.NewRuntime(control.RuntimeConfig{
@@ -71,7 +70,11 @@ func (n *Node) ensureDefaultRuntime() (bool, error) {
 			Slots:     n.defaultSlotProposer,
 			Forward:   forward,
 		})
+		n.defaultProposer = true
 	}
+	// Recreated Slot proxies replace their pending handlers before registration;
+	// registering earlier would bind the new server to a closed metadata store.
+	n.registerPendingRPCHandlers()
 	createdDefaultChannels := false
 	if n.channels == nil {
 		storeFactory := n.defaultChannelStore
@@ -187,6 +190,7 @@ func (n *Node) newDefaultChannelStore() *channelstore.MessageDBFactory {
 			CommitMaxBytes:    n.cfg.Storage.CommitMaxBytes,
 			CommitShards:      n.cfg.Storage.CommitShards,
 			CommitObserver:    n.cfg.Storage.CommitObserver,
+			DiskSlowThreshold: n.cfg.Storage.DiskSlowThreshold,
 			Logger:            namedLogger(n.cfg.Logger, "message_db"),
 		},
 	)
@@ -649,6 +653,10 @@ func (n *Node) discardDefaultSlots() {
 	n.defaultSlotProxy = nil
 	n.defaultSlotProposer = nil
 	n.slots = nil
+	if n.defaultTaskExecutor {
+		n.tasks = nil
+		n.defaultTaskExecutor = false
+	}
 	if n.defaultPreferredLeaderReconciler {
 		n.preferredLeaderReconciler = nil
 		n.defaultPreferredLeaderReconciler = false
@@ -685,6 +693,7 @@ func (n *Node) discardDefaultTransport() {
 	n.defaultTransport = false
 	n.registeredRPCHandlers = nil
 	n.channelRPCGateway = nil
+	n.channelQuorumGateway = nil
 	n.mu.Unlock()
 	if client != nil {
 		client.Stop()

@@ -45,6 +45,7 @@ Start
 Stop or startup rollback
   -> mark the gateway handler's planned-shutdown warning fence
   -> close entry admission
+  -> drain Gateway deferred publications, then close ordered submissions
   -> drain Channel append and accepted post-commit work
   -> stop side-effect, presence, and cluster dependencies in reverse order
 ```
@@ -74,12 +75,7 @@ Stop or startup rollback
   Restore connection teardown requires exact local isolation without new Session
   mutations against already-fenced replicas; ordinary Stop keeps durable disconnect.
   Connections pin the original handler; shutdown prevents observer admission reopen.
-  WillExecutor freezes hook output before first dispatch. A bounded local journal
-  is reserved before Started, admitted before publication and append-issued at the origin router; exact-node RPC 105
-  seals only proved non-dispatch. The existing generation lock and retired-boot
-  facts fence older journals; Stop joins Will workers and closes the journal
-  before releasing that lock. Unknown AppendIssued/version-1 Admitted work remains positive-receipt-only; exact synchronous non-submission can seal same-boot issued work. Its managed scanner and four-turn cohort
-  publish detached due work and share bounded journal pressure reclamation through foreground Will reads, with no new worker.
+  WillExecutor freezes hook output before first dispatch. A bounded local journal is reserved before Started, admitted before publication and append-issued at the origin router; exact-node RPC 105 seals only proved non-dispatch. The existing generation lock and retired-boot facts fence older journals; Stop joins Will workers and closes the journal before releasing that lock. Unknown AppendIssued/version-1 Admitted work remains positive-receipt-only; exact synchronous non-submission can seal same-boot issued work. Its managed scanner and four-turn cohort publish detached due work and share bounded journal pressure reclamation through foreground Will reads, with no new worker.
   Consumer recovery also completes disconnected Preparing/Removing intent before a first binding. Concrete group/inbox offline preparation ports are composed before that shared cohort; fresh permission denial routes through exact Session ending. That cohort also builds historical reclamation coverage, invokes exact-owner Session-child cleanup and retires qualified source tombstones; fixed metrics expose completion and indexed rows.
   Safe uncertain Will redispatch and the full partition/failure/workload matrix
   remain unqualified; completed process and group-scale scenarios cover only their
@@ -122,21 +118,18 @@ Stop or startup rollback
 - Restore maintenance keeps Manager reachable while product traffic is fenced;
   restore-sensitive caches and side-effect runtimes are reactivated before
   Controller clears maintenance.
-- Observability is bounded and low-cardinality; MQTT SUB/UNSUB entry closure observations use 34 fixed operation/reason series and supply no isolation or retry proof. Runtime labels must not contain
-  UIDs, Channel IDs, client message IDs, addresses, or secret material.
-  Transport publishes exact bounded-label counter batches and one-in-32 latency
-  samples, separating handler, service-queue and complete client RPC time. Its
-  retained-memory gauge includes queued and executing request owners.
-  Channel-create coalescer gauges and closed delivery/post-commit terminal
-  result partitions must materialize true zero series rather than imply them.
-- A Slot replica match index may exceed commit while replication is pending;
-  its committed-entry lag is zero, not invalid or an unsigned underflow.
+- Observability is bounded and low-cardinality; MQTT SUB/UNSUB entry closure observations use 34 fixed operation/reason series and supply no isolation or retry proof. Runtime labels must not contain UIDs, Channel IDs, client message IDs, addresses, or secret material. Transport publishes exact bounded-label counter batches and one-in-32 latency samples, separating handler, service-queue and complete client RPC time. Its retained-memory gauge includes queued and executing request owners. Fixed direction/lane payload-byte counters retain Raft versus non-Raft traffic; they exclude wire headers and network overhead and materialize zero series. Channel-create coalescer gauges and closed delivery/post-commit terminal result partitions must materialize true zero series rather than imply them. - A Slot replica match index may exceed commit while replication is pending; its committed-entry lag is zero, not invalid or an unsigned underflow.
 - Issue/Review Agent composition keeps read, verification, signed-state, and
   publication credentials separated and never joins the product cluster.
 - Message edits wire Slot storage, online hints and one bounded repair worker. Start/stop and restore maintenance join the worker before its dependencies close; resume restarts it with fresh scan cursors. HTTP content epochs and edit cursors reuse the Controller successful-restore generation. A packed atomic maintenance-transition stamp fences response assembly across successful and failed restore cycles without an extra distributed read.
 - Successful edit commits enqueue body-free identities through a nonblocking callback into that same worker. Its bounded volatile queue accelerates authoritative dispatch; stop/restore clears it and durable pending scans remain the recovery source.
 
 The app configures aggregate MQTT storage on every product node, including when the MQTT listener is disabled. It composes fixed capacity metrics with any injected observer. Cluster factory reopen rebuilds canonical capacity before restore admission resumes. Will publications promote only the typed whole-invocation non-submission capability to same-boot journal sealing.
+- Stream EVENT dispatch is wired only with the complete base reader, event store, authoritative subscribers, presence, owner registry and peer RPC. Fanouts are synchronous request-owned work with bounded admission; entry shutdown joins them without a separate token worker or queue.
+
+- Default product Gateway/message composition owns one bounded ordered Channel submitter, using the existing Router and normalized Gateway record/worker/byte settings. Injected handlers/usecases retain their explicit execution behavior. Constructor rollback, Stop and restore maintenance join accepted callbacks before dependencies close or restart; timed-out drains retain their fence.
+- Composition wires UID/source-Channel policy mutations, unified send facts, and bounded permission-stage/RPC/ban-scope observers through existing ports. Every topology follows the same cluster-authoritative admission path. Policy mutation observers write credential-free structured audits; proposal errors retain an unknown outcome rather than reporting tentative state as durable.
+
 
 ## Read First
 - [app.go](app.go)

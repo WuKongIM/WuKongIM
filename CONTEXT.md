@@ -6,6 +6,14 @@ Shared domain vocabulary for product messaging and Cloud Simulation.
 
 ### Messaging
 
+**User Send Ban**:
+A reversible restriction on one user's ability to send application messages to any Channel or explicit recipient list. It does not itself prevent login, receipt, or history reads.
+_Avoid_: Personal Channel ban, device ban
+
+**Channel Send Ban**:
+A reversible restriction on application messages sent into one Channel by any sender. A person Channel restriction applies to both participants; lifting it does not lift either participant's User Send Ban.
+_Avoid_: Sender ban, one-way person ban
+
 **Online Delivery**:
 Delivery of a message to connected recipient sessions, identified by their owner node and exact session identity. A receive acknowledgement is distinct from durable message commitment.
 _Avoid_: Durable append, offline synchronization

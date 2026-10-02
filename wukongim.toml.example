@@ -61,6 +61,11 @@ commit_coordinator_max_bytes = 0
 # One coordinator maximizes durable group-commit batches for the single physical
 # message DB and avoids concurrent fsync contention. Increase only after storage-specific validation.
 commit_coordinator_shards = 1
+# Message DB disk operations (WAL fsync, SST writes, ...) slower than this are
+# counted in wukongim_storage_pebble_disk_slow_* metrics. The 1s default sits
+# below the 5s client SENDACK timeout so slow syncs are visible before clients
+# time out. Observation only: it never changes durability or write behavior.
+storage_disk_slow_threshold = "1s"
 
 [channel]
 message_retention_physical_gc_enable = false
@@ -166,8 +171,11 @@ token_auth_on = true
 # v2 at 4096 bytes including TLVs. The proxy must prepend its own PROXY header;
 # HTTP X-Forwarded-For and TLS termination are separate capabilities.
 listeners = [{ name = "tcp-wkproto", network = "tcp", address = "0.0.0.0:5100", transport = "gnet", protocol = "wkproto" }, { name = "ws-gateway", network = "websocket", address = "0.0.0.0:5200", transport = "gnet", protocol = "wsmux" }]
-# Four multicore event loops and 1,000 bounded async SEND workers are the
-# qualified profile; the queue remains capped at 131,072 frames.
+# Four multicore event loops and 1,000 bounded SEND preparation workers.
+# Product SEND retains the 131,072-record budget through execution and ordered
+# ACK publication. Per-shard reservations use that same outstanding-work budget.
+# Prepared append payloads are additionally bounded by workers * batch_max_bytes,
+# or one maximum inbound frame when larger; saturation returns a retryable error.
 gnet_multicore = true
 gnet_num_event_loop = 4
 runtime_async_send_workers = 1000
@@ -195,6 +203,10 @@ person_whitelist_enabled = false
 # Omitted or empty values use the built-in ____system account.
 system_uid = "____system"
 system_device_id = "____device"
+# Cache auxiliary membership/list facts for this duration (zero disables it).
+# User and source-channel send bans and terminal disband always use fresh Slot
+# authority, independent of this TTL. Ban/unban does not require reconnecting.
+# Environment override: WK_MESSAGE_PERMISSION_CACHE_TTL.
 permission_cache_ttl = "0"
 
 [presence]

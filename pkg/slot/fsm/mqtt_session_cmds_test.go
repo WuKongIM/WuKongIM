@@ -28,7 +28,7 @@ func TestMQTTSessionCommandCASOwnershipSnapshotAndReplay(t *testing.T) {
 	encode := func(r metadb.MQTTSession, expected, index uint64) multiraft.Command {
 		raw, err := EncodeMQTTSessionCASCommand(expected, r)
 		require.NoError(t, err)
-		require.Equal(t, []byte{1, 67}, raw[:2])
+		require.Equal(t, []byte{1, 80}, raw[:2])
 		return multiraft.Command{SlotID: 11, HashSlot: 7, Index: index, Term: 1, Data: raw}
 	}
 	first := encode(row, 0, 1)
@@ -88,11 +88,11 @@ func TestMQTTSessionCommandRejectsInvalidOrUnboundedInput(t *testing.T) {
 	require.NoError(t, err)
 	body := valid[2:]
 	for _, data := range [][]byte{
-		{1, 67}, append([]byte{1, 67}, bytes.Repeat([]byte(" "), 33<<10)...),
-		append([]byte{1, 67}, []byte(`{"version":2}`)...),
-		append([]byte{1, 67}, []byte(`{"version":1}`)...),
+		{1, 80}, append([]byte{1, 80}, bytes.Repeat([]byte(" "), 33<<10)...),
+		append([]byte{1, 80}, []byte(`{"version":2}`)...),
+		append([]byte{1, 80}, []byte(`{"version":1}`)...),
 		append(append([]byte(nil), valid...), []byte(` {}`)...),
-		append([]byte{1, 67}, append([]byte(`{"unexpected":1,`), body[1:]...)...),
+		append([]byte{1, 80}, append([]byte(`{"unexpected":1,`), body[1:]...)...),
 	} {
 		_, err := DecodeCommandInspection(data)
 		require.Error(t, err)

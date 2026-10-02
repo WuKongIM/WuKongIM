@@ -9,7 +9,7 @@ summary: Adapts product, benchmark, debug, and compatibility HTTP requests to in
 
 This package owns the product HTTP listener, route registration, request and
 response DTOs, CORS, entry validation, legacy-compatible envelopes, and the
-embedded chat Demo. It adapts HTTP requests to entry-independent use cases and
+embedded Demo interfaces. It adapts HTTP requests to entry-independent use cases and
 runtime ports; it does not own message, membership, conversation, channel, or
 user business state. Legacy plugin HTTP routes invoke the existing plugin usecase.
 
@@ -41,7 +41,7 @@ bench or debug request
   -> bounded runtime/read-model port or strict terminal-fence prepare
   -> low-cardinality response, opaque grant, or stable failure
 
-/demo/*
+/demos/* and the four Demo bundles
   -> embedded immutable asset or revalidated index
   -> same-origin product APIs and /route discovery
 ```
@@ -109,6 +109,22 @@ bench or debug request
   local causes and exact RPC cause identities; unknown errors retain the prior
   envelope/status. Errors publish no partial rows or next cursor. CMD and batch
   responses are unchanged.
+
+- `/streamdemo/*` serves a separate embedded EasySDK demo bundle with the same immutable-asset/index-revalidation policy as the chat demo. It remains reachable during maintenance.
+- `/` redirects to the read-only `/demos/` catalog; it lists four existing Demo
+  entrances without starting sessions or models. Both remain available during maintenance.
+- `/agentdemo/*` serves the task assistant UI with the same read-only bundle
+  policy. Tool approvals, task control and model calls stay in the separate
+  loopback Demo business process.
+- `/supportdemo/*` serves the customer support UI with the same read-only bundle
+  policy. Its session ownership, model calls and handoff remain in the separate
+  loopback Demo business process; these are not Product HTTP endpoints.
+
+- User/channel send-ban POST and GET routes expose policy values and decimal
+  CAS versions through the existing management boundary. Strict bounded bodies
+  reject missing/invalid flags; legacy channel-info DTOs distinguish an omitted
+  send_ban from an explicit zero. Audit attribution labels backend writes with
+  an unknown operator and the actual socket peer, without trusting headers.
 
 ## Read First
 

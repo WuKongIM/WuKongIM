@@ -1,0 +1,1526 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "browser-check",
+  "evidenceKind": "automated-browser",
+  "status": "pass",
+  "visualReview": "not-requested",
+  "provenance": "current",
+  "deliveryReceiptId": "8591e4af-e992-49f2-b159-f0c169023dc2",
+  "artifact": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/workflow-wukongim-send-message-20260930-153930/wukongim-send-message.html",
+    "sha256": "33ed504ae769396a2e54fbaa27e185fee9265218a2ff1bb4b672e29ba437f557",
+    "bytes": 793068
+  },
+  "state": {
+    "detail": "read",
+    "motion": "still"
+  },
+  "chrome": {
+    "status": "available",
+    "executable": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+  },
+  "diagnostics": [],
+  "containment": {
+    "status": "pass",
+    "policy": "fit-or-reader-declared-readable-vertical-scroll",
+    "viewports": [
+      {
+        "width": 1440,
+        "height": 900,
+        "theme": "light",
+        "innerWidth": 1440,
+        "innerHeight": 900,
+        "scrollWidth": 1440,
+        "scrollHeight": 900,
+        "overflowX": false,
+        "overflowY": false,
+        "verticalScrollAccepted": false,
+        "overflowDisposition": "contained",
+        "readerLayout": "adaptive",
+        "readerOverflow": null,
+        "readerFit": "intrinsic-height",
+        "ok": true,
+        "readerWidth": 984,
+        "diagramWidth": 954,
+        "pageComposition": {
+          "bodyPaddingPx": 12,
+          "headerPx": 52,
+          "diagramChromePx": 78,
+          "svgPx": 746,
+          "cardsPx": 0,
+          "viewBoxHeight": 954
+        },
+        "viewBoxWidth": 1220,
+        "workflowLanes": [
+          {
+            "frameId": "lane-2",
+            "heightPx": 214,
+            "nodeCount": 4,
+            "nodeIds": [
+              "writer",
+              "durable",
+              "transient",
+              "result"
+            ],
+            "nodeSpanPx": 185,
+            "spaceAboveNodesPx": 27,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-0",
+            "heightPx": 83,
+            "nodeCount": 3,
+            "nodeIds": [
+              "sender",
+              "gateway",
+              "sendack"
+            ],
+            "nodeSpanPx": 53,
+            "spaceAboveNodesPx": 27,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-1",
+            "heightPx": 83,
+            "nodeCount": 3,
+            "nodeIds": [
+              "permission",
+              "prepare",
+              "route"
+            ],
+            "nodeSpanPx": 53,
+            "spaceAboveNodesPx": 27,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-3",
+            "heightPx": 83,
+            "nodeCount": 6,
+            "nodeIds": [
+              "recvack",
+              "receiver",
+              "owner",
+              "presence",
+              "recipients",
+              "postcommit"
+            ],
+            "nodeSpanPx": 53,
+            "spaceAboveNodesPx": 27,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-4",
+            "heightPx": 83,
+            "nodeCount": 1,
+            "nodeIds": [
+              "offline"
+            ],
+            "nodeSpanPx": 53,
+            "spaceAboveNodesPx": 27,
+            "spaceBelowNodesPx": 3
+          }
+        ],
+        "minimumProjectedNodeTextPx": 6.255737704918033,
+        "minimumProjectedNonEdgeTextPx": 6.255737704918033,
+        "minimumProjectedEdgeTextPx": 6.255737704918033,
+        "minimumProjectedNodeText": "Channel · Payload",
+        "minimumProjectedNodeTextDetail": "context",
+        "minimumProjectedNodeTextOwner": {
+          "kind": "node",
+          "id": "sender"
+        },
+        "minimumRequiredNodeTextPx": 6,
+        "readabilityOk": true,
+        "hasLegend": true,
+        "hasNavigationDock": true,
+        "legendDockIntersectionArea": 0,
+        "dockStageIntersectionArea": 0,
+        "dockStageGap": 10,
+        "requiredDockStageGap": 10,
+        "viewerChromeStageOk": true,
+        "viewerChromeReserve": 54,
+        "viewerChromeActive": true,
+        "viewerChromeOk": true,
+        "resolvedTheme": "light"
+      },
+      {
+        "width": 1600,
+        "height": 1000,
+        "theme": "light",
+        "innerWidth": 1600,
+        "innerHeight": 1000,
+        "scrollWidth": 1600,
+        "scrollHeight": 1000,
+        "overflowX": false,
+        "overflowY": false,
+        "verticalScrollAccepted": false,
+        "overflowDisposition": "contained",
+        "readerLayout": "adaptive",
+        "readerOverflow": null,
+        "readerFit": "intrinsic-height",
+        "ok": true,
+        "readerWidth": 1027,
+        "diagramWidth": 997,
+        "pageComposition": {
+          "bodyPaddingPx": 64,
+          "headerPx": 60,
+          "diagramChromePx": 84,
+          "svgPx": 780,
+          "cardsPx": 0,
+          "viewBoxHeight": 954
+        },
+        "viewBoxWidth": 1220,
+        "workflowLanes": [
+          {
+            "frameId": "lane-2",
+            "heightPx": 224,
+            "nodeCount": 4,
+            "nodeIds": [
+              "writer",
+              "durable",
+              "transient",
+              "result"
+            ],
+            "nodeSpanPx": 193,
+            "spaceAboveNodesPx": 28,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-0",
+            "heightPx": 87,
+            "nodeCount": 3,
+            "nodeIds": [
+              "sender",
+              "gateway",
+              "sendack"
+            ],
+            "nodeSpanPx": 56,
+            "spaceAboveNodesPx": 28,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-1",
+            "heightPx": 87,
+            "nodeCount": 3,
+            "nodeIds": [
+              "permission",
+              "prepare",
+              "route"
+            ],
+            "nodeSpanPx": 56,
+            "spaceAboveNodesPx": 28,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-3",
+            "heightPx": 87,
+            "nodeCount": 6,
+            "nodeIds": [
+              "recvack",
+              "receiver",
+              "owner",
+              "presence",
+              "recipients",
+              "postcommit"
+            ],
+            "nodeSpanPx": 56,
+            "spaceAboveNodesPx": 28,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-4",
+            "heightPx": 87,
+            "nodeCount": 1,
+            "nodeIds": [
+              "offline"
+            ],
+            "nodeSpanPx": 56,
+            "spaceAboveNodesPx": 28,
+            "spaceBelowNodesPx": 3
+          }
+        ],
+        "minimumProjectedNodeTextPx": 6.537704918032787,
+        "minimumProjectedNonEdgeTextPx": 6.537704918032787,
+        "minimumProjectedEdgeTextPx": 6.537704918032787,
+        "minimumProjectedNodeText": "Channel · Payload",
+        "minimumProjectedNodeTextDetail": "context",
+        "minimumProjectedNodeTextOwner": {
+          "kind": "node",
+          "id": "sender"
+        },
+        "minimumRequiredNodeTextPx": 6,
+        "readabilityOk": true,
+        "hasLegend": true,
+        "hasNavigationDock": true,
+        "legendDockIntersectionArea": 0,
+        "dockStageIntersectionArea": 0,
+        "dockStageGap": 10,
+        "requiredDockStageGap": 10,
+        "viewerChromeStageOk": true,
+        "viewerChromeReserve": 54,
+        "viewerChromeActive": true,
+        "viewerChromeOk": true,
+        "resolvedTheme": "light"
+      },
+      {
+        "width": 1920,
+        "height": 1080,
+        "theme": "light",
+        "innerWidth": 1920,
+        "innerHeight": 1080,
+        "scrollWidth": 1920,
+        "scrollHeight": 1080,
+        "overflowX": false,
+        "overflowY": false,
+        "verticalScrollAccepted": false,
+        "overflowDisposition": "contained",
+        "readerLayout": "adaptive",
+        "readerOverflow": null,
+        "readerFit": "intrinsic-height",
+        "ok": true,
+        "readerWidth": 1130,
+        "diagramWidth": 1100,
+        "pageComposition": {
+          "bodyPaddingPx": 64,
+          "headerPx": 60,
+          "diagramChromePx": 84,
+          "svgPx": 860,
+          "cardsPx": 0,
+          "viewBoxHeight": 954
+        },
+        "viewBoxWidth": 1220,
+        "workflowLanes": [
+          {
+            "frameId": "lane-2",
+            "heightPx": 247,
+            "nodeCount": 4,
+            "nodeIds": [
+              "writer",
+              "durable",
+              "transient",
+              "result"
+            ],
+            "nodeSpanPx": 213,
+            "spaceAboveNodesPx": 31,
+            "spaceBelowNodesPx": 4
+          },
+          {
+            "frameId": "lane-0",
+            "heightPx": 96,
+            "nodeCount": 3,
+            "nodeIds": [
+              "sender",
+              "gateway",
+              "sendack"
+            ],
+            "nodeSpanPx": 61,
+            "spaceAboveNodesPx": 31,
+            "spaceBelowNodesPx": 4
+          },
+          {
+            "frameId": "lane-1",
+            "heightPx": 96,
+            "nodeCount": 3,
+            "nodeIds": [
+              "permission",
+              "prepare",
+              "route"
+            ],
+            "nodeSpanPx": 61,
+            "spaceAboveNodesPx": 31,
+            "spaceBelowNodesPx": 4
+          },
+          {
+            "frameId": "lane-3",
+            "heightPx": 96,
+            "nodeCount": 6,
+            "nodeIds": [
+              "recvack",
+              "receiver",
+              "owner",
+              "presence",
+              "recipients",
+              "postcommit"
+            ],
+            "nodeSpanPx": 61,
+            "spaceAboveNodesPx": 31,
+            "spaceBelowNodesPx": 4
+          },
+          {
+            "frameId": "lane-4",
+            "heightPx": 96,
+            "nodeCount": 1,
+            "nodeIds": [
+              "offline"
+            ],
+            "nodeSpanPx": 61,
+            "spaceAboveNodesPx": 31,
+            "spaceBelowNodesPx": 4
+          }
+        ],
+        "minimumProjectedNodeTextPx": 7.213114754098361,
+        "minimumProjectedNonEdgeTextPx": 7.213114754098361,
+        "minimumProjectedEdgeTextPx": 7.213114754098361,
+        "minimumProjectedNodeText": "Channel · Payload",
+        "minimumProjectedNodeTextDetail": "context",
+        "minimumProjectedNodeTextOwner": {
+          "kind": "node",
+          "id": "sender"
+        },
+        "minimumRequiredNodeTextPx": 6,
+        "readabilityOk": true,
+        "hasLegend": true,
+        "hasNavigationDock": true,
+        "legendDockIntersectionArea": 0,
+        "dockStageIntersectionArea": 0,
+        "dockStageGap": 10,
+        "requiredDockStageGap": 10,
+        "viewerChromeStageOk": true,
+        "viewerChromeReserve": 54,
+        "viewerChromeActive": true,
+        "viewerChromeOk": true,
+        "resolvedTheme": "light"
+      },
+      {
+        "width": 2048,
+        "height": 1320,
+        "theme": "light",
+        "innerWidth": 2048,
+        "innerHeight": 1320,
+        "scrollWidth": 2048,
+        "scrollHeight": 1320,
+        "overflowX": false,
+        "overflowY": false,
+        "verticalScrollAccepted": false,
+        "overflowDisposition": "contained",
+        "readerLayout": "adaptive",
+        "readerOverflow": null,
+        "readerFit": "intrinsic-height",
+        "ok": true,
+        "readerWidth": 1434,
+        "diagramWidth": 1384,
+        "pageComposition": {
+          "bodyPaddingPx": 64,
+          "headerPx": 68,
+          "diagramChromePx": 94,
+          "svgPx": 1082,
+          "cardsPx": 0,
+          "viewBoxHeight": 954
+        },
+        "viewBoxWidth": 1220,
+        "workflowLanes": [
+          {
+            "frameId": "lane-2",
+            "heightPx": 311,
+            "nodeCount": 4,
+            "nodeIds": [
+              "writer",
+              "durable",
+              "transient",
+              "result"
+            ],
+            "nodeSpanPx": 268,
+            "spaceAboveNodesPx": 39,
+            "spaceBelowNodesPx": 5
+          },
+          {
+            "frameId": "lane-0",
+            "heightPx": 120,
+            "nodeCount": 3,
+            "nodeIds": [
+              "sender",
+              "gateway",
+              "sendack"
+            ],
+            "nodeSpanPx": 77,
+            "spaceAboveNodesPx": 39,
+            "spaceBelowNodesPx": 5
+          },
+          {
+            "frameId": "lane-1",
+            "heightPx": 120,
+            "nodeCount": 3,
+            "nodeIds": [
+              "permission",
+              "prepare",
+              "route"
+            ],
+            "nodeSpanPx": 77,
+            "spaceAboveNodesPx": 39,
+            "spaceBelowNodesPx": 5
+          },
+          {
+            "frameId": "lane-3",
+            "heightPx": 120,
+            "nodeCount": 6,
+            "nodeIds": [
+              "recvack",
+              "receiver",
+              "owner",
+              "presence",
+              "recipients",
+              "postcommit"
+            ],
+            "nodeSpanPx": 77,
+            "spaceAboveNodesPx": 39,
+            "spaceBelowNodesPx": 5
+          },
+          {
+            "frameId": "lane-4",
+            "heightPx": 120,
+            "nodeCount": 1,
+            "nodeIds": [
+              "offline"
+            ],
+            "nodeSpanPx": 77,
+            "spaceAboveNodesPx": 39,
+            "spaceBelowNodesPx": 5
+          }
+        ],
+        "minimumProjectedNodeTextPx": 8,
+        "minimumProjectedNonEdgeTextPx": 8,
+        "minimumProjectedEdgeTextPx": 8,
+        "minimumProjectedNodeText": "Channel · Payload",
+        "minimumProjectedNodeTextDetail": "context",
+        "minimumProjectedNodeTextOwner": {
+          "kind": "node",
+          "id": "sender"
+        },
+        "minimumRequiredNodeTextPx": 6,
+        "readabilityOk": true,
+        "hasLegend": true,
+        "hasNavigationDock": true,
+        "legendDockIntersectionArea": 0,
+        "dockStageIntersectionArea": 0,
+        "dockStageGap": 10,
+        "requiredDockStageGap": 10,
+        "viewerChromeStageOk": true,
+        "viewerChromeReserve": 44,
+        "viewerChromeActive": true,
+        "viewerChromeOk": true,
+        "resolvedTheme": "light"
+      }
+    ]
+  },
+  "themeStates": {
+    "status": "pass",
+    "viewports": [
+      {
+        "width": 1440,
+        "height": 900,
+        "requestedTheme": "light",
+        "resolvedTheme": "light",
+        "ok": true
+      },
+      {
+        "width": 1600,
+        "height": 1000,
+        "requestedTheme": "light",
+        "resolvedTheme": "light",
+        "ok": true
+      },
+      {
+        "width": 1920,
+        "height": 1080,
+        "requestedTheme": "light",
+        "resolvedTheme": "light",
+        "ok": true
+      },
+      {
+        "width": 2048,
+        "height": 1320,
+        "requestedTheme": "light",
+        "resolvedTheme": "light",
+        "ok": true
+      },
+      {
+        "width": 1440,
+        "height": 900,
+        "requestedTheme": "dark",
+        "resolvedTheme": "dark",
+        "ok": true
+      },
+      {
+        "width": 2048,
+        "height": 1320,
+        "requestedTheme": "dark",
+        "resolvedTheme": "dark",
+        "ok": true
+      }
+    ]
+  },
+  "readability": {
+    "status": "pass",
+    "minimumProjectedNodeTextPx": 6,
+    "viewports": [
+      {
+        "width": 1440,
+        "height": 900,
+        "theme": "light",
+        "innerWidth": 1440,
+        "innerHeight": 900,
+        "scrollWidth": 1440,
+        "scrollHeight": 900,
+        "overflowX": false,
+        "overflowY": false,
+        "verticalScrollAccepted": false,
+        "overflowDisposition": "contained",
+        "readerLayout": "adaptive",
+        "readerOverflow": null,
+        "readerFit": "intrinsic-height",
+        "ok": true,
+        "readerWidth": 984,
+        "diagramWidth": 954,
+        "pageComposition": {
+          "bodyPaddingPx": 12,
+          "headerPx": 52,
+          "diagramChromePx": 78,
+          "svgPx": 746,
+          "cardsPx": 0,
+          "viewBoxHeight": 954
+        },
+        "viewBoxWidth": 1220,
+        "workflowLanes": [
+          {
+            "frameId": "lane-2",
+            "heightPx": 214,
+            "nodeCount": 4,
+            "nodeIds": [
+              "writer",
+              "durable",
+              "transient",
+              "result"
+            ],
+            "nodeSpanPx": 185,
+            "spaceAboveNodesPx": 27,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-0",
+            "heightPx": 83,
+            "nodeCount": 3,
+            "nodeIds": [
+              "sender",
+              "gateway",
+              "sendack"
+            ],
+            "nodeSpanPx": 53,
+            "spaceAboveNodesPx": 27,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-1",
+            "heightPx": 83,
+            "nodeCount": 3,
+            "nodeIds": [
+              "permission",
+              "prepare",
+              "route"
+            ],
+            "nodeSpanPx": 53,
+            "spaceAboveNodesPx": 27,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-3",
+            "heightPx": 83,
+            "nodeCount": 6,
+            "nodeIds": [
+              "recvack",
+              "receiver",
+              "owner",
+              "presence",
+              "recipients",
+              "postcommit"
+            ],
+            "nodeSpanPx": 53,
+            "spaceAboveNodesPx": 27,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-4",
+            "heightPx": 83,
+            "nodeCount": 1,
+            "nodeIds": [
+              "offline"
+            ],
+            "nodeSpanPx": 53,
+            "spaceAboveNodesPx": 27,
+            "spaceBelowNodesPx": 3
+          }
+        ],
+        "minimumProjectedNodeTextPx": 6.255737704918033,
+        "minimumProjectedNonEdgeTextPx": 6.255737704918033,
+        "minimumProjectedEdgeTextPx": 6.255737704918033,
+        "minimumProjectedNodeText": "Channel · Payload",
+        "minimumProjectedNodeTextDetail": "context",
+        "minimumProjectedNodeTextOwner": {
+          "kind": "node",
+          "id": "sender"
+        },
+        "minimumRequiredNodeTextPx": 6,
+        "readabilityOk": true,
+        "hasLegend": true,
+        "hasNavigationDock": true,
+        "legendDockIntersectionArea": 0,
+        "dockStageIntersectionArea": 0,
+        "dockStageGap": 10,
+        "requiredDockStageGap": 10,
+        "viewerChromeStageOk": true,
+        "viewerChromeReserve": 54,
+        "viewerChromeActive": true,
+        "viewerChromeOk": true,
+        "resolvedTheme": "light"
+      },
+      {
+        "width": 1600,
+        "height": 1000,
+        "theme": "light",
+        "innerWidth": 1600,
+        "innerHeight": 1000,
+        "scrollWidth": 1600,
+        "scrollHeight": 1000,
+        "overflowX": false,
+        "overflowY": false,
+        "verticalScrollAccepted": false,
+        "overflowDisposition": "contained",
+        "readerLayout": "adaptive",
+        "readerOverflow": null,
+        "readerFit": "intrinsic-height",
+        "ok": true,
+        "readerWidth": 1027,
+        "diagramWidth": 997,
+        "pageComposition": {
+          "bodyPaddingPx": 64,
+          "headerPx": 60,
+          "diagramChromePx": 84,
+          "svgPx": 780,
+          "cardsPx": 0,
+          "viewBoxHeight": 954
+        },
+        "viewBoxWidth": 1220,
+        "workflowLanes": [
+          {
+            "frameId": "lane-2",
+            "heightPx": 224,
+            "nodeCount": 4,
+            "nodeIds": [
+              "writer",
+              "durable",
+              "transient",
+              "result"
+            ],
+            "nodeSpanPx": 193,
+            "spaceAboveNodesPx": 28,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-0",
+            "heightPx": 87,
+            "nodeCount": 3,
+            "nodeIds": [
+              "sender",
+              "gateway",
+              "sendack"
+            ],
+            "nodeSpanPx": 56,
+            "spaceAboveNodesPx": 28,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-1",
+            "heightPx": 87,
+            "nodeCount": 3,
+            "nodeIds": [
+              "permission",
+              "prepare",
+              "route"
+            ],
+            "nodeSpanPx": 56,
+            "spaceAboveNodesPx": 28,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-3",
+            "heightPx": 87,
+            "nodeCount": 6,
+            "nodeIds": [
+              "recvack",
+              "receiver",
+              "owner",
+              "presence",
+              "recipients",
+              "postcommit"
+            ],
+            "nodeSpanPx": 56,
+            "spaceAboveNodesPx": 28,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-4",
+            "heightPx": 87,
+            "nodeCount": 1,
+            "nodeIds": [
+              "offline"
+            ],
+            "nodeSpanPx": 56,
+            "spaceAboveNodesPx": 28,
+            "spaceBelowNodesPx": 3
+          }
+        ],
+        "minimumProjectedNodeTextPx": 6.537704918032787,
+        "minimumProjectedNonEdgeTextPx": 6.537704918032787,
+        "minimumProjectedEdgeTextPx": 6.537704918032787,
+        "minimumProjectedNodeText": "Channel · Payload",
+        "minimumProjectedNodeTextDetail": "context",
+        "minimumProjectedNodeTextOwner": {
+          "kind": "node",
+          "id": "sender"
+        },
+        "minimumRequiredNodeTextPx": 6,
+        "readabilityOk": true,
+        "hasLegend": true,
+        "hasNavigationDock": true,
+        "legendDockIntersectionArea": 0,
+        "dockStageIntersectionArea": 0,
+        "dockStageGap": 10,
+        "requiredDockStageGap": 10,
+        "viewerChromeStageOk": true,
+        "viewerChromeReserve": 54,
+        "viewerChromeActive": true,
+        "viewerChromeOk": true,
+        "resolvedTheme": "light"
+      },
+      {
+        "width": 1920,
+        "height": 1080,
+        "theme": "light",
+        "innerWidth": 1920,
+        "innerHeight": 1080,
+        "scrollWidth": 1920,
+        "scrollHeight": 1080,
+        "overflowX": false,
+        "overflowY": false,
+        "verticalScrollAccepted": false,
+        "overflowDisposition": "contained",
+        "readerLayout": "adaptive",
+        "readerOverflow": null,
+        "readerFit": "intrinsic-height",
+        "ok": true,
+        "readerWidth": 1130,
+        "diagramWidth": 1100,
+        "pageComposition": {
+          "bodyPaddingPx": 64,
+          "headerPx": 60,
+          "diagramChromePx": 84,
+          "svgPx": 860,
+          "cardsPx": 0,
+          "viewBoxHeight": 954
+        },
+        "viewBoxWidth": 1220,
+        "workflowLanes": [
+          {
+            "frameId": "lane-2",
+            "heightPx": 247,
+            "nodeCount": 4,
+            "nodeIds": [
+              "writer",
+              "durable",
+              "transient",
+              "result"
+            ],
+            "nodeSpanPx": 213,
+            "spaceAboveNodesPx": 31,
+            "spaceBelowNodesPx": 4
+          },
+          {
+            "frameId": "lane-0",
+            "heightPx": 96,
+            "nodeCount": 3,
+            "nodeIds": [
+              "sender",
+              "gateway",
+              "sendack"
+            ],
+            "nodeSpanPx": 61,
+            "spaceAboveNodesPx": 31,
+            "spaceBelowNodesPx": 4
+          },
+          {
+            "frameId": "lane-1",
+            "heightPx": 96,
+            "nodeCount": 3,
+            "nodeIds": [
+              "permission",
+              "prepare",
+              "route"
+            ],
+            "nodeSpanPx": 61,
+            "spaceAboveNodesPx": 31,
+            "spaceBelowNodesPx": 4
+          },
+          {
+            "frameId": "lane-3",
+            "heightPx": 96,
+            "nodeCount": 6,
+            "nodeIds": [
+              "recvack",
+              "receiver",
+              "owner",
+              "presence",
+              "recipients",
+              "postcommit"
+            ],
+            "nodeSpanPx": 61,
+            "spaceAboveNodesPx": 31,
+            "spaceBelowNodesPx": 4
+          },
+          {
+            "frameId": "lane-4",
+            "heightPx": 96,
+            "nodeCount": 1,
+            "nodeIds": [
+              "offline"
+            ],
+            "nodeSpanPx": 61,
+            "spaceAboveNodesPx": 31,
+            "spaceBelowNodesPx": 4
+          }
+        ],
+        "minimumProjectedNodeTextPx": 7.213114754098361,
+        "minimumProjectedNonEdgeTextPx": 7.213114754098361,
+        "minimumProjectedEdgeTextPx": 7.213114754098361,
+        "minimumProjectedNodeText": "Channel · Payload",
+        "minimumProjectedNodeTextDetail": "context",
+        "minimumProjectedNodeTextOwner": {
+          "kind": "node",
+          "id": "sender"
+        },
+        "minimumRequiredNodeTextPx": 6,
+        "readabilityOk": true,
+        "hasLegend": true,
+        "hasNavigationDock": true,
+        "legendDockIntersectionArea": 0,
+        "dockStageIntersectionArea": 0,
+        "dockStageGap": 10,
+        "requiredDockStageGap": 10,
+        "viewerChromeStageOk": true,
+        "viewerChromeReserve": 54,
+        "viewerChromeActive": true,
+        "viewerChromeOk": true,
+        "resolvedTheme": "light"
+      },
+      {
+        "width": 2048,
+        "height": 1320,
+        "theme": "light",
+        "innerWidth": 2048,
+        "innerHeight": 1320,
+        "scrollWidth": 2048,
+        "scrollHeight": 1320,
+        "overflowX": false,
+        "overflowY": false,
+        "verticalScrollAccepted": false,
+        "overflowDisposition": "contained",
+        "readerLayout": "adaptive",
+        "readerOverflow": null,
+        "readerFit": "intrinsic-height",
+        "ok": true,
+        "readerWidth": 1434,
+        "diagramWidth": 1384,
+        "pageComposition": {
+          "bodyPaddingPx": 64,
+          "headerPx": 68,
+          "diagramChromePx": 94,
+          "svgPx": 1082,
+          "cardsPx": 0,
+          "viewBoxHeight": 954
+        },
+        "viewBoxWidth": 1220,
+        "workflowLanes": [
+          {
+            "frameId": "lane-2",
+            "heightPx": 311,
+            "nodeCount": 4,
+            "nodeIds": [
+              "writer",
+              "durable",
+              "transient",
+              "result"
+            ],
+            "nodeSpanPx": 268,
+            "spaceAboveNodesPx": 39,
+            "spaceBelowNodesPx": 5
+          },
+          {
+            "frameId": "lane-0",
+            "heightPx": 120,
+            "nodeCount": 3,
+            "nodeIds": [
+              "sender",
+              "gateway",
+              "sendack"
+            ],
+            "nodeSpanPx": 77,
+            "spaceAboveNodesPx": 39,
+            "spaceBelowNodesPx": 5
+          },
+          {
+            "frameId": "lane-1",
+            "heightPx": 120,
+            "nodeCount": 3,
+            "nodeIds": [
+              "permission",
+              "prepare",
+              "route"
+            ],
+            "nodeSpanPx": 77,
+            "spaceAboveNodesPx": 39,
+            "spaceBelowNodesPx": 5
+          },
+          {
+            "frameId": "lane-3",
+            "heightPx": 120,
+            "nodeCount": 6,
+            "nodeIds": [
+              "recvack",
+              "receiver",
+              "owner",
+              "presence",
+              "recipients",
+              "postcommit"
+            ],
+            "nodeSpanPx": 77,
+            "spaceAboveNodesPx": 39,
+            "spaceBelowNodesPx": 5
+          },
+          {
+            "frameId": "lane-4",
+            "heightPx": 120,
+            "nodeCount": 1,
+            "nodeIds": [
+              "offline"
+            ],
+            "nodeSpanPx": 77,
+            "spaceAboveNodesPx": 39,
+            "spaceBelowNodesPx": 5
+          }
+        ],
+        "minimumProjectedNodeTextPx": 8,
+        "minimumProjectedNonEdgeTextPx": 8,
+        "minimumProjectedEdgeTextPx": 8,
+        "minimumProjectedNodeText": "Channel · Payload",
+        "minimumProjectedNodeTextDetail": "context",
+        "minimumProjectedNodeTextOwner": {
+          "kind": "node",
+          "id": "sender"
+        },
+        "minimumRequiredNodeTextPx": 6,
+        "readabilityOk": true,
+        "hasLegend": true,
+        "hasNavigationDock": true,
+        "legendDockIntersectionArea": 0,
+        "dockStageIntersectionArea": 0,
+        "dockStageGap": 10,
+        "requiredDockStageGap": 10,
+        "viewerChromeStageOk": true,
+        "viewerChromeReserve": 44,
+        "viewerChromeActive": true,
+        "viewerChromeOk": true,
+        "resolvedTheme": "light"
+      }
+    ]
+  },
+  "viewerChrome": {
+    "status": "pass",
+    "viewports": [
+      {
+        "width": 1440,
+        "height": 900,
+        "theme": "light",
+        "innerWidth": 1440,
+        "innerHeight": 900,
+        "scrollWidth": 1440,
+        "scrollHeight": 900,
+        "overflowX": false,
+        "overflowY": false,
+        "verticalScrollAccepted": false,
+        "overflowDisposition": "contained",
+        "readerLayout": "adaptive",
+        "readerOverflow": null,
+        "readerFit": "intrinsic-height",
+        "ok": true,
+        "readerWidth": 984,
+        "diagramWidth": 954,
+        "pageComposition": {
+          "bodyPaddingPx": 12,
+          "headerPx": 52,
+          "diagramChromePx": 78,
+          "svgPx": 746,
+          "cardsPx": 0,
+          "viewBoxHeight": 954
+        },
+        "viewBoxWidth": 1220,
+        "workflowLanes": [
+          {
+            "frameId": "lane-2",
+            "heightPx": 214,
+            "nodeCount": 4,
+            "nodeIds": [
+              "writer",
+              "durable",
+              "transient",
+              "result"
+            ],
+            "nodeSpanPx": 185,
+            "spaceAboveNodesPx": 27,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-0",
+            "heightPx": 83,
+            "nodeCount": 3,
+            "nodeIds": [
+              "sender",
+              "gateway",
+              "sendack"
+            ],
+            "nodeSpanPx": 53,
+            "spaceAboveNodesPx": 27,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-1",
+            "heightPx": 83,
+            "nodeCount": 3,
+            "nodeIds": [
+              "permission",
+              "prepare",
+              "route"
+            ],
+            "nodeSpanPx": 53,
+            "spaceAboveNodesPx": 27,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-3",
+            "heightPx": 83,
+            "nodeCount": 6,
+            "nodeIds": [
+              "recvack",
+              "receiver",
+              "owner",
+              "presence",
+              "recipients",
+              "postcommit"
+            ],
+            "nodeSpanPx": 53,
+            "spaceAboveNodesPx": 27,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-4",
+            "heightPx": 83,
+            "nodeCount": 1,
+            "nodeIds": [
+              "offline"
+            ],
+            "nodeSpanPx": 53,
+            "spaceAboveNodesPx": 27,
+            "spaceBelowNodesPx": 3
+          }
+        ],
+        "minimumProjectedNodeTextPx": 6.255737704918033,
+        "minimumProjectedNonEdgeTextPx": 6.255737704918033,
+        "minimumProjectedEdgeTextPx": 6.255737704918033,
+        "minimumProjectedNodeText": "Channel · Payload",
+        "minimumProjectedNodeTextDetail": "context",
+        "minimumProjectedNodeTextOwner": {
+          "kind": "node",
+          "id": "sender"
+        },
+        "minimumRequiredNodeTextPx": 6,
+        "readabilityOk": true,
+        "hasLegend": true,
+        "hasNavigationDock": true,
+        "legendDockIntersectionArea": 0,
+        "dockStageIntersectionArea": 0,
+        "dockStageGap": 10,
+        "requiredDockStageGap": 10,
+        "viewerChromeStageOk": true,
+        "viewerChromeReserve": 54,
+        "viewerChromeActive": true,
+        "viewerChromeOk": true,
+        "resolvedTheme": "light"
+      },
+      {
+        "width": 1600,
+        "height": 1000,
+        "theme": "light",
+        "innerWidth": 1600,
+        "innerHeight": 1000,
+        "scrollWidth": 1600,
+        "scrollHeight": 1000,
+        "overflowX": false,
+        "overflowY": false,
+        "verticalScrollAccepted": false,
+        "overflowDisposition": "contained",
+        "readerLayout": "adaptive",
+        "readerOverflow": null,
+        "readerFit": "intrinsic-height",
+        "ok": true,
+        "readerWidth": 1027,
+        "diagramWidth": 997,
+        "pageComposition": {
+          "bodyPaddingPx": 64,
+          "headerPx": 60,
+          "diagramChromePx": 84,
+          "svgPx": 780,
+          "cardsPx": 0,
+          "viewBoxHeight": 954
+        },
+        "viewBoxWidth": 1220,
+        "workflowLanes": [
+          {
+            "frameId": "lane-2",
+            "heightPx": 224,
+            "nodeCount": 4,
+            "nodeIds": [
+              "writer",
+              "durable",
+              "transient",
+              "result"
+            ],
+            "nodeSpanPx": 193,
+            "spaceAboveNodesPx": 28,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-0",
+            "heightPx": 87,
+            "nodeCount": 3,
+            "nodeIds": [
+              "sender",
+              "gateway",
+              "sendack"
+            ],
+            "nodeSpanPx": 56,
+            "spaceAboveNodesPx": 28,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-1",
+            "heightPx": 87,
+            "nodeCount": 3,
+            "nodeIds": [
+              "permission",
+              "prepare",
+              "route"
+            ],
+            "nodeSpanPx": 56,
+            "spaceAboveNodesPx": 28,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-3",
+            "heightPx": 87,
+            "nodeCount": 6,
+            "nodeIds": [
+              "recvack",
+              "receiver",
+              "owner",
+              "presence",
+              "recipients",
+              "postcommit"
+            ],
+            "nodeSpanPx": 56,
+            "spaceAboveNodesPx": 28,
+            "spaceBelowNodesPx": 3
+          },
+          {
+            "frameId": "lane-4",
+            "heightPx": 87,
+            "nodeCount": 1,
+            "nodeIds": [
+              "offline"
+            ],
+            "nodeSpanPx": 56,
+            "spaceAboveNodesPx": 28,
+            "spaceBelowNodesPx": 3
+          }
+        ],
+        "minimumProjectedNodeTextPx": 6.537704918032787,
+        "minimumProjectedNonEdgeTextPx": 6.537704918032787,
+        "minimumProjectedEdgeTextPx": 6.537704918032787,
+        "minimumProjectedNodeText": "Channel · Payload",
+        "minimumProjectedNodeTextDetail": "context",
+        "minimumProjectedNodeTextOwner": {
+          "kind": "node",
+          "id": "sender"
+        },
+        "minimumRequiredNodeTextPx": 6,
+        "readabilityOk": true,
+        "hasLegend": true,
+        "hasNavigationDock": true,
+        "legendDockIntersectionArea": 0,
+        "dockStageIntersectionArea": 0,
+        "dockStageGap": 10,
+        "requiredDockStageGap": 10,
+        "viewerChromeStageOk": true,
+        "viewerChromeReserve": 54,
+        "viewerChromeActive": true,
+        "viewerChromeOk": true,
+        "resolvedTheme": "light"
+      },
+      {
+        "width": 1920,
+        "height": 1080,
+        "theme": "light",
+        "innerWidth": 1920,
+        "innerHeight": 1080,
+        "scrollWidth": 1920,
+        "scrollHeight": 1080,
+        "overflowX": false,
+        "overflowY": false,
+        "verticalScrollAccepted": false,
+        "overflowDisposition": "contained",
+        "readerLayout": "adaptive",
+        "readerOverflow": null,
+        "readerFit": "intrinsic-height",
+        "ok": true,
+        "readerWidth": 1130,
+        "diagramWidth": 1100,
+        "pageComposition": {
+          "bodyPaddingPx": 64,
+          "headerPx": 60,
+          "diagramChromePx": 84,
+          "svgPx": 860,
+          "cardsPx": 0,
+          "viewBoxHeight": 954
+        },
+        "viewBoxWidth": 1220,
+        "workflowLanes": [
+          {
+            "frameId": "lane-2",
+            "heightPx": 247,
+            "nodeCount": 4,
+            "nodeIds": [
+              "writer",
+              "durable",
+              "transient",
+              "result"
+            ],
+            "nodeSpanPx": 213,
+            "spaceAboveNodesPx": 31,
+            "spaceBelowNodesPx": 4
+          },
+          {
+            "frameId": "lane-0",
+            "heightPx": 96,
+            "nodeCount": 3,
+            "nodeIds": [
+              "sender",
+              "gateway",
+              "sendack"
+            ],
+            "nodeSpanPx": 61,
+            "spaceAboveNodesPx": 31,
+            "spaceBelowNodesPx": 4
+          },
+          {
+            "frameId": "lane-1",
+            "heightPx": 96,
+            "nodeCount": 3,
+            "nodeIds": [
+              "permission",
+              "prepare",
+              "route"
+            ],
+            "nodeSpanPx": 61,
+            "spaceAboveNodesPx": 31,
+            "spaceBelowNodesPx": 4
+          },
+          {
+            "frameId": "lane-3",
+            "heightPx": 96,
+            "nodeCount": 6,
+            "nodeIds": [
+              "recvack",
+              "receiver",
+              "owner",
+              "presence",
+              "recipients",
+              "postcommit"
+            ],
+            "nodeSpanPx": 61,
+            "spaceAboveNodesPx": 31,
+            "spaceBelowNodesPx": 4
+          },
+          {
+            "frameId": "lane-4",
+            "heightPx": 96,
+            "nodeCount": 1,
+            "nodeIds": [
+              "offline"
+            ],
+            "nodeSpanPx": 61,
+            "spaceAboveNodesPx": 31,
+            "spaceBelowNodesPx": 4
+          }
+        ],
+        "minimumProjectedNodeTextPx": 7.213114754098361,
+        "minimumProjectedNonEdgeTextPx": 7.213114754098361,
+        "minimumProjectedEdgeTextPx": 7.213114754098361,
+        "minimumProjectedNodeText": "Channel · Payload",
+        "minimumProjectedNodeTextDetail": "context",
+        "minimumProjectedNodeTextOwner": {
+          "kind": "node",
+          "id": "sender"
+        },
+        "minimumRequiredNodeTextPx": 6,
+        "readabilityOk": true,
+        "hasLegend": true,
+        "hasNavigationDock": true,
+        "legendDockIntersectionArea": 0,
+        "dockStageIntersectionArea": 0,
+        "dockStageGap": 10,
+        "requiredDockStageGap": 10,
+        "viewerChromeStageOk": true,
+        "viewerChromeReserve": 54,
+        "viewerChromeActive": true,
+        "viewerChromeOk": true,
+        "resolvedTheme": "light"
+      },
+      {
+        "width": 2048,
+        "height": 1320,
+        "theme": "light",
+        "innerWidth": 2048,
+        "innerHeight": 1320,
+        "scrollWidth": 2048,
+        "scrollHeight": 1320,
+        "overflowX": false,
+        "overflowY": false,
+        "verticalScrollAccepted": false,
+        "overflowDisposition": "contained",
+        "readerLayout": "adaptive",
+        "readerOverflow": null,
+        "readerFit": "intrinsic-height",
+        "ok": true,
+        "readerWidth": 1434,
+        "diagramWidth": 1384,
+        "pageComposition": {
+          "bodyPaddingPx": 64,
+          "headerPx": 68,
+          "diagramChromePx": 94,
+          "svgPx": 1082,
+          "cardsPx": 0,
+          "viewBoxHeight": 954
+        },
+        "viewBoxWidth": 1220,
+        "workflowLanes": [
+          {
+            "frameId": "lane-2",
+            "heightPx": 311,
+            "nodeCount": 4,
+            "nodeIds": [
+              "writer",
+              "durable",
+              "transient",
+              "result"
+            ],
+            "nodeSpanPx": 268,
+            "spaceAboveNodesPx": 39,
+            "spaceBelowNodesPx": 5
+          },
+          {
+            "frameId": "lane-0",
+            "heightPx": 120,
+            "nodeCount": 3,
+            "nodeIds": [
+              "sender",
+              "gateway",
+              "sendack"
+            ],
+            "nodeSpanPx": 77,
+            "spaceAboveNodesPx": 39,
+            "spaceBelowNodesPx": 5
+          },
+          {
+            "frameId": "lane-1",
+            "heightPx": 120,
+            "nodeCount": 3,
+            "nodeIds": [
+              "permission",
+              "prepare",
+              "route"
+            ],
+            "nodeSpanPx": 77,
+            "spaceAboveNodesPx": 39,
+            "spaceBelowNodesPx": 5
+          },
+          {
+            "frameId": "lane-3",
+            "heightPx": 120,
+            "nodeCount": 6,
+            "nodeIds": [
+              "recvack",
+              "receiver",
+              "owner",
+              "presence",
+              "recipients",
+              "postcommit"
+            ],
+            "nodeSpanPx": 77,
+            "spaceAboveNodesPx": 39,
+            "spaceBelowNodesPx": 5
+          },
+          {
+            "frameId": "lane-4",
+            "heightPx": 120,
+            "nodeCount": 1,
+            "nodeIds": [
+              "offline"
+            ],
+            "nodeSpanPx": 77,
+            "spaceAboveNodesPx": 39,
+            "spaceBelowNodesPx": 5
+          }
+        ],
+        "minimumProjectedNodeTextPx": 8,
+        "minimumProjectedNonEdgeTextPx": 8,
+        "minimumProjectedEdgeTextPx": 8,
+        "minimumProjectedNodeText": "Channel · Payload",
+        "minimumProjectedNodeTextDetail": "context",
+        "minimumProjectedNodeTextOwner": {
+          "kind": "node",
+          "id": "sender"
+        },
+        "minimumRequiredNodeTextPx": 6,
+        "readabilityOk": true,
+        "hasLegend": true,
+        "hasNavigationDock": true,
+        "legendDockIntersectionArea": 0,
+        "dockStageIntersectionArea": 0,
+        "dockStageGap": 10,
+        "requiredDockStageGap": 10,
+        "viewerChromeStageOk": true,
+        "viewerChromeReserve": 44,
+        "viewerChromeActive": true,
+        "viewerChromeOk": true,
+        "resolvedTheme": "light"
+      }
+    ]
+  },
+  "captures": {
+    "status": "not-requested",
+    "screenshots": [],
+    "contactSheet": null
+  },
+  "sidecars": {
+    "directory": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/workflow-wukongim-send-message-20260930-153930/review-2",
+    "receipt": "wukongim-send-message.browser-check.json",
+    "files": []
+  }
+}

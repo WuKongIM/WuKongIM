@@ -176,6 +176,7 @@ func importMetaRecord(ctx context.Context, meta *metadb.MetaDB, kind FileKind, r
 	case FileKindMetaUsers:
 		row := record.(UserRecord)
 		return meta.HashSlot(row.HashSlot).UpsertUser(ctx, metadb.User{
+			SendBan: row.SendBan, SendBanVersion: uint64(row.SendBanVersion),
 			UID:         row.UID,
 			Token:       row.Token,
 			DeviceFlag:  row.DeviceFlag,
@@ -197,6 +198,7 @@ func importMetaRecord(ctx context.Context, meta *metadb.MetaDB, kind FileKind, r
 			Ban:                           row.Ban,
 			Disband:                       row.Disband,
 			SendBan:                       row.SendBan,
+			SendBanVersion:                uint64(row.SendBanVersion),
 			AllowStranger:                 row.AllowStranger,
 			Large:                         row.Large,
 			SubscriberMutationVersion:     uint64(row.SubscriberMutationVersion),

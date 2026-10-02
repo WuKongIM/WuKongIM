@@ -24,6 +24,8 @@ backup use case.
   RPC messages.
 - Controller state is bounded and revision-CAS protected. It must not contain
   manifests, channel identifiers, repository listings, or plaintext secrets.
+  Reads wait boundedly for this adapter's successful forwarded CAS revision to
+  reach the local mirror; replica lag cannot hide an operation's own lease.
 - Cluster adapters resolve physical Slot authority; they do not invent backup
   or restore policy.
 

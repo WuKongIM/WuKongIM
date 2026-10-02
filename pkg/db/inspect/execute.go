@@ -293,9 +293,9 @@ func inspectColumnType(domain, table, column string) string {
 }
 
 var inspectColumns = map[string][]string{
-	"meta.user":                        {"uid", "token", "device_flag", "device_level"},
+	"meta.user":                        {"uid", "token", "device_flag", "device_level", "send_ban", "send_ban_version"},
 	"meta.device":                      {"uid", "device_flag", "token", "device_level"},
-	"meta.channel":                     {"channel_id", "channel_type", "ban", "disband", "send_ban", "allow_stranger", "subscriber_mutation_version"},
+	"meta.channel":                     {"channel_id", "channel_type", "ban", "disband", "send_ban", "send_ban_version", "allow_stranger", "subscriber_mutation_version"},
 	"meta.channel_runtime_meta":        {"channel_id", "channel_type", "channel_epoch", "leader_epoch", "route_generation", "replicas", "isr", "leader", "min_isr", "status", "features", "lease_until_ms", "retention_through_seq", "retention_updated_at_ms", "write_fence_token", "write_fence_version", "write_fence_reason", "write_fence_until_ms"},
 	"meta.subscriber":                  {"channel_id", "channel_type", "uid", "incarnation"},
 	"meta.user_channel_membership":     {"uid", "channel_id", "channel_type", "join_seq", "read_seq", "deleted_to_seq", "activated_at", "tombstone", "tombstone_at", "source_version", "updated_at"},
@@ -317,6 +317,7 @@ var inspectColumnTypes = map[string]string{
 	"ban":                         "int64",
 	"disband":                     "int64",
 	"send_ban":                    "int64",
+	"send_ban_version":            "uint64",
 	"allow_stranger":              "int64",
 	"subscriber_mutation_version": "uint64",
 	"incarnation":                 "uint64",

@@ -22,6 +22,18 @@ Every existing-table field change must define what remains compatible:
 If any of these cannot be true, the change is not a simple field add. Treat it
 as a format migration and gate it behind an explicit rollout plan.
 
+## Send-policy format 2
+
+User SendBan/SendBanVersion and Channel SendBanVersion use strict appended
+fields in directory format 2. This feature explicitly excludes old-data migration
+and mixed binaries: format 1 and nonempty unregistered directories are rejected
+before opening writable stores. Never edit the marker to bypass this check.
+Use new directories or an explicitly prepared compatible import. No cleanup
+script may delete existing data automatically. Snapshots and JSONL transfers
+preserve both policy values and revisions. Slot commands 67, 68 and 69 are permanent.
+Generic online FSM upserts retain existing policy; exact low-level Shard upserts
+remain offline import primitives and must not become online policy writers.
+
 ## Stable Durable IDs
 
 MQTT aggregate storage adds metadata table 28 (`mqtt_storage_ledger`) and Slot
@@ -80,7 +92,7 @@ must match: older binaries can erase/reuse authority. A pre-feature backup is
 required for rollback; old deletion history cannot be reconstructed. MQTT JSONL
 transfer and distributed restore activation remain required before product access.
 See [runtime incarnation fence](../../docs/specs/mqtt-runtime-incarnation.md).
-MQTT read RPC 91 kind 22 exposes that existing floor and the live runtime from
+MQTT read RPC 106 kind 22 exposes that existing floor and the live runtime from
 one snapshot. Optional `runtime_channel`/`runtime` fields are absent on older
 queries/replies, preserving their JSON. New reads require matched peers; no
 durable format, backfill or write semantics change. Physical identity does not
@@ -206,7 +218,7 @@ before repair planning; a separate flag reports bounded cleanup still pending.
 Versions 1/2 preserve their bytes and behavior; old peers reject version 3, and
 callers must not downgrade the requested effect. No new storage encoding is added.
 
-MQTT metadata RPC 91 read kind 17 discovers replay sources through existing
+MQTT metadata RPC 106 read kind 17 discovers replay sources through existing
 primary binding rows, including Removed tombstones. Kind 16 retains active-source
 semantics. This adds no table/index/row layout or backfill; matched runtimes are
 required because older peers reject the new read kind. Workers cannot downgrade
@@ -245,7 +257,7 @@ See [the replay contract](../../docs/specs/mqtt-shared-replay.md).
 
 MQTT groundwork adds metadata tables 22 (`mqtt_session`), 23
 (`mqtt_subscription`), 24 (`mqtt_delivery_cursor`), 25 (`mqtt_inflight`), 26
-(`mqtt_source_binding`) and 27 (`mqtt_will`), with Slot commands 67–74.
+(`mqtt_source_binding`) and 27 (`mqtt_will`), with Slot commands 70–74 and 80–82.
 Table 27 optional columns 35/36 preserve dispatch phase and frozen hook payload.
 Phase 4 (`Sealed`) records only Rejected/PermissionRevoked after a trusted exact
 durable non-dispatch seal. It retains the original Started executor/body and
@@ -268,19 +280,19 @@ keyed by the canonical person Channel ID. Its version-1 key-bound fixed envelope
 stores directory generation, monotonic revision, timestamp, participant and a
 bounded qualification cursor. Runtime deletion invalidates the record atomically
 without resetting its revision; ordinary Channel deletion advances the runtime
-incarnation. RPC 91 kind 21 pins both records. Native Hash-Slot snapshots preserve
+incarnation. RPC 106 kind 21 pins both records. Native Hash-Slot snapshots preserve
 the existing System span without a framing change. Older writers cannot retain
 these fences, so matching writers/tools and a pre-feature rollback backup are
 required. MQTT JSONL transfer and full product activation remain pending.
 See [admission checkpoints](../../docs/specs/mqtt-inbox-admission-checkpoint.md).
-Command 69 operation 3 explicitly initializes empty cancelled preparation after
+Command 82 operation 3 explicitly initializes empty cancelled preparation after
 closed/replaced subscription intent. It preserves existing row/envelope formats
 and ordinary Init/Account semantics; older nodes reject it, requiring matched
 participants. No index or data backfill is introduced.
-Command 69 operation 4 persists qualified backlog receipts under table 24 System 1,
+Command 82 operation 4 persists qualified backlog receipts under table 24 System 1,
 with key-bound fixed envelope version 1. Optional cursor columns 25–27 are an
 all-or-none version/head/tail tuple; old rows retain legacy version 0. Upgrade
-requires no unadmitted legacy backlog. RPC 91 read kind 18 pins the head alongside
+requires no unadmitted legacy backlog. RPC 106 read kind 18 pins the head alongside
 Session/cursor; old peers reject the operation/read. All writers and tools must
 match before use; old writers cannot preserve this System state, so rollback
 requires a pre-feature backup. Hash-Slot snapshots preserve row/index/System
@@ -485,6 +497,35 @@ For rowcodec-backed metadata values, normalize missing columns after decode.
 For custom binary metadata values, follow the fixed/raw rules above.
 
 ## Snapshots And Import
+
+The metadata global system key `System(0, 3) + physical Slot ID` is the
+startup-install pending marker; its value is the eight-byte big-endian snapshot
+index. It is excluded from hash-slot snapshots and business backups. It is
+committed with range deletion and a zero Slot applied watermark, then removed
+atomically with the completed snapshot watermark. A pending marker rejects
+watermark reads; startup must reinstall a verified snapshot, never skip replay.
+Normal completed databases retain no new marker. The portable snapshot and
+Raft envelope formats are unchanged.
+
+Optional certified recovery reserves global `System(0, 4)` for a physical
+sequence seal (`WKSEAL01` followed by an eight-byte next-visible sequence),
+`System(0, 5) + physical Slot ID` for atomic FSM certificates, and
+`System(0, 6)` for a 16-byte random database incarnation. A certificate contains
+version byte 1, that incarnation, an eight-byte applied index, at most 64 KiB
+of opaque Raft proof and a four-byte IEEE CRC32 trailer. These global keys are
+excluded from portable hash-slot snapshots and business backups. Unsupported
+or inconsistent evidence selects full recovery. An unaware older/offline
+writer advances the physical sequence without refreshing the seal and thereby
+invalidates reuse; it need not understand these keys. An invalid startup seal
+causes all old certificates to be durably deleted before any new scoped write
+can refresh the seal, including certificates for currently unopened Slots. Ordinary unclassified
+metadata batches invalidate certificates, including mixed group commits.
+Known disjoint Slot writes instead validate each certificate epoch under the
+commit lock: stale or absent proofs delete only the affected Slot certificate.
+Fenced startup installation removes its own proof atomically with its pending
+marker and preserves disjoint proofs. Legacy migration maintenance, overlapping
+ownership and mismatched ownership proofs retain global invalidation. No on-disk
+format changes are needed for this scoped invalidation.
 
 Metadata hash-slot snapshots export raw row, index, and system keyspaces. Field
 additions inside an existing row value usually do not need snapshot version

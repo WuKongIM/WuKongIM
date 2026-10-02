@@ -1,60 +1,70 @@
 ---
 title: Release checks
-description: Check identity, connection, messaging, offline recovery, security, capacity, and rollback before release.
+description: Verify a six-step messaging loop, then test SDK-specific recovery, security, and rollback.
 ---
 
-Connecting and sending one message proves only the basic path. Before production, exercise failure cases with your real clients, server configuration, and application APIs.
+Goal: prove the production messaging loop and recovery from critical failures with real clients, server configuration, and product APIs.
 
-## Freeze the release inputs
+## 1. Freeze the versions
 
-Record and review:
+Record exact SDK versions and lockfiles, the server version and configuration, and client/device/network coverage. Include login, token, history, conversation, and media APIs plus data changes and rollback. Release dependencies, configuration, and lockfiles as one change unit.
 
-- exact client SDK versions and lockfiles;
-- the WuKongIM server version and configuration;
-- supported client systems, devices, and networks;
-- versions of login, token, channel metadata, conversation, history, and media APIs;
-- database or protocol changes and their rollback path.
+## 2. Run the six-step messaging loop
 
-Release and roll back dependencies, configuration, and lockfiles as one change unit.
+Use Alice and Bob in independent clients. Retain screenshots or redacted results, with expected and actual outcomes for each step.
 
-## Minimum messaging loop
+<div className="tutorial-diagram">
 
-Use two real test accounts, Alice and Bob, in independent clients:
+```mermaid
+flowchart TD
+  login["1. Sign in on both clients<br/>reach send-ready state"] --> send["2. Alice sends<br/>check the server result"]
+  send --> receive["3. Bob receives<br/>shown exactly once"]
+  receive --> reply["4. Bob replies<br/>Alice checks reception"]
+  reply --> network["5. Disconnect and reconnect<br/>verify the chosen SDK path"]
+  network --> logout["6. Sign out and back in<br/>isolate accounts and local data"]
+```
 
-1. Log in and reach the send-ready state on both clients.
-2. Alice sends text to Bob and shows that the server accepted it.
-3. Bob receives the online message exactly once.
-4. Bob loses network access and Alice sends another message.
-5. Bob reconnects, restores the missed message, and shows correct order and unread state.
-6. Both users log out and back in without local data crossing accounts.
+</div>
 
-The sender's server result, the recipient's live message, and offline synchronization are three separate events. Check each one independently.
+Sending, live reception, and offline synchronization are **different events**. Verify each separately.
 
-## Release checklist
+## 3. Verify the SDK's recovery path
 
-| Area | Verify at minimum |
+| Integration | Step 5 acceptance |
 | --- | --- |
-| Identity | Invalid, expired, revoked, and wrong-UID tokens are rejected; clients hold no Product HTTP administrative credentials |
-| Connection | Weak networks, network changes, foreground/background, server restart, kick-out, and token expiry produce clear UI state |
-| Messages | Sending, success, failure, retry, duplicates, ordering, and timeout cannot create incorrect product state |
-| Conversations | Last message, unread count, deletion, and multi-device changes converge |
-| Media | Upload failure, cancellation, timeout, URL authorization, and local-file cleanup meet product requirements |
-| Local data | Account isolation, backup, encryption, logout cleanup, and upgrade migration meet security requirements |
-| Network security | Client entry uses controlled TLS/WSS; Product HTTP, Manager, and diagnostics are not publicly exposed |
-| Capacity | Load tests cover target online users, message rate, and group size with bounded queues, retries, and degradation |
-| Observability | Metrics and redacted logs can locate connection, send, delivery, sync, and storage failures |
-| Rollback | Client and server rollback is rehearsed in staging, and older versions can still read existing data |
+| Full SDK | Disconnect Bob, send another message from Alice, then reconnect and restore persistent messages; verify order, deduplication, conversations, and unread |
+| EasySDK online path | Verify disconnect/reconnect/error callbacks, listener removal, and instance destruction; do not assume automatic offline sync |
+| EasySDK with product history | Also verify your backend's history fetch, deduplication, conversations, and unread; promise these only after implementing them |
 
-## Go / No-Go
+Ordinary and command-style NoPersist have no persistent history and cannot prove offline recovery.
 
-Stop the release when any of these is true:
+## 4. Meet the release criteria
 
-- identity verification or network boundaries are incomplete;
-- a critical failure case cannot be reproduced and recovered reliably;
-- logs expose tokens or complete message payloads;
-- capacity misses the target or has no explicit rate-limit and degradation policy;
-- a data change cannot roll back and has no reviewed forward-repair plan.
+| Required check | Passing condition |
+| --- | --- |
+| Identity and network | Invalid, revoked, and wrong-UID tokens rejected; product expiry enforced; TLS/WSS and no client management credentials |
+| Messaging and connection | Correct results and UI for sending, failure, timeout, retry, duplicates, network changes, and restart |
+| Capacity and diagnosis | Target online users, message rate, and group size reached; queues/retries/degradation bounded; metrics and redacted logs support diagnosis |
+| Data and rollback | Account isolation, upgrades, and recovery rehearsed; rollback uses compatible data or a complete previous-generation backup |
 
-After all checks pass, begin with a small rollout. Observe connection success, send failures, message latency, sync errors, queue levels, and storage errors before expanding traffic.
+<details>
+  <summary>Additional checks for product features</summary>
 
-Continue with [Authentication & Security](/en/api/authentication), [Health & Monitoring](/en/server/operations/health-and-monitoring), and [Upgrade & Migration](/en/server/operations/upgrade-and-migration).
+| Feature in use | Verify |
+| --- | --- |
+| Multiple devices and conversations | Latest message, unread, deletion, and multi-device convergence; clear UI for foreground/background, kick-out, and token invalidation |
+| Media | Upload failure, cancellation, timeout, URL permissions, and file cleanup |
+| Local persistence | Backup, encryption, logout cleanup, and upgrade migration |
+| Operations APIs | Product HTTP, Manager, and diagnostics behind protected management boundaries, without direct public exposure |
+
+Your backend rotates or revokes expired tokens. CONNECT does not automatically inspect expiry inside the token string. Test the mechanism you actually deploy, beyond a client-side timer.
+
+</details>
+
+<Callout type="warn" title="Stop release on these failures">
+  Incomplete identity or network boundaries, tokens/full messages in logs, unrecoverable critical failures, missed capacity targets or absent rate-limit/degradation policy, or irreversible data changes without a reviewed forward-repair plan.
+</Callout>
+
+Start with a small rollout. Observe connection success, send failures, latency, sync errors, queue levels, and storage errors before expanding traffic.
+
+Next: [Health & Monitoring](/en/server/operations/health-and-monitoring) and [Upgrade & Migration](/en/server/operations/upgrade-and-migration). See [Authentication & Security](/en/api/authentication) for security boundaries.

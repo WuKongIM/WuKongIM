@@ -3,6 +3,9 @@ package clusternet
 import "testing"
 
 func TestRPCServiceIDsAreUniqueAndNonZero(t *testing.T) {
+	if RPCNodeSendPermissions != 91 || RPCMessageEventDelivery != 92 {
+		t.Fatal("main permission and stream RPC identities must remain stable")
+	}
 	ids := rpcServiceIDsForTest()
 	seen := make(map[uint8]string, len(ids))
 	for name, id := range ids {
@@ -69,6 +72,8 @@ func rpcServiceIDsForTest() map[string]uint8 {
 		"slot_mqtt_metadata":             RPCSlotMQTTMetadata,
 		"mqtt_owner":                     RPCMQTTOwner,
 		"mqtt_source":                    RPCChannelMQTTSource,
+		"node_send_permissions":          RPCNodeSendPermissions,
+		"message_event_delivery":         RPCMessageEventDelivery,
 		"scheduled_backup_messages":      RPCScheduledBackupMessages,
 		"scheduled_backup_slot":          RPCScheduledBackupSlot,
 		"scheduled_backup_probe":         RPCScheduledBackupRepositoryProbe,
@@ -85,10 +90,10 @@ func rpcServiceIDsForTest() map[string]uint8 {
 }
 
 func TestMQTTMetadataServiceIdentity(t *testing.T) {
-	if RPCSlotMQTTMetadata != 91 || transportServiceAlias(RPCSlotMQTTMetadata) != "slot mqtt metadata" {
+	if RPCSlotMQTTMetadata != 106 || transportServiceAlias(RPCSlotMQTTMetadata) != "slot mqtt metadata" {
 		t.Fatal("MQTT metadata service must preserve its reserved ID and alias")
 	}
-	if RPCMQTTOwner != 92 || transportServiceAlias(RPCMQTTOwner) != "mqtt owner" {
+	if RPCMQTTOwner != 107 || transportServiceAlias(RPCMQTTOwner) != "mqtt owner" {
 		t.Fatal("MQTT owner service must preserve its ID and alias")
 	}
 }

@@ -86,6 +86,7 @@ For task-oriented field discovery, start with [Common Configurations](/en/server
 | `cluster.commit_coordinator_max_records` | `WK_CLUSTER_COMMIT_COORDINATOR_MAX_RECORDS` | `int` | Maximum message records grouped into one physical commit; `0` applies no record-count limit. |
 | `cluster.commit_coordinator_max_bytes` | `WK_CLUSTER_COMMIT_COORDINATOR_MAX_BYTES` | `int` | Maximum approximate payload bytes grouped into one physical commit; `0` applies no byte limit. |
 | `cluster.commit_coordinator_shards` | `WK_CLUSTER_COMMIT_COORDINATOR_SHARDS` | `int` | Independent commit coordinators for the message database; `0` uses `1`. Increase only after storage-specific load tests. |
+| `cluster.storage_disk_slow_threshold` | `WK_CLUSTER_STORAGE_DISK_SLOW_THRESHOLD` | `duration` | Message database disk operations slower than this are counted in slow-disk metrics (`wukongim_storage_pebble_disk_slow_*`); defaults to `1s`, and an explicit value must be positive. Observation only; it does not change durability. |
 
 ## Channel Migration
 

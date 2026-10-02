@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"runtime"
 	"sync/atomic"
 	"testing"
@@ -48,6 +49,17 @@ func (h *packetHandler) OnListenerError(name string, err error) {
 	}
 }
 
+// packetDeferredHandler detects protocol packets incorrectly mapped to WK SEND.
+type packetDeferredHandler struct {
+	*testkit.RecordingHandler
+	calls atomic.Int32
+}
+
+func (h *packetDeferredHandler) OnSendBatchDeferred([]gt.SendBatchItem, func(int, func() error) error, func(error)) error {
+	h.calls.Add(1)
+	return errors.New("packet reached WK deferred handler")
+}
+
 func packetServer(t *testing.T, h *packetHandler, runtimeOptions ...gt.RuntimeOptions) (*core.Server, *testkit.FakeTransportFactory) {
 	runtime := gt.RuntimeOptions{}
 	if len(runtimeOptions) > 0 {
@@ -74,65 +86,76 @@ func packetServerOptions(t *testing.T, h *packetHandler, options gt.Options) (*c
 var packetConnect = []byte{0x10, 0x0e, 0, 4, 'M', 'Q', 'T', 'T', 5, 2, 0, 60, 0, 0, 1, 'c'}
 
 func TestPacketProtocolSharesAuthAndOrderedDispatch(t *testing.T) {
-	entered, release := make(chan struct{}), make(chan struct{})
-	h := &packetHandler{opened: make(chan gt.Context, 1), closed: make(chan struct{}, 1)}
-	h.connect = func(ctx gt.Context, p any) (*gt.PacketAuthResult, error) {
-		if _, ok := p.(*mqtt.Connect); !ok {
-			return nil, errors.New("not MQTT CONNECT")
-		}
-		close(entered)
-		<-release
-		return &gt.PacketAuthResult{Accepted: true, Reply: &mqtt.Connack{}, SessionValues: map[string]any{"test.authenticated": true}}, nil
+	for _, deferred := range []bool{false, true} {
+		t.Run(fmt.Sprintf("deferred-%t", deferred), func(t *testing.T) {
+			wk := &packetDeferredHandler{RecordingHandler: &testkit.RecordingHandler{}}
+			entered, release := make(chan struct{}), make(chan struct{})
+			h := &packetHandler{opened: make(chan gt.Context, 1), closed: make(chan struct{}, 1)}
+			h.connect = func(ctx gt.Context, p any) (*gt.PacketAuthResult, error) {
+				if _, ok := p.(*mqtt.Connect); !ok {
+					return nil, errors.New("not MQTT CONNECT")
+				}
+				close(entered)
+				<-release
+				return &gt.PacketAuthResult{Accepted: true, Reply: &mqtt.Connack{}, SessionValues: map[string]any{"test.authenticated": true}}, nil
+			}
+			packets := make(chan any, 3)
+			h.packet = func(ctx gt.Context, p any) error {
+				packets <- p
+				return ctx.WritePacket(&mqtt.Pingresp{})
+			}
+			options := gt.Options{}
+			if deferred {
+				options.Handler = wk
+			}
+			s, f := packetServerOptions(t, h, options)
+			conn := f.MustOpen("mqtt", 1)
+			returned := make(chan struct{})
+			go func() { f.MustData("mqtt", 1, packetConnect); close(returned) }()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			select {
+			case <-entered:
+			case <-ctx.Done():
+				t.Fatal("auth not scheduled")
+			}
+			select {
+			case <-returned:
+			case <-ctx.Done():
+				t.Fatal("auth ran on transport callback")
+			}
+			require.Empty(t, conn.Writes(), "CONNACK before auth completes")
+			close(release)
+			var sessionContext gt.Context
+			select {
+			case sessionContext = <-h.opened:
+			case <-ctx.Done():
+				t.Fatal("session did not open")
+			}
+			require.Equal(t, true, sessionContext.Session.Value("test.authenticated"))
+			require.Equal(t, [][]byte{{0x20, 3, 0, 0, 0}}, conn.Writes(), "open preceded CONNACK")
+			f.MustData("mqtt", 1, []byte{0xc0, 0, 0xc0, 0})
+			for range 2 {
+				select {
+				case p := <-packets:
+					require.IsType(t, &mqtt.Pingreq{}, p)
+				case <-ctx.Done():
+					t.Fatal("packet dispatch blocked")
+				}
+			}
+			require.NoError(t, s.DrainSends(ctx))
+			require.Equal(t, [][]byte{{0x20, 3, 0, 0, 0}, {0xd0, 0}, {0xd0, 0}}, conn.Writes())
+			f.MustData("mqtt", 1, []byte{0xc0, 0})
+			select {
+			case <-h.closed:
+			case <-ctx.Done():
+				t.Fatal("drained connection stayed admitted")
+			}
+			require.Empty(t, packets, "packet dispatched after drain")
+			require.Zero(t, wk.calls.Load(), "MQTT packets reached WK SEND preparation")
+		})
 	}
-	packets := make(chan any, 3)
-	h.packet = func(ctx gt.Context, p any) error {
-		packets <- p
-		return ctx.WritePacket(&mqtt.Pingresp{})
-	}
-	s, f := packetServer(t, h)
-	conn := f.MustOpen("mqtt", 1)
-	returned := make(chan struct{})
-	go func() { f.MustData("mqtt", 1, packetConnect); close(returned) }()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	select {
-	case <-entered:
-	case <-ctx.Done():
-		t.Fatal("auth not scheduled")
-	}
-	select {
-	case <-returned:
-	case <-ctx.Done():
-		t.Fatal("auth ran on transport callback")
-	}
-	require.Empty(t, conn.Writes(), "CONNACK before auth completes")
-	close(release)
-	var sessionContext gt.Context
-	select {
-	case sessionContext = <-h.opened:
-	case <-ctx.Done():
-		t.Fatal("session did not open")
-	}
-	require.Equal(t, true, sessionContext.Session.Value("test.authenticated"))
-	require.Equal(t, [][]byte{{0x20, 3, 0, 0, 0}}, conn.Writes(), "open preceded CONNACK")
-	f.MustData("mqtt", 1, []byte{0xc0, 0, 0xc0, 0})
-	for range 2 {
-		select {
-		case p := <-packets:
-			require.IsType(t, &mqtt.Pingreq{}, p)
-		case <-ctx.Done():
-			t.Fatal("packet dispatch blocked")
-		}
-	}
-	require.NoError(t, s.DrainSends(ctx))
-	require.Equal(t, [][]byte{{0x20, 3, 0, 0, 0}, {0xd0, 0}, {0xd0, 0}}, conn.Writes())
-	f.MustData("mqtt", 1, []byte{0xc0, 0})
-	select {
-	case <-h.closed:
-	case <-ctx.Done():
-		t.Fatal("drained connection stayed admitted")
-	}
-	require.Empty(t, packets, "packet dispatched after drain")
+
 }
 
 func TestPacketProtocolRejectsUnauthenticatedAndPipelinedInput(t *testing.T) {
@@ -240,45 +263,56 @@ func TestPacketProtocolLateAuthenticationRollsBackAfterPeerViolation(t *testing.
 }
 
 func TestPacketProtocolRetainedBytesIncludeExecutingWorkAndDrainReleasesThem(t *testing.T) {
-	entered, release := make(chan struct{}), make(chan struct{})
-	var handled atomic.Int32
-	h := &packetHandler{opened: make(chan gt.Context, 2), closed: make(chan struct{}, 2), connect: func(gt.Context, any) (*gt.PacketAuthResult, error) {
-		return &gt.PacketAuthResult{Accepted: true, Reply: &mqtt.Connack{}}, nil
-	}, packet: func(gt.Context, any) error {
-		if handled.Add(1) == 1 {
-			close(entered)
-			<-release
-		}
-		return nil
-	}}
-	s, f := packetServer(t, h, gt.RuntimeOptions{AsyncPacketMaxBytes: 16})
-	conn := f.MustOpen("mqtt", 1)
-	f.MustData("mqtt", 1, packetConnect)
-	select {
-	case <-h.opened:
-	case <-time.After(5 * time.Second):
-		t.Fatal("auth not ready")
+	for _, deferred := range []bool{false, true} {
+		t.Run(fmt.Sprintf("deferred-%t", deferred), func(t *testing.T) {
+			wk := &packetDeferredHandler{RecordingHandler: &testkit.RecordingHandler{}}
+			entered, release := make(chan struct{}), make(chan struct{})
+			var handled atomic.Int32
+			h := &packetHandler{opened: make(chan gt.Context, 2), closed: make(chan struct{}, 2), connect: func(gt.Context, any) (*gt.PacketAuthResult, error) {
+				return &gt.PacketAuthResult{Accepted: true, Reply: &mqtt.Connack{}}, nil
+			}, packet: func(gt.Context, any) error {
+				if handled.Add(1) == 1 {
+					close(entered)
+					<-release
+				}
+				return nil
+			}}
+			options := gt.Options{Runtime: gt.RuntimeOptions{AsyncPacketMaxBytes: 16}}
+			if deferred {
+				options.Handler = wk
+			}
+			s, f := packetServerOptions(t, h, options)
+			conn := f.MustOpen("mqtt", 1)
+			f.MustData("mqtt", 1, packetConnect)
+			select {
+			case <-h.opened:
+			case <-time.After(5 * time.Second):
+				t.Fatal("auth not ready")
+			}
+			f.MustData("mqtt", 1, []byte{0xc0, 0})
+			select {
+			case <-entered:
+			case <-time.After(5 * time.Second):
+				t.Fatal("dispatch not running")
+			}
+			f.MustData("mqtt", 1, bytes.Repeat([]byte{0xc0, 0}, 8))
+			require.True(t, connClosed(conn), "running+queued packets escaped byte cap")
+			close(release)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			require.NoError(t, s.DrainSends(ctx))
+			require.EqualValues(t, 1, handled.Load(), "closed owner executed queued packets")
+			f.MustOpen("mqtt", 2)
+			f.MustData("mqtt", 2, packetConnect)
+			select {
+			case <-h.opened:
+			case <-ctx.Done():
+				t.Fatal("drain leaked packet budget")
+			}
+			require.Zero(t, wk.calls.Load(), "MQTT packets reached WK SEND preparation")
+		})
 	}
-	f.MustData("mqtt", 1, []byte{0xc0, 0})
-	select {
-	case <-entered:
-	case <-time.After(5 * time.Second):
-		t.Fatal("dispatch not running")
-	}
-	f.MustData("mqtt", 1, bytes.Repeat([]byte{0xc0, 0}, 8))
-	require.True(t, connClosed(conn), "running+queued packets escaped byte cap")
-	close(release)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	require.NoError(t, s.DrainSends(ctx))
-	require.EqualValues(t, 1, handled.Load(), "closed owner executed queued packets")
-	f.MustOpen("mqtt", 2)
-	f.MustData("mqtt", 2, packetConnect)
-	select {
-	case <-h.opened:
-	case <-ctx.Done():
-		t.Fatal("drain leaked packet budget")
-	}
+
 }
 
 func TestPacketProtocolDecoderBoundsCoalescedBatchAllocation(t *testing.T) {

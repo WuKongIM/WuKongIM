@@ -1,15 +1,75 @@
 ---
 title: 常用配置
-description: WuKongIM 高频配置项及其作用、默认行为和关键限制。
+description: 按启动、客户端、管理后台和日志四个任务查配置，完整默认值按需展开。
 ---
 
-本页只保留启动、客户端接入和日常运维中最常查阅的配置项。每项均可通过 TOML 或环境变量设置；同时提供时，环境变量会覆盖配置文件。全部字段及精确语义见[配置参考](/zh/server/configuration/reference)。
+先按任务找配置。`WK_` 环境变量覆盖 TOML；完整字段、环境变量映射与默认值可展开。
 
 <Callout type="info" title="所有部署都是集群">
   单节点部署也是单节点集群。所有场景都必须设置 `node.id`、`node.data_dir` 和 `cluster.listen_addr`；修改配置后通常需要重启节点。
 </Callout>
 
+<Cards>
+  <Card title="启动节点" description="节点身份、数据目录与互连。" href="/zh/server/configuration/common-configurations#startup" />
+  <Card title="接入客户端" description="Gateway、API 与 Token。" href="/zh/server/configuration/common-configurations#client-access" />
+  <Card title="打开管理后台" description="Manager 地址、JWT 与权限。" href="/zh/server/configuration/common-configurations#manager-access" />
+  <Card title="查看日志" description="级别与排障后的恢复。" href="/zh/server/configuration/common-configurations#logging" />
+</Cards>
+
 ## 高频配置
+
+<section id="startup" className="scroll-m-28">
+
+### 启动节点
+
+| <span className="whitespace-nowrap">用途</span> | 配置与验收 |
+| --- | --- |
+| <span className="whitespace-nowrap">身份</span> | `node.id` 非零、集群内唯一；有数据后不再修改 |
+| <span className="whitespace-nowrap">磁盘</span> | `node.data_dir` 节点独占、可写，使用持久化且受备份保护的磁盘 |
+| <span className="whitespace-nowrap">互连</span> | `cluster.listen_addr` 本机监听；远端连接用真实可达地址，不能用通配地址 |
+
+静态 `cluster.nodes` 与非空 `cluster.seeds` 二选一。环境变量列表用 JSON **整体替换**。
+
+</section>
+
+<section id="client-access" className="scroll-m-28">
+
+### 接入客户端
+
+| <span className="whitespace-nowrap">用途</span> | 配置与验收 |
+| --- | --- |
+| <span className="whitespace-nowrap">客户端</span> | `gateway.listeners` 省略时监听所有接口：TCP `5100` / WSMux `5200`；显式空列表关闭 Gateway |
+| <span className="whitespace-nowrap">业务 API</span> | `api.listen_addr` 省略或留空不启动产品 HTTP；与 Gateway、Manager 分开设置 |
+
+保持 `gateway.token_auth_on=true`。CONNECT 按相同 `UID + device_flag` 精确匹配已存设备 Token；空值、缺记录或不匹配返回 `ReasonAuthFail`。产品 API 仍需受信任网络或外部鉴权。
+
+</section>
+
+<section id="manager-access" className="scroll-m-28">
+
+### 打开管理后台
+
+| <span className="whitespace-nowrap">用途</span> | 配置与验收 |
+| --- | --- |
+| <span className="whitespace-nowrap">监听</span> | `manager.listen_addr` 省略或留空不启动 Manager；用回环 / 管理内网，通过 SSH 或 HTTPS 代理访问 |
+| <span className="whitespace-nowrap">JWT</span> | `manager.auth_on` 省略默认 `false`；生产设为 `true`，同时提供 `manager.jwt_secret` 与 `manager.users` |
+
+**验收：** 替换示例凭据，登录后只授予所需资源和动作。
+
+</section>
+
+<section id="logging" className="scroll-m-28">
+
+### 查看日志
+
+`log.level` 默认 `info`，可选 `debug`、`info`、`warn`、`error`。排障临时提高到 `debug`，结束后恢复，避免长期增加生产日志量。
+
+</section>
+
+<details>
+  <summary>全部高频字段、默认值与环境变量映射</summary>
+
+本页只保留启动、客户端接入和日常运维中最常查阅的配置项。每项均可通过 TOML 或环境变量设置；同时提供时，环境变量会覆盖配置文件。全部字段及精确语义见[配置参考](/zh/server/configuration/reference)。
 
 | 配置（TOML / 环境变量） | 作用 | 默认与注意事项 |
 | --- | --- | --- |
@@ -24,6 +84,8 @@ description: WuKongIM 高频配置项及其作用、默认行为和关键限制�
 | [`manager.listen_addr`](/zh/server/configuration/security)<br />`WK_MANAGER_LISTEN_ADDR` | 监听独立的 Manager 管理服务。 | 省略或留空时不启动 Manager；绑定回环或管理内网地址，通过 SSH 转发或内网 HTTPS 代理访问，并启用认证。 |
 | [`manager.auth_on`](/zh/server/configuration/security)<br />`WK_MANAGER_AUTH_ON` | 要求 Manager 路由使用 JWT 登录认证。 | 省略时为 `false`；设为 `true` 时必须同时提供 `manager.jwt_secret` 和 `manager.users`。 |
 | [`log.level`](/zh/server/configuration/observability)<br />`WK_LOG_LEVEL` | 设置应用记录的最低日志级别。 | 默认 `info`；可选 `debug`、`info`、`warn`、`error`。生产排障结束后应避免长期使用 `debug`。 |
+
+</details>
 
 ## 继续查阅
 

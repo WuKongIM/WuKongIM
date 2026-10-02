@@ -41,7 +41,11 @@ type Registry struct {
 
 func New(nodeID uint64, nodeName string) *Registry {
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(collectors.NewGoCollector())
+	// Scheduler runtime metrics add go_sched_latencies_seconds, which separates
+	// CPU starvation from storage queueing during soak diagnosis.
+	registry.MustRegister(collectors.NewGoCollector(
+		collectors.WithGoCollectorRuntimeMetrics(collectors.MetricsScheduler),
+	))
 	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
 	labels := prometheus.Labels{

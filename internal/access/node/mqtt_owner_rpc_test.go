@@ -55,7 +55,7 @@ func TestMQTTOwnerRPCRequiresExactSuccessfulReceipt(t *testing.T) {
 		a := MQTTOwnerRPC{Owners: mqttClosePortFunc(func(_ context.Context, got contract.Owner) error { require.Equal(t, o, got); return closeErr })}
 		client := NewMQTTOwnerClient(mqttRPCNodeFunc(func(ctx context.Context, id uint64, service uint8, body []byte) ([]byte, error) {
 			require.Equal(t, o.NodeID, id)
-			require.Equal(t, uint8(92), service)
+			require.Equal(t, uint8(107), service)
 			return a.HandleRPC(ctx, body)
 		}))
 		err := client.Quiesce(context.Background(), o)

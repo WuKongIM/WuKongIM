@@ -1,0 +1,73 @@
+{
+  "old_revision": "424d03eb298b972ec572261d617972eecb5523c5",
+  "new_revision": "d1deec2b3bc916764699ad9fcf6b9a590c183d10",
+  "harness_sha256": "d80d7442355e922ff564a63e48103ad266b9b6c3b15a30834d5a1d2e01bf9065",
+  "product_unchanged_from": "6a14221426a418c331aea7cbee596b5350b802ab",
+  "performance_qualified": false,
+  "root_cause": "unconfirmed",
+  "existing_linux_trace": {
+    "source_revision": "6aac53621cf0d962cdd5b28363709811508d63bc",
+    "run_url": "https://github.com/WuKongIM/WuKongIM/actions/runs/36714723571",
+    "sha256": "0254cab31ce248602d666f58982f071e28ab7480a97b8f407ff9ee3b02a25fd6",
+    "bytes": 17155932,
+    "included": false
+  },
+  "files": {
+    "old-stages.json": {
+      "sha256": "5b814fb27cac0b51232bb1f8bb04b1f4d4fc84a9b7ffc3cd86a9346492a09305",
+      "bytes": 3222476
+    },
+    "new-stages.json": {
+      "sha256": "bc52b251f134aa51dd3ef7a47172e9587f94fc2fd12f5818509603189372fcd7",
+      "bytes": 3269975
+    },
+    "old-stages.log": {
+      "sha256": "b5c32cb384265e3349979a86f1633a69f4b6718d791b258435267d60f10b4688",
+      "bytes": 68
+    },
+    "new-stages.log": {
+      "sha256": "2b5639c150171064cdb9ba882ef073ce57344b7deea2f58f5800e8e6703f4e79",
+      "bytes": 68
+    },
+    "stage-pair-execution.json": {
+      "sha256": "546f2d0f39f96958ce006403492981626fe5c610788323ea1c06785520ddf989",
+      "bytes": 628
+    },
+    "stage-histogram-deltas.json": {
+      "sha256": "7e9dcd3405c9f1961893f6a23610bb7126cd0710b2672c90b30b5b97aff87a64",
+      "bytes": 1224430
+    },
+    "diagnostic-summary.json": {
+      "sha256": "853088f6dba22d18663504cafe2f9f4fe4e632ab51a3985b453fe5f6fa86b78b",
+      "bytes": 29790
+    },
+    "frozen-instructions.json": {
+      "sha256": "5431deac3bb3e86e1ba3c1bedde5227e6640b0376c9f6f7516e4c98e5dd7cc6b",
+      "bytes": 858
+    },
+    "existing-linux-flight/window.json": {
+      "sha256": "97bccf6effa439cc16933d6da3d0d612cbba912bc2b1fec2ee23a024c2e60453",
+      "bytes": 1290959
+    },
+    "existing-linux-flight/analysis-status.txt": {
+      "sha256": "53e6295a83e23b21f92f8ae9c5d08f1253dc76514d5b78444795a6d164564d6d",
+      "bytes": 59
+    },
+    "existing-linux-flight/sched-top.txt": {
+      "sha256": "d044d6561dbe2f763ba8a46bb16d3bb0b5493f55f56cf7e4aed0873840a75bb7",
+      "bytes": 4852
+    },
+    "existing-linux-flight/sync-top.txt": {
+      "sha256": "eb7621473d19a8cf3f2250642bdcc03c771cbbaeb192a585423297591d14f98a",
+      "bytes": 5260
+    },
+    "existing-linux-flight/syscall-top.txt": {
+      "sha256": "abd7a22ff216055910f760692235d0162bacabb01711fbd04959736645af0e88",
+      "bytes": 4979
+    },
+    "existing-linux-flight/net-top.txt": {
+      "sha256": "0444b694ca244c057b1ba26f36fcbac9cb32499ad33680f5aaa5635314fccf5c",
+      "bytes": 886
+    }
+  }
+}

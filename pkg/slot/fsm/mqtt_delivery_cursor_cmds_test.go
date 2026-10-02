@@ -33,7 +33,7 @@ func TestMQTTDeliveryCursorCommandAtomicAccountingAndSnapshot(t *testing.T) {
 	encode := func(m metadb.MQTTDeliveryCursorMutation, index uint64) multiraft.Command {
 		raw, err := EncodeMQTTDeliveryCursorCommand(m)
 		require.NoError(t, err)
-		require.Equal(t, []byte{1, 69}, raw[:2])
+		require.Equal(t, []byte{1, 82}, raw[:2])
 		return command(raw, index)
 	}
 	initial := mqttDeliveryCursorCommandFixture()
@@ -110,9 +110,9 @@ func TestMQTTDeliveryCursorCommandRejectsInvalidInput(t *testing.T) {
 	_, err = EncodeMQTTDeliveryCursorCommand(m)
 	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
 	for _, raw := range [][]byte{
-		{1, 69}, append([]byte{1, 69}, bytes.Repeat([]byte(" "), 33<<10)...),
-		append([]byte{1, 69}, []byte(`{"version":2}`)...),
-		append([]byte{1, 69}, []byte(`{"version":1}`)...),
+		{1, 82}, append([]byte{1, 82}, bytes.Repeat([]byte(" "), 33<<10)...),
+		append([]byte{1, 82}, []byte(`{"version":2}`)...),
+		append([]byte{1, 82}, []byte(`{"version":1}`)...),
 		append(append([]byte(nil), valid...), []byte(` {}`)...),
 		bytes.Replace(valid, []byte(`"op":1`), []byte(`"op":1,"future":1`), 1),
 	} {

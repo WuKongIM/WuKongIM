@@ -3,7 +3,7 @@
 One bounded maintenance turn accounts committed shared replay for an existing
 active subscription/source binding and current Session lifetime. It runs for
 online and offline Sessions without socket ownership, writes no packets, and
-creates no inflight exchanges. Its only mutation is command 69 AccountQualified,
+creates no inflight exchanges. Its only mutation is command 82 AccountQualified,
 fenced by the captured complete owner, parent revision, subscription revision,
 source generation and authorization version. A takeover/replacement races that
 CAS; it never retries using a successor's identity in the same turn.

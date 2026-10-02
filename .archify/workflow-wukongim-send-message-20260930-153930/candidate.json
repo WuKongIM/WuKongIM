@@ -1,0 +1,629 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "WuKongIM 发送消息流程",
+    "output": ".archify/workflow-wukongim-send-message-20260930-153930/wukongim-send-message.html",
+    "locale": "zh-CN",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/WuKongIM/WuKongIM.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "77c8c71dd394402035641d1c42faf164f3155f27"
+    }
+  },
+  "lanes": [
+    {
+      "id": "entry",
+      "label": "发送端 / Gateway"
+    },
+    {
+      "id": "admission",
+      "label": "业务准入 / Leader 路由"
+    },
+    {
+      "id": "channel",
+      "label": "Channel Leader / 发送结果"
+    },
+    {
+      "id": "delivery",
+      "label": "在线投递 → 接收确认"
+    },
+    {
+      "id": "offline",
+      "label": "离线分支",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "sender",
+    "gateway",
+    "permission",
+    "prepare",
+    "route",
+    "writer",
+    "durable",
+    "result",
+    "sendack"
+  ],
+  "nodes": [
+    {
+      "id": "sender",
+      "lane": "entry",
+      "col": 0,
+      "type": "frontend",
+      "label": "发送端 SEND",
+      "sublabel": "Channel · Payload",
+      "tag": "ClientMsgNo / ClientSeq",
+      "sources": [
+        {
+          "path": "internal/access/gateway/mapper.go",
+          "line": 18,
+          "end_line": 55,
+          "label": "SEND → SendCommand"
+        }
+      ],
+      "width": 132
+    },
+    {
+      "id": "gateway",
+      "lane": "entry",
+      "col": 1,
+      "type": "backend",
+      "label": "Gateway 接入",
+      "sublabel": "映射已认证 Session",
+      "tag": "发送者身份取自 Session",
+      "sources": [
+        {
+          "path": "internal/access/gateway/mapper.go",
+          "line": 18,
+          "end_line": 55,
+          "label": "认证身份与帧字段映射"
+        }
+      ],
+      "width": 132
+    },
+    {
+      "id": "sendack",
+      "lane": "entry",
+      "col": 5,
+      "type": "frontend",
+      "label": "发送端 SENDACK",
+      "sublabel": "ID · Seq · ReasonCode",
+      "tag": "按原 Session 输入顺序回复",
+      "sources": [
+        {
+          "path": "internal/access/gateway/mapper.go",
+          "line": 72,
+          "end_line": 89,
+          "label": "SENDACK 字段"
+        },
+        {
+          "path": "internal/access/gateway/batch.go",
+          "line": 39,
+          "end_line": 76,
+          "label": "Session 内有序回包"
+        }
+      ],
+      "width": 132
+    },
+    {
+      "id": "permission",
+      "lane": "admission",
+      "col": 1,
+      "type": "security",
+      "label": "权威权限检查",
+      "sublabel": "检查发送资格",
+      "tag": "拒绝 → 失败 SENDACK",
+      "sources": [
+        {
+          "path": "internal/usecase/message/send.go",
+          "line": 385,
+          "end_line": 419,
+          "label": "批量发送准入"
+        }
+      ],
+      "width": 132
+    },
+    {
+      "id": "prepare",
+      "lane": "admission",
+      "col": 2,
+      "type": "backend",
+      "label": "写前准备",
+      "sublabel": "单聊目录 → Plugin / Webhook",
+      "tag": "按需执行；拒绝则失败 ACK",
+      "sources": [
+        {
+          "path": "internal/usecase/message/send.go",
+          "line": 385,
+          "end_line": 419,
+          "label": "目录与 Hook 准入顺序"
+        },
+        {
+          "path": "internal/usecase/message/send.go",
+          "line": 897,
+          "end_line": 951,
+          "label": "目录条件与 Hook 后重新准入"
+        }
+      ],
+      "width": 138
+    },
+    {
+      "id": "route",
+      "lane": "admission",
+      "col": 3,
+      "type": "cloud",
+      "label": "定位 Channel Leader",
+      "sublabel": "本节点执行或跨节点 RPC",
+      "tag": "权威失效：重新解析，有界重试",
+      "sources": [
+        {
+          "path": "internal/runtime/channelappend/router.go",
+          "line": 269,
+          "end_line": 307,
+          "label": "权威解析与重试"
+        },
+        {
+          "path": "internal/runtime/channelappend/router.go",
+          "line": 558,
+          "end_line": 611,
+          "label": "本地或远端批量提交"
+        },
+        {
+          "path": "internal/infra/cluster/channel_append.go",
+          "line": 55,
+          "end_line": 100,
+          "label": "从 Cluster 解析追加目标"
+        }
+      ],
+      "width": 132
+    },
+    {
+      "id": "writer",
+      "lane": "channel",
+      "col": 3,
+      "type": "messagebus",
+      "label": "Channel 顺序写入",
+      "sublabel": "有界队列 · ClientMsgNo 幂等",
+      "tag": "背压或写入失败 → 失败 ACK",
+      "sources": [
+        {
+          "path": "internal/runtime/channelappend/append.go",
+          "line": 95,
+          "end_line": 118,
+          "label": "合并幂等项与批量追加"
+        },
+        {
+          "path": "internal/runtime/channelappend/writer.go",
+          "line": 492,
+          "end_line": 576,
+          "label": "结果与提交后队列"
+        }
+      ],
+      "width": 138
+    },
+    {
+      "id": "durable",
+      "lane": "channel",
+      "col": 4,
+      "type": "database",
+      "label": "持久化确认",
+      "sublabel": "新消息复制；幂等命中复用",
+      "tag": "本地落盘 + 不同副本达法定人数",
+      "sources": [
+        {
+          "path": "pkg/channel/replication/quorum_round_state.go",
+          "line": 212,
+          "end_line": 268,
+          "label": "本地耐久与副本法定人数"
+        },
+        {
+          "path": "internal/runtime/channelappend/append.go",
+          "line": 95,
+          "end_line": 118,
+          "label": "追加与幂等结果"
+        }
+      ],
+      "width": 132,
+      "yOffset": -84
+    },
+    {
+      "id": "transient",
+      "lane": "channel",
+      "col": 4,
+      "type": "messagebus",
+      "label": "NoPersist 实时分支",
+      "sublabel": "投递启用且计划入队成功",
+      "tag": "不写消息日志；MessageSeq = 0",
+      "sources": [
+        {
+          "path": "internal/runtime/channelappend/realtime.go",
+          "line": 39,
+          "end_line": 71,
+          "label": "实时投递与 seq=0"
+        },
+        {
+          "path": "internal/runtime/channelappend/writer.go",
+          "line": 451,
+          "end_line": 484,
+          "label": "实时效果结束后完成发送结果"
+        }
+      ],
+      "width": 132,
+      "yOffset": 84
+    },
+    {
+      "id": "result",
+      "lane": "channel",
+      "col": 5,
+      "type": "backend",
+      "label": "完成发送结果",
+      "sublabel": "成功返回 MessageID / Seq",
+      "tag": "返回不等待接收方 RECVACK",
+      "sources": [
+        {
+          "path": "internal/runtime/channelappend/writer.go",
+          "line": 492,
+          "end_line": 549,
+          "label": "发送结果与提交后效果分离"
+        },
+        {
+          "path": "internal/runtime/channelappend/realtime.go",
+          "line": 39,
+          "end_line": 55,
+          "label": "实时分支的结果门槛"
+        }
+      ],
+      "width": 132
+    },
+    {
+      "id": "postcommit",
+      "lane": "delivery",
+      "col": 5,
+      "type": "messagebus",
+      "label": "提交后派生任务",
+      "sublabel": "每 Channel FIFO · 有界工作池",
+      "tag": "仅新持久化消息；异步执行",
+      "sources": [
+        {
+          "path": "internal/runtime/channelappend/writer.go",
+          "line": 492,
+          "end_line": 576,
+          "label": "持久化结果与效果调度"
+        },
+        {
+          "path": "internal/runtime/channelappend/commit.go",
+          "line": 61,
+          "end_line": 95,
+          "label": "Hook 与接收人派生"
+        }
+      ],
+      "width": 152
+    },
+    {
+      "id": "recipients",
+      "lane": "delivery",
+      "col": 4,
+      "type": "backend",
+      "label": "接收人 / 有界计划",
+      "sublabel": "单聊双方；大群分批扫描",
+      "tag": "delivery.enabled 时才入队",
+      "sources": [
+        {
+          "path": "internal/runtime/channelappend/recipient.go",
+          "line": 114,
+          "end_line": 183,
+          "label": "作用域、单聊和群接收人"
+        },
+        {
+          "path": "internal/runtime/channelappend/recipient.go",
+          "line": 247,
+          "end_line": 316,
+          "label": "接收人计划入队"
+        },
+        {
+          "path": "internal/app/delivery_wiring.go",
+          "line": 10,
+          "end_line": 21,
+          "label": "在线投递配置开关"
+        }
+      ],
+      "width": 132
+    },
+    {
+      "id": "presence",
+      "lane": "delivery",
+      "col": 3,
+      "type": "backend",
+      "label": "查询在线路由",
+      "sublabel": "Presence → Owner / Session",
+      "tag": "跳过发送方原 Session",
+      "sources": [
+        {
+          "path": "internal/runtime/delivery/runtime.go",
+          "line": 514,
+          "end_line": 608,
+          "label": "在线路由与 Owner 分组"
+        },
+        {
+          "path": "internal/runtime/delivery/runtime.go",
+          "line": 1136,
+          "end_line": 1148,
+          "label": "发送方 Session 抑制"
+        }
+      ],
+      "width": 133
+    },
+    {
+      "id": "owner",
+      "lane": "delivery",
+      "col": 2,
+      "type": "cloud",
+      "label": "Owner 节点推送",
+      "sublabel": "本节点写入或 RPC；有界重试",
+      "tag": "精确 Session 校验 + ACK 预留",
+      "sources": [
+        {
+          "path": "internal/runtime/delivery/runtime.go",
+          "line": 707,
+          "end_line": 830,
+          "label": "Owner 本地/远端执行与 ACK 预留"
+        },
+        {
+          "path": "internal/infra/delivery/local_session_writer.go",
+          "line": 55,
+          "end_line": 118,
+          "label": "Session 校验与真实写入"
+        }
+      ],
+      "width": 133
+    },
+    {
+      "id": "receiver",
+      "lane": "delivery",
+      "col": 1,
+      "type": "frontend",
+      "label": "接收端 RECV",
+      "sublabel": "写入在线 Session",
+      "tag": "携带消息 ID / Seq / Payload",
+      "sources": [
+        {
+          "path": "internal/infra/delivery/local_session_writer.go",
+          "line": 55,
+          "end_line": 84,
+          "label": "写入接收端 Session"
+        },
+        {
+          "path": "internal/infra/delivery/local_session_writer.go",
+          "line": 126,
+          "end_line": 149,
+          "label": "RECV 帧构造"
+        }
+      ],
+      "width": 132
+    },
+    {
+      "id": "recvack",
+      "lane": "delivery",
+      "col": 0,
+      "type": "backend",
+      "label": "接收端 RECVACK",
+      "sublabel": "清理该 Session 的待确认记录",
+      "tag": "属于在线投递确认",
+      "sources": [
+        {
+          "path": "internal/access/gateway/handler.go",
+          "line": 431,
+          "end_line": 444,
+          "label": "RECVACK 入口"
+        },
+        {
+          "path": "internal/runtime/delivery/runtime.go",
+          "line": 905,
+          "end_line": 921,
+          "label": "待确认记录确认"
+        }
+      ],
+      "width": 138
+    },
+    {
+      "id": "offline",
+      "lane": "offline",
+      "col": 3,
+      "type": "external",
+      "label": "离线接收人观察",
+      "sublabel": "Durable 且观察器已配置",
+      "tag": "Transient 不发离线事件",
+      "sources": [
+        {
+          "path": "internal/runtime/delivery/runtime.go",
+          "line": 535,
+          "end_line": 566,
+          "label": "离线收集条件"
+        },
+        {
+          "path": "internal/runtime/delivery/runtime.go",
+          "line": 1105,
+          "end_line": 1115,
+          "label": "离线观察器调用条件"
+        }
+      ],
+      "width": 132
+    }
+  ],
+  "edges": [
+    {
+      "id": "send-entry",
+      "from": "sender",
+      "to": "gateway",
+      "variant": "default",
+      "role": "main",
+      "label": "SEND"
+    },
+    {
+      "id": "entry-permission",
+      "from": "gateway",
+      "to": "permission",
+      "variant": "default",
+      "role": "main",
+      "label": "业务命令"
+    },
+    {
+      "id": "permission-prepare",
+      "from": "permission",
+      "to": "prepare",
+      "variant": "security",
+      "role": "main",
+      "label": "准入通过"
+    },
+    {
+      "id": "prepare-route",
+      "from": "prepare",
+      "to": "route",
+      "variant": "default",
+      "role": "main",
+      "label": "写前检查通过"
+    },
+    {
+      "id": "route-writer",
+      "from": "route",
+      "to": "writer",
+      "variant": "default",
+      "role": "main",
+      "label": "本地 / Node RPC"
+    },
+    {
+      "id": "writer-durable",
+      "from": "writer",
+      "to": "durable",
+      "variant": "emphasis",
+      "role": "main",
+      "label": "需持久化"
+    },
+    {
+      "id": "durable-result",
+      "from": "durable",
+      "to": "result",
+      "variant": "emphasis",
+      "role": "main",
+      "label": "已确认 / 幂等结果"
+    },
+    {
+      "id": "writer-transient",
+      "from": "writer",
+      "to": "transient",
+      "variant": "dashed",
+      "role": "branch",
+      "label": "NoPersist"
+    },
+    {
+      "id": "transient-result",
+      "from": "transient",
+      "to": "result",
+      "variant": "dashed",
+      "role": "branch",
+      "label": "入队成功"
+    },
+    {
+      "id": "result-sendack",
+      "from": "result",
+      "to": "sendack",
+      "variant": "emphasis",
+      "role": "return",
+      "label": "返回结果"
+    },
+    {
+      "id": "result-postcommit",
+      "from": "result",
+      "to": "postcommit",
+      "variant": "dashed",
+      "role": "async",
+      "label": "已提交新消息"
+    },
+    {
+      "id": "postcommit-recipients",
+      "from": "postcommit",
+      "to": "recipients",
+      "variant": "dashed",
+      "role": "async",
+      "label": "Durable"
+    },
+    {
+      "id": "transient-recipients",
+      "from": "transient",
+      "to": "recipients",
+      "variant": "dashed",
+      "role": "branch",
+      "label": "Transient 计划"
+    },
+    {
+      "id": "recipients-presence",
+      "from": "recipients",
+      "to": "presence",
+      "variant": "default",
+      "role": "main",
+      "label": "计划消费"
+    },
+    {
+      "id": "presence-owner",
+      "from": "presence",
+      "to": "owner",
+      "variant": "default",
+      "role": "main",
+      "label": "按 Owner 分组"
+    },
+    {
+      "id": "owner-receiver",
+      "from": "owner",
+      "to": "receiver",
+      "variant": "default",
+      "role": "main",
+      "label": "RECV"
+    },
+    {
+      "id": "receiver-recvack",
+      "from": "receiver",
+      "to": "recvack",
+      "variant": "emphasis",
+      "role": "return",
+      "label": "RECVACK"
+    },
+    {
+      "id": "presence-offline",
+      "from": "presence",
+      "to": "offline",
+      "variant": "dashed",
+      "role": "branch",
+      "label": "无在线路由"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "两个确认边界",
+      "items": [
+        "成功 SENDACK：持久化已确认，或 NoPersist 的在线计划已入队。它不保证所有接收人已收到消息。",
+        "RECVACK：接收端对在线 RECV 的确认，按 UID / Session / MessageID 清理待确认状态。"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "写前与写后",
+      "items": [
+        "普通持久化单聊按需确保目录，再执行启用的 Plugin 与同步 Webhook；Hook 改写身份或目标时重新准入。",
+        "持久化提交后的 Hook、异步 Webhook 和投递派生失败单独记录，不能把已提交结果改成发送失败。"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "条件与规模",
+      "items": [
+        "在线投递依赖 delivery.enabled；NoPersist 必须具备投递能力，且计划入队失败会导致发送失败。",
+        "权威路由与 Owner 推送均有界重试；大群接收人分页处理，队列和工作池有界。",
+        "单节点集群与多节点集群使用同一套 Cluster / Channel 语义。"
+      ]
+    }
+  ]
+}

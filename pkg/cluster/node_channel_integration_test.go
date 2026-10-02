@@ -4,6 +4,7 @@ package cluster
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 )
 
 func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
+	record := recordNodeRestartEvidence(t)
 	cfg := validNodeConfig(t)
 	cfg.HealthReport.Interval = 500 * time.Millisecond
 	cfg.HealthReport.TTL = 2 * time.Second
@@ -21,16 +23,12 @@ func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
+	t.Cleanup(func() { _ = node.Stop(context.Background()) })
 	if err := node.Start(context.Background()); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-	readyCtx, readyCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	if err := WaitNodeReady(readyCtx, node); err != nil {
-		readyCancel()
-		t.Fatalf("WaitNodeReady() error = %v", err)
-	}
-	readyCancel()
-	waitChannelDataNode(t, node, 1)
+	waitNodeWriteReady(t, node)
+	record("initial-ready", node)
 	channelID := channelruntime.ChannelID{ID: "durable", Type: 1}
 	applyDefaultChannelMeta(t, node, channelID)
 	first, err := node.AppendChannel(context.Background(), channelruntime.AppendRequest{
@@ -43,31 +41,37 @@ func TestNodeDefaultChannelsUseDurableMessageDBStore(t *testing.T) {
 	if first.MessageSeq != 1 {
 		t.Fatalf("AppendChannel() MessageSeq = %d, want first business proposal at 1", first.MessageSeq)
 	}
-	if err := node.Stop(context.Background()); err != nil {
-		t.Fatalf("Stop() error = %v", err)
-	}
-
-	if err := node.Start(context.Background()); err != nil {
-		t.Fatalf("restart Start() error = %v", err)
-	}
-	t.Cleanup(func() { _ = node.Stop(context.Background()) })
-	restartReadyCtx, restartReadyCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	if err := WaitNodeReady(restartReadyCtx, node); err != nil {
-		restartReadyCancel()
-		t.Fatalf("restart WaitNodeReady() error = %v", err)
-	}
-	restartReadyCancel()
-	waitChannelDataNode(t, node, 1)
-	applyDefaultChannelMeta(t, node, channelID)
-	second, err := node.AppendChannel(context.Background(), channelruntime.AppendRequest{
-		ChannelID: channelID,
-		Message:   channelruntime.Message{MessageID: 101, Payload: []byte("after-restart")},
-	})
-	if err != nil {
-		t.Fatalf("restart AppendChannel() error = %v", err)
-	}
-	if second.MessageSeq != 2 {
-		t.Fatalf("restart AppendChannel() MessageSeq = %d, want 2 from durable message DB LEO", second.MessageSeq)
+	for generation := uint64(1); generation <= 3; generation++ {
+		if err := node.Stop(context.Background()); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		record(fmt.Sprintf("stopped-%d", generation), node)
+		if err := node.Start(context.Background()); err != nil {
+			t.Fatalf("restart Start() error = %v", err)
+		}
+		record(fmt.Sprintf("started-%d", generation), node)
+		if node.defaultSlotRuntime == nil {
+			t.Fatal("restart did not recreate the owned Slot runtime")
+		}
+		// Snapshot readiness can precede Slot leader election. Require the
+		// actual write proof within the same five-second readiness budget.
+		waitNodeWriteReady(t, node)
+		applyDefaultChannelMeta(t, node, channelID)
+		messageID := 100 + generation
+		payload := []byte(fmt.Sprintf("after-restart-%d", generation))
+		second, err := node.AppendChannel(context.Background(), channelruntime.AppendRequest{
+			ChannelID: channelID,
+			Message:   channelruntime.Message{MessageID: messageID, Payload: payload},
+		})
+		if err != nil {
+			t.Fatalf("restart AppendChannel() error = %v", err)
+		}
+		if second.MessageSeq != generation+1 {
+			t.Fatalf("restart AppendChannel() MessageSeq = %d, want %d from durable message DB LEO", second.MessageSeq, generation+1)
+		}
+		requireChannelMessage(t, node, channelID, first.MessageSeq, 100, []byte("persisted"))
+		requireChannelMessage(t, node, channelID, second.MessageSeq, messageID, payload)
+		record(fmt.Sprintf("durable-generation-%d-seq-%d", generation, second.MessageSeq), node)
 	}
 }
 

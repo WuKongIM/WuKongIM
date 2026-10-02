@@ -34,8 +34,8 @@ _openapi:
 
           ChannelInfoRequest
 
-          Legacy Channel metadata with no required fields and full zero-value
-          replacement semantics.
+          Legacy Channel metadata; other fields use zero-value replacement while
+          omitted or null send_ban preserves its current value.
 
           additionalProperties true
 
@@ -54,8 +54,9 @@ _openapi:
           disband `integer` default: `0` Terminal-disband compatibility flag;
           exactly 1 enables it and every other integer disables it.
 
-          send_ban `integer` default: `0` Send-ban compatibility flag; exactly 1
-          enables it and every other integer disables it.
+          send_ban `integer | null` enum: `0`, `1`, `null` Optional strict 0/1
+          send restriction; omission or null preserves the current value,
+          explicit 0 clears it.
 
           allow_stranger `integer` default: `0` Allow-stranger compatibility
           flag; exactly 1 enables it and every other integer disables it.

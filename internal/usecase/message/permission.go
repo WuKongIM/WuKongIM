@@ -10,6 +10,16 @@ import (
 )
 
 func (a *App) checkSendPermission(ctx context.Context, cmd SendCommand) (SendCommand, Reason, error) {
+	if a != nil && a.permissionBatch != nil {
+		out := a.checkSendPermissionsBatch(ctx, []SendBatchItem{{Command: cmd, Context: ctx}}, []sendBatchPermissionGroup{{representative: 0}}, []int{0})[0]
+		cmd.ChannelID = out.channelID
+		return cmd, out.reason, out.err
+	}
+	if a != nil && a.permissions != nil {
+		if reason, err := a.checkSenderSendPermission(ctx, cmd.FromUID); reason != ReasonSuccess || err != nil {
+			return cmd, reason, err
+		}
+	}
 	if cmd.RequestScoped || (len(cmd.MessageScopedUIDs) > 0 && cmd.ChannelID == "") {
 		return cmd, ReasonSuccess, nil
 	}
@@ -42,9 +52,6 @@ func (a *App) checkSendPermission(ctx context.Context, cmd SendCommand) (SendCom
 		return reapplyCommandChannel(cmd), reason, err
 	}
 
-	if reason, err := a.checkSenderSendPermission(ctx, cmd.FromUID); reason != ReasonSuccess || err != nil {
-		return cmd, reason, err
-	}
 	if a.systemDeviceID != "" && cmd.DeviceID == a.systemDeviceID {
 		reason, err := a.checkTerminalChannelPermission(ctx, cmd)
 		return reapplyCommandChannel(cmd), reason, err
@@ -94,18 +101,26 @@ func (a *App) checkTerminalChannelPermission(ctx context.Context, cmd SendComman
 	if channel.Disband != 0 {
 		return ReasonDisband, nil
 	}
+	if channel.SendBan != 0 {
+		a.observeSendBan("channel", 1)
+		return ReasonSendBan, nil
+	}
 	return ReasonSuccess, nil
 }
 
 func (a *App) checkSenderSendPermission(ctx context.Context, fromUID string) (Reason, error) {
-	ch, err := a.permissions.GetChannelForPermission(ctx, fromUID, int64(channelTypePerson))
-	if errors.Is(err, metadb.ErrNotFound) {
-		return ReasonSuccess, nil
+	store, ok := a.permissionAuthority.(interface {
+		GetUserSendPolicy(context.Context, string) (metadb.SendBanResult, error)
+	})
+	if !ok {
+		return ReasonSystemError, ErrRouteNotReady
 	}
+	policy, err := store.GetUserSendPolicy(ctx, fromUID)
 	if err != nil {
 		return ReasonSystemError, err
 	}
-	if ch.SendBan != 0 {
+	if policy.SendBan != 0 {
+		a.observeSendBan("user", 1)
 		return ReasonSendBan, nil
 	}
 	return ReasonSuccess, nil
@@ -119,11 +134,15 @@ func (a *App) checkGroupSendPermission(ctx context.Context, cmd SendCommand) (Re
 	if err != nil {
 		return ReasonSystemError, err
 	}
-	if ch.Ban != 0 {
-		return ReasonBan, nil
-	}
 	if ch.Disband != 0 {
 		return ReasonDisband, nil
+	}
+	if ch.SendBan != 0 {
+		a.observeSendBan("channel", 1)
+		return ReasonSendBan, nil
+	}
+	if ch.Ban != 0 {
+		return ReasonBan, nil
 	}
 	return a.checkCommonMemberPermission(ctx, channelmembers.ChannelKey{ChannelID: cmd.ChannelID, ChannelType: cmd.ChannelType}, cmd.FromUID)
 }

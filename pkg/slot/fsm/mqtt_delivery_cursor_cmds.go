@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	cmdTypeMQTTDeliveryCursorMutation uint8 = 69
+	cmdTypeMQTTDeliveryCursorMutation uint8 = 82
 	mqttDeliveryCursorCommandVersion        = 1
 	maxMQTTDeliveryCursorCommandBytes       = 32 << 10
 )

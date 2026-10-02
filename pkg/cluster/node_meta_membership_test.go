@@ -437,18 +437,26 @@ func TestUpsertUserChannelMembershipsFailurePreservesCauseAndJoinsPeers(t *testi
 	}
 }
 
-// membershipSchedulingNode retains ordinary routing through two physical Slots
-// for sixteen logical Hash Slots, matching the production split without Raft time.
+// membershipSchedulingNode supplies independent physical owners, so coalescing
+// logical shards does not turn the eight-worker resource contract into two jobs.
 func membershipSchedulingNode(t *testing.T, proposer *controlledMembershipProposer) (*Node, []string) {
 	t.Helper()
 	node := newStartedSlotProxyPortNode(t, proposer)
 	snapshot := node.controlSnapshot
 	snapshot.Revision++
-	snapshot.HashSlots = control.HashSlotTable{Revision: 10, Count: 16, Ranges: []control.HashSlotRange{{From: 0, To: 7, SlotID: 1}, {From: 8, To: 15, SlotID: 2}}}
+	snapshot.Slots = nil
+	snapshot.HashSlots = control.HashSlotTable{Revision: 10, Count: 16}
+	leaders := make([]routing.SlotStatus, 0, 16)
+	for i := uint16(0); i < 16; i++ {
+		slotID := uint32(i) + 1
+		snapshot.Slots = append(snapshot.Slots, control.SlotAssignment{SlotID: slotID, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 1, PreferredLeader: 1})
+		snapshot.HashSlots.Ranges = append(snapshot.HashSlots.Ranges, control.HashSlotRange{From: i, To: i, SlotID: slotID})
+		leaders = append(leaders, routing.SlotStatus{SlotID: slotID, Leader: 1})
+	}
 	if err := node.router.UpdateControlSnapshot(snapshot); err != nil {
 		t.Fatal(err)
 	}
-	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1}, {SlotID: 2, Leader: 2}})
+	node.router.UpdateSlotLeaders(leaders)
 	uids := make([]string, 16)
 	for i := range uids {
 		uids[i] = keyForNodeHashSlot(t, 16, uint16(i))

@@ -3,7 +3,7 @@
 ## Contract and ordering
 
 Production receive policy requires a fresh coherent channel/membership view,
-not SEND privilege or an asynchronous UID directory projection. RPC 91 read kind
+not SEND privilege or an asynchronous UID directory projection. RPC 106 read kind
 19 (`MQTTReadMembership`) uses the existing foreground-gated Node and current
 Slot route, fresh local ReadIndex/apply barrier and one pinned metadata snapshot.
 The query identifies one `(channel_id, channel_type, uid)`; it routes by channel
@@ -109,7 +109,7 @@ Verified locally on 2026-09-24:
   length warnings. Existing Darwin linker warnings did not fail race tests.
 
 No new table, durable format, process goroutine or full-group scan is introduced
-by receive authorization. RPC 91 kind 19 requires matched nodes. This is not a
+by receive authorization. RPC 106 kind 19 requires matched nodes. This is not a
 product listener/process acceptance result; fair delivery scheduling, inbox
 future-source admission, automatic end/cleanup discovery, Will execution,
 restore/unavailable-owner fencing and full MQTT offline transfer remain open.

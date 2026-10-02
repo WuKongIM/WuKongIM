@@ -34,7 +34,7 @@ func TestMQTTSubscriptionCommandAtomicFencingSnapshotAndReplay(t *testing.T) {
 		m.Subscription.Revision = m.ExpectedRevision + 1
 		raw, err := EncodeMQTTSubscriptionCommand(m)
 		require.NoError(t, err)
-		require.Equal(t, []byte{1, 68}, raw[:2])
+		require.Equal(t, []byte{1, 81}, raw[:2])
 		return multiraft.Command{SlotID: 11, HashSlot: 7, Index: index, Term: 1, Data: raw}
 	}
 	active := prepare
@@ -106,11 +106,11 @@ func TestMQTTSubscriptionCommandRejectsMalformedOrUnboundedInput(t *testing.T) {
 	_, err = EncodeMQTTSubscriptionCommand(m)
 	require.ErrorIs(t, err, metadb.ErrInvalidArgument)
 	for _, raw := range [][]byte{
-		{1, 68}, append([]byte{1, 68}, bytes.Repeat([]byte(" "), 33<<10)...),
-		append([]byte{1, 68}, []byte(`{"version":2}`)...),
-		append([]byte{1, 68}, []byte(`{"version":1}`)...),
+		{1, 81}, append([]byte{1, 81}, bytes.Repeat([]byte(" "), 33<<10)...),
+		append([]byte{1, 81}, []byte(`{"version":2}`)...),
+		append([]byte{1, 81}, []byte(`{"version":1}`)...),
 		append(append([]byte(nil), valid...), []byte(` {}`)...),
-		append([]byte{1, 68}, append([]byte(`{"unknown":1,`), valid[3:]...)...),
+		append([]byte{1, 81}, append([]byte(`{"unknown":1,`), valid[3:]...)...),
 		bytes.Replace(valid, []byte(`"connection_id":4`), []byte(`"connection_id":4,"future":1`), 1),
 	} {
 		_, err := DecodeCommandInspection(raw)

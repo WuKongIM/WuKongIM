@@ -49,6 +49,8 @@ const (
 	ReasonDisband = channelappend.ReasonDisband
 	// ReasonSendBan means the sender is send-banned.
 	ReasonSendBan = channelappend.ReasonSendBan
+	// ReasonSystemBusy means bounded admission is saturated and the send may be retried.
+	ReasonSystemBusy = channelappend.ReasonSystemBusy
 )
 
 // ChannelID identifies a message channel.

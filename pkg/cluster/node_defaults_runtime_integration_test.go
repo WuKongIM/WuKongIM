@@ -695,6 +695,7 @@ func TestNodeStartMarksDefaultChannelsReadyWithoutController(t *testing.T) {
 }
 
 func TestNodeStopDiscardsDefaultChannelsForRestart(t *testing.T) {
+	record := recordNodeRestartEvidence(t)
 	node, err := New(validNodeConfig(t))
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
@@ -705,6 +706,8 @@ func TestNodeStopDiscardsDefaultChannelsForRestart(t *testing.T) {
 	if err := node.Stop(context.Background()); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}
+	record("stopped", node)
+	assertOwnedSlotReferencesReleased(t, node)
 	if node.channels != nil {
 		t.Fatal("default channels retained after Stop, want discarded")
 	}
@@ -739,6 +742,7 @@ func (recordingCommitCoordinatorObserver) ObserveCommitCoordinatorBatch(messaged
 }
 
 func TestNodeStartFailureDiscardsDefaultChannels(t *testing.T) {
+	record := recordNodeRestartEvidence(t)
 	boom := errors.New("boom")
 	var calls []string
 	node, err := New(validNodeConfig(t), withResources(namedTestResource("boom", &recordingResource{calls: &calls, startErr: boom})))
@@ -748,6 +752,8 @@ func TestNodeStartFailureDiscardsDefaultChannels(t *testing.T) {
 	if err := node.Start(context.Background()); !errors.Is(err, boom) {
 		t.Fatalf("Start() error = %v, want boom", err)
 	}
+	record("failed-start-rollback", node)
+	assertOwnedSlotReferencesReleased(t, node)
 	if node.channels != nil {
 		t.Fatal("default channels retained after failed Start, want discarded")
 	}

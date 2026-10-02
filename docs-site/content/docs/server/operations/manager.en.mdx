@@ -1,34 +1,69 @@
 ---
 title: Manager
-description: Sign in to Manager, understand its main pages, and perform administrative actions safely.
+description: Follow three real screenshots to sign in, check nodes, and inspect tasks; expand permissions and administrative steps as needed.
 ---
 
-Manager is WuKongIM's administrative console. It shows node state, runs tasks, manages backups, and controls scaling. Treat it like a database administration console because it has powerful access.
+Manager shows cluster state, tasks, and backups and runs administrative actions. Start with a read-only account and these three steps.
 
-## Check these items before opening Manager
+## 1. Sign in with a manager account
 
-- Enable `manager.auth_on` in production and replace the default password and `manager.jwt_secret`.
-- Bind Manager to loopback or a management-network address; do not expose node port `5301` publicly.
-- For individual remote access, use the [SSH tunnel in Linux deployment](/en/server/deployment/linux). For shared access, use an HTTPS proxy through a management network or VPN.
-- Keep the proxy-to-node connection inside the controlled network and allow only the management proxy and authorized operator sources through the firewall.
+The default local address is `http://127.0.0.1:5301`. For remote access, use the SSH tunnel in [Linux deployment](/en/server/deployment/linux), or an HTTPS proxy through a management network / VPN. Accounts come from `manager.users`.
 
-<Callout type="warn" title="Keep authentication and transport protection enabled">
-  `manager.auth_on=false` is not read-only mode. SSH, VPN, and HTTPS protect the access path; Manager login and resource permissions must remain enabled separately.
+<TutorialScreenshot
+  src="/tutorials/manager/login-en.jpg"
+  alt="English Manager sign-in form with the docs-reader test account and a masked password"
+  width={480}
+  height={570}
+  marks={[{ x: 4, y: 48 }, { x: 4, y: 78 }]}
+>
+  ① Enter the configured manager username and password. ② Select Sign in. This capture uses a read-only test account on an isolated cluster.
+</TutorialScreenshot>
+
+<Callout type="warn" title="Enable authentication and transport protection">
+  In production, enable `manager.auth_on`, replace default credentials and `manager.jwt_secret`, and keep node port `5301` off the public network. `manager.auth_on=false` is not read-only mode; SSH / VPN / HTTPS do not replace account permissions.
 </Callout>
 
-## What the main pages mean
+## 2. Check nodes
 
-| Page | Think of it as | What to check |
-| --- | --- | --- |
-| Nodes / Realtime | The state of each WuKongIM server | Readiness, CPU, memory, disk, connections, and queues |
-| Controller / Tasks | The cluster coordinator and its administrative jobs | Availability, task completion, and blocking reasons |
-| Slots | The 256 fixed data partitions | Leader, replica, and ISR health |
-| Channels | The runtime unit for a direct chat or group | Leader, membership, and unusual backlogs |
-| Backups | Backup plans, storage, archives, and restore | Storage test, archive completion, and verification |
+Open **Nodes**. Check the alive count, then readiness and freshness in the health column. Refresh and investigate stale state before continuing with administrative actions.
 
-The `Leader` is the node currently responsible for the data. A `replica` is another copy, and the `ISR` is the set of replicas that are keeping up. New operators normally only need to confirm that these fields are healthy; do not adjust them manually.
+<TutorialScreenshot
+  src="/tutorials/manager/nodes-en.jpg"
+  alt="English Manager node list showing one alive node in a single-node cluster, with ready and fresh health state"
+  width={1280}
+  height={720}
+  marks={[{ x: 33, y: 55 }, { x: 48, y: 66 }]}
+>
+  ① Alive node count. ② Node health and readiness. This is a local single-node cluster example; check each node in a multi-node cluster.
+</TutorialScreenshot>
 
-## Split account permissions
+## 3. Inspect tasks
+
+Open **Tasks** and compare Running, Failed, and Completed. Filter by kind, status, or Slot ID and inspect the task timeline when investigating.
+
+<TutorialScreenshot
+  src="/tutorials/manager/tasks-en.jpg"
+  alt="English Manager task center showing zero running, zero failed, and eight completed bootstrap tasks"
+  width={1280}
+  height={720}
+  marks={[{ x: 41, y: 38 }, { x: 56, y: 38 }, { x: 85, y: 38 }]}
+>
+  ① Running. ② Failed. ③ Completed tasks in retained history. Counts change as the cluster runs; these are not fixed acceptance values.
+</TutorialScreenshot>
+
+## What to check elsewhere
+
+| Page | Focus |
+| --- | --- |
+| Live Monitor | CPU, memory, disk, connections, and queues; first confirm telemetry is available |
+| Slots | Logical Slot Leader, replicas, ISR, and hash-slot ranges |
+| Channel Cluster | Messaging runtime membership, Leader, and backlogs |
+| Backups | Storage tests, archive completeness, and verification |
+
+The Slot list shows **logical Slots**, initialized by `initial_slot_count`. The default **256 Hash Slots** form a separate fixed keyspace. Here, eight logical Slots each hold 32 Hash Slots. See [Slots and Hash Slots](/en/server/architecture/slots).
+
+<details>
+  <summary>Account permissions and access paths</summary>
 
 | Work | Common permissions |
 | --- | --- |
@@ -36,20 +71,29 @@ The `Leader` is the node currently responsible for the data. A `replica` is anot
 | Join, activate, drain, or remove nodes | `cluster.node:w` |
 | View or operate Slots | `cluster.slot:r` / `cluster.slot:w` |
 | View or change backups | `cluster.backup:r` / `cluster.backup:w` |
-| Restore data | Explicit `cluster.restore:w` is required |
+| Restore data | Explicit `cluster.restore:w` |
 
-Do not give every operator permanent full access. At minimum, separate read-only observation, node management, backup management, and restore roles.
+Separate read-only, node-management, backup, and restore permissions instead of granting permanent full access.
 
-## Perform one action safely
+Bind Manager to loopback or a management network. Keep the proxy-to-node connection on a controlled network, with the firewall allowing only the management proxy and authorized operator sources.
+
+</details>
+
+<details>
+  <summary>When you need to perform an administrative action</summary>
 
 1. Record the operator, target, current state, and expected result.
-2. Confirm that `/readyz` passes and that no conflicting administrative task is still running.
-3. If the page offers **Plan** or **Preview**, run it first and read every blocking reason.
-4. Perform one step, wait for the task to finish, and refresh the authoritative state.
-5. Test message send, receive, and reconnect before continuing.
+2. Confirm `/readyz` passes and no conflicting task is still running.
+3. Run any Plan or Preview first and read the blocking reasons.
+4. Perform one step, wait for completion, and refresh authoritative state.
+5. Verify message send, receive, and reconnect before continuing.
 
-<Callout type="warn" title="A clickable button is not approval">
-  Scale-in may remove a node only after authoritative state reports `safe_to_remove=true`. Restore requires full verification, password reauthentication, and a confirmation phrase. Stop when state is missing, stale, or conflicting.
+A Leader is the node responsible for the data, a replica is another copy, and ISR is the set keeping up. New operators should check health before making manual adjustments.
+
+</details>
+
+<Callout type="warn" title="Scale-in and restore">
+  Remove a node only after authoritative state reports `safe_to_remove=true`. Restore requires full verification, password reauthentication, and a confirmation phrase. Stop when state is missing, stale, or conflicting.
 </Callout>
 
-Manager changes WuKongIM cluster state. It does not shut down cloud servers, reduce Kubernetes instances, or hot-reload startup configuration. Continue with [Health & Monitoring](/en/server/operations/health-and-monitoring).
+Manager manages WuKongIM cluster state. Handle cloud-server shutdown, Kubernetes instance counts, and startup configuration updates separately. Continue with [Health & Monitoring](/en/server/operations/health-and-monitoring).

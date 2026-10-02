@@ -24,6 +24,8 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
   or transport I/O. Typed workers execute that work and return fenced results.
 - Recent-record caches, PullHint, batching, and benchmark controls are
   performance or observation mechanisms, never sources of durable truth.
+  Durable-quorum commits do not duplicate payloads in the legacy pull cache;
+  the quorum runtime owns replication and repair.
 
 ## Main Flows
 
@@ -53,18 +55,11 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
 - Channel epoch, leader epoch, leader ID, write fence, generation, and worker op
   identity fence every relevant transition and completion.
 - Durable quorum success requires local durability plus a distinct-voter quorum.
-  Exact manifests and closed durable/already-durable/absent/conflict/unknown
-  outcomes make ambiguous commits safely retryable after cancellation or
-  restart; caller cancellation cannot revoke admitted durability. A definitive
-  local conflict reaches durable command lookup without waiting for missing
-  peers or retaining an impossible local pending proposal. A valid newer durable
-  authority invalidates a resumed former leader and returns stale metadata;
-  same-authority, missing, or malformed evidence remains a conflict.
+  Exact manifests and closed durable/already-durable/absent/conflict/unknown outcomes make ambiguous commits safely retryable after cancellation or restart; caller cancellation cannot revoke admitted durability. A definitive local conflict reaches durable command lookup without waiting for missing peers or retaining an impossible local pending proposal. A valid newer durable authority invalidates a resumed former leader and returns stale metadata; same-authority, missing, or malformed evidence remains a conflict.
 - The node-owned replication runtime bounds local mutation batches, per-target
   exchange, recovery probes, and follower repair without per-Channel goroutines.
-  On-demand committed replica refresh replays the installed sequencer's tail
-  through existing repair workers, including under an unchanged write fence. Exact
-  authority is required; caller HW and scheduling supply no durability receipt.
+  On-demand committed replica refresh replays the installed sequencer's tail through existing repair workers, including under an unchanged write fence. Exact authority is required; caller HW and scheduling supply no durability receipt.
+  Peer owners are scheduled only for executable queue items, preserving the first exchange kind and per-Channel ordering barriers. Releasing in-flight ownership wakes blocked classes; blocked-only queues do not reschedule empty owners.
   Install preserves every observed suffix, proves compatible voter tails on one
   exact hash chain, and copies at most one bounded page before yielding for a fresh proof. Probe rounds
   consume arrived evidence plus the local result, then use a quorum without waiting

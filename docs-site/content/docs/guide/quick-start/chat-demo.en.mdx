@@ -1,9 +1,41 @@
 ---
-title: Run the Chat Demo
-description: Understand the embedded Chat Demo entry points, behavior, and production safety boundary.
+title: Try the Four Demos
+description: Launch chat, streaming replies, customer support, and Agent together, then choose a scenario.
 ---
 
-The Chat Demo is a browser application included with the `wukongim` package. After the Linux service starts, no separate frontend process is required.
+## 1. Launch together
+
+Install **Go 1.25+, Node.js 22.12+ (or 20.19+), and npm**. From the current repository root, run:
+
+```bash
+node demo/start.mjs
+```
+
+The launcher prepares a **single-node cluster with 256 hash slots** and the required business services, then opens the catalog. The first run downloads dependencies. The default mock model needs no key.
+
+The catalog defaults to `http://127.0.0.1:5174/demos/` and uses a free port if occupied. **Use the printed or automatically opened address**; each Demo is already configured for this cluster. Press `Ctrl+C` to stop all processes from this run.
+
+<TutorialScreenshot src="/tutorials/demos/catalog.jpg" alt="The current source Demo catalog shows chat, streaming replies, customer support, and Agent. Open the full-size image." width={1280} height={1717}>
+  Choose a scenario; each Demo has a home link. The catalog shown uses Chinese labels. This capture comes from local main; entries in released images depend on their version.
+</TutorialScreenshot>
+
+## 2. Choose a scenario
+
+| Demo | First action | Explore |
+| --- | --- | --- |
+| Chat (即时聊天) | [Sign in as Alice and Bob](/en/guide/quick-start/first-message) | Direct/group chat, message edits, history recovery |
+| Streaming replies (流式回复) | Create demo accounts, connect, and ask a question | Incremental replies, cancellation, failure, and recovery |
+| Customer support (在线客服) | Start the demo, request human support, and accept it as an operator | AI reception, human takeover, multiple visitors |
+| Agent | Start the demo, submit a task, and inspect tool cards | Tool calls, todo approval, pause, and cancellation |
+
+These four Demos come from current source. **Starting a Docker container alone does not start the support or Agent Node business backends**. Use the launcher above for the complete experience. Source and independent launch instructions: [demo/README.md](https://github.com/WuKongIM/WuKongIM/blob/main/demo/README.md).
+
+<Callout type="warn" title="Local testing only">
+  The launcher binds to loopback. Chat Demo credential creation writes the test UID's token; leave it off for existing accounts and migration acceptance. A trusted business backend must own production identities and permissions.
+</Callout>
+
+<details>
+<summary>Existing Linux / Docker cluster: open Chat Demo</summary>
 
 ## Entry points
 
@@ -45,6 +77,12 @@ cache; it does not clear another business app's database or certify its migratio
 
 Connections with the same UID and primary-device flag may replace each other. For parallel tests, use different UIDs or independent browser sessions.
 
+
+</details>
+
+<details>
+<summary>Production integration boundaries</summary>
+
 ## Production boundary
 
 <Callout type="error" title="Do not expose the demo authentication flow">
@@ -59,3 +97,5 @@ A production integration also needs to:
 - Choose the appropriate client SDK and handle reconnects, offline synchronization, and local message state.
 
 After two-way messaging succeeds, continue to the [next steps](/en/guide/quick-start/next-steps).
+
+</details>

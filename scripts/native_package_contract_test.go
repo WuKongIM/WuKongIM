@@ -106,6 +106,16 @@ func TestNativePackageDoesNotActivateAnUnconfiguredService(t *testing.T) {
 	}
 }
 
+func TestNativePackageBootstrapProgressCheckpoints(t *testing.T) {
+	validator := readNativePackageFile(t, repoRoot(t), "scripts/validate-native-package-lifecycle-container.sh")
+	previous := -1
+	for _, checkpoint := range []string{"bootstrap_stage package-update", "$bootstrap_update_command\n", "bootstrap_stage package-install", "$install_command\n", "bootstrap_stage systemd-exec", "then exec /lib/systemd/systemd"} {
+		position := strings.Index(validator, checkpoint)
+		require.Greater(t, position, previous, "missing or reordered bootstrap checkpoint: %s", checkpoint)
+		previous = position
+	}
+}
+
 func TestNativePackageLifecycleUsesRealSystemd(t *testing.T) {
 	root := repoRoot(t)
 	validator := readNativePackageFile(t, root, "scripts/validate-native-package-lifecycle-container.sh")

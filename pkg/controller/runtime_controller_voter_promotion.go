@@ -37,7 +37,8 @@ func (r *Runtime) PromoteControllerVoter(ctx context.Context, req PromoteControl
 	if err := ctx.Err(); err != nil {
 		return PromoteControllerVoterResult{}, err
 	}
-	if r == nil || r.raft == nil {
+	service := r.raftService()
+	if service == nil {
 		return PromoteControllerVoterResult{}, ErrNotStarted
 	}
 	st, err := r.LocalState(ctx)
@@ -71,7 +72,7 @@ func (r *Runtime) PromoteControllerVoter(ctx context.Context, req PromoteControl
 			return PromoteControllerVoterResult{}, err
 		}
 	}
-	proposal, err := r.raft.ProposeResult(ctx, command.Command{
+	proposal, err := service.ProposeResult(ctx, command.Command{
 		Kind:             command.KindPromoteControllerVoter,
 		IssuedAt:         r.cfg.Now().UTC(),
 		ExpectedRevision: &expectedRevision,
@@ -107,13 +108,17 @@ func (r *Runtime) PromoteControllerVoter(ctx context.Context, req PromoteControl
 }
 
 func (r *Runtime) ensureControllerRaftVoter(ctx context.Context, nodeID uint64) (uint64, []uint64, error) {
-	status := r.raft.Status()
+	service := r.raftService()
+	if service == nil {
+		return 0, nil, ErrNotStarted
+	}
+	status := service.Status()
 	if containsRuntimeUint64(status.Voters, nodeID) {
 		return controllerRaftStatusProofIndex(status), cloneSortedUint64s(status.Voters), nil
 	}
 	if !containsRuntimeUint64(status.Learners, nodeID) {
-		if _, err := r.raft.AddLearner(ctx, nodeID); err != nil {
-			status = r.raft.Status()
+		if _, err := service.AddLearner(ctx, nodeID); err != nil {
+			status = service.Status()
 			if containsRuntimeUint64(status.Voters, nodeID) {
 				return controllerRaftStatusProofIndex(status), cloneSortedUint64s(status.Voters), nil
 			}
@@ -122,9 +127,9 @@ func (r *Runtime) ensureControllerRaftVoter(ctx context.Context, nodeID uint64) 
 			}
 		}
 	}
-	membership, err := r.raft.PromoteLearner(ctx, nodeID)
+	membership, err := service.PromoteLearner(ctx, nodeID)
 	if err != nil {
-		status = r.raft.Status()
+		status = service.Status()
 		if containsRuntimeUint64(status.Voters, nodeID) {
 			return controllerRaftStatusProofIndex(status), cloneSortedUint64s(status.Voters), nil
 		}
@@ -179,7 +184,7 @@ func (r *Runtime) PrepareControllerVoter(ctx context.Context, req PrepareControl
 		return PrepareControllerVoterResult{Prepared: true, StateRevision: st.Revision}, nil
 	}
 
-	if r.raft != nil {
+	if r.raftService() != nil {
 		r.clearControllerVoterRuntimeFields()
 	}
 	if err := moveMirrorStateAside(selection); err != nil {
@@ -189,6 +194,7 @@ func (r *Runtime) PrepareControllerVoter(ctx context.Context, req PrepareControl
 		return PrepareControllerVoterResult{}, err
 	}
 	transitionStarted = true
+	r.mu.Lock()
 	r.cfg.Role = RuntimeRoleVoter
 	r.cfg.Voters = copyVoters(req.NextVoters)
 	r.cfg.AllowBootstrap = false
@@ -196,6 +202,7 @@ func (r *Runtime) PrepareControllerVoter(ctx context.Context, req PrepareControl
 	r.syncServer = nil
 	r.syncClient = nil
 	r.sm = nil
+	r.mu.Unlock()
 	r.store = statefile.New(filepath.Join(r.cfg.StateDir, "cluster-state.json"))
 	if err := r.startVoter(ctx); err != nil {
 		r.clearControllerVoterRuntimeFields()
@@ -395,6 +402,8 @@ func validatePrepareControllerVoterNextVotersForState(localNodeID uint64, localA
 }
 
 func (r *Runtime) controllerVoterPrepared() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return r.cfg.Role == RuntimeRoleVoter &&
 		r.syncClient == nil &&
 		r.sm != nil &&
@@ -404,15 +413,15 @@ func (r *Runtime) controllerVoterPrepared() bool {
 }
 
 func (r *Runtime) clearControllerVoterRuntimeFields() {
-	if r.raft != nil {
-		_ = r.raft.Stop()
+	if service := r.raftService(); service != nil {
+		_ = service.Stop()
 	}
-	r.sm = nil
 	r.mu.Lock()
+	r.sm = nil
 	r.raft = nil
-	r.mu.Unlock()
 	r.server = nil
 	r.syncServer = nil
+	r.mu.Unlock()
 }
 
 func copyOptionalUint64s(in []uint64) []uint64 {

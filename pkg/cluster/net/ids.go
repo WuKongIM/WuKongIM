@@ -127,10 +127,10 @@ const (
 	RPCSlotMessageUpdates
 	// RPCMessageUpdateHint delivers body-free edit hints to exact owner sessions.
 	RPCMessageUpdateHint
-	// RPCSlotMQTTMetadata serves bounded authoritative MQTT metadata reads.
-	RPCSlotMQTTMetadata
-	// RPCMQTTOwner requests exact MQTT owner execution quiescence.
-	RPCMQTTOwner
+	// RPCNodeSendPermissions multiplexes authoritative Slot permission reads per node.
+	RPCNodeSendPermissions
+	// RPCMessageEventDelivery delivers accepted stream events to exact owner sessions.
+	RPCMessageEventDelivery
 	// RPCChannelMQTTSource establishes source protection on the exact Channel leader.
 	RPCChannelMQTTSource
 	// RPCChannelMQTTReplay prepares bounded shared content on the current leader.
@@ -157,6 +157,14 @@ const (
 	RPCChannelMQTTOriginals
 	// RPCMQTTWillDispatch seals body-free exact-node non-dispatch evidence.
 	RPCMQTTWillDispatch
+)
+
+// MQTT metadata and owner services occupy new IDs; main already owns 91/92.
+const (
+	// RPCSlotMQTTMetadata serves bounded authoritative MQTT metadata reads.
+	RPCSlotMQTTMetadata uint8 = 106 + iota
+	// RPCMQTTOwner requests exact MQTT owner execution quiescence.
+	RPCMQTTOwner
 )
 
 func transportServiceAlias(serviceID uint8) string {
@@ -279,6 +287,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "message event append"
 	case RPCSlotMessageUpdates:
 		return "slot message updates"
+	case RPCNodeSendPermissions:
+		return "node send permissions"
 	case RPCMessageUpdateHint:
 		return "message update hint"
 	case RPCSlotMQTTMetadata:
@@ -311,6 +321,8 @@ func transportServiceAlias(serviceID uint8) string {
 		return "mqtt will dispatch"
 	case RPCChannelMQTTReplay:
 		return "channel mqtt replay"
+	case RPCMessageEventDelivery:
+		return "message event delivery"
 	default:
 		return "unknown service"
 	}

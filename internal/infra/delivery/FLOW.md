@@ -41,6 +41,8 @@ It does not own plan admission, retries, ACK tracking, or offline classification
 
 - Edit hints resolve bounded subscriber pages through presence and use exact session owner fences. Only opted-in sessions receive the body-free EVENT; no RECVACK or offline record is created, and slow/closed sessions can drop hints for foreground sync to repair.
 
+- Stream EVENT delivery uses separate payload-bearing DTOs/RPC from body-free edit hints. It resolves 128-member pages, splits owner pages at 512 routes/256 KiB, maps person channels to recipient views and reuses exact owner-session fences. There is no capability opt-in, RECVACK state or offline replay allocation; disconnected/saturated sessions recover history.
+
 ## Read First
 
 - [Presence adapter](online_presence.go)

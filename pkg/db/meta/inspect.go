@@ -467,6 +467,7 @@ func inspectUserRow(user User) InspectRow {
 		"token":        user.Token,
 		"device_flag":  user.DeviceFlag,
 		"device_level": user.DeviceLevel,
+		"send_ban":     user.SendBan, "send_ban_version": user.SendBanVersion,
 	}
 }
 
@@ -486,6 +487,7 @@ func inspectChannelRow(channel Channel) InspectRow {
 		"ban":                             channel.Ban,
 		"disband":                         channel.Disband,
 		"send_ban":                        channel.SendBan,
+		"send_ban_version":                channel.SendBanVersion,
 		"allow_stranger":                  channel.AllowStranger,
 		"large":                           channel.Large,
 		"subscriber_mutation_version":     channel.SubscriberMutationVersion,

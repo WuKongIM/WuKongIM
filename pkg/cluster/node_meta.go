@@ -595,7 +595,7 @@ func mergeMessageEventStateOverlay(durable []metadb.MessageEventState, cached []
 }
 
 // UpsertUserChannelMemberships persists live UID-owned memberships initialized
-// from one committed channel tail through hash-slot ownership.
+// from one committed channel tail in bounded physical-Slot batches.
 func (n *Node) UpsertUserChannelMemberships(ctx context.Context, channelID string, channelType int64, uids []string, committedTail, sourceVersion uint64, updatedAt int64) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
@@ -603,17 +603,72 @@ func (n *Node) UpsertUserChannelMemberships(ctx context.Context, channelID strin
 	if n == nil {
 		return ErrNotStarted
 	}
-	groups, err := n.groupUserChannelMembershipsByHashSlot(channelID, channelType, uids, committedTail, sourceVersion, updatedAt, false)
+	if len(uids) == 0 {
+		return nil
+	}
+	if channelID == "" || channelType <= 0 {
+		return metadb.ErrInvalidArgument
+	}
+	// Resolve unique UIDs from one immutable routing publication. Each command
+	// pins its physical owner; the FSM validates all embedded logical shards.
+	keys := make([]string, 0, len(uids))
+	seen := make(map[string]struct{}, len(uids))
+	for _, uid := range uids {
+		if uid == "" {
+			return metadb.ErrInvalidArgument
+		}
+		if _, ok := seen[uid]; !ok {
+			seen[uid] = struct{}{}
+			keys = append(keys, uid)
+		}
+	}
+	routes, err := n.RouteKeysPartial(keys)
 	if err != nil {
 		return err
 	}
-	proposals := make([]userMembershipProposal, 0, len(groups))
-	for _, hashSlot := range sortedMembershipHashSlots(groups) {
-		command, err := metafsm.EncodeUpsertUserChannelMembershipsCommandChecked(groups[hashSlot])
-		if err != nil {
-			return err
+	joinSeq := committedTail + 1
+	if joinSeq == 0 {
+		joinSeq = committedTail
+	}
+	groups := make(map[uint32][]metafsm.UserChannelMembershipBatchItem)
+	for i, result := range routes {
+		if result.Err != nil {
+			return result.Err
 		}
-		proposals = append(proposals, userMembershipProposal{hashSlot: hashSlot, command: command, rows: len(groups[hashSlot])})
+		groups[result.Route.SlotID] = append(groups[result.Route.SlotID], metafsm.UserChannelMembershipBatchItem{
+			HashSlot: result.Route.HashSlot,
+			Membership: metadb.UserChannelMembership{
+				UID: keys[i], ChannelID: channelID, ChannelType: channelType,
+				JoinSeq: joinSeq, ReadSeq: committedTail, DeletedToSeq: committedTail,
+				SourceVersion: sourceVersion, UpdatedAt: updatedAt,
+			},
+		})
+	}
+	slotIDs := make([]uint32, 0, len(groups))
+	for slotID := range groups {
+		slotIDs = append(slotIDs, slotID)
+	}
+	sort.Slice(slotIDs, func(i, j int) bool { return slotIDs[i] < slotIDs[j] })
+	proposals := make([]userMembershipProposal, 0, len(groups))
+	for _, slotID := range slotIDs {
+		items := groups[slotID]
+		for start := 0; start < len(items); {
+			end := min(start+metafsm.MaxUserChannelMembershipBatchItems, len(items))
+			command, err := metafsm.EncodeUpsertUserChannelMembershipBatchCommandChecked(items[start:end])
+			// Large identities can hit byte limits before the row cap. Split
+			// before submitting any work; an invalid single row fails the call.
+			for err != nil && end-start > 1 {
+				end = start + (end-start)/2
+				command, err = metafsm.EncodeUpsertUserChannelMembershipBatchCommandChecked(items[start:end])
+			}
+			if err != nil {
+				return err
+			}
+			proposals = append(proposals, userMembershipProposal{
+				slotID: slotID, hashSlot: items[start].HashSlot, command: command, rows: end - start,
+			})
+			start = end
+		}
 	}
 	return n.submitUserMembershipProposals(ctx, proposals, "upsert")
 }
@@ -907,6 +962,7 @@ func (n *Node) submitPersonDirectoryProposalWaves(ctx context.Context, proposals
 }
 
 type userMembershipProposal struct {
+	slotID   uint32
 	hashSlot uint16
 	command  []byte
 	rows     int
@@ -936,7 +992,7 @@ func (n *Node) submitUserMembershipProposals(ctx context.Context, proposals []us
 			proposal := proposals[index]
 			if err := n.Propose(workerCtx, ProposeRequest{
 				Command: proposal.command,
-				Target:  ProposeTarget{HashSlot: proposal.hashSlot, HasHashSlot: true},
+				Target:  ProposeTarget{HashSlot: proposal.hashSlot, HasHashSlot: true, SlotID: proposal.slotID, HasSlotID: true},
 			}); err != nil {
 				firstErrOnce.Do(func() {
 					firstErr = err

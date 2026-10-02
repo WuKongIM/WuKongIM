@@ -5,6 +5,10 @@ description: 安装 wukongimjssdk 1.3.5，连接用户并完成第一条在线�
 
 这一页只做一件事：让两个在线浏览器会话互相发送一条文本消息。
 
+<TutorialScreenshot src="/tutorials/web-sdk/exchange.jpg" alt="Alice 与 Bob 都已连接：1 服务器 SENDACK 成功，2 对端 RECEIVED 收到消息。点击查看原图。" width={1280} height={720} marks={[{ x: 4, y: 94 }, { x: 51, y: 98 }]}>
+  **① SENDACK** 是服务器发送结果。**② RECEIVED** 是对端实际收到的事件。下面先运行这个示例，再把代码接入自己的应用。点击图片可放大。
+</TutorialScreenshot>
+
 ## 先运行双用户示例
 
 准备 Git、Node.js 20.11 或更新版本，以及 npm。首次使用还没有业务后端时，示例自带一个只监听本机的 Node.js 服务（BFF），负责准备测试身份和查询连接地址。
@@ -13,6 +17,9 @@ description: 安装 wukongimjssdk 1.3.5，连接用户并完成第一条在线�
 
 按 [Docker 部署](/zh/server/deployment/docker)或[启动单节点集群](/zh/guide/quick-start/single-node-cluster)启动服务。
 
+<details>
+<summary>服务运行在远程服务器？先建立 SSH 转发</summary>
+
 如果 WuKongIM 在远程 Linux 服务器，先在电脑另开终端并保持 SSH 转发运行：
 
 ```bash
@@ -20,6 +27,8 @@ ssh -N -L 127.0.0.1:5001:127.0.0.1:5001 -L 127.0.0.1:5200:127.0.0.1:5200 <user>@
 ```
 
 此路径要求测试服务器的 `/route` 返回浏览器可访问的 `ws://127.0.0.1:5200`；使用其他地址时，按[网络与客户端接入](/zh/server/configuration/networking)配置 `api.external_ws_addr` 并重新启动。隧道只转发端口，不会改写路由响应。
+
+</details>
 
 从运行 Node.js 的电脑检查就绪状态，成功后再启动示例：
 
@@ -43,6 +52,11 @@ npm run dev
 3. 断开 Bob，Alice 再发送一条消息。
 4. 重连 Bob，确认缺失消息被恢复并且只显示一次。
 
+首次历史同步可能短暂为空；示例会做有界重试。
+
+<details>
+<summary>重试细节与其他 API 地址</summary>
+
 单聊成员目录在 SENDACK 成功后异步建立，首次历史同步可能短暂返回 HTTP 200 空页。示例后端对“最新一页”（起止序号都为 0）的空结果最多请求 20 次，间隔 250 ms；非空结果及普通分页直接返回。真正的空会话会在最多 19 次等待后返回空列表，额外等待最多 4.75 秒，另加 HTTP 请求耗时。其他错误仍失败；生产接入应自行设计一致性和请求期限策略。
 
 
@@ -52,11 +66,27 @@ npm run dev
 WK_DOCS_QUICKSTART_PRODUCT_HTTP_URL=http://127.0.0.1:15001 npm run dev
 ```
 
+</details>
+
 浏览器只调用示例的 `/api/development/identity` 和 `/api/messages/sync`；BFF 再调用 Product HTTP。生产接入需要把开发身份接口换成已有登录与授权系统，客户端不直接访问 `/user/token`。
+
+<details>
+<summary>看看断线恢复后的结果</summary>
+
+<TutorialScreenshot src="/tutorials/web-sdk/recovery.jpg" alt="Alice 在 Bob 离线时发送消息，Bob 重连后显示 SYNCED 和 Sync complete，缺失消息恢复一次。点击查看原图。" width={1280} height={720} marks={[{ x: 53, y: 78 }, { x: 53, y: 83 }]}>
+  **① SYNCED** 是恢复的消息。**② Sync complete · 1 recovered** 表示本次恢复完成；同一条消息应只显示一次。
+</TutorialScreenshot>
+
+</details>
 
 ## 接入自己的前端工程
 
 下面拆解示例中的安装、身份、监听和发送流程。准备两个独立标签页、iframe 或浏览器上下文；`WKSDK.shared()` 是单例，同一页面上下文不要同时登录两个用户。前端构建工具需支持 npm 和 TypeScript。
+
+```mermaid
+flowchart LR
+  Identity["业务后端：UID、Token、地址"] --> Listen["注册监听器"] --> Connect["连接成功"] --> Send["发送与接收"] --> Cleanup["移除监听 · 断开"]
+```
 
 ### 1. 安装
 
@@ -98,6 +128,9 @@ sdk.config.debug = false
 
 ### 3. 先注册监听器
 
+<details>
+<summary>展开完整监听器：连接、接收与发送结果</summary>
+
 ```typescript
 const onConnect = (status: ConnectStatus, reasonCode?: number) => {
   if (status === ConnectStatus.Connected) {
@@ -130,6 +163,8 @@ sdk.chatManager.addMessageStatusListener(onMessageStatus)
 ```
 
 保留函数引用，页面销毁时需要用同一个引用移除监听器。
+
+</details>
 
 ### 4. 连接并发送
 

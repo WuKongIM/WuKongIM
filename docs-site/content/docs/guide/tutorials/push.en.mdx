@@ -1,31 +1,50 @@
 ---
 title: Message Push
-description: Build recoverable mobile notifications with offline webhooks, a product outbox, and push providers.
+description: Four steps from device registration to offline callbacks, provider delivery, and message recovery; expand full requests as needed.
 ---
 
-This tutorial turns a committed message into a mobile notification. WuKongIM identifies UIDs with no online route and emits a bounded webhook; the product service owns device tokens, notification policy, APNs/FCM provider calls, retries, and receipts.
+Goal: Alice receives an order notification while offline, then recovers the committed message when she opens the app.
 
-<Callout type="warn" title="WuKongIM does not call push providers">
-  `msg.offline` is an offline-candidate signal, not an APNs, FCM, or provider delivery receipt. A SENDACK, webhook HTTP 200, or provider acceptance does not prove that the user saw a notification.
-</Callout>
+<div className="tutorial-diagram">
 
 ```mermaid
-flowchart LR
-  Message["Durable message"] --> Commit["Channel quorum commit"] --> SENDACK
-  Commit -.-> Online["Online Session delivery"]
-  Commit -.-> Route{"UID online route exists?"}
-  Route -->|no| Webhook["msg.offline webhook"]
-  Webhook --> Outbox["Product outbox"] --> Push["APNs / FCM / vendor"]
-  Route -->|yes| Online
+flowchart TD
+  device["①Register device tokens"] --> callback["②Offline callback<br/>Persist product outbox"]
+  callback --> provider["③Call the push provider"]
+  provider --> recover["④Open the app<br/>Recover after login"]
 ```
 
-## 1. Prepare product-owned device data
+</div>
+
+<Callout type="warn" title="Acceptance does not prove the user saw it">
+  WuKongIM emits offline candidates; the product backend calls APNs, FCM, or a vendor channel. Verify SENDACK, webhook HTTP `200`, provider acceptance, and user visibility separately.
+</Callout>
+
+## 1. Register devices and preferences
+
+The product backend stores UID, device, provider token, and authorization state. Update these on login, token refresh, logout, and invalidation receipts.
+
+**Check:** A provider token differs from the CONNECT credential stored by `/user/token`. The product owns notification permissions, quiet hours, and display privacy.
+
+<details>
+  <summary>Device data: complete fields and update points</summary>
 
 At minimum, the product service stores stable UID, device ID, platform, provider token, token version, authorization state, locale, quiet hours, and the latest invalidation reason. `/user/token` stores a CONNECT credential that the default Gateway validates by UID and device category; it is not a push-provider token, and there is no current public token-read API for a push worker.
 
 Production push therefore uses the product database as its source of truth and updates it during login, token refresh, logout, and provider invalidation callbacks. Never use a nickname or transient Session ID as the push identity.
 
-## 2. Enable the offline webhook
+</details>
+
+## 2. Receive offline callbacks
+
+Enable `msg.offline`, then send Alice an ordinary durable message through a trusted backend. `reason=1` proves only that the message committed.
+
+**Check:** Offline classification is per UID. Even one online route keeps Alice out of the offline list; pushing to each disconnected device requires a separate product policy.
+
+**Callbacks have no built-in signature or shared-secret header.** Establish a trusted network or protected proxy first, then filter senders, service identities, and unauthorized users according to notification policy.
+
+<details>
+  <summary>Enable callbacks: complete TOML configuration</summary>
 
 Configure a protected product endpoint in `wukongim.toml`:
 
@@ -42,7 +61,10 @@ retry_max_attempts = 3
 
 The current sender sets only `Content-Type: application/json`; it adds no signature or shared-secret header. Establish trust with HTTPS, a private network or service mesh, mTLS or fixed egress identity, body-size limits, and rate limits. See [Webhooks](/en/guide/integration/webhooks) for the complete configuration and receiver contract.
 
-## 3. Send a recoverable notification message
+</details>
+
+<details>
+  <summary>Send an order notification: full backend request</summary>
 
 First provision a permissioned notification-service UID in the product. This example sends an ordinary durable message to Alice's person Channel. Its payload is an application message model, not a privileged server message type:
 
@@ -60,7 +82,10 @@ curl -sS http://127.0.0.1:5001/message/send \
 
 `reason=1` means the message reached Channel quorum commit. Keep `client_msg_no` stable for safe retry after an uncertain result. Trusted system-UID bypass is optional and must not replace product authorization, rate limits, or notification preferences.
 
-## 4. Receive offline candidates
+</details>
+
+<details>
+  <summary>Offline candidates: payload, compressed UIDs, and message scope</summary>
 
 If neither Alice nor `notification-service` has an online route when Presence is resolved, the product endpoint receives a result like this:
 
@@ -88,7 +113,20 @@ Offline candidates are collected before sender-echo suppression, so a person Cha
 
 Offline classification is per UID, not per device. If Alice has even one online route, she is not in the offline UID list. A policy such as “push every disconnected device” must combine the product's device table with `msg.notify`, client receipts, and product-specific rules.
 
-## 5. Write an outbox before calling the provider
+</details>
+
+## 3. Persist before calling the provider
+
+Idempotently write a product outbox row keyed by `msg.offline + message_id + uid`; return HTTP `200` after commit. A background worker resolves active provider tokens, applies preferences, calls the provider, and records the outcome.
+
+**Check:** Duplicate callbacks do not create duplicate tasks. Distinguish invalid tokens from retryable provider errors.
+
+<Callout type="warn" title="Events can be lost before the outbox">
+  WuKongIM webhooks use bounded memory queues with no crash replay. The product outbox protects only persisted tasks; reconcile critical notifications against product events or durable message history.
+</Callout>
+
+<details>
+  <summary>Receiver and worker: complete processing order</summary>
 
 The webhook receiver should quickly:
 
@@ -101,8 +139,21 @@ The webhook receiver should quickly:
 
 Webhook queues are node-local memory. Queue saturation, process exit, cancellation, or exhausted retries can drop an event, and a crash does not replay it. Critical push work must be reconstructible from a product outbox, a product event, or durable message history instead of relying on ever-larger WuKongIM queues.
 
-## 6. Recover from the message log
+</details>
+
+## 4. Recover the message after opening
+
+Push carries only a safe summary and product locator. When Alice opens the app, authenticate again and read the original message through SDK sync or a trusted backend's `/channel/messagesync`. The product implements history recovery separately for EasySDK.
+
+**Check:** The notification opens the correct message, displayed once. Apply current product rules after logout, permission changes, or message retraction.
+
+<details>
+  <summary>Recovery and launch checklist</summary>
 
 A provider payload carries only a safe display summary and product locator, not the complete sensitive message. When the user opens it, the client authenticates again and reads the committed message through SDK sync or `/channel/messagesync`; the provider notification is never the message source of truth.
 
 Before launch, test duplicate and missing webhooks, compressed UID lists, token rotation, partially online users, provider throttling, quiet hours, stale deep links, logout, and retracted content. Continue with [Webhooks](/en/guide/integration/webhooks) and [AI & IoT Communication](/en/guide/tutorials/ai-and-iot).
+
+</details>
+
+Continue with [Webhooks](/en/guide/integration/webhooks) and [Direct-chat recovery](/en/guide/tutorials/direct-chat#4-test-disconnect-and-recovery).

@@ -8,8 +8,9 @@ import (
 )
 
 type dispatcher struct {
-	handler      gatewaytypes.Handler
-	batchHandler gatewaytypes.SendBatchHandler
+	handler         gatewaytypes.Handler
+	batchHandler    gatewaytypes.SendBatchHandler
+	deferredHandler gatewaytypes.DeferredSendBatchHandler
 }
 
 func newDispatcher(handler gatewaytypes.Handler) dispatcher {
@@ -17,6 +18,7 @@ func newDispatcher(handler gatewaytypes.Handler) dispatcher {
 	if batchHandler, ok := handler.(gatewaytypes.SendBatchHandler); ok {
 		dispatcher.batchHandler = batchHandler
 	}
+	dispatcher.deferredHandler, _ = handler.(gatewaytypes.DeferredSendBatchHandler)
 	return dispatcher
 }
 

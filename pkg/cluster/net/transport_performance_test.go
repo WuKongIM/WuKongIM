@@ -31,6 +31,7 @@ func TestTransportBudgetsPreserveMutationAndBackupPolicies(t *testing.T) {
 		{RPCChannelAuthoritySend, false, 30 * time.Second},
 		{RPCChannelCommittedReads, true, 30 * time.Second},
 		{RPCSlotMQTTMetadata, true, 30 * time.Second},
+		{RPCNodeSendPermissions, true, 30 * time.Second},
 		{RPCOpsMCP, false, time.Minute},
 		{RPCScheduledBackupSlot, false, 48 * time.Hour},
 		{RPCScheduledBackupMessages, false, 48 * time.Hour},

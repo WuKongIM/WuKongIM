@@ -5,6 +5,8 @@ package chat_lifecycle
 import (
 	"context"
 	"fmt"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
+	"net"
 	"os"
 	"sync"
 	"testing"
@@ -46,8 +48,9 @@ func TestPersonChannelNaturalReheat(t *testing.T) {
 		ChannelID: canonicalChannel, ChannelType: uint8(frame.ChannelTypePerson),
 	}}}
 
-	left := connectAndFullSync(t, ctx, cluster, api, 1, leftUID)
-	right := connectAndFullSync(t, ctx, cluster, api, 2, rightUID)
+	leftWire, rightWire := newAckWireProbe(), newAckWireProbe()
+	left := connectAndFullSync(t, ctx, cluster, api, 1, leftUID, leftWire)
+	right := connectAndFullSync(t, ctx, cluster, api, 2, rightUID, rightWire)
 	first := sendPersonMessage(t, cluster, left, right, rightUID, 1, "e2e-lifecycle-first")
 
 	initial := requireLoadedOnAllNodes(t, ctx, cluster, api, probeRequest)
@@ -86,9 +89,10 @@ func TestPersonChannelCrossIngressBurstPreservesReceiveSequence(t *testing.T) {
 		messagesPerWay = 100
 		rounds         = 6
 	)
-	left := connectAndFullSync(t, ctx, cluster, api, 1, leftUID)
+	leftWire, rightWire := newAckWireProbe(), newAckWireProbe()
+	left := connectAndFullSync(t, ctx, cluster, api, 1, leftUID, leftWire)
 	defer func() { _ = left.Close() }()
-	right := connectAndFullSync(t, ctx, cluster, api, 2, rightUID)
+	right := connectAndFullSync(t, ctx, cluster, api, 2, rightUID, rightWire)
 	defer func() { _ = right.Close() }()
 
 	var leftLast, rightLast uint64
@@ -111,11 +115,12 @@ func TestPersonChannelCrossIngressBurstPreservesReceiveSequence(t *testing.T) {
 			require.NoError(t, sendErr, cluster.DumpDiagnostics())
 		}
 
-		requireSuccessfulSendacks(t, cluster, left, messagesPerWay)
-		requireSuccessfulSendacks(t, cluster, right, messagesPerWay)
-		leftLast = requireMonotonicPersonReceives(t, cluster, left, rightUID, messagesPerWay, leftLast)
-		rightLast = requireMonotonicPersonReceives(t, cluster, right, leftUID, messagesPerWay, rightLast)
+		requireSuccessfulSendacks(t, cluster, left, leftWire, start, messagesPerWay)
+		requireSuccessfulSendacks(t, cluster, right, rightWire, start, messagesPerWay)
+		leftLast = requireMonotonicPersonReceives(t, cluster, left, rightUID, "right", start, messagesPerWay, leftLast)
+		rightLast = requireMonotonicPersonReceives(t, cluster, right, leftUID, "left", start, messagesPerWay, rightLast)
 	}
+	t.Logf(`WKRC-SESSION-ORDER {"scenario":"person","messages":%d,"ack_order":true,"sender_order":true,"receive_sequence":true}`, messagesPerWay*rounds*2)
 }
 
 func TestGroupChannelCrossIngressBurstPreservesReceiveSequence(t *testing.T) {
@@ -140,9 +145,10 @@ func TestGroupChannelCrossIngressBurstPreservesReceiveSequence(t *testing.T) {
 	}), cluster.DumpDiagnostics())
 
 	api := lifecycleTarget(cluster)
-	left := connectAndFullSync(t, ctx, cluster, api, 1, leftUID)
+	leftWire, rightWire := newAckWireProbe(), newAckWireProbe()
+	left := connectAndFullSync(t, ctx, cluster, api, 1, leftUID, leftWire)
 	defer func() { _ = left.Close() }()
-	right := connectAndFullSync(t, ctx, cluster, api, 2, rightUID)
+	right := connectAndFullSync(t, ctx, cluster, api, 2, rightUID, rightWire)
 	defer func() { _ = right.Close() }()
 	recipient := connectAndFullSync(t, ctx, cluster, api, 3, recipientUID)
 	defer func() { _ = recipient.Close() }()
@@ -167,10 +173,11 @@ func TestGroupChannelCrossIngressBurstPreservesReceiveSequence(t *testing.T) {
 			require.NoError(t, sendErr, cluster.DumpDiagnostics())
 		}
 
-		requireSuccessfulSendacks(t, cluster, left, messagesPerWay)
-		requireSuccessfulSendacks(t, cluster, right, messagesPerWay)
-		previous = requireMonotonicGroupReceives(t, cluster, recipient, channelID, messagesPerWay*2, previous)
+		requireSuccessfulSendacks(t, cluster, left, leftWire, start, messagesPerWay)
+		requireSuccessfulSendacks(t, cluster, right, rightWire, start, messagesPerWay)
+		previous = requireMonotonicGroupReceives(t, cluster, recipient, channelID, map[string]string{leftUID: "left", rightUID: "right"}, start, messagesPerWay*2, previous)
 	}
+	t.Logf(`WKRC-SESSION-ORDER {"scenario":"group","messages":%d,"ack_order":true,"sender_order":true,"receive_sequence":true}`, messagesPerWay*rounds*2)
 }
 
 func sendPersonBurst(
@@ -205,13 +212,25 @@ func sendGroupBurst(client *suite.WKProtoClient, channelID, prefix string, start
 	return nil
 }
 
-func requireSuccessfulSendacks(t *testing.T, cluster *suite.StartedCluster, client *suite.WKProtoClient, count int) {
+func requireSuccessfulSendacks(t *testing.T, cluster *suite.StartedCluster, client *suite.WKProtoClient, wire *ackWireProbe, start, count int) {
 	t.Helper()
-	for range count {
-		ack, err := client.ReadSendAck()
+	var previous uint64
+	for offset := range count {
+		// Future-completion goroutines may reorder the bridge; only the TCP
+		// capture proves wire ACK order. Still drain and check every future.
+		futureAck, err := client.ReadSendAck()
 		require.NoError(t, err, cluster.DumpDiagnostics())
-		require.Equal(t, frame.ReasonSuccess, ack.ReasonCode, cluster.DumpDiagnostics())
-		require.NotZero(t, ack.MessageSeq, cluster.DumpDiagnostics())
+		require.Equal(t, frame.ReasonSuccess, futureAck.ReasonCode)
+		var ack frame.SendackPacket
+		select {
+		case ack = <-wire.acks:
+		case <-time.After(operationTimeout):
+			t.Fatal("wire SENDACK not observed")
+		}
+		require.Equal(t, frame.ReasonSuccess, ack.ReasonCode)
+		require.Equal(t, uint64(start+offset), ack.ClientSeq, "session ACK order")
+		require.Greater(t, ack.MessageSeq, previous, "same-sender committed sequence")
+		previous = ack.MessageSeq
 	}
 }
 
@@ -219,15 +238,16 @@ func requireMonotonicPersonReceives(
 	t *testing.T,
 	cluster *suite.StartedCluster,
 	client *suite.WKProtoClient,
-	peerUID string,
-	count int,
+	peerUID, prefix string,
+	start, count int,
 	previous uint64,
 ) uint64 {
 	t.Helper()
-	for range count {
+	for offset := range count {
 		recv, err := client.ReadRecv()
 		require.NoError(t, err, cluster.DumpDiagnostics())
 		require.Equal(t, peerUID, recv.FromUID, cluster.DumpDiagnostics())
+		require.Equal(t, fmt.Sprintf("e2e-sequence-%s-%06d", prefix, start+offset), recv.ClientMsgNo, "person sender input order")
 		require.Greater(t, recv.MessageSeq, previous,
 			"person-channel receive sequence regressed from %d to %d\n%s", previous, recv.MessageSeq, cluster.DumpDiagnostics())
 		require.NoError(t, client.RecvAck(recv.MessageID, recv.MessageSeq), cluster.DumpDiagnostics())
@@ -241,14 +261,23 @@ func requireMonotonicGroupReceives(
 	cluster *suite.StartedCluster,
 	client *suite.WKProtoClient,
 	channelID string,
-	count int,
+	senders map[string]string,
+	start, count int,
 	previous uint64,
 ) uint64 {
 	t.Helper()
+	next := make(map[string]int, len(senders))
+	for uid := range senders {
+		next[uid] = start
+	}
 	for range count {
 		recv, err := client.ReadRecv()
 		require.NoError(t, err, cluster.DumpDiagnostics())
 		require.Equal(t, channelID, recv.ChannelID, cluster.DumpDiagnostics())
+		prefix, ok := senders[recv.FromUID]
+		require.True(t, ok, "unexpected group sender")
+		require.Equal(t, fmt.Sprintf("e2e-sequence-group-%s-%06d", prefix, next[recv.FromUID]), recv.ClientMsgNo, "group sender input order")
+		next[recv.FromUID]++
 		require.Greater(t, recv.MessageSeq, previous,
 			"group-channel receive sequence regressed from %d to %d\n%s", previous, recv.MessageSeq, cluster.DumpDiagnostics())
 		require.NoError(t, client.RecvAck(recv.MessageID, recv.MessageSeq), cluster.DumpDiagnostics())
@@ -301,9 +330,13 @@ func connectAndFullSync(
 	api *target.Client,
 	nodeID uint64,
 	uid string,
+	probes ...*ackWireProbe,
 ) *suite.WKProtoClient {
 	t.Helper()
 	client, err := suite.NewWKProtoClientWithTimeout(operationTimeout)
+	if len(probes) > 0 {
+		client, err = suite.NewWKProtoClientWithDialer(operationTimeout, probes[0])
+	}
 	require.NoError(t, err)
 	require.NoError(t, client.Connect(cluster.MustNode(nodeID).GatewayAddr(), uid, uid+"-device"), cluster.DumpDiagnostics())
 	rows, err := api.ConversationSync(ctx, benchlifecycle.NewConversationSyncRequest(uid))
@@ -580,4 +613,56 @@ func summarizeProbe(results []model.ChannelRuntimeProbeResult) string {
 		parts = append(parts, fmt.Sprintf("node=%d role=%s status=%s leo=%d hw=%d", result.NodeID, row.Role, row.Status, row.LEO, row.HW))
 	}
 	return fmt.Sprintf("%v", parts)
+}
+
+// ackWireProbe observes ordered public WKProto bytes before future scheduling.
+// It never delays or rewrites application traffic and retains at most 1024 ACKs.
+type ackWireProbe struct{ acks chan frame.SendackPacket }
+
+func newAckWireProbe() *ackWireProbe {
+	return &ackWireProbe{acks: make(chan frame.SendackPacket, 1024)}
+}
+func (p *ackWireProbe) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	c, err := (&net.Dialer{}).DialContext(ctx, network, address)
+	if err != nil {
+		return nil, err
+	}
+	return &ackWireConn{Conn: c, probe: p, protocol: codec.New()}, nil
+}
+
+type ackWireConn struct {
+	net.Conn
+	probe    *ackWireProbe
+	protocol codec.Protocol
+	pending  []byte
+}
+
+func (c *ackWireConn) Read(dst []byte) (int, error) {
+	n, err := c.Conn.Read(dst)
+	if n == 0 {
+		return n, err
+	}
+	if len(c.pending)+n > 1<<20 {
+		return n, fmt.Errorf("wire probe frame buffer exceeded bound")
+	}
+	c.pending = append(c.pending, dst[:n]...)
+	for len(c.pending) > 0 {
+		packet, consumed, decodeErr := c.protocol.DecodeFrame(c.pending, frame.LatestVersion)
+		if decodeErr != nil {
+			return n, decodeErr
+		}
+		if packet == nil || consumed == 0 {
+			break
+		}
+		if ack, ok := packet.(*frame.SendackPacket); ok {
+			copy := frame.SendackPacket{ClientSeq: ack.ClientSeq, MessageSeq: ack.MessageSeq, ReasonCode: ack.ReasonCode}
+			select {
+			case c.probe.acks <- copy:
+			default:
+				return n, fmt.Errorf("wire probe ACK buffer exceeded bound")
+			}
+		}
+		c.pending = c.pending[consumed:]
+	}
+	return n, err
 }

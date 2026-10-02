@@ -3,6 +3,7 @@ package database
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,7 +40,7 @@ func TestInfoReadsIdentityWithoutOpeningStores(t *testing.T) {
 	entries, err = os.ReadDir(dir)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
-	require.NoError(t, os.WriteFile(marker, []byte(strings.Replace(string(before), `"format_version": 1`, `"format_version": 999`, 1)), 0600))
+	require.NoError(t, os.WriteFile(marker, []byte(strings.Replace(string(before), fmt.Sprintf(`"format_version": %d`, dataformat.CurrentVersion), `"format_version": 999`, 1)), 0600))
 	require.Zero(t, run("--data-dir", dir, "info"))
 	require.Contains(t, out.String(), "unsupported")
 	require.Contains(t, out.String(), "999")

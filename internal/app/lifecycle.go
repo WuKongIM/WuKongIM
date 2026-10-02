@@ -386,6 +386,9 @@ func (a *App) Stop(ctx context.Context) error {
 			return err
 		}
 		var err error
+		if stopErr := a.closeChannelSubmissions(ctx); stopErr != nil {
+			return stopErr
+		}
 		if a.messageChannelStore != nil {
 			if stopErr := a.messageChannelStore.Stop(ctx); stopErr != nil {
 				a.logLifecycleWarn("person_directory_admission", "stop_before_start", stopErr)
@@ -408,6 +411,9 @@ func (a *App) Stop(ctx context.Context) error {
 	var err error
 	if admission, ok := a.gateway.(gatewayDrainRuntime); ok {
 		admission.SetAcceptingNewSessions(false)
+	}
+	if stopErr := a.drainGatewaySubmissions(ctx); stopErr != nil {
+		return errors.Join(stopErr, a.syncLogger())
 	}
 	// MQTT quiescence joins physical-close callbacks on the gateway transport
 	// loop. Keep that loop and business dependencies alive until cleanup joins;
@@ -463,6 +469,9 @@ func (a *App) Stop(ctx context.Context) error {
 		} else {
 			a.backupRuntimeStarted = false
 		}
+	}
+	if stopErr := a.closeChannelSubmissions(ctx); stopErr != nil {
+		return errors.Join(err, stopErr)
 	}
 	if a.messageChannelStore != nil {
 		if stopErr := a.messageChannelStore.Stop(ctx); stopErr != nil {
@@ -628,6 +637,9 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 		return err
 	}
 	var err error
+	if stopErr := a.drainGatewaySubmissions(ctx); stopErr != nil {
+		return stopErr
+	}
 	if a.prometheusStarted && a.prometheus != nil {
 		if stopErr := a.prometheus.Stop(ctx); stopErr != nil {
 			a.logLifecycleWarn("prometheus", "rollback_stop", stopErr)
@@ -667,6 +679,9 @@ func (a *App) rollbackStarted(ctx context.Context) error {
 		} else {
 			a.backupRuntimeStarted = false
 		}
+	}
+	if stopErr := a.closeChannelSubmissions(ctx); stopErr != nil {
+		return errors.Join(err, stopErr)
 	}
 	if a.messageChannelStore != nil {
 		if stopErr := a.messageChannelStore.Stop(ctx); stopErr != nil {

@@ -24,6 +24,7 @@ This domain covers black-box message and conversation behavior for
 | `webhook` | Prove single-node cluster post-commit callbacks and three-node `msg.before_send` admission, custom codes, mutation, timeout/error policies, and committed history through WKProto and HTTP; also verify authenticated fault handling, bounded per-node overload/recovery, callback counts, and public metrics; build the runnable Go callback and validate its decisions/history against a single-node cluster. | `GOWORK=off go test -tags=e2e ./test/e2e/message/webhook -count=1 -timeout 2m -p=1` |
 | `send_permission` | Prove `cmd/wukongim` enforces migrated legacy send-permission decisions through public channel-management and `/message/send` HTTP APIs. | `GOWORK=off go test -tags=e2e ./test/e2e/message/send_permission -count=1` |
 | `terminal_disband` | Prove message-usecase permission admission rejects a disbanded source for ordinary, system-UID, and system-device sends, exposes terminal list/pull behavior, and performs no membership fanout. | `GOWORK=off go test -tags=e2e ./test/e2e/message/terminal_disband -count=1 -timeout 2m` |
+| `stream_online` | Real JSON-RPC online stream events, person/group cross-node routing, finish/cancel/error, private visibility and offline snapshots in 256-hash-slot single-node and three-node clusters. | `WK_E2E_STREAM_REPORT=/tmp/wk-stream-online.json GOWORK=off go test -tags=e2e ./test/e2e/message/stream_online -count=1 -timeout=3m -p=1 -v` |
 | `message_event_stream` | Prove `/message/event` buffers stream deltas in the Slot-leader cache, forwards from non-leader nodes, fails closed after Slot-leader cache loss, proposes one finish batch, exposes public metrics, and survives restart through `/channel/messagesync` event summaries. | `GOWORK=off go test -tags=e2e ./test/e2e/message/message_event_stream -count=1 -timeout 2m` |
 | `recipient_authority` | Prove committed group SEND has zero recipient membership writes, membership-backed `/conversation/list` still hydrates the user view, and low-cardinality directory/hydration metrics are exposed, with an opt-in 100k subscriber stress path. | `GOWORK=off go test -tags=e2e ./test/e2e/message/recipient_authority -count=1` |
 | `medium_recipient_hotpath` | Opt-in higher-fidelity local Cloud Medium gate plus a separate 30-minute, 5,000-channel permission-pressure soak. Both use a real three-node process cluster, WKProto sockets, Raft, Pebble, exact Presence convergence, SENDACK/RECV latency, zero measured membership writes, and bounded public pressure evidence. | Short gate: `WK_E2E_MEDIUM_RECIPIENT_HOTPATH=1 WK_E2E_MEDIUM_RECIPIENT_ENFORCE_ACCEPTANCE=1 GOWORK=off go test -tags=e2e ./test/e2e/message/medium_recipient_hotpath -run TestCloudMediumScaledRecipientHotPath -count=1 -timeout 5m -p=1 -v`<br>Soak: `WK_E2E_MEDIUM_RECIPIENT_PERMISSION_SOAK=1 WK_E2E_MEDIUM_RECIPIENT_SOAK_DURATION=30m WK_E2E_MEDIUM_RECIPIENT_GROUP_CHANNELS=5000 WK_E2E_MEDIUM_RECIPIENT_QPS=4500 GOWORK=off go test -tags=e2e ./test/e2e/message/medium_recipient_hotpath -run TestCloudMediumPermissionSoak -count=1 -timeout 40m -p=1 -v` |
@@ -64,3 +65,147 @@ profiles afterward; see the scenario instructions for the fixed comparison.
 - The Channel failover fixture uses 256 Hash Slots and explicitly disables Token authentication for its existing tokenless readiness client. SDK acceptance keeps Token authentication enabled.
 - The `chat_lifecycle` fixture explicitly disables Token authentication for its
   tokenless lifecycle clients; its ordering and reheat results do not qualify SDK authentication.
+
+## User and Channel send bans
+
+`send_ban` verifies independent user/source-Channel restrictions, cross-ingress
+cache freshness, WKProto and HTTP admission, atomic changes and CAS.
+Run `GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -count=1 -timeout=8m -p=1 -v`.
+The scenario writes a JSON report (override with `WK_E2E_SEND_BAN_REPORT`).
+The separate opt-in `TestPermissionCallerBaseline` characterizes Issue #977
+using fixed independent WKProto sessions, public per-node metric cuts and exact
+history across four actual Slot/leader placements. See `send_ban/AGENTS.md` for
+the frozen-binary invocation, resource limitations and separate profile phase;
+it does not alter the existing 500 SEND/s gate or implement cross-caller cohorts.
+Its independent `WK_E2E_SEND_BAN_100K=1` opt-in runs `TestHundredKGroupSendBan`
+with a six-minute test bound and writes a `.100k.json` companion report. A setup
+timeout is failed evidence, not a smaller-scale pass.
+The 100k artifact retains setup cardinality, observed positive-control recipient
+processing and exact complete history; main-scenario startup failures include
+bounded process diagnostics.
+
+The medium recipient pressure fixture explicitly disables Token authentication
+for its existing tokenless clients, verifies that rendered setting, and reports
+outbound Raft-lane payload bytes separately from total transport bytes. Missing
+per-node coverage remains null; these bytes exclude framing/network overhead.
+
+Chat lifecycle burst checks also retain exact per-sender message and session ACK
+order for person/group traffic and emit `WKRC-SESSION-ORDER` evidence.
+
+The send-ban matrix covers two already connected devices across all additional
+source Channel types (3–12), with exact committed-history rejection checks.
+
+Permission pressure evidence separately counts domain admission busy responses,
+including local reads; a successful transport RPC cannot hide a rejected fact read.
+
+The non-replica send-ban companion records missing/ban/allow transitions and
+exact successful history with a 1h auxiliary cache; the trusted-device control
+must also observe the Channel ban. Permission soak uses and verifies the current
+product default of 128 append workers; the separate mixed-recipient gate remains
+at eight, and historical eight-worker failures remain failed evidence.
+
+Send-ban delivery evidence keeps a live receiver across user/Channel restrictions
+and quorum loss, with positive controls and exact histories. Gateway distribution
+evidence records one/many UID and Channel bursts, actual batch histograms and
+per-request allow/deny alignment; these functional runs are not performance gates.
+
+The send-ban remote admission fault uses three processes and two voters per
+Slot to keep a non-replica ingress alive while UID quorum is lost. It records
+192 failed-closed requests, bounded execution, busy responses and exact recovery.
+
+The send-ban leader-transfer companion moves the user and Channel policy Slots
+through public Manager operations, keeps concurrent sends closed, then verifies
+cross-ingress unban/re-ban freshness and complete successful history.
+
+Failure runtime diagnostics retain existing bounded gateway connection-close
+reason counters to distinguish server overload closure from other EOF causes.
+These snapshots do not claim per-shard queue telemetry or alter acceptance.
+
+The permission-soak driver timing probe is opt-in and E2E-only. It separately
+records scheduling lag, client enqueue time and socket write time, freezing
+its bounded ten-second ring before failure diagnostics. Socket completion is
+not server receipt; no workload or acceptance changes accompany this probe.
+
+The send-ban parallel companion uses five real nodes and disjoint two-voter
+Slots to observe concurrent permission envelopes on two remote leaders under
+quorum loss. It retains direct admission-counter continuity, failed-closed
+HTTP results and exact recovery history; its timings are not performance gates.
+
+The permission-soak stall diagnostic records bounded oldest SENDACK ordinals
+per connection and existing public channel-runtime LEO/HW snapshots. It is
+opt-in, independent of the producer, canceled/joined before failure diagnostics,
+and does not infer exact append phases from non-atomic observations.
+
+Permission-soak failure stack filtering includes independent replication and
+storage/commit workers with a fixed 256-KiB output bound; all-node coverage and
+truncation must be checked before attributing a wait to one component.
+
+The same diagnostic can retain Pebble background stacks with explicit input
+and output truncation markers, and opt-in raw replication-stage histograms
+from the two existing boundary scrapes. These remain sampled completed-stage
+evidence, not a request trace; incomplete collection never becomes zero cost.
+
+Permission-soak storage history is opt-in and reuses existing pressure scrapes;
+it retains fixed metric/store selectors and 180 snapshots, with missing/error
+states and sample times preserved. Host I/O correlation remains diagnostic.
+
+Existing pressure/prime failure scrapes retain exact permission count,
+duration count/sum and inflight families without additional requests or buckets.
+These cumulative snapshots must not be presented as measured-window deltas.
+
+The single-node SEND smoke registers a device Token through `/user/token` and
+connects with it while retaining production-default gateway authentication.
+
+The same fixed experiment has an opt-in candidate mode:
+`WK_E2E_PERMISSION_COHORTS=1 WK_E2E_BINARY=/absolute/frozen/candidate WK_E2E_PERMISSION_COHORT_REPORT=/absolute/cohorts.json GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -run '^TestPermissionCallerCohorts$' -count=1 -timeout=4m -p=1 -v`.
+It requires lower burst RPC/local-envelope and fresh-barrier counts, unchanged
+sequential counts, independently drained public cohort ownership metrics,
+completed ban/unban controls and exact full history. Historical baseline mode
+remains executable with its frozen old binary. Source/build identity, whole-node
+resource cuts and diagnostic limits remain the same; capacity gates are unchanged.
+
+The quorum-loss admission companion keeps 192 failed-closed sends but separates
+arrivals by 5 ms so sealed cohorts actually accumulate. Require positive receiver
+or ingress-cohort busy, record both scopes separately, sample both hard ownership
+bounds and drain to zero, then verify exact complete recovery history. This fault
+fixture never changes the 500 SEND/s performance gates.
+
+`WK_E2E_PERMISSION_STAGES=1` optionally retains count/sum/bucket samples for six
+fixed public permission, append/wait, replication and storage-commit histogram
+families in the existing before/after node scrapes. It adds no scrape or product
+hook. Keep full label identities and absent series; histogram bucket bounds
+describe scoped completed populations, not per-SEND spans or time spent waiting
+before stage entry. Use the flag identically for old/new comparisons.
+
+`WK_E2E_PERMISSION_TIMELINE=1` enables the bounded same-remote-Slot diagnostic
+in the fixed baseline/cohort experiment. It preserves matched client timing and
+queries all three public diagnostics endpoints after the 64-SEND burst. See the
+scenario bounds and required stage-coverage failures; timings with tracing are
+diagnostic and never replace the unchanged unprofiled qualification.
+
+The fixed permission comparison optionally uses a prebuilt Darwin native CPU
+probe for its three owned PIDs. The scenario instructions require getrusage
+calibration, source identities, raw counters/timebase, same-process interval
+validation and all retained old/new outcomes. Whole-node CPU integrals include
+background work; this helper never changes the workload or performance gates.
+
+The timeline negative receipt probe intentionally fails a post-window public
+query, retaining all completed ACKs, safe partial outcomes and history. CPU
+evidence failure paths also join ownership sampling and preserve partial receipts.
+
+The opt-in `TestPermissionSequentialDiagnostics/same-slot-remote` separately
+captures 64 sequential request timelines or six bounded three-node CPU/allocation
+profiles during 256 additional sequential SENDs. See the scenario instructions
+for mutually exclusive flags, sampling/overlap limits and exact history checks.
+These diagnostic fixtures never qualify the unprofiled performance gates.
+
+Issue #977 also has the separate opt-in `TestPermissionCallerFixedLoad` at the
+same-remote-leader placement. See `send_ban/AGENTS.md` for the eight-minute bound,
+fixed 30-second arrivals plus two-second drain, exact 32 full scrape receipts,
+calibrated cumulative process CPU and complete history controls. Historical
+64-SEND characterization and existing 500 SEND/s gates remain independent.
+
+The separate `TestPermissionCallerFixedLoadV2` fixes the diagnostic input and
+evidence gaps with one worker/eight queued ordinals per caller, monotonic phase
+offsets, raw metrics/TOML retention and strict native CPU cut bounds. Consult
+`send_ban/AGENTS.md` for invocation; original V1/64-SEND verdicts remain unchanged.

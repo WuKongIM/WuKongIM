@@ -3,10 +3,12 @@ package multiraft
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"sort"
 	"sync"
@@ -20,19 +22,25 @@ import (
 )
 
 type slot struct {
-	mu           sync.Mutex
-	id           SlotID
-	logger       wklog.Logger
-	storage      Storage
-	stateMachine StateMachine
-	observer     SchedulerObserver
-	status       Status
-	storageView  *storageAdapter
-	apply        *applyPipeline
-	closed       bool
-	fatalErr     error
-	cond         *sync.Cond
-	processing   bool
+	// checkpoint is advanced only by the serialized apply/compaction owner.
+	checkpoint *RecoveryCheckpoint
+	clusterID  string
+	// recovery tracks only the committed suffix present when this Slot opens.
+	recovery                     *recoveryReporter
+	recoveryFrom, recoveryTarget uint64
+	mu                           sync.Mutex
+	id                           SlotID
+	logger                       wklog.Logger
+	storage                      Storage
+	stateMachine                 StateMachine
+	observer                     SchedulerObserver
+	status                       Status
+	storageView                  *storageAdapter
+	apply                        *applyPipeline
+	closed                       bool
+	fatalErr                     error
+	cond                         *sync.Cond
+	processing                   bool
 	// applying counts async apply tasks that have been accepted for this Slot.
 	applying           int
 	rawNode            *raft.RawNode
@@ -303,9 +311,19 @@ func (e proposalAdmissionEvent) emit() {
 	}
 }
 
-func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts RaftOptions, opts SlotOptions, observer SchedulerObserver, apply *applyPipeline) (*slot, error) {
+func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts RaftOptions, opts SlotOptions, observer SchedulerObserver, apply *applyPipeline) (_ *slot, retErr error) {
 	raftOpts = NormalizeRaftOptions(raftOpts)
-	state, snapshot, memory, err := newStorageAdapter(opts.Storage).load(ctx)
+	progress := newRecoveryReporter(logger, nodeID, opts.ID)
+	progress.report(RecoveryProgress{Stage: "open"})
+	defer func() {
+		if retErr != nil {
+			progress.fail(retErr)
+		}
+	}()
+	state, snapshot, memory, opened, err := openRecoverySnapshot(ctx, opts, progress.report)
+	if opened != nil && opened.Reader != nil {
+		defer opened.Reader.Close()
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -322,13 +340,36 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 			appliedIndex = stateMachineApplied
 		}
 	}
-	snapshotData, snapshotConfigAppliedIndex, err := decodeSlotSnapshotData(snapshot.Data)
+	var snapshotData []byte
+	var snapshotConfigAppliedIndex uint64
+	var stream io.ReadSeeker
+	var streamSize int64
+	if opened != nil && opened.Reader != nil {
+		stream, streamSize, snapshotConfigAppliedIndex, err = startupSnapshotPayload(opened)
+	} else {
+		snapshotData, snapshotConfigAppliedIndex, err = decodeSlotSnapshotData(snapshot.Data)
+	}
 	if err != nil {
 		return nil, err
+	}
+	digest := sha256.Sum256(snapshot.Data)
+	if opened != nil && opened.Reader != nil {
+		digest = opened.Digest
+	}
+	checkpoint, reuse, err := selectRecoveryCheckpoint(ctx, nodeID, opts, state, snapshot, memory, digest, snapshotConfigAppliedIndex, progress)
+	if err != nil {
+		return nil, err
+	}
+	if reuse {
+		appliedIndex = checkpoint.AppliedIndex
+		memory.confState = cloneConfState(checkpoint.ConfState)
 	}
 	configAppliedIndex, err := restoreConfigAppliedIndex(memory, appliedIndex, state.ConfigAppliedIndex, snapshotConfigAppliedIndex)
 	if err != nil {
 		return nil, err
+	}
+	if reuse {
+		configAppliedIndex = checkpoint.ConfigAppliedIndex
 	}
 	rawNode, err := raft.NewRawNode(&raft.Config{
 		ID:              uint64(nodeID),
@@ -348,6 +389,8 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 	}
 
 	g := &slot{
+		clusterID:    opts.ClusterID,
+		checkpoint:   checkpoint,
 		id:           opts.ID,
 		storage:      opts.Storage,
 		stateMachine: opts.StateMachine,
@@ -375,14 +418,37 @@ func newSlot(ctx context.Context, nodeID NodeID, logger wklog.Logger, raftOpts R
 	}
 	g.cond = sync.NewCond(&g.mu)
 	g.storageView.memory = memory
-	if !raft.IsEmptySnap(snapshot) {
-		if err := g.stateMachine.Restore(ctx, Snapshot{
-			Index: snapshot.Metadata.Index,
-			Term:  snapshot.Metadata.Term,
-			Data:  snapshotData,
-		}); err != nil {
+	if !raft.IsEmptySnap(snapshot) && !reuse {
+		progress.report(RecoveryProgress{Stage: "snapshot_restore", SnapshotIndex: snapshot.Metadata.Index})
+		snap := Snapshot{Index: snapshot.Metadata.Index, Term: snapshot.Metadata.Term, Data: snapshotData}
+		if stream != nil {
+			err = g.stateMachine.(StartupSnapshotRestorer).RestoreStartupSnapshot(ctx, snap, stream, streamSize, progress.report)
+		} else {
+			err = g.stateMachine.Restore(ctx, snap)
+		}
+		if err != nil {
 			return nil, err
 		}
+		if checkpoint != nil {
+			// Installation invalidates live epochs; only its completed, fenced
+			// snapshot establishes a replacement anchor for the installed state.
+			info, err := g.stateMachine.(CheckpointStateMachine).RecoveryState(ctx)
+			if err != nil {
+				return nil, err
+			}
+			checkpoint.LiveEpoch = info.LiveEpoch
+			if err := g.stateMachine.(CheckpointStateMachine).PersistRecoveryCheckpoint(ctx, *checkpoint); err != nil {
+				return nil, err
+			}
+		}
+	}
+	g.recovery = progress
+	g.recoveryFrom = appliedIndex
+	g.recoveryTarget = state.HardState.Commit
+	if g.recoveryTarget > appliedIndex {
+		progress.report(RecoveryProgress{Stage: "log_replay", TotalEntries: int64(g.recoveryTarget - appliedIndex)})
+	} else {
+		progress.report(RecoveryProgress{Stage: "complete"})
 	}
 	g.refreshStatus()
 	return g, nil
@@ -890,6 +956,10 @@ func (g *slot) processReadySynchronously(ctx context.Context, ready raft.Ready) 
 		}
 		g.recordConfigChangeApplied(snapshotConfigAppliedIndex)
 		lastApplied = ready.Snapshot.Metadata.Index
+		if err := g.resetCheckpointAnchor(ctx, ready.Snapshot, snapshotConfigAppliedIndex); err != nil {
+			g.fail(err)
+			return true, false
+		}
 	}
 
 	batchSM, canBatch := g.stateMachine.(BatchStateMachine)
@@ -1000,17 +1070,26 @@ func (g *slot) applyCommittedEntries(
 ) ([]futureResolution, bool) {
 	// Collect contiguous normal entries for batched apply.
 	var batchEntries []raftpb.Entry
+	var batchProofs []*RecoveryCheckpoint
+	var lastCertified uint64
+	if g.checkpoint != nil {
+		lastCertified = g.checkpoint.AppliedIndex
+	}
 	var configChanged bool
 
 	flushBatch := func() bool {
 		if len(batchEntries) == 0 {
 			return true
 		}
-		defer func() { batchEntries = batchEntries[:0] }()
+		defer func() {
+			batchEntries = batchEntries[:0]
+			clear(batchProofs)
+			batchProofs = batchProofs[:0]
+		}()
 
 		if !canBatch || len(batchEntries) == 1 {
 			// Fall back to one-by-one Apply.
-			for _, entry := range batchEntries {
+			for i, entry := range batchEntries {
 				fut := g.proposalFuture(entry.Index, entry.Term)
 				var trackedAt time.Time
 				if fut != nil {
@@ -1029,11 +1108,12 @@ func (g *slot) applyCommittedEntries(
 				applyCtx := withProposalStageObservers(ctx, proposalStageObserversFromFutures([]*future{fut}))
 				started := time.Now()
 				result, err := g.stateMachine.Apply(applyCtx, Command{
-					SlotID:   g.id,
-					HashSlot: hashSlot,
-					Index:    entry.Index,
-					Term:     entry.Term,
-					Data:     data,
+					Checkpoint: batchProofs[i],
+					SlotID:     g.id,
+					HashSlot:   hashSlot,
+					Index:      entry.Index,
+					Term:       entry.Term,
+					Data:       data,
 				})
 				fut.observeStage("meta_create_slot_fsm_apply", err, time.Since(started))
 				if err != nil {
@@ -1056,6 +1136,7 @@ func (g *slot) applyCommittedEntries(
 						Data:  result,
 					},
 				})
+				lastCertified = entry.Index
 			}
 			return true
 		}
@@ -1074,11 +1155,12 @@ func (g *slot) applyCommittedEntries(
 				return false
 			}
 			cmds[i] = Command{
-				SlotID:   g.id,
-				HashSlot: hashSlot,
-				Index:    entry.Index,
-				Term:     entry.Term,
-				Data:     data,
+				Checkpoint: batchProofs[i],
+				SlotID:     g.id,
+				HashSlot:   hashSlot,
+				Index:      entry.Index,
+				Term:       entry.Term,
+				Data:       data,
 			}
 		}
 		observeFuturesSince(futures, "meta_create_slot_raft_commit_wait", nil, func(f *future) time.Time {
@@ -1101,6 +1183,7 @@ func (g *slot) applyCommittedEntries(
 			g.fail(err)
 			return false
 		}
+		lastCertified = batchEntries[len(batchEntries)-1].Index
 		for i, entry := range batchEntries {
 			var data []byte
 			if i < len(results) {
@@ -1125,10 +1208,17 @@ func (g *slot) applyCommittedEntries(
 		*lastApplied = entry.Index
 		switch entry.Type {
 		case raftpb.EntryNormal:
+			proof, err := g.advanceCheckpoint(entry)
+			if err != nil {
+				g.fail(err)
+				return resolutions, configChanged
+			}
 			if len(entry.Data) == 0 {
 				continue
 			}
 			batchEntries = append(batchEntries, entry)
+			batchProofs = append(batchProofs, proof)
+			continue
 		case raftpb.EntryConfChange:
 			// Flush pending normal entries before processing conf change.
 			if !flushBatch() {
@@ -1186,10 +1276,18 @@ func (g *slot) applyCommittedEntries(
 				},
 			})
 		}
+		if _, err := g.advanceCheckpoint(entry); err != nil {
+			g.fail(err)
+			return resolutions, configChanged
+		}
 	}
 
-	// Flush any remaining normal entries.
-	flushBatch()
+	// Flush any remaining normal entries, then certify a config/noop-only tail.
+	if flushBatch() && g.checkpoint != nil && g.checkpoint.AppliedIndex > lastCertified {
+		if err := g.stateMachine.(CheckpointStateMachine).PersistRecoveryCheckpoint(ctx, *g.checkpoint); err != nil {
+			g.fail(err)
+		}
+	}
 	return resolutions, configChanged
 }
 
@@ -1512,7 +1610,7 @@ func encodeSlotSnapshotData(payload []byte, configAppliedIndex uint64) []byte {
 
 func decodeSlotSnapshotData(data []byte) ([]byte, uint64, error) {
 	if !bytes.HasPrefix(data, []byte(slotSnapshotDataMagic)) {
-		return append([]byte(nil), data...), 0, nil
+		return data, 0, nil
 	}
 	if len(data) < slotSnapshotDataHeaderSize {
 		return nil, 0, fmt.Errorf("slot snapshot data envelope too short: %d", len(data))
@@ -1522,7 +1620,7 @@ func decodeSlotSnapshotData(data []byte) ([]byte, uint64, error) {
 		return nil, 0, fmt.Errorf("slot snapshot data envelope version %d unsupported", version)
 	}
 	configAppliedIndex := binary.BigEndian.Uint64(data[len(slotSnapshotDataMagic)+1 : slotSnapshotDataHeaderSize])
-	return append([]byte(nil), data[slotSnapshotDataHeaderSize:]...), configAppliedIndex, nil
+	return data[slotSnapshotDataHeaderSize:], configAppliedIndex, nil
 }
 
 func selectLeaderTransferTransferee(st raft.Status, preferred NodeID) NodeID {
@@ -1617,6 +1715,19 @@ func (g *slot) appliedIndex() uint64 {
 func (g *slot) setDurableAppliedIndex(index uint64) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	if g.recovery != nil && g.recoveryTarget > g.recoveryFrom {
+		done := index
+		if done > g.recoveryTarget {
+			done = g.recoveryTarget
+		}
+		if done >= g.recoveryFrom {
+			stage := "log_replay"
+			if done == g.recoveryTarget {
+				stage = "complete"
+			}
+			g.recovery.report(RecoveryProgress{Stage: stage, Entries: int64(done - g.recoveryFrom), TotalEntries: int64(g.recoveryTarget - g.recoveryFrom)})
+		}
+	}
 	if index > g.durableAppliedIndex {
 		g.durableAppliedIndex = index
 	}
@@ -1919,6 +2030,9 @@ func (g *slot) hasFatalErr() bool {
 }
 
 func (g *slot) fail(err error) {
+	if g.recovery != nil {
+		g.recovery.fail(err)
+	}
 	g.mu.Lock()
 	if err == nil || g.closed || g.fatalErr != nil {
 		g.mu.Unlock()

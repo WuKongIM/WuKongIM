@@ -178,6 +178,10 @@ var schemaHelp = map[string]fieldHelp{
 		EN: "Independent commit coordinators for the message database; 0 uses 1. Increase only after storage-specific load tests.",
 		ZH: "消息数据库独立提交协调器数量；0 使用 1，增加前应针对存储进行压测。",
 	},
+	"cluster.storage_disk_slow_threshold": {
+		EN: "Message database disk operations slower than this are counted in slow-disk metrics (wukongim_storage_pebble_disk_slow_*); defaults to 1s, and an explicit value must be positive. Observation only; it does not change durability.",
+		ZH: "消息数据库磁盘操作超过该时长即计入慢盘指标（wukongim_storage_pebble_disk_slow_*）；默认 1s，显式值必须大于 0。仅用于观测，不改变持久化语义。",
+	},
 	"channel_migration.enable": {
 		EN: "Starts the background worker that advances Channel migrations and creates repair tasks; enabled when omitted.",
 		ZH: "是否启动推进 Channel 迁移和创建修复任务的后台 Worker；省略时启用。",

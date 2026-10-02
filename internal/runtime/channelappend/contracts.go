@@ -47,6 +47,8 @@ const (
 	ReasonDisband = contract.ReasonDisband
 	// ReasonSendBan means the sender is send-banned.
 	ReasonSendBan = contract.ReasonSendBan
+	// ReasonSystemBusy means bounded admission is saturated and the send may be retried.
+	ReasonSystemBusy = contract.ReasonSystemBusy
 )
 
 // SendResult is the client-facing SEND outcome.

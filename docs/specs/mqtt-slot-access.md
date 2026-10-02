@@ -20,7 +20,7 @@ only in that view. No fallback may serve a convenient stale replica.
 
 The read protocol is closed and versioned, with bounded requests, responses and
 pages. Point reads and pagination preserve exact identity and complete cursors.
-Writes use existing commands 67–73 and require a returned deterministic result;
+Writes use existing commands 70–73 and 80–82 and require a returned deterministic result;
 missing result support, fenced hash Slots, malformed results and transport errors
 cannot be reported as successful CAS. Product activation must still establish
 compatible participants and fenced runtime ownership before invoking these APIs.
@@ -54,7 +54,7 @@ Failure cases:
 - Channel binding owner ID is `<canonical decimal uint8 type>:<ChannelID>`;
   type must be nonzero. Only ChannelID routes to existing metadata authority.
   Embedded colons in ChannelID survive. UID owners route by the exact UID.
-- Read service is `RPCSlotMQTTMetadata = 91`, JSON format 1. It carries exact
+- Read service is `RPCSlotMQTTMetadata = 106`, JSON format 1. It carries exact
   physical Slot, logical hash Slot and the closed `MQTTRead` union (kinds 1–15).
   Replies echo the query and routing identity and require a present result on
   success, including authoritative absence. Unknown fields, trailing JSON,
@@ -69,7 +69,7 @@ Failure cases:
 - `cluster.Node` facades use the existing promoted Slot proxy/transport, reject
   foreground calls while stopped or in maintenance, and retain normal proposal
   admission. The read-only transport service follows caller cancellation.
-- Commands 67–73 are unchanged. The proxy requires the result-capable proposal
+- Commands 70–73 and 80–82 are unchanged. The proxy requires the result-capable proposal
   port before writing, bounds/decodes committed results, preserves CAS conflicts
   and window-full flow control, and maps migration-fenced apply results to stale
   metadata. Applied/exact-retry revisions must match the submitted operation.

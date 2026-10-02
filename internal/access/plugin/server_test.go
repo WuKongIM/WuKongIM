@@ -2,12 +2,16 @@ package plugin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"testing"
 	"time"
 
+	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
+	pluginusecase "github.com/WuKongIM/WuKongIM/internal/usecase/plugin"
 	"github.com/WuKongIM/WuKongIM/pkg/plugin/pluginproto"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/wkrpc"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -475,6 +479,7 @@ type recordingUsecase struct {
 	closedCaller                    string
 	closeCalled                     chan struct{}
 	closeErr                        error
+	sendErr                         error
 	sendCalls                       int
 	sendReq                         *pluginproto.SendReq
 	sendResp                        *pluginproto.SendResp
@@ -550,6 +555,9 @@ func (r *recordingUsecase) ClosePlugin(_ context.Context, pluginNo string, calle
 
 func (r *recordingUsecase) SendMessage(ctx context.Context, req *pluginproto.SendReq, callerUID string) (*pluginproto.SendResp, error) {
 	r.sendCalls++
+	if r.sendErr != nil {
+		return nil, r.sendErr
+	}
 	r.sendReq = proto.Clone(req).(*pluginproto.SendReq)
 	r.sendCaller = callerUID
 	if deadline, ok := ctx.Deadline(); ok {
@@ -833,4 +841,48 @@ func BenchmarkClusterHostRPCHandlers(b *testing.B) {
 			}
 		}
 	})
+}
+
+// A policy rejection and a transport failure must both produce RPC errors,
+// never an empty protobuf success. Internal reason values are not wire values.
+func TestHandleSendMessageRejectsWithProtocolReason(t *testing.T) {
+	for _, tc := range []struct {
+		reason message.Reason
+		wire   frame.ReasonCode
+	}{
+		{message.ReasonSendBan, frame.ReasonSendBan},
+		{message.ReasonDisband, frame.ReasonDisband},
+		{message.ReasonAuthFail, frame.ReasonAuthFail},
+		{message.ReasonChannelNotExist, frame.ReasonChannelNotExist},
+		{message.ReasonNodeNotMatch, frame.ReasonNodeNotMatch},
+		{message.ReasonSubscriberNotExist, frame.ReasonSubscriberNotExist},
+		{message.ReasonInBlacklist, frame.ReasonInBlacklist},
+		{message.ReasonNotAllowSend, frame.ReasonNotAllowSend},
+		{message.ReasonNotInWhitelist, frame.ReasonNotInWhitelist},
+		{message.ReasonBan, frame.ReasonBan},
+		{message.ReasonInvalidRequest, frame.ReasonPayloadDecodeError},
+		{message.ReasonUnsupported, frame.ReasonPayloadDecodeError},
+		{message.ReasonSystemError, frame.ReasonSystemError},
+		{message.Reason(127), frame.ReasonSystemError},
+		{message.Reason(128), frame.ReasonCode(128)},
+		{message.Reason(255), frame.ReasonCode(255)},
+	} {
+		t.Run(fmt.Sprintf("reason-%d", tc.reason), func(t *testing.T) {
+			rejection := fmt.Errorf("wrapped: %w", &pluginusecase.SendRejectedError{Reason: tc.reason})
+			server, err := NewServer(Options{Usecase: &recordingUsecase{sendErr: rejection}, Timeout: time.Second})
+			require.NoError(t, err)
+			ctx := newTestRPCContext("test-plugin", mustMarshalProto(t, &pluginproto.SendReq{FromUid: "alice", ChannelId: "room", ChannelType: 2, Payload: []byte("blocked")}))
+			server.handlePath("/message/send", ctx)
+			require.EqualError(t, ctx.err, fmt.Sprintf("message send rejected: reason=%d", tc.wire))
+			require.Empty(t, ctx.body)
+			require.False(t, ctx.ok)
+		})
+	}
+	sentinel := errors.New("unavailable")
+	server, err := NewServer(Options{Usecase: &recordingUsecase{sendErr: sentinel}, Timeout: time.Second})
+	require.NoError(t, err)
+	ctx := newTestRPCContext("test-plugin", mustMarshalProto(t, &pluginproto.SendReq{}))
+	server.handlePath("/message/send", ctx)
+	require.ErrorIs(t, ctx.err, sentinel)
+	require.Empty(t, ctx.body)
 }

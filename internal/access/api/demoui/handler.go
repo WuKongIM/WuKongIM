@@ -11,6 +11,22 @@ import (
 )
 
 var embeddedHandler = newEmbeddedHandler()
+var embeddedHomeHandler = newBundleHandler(embeddedHomeDist, "homedist")
+var embeddedStreamHandler = newBundleHandler(embeddedStreamDist, "streamdist")
+var embeddedSupportHandler = newBundleHandler(embeddedSupportDist, "supportdist")
+var embeddedAgentHandler = newBundleHandler(embeddedAgentDist, "agentdist")
+
+// HomeHandler returns the stateless catalog without starting Demo business work.
+func HomeHandler() http.Handler { return embeddedHomeHandler }
+
+// StreamHandler returns the read-only EasySDK streaming Demo.
+func StreamHandler() http.Handler { return embeddedStreamHandler }
+
+// SupportHandler serves the UI; support orchestration stays in the Demo backend.
+func SupportHandler() http.Handler { return embeddedSupportHandler }
+
+// AgentHandler serves the UI; tools and model calls stay in the Demo backend.
+func AgentHandler() http.Handler { return embeddedAgentHandler }
 
 // Handler returns the read-only HTTP handler for the embedded chat Demo.
 func Handler() http.Handler {
@@ -19,7 +35,11 @@ func Handler() http.Handler {
 
 // newEmbeddedHandler validates the embedded production bundle at process init.
 func newEmbeddedHandler() http.Handler {
-	dist, err := fs.Sub(embeddedDist, "dist")
+	return newBundleHandler(embeddedDist, "dist")
+}
+
+func newBundleHandler(bundle fs.FS, root string) http.Handler {
+	dist, err := fs.Sub(bundle, root)
 	if err != nil {
 		panic("chat demo bundle: " + err.Error())
 	}

@@ -49,7 +49,7 @@ write. Exact retries return Unchanged only after runtime incarnation validation.
 The Node facade preserves foreground/maintenance admission and routes by the
 canonical Channel ID through existing Slot proposal handling.
 
-RPC **91**, read kind **21**, accepts only `admission_channel` and pins the
+RPC **106**, read kind **21**, accepts only `admission_channel` and pins the
 business Channel, runtime and optional checkpoint in one snapshot after a fresh authority/apply
 barrier. An absent runtime may have no checkpoint or an invalidated checkpoint;
 live progress without runtime is corruption. Stale positive generations remain

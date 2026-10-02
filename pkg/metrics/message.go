@@ -29,6 +29,7 @@ type MessageEventStreamCacheObservation struct {
 
 // MessageMetrics exposes message send, metadata, dispatch, and replay metrics.
 type MessageMetrics struct {
+	sendPermission                 *sendPermissionMetrics
 	metaRefreshTotal               *prometheus.CounterVec
 	metaRefreshDuration            *prometheus.HistogramVec
 	appendTotal                    *prometheus.CounterVec
@@ -181,6 +182,7 @@ func newMessageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 		replayLagMessagesByChannelType: make(map[string]uint64),
 	}
 
+	m.sendPermission = newSendPermissionMetrics(registry, labels)
 	registry.MustRegister(
 		m.metaRefreshTotal,
 		m.metaRefreshDuration,

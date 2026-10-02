@@ -45,6 +45,8 @@ summary: Owns the bilingual static v3 documentation site, shared navigation, pub
    validation history linked from each tutorial; they never imply that a newer
    tutorial version passed an older matrix. Public pages retain actionable
    compatibility, lifecycle, and server limitations.
+   `/sdk/easy/agent-streaming` teaches JS SDK live events, backend model calls,
+   cancellation and history recovery; it requires the online EVENT server implementation.
    `lib/easy-sdk-releases.json` owns current versions and independent source/vcpkg pins.
    Navigation reads it directly; `lib/easy-sdk-version.ts` resolves MDX tokens in prose,
    code, links and literal attributes before HTML, search and Markdown generation.

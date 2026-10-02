@@ -115,6 +115,8 @@ const (
 	metricNodeRSS
 	metricRuntimeQueueCapacity
 	metricChannelWorkerQueueCapacity
+	metricGoSchedLatencySum
+	metricGoSchedLatencyCount
 	metricRequired = metricGoGoroutines | metricGoHeapAlloc | metricProcessRSS | metricRuntimeQueue | metricRuntimeQueueCapacity |
 		metricRuntimeInflight | metricChannelWorkerQueue | metricChannelWorkerQueueCapacity |
 		metricActivationRejected | metricMetaCreated
@@ -129,8 +131,13 @@ type MetaCreateSlotCounters struct {
 
 // MetricsSnapshot contains only the low-cardinality families needed by lifecycle observation.
 type MetricsSnapshot struct {
-	GoGoroutines               float64
-	GoHeapAllocBytes           float64
+	GoGoroutines     float64
+	GoHeapAllocBytes float64
+	// GoSchedLatencySumSeconds and GoSchedLatencyCount are the cumulative
+	// go_sched_latencies_seconds endpoints. Their between-scrape delta mean
+	// separates goroutine run-queue delay from application-level stalls.
+	GoSchedLatencySumSeconds   float64
+	GoSchedLatencyCount        float64
 	ProcessResidentMemoryBytes float64
 	RuntimeQueueDepth          float64
 	RuntimeQueueCapacity       float64
@@ -1221,6 +1228,10 @@ func observationMetricKind(name string) uint16 {
 		return metricGoGoroutines
 	case "go_memstats_heap_alloc_bytes":
 		return metricGoHeapAlloc
+	case "go_sched_latencies_seconds_sum":
+		return metricGoSchedLatencySum
+	case "go_sched_latencies_seconds_count":
+		return metricGoSchedLatencyCount
 	case "process_resident_memory_bytes":
 		return metricProcessRSS
 	case "wukongim_node_memory_rss_bytes":
@@ -1258,6 +1269,10 @@ func (s *MetricsSnapshot) addMetric(kind uint16, labels map[string]string, value
 		destination = &s.GoGoroutines
 	case metricGoHeapAlloc:
 		destination = &s.GoHeapAllocBytes
+	case metricGoSchedLatencySum:
+		destination = &s.GoSchedLatencySumSeconds
+	case metricGoSchedLatencyCount:
+		destination = &s.GoSchedLatencyCount
 	case metricProcessRSS:
 		if s.present&metricNodeRSS != 0 {
 			s.ProcessResidentMemoryBytes = 0

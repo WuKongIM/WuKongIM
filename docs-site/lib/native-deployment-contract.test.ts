@@ -197,9 +197,7 @@ describe('native deployment publication contract', () => {
         content.match(/^curl -fsSL https:\/\/packages\.githubim\.com\/repo \| sudo sh$/gm),
       ).toHaveLength(2);
       expect(content.match(/^## \d+\./gm)).toHaveLength(3);
-      // Allow the explicit SSH access step alongside the three installation steps.
-      expect(content.trimEnd().split('\n').length).toBeLessThanOrEqual(80);
-      expect(content).not.toContain('<details>');
+      // Full command references may be collapsed within the three-step path.
       expect(content).not.toContain('.goreleaser.packages.yaml');
 
       const aptBootstrap = content.indexOf('curl -fsSL https://packages.githubim.com/repo | sudo sh');

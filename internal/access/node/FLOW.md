@@ -56,7 +56,7 @@ scheduled backup or restore
   requests retain version-2 bytes; invalid metadata fails before dispatch.
 - Owner-push request 2 preserves publication metadata, original timestamp and
   message settings. Empty extensions keep version-1 bytes; lossy downgrade is forbidden.
-- MQTT owner RPC 92 uses bounded `WKMQ`/`WKMq` format 1 and echoes the complete
+- MQTT owner RPC 107 uses bounded `WKMQ`/`WKMq` format 1 and echoes the complete
   owner identity. Only a completed local quiescence returns success; unknown
   boots, missing support, malformed replies and transport failure prove nothing.
 - Will dispatch RPC 105 uses bounded `WKWF`/`WKwf` format 1 with operation/exact-attempt echo; seal/cleanup mutations run independently.
@@ -88,6 +88,7 @@ scheduled backup or restore
 - Message-update hint RPC validates its format and bounded route page, then delegates exact owner-local writes. It never routes again or transports message payloads.
 
 Channel append replies have a closed `not_submitted` error code. Decoder rejects it alongside any successful receipt or nonzero message identity; older peers reject the new code. The code is whole-invocation evidence, not a generic backpressure classification.
+- Stream EVENT service uses an independent version-1, 256 KiB envelope with at most 512 owner routes. It delegates exact session writes and never reuses the body-free edit notification wire contract.
 
 ## Read First
 

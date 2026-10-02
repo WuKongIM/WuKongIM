@@ -1,11 +1,57 @@
 ---
 title: Messages & Storage
-description: Plan node data directories, message retention, queues, batching, concurrency, and capacity evidence.
+description: Plan storage and retention through directory relationships and a three-step tuning flow.
 ---
 
-Storage settings affect data safety, throughput, and tail latency together. Give every node independent durable storage first, then tune retention, queues, batches, and concurrency from observed evidence.
+
+Give each node exclusive durable storage, then compare retention, queues, batches, and concurrency under the same workload.
 
 ## Data directories
+
+<div className="grid gap-4 sm:grid-cols-2">
+
+<div>
+
+### Node A
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  volume["A's durable<br/>directory / volume"] --> data["A's node.data_dir"]
+```
+
+</div>
+
+Exclusive directory retaining node state.
+
+</div>
+
+<div>
+
+### Node B
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  volume["B's durable<br/>directory / volume"] --> data["B's node.data_dir"]
+```
+
+</div>
+
+Exclusive directory preserving failure isolation.
+
+</div>
+
+</div>
+
+`node.data_dir` is required at startup and cannot be shared across nodes. The diagram shows ownership; additional log, Prometheus, and plugin paths are configured separately. After replacement or rollout, required directories must survive with correct UID/GID, permissions, capacity, and mounts.
+
+<details>
+  <summary>Complete directories, additional paths, and persistence rules</summary>
+
+Storage settings affect data safety, throughput, and tail latency together. Give every node independent durable storage first, then tune retention, queues, batches, and concurrency from observed evidence.
 
 `node.data_dir` is required at startup and owns node state. Every node needs its own directory or persistent volume; sharing one directory across nodes breaks ownership and failure isolation.
 
@@ -17,13 +63,45 @@ Related paths include:
 
 Directories that must survive need to remain available after container replacement, process restart, or artifact rollout, with the correct UID/GID, permissions, capacity, and mount options.
 
+</details>
+
 ## Message retention
+
+Before enabling physical GC through `channel.message_retention_*`:
+
+1. Define retention, recovery objectives, and backup boundaries.
+2. Test scan interval, channels per batch, and message/byte limits at representative data scale.
+3. Confirm required history remains readable.
+
+Larger batches also raise IO bursts, lock duration, memory, and foreground tail latency.
+
+<details>
+  <summary>Complete retention and physical trimming boundaries</summary>
 
 `channel.message_retention_*` controls scanning and physical trimming. Before enabling physical GC, define the business retention period, recovery objectives, and backup boundary, then verify trimming preserves required historical reads.
 
 Scan interval, channels per batch, and per-run message and byte limits bound background work together. Larger batches may improve throughput while increasing IO bursts, lock duration, memory, and foreground tail latency. Validate production values at representative data scale.
 
+</details>
+
 ## Queues, batches, and concurrency
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  observe["1. Record metrics<br/>and baseline"] --> change["2. Change one<br/>parameter family"]
+  change --> verify["3. Compare under<br/>the same workload"]
+```
+
+</div>
+
+Observe queues, workers, and batches together. Larger queues increase memory and worst-case wait, and may hide sustained overload. Some `0` values are derived at runtime; they do not mean unlimited or disabled.
+
+The Manager startup snapshot covers only a bounded set of critical fields: inspect source and effective value where available; use runtime state, metrics, and pre-production tests elsewhere. Explicit examples are not defaults for omitted fields.
+
+<details>
+  <summary>Complete tuning domains, fields, and costs</summary>
 
 | Domain | Representative fields | Main cost |
 | --- | --- | --- |
@@ -37,10 +115,26 @@ Queue capacity is not capacity planning. A larger queue absorbs a larger transie
 
 Some `0` values mean derive from CPU, topology, or an internal default; they do not mean unlimited or disabled. The Manager startup snapshot resolves a bounded set of critical fields: use its source and effective value where available, and confirm other fields through subsystem runtime state, metrics, and pre-production load tests. Do not treat explicit values in `wukongim.toml.example` as defaults for every omitted field.
 
+</details>
+
 ## Capacity and alerts
+
+Record disk space/inodes, IO and sync latency, queues/rejections, P95/P99, CPU/RSS/FD/goroutines, network, and large-group fanout per node. Retain artifact, configuration, hardware, users, message rate, channels, and group size with each test.
+
+**Acceptance:** roll one node at a time; `/readyz` must return `200` with `ready: true` before restoring traffic. Compare latency, queues, resources, and errors. Keep rollback configuration; a binary downgrade does not guarantee data-format rollback.
+
+<details>
+  <summary>Complete capacity, changes, and production validation</summary>
 
 At minimum, monitor disk space and inodes, IOPS and latency, write and sync latency, queue depth and rejection, P95/P99, CPU, RSS, file descriptors, goroutines, network, and large-group fanout per node. Capacity tests must record artifact, configuration, hardware, online users, message rate, channel count, and group size.
 
 Roll every setting change one node at a time, wait for `/readyz` before restoring traffic, and compare latency, queues, resources, and errors before and after. Retain rollback configuration, but do not assume a binary downgrade proves data-format rollback is safe.
 
 Before production, validate an archive with [Backup & Restore](/en/server/operations/backup-and-restore) and use [`wkcli bench`](/en/server/tools/wkbench) to test capacity with a representative workload.
+
+</details>
+
+<Cards>
+  <Card title="Verify backups" description="Confirm an archive can be restored first." href="/en/server/operations/backup-and-restore" />
+  <Card title="Verify capacity" description="Test real workloads with wkcli bench." href="/en/server/tools/wkbench" />
+</Cards>

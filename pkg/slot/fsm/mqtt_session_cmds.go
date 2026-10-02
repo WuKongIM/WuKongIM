@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	cmdTypeMQTTSessionCAS      uint8 = 67
+	cmdTypeMQTTSessionCAS      uint8 = 80
 	mqttSessionCommandVersion        = 1
 	maxMQTTSessionCommandBytes       = 32 << 10
 )

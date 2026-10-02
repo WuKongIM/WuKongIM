@@ -1,0 +1,582 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "WuKongIM 系统架构",
+    "locale": "zh-CN",
+    "output": ".archify/architecture-wukongim-system-20260930-151958/wukongim-system.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/WuKongIM/WuKongIM.git",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "77c8c71dd394402035641d1c42faf164f3155f27"
+    }
+  },
+  "components": [
+    {
+      "id": "clients",
+      "type": "external",
+      "label": "客户端 / 业务服务",
+      "sublabel": "SDK 长连接 · 服务端 HTTP",
+      "pos": [
+        40,
+        60
+      ],
+      "size": [
+        210,
+        90
+      ],
+      "sources": [
+        {
+          "path": "wukongim.toml.example",
+          "line": 165,
+          "end_line": 173,
+          "label": "TCP / WebSocket 监听"
+        },
+        {
+          "path": "internal/app/wiring.go",
+          "line": 899,
+          "end_line": 929,
+          "label": "产品 HTTP 接入"
+        }
+      ]
+    },
+    {
+      "id": "access",
+      "type": "backend",
+      "label": "协议接入与本地会话",
+      "sublabel": "Gateway · HTTP API · Online",
+      "pos": [
+        420,
+        60
+      ],
+      "size": [
+        230,
+        90
+      ],
+      "sources": [
+        {
+          "path": "internal/app/wiring.go",
+          "line": 874,
+          "end_line": 951,
+          "label": "Gateway / HTTP 业务适配"
+        },
+        {
+          "path": "internal/app/wiring.go",
+          "line": 1304,
+          "end_line": 1339,
+          "label": "监听器与 CONNECT 鉴权"
+        },
+        {
+          "path": "internal/infra/delivery/local_session_writer.go",
+          "line": 55,
+          "end_line": 118,
+          "label": "会话校验与 RECV 写入"
+        }
+      ],
+      "tag": "WKProto / JSON-RPC"
+    },
+    {
+      "id": "message",
+      "type": "backend",
+      "label": "业务用例",
+      "sublabel": "权限 · 发送 · 历史同步",
+      "pos": [
+        820,
+        60
+      ],
+      "size": [
+        250,
+        90
+      ],
+      "sources": [
+        {
+          "path": "internal/usecase/message/send.go",
+          "line": 105,
+          "end_line": 130,
+          "label": "权限与发送编排"
+        },
+        {
+          "path": "internal/app/wiring.go",
+          "line": 797,
+          "end_line": 846,
+          "label": "元数据与历史读取端口"
+        },
+        {
+          "path": "internal/app/app.go",
+          "line": 277,
+          "end_line": 327,
+          "label": "业务组装与可选功能"
+        }
+      ]
+    },
+    {
+      "id": "presence",
+      "type": "backend",
+      "label": "UID 在线路由",
+      "sublabel": "Slot Leader 管辖的内存目录",
+      "pos": [
+        40,
+        310
+      ],
+      "size": [
+        210,
+        90
+      ],
+      "sources": [
+        {
+          "path": "internal/app/wiring.go",
+          "line": 386,
+          "end_line": 439,
+          "label": "UID 权威与 Owner 注册"
+        },
+        {
+          "path": "internal/usecase/presence/activate.go",
+          "line": 1,
+          "end_line": 40,
+          "label": "会话激活和路由注册"
+        },
+        {
+          "path": "internal/runtime/presence/directory.go",
+          "line": 1,
+          "end_line": 100,
+          "label": "虚拟路由的内存目录"
+        }
+      ],
+      "tag": "会话留在连接 Owner"
+    },
+    {
+      "id": "delivery",
+      "type": "backend",
+      "label": "在线投递",
+      "sublabel": "Owner 分组 · RECVACK · 重试",
+      "pos": [
+        420,
+        310
+      ],
+      "size": [
+        230,
+        90
+      ],
+      "sources": [
+        {
+          "path": "internal/app/delivery_wiring.go",
+          "line": 10,
+          "end_line": 58,
+          "label": "投递队列与 Owner RPC"
+        },
+        {
+          "path": "internal/infra/delivery/local_session_writer.go",
+          "line": 55,
+          "end_line": 118,
+          "label": "最终 Owner / 会话校验"
+        },
+        {
+          "path": "internal/access/gateway/handler.go",
+          "line": 431,
+          "end_line": 444,
+          "label": "RECVACK 反馈"
+        }
+      ],
+      "tag": "delivery.enable = true"
+    },
+    {
+      "id": "append",
+      "type": "backend",
+      "label": "Channel 追加编排",
+      "sublabel": "权威路由 · 有序写入 · 幂等",
+      "pos": [
+        820,
+        310
+      ],
+      "size": [
+        250,
+        90
+      ],
+      "sources": [
+        {
+          "path": "internal/app/wiring.go",
+          "line": 704,
+          "end_line": 784,
+          "label": "追加路由及有界运行时"
+        },
+        {
+          "path": "internal/runtime/channelappend/commit.go",
+          "line": 61,
+          "end_line": 105,
+          "label": "提交后投递与副作用"
+        },
+        {
+          "path": "internal/runtime/channelappend/prepare.go",
+          "line": 145,
+          "end_line": 217,
+          "label": "NoPersist 实时分支"
+        }
+      ],
+      "tag": "NoPersist：跳过日志"
+    },
+    {
+      "id": "controller",
+      "type": "backend",
+      "label": "Controller 控制面",
+      "sublabel": "成员 · Slot 分配 · 任务状态",
+      "pos": [
+        40,
+        580
+      ],
+      "size": [
+        210,
+        90
+      ],
+      "sources": [
+        {
+          "path": "pkg/cluster/node_defaults.go",
+          "line": 20,
+          "end_line": 57,
+          "label": "Controller 接入集群"
+        },
+        {
+          "path": "pkg/controller/runtime_start.go",
+          "line": 14,
+          "end_line": 81,
+          "label": "Voter Raft / Mirror 同步"
+        },
+        {
+          "path": "pkg/cluster/node_snapshot.go",
+          "line": 56,
+          "end_line": 103,
+          "label": "分配、路由与 Slot 协调"
+        }
+      ],
+      "tag": "Voter / Mirror"
+    },
+    {
+      "id": "slots",
+      "type": "backend",
+      "label": "Slot 元数据权威",
+      "sublabel": "物理 Slot · Multi-Raft",
+      "pos": [
+        420,
+        580
+      ],
+      "size": [
+        230,
+        90
+      ],
+      "sources": [
+        {
+          "path": "pkg/cluster/default_slots.go",
+          "line": 36,
+          "end_line": 143,
+          "label": "Raft / FSM / 元数据代理"
+        },
+        {
+          "path": "pkg/slot/proxy/store.go",
+          "line": 40,
+          "end_line": 87,
+          "label": "UID / Channel 权威接口"
+        },
+        {
+          "path": "pkg/cluster/config.go",
+          "line": 474,
+          "end_line": 485,
+          "label": "默认 256 个 Hash Slot"
+        }
+      ],
+      "tag": "256 Hash Slot → Slot"
+    },
+    {
+      "id": "channel",
+      "type": "messagebus",
+      "label": "Channel 消息日志",
+      "sublabel": "Leader 追加 · 副本 Quorum",
+      "pos": [
+        820,
+        580
+      ],
+      "size": [
+        250,
+        90
+      ],
+      "sources": [
+        {
+          "path": "pkg/cluster/node_defaults.go",
+          "line": 86,
+          "end_line": 161,
+          "label": "节点内日志与复制运行时"
+        },
+        {
+          "path": "pkg/channel/replication/quorum_round_state.go",
+          "line": 212,
+          "end_line": 268,
+          "label": "本地持久化与独立投票多数"
+        },
+        {
+          "path": "pkg/cluster/channels/service.go",
+          "line": 1632,
+          "end_line": 1670,
+          "label": "Leader 路由与运行时追加"
+        }
+      ],
+      "tag": "本地落盘 + Quorum"
+    },
+    {
+      "id": "controlfiles",
+      "type": "database",
+      "label": "Controller 持久化",
+      "sublabel": "Raft WAL · cluster-state.json",
+      "pos": [
+        40,
+        830
+      ],
+      "size": [
+        210,
+        90
+      ],
+      "sources": [
+        {
+          "path": "pkg/controller/runtime.go",
+          "line": 56,
+          "end_line": 74,
+          "label": "cluster-state.json 路径"
+        },
+        {
+          "path": "pkg/controller/runtime_start.go",
+          "line": 14,
+          "end_line": 34,
+          "label": "Raft 状态目录"
+        },
+        {
+          "path": "pkg/controller/fsm/fsm.go",
+          "line": 187,
+          "end_line": 212,
+          "label": "状态写入后发布"
+        }
+      ]
+    },
+    {
+      "id": "metastore",
+      "type": "database",
+      "label": "Slot 持久化",
+      "sublabel": "slotmeta / slotraft",
+      "pos": [
+        420,
+        830
+      ],
+      "size": [
+        230,
+        90
+      ],
+      "sources": [
+        {
+          "path": "pkg/cluster/default_slots.go",
+          "line": 41,
+          "end_line": 87,
+          "label": "元数据与 Slot Raft 存储"
+        },
+        {
+          "path": "pkg/slot/fsm/statemachine.go",
+          "line": 176,
+          "end_line": 194,
+          "label": "构建元数据原子写批次"
+        },
+        {
+          "path": "pkg/slot/fsm/statemachine.go",
+          "line": 300,
+          "end_line": 317,
+          "label": "FSM 提交元数据批次"
+        }
+      ]
+    },
+    {
+      "id": "messagestore",
+      "type": "database",
+      "label": "消息日志持久化",
+      "sublabel": "Pebble · messages/",
+      "pos": [
+        820,
+        830
+      ],
+      "size": [
+        250,
+        90
+      ],
+      "sources": [
+        {
+          "path": "pkg/cluster/node_defaults.go",
+          "line": 175,
+          "end_line": 188,
+          "label": "消息存储工厂"
+        },
+        {
+          "path": "pkg/cluster/node_defaults.go",
+          "line": 293,
+          "end_line": 302,
+          "label": "messages 目录"
+        },
+        {
+          "path": "pkg/db/internal/engine/db.go",
+          "line": 61,
+          "end_line": 82,
+          "label": "Pebble 物理引擎"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "节点本地持久化：各节点分别持有",
+      "wraps": [
+        "controlfiles",
+        "metastore",
+        "messagestore"
+      ],
+      "pad": 24
+    }
+  ],
+  "connections": [
+    {
+      "id": "client-entry",
+      "from": "clients",
+      "to": "access",
+      "label": "TCP / WS / HTTP",
+      "variant": "emphasis"
+    },
+    {
+      "id": "entry-usecase",
+      "from": "access",
+      "to": "message",
+      "label": "SEND / API",
+      "variant": "emphasis"
+    },
+    {
+      "id": "authorized-send",
+      "from": "message",
+      "to": "append",
+      "label": "权限通过后提交",
+      "variant": "emphasis"
+    },
+    {
+      "id": "durable-append",
+      "from": "append",
+      "to": "channel",
+      "label": "持久化消息追加",
+      "variant": "emphasis"
+    },
+    {
+      "id": "message-disk",
+      "from": "channel",
+      "to": "messagestore",
+      "label": "同步持久化"
+    },
+    {
+      "id": "post-commit-delivery",
+      "from": "append",
+      "to": "delivery",
+      "label": "提交后异步入队",
+      "variant": "dashed"
+    },
+    {
+      "id": "presence-lookup",
+      "from": "delivery",
+      "to": "presence",
+      "label": "查询在线路由"
+    },
+    {
+      "id": "owner-push",
+      "from": "delivery",
+      "to": "access",
+      "label": "Owner RPC / RECV",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "right"
+    },
+    {
+      "id": "presence-register",
+      "from": "access",
+      "to": "presence",
+      "label": "连接注册 / touch",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "permission-metadata",
+      "from": "message",
+      "to": "slots",
+      "label": "权限 / 元数据",
+      "variant": "dashed"
+    },
+    {
+      "id": "channel-metadata",
+      "from": "channel",
+      "to": "slots",
+      "label": "Runtime Meta"
+    },
+    {
+      "id": "subscriber-pages",
+      "from": "append",
+      "to": "slots",
+      "label": "订阅者分页",
+      "variant": "dashed"
+    },
+    {
+      "id": "history-read",
+      "from": "message",
+      "to": "channel",
+      "label": "历史：读取 ≤ HW",
+      "variant": "dashed"
+    },
+    {
+      "id": "slot-assignment",
+      "from": "controller",
+      "to": "slots",
+      "label": "分配 / 任务协调",
+      "variant": "dashed"
+    },
+    {
+      "id": "slot-disk",
+      "from": "slots",
+      "to": "metastore",
+      "label": "Raft 日志 / FSM"
+    },
+    {
+      "id": "control-disk",
+      "from": "controller",
+      "to": "controlfiles",
+      "label": "WAL / 状态写入"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "发送与同步",
+      "items": [
+        "持久化发送：权限检查 → Channel Leader 有序追加 → 本地持久化与独立 Voter 多数确认。",
+        "持久化结果与在线送达分离；提交后投递、插件和 Webhook 的失败不会改写已持久化的发送结果。",
+        "NoPersist 保留同一权威与收件人路径，不写消息日志；实时消息序号为 0。历史同步只读取提交水位 HW 内的记录。"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "集群的三层职责",
+      "items": [
+        "Controller 管理成员、物理 Slot 分配与任务状态；Voter 复制 Raft，Mirror 同步状态。",
+        "默认 256 个 Hash Slot 映射到可配置的物理 Slot Raft 组；Slot 存放 UID、Channel、成员及运行元数据。",
+        "Channel 日志副本通过独立的 Quorum 机制复制；单节点集群沿用同一套权威与集群语义。"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "连接与运行边界",
+      "items": [
+        "Gateway 保存本地会话；UID 权威目录保存带 Owner 身份的虚拟路由，权威切换后从 Owner 有界重建。",
+        "SEND、追加、订阅者扫描和 Owner 推送均使用有界队列、分页或批次；在线投递按 delivery.enable 配置启用。",
+        "每个节点由 internal/app 统一组装；Manager、Prometheus、插件、Webhook 与备份按各自配置接入。",
+        "图展示逻辑职责，组件可能位于不同节点；源码固定在 77c8c71dd394，点击组件可查看证据。"
+      ]
+    }
+  ]
+}

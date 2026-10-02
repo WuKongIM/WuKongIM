@@ -10,6 +10,8 @@ import (
 
 // Options configures the message usecase.
 type Options struct {
+	// PermissionObserver reports bounded policy planning and evaluation.
+	PermissionObserver PermissionObserver
 	// Updates owns durable payload replacements and edit progress.
 	Updates UpdateStore
 	// ContentEpoch changes after a successful cluster restore.
@@ -23,6 +25,8 @@ type Options struct {
 	CommandChannelSuffix string
 	// Submitter owns channel-authority send routing and append admission.
 	Submitter Submitter
+	// BatchAdmission optionally separates prepared admission from durable completion.
+	BatchAdmission BatchAdmission
 	// LookupReader executes authority-fenced indexed reads for exact message queries.
 	LookupReader CommittedMessageReader
 	// Reader owns compatible channel message sync reads.
@@ -33,13 +37,18 @@ type Options struct {
 	Memberships SyncMembershipStore
 	// ChannelState rejects terminally disbanded channels during ordinary pulls.
 	ChannelState SyncChannelStateStore
+	// EventNotifications and EventSubscribers deliver accepted public stream events.
+	EventNotifications EventNotificationSender
+	EventSubscribers   UpdateSubscribers
+	// EventNotificationResult observes incomplete fanout without publishing identities.
+	EventNotificationResult func(error)
 	// EventStore owns durable message event projection reads and writes.
 	EventStore MessageEventStore
 	// PermissionStore provides authoritative membership and channel reads for send authorization.
 	// SendBatch may call it concurrently for independent items.
 	PermissionStore PermissionStore
 	// PermissionBatchStore optionally groups raw permission facts by authority.
-	// It is used only when PermissionCacheTTL is zero.
+	// Mandatory sending restrictions always use this fresh batch path.
 	PermissionBatchStore PermissionBatchStore
 	// PersonDirectory establishes both UID-owned memberships before the first
 	// persistent ordinary append to a canonical person channel.
@@ -54,7 +63,8 @@ type Options struct {
 	PersonWhitelistEnabled bool
 	// SystemDeviceID identifies trusted system-device sessions after SendBan passes.
 	SystemDeviceID string
-	// PermissionCacheTTL enables a bounded read-through permission cache. Zero keeps reads uncached.
+	// PermissionCacheTTL caches auxiliary membership facts only; send bans and
+	// terminal source-channel state always use fresh authority. Zero disables caching.
 	PermissionCacheTTL time.Duration
 	// Now supplies wall time for permission cache expiry.
 	Now func() time.Time
@@ -64,25 +74,32 @@ type Options struct {
 
 // App is a thin message facade over channel append submission and sync reads.
 type App struct {
-	updates           UpdateStore
-	contentEpoch      func(context.Context) (uint64, error)
-	updateHints       UpdateHintSender
-	updateSubscribers UpdateSubscribers
-	updateCommitted   func(metadb.MessageUpdate)
+	permissionObserver PermissionObserver
+	updates            UpdateStore
+	contentEpoch       func(context.Context) (uint64, error)
+	updateHints        UpdateHintSender
+	updateSubscribers  UpdateSubscribers
+	updateCommitted    func(metadb.MessageUpdate)
 	// commandChannels applies the deployment suffix without process-global state.
-	commandChannels runtimechannelid.CommandCodec
-	submitter       Submitter
-	reader          ChannelMessageReader
-	persistedReader ChannelMessageBatchReader
-	lookupReader    CommittedMessageReader
-	memberships     SyncMembershipStore
-	channelState    SyncChannelStateStore
-	eventStore      MessageEventStore
-	permissions     PermissionStore
+	commandChannels         runtimechannelid.CommandCodec
+	submitter               Submitter
+	batchAdmission          BatchAdmission
+	reader                  ChannelMessageReader
+	persistedReader         ChannelMessageBatchReader
+	lookupReader            CommittedMessageReader
+	memberships             SyncMembershipStore
+	channelState            SyncChannelStateStore
+	eventStore              MessageEventStore
+	eventNotifications      EventNotificationSender
+	eventSubscribers        UpdateSubscribers
+	eventNotificationResult func(error)
+	// eventNotificationSlots caps active request-owned fanouts; there is no waiting queue.
+	eventNotificationSlots chan struct{}
+	permissions            PermissionStore
 	// permissionBatch performs one authoritative, batch-scoped metadata read
-	// when the configured store supports it and no cross-batch TTL cache is enabled.
+	// including mandatory policies regardless of the auxiliary cache TTL.
 	permissionBatch PermissionBatchStore
-	// permissionAuthority bypasses the optional cache for terminal channel checks.
+	// permissionAuthority bypasses the optional cache for user and channel policy.
 	permissionAuthority    PermissionStore
 	personDirectory        PersonDirectoryEnsurer
 	sendHook               SendHook
@@ -100,34 +117,37 @@ func New(opts Options) *App {
 		opts.Now = time.Now
 	}
 	permissions := newPermissionCache(opts.PermissionStore, opts.PermissionCacheTTL, opts.Now)
-	var permissionBatch PermissionBatchStore
-	if opts.PermissionCacheTTL <= 0 {
-		permissionBatch = opts.PermissionBatchStore
-	}
+	permissionBatch := opts.PermissionBatchStore
 	return &App{
-		updates:      opts.Updates,
-		contentEpoch: opts.ContentEpoch,
-		updateHints:  opts.UpdateHints, updateSubscribers: opts.UpdateSubscribers,
-		updateCommitted:        opts.UpdateCommitted,
-		commandChannels:        runtimechannelid.CommandCodec{Suffix: opts.CommandChannelSuffix},
-		submitter:              opts.Submitter,
-		reader:                 opts.Reader,
-		persistedReader:        opts.PersistedReader,
-		lookupReader:           opts.LookupReader,
-		memberships:            opts.Memberships,
-		channelState:           opts.ChannelState,
-		eventStore:             opts.EventStore,
-		permissions:            permissions,
-		permissionBatch:        permissionBatch,
-		permissionAuthority:    opts.PermissionStore,
-		personDirectory:        opts.PersonDirectory,
-		sendHook:               opts.SendHook,
-		beforeSendWebhook:      opts.BeforeSendWebhook,
-		systemUIDs:             opts.SystemUIDs,
-		personWhitelistEnabled: opts.PersonWhitelistEnabled,
-		systemDeviceID:         opts.SystemDeviceID,
-		now:                    opts.Now,
-		sendBatchObserver:      opts.SendBatchObserver,
+		permissionObserver: opts.PermissionObserver,
+		updates:            opts.Updates,
+		contentEpoch:       opts.ContentEpoch,
+		updateHints:        opts.UpdateHints, updateSubscribers: opts.UpdateSubscribers,
+		updateCommitted:         opts.UpdateCommitted,
+		commandChannels:         runtimechannelid.CommandCodec{Suffix: opts.CommandChannelSuffix},
+		submitter:               opts.Submitter,
+		batchAdmission:          opts.BatchAdmission,
+		reader:                  opts.Reader,
+		persistedReader:         opts.PersistedReader,
+		lookupReader:            opts.LookupReader,
+		memberships:             opts.Memberships,
+		channelState:            opts.ChannelState,
+		eventStore:              opts.EventStore,
+		eventNotifications:      opts.EventNotifications,
+		eventSubscribers:        opts.EventSubscribers,
+		eventNotificationResult: opts.EventNotificationResult,
+		eventNotificationSlots:  make(chan struct{}, 4),
+		permissions:             permissions,
+		permissionBatch:         permissionBatch,
+		permissionAuthority:     opts.PermissionStore,
+		personDirectory:         opts.PersonDirectory,
+		sendHook:                opts.SendHook,
+		beforeSendWebhook:       opts.BeforeSendWebhook,
+		systemUIDs:              opts.SystemUIDs,
+		personWhitelistEnabled:  opts.PersonWhitelistEnabled,
+		systemDeviceID:          opts.SystemDeviceID,
+		now:                     opts.Now,
+		sendBatchObserver:       opts.SendBatchObserver,
 	}
 }
 
@@ -212,6 +232,8 @@ const (
 	PermissionReadChannel PermissionReadKind = iota + 1
 	PermissionReadSubscriberContains
 	PermissionReadSubscriberHasAny
+	// PermissionReadUserSendPolicy reads UID-owned policy without credentials.
+	PermissionReadUserSendPolicy
 )
 
 // PermissionRead describes one channel-owned authorization metadata lookup.
@@ -224,10 +246,11 @@ type PermissionRead struct {
 
 // PermissionReadResult is aligned with one PermissionRead.
 type PermissionReadResult struct {
-	Channel metadb.Channel
-	Found   bool
-	Value   bool
-	Err     error
+	UserPolicy metadb.SendBanResult
+	Channel    metadb.Channel
+	Found      bool
+	Value      bool
+	Err        error
 }
 
 // PermissionBatchStore reads independent permission facts through a bounded

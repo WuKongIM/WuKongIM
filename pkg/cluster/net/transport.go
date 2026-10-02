@@ -352,7 +352,7 @@ func (s *TransportServer) serviceOptions(serviceID uint8) transport.ServiceOptio
 	// Mutations and mixed-purpose services keep running after caller cancellation;
 	// these read-only services may cooperatively stop once their caller is gone.
 	switch serviceID {
-	case RPCChannelLastVisible, RPCChannelConversationHeads, RPCChannelCommittedReads, RPCSlotStatus, RPCSlotMQTTMetadata, RPCChannelMQTTConsumerRead, RPCChannelWillReceipt, RPCChannelMQTTOriginals:
+	case RPCChannelLastVisible, RPCChannelConversationHeads, RPCChannelCommittedReads, RPCSlotStatus, RPCNodeSendPermissions, RPCSlotMQTTMetadata, RPCChannelMQTTConsumerRead, RPCChannelWillReceipt, RPCChannelMQTTOriginals:
 		opts.CancelRunning = true
 	}
 	return opts

@@ -44,7 +44,9 @@ Message, presence, Channel, and Controller business policy stays outside gateway
    The terminal sealer shares that write lock, closes ordinary outbound admission,
    and enqueues its unique marker ACK before later inbound frames reach the handler.
    Independent packet adapters reuse the auth pool and ordered SEND mailbox,
-   including control packets, with a shared queued/executing byte budget. Their
+   including control packets, with a shared queued/executing byte budget. When WK
+   deferred SEND is enabled, the same shard worker separates packets from WK
+   preparation and joins packet callbacks before releasing bytes/admission. Their
    accepted activation transfers cleanup to open/close callbacks only after the
    reply is enqueued; earlier failure invokes the returned rollback once.
    Optional CheckReply revalidates accepted activation immediately before enqueue;
@@ -70,6 +72,11 @@ Message, presence, Channel, and Controller business policy stays outside gateway
   It does not prove append, delivery, transport flush, or client receipt.
 - Async SEND owns retained payload bytes unless the protocol explicitly proves
   decoded-frame ownership. Result order within a session is preserved.
+- Optional deferred batch handlers join preparation, then core retains the
+  original global/shard reservations through handler completion and ordered
+  publication across batches. Completion errors join before drain can finish.
+  Session chains keep only admitted records and never hold a shard mutex while
+  writing. Existing joined handlers retain their dispatch behavior.
 - Only inbound activity refreshes idle deadlines. Drain preserves existing sessions.
   MQTT refreshes only on complete packets, negotiates 1.5 times Keep Alive, and
   disables that deadline when Keep Alive is zero. One shared heap/monitor owns

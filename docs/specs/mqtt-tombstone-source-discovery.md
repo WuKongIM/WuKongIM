@@ -12,7 +12,7 @@ No new table, index, value layout or backfill is needed. This is a scheduling
 hint, never evidence of consumer completion or permission to delete content.
 Retention planning continues using strict primary/index witnesses in index 4.
 
-`MQTTReadReplaySources` is closed read kind 17 on RPC 91; it uses the existing
+`MQTTReadReplaySources` is closed read kind 17 on RPC 106; it uses the existing
 body-free source-owner result and fresh hash-Slot barrier. Kind 16 retains its
 active-source semantics. Old peers reject kind 17; the replay worker must not
 downgrade to kind 16 and silently lose cleanup. All participating binaries must

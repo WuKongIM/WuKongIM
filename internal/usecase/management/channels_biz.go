@@ -116,6 +116,8 @@ type BusinessChannelFlags struct {
 	Disband bool
 	// SendBan blocks sends while retaining receives.
 	SendBan bool
+	// SendBanSet distinguishes an explicit clear from omission.
+	SendBanSet bool
 }
 
 // BusinessChannelMemberPageRequest identifies one bounded member-list page.
@@ -240,6 +242,8 @@ type UpdateBusinessChannelRequest struct {
 	Disband bool
 	// SendBan blocks sends while retaining receives.
 	SendBan bool
+	// SendBanSet distinguishes an explicit clear from omission.
+	SendBanSet bool
 }
 
 // ChannelMemberCursor identifies the next member page and binds it to its list.
@@ -452,7 +456,7 @@ func (a *App) UpdateBusinessChannel(ctx context.Context, req UpdateBusinessChann
 	err = a.channelBusinessOperator.PatchMetadataFlags(
 		ctx,
 		BusinessChannelKey{ChannelID: channelID, ChannelType: channelType},
-		BusinessChannelFlags{Ban: req.Ban, Disband: req.Disband, SendBan: req.SendBan},
+		BusinessChannelFlags{Ban: req.Ban, Disband: req.Disband, SendBan: req.SendBan, SendBanSet: req.SendBanSet},
 	)
 	if err != nil {
 		return BusinessChannelDetail{}, err

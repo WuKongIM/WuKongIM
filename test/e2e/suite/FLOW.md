@@ -16,6 +16,9 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
   artifacts; they do not import app, use cases, or storage internals.
 - `WK_E2E_*` is harness-only and is removed from spawned nodes. Real product
   variables must be passed explicitly through `NodeSpec.Env`.
+- Rendered TOML is also mirrored into product environment variables by default.
+  `WithConfigFileOnly` omits that generated mirror across startup, seed join and
+  stopped-node reconfiguration; explicit `WithNodeEnv` controls remain caller-owned.
 - Unix socket placement uses a short independent workspace path.
 
 ## Main Flows
@@ -54,14 +57,31 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
 - BackupClient uses authenticated public Manager HTTP with bounded response reads;
   only explicit 401 refreshes login and definite plan-revision conflicts reread.
   Archive selection and convergence assertions belong to the scenario.
+- WKProto clients accept explicit registered device Tokens without changing
+  server authentication; tokenless fixtures remain explicit.
+- WKProto clients may inject a Dialer to observe public socket bytes. Their
+  synthetic future ACK bridge is not wire-order evidence; ordering probes must
+  capture decoded ACKs directly from the TCP read stream.
 - WebSocket gateway opt-in publishes only the allocated loopback listener;
   TCP WKProto remains the readiness authority for the started node.
 - Diagnostics expose bounded paths and tails. TOML is re-encoded only after
   schema validation; invalid structure is fully omitted, and sensitive leaves
   plus nested secret-like keys are redacted.
 - Optional enabled debug API stack capture writes at most 1 MiB to a private file.
+- Linux recovery sampling separates process RSS/I/O/CPU from enclosing cgroup
+  limits/OOM counters and joins its sampler; public profiles are size/time bounded.
+- Full public metrics observations explicitly request identity encoding, reuse
+  the existing HTTP transport, and reject redirects, non-200 responses, empty
+  snapshots, and invalid sample lines. They do not cache, filter, or retry.
+- Optional metrics receipts bind status, encoding, logical-body byte count and
+  SHA-256, UTC bounds, and monotonic duration to that same request. Receipts keep
+  no body or metric labels. Failed reads retain safe partial metadata and return
+  no samples; a partial-body hash does not prove a complete snapshot.
 - Message-send recovery retries only exact public
   `503 {"error":"retry required"}` with one stable body and idempotency key.
+- A bounded HTTP fault proxy may forward one real POST and withhold its response
+  until the caller deadline. It records only the upstream status, joins its
+  canceled handler, and leaves commit verification to subsequent public reads.
 - `WaitClusterReady` proves availability only. `WaitSlotLeadersStable` proves
   closed cross-node inventories, voters, quorum, actual Raft leader agreement,
   and a stable fingerprint; PreferredLeader is not authority.
@@ -73,10 +93,10 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
 - [Suite runtime](runtime.go)
 - [Node process](process.go)
 - [Configuration rendering](config.go)
-- [Port allocation](ports.go)
 - [Slot convergence](slot_convergence.go)
+- [Public metrics observation](metrics.go)
 
 ## Update Triggers
 
 Update this file when workspace isolation, binary caching, process ownership,
-environment filtering, cleanup, diagnostics, HTTP retry, convergence or TCP partition changes.
+environment filtering, cleanup, diagnostics, HTTP metrics observation, retry, convergence or TCP partition changes.

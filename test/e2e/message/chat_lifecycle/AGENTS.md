@@ -19,7 +19,10 @@ and group Channel runtimes.
   lifecycle clients. This scenario does not qualify SDK authentication.
 - The cross-ingress burst case MUST assert strictly increasing recipient
   `message_seq` while multiple users send concurrently through different nodes
-  for both person and group Channels.
+  for both person and group Channels. It also checks exact per-sender client
+  message order and session ACK client-sequence order, emitting a bounded
+  `WKRC-SESSION-ORDER` result on success. ACK ordering uses a bounded passive
+  TCP frame probe; future completion goroutines are not wire-order evidence.
 - Polling MUST be bounded and the package command MUST use a nine-minute
   timeout.
 - Raw identities MAY appear only in transient failure diagnostics.

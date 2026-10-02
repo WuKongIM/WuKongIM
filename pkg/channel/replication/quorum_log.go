@@ -67,8 +67,11 @@ type quorumChannel struct {
 	hw        uint64
 	ready     bool
 	pending   *retainedProposal
-	retained  map[ch.CommandID]retainedProposal
-	order     []ch.CommandID
+	// inflight marks an asynchronous round that owns this sequencer without
+	// holding mu; every other admission is backpressured until it resolves.
+	inflight bool
+	retained map[ch.CommandID]retainedProposal
+	order    []ch.CommandID
 }
 
 type retainedProposal struct {
@@ -240,10 +243,88 @@ func (l *quorumLog) Release(key ch.ChannelKey, expected AuthorityID) bool {
 	return true
 }
 
+func (l *quorumLog) validProposal(ctx context.Context, proposal Proposal) bool {
+	return l != nil && ctx != nil && proposal.Key != "" && proposal.Expected != (AuthorityID{}) &&
+		proposal.CommandID != (ch.CommandID{}) && len(proposal.Records) != 0 &&
+		!(proposal.MQTTSourceActivation && (proposal.MQTTReplayAnchor || proposal.MQTTReplayRetirement)) && !(proposal.MQTTReplayAnchor && proposal.MQTTReplayRetirement) &&
+		len(proposal.Records) <= l.cfg.MaxProposalRecords && validProposalRecords(proposal.Records, l.cfg.MaxProposalBytes)
+}
+
+// beginLocked validates authority and sequencing for one proposal. It either
+// returns a completed receipt (done) or the retained proposal whose durability
+// round the caller must run; created reports that a new pending was sealed.
+func (l *quorumLog) beginLocked(ctx context.Context, state *quorumChannel, proposal Proposal) (receipt Receipt, round retainedProposal, done, created bool, err error) {
+	if !state.ready {
+		return Receipt{}, round, false, false, ch.ErrNotReady
+	}
+	if proposal.Expected != state.authority.ID {
+		return Receipt{}, round, false, false, ch.ErrStaleMeta
+	}
+	if state.authority.WriteFence.Set() {
+		return Receipt{}, round, false, false, ch.ErrWriteFenced
+	}
+	if state.inflight {
+		return Receipt{}, round, false, false, ch.ErrBackpressured
+	}
+	if retained, ok := state.retained[proposal.CommandID]; ok {
+		if !sameProposalContent(retained.proposal, proposal.Records, proposal.MQTTSourceActivation, proposal.MQTTReplayAnchor, proposal.MQTTReplayRetirement) {
+			return Receipt{}, round, false, false, ch.ErrLogConflict
+		}
+		if retained.durable {
+			return retained.receipt, round, true, false, nil
+		}
+		return Receipt{}, retained, false, false, nil
+	}
+	if state.pending != nil && state.pending.proposal.manifest.CommandID == proposal.CommandID {
+		if !sameProposalContent(state.pending.proposal, proposal.Records, proposal.MQTTSourceActivation, proposal.MQTTReplayAnchor, proposal.MQTTReplayRetirement) {
+			return Receipt{}, round, false, false, ch.ErrLogConflict
+		}
+		return Receipt{}, *state.pending, false, false, nil
+	}
+	if state.pending != nil {
+		return Receipt{}, round, false, false, ch.ErrBackpressured
+	}
+	durable, err := sealAppendProposal(
+		state.authority, state.frontier, state.hw, proposal.CommandID, proposal.Records, proposal.PayloadsImmutable, proposal.ServerAllocatedMessageIDs, proposal.MQTTSourceActivation, proposal.MQTTReplayAnchor, proposal.MQTTReplayRetirement,
+	)
+	if err != nil {
+		return Receipt{}, round, false, false, err
+	}
+	if l.cfg.Funding != nil && !proposal.MQTTSourceActivation && !proposal.MQTTReplayAnchor && !proposal.MQTTReplayRetirement {
+		if err := l.cfg.Funding.fundStorage(ctx, state.authority, durable); err != nil {
+			return Receipt{}, round, false, false, errors.Join(ch.ErrAppendNotSubmitted, err)
+		}
+	}
+	round = retainedProposal{proposal: durable}
+	pending := round
+	state.pending = &pending
+	return Receipt{}, round, false, true, nil
+}
+
+// resolveRoundLocked applies one terminal durability result to the sequencer.
+func (l *quorumLog) resolveRoundLocked(ctx context.Context, state *quorumChannel, retained retainedProposal, result durableRoundResult, err error) (Receipt, error) {
+	if err != nil {
+		// Definitively unwritten rounds release pending sequencing, never unknown debt.
+		if result.outcome == ch.AppendOutcomeDefinitelyNotWritten {
+			state.pending = nil
+		}
+		if result.outcome == ch.AppendOutcomeConflict {
+			state.pending = nil
+			return l.reconcileCommandConflict(ctx, state, Proposal{
+				Key: state.authority.Key, Expected: state.authority.ID,
+				CommandID: retained.proposal.manifest.CommandID, Records: retained.proposal.records,
+				MQTTSourceActivation: retained.proposal.manifest.Version == quorumlog.MQTTSourceProposalManifestVersion,
+				MQTTReplayAnchor:     retained.proposal.manifest.Version == quorumlog.MQTTReplayAnchorProposalManifestVersion,
+				MQTTReplayRetirement: retained.proposal.manifest.Version == quorumlog.MQTTReplayRetirementProposalManifestVersion,
+			})
+		}
+		return Receipt{}, err
+	}
+	return l.finishCommit(state, retained, result)
+}
+
 func (l *quorumLog) Commit(ctx context.Context, proposal Proposal) (Receipt, error) {
-	if l == nil || ctx == nil || proposal.Key == "" || proposal.Expected == (AuthorityID{}) ||
-		proposal.CommandID == (ch.CommandID{}) || len(proposal.Records) == 0 || (proposal.MQTTSourceActivation && (proposal.MQTTReplayAnchor || proposal.MQTTReplayRetirement)) || (proposal.MQTTReplayAnchor && proposal.MQTTReplayRetirement) ||
-		len(proposal.Records) > l.cfg.MaxProposalRecords || !validProposalRecords(proposal.Records, l.cfg.MaxProposalBytes) {
+	if !l.validProposal(ctx, proposal) {
 		return Receipt{}, ch.ErrInvalidConfig
 	}
 	if err := ctx.Err(); err != nil {
@@ -258,68 +339,73 @@ func (l *quorumLog) Commit(ctx context.Context, proposal Proposal) (Receipt, err
 	return l.commitLocked(ctx, state, proposal)
 }
 
-// commitLocked shares the installed Channel sequencer with typed control admission.
-// The caller owns state.mu until durability and frontier publication complete.
+// commitLocked keeps typed MQTT controls on the same sequencer as callback commits.
+// The caller holds state.mu until durability and frontier publication complete.
 func (l *quorumLog) commitLocked(ctx context.Context, state *quorumChannel, proposal Proposal) (Receipt, error) {
 	if err := ctx.Err(); err != nil {
 		return Receipt{}, err
 	}
-	if !state.ready {
-		return Receipt{}, ch.ErrNotReady
+	receipt, round, done, _, err := l.beginLocked(ctx, state, proposal)
+	if err != nil || done {
+		return receipt, err
 	}
-	if proposal.Expected != state.authority.ID {
-		return Receipt{}, ch.ErrStaleMeta
-	}
-	if state.authority.WriteFence.Set() {
-		return Receipt{}, ch.ErrWriteFenced
-	}
+	result, err := runDurableRound(ctx, l.cfg.Local, state.authority.Voters, state.authority.WriteQuorum, round.proposal, l.cfg.Durability)
+	return l.resolveRoundLocked(ctx, state, round, result, err)
+}
 
-	if retained, ok := state.retained[proposal.CommandID]; ok {
-		if !sameProposalContent(retained.proposal, proposal.Records, proposal.MQTTSourceActivation, proposal.MQTTReplayAnchor, proposal.MQTTReplayRetirement) {
-			return Receipt{}, ch.ErrLogConflict
-		}
-		if retained.durable {
-			return retained.receipt, nil
-		}
-		return l.retryPending(ctx, state, retained)
+// SubmitCommit starts the same protocol as Commit without holding the caller
+// until durability. A nil return transfers exactly one complete callback,
+// possibly inline; an error transfers none. The Channel sequencer stays owned
+// by the round until its terminal result and is released before complete runs,
+// so complete may re-enter this log for the same Channel.
+func (l *quorumLog) SubmitCommit(ctx context.Context, proposal Proposal, complete func(Receipt, error)) error {
+	if complete == nil || !l.validProposal(ctx, proposal) {
+		return ch.ErrInvalidConfig
 	}
-	if state.pending != nil && state.pending.proposal.manifest.CommandID == proposal.CommandID {
-		if !sameProposalContent(state.pending.proposal, proposal.Records, proposal.MQTTSourceActivation, proposal.MQTTReplayAnchor, proposal.MQTTReplayRetirement) {
-			return Receipt{}, ch.ErrLogConflict
-		}
-		return l.retryPending(ctx, state, *state.pending)
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	if state.pending != nil {
-		return Receipt{}, ch.ErrBackpressured
+	state := l.existingChannel(proposal.Key)
+	if state == nil {
+		return ch.ErrNotReady
 	}
-
-	durable, err := sealAppendProposal(
-		state.authority, state.frontier, state.hw, proposal.CommandID, proposal.Records, proposal.PayloadsImmutable, proposal.ServerAllocatedMessageIDs, proposal.MQTTSourceActivation, proposal.MQTTReplayAnchor, proposal.MQTTReplayRetirement,
-	)
+	state.mu.Lock()
+	receipt, round, done, created, err := l.beginLocked(ctx, state, proposal)
 	if err != nil {
-		return Receipt{}, err
+		state.mu.Unlock()
+		return err
 	}
-	if l.cfg.Funding != nil && !proposal.MQTTSourceActivation && !proposal.MQTTReplayAnchor && !proposal.MQTTReplayRetirement {
-		if err := l.cfg.Funding.fundStorage(ctx, state.authority, durable); err != nil {
-			return Receipt{}, errors.Join(ch.ErrAppendNotSubmitted, err)
+	if done {
+		state.mu.Unlock()
+		complete(receipt, nil)
+		return nil
+	}
+	authority := cloneAuthority(state.authority)
+	state.inflight = true
+	state.mu.Unlock()
+	err = startDurableRound(ctx, l.cfg.Local, authority.Voters, authority.WriteQuorum, round.proposal, l.cfg.Durability, func(result durableRoundResult, err error) {
+		state.mu.Lock()
+		var receipt Receipt
+		if state.authority.ID != authority.ID {
+			err = ch.ErrStaleMeta
+		} else {
+			receipt, err = l.resolveRoundLocked(context.WithoutCancel(ctx), state, round, result, err)
 		}
-	}
-	pending := retainedProposal{proposal: durable}
-	state.pending = &pending
-	result, err := runDurableRound(ctx, l.cfg.Local, state.authority.Voters, state.authority.WriteQuorum, durable, l.cfg.Durability)
+		state.inflight = false
+		state.mu.Unlock()
+		complete(receipt, err)
+	})
 	if err != nil {
-		// A completed round of exclusively negative writes has no durable debt.
-		// Preserve pending ownership for any durable or uncertain admitted write.
-		if result.outcome == ch.AppendOutcomeDefinitelyNotWritten {
+		state.mu.Lock()
+		state.inflight = false
+		// A rejected start dispatched nothing, so a newly sealed range is unwritten.
+		if created && state.pending != nil && state.pending.proposal.manifest.CommandID == proposal.CommandID {
 			state.pending = nil
 		}
-		if result.outcome == ch.AppendOutcomeConflict {
-			state.pending = nil
-			return l.reconcileCommandConflict(ctx, state, proposal)
-		}
-		return Receipt{}, err
+		state.mu.Unlock()
+		return err
 	}
-	return l.finishCommit(state, pending, result)
+	return nil
 }
 
 func (l *quorumLog) reconcileCommandConflict(ctx context.Context, state *quorumChannel, proposal Proposal) (Receipt, error) {
@@ -397,27 +483,17 @@ func (l *quorumLog) loadRetainedProposal(ctx context.Context, state *quorumChann
 	}, receipt: receipt, durable: true}, true, nil
 }
 
+// retryPending resumes exact MQTT control admission while its caller owns state.mu.
+// An asynchronous round owns the sequencer until its terminal callback joins.
 func (l *quorumLog) retryPending(ctx context.Context, state *quorumChannel, retained retainedProposal) (Receipt, error) {
-	result, err := runDurableRound(ctx, l.cfg.Local, state.authority.Voters, state.authority.WriteQuorum, retained.proposal, l.cfg.Durability)
-	if err != nil {
-		// A completed round of exclusively negative writes has no durable debt.
-		// Preserve pending ownership for any durable or uncertain admitted write.
-		if result.outcome == ch.AppendOutcomeDefinitelyNotWritten {
-			state.pending = nil
-		}
-		if result.outcome == ch.AppendOutcomeConflict {
-			state.pending = nil
-			return l.reconcileCommandConflict(ctx, state, Proposal{
-				Key: state.authority.Key, Expected: state.authority.ID,
-				CommandID: retained.proposal.manifest.CommandID, Records: retained.proposal.records,
-				MQTTSourceActivation: retained.proposal.manifest.Version == quorumlog.MQTTSourceProposalManifestVersion,
-				MQTTReplayAnchor:     retained.proposal.manifest.Version == quorumlog.MQTTReplayAnchorProposalManifestVersion,
-				MQTTReplayRetirement: retained.proposal.manifest.Version == quorumlog.MQTTReplayRetirementProposalManifestVersion,
-			})
-		}
+	if err := ctx.Err(); err != nil {
 		return Receipt{}, err
 	}
-	return l.finishCommit(state, retained, result)
+	if state.inflight {
+		return Receipt{}, ch.ErrBackpressured
+	}
+	result, err := runDurableRound(ctx, l.cfg.Local, state.authority.Voters, state.authority.WriteQuorum, retained.proposal, l.cfg.Durability)
+	return l.resolveRoundLocked(ctx, state, retained, result, err)
 }
 
 func (l *quorumLog) finishCommit(state *quorumChannel, retained retainedProposal, result durableRoundResult) (Receipt, error) {

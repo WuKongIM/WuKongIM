@@ -1,16 +1,36 @@
 ---
 title: 环境准备
-description: 准备运行 WuKongIM 所需的 Linux 服务器、工具和端口。
+description: 准备 Docker、浏览器和本机端口，开始第一次消息体验。
 ---
 
-## Linux 服务器
+## 在自己的电脑体验
 
-- CPU 架构：`amd64` / `x86_64`；
-- 系统：Ubuntu 24.04、Debian 13、Rocky Linux 9、AlmaLinux 9 或 RHEL 9；
-- 可以使用 `sudo`，并能访问 `packages.githubim.com`；
-- 本机可以通过 SSH 登录服务器。
+- 安装并启动 Docker；macOS、Windows 可使用 Docker Desktop。
+- 准备浏览器，能够打开两个独立会话。
+- 本机 `5001`、`5100`、`5200`、`5301` 端口未被其他程序占用。
 
-在服务器检查环境：
+```bash
+docker version
+```
+
+输出中应同时包含 Client 和 Server。下一步：[用 Docker 启动单节点集群](/zh/server/deployment/docker)。
+
+## 端口用途
+
+| 端口 | 用途 |
+| --- | --- |
+| `5001` | HTTP API、就绪检查和 Chat Demo |
+| `5100` | 客户端 TCP |
+| `5200` | 客户端 WebSocket |
+| `5301` | Manager |
+| `7001` | 节点内部通信，不需要映射到宿主机 |
+
+API 和 Manager 的示例端口仅绑定本机。体验无需向公网开放管理端口；远程服务器使用 Docker 部署页中的 SSH 转发。
+
+<details>
+<summary>不使用 Docker：准备 Linux 主机</summary>
+
+Linux 软件包支持 `amd64` / `x86_64`，系统为 Ubuntu 24.04、Debian 13、Rocky Linux 9、AlmaLinux 9 或 RHEL 9。需要 `sudo`、`curl`，能够访问 `packages.githubim.com`；远程主机需要 SSH。
 
 ```bash
 uname -m
@@ -19,16 +39,6 @@ curl --version
 sudo -v
 ```
 
-## 需要的端口
+软件包创建 `/etc/wukongim`、`/var/lib/wukongim` 和 `/var/log/wukongim`。准备完成后，进入[Linux 安装路径](/zh/guide/quick-start/single-node-cluster)。
 
-| 端口 | 用途 |
-| --- | --- |
-| `5001` | HTTP API、就绪检查和 Chat Demo |
-| `5100` | 客户端 TCP |
-| `5200` | 客户端 WebSocket |
-| `5301` | Manager |
-| `7001` | 节点内部通信 |
-
-快速开始默认只从服务器本机访问这些端口，不需要开放到公网。远程浏览器通过 SSH 转发访问；只需确保 SSH 端口可用。
-
-安装包会创建 `/etc/wukongim`、`/var/lib/wukongim` 和 `/var/log/wukongim`。准备完成后继续[启动单节点集群](/zh/guide/quick-start/single-node-cluster)。
+</details>

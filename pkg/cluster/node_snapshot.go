@@ -58,7 +58,10 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 	defer n.controlApplyMu.Unlock()
 	n.mu.RLock()
 	previous := n.controlSnapshot.Clone()
-	firstSnapshot := emptyControlSnapshot(previous)
+	// A failed initial task may leave its committed publication visible while
+	// Start rolls back runtimes. A new startup must reconcile recreated Slots
+	// and retry synchronous setup even when the Controller revision is unchanged.
+	firstSnapshot := !n.started.Load() || emptyControlSnapshot(previous)
 	n.mu.RUnlock()
 	// Watches and readiness probes may capture snapshots before waiting for
 	// this lock. Never replay an older generation after a newer one has been
@@ -88,11 +91,6 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 	}
 	if n.slots != nil && (firstSnapshot || changes.slots) {
 		if err := n.slots.Reconcile(ctx, snapshot); err != nil {
-			return err
-		}
-	}
-	if n.tasks != nil && (firstSnapshot || changes.tasks || changes.slots) {
-		if err := n.reconcileTasks(ctx, snapshot); err != nil {
 			return err
 		}
 	}
@@ -145,6 +143,20 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 	n.publishPreferredLeaderIntent(snapshot)
 	if observer := n.cfg.Control.SnapshotObserver; observer != nil {
 		observer.ObserveControlSnapshot(snapshot.Clone())
+	}
+	// Task progress writes can wait on Controller Raft or another reconciliation.
+	// Publish reconciled routes, Slot readiness and committed health first so
+	// those side effects cannot hide current placement eligibility from readers.
+	if n.tasks != nil && (firstSnapshot || changes.tasks || changes.slots) {
+		if n.started.Load() {
+			n.requestTaskReconcile()
+		} else {
+			// Initial startup still verifies synchronous task setup before the
+			// background owner and foreground admission exist.
+			if err := n.reconcileTasks(ctx, snapshot); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

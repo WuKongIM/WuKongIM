@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/WuKongIM/WuKongIM/internal/contracts/protocolmeta"
+	"github.com/WuKongIM/WuKongIM/internal/contracts/sendbanaudit"
 	"github.com/WuKongIM/WuKongIM/internal/runtime/online"
 	"github.com/WuKongIM/WuKongIM/internal/usecase/presence"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
@@ -72,6 +73,8 @@ type RestoreSystemUIDStore interface {
 
 // Options configures the user usecase dependencies.
 type Options struct {
+	// SendBanAudit receives attempted policy mutations with apply-time facts.
+	SendBanAudit sendbanaudit.Observer
 	// Users stores durable UID metadata.
 	Users UserStore
 	// Devices stores durable per-device token metadata.
@@ -94,6 +97,8 @@ type Options struct {
 
 // App coordinates legacy-compatible user operations.
 type App struct {
+	// sendBanAudit records policy attempts without credentials or message data.
+	sendBanAudit sendbanaudit.Observer
 	users        UserStore
 	devices      DeviceStore
 	deviceReader DeviceReader
@@ -152,6 +157,7 @@ func New(opts Options) *App {
 		opts.Logger = wklog.NewNop()
 	}
 	return &App{
+		sendBanAudit:   opts.SendBanAudit,
 		users:          opts.Users,
 		devices:        opts.Devices,
 		deviceReader:   opts.DeviceReader,

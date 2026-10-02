@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	cmdTypeMQTTSubscriptionMutation uint8 = 68
+	cmdTypeMQTTSubscriptionMutation uint8 = 81
 	mqttSubscriptionCommandVersion        = 1
 	maxMQTTSubscriptionCommandBytes       = 32 << 10
 )

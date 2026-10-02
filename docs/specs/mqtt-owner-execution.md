@@ -77,7 +77,7 @@ TTL, a boot mismatch or best-effort kick for the required isolation proof.
 
 ## Implemented owner RPC contract
 
-Service 92 requests quiescence from the exact owner node through the existing
+Service 107 requests quiescence from the exact owner node through the existing
 `CallRPC` transport. Request magic is `WKMQ`, response magic `WKMq`; both use
 format byte 1 followed by an operation/status byte. Request operation 1 is
 quiesce. Response statuses are 1 quiesced, 2 isolation unproved, 3 close failed,

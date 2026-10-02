@@ -47,6 +47,13 @@ black-box e2e coverage for `cmd/wukongim` and internal behavior only.
 
 ## Catalog
 
+The opt-in send-ban sequential diagnostics use a frozen binary and exactly one
+of `WK_E2E_PERMISSION_TIMELINE_SEQUENTIAL=1` or
+`WK_E2E_PERMISSION_SEQUENTIAL_PROFILES=1`. Run
+`TestPermissionSequentialDiagnostics/same-slot-remote`; consult the scenario
+instructions for fixed capture bounds, sampling limits and full-history checks.
+Diagnostic timing never replaces unprofiled performance qualification.
+
 | Domain | Scenario path | Purpose | Run |
 | --- | --- | --- | --- |
 | `mqtt` | `test/e2e/mqtt/storage_partition` | Live three-node bidirectional TCP isolation retains accepted/unknown shared storage, actual Slot quorum and persistent replay, then retires/reopens without process restart. Requires lsof; the unknown slice additionally requires a temporary-copy gofail candidate with charged post-commit witness. | Ordinary: `WK_E2E_BINARY=/tmp/wk-storage-partition GOWORK=off go test -p 1 -race -tags=e2e ./test/e2e/mqtt/storage_partition -run '^TestPartitionRetainsAcceptedStorageAndReopensAfterRecovery$' -count=1 -timeout=5m -v`<br>Unknown: `WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wk-storage-partition-gofail GOWORK=off go test -p 1 -race -tags=e2e ./test/e2e/mqtt/storage_partition -run '^TestPartitionRetainsUnknownPreparationUntilResolved$' -count=1 -timeout=5m -v` |
@@ -71,6 +78,7 @@ black-box e2e coverage for `cmd/wukongim` and internal behavior only.
 | `mqtt` | `test/e2e/mqtt/interop` | Prove authenticated MQTT 5 ↔ WKProto person interop, capability advertisement and ClientID coexistence in 256-Hash-Slot single-node and three-node clusters. | `GOWORK=off go test -tags=e2e ./test/e2e/mqtt/interop -count=1 -timeout=4m -p=1 -v` |
 | `message` | `test/e2e/message/message_updates` | Opt-in concurrent edits and reads with abrupt Channel/physical Slot leader termination, restart, strict public retry codes, CAS/idempotency and final incremental-cache convergence in a 256-Hash-Slot three-node cluster. | `WK_E2E_MESSAGE_UPDATE_STABILITY=1 WK_E2E_MESSAGE_UPDATE_STABILITY_REPORT=/tmp/message-update-stability.json GOWORK=off go test -tags=e2e ./test/e2e/message/message_updates -count=1 -timeout=8m -v` |
 | `message` | `test/e2e/message/conversation_qps` | Fixed QPS/P99 and zero-activation release gate plus fixed four-CPU Linux AMD64 mixed attribution and opt-in mixed/hidden stress diagnosis for both conversation endpoints across single-node and three-node clusters; separate opt-in staircase/pprof capacity diagnosis and three-minute per-case CPU/RPC/trace analysis with optional frozen-baseline comparison and fixed backpressure attribution, alternating 180-second peak confirmation (including a fixed sync-only comparison)/400/420/440 QPS sync refinement (see scenario AGENTS.md). | `WK_E2E_CONVERSATION_QPS=1 WK_E2E_CONVERSATION_QPS_REPORT=/tmp/conversation-qps.json GOWORK=off go test -tags=e2e ./test/e2e/message/conversation_qps -run TestConversationQPSReleaseGate -count=1 -timeout=12m -p=1 -v`<br>Capacity: `WK_E2E_CONVERSATION_CAPACITY=1 WK_E2E_CONVERSATION_CAPACITY_REPORT=/tmp/conversation-capacity/report.json GOWORK=off go test -tags=e2e ./test/e2e/message/conversation_qps -run TestConversationQPSCapacity -count=1 -timeout=20m -p=1 -v` |
+| `plugin` | `test/e2e/plugin/send_ban` | Prove plugin-origin user/channel bans, host RPC failures, restricted hook mutation, committed history and delivery controls in single-node and three-node clusters. | `GOWORK=off go test -tags=e2e ./test/e2e/plugin/send_ban -count=1 -timeout=4m -v` |
 | `issue_agent` | `test/e2e/issue_agent/issue_<number>` | Issue-linked, Agent-generated frozen regression scenarios; run only for the corresponding authorized Issue and Draft PR. | `GOWORK=off go test -tags=e2e ./test/e2e/issue_agent/issue_<number> -count=1` |
 | `message` | `test/e2e/message/no_persist` | Prove ordinary transient HTTP sends to WKProto subscribers, receive flags, permission checks, and unchanged history in 256-Hash-Slot single-node and three-node clusters. | `GOWORK=off go test -tags=e2e ./test/e2e/message/no_persist -count=1 -timeout 3m -p=1` |
 | `message` | `test/e2e/message/single_node_send` | Prove `cmd/wukongim` can complete a single-node cluster WKProto `SEND -> SENDACK` closure, establish both person memberships, and avoid repeat membership writes after `directory_ready`. | `GOWORK=off go test -tags=e2e ./test/e2e/message/single_node_send -count=1` |
@@ -81,11 +89,13 @@ black-box e2e coverage for `cmd/wukongim` and internal behavior only.
 | `message` | `test/e2e/message/conversation_directory_multi_node` | Prove a three-node membership directory batches hydration by Channel Leader, fails the whole page for an unavailable Leader and repeats the original page after restart. | `GOWORK=off go test -tags=e2e ./test/e2e/message/conversation_directory_multi_node -count=1 -timeout 3m -p=1` |
 | `message` | `test/e2e/message/legacy_conversation_sync` | Prove the deprecated v2.2 `/conversation/sync` projects first and later WKProto messages into exact sender and offline-recipient person/group views in single-node and remote-Leader multi-node clusters. | `GOWORK=off go test -tags=e2e ./test/e2e/message/legacy_conversation_sync -count=1 -timeout 3m -p=1` |
 | `message` | `test/e2e/message/webhook` | Prove single-node cluster post-commit callbacks and three-node `msg.before_send` admission, custom codes, mutation, timeout/error policies, and committed history through WKProto and HTTP; also verify authenticated fault handling, bounded per-node overload/recovery, callback counts, and public metrics; build the runnable Go callback and validate its decisions/history against a single-node cluster. | `GOWORK=off go test -tags=e2e ./test/e2e/message/webhook -count=1 -timeout 2m -p=1` |
+| `message` | `test/e2e/message/stream_online` | Real JSON-RPC online stream events, person/group cross-node routing, finish/cancel/error, private visibility and offline snapshots in 256-hash-slot single-node and three-node clusters. | `WK_E2E_STREAM_REPORT=/tmp/wk-stream-online.json GOWORK=off go test -tags=e2e ./test/e2e/message/stream_online -count=1 -timeout=3m -p=1 -v` |
 | `message` | `test/e2e/message/message_event_stream` | Prove `/message/event` buffers stream deltas in the Slot-leader cache, forwards from non-leader nodes, fails closed after Slot-leader cache loss, proposes one finish batch, exposes public metrics, and survives restart through `/channel/messagesync` event summaries. | `GOWORK=off go test -tags=e2e ./test/e2e/message/message_event_stream -count=1 -timeout 2m` |
 | `message` | `test/e2e/message/recipient_authority` | Prove committed group SEND leaves ordinary membership mutation counters unchanged while subscriber-owned `/conversation/list` views remain hydratable, with an opt-in 100k subscriber stress path. | `GOWORK=off go test -tags=e2e ./test/e2e/message/recipient_authority -count=1` |
 | `message` | `test/e2e/message/medium_recipient_hotpath` | Opt-in higher-fidelity local Cloud Medium gate plus a separate bounded 30-minute, 5,000-channel permission-pressure soak using real three-node processes, WKProto, Raft, Pebble, natural local/remote Slot routing, latency, zero membership-write, and public pressure evidence. | Short gate: `WK_E2E_MEDIUM_RECIPIENT_HOTPATH=1 WK_E2E_MEDIUM_RECIPIENT_ENFORCE_ACCEPTANCE=1 GOWORK=off go test -tags=e2e ./test/e2e/message/medium_recipient_hotpath -run TestCloudMediumScaledRecipientHotPath -count=1 -timeout 5m -p=1 -v`<br>Soak: `WK_E2E_MEDIUM_RECIPIENT_PERMISSION_SOAK=1 WK_E2E_MEDIUM_RECIPIENT_SOAK_DURATION=30m WK_E2E_MEDIUM_RECIPIENT_GROUP_CHANNELS=5000 WK_E2E_MEDIUM_RECIPIENT_QPS=4500 GOWORK=off go test -tags=e2e ./test/e2e/message/medium_recipient_hotpath -run TestCloudMediumPermissionSoak -count=1 -timeout 40m -p=1 -v` |
 | `message` | `test/e2e/message/cross_node_delivery` | Prove a static three-node `cmd/wukongim` cluster delivers person-channel messages across nodes in both directions, including explicit Slot/Channel two-replica topology and an opt-in same-host 2/2-versus-3/3 comparison at 2,000 SEND/s. | `GOWORK=off go test -tags=e2e ./test/e2e/message/cross_node_delivery -count=1 -timeout 2m` |
 | `message` | `test/e2e/message/chat_lifecycle` | Prove a real three-node person Channel becomes naturally absent after five idle minutes, reheats through real traffic, preserves sequence/metadata continuity, runs a full version-zero sync after every login, and preserves person/group receive sequence during concurrent cross-ingress bursts. | `GOWORK=off go test -tags=e2e ./test/e2e/message/chat_lifecycle -count=1 -timeout 9m -p=1` |
+| `cluster` | `test/e2e/cluster/startup_recovery` | Verify snapshot/suffix credentials and INFO recovery progress across single-node cluster restarts with 256 hash slots, plus three fresh three-node generations with 12 physical Slots under the original 30-second readiness/convergence deadline; emit JSON reports. | `WK_E2E_STARTUP_RECOVERY_REPORT=/tmp/startup-recovery.json WK_E2E_STARTUP_READINESS_REPORT=/tmp/startup-readiness.json GOWORK=off go test -tags=e2e ./test/e2e/cluster/startup_recovery -count=1 -timeout=8m -p=1 -v` |
 | `cluster` | `test/e2e/cluster/dynamic_node_join` | Prove dynamic data-node seed join, activation, delivery, onboarding, scale-in drain, unsafe-operation conflicts, negative join/activation paths, and concurrent task guards through public manager and WKProto entrypoints. | `GOWORK=off go test -tags=e2e ./test/e2e/cluster/dynamic_node_join -count=1 -timeout 10m -p=1` |
 | `cluster` | `test/e2e/cluster/dynamic_node_readiness` | Prove Stage 9 dynamic-node production readiness: health freshness, manager/metrics evidence, and join/onboard/scale-in/remove while real WKProto traffic continues. | `GOWORK=off go test -tags=e2e ./test/e2e/cluster/dynamic_node_readiness -count=1 -timeout 12m -p=1` |
 | `cluster` | `test/e2e/cluster/dynamic_node_faults` | Prove opt-in gofail-backed dynamic-node join, onboarding, scale-in, and remove fault recovery through public manager and WKProto entrypoints. | `scripts/build-gofail-binary.sh --cmd ./cmd/wukongim --package internal/usecase/management --package pkg/controller --package pkg/cluster/tasks --package pkg/cluster/net --out /tmp/wukongim-gofail`<br>`WK_E2E_BINARY=/tmp/wukongim-gofail WK_E2E_GOFAIL_DYNAMIC_NODE=1 GOWORK=off go test -tags=e2e ./test/e2e/cluster/dynamic_node_faults -count=1 -timeout 15m -p=1` |
@@ -100,3 +110,42 @@ black-box e2e coverage for `cmd/wukongim` and internal behavior only.
 | `backup` | `test/e2e/backup/scheduled_restore` | Prove authenticated Manager plan enablement publishes an initial 256-Hash-Slot full archive and restores exact point-in-time business state in a real single-node cluster. | `GOWORK=off go test -tags=e2e ./test/e2e/backup/scheduled_restore -count=1 -timeout 15m -p=1` |
 | `backup` | `test/e2e/backup/three_node_restore` | Prove a shared-repository three-node full backup resumes after Controller Leader loss and restores point-in-time state across all current replicas. | `GOWORK=off go test -tags=e2e ./test/e2e/backup/three_node_restore -count=1 -timeout 15m -p=1` |
 | `opsmcp` | `test/e2e/opsmcp/three_node` | Prove one token works through node 2 and node 3, cross-node pprof is owner-authorized, owner outage fails closed, and durable desired state resumes after owner restart. | `GOWORK=off go test -tags=e2e ./test/e2e/opsmcp/three_node -count=1 -timeout 3m -p=1` |
+
+## User and Channel send bans
+
+`send_ban` verifies independent user/source-Channel restrictions, cross-ingress
+cache freshness, WKProto and HTTP admission, atomic changes and CAS.
+Run `GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -count=1 -timeout=8m -p=1 -v`.
+The scenario writes a JSON report (override with `WK_E2E_SEND_BAN_REPORT`).
+`send_ban` also contains the opt-in Issue #977 independent-caller baseline;
+see its scenario instructions for frozen-binary execution, actual placement,
+counter/resource cuts, optional separate profiles and exact complete history.
+These characterization results do not replace the unchanged 500 SEND/s gates.
+`WK_E2E_SEND_BAN_100K=1` enables `TestHundredKGroupSendBan` (six-minute test bound)
+and the `.100k.json` companion report. Backup restore scenarios also checkpoint
+both policy scopes; `WK_E2E_SEND_BAN_RESTORE_REPORT` sets their artifact base.
+
+The same fixed experiment has an opt-in candidate mode:
+`WK_E2E_PERMISSION_COHORTS=1 WK_E2E_BINARY=/absolute/frozen/candidate WK_E2E_PERMISSION_COHORT_REPORT=/absolute/cohorts.json GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -run '^TestPermissionCallerCohorts$' -count=1 -timeout=4m -p=1 -v`.
+It requires lower burst RPC/local-envelope and fresh-barrier counts, unchanged
+sequential counts, independently drained public cohort ownership metrics,
+completed ban/unban controls and exact full history. Historical baseline mode
+remains executable with its frozen old binary. Source/build identity, whole-node
+resource cuts and diagnostic limits remain the same; capacity gates are unchanged.
+
+The quorum-loss admission companion keeps 192 failed-closed sends but separates
+arrivals by 5 ms so sealed cohorts actually accumulate. Require positive receiver
+or ingress-cohort busy, record both scopes separately, sample both hard ownership
+bounds and drain to zero, then verify exact complete recovery history. This fault
+fixture never changes the 500 SEND/s performance gates.
+
+The send-ban Issue #977 fixed-arrival diagnostic is opt-in and uses the existing
+real-process scaffold. `send_ban/AGENTS.md` records its frozen-binary command,
+eight-minute bound, exact arrival/observation counts, full response identities,
+calibrated process CPU, failure receipts and complete history. It supplements
+the historical characterization without changing its acceptance or capacity gates.
+
+The separate fixed-load v2 uses `TestPermissionCallerFixedLoadV2` and retains
+bounded caller FIFO residence, monotonic phase offsets, exact raw metrics/TOML
+and canonical config identities. See `message/send_ban/AGENTS.md`; V1 remains
+separately executable and its failures retain their original meaning.

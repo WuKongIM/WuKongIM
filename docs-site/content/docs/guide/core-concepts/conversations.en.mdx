@@ -1,60 +1,56 @@
 ---
 title: Conversation
-description: Understand why a Conversation is one user's chat-list view and how it relates to Channels, unread state, and hiding.
+description: Use one diagram to distinguish a shared Channel from a personal chat list, then understand unread, hide, and sync.
 ---
 
-A Conversation is one chat entry visible to one user, usually one row in a chat list. It points to a Channel and presents its latest message, unread count, and other personal state.
-
-A Conversation is not another container of messages. Messages remain in the Channel; WuKongIM builds the conversation view from the user's Channel relationship, committed messages, and personal visibility state.
+A Conversation is **one row in one user's chat list**. It points to a Channel and shows the latest message, unread count, and personal state. Messages are stored in the Channel.
 
 ## Why conversations matter
 
-- **Organize the chat list:** Gather Channels with visible messages or explicit user activation into a list the user can revisit.
-- **Highlight new content:** Calculate unread and visibility state for the current user.
-- **Support offline recovery:** A client first discovers conversations, then synchronizes missing messages for each Channel.
-- **Enable personal actions:** Hiding a conversation or clearing unread affects the current user, not the shared Channel history.
+Conversations help users find chats, spot new messages, hide a chat, or clear unread. During offline recovery, clients first sync the conversation list, then fetch missing messages for each Channel.
 
 ## Relationship to other concepts
 
-- A **Channel** is the communication space a Conversation opens and the source of message history.
-- A **Message** changes the latest content and unread projection that a Conversation can present.
-- A **User** owns a personal conversation view, independent from other users' state.
-- A **Device** synchronizes UID-scoped conversation state while keeping its own local UI state.
+<div className="tutorial-diagram">
 
-## Conversation versus Channel
+```mermaid
+flowchart TD
+  channel["Weekend Trip<br/>shared Channel messages"] --> alice["Alice<br/>0 unread"]
+  channel --> bob["Bob<br/>5 unread"]
+```
+
+</div>
+
+These are example states for two members: **one Channel, different personal read positions and visibility ranges**. Devices sharing a UID sync conversation state while retaining their own local UI state.
+
+## Distinguish Channel and Conversation
 
 | Channel | Conversation |
 | --- | --- |
-| A communication space shared by participants | One user's personal view of that Channel |
-| Stores ordered Channel messages | Refers to the latest message and presents unread and hidden state |
-| Identified by `channel_id + channel_type` | Has complete meaning only when combined with the current UID |
-| Participants observe the same committed history within their visibility range | Each participant may have a different read position and visibility range |
+| Shared communication space and ordered history | The current user's personal view of a Channel |
+| Identified by `channel_id + channel_type` | Also requires the current UID |
+| Stores committed messages | Refers to the latest message and presents unread and visibility state |
 
-Suppose Alice and Bob both belong to the “Weekend Trip” group Channel. The latest Channel message exists only once, but Alice may have read everything while Bob still has five unread messages. Their conversation state is therefore different.
+## Common actions
 
-## What a conversation usually presents
-
-| Information | Purpose |
+| Action | Result |
 | --- | --- |
-| Channel ID and type | Determines which direct or group chat to open |
-| Latest message | Provides the chat-list preview |
-| Unread count | Signals new content to the current user |
-| Read and visibility boundaries | Determine the unread baseline and which history remains visible |
-| Local presentation state | Pinning, drafts, and final ordering are normally client-owned |
+| Clear unread | Advances the current UID's unread baseline; sends no peer-read receipt |
+| Hide or delete | Hides your current view; does not leave the group or delete others' messages. A later message above the hidden range can make it appear again |
+| Leave or remove a member | Changes Channel membership |
+| Sync devices | Other devices with the same UID can see conversation and unread updates on their next sync |
 
-The server uses `activated_at` to order the active conversation directory. It records explicit Channel activation, not latest-message time; an inactive empty Channel with no visible messages is omitted. After receiving latest-message data, the client decides pinning, grouping, and final UI order.
+The client owns pinning, drafts, grouping, and final UI ordering.
 
-The server-side conversation list and each Channel's message list use separate synchronization positions. A client cannot use one cursor for both.
+<details>
+  <summary>Integration: list fields, ordering, and sync cursors</summary>
 
-## Understanding common actions
+A Conversation normally includes Channel ID and type, latest message, unread count, and read and visibility boundaries. These determine which chat opens, which preview appears, and the unread baseline.
 
-- **Clear unread:** Advances the current UID's unread baseline; it does not send a peer-read receipt.
-- **Hide or delete a conversation:** Hides the current user's present view. It does not leave the Channel or delete messages for other participants. A later message above the hidden range can make the conversation appear again.
-- **Leave or remove a member:** Changes Channel membership and is different from hiding a chat-list entry.
-- **Synchronize multiple devices:** Conversation and unread state are generally UID-scoped, so another device may observe an update during its next sync.
+The server orders the active conversation directory by `activated_at`: the time of explicit Channel activation, **not latest-message time**. An inactive empty Channel with no visible messages is omitted. The client chooses final ordering after receiving latest-message data.
 
-<Callout type="info" title="The client owns final chat-list presentation">
-  WuKongIM supplies conversation, latest-message, and unread state. Pinning, drafts, grouping, and final UI ordering remain product-client responsibilities.
-</Callout>
+**The conversation list and each Channel's message list have separate sync positions.** One cursor cannot replace both. WuKongIM builds the view from the user's Channel relationship, committed messages, and personal visibility state.
 
-Continue with [Message](/en/guide/core-concepts/messages), then choose your [full SDK platform](/en/sdk/wukongim) for conversation APIs. For server-side construction and paging, continue to the [message-flow architecture guide](/en/server/architecture/message-flow).
+</details>
+
+Continue with [Message](/en/guide/core-concepts/messages), then choose a [full SDK platform](/en/sdk/wukongim) for conversation APIs. For server construction and paging, see [message-flow architecture](/en/server/architecture/message-flow).

@@ -27,6 +27,28 @@ const text = (zh: string, en: string): ProductHTTPOpenAPILocalizedText => ({
  * Schema alone. Keys are stable `METHOD path` pairs from the complete contract.
  */
 export const productHTTPOperationSemantics = {
+  'POST /user/send_ban': {
+    scope: text('UID 全局应用发送限制；不影响登录、接收或协议 ACK。', 'Global application-send restriction for one UID; login, receiving and protocol ACKs remain allowed.'),
+    atomicity: text('策略与独立 uint64 版本在一次 Slot 应用内原子变更；相同值不递增版本。', 'The policy and its independent uint64 version change atomically in one Slot apply; an identical value does not increment the version.'),
+    success: text('200 返回已应用的策略及十进制字符串版本。', '200 returns the applied policy and a decimal-string version.'),
+    recovery: text('超时或 503 可能已经提交；先 GET 核对当前策略。409 后重读并重新作出变更决定，不盲目重试旧 expected_version。', 'A timeout or 503 may follow a commit; GET the current policy first. After 409, reload and make a new mutation decision instead of blindly retrying the old expected_version.'),
+  },
+  'GET /user/send_ban': {
+    scope: text('UID 全局应用发送限制；不影响登录、接收或协议 ACK。', 'Global application-send restriction for one UID; login, receiving and protocol ACKs remain allowed.'),
+    success: text('读取当前 UID Slot 权威策略；未知 UID 返回允许、版本 0。', 'Reads current UID Slot authority; an unknown UID returns allow/version 0.'),
+    recovery: text('503 时保持策略未知并退避重读，不能把权威不可用当作允许。', 'On 503, keep the policy unknown and retry reads with backoff; unavailable authority is not evidence of allow.'),
+  },
+  'POST /channel/send_ban': {
+    scope: text('实际源 Channel 发送限制；个人 ID 必须规范编码，CMD 派生键不可用；不影响登录、接收或协议 ACK。', 'Restriction for the actual source Channel; person IDs must be canonical and CMD-derived keys are invalid; login, receiving and protocol ACKs remain allowed.'),
+    atomicity: text('策略与独立 uint64 版本在一次 Slot 应用内原子变更；相同值不递增版本。', 'The policy and its independent uint64 version change atomically in one Slot apply; an identical value does not increment the version.'),
+    success: text('200 返回已应用的策略；版本以十进制字符串返回，终态解散不可逆。', '200 returns the applied policy with a decimal-string version; terminal disband is irreversible.'),
+    recovery: text('超时或 503 可能已经提交；先 GET 核对当前策略。409 后重读并重新作出变更决定，不盲目重试旧 expected_version。', 'A timeout or 503 may follow a commit; GET the current policy first. After 409, reload and make a new mutation decision instead of blindly retrying the old expected_version.'),
+  },
+  'GET /channel/send_ban': {
+    scope: text('实际源 Channel 发送限制；个人 ID 必须规范编码，CMD 派生键不可用；不影响登录、接收或协议 ACK。', 'Restriction for the actual source Channel; person IDs must be canonical and CMD-derived keys are invalid; login, receiving and protocol ACKs remain allowed.'),
+    success: text('读取当前 Channel Slot 权威策略；缺失个人 Channel 返回允许、版本 0，缺失非个人 Channel 返回 404。', 'Reads current Channel Slot authority; a missing person Channel returns allow/version 0, a missing non-person Channel returns 404.'),
+    recovery: text('503 时保持策略未知并退避重读，不能把权威不可用当作允许。', 'On 503, keep the policy unknown and retry reads with backoff; unavailable authority is not evidence of allow.'),
+  },
   'POST /message/update': {
     scope: text('业务后端负责修改权限和时间窗口；不改变消息 ID、序号、原发送时间、未读或排序。', 'The backend owns editing permissions and time windows; message ID, sequence, original timestamp, unread and ordering stay unchanged.'),
     success: text('200 表示修改及幂等结果已由 Slot 多数派提交并应用，不等待终端接收。', '200 means the edit and idempotency result were quorum committed and applied by the Slot; it does not wait for devices.'),
@@ -212,8 +234,12 @@ export const productHTTPOperationSemantics = {
   },
   'POST /message/event': {
     scope: text(
-      'visibility 作为事件元数据保存；普通消息同步不会用它做访问控制过滤；eventsync 按 include_private 筛选，但不验证调用方权限。',
-      'visibility is stored as event metadata; ordinary message synchronization does not use it as an access-control filter; eventsync filters by include_private without checking caller permissions.',
+      '要求已提交且身份匹配的持久流式基础消息；公开事件尽力投递到在线 Session，private/restricted 不广播。普通消息同步不按 visibility 做访问控制；只能由受信后端授权并筛选。',
+      'Requires a committed persistent stream base with matching identity. Public events are delivered best effort to online Sessions; private/restricted events are not broadcast. Ordinary message sync does not enforce visibility access control; a trusted backend must authorize and filter.',
+    ),
+    success: text(
+      '成功只确认投影接受，不保证在线展示；终态完整 snapshot 与离线消息同步负责恢复。结果未知时重试完全相同的 event_id 与 Payload。',
+      'Success confirms projection acceptance, not online display. Complete terminal snapshots and offline message sync provide recovery. Retry an uncertain write with the exact same event_id and payload.',
     ),
   },
   'POST /channel/messagesync': {

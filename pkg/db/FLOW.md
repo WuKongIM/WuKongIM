@@ -25,12 +25,21 @@ It does not own product policy or expose Pebble-specific APIs to callers.
 1. Build options and open one `NodeStore`; repeated `Messages` calls return the
    same canonical message registry while metadata has its independent domain.
 2. Read physical message/meta metrics under the root lifecycle fence and the
-   message operation guard, including bounded idempotency-filter counters.
+   message operation guard, including bounded idempotency-filter counters and
+   O(1) Pebble write-stall aggregates (count by reason, total, max, active),
+   a WAL fsync latency summary, and slow-disk reports split by WAL and other
+   files; a positive engine DiskSlowThreshold replaces Pebble's 5s default.
 3. Close rejects and drains message acquisitions, closes its physical engine
    once, then closes metadata; concurrent callers join the same terminal close.
 
 ## Invariants and Failure Semantics
 
+- Startup metadata snapshot streams use bounded pre-sized batches; the engine
+  owns encoded allocation and durability while metadata owns the restart fence.
+- Optional recovery seals bind certificates to the physical commit sequence;
+  uncertified batches invalidate them, including mixed group-commit requests.
+  A live epoch checked per certificate under the commit lock fences stale proofs;
+  known disjoint Slot writes invalidate only their own certificate.
 - Engine snapshots provide a pinned bounded-iterator view and must be closed;
   later writes and compactions may proceed while the view streams.
 - Metrics must not race root shutdown or a direct message-domain close.

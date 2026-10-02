@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -53,12 +52,15 @@ func TestServerAsyncSendDispatchRejectsWhenQueueFull(t *testing.T) {
 	}
 
 	state := asyncSendTestState(srv, 1)
+	adapter := &sendackRecordingProtocol{}
+	state.listener.adapter = adapter
+	state.conn = &asyncAuthRecordingConn{}
 	state.markOpenDispatched()
 	state.markOpenComplete()
 
 	done := make(chan struct{})
 	go func() {
-		srv.dispatchSendFrameAsync(state, "", &frame.SendPacket{})
+		srv.dispatchSendFrameAsync(state, "", &frame.SendPacket{ClientSeq: 7, ClientMsgNo: "overflow"})
 		close(done)
 	}()
 
@@ -72,17 +74,43 @@ func TestServerAsyncSendDispatchRejectsWhenQueueFull(t *testing.T) {
 	if got := handler.frames(); got != 1 {
 		t.Fatalf("handler frames = %d, want async queue full rejection without synchronous fallback", got)
 	}
-	if !state.isClosed() {
-		t.Fatal("state was not closed after async queue overflow")
+	// Overload is per-SEND backpressure: the connection stays open and the
+	// client receives a retryable rate-limit SENDACK for the rejected frame.
+	if state.isClosed() {
+		t.Fatal("state closed after async queue overflow, want per-SEND rejection")
 	}
-	errs := handler.counting.sessionErrors()
-	if len(errs) != 1 || !errors.Is(errs[0], gatewaytypes.ErrAsyncDispatchQueueFull) {
-		t.Fatalf("session errors = %v, want ErrAsyncDispatchQueueFull", errs)
+	acks := adapter.sendacks()
+	if len(acks) != 1 {
+		t.Fatalf("sendacks = %d, want 1", len(acks))
 	}
-	reasons := handler.counting.closeReasons()
-	if len(reasons) == 0 || reasons[0] != gatewaytypes.CloseReasonAsyncDispatchQueueFull {
-		t.Fatalf("close reasons = %v, want %q", reasons, gatewaytypes.CloseReasonAsyncDispatchQueueFull)
+	if acks[0].ReasonCode != frame.ReasonSystemBusy || acks[0].ClientSeq != 7 || acks[0].ClientMsgNo != "overflow" {
+		t.Fatalf("sendack = %+v, want ReasonSystemBusy echoing client seq and msg no", acks[0])
 	}
+	if reasons := handler.counting.closeReasons(); len(reasons) != 0 {
+		t.Fatalf("close reasons = %v, want none", reasons)
+	}
+}
+
+// sendackRecordingProtocol captures SENDACK frames encoded for one session.
+type sendackRecordingProtocol struct {
+	asyncAuthEncodeOnlyProtocol
+	mu   sync.Mutex
+	acks []frame.SendackPacket
+}
+
+func (p *sendackRecordingProtocol) Encode(_ session.Session, f frame.Frame, _ session.OutboundMeta) ([]byte, error) {
+	if ack, ok := f.(*frame.SendackPacket); ok {
+		p.mu.Lock()
+		p.acks = append(p.acks, *ack)
+		p.mu.Unlock()
+	}
+	return []byte("sendack"), nil
+}
+
+func (p *sendackRecordingProtocol) sendacks() []frame.SendackPacket {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]frame.SendackPacket(nil), p.acks...)
 }
 
 func TestServerAsyncSendDispatchRejectsFullQueueBeforePayloadClone(t *testing.T) {
@@ -127,8 +155,12 @@ func TestServerAsyncSendDispatchRejectsFullQueueBeforePayloadClone(t *testing.T)
 		return asyncSendTestState(srv, 1)
 	}
 
+	// Baseline includes the rate-limit SENDACK attempt made before closing, so
+	// only a payload clone can push the rejection path above it.
 	baseline := testing.AllocsPerRun(1000, func() {
-		newState().close(gatewaytypes.CloseReasonAsyncDispatchQueueFull, gatewaytypes.ErrAsyncDispatchQueueFull)
+		st := newState()
+		_ = srv.writeImmediateFrame(st, "", &frame.SendackPacket{ReasonCode: frame.ReasonSystemBusy})
+		st.close(gatewaytypes.CloseReasonAsyncDispatchQueueFull, gatewaytypes.ErrAsyncDispatchQueueFull)
 	})
 	actual := testing.AllocsPerRun(1000, func() {
 		srv.dispatchSendFrameAsync(newState(), "", packet)

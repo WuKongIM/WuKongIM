@@ -7,7 +7,12 @@ import (
 
 // Batch stages multiple writes for atomic commit.
 type Batch struct {
-	batch *pebble.Batch
+	batch                *pebble.Batch
+	db                   *DB
+	preserveCertificates bool
+	// certificateEpochs scopes known mutations; epoch zero removes that proof.
+	certificateEpochs      map[string]uint64
+	invalidateCertificates bool
 }
 
 // Set stages a key/value write.
@@ -60,6 +65,9 @@ func (b *Batch) Commit(sync bool) error {
 	opts := pebble.NoSync
 	if sync {
 		opts = pebble.Sync
+	}
+	if b.db != nil && b.db.seal != nil {
+		return b.commitSealed(opts)
 	}
 	return b.batch.Commit(opts)
 }

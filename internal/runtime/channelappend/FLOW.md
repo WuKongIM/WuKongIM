@@ -28,6 +28,11 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
   routing, durable storage, presence, and owner push are injected ports.
 - The runtime owns scheduling and handoff state, not subscriber metadata or
   session mutation.
+- [`OrderedSubmitter`](ordered_submitter.go) provides an optional admission/completion split over the
+  routed batch sender. It owns bounded records/payloads and FIFO dependencies
+  for overlapping canonical Channels; the caller still owns preparation order
+  and any results waiting for session publication. Synchronous Router calls
+  retain their existing joined behavior.
 - Post-commit delivery, plugins, webhooks, and offline observation are best-
   effort and cannot change an already durable SENDACK result.
 
@@ -70,6 +75,17 @@ complete setting bitset, topic, and expiration just as durable envelopes do.
   Every admitted effect publishes exactly one closed terminal result only after
   that match; panics, mixed batches, and stale completions cannot double-count
   or first publish a false success.
+- Ordered submission retains capacity through callback return, and a timed-out
+  Close fences new work while preserving the same accepted drain. Maintenance
+  Pause fences admission and joins the same callbacks without terminating workers;
+  Resume requires idle ownership and cannot reopen a closed owner. Dependency
+  links occupy at most one entry per distinct admitted Channel key; completed
+  keys leave no historical cache. Fixed workers may merge an already-ready prefix
+  within record/payload targets, without splitting original jobs or waiting to
+  fill a batch. Each callback retains its own aligned results and reservation;
+  completed payload references are cleared before returning that budget.
+  Its fixed workers use the existing Channel
+  append pool identity with distinct busy-batch and queued-record observations.
 - Idempotency recovery observes only batch counts for recovered, unresolved,
   and lookup-error items. Recovered items are not errors; every fresh item that
   fails its bounded retry remains unresolved with its original aligned result.

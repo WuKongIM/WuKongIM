@@ -679,6 +679,15 @@ func (s *Server) dispatchSendFrameAsync(state *sessionState, replyToken string, 
 		return
 	}
 	s.observeAsyncSendQueue(queue)
+	// A full but running executor is per-SEND backpressure: reject only this
+	// frame with a retryable system-busy SENDACK and keep the session open.
+	// A missing or stopping executor still closes the session.
+	if send != nil && runtime != nil && runtime.send != nil && !runtime.send.closed.Load() {
+		ack := &frame.SendackPacket{ClientSeq: send.ClientSeq, ClientMsgNo: send.ClientMsgNo, ReasonCode: frame.ReasonSystemBusy}
+		if err := s.writeImmediateFrame(state, replyToken, ack); err == nil {
+			return
+		}
+	}
 	state.close(gatewaytypes.CloseReasonAsyncDispatchQueueFull, gatewaytypes.ErrAsyncDispatchQueueFull)
 }
 

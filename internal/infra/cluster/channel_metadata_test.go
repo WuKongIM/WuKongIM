@@ -258,6 +258,46 @@ func TestChannelMetadataStoreMapsAuthoritativePermissionBatch(t *testing.T) {
 	}
 }
 
+// Route churn and bounded admission are retryable; cancellation and corrupt
+// evidence must retain their original error identity rather than become absence.
+func TestSendPermissionReadErrorsPreserveRetryClassification(t *testing.T) {
+	for _, cause := range []error{slotproxy.ErrReadStaleRoute, slotproxy.ErrPermissionBusy, slotproxy.ErrNoLeader, context.Canceled, context.DeadlineExceeded, metadb.ErrCorruptValue} {
+		t.Run(cause.Error(), func(t *testing.T) {
+			wrapped := fmt.Errorf("read authority: %w", cause)
+			node := &sendPolicyErrorNode{err: wrapped}
+			store := NewChannelMetadataStore(node, nil, nil)
+			batch := store.ReadPermissionsBatch(context.Background(), []messageusecase.PermissionRead{{Kind: messageusecase.PermissionReadUserSendPolicy, UID: "sender"}})
+			if len(batch) != 1 {
+				t.Fatalf("result count = %d", len(batch))
+			}
+			_, scalarErr := store.GetUserSendPolicy(context.Background(), "sender")
+			wantRetry := cause == slotproxy.ErrReadStaleRoute || cause == slotproxy.ErrPermissionBusy || cause == slotproxy.ErrNoLeader
+			for name, err := range map[string]error{"batch": batch[0].Err, "scalar": scalarErr} {
+				if !errors.Is(err, cause) || errors.Is(err, channelappend.ErrRouteNotReady) != wantRetry {
+					t.Errorf("%s error = %v; cause=%v retryable=%v", name, err, cause, wantRetry)
+				}
+				// Only admission pressure is reported to clients as system busy.
+				if errors.Is(err, channelappend.ErrBackpressured) != (cause == slotproxy.ErrPermissionBusy) {
+					t.Errorf("%s error = %v; backpressured=%v", name, err, errors.Is(err, channelappend.ErrBackpressured))
+				}
+			}
+		})
+	}
+}
+
+type sendPolicyErrorNode struct {
+	recordingChannelMetadataNode
+	err error
+}
+
+func (n *sendPolicyErrorNode) ReadSendPermissionMetadataBatch(context.Context, []slotproxy.PermissionMetadataRead) []slotproxy.PermissionMetadataReadResult {
+	return []slotproxy.PermissionMetadataReadResult{{Err: n.err}}
+}
+
+func (n *sendPolicyErrorNode) SetSendBanMetadata(context.Context, metadb.SendBanMutation) (metadb.SendBanResult, error) {
+	return metadb.SendBanResult{}, n.err
+}
+
 func TestChannelMetadataStoreRejectsOrdinaryReadsWithoutAuthoritativeCapability(t *testing.T) {
 	node := &localOnlyChannelMetadataNode{}
 	store := NewChannelMetadataStore(node, nil, nil)
@@ -535,4 +575,32 @@ func equalStringSlices(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// Atomic info updates must invalidate cached fanout flags, including when an
+// ambiguous proposal error may have committed. No stale pre-write row is safe.
+func TestAtomicChannelInfoInvalidatesAppendMetadata(t *testing.T) {
+	for _, result := range []error{nil, context.DeadlineExceeded} {
+		node := &atomicChannelInfoNode{err: result}
+		cache := NewChannelAppendMetadataCache()
+		id := channelappend.ChannelID{ID: "g1", Type: 2}
+		cache.Store(id, ChannelAppendMetadata{Large: false})
+		store := NewChannelMetadataStore(node, cache, nil)
+		_, err := store.UpdateChannelInfo(context.Background(), metadb.ChannelInfoMutation{ChannelID: id.ID, ChannelType: 2, Large: 1})
+		if !errors.Is(err, result) {
+			t.Fatalf("error = %v, want %v", err, result)
+		}
+		if _, ok := cache.Lookup(id); ok {
+			t.Fatal("atomic update retained stale append metadata")
+		}
+	}
+}
+
+type atomicChannelInfoNode struct {
+	recordingChannelMetadataNode
+	err error
+}
+
+func (n *atomicChannelInfoNode) UpdateChannelInfoMetadata(context.Context, metadb.ChannelInfoMutation) (metadb.SendBanResult, error) {
+	return metadb.SendBanResult{Status: "ok"}, n.err
 }

@@ -20,6 +20,7 @@ import (
 type Runtime struct {
 	cfg RuntimeConfig
 
+	// mu protects visible state and resource publication to startup ingress.
 	mu    sync.RWMutex
 	state ClusterState
 	watch chan StateEvent
@@ -83,8 +84,8 @@ func (r *Runtime) Stop(ctx context.Context) error {
 		return err
 	}
 	r.stopRefreshLoop()
-	if r.raft != nil {
-		return r.raft.Stop()
+	if service := r.raftService(); service != nil {
+		return service.Stop()
 	}
 	return nil
 }
@@ -101,11 +102,14 @@ func (r *Runtime) LocalState(ctx context.Context) (ClusterState, error) {
 
 // LeaderID returns the best-known Controller leader ID.
 func (r *Runtime) LeaderID() uint64 {
-	if r.raft != nil {
-		return r.raft.LeaderID()
+	r.mu.RLock()
+	service, client := r.raft, r.syncClient
+	r.mu.RUnlock()
+	if service != nil {
+		return service.LeaderID()
 	}
-	if r.syncClient != nil {
-		if leaderID := r.syncClient.LeaderID(); leaderID != 0 {
+	if client != nil {
+		if leaderID := client.LeaderID(); leaderID != 0 {
 			return leaderID
 		}
 	}
@@ -122,10 +126,11 @@ func (r *Runtime) ProbePropose(ctx context.Context) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
-	if r == nil || r.raft == nil {
+	service := r.raftService()
+	if service == nil {
 		return ErrNotStarted
 	}
-	return r.raft.ProbePropose(ctx)
+	return service.ProbePropose(ctx)
 }
 
 // ControllerRaftStatus returns the local Controller Raft status snapshot.
@@ -133,10 +138,11 @@ func (r *Runtime) ControllerRaftStatus(ctx context.Context) (RaftStatus, error) 
 	if err := ctxErr(ctx); err != nil {
 		return RaftStatus{}, err
 	}
-	if r == nil || r.raft == nil {
+	service := r.raftService()
+	if service == nil {
 		return RaftStatus{}, ErrNotStarted
 	}
-	return r.raft.Status(), nil
+	return service.Status(), nil
 }
 
 // CompactControllerRaftLog forces local Controller Raft log compaction.
@@ -144,10 +150,11 @@ func (r *Runtime) CompactControllerRaftLog(ctx context.Context) (LogCompactionRe
 	if err := ctxErr(ctx); err != nil {
 		return LogCompactionResult{}, err
 	}
-	if r == nil || r.raft == nil {
+	service := r.raftService()
+	if service == nil {
 		return LogCompactionResult{}, ErrNotStarted
 	}
-	return r.raft.CompactLog(ctx)
+	return service.CompactLog(ctx)
 }
 
 // Step applies an inbound Controller Raft message to the local Raft service.
@@ -155,9 +162,9 @@ func (r *Runtime) Step(ctx context.Context, msg raftpb.Message) error {
 	if r == nil {
 		return nil
 	}
-	r.mu.RLock()
-	service := r.raft
-	r.mu.RUnlock()
+	// Transport starts before the Controller. Snapshot its published service
+	// without holding the state lock while the bounded Step queue waits.
+	service := r.raftService()
 	if service == nil {
 		return nil
 	}
@@ -166,10 +173,16 @@ func (r *Runtime) Step(ctx context.Context, msg raftpb.Message) error {
 
 // GetState serves Controller state sync requests from local voter state.
 func (r *Runtime) GetState(ctx context.Context, req GetStateRequest) (GetStateResponse, error) {
-	if r == nil || r.syncServer == nil {
+	if r == nil {
 		return GetStateResponse{NotReady: true}, nil
 	}
-	return r.syncServer.GetState(ctx, req)
+	r.mu.RLock()
+	syncServer := r.syncServer
+	r.mu.RUnlock()
+	if syncServer == nil {
+		return GetStateResponse{NotReady: true}, nil
+	}
+	return syncServer.GetState(ctx, req)
 }
 
 // Watch returns state update events.
@@ -189,4 +202,15 @@ func ctxErr(ctx context.Context) error {
 		return nil
 	}
 	return ctx.Err()
+}
+
+// raftService snapshots the published service before any protocol or proposal
+// work. Each caller retains one generation and releases the lock before waiting.
+func (r *Runtime) raftService() *controllerraft.Service {
+	if r == nil {
+		return nil
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.raft
 }

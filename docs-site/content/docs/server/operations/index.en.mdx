@@ -1,43 +1,60 @@
 ---
 title: Operations
-description: Start with daily checks, then monitor, back up, scale, and upgrade WuKongIM safely.
+description: Check readiness, alerts, and backups first; choose a task, then follow the five-step change flow.
 ---
 
-If this is your first time operating WuKongIM, do not start by learning every metric and cluster term. Focus on three outcomes: **the service can accept traffic, someone will notice failures, and your data can actually be restored**.
-
-<Callout type="warn" title="A one-node deployment is still a cluster">
-  Even one node is a single-node cluster. Do not bypass Manager, Controller, or Slot behavior by editing data manually. WuKongIM always uses 256 physical hash slots; adding or removing nodes does not change that number.
-</Callout>
+Start with three outcomes: nodes can accept traffic, someone responds to alerts, and data has a verified backup.
 
 ## Do these three things first
 
-1. Request `/readyz` on every node. HTTP 200 means that the node can currently accept product traffic.
-2. Alert on readiness failures, rising errors, queue backlogs, and low disk space. Assign a person to respond.
-3. Create a backup plan in Manager, run **Test storage**, and confirm that at least one backup is complete and verified.
-
-Then choose the page that matches your task.
+1. Check `/readyz` on every node, then verify product messaging and recovery.
+2. Alert on readiness, errors, queues, and disk; assign a responder.
+3. Configure backups in Manager, test storage, and confirm at least one complete, verified backup.
 
 ## What do you need to do?
 
 <Cards>
-  <Card title="Use Manager" description="Sign in, inspect nodes and tasks, and perform administrative actions safely." href="/en/server/operations/manager" />
-  <Card title="Check service health" description="Understand /healthz, /readyz, metrics, and alerts." href="/en/server/operations/health-and-monitoring" />
-  <Card title="Add or remove nodes" description="Move work to a new node or safely drain an old one." href="/en/server/operations/scaling" />
-  <Card title="Back up or restore data" description="Create a verified backup and restore it during maintenance." href="/en/server/operations/backup-and-restore" />
-  <Card title="Upgrade WuKongIM" description="Check version compatibility before choosing a rolling or stopped upgrade." href="/en/server/operations/upgrade-and-migration" />
-  <Card title="v2 → v3 Offline Migration" description="Use wkcli migrate to migrate cold backups, verify data, and cut over clients." href="/en/server/operations/v2-to-v3-migration" />
-  <Card title="Troubleshoot a problem" description="Start from the symptom and narrow the problem with low-cost checks." href="/en/server/operations/troubleshooting" />
+  <Card title="Check service health" description="Verify readiness, product behavior, and monitoring separately." href="/en/server/operations/health-and-monitoring" />
+  <Card title="Troubleshoot a problem" description="Choose a symptom and narrow the problem using evidence." href="/en/server/operations/troubleshooting" />
+  <Card title="Use Manager" description="Sign in to inspect nodes, health, and tasks." href="/en/server/operations/manager" />
+  <Card title="Back up or restore data" description="Verify backups and restore during maintenance." href="/en/server/operations/backup-and-restore" />
+  <Card title="Add or remove nodes" description="Inspect migration tasks and safely drain old nodes." href="/en/server/operations/scaling" />
+  <Card title="Upgrade WuKongIM" description="Check compatibility and rollback before upgrading." href="/en/server/operations/upgrade-and-migration" />
+  <Card title="v2 → v3 Offline Migration" description="Migrate cold backups, verify data, then cut over clients." href="/en/server/operations/v2-to-v3-migration" />
 </Cards>
+
+<Callout type="warn" title="Single-node clusters follow the same procedures">
+  A single-node cluster still follows Manager, Controller, and Slot procedures. Do not bypass them by editing data manually. The 256 physical hash slots remain fixed when nodes change.
+</Callout>
 
 ## Use these five steps for every change
 
-| Step | What to do | Continue when |
-| --- | --- | --- |
-| 1. Record the current state | Save versions, configuration, node state, `/readyz`, and key metrics | You know what normal looked like before the change |
-| 2. Prepare a way back | Record the rollback method, owner, and stop conditions | Everyone knows who stops the change and how |
-| 3. Make a small change | Change one thing at a time; advance one node or a small task batch | The current step has finished |
-| 4. Test the product | Test sign-in or reconnect, message send and receive, and history | Product checks pass and nodes are ready again |
-| 5. Save the result | Keep task results, errors, metrics, and the final node list | Someone can later see exactly what happened |
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  baseline["①Record baseline"] --> rollback["②Prepare rollback"]
+  rollback --> change["③Change one step"]
+  change --> verify["④Readiness + business"]
+  verify --> save["⑤Save results"]
+```
+
+</div>
+
+<details>
+  <summary>What each step does and when to continue</summary>
+
+1. **Record the current state**: Save versions, configuration, node state, `/readyz`, and key metrics. Continue when: You know what normal looked like before the change.
+
+2. **Prepare a way back**: Record the rollback method, owner, and stop conditions. Continue when: Everyone knows who stops the change and how.
+
+3. **Make a small change**: Change one thing at a time; advance one node or a small task batch. Continue when: The current step has finished.
+
+4. **Test the product**: Test sign-in or reconnect, message send and receive, and history. Continue when: Product checks pass and nodes are ready again.
+
+5. **Save the result**: Keep task results, errors, metrics, and the final node list. Continue when: Someone can later see exactly what happened.
+
+</details>
 
 ## Stop if any of these happen
 

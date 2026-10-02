@@ -18,7 +18,7 @@ full index integrity audit or proof that all consumers completed.
 `MQTTReadSourceOwners` appends read kind 16 to the existing closed MQTT catalog.
 It accepts a limit of 1..64 and a complete source-owner cursor; the result contains
 only unique owners in encoded key order, an exact last-returned cursor and `Done`.
-It is a hash-Slot recovery read through Node/RPC 91's fresh barrier and pinned
+It is a hash-Slot recovery read through Node/RPC 106's fresh barrier and pinned
 snapshot, never an entity read or cache fallback. Empty pages preserve the input
 cursor. Insertion before a process cursor is discovered on the next wrap; callers
 revalidate source/Channel authority before work. Old peers reject the unknown

@@ -52,12 +52,31 @@ specification, runbook, report, or module documentation; link to them when neede
   reactor partitions. Shipped initialization creates 12 logical groups; omitted
   or zero `cluster.initial_slot_count` derives one. Existing clusters use the
   persisted Controller count; changing this setting does not resize them.
+- Slot Raft randomizes election waiting from `ElectionTick` through
+  `2*ElectionTick-1` ticks. Defaults (50 ms, 40 ticks) therefore allow 2–3.95 s
+  before campaigning; failover tests must cover this window plus bounded voting
+  and durable-apply time rather than treating three seconds as an upper bound.
 - Node snapshot application serializes watches and readiness probes, rejecting
   older logical revisions before maintenance, placement or task side effects.
   Watch notifications trigger a current Controller read rather than replaying
   queued task progress.
+  Reconciled routes, Slot readiness and committed health publish before initial
+  task setup. After startup, task changes wake the existing background owner
+  through one coalesced notification; it reads fresh Controller state and retains
+  serialized execution/cancellation. Task writes cannot hold snapshot publication
+  or readiness probes, and Stop joins the owner before storage closes.
   Equal revisions still refresh health and Controller leadership; logical revision
   does not version every health observation.
+- Node Stop and failed-start rollback release owned proposal/task adapters and
+  Slot status readers with their runtimes. A subsequent Start rebuilds them;
+  caller-injected adapters remain borrowed. Quorum RPC gateways belong to one
+  transport server and must be registered again when that server is recreated.
+  Recreated Slot proxies replace pending handlers before server registration;
+  registering the previous handlers first would retain a closed metadata store.
+- Controller Raft, state-sync and control/task ingress can arrive during startup.
+  Resource publication and ingress pointer reads use the same state lock,
+  released before Raft queue waits or FSM snapshots. Runtime Start/Stop calls
+  remain sequential; inbound transport need not wait for Start to complete.
 - Controller owns placement intent; observed Raft leadership is authoritative.
   `PreferredLeader` is not proof of the current leader, quorum, or replica health.
   Missing live evidence remains unknown. Controller planning writes use Raft proposals.
@@ -110,6 +129,34 @@ specification, runbook, report, or module documentation; link to them when neede
   committed entries after the snapshot index. A later stored applied watermark
   must not skip replay. WAL recovery may repair only an incomplete physical tail
   record in the newest segment; other corruption fails closed.
+- Slot startup can stream verified snapshot chunks into bounded metadata
+  batches before registering the Slot. A global physical-Slot pending marker
+  fences interrupted installs; completion atomically publishes the snapshot
+  watermark and clears the marker. Retry reinstalls the complete snapshot.
+  Runtime snapshot replacement remains atomic. Recovery progress logs use
+  `slot.recovery.progress`, never record keys or credentials, and throttle
+  same-stage updates to five seconds; completion refers to the startup
+  committed suffix, not gateway admission. A local applied index alone still
+  does not authorize skipping snapshot recovery.
+- Certified Slot startup additionally verifies physical metadata sequence continuity,
+  database incarnation, cluster/node/Slot ownership, snapshot content and the exact
+  Raft entry/configuration history. Business mutations and their proof share one
+  batch; unclassified or older-writer mutations invalidate reuse. Known disjoint
+  Slot writes invalidate only their own stale/absent proof, so multi-Slot upgrades
+  and snapshotless neighbors do not cause repeated full recovery. Migration
+  maintenance or uncertain ownership keeps global invalidation. An invalid
+  startup seal durably clears even unopened Slots before resealing. Compaction publishes
+  the replacement anchor after its durable Raft snapshot. Logs distinguish
+  `checkpoint_reuse` and `checkpoint_fallback`. Snapshotless legacy recovery
+  retains its watermark behavior; it gains no certificate until a real snapshot
+  establishes a new anchor. Small E2E success does not satisfy the three-million-
+  user Linux 2/4 GiB restart gate.
+- The 2026-09-27 three-million-user/device gate reproduced baseline startup OOM
+  at 2 GiB. Streaming recovery passed both caps; certified reuse used about
+  126–128 MiB RSS and completed Slot recovery in 0.22–0.24 s, while full ready
+  still took about 5.4 s. Normal, interrupted-install retry and complete row
+  inventory passed. See `docs/reports/2026-09-27-startup-recovery.md` for scope,
+  binary receipts, the fixed Pebble large-batch header pitfall and compatibility limits.
 - Controller WAL prefix deletion must preserve a durable, verifiable CRC starting
   point for the first retained segment. Rolling CRC state crosses segment
   boundaries in the legacy format; intact retained bytes alone cannot validate
@@ -224,6 +271,11 @@ specification, runbook, report, or module documentation; link to them when neede
   comparisons when restore changes `X-WK-Content-Epoch`. See the
   [message-update contract](../specs/message-update-api.md).
 
+- Large-group setup projects ordinary UID memberships in bounded physical-Slot
+  commands (128 rows, 256 KiB, 64 KiB UID bytes, two concurrent proposals).
+  Logical Hash Slots keep their ownership checks and migration filtering;
+  batching must not replace upsert/rejoin semantics with person ensure.
+
 ## Delivery and extension boundaries
 
 - [MQTT delivery scheduling](../specs/mqtt-delivery-scheduling.md) retains one
@@ -263,7 +315,7 @@ specification, runbook, report, or module documentation; link to them when neede
   UID projections are not receive-authority incarnations. Matched writers/tools,
   native snapshots and JSONL preserve live identities plus deleted high water;
   v2 migration retains legacy 1. See [the contract](../specs/mqtt-member-incarnation.md).
-  [Receive authority](../specs/mqtt-receive-authority.md) uses RPC 91 kind 19: a fresh
+  [Receive authority](../specs/mqtt-receive-authority.md) uses RPC 106 kind 19: a fresh
   Slot barrier and one pinned channel/member/sequence snapshot, bypassing the live
   channel cache. Group receive requires actual membership and no disband, ignores
   send mutes and returns the stable join incarnation; self inbox binds admitted UID.
@@ -293,7 +345,7 @@ specification, runbook, report, or module documentation; link to them when neede
   [Qualified accounting](../specs/mqtt-qualified-accounting.md) preserves original
   charge membership/bytes when options or expiry later change: cursor table 24
   System 1 stores bounded ranges, optional columns 25–27 hold version/head/tail,
-  command 69 operation 4 appends, and read kind 18 pins a coherent head. Admission
+  command 82 operation 4 appends, and read kind 18 pins a coherent head. Admission
   and release debit exact receipts; empty ranges allocate nothing. SourceDrain
   releases one range per turn and retains explicit pending until its fixed end.
   Matched nodes/tools and pre-feature backup rollback are required.
@@ -376,7 +428,7 @@ specification, runbook, report, or module documentation; link to them when neede
   The local MQTT owner registry bounds pending/active/closing reservations and
   admitted scopes. Begin synchronously checks its monotonic lease; cancellation
   or deadline expiry never proves that admitted effects drained. Quiescence
-  requires physical transport closure plus explicit scope completion. RPC 92
+  requires physical transport closure plus explicit scope completion. RPC 107
   echoes the exact owner and never treats another boot or network loss as proof.
   Gateway `CloseTransportAndWait` fences admission and joins the physical gnet
   CloseWithCallback independently of business cleanup. OnClose precedes residual
@@ -481,7 +533,7 @@ specification, runbook, report, or module documentation; link to them when neede
   [SourceDrain](../specs/mqtt-source-drain.md) seals the durable accounting end
   after subscription admission closes, then releases only Pending-minus-Inflight
   quota through the existing window command. ACK gaps and exchanges remain.
-  Interrupted preparation uses command 69 CancelInit (op 3), which requires
+  Interrupted preparation uses command 82 CancelInit (op 3), which requires
   closed/replaced intent and cannot reset a cursor; unknown starts still need
   replicated protection. Old peers reject op 3. Same-topic replacement and lost
   replies retain the original seal; a newer closure revision may equal stored intent.
@@ -557,11 +609,11 @@ specification, runbook, report, or module documentation; link to them when neede
   tails conservatively copy; later business copies all intervening controls. RPC 97
   reply v2 preserves the assertion; ordinary/error replies and requests stay v1.
   MQTT metadata facades route Session children by the frozen namespace/ClientID
-  hash and source bindings by ordinary Channel ID or UID. Read RPC 91 requires
+  hash and source bindings by ordinary Channel ID or UID. Read RPC 106 requires
   a fresh Slot barrier and pinned primary/index snapshot; recovery explicitly
   selects a logical hash Slot. Writes require committed conditional results.
   [Inbox admission checkpoints](../specs/mqtt-inbox-admission-checkpoint.md) use table 26 System 1,
-  command 74 and RPC 91 kind 21. Progress follows both canonical person UIDs;
+  command 74 and RPC 106 kind 21. Progress follows both canonical person UIDs;
   runtime deletion retains an invalidation with monotonic revision. Pinned reads
   expose the current directory generation separately from possibly stale progress.
   [Bounded admission turns](../specs/mqtt-inbox-admission-turn.md) reuse the pinned
@@ -703,7 +755,7 @@ specification, runbook, report, or module documentation; link to them when neede
   Replies echo the exact anchor and range. Reads
   grant no Session authorization, accounting, window admission or GC permission.
   Three-node integration verifies remote short pages after physical original trim.
-  Active-source discovery uses `MQTTReadSourceOwners` (read kind 16, Node/RPC 91):
+  Active-source discovery uses `MQTTReadSourceOwners` (read kind 16, Node/RPC 106):
   pinned retention-index prefix seeks return at most 64 distinct Channel sources,
   independently of subscriber count. Preparing/Removing obligations remain visible;
   Removed/UID rows are excluded. Each sampled index witness must match its primary.
@@ -877,8 +929,102 @@ specification, runbook, report, or module documentation; link to them when neede
   credit. Writes and ACK failures close without discarding durable exchanges.
   This adapter trusts caller admission/content/permission proof. Product scheduling,
   listener composition and full recovery acceptance remain required.
-- [MQTT inbox directory discovery](../specs/mqtt-inbox-directory.md) uses read kind 20 on RPC 91, routing by UID and scanning the existing membership primary key. Pages retain all types/tombstones, follow encoded length/bytes/type order, and never use mutable activation or personal visibility. Each page is pinned after a fresh authority barrier; this is not a multi-page snapshot. UID binding checkpoints use the same 4096-byte ID bound and preserve it through backup/restore; long checkpoints require matching binaries/tools. Future person sources still require committed UID registration followed by qualification/protection before first append; the current asynchronous directory task is insufficient. No new table is introduced.
-- [Inbox source preparation](../specs/mqtt-inbox-source-preparation.md) prepares one canonical person channel for one durable UID qualification, including offline Sessions. Source responsibility commits unknown before the boundary capture; command 69 initializes a cursor using the current stored owner/revision. No local connection scope or socket authority is created. Closed qualification/intent or ended/replaced lifetime skips new admission while retaining old debt; an expiry timestamp alone is not termination proof. This primitive does not implement initial directory projection or the future first-append handshake.
+- [MQTT inbox directory discovery](../specs/mqtt-inbox-directory.md) uses read kind 20 on RPC 106, routing by UID and scanning the existing membership primary key. Pages retain all types/tombstones, follow encoded length/bytes/type order, and never use mutable activation or personal visibility. Each page is pinned after a fresh authority barrier; this is not a multi-page snapshot. UID binding checkpoints use the same 4096-byte ID bound and preserve it through backup/restore; long checkpoints require matching binaries/tools. Future person sources still require committed UID registration followed by qualification/protection before first append; the current asynchronous directory task is insufficient. No new table is introduced.
+- [Inbox source preparation](../specs/mqtt-inbox-source-preparation.md) prepares one canonical person channel for one durable UID qualification, including offline Sessions. Source responsibility commits unknown before the boundary capture; command 82 initializes a cursor using the current stored owner/revision. No local connection scope or socket authority is created. Closed qualification/intent or ended/replaced lifetime skips new admission while retaining old debt; an expiry timestamp alone is not termination proof. This primitive does not implement initial directory projection or the future first-append handshake.
+- Replication peer queue length is not runnable work: Channel in-flight ownership
+  and earlier exchange kinds may block every item. Scheduling checks the same
+  selection barriers as batching, and exchange release wakes blocked classes.
+  Otherwise empty owners can repeatedly reschedule and allocate without sending.
+
+- [User/Channel Send Ban](../specs/user-channel-send-ban.md) separates UID-owned
+  global restrictions from source-Channel restrictions (both person directions).
+  Mandatory policies use fresh Slot barriers and request-scoped node-batched
+  reads; TTL applies only to auxiliary membership facts. System identities and
+  plugins cannot bypass bans. Explicit policy writes are atomic, versioned and
+  independent; credential/ordinary metadata writes preserve them. Format 2
+  requires matching binaries and new/imported data; no old-data migration is
+  included. Cross-ingress, non-replica, leader loss and isolated-leader rejection
+  and single/three-node restore have process-level evidence. Real plugin processes
+  also verify bans, restricted hook mutation and the in-flight boundary. The PDK
+  SendResp has no reason field: rejected SENDs return RPC errors with public
+  protocol reason codes, not successful zero-ID responses. Remaining fault-matrix
+  and performance qualification remain pending. See the [implementation report](../reports/2026-09-24-send-ban-implementation.md).
+
+- A full SEND shard can coexist with low aggregate gateway queue pressure.
+  The natural failure's single-session shards retained32 active records for
+  about1.25s; another225–228 admissions exactly filled the256-item queue.
+  Native waits were for append results. Preserve unfinished waits and freeze
+  admission evidence before teardown; completed-only maxima miss active work.
+  Linux engine `BytesPerSync=0` selects Pebble's512KiB default, not disabled
+  range writeback. See the [shard timeline](../reports/2026-09-27-send-ban-shard-timeline.md).
+
+- A same-binary 5,000-Channel / 4,500-SEND/s diagnostic passed with no injected
+  delay and reproduced EOF 1.59 seconds into repeated 380-ms message-WAL
+  completion holds. The rejected shard's 38 queued + 218 new admissions exactly
+  reached 256 while a 32-record batch remained occupied. Real syncs still ran;
+  injected sleeps and native syscalls are separate evidence. This establishes
+  sufficiency of slow completion, not the physical cause of natural sync stalls
+  or a production repair. See the [controlled window](../reports/2026-09-28-send-ban-sync-window.md).
+
+- A full 30-minute kernel-observed SEND run passed despite sampled message-WAL
+  page-writeback, journal and block-I/O waits. Bounded thread/FD snapshots locate
+  kernel wait stages, but repeated snapshots can be different syscalls and the
+  selected pressure peaks are not a whole-run latency distribution. A wait symbol
+  alone does not establish the earlier EOF cause or qualify an uninstrumented
+  run. See the [kernel observations](../reports/2026-09-28-send-ban-kernel-waits.md).
+
+- Raising SEND batch cap from32 to128 did not remove the controlled WAL-hold
+  EOF. Both runs kept256 queued records per shard; the larger active batch
+  increases total outstanding work and is not an original-load qualification.
+  Rejected32-arm batches held only15/18 records, while128-arm batches held128;
+  all exact queue balances reached256 during occupied handlers. Individual Go
+  wait spans are not entire handler durations. See the [batch boundary](../reports/2026-09-28-send-ban-batch-boundary.md).
+
+- Compaction throughput alone does not explain sustained gateway queue closure.
+  A same-binary diagnostic control completed30minutes, while16MiB/s compaction
+  pacing still failed with slow WAL and a full session shard. Pacing also changed
+  background progress; do not promote it as a repair or infer causality from one
+  pair. Keep original-load, uninstrumented qualification separate. See the
+  [controlled comparison](../reports/2026-09-27-send-ban-compaction-pace.md).
+
+- Exact proposal phases locate a controlled slow round at about 1.145 seconds:
+  about 378 ms before peer exchange, then 767 ms in exchange; local storage
+  proceeds concurrently. All twelve selected peer submissions find sixteen
+  observed open flights, and eighteen matched store calls spend 97.5–99.9% in
+  commit-coordinator result waits. Such waits include queued and executing time,
+  not a proven sequence of particular physical commits. There is no separate
+  foreground HW disk commit after quorum. Any pipeline repair must count queued,
+  executing and unpublished results in one fixed outstanding budget and retain
+  fresh permission, Channel order, ACK order and durable-before-success. The
+  natural physical I/O cause and R2/R6 qualification remain open. See the
+  [proposal dependency evidence](../reports/2026-09-28-send-ban-durable-phases.md).
+
+- Separating routed admission from result publication does not transfer all
+  ownership to one drain. OrderedSubmitter joins delegated calls and callbacks;
+  Group still owns writes that outlive a canceled routing result, while Gateway
+  must retain capacity for completed results awaiting ordered ACK publication.
+  The optional ordered module is not wired into product entries yet; its
+  contract tests do not qualify the original SEND pressure run.
+
+- Permission envelope admission is shared by local and remote reads. A typed
+  busy result can travel in a successful transport RPC; transport error counters
+  alone cannot prove admission success. Pressure evidence must separately retain
+  the permission admission/busy histogram count delta. The 5,000-channel
+  diagnostic has reproduced these rejections; sustained qualification is pending.
+  Admission now permits at most 64 executing and 1024 waiting envelopes, with
+  queued undecoded bytes capped at 16 MiB. Every concurrent send issues its own
+  envelope, so the waiting count must cover a full worker burst (256 unpaced
+  senders overflowed a 16-slot queue at 500 SEND/s in CI). Waiting precedes
+  decoding, lasts at most 2 s or caller cancellation, and never reuses a pre-wait
+  policy result or adds RPC retries. Full saturation still returns busy.
+
+- Backup Controller CAS reads must observe this adapter's completed mutations
+  before lease cleanup: a follower's older local snapshot can hide a committed
+  archive-operation lease. The adapter waits boundedly for local visibility,
+  without another RPC, and preserves no-op revisions and caller cancellation.
+  A fresh format-2 data root may contain only a pre-mounted `backup-repository`
+  directory/symlink; this exception never adopts an unregistered live database.
+
 - Send permissions belong in `internal/usecase/message` before append;
   `pkg/channel` stays business-rule free. Mutable recipient metadata and delivery
   tags are authoritative at their owning Slot/Channel leaders. Remote caches must
@@ -923,6 +1069,11 @@ specification, runbook, report, or module documentation; link to them when neede
   identity and authorization. Manager, Debug, Bench, and MCP are separate privileged
   surfaces. Bench setup uses gated `/bench/v1/*` APIs and a bearer capability when
   remotely reachable. Operations MCP uses its own token and read-only tool boundary.
+- Gateway token authentication compares the stored UID/device Token exactly;
+  Product HTTP credential updates have no expiry field and JWT `exp` is not
+  interpreted. Application backends own expiry, rotation, and revocation. Device
+  quit clears the stored Token and schedules matching handling-node connections
+  for closure; verify revocation and live connection closure separately.
 - Gateway direct/PROXY v1/v2 auto-detection accepts unverified peer address assertions
   when `proxy_protocol_trusted_cidrs` is empty. A nonempty list admits only configured
   proxy peers. These addresses are diagnostic inputs, not built-in token or message
@@ -943,6 +1094,8 @@ specification, runbook, report, or module documentation; link to them when neede
   turn an unknown commit into a definite conflict or mutation-retry permission.
   See [response contract](../specs/restore-admission-response.md).
 - `DATA-FORMAT.json` identifies immutable node-root format and creator provenance;
+  nonempty unregistered directories are rejected before writable engines open
+  and must never be automatically adopted or rewritten.
   it does not certify all proposal/RPC capabilities. Format-changing features need
   matching runtimes and feature-specific deployment checks. Where required,
   rollback restores the complete previous generation, not old writers on new rows.
@@ -979,6 +1132,14 @@ specification, runbook, report, or module documentation; link to them when neede
   rejected windows, missing telemetry, OOMs, or process restarts cannot establish
   production capacity or release qualification. Keep exact source/artifact identity
   and required workload evidence; see [performance triage](PERF_TRIAGE.md).
+- Fixed-arrival diagnostics must retain every planned ordinal, including driver
+  queue residence, rejected dispatch and incomplete work. Bounded queues keep
+  transient connection occupancy from silently changing the offered population;
+  scheduled-to-completion monotonic latency still includes all queue delay.
+  Preserve actual rendered TOML and full metric bodies for independent replay,
+  normalizing only predeclared exact fixture addresses/paths. A failed same-binary
+  repeatability control prevents attributing a candidate comparison; keep failed
+  populations and original performance thresholds unchanged.
 - Mixed SEND benchmark `stage-*` and `channel-*` diagnostics subtract registry
   snapshots taken after warmup and after measured handlers complete, before
   projector drain. `ResetTimer` alone never resets Prometheus counters. These
@@ -1006,6 +1167,10 @@ specification, runbook, report, or module documentation; link to them when neede
   Publish bilingual routes together and derive current versions from their canonical
   manifests/Changelog. Historical SDK or benchmark receipts do not certify newer
   artifacts. Keep public contracts separate from private interface inventories.
+- Public onboarding follows Docker single-node cluster → Chat Demo exchange →
+  platform SDK integration. Tutorial screenshots depict real versioned runs;
+  keep original captures and bilingual numbered captions aligned through
+  [the capture guide](../../docs-site/TUTORIAL_SCREENSHOTS.md).
 - Channel read RPCs classify typed temporary dependency transport failures before
   serialization using the existing not-ready code. Nested Slot-authority connection
   loss must not degrade into generic text and ordinary HTTP 400; unknown text,
@@ -1293,7 +1458,17 @@ specification, runbook, report, or module documentation; link to them when neede
 - The opt-in `demo/chatdemo` `test:integration` needs an explicitly supplied
   freshly built server and Playwright installation.
 
+- Chat Demo send retries reuse the original SDK `SendPacket` and `clientMsgNo`
+  only after an explicit failed SENDACK; a missing acknowledgement remains pending.
+  Mobile Back preserves the message view and draft in page memory. Drafts are not
+  durable, and reconnect retry ownership remains with the SDK.
+
 ## RPC host diagnostics
+
+- Durable-quorum Channel commits do not populate the reactor's legacy
+  recent-record cache. Quorum replication/repair owns its payload retention;
+  compatibility Pull cache misses use durable storage. Legacy append caching
+  remains enabled. This removes duplication, not the quorum retry evidence.
 
 - Host-sampled RPC runs are diagnostic evidence, not repeatability qualification.
   `scripts/transport-perf` records monotonic measurement anchors; cross-host
@@ -1440,3 +1615,130 @@ specification, runbook, report, or module documentation; link to them when neede
   requires persistent replay, independent ACK protection and zero debt after
   retirement/reopened delivery. This finite scenario does not qualify membership
   changes, arbitrary corruption, all partition permutations or other platforms.
+- The independent `/streamdemo/` uses pinned `easyjssdk@2.0.5`: online `Message` and `CustomEvent` only, with one full `/channel/messagesync` read on connection/reconnection for offline recovery. `/message/eventsync` is not its live transport. The chat demo has no streaming UI; its stream-message edit exclusion remains a server contract.
+- `/supportdemo/` embeds only its read-only UI. Its separate loopback Node business
+  process owns support sessions and generation leases; handoff joins cancelled
+  stream snapshots before allowing human acceptance. Support ownership is not a
+  built-in Channel permission or a Product HTTP authentication guarantee.
+- Real model generation is a demo-owned OpenAI-compatible SSE producer; its local Node relay is loopback-only and separate from the Product API. API keys are request-scoped and omitted from storage/logs/history. Model deltas still pass through `/message/event` and SDK EVENT delivery, with complete snapshots on finish, cancellation and failure.
+- Product stream EVENT dispatch first proves the committed stream base identity, then publishes accepted public events to authoritative current subscribers and exact fenced owner sessions. Four request-owned fanouts, 128-member pages, 512-route pages, 256 KiB RPC frames and a five-second dispatch budget bound pressure; no token queues, per-member goroutines, RECVACK state or offline token log are created. Producers serialize events within each message and clients deduplicate event IDs; UTF-8 `text_offset` reconciles deltas with recovered snapshots. Delivery failures cannot undo accepted event storage; finished projections reject late reopening and final history remains the recovery source.
+
+- `/agentdemo/` embeds only its read-only task assistant UI. The loopback Node
+  backend bounds task execution, validates a three-tool allowlist and requires
+  explicit approval before creating demo todos. SDK messages persist tool traces;
+  real-time reply deltas use SDK events, with history reads only on load/reconnect.
+  Business state and model keys remain in memory; a process restart requires a
+  new demo session.
+
+- Product HTTP `/` redirects to `/demos/`, a stateless embedded catalog linking
+  `/demo/`, `/streamdemo/`, `/supportdemo/` and `/agentdemo/`. The catalog does
+  not create sessions, connect an SDK or invoke models. Its loopback preview
+  redirects each entrance to the independently running Demo process.
+
+- `node demo/start.mjs` owns a fresh loopback-only 256-hash-slot single-node
+  cluster and the Demo business processes. It uses a new run directory, strips
+  inherited product overrides, and stops only its own child process groups.
+  Startup health probes do not create user credentials or model requests.
+
+- All four Demo UIs expose a home link. Catalog redirects carry a `home`
+  parameter across origins and reloads; it accepts only the same origin or
+  loopback catalog URLs. Direct embedded entries use their same-origin catalog;
+  direct Node entries publish the configured Product API catalog in page metadata.
+
+- Transport byte observations preserve frame kind and scheduling lane through
+  batched writes and the bounded observer drain. Fixed direction/lane counters
+  separate outbound Slot/Controller Raft payload bytes from other traffic;
+  they exclude wire/network overhead. Pressure evidence requires the Raft
+  series from every node at both measured-window boundaries; older binaries
+  retain null rather than relabeling total transport traffic.
+
+- Gateway SEND batching retains each session's contiguous directory-ready prefix
+  in input order. A cold head fences later items, hooks retain that order, and
+  terminal results publish through the session chain. The append runtime owns
+  same-Channel order and bounded parallel work across independent Channels;
+  usecase scheduling must not fragment a ready prefix into durable single-item
+  waits. The gateway joins a batch before dispatching that session's next batch.
+
+- Gateway ordering-shard count depends on worker count, total queue capacity
+  and SEND batch cap. Lowering only the batch cap can increase shard count and
+  shrink each session's burst budget. Validate the full configuration together;
+  a lower-cap pressure pass does not qualify changing the default cap alone.
+
+- Send-permission admission assigns execution capacity and removes the waiting
+  position under one mutex before waking the caller. A runnable assigned caller
+  already owns an execution position; cancellation/timeout must return it even
+  when the caller never enters decoding. Keep sixty-four executing envelopes (at most 256 Slot workers), the
+  waiting count/byte/time bounds, and fresh barriers unchanged together.
+
+- Optional message `SubmitBatchEach` joins permission/directory/hook preparation
+  before returning and transfers only append completion. Its injected admission
+  must bound accepted work and preserve canonical Channel order. Preparation
+  advances on submission, not completion; deadlines close only after preparation
+  and all results join. Callers still own cross-batch ACK order and reservations.
+  Default Gateway composition now wires this port through the bounded submitter.
+
+- Optional Gateway deferred handlers retain configured global/shard reservations
+  through preparation return, completion/error handling and actual session-ordered
+  publication across batches. Results waiting for an earlier ACK remain counted.
+  Per-session chains never hold the shard mutex while writing, clear completed
+  links and retire empty lanes. Default product composition activates this port.
+
+- Default Gateway SEND composition separates ordered permission preparation from
+  durable completion. The node-owned Channel submitter serializes overlapping
+  canonical Channels; Gateway retains its original record/byte reservations
+  until ordered physical-session ACK publication. Stop/restore must join both
+  owners before closing or restarting append dependencies. This mechanism alone
+  is not evidence that the 5,000-channel/4,500-SEND/s qualification passes.
+
+- Ordered submission can coalesce already-ready independent jobs within existing
+  micro-batch targets. One execution counts as one busy worker; original callbacks
+  retain their capacity and canonical Channel dependency until return. Both the
+  pipeline-only and coalescing candidates still fail the controlled WAL-stall
+  scenario; neither is evidence that the original high-load EOF is repaired.
+
+- First-rejection diagnostics must include published records awaiting release
+  fences, not only active ACK lanes. Under the controlled 380ms WAL floor, exact
+  retained Gateway heads joined to queued quorum jobs and Coordinator waits;
+  254–255 of 256 records awaited results. This rules out ACK ordering as the
+  dominant retained population in that capture, not the cause of natural I/O
+  stalls. A separate zero-hold permission-admission failure remains unresolved.
+
+- Gateway SEND batch caps are not physical commit caps. The exact physical
+  diagnostic found unlimited configured commit group counts/bytes, nearly empty
+  post-collection coordinator queues, and full quorum-worker execution while
+  hundreds of accepted proposals had not begun. Moving admitted work through a
+  bounded completion owner must retain original record/byte budgets and durable
+  quorum proof; increasing group caps does not address that observed boundary.
+
+- Durable-round continuations share the synchronous round's proof state machine.
+  Terminal publication waits for all planned submissions to transfer ownership;
+  duplicate/late callbacks never add votes. The round has no waiting goroutine
+  per proposal. Callers must retain bounded admission through completion; the
+  current log/worker still uses the synchronous wrapper until explicit wiring.
+
+- Channel worker ownership is atomically reserved before enqueue and retained
+  through result publication for every task sharing an asynchronous quorum pool.
+  Sampling deferred plus queue depth cannot enforce the shared bound under
+  concurrent admission or during queue-to-executor handoff.
+- Send-policy management audits use atomic apply results for previous/current
+  values and versions, never a preceding GET. Manager attribution uses its verified
+  principal; backend APIs record an unknown operator plus actual socket peer.
+  Timeout/unavailability records `outcome_unknown` without policy proof. Logs
+  omit credentials, payloads and raw downstream errors.
+
+- Permission execution capacity must cover quorum-read RTT as well as request
+  rate. The 500 SEND/s CI exposed deadline exhaustion with sixteen envelopes
+  when barriers slowed; sixty-four remain bounded, with 1 MiB per wire request
+  and reply. Independent slow-barrier local/remote burst regressions preserve
+  each caller's fresh barrier and cancellation. Queue count/bytes and the two-second
+  wait bound remain unchanged; cross-caller aggregation is tracked by #977.
+
+- Native package lifecycle bootstrap includes package installation before systemd PID 1. A bootstrap timeout does not prove a service start or installed package. Failure probes retain stage, PID 1, jobs and journals with five-second command bounds and 64 KiB output caps; unchanged 300-second bootstrap/900-second main validation deadlines remain separate from failure cleanup.
+
+- PR #998 main integration preserves existing main RPC 91/92 and Slot commands
+  67/68/69. Only unpublished MQTT metadata/owner RPCs move to 106/107 and
+  Session/subscription/cursor commands to 80/81/82; other MQTT IDs stay unchanged.
+  Pre-integration development Raft logs cannot be replayed as this catalog.
+  Use pre-MQTT data or a separately verified migration; matched peers/tools and
+  the existing cold rollout remain required. See
+  [integration evidence](../reports/mqtt-main-integration/README.md).

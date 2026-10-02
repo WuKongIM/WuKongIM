@@ -1150,6 +1150,23 @@ func TestObservationMetricsTreatsAbsentPerSlotResultsAsZero(t *testing.T) {
 	require.Equal(t, map[string]float64{"created": 7, "already_existing": 0, "error": 0}, snapshot.MetaCreatedTotal)
 }
 
+func TestObservationMetricsParsesOptionalSchedulerLatency(t *testing.T) {
+	scrape := strings.Join([]string{
+		`go_sched_latencies_seconds_bucket{le="+Inf"} 107`,
+		"go_sched_latencies_seconds_sum 0.25",
+		"go_sched_latencies_seconds_count 107",
+	}, "\n") + "\n"
+	snapshot, err := parseObservationMetrics([]byte(scrape))
+	require.NoError(t, err)
+	require.Equal(t, 0.25, snapshot.GoSchedLatencySumSeconds)
+	require.Equal(t, float64(107), snapshot.GoSchedLatencyCount)
+
+	// Nodes built before the scheduler collector stay valid without the family.
+	snapshot, err = parseObservationMetrics([]byte("go_goroutines 1\n"))
+	require.NoError(t, err)
+	require.Zero(t, snapshot.GoSchedLatencyCount)
+}
+
 func TestObservationMetricsUsesNodeRSSWhenProcessCollectorIsUnavailable(t *testing.T) {
 	common := []string{
 		"go_goroutines 42",

@@ -2,6 +2,8 @@ package plugin
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/WuKongIM/WuKongIM/internal/usecase/message"
@@ -49,7 +51,7 @@ func TestSendMessageMapsPluginRequestToMessageUsecase(t *testing.T) {
 }
 
 func TestSendMessagePreservesExplicitFromUID(t *testing.T) {
-	sender := &recordingMessageSender{}
+	sender := &recordingMessageSender{result: message.SendResult{Reason: message.ReasonSuccess}}
 	app, err := NewApp(Options{
 		Runtime:          &recordingRuntime{},
 		Invoker:          &recordingInvoker{},
@@ -110,4 +112,27 @@ func (s *recordingMessageSender) Send(_ context.Context, cmd message.SendCommand
 	s.calls++
 	s.last = cmd
 	return s.result, s.err
+}
+
+// Failure cases: policy rejection with no Go error must not become an OK host
+// response; transport errors retain
+// their identity and never publish a successful response.
+func TestSendMessageDoesNotAcknowledgeRejectedResult(t *testing.T) {
+	for _, reason := range []message.Reason{message.ReasonSendBan, message.ReasonDisband, message.ReasonNotAllowSend, message.ReasonUnsupported} {
+		t.Run(fmt.Sprintf("reason-%d", reason), func(t *testing.T) {
+			sender := &recordingMessageSender{result: message.SendResult{Reason: reason}}
+			app, err := NewApp(Options{Runtime: &recordingRuntime{}, Invoker: &recordingInvoker{}, Messages: sender})
+			require.NoError(t, err)
+			response, err := app.SendMessage(context.Background(), &pluginproto.SendReq{FromUid: "alice", ChannelId: "room", ChannelType: 2, Payload: []byte("blocked")}, "test-plugin")
+			require.EqualError(t, err, fmt.Sprintf("message send rejected: reason=%d", reason))
+			require.Nil(t, response)
+		})
+	}
+	sentinel := errors.New("sender unavailable")
+	sender := &recordingMessageSender{err: sentinel}
+	app, err := NewApp(Options{Runtime: &recordingRuntime{}, Invoker: &recordingInvoker{}, Messages: sender})
+	require.NoError(t, err)
+	response, err := app.SendMessage(context.Background(), &pluginproto.SendReq{FromUid: "alice", ChannelId: "room", ChannelType: 2, Payload: []byte("blocked")}, "test-plugin")
+	require.ErrorIs(t, err, sentinel)
+	require.Nil(t, response)
 }

@@ -58,10 +58,12 @@ const (
 	cmdTypeUnbindPluginUser                    uint8 = 43
 
 	// User field tags.
-	tagUserUID         uint8 = 1
-	tagUserToken       uint8 = 2
-	tagUserDeviceFlag  uint8 = 3
-	tagUserDeviceLevel uint8 = 4
+	tagUserUID            uint8 = 1
+	tagUserToken          uint8 = 2
+	tagUserDeviceFlag     uint8 = 3
+	tagUserDeviceLevel    uint8 = 4
+	tagUserSendBan        uint8 = 5
+	tagUserSendBanVersion uint8 = 6
 
 	// Device field tags.
 	tagDeviceUID   uint8 = 1
@@ -70,13 +72,15 @@ const (
 	tagDeviceLevel uint8 = 4
 
 	// Channel field tags.
-	tagChannelID            uint8 = 1
-	tagChannelType          uint8 = 2
-	tagChannelBan           uint8 = 3
-	tagChannelDisband       uint8 = 4
-	tagChannelSendBan       uint8 = 5
-	tagChannelAllowStranger uint8 = 6
-	tagChannelLarge         uint8 = 7
+	tagChannelID              uint8 = 1
+	tagChannelType            uint8 = 2
+	tagChannelBan             uint8 = 3
+	tagChannelDisband         uint8 = 4
+	tagChannelSendBan         uint8 = 5
+	tagChannelAllowStranger   uint8 = 6
+	tagChannelLarge           uint8 = 7
+	tagChannelSendBanVersion  uint8 = 8
+	tagChannelPreserveSendBan uint8 = 9
 
 	// Channel runtime metadata field tags.
 	tagRuntimeMetaChannelID            uint8 = 1
@@ -220,6 +224,8 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeMQTTWindowMutation:                  decodeMQTTWindowCommand,
 	cmdTypeMQTTDeliveryCursorMutation:          decodeMQTTDeliveryCursorCommand,
 	cmdTypeMQTTSubscriptionMutation:            decodeMQTTSubscriptionCommand,
+	cmdTypeSetSendBan:                          decodeSendBanCommand,
+	cmdTypeChannelInfo:                         decodeChannelInfoCommand,
 	cmdTypeUpsertUser:                          decodeUpsertUser,
 	cmdTypeUpsertChannel:                       decodeUpsertChannel,
 	cmdTypeDeleteChannel:                       decodeDeleteChannel,
@@ -248,6 +254,7 @@ var commandDecoders = map[uint8]commandDecoder{
 	cmdTypeCreateChannelRuntimeMeta:            decodeCreateChannelRuntimeMeta,
 	cmdTypeAdmitPersonDirectoryTaskBatch:       decodeAdmitPersonDirectoryTaskBatch,
 	cmdTypeEnsureUserChannelMembershipBatch:    decodeEnsureUserChannelMembershipBatch,
+	cmdTypeUpsertUserChannelMembershipBatch:    decodeUpsertUserChannelMembershipBatch,
 	cmdTypeCompletePersonDirectoryTaskBatch:    decodeCompletePersonDirectoryTaskBatch,
 	cmdTypeBindPluginUser:                      decodeBindPluginUser,
 	cmdTypeUnbindPluginUser:                    decodeUnbindPluginUser,
@@ -460,6 +467,9 @@ func EncodeChannelConditionalMutationResult(result *metadb.ChannelConditionalMut
 
 // DecodeChannelConditionalMutationResult decodes whether a conditional channel mutation applied.
 func DecodeChannelConditionalMutationResult(data []byte) (bool, error) {
+	if string(data) == ApplyResultStaleMeta || string(data) == ApplyResultHashSlotFenced {
+		return false, metadb.ErrStaleMeta
+	}
 	if len(data) != len(channelConditionalMutationResultMagic)+1 ||
 		!bytes.HasPrefix(data, channelConditionalMutationResultMagic[:]) {
 		return false, fmt.Errorf("%w: conditional channel mutation result", metadb.ErrCorruptValue)
@@ -685,12 +695,11 @@ func EncodeCreateUserCommand(u metadb.User) []byte {
 func encodeUserCommand(cmdType uint8, u metadb.User) []byte {
 	uidLen := len(u.UID)
 	tokenLen := len(u.Token)
-	// header + 2 string fields + 2 int64 fields
+	// header + 2 string fields + 4 numeric fields
 	size := headerSize +
 		tlvOverhead + uidLen +
 		tlvOverhead + tokenLen +
-		tlvOverhead + 8 +
-		tlvOverhead + 8
+		4*(tlvOverhead+8)
 
 	buf := make([]byte, size)
 	off := 0
@@ -703,7 +712,9 @@ func encodeUserCommand(cmdType uint8, u metadb.User) []byte {
 	off = putStringField(buf, off, tagUserUID, u.UID)
 	off = putStringField(buf, off, tagUserToken, u.Token)
 	off = putInt64Field(buf, off, tagUserDeviceFlag, u.DeviceFlag)
-	_ = putInt64Field(buf, off, tagUserDeviceLevel, u.DeviceLevel)
+	off = putInt64Field(buf, off, tagUserDeviceLevel, u.DeviceLevel)
+	off = putInt64Field(buf, off, tagUserSendBan, u.SendBan)
+	_ = putInt64Field(buf, off, tagUserSendBanVersion, int64(u.SendBanVersion))
 
 	return buf
 }
@@ -746,26 +757,23 @@ func EncodeCreateChannelCommand(ch metadb.Channel) []byte {
 
 // EncodePatchChannelBusinessFlagsCommand encodes an existing-only partial flag mutation.
 func EncodePatchChannelBusinessFlagsCommand(channelID string, channelType int64, flags metadb.ChannelBusinessFlags) []byte {
-	return encodeChannelCommand(cmdTypePatchChannelBusinessFlags, metadb.Channel{
+	raw := encodeChannelCommand(cmdTypePatchChannelBusinessFlags, metadb.Channel{
 		ChannelID:   channelID,
 		ChannelType: channelType,
 		Ban:         flags.Ban,
 		Disband:     flags.Disband,
 		SendBan:     flags.SendBan,
 	})
+	if flags.PreserveSendBan {
+		raw = appendInt64TLVField(raw, tagChannelPreserveSendBan, 1)
+	}
+	return raw
 }
 
 func encodeChannelCommand(commandType uint8, ch metadb.Channel) []byte {
 	idLen := len(ch.ChannelID)
-	// header + 1 string field + 6 int64 fields
-	size := headerSize +
-		tlvOverhead + idLen +
-		tlvOverhead + 8 +
-		tlvOverhead + 8 +
-		tlvOverhead + 8 +
-		tlvOverhead + 8 +
-		tlvOverhead + 8 +
-		tlvOverhead + 8
+	// header + 1 string field + 7 numeric fields
+	size := headerSize + tlvOverhead + idLen + 7*(tlvOverhead+8)
 
 	buf := make([]byte, size)
 	off := 0
@@ -781,7 +789,8 @@ func encodeChannelCommand(commandType uint8, ch metadb.Channel) []byte {
 	off = putInt64Field(buf, off, tagChannelDisband, ch.Disband)
 	off = putInt64Field(buf, off, tagChannelSendBan, ch.SendBan)
 	off = putInt64Field(buf, off, tagChannelAllowStranger, ch.AllowStranger)
-	_ = putInt64Field(buf, off, tagChannelLarge, ch.Large)
+	off = putInt64Field(buf, off, tagChannelLarge, ch.Large)
+	_ = putInt64Field(buf, off, tagChannelSendBanVersion, int64(ch.SendBanVersion))
 
 	return buf
 }
@@ -1565,6 +1574,16 @@ func decodeUser(data []byte) (metadb.User, error) {
 				return metadb.User{}, fmt.Errorf("%w: bad DeviceFlag length", metadb.ErrCorruptValue)
 			}
 			u.DeviceFlag = int64(binary.BigEndian.Uint64(value))
+		case tagUserSendBan:
+			if len(value) != 8 {
+				return metadb.User{}, metadb.ErrCorruptValue
+			}
+			u.SendBan = int64(binary.BigEndian.Uint64(value))
+		case tagUserSendBanVersion:
+			if len(value) != 8 {
+				return metadb.User{}, metadb.ErrCorruptValue
+			}
+			u.SendBanVersion = binary.BigEndian.Uint64(value)
 		case tagUserDeviceLevel:
 			if len(value) != 8 {
 				return metadb.User{}, fmt.Errorf("%w: bad DeviceLevel length", metadb.ErrCorruptValue)
@@ -1637,10 +1656,24 @@ func decodePatchChannelBusinessFlags(data []byte) (command, error) {
 	if err != nil {
 		return nil, err
 	}
+	preserve := false
+	for off := 0; off < len(data); {
+		tag, value, n, err := readTLV(data[off:])
+		if err != nil {
+			return nil, err
+		}
+		off += n
+		if tag == tagChannelPreserveSendBan {
+			if len(value) != 8 || binary.BigEndian.Uint64(value) > 1 {
+				return nil, metadb.ErrCorruptValue
+			}
+			preserve = binary.BigEndian.Uint64(value) == 1
+		}
+	}
 	return &patchChannelBusinessFlagsCmd{
 		channelID:   ch.ChannelID,
 		channelType: ch.ChannelType,
-		flags: metadb.ChannelBusinessFlags{
+		flags: metadb.ChannelBusinessFlags{PreserveSendBan: preserve,
 			Ban:     ch.Ban,
 			Disband: ch.Disband,
 			SendBan: ch.SendBan,
@@ -1685,6 +1718,11 @@ func decodeChannel(data []byte) (metadb.Channel, error) {
 				return metadb.Channel{}, fmt.Errorf("%w: bad AllowStranger length", metadb.ErrCorruptValue)
 			}
 			ch.AllowStranger = int64(binary.BigEndian.Uint64(value))
+		case tagChannelSendBanVersion:
+			if len(value) != 8 {
+				return metadb.Channel{}, metadb.ErrCorruptValue
+			}
+			ch.SendBanVersion = binary.BigEndian.Uint64(value)
 		case tagChannelLarge:
 			if len(value) != 8 {
 				return metadb.Channel{}, fmt.Errorf("%w: bad Large length", metadb.ErrCorruptValue)

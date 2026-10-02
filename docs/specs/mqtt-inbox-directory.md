@@ -35,7 +35,7 @@ bytes. Preserve a pre-feature backup for rollback.
 ## Contract
 
 Read kind 20, `MQTTReadInboxDirectory`, uses an `MQTTBindingUID` Owner and the
-existing RPC 91 authority path. It returns ordinary `user_channel_membership`
+existing RPC 106 authority path. It returns ordinary `user_channel_membership`
 primary keys through `Directory`, with a complete `After.Directory` ChannelKey.
 All channel types and tombstones remain candidates. It does not return or apply
 personal visibility state, source identity, authorization or retention permission.
