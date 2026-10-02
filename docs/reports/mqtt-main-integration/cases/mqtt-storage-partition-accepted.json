@@ -1,0 +1,99 @@
+{
+  "accepted": {
+    "message_id": 2105897752926883840,
+    "message_seq": 3,
+    "reason": 1
+  },
+  "channel_replicas": 3,
+  "cluster_bytes": 24576,
+  "final_reserved": [
+    0,
+    0,
+    0
+  ],
+  "hash_slots": 256,
+  "ingress_refusals": [
+    {
+      "node": 1,
+      "reason": 0,
+      "refused": true
+    },
+    {
+      "node": 2,
+      "reason": 0,
+      "refused": true
+    },
+    {
+      "node": 3,
+      "reason": 0,
+      "refused": true
+    }
+  ],
+  "last_phase": "complete",
+  "node_bytes": 8192,
+  "nodes": 3,
+  "partition_duration_ms": 35290,
+  "partition_links": {
+    "1-\u003e1": {
+      "forwarded": 1,
+      "closed": 0,
+      "refused": 0
+    },
+    "1-\u003e2": {
+      "forwarded": 9,
+      "closed": 0,
+      "refused": 0
+    },
+    "1-\u003e3": {
+      "forwarded": 9,
+      "closed": 9,
+      "refused": 1233
+    },
+    "2-\u003e1": {
+      "forwarded": 8,
+      "closed": 0,
+      "refused": 0
+    },
+    "2-\u003e3": {
+      "forwarded": 3,
+      "closed": 3,
+      "refused": 381
+    },
+    "3-\u003e1": {
+      "forwarded": 10,
+      "closed": 10,
+      "refused": 86
+    },
+    "3-\u003e2": {
+      "forwarded": 3,
+      "closed": 3,
+      "refused": 86
+    }
+  },
+  "passed": true,
+  "persistent_replay_preserved": true,
+  "reopened": {
+    "message_id": 2105898045932572672,
+    "message_seq": 7,
+    "reason": 1
+  },
+  "reserved_after_retirement": [
+    0,
+    0,
+    0
+  ],
+  "reserved_before_partition": [
+    5004,
+    5004,
+    5004
+  ],
+  "reserved_during_partition": [
+    5004,
+    5004,
+    5004
+  ],
+  "resubscriptions": 0,
+  "scenario": "mqtt-storage-partition",
+  "surviving_slot_quorum": true,
+  "unfinished_packet_id": 1
+}
