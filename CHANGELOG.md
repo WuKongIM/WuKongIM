@@ -8,6 +8,8 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Preserve bounded native-package bootstrap progress, PID 1, systemd jobs and boot journal diagnostics before removing a failed lifecycle container. / 原生包生命周期验证失败时，清理容器前保留有界安装阶段、PID 1、systemd 作业及启动日志诊断。
+
 - Simplify bilingual Controller and Slot architecture guides with compact materialization, staged-task, key-routing and metadata-write diagrams; retain complete references in disclosures while keeping physical/logical Slot, observed authority, single-node Raft/FSM, proof, recovery and bounded-capacity rules visible. / 中英文 Controller 与 Slot 架构文档增加简洁的物化、阶段任务、键路由与元数据写入图；完整参考按需展开，物理槽/逻辑 Group、实时权威、单节点 Raft/FSM、证明、恢复与有界容量规则保持可见。
 
 - Simplify bilingual connection routing and Transport guides with short activation, delivery and reconnect diagrams plus separate client/node network views; retain complete technical references in disclosures and keep lease, Session identity, device-conflict, backpressure, timeout, commit and private-network boundaries visible. / 中英文用户连接路由与 Transport 文档增加简洁的激活、投递、重连图和客户端/节点网络对照；完整技术参考按需展开，租约、Session 身份、设备冲突、背压、超时、提交与私网边界保持可见。

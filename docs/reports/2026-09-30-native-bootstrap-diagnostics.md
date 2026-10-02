@@ -1,0 +1,11 @@
+# Native bootstrap diagnostic coverage
+
+The failure in [Rocky Linux 9 job 109886906846](https://github.com/WuKongIM/WuKongIM/actions/runs/36714723624/job/109886906846) occurred while waiting for package bootstrap and systemd, before explicit service activation. Its empty Docker logs do not establish whether package installation completed. The cause remains unconfirmed.
+
+The launcher now writes fixed update/install/systemd-exec checkpoints to the container log and its private `/run` filesystem. On failure it captures the last checkpoint, PID 1 command, systemd state/jobs, boot journal, service status/journal and Docker log before removing its exact container. Each probe caps emitted output at 64 KiB and uses the existing watchdog with a five-second command deadline (TERM then, if needed, KILL five seconds later). Probe errors cannot replace the original exit code or suppress subsequent cleanup. The 300-second startup and 900-second main validation deadlines are unchanged; bounded failure collection and container removal follow validation.
+
+Failure-first static checkpoints and six shell integration fixtures failed against the original launcher, then passed with this change. The fixtures cover installer/systemd states, probe failure, probe timeout oversized logs, and a process that fills the output cap then hangs while ignoring PIPE/TERM. Review found the combined cap/hang could terminate the watchdog before cleanup; its failure-first fixture exceeded 25 seconds before the fix and passes after the watchdog ignores PIPE and tolerates notification write failure. They are controlled Docker-boundary tests, not evidence of a real Rocky boot. The full native-package static contracts also pass. Raw red/green receipts and frozen instruction digests are retained in the companion evidence archive.
+
+No package publication, failed-run retry or Workflow/policy edit was performed. Real four-distribution lifecycle validation remains owned by automatic source-preview CI.
+
+Automatic [native preview run 36722522390](https://github.com/WuKongIM/WuKongIM/actions/runs/36722522390) passed all four real distribution lifecycle jobs against the first diagnostic commit `77b515144ff924fa37369141929bb045d57e4cf1`. This does not identify the earlier Rocky failure cause. The subsequent cap/hang fix requires its own source-bound CI result.
