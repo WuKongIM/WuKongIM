@@ -1,38 +1,58 @@
 ---
 title: Web 快速接入
-description: 安装固定版本 SDK，通过业务后端提供的连接材料完成在线双向收发和退出清理。
+description: 跟着官方示例实图完成在线收发，再按需展开业务接入代码。
 ---
 
-本教程使用 **WK_EASYSDK_JAVASCRIPT_VERSION**，让 Alice 与 Bob 在两个独立客户端中在线收发。连接由 WebSocket JSON-RPC CONNECT 完成鉴权。
+使用 **WK_EASYSDK_JAVASCRIPT_VERSION**，让 Alice 与 Bob 在两个独立客户端中在线收发。
 
 ## 1. 准备接入
 
-准备以下条件：
+| 准备项 | 要求 |
+| --- | --- |
+| 浏览器 | 支持 WebSocket、`TextEncoder`、`TextDecoder` |
+| WuKongIM 集群 | 单节点或多节点集群，`/readyz` 正常，浏览器可达 WebSocket Gateway |
+| 业务后端 BFF | 验证产品 Session，返回当前用户的 `uid`、短期 `token` 和 `websocketUrl`；同源或正确配置跨域 |
 
-- 使用支持原生 WebSocket、`TextEncoder` 与 `TextDecoder` 的现代浏览器；
-- 一个 `/readyz` 正常且浏览器可访问 WebSocket Gateway 的 WuKongIM 单节点集群或多节点集群；
-- 一个同源或正确配置跨域策略的业务 BFF（面向客户端的业务后端）；
-- BFF 能在验证产品 Session 后返回当前用户的 `uid`、短期 `token` 与 `websocketUrl`。
+先按[运行官方示例](/zh/sdk/easy/examples#javascript)启动测试页。使用临时测试账号，分别打开 Alice 与 Bob 两个客户端；下文代码用于自己的应用。
 
-先阅读[身份与 Token](/zh/guide/integration/authentication)。生产页面与 WebSocket 使用 HTTPS/WSS，Token 不写入 URL、Local Storage、日志或分析事件。
+<TutorialScreenshot
+  src="/tutorials/easy-web/connect.jpg"
+  alt="Web EasySDK 官方测试页填写回环 WebSocket 地址、Alice 测试 UID 与临时 Token"
+  width={1240}
+  height={281}
+  marks={[{ x: 97, y: 22 }, { x: 97, y: 47 }, { x: 21, y: 88 }]}
+>
+  ① WebSocket 地址。② 当前用户 UID，Token 使用匹配的临时凭据。③ Connect。此为官方测试工具界面；生产应用从 BFF 获取凭据。
+</TutorialScreenshot>
 
-想先看到实际收发效果，可按[运行官方示例](/zh/sdk/easy/examples#javascript)准备两端；下文说明如何接入自己的应用。
-
-默认设备类别为 **WEB `1`**；业务后端保存 Token 时使用相同的 `device_flag`。APP 为 `0`，WEB 为 `1`，PC 为 `2`。
+先读[身份与 Token](/zh/guide/integration/authentication)。生产使用 HTTPS/WSS，不把 Token 写入 URL、Local Storage、日志或分析事件。SDK 默认设备类别为 **WEB `1`**，后端 `device_flag` 必须一致（APP `0`、PC `2`）。
 
 ## 2. 安装 SDK
 
-在现有 Vite、Next.js 或其他打包工程中执行：
+在 Vite、Next.js 等打包工程中执行，并提交锁文件：
 
 ```bash
 npm install --save-exact easyjssdk@WK_EASYSDK_JAVASCRIPT_VERSION
 ```
 
-提交 `package-lock.json`。本教程不使用 CDN 的浮动版本，避免页面刷新后静默更换 SDK。
-
 ## 3. 连接与监听
 
-下面的 `/api/im/bootstrap` 是你的产品接口，不是 WuKongIM Product HTTP。BFF 在服务端验证登录态、签发短期 Token，并安全选择 `/route` 返回的 WebSocket 地址：
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  bff["BFF 验证 Session<br/>返回连接材料"] --> listen["先注册监听<br/>Connect + Message"]
+  listen --> connect["CONNECT 鉴权<br/>完整等待限时 10 秒"]
+```
+
+</div>
+
+`/api/im/bootstrap` 是**你的产品接口**，不是 WuKongIM Product HTTP。浏览器不直接调用 `/user/token` 或 `/route`；服务端凭据、路由选择与响应筛选留在 BFF。
+
+以下三个代码段按顺序放进同一个 TS 模块。先取连接材料，再创建连接所有者，最后绑定页面。
+
+<details>
+  <summary>① 获取 BFF 连接材料</summary>
 
 ```ts
 interface IMBootstrap {
@@ -52,9 +72,10 @@ async function fetchIMBootstrap(): Promise<IMBootstrap> {
 }
 ```
 
-浏览器不能直接调用 `/user/token` 或 `/route`。这些接口的管理边界、服务端凭据和响应筛选都留在 BFF。
+</details>
 
-`on` 接收函数引用，`off` 必须拿到同一个引用。下面使用非全局单例模式，避免热更新、测试或多实例页面静默销毁另一个客户端：
+<details>
+  <summary>② 完整连接封装：监听、10 秒超时与销毁</summary>
 
 ```ts
 import { WKIM, WKIMChannelType, WKIMEvent, type RecvMessage } from 'easyjssdk';
@@ -141,13 +162,42 @@ export class EasyChatClient {
 }
 ```
 
-`debugLogging: false` 与 SDK 默认值相同，这里显式写出以便审查生产配置。只有在受控诊断窗口中才设置为 `true`；SDK 仍只会输出脱敏的运行元数据，应用自己的回调与采集器也不能记录完整事件、结果或 Payload。
+</details>
 
-应用通常只创建一个 `EasyChatClient`。SDK 的 CONNECT JSON-RPC 请求有内部超时，但 WebSocket 打开阶段仍可能悬挂；`connectWithin` 因此把完整等待限制为 10 秒，并在失败后 `destroy`。React 中可以在根级 Provider 持有它，并在 Effect 清理函数中调用 `stop()`；Vue/Svelte 同样在组件或应用卸载钩子里释放。
+`on` 和 `off` 使用同一函数引用；`singleton: false` 避免多实例或热更新互相销毁连接。完整连接等待限时 10 秒，失败后 `destroy`。应用通常只持有一个 `EasyChatClient`。
+
+<details>
+  <summary>组件生命周期与诊断日志</summary>
+
+React 可在根级 Provider 持有客户端，Effect 清理时调用 `stop()`；Vue/Svelte 在组件或应用卸载钩子里释放。SDK 的 CONNECT 请求有内部超时，但 WebSocket 打开阶段仍可能悬挂，因此需要限制完整等待。
+
+`debugLogging: false` 是默认值。仅在受控诊断窗口开启；SDK 只输出脱敏运行元数据，应用回调与采集器也不得记录完整事件、结果或 Payload。
+
+</details>
 
 ## 4. 收发第一条消息
 
-先在页面加入按钮和接收区。两端都连接成功后再点击发送；Bob 页面把目标 `bob` 改为 `alice`。界面只显示最近一条消息，不保留无界历史。
+1. 两端都确认出现 **Connected**。
+2. Alice 发给 Bob；发送端确认 **Message sent successfully**。
+3. Bob 确认 **Message received**；官方测试日志只显示序号与频道类型。
+4. Bob 回发 Alice，验证反向接收。
+
+<TutorialScreenshot
+  src="/tutorials/easy-web/exchange.jpg"
+  alt="Alice 的官方 EasySDK 测试页已连接，发送成功序号为 1，随后接收到 Bob 回发的序号 2"
+  width={1280}
+  height={1079}
+  marks={[{ x: 3, y: 39 }, { x: 35, y: 78.5 }, { x: 44, y: 80 }]}
+>
+  ① 目标使用对方 UID。② Alice 的发送请求成功。③ Alice 收到 Bob 的回发。发送结果与对方接收需要分别核对。
+</TutorialScreenshot>
+
+发送 Promise 成功代表服务端返回了发送结果，**不代表对方已读或已处理**。本页只验证在线收发；离线恢复、会话和未读见 [SDK 选择](/zh/sdk)。
+
+<details>
+  <summary>③ 页面按钮与接收区完整示例</summary>
+
+两端都连接后再发送。Alice 目标为 `bob`，Bob 改为 `alice`；它们表示各自业务 UID，需与 BFF 返回值一致。在自己的 Message 回调中核对 `fromUid`、`channelId`、`messageId` 和 Payload。页面只显示最近一条消息，避免无界历史。
 
 ```html
 <button id="send-message" disabled>Send</button>
@@ -184,27 +234,32 @@ button.onclick = async () => {
 };
 ```
 
-Alice 的 Promise 成功只代表发送请求收到了服务端结果。Bob 仍需在独立页面的 `WKIMEvent.Message` 回调中看到消息；不要把发送结果直接渲染成对方“已读”或“已处理”。
-
-1. 打开两个独立浏览器 Profile 或两个隔离的浏览器上下文，分别登录 Alice 与 Bob；
-2. 两端都从各自的产品 Session 获取连接材料并观察 `WKIMEvent.Connect`；
-3. Alice 向个人 Channel `bob` 发送消息，记录发送结果；
-4. Bob 核对 `fromUid`、`channelId`、`messageId` 和 Payload；
-5. Bob 向 Alice 回发，验证反向链路；
-6. 模拟不可达地址，确认 10 秒内失败并 `destroy`，页面不会永久停在 Connecting；
-7. 刷新、关闭或退出账号，确认旧实例已 `off` 并 `destroy`，没有重复连接。
+</details>
 
 ## 5. 清理连接
 
-退出账号、卸载应用或离开页面时调用 `chat.stop()`，用相同函数引用 `off` 后 `destroy()`。页面订阅者应移除自己的回调；连接所有者负责销毁实例。
+退出账号、卸载应用或离开页面时调用 `chat.stop()`：用原回调 `off`，再 `destroy()`。页面订阅者移除自己的回调，连接所有者销毁实例。
+
+<details>
+  <summary>补充验证：不可达地址与刷新</summary>
+
+用不可达地址确认 10 秒内失败并销毁，页面不会永久停在 Connecting。刷新、关闭或退出后，确认旧实例已经解绑并销毁，没有重复连接。
+
+</details>
 
 ## 6. 常见问题
 
-- **页面提示 WebSocket 或编码 API 不存在**：确认目标浏览器与构建环境提供 WebSocket、`TextEncoder`、`TextDecoder`；不要从浏览器路径推断小程序支持。
-- **连接前就被拒绝**：检查 BFF 返回的 WSS 地址、Token 时效、证书、代理 Upgrade 和 Gateway 可达性。
-- **刷新后重复收消息**：不要在每次组件渲染时调用 `on`；保留回调并在卸载时 `off`/`destroy`。
-- **Console 仍出现 Token 或 Payload**：先用锁文件与浏览器 bundle 确认实际打入 `easyjssdk@WK_EASYSDK_JAVASCRIPT_VERSION`，再检查应用事件回调、错误处理和采集器是否记录了完整对象。SDK 诊断默认关闭，显式开启时也只应输出脱敏运行元数据；用 npm 正式产物复现并保留低敏证据后再提交问题。
+| 现象 | 先检查 |
+| --- | --- |
+| 缺少 WebSocket 或编码 API | 浏览器与构建环境；浏览器支持不等于小程序支持 |
+| 连接被拒绝 | BFF 返回的 WSS 地址、Token 时效、证书、代理 Upgrade、Gateway 可达性 |
+| 刷新后重复收消息 | 避免每次渲染都 `on`；卸载时 `off` / `destroy` |
+| Console 出现 Token 或 Payload | 锁文件与 bundle 的实际 SDK 版本，以及应用回调、错误处理和采集器 |
+
+日志问题用固定版本 npm 产物复现，仅保留低敏证据。SDK 默认关闭诊断，开启后也只应输出脱敏运行元数据。
 
 ## 下一步
 
-继续阅读[消息收发](/zh/guide/integration/messaging)与[上线检查](/zh/guide/integration/acceptance)。需要离线恢复、会话、未读或推送时，先查看 [SDK 选择](/zh/sdk)。[版本与验证记录](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#javascript)保留各次验证的完整环境和范围。
+继续阅读[消息收发](/zh/guide/integration/messaging)与[上线检查](/zh/guide/integration/acceptance)。[版本与验证记录](https://github.com/WuKongIM/WuKongIM/blob/main/docs/superpowers/reports/2026-09-08-easysdk-validation-history.md#javascript)保留历史环境和范围；当前边界见 [API 版本与兼容性](/zh/api/compatibility)。
+
+需要接入大模型？跟随 [Agent 流式回复](/zh/sdk/easy/agent-streaming)更新同一条回答，并在后端保护模型密钥。

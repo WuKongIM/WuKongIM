@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="体验 WuKongIM 的四个 Demo：即时聊天、流式回复、在线客服和 Agent 任务助手。">
+  <meta name="theme-color" content="#f8f9f5">
+  <title>WuKongIM Demo · 从消息到任务</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%23ffda70'/%3E%3Ctext x='20' y='29' text-anchor='middle' font-family='sans-serif' font-size='27' font-weight='700'%3EW%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/demos/assets/home.css">
+</head>
+<body>
+  <svg class="icon-library" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="chat-icon" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 1-8 8H5l-3 3V11a9 9 0 0 1 18 0Z"/><path d="M7 10h8M7 14h5"/></symbol>
+    <symbol id="stream-icon" viewBox="0 0 24 24"><path d="M3 8h12M3 12h9M3 16h6M19 4v16M17 4h4M17 20h4"/></symbol>
+    <symbol id="support-icon" viewBox="0 0 24 24"><path d="M4 13v-2a8 8 0 0 1 16 0v2M4 11H2v7h4v-7ZM20 11h2v7h-4v-7ZM20 18v2h-6"/></symbol>
+    <symbol id="agent-icon" viewBox="0 0 24 24"><path d="m12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z"/></symbol>
+    <symbol id="arrow-icon" viewBox="0 0 24 24"><path d="M5 19 19 5M5 5h14v14"/></symbol>
+    <symbol id="check-icon" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  </svg>
+  <a class="skip-link" href="#demos">跳转到 Demo 列表</a>
+  <header class="site-header page-width">
+    <a class="brand" href="/demos/" aria-label="WuKongIM Demo 首页"><span class="brand-mark">W</span>WuKongIM<span class="brand-divider"></span><span class="brand-label">Demo</span></a>
+    <nav aria-label="首页导航">
+      <a class="nav-demos" href="#demos">探索 Demo</a>
+      <a href="https://github.com/WuKongIM/WuKongIM" target="_blank" rel="noopener">GitHub <svg><use href="#arrow-icon"/></svg></a>
+    </nav>
+  </header>
+  <main class="page-width">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <div class="eyebrow"><i></i> WUKONGIM PLAYGROUND</div>
+        <h1 id="hero-title">从<span>一条消息</span>，<br>到一个任务。</h1>
+        <p>选一个场景，亲手体验实时通信的更多可能。</p>
+        <div class="hero-note"><span class="live-dot"></span>真实消息链路 · 电脑和手机都能体验</div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+        <div class="orbit-center"><span>W</span></div>
+        <div class="orbit-node node-chat"><svg><use href="#chat-icon"/></svg></div>
+        <div class="orbit-node node-stream"><svg><use href="#stream-icon"/></svg></div>
+        <div class="orbit-node node-support"><svg><use href="#support-icon"/></svg></div>
+        <div class="orbit-node node-agent"><svg><use href="#agent-icon"/></svg></div>
+        <span class="orbit-caption">连接消息，也连接可能</span>
+      </div>
+    </section>
+    <section id="demos" aria-labelledby="demos-title">
+      <div class="section-heading"><h2 id="demos-title">找到你的场景 <span>4 个 Demo</span></h2><p>从基础聊天，到 Agent 执行。</p></div>
+      <div class="demo-grid">
+        <a class="demo-card chat-card" data-demo="chat" href="/demo/" aria-labelledby="chat-title" aria-describedby="chat-description">
+          <div class="card-preview chat-preview" aria-hidden="true">
+            <div class="mini-window">
+              <div class="mini-sidebar"><span class="mini-logo">W</span><span class="mini-contact active">林</span><span class="mini-contact">陈</span><span class="mini-contact">周</span></div>
+              <div class="mini-chat"><div class="mini-topline"><strong>林同学</strong><span><i></i>在线</span></div><div class="mini-bubble">下午一起讨论下新项目？</div><div class="mini-bubble mini-own">好呀，消息已经收到 ✓</div><div class="mini-compose"><span>发送一条消息…</span><b>↑</b></div></div>
+            </div>
+            <span class="preview-badge"><svg><use href="#check-icon"/></svg>实时送达</span>
+          </div>
+          <div class="card-content">
+            <div class="card-heading"><span class="scenario-icon"><svg><use href="#chat-icon"/></svg></span><span class="card-kicker">01 / MESSAGING</span></div>
+            <h3 id="chat-title">即时聊天</h3>
+            <p id="chat-description">从收发第一条消息开始，体验完整的聊天流程。</p>
+            <ul class="features"><li>单聊 / 群聊</li><li>消息编辑</li><li>历史恢复</li></ul>
+            <div class="card-action"><span>进入聊天 Demo</span><svg><use href="#arrow-icon"/></svg></div>
+          </div>
+        </a>
+        <a class="demo-card stream-card" data-demo="stream" href="/streamdemo/" aria-labelledby="stream-title" aria-describedby="stream-description">
+          <div class="card-preview stream-preview" aria-hidden="true">
+            <div class="mini-window stream-window"><div class="mini-topline"><strong><span class="mini-spark">✦</span>流式聊天</strong><span><i></i>正在回复</span></div><div class="mini-bubble mini-own">给我介绍一下 WuKongIM</div><div class="stream-answer"><span>WuKongIM 是一个高性能的</span><br><span>实时消息系统，让消息即时送达</span><i class="typing-cursor"></i></div><div class="stream-footer"><span class="mini-dot"></span>逐段生成<span class="stop-pill">停止生成</span></div></div>
+            <span class="preview-badge"><svg><use href="#stream-icon"/></svg>边生成，边送达</span>
+          </div>
+          <div class="card-content">
+            <div class="card-heading"><span class="scenario-icon"><svg><use href="#stream-icon"/></svg></span><span class="card-kicker">02 / STREAMING</span></div>
+            <h3 id="stream-title">流式回复</h3>
+            <p id="stream-description">看回复逐段出现，连接你自己的大模型。</p>
+            <ul class="features"><li>实时增量</li><li>真实模型</li><li>取消 / 失败</li></ul>
+            <div class="card-action"><span>进入流式 Demo</span><svg><use href="#arrow-icon"/></svg></div>
+          </div>
+        </a>
+        <a class="demo-card support-card" data-demo="support" href="/supportdemo/" aria-labelledby="support-title" aria-describedby="support-description">
+          <div class="card-preview support-preview" aria-hidden="true">
+            <div class="mini-window support-window"><div class="visitor-pane"><div class="mini-topline"><strong>访客端</strong><span class="mini-spark">✦</span></div><div class="mini-bubble">我的订单什么时候发货？</div><div class="mini-bubble mini-own">正在为你查询，请稍等。</div><span class="handoff-pill">转人工 →</span></div><div class="agent-pane"><div class="mini-topline"><strong>客服工作台</strong></div><div class="mini-ticket"><span class="ticket-avatar">林</span><div><strong>林同学</strong><small>等待接入</small></div><span class="accept-pill">接入</span></div><div class="mini-ticket muted"><span class="ticket-avatar">陈</span><div><strong>陈同学</strong><small>正在接待</small></div><i class="mini-dot"></i></div></div></div>
+            <span class="preview-badge"><svg><use href="#support-icon"/></svg>AI 与人工协作</span>
+          </div>
+          <div class="card-content">
+            <div class="card-heading"><span class="scenario-icon"><svg><use href="#support-icon"/></svg></span><span class="card-kicker">03 / CUSTOMER SUPPORT</span></div>
+            <h3 id="support-title">在线客服</h3>
+            <p id="support-description">从 AI 接待到人工接管，一屏体验服务两端。</p>
+            <ul class="features"><li>AI 接待</li><li>人工接管</li><li>多访客会话</li></ul>
+            <div class="card-action"><span>进入客服 Demo</span><svg><use href="#arrow-icon"/></svg></div>
+          </div>
+        </a>
+        <a class="demo-card agent-card" data-demo="agent" href="/agentdemo/" aria-labelledby="agent-title" aria-describedby="agent-description">
+          <div class="card-preview agent-preview" aria-hidden="true">
+            <div class="mini-window agent-window"><div class="mini-topline"><strong><span class="mini-spark">✦</span>小悟任务助手</strong><span><i></i>执行中</span></div><div class="mini-task">帮我检索接入资料，并创建待办</div><div class="mini-tool"><span>⌘</span><strong>检索资料</strong><span class="tool-complete">已完成 ✓</span></div><div class="mini-tool approval-tool"><span>⌘</span><strong>创建待办</strong><span class="approval-pill">等待确认</span></div><div class="mini-approval"><span>把执行过程交给工具，把决定留给你。</span><b>确认创建</b></div></div>
+            <span class="preview-badge"><svg><use href="#agent-icon"/></svg>从对话到行动</span>
+          </div>
+          <div class="card-content">
+            <div class="card-heading"><span class="scenario-icon"><svg><use href="#agent-icon"/></svg></span><span class="card-kicker">04 / AGENT</span></div>
+            <h3 id="agent-title">Agent 任务助手</h3>
+            <p id="agent-description">给它一个目标，观察工具调用，再确认执行。</p>
+            <ul class="features"><li>工具调用</li><li>执行确认</li><li>暂停 / 取消</li></ul>
+            <div class="card-action"><span>进入 Agent Demo</span><svg><use href="#arrow-icon"/></svg></div>
+          </div>
+        </a>
+      </div>
+    </section>
+    <section class="developer-note" aria-label="开发者提示"><div class="developer-icon">&lt;/&gt;</div><div><h2>从体验，走向你的产品。</h2><p>四个场景的接入代码，都在 <code>demo/</code> 目录中。</p></div><a href="https://github.com/WuKongIM/WuKongIM" target="_blank" rel="noopener">查看项目源码 <svg><use href="#arrow-icon"/></svg></a></section>
+  </main>
+  <footer class="site-footer page-width"><span><span class="footer-logo">W</span>WuKongIM · 消息连接一切</span><a href="#demos">选择一个 Demo，开始体验 ↑</a></footer>
+</body>
+</html>

@@ -5,29 +5,15 @@ description: Set up a WuKongIM multi-node cluster in three steps and check that 
 
 A multi-node cluster simply means **running the same WuKongIM service on several servers and keeping copies of data between them.** This example uses three servers.
 
+<div className="tutorial-diagram">
+
 ```mermaid
-flowchart TB
-  Client["Clients"]
-  Admin["Administrators"]
-  Nginx["One Nginx entry<br/>TCP 5100 / WSS 443<br/>Manager private HTTPS 5301"]
-
-  subgraph Cluster["WuKongIM cluster (3 independent servers)"]
-    Node1["Node 1<br/>10.0.0.11<br/>Independent disk"]
-    Node2["Node 2<br/>10.0.0.12<br/>Independent disk"]
-    Node3["Node 3<br/>10.0.0.13<br/>Independent disk"]
-    Network(["Private node network<br/>Port 7000, nodes only"])
-
-    Node1 -.- Network
-    Node2 -.- Network
-    Node3 -.- Network
-  end
-
-  Client --> Nginx
-  Admin -->|Management network or VPN| Nginx
-  Nginx --> Node1
-  Nginx --> Node2
-  Nginx --> Node3
+flowchart TD
+  client["Clients"] --> edge["Controlled entry<br/>TCP 5100 / WSS 443"]
+  edge --> nodes["Nodes 1, 2, 3<br/>Independent disks<br/>Private 7000, both ways"]
 ```
+
+</div>
 
 ## 1. Prepare three servers
 
@@ -44,6 +30,16 @@ Before you start, check three things:
 - the servers can reach each other on port `7000` over the private network.
 
 ## 2. Copy one cluster configuration
+
+| Setting | Value across the three servers |
+| --- | --- |
+| `node.id` | `1`, `2`, and `3` respectively |
+| `[cluster]` | Identical; use one random `join_token`, 256 hash slots, three replicas |
+| Local listener | `0.0.0.0:7000` is valid |
+| Peer addresses | Real private addresses; never `0.0.0.0` or `127.0.0.1` |
+
+<details>
+  <summary>Complete cluster TOML and copy steps</summary>
 
 Put these sections in `wukongim.toml` on every server. This is the configuration for server 1:
 
@@ -70,11 +66,33 @@ Copy the file to servers 2 and 3, changing only `node.id` to `2` and `3`. The `[
 
 `listen_addr` tells the current server where to listen, so `0.0.0.0` is valid there. The addresses in `nodes` tell the other servers how to connect, so they must be real private IP addresses—not `0.0.0.0` or `127.0.0.1`. See [Nodes & Cluster](/en/server/configuration/cluster) for other settings.
 
+</details>
+
+<Callout type="warn" title="Three servers leave no spare node">
+  With one node offline, existing channels can commit only when quorum and runtime conditions hold. New placement may fail and remaining nodes may return `503` from `/readyz`. Test existing traffic and new placement separately. Use **at least four servers** to retain new three-replica placement and full readiness with one offline.
+</Callout>
+
+<details>
+  <summary>Full three-replica failure-test constraints</summary>
+
 <Callout type="warn" title="Three servers leave no spare node">
   A three-replica channel has three nodes in its target replica set. With one node offline, existing channels can still commit when quorum and runtime requirements are met. New channel placement still requires enough eligible nodes, and `/readyz` checks that condition, so the remaining nodes may return `503`. Test existing-channel traffic and new-channel placement separately; neither proves the other. Use at least four servers if new three-replica channels and full readiness must remain available with one server offline.
 </Callout>
 
+</details>
+
 ## 3. Start and check the servers
+
+Start all three using [Docker](/en/server/deployment/docker) or [Linux](/en/server/deployment/linux), then verify:
+
+| Check | Required result |
+| --- | --- |
+| `/readyz` on every node | All return `200` with `{"ready":true}` |
+| Two-client test | One sends, the other receives; sync works after reconnect |
+| Load-balancer pool | Only nodes passing `/readyz` receive traffic |
+
+<details>
+  <summary>Per-node commands and message validation</summary>
 
 Start WuKongIM on all three servers using the [Docker](/en/server/deployment/docker) or [Linux](/en/server/deployment/linux) deployment, then check each one:
 
@@ -86,7 +104,14 @@ curl --fail http://10.0.0.13:5001/readyz
 
 After all three return `200` with `{"ready":true}`, send one test message. Confirm that another client receives it and can sync it after reconnecting. Finally, configure the load balancer to send traffic only to nodes whose `/readyz` check succeeds.
 
+</details>
+
 ### Open Manager
+
+Keep the JWT secret, admin password, and auth config identical on all nodes, with `auth_on = true`. Access Manager through a private network or VPN. Node port `5301` allows only the proxy and authorized admins; never public access.
+
+<details>
+  <summary>Complete Manager config and sign-in steps</summary>
 
 All three nodes must use the same Manager authentication configuration. Otherwise, login fails when Nginx sends a request to another node:
 
@@ -100,7 +125,16 @@ users = [{ username = "admin", password = "replace-with-the-same-strong-password
 
 Replace `jwt_secret` and the password with strong random values, then keep them identical on all three nodes. After the Nginx configuration below is active, open `https://manager.internal.example.com:5301` and sign in as `admin` with the configured password. See [Manager](/en/server/operations/manager) for details.
 
+</details>
+
 ### Add Nginx
+
+Configure TCP / WSS and private Manager ingress, publish the same edge address on every node, then validate and reload Nginx. Stream / Stream SSL modules are required; `stream` belongs at the top level.
+
+**Admission:** open-source Nginx does not actively check `/readyz`; remove unready nodes from `upstream`. One proxy is a single point of failure; use two behind one entry or a managed load balancer in production.
+
+<details>
+  <summary>Complete Nginx, published addresses, and reload steps</summary>
 
 This Nginx configuration distributes client TCP, WSS, and Manager connections. It requires the Nginx Stream and Stream SSL modules. Put `stream` at the top level of `nginx.conf`, not inside `http`:
 
@@ -164,4 +198,11 @@ external_wss_addr = "wss://im.example.com"
 
 Point `im.example.com` to the client entry. Resolve `manager.internal.example.com` only through private DNS to the Nginx management address `10.0.0.10`. Administrators connect over the management network or VPN; node port `5301` allows only this proxy and authorized management sources, never public access. Replace the management address and certificate paths, then run `sudo nginx -t && sudo systemctl reload nginx`. Open-source Nginx only skips a node temporarily after connection failures; it does not actively check `/readyz`. Production automation must remove a node from `upstream` while that node is not ready. The example reserves port `443` for WuKongIM. One Nginx server is also a single point of failure, so use two Nginx servers behind one entry address or use a managed load balancer in production.
 
+</details>
+
 After the cluster contains data, do not directly change the cluster ID, node IDs, `hash_slot_count`, or replica counts. Read [Scaling](/en/server/operations/scaling) before adding or removing nodes.
+
+<Cards>
+  <Card title="Check networks and client addresses" description="Verify connections from real client networks." href="/en/server/configuration/networking" />
+  <Card title="Inspect cluster readiness" description="Inspect health signals and Manager state." href="/en/server/operations/health-and-monitoring" />
+</Cards>

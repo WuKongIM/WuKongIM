@@ -1,16 +1,36 @@
 ---
 title: Prerequisites
-description: Prepare the Linux server, tools, and ports required by WuKongIM.
+description: Prepare Docker, a browser, and local ports for your first message exchange.
 ---
 
-## Linux server
+## Try it on your computer
 
-- CPU architecture: `amd64` / `x86_64`.
-- OS: Ubuntu 24.04, Debian 13, Rocky Linux 9, AlmaLinux 9, or RHEL 9.
-- The server can use `sudo` and reach `packages.githubim.com`.
-- Your computer can sign in to the server over SSH.
+- Install and start Docker; Docker Desktop is an option for macOS and Windows.
+- Use a browser that can open two independent sessions.
+- Keep local ports `5001`, `5100`, `5200`, and `5301` available.
 
-Check the server:
+```bash
+docker version
+```
+
+The output should include both Client and Server. Next: [start a single-node cluster with Docker](/en/server/deployment/docker).
+
+## Ports
+
+| Port | Purpose |
+| --- | --- |
+| `5001` | HTTP API, readiness, and Chat Demo |
+| `5100` | Client TCP |
+| `5200` | Client WebSocket |
+| `5301` | Manager |
+| `7001` | Node transport; no host port mapping needed |
+
+The example API and Manager ports bind only to your computer. Keep management ports off the public internet; use the Docker guide's SSH tunnel for a remote server.
+
+<details>
+<summary>Without Docker: prepare a Linux host</summary>
+
+Linux packages support `amd64` / `x86_64` on Ubuntu 24.04, Debian 13, Rocky Linux 9, AlmaLinux 9, or RHEL 9. You need `sudo`, `curl`, and access to `packages.githubim.com`; remote hosts also need SSH.
 
 ```bash
 uname -m
@@ -19,16 +39,6 @@ curl --version
 sudo -v
 ```
 
-## Required ports
+The package creates `/etc/wukongim`, `/var/lib/wukongim`, and `/var/log/wukongim`. Continue with the [Linux installation path](/en/guide/quick-start/single-node-cluster).
 
-| Port | Purpose |
-| --- | --- |
-| `5001` | HTTP API, readiness, and Chat Demo |
-| `5100` | Client TCP |
-| `5200` | Client WebSocket |
-| `5301` | Manager |
-| `7001` | Node transport |
-
-The quick start accesses these ports only through the server itself, so you do not need to expose them to the internet. A remote browser uses SSH forwarding; only SSH must be reachable.
-
-The package creates `/etc/wukongim`, `/var/lib/wukongim`, and `/var/log/wukongim`. When ready, [start the single-node cluster](/en/guide/quick-start/single-node-cluster).
+</details>

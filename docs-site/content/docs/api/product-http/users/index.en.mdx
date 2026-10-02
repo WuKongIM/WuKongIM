@@ -14,4 +14,6 @@ description: Device tokens, presence, and system identities.
 <Card href="/en/api/product-http/users/listSystemUIDs" title="List all system UIDs" description="Aggregates the complete persisted system UID set into one unbounded response." />
 <Card href="/en/api/product-http/users/addSystemUIDsToLocalCache" title="Add node-local system UID cache entries" description="Mutates only the current process cache and does not persist or replicate the change." />
 <Card href="/en/api/product-http/users/removeSystemUIDsFromLocalCache" title="Remove node-local system UID cache entries" description="Mutates only the current process cache and does not change durable system identities." />
+<Card href="/en/api/product-http/users/getUserSendBan" title="Read user send restriction" description="Read one current Slot-owned send policy without returning credentials." />
+<Card href="/en/api/product-http/users/setUserSendBan" title="Set user send restriction" description="Atomically set one send policy with optional decimal-string CAS; unchanged values retain the version." />
 </Cards>

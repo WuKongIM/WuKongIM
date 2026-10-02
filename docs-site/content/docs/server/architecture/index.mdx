@@ -3,13 +3,30 @@ title: 架构
 description: 从 Controller、Slot、Channel、Transport 和在线路由理解 WuKongIM 的集群边界。
 ---
 
-WuKongIM 把低频集群意图、分片元数据、有序消息日志和高频连接状态放在不同边界中。理解这些边界，比记住某个函数或进程内调用顺序更重要：故障切换、扩缩容和排障都依赖“谁对哪类状态有权威”。
+先分清三件事：Controller 安排集群，Slot 管元数据，Channel 保存有序消息。客户端收发还经过 Gateway、在线路由与 Transport。
 
 <Callout type="warn" title="所有部署都是集群">
   单节点部署也是单节点集群，仍然经过 Controller、Slot、Channel 和路由语义。默认路由表保持 256 个稳定的物理哈希槽；这些哈希槽会映射到数量可以不同的逻辑 Slot Raft Group，不能把两者当成同一个概念。
 </Callout>
 
 ## 架构地图
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  controller["Controller<br/>节点与分配"] -->|集群意图| slot["Slot<br/>用户与频道元数据"]
+  slot -->|元数据约束写入| channel["Channel<br/>有序消息日志"]
+```
+
+</div>
+
+箭头表示分配与元数据对消息层的约束。逐条消息的发送过程见[消息发送链路](/zh/server/architecture/message-flow)；在线投递发生在提交之后。
+
+<details>
+  <summary>完整架构图与两个平面</summary>
+
+WuKongIM 把低频集群意图、分片元数据、有序消息日志和高频连接状态放在不同边界中。理解这些边界，比记住某个函数或进程内调用顺序更重要：故障切换、扩缩容和排障都依赖“谁对哪类状态有权威”。
 
 ```mermaid
 flowchart TB
@@ -29,7 +46,20 @@ flowchart TB
 
 这张图包含两条不同的链路：Controller 与 Slot 提供控制和元数据权威，Channel 提供消息日志权威。在线投递发生在消息提交之后，不属于 Channel 的 quorum commit。
 
+</details>
+
 ## 五个主要边界
+
+<Cards>
+<Card title="Controller：集群计划" href="/zh/server/architecture/controller">管理节点分配与受控任务。</Card>
+<Card title="Slot：业务元数据" href="/zh/server/architecture/slots">管理用户、频道与订阅关系。</Card>
+<Card title="Channel：消息日志" href="/zh/server/architecture/channels">负责顺序、复制与已提交读取。</Card>
+<Card title="Gateway 与在线路由" href="/zh/server/architecture/user-routing">定位真实 Session 并完成在线投递。</Card>
+<Card title="Transport：节点通信" href="/zh/server/architecture/transport">承载有界 Raft、RPC 与复制流量。</Card>
+</Cards>
+
+<details>
+  <summary>完整职责与权威状态对照</summary>
 
 | 边界 | 权威状态 | 主要职责 | 不负责 |
 | --- | --- | --- | --- |
@@ -39,7 +69,14 @@ flowchart TB
 | Gateway 与在线运行时 | 连接 owner 节点和 UID 对应的 Presence Authority | 客户端会话、在线端点、跨节点投递 | 持久化在线状态或决定消息提交 |
 | Transport | 有界连接、队列和服务入口 | 节点间 Raft、RPC、复制和通知传输 | 业务授权或自动重试所有失败 |
 
+</details>
+
 ## 一次寻址的四层权威
+
+Controller 声明期望分配；实际 Slot Leader、term 与配置 epoch 决定元数据权威，Channel Leader、ISR 与 epoch 约束消息写入。只有真实 Session 的 owner 能写客户端。`PreferredLeader` 属于意图，缺少实时权威或新鲜度时保持未知。
+
+<details>
+  <summary>完整四层权威与新鲜度规则</summary>
 
 同一个业务请求可能依次遇到四种权威，它们不能互相替代：
 
@@ -50,7 +87,14 @@ flowchart TB
 
 `PreferredLeader` 只是 Controller 意图；实际 Raft Leader 才能服务当前请求。Manager 或诊断输出缺少实际 term、配置 epoch 或状态新鲜度时，应保持未知，而不是用意图补齐事实。
 
+</details>
+
 ## 数据放在哪里
+
+计划保存在 Controller Raft，元数据保存在 Slot 存储，消息保存在 Channel 副本。Session/在线端点、队列与缓存位于内存，受租约、有界容量与可重建生命周期约束。
+
+<details>
+  <summary>完整数据位置与生命周期表</summary>
 
 | 数据 | 典型位置 | 生命周期 |
 | --- | --- | --- |
@@ -60,7 +104,14 @@ flowchart TB
 | 连接与在线端点 | owner 节点和 Presence Authority 内存 | 高频、租约与 Session 生命周期 |
 | 传输队列与运行时缓存 | 节点进程内 | 有界、可重建、受背压保护 |
 
+</details>
+
 ## 继续阅读
+
+跟踪消息读[消息发送链路](/zh/server/architecture/message-flow)，寻找 Session 读[用户连接路由](/zh/server/architecture/user-routing)，处理异常看[故障排查](/zh/server/operations/troubleshooting)与[诊断能力](/zh/server/tools/diagnostics)。
+
+<details>
+  <summary>完整架构阅读清单</summary>
 
 - [Controller 控制层](/zh/server/architecture/controller)：理解集群意图、物化状态和任务 fence。
 - [Slot 元数据层](/zh/server/architecture/slots)：理解 256 个物理哈希槽如何映射到逻辑 Raft Group。
@@ -70,3 +121,5 @@ flowchart TB
 - [用户连接路由](/zh/server/architecture/user-routing)：理解本地 Session、Presence Authority 和跨节点推送。
 
 需要把这些边界用于实际故障判断时，继续阅读[故障排查](/zh/server/operations/troubleshooting)和[诊断能力](/zh/server/tools/diagnostics)。
+
+</details>

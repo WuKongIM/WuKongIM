@@ -1,36 +1,31 @@
 ---
 title: Direct Chat
-description: Implement durable messages, online delivery, offline sync, unread state, and multi-device recovery between two users.
+description: Connect two users, send and receive, then verify recovery with diagrams and real captures.
 ---
 
-This tutorial uses `alice` and `bob`. The target outcome is that both endpoints connect with their own product identity, Alice publishes one durable message to Bob's person Channel, Bob can receive it online or recover it after reconnect, and Bob can manage unread state for their account.
+Goal: Alice sends to Bob, Bob replies, and missing persistent messages recover through the chosen SDK path.
 
-## Before you start
-
-- Complete [Start a Single-node Cluster](/en/guide/quick-start/single-node-cluster) or prepare a test cluster.
-- Understand the current Beta limits in [Authentication](/en/guide/integration/authentication).
-- Run HTTP examples only locally or inside a protected product-service network.
+<div className="tutorial-diagram">
 
 ```mermaid
-sequenceDiagram
-  participant Alice as Alice product Session
-  participant Gateway
-  participant Channel as Canonical direct Channel
-  participant Bob as Bob product Session
-  Alice->>Gateway: SDK CONNECT
-  Bob->>Gateway: SDK CONNECT
-  Alice->>Gateway: SEND peer=bob, type=1
-  Gateway->>Channel: canonicalize and append
-  Channel-->>Alice: SENDACK after quorum commit
-  alt Bob is online
-    Channel-->>Bob: RECV
-  else Bob is offline
-    Bob->>Channel: synchronize after reconnect
-    Channel-->>Bob: missing messages
-  end
+flowchart TD
+  connect["1. Connect both users"] --> send["2. Alice sends<br/>to bob, type = 1"]
+  send --> receive["3. Bob receives + replies"]
+  receive --> recover["4. Test offline recovery"]
 ```
 
-## 1. Establish product identities
+</div>
+
+## 1. Connect both users
+
+Prepare a [single-node cluster](/en/server/deployment/docker) and two independent clients. Start with the [Web two-user example](/en/sdk/javascript/quickstart), or use the [Chat Demo](/en/guide/quick-start/first-message) for an initial exchange.
+
+Your backend owns login, friendship, bans, and token issuance. Use stable UIDs and matching device categories. Protect Product HTTP; enforce token expiry, rotation, and revocation as described in [Authentication](/en/guide/integration/authentication).
+
+**Check:** both clients reach a connected, send-ready state. Run HTTP examples only from your trusted backend or protected test network.
+
+<details>
+  <summary>Prepare test credentials from the backend</summary>
 
 The product service owns account login, friendship, bans, and content policy. Choose stable UIDs for the two test users; do not substitute a nickname, connection ID, or device ID for the UID.
 
@@ -42,13 +37,20 @@ curl -sS http://127.0.0.1:5001/user/token \
   -d '{"uid":"alice","token":"alice-local-only","device_flag":1,"device_level":1}'
 ```
 
-<Callout type="warn" title="The built-in check is not a complete production identity system">
-  The default v3 Beta Gateway requires the CONNECT token to exactly match the stored token for the same UID and device category. Before production, protect `/user/token`, implement expiry and rotation policy, and prove that invalid, revoked, and product-expired tokens cannot connect.
-</Callout>
+
 
 Store separate metadata for Bob, then connect both clients with their own UID, device identity, and token. If no SDK integration exists yet, use the [embedded Chat Demo](/en/guide/quick-start/first-message) to validate two browser sessions first.
 
-## 2. Send a person message
+</details>
+
+## 2. Send to the peer UID
+
+Alice sends to `channel_id=bob`, `channel_type=1`. Bob replies to `channel_id=alice`. Let the server normalize the internal person Channel ID.
+
+Retain a stable `client_msg_no`. For an uncertain result, preserve the same logical-send identity and use the supported retry path. **Check:** inspect SENDACK or HTTP `reason=1` for the default persistent send; this does not prove reception or reading.
+
+<details>
+  <summary>Backend send: text format and complete request</summary>
 
 The client uses the **peer UID** as `channel_id` and sets `channel_type=1`. Do not construct or persist the internal canonical person Channel ID; the server normalizes it from sender and receiver UIDs.
 
@@ -76,7 +78,45 @@ curl -sS http://127.0.0.1:5001/message/send \
 
 Retain a stable, unique `client_msg_no`. If the network outcome is unclear, retry the same logical send with the same number instead of creating a duplicate with a new number. HTTP `reason=1` means the durable send reached durable Channel commit; it does not mean every Bob device received it.
 
-## 3. Verify online and offline results
+</details>
+
+## 3. Verify reception and reply
+
+Bob receives Alice's exact text once and replies; Alice independently verifies reception. Do not substitute the sender's success indicator for this check.
+
+<TutorialScreenshot
+  src="/tutorials/first-message/exchange-en.jpg"
+  alt="Bob's Chat Demo receives hello from alice and replies hello from bob"
+  width={1280}
+  height={280}
+  marks={[{ x: 42, y: 57 }, { x: 81, y: 82 }]}
+>
+  ① Bob receives. ② Bob replies. The real Chat Demo capture uses the `quickstart-alice` / `quickstart-bob` test UIDs; it does not prove a read receipt. Click for the original.
+</TutorialScreenshot>
+
+## 4. Test disconnect and recovery
+
+Disconnect Bob, send a new persistent message from Alice, then reconnect Bob. Verify the missing message appears once, with the correct Channel order.
+
+| SDK path | Recovery check |
+| --- | --- |
+| Full SDK | Synchronize missing persistent messages and merge/deduplicate online and recovered results |
+| EasySDK | Verify online reconnect; history, conversations, and unread recovery require your backend implementation |
+
+NoPersist has no durable history or offline recovery. `message_seq` orders one Channel, not all chats.
+
+<TutorialScreenshot
+  src="/tutorials/web-sdk/recovery.jpg"
+  alt="The Web example recovers one missing message through SYNCED after Bob reconnects"
+  width={1280}
+  height={720}
+  marks={[{ x: 53, y: 78 }, { x: 53, y: 83 }]}
+>
+  ① SYNCED is the recovered message. ② Sync complete · 1 recovered is this run’s result. This is the full Web SDK example, not automatic EasySDK history sync. Click for the original.
+</TutorialScreenshot>
+
+<details>
+  <summary>Backend history query and merge rules</summary>
 
 An online Bob should receive `RECV` and send `RECVACK` after processing it. Verify the durable log through the compatibility sync route; a person-Channel query still uses the peer UID:
 
@@ -95,7 +135,10 @@ curl -sS http://127.0.0.1:5001/channel/messagesync \
 
 The response maps `channel_id` back to `alice`; `message_seq` is ordered only within this person Channel. Merge online delivery and reconnect sync by message ID, `client_msg_no`, and Channel sequence while tolerating duplicate arrival.
 
-## 4. Inspect conversation and unread state
+</details>
+
+<details>
+  <summary>Account conversation and unread checks</summary>
 
 ```bash
 curl -sS http://127.0.0.1:5001/conversation/list \
@@ -113,7 +156,10 @@ curl -sS http://127.0.0.1:5001/conversations/clearUnread \
 
 `clearUnread` advances Bob's read position (`read_seq`) to the newest committed ordinary message. Messages arriving during the operation can also have their unread badge cleared; this does not prove to Alice which messages Bob actually read. Other devices using the same UID see the update after synchronization.
 
-## 5. Test multi-device recovery
+</details>
+
+<details>
+  <summary>Multiple devices and release scenarios</summary>
 
 1. Connect a second Bob Session with a different `device_id`.
 2. Define the product's primary/secondary-device conflict policy; one UID does not imply one connection.
@@ -122,3 +168,7 @@ curl -sS http://127.0.0.1:5001/conversations/clearUnread \
 5. Verify that online delivery, offline recovery, and account unread state are not treated as one completion signal.
 
 Before launch, also test friendship removal, denylist policy, token revocation, disconnect retries, duplicate sends, direct-Channel distribution, and duplicate webhook consumption. Continue with [Groups & Large Groups](/en/guide/tutorials/large-groups) or [Messaging](/en/guide/integration/messaging).
+
+</details>
+
+Next: [Groups & Large Groups](/en/guide/tutorials/large-groups) and [release checks](/en/guide/integration/acceptance). Capture versions are recorded in the [Web tutorial](/en/sdk/javascript/quickstart).

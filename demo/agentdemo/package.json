@@ -1,0 +1,19 @@
+{
+  "name": "wukongim-agent-demo",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && tsc -p tsconfig.model.json && vite build",
+    "start": "node server.mjs",
+    "dev": "npm run build && npm start",
+    "test:integration": "node test/agent.integration.mjs"
+  },
+  "dependencies": {
+    "easyjssdk": "2.0.5"
+  },
+  "devDependencies": {
+    "typescript": "5.5.4",
+    "vite": "8.3.1"
+  }
+}

@@ -1,11 +1,29 @@
 ---
 title: Upgrade & Migration
-description: Use release notes to choose a rolling or stopped upgrade and preserve a safe rollback point.
+description: Choose from release evidence, then follow the rolling or stopped upgrade flow; expand full checks and actions.
 ---
 
 Before upgrading, answer one question: **do the target release notes explicitly allow the target and current versions to run together?** Do not guess based on cluster size or past experience.
 
+**Moving from v2 to v3?** Use the [offline migration procedure](/en/server/operations/v2-to-v3-migration), not the upgrade flows below.
+
 ## Choose the upgrade method
+
+<Callout type="warn" title="Do not mix versions by default">
+  Rolling upgrades require explicit release-note support, including order and time limit. Silent, unclear, or incompatible notes mean a stopped upgrade, or pause and ask the release owner.
+</Callout>
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  notes["①Read release notes"] --> compatible["②Mixed versions<br/>explicitly allowed?"]
+  compatible --> choose["③Yes: rolling<br/>Otherwise: stopped"]
+```
+
+</div>
+<details>
+  <summary>Complete version decision table and compatibility rule</summary>
 
 | Situation | Method |
 | --- | --- |
@@ -17,7 +35,20 @@ Before upgrading, answer one question: **do the target release notes explicitly 
   Use a rolling upgrade only when the target release documentation explicitly confirms compatibility. Without that evidence, use a stopped upgrade or pause and ask the release owner.
 </Callout>
 
+</details>
+
 ## Before you start
+
+First confirm three things:
+
+1. Exact versions and digests, compatibility, order, mixed-version deadline, and rollback boundary are known.
+2. Storage is tested, a complete archive is verified, and restore is rehearsed.
+3. Readiness, metrics, and product checks have a recorded baseline.
+
+**Unknown checks mean pause.** Do not begin a rolling upgrade when any preflight item is unclear.
+
+<details>
+  <summary>Complete preflight check list</summary>
 
 - Record the current and target versions and the digest of every package or image.
 - Read the target release's compatibility notes for protocols, storage, configuration, Controller, Slots, and Channels.
@@ -29,7 +60,29 @@ Before upgrading, answer one question: **do the target release notes explicitly 
 
 Do not begin a rolling upgrade if any item is unknown.
 
+</details>
+
 ## Rolling upgrade
+
+**Only with explicit compatibility:** One node at a time; keep its ID and data directory unchanged and obey the release-specific order and mixed-version deadline.
+
+Pause scaling, backup/restore, and unrelated configuration changes first.
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  drain["①Remove traffic<br/>Drain one node"] --> restart["②Restart node<br/>Target version"]
+  restart --> check["③Readiness +<br/>product checks"]
+  check --> next["④Stable first<br/>Then next node"]
+```
+
+</div>
+
+Confirm `/readyz` is 200 and Controller, Slots, Channels, errors, and queues are healthy. Then test messaging, reconnect, history, and downstream integrations with a small amount of traffic. Advance only after this node is stable. Keep headroom for reconnects and warm-up; after completion, observe a full product peak and save results.
+
+<details>
+  <summary>Complete rolling upgrade sequence</summary>
 
 Use this only when the release notes explicitly allow mixed versions:
 
@@ -43,7 +96,26 @@ Use this only when the release notes explicitly allow mixed versions:
 
 Large groups, high message rates, and many online users amplify reconnect and cache warm-up pressure. Keep capacity headroom during the upgrade.
 
+</details>
+
 ## Stopped maintenance upgrade
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  drain["①Stop traffic<br/>Drain writes"] --> restart["②Same version<br/>Ordered restart"]
+  restart --> admit["③Ready + tested<br/>Gradual traffic"]
+```
+
+</div>
+
+Complete backup verification, rollback rehearsal, and downtime communication first. Drain writes and downstream delivery. Follow the release's stop/start order; do not stop every Controller voter together while coordination is needed.
+
+**Before traffic:** Every node passes `/readyz`; nodes, Controller, and logical Slots are stable; product tests pass. Restore traffic gradually and stop on unknown state or new errors.
+
+<details>
+  <summary>Complete stopped upgrade sequence</summary>
 
 Use this when the release notes do not explicitly allow mixed versions:
 
@@ -54,14 +126,32 @@ Use this when the release notes do not explicitly allow mixed versions:
 5. Wait for all nodes, Controller, and all logical Slots to stabilize and for `/readyz` to return 200 on every node.
 6. Run product tests and then restore traffic gradually. Stop the cutover on unknown state or new errors.
 
+</details>
+
 ## When rollback is safe
+
+A direct binary rollback needs **explicit downgrade support and no data that the old version cannot read**. Configuration, metadata, and storage can create irreversible boundaries.
+
+**Past the boundary or unsure:** Keep traffic closed and preserve logs/data. Use release-specific recovery or the rehearsed backup restore; do not blindly install the old binary.
+
+<details>
+  <summary>Complete rollback boundary explanation</summary>
 
 A direct binary rollback is safe only when the release notes explicitly support downgrade and the new version has not written data that the old version cannot understand. Configuration, metadata, and storage formats can all create an irreversible boundary.
 
 After that boundary, do not blindly install the old version. Keep traffic closed, preserve logs and data, and follow the release-specific recovery procedure or the rehearsed backup restore.
 
+</details>
+
 ## Moving from v2 to v3
+
+`wkcli migrate` converts an original v2 stopped backup offline into a **new, empty v3 cluster**. Never open the old directories directly in v3. Follow [v2 → v3 Offline Migration](/en/server/operations/v2-to-v3-migration); after new production writes begin, a direct switch back to v2 is unsafe.
+
+<details>
+  <summary>Complete migration scope and acceptance order</summary>
 
 `wkcli migrate` converts complete stopped backups of original v2 into a new, empty v3 cluster offline. It does not require modifying or upgrading old v2. It is not an in-place upgrade, and v3 must never open the old data directories directly.
 
 Follow [v2 → v3 Offline Migration](/en/server/operations/v2-to-v3-migration) to fix versions and the plan, run `prepare`, `export`, `import`, and independent `verify`, then complete runtime, client, and external integration acceptance. Renumbering requires handling client caches and cursors; after new production writes begin, a direct switch back to old v2 is unsafe.
+
+</details>

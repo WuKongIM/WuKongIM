@@ -1,0 +1,20 @@
+{
+  "name": "wukongim-stream-demo",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "test:integration": "node test/stream.integration.cjs",
+    "start": "node server.mjs",
+    "test:model": "node test/model.integration.cjs"
+  },
+  "dependencies": {
+    "easyjssdk": "2.0.5"
+  },
+  "devDependencies": {
+    "typescript": "5.5.4",
+    "vite": "8.3.1"
+  }
+}

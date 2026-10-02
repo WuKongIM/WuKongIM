@@ -47,6 +47,13 @@ black-box e2e coverage for `cmd/wukongim` and internal behavior only.
 
 ## Catalog
 
+The opt-in send-ban sequential diagnostics use a frozen binary and exactly one
+of `WK_E2E_PERMISSION_TIMELINE_SEQUENTIAL=1` or
+`WK_E2E_PERMISSION_SEQUENTIAL_PROFILES=1`. Run
+`TestPermissionSequentialDiagnostics/same-slot-remote`; consult the scenario
+instructions for fixed capture bounds, sampling limits and full-history checks.
+Diagnostic timing never replaces unprofiled performance qualification.
+
 | Domain | Scenario path | Purpose | Run |
 | --- | --- | --- | --- |
 | `message` | `test/e2e/message/message_updates` | Opt-in concurrent edits and reads with abrupt Channel/physical Slot leader termination, restart, strict public retry codes, CAS/idempotency and final incremental-cache convergence in a 256-Hash-Slot three-node cluster. | `WK_E2E_MESSAGE_UPDATE_STABILITY=1 WK_E2E_MESSAGE_UPDATE_STABILITY_REPORT=/tmp/message-update-stability.json GOWORK=off go test -tags=e2e ./test/e2e/message/message_updates -count=1 -timeout=8m -v` |
@@ -62,6 +69,7 @@ black-box e2e coverage for `cmd/wukongim` and internal behavior only.
 | `message` | `test/e2e/message/conversation_directory_multi_node` | Prove a three-node membership directory batches hydration by Channel Leader, fails the whole page for an unavailable Leader and repeats the original page after restart. | `GOWORK=off go test -tags=e2e ./test/e2e/message/conversation_directory_multi_node -count=1 -timeout 3m -p=1` |
 | `message` | `test/e2e/message/legacy_conversation_sync` | Prove the deprecated v2.2 `/conversation/sync` projects first and later WKProto messages into exact sender and offline-recipient person/group views in single-node and remote-Leader multi-node clusters. | `GOWORK=off go test -tags=e2e ./test/e2e/message/legacy_conversation_sync -count=1 -timeout 3m -p=1` |
 | `message` | `test/e2e/message/webhook` | Prove single-node cluster post-commit callbacks and three-node `msg.before_send` admission, custom codes, mutation, timeout/error policies, and committed history through WKProto and HTTP; also verify authenticated fault handling, bounded per-node overload/recovery, callback counts, and public metrics; build the runnable Go callback and validate its decisions/history against a single-node cluster. | `GOWORK=off go test -tags=e2e ./test/e2e/message/webhook -count=1 -timeout 2m -p=1` |
+| `message` | `test/e2e/message/stream_online` | Real JSON-RPC online stream events, person/group cross-node routing, finish/cancel/error, private visibility and offline snapshots in 256-hash-slot single-node and three-node clusters. | `WK_E2E_STREAM_REPORT=/tmp/wk-stream-online.json GOWORK=off go test -tags=e2e ./test/e2e/message/stream_online -count=1 -timeout=3m -p=1 -v` |
 | `message` | `test/e2e/message/message_event_stream` | Prove `/message/event` buffers stream deltas in the Slot-leader cache, forwards from non-leader nodes, fails closed after Slot-leader cache loss, proposes one finish batch, exposes public metrics, and survives restart through `/channel/messagesync` event summaries. | `GOWORK=off go test -tags=e2e ./test/e2e/message/message_event_stream -count=1 -timeout 2m` |
 | `message` | `test/e2e/message/recipient_authority` | Prove committed group SEND leaves ordinary membership mutation counters unchanged while subscriber-owned `/conversation/list` views remain hydratable, with an opt-in 100k subscriber stress path. | `GOWORK=off go test -tags=e2e ./test/e2e/message/recipient_authority -count=1` |
 | `message` | `test/e2e/message/medium_recipient_hotpath` | Opt-in higher-fidelity local Cloud Medium gate plus a separate bounded 30-minute, 5,000-channel permission-pressure soak using real three-node processes, WKProto, Raft, Pebble, natural local/remote Slot routing, latency, zero membership-write, and public pressure evidence. | Short gate: `WK_E2E_MEDIUM_RECIPIENT_HOTPATH=1 WK_E2E_MEDIUM_RECIPIENT_ENFORCE_ACCEPTANCE=1 GOWORK=off go test -tags=e2e ./test/e2e/message/medium_recipient_hotpath -run TestCloudMediumScaledRecipientHotPath -count=1 -timeout 5m -p=1 -v`<br>Soak: `WK_E2E_MEDIUM_RECIPIENT_PERMISSION_SOAK=1 WK_E2E_MEDIUM_RECIPIENT_SOAK_DURATION=30m WK_E2E_MEDIUM_RECIPIENT_GROUP_CHANNELS=5000 WK_E2E_MEDIUM_RECIPIENT_QPS=4500 GOWORK=off go test -tags=e2e ./test/e2e/message/medium_recipient_hotpath -run TestCloudMediumPermissionSoak -count=1 -timeout 40m -p=1 -v` |
@@ -89,6 +97,35 @@ black-box e2e coverage for `cmd/wukongim` and internal behavior only.
 cache freshness, WKProto and HTTP admission, atomic changes and CAS.
 Run `GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -count=1 -timeout=8m -p=1 -v`.
 The scenario writes a JSON report (override with `WK_E2E_SEND_BAN_REPORT`).
+`send_ban` also contains the opt-in Issue #977 independent-caller baseline;
+see its scenario instructions for frozen-binary execution, actual placement,
+counter/resource cuts, optional separate profiles and exact complete history.
+These characterization results do not replace the unchanged 500 SEND/s gates.
 `WK_E2E_SEND_BAN_100K=1` enables `TestHundredKGroupSendBan` (six-minute test bound)
 and the `.100k.json` companion report. Backup restore scenarios also checkpoint
 both policy scopes; `WK_E2E_SEND_BAN_RESTORE_REPORT` sets their artifact base.
+
+The same fixed experiment has an opt-in candidate mode:
+`WK_E2E_PERMISSION_COHORTS=1 WK_E2E_BINARY=/absolute/frozen/candidate WK_E2E_PERMISSION_COHORT_REPORT=/absolute/cohorts.json GOWORK=off go test -tags=e2e ./test/e2e/message/send_ban -run '^TestPermissionCallerCohorts$' -count=1 -timeout=4m -p=1 -v`.
+It requires lower burst RPC/local-envelope and fresh-barrier counts, unchanged
+sequential counts, independently drained public cohort ownership metrics,
+completed ban/unban controls and exact full history. Historical baseline mode
+remains executable with its frozen old binary. Source/build identity, whole-node
+resource cuts and diagnostic limits remain the same; capacity gates are unchanged.
+
+The quorum-loss admission companion keeps 192 failed-closed sends but separates
+arrivals by 5 ms so sealed cohorts actually accumulate. Require positive receiver
+or ingress-cohort busy, record both scopes separately, sample both hard ownership
+bounds and drain to zero, then verify exact complete recovery history. This fault
+fixture never changes the 500 SEND/s performance gates.
+
+The send-ban Issue #977 fixed-arrival diagnostic is opt-in and uses the existing
+real-process scaffold. `send_ban/AGENTS.md` records its frozen-binary command,
+eight-minute bound, exact arrival/observation counts, full response identities,
+calibrated process CPU, failure receipts and complete history. It supplements
+the historical characterization without changing its acceptance or capacity gates.
+
+The separate fixed-load v2 uses `TestPermissionCallerFixedLoadV2` and retains
+bounded caller FIFO residence, monotonic phase offsets, exact raw metrics/TOML
+and canonical config identities. See `message/send_ban/AGENTS.md`; V1 remains
+separately executable and its failures retain their original meaning.

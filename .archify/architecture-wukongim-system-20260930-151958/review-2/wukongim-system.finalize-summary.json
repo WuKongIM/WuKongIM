@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "fail",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/architecture-wukongim-system-20260930-151958/candidate.json",
+    "sha256": "54f02b8f642541756be64cc28163ed6109c859c2fdbc37549af17214374a1d49",
+    "bytes": 14320
+  },
+  "artifact": {
+    "path": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/architecture-wukongim-system-20260930-151958/wukongim-system.html",
+    "sha256": "33904bd85246976fdb66d1d16c99541489f942714446deabcb05205c4c091772",
+    "bytes": 785370
+  },
+  "gates": {
+    "validate": "fail",
+    "deliver": "not-run",
+    "check": "not-run",
+    "browser-check": "not-run"
+  },
+  "failedStage": "validate",
+  "diagnostics": [
+    {
+      "code": "layout/constraint",
+      "severity": "error",
+      "message": "Boundary label \"节点本地持久化：各节点分别持有\" extends outside the viewBox — move wrapped components away from the canvas edge, shorten the label, or increase the viewBox.",
+      "subject": {
+        "diagramType": "architecture"
+      }
+    },
+    {
+      "code": "layout/boundary-out-of-bounds",
+      "severity": "error",
+      "message": "Boundary \"节点本地持久化：各节点分别持有\" extends outside the viewBox (left by 24px) — preserve wraps membership and repair the measured canvas side.",
+      "subject": {
+        "diagramType": "architecture",
+        "boundary": {
+          "kind": "region",
+          "label": "节点本地持久化：各节点分别持有",
+          "wraps": [
+            "controlfiles",
+            "metastore",
+            "messagestore"
+          ]
+        }
+      },
+      "evidence": {
+        "bounds": {
+          "x": -24,
+          "y": 805,
+          "width": 1388,
+          "height": 135
+        },
+        "viewBox": [
+          1404,
+          1008
+        ],
+        "overflow": {
+          "left": 24,
+          "top": 0,
+          "right": 0,
+          "bottom": 0
+        },
+        "members": [
+          {
+            "id": "controlfiles",
+            "type": "database",
+            "label": "Controller 持久化",
+            "x": 0,
+            "y": 830,
+            "width": 210,
+            "height": 90,
+            "pos": [
+              0,
+              830
+            ]
+          },
+          {
+            "id": "metastore",
+            "type": "database",
+            "label": "Slot 持久化",
+            "x": 1110,
+            "y": 830,
+            "width": 230,
+            "height": 90,
+            "pos": [
+              1110,
+              830
+            ]
+          },
+          {
+            "id": "messagestore",
+            "type": "database",
+            "label": "消息日志持久化",
+            "x": 710,
+            "y": 830,
+            "width": 250,
+            "height": 90,
+            "pos": [
+              710,
+              830
+            ]
+          }
+        ]
+      },
+      "supportedFixes": [
+        "move the wrapped components right by at least 24px and down by at least 0px, then revalidate connected routes and the opposite canvas sides; enlarging meta.viewBox cannot fix left/top overflow"
+      ]
+    }
+  ],
+  "diagnosticSummary": {
+    "total": 2,
+    "shown": 2,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/architecture-wukongim-system-20260930-151958/review-2/wukongim-system.finalize.json",
+    "summaryReceipt": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/architecture-wukongim-system-20260930-151958/review-2/wukongim-system.finalize-summary.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.0.1",
+    "availableVersion": "3.0.1",
+    "releaseNotes": null,
+    "checkedAt": "2026-09-30T07:20:09.956Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 307,
+  "nextAction": {
+    "action": "edit-in-place",
+    "candidate": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.archify/architecture-wukongim-system-20260930-151958/candidate.json",
+    "constraint": "Preserve all semantics and user-fixed geometry. Use references/architecture-layout-repair.md to choose a local repair or connected-scene reflow; edit the existing candidate.",
+    "then": "finalize-once"
+  }
+}

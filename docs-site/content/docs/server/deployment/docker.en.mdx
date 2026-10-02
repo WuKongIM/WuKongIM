@@ -3,11 +3,17 @@ title: Docker
 description: Start a WuKongIM single-node cluster with docker run or Docker Compose, a configuration file, and persistent storage.
 ---
 
-You only need Docker. This path mounts `wukongim.toml` and a Docker volume directly, with no installer.
+Start a single-node cluster on your computer, then open the Chat Demo. You need Docker and a browser.
 
 <Callout type="warn" title="The default is for a quick local evaluation">
   The example pins image `WK_CURRENT_IMAGE_TAG`. To use another release, replace the image tag directly and read that release's upgrade notes first. Before serving production traffic, replace the example credentials and complete [Security & Access](/en/server/configuration/security) and [Health & Monitoring](/en/server/operations/health-and-monitoring).
 </Callout>
+
+```mermaid
+flowchart LR
+  Browser["Browser: Chat Demo"] -->|"5001 page · 5200 messages"| Cluster["Docker single-node cluster"]
+  Cluster --> Data["wukongim-data: persistent storage"]
+```
 
 ## 1. Create the configuration file
 
@@ -42,17 +48,17 @@ users = [{ username = "admin", password = "replace-with-a-strong-password", perm
 dir = "/var/lib/wukongim/logs"
 ```
 
+Replace `jwt_secret` and the administrator password. Defaults use 256 hash slots; keep `gateway.token_auth_on=true`.
+
+<details>
+<summary>Configuration fields and token checks</summary>
+
 This file explicitly keeps the important `gateway.token_auth_on=true` setting: a client CONNECT token must exactly match the token stored through `/user/token` for the same UID and device category, or Gateway returns `ReasonAuthFail`. Do not disable it in production merely to simplify integration; see [Security & Access](/en/server/configuration/security) for the full boundary. The remaining fields cover only container startup, the API, Manager authentication, and a writable log directory. Single-node topology, 256 hash slots, the `5100/5200` Gateway listeners, and other settings use runtime defaults. Replace at least `jwt_secret` and the administrator password. When accessing the Demo through matching host ports, `api.external_tcp_addr` and `api.external_ws_addr` can be omitted; see the address rules below. See the [Configuration Reference](/en/server/configuration/reference) for every field and its default.
 
-### Automatic client address completion
+</details>
 
-When `api.external_*` is omitted, default external `/route` and `/route/batch` replace a listener host of `0.0.0.0`, `[::]`, or an empty host with the hostname from the current request Host, preserving the Gateway port, scheme, and path. Opening `http://127.0.0.1:5001/demo/` therefore yields `ws://127.0.0.1:5200`; accessing the API directly through a server IP or domain yields that host with port `5200`.
-
-This applies only to the default external route. Explicit published addresses, concrete listener hosts (including Linux initialization's `127.0.0.1`), intranet requests, and explicit node selectors stay unchanged. Proxies must preserve the original Host; the server does not use `X-Forwarded-Host` or infer WSS from the HTTP scheme.
-
-For a mapping such as `15200:5200`, a separate WebSocket domain or TLS proxy, or a backend calling `/route` through an internal host unreachable by clients, set a browser-reachable `api.external_ws_addr` or `api.external_wss_addr`. Use `api.external_tcp_addr` for a non-default TCP ingress. Completion does not open ports or create TLS listeners.
-
-### Set the configuration file permissions on Linux hosts
+<details>
+<summary>Linux hosts: set file permissions before starting</summary>
 
 The official image runs as the non-root user `10001:10001`. With a bind mount, that user must be able to read the host's `wukongim.toml`. Keep write access for the user who created the file and grant read-only access to the container's group:
 
@@ -62,6 +68,8 @@ chmod 0640 wukongim.toml
 ```
 
 Do not leave the file as root-only `0600`; the container will repeatedly restart after failing to read its configuration with `permission denied`. The file contains the Manager password and JWT secret, so making it world-readable with `0644` is also discouraged. If you change the image user or use rootless Docker or user-namespace UID/GID mappings, grant read access according to the effective mapping instead.
+
+</details>
 
 ## 2. Start and verify
 
@@ -74,7 +82,7 @@ Official images are published to both GHCR and Alibaba Cloud Container Registry 
 
 The examples below use GHCR. If the pull fails, replace the image address on the last line of `docker run` or the `image` value in `compose.yaml` with the Alibaba Cloud address above, keeping the same version tag.
 
-Choose either startup method.
+Start with `docker run` below; Docker Compose is an alternative.
 
 ### Use `docker run`
 
@@ -86,7 +94,8 @@ docker run -d --name wukongim --restart unless-stopped \
   ghcr.io/wukongim/wukongim:WK_CURRENT_IMAGE_TAG
 ```
 
-### Use Docker Compose
+<details>
+<summary>Use Docker Compose instead</summary>
 
 Create `compose.yaml`:
 
@@ -108,6 +117,8 @@ volumes:
 docker compose up -d
 ```
 
+</details>
+
 Both methods create `wukongim-data` automatically on the first run, so no separate volume command is needed.
 
 Wait for the container to become healthy, then verify the node:
@@ -117,7 +128,9 @@ docker ps --filter name=wukongim
 docker exec wukongim wget -q --spider -T 5 http://127.0.0.1:5001/readyz
 ```
 
-Open [http://127.0.0.1:5301](http://127.0.0.1:5301), sign in as `admin` with the password from the configuration file, and follow [Quick Start](/en/guide/quick-start) to complete one send-and-receive cycle.
+After readiness succeeds, open [Chat Demo](http://127.0.0.1:5001/demo/) and [send the first message](/en/guide/quick-start/first-message).
+
+Manager is at [http://127.0.0.1:5301](http://127.0.0.1:5301); sign in as `admin` with the configured password. See [Quick Start](/en/guide/quick-start) for the full learning path.
 
 <details>
 <summary>How do I open Manager and the Demo from my computer after deploying on a server?</summary>
@@ -134,7 +147,19 @@ ssh -N \
 
 </details>
 
-### Enable the bundled Prometheus process
+<details>
+<summary>Connection addresses, port mappings, and remote access</summary>
+
+When `api.external_*` is omitted, default external `/route` and `/route/batch` replace a listener host of `0.0.0.0`, `[::]`, or an empty host with the hostname from the current request Host, preserving the Gateway port, scheme, and path. Opening `http://127.0.0.1:5001/demo/` therefore yields `ws://127.0.0.1:5200`; accessing the API directly through a server IP or domain yields that host with port `5200`.
+
+This applies only to the default external route. Explicit published addresses, concrete listener hosts (including Linux initialization's `127.0.0.1`), intranet requests, and explicit node selectors stay unchanged. Proxies must preserve the original Host; the server does not use `X-Forwarded-Host` or infer WSS from the HTTP scheme.
+
+For a mapping such as `15200:5200`, a separate WebSocket domain or TLS proxy, or a backend calling `/route` through an internal host unreachable by clients, set a browser-reachable `api.external_ws_addr` or `api.external_wss_addr`. Use `api.external_tcp_addr` for a non-default TCP ingress. Completion does not open ports or create TLS listeners.
+
+</details>
+
+<details>
+<summary>Enable bundled Prometheus when needed</summary>
 
 Use an image whose release notes include the Docker bundled Prometheus fix. Add the following to `wukongim.toml`, then restart the container:
 
@@ -159,6 +184,8 @@ docker exec wukongim wget -qO- 'http://127.0.0.1:9099/api/v1/query?query=up%7Bjo
 After readiness, allow one default 15-second scrape interval. The query result's `value` should contain `"1"`. These checks run inside the container and need no additional host port mapping. WuKongIM stops the child process when the container stops. Reuse the same data volume when recreating the container to retain historical metrics.
 
 If an older image reports `embedded prometheus binary missing`, upgrade to an image containing this fix and recreate the container; restarting the old image cannot supply the missing binary. With an external Prometheus service, keep `prometheus.enable=false` and set `prometheus.query_base_url` as needed.
+
+</details>
 
 <details>
 <summary>Common operations</summary>

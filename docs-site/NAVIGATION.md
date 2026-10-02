@@ -13,11 +13,11 @@ Route: `/{lang}/guide`
 - **产品概览 / Product Overview** `/{lang}/guide/product-overview` — 判断 WuKongIM 是什么、是否适合你的产品，以及下一步如何验证。 / Decide what WuKongIM is, whether it fits your product, and how to validate it.
   - **核心能力 / Core Capabilities** `/{lang}/guide/product-overview/capabilities` — 从产品结果理解实时接入、可靠消息、多设备、集群和运维能力。 / Explains real-time access, reliable messaging, multi-device, cluster, and operations outcomes.
   - **适用场景 / Use Cases** `/{lang}/guide/product-overview/use-cases` — 判断聊天、通知、客服及扩展场景如何使用 WuKongIM。 / Maps chat, notifications, customer service, and extended scenarios to WuKongIM.
-- **快速开始 / Quick Start** `/{lang}/guide/quick-start` — 在 Linux 上启动集群、发送消息并验证结果。 / Start a Linux cluster, send a message, and verify the result.
-  - **环境准备 / Prerequisites** `/{lang}/guide/quick-start/prerequisites` — 列出 Linux、sudo、SSH、端口和目录要求。 / Lists Linux, sudo, SSH, port, and directory requirements.
-  - **启动单节点集群 / Start a Single-node Cluster** `/{lang}/guide/quick-start/single-node-cluster` — 安装软件包并通过 systemd 启动单节点集群。 / Installs the package and starts a single-node cluster with systemd.
+- **快速开始 / Quick Start** `/{lang}/guide/quick-start` — 用 Docker 启动单节点集群，通过 Demo 验证消息，再选择 SDK。 / Start a single-node cluster with Docker, exchange messages in the Demo, then choose an SDK.
+  - **环境准备 / Prerequisites** `/{lang}/guide/quick-start/prerequisites` — 准备 Docker、浏览器与本机端口；Linux 安装作为可选路径。 / Prepare Docker, a browser, and local ports, with Linux installation as an alternative.
+  - **Linux 安装（可选） / Linux Installation (Optional)** `/{lang}/guide/quick-start/single-node-cluster` — 安装软件包并通过 systemd 启动单节点集群。 / Installs the package and starts a single-node cluster with systemd.
   - **发送第一条消息 / Send the First Message** `/{lang}/guide/quick-start/first-message` — 创建测试身份并完成一次最小消息收发。 / Creates test identities and completes a minimal message exchange.
-  - **运行聊天演示 / Run the Chat Demo** `/{lang}/guide/quick-start/chat-demo` — 使用内置聊天演示验证两个测试用户之间的通信。 / Uses the embedded chat demo to verify communication between two test users.
+  - **体验四个 Demo / Try the Four Demos** `/{lang}/guide/quick-start/chat-demo` — 一键启动聊天、流式回复、客服与 Agent，按场景体验。 / Launches chat, streaming, support, and Agent Demos together.
   - **下一步 / Next Steps** `/{lang}/guide/quick-start/next-steps` — 按接入、部署、运维和参考需求引导后续阅读。 / Routes readers to integration, deployment, operations, and reference material.
 - **核心概念 / Core Concepts** `/{lang}/guide/core-concepts` — 用消息、频道、用户、设备和会话理解 WuKongIM 如何组织即时通信。 / Explains how WuKongIM organizes communication through messages, channels, users, devices, and conversations.
   - **消息 / Message** `/{lang}/guide/core-concepts/messages` — 消息是什么、如何找到接收范围，以及发送成功、送达和已读的区别。 / Explains what a message is, how it finds recipients, and why sent, delivered, and read are different outcomes.
@@ -143,6 +143,7 @@ Route: `/{lang}/sdk`
   - **Android 快速接入 / Android quickstart** `/{lang}/sdk/easy/android/getting-started` — 精确安装 v1.0.5，处理单例、单聊收发、清理和 Alice/Bob 双向消息。 / Install exactly v1.0.5 for singleton ownership, person messaging, cleanup, and Alice/Bob messaging.
   - **Flutter 快速接入 / Flutter quickstart** `/{lang}/sdk/easy/flutter/getting-started` — 精确安装并运行已验证的 v1.1.0 example，完成单聊收发、dispose 清理和 Alice/Bob 验收。 / Install and run the verified v1.1.0 example for person messaging, dispose cleanup, and Alice/Bob acceptance.
   - **Web 快速接入 / Web quickstart** `/{lang}/sdk/easy/javascript/getting-started` — 精确安装 easyjssdk v2.0.5，在浏览器中通过业务后端完成 Alice/Bob 在线消息。 / Install exactly easyjssdk v2.0.5 for Alice/Bob browser messaging with credentials from your backend.
+  - **Agent 流式回复 / Agent Streaming Replies** `/{lang}/sdk/easy/agent-streaming` — 使用 EasySDK 与真实模型实现逐段回复、取消、失败和离线恢复。 / Build incremental replies with EasySDK and a real model, including cancellation, failures, and offline recovery.
   - **Rust 快速接入 / Rust quickstart** `/{lang}/sdk/easy/rust/getting-started` — 安装 WuKongEasySDK-Rust 0.1.0 正式包，使用 Tokio 完成在线消息、有限重连和清理。 / Install WuKongEasySDK-Rust 0.1.0 for Tokio online messaging, bounded reconnect, and cleanup.
   - **C# 快速接入 / C# quickstart** `/{lang}/sdk/easy/csharp/getting-started` — 安装 NuGet 1.0.0 正式包接入 .NET 8，完成异步连接、消息收发、重连和释放。 / Install NuGet 1.0.0 with .NET 8 for async connections, messaging, reconnect, and cleanup.
   - **C++ 快速接入 / C++ quickstart** `/{lang}/sdk/easy/cpp/getting-started` — 通过预编译包或 vcpkg 引入 SDK，以 C++17 和 CMake 完成在线收发与线程管理。 / Use prebuilt archives or vcpkg with C++17 and CMake for messaging and thread management.
@@ -162,7 +163,7 @@ Route: `/{lang}/api`
 
 - **接口清单与信任边界 / Interface Inventory & Trust Boundaries** `/{lang}/api/interface-inventory` — 盘点 Manager、Node transport、MCP、插件与 Agent 私有合同。 / Inventories Manager, node transport, MCP, plugin, and agent-private contracts.
 
-- **Product HTTP API / Product HTTP API** `/{lang}/api/product-http` — 浏览当前源码注册的全部 44 条 Product HTTP 操作。 / Browse all 44 Product HTTP operations registered by the current source.
+- **Product HTTP API / Product HTTP API** `/{lang}/api/product-http` — 浏览当前源码注册的全部 48 条 Product HTTP 操作。 / Browse all 48 Product HTTP operations registered by the current source.
   - **用户 / Users** `/{lang}/api/product-http/users` — 设备 Token、在线状态与系统身份。 / Device tokens, presence, and system identities.
     - **创建或更新设备 Token / Create or update a device token** **POST** `/{lang}/api/product-http/users/setQuickstartUserToken` — 创建缺失的 UID 元数据并更新一个设备 Token；Gateway Token 鉴权默认启用，后续相同 UID 与设备类别的 CONNECT 凭据必须与它匹配。 / Upserts one UID/device token; default Gateway authentication requires later CONNECT credentials for the same UID and device category to match it.
     - **退出用户设备 / Clear a user device token** **POST** `/{lang}/api/product-http/users/quitUserDevice` — 清空一个已存设备 Token 并调度 owner-local Session 关闭；device_flag=-1 选择 APP、Web 与 PC。 / Clears one stored device token and schedules owner-local Session closure; device_flag -1 selects APP, Web, and PC.
@@ -172,6 +173,8 @@ Route: `/{lang}/api`
     - **列出全部系统 UID / List all system UIDs** **GET** `/{lang}/api/product-http/users/listSystemUIDs` — 把完整持久化系统 UID 集合聚合为一个无界响应。 / Aggregates the complete persisted system UID set into one unbounded response.
     - **添加节点本地系统 UID 缓存 / Add node-local system UID cache entries** **POST** `/{lang}/api/product-http/users/addSystemUIDsToLocalCache` — 只修改当前进程缓存，不持久化也不复制该变更。 / Mutates only the current process cache and does not persist or replicate the change.
     - **移除节点本地系统 UID 缓存 / Remove node-local system UID cache entries** **POST** `/{lang}/api/product-http/users/removeSystemUIDsFromLocalCache` — 只修改当前进程缓存，不改变持久化系统身份。 / Mutates only the current process cache and does not change durable system identities.
+    - **读取用户全局发送限制 / Read user send restriction** **GET** `/{lang}/api/product-http/users/getUserSendBan` — 读取当前 Slot 权威发送策略，不返回凭据。 / Read one current Slot-owned send policy without returning credentials.
+    - **设置用户全局发送限制 / Set user send restriction** **POST** `/{lang}/api/product-http/users/setUserSendBan` — 在 Slot 应用内原子变更发送策略，支持字符串 CAS；相同值保留版本。 / Atomically set one send policy with optional decimal-string CAS; unchanged values retain the version.
   - **路由发现 / Route Discovery** `/{lang}/api/product-http/routing` — 客户端 Gateway 公网或内网地址。 / Public or intranet client Gateway addresses.
     - **解析 Gateway 地址 / Resolve Gateway addresses** **GET** `/{lang}/api/product-http/routing/getQuickstartGatewayRoute` — 默认公网路由按请求 Host 补全通配监听主机名，显式地址优先；详见[地址规则](/zh/server/configuration/reference)。 / Default external routes complete wildcard listener hosts from Host; explicit addresses win. See [address rules](/en/server/configuration/reference).
     - **批量解析 UID 地址组 / Resolve one address group for UIDs** **POST** `/{lang}/api/product-http/routing/getGatewayRoutesBatch` — 在一个地址组中回显无上限 UID 数组，仅为兼容保留；地址补全规则与 GET /route 相同。 / Echoes an unbounded UID array in one address group; retained for compatibility. Address completion follows GET /route.
@@ -206,6 +209,8 @@ Route: `/{lang}/api`
     - **移除 Channel 允许列表成员 / Remove Channel allowlist members** **POST** `/{lang}/api/product-http/channels/removeChannelAllowlistMembers` — 从派生 Channel 允许列表移除非空白 UID。 / Removes non-blank UIDs from the derived Channel allowlist.
     - **移除全部 Channel 允许列表成员 / Remove all Channel allowlist members** **POST** `/{lang}/api/product-http/channels/removeAllChannelAllowlistMembers` — 通过内部有界遍历清空派生允许列表。 / Clears the derived allowlist through bounded internal traversal.
     - **列出全部 Channel 允许列表成员 / List all Channel allowlist members** **GET** `/{lang}/api/product-http/channels/listChannelAllowlistMembers` — 返回无界完整列表；channel_type 缺失或无效时会静默视为 0。 / Returns an unbounded full list; missing or invalid channel_type is silently treated as 0.
+    - **读取源 Channel发送限制 / Read channel send restriction** **GET** `/{lang}/api/product-http/channels/getChannelSendBan` — 读取当前 Slot 权威发送策略，不返回凭据。 / Read one current Slot-owned send policy without returning credentials.
+    - **设置源 Channel发送限制 / Set channel send restriction** **POST** `/{lang}/api/product-http/channels/setChannelSendBan` — 在 Slot 应用内原子变更发送策略，支持字符串 CAS；相同值保留版本。 / Atomically set one send policy with optional decimal-string CAS; unchanged values retain the version.
   - **会话 / Conversations** `/{lang}/api/product-http/conversations` — 会话同步、未读、隐藏与激活状态。 / Conversation sync, unread, hide, and activation state.
     - **同步一页会话 / Synchronize a Conversation page** **POST** `/{lang}/api/product-http/conversations/listConversations` — 读取 Leader 已落盘消息，不激活运行时；发送失败的消息也可显示。任一读取错误则整页失败，使用原请求和原游标重试。 / Reads Leader-persisted messages without runtime activation. Failed SENDs may appear. Any read error fails the page; retry the original cursor.
     - **同步旧式会话 / Synchronize legacy Conversations** **POST** `/{lang}/api/product-http/conversations/syncConversationsLegacy` — 从当前 Leader 已落盘数据读取摘要和最近消息，不激活频道。发送失败的消息也可显示；读取失败则整次失败。保留旧式字段和游标规则。 / Read persisted heads and recents without Channel activation. Failed SENDs may appear; any read error fails the request. Legacy fields and cursors are preserved.

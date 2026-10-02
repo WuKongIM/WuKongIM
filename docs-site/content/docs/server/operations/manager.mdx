@@ -1,34 +1,69 @@
 ---
 title: Manager 管理后台
-description: 登录 Manager、看懂主要页面，并安全执行管理操作。
+description: 跟着三张实图登录、检查节点和查看任务，按需展开权限与管理操作。
 ---
 
-Manager 是 WuKongIM 的管理后台。你可以在这里查看节点状态、运行任务、管理备份和执行扩缩容。它拥有高权限，应当像数据库管理后台一样保护。
+Manager 用来查看集群、任务和备份，并执行管理操作。先用只读账号完成这三步。
 
-## 打开 Manager 前先检查
+## 1. 登录管理账号
 
-- 生产环境已开启 `manager.auth_on`，并替换默认账号密码和 `manager.jwt_secret`；
-- Manager 只监听回环或管理内网地址，节点 `5301` 不向公网开放；
-- 单人远程运维使用 [Linux 部署中的 SSH 转发](/zh/server/deployment/linux)；多人运维通过管理内网或 VPN 访问 HTTPS 代理；
-- 代理到节点的链路位于受控内网，防火墙只允许管理代理与授权运维来源。
+本机默认访问 `http://127.0.0.1:5301`。远程访问按 [Linux 部署](/zh/server/deployment/linux)建立 SSH 转发，或走管理内网 / VPN 的 HTTPS 代理。账号来自 `manager.users`。
 
-<Callout type="warn" title="保持认证与传输保护">
-  `manager.auth_on=false` 不是只读模式。SSH、VPN 和 HTTPS 保护访问链路，Manager 登录和资源权限仍需单独启用。
+<TutorialScreenshot
+  src="/tutorials/manager/login.jpg"
+  alt="中文 Manager 登录表单，使用 docs-reader 测试账号，密码保持遮罩"
+  width={480}
+  height={570}
+  marks={[{ x: 4, y: 48 }, { x: 4, y: 78 }]}
+>
+  ① 输入配置中的管理账号和密码。② 点击「登录」。图中为隔离集群的只读测试账号。
+</TutorialScreenshot>
+
+<Callout type="warn" title="认证与传输保护都要开启">
+  生产环境开启 `manager.auth_on`，替换默认账号密码和 `manager.jwt_secret`；节点 `5301` 不向公网开放。`manager.auth_on=false` 不是只读模式，SSH / VPN / HTTPS 也不替代账号权限。
 </Callout>
 
-## 页面上的名词是什么意思
+## 2. 检查节点
 
-| 页面 | 可以把它理解为 | 主要看什么 |
-| --- | --- | --- |
-| 节点 / 实时监控 | 每台 WuKongIM 服务器的状态 | 是否就绪、CPU、内存、磁盘、连接和队列 |
-| Controller / 任务 | 集群的协调者和正在执行的管理任务 | 是否可用、任务是否完成、有没有阻塞原因 |
-| Slot | 数据被分成的 256 个固定分区 | Leader、副本和 ISR 是否正常 |
-| Channel | 单聊或群聊消息的运行单元 | Leader、成员和积压是否异常 |
-| 备份 | 备份计划、存储和恢复入口 | 存储是否测试、归档是否完整并验证成功 |
+打开「节点」，先看存活数，再看健康栏中的就绪状态和数据新鲜度。状态过期时先刷新、排查，暂停管理操作。
 
-`Leader` 是当前负责处理该数据的节点，`副本` 是数据副本，`ISR` 是当前跟得上进度的副本集合。刚开始运维时，不需要手工调整它们；先确认页面没有异常即可。
+<TutorialScreenshot
+  src="/tutorials/manager/nodes.jpg"
+  alt="中文 Manager 节点列表：单节点集群存活 1 个节点，节点健康栏显示就绪和新鲜数据"
+  width={1280}
+  height={720}
+  marks={[{ x: 33, y: 55 }, { x: 48, y: 66 }]}
+>
+  ① 存活节点数。② 节点健康与就绪状态。这是本地单节点集群示例，多节点集群逐台检查。
+</TutorialScreenshot>
 
-## 账号权限怎么分
+## 3. 查看任务
+
+打开「任务中心」，核对运行中、失败和已完成的任务。需要排查时，用类型、状态或 Slot ID 筛选，再查看任务时间线。
+
+<TutorialScreenshot
+  src="/tutorials/manager/tasks.jpg"
+  alt="中文 Manager 任务中心：运行中 0、失败 0、已完成 8 个初始化任务"
+  width={1280}
+  height={720}
+  marks={[{ x: 41, y: 38 }, { x: 56, y: 38 }, { x: 85, y: 38 }]}
+>
+  ① 运行中。② 失败。③ 留存历史中的已完成任务。数量随集群运行变化，不是固定验收值。
+</TutorialScreenshot>
+
+## 其他页面看什么
+
+| 页面 | 重点 |
+| --- | --- |
+| 实时监控 | CPU、内存、磁盘、连接与队列；先确认遥测数据可用 |
+| 槽位 / Slot | 逻辑 Slot 的 Leader、副本、ISR 与哈希槽范围 |
+| 频道集群 / Channel | 消息运行单元的成员、Leader 和积压 |
+| 备份 | 存储测试、归档完整性和验证结果 |
+
+Slot 列表展示**逻辑 Slot**，数量由 `initial_slot_count` 初始化；默认 **256 个 Hash Slot** 是另一层固定键空间。本例的 8 个逻辑 Slot 各承载 32 个 Hash Slot，详见 [Slot 与 Hash Slot](/zh/server/architecture/slots)。
+
+<details>
+  <summary>账号权限与访问链路</summary>
 
 | 工作 | 常用权限 |
 | --- | --- |
@@ -36,20 +71,29 @@ Manager 是 WuKongIM 的管理后台。你可以在这里查看节点状态、�
 | 加入、激活、排空或移除节点 | `cluster.node:w` |
 | 查看或操作 Slot | `cluster.slot:r` / `cluster.slot:w` |
 | 查看或修改备份 | `cluster.backup:r` / `cluster.backup:w` |
-| 执行恢复 | 必须单独授予 `cluster.restore:w` |
+| 执行恢复 | 单独授予 `cluster.restore:w` |
 
-不要给所有人长期使用全量权限。至少分开“只读查看”“节点管理”“备份管理”和“数据恢复”四类账号或角色。
+分开只读查看、节点管理、备份管理和数据恢复权限，避免长期使用全量权限。
 
-## 安全执行一次操作
+Manager 只监听回环或管理内网。代理到节点也保持在受控内网，防火墙仅允许管理代理和授权运维来源。
+
+</details>
+
+<details>
+  <summary>需要执行管理操作时</summary>
 
 1. 记录操作者、目标、当前状态和预期结果。
-2. 确认 `/readyz` 正常，并检查有没有尚未结束的管理任务。
-3. 如果页面提供“计划”或“预览”，先运行它，阅读阻塞原因。
-4. 一次只执行一个步骤，等待任务结束后刷新页面。
-5. 测试消息发送、接收和重连。确认业务正常后再做下一步。
+2. 确认 `/readyz` 正常，且没有冲突的未结束任务。
+3. 先运行页面提供的计划或预览，阅读阻塞原因。
+4. 一次执行一步，等待任务结束后刷新权威状态。
+5. 验证消息发送、接收和重连，再继续。
 
-<Callout type="warn" title="能点击不等于可以执行">
-  缩容只有在权威状态显示 `safe_to_remove=true` 后才能移除节点。恢复需要完整验证、密码重新认证和确认短语。任何状态缺失、过期或互相矛盾时都应停止。
+Leader 是当前负责处理数据的节点，副本是数据副本，ISR 是跟得上进度的副本集合。刚开始运维时先检查状态，避免手工调整。
+
+</details>
+
+<Callout type="warn" title="缩容与恢复">
+  缩容只有在权威状态显示 `safe_to_remove=true` 后才能移除节点。恢复需要完整验证、密码重新认证和确认短语。状态缺失、过期或矛盾时停止。
 </Callout>
 
-Manager 只管理 WuKongIM 集群状态，不会替你关闭云主机、缩减 Kubernetes 实例，也不会让启动配置自动热更新。接下来可先阅读[健康检查与监控](/zh/server/operations/health-and-monitoring)。
+Manager 管理 WuKongIM 集群；云主机关闭、Kubernetes 实例数量和启动配置更新需分别处理。继续阅读[健康检查与监控](/zh/server/operations/health-and-monitoring)。

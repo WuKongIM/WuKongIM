@@ -1,15 +1,31 @@
 ---
 title: Tools
-description: Choose the correct repository tool for observation, offline storage inspection, workload validation, and bounded diagnostics.
+description: Choose by live, offline, workload, migration, or diagnostic target and confirm scope first.
 ---
 
-WuKongIM provides one operator binary, `wkcli`, with command families for each target: `wkcli` uses live cluster APIs, `wkcli db` reads one node's offline data, `wkcli bench` generates real traffic in an isolated target, and diagnostic surfaces answer one bounded question. Tool output is evidence, not permission to bypass Manager approval or cluster safety gates.
+One `wkcli`; choose its command family by target. Start with bounded read-only checks, then follow an explicit change procedure.
 
 <Callout type="warn" title="Confirm the target boundary first">
-  Every deployment is a cluster, including a single-node cluster. The logical hash-slot count is 256, and the generated default configuration uses 12 physical Slots. A node-local snapshot, database directory, or Top result does not automatically represent the cluster.
+  Every deployment is a cluster, including a single-node cluster. The physical hash-slot count is 256, and the generated default configuration uses 12 logical Slot Raft Groups. A node-local snapshot, database directory, or Top result does not automatically represent the cluster.
 </Callout>
 
 ## Choose a tool
+
+<Cards>
+  <Card title="Inspect live clusters" description="wkcli: Top and node evidence; mutations need a controlled procedure." href="/en/server/tools/wkcli" />
+  <Card title="Inspect offline data" description="wkcli db: one-node queries and transfer; import writes the target." href="/en/server/tools/wkdb" />
+  <Card title="Validate workloads" description="wkcli bench: real traffic in an isolated cluster." href="/en/server/tools/wkbench" />
+  <Card title="Migrate original v2" description="wkcli migrate: cold backups into new offline v3 directories." href="/en/server/operations/v2-to-v3-migration" />
+  <Card title="Bounded diagnostics" description="Correlate logs, metrics, Top, and bounded pprof." href="/en/server/tools/diagnostics" />
+  <Card title="Check a symptom" description="Choose the first check from the current symptom." href="/en/server/operations/troubleshooting" />
+</Cards>
+
+Output is evidence. Manager approval, permissions, and cluster safety gates still apply.
+
+<details>
+  <summary>Complete tool comparison and boundaries</summary>
+
+WuKongIM provides one operator binary, `wkcli`, with command families for each target: `wkcli` uses live cluster APIs, `wkcli db` reads one node's offline data, `wkcli bench` generates real traffic in an isolated target, and diagnostic surfaces answer one bounded question. Tool output is evidence, not permission to bypass Manager approval or cluster safety gates.
 
 | Objective | Use | Read or write | Not for |
 | --- | --- | --- | --- |
@@ -19,7 +35,24 @@ WuKongIM provides one operator binary, `wkcli`, with command families for each t
 | Migrate stopped original v2 backups to a new v3 cluster | [wkcli migrate](/en/server/operations/v2-to-v3-migration) | Reads cold backups and writes new offline target directories | In-place upgrades or online incremental replication |
 | Correlate logs, metrics, Top, diagnostics, and pprof | [Diagnostics](/en/server/tools/diagnostics) | Read-only by default; pprof is a bounded active observation | Automatic repair, arbitrary commands, or arbitrary queries |
 
+</details>
+
 ## Common workflow
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  target["1. Confirm identity<br/>permissions and budgets"] --> inspect["2. Start read-only<br/>follow explicit procedures"]
+  inspect --> finish["3. Retain evidence<br/>remove temporary access"]
+```
+
+</div>
+
+Bound targets, concurrency, duration, rows, and artifact directories; define stop conditions first. Keep commands, time, exit codes, and redacted output. Manager, Benchmark, Debug, and Operations MCP need separate authorization.
+
+<details>
+  <summary>Complete six-step workflow</summary>
 
 1. **Confirm identity**: record repository version, binary digest, cluster ID, node ID, and target addresses.
 2. **Choose the minimum surface**: begin read-only, low-cost, and short-lived; do not start with profiling or load generation.
@@ -28,11 +61,25 @@ WuKongIM provides one operator binary, `wkcli`, with command families for each t
 5. **Retain context**: keep the command, time range, exit code, and redacted output, not only the final summary.
 6. **Remove temporary capability**: disable Debug, Benchmark, temporary credentials, simulators, and extra sampling, then confirm resources return to baseline.
 
+</details>
+
 ## Obtain wkcli
+
+Since `v3.0.0-beta.12`, official archives and Linux native packages include matching `wkcli`. [Install and verify versions](/en/server/tools/wkcli), then choose a command family.
+
+<details>
+  <summary>Complete distribution and version history</summary>
 
 Since v3.0.0-beta.12, the official archives and Linux native packages include `wkcli` alongside the server. Start with [installation and version checks](/en/server/tools/wkcli). All examples use this one executable; you do not need separate benchmark, database, or migration binaries.
 
+</details>
+
 ## Build from source
+
+Build only a reviewed revision. Record tool and target versions; do not use development-branch tools directly in production or assume unknown versions are compatible. Expand for build commands.
+
+<details>
+  <summary>Complete source build and compatibility boundaries</summary>
 
 Build the required binary from a reviewed repository revision:
 
@@ -45,7 +92,14 @@ For source development, replace `wkcli` in examples with `./bin/wkcli` or `go ru
 
 Record a traceable version for both tool and target server. Do not use a development-branch tool against production or assume offline formats, Manager APIs, or benchmark protocols are compatible across unknown versions.
 
+</details>
+
 ## Handling failure
+
+Stop if identity, authentication, connectivity, or freshness is unclear; do not retry with broader permission. Read authoritative task state after failed writes. Retain conflicting evidence; stop loads, profiles, and scans at their budget.
+
+<details>
+  <summary>Complete failure handling and troubleshooting paths</summary>
 
 - Stop when authentication, connectivity, state freshness, or target identity cannot be proven; do not keep trying with broader credentials.
 - When read-only outputs disagree, retain both and check their time, node, version, and source.
@@ -53,3 +107,5 @@ Record a traceable version for both tool and target server. Do not use a develop
 - Stop a load, profile, or scan when its budget is reached even if it has not produced the expected conclusion.
 
 Use [Troubleshooting](/en/server/operations/troubleshooting) to choose the first check from a symptom.
+
+</details>

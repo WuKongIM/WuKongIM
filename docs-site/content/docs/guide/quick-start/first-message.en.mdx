@@ -1,56 +1,80 @@
 ---
 title: Send the First Message
-description: Use the embedded Chat Demo to create two test identities and verify two-way messaging.
+description: Follow the screenshots to connect Alice and Bob and verify your first two-way message exchange.
 ---
 
-Before starting, make sure the single-node cluster [readiness check](/en/guide/quick-start/single-node-cluster) succeeds.
+Complete the `/readyz` check in [Docker Deployment](/en/server/deployment/docker), or [launch all four Demos from source](/en/guide/quick-start/chat-demo). This is Bob's view in the current Chat Demo: Alice's message on the left, Bob's reply on the right. Click any image to enlarge it.
 
-## 1. Sign in the first test user
+<TutorialScreenshot src="/tutorials/first-message/exchange-en.jpg" alt="Bob is connected: hello from alice is received on the left; hello from bob is sent on the right. Open the full-size image." width={1280} height={280} marks={[{ x: 28, y: 55 }, { x: 83, y: 81 }]}>
+  **① Received**: `hello from alice`. **② Reply**: `hello from bob`; Alice should receive it too.
+</TutorialScreenshot>
 
-1. Open `http://127.0.0.1:5001/demo/` in a browser.
-2. Keep the API base URL at `http://127.0.0.1:5001`.
-3. Enter a unique UID such as `quickstart-alice`.
-4. Enter a local-only token such as `alice-local-token`.
-5. Select **Create or update demo credentials** for this new test account, then sign in and wait for the page header to report a successful connection.
-   For migration acceptance of an existing account, leave this option off and enter its existing Web token.
+## 1. Sign in as Alice
 
-## 2. Sign in the second test user
+With Docker, open [Chat Demo](http://127.0.0.1:5001/demo/?lang=en). With the source launcher, choose Chat from the opened catalog. Enter this test identity:
 
-Use another browser profile, private window, or different browser to open the Chat Demo again:
+| Field | Value |
+| --- | --- |
+| API base URL | Keep the automatic address; Docker defaults to `http://127.0.0.1:5001` |
+| Account | `quickstart-alice` |
+| Token | `alice-local-token` |
 
-- UID: `quickstart-bob`
-- Token: `bob-local-token`
+<TutorialScreenshot src="/tutorials/first-message/login-en.jpg" alt="Sign-in form: 1 local API URL, 2 test UID and token, 3 create demo credentials only for a new test account. Open the full-size image." width={420} height={420} marks={[{ x: 3, y: 14 }, { x: 3, y: 36 }, { x: 3, y: 79 }]}>
+  **① Keep the local API URL. ② Enter the UID and token. ③ Select the demo-credentials checkbox for this new test account, then choose Log in.**
+</TutorialScreenshot>
 
-Select **Create or update demo credentials** for the second new test account as well, then sign in and wait for a successful connection. Separate browser sessions prevent the two test identities from overwriting each other's page state.
-
-## 3. Send from Alice to Bob
-
-1. Return to the `quickstart-alice` page.
-2. Open the conversation selector in the top-right corner.
-3. Select direct chat and enter `quickstart-bob` as the other user's login name.
-4. Enter `hello from alice` and send.
-5. Confirm the sending indicator clears on Alice's page and the same message appears on Bob's page.
-
-## 4. Verify the reverse direction
-
-On Bob's page, open a direct chat with `quickstart-alice` and reply with `hello from bob`. The first two-way message check is complete when Alice receives it.
-
-<Callout type="info" title="What this verifies">
-  This path covers demo token registration, the default exact-match CONNECT token check, route discovery, a WebSocket connection, channel message commit, and online delivery. It proves the local development path works, but it does not replace production account authentication, token expiry and replay policy, TLS, capacity, recovery, or durability validation.
+<Callout type="warn" title="Create credentials only for dedicated test accounts">
+  The checkbox writes this UID's Web token. For existing accounts or migration acceptance, leave it off and enter the existing Web token. The default sign-in mode does not modify credentials.
 </Callout>
 
-## Troubleshooting
+## 2. Sign in as Bob and choose direct chat
 
-### The page stays disconnected
+Open the Demo in another browser profile, private window, or browser. Use `quickstart-bob` / `bob-local-token`, selecting demo credential creation only for this new test account.
 
-Run `/readyz` again, check port `5200` in the SSH forwarding command, then run `sudo journalctl -u wukongim -n 100 --no-pager` for errors.
+Wait until **both headers show Connected**. In Alice's page, click **＋** above the chat list (or Start a chat), choose Direct chat, enter `quickstart-bob`, and click OK.
 
-### The recipient does not receive the message
+<TutorialScreenshot src="/tutorials/first-message/recipient-en.jpg" alt="Current direct-chat form: 1 select Direct chat, 2 enter quickstart-bob as Recipient UID, 3 click OK. Open the full-size image." width={420} height={275} marks={[{ x: 3, y: 37 }, { x: 3, y: 62 }, { x: 92, y: 81 }]}>
+  **① Select Direct chat. ② Enter the other user's UID. ③ Click OK.**
+</TutorialScreenshot>
 
-Confirm both pages report a successful connection, the recipient UID exactly matches its login UID, and the selected conversation is a direct chat.
+<details>
+<summary>Does your released Docker UI look different?</summary>
 
-### The two pages disconnect each other
+These screenshots show the current local `main` Chat Demo. Earlier images may show Chinese labels: connection success (连接成功) and a top-right conversation selector (与谁会话？). Open that selector, choose direct chat (单聊), and enter the recipient UID. Test identities and messaging checks are the same. Use the [source launcher](/en/guide/quick-start/chat-demo) to try the four current Demos.
 
-Use separate browser profiles or private sessions and different UIDs for the two users.
+</details>
 
-Next: [understand the Chat Demo boundary](/en/guide/quick-start/chat-demo).
+## 3. Exchange messages
+
+1. Alice sends `hello from alice`. Wait for the sending indicator to clear; in Bob's page, open a direct chat with `quickstart-alice` and confirm the same text appears.
+2. Bob replies with `hello from bob`. Confirm Alice receives it.
+
+## Success checklist
+
+- Both UIDs are connected.
+- Alice's send succeeds and Bob sees the original text.
+- Bob's reply also appears on Alice's page.
+
+<details>
+<summary>Troubleshoot by symptom</summary>
+
+| Symptom | Check first |
+| --- | --- |
+| Disconnected | `/readyz`, WebSocket port `5200`, and `docker logs --tail 100 wukongim` |
+| Recipient sees no message | Both peers online, exact recipient UID, and direct-chat selection |
+| Sessions replace each other | Different UIDs and independent browser sessions |
+
+For Linux packages, check logs with `sudo journalctl -u wukongim -n 100 --no-pager`.
+
+</details>
+
+<details>
+<summary>What does this verify?</summary>
+
+The path covers demo token registration, exact-match CONNECT token checks, route discovery, WebSocket connection, channel message commit, and online delivery. Send success and recipient delivery are separate results; check both.
+
+It verifies the development path. Production still needs account authentication, token expiry and replay policy, TLS, capacity, recovery, and durability validation. See [Chat Demo boundaries](/en/guide/quick-start/chat-demo).
+
+</details>
+
+Next: [choose an SDK and integrate your app](/en/sdk).

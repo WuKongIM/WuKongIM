@@ -1,54 +1,61 @@
 ---
 title: 频道
-description: 理解频道如何表示消息目标，以及单聊、群聊、成员关系和消息历史如何围绕频道组织。
+description: 用单聊和群聊图示理解消息目标、频道身份与成员权限。
 ---
 
-频道（Channel）可以理解为消息的“地址”或“房间”。每条消息都属于一个频道，频道决定消息发到哪里、接收范围是什么，以及消息在哪个范围内保持顺序。
-
-一个频道由 `channel_id` 和 `channel_type` 共同标识。ID 相同但类型不同，会被当作两个不同的频道。
+频道（Channel）是消息的“地址”。完整身份是 **`channel_id + channel_type`**；同一个 ID 搭配不同类型，属于不同频道。
 
 ## 为什么频道重要
 
-- **确定消息目标**：单聊发给某个用户，群聊发给某个群，本质上都是选择一个频道。
-- **组织参与者**：频道类型和成员关系共同决定谁可以发送、谁可以接收。
-- **承载连续历史**：普通持久消息在各自频道内编号、排序和恢复，不同频道互不混淆。
-- **复用通信能力**：通知、客服、直播、社区和 Agent 等场景也可以建立在频道之上。
+发送消息先选频道。它确定接收范围，普通持久消息在各自频道内编号、排序和恢复。通知、客服、直播和 Agent 也可以复用这个入口。
 
 ## 与其他概念的关系
 
-- 发送**消息**时必须指定目标频道；普通持久消息的顺序也以频道为边界。
-- **用户**通过频道参与单聊、群聊或其他通信场景。
-- **设备**只是用户进入频道的端点，不改变频道身份。
-- **会话**是某个用户看到的频道入口；同一频道在不同用户侧有各自的未读和可见状态。
+<div className="tutorial-diagram">
 
-## 最常用的两类频道
+```mermaid
+flowchart TD
+  user["用户 + 设备<br/>发送消息"] --> channel["频道<br/>目标与有序历史"]
+  channel --> conversation["会话<br/>个人聊天列表入口"]
+```
 
-| 场景 | Channel ID 怎么选 | 谁维护参与关系 |
-| --- | --- | --- |
-| 单聊 | 发送时使用对方的 UID | 业务系统维护好友、陌生人或其他发送策略 |
-| 群聊 | 使用业务系统中稳定的群 ID | 业务系统创建群并把成员、黑白名单等状态同步给 WuKongIM |
+</div>
 
-例如，Alice 给 Bob 发送单聊消息时，Alice 以 Bob 的 UID 作为目标；Bob 回复时以 Alice 的 UID 作为目标。WuKongIM 会在内部把双方视角归一到同一份单聊历史，应用不需要构造内部频道 ID。
+设备不改变频道身份；不同用户看到的会话未读和可见状态可以不同。
 
-除了单聊和普通群聊，WuKongIM 还定义了社区、资讯、直播、访客和 Agent 等专用类型。只有服务端、所选 SDK 和业务流程都明确支持时才使用它们，完整取值见 [Channel Type](/zh/api/dictionaries/channel-types)。
+## 单聊：发给对方的 UID
 
-## 频道与业务群不是同一个概念
+<div className="tutorial-diagram">
 
-对于群聊，业务群和频道通常使用同一个群 ID，但职责不同：
+```mermaid
+flowchart TD
+  alice["Alice<br/>发给 bob"] --> history[单聊历史]
+  bob["Bob<br/>发给 alice"] --> history
+```
 
-| 业务系统负责 | WuKongIM 负责 |
+</div>
+
+调用方始终使用**对方 UID**。WuKongIM 在内部归一双方视角；应用不需要构造内部频道 ID，也不要把它回写为好友 ID。
+
+## 群聊：发给稳定的群 ID
+
+| 你要做什么 | 谁负责 |
 | --- | --- |
-| 群名称、头像、公告和群角色 | 频道身份、消息路由和频道内顺序 |
-| 谁可以建群、入群、邀请或退群 | 保存已经同步的成员与频道策略 |
-| 内容规则、租户隔离和业务审核 | 持久化消息、实时投递和离线恢复 |
+| 选择频道 ID | 业务系统提供稳定的群 ID |
+| 创建群、邀请或退群 | 业务系统决定，再由受信后端同步成员与策略 |
+| 保存、排序和投递消息 | WuKongIM |
 
-创建业务群之后，还要通过受信后端把成员和策略同步给 WuKongIM。仅知道一个 Channel ID 不代表用户已经有权加入或发送。
+**知道群 ID 不代表有发送权限。** Channel Type 也不是权限；成员、角色、黑白名单和内容策略仍由业务系统定义。
 
-## 开发时记住
+<details>
+  <summary>群资料、其他频道类型与大群处理</summary>
 
-- 把 `channel_id + channel_type` 作为完整频道键，不能只保存 ID。
-- 单聊调用方使用对方 UID，不要把服务端内部规范化身份回写成业务好友 ID。
-- Channel Type 不是权限；成员、角色和内容策略仍由业务系统定义。
-- 面向十万成员群时，成员变更和在线投递需要分页与有界处理，具体方案见[大群教程](/zh/guide/tutorials/large-groups)。
+群名称、头像、公告、角色、租户隔离和审核归业务系统管理。WuKongIM 保存同步后的频道成员与策略，提供消息持久化、实时投递和离线恢复。
 
-继续阅读[用户](/zh/guide/core-concepts/users)和[会话](/zh/guide/core-concepts/conversations)。需要理解频道副本、提交和迁移时查看 [Channel 消息层](/zh/server/architecture/channels)。
+单聊的好友、陌生人和发送策略也由业务系统维护。社区、资讯、直播、访客、Agent 等专用类型，只有在服务端、所选 SDK 与业务流程都支持时才使用，取值见 [Channel Type](/zh/api/dictionaries/channel-types)。
+
+十万成员群需要分页与有界的成员变更、在线投递，见[大群教程](/zh/guide/tutorials/large-groups)。
+
+</details>
+
+继续阅读[用户](/zh/guide/core-concepts/users)和[会话](/zh/guide/core-concepts/conversations)。频道副本、提交与迁移见 [Channel 消息层](/zh/server/architecture/channels)。

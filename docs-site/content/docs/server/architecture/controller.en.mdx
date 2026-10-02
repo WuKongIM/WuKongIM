@@ -3,9 +3,16 @@ title: Controller Layer
 description: Understand Controller Raft, materialized cluster state, node roles, tasks, and control intent.
 ---
 
-Controller is authoritative for low-frequency cluster intent: node membership, logical Slot Group assignment, desired replicas, control tasks, and a small amount of cluster-wide planning state converge here. It does not process every message or user heartbeat.
+Controller stores low-frequency cluster plans. Raft commits changes before they become materialized state; per-message traffic and user heartbeats stay outside this layer.
 
 ## Voters and mirrors
+
+**Voters** participate in Controller Raft; **mirrors** sync a voter's complete state file. A joined data node is not automatically a voter: promotion needs learner stages, membership proof and a final state command.
+
+<details>
+  <summary>Complete node-role and promotion rules</summary>
+
+Controller is authoritative for low-frequency cluster intent: node membership, logical Slot Group assignment, desired replicas, control tasks, and a small amount of cluster-wide planning state converge here. It does not process every message or user heartbeat.
 
 | Node role | Behavior | State source |
 | --- | --- | --- |
@@ -14,7 +21,25 @@ Controller is authoritative for low-frequency cluster intent: node membership, l
 
 Only nodes explicitly promoted to Controller voter participate in this Raft Group. A dynamically joined data node does not become a voter automatically; promotion has a separate learner, membership-proof, and final-state command path.
 
+</details>
+
 ## Commit and materialization order
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  command["Controller command<br/>Raft proposal"] --> raft["Persist WAL<br/>Raft commit"]
+  raft --> apply["FIFO apply<br/>Atomic state save"]
+  apply --> index["AppliedRaftIndex<br/>Persist boundary"]
+```
+
+</div>
+
+Persist WAL before sending Raft messages. Committed entries apply in FIFO batches with one atomic state save. WAL is authoritative; `cluster-state.json` is the materialized view. Recovery loads it or a snapshot, then replays the committed suffix after its applied boundary.
+
+<details>
+  <summary>Complete commit, materialization and replay flow</summary>
 
 ```mermaid
 flowchart TD
@@ -29,7 +54,14 @@ flowchart TD
 
 The Controller Raft WAL is authoritative for committed commands and applied-boundary metadata. `cluster-state.json` is the materialized view of current business state. Startup loads that view, or restores it from a Raft snapshot, and then replays the committed WAL suffix after the materialized applied index.
 
+</details>
+
 ## Revision and AppliedRaftIndex
+
+`Revision` versions business state and fences plans/tasks; `AppliedRaftIndex` marks materialized entries. Health/readiness metadata can advance the latter without a new business Revision or topology change.
+
+<details>
+  <summary>Full revision and applied-boundary semantics</summary>
 
 - `Revision` is the logical cluster-state version used by plans, tasks, and compare-and-set fences.
 - `AppliedRaftIndex` is the newest Raft entry materialized into the state file.
@@ -37,7 +69,14 @@ The Controller Raft WAL is authoritative for committed commands and applied-boun
 
 An increasing Raft index therefore does not necessarily mean topology changed, and heartbeat churn is not a new resource plan.
 
+</details>
+
 ## What Controller stores
+
+Store nodes, assignments, versioned hash-slot mappings and bounded control plans. Channel payloads, concrete Sessions, every Ping, unbounded audit logs and raw diagnostic artifacts belong elsewhere.
+
+<details>
+  <summary>Complete stored-state and exclusion list</summary>
 
 - node IDs, addresses, roles, and lifecycle;
 - logical Slot Raft Groups, desired members, configuration epochs, and preferred leaders;
@@ -47,28 +86,69 @@ An increasing Raft index therefore does not necessarily mean topology changed, a
 
 It does not store Channel message payloads, concrete TCP Sessions, every user Ping, unbounded audit logs, or raw diagnostic artifacts. High-frequency or unbounded data stays in the data plane, node-local runtime, or external storage.
 
+</details>
+
 ## Intent is not live fact
 
-Controller `DesiredPeers` and `PreferredLeader` values are desired state. Actual Slot Raft voters, learners, Leader, term, commit, and synchronization progress come from live Slot runtime evidence.
+`DesiredPeers` and `PreferredLeader` describe intent. Actual Leader, term, membership, commit and progress come from live Slot evidence.
 
 <Callout type="warn" title="Do not substitute PreferredLeader for Leader">
   A plan may not have converged, and the target can be inactive or behind. Reads and operational decisions must use fresh observed Raft evidence and preserve unknown when it is missing.
 </Callout>
 
+<details>
+  <summary>Full intent and observed-authority rules</summary>
+
+Controller `DesiredPeers` and `PreferredLeader` values are desired state. Actual Slot Raft voters, learners, Leader, term, commit, and synchronization progress come from live Slot runtime evidence.
+
+</details>
+
 ## Tasks and fences
+
+Example: moving a Slot replica.
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  learner["Open + add learner"] --> catchup["Catch up<br/>Promote learner"]
+  catchup --> remove["Remove old voter"]
+  remove --> commit["Assignment commit<br/>DesiredPeers + epoch"]
+```
+
+</div>
+
+Every phase carries task/Slot/epoch/attempt/phase fences. Final assignment requires live voter/learner proof before updating `DesiredPeers` and epoch. Scale-in must prove Gateway, Slot, Channel and task drain before `leaving` becomes `removed`.
+
+<details>
+  <summary>Full task phases, proof and scale-in fences</summary>
 
 Controller tasks split high-risk changes into verifiable phases. A Slot replica move, for example, proceeds through opening a learner, adding it, catching up, promoting it, removing the old voter, and committing the final assignment. Every phase carries fences such as task ID, Slot ID, configuration epoch, attempt, and phase index.
 
 The final command updates `DesiredPeers` and increments the configuration epoch only when live voter and learner evidence matches the intended set. Node scale-in similarly requires higher layers to prove Gateway, Slot, Channel, and task drain before Controller can change a `leaving` node into a `removed` tombstone.
 
+</details>
+
 ## Failure and recovery
+
+No Leader means a write error, never direct state-file edits. Voters recover snapshot + WAL suffix; mirrors sync full state files. Compact only materialized boundaries. Manager observations remain node-local Raft evidence.
+
+<details>
+  <summary>Complete failure and recovery boundaries</summary>
 
 - Without a Controller Leader, writes return leadership or lifecycle errors instead of editing the local state file directly.
 - Voters recover from a snapshot plus WAL suffix; mirrors catch up through complete state-file sync.
 - Snapshot and compaction trim only log boundaries covered by materialized state.
 - A Manager view of one node's Controller log or status is node-local Raft evidence, not a fabricated global log.
 
+</details>
+
 ## Source entry points
+
+Continue with the [Slot Metadata Layer](/en/server/architecture/slots) to see how Controller mappings and desired membership become live metadata routes.
+
+<details>
+  <summary>Implementation modules and source paths</summary>
 
 | Goal | Entry point |
 | --- | --- |
@@ -77,4 +157,4 @@ The final command updates `DesiredPeers` and increments the configuration epoch 
 | Raft WAL, apply, and snapshots | `pkg/controller/raft` |
 | Production cluster adapter | `pkg/cluster/control` |
 
-Continue with the [Slot Metadata Layer](/en/server/architecture/slots) to see how Controller mappings and desired membership become live metadata routes.
+</details>

@@ -1,23 +1,34 @@
 ---
 title: Authentication
-description: Design UID, token, device identity, connection authentication, and revocation.
+description: Connect product login to the SDK in three steps, with device, revocation, and API details on demand.
 ---
 
-WuKongIM identifies users by UID, platform classes by `device_flag`, and concrete endpoints by `device_id`. Product accounts, login credentials, and permissions remain owned by your product service.
+Goal: after product login, the SDK connects to WuKongIM using connection material from your backend.
 
-## Identity fields
+## 1. Sign in to your product
 
-| Field | Recommendation |
-| --- | --- |
-| `uid` | Use a stable, non-recycled product user identifier, never a display name |
-| `device_flag` | Represent an App, Web, or other platform class consistently |
-| `device_id` | Represent a concrete installation or endpoint; define reinstall behavior |
-| `token` | Use high entropy, short lifetimes, and protected delivery |
-| `device_level` | Define master/slave policy server-side; do not let clients self-promote |
+Your backend validates the account, tenant, device, and risk policy. Use a stable, non-recycled UID, never a display name.
 
-## Current v3 Beta behavior
+## 2. Prepare credentials on the backend
 
-`POST /user/token` accepts this compatible request and passes device-token metadata to the user use case for storage:
+Generate a high-entropy token, store it through protected Product HTTP, and discover the route. Return only the current user's `uid`, device parameters, token, and WebSocket address.
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  login["1. Client<br/>signs in to your product"] --> backend["2. Backend<br/>stores token, discovers route"]
+  backend --> connect["3. SDK connects<br/>with UID, token and WS address"]
+```
+
+</div>
+
+**Only trusted backends call token-management and routing APIs.** Product HTTP has no general product-authentication middleware. CORS permits browser access; it does not grant authorization.
+
+<details>
+  <summary>Store a token: request and response</summary>
+
+Call [`POST /user/token`](/en/api/product-http/users/setQuickstartUserToken) from your backend:
 
 ```json
 {
@@ -28,50 +39,37 @@ WuKongIM identifies users by UID, platform classes by `device_flag`, and concret
 }
 ```
 
-Successful response:
+A successful `{"status": 200}` means the token was stored, not that old connections have closed.
 
-```json
-{"status": 200}
-```
+</details>
 
-<Callout type="warn" title="The default connection verifies this token">
-  `gateway.token_auth_on` defaults to `true`, and the current app composition injects the stored device-token verifier. A later CONNECT for the same UID and `device_flag` must carry the exact token; an empty token, missing device record, or mismatch returns `ReasonAuthFail`. Set it to `false` only for a controlled compatibility migration.
-</Callout>
+## 3. Connect the SDK to Gateway
 
-The Gateway still:
+CONNECT uses the same UID, `device_flag`, and token. With the default `gateway.token_auth_on=true`, empty tokens, missing device records, or mismatches are rejected with `ReasonAuthFail`.
 
-- requires WKProto connections to begin with CONNECT;
-- stores the UID, device identity, and negotiated protocol version;
-- negotiates session encryption material by default;
-- activates the online route after connection success.
+Use HTTPS/WSS in production. Keep tokens out of URLs, logs, analytics, and unprotected client storage.
 
-Session encryption protects protocol payloads, but it does not replace product authentication, TLS ingress governance, or HTTP API access control.
+**Your backend owns token expiry.** The current API has no expiry field and CONNECT checks the stored token. Rotate or revoke it at expiry; a client-side timer is insufficient.
 
-## Recommended production flow
+<details>
+  <summary>Device fields and connection boundaries</summary>
 
-```mermaid
-sequenceDiagram
-  participant Client
-  participant Product as Product service
-  participant API as WuKongIM Product HTTP
-  participant Metadata as Device-token metadata
-  participant Gateway
-  Client->>Product: sign in with password / OAuth / enterprise SSO
-  Product->>Product: validate account, tenant, device, and risk policy
-  Product->>API: POST /user/token with a high-entropy token
-  API->>Metadata: persist by UID + device_flag
-  Product-->>Client: return only UID, device parameters, route, and token
-  Client->>Gateway: CONNECT + token
-  Gateway->>Metadata: read device token and Device Level
-  Metadata-->>Gateway: exact match or reject
-  Gateway-->>Client: CONNACK
-```
+| Field | Usage |
+| --- | --- |
+| `device_flag` | Platform class: APP `0`, WEB `1`, PC `2`; backend storage and SDK connection must agree |
+| `device_id` | Concrete installation or endpoint; the product defines reinstall behavior |
+| `device_level` | The backend owns master/slave policy; clients cannot self-promote |
 
-Only trusted product services may access user-token management routes. Add end-to-end rejection tests before production release.
+WKProto starts with CONNECT. Gateway retains identity and the negotiated protocol version, then activates online routing after success. Default session encryption does not replace product authentication or TLS. Use `gateway.token_auth_on=false` only for controlled compatibility migration.
 
-## Revocation and logout
+Keep Product HTTP on a private network or service mesh behind service-identity verification. Authorize token, send, and membership operations separately. Rate-limit credential routes, use TLS, and audit callers, request IDs, and outcomes without plaintext tokens.
 
-`POST /user/device_quit` clears the stored token for the selected device class and schedules matching owner-local sessions for closure:
+</details>
+
+<details>
+  <summary>Logout, revocation, and rotation</summary>
+
+Destroy the client connection on logout. Your backend calls [`POST /user/device_quit`](/en/api/product-http/users/quitUserDevice):
 
 ```json
 {
@@ -80,16 +78,10 @@ Only trusted product services may access user-token management routes. Add end-t
 }
 ```
 
-With default token verification enabled, clearing the durable token makes a later CONNECT fail and also closes matching existing sessions. Production should still prove closure and reconnect rejection and synchronize revocation, rotation, and audit state with the product identity system.
+This clears the stored token for the selected device class, rejects later CONNECT attempts, and schedules matching connections on the handling node for closure. Verify closure and reconnect rejection in production and synchronize product revocation, rotation, and audit state.
 
-## HTTP boundary
+Tokens are exact-match credentials. A JWT `exp` inside the string does not expire it automatically. Test invalid, revoked, wrong-UID tokens and your backend's expiry policy before release.
 
-Current product HTTP routes provide browser-compatible CORS handling but no general product-authentication middleware. A production environment should at least:
+</details>
 
-- expose product APIs only through a private network or service mesh;
-- authenticate service identity at an API Gateway or reverse proxy;
-- separate permissions for token, message-send, and membership mutations;
-- audit caller, request ID, and result without logging plaintext tokens;
-- rate-limit credential routes and require TLS.
-
-After tightening identity boundaries, continue with [Messaging](/en/guide/integration/messaging).
+Next: [Messaging](/en/guide/integration/messaging).

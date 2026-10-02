@@ -380,6 +380,11 @@ specification, runbook, report, or module documentation; link to them when neede
   identity and authorization. Manager, Debug, Bench, and MCP are separate privileged
   surfaces. Bench setup uses gated `/bench/v1/*` APIs and a bearer capability when
   remotely reachable. Operations MCP uses its own token and read-only tool boundary.
+- Gateway token authentication compares the stored UID/device Token exactly;
+  Product HTTP credential updates have no expiry field and JWT `exp` is not
+  interpreted. Application backends own expiry, rotation, and revocation. Device
+  quit clears the stored Token and schedules matching handling-node connections
+  for closure; verify revocation and live connection closure separately.
 - Gateway direct/PROXY v1/v2 auto-detection accepts unverified peer address assertions
   when `proxy_protocol_trusted_cidrs` is empty. A nonempty list admits only configured
   proxy peers. These addresses are diagnostic inputs, not built-in token or message
@@ -432,6 +437,14 @@ specification, runbook, report, or module documentation; link to them when neede
   rejected windows, missing telemetry, OOMs, or process restarts cannot establish
   production capacity or release qualification. Keep exact source/artifact identity
   and required workload evidence; see [performance triage](PERF_TRIAGE.md).
+- Fixed-arrival diagnostics must retain every planned ordinal, including driver
+  queue residence, rejected dispatch and incomplete work. Bounded queues keep
+  transient connection occupancy from silently changing the offered population;
+  scheduled-to-completion monotonic latency still includes all queue delay.
+  Preserve actual rendered TOML and full metric bodies for independent replay,
+  normalizing only predeclared exact fixture addresses/paths. A failed same-binary
+  repeatability control prevents attributing a candidate comparison; keep failed
+  populations and original performance thresholds unchanged.
 - Mixed SEND benchmark `stage-*` and `channel-*` diagnostics subtract registry
   snapshots taken after warmup and after measured handlers complete, before
   projector drain. `ResetTimer` alone never resets Prometheus counters. These
@@ -459,6 +472,10 @@ specification, runbook, report, or module documentation; link to them when neede
   Publish bilingual routes together and derive current versions from their canonical
   manifests/Changelog. Historical SDK or benchmark receipts do not certify newer
   artifacts. Keep public contracts separate from private interface inventories.
+- Public onboarding follows Docker single-node cluster → Chat Demo exchange →
+  platform SDK integration. Tutorial screenshots depict real versioned runs;
+  keep original captures and bilingual numbered captions aligned through
+  [the capture guide](../../docs-site/TUTORIAL_SCREENSHOTS.md).
 - Channel read RPCs classify typed temporary dependency transport failures before
   serialization using the existing not-ready code. Nested Slot-authority connection
   loss must not degrade into generic text and ordinary HTTP 400; unknown text,
@@ -746,6 +763,11 @@ specification, runbook, report, or module documentation; link to them when neede
 - The opt-in `demo/chatdemo` `test:integration` needs an explicitly supplied
   freshly built server and Playwright installation.
 
+- Chat Demo send retries reuse the original SDK `SendPacket` and `clientMsgNo`
+  only after an explicit failed SENDACK; a missing acknowledgement remains pending.
+  Mobile Back preserves the message view and draft in page memory. Drafts are not
+  durable, and reconnect retry ownership remains with the SDK.
+
 ## RPC host diagnostics
 
 - Durable-quorum Channel commits do not populate the reactor's legacy
@@ -761,6 +783,36 @@ specification, runbook, report, or module documentation; link to them when neede
   host. Keep counter deltas on their sampled intervals, missing values explicit,
   and surviving-thread scheduler deltas labeled as lower bounds. A correlation
   does not establish a transport defect or infrastructure root cause.
+
+- The independent `/streamdemo/` uses pinned `easyjssdk@2.0.5`: online `Message` and `CustomEvent` only, with one full `/channel/messagesync` read on connection/reconnection for offline recovery. `/message/eventsync` is not its live transport. The chat demo has no streaming UI; its stream-message edit exclusion remains a server contract.
+- `/supportdemo/` embeds only its read-only UI. Its separate loopback Node business
+  process owns support sessions and generation leases; handoff joins cancelled
+  stream snapshots before allowing human acceptance. Support ownership is not a
+  built-in Channel permission or a Product HTTP authentication guarantee.
+- Real model generation is a demo-owned OpenAI-compatible SSE producer; its local Node relay is loopback-only and separate from the Product API. API keys are request-scoped and omitted from storage/logs/history. Model deltas still pass through `/message/event` and SDK EVENT delivery, with complete snapshots on finish, cancellation and failure.
+- Product stream EVENT dispatch first proves the committed stream base identity, then publishes accepted public events to authoritative current subscribers and exact fenced owner sessions. Four request-owned fanouts, 128-member pages, 512-route pages, 256 KiB RPC frames and a five-second dispatch budget bound pressure; no token queues, per-member goroutines, RECVACK state or offline token log are created. Producers serialize events within each message and clients deduplicate event IDs; UTF-8 `text_offset` reconciles deltas with recovered snapshots. Delivery failures cannot undo accepted event storage; finished projections reject late reopening and final history remains the recovery source.
+
+- `/agentdemo/` embeds only its read-only task assistant UI. The loopback Node
+  backend bounds task execution, validates a three-tool allowlist and requires
+  explicit approval before creating demo todos. SDK messages persist tool traces;
+  real-time reply deltas use SDK events, with history reads only on load/reconnect.
+  Business state and model keys remain in memory; a process restart requires a
+  new demo session.
+
+- Product HTTP `/` redirects to `/demos/`, a stateless embedded catalog linking
+  `/demo/`, `/streamdemo/`, `/supportdemo/` and `/agentdemo/`. The catalog does
+  not create sessions, connect an SDK or invoke models. Its loopback preview
+  redirects each entrance to the independently running Demo process.
+
+- `node demo/start.mjs` owns a fresh loopback-only 256-hash-slot single-node
+  cluster and the Demo business processes. It uses a new run directory, strips
+  inherited product overrides, and stops only its own child process groups.
+  Startup health probes do not create user credentials or model requests.
+
+- All four Demo UIs expose a home link. Catalog redirects carry a `home`
+  parameter across origins and reloads; it accepts only the same origin or
+  loopback catalog URLs. Direct embedded entries use their same-origin catalog;
+  direct Node entries publish the configured Product API catalog in page metadata.
 
 - Transport byte observations preserve frame kind and scheduling lane through
   batched writes and the bounded observer drain. Fixed direction/lane counters

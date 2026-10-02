@@ -1,23 +1,34 @@
 ---
 title: 身份认证
-description: 设计 UID、Token、设备标识、连接鉴权和撤销策略。
+description: 三步连接业务登录与 SDK，按需查看设备、Token 撤销和接口代码。
 ---
 
-WuKongIM 使用 UID 标识用户，使用 `device_flag` 区分平台类别，使用 `device_id` 区分具体终端。业务账号、登录凭据和权限仍由你的业务服务管理。
+目标：用户登录你的业务后，SDK 使用业务后端提供的连接材料接入 WuKongIM。
 
-## 身份字段
+## 1. 先登录你的业务
 
-| 字段 | 建议 |
-| --- | --- |
-| `uid` | 使用稳定、不可复用的业务用户标识；不要使用昵称 |
-| `device_flag` | 表示 App、Web 等设备类别，同一平台保持一致 |
-| `device_id` | 表示一次具体安装或终端，重装策略由业务决定 |
-| `token` | 高熵、短生命周期、只通过受保护通道返回 |
-| `device_level` | 明确主设备与从设备策略，不由客户端随意提升 |
+业务后端验证账号、租户、设备与风险策略。UID 使用稳定、不可复用的用户标识；昵称不能作为 UID。
 
-## 当前 v3 Beta 行为
+## 2. 后端准备连接材料
 
-`POST /user/token` 接受以下兼容请求，并把设备 Token 元数据交给用户用例保存：
+后端生成高熵 Token，通过受保护的 Product HTTP 保存，再查询路由。只向当前用户返回 `uid`、设备参数、Token 和 WebSocket 地址。
+
+<div className="tutorial-diagram">
+
+```mermaid
+flowchart TD
+  login["①客户端<br/>登录你的业务"] --> backend["②业务后端<br/>保存 Token、查询路由"]
+  backend --> connect["③SDK 连接<br/>使用 UID、Token 与 WS 地址"]
+```
+
+</div>
+
+**只有受信后端调用 Token 管理与路由接口。** Product HTTP 没有通用业务鉴权；CORS 允许浏览器访问，不代表获得授权。
+
+<details>
+  <summary>保存 Token：请求与响应</summary>
+
+后端调用 [`POST /user/token`](/zh/api/product-http/users/setQuickstartUserToken)：
 
 ```json
 {
@@ -28,50 +39,37 @@ WuKongIM 使用 UID 标识用户，使用 `device_flag` 区分平台类别，使
 }
 ```
 
-成功响应：
+成功响应 `{"status": 200}` 表示 Token 已保存，不代表旧连接已关闭。
 
-```json
-{"status": 200}
-```
+</details>
 
-<Callout type="warn" title="默认连接会校验这个 Token">
-  `gateway.token_auth_on` 默认为 `true`，当前应用组合会注入已存设备 Token 校验器。后续相同 UID 与 `device_flag` 的 CONNECT 必须携带完全匹配的 Token；空 Token、缺少设备记录或不匹配都会返回 `ReasonAuthFail`。设置为 `false` 只应用于受控兼容迁移。
-</Callout>
+## 3. SDK 连接 Gateway
 
-Gateway 当前仍会：
+SDK 使用同一 UID、`device_flag` 和 Token 发起 CONNECT。默认 `gateway.token_auth_on=true`：空 Token、缺失设备记录或 Token 不匹配都会被拒绝，返回 `ReasonAuthFail`。
 
-- 要求 WKProto 连接先发送 CONNECT；
-- 保存 UID、设备和协商后的协议版本；
-- 默认协商会话加密材料；
-- 在连接成功后激活在线路由。
+生产入口使用 HTTPS/WSS。Token 不进入 URL、日志、分析事件或不受保护的客户端存储。
 
-会话加密保护协议负载，但不能替代业务身份验证、TLS 入口治理或 HTTP API 访问控制。
+**Token 有效期由业务后端管理。** 当前接口没有过期时间字段，CONNECT 校验保存的 Token；到期时需轮换或撤销，不能只依赖客户端计时。
 
-## 推荐的生产流程
+<details>
+  <summary>设备字段与连接边界</summary>
 
-```mermaid
-sequenceDiagram
-  participant Client as 客户端
-  participant Product as 业务服务
-  participant API as WuKongIM Product HTTP
-  participant Metadata as 设备 Token 元数据
-  participant Gateway as Gateway
-  Client->>Product: 密码 / OAuth / 企业 SSO 登录
-  Product->>Product: 校验账号、租户、设备与风险策略
-  Product->>API: POST /user/token 保存高熵 Token
-  API->>Metadata: 按 UID + device_flag 持久化
-  Product-->>Client: 仅返回 UID、设备参数、路由与 Token
-  Client->>Gateway: CONNECT + Token
-  Gateway->>Metadata: 读取设备 Token 与 Device Level
-  Metadata-->>Gateway: 精确匹配或拒绝
-  Gateway-->>Client: CONNACK
-```
+| 字段 | 用法 |
+| --- | --- |
+| `device_flag` | 平台类别：APP `0`、WEB `1`、PC `2`；后端保存与 SDK 连接保持一致 |
+| `device_id` | 具体安装或终端；重装策略由业务决定 |
+| `device_level` | 主设备 / 从设备策略由后端决定，客户端不能自行提升 |
 
-只有受信业务服务可以访问用户 Token 管理接口；发布生产版本前还必须添加端到端拒绝测试。
+WKProto 连接先发送 CONNECT，Gateway 保存身份和协商的协议版本，成功后激活在线路由。默认会话加密不替代业务鉴权或 TLS；`gateway.token_auth_on=false` 仅用于受控兼容迁移。
 
-## 撤销与退出
+Product HTTP 放在私网或服务网格，由代理验证服务身份。Token、发送、成员变更分别授权；凭据接口限流、启用 TLS，审计调用方、请求 ID 和结果，不记录明文 Token。
 
-`POST /user/device_quit` 会清除所选设备类别的已存 Token，并安排关闭匹配的 owner-local 会话：
+</details>
+
+<details>
+  <summary>退出、撤销与轮换</summary>
+
+退出时客户端销毁连接，业务后端调用 [`POST /user/device_quit`](/zh/api/product-http/users/quitUserDevice)：
 
 ```json
 {
@@ -80,16 +78,10 @@ sequenceDiagram
 }
 ```
 
-默认 Token 校验开启时，清空持久化 Token 会使后续 CONNECT 失败，同时关闭现有匹配会话。生产环境仍应验证关闭与重连拒绝，并在业务身份系统中同步撤销、轮换和审计状态。
+此操作清除对应设备类别的持久 Token，后续 CONNECT 会失败，并安排处理请求的节点关闭匹配连接。生产需实测连接关闭与重连拒绝，并同步业务身份系统的撤销、轮换和审计状态。
 
-## HTTP 边界
+Token 是精确匹配的凭据，不会因为字符串里包含 JWT `exp` 就自动过期。上线前验证无效、撤销、错误 UID 与业务过期策略。
 
-当前产品 HTTP 路由具有浏览器 CORS 兼容处理，但没有通用业务鉴权中间件。生产环境至少应：
+</details>
 
-- 仅在内网或服务网格中暴露产品 API；
-- 由 API Gateway 或反向代理验证服务身份；
-- 对 Token、消息发送和成员变更使用不同权限；
-- 记录调用方、请求 ID 和审计结果，但不记录明文 Token；
-- 对凭据接口限流，并使用 TLS。
-
-身份边界收紧后，继续实现[消息收发](/zh/guide/integration/messaging)。
+下一步：[消息收发](/zh/guide/integration/messaging)。
