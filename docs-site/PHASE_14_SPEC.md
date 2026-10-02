@@ -35,7 +35,7 @@ After this phase, that integrator can:
 5. stop a production release when connection authentication or another
    deployment-owned gate lacks evidence; and
 6. prepare a review packet without copying tokens, UIDs, message bodies,
-   Product HTTP addresses, WebSocket addresses, screenshots, or traces.
+   WuKongIM HTTP API addresses, WebSocket addresses, screenshots, or traces.
 
 ## Published routes
 
@@ -64,7 +64,7 @@ chapters; it does not broaden this phase's browser runtime receipt.
 3. run the complete real Chromium scenario against the configured cluster;
 4. write a report only after every command succeeds;
 5. record no supplied endpoint, development token, UID, message body, DOM,
-   screenshot, trace, video, console payload, or Product HTTP response;
+   screenshot, trace, video, console payload, or WuKongIM HTTP API response;
 6. write the report below the already-ignored `test-results/` directory; and
 7. leave a failed run without a stale passing report; and
 8. report bilingual documentation quality `passed` only when a configured
@@ -79,7 +79,7 @@ The smoke continues to prove the existing scenario only:
 - persistent person-Channel send in both directions;
 - SENDACK separately from realtime receipt;
 - absence of realtime receipt while one peer is disconnected;
-- reconnect plus bounded Product HTTP message synchronization, including a
+- reconnect plus bounded WuKongIM HTTP API message synchronization, including a
   fixed-window retry only for the exact asynchronous person-directory
   membership-not-ready response; and
 - deduplication when realtime and synchronized observations overlap.
@@ -96,7 +96,7 @@ integrator guide requires separate evidence for:
 - product account authentication and authoritative UID issuance;
 - a trusted Gateway stored-token verifier, including rejection tests for
   invalid, expired, revoked, and cross-device credentials;
-- TLS/WSS, controlled ingress, and private or authenticated Product HTTP;
+- TLS/WSS, controlled ingress, and private or authenticated WuKongIM HTTP API;
 - product authorization, membership, content policy, and abuse controls;
 - bounded retries, capacity tests, backpressure, and rate limits;
 - Webhook trust, durable admission, idempotency, retries, and reconciliation;
@@ -117,7 +117,7 @@ The local report schema is
 - acceptance-harness revision and clean/dirty state, explicitly not the tested
   cluster's source revision;
 - a cluster source identity fixed to `not_assessed` because an arbitrary
-  Product HTTP endpoint provides no trusted build attestation;
+  WuKongIM HTTP API endpoint provides no trusted build attestation;
 - sample lockfile, scenario, observed-and-validated installed SDK, Node.js,
   Playwright, and Chromium identity;
 - the fixed compatibility-smoke checks, all marked `passed`;
@@ -180,7 +180,7 @@ The fast gate must cover:
 - the acceptance report's exact shape, size, redaction, stale-report removal,
   and fail-closed write ordering;
 - isolated acceptance identities plus bounded first-use person-directory
-  convergence without retrying unrelated Product HTTP failures;
+  convergence without retrying unrelated WuKongIM HTTP API failures;
 - sample tests, typecheck, navigation, lint, static export, internal links,
   search, SEO, sitemap, accessibility structure, and LLM output.
 
@@ -195,7 +195,7 @@ real 256-Hash-Slot single-node cluster Chromium scenario before completion.
 - Declaring the default v3 Beta composition production-ready.
 - Publishing complete JavaScript APIs or upgrade instructions.
 - Publishing Android, iOS, Flutter, UniApp, or HarmonyOS support.
-- Expanding the Product HTTP OpenAPI subset.
+- Expanding the WuKongIM HTTP API OpenAPI subset.
 - Adding groups, custom payloads, conversations, push, multi-device,
   `NoPersist`, or background-runtime behavior to the executable scenario.
 - Replacing the protected golden-path publication attestation.

@@ -7,7 +7,7 @@ description: 按准备、安装、连接、收发和清理顺序完成首次接�
 
 ## 1. 准备接入
 
-按[认证与 Token](/zh/guide/integration/authentication)让受信业务后端分别提供两人的 `uid`、`token` 和 `websocketUrl`。客户端只连接 Gateway，不调用 Product HTTP 管理接口。
+按[认证与 Token](/zh/guide/integration/authentication)让受信业务后端分别提供两人的 `uid`、`token` 和 `websocketUrl`。客户端只连接 Gateway，不调用 WuKongIM HTTP API 管理接口。
 
 设备类别是 APP `0`、WEB `1`、PC/Desktop `2`。**Python 默认 Desktop `2`**，后端保存 Token 时必须使用相同设备类别。开发地址通常为 `ws://127.0.0.1:5200`；仅当 listener 或代理配置了 `/ws` 时使用 `ws://127.0.0.1:5200/ws`。生产使用 `wss://`，跨机器时使用客户端实际可达地址。
 

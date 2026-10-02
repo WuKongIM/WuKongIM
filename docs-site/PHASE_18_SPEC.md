@@ -9,7 +9,7 @@ does not change runtime routes, authentication, wire behavior, or storage.
 
 ## Superseding current state
 
-The current complete Product HTTP contract now covers 42 registrations, including
+The current complete WuKongIM HTTP API contract now covers 42 registrations, including
 `POST /message/eventsync`, and documents the native `header.red_dot` send flag.
 The 41-operation counts below describe the original Phase 18 snapshot.
 
@@ -47,19 +47,19 @@ Every discovered interface belongs to one documented class:
 
 | Class | Publication form | Stability and trust |
 | --- | --- | --- |
-| Product HTTP | Complete OpenAPI 3.1 plus one Fumadocs page per operation | 41 runtime operations; no built-in authentication; trusted backend only |
+| WuKongIM HTTP API | Complete OpenAPI 3.1 plus one Fumadocs page per operation | 41 runtime operations; no built-in authentication; trusted backend only |
 | Operations HTTP | OpenAPI 3.1 plus concise Fumadocs reference pages | Health, readiness, metrics, and node-local Top; protect with the operator network |
 | Outbound Webhook | OpenAPI 3.1 `webhooks` plus protocol guidance | Three callback events; bounded, best effort, and unsigned |
 | WKProto | Protocol pages and source-checked tables | Public binary core, codec-only packets, and reserved packets are distinct |
 | WebSocket JSON-RPC | Experimental schema and support matrix | At Phase 18 the codec existed without a supported Product Gateway path; later work supports only the pinned EasySDK core described above |
-| Manager, Debug, Bench, MCP, node transport, and plugin RPC | Exhaustive inventory and boundary page | Operator-only, conditional, tool-specific, or cluster-internal; not Product HTTP |
+| Manager, Debug, Bench, MCP, node transport, and plugin RPC | Exhaustive inventory and boundary page | Operator-only, conditional, tool-specific, or cluster-internal; not WuKongIM HTTP API |
 
 The inventory closes documentation gaps by naming private interfaces and their
 authority, not by granting public compatibility to them.
 
-## Product HTTP contract
+## WuKongIM HTTP API contract
 
-Add `contracts/product-http.openapi.json` as the complete current Product HTTP
+Add `contracts/product-http.openapi.json` as the complete current WuKongIM HTTP API
 snapshot. Its method/path set must equal the routes registered by the Channel,
 User, Message, Conversation, and Routing adapters: 41 operations, no more and
 no fewer. The existing golden-path, management, and message-send contracts stay
@@ -128,14 +128,14 @@ explicit fail-closed categories retain their own gates.
 ## Machine-readable outputs
 
 Published contracts are available from `/contracts/`. The Specifications group
-links the complete Product HTTP, Operations HTTP, Webhook, JSON-RPC, and narrow
+links the complete WuKongIM HTTP API, Operations HTTP, Webhook, JSON-RPC, and narrow
 profile artifacts and labels their stability. Search, per-page Markdown,
 `llms.txt`, `llms-full.txt`, sitemap, and static output include every published
 bilingual route.
 
 Source drift tests compare:
 
-- Product HTTP method/path pairs with the 41-operation OpenAPI contract;
+- WuKongIM HTTP API method/path pairs with the 41-operation OpenAPI contract;
 - base, Debug, and Bench registrations with their documented inventory;
 - Manager registrations and permission resources with the private inventory;
 - WKProto frame numbers, limits, and field order with frame/codec sources;

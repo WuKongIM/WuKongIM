@@ -1,9 +1,9 @@
 ---
 title: 安全与权限
-description: 分清 CONNECT、Manager 与产品 API 的鉴权边界，按结果验证配置。
+description: 分清 CONNECT、Manager 与 WuKongIM HTTP API 的鉴权边界，按结果验证配置。
 ---
 
-先区分三个入口：客户端 CONNECT 用设备 Token，Manager 用独立 JWT，产品 API 依赖受信任网络或外部业务鉴权。
+先区分三个入口：客户端 CONNECT 用设备 Token，Manager 用独立 JWT，WuKongIM HTTP API 依赖受信任网络或外部业务鉴权。
 
 ## 需要保护的值
 
@@ -12,7 +12,7 @@ description: 分清 CONNECT、Manager 与产品 API 的鉴权边界，按结果�
 <details>
   <summary>完整凭据、风险与处理方式</summary>
 
-配置安全从“谁能连接哪一个流量面”开始，而不只是把密码放进环境变量。为客户端、产品 API、节点 Transport、Manager 和观察面分别建立信任边界。
+配置安全从“谁能连接哪一个流量面”开始，而不只是把密码放进环境变量。为客户端、WuKongIM HTTP API、节点 Transport、Manager 和观察面分别建立信任边界。
 
 | 配置 | 风险 | 生产处理 |
 | --- | --- | --- |
@@ -42,7 +42,7 @@ flowchart TD
   `gateway.token_auth_on` 默认为 `true`。Gateway 会按 `UID + device_flag` 读取 `/user/token` 持久化的设备记录并精确比较 Token；Token 为空、记录不存在、已被清空或不匹配时返回 `ReasonAuthFail`。匹配成功后，Session 使用该记录保存的 Device Level。
 </Callout>
 
-**验收：** 检查启动快照中 `gateway.token_auth_on=true`；`WK_GATEWAY_TOKEN_AUTH_ON` 会覆盖 TOML。正确设备 Token 通过此项校验，错误、缺失或已撤销的 Token 返回 `ReasonAuthFail`。此开关不保护产品 HTTP。
+**验收：** 检查启动快照中 `gateway.token_auth_on=true`；`WK_GATEWAY_TOKEN_AUTH_ON` 会覆盖 TOML。正确设备 Token 通过此项校验，错误、缺失或已撤销的 Token 返回 `ReasonAuthFail`。此开关不保护 WuKongIM HTTP API。
 
 <details>
   <summary>显式 TOML、环境变量与迁移限制</summary>
@@ -54,11 +54,11 @@ flowchart TD
 token_auth_on = true
 ```
 
-等价环境变量为 `WK_GATEWAY_TOKEN_AUTH_ON=true`，并会覆盖 TOML。部署审计应检查启动配置快照中的最终值。设为 `false` 会让新 CONNECT 绕过这项设备 Token 校验，只应用于有明确截止时间和回滚方案的兼容迁移；它不会为 Product HTTP 增加鉴权。
+等价环境变量为 `WK_GATEWAY_TOKEN_AUTH_ON=true`，并会覆盖 TOML。部署审计应检查启动配置快照中的最终值。设为 `false` 会让新 CONNECT 绕过这项设备 Token 校验，只应用于有明确截止时间和回滚方案的兼容迁移；它不会为 WuKongIM HTTP API 增加鉴权。
 
 </details>
 
-## 管理面与产品 API
+## 管理面与 WuKongIM HTTP API
 
 <div className="grid gap-4 sm:grid-cols-2">
 
@@ -81,29 +81,29 @@ flowchart TD
 
 <div>
 
-### 产品 API
+### WuKongIM HTTP API
 
 <div className="tutorial-diagram">
 
 ```mermaid
 flowchart TD
-  backend["业务后端<br/>受信网络或外部鉴权"] --> api["产品 HTTP API<br/>无通用业务 Token 校验"]
+  backend["业务后端<br/>受信网络或外部鉴权"] --> api["WuKongIM HTTP API<br/>无通用业务 Token 校验"]
 ```
 
 </div>
 
-**不提供通用业务 Token 校验。** Manager 登录不会保护产品 API；业务 API 放在受信任网络或带业务身份校验的外部代理后。
+**不提供通用业务 Token 校验。** Manager 登录不会保护 WuKongIM HTTP API；业务 API 放在受信任网络或带业务身份校验的外部代理后。
 
 </div>
 
 </div>
 
 <details>
-  <summary>完整 Manager 权限与产品 API 边界</summary>
+  <summary>完整 Manager 权限与 WuKongIM HTTP API 边界</summary>
 
 生产环境启用 `manager.auth_on`，替换示例 JWT Secret 和账号。Manager 仅通过回环地址上的 SSH 转发，或管理内网/VPN 中的 HTTPS 代理访问；节点 `5301` 不直接暴露公网，代理到节点的链路也应限制来源。权限条目只授予所需资源和动作，不使用示例中的全局通配权限作为生产基线。操作步骤见 [Manager 管理后台](/zh/server/operations/manager)。
 
-WuKongIM 的产品 HTTP 路由不提供通用业务 Token 校验。不要因为 Manager 已启用认证就认为产品 API 同样受保护；业务 API 应位于受信任网络，或置于 API Gateway、反向代理和业务身份校验之后。
+WuKongIM HTTP API 路由不提供通用业务 Token 校验。不要因为 Manager 已启用认证就认为 WuKongIM HTTP API 同样受保护；业务 API 应位于受信任网络，或置于 API Gateway、反向代理和业务身份校验之后。
 
 </details>
 

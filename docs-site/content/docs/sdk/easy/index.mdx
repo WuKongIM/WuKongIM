@@ -40,7 +40,7 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 成功表示服�
 
 ## 准备连接材料
 
-客户端不应该创建自己的身份或调用 Product HTTP 管理接口。用户登录产品后，受信业务后端通过 HTTPS 返回最小连接材料：
+客户端不应该创建自己的身份或调用 WuKongIM HTTP API 管理接口。用户登录产品后，受信业务后端通过 HTTPS 返回最小连接材料：
 
 ```json
 {
@@ -53,7 +53,7 @@ EasySDK 不是聊天 UI，也不是完整产品后端。`send` 成功表示服�
 | 字段 | 所有者与约束 |
 | --- | --- |
 | `uid` | 业务后端确认的稳定用户标识；Alice 与 Bob 必须不同 |
-| `token` | 短期、可撤销，只用于当前身份连接；不能授予 Product HTTP 管理权限 |
+| `token` | 短期、可撤销，只用于当前身份连接；不能授予 WuKongIM HTTP API 管理权限 |
 | `websocketUrl` | 后端从部署配置或安全路由结果中选择；生产环境使用 `wss://` |
 
 先完成[认证与 Token](/zh/guide/integration/authentication)。当前默认组合会把 CONNECT Token 与 `/user/token` 保存的相同 UID、设备类别记录精确匹配；部署仍必须保护该接口、实现过期与轮换策略，并证明无效、撤销和按业务规则过期的 Token 会被拒绝。

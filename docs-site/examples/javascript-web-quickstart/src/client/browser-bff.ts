@@ -28,7 +28,7 @@ export interface BrowserMessageSyncInput {
   pullMode: 0 | 1;
 }
 
-/** Same-origin browser client; it never knows the Product HTTP base URL. */
+/** Same-origin browser client; it never knows the WuKongIM HTTP API base URL. */
 export class BrowserBffClient implements QuickstartBff {
   readonly #fetch: FetchLike;
   readonly #baseUrl: string;

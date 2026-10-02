@@ -3,11 +3,11 @@
   "info": {
     "title": "WuKongIM Trusted Message Sending Beta Subset",
     "version": "3.0.0-beta-snapshot",
-    "description": "A non-exhaustive Product HTTP contract for ordinary durable Channel sends from a trusted backend. The route has no built-in authentication.",
+    "description": "A non-exhaustive WuKongIM HTTP API contract for ordinary durable Channel sends from a trusted backend. The route has no built-in authentication.",
     "x-i18n": {
       "zh": {
         "title": "WuKongIM 受信消息发送 Beta 子集",
-        "description": "供受信后端发送普通持久 Channel 消息的非完整 Product HTTP 合同；该路由没有内建鉴权。"
+        "description": "供受信后端发送普通持久 Channel 消息的非完整 WuKongIM HTTP API 合同；该路由没有内建鉴权。"
       }
     }
   },
@@ -15,10 +15,10 @@
   "servers": [
     {
       "url": "http://127.0.0.1:5001",
-      "description": "Default Product HTTP listener for a local single-node cluster",
+      "description": "Default WuKongIM HTTP API listener for a local single-node cluster",
       "x-i18n": {
         "zh": {
-          "description": "本地单节点集群的默认 Product HTTP 监听地址"
+          "description": "本地单节点集群的默认 WuKongIM HTTP API 监听地址"
         }
       }
     }
@@ -318,10 +318,10 @@
       },
       "MaintenanceError": {
         "type": "object",
-        "description": "Controller restore maintenance currently fences Product HTTP writes.",
+        "description": "Controller restore maintenance currently fences WuKongIM HTTP API writes.",
         "x-i18n": {
           "zh": {
-            "description": "Controller 恢复维护当前阻止 Product HTTP 写入。"
+            "description": "Controller 恢复维护当前阻止 WuKongIM HTTP API 写入。"
           }
         },
         "additionalProperties": false,

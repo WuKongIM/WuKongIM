@@ -3,7 +3,7 @@ title: Reason Code
 description: 完整查阅当前 0–29 协议原因码的名称、阶段、重试建议和可达性。
 ---
 
-业务发送拒绝另外保留 128–255，由 `msg.before_send` 返回，并在 SENDACK `reason_code` 与 Product HTTP `reason` 中原样透传。它们不是下表的系统枚举；SDK/业务层应保留原值、显示自定义文案，避免自动重试明确拒绝。
+业务发送拒绝另外保留 128–255，由 `msg.before_send` 返回，并在 SENDACK `reason_code` 与 WuKongIM HTTP API `reason` 中原样透传。它们不是下表的系统枚举；SDK/业务层应保留原值、显示自定义文案，避免自动重试明确拒绝。
 
 ## 目标与完成标准
 

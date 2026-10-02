@@ -55,7 +55,7 @@ summary: Owns the bilingual static v3 documentation site, shared navigation, pub
 5. Removed SDK pages exist only as redirects. UniApp migration lives under the
    JavaScript advanced section; there is no standalone UniApp documentation
    group.
-6. `scripts/generate-openapi.ts` generates the complete Product HTTP reference.
+6. `scripts/generate-openapi.ts` generates the complete WuKongIM HTTP API reference.
    Operations HTTP and outbound Webhooks use separate OpenAPI contracts.
    WKProto, JSON-RPC, and private interfaces remain protocol documentation.
 7. `lib/release-version.ts` treats the latest exact root Changelog version
@@ -72,14 +72,14 @@ summary: Owns the bilingual static v3 documentation site, shared navigation, pub
 - Chinese and English share one menu; publication requires both locale variants.
 - Product facts preserve cluster-only and 256-hash-slot semantics, durable commit versus downstream effects, and current security boundaries.
 - Full SDK examples pin exact released versions in Java, Objective-C, TypeScript, Dart, and ArkTS, explaining core terms first.
-- A trusted backend supplies identity, tokens, routing, history, Channel metadata and media URLs. Untrusted clients never call Product HTTP management directly.
+- A trusted backend supplies identity, tokens, routing, history, Channel metadata and media URLs. Untrusted clients never call WuKongIM HTTP API management directly.
 - The JavaScript browser gate uses BFF-issued credentials with Token auth enabled;
   its pinned Playwright runner verifies online exchange and offline recovery.
 - The JavaScript example is a development aid; actual devices, networks, and releases need testing.
 - EasySDK evidence names exact client and server revisions. When verified source
   is ahead of a package release, pages must not attribute that run to the older
   npm, Maven, CocoaPods, or Release artifact.
-- The complete Product HTTP contract must match current route registrations.
+- The complete WuKongIM HTTP API contract must match current route registrations.
   Message editing publishes separate update and single-channel edit-feed operations,
   latest content on both conversation reads, decimal edit versions, and restore
   epoch/cache reset semantics. Node transport inventory includes their private RPCs.

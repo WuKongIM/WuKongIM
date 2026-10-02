@@ -47,7 +47,7 @@ under the Tutorials group.
 ## AI streaming boundaries
 
 - The product service owns model invocation, prompt policy, tool execution,
-  cancellation, quotas, and safety. Product HTTP examples stay behind a trusted
+  cancellation, quotas, and safety. WuKongIM HTTP API examples stay behind a trusted
   boundary without general product authentication.
 - A stream starts from one durable base message with the legacy stream setting
   bit (`setting=2`) and a stable `client_msg_no`. Event updates use the same

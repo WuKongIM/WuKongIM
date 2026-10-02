@@ -170,7 +170,7 @@ test("the development BFF rejects cross-origin browser mutations", async () => {
   assert.equal(reachedProductHttp, false);
 });
 
-test("identity provisioning rejects an invalid UID before Product HTTP", async () => {
+test("identity provisioning rejects an invalid UID before WuKongIM HTTP API", async () => {
   let reachedProductHttp = false;
   const productClient: WuKongIMProductClient = {
     async updateToken() {
@@ -271,7 +271,7 @@ test("a browser session recovers person messages through the BFF", async () => {
   });
 });
 
-test("message recovery rejects an unbounded page before Product HTTP", async () => {
+test("message recovery rejects an unbounded page before WuKongIM HTTP API", async () => {
   let reachedProductHttp = false;
   const productClient: WuKongIMProductClient = {
     async updateToken() {

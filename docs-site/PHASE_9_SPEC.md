@@ -59,7 +59,7 @@ search, sitemap, LLM outputs, and per-page Markdown.
   and a concrete connection Session is owner-node-local. Distributed presence
   stores fenced virtual owner routes, not TCP session handles. Stored token
   metadata exists, but the default v3 Beta app composition does not by itself
-  make product HTTP endpoints trusted or guarantee stored-token CONNECT
+  make WuKongIM HTTP API endpoints trusted or guarantee stored-token CONNECT
   validation.
 - A conversation is a UID-owned projection over Channel-owned committed
   messages. `active_at` determines active-list order; `read_seq` and

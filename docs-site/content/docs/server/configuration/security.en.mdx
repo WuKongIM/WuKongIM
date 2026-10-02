@@ -1,9 +1,9 @@
 ---
 title: Security & Access
-description: Separate CONNECT, Manager, and Product API trust boundaries, then verify configuration outcomes.
+description: Separate CONNECT, Manager, and WuKongIM HTTP API trust boundaries, then verify configuration outcomes.
 ---
 
-Separate three entries: CONNECT uses device tokens, Manager uses its own JWT, and Product HTTP relies on trusted networking or external business auth.
+Separate three entries: CONNECT uses device tokens, Manager uses its own JWT, and WuKongIM HTTP API relies on trusted networking or external business auth.
 
 ## Values to protect
 
@@ -12,7 +12,7 @@ Replace example users, JWT secrets, and join tokens. Inject from a secret system
 <details>
   <summary>Complete credentials, risks, and handling</summary>
 
-Configuration security starts with who can reach each traffic plane, not merely with moving passwords into environment variables. Give clients, product APIs, node Transport, Manager, and observability separate trust boundaries.
+Configuration security starts with who can reach each traffic plane, not merely with moving passwords into environment variables. Give clients, WuKongIM HTTP API, node Transport, Manager, and observability separate trust boundaries.
 
 | Configuration | Risk | Production handling |
 | --- | --- | --- |
@@ -42,7 +42,7 @@ flowchart TD
   `gateway.token_auth_on` defaults to `true`. Gateway reads the device record persisted by `/user/token` for the same `UID + device_flag` and compares the token exactly. An empty token, missing or cleared record, or mismatch returns `ReasonAuthFail`; after a match, the Session adopts the stored Device Level.
 </Callout>
 
-**Verify:** the startup snapshot shows `gateway.token_auth_on=true`; `WK_GATEWAY_TOKEN_AUTH_ON` overrides TOML. Valid device tokens pass this check; wrong, missing, or revoked tokens return `ReasonAuthFail`. This switch does not protect Product HTTP.
+**Verify:** the startup snapshot shows `gateway.token_auth_on=true`; `WK_GATEWAY_TOKEN_AUTH_ON` overrides TOML. Valid device tokens pass this check; wrong, missing, or revoked tokens return `ReasonAuthFail`. This switch does not protect WuKongIM HTTP API.
 
 <details>
   <summary>Explicit TOML, environment override, and migration constraints</summary>
@@ -54,11 +54,11 @@ Keep the secure default explicit in deployment configuration so upgrades and env
 token_auth_on = true
 ```
 
-The equivalent environment variable is `WK_GATEWAY_TOKEN_AUTH_ON=true`, and it overrides TOML. Audit the effective value in the startup configuration snapshot. Setting it to `false` lets new CONNECT requests bypass this device-token check and is only for a time-bounded compatibility migration with a rollback plan; it does not add authentication to Product HTTP.
+The equivalent environment variable is `WK_GATEWAY_TOKEN_AUTH_ON=true`, and it overrides TOML. Audit the effective value in the startup configuration snapshot. Setting it to `false` lets new CONNECT requests bypass this device-token check and is only for a time-bounded compatibility migration with a rollback plan; it does not add authentication to WuKongIM HTTP API.
 
 </details>
 
-## Manager and product APIs
+## Manager and WuKongIM HTTP API
 
 <div className="grid gap-4 sm:grid-cols-2">
 
@@ -81,29 +81,29 @@ Enable `manager.auth_on`, replace JWT secrets and users, and grant only needed r
 
 <div>
 
-### Product API
+### WuKongIM HTTP API
 
 <div className="tutorial-diagram">
 
 ```mermaid
 flowchart TD
-  backend["Trusted network<br/>or external auth"] --> api["Product HTTP API<br/>No business token auth"]
+  backend["Trusted network<br/>or external auth"] --> api["WuKongIM HTTP API<br/>No business token auth"]
 ```
 
 </div>
 
-**No general business token validation.** Manager login does not protect Product HTTP; use trusted networking or an external proxy with business identity checks.
+**No general business token validation.** Manager login does not protect WuKongIM HTTP API; use trusted networking or an external proxy with business identity checks.
 
 </div>
 
 </div>
 
 <details>
-  <summary>Full Manager permissions and Product API boundaries</summary>
+  <summary>Full Manager permissions and WuKongIM HTTP API boundaries</summary>
 
 Enable `manager.auth_on` in production and replace example JWT secrets and users. Access Manager through an SSH tunnel to loopback, or an HTTPS proxy on a management network/VPN. Do not expose node port `5301` publicly; restrict sources on the proxy-to-node path too. Grant only required resources and actions; the example global wildcard is not a production baseline. See [Manager](/en/server/operations/manager) for access steps.
 
-WuKongIM product HTTP routes do not provide general business token validation. Manager authentication does not protect the product API. Put business routes on a trusted network or behind an API gateway, reverse proxy, and business identity check.
+WuKongIM HTTP API routes do not provide general business token validation. Manager authentication does not protect the WuKongIM HTTP API. Put business routes on a trusted network or behind an API gateway, reverse proxy, and business identity check.
 
 </details>
 

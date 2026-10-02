@@ -15,14 +15,14 @@ flowchart TD
 
 </div>
 
-图中展示 WSS 经 TLS 代理转为 WS 的例子；代理需将外部 `/ws` 路径正确转发到上游。业务后端在受信任网络访问产品 API，为客户端取得路由。
+图中展示 WSS 经 TLS 代理转为 WS 的例子；代理需将外部 `/ws` 路径正确转发到上游。业务后端在受信任网络访问 WuKongIM HTTP API，为客户端取得路由。
 
 ## 流量面
 
 | 谁要连接 | 应走哪个入口 |
 | --- | --- |
 | 客户端 | 受控 TCP / WS / WSS 入口；地址从目标客户端网络可达 |
-| 业务后端 | 受信任网络或外部鉴权代理后的产品 API |
+| 业务后端 | 受信任网络或外部鉴权代理后的 WuKongIM HTTP API |
 | 其他节点 | 内网 Transport，节点间双向可达 |
 | 管理与采集 | SSH / 管理内网访问 Manager；指标与诊断限制授权来源 |
 
@@ -32,7 +32,7 @@ flowchart TD
 | 流量 | 主要配置 | 消费者 | 生产建议 |
 | --- | --- | --- | --- |
 | 节点间 Transport | `cluster.listen_addr`，静态 `nodes[].addr` 或 `cluster.advertise_addr` | 其他 WuKongIM 节点 | 只开放给集群网络，保证双向可达 |
-| 产品 HTTP API | `api.listen_addr` | 业务后端、健康检查、观察采集 | 放在受信任网络或外部鉴权代理后 |
+| WuKongIM HTTP API | `api.listen_addr` | 业务后端、健康检查、观察采集 | 放在受信任网络或外部鉴权代理后 |
 | 客户端 Gateway | `gateway.listeners` | TCP、WebSocket 客户端 | 通过受控入口暴露并实施连接容量限制 |
 | 客户端发现地址 | `api.external_tcp_addr`、`external_ws_addr`、`external_wss_addr` | `/route` 的调用者 | 必须能从目标客户端网络访问 |
 | Manager | `manager.listen_addr` | 管理员和自动化 | 仅回环或管理内网；使用 SSH 转发或内网 HTTPS 代理，保持认证开启 |
@@ -76,8 +76,8 @@ listeners = [
 
 ## 暴露策略
 
-<Callout type="warn" title="产品 API 需要外部信任边界">
-  产品 HTTP API 不提供通用业务身份校验。使用受信任网络或外部鉴权代理；公网只开放所需客户端端口与受保护 API。Manager 保持认证，仅通过回环、管理内网或 SSH 访问。
+<Callout type="warn" title="WuKongIM HTTP API 需要外部信任边界">
+  WuKongIM HTTP API 不提供通用业务身份校验。使用受信任网络或外部鉴权代理；公网只开放所需客户端端口与受保护 API。Manager 保持认证，仅通过回环、管理内网或 SSH 访问。
 </Callout>
 
 Transport、指标、Debug、Benchmark 与诊断端点各自限制网络来源；共用 HTTP 监听不代表拥有相同权限。
@@ -85,9 +85,9 @@ Transport、指标、Debug、Benchmark 与诊断端点各自限制网络来源�
 <details>
   <summary>完整暴露策略与健康检查区别</summary>
 
-- 公网入口只应包含业务需要的客户端端口和经过保护的产品 API。
+- 公网入口只应包含业务需要的客户端端口和经过保护的 WuKongIM HTTP API。
 - 节点 Transport、Manager、`/metrics`、`/top/v1/*`、`/debug/pprof/*`、Benchmark 与诊断能力分别设置网络策略，不要因共用 HTTP Listener 就赋予相同信任。
-- WuKongIM 的产品 HTTP API 不提供通用业务身份校验；应由受信任网络、API Gateway 或外部鉴权代理建立安全边界。
+- WuKongIM HTTP API 不提供通用业务身份校验；应由受信任网络、API Gateway 或外部鉴权代理建立安全边界。
 - 负载均衡器用 `/readyz` 决定流量准入。`/healthz` 只说明进程存活，不能证明节点已经具备服务条件。
 
 </details>

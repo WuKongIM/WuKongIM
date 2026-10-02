@@ -10,7 +10,7 @@ description: 运维、Debug、Bench 与 Manager 的发布范围。
 | `/top/v1/snapshot` | Operator | 不稳定 | 已发布，但不承诺稳定兼容 |
 | `/debug/*` | Operator | 不稳定、默认关闭 | 否；只列内部接口和暴露风险 |
 | `/bench/v1/*` | Agent / benchmark | 不稳定、默认关闭 | 否；只列 Benchmark 私有合同 |
-| Manager 110 路由 | Operator | 私有运维合同 | 不与 Product HTTP 合并 |
+| Manager 110 路由 | Operator | 私有运维合同 | 不与 WuKongIM HTTP API 合并 |
 | Node transport | Cluster internal | 不稳定兼容编号 | 绝不伪装成 HTTP/OpenAPI |
 | MCP / Agent CLI | Operator / Agent | 闭集工具合同 | 用工具表或 CLI 表，不用 OpenAPI |
 
@@ -20,4 +20,4 @@ description: 运维、Debug、Bench 与 Manager 的发布范围。
 
 Manager 除 `/mcp` 外会反射调用者 Origin（无 Origin 时为 `*`），因此必须位于隔离的管理网络并在外层终止 TLS。启用认证后，Manager JWT 与各路由 `cluster.*:r|w` 权限才生效；恢复要求精确 `cluster.restore:w`，通配权限不能替代。
 
-这些页面是源码清单，不把私有或不稳定入口升级为兼容承诺。公共业务集成继续使用 [Product HTTP](/zh/api/product-http)，客户端实时协议继续使用 [WKProto](/zh/api/client-protocols)。
+这些页面是源码清单，不把私有或不稳定入口升级为兼容承诺。公共业务集成继续使用 [WuKongIM HTTP API](/zh/api/product-http)，客户端实时协议继续使用 [WKProto](/zh/api/client-protocols)。

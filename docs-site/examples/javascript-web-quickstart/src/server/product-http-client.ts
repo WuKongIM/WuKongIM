@@ -39,19 +39,19 @@ function requiredString(
   options: { allowEmpty?: boolean } = {},
 ): string {
   if (typeof value !== "string" || (!options.allowEmpty && value.length === 0)) {
-    throw new Error(`Product HTTP response has invalid ${field}`);
+    throw new Error(`WuKongIM HTTP API response has invalid ${field}`);
   }
   return value;
 }
 
 function nonNegativeInteger(value: unknown, field: string): number {
   if (!Number.isSafeInteger(value) || Number(value) < 0) {
-    throw new Error(`Product HTTP response has invalid ${field}`);
+    throw new Error(`WuKongIM HTTP API response has invalid ${field}`);
   }
   return Number(value);
 }
 
-/** Calls WuKongIM Product HTTP only from the trusted Node.js process. */
+/** Calls WuKongIM HTTP API only from the trusted Node.js process. */
 export class ProductHttpClient {
   readonly #baseUrl: string;
   readonly #fetch: FetchLike;

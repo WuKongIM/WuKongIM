@@ -29,7 +29,7 @@ planned.
   default, verifies the token stored by `/user/token` for the same UID and
   device category. Documentation must not present this exact-match check as a
   complete production credential lifecycle.
-- Product HTTP routes, including `/user/token` and `/message/send`, require a
+- WuKongIM HTTP API routes, including `/user/token` and `/message/send`, require a
   trusted network or an authenticated reverse proxy in production.
 - `/message/send` accepts a base64 payload and returns `message_id`,
   `message_seq`, and a protocol `reason`. On the default persistent-message

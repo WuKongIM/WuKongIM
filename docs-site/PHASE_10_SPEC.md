@@ -24,7 +24,7 @@ planned, visible, `noindex`, and excluded from those public indexes.
   authorization, moderation, mobile push, and durable business workflows.
   WuKongIM owns connection, Channel ordering, durable message logs, online
   delivery, offline sync, and UID-owned conversation projections.
-- Current product HTTP routes have no general product-authentication
+- Current WuKongIM HTTP API routes have no general product-authentication
   middleware. Tutorial `curl` commands are trusted development/service-side
   examples and MUST NOT be presented as browser- or mobile-client calls.
   Stored token metadata is not automatically validated by the default v3 Beta

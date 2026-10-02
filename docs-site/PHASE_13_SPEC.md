@@ -103,7 +103,7 @@ subset, or browser support.
 - UID is a stable product identity; Device Flag is a category; `device_id` is
   one concrete installation; Device Level is same-category conflict policy.
 - Credentials originate from a trusted backend, remain short-lived and
-  revocable, and never grant Product HTTP management capability to a client.
+  revocable, and never grant WuKongIM HTTP API management capability to a client.
 - `/user/token` persists device-token metadata, and the default app composition
   requires a later non-visitor CONNECT to match the stored token for the same
   UID and device category.
@@ -129,7 +129,7 @@ subset, or browser support.
 - Uncertain sends may retry with the same `client_msg_no`; overlapping wire
   attempts require distinct `client_seq` values.
 - Product payloads use an explicit, forward-compatible versioned envelope and
-  safe unknown-type fallback. Product HTTP Base64 is not an SDK payload API.
+  safe unknown-type fallback. WuKongIM HTTP API Base64 is not an SDK payload API.
 
 ### Conversations and unread
 
@@ -237,7 +237,7 @@ SDK platforms.
 
 ## Excluded
 
-- Runtime, authentication, SDK, protocol, configuration, or Product HTTP
+- Runtime, authentication, SDK, protocol, configuration, or WuKongIM HTTP API
   behavior changes.
 - Claims that default v3 Beta token storage is production CONNECT validation.
 - unqualified SDK rankings, current release matrices, or platform-specific API

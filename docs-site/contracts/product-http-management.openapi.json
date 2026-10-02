@@ -3,13 +3,13 @@
   "info": {
     "title": "WuKongIM Trusted Product Management Beta Subset",
     "version": "3.0.0-beta-snapshot",
-    "description": "A non-exhaustive Product HTTP contract for trusted-backend Channel management and Conversation synchronization. These routes have no built-in authentication."
+    "description": "A non-exhaustive WuKongIM HTTP API contract for trusted-backend Channel management and Conversation synchronization. These routes have no built-in authentication."
   },
   "x-wukongim-scope": "non-exhaustive-trusted-product-management-beta",
   "servers": [
     {
       "url": "http://127.0.0.1:5001",
-      "description": "Default Product HTTP listener for a local single-node cluster"
+      "description": "Default WuKongIM HTTP API listener for a local single-node cluster"
     }
   ],
   "tags": [

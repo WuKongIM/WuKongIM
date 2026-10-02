@@ -155,15 +155,15 @@ Route: `/{lang}/api`
 
 查阅源码校准的 HTTP、Webhook、客户端协议与私有接口边界。 / Reference source-aligned HTTP, webhook, client-protocol, and private-interface boundaries.
 
-- **通用约定 / Conventions** `/{lang}/api/conventions` — Product HTTP 的地址、格式、标识和重试规则。 / Product HTTP addressing, formats, identifiers, and retry rules.
+- **通用约定 / Conventions** `/{lang}/api/conventions` — WuKongIM HTTP API 的地址、格式、标识和重试规则。 / WuKongIM HTTP API addressing, formats, identifiers, and retry rules.
 
-- **认证与安全 / Authentication & Security** `/{lang}/api/authentication` — Product HTTP 与 Gateway 的鉴权边界。 / Authentication boundaries for Product HTTP and Gateway.
+- **认证与安全 / Authentication & Security** `/{lang}/api/authentication` — WuKongIM HTTP API 与 Gateway 的鉴权边界。 / Authentication boundaries for WuKongIM HTTP API and Gateway.
 
 - **版本与兼容性 / Versions & Compatibility** `/{lang}/api/compatibility` — 查看构建快照和接口覆盖状态。 / View the build snapshot and API coverage status.
 
 - **接口清单与信任边界 / Interface Inventory & Trust Boundaries** `/{lang}/api/interface-inventory` — 盘点 Manager、Node transport、MCP、插件与 Agent 私有合同。 / Inventories Manager, node transport, MCP, plugin, and agent-private contracts.
 
-- **Product HTTP API / Product HTTP API** `/{lang}/api/product-http` — 浏览当前源码注册的全部 48 条 Product HTTP 操作。 / Browse all 48 Product HTTP operations registered by the current source.
+- **WuKongIM HTTP API / WuKongIM HTTP API** `/{lang}/api/product-http` — 浏览当前源码注册的全部 48 条 WuKongIM HTTP API 操作。 / Browse all 48 WuKongIM HTTP API operations registered by the current source.
   - **用户 / Users** `/{lang}/api/product-http/users` — 设备 Token、在线状态与系统身份。 / Device tokens, presence, and system identities.
     - **创建或更新设备 Token / Create or update a device token** **POST** `/{lang}/api/product-http/users/setQuickstartUserToken` — 创建缺失的 UID 元数据并更新一个设备 Token；Gateway Token 鉴权默认启用，后续相同 UID 与设备类别的 CONNECT 凭据必须与它匹配。 / Upserts one UID/device token; default Gateway authentication requires later CONNECT credentials for the same UID and device category to match it.
     - **退出用户设备 / Clear a user device token** **POST** `/{lang}/api/product-http/users/quitUserDevice` — 清空一个已存设备 Token 并调度 owner-local Session 关闭；device_flag=-1 选择 APP、Web 与 PC。 / Clears one stored device token and schedules owner-local Session closure; device_flag -1 selects APP, Web, and PC.

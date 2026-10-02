@@ -47,7 +47,7 @@ flowchart TD
 
 </div>
 
-`/api/im/bootstrap` 是**你的产品接口**，不是 WuKongIM Product HTTP。浏览器不直接调用 `/user/token` 或 `/route`；服务端凭据、路由选择与响应筛选留在 BFF。
+`/api/im/bootstrap` 是**你的产品接口**，不是 WuKongIM HTTP API。浏览器不直接调用 `/user/token` 或 `/route`；服务端凭据、路由选择与响应筛选留在 BFF。
 
 以下三个代码段按顺序放进同一个 TS 模块。先取连接材料，再创建连接所有者，最后绑定页面。
 

@@ -7,7 +7,7 @@
     "x-i18n": {
       "zh": {
         "title": "WuKongIM 运维 HTTP API",
-        "description": "Product HTTP 监听器上的进程与节点本地观测接口；健康、就绪与 Prometheus 输出稳定，Top 仍不稳定；它们都没有内建鉴权。"
+        "description": "WuKongIM HTTP API 监听器上的进程与节点本地观测接口；健康、就绪与 Prometheus 输出稳定，Top 仍不稳定；它们都没有内建鉴权。"
       }
     }
   },

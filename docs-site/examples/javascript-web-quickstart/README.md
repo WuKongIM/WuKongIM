@@ -4,19 +4,19 @@ This runnable TypeScript example shows how a browser application can connect
 two users with `wukongimjssdk@1.3.5`, exchange text messages, disconnect, and
 restore missed messages.
 
-The browser never calls WuKongIM Product HTTP directly. A small localhost Node.js
+The browser never calls WuKongIM HTTP API directly. A small localhost Node.js
 service obtains development tokens and routes, then exposes only the two
 operations the browser needs.
 
 > This is a development example, not an account system or production gateway.
-> Keep Product HTTP on a trusted network and replace the development identity
+> Keep WuKongIM HTTP API on a trusted network and replace the development identity
 > endpoint with your authenticated application backend.
 
 ## Prerequisites
 
 - Node.js 20.11 or newer and npm.
 - A ready WuKongIM single-node cluster.
-- Product HTTP reachable from this Node.js process.
+- WuKongIM HTTP API reachable from this Node.js process.
 - A `ws_addr` or `wss_addr` returned by `/route` that the browser can reach.
 
 ## Run
@@ -51,7 +51,7 @@ provide their own consistency and request-deadline policy.
 | --- | --- | --- |
 | `WK_DOCS_QUICKSTART_HOST` | `127.0.0.1` | UI and local service bind address. Only loopback names and addresses are accepted. |
 | `WK_DOCS_QUICKSTART_PORT` | `5173` | UI and local service port. |
-| `WK_DOCS_QUICKSTART_PRODUCT_HTTP_URL` | `http://127.0.0.1:5001` | WuKongIM Product HTTP base URL used only by Node.js. |
+| `WK_DOCS_QUICKSTART_PRODUCT_HTTP_URL` | `http://127.0.0.1:5001` | WuKongIM HTTP API base URL used only by Node.js. |
 
 The browser calls these same-origin endpoints:
 
@@ -60,14 +60,14 @@ The browser calls these same-origin endpoints:
 
 The Node.js service maps them to `POST /user/token`, `GET /route`, and
 `POST /channel/messagesync`. It validates loopback Host and Origin headers,
-bounds request bodies and sync pages, and never sends the Product HTTP address
+bounds request bodies and sync pages, and never sends the WuKongIM HTTP API address
 to the browser.
 
 ## Project layout
 
 ```text
 src/client/   Browser UI, SDK wrapper, and reconnect flow
-src/server/   Local service and Product HTTP client
+src/server/   Local service and WuKongIM HTTP API client
 public/       HTML and CSS
 test/         Fast unit tests
 e2e/          Real-browser messaging and reconnect assertions

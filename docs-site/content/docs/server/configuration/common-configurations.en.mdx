@@ -39,9 +39,9 @@ Choose static `cluster.nodes` or non-empty `cluster.seeds`. JSON environment lis
 | <span className="whitespace-nowrap">Use</span> | Setting and result |
 | --- | --- |
 | <span className="whitespace-nowrap">Clients</span> | `gateway.listeners`: Omission listens on all interfaces: TCP `5100` / WSMux `5200`; an explicit empty list disables Gateway |
-| <span className="whitespace-nowrap">API</span> | `api.listen_addr`: Omitted or empty disables Product HTTP; configure Gateway and Manager separately |
+| <span className="whitespace-nowrap">API</span> | `api.listen_addr`: Omitted or empty disables WuKongIM HTTP API; configure Gateway and Manager separately |
 
-Keep `gateway.token_auth_on=true`. CONNECT exactly matches the stored device token for the same `UID + device_flag`; empty, missing, or mismatched tokens return `ReasonAuthFail`. Product HTTP still needs a trusted network or external auth.
+Keep `gateway.token_auth_on=true`. CONNECT exactly matches the stored device token for the same `UID + device_flag`; empty, missing, or mismatched tokens return `ReasonAuthFail`. WuKongIM HTTP API still needs a trusted network or external auth.
 
 </section>
 
@@ -80,7 +80,7 @@ This page keeps only the settings most often consulted for startup, client acces
 | [`cluster.slot_replica_n`](/en/server/configuration/cluster)<br />`WK_CLUSTER_SLOT_REPLICA_N` | Sets the voter replicas for each Slot Raft Group when the cluster is first initialized. | `0` derives the static voter count, or uses `1` during seed joining; existing clusters follow persisted Controller state. |
 | [`gateway.listeners`](/en/server/configuration/networking)<br />`WK_GATEWAY_LISTENERS` | Defines the TCP or WebSocket listeners used by clients. | Omission opens WKProto TCP on `0.0.0.0:5100` and WSMux on `0.0.0.0:5200`; an explicit empty list disables Gateway. The environment value must be JSON. |
 | [`gateway.token_auth_on`](/en/server/configuration/security)<br />`WK_GATEWAY_TOKEN_AUTH_ON` | Requires a CONNECT token to exactly match the stored device token for the same UID and `device_flag`. | Defaults to `true`; an empty token, missing record, or mismatch returns `ReasonAuthFail`. Disable only temporarily during a controlled compatibility migration. |
-| [`api.listen_addr`](/en/server/configuration/networking)<br />`WK_API_LISTEN_ADDR` | Listens for the Product HTTP API, including health and switch-controlled metrics, debug, and related HTTP routes. | Omission or an empty value disables this HTTP service; it does not create client Gateway or Manager listeners. |
+| [`api.listen_addr`](/en/server/configuration/networking)<br />`WK_API_LISTEN_ADDR` | Listens for the WuKongIM HTTP API, including health and switch-controlled metrics, debug, and related HTTP routes. | Omission or an empty value disables this HTTP service; it does not create client Gateway or Manager listeners. |
 | [`manager.listen_addr`](/en/server/configuration/security)<br />`WK_MANAGER_LISTEN_ADDR` | Listens for the separate Manager administration service. | Omission or an empty value disables Manager; bind loopback or a management address, use SSH tunneling or a private HTTPS proxy, and enable authentication. |
 | [`manager.auth_on`](/en/server/configuration/security)<br />`WK_MANAGER_AUTH_ON` | Requires JWT login authentication for Manager routes. | Omission is `false`; when `true`, both `manager.jwt_secret` and `manager.users` are required. |
 | [`log.level`](/en/server/configuration/observability)<br />`WK_LOG_LEVEL` | Sets the minimum application log level that is recorded. | Defaults to `info`; allowed values are `debug`, `info`, `warn`, and `error`. Avoid leaving `debug` enabled after production troubleshooting. |

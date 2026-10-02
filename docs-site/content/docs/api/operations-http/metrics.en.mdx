@@ -7,7 +7,7 @@ _openapi:
     - wukongim-operations-http-beta-en
 ---
 
-`ANY /metrics` is registered only when the app wires a Prometheus handler; otherwise the route is absent and returns 404. Its response is Prometheus exposition, not JSON, and it is outside the Product HTTP contract. Scrapers should use `GET`.
+`ANY /metrics` is registered only when the app wires a Prometheus handler; otherwise the route is absent and returns 404. Its response is Prometheus exposition, not JSON, and it is outside the WuKongIM HTTP API contract. Scrapers should use `GET`.
 
 ```yaml
 scrape_configs:

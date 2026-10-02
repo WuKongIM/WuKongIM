@@ -56,7 +56,7 @@ const server = createServer(async (request, response) => {
 server.listen(config.port, config.host, () => {
   const host = config.host === "::1" ? "[::1]" : config.host;
   console.log(`WuKongIM JavaScript quickstart: http://${host}:${config.port}`);
-  console.log(`Trusted Product HTTP target: ${config.productHttpUrl}`);
+  console.log(`Trusted WuKongIM HTTP API target: ${config.productHttpUrl}`);
 });
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {

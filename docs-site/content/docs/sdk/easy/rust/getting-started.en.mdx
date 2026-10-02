@@ -7,7 +7,7 @@ Use Rust 1.86+, Tokio, and crates.io **WK_EASYSDK_RUST_VERSION** for online mess
 
 ## 1. Prepare
 
-Your backend returns the current user's `uid`, short-lived `token` and `websocketUrl`. Protect registration and rotation as described in [authentication and tokens](/en/guide/integration/authentication). Clients must not call Product HTTP management endpoints directly.
+Your backend returns the current user's `uid`, short-lived `token` and `websocketUrl`. Protect registration and rotation as described in [authentication and tokens](/en/guide/integration/authentication). Clients must not call WuKongIM HTTP API management endpoints directly.
 
 `Auth::new` defaults to **PC/Desktop `2`**. Wire values are APP `0`, WEB `1`, PC `2`; register the token under the same device category. If your native host uses APP, set `auth.device_flag = DeviceFlag::App` and match the backend registration.
 
@@ -148,7 +148,7 @@ let options = wukong_easy_sdk::Options {
 
 ## Optional: group messaging
 
-The trusted backend creates the group and manages members through Product HTTP.
+The trusted backend creates the group and manages members through WuKongIM HTTP API.
 After the backend confirms membership, use the group ID with `ChannelType::Group`:
 
 ```rust

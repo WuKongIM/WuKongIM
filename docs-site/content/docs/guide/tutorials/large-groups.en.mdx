@@ -142,7 +142,7 @@ Use `/channel/subscriber_remove` with the same request shape to remove members. 
 
 
 
-Product HTTP has no symmetric read route for ordinary subscribers, the denylist, or temporary subscribers. For strict verification, use the authenticated Manager `GET /manager/channels/:channel_type/:channel_id/subscribers` bounded paging query. Product HTTP can read the allowlist, but that legacy route returns the whole list at once and is unsuitable for large-group inspection.
+WuKongIM HTTP API has no symmetric read route for ordinary subscribers, the denylist, or temporary subscribers. For strict verification, use the authenticated Manager `GET /manager/channels/:channel_type/:channel_id/subscribers` bounded paging query. WuKongIM HTTP API can read the allowlist, but that legacy route returns the whole list at once and is unsuitable for large-group inspection.
 
 </details>
 

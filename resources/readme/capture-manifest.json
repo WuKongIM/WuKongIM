@@ -1,0 +1,105 @@
+{
+  "capturedOn": "2026-10-02",
+  "sourceRevision": "3261bbf6755d8cd504731b76214588311976f00c",
+  "serverBinarySha256": "b52d33bd004fd509ed9cee3b5ae72526c6beba241656c11c980e2366b2a457df",
+  "serverBuild": "development build from repository source",
+  "sdks": {
+    "chat": "wukongimjssdk@1.4.0-beta.1",
+    "otherDemos": "easyjssdk@2.0.5"
+  },
+  "cluster": {
+    "topology": "single-node cluster",
+    "hashSlots": 256,
+    "gatewayTokenAuthOn": true,
+    "loopbackOnly": true
+  },
+  "models": "simulated",
+  "manager": {
+    "authOn": true,
+    "accountPermissions": "read only",
+    "initialSlotCount": 8
+  },
+  "checks": [
+    "bidirectional SDK exchange en",
+    "bidirectional SDK exchange zh",
+    "mobile chat and history",
+    "stream completion",
+    "support handoff and human reply",
+    "agent tool call and pending confirmation",
+    "authenticated read-only Manager in both languages"
+  ],
+  "assets": [
+    {
+      "file": "chat-demo-en.png",
+      "width": 1440,
+      "height": 900,
+      "bytes": 68443,
+      "sha256": "07472e69d94cdc768bc7ee91ded2026d6ca6adf5d71a338adbab2dbdeaf34e98",
+      "verifiedState": "English Chat Demo; bidirectional SDK exchange"
+    },
+    {
+      "file": "chat-demo.jpg",
+      "width": 1440,
+      "height": 900,
+      "bytes": 110254,
+      "sha256": "1d1bb24879043389ab61d57a72ca57fef8be7c2b8d652b0a4753292f0edad63a",
+      "verifiedState": "Chinese Chat Demo; bidirectional SDK exchange"
+    },
+    {
+      "file": "chat-demo-mobile-cn.webp",
+      "width": 390,
+      "height": 844,
+      "bytes": 23530,
+      "sha256": "2e59417837633f5c969ce7001175814dc4cb510b8248cc4f59498c9fddf94a48",
+      "verifiedState": "Chinese mobile Chat Demo; synchronized history"
+    },
+    {
+      "file": "stream-demo.webp",
+      "width": 1440,
+      "height": 900,
+      "bytes": 32890,
+      "sha256": "9330764b63bd4bb855d6cc2c29989a4513a5fef60f0339817ee711b76debbb40",
+      "verifiedState": "Simulated-model streaming reply completed"
+    },
+    {
+      "file": "support-demo.webp",
+      "width": 1440,
+      "height": 900,
+      "bytes": 57690,
+      "sha256": "c0420ff812e80818d4056b42558dee89bda3409629b234d91b52490de5835a0a",
+      "verifiedState": "Human handoff and visitor receipt of the agent reply"
+    },
+    {
+      "file": "agent-demo.webp",
+      "width": 1440,
+      "height": 900,
+      "bytes": 54134,
+      "sha256": "1a0fdd764166cf756a94367a94f1ac76edb27b2e755e2cb57dd00ef94b835c37",
+      "verifiedState": "Document retrieval complete; test todo creation awaits confirmation"
+    },
+    {
+      "file": "manager-nodes-en.jpg",
+      "width": 1440,
+      "height": 900,
+      "bytes": 140650,
+      "sha256": "77b76c88341d2231731ad01688a1d32dbbe9ba75ec0c44851b1d663027aa5c8a",
+      "verifiedState": "English Manager; one alive and ready node viewed with read permissions"
+    },
+    {
+      "file": "manager-nodes-cn.jpg",
+      "width": 1440,
+      "height": 900,
+      "bytes": 131668,
+      "sha256": "d2672535d5d07720bbbc89fc27eeffe9b417e2c5f243b616b016d6c46caa744a",
+      "verifiedState": "Chinese Manager; one alive and ready node viewed with read permissions"
+    },
+    {
+      "file": "wukongim-hero.webp",
+      "width": 2172,
+      "height": 724,
+      "bytes": 62166,
+      "sha256": "a726e3b4a4f15a50d78f6844a4aca02cfaa8692b77dd0c453f9bd362aae7dcab",
+      "verifiedState": "New generated banner illustration"
+    }
+  ]
+}

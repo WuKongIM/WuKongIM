@@ -1,20 +1,20 @@
 ---
 title: Authentication & Security
-description: Understand trust boundaries among browsers, product backends, Product HTTP, and Gateway.
+description: Understand trust boundaries among browsers, product backends, WuKongIM HTTP API, and Gateway.
 ---
 
-Product HTTP is for trusted backends. Browsers connect to Gateway through the SDK or request server capabilities through a same-origin BFF.
+WuKongIM HTTP API is for trusted backends. Browsers connect to Gateway through the SDK or request server capabilities through a same-origin BFF.
 
 ## Trust boundaries
 
 ```mermaid
 flowchart LR
   Browser["Browser"] -->|same-origin request| BFF["Same-origin BFF"]
-  BFF -->|trusted service request| ProductHTTP["Product HTTP"]
+  BFF -->|trusted service request| ProductHTTP["WuKongIM HTTP API"]
   Browser -->|SDK long-lived connection| Gateway["Gateway"]
 ```
 
-The browser should receive only the UID, temporary token, and WebSocket address needed for its current connection. It must not receive the Product HTTP address or a server credential.
+The browser should receive only the UID, temporary token, and WebSocket address needed for its current connection. It must not receive the WuKongIM HTTP API address or a server credential.
 
 <Callout type="warn" title="The default Gateway exactly matches stored tokens">
   `gateway.token_auth_on` defaults to `true`. After `POST /user/token` stores a device token, a later CONNECT for the same UID and `device_flag` must carry the exact value. This built-in check has no expiry timestamp or replay policy, so production must still protect token-management routes and own issuance, rotation, and revocation.
@@ -27,11 +27,11 @@ The browser should receive only the UID, temporary token, and WebSocket address 
 | Account, tenant, UID, and device policy | Product identity service and backend |
 | Token generation, expiry, revocation, and secure storage | Product backend |
 | CONNECT token validation | Gateway |
-| Product HTTP authentication, authorization, limits, and audit | API Gateway, service mesh, or product backend |
+| WuKongIM HTTP API authentication, authorization, limits, and audit | API Gateway, service mesh, or product backend |
 | TLS, key rotation, and alerts | Production platform |
 
 <Callout type="error" title="Open CORS is not browser authorization">
-  Product HTTP accepts any Origin for compatibility, but the routes have no business authentication. Do not treat CORS response headers as a security boundary or let browsers call these routes directly. The reverse proxy must restrict network sources and bound request-body size, request/response time, rate, concurrency, and audit volume—especially for unbounded UID arrays and payloads.
+  WuKongIM HTTP API accepts any Origin for compatibility, but the routes have no business authentication. Do not treat CORS response headers as a security boundary or let browsers call these routes directly. The reverse proxy must restrict network sources and bound request-body size, request/response time, rate, concurrency, and audit volume—especially for unbounded UID arrays and payloads.
 </Callout>
 
 The durable system-UID set and effective permission caches are also different observations. `systemuids_add/remove` synchronously updates only the handling process cache; refresh other nodes individually or roll them. `systemuids_add_to_cache/remove_from_cache` affects only the current process and requires a node-directed, protected operator entry.

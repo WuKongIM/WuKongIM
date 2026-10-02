@@ -3,7 +3,7 @@
 ## Objective
 
 Publish the remaining Channel and Conversation operations inside the
-already-published Product HTTP group as a source-calibrated, non-exhaustive
+already-published WuKongIM HTTP API group as a source-calibrated, non-exhaustive
 management Beta subset. Keep
 the Phase 12 JavaScript/Web golden-path operation whitelist and receipt scope
 frozen. Recalibrate only its shared restore-maintenance `503` schema from the
@@ -119,7 +119,7 @@ Phase 16 must verify:
 
 ## Non-goals
 
-- A complete Product HTTP or complete v3 OpenAPI specification.
+- A complete WuKongIM HTTP API or complete v3 OpenAPI specification.
 - Runtime fixes for the deferred routes.
 - Message send, user lifecycle, route batch, operations HTTP, Bench, Debug, or
   Manager APIs.

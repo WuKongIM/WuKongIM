@@ -459,7 +459,7 @@ export async function checkStaticOutput() {
       expectedCompleteOperations.sort().join('\n') ||
     expectedCompleteOperations.length === 0
   ) {
-    throw new Error('complete Product HTTP OpenAPI does not match the registered operations');
+    throw new Error('complete WuKongIM HTTP API OpenAPI does not match the registered operations');
   }
   for (const operation of productHTTPOpenAPIReferenceOperations) {
     const contracted = completeProductOpenAPI.paths?.[operation.path]?.[operation.method];
@@ -470,7 +470,7 @@ export async function checkStaticOutput() {
       )
     ) {
       throw new Error(
-        `complete Product HTTP operation lost its trust boundary: ${operation.method.toUpperCase()} ${operation.path}`,
+        `complete WuKongIM HTTP API operation lost its trust boundary: ${operation.method.toUpperCase()} ${operation.path}`,
       );
     }
   }
@@ -551,12 +551,12 @@ export async function checkStaticOutput() {
       for (const operation of group.operations) {
         const href = `/${locale}/api/product-http/${group.slug}/${operation.slug}`;
         if (!indexHtml.includes(href)) {
-          throw new Error(`${locale} Product HTTP ${group.slug} index is missing ${href}`);
+          throw new Error(`${locale} WuKongIM HTTP API ${group.slug} index is missing ${href}`);
         }
       }
 
       if (indexHtml.includes('Request Body') || indexHtml.includes('请求主体')) {
-        throw new Error(`${locale} Product HTTP ${group.slug} index is not concise`);
+        throw new Error(`${locale} WuKongIM HTTP API ${group.slug} index is not concise`);
       }
       const indexMarkdown = await text(
         `llms.mdx/${locale}/api/product-http/${group.slug}/content.md`,
@@ -566,7 +566,7 @@ export async function checkStaticOutput() {
         for (const fact of [...deferral.routes, deferral.reason[locale]]) {
           if (!indexHtml.includes(fact) || !normalizedIndexMarkdown.includes(fact)) {
             throw new Error(
-              `${locale} Product HTTP ${group.slug} index is missing deferral: ${fact}`,
+              `${locale} WuKongIM HTTP API ${group.slug} index is missing deferral: ${fact}`,
             );
           }
         }
@@ -621,7 +621,7 @@ export async function checkStaticOutput() {
     );
     for (const fact of ['400', '503 maintenance', 'restore maintenance is active']) {
       if (!errorsHtml.includes(fact)) {
-        throw new Error(`${locale} Product HTTP error guide is missing shared fact: ${fact}`);
+        throw new Error(`${locale} WuKongIM HTTP API error guide is missing shared fact: ${fact}`);
       }
     }
   }
@@ -818,7 +818,7 @@ export async function checkStaticOutput() {
     const acceptanceMarkdown = await text(
       `llms.mdx/${locale}/guide/integration/acceptance/content.md`,
     );
-    for (const fact of ['Alice', 'Product HTTP', 'TLS/WSS']) {
+    for (const fact of ['Alice', 'WuKongIM HTTP API', 'TLS/WSS']) {
       if (!acceptanceMarkdown.includes(fact)) {
         throw new Error(`${locale} release-check Markdown is missing fact: ${fact}`);
       }

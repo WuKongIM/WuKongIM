@@ -107,7 +107,7 @@ function responseSchema(document: MessagingDocument, status: string) {
   return resolved?.content?.['application/json']?.schema;
 }
 
-describe('Product HTTP message-sending OpenAPI contract', () => {
+describe('WuKongIM HTTP API message-sending OpenAPI contract', () => {
   test('publishes exactly one trusted-backend message-sending operation', async () => {
     const document = await messagingDocument();
     const operation = document.paths['/message/send']?.post;

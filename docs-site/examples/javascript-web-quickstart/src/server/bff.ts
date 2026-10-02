@@ -32,7 +32,7 @@ export interface SyncedPersonMessage {
   payload: string;
 }
 
-/** Product HTTP operations that are intentionally kept behind the local BFF. */
+/** WuKongIM HTTP API operations that are intentionally kept behind the local BFF. */
 export interface WuKongIMProductClient {
   updateToken(input: DevelopmentTokenInput): Promise<void>;
   discoverRoute(): Promise<RouteAddresses>;
@@ -93,17 +93,17 @@ function browserWebSocketURL(route: RouteAddresses): string {
   const secure = route.secureWebsocketAddress !== "";
   const value = secure ? route.secureWebsocketAddress : route.websocketAddress;
   if (value === "") {
-    throw new Error("Product HTTP route has no browser WebSocket address");
+    throw new Error("WuKongIM HTTP API route has no browser WebSocket address");
   }
   let parsed: URL;
   try {
     parsed = new URL(value);
   } catch {
-    throw new Error("Product HTTP route has an invalid WebSocket address");
+    throw new Error("WuKongIM HTTP API route has an invalid WebSocket address");
   }
   const expectedProtocol = secure ? "wss:" : "ws:";
   if (parsed.protocol !== expectedProtocol) {
-    throw new Error(`Product HTTP route must use ${expectedProtocol.slice(0, -1)}`);
+    throw new Error(`WuKongIM HTTP API route must use ${expectedProtocol.slice(0, -1)}`);
   }
   return value;
 }

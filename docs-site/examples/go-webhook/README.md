@@ -70,7 +70,7 @@ the same rules on `content`. Replacement preserves the other JSON fields,
 including large numeric values. Non-text JSON and opaque binary payloads pass
 through unchanged. These marker rules are demonstrations, not a content filter.
 
-For a direct Product HTTP check from the trusted backend, create a test group:
+For a direct WuKongIM HTTP API check from the trusted backend, create a test group:
 
 ```bash
 curl -fsS http://127.0.0.1:5001/channel \

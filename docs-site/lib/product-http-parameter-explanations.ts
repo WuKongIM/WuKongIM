@@ -68,7 +68,7 @@ const eventSummaryMode = explanation(
 );
 
 /**
- * Reviewed, bilingual explanations for every Product HTTP input parameter.
+ * Reviewed, bilingual explanations for every WuKongIM HTTP API input parameter.
  *
  * The structural OpenAPI contract remains the source of names, types, and
  * constraints. This overlay owns prose only so repeated compatibility DTOs do
@@ -561,7 +561,7 @@ export const productHTTPParameterExplanations = {
       },
     },
     LegacyMessage: {
-      description: explanation('Product HTTP 同步接口使用的旧式消息投影。', 'Legacy message projection used by Product HTTP synchronization.'),
+      description: explanation('WuKongIM HTTP API 同步接口使用的旧式消息投影。', 'Legacy message projection used by WuKongIM HTTP API synchronization.'),
       properties: {
         header: explanation('旧式消息 Header。', 'Legacy message header.'),
         setting: explanation('WKProto Setting 位图。', 'WKProto Setting bitset.'),

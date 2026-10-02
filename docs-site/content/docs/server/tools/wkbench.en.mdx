@@ -40,7 +40,7 @@ Start with the smoke workload, then search capacity against the same controlled 
 
 ## Target prerequisites
 
-Use an isolated, authorized target with reachable health/readiness, Benchmark, gateway and metrics endpoints. Enable `bench.api_enable` and `observability.metrics_enable`; never expose `/bench/v1/*` publicly. `capacity message-event` uses Product HTTP without Benchmark API, but still writes generated data.
+Use an isolated, authorized target with reachable health/readiness, Benchmark, gateway and metrics endpoints. Enable `bench.api_enable` and `observability.metrics_enable`; never expose `/bench/v1/*` publicly. `capacity message-event` uses WuKongIM HTTP API without Benchmark API, but still writes generated data.
 
 <details>
   <summary>Full endpoint and configuration prerequisites</summary>
@@ -59,7 +59,7 @@ Explicitly enable the Benchmark API in a controlled environment:
 api_enable = true
 ```
 
-`/bench/v1/*` is not a public product API and must not be exposed to a public network. `capacity message-event` is the exception: it uses product `/channel`, `/message/send`, `/message/event`, and `/metrics` endpoints and does not need the Benchmark API. It still writes generated Channels and messages, so it also requires a controlled target.
+`/bench/v1/*` is not a public integration API and must not be exposed to a public network. `capacity message-event` is the exception: it uses WuKongIM `/channel`, `/message/send`, `/message/event`, and `/metrics` endpoints and does not need the Benchmark API. It still writes generated Channels and messages, so it also requires a controlled target.
 
 </details>
 

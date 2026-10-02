@@ -114,7 +114,7 @@ description: 可搜索的 WuKongIM 配置手册，逐项说明全部公开 TOML 
 
 | TOML | 环境变量 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| `api.listen_addr` | `WK_API_LISTEN_ADDR` | `string` | 产品 HTTP API 的监听地址；留空则不启动该 HTTP 服务。 |
+| `api.listen_addr` | `WK_API_LISTEN_ADDR` | `string` | WuKongIM HTTP API 的监听地址；留空则不启动该 HTTP 服务。 |
 | `api.external_tcp_addr` | `WK_EXTERNAL_TCPADDR` | `string` | 向容量发现等调用方公布的 WKProto TCP 地址覆盖项，格式为 `host:port`；留空时从首个匹配的 `gateway.listeners` 推导，无匹配项则为空。它不会创建监听器。 |
 | `api.external_ws_addr` | `WK_EXTERNAL_WSADDR` | `string` | 向容量发现等调用方公布的 WebSocket URL 覆盖项；留空时从首个匹配的 `gateway.listeners` 推导，无匹配项则为空。它不会创建监听器，诊断制品会脱敏。 |
 | `api.external_wss_addr` | `WK_EXTERNAL_WSSADDR` | `string` | 向容量发现等调用方公布的安全 WebSocket URL 覆盖项；留空时从首个匹配的 `gateway.listeners` 推导，无匹配项则为空。它不会创建监听器，诊断制品会脱敏。 |

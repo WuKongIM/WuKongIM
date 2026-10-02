@@ -7,7 +7,7 @@ Use C++17, CMake, and WuKongEasySDK **WK_EASYSDK_CPP_VERSION** for online messag
 
 ## 1. Prepare
 
-Follow [Authentication & Tokens](/en/guide/integration/authentication) to obtain each user's `uid`, `token`, and `websocketUrl` from your trusted application backend. Clients connect only to Gateway and never call Product HTTP management endpoints. Wire device flags are APP `0`, WEB `1`, PC/Desktop `2`; C++ defaults to Desktop, so the backend must store the Token under the same device category.
+Follow [Authentication & Tokens](/en/guide/integration/authentication) to obtain each user's `uid`, `token`, and `websocketUrl` from your trusted application backend. Clients connect only to Gateway and never call WuKongIM HTTP API management endpoints. Wire device flags are APP `0`, WEB `1`, PC/Desktop `2`; C++ defaults to Desktop, so the backend must store the Token under the same device category.
 
 The default development server example uses `ws://127.0.0.1:5200` with path `/`. Use `ws://127.0.0.1:5200/ws` only when your listener or proxy is configured for `/ws`. Across machines, use a client-reachable address; production uses `wss://`. Shared setup is in [Run Official Examples](/en/sdk/easy/examples).
 

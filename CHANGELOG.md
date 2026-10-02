@@ -8,6 +8,12 @@ move those entries into a version section named for that exact tag.
 
 ### 🔧 Improvements / 改进
 
+- Redesign the bilingual README with a new banner, current screenshots captured from all four demos and Manager, one-command demo startup, current chat credential steps, focused SDK and deployment guides, and clear WuKongIM HTTP API naming. / 重新设计中英文 README，更新 banner 与四个 Demo、Manager 的当前实拍截图，增加一键体验入口、当前聊天凭据操作与清晰的 SDK、部署指南，并明确使用 WuKongIM HTTP API 名称。
+
+- Feature TangSengDaoDao in the bilingual README as an application built with WuKongIM, with product, architecture, and source links. / 中英文 README 增加唐僧叨叨应用案例，说明 WuKongIM 的通信职责，并提供产品官网与开源架构入口。
+
+- Unify bilingual documentation, navigation, OpenAPI titles, and examples under the WuKongIM HTTP API name. / 中英文文档、导航、OpenAPI 标题与示例统一使用 WuKongIM HTTP API 名称。
+
 - Clarify bilingual v2-to-v3 migration with five-step, multi-node and acceptance diagrams, task-based reference lookup and expandable commands; correct physical hash-slot versus logical Slot Group terminology while keeping cutover, retry and rollback gates visible. / 中英文 v2 到 v3 迁移文档增加五步、多节点与验收流程图，参考按任务查阅、完整命令按需展开；统一物理哈希槽与逻辑 Slot Group 术语，切换、重试和回滚边界保持可见。
 
 - Preserve bounded native-package bootstrap progress, PID 1, systemd jobs and boot journal diagnostics before removing a failed lifecycle container. / 原生包生命周期验证失败时，清理容器前保留有界安装阶段、PID 1、systemd 作业及启动日志诊断。

@@ -20,7 +20,7 @@ flowchart TD
 
 准备[单节点集群](/zh/server/deployment/docker)和两个独立客户端。可先运行 [Web 双用户示例](/zh/sdk/javascript/quickstart)，或用 [Chat Demo](/zh/guide/quick-start/first-message)验证收发。
 
-业务后端负责登录、好友、封禁与 Token 发放。UID 保持稳定，设备类别与凭据一致。保护 Product HTTP，按[身份认证](/zh/guide/integration/authentication)实现过期、轮换与撤销。
+业务后端负责登录、好友、封禁与 Token 发放。UID 保持稳定，设备类别与凭据一致。保护 WuKongIM HTTP API，按[身份认证](/zh/guide/integration/authentication)实现过期、轮换与撤销。
 
 **核对：** 两端都已连接并可发送。HTTP 示例只在受信业务后端或受保护的测试网络执行。
 

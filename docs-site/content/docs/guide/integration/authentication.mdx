@@ -11,7 +11,7 @@ description: 三步连接业务登录与 SDK，按需查看设备、Token 撤销
 
 ## 2. 后端准备连接材料
 
-后端生成高熵 Token，通过受保护的 Product HTTP 保存，再查询路由。只向当前用户返回 `uid`、设备参数、Token 和 WebSocket 地址。
+后端生成高熵 Token，通过受保护的 WuKongIM HTTP API 保存，再查询路由。只向当前用户返回 `uid`、设备参数、Token 和 WebSocket 地址。
 
 <div className="tutorial-diagram">
 
@@ -23,7 +23,7 @@ flowchart TD
 
 </div>
 
-**只有受信后端调用 Token 管理与路由接口。** Product HTTP 没有通用业务鉴权；CORS 允许浏览器访问，不代表获得授权。
+**只有受信后端调用 Token 管理与路由接口。** WuKongIM HTTP API 没有通用业务鉴权；CORS 允许浏览器访问，不代表获得授权。
 
 <details>
   <summary>保存 Token：请求与响应</summary>
@@ -62,7 +62,7 @@ SDK 使用同一 UID、`device_flag` 和 Token 发起 CONNECT。默认 `gateway.
 
 WKProto 连接先发送 CONNECT，Gateway 保存身份和协商的协议版本，成功后激活在线路由。默认会话加密不替代业务鉴权或 TLS；`gateway.token_auth_on=false` 仅用于受控兼容迁移。
 
-Product HTTP 放在私网或服务网格，由代理验证服务身份。Token、发送、成员变更分别授权；凭据接口限流、启用 TLS，审计调用方、请求 ID 和结果，不记录明文 Token。
+WuKongIM HTTP API 放在私网或服务网格，由代理验证服务身份。Token、发送、成员变更分别授权；凭据接口限流、启用 TLS，审计调用方、请求 ID 和结果，不记录明文 Token。
 
 </details>
 

@@ -3,13 +3,13 @@
   "info": {
     "title": "WuKongIM JavaScript Web Golden Path Subset",
     "version": "3.0.0-beta-snapshot",
-    "description": "A non-exhaustive Product HTTP contract for the three trusted-BFF calls used by the JavaScript Web quickstart."
+    "description": "A non-exhaustive WuKongIM HTTP API contract for the three trusted-BFF calls used by the JavaScript Web quickstart."
   },
   "x-wukongim-scope": "non-exhaustive-v3-beta-snapshot",
   "servers": [
     {
       "url": "http://127.0.0.1:5001",
-      "description": "Default Product HTTP listener for the local single-node cluster walkthrough"
+      "description": "Default WuKongIM HTTP API listener for the local single-node cluster walkthrough"
     }
   ],
   "tags": [

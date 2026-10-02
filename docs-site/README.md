@@ -4,6 +4,9 @@ This directory contains the bilingual Fumadocs site published under `/zh` and
 `/en`. It covers application integration, server deployment and operations,
 WuKongIMSDK and WuKongEasySDK, and the public API and protocol references.
 
+Use **WuKongIM HTTP API** for WuKongIM's backend-facing HTTP interface. Use
+**application API** for endpoints owned by an application backend.
+
 ## Develop
 
 The site uses Bun `1.3.11`. The complete verification gate also needs Go
@@ -25,7 +28,7 @@ npm run dev
 ```
 
 Its browser code talks to WuKongIM Gateway only. The loopback development BFF
-owns Product HTTP calls and must be replaced by an authenticated application
+owns WuKongIM HTTP API calls and must be replaced by an authenticated application
 backend in production.
 
 The Go before-send Webhook example is a separate standard-library-only module:
@@ -36,7 +39,7 @@ go run .
 ```
 
 See its `README.md` for direct callback requests, server configuration, business
-rules, and Product HTTP send/history checks. `bun run sample:go-webhook:check`
+rules, and WuKongIM HTTP API send/history checks. `bun run sample:go-webhook:check`
 runs its fast unit tests from the documentation-site root and is part of `verify`.
 
 ## Content workflow
@@ -73,7 +76,7 @@ runs its fast unit tests from the documentation-site root and is part of `verify
 - `redirects.json` records public route migrations. Removed pages must not be
   retained as duplicate MDX content.
 - `NAVIGATION.md` is generated. Refresh it with `bun run navigation:write`.
-- Product HTTP, Operations HTTP, and Webhook reference pages are generated from
+- WuKongIM HTTP API, Operations HTTP, and Webhook reference pages are generated from
   the contracts under `contracts/`. After changing one, run
   `bun run openapi:write` and review the generated MDX.
 

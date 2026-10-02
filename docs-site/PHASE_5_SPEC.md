@@ -45,7 +45,7 @@ search, sitemap, LLM outputs, and per-page Markdown.
   and batch fields are workload-sensitive controls, not universal tuning
   recommendations or capacity promises.
 - Manager credentials, cluster join tokens, benchmark tokens, and configured
-  users are secrets. Product HTTP APIs still require an external trust boundary,
+  users are secrets. WuKongIM HTTP API endpoints still require an external trust boundary,
   and production TLS termination remains outside the application.
 - App-managed Prometheus is optional. Manager, metrics, top, debug, benchmark,
   and diagnostics surfaces require separate exposure policies.

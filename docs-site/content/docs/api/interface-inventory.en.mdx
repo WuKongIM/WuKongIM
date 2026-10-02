@@ -62,7 +62,7 @@ ID `16` is retired-reserved and ID `20` reserves a removed feature; neither may 
 | Cloud Analysis MCP `POST /mcp` | `run_inspect`, `cluster_snapshot`, `workload_inspect`, `metrics_query_range`, `logs_search`, `logs_context`, `diagnostics_query`, `task_audits_query`, `trace_start`, `trace_query`, `profile_capture`, `profile_top`, `profile_list`, `config_read_redacted` | Non-renewable Analysis Bearer scoped to one live Run; `trace_start` and `profile_capture` are bounded active diagnostics |
 | Review Check stdio MCP | `check_list`, `check_result`, `check_run` | Local credential-free stdio; named checks only, never arbitrary commands, arguments, or paths |
 
-The Cloud Analysis Gateway also exposes unauthenticated `GET /healthz`, unauthenticated `GET /self-check`, and optional GitHub-OIDC `POST /analysis/token`. All are **agent-internal**, not product APIs.
+The Cloud Analysis Gateway also exposes unauthenticated `GET /healthz`, unauthenticated `GET /self-check`, and optional GitHub-OIDC `POST /analysis/token`. All are **agent-internal**, not public integration APIs.
 
 ## Cloud View
 
@@ -84,7 +84,7 @@ These are strict JSON/stdin or private HTTP process contracts. Maintain them onl
 | --- | --- | --- |
 | Plugin host RPC: 8 Unix-socket routes | Plugin author | Separate Beta Plugin Protocol; protobuf/wkrpc, not OpenAPI |
 | Webhook: `msg.notify`, `msg.offline`, `user.onlinestatus` | Public integration | Publish a callback contract; currently POST JSON, HTTP 200-only success, no signature |
-| Operations HTTP | Operator | Separate operations documentation; never mix with Product HTTP |
+| Operations HTTP | Operator | Separate operations documentation; never mix with WuKongIM HTTP API |
 | Manager, Node, Cloud View, Cloud Analysis, Agent, Bench | Private | Document boundary, stability, and risk only; no public compatibility promise |
 
 The exact local plugin paths are `/plugin/start`, `/close`, `/message/send`, `/channel/messages`, `/cluster/config`, `/cluster/channels/belongNode`, `/conversation/channels`, and `/plugin/httpForward`. Caller identity comes from the Unix-socket wkrpc UID. Webhook delivery uses best-effort in-memory retry with no crash replay; receivers must add source authentication and idempotency.

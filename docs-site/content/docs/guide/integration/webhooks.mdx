@@ -87,7 +87,7 @@ Content-Type: application/json
 | 默认拒绝 | `{"allow":false}` |
 | 业务拒绝码 | `{"allow":false,"reason_code":200}` |
 
-`allow` 必填。只允许修改 Payload，不能改变身份或路由字段。省略 `payload` 保留输入；替换内容必须是有效 Base64，解码后为 1–32767 字节。响应体最多 64 KiB，必须是单个 JSON 对象；未知或重复字段、缺少决定、多余 JSON，以及放行响应中的错误字段类型都属于回调错误。业务码范围为 128–255，在 SENDACK 的 `reason_code` 和 Product HTTP 的 `reason` 中保留原值，与 HTTP 状态码无关。省略或填写无效拒绝码时，已解码的拒绝返回标准 NotAllowSend（11）；带有不适用 Payload 的拒绝同样拒绝。
+`allow` 必填。只允许修改 Payload，不能改变身份或路由字段。省略 `payload` 保留输入；替换内容必须是有效 Base64，解码后为 1–32767 字节。响应体最多 64 KiB，必须是单个 JSON 对象；未知或重复字段、缺少决定、多余 JSON，以及放行响应中的错误字段类型都属于回调错误。业务码范围为 128–255，在 SENDACK 的 `reason_code` 和 WuKongIM HTTP API 的 `reason` 中保留原值，与 HTTP 状态码无关。省略或填写无效拒绝码时，已解码的拒绝返回标准 NotAllowSend（11）；带有不适用 Payload 的拒绝同样拒绝。
 
 | 情况 | 处理 |
 | --- | --- |
@@ -182,7 +182,7 @@ on_error = "deny"
 max_in_flight = 64
 ```
 
-重启同一主机上的单节点集群或各入口节点，然后用现有客户端发送上表中的文字。对于 SDK 文本 Payload `{"type":1,"content":"hello"}`，规则作用于 `content`，改写时保留其他 JSON 字段；自定义类型和二进制 Payload 原样放行。Product HTTP 的建群、发送和历史查询命令见示例 README。成功发送的 `reason` 为 1，示例业务拒绝为 200；接收和历史中应看到改写后的内容，拒绝消息没有历史记录。
+重启同一主机上的单节点集群或各入口节点，然后用现有客户端发送上表中的文字。对于 SDK 文本 Payload `{"type":1,"content":"hello"}`，规则作用于 `content`，改写时保留其他 JSON 字段；自定义类型和二进制 Payload 原样放行。WuKongIM HTTP API 的建群、发送和历史查询命令见示例 README。成功发送的 `reason` 为 1，示例业务拒绝为 200；接收和历史中应看到改写后的内容，拒绝消息没有历史记录。
 
 修改 `main.go` 的 `evaluate` 函数即可替换业务规则。当前规则没有副作用或缓存，相同输入和规则得到相同决定；新增业务写入时需要自行实现持久化幂等，不能把回调放行当作消息已提交。日志只输出决定类型。请求体最多 64 KiB、Payload 最多 32767 字节，每个示例进程最多同时处理 64 个请求，超额返回 HTTP 503。改写后超出 Payload 上限会明确拒绝。
 

@@ -177,8 +177,8 @@ function jsonFieldsForStruct(file: string, typeName: string, seen = new Set<stri
   return [...new Set(fields)].sort();
 }
 
-describe('complete Product HTTP OpenAPI contract', () => {
-  test('matches all and only the 48 runtime Product HTTP registrations', async () => {
+describe('complete WuKongIM HTTP API OpenAPI contract', () => {
+  test('matches all and only the 48 runtime WuKongIM HTTP API registrations', async () => {
     const registered = await registeredProductOperations();
     const contracted = operationKeys().sort();
 

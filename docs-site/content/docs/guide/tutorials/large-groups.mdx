@@ -142,7 +142,7 @@ curl -sS http://127.0.0.1:5001/channel/subscriber_add \
 
 
 
-Product HTTP 没有普通订阅者、拒绝列表和临时订阅者的对称读接口。需要严格核对时，使用已鉴权的 Manager `GET /manager/channels/:channel_type/:channel_id/subscribers` 有界分页查询；允许列表虽可由 Product HTTP 读取，但旧接口会一次返回完整列表，不适合大群巡检。
+WuKongIM HTTP API 没有普通订阅者、拒绝列表和临时订阅者的对称读接口。需要严格核对时，使用已鉴权的 Manager `GET /manager/channels/:channel_type/:channel_id/subscribers` 有界分页查询；允许列表虽可由 WuKongIM HTTP API 读取，但旧接口会一次返回完整列表，不适合大群巡检。
 
 </details>
 

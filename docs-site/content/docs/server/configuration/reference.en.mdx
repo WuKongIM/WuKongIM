@@ -114,7 +114,7 @@ For task-oriented field discovery, start with [Common Configurations](/en/server
 
 | TOML | Environment | Type | Description |
 | --- | --- | --- | --- |
-| `api.listen_addr` | `WK_API_LISTEN_ADDR` | `string` | Listener for the product HTTP API; an empty value disables this HTTP service. |
+| `api.listen_addr` | `WK_API_LISTEN_ADDR` | `string` | Listener for the WuKongIM HTTP API; an empty value disables this HTTP service. |
 | `api.external_tcp_addr` | `WK_EXTERNAL_TCPADDR` | `string` | WKProto TCP address override published to capacity discovery and similar callers, in `host:port` form; empty derives from the first matching `gateway.listeners` entry and stays empty if none matches. It does not create a listener. |
 | `api.external_ws_addr` | `WK_EXTERNAL_WSADDR` | `string` | WebSocket URL override published to capacity discovery and similar callers; empty derives from the first matching `gateway.listeners` entry and stays empty if none matches. It does not create a listener and is redacted from diagnostic artifacts. |
 | `api.external_wss_addr` | `WK_EXTERNAL_WSSADDR` | `string` | Secure WebSocket URL override published to capacity discovery and similar callers; empty derives from the first matching `gateway.listeners` entry and stays empty if none matches. It does not create a listener and is redacted from diagnostic artifacts. |

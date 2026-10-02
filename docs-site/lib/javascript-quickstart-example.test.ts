@@ -54,7 +54,7 @@ describe('JavaScript Web quickstart example', () => {
     expect(readme).not.toMatch(/acceptance|golden-path|receipt|evidence report/iu);
   });
 
-  test('keeps Product HTTP behind the local service', async () => {
+  test('keeps WuKongIM HTTP API behind the local service', async () => {
     const browserSources = await Promise.all(
       ['src/client/browser-bff.ts', 'src/client/sdk-runtime.ts', 'src/client/session.ts'].map(
         sampleText,

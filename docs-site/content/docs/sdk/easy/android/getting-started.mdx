@@ -66,7 +66,7 @@ data class IMBootstrap(
 )
 ```
 
-业务后端负责认证当前产品用户并选择 WebSocket 地址。Android 客户端只得到自己的连接材料，不获得 Product HTTP 管理凭据。
+业务后端负责认证当前产品用户并选择 WebSocket 地址。Android 客户端只得到自己的连接材料，不获得 WuKongIM HTTP API 管理凭据。
 
 Android EasySDK 是进程内单例，而且 `WK_EASYSDK_ANDROID_TAG` 初始化后不能用另一份配置再次 `init`。下面示例适合一个进程只登录一个 UID 的最小验证；生产应用若支持账号切换，必须先针对该限制设计并实测完整退出策略。
 

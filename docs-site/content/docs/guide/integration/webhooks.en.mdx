@@ -87,7 +87,7 @@ Return HTTP 200 with one explicit JSON decision:
 | Standard rejection | `{"allow":false}` |
 | Business rejection code | `{"allow":false,"reason_code":200}` |
 
-`allow` is required. Only Payload can change; identity and routing fields remain immutable. Omit `payload` to preserve the input. A replacement must be valid Base64 decoding to 1–32767 bytes. The response is limited to 64 KiB and one JSON object; unknown or duplicate fields, missing decisions, trailing JSON, and invalid field types in allow responses are callback errors. Business codes 128–255 retain their values in SENDACK `reason_code` and Product HTTP `reason`, independently of HTTP status. A decoded denial with an omitted or invalid rejection code returns standard NotAllowSend (11); an inapplicable Payload on a denial also remains a denial.
+`allow` is required. Only Payload can change; identity and routing fields remain immutable. Omit `payload` to preserve the input. A replacement must be valid Base64 decoding to 1–32767 bytes. The response is limited to 64 KiB and one JSON object; unknown or duplicate fields, missing decisions, trailing JSON, and invalid field types in allow responses are callback errors. Business codes 128–255 retain their values in SENDACK `reason_code` and WuKongIM HTTP API `reason`, independently of HTTP status. A decoded denial with an omitted or invalid rejection code returns standard NotAllowSend (11); an inapplicable Payload on a denial also remains a denial.
 
 | Condition | Behavior |
 | --- | --- |
@@ -182,7 +182,7 @@ on_error = "deny"
 max_in_flight = 64
 ```
 
-Restart the single-node cluster or every ingress node on the same host, then send the table's text through your existing client. For SDK text Payloads such as `{"type":1,"content":"hello"}`, rules apply to `content` while preserving other JSON fields. Custom message types and binary Payloads pass through unchanged. The example README includes Product HTTP group creation, send, and history commands. Successful sends return `reason=1`; this example's business denial returns 200. Received messages and history must contain the rewritten content, with no history row for a denied message.
+Restart the single-node cluster or every ingress node on the same host, then send the table's text through your existing client. For SDK text Payloads such as `{"type":1,"content":"hello"}`, rules apply to `content` while preserving other JSON fields. Custom message types and binary Payloads pass through unchanged. The example README includes WuKongIM HTTP API group creation, send, and history commands. Successful sends return `reason=1`; this example's business denial returns 200. Received messages and history must contain the rewritten content, with no history row for a denied message.
 
 Customize `evaluate` in `main.go`. Its current rules have no side effects or cache: the same input and rules produce the same decision. Add durable idempotency if your business logic writes data, and do not treat callback allowance as proof of message commit. Logs contain only the decision type. The body is limited to 64 KiB, Payload to 32767 bytes, and each example process to 64 concurrent requests; excess requests receive HTTP 503. A rewrite exceeding the Payload limit explicitly rejects.
 

@@ -121,7 +121,7 @@ const copy = {
         icon: Radio,
       },
       {
-        title: 'Product HTTP API',
+        title: 'WuKongIM HTTP API',
         description: '服务端接口与请求示例',
         path: 'api/product-http',
         icon: Braces,
@@ -218,7 +218,7 @@ const copy = {
         icon: Radio,
       },
       {
-        title: 'Product HTTP API',
+        title: 'WuKongIM HTTP API',
         description: 'Server endpoints and request examples',
         path: 'api/product-http',
         icon: Braces,

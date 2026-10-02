@@ -50,9 +50,9 @@ planned.
 - Configuration follows `wukongim.toml.example` and the loader contract:
   explicit `-config` is preferred, `WK_*` values override TOML, and list
   environment values replace the complete list as JSON.
-- Product HTTP APIs, Manager, metrics, debug, benchmark, diagnostics, and node
+- WuKongIM HTTP API endpoints, Manager, metrics, debug, benchmark, diagnostics, and node
   transport require separate exposure policies. The application does not
-  provide production TLS termination or make the product HTTP API a trusted
+  provide production TLS termination or make the WuKongIM HTTP API a trusted
   public boundary.
 - Persistent state belongs on independent durable storage per node. Backup,
   restore, online scale-in, upgrades, and disaster recovery remain separate

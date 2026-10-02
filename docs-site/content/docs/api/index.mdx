@@ -1,6 +1,6 @@
 ---
 title: API 与协议
-description: 查阅 Product HTTP、运维 HTTP、Webhook、WKProto 与内部接口边界。
+description: 查阅 WuKongIM HTTP API、运维 HTTP、Webhook、WKProto 与内部接口边界。
 ---
 
 这里按受众和协议类型拆分当前源码中的全部接口。公开合同可直接下载；私有、条件启用和实验性入口只记录边界，不升级为兼容承诺。
@@ -9,8 +9,8 @@ description: 查阅 Product HTTP、运维 HTTP、Webhook、WKProto 与内部接�
 
 <Cards>
   <Card title="通用约定" description="Base URL、JSON、标识、游标和重试规则。" href="/zh/api/conventions" />
-  <Card title="认证与安全" description="Product HTTP 与 Gateway 的信任边界。" href="/zh/api/authentication" />
-  <Card title="Product HTTP API" description="当前源码注册的 44 条业务 HTTP 操作。" href="/zh/api/product-http" />
+  <Card title="认证与安全" description="WuKongIM HTTP API 与 Gateway 的信任边界。" href="/zh/api/authentication" />
+  <Card title="WuKongIM HTTP API" description="当前源码注册的 44 条业务 HTTP 操作。" href="/zh/api/product-http" />
   <Card title="运维 HTTP API" description="健康、就绪、指标、Top、Debug 与 Bench 边界。" href="/zh/api/operations-http" />
   <Card title="Webhook" description="三个出站事件、负载和可靠性语义。" href="/zh/api/webhooks" />
   <Card title="客户端协议" description="WKProto 帧、连接、加密与 EasySDK JSON-RPC 核心路径。" href="/zh/api/client-protocols" />
@@ -21,7 +21,7 @@ description: 查阅 Product HTTP、运维 HTTP、Webhook、WKProto 与内部接�
 
 ## 使用边界
 
-- Product HTTP 仅供受信后端调用，不应直接暴露给浏览器或移动端。
+- WuKongIM HTTP API 仅供受信后端调用，不应直接暴露给浏览器或移动端。
 - Operations HTTP 与 Manager 仅应位于隔离的运维网络；两者不是同一合同。
 - JSON-RPC 支持固定 EasySDK 的 CONNECT、Ping 与在线 SEND/SENDACK、RECV/RECVACK 与服务端出站公开 stream.* EVENT；batch、订阅、离线同步和通用 RPC 不在该合同内。
 - HTTP 状态、端点响应与 CONNACK/SENDACK Reason Code 属于不同层，需分别处理。

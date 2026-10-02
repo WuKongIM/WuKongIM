@@ -52,7 +52,7 @@ flowchart TD
 <details>
   <summary>业务后端发送：HTTP 示例</summary>
 
-仅受信后端调用 [`POST /message/send`](/zh/api/product-http/message-send/sendChannelMessage)，不把此接口直接交给浏览器或移动端。Product HTTP 没有通用业务鉴权，应通过私网或受保护代理访问；`payload` 使用 Base64。
+仅受信后端调用 [`POST /message/send`](/zh/api/product-http/message-send/sendChannelMessage)，不把此接口直接交给浏览器或移动端。WuKongIM HTTP API 没有通用业务鉴权，应通过私网或受保护代理访问；`payload` 使用 Base64。
 
 ```bash
 curl -sS http://127.0.0.1:5001/message/send \

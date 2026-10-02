@@ -7,7 +7,7 @@ _openapi:
     - wukongim-operations-http-beta-zh
 ---
 
-`ANY /metrics` 仅在应用装配 Prometheus Handler 时注册；未装配时路由不存在并返回 404。响应是 Prometheus exposition，不是 JSON，也不属于 Product HTTP 合同。采集器应使用 `GET`。
+`ANY /metrics` 仅在应用装配 Prometheus Handler 时注册；未装配时路由不存在并返回 404。响应是 Prometheus exposition，不是 JSON，也不属于 WuKongIM HTTP API 合同。采集器应使用 `GET`。
 
 ```yaml
 scrape_configs:

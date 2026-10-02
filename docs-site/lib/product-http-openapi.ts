@@ -63,7 +63,7 @@ export interface ProductHTTPOpenAPIContractDescriptor {
   llmScope: LocalizedText;
 }
 
-/** Single source of truth for every published Product HTTP OpenAPI contract. */
+/** Single source of truth for every published WuKongIM HTTP API OpenAPI contract. */
 export const productHTTPOpenAPIContracts = {
   complete: {
     document: completeDocument,
@@ -72,8 +72,8 @@ export const productHTTPOpenAPIContracts = {
     documentId: 'wukongim-product-http-complete-beta',
     label: { zh: '完整运行时合同', en: 'complete runtime contract' },
     llmScope: {
-      zh: '此机器可读摘要与页面中的 Fumadocs 参考来自完整的 48 操作运行时合同；Product HTTP 没有内建鉴权，只能由受信后端或运维边界调用。',
-      en: 'This machine-readable summary and the Fumadocs reference on the page come from the complete 48-operation runtime contract. Product HTTP has no built-in authentication and is callable only from a trusted backend or operator boundary.',
+      zh: '此机器可读摘要与页面中的 Fumadocs 参考来自完整的 48 操作运行时合同；WuKongIM HTTP API 没有内建鉴权，只能由受信后端或运维边界调用。',
+      en: 'This machine-readable summary and the Fumadocs reference on the page come from the complete 48-operation runtime contract. WuKongIM HTTP API has no built-in authentication and is callable only from a trusted backend or operator boundary.',
     },
   },
   'golden-path': {
@@ -83,8 +83,8 @@ export const productHTTPOpenAPIContracts = {
     documentId: 'wukongim-product-http-beta',
     label: { zh: '黄金路径子集', en: 'golden-path subset' },
     llmScope: {
-      zh: '此机器可读摘要与页面中的 Fumadocs 参考来自同一份黄金路径 Beta 子集合同；Product HTTP 只能由受信后端调用。',
-      en: 'This machine-readable summary and the Fumadocs reference on the page come from the same golden-path Beta subset contract. Product HTTP is callable only from a trusted backend.',
+      zh: '此机器可读摘要与页面中的 Fumadocs 参考来自同一份黄金路径 Beta 子集合同；WuKongIM HTTP API 只能由受信后端调用。',
+      en: 'This machine-readable summary and the Fumadocs reference on the page come from the same golden-path Beta subset contract. WuKongIM HTTP API is callable only from a trusted backend.',
     },
   },
   management: {
@@ -94,8 +94,8 @@ export const productHTTPOpenAPIContracts = {
     documentId: 'wukongim-product-http-management-beta',
     label: { zh: '管理子集', en: 'management subset' },
     llmScope: {
-      zh: '此机器可读摘要与页面中的 Fumadocs 参考来自同一份非穷举管理 Beta 子集合同；这些无内建鉴权的 Product HTTP 入口只能由受信后端或运维边界调用。',
-      en: 'This machine-readable summary and the Fumadocs reference on the page come from the same non-exhaustive management Beta subset contract. These Product HTTP routes have no built-in authentication and are callable only from a trusted backend or operator boundary.',
+      zh: '此机器可读摘要与页面中的 Fumadocs 参考来自同一份非穷举管理 Beta 子集合同；这些无内建鉴权的 WuKongIM HTTP API 入口只能由受信后端或运维边界调用。',
+      en: 'This machine-readable summary and the Fumadocs reference on the page come from the same non-exhaustive management Beta subset contract. These WuKongIM HTTP API routes have no built-in authentication and are callable only from a trusted backend or operator boundary.',
     },
   },
   messaging: {
@@ -105,8 +105,8 @@ export const productHTTPOpenAPIContracts = {
     documentId: 'wukongim-product-http-messaging-beta',
     label: { zh: '消息发送子集', en: 'message-sending subset' },
     llmScope: {
-      zh: '此机器可读摘要与页面中的 Fumadocs 参考来自同一份非穷举消息发送 Beta 子集合同；该无内建鉴权的 Product HTTP 入口只能由受信后端调用。',
-      en: 'This machine-readable summary and the Fumadocs reference on the page come from the same non-exhaustive message-sending Beta subset contract. This Product HTTP route has no built-in authentication and is callable only from a trusted backend.',
+      zh: '此机器可读摘要与页面中的 Fumadocs 参考来自同一份非穷举消息发送 Beta 子集合同；该无内建鉴权的 WuKongIM HTTP API 入口只能由受信后端调用。',
+      en: 'This machine-readable summary and the Fumadocs reference on the page come from the same non-exhaustive message-sending Beta subset contract. This WuKongIM HTTP API route has no built-in authentication and is callable only from a trusted backend.',
     },
   },
 } as const satisfies Record<
@@ -382,7 +382,7 @@ function operationsFor(definition: GroupDefinition): ProductHTTPOpenAPIOperation
     for (const [method, operation] of Object.entries(pathItem)) {
       if (!operation.tags?.includes(definition.tag)) continue;
       if (!isProductHTTPOpenAPIMethod(method)) {
-        throw new Error(`Unsupported Product HTTP method: ${method.toUpperCase()} ${path}`);
+        throw new Error(`Unsupported WuKongIM HTTP API method: ${method.toUpperCase()} ${path}`);
       }
       if (!operation.operationId || !operation.summary || !operation.description) {
         throw new Error(`OpenAPI operation metadata is incomplete: ${method.toUpperCase()} ${path}`);
@@ -416,7 +416,7 @@ function operationsFor(definition: GroupDefinition): ProductHTTPOpenAPIOperation
   return operations;
 }
 
-/** Route and navigation registry derived from the complete Product HTTP contract. */
+/** Route and navigation registry derived from the complete WuKongIM HTTP API contract. */
 export const productHTTPOpenAPIReferenceGroups: ProductHTTPOpenAPIGroup[] =
   referenceGroupDefinitions.map((definition) => ({
     ...definition,

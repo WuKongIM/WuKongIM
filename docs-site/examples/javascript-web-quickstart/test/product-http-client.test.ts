@@ -157,7 +157,7 @@ test("person-message recovery waits only for the asynchronous directory projecti
   assert.deepEqual(waits, [7, 7]);
 });
 
-test("person-message recovery does not retry unrelated Product HTTP failures", async () => {
+test("person-message recovery does not retry unrelated WuKongIM HTTP API failures", async () => {
   let requests = 0;
   const client = new ProductHttpClient({
     baseUrl: "http://127.0.0.1:5001",
@@ -219,7 +219,7 @@ test("message sync rejects a response without the precision-safe message_idstr",
   );
 });
 
-test("route discovery rejects an incomplete Product HTTP response", async () => {
+test("route discovery rejects an incomplete WuKongIM HTTP API response", async () => {
   const client = new ProductHttpClient({
     baseUrl: "http://127.0.0.1:5001",
     fetch: async () => Response.json({ tcp_addr: "127.0.0.1:5100" }),

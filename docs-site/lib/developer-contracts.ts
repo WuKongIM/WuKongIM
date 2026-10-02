@@ -271,17 +271,17 @@ export const javascriptWebCapabilities = [
     status: 'boundary',
     capability: { zh: '生产连接身份校验', en: 'Production connection authentication' },
     evidence: {
-      zh: '默认 Gateway 会精确匹配已存设备 Token；开发场景尚未证明过期、重放策略或 Product HTTP 身份边界。',
-      en: 'The default Gateway exactly matches stored device tokens; the development scenario does not prove expiry, replay policy, or the Product HTTP identity boundary.',
+      zh: '默认 Gateway 会精确匹配已存设备 Token；开发场景尚未证明过期、重放策略或 WuKongIM HTTP API 身份边界。',
+      en: 'The default Gateway exactly matches stored device tokens; the development scenario does not prove expiry, replay policy, or the WuKongIM HTTP API identity boundary.',
     },
   },
   {
     id: 'browser-product-http-access',
     status: 'boundary',
-    capability: { zh: '浏览器与 Product HTTP 隔离', en: 'Browser isolation from Product HTTP' },
+    capability: { zh: '浏览器与 WuKongIM HTTP API 隔离', en: 'Browser isolation from WuKongIM HTTP API' },
     evidence: {
-      zh: '浏览器只访问 loopback BFF；Product HTTP 调用属于受信服务端边界。',
-      en: 'The browser calls only the loopback BFF; Product HTTP calls belong to a trusted server-side boundary.',
+      zh: '浏览器只访问 loopback BFF；WuKongIM HTTP API 调用属于受信服务端边界。',
+      en: 'The browser calls only the loopback BFF; WuKongIM HTTP API calls belong to a trusted server-side boundary.',
     },
   },
   {
@@ -630,14 +630,14 @@ export function renderCompatibilityMarkdown(
   ].join('\n');
 }
 
-/** Renders the intentionally narrow Product HTTP boundary into Markdown exports. */
+/** Renders the intentionally narrow WuKongIM HTTP API boundary into Markdown exports. */
 export function renderGoldenPathContractMarkdown(locale: DeveloperContractLocale): string {
   return [
     `## ${locale === 'zh' ? 'JavaScript Web 黄金路径契约' : 'JavaScript Web golden-path contract'}`,
     '',
     locale === 'zh'
-      ? '这是非完整的 v3 Beta 子集；三个调用只能出现在受信任的 localhost BFF 中，浏览器不能直接调用 Product HTTP API。'
-      : 'This is a non-exhaustive v3 Beta subset. These three calls belong only in the trusted localhost BFF; the browser must not call the Product HTTP API directly.',
+      ? '这是非完整的 v3 Beta 子集；三个调用只能出现在受信任的 localhost BFF 中，浏览器不能直接调用 WuKongIM HTTP API。'
+      : 'This is a non-exhaustive v3 Beta subset. These three calls belong only in the trusted localhost BFF; the browser must not call the WuKongIM HTTP API directly.',
     '',
     ...goldenPathHTTPPaths.map((path) => `- \`${path}\``),
     '',

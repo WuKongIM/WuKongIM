@@ -7,7 +7,7 @@ description: 按准备、安装、连接、收发和清理顺序完成首次接�
 
 ## 1. 准备接入
 
-业务后端返回当前用户的 `uid`、短期 `token` 和 `websocketUrl`。按[认证与 Token](/zh/guide/integration/authentication)保护注册和轮换流程；客户端不应直接调用 Product HTTP 管理接口。
+业务后端返回当前用户的 `uid`、短期 `token` 和 `websocketUrl`。按[认证与 Token](/zh/guide/integration/authentication)保护注册和轮换流程；客户端不应直接调用 WuKongIM HTTP API 管理接口。
 
 `Auth::new` 默认设备类别是 **PC/Desktop `2`**。协议值为 APP `0`、WEB `1`、PC `2`，Token 必须按同一设备类别保存。若你的原生宿主使用 APP 类别，显式设置 `auth.device_flag = DeviceFlag::App`，并同步后端注册类别。
 
@@ -147,7 +147,7 @@ let options = wukong_easy_sdk::Options {
 
 ## 可选：群聊
 
-可信后端通过 Product HTTP 建群并管理成员。后端确认入群后，使用群 ID 和
+可信后端通过 WuKongIM HTTP API 建群并管理成员。后端确认入群后，使用群 ID 和
 `ChannelType::Group` 发送：
 
 ```rust

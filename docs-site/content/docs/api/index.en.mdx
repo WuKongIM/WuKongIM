@@ -1,6 +1,6 @@
 ---
 title: API & Protocols
-description: Reference Product HTTP, operations HTTP, webhooks, WKProto, and internal-interface boundaries.
+description: Reference WuKongIM HTTP API, operations HTTP, webhooks, WKProto, and internal-interface boundaries.
 ---
 
 This section classifies every current source interface by audience and protocol. Public contracts are downloadable; private, conditional, and experimental entries are documented as boundaries, not compatibility promises.
@@ -9,8 +9,8 @@ This section classifies every current source interface by audience and protocol.
 
 <Cards>
   <Card title="Conventions" description="Base URL, JSON, identifiers, cursors, and retry rules." href="/en/api/conventions" />
-  <Card title="Authentication & Security" description="Trust boundaries for Product HTTP and Gateway." href="/en/api/authentication" />
-  <Card title="Product HTTP API" description="All 44 business HTTP operations registered by the current source." href="/en/api/product-http" />
+  <Card title="Authentication & Security" description="Trust boundaries for WuKongIM HTTP API and Gateway." href="/en/api/authentication" />
+  <Card title="WuKongIM HTTP API" description="All 44 business HTTP operations registered by the current source." href="/en/api/product-http" />
   <Card title="Operations HTTP API" description="Health, readiness, metrics, Top, Debug, and Bench boundaries." href="/en/api/operations-http" />
   <Card title="Webhooks" description="Three outbound events, payloads, and reliability semantics." href="/en/api/webhooks" />
   <Card title="Client Protocols" description="WKProto frames, lifecycle, encryption, and the EasySDK JSON-RPC core path." href="/en/api/client-protocols" />
@@ -21,7 +21,7 @@ This section classifies every current source interface by audience and protocol.
 
 ## Usage boundaries
 
-- Product HTTP is for trusted backends only; do not expose it directly to browsers or mobile clients.
+- WuKongIM HTTP API is for trusted backends only; do not expose it directly to browsers or mobile clients.
 - Operations HTTP and Manager belong on an isolated operator network; they are separate contracts.
 - JSON-RPC supports CONNECT, ping, online SEND/SENDACK, RECV/RECVACK, and server-to-client public stream.* EVENT for EasySDK; batches, subscriptions, offline sync, and general-purpose RPC are outside that contract.
 - HTTP status, endpoint responses, and CONNACK/SENDACK Reason Codes belong to separate layers and must be handled separately.

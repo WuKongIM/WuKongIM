@@ -80,7 +80,7 @@ async function managementDocument() {
   };
 }
 
-describe('Product HTTP management OpenAPI integration', () => {
+describe('WuKongIM HTTP API management OpenAPI integration', () => {
   test('keeps the golden-path operation whitelist fixed at exactly three operations', () => {
     expect(Object.keys(goldenPathDocument.paths)).toEqual([
       '/user/token',
@@ -104,7 +104,7 @@ describe('Product HTTP management OpenAPI integration', () => {
     for (const path of deferredOperations) expect(document.paths[path]).toBeUndefined();
   });
 
-  test('keeps the published whitelist attached to current Product HTTP registrations', async () => {
+  test('keeps the published whitelist attached to current WuKongIM HTTP API registrations', async () => {
     const [channels, conversations, server] = await Promise.all([
       source('../../internal/access/api/channel_management.go'),
       source('../../internal/access/api/conversation_list.go'),

@@ -7,7 +7,7 @@ description: 准备服务端与两个账号，运行八个平台的示例并确�
 
 ## 1. 准备开发用单节点集群
 
-按 [Docker 部署](/zh/server/deployment/docker)启动 WuKongIM 开发用单节点集群，确认 WebSocket 端口 `5200` 和 Product HTTP 端口 `5001` 可达。默认使用 256 Hash Slots。保持服务端运行，在受信开发终端检查：
+按 [Docker 部署](/zh/server/deployment/docker)启动 WuKongIM 开发用单节点集群，确认 WebSocket 端口 `5200` 和 WuKongIM HTTP API 端口 `5001` 可达。默认使用 256 Hash Slots。保持服务端运行，在受信开发终端检查：
 
 ```bash
 curl -fsS http://127.0.0.1:5001/readyz

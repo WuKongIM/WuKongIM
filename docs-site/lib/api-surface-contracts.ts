@@ -20,7 +20,7 @@ const noBuiltInAuth = 'No built-in authentication; isolate the listener at the n
 const benchBearer =
   'Exact Bearer bench.api_token when configured; otherwise no built-in authentication.';
 
-/** Non-product routes mounted on the Product HTTP listener. */
+/** Non-product routes mounted on the WuKongIM HTTP API listener. */
 export const basicOperationsHTTP: readonly HTTPSurface[] = [
   {
     method: 'GET',
@@ -138,7 +138,7 @@ function managerGroup(
   };
 }
 
-/** Exact Manager registration inventory; this is an operator-private contract, not Product HTTP. */
+/** Exact Manager registration inventory; this is an operator-private contract, not WuKongIM HTTP API. */
 export const managerRouteGroups: readonly ManagerRouteGroup[] = [
   managerGroup('operations-mcp-endpoint', 'dedicated MCP credential', 'dedicated-bearer', [
     ['ANY', '/mcp'],
@@ -539,7 +539,7 @@ export const cloudViewSurfaces: readonly HTTPSurface[] = [
     method: 'ANY',
     path: '/demo|/route|/user|/channel|/tmpchannel|/message|/conversation|/conversations|/streammessage',
     audience: 'public-integration',
-    authentication: 'Cloud View adds no authentication; upstream Product HTTP boundaries remain.',
+    authentication: 'Cloud View adds no authentication; upstream WuKongIM HTTP API boundaries remain.',
     condition: 'Known Product prefixes proxy to a healthy node API; every other path proxies Manager.',
     stability: 'unstable',
   },

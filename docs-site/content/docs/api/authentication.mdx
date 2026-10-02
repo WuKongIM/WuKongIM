@@ -1,20 +1,20 @@
 ---
 title: 认证与安全
-description: 理解浏览器、业务后端、Product HTTP 与 Gateway 的信任边界。
+description: 理解浏览器、业务后端、WuKongIM HTTP API 与 Gateway 的信任边界。
 ---
 
-Product HTTP 面向受信后端；浏览器通过 SDK 连接 Gateway，或通过同源 BFF 请求服务端能力。
+WuKongIM HTTP API 面向受信后端；浏览器通过 SDK 连接 Gateway，或通过同源 BFF 请求服务端能力。
 
 ## 信任边界
 
 ```mermaid
 flowchart LR
   Browser["浏览器"] -->|同源请求| BFF["同源 BFF"]
-  BFF -->|受信服务请求| ProductHTTP["Product HTTP"]
+  BFF -->|受信服务请求| ProductHTTP["WuKongIM HTTP API"]
   Browser -->|SDK 长连接| Gateway["Gateway"]
 ```
 
-浏览器只应获得当前连接所需的 UID、临时 Token 和 WebSocket 地址，不应获得 Product HTTP 地址或服务端凭据。
+浏览器只应获得当前连接所需的 UID、临时 Token 和 WebSocket 地址，不应获得 WuKongIM HTTP API 地址或服务端凭据。
 
 <Callout type="warn" title="默认 Gateway 会精确匹配已存 Token">
   `gateway.token_auth_on` 默认为 `true`。`POST /user/token` 保存设备 Token 后，相同 UID 与 `device_flag` 的后续 CONNECT 必须携带完全匹配的值。这个内置检查不提供过期时间或重放策略，生产环境仍必须保护 Token 管理接口并负责签发、轮换和撤销。
@@ -27,11 +27,11 @@ flowchart LR
 | 账号、租户、UID 与设备策略 | 业务身份服务和业务后端 |
 | Token 生成、过期、撤销与安全存储 | 业务后端 |
 | CONNECT Token 校验 | Gateway |
-| Product HTTP 鉴权、授权、限流与审计 | API Gateway、服务网格或业务后端 |
+| WuKongIM HTTP API 鉴权、授权、限流与审计 | API Gateway、服务网格或业务后端 |
 | TLS、密钥轮换与告警 | 生产平台 |
 
 <Callout type="error" title="开放 CORS 不是浏览器授权">
-  Product HTTP 为兼容性接受任意 Origin，但接口本身没有业务鉴权。不要把 CORS 响应头当成安全边界，也不要让浏览器直连这些路由。反向代理必须限制网络来源，并配置请求体大小、请求/响应超时、速率、并发和审计；尤其要约束无上限 UID 数组与 Payload。
+  WuKongIM HTTP API 为兼容性接受任意 Origin，但接口本身没有业务鉴权。不要把 CORS 响应头当成安全边界，也不要让浏览器直连这些路由。反向代理必须限制网络来源，并配置请求体大小、请求/响应超时、速率、并发和审计；尤其要约束无上限 UID 数组与 Payload。
 </Callout>
 
 系统 UID 的持久集合与实际权限缓存也不是同一观测：`systemuids_add/remove` 只同步更新请求处理进程的缓存，其他节点需分别刷新或滚动重启。`systemuids_add_to_cache/remove_from_cache` 更只影响当前进程，必须使用节点定向的受保护运维入口。

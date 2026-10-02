@@ -34,7 +34,7 @@ Error text is not a stable machine contract. Branch on HTTP status and schema.
 
 `/channel`, subscriber reset, allow/deny-list set, and device sign-out with `device_flag=-1` execute in stages. If a 400, 5xx, disconnect, or timeout occurs partway through, earlier stages may already be committed. Do not blindly reverse the operation. Persist the product-side desired version, re-read observable state, and idempotently replay the desired state.
 
-Product HTTP currently has only the legacy full read for an ordinary allowlist; it has no symmetric readback for ordinary subscribers, the denylist, or temporary subscribers. For strict coordination, keep the product database as the desired-state source and use the protected Manager query for bounded verification.
+WuKongIM HTTP API currently has only the legacy full read for an ordinary allowlist; it has no symmetric readback for ordinary subscribers, the denylist, or temporary subscribers. For strict coordination, keep the product database as the desired-state source and use the protected Manager query for bounded verification.
 
 ## Protocol boundary
 

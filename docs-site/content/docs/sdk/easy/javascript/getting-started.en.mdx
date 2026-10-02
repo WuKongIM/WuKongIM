@@ -47,7 +47,7 @@ flowchart TD
 
 </div>
 
-`/api/im/bootstrap` is **your product route**, not WuKongIM Product HTTP. The browser never calls `/user/token` or `/route` directly; server credentials, route selection, and response filtering stay in the BFF.
+`/api/im/bootstrap` is **your product route**, not WuKongIM HTTP API. The browser never calls `/user/token` or `/route` directly; server credentials, route selection, and response filtering stay in the BFF.
 
 Place the following three code blocks in one TS module, in order: fetch connection material, create the connection owner, then bind the page.
 

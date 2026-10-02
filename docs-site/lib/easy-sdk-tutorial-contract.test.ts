@@ -41,7 +41,7 @@ describe('EasySDK first-message reader contract', () => {
         expect(page).toContain(`${archivePath}#${platform.key}`);
         expect(page).toContain('Alice');
         expect(page).toContain('Bob');
-        expect(page).toContain('Product HTTP');
+        expect(page).toContain('WuKongIM HTTP API');
         expect(page).not.toMatch(/gh workflow run|actions\/runs\/|\.acceptance\/|registry-cluster-.*\.json/);
         expect(page).not.toMatch(/@latest|\^1\.0|~>\s*1\.0/);
       }

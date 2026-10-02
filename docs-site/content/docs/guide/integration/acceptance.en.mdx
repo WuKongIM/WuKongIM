@@ -3,7 +3,7 @@ title: Release checks
 description: Verify a six-step messaging loop, then test SDK-specific recovery, security, and rollback.
 ---
 
-Goal: prove the production messaging loop and recovery from critical failures with real clients, server configuration, and product APIs.
+Goal: prove the production messaging loop and recovery from critical failures with real clients, server configuration, and application APIs.
 
 ## 1. Freeze the versions
 
@@ -55,7 +55,7 @@ Ordinary and command-style NoPersist have no persistent history and cannot prove
 | Multiple devices and conversations | Latest message, unread, deletion, and multi-device convergence; clear UI for foreground/background, kick-out, and token invalidation |
 | Media | Upload failure, cancellation, timeout, URL permissions, and file cleanup |
 | Local persistence | Backup, encryption, logout cleanup, and upgrade migration |
-| Operations APIs | Product HTTP, Manager, and diagnostics behind protected management boundaries, without direct public exposure |
+| Operations APIs | WuKongIM HTTP API, Manager, and diagnostics behind protected management boundaries, without direct public exposure |
 
 Your backend rotates or revokes expired tokens. CONNECT does not automatically inspect expiry inside the token string. Test the mechanism you actually deploy, beyond a client-side timer.
 

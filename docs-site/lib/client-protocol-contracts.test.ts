@@ -249,7 +249,7 @@ describe('client protocol contracts', () => {
         expect(lifecycle).toContain(reason);
       }
       expect(lifecycle).toContain('fail closed');
-      expect(lifecycle).toContain('Product HTTP');
+      expect(lifecycle).toContain('WuKongIM HTTP API');
     }
   });
 

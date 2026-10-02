@@ -206,7 +206,7 @@ export function JavaScriptCapabilityMatrix({ locale = 'en' }: { locale?: Locale 
   );
 }
 
-/** Renders the three-endpoint, non-exhaustive Product HTTP golden-path boundary. */
+/** Renders the three-endpoint, non-exhaustive WuKongIM HTTP API golden-path boundary. */
 export function GoldenPathContract({ locale = 'en' }: { locale?: Locale }) {
   const isZh = locale === 'zh';
 
@@ -225,8 +225,8 @@ export function GoldenPathContract({ locale = 'en' }: { locale?: Locale }) {
       </ul>
       <p className="mt-3 text-fd-muted-foreground">
         {isZh
-          ? '这些调用只允许出现在受信任的 localhost BFF 中；浏览器不能直接调用 Product HTTP API。'
-          : 'These calls belong only in the trusted localhost BFF; the browser must not call the Product HTTP API directly.'}
+          ? '这些调用只允许出现在受信任的 localhost BFF 中；浏览器不能直接调用 WuKongIM HTTP API。'
+          : 'These calls belong only in the trusted localhost BFF; the browser must not call the WuKongIM HTTP API directly.'}
       </p>
       <a
         className="mt-3 inline-block underline underline-offset-4"

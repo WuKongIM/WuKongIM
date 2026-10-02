@@ -11,7 +11,7 @@ Your backend validates the account, tenant, device, and risk policy. Use a stabl
 
 ## 2. Prepare credentials on the backend
 
-Generate a high-entropy token, store it through protected Product HTTP, and discover the route. Return only the current user's `uid`, device parameters, token, and WebSocket address.
+Generate a high-entropy token, store it through protected WuKongIM HTTP API, and discover the route. Return only the current user's `uid`, device parameters, token, and WebSocket address.
 
 <div className="tutorial-diagram">
 
@@ -23,7 +23,7 @@ flowchart TD
 
 </div>
 
-**Only trusted backends call token-management and routing APIs.** Product HTTP has no general product-authentication middleware. CORS permits browser access; it does not grant authorization.
+**Only trusted backends call token-management and routing APIs.** WuKongIM HTTP API has no general product-authentication middleware. CORS permits browser access; it does not grant authorization.
 
 <details>
   <summary>Store a token: request and response</summary>
@@ -62,7 +62,7 @@ Use HTTPS/WSS in production. Keep tokens out of URLs, logs, analytics, and unpro
 
 WKProto starts with CONNECT. Gateway retains identity and the negotiated protocol version, then activates online routing after success. Default session encryption does not replace product authentication or TLS. Use `gateway.token_auth_on=false` only for controlled compatibility migration.
 
-Keep Product HTTP on a private network or service mesh behind service-identity verification. Authorize token, send, and membership operations separately. Rate-limit credential routes, use TLS, and audit callers, request IDs, and outcomes without plaintext tokens.
+Keep WuKongIM HTTP API on a private network or service mesh behind service-identity verification. Authorize token, send, and membership operations separately. Rate-limit credential routes, use TLS, and audit callers, request IDs, and outcomes without plaintext tokens.
 
 </details>
 

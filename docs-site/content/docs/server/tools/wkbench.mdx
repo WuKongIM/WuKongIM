@@ -59,7 +59,7 @@ description: 在受控集群上执行黑盒验证、真实负载、容量搜索�
 api_enable = true
 ```
 
-`/bench/v1/*` 不是公开产品 API，不得暴露到公共网络。`capacity message-event` 是例外：它使用产品 `/channel`、`/message/send`、`/message/event` 和 `/metrics`，不需要 Benchmark API，但仍会写入生成的频道和消息，因此也必须使用受控目标。
+`/bench/v1/*` 不是公开业务集成 API，不得暴露到公共网络。`capacity message-event` 是例外：它使用 WuKongIM 的 `/channel`、`/message/send`、`/message/event` 和 `/metrics`，不需要 Benchmark API，但仍会写入生成的频道和消息，因此也必须使用受控目标。
 
 </details>
 

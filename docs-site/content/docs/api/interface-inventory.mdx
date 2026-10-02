@@ -62,7 +62,7 @@ ID `16` 是退役保留项，ID `20` 是删除功能的保留项，均不得复�
 | Cloud Analysis MCP `POST /mcp` | `run_inspect`, `cluster_snapshot`, `workload_inspect`, `metrics_query_range`, `logs_search`, `logs_context`, `diagnostics_query`, `task_audits_query`, `trace_start`, `trace_query`, `profile_capture`, `profile_top`, `profile_list`, `config_read_redacted` | 单个 live Run 的不可续期 Analysis Bearer；`trace_start` 和 `profile_capture` 是有界主动诊断 |
 | Review Check stdio MCP | `check_list`, `check_result`, `check_run` | 本机 stdio、无凭据；只执行命名检查，不接受任意命令、参数或路径 |
 
-Cloud Analysis Gateway 另有无认证 `GET /healthz`、无认证 `GET /self-check`，以及可选的 GitHub OIDC `POST /analysis/token`。它们都属于 **agent-internal**，不是产品 API。
+Cloud Analysis Gateway 另有无认证 `GET /healthz`、无认证 `GET /self-check`，以及可选的 GitHub OIDC `POST /analysis/token`。它们都属于 **agent-internal**，不是业务集成 API。
 
 ## Cloud View
 
@@ -84,7 +84,7 @@ Cloud View 是 Simulation Viewer 的无认证反向代理：`ANY /cloud-view/sta
 | --- | --- | --- |
 | Plugin host RPC：8 条 Unix-socket 路由 | Plugin author | 单独的 Beta Plugin Protocol；protobuf/wkrpc，不用 OpenAPI |
 | Webhook：`msg.notify`, `msg.offline`, `user.onlinestatus` | Public integration | 发布正式回调合同；当前 POST JSON、仅 200 成功、无签名 |
-| Operations HTTP | Operator | 独立运维文档；不要混入 Product HTTP |
+| Operations HTTP | Operator | 独立运维文档；不要混入 WuKongIM HTTP API |
 | Manager、Node、Cloud View、Cloud Analysis、Agent、Bench | Private | 只列边界、稳定性和风险，不承诺公共兼容性 |
 
 Plugin host 的精确本机路径为 `/plugin/start`、`/close`、`/message/send`、`/channel/messages`、`/cluster/config`、`/cluster/channels/belongNode`、`/conversation/channels`、`/plugin/httpForward`。调用者身份来自 Unix-socket wkrpc UID。Webhook 是 best-effort 内存重试，进程崩溃后不重放；接收方必须自行建立来源认证与幂等。

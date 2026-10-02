@@ -2,7 +2,7 @@
 
 ## Objective
 
-Publish one bounded Product HTTP message-send operation and the first
+Publish one bounded WuKongIM HTTP API message-send operation and the first
 source-aligned WKProto client-protocol baseline. Keep both surfaces concise,
 bilingual, and explicitly non-exhaustive. Phase 17 is documentation and
 contract work; it does not change runtime routes, wire behavior, authentication,
@@ -18,7 +18,7 @@ Phase 17 publishes matching Chinese and English content for:
 - `/{lang}/api/client-protocols/connection-lifecycle`
 - `/{lang}/api/client-protocols/packet-types`
 
-The Product HTTP Message Sending tag index remains separate from the existing
+The WuKongIM HTTP API Message Sending tag index remains separate from the existing
 bounded-sync Messages group. The client-protocol index introduces only the two
 published WKProto pages and keeps the remaining protocol work visibly planned.
 
@@ -42,7 +42,7 @@ contract. Their runtime presence does not make them published API fields.
 
 The operation declares `security: []` and
 `x-wukongim-trust: trusted-backend-only`. This records the absence of built-in
-Product HTTP authentication; it does not authorize anonymous or public access.
+WuKongIM HTTP API authentication; it does not authorize anonymous or public access.
 The static playground stays disabled, and any request example must state the
 trusted-backend boundary.
 
@@ -69,7 +69,7 @@ current boundaries:
   separate SDK/application responsibilities and must not be presented as one
   wire acknowledgement.
 - Payload session encryption, when enabled, does not replace TLS, product
-  identity, token verification, or Product HTTP protection.
+  identity, token verification, or WuKongIM HTTP API protection.
 
 ### Packet types
 
@@ -108,7 +108,7 @@ the deferred list above is not current publication status.
 
 ## Authoritative sources
 
-- Product HTTP route, DTO mapping, compatibility errors, and tests:
+- WuKongIM HTTP API route, DTO mapping, compatibility errors, and tests:
   `internal/access/api/message_send.go`, `message_error_map.go`, and
   `message_legacy_test.go`.
 - Durable-send behavior and reason mapping: `internal/usecase/message` plus its
@@ -144,13 +144,13 @@ Phase 17 must verify:
   and `llms-full.txt`;
 - unchanged Phase 12 golden-path operation whitelist, compatibility output,
   executable scenario, and verification receipt scope;
-- focused Product HTTP send, protocol codec/frame, Gateway lifecycle, and
+- focused WuKongIM HTTP API send, protocol codec/frame, Gateway lifecycle, and
   access-adapter tests, followed by the full documentation verification gate.
 
 ## Non-goals
 
 - Runtime, SDK, protocol, authentication, authorization, or storage changes.
-- A complete Product HTTP, OpenAPI, WKProto, TCP, or JSON-RPC reference.
+- A complete WuKongIM HTTP API, OpenAPI, WKProto, TCP, or JSON-RPC reference.
 - Publishing message batch, message event, message sync/syncack, CMD binding,
   request-scoped subscribers, transient send modes, or legacy request aliases.
 - Claiming HTTP success as durable commit, realtime delivery, RECVACK, read

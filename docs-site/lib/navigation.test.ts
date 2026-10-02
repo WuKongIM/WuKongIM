@@ -370,7 +370,7 @@ describe('documentation navigation contract', () => {
     ]);
   });
 
-  test('keeps the Phase 16 trusted Product HTTP management pages published', () => {
+  test('keeps the Phase 16 trusted WuKongIM HTTP API management pages published', () => {
     expect(getNavigationEntry('en', 'api', ['product-http', 'channels'])?.status).toBe(
       'published',
     );
@@ -810,7 +810,7 @@ describe('documentation navigation contract', () => {
     }
   });
 
-  test('groups Product HTTP operations by tag and shows their methods', () => {
+  test('groups WuKongIM HTTP API operations by tag and shows their methods', () => {
     const tree = buildPageTree('en', 'api');
     const productHTTP = tree.children.find(
       (node) => node.type === 'folder' && node.index?.url === '/en/api/product-http',

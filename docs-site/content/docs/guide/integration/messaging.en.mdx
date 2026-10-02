@@ -52,7 +52,7 @@ flowchart TD
 <details>
   <summary>Backend send: HTTP example</summary>
 
-Only a trusted backend calls [`POST /message/send`](/en/api/product-http/message-send/sendChannelMessage). Do not expose it directly to browsers or mobile clients. Product HTTP has no general product authentication; use a private network or protected proxy. Encode `payload` as Base64.
+Only a trusted backend calls [`POST /message/send`](/en/api/product-http/message-send/sendChannelMessage). Do not expose it directly to browsers or mobile clients. WuKongIM HTTP API has no general product authentication; use a private network or protected proxy. Encode `payload` as Base64.
 
 ```bash
 curl -sS http://127.0.0.1:5001/message/send \

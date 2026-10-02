@@ -123,7 +123,7 @@ function renderOperationBoundary(
   operation: (typeof productHTTPOpenAPIReferenceGroups)[number]['operations'][number],
 ) {
   const trust = trustLabels[operation.trust as keyof typeof trustLabels];
-  if (!trust) throw new Error(`unknown Product HTTP trust tier: ${operation.trust}`);
+  if (!trust) throw new Error(`unknown WuKongIM HTTP API trust tier: ${operation.trust}`);
   const title = locale === 'zh' ? '接口边界' : 'Operation boundary';
   const labels =
     locale === 'zh'

@@ -508,10 +508,10 @@ function publishedWuKongIMSDKGroup(): NavigationGroup {
 function publishedProductHTTPGroup(): NavigationGroup {
   return publishedGroup(
     'product-http',
-    'Product HTTP API',
-    'Product HTTP API',
-    `浏览当前源码注册的全部 ${productHTTPOpenAPIReferenceOperations.length} 条 Product HTTP 操作。`,
-    `Browse all ${productHTTPOpenAPIReferenceOperations.length} Product HTTP operations registered by the current source.`,
+    'WuKongIM HTTP API',
+    'WuKongIM HTTP API',
+    `浏览当前源码注册的全部 ${productHTTPOpenAPIReferenceOperations.length} 条 WuKongIM HTTP API 操作。`,
+    `Browse all ${productHTTPOpenAPIReferenceOperations.length} WuKongIM HTTP API operations registered by the current source.`,
     [
       ...productHTTPOpenAPIReferenceGroups.map((group) =>
         publishedGroup(
@@ -1037,15 +1037,15 @@ export const domains: DocumentationDomain[] = [
         'conventions',
         '通用约定',
         'Conventions',
-        'Product HTTP 的地址、格式、标识和重试规则。',
-        'Product HTTP addressing, formats, identifiers, and retry rules.',
+        'WuKongIM HTTP API 的地址、格式、标识和重试规则。',
+        'WuKongIM HTTP API addressing, formats, identifiers, and retry rules.',
       ),
       publishedPage(
         'authentication',
         '认证与安全',
         'Authentication & Security',
-        'Product HTTP 与 Gateway 的鉴权边界。',
-        'Authentication boundaries for Product HTTP and Gateway.',
+        'WuKongIM HTTP API 与 Gateway 的鉴权边界。',
+        'Authentication boundaries for WuKongIM HTTP API and Gateway.',
       ),
       publishedPage(
         'compatibility',

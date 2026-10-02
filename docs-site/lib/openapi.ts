@@ -13,7 +13,7 @@ export { localizeOpenAPIDocument } from './product-http-openapi';
 type OpenAPIOptions = NonNullable<Parameters<typeof createOpenAPI>[0]>;
 type OpenAPISchemaRecord = Exclude<NonNullable<OpenAPIOptions['input']>, string[]>;
 
-/** Stable schema ID embedded into generated Product HTTP reference pages. */
+/** Stable schema ID embedded into generated WuKongIM HTTP API reference pages. */
 export const productHTTPOpenAPIDocumentId =
   productHTTPOpenAPIContracts['golden-path'].documentId;
 
@@ -28,7 +28,7 @@ export const productHTTPOpenAPIDocumentIds = localizedDocumentIds(
   productHTTPOpenAPIDocumentId,
 );
 
-/** Stable schema ID embedded into the complete Product HTTP reference. */
+/** Stable schema ID embedded into the complete WuKongIM HTTP API reference. */
 export const productHTTPCompleteOpenAPIDocumentId =
   productHTTPOpenAPIContracts.complete.documentId;
 
@@ -106,7 +106,7 @@ const productHTTPOpenAPISchemas = Object.fromEntries(
   ),
 ) as OpenAPISchemaRecord;
 
-/** Server-only loader for every published Product HTTP OpenAPI page. */
+/** Server-only loader for every published WuKongIM HTTP API OpenAPI page. */
 export const openapi = createOpenAPI({
   input: {
     ...productHTTPOpenAPISchemas,

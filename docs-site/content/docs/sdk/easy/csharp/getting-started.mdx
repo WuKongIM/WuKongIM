@@ -9,7 +9,7 @@ description: 按准备、安装、连接、收发和清理顺序完成首次接�
 
 - 准备 .NET 8 或更新版本，以及 Windows、Linux 或 macOS 开发环境。当前目标框架为 `net8.0`，不包含 Unity、.NET Framework 和浏览器 WebAssembly 支持。
 - 启动 `/readyz` 健康的 WuKongIM 单节点集群或多节点集群，确认客户端可以访问 WebSocket Gateway。单节点集群同样遵循集群语义，默认使用 256 Hash Slots。
-- 业务后端为 Alice 和 Bob 分别返回 `uid`、`token` 和 `websocketUrl`。客户端不调用 `/user/token` 或 `/route` 等 Product HTTP 管理接口。
+- 业务后端为 Alice 和 Bob 分别返回 `uid`、`token` 和 `websocketUrl`。客户端不调用 `/user/token` 或 `/route` 等 WuKongIM HTTP API 管理接口。
 - C# 默认使用 PC/Desktop `2`。后端签发 Token 的 `device_flag` 必须与客户端一致；APP 为 `0`，Web 为 `1`。
 
 先阅读 [身份与 Token](/zh/guide/integration/authentication)。生产环境使用 HTTPS/WSS，不关闭证书验证，不把 Token 放入 URL、日志或源码。

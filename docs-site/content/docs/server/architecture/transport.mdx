@@ -147,7 +147,7 @@ Slot 与 Channel 上层会重新解析 Leader 或 epoch 后决定是否重试。
 
 节点 Transport 应只暴露在受控集群网络中，地址必须由可信配置或 Controller 状态提供。当前节点传输是内部 framed TCP，不应直接暴露到互联网；需要跨不可信网络时，应在外层提供经过审核的私网、隧道或等效保护。
 
-浏览器和客户端不得访问节点 Transport。产品 HTTP、Manager、Gateway、Operations MCP 和 Debug 各自需要独立的入口与最小权限控制，详见[安全与权限](/zh/server/configuration/security)。
+浏览器和客户端不得访问节点 Transport。WuKongIM HTTP API、Manager、Gateway、Operations MCP 和 Debug 各自需要独立的入口与最小权限控制，详见[安全与权限](/zh/server/configuration/security)。
 
 ## 观察什么
 

@@ -15,14 +15,14 @@ flowchart TD
 
 </div>
 
-This example terminates WSS at a TLS proxy and forwards WS upstream. Route the external `/ws` path correctly. The trusted backend accesses the Product API to obtain client routing.
+This example terminates WSS at a TLS proxy and forwards WS upstream. Route the external `/ws` path correctly. The trusted backend accesses the WuKongIM HTTP API to obtain client routing.
 
 ## Traffic planes
 
 | Who connects | Entry to use |
 | --- | --- |
 | Clients | Controlled TCP / WS / WSS edge; reachable from client networks |
-| Business backend | Product API on a trusted network or behind external auth |
+| Business backend | WuKongIM HTTP API on a trusted network or behind external auth |
 | Peer nodes | Private Transport with bidirectional reachability |
 | Admins and collectors | SSH / private Manager access; metrics and diagnostics restricted |
 
@@ -32,7 +32,7 @@ This example terminates WSS at a TLS proxy and forwards WS upstream. Route the e
 | Traffic | Primary configuration | Consumer | Production boundary |
 | --- | --- | --- | --- |
 | Inter-node Transport | `cluster.listen_addr`, static `nodes[].addr`, or `cluster.advertise_addr` | Other WuKongIM nodes | Restrict to the cluster network and require bidirectional reachability |
-| Product HTTP API | `api.listen_addr` | Business backends, health checks, observability collectors | Place on a trusted network or behind external authentication |
+| WuKongIM HTTP API | `api.listen_addr` | Business backends, health checks, observability collectors | Place on a trusted network or behind external authentication |
 | Client Gateway | `gateway.listeners` | TCP and WebSocket clients | Expose through a controlled edge and enforce connection capacity |
 | Client discovery | `api.external_tcp_addr`, `external_ws_addr`, `external_wss_addr` | Callers of `/route` | Reachable from every target client network |
 | Manager | `manager.listen_addr` | Administrators and automation | Loopback or management network only; use SSH tunneling or a private HTTPS proxy and keep authentication enabled |
@@ -76,8 +76,8 @@ The names and ports are structural examples. If a load balancer, reverse proxy, 
 
 ## Exposure policy
 
-<Callout type="warn" title="Product API needs an external trust boundary">
-  Product HTTP routes do not validate general business identity. Use a trusted network or external auth. Public ingress contains only required client ports and a protected API. Keep Manager auth on; use loopback, private networking, or SSH.
+<Callout type="warn" title="WuKongIM HTTP API needs an external trust boundary">
+  WuKongIM HTTP API routes do not validate general business identity. Use a trusted network or external auth. Public ingress contains only required client ports and a protected API. Keep Manager auth on; use loopback, private networking, or SSH.
 </Callout>
 
 Restrict Transport, metrics, debug, benchmark, and diagnostics separately. A shared HTTP listener does not imply equal trust.
@@ -85,9 +85,9 @@ Restrict Transport, metrics, debug, benchmark, and diagnostics separately. A sha
 <details>
   <summary>Full exposure policy and health-check distinction</summary>
 
-- Public ingress should contain only required client ports and a protected product API.
+- Public ingress should contain only required client ports and a protected WuKongIM HTTP API.
 - Give node Transport, Manager, `/metrics`, `/top/v1/*`, `/debug/pprof/*`, Benchmark, and diagnostics separate network policies. Sharing an HTTP listener does not give them the same trust level.
-- WuKongIM product HTTP routes do not provide general business identity validation. Establish that boundary with a trusted network, API gateway, or external authentication proxy.
+- WuKongIM HTTP API routes do not provide general business identity validation. Establish that boundary with a trusted network, API gateway, or external authentication proxy.
 - Load balancers must use `/readyz` for traffic admission. `/healthz` only proves process liveness and cannot prove the node is ready to serve.
 
 </details>

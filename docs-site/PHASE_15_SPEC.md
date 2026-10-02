@@ -188,7 +188,7 @@ remains in the overview while each quickstart identifies its exact official
 distribution and verified example revision.
 
 The client never invents its own production UID or token. Browser clients do
-not call Product HTTP management endpoints directly; a trusted backend or BFF
+not call WuKongIM HTTP API management endpoints directly; a trusted backend or BFF
 returns only the connection material the client needs.
 
 ## Platform boundaries
@@ -284,5 +284,5 @@ The fast gate must cover:
   repository-example runs or the later released-package simulator runs.
 - Publishing a complete API reference, migration guide, push guide, or
   platform UI architecture.
-- Moving Product HTTP management calls into an untrusted client.
+- Moving WuKongIM HTTP API management calls into an untrusted client.
 - Publishing the planned full WuKongIMSDK platform tutorials.

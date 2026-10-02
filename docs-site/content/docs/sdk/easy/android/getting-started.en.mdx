@@ -66,7 +66,7 @@ data class IMBootstrap(
 )
 ```
 
-The product backend authenticates the current product user and selects a WebSocket address. The Android client receives only its own connection material and no Product HTTP management credential.
+The product backend authenticates the current product user and selects a WebSocket address. The Android client receives only its own connection material and no WuKongIM HTTP API management credential.
 
 Android EasySDK is a process singleton, and `WK_EASYSDK_ANDROID_TAG` cannot be initialized a second time with another configuration. This example fits a minimal run with one UID per process. A production application that switches accounts must first design and test a complete logout strategy around this limitation.
 

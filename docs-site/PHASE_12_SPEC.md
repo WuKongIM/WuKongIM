@@ -11,7 +11,7 @@ reconnect.
 
 This is a deliberately narrow golden-path subset. “Published” means the stated
 scenario and contracts are complete, bilingual, source-aligned, and tested. It
-does not mean every SDK, browser, Product HTTP route, or protocol has become a
+does not mean every SDK, browser, WuKongIM HTTP API route, or protocol has become a
 stable v3 public API.
 
 ## Primary audience and outcome
@@ -50,7 +50,7 @@ Phase 12 adds matching Chinese and English MDX for exactly these 14 routes:
 
 The domain indexes `/sdk` and `/api` are updated to route readers into this
 published subset. All other SDK platforms, common SDK guides, complete SDK API
-reference, upgrade guides, Product HTTP domains, Operations HTTP, Webhooks,
+reference, upgrade guides, WuKongIM HTTP API domains, Operations HTTP, Webhooks,
 client-protocol details, and specification-download pages remain planned.
 
 This is the Phase 12 boundary, not the current publication status. Phase 24
@@ -94,7 +94,7 @@ operation must complete the entire scenario.
 
 ## Trust architecture
 
-The browser never calls WuKongIM Product HTTP directly:
+The browser never calls WuKongIM HTTP API directly:
 
 ```text
 browser
@@ -116,7 +116,7 @@ The BFF must:
 - generate high-entropy temporary development tokens server-side;
 - return only the current UID, development token, and selected WebSocket URL;
 - set non-cacheable responses;
-- keep Product HTTP addresses and management capabilities out of the browser;
+- keep WuKongIM HTTP API addresses and management capabilities out of the browser;
 - proxy only the three declared golden-path capabilities;
 - remain stateless across restarts.
 
@@ -177,7 +177,7 @@ The named Chromium snapshot is the only browser target eligible for a Phase 12
 verification receipt. Firefox and WebKit/Safari are explicitly unverified. The
 docs must not claim support for “all modern browsers.”
 
-## Product HTTP contract subset
+## WuKongIM HTTP API contract subset
 
 A slice-level OpenAPI contract is the machine-readable source for exactly:
 
@@ -193,7 +193,7 @@ checked against the runnable sample. Fumadocs groups the three independent
 operation pages by tag and generates a concise card index for each tag. The
 operation pages render request, response, and Schema content directly from the
 localized contract. The
-static request playground stays disabled because Product HTTP belongs behind a
+static request playground stays disabled because WuKongIM HTTP API belongs behind a
 trusted BFF. The contract is visibly labeled “Beta golden-path subset” and must
 never be offered as the complete v3 OpenAPI.
 
@@ -321,13 +321,13 @@ It is a protected docs integration named check, separate from the default Go
 unit tier and the repository-wide E2E suite. It reruns the source-alignment
 contracts before the exact acceptance scenario in Playwright Chromium. Each
 selected run also checks the bilingual home entry, JavaScript Quickstart, and
-Product HTTP overview, users, messages, routing, and errors pages at desktop
+WuKongIM HTTP API overview, users, messages, routing, and errors pages at desktop
 and mobile viewports for horizontal overflow, serious accessibility findings,
 and visible keyboard focus (14 documentation URLs in total).
 
 ### Accessibility
 
-The home-page entry, Quickstart, Product HTTP pages, and golden sample must:
+The home-page entry, Quickstart, WuKongIM HTTP API pages, and golden sample must:
 
 - have no serious or critical automated accessibility findings;
 - complete the sample flow by keyboard;
@@ -355,9 +355,9 @@ response cannot be selectively redacted before capture.
 
 ## Security invariants
 
-- Browsers and mobile apps never call Product HTTP directly.
+- Browsers and mobile apps never call WuKongIM HTTP API directly.
 - CORS compatibility is not authentication.
-- Product HTTP must be private or protected by authenticated service ingress.
+- WuKongIM HTTP API must be private or protected by authenticated service ingress.
 - The default Gateway stored-token gap is always disclosed and never called
   production-ready.
 - The sample BFF is loopback-only and development-only.
@@ -379,7 +379,7 @@ response cannot be selectively redacted before capture.
 - Complete JavaScript SDK API reference or upgrade guide.
 - Android, iOS, Flutter, UniApp, HarmonyOS, Firefox, or WebKit/Safari support
   promises.
-- Full Product HTTP reference, `/message/send`, Operations HTTP, Webhooks,
+- Full WuKongIM HTTP API reference, `/message/send`, Operations HTTP, Webhooks,
   binary protocol, JSON-RPC details, complete OpenAPI, or downloadable complete
   protocol schemas.
 - Versioned URL migration or multi-version documentation.

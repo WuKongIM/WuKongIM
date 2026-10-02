@@ -3,7 +3,7 @@ title: Reason Code
 description: Reference every current protocol reason value 0–29 with name, phase, retry guidance, and reachability.
 ---
 
-Business send rejections additionally reserve 128–255. `msg.before_send` returns these unchanged through SENDACK `reason_code` and Product HTTP `reason`. They are separate from the system enum below; SDK/application code should preserve the value, provide business copy, and avoid automatically retrying explicit rejection.
+Business send rejections additionally reserve 128–255. `msg.before_send` returns these unchanged through SENDACK `reason_code` and WuKongIM HTTP API `reason`. They are separate from the system enum below; SDK/application code should preserve the value, provide business copy, and avoid automatically retrying explicit rejection.
 
 ## Goal and completion criteria
 

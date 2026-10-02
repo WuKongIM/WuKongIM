@@ -1,13 +1,13 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "WuKongIM Product HTTP Runtime API",
+    "title": "WuKongIM HTTP API",
     "version": "3.0.0-beta-snapshot",
-    "description": "The 48 core Product HTTP JSON operations, plus the plugin-defined ANY route in x-wukongim-extension-routes. Routes have no built-in authentication.",
+    "description": "The 48 core WuKongIM HTTP API JSON operations, plus the plugin-defined ANY route in x-wukongim-extension-routes. Routes have no built-in authentication.",
     "x-i18n": {
       "zh": {
-        "title": "WuKongIM Product HTTP 运行时 API",
-        "description": "与当前运行时的 48 个核心 Product HTTP JSON 操作对齐；插件定义的 ANY 路由见 x-wukongim-extension-routes。这些路由没有内建鉴权。"
+        "title": "WuKongIM HTTP API",
+        "description": "与当前运行时的 48 个核心 WuKongIM HTTP API JSON 操作对齐；插件定义的 ANY 路由见 x-wukongim-extension-routes。这些路由没有内建鉴权。"
       }
     }
   },
@@ -3038,7 +3038,7 @@
           "array",
           "null"
         ],
-        "description": "Unbounded by the current Product HTTP entry.",
+        "description": "Unbounded by the current WuKongIM HTTP API entry.",
         "items": {
           "type": "string"
         }
@@ -3129,7 +3129,7 @@
           "array",
           "null"
         ],
-        "description": "Unbounded by the current Product HTTP entry.",
+        "description": "Unbounded by the current WuKongIM HTTP API entry.",
         "items": {
           "type": "string"
         }

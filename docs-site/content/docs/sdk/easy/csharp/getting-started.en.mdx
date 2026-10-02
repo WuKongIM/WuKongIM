@@ -9,7 +9,7 @@ Use .NET 8+ and NuGet **WK_EASYSDK_CSHARP_VERSION** to exchange online messages 
 
 - Prepare .NET 8 or later on Windows, Linux, or macOS. The target framework is `net8.0`; Unity, .NET Framework, and browser WebAssembly are not currently supported.
 - Start a WuKongIM single-node cluster or multi-node cluster with a healthy `/readyz` and a reachable WebSocket Gateway. A single-node cluster still follows cluster semantics and defaults to 256 hash slots.
-- Have your trusted backend supply separate `uid`, `token`, and `websocketUrl` values for Alice and Bob. Clients do not call Product HTTP management routes such as `/user/token` or `/route`.
+- Have your trusted backend supply separate `uid`, `token`, and `websocketUrl` values for Alice and Bob. Clients do not call WuKongIM HTTP API management routes such as `/user/token` or `/route`.
 - C# defaults to PC/Desktop `2`. The backend token's `device_flag` must match the client; APP is `0` and Web is `1`.
 
 Read [Identity & Token](/en/guide/integration/authentication) first. Production uses HTTPS/WSS with certificate validation. Tokens do not belong in URLs, logs, or source code.

@@ -1,15 +1,15 @@
 ---
-title: Product HTTP API
+title: WuKongIM HTTP API
 description: 查阅当前源码注册的全部 48 条业务 HTTP 操作。
 ---
 
-Product HTTP 提供基础接入与受信管理接口。完整 OpenAPI 与当前 `internal/access/api` 注册的 48 条操作一一对应。
+WuKongIM HTTP API 提供基础接入与受信管理接口。完整 OpenAPI 与当前 `internal/access/api` 注册的 48 条操作一一对应。
 进入具体接口页可查看每个查询参数和 JSON 字段的类型、必填性、默认值、范围以及运行时兼容行为。
 
 OpenAPI：[完整合同](/contracts/product-http.openapi.json) · 窄 Profile：[基础接入](/contracts/javascript-web-quickstart.openapi.json) · [消息发送](/contracts/product-http-messaging.openapi.json) · [Channel 与 Conversation](/contracts/product-http-management.openapi.json)
 
 <Callout type="error" title="仅供受信后端调用">
-  Product HTTP 没有通用业务鉴权。请限制网络可达性，并在 API Gateway、服务网格或业务后端完成认证、授权、限流和审计。
+  WuKongIM HTTP API 没有通用业务鉴权。请限制网络可达性，并在 API Gateway、服务网格或业务后端完成认证、授权、限流和审计。
 </Callout>
 
 ## 按任务选择接口
@@ -26,18 +26,18 @@ OpenAPI：[完整合同](/contracts/product-http.openapi.json) · 窄 Profile：
 
 ## Channel 可观测性边界
 
-| 状态 | Product HTTP 读回 |
+| 状态 | WuKongIM HTTP API 读回 |
 | --- | --- |
 | 允许列表 | `GET /channel/whitelist`，旧式无界完整列表 |
 | 普通订阅者 | 无 |
 | 拒绝列表 | 无 |
 | 临时订阅者 | 无 |
 
-Product HTTP 缺少对称读回时，不要把一次 200 当作协调证明。以业务数据库为期望状态源，需要严格核对时使用受保护的 Manager 有界查询。
+WuKongIM HTTP API 缺少对称读回时，不要把一次 200 当作协调证明。以业务数据库为期望状态源，需要严格核对时使用受保护的 Manager 有界查询。
 
 ## Deprecated 的含义
 
-`deprecated` 表示兼容入口仍存在，但不应成为新集成的默认选择：`/channel/info` 改用 `/channel`；名单 set 改用 remove-all 加有界 add；`/conversation/sync` 改用 `/conversation/list`。路由批量、在线状态、Channel 解散/移除、允许列表完整读取以及命令消息 sync/bind 等兼容入口目前没有一一对应的新 Product HTTP 替代，应仅在明确理解其页面边界后使用。节点本地 system UID cache 接口只能用于定向运维，不能替代持久变更。
+`deprecated` 表示兼容入口仍存在，但不应成为新集成的默认选择：`/channel/info` 改用 `/channel`；名单 set 改用 remove-all 加有界 add；`/conversation/sync` 改用 `/conversation/list`。路由批量、在线状态、Channel 解散/移除、允许列表完整读取以及命令消息 sync/bind 等兼容入口目前没有一一对应的新 WuKongIM HTTP API 替代，应仅在明确理解其页面边界后使用。节点本地 system UID cache 接口只能用于定向运维，不能替代持久变更。
 
 ## 接口目录
 

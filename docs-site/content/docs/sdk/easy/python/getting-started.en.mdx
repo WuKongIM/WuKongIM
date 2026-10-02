@@ -7,7 +7,7 @@ Use Python 3.11+, asyncio, and PyPI **WK_EASYSDK_PYTHON_VERSION** for online mes
 
 ## 1. Prepare
 
-Follow [authentication and Tokens](/en/guide/integration/authentication) so your trusted backend supplies each user's `uid`, `token`, and `websocketUrl`. Clients connect to the Gateway and do not call Product HTTP management endpoints.
+Follow [authentication and Tokens](/en/guide/integration/authentication) so your trusted backend supplies each user's `uid`, `token`, and `websocketUrl`. Clients connect to the Gateway and do not call WuKongIM HTTP API management endpoints.
 
 Device categories are APP `0`, WEB `1`, and PC/Desktop `2`. **Python defaults to Desktop `2`**; provision the Token for that same device category. The usual development address is `ws://127.0.0.1:5200`. Use `ws://127.0.0.1:5200/ws` only when the listener or proxy configures `/ws`. Use a reachable client address across machines and `wss://` in production.
 

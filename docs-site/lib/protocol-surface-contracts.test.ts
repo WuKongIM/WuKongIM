@@ -517,7 +517,7 @@ describe('protocol surface contracts', () => {
     expect(presence).toContain('fmt.Sprintf("%s-%d-%d-%d-%d-%d"');
   });
 
-  test('publishes concise bilingual pages without pretending protocols are Product HTTP', async () => {
+  test('publishes concise bilingual pages without pretending protocols are WuKongIM HTTP API', async () => {
     const stems = [
       'api/client-protocols/tcp-binary',
       'api/client-protocols/json-rpc',
