@@ -12,6 +12,8 @@ import (
 type MessageDB struct {
 	// engine is the shared physical message store closed by this domain.
 	engine *engine.DB
+	// mqttStorage owns bounded replica reservations reconstructed before admission.
+	mqttStorage *mqttStorageBudget
 	// registry owns canonical entries and database operation admission.
 	registry *channelRegistry
 	// latestIndex tracks canonical global-index startup readiness.

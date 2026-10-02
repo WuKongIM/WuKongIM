@@ -68,6 +68,8 @@ func (f optionFunc) apply(options *suiteOptions) {
 }
 
 type suiteOptions struct {
+	// tcpPartition optionally routes static cluster traffic through owned relays.
+	tcpPartition           *ClusterTCPPartition
 	workspaceRootDir       string
 	nodeLogRootDir         string
 	managerHTTP            bool
@@ -260,8 +262,12 @@ func (s *Suite) StartStaticCluster(nodeCount int, opts ...Option) *StartedCluste
 		specs = append(specs, spec)
 	}
 
+	peers := specs
+	if options.tcpPartition != nil {
+		peers = options.tcpPartition.start(s.t, specs)
+	}
 	for i := range specs {
-		renderedConfig := RenderClusterConfig(specs[i], specs)
+		renderedConfig := RenderClusterConfig(specs[i], peers)
 		require.NoError(s.t, os.WriteFile(specs[i].ConfigPath, []byte(renderedConfig), 0o644))
 		if !specs[i].ConfigFileOnly {
 			specs[i].Env = append(envFromConfig(renderedConfig), specs[i].Env...)
@@ -279,6 +285,9 @@ func (s *Suite) StartStaticCluster(nodeCount int, opts ...Option) *StartedCluste
 	for _, spec := range specs {
 		process := &NodeProcess{Spec: spec, BinaryPath: s.binaryPath}
 		require.NoError(s.t, process.Start())
+		if options.tcpPartition != nil {
+			options.tcpPartition.register(spec.ID, process)
+		}
 		cluster.Nodes = append(cluster.Nodes, StartedNode{Spec: spec, Process: process})
 	}
 

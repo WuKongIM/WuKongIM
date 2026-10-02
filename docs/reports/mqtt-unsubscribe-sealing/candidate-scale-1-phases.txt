@@ -1,0 +1,11 @@
+    scale_test.go:131: phase provision_members completed in 5761 ms
+    scale_test.go:131: phase provision_tokens completed in 2958 ms
+    scale_test.go:131: phase connect_subscribe completed in 22415 ms
+    scale_test.go:131: phase fanout completed in 172219 ms
+    scale_test.go:131: phase idle_measurement completed in 10034 ms
+    scale_test.go:378: idle Slot barriers/s=1816.0 per subscriber/s=3.63
+    scale_test.go:131: phase churn completed in 19421 ms
+    scale_test.go:131: phase post_churn_delivery completed in 34816 ms
+    scale_test.go:131: phase retirement completed in 11 ms
+--- PASS: TestGroupScaleDeliveryAndChurnRetirement (282.96s)
+ok  	github.com/WuKongIM/WuKongIM/test/e2e/mqtt/scale	283.304s

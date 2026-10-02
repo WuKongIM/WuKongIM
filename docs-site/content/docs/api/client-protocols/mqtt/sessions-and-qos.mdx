@@ -1,0 +1,78 @@
+---
+title: MQTT 持久会话与 QoS
+description: 选择稳定 ClientID，检查 Session Present，并处理断线恢复、重复与背压。
+---
+
+<Callout type="warn" title="开发预览">
+  持久会话依赖集群权威状态。旧连接无法证明已隔离时，新 CONNECT 可能失败；不能承诺任意网络分区下无缝接管。
+</Callout>
+
+## 选择生命周期
+
+| 目标 | ClientID | Clean Start | Session Expiry Interval |
+| --- | --- | --- | --- |
+| 一次收发演示 | 每次运行可新建 | true | 0 |
+| 新建持久会话 | 后续继续使用同一 ID | true，明确丢弃旧会话 | 大于 0 |
+| 恢复持久会话 | 原稳定 ID | false | 大于 0 |
+| 重置旧订阅和状态 | 原 ID | true | 按新生命周期选择 |
+
+离线有效期默认上限 86400 秒（24 小时），可调低，不能请求超过配置上限或硬上限。用 Session Present 判断是否真的恢复；`clean=false` 本身不证明旧状态存在。
+
+同一 namespace 的 ClientID 绑定 UID。不同 ClientID 可使用同一 UID/设备凭证同时连接，不套用 WKProto 主设备踢出规则；同一 ClientID 新连接接管原连接。不同设备应使用不同 ClientID。
+
+## MQTT.js 恢复参数
+
+此片段恢复已有持久会话；首次不存在时，Session Present 为 false，需建立订阅。消息监听必须在发出 CONNECT 前安装，避免错过恢复投递。
+
+```js
+import mqtt from 'mqtt';
+
+const inbox = 'wk/v1/users/Ym9i/messages';
+const client = mqtt.connect('mqtt://127.0.0.1:1883', {
+  manualConnect: true,
+  protocolVersion: 5,
+  clientId: 'bob-device-01', // Stable across reconnects; bound to bob.
+  username: 'bob',
+  password: process.env.MQTT_BOB_TOKEN,
+  clean: false,
+  resubscribe: false,
+  reconnectPeriod: 0, // Explicit reconnect here; production needs bounded backoff.
+  properties: {
+    sessionExpiryInterval: 3600,
+    receiveMaximum: 16,
+    userProperties: { 'wk.device_flag': '1' },
+  },
+});
+client.on('error', () => console.error('MQTT operation failed'));
+client.on('message', (topic, bytes, packet) => {
+  // Deduplicate using packet.properties.userProperties['wk.message_id'].
+});
+client.on('connect', (connack) => {
+  if (!connack.sessionPresent) {
+    client.subscribe(inbox, { qos: 1 }, (error, grants) => {
+      if (error || grants?.[0]?.qos !== 1) console.error('Inbox subscription failed');
+    });
+  }
+});
+client.connect();
+```
+
+MQTT.js 的 `clean` 对应 Clean Start，`sessionExpiryInterval` 单位为秒。这里关闭自动 resubscribe，以直接观察服务端恢复。实际产品应实现有限重试、退避和凭证刷新，避免无限重复认证失败。参数见 [MQTT.js API](https://github.com/mqttjs/MQTT.js/blob/v5.16.0/README.md#api)。
+
+## QoS 和窗口
+
+QoS 1 是至少一次协议交换，仍需业务去重；不支持 QoS 2 发布。订阅 QoS 与原消息 QoS 限制实际投递等级。订阅 QoS 1 不会把原 QoS 0 变成可靠离线消息；不要给 QoS 0 承诺可靠离线积压。
+
+默认持久 QoS 1 窗口为 64，同时受客户端 Receive Maximum 限制。慢 ACK、离线与业务处理慢可能形成背压；增加窗口前先检查客户端处理和逻辑积压配额。
+
+会话过期、Clean Start、显式结束和权限变更影响恢复资格。UNSUBSCRIBE 停止订阅的后续接收，不退出群，也不撤销已开始的交换。未知责任不会因 TCP 关闭立即释放。
+
+## 恢复检查
+
+1. 用稳定 ClientID、非零有效期订阅自己的收件箱或已有成员资格的群，检查 SUBACK。
+2. 断开接收端，在有效期内由另一用户发布 QoS 1 消息，保留业务编号。
+3. 用原 UID、ClientID 和 `clean=false` 重连，检查 Session Present；为 true 时不重新 SUBSCRIBE。
+4. 核对内容、MessageID 和频道序号；重复投递只产生一次业务效果。
+5. 分别测试超过有效期和 Clean Start 重置，识别新会话并恢复所需订阅。
+
+这些步骤验证你的客户端，不代替完整 Linux、分区、恢复及负载验收，也不保证已过期消息恢复。先完成[快速开始](/zh/guide/tutorials/mqtt)，再执行持久会话检查。

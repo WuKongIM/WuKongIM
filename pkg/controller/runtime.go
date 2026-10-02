@@ -25,8 +25,10 @@ type Runtime struct {
 	state ClusterState
 	watch chan StateEvent
 
-	store  *statefile.Store
-	sm     *fsm.StateMachine
+	store *statefile.Store
+	sm    *fsm.StateMachine
+	// raft is published/captured under mu for inbound Step calls that can arrive
+	// during startup. Other lifecycle operations retain serialized ownership.
 	raft   *controllerraft.Service
 	server *server.Server
 

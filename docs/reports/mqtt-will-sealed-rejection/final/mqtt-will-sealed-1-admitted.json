@@ -1,0 +1,21 @@
+{
+  "business_publications": 1,
+  "captured_capacity_refusal": true,
+  "captured_publication_attempts": 1,
+  "connect_retries": 0,
+  "cut": "admitted",
+  "executor_node": 1,
+  "executor_restarts": 1,
+  "hash_slots": 256,
+  "journal_capacity": 1,
+  "last_phase": "complete",
+  "legal_message_id": "2105692573942157312",
+  "logical_slot_groups": 1,
+  "nodes": 1,
+  "passed": true,
+  "post_restart_quiet_ms": 21000,
+  "public_permission_revoked": true,
+  "resubscriptions": 0,
+  "scenario": "mqtt-will-sealed-rejection",
+  "unexpected_deliveries": 0
+}

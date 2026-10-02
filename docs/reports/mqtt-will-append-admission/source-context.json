@@ -1,0 +1,61 @@
+{
+  "source_revision": "68eb337c50267fb2e0114130ef2b028760d17555",
+  "documents": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade"
+    },
+    {
+      "path": "internal/access/node/FLOW.md",
+      "sha256": "fa01240cb33e302e301e47d99e5f40d575dde6d24c38bbbdd97a661da6a57af6"
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "sha256": "7dd31794d3d592fe99ca1b7d0949a6a60483ab50be1950b7a939d36b1c9543fc"
+    },
+    {
+      "path": "internal/contracts/channelappend/FLOW.md",
+      "sha256": "a78422c8230bb50e54b47b94c9543e53fe5ed38d8e55abbaa6726f865306912e"
+    },
+    {
+      "path": "internal/contracts/mqttsession/FLOW.md",
+      "sha256": "96e6f581f00853177cab5928583efd507ca7c776c72c0742227231685490f799"
+    },
+    {
+      "path": "internal/infra/cluster/FLOW.md",
+      "sha256": "f1bc902452e3c6c80d57b206f96775c611221ffd02f6b5efbeee336fba4fbcd2"
+    },
+    {
+      "path": "internal/infra/mqttwill/FLOW.md",
+      "sha256": "9bde431e1c1046932655fda62298936df405b07ae7c0e1dd64809739df03d98c"
+    },
+    {
+      "path": "internal/runtime/channelappend/FLOW.md",
+      "sha256": "6bed7b302b90ea02c6e22924f5420518209660f765105eb2603f4c65277f6d8f"
+    },
+    {
+      "path": "internal/usecase/message/FLOW.md",
+      "sha256": "a2aa41945776c7002914b2cb1abc8c26a41807b5369ae0c68dc9eef7353b1570"
+    },
+    {
+      "path": "internal/usecase/mqttsession/FLOW.md",
+      "sha256": "19b9a18baa504f1b68f8ba023d42e88127ed0a362d92137bf25541f2127035d8"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "869c3dc5b4360b5d4d142a57c8da3586b49e56ec076575a459bdf25a8b20c3c4"
+    },
+    {
+      "path": "test/e2e/mqtt/AGENTS.md",
+      "sha256": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f"
+    },
+    {
+      "path": "test/e2e/mqtt/will_recovery/AGENTS.md",
+      "sha256": "4a3639e4ffc8ba471b2fd5198e418f39bb7bfea0d61b3c206c0d6e5a9769223d"
+    },
+    {
+      "path": "test/e2e/suite/FLOW.md",
+      "sha256": "d3622c9c10477f973a9aea2dd060657c98781c845f82bc92c160999f4359ddac"
+    }
+  ]
+}

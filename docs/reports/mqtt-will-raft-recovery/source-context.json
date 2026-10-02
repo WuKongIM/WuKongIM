@@ -1,0 +1,109 @@
+{
+  "base_revision": "dcaaaa8b315b1805ffef42d8bfbfcb1719edc4ca",
+  "seams": [
+    "Paho MQTT 5",
+    "public Product HTTP provisioning",
+    "public Manager Slot observations",
+    "owned process SIGKILL/restart",
+    "temporary-copy loopback gofail at queued proposal, persisted pre-quorum replication and committed pre-FSM application"
+  ],
+  "frozen_files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "6471a7e3c24cd39d92637a959ff5d3f1f0566de6c416d0c5d6e9c96b7f7f4b2e"
+    },
+    {
+      "path": "test/e2e/mqtt/AGENTS.md",
+      "sha256": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f"
+    },
+    {
+      "path": "test/e2e/suite/FLOW.md",
+      "sha256": "75aaacde354f6902998ec9b0fb66aa6a3f05c06be7d4cde88e8b06b78da7948d"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "sha256": "97b5aa5b8f7865d6846d12a2906c9f6f4d5fc001a0370923d026a6dfcb016a79"
+    },
+    {
+      "path": "pkg/cluster/FLOW.md",
+      "sha256": "3f5aff2c839515cb3e17a19f5c68ace5667c193d174492862036ef09ba6aecf9"
+    },
+    {
+      "path": "internal/usecase/mqttsession/FLOW.md",
+      "sha256": "bee4e0f7f9d04e23a13f51fb29913d68ca35051cf7dac8893dfcf9b7e0acd6fe"
+    },
+    {
+      "path": "internal/infra/mqttwill/FLOW.md",
+      "sha256": "4f2cf342ce24df876ea34b56609e5b44241b967de1e241c5e66de70cdfa1c9af"
+    },
+    {
+      "path": "internal/infra/cluster/FLOW.md",
+      "sha256": "f1bc902452e3c6c80d57b206f96775c611221ffd02f6b5efbeee336fba4fbcd2"
+    },
+    {
+      "path": "pkg/slot/fsm/statemachine.go",
+      "sha256": "9999fa80adbeae5beec68ef1ec08723df9dca1a1f5bd27600c0fa6fddf0d1f92"
+    },
+    {
+      "path": "CONTEXT.md",
+      "sha256": "9a23711303665d9e555c4b4329c9e3b32d85da87f7a410b539f46e0c2e8fbade"
+    },
+    {
+      "path": "internal/contracts/mqttsession/FLOW.md",
+      "sha256": "96e6f581f00853177cab5928583efd507ca7c776c72c0742227231685490f799"
+    }
+  ],
+  "candidate_binary": {
+    "path": "/tmp/wukongim-will-raft-gofail",
+    "sha256": "92d9360d2ae681eb3bb4b22073c86bfe303037fc0a08a86b183322b76db7e348",
+    "generated_source": "/tmp/wukongim-will-raft-completion-source"
+  },
+  "tested_sources": [
+    {
+      "path": "pkg/slot/multiraft/slot.go",
+      "sha256": "f3d0a40b6034b743aa0499afe6b08239e2a7ead90c7d6ce705536028306df5ef"
+    },
+    {
+      "path": "pkg/slot/fsm/mqtt_will_cmds.go",
+      "sha256": "207e8beed3f7e2af05c1a5f0891dcfee36832395d7fcba089c512ceb08facc4c"
+    },
+    {
+      "path": "pkg/slot/fsm/statemachine.go",
+      "sha256": "1d6485a293e438ed84490d0f5d55fa3935728bb40ec10c1eeb29245150baad52"
+    },
+    {
+      "path": "pkg/slot/proxy/mqtt_write.go",
+      "sha256": "44346f8eb8b07bae8f06fc9bcdfb561485d48f347507b15d76d41fe5f68b6958"
+    },
+    {
+      "path": "test/e2e/mqtt/will_raft_recovery/recovery_test.go",
+      "sha256": "cb09120a63aa80b7dfdc9d48324a2355ccf2391e15fe5d5b3be25772ad984ad5"
+    }
+  ],
+  "ordinary_binary": {
+    "binary": "/tmp/wukongim-will-raft-ordinary",
+    "sha256": "b469e7e951ca4f9f14dadfc6bc84d77c618a83741b7889a1521836f4c3096510",
+    "go_version": "/tmp/wukongim-will-raft-ordinary: go1.25.11",
+    "gofail_dependency": false,
+    "temporary_match_helper_linked": false
+  },
+  "toolchain": {
+    "go": "1.25.11",
+    "gofail": "v0.2.0",
+    "GOWORK": "off",
+    "GOMODCACHE": "/Users/tt/.codex/will-append-runtime/gomod"
+  },
+  "matrix_initial_fixture": {
+    "path": "/tmp/mqtt-will-raft-matrix-fixture-v1.go",
+    "sha256": "f6ed0fa7285642b0ff2de089646a51090d736e502ed9278b93346d143c425061",
+    "result": "7/10 passed; two queued takeover observations and aggregated follower applies were rejected by the initial fixture"
+  },
+  "new_scenario_instructions": {
+    "path": "test/e2e/mqtt/will_raft_recovery/AGENTS.md",
+    "sha256": "2aa44735b3088ddcacb07d4fd2ce1e6b58fb3f44cdb1f7fc77db7b17de462536"
+  }
+}

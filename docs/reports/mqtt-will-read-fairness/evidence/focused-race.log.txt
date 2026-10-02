@@ -1,0 +1,414 @@
+# github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession.test
+ld: warning: '/private/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/go-link-4168953481/000058.o' has malformed LC_DYSYMTAB, expected 98 undefined symbols to start at index 1626, found 95 undefined symbols starting at index 1626
+# github.com/WuKongIM/WuKongIM/internal/app.test
+ld: warning: '/private/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/go-link-798057077/000058.o' has malformed LC_DYSYMTAB, expected 98 undefined symbols to start at index 1626, found 95 undefined symbols starting at index 1626
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession	120.843s
+?   	github.com/WuKongIM/WuKongIM/internal/infra/mqttwill	[no test files]
+?   	github.com/WuKongIM/WuKongIM/internal/contracts/mqttsession	[no test files]
+WuKongIM · Starting node 0...
+
+WuKongIM
+
+Node       0 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+WuKongIM · Starting node 4...
+
+✗ Startup failed at seed_join_admission: internal/app: seed join admission: context deadline exceeded
+WuKongIM · Starting node 4...
+
+WuKongIM
+
+Node       4 · multi-node cluster
+Cluster    cluster-a
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+WuKongIM · Starting node 4...
+
+✗ Startup failed at cluster_write_ready: internal/app: cluster write readiness: route hash slot 0: cluster: route not ready
+WuKongIM · Starting node 0...
+
+✗ Startup failed at gateway: gateway start failed
+WuKongIM · Starting node 0...
+
+WuKongIM
+
+Node       0 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+WuKongIM · Starting node 7...
+
+WuKongIM
+
+Node       7 · single-node cluster
+Cluster    cluster-a · 127.0.0.1:7001
+Gateway    tcp   tcp://127.0.0.1:5100
+           ws    ws://127.0.0.1:5200/ws
+API        http://127.0.0.1:5001
+Demo       http://127.0.0.1:5001/demo/
+Manager    http://127.0.0.1:5301
+Metrics    disabled
+Config     /etc/wukongim/wukongim.toml
+Data       /var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/wk-app-2696066858
+
+✓ Ready in <1ms
+WuKongIM · Starting node 0...
+
+WuKongIM
+
+Node       0 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+2026/10/01 22:31:17 Found 0 WALs
+2026/10/01 22:31:17 Found 0 WALs
+2026/10/01 22:31:17 Found 1 WALs
+2026/10/01 22:31:17   - 000002: {(/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestDBInspectReaderQueriesDerivedNodeStorage2443187171/001/slotmeta,000)}
+2026/10/01 22:31:17 [JOB 1] WAL 000002: {(/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestDBInspectReaderQueriesDerivedNodeStorage2443187171/001/slotmeta,000)} stopped reading at offset: (/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestDBInspectReaderQueriesDerivedNodeStorage2443187171/001/slotmeta/000002.log: 61); replayed 1 keys in 1 batches
+2026/10/01 22:31:17 Found 1 WALs
+2026/10/01 22:31:17   - 000002: {(/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestDBInspectReaderQueriesDerivedNodeStorage2443187171/001/messages,000)}
+2026/10/01 22:31:17 [JOB 1] WAL 000002: {(/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestDBInspectReaderQueriesDerivedNodeStorage2443187171/001/messages,000)} stopped reading at offset: (/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestDBInspectReaderQueriesDerivedNodeStorage2443187171/001/messages/000002.log: 36); replayed 1 keys in 1 batches
+2026/10/01 22:31:17 Found 0 WALs
+2026/10/01 22:31:17 Found 0 WALs
+2026/10/01 22:31:17 Found 1 WALs
+2026/10/01 22:31:17   - 000002: {(/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestAppWiresManagerDBInspectRoute3184312910/001/slotmeta,000)}
+2026/10/01 22:31:17 [JOB 1] WAL 000002: {(/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestAppWiresManagerDBInspectRoute3184312910/001/slotmeta,000)} stopped reading at offset: (/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestAppWiresManagerDBInspectRoute3184312910/001/slotmeta/000002.log: 0); replayed 0 keys in 0 batches
+2026/10/01 22:31:17 Found 1 WALs
+2026/10/01 22:31:17   - 000002: {(/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestAppWiresManagerDBInspectRoute3184312910/001/messages,000)}
+2026/10/01 22:31:17 [JOB 1] WAL 000002: {(/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestAppWiresManagerDBInspectRoute3184312910/001/messages,000)} stopped reading at offset: (/var/folders/q8/sn__8sjn6z318y0s4scxjq240000gn/T/TestAppWiresManagerDBInspectRoute3184312910/001/messages/000002.log: 36); replayed 1 keys in 1 batches
+WuKongIM · Starting node 0...
+
+WuKongIM
+
+Node       0 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+WuKongIM · Starting node 0...
+
+WuKongIM
+
+Node       0 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+WuKongIM · Starting node 0...
+
+✗ Startup failed at gateway: gateway start failed
+WuKongIM · Starting node 0...
+
+WuKongIM
+
+Node       0 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+WuKongIM · Starting node 3...
+
+WuKongIM
+
+Node       3 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+WuKongIM · Starting node 3...
+
+WuKongIM
+
+Node       3 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+WuKongIM · Starting node 3...
+
+WuKongIM
+
+Node       3 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+WuKongIM · Starting node 3...
+
+WuKongIM
+
+Node       3 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+WuKongIM · Starting node 3...
+
+WuKongIM
+
+Node       3 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+WuKongIM · Starting node 1...
+
+WuKongIM
+
+Node       1 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in 3ms
+WuKongIM · Starting node 1...
+
+WuKongIM
+
+Node       1 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in 2ms
+WuKongIM · Starting node 0...
+
+WuKongIM
+
+Node       0 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+WuKongIM · Starting node 0...
+
+WuKongIM
+
+Node       0 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+WuKongIM · Starting node 0...
+
+✗ Startup failed at gateway: gateway start failed
+WuKongIM · Starting node 0...
+
+WuKongIM
+
+Node       0 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+WuKongIM · Starting node 0...
+
+WuKongIM
+
+Node       0 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in 11ms
+WuKongIM · Starting node 0...
+
+✗ Startup failed at cluster_write_ready: internal/app: cluster write readiness: snapshot not ready: routes=false slots=true channels=true hashSlotCount=1
+WuKongIM · Starting node 0...
+
+WuKongIM
+
+Node       0 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+WuKongIM · Starting node 0...
+
+WuKongIM
+
+Node       0 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+WuKongIM · Starting node 0...
+
+WuKongIM
+
+Node       0 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in 12ms
+WuKongIM · Starting node 0...
+
+✗ Startup failed at gateway: gateway start failed
+WuKongIM · Starting node 7...
+
+WuKongIM
+
+Node       7 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+WuKongIM · Starting node 0...
+
+WuKongIM
+
+Node       0 · single-node cluster
+Cluster    disabled
+Gateway    disabled
+API        disabled
+Demo       disabled
+Manager    disabled
+Metrics    disabled
+Config     environment only
+Data       disabled
+
+✓ Ready in <1ms
+WuKongIM · Starting node 0...
+
+✗ Startup failed at top: top start failed
+--- FAIL: TestControllerTaskAuditRuntimeObservesTransitionsAndServesManagementReads (0.01s)
+    task_audit_test.go:77: snapshot = {TaskID:slot-1-replica-move-1-to-4-r12 Kind:slot_replica_move Status:running Step:open_learner SlotID:1 LeaderID:0 SourceNode:1 TargetNode:4 FirstAppliedRaftIndex:12 LastAppliedRaftIndex:12 StartedAt:1970-01-01 00:00:12 +0000 UTC CompletedAt:0001-01-01 00:00:00 +0000 UTC EventCount:1 Truncated:false Summary:created slot_replica_move task for slot 1 LastReason:}, want running task slot-1-replica-move-1-to-4-r12 at promote_learner
+2026/10/01 22:31:20 internal/app: channel append waiter canceled reactor=0 key= channel_id= channel_type=0 op=0 commit_mode=unknown role=unknown leader=0 epoch=0 leader_epoch=0 leo=0 hw=0 target=0 store_submitted=false store_completed=false follower_pull_served=false ack_offset_observed=false hw_advanced=false waiters=0 pending_appends=0 pending_append_order=0 append_queue_pending=0 append_queue_records=0 append_queue_bytes=0 append_inflight=false append_inflight_op=0 append_inflight_waiters=0 append_store_blocked=false pull_waiters=0 follower_states="" err=<nil>
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/internal/app	4.386s
+FAIL

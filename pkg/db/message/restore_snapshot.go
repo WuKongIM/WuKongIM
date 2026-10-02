@@ -20,17 +20,18 @@ type BackupSnapshotBoundary struct {
 }
 
 // BackupSnapshotRecord is one committed message row decoded from a portable
-// message snapshot. Payload is valid only during the visitor.
+// message snapshot. Payload and metadata are valid only during the visitor.
 type BackupSnapshotRecord struct {
-	Boundary          BackupSnapshotBoundary
-	MessageSeq        uint64
-	MessageID         uint64
-	Setting           uint8
-	FromUID           string
-	ClientMsgNo       string
-	ServerTimestampMS int64
-	SyncOnce          bool
-	Payload           []byte
+	Boundary            BackupSnapshotBoundary
+	MessageSeq          uint64
+	MessageID           uint64
+	Setting             uint8
+	FromUID             string
+	ClientMsgNo         string
+	ServerTimestampMS   int64
+	SyncOnce            bool
+	Payload             []byte
+	PublicationMetadata []byte
 }
 
 // ReplayBackupSnapshotReader validates and visits one seekable message stream.
@@ -82,15 +83,16 @@ func ReplayBackupSnapshotReader(
 					Boundary:   boundary,
 					MessageSeq: sequence, MessageID: row.MessageID,
 					Setting: row.Setting, FromUID: row.FromUID,
-					ClientMsgNo:       row.ClientMsgNo,
-					ServerTimestampMS: row.ServerTimestampMS,
-					SyncOnce:          row.FramerFlags&4 != 0,
-					Payload:           row.Payload,
+					ClientMsgNo:         row.ClientMsgNo,
+					ServerTimestampMS:   row.ServerTimestampMS,
+					SyncOnce:            row.FramerFlags&4 != 0,
+					Payload:             row.Payload,
+					PublicationMetadata: row.PublicationMetadata,
 				}); err != nil {
 					return 0, err
 				}
 			}
 			return maxMessageID, nil
-		},
+		}, nil, false,
 	)
 }

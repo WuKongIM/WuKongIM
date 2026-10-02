@@ -1,0 +1,1 @@
+ok  	github.com/WuKongIM/WuKongIM/internal/app	46.627s

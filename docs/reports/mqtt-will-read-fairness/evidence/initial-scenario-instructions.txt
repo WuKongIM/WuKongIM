@@ -1,0 +1,19 @@
+# Will failed-authority-read fairness
+
+Use real product processes, Paho MQTT 5, public provisioning and loopback gofail
+on temporary copies. Keep 256 hash Slots and explicitly one logical Slot group
+for captured-executor journal pressure. Never read journal/Slot storage, compute
+filename order or import product internals. Probe actual bounded pages using
+body-free scalar controls; calibration retains every record.
+
+Require actual full refusal, an eligible terminal outside the held page and
+healthy expired-grant quiet. Read faults use the existing child/page deadlines
+and real canceled Store.ReadMQTT calls. Resume actual cursor progression without
+restoring read faults; ordinary publication is the progress assertion. Preserve
+current evidence through exact joined executor crash and persistent original
+PacketID/identity/DUP replay. Join manual ACKs before close; keep process-epoch
+counter prefixes. Emit bounded body-free JSON after client/process cleanup.
+
+Run: `WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-fairness-gofail
+WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-fairness GOWORK=off go test -p 1 -tags=e2e
+./test/e2e/mqtt/will_reclamation_fairness -count=1 -timeout=35m -v`.

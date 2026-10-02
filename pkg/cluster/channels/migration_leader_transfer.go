@@ -71,7 +71,9 @@ func (e *MigrationExecutor) runLeaderTransferProbeTarget(ctx context.Context, ta
 		return e.blockTask(ctx, task, migrationBlockTargetNotReady)
 	}
 	if probe.HW < source.HW {
-		return e.blockTask(ctx, task, migrationBlockTargetLagging)
+		// Committed-tail propagation is asynchronous, including recovery barriers.
+		// Keep this task discoverable until a fresh target proof catches up.
+		return nil
 	}
 	return e.store.Advance(ctx, task, task.UpdatedAtMS, metadb.ChannelMigrationPhaseWriteFence, metadb.ChannelMigrationStatusRunning, "")
 }
@@ -115,7 +117,10 @@ func (e *MigrationExecutor) runLeaderTransferFinalTargetCatchUp(ctx context.Cont
 		return e.blockTask(ctx, task, migrationBlockTargetNotReady)
 	}
 	if probe.HW < task.CutoverLEO {
-		return e.blockTask(ctx, task, migrationBlockTargetLagging)
+		return nil
+	}
+	if !migrationReplayReady(probe, task) {
+		return nil
 	}
 	progress := metadb.ChannelMigrationProgress{
 		LeaderLEO:          task.CutoverLEO,
@@ -129,6 +134,14 @@ func (e *MigrationExecutor) runLeaderTransferFinalTargetCatchUp(ctx context.Cont
 func (e *MigrationExecutor) runLeaderTransferCommitLeaderMeta(ctx context.Context, task metadb.ChannelMigrationTask) error {
 	if !taskHasCutoverProof(task) || task.DrainedFenceVersion != task.FenceVersion {
 		return e.store.Advance(ctx, task, task.UpdatedAtMS, metadb.ChannelMigrationPhaseFinalTargetCatchUp, metadb.ChannelMigrationStatusRunning, "")
+	}
+	// Failover needs a native leader before shared recovery can be planned.
+	// Its content gate belongs at VerifyNewLeader, before clearing the fence.
+	if task.Kind != metadb.ChannelMigrationKindLeaderFailover {
+		ready, err := e.recheckMigrationReplayTarget(ctx, task)
+		if err != nil || !ready {
+			return err
+		}
 	}
 	return e.store.CommitLeaderTransfer(ctx, task)
 }
@@ -161,7 +174,8 @@ func (e *MigrationExecutor) runLeaderTransferVerifyNewLeader(ctx context.Context
 		probe.Status != ch.StatusActive ||
 		probe.HW < task.CutoverLEO ||
 		probe.LEO < task.CutoverLEO ||
-		!writeFenceMatchesTask(probe.WriteFence, task) {
+		!writeFenceMatchesTask(probe.WriteFence, task) ||
+		!migrationReplayReady(probe, task) {
 		// The committed leader metadata may reach the new runtime before its HW,
 		// LEO, and fence snapshot are fully visible. Keep the task runnable so
 		// the executor can clear the fence once the new leader catches up.
@@ -176,6 +190,19 @@ func (e *MigrationExecutor) advanceLeaderTransferDrainProof(ctx context.Context,
 	}
 	if meta.Leader != task.SourceNode {
 		return e.blockTask(ctx, task, migrationBlockInvalidLeaderTransfer)
+	}
+	// The Slot fence does not itself update the source reactor. Install it and
+	// prove recovered progress before draining; active probing also propagates
+	// the latest committed barrier to the target without another business append.
+	if err := e.runtime.ApplyChannelMeta(ctx, task.SourceNode, meta); err != nil {
+		return err
+	}
+	source, err := e.runtime.ProbeChannel(ctx, task.SourceNode, id.ID, id.Type)
+	if err != nil {
+		return err
+	}
+	if validateLeaderTransferRuntimeProbe(source, meta, ch.RoleLeader) != nil || source.RecoveryRequired || !writeFenceMatchesTask(source.WriteFence, task) {
+		return nil
 	}
 	result, err := e.runtime.DrainChannel(ctx, task.SourceNode, ch.DrainChannelRequest{
 		ChannelID:    id,

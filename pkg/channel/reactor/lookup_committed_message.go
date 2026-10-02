@@ -14,6 +14,14 @@ type lookupWaiter struct {
 	ctx context.Context
 	// messageID is the requested durable message id.
 	messageID uint64
+	// source selects a source-confirmation waiter sharing cancellation/lifecycle ownership.
+	source *mqttSourceWaiter
+	// replay retains preparation ownership through cancellation and eviction.
+	replay *mqttReplayWaiter
+	// plan retains coherent prefix-read ownership through cancellation and eviction.
+	plan *mqttPlanWaiter
+	// will pins immutable publication proof through cancellation and eviction.
+	will *willReceiptWaiter
 }
 
 func (r *Reactor) handleLookupCommittedMessage(event Event) {
@@ -72,7 +80,7 @@ func (r *Reactor) handleStoreLookupMessageResult(result worker.Result) {
 		return
 	}
 	waiter := rc.lookupWaiters[result.Fence.OpID]
-	if waiter == nil {
+	if waiter == nil || waiter.source != nil || waiter.replay != nil || waiter.plan != nil || waiter.will != nil {
 		return
 	}
 	delete(rc.lookupWaiters, result.Fence.OpID)

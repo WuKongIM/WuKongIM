@@ -52,9 +52,18 @@ It does not own product policy or expose Pebble-specific APIs to callers.
 - Each writable engine keeps one baseline compaction slot and may open three
   more only as L0 depth or compaction debt crosses configured pressure steps.
 
+- Offline subscriber transfer preserves join incarnations and per-Slot System-1 sequence witnesses,
+  including empty Slots. Imports reject conflicting identities; empty-target checks include sequences.
 - Offline inspect/export/import/verify preserve all four message-edit tables. New
   JSONL edit datasets are omitted when empty; populated bundles require a
   matching CLI and import heads before their dependent projections.
+- Message JSONL preserves optional publication metadata and validates its bounds
+  and source timestamp before import. Native rows/digests remain unchanged;
+  import budgets and both comparison modes include the complete metadata.
+- Shared replay stays in the message domain, separate from Slot metadata. Binary
+  backups use version 2 for full copies, 3 for retired baselines/suffixes and 4 for retained Will receipts.
+  JSONL export rejects durable MQTT metadata/replay/Will/funding evidence before
+  creating or overwriting output; complete MQTT JSONL state transfer is unsupported.
 
 ## Read First
 

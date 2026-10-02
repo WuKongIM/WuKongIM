@@ -1,6 +1,9 @@
 package message
 
-import "github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
+import (
+	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/publication"
+)
 
 const (
 	fnv64aOffset = 14695981039346656037
@@ -8,31 +11,44 @@ const (
 )
 
 type messageRow struct {
-	MessageSeq        uint64
-	MessageID         uint64
-	FramerFlags       uint8
-	Setting           uint8
-	StreamFlag        uint8
-	MsgKey            string
-	Expire            uint64
-	ClientSeq         uint64
-	ClientMsgNo       string
-	StreamNo          string
-	StreamID          uint64
-	Timestamp         int64
-	ServerTimestampMS int64
-	ChannelID         string
-	ChannelType       uint8
-	Topic             string
-	FromUID           string
-	PayloadHash       uint64
-	PayloadSize       uint64
-	Payload           []byte
+	MessageSeq          uint64
+	MessageID           uint64
+	FramerFlags         uint8
+	Setting             uint8
+	StreamFlag          uint8
+	MsgKey              string
+	Expire              uint64
+	ClientSeq           uint64
+	ClientMsgNo         string
+	StreamNo            string
+	StreamID            uint64
+	Timestamp           int64
+	ServerTimestampMS   int64
+	ChannelID           string
+	ChannelType         uint8
+	Topic               string
+	FromUID             string
+	PayloadHash         uint64
+	PayloadSize         uint64
+	Payload             []byte
+	PublicationMetadata []byte
 }
 
 func (r messageRow) validate() error {
 	if r.MessageID == 0 {
 		return dberrors.ErrInvalidArgument
+	}
+	if len(r.PublicationMetadata) != 0 {
+		m, err := publication.Decode(r.PublicationMetadata)
+		if err != nil || r.ServerTimestampMS <= 0 {
+			return dberrors.ErrInvalidArgument
+		}
+		if m.ServerWillKey != "" && (r.FromUID == "" || r.ClientMsgNo == "") {
+			return dberrors.ErrInvalidArgument
+		}
+		if _, _, err := m.ExpiryDeadlineMS(r.ServerTimestampMS); err != nil {
+			return dberrors.ErrInvalidArgument
+		}
 	}
 	return nil
 }

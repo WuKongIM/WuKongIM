@@ -8,9 +8,10 @@ import (
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/dberrors"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/engine"
 	"github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/publication"
 )
 
-// LookupIdempotency returns the indexed message selected by a sender/client pair.
+// LookupIdempotency verifies the original row in the selected identity domain.
 func (l *ChannelLog) LookupIdempotency(ctx context.Context, key IdempotencyKey) (IdempotencyHit, bool, error) {
 	if err := l.beginUse(); err != nil {
 		return IdempotencyHit{}, false, err
@@ -23,11 +24,43 @@ func (l *ChannelLog) lookupIdempotency(ctx context.Context, key IdempotencyKey) 
 	if err := ctx.Err(); err != nil {
 		return IdempotencyHit{}, false, err
 	}
-	if key.FromUID == "" || key.ClientMsgNo == "" {
+	if !key.valid() {
 		return IdempotencyHit{}, false, dberrors.ErrInvalidArgument
 	}
-	cache := l.appendKeyCache
-	return l.lookupIdempotencyByKey(ctx, key, cache.idempotencyIndexKey(key.FromUID, key.ClientMsgNo))
+	return l.lookupIdempotencyByKey(ctx, key, l.idempotencyStorageKey(key))
+}
+
+func (key IdempotencyKey) valid() bool {
+	if key.FromUID == "" {
+		return false
+	}
+	if key.ServerWillKey != "" {
+		return key.ClientMsgNo == "" && publication.ValidServerWillKey(key.ServerWillKey)
+	}
+	return key.ClientMsgNo != ""
+}
+
+// rowIdempotencyKey derives the domain from immutable publication provenance.
+// ClientMsgNo remains stored content but is not part of a server Will identity.
+func rowIdempotencyKey(uid, client string, metadata []byte) (IdempotencyKey, error) {
+	key := IdempotencyKey{FromUID: uid, ClientMsgNo: client}
+	if len(metadata) != 0 {
+		m, err := publication.Decode(metadata)
+		if err != nil {
+			return IdempotencyKey{}, dberrors.ErrInvalidArgument
+		}
+		if m.ServerWillKey != "" {
+			key.ClientMsgNo, key.ServerWillKey = "", m.ServerWillKey
+		}
+	}
+	return key, nil
+}
+
+func (l *ChannelLog) idempotencyStorageKey(key IdempotencyKey) []byte {
+	if key.ServerWillKey != "" {
+		return encodeMessageWillIdempotencyIndexKey(l.key, key.FromUID, key.ServerWillKey)
+	}
+	return l.appendKeyCache.idempotencyIndexKey(key.FromUID, key.ClientMsgNo)
 }
 
 func (l *ChannelLog) lookupIdempotencyByKey(ctx context.Context, key IdempotencyKey, storageKey []byte) (IdempotencyHit, bool, error) {
@@ -46,7 +79,8 @@ func (l *ChannelLog) lookupIdempotencyByKey(ctx context.Context, key Idempotency
 	if err != nil {
 		return IdempotencyHit{}, false, err
 	}
-	if !ok || row.MessageID != hit.MessageID || row.PayloadHash != hit.PayloadHash || row.FromUID != key.FromUID || row.ClientMsgNo != key.ClientMsgNo {
+	rowKey, keyErr := rowIdempotencyKey(row.FromUID, row.ClientMsgNo, row.PublicationMetadata)
+	if !ok || row.MessageID != hit.MessageID || row.PayloadHash != hit.PayloadHash || keyErr != nil || rowKey != key {
 		return IdempotencyHit{}, false, fmt.Errorf("%w: stale idempotency index", dberrors.ErrCorruptState)
 	}
 	return hit, true, nil

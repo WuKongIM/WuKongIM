@@ -7,6 +7,8 @@ import (
 )
 
 var (
+	// ErrAppendNotSubmitted is exact whole-invocation non-submission evidence.
+	ErrAppendNotSubmitted = channelappend.ErrAppendNotSubmitted
 	// ErrSyncPageScanBudget fails closed when a visible page cannot be proved
 	// within the fixed scan budget; it must never become a false end-of-history.
 	ErrSyncPageScanBudget = errors.New("internal/message: visible history page scan budget exceeded")

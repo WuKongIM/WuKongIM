@@ -1,0 +1,20 @@
+{
+  "business_publications": 1,
+  "connect_retries": 0,
+  "cut_node": 1,
+  "elapsed_ms": 63039,
+  "hash_slots": 256,
+  "last_phase": "complete",
+  "nodes": 1,
+  "original_exchange_replayed": false,
+  "outcome": "late",
+  "passed": true,
+  "persistent_reconnects": 1,
+  "publications_while_unknown": 0,
+  "resubscriptions": 0,
+  "scenario": "mqtt-will-raft-recovery",
+  "state": "queued",
+  "state_cut_reached": true,
+  "unexpected_deliveries": 0,
+  "unknown_window_ms": 21000
+}

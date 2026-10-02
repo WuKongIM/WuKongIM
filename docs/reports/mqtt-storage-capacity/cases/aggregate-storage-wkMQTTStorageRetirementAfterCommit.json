@@ -1,0 +1,32 @@
+{
+  "accepted_message_id": 2105770619168624640,
+  "bob_reason": 1,
+  "carol_reason": 15,
+  "cluster_bytes": 8192,
+  "fault": "wkMQTTStorageRetirementAfterCommit",
+  "fault_hits": [
+    1
+  ],
+  "hash_slots": 256,
+  "joined_restart": true,
+  "legacy_debt": false,
+  "node_bytes": 8192,
+  "node_roots": [
+    "/tmp/mqtt-capacity-final-fault-owned/TestUnknownRetirementSettlesFromDurableMarker-1932744207/node-1"
+  ],
+  "nodes": 1,
+  "passed": true,
+  "payload_bytes": 2048,
+  "reopened_message_id": 2105770742728626176,
+  "replayed_message_id": "2105770619168624640",
+  "reserved_after_denial": [
+    4988
+  ],
+  "reserved_after_retirement": [
+    0
+  ],
+  "reserved_before_denial": [
+    4988
+  ],
+  "safe_retirement": true
+}

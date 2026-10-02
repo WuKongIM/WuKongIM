@@ -1,0 +1,15 @@
+{
+  "hash_slots": 256,
+  "last_phase": "mqtt-resume-2",
+  "maintenance_refusals": 2,
+  "nodes": 3,
+  "passed": false,
+  "process_restarts": 0,
+  "restore_cycles": 1,
+  "scenario": "mqtt-restore-reactivation",
+  "elapsed_seconds": 793.37,
+  "binary_kind": "external Go overlay diagnostic",
+  "fixture_sha256": "371abfabbb7622b9f89ccfeeea1e3dfb9a6d733cbe95a7d82ffd19f51ac14c65",
+  "observation": "First restore and complete MQTT assertions passed. Second restore succeeded, immediate MQTT CONNECT failed with EOF; one delayed diagnostic CONNECT succeeded, but original failure remained red. Public readiness was sampled only in failure diagnostics, not awaited before CONNECT.",
+  "root_cause": "unconfirmed"
+}

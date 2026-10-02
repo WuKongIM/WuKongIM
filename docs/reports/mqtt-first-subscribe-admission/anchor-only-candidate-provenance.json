@@ -1,0 +1,20 @@
+{
+  "source_base": "49c74b1c065a83628027de7f82d480c07e4050a4",
+  "go_version": "go1.25.11 darwin/arm64",
+  "binary": {
+    "sha256": "90bd59eaf64bfcdbe7d8953d48da5cbb1f047cf77b4fa35169319845295b1828",
+    "buildvcs": false,
+    "diagnostic_overlay": false
+  },
+  "binary_source_files": {
+    "internal/app/mqtt_replay.go": "f98ee26cd52292a9944bf50981235b6a7549ecb04ba3e610a9236857f6d68c5e",
+    "internal/usecase/mqttsession/replay.go": "331cdc0df4b5e336f54954ae7c51836bc7958f584600f11a09ad47019ceec8ec",
+    "internal/usecase/mqttsession/replay_confirmation.go": "82ab7923c8baf275c0d7011a0184aa621493c557f6c3fd87e5ca6eb8bd2f6691"
+  },
+  "fixture": {
+    "path": "test/e2e/mqtt/subscribe_admission/admission_test.go",
+    "sha256": "cd93a2499a439996cff24c73ab8442c21a4c09183d4507cba3b2177835a30282"
+  },
+  "foreground_subscribe_deadline_seconds": 5,
+  "foreground_retries": 0
+}

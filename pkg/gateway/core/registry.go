@@ -22,15 +22,17 @@ var (
 )
 
 type Registry struct {
-	mu         sync.RWMutex
-	transports map[string]transport.Factory
-	protocols  map[string]protocol.Adapter
+	mu              sync.RWMutex
+	transports      map[string]transport.Factory
+	protocols       map[string]protocol.Adapter
+	packetProtocols map[string]protocol.PacketAdapter
 }
 
 func NewRegistry() *Registry {
 	return &Registry{
-		transports: make(map[string]transport.Factory),
-		protocols:  make(map[string]protocol.Adapter),
+		transports:      make(map[string]transport.Factory),
+		protocols:       make(map[string]protocol.Adapter),
+		packetProtocols: make(map[string]protocol.PacketAdapter),
 	}
 }
 
@@ -78,6 +80,9 @@ func (r *Registry) RegisterProtocol(adapter protocol.Adapter) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	if _, ok := r.packetProtocols[name]; ok {
+		return fmt.Errorf("%w: %q", ErrDuplicateProtocolAdapter, name)
+	}
 	if _, ok := r.protocols[name]; ok {
 		return fmt.Errorf("%w: %q", ErrDuplicateProtocolAdapter, name)
 	}
@@ -108,4 +113,31 @@ func isNil(v any) bool {
 	default:
 		return false
 	}
+}
+
+// RegisterPacketProtocol registers an independent wire protocol in the same
+// name domain as WK adapters; a duplicate cannot silently change a listener.
+func (r *Registry) RegisterPacketProtocol(adapter protocol.PacketAdapter) error {
+	if isNil(adapter) {
+		return ErrNilProtocolAdapter
+	}
+	name := adapter.Name()
+	if name == "" {
+		return ErrProtocolNameEmpty
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.protocols[name]; ok {
+		return fmt.Errorf("%w: %q", ErrDuplicateProtocolAdapter, name)
+	}
+	if _, ok := r.packetProtocols[name]; ok {
+		return fmt.Errorf("%w: %q", ErrDuplicateProtocolAdapter, name)
+	}
+	r.packetProtocols[name] = adapter
+	return nil
+}
+func (r *Registry) packetProtocol(name string) protocol.PacketAdapter {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.packetProtocols[name]
 }

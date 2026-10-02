@@ -1,0 +1,49 @@
+---
+title: MQTT
+description: Access existing users, channels and messages over MQTT 5 TCP, with explicit preview boundaries.
+---
+
+MQTT is an IM entry protocol for WuKongIM. It shares UIDs, device tokens, channels, membership permissions and messages with HTTP and WKProto SDKs. Your application still owns login, business authorization and payload formats.
+
+<Callout type="warn" title="Development preview">
+  The MQTT listener is disabled by default and supports MQTT 5 TCP only. Complete Linux, fault and load qualification remains outstanding. Use a matching development candidate containing the MQTT implementation; do not assume current released packages or images support it.
+</Callout>
+
+## Start here
+
+<Cards>
+  <Card title="Send your first message" description="Exchange messages between Alice and Bob using Node.js and pinned MQTT.js." href="/en/guide/tutorials/mqtt" />
+  <Card title="Authentication and topics" description="Prepare credentials, ClientIDs and canonical topics." href="/en/api/client-protocols/mqtt/authentication-and-topics" />
+  <Card title="Message contract" description="Payloads, properties, idempotency and acknowledgement boundaries." href="/en/api/client-protocols/mqtt/messages" />
+  <Card title="Persistent sessions and QoS" description="Recover subscriptions, handle duplicates and inspect Session Present." href="/en/api/client-protocols/mqtt/sessions-and-qos" />
+  <Card title="Will messages" description="Abnormal disconnects, Will Delay, cancellation and authorization." href="/en/api/client-protocols/mqtt/will" />
+  <Card title="HTTP / SDK interoperability" description="Share channels and payloads; convert HTTP Base64 correctly." href="/en/api/client-protocols/mqtt/interop" />
+  <Card title="Operations and troubleshooting" description="Cluster consistency, logical quotas and connection diagnosis." href="/en/api/client-protocols/mqtt/operations-and-troubleshooting" />
+</Cards>
+
+## Supported capabilities
+
+| Capability | Current behavior |
+| --- | --- |
+| Version and transport | MQTT 5.0 over raw TCP; other versions unsupported; TLS terminates upstream |
+| Browsers | No MQTT WebSocket listener; use existing WKProto / JSON-RPC paths |
+| Publish QoS | 0 and 1; no QoS 2 publication |
+| Subscription QoS | 0 and 1; a request for 2 may be granted 1; inspect SUBACK |
+| Topics | Exact personal inbox and group-message topics; no arbitrary business topics |
+| Retain | Unsupported; Retain Available is 0 in CONNACK |
+| Wildcards and shared subscriptions | No `+`, `#` or `$share/` |
+| Topic Alias | Unsupported; Topic Alias Maximum is 0; send full topics |
+| Authentication | CONNECT User Name / Password; no enhanced AUTH negotiation |
+| Sessions | Clean Start, Session Expiry, Session Present; maximum offline lifetime 24 hours, configurable downward |
+| Subscription options | No Local and Subscription Identifier supported; identifiers must be nonzero and not duplicated |
+| Will | QoS 0/1 and Will Delay; no retain; current permissions checked at execution |
+
+Inspect capabilities in CONNACK and each subscription's SUBACK. Client-library support does not establish server support.
+
+## Integration model
+
+Your trusted backend prepares user tokens and group membership. Clients then connect and subscribe to exact topics. SUBSCRIBE establishes reception intent for a ClientID; it neither creates an account nor joins a group.
+
+Successful PUBACK, SDK SENDACK and HTTP `reason=1` acknowledge message commit. None proves recipient reception, reading or business completion. Every deployment retains cluster semantics. A single-node cluster also uses Slots and durable paths, with 256 hash slots by default.
+
+The [OASIS MQTT 5.0 specification](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html) defines the base protocol. This topic adds WuKongIM authentication, topic and IM mapping conventions.

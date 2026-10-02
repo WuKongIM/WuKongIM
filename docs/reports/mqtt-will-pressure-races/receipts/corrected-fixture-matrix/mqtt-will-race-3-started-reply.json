@@ -1,0 +1,22 @@
+{
+  "business_publications": 3,
+  "connect_retries": 0,
+  "current_attempt_preserved": true,
+  "current_cut_reached": true,
+  "cut": "started-reply",
+  "executor_capacity_refusal": true,
+  "executor_restarts": 1,
+  "hash_slots": 256,
+  "instrumented_journal_cap": 2,
+  "last_phase": "complete",
+  "nodes": 3,
+  "original_exchange_replayed": false,
+  "passed": true,
+  "publication_attempts_after_last_restart": 1,
+  "publications_while_current_unknown": 2,
+  "resubscriptions": 0,
+  "scenario": "mqtt-will-reclamation-race",
+  "terminal_reply_cut_reached": true,
+  "unexpected_deliveries": 0,
+  "unknown_window_ms": 21000
+}

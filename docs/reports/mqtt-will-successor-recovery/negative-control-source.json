@@ -1,0 +1,11 @@
+{
+  "scope": "private generated instrumented source only; unsafe unresolved successor deletion before fresh authority",
+  "source_directory": "/tmp/wukongim-will-successor-negative-source",
+  "source_file": "internal/usecase/mqttsession/will_attempt_reclamation.go",
+  "candidate_source_sha256": "ee6af0a3000dd107d20a4c2d8b3d1d0d48beacffbf7b9470c1fd2970c3464c6b",
+  "negative_source_sha256": "9b86733678b5804281fa495573f8bb1c9ad96edcc55b8eeeb485ff502731b90d",
+  "expected_failure": "after real full refusal/page, independent workload publishes from the captured cap-two journal while successor is unresolved; this must fail the real business-effect assertion",
+  "candidate_vs_negative_different_files": [
+    "internal/usecase/mqttsession/will_attempt_reclamation.go"
+  ]
+}

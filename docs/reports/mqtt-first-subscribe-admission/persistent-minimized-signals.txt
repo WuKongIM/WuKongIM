@@ -1,0 +1,15 @@
+[DEBUG-first-subscribe] phase=authorize ms=41 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=preparing ms=146 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=source_prepare ms=1931 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=replay_confirm ms=437 error=true deadline=false canceled=false pending=true conflict=false limit=false
+[DEBUG-first-subscribe] phase=projection ms=2461 error=true deadline=false canceled=false pending=true conflict=false limit=false
+[DEBUG-first-subscribe] phase=read ms=15 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=authorize ms=45 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=source_prepare ms=459 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=replay_confirm ms=663 error=true deadline=false canceled=false pending=true conflict=false limit=false
+[DEBUG-first-subscribe] phase=projection ms=1187 error=true deadline=false canceled=false pending=true conflict=false limit=false
+[DEBUG-first-subscribe] phase=read ms=27 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=authorize ms=24 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=source_prepare ms=484 error=false deadline=false canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=replay_confirm ms=394 error=true deadline=true canceled=false pending=false conflict=false limit=false
+[DEBUG-first-subscribe] phase=projection ms=950 error=true deadline=true canceled=false pending=false conflict=false limit=false

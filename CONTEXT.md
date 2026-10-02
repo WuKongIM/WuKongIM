@@ -26,6 +26,18 @@ _Avoid_: Conversation page, history dump
 The lowest message sequence eligible for a Channel read. For an ordinary user pull, eligibility accounts for when membership began, hidden history, and retained history; the badge's `read_seq` is not a pull cursor.
 _Avoid_: Badge floor, read receipt
 
+**MQTT Session**:
+A ClientID-bound IM access session whose subscriptions and unfinished delivery exchanges can survive a connection ending within its agreed lifetime and resource limits. It belongs to an authenticated UID and is distinct from a device credential or an online connection.
+_Avoid_: Device, socket, Online Delivery route
+
+**MQTT Subscription**:
+One MQTT Session's choice to receive an authorized exact application topic with negotiated delivery options. It does not grant IM Channel membership.
+_Avoid_: Group membership, user-channel membership
+
+**MQTT Delivery Obligation**:
+The responsibility to preserve and deliver a qualifying message for a valid MQTT Subscription until completion, expiry, permission revocation, or explicit session termination. Ordinary Channel history retention does not by itself discharge this responsibility.
+_Avoid_: History visibility, unread count, read receipt
+
 ### Cloud Simulation
 
 **Simulation Run**:

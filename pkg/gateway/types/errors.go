@@ -3,6 +3,8 @@ package types
 import "errors"
 
 var (
+	// ErrCloseProofUnsupported means physical isolation cannot be established by this context.
+	ErrCloseProofUnsupported    = errors.New("gateway: physical close proof unsupported")
 	ErrNilHandler               = errors.New("gateway: nil handler")
 	ErrListenerNameEmpty        = errors.New("gateway: listener name is empty")
 	ErrListenerNameDuplicate    = errors.New("gateway: duplicate listener name")

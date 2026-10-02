@@ -119,11 +119,11 @@ func readMessageRowsReverseRaw(ctx context.Context, db *MessageDB, channelKey Ch
 		if err := validateMaterializedMessageRow(row); err != nil {
 			return nil, err
 		}
-		if opts.MaxBytes > 0 && len(rows) > 0 && totalBytes+len(row.Payload) > opts.MaxBytes {
+		if opts.MaxBytes > 0 && len(rows) > 0 && totalBytes+len(row.Payload)+len(row.PublicationMetadata) > opts.MaxBytes {
 			break
 		}
 		rows = append(rows, row)
-		totalBytes += len(row.Payload)
+		totalBytes += len(row.Payload) + len(row.PublicationMetadata)
 		if opts.Limit > 0 && len(rows) >= opts.Limit {
 			break
 		}
@@ -304,7 +304,7 @@ func (l *ChannelLog) getRowBySeq(ctx context.Context, seq uint64) (messageRow, b
 }
 
 func appendReadMessage(messages []Message, totalBytes int, msg Message, opts ReadOptions) ([]Message, int, bool) {
-	payloadBytes := len(msg.Payload)
+	payloadBytes := len(msg.Payload) + len(msg.PublicationMetadata)
 	if opts.MaxBytes > 0 && len(messages) > 0 && totalBytes+payloadBytes > opts.MaxBytes {
 		return messages, totalBytes, true
 	}
@@ -318,17 +318,18 @@ func appendReadMessage(messages []Message, totalBytes int, msg Message, opts Rea
 
 func messageFromRow(row messageRow) Message {
 	return Message{
-		RedDot:            row.FramerFlags&2 != 0,
-		Expire:            uint32(row.Expire),
-		MessageSeq:        row.MessageSeq,
-		MessageID:         row.MessageID,
-		ChannelID:         row.ChannelID,
-		ChannelType:       row.ChannelType,
-		ClientMsgNo:       row.ClientMsgNo,
-		FromUID:           row.FromUID,
-		PayloadHash:       row.PayloadHash,
-		Payload:           append([]byte(nil), row.Payload...),
-		ServerTimestampMS: row.ServerTimestampMS,
+		RedDot:              row.FramerFlags&2 != 0,
+		Expire:              uint32(row.Expire),
+		MessageSeq:          row.MessageSeq,
+		MessageID:           row.MessageID,
+		ChannelID:           row.ChannelID,
+		ChannelType:         row.ChannelType,
+		ClientMsgNo:         row.ClientMsgNo,
+		FromUID:             row.FromUID,
+		PayloadHash:         row.PayloadHash,
+		Payload:             append([]byte(nil), row.Payload...),
+		PublicationMetadata: append([]byte(nil), row.PublicationMetadata...),
+		ServerTimestampMS:   row.ServerTimestampMS,
 	}
 }
 

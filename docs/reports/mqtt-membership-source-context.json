@@ -1,0 +1,18 @@
+{
+  "revision": "c4afe729dbedf25836d6f51f7f7395f1026c9c94",
+  "files": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "pkg/cluster/FLOW.md": "d48ee505acbfdd0089971f5c0f0a15841fa3a298b7719977ba004c073f5e2e43",
+    "pkg/slot/FLOW.md": "9dedee509d5ffee94c3a705bb667a5a4361dd6316cadb78aba5e008ccc6ff3d2",
+    "pkg/db/FLOW.md": "33c7ba81c18ed8cb377e9bef541526028ef31e64dd03becc7ac1ea6cc14fb10a",
+    "pkg/db/meta/FLOW.md": "a4a97d06003f3ceccb186f967f1dffb554b1fe31740cc9ece0d68e0560b187f6",
+    "internal/infra/cluster/FLOW.md": "b96d4741b47a3b59a094eb83de316b2080004f4c2cc06f579060d6451c052c30",
+    "internal/usecase/channel/FLOW.md": "236063af07952a21973145e30077a010ab7309c2a14fc6b76af3c94a70bec556",
+    "internal/access/api/FLOW.md": "e8a94f2abce17f87a4cf4da851ebc95304f16478cca1e52f4ae6784c48f0f8a4",
+    "internal/app/FLOW.md": "a3066e65d5c8c1480bdd5f972df28148d626df77404f59e1fe4e3840c9071c24",
+    "test/e2e/AGENTS.md": "9a60583202a8d5cf6ce753f85db312ce2e06bc6dd455cec4f157afb7bc0d55c2",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "test/e2e/mqtt/scale/AGENTS.md": "f6689038888bc16a790528624b7999d2c606e9df60c283f61613b0b638de482b",
+    "test/e2e/suite/FLOW.md": "fdf3576f99b00cfdb878ea5623e7f39a576a75bb7ebf5b6fa8de031ae9561add"
+  }
+}

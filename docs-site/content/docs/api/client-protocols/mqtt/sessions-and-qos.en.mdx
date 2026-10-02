@@ -1,0 +1,78 @@
+---
+title: MQTT Persistent Sessions and QoS
+description: Use stable ClientIDs, inspect Session Present, and handle recovery, duplicates and backpressure.
+---
+
+<Callout type="warn" title="Development preview">
+  Persistent sessions depend on authoritative cluster state. A new CONNECT may fail when isolation of the previous connection cannot be proved. Seamless takeover during arbitrary partitions is not guaranteed.
+</Callout>
+
+## Choose a lifecycle
+
+| Goal | ClientID | Clean Start | Session Expiry Interval |
+| --- | --- | --- | --- |
+| One exchange demonstration | May change each run | true | 0 |
+| Create a persistent session | Reuse afterward | true, explicitly discarding the old session | Greater than 0 |
+| Resume a persistent session | Original stable ID | false | Greater than 0 |
+| Reset old subscriptions/state | Original ID | true | Choose for the new lifecycle |
+
+The default offline lifetime ceiling is 86400 seconds (24 hours), configurable downward. Requests must not exceed the configured or hard ceiling. Inspect Session Present to establish actual recovery; `clean=false` alone does not prove old state exists.
+
+A ClientID is UID-bound within a namespace. Distinct ClientIDs can coexist using one UID/device credential without the WKProto master-device eviction policy. A new connection with the same ClientID takes over the previous connection. Give different devices different ClientIDs.
+
+## MQTT.js recovery options
+
+This fragment resumes a persistent session. If none exists, Session Present is false and subscriptions must be created. Install message listeners before CONNECT so recovery delivery cannot arrive before your handler.
+
+```js
+import mqtt from 'mqtt';
+
+const inbox = 'wk/v1/users/Ym9i/messages';
+const client = mqtt.connect('mqtt://127.0.0.1:1883', {
+  manualConnect: true,
+  protocolVersion: 5,
+  clientId: 'bob-device-01', // Stable across reconnects; bound to bob.
+  username: 'bob',
+  password: process.env.MQTT_BOB_TOKEN,
+  clean: false,
+  resubscribe: false,
+  reconnectPeriod: 0, // Explicit reconnect here; production needs bounded backoff.
+  properties: {
+    sessionExpiryInterval: 3600,
+    receiveMaximum: 16,
+    userProperties: { 'wk.device_flag': '1' },
+  },
+});
+client.on('error', () => console.error('MQTT operation failed'));
+client.on('message', (topic, bytes, packet) => {
+  // Deduplicate using packet.properties.userProperties['wk.message_id'].
+});
+client.on('connect', (connack) => {
+  if (!connack.sessionPresent) {
+    client.subscribe(inbox, { qos: 1 }, (error, grants) => {
+      if (error || grants?.[0]?.qos !== 1) console.error('Inbox subscription failed');
+    });
+  }
+});
+client.connect();
+```
+
+MQTT.js `clean` maps to Clean Start; `sessionExpiryInterval` is in seconds. Automatic resubscribe is disabled here to observe server recovery directly. Production clients need bounded retries, backoff and credential refresh rather than endless failed authentication. See the [MQTT.js API](https://github.com/mqttjs/MQTT.js/blob/v5.16.0/README.md#api).
+
+## QoS and windows
+
+QoS 1 is an at-least-once protocol exchange and still requires business deduplication. QoS 2 publication is unsupported. Subscription QoS and original publication QoS bound delivery. A QoS 1 subscription does not turn original QoS 0 into reliable offline delivery; do not promise reliable offline backlog for QoS 0.
+
+The default durable QoS 1 window is 64, further limited by the client's Receive Maximum. Slow ACKs, offline clients and slow application processing can create backpressure. Inspect processing and logical backlog quotas before increasing the window.
+
+Session expiry, Clean Start, explicit termination and permission changes affect recovery eligibility. UNSUBSCRIBE stops future reception for the subscription; it neither leaves a group nor cancels exchanges already begun. TCP closure does not immediately release uncertain responsibilities.
+
+## Recovery checks
+
+1. Use a stable ClientID and nonzero expiry, subscribe to your own inbox or an existing group membership, and inspect SUBACK.
+2. Disconnect the receiver. Within its lifetime, publish a QoS 1 message from another user, retaining the application number.
+3. Reconnect with the original UID, ClientID and `clean=false`. Inspect Session Present; when true, do not SUBSCRIBE again.
+4. Verify content, MessageID and channel sequence. Duplicate delivery must produce one business effect.
+5. Test expiry and a Clean Start reset separately, detecting a new session and recreating required subscriptions.
+
+These steps verify your client integration. They do not replace complete Linux, partition, recovery and load qualification, or guarantee recovery of expired messages. Complete the [quickstart](/en/guide/tutorials/mqtt) first.

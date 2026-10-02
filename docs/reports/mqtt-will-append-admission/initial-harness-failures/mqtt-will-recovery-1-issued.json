@@ -1,0 +1,12 @@
+{
+  "connect_retries": 0,
+  "cut": "issued",
+  "cut_reached": true,
+  "executor_restarts": 1,
+  "hash_slots": 256,
+  "last_phase": "unknown-after-restart",
+  "nodes": 1,
+  "passed": false,
+  "resubscriptions": 0,
+  "scenario": "mqtt-started-will-recovery"
+}

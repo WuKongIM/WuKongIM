@@ -1,0 +1,29 @@
+{
+  "source_revision": "3f64b984eebb07035091dc11381f79796cbf1f66",
+  "instruction_digests": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "internal/usecase/mqttsession/FLOW.md": "e50003a0b424cda696d433a5d87c9a6a28429869b6ebfc828ffc217f13964d2e",
+    "internal/infra/mqttwill/FLOW.md": "866f99386811a04fecd1928a5c2eadc6df69c709c03d203048a1e37152d0bfb8",
+    "internal/contracts/mqttsession/FLOW.md": "96e6f581f00853177cab5928583efd507ca7c776c72c0742227231685490f799",
+    "pkg/db/FLOW.md": "33c7ba81c18ed8cb377e9bef541526028ef31e64dd03becc7ac1ea6cc14fb10a",
+    "pkg/db/meta/FLOW.md": "a4a97d06003f3ceccb186f967f1dffb554b1fe31740cc9ece0d68e0560b187f6",
+    "pkg/slot/FLOW.md": "7012e0f10365275715271cf102be2ef60082c8d992e6b2534020aa4d14561d1c",
+    "test/e2e/AGENTS.md": "d26614e7a4a510c5c67faafde81754bc9f1b335ae953720facecab16c2aef832",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "test/e2e/suite/FLOW.md": "75aaacde354f6902998ec9b0fb66aa6a3f05c06be7d4cde88e8b06b78da7948d",
+    "internal/app/FLOW.md": "07cc58f3ccdc395a1b12017e4e80a37df634c78d65ff00119aa9e672941ad3ab",
+    "internal/infra/cluster/FLOW.md": "f1bc902452e3c6c80d57b206f96775c611221ffd02f6b5efbeee336fba4fbcd2",
+    "internal/runtime/channelappend/FLOW.md": "490bb59e609f11fca0d09382afe8eafc426453b41e399538ad08c133871b9a86"
+  },
+  "seams": [
+    "independent Eclipse Paho MQTT 5",
+    "public product HTTP and metrics",
+    "exact harness-owned process restart",
+    "temporary gofail controls already approved",
+    "existing approved metadata CAS/snapshot contract from docs/specs/mqtt-will-preparation.md"
+  ],
+  "scope": "sealed Started permission denial, exact terminal CAS and capacity release; no issued/legacy/lost-journal absence inference",
+  "new_instruction_files": {
+    "test/e2e/mqtt/will_sealed_rejection/AGENTS.md": "71441a90ef71e4db2bc55014d6f28ac36b835cbe2d9b41cdc71342fe04d16c46"
+  }
+}

@@ -3,6 +3,7 @@ package channels
 import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/publication"
 )
 
 type messageWireField uint8
@@ -11,9 +12,11 @@ const (
 	redDotWireField messageWireField = iota
 	syncOnceWireField
 	expireWireField
+	publicationWireField
+	invalidPublicationWireField
 )
 
-// payloadHasMessageFlag checks bounded RPC payloads without allocation. Legacy
+// payloadHasMessageFlag checks bounded RPC payloads. Legacy
 // codecs must reject unsupported semantic fields instead of silently dropping them.
 func payloadHasMessageFlag(payload any, field messageWireField) bool {
 	switch v := payload.(type) {
@@ -31,7 +34,7 @@ func payloadHasMessageFlag(payload any, field messageWireField) bool {
 		}
 	case channeltransport.PullResponse:
 		for _, record := range v.Records {
-			if messageHasFlag(ch.Message{SyncOnce: record.SyncOnce, RedDot: record.RedDot, Expire: record.Expire}, field) {
+			if messageHasFlag(ch.Message{SyncOnce: record.SyncOnce, RedDot: record.RedDot, Expire: record.Expire, PublicationMetadata: record.PublicationMetadata}, field) {
 				return true
 			}
 		}
@@ -45,7 +48,7 @@ func payloadHasMessageFlag(payload any, field messageWireField) bool {
 		return v.Found && messageHasFlag(v.Message, field)
 	case ConversationHeadsResponse:
 		for _, item := range v.Items {
-			if payloadHasMessageFlag(lastVisibleResponseFromHead(item.Head), field) {
+			if item.Head.Found && messageHasFlag(item.Head.Message, field) {
 				return true
 			}
 		}
@@ -72,6 +75,14 @@ func messageHasFlag(msg ch.Message, field messageWireField) bool {
 	switch field {
 	case syncOnceWireField:
 		return msg.SyncOnce
+	case publicationWireField:
+		return len(msg.PublicationMetadata) != 0
+	case invalidPublicationWireField:
+		if len(msg.PublicationMetadata) == 0 {
+			return false
+		}
+		_, err := publication.Decode(msg.PublicationMetadata)
+		return err != nil
 	case expireWireField:
 		return msg.Expire != 0
 	default:
@@ -80,6 +91,12 @@ func messageHasFlag(msg ch.Message, field messageWireField) bool {
 }
 
 func legacyMessageFlagError(payload any, version uint8) error {
+	if version < codecVersion && payloadHasMessageFlag(payload, publicationWireField) {
+		return errPublicationCodecRequired
+	}
+	if payloadHasMessageFlag(payload, invalidPublicationWireField) {
+		return errPublicationMetadata
+	}
 	if version < legacyCodecVersionV8 && payloadHasMessageFlag(payload, redDotWireField) {
 		return errRedDotCodecRequired
 	}

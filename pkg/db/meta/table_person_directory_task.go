@@ -178,6 +178,10 @@ func (b *Batch) EnsurePersonDirectoryTask(hashSlot HashSlot, task PersonDirector
 		generation := task.Generation
 		if runtimeExists {
 			generation = runtimeMeta.DirectoryGeneration
+		} else if _, retired, err := loadRuntimeRetirement(state, hashSlot, key.ChannelID, key.ChannelType); err != nil {
+			return err
+		} else if retired {
+			return dberrors.ErrConflict
 		}
 		if generation == 0 || (task.Generation != 0 && task.Generation != generation) {
 			return dberrors.ErrConflict

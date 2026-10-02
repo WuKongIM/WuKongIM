@@ -151,6 +151,14 @@ func (v *nativeView) Metadata(ctx context.Context, table, owner string, filters 
 			if row != nil {
 				return nil, false, errors.New("ambiguous target metadata identity")
 			}
+			if table == "subscriber" {
+				// v2 verifies its original business fields; the native-only
+				// default must still be exactly legacy, never a rejoined row.
+				if got["incarnation"] != uint64(1) {
+					return nil, false, errors.New("subscriber incarnation differs from the legacy import")
+				}
+				delete(got, "incarnation")
+			}
 			row = got
 		}
 		if page.Done {

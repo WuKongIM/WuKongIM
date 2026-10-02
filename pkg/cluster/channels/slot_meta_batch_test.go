@@ -451,8 +451,8 @@ func TestSlotMetaSourceRetriesOnlyAuthoritativelyMissingUncertainCreates(t *test
 	if meta.ID != id {
 		t.Fatalf("EnsureChannelMeta() meta = %#v, want %v", meta, id)
 	}
-	if store.createCalls != 2 || store.readCalls != 1 {
-		t.Fatalf("create calls=%d read calls=%d, want one reread before one proven successful retry", store.createCalls, store.readCalls)
+	if store.createCalls != 2 || store.readCalls != 2 {
+		t.Fatalf("create calls=%d read calls=%d, want one reread per proposal including the successful retry", store.createCalls, store.readCalls)
 	}
 }
 

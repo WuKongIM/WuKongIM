@@ -17,6 +17,15 @@ func mapAppendError(err error) error {
 	if err == nil {
 		return nil
 	}
+	mapped := mapAppendFailure(err)
+	if errors.Is(err, channelruntime.ErrAppendNotSubmitted) {
+		return fmt.Errorf("%w: %w", channelappend.ErrAppendNotSubmitted, mapped)
+	}
+	return mapped
+}
+
+// mapAppendFailure preserves the retry/pressure family alongside proof.
+func mapAppendFailure(err error) error {
 	switch {
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return err

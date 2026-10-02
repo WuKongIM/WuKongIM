@@ -1,0 +1,102 @@
+{
+  "source_revision": "14386ca24a4eb00e7a4d4ebf5899023736e2c70a",
+  "instructions": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade"
+    },
+    {
+      "path": "internal/usecase/mqttsession/FLOW.md",
+      "sha256": "a2e7a391b64f8a64501b1b746293cde0568a28eeac0bc2f70020490f98dd7650"
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "sha256": "9b5b7c1a8c0448ca171d180d308ce71d376480c02b33882b5da08820adc14d65"
+    },
+    {
+      "path": "internal/runtime/mqttsession/FLOW.md",
+      "sha256": "570eedc2c82c4339336124c294774d748c37a595d43541c3ce8196cce6ce6e98"
+    },
+    {
+      "path": "internal/infra/mqttowner/FLOW.md",
+      "sha256": "fa252f9938bce6a830caa820cabdfc4b14ef9a7730d072d357ce8ce5980f53e3"
+    },
+    {
+      "path": "internal/infra/cluster/FLOW.md",
+      "sha256": "b96d4741b47a3b59a094eb83de316b2080004f4c2cc06f579060d6451c052c30"
+    },
+    {
+      "path": "internal/usecase/message/FLOW.md",
+      "sha256": "a2aa41945776c7002914b2cb1abc8c26a41807b5369ae0c68dc9eef7353b1570"
+    },
+    {
+      "path": "internal/runtime/channelappend/FLOW.md",
+      "sha256": "550a3cb2eccbed8efd3b35d9b1946eb5e1158444d873ea241ba7290bec954c86"
+    },
+    {
+      "path": "internal/contracts/channelappend/FLOW.md",
+      "sha256": "a78422c8230bb50e54b47b94c9543e53fe5ed38d8e55abbaa6726f865306912e"
+    },
+    {
+      "path": "internal/contracts/mqttsession/FLOW.md",
+      "sha256": "ae9101a196195e04bf9e45c9c5242b0de9c17bb334dd80d9d1fb46764b534424"
+    },
+    {
+      "path": "internal/access/node/FLOW.md",
+      "sha256": "6f7d9281e60e63926770513078f34b4283bb943508824a32281c543b49f8c199"
+    },
+    {
+      "path": "pkg/cluster/FLOW.md",
+      "sha256": "1990e76d80ceac3eaf82beece4f2c9e86a388f1871fe086597b886de5a055584"
+    },
+    {
+      "path": "pkg/db/FLOW.md",
+      "sha256": "33c7ba81c18ed8cb377e9bef541526028ef31e64dd03becc7ac1ea6cc14fb10a"
+    },
+    {
+      "path": "pkg/db/meta/FLOW.md",
+      "sha256": "a4a97d06003f3ceccb186f967f1dffb554b1fe31740cc9ece0d68e0560b187f6"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "sha256": "9dedee509d5ffee94c3a705bb667a5a4361dd6316cadb78aba5e008ccc6ff3d2"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "3c35b63024f5cfabd0ec63ef06f93c831384ab3772af3a1de6f7031fb62818b1"
+    },
+    {
+      "path": "test/e2e/suite/FLOW.md",
+      "sha256": "d3622c9c10477f973a9aea2dd060657c98781c845f82bc92c160999f4359ddac"
+    },
+    {
+      "path": "test/e2e/mqtt/AGENTS.md",
+      "sha256": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f"
+    },
+    {
+      "path": "test/e2e/mqtt/will/AGENTS.md",
+      "sha256": "0e307f7ea301f3ccac1e40323d3a503871123c6d884d700dbfbff686654789ae"
+    }
+  ],
+  "user_instructions": "The latest user-provided root AGENTS.md governs this task; source digests record the exact checkout navigation context.",
+  "tests_before_repair": [
+    {
+      "path": "docs/specs/mqtt-will-started-recovery.md",
+      "sha256": "203b340c179a15d72b23b50d528ad9795bf4eca5ac21882a3f9b0b9b8d8bffc0"
+    },
+    {
+      "path": "test/e2e/mqtt/will_recovery/recovery_test.go",
+      "sha256": "a536bc91d34913a2239427e64de7ec5dd679ffd08ae5d87231b82892d7e34b31"
+    },
+    {
+      "path": "test/e2e/mqtt/will_recovery/AGENTS.md",
+      "sha256": "4a3639e4ffc8ba471b2fd5198e418f39bb7bfea0d61b3c206c0d6e5a9769223d"
+    }
+  ],
+  "go_version": "go1.25.11 darwin/arm64",
+  "harness_interfaces": "Independent MQTT 5, public HTTP, exact harness-owned process groups, temporary gofail HTTP controls; no stored product-row access.",
+  "baseline_binary_sha256": "0d65f63b91a83f21d976d852e8fed85c235a9fe988904dabe0a54e5354bf2b58",
+  "baseline_changes": "Only the four inert gofail comment blocks; no recovery behavior changes.",
+  "baseline_log_sha256": "cd38b63f1aca7d4ebb6372ede0db9f26d6f26118ee9c24f8118ddb63f82a12da",
+  "red_duration_seconds": 51.483
+}

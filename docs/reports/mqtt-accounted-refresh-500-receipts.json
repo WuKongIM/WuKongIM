@@ -1,0 +1,18 @@
+{
+  "closed_clients": 0,
+  "closed_incomplete_clients": 0,
+  "configured_members": 2000,
+  "connections": 500,
+  "expected_per_client": 20,
+  "incomplete_clients": 406,
+  "phase": "fanout",
+  "receipt_histogram": {
+    "14": 3,
+    "15": 13,
+    "16": 25,
+    "17": 86,
+    "18": 134,
+    "19": 145,
+    "20": 94
+  }
+}

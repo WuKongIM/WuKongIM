@@ -1,0 +1,7 @@
+    scale_test.go:131: phase provision_members completed in 2531 ms
+    scale_test.go:131: phase provision_tokens completed in 1164 ms
+    scale_test.go:131: phase connect_subscribe completed in 12424 ms
+--- FAIL: TestGroupScaleDeliveryAndChurnRetirement (205.67s)
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/test/e2e/mqtt/scale	206.015s
+FAIL

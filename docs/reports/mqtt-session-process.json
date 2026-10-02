@@ -1,0 +1,207 @@
+{
+  "source": "1c88a8a7d34e3299c88b1cc04caba56dd7aac482",
+  "digests": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "test/e2e/AGENTS.md": "a809e765332443b321edcfd85377db9203160bb3b480c17077303e2f25255965",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "test/e2e/suite/FLOW.md": "f043f283d3c71e1a94efed895dbc231efb22620d1370d773df68063074c7b403",
+    "internal/app/FLOW.md": "cc38ee14401cc205a1952b577185d62a6701cbe1803e1b873f2a07866de3520e",
+    "pkg/gateway/FLOW.md": "66fa9904a664b72c01d9bd37079f45773e64e7efdd6e99addd2697a986b7b03e",
+    "internal/runtime/mqttsession/FLOW.md": "f45fb516787ea4a42202fe57f6e55a5d16738951190049bff6c94ccb77ef26de",
+    "internal/access/mqtt/FLOW.md": "113e77b474abc57be351cbc7aa5a3c5f352d42269e0371b8c763f3fe19359b3f"
+  },
+  "scope": "persistent Session process acceptance, dependency-safe shutdown and proved graceful older-boot recovery; full MQTT objective remains incomplete",
+  "red_evidence": [
+    {
+      "scenario": "owner-process restart",
+      "result": "failed CONNACK; old stop logged MQTT context deadline exceeded",
+      "log_sha256": "db5d807b04a4fbd3dc6e586fef06b3211725c20bc18fe61a451875b7a4af503d"
+    },
+    {
+      "scenario": "active MQTT owner TERM",
+      "result": "raw process exit signal: killed before Gateway/MQTT ordering fix",
+      "log_sha256": "ffe266cf23a45c0616ad57ffb51465fa3b05dc7d7c808db946bc9d1b1ff6d26c"
+    },
+    {
+      "scenario": "retirement contracts",
+      "result": "compile RED before retirement APIs existed",
+      "log_sha256": "92fb25f4181f2b9ef575d946315ff4ff092bebad140ba7b1d5bd22e0ffa82f43"
+    },
+    {
+      "scenario": "Will regression after session restart work",
+      "result": "three-node normal-close Will was published",
+      "log_sha256": "06180332e27b8cb08a4e95d7306050077e6bc9fef650fdbc26207e470098e42d"
+    },
+    {
+      "scenario": "open/feedback cleanup ordering",
+      "result": "deterministic handler cases replaced decoded normal intent with abnormal intent before fix",
+      "log_sha256": "b37754f72b95a2ba17204a41c1ae5fea626faa579431b71a967a6e41561c68a9"
+    }
+  ],
+  "checks": [
+    {
+      "command": "GOWORK=off go test -race -p 2 ./internal/runtime/mqttsession ./internal/infra/mqttowner ./internal/app -count=1",
+      "result": "passed",
+      "durations": {
+        "runtime": "1.806s",
+        "infra": "2.074s",
+        "app": "4.720s"
+      }
+    },
+    {
+      "command": "WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-session-reports GOWORK=off go test -p 2 -tags=e2e ./test/e2e/mqtt/session -count=1 -timeout=4m -v",
+      "result": "passed",
+      "duration": "126.954s",
+      "scope": "final implementation including open/feedback close-receipt preservation"
+    },
+    {
+      "named_check": "flow-doc-contracts",
+      "result": "passed",
+      "compliant": 87,
+      "invalid": 0,
+      "existing_warnings": 9
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 ./internal/access/mqtt -count=1",
+      "result": "passed",
+      "duration": "1.405s"
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 -tags=integration ./internal/app -run '^TestMQTTGatewayPahoSingleNodeCluster$' -count=1 -timeout=1m",
+      "result": "passed",
+      "duration": "5.830s"
+    },
+    {
+      "command": "WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-session-will-regression-green GOWORK=off go test -p 2 -tags=e2e ./test/e2e/mqtt/will -count=2 -timeout=4m -v",
+      "result": "passed",
+      "duration": "111.517s",
+      "iterations": 2,
+      "topologies": [
+        1,
+        3
+      ],
+      "hash_slots": 256
+    }
+  ],
+  "process_reports": [
+    {
+      "client_id_uid_binding_enforced": true,
+      "dup_on_resume": true,
+      "future_contact_offline_delivered": true,
+      "hash_slots": 256,
+      "live_takeover_closed_old_owner": true,
+      "message_ids": [
+        "2104125672875102208",
+        "2104125677241372672",
+        "2104125680366129152",
+        "2104125763090386944",
+        "2104125843746852864"
+      ],
+      "nodes": 1,
+      "packet_id_preserved": true,
+      "passed": true,
+      "receive_maximum": 1,
+      "resubscriptions": 0,
+      "scenario": "mqtt-persistent-session",
+      "session_present": true
+    },
+    {
+      "client_id_uid_binding_enforced": true,
+      "dup_on_resume": true,
+      "future_contact_offline_delivered": true,
+      "hash_slots": 256,
+      "live_takeover_closed_old_owner": true,
+      "message_ids": [
+        "2104125979646496768",
+        "2104126004082511872",
+        "2104126007282774016",
+        "2104126035686592512",
+        "2104126053994729472"
+      ],
+      "nodes": 3,
+      "packet_id_preserved": true,
+      "passed": true,
+      "receive_maximum": 1,
+      "resubscriptions": 0,
+      "scenario": "mqtt-persistent-session",
+      "session_present": true
+    },
+    {
+      "dup_on_resume": true,
+      "hash_slots": 256,
+      "message_id": "2104126098383048704",
+      "nodes": 1,
+      "packet_id_preserved": true,
+      "passed": true,
+      "resubscriptions": 0,
+      "scenario": "mqtt-session-owner-restart",
+      "session_present": true
+    },
+    {
+      "scenario": "mqtt-active-owner-shutdown",
+      "nodes": 1,
+      "hash_slots": 256,
+      "passed": true,
+      "exit_success": true,
+      "client_closed": true,
+      "lifecycle_stop_failures": 0
+    }
+  ],
+  "format": {
+    "tables_changed": false,
+    "rpc_encoding_changed": false,
+    "new_file_format": "MQOR version 1; bounded immutable boot retirement; missing/unknown/corrupt fails closed",
+    "older_boot_compatibility": "pre-feature boots have no implicit proof"
+  },
+  "new_governing_files_sha256": {
+    "internal/infra/mqttowner/FLOW.md": "0cee2b55d2106bbf068bd676c143703bcf3c494233e7b397a57a798e2771aa95",
+    "test/e2e/mqtt/session/AGENTS.md": "f35cc835e01232c6719ece1f429cc9227d792e3e11f431a88cbed74a6e9f7799"
+  },
+  "implementation_sha256": {
+    "internal/app/lifecycle.go": "bc6d9018ebc84ac249ee259b11e5cc116ec98cedfcc16bfe44325f747f7c1d37",
+    "internal/app/mqtt_product.go": "11e64c3e9e659a3b03362b458149102d7bd17af8f3fc47789727c29978c23a4d",
+    "internal/runtime/mqttsession/retirement.go": "e6424478b734a0749d8dedeac31138a16ae2da4ca8994d2bcbd6342d9e668b31",
+    "internal/infra/mqttowner/retirements.go": "8e939ca70953c55119c83db920864bf90e311deb11d53c0e8ce5b6f75fe6d96b",
+    "test/e2e/mqtt/session/session_test.go": "5a83c3480e31f71bfc9a1734a6c42e1dd742cbc8322ed7730bda0f8bdc621f16",
+    "test/e2e/suite/mqtt_client.go": "5b6087e0142ff9d0142c67b8b198e15d383c542829168fec5f107b54f4b3343b",
+    "internal/access/mqtt/handler.go": "232eba0be96ff58e11f0e900da96c052a771a201320c6318aa82c62424e568b4",
+    "internal/access/mqtt/handler_test.go": "aee6adc50bf40401362c7b287252c672d45a44b01794de1de240cffbf4667ac5"
+  },
+  "remaining": [
+    "abrupt-crash/unavailable-owner proof and uncertain effects",
+    "safe uncertain Will redispatch and receipt transfer",
+    "orphan owner sweeping",
+    "offline accounting and cleanup",
+    "restore reactivation",
+    "complete acceptance and scale qualification"
+  ],
+  "will_reports": [
+    {
+      "abnormal_close_published": true,
+      "delay_seconds": 2,
+      "hash_slots": 256,
+      "message_id": "2104125358499434496",
+      "nodes": 1,
+      "normal_close_cancelled": true,
+      "passed": true,
+      "scenario": "mqtt-will"
+    },
+    {
+      "abnormal_close_published": true,
+      "delay_seconds": 2,
+      "hash_slots": 256,
+      "message_id": "2104125477969989632",
+      "nodes": 3,
+      "normal_close_cancelled": true,
+      "passed": true,
+      "scenario": "mqtt-will"
+    }
+  ],
+  "log_sha256": {
+    "mqtt-retirement-unit.log": "8687a03b43cae4ef8ee6334c0554c02062892963996ccef710bce92505a836bd",
+    "mqtt-open-close-green.log": "17c5193b14114119a7eb4cc806e1d75e7ca68bbd1c4404c51d6ab4558298e294",
+    "mqtt-session-gateway-regression.log": "c5b3aa95bed319e41fda5da254bb7c3874a9be2f75ee10956a605d39b638128a",
+    "mqtt-session-will-regression-green.log": "c72fe88b21bd1df9c059277db3b16fc290487ecf3e730aad6e915520609d9519",
+    "mqtt-session-final.log": "243a905e4937482e9dc1a68871f6ab969feae4819379f940be140d0d517ec6e1"
+  }
+}

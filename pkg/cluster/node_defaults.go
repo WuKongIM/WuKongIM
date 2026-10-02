@@ -13,6 +13,7 @@ import (
 	clusternet "github.com/WuKongIM/WuKongIM/pkg/cluster/net"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/propose"
 	"github.com/WuKongIM/WuKongIM/pkg/cluster/routing"
+	messagedb "github.com/WuKongIM/WuKongIM/pkg/db/message"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
 )
@@ -179,6 +180,10 @@ func (n *Node) newDefaultChannelStore() *channelstore.MessageDBFactory {
 	return channelstore.NewMessageDBFactoryWithOptions(
 		n.defaultChannelStorePath(),
 		channelstore.MessageDBFactoryOptions{
+			MQTTStorage: messagedb.MQTTStorageOptions{
+				NodeBytes: n.cfg.Storage.MQTTNodeBytes, ClusterBytes: n.cfg.Storage.MQTTClusterBytes,
+				Adjust: n.adjustMQTTStorage, Members: n.mqttStorageMembers, Observer: n.cfg.Storage.MQTTStorageObserver,
+			},
 			CommitFlushWindow: n.cfg.Storage.CommitFlushWindow,
 			CommitMaxRequests: n.cfg.Storage.CommitMaxRequests,
 			CommitMaxRecords:  n.cfg.Storage.CommitMaxRecords,

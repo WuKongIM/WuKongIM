@@ -1,0 +1,23 @@
+{
+  "churn_subscribers": 200,
+  "closures": {},
+  "confirmed_subscribes": 1100,
+  "confirmed_unsubscribes": 600,
+  "connections": 500,
+  "elapsed_ms": 116041,
+  "foreground_retries": 0,
+  "fresh_receipts": 500,
+  "hash_slots": 256,
+  "initial_receipts_at_churn": 0,
+  "initial_receipts_expected": 10000,
+  "initial_slots": 12,
+  "members": 2000,
+  "messages": 20,
+  "nodes": 1,
+  "passed": true,
+  "phase": "complete",
+  "profile_enabled": false,
+  "retired_delta": 600,
+  "rounds": 3,
+  "scenario": "mqtt-churn-in-flight"
+}

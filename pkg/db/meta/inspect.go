@@ -81,6 +81,20 @@ func InspectScan(ctx context.Context, db *MetaDB, req InspectScanRequest) (Inspe
 	}
 
 	switch req.Table {
+	case "mqtt_storage_ledger":
+		return inspectScanTable(ctx, db, req, slots, mqttStorageTable, inspectMQTTStorageRow)
+	case "mqtt_will":
+		return inspectScanTable(ctx, db, req, slots, mqttWillTable, inspectMQTTWillRow)
+	case "mqtt_source_binding":
+		return inspectScanTable(ctx, db, req, slots, mqttSourceBindingTable, inspectMQTTSourceBindingRow)
+	case "mqtt_inflight":
+		return inspectScanTable(ctx, db, req, slots, mqttInflightTable, inspectMQTTInflightRow)
+	case "mqtt_delivery_cursor":
+		return inspectScanTable(ctx, db, req, slots, mqttDeliveryCursorTable, inspectMQTTDeliveryCursorRow)
+	case "mqtt_subscription":
+		return inspectScanTable(ctx, db, req, slots, mqttSubscriptionTable, inspectMQTTSubscriptionRow)
+	case "mqtt_session":
+		return inspectScanTable(ctx, db, req, slots, mqttSessionTable, inspectMQTTSessionRow)
 	case "user":
 		return inspectScanTable(ctx, db, req, slots, userTable, inspectUserRow)
 	case "device":
@@ -512,6 +526,7 @@ func inspectSubscriberRow(subscriber Subscriber) InspectRow {
 		"channel_id":   subscriber.ChannelID,
 		"channel_type": subscriber.ChannelType,
 		"uid":          subscriber.UID,
+		"incarnation":  subscriber.Incarnation,
 	}
 }
 

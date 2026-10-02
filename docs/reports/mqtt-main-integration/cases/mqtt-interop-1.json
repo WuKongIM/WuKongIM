@@ -1,0 +1,8 @@
+{
+  "hash_slots": 256,
+  "mqtt_message_id": "2105897557279379456",
+  "nodes": 1,
+  "passed": true,
+  "scenario": "mqtt-wk-interop",
+  "wk_message_id": "2105897517165056000"
+}

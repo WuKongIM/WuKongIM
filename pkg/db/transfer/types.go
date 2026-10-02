@@ -29,6 +29,8 @@ const (
 	FileKindMetaChannels FileKind = "meta.channels"
 	// FileKindMetaSubscribers stores channel subscriber rows.
 	FileKindMetaSubscribers FileKind = "meta.subscribers"
+	// FileKindMetaSubscriberSequences retains per-Slot join allocation high water.
+	FileKindMetaSubscriberSequences FileKind = "meta.subscriber_sequences"
 	// FileKindMetaUserChannelMemberships stores user-to-channel membership rows.
 	FileKindMetaUserChannelMemberships FileKind = "meta.user_channel_memberships"
 	// FileKindMetaUserCMDChannelMemberships stores user-to-command-channel bindings.
@@ -79,7 +81,7 @@ type ImportOptions struct {
 	SubscriberBatchSize int
 	// MessageBatchSize bounds message record chunks written through the typed message API.
 	MessageBatchSize int
-	// MessageBatchBytes bounds approximate payload bytes per message import chunk.
+	// MessageBatchBytes bounds body plus publication metadata bytes per import chunk.
 	MessageBatchBytes int
 }
 
@@ -215,6 +217,8 @@ type SubscriberRecord struct {
 	ChannelType int64 `json:"channel_type"`
 	// UID is the stable subscriber user identifier.
 	UID string `json:"uid"`
+	// Incarnation zero preserves legacy membership identity 1.
+	Incarnation Uint64 `json:"incarnation,omitempty"`
 }
 
 // UserChannelMembershipRecord represents one imported user-to-channel membership row.
@@ -321,6 +325,11 @@ type MessageRecord struct {
 	PayloadB64 string `json:"payload_b64"`
 	// Payload is the decoded message payload.
 	Payload []byte `json:"-"`
+	// PublicationMetadataB64 is optional canonical publication content. Omitting
+	// it preserves native JSONL rows and old strict-reader compatibility.
+	PublicationMetadataB64 string `json:"publication_metadata_b64,omitempty"`
+	// PublicationMetadata is the owned decoded value, bounded to 32 KiB.
+	PublicationMetadata []byte `json:"-"`
 }
 
 // MessageUpdateRecord transfers a bounded exact edit-table row, including its Hash Slot.

@@ -1,0 +1,224 @@
+{
+  "base_revision": "423187b33b2784c2d79ffaff5621ee4c8629dabe",
+  "platform": "darwin/arm64",
+  "status": "complete: final v11 matrix14/14PASS; exact final negative expectedFAIL; ordinary/race/FLOWPASS",
+  "toolchain_prefix": "PATH=/tmp/will-admission-toolchain/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin GOMODCACHE=/Users/tt/.codex/will-append-runtime/gomod GOPROXY=https://goproxy.cn,direct GOTOOLCHAIN=local GOWORK=off",
+  "results": [
+    {
+      "name": "baseline-instrumentation-gap",
+      "result": "instrumentation gap, not product RED",
+      "fixture": "v1",
+      "private_log": "/tmp/mqtt-will-successor-baseline.log",
+      "log_sha256": "620fc6c9174a1b97d5beb12af6af842c1eba23e90bd9abbd27a425f4c1f50e8e",
+      "package_elapsed_seconds": 10.713,
+      "reproduction_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-raft-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-successor-baseline GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_successor_recovery -run 'TestWillSuccessorRecoveryAcrossProposalCommitAndApply/single-node-cluster/queued-late$' -count=1 -timeout=5m -v"
+    },
+    {
+      "name": "first-tracer",
+      "result": "PASS",
+      "fixture": "v1",
+      "private_log": "/tmp/mqtt-will-successor-tracer.log",
+      "log_sha256": "ac579bba0dddac7452bb77b9a3af50658570645663cfddbf75cc0960d43c3700",
+      "package_elapsed_seconds": 91.331,
+      "reproduction_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-successor-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-successor-tracer GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_successor_recovery -run 'TestWillSuccessorRecoveryAcrossProposalCommitAndApply/single-node-cluster/queued-late$' -count=1 -timeout=5m -v"
+    },
+    {
+      "name": "cut-tracers",
+      "result": "PASS: five incremental cases",
+      "fixture": "v2",
+      "private_log": "/tmp/mqtt-will-successor-cuts-tracer.log",
+      "log_sha256": "44c8489049bd7511ab20a467a8645eb7fba824772385bca38babc58e189f1e14",
+      "package_elapsed_seconds": 422.174,
+      "reproduction_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-successor-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-successor-cuts-tracer GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_successor_recovery -run 'TestWillSuccessorRecoveryAcrossProposalCommitAndApply/(single-node-cluster/(queued-crash|committed-unapplied-late)|three-node-cluster/(queued-crash|committed-unapplied-late|persisted-uncommitted-late))$' -count=1 -timeout=15m -v"
+    },
+    {
+      "name": "pressure-instrumentation-gap",
+      "result": "instrumentation gap, not product RED",
+      "fixture": "v3",
+      "private_log": "/tmp/mqtt-will-successor-pressure-gap.log",
+      "log_sha256": "23ef8c99d3f75c8150e793e9353800167c1bad2465a0cf55e352827b661645a0",
+      "package_elapsed_seconds": 11.129,
+      "reproduction_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-successor-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-successor-pressure-gap GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_successor_recovery -run 'TestWillSuccessorPressureWhileProposalInFlight/single-node-cluster/queued-late$' -count=1 -timeout=10m -v"
+    },
+    {
+      "name": "pressure-old-completion-bound",
+      "result": "FAIL fixture completion observation30s expired during selected90s sleep",
+      "fixture": "v4",
+      "private_log": "/tmp/mqtt-will-successor-pressure-tracer.log",
+      "log_sha256": "2e91e9a46b4a2b4a4f16ce6156b6e7a56161dc0703ffa33fee813a910c370f93",
+      "package_elapsed_seconds": 77.352,
+      "reproduction_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-successor-matched-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-successor-pressure-tracer GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_successor_recovery -run 'TestWillSuccessorPressureWhileProposalInFlight/single-node-cluster/queued-late$' -count=1 -timeout=10m -v"
+    },
+    {
+      "name": "pressure-quiet-failure",
+      "result": "FAIL fixture unjoined pressure QoS exchanges in final quiet",
+      "fixture": "v5",
+      "private_log": "/tmp/mqtt-will-successor-pressure-completion.log",
+      "log_sha256": "33ac2172e99a2cbc8b08d85015c56dabc58510f7ce2cae8176a274998096d364",
+      "package_elapsed_seconds": 122.526,
+      "reproduction_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-successor-matched-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-successor-pressure-completion GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_successor_recovery -run 'TestWillSuccessorPressureWhileProposalInFlight/single-node-cluster/queued-late$' -count=1 -timeout=10m -v"
+    },
+    {
+      "name": "pressure-quiet-diagnostic",
+      "result": "FAIL fixture: known pressure same MID/PID+DUP; effects13",
+      "fixture": "v6",
+      "private_log": "/tmp/mqtt-will-successor-pressure-diagnostic.log",
+      "log_sha256": "676791a5a881186a47744aece8a5ea225b63608349227b012076397d1d85d961",
+      "package_elapsed_seconds": 122.539,
+      "reproduction_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-successor-matched-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-successor-pressure-diagnostic WK_E2E_MQTT_LOG_DIR=/tmp/mqtt-will-successor-pressure-diagnostic-logs GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_successor_recovery -run 'TestWillSuccessorPressureWhileProposalInFlight/single-node-cluster/queued-late$' -count=1 -timeout=10m -v"
+    },
+    {
+      "name": "pressure-ack-wait-ineffective",
+      "result": "FAIL fixture: waiting cannot flush ordered ACKs held behind original",
+      "fixture": "v7",
+      "private_log": "/tmp/mqtt-will-successor-pressure-ack-window.log",
+      "log_sha256": "954a491e50315f92a0ce68e0f7731b3d6ac847303cfa49fded847390da6540e9",
+      "package_elapsed_seconds": 125.527,
+      "reproduction_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-successor-matched-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-successor-pressure-ack-window WK_E2E_MQTT_LOG_DIR=/tmp/mqtt-will-successor-pressure-ack-window-logs GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_successor_recovery -run 'TestWillSuccessorPressureWhileProposalInFlight/single-node-cluster/queued-late$' -count=1 -timeout=10m -v"
+    },
+    {
+      "name": "pressure-ordered-ack-tracer",
+      "result": "PASS: exact held exchange drain then strict quiet",
+      "fixture": "v8",
+      "private_log": "/tmp/mqtt-will-successor-pressure-ordered-acks.log",
+      "log_sha256": "c341ba075a1c30646fd591f40755119181c5526e1be5834289340b2bd0010c56",
+      "package_elapsed_seconds": 139.932,
+      "reproduction_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-successor-matched-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-successor-pressure-ordered-acks WK_E2E_MQTT_LOG_DIR=/tmp/mqtt-will-successor-pressure-ordered-acks-logs GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_successor_recovery -run 'TestWillSuccessorPressureWhileProposalInFlight/single-node-cluster/queued-late$' -count=1 -timeout=10m -v"
+    },
+    {
+      "name": "negative-initial",
+      "result": "expected FAIL: captured unresolved journal funds5 premature publication attempts",
+      "fixture": "v5",
+      "private_log": "/tmp/mqtt-will-successor-negative.log",
+      "log_sha256": "ed227cdeab9c66fb5ec6a30fd9294dffddba4873a6d870d4a4362e055615ed7f",
+      "package_elapsed_seconds": 46.717,
+      "reproduction_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-successor-negative-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-successor-negative WK_E2E_MQTT_LOG_DIR=/tmp/mqtt-will-successor-negative-logs GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_successor_recovery -run 'TestWillSuccessorPressureWhileProposalInFlight/single-node-cluster/queued-late$' -count=1 -timeout=10m -v"
+    },
+    {
+      "name": "negative-final",
+      "result": "expected FAIL: captured unresolved journal funds7 premature publication attempts",
+      "fixture": "v9",
+      "private_log": "/tmp/mqtt-will-successor-negative-final.log",
+      "log_sha256": "d979494fed9ac881ae7b1f425db25ee41237496ccc0ad334b47d8448836f554f",
+      "package_elapsed_seconds": 50.344,
+      "reproduction_command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-successor-negative-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-successor-negative-final WK_E2E_MQTT_LOG_DIR=/tmp/mqtt-will-successor-negative-final-logs GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_successor_recovery -run 'TestWillSuccessorPressureWhileProposalInFlight/single-node-cluster/queued-late$' -count=1 -timeout=10m -v"
+    },
+    {
+      "name": "ordinary-regression",
+      "result": "PASS both topologies",
+      "fixture": "ordinary existing Will test",
+      "private_log": "/tmp/mqtt-will-successor-ordinary-regression.log",
+      "log_sha256": "f0ba3ffc1e07474502e0b8696eb98ab0aa74186247214bd8f2e52dd614ba1887",
+      "package_elapsed_seconds": 53.302,
+      "reproduction_command": "WK_E2E_BINARY=/tmp/wukongim-will-successor-ordinary WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-successor-ordinary-regression GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will -count=1 -timeout=5m -v"
+    },
+    {
+      "name": "race-gates",
+      "result": "PASS four packages",
+      "fixture": "ordinary source",
+      "private_log": "/tmp/mqtt-will-successor-race-gates.log",
+      "log_sha256": "c10e33a62b88046e193f165362f267aa42eeec1b3cfacfca78df43c6aed6a20a",
+      "package_elapsed_seconds": {
+        "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft": 2.723,
+        "github.com/WuKongIM/WuKongIM/pkg/slot/fsm": 4.051,
+        "github.com/WuKongIM/WuKongIM/pkg/slot/proxy": 3.806,
+        "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession": 27.653
+      },
+      "reproduction_command": "GOWORK=off go test -race -p 1 ./pkg/slot/multiraft ./pkg/slot/fsm ./pkg/slot/proxy ./internal/usecase/mqttsession -run 'Will|MQTT|Proposal|Apply' -count=1 -timeout=5m"
+    },
+    {
+      "name": "flow-doc-contracts",
+      "result": "PASS:88compliant0invalid11existingline-countwarnings",
+      "fixture": "named policy check",
+      "private_log": "/tmp/mqtt-will-successor-flow-check.log",
+      "log_sha256": "712b0d00c884c879b2cce5695f7c753e8b77e926f42a262132c69db816723b64",
+      "package_elapsed_seconds": null,
+      "reproduction_command": "GOWORK=off go run ./scripts/flowcheck --mode check"
+    },
+    {
+      "name": "pressure-persisted-tracer",
+      "result": "PASS late; FAIL crash fixture quiet on legitimate pressure original",
+      "fixture": "v9",
+      "command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-successor-matched-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-successor-pressure-persisted WK_E2E_MQTT_LOG_DIR=/tmp/mqtt-will-successor-pressure-persisted-logs GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_successor_recovery -run 'TestWillSuccessorPressureWhileProposalInFlight/three-node-cluster/persisted-uncommitted-(late|crash)$' -count=1 -timeout=15m -v",
+      "private_log": "/tmp/mqtt-will-successor-pressure-persisted.log",
+      "log_sha256": "4fc36931071a74164cae7113cdebe0b9e65e9ade5a69af10ceaeb1c803aa9c57",
+      "package_elapsed_seconds": 160.258
+    },
+    {
+      "name": "pressure-live-ack-tracer",
+      "result": "PASS crash after bounded legitimate-pressure ACK observation",
+      "fixture": "v10",
+      "command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-successor-matched-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-successor-pressure-live-ack WK_E2E_MQTT_LOG_DIR=/tmp/mqtt-will-successor-pressure-live-ack-logs GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_successor_recovery -run 'TestWillSuccessorPressureWhileProposalInFlight/three-node-cluster/persisted-uncommitted-crash$' -count=1 -timeout=10m -v",
+      "private_log": "/tmp/mqtt-will-successor-pressure-live-ack.log",
+      "log_sha256": "2f2eccb48f464652081bab0ed8d00ba04be874e7f6dac3696642b29168629e83",
+      "package_elapsed_seconds": 100.247
+    },
+    {
+      "name": "negative-v11-final",
+      "result": "expected FAIL: real reached full/page and7premature captured publication attempts",
+      "fixture": "v11",
+      "command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-successor-negative-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-successor-negative-v11-final WK_E2E_MQTT_LOG_DIR=/tmp/mqtt-will-successor-negative-v11-final-logs GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_successor_recovery -run 'TestWillSuccessorPressureWhileProposalInFlight/single-node-cluster/queued-late$' -count=1 -timeout=10m -v",
+      "private_log": "/tmp/mqtt-will-successor-negative-v11-final.log",
+      "log_sha256": "998d9f23216c5f7bbf8a747d1afb28f0ae3e280439a7d896268967049efa69d1",
+      "package_elapsed_seconds": 49.197
+    },
+    {
+      "name": "matched-instrumented-build",
+      "result": "PASS",
+      "reproduction_command": "GOWORK=off GOFLAGS=-buildvcs=false scripts/build-gofail-binary.sh --out /tmp/wukongim-will-successor-matched-gofail --work-dir /tmp/wukongim-will-successor-matched-source --keep-work --package pkg/slot/multiraft --package pkg/slot/fsm --package pkg/slot/proxy --package internal/usecase/mqttsession --package internal/app --package internal/infra/mqttwill --package internal/runtime/channelappend",
+      "private_log": "/tmp/mqtt-will-successor-matched-build.log",
+      "log_sha256": "80d66d1a9b86ce4f0408bfdb73b3baaeeffe36c14fac66fb296cbbe99cf5df41",
+      "binary": "/tmp/wukongim-will-successor-matched-gofail",
+      "binary_sha256": "fd436c6b34ec588aa0366a684e40ea57b08d41252746d7ca95ac755f711b3fb1"
+    },
+    {
+      "name": "ordinary-build",
+      "result": "PASS",
+      "reproduction_command": "GOWORK=off go build -p 1 -buildvcs=false -o /tmp/wukongim-will-successor-ordinary ./cmd/wukongim",
+      "private_log": "/tmp/mqtt-will-successor-ordinary-build.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "binary": "/tmp/wukongim-will-successor-ordinary",
+      "binary_sha256": "f7963e8c81b91c49244e79ff21cfadc0fe612f2d190f4a2cf993a40e7adc4647"
+    },
+    {
+      "name": "negative-build",
+      "result": "PASS",
+      "reproduction_command": "GOWORK=off GOFLAGS=-buildvcs=false go build -p 1 -o /tmp/wukongim-will-successor-negative-gofail ./cmd/wukongim",
+      "private_log": "/tmp/mqtt-will-successor-negative-build.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "binary": "/tmp/wukongim-will-successor-negative-gofail",
+      "binary_sha256": "7785add0a29a70a972374672a426234254d48dd345b1f81e595626307d4d660e",
+      "working_dir": "/tmp/wukongim-will-successor-negative-source"
+    },
+    {
+      "name": "v9-exploratory-matrix",
+      "result": "13/14 PASS; retained failures, superseded by final v11 fixture",
+      "fixture": "v9",
+      "command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-successor-matched-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-successor-final-matrix WK_E2E_MQTT_LOG_DIR=/tmp/mqtt-will-successor-final-matrix-logs GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_successor_recovery -count=1 -timeout=45m -v",
+      "private_log": "/tmp/mqtt-will-successor-final-matrix.log",
+      "log_sha256": "e74b9cbe16cabac5c07a7ec15e50427c9ef72b72524007f5dab23fe66e113853",
+      "package_elapsed_seconds": 1199.369,
+      "failed_receipts": [
+        {
+          "nodes": 3,
+          "state": "committed-unapplied",
+          "outcome": "late",
+          "pressure_clients": 0,
+          "last_phase": "startup"
+        }
+      ]
+    },
+    {
+      "name": "final-v11-matrix",
+      "result": "PASS14/14",
+      "fixture": "v11",
+      "command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-successor-matched-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-successor-final-v11-matrix WK_E2E_MQTT_LOG_DIR=/tmp/mqtt-will-successor-final-v11-matrix-logs GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_successor_recovery -count=1 -timeout=45m -v",
+      "private_log": "/tmp/mqtt-will-successor-final-v11-matrix.log",
+      "log_sha256": "0cc427cf6f8949aa7d0242d4e06ee66e0eaacd860e65c73d3c15a39e3a82ecc1",
+      "package_elapsed_seconds": 1272.474,
+      "receipts": 14,
+      "passing_receipts": 14,
+      "source_fixture_sha256": "cca7209041dcf6d9a4e8621249b8e473898a0b9215174742298bf10e30358654"
+    }
+  ]
+}

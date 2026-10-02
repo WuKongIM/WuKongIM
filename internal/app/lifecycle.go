@@ -174,6 +174,10 @@ func (a *App) Start(ctx context.Context) error {
 		}
 		a.channelAppendStarted = true
 	}
+	if err := a.mqtt.Start(ctx); err != nil {
+		a.logLifecycleError("mqtt", "start", err)
+		return errors.Join(err, a.rollbackStarted(ctx))
+	}
 	if a.restoreMaintenance.Load() {
 		if err := a.suspendRestoreSideEffects(ctx); err != nil {
 			a.logLifecycleError("restore_side_effects", "suspend", err)
@@ -369,6 +373,7 @@ func (a *App) Stop(ctx context.Context) error {
 	defer a.lifecycleMu.Unlock()
 
 	a.stopped = true
+	a.stopRestoreAdmission()
 	if a.handler != nil {
 		a.handler.BeginPlannedShutdown()
 	}
@@ -377,6 +382,9 @@ func (a *App) Stop(ctx context.Context) error {
 	}
 	a.restoreDiagnosticsSink()
 	if !a.started {
+		if err := a.mqtt.Stop(ctx); err != nil {
+			return err
+		}
 		var err error
 		if stopErr := a.closeChannelSubmissions(ctx); stopErr != nil {
 			return stopErr
@@ -401,7 +409,17 @@ func (a *App) Stop(ctx context.Context) error {
 		return err
 	}
 	var err error
+	if admission, ok := a.gateway.(gatewayDrainRuntime); ok {
+		admission.SetAcceptingNewSessions(false)
+	}
 	if stopErr := a.drainGatewaySubmissions(ctx); stopErr != nil {
+		return errors.Join(stopErr, a.syncLogger())
+	}
+	// MQTT quiescence joins physical-close callbacks on the gateway transport
+	// loop. Keep that loop and business dependencies alive until cleanup joins;
+	// a timeout retains them for a later Stop attempt.
+	if stopErr := a.mqtt.Stop(ctx); stopErr != nil {
+		a.logLifecycleWarn("mqtt", "stop", stopErr)
 		return errors.Join(stopErr, a.syncLogger())
 	}
 	if a.gatewayStarted && a.gateway != nil {
@@ -615,6 +633,9 @@ func (a *App) syncLogger() error {
 }
 
 func (a *App) rollbackStarted(ctx context.Context) error {
+	if err := a.mqtt.Stop(ctx); err != nil {
+		return err
+	}
 	var err error
 	if stopErr := a.drainGatewaySubmissions(ctx); stopErr != nil {
 		return stopErr

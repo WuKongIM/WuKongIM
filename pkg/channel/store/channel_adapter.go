@@ -55,6 +55,8 @@ type MessageDBFactory struct {
 
 // MessageDBFactoryOptions configures the message DB adapter.
 type MessageDBFactoryOptions struct {
+	// MQTTStorage supplies aggregate replica escrow before durable publication.
+	MQTTStorage messagedb.MQTTStorageOptions
 	// CommitFlushWindow is the maximum delay for grouping adjacent channel append commits.
 	CommitFlushWindow time.Duration
 	// CommitMaxRequests caps logical append requests in one grouped physical commit.
@@ -107,6 +109,7 @@ func NewMessageDBFactoryWithOptions(path string, opts MessageDBFactoryOptions) *
 		Shards:      opts.CommitShards,
 		Observer:    opts.CommitObserver,
 	})
+	engine.ConfigureMQTTStorage(opts.MQTTStorage)
 	return &MessageDBFactory{engine: engine}
 }
 
@@ -263,16 +266,17 @@ func (f *MessageDBFactory) ListLatestMessages(ctx context.Context, beforeMessage
 	out := make([]ch.Message, 0, len(page.Messages))
 	for _, msg := range page.Messages {
 		out = append(out, ch.Message{
-			MessageID:         msg.MessageID,
-			MessageSeq:        msg.MessageSeq,
-			ChannelID:         msg.ChannelID,
-			ChannelType:       msg.ChannelType,
-			FromUID:           msg.FromUID,
-			ClientMsgNo:       msg.ClientMsgNo,
-			Payload:           cloneBytes(msg.Payload),
-			ServerTimestampMS: msg.ServerTimestampMS,
-			RedDot:            msg.RedDot,
-			Expire:            msg.Expire,
+			MessageID:           msg.MessageID,
+			MessageSeq:          msg.MessageSeq,
+			ChannelID:           msg.ChannelID,
+			ChannelType:         msg.ChannelType,
+			FromUID:             msg.FromUID,
+			ClientMsgNo:         msg.ClientMsgNo,
+			Payload:             cloneBytes(msg.Payload),
+			PublicationMetadata: cloneBytes(msg.PublicationMetadata),
+			ServerTimestampMS:   msg.ServerTimestampMS,
+			RedDot:              msg.RedDot,
+			Expire:              msg.Expire,
 		})
 	}
 	return out, page.HasMore, page.NextBeforeMessageID, nil
@@ -306,6 +310,12 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 			results[i].Outcome = AppendOutcomeDefinitelyNotWritten
 			continue
 		}
+		records, err := encodeRecordsForMessageDB(item.ChannelID, item.Request.Records)
+		if err != nil {
+			results[i].Err = err
+			results[i].Outcome = AppendOutcomeDefinitelyNotWritten
+			continue
+		}
 		dbStore, err := f.engine.ForChannel(channel.ChannelKey(item.ChannelKey), channel.ChannelID{ID: item.ChannelID.ID, Type: item.ChannelID.Type})
 		if err != nil {
 			results[i].Err = f.mapError(err)
@@ -314,7 +324,7 @@ func (f *MessageDBFactory) AppendLeaderBatch(ctx context.Context, items []Append
 		}
 		dbItems = append(dbItems, messagedb.AppendBatchItem{
 			Store:                     dbStore,
-			Records:                   encodeRecordsForMessageDB(item.ChannelID, item.Request.Records),
+			Records:                   records,
 			Class:                     messageDBAppendBatchClass(item.Request.Class),
 			Committed:                 item.Request.Committed,
 			ServerAllocatedMessageIDs: item.Request.ServerAllocatedMessageIDs,
@@ -368,12 +378,16 @@ func (f *MessageDBFactory) ApplyFollowerBatch(ctx context.Context, items []Apply
 		}
 	}()
 	for i, item := range items {
+		records, err := encodeRecordsForMessageDB(item.ChannelID, item.Request.Records)
+		if err != nil {
+			results[i].Err = err
+			continue
+		}
 		dbStore, err := f.engine.ForChannel(channel.ChannelKey(item.ChannelKey), channel.ChannelID{ID: item.ChannelID.ID, Type: item.ChannelID.Type})
 		if err != nil {
 			results[i].Err = f.mapError(err)
 			continue
 		}
-		records := encodeRecordsForMessageDB(item.ChannelID, item.Request.Records)
 		checkpointHW := followerApplyCheckpointHW(records, item.Request.LeaderHW)
 		dbItems = append(dbItems, messagedb.ApplyFetchBatchItem{
 			Store: dbStore,
@@ -631,9 +645,13 @@ func (a *messageDBChannelStoreAdapter) ReplaceRecoverySuffix(ctx context.Context
 	}
 	proposals := make([]messagedb.RecoveryProposal, len(req.Proposals))
 	for index, proposal := range req.Proposals {
+		records, err := a.encodeRecords(proposal.Records)
+		if err != nil {
+			return replaceRecoverySuffixErrorResult(err), err
+		}
 		proposals[index] = messagedb.RecoveryProposal{
 			Manifest: proposal.Manifest,
-			Records:  a.encodeRecords(proposal.Records),
+			Records:  records,
 		}
 	}
 	result, err := a.store.ReplaceRecoverySuffix(ctx, messagedb.ReplaceRecoverySuffixRequest{
@@ -690,7 +708,10 @@ func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req App
 	if err := ctx.Err(); err != nil {
 		return appendLeaderErrorResult(err), err
 	}
-	records := a.encodeRecords(req.Records)
+	records, err := a.encodeRecords(req.Records)
+	if err != nil {
+		return appendLeaderErrorResult(err), err
+	}
 	results := messagedb.StoreAppendBatch(ctx, []messagedb.AppendBatchItem{{
 		Store:                     a.store,
 		Records:                   records,
@@ -705,7 +726,7 @@ func (a *messageDBChannelStoreAdapter) AppendLeader(ctx context.Context, req App
 		return AppendLeaderResult{Outcome: AppendOutcomeUnknown}, ch.ErrInvalidConfig
 	}
 	result := results[0]
-	err := a.mapError(result.Err)
+	err = a.mapError(result.Err)
 	lastOffset := result.LastOffset
 	if len(records) == 0 {
 		lastOffset = result.BaseOffset
@@ -731,7 +752,10 @@ func (a *messageDBChannelStoreAdapter) ApplyFollower(ctx context.Context, req Ap
 	if err := ctx.Err(); err != nil {
 		return ApplyFollowerResult{}, err
 	}
-	records := encodeRecordsForMessageDB(a.id, req.Records)
+	records, err := encodeRecordsForMessageDB(a.id, req.Records)
+	if err != nil {
+		return ApplyFollowerResult{}, err
+	}
 	checkpointHW := followerApplyCheckpointHW(records, req.LeaderHW)
 	leo, err := storeApplyFetchRecords(a.store, channel.ApplyFetchStoreRequest{
 		Records:      records,
@@ -859,6 +883,59 @@ func (a *messageDBChannelStoreAdapter) LookupIdempotency(ctx context.Context, fr
 	return IdempotencyHit{Message: fromOwnedDBMessage(msg), PayloadHash: payloadHash}, true, nil
 }
 
+// LookupWillIdempotency retains the stored client number as content while
+// resolving a separately indexed immutable server intent.
+func (a *messageDBChannelStoreAdapter) LookupWillIdempotency(ctx context.Context, fromUID, serverKey string) (IdempotencyHit, bool, error) {
+	if err := a.ensureOpen(); err != nil {
+		return IdempotencyHit{}, false, err
+	}
+	if err := ctx.Err(); err != nil {
+		return IdempotencyHit{}, false, err
+	}
+	entry, payloadHash, ok, err := a.store.LookupWillIdempotency(ctx, fromUID, serverKey)
+	if err != nil || !ok {
+		return IdempotencyHit{}, ok, a.mapError(err)
+	}
+	msg, ok, err := a.store.GetMessageBySeq(entry.MessageSeq)
+	if err != nil || !ok {
+		return IdempotencyHit{}, ok, a.mapError(err)
+	}
+	if msg.MessageID != entry.MessageID {
+		return IdempotencyHit{}, false, ch.ErrLogConflict
+	}
+	return IdempotencyHit{Message: fromOwnedDBMessage(msg), PayloadHash: payloadHash}, true, nil
+}
+
+// LookupWillReceipt preserves compact publication proof after ordinary body
+// cleanup without weakening the local checkpoint/evidence checks in storage.
+func (a *messageDBChannelStoreAdapter) LookupWillReceipt(ctx context.Context, fromUID, serverKey string) (ch.WillReceipt, bool, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.WillReceipt{}, false, err
+	}
+	if ctx == nil {
+		return ch.WillReceipt{}, false, ch.ErrInvalidConfig
+	}
+	receipt, found, err := a.store.LookupWillReceipt(ctx, fromUID, serverKey)
+	if err != nil {
+		if errors.Is(err, channel.ErrInvalidArgument) {
+			return ch.WillReceipt{}, false, ch.ErrInvalidConfig
+		}
+		if errors.Is(err, channel.ErrCorruptValue) {
+			return ch.WillReceipt{}, false, ch.ErrLogConflict
+		}
+		return ch.WillReceipt{}, false, a.mapError(err)
+	}
+	if !found {
+		return ch.WillReceipt{}, false, nil
+	}
+	out := ch.WillReceipt{MessageID: receipt.MessageID, MessageSeq: receipt.MessageSeq,
+		ServerTimestampMS: receipt.ServerTimestampMS, ContentHash: receipt.ContentHash}
+	if !out.Valid() {
+		return ch.WillReceipt{}, false, ch.ErrLogConflict
+	}
+	return out, true, nil
+}
+
 // CountOrdinaryMessages preserves the caller's authoritative committed range.
 func (a *messageDBChannelStoreAdapter) CountOrdinaryMessages(ctx context.Context, after, through uint64) (uint64, error) {
 	if err := a.ensureOpen(); err != nil {
@@ -970,6 +1047,67 @@ func (a *messageDBChannelStoreAdapter) StoreCheckpoint(ctx context.Context, chec
 	return a.mapError(a.store.StoreCheckpointHWMonotonic(ctx, checkpoint.HW))
 }
 
+func (a *messageDBChannelStoreAdapter) LoadCommittedMQTTSource(ctx context.Context, through uint64) (ch.MQTTSourceSnapshot, bool, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTSourceSnapshot{}, false, err
+	}
+	source, found, err := a.store.LoadCommittedMQTTSourceState(ctx, through)
+	if err != nil || !found {
+		return ch.MQTTSourceSnapshot{}, false, a.mapError(err)
+	}
+	return ch.MQTTSourceSnapshot{Generation: source.Generation, StartAfter: source.StartAfter, CommittedThrough: through}, true, nil
+}
+
+func (a *messageDBChannelStoreAdapter) ReadMQTTReplayReadiness(ctx context.Context, through uint64) (ch.MQTTReplayReadiness, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayReadiness{}, err
+	}
+	r, err := a.store.ReadMQTTReplayReadiness(ctx, through)
+	if err != nil {
+		return ch.MQTTReplayReadiness{}, a.mapError(err)
+	}
+	return ch.MQTTReplayReadiness{CommittedThrough: r.CommittedThrough, AnchorPosition: r.AnchorPosition, RequiredThrough: r.RequiredThrough, Covered: r.Covered}, nil
+}
+
+// ReleaseMQTTSourceAtAnchor keeps generation and position as the only inputs;
+// the message store derives the watermark and receipt from its durable proof.
+func (a *messageDBChannelStoreAdapter) ReleaseMQTTSourceAtAnchor(ctx context.Context, generation string, position uint64) error {
+	if err := a.ensureOpen(); err != nil {
+		return err
+	}
+	_, err := a.store.ReleaseMQTTSourceAtAnchor(ctx, generation, position)
+	return a.mapError(err)
+}
+
+// PrepareMQTTReplay translates storage-owned envelopes without another body
+// clone; their lifetime is independent of this temporary store lease.
+func (a *messageDBChannelStoreAdapter) PrepareMQTTReplay(ctx context.Context, req ch.MQTTReplayRange) (ch.MQTTReplayPage, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayPage{}, err
+	}
+	if !req.Valid() {
+		return ch.MQTTReplayPage{}, ch.ErrInvalidConfig
+	}
+	page, err := a.store.PrepareMQTTReplay(ctx, req.Generation, req.From, req.Through, messagedb.ReadOptions{Limit: req.Limit, MaxBytes: req.MaxBytes})
+	if err != nil {
+		return ch.MQTTReplayPage{}, a.mapError(err)
+	}
+	return fromDBMQTTReplayPage(page), nil
+}
+
+func fromDBMQTTReplayPrefix(p messagedb.MQTTReplayState) ch.MQTTReplayPrefix {
+	return ch.MQTTReplayPrefix{Generation: p.Generation, StartAfter: p.StartAfter, Through: p.Through, TotalBytes: p.TotalBytes, TotalStoredBytes: p.TotalStoredBytes, Digest: p.Digest}
+}
+
+func fromDBMQTTReplayPage(page messagedb.MQTTReplayTransfer) ch.MQTTReplayPage {
+	out := ch.MQTTReplayPage{Before: fromDBMQTTReplayPrefix(page.Before), After: fromDBMQTTReplayPrefix(page.After), Records: make([]ch.MQTTReplayRecord, len(page.Records))}
+	for i, r := range page.Records {
+		out.Records[i] = ch.MQTTReplayRecord{Position: r.Position, ContentVersion: r.ContentVersion, MessageID: r.MessageID,
+			AccountedBytes: r.AccountedBytes, TotalBytes: r.TotalBytes, TotalStoredBytes: r.TotalStoredBytes, ContentHash: r.ContentHash, Digest: r.Digest, Content: r.Content}
+	}
+	return out
+}
+
 func (a *messageDBChannelStoreAdapter) Close() error {
 	if a == nil {
 		return nil
@@ -983,30 +1121,34 @@ func (a *messageDBChannelStoreAdapter) Close() error {
 	return a.closeErr
 }
 
-func (a *messageDBChannelStoreAdapter) encodeRecords(records []ch.Record) []channel.Record {
+func (a *messageDBChannelStoreAdapter) encodeRecords(records []ch.Record) ([]channel.Record, error) {
 	return encodeRecordsForMessageDB(a.id, records)
 }
 
-func encodeRecordsForMessageDB(id ch.ChannelID, records []ch.Record) []channel.Record {
+func encodeRecordsForMessageDB(id ch.ChannelID, records []ch.Record) ([]channel.Record, error) {
 	out := make([]channel.Record, len(records))
 	for i, record := range records {
 		msg := channel.Message{
-			MessageID:         record.ID,
-			MessageSeq:        record.Index,
-			Framer:            frame.Framer{SyncOnce: record.SyncOnce, RedDot: record.RedDot},
-			Setting:           frame.Setting(record.Setting),
-			Expire:            record.Expire,
-			ChannelID:         id.ID,
-			ChannelType:       id.Type,
-			FromUID:           record.FromUID,
-			ClientMsgNo:       record.ClientMsgNo,
-			ServerTimestampMS: record.ServerTimestampMS,
-			Payload:           cloneBytes(record.Payload),
+			MessageID:           record.ID,
+			MessageSeq:          record.Index,
+			Framer:              frame.Framer{SyncOnce: record.SyncOnce, RedDot: record.RedDot},
+			Setting:             frame.Setting(record.Setting),
+			Expire:              record.Expire,
+			ChannelID:           id.ID,
+			ChannelType:         id.Type,
+			FromUID:             record.FromUID,
+			ClientMsgNo:         record.ClientMsgNo,
+			ServerTimestampMS:   record.ServerTimestampMS,
+			Payload:             cloneBytes(record.Payload),
+			PublicationMetadata: cloneBytes(record.PublicationMetadata),
 		}
-		payload, _ := encodeDBCompatibleMessage(msg)
+		payload, err := encodeDBCompatibleMessage(msg)
+		if err != nil {
+			return nil, ch.ErrInvalidConfig
+		}
 		out[i] = channel.Record{ID: record.ID, Index: record.Index, Epoch: record.Epoch, Payload: payload, SizeBytes: len(payload)}
 	}
-	return out
+	return out, nil
 }
 
 type applyFetchStore interface {
@@ -1028,18 +1170,19 @@ func fromDBRecord(record channel.Record) ch.Record {
 	msg, err := decodeDBCompatibleMessage(record.Payload)
 	if err == nil {
 		return ch.Record{
-			ID:                msg.MessageID,
-			Index:             record.Index,
-			Epoch:             record.Epoch,
-			FromUID:           msg.FromUID,
-			ClientMsgNo:       msg.ClientMsgNo,
-			Setting:           uint8(msg.Setting),
-			Payload:           cloneBytes(msg.Payload),
-			SizeBytes:         len(msg.Payload),
-			ServerTimestampMS: msg.ServerTimestampMS,
-			SyncOnce:          msg.Framer.SyncOnce,
-			RedDot:            msg.Framer.RedDot,
-			Expire:            msg.Expire,
+			ID:                  msg.MessageID,
+			Index:               record.Index,
+			Epoch:               record.Epoch,
+			FromUID:             msg.FromUID,
+			ClientMsgNo:         msg.ClientMsgNo,
+			Setting:             uint8(msg.Setting),
+			Payload:             cloneBytes(msg.Payload),
+			PublicationMetadata: cloneBytes(msg.PublicationMetadata),
+			SizeBytes:           len(msg.Payload) + len(msg.PublicationMetadata),
+			ServerTimestampMS:   msg.ServerTimestampMS,
+			SyncOnce:            msg.Framer.SyncOnce,
+			RedDot:              msg.Framer.RedDot,
+			Expire:              msg.Expire,
 		}
 	}
 	return ch.Record{ID: record.ID, Index: record.Index, Epoch: record.Epoch, Payload: cloneBytes(record.Payload), SizeBytes: record.SizeBytes}
@@ -1048,7 +1191,7 @@ func fromDBRecord(record channel.Record) ch.Record {
 // fromOwnedDBMessage transfers a MessageDB read result to the Channel caller.
 // MessageDB returns independent payloads; the source must not be reused.
 func fromOwnedDBMessage(msg channel.Message) ch.Message {
-	return ch.Message{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, Setting: uint8(msg.Setting), FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Payload: msg.Payload, ServerTimestampMS: msg.ServerTimestampMS, SyncOnce: msg.Framer.SyncOnce, RedDot: msg.Framer.RedDot, Expire: msg.Expire}
+	return ch.Message{MessageID: msg.MessageID, MessageSeq: msg.MessageSeq, ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, Setting: uint8(msg.Setting), FromUID: msg.FromUID, ClientMsgNo: msg.ClientMsgNo, Payload: msg.Payload, PublicationMetadata: msg.PublicationMetadata, ServerTimestampMS: msg.ServerTimestampMS, SyncOnce: msg.Framer.SyncOnce, RedDot: msg.Framer.RedDot, Expire: msg.Expire}
 }
 
 const durableMessageHeaderSize = 45
@@ -1058,6 +1201,12 @@ var durableServerTimestampMagic = [...]byte{'w', 'k', 't', 's'}
 const durableServerTimestampSize = 12
 
 func encodeDBCompatibleMessage(message channel.Message) ([]byte, error) {
+	// Publication records share the canonical storage codec rather than a
+	// second layout that could discard fields during Channel recovery.
+	if len(message.PublicationMetadata) != 0 {
+		record, err := messagedb.EncodeMessageRecord(message, 0)
+		return record.Payload, err
+	}
 	payloadHash := hashPayload(message.Payload)
 	size := durableMessageHeaderSize + 4 + len(message.MsgKey) + 4 + len(message.ClientMsgNo) + 4 + len(message.StreamNo) + 4 + len(message.ChannelID) + 4 + len(message.Topic) + 4 + len(message.FromUID) + 4 + len(message.Payload)
 	if message.ServerTimestampMS != 0 {
@@ -1086,6 +1235,9 @@ func encodeDBCompatibleMessage(message channel.Message) ([]byte, error) {
 func decodeDBCompatibleMessage(payload []byte) (channel.Message, error) {
 	if len(payload) < durableMessageHeaderSize {
 		return channel.Message{}, io.ErrUnexpectedEOF
+	}
+	if payload[0] == channel.PublicationMessageCodecVersion {
+		return messagedb.DecodeMessageRecord(channel.Record{ID: binary.BigEndian.Uint64(payload[1:9]), Payload: payload})
 	}
 	if payload[0] != channel.DurableMessageCodecVersion {
 		return channel.Message{}, ch.ErrInvalidConfig
@@ -1248,11 +1400,215 @@ func (a *messageDBChannelStoreAdapter) readIndexedCommitted(ctx context.Context,
 		if m.MessageSeq < req.MinSeq || m.MessageSeq > req.MaxSeq {
 			continue
 		}
-		used += len(m.Payload)
+		used += len(m.Payload) + len(m.PublicationMetadata)
 		if used > req.MaxBytes {
 			return ReadCommittedResult{}, ch.ErrInvalidConfig
 		}
 		out.Messages = append(out.Messages, fromOwnedDBMessage(m))
 	}
 	return out, ctx.Err()
+}
+
+// SupportsMQTTSourceActivation advertises the message store's atomic control
+// projection and retention guards, not a quorum or rollout proof.
+func (f *MessageDBFactory) SupportsMQTTSourceActivation() bool { return f != nil && f.engine != nil }
+
+// SupportsMQTTReplayAnchors advertises atomic format-5 control journal support.
+func (f *MessageDBFactory) SupportsMQTTReplayAnchors() bool { return f != nil && f.engine != nil }
+
+// SupportsMQTTReplayRetirements advertises journal persistence, not physical GC.
+func (f *MessageDBFactory) SupportsMQTTReplayRetirements() bool { return f != nil && f.engine != nil }
+
+func (a *messageDBChannelStoreAdapter) LoadMQTTReplayRetirement(ctx context.Context, position uint64) (ch.MQTTReplayRetirementProof, bool, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayRetirementProof{}, false, err
+	}
+	proof, found, err := a.store.LoadMQTTReplayRetirement(ctx, position)
+	if err != nil || !found {
+		return ch.MQTTReplayRetirementProof{}, found, a.mapError(err)
+	}
+	return ch.MQTTReplayRetirementProof{Retirement: proof.Retirement, Manifest: proof.Manifest}, true, nil
+}
+
+func (a *messageDBChannelStoreAdapter) LoadLatestMQTTReplayRetirement(ctx context.Context, generation string) (ch.MQTTReplayRetirementProof, bool, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayRetirementProof{}, false, err
+	}
+	proof, found, err := a.store.LoadLatestMQTTReplayRetirement(ctx, generation)
+	if err != nil || !found {
+		return ch.MQTTReplayRetirementProof{}, false, a.mapError(err)
+	}
+	return ch.MQTTReplayRetirementProof{Retirement: proof.Retirement, Manifest: proof.Manifest}, true, nil
+}
+
+func (a *messageDBChannelStoreAdapter) RetireMQTTReplay(ctx context.Context, generation string, position uint64, limit int) (ch.MQTTReplayRetirementResult, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayRetirementResult{}, err
+	}
+	if position == 0 || limit < 1 || limit > 256 {
+		return ch.MQTTReplayRetirementResult{}, ch.ErrInvalidConfig
+	}
+	r, err := a.store.RetireMQTTReplay(ctx, generation, position, limit)
+	if err != nil {
+		return ch.MQTTReplayRetirementResult{}, a.mapError(err)
+	}
+	return ch.MQTTReplayRetirementResult{RetirementPosition: r.RetirementPosition, Retired: fromDBMQTTReplayPrefix(r.Retired), DeletedThrough: r.DeletedThrough, Deleted: r.Deleted, Done: r.Done}, nil
+}
+
+func (a *messageDBChannelStoreAdapter) SelectMQTTReplayRetirementAnchor(ctx context.Context, q ch.MQTTReplayRetirementScan) (ch.MQTTReplayRetirementSelection, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayRetirementSelection{}, err
+	}
+	if !q.Valid() {
+		return ch.MQTTReplayRetirementSelection{}, ch.ErrInvalidConfig
+	}
+	p, err := a.store.SelectMQTTReplayRetirementAnchor(ctx, q.Generation, q.CapturedAnchor, q.Through, q.BeforeAnchor, q.Limit)
+	if err != nil {
+		return ch.MQTTReplayRetirementSelection{}, a.mapError(err)
+	}
+	out := ch.MQTTReplayRetirementSelection{
+		Captured: ch.MQTTReplayAnchorProof{Anchor: p.Captured.Anchor, Manifest: p.Captured.Manifest}, Candidate: ch.MQTTReplayAnchorProof{Anchor: p.Candidate.Anchor, Manifest: p.Candidate.Manifest},
+		HasCandidate: p.HasCandidate, Done: p.Done, BeforeAnchor: p.BeforeAnchor,
+	}
+	if !out.ValidFor(q) {
+		return ch.MQTTReplayRetirementSelection{}, ch.ErrLogConflict
+	}
+	return out, nil
+}
+
+func (a *messageDBChannelStoreAdapter) LoadMQTTReplayAnchor(ctx context.Context, position uint64) (ch.MQTTReplayAnchorProof, bool, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayAnchorProof{}, false, err
+	}
+	proof, found, err := a.store.LoadMQTTReplayAnchor(ctx, position)
+	if err != nil || !found {
+		return ch.MQTTReplayAnchorProof{}, found, a.mapError(err)
+	}
+	return ch.MQTTReplayAnchorProof{Anchor: proof.Anchor, Manifest: proof.Manifest}, true, nil
+}
+
+func (a *messageDBChannelStoreAdapter) ReadMQTTReplayAnchors(ctx context.Context, through uint64, command ch.CommandID) (ch.MQTTReplayAnchorState, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayAnchorState{}, err
+	}
+	state, err := a.store.ReadMQTTReplayAnchors(ctx, through, command)
+	if err != nil {
+		return ch.MQTTReplayAnchorState{}, a.mapError(err)
+	}
+	proof := func(p messagedb.MQTTReplayAnchorProof) ch.MQTTReplayAnchorProof {
+		return ch.MQTTReplayAnchorProof{Anchor: p.Anchor, Manifest: p.Manifest}
+	}
+	return ch.MQTTReplayAnchorState{Source: ch.MQTTSourceSnapshot{Generation: state.Source.Generation, StartAfter: state.Source.StartAfter, CommittedThrough: state.CommittedThrough}, Latest: proof(state.Latest), Requested: proof(state.Requested), HasLatest: state.HasLatest, HasRequested: state.HasRequested, MaintenanceOnly: state.MaintenanceOnly}, nil
+}
+
+func (a *messageDBChannelStoreAdapter) ExportMQTTReplayAnchor(ctx context.Context, position uint64, req ch.MQTTReplayRange) (ch.MQTTReplayPage, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayPage{}, err
+	}
+	if !req.Valid() || position <= req.Through {
+		return ch.MQTTReplayPage{}, ch.ErrInvalidConfig
+	}
+	page, err := a.store.ExportMQTTReplayAnchor(ctx, position, req.From, messagedb.ReadOptions{Limit: req.Limit, MaxBytes: req.MaxBytes})
+	if err != nil {
+		return ch.MQTTReplayPage{}, a.mapError(err)
+	}
+	if page.After.Generation != req.Generation || page.After.Through != req.Through {
+		return ch.MQTTReplayPage{}, ch.ErrLogConflict
+	}
+	return fromDBMQTTReplayPage(page), nil
+}
+
+// ReadMQTTReplayAnchor preserves storage's independently committed coverage and
+// short-page bounds without falling back to ordinary history.
+func (a *messageDBChannelStoreAdapter) ReadMQTTReplayAnchor(ctx context.Context, position uint64, req ch.MQTTReplayRange) (ch.MQTTReplayConsumerPage, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayConsumerPage{}, err
+	}
+	if !req.Valid() || position == 0 || req.Through >= position {
+		return ch.MQTTReplayConsumerPage{}, ch.ErrInvalidConfig
+	}
+	page, err := a.store.ReadMQTTReplayMessages(ctx, req.Generation, position, req.From, req.Through, messagedb.ReadOptions{Limit: req.Limit, MaxBytes: req.MaxBytes})
+	if err != nil {
+		return ch.MQTTReplayConsumerPage{}, a.mapError(err)
+	}
+	out := ch.MQTTReplayConsumerPage{Before: fromDBMQTTReplayPrefix(page.Before), After: fromDBMQTTReplayPrefix(page.After), Records: make([]ch.MQTTReplayPublication, len(page.Records))}
+	for i, r := range page.Records {
+		out.Records[i] = ch.MQTTReplayPublication{Message: fromOwnedDBMessage(r.Message), Internal: r.Internal, ContentVersion: r.ContentVersion, AccountedBytes: r.AccountedBytes, TotalBytes: r.TotalBytes, TotalStoredBytes: r.TotalStoredBytes, ContentHash: r.ContentHash, Digest: r.Digest}
+	}
+	if !out.ValidFor(a.id, req) {
+		return ch.MQTTReplayConsumerPage{}, ch.ErrLogConflict
+	}
+	return out, nil
+}
+
+func (a *messageDBChannelStoreAdapter) ImportMQTTReplayAnchor(ctx context.Context, position uint64, page ch.MQTTReplayPage) (ch.MQTTReplayPrefix, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayPrefix{}, err
+	}
+	rangeReq := ch.MQTTReplayRange{Generation: page.After.Generation, From: page.Before.Through + 1, Through: page.After.Through, Limit: 256, MaxBytes: 16 << 20}
+	if position <= page.After.Through || !page.ValidFor(rangeReq) {
+		return ch.MQTTReplayPrefix{}, ch.ErrInvalidConfig
+	}
+	prefix := func(p ch.MQTTReplayPrefix) messagedb.MQTTReplayState {
+		return messagedb.MQTTReplayState{Generation: p.Generation, StartAfter: p.StartAfter, Through: p.Through, TotalBytes: p.TotalBytes, TotalStoredBytes: p.TotalStoredBytes, Digest: p.Digest}
+	}
+	in := messagedb.MQTTReplayTransfer{Before: prefix(page.Before), After: prefix(page.After), Records: make([]messagedb.MQTTReplayRecord, len(page.Records))}
+	for i, r := range page.Records {
+		in.Records[i] = messagedb.MQTTReplayRecord{Position: r.Position, ContentVersion: r.ContentVersion, MessageID: r.MessageID,
+			AccountedBytes: r.AccountedBytes, TotalBytes: r.TotalBytes, TotalStoredBytes: r.TotalStoredBytes, ContentHash: r.ContentHash, Digest: r.Digest, Content: r.Content}
+	}
+	result, err := a.store.ImportMQTTReplayAnchor(ctx, position, in)
+	if err != nil {
+		return ch.MQTTReplayPrefix{}, a.mapError(err)
+	}
+	return fromDBMQTTReplayPrefix(result), nil
+}
+
+func (a *messageDBChannelStoreAdapter) PlanMQTTReplayRepair(ctx context.Context, q ch.MQTTReplayRepairScan) (ch.MQTTReplayRepairPlan, error) {
+	if err := a.ensureOpen(); err != nil {
+		return ch.MQTTReplayRepairPlan{}, err
+	}
+	if !q.Valid() {
+		return ch.MQTTReplayRepairPlan{}, ch.ErrInvalidConfig
+	}
+	p, err := a.store.PlanMQTTReplayRepair(ctx, q.Generation, q.TargetAnchor, q.AfterAnchor, q.Limit)
+	if err != nil {
+		return ch.MQTTReplayRepairPlan{}, a.mapError(err)
+	}
+	out := ch.MQTTReplayRepairPlan{Current: fromDBMQTTReplayPrefix(p.Current), Target: ch.MQTTReplayAnchorProof{Anchor: p.Target.Anchor, Manifest: p.Target.Manifest}, Next: ch.MQTTReplayAnchorProof{Anchor: p.Next.Anchor, Manifest: p.Next.Manifest}, HasNext: p.HasNext, Complete: p.Complete, ScanAfter: p.ScanAfter}
+	if !out.ValidFor(q) {
+		return ch.MQTTReplayRepairPlan{}, ch.ErrLogConflict
+	}
+	return out, nil
+}
+
+// MQTTStorageEnabled advertises finite product storage admission.
+func (f *MessageDBFactory) MQTTStorageEnabled() bool {
+	return f != nil && f.engine.MQTTStorageEnabled()
+}
+func (a *messageDBChannelStoreAdapter) PrepareMQTTStorage(ctx context.Context, manifest ch.ProposalManifest, records []ch.Record, committed, nonce uint64, cancel bool) (MQTTStoragePreparation, error) {
+	if err := a.ensureOpen(); err != nil {
+		return MQTTStoragePreparation{}, err
+	}
+	converted, err := a.encodeRecords(records)
+	if err != nil {
+		return MQTTStoragePreparation{}, err
+	}
+	out, err := a.store.PrepareMQTTStorage(ctx, manifest, converted, committed, nonce, cancel)
+	return MQTTStoragePreparation{Nonce: out.Nonce, Prepared: out.Prepared, Canceled: out.Canceled, NeedFrom: out.NeedFrom}, a.mapError(err)
+}
+func (a *messageDBChannelStoreAdapter) MQTTStorageProtection(ctx context.Context) (bool, error) {
+	if err := a.ensureOpen(); err != nil {
+		return false, err
+	}
+	found, err := a.store.MQTTStorageProtection(ctx)
+	return found, a.mapError(err)
+}
+
+// MaintainMQTTStorage is driven by the existing cluster periodic owner.
+func (f *MessageDBFactory) MaintainMQTTStorage(ctx context.Context) error {
+	if f == nil || f.engine == nil {
+		return nil
+	}
+	return f.engine.MaintainMQTTStorage(ctx)
 }

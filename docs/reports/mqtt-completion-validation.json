@@ -1,0 +1,21 @@
+{
+  "scenario": "mqtt-subscription-completion-cas",
+  "base_revision": "95a8b291e",
+  "failure_matrix_cases": 19,
+  "tests_written_before_implementation": true,
+  "focused_race_seconds": 6.721,
+  "unit_seconds": 119.501,
+  "integration_race_seconds": {
+    "internal/app": 5.245,
+    "internal/usecase/mqttsession": 3.438
+  },
+  "vet_passed": true,
+  "flow_doc_contracts": {
+    "compliant": 87,
+    "invalid": 0,
+    "warnings": 11
+  },
+  "passed": true,
+  "scope": "Final completion after definite parent CAS rejection; not complete MQTT load acceptance",
+  "binary_sha256": "a3e9295febe1e79ffa0b8ef77b0ea519ca799b0689bc733b592f10c387b7f8fd"
+}

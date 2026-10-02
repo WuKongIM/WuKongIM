@@ -33,6 +33,7 @@ func (p durableProposal) freeze() durableProposal {
 	p.records = append([]ch.Record(nil), p.records...)
 	for index := range p.records {
 		p.records[index].Payload = append([]byte(nil), p.records[index].Payload...)
+		p.records[index].PublicationMetadata = append([]byte(nil), p.records[index].PublicationMetadata...)
 	}
 	p.payloadsImmutable = true
 	return p

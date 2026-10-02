@@ -1,0 +1,26 @@
+{
+  "base_revision": "bc41096de863e0dad7f1398a894769dc33b96947",
+  "diagnostic_only": true,
+  "binary_sha256": "bfb98c0432c8b909a5ed25589fb10f39ea423827859a87835d285ac57646997a",
+  "instrumentation": "Temporary go build overlay adds fixed source-position wrappers preserving nil and errors.Is; access logs failed subscription errors. No identities, payloads or credentials are added. No product files were changed by this probe.",
+  "reduced_churn_pass": {
+    "members": 2000,
+    "connections": 500,
+    "messages": 2,
+    "retired": 600,
+    "heartbeat_count": 5,
+    "elapsed_seconds": 107.3
+  },
+  "twenty_message_attempt": {
+    "failed_phase": "fanout",
+    "elapsed_seconds": 206.26,
+    "fanout_wait_seconds": 180,
+    "subscription_error_position_captured": false
+  },
+  "earlier_cold_probe": {
+    "observed": "channel: backpressured",
+    "closures": 3,
+    "exact_channel_stage": "not captured"
+  },
+  "limits": "Diagnostic results do not qualify the 100,000-member workload or prove repair of remaining subscription conflicts/backpressure/fanout latency."
+}

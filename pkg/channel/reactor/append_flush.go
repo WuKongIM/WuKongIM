@@ -48,6 +48,27 @@ func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 		rc.appendQ.storeBlocked = false
 		return
 	}
+	for _, req := range batch.requests {
+		if err := r.validateAppendRouteFence(rc, req.req); err != nil {
+			rc.appendQ.storeBlocked = false
+			r.failAppendBatch(rc, batch, err)
+			return
+		}
+	}
+	if q := batch.requests[0].mqttAnchor; q != nil {
+		if err := r.validateMQTTAnchorAdmission(batch.requests[0].ctx, rc, *q); err != nil {
+			rc.appendQ.storeBlocked = false
+			r.failAppendBatch(rc, batch, err)
+			return
+		}
+	}
+	if q := batch.requests[0].mqttRetirement; q != nil {
+		if err := r.validateMQTTRetirementAdmission(batch.requests[0].ctx, rc, *q); err != nil {
+			rc.appendQ.storeBlocked = false
+			r.failAppendBatch(rc, batch, err)
+			return
+		}
+	}
 	decision := rc.state.ProposeAppendBatch(machine.AppendBatchCommand{
 		BatchOpID: batch.batchOpID,
 		Waiters:   appendBatchWaiters(batch.requests),
@@ -71,13 +92,20 @@ func (r *Reactor) tryFlushAppend(rc *runtimeChannel, now time.Time) {
 	}
 	batch.trace = selectAppendTraceBatch(batch)
 	var submitErr error
-	if r.cfg.QuorumLog != nil {
+	if q := batch.requests[0].mqttAnchor; q != nil {
+		batch.authority = rc.quorumAuthority.ID
+		submitErr = r.submitQuorumMQTTAnchor(batch.fence, *q)
+	} else if q := batch.requests[0].mqttRetirement; q != nil {
+		batch.authority = rc.quorumAuthority.ID
+		submitErr = r.submitQuorumMQTTRetirement(batch.fence, *q)
+	} else if r.cfg.QuorumLog != nil {
 		batch.authority = rc.quorumAuthority.ID
 		batch.commandID = appendProposalCommandID(rc.state.Key, batch.authority, batch.records)
 		submitErr = r.submitQuorumCommit(context.Background(), batch.fence, replication.Proposal{
 			Key: rc.state.Key, Expected: batch.authority, CommandID: batch.commandID, Records: batch.records,
 			PayloadsImmutable:         true,
 			ServerAllocatedMessageIDs: task.StoreAppend.ServerAllocatedMessageIDs,
+			MQTTSourceActivation:      batch.requests[0].mqttSourceActivation,
 		})
 	} else {
 		submitErr = r.submitStoreAppend(context.Background(), batch.requests[0].req.ChannelID, task)

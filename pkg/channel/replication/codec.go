@@ -6,6 +6,7 @@ import (
 	"math"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/publication"
 )
 
 const (
@@ -26,17 +27,27 @@ func EncodeExchangeBatch(batch ExchangeBatch) ([]byte, error) {
 	buf = append(buf, byte(batch.Priority))
 	buf = appendCodecUvarint(buf, uint64(len(batch.Items)))
 	for _, item := range batch.Items {
-		if item.RequestID == 0 {
+		if item.RequestID == 0 || item.Kind != ExchangeStoragePrepare && item.Kind != ExchangeStorageCancel && item.FundingNonce != 0 {
 			return nil, ch.ErrInvalidConfig
 		}
 		buf = appendCodecUvarint(buf, item.RequestID)
 		buf = append(buf, byte(item.Kind))
 		switch item.Kind {
-		case ExchangeReplicate:
+		case ExchangeReplicate, ExchangeStoragePrepare, ExchangeStorageCancel:
 			if item.Replicate == nil || item.Probe != nil || item.Fetch != nil || !item.Replicate.Valid() {
 				return nil, ch.ErrInvalidConfig
 			}
+			if item.Kind != ExchangeReplicate {
+				if batch.Priority != ExchangePriorityForeground || item.FundingNonce == 0 {
+					return nil, ch.ErrInvalidConfig
+				}
+			} else if item.FundingNonce != 0 {
+				return nil, ch.ErrInvalidConfig
+			}
 			buf = appendReplicateRequest(buf, *item.Replicate)
+			if item.Kind != ExchangeReplicate {
+				buf = appendCodecUvarint(buf, item.FundingNonce)
+			}
 		case ExchangeProbe:
 			if batch.Priority != ExchangePriorityForeground || item.Probe == nil || item.Replicate != nil || item.Fetch != nil || !item.Probe.Valid() {
 				return nil, ch.ErrInvalidConfig
@@ -85,12 +96,19 @@ func DecodeExchangeBatch(data []byte) (ExchangeBatch, error) {
 		}
 		item := ExchangeItem{RequestID: requestID, Kind: ExchangeKind(kind)}
 		switch item.Kind {
-		case ExchangeReplicate:
+		case ExchangeReplicate, ExchangeStoragePrepare, ExchangeStorageCancel:
 			request, valid := c.replicateRequest()
 			if !valid || !request.Valid() {
 				return ExchangeBatch{}, errInvalidExchangeFrame
 			}
 			item.Replicate = &request
+			if item.Kind != ExchangeReplicate {
+				nonce, ok := c.uvarint()
+				if priority != ExchangePriorityForeground || !ok || nonce == 0 {
+					return ExchangeBatch{}, errInvalidExchangeFrame
+				}
+				item.FundingNonce = nonce
+			}
 		case ExchangeProbe:
 			request, valid := c.probeRequest()
 			if priority != ExchangePriorityForeground || !valid || !request.Valid() {
@@ -126,7 +144,17 @@ func EncodeExchangeBatchResult(result ExchangeBatchResult) ([]byte, error) {
 			len(item.Fetch.Proposals) > maxRecoveryReplacementProposals {
 			return nil, ch.ErrInvalidConfig
 		}
+		for _, proposal := range item.Fetch.Proposals {
+			if !validProposalRecords(proposal.Records, MaxExchangeBatchBytes) {
+				return nil, ch.ErrInvalidConfig
+			}
+		}
 		buf = appendCodecUvarint(buf, item.RequestID)
+		buf = appendCodecUvarint(buf, item.Funding.Nonce)
+		buf = appendCodecBool(buf, item.Funding.Prepared)
+		buf = appendCodecBool(buf, item.Funding.Canceled)
+		buf = appendCodecUvarint(buf, item.Funding.NeedFrom)
+		buf = appendReplicateProof(buf, item.Funding.Proof)
 		buf = appendReplicateResult(buf, item.Replicate)
 		buf = appendProbeResult(buf, item.Probe)
 		buf = appendFetchResult(buf, item.Fetch)
@@ -154,13 +182,22 @@ func DecodeExchangeBatchResult(data []byte) (ExchangeBatchResult, error) {
 	result := ExchangeBatchResult{Version: ExchangeVersion, Items: make([]ExchangeItemResult, count)}
 	for index := range result.Items {
 		requestID, valid := c.uvarint()
+		nonce, okNonce := c.uvarint()
+		prepared, okPrepared := c.boolean()
+		canceled, okCanceled := c.boolean()
+		need, okNeed := c.uvarint()
+		proof, okProof := c.replicateProof()
+		funding := StorageFundingResult{Nonce: nonce, Prepared: prepared, Canceled: canceled, NeedFrom: need, Proof: proof}
+		if !okNonce || !okPrepared || !okCanceled || !okNeed || !okProof || prepared && canceled {
+			return ExchangeBatchResult{}, errInvalidExchangeFrame
+		}
 		replicate, validReplicate := c.replicateResult()
 		probe, validProbe := c.probeResult()
 		fetch, validFetch := c.fetchResult()
 		if !valid || requestID == 0 || !validReplicate || !validProbe || !validFetch {
 			return ExchangeBatchResult{}, errInvalidExchangeFrame
 		}
-		result.Items[index] = ExchangeItemResult{RequestID: requestID, Replicate: replicate, Probe: probe, Fetch: fetch}
+		result.Items[index] = ExchangeItemResult{RequestID: requestID, Funding: funding, Replicate: replicate, Probe: probe, Fetch: fetch}
 	}
 	if c.offset != len(data) {
 		return ExchangeBatchResult{}, errInvalidExchangeFrame
@@ -313,6 +350,7 @@ func appendRecords(dst []byte, records []ch.Record) []byte {
 		dst = appendCodecBool(dst, record.RedDot)
 		dst = appendCodecUvarint(dst, uint64(record.Expire))
 		dst = appendCodecBytes(dst, record.Payload)
+		dst = appendCodecBytes(dst, record.PublicationMetadata)
 		dst = appendCodecUvarint(dst, uint64(record.SizeBytes))
 	}
 	return dst
@@ -410,8 +448,10 @@ func (c *exchangeCursor) boolean() (bool, bool) {
 	return value == 1, ok && value <= 1
 }
 
-func (c *exchangeCursor) bytes() ([]byte, bool) {
-	count, ok := c.count(MaxExchangeBatchBytes)
+func (c *exchangeCursor) bytes() ([]byte, bool) { return c.bytesBounded(MaxExchangeBatchBytes) }
+
+func (c *exchangeCursor) bytesBounded(maxBytes int) ([]byte, bool) {
+	count, ok := c.count(maxBytes)
 	if !ok || count > len(c.data)-c.offset {
 		return nil, false
 	}
@@ -645,15 +685,16 @@ func (c *exchangeCursor) records() ([]ch.Record, bool) {
 			okExpire = false
 		}
 		payload, okPayload := c.bytes()
+		metadata, okMetadata := c.bytesBounded(publication.MaxEncodedBytes)
 		sizeBytes, okSize := c.uvarint()
 		if sizeBytes > math.MaxInt {
 			okSize = false
 		}
 		records[index] = ch.Record{
 			ID: id, Index: recordIndex, Epoch: epoch, Setting: setting, FromUID: fromUID, ClientMsgNo: clientMsgNo,
-			ServerTimestampMS: timestamp, SyncOnce: syncOnce, RedDot: redDot, Expire: uint32(expire), Payload: payload, SizeBytes: int(sizeBytes),
+			ServerTimestampMS: timestamp, SyncOnce: syncOnce, RedDot: redDot, Expire: uint32(expire), Payload: payload, PublicationMetadata: metadata, SizeBytes: int(sizeBytes),
 		}
-		okCount = okCount && okID && okIndex && okEpoch && okSetting && okFrom && okClient && okTimestamp && okSync && okRedDot && okExpire && okPayload && okSize
+		okCount = okCount && okID && okIndex && okEpoch && okSetting && okFrom && okClient && okTimestamp && okSync && okRedDot && okExpire && okPayload && okMetadata && okSize
 	}
-	return records, okCount
+	return records, okCount && validProposalRecords(records, MaxExchangeBatchBytes)
 }

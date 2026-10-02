@@ -254,8 +254,12 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 		local: cfg.LocalNode, ownerContext: ctx, localTimeout: cfg.LocalTimeout,
 		store: cfg.Store, peers: peers, executor: executor,
 	}
+	var funding storageFundingDispatcher
+	if port, ok := cfg.Store.(storageFundingStore); ok {
+		funding = &runtimeStorageFunding{store: port, peers: peers, timeout: cfg.RecoveryTimeout, repairs: repairs}
+	}
 	log, err := newQuorumLog(quorumLogConfig{
-		Local: cfg.LocalNode, Store: cfg.Store, Recovery: recovery, Durability: dispatcher,
+		Local: cfg.LocalNode, Store: cfg.Store, Recovery: recovery, Durability: dispatcher, Funding: funding,
 		RepairAuthorities: repairs,
 		RecoveryTimeout:   cfg.RecoveryTimeout, RecoveryPageBytes: cfg.RecoveryPageBytes,
 		MaxChannels: cfg.MaxChannels, MaxVoters: cfg.MaxVoters, MaxProposalRecords: cfg.BatchItems,
@@ -817,7 +821,7 @@ func (o *runtimeRepairOwner) repairFromFrontier(ctx context.Context, repair foll
 			From: from, Through: pageThrough, Previous: previous, MaxBytes: o.maxPageBytes,
 		}})
 		if len(pages) != 1 || pages[0].Err != nil || len(pages[0].Proposals) == 0 {
-			return from, false
+			return o.resumeRepairAtVerifiedTail(ctx, repair, state)
 		}
 		for _, proposal := range pages[0].Proposals {
 			request := ReplicateRequest{
@@ -857,6 +861,49 @@ func (o *runtimeRepairOwner) repairFromFrontier(ctx context.Context, repair foll
 		return from, from > through
 	}
 	return from, true
+}
+
+// resumeRepairAtVerifiedTail handles an unavailable original prefix without
+// weakening exact replication. A matching durable tail proves only that this
+// follower already has the prefix; it supplies neither authority nor a vote.
+// One peer probe and one local identity read bound this fallback turn.
+func (o *runtimeRepairOwner) resumeRepairAtVerifiedTail(ctx context.Context, repair followerRepair, expected ReplicaState) (uint64, bool) {
+	from := repair.needFrom
+	request := ProbeRequest{ChannelKey: repair.channelKey, ChannelID: repair.channelID, Leader: repair.leader, Follower: repair.follower}
+	completion := make(chan recoveryProbeCompletion, 1)
+	if err := o.peers.submitProbe(ctx, repair.follower, request, func(result ProbeResult, err error) {
+		completion <- recoveryProbeCompletion{result: result, err: err}
+	}); err != nil {
+		return from, false
+	}
+	var follower ReplicaState
+	select {
+	case <-ctx.Done():
+		return from, false
+	case done := <-completion:
+		if done.err != nil || !validPeerProbeResult(request, done.result) {
+			return from, false
+		}
+		follower = done.result.State
+	}
+	through := repair.manifest.LastOffset
+	if follower.LEO < from || follower.LEO > through {
+		return from, false
+	}
+	local, err := loadRecoveryReplicaState(ctx, o.store, repair.channelKey, repair.channelID, []uint64{follower.LEO})
+	if err != nil || ctx.Err() != nil || local.State != expected || len(local.Entries) != 1 ||
+		!local.Entries[0].Present || local.Entries[0].Identity != follower.TailIdentity {
+		return from, false
+	}
+	if follower.LEO < through {
+		return follower.LEO + 1, false
+	}
+	if follower.Committed >= minUint64(max(expected.Committed, repair.committed), through) {
+		return from, true
+	}
+	// The bytes may be durable before their commit checkpoint. Replay the final
+	// exact proposal to carry HW; LEO alone cannot complete that obligation.
+	return max(from, repair.manifest.BaseOffset+1), false
 }
 
 func minUint64(left, right uint64) uint64 {

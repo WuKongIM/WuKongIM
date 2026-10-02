@@ -71,6 +71,9 @@ type connState struct {
 
 	wsWriteOp   atomic.Uint32
 	wsCloseSent atomic.Bool
+	// closeReceipt is allocated only when physical isolation is requested.
+	// Its presence permanently fences new transport submissions.
+	closeReceipt atomic.Pointer[physicalCloseReceipt]
 
 	// outboundSubmitMu preserves raw submission order and fences later writes
 	// after an ambiguous asynchronous trigger error.
@@ -530,6 +533,9 @@ func (c *stateConn) ID() uint64 {
 }
 
 func (c *stateConn) Write(data []byte) error {
+	if c.state.closeReceipt.Load() != nil {
+		return transport.ErrConnectionClosing
+	}
 	if c.state.runtime != nil && c.state.runtime.opts.Network == "websocket" {
 		return c.writeWebSocket(data, transport.WebSocketMessageUnknown)
 	}
@@ -538,6 +544,9 @@ func (c *stateConn) Write(data []byte) error {
 
 // WriteObserved submits one TCP payload and preserves its physical callback boundary.
 func (c *stateConn) WriteObserved(data []byte, _ string, complete func(error)) error {
+	if c.state.closeReceipt.Load() != nil {
+		return transport.ErrConnectionClosing
+	}
 	if c.state.runtime != nil && c.state.runtime.opts.Network == "websocket" {
 		return c.Write(data)
 	}
@@ -560,6 +569,9 @@ func (c *stateConn) writeTCP(data []byte, complete func(error)) error {
 }
 
 func (c *stateConn) WriteWebSocketMessage(data []byte, messageType transport.WebSocketMessageType) error {
+	if c.state.closeReceipt.Load() != nil {
+		return transport.ErrConnectionClosing
+	}
 	if c.state.runtime == nil || c.state.runtime.opts.Network != "websocket" {
 		return c.Write(data)
 	}

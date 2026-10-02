@@ -29,6 +29,10 @@ depending on their frames, JSON, or concrete cluster runtimes.
 
 ## Main Flows
 
+`CheckPublishPermission` reuses person/group policy with uncached authority reads
+and a narrow UID/ordinary-target query. It fails without authority and performs no
+SEND hooks, directory writes or append; delayed publications must authorize again. PrepareWill runs payload-only hooks; SendPreparedWill rechecks fresh policy and delegates frozen output through ordinary directory/append without rerunning transformations. A trusted Will admission callback stays on the origin batch item, outside hooks and wire metadata, for the router to consume.
+
 1. `SendBatchEach` uses an allocation-tight single-item path at cardinality one;
    larger batches coalesce equivalent raw permission reads. Both evaluate the
    same legacy policy, establish each accepted person directory once, run hooks
@@ -68,6 +72,7 @@ depending on their frames, JSON, or concrete cluster runtimes.
   Equivalent reads may be coalesced; commands and outcomes may not.
 - A missing submitter is route-not-ready. Permission, directory, or hook
   failures remain item-local; batch order and cardinality are preserved.
+- Before-send validates publication provenance before callbacks. Empty MQTT input/replacement is valid; native bodies stay nonempty and nil replacement preserves input.
 - Permission and directory concurrency, batch sync size, page limits, event
   enrichment, and observer data are bounded. No identity enters metric labels.
   Submitter deadline errors preserve the original cause while attaching only

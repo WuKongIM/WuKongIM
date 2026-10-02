@@ -1,0 +1,43 @@
+--- FAIL: TestMQTTOriginalsShareFreshAuthorityAcrossPlanAndContent (0.00s)
+    mqtt_originals_test.go:51: 
+        	Error Trace:	pkg/cluster/channels/mqtt_originals_test.go:51
+        	Error:      	Not equal: 
+        	            	expected: 2
+        	            	actual  : 5
+        	Test:       	TestMQTTOriginalsShareFreshAuthorityAcrossPlanAndContent
+        	Messages:   	one fresh read before planning and one after refresh/content
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/pkg/cluster/channels	1.408s
+2026/09/30 17:37:23 Found 0 WALs
+2026/09/30 17:37:23 Found 0 WALs
+2026/09/30 17:37:23 Found 0 WALs
+2026/09/30 17:37:23 Found 0 WALs
+2026/09/30 17:37:24 Found 0 WALs
+2026/09/30 17:37:24 Found 0 WALs
+2026/09/30 17:37:24 Found 0 WALs
+2026/09/30 17:37:24 Found 0 WALs
+2026/09/30 17:37:24 Found 0 WALs
+2026/09/30 17:37:24 Found 0 WALs
+2026/09/30 17:37:24 Found 0 WALs
+2026/09/30 17:37:24 Found 0 WALs
+2026/09/30 17:37:24 Found 0 WALs
+2026/09/30 17:37:25 Found 0 WALs
+--- FAIL: TestWindowAdmissionCompoundOriginalsRetainOuterAuthorityAndOwnerChecks (1.69s)
+    --- FAIL: TestWindowAdmissionCompoundOriginalsRetainOuterAuthorityAndOwnerChecks/success (0.31s)
+        originals_compound_test.go:23: compound path must not make a separate plan call
+    --- FAIL: TestWindowAdmissionCompoundOriginalsRetainOuterAuthorityAndOwnerChecks/invalid_result (0.26s)
+        originals_compound_test.go:23: compound path must not make a separate plan call
+    --- FAIL: TestWindowAdmissionCompoundOriginalsRetainOuterAuthorityAndOwnerChecks/placement (0.23s)
+        originals_compound_test.go:23: compound path must not make a separate plan call
+    --- FAIL: TestWindowAdmissionCompoundOriginalsRetainOuterAuthorityAndOwnerChecks/permission (0.20s)
+        originals_compound_test.go:23: compound path must not make a separate plan call
+    --- FAIL: TestWindowAdmissionCompoundOriginalsRetainOuterAuthorityAndOwnerChecks/owner (0.28s)
+        originals_compound_test.go:23: compound path must not make a separate plan call
+    --- FAIL: TestWindowAdmissionCompoundOriginalsRetainOuterAuthorityAndOwnerChecks/canceled (0.21s)
+        originals_compound_test.go:23: compound path must not make a separate plan call
+    --- FAIL: TestWindowAdmissionCompoundOriginalsRetainOuterAuthorityAndOwnerChecks/dependency_error (0.21s)
+        originals_compound_test.go:23: compound path must not make a separate plan call
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession	3.387s
+ok  	github.com/WuKongIM/WuKongIM/pkg/cluster/net	1.983s
+FAIL

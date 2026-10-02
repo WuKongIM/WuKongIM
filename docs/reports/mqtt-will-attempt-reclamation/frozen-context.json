@@ -1,0 +1,45 @@
+{
+  "source_revision": "3f8f0960af900492032b09feeaaf9bcfc73c4449",
+  "source_context": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade"
+    },
+    {
+      "path": "internal/infra/mqttwill/FLOW.md",
+      "sha256": "f8df4d88d809a180c696b8ff55cacfbe59e6c0cf139332b1b8ec36e7a7e4ce1a"
+    },
+    {
+      "path": "internal/usecase/mqttsession/FLOW.md",
+      "sha256": "e889e4d5e3d46bf10d2df3167a27604f8e369795e31975031ab395dbdaca4e8a"
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "sha256": "5b0e099cb43a60f1752f087f1a0dc79a36d3dbe1b2852fd119d3c844a5b83586"
+    },
+    {
+      "path": "internal/contracts/mqttsession/FLOW.md",
+      "sha256": "a7b03ee62288229c4886c11b357a64d38cd8e0f65f25ca2479f1320cf45ea2a3"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "60f70494939acac39288ba91ab83b21f45fd5b450230dabc69d3e6c71d09bbf9"
+    },
+    {
+      "path": "test/e2e/mqtt/AGENTS.md",
+      "sha256": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f"
+    },
+    {
+      "path": "pkg/db/FLOW.md",
+      "sha256": "33c7ba81c18ed8cb377e9bef541526028ef31e64dd03becc7ac1ea6cc14fb10a"
+    },
+    {
+      "path": "pkg/db/meta/FLOW.md",
+      "sha256": "a4a97d06003f3ceccb186f967f1dffb554b1fe31740cc9ece0d68e0560b187f6"
+    }
+  ],
+  "pre_implementation_failure_inventory_sha256": "6817e271ef8adc23105378eb947ebaf5dba9c6b274c2729c5f4dcdf65729cef1",
+  "pre_implementation_test_sha256": "3b697720f8118eb5c483a0346cdf0aae46210d47e10d8712f18dd052f48c8307",
+  "baseline_instrumentation": "Only inert temporary gofail journal limit, capacity refusal and cleanup failure controls; ordinary production behavior unchanged.",
+  "created_scenario_instructions_sha256": "8cad49f5eb0fe256dc00a3c894817d847998aabe65425eef82c5ca06f1e40e1f"
+}

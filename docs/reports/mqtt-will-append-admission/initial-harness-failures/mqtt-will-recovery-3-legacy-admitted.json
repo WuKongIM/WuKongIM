@@ -1,0 +1,11 @@
+{
+  "connect_retries": 0,
+  "cut": "legacy-admitted",
+  "cut_reached": true,
+  "hash_slots": 256,
+  "last_phase": "executor-crash-and-restart",
+  "nodes": 3,
+  "passed": false,
+  "resubscriptions": 0,
+  "scenario": "mqtt-started-will-recovery"
+}

@@ -1,0 +1,10 @@
+# github.com/WuKongIM/WuKongIM/pkg/channel.test
+ld: warning: '<temporary-build>/go-link-1330976208/000058.o' has malformed LC_DYSYMTAB, expected 98 undefined symbols to start at index 1626, found 95 undefined symbols starting at index 1626
+# github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession.test
+ld: warning: '<temporary-build>/go-link-2793453381/000058.o' has malformed LC_DYSYMTAB, expected 98 undefined symbols to start at index 1626, found 95 undefined symbols starting at index 1626
+# github.com/WuKongIM/WuKongIM/pkg/cluster/channels.test
+ld: warning: '<temporary-build>/go-link-727558072/000058.o' has malformed LC_DYSYMTAB, expected 98 undefined symbols to start at index 1626, found 95 undefined symbols starting at index 1626
+ok  	github.com/WuKongIM/WuKongIM/pkg/channel	1.794s
+ok  	github.com/WuKongIM/WuKongIM/pkg/cluster/channels	2.333s
+ok  	github.com/WuKongIM/WuKongIM/pkg/cluster/net	1.590s
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession	40.256s

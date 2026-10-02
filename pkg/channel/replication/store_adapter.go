@@ -6,6 +6,7 @@ import (
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 	channelstore "github.com/WuKongIM/WuKongIM/pkg/channel/store"
+	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 )
 
 const (
@@ -226,6 +227,15 @@ func (a *storeAdapter) Sync(ctx context.Context, mutations []Mutation) []Mutatio
 	}
 	bytes := 0
 	for _, mutation := range mutations {
+		if mutation.Manifest.Version == quorumlog.MQTTSourceProposalManifestVersion && !a.supportsMQTTActivation() {
+			return rejectMutations(results, ch.ErrInvalidConfig)
+		}
+		if mutation.Manifest.Version == quorumlog.MQTTReplayAnchorProposalManifestVersion && !a.supportsMQTTAnchors() {
+			return rejectMutations(results, ch.ErrInvalidConfig)
+		}
+		if mutation.Manifest.Version == quorumlog.MQTTReplayRetirementProposalManifestVersion && !a.supportsMQTTRetirements() {
+			return rejectMutations(results, ch.ErrInvalidConfig)
+		}
 		if !validMutation(mutation) {
 			return rejectMutations(results, ch.ErrInvalidConfig)
 		}
@@ -305,6 +315,17 @@ func (a *storeAdapter) Replace(ctx context.Context, replacements []RecoveryRepla
 	}
 	totalBytes := 0
 	for _, replacement := range replacements {
+		for _, proposal := range replacement.Proposals {
+			if proposal.Manifest.Version == quorumlog.MQTTReplayAnchorProposalManifestVersion && !a.supportsMQTTAnchors() {
+				return rejectRecoveryReplacements(results, ch.ErrInvalidConfig)
+			}
+			if proposal.Manifest.Version == quorumlog.MQTTReplayRetirementProposalManifestVersion && !a.supportsMQTTRetirements() {
+				return rejectRecoveryReplacements(results, ch.ErrInvalidConfig)
+			}
+			if proposal.Manifest.Version == quorumlog.MQTTSourceProposalManifestVersion && !a.supportsMQTTActivation() {
+				return rejectRecoveryReplacements(results, ch.ErrInvalidConfig)
+			}
+		}
 		itemBytes, validationErr := validateRecoveryReplacement(replacement, a.cfg.MaxBatchBytes)
 		if validationErr != nil {
 			return rejectRecoveryReplacements(results, validationErr)
@@ -444,7 +465,7 @@ func recoveryProposalsFromPage(request FetchRange, page channelstore.ExactRecove
 			return nil, ch.ErrLogConflict
 		}
 		page.Records[index].Epoch = entry.Identity.ChannelEpoch
-		recordBytes := 96 + len(page.Records[index].FromUID) + len(page.Records[index].ClientMsgNo) + len(page.Records[index].Payload)
+		recordBytes := 96 + len(page.Records[index].FromUID) + len(page.Records[index].ClientMsgNo) + len(page.Records[index].Payload) + len(page.Records[index].PublicationMetadata)
 		if used > request.MaxBytes-recordBytes {
 			return nil, ch.ErrBackpressured
 		}
@@ -597,7 +618,7 @@ func estimateMutationBytes(mutation Mutation, maxBytes int) (int, bool) {
 		return 0, false
 	}
 	for _, record := range mutation.Records {
-		itemBytes, ok := boundedByteSize(maxBytes-total, 96, len(record.FromUID), len(record.ClientMsgNo), len(record.Payload))
+		itemBytes, ok := boundedByteSize(maxBytes-total, 96, len(record.FromUID), len(record.ClientMsgNo), len(record.Payload), len(record.PublicationMetadata))
 		if !ok {
 			return 0, false
 		}
@@ -672,4 +693,20 @@ func rejectMutations(results []MutationResult, err error) []MutationResult {
 		results[index] = MutationResult{Outcome: outcome, Err: err}
 	}
 	return results
+}
+
+// supportsMQTTActivation refuses stores that only persist the message record.
+func (a *storeAdapter) supportsMQTTActivation() bool {
+	capable, ok := a.cfg.Factory.(channelstore.MQTTSourceActivationFactory)
+	return ok && capable.SupportsMQTTSourceActivation()
+}
+
+func (a *storeAdapter) supportsMQTTAnchors() bool {
+	capable, ok := a.cfg.Factory.(channelstore.MQTTReplayAnchorFactory)
+	return ok && capable.SupportsMQTTReplayAnchors()
+}
+
+func (a *storeAdapter) supportsMQTTRetirements() bool {
+	capable, ok := a.cfg.Factory.(channelstore.MQTTReplayRetirementFactory)
+	return ok && capable.SupportsMQTTReplayRetirements()
 }

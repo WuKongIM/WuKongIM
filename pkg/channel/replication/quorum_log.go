@@ -2,11 +2,14 @@ package replication
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"sync"
 	"time"
 
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/publication"
+	"github.com/WuKongIM/WuKongIM/pkg/quorumlog"
 )
 
 type recoveryDispatcher interface {
@@ -23,6 +26,7 @@ type quorumLogConfig struct {
 	Store      ReplicaStore
 	Recovery   recoveryDispatcher
 	Durability durabilityDispatcher
+	Funding    storageFundingDispatcher
 	// RepairAuthorities fences retained follower repair work whenever Channel
 	// authority advances, including an advance whose recovery later fails.
 	RepairAuthorities followerRepairAuthorityOwner
@@ -51,7 +55,8 @@ type quorumLog struct {
 }
 
 // quorumChannel serializes one authority generation. pending is immutable
-// until a definite conflict or exact durability proof resolves it.
+// until every admitted write is definitely absent, a definite conflict,
+// or an exact durability proof resolves it.
 type quorumChannel struct {
 	mu sync.Mutex
 
@@ -241,13 +246,14 @@ func (l *quorumLog) Release(key ch.ChannelKey, expected AuthorityID) bool {
 func (l *quorumLog) validProposal(ctx context.Context, proposal Proposal) bool {
 	return l != nil && ctx != nil && proposal.Key != "" && proposal.Expected != (AuthorityID{}) &&
 		proposal.CommandID != (ch.CommandID{}) && len(proposal.Records) != 0 &&
+		!(proposal.MQTTSourceActivation && (proposal.MQTTReplayAnchor || proposal.MQTTReplayRetirement)) && !(proposal.MQTTReplayAnchor && proposal.MQTTReplayRetirement) &&
 		len(proposal.Records) <= l.cfg.MaxProposalRecords && validProposalRecords(proposal.Records, l.cfg.MaxProposalBytes)
 }
 
 // beginLocked validates authority and sequencing for one proposal. It either
 // returns a completed receipt (done) or the retained proposal whose durability
 // round the caller must run; created reports that a new pending was sealed.
-func (l *quorumLog) beginLocked(state *quorumChannel, proposal Proposal) (receipt Receipt, round retainedProposal, done, created bool, err error) {
+func (l *quorumLog) beginLocked(ctx context.Context, state *quorumChannel, proposal Proposal) (receipt Receipt, round retainedProposal, done, created bool, err error) {
 	if !state.ready {
 		return Receipt{}, round, false, false, ch.ErrNotReady
 	}
@@ -261,7 +267,7 @@ func (l *quorumLog) beginLocked(state *quorumChannel, proposal Proposal) (receip
 		return Receipt{}, round, false, false, ch.ErrBackpressured
 	}
 	if retained, ok := state.retained[proposal.CommandID]; ok {
-		if !sameProposalContent(retained.proposal, proposal.Records) {
+		if !sameProposalContent(retained.proposal, proposal.Records, proposal.MQTTSourceActivation, proposal.MQTTReplayAnchor, proposal.MQTTReplayRetirement) {
 			return Receipt{}, round, false, false, ch.ErrLogConflict
 		}
 		if retained.durable {
@@ -270,7 +276,7 @@ func (l *quorumLog) beginLocked(state *quorumChannel, proposal Proposal) (receip
 		return Receipt{}, retained, false, false, nil
 	}
 	if state.pending != nil && state.pending.proposal.manifest.CommandID == proposal.CommandID {
-		if !sameProposalContent(state.pending.proposal, proposal.Records) {
+		if !sameProposalContent(state.pending.proposal, proposal.Records, proposal.MQTTSourceActivation, proposal.MQTTReplayAnchor, proposal.MQTTReplayRetirement) {
 			return Receipt{}, round, false, false, ch.ErrLogConflict
 		}
 		return Receipt{}, *state.pending, false, false, nil
@@ -278,11 +284,16 @@ func (l *quorumLog) beginLocked(state *quorumChannel, proposal Proposal) (receip
 	if state.pending != nil {
 		return Receipt{}, round, false, false, ch.ErrBackpressured
 	}
-	durable, err := sealBusinessProposal(
-		state.authority, state.frontier, state.hw, proposal.CommandID, proposal.Records, proposal.PayloadsImmutable, proposal.ServerAllocatedMessageIDs,
+	durable, err := sealAppendProposal(
+		state.authority, state.frontier, state.hw, proposal.CommandID, proposal.Records, proposal.PayloadsImmutable, proposal.ServerAllocatedMessageIDs, proposal.MQTTSourceActivation, proposal.MQTTReplayAnchor, proposal.MQTTReplayRetirement,
 	)
 	if err != nil {
 		return Receipt{}, round, false, false, err
+	}
+	if l.cfg.Funding != nil && !proposal.MQTTSourceActivation && !proposal.MQTTReplayAnchor && !proposal.MQTTReplayRetirement {
+		if err := l.cfg.Funding.fundStorage(ctx, state.authority, durable); err != nil {
+			return Receipt{}, round, false, false, errors.Join(ch.ErrAppendNotSubmitted, err)
+		}
 	}
 	round = retainedProposal{proposal: durable}
 	pending := round
@@ -293,11 +304,18 @@ func (l *quorumLog) beginLocked(state *quorumChannel, proposal Proposal) (receip
 // resolveRoundLocked applies one terminal durability result to the sequencer.
 func (l *quorumLog) resolveRoundLocked(ctx context.Context, state *quorumChannel, retained retainedProposal, result durableRoundResult, err error) (Receipt, error) {
 	if err != nil {
+		// Definitively unwritten rounds release pending sequencing, never unknown debt.
+		if result.outcome == ch.AppendOutcomeDefinitelyNotWritten {
+			state.pending = nil
+		}
 		if result.outcome == ch.AppendOutcomeConflict {
 			state.pending = nil
 			return l.reconcileCommandConflict(ctx, state, Proposal{
 				Key: state.authority.Key, Expected: state.authority.ID,
 				CommandID: retained.proposal.manifest.CommandID, Records: retained.proposal.records,
+				MQTTSourceActivation: retained.proposal.manifest.Version == quorumlog.MQTTSourceProposalManifestVersion,
+				MQTTReplayAnchor:     retained.proposal.manifest.Version == quorumlog.MQTTReplayAnchorProposalManifestVersion,
+				MQTTReplayRetirement: retained.proposal.manifest.Version == quorumlog.MQTTReplayRetirementProposalManifestVersion,
 			})
 		}
 		return Receipt{}, err
@@ -318,7 +336,16 @@ func (l *quorumLog) Commit(ctx context.Context, proposal Proposal) (Receipt, err
 	}
 	state.mu.Lock()
 	defer state.mu.Unlock()
-	receipt, round, done, _, err := l.beginLocked(state, proposal)
+	return l.commitLocked(ctx, state, proposal)
+}
+
+// commitLocked keeps typed MQTT controls on the same sequencer as callback commits.
+// The caller holds state.mu until durability and frontier publication complete.
+func (l *quorumLog) commitLocked(ctx context.Context, state *quorumChannel, proposal Proposal) (Receipt, error) {
+	if err := ctx.Err(); err != nil {
+		return Receipt{}, err
+	}
+	receipt, round, done, _, err := l.beginLocked(ctx, state, proposal)
 	if err != nil || done {
 		return receipt, err
 	}
@@ -343,7 +370,7 @@ func (l *quorumLog) SubmitCommit(ctx context.Context, proposal Proposal, complet
 		return ch.ErrNotReady
 	}
 	state.mu.Lock()
-	receipt, round, done, created, err := l.beginLocked(state, proposal)
+	receipt, round, done, created, err := l.beginLocked(ctx, state, proposal)
 	if err != nil {
 		state.mu.Unlock()
 		return err
@@ -393,7 +420,7 @@ func (l *quorumLog) reconcileCommandConflict(ctx context.Context, state *quorumC
 	if err != nil {
 		return Receipt{}, err
 	}
-	if !found || !sameProposalContent(loaded.proposal, proposal.Records) {
+	if !found || !sameProposalContent(loaded.proposal, proposal.Records, proposal.MQTTSourceActivation, proposal.MQTTReplayAnchor, proposal.MQTTReplayRetirement) {
 		return Receipt{}, ch.ErrLogConflict
 	}
 	l.remember(state, loaded)
@@ -454,6 +481,19 @@ func (l *quorumLog) loadRetainedProposal(ctx context.Context, state *quorumChann
 		channelKey: state.authority.Key, channelID: state.authority.ChannelID, leader: state.authority.Leader,
 		manifest: manifest, committed: manifest.BaseOffset,
 	}, receipt: receipt, durable: true}, true, nil
+}
+
+// retryPending resumes exact MQTT control admission while its caller owns state.mu.
+// An asynchronous round owns the sequencer until its terminal callback joins.
+func (l *quorumLog) retryPending(ctx context.Context, state *quorumChannel, retained retainedProposal) (Receipt, error) {
+	if err := ctx.Err(); err != nil {
+		return Receipt{}, err
+	}
+	if state.inflight {
+		return Receipt{}, ch.ErrBackpressured
+	}
+	result, err := runDurableRound(ctx, l.cfg.Local, state.authority.Voters, state.authority.WriteQuorum, retained.proposal, l.cfg.Durability)
+	return l.resolveRoundLocked(ctx, state, retained, result, err)
 }
 
 func (l *quorumLog) finishCommit(state *quorumChannel, retained retainedProposal, result durableRoundResult) (Receipt, error) {
@@ -523,7 +563,7 @@ func (l *quorumLog) existingChannel(key ch.ChannelKey) *quorumChannel {
 	return l.channels[key]
 }
 
-func sealBusinessProposal(
+func sealAppendProposal(
 	authority Authority,
 	frontier ReplicaState,
 	hw uint64,
@@ -531,13 +571,26 @@ func sealBusinessProposal(
 	records []ch.Record,
 	payloadsImmutable bool,
 	serverAllocatedMessageIDs bool,
+	sourceActivation bool,
+	replayAnchor bool,
+	replayRetirement bool,
 ) (durableProposal, error) {
 	if frontier.LEO == ^uint64(0) || uint64(len(records)) > ^uint64(0)-frontier.LEO {
 		return durableProposal{}, ch.ErrInvalidConfig
 	}
 	frozen := immutableProposalRecords(records, payloadsImmutable)
+	version := ch.ProposalVersionForRecords(frozen)
+	if sourceActivation {
+		version = quorumlog.MQTTSourceProposalManifestVersion
+	}
+	if replayAnchor {
+		version = quorumlog.MQTTReplayAnchorProposalManifestVersion
+	}
+	if replayRetirement {
+		version = quorumlog.MQTTReplayRetirementProposalManifestVersion
+	}
 	manifest, entries, ok := ch.SealProposalManifest(ch.ProposalManifest{
-		Version:      ch.ProposalVersionForRecords(frozen),
+		Version:      version,
 		ChannelEpoch: authority.ID.ChannelEpoch, LeaderTerm: authority.ID.LeaderTerm, FenceVersion: authority.ID.FenceVersion,
 		CommandID: command, BaseOffset: frontier.LEO, LastOffset: frontier.LEO + uint64(len(frozen)),
 		PreviousTerm: frontier.TailIdentity.LeaderTerm, PreviousIndex: frontier.LEO, PreviousDigest: frontier.TailIdentity.Digest,
@@ -564,10 +617,19 @@ func immutableProposalRecords(records []ch.Record, payloadsImmutable bool) []ch.
 func validProposalRecords(records []ch.Record, maxBytes int) bool {
 	total := 0
 	for _, record := range records {
-		if record.ID == 0 || record.Epoch == 0 || record.ServerTimestampMS <= 0 || record.SizeBytes != len(record.Payload) {
+		if record.ID == 0 || record.Epoch == 0 || record.ServerTimestampMS <= 0 || record.SizeBytes != len(record.Payload)+len(record.PublicationMetadata) {
 			return false
 		}
-		item := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload)
+		if len(record.PublicationMetadata) != 0 {
+			metadata, err := publication.Decode(record.PublicationMetadata)
+			if err != nil {
+				return false
+			}
+			if _, _, err := metadata.ExpiryDeadlineMS(record.ServerTimestampMS); err != nil {
+				return false
+			}
+		}
+		item := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload) + len(record.PublicationMetadata)
 		if item > maxBytes-total {
 			return false
 		}
@@ -576,7 +638,16 @@ func validProposalRecords(records []ch.Record, maxBytes int) bool {
 	return total <= maxBytes
 }
 
-func sameProposalContent(retained durableProposal, records []ch.Record) bool {
+func sameProposalContent(retained durableProposal, records []ch.Record, activation, anchor, retirement bool) bool {
+	if (retained.manifest.Version == quorumlog.MQTTReplayRetirementProposalManifestVersion) != retirement {
+		return false
+	}
+	if (retained.manifest.Version == quorumlog.MQTTReplayAnchorProposalManifestVersion) != anchor {
+		return false
+	}
+	if (retained.manifest.Version == quorumlog.MQTTSourceProposalManifestVersion) != activation {
+		return false
+	}
 	if retained.manifest.LastOffset < retained.manifest.BaseOffset ||
 		uint64(len(records)) != retained.manifest.LastOffset-retained.manifest.BaseOffset {
 		return false
@@ -589,6 +660,7 @@ func cloneRecords(records []ch.Record) []ch.Record {
 	cloned := append([]ch.Record(nil), records...)
 	for index := range cloned {
 		cloned[index].Payload = append([]byte(nil), cloned[index].Payload...)
+		cloned[index].PublicationMetadata = append([]byte(nil), cloned[index].PublicationMetadata...)
 	}
 	return cloned
 }

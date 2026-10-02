@@ -80,6 +80,8 @@ func (q *peerTargetQueue) workerCount() int {
 
 type queuedPeerItem struct {
 	requestID         uint64
+	fundingNonce      uint64
+	completeFunding   func(StorageFundingResult, error)
 	kind              ExchangeKind
 	replicate         ReplicateRequest
 	probe             ProbeRequest
@@ -93,7 +95,7 @@ type queuedPeerItem struct {
 
 func (i queuedPeerItem) channelKey() ch.ChannelKey {
 	switch i.kind {
-	case ExchangeReplicate:
+	case ExchangeReplicate, ExchangeStoragePrepare, ExchangeStorageCancel:
 		return i.replicate.ChannelKey
 	case ExchangeProbe:
 		return i.probe.ChannelKey
@@ -105,6 +107,7 @@ func (i queuedPeerItem) channelKey() ch.ChannelKey {
 }
 
 type peerExchangeResult struct {
+	funding   StorageFundingResult
 	replicate ReplicateResult
 	probe     ProbeResult
 	fetch     FetchResult
@@ -357,8 +360,12 @@ func (b *peerBatcher) drainTarget(node ch.NodeID, class peerWorkClass) {
 		for index := range items {
 			observeReplicationStage(b.cfg.Observer, endToEndStage, errs[index], exchangeFinished.Sub(items[index].queuedAt))
 			switch items[index].kind {
-			case ExchangeReplicate:
-				items[index].completeReplicate(results[index].replicate, errs[index])
+			case ExchangeReplicate, ExchangeStoragePrepare, ExchangeStorageCancel:
+				if items[index].kind == ExchangeReplicate {
+					items[index].completeReplicate(results[index].replicate, errs[index])
+				} else {
+					items[index].completeFunding(results[index].funding, errs[index])
+				}
 			case ExchangeProbe:
 				items[index].completeProbe(results[index].probe, errs[index])
 			case ExchangeFetch:
@@ -495,9 +502,9 @@ func (b *peerBatcher) exchange(node ch.NodeID, class peerWorkClass, items []queu
 	batch := ExchangeBatch{Version: ExchangeVersion, Priority: priority, Items: make([]ExchangeItem, len(items))}
 	for index, item := range items {
 		switch item.kind {
-		case ExchangeReplicate:
+		case ExchangeReplicate, ExchangeStoragePrepare, ExchangeStorageCancel:
 			request := item.replicate
-			batch.Items[index] = ExchangeItem{RequestID: item.requestID, Kind: ExchangeReplicate, Replicate: &request}
+			batch.Items[index] = ExchangeItem{RequestID: item.requestID, Kind: item.kind, FundingNonce: item.fundingNonce, Replicate: &request}
 		case ExchangeProbe:
 			request := item.probe
 			batch.Items[index] = ExchangeItem{RequestID: item.requestID, Kind: ExchangeProbe, Probe: &request}
@@ -537,18 +544,25 @@ func (b *peerBatcher) exchange(node ch.NodeID, class peerWorkClass, items []queu
 			return invalidExchangeResults(items, results, errs)
 		}
 		switch item.kind {
-		case ExchangeReplicate:
-			if !zeroProbeResult(result.Probe) || !zeroFetchResult(result.Fetch) || !validReplicateResult(item.replicate, result.Replicate) {
+		case ExchangeReplicate, ExchangeStoragePrepare, ExchangeStorageCancel:
+			if item.kind != ExchangeReplicate {
+				if result.Replicate != (ReplicateResult{}) || !zeroProbeResult(result.Probe) || !zeroFetchResult(result.Fetch) || !validStorageFundingResult(item.replicate, item.fundingNonce, result.Funding) {
+					return invalidExchangeResults(items, results, errs)
+				}
+				results[index].funding = result.Funding
+				continue
+			}
+			if result.Funding != (StorageFundingResult{}) || !zeroProbeResult(result.Probe) || !zeroFetchResult(result.Fetch) || !validReplicateResult(item.replicate, result.Replicate) {
 				return invalidExchangeResults(items, results, errs)
 			}
 			results[index].replicate = result.Replicate
 		case ExchangeProbe:
-			if result.Replicate != (ReplicateResult{}) || !zeroFetchResult(result.Fetch) || !validPeerProbeResult(item.probe, result.Probe) {
+			if result.Funding != (StorageFundingResult{}) || result.Replicate != (ReplicateResult{}) || !zeroFetchResult(result.Fetch) || !validPeerProbeResult(item.probe, result.Probe) {
 				return invalidExchangeResults(items, results, errs)
 			}
 			results[index].probe = result.Probe
 		case ExchangeFetch:
-			if result.Replicate != (ReplicateResult{}) || !zeroProbeResult(result.Probe) || !validPeerFetchResult(item.fetch, result.Fetch) {
+			if result.Funding != (StorageFundingResult{}) || result.Replicate != (ReplicateResult{}) || !zeroProbeResult(result.Probe) || !validPeerFetchResult(item.fetch, result.Fetch) {
 				return invalidExchangeResults(items, results, errs)
 			}
 			results[index].fetch = result.Fetch
@@ -626,4 +640,24 @@ func (b *peerBatcher) release(node ch.NodeID, items []queuedPeerItem) {
 	// An owner for the other class may have retired while this Channel was
 	// in flight. Releasing ownership is the event that makes it runnable again.
 	_ = b.ensureTargetWorkersLocked(node, target)
+}
+
+func (b *peerBatcher) submitFunding(ctx context.Context, node ch.NodeID, request ReplicateRequest, nonce uint64, cancel bool, complete func(StorageFundingResult, error)) error {
+	if b == nil || ctx == nil || node == 0 || nonce == 0 || complete == nil || !request.Valid() || request.Follower != node {
+		return ch.ErrInvalidConfig
+	}
+	kind := ExchangeStoragePrepare
+	if cancel {
+		kind = ExchangeStorageCancel
+	}
+	return b.enqueue(ctx, node, queuedPeerItem{kind: kind, replicate: request, fundingNonce: nonce, bytes: estimateReplicateRequestBytes(request) + 16, completeFunding: complete}, false)
+}
+func validStorageFundingResult(q ReplicateRequest, nonce uint64, r StorageFundingResult) bool {
+	if r.Nonce != nonce || r.Prepared && r.Canceled {
+		return false
+	}
+	if r.Prepared || r.Canceled {
+		return r.NeedFrom == 0 && r.Proof == replicateProofFor(q)
+	}
+	return r.Proof == (ReplicateProof{}) && r.NeedFrom <= q.Manifest.LastOffset
 }

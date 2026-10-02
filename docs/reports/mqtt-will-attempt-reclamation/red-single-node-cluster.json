@@ -1,0 +1,12 @@
+{
+  "connect_retries": 0,
+  "executor_capacity_refusal": true,
+  "hash_slots": 256,
+  "instrumented_journal_cap": 2,
+  "last_phase": "publish-through-full-journal",
+  "nodes": 1,
+  "passed": false,
+  "resubscriptions": 0,
+  "scenario": "mqtt-will-journal-reclamation",
+  "terminal_cleanup_failed": true
+}

@@ -905,7 +905,7 @@ func storeAppendBatchOwner(ctx context.Context, owner *Engine, items []AppendBat
 	for _, index := range indexes {
 		entry := items[index].Store.log.channelEntry
 		indexesByEntry[entry] = append(indexesByEntry[entry], index)
-		if items[index].Committed > 0 {
+		if items[index].Committed > 0 || items[index].Proposal.Version == quorumlog.MQTTSourceProposalManifestVersion {
 			checkpointByEntry[entry] = struct{}{}
 		}
 	}
@@ -1224,11 +1224,11 @@ func readOffsetRecordsRaw(db *MessageDB, key ChannelKey, fromOffset uint64, limi
 		totalBytes := 0
 		for i := len(all) - 1; i >= 0; i-- {
 			row := all[i]
-			if len(rows) > 0 && totalBytes+len(row.Payload) > maxBytes {
+			if len(rows) > 0 && totalBytes+len(row.Payload)+len(row.PublicationMetadata) > maxBytes {
 				break
 			}
 			rows = append(rows, row)
-			totalBytes += len(row.Payload)
+			totalBytes += len(row.Payload) + len(row.PublicationMetadata)
 			if len(rows) == limit {
 				break
 			}
@@ -1490,6 +1490,20 @@ func (s *ChannelStore) LookupIdempotency(key channel.IdempotencyKey) (channel.Id
 	return channel.IdempotencyEntry{MessageID: hit.MessageID, MessageSeq: hit.MessageSeq, Offset: hit.Offset}, hit.PayloadHash, true, nil
 }
 
+// LookupWillIdempotency verifies a server-domain identity against its original
+// row. Legacy row-free reservation APIs cannot create entries in this domain.
+func (s *ChannelStore) LookupWillIdempotency(ctx context.Context, fromUID, serverKey string) (channel.IdempotencyEntry, uint64, bool, error) {
+	if err := s.beginUse(); err != nil {
+		return channel.IdempotencyEntry{}, 0, false, err
+	}
+	defer s.endUse()
+	hit, ok, err := s.log.lookupIdempotency(ctx, IdempotencyKey{FromUID: fromUID, ServerWillKey: serverKey})
+	if err != nil || !ok {
+		return channel.IdempotencyEntry{}, 0, ok, toChannelError(err)
+	}
+	return channel.IdempotencyEntry{MessageID: hit.MessageID, MessageSeq: hit.MessageSeq, Offset: hit.Offset}, hit.PayloadHash, true, nil
+}
+
 // LoadDurableProposal returns one exact proposal while holding the canonical
 // Channel append lock so its manifest and rows form one stable view.
 func (s *ChannelStore) LoadDurableProposal(ctx context.Context, commandID quorumlog.CommandID, maxRecords int, maxBytes int) (DurableProposal, bool, error) {
@@ -1530,7 +1544,7 @@ func (s *ChannelStore) LoadDurableProposal(ctx context.Context, commandID quorum
 		if !identityPresent || identity.CommandID != commandID || identity.Index != index {
 			return DurableProposal{}, false, channel.ErrCorruptState
 		}
-		rowBytes := 96 + len(row.FromUID) + len(row.ClientMsgNo) + len(row.Payload)
+		rowBytes := 96 + len(row.FromUID) + len(row.ClientMsgNo) + len(row.Payload) + len(row.PublicationMetadata)
 		if rowBytes > maxBytes-used {
 			return DurableProposal{}, false, channel.ErrBackpressured
 		}
@@ -1933,7 +1947,7 @@ func commitPreparedCheckpointHWBatch(ctx context.Context, owner *Engine, prepare
 		Build: func(batch *engine.Batch) error {
 			for _, item := range prepared {
 				checkpoint := item.checkpoint
-				if err := item.store.log.channelEntry.stageCommitRows(batch, nil, &checkpoint, nil, nil, nil); err != nil {
+				if err := item.store.log.channelEntry.stageCommitRows(batch, nil, &checkpoint, nil, nil, nil, ^uint64(0)); err != nil {
 					return err
 				}
 			}
@@ -2214,7 +2228,7 @@ func (s *ChannelStore) prepareExactAppendRecordsLocked(ctx context.Context, expe
 	}
 	nextLEO := expectedBaseOffset + uint64(len(records))
 	prepared := preparedCommitRows{store: s, baseOffset: expectedBaseOffset, nextLEO: nextLEO}
-	if err := s.prepareExactCheckpointLocked(ctx, committed, nextLEO, max(base, nextLEO), &prepared); err != nil {
+	if err := s.prepareExactCheckpointLocked(ctx, committed, nextLEO, max(base, nextLEO), manifest.Version == quorumlog.MQTTSourceProposalManifestVersion, &prepared); err != nil {
 		return preparedCommitRows{}, err
 	}
 	if proposalDisposition == durableProposalAlreadyPresent {
@@ -2240,11 +2254,11 @@ func (s *ChannelStore) prepareExactAppendRecordsLocked(ctx context.Context, expe
 	return prepared, nil
 }
 
-func (s *ChannelStore) prepareExactCheckpointLocked(ctx context.Context, committed, proposalLEO, visibleLEO uint64, prepared *preparedCommitRows) error {
+func (s *ChannelStore) prepareExactCheckpointLocked(ctx context.Context, committed, proposalLEO, visibleLEO uint64, activation bool, prepared *preparedCommitRows) error {
 	if prepared == nil || committed > proposalLEO {
 		return channel.ErrInvalidArgument
 	}
-	if committed == 0 {
+	if committed == 0 && !activation {
 		return nil
 	}
 	prepared.checkpointLocked = true
@@ -2258,8 +2272,8 @@ func (s *ChannelStore) prepareExactCheckpointLocked(ctx context.Context, committ
 	if checkpoint.HW > visibleLEO {
 		return channel.ErrCorruptState
 	}
-	if committed > checkpoint.HW {
-		checkpoint.HW = committed
+	if committed > checkpoint.HW || activation {
+		checkpoint.HW = max(committed, checkpoint.HW)
 		prepared.checkpoint = &checkpoint
 	}
 	return nil
@@ -2300,7 +2314,7 @@ func (s *ChannelStore) prepareStagedExactReplayLocked(
 		store: item.Store, baseOffset: item.ExpectedBaseOffset, nextLEO: manifest.LastOffset,
 		alreadyDurable: true, dependsOnCommit: true,
 	}
-	if err := s.prepareExactCheckpointLocked(ctx, item.Committed, manifest.LastOffset, visibleLEO, &prepared); err != nil {
+	if err := s.prepareExactCheckpointLocked(ctx, item.Committed, manifest.LastOffset, visibleLEO, manifest.Version == quorumlog.MQTTSourceProposalManifestVersion, &prepared); err != nil {
 		return preparedCommitRows{}, err
 	}
 	return prepared, nil
@@ -2368,7 +2382,7 @@ func (s *ChannelStore) prepareAdjacentExactAppendLocked(
 		store: s, baseOffset: item.ExpectedBaseOffset, nextLEO: manifest.LastOffset,
 		rows: rows, proposals: []durableProposalRecord{{manifest: manifest}}, entries: entries,
 	}
-	if err := s.prepareExactCheckpointLocked(ctx, item.Committed, manifest.LastOffset, manifest.LastOffset, &prepared); err != nil {
+	if err := s.prepareExactCheckpointLocked(ctx, item.Committed, manifest.LastOffset, manifest.LastOffset, manifest.Version == quorumlog.MQTTSourceProposalManifestVersion, &prepared); err != nil {
 		return preparedCommitRows{}, err
 	}
 	proposal := durableProposalRecord{manifest: manifest}
@@ -2469,7 +2483,8 @@ func (s *ChannelStore) LoadCheckpoint() (channel.Checkpoint, error) {
 	return checkpointToChannel(checkpoint), nil
 }
 
-// StoreCheckpoint stores checkpoint without monotonic validation.
+// StoreCheckpoint keeps the legacy raw setter except that protected MQTT
+// source checkpoints must remain intact and cannot regress committed HW.
 func (s *ChannelStore) StoreCheckpoint(checkpoint channel.Checkpoint) error {
 	if err := s.beginUse(); err != nil {
 		return err
@@ -2695,6 +2710,8 @@ func (s *ChannelStore) truncateLocked(ctx context.Context, to uint64, truncateHi
 	defer finishRetention()
 	s.log.appendMu.Lock()
 	defer s.log.appendMu.Unlock()
+	s.log.checkpointMu.Lock()
+	defer s.log.checkpointMu.Unlock()
 	leo, err := s.log.loadLEOLocked(ctx)
 	if err != nil {
 		return toChannelError(err)
@@ -2738,6 +2755,12 @@ func (s *ChannelStore) truncateLocked(ctx context.Context, to uint64, truncateHi
 	if err := s.log.stageCatalog(batch); err != nil {
 		return toChannelError(err)
 	}
+	storageChange, err := s.log.channelEntry.stageMQTTStorageReplacement(ctx, batch, to, nil, nil)
+	if err != nil {
+		return toChannelError(err)
+	}
+	defer storageChange.cancel()
+	storageChange.submitted = true
 	if err := batch.Commit(true); err != nil {
 		return toChannelError(err)
 	}
@@ -2746,7 +2769,7 @@ func (s *ChannelStore) truncateLocked(ctx context.Context, to uint64, truncateHi
 		s.log.loaded.Store(true)
 		s.log.clearDurableProposalTailLocked()
 	}
-	return nil
+	return toChannelError(storageChange.finish(ctx))
 }
 
 // StoreSnapshotPayload stores snapshot payload bytes.
@@ -3121,8 +3144,30 @@ func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared 
 		unlockCommitEntries(appendEntries, checkpointEntries)
 		return commit.SubmitResult{Outcome: commit.OutcomeDefinitelyNotCommitted, Err: channel.ErrClosed}
 	}
+	type storageReservation struct {
+		entry   *channelEntry
+		charges []mqttStorageCharge
+		bytes   uint64
+	}
+	reservations := make([]storageReservation, 0, len(prepared))
+	cancelStorage := func() {
+		for _, r := range reservations {
+			r.entry.db.mqttStorage.cancelReservation(r.bytes)
+		}
+	}
+	for _, item := range prepared {
+		e := item.store.log.channelEntry
+		charges, n, err := e.prepareMQTTStorage(ctx, item.rows, item.proposals)
+		if err != nil {
+			cancelStorage()
+			unlockCommitEntries(appendEntries, checkpointEntries)
+			return commit.SubmitResult{Outcome: commit.OutcomeDefinitelyNotCommitted, Err: toChannelError(err)}
+		}
+		reservations = append(reservations, storageReservation{e, charges, n})
+	}
 	ownership, err := newCommitOwnership(appendEntries[0].db.registry, appendEntries, checkpointEntries)
 	if err != nil {
+		cancelStorage()
 		return commit.SubmitResult{Outcome: commit.OutcomeDefinitelyNotCommitted, Err: toChannelError(err)}
 	}
 	mutations := make([]preparedCommitMutation, 0, len(prepared))
@@ -3143,8 +3188,14 @@ func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared 
 		Records:   preparedRowsRecordCount(prepared),
 		Bytes:     preparedRowsBytes(prepared),
 		Build: func(batch *engine.Batch) error {
-			for _, mutation := range mutations {
-				if err := mutation.entry.stageCommitRows(batch, mutation.rows, mutation.checkpoint, mutation.point, mutation.proposals, mutation.entries); err != nil {
+			for i, mutation := range mutations {
+				if err := mutation.entry.stageCommitRows(batch, mutation.rows, mutation.checkpoint, mutation.point, mutation.proposals, mutation.entries, ^uint64(0)); err != nil {
+					return err
+				}
+				if err := mutation.entry.stageMQTTStorageConsumption(batch, mutation.proposals); err != nil {
+					return err
+				}
+				if err := stageMQTTStorageCharges(batch, mutation.entry.key, reservations[i].charges); err != nil {
 					return err
 				}
 			}
@@ -3160,6 +3211,9 @@ func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared 
 	}
 	if committer != nil {
 		result := committer.SubmitWithOutcome(ctx, request)
+		if result.Outcome == commit.OutcomeDefinitelyNotCommitted {
+			cancelStorage()
+		}
 		result.Err = toChannelError(result.Err)
 		return result
 	}
@@ -3167,6 +3221,7 @@ func commitPreparedRowsBatchResult(ctx context.Context, owner *Engine, prepared 
 	batch := physical.NewBatch()
 	defer batch.Close()
 	if err := request.Build(batch); err != nil {
+		cancelStorage()
 		return commit.SubmitResult{Outcome: commit.OutcomeDefinitelyNotCommitted, Err: err}
 	}
 	if err := batch.Commit(true); err != nil {
@@ -3218,7 +3273,16 @@ func commitRowsPriority(lane string) commit.Priority {
 	}
 }
 
-func (e *channelEntry) stageCommitRows(batch *engine.Batch, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint, proposals []durableProposalRecord, entries []quorumlog.EntryIdentity) error {
+func (e *channelEntry) stageCommitRows(batch *engine.Batch, rows []messageRow, checkpoint *Checkpoint, point *EpochPoint, proposals []durableProposalRecord, entries []quorumlog.EntryIdentity, keepThrough uint64) error {
+	if err := e.stageMQTTActivation(batch, checkpoint, proposals, keepThrough); err != nil {
+		return toChannelError(err)
+	}
+	if err := e.stageMQTTReplayAnchors(batch, rows, checkpoint, proposals, keepThrough); err != nil {
+		return toChannelError(err)
+	}
+	if err := e.stageMQTTReplayRetirements(batch, rows, checkpoint, proposals, keepThrough); err != nil {
+		return toChannelError(err)
+	}
 	if err := e.stageMessageRows(context.Background(), batch, rows); err != nil {
 		return toChannelError(err)
 	}
@@ -3275,7 +3339,7 @@ func (e *channelEntry) publishCommittedRows(rows []messageRow, nextLEO uint64, p
 func messageRowsBytes(rows []messageRow) int {
 	total := 0
 	for _, row := range rows {
-		total += len(row.Payload)
+		total += len(row.Payload) + len(row.PublicationMetadata)
 	}
 	return total
 }
@@ -3360,11 +3424,11 @@ func readRowsRaw(ctx context.Context, db *MessageDB, channelKey ChannelKey, from
 		if err := validateMaterializedMessageRow(current); err != nil {
 			return false, err
 		}
-		if opts.MaxBytes > 0 && len(rows) > 0 && totalBytes+len(current.Payload) > opts.MaxBytes {
+		if opts.MaxBytes > 0 && len(rows) > 0 && totalBytes+len(current.Payload)+len(current.PublicationMetadata) > opts.MaxBytes {
 			return true, nil
 		}
 		rows = append(rows, current)
-		totalBytes += len(current.Payload)
+		totalBytes += len(current.Payload) + len(current.PublicationMetadata)
 		if opts.Limit > 0 && len(rows) >= opts.Limit {
 			return true, nil
 		}
@@ -3459,7 +3523,7 @@ func decodeCompatibilityRecordPayload(payload []byte) (messageRow, error) {
 	if len(payload) < channel.DurableMessageHeaderSize {
 		return messageRow{}, io.ErrUnexpectedEOF
 	}
-	if payload[0] != channel.DurableMessageCodecVersion {
+	if payload[0] != channel.DurableMessageCodecVersion && payload[0] != channel.PublicationMessageCodecVersion {
 		return messageRow{}, channel.ErrCorruptValue
 	}
 	row := messageRow{
@@ -3508,7 +3572,21 @@ func decodeCompatibilityRecordPayload(payload []byte) (messageRow, error) {
 		return messageRow{}, err
 	}
 	row.Payload = append([]byte(nil), row.Payload...)
-	if serverTimestampMS, ok := decodeCompatibilityServerTimestamp(payload, pos); ok {
+	if payload[0] == channel.PublicationMessageCodecVersion {
+		if len(payload)-pos < 8 {
+			return messageRow{}, channel.ErrCorruptValue
+		}
+		row.ServerTimestampMS = int64(binary.BigEndian.Uint64(payload[pos : pos+8]))
+		pos += 8
+		row.PublicationMetadata, pos, err = readCompatibilityBytes(payload, pos)
+		if err != nil || pos != len(payload) || len(row.PublicationMetadata) == 0 {
+			return messageRow{}, channel.ErrCorruptValue
+		}
+		if err := row.validate(); err != nil {
+			return messageRow{}, channel.ErrCorruptValue
+		}
+		row.PublicationMetadata = bytes.Clone(row.PublicationMetadata)
+	} else if serverTimestampMS, ok := decodeCompatibilityServerTimestamp(payload, pos); ok {
 		row.ServerTimestampMS = serverTimestampMS
 	}
 	row.PayloadSize = uint64(len(row.Payload))
@@ -3533,11 +3611,15 @@ func compatibilityRecordFromRow(row messageRow) (channel.Record, error) {
 		}
 		size += 4 + fieldSize
 	}
-	if row.ServerTimestampMS != 0 {
+	version := channel.DurableMessageCodecVersion
+	if len(row.PublicationMetadata) != 0 {
+		version = channel.PublicationMessageCodecVersion
+		size += 8 + 4 + len(row.PublicationMetadata)
+	} else if row.ServerTimestampMS != 0 {
 		size += compatibilityServerTimestampSize
 	}
 	payload := make([]byte, 0, size)
-	payload = append(payload, channel.DurableMessageCodecVersion)
+	payload = append(payload, version)
 	payload = binary.BigEndian.AppendUint64(payload, row.MessageID)
 	payload = append(payload, row.FramerFlags, row.Setting, row.StreamFlag, row.ChannelType)
 	payload = binary.BigEndian.AppendUint32(payload, uint32(row.Expire))
@@ -3552,7 +3634,12 @@ func compatibilityRecordFromRow(row messageRow) (channel.Record, error) {
 	payload = appendCompatibilityString(payload, row.Topic)
 	payload = appendCompatibilityString(payload, row.FromUID)
 	payload = appendCompatibilityBytes(payload, row.Payload)
-	payload = appendCompatibilityServerTimestamp(payload, row.ServerTimestampMS)
+	if version == channel.PublicationMessageCodecVersion {
+		payload = binary.BigEndian.AppendUint64(payload, uint64(row.ServerTimestampMS))
+		payload = appendCompatibilityBytes(payload, row.PublicationMetadata)
+	} else {
+		payload = appendCompatibilityServerTimestamp(payload, row.ServerTimestampMS)
+	}
 	return channel.Record{ID: row.MessageID, Index: row.MessageSeq, Payload: payload, SizeBytes: len(payload)}, nil
 }
 
@@ -3633,6 +3720,7 @@ func decodeCompatibilityServerTimestamp(payload []byte, pos int) (int64, bool) {
 
 func channelMessageFromRow(row messageRow) channel.Message {
 	row.Payload = append([]byte(nil), row.Payload...)
+	row.PublicationMetadata = bytes.Clone(row.PublicationMetadata)
 	return channelMessageFromOwnedRow(row)
 }
 
@@ -3640,24 +3728,25 @@ func channelMessageFromRow(row messageRow) channel.Message {
 // The caller must discard the row after conversion, never pass shared data.
 func channelMessageFromOwnedRow(row messageRow) channel.Message {
 	return channel.Message{
-		MessageID:         row.MessageID,
-		MessageSeq:        row.MessageSeq,
-		Framer:            decodeMessageRowFramerFlags(row.FramerFlags),
-		Setting:           frame.Setting(row.Setting),
-		MsgKey:            row.MsgKey,
-		Expire:            uint32(row.Expire),
-		ClientSeq:         row.ClientSeq,
-		ClientMsgNo:       row.ClientMsgNo,
-		StreamNo:          row.StreamNo,
-		StreamID:          row.StreamID,
-		StreamFlag:        frame.StreamFlag(row.StreamFlag),
-		Timestamp:         int32(row.Timestamp),
-		ChannelID:         row.ChannelID,
-		ChannelType:       row.ChannelType,
-		Topic:             row.Topic,
-		FromUID:           row.FromUID,
-		ServerTimestampMS: row.ServerTimestampMS,
-		Payload:           row.Payload,
+		MessageID:           row.MessageID,
+		MessageSeq:          row.MessageSeq,
+		Framer:              decodeMessageRowFramerFlags(row.FramerFlags),
+		Setting:             frame.Setting(row.Setting),
+		MsgKey:              row.MsgKey,
+		Expire:              uint32(row.Expire),
+		ClientSeq:           row.ClientSeq,
+		ClientMsgNo:         row.ClientMsgNo,
+		StreamNo:            row.StreamNo,
+		StreamID:            row.StreamID,
+		StreamFlag:          frame.StreamFlag(row.StreamFlag),
+		Timestamp:           int32(row.Timestamp),
+		ChannelID:           row.ChannelID,
+		ChannelType:         row.ChannelType,
+		Topic:               row.Topic,
+		FromUID:             row.FromUID,
+		ServerTimestampMS:   row.ServerTimestampMS,
+		Payload:             row.Payload,
+		PublicationMetadata: row.PublicationMetadata,
 	}
 }
 

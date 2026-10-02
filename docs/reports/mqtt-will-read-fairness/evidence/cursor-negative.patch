@@ -1,0 +1,4 @@
+--- candidate/internal/infra/mqttwill/attempts.go
++++ private-negative/internal/infra/mqttwill/attempts.go
+@@ -319 +318,0 @@
+-			s.scanAfter = names[start]

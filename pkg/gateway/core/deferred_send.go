@@ -48,6 +48,16 @@ func (e *sendExecutor) dispatchDeferredMailboxBatch(shard int, tasks []asyncDisp
 	limits := gatewaySendBatchLimits(e.server)
 	start, bytes := 0, 0
 	for i, task := range tasks {
+		// Independent protocol packets share this shard's ordered worker, but
+		// never enter WK SEND preparation or retain its publication records.
+		if task.packet != nil {
+			if i > start {
+				e.dispatchDeferredBatch(shard, tasks[start:i])
+			}
+			e.dispatchJoinedMailboxBatch(shard, tasks[i:i+1])
+			start, bytes = i+1, 0
+			continue
+		}
 		size := asyncDispatchTaskByteCount(task)
 		if i > start && limits.maxBytes > 0 && bytes+size > limits.maxBytes {
 			e.dispatchDeferredBatch(shard, tasks[start:i])

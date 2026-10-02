@@ -150,7 +150,7 @@ func (s *MemoryChannelStore) ReadExactRecoveryPage(ctx context.Context, req Exac
 			if !identityPresent || identity.Index != index || identity.CommandID != proposal.manifest.CommandID {
 				return ExactRecoveryPage{}, ch.ErrLogConflict
 			}
-			recordBytes := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload)
+			recordBytes := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload) + len(record.PublicationMetadata)
 			if proposalBytes > req.MaxBytes-recordBytes {
 				return ExactRecoveryPage{}, ch.ErrBackpressured
 			}
@@ -208,7 +208,7 @@ func (s *MemoryChannelStore) LoadExactProposal(ctx context.Context, req ExactPro
 		if !ok {
 			return ExactProposal{}, false, ch.ErrLogConflict
 		}
-		recordBytes := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload)
+		recordBytes := 96 + len(record.FromUID) + len(record.ClientMsgNo) + len(record.Payload) + len(record.PublicationMetadata)
 		if recordBytes > req.MaxBytes-used {
 			return ExactProposal{}, false, ch.ErrBackpressured
 		}
@@ -363,6 +363,9 @@ func (s *MemoryChannelStore) AppendLeader(ctx context.Context, req AppendLeaderR
 	if req.Committed != 0 {
 		return appendLeaderErrorResult(ch.ErrInvalidConfig), ch.ErrInvalidConfig
 	}
+	if err := validatePublicationRecords(req.Records); err != nil {
+		return appendLeaderErrorResult(err), err
+	}
 	if len(req.Records) == 0 {
 		leo := s.leoLocked()
 		return AppendLeaderResult{BaseOffset: leo + 1, LastOffset: leo, Outcome: AppendOutcomeDurable}, nil
@@ -371,15 +374,17 @@ func (s *MemoryChannelStore) AppendLeader(ctx context.Context, req AppendLeaderR
 	for i, record := range req.Records {
 		record.Index = base + uint64(i)
 		record.Payload = cloneBytes(record.Payload)
-		if record.SizeBytes == 0 {
-			record.SizeBytes = len(record.Payload)
-		}
+		record.PublicationMetadata = cloneBytes(record.PublicationMetadata)
+		record.SizeBytes = max(record.SizeBytes, len(record.Payload)+len(record.PublicationMetadata))
 		s.records = append(s.records, record)
 	}
 	return AppendLeaderResult{BaseOffset: base, LastOffset: s.leoLocked(), Outcome: AppendOutcomeDurable}, nil
 }
 
 func (s *MemoryChannelStore) appendLeaderExactLocked(req AppendLeaderRequest) (AppendLeaderResult, error) {
+	if err := validatePublicationRecords(req.Records); err != nil {
+		return appendLeaderErrorResult(err), err
+	}
 	proposal, entries, err := buildProposalRecord(req.Proposal, req.ExpectedBaseOffset, req.Records)
 	if err != nil {
 		return appendLeaderErrorResult(err), err
@@ -429,9 +434,8 @@ func (s *MemoryChannelStore) appendLeaderExactLocked(req AppendLeaderRequest) (A
 		}
 		record.Index = seq
 		record.Payload = cloneBytes(record.Payload)
-		if record.SizeBytes == 0 {
-			record.SizeBytes = len(record.Payload)
-		}
+		record.PublicationMetadata = cloneBytes(record.PublicationMetadata)
+		record.SizeBytes = max(record.SizeBytes, len(record.Payload)+len(record.PublicationMetadata))
 		s.records = append(s.records, record)
 	}
 	if s.proposalsByCommand == nil {
@@ -463,6 +467,9 @@ func (s *MemoryChannelStore) ApplyFollower(ctx context.Context, req ApplyFollowe
 	if err := ctx.Err(); err != nil {
 		return ApplyFollowerResult{}, err
 	}
+	if err := validatePublicationRecords(req.Records); err != nil {
+		return ApplyFollowerResult{}, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	leo := s.leoLocked()
@@ -475,7 +482,7 @@ func (s *MemoryChannelStore) ApplyFollower(ctx context.Context, req ApplyFollowe
 			if !ok && record.Index <= s.retention.LocalRetentionThroughSeq {
 				continue
 			}
-			if !ok || existing.ID != record.ID || string(existing.Payload) != string(record.Payload) {
+			if !ok || existing.ID != record.ID || string(existing.Payload) != string(record.Payload) || string(existing.PublicationMetadata) != string(record.PublicationMetadata) {
 				return ApplyFollowerResult{}, ch.ErrStaleMeta
 			}
 			continue
@@ -485,9 +492,8 @@ func (s *MemoryChannelStore) ApplyFollower(ctx context.Context, req ApplyFollowe
 		}
 		next := record
 		next.Payload = cloneBytes(record.Payload)
-		if next.SizeBytes == 0 {
-			next.SizeBytes = len(next.Payload)
-		}
+		next.PublicationMetadata = cloneBytes(record.PublicationMetadata)
+		next.SizeBytes = max(next.SizeBytes, len(next.Payload)+len(next.PublicationMetadata))
 		s.records = append(s.records, next)
 		leo++
 	}
@@ -522,7 +528,7 @@ func (s *MemoryChannelStore) ReadCommitted(ctx context.Context, req ReadCommitte
 			if req.MessageID != 0 && m.MessageID != req.MessageID || req.ClientMsgNo != "" && m.ClientMsgNo != req.ClientMsgNo {
 				continue
 			}
-			used += len(m.Payload)
+			used += len(m.Payload) + len(m.PublicationMetadata)
 			if len(out.Messages) >= req.Limit || used > req.MaxBytes {
 				return ReadCommittedResult{}, ch.ErrInvalidConfig
 			}
@@ -823,23 +829,25 @@ func (s *MemoryChannelStore) Close() error {
 
 func messageFromRecord(id ch.ChannelID, record ch.Record) ch.Message {
 	return ch.Message{
-		MessageID:         record.ID,
-		MessageSeq:        record.Index,
-		ChannelID:         id.ID,
-		ChannelType:       id.Type,
-		Setting:           record.Setting,
-		FromUID:           record.FromUID,
-		ClientMsgNo:       record.ClientMsgNo,
-		Payload:           cloneBytes(record.Payload),
-		ServerTimestampMS: record.ServerTimestampMS,
-		SyncOnce:          record.SyncOnce,
-		RedDot:            record.RedDot,
-		Expire:            record.Expire,
+		MessageID:           record.ID,
+		MessageSeq:          record.Index,
+		ChannelID:           id.ID,
+		ChannelType:         id.Type,
+		Setting:             record.Setting,
+		FromUID:             record.FromUID,
+		ClientMsgNo:         record.ClientMsgNo,
+		Payload:             cloneBytes(record.Payload),
+		PublicationMetadata: cloneBytes(record.PublicationMetadata),
+		ServerTimestampMS:   record.ServerTimestampMS,
+		SyncOnce:            record.SyncOnce,
+		RedDot:              record.RedDot,
+		Expire:              record.Expire,
 	}
 }
 
 func cloneRecord(record ch.Record) ch.Record {
 	record.Payload = cloneBytes(record.Payload)
+	record.PublicationMetadata = cloneBytes(record.PublicationMetadata)
 	return record
 }
 

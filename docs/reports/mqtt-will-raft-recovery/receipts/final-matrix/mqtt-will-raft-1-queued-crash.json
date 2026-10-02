@@ -1,0 +1,39 @@
+{
+  "business_publications": 2,
+  "connect_retries": 0,
+  "cut_node": 1,
+  "definite_successor_claims_during_window": 0,
+  "elapsed_ms": 61068,
+  "executor_restarts": 1,
+  "final_control_counts": [
+    {
+      "wkMQTTWillBeforeStartedCAS": 0,
+      "wkMQTTWillJournalFull": 0,
+      "wkMQTTWillPublicationAttempt": 1,
+      "wkMQTTWillStartedCASReply": 0,
+      "wkMQTTWillStartedFSMComplete": 0,
+      "wkMQTTWillSuccessorCASReply": 1,
+      "wkSlotPersistedUncommitted": 0
+    }
+  ],
+  "hash_slots": 256,
+  "instrumented_journal_capacity": 2,
+  "last_phase": "complete",
+  "logical_slots": 12,
+  "nodes": 1,
+  "original_exchange_replayed": false,
+  "original_publication_preserved": true,
+  "original_received_during_window": false,
+  "outcome": "crash",
+  "passed": true,
+  "persistent_reconnects": 1,
+  "publication_attempts_on_killed_process": 0,
+  "publications_while_unknown": 0,
+  "resubscriptions": 0,
+  "retained_terminal_node": 1,
+  "scenario": "mqtt-will-raft-recovery",
+  "state": "queued",
+  "state_cut_reached": true,
+  "unexpected_deliveries": 0,
+  "unknown_window_ms": 21000
+}

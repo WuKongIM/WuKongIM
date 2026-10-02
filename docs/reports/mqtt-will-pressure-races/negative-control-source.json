@@ -1,0 +1,12 @@
+{
+  "purpose": "Deliberately unsafe cleanup cancellation negative control; never product source.",
+  "source": "instrumented temporary source for /tmp/wukongim-will-pressure-gofail",
+  "overlay": "ReleaseAttempt begins with ctx = context.WithoutCancel(ctx).",
+  "modified_source_sha256": "c8a3b4de7c3e2a5a3367bfa2ab2eae245ccfb550b98510c9075643e50797a208",
+  "expected_failure_phase": "late-page-retains-capacity",
+  "initial_race_test_sha256": "79114c64d0d2007b1570cb1d8c6d857edfe7afd89d2d2f0ddbbea95ed3f879f7",
+  "binary_sha256": "b63c618e99122514d2b1e2a6e652eb96f8648dc39757f82e56330a6dd904208a",
+  "candidate_generated_source_sha256": "8d5a29da61edc58067d32e4202fd319cb3cca63cde0cd44821d9f2f95500143e",
+  "patch_sha256": "3787c2ccf5ca413a78588804778d258b565f16f5697c35babf6b787c30647f96",
+  "reproduce": "Copy the kept instrumented candidate source outside the repository. Verify candidate_generated_source_sha256; git apply --unidiff-zero negative-control.patch there, then GOWORK=off go build -buildvcs=false -o /tmp/wukongim-will-pressure-negative-gofail ./cmd/wukongim. Run only single-node-cluster/late-release using the current root E2E fixture and the negative binary. Expected FAIL at late-page-retains-capacity (second retired-page visit missing)."
+}

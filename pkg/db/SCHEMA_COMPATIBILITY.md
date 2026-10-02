@@ -30,11 +30,306 @@ and mixed binaries: format 1 and nonempty unregistered directories are rejected
 before opening writable stores. Never edit the marker to bypass this check.
 Use new directories or an explicitly prepared compatible import. No cleanup
 script may delete existing data automatically. Snapshots and JSONL transfers
-preserve both policy values and revisions. Slot commands 67 and 68 are permanent.
+preserve both policy values and revisions. Slot commands 67, 68 and 69 are permanent.
 Generic online FSM upserts retain existing policy; exact low-level Shard upserts
 remain offline import primitives and must not become online policy writers.
 
 ## Stable Durable IDs
+
+MQTT aggregate storage adds metadata table 28 (`mqtt_storage_ledger`) and Slot
+command 79. One hash-Slot row holds at most 1,024 non-expiring node grants with
+revision/bytes CAS, startup debt and Controller roster revision. Key-bound v1
+checksummed fixed JSON has a symmetric 256 KiB bound. Native metadata snapshots
+and inspect catalog include the table. No old business column is reinterpreted.
+
+Message table 1 System 17 contains derived v1 fixed uint64 per-position charges;
+System 18 contains one strict bounded v1 JSON exact manifest/nonce funding ticket
+(Prepared, Consumed or Canceled). Native snapshots preserve them; factory reopen
+rebuilds charges from canonical source/replay state before product admission.
+Replica exchange version 7 carries separate funding prepare/cancel kinds, never
+Channel durability votes. Channel append replies add closed `not_submitted`
+evidence and reject contradictory successful identities.
+
+Native proposal/entry format 7 explicitly binds one recovery barrier to its
+complete authority fence. Its digest has a distinct v7 domain. Formats 1–6 keep
+their existing digests; historical untyped v1 barriers are never inferred from
+payload spelling. MQTT internal classification and capacity exemption require
+verified native formats 4–7. Ordinary SyncOnce business content is charged.
+
+All cluster writers and recovery/transfer tools must match before activation:
+older writers bypass funding and reject new exchange/native formats. Perform a
+cold coordinated upgrade and preserve a pre-feature backup for rollback.
+Existing protected debt above new limits remains readable/deliverable and closes
+new admission until proved retirement; this is not a physical disk quota.
+See [the capacity contract](../../docs/specs/mqtt-storage-capacity.md).
+
+MQTT Session table 22 adds index 3, `idx_mqtt_session_reclamation`, in primary
+namespace/ClientID encoded order. Eligibility means an ended generation exceeds
+the existing column-30 reclamation marker. All ordinary Session writes maintain
+it. Table 22 System 1 stores one version-1, key-bound checksummed fixed backfill
+checkpoint per hash Slot (Done byte and two sized identity strings); its maximum
+encoded size is 2200 bytes. Command 76 commits at most 64 historical rows plus the
+checkpoint without changing Session values/revisions. Read kind 23 requires Done
+and strictly validates pinned index/primary witnesses; missing coverage is never
+empty work. Raw metadata snapshots preserve both spans. Historical rows remain
+readable, but matched writers are required before backfill: older writers can omit
+new eligibility behind a completed cursor. Use a pre-feature backup for rollback;
+MQTT JSONL and restore reactivation remain unfinished. See
+[Session reclamation](../../docs/specs/mqtt-session-reclamation.md).
+
+Metadata table 3 (`channel_runtime_meta`) System 1 now retains one incarnation
+floor per deleted channel ID/type under its existing hash-Slot prefix. Its key
+uses the runtime primary-key layout; its key-bound version-1 checksummed fixed
+envelope contains one big-endian uint64. It is not a runtime row. Physical
+deletion atomically retains the maximum channel/leader/route/directory/write-fence
+version, withdraws person-directory readiness/tasks and invalidates MQTT inbox
+admission. Only explicit create can reopen the absent identity, assigning versions
+above that floor. Late upserts and directory admission cannot resurrect it.
+Create results keep their wire format; callers reread actual committed versions.
+Native snapshots and portable binary metadata streams preserve registered System
+spans, including deleted identities. No old row encoding changes, but all writers
+must match: older binaries can erase/reuse authority. A pre-feature backup is
+required for rollback; old deletion history cannot be reconstructed. MQTT JSONL
+transfer and distributed restore activation remain required before product access.
+See [runtime incarnation fence](../../docs/specs/mqtt-runtime-incarnation.md).
+MQTT read RPC 106 kind 22 exposes that existing floor and the live runtime from
+one snapshot. Optional `runtime_channel`/`runtime` fields are absent on older
+queries/replies, preserving their JSON. New reads require matched peers; no
+durable format, backfill or write semantics change. Physical identity does not
+cover business Channel deletion or restore generations and cannot authorize
+Will redispatch. See [runtime source reads](../../docs/specs/mqtt-runtime-source.md).
+
+Message table 1 System 16 retains keyed Will publication receipts independently
+of ordinary history. Its key appends sized server-Will key and UID; its key-bound
+version-1 fixed envelope stores sequence, message ID, original timestamp and the
+versioned SHA-256 of length-delimited UID, client number, body and metadata.
+Append/follower apply writes it with the original; physical trim preserves it,
+materializing missing legacy receipts only from still-present originals in that
+same trim batch. Suffix rollback removes the corresponding suffix receipts and
+retained-prefix admission rejects duplicate server identities. Local reads pin
+checkpoint/original/physical-retention evidence; they grant no cluster authority.
+
+Populated receipt backups require binary version 4 (existing System section and
+v3-compatible replay fields). Native backups remain versions 1–3; new readers
+accept them through the same complete semantic preflight. Receipt message IDs
+participate in allocation statistics even after their bodies are gone. No
+historical receipt can be reconstructed from absent original content. Matched
+writers/tools, rollout gating and a pre-feature rollback generation are required.
+Full-channel deletion, restore activation, receipt transfer and MQTT JSONL remain
+unfinished; see [Will receipts](../../docs/specs/mqtt-will-receipts.md).
+
+Person-directory deletion now advances existing runtime route column 16 together
+with directory column 17, rejecting overflow; ordinary monotonic upserts also
+advance the route when directory generation changes. No column, key or stored
+format is added. Matching writers are required before using this stronger fence:
+old binaries do not advance both versions. Optional prepared append requests use
+Channel RPC 12 and reject lossy older formats; ordinary requests/replies remain
+11. Physical runtime deletion uses the retained floor above; restore activation
+still requires separate fencing before MQTT product activation.
+See [prepared append authority](../../docs/specs/mqtt-append-route-fence.md).
+
+Subscriber table 5 keeps its primary key and adds optional column 4,
+`incarnation`, in a key-bound version-1 column envelope. Empty legacy values
+normalize to incarnation 1. System 1 under this table stores a version-1,
+checksummed fixed uint64 allocation high water per hash Slot; it survives member
+and channel deletion. Native snapshots preserve both. JSONL adds optional
+`incarnation` and a nonempty-only `meta.subscriber_sequences` dataset, represented
+as decimal strings. Imports require sequence witnesses for nonlegacy members and
+never allocate replacement identities. Old writers erase these values, and old
+tools reject the new dataset: all writers/tools must match before deployment;
+rollback requires a pre-feature backup. See [subscriber incarnations](../../docs/specs/mqtt-member-incarnation.md).
+
+MQTT publication groundwork adds optional message column 21 (`publication_metadata`),
+compatibility record codec 2 and exact proposal format 3. Absent metadata keeps
+native record bytes and format-1/2 hashes unchanged. Binary backups preserve the
+column and exact proposal identities; product send and owner-push DTO/RPC carry
+the content. JSONL preserves message identities and publication metadata.
+JSONL omits `publication_metadata_b64` on native rows; older strict readers reject
+populated records. Preflight validates bounded metadata and a positive source
+timestamp, import byte budgets include metadata, and summary/full verification
+bind its SHA-256 without changing native digests. MQTT state transfer, restore
+owner fencing and capability gating remain incomplete, so access stays disabled.
+New data requires matched runtimes and tools and a pre-feature backup for rollback.
+See [the publication format](../../docs/specs/mqtt-publication-metadata.md).
+
+Message System ID 12 stores version-1 key-bound source protection and shared-copy
+receipt references. Physical retention respects it; logical history stays
+independent. Binary backups validate/preserve it against their selected HW. Old
+writers ignore this safety state, so replicated activation requires matched
+runtimes and restored-owner fencing; local storage apply is not that activation.
+JSONL transfer and shared-replay integration remain pending. See
+[the source contract](../../docs/specs/mqtt-source-protection.md).
+
+Exact proposal format 4 introduces one explicitly tagged MQTT source activation
+record with its own hash domain; business format selection remains 1–3. Message
+System ID 13 stores the first activation manifest in a key-bound version-1 fixed
+envelope. Pending activation clamps physical trim; the HW commit atomically
+materializes System 12, whose `mqtt-log-v1:` generation is reserved for that
+projection. Local CAS cannot create or replace it. Uncommitted suffix replacement
+can replace the pending marker; committed activation cannot reset. Portable
+backups omit pending controls and preflight the matching committed manifest,
+source state and exact identities. Existing backup framing and manifest widths
+are unchanged, but old validators reject format 4. Matching writers/tools are
+required; JSONL transfer and product restore activation remain incomplete. See
+[log activation](../../docs/specs/mqtt-source-log-activation.md).
+
+Exact proposal format 5 stores one explicitly tagged MQTT replay anchor with a
+separate hash domain and fixed version-1 source/prefix/digest payload. Message
+System ID 14 retains a key-bound version-1 journal entry per control position,
+atomically with the exact append. Committed reads verify source activation,
+checkpoint and complete proposal/entry proofs; prefix cleanup retains journals,
+while uncommitted suffix replacement removes them. Backups omit pending entries
+and require a matching journal for every committed anchor, with identical
+proposal/entry format versions. This changes neither System 12 release nor local
+copy coverage. Business version selection remains 1–3. Old validators reject
+format 5; matching writers and tools and pre-feature rollback backups are required.
+Runtime copy-receipt admission and routed anchored repair preserve these proofs. See
+[replay anchors](../../docs/specs/mqtt-replay-anchor.md).
+
+Exact proposal format 6 records one explicitly selected replay-retirement
+decision under a new hash domain. Its closed payload binds a complete accepted
+anchor, its original position and proposal digest. Message System ID 15 journals
+the canonical control envelope in a key-bound version-1 checksum value. Append
+and recovery validate source activation, the covered anchor and monotonic prefix;
+committed reads independently verify the full proposal/entry/reference chain.
+Backup keeps only HW-covered decisions and validates their journals and anchors;
+suffix replacement removes only uncommitted journals. No replay row, meter or
+source-release encoding changes, and no physical reclamation is enabled here.
+Business format selection remains 1–3. Old validators reject format 6, so all
+writers/tools must match and rollback requires a pre-feature backup. Product
+consumer admission remains required; explicit local materialization is described below. See
+[replay retirement](../../docs/specs/mqtt-replay-retirement.md).
+
+Explicit source release can now derive System 12 progress from a locally
+committed format-5 anchor and independently verified local replay coverage.
+It stores the anchor manifest digest in the existing receipt field and advances
+the local materialization revision, with no encoding or ID changes. Background
+target recovery requests this through RPC 99 v2 with explicit intent and reply
+acknowledgement; v1 remains ordinary recovery and old servers reject v2. See
+[anchor-derived release](../../docs/specs/mqtt-source-anchor-release.md).
+
+MQTT plan RPC 97 keeps request v1 and uses reply v2 only when carrying an
+explicit bounded maintenance-tail assertion; ordinary/error replies remain v1.
+Older readers reject v2, and matched runtime deployment is required. This adds
+no stored metadata or native log format.
+
+RPC 99 version 3 explicitly applies the latest locally committed retirement
+before repair planning; a separate flag reports bounded cleanup still pending.
+Versions 1/2 preserve their bytes and behavior; old peers reject version 3, and
+callers must not downgrade the requested effect. No new storage encoding is added.
+
+MQTT metadata RPC 106 read kind 17 discovers replay sources through existing
+primary binding rows, including Removed tombstones. Kind 16 retains active-source
+semantics. This adds no table/index/row layout or backfill; matched runtimes are
+required because older peers reject the new read kind. Workers cannot downgrade
+to kind 16 and lose cleanup after the last consumer leaves. Retention decisions
+still use the strict consumer index, not these discovery hints.
+
+Message table 2 System 2 materializes a verified format-6 retirement. Its fixed
+version-1, checksummed envelope stores two uint64 values: the retirement control
+position and the engine-deleted-through cursor. Its counters/digest are resolved
+from the independently verified committed journal. Baseline/frontier and bounded
+primary/meter range deletion commit atomically; the original System 1 frontier
+encoding stays unchanged and may now include retired responsibility. Old writers
+cannot interpret this state and must not operate on a pruned database.
+Pruned backups use version 3: each channel's replay section begins with an
+optional baseline marker, followed by the existing frontier and only its retained
+suffix. The archive normalizes cleanup progress to complete, and zero suffix rows
+are valid. Version-1/2 export bytes remain unchanged. Import verifies all journal
+references and suffix hashes, rejects retirement regression, and publishes the
+frontier/marker only after content is installed. Redundant legacy version-2 header
+frontiers are validated but no longer installed before their replay section.
+Restoring a fully pruned archive may finish equivalent partial cleanup with range
+tombstones; physical disk reclamation remains engine compaction's responsibility.
+Matching tools and pre-feature rollback backups are required. See
+[retired replay storage](../../docs/specs/mqtt-retired-replay-storage.md).
+
+Message-domain table 2 stores immutable MQTT shared replay by source incarnation,
+position and content version. Index 2 provides bounded cumulative counters;
+System 1 publishes cumulative copied/retired coverage. Neither copying nor a local digest grants
+source-release authority. Canonical content normalizes replica-local size hints.
+Unpruned replay-bearing binary backups use version 2, validate complete digest chains and
+existing target coverage before writes, then rebuild the counting index without
+ordinary global-ID entries. Native-only backups retain version 1. Older binaries
+and tools cannot restore versions 2/3. Product retirement admission/scheduling,
+MQTT-state JSONL and restored-owner fencing remain required before activation.
+See [the replay contract](../../docs/specs/mqtt-shared-replay.md).
+
+MQTT groundwork adds metadata tables 22 (`mqtt_session`), 23
+(`mqtt_subscription`), 24 (`mqtt_delivery_cursor`), 25 (`mqtt_inflight`), 26
+(`mqtt_source_binding`) and 27 (`mqtt_will`), with Slot commands 70–74 and 80–82.
+Table 27 optional columns 35/36 preserve dispatch phase and frozen hook payload.
+Phase 4 (`Sealed`) records only Rejected/PermissionRevoked after a trusted exact
+durable non-dispatch seal. It retains the original Started executor/body and
+has no receipt/lease; legacy/preparation/executable rows cannot adopt it.
+Row/command bounds, indexes and envelopes stay unchanged. Older binaries reject
+this value: matched runtimes/tools and pre-feature rollback data are required;
+no mixed-version rollout or backfill is supported. See
+[sealed rejection](../../docs/specs/mqtt-will-sealed-rejection.md).
+Unmarked rows retain their exact previous encoding; marked rows separate safe
+Preparing/Prepared continuation from Started outcomes requiring independent proof.
+Both original and transformed payloads remain bounded at 65,535 bytes; row decoding
+is capped at 192 KiB and command 72 at 320 KiB including escaped identities.
+Snapshots and typed reads retain both bodies; inspection reports lengths only.
+Old strict peers reject new JSON and old writers may drop optional columns, so
+matched writers/tools and a pre-feature rollback generation are required.
+No backfill can infer the dispatch phase of old Executing rows. See
+[frozen Will preparation](../../docs/specs/mqtt-will-preparation.md).
+Command 74 stores person-inbox admission progress under table 26 System 1,
+keyed by the canonical person Channel ID. Its version-1 key-bound fixed envelope
+stores directory generation, monotonic revision, timestamp, participant and a
+bounded qualification cursor. Runtime deletion invalidates the record atomically
+without resetting its revision; ordinary Channel deletion advances the runtime
+incarnation. RPC 106 kind 21 pins both records. Native Hash-Slot snapshots preserve
+the existing System span without a framing change. Older writers cannot retain
+these fences, so matching writers/tools and a pre-feature rollback backup are
+required. MQTT JSONL transfer and full product activation remain pending.
+See [admission checkpoints](../../docs/specs/mqtt-inbox-admission-checkpoint.md).
+Command 82 operation 3 explicitly initializes empty cancelled preparation after
+closed/replaced subscription intent. It preserves existing row/envelope formats
+and ordinary Init/Account semantics; older nodes reject it, requiring matched
+participants. No index or data backfill is introduced.
+Command 82 operation 4 persists qualified backlog receipts under table 24 System 1,
+with key-bound fixed envelope version 1. Optional cursor columns 25–27 are an
+all-or-none version/head/tail tuple; old rows retain legacy version 0. Upgrade
+requires no unadmitted legacy backlog. RPC 106 read kind 18 pins the head alongside
+Session/cursor; old peers reject the operation/read. All writers and tools must
+match before use; old writers cannot preserve this System state, so rollback
+requires a pre-feature backup. Hash-Slot snapshots preserve row/index/System
+spans together; MQTT JSONL transfer remains outstanding. See
+[qualified accounting](../../docs/specs/mqtt-qualified-accounting.md).
+Command 73 atomically resolves Session/Will transitions and records optional
+Session column 29 for exact retry; older rows default to an empty receipt.
+Generic CAS cannot bypass referenced Will lifecycle. Message index 8 selects the
+separate server Will identity derived from publication metadata v2; ordinary
+index 4 stays unchanged and nonunique client-number index 3 also covers Wills.
+Only new keyed records use index 8, so no legacy backfill is needed. All writers,
+deletions and portable imports maintain it; older readers reject v2 metadata.
+UID binding table 26 adds optional all-or-none columns 29–32 for drain version 1,
+SourceID/SourceGeneration continuation and completion. Absent markers retain
+legacy bytes/JSON; marked rows keep the existing envelope/key/index formats.
+Command 71 preserves nonzero progress as optional JSON. New normal UID removal
+requires initialized/completed drain evidence; exact retries and reading legacy
+tombstones remain supported. Explicit Session ending has independent proof.
+Older writers may erase these columns, so deployment requires matched
+readers/writers/tools and a pre-feature rollback backup. Snapshots preserve the
+whole tuple; full MQTT JSONL transfer remains pending. See
+[inbox removal](../../docs/specs/mqtt-inbox-removal.md).
+
+Product execution/authority wiring remains required. Source bindings
+have separate Channel/UID ownership and retain removal tombstones; UID discovery
+checkpoints accept the native directory limit of 4096 ID bytes. This expands
+validation only, preserving column/envelope/index encodings. Older binaries
+reject checkpoints above 1024 bytes, so matched readers/writers/tools and a
+pre-feature rollback backup are required. Their proof revisions do
+not establish remote authority by themselves. Optional window columns retain
+legacy zero defaults; lifecycle CAS preserves delivery-owned counters and
+allocators within a generation. Rows use key-bound checksum column envelopes;
+commands have bounded, explicitly versioned bodies. Snapshots and inspection
+preserve this state. Product MQTT access remains disabled: routing/activation, distributed shared replay, offline
+transfer, restored-owner fencing and capability gates are still required before
+this feature can be enabled. Details and frozen IDs are in
+[the MQTT storage contract](../../docs/specs/mqtt-storage-contract.md).
 
 Message editing adds metadata tables 18–21 (latest content, channel heads,
 idempotency results, pending notification checkpoints) and Slot command 66.

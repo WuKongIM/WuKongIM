@@ -1,0 +1,57 @@
+{
+  "business_publications": 2,
+  "connect_retries": 0,
+  "cut_node": 2,
+  "definite_successor_claims_during_window": 0,
+  "dropped_append_batches": 3782,
+  "elapsed_ms": 77190,
+  "executor_capacity_refusal": true,
+  "final_control_counts": [
+    {
+      "wkMQTTWillBeforeStartedCAS": 0,
+      "wkMQTTWillJournalFull": 0,
+      "wkMQTTWillPublicationAttempt": 0,
+      "wkMQTTWillStartedCASReply": 0,
+      "wkMQTTWillStartedFSMComplete": 1,
+      "wkMQTTWillSuccessorCASReply": 0,
+      "wkSlotPersistedUncommitted": 0
+    },
+    {
+      "wkMQTTWillBeforeStartedCAS": 1,
+      "wkMQTTWillJournalFull": 1,
+      "wkMQTTWillPublicationAttempt": 1,
+      "wkMQTTWillStartedCASReply": 0,
+      "wkMQTTWillStartedFSMComplete": 1,
+      "wkMQTTWillSuccessorCASReply": 1,
+      "wkSlotPersistedUncommitted": 1
+    },
+    {
+      "wkMQTTWillBeforeStartedCAS": 0,
+      "wkMQTTWillJournalFull": 0,
+      "wkMQTTWillPublicationAttempt": 0,
+      "wkMQTTWillStartedCASReply": 0,
+      "wkMQTTWillStartedFSMComplete": 1,
+      "wkMQTTWillSuccessorCASReply": 0,
+      "wkSlotPersistedUncommitted": 0
+    }
+  ],
+  "hash_slots": 256,
+  "instrumented_journal_capacity": 2,
+  "last_phase": "complete",
+  "logical_slots": 12,
+  "nodes": 3,
+  "original_exchange_replayed": false,
+  "original_publication_preserved": true,
+  "original_received_during_window": false,
+  "outcome": "late",
+  "passed": true,
+  "persistent_reconnects": 1,
+  "publications_while_unknown": 0,
+  "resubscriptions": 0,
+  "retained_terminal_node": 2,
+  "scenario": "mqtt-will-raft-recovery",
+  "state": "persisted-uncommitted",
+  "state_cut_reached": true,
+  "unexpected_deliveries": 0,
+  "unknown_window_ms": 21000
+}

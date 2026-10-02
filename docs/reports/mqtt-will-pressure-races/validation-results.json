@@ -1,0 +1,496 @@
+{
+  "source_base": "a8559a6bad3f48337315f814dc664b3c221e76b6",
+  "platform": "darwin/arm64",
+  "go_version": "1.25.11",
+  "environment": "PATH=/tmp/will-admission-toolchain/golang.org/toolchain@v0.0.1-go1.25.11.darwin-arm64/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin GOMODCACHE=/Users/tt/.codex/will-append-runtime/gomod GOPROXY=https://goproxy.cn,direct GOTOOLCHAIN=local GOWORK=off",
+  "scope": "default1024 capacity; appliedCAS replies; canceled retirement pages; finite process acceptance",
+  "runs": [
+    {
+      "name": "joined-capacity-1",
+      "outcome": "PASS",
+      "command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_MQTT_WILL_CAPACITY=1 WK_E2E_BINARY=/tmp/wukongim-will-pressure-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-capacity-final-1 go test -p 1 -tags=e2e ./test/e2e/mqtt/will_reclamation -run TestWillJournalProductionCapacityPreservesCurrentRecovery/single-node-cluster$ -count=1 -timeout=40m -v",
+      "log_path": "/tmp/mqtt-will-capacity-final-1.log",
+      "log_sha256": "cf67ceb96c66acb3723f5fe7e9debab3b4d951bd0bf338e565b834b2822d8edc",
+      "package_seconds": 749.098,
+      "binary_sha256": "5f819b0697d93f8f5bd6ee27cf20daecfbce829b650fb2a06913cb61c68369b6",
+      "test_sha256": "d69109a02c59b12c79e19c1fbbbefae23d784b9954fa50c79cc54a98aa5f378d",
+      "receipt_directory": "receipts/capacity-final-1",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation",
+          "seconds": 749.098
+        }
+      ]
+    },
+    {
+      "name": "joined-capacity-3",
+      "outcome": "PASS",
+      "command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_MQTT_WILL_CAPACITY=1 WK_E2E_BINARY=/tmp/wukongim-will-pressure-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-capacity-final-3 go test -p 1 -tags=e2e ./test/e2e/mqtt/will_reclamation -run TestWillJournalProductionCapacityPreservesCurrentRecovery/three-node-cluster$ -count=1 -timeout=40m -v",
+      "log_path": "/tmp/mqtt-will-capacity-final-3.log",
+      "log_sha256": "7b5c3559e7cef12cd1d526a07f225f0fcab674a2609b7041e38426734be01e38",
+      "package_seconds": 467.413,
+      "binary_sha256": "5f819b0697d93f8f5bd6ee27cf20daecfbce829b650fb2a06913cb61c68369b6",
+      "test_sha256": "d69109a02c59b12c79e19c1fbbbefae23d784b9954fa50c79cc54a98aa5f378d",
+      "receipt_directory": "receipts/capacity-final-3",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation",
+          "seconds": 467.413
+        }
+      ]
+    },
+    {
+      "name": "final-six-case-matrix",
+      "outcome": "PASS, 6/6",
+      "command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-pressure-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-races-completion-window WK_E2E_MQTT_LOG_DIR=/tmp/mqtt-will-races-completion-window-logs go test -p 1 -tags=e2e ./test/e2e/mqtt/will_reclamation_races -count=1 -timeout=25m -v",
+      "log_path": "/tmp/mqtt-will-races-completion-window.log",
+      "log_sha256": "8c206cac582cd61508ed616fd88786d1fe2f9480816d92acbb50e578afbff0fe",
+      "package_seconds": 638.06,
+      "binary_sha256": "5f819b0697d93f8f5bd6ee27cf20daecfbce829b650fb2a06913cb61c68369b6",
+      "test_sha256": "ccd92a1eb8ff47c8ed0fe9c337aa2c64e7fd70e1d0bdbcbba78503dea4f70969",
+      "receipt_directory": "receipts/final-matrix",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation_races",
+          "seconds": 638.06
+        }
+      ]
+    },
+    {
+      "name": "delivered-source-tracer",
+      "outcome": "PASS",
+      "command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-pressure-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-races-delivered-tracer go test -p 1 -tags=e2e ./test/e2e/mqtt/will_reclamation_races -run TestWillReclamationRetainsDelayedCASRecovery/single-node-cluster/late-release$ -count=1 -timeout=6m -v",
+      "log_path": "/tmp/mqtt-will-races-delivered-tracer.log",
+      "log_sha256": "6316df0257526159836a8130575a9668c343bd30e6d7346d0058ab0b5e58b195",
+      "package_seconds": 105.977,
+      "binary_sha256": "5f819b0697d93f8f5bd6ee27cf20daecfbce829b650fb2a06913cb61c68369b6",
+      "test_sha256": "ab0493bb2015cd3491fe49cf124d19851a600a58474a08e4ddb0ebdfc365755a",
+      "receipt_directory": "receipts/delivered-tracer",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation_races",
+          "seconds": 105.977
+        }
+      ]
+    },
+    {
+      "name": "joined-cap-two",
+      "outcome": "PASS, 2/2",
+      "command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-pressure-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-pressure-small-final go test -p 1 -tags=e2e ./test/e2e/mqtt/will_reclamation -run TestWillJournalPressurePreservesCurrentRecovery -count=1 -timeout=6m -v",
+      "log_path": "/tmp/mqtt-will-pressure-small-final.log",
+      "log_sha256": "384bea5fc8b27967c978f262cee99043c655dcec16cc62f67a823608194588c1",
+      "package_seconds": 144.938,
+      "binary_sha256": "5f819b0697d93f8f5bd6ee27cf20daecfbce829b650fb2a06913cb61c68369b6",
+      "test_sha256": "d69109a02c59b12c79e19c1fbbbefae23d784b9954fa50c79cc54a98aa5f378d",
+      "receipt_directory": "receipts/small-final",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation",
+          "seconds": 144.938
+        }
+      ]
+    },
+    {
+      "name": "ordinary-will",
+      "outcome": "PASS, 2/2",
+      "command": "WK_E2E_BINARY=/tmp/wukongim-will-pressure-ordinary WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-pressure-ordinary-regression go test -p 1 -tags=e2e ./test/e2e/mqtt/will -count=1 -timeout=4m -v",
+      "log_path": "/tmp/mqtt-will-pressure-ordinary-regression.log",
+      "log_sha256": "7eb24c6eaefb126a146df1d3fa04ed3f5332441e66164c96b42fb201e4b20b5b",
+      "package_seconds": 55.116,
+      "binary_sha256": "906eb7feb5fc2dbb58d83b59e8db9559ed3d4b0ce5d82a0f37b801addac1c9df",
+      "receipt_directory": "receipts/ordinary-regression",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will",
+          "seconds": 55.116
+        }
+      ]
+    },
+    {
+      "name": "related-race-gates",
+      "outcome": "PASS",
+      "command": "go test -race -p 1 ./internal/usecase/mqttsession ./pkg/slot/proxy -run 'Will|MQTT' -count=1 -timeout=5m",
+      "log_path": "/tmp/mqtt-will-pressure-race-gates.log",
+      "log_sha256": "e74df6f4559d2a3c6a5540efd9c57ea1792d39794c8ad5e06b19e1463423e5e7",
+      "package_seconds": 6.292,
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession",
+          "seconds": 40.347
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy",
+          "seconds": 6.292
+        }
+      ]
+    },
+    {
+      "name": "flow-doc-contracts",
+      "outcome": "PASS: 88 compliant, 0 invalid, 11 existing warnings",
+      "command": "go run ./scripts/flowcheck --mode check",
+      "log_path": "/tmp/mqtt-will-pressure-flow-delivered-check.log",
+      "log_sha256": "712b0d00c884c879b2cce5695f7c753e8b77e926f42a262132c69db816723b64"
+    },
+    {
+      "name": "flow-index-render",
+      "outcome": "PASS",
+      "command": "go run ./scripts/flowcheck --mode render --write-index",
+      "log_path": "/tmp/mqtt-will-pressure-flow-delivered-render.log",
+      "log_sha256": "5ca49956b23d02062de121518c2742d33bfb3768463081d8e438c87de41d5854"
+    },
+    {
+      "name": "suite-compile",
+      "outcome": "PASS, compile only",
+      "command": "go test -p 1 -tags=e2e ./test/e2e/suite -run ^$ -count=1",
+      "log_path": "/tmp/mqtt-will-pressure-suite-compile.log",
+      "log_sha256": "f8cb0d55657ef7924391a722b66a527d9789b0ae54e8661214ac6646bbe2d7ba",
+      "package_seconds": 0.342,
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/suite",
+          "seconds": 0.342
+        }
+      ]
+    },
+    {
+      "name": "profile-helper-process-probe",
+      "outcome": "PASS: bounded real-process profile, 946209 bytes",
+      "command": "go run -tags=e2e /tmp/will-pressure-profile-probe.go",
+      "log_path": "/tmp/mqtt-will-profile-helper-verification.log",
+      "log_sha256": "3a37057be741a989dc2042c514d3f96d91ddad9bdd866223f8412801f4423e04",
+      "probe_source_sha256": "ad7c900d293c6a611abcad17654b8f0a8c387f529eff72bc878ef894e4fbb691",
+      "private_profile_sha256": "d9a4d12f432044a0b0a4eee5a983f57bd37becc4d683dcdf77c2fdceff1b8656"
+    },
+    {
+      "name": "ordinary-build",
+      "outcome": "PASS",
+      "command": "go build -buildvcs=false -o /tmp/wukongim-will-pressure-ordinary ./cmd/wukongim",
+      "log_path": "/tmp/mqtt-will-pressure-ordinary-build.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "binary_sha256": "906eb7feb5fc2dbb58d83b59e8db9559ed3d4b0ce5d82a0f37b801addac1c9df"
+    },
+    {
+      "name": "ordinary-dependency-info",
+      "outcome": "PASS: no go.etcd.io/gofail",
+      "command": "go version -m /tmp/wukongim-will-pressure-ordinary",
+      "log_path": "/tmp/mqtt-will-pressure-ordinary-build-info.log",
+      "log_sha256": "8e133b006f43b825b6ea1cb2179e7a0c12496ee0059157a710113de5ffd822f6",
+      "binary_sha256": "906eb7feb5fc2dbb58d83b59e8db9559ed3d4b0ce5d82a0f37b801addac1c9df"
+    },
+    {
+      "name": "instrumented-build",
+      "outcome": "PASS",
+      "command": "GOFLAGS=-buildvcs=false scripts/build-gofail-binary.sh --out /tmp/wukongim-will-pressure-gofail --work-dir /tmp/wukongim-will-pressure-source --keep-work --package internal/usecase/mqttsession --package internal/app --package internal/infra/mqttwill --package internal/runtime/channelappend --package pkg/slot/proxy",
+      "log_path": "/tmp/mqtt-will-pressure-build.log",
+      "log_sha256": "b1843b3876180ddd37b034d02703d4febaa545fc20f34ce66fedd930149a6deb",
+      "binary_sha256": "5f819b0697d93f8f5bd6ee27cf20daecfbce829b650fb2a06913cb61c68369b6"
+    },
+    {
+      "name": "negative-initial",
+      "outcome": "EXPECTED FAIL: missing second retirement page at late-page-retains-capacity",
+      "command": "Run current/recorded E2E late-release with the deliberately unsafe temporary binary; see negative-control-source.json for exact copy, patch and build.",
+      "log_path": "/tmp/mqtt-will-races-negative.log",
+      "log_sha256": "ed57678a21a7dc10e5134feac3cd66640cf16b272137c817084e95a274a41cb6",
+      "package_seconds": 45.684,
+      "binary_sha256": "b63c618e99122514d2b1e2a6e652eb96f8648dc39757f82e56330a6dd904208a",
+      "receipt_directory": "receipts/negative-initial",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation_races",
+          "seconds": 45.684
+        }
+      ]
+    },
+    {
+      "name": "negative-repeat",
+      "outcome": "EXPECTED FAIL: missing second retirement page at late-page-retains-capacity",
+      "command": "Run current/recorded E2E late-release with the deliberately unsafe temporary binary; see negative-control-source.json for exact copy, patch and build.",
+      "log_path": "/tmp/mqtt-will-races-negative-final.log",
+      "log_sha256": "2b8c1dcf95c620b4990b99a411b376b48249719fc6f62f4af40c824f29c551ab",
+      "package_seconds": 46.628,
+      "binary_sha256": "b63c618e99122514d2b1e2a6e652eb96f8648dc39757f82e56330a6dd904208a",
+      "receipt_directory": "receipts/negative-repeat",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation_races",
+          "seconds": 46.628
+        }
+      ]
+    },
+    {
+      "name": "negative-joined",
+      "outcome": "EXPECTED FAIL: missing second retirement page at late-page-retains-capacity",
+      "command": "Run current/recorded E2E late-release with the deliberately unsafe temporary binary; see negative-control-source.json for exact copy, patch and build.",
+      "log_path": "/tmp/mqtt-will-races-negative-qualified.log",
+      "log_sha256": "fa18d6533ce5966e7f5a9bbd68ce799c813118a854f105ffc7e1a57801fa8b31",
+      "package_seconds": 49.03,
+      "binary_sha256": "b63c618e99122514d2b1e2a6e652eb96f8648dc39757f82e56330a6dd904208a",
+      "test_sha256": "d1e006b0c87aa5c22677f9225af0cd616110e72608027f2515b330bc863036c6",
+      "receipt_directory": "receipts/negative-final",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation_races",
+          "seconds": 49.03
+        }
+      ]
+    },
+    {
+      "name": "negative-final-window",
+      "outcome": "EXPECTED FAIL: missing second retirement page at late-page-retains-capacity",
+      "command": "Run current/recorded E2E late-release with the deliberately unsafe temporary binary; see negative-control-source.json for exact copy, patch and build.",
+      "log_path": "/tmp/mqtt-will-races-negative-completion-window.log",
+      "log_sha256": "db81831c972be401651b963ed5964464bbed342dc2520921aef407e50b2f85c0",
+      "package_seconds": 44.93,
+      "binary_sha256": "b63c618e99122514d2b1e2a6e652eb96f8648dc39757f82e56330a6dd904208a",
+      "test_sha256": "ccd92a1eb8ff47c8ed0fe9c337aa2c64e7fd70e1d0bdbcbba78503dea4f70969",
+      "receipt_directory": "receipts/negative-delivered",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation_races",
+          "seconds": 44.93
+        }
+      ]
+    },
+    {
+      "name": "initial-capacity-1",
+      "outcome": "PASS",
+      "command": "Historical run retained separately; not a substitute for final exact-source acceptance.",
+      "log_path": "/tmp/mqtt-will-pressure-tracer.log",
+      "log_sha256": "2999fd48c3e06130f0b1f17b7aeca8015a539823d0cfa0bf5960a3b24d514c12",
+      "package_seconds": 702.393,
+      "binary_sha256": "509e934b331f8f4c2989d08cda99d838a49bfcf20fb3efb79a3aaef38f49cfe9",
+      "receipt_directory": "receipts/capacity-1",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation",
+          "seconds": 702.393
+        }
+      ]
+    },
+    {
+      "name": "initial-capacity-3",
+      "outcome": "PASS",
+      "command": "Historical run retained separately; not a substitute for final exact-source acceptance.",
+      "log_path": "/tmp/mqtt-will-pressure-capacity-3.log",
+      "log_sha256": "2df1d0c5527548061e8ddff22e9d5cc33e6ad237774003f39340e15af164d322",
+      "package_seconds": 413.282,
+      "binary_sha256": "5f819b0697d93f8f5bd6ee27cf20daecfbce829b650fb2a06913cb61c68369b6",
+      "receipt_directory": "receipts/capacity-3",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation",
+          "seconds": 413.282
+        }
+      ]
+    },
+    {
+      "name": "initial-race-matrix",
+      "outcome": "FAIL: 1/6 passed; fixture replay/control contention",
+      "command": "Historical run retained separately; not a substitute for final exact-source acceptance.",
+      "log_path": "/tmp/mqtt-will-races-matrix.log",
+      "log_sha256": "6490cb874200674b6d6f2f3ec99b222ac79184062cbab75aa51e5cc78cf9bc17",
+      "package_seconds": 391.508,
+      "binary_sha256": "5f819b0697d93f8f5bd6ee27cf20daecfbce829b650fb2a06913cb61c68369b6",
+      "receipt_directory": "receipts/initial-fixture-matrix",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation_races",
+          "seconds": 391.508
+        }
+      ]
+    },
+    {
+      "name": "corrected-race-matrix",
+      "outcome": "FAIL: 5/6; 35s after-pressure receipt window",
+      "command": "Historical run retained separately; not a substitute for final exact-source acceptance.",
+      "log_path": "/tmp/mqtt-will-races-final.log",
+      "log_sha256": "5f4eacb5f530ac1806b9c93317d7ca0d5ae17a00256af0f1f9058d70d518fece",
+      "package_seconds": 634.555,
+      "binary_sha256": "5f819b0697d93f8f5bd6ee27cf20daecfbce829b650fb2a06913cb61c68369b6",
+      "receipt_directory": "receipts/corrected-fixture-matrix",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation_races",
+          "seconds": 634.555
+        }
+      ]
+    },
+    {
+      "name": "joined-race-matrix",
+      "outcome": "FAIL: 5/6; 35s after-pressure receipt window",
+      "command": "Historical run retained separately; not a substitute for final exact-source acceptance.",
+      "log_path": "/tmp/mqtt-will-races-qualified.log",
+      "log_sha256": "4c983ecd3d2391906e0d348a9ac3bdadf7d62b6465022a7b339e7035d0aecef9",
+      "package_seconds": 619.689,
+      "binary_sha256": "5f819b0697d93f8f5bd6ee27cf20daecfbce829b650fb2a06913cb61c68369b6",
+      "receipt_directory": "receipts/joined-fixture-matrix",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation_races",
+          "seconds": 619.689
+        }
+      ]
+    },
+    {
+      "name": "joined-late-repeat",
+      "outcome": "PASS: 2 repeated late-release; receipt file retains last iteration",
+      "command": "Historical run retained separately; not a substitute for final exact-source acceptance.",
+      "log_path": "/tmp/mqtt-will-races-late-qualified-repeat.log",
+      "log_sha256": "0cf1f708a5d9363397da8f5505c085b449d01cb3aaa4e347769615b02f4ecb63",
+      "package_seconds": 177.089,
+      "binary_sha256": "5f819b0697d93f8f5bd6ee27cf20daecfbce829b650fb2a06913cb61c68369b6",
+      "receipt_directory": "receipts/joined-late-repeat",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation_races",
+          "seconds": 177.089
+        }
+      ]
+    },
+    {
+      "name": "single-node-diagnostic",
+      "outcome": "PASS: 3/3 with old35s window; public history probe shows after-pressure commit",
+      "command": "Historical run retained separately; not a substitute for final exact-source acceptance.",
+      "log_path": "/tmp/mqtt-will-races-single-diagnostic.log",
+      "log_sha256": "3fdae7ac95dfd2e0192074342b4f52ce51f53f899fd949a3a6be4ec5beaf5723",
+      "package_seconds": 325.873,
+      "binary_sha256": "5f819b0697d93f8f5bd6ee27cf20daecfbce829b650fb2a06913cb61c68369b6",
+      "receipt_directory": "receipts/single-diagnostic",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation_races",
+          "seconds": 325.873
+        }
+      ]
+    },
+    {
+      "name": "serial-capacity-exploration",
+      "outcome": "INTERRUPTED: fixture exploration, not RED evidence",
+      "command": "Exploratory fixture/diagnostic run; no product RED claim.",
+      "log_path": "/tmp/mqtt-will-pressure-serial-exploratory.log",
+      "log_sha256": "5d5e3042f0efb88da9f2402bb03c8d13adcd77baa3a06c5987f7d2ef46ae9a93",
+      "package_seconds": 440.559,
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation",
+          "seconds": 440.559
+        }
+      ]
+    },
+    {
+      "name": "initial-replay-tracer",
+      "outcome": "FAIL: original QoS replay fixture assertion",
+      "command": "Exploratory fixture/diagnostic run; no product RED claim.",
+      "log_path": "/tmp/mqtt-will-races-tracer.log",
+      "log_sha256": "7d6e08b68539b77f872c1f299c050969cfb729845d982fcaf0c18e5cdd9e5a76",
+      "package_seconds": 51.172,
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation_races",
+          "seconds": 51.172
+        }
+      ]
+    },
+    {
+      "name": "ack-window-tracer",
+      "outcome": "PASS",
+      "command": "Exploratory fixture/diagnostic run; no product RED claim.",
+      "log_path": "/tmp/mqtt-will-races-green-tracer.log",
+      "log_sha256": "ccd7434124017e275d401956fc4fe605b6614b3e1e66f8a280eddaa0f9891af1",
+      "package_seconds": 70.739,
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation_races",
+          "seconds": 70.739
+        }
+      ]
+    },
+    {
+      "name": "late-old-window-repeat",
+      "outcome": "FAIL: after-pressure receipt deadline",
+      "command": "Exploratory fixture/diagnostic run; no product RED claim.",
+      "log_path": "/tmp/mqtt-will-races-late-repeat.log",
+      "log_sha256": "548425b0315c603881c44df082dea5d89ee36d229e2752f8b5cc2156ae5c2ce3",
+      "package_seconds": 90.383,
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation_races",
+          "seconds": 90.383
+        }
+      ]
+    },
+    {
+      "name": "late-old-window-counts",
+      "outcome": "FAIL: publication count2 after cleanup",
+      "command": "Exploratory fixture/diagnostic run; no product RED claim.",
+      "log_path": "/tmp/mqtt-will-races-late-diagnostics.log",
+      "log_sha256": "6797d9b93d1fbb713a4530790953f5355c224c8fb12cd2d851b23d97e753a22b",
+      "package_seconds": 80.161,
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation_races",
+          "seconds": 80.161
+        }
+      ]
+    },
+    {
+      "name": "joined-loopback-diagnostic",
+      "outcome": "PASS",
+      "command": "Exploratory fixture/diagnostic run; no product RED claim.",
+      "log_path": "/tmp/mqtt-will-races-late-observed3.log",
+      "log_sha256": "b2f01336e167ee53f0cbc84008fdd28cac335a7a6dc43380e31bd2f4bae5ac9e",
+      "package_seconds": 86.581,
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation_races",
+          "seconds": 86.581
+        }
+      ]
+    },
+    {
+      "name": "unsupported-debug-schema-exploration",
+      "outcome": "FAIL: unsupported diagnostic config key",
+      "command": "Exploratory fixture/diagnostic run; no product RED claim.",
+      "log_path": "/tmp/mqtt-will-races-late-observed.log",
+      "log_sha256": "8b90e3a5a49a2ceb77a02058549183bf4ce3e79cff04086bdb11726474c6c2f4",
+      "package_seconds": 0.868,
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation_races",
+          "seconds": 0.868
+        }
+      ]
+    },
+    {
+      "name": "unsupported-debug-env-exploration",
+      "outcome": "FAIL: unsupported diagnostic env key",
+      "command": "Exploratory fixture/diagnostic run; no product RED claim.",
+      "log_path": "/tmp/mqtt-will-races-late-observed2.log",
+      "log_sha256": "44c3098ef1e4f7b7eb61259316f83cb5a696834d08bc73c895f4f3f54a60ae4b",
+      "package_seconds": 0.459,
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation_races",
+          "seconds": 0.459
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "uncommitted delayed Raft apply",
+    "failed authority-read starvation process proof",
+    "corrupt/lost journal",
+    "complete issued-effect terminal recovery",
+    "network partitions",
+    "shared-storage admission",
+    "latency SLO"
+  ],
+  "cleanup": "Every final fixture writes JSON after owned client/process cleanup. No task-owned product processes remain at delivery. Raw logs and profiles remain private outside the repository.",
+  "review": {
+    "standards_unresolved_documented_violations": 0,
+    "standards_retained_heuristics": 2,
+    "spec_actionable_implementation_findings": 0,
+    "artifact": "review.md"
+  },
+  "bounded_receipt_count": 46
+}

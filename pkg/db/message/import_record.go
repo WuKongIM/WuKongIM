@@ -18,7 +18,7 @@ func EncodeMessageRecord(msg channelcompat.Message, epoch uint64) (channelcompat
 		ClientSeq: msg.ClientSeq, ClientMsgNo: msg.ClientMsgNo, StreamNo: msg.StreamNo,
 		StreamID: msg.StreamID, Timestamp: int64(msg.Timestamp), ServerTimestampMS: msg.ServerTimestampMS,
 		ChannelID: msg.ChannelID, ChannelType: msg.ChannelType, Topic: msg.Topic,
-		FromUID: msg.FromUID, Payload: msg.Payload,
+		FromUID: msg.FromUID, Payload: msg.Payload, PublicationMetadata: msg.PublicationMetadata,
 	}
 	record, err := compatibilityRecordFromRow(row)
 	record.Epoch = epoch

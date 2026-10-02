@@ -14,6 +14,13 @@ type Result struct {
 	AppendBatch     ch.AppendBatchResult
 	LookupMessage   ch.Message
 	LookupFound     bool
+	MQTTSource      ch.MQTTSourceSnapshot
+	MQTTSourceFound bool
+	MQTTReplay      ch.MQTTReplayPage
+	MQTTAnchor      ch.MQTTReplayAnchorProof
+	MQTTRetirement  ch.MQTTReplayRetirementProof
+	MQTTPlan        ch.MQTTReplayPlan
+	WillReceipt     ch.WillReceiptResult
 	Pull            transport.PullResponse
 	RuntimeSnapshot ch.RuntimeReactorSnapshot
 	// RuntimeActivationRejectedTotal carries reactor-local rejection counts for node snapshots.

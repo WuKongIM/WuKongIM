@@ -16,7 +16,7 @@ type appendStageObserver interface {
 }
 
 func (c *cluster) Append(ctx context.Context, req ch.AppendRequest) (ch.AppendResult, error) {
-	batch, err := c.AppendBatch(ctx, ch.AppendBatchRequest{ChannelID: req.ChannelID, Messages: []ch.Message{req.Message}, CommitMode: req.CommitMode, ExpectedChannelEpoch: req.ExpectedChannelEpoch, ExpectedLeaderEpoch: req.ExpectedLeaderEpoch})
+	batch, err := c.AppendBatch(ctx, ch.AppendBatchRequest{ChannelID: req.ChannelID, Messages: []ch.Message{req.Message}, CommitMode: req.CommitMode, ExpectedChannelEpoch: req.ExpectedChannelEpoch, ExpectedLeaderEpoch: req.ExpectedLeaderEpoch, ExpectedRouteGeneration: req.ExpectedRouteGeneration})
 	if err != nil {
 		return ch.AppendResult{}, err
 	}
@@ -31,6 +31,12 @@ func (c *cluster) Append(ctx context.Context, req ch.AppendRequest) (ch.AppendRe
 }
 
 func (c *cluster) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
+	return c.appendBatch(ctx, req, nil)
+}
+
+// appendBatch preserves the ordinary sequencer/cancellation path for explicit
+// source controls without exposing that intent on the generic append request.
+func (c *cluster) appendBatch(ctx context.Context, req ch.AppendBatchRequest, source *ch.MQTTSourceRequest) (ch.AppendBatchResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -44,7 +50,12 @@ func (c *cluster) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (c
 	defer releaseAppend()
 	opID := c.group.NextOpID()
 	started = time.Now()
-	future, err := c.group.Submit(ctx, key, reactor.Event{Kind: reactor.EventAppend, Key: key, Append: req, Context: ctx, OpID: opID})
+	event := reactor.Event{Kind: reactor.EventAppend, Key: key, Append: req, Context: ctx, OpID: opID}
+	if source != nil {
+		event.MQTTSourceActivation = true
+		event.MQTTSource = *source
+	}
+	future, err := c.group.Submit(ctx, key, event)
 	c.observeAppendStage("runtime_append_submit", err, time.Since(started))
 	if err != nil {
 		return ch.AppendBatchResult{}, err
@@ -60,15 +71,7 @@ func (c *cluster) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (c
 	}
 	c.observeAppendStage("runtime_append_wait", ctx.Err(), time.Since(started))
 	// Cancellation after mailbox admission is cooperative; durable writes already started are not cancelled.
-	cleanup, err := c.group.Submit(context.Background(), key, reactor.Event{Kind: reactor.EventCancelWaiter, Key: key, CancelOp: opID, CancelErr: ctx.Err()})
-	if err == nil {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), appendCancelCleanupTimeout)
-		_, err = cleanup.Await(cleanupCtx)
-		cleanupCancel()
-	}
-	if err != nil {
-		future.Complete(reactor.Result{Err: ctx.Err()})
-	}
+	c.cancelAppendObservation(key, opID, future, ctx.Err())
 	return ch.AppendBatchResult{}, ctx.Err()
 }
 
@@ -107,4 +110,17 @@ func (c *cluster) observeAppendStage(stage string, err error, d time.Duration) {
 		result = "err"
 	}
 	observer.ObserveChannelAppendStage(stage, result, d)
+}
+
+// cancelAppendObservation removes a caller without canceling admitted durability.
+func (c *cluster) cancelAppendObservation(key ch.ChannelKey, opID ch.OpID, future *reactor.Future, cancelErr error) {
+	cleanup, err := c.group.Submit(context.Background(), key, reactor.Event{Kind: reactor.EventCancelWaiter, Key: key, CancelOp: opID, CancelErr: cancelErr})
+	if err == nil {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), appendCancelCleanupTimeout)
+		_, err = cleanup.Await(cleanupCtx)
+		cleanupCancel()
+	}
+	if err != nil {
+		future.Complete(reactor.Result{Err: cancelErr})
+	}
 }

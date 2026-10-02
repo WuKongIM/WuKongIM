@@ -37,8 +37,8 @@ management, plugins, diagnostics, and bounded operations observations.
    Channel append clones payload bytes once and explicitly transfers that
    immutable ownership to the Channel runtime. Mutable recipient metadata is
    reread from the Slot leader per routed batch; only person metadata is cached.
-   First person SENDs prepare coalesced UID membership/runtime metadata and
-   publish directory-ready only after every prepare proposal joins.
+   First person SENDs commit coalesced Channel directory tasks/runtime metadata;
+   the asynchronous projector later ensures UID memberships and publishes ready.
 2. Presence reconstruction coalesces target groups into one bounded read per
    active owner instead of repeating unavailable-owner timeouts per Hash Slot. It validates each
    owner boot identity, and rechecks current membership and Slot authority before
@@ -64,7 +64,7 @@ management, plugins, diagnostics, and bounded operations observations.
 
 ## Invariants and Failure Semantics
 
-- Route, leader, term, epoch, revision, and lease fences must be forwarded
+- Route, leader, term, epoch, revision, lease and optional prepared-append route fences must be forwarded
   exactly; preferred or cached ownership must never replace observed authority.
 - Missing leaders, stale routes, unavailable placement, and write fences fail
   closed as typed retryable errors, including a stopped or unreachable append
@@ -84,9 +84,20 @@ management, plugins, diagnostics, and bounded operations observations.
 - A generic append failure may still resolve through durable idempotency lookup
   and therefore emits no premature adapter terminal error; final item logging
   and recovered/unresolved accounting belong to channelappend.
+- Retry proof uses routed original committed content, retaining HW/retention
+  fences while avoiding history-edit overlays. MQTT compares exact body and
+  semantic metadata; only its ingress clock may differ. Proof bytes and read
+  budgets include metadata; append mappings preserve independent ownership.
+- Keyed Wills select a required server-domain lookup capability; absence cannot
+  fall back to client numbers. Original committed proof remains mandatory.
+- MQTTWillReceipts separately reads retained proof through fresh Slot metadata and the routed recovered Channel port. It uses SEND person normalization and verifies the complete content hash/HW; unavailable authority stays an error and absence grants no redispatch. Fresh Slot target absence has a distinct usecase error, permitting a separate exact sealed non-dispatch query before first SEND, never retry by itself.
+- MQTT source protection maps exact source identity through fresh Slot runtime
+  metadata to routed Channel admission, using the app's message-ID allocator.
+  Confirmed runtime absence uses the existing bounded Channel initializer, then
+  rereads fresh Slot fences. No business metadata creation, policy retry or authority fallback is allowed.
 - Person-directory batching shares duplicate Channel results, detaches canceled
-  waiters without canceling accepted work, and never publishes ready after a
-  membership or runtime-metadata prepare failure.
+  waiters without canceling accepted work. Admission proves a durable task, not
+  committed UID membership; MQTT future-source admission needs a separate barrier.
 - Mutable request and response payloads crossing runtime ownership boundaries
   are cloned unless the contract explicitly transfers ownership.
 - Node lifecycle, Slot movement, retention, and Controller changes are executed
@@ -98,6 +109,7 @@ management, plugins, diagnostics, and bounded operations observations.
 
 - Message-update storage maps a narrow usecase port to authoritative Slot operations. Read adapters preserve edit version/time and byte-limited continuation after content growth; committed history and persisted previews retain separate base-read semantics.
 
+The append adapter promotes storage non-submission evidence only with `errors.Is`, never string matching. The closed result remains distinct from a durability receipt and can enter ordinary positive idempotency recovery.
 - Send-policy adapters map narrow user/channel mutations and mixed permission
   facts to Slot-owned commands and fresh node-batched reads. User policy results
   omit credentials; message policy remains in the usecase. Both scalar and batch

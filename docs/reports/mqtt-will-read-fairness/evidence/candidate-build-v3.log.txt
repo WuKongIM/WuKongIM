@@ -1,0 +1,9 @@
+copying source to /tmp/wukongim-will-fairness-source-v3
+installing go.etcd.io/gofail@v0.2.0
+enabling failpoints: pkg/transport internal/usecase/mqttsession internal/app internal/infra/mqttwill pkg/slot/multiraft pkg/slot/fsm pkg/slot/proxy
+postprocessing generated failpoint packages
+pinning failpoint runtime: go.etcd.io/gofail/runtime@v0.2.0
+go: added go.etcd.io/gofail v0.2.0
+building failpoint binary: /tmp/wukongim-will-fairness-gofail-v3
+gofail binary built: /tmp/wukongim-will-fairness-gofail-v3
+temporary source retained: /tmp/wukongim-will-fairness-source-v3

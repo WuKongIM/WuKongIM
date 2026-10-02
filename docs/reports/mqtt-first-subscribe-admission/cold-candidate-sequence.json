@@ -1,0 +1,1159 @@
+{
+  "foreground_subscribe_deadline_seconds": 5,
+  "foreground_retries": 0,
+  "independent_clusters": true,
+  "candidates": [
+    {
+      "phase": "successful-anchor-only",
+      "provenance": "anchor-only-candidate-provenance.json",
+      "runs": [
+        {
+          "run": 1,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 4757,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 2,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 4694,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 3,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3934,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 4,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3928,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 5,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 4447,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        }
+      ]
+    },
+    {
+      "phase": "successful-step",
+      "binary_sha256": "7b95aca8ae97abda71cbc5300ebf8f11fd3b3e55bd3eed1ea05c948fe0df55cf",
+      "runs": [
+        {
+          "run": 1,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3937,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 2,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 4384,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 3,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 4327,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 4,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3781,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 5,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 4018,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 6,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 4464,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 7,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3876,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 8,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3935,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 9,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 4293,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 10,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "subscribe",
+              "subscribe_ms": 5000,
+              "passed": false,
+              "error_kind": "deadline",
+              "closure_counts": {
+                "canceled": 0,
+                "conflict": 0,
+                "deadline": 0,
+                "evidence": 0,
+                "fenced": 0,
+                "owner_limit": 0,
+                "pending": 0,
+                "unconfirmed": 0,
+                "unknown": 0
+              }
+            }
+          ],
+          "passed": false,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        }
+      ]
+    },
+    {
+      "phase": "request-preparation",
+      "binary_sha256": "ae51211e77e4208e53f37aee956525392bc2967cc3e8b15e71ab6ae28e128d56",
+      "runs": [
+        {
+          "run": 1,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 4026,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 2,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 4245,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 3,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 4155,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 4,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3856,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 5,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 4047,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 6,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 4457,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 7,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "subscribe",
+              "subscribe_ms": 5000,
+              "passed": false,
+              "error_kind": "deadline",
+              "closure_counts": {
+                "canceled": 0,
+                "conflict": 0,
+                "deadline": 0,
+                "evidence": 0,
+                "fenced": 0,
+                "owner_limit": 0,
+                "pending": 0,
+                "unconfirmed": 0,
+                "unknown": 0
+              }
+            }
+          ],
+          "passed": false,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        }
+      ]
+    },
+    {
+      "phase": "captured-plan",
+      "binary_sha256": "4cdd67913fa9bace2463284d0abfee311a492c8df8b6356ffe90f33ec8a3d4c1",
+      "runs": [
+        {
+          "run": 1,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3895,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 2,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 4068,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 3,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3953,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 4,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3767,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 5,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3798,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 6,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3870,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 7,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 4030,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 8,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 4081,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 9,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3893,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 10,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3942,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        }
+      ]
+    },
+    {
+      "phase": "captured-plan-supervised",
+      "provenance": "candidate-provenance.json",
+      "runs": [
+        {
+          "run": 1,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3648,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 2,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3725,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 3,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3677,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 4,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3750,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 5,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3746,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 6,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3191,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 7,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3928,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 8,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3894,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 9,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3828,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 10,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "empty",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3951,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        }
+      ]
+    },
+    {
+      "phase": "captured-plan-supervised-existing-history",
+      "provenance": "candidate-provenance.json",
+      "runs": [
+        {
+          "run": 1,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "existing",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 2700,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 2,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "existing",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 2609,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 3,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "existing",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 2577,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 4,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "existing",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 2680,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 5,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "existing",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 2578,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 6,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "existing",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 2838,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 7,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "existing",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 2693,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 8,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "existing",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 3001,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 9,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "existing",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 2680,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        },
+        {
+          "run": 10,
+          "clean_start": false,
+          "hash_slots": 256,
+          "nodes": 3,
+          "observations": [
+            {
+              "history": "existing",
+              "round": 0,
+              "ingress": 3,
+              "phase": "complete",
+              "subscribe_ms": 2610,
+              "passed": true
+            }
+          ],
+          "passed": true,
+          "rounds_per_history": 20,
+          "scenario": "mqtt-first-subscribe-admission",
+          "selected_cases": 1,
+          "session_expiry_sec": 86400
+        }
+      ]
+    }
+  ]
+}

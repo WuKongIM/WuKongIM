@@ -101,11 +101,22 @@ func (s *RestoreService) StartRestore(
 	if err != nil {
 		return backupcontract.RestoreJob{}, err
 	}
+	admitted := false
 	defer func() {
-		resultErr = errors.Join(
-			resultErr,
-			s.releaseArchiveOperation(operation.Token),
-		)
+		if admitted {
+			return
+		}
+		cleanupErr := s.releaseArchiveOperation(operation)
+		if cleanupErr == nil {
+			return
+		}
+		if resultErr == nil {
+			resultErr = cleanupErr
+			return
+		}
+		// Secondary cleanup cannot turn an unknown admission into a definite
+		// conflict that callers could mistake for safe mutation retry authority.
+		resultErr = fmt.Errorf("%w; archive lease cleanup also failed", resultErr)
 	}()
 	store, err := s.repository.Open(ctx, current.Plan.Store)
 	if err != nil {
@@ -156,15 +167,23 @@ func (s *RestoreService) StartRestore(
 		latest.ActiveBackup != nil ||
 		latest.ActiveRestore != nil ||
 		latest.Plan.Revision != current.Plan.Revision ||
-		!reflect.DeepEqual(latest.Plan.Store, current.Plan.Store) {
+		!reflect.DeepEqual(latest.Plan.Store, current.Plan.Store) ||
+		latest.ActiveArchiveOperation == nil ||
+		*latest.ActiveArchiveOperation != operation ||
+		!s.now().UTC().Before(time.UnixMilli(operation.ExpiresUnixMillis)) {
 		return backupcontract.RestoreJob{}, ErrStateConflict
 	}
 	next := latest.Clone()
 	next.Revision++
 	next.ActiveRestore = &job
+	// The admitted job protects this archive through the existing in-use gate.
+	// Consume only its exact lease in the same CAS, leaving no later cleanup
+	// transaction capable of downgrading a positively acknowledged admission.
+	next.ActiveArchiveOperation = nil
 	if err := s.store.CompareAndSwap(ctx, latest.Revision, next); err != nil {
 		return backupcontract.RestoreJob{}, err
 	}
+	admitted = true
 	return job, nil
 }
 
@@ -198,7 +217,15 @@ func (s *RestoreService) acquireArchiveOperation(
 	return operation, nil
 }
 
-func (s *RestoreService) releaseArchiveOperation(token string) error {
+// releaseArchiveOperation clears only unchanged captured authority after failed
+// admission. Missing authority is already released; changed authority is foreign.
+func (s *RestoreService) releaseArchiveOperation(operation backupcontract.ArchiveOperation) error {
+	// Inert outside temporary gofail builds: failure after a known job commit
+	// must not downgrade its admission receipt or permit an ambiguous retry.
+	// gofail: var wkRestoreArchiveLeaseReleaseUnavailable bool
+	// if wkRestoreArchiveLeaseReleaseUnavailable {
+	//  return errors.New("backup: archive lease release unavailable")
+	// }
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for range 16 {
@@ -209,7 +236,7 @@ func (s *RestoreService) releaseArchiveOperation(token string) error {
 		if current.ActiveArchiveOperation == nil {
 			return nil
 		}
-		if current.ActiveArchiveOperation.Token != token {
+		if *current.ActiveArchiveOperation != operation {
 			return ErrStateConflict
 		}
 		next := current.Clone()

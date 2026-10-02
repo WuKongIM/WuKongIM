@@ -1,0 +1,48 @@
+{
+  "after_pressure_receipt_bound_ms": 60000,
+  "after_pressure_wait_ms": 10866,
+  "business_publications": 3,
+  "connect_retries": 0,
+  "current_attempt_preserved": true,
+  "current_cut_reached": true,
+  "cut": "successor-reply",
+  "elapsed_ms": 157698,
+  "executor_capacity_refusal": true,
+  "executor_restarts": 1,
+  "final_control_counts": [
+    {
+      "wkMQTTWillAfterAppendAdmission": 0,
+      "wkMQTTWillAfterPublication": 0,
+      "wkMQTTWillBeforeAppendAdmission": 0,
+      "wkMQTTWillJournalFull": 0,
+      "wkMQTTWillPublicationAttempt": 0
+    },
+    {
+      "wkMQTTWillAfterAppendAdmission": 3,
+      "wkMQTTWillAfterPublication": 3,
+      "wkMQTTWillBeforeAppendAdmission": 3,
+      "wkMQTTWillJournalFull": 2,
+      "wkMQTTWillPublicationAttempt": 3
+    },
+    {
+      "wkMQTTWillAfterAppendAdmission": 0,
+      "wkMQTTWillAfterPublication": 0,
+      "wkMQTTWillBeforeAppendAdmission": 0,
+      "wkMQTTWillJournalFull": 0,
+      "wkMQTTWillPublicationAttempt": 0
+    }
+  ],
+  "hash_slots": 256,
+  "instrumented_journal_cap": 2,
+  "last_phase": "complete",
+  "nodes": 3,
+  "original_exchange_replayed": false,
+  "passed": true,
+  "publication_attempts_after_last_restart": 3,
+  "publications_while_current_unknown": 2,
+  "resubscriptions": 0,
+  "scenario": "mqtt-will-reclamation-race",
+  "terminal_reply_cut_reached": true,
+  "unexpected_deliveries": 0,
+  "unknown_window_ms": 21000
+}

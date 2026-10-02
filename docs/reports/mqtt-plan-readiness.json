@@ -1,0 +1,453 @@
+{
+  "source_commit": "34c43e6c1967402e362110486844a2623e4e0351",
+  "source_rules_sha256": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "internal/usecase/mqttsession/FLOW.md": "a213bc228de4ca962800031252b5ad58d87b457fcd2c80c79264b741c84f6209",
+    "internal/access/mqtt/FLOW.md": "9f0bd03bff4491b69344d25d17a312ee679866ebf43970a5d9c4821d9714d445",
+    "test/e2e/AGENTS.md": "a601000a9246c45fa1bb78c96e0019e0be2aa92966105a569bd98ff7e738de2e",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "test/e2e/mqtt/unsubscribe_recovery/AGENTS.md": "03645e406fe2114a940889fc437543d18382cec3b0a24e3ab7a5ff1975ec24d6",
+    "test/e2e/suite/FLOW.md": "fdf3576f99b00cfdb878ea5623e7f39a576a75bb7ebf5b6fa8de031ae9561add",
+    "pkg/channel/FLOW.md": "89e78216341b55d381f48ae59c05aaa9266c8894b4cb0052de1b7948161aef95",
+    "internal/infra/cluster/FLOW.md": "b96d4741b47a3b59a094eb83de316b2080004f4c2cc06f579060d6451c052c30",
+    "pkg/channel/reactor/FLOW.md": "cbd879f918374a76551e07b31af481df028951d737f38a9d9ebb4916d2dd0172",
+    "pkg/db/FLOW.md": "33c7ba81c18ed8cb377e9bef541526028ef31e64dd03becc7ac1ea6cc14fb10a",
+    "pkg/db/meta/FLOW.md": "2b3d6b203dd8c722c4e0dd5aafcddc289b5b30e50e477d5ad22385f9de0c66e7",
+    "internal/app/FLOW.md": "4bb9604d0bd903734ff86dda0b209478f8cbd90848112cfb2329d4d360bb5f91",
+    "test/e2e/mqtt/subscribe_recovery/AGENTS.md": "ddbb484760671984a1c307fd744b5b39c4331eaf742c35fdfc11ef54aea79ef1"
+  },
+  "status": "planning_readiness_and_process_matrix_verified",
+  "full_goal_status": "in_progress",
+  "scope": "Typed read-only replay plan readiness/capacity yields retain Preparing intent under existing request limits. No changes to anchor write, unknown error or all-replica completion policy.",
+  "relation_to_natural_failure": "Unproven: stage probes did not capture the historical initial SUBSCRIBE or post-resume EOF cause.",
+  "test_first": {
+    "inventory": "docs/specs/mqtt-subscription-diagnostics.md#planning-read-readiness-inventory-before-implementation",
+    "command": "GOWORK=off go test -race -p 2 ./internal/usecase/mqttsession -run '^TestReplayConfirmationAwaitsPlanningReadiness$' -count=1",
+    "red": {
+      "exit_code": 1,
+      "log": {
+        "path": "/tmp/mqtt-plan-readiness-red.log",
+        "sha256": "1804991d08c48a332ece110847fe3def9245fd408b7fe587381beaea38acc1f0"
+      },
+      "observed": "Initial and nested readiness/capacity returned raw Channel errors; both synchronous cancellation cases lost to plan errors."
+    },
+    "green": {
+      "exit_code": 0,
+      "log": {
+        "path": "/tmp/mqtt-plan-readiness-green.log",
+        "sha256": "4b93259d0960c136f1519e6fbd19b3a4d78565c530d27b87d139d74991b05589"
+      },
+      "cases": 16,
+      "elapsed_seconds": 1.89
+    }
+  },
+  "validation": [
+    {
+      "command": "GOWORK=off go test -race -p 2 ./internal/usecase/mqttsession ./internal/access/mqtt ./internal/app -count=1",
+      "log": {
+        "path": "/tmp/mqtt-plan-readiness-full-race.log",
+        "sha256": "f075e4cf72b969dcea7ac087a9a02bd4272134f7958e865693fc8ca49e90ecb6"
+      },
+      "exit_code": 0,
+      "seconds": [
+        112.323,
+        1.937,
+        5.132
+      ]
+    },
+    {
+      "named_check": "flow-doc-contracts",
+      "log": {
+        "path": "/tmp/mqtt-plan-readiness-flow.log",
+        "sha256": "518c3c03df7eb5d31ffef78aaf4666017b3054bf4e16f65a227b11efc525cf09"
+      },
+      "exit_code": 0,
+      "result": "87 compliant, 0 invalid, 9 existing length warnings"
+    }
+  ],
+  "candidate_go_sha256": {
+    "internal/usecase/mqttsession/replay.go": "fd1b6024f80618ab762320045b175a6e6cc53086901ff8d2e93aa4faef10e02c",
+    "internal/usecase/mqttsession/replay_confirmation.go": "02d6f6568f2b226f9b4fb3dbf31dc656f85ac78f8373e1d97b5ce7fa2755ca71",
+    "internal/usecase/mqttsession/replay_confirmation_test.go": "68670a79ae34073fc9800a2837705a05647894ea745550da790140794e0234d8",
+    "internal/usecase/mqttsession/replay_test.go": "a1e7487d9acf40c48260cc4ec802a4811b8392705a2296f5e1aa5985f416ef69",
+    "test/e2e/mqtt/unsubscribe_recovery/unsubscribe_recovery_test.go": "36edb871ff3fa039498eaf4e8c65f366a1e2072a2a39ec1c9998ac029481d698"
+  },
+  "candidate_binary": {
+    "path": "/tmp/wukongim-mqtt-plan-readiness-gofail",
+    "sha256": "fa8e46cfa9144af0dbc92713eeb9f8668877c97ea3365e87ea10eaff8fa5a14f",
+    "build_command": "GOPROXY=https://proxy.golang.org,direct scripts/build-gofail-binary.sh --package internal/usecase/mqttsession --out /tmp/wukongim-mqtt-plan-readiness-gofail",
+    "build_log": {
+      "path": "/tmp/mqtt-plan-readiness-build.log",
+      "sha256": "49b9d50b964b9f21c4e12223e4ffe0f5e43930aeacf94e402c2c3ae83174ad45"
+    },
+    "temporary_probes": false
+  },
+  "pre_fix_startup_probes": {
+    "binary": {
+      "path": "/tmp/wukongim-mqtt-startup-classification-probe",
+      "sha256": "6a035c75ca5b10b552bd810b5e63c9360aa3b2750c632109b3906c803c23cc57"
+    },
+    "build_log": {
+      "path": "/tmp/mqtt-startup-classification-build.log",
+      "sha256": "5d2f77a72b9eb807387726d4629da271b10bae39579f3327746532fc1d9d0a94"
+    },
+    "scope": "Error-only Subscribe, group preparation and replay-confirmation stages with type and fixed sentinel booleans. No raw error text or identities. Sources removed immediately after build.",
+    "runs": [
+      {
+        "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-startup-classification-probe WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-startup-classification-reports GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/unsubscribe_recovery -run '^TestColdStartupGroupSubscriptionAdmission$' -count=20 -failfast -timeout=6m -v",
+        "gofail_control_endpoint_and_waitlisted": false,
+        "enabled_faults": false,
+        "exit_code": 0,
+        "passed_repetitions": 20,
+        "seconds": 248.17,
+        "log": {
+          "path": "/tmp/mqtt-startup-classification-process.log",
+          "sha256": "6ca02dbccafe066a62ac7143e799494c93b1367fc94301eb1cea6258b4157744"
+        },
+        "error_probe_captured": false,
+        "last_passing_artifact": {
+          "path": "/tmp/mqtt-startup-classification-reports/mqtt-startup-group-subscribe.json",
+          "sha256": "9216a269479a31ede988f5600d99dec966d5a9feffd07bf7eafb99b81c1cb05d",
+          "result": {
+            "attempt_limit": 1,
+            "closure_observations": null,
+            "completed": 1,
+            "foreground_retries": 0,
+            "hash_slots": 256,
+            "last_step": "complete",
+            "nodes": 3,
+            "passed": true,
+            "scenario": "cold-group-subscribe",
+            "subscribe_elapsed_us": [
+              1003714
+            ]
+          }
+        },
+        "note": "Repeated runs overwrite the last-result path; terminal log retains each verdict. Both runs preceded planning changes."
+      },
+      {
+        "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-startup-classification-probe WK_E2E_GOFAIL_MQTT=1 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-startup-fault-control-reports GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/unsubscribe_recovery -run '^TestColdStartupGroupSubscriptionAdmission$' -count=20 -failfast -timeout=6m -v",
+        "gofail_control_endpoint_and_waitlisted": true,
+        "enabled_faults": false,
+        "exit_code": 0,
+        "passed_repetitions": 20,
+        "seconds": 251.183,
+        "log": {
+          "path": "/tmp/mqtt-startup-fault-control-process.log",
+          "sha256": "94d71acf70505457371fe517d36cf84c35dc8bdb6636be32e6b062a3a2354778"
+        },
+        "error_probe_captured": false,
+        "last_passing_artifact": {
+          "path": "/tmp/mqtt-startup-fault-control-reports/mqtt-startup-group-subscribe.json",
+          "sha256": "5fa72466f9790336a925a8666e238447947da99bce18f0b336c5d329acecd2f7",
+          "result": {
+            "attempt_limit": 1,
+            "closure_observations": null,
+            "completed": 1,
+            "fault_control_enabled": true,
+            "foreground_retries": 0,
+            "hash_slots": 256,
+            "last_step": "complete",
+            "nodes": 3,
+            "passed": true,
+            "scenario": "cold-group-subscribe",
+            "subscribe_elapsed_us": [
+              988782
+            ]
+          }
+        },
+        "note": "Repeated runs overwrite the last-result path; terminal log retains each verdict. Both runs preceded planning changes."
+      }
+    ]
+  },
+  "process_verification": {
+    "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-plan-readiness-gofail WK_E2E_GOFAIL_MQTT=1 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-plan-readiness-process-reports GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/subscribe_recovery ./test/e2e/mqtt/unsubscribe_recovery -run '^TestInterrupted.*BackgroundRecovery$' -count=1 -timeout=10m -v",
+    "status": "terminal",
+    "exit_code": 0,
+    "log": {
+      "path": "/tmp/mqtt-plan-readiness-process.log",
+      "sha256": "4cea78bfbdc5e9f18729ee7d871c33679c25b022c34000b56d213bb4e86c0531"
+    },
+    "cases": 16,
+    "passed_artifacts": 16,
+    "artifacts": [
+      {
+        "path": "/tmp/mqtt-plan-readiness-process-reports/mqtt-subscribe-group-after-intent-1.json",
+        "sha256": "ffbdeaaee47bde3fb4e3da471dd2d4c794500b0f1ca21190ebe7e2532a1e6e45",
+        "scenario": "interrupted-subscribe",
+        "nodes": 1,
+        "target": "group",
+        "cut": "after-intent",
+        "passed": true,
+        "verified_predicates": [
+          "background_completion_before_reconnect",
+          "message_identity_preserved",
+          "session_present",
+          "original_start_preserved",
+          "offline_and_fresh_delivery"
+        ]
+      },
+      {
+        "path": "/tmp/mqtt-plan-readiness-process-reports/mqtt-subscribe-group-after-intent-3.json",
+        "sha256": "895f5d707eddfc9f28754d8135a7a87089fa17c6b48738c94718fe473188edbe",
+        "scenario": "interrupted-subscribe",
+        "nodes": 3,
+        "target": "group",
+        "cut": "after-intent",
+        "passed": true,
+        "verified_predicates": [
+          "background_completion_before_reconnect",
+          "message_identity_preserved",
+          "session_present",
+          "original_start_preserved",
+          "offline_and_fresh_delivery"
+        ]
+      },
+      {
+        "path": "/tmp/mqtt-plan-readiness-process-reports/mqtt-subscribe-group-before-completion-1.json",
+        "sha256": "d30af315cbcfcec565e9840e774754c0c55d39e48165a73d6047da5dc6653165",
+        "scenario": "interrupted-subscribe",
+        "nodes": 1,
+        "target": "group",
+        "cut": "before-completion",
+        "passed": true,
+        "verified_predicates": [
+          "background_completion_before_reconnect",
+          "message_identity_preserved",
+          "session_present",
+          "original_start_preserved",
+          "offline_and_fresh_delivery"
+        ]
+      },
+      {
+        "path": "/tmp/mqtt-plan-readiness-process-reports/mqtt-subscribe-group-before-completion-3.json",
+        "sha256": "215b13d512660258959bfdbc6caed5d1aaba52d9fb5fc60d38ccf67d03de1906",
+        "scenario": "interrupted-subscribe",
+        "nodes": 3,
+        "target": "group",
+        "cut": "before-completion",
+        "passed": true,
+        "verified_predicates": [
+          "background_completion_before_reconnect",
+          "message_identity_preserved",
+          "session_present",
+          "original_start_preserved",
+          "offline_and_fresh_delivery"
+        ]
+      },
+      {
+        "path": "/tmp/mqtt-plan-readiness-process-reports/mqtt-subscribe-inbox-after-intent-1.json",
+        "sha256": "567d78e50a7ec96f0715143c6199909ce9e891ac20fc5f9bea8d2dfaca888f76",
+        "scenario": "interrupted-subscribe",
+        "nodes": 1,
+        "target": "inbox",
+        "cut": "after-intent",
+        "passed": true,
+        "verified_predicates": [
+          "background_completion_before_reconnect",
+          "message_identity_preserved",
+          "session_present",
+          "original_start_preserved",
+          "offline_and_fresh_delivery"
+        ]
+      },
+      {
+        "path": "/tmp/mqtt-plan-readiness-process-reports/mqtt-subscribe-inbox-after-intent-3.json",
+        "sha256": "d671f06123d2a650344d8af594a6e035d94abb7fd459710ceb2fb22afc7a285d",
+        "scenario": "interrupted-subscribe",
+        "nodes": 3,
+        "target": "inbox",
+        "cut": "after-intent",
+        "passed": true,
+        "verified_predicates": [
+          "background_completion_before_reconnect",
+          "message_identity_preserved",
+          "session_present",
+          "original_start_preserved",
+          "offline_and_fresh_delivery"
+        ]
+      },
+      {
+        "path": "/tmp/mqtt-plan-readiness-process-reports/mqtt-subscribe-inbox-before-completion-1.json",
+        "sha256": "435c87e0d80900c75a815580c6f284992666e7bbb7b8b5e72a90336a437556cc",
+        "scenario": "interrupted-subscribe",
+        "nodes": 1,
+        "target": "inbox",
+        "cut": "before-completion",
+        "passed": true,
+        "verified_predicates": [
+          "background_completion_before_reconnect",
+          "message_identity_preserved",
+          "session_present",
+          "original_start_preserved",
+          "offline_and_fresh_delivery"
+        ]
+      },
+      {
+        "path": "/tmp/mqtt-plan-readiness-process-reports/mqtt-subscribe-inbox-before-completion-3.json",
+        "sha256": "98fedc6ba498f70505539b5bceb1c208208908f1c8674491922616a342fd17cb",
+        "scenario": "interrupted-subscribe",
+        "nodes": 3,
+        "target": "inbox",
+        "cut": "before-completion",
+        "passed": true,
+        "verified_predicates": [
+          "background_completion_before_reconnect",
+          "message_identity_preserved",
+          "session_present",
+          "original_start_preserved",
+          "offline_and_fresh_delivery"
+        ]
+      },
+      {
+        "path": "/tmp/mqtt-plan-readiness-process-reports/mqtt-unsubscribe-group-after-intent-1.json",
+        "sha256": "95b62c5d2e6b9f3ea42a5af6fd989f8a2c23b84ee9d9a4fed7a4548bdf826b13",
+        "scenario": "interrupted-unsubscribe",
+        "nodes": 1,
+        "target": "group",
+        "cut": "after-intent",
+        "passed": true,
+        "verified_predicates": [
+          "background_completion_before_reconnect",
+          "message_identity_preserved",
+          "session_present",
+          "packet_id_preserved",
+          "dup_on_resume",
+          "resubscribe_delivers_only_fresh"
+        ]
+      },
+      {
+        "path": "/tmp/mqtt-plan-readiness-process-reports/mqtt-unsubscribe-group-after-intent-3.json",
+        "sha256": "a83a275d6fe2e05caf6a830deca3b54e694628382484dda1fef3ee197d387fff",
+        "scenario": "interrupted-unsubscribe",
+        "nodes": 3,
+        "target": "group",
+        "cut": "after-intent",
+        "passed": true,
+        "verified_predicates": [
+          "background_completion_before_reconnect",
+          "message_identity_preserved",
+          "session_present",
+          "packet_id_preserved",
+          "dup_on_resume",
+          "resubscribe_delivers_only_fresh"
+        ]
+      },
+      {
+        "path": "/tmp/mqtt-plan-readiness-process-reports/mqtt-unsubscribe-group-before-completion-1.json",
+        "sha256": "0dfe699b21a53c8840ff96e9add837da7c44800ec0415b53d84e564d153f2682",
+        "scenario": "interrupted-unsubscribe",
+        "nodes": 1,
+        "target": "group",
+        "cut": "before-completion",
+        "passed": true,
+        "verified_predicates": [
+          "background_completion_before_reconnect",
+          "message_identity_preserved",
+          "session_present",
+          "packet_id_preserved",
+          "dup_on_resume",
+          "resubscribe_delivers_only_fresh"
+        ]
+      },
+      {
+        "path": "/tmp/mqtt-plan-readiness-process-reports/mqtt-unsubscribe-group-before-completion-3.json",
+        "sha256": "278137cb3c81cf59f3fb73b2e129a37c65ed6117f1b22895ae69260e169e7ab8",
+        "scenario": "interrupted-unsubscribe",
+        "nodes": 3,
+        "target": "group",
+        "cut": "before-completion",
+        "passed": true,
+        "verified_predicates": [
+          "background_completion_before_reconnect",
+          "message_identity_preserved",
+          "session_present",
+          "packet_id_preserved",
+          "dup_on_resume",
+          "resubscribe_delivers_only_fresh"
+        ]
+      },
+      {
+        "path": "/tmp/mqtt-plan-readiness-process-reports/mqtt-unsubscribe-inbox-after-intent-1.json",
+        "sha256": "70f598a3e3c4ffe240f6667d7232317fc24a9a734b288dd5cd8a9674e026f515",
+        "scenario": "interrupted-unsubscribe",
+        "nodes": 1,
+        "target": "inbox",
+        "cut": "after-intent",
+        "passed": true,
+        "verified_predicates": [
+          "background_completion_before_reconnect",
+          "message_identity_preserved",
+          "session_present",
+          "packet_id_preserved",
+          "dup_on_resume",
+          "resubscribe_delivers_only_fresh"
+        ]
+      },
+      {
+        "path": "/tmp/mqtt-plan-readiness-process-reports/mqtt-unsubscribe-inbox-after-intent-3.json",
+        "sha256": "baf92002b1f23d3c539336d664918767d2ab2847d2eaaaba9847491cab51dd49",
+        "scenario": "interrupted-unsubscribe",
+        "nodes": 3,
+        "target": "inbox",
+        "cut": "after-intent",
+        "passed": true,
+        "verified_predicates": [
+          "background_completion_before_reconnect",
+          "message_identity_preserved",
+          "session_present",
+          "packet_id_preserved",
+          "dup_on_resume",
+          "resubscribe_delivers_only_fresh"
+        ]
+      },
+      {
+        "path": "/tmp/mqtt-plan-readiness-process-reports/mqtt-unsubscribe-inbox-before-completion-1.json",
+        "sha256": "80b29d5f26b101a282fd80900c56b115aaa1ffcde0039084ad2d6ff1a0bdb52f",
+        "scenario": "interrupted-unsubscribe",
+        "nodes": 1,
+        "target": "inbox",
+        "cut": "before-completion",
+        "passed": true,
+        "verified_predicates": [
+          "background_completion_before_reconnect",
+          "message_identity_preserved",
+          "session_present",
+          "packet_id_preserved",
+          "dup_on_resume",
+          "resubscribe_delivers_only_fresh"
+        ]
+      },
+      {
+        "path": "/tmp/mqtt-plan-readiness-process-reports/mqtt-unsubscribe-inbox-before-completion-3.json",
+        "sha256": "98c5cb3be841155c408b0445aaf37f37bdf02aba5b767536395dad1beca798a8",
+        "scenario": "interrupted-unsubscribe",
+        "nodes": 3,
+        "target": "inbox",
+        "cut": "before-completion",
+        "passed": true,
+        "verified_predicates": [
+          "background_completion_before_reconnect",
+          "message_identity_preserved",
+          "session_present",
+          "packet_id_preserved",
+          "dup_on_resume",
+          "resubscribe_delivers_only_fresh"
+        ]
+      }
+    ],
+    "package_elapsed_seconds": {
+      "subscribe_recovery": 266.172,
+      "unsubscribe_recovery": 224.64
+    }
+  },
+  "limitations": [
+    "Historical initial SUBSCRIBE and post-resume EOF causes remain unconfirmed.",
+    "Controlled request interruption does not prove abrupt process-crash or unavailable-owner isolation.",
+    "Ended-record/tombstone retirement, uncertain Will redispatch and receipt transfer, fresh restore reentry, full failure families and scale qualification remain incomplete."
+  ],
+  "candidate_instruction_sha256": {
+    "test/e2e/AGENTS.md": "48f15665655f25a457196623e1ceca69bf82ef079d85bec2a2ebf93e5e2784bb",
+    "test/e2e/mqtt/unsubscribe_recovery/AGENTS.md": "b012055ada3d66fe79369df3c34f29a44ba59715bb07eee0210365aca4f173bc"
+  }
+}

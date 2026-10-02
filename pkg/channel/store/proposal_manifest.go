@@ -4,7 +4,7 @@ import (
 	ch "github.com/WuKongIM/WuKongIM/pkg/channel"
 )
 
-// ProposalManifestVersion is the only exact-append manifest format.
+// ProposalManifestVersion is the original exact-append manifest format.
 const ProposalManifestVersion = ch.ProposalManifestVersion
 
 // ProposalManifest is the shared immutable authority and hash-chain identity

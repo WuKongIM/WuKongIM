@@ -76,6 +76,7 @@ var verifyMetaSpecs = []verifyMetaSpec{
 	{name: "meta.devices", table: "device"},
 	{name: "meta.channels", table: "channel"},
 	{name: "meta.subscribers", table: "subscriber"},
+	{name: "meta.subscriber_sequences", table: "subscriber_sequence"},
 	{name: "meta.user_channel_memberships", table: "user_channel_membership"},
 	{name: "meta.user_cmd_channel_memberships", table: "user_cmd_channel_membership"},
 	{name: "meta.channel_latest", table: "channel_latest"},
@@ -174,6 +175,9 @@ type digestMetaRow struct {
 }
 
 func scanMetaDigest(ctx context.Context, db *metadb.MetaDB, opts VerifyOptions, table string) (int64, string, error) {
+	if table == "subscriber_sequence" {
+		return scanSubscriberSequenceDigest(ctx, db, opts)
+	}
 	digest := newVerifyDigest()
 	var rows int64
 	for slot := uint16(0); slot < opts.HashSlotCount; slot++ {
@@ -305,6 +309,7 @@ type digestMessageSummaryRow struct {
 	ServerTimestampMS int64  `json:"server_timestamp_ms"`
 	PayloadHash       uint64 `json:"payload_hash"`
 	PayloadSize       uint64 `json:"payload_size"`
+	PublicationSHA256 string `json:"publication_sha256,omitempty"`
 }
 
 type digestMessageFullRow struct {
@@ -317,6 +322,7 @@ type digestMessageFullRow struct {
 	PayloadHash       uint64 `json:"payload_hash"`
 	PayloadSize       uint64 `json:"payload_size"`
 	Payload           []byte `json:"payload"`
+	PublicationSHA256 string `json:"publication_sha256,omitempty"`
 }
 
 func digestChannelMessages(ctx context.Context, db *msgdb.MessageDB, opts VerifyOptions, channelKey string, digest *verifyDigest) (int64, error) {
@@ -381,6 +387,7 @@ func (d *verifyDigest) writeMessageRow(channelKey string, row msgdb.InspectMessa
 			PayloadHash:       summary.PayloadHash,
 			PayloadSize:       summary.PayloadSize,
 			Payload:           payload,
+			PublicationSHA256: summary.PublicationSHA256,
 		})
 	}
 	return d.write(summary)
@@ -423,6 +430,15 @@ func digestMessageRow(channelKey string, row msgdb.InspectMessageRow) (digestMes
 	if err != nil {
 		return digestMessageSummaryRow{}, nil, err
 	}
+	metadata, err := inspectPublicationMetadata(row)
+	if err != nil {
+		return digestMessageSummaryRow{}, nil, err
+	}
+	var publicationHash string
+	if len(metadata) != 0 {
+		digest := sha256.Sum256(metadata)
+		publicationHash = hex.EncodeToString(digest[:])
+	}
 	return digestMessageSummaryRow{
 		ChannelKey:        channelKey,
 		MessageSeq:        messageSeq,
@@ -432,6 +448,7 @@ func digestMessageRow(channelKey string, row msgdb.InspectMessageRow) (digestMes
 		ServerTimestampMS: serverTimestampMS,
 		PayloadHash:       payloadHash,
 		PayloadSize:       payloadSize,
+		PublicationSHA256: publicationHash,
 	}, payload, nil
 }
 

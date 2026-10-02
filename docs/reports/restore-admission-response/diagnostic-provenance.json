@@ -1,0 +1,25 @@
+{
+  "source_base": "49c74b1c065a83628027de7f82d480c07e4050a4",
+  "mqtt_candidate_provenance": "../mqtt-first-subscribe-admission/candidate-provenance.json",
+  "go_version": "go1.25.11 darwin/arm64",
+  "diagnostic_binary_sha256": "662f4ae476869b2dfc94b2011aa0507966b9318eb979793d44dc812a76da0945",
+  "buildvcs": false,
+  "observational_overlay": {
+    "internal/usecase/backup/restore_service_v1.go": {
+      "source_sha256": "53f8969518123c23f4de13b50aeb03cfe0a5844329b0f14a1af1dc935123074a",
+      "overlay_sha256": "989d725ba2834c49c3c805c5532d17a426ee99c15bb5f39b052feef715b72250"
+    },
+    "internal/infra/backup/distributed_restore.go": {
+      "source_sha256": "67a17a5bcba70cb3b620fe64d10ab393180332da65c7646748feb1e0e725c6dd",
+      "overlay_sha256": "85819a136dfbb3b1a670fb1ec2871e4d4dba6162ffc323044e761319068d94a8"
+    }
+  },
+  "fixture": {
+    "path": "test/e2e/mqtt/restore/restore_test.go",
+    "sha256": "67e7b42ca1eba1edeca5dfa921823ae1bceb25744d4c2c1b49051aa817bfa084"
+  },
+  "fixed_phase_fields_only": true,
+  "raw_workspace_retained_outside_git": true,
+  "ambiguous_mutation_retries": 0,
+  "mqtt_fix_commit": "ab8b19a988788917648bf5cae2b406fc59ee5c93"
+}

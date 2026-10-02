@@ -12,7 +12,7 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
 
 ## Boundaries
 
-- Helpers observe public HTTP, WKProto, metrics, process state, and bounded
+- Helpers observe public HTTP, WKProto, MQTT 5, metrics, process state, and bounded
   artifacts; they do not import app, use cases, or storage internals.
 - `WK_E2E_*` is harness-only and is removed from spawned nodes. Real product
   variables must be passed explicitly through `NodeSpec.Env`.
@@ -35,6 +35,10 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
    process-group cleanup completes.
 4. Cleanup stops static nodes concurrently, joins repeated stops, escalates
    TERM to KILL for remaining descendants, and waits for complete group cleanup.
+5. Optional static-cluster TCP relays publish membership endpoints separately
+   from product listeners. Bounded socket/PID evidence identifies exact owned
+   senders; partition cuts both directed links, retains node-local/public TCP,
+   refuses reconnects and joins relay workers after product cleanup.
 
 ## Invariants and Failure Semantics
 
@@ -45,6 +49,14 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
 - Managed-process WKProto readiness registers a dedicated device token through
   Product HTTP, then proves a real authenticated handshake. Registration errors
   remain bounded and never echo credentials; readiness does not disable auth.
+- MQTT fixtures use independent Eclipse Paho clients with bounded receive queues
+  and deadlines. Queue overflow fails the observation instead of dropping a
+  message silently. Explicit WK fixture credentials preserve token-auth behavior;
+  no helper provisions credentials or makes application retry decisions. Optional
+  Will fields, manual PUBACK, Receive Maximum and joined TCP abort exercise Paho behavior.
+- BackupClient uses authenticated public Manager HTTP with bounded response reads;
+  only explicit 401 refreshes login and definite plan-revision conflicts reread.
+  Archive selection and convergence assertions belong to the scenario.
 - WKProto clients accept explicit registered device Tokens without changing
   server authentication; tokenless fixtures remain explicit.
 - WKProto clients may inject a Dialer to observe public socket bytes. Their
@@ -55,6 +67,7 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
 - Diagnostics expose bounded paths and tails. TOML is re-encoded only after
   schema validation; invalid structure is fully omitted, and sensitive leaves
   plus nested secret-like keys are redacted.
+- Optional enabled debug API stack capture writes at most 1 MiB to a private file.
 - Linux recovery sampling separates process RSS/I/O/CPU from enclosing cgroup
   limits/OOM counters and joins its sampler; public profiles are size/time bounded.
 - Full public metrics observations explicitly request identity encoding, reuse
@@ -86,5 +99,4 @@ contains no scenario-specific business assertions and follows `test/e2e/AGENTS.m
 ## Update Triggers
 
 Update this file when workspace isolation, binary caching, process ownership,
-environment filtering, cleanup, diagnostics, HTTP metrics observation, HTTP
-retry, or convergence changes.
+environment filtering, cleanup, diagnostics, HTTP metrics observation, retry, convergence or TCP partition changes.

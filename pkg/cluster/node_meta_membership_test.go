@@ -308,67 +308,171 @@ func TestEnsureUserChannelMembershipBatchSubmitsIndependentSlotsConcurrently(t *
 	}
 }
 
+// The production preparation path needs bounded overlap for many logical Slots.
+// Keep this fixed resource contract independent of the implementation constant.
 func TestUpsertUserChannelMembershipsBoundsIndependentSlotConcurrency(t *testing.T) {
-	proposer := newControlledMembershipProposer(3)
+	const width = 8
+	proposer := newControlledMembershipProposer(16)
 	defer proposer.releaseAll()
-	node := newStartedSlotProxyPortNode(t, proposer)
-	// Three physical owners keep this a three-job concurrency test after
-	// logical shards sharing one owner are coalesced.
-	snapshot := node.controlSnapshot
-	snapshot.Revision++
-	snapshot.Slots = append(snapshot.Slots, control.SlotAssignment{SlotID: 3, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 1, PreferredLeader: 1})
-	snapshot.HashSlots.Revision++
-	snapshot.HashSlots.Ranges = []control.HashSlotRange{{From: 0, To: 0, SlotID: 1}, {From: 1, To: 1, SlotID: 3}, {From: 2, To: 3, SlotID: 2}}
-	if err := node.router.UpdateControlSnapshot(snapshot); err != nil {
-		t.Fatal(err)
-	}
-	node.router.UpdateSlotLeaders([]routing.SlotStatus{{SlotID: 1, Leader: 1}, {SlotID: 2, Leader: 2}, {SlotID: 3, Leader: 1}})
-	u0 := keyForNodeHashSlot(t, 4, 0)
-	u1 := keyForNodeHashSlot(t, 4, 1)
-	u3 := keyForNodeHashSlot(t, 4, 3)
-
+	node, uids := membershipSchedulingNode(t, proposer)
 	done := make(chan error, 1)
 	go func() {
-		done <- node.UpsertUserChannelMemberships(context.Background(), "person-channel", 1, []string{u0, u1, u3}, 0, 1, 1)
+		done <- node.UpsertUserChannelMemberships(context.Background(), "large-group", 2, uids, 9, 17, 123)
 	}()
-
-	first := awaitControlledMembershipProposal(t, proposer.entered)
-	second := awaitControlledMembershipProposal(t, proposer.entered)
+	var active []*controlledMembershipProposal
+	for range width {
+		active = append(active, awaitControlledMembershipProposal(t, proposer.entered))
+	}
 	select {
-	case third := <-proposer.entered:
-		t.Fatalf("third hash-slot proposal %d started before one of two bounded workers completed", third.hashSlot)
+	case <-proposer.entered:
+		t.Fatal("membership proposal exceeded the eight-worker bound")
 	default:
 	}
-	if got := proposer.maxActiveCount(); got != maxMembershipProposalConcurrency {
-		t.Fatalf("maximum active membership proposals = %d, want %d", got, maxMembershipProposalConcurrency)
+	if got := proposer.maxActiveCount(); got != width {
+		t.Fatalf("active proposals = %d, want %d", got, width)
 	}
-
-	first.releaseProposal()
-	awaitMembershipProposalCompletion(t, first.completed)
-	third := awaitControlledMembershipProposal(t, proposer.entered)
-	if third.hashSlot == first.hashSlot || third.hashSlot == second.hashSlot {
-		t.Fatalf("third proposal reused an entered hash slot: first=%d second=%d third=%d", first.hashSlot, second.hashSlot, third.hashSlot)
+	// One completed proposal admits exactly one successor, without growing the cohort.
+	active[0].releaseProposal()
+	awaitMembershipProposalCompletion(t, active[0].completed)
+	active = append(active[1:], awaitControlledMembershipProposal(t, proposer.entered))
+	if got := proposer.maxActiveCount(); got != width {
+		t.Fatalf("refilled proposals = %d, want %d", got, width)
 	}
-	if got := proposer.maxActiveCount(); got != maxMembershipProposalConcurrency {
-		t.Fatalf("maximum active membership proposals after refill = %d, want %d", got, maxMembershipProposalConcurrency)
-	}
-
-	second.releaseProposal()
-	third.releaseProposal()
-	awaitMembershipProposalCompletion(t, second.completed)
-	awaitMembershipProposalCompletion(t, third.completed)
+	proposer.releaseAll()
 	select {
 	case err := <-done:
 		if err != nil {
-			t.Fatalf("UpsertUserChannelMemberships() error = %v", err)
+			t.Fatal(err)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("UpsertUserChannelMemberships() did not finish bounded slot proposals")
+		t.Fatal("membership proposals were not joined")
 	}
+}
+
+func TestUpsertUserChannelMembershipsCancellationJoinsAdmittedCommands(t *testing.T) {
+	proposer := newControlledMembershipProposer(16)
+	defer proposer.releaseAll()
+	node, uids := membershipSchedulingNode(t, proposer)
+	observer := &membershipSchedulingObserver{}
+	node.cfg.MembershipObserver = observer
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- node.UpsertUserChannelMemberships(ctx, "large-group", 2, uids, 9, 17, 123) }()
+	for range 8 {
+		_ = awaitControlledMembershipProposal(t, proposer.entered)
+	}
+	cancel()
+	select {
+	case <-done:
+		t.Fatal("returned before admitted durable commands finished")
+	default:
+	}
+	proposer.releaseAll()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("error = %v, want cancellation", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("canceled membership proposal workers did not join")
+	}
+	if got := observer.rows; got != 8 {
+		t.Fatalf("confirmed rows = %d, want eight admitted completions", got)
+	}
+	select {
+	case <-proposer.entered:
+		t.Fatal("cancellation admitted queued membership commands")
+	default:
+	}
+}
+
+func TestUpsertUserChannelMembershipsFailurePreservesCauseAndJoinsPeers(t *testing.T) {
+	cause := errors.New("membership Slot unavailable")
+	proposer := newControlledMembershipProposer(16)
+	proposer.failHashSlot, proposer.failErr = 0, cause
+	defer proposer.releaseAll()
+	node, uids := membershipSchedulingNode(t, proposer)
+	observer := &membershipSchedulingObserver{}
+	node.cfg.MembershipObserver = observer
+	done := make(chan error, 1)
+	go func() {
+		done <- node.UpsertUserChannelMemberships(context.Background(), "large-group", 2, uids, 9, 17, 123)
+	}()
+	var active []*controlledMembershipProposal
+	for range 8 {
+		active = append(active, awaitControlledMembershipProposal(t, proposer.entered))
+	}
+	for _, proposal := range active {
+		if proposal.hashSlot == 0 {
+			proposal.releaseProposal()
+		}
+	}
+	select {
+	case <-active[0].ctx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("failed proposal did not cancel queued work")
+	}
+	select {
+	case <-done:
+		t.Fatal("failure returned before admitted peers finished")
+	default:
+	}
+	proposer.releaseAll()
+	select {
+	case err := <-done:
+		if !errors.Is(err, cause) {
+			t.Fatalf("error = %v, want original Slot cause", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("failed membership proposal workers did not join")
+	}
+	if got := observer.rows; got != 7 {
+		t.Fatalf("confirmed rows = %d, want seven admitted successes", got)
+	}
+	select {
+	case <-proposer.entered:
+		t.Fatal("failure admitted queued membership commands")
+	default:
+	}
+}
+
+// membershipSchedulingNode supplies independent physical owners, so coalescing
+// logical shards does not turn the eight-worker resource contract into two jobs.
+func membershipSchedulingNode(t *testing.T, proposer *controlledMembershipProposer) (*Node, []string) {
+	t.Helper()
+	node := newStartedSlotProxyPortNode(t, proposer)
+	snapshot := node.controlSnapshot
+	snapshot.Revision++
+	snapshot.Slots = nil
+	snapshot.HashSlots = control.HashSlotTable{Revision: 10, Count: 16}
+	leaders := make([]routing.SlotStatus, 0, 16)
+	for i := uint16(0); i < 16; i++ {
+		slotID := uint32(i) + 1
+		snapshot.Slots = append(snapshot.Slots, control.SlotAssignment{SlotID: slotID, DesiredPeers: []uint64{1, 2}, ConfigEpoch: 1, PreferredLeader: 1})
+		snapshot.HashSlots.Ranges = append(snapshot.HashSlots.Ranges, control.HashSlotRange{From: i, To: i, SlotID: slotID})
+		leaders = append(leaders, routing.SlotStatus{SlotID: slotID, Leader: 1})
+	}
+	if err := node.router.UpdateControlSnapshot(snapshot); err != nil {
+		t.Fatal(err)
+	}
+	node.router.UpdateSlotLeaders(leaders)
+	uids := make([]string, 16)
+	for i := range uids {
+		uids[i] = keyForNodeHashSlot(t, 16, uint16(i))
+	}
+	return node, uids
+}
+
+type membershipSchedulingObserver struct{ rows int }
+
+func (o *membershipSchedulingObserver) ObserveMembershipMutation(obs MembershipMutationObservation) {
+	o.rows += obs.Rows
 }
 
 type controlledMembershipProposal struct {
 	hashSlot    uint16
+	ctx         context.Context
 	release     chan struct{}
 	completed   chan struct{}
 	releaseOnce sync.Once
@@ -383,9 +487,11 @@ type controlledMembershipProposer struct {
 	shutdown chan struct{}
 	stopOnce sync.Once
 
-	mu        sync.Mutex
-	active    int
-	maxActive int
+	mu           sync.Mutex
+	active       int
+	maxActive    int
+	failHashSlot uint16
+	failErr      error
 }
 
 func newControlledMembershipProposer(capacity int) *controlledMembershipProposer {
@@ -395,9 +501,10 @@ func newControlledMembershipProposer(capacity int) *controlledMembershipProposer
 	}
 }
 
-func (p *controlledMembershipProposer) Propose(_ context.Context, req propose.Request) error {
+func (p *controlledMembershipProposer) Propose(ctx context.Context, req propose.Request) error {
 	proposal := &controlledMembershipProposal{
 		hashSlot:  req.Target.HashSlot,
+		ctx:       ctx,
 		release:   make(chan struct{}),
 		completed: make(chan struct{}),
 	}
@@ -416,6 +523,9 @@ func (p *controlledMembershipProposer) Propose(_ context.Context, req propose.Re
 	p.active--
 	p.mu.Unlock()
 	close(proposal.completed)
+	if req.Target.HashSlot == p.failHashSlot {
+		return p.failErr
+	}
 	return nil
 }
 

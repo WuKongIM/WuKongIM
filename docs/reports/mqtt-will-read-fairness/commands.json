@@ -1,0 +1,13 @@
+{
+  "candidate_build": "GOFLAGS=-buildvcs=false scripts/build-gofail-binary.sh --out /tmp/wukongim-will-fairness-gofail-v3 --work-dir /tmp/wukongim-will-fairness-source-v3 --keep-work --package internal/usecase/mqttsession --package internal/app --package internal/infra/mqttwill --package pkg/slot/multiraft --package pkg/slot/fsm --package pkg/slot/proxy",
+  "private_negative_build": "GOFLAGS=-buildvcs=false go build -o /tmp/wukongim-will-fairness-negative-gofail ./cmd/wukongim (working directory /tmp/wukongim-will-fairness-negative-source)",
+  "single_node_matrix": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-fairness-gofail-v3 WK_E2E_MQTT_REPORT_DIR=<report-dir> go test -p 1 -tags=e2e ./test/e2e/mqtt/will_reclamation_fairness -run TestWillReclamationFailedReadFairness/single-node-cluster -count=1 -timeout=35m -v",
+  "three_node_matrix": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-fairness-gofail-v3 WK_E2E_MQTT_REPORT_DIR=<report-dir> go test -p 1 -tags=e2e ./test/e2e/mqtt/will_reclamation_fairness -run TestWillReclamationFailedReadFairness/three-node-cluster -count=1 -timeout=35m -v",
+  "negative": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-fairness-negative-gofail WK_E2E_MQTT_REPORT_DIR=<report-dir> go test -p 1 -tags=e2e ./test/e2e/mqtt/will_reclamation_fairness -run TestWillReclamationFailedReadFairness/single-node-cluster/deadline$ -count=1 -timeout=16m -v",
+  "ordinary_will": "WK_E2E_BINARY=/tmp/wukongim-will-fairness-ordinary go test -p 1 -tags=e2e ./test/e2e/mqtt/will -count=1 -timeout=4m -v",
+  "cap_two": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-fairness-gofail-v3 WK_E2E_MQTT_REPORT_DIR=<report-dir> go test -p 1 -tags=e2e ./test/e2e/mqtt/will_reclamation -run TestWillJournalPressurePreservesCurrentRecovery -count=1 -timeout=6m -v",
+  "race_initial": "go test -race ./internal/usecase/mqttsession ./internal/infra/mqttwill ./internal/contracts/mqttsession ./internal/app -count=1",
+  "audit_repeat": "go test -race ./internal/app -run TestControllerTaskAudit -count=1",
+  "app_repeat": "go test -race ./internal/app -count=1",
+  "FLOW": "named flow-doc-contracts from .github/review-agent/policy.json"
+}

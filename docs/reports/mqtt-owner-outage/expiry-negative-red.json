@@ -1,0 +1,20 @@
+{
+  "channel_replicas": 2,
+  "early_refusal_complete_ms": 10042,
+  "fault": "suspend",
+  "hash_slots": 256,
+  "independent_connect_controls": 2,
+  "last_phase": "refusal-after-expiry",
+  "nodes": 3,
+  "old_process_alive_during_loss": true,
+  "outage_before_late_refusal_ms": 35000,
+  "passed": false,
+  "refused_connects": 2,
+  "resubscriptions": 0,
+  "scenario": "mqtt-three-node-owner-outage",
+  "slot_replicas": 3,
+  "successful_cross_node_takeovers": 0,
+  "surviving_slot_quorum_verified": true,
+  "survivor_active_owners_after_early_refusals": 0,
+  "target_connect_retries": 0
+}

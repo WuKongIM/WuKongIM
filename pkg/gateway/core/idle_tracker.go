@@ -11,6 +11,8 @@ type idleTracker struct {
 	timeout time.Duration
 	heap    idleDeadlineHeap
 	indexes map[*sessionState]int
+	// wake interrupts the shared monitor when a new earlier deadline is added.
+	wake chan struct{}
 }
 
 // idleDeadline is one scheduled read deadline for a session state.
@@ -20,12 +22,22 @@ type idleDeadline struct {
 }
 
 func newIdleTracker(timeout time.Duration) *idleTracker {
-	return &idleTracker{timeout: timeout, indexes: make(map[*sessionState]int)}
+	return &idleTracker{timeout: timeout, indexes: make(map[*sessionState]int), wake: make(chan struct{}, 1)}
 }
 
 // touch records a new read deadline by updating the state's existing heap entry.
 func (t *idleTracker) touch(state *sessionState, now time.Time) {
-	if t == nil || state == nil || t.timeout <= 0 {
+	if t != nil {
+		t.touchWithTimeout(state, now, t.timeout)
+	}
+}
+
+func (t *idleTracker) touchWithTimeout(state *sessionState, now time.Time, timeout time.Duration) {
+	if t == nil || state == nil {
+		return
+	}
+	if timeout <= 0 {
+		t.remove(state)
 		return
 	}
 
@@ -35,7 +47,13 @@ func (t *idleTracker) touch(state *sessionState, now time.Time) {
 	if t.indexes == nil {
 		t.indexes = make(map[*sessionState]int)
 	}
-	deadline := now.Add(t.timeout)
+	deadline := now.Add(timeout)
+	if len(t.heap) == 0 || deadline.Before(t.heap[0].deadline) {
+		select {
+		case t.wake <- struct{}{}:
+		default:
+		}
+	}
 	if idx, ok := t.indexes[state]; ok && idx >= 0 && idx < len(t.heap) && t.heap[idx].state == state {
 		t.heap[idx].deadline = deadline
 		t.heap.fix(idx, t.indexes)
@@ -67,7 +85,7 @@ func (t *idleTracker) removeRootLocked() idleDeadline {
 
 // nextWait returns how long the monitor should wait before checking the next deadline.
 func (t *idleTracker) nextWait(now time.Time) time.Duration {
-	if t == nil || t.timeout <= 0 {
+	if t == nil {
 		return 0
 	}
 
@@ -75,6 +93,9 @@ func (t *idleTracker) nextWait(now time.Time) time.Duration {
 	defer t.mu.Unlock()
 	t.pruneStaleLocked()
 	if len(t.heap) == 0 {
+		if t.timeout <= 0 {
+			return time.Hour // New protocol deadlines wake the monitor immediately.
+		}
 		return t.timeout
 	}
 	wait := t.heap[0].deadline.Sub(now)

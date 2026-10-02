@@ -1,0 +1,196 @@
+{
+  "source": "bd37bcc4c2e0d80d10ccd45c0c3292b56424b32c",
+  "digests": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "internal/usecase/mqttsession/FLOW.md": "1173093284c21ce8e2c6f61e86d584b300449e560053336cdb2eaa10cbfadfb4",
+    "internal/app/FLOW.md": "b281a1b1ba7e1a21d42f4ed52261fed1e0bb836a5ccc7e2bbf28bdf837c3bfb8",
+    "internal/runtime/mqttsession/FLOW.md": "23142cdfeff4cef6d2f79c9789a0a73f4486f2e6a8677b9cbfbbacb3e3458cab",
+    "test/e2e/AGENTS.md": "cd13514f93a552e2f9d4cc0b46f85848477e38dccd07840bcfe7d343170b8876",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "test/e2e/mqtt/quota/AGENTS.md": "75089add54b1f205ebb8bb8d3382695a63bb98ea3f1a091677b66386de436034"
+  },
+  "scope": "Owner-independent bounded source draining through existing consumer maintenance; final subscription/UID completion and pre-binding discovery remain incomplete",
+  "checks": [
+    {
+      "command": "GOWORK=off go test -p 2 ./internal/usecase/mqttsession -run 'TestClosedSourceDrain|TestConsumerMaintenanceResumesClosed' -count=1",
+      "result": "RED: ReconcileClosed and required Drain composition absent; a fixture Directory type typo was corrected before production edits",
+      "log_sha256": "e12cec7f4a18d76b2530fe289568d49c58c039a240b26632ae68a06b846dc931"
+    },
+    {
+      "command": "GOWORK=off go test -p 2 ./internal/usecase/mqttsession -run 'TestClosedSourceDrain|TestConsumerMaintenance|TestSourceDrain|TestGroupDrain|TestQualification' -count=1",
+      "result": "PASS: 14.969s",
+      "log_sha256": "970477e54666d8cfd1bc7331068a1e02283b9352eb6cbb1c4f7062c360cead17"
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 ./internal/usecase/mqttsession ./internal/app -count=1",
+      "result": "PASS: usecase 83.502s; app 4.898s",
+      "log_sha256": "2b705e756cc9361969a472e26b1cf167a123762415fd06dd40c08fb40b0ef47f"
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 -tags=integration ./internal/app -run TestMQTTGroupSourcePreparationThreeNodeRecovery -count=1 -timeout=5m -v",
+      "result": "PASS: 22.205s; extended real three-node routed Slot/source cleanup after disconnect; controlled establishment/window fixture, no product listener",
+      "log_sha256": "a24d9eedd6baa249a9404f0be72b253545ff6d40019791980d8914cd0c38b2ee"
+    },
+    {
+      "command": "WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-closed-drain-reports GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/quota -count=1 -timeout=8m -v",
+      "result": "PASS: 205.444s; eight existing process quota/completion regression cases",
+      "log_sha256": "ad6737f0b625ceee9a9c923fcbb7d1b62d0ff2f672bef9fd626c8bc98b536613"
+    },
+    {
+      "command": "GOWORK=off go run ./scripts/flowcheck --mode check",
+      "result": "PASS: 87 compliant, 0 invalid, 9 existing length warnings",
+      "log_sha256": "518c3c03df7eb5d31ffef78aaf4666017b3054bf4e16f65a227b11efc525cf09"
+    }
+  ],
+  "integration_evidence": [
+    "nodes=3 hash_slots=256 mode=backlog unsubscribe_real=true sealed_end=true remote_cursor_read=true concurrent_ack_cas=true background_offline=true quota_preserved=true inflight_preserved=true establishment_and_window_admission=controlled product_listener=false",
+    "nodes=3 hash_slots=256 mode=cancel unsubscribe_real=true sealed_end=true remote_cursor_read=true concurrent_ack_cas=false background_offline=false quota_preserved=true inflight_preserved=true establishment_and_window_admission=controlled product_listener=false",
+    "nodes=3 hash_slots=256 mode=before_binding unsubscribe_real=true sealed_end=true remote_cursor_read=true concurrent_ack_cas=false background_offline=false quota_preserved=true inflight_preserved=true establishment_and_window_admission=controlled product_listener=false"
+  ],
+  "process_artifacts": [
+    {
+      "file": "mqtt-consumer-ack-completion-1.json",
+      "sha256": "a5ecf6c8d4f1554e2b8ca1bb8152c997d37182dcb7cd255e20de8a7df6ebe439",
+      "assertions": {
+        "ack_progress_projected": true,
+        "closed_source_removed": true,
+        "hash_slots": 256,
+        "nodes": 1,
+        "passed": true,
+        "receive_maximum": 1,
+        "scenario": "ack-completion"
+      }
+    },
+    {
+      "file": "mqtt-consumer-ack-completion-3.json",
+      "sha256": "8510917750e41c8fbed94754603f3d1789d1f96d00a28147e1fd4d5f53eaecf9",
+      "assertions": {
+        "ack_progress_projected": true,
+        "closed_source_removed": true,
+        "hash_slots": 256,
+        "nodes": 3,
+        "passed": true,
+        "receive_maximum": 1,
+        "scenario": "ack-completion"
+      }
+    },
+    {
+      "file": "mqtt-consumer-full-window-1.json",
+      "sha256": "5d4d13de4a58a643e215d04e8a872df8f90fdbcc4f96b987af1cd3f46b438ccf",
+      "assertions": {
+        "ended_before_reconnect": true,
+        "hash_slots": 256,
+        "nodes": 1,
+        "offline": false,
+        "old_qualification_removed": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscribe_delivers_fresh_message": true,
+        "scenario": "full-window",
+        "session_present": false,
+        "source_removed_before_reconnect": true
+      }
+    },
+    {
+      "file": "mqtt-consumer-full-window-3.json",
+      "sha256": "355a15c831258115f4f2aa651c14f54c3e87777d181a258d6c6299607d4215e3",
+      "assertions": {
+        "ended_before_reconnect": true,
+        "hash_slots": 256,
+        "nodes": 3,
+        "offline": false,
+        "old_qualification_removed": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscribe_delivers_fresh_message": true,
+        "scenario": "full-window",
+        "session_present": false,
+        "source_removed_before_reconnect": true
+      }
+    },
+    {
+      "file": "mqtt-consumer-offline-bytes-1.json",
+      "sha256": "a757633cf6dc5d315a5be95d4af52812e738bb179ea560a224a498f2390976b8",
+      "assertions": {
+        "ended_before_reconnect": true,
+        "hash_slots": 256,
+        "nodes": 1,
+        "offline": true,
+        "old_qualification_removed": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscribe_delivers_fresh_message": true,
+        "scenario": "offline-bytes",
+        "session_present": false,
+        "source_removed_before_reconnect": true
+      }
+    },
+    {
+      "file": "mqtt-consumer-offline-bytes-3.json",
+      "sha256": "78d3a2d6ff8bf8c9c497657051f8b7f517a3c11fb66f4f03ffb225b2769bba95",
+      "assertions": {
+        "ended_before_reconnect": true,
+        "hash_slots": 256,
+        "nodes": 3,
+        "offline": true,
+        "old_qualification_removed": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscribe_delivers_fresh_message": true,
+        "scenario": "offline-bytes",
+        "session_present": false,
+        "source_removed_before_reconnect": true
+      }
+    },
+    {
+      "file": "mqtt-consumer-offline-messages-1.json",
+      "sha256": "22fcf88b9c3cc50f1feb198704bf58d80dc5a8b5587ad15605604008ec2a075b",
+      "assertions": {
+        "ended_before_reconnect": true,
+        "hash_slots": 256,
+        "nodes": 1,
+        "offline": true,
+        "old_qualification_removed": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscribe_delivers_fresh_message": true,
+        "scenario": "offline-messages",
+        "session_present": false,
+        "source_removed_before_reconnect": true
+      }
+    },
+    {
+      "file": "mqtt-consumer-offline-messages-3.json",
+      "sha256": "f4b7f2a48005883417e2abf29ace12c2e2eaabff39671b78c09501c434c34444",
+      "assertions": {
+        "ended_before_reconnect": true,
+        "hash_slots": 256,
+        "nodes": 3,
+        "offline": true,
+        "old_qualification_removed": true,
+        "passed": true,
+        "receive_maximum": 1,
+        "resubscribe_delivers_fresh_message": true,
+        "scenario": "offline-messages",
+        "session_present": false,
+        "source_removed_before_reconnect": true
+      }
+    }
+  ],
+  "implementation_sha256": {
+    "internal/usecase/mqttsession/closed_source_drain.go": "59777fef8cd4ab239f46d07dbc7e0aa85673f02ed3a2326c88bc532490d81d3d",
+    "internal/usecase/mqttsession/closed_source_drain_test.go": "024181e476d452350452bca9e655fead0186b4bdf809bbf71796231c603ed456",
+    "internal/usecase/mqttsession/source_drain.go": "c0a9ef6bf6b6bff6a75523f142defb93cb9129c1e69b3605e14684fc4585f25b",
+    "internal/usecase/mqttsession/group_drain.go": "2085b8628989a2b651f8d7e607f9a3ca86980d39a5ac3ea803e3d385f27cf702",
+    "internal/usecase/mqttsession/consumer_maintenance.go": "9be4a342abcdc0a63ca7f311aef4538c9a74240bb3b3568b657ceb090acb0a33",
+    "internal/usecase/mqttsession/consumer_maintenance_test.go": "829f5367f26495b07c7e65b1004a1ae0ab93173b49e16c5d7bcf1b55d1d532cd",
+    "internal/usecase/mqttsession/qualification_retirement_test.go": "e54968deaa5788f7ddc954f135fd6a39a0f624ce746a0fef43e05a7b50eed8b5",
+    "internal/app/mqtt_consumers.go": "f7f9784b2e52bf8d600165d7f29791c6119644b9bf05561069e8a6fd772b82ac",
+    "internal/app/mqtt_source_drain_integration_test.go": "eb9a73c1e9278978ccd02ebdd23e31ecbed6e207e5e89622842fb3489eb5ccfc"
+  },
+  "limits": [
+    "No complete process interrupted-UNSUBSCRIBE claim; existing process cases are regression only",
+    "No pre-binding pending intent discovery or final UID/subscription completion",
+    "No ended record reclamation, unavailable-owner/unknown-effect isolation, restore reactivation or scale acceptance"
+  ]
+}

@@ -7,9 +7,8 @@ summary: Owns Channel-keyed reactor state, event scheduling, replication progres
 
 ## Responsibility
 
-`pkg/channel/reactor` owns every loaded Channel runtime. A stable hash assigns a
-Channel key to one node-local reactor, and that reactor goroutine is the sole
-writer of its machine, append, replication, retention, and lifecycle state.
+`pkg/channel/reactor` hashes each loaded Channel key to one node-local reactor.
+Its goroutine exclusively owns machine, append, replication, retention and lifecycle state.
 
 Blocking store, transport, metadata-resolution, and close work leaves through
 typed bounded workers and returns as `EventWorkerResult`.
@@ -29,7 +28,7 @@ typed bounded workers and returns as `EventWorkerResult`.
 
 1. Priority mailboxes admit control, append, replication, worker-completion,
    and maintenance events under fairness and due-work budgets; appends then
-   validate metadata/capacity, flush to workers, and apply fenced completions.
+   validate metadata/capacity, recheck optional exact quorum authority at flush, and apply fenced completions.
    Exact durable-quorum proposals flush immediately from the reactor; the
    MessageDB coordinator below this seam remains the physical group-commit
    batching owner.
@@ -70,6 +69,23 @@ typed bounded workers and returns as `EventWorkerResult`.
   factory or database.
 - Committed lookup is read-only and returns a row only when its positive
   sequence is covered by current HW.
+- Source confirmation captures HW under recovered leader/epoch/route/write
+  admission, then checkpoints and reads protection in a bounded worker. Lookup
+  waiters also guard its cancellation and lifecycle; completion rechecks every
+  fence and context. First source controls share the ordered quorum append queue.
+- Replay preparation shares recovered leader admission, cancellation and lifecycle
+  ownership. Captured HW bounds its checkpoint worker; typed completion rechecks
+  authority, operation identity and bounded page structure before returning bytes.
+  Accepted-prefix planning shares these waiter/worker guards and returns source
+  plus latest anchor at captured HW, without promoting local copying into acceptance.
+  Planning pins stable write fences and recovered leader/route/data-plane authority; appends remain fenced.
+  Retained Will queries also capture HW and reject partial proof, foreign tasks and changed authority/fences.
+
+- Anchor and retirement controls share the ordinary append queue, slice ownership, byte bounds
+  and cancellation guards. Flush rechecks recovered authority; typed durable
+  completion advances monotonic progress after observer cancellation. It returns
+  only the verified control proof and never caches request records on retries.
+  Foreign completions cannot change replacement state. Retirement reuses covering decisions; consumer permission stays above this layer.
 
 ## Read First
 

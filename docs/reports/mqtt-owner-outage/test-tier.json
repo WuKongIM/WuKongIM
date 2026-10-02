@@ -1,0 +1,5 @@
+{
+  "default_tier_includes_real_time_contention": false,
+  "integration_tier_includes_real_time_contention": true,
+  "assertions_unchanged": true
+}

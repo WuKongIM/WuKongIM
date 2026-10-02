@@ -1,0 +1,40 @@
+{
+  "source_revision": "c3f4ac4aa04d252cf5a8e81fb350549602d49f8d",
+  "diagnostic_only": true,
+  "overlay_error_boundaries": [
+    "subscriptions.go",
+    "group_projection.go",
+    "preparation_scope.go",
+    "source_drain.go",
+    "group_drain.go",
+    "closed_source_drain.go",
+    "group_sources.go",
+    "group_source_cursor.go",
+    "source_progress.go"
+  ],
+  "max_conflict_records": 512,
+  "foreground_context_marker_carried_through_owner_begin": true,
+  "profile_enabled": false,
+  "acceptance_bounds_changed": false,
+  "phase1_command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-unsubscribe-diagnostic WK_E2E_MQTT_SCALE_MEMBERS=2000 WK_E2E_MQTT_SCALE_CONNECTIONS=500 WK_E2E_MQTT_SCALE_MESSAGES=20 WK_E2E_MQTT_SCALE_CHURN=200 WK_E2E_MQTT_SCALE_ROUNDS=10 WK_E2E_MQTT_REPORT_DIR=<attempt-directory> GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/scale -run ^TestGroupScaleDeliveryAndChurnRetirement$ -count=1 -timeout=15m -v",
+  "failure": {
+    "phase": "churn",
+    "zero_based_round": 1,
+    "operation": "unsubscribe",
+    "public_closure_reason": "conflict",
+    "public_closure_count": 1,
+    "trace_origin": "source_drain.go:sealBinding:385",
+    "winning_writer_identity": "not captured"
+  },
+  "limits": [
+    "The extra post-rejection winner-shape probe failed its original initial receipt deadline, before churn; retain that failure independently.",
+    "Diagnostic attempts were on a shared developer host. Short regression compilation/checks overlapped the longer winner probe; host noise was not quantified.",
+    "An initial winner-probe build failed before workload and its missing-binary harness launch is excluded from scenario evidence.",
+    "The second winner-probe binary includes an unreachable new pendingSeal helper from the working tree, while all instrumented production files remain frozen baseline overlays.",
+    "No final message identity/order or retirement claim applies to failed attempts."
+  ],
+  "binaries": {
+    "/tmp/wukongim-mqtt-unsubscribe-diagnostic": "02fff4f9e8b695fa83c7ed25d33bf5db84c09be3d5cf77bb41259ba0ff262a9b",
+    "/tmp/wukongim-mqtt-unsubscribe-winner-diagnostic": "0fd35010be57a6bb2141fdfcc75d025285827d35dcee6456d9ce4ae917fd4cde"
+  }
+}

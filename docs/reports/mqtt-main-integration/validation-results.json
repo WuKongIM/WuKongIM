@@ -1,0 +1,474 @@
+{
+  "artifacts": [
+    {
+      "path": "README.md",
+      "sha256": "0f6941908f021779fa665880af6752d88db85d49c3c904534d5771067363ec39"
+    },
+    {
+      "path": "build-manifest.json",
+      "sha256": "0c8ea3b0f145ac86e7f177f107f957d006edb5042ad27c7e2b6546c17f5d4cf5"
+    },
+    {
+      "path": "cases/aggregate-storage-ingress-1.json",
+      "sha256": "20e5144b50372516a9f4c4c98836394a367b4db10047bd7df147619b07d26518"
+    },
+    {
+      "path": "cases/aggregate-storage-ingress-3.json",
+      "sha256": "77313a34163ac8083a30a29ca0a2cb095f781d16481056ed0407f5ef40d99ffb"
+    },
+    {
+      "path": "cases/mqtt-interop-1.json",
+      "sha256": "498afd43a43520e906c1245c1a88c22238979684e54dd119cf829e138570c05f"
+    },
+    {
+      "path": "cases/mqtt-interop-3.json",
+      "sha256": "d77b2cb6d19dd492634149dd22ff44321499ea636f043f72b215efe46bc49280"
+    },
+    {
+      "path": "cases/mqtt-storage-partition-accepted.json",
+      "sha256": "abd8180123a527c3536a076cb0c2e22c7013d196f169bcdf23e0839219baab8d"
+    },
+    {
+      "path": "cases/mqtt-storage-partition-unknown.json",
+      "sha256": "4988f2490d503fa3530d2bf1f46f39b807a56ca2dd9b551c4d1cfd75d51bfb66"
+    },
+    {
+      "path": "cases/mqtt-will-1.json",
+      "sha256": "8d77e1de568bfe44ed462106ccfa2fb2bc17f98feaa002ea71fa53f0e50de700"
+    },
+    {
+      "path": "cases/mqtt-will-3.json",
+      "sha256": "85aa42b3a231e387ce832330e215b4eb95dd3d10c8b66d70058e0c8d89884ceb"
+    },
+    {
+      "path": "cleanup.json",
+      "sha256": "c6667ae093b7693f9f7fa611efda3cc7a6016323bc04308f10f68c448898fa3d"
+    },
+    {
+      "path": "failure-inventory.md",
+      "sha256": "c9a2d8e2e7828dc0f134940db625292eb04cb7e14da6ba052e323e90a9b888da"
+    },
+    {
+      "path": "frozen-context.json",
+      "sha256": "a48c833ff7cb2c50bbd1fbd696dfaacedcf4bd96a9abda90ed57b394b3413f9d"
+    },
+    {
+      "path": "logs/build-v2.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+    },
+    {
+      "path": "logs/composition-unit.log.gz",
+      "sha256": "99eaf872a3db710e7ddddb14d20e1cbfa94110ed2322fe59de0685eb900683f0"
+    },
+    {
+      "path": "logs/controller.log.gz",
+      "sha256": "5fb3c6164ce0a78ee58ec23ea7e31fcb133df5d1c96817b44984f57fe02bd45a"
+    },
+    {
+      "path": "logs/deferred-app-v2.log.gz",
+      "sha256": "ca8730eb251016dc913047663c327a7e49d0ee18c200f5e2914c738addb3a298"
+    },
+    {
+      "path": "logs/deferred.log.gz",
+      "sha256": "e803523cd1b76730e849ed9672d3286d8d61d0ce7abcbe9b72e830b66f6880ce"
+    },
+    {
+      "path": "logs/e2e-v2.log.gz",
+      "sha256": "f613cbb43a8ef3646a4fc68fdb41fd147590aea6b99562aeff214499e7f1dbd7"
+    },
+    {
+      "path": "logs/flow-check-v2.log.gz",
+      "sha256": "a79cb44ced9b0b3bcdeb9a3db41108d1f4490acd663f386b6752a24e89caa188"
+    },
+    {
+      "path": "logs/flow-render-v2.log.gz",
+      "sha256": "c0c4d848173fa5a9578ade350f7be0a37f934d4d2c5228700d03833c420b5b93"
+    },
+    {
+      "path": "logs/gateway-unit-v2.log.gz",
+      "sha256": "2599d391f9a70baca8072d7da44be3a070b04bd46e8f37be3893938377f50b3f"
+    },
+    {
+      "path": "logs/gofail-build-info.log.gz",
+      "sha256": "b70abcfbe930c88ba0fc6d9a4937e73ee84346cf210f36f3602ead0d815d2d10"
+    },
+    {
+      "path": "logs/gofail-build-v2.log.gz",
+      "sha256": "b6d6d64742506a4634b47c9d4830a0c8bead4f5498a086dab00b4c9bb8c1a543"
+    },
+    {
+      "path": "logs/interop-will.log.gz",
+      "sha256": "ee4e4157e317578373c5aabc9a0aed2eb28a0558f812a8a8f9a827f55f5ca50d"
+    },
+    {
+      "path": "logs/module-verify.log.gz",
+      "sha256": "4699dce40a065353f016ef7eb2c309ee9dee73281263a6b29287016349618a1b"
+    },
+    {
+      "path": "logs/native-suite.log.gz",
+      "sha256": "aafe06e697ce62c1f4463e47472032866f209a067fdc4bcd57a119b2692da405"
+    },
+    {
+      "path": "logs/ordinary-build-info.log.gz",
+      "sha256": "34a877c346b24e63ef0259b40897e0fbff21466dece79e96539efc1ec1bf276b"
+    },
+    {
+      "path": "logs/packet-green.log.gz",
+      "sha256": "27470a1dff3729abe12b92c4dd18b9382f1cd7484cdd2d8db86c390588fae75c"
+    },
+    {
+      "path": "logs/packet-red.log.gz",
+      "sha256": "caaf6ed12b825dcb88bad073a381f6d7bf242f726e89795f03e580c117141160"
+    },
+    {
+      "path": "logs/partition-v2.log.gz",
+      "sha256": "65a476244c643fea383e7d3b90fce506fb90ca8aae6a79512a631be021d80de9"
+    },
+    {
+      "path": "logs/partition.log.gz",
+      "sha256": "6e0e49db53fe7c6c5cea1e63c12569f29add96a52fff380270f188fdba938c15"
+    },
+    {
+      "path": "logs/replication-race.log.gz",
+      "sha256": "aa3e9f1a67599eed9765ee9d1912617cc09768046197c493a53f8874a1809684"
+    },
+    {
+      "path": "logs/slot.log.gz",
+      "sha256": "dd282aae2a6d92f0fbfd2048d7a334d73911adb96f1eabe08337ad3589ce6e24"
+    },
+    {
+      "path": "logs/unit.log.gz",
+      "sha256": "684a3cebd491191d80377c8115bd9f9d4b47494ffc4e528bc91d32cd0b523c2c"
+    },
+    {
+      "path": "logs/unknown-v2.log.gz",
+      "sha256": "7919787d5615b6fec7629740cf261347c64f06fd502060b715f21b7d68db0a17"
+    },
+    {
+      "path": "spec-review.md",
+      "sha256": "8e0cd94316dbe39bb1dd6367a3ace7cff60267e050ae6031c345301b6ac3824a"
+    },
+    {
+      "path": "standards-review.md",
+      "sha256": "9334f76933cfb34890fda9132a893aee18ebdae202a6bd357e27d49131c1a5ad"
+    },
+    {
+      "path": "verify.py",
+      "sha256": "e0c500c8eac2b09a4aeeff8c93ae074f9d2a2bf8a5c992da454f3a6a30ff613f"
+    }
+  ],
+  "checks": [
+    {
+      "arguments": [
+        "go",
+        "build",
+        "-p",
+        "1",
+        "-buildvcs=false",
+        "-o",
+        "/tmp/wukongim-pr998-merged-v2",
+        "./cmd/wukongim"
+      ],
+      "environment": {},
+      "exit_code": 0,
+      "log": "logs/build-v2.log.gz",
+      "name": "ordinary-build"
+    },
+    {
+      "arguments": [
+        "bash",
+        "scripts/build-gofail-binary.sh",
+        "--out",
+        "/tmp/wukongim-pr998-gofail-v2",
+        "--work-dir",
+        "/tmp/mqtt-pr998-gofail-v2-source",
+        "--keep-work",
+        "--package",
+        "pkg/db/message"
+      ],
+      "environment": {
+        "GOFLAGS": "-buildvcs=false -p=1"
+      },
+      "exit_code": 0,
+      "log": "logs/gofail-build-v2.log.gz",
+      "name": "temporary-gofail-build"
+    },
+    {
+      "arguments": [
+        "go",
+        "test",
+        "-p",
+        "2",
+        "./internal/app",
+        "./internal/access/node",
+        "./internal/infra/cluster",
+        "./pkg/cluster",
+        "-count=1",
+        "-timeout=4m"
+      ],
+      "environment": {},
+      "exit_code": 0,
+      "log": "logs/composition-unit.log.gz",
+      "name": "composition-unit"
+    },
+    {
+      "arguments": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./pkg/slot/fsm",
+        "-count=1",
+        "-timeout=3m"
+      ],
+      "environment": {},
+      "exit_code": 0,
+      "log": "logs/slot.log.gz",
+      "name": "slot-unit"
+    },
+    {
+      "arguments": [
+        "go",
+        "test",
+        "-p",
+        "2",
+        "./pkg/gateway/...",
+        "-count=1",
+        "-timeout=2m"
+      ],
+      "environment": {},
+      "exit_code": 0,
+      "log": "logs/gateway-unit-v2.log.gz",
+      "name": "gateway-unit"
+    },
+    {
+      "arguments": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "-race",
+        "./pkg/controller",
+        "-count=1",
+        "-timeout=2m"
+      ],
+      "environment": {},
+      "exit_code": 0,
+      "log": "logs/controller.log.gz",
+      "name": "controller-race"
+    },
+    {
+      "arguments": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "-race",
+        "./pkg/channel/replication",
+        "./pkg/cluster/net",
+        "-count=1",
+        "-timeout=3m"
+      ],
+      "environment": {},
+      "exit_code": 0,
+      "log": "logs/replication-race.log.gz",
+      "name": "replication-transport-race"
+    },
+    {
+      "arguments": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "-race",
+        "-tags=integration",
+        "./internal/app",
+        "-run",
+        "TestProductDeferred",
+        "-count=1",
+        "-timeout=4m"
+      ],
+      "environment": {},
+      "exit_code": 0,
+      "log": "logs/deferred-app-v2.log.gz",
+      "name": "app-deferred-race"
+    },
+    {
+      "arguments": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "-race",
+        "-tags=integration",
+        "./pkg/gateway/core",
+        "-run",
+        "TestPacketProtocol|TestMQTT|TestDeferredSend",
+        "-count=1",
+        "-timeout=3m",
+        "-v"
+      ],
+      "environment": {},
+      "exit_code": 0,
+      "log": "logs/packet-green.log.gz",
+      "name": "gateway-integration-race"
+    },
+    {
+      "arguments": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "-tags=e2e",
+        "./test/e2e/mqtt/interop",
+        "./test/e2e/mqtt/will",
+        "./test/e2e/mqtt/storage_capacity",
+        "-run",
+        "TestAuthenticatedMQTTAndWKInterop|TestWillPublicationAndNormalCancellation|TestIngressAndSharedConsumersUseOneStorageBudget",
+        "-count=1",
+        "-timeout=4m",
+        "-v"
+      ],
+      "environment": {
+        "WK_E2E_BINARY": "/tmp/wukongim-pr998-merged-v2",
+        "WK_E2E_MQTT_REPORT_DIR": "/tmp/mqtt-pr998-e2e-v2"
+      },
+      "exit_code": 0,
+      "log": "logs/e2e-v2.log.gz",
+      "name": "interop-will-capacity-e2e"
+    },
+    {
+      "arguments": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "-race",
+        "-tags=e2e",
+        "./test/e2e/mqtt/storage_partition",
+        "-run",
+        "^TestPartitionRetainsAcceptedStorageAndReopensAfterRecovery$",
+        "-count=1",
+        "-timeout=5m",
+        "-v"
+      ],
+      "environment": {
+        "WK_E2E_BINARY": "/tmp/wukongim-pr998-merged-v2",
+        "WK_E2E_MQTT_REPORT_DIR": "/tmp/mqtt-pr998-partition-v2"
+      },
+      "exit_code": 0,
+      "log": "logs/partition-v2.log.gz",
+      "name": "accepted-partition-e2e"
+    },
+    {
+      "arguments": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "-race",
+        "-tags=e2e",
+        "./test/e2e/mqtt/storage_partition",
+        "-run",
+        "^TestPartitionRetainsUnknownPreparationUntilResolved$",
+        "-count=1",
+        "-timeout=5m",
+        "-v"
+      ],
+      "environment": {
+        "WK_E2E_BINARY": "/tmp/wukongim-pr998-gofail-v2",
+        "WK_E2E_GOFAIL_MQTT": "1",
+        "WK_E2E_MQTT_REPORT_DIR": "/tmp/mqtt-pr998-unknown-v2"
+      },
+      "exit_code": 0,
+      "log": "logs/unknown-v2.log.gz",
+      "name": "unknown-partition-e2e"
+    },
+    {
+      "arguments": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "-race",
+        "-tags=e2e",
+        "./test/e2e/suite",
+        "./test/e2e/message/single_node_send",
+        "-count=1",
+        "-timeout=3m"
+      ],
+      "environment": {
+        "WK_E2E_BINARY": "/tmp/wukongim-pr998-merged-v2"
+      },
+      "exit_code": 0,
+      "log": "logs/native-suite.log.gz",
+      "name": "native-suite-race"
+    },
+    {
+      "arguments": [
+        "go",
+        "run",
+        "./scripts/flowcheck",
+        "--mode",
+        "check"
+      ],
+      "environment": {},
+      "exit_code": 0,
+      "log": "logs/flow-check-v2.log.gz",
+      "name": "flow-doc-contracts"
+    },
+    {
+      "arguments": [
+        "go",
+        "mod",
+        "verify"
+      ],
+      "environment": {},
+      "exit_code": 0,
+      "log": "logs/module-verify.log.gz",
+      "name": "module-verify"
+    }
+  ],
+  "common_environment": {
+    "GOMODCACHE": "/Users/tt/.codex/will-append-runtime/gomod",
+    "GOPROXY": "https://goproxy.cn,direct",
+    "GOTOOLCHAIN": "local",
+    "GOWORK": "off",
+    "Go": "go1.25.11 darwin/arm64"
+  },
+  "limitations": [
+    "No full Linux MQTT/fault/load qualification.",
+    "Product binaries are not race builds.",
+    "Old MQTT development logs with relocated command IDs are not a supported upgrade source."
+  ],
+  "main_revision": "6e60587d637025ea7e2179e84112351305540919",
+  "red_evidence": [
+    {
+      "exit_code": 1,
+      "log": "logs/unit.log.gz",
+      "meaning": "Transient duplicate Slot command 69 and Controller nested lock; owned hung test stopped with SIGQUIT for a stack."
+    },
+    {
+      "exit_code": 1,
+      "log": "logs/packet-red.log.gz",
+      "meaning": "Joined variants passed; deferred variants failed ordered packet execution before repair."
+    },
+    {
+      "exit_code": 1,
+      "log": "logs/interop-will.log.gz",
+      "meaning": "Initial product SUBSCRIBE failed before packet dispatch repair."
+    },
+    {
+      "exit_code": 1,
+      "log": "logs/partition.log.gz",
+      "meaning": "Initial accepted-storage scenario failed SUBSCRIBE before packet dispatch repair."
+    }
+  ],
+  "review_findings_remaining": {
+    "Spec": 0,
+    "Standards": 0
+  },
+  "schema_version": 1,
+  "source_revision": "0c1a24e0415ca716fa7332e7fd29b27c0043e562",
+  "status": "passed"
+}

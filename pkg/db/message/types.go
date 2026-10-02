@@ -21,6 +21,9 @@ type Record struct {
 	FromUID string
 	// Payload stores the encoded message payload.
 	Payload []byte
+	// PublicationMetadata is an optional bounded publication v1 value.
+	// Nil preserves native IM semantics; it is immutable alongside Payload.
+	PublicationMetadata []byte
 	// SizeBytes optionally stores the caller-known payload size.
 	SizeBytes int
 	// ServerTimestampMS is the server append timestamp in Unix milliseconds.
@@ -59,16 +62,21 @@ type Message struct {
 	PayloadHash uint64
 	// Payload stores the message payload.
 	Payload []byte
+	// PublicationMetadata is an optional bounded publication v1 value.
+	// Nil preserves native IM semantics; it is immutable alongside Payload.
+	PublicationMetadata []byte
 	// ServerTimestampMS is the server append timestamp in Unix milliseconds.
 	ServerTimestampMS int64
 }
 
-// IdempotencyKey identifies one sender/client-message pair in a channel.
+// IdempotencyKey selects exactly one client or server domain within a channel.
 type IdempotencyKey struct {
 	// FromUID is the sender UID.
 	FromUID string
 	// ClientMsgNo is the client-provided message number.
 	ClientMsgNo string
+	// ServerWillKey selects a durable Will intent; ClientMsgNo must be empty.
+	ServerWillKey string
 }
 
 // IdempotencyHit is the durable message selected by an idempotency key.
@@ -147,7 +155,8 @@ type RetentionTrimResult struct {
 	DeletedThroughSeq uint64
 	// Deleted is the number of message rows deleted.
 	Deleted int
-	// More reports whether another trim may still find rows below the boundary.
+	// More reports immediately eligible work below the effective boundary;
+	// source protection may clamp that boundary below the requested one.
 	More bool
 }
 
@@ -183,7 +192,7 @@ type AppendOptions struct {
 type ReadOptions struct {
 	// Limit caps returned messages when positive.
 	Limit int
-	// MaxBytes caps returned payload bytes when positive.
+	// MaxBytes caps returned payload and publication metadata bytes when positive.
 	MaxBytes int
 }
 

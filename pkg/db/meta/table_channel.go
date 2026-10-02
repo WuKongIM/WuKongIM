@@ -1,6 +1,7 @@
 package meta
 
 import (
+	"bytes"
 	"context"
 	"errors"
 
@@ -44,8 +45,8 @@ type Channel struct {
 	SubscriberMutationVersion uint64
 	// SubscriberCount stores the durable number of ordinary subscriber rows.
 	SubscriberCount uint64
-	// DirectoryProjectionState advances monotonically from none to pending to
-	// ready for canonical person-channel membership projection.
+	// DirectoryProjectionState advances from none to pending to ready for a live
+	// person-channel projection. Runtime retirement withdraws readiness atomically.
 	DirectoryProjectionState DirectoryProjectionState
 	// DirectoryProjectionGeneration is the exact durable incarnation whose
 	// pending task or completed UID projection the state describes.
@@ -185,7 +186,7 @@ func (s *Shard) DeleteChannel(ctx context.Context, channelID string, channelType
 
 // DeleteChannel stages the complete Channel-owned deletion boundary. For a
 // person Channel, deleting a live incarnation also advances the runtime
-// directory generation before removing its pending task.
+// directory and append-route generations before removing its pending task.
 func (b *Batch) DeleteChannel(hashSlot HashSlot, channelID string, channelType int64) error {
 	if err := b.ensureOpen(); err != nil {
 		return err
@@ -243,10 +244,11 @@ func (b *Batch) DeleteChannel(hashSlot HashSlot, channelID string, channelType i
 					return err
 				}
 				if runtimeExists {
-					if runtimeMeta.DirectoryGeneration == ^uint64(0) {
+					if runtimeMeta.DirectoryGeneration == ^uint64(0) || runtimeMeta.RouteGeneration == ^uint64(0) {
 						return dberrors.ErrConflict
 					}
 					runtimeMeta.DirectoryGeneration++
+					runtimeMeta.RouteGeneration++
 					runtimeValue, err := channelRuntimeMetaTable.encodeValue(runtimeKey, runtimeMeta)
 					if err != nil {
 						return err
@@ -259,6 +261,13 @@ func (b *Batch) DeleteChannel(hashSlot HashSlot, channelID string, channelType i
 			}
 		}
 		subscriberPrefix := encodeSubscriberRowPrefix(hashSlot, channelID, channelType)
+		// Hide disk rows and earlier point overlays from subsequent commands.
+		state.subscriberDeletes = append(state.subscriberDeletes, subscriberPrefix)
+		for key := range state.subscriberRows {
+			if bytes.HasPrefix([]byte(key), subscriberPrefix) {
+				delete(state.subscriberRows, key)
+			}
+		}
 		subscriberSpan := prefixSpan(subscriberPrefix)
 		return engineBatch.DeleteRange(engine.Span{Start: subscriberSpan.Start, End: subscriberSpan.End})
 	})

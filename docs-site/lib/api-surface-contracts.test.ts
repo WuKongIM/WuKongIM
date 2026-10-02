@@ -182,7 +182,7 @@ describe('cluster transport catalog', () => {
       }
     }
 
-    expect(nodeTransportServices).toHaveLength(62);
+    expect(nodeTransportServices).toHaveLength(77);
     expect(parsed.sort((a, b) => a.id - b.id)).toEqual(
       nodeTransportServices
         .map(({ id, symbol }) => ({ id, symbol }))
@@ -198,9 +198,26 @@ describe('cluster transport catalog', () => {
       ([, name, symbol]) => `${name}:${symbol}`,
     );
 
+    // The Go test map covers only part of MQTT; ids.go is the complete authority.
+    const mqttAliasesOutsideTestMap = [
+      'RPCChannelMQTTReplay', 'RPCChannelMQTTCopy', 'RPCChannelMQTTAnchor',
+      'RPCChannelMQTTPlan', 'RPCChannelMQTTRepair', 'RPCChannelMQTTRecovery',
+      'RPCChannelMQTTRetirement', 'RPCChannelMQTTRetirementSelection',
+      'RPCChannelMQTTConsumerRead', 'RPCChannelWillReceipt',
+      'RPCChannelMQTTOriginals', 'RPCMQTTWillDispatch',
+    ];
     expect(sorted(actual)).toEqual(
-      sorted(nodeTransportServices.map(({ name, symbol }) => `${name}:${symbol}`)),
+      sorted(nodeTransportServices
+        .filter(({ symbol }) => !mqttAliasesOutsideTestMap.includes(symbol))
+        .map(({ name, symbol }) => `${name}:${symbol}`)),
     );
+    const ids = await source('../../pkg/cluster/net/ids.go');
+    for (const symbol of mqttAliasesOutsideTestMap) {
+      const alias = ids.match(new RegExp(`case ${symbol}:\\s*return "([^"]+)"`))?.[1];
+      expect(alias, symbol).toBeDefined();
+      expect(nodeTransportServices.find((service) => service.symbol === symbol)?.name)
+        .toBe(alias!.replaceAll(' ', '_'));
+    }
     expect(nodeTransportServices.find(({ id }) => id === 16)?.stability).toBe('reserved');
     expect(nodeTransportServices.find(({ id }) => id === 20)?.stability).toBe('reserved');
   });

@@ -1,0 +1,73 @@
+{
+  "checks": [
+    {
+      "check": "admission-focused-race",
+      "passed": true,
+      "results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/backup\t2.925s"
+      ],
+      "raw_output_sha256": "1a9fa7ecc01605afb57094ed0bfdeba1683c381694af244b9fc0ed776d993bec"
+    },
+    {
+      "check": "backup-cross-layer-race",
+      "passed": true,
+      "results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/usecase/backup\t6.562s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/infra/backup\t3.669s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/runtime/backup\t1.970s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/access/manager\t1.617s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/internal/app\t4.318s"
+      ],
+      "raw_output_sha256": "31dc9ee28814f227950f562ad64537a35b6de95ace70555a021b8abe9b651161"
+    },
+    {
+      "check": "flow-doc-contracts",
+      "passed": true,
+      "results": [
+        "flowcheck: 87 FLOW files; 87 compliant; 0 invalid; 11 warnings"
+      ],
+      "raw_output_sha256": "bff15f6cd58aea6a08f568f4affee57b3683fda2d33802e99414cf0c2bb7d870"
+    },
+    {
+      "check": "controlled-cleanup-process-1-and-3-node",
+      "passed": true,
+      "results": [
+        "--- PASS: TestRestoreAdmissionSurvivesUnavailableArchiveLeaseCleanup (944.76s)",
+        "    --- PASS: TestRestoreAdmissionSurvivesUnavailableArchiveLeaseCleanup/1-node-cluster (204.67s)",
+        "    --- PASS: TestRestoreAdmissionSurvivesUnavailableArchiveLeaseCleanup/3-node-cluster (740.08s)",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/test/e2e/mqtt/restore\t945.620s"
+      ],
+      "raw_output_sha256": "313a96003b6854c07369beada1ca185ded112216911df7e0f39afc3451a05529"
+    },
+    {
+      "check": "ordinary-process-1-and-3-node",
+      "passed": true,
+      "results": [
+        "--- PASS: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart (954.84s)",
+        "    --- PASS: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/1-node-cluster (219.14s)",
+        "    --- PASS: TestRestoreReactivatesPersistentMQTTWithoutProcessRestart/3-node-cluster (735.70s)",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/test/e2e/mqtt/restore\t955.152s"
+      ],
+      "raw_output_sha256": "b4a71c367e4408901de683879285fbffcf53565eec4c850c9a989a845d914e30"
+    }
+  ],
+  "test_first_red_modes": [
+    "complete",
+    "cleanup-unavailable",
+    "newer-history",
+    "lease-missing",
+    "lease-token",
+    "lease-kind",
+    "lease-archive",
+    "lease-node",
+    "lease-term",
+    "lease-time",
+    "expired",
+    "unknown-admit-applied-foreign"
+  ],
+  "historical_503_cause_proven": false,
+  "test_first_red_mode_count": 12,
+  "final_process_restores": 8,
+  "process_restarts": 0,
+  "resubscriptions": 0
+}

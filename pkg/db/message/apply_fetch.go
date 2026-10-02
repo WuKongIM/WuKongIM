@@ -58,6 +58,9 @@ func (l *ChannelLog) ApplyFetch(ctx context.Context, req ApplyFetchRequest) (App
 		return AppendResult{}, err
 	}
 	if req.Checkpoint != nil {
+		if err := l.channelEntry.stageMQTTActivation(batch, req.Checkpoint, nil, ^uint64(0)); err != nil {
+			return AppendResult{}, err
+		}
 		if err := batch.Set(encodeCheckpointKey(l.key), encodeCheckpoint(*req.Checkpoint)); err != nil {
 			return AppendResult{}, err
 		}

@@ -1,0 +1,27 @@
+{
+  "source_revision": "aab707786ddec960289f6582027bdd962d96911f",
+  "files": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "internal/app/FLOW.md": "a3066e65d5c8c1480bdd5f972df28148d626df77404f59e1fe4e3840c9071c24",
+    "internal/runtime/mqttsession/FLOW.md": "570eedc2c82c4339336124c294774d748c37a595d43541c3ce8196cce6ce6e98",
+    "internal/infra/mqttowner/FLOW.md": "a7be1ab23966ab1290ecae99075d061d30b6ecb35fc05524e3c80710871c93df",
+    "internal/access/mqtt/FLOW.md": "9f0bd03bff4491b69344d25d17a312ee679866ebf43970a5d9c4821d9714d445",
+    "internal/access/node/FLOW.md": "6f7d9281e60e63926770513078f34b4283bb943508824a32281c543b49f8c199",
+    "test/e2e/AGENTS.md": "962a9ea716c7e700d43af9710b57898270ac09ab2b3e97411ea36a108c898a76",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "test/e2e/suite/FLOW.md": "fdf3576f99b00cfdb878ea5623e7f39a576a75bb7ebf5b6fa8de031ae9561add",
+    "pkg/cluster/FLOW.md": "1990e76d80ceac3eaf82beece4f2c9e86a388f1871fe086597b886de5a055584",
+    "pkg/gateway/FLOW.md": "66fa9904a664b72c01d9bd37079f45773e64e7efdd6e99addd2697a986b7b03e",
+    "internal/infra/backup/FLOW.md": "947cfcd5236f2be457d0fc776fc18380d3f125b983d07dbe94168cf7b1377df8",
+    "internal/usecase/backup/FLOW.md": "bc4af8cafab40dfcbb870ada610254d94d433ecdeda8ed3f32e3a6817ca89461",
+    "internal/contracts/backup/FLOW.md": "9ab71c2a1ad5eefa3685fae801c7eaab1ed93bd0c5a6a627b84323c578a72856",
+    "internal/usecase/mqttsession/FLOW.md": "1513d18d9751a59439aedd2f7055d19f07016ce82ba7f397b6b4fd2b1f40ff69",
+    "internal/runtime/backup/FLOW.md": "78b5ba665c690921ca5507951936ee2e9c4bb83804954571379970870fb3a117"
+  },
+  "approved_seams": [
+    "authenticated public Manager backup/restore HTTP",
+    "MQTT 5 Paho connection/subscription/QoS 1 replay",
+    "public Product HTTP provisioning/message history/send"
+  ],
+  "worktree_reused": "codex/mqtt-design"
+}

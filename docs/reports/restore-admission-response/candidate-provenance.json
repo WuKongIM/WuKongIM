@@ -1,0 +1,25 @@
+{
+  "source_base": "ab8b19a988788917648bf5cae2b406fc59ee5c93",
+  "go_version": "go1.25.11 darwin/arm64",
+  "source_sha256": {
+    "internal/usecase/backup/restore_service_v1.go": "b85390213949e339604d26a93a38490045461974a7e094589a75008aef18302b"
+  },
+  "ordinary_binary": {
+    "sha256": "df03a8ad2369a9e764314b6df7faf0e1e0de2143a4742ef26fbb4e710ef43e5c",
+    "buildvcs": false
+  },
+  "gofail_binary": {
+    "sha256": "ee80b2f3e1342dc3b53890cd587a69ae595760c824b6f2a694595c5ece20e8ad",
+    "version": "go.etcd.io/gofail@v0.2.0"
+  },
+  "fixture": {
+    "path": "test/e2e/mqtt/restore/restore_test.go",
+    "sha256": "a4a5732797c02a8d8b3ac2de6446b5619f987a15462d0cc30d0aa36f247b3367"
+  },
+  "isolated_contract": {
+    "path": "internal/usecase/backup/restore_admission_transfer_test.go",
+    "sha256": "6d8b9f6dc9946e0dd5964a7d4daf55b684a7a650d0fcc22f96182a24be3c63d8",
+    "modes": 18
+  },
+  "unknown_mutation_retries": 0
+}

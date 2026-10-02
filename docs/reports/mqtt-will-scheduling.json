@@ -1,0 +1,106 @@
+{
+  "source": "9f2861e6348b000d0135103dac048c432e6294dc",
+  "digests": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "internal/app/FLOW.md": "b9e6b65c1083ff33bb5fd1487c1df52b1062554507fe36b0ff4437574afdcf16",
+    "internal/runtime/mqttsession/FLOW.md": "60453ae06abc8084214667eb5400a3b00ea98452797ca7a6e48742cae6bfd246",
+    "internal/usecase/mqttsession/FLOW.md": "9dd0d217a42c5e9801de6e02ede3875781dce19eed687a3b45195954041e59b7",
+    "pkg/goroutine/FLOW.md": "ff9b02d86a3bc32f49e13b64d5e805b73cbc81a41921b46eca99d5e9898ab07f",
+    "pkg/workqueue/FLOW.md": "6720c38d539f939cab8d64daecc539484fe2023aa3e5a5260d52f18260a6d5cd",
+    "test/e2e/AGENTS.md": "630ce1eff972f5b483cae77cc72e17a7b4370a199cc396847a5c33d0f2c38c09",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "test/e2e/suite/FLOW.md": "94b26ee73ab6c10548cee497149c9cc08b37fb445dcce0d36c5d45f6f956288e",
+    "internal/access/mqtt/FLOW.md": "f3ac6dca75d77ea11246f103f3540f688d20220aebddd20f86172fa2cd05afbf",
+    "pkg/gateway/FLOW.md": "66fa9904a664b72c01d9bd37079f45773e64e7efdd6e99addd2697a986b7b03e"
+  },
+  "scope": "bounded product Will scheduling and decoded normal-disconnect preservation; full MQTT objective remains incomplete",
+  "red_evidence": [
+    "Single-node process timed out receiving accepted Will before worker composition.",
+    "Runtime tests failed before the worker API existed.",
+    "Initial three-node process published normal-close Will.",
+    "Public handler regression failed on cancelled, fenced and operation-limited DISCONNECT before ordering was fixed."
+  ],
+  "checks": [
+    {
+      "command": "GOWORK=off go test -race -p 2 ./internal/runtime/mqttsession ./pkg/goroutine -count=1",
+      "result": "passed",
+      "durations": {
+        "runtime": "2.038s",
+        "goroutine": "1.778s"
+      }
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 -tags=integration ./internal/runtime/mqttsession -run '^TestWillWorker' -count=1 -timeout=1m",
+      "result": "passed",
+      "duration": "1.448s"
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 ./internal/app ./internal/usecase/mqttsession -count=1",
+      "result": "passed",
+      "durations": {
+        "app": "5.680s",
+        "usecase": "92.746s"
+      }
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 ./internal/access/mqtt -count=1",
+      "result": "passed",
+      "duration": "1.444s"
+    },
+    {
+      "command": "WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-reports GOWORK=off go test -p 2 -tags=e2e ./test/e2e/mqtt/will -count=1 -timeout=4m -v",
+      "result": "passed",
+      "duration": "66.024s",
+      "topologies": [
+        1,
+        3
+      ],
+      "hash_slots": 256
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 -tags=integration ./internal/app -run '^TestMQTTGatewayPahoSingleNodeCluster$' -count=1 -timeout=1m",
+      "result": "passed",
+      "duration": "5.839s"
+    }
+  ],
+  "topology_reports": [
+    {
+      "abnormal_close_published": true,
+      "delay_seconds": 2,
+      "hash_slots": 256,
+      "message_id": "2104117323089580032",
+      "nodes": 1,
+      "normal_close_cancelled": true,
+      "passed": true,
+      "scenario": "mqtt-will"
+    },
+    {
+      "abnormal_close_published": true,
+      "delay_seconds": 2,
+      "hash_slots": 256,
+      "message_id": "2104117462541799424",
+      "nodes": 3,
+      "normal_close_cancelled": true,
+      "passed": true,
+      "scenario": "mqtt-will"
+    }
+  ],
+  "new_governing_files_sha256": {
+    "test/e2e/mqtt/will/AGENTS.md": "0e307f7ea301f3ccac1e40323d3a503871123c6d884d700dbfbff686654789ae"
+  },
+  "remaining": [
+    "safe uncertain redispatch and retained receipt transfer",
+    "unavailable-owner isolation after node failure",
+    "orphan owner sweeping",
+    "offline accounting and cleanup",
+    "restore reactivation",
+    "full failure scenarios and scale qualification"
+  ],
+  "implementation_sha256": {
+    "internal/runtime/mqttsession/will_worker.go": "34a5585a5d0c8f0f9b99c899a1e881ecd6dd302f953cc89d901f1d27b9f18d46",
+    "internal/runtime/mqttsession/will_scan.go": "0d377de06210015522c33d82b34f4e048a64eb7f6d60a2541ab95d00284a555e",
+    "internal/app/mqtt_product.go": "ddb47db8165a2c6ca14bcf4c964feb0c8aa4509266ac00398c28e0fd16ca9277",
+    "internal/access/mqtt/handler.go": "51c62d9a6c0daa08bbfe74e6b3d1be41fc745ecd1393980c3a201d2371e005c1",
+    "test/e2e/mqtt/will/will_test.go": "41a71345e3a281bd447855952e6dd1ee86123b784ecd36bf78f4619d322484e6"
+  }
+}

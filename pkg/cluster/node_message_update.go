@@ -178,7 +178,7 @@ func overlayMessageReadResults(ctx context.Context, reads []channels.CommittedRe
 			if budget <= 0 || budget > metadb.MaxMessageUpdatePageBytes {
 				budget = metadb.MaxMessageUpdatePageBytes
 			}
-			size := len(item.message.Payload)
+			size := len(item.message.Payload) + len(item.message.PublicationMetadata)
 			if used[item.row]+size > budget {
 				truncateMessageUpdateRead(reads[item.row], &results[item.row], item.index)
 				done[item.row] = true

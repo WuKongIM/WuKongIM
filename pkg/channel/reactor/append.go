@@ -38,6 +38,27 @@ func (r *Reactor) validateAppendEvent(ctx context.Context, rc *runtimeChannel, e
 			return err
 		}
 	}
+	if event.MQTTAnchor != nil {
+		if event.MQTTSourceActivation || event.MQTTRetirement != nil {
+			return ch.ErrInvalidConfig
+		}
+		if err := r.validateMQTTAnchorControl(rc, event); err != nil {
+			return err
+		}
+	}
+	if event.MQTTRetirement != nil {
+		if event.MQTTSourceActivation {
+			return ch.ErrInvalidConfig
+		}
+		if err := r.validateMQTTRetirementControl(rc, event); err != nil {
+			return err
+		}
+	}
+	if event.MQTTSourceActivation {
+		if err := r.validateMQTTSourceControl(rc, event); err != nil {
+			return err
+		}
+	}
 	if _, ok := rc.waiters[event.OpID]; ok {
 		return ch.ErrInvalidConfig
 	}
@@ -72,6 +93,9 @@ func (r *Reactor) validateAppendEvent(ctx context.Context, rc *runtimeChannel, e
 			rc.state.Leader,
 		)
 	}
+	if err := r.validateAppendRouteFence(rc, event.Append); err != nil {
+		return err
+	}
 	if r.appendAdmissionGuard != nil {
 		err := r.appendAdmissionGuard.AllowChannelAppend(ctx, ch.AppendAdmissionRequest{
 			ChannelID:   rc.state.ID,
@@ -87,15 +111,46 @@ func (r *Reactor) validateAppendEvent(ctx context.Context, rc *runtimeChannel, e
 	return nil
 }
 
+// validateAppendRouteFence binds prepared work to the installed durable authority.
+// It performs no metadata I/O and never upgrades a caller's expected version.
+func (r *Reactor) validateAppendRouteFence(rc *runtimeChannel, req ch.AppendBatchRequest) error {
+	if req.ExpectedRouteGeneration == 0 {
+		return nil
+	}
+	if r.cfg.QuorumLog == nil || req.ExpectedChannelEpoch == 0 || req.ExpectedLeaderEpoch == 0 ||
+		normalizedCommitMode(req.CommitMode) != ch.CommitModeQuorum {
+		return ch.ErrInvalidConfig
+	}
+	if rc.state.ID != req.ChannelID || rc.quorumAuthority.ID.ChannelEpoch != req.ExpectedChannelEpoch ||
+		rc.quorumAuthority.ID.LeaderTerm != req.ExpectedLeaderEpoch ||
+		rc.quorumAuthority.ID.FenceVersion != req.ExpectedRouteGeneration {
+		return ch.ErrStaleMeta
+	}
+	return nil
+}
+
 func newAppendRequest(event Event, admittedAt time.Time) appendRequest {
+	var anchor *ch.MQTTReplayAnchorRequest
+	var retirement *ch.MQTTReplayRetirementRequest
+	if event.MQTTAnchor != nil {
+		owned := event.MQTTAnchor.Clone()
+		anchor = &owned
+	}
+	if event.MQTTRetirement != nil {
+		owned := event.MQTTRetirement.Clone()
+		retirement = &owned
+	}
 	return appendRequest{
-		opID:       event.OpID,
-		req:        event.Append,
-		future:     event.Future,
-		ctx:        event.Context,
-		enqueuedAt: admittedAt,
-		records:    appendRecordsFromMessages(event.Append.Messages, admittedAt, event.Append.PayloadsImmutable),
-		commitMode: normalizedCommitMode(event.Append.CommitMode),
+		mqttAnchor:           anchor,
+		mqttRetirement:       retirement,
+		opID:                 event.OpID,
+		req:                  event.Append,
+		future:               event.Future,
+		ctx:                  event.Context,
+		enqueuedAt:           admittedAt,
+		records:              appendRecordsFromMessages(event.Append.Messages, admittedAt, event.Append.PayloadsImmutable),
+		commitMode:           normalizedCommitMode(event.Append.CommitMode),
+		mqttSourceActivation: event.MQTTSourceActivation,
 	}
 }
 
@@ -107,20 +162,23 @@ func appendRecordsFromMessages(messages []ch.Message, admittedAt time.Time, payl
 			serverTimestampMS = admittedAt.UnixMilli()
 		}
 		payload := msg.Payload
+		metadata := msg.PublicationMetadata
 		if !payloadsImmutable {
 			payload = append([]byte(nil), msg.Payload...)
+			metadata = append([]byte(nil), metadata...)
 		}
 		records[i] = ch.Record{
-			ID:                msg.MessageID,
-			Setting:           msg.Setting,
-			FromUID:           msg.FromUID,
-			ClientMsgNo:       msg.ClientMsgNo,
-			Payload:           payload,
-			SizeBytes:         len(msg.Payload),
-			ServerTimestampMS: serverTimestampMS,
-			SyncOnce:          msg.SyncOnce,
-			RedDot:            msg.RedDot,
-			Expire:            msg.Expire,
+			ID:                  msg.MessageID,
+			Setting:             msg.Setting,
+			FromUID:             msg.FromUID,
+			ClientMsgNo:         msg.ClientMsgNo,
+			Payload:             payload,
+			PublicationMetadata: metadata,
+			SizeBytes:           len(msg.Payload) + len(metadata),
+			ServerTimestampMS:   serverTimestampMS,
+			SyncOnce:            msg.SyncOnce,
+			RedDot:              msg.RedDot,
+			Expire:              msg.Expire,
 		}
 	}
 	return records

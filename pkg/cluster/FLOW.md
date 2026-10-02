@@ -14,11 +14,10 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   Multi-Raft lifecycle and proposals; `channels` hosts Channel runtimes; `net`
   transports typed node RPC; `observe` runs low-frequency reporting.
 - `Node` delegates validated intents; Manager policy, drain safety, DTOs and response shaping stay in `internal`.
-- Typed RPC routes opaque DTOs by registered service; cluster may fence maintenance/ownership but does not absorb delivery or Manager logic.
+- Typed RPC routes opaque DTOs by registered service; cluster may fence maintenance/ownership but does not absorb delivery or Manager logic. Service 107 reserves exact MQTT owner quiescence for the access/runtime adapter; it never substitutes for Slot ownership.
 - Controller, Slot, Channel, transport and storage stay behind public facades and neutral errors.
 
 ## Main Flows
-
 1. Node construction records format identity only for fresh directories; startup rechecks
    supported markers before writable runtimes. Lifecycle starts transport and Controller, installs control routes, reconciles
    Slots/Channels and exposes readiness. Default metadata enables its sequence seal
@@ -28,32 +27,33 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    references; Start rebuilds them while preserving injected adapters. Quorum gateways register anew per transport server.
 2. Slot proposals and metadata facades resolve one immutable route snapshot,
    expose bounded exact-key UID membership reads and group Channel- or UID-owned
-   work by physical Slot, execute locally or
-   forward, and recheck leadership. Person-directory prepare joins UID membership/runtime metadata before publishing directory-ready.
+   work by physical Slot, execute locally or forward, and recheck leadership.
+   Person-directory prepare joins UID membership/runtime metadata before publishing directory-ready. MQTT RPC 106 uses fresh Slot barriers and bounded snapshots; read kind 17 retains tombstone-source discovery after the last consumer leaves; kind 18 pins a qualified accounting head/cursor; kind 19 pins channel/member/incarnation evidence. Source/UID routing stays independent of Session routing. ReclaimMQTTSession retains foreground/maintenance gates and routes command 75 by the Session tuple; completion concerns local children only. BuildMQTTReclamationIndex routes command 76 under current logical Slot ownership; kind 23 discovers candidates only after durable coverage completion.
 3. Channel append resolves or creates Slot-owned runtime metadata, applies it
    monotonically to the selected runtime, and appends locally or forwards to
-   the exact leader while background control/task convergence stays bounded.
-   Repair probes activate cold replicas through authoritative metadata and the
-   native reactor before inspecting progress. Native follower proofs read exact
-   durable state and recheck metadata/runtime authority, rejecting future durable
-   epochs or fences; diagnostic probes stay read-only. A dead
-   Leader can preempt an unpromoted replacement through the existing guarded
-   abort, then elect from the next authoritative scan; promoted tasks are protected.
-   Replacement catch-up stays runnable while its valid target is lagging.
-   Failover proof renewal re-probes the surviving target under the current fence;
-   it never falls back to draining the unavailable source.
+   the exact leader. Explicit prepared appends require fresh Slot reads and preserve exact route through RPC 12; ordinary cached dial failure gets one fresh-route retry;
+   ambiguous sends retain committed-outcome recovery. MQTT source/replay RPCs 93/94
+   recheck fresh Slot authority, caller fences and the serving node across gateway swaps.
+   RPCs 95–101 bind copying, anchors/retirement, planning, selection and repair to fresh authority; copy/recovery receivers verify their own committed HW before source reads or anchor planning. Lag yields without changing checkpoints. Retirement/retries and anchored plans schedule bounded native propagation to idle voters before final authority checks; hints grant no recovery proof.
+   RPC 97/99 permit stable fences; plan reply v2 proves maintenance tails; recovery v2 releases sources and v3 applies retirement. RPC 102 v2 reads anchored typed messages; RPC 103 reads retained Will proof through the recovered reactor. Each uses fresh authority and separate four-slot admission; absence never authorizes Will republication.
+   RPC 104 combines plan/original reads under fresh authority, retains native propagation, shares RPC 102's four-reader admission and binds consumer boundaries; it follows caller cancellation and requires matched peers.
+   Exact-node RPC 105 seals/cleans body-free Will attempts through the product
+   adapter; it grants no Slot/Channel authority or proof on uncertain replies.
+   Active repair probes verify follower durability; leaders checkpoint recovered HW and request native tail propagation.
+   Fresh placement/fence checks bind optional replay coverage; diagnostics stay observational.
+   Planned transfers and replacement require fresh coverage at cutover and fence clearing.
+   Graceful drain applies/probes the fenced source; temporary catch-up yields without Slot writes.
+   Failover selects a native leader before requiring replay; dead leaders preempt unpromoted replacement through guarded abort and rescan;
+   promoted tasks stay protected, and failover proof renewal never drains the dead source.
 4. Committed conversation and history reads batch Slot routes and group by exact Leader,
    preserving alignment and item errors. Conversation codec 10 carries UID-owned
    badge floors, excluded internal-position counts, and optional set-unread
-   boundaries; leader reads add retention and the latest own send. Cold quorum Leaders (even HW=LEO=0)
+   boundaries. Codec 11 preserves publication metadata and rejects lossy encodings;
+   read/overlay budgets include it and earlier field gates stay fixed. Cold quorum Leaders (even HW=LEO=0)
    recover first; loaded Leaders still installing authority cannot serve HW.
    Indexed committed reads use a distinct RPC kind, retaining HW, retention,
    and authority fences; older nodes reject it instead of serving a range.
-   Disk-only conversation previews use a distinct RPC request kind and current
-   Leader metadata, read through persisted LEO without runtime probes/activation,
-   and share a 16-batch serving-node admission limit with no waiting queue.
-   Bounded heads/recents metrics expose admission, occupied slots, in-flight
-   batches and slot-hold duration separately from origin routing/RPC latency.
+   Disk-only conversation previews use a distinct RPC request kind and current Leader metadata, read through persisted LEO without runtime probes/activation, and share a 16-batch serving-node admission limit with no waiting queue. Bounded heads/recents metrics expose admission, occupied slots, in-flight batches and slot-hold duration separately from origin routing/RPC latency.
    Origin previews combine Channel lifecycle/runtime facts in one authoritative
    Slot batch and pass request-scoped metadata to Channel reads. Remote Leaders
    revalidate independently; other providers keep the original lookup path.
@@ -94,7 +94,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 - Scalar Slot mapping reads the current foreground table without copying
   placement peers or looking up an unused diagnostic epoch; lifecycle,
   missing-mapping and observed-Leader checks remain the same as full routing.
-- Desired or preferred ownership never substitutes for an observed leader.
+- Desired ownership never substitutes for an observed leader. Client and server Will idempotency lookups return local candidates, never committed proof.
   Missing, stale, incomplete, duplicate, or mismatched authority evidence
   fails readiness or the foreground operation closed.
 - Slot Raft defaults to a 50 ms local tick, two-tick heartbeat, and 40-tick
@@ -114,12 +114,9 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   generation or make migration decisions from stale state.
 - Runtime-meta creation uses one supervised owner per logical Slot: duplicate
   identities coalesce, unique work is bounded and canonical-sorted, placement
-  comes from one current revision, and uncertain proposals retry only rows an
-  authoritative reread proves missing.
-- Ordinary UID membership upserts deduplicate one immutable route publication into physical-Slot proposals.
-  Caps are 128 rows/256 KiB/64 KiB UID bytes with two concurrent proposals; byte-heavy groups split before submission.
-  Directory-ready can never hide missing UID membership or
-  missing append runtime metadata.
+  comes from one current revision; every create rereads committed versions, including
+  wholly successful batches. Uncertain proposals retry only authoritatively missing rows.
+- Ordinary UID membership upserts coalesce one immutable route publication into physical-Slot proposals with 128-row/256-KiB/64-KiB-UID limits and at most eight supervised workers. Byte-heavy groups split before submission; admitted work joins after cancellation. Directory-ready cannot hide missing UID membership or append runtime metadata.
 - Lifecycle, fanout, retries, scans, repairs, tasks and diagnostics stay bounded.
   Repair scans rotate Slots with row cursors under tick/task budgets. Slot
   leadership loss drops its cursor; newly unavailable nodes restart owned Slot
@@ -133,18 +130,20 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
   cluster routing and exact authority fences.
 - Node RPC negotiates budget/cancel support through a reserved wire-v1 service;
   explicit unsupported peers retain v1. Queued work expires under caller budgets
-  or the five-second service queue limit. Default execution is bounded to 30
-  seconds (one minute for Operations MCP, five minutes for repository probes,
-  48 hours for complete backup/restore operations); read-only handlers
-  may follow caller cancellation, while started mutations keep independent
-  execution. Ready frames batch without an idle coalescing delay.
-- Routed committed and persisted message batches and conversation heads hydrate latest payload replacements through Slot authority. Cross-channel record chunks preserve batching above 200 total recent records; replacement growth respects each page byte budget and retains continuation. Matching skips empty pages, scans at most eight updates directly, and indexes larger pages without copying payload-bearing structs. The Slot ReadIndex/apply barrier is request-scoped, separate from readiness proof reuse; serving edit proposals check the content epoch under restore admission, including forwarded commands; local raw log/backup reads remain immutable.
+  or a five-second limit. Execution defaults to 30 seconds (one minute for
+  Operations MCP, five minutes for repository probes, 48 hours for backup/restore).
+  Read-only handlers may follow caller cancellation; started mutations execute
+  independently. Ready frames batch without an idle coalescing delay.
+- Routed committed and persisted history and conversation heads hydrate latest payload replacements through Slot authority. Explicit original committed reads omit edits but retain Leader/HW/retention fences for retry proof. Cross-channel chunks preserve batching above 200 recents; replacement growth respects page budgets and continuation. Matching skips empty pages, scans at most eight updates directly, and indexes larger pages without copying payload-bearing structs. The request-scoped Slot ReadIndex/apply barrier is separate from readiness proof reuse; serving edit proposals check the restore content epoch, including forwarded commands. Local log/backup reads remain immutable.
+
+Aggregate MQTT capacity uses one hash-Slot escrow row and immutable Controller storage rosters, including joining/leaving data nodes. Startup debt must be registered on every required node before growth. The existing periodic health owner reports health first, then maintains/refunds capacity with a separate bounded context and nonwaiting restore/apply ownership; no per-Channel task is added.
+
 - Send-permission routing projects one immutable authority publication into node-batched Slot queries with caller cancellation. Every group holds foreground/maintenance admission through a fresh Slot barrier, pinned metadata snapshot and final authority check. The node does not evaluate send-ban business rules.
 
-## Read First
 
-- [API](api.go), [Node](node.go), [Lifecycle](node_lifecycle.go), [Routing](routing/router.go), [Channels](channels/service.go)
+## Read First
+- [Public API](api.go), [Node ownership](node.go), [Lifecycle](node_lifecycle.go), [Routing](routing/router.go), [Channels](channels/service.go)
 
 ## Update Triggers
 
-Update when lifecycle, readiness, ownership, route/authority publication, typed RPC policy, or maintenance/backup semantics change.
+Update for lifecycle, readiness, ownership, route/authority, typed RPC or maintenance/backup changes.

@@ -1,0 +1,32 @@
+{
+  "business_publications": 2,
+  "committed_apply_gaps": [
+    {
+      "applied": 33,
+      "commit": 34,
+      "slot": 10
+    }
+  ],
+  "connect_retries": 0,
+  "current_attempt_preserved": true,
+  "cut_node": 1,
+  "elapsed_ms": 75290,
+  "executor_capacity_refusal": true,
+  "hash_slots": 256,
+  "instrumented_journal_capacity": 2,
+  "last_phase": "complete",
+  "logical_slots": 12,
+  "nodes": 1,
+  "original_exchange_replayed": false,
+  "outcome": "late",
+  "passed": true,
+  "persistent_reconnects": 1,
+  "publications_while_unknown": 0,
+  "resubscriptions": 0,
+  "retained_terminal_node": 1,
+  "scenario": "mqtt-will-raft-recovery",
+  "state": "committed-unapplied",
+  "state_cut_reached": true,
+  "unexpected_deliveries": 0,
+  "unknown_window_ms": 21000
+}

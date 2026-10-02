@@ -1,0 +1,125 @@
+{
+  "source_revision": "a8559a6bad3f48337315f814dc664b3c221e76b6",
+  "context": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "fd02f200e7c0ce7ce075518c4ec5c99a167535d865d963721186d712efd00a71"
+    },
+    {
+      "path": "test/e2e/mqtt/AGENTS.md",
+      "sha256": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f"
+    },
+    {
+      "path": "test/e2e/mqtt/will_reclamation/AGENTS.md",
+      "sha256": "8cad49f5eb0fe256dc00a3c894817d847998aabe65425eef82c5ca06f1e40e1f"
+    },
+    {
+      "path": "test/e2e/suite/FLOW.md",
+      "sha256": "d3622c9c10477f973a9aea2dd060657c98781c845f82bc92c160999f4359ddac"
+    },
+    {
+      "path": "internal/infra/mqttwill/FLOW.md",
+      "sha256": "4f2cf342ce24df876ea34b56609e5b44241b967de1e241c5e66de70cdfa1c9af"
+    },
+    {
+      "path": "internal/usecase/mqttsession/FLOW.md",
+      "sha256": "21b43e3e232cd94c298754153c1107f5dd9ef10504f5c172a2e3ed1a3e38a288"
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "sha256": "07cc58f3ccdc395a1b12017e4e80a37df634c78d65ff00119aa9e672941ad3ab"
+    },
+    {
+      "path": "internal/runtime/mqttsession/FLOW.md",
+      "sha256": "570eedc2c82c4339336124c294774d748c37a595d43541c3ce8196cce6ce6e98"
+    },
+    {
+      "path": "pkg/cluster/FLOW.md",
+      "sha256": "3f5aff2c839515cb3e17a19f5c68ace5667c193d174492862036ef09ba6aecf9"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "sha256": "9dedee509d5ffee94c3a705bb667a5a4361dd6316cadb78aba5e008ccc6ff3d2"
+    },
+    {
+      "path": "internal/infra/cluster/FLOW.md",
+      "sha256": "f1bc902452e3c6c80d57b206f96775c611221ffd02f6b5efbeee336fba4fbcd2"
+    },
+    {
+      "path": "pkg/db/meta/FLOW.md",
+      "sha256": "a4a97d06003f3ceccb186f967f1dffb554b1fe31740cc9ece0d68e0560b187f6"
+    }
+  ],
+  "tracer_test_sha256": "b34c05c69c98b018ff965fe8464004ed4925cfb89f2ee95e4b65c302ea98dc7b",
+  "failure_inventory_sha256": "17bc93a0a8184c1ac7c6aa486d34ca4bd7740e3a1df1c7897926c2cfccc070a8",
+  "existing_binary": {
+    "path": "/tmp/wukongim-will-append-candidate-gofail",
+    "sha256": "509e934b331f8f4c2989d08cda99d838a49bfcf20fb3efb79a3aaef38f49cfe9"
+  },
+  "approved_seams": [
+    "independent Paho MQTT 5",
+    "public Product HTTP provisioning",
+    "loopback temporary gofail",
+    "exact harness-owned process restart"
+  ],
+  "bounded_capacity_test_sha256": "0daef4cb39b9a9e5fedc1fd7f3094dec18ecbb022b83aed1dd2cc9f8115d707e",
+  "cuts": [
+    {
+      "path": "pkg/slot/proxy/mqtt_write.go",
+      "sha256": "1c7970d4cffff62ed7accd25eed42c1f56a5d35a29f1d7306863960d4366f922"
+    },
+    {
+      "path": "internal/usecase/mqttsession/will_attempt_reclamation.go",
+      "sha256": "2c9bba12d5dabffc0c73b0874df18800376df702ed6023daac61c6978d423f23"
+    }
+  ],
+  "race_binary": {
+    "path": "/tmp/wukongim-will-pressure-gofail",
+    "sha256": "5f819b0697d93f8f5bd6ee27cf20daecfbce829b650fb2a06913cb61c68369b6"
+  },
+  "race_test_initial_sha256": "dd1c5afd5d88e0a8ac5ba1f1d36da97372c3f45dca8676c5c848138e62d22341",
+  "race_test_current_sha256": "4456f6e1c0a2f072fa0e6cda3bd2a5bd47eff25c1a8d1f654ea243a9f5506983",
+  "final_capacity_test_sha256": "bc4ed69c8f5f3a0c36899539c5a41f3b7ffa799e4337519695b14630fbaf1738",
+  "capacity_fixture_delta_after_runs": "Initial full-cap runs used frozen bounded_capacity_test_sha256; joined-capacity reruns now use capacity_joined_fixture_sha256 (explicit topology labels and public Paho worker join).",
+  "race_test_final_sha256": "d1e006b0c87aa5c22677f9225af0cd616110e72608027f2515b330bc863036c6",
+  "client_join_sha256": "8c1f6b61ff2be10e432cb23567a0482b62419ec609831956888d0d0cbc030eb6",
+  "ordinary_binary": {
+    "path": "/tmp/wukongim-will-pressure-ordinary",
+    "sha256": "906eb7feb5fc2dbb58d83b59e8db9559ed3d4b0ce5d82a0f37b801addac1c9df"
+  },
+  "additional_context": [
+    {
+      "path": "internal/runtime/channelappend/FLOW.md",
+      "sha256": "490bb59e609f11fca0d09382afe8eafc426453b41e399538ad08c133871b9a86"
+    },
+    {
+      "path": "internal/access/api/FLOW.md",
+      "sha256": "e8a94f2abce17f87a4cf4da851ebc95304f16478cca1e52f4ae6784c48f0f8a4"
+    },
+    {
+      "path": "internal/usecase/message/FLOW.md",
+      "sha256": "8363ede3c09831c218f1822d55beb2aa119c045ee41d519388baad2e54655e02"
+    }
+  ],
+  "race_joined_fixture_sha256": "d1e006b0c87aa5c22677f9225af0cd616110e72608027f2515b330bc863036c6",
+  "race_diagnostic_fixture_sha256": "d3e3b51d084a9d4f14f0884b2db1e5188679e0df14b8a825c62ed7f76c4c5fc5",
+  "capacity_joined_fixture_sha256": "d69109a02c59b12c79e19c1fbbbefae23d784b9954fa50c79cc54a98aa5f378d",
+  "race_completion_window_fixture_sha256": "ccd92a1eb8ff47c8ed0fe9c337aa2c64e7fd70e1d0bdbcbba78503dea4f70969",
+  "race_delivered_fixture_sha256": "ab0493bb2015cd3491fe49cf124d19851a600a58474a08e4ddb0ebdfc365755a",
+  "profile_helper_sha256": "b119a370cc2c06d5372c3bd69da0897b0291abef4393336145f44fe9766f7079",
+  "race_fixture_delta_after_matrix": "Only the receive-failure pprof HTTP/read/private-write operation moves into suite.WriteGoroutineStacks. Success-path controls, deadlines, counters, identities and quiet assertions are unchanged. Delivered source receives a focused late-release rerun; helper receives a direct real-process capture.",
+  "qualification": {
+    "production_capacity_cases": 2,
+    "applied_reply_canceled_page_cases": 6,
+    "matrix_seconds": 638.06,
+    "delivered_late_release_seconds": 105.977,
+    "source_base": "a8559a6bad3f48337315f814dc664b3c221e76b6",
+    "ordinary_has_gofail_dependency": false
+  },
+  "go_mod_sha256": "cdc5ca406087d0a8376ea3770c05dc4a7df7544ce746b64aa9048c0e6d9eed1d",
+  "go_sum_sha256": "68ffe83def79e0889fffa722ac7d0a18d7bce52e01e8d8395da56da1e96975fb"
+}

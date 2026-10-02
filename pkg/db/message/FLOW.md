@@ -7,18 +7,14 @@ summary: Stores Channel message logs, indexes, checkpoints, retention state, sna
 
 ## Responsibility
 
-`pkg/db/message` owns node-local Channel log persistence on the shared
-`pkg/db/internal` engine. It provides canonical Channel leases, atomic append
-and follower apply, secondary indexes, checkpoints and history, logical and
-physical retention, inspection, and portable backup/restore snapshots.
+`pkg/db/message` persists node-local Channel logs with canonical leases, atomic append/follower apply,
+indexes, checkpoints, history, retention, inspection and portable backup/restore on `pkg/db/internal`.
 
-The compatibility surface maps `pkg/channel` records and offsets to this typed
-storage core without transferring shared-engine ownership.
+Compatibility maps Channel records/offsets and pinned retained Will receipts without transferring engine ownership or cluster authority.
 
 ## Boundaries
 
-- Pebble-specific code stays under `pkg/db/internal`; this package must not
-  import Pebble directly.
+- Pebble-specific code stays under `pkg/db/internal`; direct Pebble imports are forbidden.
 - `MessageDB` owns one registry and physical engine. Each `Channel` or
   `ForChannel` call returns an independently closable lease over a shared
   canonical entry.
@@ -51,13 +47,13 @@ storage core without transferring shared-engine ownership.
    and physical engine ownership consistent.
 
 ## Invariants and Failure Semantics
-
-- Offline helpers independently read existing columns and verify native proposal
-  formats 1 and 2. Format 2 binds message Expire; old format-1 hashes remain
-  unchanged. Matched runtimes and full-generation rollback are required after
-  format-2 writes. Import adds no empty-key exception, uniqueness relaxation,
+- Offline helpers preserve optional publication column 21 and verify proposal
+  formats 1–6. Format 2 binds Expire; format 3 also binds publication metadata;
+  format 4 exclusively binds one canonical internal source activation record.
+  Metadata uses compatibility record codec 2; native codec-1 bytes stay unchanged.
+  Matched runtimes, tooling and full-generation rollback are required. Import adds no empty-key exception, uniqueness relaxation,
   or recovery path and rejects values the native runtime cannot represent.
-
+  Inspection includes independently owned publication bytes only when present.
 - A sparse SyncOnce ordinal index (ID 7, complete marker system ID 11) excludes
   internal records from badge rank queries. Existing primary rows are rebuilt in
   bounded batches before the marker is published; channel append ownership
@@ -92,39 +88,63 @@ storage core without transferring shared-engine ownership.
 - Idempotency filter negatives may avoid a read; possible hits always verify
   durable index and message data. Saturation can increase reads, never admit a
   duplicate.
+- Keyed Wills derive unique index 8 from publication metadata and UID; client
+  index 3 preserves history lookup while native index 4 stays separate. Will
+  uniqueness uses durable point proofs without the native negative filter. System 16 atomically retains compact Will receipts across prefix trim; still-present legacy originals can materialize them during trim, while suffix rollback removes matching receipts.
 - Caller cancellation stops waiting but cannot release commit-owned locks or
   pins before build, physical commit, publish, or terminal shutdown.
 - Retention and truncation remove primary and secondary rows together. Logical
   retention preserves canonical lookup state until physical deletion.
+  MQTT System 12 clamps physical trim at copied-through independently of logical visibility.
+  Bounded original reads fence incarnation/HW and reject gaps; local CAS proves no distributed authority.
+  Format 4's System 13 protects pending prefixes; HW atomically creates System 12.
+  Duplicates preserve the first boundary; only uncommitted suffixes can replace it.
+  Backups skip pending controls and validate committed source/manifest pairs.
+  Source/checkpoint reads pin activation/source/HW; admission requires a covered control.
+  Replay table 2 atomically stores canonical content/counters; index 2 meters ranges.
+  Preparation returns covered pages before extending, preserving short-page retries.
+  Transfer requires committed log proofs plus an independent full-content digest;
+  native hashes omit fields. Local copy/import never advances System 12 or proves quorum.
+  Format-5 anchors journal controls in System 14; pinned source/latest reads optionally
+  include exact command lookup; planning also proves at most 64 maintenance-tail positions. Trims retain journals; suffix replacement
+  removes pending entries. Backups require matching journals and format versions.
+  Anchor repair verifies local journals under append/checkpoint ownership; repair exports reach the endpoint. Consumer reads verify that endpoint and native identities, returning typed short pages and explicit control classification.
+  Repair planning verifies coverage/cursors, scans at most 64 journals and returns one bounded interval or explicit continuation.
+  Readiness binds captured HW/latest anchor to local coverage; repair/planning/readiness never release sources or advance HW.
+  Explicit anchor release verifies committed/local prefix proofs under append/checkpoint ownership, then advances only System 12.
+  Format-6 retirement journals in System 15 retain whole-anchor decisions and monotonic prefixes.
+  Pinned latest retirement reads use HW-bounded reverse seek and independent source/proposal proofs; suffix replacement and backup preserve journals.
+  Retirement selection pins a captured anchor and scans at most 64 older journals per call, with verified backward continuations.
+  Explicit retirement verifies its committed decision, atomically storing table-2 System-2 baseline/deletion progress and bounded row/meter removal.
+  Suffix hashing, repair and readiness retain cumulative counters; historical cuts cannot borrow later retirement authority.
   Suffix cuts never split proposals; recovery replacement is fenced by the
   inspected frontier and atomically replaces complete verified proposal pages.
 - Queue-depth publication is monotonic through grouped collection and terminal
   zero. Backup includes committed proposal/entry identities and excludes the
   uncommitted suffix above the selected HW.
-- Checkpoint updates are serialized, initialize an explicit zero, never regress
-  HW, and preserve epoch and log-start fields.
+- Monotonic checkpoint updates preserve epoch/log-start fields. Protected sources
+  require an intact explicit checkpoint on every load; missing or inconsistent
+  evidence cannot be recreated by a writer. Raw setters also reject protected HW
+  regression. Suffix cuts hold append then checkpoint locks through commit.
 - Retention reads reuse immutable state in the bounded canonical/warm registry.
   A database-wide generation disables hits/fills during overlapping retention
   mutations, truncation, recovery replacement, discard and either backup import
   path, and invalidates before and after every attempted mutation. Ordinary
   append does not invalidate unchanged retention state; cancellation, close and
   durable decoding errors remain visible.
-- Close rejects new work, drains admitted operations and pins, reclaims entries,
-  and closes the physical engine exactly once. One lease cannot close another.
+- Close drains admitted operations/pins and closes the engine once; one lease cannot close another. Offline `HasMQTTState` skips ordinary keyspaces and detects replay/source/funding/Will evidence even without a catalog or Session.
 - Backup count and content come from one pinned view; restore is exact-retry
   idempotent, conflicts with different state, and cleans partial rows in bounded
   batches before retry.
+  Native/full/pruned/Will-receipt backups use versions 1/2/3/4. Byte and streaming imports share preflight for chains, originals/trim proof and immutable target receipts; allocation high-water statistics include receipts.
+  Restore rebuilds meters without global IDs, publishing baseline/frontier together after the suffix; legacy header frontiers wait until then.
+
+Message System 17 stores derived source-shared original plus future replay charges; System 18 stores one exact prepared/consumed/canceled funding ticket per Channel. Preparation/cancellation and charge rows commit atomically. One node-owned unknown physical proof survives handle reclamation; only exact charge witnesses or canceled/deleted proof settles it. Periodic exact cancellation skips busy locks, shares normal original-presence checks and transfers locks/pins to the existing managed commit owner; caller expiry retains charged proof. Suffix replacement excludes an unresolved refund on the same Channel. Restart/restore scans canonical sources in bounded pages, rebuilds charges and retains unknown debt. Only independently verified native control formats 4–7 are uncharged; ordinary SyncOnce content is charged.
 
 ## Read First
-
-- [Database lifecycle](db.go)
-- [Channel lease](channel_log.go)
-- [Atomic append](append.go)
-- [Secondary indexes](indexes.go)
-- [Snapshot state](snapshot.go)
+- [Database lifecycle](db.go), [Channel lease](channel_log.go), [Atomic append](append.go), [Indexes](indexes.go), [Snapshots](snapshot.go)
 
 ## Update Triggers
 
-Update this file when durable rows or indexes change, lease/registry ownership
-changes, commit locking changes, checkpoint or retention semantics change,
+Update when durable rows/indexes, lease ownership, commit locking, checkpoints or retention change,
 backup/restore coverage changes, or the Channel compatibility contract changes.

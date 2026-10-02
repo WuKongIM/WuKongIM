@@ -1,0 +1,188 @@
+{
+  "schema_version": 1,
+  "status": "implemented_storage_and_distributed_primitive; automatic_product_reclamation_incomplete",
+  "recorded_at_utc": "2026-09-28T01:32:27.750342+00:00",
+  "source": {
+    "source_commit": "a56ab8ea68e6f9d2f1bf09e6b0a651c9346813bd",
+    "worktree": "/Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/mqtt-design",
+    "classification_previous_turn": "progress",
+    "instructions": {
+      "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+      "pkg/db/FLOW.md": "33c7ba81c18ed8cb377e9bef541526028ef31e64dd03becc7ac1ea6cc14fb10a",
+      "pkg/db/meta/FLOW.md": "2b3d6b203dd8c722c4e0dd5aafcddc289b5b30e50e477d5ad22385f9de0c66e7",
+      "pkg/slot/FLOW.md": "5fbe2786125204aa4b7a47f2d384a7c3c21de4a31851ce85bbe34b60bb73d899",
+      "pkg/cluster/FLOW.md": "eecb39bee735ffd57f03cfd3c2e6b702ba0b6e411fbe66efb8e4c8213f4c8b3f"
+    }
+  },
+  "failure_inventory": [
+    "Source: a56ab8ea68e6f9d2f1bf09e6b0a651c9346813bd",
+    "Failure inventory before production code:",
+    "1. Active/offline current lifetime, future generation, stale revision, missing parent or regressed time is accidentally reclaimed.",
+    "2. A partial page drops recovery indexes but prematurely publishes completion or erases live generations.",
+    "3. Final range deletion leaves inflight send-order indexes/accounting receipts, crosses namespace/client/generation/Slot bounds, or deletes independent Will/source obligations.",
+    "4. Ending and child writes in the same atomic batch are missed by a disk-only scan; range deletion exposes earlier overlays or disk rows to later operations.",
+    "5. Failed batch leaves partial cleanup, counters or marker; snapshot restore loses progress or resurrects children.",
+    "6. Generic Session/lifecycle writes forge/regress cleanup progress, new owner drops marker, absent column breaks old rows or changes old JSON/digests.",
+    "7. Duplicate final command alters counters/revision; partial stale retry repeats effects; delayed old child creation restores reclaimed lifetime.",
+    "8. Max generation overflows range boundary; malformed primary/value is skipped and falsely reported reclaimed.",
+    "Before adding distributed command/routing code:",
+    "9. New command loses its hash-Slot fence, snapshot suffix replay repeats cleanup, or inspection cannot decode it.",
+    "10. Unknown/oversized/trailing wire fields are accepted; missing/contradictory apply receipts authorize completion.",
+    "11. Proxy uses the origin's empty replica or result-less write fallback; node maintenance bypasses its existing gate.",
+    "Review finding before corrective change: applying two cleanup pages in one Raft batch currently counts the first page's deleted disk keys again. Apply-batch grouping must not change the second command's result or completion marker. Add regression before changing the scan/range algorithm."
+  ],
+  "changes": {
+    "session_table": 22,
+    "optional_column": 30,
+    "field": "reclaimed_through_generation",
+    "slot_command": 75,
+    "max_command_bytes": 16384,
+    "subscription_page_limit": 64,
+    "candidate_limit": 65,
+    "new_tables": [],
+    "new_secondary_indexes": [],
+    "preserved": [
+      "UID binding and owner/generation fences",
+      "current live lifetime and counters",
+      "source/UID bindings including anti-resurrection tombstones",
+      "detached Will records",
+      "shared message contents"
+    ]
+  },
+  "checks": [
+    {
+      "path": "/tmp/mqtt-reclamation-red.log",
+      "sha256": "18a1b57fea10c94e26dc8a2cc15824d1946bdebe6ada68b4f810c2785e3d77b8",
+      "outcome": "expected_compile_failure",
+      "command": "GOWORK=off go test -p 2 ./pkg/db/meta -run ^TestMQTTReclamation -count=1",
+      "scope": "New contracts absent before implementation; not a behavioral bug reproduction.",
+      "package_results": []
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-routing-red.log",
+      "sha256": "9a3074a710dacd8148b1b2975351471cd32c6dfd41d3f10ab1f389f52b26bbb6",
+      "outcome": "expected_compile_failure",
+      "command": "GOWORK=off go test -p 2 ./pkg/slot/fsm ./pkg/slot/proxy ./pkg/cluster -run TestMQTT(Reclamation|MetadataNodeForegroundGates)|TestCommandInspectionCoversRegisteredDecoders -count=1",
+      "scope": "Distributed contracts absent before implementation.",
+      "package_results": []
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-integration-red.log",
+      "sha256": "94c3dbd7032991ec667cf481272c48a1b3a31080eb53b84e0caaed6bc04b802b",
+      "outcome": "expected_compile_failure",
+      "command": "GOWORK=off go test -tags=integration -p 2 ./pkg/cluster -run ^TestMQTTReclamationThreeNodePartialPageRestart$ -count=1",
+      "scope": "Integration scenario written before Node facade.",
+      "package_results": []
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-batching-red.log",
+      "sha256": "7458d4f886262fc89726e30d8f86e119bf2eaea196f4b54773d78ac9ae970c85",
+      "outcome": "expected_behavioral_failure",
+      "command": "GOWORK=off go test -p 2 ./pkg/db/meta -run ^TestMQTTReclamationResultsIndependentOfApplyBatchGrouping$ -count=1",
+      "scope": "Same 130-row command sequence differed by apply grouping: separate pages 64/64/2 versus combined 64/0/0. Regression preceded range-mask fix.",
+      "package_results": []
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-batching-green.log",
+      "sha256": "d8b2a79c5e2738c633016214f188bec5efe39c86f64457bfd4d25c1ade189026",
+      "outcome": "pass",
+      "command": "GOWORK=off go test -race -p 2 ./pkg/db/meta -run ^TestMQTTReclamation -count=1",
+      "scope": "Full new storage failure inventory and grouping regression.",
+      "package_results": [
+        "github.com/WuKongIM/WuKongIM/pkg/db/meta\t2.581s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-routing-green.log",
+      "sha256": "96c82be53f3937971a6540aa97739c65c1fc130f76565d60c14c165b579878a7",
+      "outcome": "pass",
+      "command": "GOWORK=off go test -p 2 ./pkg/slot/fsm ./pkg/slot/proxy ./pkg/cluster -run TestMQTT(Reclamation|MetadataNodeForegroundGates)|TestCommandInspectionCoversRegisteredDecoders -count=1",
+      "scope": "Focused command, result, routing, snapshot and lifecycle-gate checks.",
+      "package_results": [
+        "github.com/WuKongIM/WuKongIM/pkg/slot/fsm\t0.796s",
+        "github.com/WuKongIM/WuKongIM/pkg/slot/proxy\t0.988s",
+        "github.com/WuKongIM/WuKongIM/pkg/cluster\t0.425s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-integration-green.log",
+      "sha256": "97530cd50704f7b15bd9506bd0ce3e898a6f2ef36cb03ec23530ba56560620fc",
+      "outcome": "pass",
+      "command": "GOWORK=off go test -tags=integration -p 2 ./pkg/cluster -run ^TestMQTTReclamationThreeNodePartialPageRestart$ -count=1 -timeout=3m -v",
+      "scope": "Real TCP/disk three-node integration with 256 hash Slots; controlled Clean Start, pages 64/1, graceful full-cluster reconstruction between pages. Not process-level MQTT, abrupt crash or automatic scheduling acceptance.",
+      "package_results": [
+        "github.com/WuKongIM/WuKongIM/pkg/cluster\t17.865s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-full-race.log",
+      "sha256": "ea794e50c2d4c5cfc71699c7af47983feb367728040f6fcdaf9f9d4b61320473",
+      "outcome": "pass",
+      "command": "GOWORK=off go test -race -p 2 ./pkg/db/... ./pkg/slot/fsm ./pkg/slot/proxy ./pkg/cluster -count=1",
+      "scope": "Complete directly affected packages and required storage subtree after batching fix; includes transfer but does not add MQTT JSONL support.",
+      "package_results": [
+        "github.com/WuKongIM/WuKongIM/pkg/db\t2.462s",
+        "github.com/WuKongIM/WuKongIM/pkg/db/inspect\t2.499s",
+        "github.com/WuKongIM/WuKongIM/pkg/db/internal/cache\t1.293s",
+        "github.com/WuKongIM/WuKongIM/pkg/db/internal/commit\t4.662s",
+        "github.com/WuKongIM/WuKongIM/pkg/db/internal/engine\t1.762s",
+        "github.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec\t1.312s",
+        "github.com/WuKongIM/WuKongIM/pkg/db/internal/rowcodec\t1.325s",
+        "github.com/WuKongIM/WuKongIM/pkg/db/internal/schema\t1.355s",
+        "github.com/WuKongIM/WuKongIM/pkg/db/message\t59.960s",
+        "github.com/WuKongIM/WuKongIM/pkg/db/meta\t43.701s",
+        "github.com/WuKongIM/WuKongIM/pkg/db/transfer\t118.040s",
+        "github.com/WuKongIM/WuKongIM/pkg/slot/fsm\t9.657s",
+        "github.com/WuKongIM/WuKongIM/pkg/slot/proxy\t8.681s",
+        "github.com/WuKongIM/WuKongIM/pkg/cluster\t7.608s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-flow.log",
+      "sha256": "518c3c03df7eb5d31ffef78aaf4666017b3054bf4e16f65a227b11efc525cf09",
+      "outcome": "pass",
+      "command": "named check flow-doc-contracts from .github/review-agent/policy.json",
+      "scope": "87 compliant, 0 invalid, 9 existing line-count warnings.",
+      "package_results": []
+    }
+  ],
+  "development_note": "An initial test-fixture run rejected a cursor missing its required digest; corrected the fixture before exercising cleanup. No product relaxation was made. Darwin race binaries emitted existing LC_DYSYMTAB linker warnings and exited successfully.",
+  "candidate_files_sha256": {
+    "CHANGELOG.md": "f6791d408bdbef8bb45b18db1c58b0f8b290eeb9ee5393a3b732028663e63f1e",
+    "docs/development/PROJECT_KNOWLEDGE.md": "0f2ca549e56a7515b7726dc916540099a1f5e9e524953c59dba86e3d7255b481",
+    "docs/specs/mqtt-session-ending.md": "e3a42cd1da9158793fbd0d480f3ed36c5245352d27761824369db3a5ee1fa3a1",
+    "docs/specs/mqtt-session-reclamation.md": "46e06429e9df57fc8ff4829ca55d5e454ef3a9f114518db1e31e6cda4c56f6ed",
+    "docs/specs/mqtt-storage-contract.md": "f2ca96954c9236d39ab8b81839cbec7b19711fe44e7559347b90c2c87775ca86",
+    "docs/superpowers/plans/2026-09-23-mqtt-im-access.md": "73462e525b4c7910e51b9dc0319859300716761e72fb6463c85e7d3cdd4a5acd",
+    "pkg/cluster/FLOW.md": "e992820db90aaa37db6f8e677798971e4b552aea2455508b2db85e2e3574dbc8",
+    "pkg/cluster/node_mqtt.go": "6cef425e13c0eeac6e0151c205b92b589d9eda2e0f1e37cedb103c3a9951cda2",
+    "pkg/cluster/node_mqtt_reclamation_integration_test.go": "2911b0a3252922a58dce3c06fe4bd1ee99fa73ecacddf9044a1e328c711d5241",
+    "pkg/cluster/node_mqtt_test.go": "7ade22aa8b3c6c9cf7a42dfefb2b84fb3583dfa895ee600575d3efd1cfa5ae73",
+    "pkg/db/meta/FLOW.md": "340cb4de3acfbd38e2ca1805c7355c3a1d95f7277d2cb9eb8ca5789562500d12",
+    "pkg/db/meta/batch.go": "e844a6be5984f758d4612b20b56df1f803a395376274e30778e797c905c6c385",
+    "pkg/db/meta/mqtt_lifecycle.go": "c6b4b43cffa8d351246120093bc972a16242678131157468aabfee3726e2c8a6",
+    "pkg/db/meta/mqtt_reclamation.go": "918d75431bdd77432f85f03b1d646e84f0a5b6f678d112947e80005c943a0293",
+    "pkg/db/meta/mqtt_reclamation_test.go": "c8646319819a7c57a3d38cbeb1d44951982ff6005e851de5bd4111a7f7f43fa4",
+    "pkg/db/meta/mqtt_session.go": "46150c88dc3473830ad9791108e392f31e8ef8cc1ac858f3d7d8ade051c65a3d",
+    "pkg/db/meta/mqtt_session_schema.go": "cff932f169168e886e716f8bb6560e30be4be4fb26fd9ded324c9f94508f7eba",
+    "pkg/db/meta/mqtt_session_test.go": "44b8c3e1e2605b9d077d73bea56da920fa23551b63f81489b343a57e50f6ab32",
+    "pkg/db/meta/table_runtime.go": "4e9873f8a17ce51fdea085d394ebd75124046bb667d938d2373316baa9927ccf",
+    "pkg/slot/FLOW.md": "0d3cf1eb64b9d7aa5f079e9ed3a1362b73762c6fba5553349ed770d7704a4514",
+    "pkg/slot/fsm/command.go": "b8d5b10eaf5ed9f87b0eb9bfb2b72ad5c523be1ddc6c1dcfe60fdc150f141b21",
+    "pkg/slot/fsm/command_inspection.go": "e72c7af395aaf7225550fd92e64a574a0cc546fc4a32b0ce805ea76c792da761",
+    "pkg/slot/fsm/command_inspection_catalog_test.go": "5a677673ff1129f6bae6907e738d7db199ef8dcbb8df2ac8b53594b6be2dd068",
+    "pkg/slot/fsm/mqtt_reclamation_cmds.go": "9854052574869474a83e1a834d8798fd516fa0f8c39d1fb287e1cb2f5dc487a7",
+    "pkg/slot/fsm/mqtt_reclamation_cmds_test.go": "5ab82088469d4876839eb705d45903c05c80b1fc95cfe24b8dc1bcf6522b0f94",
+    "pkg/slot/proxy/mqtt_reclamation_test.go": "8549436407930be2075f16cb59a99b45de941220ae9990c6b6cc4346cc62e2aa",
+    "pkg/slot/proxy/mqtt_write.go": "2efa5da76c57cec385e65a4f97d10465b68d96d26aba22b310e34ec09612874b"
+  },
+  "remaining": [
+    "bounded discovery including preexisting rows",
+    "exact-owner isolation orchestration and automatic reclamation scheduling",
+    "process-level autonomous cleanup acceptance",
+    "source tombstone anti-resurrection floor and retirement",
+    "MQTT JSONL transfer and restore reentry",
+    "full approved MQTT fault/scale acceptance",
+    "historical initial-subscription disconnect and post-PUBACK EOF causal diagnosis"
+  ]
+}

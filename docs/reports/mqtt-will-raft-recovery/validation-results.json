@@ -1,0 +1,296 @@
+{
+  "base_revision": "dcaaaa8b315b1805ffef42d8bfbfcb1719edc4ca",
+  "toolchain": {
+    "go": "1.25.11",
+    "gofail": "v0.2.0",
+    "GOWORK": "off",
+    "GOMODCACHE": "/Users/tt/.codex/will-append-runtime/gomod"
+  },
+  "acceptance": "all ten delivered-fixture cases pass across final 9/10 run plus unchanged startup-case repeat; not a clean complete matrix run",
+  "runs": [
+    {
+      "name": "baseline-uninstrumented",
+      "outcome": "FAIL: missing temporary controls, not product RED",
+      "command": "Historical fixture run; retained outcomes are not substituted for delivered-fixture acceptance.",
+      "log_path": "/tmp/mqtt-will-raft-baseline.log",
+      "log_sha256": "7fbb112ef5c9aeb821f0501106f59f27e004b065f4ad7b517b8966338f735915",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_raft_recovery",
+          "seconds": 8.12
+        }
+      ],
+      "receipt_directory": "receipts/baseline-uninstrumented"
+    },
+    {
+      "name": "initial-selector",
+      "outcome": "FAIL: gofail quoted selector parse before business assertions",
+      "command": "Historical fixture run; retained outcomes are not substituted for delivered-fixture acceptance.",
+      "log_path": "/tmp/mqtt-will-raft-tracer.log",
+      "log_sha256": "9fde2f26673677bf0fe47d3875cbc3b1516c54da2d9dd5099fa8ea34c194036b",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_raft_recovery",
+          "seconds": 6.165
+        }
+      ],
+      "receipt_directory": "receipts/initial-selector"
+    },
+    {
+      "name": "single-group-tracer",
+      "outcome": "FAIL: recipient EOF after observation",
+      "command": "Historical fixture run; retained outcomes are not substituted for delivered-fixture acceptance.",
+      "log_path": "/tmp/mqtt-will-raft-hex-tracer.log",
+      "log_sha256": "5eefeeda3b9786b632b379a3a4eff90c80a8e0b75207fb38efc50e3f0d123b11",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_raft_recovery",
+          "seconds": 36.885
+        }
+      ],
+      "receipt_directory": "receipts/single-group-tracer"
+    },
+    {
+      "name": "completion-tracer",
+      "outcome": "PASS: pre-pressure single-group tracer",
+      "command": "Historical fixture run; retained outcomes are not substituted for delivered-fixture acceptance.",
+      "log_path": "/tmp/mqtt-will-raft-completion-tracer.log",
+      "log_sha256": "1e0fdf6f64b89e46e9db24650ac652e990cc5bb757916424a9cef28f66be29ba",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_raft_recovery",
+          "seconds": 63.755
+        }
+      ],
+      "receipt_directory": "receipts/completion-tracer"
+    },
+    {
+      "name": "single-group-pressure",
+      "outcome": "FAIL: EOF inside healthy observation; no quiet-pass claim",
+      "command": "Historical fixture run; retained outcomes are not substituted for delivered-fixture acceptance.",
+      "log_path": "/tmp/mqtt-will-raft-pressure-tracer.log",
+      "log_sha256": "7808482c98c3375cd94748cab280dde87913cbd6cab5ff978fa36b1a145cb563",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_raft_recovery",
+          "seconds": 39.146
+        }
+      ],
+      "receipt_directory": "receipts/single-group-pressure"
+    },
+    {
+      "name": "scattered-tracer",
+      "outcome": "PASS: 12-group cap-two single-node tracer",
+      "command": "Historical fixture run; retained outcomes are not substituted for delivered-fixture acceptance.",
+      "log_path": "/tmp/mqtt-will-raft-scattered-tracer.log",
+      "log_sha256": "10ede441d9836bafc0d0d059eebd4da501d8ec00d3e841974b64d1ee422a3e00",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_raft_recovery",
+          "seconds": 74.199
+        }
+      ],
+      "receipt_directory": "receipts/scattered-tracer"
+    },
+    {
+      "name": "ineffective-negative",
+      "outcome": "PASS: ineffective mutation, not sensitivity evidence",
+      "command": "Historical fixture run; retained outcomes are not substituted for delivered-fixture acceptance.",
+      "log_path": "/tmp/mqtt-will-raft-negative.log",
+      "log_sha256": "0add518178863b25b2e27d26fe96af3bcb611f6666b2cb2db25594ec2409f325",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_raft_recovery",
+          "seconds": 75.873
+        }
+      ],
+      "receipt_directory": "receipts/ineffective-negative"
+    },
+    {
+      "name": "initial-matrix",
+      "outcome": "7/10 PASS: fixture rejected legitimate queued successor and counted other replicas as captured executor",
+      "command": "Historical fixture run; retained outcomes are not substituted for delivered-fixture acceptance.",
+      "log_path": "/tmp/mqtt-will-raft-matrix.log",
+      "log_sha256": "d7df1cf3c37aad88a703e3458e3c93f0f6025d687ae6f238e7a94909e79c7517",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_raft_recovery",
+          "seconds": 707.694
+        }
+      ],
+      "receipt_directory": "receipts/initial-matrix",
+      "fixture_sha256": "f6ed0fa7285642b0ff2de089646a51090d736e502ed9278b93346d143c425061"
+    },
+    {
+      "name": "negative-current",
+      "outcome": "EXPECTED FAIL: actual journal-full refusal then original receipt deadline",
+      "command": "Historical fixture run; retained outcomes are not substituted for delivered-fixture acceptance.",
+      "log_path": "/tmp/mqtt-will-raft-negative-current.log",
+      "log_sha256": "4eac305678ca059ec3822278608df35a222758256528e25b0542e53f8b7917a3",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_raft_recovery",
+          "seconds": 152.228
+        }
+      ],
+      "receipt_directory": "receipts/negative-current"
+    },
+    {
+      "name": "successor-tracer",
+      "outcome": "PASS: definite newer claim and original ID/DUP reconnect; before final PacketID assertion",
+      "command": "Historical fixture run; retained outcomes are not substituted for delivered-fixture acceptance.",
+      "log_path": "/tmp/mqtt-will-raft-successor-tracer.log",
+      "log_sha256": "3a5a7c3017ac920c033444b9dcd9b24a8ab6ea7c94f6578cf36b90fd59c03f90",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_raft_recovery",
+          "seconds": 84.415
+        }
+      ],
+      "receipt_directory": "receipts/successor-tracer"
+    },
+    {
+      "name": "final-matrix",
+      "outcome": "9/10 PASS; one startup-only readyz failure before any fault or business assertion",
+      "command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-raft-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-raft-final-matrix WK_E2E_MQTT_LOG_DIR=/tmp/mqtt-will-raft-final-matrix-logs GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_raft_recovery -count=1 -timeout=25m -v",
+      "log_path": "/tmp/mqtt-will-raft-final-matrix.log",
+      "log_sha256": "b7100aa00ea4b9c0cee5398a929769ddab9af76d34c8295ea6cf3f198f752f7b",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_raft_recovery",
+          "seconds": 758.215
+        }
+      ],
+      "receipt_directory": "receipts/final-matrix",
+      "binary_sha256": "92d9360d2ae681eb3bb4b22073c86bfe303037fc0a08a86b183322b76db7e348",
+      "fixture_sha256": "cb09120a63aa80b7dfdc9d48324a2355ccf2391e15fe5d5b3be25772ad984ad5"
+    },
+    {
+      "name": "startup-case-repeat",
+      "outcome": "PASS: identical source/binary/budgets, no product or fixture repair",
+      "command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-raft-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-raft-startup-case-repeat WK_E2E_MQTT_LOG_DIR=/tmp/mqtt-will-raft-startup-case-repeat-logs GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_raft_recovery -run 'TestWillRecoveryAcrossProposalCommitAndApply/three-node-cluster/committed-unapplied-late$' -count=1 -timeout=5m -v",
+      "log_path": "/tmp/mqtt-will-raft-startup-case-repeat.log",
+      "log_sha256": "f547d32634e354c807f8115d08bc8e09d9a75408b8ee993dc5974330cbc68749",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_raft_recovery",
+          "seconds": 85.454
+        }
+      ],
+      "receipt_directory": "receipts/startup-case-repeat",
+      "binary_sha256": "92d9360d2ae681eb3bb4b22073c86bfe303037fc0a08a86b183322b76db7e348",
+      "fixture_sha256": "cb09120a63aa80b7dfdc9d48324a2355ccf2391e15fe5d5b3be25772ad984ad5"
+    },
+    {
+      "name": "negative-final",
+      "outcome": "EXPECTED FAIL: actual capacity refusal and persistent resume, original receipt deadline",
+      "command": "WK_E2E_GOFAIL_MQTT=1 WK_E2E_BINARY=/tmp/wukongim-will-raft-negative-gofail WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-raft-negative-final WK_E2E_MQTT_LOG_DIR=/tmp/mqtt-will-raft-negative-final-logs GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will_raft_recovery -run 'TestWillRecoveryAcrossProposalCommitAndApply/single-node-cluster/queued-late$' -count=1 -timeout=5m -v",
+      "log_path": "/tmp/mqtt-will-raft-negative-final.log",
+      "log_sha256": "5db76c12daf218d5183cbf234c9daa18dff93b92b8e27c30238845bfe6882cb4",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_raft_recovery",
+          "seconds": 153.682
+        }
+      ],
+      "receipt_directory": "receipts/negative-final",
+      "binary_sha256": "d7dd197529701fc07a6a9b7b9e60df2b1b4ffeeed37a5326a43d64e31a478e6a",
+      "fixture_sha256": "cb09120a63aa80b7dfdc9d48324a2355ccf2391e15fe5d5b3be25772ad984ad5"
+    },
+    {
+      "name": "ordinary-regression",
+      "outcome": "PASS: ordinary product, both topologies",
+      "command": "WK_E2E_BINARY=/tmp/wukongim-will-raft-ordinary WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-will-raft-ordinary-regression GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/will -count=1 -timeout=5m -v",
+      "log_path": "/tmp/mqtt-will-raft-ordinary-regression.log",
+      "log_sha256": "d2a8a572584734927e23343cad4851d957c88d9fc954a257efd8a59c31f45e7d",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will",
+          "seconds": 50.474
+        }
+      ],
+      "receipt_directory": "receipts/ordinary-regression",
+      "binary_sha256": "b469e7e951ca4f9f14dadfc6bc84d77c618a83741b7889a1521836f4c3096510"
+    },
+    {
+      "name": "focused-race",
+      "outcome": "PASS: all four directly related packages",
+      "command": "GOWORK=off go test -race -p 1 ./pkg/slot/multiraft ./pkg/slot/fsm ./pkg/slot/proxy ./internal/usecase/mqttsession -run 'Will|MQTT|Proposal|Apply' -count=1 -timeout=5m",
+      "log_path": "/tmp/mqtt-will-raft-race-final-gates.log",
+      "log_sha256": "81d08530ba57e8cfb3394df723ed726d2723dd3697ed2999d0602de99d2f970c",
+      "package_durations": [
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/slot/multiraft",
+          "seconds": 3.125
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/slot/fsm",
+          "seconds": 4.722
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/pkg/slot/proxy",
+          "seconds": 3.856
+        },
+        {
+          "package": "github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession",
+          "seconds": 24.639
+        }
+      ]
+    },
+    {
+      "name": "flow-doc-contracts",
+      "outcome": "PASS: 88 compliant, zero invalid; eleven pre-existing line-count warnings",
+      "command": "GOWORK=off go run ./scripts/flowcheck --mode check",
+      "log_path": "/tmp/mqtt-will-raft-flow-check.log",
+      "log_sha256": "712b0d00c884c879b2cce5695f7c753e8b77e926f42a262132c69db816723b64",
+      "package_durations": []
+    }
+  ],
+  "candidate_binary": {
+    "path": "/tmp/wukongim-will-raft-gofail",
+    "sha256": "92d9360d2ae681eb3bb4b22073c86bfe303037fc0a08a86b183322b76db7e348",
+    "generated_source": "/tmp/wukongim-will-raft-completion-source"
+  },
+  "negative_binary_sha256": "d7dd197529701fc07a6a9b7b9e60df2b1b4ffeeed37a5326a43d64e31a478e6a",
+  "limitations": [
+    "direct successor-CAS cuts",
+    "independent pressure against in-flight older proposal",
+    "failed authority-read fairness",
+    "lost/corrupt journals",
+    "full issued-effect terminal recovery",
+    "general/asymmetric partitions",
+    "shared-storage admission",
+    "latency SLO or sustained throughput"
+  ],
+  "receipt_count": 33,
+  "cleanup": "Receipt JSON is emitted after owned clients and product processes join; raw logs and generated binaries/sources stay private outside the repository.",
+  "builds": [
+    {
+      "name": "instrumented-candidate",
+      "outcome": "PASS: build exited zero",
+      "log_path": "/tmp/mqtt-will-raft-completion-build.log",
+      "log_sha256": "7d3893fd994c0df02a11b24c975ada626b7992df42568382a399f0ae82955762",
+      "binary_path": "/tmp/wukongim-will-raft-gofail",
+      "binary_sha256": "92d9360d2ae681eb3bb4b22073c86bfe303037fc0a08a86b183322b76db7e348",
+      "generated_source_directory": "/tmp/wukongim-will-raft-completion-source"
+    },
+    {
+      "name": "corrected-private-negative",
+      "outcome": "PASS: build exited zero",
+      "log_path": "/tmp/mqtt-will-raft-negative-current-build.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "binary_path": "/tmp/wukongim-will-raft-negative-gofail",
+      "binary_sha256": "d7dd197529701fc07a6a9b7b9e60df2b1b4ffeeed37a5326a43d64e31a478e6a",
+      "generated_source_directory": "/tmp/wukongim-will-raft-negative-source"
+    },
+    {
+      "name": "ordinary-candidate",
+      "outcome": "PASS: build exited zero",
+      "log_path": "/tmp/mqtt-will-raft-ordinary-final-build.log",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "binary_path": "/tmp/wukongim-will-raft-ordinary",
+      "binary_sha256": "b469e7e951ca4f9f14dadfc6bc84d77c618a83741b7889a1521836f4c3096510"
+    }
+  ],
+  "historical_source_boundary": "Historical fixture hashes were not all frozen. Their outcomes and log hashes are retained as diagnostics, without being substituted for current exact-source acceptance."
+}

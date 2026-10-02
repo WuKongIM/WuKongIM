@@ -1,0 +1,3 @@
+# github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession.test
+ld: warning: '<temporary-build>' has malformed LC_DYSYMTAB, expected 98 undefined symbols to start at index 1626, found 95 undefined symbols starting at index 1626
+ok  	github.com/WuKongIM/WuKongIM/internal/usecase/mqttsession	8.036s

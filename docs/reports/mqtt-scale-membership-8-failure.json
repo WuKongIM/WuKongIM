@@ -1,0 +1,31 @@
+{
+  "scenario": "mqtt-group-scale",
+  "date": "2026-09-30",
+  "passed": false,
+  "nodes": 1,
+  "hash_slots": 256,
+  "initial_slots": 12,
+  "configured": {
+    "members": 100000,
+    "connections": 500,
+    "messages": 20,
+    "churn_subscribers": 200,
+    "churn_rounds": 3
+  },
+  "failed_phase": "connect_subscribe",
+  "failure": "Paho Subscribe returned context deadline exceeded; public closure metrics recorded deadline and canceled subscription requests",
+  "observed": {
+    "confirmed_members": 100000,
+    "mqtt_owner_active_at_failure": 485,
+    "subscription_closures": {
+      "deadline": 2,
+      "canceled": 13
+    },
+    "mqtt_fanout_phase_started": false
+  },
+  "duration_seconds": 214.45,
+  "candidate_binary_sha256": "fb71a10c2334a5f1f07f9a31581d00fdc232dafa827f24753aee39b3e8f720ce",
+  "command": "WK_E2E_BINARY=/tmp/wukongim-mqtt-membership-8 WK_E2E_MQTT_REPORT_DIR=/tmp/mqtt-scale-membership-8 GOWORK=off go test -p 1 -tags=e2e ./test/e2e/mqtt/scale -run TestGroupScaleDeliveryAndChurnRetirement -count=1 -timeout=15m -v",
+  "interpretation": "All public member-preparation requests confirmed; complete MQTT scale acceptance remains incomplete. Active owners are not proof of successful SUBACKs. Fanout and churn were not reached.",
+  "evidence_log": "/tmp/mqtt-scale-membership-8.log"
+}

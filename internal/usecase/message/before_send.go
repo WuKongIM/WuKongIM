@@ -7,6 +7,7 @@ import (
 	"time"
 
 	channelid "github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/publication"
 )
 
 // BeforeSendRequest is the final permission-accepted message presented to the
@@ -23,8 +24,10 @@ type BeforeSendRequest struct {
 }
 
 // BeforeSendDecision permits a payload replacement or rejects the current send.
-// A nil Payload preserves the request payload. ReasonCode is an external business
-// code, never the internal Reason enum; zero selects the standard rejection.
+// A nil Payload preserves the request; an explicit empty value clears MQTT
+// content only. Native messages retain their nonempty-body requirement.
+// ReasonCode is an external business code, never the internal Reason enum;
+// zero selects the standard rejection.
 type BeforeSendDecision struct {
 	Allow      bool
 	Payload    []byte
@@ -94,7 +97,9 @@ func (w *BeforeSendWebhook) check(ctx context.Context, cmd SendCommand, commandC
 		outcome = "overloaded"
 		return cmd, ReasonSystemError, nil
 	}
-	if len(cmd.Payload) == 0 || len(cmd.Payload) > w.opts.MaxPayloadBytes {
+	// Only fully validated MQTT provenance permits empty input or replacement.
+	allowEmpty := len(cmd.PublicationMetadata) != 0
+	if publication.ValidateSend(cmd.PublicationMetadata) != nil || (!allowEmpty && len(cmd.Payload) == 0) || len(cmd.Payload) > w.opts.MaxPayloadBytes {
 		outcome = "invalid_request"
 		return cmd, ReasonInvalidRequest, nil
 	}
@@ -123,7 +128,7 @@ func (w *BeforeSendWebhook) check(ctx context.Context, cmd SendCommand, commandC
 		err = callCtx.Err()
 	}
 	if err == nil {
-		err = w.validateDecision(decision)
+		err = w.validateDecision(decision, allowEmpty)
 	}
 	if err != nil {
 		policy := w.opts.OnError
@@ -147,9 +152,9 @@ func (w *BeforeSendWebhook) check(ctx context.Context, cmd SendCommand, commandC
 	return cmd, ReasonSuccess, nil
 }
 
-func (w *BeforeSendWebhook) validateDecision(d BeforeSendDecision) error {
+func (w *BeforeSendWebhook) validateDecision(d BeforeSendDecision, allowEmpty bool) error {
 	if d.Allow {
-		if d.ReasonCode != 0 || (d.Payload != nil && (len(d.Payload) == 0 || len(d.Payload) > w.opts.MaxPayloadBytes)) {
+		if d.ReasonCode != 0 || (d.Payload != nil && ((!allowEmpty && len(d.Payload) == 0) || len(d.Payload) > w.opts.MaxPayloadBytes)) {
 			return errors.New("invalid before-send allow decision")
 		}
 	}

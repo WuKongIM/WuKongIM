@@ -6811,6 +6811,10 @@ func (f *fakePresenceCluster) LookupChannelIdempotency(_ context.Context, _ chan
 	return f.idempotencyHit, f.idempotencyOK, f.idempotencyErr
 }
 
+func (f *fakePresenceCluster) ReadChannelOriginalCommittedBatch(ctx context.Context, reads []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {
+	return f.ReadChannelCommittedBatch(ctx, reads)
+}
+
 func (f *fakePresenceCluster) ListChannelSubscribersPage(_ context.Context, channelID string, _ int64, afterUID string, limit int) ([]string, string, bool, error) {
 	f.mu.Lock()
 	uids := append([]string(nil), f.subscribers[channelID]...)

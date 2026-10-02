@@ -1,0 +1,7 @@
+{
+  "hash_slots": 256,
+  "invalid_token_checked": false,
+  "nodes": 3,
+  "passed": false,
+  "scenario": "mqtt-js-docs-quickstart"
+}

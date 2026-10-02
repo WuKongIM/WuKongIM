@@ -1,0 +1,37 @@
+{
+  "cluster_readiness_bound_ms": 60000,
+  "connect_retries": 0,
+  "cut_node": 1,
+  "elapsed_ms": 48504,
+  "final_control_counts": [
+    {
+      "wkMQTTWillBeforeSecondCAS": 1,
+      "wkMQTTWillJournalFull": 11,
+      "wkMQTTWillPublicationAttempt": 7,
+      "wkMQTTWillReclamationFirstRetained": 1,
+      "wkMQTTWillReclamationFirstUnconfirmed": 6,
+      "wkMQTTWillReclamationPage": 6,
+      "wkMQTTWillReclamationSecondRetained": 0,
+      "wkMQTTWillReclamationSecondUnconfirmed": 0,
+      "wkMQTTWillSecondCASReply": 0,
+      "wkMQTTWillSecondFSMComplete": 0,
+      "wkMQTTWillSelectedSuccessorReply": 0,
+      "wkSlotPersistedUncommitted": 0
+    }
+  ],
+  "first_started_executor": 1,
+  "hash_slots": 256,
+  "in_flight_capacity_refusal": true,
+  "in_flight_reclamation_page": true,
+  "instrumented_journal_capacity": 2,
+  "last_phase": "expired-caller-and-grant",
+  "logical_slots": 12,
+  "nodes": 1,
+  "outcome": "late",
+  "passed": false,
+  "pressure_clients": 12,
+  "resubscriptions": 0,
+  "scenario": "mqtt-will-successor-recovery",
+  "state": "queued",
+  "state_cut_reached": true
+}

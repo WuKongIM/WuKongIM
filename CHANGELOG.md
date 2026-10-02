@@ -6,8 +6,288 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🚀 New Features / 新功能
+
+- Add bilingual MQTT development-preview guides for authentication, topics, messages,
+  persistent sessions, Wills, HTTP/SDK interoperability and troubleshooting, with a
+  pinned Node.js first-message example. / 新增 MQTT 开发预览中英双语专题及固定版本
+  Node.js 收发示例，覆盖认证、Topic、消息、持久会话、遗嘱、互通与排障。
+
+- Keep main's send-policy/stream RPC and Slot command identities when integrating
+  MQTT: metadata/owner RPCs use 106/107 and Session/subscription/cursor commands use 80/81/82.
+  Pre-integration MQTT development Raft logs are not an upgrade source; start from
+  pre-MQTT data or a separately verified data migration. / MQTT 集成保留主线已有的
+  发送策略和流事件编号：元数据/Owner RPC 使用 106/107，会话/订阅/游标命令使用 80/81/82。
+  集成前开发候选的 MQTT Raft 日志不支持直接升级；需使用启用 MQTT 前的数据，
+  或经过单独验证的数据迁移。
+
+- Bound MQTT shared replay responsibilities by node and cluster storage capacity,
+  preserve accepted replay at exhaustion, and reopen admission after proved
+  retirement. Recovery barriers no longer appear as MQTT messages. Matched cluster
+  nodes/tools and a cold rollout are required. / MQTT 共享回放增加节点与集群容量上限，
+  容量满时保留已接收消息，确认回收后恢复接收；重启恢复记录不再误投递为 MQTT 消息。
+  部署需使用匹配版本的节点和工具，并停机升级。
+
+- Reclaim MQTT Will capacity after an unissued Started attempt is durably sealed
+  and current permission is revoked. Preserve unknown issued/legacy effects;
+  matched cluster runtimes and tools are required. / MQTT Will 已进入 Started
+  但尚未签发追加许可时，可在持久封口且当前权限明确撤销后安全终止并释放容量；
+  已签发或旧格式的未知结果继续保留，集群运行时与工具需使用匹配版本。
+
+- Recover MQTT Wills interrupted after admission but before append submission using a durable origin submission fence; keep already-issued and older-version unknown attempts pending. / MQTT Will 在准入后、append 提交前中断时，可凭持久化提交栅栏安全恢复；已获提交许可及旧版未知执行继续待确认。
+
+- Reclaim retained MQTT Will dispatch records on journal capacity pressure only after fresh Slot evidence proves terminal or superseded execution, preserving current and uncertain recovery records. / MQTT Will 派发日志容量不足时，凭新的 Slot 终态或更新执行代次证据有界回收残留记录，保留当前任务和未知结果的恢复证明。
+
+- Recover MQTT Wills interrupted after Started and before dispatch when their exact executor supplies durable sealed non-dispatch proof. Preserve original committed identity and keep admitted unknown effects pending; matched cluster nodes are required. / MQTT Will 在 Started 后、派发前中断时，可凭原执行器的持久封存未派发证明恢复；保留已提交消息身份，已准入但结果未知的任务继续待确认，集群需使用匹配版本。
+
+- Admit restores and release their exact archive lease in one transaction, so later cleanup cannot report a confirmed job as failed. Preserve unknown commit outcomes and foreign lease authority. / 恢复任务准入与其归档租约释放合并为一次事务，避免后续清理把已提交任务误报为失败；未知提交仍保持未知，不清除其他操作的租约。
+
+- Reduce first MQTT group subscription waits by retaining completed preparation within one request, using its fresh replay plan for one fenced copy/anchor, and confirming replicas through a bounded joined cohort. Every replica and final authority remain required within the existing packet deadline. / 首次 MQTT 群订阅在同一请求内复用已完成的准备，使用本轮新规划进行一次受栅栏保护的复制与 anchor 提交，并有界并发确认副本；仍要求全部副本和最终权威确认，保持既有报文期限。
+
+- MQTT automatically reactivates after backup restore without a process restart, using fresh Owner registries and workers while preserving persistent subscriptions and unfinished QoS 1 exchanges. Maintenance keeps connections fenced and old callbacks bound to their original runtime. / MQTT 备份恢复后可自动重新启用，无需重启进程；重建 Owner 注册表和工作器，保留持久订阅及未完成 QoS 1 交换，恢复期间关闭连接准入，旧回调仍绑定原运行时。
+
+- MQTT unsubscribe keeps the same removal pending when a definite source sealing CAS loses to verified progress or an identical seal, preserving the first boundary and unfinished exchanges. Unknown commits and changed ownership/intent still fail closed. / MQTT 退订封口遇到明确 CAS 拒绝时，若新证据确认仅有进度推进或同意图封口，则保留待清理状态，保持原边界与未完成交换；未知提交及所有权、意图变化仍失败关闭。
+
+- Combine MQTT delivery replay planning and anchored original reads under one fresh Channel authority, reducing repeated Slot barriers while retaining final ownership/permission checks and bounded read admission. Matched cluster binaries are required. / 合并 MQTT 投递的 replay 规划与锚定原文读取，减少重复 Slot 屏障，同时保留最终所有权、权限校验和有界读取准入；集群需使用匹配版本。
+
+- Avoid MQTT disconnects during concurrent fanout and resubscription: retain nested recovery pressure as pending, bound preparation retries under exact intent/Owner checks, and yield on valid newer drain snapshots. Unknown outcomes remain failures. / 修复并发投递与重新订阅时的 MQTT 断连：嵌套恢复背压保留待确认状态，准备阶段在完整意图和 Owner 检查下有限重试，退订遇到有效新快照时保留待清理状态；未知结果仍失败关闭。
+
+- MQTT subscription activation and removal tolerate bounded Session revision contention from renewal or progress, while preserving exact subscription/Owner checks and rejecting unknown commit outcomes. / MQTT 订阅激活和移除可在既有边界内处理续租或进度写入导致的明确版本拒绝；保留完整订阅与 Owner 检查，未知提交结果仍失败关闭。
+
+- Group member preparation overlaps ordinary UID membership projection with eight bounded Slot proposal workers, preserving durable completion and cancellation cleanup. / 群成员准备通过最多 8 个受控 Slot 提案提交者并行投影 UID 成员索引，保留持久化确认和取消清理语义。
+- Reduce idle MQTT delivery reads with bounded quiet hints, and wake interested connections after durable Channel commits and confirmed replay anchors. Full refresh and receive authorization remain enforced. / MQTT 空闲投递轮次通过有界提示减少读取，频道持久提交及 replay anchor 确认后定向唤醒连接；保留定期权威复查和发送授权检查。
+- Add `wukongim_slot_read_barrier_duration_seconds{result}` to show how long Slot linearizable reads wait for ReadIndex and durable apply, labeled only by a fixed result set. / 新增 `wukongim_slot_read_barrier_duration_seconds{result}`，按固定结果类别展示 Slot 线性一致读等待 ReadIndex 与持久应用的耗时。
+- Removed MQTT source bindings are now actually retired by background maintenance; previously they left the recovery index and were never rediscovered. Unprovable retirements back off from 1 second up to 10 minutes. / 后台维护现在会真正回收已移除的 MQTT 来源绑定；此前这些行离开恢复索引后不会再被发现。暂时无法证明可回收时，从 1 秒起退避，最长 10 分钟。
+
+- Concurrent MQTT SUBSCRIBE requests to the same group no longer disconnect with an unclassified failure; per-request Channel metadata application now waits for a contended shard lock within the request deadline instead of failing as not ready. / 多个客户端同时订阅同一群时，不再因未分类错误被断开；按请求应用频道元数据时，遇到分片锁竞争会在请求时限内等待，而不是直接返回未就绪。
+
+- Persistent MQTT Sessions now resume immediately after the owning node process crashes (SIGKILL, OOM, power loss) and restarts; a data-directory lock proves the previous boot is gone. A second process on the same data directory cannot start MQTT. / 持有 MQTT 持久会话的节点进程崩溃（SIGKILL、OOM、断电）重启后，会话可立即恢复；数据目录锁用于证明上一个进程已退出，同一数据目录的第二个进程无法启动 MQTT。
+
+- Automatically reclaim ended MQTT Session children through the bounded consumer task pool, confirming exact-owner isolation when required and preserving successor lifetimes. Preserve cleanup markers on reconnect and tolerate definite same-owner disconnect races within the original acquisition bound. Add fixed aggregate backfill/completion metrics. / 已结束 MQTT 会话子记录可由有界消费者任务池自动回收，必要时确认准确 Owner 已停止执行，并保留新代会话；重连保留回收标记，并在原准入边界内处理同一 Owner 断开引起的明确版本冲突；新增固定维度补建及完成指标。
+
+- Add resumable MQTT reclamation-index backfill and authoritative bounded discovery, including historical Sessions; incomplete coverage cannot appear empty. Matched writers are required and automatic scheduling remains under development. / MQTT 回收索引支持持久补建进度和有界权威发现，覆盖历史会话，未完成补建不会被当成空结果；要求匹配版本写入节点，自动调度仍在开发。
+
+- Add bounded, replicated cleanup of ended MQTT Session children with a durable completion marker, retaining ClientID binding, newer lifetimes, source fences and independent Wills. Automatic scheduling remains under development. / 新增已结束 MQTT 会话子记录的有界复制清理及持久完成标记，保留 ClientID 绑定、新代会话、来源屏障和独立 Will；自动调度仍在开发。
+
+- MQTT subscription preparation now waits within its existing bound when read-only replay planning is temporarily unready or backpressured; cancellation still stops the request and all-replica confirmation remains required. / MQTT 订阅准备遇到只读回放规划暂未就绪或容量压力时，在既有时限内等待；取消仍会终止请求，且保持全部副本确认要求。
+
+- MQTT now exposes fixed SUBSCRIBE/UNSUBSCRIBE failure counters to distinguish closure paths without recording client identities or message content.
+- MQTT 新增固定分类的订阅/退订失败计数，便于定位断连路径，不记录客户端身份或消息内容。
+
+- Keep MQTT PUBACK progress through ordinary Session renewal or neighboring acknowledgements using bounded retries after definite version rejection, while preserving exact exchange identity and rejecting unknown write outcomes. / MQTT PUBACK 与会话续租或相邻确认并发时，仅对明确的版本拒绝做有界重试，保留原交换身份，未知写入结果仍停止处理。
+
+- Automatically finish interrupted MQTT inbox/group subscription setup after disconnect, retaining prepared starts and rechecking permission before activation. Expose bounded background confirmation metrics. / MQTT 收件箱和群订阅建立中断后，可在断线状态自动续作，保留原消息起点并在激活前重检权限；新增后台完成确认聚合指标。
+
+- Preserve the captured MQTT owner throughout inbox subscription preparation, rejecting takeover inside nested source work. Add offline group/inbox preparation for pending recovery. / MQTT 收件箱订阅准备全程绑定已捕获的 Owner，嵌套来源准备中发生接管时拒绝沿用新身份；新增离线群订阅和收件箱准备能力。
+
+- Keep MQTT subscription setup waiting for native replica checkpoints, and retry definite unsubscribe CAS rejection only under unchanged intent and ownership. / MQTT 订阅建立有界等待副本原生提交水位；退订 CAS 明确拒绝后，仅在意图和所有权均未变化时做有限重试。
+
+- Expose background MQTT subscription-removal confirmations as a fixed aggregate metric, including retries without client identity labels. / 新增 MQTT 后台退订完成确认的固定维度聚合指标，包含重试确认且不携带客户端身份标签。
+
+- Automatically finish interrupted MQTT unsubscribe for inbox and group subscriptions after disconnect, including preparation before the first binding. Bounded recovery preserves unacknowledged exchanges and retries final state writes. Full crash and scale acceptance remains in progress. / MQTT 私聊收件箱和群订阅退订中断后可在断线状态自动续作，包括首条绑定写入前的中断；有界恢复保留未确认交换并重试最终状态写入。完整崩溃和容量验收仍在进行。
+
+- Automatically sweep expired MQTT owner reservations and retry incomplete transport cleanup with bounded work and joined shutdown. Aggregate metrics retain visibility of unresolved effects. / MQTT 自动清理到期的连接所有权预留，并有界重试未完成的传输关闭；停止时等待任务结束，聚合指标保留未决副作用状态。
+
+- Retire MQTT inbox qualifications after explicit Session ending or replacement through bounded background maintenance, preserving new lifetimes and independent source obligations. / MQTT 会话明确结束或被新代次替换后，有界后台维护会移除旧收件资格的候选索引，并保留新会话及独立的来源责任。
+
+- Enforce MQTT Session quotas while clients are offline or their receive window is full, and maintain source completion through bounded background work. Fixed aggregate metrics expose progress; complete crash recovery, cleanup and scale acceptance remain in progress. / MQTT 客户端离线或接收窗口满时通过有界后台任务执行会话配额，并推进来源完成与清理；提供固定维度进度指标。完整崩溃恢复、清理与容量验收仍在进行。
+
+- Drain MQTT owners before stopping Gateway transport, and persist proved graceful boot retirement for persistent-session restart. Preserve normal DISCONNECT during open/delivery cleanup to avoid spurious Wills. Abrupt-crash recovery remains under development. / MQTT 会话清理先于 Gateway 传输停止，保存正常退出凭据以恢复持久会话；修复连接初始化、投递清理竞态导致正常断连误发 Will 的问题。异常崩溃恢复仍在开发。
+
+- Schedule due MQTT Wills through a bounded worker cohort, and preserve normal DISCONNECT intent when EOF cancels packet dispatch. Full crash recovery and MQTT acceptance remain in progress. / MQTT 到期 Will 已接通有界后台发布；修复 EOF 取消报文处理时正常 DISCONNECT 可能被误判为异常断线的问题。完整崩溃恢复及 MQTT 验收仍在进行。
+
+- Add a default-off MQTT 5 TCP entry with bounded TOML/environment configuration, durable token authentication and MQTT/WK person-message interoperability. Full recovery, Will scheduling, restore reactivation and scale acceptance remain under development. / 新增默认关闭的 MQTT 5 TCP 入口，支持有界 TOML/环境变量配置、持久设备令牌鉴权及 MQTT/WK 私聊互通；完整恢复、Will 调度、备份恢复后重建和容量验收仍在开发。
+
+- Accept empty MQTT PUBLISH and Will bodies through shared message admission, including explicit empty Webhook replacements, while preserving native payload validation. Full MQTT product access remains under development. / MQTT PUBLISH 与 Will 的空正文已可通过共享消息入口，Webhook 可显式替换为空；原生消息校验保持不变，完整 MQTT 产品接入仍在开发。
+
+- Freeze MQTT Will hook output before publication so recovery preserves the actual body and original receipt without repeating transformations. Preparation can resume after lost replies; uncertain dispatch and complete MQTT access remain under development. / MQTT Will 发布前持久保存钩子处理后的正文，恢复时保留实际正文与原始回执，不重复改写消息；准备阶段可在丢回包后续作，未知发布结果的安全重试和完整接入仍在开发。
+
+- Preserve Channel authority generations across physical runtime deletion and recreation, rejecting stale prepared writes and retiring old person-directory work atomically. MQTT recovery can read runtime and retirement from one authoritative snapshot. Matched cluster binaries are required; full MQTT access remains under development. / 频道运行时物理删除、重建后保留并推进权威代次，拒绝旧追加请求，并原子撤销旧单聊目录任务；MQTT 恢复可在同一权威快照中读取运行时与删除代次。集群需使用匹配版本；完整 MQTT 接入仍在开发。
+
+- Add bounded MQTT Will first-dispatch and committed-result recovery through existing message policy and cluster authority. Lost observations preserve original identity/time even after permission revocation; uncertain redispatch and product access remain under development. / MQTT Will 接通有界首次发布和已提交结果恢复，复用消息权限与集群权威；观察结果丢失且后续撤权时仍恢复原身份和时间，未知结果的重发及产品接入仍在开发。
+
+- Route retained MQTT Will receipt queries through fresh Slot and recovered Channel authority, preserving original identity after history cleanup and restart and rejecting isolated warm readers. Queries are bounded and respect maintenance; Will execution and product access remain under development. / MQTT Will 回执查询接通最新 Slot 与已恢复频道权威，历史清理及重启后保留原身份，失去多数派的节点不能返回缓存结果；查询有界并遵循维护隔离，Will 执行和产品接入仍在开发。
+
+- Expose retained MQTT Will receipts through the Channel storage adapter after leader/follower apply, history cleanup and reopen; committed-checkpoint and lifecycle checks remain mandatory. Cluster routing and Will execution remain under development. / 频道存储适配器支持读取主副本写入后保留的 MQTT Will 回执，历史清理及重开后仍可查询，并保留提交水位与生命周期校验；集群路由和 Will 执行仍在开发。
+
+- Retain compact MQTT Will publication receipts when ordinary message history is trimmed, preserving identity and original time through restart and binary backup v4. Restore rejects conflicting proof before writing. Matched writers/tools are required; Will execution and product access remain under development. / 普通消息历史清理后保留 MQTT Will 的精简发布回执，重启和 v4 二进制备份恢复保留原消息身份及时间；恢复前拒绝冲突证明。要求匹配版本的写入节点和工具，Will 执行与产品接入仍在开发。
+
+- Remove MQTT inbox subscriptions through bounded, resumable source draining: release unadmitted backlog while retaining QoS 1 exchanges and ACKs. Independent checkpoints survive Slot snapshots and owner takeover; matched writers/tools are required. Product access and automatic cleanup remain under development. / MQTT 收件箱退订支持有界、可恢复的来源清理，释放未发送积压并保留 QoS 1 交换及 ACK。独立进度支持 Slot 快照和所有者接管；要求匹配版本的写入节点和工具。产品接入及自动清理仍在开发。
+
+- Establish MQTT inbox subscriptions through durable UID qualification and bounded existing-channel discovery, preserving confirmed progress across retries and owner takeover. Real single-node cluster coverage joins existing and future offline sources without qualification fixtures; product access remains under development. / MQTT 收件箱订阅先持久化 UID 资格，再分页准备已有频道；重试与所有者接管保留已确认进度。真实单节点集群验证已有频道和离线新来源，无需模拟资格记录；产品接入仍在开发。
+
+- Preserve MQTT inbox scan progress for every supported directory ID up to 4096 bytes, including snapshot restore. Matched readers and tools are required for long checkpoints; product access remains under development. / MQTT 收件箱扫描进度支持目录允许的最长 4096 字节频道 ID，并在快照恢复后保留；长游标需要匹配版本的读取节点和工具，产品接入仍在开发。
+
+- Prepare MQTT inbox sources automatically before ordinary persistent person writes through the shared appender, with bounded waiting and exact append fencing. Real single-node cluster coverage verifies offline first-message replay/accounting; complete MQTT product access remains under development. / 普通持久个人消息通过统一写入入口自动准备 MQTT 收件箱来源，等待有界并校验精确追加版本。真实单节点集群验证离线首条消息回放与计量；完整 MQTT 产品接入仍在开发。
+
+- Preserve exact prepared-append authority through fresh cluster routing, forwarding and durable queues; person-directory deletion now advances the append fence atomically. MQTT automatic admission and product access remain under development. / 消息追加可携带准备时的精确版本，经过集群读取、转发和持久化队列仍保留校验；删除个人频道目录时原子推进追加版本。MQTT 自动准入和产品接入仍在开发。
+
+- Prepare future MQTT inbox sources in bounded, resumable turns after native UID directory projection completes. Inconsistent candidate indexes fail closed; real single-node cluster validation covers offline first-message replay/accounting. Automatic append fencing and product access remain under development. / 复用原生 UID 目录投影完成状态，以有界、可续跑的轮次准备 MQTT 新收件箱来源；候选索引不一致时拒绝继续。真实单节点集群已验证离线首条消息回放与计量，自动写入隔离及产品接入仍在开发。
+
+- Persist resumable MQTT inbox source-admission progress with Slot-authoritative reads and runtime-incarnation fencing across deletion, recreation and snapshot restore. Matching runtimes are required; automatic first-write admission and product access remain under development. / MQTT 收件箱来源准入进度支持持久化续跑、Slot 权威读取及跨删除、重建、快照恢复的代次隔离。要求匹配运行时；首次写入自动准入和产品接入仍在开发。
+
+- Prepare new MQTT inbox person sources while their durable Session is offline, preserving fixed boundaries through lost replies and same-lifetime takeover. Real single-node cluster coverage verifies the first native message reaches shared replay and offline accounting. Automatic future-source admission and product access remain under development. / MQTT 持久会话离线时可准备新的个人消息源，丢回包及同代接管保留既定边界；真实单节点集群验证首条原生消息进入共享回放并计入离线积压。自动新来源准入及产品接入仍在开发。
+
+- Add bounded, Slot-authoritative MQTT inbox directory discovery over existing membership primary keys. Personal conversation visibility and activation do not change scan order; matched nodes are required for read kind 20. Inbox admission and product access remain under development. / MQTT 收件箱目录发现复用成员表稳定主键，支持有界分页与 Slot 权威读取；个人会话可见性及活跃排序不影响扫描。读取类型 20 需要匹配节点，收件箱准入与产品接入仍在开发。
+
+- Handle MQTT SUBSCRIBE/UNSUBSCRIBE with ordered per-filter reasons, QoS/options and subscription identifiers. Bounded pending completion preserves uncertain intents; unsubscribe retains exchanges awaiting PUBACK. Real Paho group coverage passes; inbox and product listener wiring remain under development. / MQTT 接入 SUBSCRIBE/UNSUBSCRIBE，按原顺序返回过滤器结果，保存 QoS、选项及订阅标识；有界等待保留未确认意图，退订保留等待 PUBACK 的交换。真实 Paho 群订阅已验证，收件箱和产品监听仍在开发。
+
+- Prepare MQTT group subscriptions before the first business message by reusing bounded Channel runtime initialization and freshly checking source authority. Denied subscriptions create no runtime; product access remains under development. / MQTT 群订阅可在首条业务消息之前准备完成，复用有界 Channel 运行时初始化并重新核验消息源权威；拒绝的订阅不创建运行时，产品接入仍在开发。
+
+- Bind MQTT connection open to automatic delivery, wake sending after committed PUBACK, and expedite cleanup after disconnect while retaining unfinished work. Real TCP/Paho coverage verifies takeover retransmission and receive credit; product listener and subscription entry remain under development. / MQTT 连接打开后自动注册投递，PUBACK 提交后唤醒发送，断开后加速清理并保留未完成工作；真实 TCP/Paho 验证接管重发与接收额度，产品监听和订阅入口仍在开发。
+
+- Automatically discover existing MQTT subscription sources, account protected backlog and schedule sending after old-exchange recovery; quota reply loss and accounting-time revocation preserve exact-owner cleanup. Product listener and offline scheduling remain under development. / MQTT 可自动发现既有订阅消息源、计量受保护积压，并在恢复旧交换后调度发送；超限回包丢失及计量时撤权均保留精确 owner 清理。产品监听与离线调度仍在开发。
+
+- Add bounded MQTT connection delivery scheduling with fair turns, coalesced wakes, retry backoff and joined shutdown. Automatic source discovery and product listener wiring remain under development. / MQTT 增加有界连接投递调度，支持公平轮转、唤醒合并、失败退避和等待任务退出的停止流程；自动消息源发现与产品监听接入仍在开发。
+
+- Refresh committed replay progress on idle voters during anchored planning, preventing a new MQTT subscriber from waiting indefinitely for another message. / 锚点规划会刷新空闲投票副本的已提交进度，避免新 MQTT 订阅必须等到下一条消息才能完成恢复。
+
+- Use fresh Slot-authoritative MQTT receive checks with one coherent channel/member snapshot. Group removal or rejoin invalidates old subscriptions and exchanges; send mutes preserve receiving. RPC 91 read kind 19 requires matched nodes; product access remains under development. / MQTT 接收权限改用 Slot 权威的一致频道/成员快照；退群或重加入使旧订阅与交换失效，发送禁言不影响接收。RPC 91 读取类型 19 要求匹配节点，产品接入仍在开发。
+
+- Preserve stable subscriber join identities across retries, rejoin, channel recreation and backup/JSONL transfer, preparing MQTT receive authorization to reject old membership grants. Matching writers/tools are required; product MQTT access remains under development. / 成员加入代次可跨重试、退群重加、删群重建和备份/JSONL 迁移保存，为 MQTT 拒绝旧成员授权提供依据；要求匹配版本的写入节点和工具，产品接入仍在开发。
+
+- Add bounded MQTT connection sending with old-exchange-first recovery, send-time permission checks, revocation ending and QoS 0 completion across concurrent ACK/renewal. Gateway sink preserves receive credit and PUBACK identity; product scheduling remains under development. / MQTT 增加有界连接发送编排，先恢复旧交换，再检查当前权限发送；撤权结束会话，QoS 0 完成可跨 ACK/续租版本变化核对。网关出口保留接收额度及 PUBACK 身份，产品调度仍在开发。
+
+- Add exact-owner MQTT Session ending for revocation, source loss and explicit cleanup, preserving unfinished delivery and Will state and requiring a fresh lifetime on reconnect. Automatic triggers and product wiring remain under development. / MQTT 增加撤权、源丢失及显式清理的精确 owner 会话结束路径，保留未完成投递和 Will 状态，重连使用新生命周期；自动触发及产品接入仍在开发。
+
+- Prevent original MQTT/Will QoS 0 from being retried after a crash or takeover by consuming its source position before returning a send candidate. QoS 1 downgraded to QoS 0 keeps post-enqueue accounting. Product sending remains under development. / 原始 MQTT/Will QoS 0 在返回发送候选前消费源位置，防止崩溃或接管后重复发送；QoS 1 降为 QoS 0 仍保留入队后计量。产品发送仍在开发。
+
+- Prepare existing MQTT exchanges in original send order from authoritative replay content, preserving packet identity and frozen options across unsubscribe/replacement while rejecting changed receive permissions. Autonomous reconnect sending remains under development. / MQTT 旧交换可按原发送顺序从权威回放原文准备，退订或同名订阅替换后仍保留包身份与既定选项，并拒绝已变化的接收权限；自动重连发送仍在开发。
+
+- Add MQTT QoS 0 enqueue without consuming QoS 1 receive credit, preserve original native/Will expiry, and reserve bounded output space for server-added properties. Product send/recovery scheduling remains under development. / MQTT QoS 0 发送入队不占用 QoS 1 接收额度，保留原生及 Will 过期时钟，并为服务端附加属性预留有界出站空间；产品发送及恢复调度仍在开发。
+
+- Prepare MQTT delivery from anchored original messages, confirm durable QoS 1 exchanges before returning them, and preserve queued charges when subscriptions downgrade to QoS 0 until enqueue completion. Product sending and recovery scheduling remain under development. / MQTT 投递准备读取已提交锚点内原文，QoS 1 入窗后回读确认持久交换；订阅降为 QoS 0 时保留积压计量，直至发送入队完成后扣减。产品发送和恢复调度仍在开发。
+
+- Compute MQTT online/offline backlog from committed original replay messages, preserving publication QoS, No Local and expiry while rejecting stale ownership, changed permissions and incomplete source evidence. Product scheduling and delivery remain under development. / MQTT 在线及离线积压改由已提交原始回放消息计算，保留发布 QoS、No Local 和过期语义，拒绝陈旧所有权、权限变化及不完整源证明；产品调度和投递仍在开发。
+
+- Preserve exact MQTT backlog charges across subscription-option and expiry changes, with bounded atomic debit and resumable unsubscribe cleanup. Slot command 82 operation 4 and metadata read kind 18 require matching nodes/tools; product MQTT delivery remains under development. / MQTT 保存原始积压条数与字节计量，支持订阅选项或过期变化后的精确扣减及分批退订清理；Slot 命令 82 操作 4、读取类型 18 要求匹配节点和工具，产品投递仍在开发。
+
+- Bind MQTT outbound QoS 1 packets to exact durable exchanges, respect Receive Maximum, and commit PUBACK through current Session ownership. Reconnect preserves packet identity; failed writes/confirmations retain durable recovery. Product MQTT delivery remains under development. / MQTT 下行 QoS 1 绑定精确持久交换并遵守 Receive Maximum，PUBACK 通过当前 Session 所有权提交；重连保留包身份，写入或确认失败仍保留持久恢复。产品 MQTT 投递仍在开发。
+
+- Preserve original MQTT delivery fields and identify internal controls from committed native log proofs when reading shared content; reject incomplete proofs and malformed pages. Internal RPC 102 now requires v2; product delivery remains under development. / 共享内容读取保留原始投递字段，并依据已提交原生日志证明识别内部控制记录；证明缺失或分页损坏时拒绝读取。内部 RPC 102 现要求 v2，产品投递仍在开发。
+
+- Read bounded MQTT shared-content pages through current cluster routing after original-history trim, with committed-anchor checks and independent read backpressure. Internal RPC 102 requires matching nodes; product MQTT delivery remains under development. / 原始历史裁剪后，MQTT 共享内容可通过当前集群路由分页读取，核验已提交锚点并独立限制读取并发；内部 RPC 102 要求匹配节点，产品投递仍在开发。
+
+- Compose durable MQTT group subscription establishment with shared-replay confirmation on every eligible replica and current-owner/permission checks; incomplete recovery keeps the subscription pending. Product MQTT access remains under development. / MQTT 群订阅建立接入所有候选副本的共享回放确认及当前所有者、权限检查；恢复未完成时保留准备状态，产品接入仍在开发。
+- Seal MQTT unsubscribe ranges and release unadmitted backlog without discarding inflight exchanges; interrupted preparations can be cancelled explicitly, including failures before their first binding commit. Slot command 82 operation 3 requires matching nodes; product MQTT access remains under development. / MQTT 退订固定处理区间并释放未发送积压，保留已发送未确认交换；中断的准备流程支持显式取消，包括首次绑定写入前失败的情况。Slot 命令 82 操作 3 要求匹配节点，产品接入仍在开发。
+
+- Complete MQTT consumer-binding removal with separately committed source acknowledgements, fresh end/drain proof and recoverable tombstones. Lost replies and subscription replacement preserve responsibilities; product MQTT access remains under development. / MQTT 消费绑定移除新增独立提交的源端确认，重新核验会话终止或处理完成证明，并保留可恢复 tombstone；回包丢失与订阅换代不会丢失责任，产品接入仍在开发。
+
+- Preserve MQTT replay cleanup discovery after the last consumer leaves by paging retained source-binding tombstones. No new table/index is needed; RPC 91 read kind 17 requires matching nodes. Product MQTT access remains under development. / MQTT 最后一个消费者退出后仍可通过保留的绑定 tombstone 发现回放清理任务，无需新表或索引；RPC 91 读取类型 17 要求匹配节点，产品接入仍在开发。
+
+- Schedule MQTT replay retirement alongside bounded copy/recovery, and resume learner replication after original-prefix trim only with matching durable identity. Three-node reopen verifies applied retirement; product MQTT access remains under development. / MQTT 回放后台轮转复制、恢复与回收；原始前缀裁剪后，learner 仅在持久身份匹配时续传。三节点重开验证回收边界已应用，产品 MQTT 接入仍在开发。
+
+- Connect ordered MQTT consumer progress to bounded retirement selection and replicated decisions; ACK gaps and unknown registrations prevent unsafe reclamation. Automatic scheduling and product MQTT access remain under development. / MQTT 消费者水位接入有界回收选择和复制决策，乱序 ACK 缺口及未知订阅阻止越界回收；自动调度及产品接入仍在开发。
+
+- Propagate committed MQTT replay retirement to idle voters without waiting for another message; retries renew bounded native repair and preserve authority checks. Product MQTT access remains under development. / MQTT 回放回收提交后主动向空闲投票副本传播，幂等重试补发有界修复并保留权威校验，无需等待后续消息；产品接入仍在开发。
+
+- Route bounded MQTT retirement selection and commits through fresh Slot authority and the Channel append queue; retries preserve durable identities and started commits survive observer cancellation. RPCs 100/101 require matching nodes; no storage format changes. Product wiring remains under development. / MQTT 有界回收选择与提交接入新鲜 Slot 权威及 Channel 追加队列；重试保留持久身份，观察者取消不撤销已开始的提交。RPC 100/101 需要匹配节点，无存储格式变化；产品接入仍在开发。
+
+- Keep idle MQTT replay sources from repeatedly copying anchor/retirement controls by verifying bounded maintenance-only tails; later business resumes contiguous copying. Product access remains under development. / MQTT 回放核验有界维护记录尾部，避免空闲时反复复制锚点和回收记录；新业务到达后继续连续复制，产品接入仍在开发。
+
+- Apply committed MQTT replay retirement before replica recovery requests donor content, with bounded cleanup and restart continuation. RPC 99 v3 is explicit; product MQTT access remains under development. / MQTT 副本恢复在索取消息前应用已提交回收决策，支持分批清理和重启续作；RPC 99 v3 显式启用，产品接入仍在开发。
+
+- Add durable MQTT replay retirement baselines and bounded storage cleanup, preserving suffix recovery and pruned version-3 backups; restore publishes replay coverage only after content installation. Product admission and scheduling remain under development. / MQTT 回放新增持久回收基线和有界存储清理，保留后缀恢复与 version-3 备份；恢复仅在内容写完后发布覆盖进度。产品准入与调度仍在开发。
+
+- Persist MQTT replay-retirement decisions as explicit proposal format 6 with independently verified anchor references, replicated journals and backup preservation; bounded historical selection rounds consumer floors down to complete anchors. Matching replicas/tools are required; product admission and physical shared-content GC remain under development. / MQTT 回放回收决策新增显式 proposal format 6，独立核验锚点引用并保留复制日志及备份；有界历史选择将消费者水位向前取整到完整锚点。需要匹配副本与工具，产品准入及共享内容物理回收仍在开发。
+
+- Validate MQTT consumer retention floors in a strict snapshot, capturing accepted replay anchors before reading obligations so concurrent subscriptions cannot be skipped. Physical shared-content GC and product access remain under development. / MQTT 消费者保留水位采用严格一致快照，先固定已提交回放锚点、再读取消息责任，避免跳过并发订阅；共享内容物理回收及产品接入仍在开发。
+
+- Project durable MQTT consumer completion into source bindings while preserving ACK gaps and pending removal after Session termination. No new storage format is required; shared-content GC and product access remain under development. / MQTT 持久消费进度接入源绑定，保留乱序 ACK 缺口及会话结束后的清理责任；无需新增存储格式，共享内容回收与产品接入仍在开发。
+
+- Automatically release original MQTT source prefixes after background recovery verifies committed replay coverage on each replica. Explicit RPC 99 v2 acknowledgements retain fresh authority checks; shared-content GC and product access remain under development. / 后台恢复逐副本验证已提交回放内容后，自动推进原始消息清理水位；RPC 99 v2 显式确认释放并核验最新权威，共享内容回收与产品接入仍在开发。
+
+- Add a storage boundary for releasing original MQTT source messages only after verifying a committed replay anchor and local content coverage; preserve protection across cleanup, restart and backup restore. Automatic release and product access remain under development. / 新增原始 MQTT 消息安全清理的存储接口，核验已提交回放锚点和本地内容覆盖后才推进水位，并验证清理、重启及备份恢复；自动释放与产品接入仍在开发。
+
+- Refresh a cached Channel leader once when its RPC dial fails, allowing sends to resume after failover without changing uncertain-send recovery. Verify MQTT replay recovery with the old leader stopped. / 修复旧 Leader 停止后发送仍停留在缓存路由的问题：明确拨号失败时刷新路由并重试一次，未决发送恢复规则保持不变；已验证旧 Leader 停止后的 MQTT 回放恢复。
+
+- Require local MQTT replay coverage before planned Channel cutover and migration fence clearing; temporary catch-up stays runnable. Repair leader checkpoint propagation and graceful-drain fence application. Product MQTT access remains under development. / 频道计划迁移切换与解除写入封禁前核验 MQTT 本地回放覆盖，暂时落后可继续恢复；修复 Leader 检查点传播及排空前封禁应用，产品 MQTT 接入仍在开发。
+
+- Allow MQTT replay planning and background replica recovery under a stable migration write fence, while keeping new copying and business writes fenced. Product MQTT admission remains under development. / MQTT 回放规划与后台副本恢复可在稳定迁移写入栅栏下继续执行，新复制和业务写入仍受阻；产品 MQTT 接入仍在开发。
+
+- Expose replica-local MQTT replay coverage in active migration probes, distinguishing a caught-up native log from complete replay content. Migration admission and product MQTT access remain under development. / 主动迁移探测新增 MQTT 副本回放覆盖证据，区分原生日志追平与回放内容齐全；迁移准入和产品 MQTT 接入仍在开发。
+
+- Add managed background MQTT replay scheduling with bounded per-Slot state, rotating source/replica work and joined restart. Three-node automatic learner recovery is verified; full product MQTT admission remains under development. / 新增 MQTT 回放后台调度，按 Slot 限制状态、轮转消息源与副本，并在停止排空后重启；三节点自动补齐 learner 已验证，完整产品入口仍在开发。
+
+- Coordinate bounded MQTT replay copying and replica recovery with resumable per-replica progress and fair retries. Three-node composition is verified; automatic scheduling and product MQTT admission remain under development. / MQTT 回放新增有界复制与副本恢复编排，保留各副本续传进度并公平轮转失败任务；三节点装配已验证，自动调度及产品入口仍在开发。
+
+- Discover MQTT replay sources once per source generation using bounded authoritative pages, avoiding scans through every subscriber of a large group. Preparing and removing obligations remain discoverable; automatic scheduling and product MQTT admission remain under development. / MQTT 回放新增有界、权威的按源代次分页发现，避免逐个遍历大群订阅者，保留准备中和撤销中的处理义务；自动调度及产品接入仍在开发。
+
+- Add target-owned MQTT replay recovery steps with bounded donor rotation, resumable progress and fresh cluster fencing. Verified across replica restart; background scheduling and the product MQTT listener remain under development. / MQTT 回放新增目标副本自主恢复步骤，支持有界供数轮转、进度续传和最新集群权威校验；已验证副本重启，后台调度及产品监听仍在开发。
+
+- Select bounded MQTT recovery intervals from durable replica progress, validating scan continuations and preserving recovery after cleanup and restart. Automatic runtime scheduling and the product MQTT listener remain under development. / MQTT 恢复新增基于副本持久进度的有界区间规划，校验续扫游标并支持清理及重启后的恢复；后台运行时调度和 MQTT 产品监听仍在开发。
+
+- Repair shared MQTT content across current replicas with bounded internal RPC 98 and independent committed-anchor checks, including learner recovery and restart retries. Matching peers are required; automatic repair scheduling and the product MQTT listener remain under development. / 共享 MQTT 内容新增有界内部 RPC 98 跨副本修复，独立核验已提交锚点，支持 learner 恢复及重启重试；要求节点版本匹配，自动修复调度和 MQTT 产品监听仍在开发。
+
+- Verify shared MQTT replay repairs against the receiver's own committed content anchor, preserving recovery after original-history cleanup and restart. Network repair scheduling and the product MQTT listener remain under development. / 共享 MQTT 回放恢复改由接收方自身已提交内容锚点校验，支持原始历史清理及重启后的恢复；网络修复调度和 MQTT 产品监听仍在开发。
+
+- Plan MQTT replay from a coherent committed source/anchor view through fresh cluster routing and bounded RPC 97; resume from accepted progress after restart and avoid copying idle anchor tails. Source release and the product MQTT listener remain under development. / MQTT 回放规划已接入一致的已提交源/锚点视图、最新集群路由和有界 RPC 97，重启后从已接受进度续传并跳过纯锚点空闲尾部；源释放和 MQTT 产品监听仍在开发。
+
+- Route MQTT replay anchor commits through fresh Slot authority and bounded internal RPC 96, preserving exact retries after Channel leader changes and restart. Fix Controller Raft pointer publication racing inbound messages during restart. The product MQTT listener remains under development. / MQTT 回放证明提交已接入最新 Slot 权威与有界内部 RPC 96，换主和重启后保留精确重试；修复 Controller 重启时 Raft 指针发布与入站消息竞争。MQTT 产品监听仍在开发。
+
+- Route MQTT replay anchor admission through bounded Channel workers and ordinary append ordering, retaining durable progress after caller cancellation and exact proofs across restart. Fresh cluster routing and the MQTT product listener remain under development. / MQTT 回放证明准入接入有界 Channel worker 与普通追加顺序，调用取消后仍保留已提交进度，重启后继续复用证明；新鲜集群路由及 MQTT 产品监听仍在开发。
+
+- Serialize MQTT replay anchor acceptance with Channel writes, validate current-voter copy evidence, and preserve exact retries across restart and leader changes. Reactor/cluster entry wiring and automatic source release remain under development. / MQTT 回放证明接入 Channel 串行提交器，校验当前副本复制回执并支持重启、换主后的精确重试；reactor/集群入口及自动源释放仍在开发。
+
+- Persist MQTT replay content anchors through Channel quorum replication, recovery and backups, retaining verifiable proofs after original history cleanup. New format-5 controls require matching runtimes/tools; MQTT admission and automatic release remain unavailable. / MQTT 回放内容证明已支持 Channel 多数派复制、恢复和备份，原始历史清理后仍可核验；新增 format-5 控制记录要求运行时及工具版本匹配，MQTT 入口和自动释放尚未开放。
+
+- Add current-quorum confirmation for shared MQTT replay, with independent full-content checks on each voter and bounded internal RPC 95. Copy receipts do not release source history; the MQTT product listener remains unavailable. / 新增共享 MQTT 回放的当前多数副本确认，各副本独立校验完整内容，使用有界内部 RPC 95；复制回执不释放原始历史，MQTT 产品入口仍未开放。
+
+- Route shared MQTT replay preparation through fresh cluster authority, preserving content across Channel leader changes and restart while rejecting isolated cached routes. Internal RPC 94 requires matching peers; replicated-copy coordination and product MQTT admission remain under development. / 共享 MQTT 回放准备接入新鲜集群权威，换主和重启保持内容一致并拒绝孤立节点缓存路由；内部 RPC 94 需匹配节点，复制确认编排及产品 MQTT 入口仍在开发。
+
+- Prepare shared MQTT replay through recovered Channel leader admission and bounded workers, preserving short-page retries and original-source protection across restart. Distributed copying and product MQTT admission remain under development. / 共享 MQTT 回放准备接入已恢复 Channel leader 的准入与有界 worker，重启后保留短页重试和原始源保护；跨节点复制及产品 MQTT 入口仍在开发。
+
+- Add bounded shared MQTT replay recovery with atomic imports, committed-log validation and an independently accepted full-content digest, preserving retries after original-body cleanup and restart. Distributed recovery and product MQTT admission remain under development. / 新增共享 MQTT 回放的有界恢复与原子导入，核对已提交日志及独立确认的完整内容摘要，支持原文清理和重启后的重试；跨节点恢复及产品 MQTT 入口仍在开发。
+
+- Preserve group MQTT consumption start positions while preparing durable source bindings and cursors, including lost commit replies and cross-node Session takeover. Complete subscription recovery and product MQTT admission remain under development. / 群 MQTT 源绑定与消费游标准备过程中保留首次起点，覆盖提交回复丢失和跨节点会话接管；完整订阅恢复及产品 MQTT 入口仍在开发。
+
+- Route MQTT source protection to the current Channel leader with fresh Slot quorum checks, preserving protection across leader changes and restart and rejecting isolated cached authority. Internal source RPC 93 requires matching peers; product MQTT access remains under development. / MQTT 源保护按当前 Channel leader 路由，使用新鲜 Slot 多数派确认，换主和重启保留保护并拒绝孤立节点的缓存权威；内部 RPC 93 需匹配节点，产品 MQTT 接入仍在开发。
+
+- Add fenced Channel admission for MQTT source protection, preserving message ordering and confirming a durable committed boundary before returning. Existing protection avoids repeated activation records; the product MQTT listener remains under development. / 新增 MQTT 源保护的 Channel 准入，保持消息顺序并在返回前确认持久提交边界；已有保护不重复追加激活记录，产品 MQTT 监听仍在开发。
+
+- Replicate MQTT source activation through the Channel quorum log, retaining pending protection and restoring it across restart, leader recovery and learner catch-up. Matching format-4 replicas/tools are required; product MQTT admission remains under development. / MQTT 源保护激活接入 Channel 多数派日志，保留未决保护并覆盖重启、换主恢复及 learner 追赶；须使用支持格式 4 的副本和工具，产品 MQTT 入口仍在开发。
+
+- Prevent protected MQTT source loss through checkpoint regression, missing-checkpoint recreation or concurrent suffix truncation. Distributed MQTT activation remains under development. / 修复检查点回退、丢失检查点重建及并发截断绕过 MQTT 消息源保护的问题；跨节点 MQTT 激活仍在开发。
+
+- Add recoverable MQTT subscription intent orchestration with owner fencing, bounded subscription admission and safe removal ordering. Distributed source activation and product MQTT admission remain under development. / 新增可恢复的 MQTT 订阅意图编排，按连接 owner 校验、有界接纳订阅并保留撤销顺序；跨节点源保护激活及产品入口仍在开发。
+
+- Add MQTT gateway handshake, authenticated publishing and asynchronous disconnect handling, including normal DISCONNECT followed immediately by TCP close. Verified with Paho against a single-node cluster; product MQTT admission remains under development. / 新增 MQTT 网关握手、认证发布和异步断连处理，正确保留发送 DISCONNECT 后立即关闭 TCP 的正常退出意图；已用 Paho 对单节点集群验证，产品 MQTT 入口仍在开发。
+
+- Add bounded MQTT connection renewal and asynchronous disconnect scheduling, preserving original disconnect timing through retries and joined shutdown. Product MQTT admission remains under development. / 新增有界 MQTT 连接续租与异步断连调度，重试保留原始断连时刻，停止等待已接纳任务完成；产品 MQTT 入口仍在开发。
+
+- Add the authenticated MQTT PUBLISH adapter over existing IM permissions and durable sends, with committed QoS 1 acknowledgments and takeover fencing for uncertain writes. Product MQTT admission and uncertain-write recovery remain under development. / MQTT 发布适配复用现有 IM 权限与持久消息链路，QoS 1 提交后确认；未决写入阻止接管产生错误隔离证明。产品 MQTT 入口与未决写入恢复仍在开发。
+
+- Add bounded MQTT Session/Will deadline scanning across locally led hash slots, with fair paging and joined shutdown/restart. Product MQTT admission remains under development. / 新增按本节点负责 hash slot 执行的有界 MQTT 会话与 Will 到期扫描，支持公平分页及等待任务退出的停止/重启；产品 MQTT 入口仍在开发。
+
+- Reconcile MQTT Session and Will deadlines through current cluster authority, preserving detached Will obligations and rejecting stale-owner cleanup. Product MQTT access remains under development. / MQTT 会话及 Will 到期处理复用当前集群权威，保留独立发布义务并拒绝旧 owner 清理；产品 MQTT 接入仍在开发。
+
+- Validate MQTT Will setup against current IM publish permissions without using cached grants or creating messages; product MQTT access remains under development. / MQTT Will 配置复用当前 IM 发布权限，绕过缓存授权且不产生消息；产品 MQTT 接入仍在开发。
+
+- Add authenticated MQTT Session acquisition, bounded local renewal and atomic disconnect/Will orchestration through cluster metadata, including exact-owner takeover RPC. Product MQTT admission and unavailable-owner recovery remain under development. / 新增经集群元数据编排的 MQTT 会话认证获取、有界本地续租、断连与 Will 原子处理，并接入精确 owner 接管 RPC；产品 MQTT 入口及失联 owner 恢复仍在开发。
+
+- Add an optional gateway physical-close receipt for safe connection isolation, independently of business cleanup. TCP/WebSocket use completed transport close callbacks; canceled waits share the same close request. MQTT product wiring remains incomplete. / 网关新增独立于业务清理的物理连接关闭确认，TCP/WebSocket 以底层关闭完成回调为准，取消等待后仍复用同一次关闭请求；MQTT 产品装配尚未完成。
+
+- Add bounded MQTT connection-owner admission, lease-expiry fencing and exact-owner quiescence RPC 92. Product wiring remains under development; the MQTT listener stays unavailable. / 新增有界 MQTT 连接 owner 准入、租约到期隔离及精确 owner 静默确认 RPC 92；产品装配仍在开发，MQTT 入口尚未开放。
+
+- Add authoritative cluster access for MQTT session metadata, with coherent recovery pages and committed conditional-write results. Internal read RPC 91 requires matching peers; the MQTT listener remains unavailable. / 新增 MQTT 会话元数据的集群权威访问、一致恢复分页和已提交条件写入结果；内部读取 RPC 91 要求匹配节点，MQTT 入口仍未开放。
+
+- Add shared MQTT replay storage with bounded range accounting and backup version 2, preserving content after source-history cleanup without duplicate message-ID entries. Replay backups require matching tools; distributed MQTT access remains under development. / 新增共享 MQTT 回放存储、有界范围计量和二进制备份 v2，源历史清理后仍保留正文且不重复占用消息 ID 索引；回放备份须使用匹配工具，跨节点 MQTT 接入仍在开发。
+
+- Add replica storage guards for MQTT source retention and bounded original-content reads, preserving protection through binary backups. Replicated activation and shared replay remain under development; MQTT access stays unavailable. / 新增 MQTT 消息源保留的副本存储保护及有界原文读取，二进制备份保留保护状态；复制激活与共享回放仍在开发，MQTT 入口尚未开放。
+
+- Add a separate durable Will identity index and committed retry lookup, preserving client message numbers and reserving publication identity space during setup. Keyed Will records require matching runtimes/tools; the MQTT product listener remains unavailable. / 新增 Will 独立持久幂等索引与已提交重试查询，保留客户端消息号并在配置时预留发布身份空间；带服务端身份的 Will 数据要求匹配的运行时和工具，MQTT 产品入口仍未开放。
+
 ### 🔧 Improvements / 改进
 
+- Preserve optional publication metadata in offline message inspection and JSONL transfer; validation and comparison now detect invalid or changed metadata while native rows retain their previous format. / 离线消息查看和 JSONL 导入导出保留可选发布元数据，校验与对比能够识别无效或变化的元数据，原生消息行格式保持兼容。
+
+- Owner-push RPC 2 preserves publication metadata, message settings and the original timestamp across nodes. Upgrade recipient owners together; extended envelopes, including native sends with timestamps, cannot fall back to older peers. / owner-push RPC 2 保留跨节点投递的发布元数据、消息设置和原始时间戳；接收连接所在节点须同步升级，含扩展字段的消息（包括带时间戳的原生消息）不会降级转发给旧节点。
+
+- Preserve publication metadata through send commands and forwarding, and verify retries against original committed content so later message edits cannot cause false conflicts. The MQTT product listener remains unavailable. / 发送命令与转发保留发布元数据，重试使用原始已提交内容校验，避免后续消息编辑造成错误冲突；MQTT 产品入口仍未开放。
+
+- Channel quorum exchange now requires matched version-6 peers, including native traffic before MQTT is enabled. Upgrade replicas together; older data-bearing exchanges are rejected. / Channel 多数派复制协议升级为 exchange 6，MQTT 尚未启用时的原生消息流量同样要求各副本版本一致；须同步升级副本，旧版数据交换将被拒绝。
+
+- Add bounded MQTT 5 codec and reusable gateway packet support, including negotiated Keep Alive and packet limits, plus owner-fenced session/subscription storage, per-source backlog accounting, a durable QoS 1 window, source-owned subscription projections and atomic Session/Will storage transitions, plus versioned publication metadata storage and lossless Channel replication/RPC, as groundwork for MQTT IM access; the product listener remains unavailable while durable session support is under development. / 新增有界 MQTT 5 编解码及网关 packet 接口，支持协商心跳和包长限制，以及受 owner 保护的会话/订阅存储、按消息源计算的积压计量、持久 QoS 1 窗口、源端订阅关系及 Will 存储与会话生命周期原子变更，并补充发布元数据的版本化存储与 Channel 复制/RPC 传播；完整持久会话仍在开发，产品 MQTT 入口尚未开放。
 - Preserve bounded native-package bootstrap progress, PID 1, systemd jobs and boot journal diagnostics before removing a failed lifecycle container. / 原生包生命周期验证失败时，清理容器前保留有界安装阶段、PID 1、systemd 作业及启动日志诊断。
 
 - Simplify bilingual Controller and Slot architecture guides with compact materialization, staged-task, key-routing and metadata-write diagrams; retain complete references in disclosures while keeping physical/logical Slot, observed authority, single-node Raft/FSM, proof, recovery and bounded-capacity rules visible. / 中英文 Controller 与 Slot 架构文档增加简洁的物化、阶段任务、键路由与元数据写入图；完整参考按需展开，物理槽/逻辑 Group、实时权威、单节点 Raft/FSM、证明、恢复与有界容量规则保持可见。
@@ -134,6 +414,10 @@ move those entries into a version section named for that exact tag.
 - Add text-message editing to the embedded Demo for sent messages in direct and group chats, with conflict/draft handling and live message/preview updates. / 内嵌 Demo 支持编辑本人已发送的单聊、群聊文本，处理冲突与草稿，并实时更新正文及会话摘要。
 
 ### 🐛 Bug Fixes / 问题修复
+
+- Refuse JSONL exports containing persistent MQTT bindings, replay, Will or capacity evidence before touching the output directory; preserve the source and existing bundles. Use matching native backup/restore tools for MQTT data. / JSONL 导出在写入或覆盖输出目录前拒绝含 MQTT 持久绑定、回放、遗嘱或容量证明的数据，保留原数据与已有导出文件；MQTT 数据需使用匹配版本的原生备份恢复工具。
+
+- Include MQTT maintenance, storage and subscription-closure metrics plus Slot read-barrier latency in the runtime/storage Grafana dashboard. / 运行与存储 Grafana 面板补齐 MQTT 维护、容量、订阅关闭指标及 Slot 读屏障延迟。
 
 - Rebuild Node-owned Slot proposal, task and quorum RPC dependencies after Stop or failed startup, preserving injected adapters and durable messages across repeated starts. / 停机或启动失败后重新构建 Node 自建的 Slot 提案、任务及 quorum RPC 依赖，保留注入适配器与消息持久化状态，修复同一 Node 重复启动无法写入的问题。
 

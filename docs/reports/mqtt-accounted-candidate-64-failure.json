@@ -1,0 +1,24 @@
+{
+  "configured": {
+    "churn_rounds": 3,
+    "churn_subscribers": 64,
+    "connections": 64,
+    "members": 2000,
+    "messages": 20
+  },
+  "confirmed_members": 2000,
+  "failed_phase": "churn",
+  "hash_slots": 256,
+  "initial_slots": 12,
+  "nodes": 1,
+  "passed": false,
+  "phase_ms": {
+    "connect_subscribe": 2340,
+    "fanout": 30471,
+    "idle_measurement": 10053,
+    "provision_members": 2473,
+    "provision_tokens": 198
+  },
+  "profile_enabled": false,
+  "scenario": "mqtt-group-scale"
+}

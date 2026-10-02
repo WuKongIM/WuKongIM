@@ -1,0 +1,9 @@
+package mqttsession
+import("context";"errors";"fmt";"os";"sync/atomic")
+type debugUnsubscribeKey struct{}
+var debugUnsubscribeCount atomic.Uint64
+func debugUnsubscribeProbe(ctx context.Context,site string,err error)error{
+if !errors.Is(err,ErrConflict){return err};n:=debugUnsubscribeCount.Add(1);if n>512{return err};foreground:=ctx!=nil&&ctx.Value(debugUnsubscribeKey{})==true
+line:=fmt.Sprintf("[DEBUG-unsub-c3f4] n=%d site=%s foreground_unsubscribe=%t definite_subscription_cas=%t\n",n,site,foreground,errors.Is(err,errSubscriptionCASRejected))
+fmt.Fprint(os.Stderr,line);f,e:=os.OpenFile("/tmp/mqtt-unsubscribe-diagnostic/conflicts.log",os.O_CREATE|os.O_APPEND|os.O_WRONLY,0600);if e==nil{_,_=f.WriteString(line);_=f.Close()};return err}
+

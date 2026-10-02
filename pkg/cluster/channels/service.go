@@ -16,6 +16,7 @@ import (
 	channeltransport "github.com/WuKongIM/WuKongIM/pkg/channel/transport"
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	goruntimeregistry "github.com/WuKongIM/WuKongIM/pkg/goroutine"
+	nodetransport "github.com/WuKongIM/WuKongIM/pkg/transport"
 )
 
 const forwardAppendRecoveryTimeout = 100 * time.Millisecond
@@ -298,17 +299,27 @@ type Config struct {
 
 // Service wraps Channel and exposes both client and replication surfaces.
 type Service struct {
+	// MQTT copy coordination and replica I/O have separate no-queue admission.
+	mqttCopyCoordinators, mqttCopyReceivers chan struct{}
+	// Repair receivers and donor reads have separate bounded, no-queue admission.
+	mqttRepairReceivers, mqttRepairDonors chan struct{}
+	// Consumer content reads cannot occupy repair admission or wait in a queue.
+	mqttConsumerReads chan struct{}
+	// willReceiptReads bounds foreground publication-proof queries without waiting.
+	willReceiptReads chan struct{}
 	// persistedReads bounds disk-only batches across all callers on this node; overflow fails immediately.
 	persistedReads chan struct{}
 	// replicaStore reads native exchange durability independently of reactor residency.
 	replicaStore replication.ReplicaStore
-	runtime      channelRuntime
-	localNode    ch.NodeID
-	metaSource   ChannelMetaSource
-	ensurer      ChannelMetaEnsurer
-	forward      ForwardClient
-	store        channelstore.Factory
-	metaCache    channelMetaCache
+	// replicaCommitRefresh propagates only an installed native sequencer frontier.
+	replicaCommitRefresh replication.CommittedReplicaRefresher
+	runtime              channelRuntime
+	localNode            ch.NodeID
+	metaSource           ChannelMetaSource
+	ensurer              ChannelMetaEnsurer
+	forward              ForwardClient
+	store                channelstore.Factory
+	metaCache            channelMetaCache
 	// metaApplyLocks serialize complete metadata application per channel shard.
 	// They prevent a delayed cached apply from following a newer explicit apply.
 	metaApplyLocks [channelMetaApplyLockCount]sync.Mutex
@@ -367,7 +378,8 @@ func NewService(cfg Config) (*Service, error) {
 		}
 	}
 	ensurer, _ := cfg.MetaSource.(ChannelMetaEnsurer)
-	return &Service{persistedReads: make(chan struct{}, persistedConversationReadBatches), replicaStore: replicaStore, runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, store: cfg.Store, observer: cfg.Observer, migration: cfg.MigrationStore, goroutines: cfg.Goroutines}, nil
+	commitRefresh, _ := cfg.QuorumLog.(replication.CommittedReplicaRefresher)
+	return &Service{willReceiptReads: make(chan struct{}, willReceiptConcurrent), mqttConsumerReads: make(chan struct{}, mqttConsumerConcurrent), mqttRepairReceivers: make(chan struct{}, mqttRepairConcurrent), mqttRepairDonors: make(chan struct{}, mqttRepairConcurrent), mqttCopyCoordinators: make(chan struct{}, mqttCopyConcurrent), mqttCopyReceivers: make(chan struct{}, mqttCopyConcurrent), persistedReads: make(chan struct{}, persistedConversationReadBatches), replicaStore: replicaStore, replicaCommitRefresh: commitRefresh, runtime: combined, localNode: cfg.LocalNode, metaSource: cfg.MetaSource, ensurer: ensurer, forward: cfg.Forward, store: cfg.Store, observer: cfg.Observer, migration: cfg.MigrationStore, goroutines: cfg.Goroutines}, nil
 }
 
 // Runtime returns the Channel public cluster surface.
@@ -390,6 +402,18 @@ func (s *Service) ApplyMeta(meta ch.Meta) error { return s.applyRuntimeMeta(meta
 
 // Append appends one message.
 func (s *Service) Append(ctx context.Context, req ch.AppendRequest) (ch.AppendResult, error) {
+	if req.ExpectedRouteGeneration != 0 {
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		meta, err := s.resolvePreparedAppendMeta(ctx, req.ChannelID, req.ExpectedChannelEpoch, req.ExpectedLeaderEpoch, req.ExpectedRouteGeneration, req.CommitMode)
+		if err != nil {
+			return ch.AppendResult{}, err
+		}
+		return s.appendWithMeta(ctx, req, meta, true)
+	}
 	res, err, usedMeta, usedCache := s.appendOnce(ctx, req)
 	if err == nil || !usedCache || !retryableMetaCacheError(err) {
 		return res, err
@@ -402,6 +426,18 @@ func (s *Service) Append(ctx context.Context, req ch.AppendRequest) (ch.AppendRe
 
 // AppendBatch appends messages to one channel.
 func (s *Service) AppendBatch(ctx context.Context, req ch.AppendBatchRequest) (ch.AppendBatchResult, error) {
+	if req.ExpectedRouteGeneration != 0 {
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		meta, err := s.resolvePreparedAppendMeta(ctx, req.ChannelID, req.ExpectedChannelEpoch, req.ExpectedLeaderEpoch, req.ExpectedRouteGeneration, req.CommitMode)
+		if err != nil {
+			return ch.AppendBatchResult{}, err
+		}
+		return s.appendBatchWithMeta(ctx, req, meta, true)
+	}
 	res, err, usedMeta, usedCache := s.appendBatchOnce(ctx, req)
 	if err == nil || !usedCache || !retryableMetaCacheError(err) {
 		return res, err
@@ -477,6 +513,7 @@ func (s *Service) ReadChannelLastVisible(ctx context.Context, id ch.ChannelID, v
 			return ch.Message{}, false, err
 		}
 		resp.Message.Payload = append([]byte(nil), resp.Message.Payload...)
+		resp.Message.PublicationMetadata = append([]byte(nil), resp.Message.PublicationMetadata...)
 		return resp.Message, resp.Found, nil
 	}
 	return s.readLocalLastVisible(ctx, id, visibleAfterSeq)
@@ -515,6 +552,7 @@ func (s *Service) ReadConversationHead(ctx context.Context, id ch.ChannelID, uid
 			return ConversationHead{}, err
 		}
 		resp.Message.Payload = append([]byte(nil), resp.Message.Payload...)
+		resp.Message.PublicationMetadata = append([]byte(nil), resp.Message.PublicationMetadata...)
 		return conversationHeadFromResponse(resp), nil
 	}
 	result := s.readLocalConversationHeads(ctx, uid, []ConversationHeadRequest{{
@@ -1522,6 +1560,7 @@ func (s *Service) readLocalLastVisible(ctx context.Context, id ch.ChannelID, vis
 			continue
 		}
 		msg.Payload = append([]byte(nil), msg.Payload...)
+		msg.PublicationMetadata = append([]byte(nil), msg.PublicationMetadata...)
 		return msg, true, nil
 	}
 	return ch.Message{}, false, nil
@@ -1578,11 +1617,12 @@ func (s *Service) appendWithMeta(ctx context.Context, req ch.AppendRequest, meta
 			if err != nil {
 				recoverStarted := time.Now()
 				batch, recovered := s.recoverForwardAppendBatch(ctx, meta, ch.AppendBatchRequest{
-					ChannelID:            req.ChannelID,
-					Messages:             []ch.Message{req.Message},
-					CommitMode:           req.CommitMode,
-					ExpectedChannelEpoch: req.ExpectedChannelEpoch,
-					ExpectedLeaderEpoch:  req.ExpectedLeaderEpoch,
+					ChannelID:               req.ChannelID,
+					Messages:                []ch.Message{req.Message},
+					CommitMode:              req.CommitMode,
+					ExpectedChannelEpoch:    req.ExpectedChannelEpoch,
+					ExpectedLeaderEpoch:     req.ExpectedLeaderEpoch,
+					ExpectedRouteGeneration: req.ExpectedRouteGeneration,
 				}, err)
 				s.observeAppendStage("forward_append_recover", recoveredAppendError(recovered, err), time.Since(recoverStarted))
 				if recovered && len(batch.Items) == 1 && batch.Items[0].Err == nil {
@@ -1593,7 +1633,7 @@ func (s *Service) appendWithMeta(ctx context.Context, req ch.AppendRequest, meta
 			return res, err
 		}
 		started := time.Now()
-		err := s.applyRuntimeMeta(meta, false)
+		err := s.applyAppendMeta(ctx, meta, req.ExpectedRouteGeneration)
 		s.observeAppendStage("meta_apply", err, time.Since(started))
 		if err != nil {
 			return ch.AppendResult{}, err
@@ -1655,7 +1695,7 @@ func (s *Service) appendBatchWithMeta(ctx context.Context, req ch.AppendBatchReq
 			return res, err
 		}
 		started := time.Now()
-		err := s.applyRuntimeMeta(meta, false)
+		err := s.applyAppendMeta(ctx, meta, req.ExpectedRouteGeneration)
 		s.observeAppendStage("meta_apply", err, time.Since(started))
 		if err != nil {
 			return ch.AppendBatchResult{}, err
@@ -1741,6 +1781,19 @@ func (s *Service) applyRuntimeMeta(meta ch.Meta, authoritative bool) error {
 }
 
 func (s *Service) applyRuntimeMetaContext(ctx context.Context, meta ch.Meta, authoritative, bounded bool) error {
+	return s.applyRuntimeMetaWith(ctx, meta, authoritative, bounded, false)
+}
+
+// applyRequestMetaContext applies fresh authoritative metadata for one
+// request-owned call (MQTT source/replay/anchor/retirement, Will receipts and
+// prepared appends). Concurrent requests on one Channel contend for the same
+// shard lock, so it waits within the caller's deadline instead of failing as
+// not ready. Without a deadline it yields like the migration apply.
+func (s *Service) applyRequestMetaContext(ctx context.Context, meta ch.Meta) error {
+	return s.applyRuntimeMetaWith(ctx, meta, true, true, true)
+}
+
+func (s *Service) applyRuntimeMetaWith(ctx context.Context, meta ch.Meta, authoritative, bounded, wait bool) error {
 	if err := ctxErr(ctx); err != nil {
 		return err
 	}
@@ -1763,7 +1816,10 @@ func (s *Service) applyRuntimeMetaContext(ctx context.Context, meta ch.Meta, aut
 	}
 	lock := &s.metaApplyLocks[channelMetaApplyLockIndex(meta.ID)]
 	if bounded {
-		if !lock.TryLock() {
+		if !lockWithinDeadline(ctx, lock, wait) {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			return ch.ErrNotReady
 		}
 	} else {
@@ -1783,6 +1839,33 @@ func (s *Service) applyRuntimeMetaContext(ctx context.Context, meta ch.Meta, aut
 		s.metaCache.installIfNewer(candidate.ID, candidate)
 	}
 	return nil
+}
+
+// lockWithinDeadline acquires lock without blocking past ctx. It polls with a
+// short capped backoff because sync.Mutex cannot be abandoned mid-Lock; only
+// waiters with a deadline poll, so the wait is always bounded.
+func lockWithinDeadline(ctx context.Context, lock *sync.Mutex, wait bool) bool {
+	if lock.TryLock() {
+		return true
+	}
+	if _, ok := ctx.Deadline(); !wait || !ok {
+		return false
+	}
+	delay := time.Millisecond
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return false
+		case <-timer.C:
+		}
+		if lock.TryLock() {
+			return true
+		}
+		delay = min(2*delay, 8*time.Millisecond)
+		timer.Reset(delay)
+	}
 }
 
 func channelMetaApplyLockIndex(id ch.ChannelID) int {
@@ -1839,7 +1922,11 @@ func unavailableAppendMetaError(meta ch.Meta) error {
 }
 
 func retryableMetaCacheError(err error) bool {
-	return channelErrorMatches(err, ch.ErrStaleMeta) ||
+	// A failed dial sent no request on that connection. Refresh a cached dead
+	// leader through the existing one-shot retry; ambiguous send failures retain
+	// their separate committed-outcome recovery contract.
+	return errors.Is(err, nodetransport.ErrDialFailed) ||
+		channelErrorMatches(err, ch.ErrStaleMeta) ||
 		channelErrorMatches(err, ch.ErrChannelNotFound) ||
 		channelErrorMatches(err, ch.ErrNotLeader) ||
 		channelErrorMatches(err, ch.ErrNotReplica) ||

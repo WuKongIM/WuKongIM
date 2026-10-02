@@ -94,6 +94,12 @@ func encodeMessageIdempotencyIndexKey(channelKey ChannelKey, fromUID string, cli
 	return keycodec.AppendString(key, fromUID)
 }
 
+func encodeMessageWillIdempotencyIndexKey(channelKey ChannelKey, fromUID, serverKey string) []byte {
+	key := encodeMessageIndexPrefix(channelKey, messageIndexIDServerWill)
+	key = keycodec.AppendString(key, serverKey)
+	return keycodec.AppendString(key, fromUID)
+}
+
 func encodeMessageClientLookupIndexPrefix(channelKey ChannelKey, clientMsgNo string) []byte {
 	key := encodeMessageIndexPrefix(channelKey, messageIndexIDFromUIDClientMsgNo)
 	return keycodec.AppendString(key, clientMsgNo)

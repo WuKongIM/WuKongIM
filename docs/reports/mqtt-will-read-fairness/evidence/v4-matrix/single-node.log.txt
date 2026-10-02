@@ -1,0 +1,18 @@
+=== RUN   TestWillReclamationFailedReadFairness
+=== RUN   TestWillReclamationFailedReadFairness/single-node-cluster/deadline
+    fairness_test.go:230: all 31 terminal business receipts received and acknowledged
+    fairness_test.go:253: captured journal refused; eligible terminal is outside the held page
+    fairness_test.go:276: healthy held-cursor quiet completed with actual read errors and no publication
+    fairness_test.go:284: pending Will published with read faults still active
+    fairness_test.go:72: result artifact: /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/mqtt-design/docs/reports/mqtt-will-read-fairness/evidence/v4-matrix/mqtt-will-fairness-1-deadline.json
+=== RUN   TestWillReclamationFailedReadFairness/single-node-cluster/canceled
+    fairness_test.go:230: all 31 terminal business receipts received and acknowledged
+    fairness_test.go:253: captured journal refused; eligible terminal is outside the held page
+    fairness_test.go:276: healthy held-cursor quiet completed with actual read errors and no publication
+    fairness_test.go:284: pending Will published with read faults still active
+    fairness_test.go:72: result artifact: /Users/tt/Desktop/work/go/WuKongIM-v2/WuKongIM/.worktrees/mqtt-design/docs/reports/mqtt-will-read-fairness/evidence/v4-matrix/mqtt-will-fairness-1-canceled.json
+--- PASS: TestWillReclamationFailedReadFairness (654.19s)
+    --- PASS: TestWillReclamationFailedReadFairness/single-node-cluster/deadline (432.42s)
+    --- PASS: TestWillReclamationFailedReadFairness/single-node-cluster/canceled (221.76s)
+PASS
+ok  	github.com/WuKongIM/WuKongIM/test/e2e/mqtt/will_reclamation_fairness	655.172s

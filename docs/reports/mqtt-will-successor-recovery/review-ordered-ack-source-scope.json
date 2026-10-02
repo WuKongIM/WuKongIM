@@ -1,0 +1,51 @@
+{
+  "base_revision": "423187b33b2784c2d79ffaff5621ee4c8629dabe",
+  "scope": "approved successor CAS and independent pressure source slice only; prior branch commits excluded; final validation artifacts pending",
+  "diff_commands": [
+    "git diff HEAD -- internal/usecase/mqttsession/FLOW.md internal/usecase/mqttsession/will_attempt_reclamation.go pkg/slot/FLOW.md pkg/slot/fsm/mqtt_will_cmds.go pkg/slot/fsm/statemachine.go pkg/slot/proxy/mqtt_write.go test/e2e/AGENTS.md docs/specs/mqtt-will-successor-recovery.md test/e2e/mqtt/will_successor_recovery/AGENTS.md test/e2e/mqtt/will_successor_recovery/recovery_test.go",
+    "git ls-files --others --exclude-standard; read frozen untracked source paths"
+  ],
+  "commits": [],
+  "files": [
+    {
+      "path": "docs/specs/mqtt-will-successor-recovery.md",
+      "sha256": "618548112c963a70610f8d4f22a2112473f64eea92992f256dc265d9c51e1011"
+    },
+    {
+      "path": "internal/usecase/mqttsession/FLOW.md",
+      "sha256": "48ddfa8c06eaa34fbc6c285b9995dfe6d6f87842fc72970ed952a079cf06ad55"
+    },
+    {
+      "path": "internal/usecase/mqttsession/will_attempt_reclamation.go",
+      "sha256": "3afec0a5978870d1fbebf6d309d5492c9e1a64807466fd4e276b33f406dadd73"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "sha256": "7012e0f10365275715271cf102be2ef60082c8d992e6b2534020aa4d14561d1c"
+    },
+    {
+      "path": "pkg/slot/fsm/mqtt_will_cmds.go",
+      "sha256": "553de8edf3c421db0b6b6c6e6d6f52d0e700c6ac086e9def4441ed81e51d7b7c"
+    },
+    {
+      "path": "pkg/slot/fsm/statemachine.go",
+      "sha256": "0fbd536ed7f613a4c2ebf1f9554e9a5e6e56e6009cff29a6ed97ca757859da5f"
+    },
+    {
+      "path": "pkg/slot/proxy/mqtt_write.go",
+      "sha256": "61d75d1cfa497233d3f9fe900579305070daf616c00c78f9bcfbc101d00783f3"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "6f67d2958390180b939d11812afdfcc2a0323ce88518fb19de9128b9ea695e4f"
+    },
+    {
+      "path": "test/e2e/mqtt/will_successor_recovery/AGENTS.md",
+      "sha256": "9d947e04a07b9bda0bb7de59f8baf1bc58487ce65be3e1c79e3e75b41ab35a9a"
+    },
+    {
+      "path": "test/e2e/mqtt/will_successor_recovery/recovery_test.go",
+      "sha256": "5e778accc933ad26827e1d6d085610478abb712ddb3b0af3313c96193f919507"
+    }
+  ]
+}

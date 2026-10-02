@@ -1,0 +1,66 @@
+{
+  "source": "f17f2d964f3002e1acd318fe13001fc08c8f2711",
+  "digests": {
+    "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+    "internal/app/FLOW.md": "6d5cbc6153b4b6b18d947f27e43a25e01b7ad2673bc253be790abf8bb37fe9c5",
+    "internal/access/mqtt/FLOW.md": "a0e8759e84b550aa73af180129419c747853e98413334a3d8a97c35540cceac8",
+    "internal/runtime/mqttsession/FLOW.md": "60453ae06abc8084214667eb5400a3b00ea98452797ca7a6e48742cae6bfd246",
+    "internal/usecase/mqttsession/FLOW.md": "69cd21b75979f215bad79280bc271b22e072ba82747e66f00518a6e5cfafd1eb",
+    "test/e2e/AGENTS.md": "630ce1eff972f5b483cae77cc72e17a7b4370a199cc396847a5c33d0f2c38c09",
+    "test/e2e/mqtt/AGENTS.md": "8327b745649265969ba94d2fcf9853aad254279efd95f3cd4d985646957ab07f",
+    "test/e2e/mqtt/interop/AGENTS.md": "5fa2142bd32e6202f4feaa6fc86bf81fa0e11a24e7ea1664558b79952449bc8e",
+    "test/e2e/suite/FLOW.md": "94b26ee73ab6c10548cee497149c9cc08b37fb445dcce0d36c5d45f6f956288e",
+    "docs-site/FLOW.md": "4ded69664a276fa7159959d2f282394c3042960a4c367f43be77e357522f1c6b"
+  },
+  "scope": "default-off product composition and authenticated MQTT/WK interoperability; full MQTT goal remains incomplete",
+  "checks": [
+    {
+      "command": "GOWORK=off go test -race -p 2 ./internal/config ./internal/app -count=1",
+      "result": "passed",
+      "packages": {
+        "internal/config": "2.014s",
+        "internal/app": "4.759s"
+      }
+    },
+    {
+      "command": "GOWORK=off go test -race -p 2 -tags=integration ./internal/app -run '^TestMQTT(GatewayPaho|ConnectionSupervisor)SingleNodeCluster$' -count=1 -timeout=2m",
+      "result": "passed",
+      "duration": "10.144s"
+    }
+  ],
+  "interop": [
+    {
+      "hash_slots": 256,
+      "mqtt_message_id": "2104113097215053824",
+      "nodes": 1,
+      "passed": true,
+      "scenario": "mqtt-wk-interop",
+      "wk_message_id": "2104113091682766848"
+    },
+    {
+      "hash_slots": 256,
+      "mqtt_message_id": "2104113313779552256",
+      "nodes": 3,
+      "passed": true,
+      "scenario": "mqtt-wk-interop",
+      "wk_message_id": "2104113288626311168"
+    }
+  ],
+  "red_evidence": [
+    "Existing process E2E rejected WK_MQTT_ENABLE before configuration/product wiring.",
+    "Configuration expiry regression accepted 86401 seconds before normalization was fixed."
+  ],
+  "remaining": [
+    "Will scheduling and safe uncertain redispatch",
+    "orphan owner sweeping and unavailable-owner isolation",
+    "offline accounting and cleanup",
+    "restore-generation reactivation",
+    "complete failure and scale acceptance"
+  ],
+  "implementation_sha256": {
+    "internal/app/mqtt_product.go": "c441354a56a10865d60f7b007e996463ae386ef7787cd83aa570a3ba12ed010a",
+    "internal/app/mqtt_config.go": "9d7a2e3df6b94d8324e9cf5edbea0c1e513d9ae14275f245fd509d7ee401c2ad",
+    "internal/app/lifecycle.go": "5495484227b1a97c783b227fe072625448a8656358df14c1b810bbd5f24fb0ef",
+    "internal/app/backup_maintenance.go": "36d70bb17037ce2fb713c2e9a1dc1a230bb778734054ff6d843a8b3de3a119f2"
+  }
+}

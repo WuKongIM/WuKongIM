@@ -1,0 +1,34 @@
+{
+  "connect_retries": 0,
+  "cut_node": 1,
+  "definite_successor_claims_during_window": 0,
+  "elapsed_ms": 151501,
+  "executor_capacity_refusal": true,
+  "final_control_counts": [
+    {
+      "wkMQTTWillBeforeStartedCAS": 1,
+      "wkMQTTWillJournalFull": 1,
+      "wkMQTTWillPublicationAttempt": 0,
+      "wkMQTTWillStartedCASReply": 0,
+      "wkMQTTWillStartedFSMComplete": 1,
+      "wkMQTTWillSuccessorCASReply": 0,
+      "wkSlotPersistedUncommitted": 0
+    }
+  ],
+  "hash_slots": 256,
+  "instrumented_journal_capacity": 2,
+  "last_phase": "ordinary-recovery",
+  "logical_slots": 12,
+  "nodes": 1,
+  "original_received_during_window": false,
+  "outcome": "late",
+  "passed": false,
+  "persistent_reconnects": 1,
+  "publications_while_unknown": 0,
+  "resubscriptions": 0,
+  "retained_terminal_node": 1,
+  "scenario": "mqtt-will-raft-recovery",
+  "state": "queued",
+  "state_cut_reached": true,
+  "unknown_window_ms": 21000
+}

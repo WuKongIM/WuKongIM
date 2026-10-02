@@ -38,7 +38,8 @@ type SessionClosed struct {
 	SessionID uint64
 }
 
-// Envelope is the stable version-one owner-push wire representation.
+// Envelope is the owner-push wire representation. Version two preserves the
+// content extension; version-one fields retain their original wire layout.
 type Envelope struct {
 	// MessageID is the globally unique durable message identifier.
 	MessageID uint64
@@ -56,6 +57,17 @@ type Envelope struct {
 	SenderSessionID uint64
 	// ClientMsgNo is the client idempotency key associated with the send request.
 	ClientMsgNo string
+	// Setting preserves the complete message setting bitset.
+	Setting uint8
+	// Topic and Expire preserve legacy message attributes.
+	Topic  string
+	Expire uint32
+	// ServerTimestampMS is the original append/ingress timestamp, not push time.
+	ServerTimestampMS int64
+	// SyncOnce preserves command-channel semantics across owner forwarding.
+	SyncOnce bool
+	// PublicationMetadata owns bounded immutable publication content and expiry.
+	PublicationMetadata []byte
 	// RedDot carries the client red-dot flag for delivery side effects.
 	RedDot bool
 	// Payload is the committed message payload.
@@ -84,7 +96,7 @@ type Route struct {
 	DeviceLevel uint8
 }
 
-// PushCommand is the stable version-one owner-push wire command.
+// PushCommand is the versioned owner-push wire command.
 type PushCommand struct {
 	// OwnerNodeID is the recipient owner node that should accept the push.
 	OwnerNodeID uint64

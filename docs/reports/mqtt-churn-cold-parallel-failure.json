@@ -1,0 +1,15 @@
+{
+  "attempt_limit": 64,
+  "closure_observations": null,
+  "completed": 0,
+  "fault_control_enabled": false,
+  "foreground_retries": 0,
+  "hash_slots": 256,
+  "last_step": "subscribe",
+  "nodes": 3,
+  "passed": false,
+  "scenario": "cold-group-subscribe",
+  "subscribe_elapsed_us": [
+    5000106
+  ]
+}

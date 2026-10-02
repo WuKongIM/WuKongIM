@@ -1,0 +1,63 @@
+{
+  "base_revision": "dcaaaa8b315b1805ffef42d8bfbfcb1719edc4ca",
+  "scope": "this approved working-copy slice only; prior branch commits excluded",
+  "diff_commands": [
+    "git diff HEAD -- <frozen source paths>",
+    "git ls-files --others --exclude-standard; read relevant untracked files"
+  ],
+  "commits": [],
+  "files": [
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/negative-control-source.json",
+      "sha256": "9bd5628a5f191d5075b51decc36bed078cbcdceb519f2b77c1970691bd29f4c9"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/negative-control.patch",
+      "sha256": "43e899e139c73694fe34baa61f7c6adb442eb9860b74a1cce5c559055635d8c7"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/negative-initial-ineffective.patch",
+      "sha256": "79d0b3e789c4804870aecca5c717a23a7dc7ca13a3bec6065ff235ad52c97bf8"
+    },
+    {
+      "path": "docs/reports/mqtt-will-raft-recovery/source-context.json",
+      "sha256": "c9a7de4006d7ba08a9e15338a37f9d6d3ada50e3a3553081e9cfab7fa32be403"
+    },
+    {
+      "path": "docs/specs/mqtt-will-raft-recovery.md",
+      "sha256": "1f7edba4077418a5205ebd97209e700518fd8291ff84f92b41604cc13b7e651d"
+    },
+    {
+      "path": "pkg/slot/FLOW.md",
+      "sha256": "0a2c48a62c201597bc019849e9d209dc4bb27b2c5370f3bf2d967e837c3481ac"
+    },
+    {
+      "path": "pkg/slot/fsm/mqtt_will_cmds.go",
+      "sha256": "207e8beed3f7e2af05c1a5f0891dcfee36832395d7fcba089c512ceb08facc4c"
+    },
+    {
+      "path": "pkg/slot/fsm/statemachine.go",
+      "sha256": "1d6485a293e438ed84490d0f5d55fa3935728bb40ec10c1eeb29245150baad52"
+    },
+    {
+      "path": "pkg/slot/multiraft/slot.go",
+      "sha256": "f3d0a40b6034b743aa0499afe6b08239e2a7ead90c7d6ce705536028306df5ef"
+    },
+    {
+      "path": "pkg/slot/proxy/mqtt_write.go",
+      "sha256": "44346f8eb8b07bae8f06fc9bcdfb561485d48f347507b15d76d41fe5f68b6958"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "e8ce221d79dca0f8e44824da604df83021f6981da9a811a3719385ef19d449a8"
+    },
+    {
+      "path": "test/e2e/mqtt/will_raft_recovery/AGENTS.md",
+      "sha256": "2aa44735b3088ddcacb07d4fd2ce1e6b58fb3f44cdb1f7fc77db7b17de462536"
+    },
+    {
+      "path": "test/e2e/mqtt/will_raft_recovery/recovery_test.go",
+      "sha256": "cb09120a63aa80b7dfdc9d48324a2355ccf2391e15fe5d5b3be25772ad984ad5"
+    }
+  ]
+}

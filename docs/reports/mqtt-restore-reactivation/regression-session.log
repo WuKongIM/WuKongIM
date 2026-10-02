@@ -1,0 +1,23 @@
+=== RUN   TestPersistentSessionReconnectFutureInboxAndTakeover
+=== RUN   TestPersistentSessionReconnectFutureInboxAndTakeover/1-node-cluster
+    session_test.go:155: result artifact: <external report>
+=== RUN   TestPersistentSessionReconnectFutureInboxAndTakeover/3-node-cluster
+    session_test.go:155: result artifact: <external report>
+--- PASS: TestPersistentSessionReconnectFutureInboxAndTakeover (111.64s)
+    --- PASS: TestPersistentSessionReconnectFutureInboxAndTakeover/1-node-cluster (65.33s)
+    --- PASS: TestPersistentSessionReconnectFutureInboxAndTakeover/3-node-cluster (46.30s)
+=== RUN   TestPersistentSessionSurvivesOwnerProcessRestart
+    session_test.go:213: result artifact: <external report>
+--- PASS: TestPersistentSessionSurvivesOwnerProcessRestart (22.02s)
+=== RUN   TestMQTTProcessShutdownClosesActiveOwner
+    session_test.go:247: result artifact: <external report>
+--- PASS: TestMQTTProcessShutdownClosesActiveOwner (4.81s)
+PASS
+ok      github.com/WuKongIM/WuKongIM/test/e2e/mqtt/session  139.210s
+=== RUN   TestPersistentSessionSurvivesOwnerProcessCrash
+    crash_recovery_test.go:107: result artifact: <external report>
+--- PASS: TestPersistentSessionSurvivesOwnerProcessCrash (22.22s)
+PASS
+ok      github.com/WuKongIM/WuKongIM/test/e2e/mqtt/crash_recovery   22.597s
+PASS
+ok      github.com/WuKongIM/WuKongIM/test/e2e/suite 6.712s

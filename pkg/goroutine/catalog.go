@@ -17,6 +17,7 @@ const (
 	ModuleChannel       Module = "channel"
 	ModuleDatabase      Module = "database"
 	ModulePresence      Module = "presence"
+	ModuleMQTT          Module = "mqtt"
 	ModuleMessage       Module = "message"
 	ModuleChannelAppend Module = "channelappend"
 	ModuleDelivery      Module = "delivery"
@@ -117,6 +118,7 @@ const (
 	TaskClusterObserveLoop               TaskID = "cluster/observe_loop"
 	TaskClusterMembershipBatch           TaskID = "cluster/membership_batch"
 	TaskClusterMetaCreateBatch           TaskID = "cluster/meta_create_batch"
+	TaskClusterMQTTCopy                  TaskID = "cluster/mqtt_copy"
 	TaskClusterColdReadActivation        TaskID = "cluster/conversation_cold_read_activation"
 	TaskControllerRaftRun                TaskID = "controller/raft_run"
 	TaskControllerRaftApply              TaskID = "controller/raft_apply_scheduler"
@@ -140,6 +142,18 @@ const (
 	TaskDatabaseBackupStream             TaskID = "database/backup_stream"
 	TaskDatabaseCommitCoordinator        TaskID = "database/commit_coordinator"
 	TaskPresenceBatchResolve             TaskID = "presence/batch_resolve"
+	TaskMQTTWillScheduler                TaskID = "mqtt/will_scheduler"
+	TaskMQTTConsumerScheduler            TaskID = "mqtt/consumer_scheduler"
+	TaskMQTTConsumerWorker               TaskID = "mqtt/consumer_worker"
+	TaskMQTTWillWorker                   TaskID = "mqtt/will_worker"
+	TaskMQTTDeadlineWorker               TaskID = "mqtt/deadline_worker"
+	TaskMQTTOwnerSweeper                 TaskID = "mqtt/owner_sweeper"
+	TaskMQTTReplayWorker                 TaskID = "mqtt/replay_worker"
+	TaskMQTTReplayConfirmation           TaskID = "mqtt/replay_confirmation"
+	TaskMQTTConnectionScheduler          TaskID = "mqtt/connection_scheduler"
+	TaskMQTTConnectionWorker             TaskID = "mqtt/connection_worker"
+	TaskMQTTDeliveryScheduler            TaskID = "mqtt/delivery_scheduler"
+	TaskMQTTDeliveryWorker               TaskID = "mqtt/delivery_worker"
 	TaskMessagePermissionBatch           TaskID = "message/permission_batch"
 	TaskMessageDirectoryBatch            TaskID = "message/directory_batch"
 	TaskMessageDirectoryProjector        TaskID = "message/directory_projector"
@@ -219,6 +233,7 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskClusterObserveLoop, Module: ModuleCluster, Name: "observe_loop", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskClusterMembershipBatch, Module: ModuleCluster, Name: "membership_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskClusterMetaCreateBatch, Module: ModuleCluster, Name: "meta_create_batch", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskClusterMQTTCopy, Module: ModuleCluster, Name: "mqtt_copy", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskClusterColdReadActivation, Module: ModuleCluster, Name: "conversation_cold_read_activation", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskControllerRaftRun, Module: ModuleController, Name: "raft_run", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
 	{ID: TaskControllerRaftApply, Module: ModuleController, Name: "raft_apply_scheduler", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
@@ -242,6 +257,18 @@ var defaultTaskCatalog = []TaskSpec{
 	{ID: TaskDatabaseBackupStream, Module: ModuleDatabase, Name: "backup_stream", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRecover},
 	{ID: TaskDatabaseCommitCoordinator, Module: ModuleDatabase, Name: "commit_coordinator", Kind: TaskKindDynamic, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskPresenceBatchResolve, Module: ModulePresence, Name: "batch_resolve", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRecover},
+	{ID: TaskMQTTWillScheduler, Module: ModuleMQTT, Name: "will_scheduler", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskMQTTConsumerScheduler, Module: ModuleMQTT, Name: "consumer_scheduler", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskMQTTConsumerWorker, Module: ModuleMQTT, Name: "consumer_worker", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskMQTTWillWorker, Module: ModuleMQTT, Name: "will_worker", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskMQTTDeadlineWorker, Module: ModuleMQTT, Name: "deadline_worker", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskMQTTOwnerSweeper, Module: ModuleMQTT, Name: "owner_sweeper", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskMQTTReplayWorker, Module: ModuleMQTT, Name: "replay_worker", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskMQTTReplayConfirmation, Module: ModuleMQTT, Name: "replay_confirmation", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskMQTTConnectionScheduler, Module: ModuleMQTT, Name: "connection_scheduler", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskMQTTConnectionWorker, Module: ModuleMQTT, Name: "connection_worker", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
+	{ID: TaskMQTTDeliveryScheduler, Module: ModuleMQTT, Name: "delivery_scheduler", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},
+	{ID: TaskMQTTDeliveryWorker, Module: ModuleMQTT, Name: "delivery_worker", Kind: TaskKindPool, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMessagePermissionBatch, Module: ModuleMessage, Name: "permission_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMessageDirectoryBatch, Module: ModuleMessage, Name: "directory_batch", Kind: TaskKindBurst, PanicPolicy: PanicPolicyRepanic},
 	{ID: TaskMessageDirectoryProjector, Module: ModuleMessage, Name: "directory_projector", Kind: TaskKindSingleton, PanicPolicy: PanicPolicyRepanic, Expected: 1},

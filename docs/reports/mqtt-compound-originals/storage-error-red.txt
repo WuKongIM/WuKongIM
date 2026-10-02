@@ -1,0 +1,9 @@
+--- FAIL: TestMQTTOriginalsFailClosedAcrossEveryStage (0.00s)
+    --- FAIL: TestMQTTOriginalsFailClosedAcrossEveryStage/store_error (0.00s)
+        mqtt_originals_test.go:145: 
+            	Error Trace:	pkg/cluster/channels/mqtt_originals_test.go:145
+            	Error:      	An error is expected but got nil.
+            	Test:       	TestMQTTOriginalsFailClosedAcrossEveryStage/store_error
+FAIL
+FAIL	github.com/WuKongIM/WuKongIM/pkg/cluster/channels	0.727s
+FAIL

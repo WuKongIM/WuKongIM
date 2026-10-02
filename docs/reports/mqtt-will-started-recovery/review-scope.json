@@ -1,0 +1,124 @@
+{
+  "base": "14386ca24a4eb00e7a4d4ebf5899023736e2c70a",
+  "head": "14386ca24a4eb00e7a4d4ebf5899023736e2c70a",
+  "scope": "Current task changes only, tracked git diff HEAD and listed untracked files. Later report artifacts do not change this product review scope.",
+  "commands": [
+    "git diff 14386ca24a4eb00e7a4d4ebf5899023736e2c70a --",
+    "git ls-files --others --exclude-standard"
+  ],
+  "commits": [],
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "5f6d6e925d13eecad8df913c94649dea385bda1cf4e6ec5626ea3ac0f5aa5066"
+    },
+    {
+      "path": "docs/development/FLOW_INDEX.md",
+      "sha256": "a6b45ebd029e9374dd62ec86b187c8cf28244d4f45e8b5ef0ade120f270fb383"
+    },
+    {
+      "path": "docs/development/PROJECT_KNOWLEDGE.md",
+      "sha256": "81366c5b84dc938bc761ff9dafbfd21aa42ed7a6b57cabc86ca6bf0a8121390c"
+    },
+    {
+      "path": "internal/access/node/FLOW.md",
+      "sha256": "64d4bf4116ec083fb3b46a2a26116e2b0d2fa0873c27103f4effbc58788cae42"
+    },
+    {
+      "path": "internal/app/FLOW.md",
+      "sha256": "5b0e099cb43a60f1752f087f1a0dc79a36d3dbe1b2852fd119d3c844a5b83586"
+    },
+    {
+      "path": "internal/app/mqtt_product.go",
+      "sha256": "0e6f38ab8f739156b1a7813ac3220f9f97ab8272246a916cc91b3f1eb35a79e2"
+    },
+    {
+      "path": "internal/app/mqtt_will_execution.go",
+      "sha256": "a0a21c55875571049ba8949b0c10e541b1df24910b42094606ba1f5bfe04734b"
+    },
+    {
+      "path": "internal/contracts/mqttsession/FLOW.md",
+      "sha256": "a7b03ee62288229c4886c11b357a64d38cd8e0f65f25ca2479f1320cf45ea2a3"
+    },
+    {
+      "path": "internal/infra/cluster/FLOW.md",
+      "sha256": "f1bc902452e3c6c80d57b206f96775c611221ffd02f6b5efbeee336fba4fbcd2"
+    },
+    {
+      "path": "internal/infra/cluster/mqtt_will_receipts.go",
+      "sha256": "a7506be65c8bf6899e8fc31431825515d5804dd763d943080ce908ec0ed11d2c"
+    },
+    {
+      "path": "internal/infra/mqttowner/FLOW.md",
+      "sha256": "efc5c779bfb7777a949f62b452e4766de4df135c5814fe846de4a29b981ab402"
+    },
+    {
+      "path": "internal/infra/mqttowner/retirements.go",
+      "sha256": "1f10ea58976296eaf7c7c5d287ec786aa73da1de5440e34daa7260a8b3bf981e"
+    },
+    {
+      "path": "internal/runtime/channelappend/FLOW.md",
+      "sha256": "b761d7aae59d8fa7bd8a57d50f24c6bd957416ef9656a311c7a0a640f2322cf7"
+    },
+    {
+      "path": "internal/runtime/channelappend/append.go",
+      "sha256": "57c0161e1254c8afd6fdb499431e303083341175249c59cea8aee9c6cdfb1830"
+    },
+    {
+      "path": "internal/usecase/mqttsession/FLOW.md",
+      "sha256": "e889e4d5e3d46bf10d2df3167a27604f8e369795e31975031ab395dbdaca4e8a"
+    },
+    {
+      "path": "internal/usecase/mqttsession/will_execution.go",
+      "sha256": "72868eb93ce5f0f68fddf49d07a97652d498b221d57bb479ab625556f92d29a7"
+    },
+    {
+      "path": "pkg/cluster/FLOW.md",
+      "sha256": "20bceff87bfdf41d8fc073c8384f1048b1323a8b4009a86cffc0f16752eb8310"
+    },
+    {
+      "path": "pkg/cluster/net/ids.go",
+      "sha256": "a22bafb0483383730165ded69dc1edf50324efb1789c5823864ea17298fa0a49"
+    },
+    {
+      "path": "test/e2e/AGENTS.md",
+      "sha256": "60f70494939acac39288ba91ab83b21f45fd5b450230dabc69d3e6c71d09bbf9"
+    },
+    {
+      "path": "docs/reports/mqtt-will-started-recovery/frozen-context.json",
+      "sha256": "7c397f7d0108835ee1389f6c069f13fca5c26388f58cb38cb7330655e672b40c"
+    },
+    {
+      "path": "docs/reports/mqtt-will-started-recovery/red-undispatched.json",
+      "sha256": "12ae3de76b90f8b475ed69f1baf91a7dd3cc9e381314801ffc64b0f3107d10f1"
+    },
+    {
+      "path": "docs/specs/mqtt-will-started-recovery.md",
+      "sha256": "2b8b9767c752ab9f4f853b34a5b1d6da6ba93cffc9d08058aac5027fa85dccb7"
+    },
+    {
+      "path": "internal/access/node/mqtt_will_rpc.go",
+      "sha256": "60bc0450733b249ad87fc946dd00e103d950fdd68ffbc77c6f441104bde6f4d4"
+    },
+    {
+      "path": "internal/contracts/mqttsession/will_attempt.go",
+      "sha256": "327c364fa990b843ef0c6289ad8098b15af2b78f5d8ebe30ef9ae5b1b52d8fe7"
+    },
+    {
+      "path": "internal/infra/mqttwill/FLOW.md",
+      "sha256": "cc5fa7986087e1c0759f20c44010fa24282c7b053eab8adaa273c3590f423d33"
+    },
+    {
+      "path": "internal/infra/mqttwill/attempts.go",
+      "sha256": "2796ed980bda8aa7f0a16536a4250876471e1f8ee4dabd8a897fcc44a8f59206"
+    },
+    {
+      "path": "test/e2e/mqtt/will_recovery/AGENTS.md",
+      "sha256": "4a3639e4ffc8ba471b2fd5198e418f39bb7bfea0d61b3c206c0d6e5a9769223d"
+    },
+    {
+      "path": "test/e2e/mqtt/will_recovery/recovery_test.go",
+      "sha256": "a536bc91d34913a2239427e64de7ec5dd679ffd08ae5d87231b82892d7e34b31"
+    }
+  ]
+}

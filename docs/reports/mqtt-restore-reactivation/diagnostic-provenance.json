@@ -1,0 +1,17 @@
+{
+  "files": {
+    "internal/app/mqtt_product.go": "71f4a335ccfecfb54a23feb9ca228e7175504c1c7292f4f8cb6c27288e5c61b7",
+    "internal/app/mqtt_lifecycle.go": "3774752b7883e55343faa7d2398b9817273b1ca7586bae833345a4ec8b2e2ec7",
+    "internal/app/mqtt_connections.go": "5aca9bcb0ba116cee80f140fda53a3bdaff105f64194bda3f60ac368f02f6c7f",
+    "internal/app/backup_maintenance.go": "d6b575070c286022a8d52d59ec58cc96840e75e0c648530a94e0f62aa47b2e79",
+    "test/e2e/mqtt/restore/restore_test.go": "9cb457b8abd5da004298a97adcc1baf34815f4cf2b8ac86230c5aee7094790b7",
+    "test/e2e/suite/backup_client.go": "22eeb8c45b346ae40573da5cf6dbfdb515d78fc67c29b82bf2332a596f407b09"
+  },
+  "binary_sha256": "d9ae03d37e2428987ec54503281e4737ea736354ae59b3bdc3395fec3382977f",
+  "overlay_files": {
+    "backup_maintenance.go": "2af98ff284154aed984d1a80e0392fc77920227f1b771e93be9b47376548023f",
+    "mqtt_connections.go": "87ee761070ca00f29a433cb299cc8e5a54040b972f374eeb2c529631ebe9d157",
+    "staged_restore.go": "616bc5c653812370bfc7333d51dbd4faf7ed0be8ae5c63ac0c00400985a07cff",
+    "mqtt_product.go": "251448513d843dee928acc2a76ff89d0c6f439cc2abdc101b0e9734d12055311"
+  }
+}

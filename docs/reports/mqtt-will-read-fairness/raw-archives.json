@@ -1,0 +1,66 @@
+{
+  "format": "gzip, mtime=0",
+  "purpose": "preserve verbatim generated source/log whitespace without altering evidence bytes",
+  "files": [
+    {
+      "original": "evidence/candidate-attempts-generated.txt",
+      "archive": "evidence/candidate-attempts-generated.txt.gz",
+      "original_sha256": "0a73d5613927c5e43ba22f13a6af54f2ece237d316d95a9e741021e0f1ab6d9a",
+      "archive_sha256": "50d6e799854dff7728e027be13fb6894e72e3df813457ef3561b09bc4f392f45"
+    },
+    {
+      "original": "evidence/negative-will_attempt_reclamation-generated.txt",
+      "archive": "evidence/negative-will_attempt_reclamation-generated.txt.gz",
+      "original_sha256": "8dbff46a11b04b4938763252db4a559a77a4c79ff6692f476c63be41c69c9ad9",
+      "archive_sha256": "b7fb2bf4dece915b59b636bae24848d7366f3c92046e8ccc7a1f3554b19b1c76"
+    },
+    {
+      "original": "evidence/candidate-will_attempt_reclamation-generated.txt",
+      "archive": "evidence/candidate-will_attempt_reclamation-generated.txt.gz",
+      "original_sha256": "8dbff46a11b04b4938763252db4a559a77a4c79ff6692f476c63be41c69c9ad9",
+      "archive_sha256": "b7fb2bf4dece915b59b636bae24848d7366f3c92046e8ccc7a1f3554b19b1c76"
+    },
+    {
+      "original": "evidence/negative-attempts-generated.txt",
+      "archive": "evidence/negative-attempts-generated.txt.gz",
+      "original_sha256": "2ed71f71519193eb3c09cecaf4840453e2f816f9f7b1dde6e206b2f72790382d",
+      "archive_sha256": "bd7bdb7203a466d353097af6109e2849c703e60a45ec48349812afc11d9d3937"
+    },
+    {
+      "original": "evidence/v4-matrix/three-node.log.txt",
+      "archive": "evidence/v4-matrix/three-node.log.txt.gz",
+      "original_sha256": "7c26c138d471192911566f8b01f3c5218957f93c2ba3156a8d9c3ac7a8b85125",
+      "archive_sha256": "777db6df35ecc01617dadf9b21a01dfdd7561f7845f0b11bb7d76e99f15a2196"
+    },
+    {
+      "original": "evidence/v5-negative/run.log.txt",
+      "archive": "evidence/v5-negative/run.log.txt.gz",
+      "original_sha256": "6fa16aa2cb6838a123e87cbd421d3c22029cdff31fefa8c9e9880fdedca8b6f2",
+      "archive_sha256": "2ebec29166dd1d5a2d7cdeb0a800617918cf0439babe16fbe4fa3d953ce540a1"
+    },
+    {
+      "original": "evidence/v4-negative/run.log.txt",
+      "archive": "evidence/v4-negative/run.log.txt.gz",
+      "original_sha256": "4c9a3c2ebeb898ec083392b3b34ea902402c75212ac46039cec46f91e627bc99",
+      "archive_sha256": "3e1b47871cb965262ae166140d0c71844aa5bc755749d5929b6997501ea2bcb2"
+    },
+    {
+      "original": "evidence/v3-positive/run.log.txt",
+      "archive": "evidence/v3-positive/run.log.txt.gz",
+      "original_sha256": "5af099879db8e8c62538a9c87add9010f178001ada7ef518641d177feee0089a",
+      "archive_sha256": "6ee68bb55b907acc0e2d1d562d0ce9f0bb4694463cef2386006665be30fa1628"
+    },
+    {
+      "original": "evidence/v2-tracer/run.log.txt",
+      "archive": "evidence/v2-tracer/run.log.txt.gz",
+      "original_sha256": "0226694aad54edfcdbc373aa532d5d964cfbf0d40faf1a23423e229c24dbfa1d",
+      "archive_sha256": "0f76633cc7880088bea9a6dcd234eddadaf36bb67d9770710629a9f02fb67990"
+    },
+    {
+      "original": "evidence/v1-baseline/run.log.txt",
+      "archive": "evidence/v1-baseline/run.log.txt.gz",
+      "original_sha256": "3b368f234b944e30486fc205efc4f26a9f4b078fa15df44cb3e2f15fb521f243",
+      "archive_sha256": "5976ec16630b5d92c305dace1b1e2798c8f6c6023877ef827424a2b0b9ad6441"
+    }
+  ]
+}

@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "status": "implemented_durable_index_backfill_and_discovery; automatic_product_reclamation_incomplete",
+  "recorded_at_utc": "2026-09-28T01:53:02.288209+00:00",
+  "source": {
+    "source_commit": "4548bd7e5a1cc3b4729a2f221d20620be25a3163",
+    "previous_goal_turn": "progress",
+    "instructions": {
+      "AGENTS.md": "d1a79d1ca586c933ee11d984ff3c401e816fc09de13c635febb7fe4d57f50ade",
+      "pkg/db/FLOW.md": "33c7ba81c18ed8cb377e9bef541526028ef31e64dd03becc7ac1ea6cc14fb10a",
+      "pkg/db/meta/FLOW.md": "340cb4de3acfbd38e2ca1805c7355c3a1d95f7277d2cb9eb8ca5789562500d12",
+      "pkg/slot/FLOW.md": "0d3cf1eb64b9d7aa5f079e9ed3a1362b73762c6fba5553349ed770d7704a4514",
+      "pkg/cluster/FLOW.md": "e992820db90aaa37db6f8e677798971e4b552aea2455508b2db85e2e3574dbc8",
+      "internal/usecase/mqttsession/FLOW.md": "d969eac62cfc9e1356e592b77b3e56ad5093caa19c6ce96125444a3cba44a03e",
+      "internal/runtime/mqttsession/FLOW.md": "5f61cca4475b652f61c893afeae4d7d721258072158504b92c78749971e6c29d",
+      "internal/app/FLOW.md": "4bb9604d0bd903734ff86dda0b209478f8cbd90848112cfb2329d4d360bb5f91",
+      "internal/infra/cluster/FLOW.md": "b96d4741b47a3b59a094eb83de316b2080004f4c2cc06f579060d6451c052c30"
+    }
+  },
+  "failure_inventory": [
+    "Failure inventory before implementation (base 4548bd7e5):",
+    "1. Historical rows without the new index disappear from discovery; absent/incomplete coverage is misreported as authoritative emptiness.",
+    "2. Backfill scans/rebuilds unbounded state or changes Session revision/owner/content; a failed batch or snapshot restore separates indexes from checkpoint.",
+    "3. Primary cursor uses lexical string order, drops ties/terminal pages, or restarts after each process restart.",
+    "4. Session creation/end/Clean Start/reclamation during or after backfill leaves stale/missing eligibility; same-batch writes and batching alter results.",
+    "5. Missing/stale/corrupt index witnesses are skipped rather than failing bounded discovery; snapshot reads mix newer completion with older rows.",
+    "6. Corrupt/truncated/unsupported coverage records pass; empty shard and repeat completed build fail or add unnecessary writes.",
+    "7. Read kind 23 accepts irrelevant fields, foreign cursors, invalid bounds; old JSON acquires new zero fields or peers accept contradictory page evidence.",
+    "8. Command 76 applies outside the owned Hash Slot, has unbounded/ambiguous wire input or loses reconstruction state.",
+    "9. Routed backfill falls back to local/result-less writes or bypasses Node maintenance."
+  ],
+  "changes": {
+    "table": 22,
+    "index": 3,
+    "system": 1,
+    "slot_command": 76,
+    "read_kind": 23,
+    "rows_per_build": 64,
+    "max_candidates": 65,
+    "new_tables": [],
+    "new_session_columns": []
+  },
+  "checks": [
+    {
+      "path": "/tmp/mqtt-reclamation-discovery-red.log",
+      "sha256": "f8d22ddf90558c28eeccaca9aeb3befc075dee00ef9c20a79fe53b6589f6dfa2",
+      "outcome": "expected_compile_failure",
+      "command": "GOWORK=off go test -p 2 ./pkg/db/meta -run ^TestMQTTReclamation -count=1",
+      "package_results": []
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-discovery-green.log",
+      "sha256": "7b693d935749b6b7e1d633c1d88465daf88deb89a345c1d9dff5bb9a30af8a6f",
+      "outcome": "pass",
+      "command": "GOWORK=off go test -race -p 2 ./pkg/db/meta -run ^TestMQTTReclamation -count=1",
+      "package_results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/db/meta\t4.058s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-discovery-routing-red.log",
+      "sha256": "27571b177eb054f7f3ba42c88b949f30543c2006b4b774ae2bc792151fc26ce8",
+      "outcome": "expected_compile_failure",
+      "command": "New routing contracts absent; fixture root db.ErrConflict alias corrected.",
+      "package_results": []
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-discovery-routing-green.log",
+      "sha256": "a7b1c2ad7d1c9a595c05a60133ff2e8407fd2b1608dead5923521a8d5bcf2ad6",
+      "outcome": "pass",
+      "command": "GOWORK=off go test -p 2 ./pkg/slot/fsm ./pkg/slot/proxy ./pkg/cluster -run TestMQTT(ReclamationIndex|MetadataNodeForegroundGates)|TestCommandInspectionCoversRegisteredDecoders -count=1",
+      "package_results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/slot/fsm\t0.875s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/slot/proxy\t1.120s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/cluster\t0.323s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-discovery-integration-red.log",
+      "sha256": "5d14cad846341f07bb66de01761158bb116c0d3bb8788a620caba0f87783c651",
+      "outcome": "expected_compile_failure",
+      "command": "New Node build contract absent.",
+      "package_results": []
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-discovery-integration-green.log",
+      "sha256": "620fa6e386f3f3f1cc4308180db25112fee0de5fbdb489c348878e870c3d70ff",
+      "outcome": "pass",
+      "command": "GOWORK=off go test -tags=integration -p 2 ./pkg/cluster -run ^TestMQTTReclamationIndexThreeNodePartialBuildRestart$ -count=1 -timeout=3m -v",
+      "package_results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/cluster\t27.182s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-discovery-full-race.log",
+      "sha256": "a22386fd94bd082e78194552c775eee62200f7951e65376fe9037e4ec88f259f",
+      "outcome": "pass",
+      "command": "GOWORK=off go test -race -p 2 ./pkg/db/... ./pkg/slot/fsm ./pkg/slot/proxy ./pkg/cluster -count=1",
+      "package_results": [
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/db\t2.401s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/db/inspect\t2.743s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/db/internal/cache\t1.760s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/db/internal/commit\t4.229s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/db/internal/engine\t2.349s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/db/internal/keycodec\t1.325s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/db/internal/rowcodec\t1.326s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/db/internal/schema\t1.313s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/db/message\t58.485s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/db/meta\t45.543s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/db/transfer\t118.467s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/slot/fsm\t9.488s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/slot/proxy\t9.029s",
+        "ok  \tgithub.com/WuKongIM/WuKongIM/pkg/cluster\t7.889s"
+      ]
+    },
+    {
+      "path": "/tmp/mqtt-reclamation-discovery-flow.log",
+      "sha256": "518c3c03df7eb5d31ffef78aaf4666017b3054bf4e16f65a227b11efc525cf09",
+      "outcome": "pass",
+      "command": "Named check flow-doc-contracts from .github/review-agent/policy.json",
+      "package_results": [
+        "flowcheck: 87 FLOW files; 87 compliant; 0 invalid; 9 warnings"
+      ]
+    }
+  ],
+  "scope": "Real TCP/disk three-node integration, 256 hash Slots, 65 Sessions, coverage pages 64/1 across graceful full-cluster restart. All three nodes observe authority pages; cleanup removes candidate. Historical missing indexes covered by storage tests. Not process-level MQTT, abrupt crash, partition or automatic scheduling acceptance.",
+  "development_note": "Storage fixture initially searched for any session substring and matched legacy session_generation; corrected to the exact JSON key without production relaxation. Routing fixture used a nonexistent meta.ErrConflict; corrected to root db.ErrConflict. Darwin linker LC_DYSYMTAB warnings were nonfatal.",
+  "candidate_files_sha256": {
+    "CHANGELOG.md": "487731a7d9f6b4bd2c6458222de4548dec16d4c93b0fe14abd2f1856aed82e14",
+    "docs/development/PROJECT_KNOWLEDGE.md": "fd6e69ab3bcc7e28869514142975b4d5145db1a2a7aea79dbcf188f91632b939",
+    "docs/specs/mqtt-session-reclamation.md": "e78fd637b9c3f0f9c597a7de560c9a1eb650b7b47faee5e569e2f36aaeb2b8e0",
+    "docs/superpowers/plans/2026-09-23-mqtt-im-access.md": "476c7dc2eb4936dedbf6e0f5897403a7a882e3329195423c3adebe01f702e756",
+    "pkg/cluster/FLOW.md": "d48ee505acbfdd0089971f5c0f0a15841fa3a298b7719977ba004c073f5e2e43",
+    "pkg/cluster/node_mqtt.go": "568e98231ba48ced0b7cbd10e9efe8fc86ad9aa7fca175818bbd2183f01011c9",
+    "pkg/cluster/node_mqtt_reclamation_index_integration_test.go": "bb73d9924627f79e2505c42707e936e25bc980decf4ca885b7cd3fa1ab3e82a5",
+    "pkg/cluster/node_mqtt_test.go": "d62ab388a1bc5d420a212f1932cbb40665d926860e0a2f86cd2b6604ed204f5b",
+    "pkg/db/SCHEMA_COMPATIBILITY.md": "bbf23a2309465d1cf7754690cd282389ea57e5f3dcb68c66e9a78842ac633098",
+    "pkg/db/meta/FLOW.md": "a4a97d06003f3ceccb186f967f1dffb554b1fe31740cc9ece0d68e0560b187f6",
+    "pkg/db/meta/mqtt_read.go": "5e7574252570892cc761d561b8358f9b1c73769a7268ab4bf3321c463067ec71",
+    "pkg/db/meta/mqtt_reclamation.go": "a9bf7dca74aad2e3acd670b051ccf9bb5b7dec4f9fa3b7fe66eb1d42c76c80f3",
+    "pkg/db/meta/mqtt_reclamation_index.go": "e95019a91daadbc11091b0af65a11af16b42a93e060d08f860466dcbb84e9a09",
+    "pkg/db/meta/mqtt_reclamation_index_test.go": "07997b52345cdd071d394481e4ac0df3df57beeea5074fe10f3d733629906e2c",
+    "pkg/db/meta/mqtt_session_schema.go": "aee1ce14294cff573c27f2ea7a5f84de5e8aa7b444bd39c29b15bf161417e369",
+    "pkg/slot/FLOW.md": "9dedee509d5ffee94c3a705bb667a5a4361dd6316cadb78aba5e008ccc6ff3d2",
+    "pkg/slot/fsm/command.go": "fffa7eaef7f90f45d241fed5ef425daafdcecdf2d213f9a706b11b5603455622",
+    "pkg/slot/fsm/command_inspection.go": "8e658c4bc099f51f057ad71e7f895e435c05e8708dbad9231b0ab5e06aa63864",
+    "pkg/slot/fsm/command_inspection_catalog_test.go": "9c05d8a4b21da3b288202fee670b793443024d9c486b2204cd7c2557c0d51150",
+    "pkg/slot/fsm/mqtt_reclamation_index_cmds.go": "4095dda9386e8b9191cd45dd769689b7d839394eebcc04ea3884f212a7a0e528",
+    "pkg/slot/fsm/mqtt_reclamation_index_cmds_test.go": "3ce0b5264280b250cbcdf511cc6d819372cc82ea464f637f0a608735bd728d2f",
+    "pkg/slot/proxy/mqtt_read.go": "70c7ddd113e45fffc6ae87a2c82cc80d02b399f90c9b77e32789ca43d95578e2",
+    "pkg/slot/proxy/mqtt_reclamation_index.go": "f9142d263e566ae076da8aeefbd171a5fd4f381c862c56677a89ed7176fad2c8",
+    "pkg/slot/proxy/mqtt_reclamation_index_test.go": "7e609c7874ca03017b40177e030a6fc2060fc2d54af2f14039166f1719b96cc5"
+  },
+  "remaining": [
+    "exact-owner isolation orchestration and shared bounded scheduling",
+    "process-level autonomous cleanup acceptance",
+    "source tombstone anti-resurrection floor and retirement",
+    "MQTT JSONL and restore reentry",
+    "historical initial-subscription disconnect and post-PUBACK EOF causal diagnosis",
+    "full approved MQTT fault and scale acceptance"
+  ]
+}

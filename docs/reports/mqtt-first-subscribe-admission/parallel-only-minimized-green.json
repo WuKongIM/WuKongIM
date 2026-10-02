@@ -1,0 +1,20 @@
+{
+  "clean_start": false,
+  "hash_slots": 256,
+  "nodes": 3,
+  "observations": [
+    {
+      "history": "empty",
+      "round": 0,
+      "ingress": 3,
+      "phase": "complete",
+      "subscribe_ms": 4443,
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "rounds_per_history": 20,
+  "scenario": "mqtt-first-subscribe-admission",
+  "selected_cases": 1,
+  "session_expiry_sec": 86400
+}

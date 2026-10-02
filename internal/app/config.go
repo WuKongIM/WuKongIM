@@ -54,6 +54,8 @@ type Config struct {
 	Manager ManagerConfig
 	// Gateway configures the client gateway runtime.
 	Gateway GatewayConfig
+	// MQTT configures the optional MQTT 5 listener and bounded Session runtimes.
+	MQTT MQTTConfig
 	// Bench configures the benchmark-only HTTP API surface.
 	Bench BenchConfig
 	// Observability configures metrics and diagnostics surfaces.

@@ -113,6 +113,22 @@ func (n *Node) applySnapshot(ctx context.Context, snapshot control.Snapshot) err
 	n.mu.Lock()
 	ready := !n.stopping.Load()
 	n.controlSnapshot = snapshot.Clone()
+	if firstSnapshot || changes.nodes {
+		members := make([]uint64, 0, len(snapshot.Nodes))
+		for _, node := range snapshot.Nodes {
+			if controlNodeJoinState(node.JoinState) == control.NodeJoinStateRemoved {
+				continue
+			}
+			for _, role := range node.Roles {
+				if role == control.RoleData {
+					members = append(members, node.NodeID)
+					break
+				}
+			}
+		}
+		sort.Slice(members, func(i, j int) bool { return members[i] < members[j] })
+		n.mqttStorageMemberIDs = members
+	}
 	n.snapshot = Snapshot{
 		NodeID:         n.cfg.NodeID,
 		ControllerLead: snapshot.ControllerID,

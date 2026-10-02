@@ -126,7 +126,7 @@ func TestChannelIdempotencyStoreRejectsDurableUncommittedHit(t *testing.T) {
 	}
 }
 
-func (n *recordingIdempotencyNode) ReadChannelCommittedBatch(_ context.Context, reads []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {
+func (n *recordingIdempotencyNode) ReadChannelOriginalCommittedBatch(_ context.Context, reads []clusterchannels.CommittedRead) ([]clusterchannels.CommittedReadResult, error) {
 	n.reads = reads
 	if n.readErr != nil {
 		return nil, n.readErr

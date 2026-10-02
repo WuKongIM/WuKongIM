@@ -43,6 +43,12 @@ type OutboundSealState interface {
 	OutboundSealed() bool
 }
 
+// OutboundFencer permanently fences new writes without joining an entered
+// encoder. Physical transport closure and admitted effect drain are separate.
+type OutboundFencer interface {
+	FenceOutbound()
+}
+
 type WriteOption interface {
 	apply(*OutboundMeta)
 }
@@ -64,21 +70,24 @@ func WithReplyToken(token string) WriteOption {
 }
 
 type Config struct {
-	ID           uint64
-	Listener     string
-	RemoteAddr   string
-	LocalAddr    string
-	WriteFrameFn WriteFrameFn
+	ID            uint64
+	Listener      string
+	RemoteAddr    string
+	LocalAddr     string
+	WriteFrameFn  WriteFrameFn
+	WritePacketFn WritePacketFn
 }
 
 func New(cfg Config) Session {
-	return newSession(
+	sess := newSession(
 		cfg.ID,
 		cfg.Listener,
 		cfg.RemoteAddr,
 		cfg.LocalAddr,
 		cfg.WriteFrameFn,
 	)
+	sess.writePacketFn = cfg.WritePacketFn
+	return sess
 }
 
 type session struct {
@@ -95,6 +104,7 @@ type session struct {
 	closing        atomic.Bool
 	closed         atomic.Bool
 	writeFrameFn   WriteFrameFn
+	writePacketFn  WritePacketFn
 }
 
 // These keys mirror gateway/types session value keys without importing that package.
@@ -250,7 +260,7 @@ func (s *session) Close() error {
 	if s == nil {
 		return nil
 	}
-	s.closing.Store(true)
+	s.FenceOutbound()
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	if s.closed.Load() {
@@ -258,6 +268,12 @@ func (s *session) Close() error {
 	}
 	s.closed.Store(true)
 	return nil
+}
+
+func (s *session) FenceOutbound() {
+	if s != nil {
+		s.closing.Store(true)
+	}
 }
 
 func (s *session) SetValue(key string, value any) {
