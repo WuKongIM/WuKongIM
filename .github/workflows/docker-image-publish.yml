@@ -604,6 +604,8 @@ jobs:
         env:
           # Keep blob copies on HTTP/1.1 after HTTP/2 peer stream failures.
           GODEBUG: http2client=0
+          CRANE_VERSION: v0.22.1
+          CRANE_ARCHIVE_SHA256: 0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0
           IMAGE_VERSION: ${{ steps.identity.outputs.image_version }}
           CANONICAL_DIGEST: ${{ steps.artifact.outputs.digest }}
         run: |
@@ -633,9 +635,22 @@ jobs:
                 }
                 ;;
               1)
-                docker buildx imagetools create --progress plain \
-                  --tag "$ref" \
-                  "$CANONICAL_IMAGE@$CANONICAL_DIGEST"
+                crane_dir="$RUNNER_TEMP/release-registry-copy"
+                crane_bin="$crane_dir/crane"
+                if [[ ! -x "$crane_bin" ]]; then
+                  mkdir -p "$crane_dir"
+                  crane_archive="$crane_dir/archive.tar.gz"
+                  curl --fail --silent --show-error --location \
+                    --retry 3 --connect-timeout 15 --max-time 120 \
+                    "https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" \
+                    --output "$crane_archive"
+                  printf '%s  %s\n' "$CRANE_ARCHIVE_SHA256" "$crane_archive" | sha256sum --check --status
+                  tar -xzf "$crane_archive" -C "$crane_dir" crane
+                  test "$("$crane_bin" version)" = "${CRANE_VERSION#v}"
+                fi
+                # Serialize layer transfers and refuse any concurrent tag creation.
+                "$crane_bin" --platform all copy --jobs 1 --no-clobber \
+                  "$CANONICAL_IMAGE@$CANONICAL_DIGEST" "$ref"
                 ;;
               *)
                 exit "$status"
