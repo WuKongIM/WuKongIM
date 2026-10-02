@@ -485,6 +485,11 @@ digest to all three public repositories:
 - `docker.io/wukongim/wukongim`;
 - `registry.cn-shanghai.aliyuncs.com/wukongim/wukongim`.
 
+The mirror-copy step uses HTTPS with HTTP/1.1 (`GODEBUG=http2client=0`) to
+avoid observed HTTP/2 peer stream protocol failures during blob transfer.
+Registry authentication and exact digest, source, and platform verification
+remain required.
+
 The exact Docker tag removes the Git `v` prefix. A stable `v3.1.2` may advance
 `3.1`, `3`, and `latest` only when it is the highest stable repository SemVer
 in each corresponding range. Pre-release tags, including date suffixes such as
