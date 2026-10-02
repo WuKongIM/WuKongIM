@@ -606,6 +606,8 @@ jobs:
           GODEBUG: http2client=0
           CRANE_VERSION: v0.22.1
           CRANE_ARCHIVE_SHA256: 0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0
+          REGCTL_VERSION: v0.11.6
+          REGCTL_BINARY_SHA256: 8e0e62a497fcdb8048d18aa927a139613176ba0531f412bc541044e28f9856bd
           IMAGE_VERSION: ${{ steps.identity.outputs.image_version }}
           CANONICAL_DIGEST: ${{ steps.artifact.outputs.digest }}
         run: |
@@ -647,6 +649,22 @@ jobs:
                   printf '%s  %s\n' "$CRANE_ARCHIVE_SHA256" "$crane_archive" | sha256sum --check --status
                   tar -xzf "$crane_archive" -C "$crane_dir" crane
                   test "$("$crane_bin" version)" = "${CRANE_VERSION#v}"
+                fi
+                if [[ "$image" = "$ALIYUN_IMAGE" ]]; then
+                  regctl_bin="$crane_dir/regctl"
+                  curl --fail --silent --show-error --location \
+                    --retry 3 --connect-timeout 15 --max-time 120 \
+                    "https://github.com/regclient/regclient/releases/download/${REGCTL_VERSION}/regctl-linux-amd64" \
+                    --output "$regctl_bin"
+                  printf '%s  %s\n' "$REGCTL_BINARY_SHA256" "$regctl_bin" | sha256sum --check --status
+                  chmod +x "$regctl_bin"
+                  test "$("$regctl_bin" version --format '{{.VCSTag}}')" = "$REGCTL_VERSION"
+                  export REGCTL_CONFIG="$crane_dir/regctl.json"
+                  "$regctl_bin" registry set "${image%%/*}" \
+                    --blob-chunk 1048576 --blob-max 1048576 --req-concurrent 1
+                  # Bound each upload request before creating the immutable tag.
+                  # Copy only by digest so this preparation cannot replace any tag.
+                  "$regctl_bin" image copy "$CANONICAL_IMAGE@$CANONICAL_DIGEST" "$image@$CANONICAL_DIGEST"
                 fi
                 # Serialize layer transfers and refuse any concurrent tag creation.
                 "$crane_bin" --platform all copy --jobs 1 --no-clobber \

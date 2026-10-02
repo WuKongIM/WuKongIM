@@ -187,6 +187,8 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 			require.Equal(t, "http2client=0", step.Env["GODEBUG"])
 			require.Equal(t, "v0.22.1", step.Env["CRANE_VERSION"])
 			require.Equal(t, "0ab7a1d6932a213aed964ce97666c3077fe691c8606413674a8b3e0b9ec4cda0", step.Env["CRANE_ARCHIVE_SHA256"])
+			require.Equal(t, "v0.11.6", step.Env["REGCTL_VERSION"])
+			require.Equal(t, "8e0e62a497fcdb8048d18aa927a139613176ba0531f412bc541044e28f9856bd", step.Env["REGCTL_BINARY_SHA256"])
 			mirrorRun = step.Run
 			break
 		}
@@ -197,6 +199,14 @@ func TestDockerImagePublishWorkflowContract(t *testing.T) {
 	require.Contains(t, mirrorRun, `"$CANONICAL_IMAGE@$CANONICAL_DIGEST" "$ref"`)
 	require.NotContains(t, mirrorRun, "--insecure")
 	require.Less(t, strings.Index(mirrorRun, "sha256sum --check --status"), strings.Index(mirrorRun, "tar -xzf"))
+	require.Contains(t, mirrorRun, "https://github.com/regclient/regclient/releases/download/${REGCTL_VERSION}/regctl-linux-amd64")
+	require.Contains(t, mirrorRun, `printf '%s  %s\n' "$REGCTL_BINARY_SHA256" "$regctl_bin" | sha256sum --check --status`)
+	require.Contains(t, mirrorRun, "--blob-chunk 1048576 --blob-max 1048576 --req-concurrent 1")
+	require.Contains(t, mirrorRun, `"$regctl_bin" image copy "$CANONICAL_IMAGE@$CANONICAL_DIGEST" "$image@$CANONICAL_DIGEST"`)
+	require.Contains(t, mirrorRun, `export REGCTL_CONFIG="$crane_dir/regctl.json"`)
+	require.NotContains(t, mirrorRun, "--tls disabled")
+	require.NotContains(t, mirrorRun, "--tls insecure")
+	require.Less(t, strings.Index(mirrorRun, `"$regctl_bin" image copy`), strings.Index(mirrorRun, "--platform all copy --jobs 1 --no-clobber"))
 
 	changelogRun := ""
 	for _, step := range publish.Steps {
