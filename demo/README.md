@@ -47,6 +47,74 @@ MQTT 当前仍为开发预览；本场景验收不替代完整故障和规模资
 
 启动失败会指出步骤和日志位置；修复后重新执行命令即可。
 
+## 公网部署配置
+
+本地体验继续使用 `node demo/start.mjs`，不需要公网配置。公网部署使用独立配置生成器：
+
+```bash
+cp demo/deployment.json.example deployment.json
+# 修改 deployment.json 的域名、已有 TLS 网关网络与部署标识
+node demo/deployment.mjs --config deployment.json --output public-demo
+```
+
+输出 `compose.json`、`wukongim.toml`、`frontdoor.conf`、业务进程启动器与解析后的
+`deployment.json`，只生成文件，不自动启动服务，也拒绝覆盖已有目录。
+公网配置、TLS 网关和独立 Demo 数据均由部署者管理；不会读取或改变本地启动器的配置。
+
+| 配置字段 | 说明 |
+| --- | --- |
+| `public_url` | 浏览器可访问的 HTTPS 根 Origin；统一生成 API、允许的页面 Origin、`/ws` 与 `/mqtt` 地址。仅 loopback 可使用 HTTP 测试。 |
+| `project_name` / `service_prefix` | 独立 Compose 项目与服务名称；网关上游为 `<service_prefix>-product:8088`。 |
+| `network` | 已存在的 TLS 网关 Docker 网络，只有前门代理监听该网络。 |
+| `cluster_id` / `mqtt_namespace` | 独立演示集群与 MQTT 标识，初始化后保持不变。 |
+| `source_revision` | 与 Product 镜像对应的完整 Git commit，业务源码和内嵌首页必须来自该版本。 |
+| `product_image` / `node_image` / `proxy_image` | 三个镜像必须使用 `@sha256:` 固定摘要；示例对应 beta.23。升级时同时更新 Product 镜像与源码版本。 |
+
+Configuration comments: `public_url` is the browser-reachable root origin, shared
+by API metadata, allowed browser origins and both public WebSocket endpoints;
+HTTPS is mandatory outside loopback. `project_name` isolates Compose ownership,
+and `service_prefix` determines service names and the gateway upstream alias.
+`network` selects an existing TLS gateway network without creating host ports.
+`cluster_id` and `mqtt_namespace` identify this separate Demo deployment and must
+remain stable across restarts. `source_revision` is the exact 40-character Product
+source commit used for helper code and embedded pages. `product_image`,
+`node_image` and `proxy_image` select immutable image digests; upgrade Product
+and its source together. These settings belong to the deployment renderer,
+while generated Product settings remain in `wukongim.toml`.
+
+每个字段都支持对应的 `WK_DEMO_<大写字段名>` 环境变量覆盖，例如
+`WK_DEMO_PUBLIC_URL=https://demo.example.org`。未知字段、非根地址与可变镜像标签会报错。
+公网域名和服务器地址不写入任何前端源码或本地默认值。
+
+准备 `public-demo/source`，保留仓库目录结构，包含所选 `source_revision` 下的
+`demo/{stream,support,agent,mqtt,live}demo` 和 `internal/access/api/demoui`。
+例如在此仓库使用配置中的版本导出：
+
+```bash
+mkdir public-demo/source public-demo/data
+WK_DEMO_SOURCE_REVISION=$(node -p "require('./public-demo/deployment.json').source_revision")
+git archive "$WK_DEMO_SOURCE_REVISION" demo/streamdemo demo/supportdemo demo/agentdemo demo/mqttdemo demo/livedemo internal/access/api/demoui | tar -x -C public-demo/source
+WK_DEMO_NODE_IMAGE=$(node -p "require('./public-demo/deployment.json').node_image")
+for WK_DEMO_HELPER in agent support; do
+  docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/public-demo/source:/workspace" -w "/workspace/demo/${WK_DEMO_HELPER}demo" "$WK_DEMO_NODE_IMAGE" npm ci --ignore-scripts --no-audit --no-fund
+  docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/public-demo/source:/workspace" -w "/workspace/demo/${WK_DEMO_HELPER}demo" "$WK_DEMO_NODE_IMAGE" node node_modules/typescript/bin/tsc -p tsconfig.model.json
+done
+# Product 镜像以 UID 10001 写入独立数据目录；Node 使用 UID 1000 读取源码
+sudo chown 10001:10001 public-demo/data
+docker compose -f public-demo/compose.json up -d --wait
+```
+
+已有 TLS 网关仅将该域名请求转发至生成器输出的 `upstream`，使用 HTTP/1.1，传递
+`Upgrade` / `Connection`，关闭响应缓冲并设置至少 190 秒读取超时。
+前门负责 `/demos/` 首页、当前 Product 的 `/demo/`、五个独立业务后端、WSMUX 和 MQTT。
+`/ws` 转发至 WSMUX 的 `/`；MQTT 保留 `/mqtt`，不能复用 WSMUX 监听器。
+业务后端仍只监听 loopback，代理先检查页面 Origin，再按各后端的 loopback Host 契约转发。
+流式模型代理还需要 loopback Origin；实际模型密钥仍为请求级配置，默认模拟模型无需 Key。
+
+修改配置时先生成到新目录，校验 `docker compose config` 与 `nginx -t`，再保留现有数据目录、
+备份并原位更新配置文件，按变更重载代理或重建服务。不要重新初始化现有集群标识。
+仅部署静态前端不会启动业务后端；还必须用浏览器验证开始演示、WS/MQTT 连接与真实消息收发。
+
 ## 首页开发与预览
 
 ```bash
@@ -79,6 +147,7 @@ Go 服务的首页链接使用同源地址。
 GOWORK=off go build -o /tmp/wukongim-demo-home ./cmd/wukongim
 WK_DEMO_SERVER_BIN=/tmp/wukongim-demo-home node demo/home/test/home.integration.mjs
 WK_DEMO_SERVER_BIN=/tmp/wukongim-demo-home node demo/test/start.integration.mjs
+node demo/test/deployment.integration.mjs
 ```
 
 真实 256 hash slots 单节点集群验收入口、资源、缓存、一键启动、MQTT、直播与 SDK 消息、流式事件、

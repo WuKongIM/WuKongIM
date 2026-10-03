@@ -1,5 +1,12 @@
 # Project Knowledge
 
+Person-directory projection must emit one membership for a self-channel and two
+for distinct participants. Duplicate UID/channel identities reject the complete
+physical-Slot membership command, leaving MQTT inbox preparation pending and
+blocking unrelated person channels in that batch. Keep completion results aligned
+with each task's distinct participant range; retained pending tasks recover through
+the existing projector after an upgrade.
+
 
 Keep only stable, cross-module facts that prevent incorrect designs or unsafe
 operations. Repository rules belong in [AGENTS.md](../../AGENTS.md), domain terms
@@ -1642,6 +1649,16 @@ specification, runbook, report, or module documentation; link to them when neede
   cluster and the Demo business processes. It uses a new run directory, strips
   inherited product overrides, and stops only its own child process groups.
   Startup health probes do not create user credentials or model requests.
+
+- Public Demo deployment uses the opt-in `demo/deployment.mjs` renderer and
+  `demo/deployment.json.example`; `WK_DEMO_*` values override file settings.
+  One public origin configures API metadata, browser-origin checks, WSMUX and
+  MQTT routes. The TLS frontdoor shares the Product network namespace with the
+  five loopback business helpers. WSMUX `/ws` strips to `/`, MQTT keeps `/mqtt`,
+  and the model relay receives a loopback Origin only after public-origin
+  validation. Static bundles alone cannot supply these business processes.
+  Product image and helper/UI source must use the same immutable revision.
+  This deployment path does not alter one-command launcher defaults.
 
 - All six Demo UIs expose a home link. Catalog redirects carry a `home`
   parameter across origins and reloads; it accepts only the same origin or
