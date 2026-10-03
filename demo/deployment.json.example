@@ -5,8 +5,8 @@
   "network": "tls-gateway_default",
   "cluster_id": "public-demo",
   "mqtt_namespace": "public-demo",
-  "source_revision": "e44f2abf50d19e1dfb46bc23a6444ef71217d697",
-  "product_image": "registry.cn-shanghai.aliyuncs.com/wukongim/wukongim@sha256:055bac9e984f83e3fdaef7c247c72518152610afa6792030525b993eb610f5f3",
+  "source_revision": "4d44b39dda6fdaa7dafb637ca6cfb718e9530f77",
+  "product_image": "registry.cn-shanghai.aliyuncs.com/wukongim/wukongim@sha256:55ecc6f51a2fead0b5984d45424ddf6ef7bc1783b891b2d7138f2d50170c54d6",
   "node_image": "node@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c",
   "proxy_image": "nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10"
 }

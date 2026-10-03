@@ -6,6 +6,12 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 🐛 Bug Fixes / 问题修复
+
+- Pin the public Demo deployment example to the beta.24 image and matching source
+  so new deployments include the self-chat fix. / 公网 Demo 配置示例固定到 beta.24
+  镜像与对应源码，新部署直接包含自聊修复。
+
 ## [v3.0.0-beta.24] - 2026-10-03
 
 ### 🐛 Bug Fixes / 问题修复
