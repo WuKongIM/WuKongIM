@@ -40,6 +40,8 @@ try {
     ['missing_setting',{network:null}],
     ['unknown_setting',{invented_setting:'ignored?'}],
     ['unsafe_name',{service_prefix:'demo;'}],
+    ['mutable_chat_ui_revision',{chat_ui_revision:'main'}],
+    ['mutable_stream_ui_revision',{stream_ui_revision:'main'}],
   ]) check(name+'_rejected',(await run(name,change)).status!==0);
   const generated = await run('valid',{}, {WK_DEMO_PUBLIC_URL:'https://other.example.com:8443',WK_DEMO_CLUSTER_ID:'override-cluster'});
   check('valid_configuration_renders',generated.status===0);
@@ -57,6 +59,21 @@ try {
   check('five_backend_routes_exist',['stream','support','agent','mqtt','live'].every(name=>proxy.includes('location /'+name+'demo/')));
   check('origin_guard_uses_configuration',proxy.includes('"https://other.example.com:8443" 1;') && proxy.includes('if ($demo_origin_allowed = 0) { return 403; }') && !proxy.includes('demo.githubim.com'));
   check('stream_relay_uses_guarded_loopback_origin',proxy.includes('location = /streamdemo/api/chat') && proxy.includes('proxy_set_header Origin "http://127.0.0.1:5175";'));
+  check('default_chat_ui_stays_embedded',!proxy.includes('location /demo/') && !compose.services['demo-proxy'].volumes.some(v=>v.includes('/srv/demo:')));
+  const chat = await run('chat_ui',{chat_ui_revision:'4'.repeat(40)}, {WK_DEMO_CHAT_UI_REVISION:'5'.repeat(40)});
+  check('chat_ui_configuration_renders',chat.status===0);
+  const chatConfig = JSON.parse(await readFile(join(chat.output,'deployment.json'),'utf8'));
+  const chatCompose = JSON.parse(await readFile(join(chat.output,'compose.json'),'utf8'));
+  const chatProxy = await readFile(join(chat.output,'frontdoor.conf'),'utf8');
+  check('chat_ui_environment_override_keeps_product_revision',chatConfig.chat_ui_revision==='5'.repeat(40) && chatConfig.source_revision===config.source_revision && chatCompose.services['demo-product'].image===config.product_image);
+  check('chat_ui_override_is_read_only_and_scoped',chatCompose.services['demo-proxy'].volumes.includes('./chat-ui:/srv/demo:ro') && chatProxy.includes('location = /demo { return 302 /demo/; }') && chatProxy.includes('location /demo/') && chatProxy.includes('try_files $uri $uri/ =404;') && chatProxy.includes('proxy_pass http://127.0.0.1:5001;'));
+  const stream = await run('stream_ui',{stream_ui_revision:'6'.repeat(40)}, {WK_DEMO_STREAM_UI_REVISION:'7'.repeat(40)});
+  check('stream_ui_configuration_renders',stream.status===0);
+  const streamConfig = JSON.parse(await readFile(join(stream.output,'deployment.json'),'utf8'));
+  const streamCompose = JSON.parse(await readFile(join(stream.output,'compose.json'),'utf8'));
+  const streamProxy = await readFile(join(stream.output,'frontdoor.conf'),'utf8');
+  check('stream_ui_override_keeps_product_and_business',streamConfig.stream_ui_revision==='7'.repeat(40) && streamCompose.services['demo-product'].image===config.product_image && JSON.stringify(streamCompose.services['demo-business'])===JSON.stringify(compose.services['demo-business']).replaceAll('https://other.example.com:8443','https://demo.example.com').replaceAll('wss://other.example.com:8443','wss://demo.example.com'));
+  check('stream_ui_override_keeps_guarded_model_proxy',streamCompose.services['demo-proxy'].volumes.includes('./stream-ui:/srv/streamdemo:ro') && streamProxy.includes('wk-model-proxy') && streamProxy.includes('location = /streamdemo/api/chat') && streamProxy.includes('proxy_set_header Origin "http://127.0.0.1:5175";'));
   const again=spawnSync(process.execPath,[join(root,'demo/deployment.mjs'),'--config',generated.file,'--output',generated.output],{env:clean,encoding:'utf8'});
   check('existing_output_is_preserved',again.status!==0 && (await readFile(join(generated.output,'wukongim.toml'),'utf8'))===toml);
   const loopback = await run('loopback',{public_url:'http://127.0.0.1:8080'});

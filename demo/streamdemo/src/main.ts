@@ -67,7 +67,7 @@ $('#app').innerHTML = `
     </section>
     <div class="composer-area">
       <div id="error" role="alert"></div>
-      <div id="connect-cta"><span>连接后，开始这次对话。</span><button id="prepare">创建演示账号并连接</button></div>
+      <div id="connect-cta"><span id="connect-hint">连接后，开始这次对话。</span><button id="prepare">创建演示账号并连接</button><button id="retry-connect" class="secondary" hidden>重试连接</button><button id="reset-session" class="secondary" hidden>重新创建演示会话</button></div>
       <div class="composer-meta"><span id="chat-status">模拟回复 · 真实消息链路</span><button id="cancel" class="stop" disabled>取消生成</button></div>
       <form id="composer"><button id="more" type="button" aria-label="打开演示设置">＋</button><textarea id="question" aria-label="消息" rows="1" maxlength="1000" placeholder="发一条消息…" disabled></textarea><button id="send" type="submit" aria-label="发送消息" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></form>
     </div>
@@ -82,18 +82,30 @@ function log(source: string, type: string, body: unknown) {
   $('#logs').textContent = logs.join('\n\n');
   $('#logs').scrollTop = $('#logs').scrollHeight;
 }
-function showError(error: unknown) { $('#error').textContent = error instanceof Error ? error.message : String(error); }
+function errorText(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') return error.message;
+  return typeof error === 'string' ? error : '请求失败，请重试。';
+}
+function showError(error: unknown) { $('#error').textContent = errorText(error); }
 function state() {
-  $('#connection-state').textContent = restoring ? '恢复中' : readerOnline ? '在线' : credentials ? '离线' : '未连接';
-  $('#dot').classList.toggle('online', readerOnline);
+  const ready = readerOnline && writerOnline;
+  $('#connection-state').textContent = connecting ? '连接中' : restoring ? '恢复中' : ready ? '在线' : readerOnline ? '生成端未连接' : credentials ? '离线' : '未连接';
+  $('#dot').classList.toggle('online', ready);
   $('#disconnect').textContent = readerOnline ? '断开接收端' : '重连接收端';
   $('#disconnect').toggleAttribute('disabled', !credentials || connecting);
   $('#prepare').toggleAttribute('disabled', connecting || !!credentials);
+  $('#prepare').hidden = !!credentials;
+  $('#retry-connect').hidden = !credentials;
+  $('#reset-session').hidden = !credentials;
+  $('#retry-connect').toggleAttribute('disabled', connecting || restoring || !!run || sendingQuestion);
+  $('#reset-session').toggleAttribute('disabled', connecting || restoring || !!run || sendingQuestion);
+  $('#connect-hint').textContent = connecting ? '正在连接接收端与生成端…' : credentials ? '连接未就绪，可重试；凭据失效时重新创建演示会话。' : '连接后，开始这次对话。';
   $('#api').toggleAttribute('disabled', !!credentials || connecting);
   $('#generate').toggleAttribute('disabled', !writerOnline || !!run);
   $('#send').toggleAttribute('disabled', !readerOnline || !writerOnline || !!run || sendingQuestion || restoring);
   $('#question').toggleAttribute('disabled', !readerOnline || !writerOnline || sendingQuestion);
-  $('#connect-cta').hidden = !!credentials;
+  $('#connect-cta').hidden = ready;
   $('#chat-status').textContent = run ? run.stop ? '正在结束回复…' : '助手正在回复…' : `${modelMode() ? '真实模型' : '模拟回复'} · 真实消息链路`;
   $('#composer').classList.toggle('generating', !!run);
   $('#model-options').hidden = !modelMode(); $('#simulation-options').hidden = modelMode();
@@ -221,16 +233,30 @@ async function connect() {
     reader.on(WKIMEvent.Disconnect, () => { readerOnline = false; state(); });
     reader.on(WKIMEvent.Connect, () => { readerOnline = true; void recover().catch(showError); });
     reader.on(WKIMEvent.Error, (error: unknown) => { log('SDK ←', 'Error', String(error)); showError(error); });
-    await reader.connect();
+    await connectPeer(reader);
     if (!writerOnline) {
       writer?.destroy();
       writer = WKIM.init(ws, { uid: credentials.writer, token: credentials.token, deviceFlag: 1 }, { singleton: false });
       writer.on(WKIMEvent.Connect, () => { writerOnline = true; state(); });
       writer.on(WKIMEvent.Disconnect, () => { writerOnline = false; state(); });
-      await writer.connect();
+      writer.on(WKIMEvent.Error, (error: unknown) => { log('SDK ←', 'Writer Error', errorText(error)); showError(error); });
+      await connectPeer(writer);
     }
     $('#identity').textContent = `接收账号 ${credentials.reader}　·　生成账号 ${credentials.writer}　·　群频道 ${credentials.channel}`;
-  } catch (error) { showError(error); } finally { connecting = false; state(); }
+  } catch (error) {
+    reader?.destroy(); writer?.destroy(); reader = writer = undefined;
+    readerOnline = writerOnline = false;
+    showError(`连接失败：${errorText(error)} 可重试连接，或重新创建演示会话。`);
+  } finally { connecting = false; state(); }
+}
+// Bound an SDK handshake even when a WebSocket never opens; failed peers are destroyed by connect().
+async function connectPeer(peer: WKIM) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([peer.connect(), new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(Error('WebSocket 连接超时，请检查 API 与外部 WebSocket 地址。')), 15000);
+    })]);
+  } finally { if (timer) clearTimeout(timer); }
 }
 $('#prepare').onclick = async () => {
   const api = $('#api') as HTMLInputElement;
@@ -246,6 +272,18 @@ $('#prepare').onclick = async () => {
   } catch (error) { if (!readerOnline) credentials = undefined; connecting = false; state(); showError(error); }
 };
 $('#disconnect').onclick = () => { if (readerOnline) reader?.disconnect(); else void connect(); };
+$('#retry-connect').onclick = () => { void connect(); };
+$('#reset-session').onclick = () => {
+  if (connecting || restoring || run || sendingQuestion) return;
+  reader?.destroy(); writer?.destroy(); reader = writer = undefined;
+  readerOnline = writerOnline = false; credentials = undefined;
+  sessionStorage.removeItem(storageKey);
+  rows.clear(); userRows.clear(); buffered = [];
+  for (const message of $('#messages').querySelectorAll('[data-message-key]')) message.remove();
+  $('#suggestions').hidden = false;
+  $('#error').textContent = ''; $('#identity').textContent = '演示凭据仅保存在当前标签页。';
+  state();
+};
 $('#clear').onclick = () => { logs.length = 0; $('#logs').textContent = ''; };
 for (const [id, stop] of [['cancel', 'cancel'], ['fail', 'error']] as const) $(`#${id}`).onclick = () => { if (run) { run.stop = stop; run.controller.abort(); state(); } };
 function modelMode() { return $<HTMLSelectElement>('#mode').value === 'model'; }
@@ -336,5 +374,17 @@ function saveModelSettings() { sessionStorage.setItem(modelStorageKey, JSON.stri
 for (const id of ['mode', 'model-url', 'model-name']) $(`#${id}`).onchange = () => { saveModelSettings(); state(); };
 try { const saved = JSON.parse(sessionStorage.getItem(modelStorageKey) || 'null'); if (saved) { $<HTMLSelectElement>('#mode').value = saved.mode === 'model' ? 'model' : 'simulate'; $<HTMLInputElement>('#model-url').value = saved.url || ''; $<HTMLInputElement>('#model-name').value = saved.model || ''; } } catch { sessionStorage.removeItem(modelStorageKey); }
 state();
-try { const saved = sessionStorage.getItem(storageKey); if (saved) { credentials = JSON.parse(saved); $<HTMLInputElement>('#api').value = credentials!.api; void connect(); } } catch { sessionStorage.removeItem(storageKey); }
+try {
+  const saved = sessionStorage.getItem(storageKey);
+  if (saved) {
+    const value = JSON.parse(saved);
+    if (!value || !['api','reader','writer','token','channel'].every(key => typeof value[key] === 'string' && value[key].trim())) throw Error('invalid saved session');
+    const api = new URL(value.api);
+    if (!['http:', 'https:'].includes(api.protocol) || api.username || api.password || api.search || api.hash) throw Error('invalid saved API');
+    credentials = value; $<HTMLInputElement>('#api').value = value.api; void connect();
+  }
+} catch {
+  credentials = undefined; sessionStorage.removeItem(storageKey);
+  showError('保存的演示会话无效，请重新创建演示账号并连接。'); state();
+}
 window.addEventListener('pagehide', () => { if (run) { run.stop = 'cancel'; run.controller.abort(); } $<HTMLInputElement>('#model-key').value = ''; reader?.destroy(); writer?.destroy(); });

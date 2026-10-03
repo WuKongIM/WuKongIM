@@ -1459,6 +1459,11 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Embedded Demo message editing
 
+- Chat Demo credential creation is checked by default for test accounts;
+  unchecking it uses existing credentials without updating the server. Public
+  deployment's optional exact `chat_ui_revision` serves only `/demo/` from a
+  read-only bundle, leaving Product image, API and business source pins intact.
+
 - `demo/chatdemo` pins JS SDK `1.4.0-beta.1` and uses its edit/feed manager with
   custom epoch-preserving history and complete conversation-directory providers.
   Preserve stream metadata and reject mixed-epoch directory pages.
@@ -1626,6 +1631,10 @@ specification, runbook, report, or module documentation; link to them when neede
   retirement/reopened delivery. This finite scenario does not qualify membership
   changes, arbitrary corruption, all partition permutations or other platforms.
 - The independent `/streamdemo/` uses pinned `easyjssdk@2.0.5`: online `Message` and `CustomEvent` only, with one full `/channel/messagesync` read on connection/reconnection for offline recovery. `/message/eventsync` is not its live transport. The chat demo has no streaming UI; its stream-message edit exclusion remains a server contract.
+- Stream Demo readiness requires both SDK peers. Authentication failure retains
+  a retry/new-session entrance; resetting clears only this tab's identity and
+  message view. Public `stream_ui_revision` can select a read-only UI bundle
+  while preserving configured metadata and the guarded model relay.
 - `/supportdemo/` embeds only its read-only UI. Its separate loopback Node business
   process owns support sessions and generation leases; handoff joins cancelled
   stream snapshots before allowing human acceptance. Support ownership is not a

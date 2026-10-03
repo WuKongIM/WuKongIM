@@ -37,7 +37,7 @@ export function clearSession(storage: SessionStorage): void {
     storage.removeItem(sessionKey)
 }
 
-// Registering credentials is an explicit demo-only choice, never part of existing-token login.
+// The checkbox controls test-account registration; unchecked login only uses existing credentials.
 export async function establishSession(
     storage: SessionStorage,
     input: DemoSession,

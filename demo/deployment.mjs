@@ -3,7 +3,8 @@ import {resolve, join} from 'node:path';
 
 // Render a separate public Demo deployment. The loopback launcher and all
 // frontend/backend defaults remain independent of this opt-in configuration.
-const keys = ['public_url','project_name','service_prefix','network','cluster_id','mqtt_namespace','source_revision','product_image','node_image','proxy_image'];
+const requiredKeys = ['public_url','project_name','service_prefix','network','cluster_id','mqtt_namespace','source_revision','product_image','node_image','proxy_image'];
+const keys = [...requiredKeys,'chat_ui_revision','stream_ui_revision'];
 const args = process.argv.slice(2);
 if (args.length===1 && args[0]==='--help') {
   console.log('node demo/deployment.mjs --config deployment.json --output NEW_DIRECTORY\nWK_DEMO_<UPPERCASE_KEY> overrides the corresponding configuration value.\nRenders files only; does not deploy or modify an existing directory.');
@@ -14,7 +15,9 @@ try {
   const input = JSON.parse(await readFile(resolve(args[1]),'utf8'));
   if(!input || Array.isArray(input) || typeof input!=='object' || Object.keys(input).some(k=>!keys.includes(k))) throw Error('Unknown or invalid deployment configuration');
   const config = Object.fromEntries(keys.map(k=>[k,process.env['WK_DEMO_'+k.toUpperCase()] ?? input[k]]));
-  for(const key of keys) if(typeof config[key]!=='string' || !config[key]) throw Error('Missing setting: '+key);
+  for(const key of requiredKeys) if(typeof config[key]!=='string' || !config[key]) throw Error('Missing setting: '+key);
+  // An optional immutable UI revision permits a frontend-only rollout on the pinned Product.
+  for(const key of ['chat_ui_revision','stream_ui_revision']) if(config[key]!==undefined && (typeof config[key]!=='string' || !/^[a-f0-9]{40}$/.test(config[key]))) throw Error(key+' must be an exact Git commit');
   const url = new URL(config.public_url);
   if(!['http:','https:'].includes(url.protocol) || url.username || url.password || url.pathname!=='/' || url.search || url.hash || ![url.origin,url.origin+'/'].includes(config.public_url) || !/^[a-z0-9.-]+$/.test(url.hostname)) throw Error('public_url must be an HTTP(S) origin without credentials, path, query or fragment');
   if(url.protocol==='http:' && !['127.0.0.1','localhost'].includes(url.hostname)) throw Error('Public deployments require HTTPS; HTTP is allowed only on loopback');
@@ -34,6 +37,8 @@ try {
     [business]:{...common,image:config.node_image,user:'1000:1000',cpus:1,mem_limit:'768m',pids_limit:128,read_only:true,tmpfs:['/tmp:size=64m,mode=1777'],network_mode:'service:'+product,depends_on:{[product]:{condition:'service_healthy'}},working_dir:'/workspace',volumes:['./source:/workspace:ro','./business-runner.mjs:/business-runner.mjs:ro'],command:['node','/business-runner.mjs'],environment:{WK_DEMO_API_URL:origin,WK_DEMO_MQTT_WS_URL:ws+'/mqtt'}},
     [proxy]:{...common,image:config.proxy_image,user:'101:101',cpus:0.25,mem_limit:'64m',pids_limit:64,read_only:true,tmpfs:['/var/cache/nginx:size=16m,mode=1777','/var/run:size=1m,mode=1777','/tmp:size=8m,mode=1777'],network_mode:'service:'+product,depends_on:{[business]:{condition:'service_started'}},volumes:['./frontdoor.conf:/etc/nginx/conf.d/default.conf:ro','./source/internal/access/api/demoui/homedist:/srv/demos:ro']},
   },networks:{default:{external:true,name:config.network}}};
+  if(config.chat_ui_revision) compose.services[proxy].volumes.push('./chat-ui:/srv/demo:ro');
+  if(config.stream_ui_revision) compose.services[proxy].volumes.push('./stream-ui:/srv/streamdemo:ro');
   const toml = `# Dedicated Demo single-node cluster; no listener except the frontdoor is public.
 [node]
 id = 1
@@ -110,7 +115,29 @@ server {
   proxy_buffering off;
  }
 `;
-  for(const [name,port] of [['stream',5175],['support',5177],['agent',5178],['mqtt',5179],['live',5180]]) front += ` location /${name}demo/ {
+  if(config.chat_ui_revision) front += ` # Optional separately pinned chat UI; API and WS still use Product.
+ location = /demo { return 302 /demo/; }
+ location /demo/ {
+  root /srv;
+  add_header Cache-Control "no-cache";
+  add_header X-Content-Type-Options nosniff;
+  try_files $uri $uri/ =404;
+ }
+`;
+  if(config.stream_ui_revision) front += ` location = /streamdemo { return 302 /streamdemo/; }
+ location /streamdemo/ {
+  root /srv;
+  add_header Cache-Control "no-cache";
+  add_header X-Content-Type-Options nosniff;
+  # Preserve deployment-specific API/home/model metadata for this read-only bundle.
+  sub_filter '</head>' '<meta name="wk-api-base" content="${origin}"><meta name="wk-demo-home" content="${origin}/demos/"><meta name="wk-model-proxy" content="/streamdemo/api/chat"></head>';
+  sub_filter_once on;
+  try_files $uri $uri/ =404;
+ }
+`;
+  for(const [name,port] of [['stream',5175],['support',5177],['agent',5178],['mqtt',5179],['live',5180]]) {
+    if(name==='stream' && config.stream_ui_revision) continue;
+    front += ` location /${name}demo/ {
   if ($demo_origin_allowed = 0) { return 403; }
   proxy_pass http://127.0.0.1:${port};
   proxy_http_version 1.1;
@@ -119,6 +146,7 @@ server {
   proxy_buffering off;
  }
 `;
+  }
   front += ` location / {
   proxy_pass http://127.0.0.1:5001;
   proxy_http_version 1.1;
