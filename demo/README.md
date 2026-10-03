@@ -69,6 +69,7 @@ node demo/deployment.mjs --config deployment.json --output public-demo
 | `cluster_id` / `mqtt_namespace` | 独立演示集群与 MQTT 标识，初始化后保持不变。 |
 | `source_revision` | 与 Product 镜像对应的完整 Git commit，业务源码和内嵌首页必须来自该版本。 |
 | `chat_ui_revision`（可选） | 单独更新聊天前端时指定完整 Git commit；省略时使用 Product 内嵌聊天页。将该版本已提交的 `internal/access/api/demoui/dist` 导出到 `chat-ui/`，仅供代理只读挂载。 |
+| `stream_ui_revision`（可选） | 单独更新流式前端时指定完整 Git commit；将对应 `streamdist` 导出到 `stream-ui/`。代理保留配置生成的 API、首页与模型代理元数据；省略时继续使用业务后端的前端。 |
 | `product_image` / `node_image` / `proxy_image` | 三个镜像必须使用 `@sha256:` 固定摘要；示例对应 beta.24。升级时同时更新 Product 镜像与源码版本。 |
 
 Configuration comments: `public_url` is the browser-reachable root origin, shared
@@ -98,6 +99,16 @@ only the proxy after backing up its existing configuration:
 mkdir public-demo/chat-ui
 WK_DEMO_CHAT_UI_REVISION=$(node -p "require('./public-demo/deployment.json').chat_ui_revision")
 git archive "$WK_DEMO_CHAT_UI_REVISION" internal/access/api/demoui/dist | tar -x --strip-components=5 -C public-demo/chat-ui
+```
+
+`stream_ui_revision` / `WK_DEMO_STREAM_UI_REVISION` similarly selects a read-only
+streaming UI, while `/streamdemo/api/chat` retains its guarded loopback relay.
+Export its committed bundle before recreating the proxy:
+
+```bash
+mkdir public-demo/stream-ui
+WK_DEMO_STREAM_UI_REVISION=$(node -p "require('./public-demo/deployment.json').stream_ui_revision")
+git archive "$WK_DEMO_STREAM_UI_REVISION" internal/access/api/demoui/streamdist | tar -x --strip-components=5 -C public-demo/stream-ui
 ```
 
 准备 `public-demo/source`，保留仓库目录结构，包含所选 `source_revision` 下的

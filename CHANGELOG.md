@@ -8,6 +8,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Restore Stream Demo connection recovery after expired test credentials, show
+  both-peer connection readiness and readable errors, and bound WebSocket
+  handshakes. / 流式 Demo 在旧测试凭据失效后可重新创建会话，显示双端就绪状态和
+  清楚的错误提示，并限制 WebSocket 握手等待时间。
+
 - Select test-account credential creation by default in the Chat Demo, while
   allowing existing-token login by unchecking it; public deployments can pin a
   separate chat UI revision. / 聊天 Demo 默认勾选创建或更新测试账号凭据，取消勾选可使用

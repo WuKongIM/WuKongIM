@@ -11,6 +11,12 @@
 演示账号、Token 和群频道每次新会话随机创建；凭据只存当前标签页的
 `sessionStorage`，刷新后重连并恢复最近 40 条消息，Token 不写入日志。
 
+连接时显示“连接中”，接收端与生成端均完成连接后才显示“在线”并启用发送。
+旧标签页的测试凭据失效或网络失败时，可以“重试连接”；“重新创建演示会话”只清除
+当前标签页的演示身份和消息视图，再点击“创建演示账号并连接”创建新账号。
+它不会修改旧账号 Token、删除服务端历史或清除模型设置。无效的已保存会话会给出
+提示并恢复创建入口；WebSocket 握手最多等待 15 秒，失败的 SDK 实例会关闭。
+
 ## 真实聊天模型
 
 推荐用 demo 自带的本地代理，模型服务无需配置浏览器 CORS：
@@ -110,6 +116,11 @@ GOWORK=off go build -o /tmp/wukongim-stream-demo ./cmd/wukongim
 WK_DEMO_SERVER_BIN=/tmp/wukongim-stream-demo \
 WK_DEMO_PLAYWRIGHT=/absolute/path/to/playwright \
 node demo/streamdemo/test/stream.integration.cjs
+
+# 凭据失效、生成端单独失败、存储损坏和新会话恢复
+WK_DEMO_SERVER_BIN=/tmp/wukongim-stream-demo \
+WK_DEMO_PLAYWRIGHT=/absolute/path/to/playwright \
+node demo/streamdemo/test/connection.integration.cjs
 ```
 
 Playwright 需已安装 Chromium。测试启动临时单节点集群，验证实际 SDK 问答、
