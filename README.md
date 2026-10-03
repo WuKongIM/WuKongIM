@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
-  <a href="https://demo.githubim.com/">Live demo</a> ·
+  <a href="https://demo.githubim.com/">Demo home</a> ·
   <a href="#built-with-wukongim">Showcase</a> ·
   <a href="https://docs.githubim.com/en/">Documentation</a> ·
   <a href="./README_CN.md">简体中文</a>
@@ -53,6 +53,8 @@ WuKongIM powers its persistent connections, message delivery, and storage. TangS
 [Website](https://tsdaodao.com/) · [Source code and architecture](https://github.com/TangSengDaoDao/TangSengDaoDaoServer)
 
 ## Quick start
+
+Open the **[Demo home page](https://demo.githubim.com/)** to try all six demos in your browser: chat, streaming replies, customer support, Agent, MQTT smart store, and live product launch. To run them on your own computer, follow the steps below.
 
 ### 1. Run the demos on your computer
 

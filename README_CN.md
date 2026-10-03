@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="#快速开始">快速开始</a> ·
-  <a href="https://demo.githubim.com/">在线体验</a> ·
+  <a href="https://demo.githubim.com/">Demo 首页</a> ·
   <a href="#应用案例">应用案例</a> ·
   <a href="https://docs.githubim.com/zh/">文档</a> ·
   <a href="./README.md">English</a>
@@ -53,6 +53,8 @@ WuKongIM 为其提供长连接维护、消息投递与消息存储能力；唐�
 [产品官网](https://tsdaodao.com/) · [开源代码与架构说明](https://github.com/TangSengDaoDao/TangSengDaoDaoServer)
 
 ## 快速开始
+
+打开 **[Demo 首页](https://demo.githubim.com/)**，即可在浏览器中体验全部六个 Demo：即时聊天、流式回复、在线客服、Agent 任务助手、MQTT 智能门店与直播弹幕。希望在自己的电脑上运行时，按下方步骤启动。
 
 ### 1. 在自己的电脑上启动 Demo
 

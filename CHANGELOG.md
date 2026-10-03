@@ -6,6 +6,12 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+### 📚 Documentation / 文档
+
+- Add a prominent online Demo home entry to both project READMEs, alongside
+  the local launcher instructions. / 中英文项目 README 明确提供在线 Demo 首页入口，
+  同时保留本地启动指南。
+
 ### 🐛 Bug Fixes / 问题修复
 
 - Restore Stream Demo connection recovery after expired test credentials, show
