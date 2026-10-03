@@ -68,7 +68,7 @@ node demo/deployment.mjs --config deployment.json --output public-demo
 | `network` | 已存在的 TLS 网关 Docker 网络，只有前门代理监听该网络。 |
 | `cluster_id` / `mqtt_namespace` | 独立演示集群与 MQTT 标识，初始化后保持不变。 |
 | `source_revision` | 与 Product 镜像对应的完整 Git commit，业务源码和内嵌首页必须来自该版本。 |
-| `product_image` / `node_image` / `proxy_image` | 三个镜像必须使用 `@sha256:` 固定摘要；示例对应 beta.23。升级时同时更新 Product 镜像与源码版本。 |
+| `product_image` / `node_image` / `proxy_image` | 三个镜像必须使用 `@sha256:` 固定摘要；示例对应 beta.24。升级时同时更新 Product 镜像与源码版本。 |
 
 Configuration comments: `public_url` is the browser-reachable root origin, shared
 by API metadata, allowed browser origins and both public WebSocket endpoints;
