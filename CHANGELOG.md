@@ -8,6 +8,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Select test-account credential creation by default in the Chat Demo, while
+  allowing existing-token login by unchecking it; public deployments can pin a
+  separate chat UI revision. / 聊天 Demo 默认勾选创建或更新测试账号凭据，取消勾选可使用
+  已有 Token；公网部署支持单独固定聊天前端版本。
+
 - Pin the public Demo deployment example to the beta.24 image and matching source
   so new deployments include the self-chat fix. / 公网 Demo 配置示例固定到 beta.24
   镜像与对应源码，新部署直接包含自聊修复。

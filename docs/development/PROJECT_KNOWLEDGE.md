@@ -1459,6 +1459,11 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Embedded Demo message editing
 
+- Chat Demo credential creation is checked by default for test accounts;
+  unchecking it uses existing credentials without updating the server. Public
+  deployment's optional exact `chat_ui_revision` serves only `/demo/` from a
+  read-only bundle, leaving Product image, API and business source pins intact.
+
 - `demo/chatdemo` pins JS SDK `1.4.0-beta.1` and uses its edit/feed manager with
   custom epoch-preserving history and complete conversation-directory providers.
   Preserve stream metadata and reject mixed-epoch directory pages.

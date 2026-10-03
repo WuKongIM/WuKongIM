@@ -15,7 +15,7 @@ const requestedURL = new URLSearchParams(window.location.search).get('apiurl')?.
 const apiAddr = ref(requestedURL || saved?.apiURL || (import.meta.env.DEV ? 'http://127.0.0.1:5001' : window.location.origin))
 const username = ref(saved?.uid || '')
 const password = ref(saved?.token || '')
-const createDemoCredentials = ref(false)
+const createDemoCredentials = ref(true)
 const submitting = ref(false)
 const errorMessage = ref('')
 

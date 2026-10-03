@@ -18,7 +18,7 @@ node demo/start.mjs
 
 所有服务只监听本机，默认模拟模型无需 Key。六个 Demo 自动指向本次集群。
 每个 Demo 顶部都有“返回首页”，聊天登录页也可返回；动态端口和刷新后仍指向进入时的首页。
-聊天 Demo 可填写自选测试 UID / Token，勾选“创建或更新演示凭据”登录。
+聊天 Demo 默认勾选“创建或更新演示凭据”，填写自选测试 UID / Token 即可登录；使用已有凭据时取消勾选。
 使用现有 WuKongIM 服务时，按下表各 Demo 的说明独立启动；Product HTTP 根地址会打开内嵌首页。
 
 | Demo | 体验 | 入口 | 源码与运行说明 |
@@ -68,6 +68,7 @@ node demo/deployment.mjs --config deployment.json --output public-demo
 | `network` | 已存在的 TLS 网关 Docker 网络，只有前门代理监听该网络。 |
 | `cluster_id` / `mqtt_namespace` | 独立演示集群与 MQTT 标识，初始化后保持不变。 |
 | `source_revision` | 与 Product 镜像对应的完整 Git commit，业务源码和内嵌首页必须来自该版本。 |
+| `chat_ui_revision`（可选） | 单独更新聊天前端时指定完整 Git commit；省略时使用 Product 内嵌聊天页。将该版本已提交的 `internal/access/api/demoui/dist` 导出到 `chat-ui/`，仅供代理只读挂载。 |
 | `product_image` / `node_image` / `proxy_image` | 三个镜像必须使用 `@sha256:` 固定摘要；示例对应 beta.24。升级时同时更新 Product 镜像与源码版本。 |
 
 Configuration comments: `public_url` is the browser-reachable root origin, shared
@@ -85,6 +86,19 @@ while generated Product settings remain in `wukongim.toml`.
 每个字段都支持对应的 `WK_DEMO_<大写字段名>` 环境变量覆盖，例如
 `WK_DEMO_PUBLIC_URL=https://demo.example.org`。未知字段、非根地址与可变镜像标签会报错。
 公网域名和服务器地址不写入任何前端源码或本地默认值。
+
+`chat_ui_revision` / `WK_DEMO_CHAT_UI_REVISION` optionally pins a separately served
+chat bundle to an exact source commit. It changes only `/demo/`; Product APIs,
+WebSockets, image and business source stay pinned by their existing settings.
+For a frontend-only update, export that commit's checked-in bundle to a new
+`chat-ui/` directory, validate the generated proxy configuration, then recreate
+only the proxy after backing up its existing configuration:
+
+```bash
+mkdir public-demo/chat-ui
+WK_DEMO_CHAT_UI_REVISION=$(node -p "require('./public-demo/deployment.json').chat_ui_revision")
+git archive "$WK_DEMO_CHAT_UI_REVISION" internal/access/api/demoui/dist | tar -x --strip-components=5 -C public-demo/chat-ui
+```
 
 准备 `public-demo/source`，保留仓库目录结构，包含所选 `source_revision` 下的
 `demo/{stream,support,agent,mqtt,live}demo` 和 `internal/access/api/demoui`。
