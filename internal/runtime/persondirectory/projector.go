@@ -462,7 +462,10 @@ func (p *Projector) projectBatch(ctx context.Context, owned ownedTaskBatch) ([]o
 		return nil, validationErr
 	}
 	memberships := make([]metadb.UserChannelMembership, 0, len(owned.tasks)*2)
-	for _, candidate := range owned.tasks {
+	// A self-channel has one distinct UID. Keep each task's result range so
+	// duplicate members cannot reject a whole physical-Slot projection batch.
+	membershipStarts := make([]int, len(owned.tasks)+1)
+	for i, candidate := range owned.tasks {
 		task := candidate.task
 		left, right, err := runtimechannelid.DecodePersonChannel(task.ChannelID)
 		if err != nil || runtimechannelid.EncodePersonChannel(left, right) != task.ChannelID || task.ChannelType != 1 || task.Generation == 0 {
@@ -472,11 +475,13 @@ func (p *Projector) projectBatch(ctx context.Context, owned ownedTaskBatch) ([]o
 		if task.CommittedTail == math.MaxUint64 {
 			joinSeq = task.CommittedTail
 		}
-		memberships = append(memberships,
-			projectedMembership(left, task, joinSeq),
-			projectedMembership(right, task, joinSeq),
-		)
+		membershipStarts[i] = len(memberships)
+		memberships = append(memberships, projectedMembership(left, task, joinSeq))
+		if right != left {
+			memberships = append(memberships, projectedMembership(right, task, joinSeq))
+		}
 	}
+	membershipStarts[len(owned.tasks)] = len(memberships)
 	results := p.memberships.EnsureUserChannelMembershipBatch(ctx, memberships)
 	if len(results) != len(memberships) {
 		return nil, errors.New("persondirectory: misaligned membership results")
@@ -485,8 +490,14 @@ func (p *Projector) projectBatch(ctx context.Context, owned ownedTaskBatch) ([]o
 	completionKeys := make([]ownedTaskKey, 0, len(owned.tasks))
 	firstErr := validationErr
 	for i, candidate := range owned.tasks {
-		leftResult, rightResult := results[i*2], results[i*2+1]
-		if leftResult.Err == nil && rightResult.Err == nil {
+		var projectionErr error
+		for _, result := range results[membershipStarts[i]:membershipStarts[i+1]] {
+			if result.Err != nil {
+				projectionErr = result.Err
+				break
+			}
+		}
+		if projectionErr == nil {
 			completionTasks = append(completionTasks, metadb.PersonDirectoryTaskLocation{
 				HashSlot: candidate.hashSlot, ChannelID: candidate.task.ChannelID, ChannelType: candidate.task.ChannelType, Generation: candidate.task.Generation,
 			})
@@ -496,11 +507,7 @@ func (p *Projector) projectBatch(ctx context.Context, owned ownedTaskBatch) ([]o
 			continue
 		}
 		if firstErr == nil {
-			if leftResult.Err != nil {
-				firstErr = leftResult.Err
-			} else {
-				firstErr = rightResult.Err
-			}
+			firstErr = projectionErr
 		}
 	}
 	completed := make([]ownedTaskKey, 0, len(completionTasks))

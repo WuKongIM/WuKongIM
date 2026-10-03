@@ -8,6 +8,14 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Project one UID membership for self-chat so MQTT-enabled clusters can complete
+  its directory preparation without blocking other person messages in the same
+  Slot batch. / 自聊只投影一条 UID 成员记录，修复开启 MQTT 后自聊及同批单聊发送超时。
+
+- Add configurable public Demo deployment with all business backends and correct
+  WebSocket forwarding while retaining loopback one-command defaults. / 公网 Demo
+  部署差异配置化，补齐业务后端与 WebSocket 转发，保留本地一键启动默认行为。
+
 - Serialize exact-digest release image copies over HTTPS with HTTP/1.1,
   upload Alibaba Cloud layers in bounded chunks, and protect existing tags,
   avoiding interrupted bulk transfers. / 发布镜像按精确摘要串行同步，使用 HTTPS 与

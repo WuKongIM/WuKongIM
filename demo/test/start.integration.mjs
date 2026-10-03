@@ -6,6 +6,8 @@
 // absent scene entrance, or a ready scene that cannot deliver a real MQTT message.
 // Live failures: missing sixth entrance/backend, shared viewer identity, wrong
 // route or a success ACK without actual transient SDK delivery to another viewer.
+// Person directory failures: a self-chat duplicates its UID membership, leaves
+// durable preparation pending, or blocks later ordinary person peer delivery.
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
@@ -145,6 +147,19 @@ try {
   check('agent_real_SDK_message_and_stream', messages.length > 0 && events.some(e=>e.type==='stream.delta'));
   const support = await json(new URL('/supportdemo/api/session',report.demos.support),{});
   check('support_real_SDK_sessions_connect', support.visitors.length === 2 && support.rooms.length === 2 && support.wsUrl === session.wsUrl);
+  const selfEvent = randomUUID();
+  const selfAck = await sdk.send(session.user.uid,1,{type:1,content:selfEvent},{clientMsgNo:selfEvent});
+  check('chat_self_send_commits_with_mqtt_enabled',Number(selfAck.messageSeq)>0);
+  const selfHistory = await json(report.api+'/channel/messagesync',{
+    login_uid:session.user.uid,channel_id:session.user.uid,channel_type:1,limit:10,
+  });
+  check('chat_self_history_contains_one_persisted_message',selfHistory.messages.filter(m=>m.client_msg_no===selfEvent &&
+    JSON.parse(Buffer.from(m.payload,'base64').toString()).content===selfEvent).length===1);
+  const personEvent = randomUUID();
+  await sdk.send(livePeer.viewer.uid,1,{type:1,content:personEvent},{clientMsgNo:personEvent});
+  await until(()=>liveMessages.some(m=>m.payload?.content===personEvent),'person peer reception after self-chat');
+  const personReceived = liveMessages.find(m=>m.payload?.content===personEvent);
+  check('chat_person_peer_delivery_after_self_chat',personReceived.fromUid===session.user.uid && Number(personReceived.messageSeq)>0);
   for(const client of clients) client.destroy(); clients.length=0;
   run.child.kill('SIGINT');
   check('ctrl_c_exits_successfully', (await exited(run)).code === 0);

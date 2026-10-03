@@ -84,6 +84,9 @@ listen_addr = "127.0.0.1:5001"
 # listener hosts, intranet routes and explicit node selectors stay unchanged.
 # Set overrides for remapped host ports, separate public domains, TLS proxies,
 # or a backend whose API request host is not reachable by its clients.
+# For the opt-in public Demo deployment, demo/deployment.mjs derives this value
+# from public_url, e.g. wss://demo.example.com/ws. Its proxy strips /ws to the
+# WSMUX listener's / path and keeps MQTT on its separate /mqtt listener.
 external_tcp_addr = "127.0.0.1:5100"
 external_ws_addr = "ws://127.0.0.1:5200"
 
