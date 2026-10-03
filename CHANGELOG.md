@@ -6,6 +6,8 @@ move those entries into a version section named for that exact tag.
 
 ## [Unreleased]
 
+## [v3.0.0-beta.24] - 2026-10-03
+
 ### 🐛 Bug Fixes / 问题修复
 
 - Project one UID membership for self-chat so MQTT-enabled clusters can complete
