@@ -37,7 +37,9 @@ func TestRemotePermissionOverloadFailsClosed(t *testing.T) {
 	}()
 	opts := []suite.Option{suite.WithManagerHTTP()}
 	for i := uint64(1); i <= 3; i++ {
-		opts = append(opts, suite.WithNodeConfigOverrides(i, map[string]string{"WK_CLUSTER_HASH_SLOT_COUNT": "256", "WK_CLUSTER_INITIAL_SLOT_COUNT": "12", "WK_CLUSTER_SLOT_REPLICA_N": "2", "WK_GATEWAY_TOKEN_AUTH_ON": "false", "WK_MESSAGE_PERMISSION_CACHE_TTL": "1h"}))
+		// Keep the leader alive beyond the two-second domain admission wait, so
+		// stepdown cannot hide the backpressure this fault is intended to prove.
+		opts = append(opts, suite.WithNodeConfigOverrides(i, map[string]string{"WK_CLUSTER_HASH_SLOT_COUNT": "256", "WK_CLUSTER_INITIAL_SLOT_COUNT": "12", "WK_CLUSTER_SLOT_REPLICA_N": "2", "WK_CLUSTER_SLOT_ELECTION_TICK": "80", "WK_GATEWAY_TOKEN_AUTH_ON": "false", "WK_MESSAGE_PERMISSION_CACHE_TTL": "1h"}))
 	}
 	cluster := suite.New(t).StartThreeNodeCluster(opts...)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -89,6 +91,7 @@ func TestRemotePermissionOverloadFailsClosed(t *testing.T) {
 	require.NoError(t, cluster.MustNode(peerID).Stop())
 	type result struct {
 		index             int
+		ingressNode       uint64
 		response          suite.MessageSendResponse
 		err               error
 		started, finished time.Time
@@ -102,8 +105,15 @@ func TestRemotePermissionOverloadFailsClosed(t *testing.T) {
 			at := time.Now().UTC()
 			callCtx, callCancel := context.WithTimeout(ctx, 15*time.Second)
 			defer callCancel()
-			response, err := suite.PostMessageSend(callCtx, ingress.APIAddr(), body(fmt.Sprintf("network-denied-%d", index)))
-			results <- result{index: index, response: response, err: err, started: at, finished: time.Now().UTC()}
+			// The remote service itself admits at most 128 handlers. Mix 64
+			// local and 128 remote calls to saturate their shared 128-position
+			// domain gate rather than queueing only before the RPC handler.
+			target, targetID := ingress, ingressID
+			if index%3 == 0 {
+				target, targetID = owner, ownerID
+			}
+			response, err := suite.PostMessageSend(callCtx, target.APIAddr(), body(fmt.Sprintf("network-denied-%d", index)))
+			results <- result{index: index, ingressNode: targetID, response: response, err: err, started: at, finished: time.Now().UTC()}
 		}(i)
 	}
 	// Separate arrivals beyond the fixed collection window. A same-fact
@@ -115,7 +125,7 @@ func TestRemotePermissionOverloadFailsClosed(t *testing.T) {
 	}
 	arrivals.Stop()
 	close(gate)
-	evidence = append(evidence, map[string]any{"requests": requests, "arrival_separation_ms": 5, "kind": "quorum-loss backpressure fault; not a throughput gate"})
+	evidence = append(evidence, map[string]any{"requests": requests, "local_requests": 64, "remote_requests": 128, "arrival_separation_ms": 5, "minimum_election_ms": 4000, "executing_envelope_limit": 128, "kind": "quorum-loss backpressure fault; not a throughput gate"})
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 	peak := float64(0)
@@ -129,13 +139,13 @@ func TestRemotePermissionOverloadFailsClosed(t *testing.T) {
 			require.Equal(t, http.StatusServiceUnavailable, statusErr.StatusCode)
 			require.Zero(t, out.response.MessageID)
 			require.Zero(t, out.response.MessageSeq)
-			evidence = append(evidence, map[string]any{"index": out.index, "status": statusErr.StatusCode, "started_at": out.started, "finished_at": out.finished})
+			evidence = append(evidence, map[string]any{"index": out.index, "ingress_node": out.ingressNode, "status": statusErr.StatusCode, "started_at": out.started, "finished_at": out.finished})
 		case <-ticker.C:
 			samples, err := suite.FetchMetricSamples(ctx, owner.APIAddr())
 			require.NoError(t, err)
 			active := suite.SumMetricSamples(samples, "wukongim_message_permission_inflight", nil)
 			peak = max(peak, active)
-			require.LessOrEqual(t, active, float64(64))
+			require.LessOrEqual(t, active, float64(128))
 			ingressSamples, sampleErr := suite.FetchMetricSamples(ctx, ingress.APIAddr())
 			require.NoError(t, sampleErr)
 			for kind, limit := range map[string]float64{"calls": 1024, "cohorts": 64, "budget_bytes": 16 << 20} {
@@ -154,6 +164,7 @@ func TestRemotePermissionOverloadFailsClosed(t *testing.T) {
 	busy := suite.SumMetricSamples(afterOwner, "wukongim_message_permission_duration_seconds_count", busyLabels) - suite.SumMetricSamples(beforeOwner, "wukongim_message_permission_duration_seconds_count", busyLabels)
 	envelopes := suite.SumMetricSamples(afterIngress, "wukongim_message_permission_counts_total", map[string]string{"kind": "node_envelopes"}) - suite.SumMetricSamples(beforeIngress, "wukongim_message_permission_counts_total", map[string]string{"kind": "node_envelopes"})
 	cohortBusy := suite.SumMetricSamples(afterIngress, "wukongim_message_permission_counts_total", map[string]string{"kind": "cohort_busy"}) - suite.SumMetricSamples(beforeIngress, "wukongim_message_permission_counts_total", map[string]string{"kind": "cohort_busy"})
+	evidence = append(evidence, map[string]any{"sampled_executing_peak": peak, "receiver_admission_busy": busy, "ingress_cohort_busy": cohortBusy, "remote_envelopes": envelopes})
 	require.Positive(t, busy+cohortBusy, "the fault must actually saturate permission admission")
 	require.Positive(t, envelopes)
 	require.Positive(t, peak)

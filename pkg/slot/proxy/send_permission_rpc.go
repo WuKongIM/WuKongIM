@@ -19,12 +19,12 @@ import (
 const sendPermissionRPCServiceID = clusternet.RPCNodeSendPermissions
 const sendPermissionMaxBytes = 1 << 20
 
-// Execution must cover independent callers waiting on fresh quorum barriers:
-// sixteen envelopes saturate the 500 SEND/s lifecycle workload when ReadIndex
-// round trips slow down. Sixty-four remain a hard node-wide decode/read bound
-// (at most 256 Slot workers); each request/reply is separately capped at 1 MiB.
+// Execution must cover the lifecycle workload's clustered arrivals as well as
+// fresh quorum RTT: sixty-four envelopes introduce multiple serial wait waves.
+// The node-wide limit remains finite at 128 envelopes / 512 Slot workers, with
+// each request and reply capped at 1 MiB (256 MiB total wire payload in flight).
 // Waiting retains its independent count, undecoded-byte and two-second bounds.
-const sendPermissionMaxExecuting = 64
+const sendPermissionMaxExecuting = 128
 const sendPermissionMaxWaiting = 1024
 const sendPermissionMaxWaitingBytes = 16 * sendPermissionMaxBytes
 const sendPermissionMaxWait = 2 * time.Second

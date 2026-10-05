@@ -46,7 +46,7 @@ func TestSendPermissionBurstWithSlowFreshBarriers(t *testing.T) {
 			if remote {
 				caller = New(&sendPermissionTestCluster{node: 1, remote: serving}, db)
 			}
-			const burst = 64
+			const burst = 128
 			start := make(chan struct{})
 			results := make([]PermissionMetadataReadResult, burst)
 			var wg sync.WaitGroup
@@ -55,7 +55,7 @@ func TestSendPermissionBurstWithSlowFreshBarriers(t *testing.T) {
 				go func(i int) {
 					defer wg.Done()
 					<-start
-					ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+					ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 					defer cancel()
 					results[i] = caller.ReadSendPermissionMetadataBatch(ctx, []PermissionMetadataRead{{Kind: PermissionMetadataReadUserSendPolicy, UID: "u"}})[0]
 				}(i)

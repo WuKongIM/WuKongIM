@@ -98,9 +98,13 @@ aggregate Slot groups as only the mandatory policy reads or claim timing gates.
 
 The `.network-admission.json` companion uses two voters per Slot, verifies
 owner/non-replica placement, stops the other voter, and paces 192 HTTP SENDs 5 ms apart beyond the cohort collection window.
-Require remote envelopes, positive receiver or ingress-cohort admission-busy evidence, at most 64 sampled
+Require remote envelopes, positive receiver or ingress-cohort admission-busy evidence, at most 128 sampled
 executing envelopes, drain to zero, all 503/zero identifiers and exact recovery
 history. This topology is a controlled quorum-loss fault, not an HA claim.
+The 192 requests mix 64 owner-local and 128 non-replica ingress calls, so the
+remote service's 128-handler bound cannot hide saturation of their shared gate.
+An 80-tick (4 s minimum) Slot election timeout exceeds the 2 s admission wait;
+leader stepdown must not hide domain saturation. Retain per-request ingress IDs.
 
 The `.leader-transfer.json` companion keeps user and Channel bans closed
 through separate public Manager Slot leader transfers. Record concurrent

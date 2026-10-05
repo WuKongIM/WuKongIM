@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Size bounded fresh-permission read admission for clustered SEND arrivals to
+  reduce queueing before quorum reads. / 调整有界权限读取准入容量，减少集中到达的
+  SEND 在 quorum 读取前的排队等待。
+
 - Limit cold Channel metadata collection to 20 ms so first group SENDs and
   following messages avoid a fixed 500 ms initialization delay. / 将冷频道元数据
   收集窗口限制为 20ms，避免群聊首次发送及后续消息固定等待 500ms 初始化。
