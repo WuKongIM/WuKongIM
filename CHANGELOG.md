@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Combine concurrent SEND permission facts before fresh quorum reads, with bounded
+  collection and independent cancellation, to reduce repeated RPC work. / 在新的
+  quorum 读取前有界合并并发 SEND 权限事实，保留独立取消，减少重复 RPC 工作。
+
 - Size bounded fresh-permission read admission for clustered SEND arrivals to
   reduce queueing before quorum reads. / 调整有界权限读取准入容量，减少集中到达的
   SEND 在 quorum 读取前的排队等待。

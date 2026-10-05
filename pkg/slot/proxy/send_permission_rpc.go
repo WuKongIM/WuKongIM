@@ -127,10 +127,10 @@ func (s *Store) ApplySendBan(ctx context.Context, q metadb.SendBanMutation) (met
 	return out, nil
 }
 
-// ReadSendPermissionMetadataBatch coalesces different Slots at the same leader
+// readSendPermissionMetadataBatch coalesces different Slots at the same leader
 // into node-scoped envelopes. Successful facts are request-scoped only; each
 // serving Slot establishes a fresh quorum/apply barrier and snapshot.
-func (s *Store) ReadSendPermissionMetadataBatch(ctx context.Context, reads []PermissionMetadataRead) []PermissionMetadataReadResult {
+func (s *Store) readSendPermissionMetadataBatch(ctx context.Context, reads []PermissionMetadataRead) []PermissionMetadataReadResult {
 	out := make([]PermissionMetadataReadResult, len(reads))
 	if len(reads) == 0 {
 		return out
@@ -154,6 +154,12 @@ func (s *Store) ReadSendPermissionMetadataBatch(ctx context.Context, reads []Per
 		}
 	}
 	for attempt := 0; attempt < 2 && len(pending) > 0; attempt++ {
+		if err := ctx.Err(); err != nil {
+			for _, i := range pending {
+				out[i].Err = err
+			}
+			break
+		}
 		routeStarted := s.permissionStart()
 		subset := make([]string, len(pending))
 		for i, index := range pending {

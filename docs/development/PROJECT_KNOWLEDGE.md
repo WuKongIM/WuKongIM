@@ -1719,6 +1719,15 @@ specification, runbook, report, or module documentation; link to them when neede
   when the caller never enters decoding. Keep 128 executing envelopes (at most 512 Slot workers), the
   waiting count/byte/time bounds, and fresh barriers unchanged together.
 
+- Ingress SEND facts collect concurrent callers for at most 1 ms, then seal
+  membership before routing and fresh quorum/snapshot reads. Idle one/two-fact
+  calls execute immediately. Late arrivals require a new sealed batch; completed
+  facts never cache. Limits are 64 calls / 4096 inputs per batch, 64 active batches,
+  1024 owned calls and 16 MiB conservative memory credits per Store. Cancellation
+  is independent; the final cancellation joins started work, and Stop/rollback
+  closes admission and joins batches before transport/storage close. Fixed metrics
+  expose owned calls, batches and credits, including zero after drain.
+
 - Slot ReadIndex coalescing covers only contiguous read controls already taken
   by one Raft worker. One newly issued quorum proof confirms those callers;
   later arrivals or an intervening control require another proof. Each caller

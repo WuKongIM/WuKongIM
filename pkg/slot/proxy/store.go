@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	metadb "github.com/WuKongIM/WuKongIM/pkg/db/meta"
 	metafsm "github.com/WuKongIM/WuKongIM/pkg/slot/fsm"
@@ -14,6 +15,17 @@ import (
 // Store provides business-level distributed storage APIs
 // built on top of the cluster metadata proposal port.
 type Store struct {
+	// Cohort ownership is node-local; no facts survive a sealed read. The mutex
+	// serializes collection, cancellation, result transfer and credit release.
+	permissionCohortMu       sync.Mutex
+	permissionCollecting     *sendPermissionCohort
+	permissionCohorts        map[*sendPermissionCohort]struct{}
+	permissionCohortRequests int
+	permissionCohortBytes    int
+	permissionCohortClosed   bool
+	permissionCohortWG       sync.WaitGroup
+	// Zero selects the fixed product window; integration tests control seal time.
+	permissionCohortWindow time.Duration
 	// permissionGateMu makes permit assignment and waiting-position release atomic.
 	// Assigned callers occupy execution capacity even before they resume.
 	permissionGateMu    sync.Mutex

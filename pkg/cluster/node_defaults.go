@@ -635,6 +635,9 @@ func (n *Node) discardDefaultSlots() {
 	if n == nil || !n.defaultSlots {
 		return
 	}
+	if n.defaultSlotProxy != nil {
+		n.defaultSlotProxy.CloseSendPermissionReads()
+	}
 	n.stopSlotLeaderLoop()
 	if n.defaultSlotRuntime != nil {
 		_ = n.defaultSlotRuntime.Close()

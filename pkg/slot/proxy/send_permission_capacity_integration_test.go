@@ -57,7 +57,7 @@ func TestSendPermissionBurstWithSlowFreshBarriers(t *testing.T) {
 					<-start
 					ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 					defer cancel()
-					results[i] = caller.ReadSendPermissionMetadataBatch(ctx, []PermissionMetadataRead{{Kind: PermissionMetadataReadUserSendPolicy, UID: "u"}})[0]
+					results[i] = caller.readSendPermissionMetadataBatch(ctx, []PermissionMetadataRead{{Kind: PermissionMetadataReadUserSendPolicy, UID: "u"}})[0]
 				}(i)
 			}
 			close(start)
@@ -75,7 +75,7 @@ func TestSendPermissionBurstWithSlowFreshBarriers(t *testing.T) {
 			require.Zero(t, serving.permissionWaiting.Load())
 			require.Zero(t, owner.admitted.Load())
 			require.Zero(t, failed, "slow fresh barriers must not exhaust the independent burst's caller budgets")
-			require.EqualValues(t, burst, owner.barriers.Load(), "every caller must obtain its own fresh barrier")
+			require.EqualValues(t, burst, owner.barriers.Load(), "every independently routed envelope must obtain its own fresh barrier")
 		})
 	}
 }

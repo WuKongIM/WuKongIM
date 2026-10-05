@@ -1755,7 +1755,7 @@
       ],
       "title": "Send permission envelopes in flight",
       "type": "timeseries",
-      "description": "Active local and remote permission envelopes share the limit of 64, including decoding. Receiver waiting and ingress cohort ownership have separate bounds."
+      "description": "Active local and remote permission envelopes share the limit of 128, including decoding. Receiver waiting and ingress cohort ownership have separate bounds."
     },
     {
       "datasource": "Prometheus",
