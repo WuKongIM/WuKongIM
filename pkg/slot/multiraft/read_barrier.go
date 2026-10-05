@@ -21,6 +21,9 @@ type readBarrierRequest struct {
 	done  atomic.Bool
 	term  uint64
 	index uint64
+	// batchKeys names earlier callers admitted in the same control batch before
+	// this fresh ReadIndex was issued. mu guards confirmation and release.
+	batchKeys []string
 }
 
 func (r *readBarrierRequest) finish(err error) {
@@ -101,21 +104,54 @@ func (r *Runtime) readBarrier(ctx context.Context, slotID SlotID) error {
 
 // issueReadBarrier runs exclusively on the owning Raft worker.
 func (g *slot) issueReadBarrier(request *readBarrierRequest) {
-	if request == nil || request.done.Load() {
+	if key := g.admitReadBarrier(request); key != "" {
+		g.rawNode.ReadIndex([]byte(key))
+	}
+}
+
+// issueReadBarrierBatch shares one new quorum round only among contiguous
+// controls already taken by this worker. Later arrivals require a new ReadIndex;
+// every caller still owns its cancellation and one of the 256 pending positions.
+func (g *slot) issueReadBarrierBatch(controls []controlAction) {
+	if len(controls) == 1 {
+		g.issueReadBarrier(controls[0].readBarrier)
 		return
+	}
+	keys := make([]string, 0, min(len(controls), maxPendingReadBarriers))
+	var last *readBarrierRequest
+	for _, action := range controls {
+		if key := g.admitReadBarrier(action.readBarrier); key != "" {
+			keys = append(keys, key)
+			last = action.readBarrier
+		}
+	}
+	if len(keys) == 0 {
+		return
+	}
+	g.mu.Lock()
+	last.batchKeys = keys[:len(keys)-1]
+	g.mu.Unlock()
+	g.rawNode.ReadIndex([]byte(keys[len(keys)-1]))
+}
+
+// admitReadBarrier retains one caller under the existing leadership, durable
+// current-term and pending-count fences before the worker issues a quorum round.
+func (g *slot) admitReadBarrier(request *readBarrierRequest) string {
+	if request == nil || request.done.Load() {
+		return ""
 	}
 	if err := request.ctx.Err(); err != nil {
 		request.finish(err)
-		return
+		return ""
 	}
 	if err := g.currentErr(); err != nil {
 		request.finish(err)
-		return
+		return ""
 	}
 	st := g.rawNode.BasicStatus()
 	if st.RaftState != raft.StateLeader {
 		request.finish(ErrNotLeader)
-		return
+		return ""
 	}
 	// etcd queues pre-current-term reads separately and does not clear that
 	// queue on every term reset. Admit only after a durable current-term commit,
@@ -123,18 +159,18 @@ func (g *slot) issueReadBarrier(request *readBarrierRequest) {
 	committedTerm, termErr := g.storageView.memory.Term(st.Commit)
 	if termErr != nil || committedTerm != st.Term {
 		request.finish(ErrSlotBusy)
-		return
+		return ""
 	}
 	g.mu.Lock()
 	if err := g.admissionErrLocked(); err != nil {
 		g.mu.Unlock()
 		request.finish(err)
-		return
+		return ""
 	}
 	if len(g.pendingReads) >= maxPendingReadBarriers || g.readSequence == ^uint64(0) {
 		g.mu.Unlock()
 		request.finish(ErrSlotBusy)
-		return
+		return ""
 	}
 	g.readSequence++
 	var key [16]byte
@@ -144,9 +180,10 @@ func (g *slot) issueReadBarrier(request *readBarrierRequest) {
 	if g.pendingReads == nil {
 		g.pendingReads = make(map[string]*readBarrierRequest)
 	}
-	g.pendingReads[string(key[:])] = request
+	encoded := string(key[:])
+	g.pendingReads[encoded] = request
 	g.mu.Unlock()
-	g.rawNode.ReadIndex(key[:])
+	return encoded
 }
 func (g *slot) acceptReadStates(states []raft.ReadState) {
 	g.mu.Lock()
@@ -154,6 +191,12 @@ func (g *slot) acceptReadStates(states []raft.ReadState) {
 	for _, state := range states {
 		if request := g.pendingReads[string(state.RequestCtx)]; request != nil {
 			request.index = state.Index
+			for _, key := range request.batchKeys {
+				if sibling := g.pendingReads[key]; sibling != nil {
+					sibling.index = state.Index
+				}
+			}
+			request.batchKeys = nil
 		}
 	}
 	g.completeReadBarriersLocked()

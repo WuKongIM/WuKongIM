@@ -92,7 +92,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [pkg/goroutine/FLOW.md](../../pkg/goroutine/FLOW.md) | `package` | Tracks first-party goroutine ownership, fixed task labels, pool pressure, panics, health, metrics, and bounded shutdown evidence. | 77 | ok |
 | [pkg/hashslot/FLOW.md](../../pkg/hashslot/FLOW.md) | `package` | Provides neutral Hash Slot routing tables, migration encoding, key hashing, and deterministic rebalance planning. | 40 | ok |
 | [pkg/protocol/publication/FLOW.md](../../pkg/protocol/publication/FLOW.md) | `package` | Defines bounded immutable publication metadata and its versioned durable codec independently of entry packets and storage. | 57 | ok |
-| [pkg/slot/FLOW.md](../../pkg/slot/FLOW.md) | `subtree` | Implements Multi-Raft Slot metadata, atomic FSM commands, authoritative leader reads, snapshots, and distributed metadata proxies. | 111 | warning |
+| [pkg/slot/FLOW.md](../../pkg/slot/FLOW.md) | `subtree` | Implements Multi-Raft Slot metadata, atomic FSM commands, authoritative leader reads, snapshots, and distributed metadata proxies. | 114 | warning |
 | [pkg/workqueue/FLOW.md](../../pkg/workqueue/FLOW.md) | `package` | Provides bounded pools, batch pools, direct worker queues, sharded mailboxes, ownership, shutdown, and observations. | 56 | ok |
 | [scripts/cloud-deployment/FLOW.md](../../scripts/cloud-deployment/FLOW.md) | `package` | Executes shared local and Action deployment activation, bounded readiness, and typed outcomes through host adapters. | 59 | ok |
 | [test/e2e/suite/FLOW.md](../../test/e2e/suite/FLOW.md) | `package` | Provides reusable black-box process, workspace, configuration, protocol, HTTP, diagnostics, and convergence helpers for E2E tests. | 105 | warning |

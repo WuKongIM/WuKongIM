@@ -41,7 +41,10 @@ plugin, migration, message projections, and MQTT session state.
    200 keys for one UID and use one authoritative membership RPC; found rows
    are identity-unique, missing keys remain absent, and read errors fail the batch.
    Runtime-meta `get_fresh` is a separate bounded version-3 point read: fresh local quorum/apply barrier, derived mapping/leadership recheck, exact identity, and no legacy codec fallback or metadata creation.
-2. A Multi-Raft worker persists Ready state, sends messages, batches normal
+2. A Multi-Raft worker groups contiguous queued read barriers into one fresh
+   quorum round, retaining each caller's cancellation, pending bound and durable
+   apply fence. Later arrivals and intervening controls require another round.
+   It persists Ready state, sends messages, batches normal
    entries, flushes before configuration changes, and atomically applies an
    ownership-validated FSM batch before persisting apply and completing futures.
    Durable Slot storage owns snapshot payload bytes; the Raft memory view keeps

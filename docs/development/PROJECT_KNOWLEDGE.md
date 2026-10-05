@@ -1719,6 +1719,12 @@ specification, runbook, report, or module documentation; link to them when neede
   when the caller never enters decoding. Keep sixty-four executing envelopes (at most 256 Slot workers), the
   waiting count/byte/time bounds, and fresh barriers unchanged together.
 
+- Slot ReadIndex coalescing covers only contiguous read controls already taken
+  by one Raft worker. One newly issued quorum proof confirms those callers;
+  later arrivals or an intervening control require another proof. Each caller
+  retains its own cancellation, 256-per-Slot pending position, term fence and
+  durable-apply wait, including canceled requests not yet quorum-confirmed.
+
 - Optional message `SubmitBatchEach` joins permission/directory/hook preparation
   before returning and transfers only append completion. Its injected admission
   must bound accepted work and preserve canonical Channel order. Preparation
