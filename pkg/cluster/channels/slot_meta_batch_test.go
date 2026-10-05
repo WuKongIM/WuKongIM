@@ -14,8 +14,8 @@ import (
 )
 
 func TestMetaCreateBatcherDefaultCollectWaitBoundsColdAdmission(t *testing.T) {
-	if got := metaCreateBatchCollectWait; got != 500*time.Millisecond {
-		t.Fatalf("metadata create batch collect wait = %v, want 500ms", got)
+	if got := metaCreateBatchCollectWait; got != 20*time.Millisecond {
+		t.Fatalf("metadata create batch collect wait = %v, want 20ms", got)
 	}
 }
 

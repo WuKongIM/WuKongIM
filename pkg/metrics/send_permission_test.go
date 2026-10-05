@@ -28,3 +28,27 @@ func TestSendPermissionMetricsHaveBoundedDimensions(t *testing.T) {
 	require.NotNil(t, findMetricByLabels(t, durations, map[string]string{"stage": "unknown", "result": "unknown"}))
 	require.EqualValues(t, 3, findMetricByLabels(t, requireMetricFamily(t, families, "wukongim_message_send_ban_rejections_total"), map[string]string{"scope": "user"}).GetCounter().GetValue())
 }
+
+// Ownership gauges must balance conservative memory credits and calls without
+// admitting entity IDs as label values. Unknown dimensions are folded.
+func TestSendPermissionCohortOwnershipMetrics(t *testing.T) {
+	reg := New(1, "n1")
+	reg.Message.ObserveSendPermissionCohortOwned("budget_bytes", 2048)
+	reg.Message.ObserveSendPermissionCohortOwned("calls", 2)
+	reg.Message.ObserveSendPermissionCohortOwned("cohorts", 1)
+	reg.Message.ObserveSendPermissionCohortOwned("user-secret", 1)
+	families, err := reg.Gather()
+	require.NoError(t, err)
+	owned := requireMetricFamily(t, families, "wukongim_message_permission_cohort_owned")
+	require.Len(t, owned.Metric, 4)
+	require.EqualValues(t, 2048, findMetricByLabels(t, owned, map[string]string{"kind": "budget_bytes"}).GetGauge().GetValue())
+	reg.Message.ObserveSendPermissionCohortOwned("budget_bytes", -2048)
+	reg.Message.ObserveSendPermissionCohortOwned("calls", -2)
+	reg.Message.ObserveSendPermissionCohortOwned("cohorts", -1)
+	families, err = reg.Gather()
+	require.NoError(t, err)
+	owned = requireMetricFamily(t, families, "wukongim_message_permission_cohort_owned")
+	for _, kind := range []string{"budget_bytes", "calls", "cohorts"} {
+		require.Zero(t, findMetricByLabels(t, owned, map[string]string{"kind": kind}).GetGauge().GetValue())
+	}
+}

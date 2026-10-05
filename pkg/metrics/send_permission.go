@@ -10,6 +10,7 @@ type sendPermissionMetrics struct {
 	stages   *prometheus.HistogramVec
 	rejected *prometheus.CounterVec
 	inflight prometheus.Gauge
+	owned    *prometheus.GaugeVec
 }
 
 func newSendPermissionMetrics(reg prometheus.Registerer, labels prometheus.Labels) *sendPermissionMetrics {
@@ -19,7 +20,11 @@ func newSendPermissionMetrics(reg prometheus.Registerer, labels prometheus.Label
 		rejected: prometheus.NewCounterVec(prometheus.CounterOpts{Name: "wukongim_message_send_ban_rejections_total", Help: "Message admissions rejected by a user or source channel send ban.", ConstLabels: labels}, []string{"scope"}),
 		inflight: prometheus.NewGauge(prometheus.GaugeOpts{Name: "wukongim_message_permission_inflight", Help: "Currently admitted node permission envelopes.", ConstLabels: labels}),
 	}
-	reg.MustRegister(m.counts, m.stages, m.rejected, m.inflight)
+	m.owned = prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "wukongim_message_permission_cohort_owned", Help: "Owned ingress permission calls, cohorts and conservative retained-memory credits (not allocator bytes).", ConstLabels: labels}, []string{"kind"})
+	for _, kind := range []string{"calls", "cohorts", "budget_bytes"} {
+		m.owned.WithLabelValues(kind)
+	}
+	reg.MustRegister(m.counts, m.stages, m.rejected, m.inflight, m.owned)
 	return m
 }
 
@@ -29,7 +34,7 @@ func (m *MessageMetrics) ObserveSendPermissionCount(kind string, n int) {
 		return
 	}
 	switch kind {
-	case "messages", "users", "channels", "facts_before", "facts", "slot_groups", "node_envelopes", "local_envelopes", "request_bytes", "response_bytes":
+	case "messages", "users", "channels", "facts_before", "facts", "slot_groups", "node_envelopes", "local_envelopes", "request_bytes", "response_bytes", "cohorts", "cohort_requests", "cohort_facts", "cohort_busy":
 	default:
 		kind = "unknown"
 	}
@@ -70,4 +75,18 @@ func (m *MessageMetrics) ObserveSendBanRejection(scope string, n int) {
 		scope = "unknown"
 	}
 	m.sendPermission.rejected.WithLabelValues(scope).Add(float64(n))
+}
+
+// ObserveSendPermissionCohortOwned balances ownership until workers join and
+// aligned results transfer to their caller. Identity values never become labels.
+func (m *MessageMetrics) ObserveSendPermissionCohortOwned(kind string, delta int) {
+	if m == nil || m.sendPermission == nil {
+		return
+	}
+	switch kind {
+	case "calls", "cohorts", "budget_bytes":
+	default:
+		kind = "unknown"
+	}
+	m.sendPermission.owned.WithLabelValues(kind).Add(float64(delta))
 }

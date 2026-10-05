@@ -82,7 +82,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [pkg/channel/reactor/FLOW.md](../../pkg/channel/reactor/FLOW.md) | `package` | Owns Channel-keyed reactor state, event scheduling, replication progress, lifecycle transitions, and fenced worker completion. | 102 | warning |
 | [pkg/channel/worker/FLOW.md](../../pkg/channel/worker/FLOW.md) | `package` | Runs bounded typed Channel store and RPC tasks with fenced completions, class-aware batching, lease cleanup, and observations. | 83 | ok |
 | [pkg/client/FLOW.md](../../pkg/client/FLOW.md) | `package` | Provides a tooling-grade WKProto TCP client with session crypto, bounded SEND/RECV queues, exact ACK matching, and pooling. | 65 | ok |
-| [pkg/cluster/FLOW.md](../../pkg/cluster/FLOW.md) | `subtree` | Composes Controller state, Slot Multi-Raft metadata, typed node RPC, routing, and replicated Channel runtimes behind Node. | 149 | warning |
+| [pkg/cluster/FLOW.md](../../pkg/cluster/FLOW.md) | `subtree` | Composes Controller state, Slot Multi-Raft metadata, typed node RPC, routing, and replicated Channel runtimes behind Node. | 150 | warning |
 | [pkg/controller/FLOW.md](../../pkg/controller/FLOW.md) | `subtree` | Implements the canonical Controller Raft runtime, durable cluster state, mirror synchronization, planning, and fenced task transitions. | 96 | ok |
 | [pkg/db/FLOW.md](../../pkg/db/FLOW.md) | `subtree` | Guides node-local storage ownership, root lifecycle, message and metadata domains, snapshots, metrics, and engine isolation. | 79 | ok |
 | [pkg/db/message/FLOW.md](../../pkg/db/message/FLOW.md) | `package` | Stores Channel message logs, indexes, checkpoints, retention state, snapshots, and compatibility leases on the shared DB engine. | 150 | warning |
@@ -92,7 +92,7 @@ Regenerate with `GOWORK=off go run ./scripts/flowcheck --mode render --write-ind
 | [pkg/goroutine/FLOW.md](../../pkg/goroutine/FLOW.md) | `package` | Tracks first-party goroutine ownership, fixed task labels, pool pressure, panics, health, metrics, and bounded shutdown evidence. | 77 | ok |
 | [pkg/hashslot/FLOW.md](../../pkg/hashslot/FLOW.md) | `package` | Provides neutral Hash Slot routing tables, migration encoding, key hashing, and deterministic rebalance planning. | 40 | ok |
 | [pkg/protocol/publication/FLOW.md](../../pkg/protocol/publication/FLOW.md) | `package` | Defines bounded immutable publication metadata and its versioned durable codec independently of entry packets and storage. | 57 | ok |
-| [pkg/slot/FLOW.md](../../pkg/slot/FLOW.md) | `subtree` | Implements Multi-Raft Slot metadata, atomic FSM commands, authoritative leader reads, snapshots, and distributed metadata proxies. | 111 | warning |
+| [pkg/slot/FLOW.md](../../pkg/slot/FLOW.md) | `subtree` | Implements Multi-Raft Slot metadata, atomic FSM commands, authoritative leader reads, snapshots, and distributed metadata proxies. | 115 | warning |
 | [pkg/workqueue/FLOW.md](../../pkg/workqueue/FLOW.md) | `package` | Provides bounded pools, batch pools, direct worker queues, sharded mailboxes, ownership, shutdown, and observations. | 56 | ok |
 | [scripts/cloud-deployment/FLOW.md](../../scripts/cloud-deployment/FLOW.md) | `package` | Executes shared local and Action deployment activation, bounded readiness, and typed outcomes through host adapters. | 59 | ok |
 | [test/e2e/suite/FLOW.md](../../test/e2e/suite/FLOW.md) | `package` | Provides reusable black-box process, workspace, configuration, protocol, HTTP, diagnostics, and convergence helpers for E2E tests. | 105 | warning |

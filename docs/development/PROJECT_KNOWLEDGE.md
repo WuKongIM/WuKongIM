@@ -1021,7 +1021,7 @@ specification, runbook, report, or module documentation; link to them when neede
   alone cannot prove admission success. Pressure evidence must separately retain
   the permission admission/busy histogram count delta. The 5,000-channel
   diagnostic has reproduced these rejections; sustained qualification is pending.
-  Admission now permits at most 64 executing and 1024 waiting envelopes, with
+  Admission now permits at most 128 executing and 1024 waiting envelopes, with
   queued undecoded bytes capped at 16 MiB. Every concurrent send issues its own
   envelope, so the waiting count must cover a full worker burst (256 unpaced
   senders overflowed a 16-slot queue at 500 SEND/s in CI). Waiting precedes
@@ -1716,8 +1716,29 @@ specification, runbook, report, or module documentation; link to them when neede
 - Send-permission admission assigns execution capacity and removes the waiting
   position under one mutex before waking the caller. A runnable assigned caller
   already owns an execution position; cancellation/timeout must return it even
-  when the caller never enters decoding. Keep sixty-four executing envelopes (at most 256 Slot workers), the
+  when the caller never enters decoding. Keep 128 executing envelopes (at most 512 Slot workers), the
   waiting count/byte/time bounds, and fresh barriers unchanged together.
+
+- Ingress SEND facts collect concurrent callers for at most 1 ms, then seal
+  membership before routing and fresh quorum/snapshot reads. Idle one/two-fact
+  calls execute immediately. Late arrivals require a new sealed batch; completed
+  facts never cache. Limits are 64 calls / 4096 inputs per batch, 64 active batches,
+  1024 owned calls and 16 MiB conservative memory credits per Store. Cancellation
+  is independent; the final cancellation joins started work, and Stop/rollback
+  closes admission and joins batches before transport/storage close. Fixed metrics
+  expose owned calls, batches and credits, including zero after drain.
+
+- Slot ReadIndex coalescing covers only contiguous read controls already taken
+  by one Raft worker. One newly issued quorum proof confirms those callers;
+  later arrivals or an intervening control require another proof. Each caller
+  retains its own cancellation, 256-per-Slot pending position, term fence and
+  durable-apply wait, including canceled requests not yet quorum-confirmed.
+
+- Runtime Channel metadata creation collects for at most 20 ms, with the same
+  32-item early dispatch, 64-item batch, 256-identity per-Slot queue and two
+  in-flight batches. First group SENDs and their followers count as hot in the
+  lifecycle workload; a 500 ms collection window alone exceeds its 400 ms P99
+  budget. Group setup commits business metadata without warming append runtime.
 
 - Optional message `SubmitBatchEach` joins permission/directory/hook preparation
   before returning and transfers only append completion. Its injected admission
@@ -1777,7 +1798,8 @@ specification, runbook, report, or module documentation; link to them when neede
 
 - Permission execution capacity must cover quorum-read RTT as well as request
   rate. The 500 SEND/s CI exposed deadline exhaustion with sixteen envelopes
-  when barriers slowed; sixty-four remain bounded, with 1 MiB per wire request
+  when barriers slowed. Sixty-four also add serial waves to clustered arrivals;
+  128 remain bounded, with 1 MiB per wire request
   and reply. Independent slow-barrier local/remote burst regressions preserve
   each caller's fresh barrier and cancellation. Queue count/bytes and the two-second
   wait bound remain unchanged; cross-caller aggregation is tracked by #977.

@@ -14,6 +14,23 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Combine concurrent SEND permission facts before fresh quorum reads, with bounded
+  collection and independent cancellation, to reduce repeated RPC work. / 在新的
+  quorum 读取前有界合并并发 SEND 权限事实，保留独立取消，减少重复 RPC 工作。
+
+- Size bounded fresh-permission read admission for clustered SEND arrivals to
+  reduce queueing before quorum reads. / 调整有界权限读取准入容量，减少集中到达的
+  SEND 在 quorum 读取前的排队等待。
+
+- Limit cold Channel metadata collection to 20 ms so first group SENDs and
+  following messages avoid a fixed 500 ms initialization delay. / 将冷频道元数据
+  收集窗口限制为 20ms，避免群聊首次发送及后续消息固定等待 500ms 初始化。
+
+- Reduce concurrent SEND permission-read overhead by combining queued Slot
+  reads into one fresh quorum confirmation, while preserving cancellation,
+  leadership and durable-apply checks. / 合并同批排队的 Slot 权限读取，减少并发
+  SEND 的重复 quorum 确认开销，保留取消、领导权及持久化应用检查。
+
 - Restore Stream Demo connection recovery after expired test credentials, show
   both-peer connection readiness and readable errors, and bound WebSocket
   handshakes. / 流式 Demo 在旧测试凭据失效后可重新创建会话，显示双端就绪状态和

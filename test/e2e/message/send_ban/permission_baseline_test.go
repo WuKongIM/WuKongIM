@@ -71,7 +71,7 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 		"host_os": runtime.GOOS, "host_arch": runtime.GOARCH, "host_cpus": runtime.NumCPU(),
 		"driver_gomaxprocs": runtime.GOMAXPROCS(0), "performance_qualified": false,
 		"queue_owned_bytes": nil, "queue_byte_limit": 16 << 20, "queue_envelope_limit": 1024,
-		"executing_envelope_limit": 64,
+		"executing_envelope_limit": 128,
 		"resource_scope":           "whole node; scrape cuts include scrape overhead; CPU/RSS gauges are periodic; allocation counters may be scrape-cached; profiles use a separate window",
 		"fixture_scope":            "system UID; two mandatory facts; no auxiliary membership reads or recipient fanout; one-voter metadata routing proof, not HA",
 	}
@@ -310,7 +310,7 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 			require.NotZero(t, meta.Leader)
 			var windows []map[string]any
 			caseEvidence["windows"] = &windows
-			for _, concurrency := range []int{1, 32} {
+			for _, concurrency := range []int{32, 1} {
 				window := map[string]any{"concurrency": concurrency, "completed": false}
 				windows = append(windows, window)
 				before := permissionBaselineMetrics(t, ctx, cluster)
@@ -514,7 +514,7 @@ func runPermissionCallerExperiment(t *testing.T, cohorts bool) {
 			pageLimit := 8
 			if fixed {
 				plannedHistory := 1 + 32
-				for _, concurrency := range []int{1, 32} {
+				for _, concurrency := range []int{32, 1} {
 					_, count, _ := permissionFixedPlan(concurrency)
 					plannedHistory += count
 				}

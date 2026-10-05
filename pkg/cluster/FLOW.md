@@ -115,7 +115,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 - Runtime-meta creation uses one supervised owner per logical Slot: duplicate
   identities coalesce, unique work is bounded and canonical-sorted, placement
   comes from one current revision; every create rereads committed versions, including
-  wholly successful batches. Uncertain proposals retry only authoritatively missing rows.
+  wholly successful batches. First group SENDs and their followers share the hot
+  latency domain, so collection is capped at 20 ms. Uncertain proposals retry only authoritatively missing rows.
 - Ordinary UID membership upserts coalesce one immutable route publication into physical-Slot proposals with 128-row/256-KiB/64-KiB-UID limits and at most eight supervised workers. Byte-heavy groups split before submission; admitted work joins after cancellation. Directory-ready cannot hide missing UID membership or append runtime metadata.
 - Lifecycle, fanout, retries, scans, repairs, tasks and diagnostics stay bounded.
   Repair scans rotate Slots with row cursors under tick/task budgets. Slot
@@ -138,7 +139,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 
 Aggregate MQTT capacity uses one hash-Slot escrow row and immutable Controller storage rosters, including joining/leaving data nodes. Startup debt must be registered on every required node before growth. The existing periodic health owner reports health first, then maintains/refunds capacity with a separate bounded context and nonwaiting restore/apply ownership; no per-Channel task is added.
 
-- Send-permission routing projects one immutable authority publication into node-batched Slot queries with caller cancellation. Every group holds foreground/maintenance admission through a fresh Slot barrier, pinned metadata snapshot and final authority check. The node does not evaluate send-ban business rules.
+- Send-permission routing seals bounded concurrent caller batches before one immutable authority publication and node-batched Slot queries. Every group holds admission through a fresh Slot barrier, pinned snapshot and final authority check. Stop/rollback closes and joins ingress batches before transport/storage; business evaluation stays in the usecase.
 
 
 ## Read First

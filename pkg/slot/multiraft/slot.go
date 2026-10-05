@@ -532,10 +532,16 @@ func (g *slot) processControls(ctx context.Context) bool {
 	controls := g.takeControlBatch()
 	defer g.releaseControlBatch(controls)
 
-	for _, action := range controls {
+	for i := 0; i < len(controls); i++ {
+		action := controls[i]
 		switch action.kind {
 		case controlReadBarrier:
-			g.issueReadBarrier(action.readBarrier)
+			end := i + 1
+			for end < len(controls) && controls[end].kind == controlReadBarrier {
+				end++
+			}
+			g.issueReadBarrierBatch(controls[i:end])
+			i = end - 1
 		case controlPropose:
 			action.future.observeStageSince("meta_create_slot_control_wait", nil, action.future.createdAt)
 			// Temporary-copy controls select opaque command bytes without adding

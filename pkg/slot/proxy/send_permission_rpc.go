@@ -19,12 +19,12 @@ import (
 const sendPermissionRPCServiceID = clusternet.RPCNodeSendPermissions
 const sendPermissionMaxBytes = 1 << 20
 
-// Execution must cover independent callers waiting on fresh quorum barriers:
-// sixteen envelopes saturate the 500 SEND/s lifecycle workload when ReadIndex
-// round trips slow down. Sixty-four remain a hard node-wide decode/read bound
-// (at most 256 Slot workers); each request/reply is separately capped at 1 MiB.
+// Execution must cover the lifecycle workload's clustered arrivals as well as
+// fresh quorum RTT: sixty-four envelopes introduce multiple serial wait waves.
+// The node-wide limit remains finite at 128 envelopes / 512 Slot workers, with
+// each request and reply capped at 1 MiB (256 MiB total wire payload in flight).
 // Waiting retains its independent count, undecoded-byte and two-second bounds.
-const sendPermissionMaxExecuting = 64
+const sendPermissionMaxExecuting = 128
 const sendPermissionMaxWaiting = 1024
 const sendPermissionMaxWaitingBytes = 16 * sendPermissionMaxBytes
 const sendPermissionMaxWait = 2 * time.Second
@@ -127,10 +127,10 @@ func (s *Store) ApplySendBan(ctx context.Context, q metadb.SendBanMutation) (met
 	return out, nil
 }
 
-// ReadSendPermissionMetadataBatch coalesces different Slots at the same leader
+// readSendPermissionMetadataBatch coalesces different Slots at the same leader
 // into node-scoped envelopes. Successful facts are request-scoped only; each
 // serving Slot establishes a fresh quorum/apply barrier and snapshot.
-func (s *Store) ReadSendPermissionMetadataBatch(ctx context.Context, reads []PermissionMetadataRead) []PermissionMetadataReadResult {
+func (s *Store) readSendPermissionMetadataBatch(ctx context.Context, reads []PermissionMetadataRead) []PermissionMetadataReadResult {
 	out := make([]PermissionMetadataReadResult, len(reads))
 	if len(reads) == 0 {
 		return out
@@ -154,6 +154,12 @@ func (s *Store) ReadSendPermissionMetadataBatch(ctx context.Context, reads []Per
 		}
 	}
 	for attempt := 0; attempt < 2 && len(pending) > 0; attempt++ {
+		if err := ctx.Err(); err != nil {
+			for _, i := range pending {
+				out[i].Err = err
+			}
+			break
+		}
 		routeStarted := s.permissionStart()
 		subset := make([]string, len(pending))
 		for i, index := range pending {

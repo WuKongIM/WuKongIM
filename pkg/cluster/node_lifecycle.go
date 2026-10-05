@@ -121,6 +121,9 @@ func (n *Node) Stop(ctx context.Context) error {
 	n.stopChannelRetentionGCLoop()
 	n.stopChannelMigrationLoop()
 	var errs []error
+	if n.defaultSlotProxy != nil {
+		n.defaultSlotProxy.CloseSendPermissionReads()
+	}
 	if n.defaultChannels {
 		if n.channelRPCGateway != nil {
 			n.channelRPCGateway.Clear()
