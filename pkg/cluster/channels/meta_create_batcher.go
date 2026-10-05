@@ -24,10 +24,10 @@ const (
 	// latency bound for smaller bursts.
 	metaCreateBatchTargetItems = 32
 	// Cold identities wait briefly for peers assigned to the same physical
-	// Slot. Existing identities bypass this batcher, so the window reduces Raft
-	// proposal pressure without adding latency to the hot SEND path. The
-	// target-item fast path still dispatches full bursts before this deadline.
-	metaCreateBatchCollectWait = 500 * time.Millisecond
+	// Slot. First group SENDs and their followers share the hot latency domain,
+	// so collection must leave room for permission, replication and SENDACK.
+	// Full target batches still dispatch before this deadline.
+	metaCreateBatchCollectWait = 20 * time.Millisecond
 	// Two batches allow one future to progress while the next is submitted,
 	// without flooding a Slot leader with single-item proposals.
 	metaCreateSlotMaxInFlightBatches = 2

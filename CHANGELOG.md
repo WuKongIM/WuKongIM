@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Limit cold Channel metadata collection to 20 ms so first group SENDs and
+  following messages avoid a fixed 500 ms initialization delay. / 将冷频道元数据
+  收集窗口限制为 20ms，避免群聊首次发送及后续消息固定等待 500ms 初始化。
+
 - Reduce concurrent SEND permission-read overhead by combining queued Slot
   reads into one fresh quorum confirmation, while preserving cancellation,
   leadership and durable-apply checks. / 合并同批排队的 Slot 权限读取，减少并发

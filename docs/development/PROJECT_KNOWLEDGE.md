@@ -1725,6 +1725,12 @@ specification, runbook, report, or module documentation; link to them when neede
   retains its own cancellation, 256-per-Slot pending position, term fence and
   durable-apply wait, including canceled requests not yet quorum-confirmed.
 
+- Runtime Channel metadata creation collects for at most 20 ms, with the same
+  32-item early dispatch, 64-item batch, 256-identity per-Slot queue and two
+  in-flight batches. First group SENDs and their followers count as hot in the
+  lifecycle workload; a 500 ms collection window alone exceeds its 400 ms P99
+  budget. Group setup commits business metadata without warming append runtime.
+
 - Optional message `SubmitBatchEach` joins permission/directory/hook preparation
   before returning and transfers only append completion. Its injected admission
   must bound accepted work and preserve canonical Channel order. Preparation

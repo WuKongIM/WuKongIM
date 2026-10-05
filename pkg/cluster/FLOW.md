@@ -115,7 +115,8 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 - Runtime-meta creation uses one supervised owner per logical Slot: duplicate
   identities coalesce, unique work is bounded and canonical-sorted, placement
   comes from one current revision; every create rereads committed versions, including
-  wholly successful batches. Uncertain proposals retry only authoritatively missing rows.
+  wholly successful batches. First group SENDs and their followers share the hot
+  latency domain, so collection is capped at 20 ms. Uncertain proposals retry only authoritatively missing rows.
 - Ordinary UID membership upserts coalesce one immutable route publication into physical-Slot proposals with 128-row/256-KiB/64-KiB-UID limits and at most eight supervised workers. Byte-heavy groups split before submission; admitted work joins after cancellation. Directory-ready cannot hide missing UID membership or append runtime metadata.
 - Lifecycle, fanout, retries, scans, repairs, tasks and diagnostics stay bounded.
   Repair scans rotate Slots with row cursors under tick/task budgets. Slot
