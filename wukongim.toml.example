@@ -51,9 +51,10 @@ channel_append_batch_max_records = 0
 channel_append_batch_max_wait = "0"
 channel_follower_recovery_probe_interval = "2s"
 channel_follower_recovery_probe_jitter = "1s"
-# Maximum time to collect adjacent durable commit requests. The measured
-# 500us default favors low caller latency and is also the reviewed three-node
-# cluster profile value at sustained write rates.
+# Maximum time to wait for additional durable commit requests. After expiry,
+# one bounded snapshot of already queued requests may join the same commit,
+# subject to the batch limits. The measured 500us default favors low caller
+# latency and is also the reviewed three-node cluster profile value.
 commit_coordinator_flush_window = "500us"
 commit_coordinator_max_requests = 0
 commit_coordinator_max_records = 0

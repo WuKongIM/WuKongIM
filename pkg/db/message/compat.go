@@ -58,7 +58,8 @@ func (c AppendBatchClass) valid() bool {
 
 // CommitCoordinatorConfig keeps the legacy channel-store tuning surface.
 type CommitCoordinatorConfig struct {
-	// FlushWindow is the maximum time spent collecting adjacent commit requests.
+	// FlushWindow bounds waiting for additional commit arrivals. At expiry one
+	// bounded snapshot of already queued requests may join without further waiting.
 	FlushWindow time.Duration
 	// QueueSize bounds waiting commit requests before callers apply backpressure.
 	QueueSize int

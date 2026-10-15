@@ -46,7 +46,9 @@ It does not own product policy or expose Pebble-specific APIs to callers.
 - Darwin uses 16 MiB `BytesPerSync` to avoid compaction range-sync full-file
   fsync behavior.
 - The durable commit coordinator defaults to one shard and a 500-microsecond
-  collection window; synchronous durability is unchanged. Metadata can opt into
+  wait window. Expiry admits only one bounded snapshot of already-queued work;
+  later arrivals cannot prolong that cohort. Request, record and byte limits,
+  lane fairness and synchronous durability remain in force. Metadata can opt into
   one isolated rebuild after a neighboring request rejects a group before any
   physical commit. Ambiguous physical commit errors are never retried.
 - Each writable engine keeps one baseline compaction slot and may open three
