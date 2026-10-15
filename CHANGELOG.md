@@ -14,6 +14,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Keep compatible queued storage writes in one bounded commit batch after a
+  collection timer expires during a scheduler pause, avoiding unnecessary
+  synchronous commits. / 提交线程调度暂停导致收集计时器到期后，继续有界合并已排队的
+  兼容写入，减少不必要的同步提交。
+
 - Preserve seeded subsecond arrivals in chat-lifecycle benchmarks instead of
   releasing each second's entire SEND budget together, and show the terminal
   diagnostic summary directly in Action logs. / 聊天生命周期压测按固定种子保留

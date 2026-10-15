@@ -94,7 +94,8 @@ type RequestObserver interface {
 
 // Config controls group commit behavior.
 type Config struct {
-	// FlushWindow is the maximum time spent collecting adjacent requests.
+	// FlushWindow bounds waiting for additional arrivals. After it expires, one
+	// bounded snapshot of already queued requests may join the batch without waiting.
 	FlushWindow time.Duration
 	// QueueSize bounds waiting requests.
 	QueueSize int
@@ -478,7 +479,7 @@ func (c *Coordinator) collect(first pendingRequest) requestBatch {
 	for {
 		select {
 		case <-timer.C:
-			return batch
+			return c.collectQueuedSnapshot(batch)
 		case <-c.stopCh:
 			batch.closed = true
 			return batch
@@ -501,12 +502,49 @@ func (c *Coordinator) collect(first pendingRequest) requestBatch {
 		case req := <-c.requests:
 			c.enqueuePending(req)
 		case <-timer.C:
-			return batch
+			return c.collectQueuedSnapshot(batch)
 		case <-c.stopCh:
 			batch.closed = true
 			return batch
 		}
 	}
+}
+
+// collectQueuedSnapshot admits only the queue observed after the wait window.
+// Releasing credits may admit new submissions; those stay in intake for the
+// next cohort, so arrivals cannot prolong this drain even without size limits.
+func (c *Coordinator) collectQueuedSnapshot(batch requestBatch) requestBatch {
+	if c.stopped() {
+		batch.closed = true
+		return batch
+	}
+	incoming := len(c.requests)
+	for i := 0; i < incoming; i++ {
+		c.enqueuePending(<-c.requests)
+	}
+	c.mu.Lock()
+	remaining := len(c.pendingHigh) + len(c.pendingNormal)
+	c.mu.Unlock()
+	for i := 0; i < remaining; i++ {
+		if c.stopped() {
+			batch.closed = true
+			return batch
+		}
+		req, ok := c.popPending(false)
+		if !ok {
+			return batch
+		}
+		if c.wouldExceed(batch, req) {
+			c.requeueFront(req)
+			return batch
+		}
+		req.releaseQueued()
+		batch.requests = append(batch.requests, req)
+		if c.limitReached(batch) {
+			return batch
+		}
+	}
+	return batch
 }
 
 func (c *Coordinator) commit(reqs requestBatch, collectDuration time.Duration) {

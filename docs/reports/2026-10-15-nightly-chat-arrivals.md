@@ -92,10 +92,103 @@ underdelivery. Future admitted SENDs prevent a premature shutdown fence.
 Focused tests and the complete `internal/bench/...` unit suite pass locally.
 The final chat-lifecycle package tests, focused race checks, and first-round
 1,000/2,000 SEND/s churn integration checks pass. The formal one-hour grant and
-fixed lifecycle cohort integration checks also pass; they preceded the final
-deferred-route boundary regression fixes. The script's fourteen terminal-summary
+fixed lifecycle cohort integration checks also pass on the final candidate.
+The script's fourteen terminal-summary
 cases and the named `flow-doc-contracts` check pass. Independent review found no
-remaining P1/P2 issue. Hosted candidate qualification is pending.
-Hosted validation will retain all results from a fixed set of three independent
-600-second qualifications, including any failure. No threshold, synchronous
-durability, replication factor, or traffic count may be relaxed to obtain a pass.
+remaining P1/P2 issue.
+
+Hosted validation uses a fixed set of three independent sequential 600-second
+qualifications of `93031a3bfeaad8c1b0ca3ae987d32a8343d283bf`, retaining every
+outcome without rerunning a failed attempt. No threshold, synchronous durability,
+replication factor, or traffic count is relaxed. The final reports and local-step
+reports are identified by artifact ID and SHA-256 in the companion evidence.
+
+| Qualification | Result | Measured SEND/s | Measured sent = ACK | Hot mean | Hot above 400 ms |
+| --- | --- | ---: | ---: | ---: | ---: |
+| [1](https://github.com/WuKongIM/WuKongIM/actions/runs/38691246936) | clean, 600 s | 500.848 | 300,509 | 28.50 ms | 0.1798% |
+| [2](https://github.com/WuKongIM/WuKongIM/actions/runs/38691616836) | clean, 600 s | 500.847 | 300,508 | 18.40 ms | 0.0028% |
+| [3](https://github.com/WuKongIM/WuKongIM/actions/runs/38692625961) | product failure, hot latency | unavailable | 170,501 | 92.57 ms | 3.5913% |
+
+Hot latency columns include warmup and are not exact P99 estimates. Configuration
+digests and complete threshold objects match the original failure. Each passing
+run generates exactly 300,000 primary messages during measurement (270,000 person,
+30,000 group), plus ten canaries. In-flight work at the measurement boundaries
+explains the small difference between primary generation and measured sends.
+The classifier excludes acknowledgments for messages already sent during warmup.
+
+Completed runs report zero terminal sends, losses, duplicates, corruptions,
+sequence regressions, harness failures, or offered underdelivery. Delivery
+correlation is sampled, not an exhaustive verification of every fanout recipient.
+Runs 1 and 2 have two and three local-admission retries respectively; all settle.
+Their zero product first-attempt failure counters exclude local admission failures
+by the existing reporting policy. Run 3 has 363 retries without local transport
+rejection; its retry path requires separate diagnosis.
+
+`operator_stop / operator_requested` in the passing final reports is expected: the script
+requests termination after the complete measurement, drains, and classifies the
+step as `clean / complete`; `operator_interrupted` is false. The configured
+810-second final boundary includes shutdown safety margins and is not the
+required measurement duration.
+
+All PR checks on the same code candidate pass: three-node correctness, messaging
+unit/race, all three 500-QPS seams, and native package build/install/lifecycle
+checks on Ubuntu 24.04, Debian 12, Rocky 9, and AlmaLinux 9. The third qualification
+still fails with sustained hot latency and closes measurement early; its throughput
+is unavailable, not zero observed traffic. Thus seeded arrival repair improves
+the workload but does not yet establish a stable fix for the recurring Action.
+The failure is retained for further diagnosis; no additional rerun is substituted.
+
+## Remaining failure after arrival repair
+
+The third candidate has no offered underdelivery. Pending-to-write mean is
+1.42 ms, while write-to-ACK mean is 102.77 ms. Its measured successful
+`store_append_wait` means are 60–62 ms across the three nodes, versus 11.3–11.7 ms
+and 6.3–6.4 ms in the successful comparisons. Physical commit means are only
+4.5–4.7 ms; logical storage requests wait 40–44 ms, so queueing and synchronous
+completion work amplify the physical storage tail.
+
+| Measured WAL signal, all three nodes | Candidate run 1 | Candidate run 2 | Candidate run 3 |
+| --- | ---: | ---: | ---: |
+| Channel-log fsync mean | 0.806 ms | 0.636 ms | 3.708 ms |
+| Channel-log fsync above 100 ms | 0% | 0.00108% | 0.9254% |
+| Metadata fsync mean | 1.193 ms | 0.914 ms | 5.842 ms |
+| Metadata fsync above 100 ms | 0% | 0% | 1.7075% |
+
+The failed run closes early, so absolute event counts cannot be compared as if
+all measurements had equal duration. All three product nodes share one runner;
+only the `host-node-1` alias supplies physical-device I/O evidence. These data
+support a strong storage-tail association, not proof of an exclusive host cause.
+
+Independent replay of the coordinator's five-second cuts reproduces the P99
+failure exactly. The evaluator subtracts the warmup baseline and uses bounded
+rolling windows. At termination, the active window has 4,921 of 143,705 samples
+above 400 ms (3.4244%), continuously breached for 300.000000060 seconds. The last
+25 seconds still contain 1,268 of 12,136 samples above 400 ms (10.45%). Thus the
+failure is not an old warmup spike being misclassified after recovery.
+
+A separate controlled diagnostic reproduces an avoidable amplification boundary
+in the physical commit coordinator: pausing its owner beyond the collection
+window causes the expired timer to seal a small batch even when compatible
+requests are already queued. This demonstrates the mechanism, but existing
+hosted metrics do not prove how often it occurs in this failure. The follow-up
+repair captures one intake length and one pending-request count after expiry,
+then consumes only that bounded set. New arrivals remain for the next cohort;
+existing request, record and byte limits, lane fairness, queue credits and stop
+semantics remain intact. The 500-microsecond wait window and synchronous
+durability are unchanged.
+
+The formal regression fails before the fix (four queued requests split after
+two; the three-request cap also admits only two), then passes with the repair.
+Virtual-time integration cases cover shutdown, size boundaries, lane fairness,
+receipt ownership and new arrivals replenishing released credits. The complete
+`pkg/db/...` suite, commit integration race, focused message race, root DB race,
+and named `flow-doc-contracts` check pass. This isolated test is necessary to
+reproduce an exact owner scheduling pause; hosted qualifications provide the
+process-level system evidence.
+
+The first arrival repair was merged in [PR #1011](https://github.com/WuKongIM/WuKongIM/pull/1011).
+The follow-up commit-batching candidate uses a new fixed set of three independent
+hosted qualifications. Its PR records the exact source SHA, run links, complete
+outcomes and measured results as they complete, so validation refers to the
+immutable commit actually executed. Neither the earlier failed candidate nor
+later failed outcomes may be omitted.
