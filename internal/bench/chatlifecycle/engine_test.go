@@ -3827,6 +3827,21 @@ func TestEngineApplyGrantCanceledBeforeAdmissionDoesNotMutateAndRetryAppliesOnce
 	if _, err := fixture.engine.Advance(now); err != nil {
 		t.Fatalf("Advance second grant: %v", err)
 	}
+	if got := fixture.factory.sentCount() - secondSentBefore; got != 0 {
+		t.Fatalf("second grant dispatched %d future SENDs at its admission instant", got)
+	}
+	// Subsequent grants keep their exact budget while their seeded arrivals
+	// span the next second; stop before the first unacknowledged grant times out.
+	for offset := 10 * time.Millisecond; offset < time.Second; offset += 10 * time.Millisecond {
+		fixture.clock.Set(now.Add(offset))
+		if _, err := fixture.engine.Advance(fixture.clock.Now()); err != nil {
+			t.Fatalf("Advance paced second grant: %v", err)
+		}
+	}
+	fixture.clock.Set(now.Add(time.Second - time.Nanosecond))
+	if _, err := fixture.engine.Advance(fixture.clock.Now()); err != nil {
+		t.Fatalf("Advance final paced arrival: %v", err)
+	}
 	if got := fixture.factory.sentCount() - secondSentBefore; got != 10 {
 		t.Fatalf("second grant async drain sent %d messages, want 10", got)
 	}

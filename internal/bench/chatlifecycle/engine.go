@@ -31,6 +31,10 @@ const (
 	// completionFairnessQuantum bounds consecutive SEND work before the engine
 	// yields one scheduler turn to session drains and rechecks completions.
 	completionFairnessQuantum = 32
+	// grantDispatchTolerance permits ten subsecond scheduler intervals of
+	// jitter. Older primary arrivals become explicit under-delivery instead of
+	// accumulating into a catch-up burst after a stalled load generator.
+	grantDispatchTolerance = 10 * workerTrafficAdvanceCadence
 )
 
 var (
@@ -531,6 +535,9 @@ const (
 type engineWork struct {
 	due                 time.Time
 	eligibilityDeadline time.Time
+	// dispatchDeadline bounds lateness only for paced initial grant SENDs;
+	// retries, lifecycle timers, and the first bootstrap grant retain their policy.
+	dispatchDeadline time.Time
 	// senderLoginOrdinal binds mandatory activity to the exact session
 	// generation that planned it. A later login of the same UID must not inherit
 	// old activity or turn its cancellation into offered-load under-delivery.
@@ -1320,8 +1327,22 @@ func (e *Engine) admitGrantedTraffic(now time.Time, released uint64) (TrafficTic
 	admit := func(intent TrafficIntent) bool {
 		return e.sessions.acquireSendAndCorrelationLease(intent, now)
 	}
+	ordinal := uint64(0)
 	snapshot, grantErr := e.generator.ApplyGrant(released, func(intent TrafficIntent) error {
-		return e.admitGrantedIntent(intent, now, admit)
+		due, deadline := now, time.Time{}
+		if e.externalGrantsApplied > 0 {
+			// The coordinator still owns each exact one-second budget. Independent
+			// seeded arrivals avoid synchronizing every worker at its grant boundary
+			// without replacing the reviewed short bursts with perfectly even timers.
+			offset, err := e.schedule.identity.decisionBelow("primary-grant-arrival/v1", uint64(coordinatorGrantCadence), e.workerID, e.externalGrantsApplied, ordinal)
+			if err != nil {
+				return err
+			}
+			due = now.Add(time.Duration(offset))
+			deadline = due.Add(grantDispatchTolerance)
+		}
+		ordinal++
+		return e.admitGrantedIntentBefore(intent, now, due, deadline, admit)
 	})
 	if grantErr == nil {
 		grantErr = e.admitDueCanary(now, admit)
@@ -1330,21 +1351,25 @@ func (e *Engine) admitGrantedTraffic(now time.Time, released uint64) (TrafficTic
 }
 
 func (e *Engine) admitGrantedIntent(intent TrafficIntent, now time.Time, admit grantRouteAdmission) error {
+	return e.admitGrantedIntentBefore(intent, now, now, time.Time{}, admit)
+}
+
+func (e *Engine) admitGrantedIntentBefore(intent TrafficIntent, now, due, deadline time.Time, admit grantRouteAdmission) error {
 	if intent.Kind == TrafficPerson {
 		routed, err := e.routePersonGrantWithAdmission(intent, now, admit)
 		if err != nil {
 			return err
 		}
-		return e.addLeasedSendWorkAt(routed, 0, now)
+		return e.addLeasedSendWorkBefore(routed, 0, due, deadline)
 	}
 	routed, available, err := e.tryRouteGroupGrantWithAdmission(intent, now, admit)
 	if err != nil {
 		return err
 	}
 	if !available {
-		return e.addDeferredGroupRoute(intent, now)
+		return e.addDeferredGroupRouteBefore(intent, now, deadline)
 	}
-	return e.addLeasedSendWorkAt(routed, 0, now)
+	return e.addLeasedSendWorkBefore(routed, 0, due, deadline)
 }
 
 func (e *Engine) tick(ctx context.Context, now time.Time, demand []uint64) (TrafficTickSnapshot, error) {
@@ -2345,7 +2370,7 @@ func (e *Engine) FencePlannedShutdown(ctx context.Context) error {
 	if err := e.enqueueBlockingContext(ctx, engineCommand{run: func() {
 		e.drainCompletions()
 		drain := e.verifier.DrainSnapshot()
-		if drain.PendingUnfinished != 0 || drain.CorrelationOutstanding != 0 || len(e.inflight) != 0 ||
+		if drain.PendingUnfinished != 0 || drain.CorrelationOutstanding != 0 || len(e.inflight) != 0 || e.queuedSends != 0 ||
 			e.retries.Snapshot().Depth != 0 || e.deferredGroupRoutes != 0 {
 			response <- errEngineNotDrained
 			return
@@ -2569,6 +2594,10 @@ func (e *Engine) addSendWorkAt(intent TrafficIntent, attempt uint8, due, admitte
 // acquired atomically with final route validation. A capacity failure releases
 // that ownership before returning so a rejected grant cannot pin session churn.
 func (e *Engine) addLeasedSendWorkAt(intent TrafficIntent, attempt uint8, due time.Time) error {
+	return e.addLeasedSendWorkBefore(intent, attempt, due, time.Time{})
+}
+
+func (e *Engine) addLeasedSendWorkBefore(intent TrafficIntent, attempt uint8, due, deadline time.Time) error {
 	if e.futureCount() >= e.workCapacity {
 		capacityErr := e.recordRuntimeFailure(RuntimeFailureEngineQueueSaturated, uint64(e.workCapacity))
 		if attempt == 0 {
@@ -2576,7 +2605,7 @@ func (e *Engine) addLeasedSendWorkAt(intent TrafficIntent, attempt uint8, due ti
 		}
 		return capacityErr
 	}
-	work := &engineWork{due: due, kind: engineWorkSend, intent: intent, attempt: attempt, order: e.nextOrder}
+	work := &engineWork{due: due, dispatchDeadline: deadline, kind: engineWorkSend, intent: intent, attempt: attempt, order: e.nextOrder}
 	e.nextOrder++
 	heap.Push(&e.work, work)
 	e.queuedSends++
@@ -2598,9 +2627,9 @@ func (e *Engine) addWork(work *engineWork) error {
 	return nil
 }
 
-// addDeferredGroupRoute retains one accepted primary grant whose fixed group
+// addDeferredGroupRouteBefore retains one accepted primary grant whose fixed group
 // temporarily lacks the sender/recipient pair required by sampled delivery.
-func (e *Engine) addDeferredGroupRoute(intent TrafficIntent, now time.Time) error {
+func (e *Engine) addDeferredGroupRouteBefore(intent TrafficIntent, now, dispatchDeadline time.Time) error {
 	deadline, err := e.newEligibilityDeadline(now)
 	if err != nil {
 		return err
@@ -2610,7 +2639,7 @@ func (e *Engine) addDeferredGroupRoute(intent TrafficIntent, now time.Time) erro
 		return errEngineConfig
 	}
 	work := &engineWork{
-		due: due, eligibilityDeadline: deadline, kind: engineWorkGroupRoute, intent: intent,
+		due: due, eligibilityDeadline: deadline, dispatchDeadline: dispatchDeadline, kind: engineWorkGroupRoute, intent: intent,
 	}
 	if err := e.addWork(work); err != nil {
 		return err
@@ -2623,6 +2652,11 @@ func (e *Engine) retryDeferredGroupRoute(work *engineWork, now time.Time) error 
 	if work == nil || work.kind != engineWorkGroupRoute || work.intent.Kind != TrafficGroup ||
 		work.eligibilityDeadline.IsZero() || e.deferredGroupRoutes <= 0 {
 		return errEngineConfig
+	}
+	// Roster availability is established here, after any owner-command wait;
+	// it must not inherit an earlier scheduler sample as its dispatch origin.
+	if availableAt := e.clock.Now(); availableAt.After(now) {
+		now = availableAt
 	}
 	if !work.eligibilityDeadline.After(now) {
 		e.deferredGroupRoutes--
@@ -2651,7 +2685,20 @@ func (e *Engine) retryDeferredGroupRoute(work *engineWork, now time.Time) error 
 		return nil
 	}
 	e.deferredGroupRoutes--
-	return e.addLeasedSendWorkAt(routed, 0, now)
+	due, deadline := now, work.dispatchDeadline
+	if !deadline.IsZero() {
+		// Missing roster members retain their existing bounded eligibility wait.
+		// Recovery may not send before the planned arrival. After that arrival,
+		// only time spent waiting to dispatch an eligible route is scheduler lag.
+		if plannedDue := deadline.Add(-grantDispatchTolerance); plannedDue.After(due) {
+			due = plannedDue
+		}
+		deadline = due.Add(grantDispatchTolerance)
+		if deadline.After(work.eligibilityDeadline) {
+			deadline = work.eligibilityDeadline
+		}
+	}
+	return e.addLeasedSendWorkBefore(routed, 0, due, deadline)
 }
 
 func (e *Engine) addActivity(work *engineWork) error {
@@ -2788,6 +2835,15 @@ func (e *Engine) observeCompletion(completion engineCompletion) {
 func (e *Engine) processWork(ctx context.Context, work *engineWork, now time.Time) error {
 	switch work.kind {
 	case engineWorkSend:
+		if !work.dispatchDeadline.IsZero() && (now.After(work.dispatchDeadline) || e.clock.Now().After(work.dispatchDeadline)) {
+			e.activityUnderDelivered++
+			e.completeMetaCreate(work.intent, false)
+			return errors.Join(
+				e.recordRuntimeFailure(RuntimeFailureUnderDelivery, 1),
+				e.settleLifecycleInitialActivity(work.intent),
+				e.releaseUnstartedSendLease(work.intent),
+			)
+		}
 		return e.processAttempt(ctx, work.intent, work.attempt, now)
 	case engineWorkTimeout:
 		inflight := e.inflight[work.intent.Logical.ClientMsgNo]

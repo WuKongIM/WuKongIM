@@ -14,6 +14,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Preserve seeded subsecond arrivals in chat-lifecycle benchmarks instead of
+  releasing each second's entire SEND budget together, and show the terminal
+  diagnostic summary directly in Action logs. / 聊天生命周期压测按固定种子保留
+  秒内消息到达时间，避免每秒发送预算集中释放，并在 Action 日志直接显示终态诊断摘要。
+
 - Combine concurrent SEND permission facts before fresh quorum reads, with bounded
   collection and independent cancellation, to reduce repeated RPC work. / 在新的
   quorum 读取前有界合并并发 SEND 权限事实，保留独立取消，减少重复 RPC 工作。

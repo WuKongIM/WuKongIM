@@ -753,6 +753,103 @@ printf 'phase=%s\ndrain_recorded=%s\nterminal=%s\n' \
 	}
 }
 
+func TestChatLifecycleTerminalVerdictSummaryPreservesClassifierExit(t *testing.T) {
+	root := repoRoot(t)
+	script := readFile(t, filepath.Join(root, "scripts", "run-wukongim-three-node-chat-lifecycle-shakeout.sh"))
+	helper := extractBashFunction(t, script, "log_terminal_verdict_summary")
+	start := strings.LastIndex(script, "  log_terminal_verdict_summary\n  if [[ -s \"$RUN_DIR/local-step.json\" ]]; then")
+	if start < 0 {
+		t.Fatal("terminal verdict summary must precede the existing classifier exit branch")
+	}
+	end := strings.Index(script[start:], "\nfi\n")
+	if end < 0 {
+		t.Fatal("measured terminal branch is not closed")
+	}
+	terminalBranch := script[start : start+end+4]
+	valid := `{"verdict":{"outcome":"product_failure","cause":"hot_latency","raw_error":"SECRET_RAW_ERROR"},"thresholds":{"latency":{"hot_sendack":{"p99":400000000}}},"latency":{"hot_sendack":{"count":200,"sum_nanos":50000000000}},"messages":{"sent":210,"send_acknowledged":210},"payload":"SECRET_PAYLOAD","token":"SECRET_TOKEN"}`
+	success := strings.ReplaceAll(strings.ReplaceAll(valid, "product_failure", "operator_stop"), "hot_latency", "operator_requested")
+	passed := strings.Replace(valid, "product_failure", "pass", 1)
+	for _, tc := range []struct {
+		name        string
+		report      string
+		classifier  int
+		signal      int
+		unavailable bool
+	}{
+		{name: "product failure", report: valid, classifier: 3},
+		{name: "clean bounded stop", report: success},
+		{name: "success missing cause", report: strings.Replace(passed, `"cause":"hot_latency",`, "", 1)},
+		{name: "success null cause", report: strings.Replace(passed, `"cause":"hot_latency"`, `"cause":null`, 1)},
+		{name: "success empty cause", report: strings.Replace(passed, `"cause":"hot_latency"`, `"cause":""`, 1)},
+		{name: "insufficient evidence", report: valid, classifier: 6},
+		{name: "operator signal", report: valid, classifier: 6, signal: 143},
+		{name: "missing report", classifier: 6, unavailable: true},
+		{name: "malformed report", report: `{"raw_error":"SECRET_RAW_ERROR"`, classifier: 6, unavailable: true},
+		{name: "multiple reports", report: valid + "\n" + valid, classifier: 6, unavailable: true},
+		{name: "missing outcome", report: strings.Replace(passed, `"outcome":"pass",`, "", 1), unavailable: true},
+		{name: "missing numeric field", report: strings.Replace(valid, `"count":200,`, "", 1), classifier: 3, unavailable: true},
+		{name: "invalid numeric field", report: strings.Replace(valid, `"count":200`, `"count":"SECRET_TOKEN"`, 1), classifier: 3, unavailable: true},
+		{name: "unsafe cause", report: strings.Replace(valid, `"hot_latency"`, `"SECRET_TOKEN\n::error::payload"`, 1), classifier: 3, unavailable: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testDir := t.TempDir()
+			if tc.report != "" {
+				if err := os.WriteFile(filepath.Join(testDir, "final.json"), []byte(tc.report), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.WriteFile(filepath.Join(testDir, "local-step.json"), []byte(`{}`), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			harness := fmt.Sprintf(`set -euo pipefail
+RUN_DIR="$TEST_DIR"
+REPORT_DIR="$TEST_DIR"
+classifier_status=%d
+OPERATOR_SIGNAL_STATUS=%d
+HARNESS_FAILURE_REASON=""
+log() { printf '[chat-lifecycle-shakeout] %%s\n' "$*"; }
+die() { exit 1; }
+`, tc.classifier, tc.signal) + helper + "\nif true; then\n" + terminalBranch
+			command := exec.Command("bash", "-c", harness)
+			command.Env = append(os.Environ(), "TEST_DIR="+testDir)
+			output, err := command.CombinedOutput()
+			wantStatus := tc.classifier
+			if tc.signal != 0 {
+				wantStatus = tc.signal
+			}
+			if wantStatus == 0 {
+				if err != nil {
+					t.Fatalf("summary changed successful classifier exit: %v\n%s", err, output)
+				}
+			} else {
+				requireLocalBaselineExitCode(t, err, output, wantStatus)
+			}
+			text := string(output)
+			for _, forbidden := range []string{"SECRET_", "raw_error", "payload", "token", "parse error"} {
+				if strings.Contains(text, forbidden) {
+					t.Fatalf("terminal summary exposed unapproved report data %q: %s", forbidden, text)
+				}
+			}
+			if tc.unavailable {
+				if !strings.Contains(text, "terminal report summary: unavailable\n") {
+					t.Fatalf("invalid report did not produce explicit unavailable summary: %s", text)
+				}
+				return
+			}
+			for _, want := range []string{`"hot_sendack_p99_limit_ms":400`, `"hot_sendack_count":200`, `"hot_sendack_mean_ms":250`, `"sent":210`, `"acknowledged":210`} {
+				if !strings.Contains(text, want) {
+					t.Fatalf("terminal summary missing %q: %s", want, text)
+				}
+			}
+			if !strings.Contains(text, `"outcome":"product_failure","cause":"hot_latency"`) &&
+				!strings.Contains(text, `"outcome":"operator_stop","cause":"operator_requested"`) &&
+				!strings.Contains(text, `"outcome":"pass","cause":"none"`) {
+				t.Fatalf("terminal summary did not retain the report verdict: %s", text)
+			}
+		})
+	}
+}
+
 func extractBashFunction(t *testing.T, script, name string) string {
 	t.Helper()
 	startToken := name + "() {\n"
