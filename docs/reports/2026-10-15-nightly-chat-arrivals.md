@@ -192,3 +192,50 @@ hosted qualifications. Its PR records the exact source SHA, run links, complete
 outcomes and measured results as they complete, so validation refers to the
 immutable commit actually executed. Neither the earlier failed candidate nor
 later failed outcomes may be omitted.
+
+
+## Concurrent metric-cut repair
+
+The fixed commit-batching candidate is
+`07b8dcd76c9a946a723dfe35d61659495816aaa7`. Its three qualification runs are
+[38700311564](https://github.com/WuKongIM/WuKongIM/actions/runs/38700311564),
+[38700325779](https://github.com/WuKongIM/WuKongIM/actions/runs/38700325779), and
+[38701963960](https://github.com/WuKongIM/WuKongIM/actions/runs/38701963960).
+Their complete terminal results are retained in
+[PR #1012](https://github.com/WuKongIM/WuKongIM/pull/1012), including results that
+arrive after the next code candidate is prepared.
+
+A separate PR correctness run
+[38700203102](https://github.com/WuKongIM/WuKongIM/actions/runs/38700203102)
+failed with `insufficient_evidence/invalid_or_missing_evidence`. Its tested
+merge `5bf32ca3be8e43ed75c138bfec82bf09d58a5369` has the same tree as the candidate.
+All 75,502 sends were acknowledged; the hot mean was 19.285 ms. The apparent
+post-drain queue timeout was caused by a missing node-1 `before` metric cut at
+07:42:11 UTC. Node-2 and node-3 baselines were complete, and all three nodes'
+first and last drain cuts and final cuts show zero queue depth and inflight.
+The sole invalid boundary timeline row is the missing node-1 baseline.
+
+The capture helper retries five times but deletes rejected raw cuts, so the
+artifact cannot prove which histogram caused each rejection. A separate
+controlled reproduction establishes a defect in the current metrics contract:
+`ObserveCommitBatch` updates eight histograms independently, while Prometheus
+can gather their families at different observation times. Sixty-four of
+sixty-four diagnostic scrapes disagreed despite using only valid successful
+commits. The formal regression likewise fails before the repair. This proves
+the concurrency defect, not the precise contents of the discarded hosted cuts.
+
+The repair moves only the four commit-batch families into a private registry.
+A local mutex protects the complete batch observation and the private gather;
+that gather freezes DTOs before unlocking. The outer collector then emits
+immutable copies without holding the lock. Metric names, labels, bucket bounds,
+unknown-label normalization and result series remain unchanged. The main
+registry, HTTP encoding and other metric writers are not locked. This adds a
+small private gather and snapshot-allocation cost on scrapes, which the new
+hosted candidate must include in its qualification.
+
+The formal concurrent-scrape and compatibility regression, full metrics suite,
+metrics race suite, focused application metrics adapters and `go vet` pass.
+No consistent-cut validator, missing-evidence rule, latency threshold or
+qualification duration was weakened. The final immutable candidate and every
+hosted outcome are recorded in PR #1012 instead of attributing an earlier
+candidate's passes to later code.

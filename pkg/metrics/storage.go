@@ -59,14 +59,16 @@ type StorageMetrics struct {
 	commitBatchBytes                *prometheus.HistogramVec
 	commitBatchRequests             *prometheus.HistogramVec
 	commitBatchDuration             *prometheus.HistogramVec
-	commitRequestDuration           *prometheus.HistogramVec
-	channelEntrySnapshot            *storageChannelEntryAtomicSnapshot
-	channelEntriesActive            prometheus.GaugeFunc
-	channelLeasesOutstanding        prometheus.GaugeFunc
-	channelBackgroundPins           prometheus.GaugeFunc
-	channelAcquiresTotal            prometheus.CounterFunc
-	channelReleasesTotal            prometheus.CounterFunc
-	channelReclaimsTotal            prometheus.CounterFunc
+	// commitBatchSnapshot publishes all batch families from one observation cut.
+	commitBatchSnapshot      *storageCommitBatchSnapshot
+	commitRequestDuration    *prometheus.HistogramVec
+	channelEntrySnapshot     *storageChannelEntryAtomicSnapshot
+	channelEntriesActive     prometheus.GaugeFunc
+	channelLeasesOutstanding prometheus.GaugeFunc
+	channelBackgroundPins    prometheus.GaugeFunc
+	channelAcquiresTotal     prometheus.CounterFunc
+	channelReleasesTotal     prometheus.CounterFunc
+	channelReclaimsTotal     prometheus.CounterFunc
 }
 
 type storageChannelEntryAtomicSnapshot struct {
@@ -453,6 +455,12 @@ func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 		}),
 	}
 
+	m.commitBatchSnapshot = newStorageCommitBatchSnapshot(map[string]*prometheus.HistogramVec{
+		"wukongim_storage_commit_batch_requests":         m.commitBatchRequests,
+		"wukongim_storage_commit_batch_records":          m.commitBatchRecords,
+		"wukongim_storage_commit_batch_bytes":            m.commitBatchBytes,
+		"wukongim_storage_commit_batch_duration_seconds": m.commitBatchDuration,
+	})
 	registry.MustRegister(
 		m.diskUsageBytes,
 		m.pebbleDiskUsageBytes,
@@ -489,10 +497,7 @@ func newStorageMetrics(registry prometheus.Registerer, labels prometheus.Labels)
 		m.messageIdempotencyNegativeSkips,
 		m.messageIdempotencyPointReads,
 		m.commitQueueDepth,
-		m.commitBatchRequests,
-		m.commitBatchRecords,
-		m.commitBatchBytes,
-		m.commitBatchDuration,
+		m.commitBatchSnapshot,
 		m.commitRequestDuration,
 		m.channelEntriesActive,
 		m.channelLeasesOutstanding,
@@ -614,6 +619,8 @@ func (m *StorageMetrics) ObserveCommitBatch(store string, result string, obs Sto
 	if result == "" {
 		result = "unknown"
 	}
+	m.commitBatchSnapshot.mu.Lock()
+	defer m.commitBatchSnapshot.mu.Unlock()
 	m.commitBatchRequests.WithLabelValues(store).Observe(float64(obs.Requests))
 	m.commitBatchRecords.WithLabelValues(store).Observe(float64(obs.Records))
 	m.commitBatchBytes.WithLabelValues(store).Observe(float64(obs.Bytes))

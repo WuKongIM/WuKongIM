@@ -1816,6 +1816,10 @@ specification, runbook, report, or module documentation; link to them when neede
   join the cohort under the existing request/record/byte and lane-fairness limits;
   later intake cannot extend it. Shared-host fsync tails remain visible product
   latency evidence and must not be erased by retries or relaxed thresholds.
+- Commit-batch histogram families must share one immutable scrape snapshot.
+  Independently sampling each family can reject valid active-write baselines;
+  serializing only the observation calls does not make Prometheus export atomic.
+  Preserve strict cut validation and explicit missing-evidence failures.
 
 - Native package lifecycle bootstrap includes package installation before systemd PID 1. A bootstrap timeout does not prove a service start or installed package. Failure probes retain stage, PID 1, jobs and journals with five-second command bounds and 64 KiB output caps; unchanged 300-second bootstrap/900-second main validation deadlines remain separate from failure cleanup.
 

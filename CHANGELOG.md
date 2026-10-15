@@ -14,6 +14,10 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Export storage commit batch histograms from one consistent snapshot so active
+  metric scrapes preserve qualification baselines. / 存储提交批次直方图使用一致快照导出，
+  避免活跃写入期间采集到跨时刻计数而丢失压测基线。
+
 - Keep compatible queued storage writes in one bounded commit batch after a
   collection timer expires during a scheduler pause, avoiding unnecessary
   synchronous commits. / 提交线程调度暂停导致收集计时器到期后，继续有界合并已排队的

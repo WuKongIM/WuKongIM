@@ -2501,5 +2501,54 @@
         }
       ]
     }
+  },
+  "metrics_cut_diagnosis": {
+    "candidate_sha": "07b8dcd76c9a946a723dfe35d61659495816aaa7",
+    "run_id": 38700203102,
+    "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/38700203102",
+    "merge_sha": "5bf32ca3be8e43ed75c138bfec82bf09d58a5369",
+    "same_tree_as_candidate": true,
+    "evidence_sha256": {
+      "local-step.json": "5837044a1b4f40c3f99bac2b0dee480dbe329a131d1dda61ceb821ce64d628af",
+      "product_queue_summary.tsv": "88a1834403205ecc280a722388c860d4c1b3dce5c5e5df2a9ba1ce3775c536ad",
+      "evidence/timeline.tsv": "12ee0ad1ebb2f63f5735e748ef9f7b2f4feae7a97465bde99164606385ef2c30",
+      "report/final.json": "25f092e2db1149345228772ffc77a152995dcded552c39bbb93c63da3bdc4d11"
+    },
+    "local_step": {
+      "schema": "wukongim/chat-lifecycle-local-step/v1",
+      "outcome": "insufficient_evidence",
+      "reason": "invalid_or_missing_evidence",
+      "offered_rate_per_second": 500,
+      "actual_rate_per_second": 0,
+      "minimum_throughput_percent": 90,
+      "measured_duration_seconds": 90,
+      "qualification_reached": true,
+      "target_connections": 2500,
+      "online_connections": 2500,
+      "sent": 0,
+      "acknowledged": 0,
+      "expected": 0,
+      "minimum_filesystem_free_percent": 0,
+      "storage_evidence_complete": false,
+      "host_io_evidence_complete": true,
+      "product_metrics_complete": true,
+      "product_queue_evidence_complete": false,
+      "product_queues_converged": false,
+      "process_continuity_complete": true,
+      "timeline_evidence_complete": false,
+      "profile_evidence_complete": false,
+      "operator_interrupted": false,
+      "harness_failure_reason": ""
+    },
+    "missing_cut": "2026-10-15T07:42:11Z before node-1",
+    "observed_drain_queues": "All nodes have zero queue depth and inflight in first/last drain and final cuts.",
+    "reproduction": "64/64 concurrent successful-observation scrapes disagreed across commit histogram counts before the metrics repair.",
+    "limitation": "Rejected hosted cut bodies were deleted; reproduction does not establish their exact mismatched families.",
+    "followup_qualification_runs": [
+      38700311564,
+      38700325779,
+      38701963960
+    ],
+    "complete_results_url": "https://github.com/WuKongIM/WuKongIM/pull/1012"
   }
 }
