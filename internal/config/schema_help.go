@@ -159,8 +159,8 @@ var schemaHelp = map[string]fieldHelp{
 		ZH: "持久提交同步兼容开关；省略等效于 true，显式值也只能为 true，WuKongIM 不允许关闭持久同步。",
 	},
 	"cluster.commit_coordinator_flush_window": {
-		EN: "Maximum delay for grouping adjacent Channel durable commits; defaults to 500us, and an explicit value must be positive.",
-		ZH: "合并相邻 Channel 持久提交请求的最长等待时间；默认 500us，显式值必须大于 0。",
+		EN: "Maximum time to wait for additional Channel durable commit requests. After expiry, one bounded snapshot of already queued requests may join the same commit, subject to the batch limits. Defaults to 500us; an explicit value must be positive.",
+		ZH: "等待新增 Channel 持久提交请求的最长时间。窗口到期后，可在批量限制内将已排队请求的一次有界快照并入同一提交。默认 500us，显式值必须大于 0。",
 	},
 	"cluster.commit_coordinator_max_requests": {
 		EN: "Maximum logical requests grouped into one physical commit; 0 applies no request-count limit.",
