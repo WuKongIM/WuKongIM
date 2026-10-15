@@ -23,6 +23,10 @@ var errWorkerServerConfig = errors.New("chat lifecycle worker server: invalid co
 
 const workerMaxDrainTimeout = 30 * time.Second
 
+// workerTrafficAdvanceCadence bounds due-work dispatch jitter without changing
+// the one-second login scheduler or coordinator/local primary-rate budgets.
+const workerTrafficAdvanceCadence = 10 * time.Millisecond
+
 // WorkerGeneration is the narrow lifecycle seam around the existing Engine.
 // Implementations must make Stop idempotent and must not bind their lifetime to
 // an individual HTTP request context. Done signals only after an unexpected
@@ -1439,6 +1443,9 @@ type engineWorkerGeneration struct {
 	generation     uint64
 	clock          SessionClock
 	newTicker      func(time.Duration) workerGenerationTicker
+	// advanceMu serializes clock sampling with worker advances and external
+	// grants, preventing a waiting call from admitting an older sampled instant.
+	advanceMu sync.Mutex
 
 	mu      sync.Mutex
 	started bool
@@ -1470,14 +1477,29 @@ func (g *engineWorkerGeneration) Start(_ context.Context) error {
 
 func (g *engineWorkerGeneration) runTicks(ctx context.Context, done chan<- struct{}) {
 	defer close(done)
-	ticker := g.newTicker(time.Second)
+	cadence := time.Second
+	if g.externalGrants {
+		cadence = workerTrafficAdvanceCadence
+	}
+	ticker := g.newTicker(cadence)
 	if ticker == nil {
 		g.terminateFromTick(errWorkerServerConfig)
 		return
 	}
 	defer ticker.Stop()
+	lastStep := g.clock.Now()
 	for ticker.Wait(ctx) {
-		if err := g.step(ctx, g.clock.Now()); err != nil {
+		g.advanceMu.Lock()
+		now := g.clock.Now()
+		var err error
+		if !g.externalGrants || now.Before(lastStep) || now.Sub(lastStep) >= time.Second {
+			err = g.step(ctx, now)
+			lastStep = now // Rebase delayed ticks; never replay missed login budgets.
+		} else {
+			_, err = g.engine.AdvanceContext(ctx, now)
+		}
+		g.advanceMu.Unlock()
+		if err != nil {
 			if ctx.Err() != nil {
 				return
 			}
@@ -1542,7 +1564,9 @@ func (g *engineWorkerGeneration) ApplyGrant(ctx context.Context, released uint64
 	if !g.externalGrants || !g.trafficReady.Load() {
 		return WorkerGrantApplication{}, errWorkerServerConfig
 	}
+	g.advanceMu.Lock()
 	result, err := g.engine.ApplyGrant(ctx, g.clock.Now(), released)
+	g.advanceMu.Unlock()
 	if runtimeFailureTerminatesGeneration(err) {
 		g.terminateFromExternal(err)
 	}
@@ -1576,7 +1600,10 @@ func (g *engineWorkerGeneration) Drain(ctx context.Context) error {
 				return err
 			}
 		}
-		if _, err := g.engine.AdvanceContext(ctx, g.clock.Now()); err != nil {
+		g.advanceMu.Lock()
+		_, err := g.engine.AdvanceContext(ctx, g.clock.Now())
+		g.advanceMu.Unlock()
+		if err != nil {
 			return err
 		}
 		select {

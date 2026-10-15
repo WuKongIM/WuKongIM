@@ -1804,6 +1804,14 @@ specification, runbook, report, or module documentation; link to them when neede
   each caller's fresh barrier and cancellation. Queue count/bytes and the two-second
   wait bound remain unchanged; cross-caller aggregation is tracked by #977.
 
+- Chat-lifecycle grant cadence is an allocation boundary, not a SEND arrival
+  timestamp. The bootstrap grant remains immediate; later external grants use
+  deterministic subsecond arrivals and independent due-work advancement while
+  login/rate allocation retain their one-second cadence. Delayed planned sends
+  report underdelivery instead of catching up. Qualification after this harness
+  repair does not establish performance under the former synchronized bursts.
+  See [nightly diagnosis](../reports/2026-10-15-nightly-chat-arrivals.md).
+
 - Native package lifecycle bootstrap includes package installation before systemd PID 1. A bootstrap timeout does not prove a service start or installed package. Failure probes retain stage, PID 1, jobs and journals with five-second command bounds and 64 KiB output caps; unchanged 300-second bootstrap/900-second main validation deadlines remain separate from failure cleanup.
 
 - PR #998 main integration preserves existing main RPC 91/92 and Slot commands

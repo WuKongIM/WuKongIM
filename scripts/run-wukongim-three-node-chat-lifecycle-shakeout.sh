@@ -90,6 +90,33 @@ usage() {
 log() { printf '[chat-lifecycle-shakeout] %s\n' "$*"; }
 die() { printf '[chat-lifecycle-shakeout] ERROR: %s\n' "$*" >&2; exit 1; }
 
+log_terminal_verdict_summary() {
+  # Display only bounded codes and counters from the existing report. This is
+  # diagnostic output, never another qualification gate or an exit-code source.
+  local summary
+  if summary="$(jq -sce '
+    def code: select(type == "string" and test("^[a-z][a-z0-9_]{0,63}$"));
+    def counter: select(type == "number" and . >= 0 and . <= 18446744073709551615 and . == floor);
+    select(length == 1) | .[0] |
+    (.verdict.outcome | code) as $outcome |
+    (.verdict.cause | if . == null or . == "" then "none" else code end) as $cause |
+    (.thresholds.latency.hot_sendack.p99 | counter) as $limit |
+    (.latency.hot_sendack.count | counter) as $count |
+    (.latency.hot_sendack.sum_nanos | counter) as $sum |
+    (.messages.sent | counter) as $sent |
+    (.messages.send_acknowledged | counter) as $acknowledged |
+    {outcome: $outcome, cause: $cause,
+     hot_sendack_p99_limit_ms: ($limit / 1000000),
+     hot_sendack_count: $count,
+     hot_sendack_mean_ms: (if $count > 0 then $sum / $count / 1000000 else null end),
+     sent: $sent, acknowledged: $acknowledged}
+  ' "$REPORT_DIR/final.json" 2>/dev/null)"; then
+    log "terminal report summary: $summary"
+  else
+    log 'terminal report summary: unavailable'
+  fi
+}
+
 require_uint() {
   local name="$1" value="$2"
   [[ "$value" =~ ^[0-9]+$ ]] || die "$name must be a non-negative integer"
@@ -1802,6 +1829,7 @@ if (( MEASURE_SECONDS > 0 )); then
   # logs/. Join every writer before computing the immutable step seal.
   stop_recorded_processes
   write_artifact_checksums
+  log_terminal_verdict_summary
   if [[ -s "$RUN_DIR/local-step.json" ]]; then
     log "local diagnostic result: $RUN_DIR/local-step.json (status $classifier_status)"
     if (( OPERATOR_SIGNAL_STATUS != 0 )) && [[ -z "$HARNESS_FAILURE_REASON" ]]; then
@@ -1812,6 +1840,7 @@ if (( MEASURE_SECONDS > 0 )); then
   fi
   die "local diagnostic classifier did not write local-step.json; coordinator status $coordinator_status"
 fi
+log_terminal_verdict_summary
 if [[ "$STOP_SENT" -eq 1 && "$coordinator_status" -eq 130 ]]; then
   [[ -f "$REPORT_DIR/final.json" ]] || die 'coordinator stopped without final.json'
   log "bounded shakeout stopped cleanly; final report: $REPORT_DIR/final.json"

@@ -41,6 +41,9 @@ passing 72-hour formal generation -> same aged dataset and process proof
   bounded aggregates. All control rounds are bounded and attempt three workers concurrently.
 - The coordinator is the sole global rate allocator. Workers apply only their
   sequenced share; delayed ticks discard credit and never catch up in bursts.
+  After the immediate bootstrap grant, external grants retain seeded subsecond
+  SEND deadlines. Frequent due-work advancement does not advance the one-second
+  login or rate-allocation clock; overdue planned SENDs remain explicit underdelivery.
 - Before CONNECT, each login upserts its APP token through the authenticated
   Bench API within five seconds and the session concurrency bound. Failure
   blocks CONNECT; Bench secrets stay worker-local and no UID history is kept.

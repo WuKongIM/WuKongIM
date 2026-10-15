@@ -56,6 +56,7 @@ func TestEngineLocalThreeNodeGrantsSurviveFirstSessionChurn(t *testing.T) {
 				if err != nil || !grant.Admitted || grant.Snapshot.Released != rate.Released[2] {
 					t.Fatalf("grant second %d release %d = %+v, %v", second, rate.Released[2], grant, err)
 				}
+				advancePacingWindow(t, fixture, now)
 			}
 		})
 	}
@@ -145,6 +146,7 @@ func TestEngineFormalWorkerOneSurvivesOneHourCloudGrantWindow(t *testing.T) {
 			t.Fatalf("grant second %d release %d = %+v, %v; canary_members=%d canary_error=%v snapshot=%+v snapshot_error=%v",
 				second, rate.Released[workerID], grant, err, canaryMembers, canaryErr, snapshot, snapshotErr)
 		}
+		advancePacingWindow(t, fixture, now)
 		waitForEngineCompletions(t, fixture.engine, "formal cloud grant")
 	}
 	final, err := fixture.engine.Snapshot()
@@ -237,6 +239,7 @@ func TestEngineFormalFixedLifecycleCohortRetainsExactReheatSenders(t *testing.T)
 			if !grant.Admitted {
 				t.Fatalf("worker %d grant second %d was not admitted: %+v, %v", workerID, second, grant, grantErr)
 			}
+			advancePacingWindow(t, *fixture, now)
 			waitForEngineCompletions(t, fixture.engine, "formal measured grant")
 		}
 	}
