@@ -14,6 +14,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Separate Channel lifecycle from Leader runtime activity in Manager; idle
+  channels display as inactive, and listing channels no longer wakes cold
+  runtimes. / 管理台分开显示频道生命周期与 Leader 运行时活跃状态，空闲卸载后显示
+  非活跃，查询频道列表不再唤醒冷频道。
+
 - Export storage commit batch histograms from one consistent snapshot so active
   metric scrapes preserve qualification baselines. / 存储提交批次直方图使用一致快照导出，
   避免活跃写入期间采集到跨时刻计数而丢失压测基线。

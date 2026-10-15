@@ -22,7 +22,7 @@ typed bounded workers and returns as `EventWorkerResult`.
 - The reactor decides when work is valid and required. Workers perform I/O but
   never mutate runtime state directly.
 - Observers and benchmark events read bounded state through the mailbox and do
-  not bypass the single-writer rule.
+  not bypass the single-writer rule. Local probes expose installed native route generation without activating or refreshing a runtime.
 
 ## Main Flows
 

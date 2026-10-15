@@ -25,6 +25,9 @@ user, message, and operations concerns while keeping one stable usecase API.
   or `internal/app` adapters.
 - Read models may combine one bounded set of authoritative sources, but they
   must not invent healthy runtime evidence from desired control state.
+- Channel inventory keeps durable lifecycle separate from current-Leader
+  residency. Only returned rows receive bounded, non-activating observations;
+  unavailable or foreign evidence stays unknown with no invented message tail.
 - Lifecycle and migration usecases submit validated intents; Controller, Slot
   Raft, and Channel runtimes execute them.
 

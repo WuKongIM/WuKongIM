@@ -1566,6 +1566,9 @@ export type ManagerChannelRuntimeMeta = {
   min_isr: number
   max_message_seq?: number
   status: string
+  // Runtime residency is observed on the channel Leader; older servers may omit it.
+  runtime_status?: "active" | "inactive" | "unknown"
+  runtime_node_id?: number
 }
 
 export type ManagerChannelRuntimeMetaListResponse = {

@@ -252,6 +252,8 @@ type Options struct {
 	ManagerSlotRaft ManagerSlotRaftOperator
 	// ManagerChannels handles node-local manager channel list requests.
 	ManagerChannels ManagerChannelReader
+	// ManagerChannelObservations reads runtime residency without activation.
+	ManagerChannelObservations managementusecase.LocalChannelObserver
 	// ManagerMessageRetention handles manager message retention requests on the channel leader.
 	ManagerMessageRetention ManagerMessageRetentionOperator
 	// ManagerLatestMessages handles node-local latest-message index reads.
@@ -316,6 +318,8 @@ type Adapter struct {
 	managerSlotRaft ManagerSlotRaftOperator
 	// managerChannels reads node-local channel metadata for manager pages.
 	managerChannels ManagerChannelReader
+	// managerChannelObservations observes exact local leader residency.
+	managerChannelObservations managementusecase.LocalChannelObserver
 	// managerMessageRetention advances message retention boundaries on the channel leader.
 	managerMessageRetention ManagerMessageRetentionOperator
 	// managerLatestMessages reads the node-local latest-message index.
@@ -366,36 +370,37 @@ func New(opts Options) *Adapter {
 		opts.Logger = wklog.NewNop()
 	}
 	return &Adapter{
-		authority:                opts.Authority,
-		owner:                    opts.Owner,
-		ownerRoutes:              opts.OwnerRoutes,
-		delivery:                 opts.Delivery,
-		managerConnections:       opts.ManagerConnections,
-		managerLogs:              opts.ManagerLogs,
-		managerControllerRaft:    opts.ManagerControllerRaft,
-		managerSlotRaft:          opts.ManagerSlotRaft,
-		managerChannels:          opts.ManagerChannels,
-		managerMessageRetention:  opts.ManagerMessageRetention,
-		managerLatestMessages:    opts.ManagerLatestMessages,
-		managerDBInspect:         opts.ManagerDBInspect,
-		managerAppLogs:           opts.ManagerAppLogs,
-		managerNodeConfig:        opts.ManagerNodeConfig,
-		managerDiagnostics:       opts.ManagerDiagnostics,
-		managerTaskAudit:         opts.ManagerTaskAudit,
-		managerGoroutines:        opts.ManagerGoroutines,
-		managerPlugins:           opts.ManagerPlugins,
-		nodeLifecycle:            opts.NodeLifecycle,
-		nodeReadiness:            opts.NodeReadiness,
-		controllerVoterReadiness: opts.ControllerVoterReadiness,
-		controllerVoterPreparer:  opts.ControllerVoterPreparer,
-		nodeLifecycleClusterID:   opts.NodeLifecycleClusterID,
-		nodeLifecycleJoinToken:   opts.NodeLifecycleJoinToken,
-		pluginHTTPRoutes:         opts.PluginHTTPRoutes,
-		scheduledBackup:          opts.ScheduledBackup,
-		scheduledBackupProbe:     opts.ScheduledBackupProbe,
-		scheduledRestore:         opts.ScheduledRestore,
-		scheduledBackupStores:    opts.ScheduledBackupStores,
-		logger:                   opts.Logger,
+		authority:                  opts.Authority,
+		owner:                      opts.Owner,
+		ownerRoutes:                opts.OwnerRoutes,
+		delivery:                   opts.Delivery,
+		managerConnections:         opts.ManagerConnections,
+		managerLogs:                opts.ManagerLogs,
+		managerControllerRaft:      opts.ManagerControllerRaft,
+		managerSlotRaft:            opts.ManagerSlotRaft,
+		managerChannels:            opts.ManagerChannels,
+		managerChannelObservations: opts.ManagerChannelObservations,
+		managerMessageRetention:    opts.ManagerMessageRetention,
+		managerLatestMessages:      opts.ManagerLatestMessages,
+		managerDBInspect:           opts.ManagerDBInspect,
+		managerAppLogs:             opts.ManagerAppLogs,
+		managerNodeConfig:          opts.ManagerNodeConfig,
+		managerDiagnostics:         opts.ManagerDiagnostics,
+		managerTaskAudit:           opts.ManagerTaskAudit,
+		managerGoroutines:          opts.ManagerGoroutines,
+		managerPlugins:             opts.ManagerPlugins,
+		nodeLifecycle:              opts.NodeLifecycle,
+		nodeReadiness:              opts.NodeReadiness,
+		controllerVoterReadiness:   opts.ControllerVoterReadiness,
+		controllerVoterPreparer:    opts.ControllerVoterPreparer,
+		nodeLifecycleClusterID:     opts.NodeLifecycleClusterID,
+		nodeLifecycleJoinToken:     opts.NodeLifecycleJoinToken,
+		pluginHTTPRoutes:           opts.PluginHTTPRoutes,
+		scheduledBackup:            opts.ScheduledBackup,
+		scheduledBackupProbe:       opts.ScheduledBackupProbe,
+		scheduledRestore:           opts.ScheduledRestore,
+		scheduledBackupStores:      opts.ScheduledBackupStores,
+		logger:                     opts.Logger,
 	}
 }
 

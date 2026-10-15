@@ -54,6 +54,9 @@ management, plugins, diagnostics, and bounded operations observations.
    models with partial evidence explicit. Revision-fenced management writes may
    read the Controller-visible snapshot separately from the Node-applied read
    model so runtime reconciliation cannot stall their CAS convergence.
+   Channel observations group exact leader targets with four-call concurrency
+   and a five-second budget. Local reads never activate runtimes; unavailable
+   peers, malformed replies and stale fences remain unknown, preserving alignment.
 
 - Conversation list and legacy-sync previews use explicit persisted-head and
   persisted-message ports. Byte-limited scans preserve continuation; every item

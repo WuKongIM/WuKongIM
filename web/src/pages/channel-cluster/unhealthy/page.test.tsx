@@ -36,6 +36,8 @@ const unhealthyRow = {
   min_isr: 2,
   max_message_seq: 42,
   status: "active",
+  runtime_status: "unknown",
+  runtime_node_id: 0,
   reasons: ["isr_insufficient", "no_leader"],
 }
 
@@ -94,7 +96,12 @@ test("renders unhealthy channel rows with reason tags and inspect links", async 
   expect(within(row).getByText("1, 2, 3")).toBeInTheDocument()
   expect(within(row).getByText("2 / min 2")).toBeInTheDocument()
   expect(within(row).getByText("42")).toBeInTheDocument()
-  expect(within(row).getByText("Active")).toBeInTheDocument()
+  expect(screen.getByRole("columnheader", { name: "Lifecycle" })).toBeInTheDocument()
+  expect(screen.getByRole("columnheader", { name: "Runtime status" })).toBeInTheDocument()
+  expect(within(row).getByText("Available")).toBeInTheDocument()
+  expect(within(row).getByText("Unknown")).toBeInTheDocument()
+  expect(within(row).queryByText("Inactive")).not.toBeInTheDocument()
+  expect(within(row).queryByText("Active")).not.toBeInTheDocument()
   expect(within(row).getByText("ISR insufficient")).toBeInTheDocument()
   expect(within(row).getByText("No leader")).toBeInTheDocument()
 

@@ -65,6 +65,9 @@ scheduled backup or restore
   caller errors without reordering active aligned items.
 - Manager latest-message RPC preserves bounded scan saturation as its stable
   backpressure status instead of collapsing it into general unavailability.
+- Manager Channel observations reuse the channel-list service with independent
+  `WKVA`/`WKVa` version-1 frames, at most 200 targets and 512 KiB. Exact aligned
+  evidence and optional tails survive the wire; old peers fail without activating fallback.
 - Presence owner reconstruction adds operation 9 with a bounded target/UID page
   and a separate `WKVO` version-1 response carrying owner node, boot, and active
   routes. Operation 10 adds `WKVO` version-2 aligned multi-target snapshots,

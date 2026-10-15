@@ -4,10 +4,12 @@ package chat_lifecycle
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"net"
+	"net/url"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -16,6 +18,7 @@ import (
 	"github.com/WuKongIM/WuKongIM/internal/bench/target"
 	"github.com/WuKongIM/WuKongIM/pkg/bench/model"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/channelid"
+	"github.com/WuKongIM/WuKongIM/pkg/protocol/codec"
 	"github.com/WuKongIM/WuKongIM/pkg/protocol/frame"
 	"github.com/WuKongIM/WuKongIM/test/e2e/suite"
 	"github.com/stretchr/testify/require"
@@ -29,6 +32,7 @@ const (
 )
 
 func TestPersonChannelNaturalReheat(t *testing.T) {
+	report := newRuntimeActivityReport(t)
 	cluster := startLifecycleCluster(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute+30*time.Second)
 	defer cancel()
@@ -53,13 +57,23 @@ func TestPersonChannelNaturalReheat(t *testing.T) {
 	right := connectAndFullSync(t, ctx, cluster, api, 2, rightUID, rightWire)
 	first := sendPersonMessage(t, cluster, left, right, rightUID, 1, "e2e-lifecycle-first")
 
-	initial := requireLoadedOnAllNodes(t, ctx, cluster, api, probeRequest)
+	requireManagerRuntimeActivity(t, ctx, cluster, canonicalChannel, "initial", "active", first, report)
+	initial := requireLoadedLeader(t, ctx, cluster, api, probeRequest, first)
+	report.Probes = append(report.Probes, captureRuntimeActivityProbe("initial", initial, first))
 	require.Equal(t, baseline+1, requireCreatedTotalEventually(t, ctx, cluster, baseline+1))
 	require.NoError(t, left.Close())
 	require.NoError(t, right.Close())
 
 	quietStarted := time.Now()
 	requireMissingAfterNaturalIdle(t, ctx, cluster, api, probeRequest, quietStarted)
+	report.NaturalIdleSeconds = time.Since(quietStarted).Seconds()
+	for range 3 {
+		requireManagerRuntimeActivity(t, ctx, cluster, canonicalChannel, "idle", "inactive", first, report)
+		missing, probeErr := api.ProbeChannelRuntimeAll(ctx, probeRequest)
+		report.Probes = append(report.Probes, captureRuntimeActivityProbe("after_manager_reads", missing, first))
+		require.NoError(t, probeErr, cluster.DumpDiagnostics())
+		require.True(t, missingEvidenceValid(missing), "Manager reads must not wake the cold Channel: %s", summarizeProbe(missing))
+	}
 
 	left = connectAndFullSyncContaining(t, ctx, cluster, api, 1, leftUID, "e2e-lifecycle-first")
 	defer func() { _ = left.Close() }()
@@ -68,10 +82,151 @@ func TestPersonChannelNaturalReheat(t *testing.T) {
 	second := sendPersonMessage(t, cluster, left, right, rightUID, 2, "e2e-lifecycle-second")
 	require.Greater(t, second, first, cluster.DumpDiagnostics())
 
-	reheated := requireLoadedOnAllNodes(t, ctx, cluster, api, probeRequest)
+	reheated := requireLoadedLeader(t, ctx, cluster, api, probeRequest, second)
+	report.Probes = append(report.Probes, captureRuntimeActivityProbe("reheated", reheated, second))
+	requireManagerRuntimeActivity(t, ctx, cluster, canonicalChannel, "reheated", "active", second, report)
 	requireMonotonicRuntimeEvidence(t, initial, reheated)
 	require.Equal(t, baseline+1, requireCreatedTotalEventually(t, ctx, cluster, baseline+1),
 		"reheat must reuse replicated Channel metadata")
+}
+
+// runtimeActivityReport retains bounded public evidence without Channel or user identities.
+type runtimeActivityReport struct {
+	Scenario           string                 `json:"scenario"`
+	StartedAt          time.Time              `json:"started_at"`
+	FinishedAt         time.Time              `json:"finished_at"`
+	Passed             bool                   `json:"passed"`
+	Nodes              int                    `json:"nodes"`
+	HashSlots          int                    `json:"hash_slots"`
+	IdleThresholdSecs  int                    `json:"idle_threshold_seconds"`
+	NaturalIdleSeconds float64                `json:"natural_idle_seconds"`
+	ManagerReads       []runtimeActivityRead  `json:"manager_reads"`
+	Probes             []runtimeActivityProbe `json:"runtime_probes"`
+}
+
+type runtimeActivityRead struct {
+	Phase         string  `json:"phase"`
+	Query         string  `json:"query"`
+	IngressNodeID uint64  `json:"ingress_node_id"`
+	Lifecycle     string  `json:"lifecycle_status"`
+	RuntimeStatus string  `json:"runtime_status"`
+	RuntimeNodeID uint64  `json:"runtime_node_id"`
+	Leader        uint64  `json:"leader"`
+	MinISR        int64   `json:"min_isr"`
+	MaxMessageSeq *uint64 `json:"max_message_seq"`
+}
+
+type runtimeActivityProbe struct {
+	Phase        string                     `json:"phase"`
+	LeaderLoaded bool                       `json:"leader_loaded"`
+	Missing      bool                       `json:"missing_on_all_nodes"`
+	Nodes        []runtimeActivityProbeNode `json:"nodes"`
+}
+
+type runtimeActivityProbeNode struct {
+	NodeID uint64 `json:"node_id"`
+	Role   string `json:"role"`
+	Status string `json:"status"`
+	LEO    uint64 `json:"leo"`
+	HW     uint64 `json:"hw"`
+}
+
+func captureRuntimeActivityProbe(phase string, results []model.ChannelRuntimeProbeResult, committedSeq uint64) runtimeActivityProbe {
+	probe := runtimeActivityProbe{
+		Phase: phase, LeaderLoaded: loadedLeaderEvidenceValid(results, committedSeq), Missing: missingEvidenceValid(results),
+	}
+	for _, result := range results {
+		if len(result.Channels) == 1 {
+			row := result.Channels[0]
+			probe.Nodes = append(probe.Nodes, runtimeActivityProbeNode{
+				NodeID: result.NodeID, Role: row.Role, Status: row.Status, LEO: row.LEO, HW: row.HW,
+			})
+		}
+	}
+	return probe
+}
+
+func newRuntimeActivityReport(t *testing.T) *runtimeActivityReport {
+	t.Helper()
+	path := os.Getenv("WK_E2E_CHAT_LIFECYCLE_REPORT")
+	if path == "" {
+		dir, err := os.MkdirTemp("", "wk-channel-runtime-activity-")
+		require.NoError(t, err)
+		path = filepath.Join(dir, "natural-reheat.json")
+	}
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
+	report := &runtimeActivityReport{
+		Scenario: "person_channel_natural_reheat", StartedAt: time.Now().UTC(),
+		Nodes: 3, HashSlots: 256, IdleThresholdSecs: int(idleEvictAfter.Seconds()),
+	}
+	t.Cleanup(func() {
+		report.FinishedAt, report.Passed = time.Now().UTC(), !t.Failed()
+		data, err := json.MarshalIndent(report, "", "  ")
+		if err == nil {
+			err = os.WriteFile(path, append(data, '\n'), 0o600)
+		}
+		if err != nil {
+			t.Errorf("write runtime activity report: %v", err)
+		}
+		t.Logf("Channel runtime activity report: %s", path)
+	})
+	return report
+}
+
+// requireManagerRuntimeActivity exercises the same paged list as the Manager UI
+// and its exact lookup on every ingress, including a request for committed head.
+func requireManagerRuntimeActivity(
+	t *testing.T,
+	ctx context.Context,
+	cluster *suite.StartedCluster,
+	channelID, phase, runtimeStatus string,
+	messageSeq uint64,
+	report *runtimeActivityReport,
+) {
+	t.Helper()
+	type activityRow struct {
+		suite.ChannelRuntimeMeta
+		RuntimeStatus string `json:"runtime_status"`
+		RuntimeNodeID uint64 `json:"runtime_node_id"`
+	}
+	for _, node := range cluster.Nodes {
+		for _, queryKind := range []string{"list", "exact"} {
+			query := url.Values{"limit": {"100"}, "include_max_message_seq": {"true"}}
+			if queryKind == "exact" {
+				query.Set("exact", "1")
+				query.Set("channel_id", channelID)
+				query.Set("channel_type", fmt.Sprint(uint8(frame.ChannelTypePerson)))
+			}
+			var page struct {
+				Items []activityRow `json:"items"`
+			}
+			requestCtx, cancel := context.WithTimeout(ctx, operationTimeout)
+			_, err := suite.GetJSON(requestCtx, "http://"+node.ManagerAddr()+"/manager/channel-runtime-meta?"+query.Encode(), &page)
+			cancel()
+			require.NoError(t, err, "%s %s on node %d", phase, queryKind, node.Spec.ID)
+			var found *activityRow
+			for i := range page.Items {
+				if page.Items[i].ChannelID == channelID && page.Items[i].ChannelType == int64(frame.ChannelTypePerson) {
+					found = &page.Items[i]
+					break
+				}
+			}
+			require.NotNil(t, found, "Channel is missing from %s %s on node %d", phase, queryKind, node.Spec.ID)
+			report.ManagerReads = append(report.ManagerReads, runtimeActivityRead{
+				Phase: phase, Query: queryKind, IngressNodeID: node.Spec.ID,
+				Lifecycle: found.Status, RuntimeStatus: found.RuntimeStatus, RuntimeNodeID: found.RuntimeNodeID,
+				Leader: found.Leader, MinISR: found.MinISR, MaxMessageSeq: found.MaxMessageSeq,
+			})
+			require.Equal(t, "active", found.Status, "idle eviction must preserve the Channel lifecycle")
+			require.Equal(t, runtimeStatus, found.RuntimeStatus, "%s %s on node %d", phase, queryKind, node.Spec.ID)
+			require.NotZero(t, found.Leader)
+			require.Equal(t, found.Leader, found.RuntimeNodeID, "activity must describe the authoritative Channel Leader")
+			require.Len(t, found.Replicas, 3, "retain the three-node replicated Channel topology")
+			require.Equal(t, int64(2), found.MinISR, "exercise the replicated cold-read activation regression")
+			require.NotNil(t, found.MaxMessageSeq)
+			require.Equal(t, messageSeq, *found.MaxMessageSeq, "Manager must retain the committed head across idle eviction")
+		}
+	}
 }
 
 func TestPersonChannelCrossIngressBurstPreservesReceiveSequence(t *testing.T) {
@@ -416,12 +571,13 @@ func sendPersonMessage(
 	return ack.MessageSeq
 }
 
-func requireLoadedOnAllNodes(
+func requireLoadedLeader(
 	t *testing.T,
 	ctx context.Context,
 	cluster *suite.StartedCluster,
 	api *target.Client,
 	req model.ChannelRuntimeProbeRequest,
+	committedSeq uint64,
 ) []model.ChannelRuntimeProbeResult {
 	t.Helper()
 	deadline := time.NewTimer(20 * time.Second)
@@ -432,48 +588,49 @@ func requireLoadedOnAllNodes(
 	var lastErr error
 	for {
 		last, lastErr = api.ProbeChannelRuntimeAll(ctx, req)
-		if lastErr == nil && loadedEvidenceValid(last) {
+		if lastErr == nil && loadedLeaderEvidenceValid(last, committedSeq) {
 			return last
 		}
 		select {
 		case <-ctx.Done():
 			t.Fatalf("runtime load probe canceled: %v; evidence=%s\n%s", ctx.Err(), summarizeProbe(last), cluster.DumpDiagnostics())
 		case <-deadline.C:
-			t.Fatalf("runtime did not load on all replicas: err=%v evidence=%s\n%s", lastErr, summarizeProbe(last), cluster.DumpDiagnostics())
+			t.Fatalf("Leader runtime did not expose the acknowledged commit: err=%v evidence=%s\n%s", lastErr, summarizeProbe(last), cluster.DumpDiagnostics())
 		case <-ticker.C:
 		}
 	}
 }
 
-func loadedEvidenceValid(results []model.ChannelRuntimeProbeResult) bool {
+func loadedLeaderEvidenceValid(results []model.ChannelRuntimeProbeResult, committedSeq uint64) bool {
 	if len(results) != 3 {
 		return false
 	}
-	leaders, followers := 0, 0
-	var leo, hw uint64
-	for index, result := range results {
-		if result.Checked != 1 || len(result.Channels) != 1 || len(result.Missing) != 0 {
+	leaders := 0
+	for _, result := range results {
+		if result.Checked != 1 || len(result.Channels) != 1 {
 			return false
 		}
 		row := result.Channels[0]
-		if row.Status != "active" || row.HW == 0 || row.LEO < row.HW {
-			return false
-		}
-		if index == 0 {
-			leo, hw = row.LEO, row.HW
-		} else if row.LEO != leo || row.HW != hw {
-			return false
-		}
 		switch row.Role {
 		case "leader":
+			if row.Status != "active" || row.HW < committedSeq || row.LEO < row.HW {
+				return false
+			}
 			leaders++
 		case "follower":
-			followers++
+			if row.Status != "active" {
+				return false
+			}
+		case "missing":
+			// QuorumLog replication does not require a follower runtime.
+			if row.Status != "missing" {
+				return false
+			}
 		default:
 			return false
 		}
 	}
-	return leaders == 1 && followers == 2
+	return leaders == 1
 }
 
 func requireMissingAfterNaturalIdle(
@@ -529,6 +686,9 @@ func requireMonotonicRuntimeEvidence(t *testing.T, before, after []model.Channel
 		maxBefore = max(maxBefore, result.Channels[0].HW)
 	}
 	for _, result := range after {
+		if result.Channels[0].Role != "leader" {
+			continue
+		}
 		if result.Channels[0].HW <= maxBefore || result.Channels[0].LEO < result.Channels[0].HW {
 			t.Fatalf("reheated runtime did not advance monotonically: before=%s after=%s", summarizeProbe(before), summarizeProbe(after))
 		}

@@ -24,12 +24,6 @@ type ChannelRuntimeMetaPointReader interface {
 	GetChannelRuntimeMeta(context.Context, string, int64) (metadb.ChannelRuntimeMeta, error)
 }
 
-// MessageMetaMaxSeqReader reads max sequence from an already-loaded runtime meta row.
-type MessageMetaMaxSeqReader interface {
-	// MaxMessageSeqForMeta returns the highest committed message sequence for the channel.
-	MaxMessageSeqForMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) (uint64, error)
-}
-
 // ChannelRuntimeMeta is the manager-facing channel runtime metadata DTO.
 type ChannelRuntimeMeta struct {
 	// ChannelID is the logical channel identifier.
@@ -54,10 +48,17 @@ type ChannelRuntimeMeta struct {
 	ISR []uint64
 	// MinISR is the configured minimum in-sync replica count.
 	MinISR int64
-	// MaxMessageSeq is the maximum committed message sequence when requested.
+	// MaxMessageSeq is the highest observed committed message sequence when requested;
+	// a cold Channel uses its durable checkpoint, which can lag until recovery.
 	MaxMessageSeq *uint64
-	// Status is the stable manager-facing runtime status string.
+	// Status is the durable lifecycle, independent of runtime residency.
 	Status string
+	// RuntimeStatus is active, inactive, or unknown on the current Channel Leader.
+	RuntimeStatus string
+	// RuntimeNodeID identifies the Leader selected for the observation.
+	RuntimeNodeID uint64
+	// observationTarget retains the authoritative fence only during projection.
+	observationTarget ChannelObservationTarget
 	// WriteFenceToken identifies the active write-fence owner when present.
 	WriteFenceToken string
 	// WriteFenceVersion is the active write-fence generation when present.
@@ -146,12 +147,15 @@ func (a *App) GetChannelRuntimeMeta(ctx context.Context, channelID string, chann
 	if err != nil {
 		return ChannelRuntimeMeta{}, err
 	}
-	rows, err := a.managerChannelRuntimeMetaItems(ctx, slotID, assignment, []metadb.ChannelRuntimeMeta{meta}, true)
+	rows, err := a.managerChannelRuntimeMetaItems(ctx, slotID, assignment, []metadb.ChannelRuntimeMeta{meta})
 	if err != nil {
 		return ChannelRuntimeMeta{}, err
 	}
 	if len(rows) != 1 {
 		return ChannelRuntimeMeta{}, metadb.ErrNotFound
+	}
+	if err := a.observeChannelRuntimeRows(ctx, rows, true); err != nil {
+		return ChannelRuntimeMeta{}, err
 	}
 	return rows[0], nil
 }
@@ -210,19 +214,24 @@ func (a *App) ListChannelRuntimeMeta(ctx context.Context, req ListChannelRuntime
 	}
 
 	filter := channelRuntimeMetaListFilter{
-		channelIDQuery:       strings.TrimSpace(req.ChannelIDQuery),
-		nodeID:               req.NodeID,
-		nodeScope:            nodeScope,
-		includeMaxMessageSeq: req.IncludeMaxMessageSeq,
+		channelIDQuery: strings.TrimSpace(req.ChannelIDQuery),
+		nodeID:         req.NodeID,
+		nodeScope:      nodeScope,
 	}
-	return a.listChannelRuntimeMetaFiltered(ctx, slotIDs, slotAssignments, startIndex, req.Cursor, req.Limit, filter)
+	page, err := a.listChannelRuntimeMetaFiltered(ctx, slotIDs, slotAssignments, startIndex, req.Cursor, req.Limit, filter)
+	if err != nil {
+		return ListChannelRuntimeMetaResponse{}, err
+	}
+	if err := a.observeChannelRuntimeRows(ctx, page.Items, req.IncludeMaxMessageSeq); err != nil {
+		return ListChannelRuntimeMetaResponse{}, err
+	}
+	return page, nil
 }
 
 type channelRuntimeMetaListFilter struct {
-	channelIDQuery       string
-	nodeID               uint64
-	nodeScope            ChannelRuntimeMetaNodeScope
-	includeMaxMessageSeq bool
+	channelIDQuery string
+	nodeID         uint64
+	nodeScope      ChannelRuntimeMetaNodeScope
 }
 
 func (a *App) listChannelRuntimeMetaFiltered(
@@ -246,7 +255,7 @@ func (a *App) listChannelRuntimeMetaFiltered(
 			if err != nil {
 				return ListChannelRuntimeMetaResponse{}, err
 			}
-			items, err := a.managerChannelRuntimeMetaItems(ctx, slotID, slotAssignments[slotID], page, filter.includeMaxMessageSeq)
+			items, err := a.managerChannelRuntimeMetaItems(ctx, slotID, slotAssignments[slotID], page)
 			if err != nil {
 				return ListChannelRuntimeMetaResponse{}, err
 			}
@@ -289,23 +298,15 @@ func validateChannelRuntimeMetaListCursor(cursor ChannelRuntimeMetaListCursor) e
 	return nil
 }
 
-func (a *App) managerChannelRuntimeMetaItems(ctx context.Context, slotID uint32, assignment control.SlotAssignment, metas []metadb.ChannelRuntimeMeta, includeMaxMessageSeq bool) ([]ChannelRuntimeMeta, error) {
+func (a *App) managerChannelRuntimeMetaItems(ctx context.Context, slotID uint32, assignment control.SlotAssignment, metas []metadb.ChannelRuntimeMeta) ([]ChannelRuntimeMeta, error) {
 	out := make([]ChannelRuntimeMeta, 0, len(metas))
 	slotLeader := a.actualSlotLeaderID(ctx, assignment)
 	for _, meta := range metas {
-		var maxMessageSeq *uint64
-		if includeMaxMessageSeq {
-			value, err := a.channelMaxMessageSeqForMeta(ctx, meta)
-			if err != nil {
-				return nil, err
-			}
-			maxMessageSeq = &value
-		}
 		activeTaskID, err := a.channelRuntimeMetaActiveTaskID(ctx, meta)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, managerChannelRuntimeMetaWithMaxSeq(slotID, slotLeader, assignment.PreferredLeader, meta, maxMessageSeq, activeTaskID))
+		out = append(out, managerChannelRuntimeMetaWithMaxSeq(slotID, slotLeader, assignment.PreferredLeader, meta, nil, activeTaskID))
 	}
 	return out, nil
 }
@@ -326,6 +327,9 @@ func managerChannelRuntimeMetaWithMaxSeq(slotID uint32, slotLeader uint64, prefe
 		MinISR:            meta.MinISR,
 		MaxMessageSeq:     maxMessageSeq,
 		Status:            managerChannelRuntimeStatus(meta.Status),
+		RuntimeStatus:     "unknown",
+		RuntimeNodeID:     meta.Leader,
+		observationTarget: ChannelObservationTarget{ChannelID: meta.ChannelID, ChannelType: meta.ChannelType, LeaderID: meta.Leader, Epoch: meta.ChannelEpoch, LeaderEpoch: meta.LeaderEpoch, RouteGeneration: meta.RouteGeneration},
 		WriteFenceToken:   meta.WriteFenceToken,
 		WriteFenceVersion: meta.WriteFenceVersion,
 		WriteFenceReason:  managerChannelWriteFenceReason(meta.WriteFenceReason),
@@ -355,17 +359,6 @@ func (a *App) channelRuntimeMetaActiveTaskID(ctx context.Context, meta metadb.Ch
 		return "", nil
 	}
 	return task.TaskID, nil
-}
-
-func (a *App) channelMaxMessageSeqForMeta(ctx context.Context, meta metadb.ChannelRuntimeMeta) (uint64, error) {
-	if a == nil || a.messages == nil {
-		return 0, nil
-	}
-	reader, ok := a.messages.(MessageMetaMaxSeqReader)
-	if !ok {
-		return 0, nil
-	}
-	return reader.MaxMessageSeqForMeta(ctx, meta)
 }
 
 func normalizeChannelRuntimeMetaNodeScope(scope ChannelRuntimeMetaNodeScope, nodeID uint64) (ChannelRuntimeMetaNodeScope, error) {

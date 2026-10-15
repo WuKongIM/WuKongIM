@@ -78,6 +78,7 @@ func TestRuntimeProbeReportsMigrationProofFields(t *testing.T) {
 	meta := testMeta("runtime-probe-migration-proof", 1, 1)
 	meta.Epoch = 3
 	meta.LeaderEpoch = 9
+	meta.RouteGeneration = 13
 	meta.WriteFence = ch.WriteFence{
 		Token:   "migration-7",
 		Version: 7,
@@ -87,6 +88,7 @@ func TestRuntimeProbeReportsMigrationProofFields(t *testing.T) {
 
 	rc := r.channels[meta.Key]
 	require.NotNil(t, rc)
+	rc.quorumAuthority.ID.FenceVersion = meta.RouteGeneration
 	rc.state.LEO = 11
 	rc.state.HW = 10
 	rc.state.CheckpointHW = 8
@@ -102,6 +104,7 @@ func TestRuntimeProbeReportsMigrationProofFields(t *testing.T) {
 	require.Equal(t, meta.ID, proof.ChannelID)
 	require.Equal(t, meta.LeaderEpoch, proof.LeaderEpoch)
 	require.Equal(t, meta.Epoch, proof.ChannelEpoch)
+	require.Equal(t, meta.RouteGeneration, proof.RouteGeneration)
 	require.Equal(t, ch.RoleLeader, proof.Role)
 	require.Equal(t, ch.StatusActive, proof.Status)
 	require.Equal(t, uint64(11), proof.LEO)

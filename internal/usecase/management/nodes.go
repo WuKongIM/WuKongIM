@@ -156,6 +156,8 @@ type Options struct {
 	ChannelRuntimeMeta ChannelRuntimeMetaReader
 	// ChannelRuntimeMetaPoint reads one exact channel runtime row without scanning.
 	ChannelRuntimeMetaPoint ChannelRuntimeMetaPointReader
+	// ChannelObservations reads Leader residency and committed tails without activation.
+	ChannelObservations ChannelObserver
 	// ChannelMigration creates and reads Channel migration tasks.
 	ChannelMigration ChannelMigrationStore
 	// ChannelBusinessReader scans durable channel metadata for manager channel pages.
@@ -260,6 +262,8 @@ type channelManagementDeps struct {
 	channelRuntimeMeta ChannelRuntimeMetaReader
 	// channelRuntimeMetaPoint reads one exact channel runtime row.
 	channelRuntimeMetaPoint ChannelRuntimeMetaPointReader
+	// channelObservations is the bounded non-activating runtime observation port.
+	channelObservations ChannelObserver
 	// channelMigration stores channel migration tasks.
 	channelMigration ChannelMigrationStore
 	// channelBusinessReader reads durable channel business metadata.
@@ -374,6 +378,7 @@ func New(opts Options) *App {
 		channelManagementDeps: channelManagementDeps{
 			channelRuntimeMeta: opts.ChannelRuntimeMeta, channelMigration: opts.ChannelMigration,
 			channelRuntimeMetaPoint: opts.ChannelRuntimeMetaPoint,
+			channelObservations:     opts.ChannelObservations,
 			channelBusinessReader:   opts.ChannelBusinessReader, channelBusinessOperator: opts.ChannelBusinessOperator,
 			remoteBusinessChannels: opts.RemoteBusinessChannels,
 		},

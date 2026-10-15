@@ -51,10 +51,15 @@ type ChannelRuntimeMetaDTO struct {
 	ISR []uint64 `json:"isr"`
 	// MinISR is the configured minimum in-sync replica count.
 	MinISR int64 `json:"min_isr"`
-	// MaxMessageSeq is the maximum committed message sequence when requested.
+	// MaxMessageSeq is the highest observed committed message sequence when requested;
+	// a cold Channel uses its durable checkpoint, which can lag until recovery.
 	MaxMessageSeq *uint64 `json:"max_message_seq,omitempty"`
-	// Status is the stable runtime status string.
+	// Status is the durable lifecycle, independent of in-memory residency.
 	Status string `json:"status"`
+	// RuntimeStatus is active, inactive, or unknown on the observed Channel Leader.
+	RuntimeStatus string `json:"runtime_status"`
+	// RuntimeNodeID is the Leader node whose residency was observed.
+	RuntimeNodeID uint64 `json:"runtime_node_id"`
 	// WriteFenceToken identifies the active migration write fence when present.
 	WriteFenceToken string `json:"write_fence_token,omitempty"`
 	// WriteFenceVersion is the active migration write-fence generation.
@@ -204,6 +209,10 @@ func channelRuntimeMetaDTOs(items []managementusecase.ChannelRuntimeMeta) []Chan
 }
 
 func channelRuntimeMetaDTO(item managementusecase.ChannelRuntimeMeta) ChannelRuntimeMetaDTO {
+	runtimeStatus := item.RuntimeStatus
+	if runtimeStatus != "active" && runtimeStatus != "inactive" {
+		runtimeStatus = "unknown"
+	}
 	return ChannelRuntimeMetaDTO{
 		ChannelID:         item.ChannelID,
 		ChannelType:       item.ChannelType,
@@ -218,6 +227,8 @@ func channelRuntimeMetaDTO(item managementusecase.ChannelRuntimeMeta) ChannelRun
 		MinISR:            item.MinISR,
 		MaxMessageSeq:     item.MaxMessageSeq,
 		Status:            item.Status,
+		RuntimeStatus:     runtimeStatus,
+		RuntimeNodeID:     item.RuntimeNodeID,
 		WriteFenceToken:   item.WriteFenceToken,
 		WriteFenceVersion: item.WriteFenceVersion,
 		WriteFenceReason:  item.WriteFenceReason,

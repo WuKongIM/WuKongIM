@@ -541,6 +541,9 @@ func (a *App) wireManagerChannelRPC() {
 		ChannelBusinessReader: clusterinfra.NewChannelBusinessReader(channelNode),
 	})
 	adapter := accessnode.New(accessnode.Options{ManagerChannels: service, Logger: a.logger.Named("node")})
+	if observerNode, ok := a.cluster.(clusterinfra.ManagementChannelObservationNode); ok {
+		adapter.SetManagerChannelObservations(clusterinfra.NewManagementChannelObserver(observerNode))
+	}
 	registrar.RegisterRPC(accessnode.ManagerChannelRPCServiceID, nodeRPCHandlerFunc(adapter.HandleManagerChannelRPC))
 }
 
@@ -1178,6 +1181,9 @@ func (a *App) newManagerManagement() accessmanager.Management {
 		}
 		if runtimeNode, ok := a.cluster.(clusterinfra.ChannelRuntimeMetaPointNode); ok {
 			opts.ChannelRuntimeMetaPoint = clusterinfra.NewChannelRuntimeMetaPointReader(runtimeNode)
+		}
+		if observerNode, ok := a.cluster.(clusterinfra.ManagementChannelObservationNode); ok {
+			opts.ChannelObservations = clusterinfra.NewManagementChannelObserver(observerNode)
 		}
 		if migrationNode, ok := a.cluster.(clusterinfra.ChannelMigrationStoreNode); ok {
 			opts.ChannelMigration = clusterinfra.NewChannelMigrationStore(migrationNode)

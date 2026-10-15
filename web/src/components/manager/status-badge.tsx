@@ -5,13 +5,14 @@ import { cn } from "@/lib/utils"
 
 type StatusBadgeProps = {
   value: string
+  label?: string
 }
 
 function formatValue(value: string) {
   return value.replaceAll("_", " ")
 }
 
-export function StatusBadge({ value }: StatusBadgeProps) {
+export function StatusBadge({ value, label }: StatusBadgeProps) {
   const intl = useIntl()
   const variant = getStatusVariant(value)
   const normalized = value.toLowerCase()
@@ -28,7 +29,7 @@ export function StatusBadge({ value }: StatusBadgeProps) {
       )}
       data-variant={variant}
     >
-      {messageId ? intl.formatMessage({ id: messageId }) : formatValue(value)}
+      {label ?? (messageId ? intl.formatMessage({ id: messageId }) : formatValue(value))}
     </span>
   )
 }
