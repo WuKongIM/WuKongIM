@@ -36,6 +36,10 @@ passing 72-hour formal generation -> same aged dataset and process proof
 
 ## Invariants and Failure Semantics
 
+- Initial Soak health/readiness probes share one 30-second startup deadline
+  and retry at 250ms intervals. Authentication and cancellation stop the gate;
+  config, metrics, cluster and capability checks remain strict and never retry.
+  Capacity continuation remains single-pass. Diagnostics use fixed outcomes/positions.
 - Worker control uses constant-time bearer verification and exact
   `run_id + assignment_id + generation` fences. Status and snapshots retain only
   bounded aggregates. All control rounds are bounded and attempt three workers concurrently.

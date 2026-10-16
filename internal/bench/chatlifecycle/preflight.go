@@ -3,6 +3,8 @@ package chatlifecycle
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -106,6 +108,8 @@ type PreflightOptions struct {
 	BenchToken   string
 	WorkerTokens map[string]string
 	HTTPClient   *http.Client
+	// DiagnosticLog receives bounded startup probe outcomes, never endpoints or raw errors.
+	DiagnosticLog io.Writer
 
 	TargetFactory  func(int, EndpointDeclaration, string) PreflightTarget
 	WorkerFactory  func(int, EndpointDeclaration, string) PreflightWorker
@@ -153,19 +157,19 @@ func (p *Preflight) Check(ctx context.Context, cfg Config) PreflightResult {
 		return invalid(PreflightCodeTopology)
 	}
 
-	snapshots := make([]target.DebugCluster, 0, len(cfg.Observation.ServiceNodes))
-	nodeIDs := make(map[uint64]struct{}, len(cfg.Observation.ServiceNodes))
+	clients := make([]PreflightTarget, len(cfg.Observation.ServiceNodes))
 	for index, endpoint := range cfg.Observation.ServiceNodes {
-		client := p.options.TargetFactory(index, endpoint, p.options.BenchToken)
-		if client == nil {
+		clients[index] = p.options.TargetFactory(index, endpoint, p.options.BenchToken)
+		if clients[index] == nil {
 			return invalid(PreflightCodeTargetUnavailable)
 		}
-		if err := client.Healthz(ctx); err != nil {
-			return classifyInvalid(err, PreflightCodeTargetUnavailable)
-		}
-		if err := client.Readyz(ctx); err != nil {
-			return classifyInvalid(err, PreflightCodeTargetUnavailable)
-		}
+	}
+	if readiness := p.waitForTargetReadiness(ctx, clients, cfg.Mode == ModeSoak); !readiness.Passed() {
+		return readiness
+	}
+	snapshots := make([]target.DebugCluster, 0, len(clients))
+	nodeIDs := make(map[uint64]struct{}, len(clients))
+	for _, client := range clients {
 		observedConfig, err := client.DebugConfig(ctx)
 		if err != nil {
 			return classifyInvalid(err, PreflightCodeTargetConfig)
@@ -294,6 +298,88 @@ func (p *Preflight) Check(ctx context.Context, cfg Config) PreflightResult {
 		return result
 	}
 	return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+}
+
+// waitForTargetReadiness gives startup health probes one shared deadline. A
+// prior ready response can become stale during planned leader transfers; only
+// these read-only probes may retry, before strict checks or workload admission.
+// Capacity continuation already has live workers and retains single-pass probes.
+func (p *Preflight) waitForTargetReadiness(ctx context.Context, clients []PreflightTarget, retry bool) PreflightResult {
+	const timeout = 30 * time.Second
+	const interval = 250 * time.Millisecond
+	probeContext := ctx
+	if retry {
+		var cancel context.CancelFunc
+		probeContext, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+	serviceIndex, check, attempt := 1, "healthz", 0
+	stopped := func() PreflightResult {
+		result := "exhausted"
+		if ctx.Err() != nil {
+			result = "canceled"
+		}
+		p.logReadiness(serviceIndex, check, attempt, result)
+		return invalid(PreflightCodeTargetUnavailable)
+	}
+	for {
+		if probeContext.Err() != nil {
+			return stopped()
+		}
+		attempt++
+		var probeErr error
+		for index, client := range clients {
+			serviceIndex, check = index+1, "healthz"
+			if probeErr = client.Healthz(probeContext); probeErr != nil {
+				break
+			}
+			if probeContext.Err() != nil {
+				return stopped()
+			}
+			check = "readyz"
+			if probeErr = client.Readyz(probeContext); probeErr != nil {
+				break
+			}
+			if probeContext.Err() != nil {
+				return stopped()
+			}
+		}
+		if probeContext.Err() != nil {
+			return stopped()
+		}
+		if probeErr == nil {
+			if attempt > 1 {
+				p.logReadiness(serviceIndex, check, attempt, "ready")
+			}
+			return PreflightResult{Outcome: PreflightPass, Code: PreflightCodeOK}
+		}
+		if isUnauthorizedObservation(probeErr) {
+			p.logReadiness(serviceIndex, check, attempt, "unauthorized")
+			return invalid(PreflightCodeUnauthorized)
+		}
+		if !retry {
+			p.logReadiness(serviceIndex, check, attempt, "unavailable")
+			return invalid(PreflightCodeTargetUnavailable)
+		}
+		p.logReadiness(serviceIndex, check, attempt, "retry")
+		timer := time.NewTimer(interval)
+		select {
+		case <-probeContext.Done():
+			timer.Stop()
+			return stopped()
+		case <-timer.C:
+		}
+	}
+}
+
+// logReadiness emits only fixed vocabulary and bounded integer positions. The
+// shared deadline and retry interval also bound the number of diagnostic lines.
+func (p *Preflight) logReadiness(serviceIndex int, check string, attempt int, result string) {
+	if p.options.DiagnosticLog != nil {
+		_, _ = fmt.Fprintf(p.options.DiagnosticLog,
+			"[chat-lifecycle-preflight] service_index=%d check=%s attempt=%d result=%s\n",
+			serviceIndex, check, attempt, result)
+	}
 }
 
 func validProductionProcessRoles(host int, stage Stage, up [productionProcessCount]bool) bool {
