@@ -404,6 +404,8 @@ func TestChatLifecycleLocalBaselineStaircaseContract(t *testing.T) {
 	}
 }
 
+// Failure cases: valid or unavailable inputs may emit parser diagnostics, lose
+// label values, fabricate zero measurements, or hide an invalid schema version.
 func TestHostIOSummaryPreservesAvailabilityInsteadOfFabricatingZero(t *testing.T) {
 	root := repoRoot(t)
 	directory := t.TempDir()
@@ -431,30 +433,39 @@ wkbench_host_block_io_available{field="read_write_split",physical_device="unavai
 	if err := os.WriteFile(unavailable, []byte(unavailableBody), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	command := exec.Command("awk", "-v", "tag=rate-100", "-v", "host=service-host", "-f",
-		filepath.Join(root, "scripts", "host-io-summary.awk"), available)
-	output, err := command.CombinedOutput()
-	if err != nil {
-		t.Fatalf("available summary failed: %v\n%s", err, output)
-	}
-	if !strings.Contains(string(output), "rate-100\tservice-host\tcomplete\tdisk0\t1\t208.000000\t1\t1593835.520000\t0\tunavailable\t0\tunavailable\t0") {
-		t.Fatalf("available summary = %q", output)
-	}
-	command = exec.Command("awk", "-v", "tag=rate-100", "-v", "host=other-host", "-f",
-		filepath.Join(root, "scripts", "host-io-summary.awk"), unavailable)
-	output, err = command.CombinedOutput()
-	if err != nil || !strings.Contains(string(output), "rate-100\tother-host\tunavailable\tunavailable\t0\tunavailable") {
-		t.Fatalf("unavailable summary = %q/%v", output, err)
-	}
-
 	invalidVersion := filepath.Join(directory, "invalid-version.prom")
 	if err := os.WriteFile(invalidVersion, []byte(strings.Replace(availableBody, `version="v1"`, `version="v2"`, 1)), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	command = exec.Command("awk", "-v", "tag=rate-100", "-v", "host=service-host", "-f",
-		filepath.Join(root, "scripts", "host-io-summary.awk"), invalidVersion)
-	output, err = command.CombinedOutput()
-	if err != nil || !strings.Contains(string(output), "rate-100\tservice-host\tmissing\tdisk0") {
-		t.Fatalf("invalid-version summary = %q/%v", output, err)
+	for _, interpreter := range []string{"awk", "gawk"} {
+		t.Run(interpreter, func(t *testing.T) {
+			if _, err := exec.LookPath(interpreter); err != nil {
+				if interpreter == "gawk" {
+					t.Skip("GNU awk is not installed")
+				}
+				t.Fatal(err)
+			}
+			for _, tc := range []struct {
+				name, host, input, want string
+			}{
+				{"available", "service-host", available, "rate-100\tservice-host\tcomplete\tdisk0\t1\t208.000000\t1\t1593835.520000\t0\tunavailable\t0\tunavailable\t0\n"},
+				{"unavailable", "other-host", unavailable, "rate-100\tother-host\tunavailable\tunavailable\t0\tunavailable\t0\tunavailable\t0\tunavailable\t0\tunavailable\t0\n"},
+				{"invalid-version", "service-host", invalidVersion, "rate-100\tservice-host\tmissing\tdisk0\t1\t208.000000\t1\t1593835.520000\t0\tunavailable\t0\tunavailable\t0\n"},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					command := exec.Command(interpreter, "-v", "tag=rate-100", "-v", "host="+tc.host, "-f",
+						filepath.Join(root, "scripts", "host-io-summary.awk"), tc.input)
+					var diagnostics strings.Builder
+					command.Stderr = &diagnostics
+					output, err := command.Output()
+					if err != nil || diagnostics.Len() != 0 {
+						t.Fatalf("summary failed: %v\nstderr: %s\nstdout: %s", err, diagnostics.String(), output)
+					}
+					if string(output) != tc.want {
+						t.Fatalf("summary = %q, want %q", output, tc.want)
+					}
+				})
+			}
+		})
 	}
 }

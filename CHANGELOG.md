@@ -14,6 +14,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Let chat-lifecycle startup health checks converge within a shared 30-second
+  deadline, and report bounded, redacted probe outcomes. Remove a GNU awk
+  warning from host I/O summaries. / 聊天生命周期压测启动前使用共享的 30 秒期限
+  等待健康检查收敛，记录有界脱敏诊断，并消除主机 I/O 摘要的 GNU awk 警告。
+
 - Export storage commit batch histograms from one consistent snapshot so active
   metric scrapes preserve qualification baselines. / 存储提交批次直方图使用一致快照导出，
   避免活跃写入期间采集到跨时刻计数而丢失压测基线。

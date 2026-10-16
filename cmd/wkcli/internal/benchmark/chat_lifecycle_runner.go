@@ -137,6 +137,7 @@ func composeProductionChatLifecycleRuntime(
 	})
 	preflight := chatlifecycle.NewPreflight(chatlifecycle.PreflightOptions{
 		BenchToken: credentials.BenchToken(), WorkerTokens: workerTokens, HTTPClient: httpClient,
+		DiagnosticLog: os.Stderr,
 	})
 	return &productionChatLifecycleRuntime{
 		assignment: assignment, workers: workerInterfaces,
