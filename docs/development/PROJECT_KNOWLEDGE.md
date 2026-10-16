@@ -1820,6 +1820,15 @@ specification, runbook, report, or module documentation; link to them when neede
   Independently sampling each family can reject valid active-write baselines;
   serializing only the observation calls does not make Prometheus export atomic.
   Preserve strict cut validation and explicit missing-evidence failures.
+- Script readiness is an observation, not a permanent startup guarantee.
+  Initial chat-lifecycle Soak preflight retries service health/readiness within one
+  shared 30-second deadline before strict checks and traffic. Authentication,
+  cancellation and exhausted deadlines still deny admission; capacity continuation
+  remains single-pass. Run 38786101491
+  failed preflight while a planned Slot 9 leader transfer occurred; absent HTTP
+  status evidence prevents attributing that exact request to the transfer.
+  A missing qualification/final report is insufficient evidence, never measured
+  zero traffic or proof of a latency regression.
 
 - Native package lifecycle bootstrap includes package installation before systemd PID 1. A bootstrap timeout does not prove a service start or installed package. Failure probes retain stage, PID 1, jobs and journals with five-second command bounds and 64 KiB output caps; unchanged 300-second bootstrap/900-second main validation deadlines remain separate from failure cleanup.
 

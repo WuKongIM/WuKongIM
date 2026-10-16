@@ -13,7 +13,7 @@ function label_value(line, name, marker, tail) {
   marker = name "=\""
   if (index(line, marker) == 0) return ""
   tail = substr(line, index(line, marker) + length(marker))
-  sub(/\".*/, "", tail)
+  sub(/".*/, "", tail)
   return tail
 }
 
