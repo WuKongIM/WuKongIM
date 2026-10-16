@@ -70,6 +70,7 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
    pages transfer without another deep copy; caller isolation remains required.
    Read RPCs preserve typed temporary transport failures from nested authority
    reads using the existing not-ready code; unknown error text stays unknown.
+   Manager observations probe residency without activation; hot tails use recovered HW, cold tails use durable checkpoint HW, and both recheck authority and retention.
 5. `LocalControlSnapshot` exposes the latest Node-applied control state;
    older revisions are ignored before maintenance, placement or task side effects.
    Equal revisions refresh leadership/health; watch events read current state.
@@ -140,7 +141,6 @@ summary: Composes Controller state, Slot Multi-Raft metadata, typed node RPC, ro
 Aggregate MQTT capacity uses one hash-Slot escrow row and immutable Controller storage rosters, including joining/leaving data nodes. Startup debt must be registered on every required node before growth. The existing periodic health owner reports health first, then maintains/refunds capacity with a separate bounded context and nonwaiting restore/apply ownership; no per-Channel task is added.
 
 - Send-permission routing seals bounded concurrent caller batches before one immutable authority publication and node-batched Slot queries. Every group holds admission through a fresh Slot barrier, pinned snapshot and final authority check. Stop/rollback closes and joins ingress batches before transport/storage; business evaluation stays in the usecase.
-
 
 ## Read First
 - [Public API](api.go), [Node ownership](node.go), [Lifecycle](node_lifecycle.go), [Routing](routing/router.go), [Channels](channels/service.go)

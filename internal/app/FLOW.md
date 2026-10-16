@@ -62,6 +62,8 @@ Stop or startup rollback
   disabled delivery leaves that optional port absent.
 - Optional features are wired only when all required ports exist; unavailable
   capabilities stay explicit instead of receiving partial implementations.
+- Manager Channel inventory and its node RPC share the non-activating Channel
+  observer; lifecycle metadata and Leader residency remain separate evidence.
 - Opt-in MQTT composition shares the existing Gateway and device-token verifier,
   without WK device-conflict actions. Additional independent WebSocket MQTT
   listeners are selected through existing `gateway.listeners` configuration and

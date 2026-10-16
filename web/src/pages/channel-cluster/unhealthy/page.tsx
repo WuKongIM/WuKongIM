@@ -4,6 +4,7 @@ import { Link } from "react-router-dom"
 
 import { ResourceState } from "@/components/manager/resource-state"
 import { StatusBadge } from "@/components/manager/status-badge"
+import { ChannelLifecycleBadge, ChannelRuntimeStatusBadge } from "@/components/manager/channel-status-badges"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
 import { SectionCard } from "@/components/shell/section-card"
@@ -383,8 +384,9 @@ export function ChannelClusterUnhealthyPanel({
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.leader" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.replicas" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channelCluster.unhealthy.table.isr" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.maxMessageSeq" })}</th>
+                      <th className="px-3 py-3" title={intl.formatMessage({ id: "channels.table.maxMessageSeqHelp" })}>{intl.formatMessage({ id: "channels.table.maxMessageSeq" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.status" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.runtimeStatus" })}</th>
                       <th className="px-3 py-3">
                         {intl.formatMessage({ id: "channelCluster.unhealthy.table.reasons" })}
                       </th>
@@ -407,7 +409,10 @@ export function ChannelClusterUnhealthyPanel({
                         </td>
                         <td className="px-3 py-3 text-sm text-muted-foreground">{channel.max_message_seq}</td>
                         <td className="px-3 py-3 text-sm text-foreground">
-                          <StatusBadge value={channel.status} />
+                          <ChannelLifecycleBadge status={channel.status} />
+                        </td>
+                        <td className="px-3 py-3 text-sm text-foreground">
+                          <ChannelRuntimeStatusBadge channel={channel} />
                         </td>
                         <td className="px-3 py-3 text-sm text-foreground">
                           <div className="flex flex-wrap gap-2">

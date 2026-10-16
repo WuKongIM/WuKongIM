@@ -19,6 +19,13 @@ specification, runbook, report, or module documentation; link to them when neede
 
 ## Cluster and authority
 
+- Manager Channel `status` is the durable lifecycle; `runtime_status` observes
+  residency on `runtime_node_id` (the current Channel Leader). Idle eviction
+  leaves lifecycle metadata intact. List and exact-row observations must never
+  activate or repair runtimes. Unavailable or mismatched evidence is unknown,
+  not inactive; optional message tails use only live committed HW or the cold
+  durable checkpoint, never an uncommitted LEO.
+
 - MQTT aggregate storage counts one original plus reserved future replay body per
   protected source on each storage replica, independently of Session quotas.
   Funding covers all voters/learners before original dispatch; capacity receipts

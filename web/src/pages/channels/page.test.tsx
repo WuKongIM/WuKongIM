@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { beforeEach, expect, test, vi } from "vitest"
@@ -33,6 +33,8 @@ const channelRow = {
   min_isr: 2,
   max_message_seq: 7,
   status: "active",
+  runtime_status: "active",
+  runtime_node_id: 2,
 }
 
 const secondChannelRow = {
@@ -129,6 +131,30 @@ test("uses compact channel page chrome without summary cards", async () => {
   expect(screen.queryByText("Distinct physical slots represented in view.")).not.toBeInTheDocument()
   expect(screen.queryByText("Paged runtime metadata from the channel manager endpoints.")).not.toBeInTheDocument()
   expect(screen.queryByText("Inspect one channel to view slot ownership and runtime lease metadata.")).not.toBeInTheDocument()
+})
+
+test.each([
+  ["active", "Active"],
+  ["inactive", "Inactive"],
+  ["unknown", "Unknown"],
+  [undefined, "Unknown"],
+])("distinguishes available lifecycle from %s leader runtime", async (runtimeStatus, label) => {
+  getChannelRuntimeMetaMock.mockResolvedValueOnce({
+    items: [{ ...channelRow, runtime_status: runtimeStatus }],
+    has_more: false,
+  })
+
+  renderChannelsPage()
+
+  const row = await screen.findByRole("row", { name: /alpha/ })
+  expect(screen.getByRole("columnheader", { name: "Lifecycle" })).toBeInTheDocument()
+  expect(screen.getByRole("columnheader", { name: "Runtime status" })).toBeInTheDocument()
+  expect(within(row).getByText("Available")).toBeInTheDocument()
+  expect(within(row).getByText(label)).toBeInTheDocument()
+  expect(within(row).getByTitle("Runtime on channel Leader node 2")).toBeInTheDocument()
+  if (runtimeStatus !== "active") {
+    expect(within(row).queryByText("Active")).not.toBeInTheDocument()
+  }
 })
 
 test("reloads the selected node channel list when the node filter changes", async () => {

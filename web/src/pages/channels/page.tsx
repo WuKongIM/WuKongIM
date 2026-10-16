@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom"
 
 import { NodeFilter, hasNode } from "@/components/manager/node-filter"
 import { ResourceState } from "@/components/manager/resource-state"
-import { StatusBadge } from "@/components/manager/status-badge"
+import { ChannelLifecycleBadge, ChannelRuntimeStatusBadge } from "@/components/manager/channel-status-badges"
 import { PageContainer } from "@/components/shell/page-container"
 import { PageHeader } from "@/components/shell/page-header"
 import { Button } from "@/components/ui/button"
@@ -306,8 +306,9 @@ export function ChannelClusterListPanel({
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.leader" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.replicas" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channelCluster.unhealthy.table.isr" })}</th>
-                      <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.maxMessageSeq" })}</th>
+                      <th className="px-3 py-3" title={intl.formatMessage({ id: "channels.table.maxMessageSeqHelp" })}>{intl.formatMessage({ id: "channels.table.maxMessageSeq" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.status" })}</th>
+                      <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.runtimeStatus" })}</th>
                       <th className="px-3 py-3">{intl.formatMessage({ id: "channels.table.actions" })}</th>
                     </tr>
                   </thead>
@@ -328,7 +329,10 @@ export function ChannelClusterListPanel({
                           {channel.max_message_seq ?? "-"}
                         </td>
                         <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm text-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "channels.table.status" })}>
-                          <StatusBadge value={channel.status} />
+                          <ChannelLifecycleBadge status={channel.status} />
+                        </td>
+                        <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm text-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "channels.table.runtimeStatus" })}>
+                          <ChannelRuntimeStatusBadge channel={channel} />
                         </td>
                         <td className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3 border-t border-border px-3 py-2 text-sm text-foreground before:text-xs before:font-medium before:text-muted-foreground before:content-[attr(data-label)] md:table-cell md:border-0 md:px-3 md:py-3 md:before:hidden" data-label={intl.formatMessage({ id: "channels.table.actions" })}>
                           <Button

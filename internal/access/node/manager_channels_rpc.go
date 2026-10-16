@@ -16,6 +16,9 @@ const ManagerChannelRPCServiceID uint8 = clusternet.RPCManagerChannels
 
 // HandleManagerChannelRPC handles one encoded manager channel list RPC payload.
 func (a *Adapter) HandleManagerChannelRPC(ctx context.Context, payload []byte) ([]byte, error) {
+	if hasMagic(payload, managerObservationRequestMagic[:]) {
+		return a.handleManagerObservationRPC(ctx, payload)
+	}
 	req, err := decodeManagerChannelRequest(payload)
 	if err != nil {
 		a.rpcLogger().Warn("manager channel rpc decode failed",

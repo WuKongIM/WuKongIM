@@ -90,6 +90,9 @@ type RuntimeProbeChannel struct {
 	LeaderEpoch uint64
 	// ChannelEpoch is the local runtime's current membership epoch.
 	ChannelEpoch uint64
+	// RouteGeneration is the installed native quorum authority generation.
+	// Zero means that this probe has no native authority-generation evidence.
+	RouteGeneration uint64
 	// Role is the local runtime role.
 	Role Role
 	// Status is the local runtime status.

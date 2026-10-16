@@ -14,6 +14,11 @@ move those entries into a version section named for that exact tag.
 
 ### 🐛 Bug Fixes / 问题修复
 
+- Separate Channel lifecycle from Leader runtime activity in Manager; idle
+  channels display as inactive, and listing channels no longer wakes cold
+  runtimes. / 管理台分开显示频道生命周期与 Leader 运行时活跃状态，空闲卸载后显示
+  非活跃，查询频道列表不再唤醒冷频道。
+
 - Let chat-lifecycle startup health checks converge within a shared 30-second
   deadline, and report bounded, redacted probe outcomes. Remove a GNU awk
   warning from host I/O summaries. / 聊天生命周期压测启动前使用共享的 30 秒期限

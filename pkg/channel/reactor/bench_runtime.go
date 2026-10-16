@@ -265,6 +265,7 @@ func (r *Reactor) handleRuntimeProbe(event Event) {
 			ChannelID:          rc.state.ID,
 			LeaderEpoch:        rc.state.LeaderEpoch,
 			ChannelEpoch:       rc.state.Epoch,
+			RouteGeneration:    rc.quorumAuthority.ID.FenceVersion,
 			Role:               rc.state.Role,
 			Status:             rc.state.Status,
 			LEO:                rc.state.LEO,

@@ -122,7 +122,7 @@ committed progress, retention, lifecycle, and synchronous reactor facades.
   Retained receipt reads use recovered reactor authority and captured-HW checkpoint workers with lifecycle/cancellation fences; the optional store pins original-or-trim proof, while fresh Slot authority remains above this facade.
 - Unloaded state is absence from the reactor map. Cold PullHint activation must
   resolve authoritative metadata and prove local replica membership before
-  opening storage.
+  opening storage. Observational probes report absence and installed native authority without loading or recovering runtimes.
 - Mailboxes, Channel count, append/worker queues, batching, recovery probes,
   maintenance turns, and result payloads are bounded.
 - Write fencing rejects new append admission without discarding already

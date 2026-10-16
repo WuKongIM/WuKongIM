@@ -57,6 +57,8 @@ remote node read or action
   accepted work and preserve idempotent/no-op results as `200`.
 - Missing, stale, partial, or unavailable distributed evidence remains unknown
   or unsafe; it is never projected as zero, healthy, or safe to remove.
+- Channel metadata responses expose lifecycle `status` separately from Leader
+  `runtime_status` and `runtime_node_id`; unknown residency is never inactive.
 - Latest-message scan saturation returns the stable
   `latest_messages_backpressured` error with retry guidance; general
   unavailability remains `service_unavailable`.
