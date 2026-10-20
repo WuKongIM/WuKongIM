@@ -1,0 +1,70 @@
+{
+  "schema": "wukongim/conversation-cpu-contention-plan/v1",
+  "product_sha": "ef798352c40a94e57f768f76b2f4713712f827fe",
+  "expected_binary_sha256": "8c3c79f2853b76be7f83dbd606404bf6ab1fdf34ce9370e82c056b389d03c57d",
+  "harness_sha": "07ed85a22bdd2ebf75b776a92e71f21c02d2623f",
+  "canonical_source_directory": "/home/runner/work/_temp/conversation-fixed-host-build",
+  "sequence": [
+    {
+      "id": "01-S",
+      "mode": "shared"
+    },
+    {
+      "id": "02-O",
+      "mode": "overlap"
+    },
+    {
+      "id": "03-D",
+      "mode": "disjoint"
+    },
+    {
+      "id": "04-D",
+      "mode": "disjoint"
+    },
+    {
+      "id": "05-O",
+      "mode": "overlap"
+    },
+    {
+      "id": "06-S",
+      "mode": "shared"
+    }
+  ],
+  "diagnostic_timeout_seconds": 720,
+  "script_timeout_minutes": 84,
+  "job_timeout_minutes": 90,
+  "preparation_age_seconds": 180,
+  "run_release_matrix": false,
+  "product_builds": 1,
+  "driver_builds": 1,
+  "load": {
+    "list_qps": 200,
+    "sync_qps": 60,
+    "workers_per_endpoint": 8,
+    "windows": 3,
+    "window_seconds": 60,
+    "profile": "byte-identical to product C"
+  },
+  "placement": {
+    "preparation": "all four CPUs shared until 180-second release",
+    "S": "driver all four CPUs/GOMAXPROCS 4; nodes same four/GOMAXPROCS 2",
+    "O": "driver one CPU/GOMAXPROCS 1; nodes fixed three CPUs/GOMAXPROCS 2 including driver CPU",
+    "D": "driver sibling CPU/GOMAXPROCS 1; nodes same three CPUs/GOMAXPROCS 2 excluding driver CPU"
+  },
+  "analysis": {
+    "pairs": [
+      [
+        "02-O",
+        "03-D"
+      ],
+      [
+        "05-O",
+        "04-D"
+      ]
+    ],
+    "primary_screen": "Both pairs, per endpoint: D median of three driver-wait P99 values decreases >=25% and >=1ms, with total P99 in the same direction; a screen, not a causal verdict.",
+    "repeats": "Report S/S, O/O, D/D variation and every window; do not pool P99 or select favorable windows.",
+    "limitations": "Numeric rejects remain. Latency includes attempted requests (including errors), but excludes dropped arrivals. Equal per-role widths do not equalize total eligible CPUs (union 3 vs 4); SMT, cache, visible cgroup and hidden host contention remain. S/D is not a single-variable contrast.",
+    "verdict": "Collection completion is not performance acceptance or historical root-cause confirmation."
+  }
+}

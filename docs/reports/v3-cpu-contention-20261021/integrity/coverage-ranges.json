@@ -1,0 +1,29 @@
+{
+  "points": 1098,
+  "confirmed_exits": 0,
+  "new_threads_after_first_point": 4,
+  "first_offset_ms": {
+    "min": 0.22915,
+    "max": 1.123428
+  },
+  "last_offset_s": {
+    "min": 60.000059981,
+    "max": 60.003954635
+  },
+  "finished_offset_s": {
+    "min": 60.007919948,
+    "max": 60.034144157
+  },
+  "sampler_cpu_ms": {
+    "min": 259.416612,
+    "max": 355.630531
+  },
+  "max_read_ms": {
+    "min": 6.487553,
+    "max": 21.079797
+  },
+  "max_deadline_lag_ms": {
+    "min": 1.669713,
+    "max": 11.128942
+  }
+}

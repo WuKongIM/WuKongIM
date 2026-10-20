@@ -1,0 +1,10 @@
+{
+  "harness_sha": "07ed85a22bdd2ebf75b776a92e71f21c02d2623f",
+  "product_sha": "ef798352c40a94e57f768f76b2f4713712f827fe",
+  "files": {
+    "scripts/run-conversation-cpu-contention.py": "25229eaf561111100be2aa1cf6199a05601d72de6a2370bf623321f87f2396c2",
+    "scripts/run-conversation-fixed-host.py": "1c32a99d075174c2f0ca7390f3a4aa03aaf5687837f7ac7731c3e6d6bf0be55a",
+    "test/e2e/message/conversation_qps/profile.json": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1",
+    ".github/workflows/conversation-qps-diagnose.yml": "a573583bf50b171203b048cff2b74bf40782b6921ded877936d29c679c1d7bc9"
+  }
+}

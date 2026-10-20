@@ -1,0 +1,17 @@
+{
+  "checks": 6552,
+  "pass": true,
+  "failures": [],
+  "observed_memberships": [
+    "0::/system.slice/hosted-compute-agent.service\n"
+  ],
+  "distinct_locations": 1,
+  "compared_controls": [
+    "cpu.max",
+    "cpuset.cpus.effective",
+    "cpuset.mems.effective",
+    "memory.max",
+    "memory.high"
+  ],
+  "root_missing_is_unknown": true
+}

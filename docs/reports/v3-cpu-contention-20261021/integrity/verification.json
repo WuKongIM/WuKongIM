@@ -1,0 +1,599 @@
+{
+  "schema": "wukongim/cpu-contention-offline-integrity/v1",
+  "run_id": 39467558163,
+  "attempt": 1,
+  "harness_sha": "07ed85a22bdd2ebf75b776a92e71f21c02d2623f",
+  "product_sha": "ef798352c40a94e57f768f76b2f4713712f827fe",
+  "integrity_pass": true,
+  "checks": 293663,
+  "failures": [],
+  "blocks": [
+    {
+      "id": "01-S",
+      "mode": "shared",
+      "numeric_pass": true,
+      "windows": [
+        {
+          "numeric_pass": true,
+          "points": 61,
+          "thread_observations": 3476,
+          "confirmed_exit_observations": 0,
+          "phases": [
+            {
+              "endpoint": "/conversation/list",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 25.462736,
+              "errors": 0,
+              "dropped": 0
+            },
+            {
+              "endpoint": "/conversation/sync",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 54.46165,
+              "errors": 0,
+              "dropped": 0
+            }
+          ]
+        },
+        {
+          "numeric_pass": true,
+          "points": 61,
+          "thread_observations": 3477,
+          "confirmed_exit_observations": 0,
+          "phases": [
+            {
+              "endpoint": "/conversation/list",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 24.828456,
+              "errors": 0,
+              "dropped": 0
+            },
+            {
+              "endpoint": "/conversation/sync",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 55.062662,
+              "errors": 0,
+              "dropped": 0
+            }
+          ]
+        },
+        {
+          "numeric_pass": true,
+          "points": 61,
+          "thread_observations": 3477,
+          "confirmed_exit_observations": 0,
+          "phases": [
+            {
+              "endpoint": "/conversation/list",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 199.86666666666667,
+              "p99_ms": 53.640818,
+              "errors": 0,
+              "dropped": 0
+            },
+            {
+              "endpoint": "/conversation/sync",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 59.916666666666664,
+              "p99_ms": 107.446158,
+              "errors": 0,
+              "dropped": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "02-O",
+      "mode": "overlap",
+      "numeric_pass": true,
+      "windows": [
+        {
+          "numeric_pass": true,
+          "points": 61,
+          "thread_observations": 3434,
+          "confirmed_exit_observations": 0,
+          "phases": [
+            {
+              "endpoint": "/conversation/list",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 75.387483,
+              "errors": 0,
+              "dropped": 0
+            },
+            {
+              "endpoint": "/conversation/sync",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 118.777384,
+              "errors": 0,
+              "dropped": 0
+            }
+          ]
+        },
+        {
+          "numeric_pass": true,
+          "points": 61,
+          "thread_observations": 3477,
+          "confirmed_exit_observations": 0,
+          "phases": [
+            {
+              "endpoint": "/conversation/list",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 42.773171,
+              "errors": 0,
+              "dropped": 0
+            },
+            {
+              "endpoint": "/conversation/sync",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 85.782821,
+              "errors": 0,
+              "dropped": 0
+            }
+          ]
+        },
+        {
+          "numeric_pass": true,
+          "points": 61,
+          "thread_observations": 3477,
+          "confirmed_exit_observations": 0,
+          "phases": [
+            {
+              "endpoint": "/conversation/list",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 199.96666666666667,
+              "p99_ms": 49.799878,
+              "errors": 0,
+              "dropped": 0
+            },
+            {
+              "endpoint": "/conversation/sync",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 59.96666666666667,
+              "p99_ms": 93.642326,
+              "errors": 0,
+              "dropped": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "03-D",
+      "mode": "disjoint",
+      "numeric_pass": true,
+      "windows": [
+        {
+          "numeric_pass": true,
+          "points": 61,
+          "thread_observations": 3416,
+          "confirmed_exit_observations": 0,
+          "phases": [
+            {
+              "endpoint": "/conversation/list",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 40.810487,
+              "errors": 0,
+              "dropped": 0
+            },
+            {
+              "endpoint": "/conversation/sync",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 83.640494,
+              "errors": 0,
+              "dropped": 0
+            }
+          ]
+        },
+        {
+          "numeric_pass": true,
+          "points": 61,
+          "thread_observations": 3416,
+          "confirmed_exit_observations": 0,
+          "phases": [
+            {
+              "endpoint": "/conversation/list",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 36.56052,
+              "errors": 0,
+              "dropped": 0
+            },
+            {
+              "endpoint": "/conversation/sync",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 78.334238,
+              "errors": 0,
+              "dropped": 0
+            }
+          ]
+        },
+        {
+          "numeric_pass": true,
+          "points": 61,
+          "thread_observations": 3416,
+          "confirmed_exit_observations": 0,
+          "phases": [
+            {
+              "endpoint": "/conversation/list",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 199.93333333333334,
+              "p99_ms": 34.207455,
+              "errors": 0,
+              "dropped": 0
+            },
+            {
+              "endpoint": "/conversation/sync",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 59.96666666666667,
+              "p99_ms": 72.649052,
+              "errors": 0,
+              "dropped": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "04-D",
+      "mode": "disjoint",
+      "numeric_pass": true,
+      "windows": [
+        {
+          "numeric_pass": true,
+          "points": 61,
+          "thread_observations": 3416,
+          "confirmed_exit_observations": 0,
+          "phases": [
+            {
+              "endpoint": "/conversation/list",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 199.93333333333334,
+              "p99_ms": 41.234555,
+              "errors": 0,
+              "dropped": 0
+            },
+            {
+              "endpoint": "/conversation/sync",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 59.96666666666667,
+              "p99_ms": 86.824134,
+              "errors": 0,
+              "dropped": 0
+            }
+          ]
+        },
+        {
+          "numeric_pass": true,
+          "points": 61,
+          "thread_observations": 3416,
+          "confirmed_exit_observations": 0,
+          "phases": [
+            {
+              "endpoint": "/conversation/list",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 34.816498,
+              "errors": 0,
+              "dropped": 0
+            },
+            {
+              "endpoint": "/conversation/sync",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 73.334968,
+              "errors": 0,
+              "dropped": 0
+            }
+          ]
+        },
+        {
+          "numeric_pass": true,
+          "points": 61,
+          "thread_observations": 3416,
+          "confirmed_exit_observations": 0,
+          "phases": [
+            {
+              "endpoint": "/conversation/list",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 199.96666666666667,
+              "p99_ms": 33.155401,
+              "errors": 0,
+              "dropped": 0
+            },
+            {
+              "endpoint": "/conversation/sync",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 59.96666666666667,
+              "p99_ms": 67.265446,
+              "errors": 0,
+              "dropped": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "05-O",
+      "mode": "overlap",
+      "numeric_pass": true,
+      "windows": [
+        {
+          "numeric_pass": true,
+          "points": 61,
+          "thread_observations": 3416,
+          "confirmed_exit_observations": 0,
+          "phases": [
+            {
+              "endpoint": "/conversation/list",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 199.86666666666667,
+              "p99_ms": 45.691605,
+              "errors": 0,
+              "dropped": 0
+            },
+            {
+              "endpoint": "/conversation/sync",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 59.93333333333333,
+              "p99_ms": 93.967173,
+              "errors": 0,
+              "dropped": 0
+            }
+          ]
+        },
+        {
+          "numeric_pass": true,
+          "points": 61,
+          "thread_observations": 3416,
+          "confirmed_exit_observations": 0,
+          "phases": [
+            {
+              "endpoint": "/conversation/list",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 199.95,
+              "p99_ms": 48.548651,
+              "errors": 0,
+              "dropped": 0
+            },
+            {
+              "endpoint": "/conversation/sync",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 59.96666666666667,
+              "p99_ms": 93.15321,
+              "errors": 0,
+              "dropped": 0
+            }
+          ]
+        },
+        {
+          "numeric_pass": true,
+          "points": 61,
+          "thread_observations": 3416,
+          "confirmed_exit_observations": 0,
+          "phases": [
+            {
+              "endpoint": "/conversation/list",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 199.96666666666667,
+              "p99_ms": 55.560561,
+              "errors": 0,
+              "dropped": 0
+            },
+            {
+              "endpoint": "/conversation/sync",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 108.562487,
+              "errors": 0,
+              "dropped": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "06-S",
+      "mode": "shared",
+      "numeric_pass": true,
+      "windows": [
+        {
+          "numeric_pass": true,
+          "points": 61,
+          "thread_observations": 3529,
+          "confirmed_exit_observations": 0,
+          "phases": [
+            {
+              "endpoint": "/conversation/list",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 27.032234,
+              "errors": 0,
+              "dropped": 0
+            },
+            {
+              "endpoint": "/conversation/sync",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 58.05939,
+              "errors": 0,
+              "dropped": 0
+            }
+          ]
+        },
+        {
+          "numeric_pass": true,
+          "points": 61,
+          "thread_observations": 3538,
+          "confirmed_exit_observations": 0,
+          "phases": [
+            {
+              "endpoint": "/conversation/list",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 26.315094,
+              "errors": 0,
+              "dropped": 0
+            },
+            {
+              "endpoint": "/conversation/sync",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 56.119512,
+              "errors": 0,
+              "dropped": 0
+            }
+          ]
+        },
+        {
+          "numeric_pass": true,
+          "points": 61,
+          "thread_observations": 3538,
+          "confirmed_exit_observations": 0,
+          "phases": [
+            {
+              "endpoint": "/conversation/list",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 199.98333333333332,
+              "p99_ms": 29.441426,
+              "errors": 0,
+              "dropped": 0
+            },
+            {
+              "endpoint": "/conversation/sync",
+              "numeric_pass": true,
+              "verdict": "pass",
+              "actual_qps": 59.983333333333334,
+              "p99_ms": 67.210883,
+              "errors": 0,
+              "dropped": 0
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "preflights": [
+    {
+      "test": "TestConversationFixedHostTimeoutCleansChildProcessGroups",
+      "pass_count": 1,
+      "rejected_events": []
+    },
+    {
+      "test": "TestCPUPlacementLinuxAllThreads",
+      "pass_count": 1,
+      "rejected_events": []
+    },
+    {
+      "test": "TestCPUWindowSamplerLinuxPreflight",
+      "pass_count": 1,
+      "rejected_events": []
+    }
+  ],
+  "commands": [
+    {
+      "file": "binaries/C/build.command.json",
+      "exit_code": 0,
+      "cleanup_complete": true
+    },
+    {
+      "file": "binaries/C/checkout.command.json",
+      "exit_code": 0,
+      "cleanup_complete": true
+    },
+    {
+      "file": "blocks/01-S/test.command.json",
+      "exit_code": 0,
+      "cleanup_complete": true
+    },
+    {
+      "file": "blocks/02-O/test.command.json",
+      "exit_code": 0,
+      "cleanup_complete": true
+    },
+    {
+      "file": "blocks/03-D/test.command.json",
+      "exit_code": 0,
+      "cleanup_complete": true
+    },
+    {
+      "file": "blocks/04-D/test.command.json",
+      "exit_code": 0,
+      "cleanup_complete": true
+    },
+    {
+      "file": "blocks/05-O/test.command.json",
+      "exit_code": 0,
+      "cleanup_complete": true
+    },
+    {
+      "file": "blocks/06-S/test.command.json",
+      "exit_code": 0,
+      "cleanup_complete": true
+    },
+    {
+      "file": "build-clone.command.json",
+      "exit_code": 0,
+      "cleanup_complete": true
+    },
+    {
+      "file": "harness/build.command.json",
+      "exit_code": 0,
+      "cleanup_complete": true
+    },
+    {
+      "file": "source-ancestry.command.json",
+      "exit_code": 0,
+      "cleanup_complete": true
+    }
+  ],
+  "numeric_pass": true,
+  "release_qualification": false,
+  "artifact_code_executed": false
+}

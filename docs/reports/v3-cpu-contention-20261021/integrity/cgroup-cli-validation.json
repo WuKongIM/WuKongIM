@@ -1,0 +1,8 @@
+{
+  "byte_identical": true,
+  "checks": 6552,
+  "result_sha256": "b39a0a07420e33a94ee43c8b931d9e44eea339a91d4e3f9ea35c819f86bb36c1",
+  "existing_output_rejected": true,
+  "existing_output_unchanged": true,
+  "script_sha256": "b4efbfe6308c37a53413148de7b9cdc98e91c0f386179f9c3d7ab07c2d3c5519"
+}

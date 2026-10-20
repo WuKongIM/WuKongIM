@@ -1,0 +1,76 @@
+{
+  "schema": "wukongim/independent-cpu-contention-output-manifest/v1",
+  "run": 39467558163,
+  "attempt": 1,
+  "harness_sha": "07ed85a22bdd2ebf75b776a92e71f21c02d2623f",
+  "checker_unchanged_from_prepared_manifest": true,
+  "checker_sha256": "4cd3e0e1e821d624bba0a699202a13192b81d7688d49fe3c41f36ee7feb32c29",
+  "command": "python3 /tmp/wukongim-cpu-causal-20261021/analysis/analyze_cpu_contention.py /tmp/wukongim-cpu-causal-20261021/download/conversation-cpu-contention --expected-harness-sha 07ed85a22bdd2ebf75b776a92e71f21c02d2623f --output-dir /tmp/wukongim-cpu-causal-20261021/analysis-results",
+  "exit_code": 0,
+  "files": [
+    {
+      "path": "analysis-results/01-S-window-1-timeline-alignment.json",
+      "bytes": 49395,
+      "sha256": "96b62599b268fd188585212200cc39a7284bb54ef80ea769780318f96fa964d1"
+    },
+    {
+      "path": "analysis-results/01-S-window-2-timeline-alignment.json",
+      "bytes": 49391,
+      "sha256": "5eaa044da0df2e39e008aa181c2aadaeaa7423fdfcf9a4fdd599e09657bddc40"
+    },
+    {
+      "path": "analysis-results/01-S-window-3-timeline-alignment.json",
+      "bytes": 49358,
+      "sha256": "aad73029cef4224172c392128a77c059c8fa47e41b73b0e88debad0bad0b892e"
+    },
+    {
+      "path": "analysis-results/README.md",
+      "bytes": 3064,
+      "sha256": "ef8c258274162c4a4b6ca66f8de5f82709728f1c5124578d489924306fe85f60"
+    },
+    {
+      "path": "analysis-results/audit.json",
+      "bytes": 7942132,
+      "sha256": "35d28568189f97a782728d5374a3a2cfd3fc49859d4ee0b20712e8c32ec30ef8"
+    },
+    {
+      "path": "analysis-results/endpoints.csv",
+      "bytes": 4716,
+      "sha256": "03bc35951363c8c8ae9cdade3c13064ceb439c47e18ac737e02e7905bc8941b1"
+    },
+    {
+      "path": "analysis-results/independent-summary.json",
+      "bytes": 295330,
+      "sha256": "c01db97ed891eac636563704b6d20fbbcefacfe9ac5225afe7cef535df250cb2"
+    },
+    {
+      "path": "analysis-results/independent-summary.md",
+      "bytes": 5647,
+      "sha256": "cc38e0da3d032d8972c01223f834cbfe810fcac6b0b370c36ebbebbdacbc2a7b"
+    },
+    {
+      "path": "analysis-results/roles.csv",
+      "bytes": 5616,
+      "sha256": "79e7fa8c2c691e3c88adafe71ac37fbac850ec3a6a5b54bb6d43a9769dbc579d"
+    },
+    {
+      "path": "analysis-results/windows.csv",
+      "bytes": 2589,
+      "sha256": "e8a07b2ea91df604c826868a99f9a754afda9281ff505e9bc81a0d9338ecc555"
+    }
+  ],
+  "reproduction_scripts": [
+    {
+      "path": "analysis/analyze_cpu_contention.py",
+      "bytes": 39790,
+      "sha256": "4cd3e0e1e821d624bba0a699202a13192b81d7688d49fe3c41f36ee7feb32c29"
+    },
+    {
+      "path": "analysis/summarize_observed_results.py",
+      "bytes": 14198,
+      "sha256": "754449d62ffefa3afb28a237a45b90821dd90967b80d43ecb2ae673b4901504c"
+    }
+  ],
+  "frozen": true,
+  "note": "Final result snapshot includes portable README. Recheck into a new directory; original numerical results and frozen analyzer were not modified."
+}

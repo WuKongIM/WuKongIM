@@ -1,0 +1,20 @@
+{
+  "status": "prepared_not_run_against_experiment_artifact",
+  "validation": "Python syntax compile and --help only; numerical audit waits for new artifact",
+  "files": [
+    {
+      "path": "analyze_cpu_contention.py",
+      "bytes": 39790,
+      "sha256": "4cd3e0e1e821d624bba0a699202a13192b81d7688d49fe3c41f36ee7feb32c29"
+    },
+    {
+      "path": "README.md",
+      "bytes": 3003,
+      "sha256": "de67633cfe3f467d32313cba81afb1e05a308c9b9b6c178471ee041ce394e814"
+    }
+  ],
+  "frozen_harness_sha": "07ed85a22bdd2ebf75b776a92e71f21c02d2623f",
+  "github_run_id": 39467558163,
+  "run_attempt": 1,
+  "execution_status": "waiting_for_artifact_no_polling"
+}

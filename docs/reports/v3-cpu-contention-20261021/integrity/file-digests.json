@@ -1,0 +1,557 @@
+[
+  {
+    "path": "binaries/C/binary.sha256",
+    "bytes": 79,
+    "sha256": "afd4ef35897fcb2b1ac7a0ecf7d0071f08e16b9c46889ef7b1e6445ef4b025bf"
+  },
+  {
+    "path": "binaries/C/build.command.json",
+    "bytes": 461,
+    "sha256": "88c6efb1c370469552e37c7a8ec2fd9e319febe9534ee1f1a2f433ac2e21e5f8"
+  },
+  {
+    "path": "binaries/C/build.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "binaries/C/build.txt",
+    "bytes": 8963,
+    "sha256": "2949f3d9c7deb429581ba5373a092888af0a1fda8c1807b9d162957ffec5d536"
+  },
+  {
+    "path": "binaries/C/checkout.command.json",
+    "bytes": 398,
+    "sha256": "5627cf781932e81c2b3add9495b1810a384e8e6c97ec3335a9f241ffe89f2047"
+  },
+  {
+    "path": "binaries/C/checkout.log",
+    "bytes": 481,
+    "sha256": "d54221ad8c1cc50b3939894f103b0b4e66b517b40e5e722529476159bc1bbe9e"
+  },
+  {
+    "path": "binaries/C/identity.json",
+    "bytes": 365,
+    "sha256": "b6fe859eae3c5cdccc8f7e6b68915d59da2466ece975a0fcd49e47491f96ec54"
+  },
+  {
+    "path": "binaries/C/wukongim-e2e",
+    "bytes": 96632136,
+    "sha256": "8c3c79f2853b76be7f83dbd606404bf6ab1fdf34ce9370e82c056b389d03c57d"
+  },
+  {
+    "path": "blocks/01-S/driver-cpu.pprof",
+    "bytes": 19438,
+    "sha256": "ffd3669abaf03aaefe79fe1ad1f12385998ebec130cb0f7992e3e455e92590ad"
+  },
+  {
+    "path": "blocks/01-S/fixed-environment.json",
+    "bytes": 1885031,
+    "sha256": "49acfca4243869cb3d0f00e791c82d931cf0deadec36fd48fd103b0915e58499"
+  },
+  {
+    "path": "blocks/01-S/node1-alloc-after.pprof",
+    "bytes": 120054,
+    "sha256": "f03f70fe90bc7a7969dd7df4a76a6c111f2d1de7728b9ee43b1e3c88b468fccf"
+  },
+  {
+    "path": "blocks/01-S/node1-alloc-before.pprof",
+    "bytes": 118337,
+    "sha256": "8a1ebde6b23da76d0104f6fd1b7d78fe60314cdf791d33523a4d422e00e17cc1"
+  },
+  {
+    "path": "blocks/01-S/node1-cpu.pprof",
+    "bytes": 61190,
+    "sha256": "56088557239d7dadd50db5611e25c880073e7549cc5ad1e15e6043970a64d0d8"
+  },
+  {
+    "path": "blocks/01-S/node2-alloc-after.pprof",
+    "bytes": 114603,
+    "sha256": "56408f1706cacf14b68f7f95f5fbbc23b50a3b82a945800643b829e14a9b5342"
+  },
+  {
+    "path": "blocks/01-S/node2-alloc-before.pprof",
+    "bytes": 112903,
+    "sha256": "f0d6736f0e550285a09436b93112a51ace4701b0f63d87121b4c2528b2b41934"
+  },
+  {
+    "path": "blocks/01-S/node2-cpu.pprof",
+    "bytes": 55709,
+    "sha256": "c2ad49656162c9f3709eac24bd5af6c6ebb9ab6ceafc5c9d0a476f4fea1a13a6"
+  },
+  {
+    "path": "blocks/01-S/node3-alloc-after.pprof",
+    "bytes": 116398,
+    "sha256": "7527a76d9b6a2c109164d549f8785d0ed19e7ba015fb3b560aedd3c08590af13"
+  },
+  {
+    "path": "blocks/01-S/node3-alloc-before.pprof",
+    "bytes": 115121,
+    "sha256": "1ee667d92cd3900df0c9d3a677d0583dca668a5dc84568c751ba49c8133b3862"
+  },
+  {
+    "path": "blocks/01-S/node3-cpu.pprof",
+    "bytes": 58811,
+    "sha256": "fdf29c71a155b54dd1115c4bfdd71145484de8af39c09a1a66d899d305834e32"
+  },
+  {
+    "path": "blocks/01-S/report.json",
+    "bytes": 43455052,
+    "sha256": "da06c0a600960d505d36651145cecb70c31a1a9f4342e82c9dfd3f7747a0804a"
+  },
+  {
+    "path": "blocks/01-S/test.command.json",
+    "bytes": 562,
+    "sha256": "0b691a2d6ffd4935ddf841645c20e135e837e1ad87ca408fb8e3935a7894431f"
+  },
+  {
+    "path": "blocks/01-S/test.log",
+    "bytes": 1509,
+    "sha256": "0be70c1a6353d21c51a46cefd3252bb1dce99c78fb71395087c49eafe30d4102"
+  },
+  {
+    "path": "blocks/02-O/driver-cpu.pprof",
+    "bytes": 14075,
+    "sha256": "a1756ec8efff44d6b96377a27626b973bb3da0c8a13a614de71e03a9e7e2203f"
+  },
+  {
+    "path": "blocks/02-O/fixed-environment.json",
+    "bytes": 1885428,
+    "sha256": "a0f04c2c2955e24074400f7717a5a263b5e8998c3e8d00b57f1ec8189936c413"
+  },
+  {
+    "path": "blocks/02-O/node1-alloc-after.pprof",
+    "bytes": 122013,
+    "sha256": "5f80e621f3fe777cf7ca144c5cad7a30d53298dac0fd50df696d1316ea134b9b"
+  },
+  {
+    "path": "blocks/02-O/node1-alloc-before.pprof",
+    "bytes": 120723,
+    "sha256": "4156e20790b5a0a5e127898e408e99f475c9256cdda10287d69f2ee72713e173"
+  },
+  {
+    "path": "blocks/02-O/node1-cpu.pprof",
+    "bytes": 56552,
+    "sha256": "53111fb19371f4e851027e47528a08e1ce3227970cfe6eb2af348db275672a59"
+  },
+  {
+    "path": "blocks/02-O/node2-alloc-after.pprof",
+    "bytes": 119700,
+    "sha256": "79d040899e16d89cbfe85191730e02e108cefb58550a36b32c77758cdc9a33a6"
+  },
+  {
+    "path": "blocks/02-O/node2-alloc-before.pprof",
+    "bytes": 117615,
+    "sha256": "58096c5e1ac55d9040aafb6bf106384187dba4054f2b85a33c9b9f5d68246e14"
+  },
+  {
+    "path": "blocks/02-O/node2-cpu.pprof",
+    "bytes": 52331,
+    "sha256": "4cac658984cdd559a823a5286bc0728b29eec1c5c8cdd076083286d56f282d72"
+  },
+  {
+    "path": "blocks/02-O/node3-alloc-after.pprof",
+    "bytes": 117429,
+    "sha256": "dcab93ff1fa17f254ecaaa468e9241e6ebe167ed81c847a9d743eecb4409085a"
+  },
+  {
+    "path": "blocks/02-O/node3-alloc-before.pprof",
+    "bytes": 114383,
+    "sha256": "112782ddf73ca41f5b35c9c57f9ccfb2d214b87f5731f5022cdc38a019d68a2d"
+  },
+  {
+    "path": "blocks/02-O/node3-cpu.pprof",
+    "bytes": 53736,
+    "sha256": "feaa818a642934c7ac8cd056bbd15a10c6c65b7d09fabfab9d6b5ed767b3bfec"
+  },
+  {
+    "path": "blocks/02-O/report.json",
+    "bytes": 43328441,
+    "sha256": "b9de6d0ca4255aa876dfeda0ce17a3a5557eb8d54c3c1a52852325cdd78bee42"
+  },
+  {
+    "path": "blocks/02-O/test.command.json",
+    "bytes": 564,
+    "sha256": "b3f1d8a3756e475315926eb2b249517f4577161d24ff8c459d487c186bfedc0f"
+  },
+  {
+    "path": "blocks/02-O/test.log",
+    "bytes": 1509,
+    "sha256": "65bb3f46f06cb21d218a9066a999c69bc728bc65c274dc47057f5bd17b114094"
+  },
+  {
+    "path": "blocks/03-D/driver-cpu.pprof",
+    "bytes": 16585,
+    "sha256": "64c3bc21824904fcc73c5d78bd84fc968e2de597f56fa15a41dcaa64aa781740"
+  },
+  {
+    "path": "blocks/03-D/fixed-environment.json",
+    "bytes": 1885609,
+    "sha256": "907fa75064c8faecdc2ead5d769444917632e16aff8df4d9d2371deddfc0c944"
+  },
+  {
+    "path": "blocks/03-D/node1-alloc-after.pprof",
+    "bytes": 120509,
+    "sha256": "7e67c7f9e79796454bf5c009e17647b30b5ad3f42f7ce4055c5af3afbd7ff404"
+  },
+  {
+    "path": "blocks/03-D/node1-alloc-before.pprof",
+    "bytes": 119242,
+    "sha256": "22b17b11b64974e9729d3cd361fd40ea94cbfe04feceb1fe57195220a6b39e07"
+  },
+  {
+    "path": "blocks/03-D/node1-cpu.pprof",
+    "bytes": 55883,
+    "sha256": "daa88d0b61bf0dfcc9fceb51d60ba38b4ef2b2220b7d9653ebacf07b3cc4656d"
+  },
+  {
+    "path": "blocks/03-D/node2-alloc-after.pprof",
+    "bytes": 117089,
+    "sha256": "b24e1f6edc02d04f8a90a58a5285668211813104504883cdebe0074496dc9cfb"
+  },
+  {
+    "path": "blocks/03-D/node2-alloc-before.pprof",
+    "bytes": 115134,
+    "sha256": "1b6b6cbaeda5db80af5f1d662a400d9e19f9f2f92bf90e90888685b27421dec9"
+  },
+  {
+    "path": "blocks/03-D/node2-cpu.pprof",
+    "bytes": 51916,
+    "sha256": "795c6e2e83dbac9e8f2cfcba8547ff1c87313bc08ef23e953e9f53d04b423571"
+  },
+  {
+    "path": "blocks/03-D/node3-alloc-after.pprof",
+    "bytes": 120471,
+    "sha256": "7d3413bad9f8625f7b18fd8d8c2b481fac9b3ae0f21079df8070f277d6b28d39"
+  },
+  {
+    "path": "blocks/03-D/node3-alloc-before.pprof",
+    "bytes": 118565,
+    "sha256": "a7601497311042e24374244378b4a9c2addcc4459315c3434ec2834f052dbbc1"
+  },
+  {
+    "path": "blocks/03-D/node3-cpu.pprof",
+    "bytes": 55789,
+    "sha256": "52680aaa29d9059ed5b61e72b39beda5a6f336b59782686770bd0f89bf2b3214"
+  },
+  {
+    "path": "blocks/03-D/report.json",
+    "bytes": 42843094,
+    "sha256": "dc9c43de0a6b97e25c9871fd6ad09aa3fe0ad3e5f81e165a46918f86c3838a86"
+  },
+  {
+    "path": "blocks/03-D/test.command.json",
+    "bytes": 564,
+    "sha256": "071efa69a6e5ca46d9f8c5289ebaf85ab30ca2064158fec6e15517d17c5aa255"
+  },
+  {
+    "path": "blocks/03-D/test.log",
+    "bytes": 1508,
+    "sha256": "5acd1e095503b498f24a9f265e98daa1d0acad499cd236644204a3eaf44ae6d5"
+  },
+  {
+    "path": "blocks/04-D/driver-cpu.pprof",
+    "bytes": 17419,
+    "sha256": "be44584b066e7651c7a40df6c0b634da257d8ec38e7fd6b677ff0e36a2f3124f"
+  },
+  {
+    "path": "blocks/04-D/fixed-environment.json",
+    "bytes": 1885627,
+    "sha256": "5a10257bd109f0c906f4b3a4f76747f3c38a30af020ecc62038bfb70c4dd3272"
+  },
+  {
+    "path": "blocks/04-D/node1-alloc-after.pprof",
+    "bytes": 120760,
+    "sha256": "d462a72091ed5816399765380579e84ea6666d8c458481c63bb7bcf559db1372"
+  },
+  {
+    "path": "blocks/04-D/node1-alloc-before.pprof",
+    "bytes": 118470,
+    "sha256": "ec6e75464a59c9c59119f23a77a838ce29bbfa896e38d39dca63a75f00972604"
+  },
+  {
+    "path": "blocks/04-D/node1-cpu.pprof",
+    "bytes": 55433,
+    "sha256": "16b70d5ed039a66afd9d1ec01069d67b15d2ff1fa08c80c2b73543a559fb0dfd"
+  },
+  {
+    "path": "blocks/04-D/node2-alloc-after.pprof",
+    "bytes": 119832,
+    "sha256": "c745c168d1906b731bdecb62f4acdfd019f1e83d418f774bb4576b47a9e4a46b"
+  },
+  {
+    "path": "blocks/04-D/node2-alloc-before.pprof",
+    "bytes": 118028,
+    "sha256": "15dce9528a5433b4cc12193622d595e4f1519c4dd8423e28d0e34171e1ae0028"
+  },
+  {
+    "path": "blocks/04-D/node2-cpu.pprof",
+    "bytes": 57560,
+    "sha256": "8bfc4b1e029c0202ff082d75a8ed590652eac041a146696ba427639b5c213d02"
+  },
+  {
+    "path": "blocks/04-D/node3-alloc-after.pprof",
+    "bytes": 116403,
+    "sha256": "d1120a118e9b412821e5959dc67975032d2a320f372db225fec7b35b8c034982"
+  },
+  {
+    "path": "blocks/04-D/node3-alloc-before.pprof",
+    "bytes": 114646,
+    "sha256": "2aaac32b821926755515d4ed69f943d2b498ec3620897fbf27aaa80dc3646605"
+  },
+  {
+    "path": "blocks/04-D/node3-cpu.pprof",
+    "bytes": 56360,
+    "sha256": "f1905e91d1f06ca3b27193d08864638d2e4ddae37d991c0e98464190ee2d6e76"
+  },
+  {
+    "path": "blocks/04-D/report.json",
+    "bytes": 42888115,
+    "sha256": "9a55dfc912f498df2a5d9d632f9075b32c0a1920bd5a6e1654e8a50f7ea5b748"
+  },
+  {
+    "path": "blocks/04-D/test.command.json",
+    "bytes": 564,
+    "sha256": "737b3c43032964feff746f1d7e497177e1cfd537c212ac4942021aedc4f06aff"
+  },
+  {
+    "path": "blocks/04-D/test.log",
+    "bytes": 1508,
+    "sha256": "e57ba53723b94ced95bde92eabc9f31a53ac927bf62e605c6979e659bf12850a"
+  },
+  {
+    "path": "blocks/05-O/driver-cpu.pprof",
+    "bytes": 14273,
+    "sha256": "a32f8ddedcf5168f3a5f80d5682e595231f3bf1b722ef3fdc1b04cda74a756fe"
+  },
+  {
+    "path": "blocks/05-O/fixed-environment.json",
+    "bytes": 1885694,
+    "sha256": "ff9982b386313621128688ddc9f6737d6144cef7e2298509cf464fe48622780f"
+  },
+  {
+    "path": "blocks/05-O/node1-alloc-after.pprof",
+    "bytes": 120393,
+    "sha256": "6a733a907a9440893247263d45cab700670cf9dd80ba2a558c78d6b254f2d384"
+  },
+  {
+    "path": "blocks/05-O/node1-alloc-before.pprof",
+    "bytes": 118834,
+    "sha256": "14678ddc6d61e3cf3d448140327ddcd9b38a37d9952177241092798db13934a1"
+  },
+  {
+    "path": "blocks/05-O/node1-cpu.pprof",
+    "bytes": 52489,
+    "sha256": "911001375d83df7132f1919651952ec4aaa88ab732936dc86bd13266444cefe9"
+  },
+  {
+    "path": "blocks/05-O/node2-alloc-after.pprof",
+    "bytes": 122055,
+    "sha256": "38a88bdc7b670dee89adcce5ea86290cc22efbc01f0bed709df07de77bd9dec1"
+  },
+  {
+    "path": "blocks/05-O/node2-alloc-before.pprof",
+    "bytes": 119748,
+    "sha256": "6d3b0c989590a6ac43dc09aab84bd919412bbe8a2f3d014292077f0f0de6e536"
+  },
+  {
+    "path": "blocks/05-O/node2-cpu.pprof",
+    "bytes": 56656,
+    "sha256": "db9a08418e86cff8421af72c59a149a61743c59b36f69c2947abf1abdead84e3"
+  },
+  {
+    "path": "blocks/05-O/node3-alloc-after.pprof",
+    "bytes": 120289,
+    "sha256": "58f5fa195653ee5d141272c9854dbcbc8a90c2487a86b419d5bab746c72d8833"
+  },
+  {
+    "path": "blocks/05-O/node3-alloc-before.pprof",
+    "bytes": 118492,
+    "sha256": "4acf678f10b7cedd405fbad4e40e271d1381e3415fa0525024b5e4985b34df38"
+  },
+  {
+    "path": "blocks/05-O/node3-cpu.pprof",
+    "bytes": 58215,
+    "sha256": "0c02cf163f6582aad0519b0cb35ad97a1beae38133ba1545ac62983a17fe64c2"
+  },
+  {
+    "path": "blocks/05-O/report.json",
+    "bytes": 42889766,
+    "sha256": "0a79343f0144a816f1e626837c97565f577dc0162c7eae12b8a266c4ede2c6a5"
+  },
+  {
+    "path": "blocks/05-O/test.command.json",
+    "bytes": 564,
+    "sha256": "63b863dd7fe54c5f12a0a1e17c7bcc3615e25d04fe07ccf9598ae83b478a870c"
+  },
+  {
+    "path": "blocks/05-O/test.log",
+    "bytes": 1510,
+    "sha256": "29a702f4b9a328ec3851869387a438f593d58ac1c4ef4b6b896be2466ac84960"
+  },
+  {
+    "path": "blocks/06-S/driver-cpu.pprof",
+    "bytes": 19663,
+    "sha256": "ff2490f6cfcc8ca878e8e72adef64f704a8d348903781717a93a721d29cce1fd"
+  },
+  {
+    "path": "blocks/06-S/fixed-environment.json",
+    "bytes": 1885761,
+    "sha256": "1c6b7ec08ee928a6e229fb746ed2df5ea0f44e536f59acc23a12b3c632a12387"
+  },
+  {
+    "path": "blocks/06-S/node1-alloc-after.pprof",
+    "bytes": 121649,
+    "sha256": "dbf5b484dac5bc7afc7b03d4826c11a5a754e3cb274f57074e5c4b59646a1d11"
+  },
+  {
+    "path": "blocks/06-S/node1-alloc-before.pprof",
+    "bytes": 119606,
+    "sha256": "cd88a323068d4d76ba848689c7f29b0be40e332d08001d8d2a1b0f40fc242e88"
+  },
+  {
+    "path": "blocks/06-S/node1-cpu.pprof",
+    "bytes": 59503,
+    "sha256": "8ff895659ff1944a782f757e4d84807cefc45d74d6f62106b2be12986e338a26"
+  },
+  {
+    "path": "blocks/06-S/node2-alloc-after.pprof",
+    "bytes": 117639,
+    "sha256": "bf879892b6265890a953a5b2d7d5603b037bd6ee5d6080f010c7f4f5547bc05b"
+  },
+  {
+    "path": "blocks/06-S/node2-alloc-before.pprof",
+    "bytes": 115805,
+    "sha256": "af8b7e4be2f972d04d9a86bebf132c3768cc5c0b3c6e439ecc0a552c944e7e48"
+  },
+  {
+    "path": "blocks/06-S/node2-cpu.pprof",
+    "bytes": 56756,
+    "sha256": "4574795a3989f5c70ad2f71ec7df2f63d7a9232c8ecae9f29d4c020b693def76"
+  },
+  {
+    "path": "blocks/06-S/node3-alloc-after.pprof",
+    "bytes": 117275,
+    "sha256": "575c47a0744f01a6999f8617dac398a0a50479abf044ed5f7626b7ef57b565c1"
+  },
+  {
+    "path": "blocks/06-S/node3-alloc-before.pprof",
+    "bytes": 115541,
+    "sha256": "0a2aaf18992cd548bd81a73aa094007afc129c3582cae829f14d44dcee04d4b2"
+  },
+  {
+    "path": "blocks/06-S/node3-cpu.pprof",
+    "bytes": 57634,
+    "sha256": "bcf701c6d3a69663ea7e835aae3383e371382673b1593e928585ff457833c502"
+  },
+  {
+    "path": "blocks/06-S/report.json",
+    "bytes": 44117436,
+    "sha256": "119f9c8911a6c89ebb6d848e03d99fe2ead51175823f80cf9dc1121292dfd7a2"
+  },
+  {
+    "path": "blocks/06-S/test.command.json",
+    "bytes": 563,
+    "sha256": "68ff1479b2606b7977e315fa6fbd9caebf69f83ec597049a70620280a6e70223"
+  },
+  {
+    "path": "blocks/06-S/test.log",
+    "bytes": 1508,
+    "sha256": "73a051ecb3b8ee356131c34de3127effe9b992e92b17b1eba91b7f24f600158a"
+  },
+  {
+    "path": "build-clone.command.json",
+    "bytes": 459,
+    "sha256": "b63c4a0c9a02c4d142c5f49a93dc4f34606e2248fd06d73e411b5edb43fe76db"
+  },
+  {
+    "path": "build-clone.log",
+    "bytes": 78,
+    "sha256": "762eaae65e70b85f5456b6d4f0149ba370fe3ad34cd49359f313168e9e17c555"
+  },
+  {
+    "path": "events.jsonl",
+    "bytes": 22522,
+    "sha256": "903a8755c37ce6a66de56437ddc28fd26a4b79901701d57c97291e7b143a3619"
+  },
+  {
+    "path": "harness/build.command.json",
+    "bytes": 480,
+    "sha256": "3cdb02fdc95ef9a50d8e589d6e1abd161ea01387b45d650d0ccda52123b136ca"
+  },
+  {
+    "path": "harness/build.log",
+    "bytes": 52,
+    "sha256": "97b608a5882939d88ddb6ed36cef02ad10e0fff55e0f035e3fc87a39a37dcb9d"
+  },
+  {
+    "path": "harness/build.txt",
+    "bytes": 427,
+    "sha256": "6704f0b2c6b06ba894e8aed5fef0d7b3943815b03bc03554f73182c312e41712"
+  },
+  {
+    "path": "harness/conversation_qps.test",
+    "bytes": 45771120,
+    "sha256": "29ebaa640b9eb7fe4940dc635c269abdfc205aa5b34403f83a834a3cad09cd21"
+  },
+  {
+    "path": "harness/identity.json",
+    "bytes": 336,
+    "sha256": "c07ec0565b149e0811142f526b06822988977a1ee19b43822a14c930b954d01f"
+  },
+  {
+    "path": "harness/profile.json",
+    "bytes": 2087,
+    "sha256": "1d0fb74bf51a6e747b56d1b43fece4670b40143a69a1601cc2f4be6f784a37a1"
+  },
+  {
+    "path": "host.json",
+    "bytes": 8970,
+    "sha256": "be19ea0020cb67b1a99b1c1a6504ca972d0d03dbb00f0d3833293c7faaa93b34"
+  },
+  {
+    "path": "plan/sequence.json",
+    "bytes": 2337,
+    "sha256": "3fe544666d25cce64a874b6d23f17a024530bcb7244be88d95e714cce98ddffd"
+  },
+  {
+    "path": "source-ancestry.command.json",
+    "bytes": 434,
+    "sha256": "2cdac7b45bd72f258c80c4e0891dfe2dfb62e7cb244e570a33692a80611537d5"
+  },
+  {
+    "path": "source-ancestry.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "summary.json",
+    "bytes": 21819,
+    "sha256": "8f3d5091481a6202ffd9e2484ec53d7b125c25056ac1fd9c9cf401fccd090b3e"
+  },
+  {
+    "path": "../conversation-cpu-contention-preflight.cleanup.jsonl",
+    "bytes": 2265,
+    "sha256": "a4a681630585e0bf791d884befab717ed01ecb740d4b5eb8ad01077507b462b2"
+  },
+  {
+    "path": "../conversation-cpu-contention-preflight.cleanup.stderr.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "../conversation-cpu-contention-preflight.inputs.log",
+    "bytes": 53,
+    "sha256": "8b31eca1a76cc15db9a90ffca512a7a79e6618bead933845241a1a09b9a05cad"
+  },
+  {
+    "path": "../conversation-cpu-contention-preflight.placement.jsonl",
+    "bytes": 5846,
+    "sha256": "901c27ca7014e4216461eff88c6aa36f510bebc8547b13bae4f7502547b999a3"
+  },
+  {
+    "path": "../conversation-cpu-contention-preflight.placement.stderr.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

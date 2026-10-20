@@ -1,0 +1,2 @@
+# Preserve the analyzer's original CSV bytes, including standard CRLF records.
+analysis/*.csv -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

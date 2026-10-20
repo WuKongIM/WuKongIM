@@ -1,0 +1,30 @@
+{
+  "source_parent": "7d8ddb1fd",
+  "harness_commit": "07ed85a22",
+  "validation": [
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "d17cbd",
+        "wall_time_seconds": 0.0000135,
+        "exit_code": 0,
+        "original_token_count": 689,
+        "output": "ok  \tgithub.com/WuKongIM/WuKongIM/test/e2e/message/conversation_qps\t0.383s\n=== RUN   TestCPUPlacementPlan\n=== RUN   TestCPUPlacementPlan/S\n=== RUN   TestCPUPlacementPlan/O\n=== RUN   TestCPUPlacementPlan/D\n=== RUN   TestCPUPlacementPlan/missing_CPU\n=== RUN   TestCPUPlacementPlan/duplicate_CPU\n=== RUN   TestCPUPlacementPlan/third_core\n=== RUN   TestCPUPlacementPlan/second_NUMA_node\n=== RUN   TestCPUPlacementPlan/second_package\n=== RUN   TestCPUPlacementPlan/asymmetric_siblings\n=== RUN   TestCPUPlacementPlan/hidden_sibling\n=== RUN   TestCPUPlacementPlan/unknown_NUMA\n=== RUN   TestCPUPlacementPlan/oversized_CPU\n--- PASS: TestCPUPlacementPlan (0.00s)\n    --- PASS: TestCPUPlacementPlan/S (0.00s)\n    --- PASS: TestCPUPlacementPlan/O (0.00s)\n    --- PASS: TestCPUPlacementPlan/D (0.00s)\n    --- PASS: TestCPUPlacementPlan/missing_CPU (0.00s)\n    --- PASS: TestCPUPlacementPlan/duplicate_CPU (0.00s)\n    --- PASS: TestCPUPlacementPlan/third_core (0.00s)\n    --- PASS: TestCPUPlacementPlan/second_NUMA_node (0.00s)\n    --- PASS: TestCPUPlacementPlan/second_package (0.00s)\n    --- PASS: TestCPUPlacementPlan/asymmetric_siblings (0.00s)\n    --- PASS: TestCPUPlacementPlan/hidden_sibling (0.00s)\n    --- PASS: TestCPUPlacementPlan/unknown_NUMA (0.00s)\n    --- PASS: TestCPUPlacementPlan/oversized_CPU (0.00s)\n=== RUN   TestCPUPlacementParsers\n--- PASS: TestCPUPlacementParsers (0.00s)\n=== RUN   TestCPUWindowSamplerParsesIdentityAndCounters\n--- PASS: TestCPUWindowSamplerParsesIdentityAndCounters (0.00s)\n=== RUN   TestCPUWindowSamplerDifferenceRefusesReusedOrRegressedThread\n--- PASS: TestCPUWindowSamplerDifferenceRefusesReusedOrRegressedThread (0.00s)\n=== RUN   TestCPUWindowSamplerBoundsAndNoCatchUp\n--- PASS: TestCPUWindowSamplerBoundsAndNoCatchUp (0.00s)\n=== RUN   TestCPUWindowSamplerCapabilityRequiresDistinctMatchedProgress\n--- PASS: TestCPUWindowSamplerCapabilityRequiresDistinctMatchedProgress (0.00s)\n=== RUN   TestCPUWindowSamplerReceiptEscapingKeepsNormalThreadBudget\n--- PASS: TestCPUWindowSamplerReceiptEscapingKeepsNormalThreadBudget (0.00s)\n=== RUN   TestCPUWindowSamplerConfirmedExitPreservesCoverageWithoutControlFailure\n--- PASS: TestCPUWindowSamplerConfirmedExitPreservesCoverageWithoutControlFailure (0.00s)\n=== RUN   TestCPUPlacementDriverTimingKeepsDistinctWaitingComponents\n--- PASS: TestCPUPlacementDriverTimingKeepsDistinctWaitingComponents (0.00s)\n=== RUN   TestCPUPlacementDriverTimingIsAbsentFromDefaultGate\n--- PASS: TestCPUPlacementDriverTimingIsAbsentFromDefaultGate (0.00s)\n=== RUN   TestConversationQPSCPUPlacement\n    mixed_attribution_test.go:43: explicit Linux CPU placement diagnostic\n--- SKIP: TestConversationQPSCPUPlacement (0.00s)\nPASS\nok  \tgithub.com/WuKongIM/WuKongIM/test/e2e/message/conversation_qps\t0.266s\n"
+      }
+    },
+    {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "841f72",
+        "wall_time_seconds": 0.000010625,
+        "exit_code": 0,
+        "original_token_count": 462,
+        "output": "ok  \tgithub.com/WuKongIM/WuKongIM/scripts\t4.174s\nok  \tgithub.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper\t0.496s [no tests to run]\nok  \tgithub.com/WuKongIM/WuKongIM/scripts/flowcheck\t0.765s [no tests to run]\nok  \tgithub.com/WuKongIM/WuKongIM/scripts/skillcheck\t1.304s [no tests to run]\nok  \tgithub.com/WuKongIM/WuKongIM/scripts/skillcontracts\t1.581s [no tests to run]\nok  \tgithub.com/WuKongIM/WuKongIM/scripts/transport-perf/probe\t1.839s [no tests to run]\ndocs-site/FLOW.md: 115 lines exceeds the 100-line target\ninternal/access/api/FLOW.md: 148 lines exceeds the 100-line target\ninternal/access/mqtt/FLOW.md: 102 lines exceeds the 100-line target\ninternal/access/node/FLOW.md: 106 lines exceeds the 100-line target\ninternal/app/FLOW.md: 148 lines exceeds the 100-line target\ninternal/bench/FLOW.md: 121 lines exceeds the 100-line target\ninternal/bench/chatlifecycle/FLOW.md: 107 lines exceeds the 100-line target\ninternal/infra/cluster/FLOW.md: 133 lines exceeds the 100-line target\ninternal/runtime/channelappend/FLOW.md: 118 lines exceeds the 100-line target\ninternal/runtime/mqttsession/FLOW.md: 102 lines exceeds the 100-line target\ninternal/usecase/message/FLOW.md: 132 lines exceeds the 100-line target\ninternal/usecase/mqttsession/FLOW.md: 124 lines exceeds the 100-line target\npkg/channel/FLOW.md: 148 lines exceeds the 100-line target\npkg/channel/reactor/FLOW.md: 102 lines exceeds the 100-line target\npkg/cluster/FLOW.md: 150 lines exceeds the 100-line target\npkg/db/message/FLOW.md: 150 lines exceeds the 100-line target\npkg/db/meta/FLOW.md: 123 lines exceeds the 100-line target\npkg/gateway/FLOW.md: 111 lines exceeds the 100-line target\npkg/slot/FLOW.md: 115 lines exceeds the 100-line target\ntest/e2e/suite/FLOW.md: 105 lines exceeds the 100-line target\nflowcheck: 88 FLOW files; 88 compliant; 0 invalid; 20 warnings\n"
+      }
+    }
+  ],
+  "limitations": [
+    "Linux test binary cross-compiled only here; actual Linux integration and workload require workflow.",
+    "New diagnostic E2E entry correctly skips unless explicitly opted in; this local skip is not a workload pass."
+  ]
+}

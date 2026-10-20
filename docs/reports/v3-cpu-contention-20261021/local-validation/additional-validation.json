@@ -1,0 +1,23 @@
+{
+  "harness_sha": "07ed85a22bdd2ebf75b776a92e71f21c02d2623f",
+  "scripts_full": {
+    "status": "fulfilled",
+    "value": {
+      "chunk_id": "201d53",
+      "wall_time_seconds": 0.000013708,
+      "exit_code": 0,
+      "original_token_count": 95,
+      "output": "ok  \tgithub.com/WuKongIM/WuKongIM/scripts\t31.303s\nok  \tgithub.com/WuKongIM/WuKongIM/scripts/docs-cdn/certificate-helper\t1.683s\nok  \tgithub.com/WuKongIM/WuKongIM/scripts/flowcheck\t1.751s\nok  \tgithub.com/WuKongIM/WuKongIM/scripts/skillcheck\t2.496s\nok  \tgithub.com/WuKongIM/WuKongIM/scripts/skillcontracts\t1.433s\nok  \tgithub.com/WuKongIM/WuKongIM/scripts/transport-perf/probe\t2.024s\n"
+    }
+  },
+  "actionlint": {
+    "version": "v1.7.9",
+    "target": ".github/workflows/conversation-qps-diagnose.yml",
+    "exit_code": 0
+  },
+  "run": {
+    "id": 39467558163,
+    "attempt": 1,
+    "url": "https://github.com/WuKongIM/WuKongIM/actions/runs/39467558163"
+  }
+}

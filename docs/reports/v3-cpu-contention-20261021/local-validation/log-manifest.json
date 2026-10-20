@@ -1,0 +1,173 @@
+{
+  "encoding": "gzip without content changes",
+  "files": [
+    {
+      "original_path": "local-validation/contracts/conversation-cpu-contention-coverage-red.log",
+      "stored_path": "local-validation/contracts/conversation-cpu-contention-coverage-red.log.gz",
+      "original_bytes": 751,
+      "original_sha256": "0fafa90889f4cff0fb5fae89edeeca608feb9d1fa99a6a8875d524d6fcf644c4"
+    },
+    {
+      "original_path": "local-validation/contracts/conversation-cpu-contention-last-arrival-red.log",
+      "stored_path": "local-validation/contracts/conversation-cpu-contention-last-arrival-red.log.gz",
+      "original_bytes": 1906,
+      "original_sha256": "d4405227663c449eea8736814792f5bfd29aaf3e0d3ab73df64e6de6908b93a4"
+    },
+    {
+      "original_path": "local-validation/contracts/conversation-cpu-contention-placement-duration-red.log",
+      "stored_path": "local-validation/contracts/conversation-cpu-contention-placement-duration-red.log.gz",
+      "original_bytes": 751,
+      "original_sha256": "b9b72e2921d46313bcbec225657e4e62c73e517c617e6b4a775705054d1fb5c8"
+    },
+    {
+      "original_path": "local-validation/contracts/conversation-cpu-contention-sampler-red.log",
+      "stored_path": "local-validation/contracts/conversation-cpu-contention-sampler-red.log.gz",
+      "original_bytes": 7632,
+      "original_sha256": "57d440f4fb8432c40dc960636e1e99d12d58c407fe53ac8f4de705bfc79da0a6"
+    },
+    {
+      "original_path": "local-validation/contracts/conversation-cpu-contention-workflow-red.log",
+      "stored_path": "local-validation/contracts/conversation-cpu-contention-workflow-red.log.gz",
+      "original_bytes": 7053,
+      "original_sha256": "fd911b115b264dd65592002c0ce5eb65b7c49e34a856f3c0e3b44c30570948a4"
+    },
+    {
+      "original_path": "local-validation/driver-placement/driver-timing-green.log",
+      "stored_path": "local-validation/driver-placement/driver-timing-green.log.gz",
+      "original_bytes": 35,
+      "original_sha256": "64b82400ce70fb7b36293431e9ad72da77710aec60c2a0eef385b79c015c83ea"
+    },
+    {
+      "original_path": "local-validation/driver-placement/driver-timing-isolated-red.log",
+      "stored_path": "local-validation/driver-placement/driver-timing-isolated-red.log.gz",
+      "original_bytes": 579,
+      "original_sha256": "59a0f74f8743d9bb085eb914e080af255ba395ad431f79eb0f5ee70446ed0935"
+    },
+    {
+      "original_path": "local-validation/driver-placement/driver-timing-red.log",
+      "stored_path": "local-validation/driver-placement/driver-timing-red.log.gz",
+      "original_bytes": 1288,
+      "original_sha256": "e2990a27394666ce01ebf70bf98ee53494298ac80ef03a7cba1485891cf96588"
+    },
+    {
+      "original_path": "local-validation/driver-placement/placement-linux-compile-green.log",
+      "stored_path": "local-validation/driver-placement/placement-linux-compile-green.log.gz",
+      "original_bytes": 0,
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "local-validation/driver-placement/placement-linux-compile-red.log",
+      "stored_path": "local-validation/driver-placement/placement-linux-compile-red.log.gz",
+      "original_bytes": 343,
+      "original_sha256": "a43c8db8942412c5ccce66cf1d51d382b59146b5d6c5e9ed538874c33a1c513e"
+    },
+    {
+      "original_path": "local-validation/driver-placement/placement-pure-green.log",
+      "stored_path": "local-validation/driver-placement/placement-pure-green.log.gz",
+      "original_bytes": 75,
+      "original_sha256": "3cc667c2d478fc09f05e35ed7a05e114784483ba7395187766d3b3884b52783b"
+    },
+    {
+      "original_path": "local-validation/driver-placement/placement-pure-red.log",
+      "stored_path": "local-validation/driver-placement/placement-pure-red.log.gz",
+      "original_bytes": 1203,
+      "original_sha256": "d5561ce5b5b615b924bbd2d8593e6734b23f1458c107db0a5df06868dcd89390"
+    },
+    {
+      "original_path": "local-validation/sampler/sampler-budget-lifecycle-red.log",
+      "stored_path": "local-validation/sampler/sampler-budget-lifecycle-red.log.gz",
+      "original_bytes": 1053,
+      "original_sha256": "9ce5bef50cc2c457a0da36b55e881ecda1ada13961086f4f34d928237f35629e"
+    },
+    {
+      "original_path": "local-validation/sampler/sampler-capability-red.log",
+      "stored_path": "local-validation/sampler/sampler-capability-red.log.gz",
+      "original_bytes": 547,
+      "original_sha256": "29e5bbed4efdb41c5fd96a734c5cc50e2b020b3afb8b9935c245fa53cafda7d3"
+    },
+    {
+      "original_path": "local-validation/sampler/sampler-default-suite.log",
+      "stored_path": "local-validation/sampler/sampler-default-suite.log.gz",
+      "original_bytes": 75,
+      "original_sha256": "5050d146fc51a59b29ec4b4d8e5d5557864b832ed7ccb58119deb49715678554"
+    },
+    {
+      "original_path": "local-validation/sampler/sampler-e2e-compile.log",
+      "stored_path": "local-validation/sampler/sampler-e2e-compile.log.gz",
+      "original_bytes": 75,
+      "original_sha256": "b4693b631aea9b808c20bd5998d1bb984ab2e6fd09fc8f33f4f013338cdc1af2"
+    },
+    {
+      "original_path": "local-validation/sampler/sampler-followup-default-green.log",
+      "stored_path": "local-validation/sampler/sampler-followup-default-green.log.gz",
+      "original_bytes": 75,
+      "original_sha256": "1426baf7c69be4e95541cd68d8bb989ae851017ea0b81c333ff888823f45c58f"
+    },
+    {
+      "original_path": "local-validation/sampler/sampler-followup-e2e-green.log",
+      "stored_path": "local-validation/sampler/sampler-followup-e2e-green.log.gz",
+      "original_bytes": 75,
+      "original_sha256": "7f08fee5a784fc8a5e84b5ee987024dc0973b3a5a7aeca76a17843ad9ca4eb26"
+    },
+    {
+      "original_path": "local-validation/sampler/sampler-followup-green.log",
+      "stored_path": "local-validation/sampler/sampler-followup-green.log.gz",
+      "original_bytes": 75,
+      "original_sha256": "12b2d15bbb558e7b8461f33b066b61e329dfd8353bff24b329d09ffbb26ff4d3"
+    },
+    {
+      "original_path": "local-validation/sampler/sampler-followup-linux-compile.log",
+      "stored_path": "local-validation/sampler/sampler-followup-linux-compile.log.gz",
+      "original_bytes": 0,
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "local-validation/sampler/sampler-integration-isolated-red-compile.log",
+      "stored_path": "local-validation/sampler/sampler-integration-isolated-red-compile.log.gz",
+      "original_bytes": 380,
+      "original_sha256": "3a828ae2473afc6f3288e1b9521dddab26a5a778f4f55e80966fab4642c81da2"
+    },
+    {
+      "original_path": "local-validation/sampler/sampler-integration-red-compile.log",
+      "stored_path": "local-validation/sampler/sampler-integration-red-compile.log.gz",
+      "original_bytes": 1115,
+      "original_sha256": "1d6f5f2455d1af0e5a2ae9c7cf930deb916b7fe6169676d1b45a5b49289d1bef"
+    },
+    {
+      "original_path": "local-validation/sampler/sampler-linux-compile.log",
+      "stored_path": "local-validation/sampler/sampler-linux-compile.log.gz",
+      "original_bytes": 0,
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "local-validation/sampler/sampler-linux-integration-compile.log",
+      "stored_path": "local-validation/sampler/sampler-linux-integration-compile.log.gz",
+      "original_bytes": 0,
+      "original_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original_path": "local-validation/sampler/sampler-pure-green.log",
+      "stored_path": "local-validation/sampler/sampler-pure-green.log.gz",
+      "original_bytes": 75,
+      "original_sha256": "92003c2ebf8b24cf6a245c9a5deb5cef7d0ced9b5947f04a64a1bc56b35553bb"
+    },
+    {
+      "original_path": "local-validation/sampler/sampler-pure-isolated-green.log",
+      "stored_path": "local-validation/sampler/sampler-pure-isolated-green.log.gz",
+      "original_bytes": 35,
+      "original_sha256": "e6b8f88f990b92ed4b0879639003d45511a138b3d6c175a3ff940f2156243202"
+    },
+    {
+      "original_path": "local-validation/sampler/sampler-pure-red.log",
+      "stored_path": "local-validation/sampler/sampler-pure-red.log.gz",
+      "original_bytes": 1288,
+      "original_sha256": "e2990a27394666ce01ebf70bf98ee53494298ac80ef03a7cba1485891cf96588"
+    },
+    {
+      "original_path": "verifier/selftest.log",
+      "stored_path": "verifier/selftest.log.gz",
+      "original_bytes": 660,
+      "original_sha256": "e9acb35a7303d142ae5c28d7e32fdab9afc252a0bc575057c612ff6ca704ec3b"
+    }
+  ]
+}

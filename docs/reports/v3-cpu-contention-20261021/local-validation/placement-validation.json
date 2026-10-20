@@ -1,0 +1,60 @@
+{
+  "schema": "wukongim/cpu-placement-local-validation/v1",
+  "api": "applyCPUPlacement(driverPID int, nodePIDs []int, mode string) (*CPUPlacementReceipt, error)",
+  "modes": [
+    "S",
+    "O",
+    "D"
+  ],
+  "linux_preflight": "TestCPUPlacementLinuxAllThreads",
+  "linux_preflight_executed": false,
+  "pure_tests": {
+    "command": "GOWORK=off go test ./test/e2e/message/conversation_qps -run '^TestCPUPlacement' -count=1",
+    "exit_code": 0,
+    "elapsed_seconds": 0.279
+  },
+  "linux_compile": {
+    "command": "GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GOWORK=off go test -tags=e2e,integration -c -o /tmp/wukongim-cpu-causal-20261021/placement-preflight.test ./test/e2e/message/conversation_qps",
+    "exit_code": 0
+  },
+  "earlier_full_pure_package": {
+    "exit_code": 0,
+    "elapsed_seconds": 0.29
+  },
+  "red_evidence": [
+    "placement-pure-red.log",
+    "placement-linux-compile-red.log"
+  ],
+  "notes": [
+    "Linux executable was compiled on macOS but not executed. Workflow must demand exact integration test pass and reject skip.",
+    "One task-stat test literal initially omitted a field; corrected before final pure green.",
+    "Shared sampler agent temporarily added an undefined pure-test helper during final checks; tests reran after its implementation green."
+  ],
+  "files": [
+    {
+      "path": "test/e2e/message/conversation_qps/cpu_placement.go",
+      "bytes": 5753,
+      "sha256": "0e0c744f75bb4bde7b840f2b057bb3cb2de33bfe5a20d4a60aa4cbc5199f022f"
+    },
+    {
+      "path": "test/e2e/message/conversation_qps/cpu_placement_integration_test.go",
+      "bytes": 6287,
+      "sha256": "1825886119b14302eb04b7e85c06783f368ddf0a1932fbbda4fed49ad8a01be9"
+    },
+    {
+      "path": "test/e2e/message/conversation_qps/cpu_placement_linux.go",
+      "bytes": 10979,
+      "sha256": "6ed9ed318197a3f7271cb4e23fb30de48fa3cffed3fa0cbb183355f3942887df"
+    },
+    {
+      "path": "test/e2e/message/conversation_qps/cpu_placement_other.go",
+      "bytes": 452,
+      "sha256": "4a5eacc7a757c26631c75e5a5016dca4cd0ec009ad9b28a280b9980e9c46573f"
+    },
+    {
+      "path": "test/e2e/message/conversation_qps/cpu_placement_test.go",
+      "bytes": 3393,
+      "sha256": "3b2d2beaacd245f11383a58ed1fb1d1d6916ab17afa1960d69e4029fd76581b8"
+    }
+  ]
+}

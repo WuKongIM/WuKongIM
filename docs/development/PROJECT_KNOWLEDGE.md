@@ -1887,3 +1887,11 @@ specification, runbook, report, or module documentation; link to them when neede
   Preserve within-window scheduler evidence, observer cost and same-mode repeats;
   neither correlation nor a successful intervention proves the unique cause of
   an earlier run on an unavailable host.
+- Run 39467558163 kept the qualified candidate's exact product bytes and used
+  S/O/D/D/O/S placement with bounded in-window sampling. All 280,800 requests
+  completed without errors or drops; list median-window driver-wait P99 fell
+  about 50% in both O/D pairs, but sync failed the predeclared joint screen.
+  Reduced task runqueue wait supports this local placement mechanism, not a
+  unique historical cause or beta-to-candidate non-regression. The diagnostic
+  does not replace the earlier full 20-result Linux qualification. See
+  [CPU contention evidence and limitations](../reports/2026-10-21-v3-cpu-contention.md).
